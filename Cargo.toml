@@ -1,5 +1,6 @@
 [package]
 name = "proof_of_provenance"
+authors = ["sinuio <sinuio.eth>"]
 version = "0.1.0"
 edition = "2021"
 
