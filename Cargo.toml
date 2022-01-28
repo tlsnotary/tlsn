@@ -1,17 +1,5 @@
-[package]
-name = "proof_of_provenance"
-authors = ["sinuio <sinuio.eth>"]
-version = "0.1.0"
-edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-rustls = "0.20"
-rustls-pemfile = "0.2.1"
-webpki-roots = "0.22"
-ct-logs = "0.9"
-clap = { version = "3.0.7", features = ["derive"] }
-env_logger = "0.9.0"
-mio = { version = "0.8", features = ["net", "os-poll"] }
-fancy-garbling = { git = "https://github.com/GaloisInc/swanky.git" }
+[workspace]
+members = [
+    "pop-tls",
+    "pop-mpc",
+]
