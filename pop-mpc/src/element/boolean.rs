@@ -1,5 +1,5 @@
-use super::GateOps;
 use crate::errors::GateOpsError;
+use crate::gate::GateOps;
 
 pub type Bool = u8;
 

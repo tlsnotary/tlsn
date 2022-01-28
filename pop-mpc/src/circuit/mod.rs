@@ -1,8 +1,7 @@
 pub mod parse;
 
-use crate::element::GateOps;
 use crate::errors::CircuitEvalError;
-use crate::gate::Gate;
+use crate::gate::{Gate, GateOps};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Circuit {
