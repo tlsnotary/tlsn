@@ -8,3 +8,6 @@ edition = "2018"
 [dependencies]
 rand = "0.8.4"
 regex = "1.5.4"
+
+[dev-dependencies]
+rstest = "0.12.0"
