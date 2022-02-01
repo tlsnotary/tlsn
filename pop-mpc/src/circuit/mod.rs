@@ -19,6 +19,10 @@ pub struct Circuit {
     pub(crate) noutput_wires: usize,
     /// All gates in the circuit
     pub(crate) gates: Vec<Gate>,
+    /// Total number of AND gates
+    pub(crate) nand: usize,
+    /// Total number of XOR gates
+    pub(crate) nxor: usize,
 }
 
 impl Circuit {
@@ -38,6 +42,8 @@ impl Circuit {
             ninput_wires,
             noutput_wires,
             gates: Vec::with_capacity(ngates),
+            nand: 0,
+            nxor: 0,
         }
     }
 

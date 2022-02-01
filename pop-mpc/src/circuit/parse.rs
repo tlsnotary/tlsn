@@ -114,6 +114,7 @@ impl Circuit {
                     let xref: usize = gate_vals[2].parse()?;
                     let yref: usize = gate_vals[3].parse()?;
                     let zref: usize = gate_vals[4].parse()?;
+                    circ.nand += 1;
                     Gate::And {
                         id,
                         xref,
@@ -125,6 +126,7 @@ impl Circuit {
                     let xref: usize = gate_vals[2].parse()?;
                     let yref: usize = gate_vals[3].parse()?;
                     let zref: usize = gate_vals[4].parse()?;
+                    circ.nxor += 1;
                     Gate::Xor {
                         id,
                         xref,
@@ -159,6 +161,8 @@ mod tests {
 
         assert_eq!(circ.ninput_wires, 128);
         assert_eq!(circ.noutput_wires, 64);
+        assert_eq!(circ.nxor, 313);
+        assert_eq!(circ.nand, 63);
 
         let a = vec![0u8; 64];
         let b = vec![0u8; 64];
@@ -221,6 +225,8 @@ mod tests {
 
         assert_eq!(circ.ninput_wires, 256);
         assert_eq!(circ.noutput_wires, 128);
+        assert_eq!(circ.nxor, 28176);
+        assert_eq!(circ.nand, 6400);
 
         let mut key = vec![0u8; 128];
         let mut pt = vec![0u8; 128];
@@ -296,6 +302,8 @@ mod tests {
 
         assert_eq!(circ.ninput_wires, 256);
         assert_eq!(circ.noutput_wires, 128);
+        assert_eq!(circ.nxor, 25124);
+        assert_eq!(circ.nand, 6800);
 
         let mut key = vec![0u8; 128];
         let mut pt = vec![0u8; 128];
