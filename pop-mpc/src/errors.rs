@@ -92,3 +92,21 @@ impl From<std::num::ParseIntError> for CircuitParserError {
         CircuitParserError::ParseIntError
     }
 }
+
+///////////////////////////////////////////////////////////////////////////////
+/// Circuit Garbling
+
+#[derive(Debug)]
+pub enum GarbleGeneratorError {
+    UninitializedLabel(usize),
+}
+
+impl Display for GarbleGeneratorError {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            GarbleGeneratorError::UninitializedLabel(wire) => {
+                write!(f, "Uninitialized label, wire {}", wire)
+            }
+        }
+    }
+}

@@ -1,27 +1,14 @@
 use crate::block::Block;
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum Wire {
-    /// Representation of a Bool wire
-    Bool(Block),
-}
+pub struct WireLabel(usize, Block);
 
-impl std::default::Default for Wire {
-    fn default() -> Self {
-        Wire::Bool(Block::default())
+impl WireLabel {
+    pub fn new(id: usize, block: Block) -> Self {
+        WireLabel(id, block)
     }
-}
-
-impl Wire {
-    /// Unpack the wire represented by a `Block`
-    pub fn from_block(inp: Block) -> Self {
-        Wire::Bool(inp)
-    }
-
-    /// Pack the wire into a `Block`.
+    /// Pack the wire label into a `Block`.
     pub fn as_block(&self) -> Block {
-        match self {
-            Wire::Bool(b) => *b,
-        }
+        self.1
     }
 }
