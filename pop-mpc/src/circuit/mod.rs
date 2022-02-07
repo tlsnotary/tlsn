@@ -3,26 +3,28 @@ pub mod parse;
 use crate::errors::CircuitEvalError;
 use crate::gate::{Gate, GateOps};
 
+pub use parse::*;
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Circuit {
     /// Number of gates in the circuit
-    pub(crate) ngates: usize,
+    pub ngates: usize,
     /// Number of wires in the circuit
-    pub(crate) nwires: usize,
+    pub nwires: usize,
     /// Number of inputs to the circuit
-    pub(crate) ninputs: usize,
+    pub ninputs: usize,
     /// Number of wires for each input to the circuit
-    pub(crate) input_nwires: Vec<usize>,
+    pub input_nwires: Vec<usize>,
     /// Total number of input wires
-    pub(crate) ninput_wires: usize,
+    pub ninput_wires: usize,
     /// Total number of output wires
-    pub(crate) noutput_wires: usize,
+    pub noutput_wires: usize,
     /// All gates in the circuit
     pub(crate) gates: Vec<Gate>,
     /// Total number of AND gates
-    pub(crate) nand: usize,
+    pub nand: usize,
     /// Total number of XOR gates
-    pub(crate) nxor: usize,
+    pub nxor: usize,
 }
 
 impl Circuit {

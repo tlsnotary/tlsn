@@ -1,113 +1,139 @@
 use super::GarbledCircuitGenerator;
-use crate::block::Block;
+use crate::block::{Block, SELECT_MASK};
 use crate::circuit::Circuit;
-use crate::errors::GarbleGeneratorError;
+use crate::errors::GeneratorError;
+use crate::garble::circuit::GarbledCircuit;
+use crate::garble::hash::WireLabelHasher;
 use crate::gate::Gate;
-use crate::prg::PRG;
+use crate::prg::Prg;
 
-struct HalfGateGenerator<'a, P: PRG> {
-    circ: &'a Circuit,
-    delta: Block,
-    public_labels: [Block; 2],
-    wire_labels: Vec<(Block, Block)>,
-    current_index: usize,
-    prg: P,
+pub struct HalfGateGenerator;
+
+impl HalfGateGenerator {
+    #[inline]
+    pub fn and_gate<H: WireLabelHasher>(
+        &self,
+        h: &H,
+        x: [Block; 2],
+        y: [Block; 2],
+        delta: Block,
+        gid: usize,
+    ) -> ([Block; 2], [Block; 2]) {
+        let p_a = x[0].lsb();
+        let p_b = y[0].lsb();
+        let j = gid;
+        let k = gid + 1;
+
+        let hx_0 = h.hash(x[0], j);
+        let hy_0 = h.hash(y[0], k);
+
+        let t_g = hx_0 ^ h.hash(x[1], j) ^ (SELECT_MASK[p_b] & delta);
+        let w_g = hx_0 ^ (SELECT_MASK[p_a] & t_g);
+
+        let t_e = hy_0 ^ h.hash(y[1], k) ^ x[0];
+        let w_e = hy_0 ^ (SELECT_MASK[p_b] & (t_e ^ x[0]));
+
+        let z_0 = w_g ^ w_e;
+        let z = [z_0, z_0 ^ delta];
+
+        (z, [t_g, t_e])
+    }
+
+    #[inline]
+    pub fn xor_gate(&self, x: [Block; 2], y: [Block; 2], delta: Block) -> [Block; 2] {
+        let z_0 = x[0] ^ y[0];
+        [z_0, z_0 ^ delta]
+    }
+
+    #[inline]
+    pub fn inv_gate(&self, x: [Block; 2], public_labels: [Block; 2], delta: Block) -> [Block; 2] {
+        let z_0 = x[0] ^ public_labels[1];
+        [z_0 ^ delta, z_0]
+    }
 }
 
-impl<'a, P: PRG> HalfGateGenerator<'a, P> {
-    pub fn new(circ: &'a Circuit, mut prg: P) -> HalfGateGenerator<'a, P> {
+impl GarbledCircuitGenerator for HalfGateGenerator {
+    fn garble<P: Prg, H: WireLabelHasher>(
+        &self,
+        h: &H,
+        prg: &mut P,
+        circ: &Circuit,
+    ) -> Result<GarbledCircuit, GeneratorError> {
         let mut delta: Block = prg.random_block();
         delta.set_lsb();
+
         let public_labels = [prg.random_block(), prg.random_block() ^ delta];
 
-        HalfGateGenerator {
-            circ,
-            delta,
-            public_labels,
-            wire_labels: Vec::new(),
-            current_index: 0,
-            prg,
+        let mut input_labels: Vec<[Block; 2]> = Vec::with_capacity(circ.ninput_wires);
+        let mut table: Vec<[Block; 2]> = Vec::with_capacity(circ.nand);
+        let mut cache: Vec<Option<[Block; 2]>> = vec![None; circ.nwires];
+
+        for i in 0..circ.ninput_wires {
+            let z_0 = prg.random_block();
+            let z_1 = z_0 ^ delta;
+            let z = [z_0, z_1];
+            input_labels.push(z);
+            cache[i] = Some(z);
         }
-    }
 
-    fn public_label(&self, b: bool) -> Block {
-        self.public_labels[b as usize]
-    }
-
-    fn next_index(&mut self) -> usize {
-        self.current_index += 1;
-        self.current_index
-    }
-
-    fn encode_and(&self, x_0: Block, y_0: Block) -> Block {
-        let p_a = x_0.lsb();
-        let p_b = y_0.lsb();
-        let j = self.next_index();
-        let k = self.next_index();
-    }
-}
-
-impl<'a, P: PRG> GarbledCircuitGenerator for HalfGateGenerator<'a, P> {
-    fn encode_wire_labels(&mut self) -> Result<(), GarbleGeneratorError> {
-        let mut wire_labels: Vec<Option<(Block, Block)>> = vec![None; self.circ.nwires];
-        for i in 0..self.circ.ninput_wires {
-            let z0 = self.prg.random_block();
-            let z1 = z0 ^ self.delta;
-            wire_labels[i] = Some((z0, z1));
-        }
-        for gate in self.circ.gates.iter() {
-            let (zref, z0) = match *gate {
+        let mut gid = 1;
+        for gate in circ.gates.iter() {
+            match *gate {
                 Gate::Inv { xref, zref, .. } => {
-                    let x = wire_labels[xref]
-                        .ok_or_else(|| GarbleGeneratorError::UninitializedLabel(xref))?;
-                    (zref, x.0 ^ self.public_label(true))
+                    let x = cache[xref].ok_or_else(|| GeneratorError::UninitializedLabel(xref))?;
+                    let z = self.inv_gate(x, public_labels, delta);
+                    cache[zref] = Some(z);
                 }
                 Gate::Xor {
                     xref, yref, zref, ..
                 } => {
-                    let x = wire_labels[xref]
-                        .ok_or_else(|| GarbleGeneratorError::UninitializedLabel(xref))?;
-                    let y = wire_labels[yref]
-                        .ok_or_else(|| GarbleGeneratorError::UninitializedLabel(yref))?;
-                    (zref, x.0 ^ y.0)
+                    let x = cache[xref].ok_or_else(|| GeneratorError::UninitializedLabel(xref))?;
+                    let y = cache[yref].ok_or_else(|| GeneratorError::UninitializedLabel(yref))?;
+                    let z = self.xor_gate(x, y, delta);
+                    cache[zref] = Some(z);
                 }
                 Gate::And {
                     xref, yref, zref, ..
                 } => {
-                    let x = wire_labels[xref]
-                        .ok_or_else(|| GarbleGeneratorError::UninitializedLabel(xref))?;
-                    let y = wire_labels[yref]
-                        .ok_or_else(|| GarbleGeneratorError::UninitializedLabel(yref))?;
-                    (zref, x.0 ^ y.0)
+                    let x = cache[xref].ok_or_else(|| GeneratorError::UninitializedLabel(xref))?;
+                    let y = cache[yref].ok_or_else(|| GeneratorError::UninitializedLabel(yref))?;
+                    let (z, t) = self.and_gate(h, x, y, delta, gid);
+                    table.push(t);
+                    cache[zref] = Some(z);
+                    gid += 1;
                 }
             };
-            let z1 = z0 ^ self.delta;
-            wire_labels[zref] = Some((z0, z1));
         }
-        Ok(())
+
+        let mut output_bits: Vec<usize> = Vec::with_capacity(circ.noutput_wires);
+        for i in (circ.nwires - circ.noutput_wires)..circ.nwires {
+            output_bits.push(cache[i].unwrap()[0].lsb());
+        }
+
+        Ok(GarbledCircuit::new(
+            input_labels,
+            cache.into_iter().map(|w| w.unwrap()).collect(),
+            table,
+            output_bits,
+            public_labels,
+            delta,
+        ))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::prg::RandPRG;
+    use crate::garble::hash::aes::Aes;
+    use crate::prg::RandPrg;
 
     #[test]
     fn test_encode_wire_labels() {
-        let mut prg = RandPRG::new();
-        let circ = Circuit::parse("circuits/adder64.txt").unwrap();
-        let mut half_gate = HalfGateGenerator::new(&circ, prg);
+        let mut prg = RandPrg::new();
+        let h = Aes::new(&[0u8; 16]);
+        let circ = Circuit::parse("circuits/aes_128_reverse.txt").unwrap();
+        let half_gate = HalfGateGenerator;
 
-        half_gate.encode_wire_labels();
-        //println!("{:?}", half_gate.wire_labels);
-        println!(
-            "{:?}",
-            half_gate
-                .wire_labels
-                .iter()
-                .map(|(a, b)| *b ^ half_gate.delta)
-                .collect::<Vec<Block>>()
-        );
+        let gc = half_gate.garble(&h, &mut prg, &circ);
     }
 }

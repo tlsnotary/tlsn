@@ -97,15 +97,37 @@ impl From<std::num::ParseIntError> for CircuitParserError {
 /// Circuit Garbling
 
 #[derive(Debug)]
-pub enum GarbleGeneratorError {
+pub enum GeneratorError {
     UninitializedLabel(usize),
 }
 
-impl Display for GarbleGeneratorError {
+impl Display for GeneratorError {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
-            GarbleGeneratorError::UninitializedLabel(wire) => {
+            GeneratorError::UninitializedLabel(wire) => {
                 write!(f, "Uninitialized label, wire {}", wire)
+            }
+        }
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// Circuit Evaluating
+
+#[derive(Debug)]
+pub enum EvaluatorError {
+    UninitializedLabel(usize),
+    InvalidInputCount(usize, usize),
+}
+
+impl Display for EvaluatorError {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            EvaluatorError::UninitializedLabel(wire) => {
+                write!(f, "Uninitialized label, wire {}", wire)
+            }
+            EvaluatorError::InvalidInputCount(n, expected) => {
+                write!(f, "Invalid input count {} expected {}", n, expected)
             }
         }
     }

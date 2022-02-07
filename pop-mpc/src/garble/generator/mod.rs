@@ -1,7 +1,18 @@
 pub mod half_gate;
 
-use crate::errors::GarbleGeneratorError;
+pub use half_gate::*;
+
+use crate::circuit::Circuit;
+use crate::errors::GeneratorError;
+use crate::garble::circuit::GarbledCircuit;
+use crate::garble::hash::WireLabelHasher;
+use crate::prg::Prg;
 
 pub trait GarbledCircuitGenerator {
-    fn encode_wire_labels(&mut self) -> Result<(), GarbleGeneratorError>;
+    fn garble<P: Prg, H: WireLabelHasher>(
+        &self,
+        h: &H,
+        prg: &mut P,
+        circ: &Circuit,
+    ) -> Result<GarbledCircuit, GeneratorError>;
 }
