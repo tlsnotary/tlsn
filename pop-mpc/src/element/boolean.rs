@@ -6,17 +6,17 @@ pub type Bool = u8;
 impl GateOps for Bool {
     /// XOR `self` and `x`
     fn xor(&self, x: &Bool) -> Result<Bool, GateOpsError> {
-        Ok((self + x) % 2)
+        Ok(self ^ x)
     }
 
     /// INV `self`
     fn inv(&self) -> Result<Bool, GateOpsError> {
-        Ok((1 + self) % 2)
+        Ok(self ^ 1)
     }
 
     /// AND `self` and `x`
     fn and(&self, x: &Bool) -> Result<Bool, GateOpsError> {
-        Ok(self * x)
+        Ok(self & x)
     }
 }
 
