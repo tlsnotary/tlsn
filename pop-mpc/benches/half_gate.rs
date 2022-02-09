@@ -4,11 +4,11 @@ use pop_mpc::garble::{
     evaluator::HalfGateEvaluator, generator::half_gate::*, generator::GarbledCircuitGenerator,
     hash::aes::Aes,
 };
-use pop_mpc::prg::{Prg, RandPrg};
+use pop_mpc::rng::{RandomBlock, Rng};
 
 fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("half_gate_garble_and", move |bench| {
-        let mut prg = RandPrg::new();
+        let mut prg = Rng::new();
         let h = Aes::new(&[0u8; 16]);
         let gen = HalfGateGenerator;
 
@@ -27,7 +27,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     });
 
     c.bench_function("half_gate_eval_and", move |bench| {
-        let mut prg = RandPrg::new();
+        let mut prg = Rng::new();
         let h = Aes::new(&[0u8; 16]);
         let gen = HalfGateGenerator;
         let ev = HalfGateEvaluator;
@@ -49,7 +49,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     });
 
     c.bench_function("half_gate_aes", move |bench| {
-        let mut prg = RandPrg::new();
+        let mut prg = Rng::new();
         let h = Aes::new(&[0u8; 16]);
         let circ = Circuit::parse("circuits/aes_128_reverse.txt").unwrap();
         let half_gate = HalfGateGenerator;

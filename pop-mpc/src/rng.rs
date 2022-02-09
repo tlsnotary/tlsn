@@ -1,22 +1,22 @@
 use crate::block::Block;
 use rand::rngs::ThreadRng;
-use rand::{thread_rng, CryptoRng, Rng};
+use rand::{thread_rng, CryptoRng, Rng as RandRng};
 
-pub struct RandPrg {
+pub struct Rng {
     rng: ThreadRng,
 }
 
-pub trait Prg {
+pub trait RandomBlock {
     fn random_block(&mut self) -> Block;
 }
 
-impl RandPrg {
+impl Rng {
     pub fn new() -> Self {
         Self { rng: thread_rng() }
     }
 }
 
-impl Prg for RandPrg {
+impl RandomBlock for Rng {
     fn random_block(&mut self) -> Block {
         Block::new(self.rng.gen())
     }

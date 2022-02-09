@@ -8,4 +8,5 @@ pub mod element;
 pub mod errors;
 pub mod garble;
 mod gate;
-pub mod prg;
+pub mod ot;
+pub mod rng;

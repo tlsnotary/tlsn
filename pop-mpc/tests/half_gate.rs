@@ -1,21 +1,21 @@
 use pop_mpc::{
     circuit::Circuit,
     garble::{evaluator::*, generator::*, hash::aes::Aes},
-    prg::{Prg, RandPrg},
+    rng::{RandomBlock, Rng},
 };
 
 #[test]
 fn test_and_gate() {
-    let mut prg = RandPrg::new();
+    let mut rng = Rng::new();
     let h = Aes::new(&[0u8; 16]);
     let gen = HalfGateGenerator;
     let ev = HalfGateEvaluator;
 
-    let mut delta = prg.random_block();
+    let mut delta = rng.random_block();
     delta.set_lsb();
-    let x_0 = prg.random_block();
+    let x_0 = rng.random_block();
     let x = [x_0, x_0 ^ delta];
-    let y_0 = prg.random_block();
+    let y_0 = rng.random_block();
     let y = [y_0, y_0 ^ delta];
     let gid: usize = 1;
 
@@ -29,15 +29,15 @@ fn test_and_gate() {
 
 #[test]
 fn test_xor_gate() {
-    let mut prg = RandPrg::new();
+    let mut rng = Rng::new();
     let gen = HalfGateGenerator;
     let ev = HalfGateEvaluator;
 
-    let mut delta = prg.random_block();
+    let mut delta = rng.random_block();
     delta.set_lsb();
-    let x_0 = prg.random_block();
+    let x_0 = rng.random_block();
     let x = [x_0, x_0 ^ delta];
-    let y_0 = prg.random_block();
+    let y_0 = rng.random_block();
     let y = [y_0, y_0 ^ delta];
 
     let z = gen.xor_gate(x, y, delta);
@@ -50,14 +50,14 @@ fn test_xor_gate() {
 
 #[test]
 fn test_inv_gate() {
-    let mut prg = RandPrg::new();
+    let mut rng = Rng::new();
     let gen = HalfGateGenerator;
     let ev = HalfGateEvaluator;
 
-    let mut delta = prg.random_block();
+    let mut delta = rng.random_block();
     delta.set_lsb();
-    let public_labels = [prg.random_block(), prg.random_block() ^ delta];
-    let x_0 = prg.random_block();
+    let public_labels = [rng.random_block(), rng.random_block() ^ delta];
+    let x_0 = rng.random_block();
     let x = [x_0, x_0 ^ delta];
 
     let z = gen.inv_gate(x, public_labels, delta);
@@ -67,13 +67,13 @@ fn test_inv_gate() {
 
 #[test]
 fn test_aes_128() {
-    let mut prg = RandPrg::new();
+    let mut rng = Rng::new();
     let h = Aes::new(&[0u8; 16]);
     let circ = Circuit::parse("circuits/aes_128_reverse.txt").unwrap();
     let gen = HalfGateGenerator;
     let ev = HalfGateEvaluator;
 
-    let gc = gen.garble(&h, &mut prg, &circ).unwrap();
+    let gc = gen.garble(&h, &mut rng, &circ).unwrap();
 
     let a: Vec<u8> = vec![1; 128];
 

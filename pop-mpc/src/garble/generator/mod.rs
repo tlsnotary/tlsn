@@ -6,13 +6,13 @@ use crate::circuit::Circuit;
 use crate::errors::GeneratorError;
 use crate::garble::circuit::GarbledCircuit;
 use crate::garble::hash::WireLabelHasher;
-use crate::prg::Prg;
+use crate::rng::RandomBlock;
 
 pub trait GarbledCircuitGenerator {
-    fn garble<P: Prg, H: WireLabelHasher>(
+    fn garble<R: RandomBlock, H: WireLabelHasher>(
         &self,
         h: &H,
-        prg: &mut P,
+        rng: &mut R,
         circ: &Circuit,
     ) -> Result<GarbledCircuit, GeneratorError>;
 }
