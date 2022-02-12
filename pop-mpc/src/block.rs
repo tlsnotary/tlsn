@@ -1,4 +1,5 @@
 use core::ops::{BitAnd, BitXor, BitXorAssign};
+use rand::{CryptoRng, Rng, SeedableRng};
 use std::convert::From;
 
 #[repr(transparent)]
@@ -10,11 +11,13 @@ pub const BLOCK_ZERO: Block = Block { 0: 0 };
 pub const BLOCK_ONES: Block = Block { 0: u128::MAX };
 pub const SELECT_MASK: [Block; 2] = [BLOCK_ZERO, BLOCK_ONES];
 
-//pub const SELECT_MASK: [Block; 2] = [Block(0), Block(u128::MAX)];
-
 impl Block {
     pub fn new(b: u128) -> Self {
         Self(b)
+    }
+
+    pub fn random<R: Rng + CryptoRng>(rng: &mut R) -> Self {
+        Self::new(rng.gen())
     }
 
     #[inline]

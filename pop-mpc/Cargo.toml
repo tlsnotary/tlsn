@@ -7,10 +7,12 @@ edition = "2018"
 
 [dependencies]
 aes = { version="0.7.5", features=[]}
-#ring = "0.16.20"
-rand = "0.8.4"
+rand = "0.7"
+rand_core = "0.5"
+rand_chacha = "0.2"
 regex = "1.5.4"
 rayon = "1.5"
+curve25519-dalek = { version = "3" }
 
 [dev-dependencies]
 rstest = "0.12.0"

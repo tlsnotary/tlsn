@@ -5,7 +5,7 @@ use crate::errors::GeneratorError;
 use crate::garble::circuit::GarbledCircuit;
 use crate::garble::hash::WireLabelHasher;
 use crate::gate::Gate;
-use crate::rng::{RandomBlock, Rng};
+use rand::{CryptoRng, Rng, SeedableRng};
 
 pub struct HalfGateGenerator;
 
@@ -53,23 +53,23 @@ impl HalfGateGenerator {
 }
 
 impl GarbledCircuitGenerator for HalfGateGenerator {
-    fn garble<R: RandomBlock, H: WireLabelHasher>(
+    fn garble<R: Rng + CryptoRng, H: WireLabelHasher>(
         &self,
         h: &H,
         rng: &mut R,
         circ: &Circuit,
     ) -> Result<GarbledCircuit, GeneratorError> {
-        let mut delta: Block = rng.random_block();
+        let mut delta: Block = Block::random(rng);
         delta.set_lsb();
 
-        let public_labels = [rng.random_block(), rng.random_block() ^ delta];
+        let public_labels = [Block::random(rng), Block::random(rng) ^ delta];
 
         let mut input_labels: Vec<[Block; 2]> = Vec::with_capacity(circ.ninput_wires);
         let mut table: Vec<[Block; 2]> = Vec::with_capacity(circ.nand);
         let mut cache: Vec<Option<[Block; 2]>> = vec![None; circ.nwires];
 
         for i in 0..circ.ninput_wires {
-            let z_0 = rng.random_block();
+            let z_0 = Block::random(rng);
             let z_1 = z_0 ^ delta;
             let z = [z_0, z_1];
             input_labels.push(z);
@@ -125,11 +125,11 @@ impl GarbledCircuitGenerator for HalfGateGenerator {
 mod tests {
     use super::*;
     use crate::garble::hash::aes::Aes;
-    use crate::rng::Rng;
+    use rand_chacha::ChaCha20Rng;
 
     #[test]
     fn test_encode_wire_labels() {
-        let mut rng = Rng::new();
+        let mut rng = ChaCha20Rng::from_entropy();
         let h = Aes::new(&[0u8; 16]);
         let circ = Circuit::parse("circuits/aes_128_reverse.txt").unwrap();
         let half_gate = HalfGateGenerator;

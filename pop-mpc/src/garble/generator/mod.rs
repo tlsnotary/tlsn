@@ -6,10 +6,10 @@ use crate::circuit::Circuit;
 use crate::errors::GeneratorError;
 use crate::garble::circuit::GarbledCircuit;
 use crate::garble::hash::WireLabelHasher;
-use crate::rng::RandomBlock;
+use rand::{CryptoRng, Rng};
 
 pub trait GarbledCircuitGenerator {
-    fn garble<R: RandomBlock, H: WireLabelHasher>(
+    fn garble<R: Rng + CryptoRng, H: WireLabelHasher>(
         &self,
         h: &H,
         rng: &mut R,

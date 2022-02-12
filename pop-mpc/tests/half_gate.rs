@@ -1,21 +1,23 @@
 use pop_mpc::{
+    block::Block,
     circuit::Circuit,
     garble::{evaluator::*, generator::*, hash::aes::Aes},
-    rng::{RandomBlock, Rng},
 };
+use rand::SeedableRng;
+use rand_chacha::ChaCha20Rng;
 
 #[test]
 fn test_and_gate() {
-    let mut rng = Rng::new();
+    let mut rng = ChaCha20Rng::from_entropy();
     let h = Aes::new(&[0u8; 16]);
     let gen = HalfGateGenerator;
     let ev = HalfGateEvaluator;
 
-    let mut delta = rng.random_block();
+    let mut delta = Block::random(&mut rng);
     delta.set_lsb();
-    let x_0 = rng.random_block();
+    let x_0 = Block::random(&mut rng);
     let x = [x_0, x_0 ^ delta];
-    let y_0 = rng.random_block();
+    let y_0 = Block::random(&mut rng);
     let y = [y_0, y_0 ^ delta];
     let gid: usize = 1;
 
@@ -29,15 +31,15 @@ fn test_and_gate() {
 
 #[test]
 fn test_xor_gate() {
-    let mut rng = Rng::new();
+    let mut rng = ChaCha20Rng::from_entropy();
     let gen = HalfGateGenerator;
     let ev = HalfGateEvaluator;
 
-    let mut delta = rng.random_block();
+    let mut delta = Block::random(&mut rng);
     delta.set_lsb();
-    let x_0 = rng.random_block();
+    let x_0 = Block::random(&mut rng);
     let x = [x_0, x_0 ^ delta];
-    let y_0 = rng.random_block();
+    let y_0 = Block::random(&mut rng);
     let y = [y_0, y_0 ^ delta];
 
     let z = gen.xor_gate(x, y, delta);
@@ -50,14 +52,14 @@ fn test_xor_gate() {
 
 #[test]
 fn test_inv_gate() {
-    let mut rng = Rng::new();
+    let mut rng = ChaCha20Rng::from_entropy();
     let gen = HalfGateGenerator;
     let ev = HalfGateEvaluator;
 
-    let mut delta = rng.random_block();
+    let mut delta = Block::random(&mut rng);
     delta.set_lsb();
-    let public_labels = [rng.random_block(), rng.random_block() ^ delta];
-    let x_0 = rng.random_block();
+    let public_labels = [Block::random(&mut rng), Block::random(&mut rng) ^ delta];
+    let x_0 = Block::random(&mut rng);
     let x = [x_0, x_0 ^ delta];
 
     let z = gen.inv_gate(x, public_labels, delta);
@@ -67,7 +69,7 @@ fn test_inv_gate() {
 
 #[test]
 fn test_aes_128() {
-    let mut rng = Rng::new();
+    let mut rng = ChaCha20Rng::from_entropy();
     let h = Aes::new(&[0u8; 16]);
     let circ = Circuit::parse("circuits/aes_128_reverse.txt").unwrap();
     let gen = HalfGateGenerator;

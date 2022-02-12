@@ -5,7 +5,6 @@ use crate::errors::EvaluatorError;
 use crate::garble::circuit::GarbledCircuit;
 use crate::garble::hash::WireLabelHasher;
 use crate::gate::Gate;
-use crate::rng::Rng;
 
 pub struct HalfGateEvaluator;
 
