@@ -6,11 +6,11 @@ use pop_mpc::garble::{
     hash::aes::Aes,
 };
 use rand::SeedableRng;
-use rand_chacha::ChaCha20Rng;
+use rand_chacha::ChaCha12Rng;
 
 fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("half_gate_garble_and", move |bench| {
-        let mut rng = ChaCha20Rng::from_entropy();
+        let mut rng = ChaCha12Rng::from_entropy();
         let h = Aes::new(&[0u8; 16]);
         let gen = HalfGateGenerator;
 
@@ -29,7 +29,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     });
 
     c.bench_function("half_gate_eval_and", move |bench| {
-        let mut rng = ChaCha20Rng::from_entropy();
+        let mut rng = ChaCha12Rng::from_entropy();
         let h = Aes::new(&[0u8; 16]);
         let gen = HalfGateGenerator;
         let ev = HalfGateEvaluator;
@@ -51,7 +51,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     });
 
     c.bench_function("half_gate_aes", move |bench| {
-        let mut rng = ChaCha20Rng::from_entropy();
+        let mut rng = ChaCha12Rng::from_entropy();
         let h = Aes::new(&[0u8; 16]);
         let circ = Circuit::parse("circuits/aes_128_reverse.txt").unwrap();
         let half_gate = HalfGateGenerator;

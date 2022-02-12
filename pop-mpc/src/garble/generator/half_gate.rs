@@ -125,11 +125,11 @@ impl GarbledCircuitGenerator for HalfGateGenerator {
 mod tests {
     use super::*;
     use crate::garble::hash::aes::Aes;
-    use rand_chacha::ChaCha20Rng;
+    use rand_chacha::ChaCha12Rng;
 
     #[test]
     fn test_encode_wire_labels() {
-        let mut rng = ChaCha20Rng::from_entropy();
+        let mut rng = ChaCha12Rng::from_entropy();
         let h = Aes::new(&[0u8; 16]);
         let circ = Circuit::parse("circuits/aes_128_reverse.txt").unwrap();
         let half_gate = HalfGateGenerator;

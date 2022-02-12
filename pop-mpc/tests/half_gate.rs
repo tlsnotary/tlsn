@@ -4,11 +4,11 @@ use pop_mpc::{
     garble::{evaluator::*, generator::*, hash::aes::Aes},
 };
 use rand::SeedableRng;
-use rand_chacha::ChaCha20Rng;
+use rand_chacha::ChaCha12Rng;
 
 #[test]
 fn test_and_gate() {
-    let mut rng = ChaCha20Rng::from_entropy();
+    let mut rng = ChaCha12Rng::from_entropy();
     let h = Aes::new(&[0u8; 16]);
     let gen = HalfGateGenerator;
     let ev = HalfGateEvaluator;
@@ -31,7 +31,7 @@ fn test_and_gate() {
 
 #[test]
 fn test_xor_gate() {
-    let mut rng = ChaCha20Rng::from_entropy();
+    let mut rng = ChaCha12Rng::from_entropy();
     let gen = HalfGateGenerator;
     let ev = HalfGateEvaluator;
 
@@ -52,7 +52,7 @@ fn test_xor_gate() {
 
 #[test]
 fn test_inv_gate() {
-    let mut rng = ChaCha20Rng::from_entropy();
+    let mut rng = ChaCha12Rng::from_entropy();
     let gen = HalfGateGenerator;
     let ev = HalfGateEvaluator;
 
@@ -69,7 +69,7 @@ fn test_inv_gate() {
 
 #[test]
 fn test_aes_128() {
-    let mut rng = ChaCha20Rng::from_entropy();
+    let mut rng = ChaCha12Rng::from_entropy();
     let h = Aes::new(&[0u8; 16]);
     let circ = Circuit::parse("circuits/aes_128_reverse.txt").unwrap();
     let gen = HalfGateGenerator;
