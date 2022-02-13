@@ -3,15 +3,18 @@ use pop_mpc::block::Block;
 use pop_mpc::circuit::Circuit;
 use pop_mpc::garble::{
     evaluator::HalfGateEvaluator, generator::half_gate::*, generator::GarbledCircuitGenerator,
-    hash::aes::Aes,
 };
+use aes::cipher::{
+    generic_array::GenericArray, NewBlockCipher,
+};
+use aes::Aes128;
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 
 fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("half_gate_garble_and", move |bench| {
         let mut rng = ChaCha12Rng::from_entropy();
-        let h = Aes::new(&[0u8; 16]);
+        let mut cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
         let gen = HalfGateGenerator;
 
         let mut delta = Block::random(&mut rng);
@@ -23,14 +26,14 @@ fn criterion_benchmark(c: &mut Criterion) {
         let gid: usize = 1;
 
         bench.iter(|| {
-            let res = gen.and_gate(&h, x, y, delta, gid);
+            let res = gen.and_gate(&mut cipher, x, y, delta, gid);
             black_box(res);
         });
     });
 
     c.bench_function("half_gate_eval_and", move |bench| {
         let mut rng = ChaCha12Rng::from_entropy();
-        let h = Aes::new(&[0u8; 16]);
+        let mut cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
         let gen = HalfGateGenerator;
         let ev = HalfGateEvaluator;
 
@@ -42,21 +45,21 @@ fn criterion_benchmark(c: &mut Criterion) {
         let y = [y_0, y_0 ^ delta];
         let gid: usize = 1;
 
-        let (_, table) = gen.and_gate(&h, x, y, delta, gid);
+        let (_, table) = gen.and_gate(&mut cipher, x, y, delta, gid);
 
         bench.iter(|| {
-            let res = ev.and_gate(&h, x[0], y[0], table, gid);
+            let res = ev.and_gate(&mut cipher, x[0], y[0], table, gid);
             black_box(res);
         });
     });
 
     c.bench_function("half_gate_aes", move |bench| {
         let mut rng = ChaCha12Rng::from_entropy();
-        let h = Aes::new(&[0u8; 16]);
+        let mut cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
         let circ = Circuit::parse("circuits/aes_128_reverse.txt").unwrap();
         let half_gate = HalfGateGenerator;
         bench.iter(|| {
-            let gb = half_gate.garble(&h, &mut rng, &circ).unwrap();
+            let gb = half_gate.garble(&mut cipher, &mut rng, &circ).unwrap();
             black_box(gb);
         });
     });

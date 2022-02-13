@@ -6,12 +6,12 @@ use crate::block::Block;
 use crate::circuit::Circuit;
 use crate::errors::EvaluatorError;
 use crate::garble::circuit::GarbledCircuit;
-use crate::garble::hash::WireLabelHasher;
+use cipher::{BlockCipher, BlockEncrypt, consts::U16, generic_array::GenericArray};
 
 pub trait GarbledCircuitEvaluator {
-    fn eval<H: WireLabelHasher>(
+    fn eval<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
         &self,
-        h: &H,
+        c: &mut C,
         circ: &Circuit,
         gc: &GarbledCircuit,
         input_labels: Vec<Block>,

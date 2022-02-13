@@ -1,6 +1,7 @@
 use core::ops::{BitAnd, BitXor, BitXorAssign};
 use rand::{CryptoRng, Rng, SeedableRng};
-use std::convert::From;
+use std::convert::{From, TryInto};
+use cipher::{BlockCipher, BlockEncrypt, consts::U16, generic_array::GenericArray};
 
 #[repr(transparent)]
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -18,6 +19,28 @@ impl Block {
 
     pub fn random<R: Rng + CryptoRng>(rng: &mut R) -> Self {
         Self::new(rng.gen())
+    }
+
+    pub fn hash_tweak<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(&self, c: &mut C, tweak: usize) -> Self {
+        let gid: [u8; 16] = (tweak as u128).to_be_bytes();
+        let label: [u8; 16] = self.to_be_bytes();
+
+        let mut h1: GenericArray<u8, U16> = GenericArray::from(label);
+        c.encrypt_block(&mut h1);
+
+        let h2: GenericArray<u8, U16> = GenericArray::clone_from_slice(h1.as_slice());
+        let mut h2: GenericArray<u8, U16> = h2.into_iter().zip(gid).map(|(a, b)| a ^ b).collect();
+        c.encrypt_block(&mut h2);
+
+        let h3: GenericArray<u8, U16> = GenericArray::clone_from_slice(h2.as_slice());
+        let h3: GenericArray<u8, U16> = h3.into_iter().zip(h1).map(|(a, b)| a ^ b).collect();
+
+        let b: [u8; 16] = h3
+            .as_slice()
+            .try_into()
+            .expect("Expected array to have length 16");
+        let h: u128 = u128::from_be_bytes(b);
+        Self::new(h)
     }
 
     #[inline]

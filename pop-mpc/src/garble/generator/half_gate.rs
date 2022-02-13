@@ -3,7 +3,7 @@ use crate::block::{Block, SELECT_MASK};
 use crate::circuit::Circuit;
 use crate::errors::GeneratorError;
 use crate::garble::circuit::GarbledCircuit;
-use crate::garble::hash::WireLabelHasher;
+use cipher::{BlockCipher, BlockEncrypt, consts::U16, generic_array::GenericArray};
 use crate::gate::Gate;
 use rand::{CryptoRng, Rng, SeedableRng};
 
@@ -11,9 +11,9 @@ pub struct HalfGateGenerator;
 
 impl HalfGateGenerator {
     #[inline]
-    pub fn and_gate<H: WireLabelHasher>(
+    pub fn and_gate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
         &self,
-        h: &H,
+        c: &mut C,
         x: [Block; 2],
         y: [Block; 2],
         delta: Block,
@@ -24,13 +24,13 @@ impl HalfGateGenerator {
         let j = gid;
         let k = gid + 1;
 
-        let hx_0 = h.hash(x[0], j);
-        let hy_0 = h.hash(y[0], k);
+        let hx_0 = x[0].hash_tweak(c, j);
+        let hy_0 = y[0].hash_tweak(c, k);
 
-        let t_g = hx_0 ^ h.hash(x[1], j) ^ (SELECT_MASK[p_b] & delta);
+        let t_g = hx_0 ^ x[1].hash_tweak(c, j) ^ (SELECT_MASK[p_b] & delta);
         let w_g = hx_0 ^ (SELECT_MASK[p_a] & t_g);
 
-        let t_e = hy_0 ^ h.hash(y[1], k) ^ x[0];
+        let t_e = hy_0 ^ y[1].hash_tweak(c, k) ^ x[0];
         let w_e = hy_0 ^ (SELECT_MASK[p_b] & (t_e ^ x[0]));
 
         let z_0 = w_g ^ w_e;
@@ -53,9 +53,9 @@ impl HalfGateGenerator {
 }
 
 impl GarbledCircuitGenerator for HalfGateGenerator {
-    fn garble<R: Rng + CryptoRng, H: WireLabelHasher>(
+    fn garble<R: Rng + CryptoRng, C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
         &self,
-        h: &H,
+        c: &mut C,
         rng: &mut R,
         circ: &Circuit,
     ) -> Result<GarbledCircuit, GeneratorError> {
@@ -97,7 +97,7 @@ impl GarbledCircuitGenerator for HalfGateGenerator {
                 } => {
                     let x = cache[xref].ok_or_else(|| GeneratorError::UninitializedLabel(xref))?;
                     let y = cache[yref].ok_or_else(|| GeneratorError::UninitializedLabel(yref))?;
-                    let (z, t) = self.and_gate(h, x, y, delta, gid);
+                    let (z, t) = self.and_gate(c, x, y, delta, gid);
                     table.push(t);
                     cache[zref] = Some(z);
                     gid += 1;
@@ -124,16 +124,19 @@ impl GarbledCircuitGenerator for HalfGateGenerator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::garble::hash::aes::Aes;
+    use aes::cipher::{
+        generic_array::GenericArray, NewBlockCipher,
+    };
+    use aes::Aes128;
     use rand_chacha::ChaCha12Rng;
 
     #[test]
     fn test_encode_wire_labels() {
+        let mut cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
         let mut rng = ChaCha12Rng::from_entropy();
-        let h = Aes::new(&[0u8; 16]);
         let circ = Circuit::parse("circuits/aes_128_reverse.txt").unwrap();
         let half_gate = HalfGateGenerator;
 
-        let gc = half_gate.garble(&h, &mut rng, &circ);
+        let gc = half_gate.garble(&mut cipher, &mut rng, &circ);
     }
 }

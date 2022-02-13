@@ -3,16 +3,16 @@ use crate::block::{Block, SELECT_MASK};
 use crate::circuit::Circuit;
 use crate::errors::EvaluatorError;
 use crate::garble::circuit::GarbledCircuit;
-use crate::garble::hash::WireLabelHasher;
+use cipher::{BlockCipher, BlockEncrypt, consts::U16, generic_array::GenericArray};
 use crate::gate::Gate;
 
 pub struct HalfGateEvaluator;
 
 impl HalfGateEvaluator {
     #[inline]
-    pub fn and_gate<H: WireLabelHasher>(
+    pub fn and_gate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
         &self,
-        h: &H,
+        c: &mut C,
         x: Block,
         y: Block,
         table: [Block; 2],
@@ -24,8 +24,8 @@ impl HalfGateEvaluator {
         let j = gid;
         let k = gid + 1;
 
-        let hx = h.hash(x, j);
-        let hy = h.hash(y, k);
+        let hx = x.hash_tweak(c, j);
+        let hy = y.hash_tweak(c, k);
 
         let w_g = hx ^ (table[0] & SELECT_MASK[s_a]);
         let w_e = hy ^ (SELECT_MASK[s_b] & (table[1] ^ x));
@@ -45,9 +45,9 @@ impl HalfGateEvaluator {
 }
 
 impl GarbledCircuitEvaluator for HalfGateEvaluator {
-    fn eval<H: WireLabelHasher>(
+    fn eval<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
         &self,
-        h: &H,
+        c: &mut C,
         circ: &Circuit,
         gc: &GarbledCircuit,
         input_labels: Vec<Block>,
@@ -86,7 +86,7 @@ impl GarbledCircuitEvaluator for HalfGateEvaluator {
                 } => {
                     let x = cache[xref].ok_or_else(|| EvaluatorError::UninitializedLabel(xref))?;
                     let y = cache[yref].ok_or_else(|| EvaluatorError::UninitializedLabel(yref))?;
-                    let z = self.and_gate(h, x, y, gc.table[gid - 1], gid);
+                    let z = self.and_gate(c, x, y, gc.table[gid - 1], gid);
                     cache[zref] = Some(z);
                     gid += 1;
                 }

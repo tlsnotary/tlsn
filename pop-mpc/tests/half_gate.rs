@@ -1,15 +1,19 @@
 use pop_mpc::{
     block::Block,
     circuit::Circuit,
-    garble::{evaluator::*, generator::*, hash::aes::Aes},
+    garble::{evaluator::*, generator::*},
 };
+use aes::cipher::{
+    generic_array::GenericArray, NewBlockCipher,
+};
+use aes::Aes128;
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 
 #[test]
 fn test_and_gate() {
     let mut rng = ChaCha12Rng::from_entropy();
-    let h = Aes::new(&[0u8; 16]);
+    let mut cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
     let gen = HalfGateGenerator;
     let ev = HalfGateEvaluator;
 
@@ -21,12 +25,12 @@ fn test_and_gate() {
     let y = [y_0, y_0 ^ delta];
     let gid: usize = 1;
 
-    let (z, table) = gen.and_gate(&h, x, y, delta, gid);
+    let (z, table) = gen.and_gate(&mut cipher, x, y, delta, gid);
 
-    assert_eq!(ev.and_gate(&h, x[0], y[0], table, gid), z[0]);
-    assert_eq!(ev.and_gate(&h, x[0], y[1], table, gid), z[0]);
-    assert_eq!(ev.and_gate(&h, x[1], y[0], table, gid), z[0]);
-    assert_eq!(ev.and_gate(&h, x[1], y[1], table, gid), z[1]);
+    assert_eq!(ev.and_gate(&mut cipher, x[0], y[0], table, gid), z[0]);
+    assert_eq!(ev.and_gate(&mut cipher, x[0], y[1], table, gid), z[0]);
+    assert_eq!(ev.and_gate(&mut cipher, x[1], y[0], table, gid), z[0]);
+    assert_eq!(ev.and_gate(&mut cipher, x[1], y[1], table, gid), z[1]);
 }
 
 #[test]
@@ -70,12 +74,12 @@ fn test_inv_gate() {
 #[test]
 fn test_aes_128() {
     let mut rng = ChaCha12Rng::from_entropy();
-    let h = Aes::new(&[0u8; 16]);
+    let mut cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
     let circ = Circuit::parse("circuits/aes_128_reverse.txt").unwrap();
     let gen = HalfGateGenerator;
     let ev = HalfGateEvaluator;
 
-    let gc = gen.garble(&h, &mut rng, &circ).unwrap();
+    let gc = gen.garble(&mut cipher, &mut rng, &circ).unwrap();
 
     let a: Vec<u8> = vec![1; 128];
 
@@ -89,7 +93,7 @@ fn test_aes_128() {
         .map(|(label, input)| label[input as usize])
         .collect();
 
-    let output_labels = ev.eval(&h, &circ, &gc, input_labels).unwrap();
+    let output_labels = ev.eval(&mut cipher, &circ, &gc, input_labels).unwrap();
     let mut outputs: Vec<u8> = Vec::with_capacity(circ.noutput_wires);
     for (i, label) in output_labels.iter().enumerate() {
         outputs.push((label.lsb() ^ gc.output_bits[i]) as u8);
