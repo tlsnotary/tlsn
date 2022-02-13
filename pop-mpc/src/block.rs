@@ -13,14 +13,17 @@ pub const BLOCK_ONES: Block = Block { 0: u128::MAX };
 pub const SELECT_MASK: [Block; 2] = [BLOCK_ZERO, BLOCK_ONES];
 
 impl Block {
+    #[inline]
     pub fn new(b: u128) -> Self {
         Self(b)
     }
 
+    #[inline]
     pub fn random<R: Rng + CryptoRng>(rng: &mut R) -> Self {
         Self::new(rng.gen())
     }
 
+    #[inline]
     pub fn hash_tweak<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(&self, c: &mut C, tweak: usize) -> Self {
         let gid: [u8; 16] = (tweak as u128).to_be_bytes();
         let label: [u8; 16] = self.to_be_bytes();
@@ -75,12 +78,14 @@ impl Block {
 }
 
 impl From<[u8; 16]> for Block {
+    #[inline]
     fn from(b: [u8; 16]) -> Self {
         Block::new(u128::from_be_bytes(b))
     }
 }
 
 impl From<usize> for Block {
+    #[inline]
     fn from(b: usize) -> Self {
         Self(b as u128)
     }
@@ -89,6 +94,7 @@ impl From<usize> for Block {
 impl BitXor for Block {
     type Output = Self;
 
+    #[inline]
     fn bitxor(self, other: Self) -> Self::Output {
         Self(self.0 ^ other.0)
     }
@@ -97,6 +103,7 @@ impl BitXor for Block {
 impl BitAnd for Block {
     type Output = Self;
 
+    #[inline]
     fn bitand(self, other: Self) -> Self::Output {
         Self(self.0 & other.0)
     }
