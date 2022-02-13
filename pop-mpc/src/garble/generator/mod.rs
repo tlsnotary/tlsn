@@ -5,7 +5,7 @@ pub use half_gate::*;
 use crate::circuit::Circuit;
 use crate::errors::GeneratorError;
 use crate::garble::circuit::GarbledCircuit;
-use cipher::{BlockCipher, BlockEncrypt, consts::U16, generic_array::GenericArray};
+use cipher::{consts::U16, generic_array::GenericArray, BlockCipher, BlockEncrypt};
 use rand::{CryptoRng, Rng};
 
 pub trait GarbledCircuitGenerator {

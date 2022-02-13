@@ -3,8 +3,8 @@ use crate::block::{Block, SELECT_MASK};
 use crate::circuit::Circuit;
 use crate::errors::EvaluatorError;
 use crate::garble::circuit::GarbledCircuit;
-use cipher::{BlockCipher, BlockEncrypt, consts::U16, generic_array::GenericArray};
 use crate::gate::Gate;
+use cipher::{consts::U16, generic_array::GenericArray, BlockCipher, BlockEncrypt};
 
 pub struct HalfGateEvaluator;
 

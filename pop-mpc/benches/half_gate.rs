@@ -1,13 +1,11 @@
+use aes::cipher::{generic_array::GenericArray, NewBlockCipher};
+use aes::Aes128;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use pop_mpc::block::Block;
 use pop_mpc::circuit::Circuit;
 use pop_mpc::garble::{
     evaluator::HalfGateEvaluator, generator::half_gate::*, generator::GarbledCircuitGenerator,
 };
-use aes::cipher::{
-    generic_array::GenericArray, NewBlockCipher,
-};
-use aes::Aes128;
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 

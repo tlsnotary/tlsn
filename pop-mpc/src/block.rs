@@ -1,7 +1,13 @@
+use cipher::{
+    consts::{U16, U32},
+    generic_array::GenericArray,
+    BlockCipher, BlockEncrypt,
+};
 use core::ops::{BitAnd, BitXor, BitXorAssign};
+use curve25519_dalek::ristretto::RistrettoPoint;
 use rand::{CryptoRng, Rng, SeedableRng};
+use sha2::{Digest, Sha256};
 use std::convert::{From, TryInto};
-use cipher::{BlockCipher, BlockEncrypt, consts::U16, generic_array::GenericArray};
 
 #[repr(transparent)]
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -24,7 +30,11 @@ impl Block {
     }
 
     #[inline]
-    pub fn hash_tweak<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(&self, c: &mut C, tweak: usize) -> Self {
+    pub fn hash_tweak<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
+        &self,
+        c: &mut C,
+        tweak: usize,
+    ) -> Self {
         let gid: [u8; 16] = (tweak as u128).to_be_bytes();
         let label: [u8; 16] = self.to_be_bytes();
 
@@ -44,6 +54,17 @@ impl Block {
             .expect("Expected array to have length 16");
         let h: u128 = u128::from_be_bytes(b);
         Self::new(h)
+    }
+
+    #[inline]
+    pub fn hash_point(point: &RistrettoPoint, tweak: usize) -> Self {
+        let mut hasher = Sha256::new();
+        hasher.update(point.compress().as_bytes());
+        hasher.update(tweak.to_be_bytes());
+        let h: [u8; 16] = hasher.finalize()[..16]
+            .try_into()
+            .expect("Unable to convert hash to block");
+        Self::from(h)
     }
 
     #[inline]

@@ -8,6 +8,7 @@ edition = "2018"
 [dependencies]
 aes = { version="0.7.5", features=[]}
 cipher = "0.3"
+sha2 = "0.10.1"
 rand = "0.7"
 rand_core = "0.5"
 rand_chacha = "0.2"

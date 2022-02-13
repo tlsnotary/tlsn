@@ -1,12 +1,10 @@
+use aes::cipher::{generic_array::GenericArray, NewBlockCipher};
+use aes::Aes128;
 use pop_mpc::{
     block::Block,
     circuit::Circuit,
     garble::{evaluator::*, generator::*},
 };
-use aes::cipher::{
-    generic_array::GenericArray, NewBlockCipher,
-};
-use aes::Aes128;
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 

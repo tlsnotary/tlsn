@@ -6,7 +6,7 @@ use crate::block::Block;
 use crate::circuit::Circuit;
 use crate::errors::EvaluatorError;
 use crate::garble::circuit::GarbledCircuit;
-use cipher::{BlockCipher, BlockEncrypt, consts::U16, generic_array::GenericArray};
+use cipher::{consts::U16, generic_array::GenericArray, BlockCipher, BlockEncrypt};
 
 pub trait GarbledCircuitEvaluator {
     fn eval<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
