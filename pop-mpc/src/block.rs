@@ -96,6 +96,26 @@ impl Block {
     pub fn to_be_bytes(&self) -> [u8; 16] {
         self.0.to_be_bytes()
     }
+
+    #[inline]
+    pub fn to_bits(&self) -> [bool; 128] {
+        let bytes: Vec<Vec<bool>> = self
+            .to_be_bytes()
+            .iter()
+            .map(|b| (0..8).map(|i| (1 << i) & b == 1).collect::<Vec<bool>>())
+            .collect();
+        bytes
+            .concat()
+            .as_slice()
+            .try_into()
+            .expect("Could not convert block into bit array")
+    }
+}
+
+impl Default for Block {
+    fn default() -> Self {
+        Self(0)
+    }
 }
 
 impl From<[u8; 16]> for Block {
