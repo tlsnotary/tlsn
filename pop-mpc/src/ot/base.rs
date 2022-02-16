@@ -18,7 +18,7 @@ pub struct BaseOTSenderSetup {
 }
 
 pub struct BaseOTSenderSend {
-    pub(super) encoded_values: Vec<[Block; 2]>,
+    pub(super) encrypted_values: Vec<[Block; 2]>,
 }
 
 pub struct BaseOTReceiver {
@@ -57,7 +57,7 @@ impl BaseOTSender {
         receiver_setup: BaseOTReceiverSetup,
     ) -> BaseOTSenderSend {
         let ys = self.private_key * self.public_key;
-        let encoded_values: Vec<[Block; 2]> = inputs
+        let encrypted_values: Vec<[Block; 2]> = inputs
             .iter()
             .zip(receiver_setup.keys)
             .enumerate()
@@ -71,9 +71,9 @@ impl BaseOTSender {
                 [c0, c1]
             })
             .collect();
-        self.counter += encoded_values.len();
+        self.counter += encrypted_values.len();
 
-        BaseOTSenderSend { encoded_values }
+        BaseOTSenderSend { encrypted_values }
     }
 }
 
@@ -116,7 +116,7 @@ impl BaseOTReceiver {
         let values = choice
             .iter()
             .zip(hashes)
-            .zip(send.encoded_values)
+            .zip(send.encrypted_values)
             .map(|((c, h), v)| *h ^ if *c { v[1] } else { v[0] })
             .collect();
 
