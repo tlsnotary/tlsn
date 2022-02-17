@@ -127,28 +127,36 @@ impl BaseOTReceiver {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::SeedableRng;
+    use crate::utils::u8vec_to_boolvec;
+    use rand::{RngCore, SeedableRng};
     use rand_chacha::ChaCha12Rng;
 
     #[test]
     fn test_base_ot() {
         let mut s_rng = ChaCha12Rng::from_entropy();
         let mut r_rng = ChaCha12Rng::from_entropy();
-        let mut sender = BaseOTSender::new(&mut s_rng);
 
+        let mut rng = ChaCha12Rng::from_entropy();
+        let s_inputs: Vec<[Block; 2]> = (0..128)
+            .map(|i| [Block::random(&mut rng), Block::random(&mut rng)])
+            .collect();
+        let mut choice = vec![0u8; 16];
+        rng.fill_bytes(&mut choice);
+        let choice = u8vec_to_boolvec(&choice);
+        let expected: Vec<Block> = s_inputs
+            .iter()
+            .zip(choice.iter())
+            .map(|(input, choice)| input[*choice as usize])
+            .collect();
+
+        let mut sender = BaseOTSender::new(&mut s_rng);
         let sender_setup = sender.setup();
-        let s_inputs = [
-            [Block::new(0), Block::new(1)],
-            [Block::new(2), Block::new(3)],
-        ];
 
         let mut receiver = BaseOTReceiver::new(sender_setup);
-        let choice = [false, true];
-
         let receiver_setup = receiver.setup(&mut r_rng, &choice);
 
         let send = sender.send(&s_inputs, receiver_setup);
         let receive = receiver.receive(&choice, send);
-        assert_eq!(receive.values, [Block::new(0), Block::new(3)]);
+        assert_eq!(expected, receive.values);
     }
 }
