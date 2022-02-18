@@ -91,19 +91,15 @@ impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEn
 
     pub fn extension_setup(&mut self, receiver_setup: OTReceiverSetup) {
         let ncols = receiver_setup.table[0].len() * 8;
+        let us = receiver_setup.table;
         let mut qs: Vec<Vec<u8>> = vec![vec![0u8; ncols / 8]; NBASE];
 
         let rngs = self.rngs.as_mut().unwrap();
         for j in 0..NBASE {
-            let b = &self.base_choice[j];
-            let mut q = &mut qs[j];
-            rngs[j].fill_bytes(&mut q);
-            let q_: Vec<u8> = q
-                .iter()
-                .zip(&receiver_setup.table[j])
-                .map(|(q, u)| *q ^ if *b { *u } else { 0 })
-                .collect();
-            qs[j] = q_;
+            rngs[j].fill_bytes(&mut qs[j]);
+            if self.base_choice[j] {
+                qs[j] = qs[j].iter().zip(&us[j]).map(|(q, u)| *q ^ *u).collect();
+            }
         }
         self.table = Some(utils::transpose(&qs));
     }
@@ -115,13 +111,12 @@ impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEn
         let base_choice: [u8; 16] = utils::boolvec_to_u8vec(&self.base_choice)
             .try_into()
             .unwrap();
-        let base_choice = Block::from(base_choice);
+        let delta = Block::from(base_choice);
         for (j, input) in inputs.iter().enumerate() {
             let q: [u8; 16] = table[j].clone().try_into().unwrap();
             let q = Block::from(q);
             let y0 = q.hash_tweak(&mut self.cipher, j) ^ input[0];
-            let q = q ^ base_choice;
-            let y1 = q.hash_tweak(&mut self.cipher, j) ^ input[1];
+            let y1 = (q ^ delta).hash_tweak(&mut self.cipher, j) ^ input[1];
             encrypted_values.push([y0, y1]);
         }
 
@@ -189,21 +184,18 @@ impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEn
         let m = choice.len();
         let ncols = if m % 8 != 0 { m + (8 - m % 8) } else { m };
         let mut ts: Vec<Vec<u8>> = vec![vec![0u8; ncols / 8]; NBASE];
-        let mut gs: Vec<Vec<u8>> = Vec::with_capacity(NBASE);
+        let mut gs: Vec<Vec<u8>> = vec![vec![0u8; ncols / 8]; NBASE];
 
         let rngs = self.rngs.as_mut().unwrap();
-        let mut g = vec![0u8; ncols / 8];
         for j in 0..NBASE {
-            let mut t = &mut ts[j];
-            rngs[j][0].fill_bytes(&mut t);
-            rngs[j][1].fill_bytes(&mut g);
-            g = g
+            rngs[j][0].fill_bytes(&mut ts[j]);
+            rngs[j][1].fill_bytes(&mut gs[j]);
+            gs[j] = gs[j]
                 .iter()
-                .zip(t)
+                .zip(&ts[j])
                 .zip(&r)
                 .map(|((g, t), r)| *g ^ *t ^ *r)
                 .collect();
-            gs.push(g.clone());
         }
         self.table = Some(utils::transpose(&ts));
 
@@ -231,6 +223,7 @@ impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEn
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::u8vec_to_boolvec;
     use aes::cipher::{generic_array::GenericArray, NewBlockCipher};
     use aes::Aes128;
     use rand::{CryptoRng, Rng, SeedableRng};
@@ -252,11 +245,17 @@ mod tests {
         let send_seeds = receiver.base_send_seeds(base_receiver_setup);
         sender.base_receive_seeds(send_seeds);
 
-        let choice = [false, true, false, true];
+        let mut choice = vec![0u8; 2];
+        let mut rng = ChaCha12Rng::from_entropy();
+        rng.fill_bytes(&mut choice);
+        let choice = u8vec_to_boolvec(&choice);
+        let inputs: Vec<[Block; 2]> = (0..16)
+            .map(|i| [Block::from(2 * i), Block::from(2 * i + 1)])
+            .collect();
+
         let receiver_setup = receiver.extension_setup(&choice);
         sender.extension_setup(receiver_setup);
 
-        let inputs = [[Block::new(123), Block::new(456)]; 4];
         let send = sender.send(&inputs);
         let receive = receiver.receive(&choice, send);
 
@@ -267,5 +266,65 @@ mod tests {
             .collect();
 
         assert_eq!(expected, receive.values);
+    }
+
+    #[test]
+    fn test_base_setup() {
+        let s_rng = ChaCha12Rng::from_entropy();
+        let s_cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
+        let r_rng = ChaCha12Rng::from_entropy();
+        let r_cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
+
+        let mut receiver = OTReceiver::new(r_rng, r_cipher);
+        let base_sender_setup = receiver.base_setup();
+
+        let mut sender = OTSender::new(s_rng, s_cipher, base_sender_setup);
+        let base_receiver_setup = sender.base_setup();
+
+        let send_seeds = receiver.base_send_seeds(base_receiver_setup);
+        sender.base_receive_seeds(send_seeds);
+
+        let inputs = receiver.seeds.unwrap();
+        let choice = sender.base_choice;
+        let received = sender.seeds.unwrap();
+        let expected: Vec<Block> = inputs
+            .iter()
+            .zip(choice.iter())
+            .map(|(input, choice)| input[*choice as usize])
+            .collect();
+        assert_eq!(expected, received);
+    }
+
+    #[test]
+    fn test_rngs() {
+        let s_rng = ChaCha12Rng::from_entropy();
+        let s_cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
+        let r_rng = ChaCha12Rng::from_entropy();
+        let r_cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
+
+        let mut receiver = OTReceiver::new(r_rng, r_cipher);
+        let base_sender_setup = receiver.base_setup();
+
+        let mut sender = OTSender::new(s_rng, s_cipher, base_sender_setup);
+        let base_receiver_setup = sender.base_setup();
+
+        let send_seeds = receiver.base_send_seeds(base_receiver_setup);
+        sender.base_receive_seeds(send_seeds);
+
+        let receiver_rngs = receiver.rngs.unwrap();
+        let mut receiver_chosen_rngs: Vec<ChaCha12Rng> = receiver_rngs
+            .into_iter()
+            .zip(sender.base_choice.iter())
+            .map(|(rngs, choice)| rngs[*choice as usize].clone())
+            .collect();
+        let mut sender_rngs = sender.rngs.unwrap();
+
+        for i in 0..NBASE {
+            let mut s = vec![0u8; 16];
+            let mut r = vec![0u8; 16];
+            sender_rngs[i].fill_bytes(&mut s);
+            receiver_chosen_rngs[i].fill_bytes(&mut r);
+            assert_eq!(s, r);
+        }
     }
 }
