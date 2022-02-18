@@ -250,7 +250,7 @@ mod tests {
         rng.fill_bytes(&mut choice);
         let choice = u8vec_to_boolvec(&choice);
         let inputs: Vec<[Block; 2]> = (0..16)
-            .map(|i| [Block::from(2 * i), Block::from(2 * i + 1)])
+            .map(|i| [Block::random(&mut rng), Block::random(&mut rng)])
             .collect();
 
         let receiver_setup = receiver.extension_setup(&choice);
