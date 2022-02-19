@@ -9,6 +9,7 @@ use cipher::{consts::U16, generic_array::GenericArray, BlockCipher, BlockEncrypt
 pub struct HalfGateEvaluator;
 
 impl HalfGateEvaluator {
+    /// Evaluates AND gate
     #[inline]
     pub fn and_gate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
         &self,
@@ -33,11 +34,13 @@ impl HalfGateEvaluator {
         w_g ^ w_e
     }
 
+    /// Evaluates XOR gate
     #[inline]
     pub fn xor_gate(&self, x: Block, y: Block) -> Block {
         x ^ y
     }
 
+    /// Evaluates INV gate
     #[inline]
     pub fn inv_gate(&self, x: Block, public_label: Block) -> Block {
         x ^ public_label

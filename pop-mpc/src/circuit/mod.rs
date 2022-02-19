@@ -49,6 +49,7 @@ impl Circuit {
         }
     }
 
+    /// Evaluates the circuit in plaintext with the provided inputs
     pub fn eval<E: GateOps>(&self, inputs: Vec<Vec<E>>) -> Result<Vec<E>, CircuitEvalError> {
         let mut wires: Vec<Option<E>> = vec![None; self.nwires];
         let inputs = inputs.concat();

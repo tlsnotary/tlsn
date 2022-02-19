@@ -9,6 +9,7 @@ use crate::garble::circuit::GarbledCircuit;
 use cipher::{consts::U16, generic_array::GenericArray, BlockCipher, BlockEncrypt};
 
 pub trait GarbledCircuitEvaluator {
+    /// Evaluates a garbled circuit with the provided input labels
     fn eval<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
         &self,
         c: &mut C,

@@ -22,7 +22,7 @@ fn line2vec<'a>(re: &Regex, line: &'a str) -> Result<Vec<&'a str>, CircuitParser
 
 impl Circuit {
     /// Parses circuit files in Bristol Fashion format as specified here:
-    /// https://homes.esat.kuleuven.be/~nsmart/MPC/
+    /// `https://homes.esat.kuleuven.be/~nsmart/MPC/`
     pub fn parse(filename: &str) -> Result<Self, CircuitParserError> {
         let f = File::open(filename)?;
         let mut reader = BufReader::new(f);

@@ -1,3 +1,3 @@
-mod boolean;
+pub mod boolean;
 
 pub use boolean::Bool;

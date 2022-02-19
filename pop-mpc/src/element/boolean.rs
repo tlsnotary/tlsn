@@ -3,6 +3,7 @@ use crate::gate::GateOps;
 
 pub type Bool = u8;
 
+/// Implements circuit operations for boolean elements
 impl GateOps for Bool {
     /// XOR `self` and `x`
     fn xor(&self, x: &Bool) -> Result<Bool, GateOpsError> {
