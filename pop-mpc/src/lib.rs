@@ -10,3 +10,5 @@ pub mod garble;
 mod gate;
 pub mod ot;
 pub mod utils;
+
+pub use block::Block;

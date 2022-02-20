@@ -27,7 +27,7 @@ pub struct OTSender<R, C> {
 }
 
 pub struct OTSenderSend {
-    encrypted_values: Vec<[Block; 2]>,
+    pub encrypted_values: Vec<[Block; 2]>,
 }
 
 pub struct OTReceiver<R, C> {
@@ -44,7 +44,7 @@ pub struct OTReceiverSetup {
 }
 
 pub struct OTReceiverReceive {
-    values: Vec<Block>,
+    pub values: Vec<Block>,
 }
 
 impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEncrypt>
