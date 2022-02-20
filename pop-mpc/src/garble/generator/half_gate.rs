@@ -7,9 +7,13 @@ use crate::gate::Gate;
 use cipher::{consts::U16, generic_array::GenericArray, BlockCipher, BlockEncrypt};
 use rand::{CryptoRng, Rng, SeedableRng};
 
-pub struct HalfGateGenerator;
+pub struct HalfGateGenerator {}
 
 impl HalfGateGenerator {
+    pub fn new() -> Self {
+        Self {}
+    }
+
     #[inline]
     pub fn and_gate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
         &self,
@@ -133,7 +137,7 @@ mod tests {
         let mut cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
         let mut rng = ChaCha12Rng::from_entropy();
         let circ = Circuit::parse("circuits/aes_128_reverse.txt").unwrap();
-        let half_gate = HalfGateGenerator;
+        let half_gate = HalfGateGenerator::new();
 
         let gc = half_gate.garble(&mut cipher, &mut rng, &circ);
     }

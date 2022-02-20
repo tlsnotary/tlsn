@@ -6,9 +6,13 @@ use crate::garble::circuit::GarbledCircuit;
 use crate::gate::Gate;
 use cipher::{consts::U16, generic_array::GenericArray, BlockCipher, BlockEncrypt};
 
-pub struct HalfGateEvaluator;
+pub struct HalfGateEvaluator {}
 
 impl HalfGateEvaluator {
+    pub fn new() -> Self {
+        Self {}
+    }
+
     /// Evaluates AND gate
     #[inline]
     pub fn and_gate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(

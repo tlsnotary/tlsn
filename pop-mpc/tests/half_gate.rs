@@ -12,8 +12,8 @@ use rand_chacha::ChaCha12Rng;
 fn test_and_gate() {
     let mut rng = ChaCha12Rng::from_entropy();
     let mut cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
-    let gen = HalfGateGenerator;
-    let ev = HalfGateEvaluator;
+    let gen = HalfGateGenerator::new();
+    let ev = HalfGateEvaluator::new();
 
     let mut delta = Block::random(&mut rng);
     delta.set_lsb();
@@ -34,8 +34,8 @@ fn test_and_gate() {
 #[test]
 fn test_xor_gate() {
     let mut rng = ChaCha12Rng::from_entropy();
-    let gen = HalfGateGenerator;
-    let ev = HalfGateEvaluator;
+    let gen = HalfGateGenerator::new();
+    let ev = HalfGateEvaluator::new();
 
     let mut delta = Block::random(&mut rng);
     delta.set_lsb();
@@ -55,8 +55,8 @@ fn test_xor_gate() {
 #[test]
 fn test_inv_gate() {
     let mut rng = ChaCha12Rng::from_entropy();
-    let gen = HalfGateGenerator;
-    let ev = HalfGateEvaluator;
+    let gen = HalfGateGenerator::new();
+    let ev = HalfGateEvaluator::new();
 
     let mut delta = Block::random(&mut rng);
     delta.set_lsb();
@@ -74,8 +74,8 @@ fn test_aes_128() {
     let mut rng = ChaCha12Rng::from_entropy();
     let mut cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
     let circ = Circuit::parse("circuits/aes_128_reverse.txt").unwrap();
-    let gen = HalfGateGenerator;
-    let ev = HalfGateEvaluator;
+    let gen = HalfGateGenerator::new();
+    let ev = HalfGateEvaluator::new();
 
     let gc = gen.garble(&mut cipher, &mut rng, &circ).unwrap();
 

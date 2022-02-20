@@ -31,8 +31,8 @@ fn main() {
     let mut rng = ChaCha12Rng::from_entropy();
     let mut cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
     let circ = Circuit::parse("circuits/aes_128_reverse.txt").unwrap();
-    let gen = HalfGateGenerator;
-    let ev = HalfGateEvaluator;
+    let gen = HalfGateGenerator::new();
+    let ev = HalfGateEvaluator::new();
 
     let gc: GarbledCircuit = gen.garble(&mut cipher, &mut rng, &circ).unwrap();
 
