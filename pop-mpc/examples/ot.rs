@@ -40,18 +40,18 @@ pub fn main() {
     let mut receiver = OTReceiver::new(r_rng, r_cipher);
     let base_sender_setup = receiver.base_setup();
 
-    // Sender takes receivers' setup and creates its own setup message
+    // Sender takes receiver's setup and creates its own setup message
     let mut sender = OTSender::new(s_rng, s_cipher, base_sender_setup);
     let base_receiver_setup = sender.base_setup();
 
-    // Now the receiver generates some seeds from senders' setup and uses OT to transfer them
+    // Now the receiver generates some seeds from sender's setup and uses OT to transfer them
     let send_seeds = receiver.base_send_seeds(base_receiver_setup);
     sender.base_receive_seeds(send_seeds);
 
     // Receiver generates OT extension setup and passes it to sender
     let receiver_setup = receiver.extension_setup(&choice);
 
-    // Sender takes receivers' setup and runs its own extension setup
+    // Sender takes receiver's setup and runs its own extension setup
     sender.extension_setup(receiver_setup);
 
     // Finally, sender encrypts their inputs and sends them to receiver
