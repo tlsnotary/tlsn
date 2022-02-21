@@ -1,4 +1,5 @@
 pub mod base;
+pub mod errors;
 pub mod extension;
 
 pub use base::*;
