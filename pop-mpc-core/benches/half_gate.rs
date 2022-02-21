@@ -1,9 +1,9 @@
 use aes::cipher::{generic_array::GenericArray, NewBlockCipher};
 use aes::Aes128;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use pop_mpc::block::Block;
-use pop_mpc::circuit::Circuit;
-use pop_mpc::garble::{
+use pop_mpc_core::block::Block;
+use pop_mpc_core::circuit::Circuit;
+use pop_mpc_core::garble::{
     evaluator::HalfGateEvaluator, generator::half_gate::*, generator::GarbledCircuitGenerator,
 };
 use rand::SeedableRng;
