@@ -4,9 +4,8 @@
 
 use aes::cipher::{generic_array::GenericArray, NewBlockCipher};
 use aes::Aes128;
-use pop_mpc::block::Block;
-use pop_mpc::ot::{OTReceiver, OTSender};
-use rand::RngCore;
+use pop_mpc_core::block::Block;
+use pop_mpc_core::ot::{OTReceiver, OTSender};
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 
@@ -38,27 +37,27 @@ pub fn main() {
 
     // First the receiver creates a setup message and passes it to sender
     let mut receiver = OTReceiver::new(r_rng, r_cipher);
-    let base_sender_setup = receiver.base_setup();
+    let base_sender_setup = receiver.base_setup().unwrap();
 
     // Sender takes receiver's setup and creates its own setup message
-    let mut sender = OTSender::new(s_rng, s_cipher, base_sender_setup);
-    let base_receiver_setup = sender.base_setup();
+    let mut sender = OTSender::new(s_rng, s_cipher);
+    let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
 
     // Now the receiver generates some seeds from sender's setup and uses OT to transfer them
-    let send_seeds = receiver.base_send_seeds(base_receiver_setup);
-    sender.base_receive_seeds(send_seeds);
+    let send_seeds = receiver.base_send_seeds(base_receiver_setup).unwrap();
+    sender.base_receive_seeds(send_seeds).unwrap();
 
     // Receiver generates OT extension setup and passes it to sender
-    let receiver_setup = receiver.extension_setup(&choice);
+    let receiver_setup = receiver.extension_setup(&choice).unwrap();
 
     // Sender takes receiver's setup and runs its own extension setup
-    sender.extension_setup(receiver_setup);
+    sender.extension_setup(receiver_setup).unwrap();
 
     // Finally, sender encrypts their inputs and sends them to receiver
-    let send = sender.send(&inputs);
+    let send = sender.send(&inputs).unwrap();
 
     // Receiver takes the encrypted inputs and is able to decrypt according to their choice bits
-    let receive = receiver.receive(&choice, send);
+    let receive = receiver.receive(&choice, send).unwrap();
 
     println!("Transferred messages: {:?}", receive.values);
 }

@@ -1,10 +1,10 @@
 use aes::cipher::{generic_array::GenericArray, NewBlockCipher};
 use aes::Aes128;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use pop_mpc::block::{Block, BLOCK_ONES};
-use pop_mpc::ot::base::*;
-use pop_mpc::ot::extension::*;
-use pop_mpc::utils::u8vec_to_boolvec;
+use pop_mpc_core::block::{Block, BLOCK_ONES};
+use pop_mpc_core::ot::base::*;
+use pop_mpc_core::ot::extension::*;
+use pop_mpc_core::utils::u8vec_to_boolvec;
 use rand::RngCore;
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
@@ -46,18 +46,18 @@ fn criterion_benchmark(c: &mut Criterion) {
             let r_cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
 
             let mut receiver = OTReceiver::new(r_rng, r_cipher);
-            let base_sender_setup = receiver.base_setup();
+            let base_sender_setup = receiver.base_setup().unwrap();
 
-            let mut sender = OTSender::new(s_rng, s_cipher, base_sender_setup);
-            let base_receiver_setup = sender.base_setup();
+            let mut sender = OTSender::new(s_rng, s_cipher);
+            let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
 
-            let send_seeds = receiver.base_send_seeds(base_receiver_setup);
-            sender.base_receive_seeds(send_seeds);
-            let receiver_setup = receiver.extension_setup(&choice);
-            sender.extension_setup(receiver_setup);
+            let send_seeds = receiver.base_send_seeds(base_receiver_setup).unwrap();
+            sender.base_receive_seeds(send_seeds).unwrap();
+            let receiver_setup = receiver.extension_setup(&choice).unwrap();
+            sender.extension_setup(receiver_setup).unwrap();
 
-            let send = sender.send(&inputs);
-            let receive = receiver.receive(&choice, send);
+            let send = sender.send(&inputs).unwrap();
+            let receive = receiver.receive(&choice, send).unwrap();
 
             black_box(receive);
         });

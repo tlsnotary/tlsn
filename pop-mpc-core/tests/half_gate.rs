@@ -1,6 +1,6 @@
 use aes::cipher::{generic_array::GenericArray, NewBlockCipher};
 use aes::Aes128;
-use pop_mpc::{
+use pop_mpc_core::{
     block::Block,
     circuit::Circuit,
     garble::{evaluator::*, generator::*},

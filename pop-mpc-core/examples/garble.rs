@@ -5,7 +5,7 @@
 
 use aes::cipher::{generic_array::GenericArray, NewBlockCipher};
 use aes::Aes128;
-use pop_mpc::{
+use pop_mpc_core::{
     circuit::Circuit,
     garble::{circuit::GarbledCircuit, evaluator::*, generator::*},
     utils::boolvec_to_u8vec,
