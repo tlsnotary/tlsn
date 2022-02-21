@@ -2,4 +2,5 @@
 members = [
     "pop-tls",
     "pop-mpc-core",
+    "pop-mpc-aio"
 ]

@@ -1,0 +1,8 @@
+[package]
+name = "pop-mpc-aio"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pop-mpc-core = { path="../pop-mpc-core" }
+tokio = "1.17"
