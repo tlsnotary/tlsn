@@ -11,8 +11,8 @@ use aes::Aes128;
 use rand::{CryptoRng, Rng, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 
-type ChaChaAesOTSender = OTSender<ChaCha12Rng, Aes128>;
-type ChaChaAesOTReceiver = OTReceiver<ChaCha12Rng, Aes128>;
+pub type ChaChaAesOTSender = OTSender<ChaCha12Rng, Aes128>;
+pub type ChaChaAesOTReceiver = OTReceiver<ChaCha12Rng, Aes128>;
 
 impl Default for ChaChaAesOTSender {
     fn default() -> Self {
