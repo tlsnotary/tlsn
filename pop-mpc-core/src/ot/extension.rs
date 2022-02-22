@@ -41,7 +41,8 @@ pub struct OTReceiver<R, C> {
 }
 
 pub struct OTReceiverSetup {
-    table: Vec<Vec<u8>>,
+    ncols: usize,
+    table: Vec<u8>,
 }
 
 pub struct OTReceiverReceive {
@@ -105,14 +106,19 @@ impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEn
         &mut self,
         receiver_setup: OTReceiverSetup,
     ) -> Result<(), OTSenderError> {
-        let ncols = receiver_setup.table[0].len() * 8;
-        let us = receiver_setup.table;
-        let mut qs: Vec<Vec<u8>> = vec![vec![0u8; ncols / 8]; NBASE];
+        let us: Vec<Vec<u8>> = receiver_setup
+            .table
+            .chunks(receiver_setup.ncols / 8)
+            .map(Vec::from)
+            .collect();
+
+        let mut qs: Vec<Vec<u8>> = vec![vec![0u8; receiver_setup.ncols / 8]; NBASE];
 
         let rngs = self
             .rngs
             .as_mut()
             .ok_or_else(|| OTSenderError::BaseOTNotSetup)?;
+
         for j in 0..NBASE {
             rngs[j].fill_bytes(&mut qs[j]);
             if self.base_choice[j] {
@@ -227,7 +233,10 @@ impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEn
         }
         self.table = Some(utils::transpose(&ts));
 
-        Ok(OTReceiverSetup { table: gs })
+        Ok(OTReceiverSetup {
+            ncols,
+            table: gs.concat(),
+        })
     }
 
     pub fn receive(
