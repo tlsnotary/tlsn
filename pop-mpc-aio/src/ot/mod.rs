@@ -1,42 +1,71 @@
 pub mod errors;
 
-use pop_mpc_core::ot::{OTReceiver as OTr, OTSender as OTs};
+use async_trait::async_trait;
 use errors::*;
-use rand::{CryptoRng, Rng, RngCore, SeedableRng};
-use aes::{BlockCipher, BlockEncrypt};
+use pop_mpc_core::ot::{OTReceiver, OTSender};
+use tokio::io::{self, AsyncRead, AsyncWrite};
+use tokio::net::UnixStream;
 
-pub struct AsyncOTSender<R, C> {
-    ot: OTs<R,C>,
-    setup: bool
+pub struct UnixOTSender<OT> {
+    ot: OT,
+    io: UnixStream,
 }
 
-pub struct AsyncOTReceiver<R, C> {
-    ot: OTr<R,C>,
-    setup: bool
+pub struct UnixOTReceiver<OT> {
+    ot: OT,
+    io: UnixStream,
 }
 
-impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEncrypt> AsyncOTSender<R, C> {
-    pub fn new(rng: R, cipher: C) -> {
-        let ot = OTs::new(rng, cipher);
+#[async_trait]
+pub trait AsyncOTSender {
+    async fn send() -> Result<(), AsyncOTSenderError>;
+}
+
+#[async_trait]
+pub trait AsyncOTReceiver {
+    async fn receive(&mut self) -> Result<(), AsyncOTReceiverError>;
+}
+
+impl<OT: OTSender> UnixOTSender<OT> {
+    pub fn new(ot: OT, io: UnixStream) -> Self {
+        Self { ot, io }
     }
 }
 
-impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEncrypt> AsyncOTReceiver<R, C> {
-    pub fn new(rng: R, cipher: C) -> Self {
-        let ot = OTr::new(rng, cipher);
-        Self { ot, setup: false }
-    }
-
-    pub async fn setup(&mut self) -> Result<(), AsyncOTSenderError> {
-
-    }
-
-    pub async fn send(&mut self, inputs:&[[Block; 2]]) -> Result<(), AsyncOTSenderError> {
-        
+#[async_trait]
+impl<OT: OTSender> AsyncOTSender for UnixOTSender<OT> {
+    async fn send() -> Result<(), AsyncOTSenderError> {
+        Ok(())
     }
 }
 
-#[cfg(tests)]
+impl<OT: OTReceiver> UnixOTReceiver<OT> {
+    pub fn new(ot: OT, io: UnixStream) -> Self {
+        Self { ot, io }
+    }
+}
+
+#[async_trait]
+impl<OT: OTReceiver> AsyncOTReceiver for UnixOTReceiver<OT> {
+    async fn receive(&mut self) -> Result<(), AsyncOTReceiverError> {
+        let base_setup = self.ot.base_setup()?;
+        let r = self.io.try_write(base_setup.as_bytes())?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
 mod tests {
+    use super::*;
+    use pop_mpc_core::ot::{ChaChaAesOTReceiver, ChaChaAesOTSender};
+    use tokio::net::UnixStream;
 
+    #[test]
+    fn test_async_ot() {
+        let (unix_s, unix_r) = UnixStream::pair().unwrap();
+        let s_ot = ChaChaAesOTSender::default();
+        let r_ot = ChaChaAesOTReceiver::default();
+        let s = UnixOTSender::new(s_ot, unix_s);
+        let r = UnixOTReceiver::new(r_ot, unix_r);
+    }
 }

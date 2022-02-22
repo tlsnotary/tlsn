@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+import "core.proto";
+
+package pop.mpc.ot;
+
+// Setup message sent by Base OT Sender
+message BaseOTSenderSetup {
+    // Senders public key
+    bytes public_key = 1;
+}
+
+// Message sent by OT Sender containing encrypted values
+message BaseOTSenderSend {
+    // Encrypted values corresponding to low choice bit
+    repeated pop.mpc.Block low = 1;
+    // Encrypted values corresponding to high choice bit
+    repeated pop.mpc.Block high = 2;
+}
+
+// Setup message sent by Base OT Receiver
+message BaseOTReceiverSetup {
+    // Keys used to encrypt values by Sender
+    repeated pop.mpc.RistrettoPoint keys = 1;
+}
+
+message BaseOTReceiverReceive {
+    // Received values
+    repeated pop.mpc.Block values = 1;
+}
+
+// Setup message sent by OT Receiver
+message OTReceiverSetup {
+    repeated bytes table = 1;
+}

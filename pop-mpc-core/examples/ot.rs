@@ -5,7 +5,7 @@
 use aes::cipher::{generic_array::GenericArray, NewBlockCipher};
 use aes::Aes128;
 use pop_mpc_core::block::Block;
-use pop_mpc_core::ot::{OTReceiver, OTSender};
+use pop_mpc_core::ot::{KosReceiver, KosSender, OTReceiver, OTSender};
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 
@@ -36,11 +36,11 @@ pub fn main() {
     let r_cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
 
     // First the receiver creates a setup message and passes it to sender
-    let mut receiver = OTReceiver::new(r_rng, r_cipher);
+    let mut receiver = KosReceiver::new(r_rng, r_cipher);
     let base_sender_setup = receiver.base_setup().unwrap();
 
     // Sender takes receiver's setup and creates its own setup message
-    let mut sender = OTSender::new(s_rng, s_cipher);
+    let mut sender = KosSender::new(s_rng, s_cipher);
     let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
 
     // Now the receiver generates some seeds from sender's setup and uses OT to transfer them

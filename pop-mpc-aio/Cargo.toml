@@ -5,4 +5,5 @@ edition = "2021"
 
 [dependencies]
 pop-mpc-core = { path="../pop-mpc-core" }
-tokio = "1.17"
+tokio = { version="1.17", features=["net"] }
+async-trait = "0.1.52"

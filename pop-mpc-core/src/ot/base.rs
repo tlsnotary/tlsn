@@ -1,4 +1,4 @@
-use crate::block::Block;
+use crate::Block;
 //use crate::rng::{Rng, RngSeed};
 use curve25519_dalek::{
     constants::RISTRETTO_BASEPOINT_TABLE,
@@ -6,6 +6,7 @@ use curve25519_dalek::{
     scalar::Scalar,
 };
 use rand::{CryptoRng, Rng};
+use serde::{Deserialize, Serialize};
 
 pub struct BaseOTSender {
     private_key: Scalar,
@@ -13,10 +14,12 @@ pub struct BaseOTSender {
     counter: usize,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BaseOTSenderSetup {
     pub(super) public_key: RistrettoPoint,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BaseOTSenderSend {
     pub(super) encrypted_values: Vec<[Block; 2]>,
 }
@@ -27,10 +30,12 @@ pub struct BaseOTReceiver {
     counter: usize,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BaseOTReceiverSetup {
     pub(super) keys: Vec<RistrettoPoint>,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BaseOTReceiverReceive {
     pub(super) values: Vec<Block>,
 }

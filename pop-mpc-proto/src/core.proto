@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package pop.mpc;
+
+message Block {
+    uint64 low = 1;
+    uint64 high = 2;
+}
+
+message RistrettoPoint {
+    repeated bytes point = 1;
+}

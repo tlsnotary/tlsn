@@ -14,7 +14,8 @@ rand_core = "0.5"
 rand_chacha = "0.2"
 regex = "1.5.4"
 rayon = "1.5"
-curve25519-dalek = { version = "3" }
+curve25519-dalek = { version = "3", features=["serde"] }
+serde = { version = "1", features=["derive"] }
 
 [dev-dependencies]
 rstest = "0.12.0"

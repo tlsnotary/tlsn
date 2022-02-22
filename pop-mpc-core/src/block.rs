@@ -6,11 +6,12 @@ use cipher::{
 use core::ops::{BitAnd, BitXor, BitXorAssign};
 use curve25519_dalek::ristretto::RistrettoPoint;
 use rand::{CryptoRng, Rng, SeedableRng};
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::convert::{From, TryInto};
 
 #[repr(transparent)]
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Block(u128);
 
 pub const BLOCK_LEN: usize = 16;
