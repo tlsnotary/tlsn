@@ -6,6 +6,7 @@ pub use base::*;
 pub use errors::*;
 pub use extension::*;
 
+pub use crate::proto::ot::*;
 use crate::Block;
 
 use aes::cipher::{generic_array::GenericArray, NewBlockCipher};
@@ -35,29 +36,29 @@ impl Default for ChaChaAesOTReceiver {
 pub trait OTSender {
     fn base_setup(
         &mut self,
-        base_sender_setup: BaseOTSenderSetup,
-    ) -> Result<BaseOTReceiverSetup, OTSenderError>;
+        base_sender_setup: BaseOtSenderSetup,
+    ) -> Result<BaseOtReceiverSetup, OtSenderError>;
 
-    fn base_receive_seeds(&mut self, send: BaseOTSenderSend) -> Result<(), OTSenderError>;
+    fn base_receive_seeds(&mut self, send: BaseOtSenderPayload) -> Result<(), OtSenderError>;
 
-    fn extension_setup(&mut self, receiver_setup: OTReceiverSetup) -> Result<(), OTSenderError>;
+    fn extension_setup(&mut self, receiver_setup: OtReceiverSetup) -> Result<(), OtSenderError>;
 
-    fn send(&mut self, inputs: &[[Block; 2]]) -> Result<OTSenderSend, OTSenderError>;
+    fn send(&mut self, inputs: &[[Block; 2]]) -> Result<OtSenderPayload, OtSenderError>;
 }
 
 pub trait OTReceiver {
-    fn base_setup(&mut self) -> Result<BaseOTSenderSetup, OTReceiverError>;
+    fn base_setup(&mut self) -> Result<BaseOtSenderSetup, OtReceiverError>;
 
     fn base_send_seeds(
         &mut self,
-        base_receiver_setup: BaseOTReceiverSetup,
-    ) -> Result<BaseOTSenderSend, OTReceiverError>;
+        base_receiver_setup: BaseOtReceiverSetup,
+    ) -> Result<BaseOtSenderPayload, OtReceiverError>;
 
-    fn extension_setup(&mut self, choice: &[bool]) -> Result<OTReceiverSetup, OTReceiverError>;
+    fn extension_setup(&mut self, choice: &[bool]) -> Result<OtReceiverSetup, OtReceiverError>;
 
     fn receive(
         &mut self,
         choice: &[bool],
-        send: OTSenderSend,
-    ) -> Result<OTReceiverReceive, OTReceiverError>;
+        send: OtSenderPayload,
+    ) -> Result<Vec<Block>, OtReceiverError>;
 }

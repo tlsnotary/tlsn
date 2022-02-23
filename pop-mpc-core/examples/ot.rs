@@ -59,5 +59,5 @@ pub fn main() {
     // Receiver takes the encrypted inputs and is able to decrypt according to their choice bits
     let receive = receiver.receive(&choice, send).unwrap();
 
-    println!("Transferred messages: {:?}", receive.values);
+    println!("Transferred messages: {:?}", receive);
 }

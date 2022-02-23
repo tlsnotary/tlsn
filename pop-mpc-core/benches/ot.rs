@@ -18,10 +18,10 @@ fn criterion_benchmark(c: &mut Criterion) {
         let choice = [false; 1024];
 
         bench.iter(|| {
-            let mut sender = BaseOTSender::new(&mut s_rng);
+            let mut sender = BaseOtSender::new(&mut s_rng);
             let sender_setup = sender.setup();
 
-            let mut receiver = BaseOTReceiver::new(sender_setup);
+            let mut receiver = BaseOtReceiver::new(sender_setup);
 
             let receiver_setup = receiver.setup(&mut r_rng, &choice);
             let send = sender.send(&s_inputs, receiver_setup);

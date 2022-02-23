@@ -1,3 +1,4 @@
+use crate::proto::Block as ProtoBlock;
 use cipher::{
     consts::{U16, U32},
     generic_array::GenericArray,
@@ -69,6 +70,14 @@ impl Block {
     }
 
     #[inline]
+    pub fn to_proto(&self) -> ProtoBlock {
+        ProtoBlock {
+            low: self.0 as u64,
+            high: (self.0 >> 64) as u64,
+        }
+    }
+
+    #[inline]
     pub fn zero() -> Self {
         Self(0)
     }
@@ -133,6 +142,13 @@ impl From<usize> for Block {
     }
 }
 
+impl From<ProtoBlock> for Block {
+    #[inline]
+    fn from(b: ProtoBlock) -> Self {
+        Self(b.low as u128 + ((b.high as u128) << 64))
+    }
+}
+
 impl BitXor for Block {
     type Output = Self;
 
@@ -154,6 +170,12 @@ impl BitAnd for Block {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_to_proto() {
+        let a = Block::new(u128::MAX / 2);
+        assert_eq!(a, Block::from(a.to_proto()));
+    }
 
     #[test]
     fn test_set_lsb() {
