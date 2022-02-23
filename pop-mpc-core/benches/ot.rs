@@ -2,8 +2,7 @@ use aes::cipher::{generic_array::GenericArray, NewBlockCipher};
 use aes::Aes128;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use pop_mpc_core::block::{Block, BLOCK_ONES};
-use pop_mpc_core::ot::base::*;
-use pop_mpc_core::ot::extension::*;
+use pop_mpc_core::ot::*;
 use pop_mpc_core::utils::u8vec_to_boolvec;
 use rand::RngCore;
 use rand::SeedableRng;
@@ -21,10 +20,10 @@ fn criterion_benchmark(c: &mut Criterion) {
             let mut sender = BaseOtSender::new(&mut s_rng);
             let sender_setup = sender.setup();
 
-            let mut receiver = BaseOtReceiver::new(sender_setup);
+            let mut receiver = BaseOtReceiver::new();
 
-            let receiver_setup = receiver.setup(&mut r_rng, &choice);
-            let send = sender.send(&s_inputs, receiver_setup);
+            let receiver_setup = receiver.setup(&mut r_rng, &choice, sender_setup).unwrap();
+            let send = sender.send(&s_inputs, receiver_setup).unwrap();
             let receive = receiver.receive(&choice, send);
             black_box(receive);
         });
