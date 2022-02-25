@@ -12,15 +12,27 @@ use std::convert::TryInto;
 
 use super::BaseOtSenderError;
 
+enum SenderState {
+    Initialized,
+    Setup,
+    Complete,
+}
+
 pub struct BaseOtSender {
     private_key: Scalar,
     public_key: RistrettoPoint,
-    counter: usize,
+    state: SenderState,
+}
+
+enum ReceiverState {
+    Initialized,
+    Setup,
+    Complete,
 }
 
 pub struct BaseOtReceiver {
     hashes: Option<Vec<Block>>,
-    counter: usize,
+    state: ReceiverState,
 }
 
 fn parse_ristretto_key(b: Vec<u8>) -> Result<RistrettoPoint, Vec<u8>> {
@@ -41,11 +53,12 @@ impl BaseOtSender {
         Self {
             private_key,
             public_key: &private_key * &RISTRETTO_BASEPOINT_TABLE,
-            counter: 0,
+            state: SenderState::Initialized,
         }
     }
 
-    pub fn setup(&self) -> BaseOtSenderSetup {
+    pub fn setup(&mut self) -> BaseOtSenderSetup {
+        self.state = SenderState::Setup;
         BaseOtSenderSetup {
             public_key: self.public_key.compress().as_bytes().to_vec(),
         }
@@ -62,19 +75,18 @@ impl BaseOtSender {
         let mut high: Vec<ProtoBlock> = Vec::with_capacity(ninputs);
 
         for (i, (input, receiver_key)) in inputs.iter().zip(receiver_setup.keys).enumerate() {
-            let tweak = self.counter + i;
             let point = match parse_ristretto_key(receiver_key.point) {
                 Ok(point) => point,
                 Err(key) => return Err(BaseOtSenderError::InvalidKey(key)),
             };
             let yr = self.private_key * point;
             let k0 = Block::hash_point(&yr, i);
-            let k1 = Block::hash_point(&(yr - ys), tweak);
+            let k1 = Block::hash_point(&(yr - ys), i);
             low.push((k0 ^ input[0]).to_proto());
             high.push((k1 ^ input[1]).to_proto());
         }
 
-        self.counter += ninputs;
+        self.state = SenderState::Complete;
 
         Ok(BaseOtSenderPayload { low, high })
     }
@@ -84,7 +96,7 @@ impl BaseOtReceiver {
     pub fn new() -> Self {
         Self {
             hashes: None,
-            counter: 0,
+            state: ReceiverState::Initialized,
         }
     }
 
@@ -106,11 +118,10 @@ impl BaseOtReceiver {
             .iter()
             .enumerate()
             .map(|(i, b)| {
-                let tweak = self.counter + i;
                 let x = Scalar::random(rng);
                 let c = if *b { one } else { zero };
                 let k = c + &x * &RISTRETTO_BASEPOINT_TABLE;
-                let h = Block::hash_point(&(&x * &point_table), tweak);
+                let h = Block::hash_point(&(&x * &point_table), i);
                 (
                     ProtoRistrettoPoint {
                         point: k.compress().as_bytes().to_vec(),
@@ -119,18 +130,19 @@ impl BaseOtReceiver {
                 )
             })
             .unzip();
-        self.counter += choice.len();
         self.hashes = Some(hashes);
+
+        self.state = ReceiverState::Setup;
 
         Ok(BaseOtReceiverSetup { keys })
     }
 
-    pub fn receive(&self, choice: &[bool], send: BaseOtSenderPayload) -> Vec<Block> {
+    pub fn receive(&mut self, choice: &[bool], payload: BaseOtSenderPayload) -> Vec<Block> {
         let hashes = self.hashes.as_ref().unwrap();
         let values: Vec<Block> = choice
             .iter()
             .zip(hashes)
-            .zip(send.low.iter().zip(send.high.iter()))
+            .zip(payload.low.iter().zip(payload.high.iter()))
             .map(|((c, h), v)| {
                 let b = if *c {
                     Block::from(v.1.clone())
@@ -140,6 +152,8 @@ impl BaseOtReceiver {
                 *h ^ b
             })
             .collect();
+
+        self.state = ReceiverState::Complete;
 
         values
     }

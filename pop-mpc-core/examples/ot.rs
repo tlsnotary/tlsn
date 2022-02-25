@@ -5,7 +5,7 @@
 use aes::cipher::{generic_array::GenericArray, NewBlockCipher};
 use aes::Aes128;
 use pop_mpc_core::block::Block;
-use pop_mpc_core::ot::{KosReceiver, KosSender, OTReceiver, OTSender};
+use pop_mpc_core::ot::{KosReceiver, KosSender, OtReceiver, OtSender};
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 

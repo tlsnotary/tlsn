@@ -13,7 +13,7 @@ pub mod proto {
             }
         }
     }
-    pub use pop::mpc::core::ot;
+    pub use pop::mpc::core::ot::*;
     pub use pop::mpc::core::*;
 }
 
