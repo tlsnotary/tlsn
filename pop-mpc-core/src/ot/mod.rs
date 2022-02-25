@@ -59,6 +59,6 @@ pub trait OtReceiver {
     fn receive(
         &mut self,
         choice: &[bool],
-        send: OtSenderPayload,
+        payload: OtSenderPayload,
     ) -> Result<Vec<Block>, OtReceiverError>;
 }

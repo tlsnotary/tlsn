@@ -258,7 +258,7 @@ impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEn
     fn receive(
         &mut self,
         choice: &[bool],
-        send: OtSenderPayload,
+        payload: OtSenderPayload,
     ) -> Result<Vec<Block>, OtReceiverError> {
         let mut values: Vec<Block> = Vec::with_capacity(choice.len());
         let r = utils::boolvec_to_u8vec(choice);
@@ -271,9 +271,9 @@ impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEn
             let t: [u8; 16] = ts[j].clone().try_into().unwrap();
             let t = Block::from(t);
             let y = if *b {
-                Block::from(send.high[j].clone())
+                Block::from(payload.high[j].clone())
             } else {
-                Block::from(send.low[j].clone())
+                Block::from(payload.low[j].clone())
             };
             let y = y ^ t.hash_tweak(&mut self.cipher, j);
             values.push(y);
