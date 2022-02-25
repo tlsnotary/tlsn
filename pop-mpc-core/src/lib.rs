@@ -10,9 +10,13 @@ pub mod proto {
                 pub mod ot {
                     include!(concat!(env!("OUT_DIR"), "/pop.mpc.core.ot.rs"));
                 }
+                pub mod garble {
+                    include!(concat!(env!("OUT_DIR"), "/pop.mpc.core.garble.rs"));
+                }
             }
         }
     }
+    pub use pop::mpc::core::garble::*;
     pub use pop::mpc::core::ot::*;
     pub use pop::mpc::core::*;
 }
