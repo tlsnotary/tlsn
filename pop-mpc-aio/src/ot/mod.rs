@@ -70,7 +70,7 @@ impl<OT: OtReceiver> AsyncOtReceiver<OT> {
         &mut self,
         stream: &mut WebSocketStream<S>,
         choice: &[bool],
-    ) -> Result<(), AsyncOtReceiverError> {
+    ) -> Result<Vec<Block>, AsyncOtReceiverError> {
         let base_setup: BaseOtSenderSetup = self.ot.base_setup()?;
         let _ = stream
             .send(Message::Binary(base_setup.encode_to_vec()))
@@ -95,9 +95,8 @@ impl<OT: OtReceiver> AsyncOtReceiver<OT> {
         };
 
         let values = self.ot.receive(choice, payload)?;
-        println!("Received: {:?}", values);
 
-        Ok(())
+        Ok(values)
     }
 }
 
@@ -120,9 +119,11 @@ mod tests {
 
         println!("Websocket connected: {:?}", addr);
 
-        let _ = receiver
+        let values = receiver
             .receive(&mut ws_stream, &[false, false, true])
             .await;
+
+        println!("Received: {:?}", values);
     }
 
     async fn open_connection(stream: UnixStream) {
