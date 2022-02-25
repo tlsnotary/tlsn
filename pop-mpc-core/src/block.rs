@@ -1,3 +1,4 @@
+use crate::proto::Block as ProtoBlock;
 use cipher::{
     consts::{U16, U32},
     generic_array::GenericArray,
@@ -6,11 +7,12 @@ use cipher::{
 use core::ops::{BitAnd, BitXor, BitXorAssign};
 use curve25519_dalek::ristretto::RistrettoPoint;
 use rand::{CryptoRng, Rng, SeedableRng};
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::convert::{From, TryInto};
 
 #[repr(transparent)]
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Block(u128);
 
 pub const BLOCK_LEN: usize = 16;
@@ -65,6 +67,14 @@ impl Block {
             .try_into()
             .expect("Unable to convert hash to block");
         Self::from(h)
+    }
+
+    #[inline]
+    pub fn to_proto(&self) -> ProtoBlock {
+        ProtoBlock {
+            low: self.0 as u64,
+            high: (self.0 >> 64) as u64,
+        }
     }
 
     #[inline]
@@ -132,6 +142,13 @@ impl From<usize> for Block {
     }
 }
 
+impl From<ProtoBlock> for Block {
+    #[inline]
+    fn from(b: ProtoBlock) -> Self {
+        Self(b.low as u128 + ((b.high as u128) << 64))
+    }
+}
+
 impl BitXor for Block {
     type Output = Self;
 
@@ -153,6 +170,12 @@ impl BitAnd for Block {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_to_proto() {
+        let a = Block::new(u128::MAX / 2);
+        assert_eq!(a, Block::from(a.to_proto()));
+    }
 
     #[test]
     fn test_set_lsb() {

@@ -1,11 +1,14 @@
 //! Implementation of the oblivious transfer extension by Keller, Orsini, Scholl
 //! https://eprint.iacr.org/2015/546
 
-use super::base::{
-    BaseOTReceiver, BaseOTReceiverSetup, BaseOTSender, BaseOTSenderSend, BaseOTSenderSetup,
-};
-use super::errors::{OTReceiverError, OTSenderError};
+use super::errors::{OtReceiverError, OtSenderError};
+use super::{BaseOtReceiver, BaseOtSender};
+use super::{OtReceiver, OtSender};
 use crate::block::Block;
+use crate::proto::ot::{
+    BaseOtReceiverSetup, BaseOtSenderPayload, BaseOtSenderSetup, OtReceiverSetup, OtSenderPayload,
+};
+use crate::proto::Block as ProtoBlock;
 use crate::utils;
 use aes::{BlockCipher, BlockEncrypt};
 use cipher::consts::U16;
@@ -17,40 +20,43 @@ use std::convert::TryInto;
 const K: usize = 40;
 const NBASE: usize = 128;
 
-pub struct OTSender<R, C> {
+enum SenderState {
+    Initialized,
+    BaseSetup,
+    Setup,
+    Complete,
+}
+
+pub struct KosSender<R, C> {
     rng: R,
     cipher: C,
+    state: SenderState,
     base_choice: Vec<bool>,
-    base: Option<BaseOTReceiver>,
+    base: Option<BaseOtReceiver>,
     seeds: Option<Vec<Block>>,
     rngs: Option<Vec<ChaCha12Rng>>,
     table: Option<Vec<Vec<u8>>>,
 }
 
-pub struct OTSenderSend {
-    pub encrypted_values: Vec<[Block; 2]>,
+enum ReceiverState {
+    Initialized,
+    BaseSetup,
+    Setup,
+    Complete,
 }
 
-pub struct OTReceiver<R, C> {
+pub struct KosReceiver<R, C> {
     cipher: C,
     rng: R,
-    base: Option<BaseOTSender>,
+    state: ReceiverState,
+    base: Option<BaseOtSender>,
     seeds: Option<Vec<[Block; 2]>>,
     rngs: Option<Vec<[ChaCha12Rng; 2]>>,
     table: Option<Vec<Vec<u8>>>,
 }
 
-pub struct OTReceiverSetup {
-    ncols: usize,
-    table: Vec<u8>,
-}
-
-pub struct OTReceiverReceive {
-    pub values: Vec<Block>,
-}
-
 impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEncrypt>
-    OTSender<R, C>
+    KosSender<R, C>
 {
     pub fn new(mut rng: R, cipher: C) -> Self {
         let mut base_choice = vec![0u8; NBASE / 8];
@@ -58,6 +64,7 @@ impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEn
         Self {
             rng,
             cipher,
+            state: SenderState::Initialized,
             base_choice: utils::u8vec_to_boolvec(&base_choice),
             base: None,
             seeds: None,
@@ -66,27 +73,7 @@ impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEn
         }
     }
 
-    pub fn base_setup(
-        &mut self,
-        base_sender_setup: BaseOTSenderSetup,
-    ) -> Result<BaseOTReceiverSetup, OTSenderError> {
-        let mut base = BaseOTReceiver::new(base_sender_setup);
-        let setup = base.setup(&mut self.rng, &self.base_choice);
-        self.base = Some(base);
-        Ok(setup)
-    }
-
-    pub fn base_receive_seeds(&mut self, send: BaseOTSenderSend) -> Result<(), OTSenderError> {
-        let receive = self
-            .base
-            .as_ref()
-            .ok_or_else(|| OTSenderError::BaseOTUninitialized)?
-            .receive(&self.base_choice, send);
-        self.set_seeds(receive.values);
-        Ok(())
-    }
-
-    pub fn set_seeds(&mut self, seeds: Vec<Block>) {
+    fn set_seeds(&mut self, seeds: Vec<Block>) {
         let rngs: Vec<ChaCha12Rng> = seeds
             .iter()
             .map(|k| {
@@ -101,24 +88,41 @@ impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEn
         self.seeds = Some(seeds);
         self.rngs = Some(rngs);
     }
+}
 
-    pub fn extension_setup(
+impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEncrypt> OtSender
+    for KosSender<R, C>
+{
+    fn base_setup(
         &mut self,
-        receiver_setup: OTReceiverSetup,
-    ) -> Result<(), OTSenderError> {
-        let us: Vec<Vec<u8>> = receiver_setup
-            .table
-            .chunks(receiver_setup.ncols / 8)
-            .map(Vec::from)
-            .collect();
+        base_sender_setup: BaseOtSenderSetup,
+    ) -> Result<BaseOtReceiverSetup, OtSenderError> {
+        let mut base = BaseOtReceiver::new();
+        let setup = base.setup(&mut self.rng, &self.base_choice, base_sender_setup)?;
+        self.base = Some(base);
+        Ok(setup)
+    }
 
-        let mut qs: Vec<Vec<u8>> = vec![vec![0u8; receiver_setup.ncols / 8]; NBASE];
+    fn base_receive_seeds(&mut self, payload: BaseOtSenderPayload) -> Result<(), OtSenderError> {
+        let receive = self
+            .base
+            .as_mut()
+            .ok_or_else(|| OtSenderError::BaseOTUninitialized)?
+            .receive(&self.base_choice, payload);
+        self.set_seeds(receive);
+        self.state = SenderState::BaseSetup;
+        Ok(())
+    }
+
+    fn extension_setup(&mut self, receiver_setup: OtReceiverSetup) -> Result<(), OtSenderError> {
+        let ncols = receiver_setup.table[0].len() * 8;
+        let us = receiver_setup.table;
+        let mut qs: Vec<Vec<u8>> = vec![vec![0u8; ncols / 8]; NBASE];
 
         let rngs = self
             .rngs
             .as_mut()
-            .ok_or_else(|| OTSenderError::BaseOTNotSetup)?;
-
+            .ok_or_else(|| OtSenderError::BaseOTNotSetup)?;
         for j in 0..NBASE {
             rngs[j].fill_bytes(&mut qs[j]);
             if self.base_choice[j] {
@@ -126,12 +130,15 @@ impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEn
             }
         }
         self.table = Some(utils::transpose(&qs));
+        self.state = SenderState::Setup;
         Ok(())
     }
 
-    pub fn send(&mut self, inputs: &[[Block; 2]]) -> Result<OTSenderSend, OTSenderError> {
-        let table = self.table.as_ref().ok_or_else(|| OTSenderError::NotSetup)?;
-        let mut encrypted_values: Vec<[Block; 2]> = Vec::with_capacity(table.len());
+    fn send(&mut self, inputs: &[[Block; 2]]) -> Result<OtSenderPayload, OtSenderError> {
+        let table = self.table.as_ref().ok_or_else(|| OtSenderError::NotSetup)?;
+
+        let mut low: Vec<ProtoBlock> = Vec::with_capacity(table.len());
+        let mut high: Vec<ProtoBlock> = Vec::with_capacity(table.len());
 
         let base_choice: [u8; 16] = utils::boolvec_to_u8vec(&self.base_choice)
             .try_into()
@@ -142,51 +149,28 @@ impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEn
             let q = Block::from(q);
             let y0 = q.hash_tweak(&mut self.cipher, j) ^ input[0];
             let y1 = (q ^ delta).hash_tweak(&mut self.cipher, j) ^ input[1];
-            encrypted_values.push([y0, y1]);
+            low.push(y0.to_proto());
+            high.push(y1.to_proto());
         }
+        self.state = SenderState::Complete;
 
-        Ok(OTSenderSend { encrypted_values })
+        Ok(OtSenderPayload { low, high })
     }
 }
 
 impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEncrypt>
-    OTReceiver<R, C>
+    KosReceiver<R, C>
 {
     pub fn new(rng: R, cipher: C) -> Self {
         Self {
             rng,
             cipher,
+            state: ReceiverState::Initialized,
             base: None,
             seeds: None,
             rngs: None,
             table: None,
         }
-    }
-
-    pub fn base_setup(&mut self) -> Result<BaseOTSenderSetup, OTReceiverError> {
-        let base = BaseOTSender::new(&mut self.rng);
-        let setup = base.setup();
-        self.base = Some(base);
-        Ok(setup)
-    }
-
-    pub fn base_send_seeds(
-        &mut self,
-        base_receiver_setup: BaseOTReceiverSetup,
-    ) -> Result<BaseOTSenderSend, OTReceiverError> {
-        let mut seeds: Vec<[Block; 2]> = Vec::with_capacity(NBASE);
-        for i in 0..NBASE {
-            seeds.push([Block::random(&mut self.rng), Block::random(&mut self.rng)]);
-        }
-
-        let base_send = self
-            .base
-            .as_mut()
-            .ok_or_else(|| OTReceiverError::BaseOTUninitialized)?
-            .send(&seeds.as_slice(), base_receiver_setup);
-
-        self.set_seeds(seeds);
-        Ok(base_send)
     }
 
     fn set_seeds(&mut self, seeds: Vec<[Block; 2]>) {
@@ -209,8 +193,39 @@ impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEn
         self.seeds = Some(seeds);
         self.rngs = Some(rngs);
     }
+}
 
-    pub fn extension_setup(&mut self, choice: &[bool]) -> Result<OTReceiverSetup, OTReceiverError> {
+impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEncrypt> OtReceiver
+    for KosReceiver<R, C>
+{
+    fn base_setup(&mut self) -> Result<BaseOtSenderSetup, OtReceiverError> {
+        let mut base = BaseOtSender::new(&mut self.rng);
+        let setup = base.setup();
+        self.base = Some(base);
+        Ok(setup)
+    }
+
+    fn base_send_seeds(
+        &mut self,
+        base_receiver_setup: BaseOtReceiverSetup,
+    ) -> Result<BaseOtSenderPayload, OtReceiverError> {
+        let mut seeds: Vec<[Block; 2]> = Vec::with_capacity(NBASE);
+        for i in 0..NBASE {
+            seeds.push([Block::random(&mut self.rng), Block::random(&mut self.rng)]);
+        }
+
+        let base_send = self
+            .base
+            .as_mut()
+            .ok_or_else(|| OtReceiverError::BaseOTUninitialized)?
+            .send(&seeds.as_slice(), base_receiver_setup)?;
+
+        self.set_seeds(seeds);
+        self.state = ReceiverState::BaseSetup;
+        Ok(base_send)
+    }
+
+    fn extension_setup(&mut self, choice: &[bool]) -> Result<OtReceiverSetup, OtReceiverError> {
         let r = utils::boolvec_to_u8vec(choice);
         let m = choice.len();
         let ncols = if m % 8 != 0 { m + (8 - m % 8) } else { m };
@@ -220,7 +235,7 @@ impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEn
         let rngs = self
             .rngs
             .as_mut()
-            .ok_or_else(|| OTReceiverError::BaseOTNotSetup)?;
+            .ok_or_else(|| OtReceiverError::BaseOTNotSetup)?;
         for j in 0..NBASE {
             rngs[j][0].fill_bytes(&mut ts[j]);
             rngs[j][1].fill_bytes(&mut gs[j]);
@@ -232,35 +247,40 @@ impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEn
                 .collect();
         }
         self.table = Some(utils::transpose(&ts));
+        self.state = ReceiverState::Setup;
 
-        Ok(OTReceiverSetup {
-            ncols,
-            table: gs.concat(),
+        Ok(OtReceiverSetup {
+            ncols: ncols as u32,
+            table: gs,
         })
     }
 
-    pub fn receive(
+    fn receive(
         &mut self,
         choice: &[bool],
-        send: OTSenderSend,
-    ) -> Result<OTReceiverReceive, OTReceiverError> {
+        payload: OtSenderPayload,
+    ) -> Result<Vec<Block>, OtReceiverError> {
         let mut values: Vec<Block> = Vec::with_capacity(choice.len());
         let r = utils::boolvec_to_u8vec(choice);
         let ts = self
             .table
             .as_ref()
-            .ok_or_else(|| OTReceiverError::NotSetup)?;
+            .ok_or_else(|| OtReceiverError::NotSetup)?;
 
         for (j, b) in choice.iter().enumerate() {
             let t: [u8; 16] = ts[j].clone().try_into().unwrap();
             let t = Block::from(t);
-            let y = send.encrypted_values[j];
-            let y = if *b { y[1] } else { y[0] };
+            let y = if *b {
+                Block::from(payload.high[j].clone())
+            } else {
+                Block::from(payload.low[j].clone())
+            };
             let y = y ^ t.hash_tweak(&mut self.cipher, j);
             values.push(y);
         }
+        self.state = ReceiverState::Complete;
 
-        Ok(OTReceiverReceive { values })
+        Ok(values)
     }
 }
 
@@ -280,10 +300,10 @@ mod tests {
         let r_rng = ChaCha12Rng::from_entropy();
         let r_cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
 
-        let mut receiver = OTReceiver::new(r_rng, r_cipher);
+        let mut receiver = KosReceiver::new(r_rng, r_cipher);
         let base_sender_setup = receiver.base_setup().unwrap();
 
-        let mut sender = OTSender::new(s_rng, s_cipher);
+        let mut sender = KosSender::new(s_rng, s_cipher);
         let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
 
         let send_seeds = receiver.base_send_seeds(base_receiver_setup).unwrap();
@@ -309,7 +329,7 @@ mod tests {
             .map(|(input, choice)| input[choice as usize])
             .collect();
 
-        assert_eq!(expected, receive.values);
+        assert_eq!(expected, receive);
     }
 
     #[test]
@@ -319,10 +339,10 @@ mod tests {
         let r_rng = ChaCha12Rng::from_entropy();
         let r_cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
 
-        let mut receiver = OTReceiver::new(r_rng, r_cipher);
+        let mut receiver = KosReceiver::new(r_rng, r_cipher);
         let base_sender_setup = receiver.base_setup().unwrap();
 
-        let mut sender = OTSender::new(s_rng, s_cipher);
+        let mut sender = KosSender::new(s_rng, s_cipher);
         let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
 
         let send_seeds = receiver.base_send_seeds(base_receiver_setup).unwrap();
@@ -346,10 +366,10 @@ mod tests {
         let r_rng = ChaCha12Rng::from_entropy();
         let r_cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
 
-        let mut receiver = OTReceiver::new(r_rng, r_cipher);
+        let mut receiver = KosReceiver::new(r_rng, r_cipher);
         let base_sender_setup = receiver.base_setup().unwrap();
 
-        let mut sender = OTSender::new(s_rng, s_cipher);
+        let mut sender = KosSender::new(s_rng, s_cipher);
         let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
 
         let send_seeds = receiver.base_send_seeds(base_receiver_setup).unwrap();
