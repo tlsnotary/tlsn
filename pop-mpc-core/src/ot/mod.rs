@@ -6,7 +6,6 @@ pub use base::*;
 pub use errors::*;
 pub use extension::*;
 
-pub use crate::proto::ot::*;
 use crate::Block;
 
 use aes::cipher::{generic_array::GenericArray, NewBlockCipher};

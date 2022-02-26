@@ -2,7 +2,7 @@ syntax = "proto3";
 
 import "core.proto";
 
-package pop.mpc.core.ot;
+package core.ot;
 
 // Setup message sent by Base OT Sender
 message BaseOtSenderSetup {
@@ -13,15 +13,15 @@ message BaseOtSenderSetup {
 // Message sent by OT Sender containing encrypted values
 message BaseOtSenderPayload {
     // Encrypted values corresponding to low choice bit
-    repeated pop.mpc.core.Block low = 1;
+    repeated core.Block low = 1;
     // Encrypted values corresponding to high choice bit
-    repeated pop.mpc.core.Block high = 2;
+    repeated core.Block high = 2;
 }
 
 // Setup message sent by Base OT Receiver
 message BaseOtReceiverSetup {
     // Keys used to encrypt values by Sender
-    repeated pop.mpc.core.RistrettoPoint keys = 1;
+    repeated core.RistrettoPoint keys = 1;
 }
 
 // Setup message sent by OT Receiver
@@ -32,7 +32,7 @@ message OtReceiverSetup {
 
 message OtSenderPayload {
     // Encrypted values corresponding to low choice bit
-    repeated pop.mpc.core.Block low = 1;
+    repeated core.Block low = 1;
     // Encrypted values corresponding to high choice bit
-    repeated pop.mpc.core.Block high = 2;
+    repeated core.Block high = 2;
 }

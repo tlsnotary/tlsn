@@ -2,22 +2,22 @@ syntax = "proto3";
 
 import "core.proto";
 
-package pop.mpc.core.garble;
+package core.garble;
 
 // Input label of garbled circuit
 message InputLabel {
     // Input wire label id
     uint32 id = 1;
     // Input wire label
-    pop.mpc.core.Block label = 2;
+    core.Block label = 2;
 }
 
 // Wire label pair of a garbled circuit
 message LabelPair {
     // Wire label corresponding to low bit
-    pop.mpc.core.Block low = 1;
+    core.Block low = 1;
     // Wire label corresponding to high bit
-    pop.mpc.core.Block high = 2;
+    core.Block high = 2;
 }
 
 // Garbled Circuit Data

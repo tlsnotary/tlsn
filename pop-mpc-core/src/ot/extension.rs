@@ -2,13 +2,11 @@
 //! https://eprint.iacr.org/2015/546
 
 use super::errors::{OtReceiverError, OtSenderError};
-use super::{BaseOtReceiver, BaseOtSender};
+use super::{
+    BaseOtReceiver, BaseOtReceiverSetup, BaseOtSender, BaseOtSenderPayload, BaseOtSenderSetup,
+};
 use super::{OtReceiver, OtSender};
 use crate::block::Block;
-use crate::proto::ot::{
-    BaseOtReceiverSetup, BaseOtSenderPayload, BaseOtSenderSetup, OtReceiverSetup, OtSenderPayload,
-};
-use crate::proto::Block as ProtoBlock;
 use crate::utils;
 use aes::{BlockCipher, BlockEncrypt};
 use cipher::consts::U16;
@@ -19,6 +17,9 @@ use std::convert::TryInto;
 
 const K: usize = 40;
 const NBASE: usize = 128;
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////// OtSender
 
 enum SenderState {
     Initialized,
@@ -38,21 +39,8 @@ pub struct KosSender<R, C> {
     table: Option<Vec<Vec<u8>>>,
 }
 
-enum ReceiverState {
-    Initialized,
-    BaseSetup,
-    Setup,
-    Complete,
-}
-
-pub struct KosReceiver<R, C> {
-    cipher: C,
-    rng: R,
-    state: ReceiverState,
-    base: Option<BaseOtSender>,
-    seeds: Option<Vec<[Block; 2]>>,
-    rngs: Option<Vec<[ChaCha12Rng; 2]>>,
-    table: Option<Vec<Vec<u8>>>,
+pub struct OtSenderPayload {
+    pub encrypted_values: Vec<[Block; 2]>,
 }
 
 impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEncrypt>
@@ -123,6 +111,7 @@ impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEn
             .rngs
             .as_mut()
             .ok_or_else(|| OtSenderError::BaseOTNotSetup)?;
+
         for j in 0..NBASE {
             rngs[j].fill_bytes(&mut qs[j]);
             if self.base_choice[j] {
@@ -137,8 +126,7 @@ impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEn
     fn send(&mut self, inputs: &[[Block; 2]]) -> Result<OtSenderPayload, OtSenderError> {
         let table = self.table.as_ref().ok_or_else(|| OtSenderError::NotSetup)?;
 
-        let mut low: Vec<ProtoBlock> = Vec::with_capacity(table.len());
-        let mut high: Vec<ProtoBlock> = Vec::with_capacity(table.len());
+        let mut encrypted_values: Vec<[Block; 2]> = Vec::with_capacity(table.len());
 
         let base_choice: [u8; 16] = utils::boolvec_to_u8vec(&self.base_choice)
             .try_into()
@@ -149,13 +137,37 @@ impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEn
             let q = Block::from(q);
             let y0 = q.hash_tweak(&mut self.cipher, j) ^ input[0];
             let y1 = (q ^ delta).hash_tweak(&mut self.cipher, j) ^ input[1];
-            low.push(y0.to_proto());
-            high.push(y1.to_proto());
+            encrypted_values.push([y0, y1]);
         }
         self.state = SenderState::Complete;
 
-        Ok(OtSenderPayload { low, high })
+        Ok(OtSenderPayload { encrypted_values })
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////// OtReceiver
+
+enum ReceiverState {
+    Initialized,
+    BaseSetup,
+    Setup,
+    Complete,
+}
+
+pub struct KosReceiver<R, C> {
+    cipher: C,
+    rng: R,
+    state: ReceiverState,
+    base: Option<BaseOtSender>,
+    seeds: Option<Vec<[Block; 2]>>,
+    rngs: Option<Vec<[ChaCha12Rng; 2]>>,
+    table: Option<Vec<Vec<u8>>>,
+}
+
+pub struct OtReceiverSetup {
+    pub ncols: usize,
+    pub table: Vec<Vec<u8>>,
 }
 
 impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEncrypt>
@@ -249,10 +261,7 @@ impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEn
         self.table = Some(utils::transpose(&ts));
         self.state = ReceiverState::Setup;
 
-        Ok(OtReceiverSetup {
-            ncols: ncols as u32,
-            table: gs,
-        })
+        Ok(OtReceiverSetup { ncols, table: gs })
     }
 
     fn receive(
@@ -271,9 +280,9 @@ impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEn
             let t: [u8; 16] = ts[j].clone().try_into().unwrap();
             let t = Block::from(t);
             let y = if *b {
-                Block::from(payload.high[j].clone())
+                payload.encrypted_values[j][1]
             } else {
-                Block::from(payload.low[j].clone())
+                payload.encrypted_values[j][0]
             };
             let y = y ^ t.hash_tweak(&mut self.cipher, j);
             values.push(y);
