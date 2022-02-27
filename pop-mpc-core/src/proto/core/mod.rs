@@ -1,6 +1,8 @@
 pub mod garble;
 pub mod ot;
 
+use std::convert::TryInto;
+
 use crate::utils::parse_ristretto_key;
 
 include!(concat!(env!("OUT_DIR"), "/core.rs"));
@@ -27,6 +29,18 @@ impl From<curve25519_dalek::ristretto::RistrettoPoint> for RistrettoPoint {
     fn from(p: curve25519_dalek::ristretto::RistrettoPoint) -> Self {
         Self {
             point: p.compress().as_bytes().to_vec(),
+        }
+    }
+}
+
+impl TryInto<curve25519_dalek::ristretto::RistrettoPoint> for RistrettoPoint {
+    type Error = ();
+
+    #[inline]
+    fn try_into(self) -> Result<curve25519_dalek::ristretto::RistrettoPoint, ()> {
+        match parse_ristretto_key(self.point) {
+            Ok(key) => Ok(key),
+            Err(p) => return Err(()),
         }
     }
 }

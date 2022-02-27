@@ -1,22 +1,22 @@
-syntax = "proto3";
+syntax = "proto2";
 
 package core;
 
 message Block {
     // Low 64 bits of uint128
-    uint64 low = 1;
+    required uint64 low = 1;
     // High 64 bits of uint128
-    uint64 high = 2;
+    required uint64 high = 2;
 }
 
 message BlockPair {
     // Block corresponding to low bit
-    Block low = 1;
+    required Block low = 1;
     // Block corresponding to high bit
-    Block high = 2;
+    required Block high = 2;
 }
 
 message RistrettoPoint {
     // Compressed byte representation of RistrettoPoint
-    bytes point = 1;
+    required bytes point = 1;
 }

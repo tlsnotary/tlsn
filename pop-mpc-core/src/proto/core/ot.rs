@@ -1,6 +1,6 @@
 pub use crate::ot;
 use crate::utils::parse_ristretto_key;
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 
 include!(concat!(env!("OUT_DIR"), "/core.ot.rs"));
 
@@ -8,7 +8,7 @@ impl From<ot::BaseOtSenderSetup> for BaseOtSenderSetup {
     #[inline]
     fn from(s: ot::BaseOtSenderSetup) -> Self {
         Self {
-            public_key: s.public_key.compress().as_bytes().to_vec(),
+            public_key: super::RistrettoPoint::from(s.public_key),
         }
     }
 }
@@ -18,9 +18,9 @@ impl TryFrom<BaseOtSenderSetup> for ot::BaseOtSenderSetup {
 
     #[inline]
     fn try_from(s: BaseOtSenderSetup) -> Result<Self, Self::Error> {
-        let key = match parse_ristretto_key(s.public_key) {
+        let key = match s.public_key.try_into() {
             Ok(key) => key,
-            Err(p) => return Err("Invalid key in BaseOtSenderSetup"),
+            Err(e) => return Err("Invalid key in BaseOtSenderSetup"),
         };
         Ok(Self { public_key: key })
     }
@@ -29,12 +29,16 @@ impl TryFrom<BaseOtSenderSetup> for ot::BaseOtSenderSetup {
 impl From<ot::BaseOtSenderPayload> for BaseOtSenderPayload {
     #[inline]
     fn from(p: ot::BaseOtSenderPayload) -> Self {
-        let (low, high) = p
-            .encrypted_values
-            .into_iter()
-            .map(|b| (super::Block::from(b[0]), super::Block::from(b[1])))
-            .unzip();
-        Self { low, high }
+        Self {
+            encrypted_values: p
+                .encrypted_values
+                .into_iter()
+                .map(|b| super::BlockPair {
+                    low: super::Block::from(b[0]),
+                    high: super::Block::from(b[1]),
+                })
+                .collect(),
+        }
     }
 }
 
@@ -43,10 +47,9 @@ impl From<BaseOtSenderPayload> for ot::BaseOtSenderPayload {
     fn from(p: BaseOtSenderPayload) -> Self {
         Self {
             encrypted_values: p
-                .low
+                .encrypted_values
                 .into_iter()
-                .zip(p.high.into_iter())
-                .map(|(low, high)| [crate::Block::from(low), crate::Block::from(high)])
+                .map(|pair| [crate::Block::from(pair.low), crate::Block::from(pair.high)])
                 .collect(),
         }
     }
@@ -106,12 +109,16 @@ impl From<OtReceiverSetup> for ot::OtReceiverSetup {
 impl From<ot::OtSenderPayload> for OtSenderPayload {
     #[inline]
     fn from(p: ot::OtSenderPayload) -> Self {
-        let (low, high) = p
-            .encrypted_values
-            .into_iter()
-            .map(|b| (super::Block::from(b[0]), super::Block::from(b[1])))
-            .unzip();
-        Self { low, high }
+        Self {
+            encrypted_values: p
+                .encrypted_values
+                .into_iter()
+                .map(|b| super::BlockPair {
+                    low: super::Block::from(b[0]),
+                    high: super::Block::from(b[1]),
+                })
+                .collect(),
+        }
     }
 }
 
@@ -120,10 +127,9 @@ impl From<OtSenderPayload> for ot::OtSenderPayload {
     fn from(p: OtSenderPayload) -> Self {
         Self {
             encrypted_values: p
-                .low
+                .encrypted_values
                 .into_iter()
-                .zip(p.high.into_iter())
-                .map(|(low, high)| [crate::Block::from(low), crate::Block::from(high)])
+                .map(|pair| [crate::Block::from(pair.low), crate::Block::from(pair.high)])
                 .collect(),
         }
     }

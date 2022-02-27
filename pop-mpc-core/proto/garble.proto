@@ -1,4 +1,4 @@
-syntax = "proto3";
+syntax = "proto2";
 
 import "core.proto";
 
@@ -7,15 +7,15 @@ package core.garble;
 // Input label of garbled circuit
 message InputLabel {
     // Input wire label id
-    uint32 id = 1;
+    required uint32 id = 1;
     // Input wire label
-    core.Block label = 2;
+    required core.Block label = 2;
 }
 
 // Garbled Circuit Data
 message GarbledCircuit {
     // Public wire labels corresponding to low and high bits
-    core.BlockPair public_labels = 1;
+    required core.BlockPair public_labels = 1;
     // Generator's wire labels corresponding to their input bits
     repeated InputLabel generator_input_labels = 2;
     // Wire labels corresponding to garbled AND gates

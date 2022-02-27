@@ -1,4 +1,4 @@
-syntax = "proto3";
+syntax = "proto2";
 
 import "core.proto";
 
@@ -7,15 +7,13 @@ package core.ot;
 // Setup message sent by Base OT Sender
 message BaseOtSenderSetup {
     // Senders public key
-    bytes public_key = 1;
+    required core.RistrettoPoint public_key = 1;
 }
 
 // Message sent by OT Sender containing encrypted values
 message BaseOtSenderPayload {
-    // Encrypted values corresponding to low choice bit
-    repeated core.Block low = 1;
-    // Encrypted values corresponding to high choice bit
-    repeated core.Block high = 2;
+    // Encrypted values
+    repeated core.BlockPair encrypted_values = 1;
 }
 
 // Setup message sent by Base OT Receiver
@@ -26,13 +24,11 @@ message BaseOtReceiverSetup {
 
 // Setup message sent by OT Receiver
 message OtReceiverSetup {
-    uint32 ncols = 1;
+    required uint32 ncols = 1;
     repeated bytes table = 2;
 }
 
 message OtSenderPayload {
-    // Encrypted values corresponding to low choice bit
-    repeated core.Block low = 1;
-    // Encrypted values corresponding to high choice bit
-    repeated core.Block high = 2;
+    // Encrypted values
+    repeated core.BlockPair encrypted_values = 1;
 }
