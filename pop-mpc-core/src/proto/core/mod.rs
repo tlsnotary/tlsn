@@ -1,22 +1,32 @@
 pub mod garble;
 pub mod ot;
 
-#[inline]
-pub fn to_proto(&self) -> ProtoBlock {
-    ProtoBlock {
-        low: self.0 as u64,
-        high: (self.0 >> 64) as u64,
+use crate::utils::parse_ristretto_key;
+
+include!(concat!(env!("OUT_DIR"), "/core.rs"));
+
+impl From<crate::Block> for Block {
+    #[inline]
+    fn from(b: crate::Block) -> Self {
+        Self {
+            low: b.inner() as u64,
+            high: (b.inner() >> 64) as u64,
+        }
     }
 }
 
-fn parse_ristretto_key(b: Vec<u8>) -> Result<RistrettoPoint, Vec<u8>> {
-    if b.len() != 32 {
-        return Err(b);
+impl From<Block> for crate::Block {
+    #[inline]
+    fn from(b: Block) -> Self {
+        Self::new(b.low as u128 + ((b.high as u128) << 64))
     }
-    let c_point = CompressedRistretto::from_slice(b.as_slice());
-    if let Some(point) = c_point.decompress() {
-        Ok(point)
-    } else {
-        Err(b)
+}
+
+impl From<curve25519_dalek::ristretto::RistrettoPoint> for RistrettoPoint {
+    #[inline]
+    fn from(p: curve25519_dalek::ristretto::RistrettoPoint) -> Self {
+        Self {
+            point: p.compress().as_bytes().to_vec(),
+        }
     }
 }

@@ -26,6 +26,11 @@ impl Block {
     }
 
     #[inline]
+    pub fn inner(&self) -> u128 {
+        self.0
+    }
+
+    #[inline]
     pub fn random<R: Rng + CryptoRng>(rng: &mut R) -> Self {
         Self::new(rng.gen())
     }

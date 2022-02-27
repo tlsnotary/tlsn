@@ -1,3 +1,5 @@
+use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
+
 #[inline]
 pub fn boolvec_to_u8vec(bv: &[bool]) -> Vec<u8> {
     let offset = if bv.len() % 8 == 0 { 0 } else { 1 };
@@ -44,27 +46,17 @@ pub fn transpose(m: &Vec<Vec<u8>>) -> Vec<Vec<u8>> {
     m_
 }
 
-// pub fn transpose(m: &Vec<Vec<u8>>) -> Vec<Vec<u8>> {
-//     let col_count = m[0].len() * 8;
-//     let row_count = m.len();
-
-//     let mut m_: Vec<Vec<u8>> = Vec::with_capacity(col_count);
-
-//     for j in 0..col_count {
-//         let byte_n = j >> 3;
-//         let bit_idx = j % 8;
-
-//         let mut row_bits: Vec<bool> = (0..row_count)
-//             .map(|i| ((m[i][byte_n] >> (7 - bit_idx)) & 1) == 1)
-//             .collect();
-//         row_bits.reverse();
-//         let mut row = boolvec_to_u8vec(&row_bits);
-//         row.reverse();
-//         m_.push(row);
-//     }
-
-//     m_
-// }
+pub fn parse_ristretto_key(b: Vec<u8>) -> Result<RistrettoPoint, Vec<u8>> {
+    if b.len() != 32 {
+        return Err(b);
+    }
+    let c_point = CompressedRistretto::from_slice(b.as_slice());
+    if let Some(point) = c_point.decompress() {
+        Ok(point)
+    } else {
+        Err(b)
+    }
+}
 
 #[cfg(test)]
 mod tests {
