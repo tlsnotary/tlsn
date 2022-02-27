@@ -1,7 +1,7 @@
 pub mod parse;
 
 use crate::errors::CircuitEvalError;
-use crate::gate::{Gate, GateOps};
+use crate::gate::Gate;
 
 pub use parse::*;
 
@@ -50,8 +50,8 @@ impl Circuit {
     }
 
     /// Evaluates the circuit in plaintext with the provided inputs
-    pub fn eval<E: GateOps>(&self, inputs: Vec<Vec<E>>) -> Result<Vec<E>, CircuitEvalError> {
-        let mut wires: Vec<Option<E>> = vec![None; self.nwires];
+    pub fn eval(&self, inputs: Vec<Vec<bool>>) -> Result<Vec<bool>, CircuitEvalError> {
+        let mut wires: Vec<Option<bool>> = vec![None; self.nwires];
         let inputs = inputs.concat();
         for (i, input) in inputs.into_iter().enumerate() {
             wires[i] = Some(input);
@@ -66,8 +66,7 @@ impl Circuit {
                         wires[xref].ok_or_else(|| CircuitEvalError::UninitializedValue(xref))?;
                     let y =
                         wires[yref].ok_or_else(|| CircuitEvalError::UninitializedValue(yref))?;
-                    let val = x.xor(&y)?;
-                    (zref, val)
+                    (zref, x ^ y)
                 }
                 Gate::And {
                     xref, yref, zref, ..
@@ -76,14 +75,12 @@ impl Circuit {
                         wires[xref].ok_or_else(|| CircuitEvalError::UninitializedValue(xref))?;
                     let y =
                         wires[yref].ok_or_else(|| CircuitEvalError::UninitializedValue(yref))?;
-                    let val = x.and(&y)?;
-                    (zref, val)
+                    (zref, x & y)
                 }
                 Gate::Inv { xref, zref, .. } => {
                     let x =
                         wires[xref].ok_or_else(|| CircuitEvalError::UninitializedValue(xref))?;
-                    let val = x.inv()?;
-                    (zref, val)
+                    (zref, !x)
                 }
             };
             wires[zref] = Some(val);

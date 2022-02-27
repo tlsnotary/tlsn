@@ -1,34 +1,12 @@
 use regex;
 use std::fmt::{self, Display, Formatter};
 
-/// Errors that may occur when using the `GateOps` trait.
-#[derive(Debug)]
-pub enum GateOpsError {
-    /// Operation not implemented
-    OperationNotImplemented,
-}
-
-impl Display for GateOpsError {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        match self {
-            GateOpsError::OperationNotImplemented => "operation not implemented".fmt(f),
-        }
-    }
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 /// CircuitEval
 
 #[derive(Debug)]
 pub enum CircuitEvalError {
     UninitializedValue(usize),
-    GateOpsError(GateOpsError),
-}
-
-impl From<GateOpsError> for CircuitEvalError {
-    fn from(error: GateOpsError) -> Self {
-        CircuitEvalError::GateOpsError(error)
-    }
 }
 
 impl Display for CircuitEvalError {
@@ -37,7 +15,6 @@ impl Display for CircuitEvalError {
             CircuitEvalError::UninitializedValue(wire) => {
                 write!(f, "Uninitialized value, wire {}", wire)
             }
-            CircuitEvalError::GateOpsError(err) => write!(f, "Gate operation error: {:?}", err),
         }
     }
 }

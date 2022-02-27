@@ -79,7 +79,7 @@ fn test_aes_128() {
 
     let gc = gen.garble(&mut cipher, &mut rng, &circ).unwrap();
 
-    let a: Vec<u8> = vec![1; 128];
+    let a = vec![true; 128];
 
     let expected = circ.eval(vec![a.clone(), a.clone()]).unwrap();
 
@@ -92,9 +92,9 @@ fn test_aes_128() {
         .collect();
 
     let output_labels = ev.eval(&mut cipher, &circ, &gc, input_labels).unwrap();
-    let mut outputs: Vec<u8> = Vec::with_capacity(circ.noutput_wires);
+    let mut outputs: Vec<bool> = Vec::with_capacity(circ.noutput_wires);
     for (i, label) in output_labels.iter().enumerate() {
-        outputs.push((label.lsb() ^ gc.output_bits[i]) as u8);
+        outputs.push((label.lsb() ^ gc.output_bits[i]) != 0);
     }
     assert_eq!(outputs, expected);
 }

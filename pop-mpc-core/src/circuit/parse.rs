@@ -164,57 +164,72 @@ mod tests {
         assert_eq!(circ.nxor, 313);
         assert_eq!(circ.nand, 63);
 
-        let a = vec![0u8; 64];
-        let b = vec![0u8; 64];
+        let a = vec![false; 64];
+        let b = vec![false; 64];
         let output = circ.eval(vec![a, b]).unwrap();
         assert_eq!(
-            output.iter().map(|i| i.to_string()).collect::<String>(),
+            output
+                .into_iter()
+                .map(|i| (i as u8).to_string())
+                .collect::<String>(),
             "0000000000000000000000000000000000000000000000000000000000000000"
         );
 
-        let mut a = vec![0u8; 64];
-        a[63] = 1;
+        let mut a = vec![false; 64];
+        a[63] = true;
         a.reverse();
-        let b = vec![0u8; 64];
+        let b = vec![false; 64];
         let mut output = circ.eval(vec![a, b]).unwrap();
         output.reverse();
         assert_eq!(
-            output.iter().map(|i| i.to_string()).collect::<String>(),
+            output
+                .into_iter()
+                .map(|i| (i as u8).to_string())
+                .collect::<String>(),
             "0000000000000000000000000000000000000000000000000000000000000001"
         );
 
-        let a = vec![0u8; 64];
-        let mut b = vec![0u8; 64];
-        b[63] = 1;
+        let a = vec![false; 64];
+        let mut b = vec![false; 64];
+        b[63] = true;
         b.reverse();
         let mut output = circ.eval(vec![a, b]).unwrap();
         output.reverse();
         assert_eq!(
-            output.iter().map(|i| i.to_string()).collect::<String>(),
+            output
+                .into_iter()
+                .map(|i| (i as u8).to_string())
+                .collect::<String>(),
             "0000000000000000000000000000000000000000000000000000000000000001"
         );
 
-        let mut a = vec![0u8; 64];
-        a[63] = 1;
+        let mut a = vec![false; 64];
+        a[63] = true;
         a.reverse();
-        let mut b = vec![0u8; 64];
-        b[63] = 1;
+        let mut b = vec![false; 64];
+        b[63] = true;
         b.reverse();
         let mut output = circ.eval(vec![a, b]).unwrap();
         output.reverse();
         assert_eq!(
-            output.iter().map(|i| i.to_string()).collect::<String>(),
+            output
+                .into_iter()
+                .map(|i| (i as u8).to_string())
+                .collect::<String>(),
             "0000000000000000000000000000000000000000000000000000000000000010"
         );
 
-        let a = vec![1u8; 64];
-        let mut b = vec![0u8; 64];
-        b[63] = 1;
+        let a = vec![true; 64];
+        let mut b = vec![false; 64];
+        b[63] = true;
         b.reverse();
         let mut output = circ.eval(vec![a, b]).unwrap();
         output.reverse();
         assert_eq!(
-            output.iter().map(|i| i.to_string()).collect::<String>(),
+            output
+                .into_iter()
+                .map(|i| (i as u8).to_string())
+                .collect::<String>(),
             "0000000000000000000000000000000000000000000000000000000000000000"
         );
     }
@@ -228,71 +243,51 @@ mod tests {
         assert_eq!(circ.nxor, 28176);
         assert_eq!(circ.nand, 6400);
 
-        let mut key = vec![0u8; 128];
-        let mut pt = vec![0u8; 128];
+        let mut key = vec![false; 128];
+        let mut pt = vec![false; 128];
         let mut output = circ.eval(vec![key, pt]).unwrap();
         output.reverse();
-        assert_eq!(output.iter().map(|i| i.to_string()).collect::<String>(),
+        assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
                    "01100110111010010100101111010100111011111000101000101100001110111000100001001100111110100101100111001010001101000010101100101110");
 
-        key = vec![1u8; 128];
-        pt = vec![0u8; 128];
+        key = vec![true; 128];
+        pt = vec![false; 128];
         output = circ.eval(vec![key, pt]).unwrap();
         output.reverse();
-        assert_eq!(output.iter().map(|i| i.to_string()).collect::<String>(),
+        assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
                    "10100001111101100010010110001100100001110111110101011111110011011000100101100100010010000100010100111000101111111100100100101100");
 
-        key = vec![0u8; 128];
-        key[7] = 1;
+        key = vec![false; 128];
+        key[7] = true;
         key.reverse();
-        pt = vec![0u8; 128];
+        pt = vec![false; 128];
         output = circ.eval(vec![key, pt]).unwrap();
         output.reverse();
-        assert_eq!(output.iter().map(|i| i.to_string()).collect::<String>(),
+        assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
                    "11011100000011101101100001011101111110010110000100011010101110110111001001001001110011011101000101101000110001010100011001111110");
 
-        key = vec![0u8; 128];
+        key = vec![false; 128];
         for i in 0..8 {
-            key[127 - i] = 1;
+            key[127 - i] = true;
         }
         key.reverse();
-        pt = vec![0u8; 128];
+        pt = vec![false; 128];
         output = circ.eval(vec![key, pt]).unwrap();
         output.reverse();
-        assert_eq!(output.iter().map(|i| i.to_string()).collect::<String>(),
+        assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
                    "11010101110010011000110001001000001001010101111101111000110011000100011111100001010010011110010101011100111111000011111111111101");
 
-        key = vec![0u8; 128];
-        for i in 0..8 {
-            key[127 - i] = 1;
-        }
-        key.reverse();
-        pt = vec![0u8; 128];
-        pt.splice(
-            ..64,
-            [
-                0, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0, 0, 1, 1, 0,
-                0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1,
-                0, 1, 1, 0, 1, 1, 0, 1,
-            ],
-        );
-        pt.reverse();
-        output = circ.eval(vec![key, pt]).unwrap();
-        output.reverse();
-        assert_eq!(output.iter().map(|i| i.to_string()).collect::<String>(),
-                    "10001010010011010111111100000011011000110101001101101001101011100001101111001110101010001010101010000000100010000001000101010111");
-
-        key = vec![0u8; 128];
+        key = vec![false; 128];
 
         for i in 0..8 {
-            key[i] = 1;
+            key[i] = true;
         }
 
         key.reverse();
-        pt = vec![0u8; 128];
+        pt = vec![false; 128];
         output = circ.eval(vec![key, pt]).unwrap();
         output.reverse();
-        assert_eq!(output.iter().map(|i| i.to_string()).collect::<String>(),
+        assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
                     "10110001110101110101100000100101011010110010100011111101100001010000101011010100100101000100001000001000110011110001000101010101");
     }
 
@@ -305,62 +300,45 @@ mod tests {
         assert_eq!(circ.nxor, 25124);
         assert_eq!(circ.nand, 6800);
 
-        let mut key = vec![0u8; 128];
-        let mut pt = vec![0u8; 128];
+        let mut key = vec![false; 128];
+        let mut pt = vec![false; 128];
         let mut output = circ.eval(vec![pt, key]).unwrap();
-        assert_eq!(output.iter().map(|i| i.to_string()).collect::<String>(),
+        assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
                    "01100110111010010100101111010100111011111000101000101100001110111000100001001100111110100101100111001010001101000010101100101110");
 
-        key = vec![1u8; 128];
-        pt = vec![0u8; 128];
+        key = vec![true; 128];
+        pt = vec![false; 128];
         output = circ.eval(vec![pt, key]).unwrap();
-        assert_eq!(output.iter().map(|i| i.to_string()).collect::<String>(),
+        assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
                    "10100001111101100010010110001100100001110111110101011111110011011000100101100100010010000100010100111000101111111100100100101100");
 
-        key = vec![0u8; 128];
-        key[7] = 1;
+        key = vec![false; 128];
+        key[7] = true;
 
-        pt = vec![0u8; 128];
+        pt = vec![false; 128];
         output = circ.eval(vec![pt, key]).unwrap();
-        assert_eq!(output.iter().map(|i| i.to_string()).collect::<String>(),
+        assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
                    "11011100000011101101100001011101111110010110000100011010101110110111001001001001110011011101000101101000110001010100011001111110");
 
-        key = vec![0u8; 128];
+        key = vec![false; 128];
         for i in 0..8 {
-            key[127 - i] = 1;
+            key[127 - i] = true;
         }
 
-        pt = vec![0u8; 128];
+        pt = vec![false; 128];
         output = circ.eval(vec![pt, key]).unwrap();
-        assert_eq!(output.iter().map(|i| i.to_string()).collect::<String>(),
+        assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
                    "11010101110010011000110001001000001001010101111101111000110011000100011111100001010010011110010101011100111111000011111111111101");
 
-        key = vec![0u8; 128];
-        for i in 0..8 {
-            key[127 - i] = 1;
-        }
-        pt = vec![0u8; 128];
-        pt.splice(
-            ..64,
-            [
-                0, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0, 0, 1, 1, 0,
-                0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1,
-                0, 1, 1, 0, 1, 1, 0, 1,
-            ],
-        );
-        output = circ.eval(vec![pt, key]).unwrap();
-        assert_eq!(output.iter().map(|i| i.to_string()).collect::<String>(),
-                    "10001010010011010111111100000011011000110101001101101001101011100001101111001110101010001010101010000000100010000001000101010111");
-
-        key = vec![0u8; 128];
+        key = vec![false; 128];
 
         for i in 0..8 {
-            key[i] = 1;
+            key[i] = true;
         }
 
-        pt = vec![0u8; 128];
+        pt = vec![false; 128];
         output = circ.eval(vec![pt, key]).unwrap();
-        assert_eq!(output.iter().map(|i| i.to_string()).collect::<String>(),
+        assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
                     "10110001110101110101100000100101011010110010100011111101100001010000101011010100100101000100001000001000110011110001000101010101");
     }
 }
