@@ -19,6 +19,10 @@ pub fn u8vec_to_boolvec(v: &[u8]) -> Vec<bool> {
     bv
 }
 
+pub fn boolvec_to_string(v: &[bool]) -> String {
+    v.iter().map(|b| (*b as u8).to_string()).collect::<String>()
+}
+
 pub fn transpose(m: &Vec<Vec<u8>>) -> Vec<Vec<u8>> {
     let bits: Vec<Vec<bool>> = m.iter().map(|row| u8vec_to_boolvec(row)).collect();
     let col_count = bits[0].len();

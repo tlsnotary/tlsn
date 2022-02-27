@@ -2,7 +2,7 @@ use super::GarbledCircuitGenerator;
 use crate::block::{Block, SELECT_MASK};
 use crate::circuit::Circuit;
 use crate::errors::GeneratorError;
-use crate::garble::circuit::GarbledCircuit;
+use crate::garble::circuit::CompleteGarbledCircuit;
 use crate::gate::Gate;
 use cipher::{consts::U16, generic_array::GenericArray, BlockCipher, BlockEncrypt};
 use rand::{CryptoRng, Rng, SeedableRng};
@@ -62,7 +62,7 @@ impl GarbledCircuitGenerator for HalfGateGenerator {
         c: &mut C,
         rng: &mut R,
         circ: &Circuit,
-    ) -> Result<GarbledCircuit, GeneratorError> {
+    ) -> Result<CompleteGarbledCircuit, GeneratorError> {
         let mut delta: Block = Block::random(rng);
         delta.set_lsb();
 
@@ -114,7 +114,7 @@ impl GarbledCircuitGenerator for HalfGateGenerator {
             output_bits.push(cache[i].unwrap()[0].lsb());
         }
 
-        Ok(GarbledCircuit::new(
+        Ok(CompleteGarbledCircuit::new(
             input_labels,
             cache.into_iter().map(|w| w.unwrap()).collect(),
             table,

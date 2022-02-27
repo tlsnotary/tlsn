@@ -2,7 +2,7 @@ use super::GarbledCircuitEvaluator;
 use crate::block::{Block, SELECT_MASK};
 use crate::circuit::Circuit;
 use crate::errors::EvaluatorError;
-use crate::garble::circuit::GarbledCircuit;
+use crate::garble::circuit::{GarbledCircuit, InputLabel};
 use crate::gate::Gate;
 use cipher::{consts::U16, generic_array::GenericArray, BlockCipher, BlockEncrypt};
 
@@ -57,19 +57,13 @@ impl GarbledCircuitEvaluator for HalfGateEvaluator {
         c: &mut C,
         circ: &Circuit,
         gc: &GarbledCircuit,
-        input_labels: Vec<Block>,
-    ) -> Result<Vec<Block>, EvaluatorError> {
-        if input_labels.len() != circ.ninput_wires {
-            return Err(EvaluatorError::InvalidInputCount(
-                input_labels.len(),
-                circ.ninput_wires,
-            ));
-        }
-
+        input_labels: Vec<InputLabel>,
+    ) -> Result<Vec<bool>, EvaluatorError> {
         let mut cache: Vec<Option<Block>> = vec![None; circ.nwires];
 
-        for i in 0..circ.ninput_wires {
-            cache[i] = Some(input_labels[i]);
+        // todo: assert that inputs are correctly sized and do not overlap
+        for input_label in [gc.generator_wire_labels.clone(), input_labels].concat() {
+            cache[input_label.id] = Some(input_label.label);
         }
 
         let mut gid = 1;
@@ -100,12 +94,12 @@ impl GarbledCircuitEvaluator for HalfGateEvaluator {
             };
         }
 
-        let mut output_labels: Vec<Block> = Vec::with_capacity(circ.noutput_wires);
-        for i in (circ.nwires - circ.noutput_wires)..circ.nwires {
-            output_labels.push(cache[i].unwrap());
+        let mut outputs: Vec<bool> = Vec::with_capacity(circ.noutput_wires);
+        for (i, id) in ((circ.nwires - circ.noutput_wires)..circ.nwires).enumerate() {
+            outputs.push((cache[id].unwrap().lsb() ^ gc.output_bits[i]) != 0);
         }
 
-        Ok(output_labels)
+        Ok(outputs)
     }
 }
 

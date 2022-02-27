@@ -4,7 +4,7 @@ pub use half_gate::*;
 
 use crate::circuit::Circuit;
 use crate::errors::GeneratorError;
-use crate::garble::circuit::GarbledCircuit;
+use crate::garble::circuit::CompleteGarbledCircuit;
 use cipher::{consts::U16, generic_array::GenericArray, BlockCipher, BlockEncrypt};
 use rand::{CryptoRng, Rng};
 
@@ -15,5 +15,5 @@ pub trait GarbledCircuitGenerator {
         c: &mut C,
         rng: &mut R,
         circ: &Circuit,
-    ) -> Result<GarbledCircuit, GeneratorError>;
+    ) -> Result<CompleteGarbledCircuit, GeneratorError>;
 }

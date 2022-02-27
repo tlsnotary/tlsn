@@ -1,9 +1,11 @@
 use aes::cipher::{generic_array::GenericArray, NewBlockCipher};
 use aes::Aes128;
+use pop_mpc_core::garble::circuit::InputLabel;
 use pop_mpc_core::{
     block::Block,
     circuit::{Circuit, CircuitInput},
     garble::{evaluator::*, generator::*},
+    utils::boolvec_to_string,
 };
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
@@ -79,28 +81,38 @@ fn test_aes_128() {
 
     let gc = gen.garble(&mut cipher, &mut rng, &circ).unwrap();
 
-    let a = vec![true; 128];
-    let inputs = [a.clone(), a.clone()].concat();
-    let inputs = inputs
+    let generator_inputs = vec![true; 128];
+    let generator_inputs: Vec<CircuitInput> = generator_inputs
         .into_iter()
         .enumerate()
         .map(|(id, value)| CircuitInput { id, value })
         .collect();
 
-    let expected = circ.eval(inputs).unwrap();
-
-    let inputs = [a.clone(), a.clone()].concat();
-    let input_labels = gc
-        .input_labels
+    let evaluator_inputs = vec![true; 128];
+    let evaluator_inputs: Vec<CircuitInput> = evaluator_inputs
+        .into_iter()
+        .enumerate()
+        .map(|(id, value)| CircuitInput {
+            id: id + 128,
+            value,
+        })
+        .collect();
+    let evaluator_input_labels: Vec<InputLabel> = gc.input_labels[128..256]
         .iter()
-        .zip(inputs)
-        .map(|(label, input)| label[input as usize])
+        .zip(evaluator_inputs.iter())
+        .map(|(label, input)| InputLabel {
+            id: input.id,
+            label: label[input.value as usize],
+        })
         .collect();
 
-    let output_labels = ev.eval(&mut cipher, &circ, &gc, input_labels).unwrap();
-    let mut outputs: Vec<bool> = Vec::with_capacity(circ.noutput_wires);
-    for (i, label) in output_labels.iter().enumerate() {
-        outputs.push((label.lsb() ^ gc.output_bits[i]) != 0);
-    }
-    assert_eq!(outputs, expected);
+    let gc = gc.to_public(generator_inputs.clone());
+    let outputs = ev
+        .eval(&mut cipher, &circ, &gc, evaluator_input_labels)
+        .unwrap();
+
+    let expected = circ
+        .eval([generator_inputs, evaluator_inputs].concat())
+        .unwrap();
+    assert_eq!(boolvec_to_string(&outputs), boolvec_to_string(&expected));
 }

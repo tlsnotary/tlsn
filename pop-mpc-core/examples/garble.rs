@@ -6,26 +6,25 @@
 use aes::cipher::{generic_array::GenericArray, NewBlockCipher};
 use aes::Aes128;
 use pop_mpc_core::{
-    circuit::Circuit,
-    garble::{circuit::GarbledCircuit, evaluator::*, generator::*},
+    circuit::{Circuit, CircuitInput},
+    garble::{
+        circuit::{CompleteGarbledCircuit, InputLabel},
+        evaluator::*,
+        generator::*,
+    },
     utils::boolvec_to_u8vec,
 };
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 
-fn bits_to_bytes(bits: &Vec<u8>) -> Vec<u8> {
-    let b: Vec<bool> = bits.iter().map(|b| *b == 1).collect();
-    boolvec_to_u8vec(&b)
-}
-
 fn main() {
-    let mut input = vec![0u8; 128];
-    let mut key = vec![0u8; 128];
+    let mut input = vec![false; 128];
+    let mut key = vec![false; 128];
 
     println!(
         "Input: {:02X?}\nKey: {:02X?}",
-        bits_to_bytes(&input),
-        bits_to_bytes(&key)
+        boolvec_to_u8vec(&input),
+        boolvec_to_u8vec(&key)
     );
 
     let mut rng = ChaCha12Rng::from_entropy();
@@ -34,30 +33,38 @@ fn main() {
     let gen = HalfGateGenerator::new();
     let ev = HalfGateEvaluator::new();
 
-    let gc: GarbledCircuit = gen.garble(&mut cipher, &mut rng, &circ).unwrap();
+    let complete_gc: CompleteGarbledCircuit = gen.garble(&mut cipher, &mut rng, &circ).unwrap();
 
     // Circuit operates on reversed bits
     key.reverse();
     input.reverse();
 
-    let inputs = [key, input].concat();
-    // Map input bits to corresponding wire labels
-    let input_labels = gc
-        .input_labels
-        .iter()
-        .zip(inputs)
-        .map(|(label, input)| label[input as usize])
+    // Convert raw values to CircuitInputs, which indicate what input wire each value corresponds to
+    let generator_inputs = input
+        .into_iter()
+        .enumerate()
+        .map(|(id, value)| CircuitInput { id, value })
         .collect();
 
-    let output_labels = ev.eval(&mut cipher, &circ, &gc, input_labels).unwrap();
+    // Convert `CompleteGarbledCircuit` to `Garbled Circuit` which strips data that the evaluator should not receive
+    let gc = complete_gc.to_public(generator_inputs);
 
-    // Map output labels back to truth bits
-    let mut outputs: Vec<u8> = Vec::with_capacity(circ.noutput_wires);
-    for (i, label) in output_labels.iter().enumerate() {
-        outputs.push((label.lsb() ^ gc.output_bits[i]) as u8);
-    }
+    // Here we'll manually put together the evaluators input labels, this is usually retrieved using oblivious transfer
+    let evaluator_input_labels = key
+        .into_iter()
+        .zip(complete_gc.input_labels[128..256].iter())
+        .enumerate()
+        .map(|(id, (value, label))| InputLabel {
+            id: id + 128,
+            label: label[value as usize],
+        })
+        .collect();
 
-    let mut ciphertext = bits_to_bytes(&outputs);
+    let outputs = ev
+        .eval(&mut cipher, &circ, &gc, evaluator_input_labels)
+        .unwrap();
+
+    let mut ciphertext = boolvec_to_u8vec(&outputs);
     ciphertext.reverse();
     println!("Ciphertext: {:02X?}", ciphertext);
 }
