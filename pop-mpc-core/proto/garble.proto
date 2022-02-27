@@ -12,22 +12,14 @@ message InputLabel {
     core.Block label = 2;
 }
 
-// Wire label pair of a garbled circuit
-message LabelPair {
-    // Wire label corresponding to low bit
-    core.Block low = 1;
-    // Wire label corresponding to high bit
-    core.Block high = 2;
-}
-
 // Garbled Circuit Data
 message GarbledCircuit {
     // Public wire labels corresponding to low and high bits
-    LabelPair public_labels = 1;
+    core.BlockPair public_labels = 1;
     // Generator's wire labels corresponding to their input bits
     repeated InputLabel generator_input_labels = 2;
     // Wire labels corresponding to garbled AND gates
-    repeated LabelPair wire_labels = 3;
+    repeated core.BlockPair wire_labels = 3;
     // LSB of each outputs low wire label
     repeated bool output_bits = 4;
 }
