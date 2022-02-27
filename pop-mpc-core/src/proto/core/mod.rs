@@ -44,3 +44,16 @@ impl TryInto<curve25519_dalek::ristretto::RistrettoPoint> for RistrettoPoint {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ristretto() {
+        let point_a = curve25519_dalek::ristretto::RistrettoPoint::default();
+        let proto = RistrettoPoint::from(point_a);
+        let point_b: curve25519_dalek::ristretto::RistrettoPoint = proto.try_into().unwrap();
+        assert_eq!(point_a, point_b);
+    }
+}
