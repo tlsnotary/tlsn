@@ -134,3 +134,23 @@ impl From<OtSenderPayload> for ot::OtSenderPayload {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ot_sender_payload() {
+        let payload_a = ot::OtSenderPayload {
+            encrypted_values: vec![
+                [crate::Block::new(0), crate::Block::new(0)],
+                [crate::Block::new(0), crate::Block::new(0)],
+            ],
+        };
+
+        let proto = OtSenderPayload::from(payload_a.clone());
+        let payload_b = ot::OtSenderPayload::from(proto);
+
+        assert_eq!(payload_a, payload_b);
+    }
+}

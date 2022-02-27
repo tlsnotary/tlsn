@@ -21,6 +21,7 @@ const NBASE: usize = 128;
 ////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////// OtSender
 
+#[derive(Clone, Copy, Debug, PartialEq)]
 enum SenderState {
     Initialized,
     BaseSetup,
@@ -39,6 +40,7 @@ pub struct KosSender<R, C> {
     table: Option<Vec<Vec<u8>>>,
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub struct OtSenderPayload {
     pub encrypted_values: Vec<[Block; 2]>,
 }
@@ -148,6 +150,7 @@ impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEn
 ////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////// OtReceiver
 
+#[derive(Clone, Copy, Debug, PartialEq)]
 enum ReceiverState {
     Initialized,
     BaseSetup,
@@ -165,6 +168,7 @@ pub struct KosReceiver<R, C> {
     table: Option<Vec<Vec<u8>>>,
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub struct OtReceiverSetup {
     pub ncols: usize,
     pub table: Vec<Vec<u8>>,

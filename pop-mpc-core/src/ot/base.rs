@@ -12,6 +12,8 @@ use super::BaseOtSenderError;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////// BaseOtSender
+
+#[derive(Clone, Copy, Debug, PartialEq)]
 enum SenderState {
     Initialized,
     Setup,
@@ -24,10 +26,12 @@ pub struct BaseOtSender {
     state: SenderState,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BaseOtSenderSetup {
     pub public_key: RistrettoPoint,
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub struct BaseOtSenderPayload {
     pub encrypted_values: Vec<[Block; 2]>,
 }
@@ -74,6 +78,7 @@ impl BaseOtSender {
 ////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////// BaseOtReceiver
 
+#[derive(Clone, Copy, Debug, PartialEq)]
 enum ReceiverState {
     Initialized,
     Setup,
@@ -85,6 +90,7 @@ pub struct BaseOtReceiver {
     state: ReceiverState,
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub struct BaseOtReceiverSetup {
     pub keys: Vec<RistrettoPoint>,
 }
