@@ -2,7 +2,7 @@ use aes::cipher::{generic_array::GenericArray, NewBlockCipher};
 use aes::Aes128;
 use pop_mpc_core::{
     block::Block,
-    circuit::Circuit,
+    circuit::{Circuit, CircuitInput},
     garble::{evaluator::*, generator::*},
 };
 use rand::SeedableRng;
@@ -80,8 +80,14 @@ fn test_aes_128() {
     let gc = gen.garble(&mut cipher, &mut rng, &circ).unwrap();
 
     let a = vec![true; 128];
+    let inputs = [a.clone(), a.clone()].concat();
+    let inputs = inputs
+        .into_iter()
+        .enumerate()
+        .map(|(id, value)| CircuitInput { id, value })
+        .collect();
 
-    let expected = circ.eval(vec![a.clone(), a.clone()]).unwrap();
+    let expected = circ.eval(inputs).unwrap();
 
     let inputs = [a.clone(), a.clone()].concat();
     let input_labels = gc

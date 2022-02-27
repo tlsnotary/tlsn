@@ -153,6 +153,7 @@ impl Circuit {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::circuit::CircuitInput;
     use std::time::{Duration, Instant};
 
     #[test]
@@ -166,7 +167,13 @@ mod tests {
 
         let a = vec![false; 64];
         let b = vec![false; 64];
-        let output = circ.eval(vec![a, b]).unwrap();
+        let inputs = [a, b].concat();
+        let inputs = inputs
+            .into_iter()
+            .enumerate()
+            .map(|(id, value)| CircuitInput { id, value })
+            .collect();
+        let output = circ.eval(inputs).unwrap();
         assert_eq!(
             output
                 .into_iter()
@@ -179,7 +186,13 @@ mod tests {
         a[63] = true;
         a.reverse();
         let b = vec![false; 64];
-        let mut output = circ.eval(vec![a, b]).unwrap();
+        let inputs = [a, b].concat();
+        let inputs = inputs
+            .into_iter()
+            .enumerate()
+            .map(|(id, value)| CircuitInput { id, value })
+            .collect();
+        let mut output = circ.eval(inputs).unwrap();
         output.reverse();
         assert_eq!(
             output
@@ -193,7 +206,13 @@ mod tests {
         let mut b = vec![false; 64];
         b[63] = true;
         b.reverse();
-        let mut output = circ.eval(vec![a, b]).unwrap();
+        let inputs = [a, b].concat();
+        let inputs = inputs
+            .into_iter()
+            .enumerate()
+            .map(|(id, value)| CircuitInput { id, value })
+            .collect();
+        let mut output = circ.eval(inputs).unwrap();
         output.reverse();
         assert_eq!(
             output
@@ -209,7 +228,13 @@ mod tests {
         let mut b = vec![false; 64];
         b[63] = true;
         b.reverse();
-        let mut output = circ.eval(vec![a, b]).unwrap();
+        let inputs = [a, b].concat();
+        let inputs = inputs
+            .into_iter()
+            .enumerate()
+            .map(|(id, value)| CircuitInput { id, value })
+            .collect();
+        let mut output = circ.eval(inputs).unwrap();
         output.reverse();
         assert_eq!(
             output
@@ -223,7 +248,13 @@ mod tests {
         let mut b = vec![false; 64];
         b[63] = true;
         b.reverse();
-        let mut output = circ.eval(vec![a, b]).unwrap();
+        let inputs = [a, b].concat();
+        let inputs = inputs
+            .into_iter()
+            .enumerate()
+            .map(|(id, value)| CircuitInput { id, value })
+            .collect();
+        let mut output = circ.eval(inputs).unwrap();
         output.reverse();
         assert_eq!(
             output
@@ -245,14 +276,26 @@ mod tests {
 
         let mut key = vec![false; 128];
         let mut pt = vec![false; 128];
-        let mut output = circ.eval(vec![key, pt]).unwrap();
+        let inputs = [key, pt].concat();
+        let inputs = inputs
+            .into_iter()
+            .enumerate()
+            .map(|(id, value)| CircuitInput { id, value })
+            .collect();
+        let mut output = circ.eval(inputs).unwrap();
         output.reverse();
         assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
                    "01100110111010010100101111010100111011111000101000101100001110111000100001001100111110100101100111001010001101000010101100101110");
 
         key = vec![true; 128];
         pt = vec![false; 128];
-        output = circ.eval(vec![key, pt]).unwrap();
+        let inputs = [key, pt].concat();
+        let inputs = inputs
+            .into_iter()
+            .enumerate()
+            .map(|(id, value)| CircuitInput { id, value })
+            .collect();
+        output = circ.eval(inputs).unwrap();
         output.reverse();
         assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
                    "10100001111101100010010110001100100001110111110101011111110011011000100101100100010010000100010100111000101111111100100100101100");
@@ -261,7 +304,13 @@ mod tests {
         key[7] = true;
         key.reverse();
         pt = vec![false; 128];
-        output = circ.eval(vec![key, pt]).unwrap();
+        let inputs = [key, pt].concat();
+        let inputs = inputs
+            .into_iter()
+            .enumerate()
+            .map(|(id, value)| CircuitInput { id, value })
+            .collect();
+        output = circ.eval(inputs).unwrap();
         output.reverse();
         assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
                    "11011100000011101101100001011101111110010110000100011010101110110111001001001001110011011101000101101000110001010100011001111110");
@@ -272,7 +321,13 @@ mod tests {
         }
         key.reverse();
         pt = vec![false; 128];
-        output = circ.eval(vec![key, pt]).unwrap();
+        let inputs = [key, pt].concat();
+        let inputs = inputs
+            .into_iter()
+            .enumerate()
+            .map(|(id, value)| CircuitInput { id, value })
+            .collect();
+        output = circ.eval(inputs).unwrap();
         output.reverse();
         assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
                    "11010101110010011000110001001000001001010101111101111000110011000100011111100001010010011110010101011100111111000011111111111101");
@@ -285,7 +340,13 @@ mod tests {
 
         key.reverse();
         pt = vec![false; 128];
-        output = circ.eval(vec![key, pt]).unwrap();
+        let inputs = [key, pt].concat();
+        let inputs = inputs
+            .into_iter()
+            .enumerate()
+            .map(|(id, value)| CircuitInput { id, value })
+            .collect();
+        output = circ.eval(inputs).unwrap();
         output.reverse();
         assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
                     "10110001110101110101100000100101011010110010100011111101100001010000101011010100100101000100001000001000110011110001000101010101");
@@ -302,13 +363,25 @@ mod tests {
 
         let mut key = vec![false; 128];
         let mut pt = vec![false; 128];
-        let mut output = circ.eval(vec![pt, key]).unwrap();
+        let inputs = [pt, key].concat();
+        let inputs = inputs
+            .into_iter()
+            .enumerate()
+            .map(|(id, value)| CircuitInput { id, value })
+            .collect();
+        let mut output = circ.eval(inputs).unwrap();
         assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
                    "01100110111010010100101111010100111011111000101000101100001110111000100001001100111110100101100111001010001101000010101100101110");
 
         key = vec![true; 128];
         pt = vec![false; 128];
-        output = circ.eval(vec![pt, key]).unwrap();
+        let inputs = [pt, key].concat();
+        let inputs = inputs
+            .into_iter()
+            .enumerate()
+            .map(|(id, value)| CircuitInput { id, value })
+            .collect();
+        output = circ.eval(inputs).unwrap();
         assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
                    "10100001111101100010010110001100100001110111110101011111110011011000100101100100010010000100010100111000101111111100100100101100");
 
@@ -316,7 +389,13 @@ mod tests {
         key[7] = true;
 
         pt = vec![false; 128];
-        output = circ.eval(vec![pt, key]).unwrap();
+        let inputs = [pt, key].concat();
+        let inputs = inputs
+            .into_iter()
+            .enumerate()
+            .map(|(id, value)| CircuitInput { id, value })
+            .collect();
+        output = circ.eval(inputs).unwrap();
         assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
                    "11011100000011101101100001011101111110010110000100011010101110110111001001001001110011011101000101101000110001010100011001111110");
 
@@ -326,7 +405,13 @@ mod tests {
         }
 
         pt = vec![false; 128];
-        output = circ.eval(vec![pt, key]).unwrap();
+        let inputs = [pt, key].concat();
+        let inputs = inputs
+            .into_iter()
+            .enumerate()
+            .map(|(id, value)| CircuitInput { id, value })
+            .collect();
+        output = circ.eval(inputs).unwrap();
         assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
                    "11010101110010011000110001001000001001010101111101111000110011000100011111100001010010011110010101011100111111000011111111111101");
 
@@ -337,7 +422,13 @@ mod tests {
         }
 
         pt = vec![false; 128];
-        output = circ.eval(vec![pt, key]).unwrap();
+        let inputs = [pt, key].concat();
+        let inputs = inputs
+            .into_iter()
+            .enumerate()
+            .map(|(id, value)| CircuitInput { id, value })
+            .collect();
+        output = circ.eval(inputs).unwrap();
         assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
                     "10110001110101110101100000100101011010110010100011111101100001010000101011010100100101000100001000001000110011110001000101010101");
     }

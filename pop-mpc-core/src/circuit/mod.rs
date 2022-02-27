@@ -5,6 +5,15 @@ use crate::gate::Gate;
 
 pub use parse::*;
 
+/// Circuit input
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CircuitInput {
+    /// Circuit input id
+    pub id: usize,
+    /// Circuit input value
+    pub value: bool,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Circuit {
     /// Number of gates in the circuit
@@ -50,11 +59,10 @@ impl Circuit {
     }
 
     /// Evaluates the circuit in plaintext with the provided inputs
-    pub fn eval(&self, inputs: Vec<Vec<bool>>) -> Result<Vec<bool>, CircuitEvalError> {
+    pub fn eval(&self, inputs: Vec<CircuitInput>) -> Result<Vec<bool>, CircuitEvalError> {
         let mut wires: Vec<Option<bool>> = vec![None; self.nwires];
-        let inputs = inputs.concat();
-        for (i, input) in inputs.into_iter().enumerate() {
-            wires[i] = Some(input);
+        for input in inputs.into_iter() {
+            wires[input.id] = Some(input.value);
         }
 
         for (i, gate) in self.gates.iter().enumerate() {

@@ -1,5 +1,25 @@
 use crate::block::Block;
 
+/// Input label of a garbled circuit
+#[derive(Debug, Clone, Copy)]
+pub struct InputLabel {
+    /// Input wire label id
+    id: usize,
+    // Input wire label
+    label: Block,
+}
+
+/// Wire label pair of a garbled circuit
+#[derive(Debug, Clone, Copy)]
+pub struct LabelPair {
+    /// Wire label corresponding to low bit
+    low: Block,
+    /// Wire label corresponding to high bit
+    high: Block,
+}
+
+/// Complete garbled circuit data, including private data which should not be revealed
+/// to the evaluator
 #[derive(Debug, Clone)]
 pub struct GarbledCircuit {
     pub input_labels: Vec<[Block; 2]>,
@@ -8,6 +28,19 @@ pub struct GarbledCircuit {
     pub output_bits: Vec<usize>,
     pub public_labels: [Block; 2],
     pub delta: Block,
+}
+
+/// Garbled circuit data safe to share with evaluator
+#[derive(Debug, Clone)]
+pub struct PublicGarbledCircuit {
+    /// Wire labels corresponding to the generators input bits
+    pub generator_wire_labels: Vec<InputLabel>,
+    /// Truth table for garbled AND gates
+    pub table: Vec<[Block; 2]>,
+    /// LSBs of output labels
+    pub output_bits: Vec<usize>,
+    /// Wire labels corresponding to public low and high bits
+    pub public_labels: [Block; 2],
 }
 
 impl GarbledCircuit {
