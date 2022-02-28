@@ -10,7 +10,7 @@ pub enum AsyncOtSenderError {
     /// Error originating from an IO Error
     IOError(IOError),
     /// Received invalid message
-    InvalidMessage,
+    MalformedMessage,
 }
 
 impl Display for AsyncOtSenderError {
@@ -18,7 +18,7 @@ impl Display for AsyncOtSenderError {
         match self {
             Self::CoreError(e) => write!(f, "{}", e),
             Self::IOError(e) => write!(f, "{}", e),
-            Self::InvalidMessage => "invalid message".fmt(f),
+            Self::MalformedMessage => "malformed message".fmt(f),
         }
     }
 }
@@ -43,7 +43,7 @@ pub enum AsyncOtReceiverError {
     /// Error originating from an IO Error
     IOError(IOError),
     /// Received invalid message
-    InvalidMessage,
+    MalformedMessage,
 }
 
 impl Display for AsyncOtReceiverError {
@@ -51,7 +51,7 @@ impl Display for AsyncOtReceiverError {
         match self {
             Self::CoreError(e) => write!(f, "{}", e),
             Self::IOError(e) => write!(f, "{}", e),
-            Self::InvalidMessage => "invalid message".fmt(f),
+            Self::MalformedMessage => "invalid message".fmt(f),
         }
     }
 }

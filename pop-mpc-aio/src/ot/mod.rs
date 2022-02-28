@@ -2,10 +2,8 @@ pub mod errors;
 
 use errors::*;
 use futures_util::{SinkExt, StreamExt};
-use pop_mpc_core::ot::{OtReceiver, OtSender};
-use pop_mpc_core::proto::{
-    BaseOtReceiverSetup, BaseOtSenderPayload, BaseOtSenderSetup, OtReceiverSetup, OtSenderPayload,
-};
+use pop_mpc_core::ot;
+use pop_mpc_core::proto;
 use pop_mpc_core::Block;
 use prost::Message as ProtoMessage;
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -19,7 +17,7 @@ pub struct AsyncOtReceiver<OT> {
     ot: OT,
 }
 
-impl<OT: OtSender> AsyncOtSender<OT> {
+impl<OT: ot::OtSender> AsyncOtSender<OT> {
     pub fn new(ot: OT) -> Self {
         Self { ot }
     }
@@ -30,38 +28,54 @@ impl<OT: OtSender> AsyncOtSender<OT> {
         inputs: &[[Block; 2]],
     ) -> Result<(), AsyncOtSenderError> {
         let base_sender_setup = match stream.next().await {
-            Some(message) => BaseOtSenderSetup::decode(message.unwrap().into_data().as_slice())
-                .expect("Expected BaseOtSenderSetup"),
-            _ => return Err(AsyncOtSenderError::InvalidMessage),
+            Some(message) => {
+                proto::BaseOtSenderSetup::decode(message.unwrap().into_data().as_slice())
+                    .expect("Expected BaseOtSenderSetup")
+            }
+            _ => return Err(AsyncOtSenderError::MalformedMessage),
         };
 
-        let base_setup: BaseOtReceiverSetup = self.ot.base_setup(base_sender_setup)?;
+        let base_setup = self.ot.base_setup(base_sender_setup.try_into().unwrap())?;
+
         let _ = stream
-            .send(Message::Binary(base_setup.encode_to_vec()))
+            .send(Message::Binary(
+                proto::BaseOtReceiverSetup::from(base_setup).encode_to_vec(),
+            ))
             .await;
 
         let base_payload = match stream.next().await {
-            Some(message) => BaseOtSenderPayload::decode(message.unwrap().into_data().as_slice())
-                .expect("Expected BaseOtSenderPayload"),
-            _ => return Err(AsyncOtSenderError::InvalidMessage),
+            Some(message) => {
+                proto::BaseOtSenderPayload::decode(message.unwrap().into_data().as_slice())
+                    .expect("Expected BaseOtSenderPayload")
+            }
+            _ => return Err(AsyncOtSenderError::MalformedMessage),
         };
-        self.ot.base_receive_seeds(base_payload)?;
+        self.ot
+            .base_receive_seeds(base_payload.try_into().unwrap())?;
 
         let extension_receiver_setup = match stream.next().await {
-            Some(message) => OtReceiverSetup::decode(message.unwrap().into_data().as_slice())
-                .expect("Expected OtReceiverSetup"),
-            _ => return Err(AsyncOtSenderError::InvalidMessage),
+            Some(message) => {
+                proto::OtReceiverSetup::decode(message.unwrap().into_data().as_slice())
+                    .expect("Expected OtReceiverSetup")
+            }
+            _ => return Err(AsyncOtSenderError::MalformedMessage),
         };
 
-        self.ot.extension_setup(extension_receiver_setup)?;
-        let payload: OtSenderPayload = self.ot.send(inputs)?;
-        let _ = stream.send(Message::Binary(payload.encode_to_vec())).await;
+        self.ot
+            .extension_setup(extension_receiver_setup.try_into().unwrap())?;
+        let payload: ot::OtSenderPayload = self.ot.send(inputs)?;
+
+        let _ = stream
+            .send(Message::Binary(
+                proto::OtSenderPayload::from(payload).encode_to_vec(),
+            ))
+            .await;
 
         Ok(())
     }
 }
 
-impl<OT: OtReceiver> AsyncOtReceiver<OT> {
+impl<OT: ot::OtReceiver> AsyncOtReceiver<OT> {
     pub fn new(ot: OT) -> Self {
         Self { ot }
     }
@@ -71,30 +85,49 @@ impl<OT: OtReceiver> AsyncOtReceiver<OT> {
         stream: &mut WebSocketStream<S>,
         choice: &[bool],
     ) -> Result<Vec<Block>, AsyncOtReceiverError> {
-        let base_setup: BaseOtSenderSetup = self.ot.base_setup()?;
+        let base_setup = self.ot.base_setup()?;
+
         let _ = stream
-            .send(Message::Binary(base_setup.encode_to_vec()))
+            .send(Message::Binary(
+                proto::BaseOtSenderSetup::from(base_setup).encode_to_vec(),
+            ))
             .await;
 
         let base_receiver_setup = match stream.next().await {
-            Some(message) => BaseOtReceiverSetup::decode(message.unwrap().into_data().as_slice())
-                .expect("Expected BaseOtReceiverSetup"),
-            _ => return Err(AsyncOtReceiverError::InvalidMessage),
+            Some(message) => {
+                proto::BaseOtReceiverSetup::decode(message.unwrap().into_data().as_slice())
+                    .expect("Expected BaseOtReceiverSetup")
+            }
+            _ => return Err(AsyncOtReceiverError::MalformedMessage),
         };
 
-        let payload = self.ot.base_send_seeds(base_receiver_setup)?;
-        let _ = stream.send(Message::Binary(payload.encode_to_vec())).await;
+        let payload = self
+            .ot
+            .base_send_seeds(base_receiver_setup.try_into().unwrap())?;
 
-        let setup: OtReceiverSetup = self.ot.extension_setup(choice)?;
-        let _ = stream.send(Message::Binary(setup.encode_to_vec())).await;
+        let _ = stream
+            .send(Message::Binary(
+                proto::BaseOtSenderPayload::from(payload).encode_to_vec(),
+            ))
+            .await;
+
+        let setup = self.ot.extension_setup(choice)?;
+
+        let _ = stream
+            .send(Message::Binary(
+                proto::OtReceiverSetup::from(setup).encode_to_vec(),
+            ))
+            .await;
 
         let payload = match stream.next().await {
-            Some(message) => OtSenderPayload::decode(message.unwrap().into_data().as_slice())
-                .expect("Expected OtSenderPayload"),
-            _ => return Err(AsyncOtReceiverError::InvalidMessage),
+            Some(message) => {
+                proto::OtSenderPayload::decode(message.unwrap().into_data().as_slice())
+                    .expect("Expected OtSenderPayload")
+            }
+            _ => return Err(AsyncOtReceiverError::MalformedMessage),
         };
 
-        let values = self.ot.receive(choice, payload)?;
+        let values = self.ot.receive(choice, payload.try_into().unwrap())?;
 
         Ok(values)
     }
