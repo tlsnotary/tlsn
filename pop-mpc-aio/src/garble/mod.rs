@@ -1,32 +1,52 @@
 pub mod errors;
 
+use crate::ot::{AsyncOtReceiver, AsyncOtSender};
+use aes::cipher::{generic_array::GenericArray, NewBlockCipher};
+use aes::Aes128;
 use errors::*;
 use futures_util::{SinkExt, StreamExt};
-use pop_mpc_core::ot;
+use pop_mpc_core::circuit::{Circuit, CircuitInput};
+use pop_mpc_core::garble::{evaluator::*, generator::*};
+use pop_mpc_core::ot::{OtReceiver, OtSender};
 use pop_mpc_core::proto;
 use pop_mpc_core::Block;
 use prost::Message as ProtoMessage;
+use rand::SeedableRng;
+use rand_chacha::ChaCha12Rng;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_tungstenite::{tungstenite::protocol::Message, WebSocketStream};
 
-pub struct AsyncOtSender<OT> {
-    ot: OT,
+pub struct AsyncGenerator<S> {
+    ot: AsyncOtSender<S>,
 }
 
-pub struct AsyncOtReceiver<OT> {
-    ot: OT,
+pub struct AsyncEvaluator<S> {
+    ot: AsyncOtReceiver<S>,
 }
 
-impl<OT: ot::OtSender> AsyncOtSender<OT> {
-    pub fn new(ot: OT) -> Self {
+impl<OT: OtSender> AsyncGenerator<OT> {
+    pub fn new(ot: AsyncOtSender<OT>) -> Self {
         Self { ot }
     }
 
-    pub async fn send<S: AsyncWrite + AsyncRead + Unpin>(
+    pub async fn garble<S: AsyncWrite + AsyncRead + Unpin, G: GarbledCircuitGenerator>(
         &mut self,
         stream: &mut WebSocketStream<S>,
-        inputs: &[[Block; 2]],
-    ) -> Result<(), AsyncOtSenderError> {
+        circ: &Circuit,
+        gen: &G,
+        inputs: &Vec<CircuitInput>,
+        eval_input_idx: &Vec<usize>,
+    ) -> Result<(), AsyncGeneratorError> {
+        let mut cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
+        let mut rng = ChaCha12Rng::from_entropy();
+        let complete_gc = gen.garble(&mut cipher, &mut rng, circ).unwrap();
+        let gc = complete_gc.to_public(inputs);
+
+        let eval_inputs: Vec<[Block; 2]> = eval_input_idx
+            .iter()
+            .map(|idx| complete_gc.input_labels[*idx])
+            .collect();
+
         let base_sender_setup = match stream.next().await {
             Some(message) => {
                 proto::BaseOtSenderSetup::decode(message.unwrap().into_data().as_slice())
@@ -35,39 +55,9 @@ impl<OT: ot::OtSender> AsyncOtSender<OT> {
             _ => return Err(AsyncOtSenderError::MalformedMessage),
         };
 
-        let base_setup = self.ot.base_setup(base_sender_setup.try_into().unwrap())?;
-
         let _ = stream
             .send(Message::Binary(
                 proto::BaseOtReceiverSetup::from(base_setup).encode_to_vec(),
-            ))
-            .await;
-
-        let base_payload = match stream.next().await {
-            Some(message) => {
-                proto::BaseOtSenderPayload::decode(message.unwrap().into_data().as_slice())
-                    .expect("Expected BaseOtSenderPayload")
-            }
-            _ => return Err(AsyncOtSenderError::MalformedMessage),
-        };
-        self.ot
-            .base_receive_seeds(base_payload.try_into().unwrap())?;
-
-        let extension_receiver_setup = match stream.next().await {
-            Some(message) => {
-                proto::OtReceiverSetup::decode(message.unwrap().into_data().as_slice())
-                    .expect("Expected OtReceiverSetup")
-            }
-            _ => return Err(AsyncOtSenderError::MalformedMessage),
-        };
-
-        self.ot
-            .extension_setup(extension_receiver_setup.try_into().unwrap())?;
-        let payload: ot::OtSenderPayload = self.ot.send(inputs)?;
-
-        let _ = stream
-            .send(Message::Binary(
-                proto::OtSenderPayload::from(payload).encode_to_vec(),
             ))
             .await;
 
@@ -75,18 +65,16 @@ impl<OT: ot::OtSender> AsyncOtSender<OT> {
     }
 }
 
-impl<OT: ot::OtReceiver> AsyncOtReceiver<OT> {
-    pub fn new(ot: OT) -> Self {
+impl<OT: OtReceiver> AsyncEvaluator<OT> {
+    pub fn new(ot: AsyncOtReceiver<OT>) -> Self {
         Self { ot }
     }
 
-    pub async fn receive<S: AsyncWrite + AsyncRead + Unpin>(
+    pub async fn evaluate<S: AsyncWrite + AsyncRead + Unpin>(
         &mut self,
         stream: &mut WebSocketStream<S>,
-        choice: &[bool],
-    ) -> Result<Vec<Block>, AsyncOtReceiverError> {
-        let base_setup = self.ot.base_setup()?;
-
+        inputs: &Vec<CircuitInput>,
+    ) -> Result<Vec<Block>, AsyncEvaluatorError> {
         let _ = stream
             .send(Message::Binary(
                 proto::BaseOtSenderSetup::from(base_setup).encode_to_vec(),
@@ -101,34 +89,6 @@ impl<OT: ot::OtReceiver> AsyncOtReceiver<OT> {
             _ => return Err(AsyncOtReceiverError::MalformedMessage),
         };
 
-        let payload = self
-            .ot
-            .base_send_seeds(base_receiver_setup.try_into().unwrap())?;
-
-        let _ = stream
-            .send(Message::Binary(
-                proto::BaseOtSenderPayload::from(payload).encode_to_vec(),
-            ))
-            .await;
-
-        let setup = self.ot.extension_setup(choice)?;
-
-        let _ = stream
-            .send(Message::Binary(
-                proto::OtReceiverSetup::from(setup).encode_to_vec(),
-            ))
-            .await;
-
-        let payload = match stream.next().await {
-            Some(message) => {
-                proto::OtSenderPayload::decode(message.unwrap().into_data().as_slice())
-                    .expect("Expected OtSenderPayload")
-            }
-            _ => return Err(AsyncOtReceiverError::MalformedMessage),
-        };
-
-        let values = self.ot.receive(choice, payload.try_into().unwrap())?;
-
         Ok(values)
     }
 }
@@ -139,7 +99,7 @@ mod tests {
     use pop_mpc_core::ot::{ChaChaAesOtReceiver, ChaChaAesOtSender};
     use tokio::net::UnixStream;
 
-    async fn ot_receive(stream: UnixStream) {
+    async fn generator(stream: UnixStream) {
         let addr = stream.local_addr().unwrap();
 
         println!("Trying to connect: {:?}", &addr);
@@ -159,7 +119,7 @@ mod tests {
         println!("Received: {:?}", values);
     }
 
-    async fn ot_send(stream: UnixStream) {
+    async fn evaluator(stream: UnixStream) {
         let addr = stream.local_addr().unwrap();
 
         println!("Trying to connect: {:?}", &addr);
@@ -188,12 +148,12 @@ mod tests {
     async fn test_async_ot() {
         let (unix_s, unix_r) = UnixStream::pair().unwrap();
 
-        let send = ot_send(unix_s);
-        let receive = ot_receive(unix_r);
+        let generator = generator(unix_s);
+        let evaluator = evaluator(unix_r);
 
         let _ = tokio::join!(
-            tokio::spawn(async move { send.await }),
-            tokio::spawn(async move { receive.await })
+            tokio::spawn(async move { generator.await }),
+            tokio::spawn(async move { evaluator.await })
         );
     }
 }
