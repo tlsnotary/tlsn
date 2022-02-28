@@ -106,7 +106,7 @@ fn test_aes_128() {
         })
         .collect();
 
-    let gc = gc.to_public(generator_inputs.clone());
+    let gc = gc.to_public(&generator_inputs);
     let outputs = ev
         .eval(&mut cipher, &circ, &gc, evaluator_input_labels)
         .unwrap();

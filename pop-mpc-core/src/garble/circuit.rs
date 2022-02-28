@@ -64,7 +64,7 @@ impl CompleteGarbledCircuit {
     }
 
     /// Converts `CompleteGarbledCircuit` to `GarbledCircuit` which is safe to share with the evaluator
-    pub fn to_public(&self, inputs: Vec<CircuitInput>) -> GarbledCircuit {
+    pub fn to_public(&self, inputs: &Vec<CircuitInput>) -> GarbledCircuit {
         let mut generator_wire_labels = Vec::with_capacity(inputs.len());
         for input in inputs.into_iter() {
             generator_wire_labels.push(InputLabel {

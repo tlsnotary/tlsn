@@ -47,7 +47,7 @@ fn main() {
         .collect();
 
     // Convert `CompleteGarbledCircuit` to `Garbled Circuit` which strips data that the evaluator should not receive
-    let gc = complete_gc.to_public(generator_inputs);
+    let gc = complete_gc.to_public(&generator_inputs);
 
     // Here we'll manually put together the evaluators input labels, this is usually retrieved using oblivious transfer
     let evaluator_input_labels = key
