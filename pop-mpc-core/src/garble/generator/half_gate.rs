@@ -109,9 +109,9 @@ impl GarbledCircuitGenerator for HalfGateGenerator {
             };
         }
 
-        let mut output_bits: Vec<usize> = Vec::with_capacity(circ.noutput_wires);
+        let mut output_bits: Vec<bool> = Vec::with_capacity(circ.noutput_wires);
         for i in (circ.nwires - circ.noutput_wires)..circ.nwires {
-            output_bits.push(cache[i].unwrap()[0].lsb());
+            output_bits.push(cache[i].unwrap()[0].lsb() != 0);
         }
 
         Ok(CompleteGarbledCircuit::new(

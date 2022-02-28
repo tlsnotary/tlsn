@@ -26,7 +26,7 @@ pub struct CompleteGarbledCircuit {
     pub input_labels: Vec<[Block; 2]>,
     pub wire_labels: Vec<[Block; 2]>,
     pub table: Vec<[Block; 2]>,
-    pub output_bits: Vec<usize>,
+    pub output_bits: Vec<bool>,
     pub public_labels: [Block; 2],
     pub delta: Block,
 }
@@ -35,13 +35,13 @@ pub struct CompleteGarbledCircuit {
 #[derive(Debug, Clone)]
 pub struct GarbledCircuit {
     /// Wire labels corresponding to the generators input bits
-    pub generator_wire_labels: Vec<InputLabel>,
+    pub generator_input_labels: Vec<InputLabel>,
     /// Truth table for garbled AND gates
     pub table: Vec<[Block; 2]>,
     /// Wire labels corresponding to public low and high bits
     pub public_labels: [Block; 2],
     /// LSBs of output labels
-    pub output_bits: Vec<usize>,
+    pub output_bits: Vec<bool>,
 }
 
 impl CompleteGarbledCircuit {
@@ -49,7 +49,7 @@ impl CompleteGarbledCircuit {
         input_labels: Vec<[Block; 2]>,
         wire_labels: Vec<[Block; 2]>,
         table: Vec<[Block; 2]>,
-        output_bits: Vec<usize>,
+        output_bits: Vec<bool>,
         public_labels: [Block; 2],
         delta: Block,
     ) -> Self {
@@ -65,15 +65,15 @@ impl CompleteGarbledCircuit {
 
     /// Converts `CompleteGarbledCircuit` to `GarbledCircuit` which is safe to share with the evaluator
     pub fn to_public(&self, inputs: &Vec<CircuitInput>) -> GarbledCircuit {
-        let mut generator_wire_labels = Vec::with_capacity(inputs.len());
+        let mut generator_input_labels = Vec::with_capacity(inputs.len());
         for input in inputs.into_iter() {
-            generator_wire_labels.push(InputLabel {
+            generator_input_labels.push(InputLabel {
                 id: input.id,
                 label: self.input_labels[input.id][input.value as usize],
             });
         }
         GarbledCircuit {
-            generator_wire_labels,
+            generator_input_labels,
             table: self.table.clone(),
             output_bits: self.output_bits.clone(),
             public_labels: self.public_labels.clone(),

@@ -33,7 +33,7 @@ impl From<ot::BaseOtSenderPayload> for BaseOtSenderPayload {
             encrypted_values: p
                 .encrypted_values
                 .into_iter()
-                .map(|b| super::BlockPair {
+                .map(|b| super::LabelPair {
                     low: super::Block::from(b[0]),
                     high: super::Block::from(b[1]),
                 })
@@ -113,7 +113,7 @@ impl From<ot::OtSenderPayload> for OtSenderPayload {
             encrypted_values: p
                 .encrypted_values
                 .into_iter()
-                .map(|b| super::BlockPair {
+                .map(|b| super::LabelPair {
                     low: super::Block::from(b[0]),
                     high: super::Block::from(b[1]),
                 })

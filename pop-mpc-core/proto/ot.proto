@@ -13,7 +13,7 @@ message BaseOtSenderSetup {
 // Message sent by OT Sender containing encrypted values
 message BaseOtSenderPayload {
     // Encrypted values
-    repeated core.BlockPair encrypted_values = 1;
+    repeated core.LabelPair encrypted_values = 1;
 }
 
 // Setup message sent by Base OT Receiver
@@ -30,5 +30,5 @@ message OtReceiverSetup {
 
 message OtSenderPayload {
     // Encrypted values
-    repeated core.BlockPair encrypted_values = 1;
+    repeated core.LabelPair encrypted_values = 1;
 }

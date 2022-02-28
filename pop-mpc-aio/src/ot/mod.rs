@@ -37,11 +37,12 @@ impl<OT: ot::OtSender> AsyncOtSender<OT> {
 
         let base_setup = self.ot.base_setup(base_sender_setup.try_into().unwrap())?;
 
-        let _ = stream
+        stream
             .send(Message::Binary(
                 proto::BaseOtReceiverSetup::from(base_setup).encode_to_vec(),
             ))
-            .await;
+            .await
+            .unwrap();
 
         let base_payload = match stream.next().await {
             Some(message) => {
@@ -65,11 +66,12 @@ impl<OT: ot::OtSender> AsyncOtSender<OT> {
             .extension_setup(extension_receiver_setup.try_into().unwrap())?;
         let payload: ot::OtSenderPayload = self.ot.send(inputs)?;
 
-        let _ = stream
+        stream
             .send(Message::Binary(
                 proto::OtSenderPayload::from(payload).encode_to_vec(),
             ))
-            .await;
+            .await
+            .unwrap();
 
         Ok(())
     }
@@ -87,11 +89,12 @@ impl<OT: ot::OtReceiver> AsyncOtReceiver<OT> {
     ) -> Result<Vec<Block>, AsyncOtReceiverError> {
         let base_setup = self.ot.base_setup()?;
 
-        let _ = stream
+        stream
             .send(Message::Binary(
                 proto::BaseOtSenderSetup::from(base_setup).encode_to_vec(),
             ))
-            .await;
+            .await
+            .unwrap();
 
         let base_receiver_setup = match stream.next().await {
             Some(message) => {
@@ -105,19 +108,21 @@ impl<OT: ot::OtReceiver> AsyncOtReceiver<OT> {
             .ot
             .base_send_seeds(base_receiver_setup.try_into().unwrap())?;
 
-        let _ = stream
+        stream
             .send(Message::Binary(
                 proto::BaseOtSenderPayload::from(payload).encode_to_vec(),
             ))
-            .await;
+            .await
+            .unwrap();
 
         let setup = self.ot.extension_setup(choice)?;
 
-        let _ = stream
+        stream
             .send(Message::Binary(
                 proto::OtReceiverSetup::from(setup).encode_to_vec(),
             ))
-            .await;
+            .await
+            .unwrap();
 
         let payload = match stream.next().await {
             Some(message) => {
@@ -164,7 +169,7 @@ mod tests {
 
         println!("Trying to connect: {:?}", &addr);
 
-        let mut ws_stream = tokio_tungstenite::client_async("ws://local/ot", stream)
+        let (mut ws_stream, _) = tokio_tungstenite::client_async("ws://local/ot", stream)
             .await
             .expect("Error during the websocket handshake occurred");
 
@@ -174,7 +179,7 @@ mod tests {
 
         let _ = sender
             .send(
-                &mut ws_stream.0,
+                &mut ws_stream,
                 &[
                     [Block::new(0), Block::new(1)],
                     [Block::new(2), Block::new(3)],

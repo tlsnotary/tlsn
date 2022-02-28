@@ -9,7 +9,7 @@ message Block {
     required uint64 high = 2;
 }
 
-message BlockPair {
+message LabelPair {
     // Block corresponding to low bit
     required Block low = 1;
     // Block corresponding to high bit

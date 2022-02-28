@@ -6,6 +6,7 @@ use aes::Aes128;
 use errors::*;
 use futures_util::{SinkExt, StreamExt};
 use pop_mpc_core::circuit::{Circuit, CircuitInput};
+use pop_mpc_core::garble::circuit::InputLabel;
 use pop_mpc_core::garble::{evaluator::*, generator::*};
 use pop_mpc_core::ot::{OtReceiver, OtSender};
 use pop_mpc_core::proto;
@@ -47,19 +48,14 @@ impl<OT: OtSender> AsyncGenerator<OT> {
             .map(|idx| complete_gc.input_labels[*idx])
             .collect();
 
-        let base_sender_setup = match stream.next().await {
-            Some(message) => {
-                proto::BaseOtSenderSetup::decode(message.unwrap().into_data().as_slice())
-                    .expect("Expected BaseOtSenderSetup")
-            }
-            _ => return Err(AsyncOtSenderError::MalformedMessage),
-        };
-
-        let _ = stream
+        stream
             .send(Message::Binary(
-                proto::BaseOtReceiverSetup::from(base_setup).encode_to_vec(),
+                proto::garble::GarbledCircuit::from(gc).encode_to_vec(),
             ))
-            .await;
+            .await
+            .unwrap();
+
+        self.ot.send(stream, eval_inputs.as_slice()).await.unwrap();
 
         Ok(())
     }
@@ -70,24 +66,37 @@ impl<OT: OtReceiver> AsyncEvaluator<OT> {
         Self { ot }
     }
 
-    pub async fn evaluate<S: AsyncWrite + AsyncRead + Unpin>(
+    pub async fn evaluate<S: AsyncWrite + AsyncRead + Unpin, E: GarbledCircuitEvaluator>(
         &mut self,
         stream: &mut WebSocketStream<S>,
+        circ: &Circuit,
+        ev: &E,
         inputs: &Vec<CircuitInput>,
-    ) -> Result<Vec<Block>, AsyncEvaluatorError> {
-        let _ = stream
-            .send(Message::Binary(
-                proto::BaseOtSenderSetup::from(base_setup).encode_to_vec(),
-            ))
-            .await;
+    ) -> Result<Vec<bool>, ()> {
+        let mut cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
 
-        let base_receiver_setup = match stream.next().await {
+        let gc = match stream.next().await {
             Some(message) => {
-                proto::BaseOtReceiverSetup::decode(message.unwrap().into_data().as_slice())
-                    .expect("Expected BaseOtReceiverSetup")
+                proto::garble::GarbledCircuit::decode(message.unwrap().into_data().as_slice())
+                    .expect("Expected GarbledCircuit")
             }
-            _ => return Err(AsyncOtReceiverError::MalformedMessage),
+            _ => return Err(()),
         };
+
+        let choice: Vec<bool> = inputs.iter().map(|input| input.value).collect();
+        let input_labels = self.ot.receive(stream, choice.as_slice()).await.unwrap();
+        let input_labels = input_labels
+            .into_iter()
+            .zip(inputs.iter())
+            .map(|(label, input)| InputLabel {
+                id: input.id,
+                label,
+            })
+            .collect();
+
+        let values = ev
+            .eval(&mut cipher, circ, &gc.into(), input_labels)
+            .unwrap();
 
         Ok(values)
     }
