@@ -1,5 +1,3 @@
-use std::fmt::{self, Display, Formatter};
-
 #[derive(Debug, thiserror::Error)]
 pub enum CircuitEvalError {
     #[error("uninitialized value, wire {0}")]

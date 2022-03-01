@@ -3,7 +3,6 @@ pub mod garble;
 pub mod ot;
 
 use super::errors::ProtoError;
-use anyhow::Context;
 use std::convert::TryInto;
 
 use crate::utils::parse_ristretto_key;

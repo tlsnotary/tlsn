@@ -3,7 +3,6 @@ use super::Circuit;
 use crate::proto::circuits::Circuit as ProtoCircuit;
 use prost::Message;
 use std::convert::TryFrom;
-use std::convert::TryInto;
 use std::fs::read;
 
 impl Circuit {

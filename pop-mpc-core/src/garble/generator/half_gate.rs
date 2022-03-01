@@ -4,8 +4,8 @@ use crate::block::{Block, SELECT_MASK};
 use crate::circuit::Circuit;
 use crate::garble::circuit::CompleteGarbledCircuit;
 use crate::gate::Gate;
-use cipher::{consts::U16, generic_array::GenericArray, BlockCipher, BlockEncrypt};
-use rand::{CryptoRng, Rng, SeedableRng};
+use cipher::{consts::U16, BlockCipher, BlockEncrypt};
+use rand::{CryptoRng, Rng};
 
 pub struct HalfGateGenerator {}
 
@@ -130,6 +130,7 @@ mod tests {
     use super::*;
     use aes::cipher::{generic_array::GenericArray, NewBlockCipher};
     use aes::Aes128;
+    use rand::SeedableRng;
     use rand_chacha::ChaCha12Rng;
 
     #[test]

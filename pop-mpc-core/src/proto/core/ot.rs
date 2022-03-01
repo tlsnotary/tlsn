@@ -1,7 +1,6 @@
 use super::super::errors::ProtoError;
 pub use crate::ot;
 use crate::utils::parse_ristretto_key;
-use anyhow::Context;
 use std::convert::{TryFrom, TryInto};
 
 include!(concat!(env!("OUT_DIR"), "/core.ot.rs"));

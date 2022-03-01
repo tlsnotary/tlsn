@@ -1,11 +1,7 @@
-use cipher::{
-    consts::{U16, U32},
-    generic_array::GenericArray,
-    BlockCipher, BlockEncrypt,
-};
-use core::ops::{BitAnd, BitXor, BitXorAssign};
+use cipher::{consts::U16, generic_array::GenericArray, BlockCipher, BlockEncrypt};
+use core::ops::{BitAnd, BitXor};
 use curve25519_dalek::ristretto::RistrettoPoint;
-use rand::{CryptoRng, Rng, SeedableRng};
+use rand::{CryptoRng, Rng};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::convert::{From, TryInto};

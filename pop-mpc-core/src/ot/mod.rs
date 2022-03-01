@@ -10,7 +10,7 @@ use crate::Block;
 
 use aes::cipher::{generic_array::GenericArray, NewBlockCipher};
 use aes::Aes128;
-use rand::{CryptoRng, Rng, SeedableRng};
+use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 
 pub type ChaChaAesOtSender = KosSender<ChaCha12Rng, Aes128>;

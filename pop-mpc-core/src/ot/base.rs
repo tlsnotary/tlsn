@@ -2,11 +2,10 @@ use super::errors::BaseOtReceiverError;
 use crate::Block;
 use curve25519_dalek::{
     constants::RISTRETTO_BASEPOINT_TABLE,
-    ristretto::{CompressedRistretto, RistrettoBasepointTable, RistrettoPoint},
+    ristretto::{RistrettoBasepointTable, RistrettoPoint},
     scalar::Scalar,
 };
 use rand::{CryptoRng, Rng};
-use std::convert::TryInto;
 
 use super::BaseOtSenderError;
 

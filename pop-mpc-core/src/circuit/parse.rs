@@ -2,11 +2,10 @@ use super::errors::CircuitParserError;
 use super::Circuit;
 use crate::gate::Gate;
 use anyhow::{anyhow, Context};
-use regex::{Captures, Regex};
+use regex::Regex;
 use std::{
     fs::File,
     io::{BufRead, BufReader},
-    str::FromStr,
 };
 
 /// Parses captures into a Vec for convenience
@@ -180,7 +179,6 @@ impl Circuit {
 mod tests {
     use super::*;
     use crate::circuit::CircuitInput;
-    use std::time::{Duration, Instant};
 
     #[test]
     fn test_parse_adder64() {

@@ -10,7 +10,6 @@ use crate::block::Block;
 use crate::utils;
 use aes::{BlockCipher, BlockEncrypt};
 use cipher::consts::U16;
-use curve25519_dalek::ristretto::RistrettoPoint;
 use rand::{CryptoRng, Rng, RngCore, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 use std::convert::TryInto;
@@ -313,7 +312,7 @@ mod tests {
     use crate::utils::u8vec_to_boolvec;
     use aes::cipher::{generic_array::GenericArray, NewBlockCipher};
     use aes::Aes128;
-    use rand::{CryptoRng, Rng, SeedableRng};
+    use rand::SeedableRng;
     use rand_chacha::ChaCha12Rng;
 
     #[test]

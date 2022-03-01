@@ -66,7 +66,7 @@ pub fn parse_ristretto_key(b: Vec<u8>) -> Result<RistrettoPoint, anyhow::Error> 
 mod tests {
     use super::*;
     use crate::block::Block;
-    use rand::{CryptoRng, Rng, SeedableRng};
+    use rand::SeedableRng;
     use rand_chacha::ChaCha12Rng;
 
     #[test]

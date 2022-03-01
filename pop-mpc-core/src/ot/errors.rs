@@ -1,5 +1,3 @@
-use std::fmt::{self, Display, Formatter};
-
 /// Errors that may occur when using BaseOTSender
 #[derive(Debug, thiserror::Error)]
 pub enum BaseOtSenderError {
