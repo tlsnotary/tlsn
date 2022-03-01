@@ -54,7 +54,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("half_gate_aes", move |bench| {
         let mut rng = ChaCha12Rng::from_entropy();
         let mut cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
-        let circ = Circuit::load("circuits/aes_128_reverse.bin").unwrap();
+        let circ = Circuit::load("circuits/protobuf/aes_128_reverse.bin").unwrap();
         let half_gate = HalfGateGenerator::new();
         bench.iter(|| {
             let gb = half_gate.garble(&mut cipher, &mut rng, &circ).unwrap();
