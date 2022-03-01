@@ -29,7 +29,7 @@ fn main() {
 
     let mut rng = ChaCha12Rng::from_entropy();
     let mut cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
-    let circ = Circuit::load("circuits/aes_128_reverse.bin").unwrap();
+    let circ = Circuit::load("circuits/protobuf/aes_128_reverse.bin").unwrap();
     let gen = HalfGateGenerator::new();
     let ev = HalfGateEvaluator::new();
 
