@@ -2,6 +2,8 @@ pub mod circuits;
 pub mod garble;
 pub mod ot;
 
+use super::errors::ProtoError;
+use anyhow::Context;
 use std::convert::TryInto;
 
 use crate::utils::parse_ristretto_key;
@@ -35,14 +37,11 @@ impl From<curve25519_dalek::ristretto::RistrettoPoint> for RistrettoPoint {
 }
 
 impl TryInto<curve25519_dalek::ristretto::RistrettoPoint> for RistrettoPoint {
-    type Error = ();
+    type Error = ProtoError;
 
     #[inline]
-    fn try_into(self) -> Result<curve25519_dalek::ristretto::RistrettoPoint, ()> {
-        match parse_ristretto_key(self.point) {
-            Ok(key) => Ok(key),
-            Err(p) => return Err(()),
-        }
+    fn try_into(self) -> Result<curve25519_dalek::ristretto::RistrettoPoint, Self::Error> {
+        parse_ristretto_key(self.point)
     }
 }
 

@@ -1,5 +1,7 @@
+use super::super::errors::ProtoError;
 pub use crate::ot;
 use crate::utils::parse_ristretto_key;
+use anyhow::Context;
 use std::convert::{TryFrom, TryInto};
 
 include!(concat!(env!("OUT_DIR"), "/core.ot.rs"));
@@ -14,15 +16,16 @@ impl From<ot::BaseOtSenderSetup> for BaseOtSenderSetup {
 }
 
 impl TryFrom<BaseOtSenderSetup> for ot::BaseOtSenderSetup {
-    type Error = &'static str;
+    type Error = ProtoError;
 
     #[inline]
     fn try_from(s: BaseOtSenderSetup) -> Result<Self, Self::Error> {
-        let key = match s.public_key.try_into() {
-            Ok(key) => key,
-            Err(e) => return Err("Invalid key in BaseOtSenderSetup"),
-        };
-        Ok(Self { public_key: key })
+        Ok(Self {
+            public_key: s
+                .public_key
+                .try_into()
+                .context("BaseOtSenderSetup has invalid key")?,
+        })
     }
 }
 
