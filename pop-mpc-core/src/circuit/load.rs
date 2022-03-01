@@ -1,5 +1,5 @@
+use super::errors::CircuitLoadError;
 use super::Circuit;
-use crate::errors::CircuitLoadError;
 use crate::proto::circuits::Circuit as ProtoCircuit;
 use prost::Message;
 use std::convert::TryFrom;

@@ -1,6 +1,7 @@
+use super::errors::CircuitParserError;
 use super::Circuit;
-use crate::errors::CircuitParserError;
 use crate::gate::Gate;
+use anyhow::{anyhow, Context};
 use regex::{Captures, Regex};
 use std::{
     fs::File,
@@ -24,30 +25,41 @@ impl Circuit {
     /// Parses circuit files in Bristol Fashion format as specified here:
     /// `https://homes.esat.kuleuven.be/~nsmart/MPC/`
     pub fn parse(filename: &str, name: &str, version: &str) -> Result<Self, CircuitParserError> {
-        let f = File::open(filename)?;
+        let f = File::open(filename)
+            .with_context(|| format!("Failed to read circuit from {}", filename))?;
         let mut reader = BufReader::new(f);
 
         // Parse first line: ngates nwires\n
         let mut line = String::new();
-        let _ = reader.read_line(&mut line)?;
-        let re = Regex::new(r"(\d+)")?;
+        let _ = reader.read_line(&mut line).context("Failed to read line")?;
+        let re = Regex::new(r"(\d+)").context("Failed to compile regex")?;
         let line_1 = line2vec(&re, &line)?;
 
         // Check that first line has 2 values: ngates, nwires
         if line_1.len() != 2 {
-            return Err(CircuitParserError::ParseLineError(line));
+            return Err(CircuitParserError::ParsingError(anyhow!(
+                "Expecting line to be ngates, nwires: {}",
+                line
+            )));
         }
 
-        let ngates: usize = line_1[0].parse()?;
-        let nwires: usize = line_1[1].parse()?;
+        let ngates: usize = line_1[0]
+            .parse()
+            .with_context(|| format!("Failed to parse ngates: {}", line_1[0]))?;
+        let nwires: usize = line_1[1]
+            .parse()
+            .with_context(|| format!("Failed to parse nwires: {}", line_1[1]))?;
 
         // Parse second line: ninputs input_0_nwires input_1_nwires...
         let mut line = String::new();
-        let _ = reader.read_line(&mut line)?;
-        let re = Regex::new(r"(\d+)\s*")?;
+        let _ = reader.read_line(&mut line).context("Failed to read line")?;
+        let re = Regex::new(r"(\d+)\s*").context("Failed to compile regex")?;
         let line_2 = line2vec(&re, &line)?;
 
-        let ninputs: usize = line_2[0].parse()?; // Number of circuit inputs
+        // Number of circuit inputs
+        let ninputs: usize = line_2[0]
+            .parse()
+            .with_context(|| format!("Failed to parse ninputs: {}", line_2[0]))?;
         let input_nwires: Vec<usize> = line_2[1..]
             .iter()
             .map(|nwires| {
@@ -59,16 +71,22 @@ impl Circuit {
 
         // Check that nwires is specified for every input
         if input_nwires.len() != ninputs {
-            return Err(CircuitParserError::ParseLineError(line));
+            return Err(CircuitParserError::ParsingError(anyhow!(
+                "Expecting wire count to be specified for every input: {}",
+                line
+            )));
         }
 
         // Parse third line: noutputs output_0_nwires output_1_nwires...
         let mut line = String::new();
-        let _ = reader.read_line(&mut line)?;
-        let re = Regex::new(r"(\d+)\s*")?;
+        let _ = reader.read_line(&mut line).context("Failed to read line")?;
+        let re = Regex::new(r"(\d+)\s*").context("Failed to compile regex")?;
         let line_3 = line2vec(&re, &line)?;
 
-        let noutputs: usize = line_3[0].parse()?; // Number of circuit outputs
+        // Number of circuit outputs
+        let noutputs: usize = line_3[0]
+            .parse()
+            .with_context(|| format!("Failed to parse noutputs: {}", line_3[0]))?;
         let output_nwires: Vec<usize> = line_3[1..]
             .iter()
             .map(|nwires| {
@@ -80,7 +98,10 @@ impl Circuit {
 
         // Check that nwires is specified for every output
         if output_nwires.len() != noutputs {
-            return Err(CircuitParserError::ParseLineError(line));
+            return Err(CircuitParserError::ParsingError(anyhow!(
+                "Expecting wire count to be specified for every output: {}",
+                line
+            )));
         }
 
         let mut circ = Self::new(
@@ -94,13 +115,13 @@ impl Circuit {
             noutput_wires,
         );
 
-        let re = Regex::new(r"(\d+|\S+)\s*")?;
+        let re = Regex::new(r"(\d+|\S+)\s*").context("Failed to compile regex")?;
 
         let mut id = 0;
 
         // Process gates
         for line in reader.lines() {
-            let line = line?;
+            let line = line.context("Failed to read line")?;
             if line.is_empty() {
                 continue;
             }
@@ -108,14 +129,14 @@ impl Circuit {
             let typ = gate_vals.last().unwrap();
             let gate = match *typ {
                 "INV" => {
-                    let xref: usize = gate_vals[2].parse()?;
-                    let zref: usize = gate_vals[3].parse()?;
+                    let xref: usize = gate_vals[2].parse().context("Failed to parse gate")?;
+                    let zref: usize = gate_vals[3].parse().context("Failed to parse gate")?;
                     Gate::Inv { id, xref, zref }
                 }
                 "AND" => {
-                    let xref: usize = gate_vals[2].parse()?;
-                    let yref: usize = gate_vals[3].parse()?;
-                    let zref: usize = gate_vals[4].parse()?;
+                    let xref: usize = gate_vals[2].parse().context("Failed to parse gate")?;
+                    let yref: usize = gate_vals[3].parse().context("Failed to parse gate")?;
+                    let zref: usize = gate_vals[4].parse().context("Failed to parse gate")?;
                     circ.nand += 1;
                     Gate::And {
                         id,
@@ -125,9 +146,9 @@ impl Circuit {
                     }
                 }
                 "XOR" => {
-                    let xref: usize = gate_vals[2].parse()?;
-                    let yref: usize = gate_vals[3].parse()?;
-                    let zref: usize = gate_vals[4].parse()?;
+                    let xref: usize = gate_vals[2].parse().context("Failed to parse gate")?;
+                    let yref: usize = gate_vals[3].parse().context("Failed to parse gate")?;
+                    let zref: usize = gate_vals[4].parse().context("Failed to parse gate")?;
                     circ.nxor += 1;
                     Gate::Xor {
                         id,
@@ -137,14 +158,17 @@ impl Circuit {
                     }
                 }
                 _ => {
-                    return Err(CircuitParserError::ParseGateError(line.to_string()));
+                    return Err(CircuitParserError::ParsingError(anyhow!(
+                        "Encountered unsupported gate type: {}",
+                        typ
+                    )));
                 }
             };
             circ.gates.push(gate);
             id += 1;
         }
         if id != ngates {
-            return Err(CircuitParserError::ParseGateError(format!(
+            return Err(CircuitParserError::ParsingError(anyhow!(
                 "expecting {ngates} gates, parsed {id}"
             )));
         }

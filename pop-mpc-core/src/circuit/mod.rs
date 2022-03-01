@@ -1,7 +1,8 @@
+pub mod errors;
 pub mod load;
 pub mod parse;
 
-use crate::errors::CircuitEvalError;
+use self::errors::CircuitEvalError;
 use crate::gate::Gate;
 
 pub use parse::*;
