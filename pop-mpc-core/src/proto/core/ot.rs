@@ -21,10 +21,7 @@ impl TryFrom<BaseOtSenderSetup> for ot::BaseOtSenderSetup {
     #[inline]
     fn try_from(s: BaseOtSenderSetup) -> Result<Self, Self::Error> {
         Ok(Self {
-            public_key: s
-                .public_key
-                .try_into()
-                .context("BaseOtSenderSetup has invalid key")?,
+            public_key: s.public_key.try_into()?,
         })
     }
 }
@@ -72,18 +69,14 @@ impl From<ot::BaseOtReceiverSetup> for BaseOtReceiverSetup {
 }
 
 impl TryFrom<BaseOtReceiverSetup> for ot::BaseOtReceiverSetup {
-    type Error = &'static str;
+    type Error = ProtoError;
 
     #[inline]
     fn try_from(s: BaseOtReceiverSetup) -> Result<Self, Self::Error> {
         let mut keys: Vec<curve25519_dalek::ristretto::RistrettoPoint> =
             Vec::with_capacity(s.keys.len());
         for key in s.keys.into_iter() {
-            let key = match parse_ristretto_key(key.point) {
-                Ok(p) => p,
-                Err(k) => return Err("Invalid key in BaseOtReceiverSetup"),
-            };
-            keys.push(key);
+            keys.push(parse_ristretto_key(key.point)?);
         }
         Ok(Self { keys })
     }

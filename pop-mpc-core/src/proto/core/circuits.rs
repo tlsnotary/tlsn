@@ -1,4 +1,6 @@
+use super::ProtoError;
 use crate::circuit;
+use anyhow::anyhow;
 use std::convert::{From, TryFrom};
 
 include!(concat!(env!("OUT_DIR"), "/core.circuits.rs"));
@@ -43,7 +45,7 @@ impl From<crate::gate::Gate> for Gate {
 }
 
 impl TryFrom<Gate> for crate::gate::Gate {
-    type Error = ();
+    type Error = ProtoError;
 
     #[inline]
     fn try_from(g: Gate) -> Result<Self, Self::Error> {
@@ -65,7 +67,12 @@ impl TryFrom<Gate> for crate::gate::Gate {
                 xref: g.xref as usize,
                 zref: g.zref as usize,
             },
-            _ => return Err(()),
+            _ => {
+                return Err(ProtoError::MappingError(anyhow!(
+                    "Unrecognized gate type: {:?}",
+                    g
+                )))
+            }
         };
         Ok(g)
     }
@@ -91,15 +98,13 @@ impl From<circuit::Circuit> for Circuit {
 }
 
 impl TryFrom<Circuit> for circuit::Circuit {
-    type Error = ();
+    type Error = ProtoError;
+
+    #[inline]
     fn try_from(c: Circuit) -> Result<Self, Self::Error> {
         let mut gates: Vec<crate::gate::Gate> = Vec::with_capacity(c.gates.len());
         for gate in c.gates.into_iter() {
-            if let Ok(gate) = crate::gate::Gate::try_from(gate) {
-                gates.push(gate)
-            } else {
-                return Err(());
-            }
+            gates.push(crate::gate::Gate::try_from(gate)?)
         }
         Ok(Self {
             name: c.name,
