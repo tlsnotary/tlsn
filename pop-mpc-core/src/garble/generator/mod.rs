@@ -2,8 +2,8 @@ pub mod half_gate;
 
 pub use half_gate::*;
 
+use super::errors::GeneratorError;
 use crate::circuit::Circuit;
-use crate::errors::GeneratorError;
 use crate::garble::circuit::CompleteGarbledCircuit;
 use cipher::{consts::U16, generic_array::GenericArray, BlockCipher, BlockEncrypt};
 use rand::{CryptoRng, Rng};

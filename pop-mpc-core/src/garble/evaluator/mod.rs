@@ -2,8 +2,8 @@ pub mod half_gate;
 
 pub use half_gate::*;
 
+use super::errors::EvaluatorError;
 use crate::circuit::Circuit;
-use crate::errors::EvaluatorError;
 use crate::garble::circuit::{GarbledCircuit, InputLabel};
 use crate::Block;
 use cipher::{consts::U16, generic_array::GenericArray, BlockCipher, BlockEncrypt};

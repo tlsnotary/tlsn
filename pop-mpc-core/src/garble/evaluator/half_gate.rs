@@ -1,7 +1,7 @@
+use super::EvaluatorError;
 use super::GarbledCircuitEvaluator;
 use crate::block::{Block, SELECT_MASK};
 use crate::circuit::Circuit;
-use crate::errors::EvaluatorError;
 use crate::garble::circuit::{GarbledCircuit, InputLabel};
 use crate::gate::Gate;
 use cipher::{consts::U16, generic_array::GenericArray, BlockCipher, BlockEncrypt};

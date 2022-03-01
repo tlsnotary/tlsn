@@ -15,6 +15,8 @@ use rand::{CryptoRng, Rng, RngCore, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 use std::convert::TryInto;
 
+// will be used when implementing KOS15 check
+#[allow(dead_code)]
 const K: usize = 40;
 const NBASE: usize = 128;
 
