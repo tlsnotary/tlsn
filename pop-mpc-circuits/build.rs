@@ -10,7 +10,7 @@ fn main() -> Result<()> {
     let name_pattern = Regex::new(r"circuits/(\w+)\.txt").unwrap();
     let circuit_files = read_dir("circuits/").unwrap();
     let version = env::var("CARGO_PKG_VERSION").unwrap();
-    let out_dir = "./compiled/".to_string();
+    let out_dir = env::var("OUT_DIR").unwrap();
 
     for circuit_file in circuit_files {
         let circuit_file = circuit_file.unwrap();
