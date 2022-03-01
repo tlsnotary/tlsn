@@ -82,7 +82,7 @@ async fn evaluate(stream: UnixStream, circ: Circuit) -> Result<Vec<bool>, ()> {
 
 #[tokio::main]
 async fn main() {
-    let circ = Circuit::parse("../pop-mpc-core/circuits/aes_128_reverse.txt").unwrap();
+    let circ = Circuit::load("../pop-mpc-core/circuits/protobuf/aes_128_reverse.bin").unwrap();
 
     // In this example we will setup a websocket connection over Unix channels, this is typically done over TCP
     let (unix_s, unix_r) = UnixStream::pair().unwrap();

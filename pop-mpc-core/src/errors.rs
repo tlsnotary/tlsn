@@ -1,3 +1,4 @@
+use prost::DecodeError;
 use regex;
 use std::fmt::{self, Display, Formatter};
 
@@ -42,12 +43,12 @@ pub enum CircuitParserError {
 impl Display for CircuitParserError {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
-            CircuitParserError::IoError(e) => write!(f, "io error: {}", e),
-            CircuitParserError::RegexError(e) => write!(f, "regex error: {}", e),
-            CircuitParserError::ParseIntError => write!(f, "unable to parse integer"),
-            CircuitParserError::ParseLineError(s) => write!(f, "unable to parse line '{}'", s),
-            CircuitParserError::ParseGateError(s) => write!(f, "unable to parse gate '{}'", s),
-            CircuitParserError::InputError() => write!(f, "invalid circuit inputs"),
+            Self::IoError(e) => write!(f, "io error: {}", e),
+            Self::RegexError(e) => write!(f, "regex error: {}", e),
+            Self::ParseIntError => write!(f, "unable to parse integer"),
+            Self::ParseLineError(s) => write!(f, "unable to parse line '{}'", s),
+            Self::ParseGateError(s) => write!(f, "unable to parse gate '{}'", s),
+            Self::InputError() => write!(f, "invalid circuit inputs"),
         }
     }
 }
@@ -71,6 +72,42 @@ impl From<std::num::ParseIntError> for CircuitParserError {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// Circuit Load
+
+/// Errors emitted by the circuit parser.
+#[derive(Debug)]
+pub enum CircuitLoadError {
+    /// An I/O error occurred.
+    IoError(std::io::Error),
+    /// A decoding error occurred.
+    DecodeError(DecodeError),
+    /// Error occurred when mapping models
+    MappingError,
+}
+
+impl Display for CircuitLoadError {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            Self::IoError(e) => write!(f, "io error: {}", e),
+            Self::DecodeError(e) => write!(f, "decode error: {}", e),
+            Self::MappingError => write!(f, "mapping error"),
+        }
+    }
+}
+
+impl From<std::io::Error> for CircuitLoadError {
+    fn from(e: std::io::Error) -> Self {
+        Self::IoError(e)
+    }
+}
+
+impl From<DecodeError> for CircuitLoadError {
+    fn from(e: DecodeError) -> Self {
+        Self::DecodeError(e)
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// Circuit Garbling
 
 #[derive(Debug)]
@@ -81,7 +118,7 @@ pub enum GeneratorError {
 impl Display for GeneratorError {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
-            GeneratorError::UninitializedLabel(wire) => {
+            Self::UninitializedLabel(wire) => {
                 write!(f, "Uninitialized label, wire {}", wire)
             }
         }
@@ -100,10 +137,10 @@ pub enum EvaluatorError {
 impl Display for EvaluatorError {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
-            EvaluatorError::UninitializedLabel(wire) => {
+            Self::UninitializedLabel(wire) => {
                 write!(f, "Uninitialized label, wire {}", wire)
             }
-            EvaluatorError::InvalidInputCount(n, expected) => {
+            Self::InvalidInputCount(n, expected) => {
                 write!(f, "Invalid input count {} expected {}", n, expected)
             }
         }

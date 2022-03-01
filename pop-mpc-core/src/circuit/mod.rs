@@ -1,3 +1,4 @@
+pub mod load;
 pub mod parse;
 
 use crate::errors::CircuitEvalError;
@@ -16,6 +17,10 @@ pub struct CircuitInput {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Circuit {
+    /// Name of circuit
+    pub name: String,
+    /// Version of circuit
+    pub version: String,
     /// Number of gates in the circuit
     pub ngates: usize,
     /// Number of wires in the circuit
@@ -38,6 +43,8 @@ pub struct Circuit {
 
 impl Circuit {
     pub fn new(
+        name: String,
+        version: String,
         ngates: usize,
         nwires: usize,
         ninputs: usize,
@@ -46,6 +53,8 @@ impl Circuit {
         noutput_wires: usize,
     ) -> Self {
         Circuit {
+            name,
+            version,
             ngates,
             nwires,
             ninputs,

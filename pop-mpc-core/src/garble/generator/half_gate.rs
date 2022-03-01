@@ -136,7 +136,7 @@ mod tests {
     fn test_encode_wire_labels() {
         let mut cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
         let mut rng = ChaCha12Rng::from_entropy();
-        let circ = Circuit::parse("circuits/aes_128_reverse.txt").unwrap();
+        let circ = Circuit::load("circuits/protobuf/aes_128_reverse.bin").unwrap();
         let half_gate = HalfGateGenerator::new();
 
         let gc = half_gate.garble(&mut cipher, &mut rng, &circ);
