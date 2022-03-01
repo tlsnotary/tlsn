@@ -17,14 +17,14 @@ fn criterion_benchmark(c: &mut Criterion) {
         let choice = [false; 1024];
 
         bench.iter(|| {
-            let mut sender = BaseOtSender::new(&mut s_rng);
-            let sender_setup = sender.setup();
+            let mut sender = BaseOtSender::new();
+            let sender_setup = sender.setup(&mut s_rng);
 
             let mut receiver = BaseOtReceiver::new();
 
             let receiver_setup = receiver.setup(&mut r_rng, &choice, sender_setup).unwrap();
             let send = sender.send(&s_inputs, receiver_setup).unwrap();
-            let receive = receiver.receive(&choice, send);
+            let receive = receiver.receive(&choice, send).unwrap();
             black_box(receive);
         });
     });

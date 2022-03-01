@@ -13,7 +13,7 @@ use super::BaseOtSenderError;
 ////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////// BaseOtSender
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 enum SenderState {
     Initialized,
     Setup,
@@ -21,8 +21,8 @@ enum SenderState {
 }
 
 pub struct BaseOtSender {
-    private_key: Scalar,
-    public_key: RistrettoPoint,
+    private_key: Option<Scalar>,
+    public_key: Option<RistrettoPoint>,
     state: SenderState,
 }
 
@@ -37,19 +37,21 @@ pub struct BaseOtSenderPayload {
 }
 
 impl BaseOtSender {
-    pub fn new<R: Rng + CryptoRng>(rng: &mut R) -> Self {
-        let private_key = Scalar::random(rng);
+    pub fn new() -> Self {
         Self {
-            private_key,
-            public_key: &private_key * &RISTRETTO_BASEPOINT_TABLE,
+            private_key: None,
+            public_key: None,
             state: SenderState::Initialized,
         }
     }
 
-    pub fn setup(&mut self) -> BaseOtSenderSetup {
+    pub fn setup<R: Rng + CryptoRng>(&mut self, rng: &mut R) -> BaseOtSenderSetup {
+        let private_key = Scalar::random(rng);
+        self.public_key = Some(&private_key * &RISTRETTO_BASEPOINT_TABLE);
+        self.private_key = Some(private_key);
         self.state = SenderState::Setup;
         BaseOtSenderSetup {
-            public_key: self.public_key,
+            public_key: self.public_key.unwrap(),
         }
     }
 
@@ -58,12 +60,16 @@ impl BaseOtSender {
         inputs: &[[Block; 2]],
         receiver_setup: BaseOtReceiverSetup,
     ) -> Result<BaseOtSenderPayload, BaseOtSenderError> {
+        if self.state < SenderState::Setup {
+            return Err(BaseOtSenderError::NotSetup);
+        }
+        let private_key = self.private_key.unwrap();
         let ninputs = inputs.len();
-        let ys = self.private_key * self.public_key;
+        let ys = private_key * self.public_key.unwrap();
         let mut encrypted_values: Vec<[Block; 2]> = Vec::with_capacity(ninputs);
 
         for (i, (input, receiver_key)) in inputs.iter().zip(receiver_setup.keys).enumerate() {
-            let yr = self.private_key * receiver_key;
+            let yr = private_key * receiver_key;
             let k0 = Block::hash_point(&yr, i);
             let k1 = Block::hash_point(&(yr - ys), i);
             encrypted_values.push([k0 ^ input[0], k1 ^ input[1]]);
@@ -78,7 +84,7 @@ impl BaseOtSender {
 ////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////// BaseOtReceiver
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 enum ReceiverState {
     Initialized,
     Setup,
@@ -130,7 +136,15 @@ impl BaseOtReceiver {
         Ok(BaseOtReceiverSetup { keys })
     }
 
-    pub fn receive(&mut self, choice: &[bool], payload: BaseOtSenderPayload) -> Vec<Block> {
+    pub fn receive(
+        &mut self,
+        choice: &[bool],
+        payload: BaseOtSenderPayload,
+    ) -> Result<Vec<Block>, BaseOtReceiverError> {
+        if self.state < ReceiverState::Setup {
+            return Err(BaseOtReceiverError::NotSetup);
+        }
+
         let hashes = self.hashes.as_ref().unwrap();
         let values: Vec<Block> = choice
             .iter()
@@ -144,7 +158,7 @@ impl BaseOtReceiver {
 
         self.state = ReceiverState::Complete;
 
-        values
+        Ok(values)
     }
 }
 
@@ -173,14 +187,14 @@ mod tests {
             .map(|(input, choice)| input[*choice as usize])
             .collect();
 
-        let mut sender = BaseOtSender::new(&mut s_rng);
-        let sender_setup = sender.setup();
+        let mut sender = BaseOtSender::new();
+        let sender_setup = sender.setup(&mut s_rng);
 
         let mut receiver = BaseOtReceiver::new();
         let receiver_setup = receiver.setup(&mut r_rng, &choice, sender_setup).unwrap();
 
         let send = sender.send(&s_inputs, receiver_setup).unwrap();
-        let receive = receiver.receive(&choice, send);
+        let receive = receiver.receive(&choice, send).unwrap();
         assert_eq!(expected, receive);
     }
 }

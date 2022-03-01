@@ -33,6 +33,8 @@ impl Default for ChaChaAesOtReceiver {
 }
 
 pub trait OtSender {
+    fn state(&self) -> OtSenderState;
+
     fn base_setup(
         &mut self,
         base_sender_setup: BaseOtSenderSetup,
@@ -46,6 +48,8 @@ pub trait OtSender {
 }
 
 pub trait OtReceiver {
+    fn state(&self) -> OtReceiverState;
+
     fn base_setup(&mut self) -> Result<BaseOtSenderSetup, OtReceiverError>;
 
     fn base_send_seeds(
