@@ -41,3 +41,7 @@ harness = false
 [[bench]]
 name = "ot"
 harness = false
+
+[[bin]]
+name = "measure_data"
+path = "src/bin/measure_data.rs"
