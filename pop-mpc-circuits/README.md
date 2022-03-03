@@ -2,10 +2,8 @@
 This crate assists with converting circuits from Bristol-fashion Format to Protobuf models.
 
 ## Usage
-Simply run cargo build to convert all circuits present in the `circuits/` directory.
+Simply run the compile binary to convert all circuits present in the input directory.
 
 ```bash
-cargo build
+cargo r --bin compile -- -i circuits/ -o out/
 ```
-
-The protobuf models will be saved into the build directory, e.g. `target/debug/build/pop-mpc-circuits-*/out/`
