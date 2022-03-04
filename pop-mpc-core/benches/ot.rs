@@ -44,10 +44,10 @@ fn criterion_benchmark(c: &mut Criterion) {
             let r_rng = ChaCha12Rng::from_entropy();
             let r_cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
 
-            let mut receiver = KosReceiver::new(r_rng, r_cipher);
+            let mut receiver = OtReceiver::new(r_rng, r_cipher);
             let base_sender_setup = receiver.base_setup().unwrap();
 
-            let mut sender = KosSender::new(s_rng, s_cipher);
+            let mut sender = OtSender::new(s_rng, s_cipher);
             let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
 
             let send_seeds = receiver.base_send_seeds(base_receiver_setup).unwrap();

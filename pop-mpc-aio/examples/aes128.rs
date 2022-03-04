@@ -2,7 +2,7 @@ use pop_mpc_aio::garble::*;
 use pop_mpc_aio::ot::*;
 use pop_mpc_core::circuit::{Circuit, CircuitInput};
 use pop_mpc_core::garble::{evaluator::*, generator::*};
-use pop_mpc_core::ot::{KosReceiver, KosSender};
+use pop_mpc_core::ot::{OtReceiver, OtSender};
 use pop_mpc_core::utils::boolvec_to_string;
 use tokio;
 use tokio::net::UnixStream;
@@ -34,7 +34,7 @@ async fn garble(stream: UnixStream, circ: Circuit) {
     let eval_input_idx: Vec<usize> = (128..256).collect();
 
     let gen = HalfGateGenerator::new();
-    let mut async_gen = AsyncGenerator::new(AsyncOtSender::new(KosSender::default()));
+    let mut async_gen = AsyncGenerator::new(AsyncOtSender::new(OtSender::default()));
     async_gen
         .garble(&mut ws, &circ, &gen, &gen_inputs, &eval_input_idx)
         .await
@@ -68,7 +68,7 @@ async fn evaluate(stream: UnixStream, circ: Circuit) -> Result<Vec<bool>, ()> {
     );
 
     let ev = HalfGateEvaluator::new();
-    let mut async_ev = AsyncEvaluator::new(AsyncOtReceiver::new(KosReceiver::default()));
+    let mut async_ev = AsyncEvaluator::new(AsyncOtReceiver::new(OtReceiver::default()));
 
     let values = async_ev
         .evaluate(&mut ws, &circ, &ev, &ev_inputs)

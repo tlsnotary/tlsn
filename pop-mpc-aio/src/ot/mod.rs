@@ -17,7 +17,7 @@ pub struct AsyncOtReceiver<OT> {
     ot: OT,
 }
 
-impl<OT: ot::OtSender> AsyncOtSender<OT> {
+impl<OT: ot::OtSend> AsyncOtSender<OT> {
     pub fn new(ot: OT) -> Self {
         Self { ot }
     }
@@ -77,7 +77,7 @@ impl<OT: ot::OtSender> AsyncOtSender<OT> {
     }
 }
 
-impl<OT: ot::OtReceiver> AsyncOtReceiver<OT> {
+impl<OT: ot::OtReceive> AsyncOtReceiver<OT> {
     pub fn new(ot: OT) -> Self {
         Self { ot }
     }

@@ -5,7 +5,7 @@ use super::errors::{OtReceiverError, OtSenderError};
 use super::{
     BaseOtReceiver, BaseOtReceiverSetup, BaseOtSender, BaseOtSenderPayload, BaseOtSenderSetup,
 };
-use super::{OtReceiver, OtSender};
+use super::{OtReceive, OtSend};
 use crate::block::Block;
 use crate::utils;
 use aes::{BlockCipher, BlockEncrypt};
@@ -30,7 +30,7 @@ pub enum OtSenderState {
     Complete,
 }
 
-pub struct KosSender<R, C> {
+pub struct OtSender<R, C> {
     rng: R,
     cipher: C,
     state: OtSenderState,
@@ -47,7 +47,7 @@ pub struct OtSenderPayload {
 }
 
 impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEncrypt>
-    KosSender<R, C>
+    OtSender<R, C>
 {
     pub fn new(mut rng: R, cipher: C) -> Self {
         let mut base_choice = vec![0u8; NBASE / 8];
@@ -81,8 +81,8 @@ impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEn
     }
 }
 
-impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEncrypt> OtSender
-    for KosSender<R, C>
+impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEncrypt> OtSend
+    for OtSender<R, C>
 {
     fn state(&self) -> OtSenderState {
         self.state
@@ -164,7 +164,7 @@ pub enum OtReceiverState {
     Complete,
 }
 
-pub struct KosReceiver<R, C> {
+pub struct OtReceiver<R, C> {
     cipher: C,
     rng: R,
     state: OtReceiverState,
@@ -181,7 +181,7 @@ pub struct OtReceiverSetup {
 }
 
 impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEncrypt>
-    KosReceiver<R, C>
+    OtReceiver<R, C>
 {
     pub fn new(rng: R, cipher: C) -> Self {
         Self {
@@ -217,8 +217,8 @@ impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEn
     }
 }
 
-impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEncrypt> OtReceiver
-    for KosReceiver<R, C>
+impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEncrypt> OtReceive
+    for OtReceiver<R, C>
 {
     fn state(&self) -> OtReceiverState {
         self.state
@@ -322,10 +322,10 @@ mod tests {
         let r_rng = ChaCha12Rng::from_entropy();
         let r_cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
 
-        let mut receiver = KosReceiver::new(r_rng, r_cipher);
+        let mut receiver = OtReceiver::new(r_rng, r_cipher);
         let base_sender_setup = receiver.base_setup().unwrap();
 
-        let mut sender = KosSender::new(s_rng, s_cipher);
+        let mut sender = OtSender::new(s_rng, s_cipher);
         let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
 
         let send_seeds = receiver.base_send_seeds(base_receiver_setup).unwrap();
@@ -361,10 +361,10 @@ mod tests {
         let r_rng = ChaCha12Rng::from_entropy();
         let r_cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
 
-        let mut receiver = KosReceiver::new(r_rng, r_cipher);
+        let mut receiver = OtReceiver::new(r_rng, r_cipher);
         let base_sender_setup = receiver.base_setup().unwrap();
 
-        let mut sender = KosSender::new(s_rng, s_cipher);
+        let mut sender = OtSender::new(s_rng, s_cipher);
         let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
 
         let send_seeds = receiver.base_send_seeds(base_receiver_setup).unwrap();
@@ -388,10 +388,10 @@ mod tests {
         let r_rng = ChaCha12Rng::from_entropy();
         let r_cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
 
-        let mut receiver = KosReceiver::new(r_rng, r_cipher);
+        let mut receiver = OtReceiver::new(r_rng, r_cipher);
         let base_sender_setup = receiver.base_setup().unwrap();
 
-        let mut sender = KosSender::new(s_rng, s_cipher);
+        let mut sender = OtSender::new(s_rng, s_cipher);
         let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
 
         let send_seeds = receiver.base_send_seeds(base_receiver_setup).unwrap();

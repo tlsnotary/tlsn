@@ -8,7 +8,7 @@ use futures_util::{SinkExt, StreamExt};
 use pop_mpc_core::circuit::{Circuit, CircuitInput};
 use pop_mpc_core::garble::circuit::InputLabel;
 use pop_mpc_core::garble::{evaluator::*, generator::*};
-use pop_mpc_core::ot::{OtReceiver, OtSender};
+use pop_mpc_core::ot::{OtReceive, OtSend};
 use pop_mpc_core::proto;
 use pop_mpc_core::Block;
 use prost::Message as ProtoMessage;
@@ -25,7 +25,7 @@ pub struct AsyncEvaluator<S> {
     ot: AsyncOtReceiver<S>,
 }
 
-impl<OT: OtSender> AsyncGenerator<OT> {
+impl<OT: OtSend> AsyncGenerator<OT> {
     pub fn new(ot: AsyncOtSender<OT>) -> Self {
         Self { ot }
     }
@@ -61,7 +61,7 @@ impl<OT: OtSender> AsyncGenerator<OT> {
     }
 }
 
-impl<OT: OtReceiver> AsyncEvaluator<OT> {
+impl<OT: OtReceive> AsyncEvaluator<OT> {
     pub fn new(ot: AsyncOtReceiver<OT>) -> Self {
         Self { ot }
     }

@@ -13,8 +13,8 @@ use aes::Aes128;
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 
-pub type ChaChaAesOtSender = KosSender<ChaCha12Rng, Aes128>;
-pub type ChaChaAesOtReceiver = KosReceiver<ChaCha12Rng, Aes128>;
+pub type ChaChaAesOtSender = OtSender<ChaCha12Rng, Aes128>;
+pub type ChaChaAesOtReceiver = OtReceiver<ChaCha12Rng, Aes128>;
 
 impl Default for ChaChaAesOtSender {
     fn default() -> Self {
@@ -32,7 +32,7 @@ impl Default for ChaChaAesOtReceiver {
     }
 }
 
-pub trait OtSender {
+pub trait OtSend {
     fn state(&self) -> OtSenderState;
 
     fn base_setup(
@@ -47,7 +47,7 @@ pub trait OtSender {
     fn send(&mut self, inputs: &[[Block; 2]]) -> Result<OtSenderPayload, OtSenderError>;
 }
 
-pub trait OtReceiver {
+pub trait OtReceive {
     fn state(&self) -> OtReceiverState;
 
     fn base_setup(&mut self) -> Result<BaseOtSenderSetup, OtReceiverError>;
