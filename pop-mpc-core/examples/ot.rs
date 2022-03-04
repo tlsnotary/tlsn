@@ -13,7 +13,7 @@ pub fn main() {
     // Receiver choice bits
     let choice = vec![false, true, false, false, true, true, false, true];
 
-    println!("Receiver chooses: {:?}", &choice);
+    println!("Receiver choices: {:?}", &choice);
 
     // Sender messages the receiver chooses from
     let inputs = [
@@ -44,8 +44,8 @@ pub fn main() {
     let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
 
     // Now the receiver generates some seeds from sender's setup and uses OT to transfer them
-    let send_seeds = receiver.base_send_seeds(base_receiver_setup).unwrap();
-    sender.base_receive_seeds(send_seeds).unwrap();
+    let base_payload = receiver.base_send_seeds(base_receiver_setup).unwrap();
+    sender.base_receive_seeds(base_payload).unwrap();
 
     // Receiver generates OT extension setup and passes it to sender
     let receiver_setup = receiver.extension_setup(&choice).unwrap();
@@ -54,10 +54,10 @@ pub fn main() {
     sender.extension_setup(receiver_setup).unwrap();
 
     // Finally, sender encrypts their inputs and sends them to receiver
-    let send = sender.send(&inputs).unwrap();
+    let payload = sender.send(&inputs).unwrap();
 
     // Receiver takes the encrypted inputs and is able to decrypt according to their choice bits
-    let receive = receiver.receive(&choice, send).unwrap();
+    let received = receiver.receive(&choice, payload).unwrap();
 
-    println!("Transferred messages: {:?}", receive);
+    println!("Transferred messages: {:?}", received);
 }
