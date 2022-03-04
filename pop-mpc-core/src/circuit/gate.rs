@@ -4,7 +4,7 @@
 /// `xref` and `yref` are the wire ids of the gate inputs
 /// `zref` is the wire id of the gate output
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum Gate {
+pub enum Gate {
     Xor {
         id: usize,
         xref: usize,

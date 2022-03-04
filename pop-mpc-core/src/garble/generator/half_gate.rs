@@ -1,9 +1,8 @@
 use super::GarbledCircuitGenerator;
 use super::GeneratorError;
 use crate::block::{Block, SELECT_MASK};
-use crate::circuit::Circuit;
+use crate::circuit::{Circuit, Gate};
 use crate::garble::circuit::CompleteGarbledCircuit;
-use crate::gate::Gate;
 use cipher::{consts::U16, BlockCipher, BlockEncrypt};
 use rand::{CryptoRng, Rng};
 

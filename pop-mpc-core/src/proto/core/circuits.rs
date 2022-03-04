@@ -5,11 +5,11 @@ use std::convert::{From, TryFrom};
 
 include!(concat!(env!("OUT_DIR"), "/core.circuits.rs"));
 
-impl From<crate::gate::Gate> for Gate {
+impl From<crate::circuit::Gate> for Gate {
     #[inline]
-    fn from(g: crate::gate::Gate) -> Self {
+    fn from(g: crate::circuit::Gate) -> Self {
         match g {
-            crate::gate::Gate::Xor {
+            crate::circuit::Gate::Xor {
                 id,
                 xref,
                 yref,
@@ -21,7 +21,7 @@ impl From<crate::gate::Gate> for Gate {
                 zref: zref as u32,
                 gate_type: 0,
             },
-            crate::gate::Gate::And {
+            crate::circuit::Gate::And {
                 id,
                 xref,
                 yref,
@@ -33,7 +33,7 @@ impl From<crate::gate::Gate> for Gate {
                 zref: zref as u32,
                 gate_type: 1,
             },
-            crate::gate::Gate::Inv { id, xref, zref } => Self {
+            crate::circuit::Gate::Inv { id, xref, zref } => Self {
                 id: id as u32,
                 xref: xref as u32,
                 yref: 0,
@@ -44,7 +44,7 @@ impl From<crate::gate::Gate> for Gate {
     }
 }
 
-impl TryFrom<Gate> for crate::gate::Gate {
+impl TryFrom<Gate> for crate::circuit::Gate {
     type Error = ProtoError;
 
     #[inline]
@@ -102,9 +102,9 @@ impl TryFrom<Circuit> for circuit::Circuit {
 
     #[inline]
     fn try_from(c: Circuit) -> Result<Self, Self::Error> {
-        let mut gates: Vec<crate::gate::Gate> = Vec::with_capacity(c.gates.len());
+        let mut gates: Vec<crate::circuit::Gate> = Vec::with_capacity(c.gates.len());
         for gate in c.gates.into_iter() {
-            gates.push(crate::gate::Gate::try_from(gate)?)
+            gates.push(crate::circuit::Gate::try_from(gate)?)
         }
         Ok(Self {
             name: c.name,

@@ -1,6 +1,6 @@
 use super::errors::CircuitParserError;
+use super::gate::Gate;
 use super::Circuit;
-use crate::gate::Gate;
 use anyhow::{anyhow, Context};
 use regex::Regex;
 use std::{
