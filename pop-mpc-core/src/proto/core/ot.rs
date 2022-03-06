@@ -1,3 +1,5 @@
+#![cfg(feature = "ot")]
+
 use super::super::errors::ProtoError;
 pub use crate::ot;
 use crate::utils::parse_ristretto_key;

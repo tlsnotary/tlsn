@@ -1,3 +1,4 @@
+#![cfg(feature = "garble")]
 use crate::{garble::circuit, Block};
 
 include!(concat!(env!("OUT_DIR"), "/core.garble.rs"));

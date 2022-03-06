@@ -1,3 +1,5 @@
+#![cfg(feature = "proto")]
+
 use super::errors::CircuitLoadError;
 use super::Circuit;
 use crate::proto::circuits::Circuit as ProtoCircuit;

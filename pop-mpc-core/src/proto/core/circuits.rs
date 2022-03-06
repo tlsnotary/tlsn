@@ -1,3 +1,4 @@
+#![cfg(feature = "garble")]
 use super::ProtoError;
 use crate::circuit;
 use anyhow::anyhow;

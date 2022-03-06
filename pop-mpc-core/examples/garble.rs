@@ -1,8 +1,8 @@
+#![cfg(feature = "garble")]
 // This example demonstrates how to garble and evaluate an AES128 encryption circuit.
 // In practical situations wire labels would be communicated over a channel such as TCP and
 // using an oblivious transfer protocol. For simplicity, this example shows how the generator
 // and evaluator components work together in memory
-
 use aes::cipher::{generic_array::GenericArray, NewBlockCipher};
 use aes::Aes128;
 use pop_mpc_core::{
