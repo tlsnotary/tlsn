@@ -97,7 +97,7 @@ impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEn
             .setup(&mut self.rng, &self.base_choice, base_sender_setup)?)
     }
 
-    fn base_receive_seeds(&mut self, payload: BaseOtSenderPayload) -> Result<(), OtSenderError> {
+    fn base_receive(&mut self, payload: BaseOtSenderPayload) -> Result<(), OtSenderError> {
         let receive = self.base.receive(&self.base_choice, payload)?;
         self.set_seeds(receive);
         self.state = OtSenderState::BaseSetup;
@@ -228,7 +228,7 @@ impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEn
         Ok(self.base.setup(&mut self.rng))
     }
 
-    fn base_send_seeds(
+    fn base_send(
         &mut self,
         base_receiver_setup: BaseOtReceiverSetup,
     ) -> Result<BaseOtSenderPayload, OtReceiverError> {
@@ -328,8 +328,8 @@ mod tests {
         let mut sender = OtSender::new(s_rng, s_cipher);
         let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
 
-        let send_seeds = receiver.base_send_seeds(base_receiver_setup).unwrap();
-        sender.base_receive_seeds(send_seeds).unwrap();
+        let send_seeds = receiver.base_send(base_receiver_setup).unwrap();
+        sender.base_receive(send_seeds).unwrap();
 
         let mut choice = vec![0u8; 2];
         let mut rng = ChaCha12Rng::from_entropy();
@@ -367,8 +367,8 @@ mod tests {
         let mut sender = OtSender::new(s_rng, s_cipher);
         let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
 
-        let send_seeds = receiver.base_send_seeds(base_receiver_setup).unwrap();
-        sender.base_receive_seeds(send_seeds).unwrap();
+        let send_seeds = receiver.base_send(base_receiver_setup).unwrap();
+        sender.base_receive(send_seeds).unwrap();
 
         let inputs = receiver.seeds.unwrap();
         let choice = sender.base_choice;
@@ -394,8 +394,8 @@ mod tests {
         let mut sender = OtSender::new(s_rng, s_cipher);
         let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
 
-        let send_seeds = receiver.base_send_seeds(base_receiver_setup).unwrap();
-        sender.base_receive_seeds(send_seeds).unwrap();
+        let send_seeds = receiver.base_send(base_receiver_setup).unwrap();
+        sender.base_receive(send_seeds).unwrap();
 
         let receiver_rngs = receiver.rngs.unwrap();
         let mut receiver_chosen_rngs: Vec<ChaCha12Rng> = receiver_rngs

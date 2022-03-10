@@ -51,8 +51,7 @@ impl<OT: ot::OtSend> AsyncOtSender<OT> {
             }
             _ => return Err(AsyncOtSenderError::MalformedMessage),
         };
-        self.ot
-            .base_receive_seeds(base_payload.try_into().unwrap())?;
+        self.ot.base_receive(base_payload.try_into().unwrap())?;
 
         let extension_receiver_setup = match stream.next().await {
             Some(message) => {
@@ -104,9 +103,7 @@ impl<OT: ot::OtReceive> AsyncOtReceiver<OT> {
             _ => return Err(AsyncOtReceiverError::MalformedMessage),
         };
 
-        let payload = self
-            .ot
-            .base_send_seeds(base_receiver_setup.try_into().unwrap())?;
+        let payload = self.ot.base_send(base_receiver_setup.try_into().unwrap())?;
 
         stream
             .send(Message::Binary(

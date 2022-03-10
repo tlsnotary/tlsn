@@ -40,7 +40,7 @@ pub trait OtSend {
         base_sender_setup: BaseOtSenderSetup,
     ) -> Result<BaseOtReceiverSetup, OtSenderError>;
 
-    fn base_receive_seeds(&mut self, payload: BaseOtSenderPayload) -> Result<(), OtSenderError>;
+    fn base_receive(&mut self, payload: BaseOtSenderPayload) -> Result<(), OtSenderError>;
 
     fn extension_setup(&mut self, receiver_setup: OtReceiverSetup) -> Result<(), OtSenderError>;
 
@@ -52,7 +52,7 @@ pub trait OtReceive {
 
     fn base_setup(&mut self) -> Result<BaseOtSenderSetup, OtReceiverError>;
 
-    fn base_send_seeds(
+    fn base_send(
         &mut self,
         base_receiver_setup: BaseOtReceiverSetup,
     ) -> Result<BaseOtSenderPayload, OtReceiverError>;

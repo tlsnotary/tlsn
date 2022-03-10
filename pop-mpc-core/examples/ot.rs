@@ -44,8 +44,8 @@ pub fn main() {
     let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
 
     // Now the receiver generates some seeds from sender's setup and uses OT to transfer them
-    let base_payload = receiver.base_send_seeds(base_receiver_setup).unwrap();
-    sender.base_receive_seeds(base_payload).unwrap();
+    let base_payload = receiver.base_send(base_receiver_setup).unwrap();
+    sender.base_receive(base_payload).unwrap();
 
     // Receiver generates OT extension setup and passes it to sender
     let receiver_setup = receiver.extension_setup(&choice).unwrap();
