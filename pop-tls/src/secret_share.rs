@@ -386,6 +386,9 @@ mod tests {
             .to_affine();
         let pms = BigInt::from_bytes(pms.to_encoded_point(false).x().unwrap());
 
-        assert_eq!(pms, (master_share + slave_share));
+        assert_eq!(
+            pms,
+            (master_share + slave_share) % BigInt::from_hex(P).unwrap()
+        );
     }
 }
