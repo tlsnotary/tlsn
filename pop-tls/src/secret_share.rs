@@ -194,9 +194,9 @@ struct SlaveCache {
 }
 
 pub struct SlaveStepOne {
-    /// N_A mod_p
+    /// N_A mod p
     n_a_mod_p: BigInt,
-    /// N_b mod p
+    /// N_T mod p
     n_t_mod_p: BigInt,
     /// E(A * M_A + N_A)
     e_a_masked: BigInt,
@@ -205,7 +205,7 @@ pub struct SlaveStepOne {
 }
 
 pub struct SlaveStepTwo {
-    /// N_C mod p
+    /// N_B mod p
     n_b_mod_p: BigInt,
     /// E(B * M_C + N_C)
     e_b_masked: BigInt,
