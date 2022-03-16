@@ -16,13 +16,13 @@ proto = ["prost","prost-build"]
 aes = { version="0.7.5", features=[]}
 cipher = "0.3"
 sha2 = "0.10.1"
-rand = "0.7"
-rand_core = "0.5"
-rand_chacha = "0.2"
+rand = "0.8.5"
+rand_core = "0.6.3"
+rand_chacha = "0.3.1"
 regex = { version="1.5.4", optional = true }
 rayon = "1.5"
-curve25519-dalek = { version = "3", features = ["serde"] }
-serde = { version = "1", features=["derive"] }
+curve25519-dalek = { version = "4.0.0-pre.2", features = ["serde"] }
+serde = { version = "1.0.136", features = ["derive"] }
 prost = { version = "0.9", optional = true }
 thiserror = "1.0.30"
 anyhow = "1.0.55"
