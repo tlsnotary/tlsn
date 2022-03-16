@@ -1,7 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use elliptic_curve::sec1::ToEncodedPoint;
 use p256::SecretKey;
-use pop_tls::secret_share::*;
+use pop_mpc_core::secret_share::*;
 use rand::thread_rng;
 
 fn criterion_benchmark(c: &mut Criterion) {

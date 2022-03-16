@@ -6,25 +6,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-elliptic-curve = "0.11.12"
-p256 = "0.10.1"
-rand = "0.8.5"
-rand_core = "0.6.3"
+
 
 [dev-dependencies]
 criterion = "0.3.5"
-
-
-[dependencies.paillier]
-package = "kzen-paillier"
-version = "0.4.2"
-default-features = false
-
-[dependencies.curv-kzen]
-version = "0.9"
-# default-features = false
-# features = ["num-bigint"]
-
-[[bench]]
-name = "secret_share"
-harness = false

@@ -9,6 +9,8 @@ pub mod garble;
 pub mod ot;
 #[cfg(feature = "proto")]
 pub mod proto;
+#[cfg(feature = "ss")]
+pub mod secret_share;
 pub mod utils;
 
 pub use block::Block;
