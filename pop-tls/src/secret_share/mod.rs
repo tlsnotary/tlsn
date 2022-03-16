@@ -16,7 +16,7 @@ mod tests {
     use rand::thread_rng;
 
     #[test]
-    fn test() {
+    fn test_secret_share() {
         let mut rng = thread_rng();
 
         let server_secret = SecretKey::random(&mut rng);
