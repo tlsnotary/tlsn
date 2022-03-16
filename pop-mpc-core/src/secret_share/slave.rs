@@ -30,13 +30,16 @@ pub struct StepTwo {
 }
 pub struct Complete;
 
-trait State {}
+pub trait State {}
 impl State for Initialized {}
 impl State for StepOne {}
 impl State for StepTwo {}
 impl State for Complete {}
 
-pub struct SecretShareSlave<S> {
+pub struct SecretShareSlave<S>
+where
+    S: State,
+{
     /// Current state of secret share protocol
     state: S,
     /// NIST P-256 Prime

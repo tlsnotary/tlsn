@@ -23,14 +23,17 @@ pub struct Complete {
     secret: BigInt,
 }
 
-trait State {}
+pub trait State {}
 impl State for Initialized {}
 impl State for StepOne {}
 impl State for StepTwo {}
 impl State for StepThree {}
 impl State for Complete {}
 
-pub struct SecretShareMaster<S> {
+pub struct SecretShareMaster<S>
+where
+    S: State,
+{
     /// NIST P-256 Prime
     p: BigInt,
     /// Current state of secret share protocol
