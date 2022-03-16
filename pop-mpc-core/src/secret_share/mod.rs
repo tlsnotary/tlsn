@@ -13,7 +13,7 @@ mod tests {
     use curv::{arithmetic::Converter, BigInt};
     use elliptic_curve::sec1::ToEncodedPoint;
     use p256::SecretKey;
-    use rand::{thread_rng, CryptoRng};
+    use rand::thread_rng;
 
     #[test]
     fn test_secret_share() {
