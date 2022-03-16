@@ -46,23 +46,23 @@ where
 
 pub struct MasterStepOne {
     /// Master's encryption key
-    pub(super) enc_key: EncryptionKey,
+    pub(crate) enc_key: EncryptionKey,
     /// E(x_q)
-    pub(super) e_x_q: BigInt,
+    pub(crate) e_x_q: BigInt,
     /// E(-x_q)
-    pub(super) e_neg_x_q: BigInt,
+    pub(crate) e_neg_x_q: BigInt,
     /// E(y_q^2)
-    pub(super) e_y_q_pow_2: BigInt,
+    pub(crate) e_y_q_pow_2: BigInt,
     /// E(-2y_q)
-    pub(super) e_neg_2_y_q: BigInt,
+    pub(crate) e_neg_2_y_q: BigInt,
 }
 pub struct MasterStepTwo {
     /// E((T * M_T)^p-3 mod p)
-    pub(super) e_t_mod_pow: BigInt,
+    pub(crate) e_t_mod_pow: BigInt,
 }
 pub struct MasterStepThree {
     /// E(A * M_A * B * M_B)
-    pub(super) e_ab_masked: BigInt,
+    pub(crate) e_ab_masked: BigInt,
 }
 
 impl SecretShareMaster<Initialized> {

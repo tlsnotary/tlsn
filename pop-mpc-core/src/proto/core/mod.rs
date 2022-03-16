@@ -1,6 +1,7 @@
 pub mod circuits;
 pub mod garble;
 pub mod ot;
+pub mod secret_share;
 
 use super::errors::ProtoError;
 use std::convert::TryInto;

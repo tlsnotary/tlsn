@@ -80,25 +80,25 @@ impl Masks {
 
 pub struct SlaveStepOne {
     /// N_A mod p
-    pub(super) n_a_mod_p: BigInt,
+    pub(crate) n_a_mod_p: BigInt,
     /// N_T mod p
-    pub(super) n_t_mod_p: BigInt,
+    pub(crate) n_t_mod_p: BigInt,
     /// E(A * M_A + N_A)
-    pub(super) e_a_masked: BigInt,
+    pub(crate) e_a_masked: BigInt,
     /// E(T * M_T + N_T)
-    pub(super) e_t_masked: BigInt,
+    pub(crate) e_t_masked: BigInt,
 }
 
 pub struct SlaveStepTwo {
     /// N_B mod p
-    pub(super) n_b_mod_p: BigInt,
+    pub(crate) n_b_mod_p: BigInt,
     /// E(B * M_C + N_C)
-    pub(super) e_b_masked: BigInt,
+    pub(crate) e_b_masked: BigInt,
 }
 
 pub struct SlaveStepThree {
     /// E(PMS + S_q)
-    pub(super) e_pms_masked: BigInt,
+    pub(crate) e_pms_masked: BigInt,
 }
 
 impl SecretShareSlave<Initialized> {

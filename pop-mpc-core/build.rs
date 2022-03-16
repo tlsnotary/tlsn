@@ -6,6 +6,7 @@ fn main() -> Result<()> {
             "proto/ot.proto",
             "proto/garble.proto",
             "proto/circuits.proto",
+            "proto/secret_share.proto",
         ],
         &["proto/"],
     )?;
