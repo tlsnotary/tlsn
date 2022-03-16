@@ -19,17 +19,17 @@ fn criterion_benchmark(c: &mut Criterion) {
         let slave_point = (&server_pk * &slave_secret.to_nonzero_scalar()).to_encoded_point(false);
 
         bench.iter(|| {
-            let mut master = SecretShareMaster::new(master_point);
-            let mut slave = SecretShareSlave::new(slave_point);
+            let master = SecretShareMaster::new(master_point);
+            let slave = SecretShareSlave::new(slave_point);
 
-            let master_step_one = master.step_one();
-            let slave_step_one = slave.step_one(master_step_one);
-            let master_step_two = master.step_two(slave_step_one);
-            let slave_step_two = slave.step_two(master_step_two);
-            let master_step_three = master.step_three(slave_step_two);
-            let slave_step_three = slave.step_three(master_step_three);
-            let master_share = master.step_four(slave_step_three);
-            black_box(master_share);
+            let (message, master) = master.next();
+            let (message, slave) = slave.next(message);
+            let (message, master) = master.next(message);
+            let (message, slave) = slave.next(message);
+            let (message, master) = master.next(message);
+            let (message, _) = slave.next(message);
+            let master = master.next(message);
+            black_box(master.secret());
         });
     });
 }
