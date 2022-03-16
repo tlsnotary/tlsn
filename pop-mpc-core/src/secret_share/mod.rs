@@ -1,11 +1,14 @@
 pub mod master;
 pub mod slave;
 
+use curv::BigInt;
 pub use master::SecretShareMaster;
 pub use slave::SecretShareSlave;
 
 /// NIST P-256 Prime
 const P: &str = "ffffffff00000001000000000000000000000000ffffffffffffffffffffffff";
+
+pub type SecretShare = BigInt;
 
 #[cfg(test)]
 mod tests {

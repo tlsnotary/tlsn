@@ -19,8 +19,8 @@ fn criterion_benchmark(c: &mut Criterion) {
         let slave_point = (&server_pk * &slave_secret.to_nonzero_scalar()).to_encoded_point(false);
 
         bench.iter(|| {
-            let master = SecretShareMaster::new(master_point);
-            let slave = SecretShareSlave::new(slave_point);
+            let master = SecretShareMaster::new(&master_point);
+            let slave = SecretShareSlave::new(&slave_point);
 
             let (message, master) = master.next();
             let (message, slave) = slave.next(message);

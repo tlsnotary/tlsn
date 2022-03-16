@@ -1,7 +1,7 @@
 //! 2-Party Elliptic curve secret-sharing using Paillier Cryptosystem
 
 use super::slave::{SlaveStepOne, SlaveStepThree, SlaveStepTwo};
-use super::P;
+use super::{SecretShare, P};
 use curv::arithmetic::{Converter, Modulo};
 use p256::EncodedPoint;
 use paillier::*;
@@ -66,7 +66,7 @@ pub struct MasterStepThree {
 }
 
 impl SecretShareMaster<Initialized> {
-    pub fn new(point: EncodedPoint) -> Self {
+    pub fn new(point: &EncodedPoint) -> Self {
         let (enc_key, dec_key) = Paillier::keypair().keys();
         Self {
             state: Initialized {
@@ -204,7 +204,7 @@ impl SecretShareMaster<StepThree> {
 }
 
 impl SecretShareMaster<Complete> {
-    pub fn secret(self) -> BigInt {
+    pub fn secret(self) -> SecretShare {
         self.state.secret
     }
 }
