@@ -1,4 +1,3 @@
-use super::super::errors::ProtoError;
 use crate::secret_share::{master, slave};
 use curv::{arithmetic::Converter, BigInt};
 
