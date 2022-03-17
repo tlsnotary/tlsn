@@ -6,20 +6,21 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["garble","ot","proto", "ss"]
+default = ["garble", "ot", "proto", "ss", "prf"]
 garble = ["regex"]
 ot = []
-ss = ["elliptic-curve","p256", "paillier", "curv"]
-proto = ["prost","prost-build"]
+ss = ["elliptic-curve", "p256", "paillier", "curv"]
+proto = ["prost", "prost-build"]
+prf = []
 
 [dependencies]
-aes = { version="0.7.5", features=[]}
+aes = { version = "0.7.5", features = [] }
 cipher = "0.3"
-sha2 = "0.10.1"
+sha2 = { version = "0.10.1" }
 rand = "0.8.5"
 rand_core = "0.6.3"
 rand_chacha = "0.3.1"
-regex = { version="1.5.4", optional = true }
+regex = { version = "1.5.4", optional = true }
 rayon = "1.5"
 curve25519-dalek = { version = "4.0.0-pre.2", features = ["serde"] }
 serde = { version = "1.0.136", features = ["derive"] }
@@ -47,7 +48,7 @@ rstest = "0.12.0"
 criterion = "0.3"
 
 [build-dependencies]
-prost-build = { version="0.9", optional=true }
+prost-build = { version = "0.9", optional = true }
 
 [[bench]]
 name = "half_gate"
