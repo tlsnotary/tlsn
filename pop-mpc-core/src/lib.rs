@@ -7,6 +7,8 @@ pub mod circuit;
 pub mod garble;
 #[cfg(feature = "ot")]
 pub mod ot;
+#[cfg(feature = "prf")]
+pub mod prf;
 #[cfg(feature = "proto")]
 pub mod proto;
 #[cfg(feature = "ss")]
