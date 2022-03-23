@@ -72,6 +72,7 @@ mod tests {
         // H((pms xor opad) || H((pms xor ipad) || a2 || seed))
         let p2 = message.p2.clone();
 
+        // a1 || seed
         let mut a1_seed = [0u8; 109];
         a1_seed[..32].copy_from_slice(&a1);
         a1_seed[32..].copy_from_slice(&seed);
@@ -82,5 +83,41 @@ mod tests {
         let mut ms = [0u8; 48];
         ms[..32].copy_from_slice(&p1);
         ms[32..48].copy_from_slice(&p2[..16]);
+
+        let mut ipad = [0x36_u8; 64];
+        let mut opad = [0x5c_u8; 64];
+
+        for (ipad, ms) in ipad.iter_mut().zip(ms.iter()) {
+            *ipad = *ipad ^ *ms;
+        }
+        for (opad, ms) in opad.iter_mut().zip(ms.iter()) {
+            *opad = *opad ^ *ms;
+        }
+
+        // H(ms xor ipad)
+        let inner_hash_state = partial_sha256_digest(&ipad);
+        // H(ms xor opad)
+        let outer_hash_state = partial_sha256_digest(&opad);
+
+        let (message, master) = master.next(inner_hash_state.clone());
+        let (message, slave) = slave.next(outer_hash_state.clone(), message);
+
+        // H((ms xor opad) || H((ms xor ipad) || seed))
+        let a1 = message.a1.clone();
+
+        let (message, master) = master.next(message);
+        let (message, slave) = slave.next(message);
+
+        // H((ms xor opad) || H((ms xor ipad) || a1))
+        let a2 = message.a2.clone();
+
+        let (inner_hashes, master) = master.next(message);
+
+        let p1 = finalize_sha256_digest(outer_hash_state.clone(), 64, &inner_hashes.inner_hash_p1);
+        let p2 = finalize_sha256_digest(outer_hash_state, 64, &inner_hashes.inner_hash_p2);
+
+        let mut ek = [0u8; 40];
+        ek[..32].copy_from_slice(&p1);
+        ek[32..].copy_from_slice(&p2[..8]);
     }
 }
