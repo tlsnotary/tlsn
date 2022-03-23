@@ -39,7 +39,7 @@ mod tests {
         // H((pms xor opad) || H((pms xor ipad) || seed))
         let a1 = message.a1.clone();
 
-        assert_eq!(&a1, &expected_a1.as_slice());
+        assert_eq!(&a1, &expected_a1);
 
         let (message, master) = master.next(message);
         let (message, slave) = slave.next(message);
@@ -47,7 +47,7 @@ mod tests {
         // H((pms xor opad) || H((pms xor ipad) || a1))
         let a2 = message.a2.clone();
 
-        assert_eq!(&a2, &expected_a2.as_slice());
+        assert_eq!(&a2, &expected_a2);
 
         let (message, master) = master.next(message);
         let (message, slave) = slave.next(message);
@@ -94,5 +94,9 @@ mod tests {
         let mut ek = [0u8; 40];
         ek[..32].copy_from_slice(&p1);
         ek[32..].copy_from_slice(&p2[..8]);
+        let client_write_key = &ek[..16];
+        let server_write_key = &ek[16..32];
+        let client_write_iv = &ek[32..36];
+        let server_write_iv = &ek[36..];
     }
 }
