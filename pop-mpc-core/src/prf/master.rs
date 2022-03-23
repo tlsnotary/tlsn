@@ -1,5 +1,6 @@
 use super::sha::finalize_sha256_digest;
 use super::slave::{SlaveKe1, SlaveKe2, SlaveMs1, SlaveMs2};
+use super::utils::{seed_ke, seed_ms};
 
 pub struct Initialized;
 pub struct Ms1 {
@@ -96,10 +97,7 @@ impl PrfMaster<Initialized> {
     }
 
     pub fn next(self, inner_hash_state: [u32; 8]) -> (MasterMs1, PrfMaster<Ms1>) {
-        let mut seed = [0u8; 77];
-        seed[..13].copy_from_slice(b"master secret");
-        seed[13..45].copy_from_slice(&self.client_random);
-        seed[45..].copy_from_slice(&self.server_random);
+        let seed = seed_ms(&self.client_random, &self.server_random);
         // H((pms xor ipad) || seed)
         let inner_hash = finalize_sha256_digest(inner_hash_state.clone(), 64, &seed);
 
@@ -157,10 +155,7 @@ impl PrfMaster<Ms2> {
 
 impl PrfMaster<Ke1> {
     pub fn next(self, inner_hash_state: [u32; 8]) -> (MasterKe1, PrfMaster<Ke2>) {
-        let mut seed = [0u8; 77];
-        seed[..13].copy_from_slice(b"key expansion");
-        seed[13..45].copy_from_slice(&self.server_random);
-        seed[45..].copy_from_slice(&self.client_random);
+        let seed = seed_ke(&self.client_random, &self.server_random);
         // H((ms xor ipad) || seed)
         let inner_hash = finalize_sha256_digest(inner_hash_state.clone(), 64, &seed);
 

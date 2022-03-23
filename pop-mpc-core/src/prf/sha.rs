@@ -1,12 +1,12 @@
 use core::slice::from_ref;
 use digest::{
     block_buffer::{BlockBuffer, Eager},
-    core_api::{BlockSizeUser, Buffer},
     generic_array::GenericArray,
-    typenum::{U32, U64},
+    typenum::U64,
 };
 use sha2::compress256;
 
+#[allow(dead_code)]
 #[inline]
 pub fn partial_sha256_digest(input: &[u8]) -> [u32; 8] {
     if input.len() % 64 != 0 {
@@ -52,7 +52,7 @@ mod tests {
         let s = b"test string";
 
         // initial state for sha2
-        let mut state = [
+        let state = [
             0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
             0x5be0cd19,
         ];

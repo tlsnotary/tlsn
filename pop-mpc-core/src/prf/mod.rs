@@ -1,6 +1,7 @@
 pub mod master;
 mod sha;
 pub mod slave;
+mod utils;
 
 pub use master::PrfMaster;
 pub use slave::PrfSlave;
@@ -10,9 +11,7 @@ mod tests {
     use super::*;
     use hmac::{Hmac, Mac};
     use sha::{finalize_sha256_digest, partial_sha256_digest};
-    use sha2::Sha256;
-
-    type HmacSha256 = Hmac<Sha256>;
+    use utils::*;
 
     #[test]
     fn test_prf() {
@@ -20,27 +19,12 @@ mod tests {
         let server_random = b"SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS";
         let pms = [0x99_u8; 32];
 
-        let mut ipad = [0x36_u8; 64];
-        let mut opad = [0x5c_u8; 64];
+        let (ipad, opad) = generate_hmac_pads(&pms);
 
-        for (ipad, pms) in ipad.iter_mut().zip(pms.iter()) {
-            *ipad = *ipad ^ *pms;
-        }
-        for (opad, pms) in opad.iter_mut().zip(pms.iter()) {
-            *opad = *opad ^ *pms;
-        }
+        let seed = seed_ms(client_random, server_random);
 
-        let mut seed = [0u8; 77];
-        seed[..13].copy_from_slice(b"master secret");
-        seed[13..45].copy_from_slice(client_random);
-        seed[45..].copy_from_slice(server_random);
-
-        let mut expected_a1 = HmacSha256::new_from_slice(&pms).unwrap();
-        expected_a1.update(&seed);
-        let expected_a1 = expected_a1.finalize().into_bytes();
-        let mut expected_a2 = HmacSha256::new_from_slice(&pms).unwrap();
-        expected_a2.update(&expected_a1);
-        let expected_a2 = expected_a2.finalize().into_bytes();
+        let expected_a1 = hmac_sha256(&pms, &seed);
+        let expected_a2 = hmac_sha256(&pms, &expected_a1);
 
         let master = PrfMaster::new(*client_random, *server_random);
         let slave = PrfSlave::new();
@@ -84,15 +68,7 @@ mod tests {
         ms[..32].copy_from_slice(&p1);
         ms[32..48].copy_from_slice(&p2[..16]);
 
-        let mut ipad = [0x36_u8; 64];
-        let mut opad = [0x5c_u8; 64];
-
-        for (ipad, ms) in ipad.iter_mut().zip(ms.iter()) {
-            *ipad = *ipad ^ *ms;
-        }
-        for (opad, ms) in opad.iter_mut().zip(ms.iter()) {
-            *opad = *opad ^ *ms;
-        }
+        let (ipad, opad) = generate_hmac_pads(&ms);
 
         // H(ms xor ipad)
         let inner_hash_state = partial_sha256_digest(&ipad);
