@@ -11,7 +11,7 @@ async fn ot_receive(stream: UnixStream) {
         .await
         .expect("Receiver: Error during the websocket handshake occurred");
 
-    let mut receiver = AsyncOtReceiver::new(ChaChaAesOtReceiver::default());
+    let mut receiver = OtReceiver::new(ChaChaAesOtReceiver::default());
 
     println!("Receiver: Websocket connected");
 
@@ -33,7 +33,7 @@ async fn ot_send(stream: UnixStream) {
 
     println!("Sender: Websocket connected");
 
-    let mut sender = AsyncOtSender::new(ChaChaAesOtSender::default());
+    let mut sender = OtSender::new(ChaChaAesOtSender::default());
 
     let messages = [
         [Block::new(0), Block::new(1)],

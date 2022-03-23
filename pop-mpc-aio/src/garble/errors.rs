@@ -1,5 +1,5 @@
 #[derive(Copy, Clone, Debug)]
-pub enum AsyncGeneratorError {}
+pub enum GeneratorError {}
 
 #[derive(Copy, Clone, Debug)]
-pub enum AsyncEvaluatorError {}
+pub enum EvaluatorError {}

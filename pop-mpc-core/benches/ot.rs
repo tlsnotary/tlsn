@@ -17,10 +17,10 @@ fn criterion_benchmark(c: &mut Criterion) {
         let choice = [false; 1024];
 
         bench.iter(|| {
-            let mut sender = BaseOtSender::new();
+            let mut sender = BaseOtSenderCore::new();
             let sender_setup = sender.setup(&mut s_rng);
 
-            let mut receiver = BaseOtReceiver::new();
+            let mut receiver = BaseOtReceiverCore::new();
 
             let receiver_setup = receiver.setup(&mut r_rng, &choice, sender_setup).unwrap();
             let send = sender.send(&s_inputs, receiver_setup).unwrap();
@@ -44,10 +44,10 @@ fn criterion_benchmark(c: &mut Criterion) {
             let r_rng = ChaCha12Rng::from_entropy();
             let r_cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
 
-            let mut receiver = OtReceiver::new(r_rng, r_cipher);
+            let mut receiver = OtReceiverCore::new(r_rng, r_cipher);
             let base_sender_setup = receiver.base_setup().unwrap();
 
-            let mut sender = OtSender::new(s_rng, s_cipher);
+            let mut sender = OtSenderCore::new(s_rng, s_cipher);
             let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
 
             let send_seeds = receiver.base_send(base_receiver_setup).unwrap();

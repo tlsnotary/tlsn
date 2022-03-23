@@ -1,4 +1,4 @@
-use super::errors::BaseOtReceiverError;
+use super::errors::BaseOtReceiverCoreError;
 use crate::Block;
 use curve25519_dalek::{
     constants::RISTRETTO_BASEPOINT_TABLE,
@@ -7,7 +7,7 @@ use curve25519_dalek::{
 };
 use rand::{CryptoRng, Rng};
 
-use super::BaseOtSenderError;
+use super::BaseOtSenderCoreError;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////// BaseOtSender
@@ -19,7 +19,7 @@ enum SenderState {
     Complete,
 }
 
-pub struct BaseOtSender {
+pub struct BaseOtSenderCore {
     private_key: Option<Scalar>,
     public_key: Option<RistrettoPoint>,
     state: SenderState,
@@ -35,7 +35,7 @@ pub struct BaseOtSenderPayload {
     pub encrypted_values: Vec<[Block; 2]>,
 }
 
-impl BaseOtSender {
+impl BaseOtSenderCore {
     pub fn new() -> Self {
         Self {
             private_key: None,
@@ -58,9 +58,9 @@ impl BaseOtSender {
         &mut self,
         inputs: &[[Block; 2]],
         receiver_setup: BaseOtReceiverSetup,
-    ) -> Result<BaseOtSenderPayload, BaseOtSenderError> {
+    ) -> Result<BaseOtSenderPayload, BaseOtSenderCoreError> {
         if self.state < SenderState::Setup {
-            return Err(BaseOtSenderError::NotSetup);
+            return Err(BaseOtSenderCoreError::NotSetup);
         }
         let private_key = self.private_key.unwrap();
         let ninputs = inputs.len();
@@ -90,7 +90,7 @@ enum ReceiverState {
     Complete,
 }
 
-pub struct BaseOtReceiver {
+pub struct BaseOtReceiverCore {
     hashes: Option<Vec<Block>>,
     state: ReceiverState,
 }
@@ -100,7 +100,7 @@ pub struct BaseOtReceiverSetup {
     pub keys: Vec<RistrettoPoint>,
 }
 
-impl BaseOtReceiver {
+impl BaseOtReceiverCore {
     pub fn new() -> Self {
         Self {
             hashes: None,
@@ -113,7 +113,7 @@ impl BaseOtReceiver {
         rng: &mut R,
         choice: &[bool],
         sender_setup: BaseOtSenderSetup,
-    ) -> Result<BaseOtReceiverSetup, BaseOtReceiverError> {
+    ) -> Result<BaseOtReceiverSetup, BaseOtReceiverCoreError> {
         let point_table = RistrettoBasepointTable::create(&sender_setup.public_key);
         let zero = &Scalar::zero() * &point_table;
         let one = &Scalar::one() * &point_table;
@@ -139,9 +139,9 @@ impl BaseOtReceiver {
         &mut self,
         choice: &[bool],
         payload: BaseOtSenderPayload,
-    ) -> Result<Vec<Block>, BaseOtReceiverError> {
+    ) -> Result<Vec<Block>, BaseOtReceiverCoreError> {
         if self.state < ReceiverState::Setup {
-            return Err(BaseOtReceiverError::NotSetup);
+            return Err(BaseOtReceiverCoreError::NotSetup);
         }
 
         let hashes = self.hashes.as_ref().unwrap();
@@ -186,10 +186,10 @@ mod tests {
             .map(|(input, choice)| input[*choice as usize])
             .collect();
 
-        let mut sender = BaseOtSender::new();
+        let mut sender = BaseOtSenderCore::new();
         let sender_setup = sender.setup(&mut s_rng);
 
-        let mut receiver = BaseOtReceiver::new();
+        let mut receiver = BaseOtReceiverCore::new();
         let receiver_setup = receiver.setup(&mut r_rng, &choice, sender_setup).unwrap();
 
         let send = sender.send(&s_inputs, receiver_setup).unwrap();

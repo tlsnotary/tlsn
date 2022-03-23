@@ -9,15 +9,15 @@ use prost::Message as ProtoMessage;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_tungstenite::{tungstenite::protocol::Message, WebSocketStream};
 
-pub struct AsyncOtSender<OT> {
+pub struct OtSender<OT> {
     ot: OT,
 }
 
-pub struct AsyncOtReceiver<OT> {
+pub struct OtReceiver<OT> {
     ot: OT,
 }
 
-impl<OT: ot::OtSend> AsyncOtSender<OT> {
+impl<OT: ot::OtSend> OtSender<OT> {
     pub fn new(ot: OT) -> Self {
         Self { ot }
     }
@@ -26,13 +26,13 @@ impl<OT: ot::OtSend> AsyncOtSender<OT> {
         &mut self,
         stream: &mut WebSocketStream<S>,
         inputs: &[[Block; 2]],
-    ) -> Result<(), AsyncOtSenderError> {
+    ) -> Result<(), OtSenderError> {
         let base_sender_setup = match stream.next().await {
             Some(message) => {
                 proto::BaseOtSenderSetup::decode(message.unwrap().into_data().as_slice())
                     .expect("Expected BaseOtSenderSetup")
             }
-            _ => return Err(AsyncOtSenderError::MalformedMessage),
+            _ => return Err(OtSenderError::MalformedMessage),
         };
 
         let base_setup = self.ot.base_setup(base_sender_setup.try_into().unwrap())?;
@@ -49,7 +49,7 @@ impl<OT: ot::OtSend> AsyncOtSender<OT> {
                 proto::BaseOtSenderPayload::decode(message.unwrap().into_data().as_slice())
                     .expect("Expected BaseOtSenderPayload")
             }
-            _ => return Err(AsyncOtSenderError::MalformedMessage),
+            _ => return Err(OtSenderError::MalformedMessage),
         };
         self.ot.base_receive(base_payload.try_into().unwrap())?;
 
@@ -58,7 +58,7 @@ impl<OT: ot::OtSend> AsyncOtSender<OT> {
                 proto::OtReceiverSetup::decode(message.unwrap().into_data().as_slice())
                     .expect("Expected OtReceiverSetup")
             }
-            _ => return Err(AsyncOtSenderError::MalformedMessage),
+            _ => return Err(OtSenderError::MalformedMessage),
         };
 
         self.ot
@@ -76,7 +76,7 @@ impl<OT: ot::OtSend> AsyncOtSender<OT> {
     }
 }
 
-impl<OT: ot::OtReceive> AsyncOtReceiver<OT> {
+impl<OT: ot::OtReceive> OtReceiver<OT> {
     pub fn new(ot: OT) -> Self {
         Self { ot }
     }
@@ -85,7 +85,7 @@ impl<OT: ot::OtReceive> AsyncOtReceiver<OT> {
         &mut self,
         stream: &mut WebSocketStream<S>,
         choice: &[bool],
-    ) -> Result<Vec<Block>, AsyncOtReceiverError> {
+    ) -> Result<Vec<Block>, OtReceiverError> {
         let base_setup = self.ot.base_setup()?;
 
         stream
@@ -100,7 +100,7 @@ impl<OT: ot::OtReceive> AsyncOtReceiver<OT> {
                 proto::BaseOtReceiverSetup::decode(message.unwrap().into_data().as_slice())
                     .expect("Expected BaseOtReceiverSetup")
             }
-            _ => return Err(AsyncOtReceiverError::MalformedMessage),
+            _ => return Err(OtReceiverError::MalformedMessage),
         };
 
         let payload = self.ot.base_send(base_receiver_setup.try_into().unwrap())?;
@@ -126,7 +126,7 @@ impl<OT: ot::OtReceive> AsyncOtReceiver<OT> {
                 proto::OtSenderPayload::decode(message.unwrap().into_data().as_slice())
                     .expect("Expected OtSenderPayload")
             }
-            _ => return Err(AsyncOtReceiverError::MalformedMessage),
+            _ => return Err(OtReceiverError::MalformedMessage),
         };
 
         let values = self.ot.receive(choice, payload.try_into().unwrap())?;

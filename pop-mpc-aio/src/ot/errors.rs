@@ -1,19 +1,19 @@
-use pop_mpc_core::ot::errors::{OtReceiverError, OtSenderError};
+use pop_mpc_core::ot::errors::{OtReceiverCoreError, OtSenderCoreError};
 use std::fmt::{self, Display, Formatter};
 use tokio::io::Error as IOError;
 
 /// Errors that may occur when using AsyncOTSender
 #[derive(Debug)]
-pub enum AsyncOtSenderError {
+pub enum OtSenderError {
     /// Error originating from OTSender core component
-    CoreError(OtSenderError),
+    CoreError(OtSenderCoreError),
     /// Error originating from an IO Error
     IOError(IOError),
     /// Received invalid message
     MalformedMessage,
 }
 
-impl Display for AsyncOtSenderError {
+impl Display for OtSenderError {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
             Self::CoreError(e) => write!(f, "{}", e),
@@ -23,13 +23,13 @@ impl Display for AsyncOtSenderError {
     }
 }
 
-impl From<OtSenderError> for AsyncOtSenderError {
-    fn from(e: OtSenderError) -> Self {
+impl From<OtSenderCoreError> for OtSenderError {
+    fn from(e: OtSenderCoreError) -> Self {
         Self::CoreError(e)
     }
 }
 
-impl From<IOError> for AsyncOtSenderError {
+impl From<IOError> for OtSenderError {
     fn from(e: IOError) -> Self {
         Self::IOError(e)
     }
@@ -37,16 +37,16 @@ impl From<IOError> for AsyncOtSenderError {
 
 /// Errors that may occur when using AsyncOtReceiver
 #[derive(Debug)]
-pub enum AsyncOtReceiverError {
+pub enum OtReceiverError {
     /// Error originating from OTSender core component
-    CoreError(OtReceiverError),
+    CoreError(OtReceiverCoreError),
     /// Error originating from an IO Error
     IOError(IOError),
     /// Received invalid message
     MalformedMessage,
 }
 
-impl Display for AsyncOtReceiverError {
+impl Display for OtReceiverError {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
             Self::CoreError(e) => write!(f, "{}", e),
@@ -56,13 +56,13 @@ impl Display for AsyncOtReceiverError {
     }
 }
 
-impl From<OtReceiverError> for AsyncOtReceiverError {
-    fn from(e: OtReceiverError) -> Self {
+impl From<OtReceiverCoreError> for OtReceiverError {
+    fn from(e: OtReceiverCoreError) -> Self {
         Self::CoreError(e)
     }
 }
 
-impl From<IOError> for AsyncOtReceiverError {
+impl From<IOError> for OtReceiverError {
     fn from(e: IOError) -> Self {
         Self::IOError(e)
     }

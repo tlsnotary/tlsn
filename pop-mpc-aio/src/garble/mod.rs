@@ -1,6 +1,6 @@
 pub mod errors;
 
-use crate::ot::{AsyncOtReceiver, AsyncOtSender};
+use crate::ot::{OtReceiver, OtSender};
 use aes::cipher::{generic_array::GenericArray, NewBlockCipher};
 use aes::Aes128;
 use errors::*;
@@ -17,16 +17,16 @@ use rand_chacha::ChaCha12Rng;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_tungstenite::{tungstenite::protocol::Message, WebSocketStream};
 
-pub struct AsyncGenerator<S> {
-    ot: AsyncOtSender<S>,
+pub struct Generator<S> {
+    ot: OtSender<S>,
 }
 
-pub struct AsyncEvaluator<S> {
-    ot: AsyncOtReceiver<S>,
+pub struct Evaluator<S> {
+    ot: OtReceiver<S>,
 }
 
-impl<OT: OtSend> AsyncGenerator<OT> {
-    pub fn new(ot: AsyncOtSender<OT>) -> Self {
+impl<OT: OtSend> Generator<OT> {
+    pub fn new(ot: OtSender<OT>) -> Self {
         Self { ot }
     }
 
@@ -37,7 +37,7 @@ impl<OT: OtSend> AsyncGenerator<OT> {
         gen: &G,
         inputs: &Vec<CircuitInput>,
         eval_input_idx: &Vec<usize>,
-    ) -> Result<(), AsyncGeneratorError> {
+    ) -> Result<(), GeneratorError> {
         let mut cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
         let mut rng = ChaCha12Rng::from_entropy();
         let complete_gc = gen.garble(&mut cipher, &mut rng, circ).unwrap();
@@ -61,8 +61,8 @@ impl<OT: OtSend> AsyncGenerator<OT> {
     }
 }
 
-impl<OT: OtReceive> AsyncEvaluator<OT> {
-    pub fn new(ot: AsyncOtReceiver<OT>) -> Self {
+impl<OT: OtReceive> Evaluator<OT> {
+    pub fn new(ot: OtReceiver<OT>) -> Self {
         Self { ot }
     }
 
