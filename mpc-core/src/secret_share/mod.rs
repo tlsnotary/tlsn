@@ -2,8 +2,8 @@ pub mod master;
 pub mod slave;
 
 use curv::BigInt;
-pub use master::SecretShareMaster;
-pub use slave::SecretShareSlave;
+pub use master::SecretShareMasterCore;
+pub use slave::SecretShareSlaveCore;
 
 /// NIST P-256 Prime
 pub const P: &str = "ffffffff00000001000000000000000000000000ffffffffffffffffffffffff";
@@ -32,8 +32,8 @@ mod tests {
         let slave_secret = SecretKey::random(&mut rng);
         let slave_point = (&server_pk * &slave_secret.to_nonzero_scalar()).to_encoded_point(false);
 
-        let master = SecretShareMaster::new(&master_point);
-        let slave = SecretShareSlave::new(&slave_point);
+        let master = SecretShareMasterCore::new(&master_point);
+        let slave = SecretShareSlaveCore::new(&slave_point);
 
         let (message, master) = master.next();
         let (message, slave) = slave.next(message);

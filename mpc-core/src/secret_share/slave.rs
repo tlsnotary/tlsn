@@ -36,7 +36,7 @@ impl State for StepOne {}
 impl State for StepTwo {}
 impl State for Complete {}
 
-pub struct SecretShareSlave<S>
+pub struct SecretShareSlaveCore<S>
 where
     S: State,
 {
@@ -101,7 +101,7 @@ pub struct SlaveStepThree {
     pub(crate) e_pms_masked: BigInt,
 }
 
-impl SecretShareSlave<Initialized> {
+impl SecretShareSlaveCore<Initialized> {
     pub fn new(point: &EncodedPoint) -> Self {
         Self {
             state: Initialized {
@@ -126,7 +126,7 @@ impl SecretShareSlave<Initialized> {
         }
     }
 
-    pub fn next(self, m: MasterStepOne) -> (SlaveStepOne, SecretShareSlave<StepOne>) {
+    pub fn next(self, m: MasterStepOne) -> (SlaveStepOne, SecretShareSlaveCore<StepOne>) {
         // Computes E(T) = E(x_q - x_p)
         let e_x_q: RawCiphertext = m.e_x_q.into();
         let e_neg_x_p = Paillier::encrypt(
@@ -171,7 +171,7 @@ impl SecretShareSlave<Initialized> {
                 e_a_masked,
                 e_t_masked,
             },
-            SecretShareSlave {
+            SecretShareSlaveCore {
                 state: StepOne {
                     enc_key: m.enc_key,
                     e_neg_x_q: m.e_neg_x_q,
@@ -185,8 +185,8 @@ impl SecretShareSlave<Initialized> {
     }
 }
 
-impl SecretShareSlave<StepOne> {
-    pub fn next(self, m: MasterStepTwo) -> (SlaveStepTwo, SecretShareSlave<StepTwo>) {
+impl SecretShareSlaveCore<StepOne> {
+    pub fn next(self, m: MasterStepTwo) -> (SlaveStepTwo, SecretShareSlaveCore<StepTwo>) {
         // Computes E(B) = E((T * M_T)^p-3 mod p) * (M_T^p-3)^-1 mod p
         let inv = BigInt::mod_inv(
             &BigInt::mod_pow(&self.masks.m_t, &(&self.p - 3), &self.p),
@@ -213,7 +213,7 @@ impl SecretShareSlave<StepOne> {
                 n_b_mod_p: &self.masks.n_b % &self.p,
                 e_b_masked: Paillier::rerandomize(&self.state.enc_key, e_b_masked).into(),
             },
-            SecretShareSlave {
+            SecretShareSlaveCore {
                 state: StepTwo {
                     enc_key: self.state.enc_key,
                     e_neg_x_q: self.state.e_neg_x_q,
@@ -227,8 +227,8 @@ impl SecretShareSlave<StepOne> {
     }
 }
 
-impl SecretShareSlave<StepTwo> {
-    pub fn next(self, m: MasterStepThree) -> (SlaveStepThree, SecretShareSlave<Complete>) {
+impl SecretShareSlaveCore<StepTwo> {
+    pub fn next(self, m: MasterStepThree) -> (SlaveStepThree, SecretShareSlaveCore<Complete>) {
         // Computes E(A * B)
         let inv = BigInt::mod_inv(
             &BigInt::mod_mul(&self.masks.m_a, &self.masks.m_b, &self.p),
@@ -258,7 +258,7 @@ impl SecretShareSlave<StepTwo> {
             SlaveStepThree {
                 e_pms_masked: Paillier::rerandomize(&self.state.enc_key, e_pms_masked).into(),
             },
-            SecretShareSlave {
+            SecretShareSlaveCore {
                 state: Complete,
                 p: self.p,
                 masks: self.masks,
@@ -268,7 +268,7 @@ impl SecretShareSlave<StepTwo> {
     }
 }
 
-impl SecretShareSlave<Complete> {
+impl SecretShareSlaveCore<Complete> {
     pub fn secret(self) -> SecretShare {
         &self.p - (self.secret % &self.p)
     }

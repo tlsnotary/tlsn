@@ -30,7 +30,7 @@ impl State for StepTwo {}
 impl State for StepThree {}
 impl State for Complete {}
 
-pub struct SecretShareMaster<S>
+pub struct SecretShareMasterCore<S>
 where
     S: State,
 {
@@ -65,7 +65,7 @@ pub struct MasterStepThree {
     pub(crate) e_ab_masked: BigInt,
 }
 
-impl SecretShareMaster<Initialized> {
+impl SecretShareMasterCore<Initialized> {
     pub fn new(point: &EncodedPoint) -> Self {
         let (enc_key, dec_key) = Paillier::keypair().keys();
         Self {
@@ -79,7 +79,7 @@ impl SecretShareMaster<Initialized> {
         }
     }
 
-    pub fn next(self) -> (MasterStepOne, SecretShareMaster<StepOne>) {
+    pub fn next(self) -> (MasterStepOne, SecretShareMasterCore<StepOne>) {
         // Computes E(x_q)
         let e_x_q: BigInt =
             Paillier::encrypt(&self.enc_key, RawPlaintext::from(&self.state.x)).into();
@@ -117,7 +117,7 @@ impl SecretShareMaster<Initialized> {
                 e_y_q_pow_2,
                 e_neg_2_y_q,
             },
-            SecretShareMaster {
+            SecretShareMasterCore {
                 state: StepOne,
                 enc_key: self.enc_key,
                 dec_key: self.dec_key,
@@ -127,8 +127,8 @@ impl SecretShareMaster<Initialized> {
     }
 }
 
-impl SecretShareMaster<StepOne> {
-    pub fn next(self, s: SlaveStepOne) -> (MasterStepTwo, SecretShareMaster<StepTwo>) {
+impl SecretShareMasterCore<StepOne> {
+    pub fn next(self, s: SlaveStepOne) -> (MasterStepTwo, SecretShareMasterCore<StepTwo>) {
         // Computes A * M_A mod p
         let a_masked: BigInt =
             Paillier::decrypt(&self.dec_key, RawCiphertext::from(s.e_a_masked)).into();
@@ -146,7 +146,7 @@ impl SecretShareMaster<StepOne> {
 
         (
             MasterStepTwo { e_t_mod_pow },
-            SecretShareMaster {
+            SecretShareMasterCore {
                 state: StepTwo { a_masked_mod_p },
                 enc_key: self.enc_key,
                 dec_key: self.dec_key,
@@ -156,8 +156,8 @@ impl SecretShareMaster<StepOne> {
     }
 }
 
-impl SecretShareMaster<StepTwo> {
-    pub fn next(self, s: SlaveStepTwo) -> (MasterStepThree, SecretShareMaster<StepThree>) {
+impl SecretShareMasterCore<StepTwo> {
+    pub fn next(self, s: SlaveStepTwo) -> (MasterStepThree, SecretShareMasterCore<StepThree>) {
         // Computes B * M_B mod p
         let b_masked: BigInt =
             Paillier::decrypt(&self.dec_key, RawCiphertext::from(s.e_b_masked)).into();
@@ -176,7 +176,7 @@ impl SecretShareMaster<StepTwo> {
 
         (
             MasterStepThree { e_ab_masked },
-            SecretShareMaster {
+            SecretShareMasterCore {
                 state: StepThree,
                 enc_key: self.enc_key,
                 dec_key: self.dec_key,
@@ -186,13 +186,13 @@ impl SecretShareMaster<StepTwo> {
     }
 }
 
-impl SecretShareMaster<StepThree> {
-    pub fn next(self, s: SlaveStepThree) -> SecretShareMaster<Complete> {
+impl SecretShareMasterCore<StepThree> {
+    pub fn next(self, s: SlaveStepThree) -> SecretShareMasterCore<Complete> {
         // Computes master's secret, s_p
         let pms_masked: BigInt =
             Paillier::decrypt(&self.dec_key, RawCiphertext::from(s.e_pms_masked)).into();
 
-        SecretShareMaster {
+        SecretShareMasterCore {
             state: Complete {
                 secret: pms_masked % &self.p,
             },
@@ -203,7 +203,7 @@ impl SecretShareMaster<StepThree> {
     }
 }
 
-impl SecretShareMaster<Complete> {
+impl SecretShareMasterCore<Complete> {
     pub fn secret(self) -> SecretShare {
         self.state.secret
     }

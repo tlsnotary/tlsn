@@ -1,4 +1,4 @@
-use mpc_aio::secret_share::{AsyncSecretShareMaster, AsyncSecretShareSlave};
+use mpc_aio::secret_share::{SecretShareMaster, SecretShareSlave};
 use mpc_core::secret_share::SecretShare;
 use p256::elliptic_curve::sec1::ToEncodedPoint;
 use p256::{EncodedPoint, SecretKey};
@@ -14,7 +14,7 @@ async fn master(stream: UnixStream, point: EncodedPoint) -> SecretShare {
         .await
         .expect("Master: Error during the websocket handshake occurred");
 
-    let mut master = AsyncSecretShareMaster::new();
+    let mut master = SecretShareMaster::new();
 
     println!("Master: Websocket connected");
 
@@ -34,7 +34,7 @@ async fn slave(stream: UnixStream, point: EncodedPoint) -> SecretShare {
 
     println!("Slave: Websocket connected");
 
-    let mut slave = AsyncSecretShareSlave::new();
+    let mut slave = SecretShareSlave::new();
 
     let share = slave.run(&mut ws_stream, &point).await.unwrap();
 

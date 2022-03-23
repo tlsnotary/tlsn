@@ -1,14 +1,14 @@
 use futures_util::{SinkExt, StreamExt};
-use p256::EncodedPoint;
 use mpc_core::proto;
-use mpc_core::secret_share::{SecretShare, SecretShareMaster, SecretShareSlave};
+use mpc_core::secret_share::{SecretShare, SecretShareMasterCore, SecretShareSlaveCore};
+use p256::EncodedPoint;
 use prost::Message as ProtoMessage;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_tungstenite::{tungstenite::protocol::Message, WebSocketStream};
 
-pub struct AsyncSecretShareMaster;
+pub struct SecretShareMaster;
 
-impl AsyncSecretShareMaster {
+impl SecretShareMaster {
     pub fn new() -> Self {
         Self
     }
@@ -18,7 +18,7 @@ impl AsyncSecretShareMaster {
         stream: &mut WebSocketStream<S>,
         point: &EncodedPoint,
     ) -> Result<SecretShare, ()> {
-        let master = SecretShareMaster::new(&point);
+        let master = SecretShareMasterCore::new(&point);
 
         // Step 1
         let (message, master) = master.next();
@@ -75,9 +75,9 @@ impl AsyncSecretShareMaster {
     }
 }
 
-pub struct AsyncSecretShareSlave;
+pub struct SecretShareSlave;
 
-impl AsyncSecretShareSlave {
+impl SecretShareSlave {
     pub fn new() -> Self {
         Self
     }
@@ -87,7 +87,7 @@ impl AsyncSecretShareSlave {
         stream: &mut WebSocketStream<S>,
         point: &EncodedPoint,
     ) -> Result<SecretShare, ()> {
-        let slave = SecretShareSlave::new(&point);
+        let slave = SecretShareSlaveCore::new(&point);
 
         // Step 1
         let master_message = match stream.next().await {
