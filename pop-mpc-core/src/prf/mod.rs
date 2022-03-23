@@ -9,7 +9,6 @@ pub use slave::PrfSlave;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hmac::{Hmac, Mac};
     use sha::{finalize_sha256_digest, partial_sha256_digest};
     use utils::*;
 
