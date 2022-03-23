@@ -1,7 +1,8 @@
 [workspace]
 members = [
-    "pop-tls",
+    "pop-tls-core",
     "pop-mpc-core",
     "pop-mpc-aio",
-    "pop-mpc-circuits"
+    "pop-mpc-circuits",
+    "pop-tls-aio",
 ]
