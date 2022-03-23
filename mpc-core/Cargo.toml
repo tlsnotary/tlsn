@@ -1,0 +1,69 @@
+[package]
+name = "pop-mpc-core"
+version = "0.1.0"
+edition = "2018"
+
+[lib]
+name = "mpc_core"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+default = ["garble", "ot", "proto", "ss"]
+garble = ["regex"]
+ot = []
+ss = ["elliptic-curve", "p256", "paillier", "curv"]
+proto = ["prost", "prost-build"]
+
+[dependencies]
+aes = { version = "0.7.5", features = [] }
+cipher = "0.3"
+sha2 = { version = "0.10.1", features = ["compress"] }
+rand = "0.8.5"
+rand_core = "0.6.3"
+rand_chacha = "0.3.1"
+regex = { version = "1.5.4", optional = true }
+rayon = "1.5"
+curve25519-dalek = { version = "4.0.0-pre.2", features = ["serde"] }
+serde = { version = "1.0.136", features = ["derive"] }
+prost = { version = "0.9", optional = true }
+thiserror = "1.0.30"
+anyhow = "1.0.55"
+elliptic-curve = { version = "0.11.12", optional = true }
+p256 = { version = "0.10.1", optional = true }
+
+[dependencies.paillier]
+package = "kzen-paillier"
+version = "0.4.2"
+default-features = false
+optional = true
+
+[dependencies.curv]
+package = "curv-kzen"
+version = "0.9"
+# default-features = false
+# features = ["num-bigint"]
+optional = true
+
+[dev-dependencies]
+rstest = "0.12.0"
+criterion = "0.3"
+
+[build-dependencies]
+prost-build = { version = "0.9", optional = true }
+
+[[bench]]
+name = "half_gate"
+harness = false
+
+[[bench]]
+name = "ot"
+harness = false
+
+[[bench]]
+name = "secret_share"
+harness = false
+
+[[bin]]
+name = "measure_data"
+path = "src/bin/measure_data.rs"

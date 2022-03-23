@@ -1,0 +1,21 @@
+[package]
+name = "pop-tls-core"
+version = "0.1.0"
+edition = "2018"
+
+[lib]
+name = "tls_core"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+default = ["prf"]
+prf = []
+
+[dependencies]
+pop-mpc-core = { path = "../mpc-core" }
+sha2 = { version = "0.10.1", features = ["compress"] }
+digest = { version = "0.10.3" }
+hmac = { version = "0.12.1" }
+
+[dev-dependencies]
+criterion = "0.3.5"
