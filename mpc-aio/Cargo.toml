@@ -12,19 +12,27 @@ ss = ["p256"]
 
 [dependencies]
 pop-mpc-core = { path = "../mpc-core" }
+pop-utils-aio = { path = "../utils-aio" }
 tokio = { version = "1.17", features = [
     "net",
     "macros",
     "rt",
     "rt-multi-thread",
 ] }
-async-trait = "0.1.52"
+async-trait = "0.1.53"
 prost = "0.9"
-tokio-tungstenite = "0.17.1"
-futures-util = "0.3.21"
+tokio-tungstenite = "0.17"
+futures = "0.3"
+futures-util = "0.3"
 aes = { version = "0.7.5", features = [] }
 cipher = "0.3"
 rand = "0.8.5"
 rand_core = "0.6.3"
 rand_chacha = "0.3.1"
 p256 = { version = "0.10.1", optional = true }
+
+[dev-dependencies]
+tokio-util = { version = "0.7.1", features = ["codec"] }
+async-tungstenite = { version = "0.16", features = ["tokio-runtime"] }
+ws_stream_tungstenite = { version = "0.7.0", features = ["tokio_io"] }
+yamux = "0.10.1"

@@ -1,10 +1,10 @@
-use futures_util::{SinkExt, StreamExt};
-use mpc_core::proto;
-use mpc_core::secret_share::{SecretShare, SecretShareMasterCore, SecretShareSlaveCore};
+use crate::twopc::TwoPCProtocol;
+use async_trait::async_trait;
+use futures_util::{Sink, SinkExt, Stream, StreamExt};
+use mpc_core::secret_share::{
+    SecretShare, SecretShareMasterCore, SecretShareMessage, SecretShareSlaveCore,
+};
 use p256::EncodedPoint;
-use prost::Message as ProtoMessage;
-use tokio::io::{AsyncRead, AsyncWrite};
-use tokio_tungstenite::{tungstenite::protocol::Message, WebSocketStream};
 
 pub struct SecretShareMaster;
 
@@ -12,60 +12,48 @@ impl SecretShareMaster {
     pub fn new() -> Self {
         Self
     }
+}
 
-    pub async fn run<S: AsyncWrite + AsyncRead + Unpin>(
+#[async_trait]
+impl TwoPCProtocol<SecretShareMessage> for SecretShareMaster {
+    type Input = EncodedPoint;
+    type Output = Result<SecretShare, ()>;
+
+    async fn run<
+        S: Sink<SecretShareMessage> + Stream<Item = Result<SecretShareMessage, E>> + Send + Unpin,
+        E: std::fmt::Debug,
+    >(
         &mut self,
-        stream: &mut WebSocketStream<S>,
-        point: &EncodedPoint,
-    ) -> Result<SecretShare, ()> {
-        let master = SecretShareMasterCore::new(&point);
+        stream: &mut S,
+        input: Self::Input,
+    ) -> Self::Output
+    where
+        <S as Sink<SecretShareMessage>>::Error: std::fmt::Debug,
+    {
+        let master = SecretShareMasterCore::new(&input);
 
         // Step 1
         let (message, master) = master.next();
-        stream
-            .send(Message::Binary(
-                proto::secret_share::MasterStepOne::from(message).encode_to_vec(),
-            ))
-            .await
-            .unwrap();
+        stream.send(message.into()).await.unwrap();
         let slave_message = match stream.next().await {
-            Some(message) => {
-                proto::secret_share::SlaveStepOne::decode(message.unwrap().into_data().as_slice())
-                    .expect("Expected SlaveStepOne")
-            }
-            _ => return Err(()),
+            Some(Ok(SecretShareMessage::S1(m))) => m,
+            _ => panic!("io error"),
         };
 
         // Step 2
         let (message, master) = master.next(slave_message.into());
-        stream
-            .send(Message::Binary(
-                proto::secret_share::MasterStepTwo::from(message).encode_to_vec(),
-            ))
-            .await
-            .unwrap();
+        stream.send(message.into()).await.unwrap();
         let slave_message = match stream.next().await {
-            Some(message) => {
-                proto::secret_share::SlaveStepTwo::decode(message.unwrap().into_data().as_slice())
-                    .expect("Expected SlaveStepTwo")
-            }
-            _ => return Err(()),
+            Some(Ok(SecretShareMessage::S2(m))) => m,
+            _ => panic!("io error"),
         };
 
         // Step 3
         let (message, master) = master.next(slave_message.into());
-        stream
-            .send(Message::Binary(
-                proto::secret_share::MasterStepThree::from(message).encode_to_vec(),
-            ))
-            .await
-            .unwrap();
+        stream.send(message.into()).await.unwrap();
         let slave_message = match stream.next().await {
-            Some(message) => {
-                proto::secret_share::SlaveStepThree::decode(message.unwrap().into_data().as_slice())
-                    .expect("Expected SlaveStepThree")
-            }
-            _ => return Err(()),
+            Some(Ok(SecretShareMessage::S3(m))) => m,
+            _ => panic!("io error"),
         };
 
         // Complete
@@ -81,62 +69,52 @@ impl SecretShareSlave {
     pub fn new() -> Self {
         Self
     }
+}
 
-    pub async fn run<S: AsyncWrite + AsyncRead + Unpin>(
+#[async_trait]
+impl TwoPCProtocol<SecretShareMessage> for SecretShareSlave {
+    type Input = EncodedPoint;
+    type Output = Result<SecretShare, ()>;
+
+    async fn run<
+        S: Sink<SecretShareMessage> + Stream<Item = Result<SecretShareMessage, E>> + Send + Unpin,
+        E: std::fmt::Debug,
+    >(
         &mut self,
-        stream: &mut WebSocketStream<S>,
-        point: &EncodedPoint,
-    ) -> Result<SecretShare, ()> {
-        let slave = SecretShareSlaveCore::new(&point);
+        stream: &mut S,
+        input: EncodedPoint,
+    ) -> Result<SecretShare, ()>
+    where
+        <S as Sink<SecretShareMessage>>::Error: std::fmt::Debug,
+    {
+        let slave = SecretShareSlaveCore::new(&input);
 
         // Step 1
         let master_message = match stream.next().await {
-            Some(message) => {
-                proto::secret_share::MasterStepOne::decode(message.unwrap().into_data().as_slice())
-                    .expect("Expected MasterStepOne")
-            }
-            _ => return Err(()),
+            Some(Ok(SecretShareMessage::M1(m))) => m,
+            Some(Err(e)) => panic!("{:?}", e),
+            _ => panic!("io error"),
         };
         let (message, slave) = slave.next(master_message.into());
-        stream
-            .send(Message::Binary(
-                proto::secret_share::SlaveStepOne::from(message).encode_to_vec(),
-            ))
-            .await
-            .unwrap();
+        stream.send(message.into()).await.unwrap();
 
         // Step 2
         let master_message = match stream.next().await {
-            Some(message) => {
-                proto::secret_share::MasterStepTwo::decode(message.unwrap().into_data().as_slice())
-                    .expect("Expected MasterStepTwo")
-            }
-            _ => return Err(()),
+            Some(Ok(SecretShareMessage::M2(m))) => m,
+            Some(Err(e)) => panic!("{:?}", e),
+            _ => panic!("io error"),
         };
         let (message, slave) = slave.next(master_message.into());
-        stream
-            .send(Message::Binary(
-                proto::secret_share::SlaveStepTwo::from(message).encode_to_vec(),
-            ))
-            .await
-            .unwrap();
+        stream.send(message.into()).await.unwrap();
 
         // Complete
         let master_message = match stream.next().await {
-            Some(message) => proto::secret_share::MasterStepThree::decode(
-                message.unwrap().into_data().as_slice(),
-            )
-            .expect("Expected MasterStepThree"),
-            _ => return Err(()),
+            Some(Ok(SecretShareMessage::M3(m))) => m,
+            _ => panic!("io error"),
         };
 
         let (message, slave) = slave.next(master_message.into());
-        stream
-            .send(Message::Binary(
-                proto::secret_share::SlaveStepThree::from(message).encode_to_vec(),
-            ))
-            .await
-            .unwrap();
+        stream.send(message.into()).await.unwrap();
 
         Ok(slave.secret())
     }

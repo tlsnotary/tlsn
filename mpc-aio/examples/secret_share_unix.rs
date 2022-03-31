@@ -1,24 +1,30 @@
 use mpc_aio::secret_share::{SecretShareMaster, SecretShareSlave};
-use mpc_core::secret_share::SecretShare;
+use mpc_aio::twopc::TwoPCProtocol;
+use mpc_core::proto;
+use mpc_core::secret_share::{SecretShare, SecretShareMessage};
 use p256::elliptic_curve::sec1::ToEncodedPoint;
 use p256::{EncodedPoint, SecretKey};
 use rand::thread_rng;
 use std::time::Instant;
 use tokio;
 use tokio::net::UnixStream;
+use tokio_util::codec::Framed;
+use utils_aio::codec::ProstCodecDelimited;
 
 async fn master(stream: UnixStream, point: EncodedPoint) -> SecretShare {
     println!("Master: Trying to connect");
 
-    let mut ws_stream = tokio_tungstenite::accept_async(stream)
-        .await
-        .expect("Master: Error during the websocket handshake occurred");
+    let mut stream = Framed::new(
+        stream,
+        ProstCodecDelimited::<SecretShareMessage, proto::secret_share::SecretShareMessage>::default(
+        ),
+    );
 
     let mut master = SecretShareMaster::new();
 
-    println!("Master: Websocket connected");
+    println!("Master: Connected");
 
-    let share = master.run(&mut ws_stream, &point).await.unwrap();
+    let share = master.run(&mut stream, point).await.unwrap();
 
     println!("Master: {:?}", share);
 
@@ -28,15 +34,17 @@ async fn master(stream: UnixStream, point: EncodedPoint) -> SecretShare {
 async fn slave(stream: UnixStream, point: EncodedPoint) -> SecretShare {
     println!("Slave: Trying to connect");
 
-    let (mut ws_stream, _) = tokio_tungstenite::client_async("ws://local/ss", stream)
-        .await
-        .expect("Slave: Error during the websocket handshake occurred");
+    let mut stream = Framed::new(
+        stream,
+        ProstCodecDelimited::<SecretShareMessage, proto::secret_share::SecretShareMessage>::default(
+        ),
+    );
 
-    println!("Slave: Websocket connected");
+    println!("Slave: Connected");
 
     let mut slave = SecretShareSlave::new();
 
-    let share = slave.run(&mut ws_stream, &point).await.unwrap();
+    let share = slave.run(&mut stream, point).await.unwrap();
 
     println!("Slave: {:?}", share);
 

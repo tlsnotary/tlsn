@@ -10,6 +10,52 @@ pub const P: &str = "ffffffff00000001000000000000000000000000fffffffffffffffffff
 
 pub type SecretShare = BigInt;
 
+#[derive(Debug)]
+pub enum SecretShareMessage {
+    M1(master::M1),
+    M2(master::M2),
+    M3(master::M3),
+    S1(slave::S1),
+    S2(slave::S2),
+    S3(slave::S3),
+}
+
+impl From<master::M1> for SecretShareMessage {
+    fn from(m: master::M1) -> Self {
+        Self::M1(m)
+    }
+}
+
+impl From<master::M2> for SecretShareMessage {
+    fn from(m: master::M2) -> Self {
+        Self::M2(m)
+    }
+}
+
+impl From<master::M3> for SecretShareMessage {
+    fn from(m: master::M3) -> Self {
+        Self::M3(m)
+    }
+}
+
+impl From<slave::S1> for SecretShareMessage {
+    fn from(m: slave::S1) -> Self {
+        Self::S1(m)
+    }
+}
+
+impl From<slave::S2> for SecretShareMessage {
+    fn from(m: slave::S2) -> Self {
+        Self::S2(m)
+    }
+}
+
+impl From<slave::S3> for SecretShareMessage {
+    fn from(m: slave::S3) -> Self {
+        Self::S3(m)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

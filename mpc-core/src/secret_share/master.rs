@@ -1,6 +1,6 @@
 //! 2-Party Elliptic curve secret-sharing using Paillier Cryptosystem
 
-use super::slave::{SlaveStepOne, SlaveStepThree, SlaveStepTwo};
+use super::slave::{S1, S2, S3};
 use super::{SecretShare, P};
 use curv::arithmetic::{Converter, Modulo};
 use p256::EncodedPoint;
@@ -44,7 +44,8 @@ where
     dec_key: DecryptionKey,
 }
 
-pub struct MasterStepOne {
+#[derive(Debug)]
+pub struct M1 {
     /// Master's encryption key
     pub(crate) enc_key: EncryptionKey,
     /// E(x_q)
@@ -56,11 +57,15 @@ pub struct MasterStepOne {
     /// E(-2y_q)
     pub(crate) e_neg_2_y_q: BigInt,
 }
-pub struct MasterStepTwo {
+
+#[derive(Debug)]
+pub struct M2 {
     /// E((T * M_T)^p-3 mod p)
     pub(crate) e_t_mod_pow: BigInt,
 }
-pub struct MasterStepThree {
+
+#[derive(Debug)]
+pub struct M3 {
     /// E(A * M_A * B * M_B)
     pub(crate) e_ab_masked: BigInt,
 }
@@ -79,7 +84,7 @@ impl SecretShareMasterCore<Initialized> {
         }
     }
 
-    pub fn next(self) -> (MasterStepOne, SecretShareMasterCore<StepOne>) {
+    pub fn next(self) -> (M1, SecretShareMasterCore<StepOne>) {
         // Computes E(x_q)
         let e_x_q: BigInt =
             Paillier::encrypt(&self.enc_key, RawPlaintext::from(&self.state.x)).into();
@@ -110,7 +115,7 @@ impl SecretShareMasterCore<Initialized> {
         .into();
 
         (
-            MasterStepOne {
+            M1 {
                 enc_key: self.enc_key.clone(),
                 e_x_q,
                 e_neg_x_q,
@@ -128,7 +133,7 @@ impl SecretShareMasterCore<Initialized> {
 }
 
 impl SecretShareMasterCore<StepOne> {
-    pub fn next(self, s: SlaveStepOne) -> (MasterStepTwo, SecretShareMasterCore<StepTwo>) {
+    pub fn next(self, s: S1) -> (M2, SecretShareMasterCore<StepTwo>) {
         // Computes A * M_A mod p
         let a_masked: BigInt =
             Paillier::decrypt(&self.dec_key, RawCiphertext::from(s.e_a_masked)).into();
@@ -145,7 +150,7 @@ impl SecretShareMasterCore<StepOne> {
             Paillier::encrypt(&self.enc_key, RawPlaintext::from(t_mod_pow)).into();
 
         (
-            MasterStepTwo { e_t_mod_pow },
+            M2 { e_t_mod_pow },
             SecretShareMasterCore {
                 state: StepTwo { a_masked_mod_p },
                 enc_key: self.enc_key,
@@ -157,7 +162,7 @@ impl SecretShareMasterCore<StepOne> {
 }
 
 impl SecretShareMasterCore<StepTwo> {
-    pub fn next(self, s: SlaveStepTwo) -> (MasterStepThree, SecretShareMasterCore<StepThree>) {
+    pub fn next(self, s: S2) -> (M3, SecretShareMasterCore<StepThree>) {
         // Computes B * M_B mod p
         let b_masked: BigInt =
             Paillier::decrypt(&self.dec_key, RawCiphertext::from(s.e_b_masked)).into();
@@ -175,7 +180,7 @@ impl SecretShareMasterCore<StepTwo> {
         .into();
 
         (
-            MasterStepThree { e_ab_masked },
+            M3 { e_ab_masked },
             SecretShareMasterCore {
                 state: StepThree,
                 enc_key: self.enc_key,
@@ -187,7 +192,7 @@ impl SecretShareMasterCore<StepTwo> {
 }
 
 impl SecretShareMasterCore<StepThree> {
-    pub fn next(self, s: SlaveStepThree) -> SecretShareMasterCore<Complete> {
+    pub fn next(self, s: S3) -> SecretShareMasterCore<Complete> {
         // Computes master's secret, s_p
         let pms_masked: BigInt =
             Paillier::decrypt(&self.dec_key, RawCiphertext::from(s.e_pms_masked)).into();

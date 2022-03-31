@@ -1,2 +1,9 @@
 [workspace]
-members = ["tls-core", "mpc-core", "mpc-aio", "mpc-circuits", "tls-aio"]
+members = [
+    "tls-core",
+    "mpc-core",
+    "mpc-aio",
+    "mpc-circuits",
+    "tls-aio",
+    "utils-aio",
+]
