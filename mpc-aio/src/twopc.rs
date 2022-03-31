@@ -4,13 +4,15 @@ use futures_util::{Sink, Stream};
 #[async_trait]
 pub trait TwoPCProtocol<T> {
     type Input;
+    type Error;
     type Output;
 
     async fn run<S: Sink<T> + Stream<Item = Result<T, E>> + Send + Unpin, E: std::fmt::Debug>(
         &mut self,
         stream: &mut S,
         input: Self::Input,
-    ) -> Self::Output
+    ) -> Result<Self::Output, Self::Error>
     where
-        <S as Sink<T>>::Error: std::fmt::Debug;
+        Self::Error: From<<S as Sink<T>>::Error>,
+        Self::Error: From<E>;
 }
