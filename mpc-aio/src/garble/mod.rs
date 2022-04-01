@@ -17,15 +17,21 @@ use rand_chacha::ChaCha12Rng;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_tungstenite::{tungstenite::protocol::Message, WebSocketStream};
 
-pub struct Generator<S> {
+pub struct Generator<S>
+where
+    S: OtSend + Send,
+{
     ot: OtSender<S>,
 }
 
-pub struct Evaluator<S> {
+pub struct Evaluator<S>
+where
+    S: OtReceive + Send,
+{
     ot: OtReceiver<S>,
 }
 
-impl<OT: OtSend> Generator<OT> {
+impl<OT: OtSend + Send> Generator<OT> {
     pub fn new(ot: OtSender<OT>) -> Self {
         Self { ot }
     }
@@ -61,7 +67,7 @@ impl<OT: OtSend> Generator<OT> {
     }
 }
 
-impl<OT: OtReceive> Evaluator<OT> {
+impl<OT: OtReceive + Send> Evaluator<OT> {
     pub fn new(ot: OtReceiver<OT>) -> Self {
         Self { ot }
     }

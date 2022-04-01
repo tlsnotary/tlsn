@@ -15,11 +15,11 @@ async fn ot_receive(stream: UnixStream) {
 
     println!("Receiver: Websocket connected");
 
-    let choice = [false, false, true];
+    let choice = vec![false, false, true];
 
     println!("Receiver: Choices: {:?}", &choice);
 
-    let values = receiver.receive(&mut ws_stream, &choice).await.unwrap();
+    let values = receiver.receive(&mut ws_stream, choice).await.unwrap();
 
     println!("Receiver: Received: {:?}", values);
 }
