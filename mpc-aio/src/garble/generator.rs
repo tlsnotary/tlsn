@@ -7,7 +7,7 @@ use mpc_core::Block;
 
 use aes::cipher::{generic_array::GenericArray, NewBlockCipher};
 use aes::Aes128;
-use futures_util::{Sink, SinkExt, Stream, StreamExt};
+use futures_util::{Sink, SinkExt, Stream};
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 
