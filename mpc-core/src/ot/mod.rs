@@ -32,6 +32,15 @@ impl Default for ChaChaAesOtReceiver {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum OtMessage {
+    BaseSenderSetup(BaseOtSenderSetup),
+    BaseSenderPayload(BaseOtSenderPayload),
+    BaseReceiverSetup(BaseOtReceiverSetup),
+    ReceiverSetup(OtReceiverSetup),
+    SenderPayload(OtSenderPayload),
+}
+
 pub trait OtSend {
     fn state(&self) -> OtSenderState;
 

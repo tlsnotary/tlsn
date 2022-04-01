@@ -5,35 +5,32 @@ use mpc_core::Block;
 use std::io::Error as IOError;
 use std::io::ErrorKind;
 
-pub struct OtReceiver<OT>
-where
-    OT: OtReceive + Send,
-{
+pub struct OtReceiver<OT, S> {
     ot: OT,
+    stream: S,
 }
 
-impl<OT: OtReceive + Send> OtReceiver<OT> {
-    pub fn new(ot: OT) -> Self {
-        Self { ot }
-    }
-
-    async fn receive<
+impl<
+        OT: OtReceive + Send,
         S: Sink<OtMessage> + Stream<Item = Result<OtMessage, E>> + Send + Unpin,
         E: std::fmt::Debug,
-    >(
-        &mut self,
-        stream: &mut S,
-        choice: &[bool],
-    ) -> Result<Vec<Block>, OtError>
-    where
-        OtError: From<<S as Sink<OtMessage>>::Error>,
-        OtError: From<E>,
-    {
+    > OtReceiver<OT, S>
+where
+    OtError: From<<S as Sink<OtMessage>>::Error>,
+    OtError: From<E>,
+{
+    pub fn new(ot: OT, stream: S) -> Self {
+        Self { ot, stream }
+    }
+
+    pub async fn receive(&mut self, choice: &[bool]) -> Result<Vec<Block>, OtError> {
         let base_setup = self.ot.base_setup()?;
 
-        stream.send(OtMessage::BaseSenderSetup(base_setup)).await?;
+        self.stream
+            .send(OtMessage::BaseSenderSetup(base_setup))
+            .await?;
 
-        let base_receiver_setup = match stream.next().await {
+        let base_receiver_setup = match self.stream.next().await {
             Some(Ok(OtMessage::BaseReceiverSetup(m))) => m,
             Some(Ok(m)) => return Err(OtError::Unexpected(m)),
             Some(Err(e)) => return Err(e)?,
@@ -42,13 +39,15 @@ impl<OT: OtReceive + Send> OtReceiver<OT> {
 
         let payload = self.ot.base_send(base_receiver_setup.try_into().unwrap())?;
 
-        stream.send(OtMessage::BaseSenderPayload(payload)).await?;
+        self.stream
+            .send(OtMessage::BaseSenderPayload(payload))
+            .await?;
 
         let setup = self.ot.extension_setup(choice)?;
 
-        stream.send(OtMessage::ReceiverSetup(setup)).await?;
+        self.stream.send(OtMessage::ReceiverSetup(setup)).await?;
 
-        let payload = match stream.next().await {
+        let payload = match self.stream.next().await {
             Some(Ok(OtMessage::SenderPayload(m))) => m,
             Some(Ok(m)) => return Err(OtError::Unexpected(m)),
             Some(Err(e)) => return Err(e)?,

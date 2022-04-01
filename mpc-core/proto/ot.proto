@@ -32,3 +32,13 @@ message OtSenderPayload {
     // Encrypted values
     repeated core.LabelPair encrypted_values = 1;
 }
+
+message OtMessage {
+    oneof msg {
+        BaseOtSenderSetup base_sender_setup = 1;
+        BaseOtSenderPayload base_sender_payload = 2;
+        BaseOtReceiverSetup base_receiver_setup = 3;
+        OtReceiverSetup receiver_setup = 4;
+        OtSenderPayload sender_payload = 5;
+    }
+}

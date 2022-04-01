@@ -5,31 +5,26 @@ use mpc_core::Block;
 use std::io::Error as IOError;
 use std::io::ErrorKind;
 
-pub struct OtSender<OT>
-where
-    OT: OtSend + Send,
-{
+pub struct OtSender<OT, S> {
     ot: OT,
+    stream: S,
 }
 
-impl<OT: OtSend + Send> OtSender<OT> {
-    pub fn new(ot: OT) -> Self {
-        Self { ot }
-    }
-
-    async fn send<
+impl<
+        OT: OtSend + Send,
         S: Sink<OtMessage> + Stream<Item = Result<OtMessage, E>> + Send + Unpin,
         E: std::fmt::Debug,
-    >(
-        &mut self,
-        stream: &mut S,
-        payload: &[[Block; 2]],
-    ) -> Result<(), OtError>
-    where
-        OtError: From<<S as Sink<OtMessage>>::Error>,
-        OtError: From<E>,
-    {
-        let base_sender_setup = match stream.next().await {
+    > OtSender<OT, S>
+where
+    OtError: From<<S as Sink<OtMessage>>::Error>,
+    OtError: From<E>,
+{
+    pub fn new(ot: OT, stream: S) -> Self {
+        Self { ot, stream }
+    }
+
+    pub async fn send(&mut self, payload: &[[Block; 2]]) -> Result<(), OtError> {
+        let base_sender_setup = match self.stream.next().await {
             Some(Ok(OtMessage::BaseSenderSetup(m))) => m,
             Some(Ok(m)) => return Err(OtError::Unexpected(m)),
             Some(Err(e)) => return Err(e)?,
@@ -38,11 +33,11 @@ impl<OT: OtSend + Send> OtSender<OT> {
 
         let base_setup = self.ot.base_setup(base_sender_setup.try_into().unwrap())?;
 
-        stream
+        self.stream
             .send(OtMessage::BaseReceiverSetup(base_setup))
             .await?;
 
-        let base_payload = match stream.next().await {
+        let base_payload = match self.stream.next().await {
             Some(Ok(OtMessage::BaseSenderPayload(m))) => m,
             Some(Ok(m)) => return Err(OtError::Unexpected(m)),
             Some(Err(e)) => return Err(e)?,
@@ -50,7 +45,7 @@ impl<OT: OtSend + Send> OtSender<OT> {
         };
         self.ot.base_receive(base_payload.try_into().unwrap())?;
 
-        let extension_receiver_setup = match stream.next().await {
+        let extension_receiver_setup = match self.stream.next().await {
             Some(Ok(OtMessage::ReceiverSetup(m))) => m,
             Some(Ok(m)) => return Err(OtError::Unexpected(m)),
             Some(Err(e)) => return Err(e)?,
@@ -61,7 +56,7 @@ impl<OT: OtSend + Send> OtSender<OT> {
             .extension_setup(extension_receiver_setup.try_into().unwrap())?;
         let payload = self.ot.send(payload)?;
 
-        stream.send(OtMessage::SenderPayload(payload)).await?;
+        self.stream.send(OtMessage::SenderPayload(payload)).await?;
 
         Ok(())
     }

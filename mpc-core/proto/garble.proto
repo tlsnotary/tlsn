@@ -23,3 +23,9 @@ message GarbledCircuit {
     // LSB of each outputs low wire label
     repeated bool output_bits = 4;
 }
+
+message GarbleMessage {
+    oneof msg {
+        GarbledCircuit garbled_circuit = 1;
+    }
+}
