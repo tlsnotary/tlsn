@@ -1,6 +1,4 @@
 use super::SecretShareError;
-use crate::twopc::TwoPCProtocol;
-use async_trait::async_trait;
 use futures_util::{Sink, SinkExt, Stream, StreamExt};
 use mpc_core::secret_share::{SecretShare, SecretShareMessage, SecretShareSlaveCore};
 use p256::EncodedPoint;
@@ -13,13 +11,6 @@ impl SecretShareSlave {
     pub fn new() -> Self {
         Self
     }
-}
-
-#[async_trait]
-impl TwoPCProtocol<SecretShareMessage> for SecretShareSlave {
-    type Input = EncodedPoint;
-    type Error = SecretShareError;
-    type Output = SecretShare;
 
     async fn run<
         S: Sink<SecretShareMessage> + Stream<Item = Result<SecretShareMessage, E>> + Send + Unpin,
@@ -27,13 +18,13 @@ impl TwoPCProtocol<SecretShareMessage> for SecretShareSlave {
     >(
         &mut self,
         stream: &mut S,
-        input: Self::Input,
+        point: &EncodedPoint,
     ) -> Result<SecretShare, SecretShareError>
     where
-        Self::Error: From<<S as Sink<SecretShareMessage>>::Error>,
-        Self::Error: From<E>,
+        SecretShareError: From<<S as Sink<SecretShareMessage>>::Error>,
+        SecretShareError: From<E>,
     {
-        let slave = SecretShareSlaveCore::new(&input);
+        let slave = SecretShareSlaveCore::new(point);
 
         // Step 1
         let master_message = match stream.next().await {

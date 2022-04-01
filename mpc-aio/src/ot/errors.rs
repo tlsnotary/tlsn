@@ -11,6 +11,6 @@ pub enum OtError {
     OtReceiverCoreError(#[from] OtReceiverCoreError),
     #[error("IO error: {0}")]
     IOError(#[from] std::io::Error),
-    #[error("Received unexpected message: {0}")]
+    #[error("Received unexpected message: {0:?}")]
     Unexpected(OtMessage),
 }

@@ -1,6 +1,4 @@
 use super::errors::OtError;
-use crate::twopc::TwoPCProtocol;
-use async_trait::async_trait;
 use futures_util::{Sink, SinkExt, Stream, StreamExt};
 use mpc_core::ot::{OtMessage, OtSend};
 use mpc_core::Block;
@@ -18,25 +16,18 @@ impl<OT: OtSend + Send> OtSender<OT> {
     pub fn new(ot: OT) -> Self {
         Self { ot }
     }
-}
 
-#[async_trait]
-impl<OT: OtSend + Send> TwoPCProtocol<OtMessage> for OtSender<OT> {
-    type Input = Vec<[Block; 2]>;
-    type Error = OtError;
-    type Output = ();
-
-    async fn run<
+    async fn send<
         S: Sink<OtMessage> + Stream<Item = Result<OtMessage, E>> + Send + Unpin,
         E: std::fmt::Debug,
     >(
         &mut self,
         stream: &mut S,
-        input: Self::Input,
-    ) -> Result<Self::Output, Self::Error>
+        payload: &[[Block; 2]],
+    ) -> Result<(), OtError>
     where
-        Self::Error: From<<S as Sink<OtMessage>>::Error>,
-        Self::Error: From<E>,
+        OtError: From<<S as Sink<OtMessage>>::Error>,
+        OtError: From<E>,
     {
         let base_sender_setup = match stream.next().await {
             Some(Ok(OtMessage::BaseSenderSetup(m))) => m,
@@ -68,7 +59,7 @@ impl<OT: OtSend + Send> TwoPCProtocol<OtMessage> for OtSender<OT> {
 
         self.ot
             .extension_setup(extension_receiver_setup.try_into().unwrap())?;
-        let payload = self.ot.send(&input)?;
+        let payload = self.ot.send(payload)?;
 
         stream.send(OtMessage::SenderPayload(payload)).await?;
 
