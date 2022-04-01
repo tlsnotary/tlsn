@@ -6,7 +6,7 @@ use super::{
     BaseOtReceiverCore, BaseOtReceiverSetup, BaseOtSenderCore, BaseOtSenderPayload,
     BaseOtSenderSetup,
 };
-use super::{OtReceive, OtSend};
+use super::{OtReceiveCore, OtSendCore};
 use crate::block::Block;
 use crate::utils;
 use aes::{BlockCipher, BlockEncrypt};
@@ -82,7 +82,7 @@ impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEn
     }
 }
 
-impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEncrypt> OtSend
+impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEncrypt> OtSendCore
     for OtSenderCore<R, C>
 {
     fn state(&self) -> OtSenderState {
@@ -224,7 +224,7 @@ impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEn
     }
 }
 
-impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEncrypt> OtReceive
+impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEncrypt> OtReceiveCore
     for OtReceiverCore<R, C>
 {
     fn state(&self) -> OtReceiverState {

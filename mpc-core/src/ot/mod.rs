@@ -41,7 +41,7 @@ pub enum OtMessage {
     SenderPayload(OtSenderPayload),
 }
 
-pub trait OtSend {
+pub trait OtSendCore {
     fn state(&self) -> OtSenderState;
 
     fn base_setup(
@@ -57,7 +57,7 @@ pub trait OtSend {
     fn send(&mut self, inputs: &[[Block; 2]]) -> Result<OtSenderPayload, OtSenderCoreError>;
 }
 
-pub trait OtReceive {
+pub trait OtReceiveCore {
     fn state(&self) -> OtReceiverState;
 
     fn base_setup(&mut self) -> Result<BaseOtSenderSetup, OtReceiverCoreError>;
