@@ -47,18 +47,21 @@ pub fn transpose(m: &Vec<Vec<u8>>) -> Vec<Vec<u8>> {
 }
 
 #[inline]
-pub fn parse_ristretto_key(b: Vec<u8>) -> Result<RistrettoPoint, anyhow::Error> {
+pub fn parse_ristretto_key(b: Vec<u8>) -> Result<RistrettoPoint, std::io::Error> {
     if b.len() != 32 {
-        return Err(anyhow::anyhow!(
-            "Invalid RistrettoPoint, should be length 32: {:?}",
-            b
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("Invalid RistrettoPoint, should be length 32: {:?}", b),
         ));
     }
     let c_point = CompressedRistretto::from_slice(b.as_slice());
     if let Some(point) = c_point.decompress() {
         Ok(point)
     } else {
-        Err(anyhow::anyhow!("Invalid RistrettoPoint: {:?}", b))
+        Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("Invalid RistrettoPoint: {:?}", b),
+        ))
     }
 }
 
