@@ -1,25 +1,36 @@
-use mpc_aio::ot::*;
-use mpc_core::ot::{ChaChaAesOtReceiver, ChaChaAesOtSender};
+use mpc_aio::ot::{OtReceive, OtReceiver, OtSend, OtSender};
+use mpc_core::ot::{ChaChaAesOtReceiver, ChaChaAesOtSender, OtMessage};
+use mpc_core::proto;
 use mpc_core::Block;
 use tokio;
 use tokio::net::UnixStream;
+use tokio_util::codec::Framed;
+use utils_aio::codec::ProstCodecDelimited;
+use ws_stream_tungstenite::WsStream;
 
 async fn ot_receive(stream: UnixStream) {
     println!("Receiver: Trying to connect");
 
-    let mut ws_stream = tokio_tungstenite::accept_async(stream)
+    let ws = async_tungstenite::tokio::accept_async(stream)
         .await
         .expect("Receiver: Error during the websocket handshake occurred");
 
-    let mut receiver = OtReceiver::new(ChaChaAesOtReceiver::default());
-
     println!("Receiver: Websocket connected");
+
+    let ws = WsStream::new(ws);
+
+    let stream = Framed::new(
+        ws,
+        ProstCodecDelimited::<OtMessage, proto::ot::OtMessage>::default(),
+    );
+
+    let mut receiver = OtReceiver::new(ChaChaAesOtReceiver::default(), stream);
 
     let choice = vec![false, false, true];
 
     println!("Receiver: Choices: {:?}", &choice);
 
-    let values = receiver.receive(&mut ws_stream, choice).await.unwrap();
+    let values = receiver.receive(&choice).await.unwrap();
 
     println!("Receiver: Received: {:?}", values);
 }
@@ -27,13 +38,20 @@ async fn ot_receive(stream: UnixStream) {
 async fn ot_send(stream: UnixStream) {
     println!("Sender: Trying to connect");
 
-    let (mut ws_stream, _) = tokio_tungstenite::client_async("ws://local/ot", stream)
+    let (ws, _) = async_tungstenite::tokio::client_async("ws://local/ot", stream)
         .await
         .expect("Sender: Error during the websocket handshake occurred");
 
     println!("Sender: Websocket connected");
 
-    let mut sender = OtSender::new(ChaChaAesOtSender::default());
+    let ws = WsStream::new(ws);
+
+    let stream = Framed::new(
+        ws,
+        ProstCodecDelimited::<OtMessage, proto::ot::OtMessage>::default(),
+    );
+
+    let mut sender = OtSender::new(ChaChaAesOtSender::default(), stream);
 
     let messages = [
         [Block::new(0), Block::new(1)],
@@ -43,7 +61,7 @@ async fn ot_send(stream: UnixStream) {
 
     println!("Sender: Meesages: {:?}", &messages);
 
-    let _ = sender.send(&mut ws_stream, &messages).await;
+    let _ = sender.send(&messages).await;
 }
 
 #[tokio::main]

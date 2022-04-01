@@ -21,7 +21,7 @@ where
         Self { stream }
     }
 
-    async fn run(&mut self, point: &EncodedPoint) -> Result<SecretShare, SecretShareError> {
+    pub async fn run(&mut self, point: &EncodedPoint) -> Result<SecretShare, SecretShareError> {
         let master = SecretShareMasterCore::new(point);
 
         // Step 1

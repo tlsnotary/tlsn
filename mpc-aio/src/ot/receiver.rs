@@ -1,6 +1,7 @@
 use super::errors::OtError;
+use async_trait::async_trait;
 use futures_util::{Sink, SinkExt, Stream, StreamExt};
-use mpc_core::ot::{OtMessage, OtReceive};
+use mpc_core::ot::{OtMessage, OtReceiveCore};
 use mpc_core::Block;
 use std::io::Error as IOError;
 use std::io::ErrorKind;
@@ -10,8 +11,13 @@ pub struct OtReceiver<OT, S> {
     stream: S,
 }
 
+#[async_trait]
+pub trait OtReceive {
+    async fn receive(&mut self, choice: &[bool]) -> Result<Vec<Block>, OtError>;
+}
+
 impl<
-        OT: OtReceive + Send,
+        OT: OtReceiveCore + Send,
         S: Sink<OtMessage> + Stream<Item = Result<OtMessage, E>> + Send + Unpin,
         E: std::fmt::Debug,
     > OtReceiver<OT, S>
@@ -22,8 +28,19 @@ where
     pub fn new(ot: OT, stream: S) -> Self {
         Self { ot, stream }
     }
+}
 
-    pub async fn receive(&mut self, choice: &[bool]) -> Result<Vec<Block>, OtError> {
+#[async_trait]
+impl<
+        OT: OtReceiveCore + Send,
+        S: Sink<OtMessage> + Stream<Item = Result<OtMessage, E>> + Send + Unpin,
+        E: std::fmt::Debug,
+    > OtReceive for OtReceiver<OT, S>
+where
+    OtError: From<<S as Sink<OtMessage>>::Error>,
+    OtError: From<E>,
+{
+    async fn receive(&mut self, choice: &[bool]) -> Result<Vec<Block>, OtError> {
         let base_setup = self.ot.base_setup()?;
 
         self.stream

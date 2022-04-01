@@ -1,5 +1,4 @@
 use mpc_aio::secret_share::{SecretShareMaster, SecretShareSlave};
-use mpc_aio::twopc::TwoPCProtocol;
 use mpc_core::proto;
 use mpc_core::secret_share::{SecretShare, SecretShareMessage};
 use p256::elliptic_curve::sec1::ToEncodedPoint;
@@ -14,17 +13,17 @@ use utils_aio::codec::ProstCodecDelimited;
 async fn master(stream: UnixStream, point: EncodedPoint) -> SecretShare {
     println!("Master: Trying to connect");
 
-    let mut stream = Framed::new(
+    let stream = Framed::new(
         stream,
         ProstCodecDelimited::<SecretShareMessage, proto::secret_share::SecretShareMessage>::default(
         ),
     );
 
-    let mut master = SecretShareMaster::new();
+    let mut master = SecretShareMaster::new(stream);
 
     println!("Master: Connected");
 
-    let share = master.run(&mut stream, point).await.unwrap();
+    let share = master.run(&point).await.unwrap();
 
     println!("Master: {:?}", share);
 
@@ -34,7 +33,7 @@ async fn master(stream: UnixStream, point: EncodedPoint) -> SecretShare {
 async fn slave(stream: UnixStream, point: EncodedPoint) -> SecretShare {
     println!("Slave: Trying to connect");
 
-    let mut stream = Framed::new(
+    let stream = Framed::new(
         stream,
         ProstCodecDelimited::<SecretShareMessage, proto::secret_share::SecretShareMessage>::default(
         ),
@@ -42,9 +41,9 @@ async fn slave(stream: UnixStream, point: EncodedPoint) -> SecretShare {
 
     println!("Slave: Connected");
 
-    let mut slave = SecretShareSlave::new();
+    let mut slave = SecretShareSlave::new(stream);
 
-    let share = slave.run(&mut stream, point).await.unwrap();
+    let share = slave.run(&point).await.unwrap();
 
     println!("Slave: {:?}", share);
 

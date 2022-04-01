@@ -1,6 +1,7 @@
 use super::errors::OtError;
+use async_trait::async_trait;
 use futures_util::{Sink, SinkExt, Stream, StreamExt};
-use mpc_core::ot::{OtMessage, OtSend};
+use mpc_core::ot::{OtMessage, OtSendCore};
 use mpc_core::Block;
 use std::io::Error as IOError;
 use std::io::ErrorKind;
@@ -10,8 +11,13 @@ pub struct OtSender<OT, S> {
     stream: S,
 }
 
+#[async_trait]
+pub trait OtSend {
+    async fn send(&mut self, payload: &[[Block; 2]]) -> Result<(), OtError>;
+}
+
 impl<
-        OT: OtSend + Send,
+        OT: OtSendCore + Send,
         S: Sink<OtMessage> + Stream<Item = Result<OtMessage, E>> + Send + Unpin,
         E: std::fmt::Debug,
     > OtSender<OT, S>
@@ -22,8 +28,19 @@ where
     pub fn new(ot: OT, stream: S) -> Self {
         Self { ot, stream }
     }
+}
 
-    pub async fn send(&mut self, payload: &[[Block; 2]]) -> Result<(), OtError> {
+#[async_trait]
+impl<
+        OT: OtSendCore + Send,
+        S: Sink<OtMessage> + Stream<Item = Result<OtMessage, E>> + Send + Unpin,
+        E: std::fmt::Debug,
+    > OtSend for OtSender<OT, S>
+where
+    OtError: From<<S as Sink<OtMessage>>::Error>,
+    OtError: From<E>,
+{
+    async fn send(&mut self, payload: &[[Block; 2]]) -> Result<(), OtError> {
         let base_sender_setup = match self.stream.next().await {
             Some(Ok(OtMessage::BaseSenderSetup(m))) => m,
             Some(Ok(m)) => return Err(OtError::Unexpected(m)),
