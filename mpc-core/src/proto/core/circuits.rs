@@ -1,8 +1,7 @@
 #![cfg(feature = "garble")]
-use super::ProtoError;
 use crate::circuit;
-use anyhow::anyhow;
 use std::convert::{From, TryFrom};
+use std::io::{Error, ErrorKind};
 
 include!(concat!(env!("OUT_DIR"), "/core.circuits.rs"));
 
@@ -46,7 +45,7 @@ impl From<crate::circuit::Gate> for Gate {
 }
 
 impl TryFrom<Gate> for crate::circuit::Gate {
-    type Error = ProtoError;
+    type Error = Error;
 
     #[inline]
     fn try_from(g: Gate) -> Result<Self, Self::Error> {
@@ -69,10 +68,10 @@ impl TryFrom<Gate> for crate::circuit::Gate {
                 zref: g.zref as usize,
             },
             _ => {
-                return Err(ProtoError::MappingError(anyhow!(
-                    "Unrecognized gate type: {:?}",
-                    g
-                )))
+                return Err(Error::new(
+                    ErrorKind::InvalidData,
+                    format!("Unrecognized gate type: {:?}", g),
+                ))
             }
         };
         Ok(g)
@@ -99,7 +98,7 @@ impl From<circuit::Circuit> for Circuit {
 }
 
 impl TryFrom<Circuit> for circuit::Circuit {
-    type Error = ProtoError;
+    type Error = Error;
 
     #[inline]
     fn try_from(c: Circuit) -> Result<Self, Self::Error> {

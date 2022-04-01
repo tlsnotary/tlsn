@@ -1,11 +1,67 @@
 #![cfg(feature = "ot")]
 
-use super::super::errors::ProtoError;
 pub use crate::ot;
 use crate::utils::parse_ristretto_key;
 use std::convert::{TryFrom, TryInto};
+use std::io::{Error, ErrorKind};
 
 include!(concat!(env!("OUT_DIR"), "/core.ot.rs"));
+
+pub use ot_message::Msg;
+
+impl From<ot::OtMessage> for OtMessage {
+    #[inline]
+    fn from(m: ot::OtMessage) -> Self {
+        Self {
+            msg: Some(match m {
+                ot::OtMessage::BaseReceiverSetup(msg) => {
+                    ot_message::Msg::BaseReceiverSetup(BaseOtReceiverSetup::from(msg))
+                }
+                ot::OtMessage::BaseSenderSetup(msg) => {
+                    ot_message::Msg::BaseSenderSetup(BaseOtSenderSetup::from(msg))
+                }
+                ot::OtMessage::BaseSenderPayload(msg) => {
+                    ot_message::Msg::BaseSenderPayload(BaseOtSenderPayload::from(msg))
+                }
+                ot::OtMessage::ReceiverSetup(msg) => {
+                    ot_message::Msg::ReceiverSetup(OtReceiverSetup::from(msg))
+                }
+                ot::OtMessage::SenderPayload(msg) => {
+                    ot_message::Msg::SenderPayload(OtSenderPayload::from(msg))
+                }
+            }),
+        }
+    }
+}
+
+impl TryFrom<OtMessage> for ot::OtMessage {
+    type Error = std::io::Error;
+    #[inline]
+    fn try_from(m: OtMessage) -> Result<Self, Self::Error> {
+        if let Some(msg) = m.msg {
+            let m = match msg {
+                ot_message::Msg::BaseReceiverSetup(msg) => {
+                    ot::OtMessage::BaseReceiverSetup(ot::BaseOtReceiverSetup::try_from(msg)?)
+                }
+                ot_message::Msg::BaseSenderSetup(msg) => {
+                    ot::OtMessage::BaseSenderSetup(ot::BaseOtSenderSetup::try_from(msg)?)
+                }
+                ot_message::Msg::BaseSenderPayload(msg) => {
+                    ot::OtMessage::BaseSenderPayload(ot::BaseOtSenderPayload::from(msg))
+                }
+                ot_message::Msg::ReceiverSetup(msg) => {
+                    ot::OtMessage::ReceiverSetup(ot::OtReceiverSetup::from(msg))
+                }
+                ot_message::Msg::SenderPayload(msg) => {
+                    ot::OtMessage::SenderPayload(ot::OtSenderPayload::from(msg))
+                }
+            };
+            Ok(m)
+        } else {
+            Err(Error::new(ErrorKind::InvalidData, format!("{:?}", m)))
+        }
+    }
+}
 
 impl From<ot::BaseOtSenderSetup> for BaseOtSenderSetup {
     #[inline]
@@ -17,7 +73,7 @@ impl From<ot::BaseOtSenderSetup> for BaseOtSenderSetup {
 }
 
 impl TryFrom<BaseOtSenderSetup> for ot::BaseOtSenderSetup {
-    type Error = ProtoError;
+    type Error = Error;
 
     #[inline]
     fn try_from(s: BaseOtSenderSetup) -> Result<Self, Self::Error> {
@@ -70,7 +126,7 @@ impl From<ot::BaseOtReceiverSetup> for BaseOtReceiverSetup {
 }
 
 impl TryFrom<BaseOtReceiverSetup> for ot::BaseOtReceiverSetup {
-    type Error = ProtoError;
+    type Error = Error;
 
     #[inline]
     fn try_from(s: BaseOtReceiverSetup) -> Result<Self, Self::Error> {

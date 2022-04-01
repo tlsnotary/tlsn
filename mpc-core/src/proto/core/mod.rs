@@ -3,7 +3,6 @@ pub mod garble;
 pub mod ot;
 pub mod secret_share;
 
-use super::errors::ProtoError;
 use std::convert::TryInto;
 
 use crate::utils::parse_ristretto_key;
@@ -37,7 +36,7 @@ impl From<curve25519_dalek::ristretto::RistrettoPoint> for RistrettoPoint {
 }
 
 impl TryInto<curve25519_dalek::ristretto::RistrettoPoint> for RistrettoPoint {
-    type Error = ProtoError;
+    type Error = std::io::Error;
 
     #[inline]
     fn try_into(self) -> Result<curve25519_dalek::ristretto::RistrettoPoint, Self::Error> {
