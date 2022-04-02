@@ -5,17 +5,20 @@ use mpc_core::Block;
 use tokio;
 use tokio::net::UnixStream;
 use tokio_util::codec::Framed;
+use tracing::{info, instrument};
+use tracing_subscriber;
 use utils_aio::codec::ProstCodecDelimited;
 use ws_stream_tungstenite::WsStream;
 
+#[instrument(skip(stream))]
 async fn ot_receive(stream: UnixStream) {
-    println!("Receiver: Trying to connect");
+    info!("Trying to connect");
 
     let ws = async_tungstenite::tokio::accept_async(stream)
         .await
-        .expect("Receiver: Error during the websocket handshake occurred");
+        .expect("Error during the websocket handshake occurred");
 
-    println!("Receiver: Websocket connected");
+    info!("Websocket connected");
 
     let ws = WsStream::new(ws);
 
@@ -28,21 +31,22 @@ async fn ot_receive(stream: UnixStream) {
 
     let choice = vec![false, false, true];
 
-    println!("Receiver: Choices: {:?}", &choice);
+    info!("Choices: {:?}", &choice);
 
     let values = receiver.receive(&choice).await.unwrap();
 
-    println!("Receiver: Received: {:?}", values);
+    info!("Received: {:?}", values);
 }
 
+#[instrument(skip(stream))]
 async fn ot_send(stream: UnixStream) {
-    println!("Sender: Trying to connect");
+    info!("Trying to connect");
 
     let (ws, _) = async_tungstenite::tokio::client_async("ws://local/ot", stream)
         .await
-        .expect("Sender: Error during the websocket handshake occurred");
+        .expect("Error during the websocket handshake occurred");
 
-    println!("Sender: Websocket connected");
+    info!("Websocket connected");
 
     let ws = WsStream::new(ws);
 
@@ -59,13 +63,16 @@ async fn ot_send(stream: UnixStream) {
         [Block::new(4), Block::new(5)],
     ];
 
-    println!("Sender: Meesages: {:?}", &messages);
+    info!("Meesages: {:?}", &messages);
 
     let _ = sender.send(&messages).await;
 }
 
+#[instrument]
 #[tokio::main]
 async fn main() {
+    tracing_subscriber::fmt::init();
+
     let (unix_s, unix_r) = UnixStream::pair().unwrap();
 
     let send = ot_send(unix_s);

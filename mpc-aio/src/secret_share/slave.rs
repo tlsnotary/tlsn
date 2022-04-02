@@ -4,6 +4,7 @@ use mpc_core::secret_share::{SecretShare, SecretShareMessage, SecretShareSlaveCo
 use p256::EncodedPoint;
 use std::io::Error as IOError;
 use std::io::ErrorKind;
+use tracing::{instrument, trace};
 
 pub struct SecretShareSlave<S> {
     stream: S,
@@ -21,6 +22,7 @@ where
         Self { stream }
     }
 
+    #[instrument(skip(self, point))]
     pub async fn run(&mut self, point: &EncodedPoint) -> Result<SecretShare, SecretShareError> {
         let slave = SecretShareSlaveCore::new(point);
 
@@ -31,7 +33,9 @@ where
             Some(Err(e)) => return Err(e)?,
             None => return Err(IOError::new(ErrorKind::UnexpectedEof, ""))?,
         };
+        trace!("Received M1");
         let (message, slave) = slave.next(master_message.into());
+        trace!("Sending S1");
         self.stream.send(message.into()).await?;
 
         // Step 2
@@ -41,7 +45,9 @@ where
             Some(Err(e)) => return Err(e)?,
             None => return Err(IOError::new(ErrorKind::UnexpectedEof, ""))?,
         };
+        trace!("Received M2");
         let (message, slave) = slave.next(master_message.into());
+        trace!("Sending S2");
         self.stream.send(message.into()).await?;
 
         // Complete
@@ -51,8 +57,10 @@ where
             Some(Err(e)) => return Err(e)?,
             None => return Err(IOError::new(ErrorKind::UnexpectedEof, ""))?,
         };
+        trace!("Received M3");
 
         let (message, slave) = slave.next(master_message.into());
+        trace!("Sending S3");
         self.stream.send(message.into()).await?;
 
         Ok(slave.secret())

@@ -5,6 +5,7 @@ use mpc_core::ot::{OtMessage, OtSendCore};
 use mpc_core::Block;
 use std::io::Error as IOError;
 use std::io::ErrorKind;
+use tracing::{instrument, trace};
 
 pub struct OtSender<OT, S> {
     ot: OT,
@@ -40,6 +41,7 @@ where
     OtError: From<<S as Sink<OtMessage>>::Error>,
     OtError: From<E>,
 {
+    #[instrument(skip(self, payload))]
     async fn send(&mut self, payload: &[[Block; 2]]) -> Result<(), OtError> {
         let base_sender_setup = match self.stream.next().await {
             Some(Ok(OtMessage::BaseSenderSetup(m))) => m,
@@ -47,9 +49,11 @@ where
             Some(Err(e)) => return Err(e)?,
             None => return Err(IOError::new(ErrorKind::UnexpectedEof, ""))?,
         };
+        trace!("Received BaseOtSenderSetup");
 
         let base_setup = self.ot.base_setup(base_sender_setup.try_into().unwrap())?;
 
+        trace!("Sending BaseOtReceiverSetup");
         self.stream
             .send(OtMessage::BaseReceiverSetup(base_setup))
             .await?;
@@ -60,6 +64,8 @@ where
             Some(Err(e)) => return Err(e)?,
             None => return Err(IOError::new(ErrorKind::UnexpectedEof, ""))?,
         };
+        trace!("Received BaseOtSenderPayload");
+
         self.ot.base_receive(base_payload.try_into().unwrap())?;
 
         let extension_receiver_setup = match self.stream.next().await {
@@ -68,12 +74,14 @@ where
             Some(Err(e)) => return Err(e)?,
             None => return Err(IOError::new(ErrorKind::UnexpectedEof, ""))?,
         };
+        trace!("Received OtReceiverSetup");
 
         self.ot
             .extension_setup(extension_receiver_setup.try_into().unwrap())?;
         let payload = self.ot.send(payload)?;
 
         self.stream.send(OtMessage::SenderPayload(payload)).await?;
+        trace!("Sending OtSenderPayload");
 
         Ok(())
     }

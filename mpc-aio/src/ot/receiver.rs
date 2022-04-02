@@ -5,6 +5,7 @@ use mpc_core::ot::{OtMessage, OtReceiveCore};
 use mpc_core::Block;
 use std::io::Error as IOError;
 use std::io::ErrorKind;
+use tracing::{instrument, trace};
 
 pub struct OtReceiver<OT, S> {
     ot: OT,
@@ -40,9 +41,11 @@ where
     OtError: From<<S as Sink<OtMessage>>::Error>,
     OtError: From<E>,
 {
+    #[instrument(skip(self, choice))]
     async fn receive(&mut self, choice: &[bool]) -> Result<Vec<Block>, OtError> {
         let base_setup = self.ot.base_setup()?;
 
+        trace!("Sending BaseOtSenderSetup");
         self.stream
             .send(OtMessage::BaseSenderSetup(base_setup))
             .await?;
@@ -53,15 +56,18 @@ where
             Some(Err(e)) => return Err(e)?,
             None => return Err(IOError::new(ErrorKind::UnexpectedEof, ""))?,
         };
+        trace!("Received BaseOtReceiverSetup");
 
         let payload = self.ot.base_send(base_receiver_setup.try_into().unwrap())?;
 
+        trace!("Sending BaseOtSenderPayload");
         self.stream
             .send(OtMessage::BaseSenderPayload(payload))
             .await?;
 
         let setup = self.ot.extension_setup(choice)?;
 
+        trace!("Sending OtReceiverSetup");
         self.stream.send(OtMessage::ReceiverSetup(setup)).await?;
 
         let payload = match self.stream.next().await {
@@ -70,6 +76,7 @@ where
             Some(Err(e)) => return Err(e)?,
             None => return Err(IOError::new(ErrorKind::UnexpectedEof, ""))?,
         };
+        trace!("Received OtSenderPayload");
 
         let values = self.ot.receive(choice, payload.try_into().unwrap())?;
 
