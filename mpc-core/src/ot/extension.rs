@@ -321,6 +321,7 @@ mod tests {
     use aes::Aes128;
     use rand::SeedableRng;
     use rand_chacha::ChaCha12Rng;
+    use rstest::*;
 
     #[test]
     fn test_ot() {

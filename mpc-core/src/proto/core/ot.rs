@@ -189,21 +189,59 @@ impl From<OtSenderPayload> for ot::OtSenderPayload {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
+    use crate::ot::base::tests::fixtures::{base_ot_core_data, BaseCoreData};
+    use fixtures::*;
+    use rstest::*;
 
-    #[test]
-    fn test_ot_sender_payload() {
-        let payload_a = ot::OtSenderPayload {
-            encrypted_values: vec![
-                [crate::Block::new(0), crate::Block::new(0)],
-                [crate::Block::new(0), crate::Block::new(0)],
-            ],
-        };
+    pub mod fixtures {
+        use super::*;
 
-        let proto = OtSenderPayload::from(payload_a.clone());
-        let payload_b = ot::OtSenderPayload::from(proto);
+        pub struct ProtoBaseCoreData {
+            pub sender_setup: BaseOtSenderSetup,
+            pub receiver_setup: BaseOtReceiverSetup,
+            pub sender_payload: BaseOtSenderPayload,
+        }
 
-        assert_eq!(payload_a, payload_b);
+        #[fixture]
+        #[once]
+        pub fn proto_base_core_data(base_ot_core_data: &BaseCoreData) -> ProtoBaseCoreData {
+            ProtoBaseCoreData {
+                sender_setup: base_ot_core_data.sender_setup.clone().into(),
+                receiver_setup: base_ot_core_data.receiver_setup.clone().into(),
+                sender_payload: base_ot_core_data.sender_payload.clone().into(),
+            }
+        }
+    }
+
+    #[rstest]
+    fn test_proto_ot_base(
+        proto_base_core_data: &fixtures::ProtoBaseCoreData,
+        base_ot_core_data: &BaseCoreData,
+    ) {
+        let sender_setup: crate::ot::base::BaseOtSenderSetup = proto_base_core_data
+            .sender_setup
+            .clone()
+            .try_into()
+            .unwrap();
+
+        assert_eq!(sender_setup, base_ot_core_data.sender_setup);
+
+        let receiver_setup: crate::ot::base::BaseOtReceiverSetup = proto_base_core_data
+            .receiver_setup
+            .clone()
+            .try_into()
+            .unwrap();
+
+        assert_eq!(receiver_setup, base_ot_core_data.receiver_setup);
+
+        let sender_payload: crate::ot::base::BaseOtSenderPayload = proto_base_core_data
+            .sender_payload
+            .clone()
+            .try_into()
+            .unwrap();
+
+        assert_eq!(sender_payload, base_ot_core_data.sender_payload);
     }
 }

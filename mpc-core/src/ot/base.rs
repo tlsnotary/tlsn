@@ -162,11 +162,69 @@ impl BaseOtReceiverCore {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
     use crate::utils::u8vec_to_boolvec;
     use rand::{RngCore, SeedableRng};
     use rand_chacha::ChaCha12Rng;
+    use rstest::*;
+
+    pub mod fixtures {
+        use super::*;
+
+        pub struct BaseCoreData {
+            pub sender: BaseOtSenderCore,
+            pub receiver: BaseOtReceiverCore,
+            pub sender_setup: BaseOtSenderSetup,
+            pub receiver_setup: BaseOtReceiverSetup,
+            pub sender_payload: BaseOtSenderPayload,
+            pub receiver_values: Vec<Block>,
+        }
+
+        #[fixture]
+        #[once]
+        pub fn choice() -> Vec<bool> {
+            let mut choice = vec![0u8; 16];
+            ChaCha12Rng::from_entropy().fill_bytes(&mut choice);
+            u8vec_to_boolvec(&choice)
+        }
+
+        #[fixture]
+        #[once]
+        pub fn values() -> Vec<[Block; 2]> {
+            let mut rng = ChaCha12Rng::from_entropy();
+            (0..128)
+                .map(|i| [Block::random(&mut rng), Block::random(&mut rng)])
+                .collect()
+        }
+
+        #[fixture]
+        #[once]
+        pub fn base_ot_core_data(choice: &Vec<bool>, values: &Vec<[Block; 2]>) -> BaseCoreData {
+            let mut s_rng = ChaCha12Rng::from_entropy();
+            let mut r_rng = ChaCha12Rng::from_entropy();
+
+            let mut sender = BaseOtSenderCore::new();
+            let sender_setup = sender.setup(&mut s_rng);
+
+            let mut receiver = BaseOtReceiverCore::new();
+            let receiver_setup = receiver
+                .setup(&mut r_rng, choice, sender_setup.clone())
+                .unwrap();
+
+            let sender_payload = sender.send(values, receiver_setup.clone()).unwrap();
+            let receiver_values = receiver.receive(choice, sender_payload.clone()).unwrap();
+
+            BaseCoreData {
+                sender,
+                receiver,
+                sender_setup,
+                receiver_setup,
+                sender_payload,
+                receiver_values,
+            }
+        }
+    }
 
     #[test]
     fn test_base_ot() {
