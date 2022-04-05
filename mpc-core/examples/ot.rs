@@ -25,11 +25,11 @@ pub fn main() {
 
     println!("Sender inputs: {:?}", &inputs);
 
-    // First the receiver creates a setup message and passes it to sender
+    // First the sender creates a setup message and passes it to sender
     let mut sender = SenderCore::default();
     let setup = sender.setup();
 
-    // Sender takes receiver's setup and creates its own setup message
+    // Receiver takes sender's setup and creates its own setup message
     let mut receiver = ReceiverCore::default();
     let setup = receiver.setup(&choice, setup).unwrap();
 
@@ -37,7 +37,7 @@ pub fn main() {
     let payload = sender.send(&inputs, setup).unwrap();
 
     // Receiver takes the encrypted inputs and is able to decrypt according to their choice bits
-    let received = receiver.receive(&choice, payload).unwrap();
+    let received = receiver.receive(payload).unwrap();
 
     println!("Transferred messages: {:?}", received);
 }

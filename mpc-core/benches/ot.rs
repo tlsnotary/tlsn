@@ -19,7 +19,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 
             let receiver_setup = receiver.setup(&choice, sender_setup).unwrap();
             let send = sender.send(&s_inputs, receiver_setup).unwrap();
-            let receive = receiver.receive(&choice, send).unwrap();
+            let receive = receiver.receive(send).unwrap();
             black_box(receive);
         });
     });

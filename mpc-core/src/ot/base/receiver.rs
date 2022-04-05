@@ -19,6 +19,7 @@ pub enum State {
 pub struct ReceiverCore<R> {
     rng: R,
     hashes: Option<Vec<Block>>,
+    choice: Option<Vec<bool>>,
     state: State,
 }
 
@@ -38,6 +39,7 @@ impl<R: Rng + CryptoRng> ReceiverCore<R> {
         Self {
             rng,
             hashes: None,
+            choice: None,
             state: State::Initialized,
         }
     }
@@ -68,23 +70,22 @@ impl<R: Rng + CryptoRng> ReceiveCore for ReceiverCore<R> {
             })
             .unzip();
         self.hashes = Some(hashes);
-
+        self.choice = Some(Vec::from(choice));
         self.state = State::Setup;
 
         Ok(ReceiverSetup { keys })
     }
 
-    fn receive(
-        &mut self,
-        choice: &[bool],
-        payload: SenderPayload,
-    ) -> Result<Vec<Block>, ReceiverCoreError> {
+    fn receive(&mut self, payload: SenderPayload) -> Result<Vec<Block>, ReceiverCoreError> {
         if self.state < State::Setup {
             return Err(ReceiverCoreError::NotSetup);
         }
 
         let hashes = self.hashes.as_ref().unwrap();
-        let values: Vec<Block> = choice
+        let values: Vec<Block> = self
+            .choice
+            .as_ref()
+            .unwrap()
             .iter()
             .zip(hashes)
             .zip(payload.encrypted_values.iter())

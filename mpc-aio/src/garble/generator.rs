@@ -1,5 +1,5 @@
 use super::GarbleError;
-use crate::ot::sender::OtSend;
+use crate::ot::OTSend;
 use mpc_core::circuit::{Circuit, CircuitInput};
 use mpc_core::garble::generator::GarbledCircuitGenerator;
 use mpc_core::garble::GarbleMessage;
@@ -29,7 +29,7 @@ where
 
     pub async fn garble<G: GarbledCircuitGenerator>(
         &mut self,
-        ot: &mut impl OtSend,
+        ot: &mut impl OTSend,
         circ: &Circuit,
         gen: &G,
         inputs: &Vec<CircuitInput>,

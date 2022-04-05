@@ -21,11 +21,11 @@ pub enum State {
     Complete,
 }
 
-pub struct ExtReceiverCore<R, C> {
+pub struct ExtReceiverCore<R, C, OT> {
     cipher: C,
     rng: R,
     state: State,
-    base: Box<dyn SendCore>,
+    base: OT,
     seeds: Option<Vec<[Block; 2]>>,
     rngs: Option<Vec<[ChaCha12Rng; 2]>>,
     table: Option<Vec<Vec<u8>>>,
@@ -37,18 +37,20 @@ pub struct ExtReceiverSetup {
     pub table: Vec<Vec<u8>>,
 }
 
-impl Default for ExtReceiverCore<ChaCha12Rng, Aes128> {
+impl Default for ExtReceiverCore<ChaCha12Rng, Aes128, SenderCore<ChaCha12Rng>> {
     fn default() -> Self {
         Self::new(
             ChaCha12Rng::from_entropy(),
             Aes128::new(GenericArray::from_slice(&[0u8; 16])),
-            Box::new(SenderCore::default()),
+            SenderCore::default(),
         )
     }
 }
 
-impl<R: Rng + CryptoRng, C: BlockCipher<BlockSize = U16> + BlockEncrypt> ExtReceiverCore<R, C> {
-    pub fn new(rng: R, cipher: C, ot: Box<dyn SendCore>) -> Self {
+impl<R: Rng + CryptoRng, C: BlockCipher<BlockSize = U16> + BlockEncrypt, OT: SendCore>
+    ExtReceiverCore<R, C, OT>
+{
+    pub fn new(rng: R, cipher: C, ot: OT) -> Self {
         Self {
             rng,
             cipher,
@@ -82,8 +84,11 @@ impl<R: Rng + CryptoRng, C: BlockCipher<BlockSize = U16> + BlockEncrypt> ExtRece
     }
 }
 
-impl<R: Rng + CryptoRng + SeedableRng, C: BlockCipher<BlockSize = U16> + BlockEncrypt>
-    ExtReceiveCore for ExtReceiverCore<R, C>
+impl<
+        R: Rng + CryptoRng + SeedableRng,
+        C: BlockCipher<BlockSize = U16> + BlockEncrypt,
+        OT: SendCore,
+    > ExtReceiveCore for ExtReceiverCore<R, C, OT>
 {
     fn state(&self) -> State {
         self.state

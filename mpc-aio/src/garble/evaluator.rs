@@ -1,5 +1,5 @@
 use super::GarbleError;
-use crate::ot::receiver::OtReceive;
+use crate::ot::OTReceive;
 use mpc_core::circuit::{Circuit, CircuitInput};
 use mpc_core::garble::circuit::InputLabel;
 use mpc_core::garble::evaluator::GarbledCircuitEvaluator;
@@ -29,7 +29,7 @@ where
 
     pub async fn evaluate<V: GarbledCircuitEvaluator>(
         &mut self,
-        ot: &mut impl OtReceive,
+        ot: &mut impl OTReceive,
         circ: &Circuit,
         ev: &V,
         inputs: &Vec<CircuitInput>,

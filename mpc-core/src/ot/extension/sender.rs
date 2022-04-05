@@ -93,7 +93,7 @@ impl<C: BlockCipher<BlockSize = U16> + BlockEncrypt, OT: ReceiveCore> ExtSendCor
     }
 
     fn base_receive(&mut self, payload: BaseSenderPayload) -> Result<(), ExtSenderCoreError> {
-        let receive = self.base.receive(&self.base_choice, payload)?;
+        let receive = self.base.receive(payload)?;
         self.set_seeds(receive);
         self.state = State::BaseSetup;
         Ok(())

@@ -4,7 +4,7 @@ use mpc_core::garble::{
 };
 use thiserror::Error;
 
-use crate::ot::OtError;
+use crate::ot::OTError;
 
 #[derive(Debug, Error)]
 pub enum GarbleError {
@@ -13,7 +13,7 @@ pub enum GarbleError {
     #[error("Encountered error during evaluation: {0}")]
     EvaluatorError(#[from] EvaluatorError),
     #[error("Encountered OT error: {0}")]
-    OtError(#[from] OtError),
+    OTError(#[from] OTError),
     #[error("Received unexpected message: {0:?}")]
     Unexpected(GarbleMessage),
     #[error("Encountered IO error: {0}")]

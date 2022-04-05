@@ -28,11 +28,7 @@ pub trait ReceiveCore {
         sender_setup: SenderSetup,
     ) -> Result<ReceiverSetup, ReceiverCoreError>;
 
-    fn receive(
-        &mut self,
-        choice: &[bool],
-        payload: SenderPayload,
-    ) -> Result<Vec<crate::Block>, ReceiverCoreError>;
+    fn receive(&mut self, payload: SenderPayload) -> Result<Vec<crate::Block>, ReceiverCoreError>;
 }
 
 #[cfg(test)]
@@ -80,7 +76,7 @@ pub mod tests {
             let receiver_setup = receiver.setup(choice, sender_setup.clone()).unwrap();
 
             let sender_payload = sender.send(values, receiver_setup.clone()).unwrap();
-            let receiver_values = receiver.receive(choice, sender_payload.clone()).unwrap();
+            let receiver_values = receiver.receive(sender_payload.clone()).unwrap();
 
             Data {
                 sender_setup,
@@ -113,7 +109,7 @@ pub mod tests {
         let receiver_setup = receiver.setup(&choice, sender_setup).unwrap();
 
         let send = sender.send(&s_inputs, receiver_setup).unwrap();
-        let receive = receiver.receive(&choice, send).unwrap();
+        let receive = receiver.receive(send).unwrap();
         assert_eq!(expected, receive);
     }
 }

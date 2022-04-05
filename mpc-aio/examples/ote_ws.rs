@@ -1,5 +1,5 @@
-use mpc_aio::ot::{OtReceive, OtReceiver, OtSend, OtSender};
-use mpc_core::ot::{ChaChaAesOtReceiver, ChaChaAesOtSender, OtMessage};
+use mpc_aio::ot::{ExtOTReceive, ExtOTSend, ExtReceiver, ExtSender, Message};
+use mpc_core::ot::{ExtReceiverCore, ExtSenderCore};
 use mpc_core::proto;
 use mpc_core::Block;
 use tokio;
@@ -24,10 +24,10 @@ async fn ot_receive(stream: UnixStream) {
 
     let stream = Framed::new(
         ws,
-        ProstCodecDelimited::<OtMessage, proto::ot::OtMessage>::default(),
+        ProstCodecDelimited::<Message, proto::ot::Message>::default(),
     );
 
-    let mut receiver = OtReceiver::new(ChaChaAesOtReceiver::default(), stream);
+    let mut receiver = ExtReceiver::new(ExtReceiverCore::default(), stream);
 
     let choice = vec![false, false, true];
 
@@ -52,10 +52,10 @@ async fn ot_send(stream: UnixStream) {
 
     let stream = Framed::new(
         ws,
-        ProstCodecDelimited::<OtMessage, proto::ot::OtMessage>::default(),
+        ProstCodecDelimited::<Message, proto::ot::Message>::default(),
     );
 
-    let mut sender = OtSender::new(ChaChaAesOtSender::default(), stream);
+    let mut sender = ExtSender::new(ExtSenderCore::default(), stream);
 
     let messages = [
         [Block::new(0), Block::new(1)],
