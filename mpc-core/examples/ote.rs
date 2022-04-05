@@ -3,7 +3,7 @@
 // For simplicity, this example shows how to use OT components in memory.
 
 use mpc_core::block::Block;
-use mpc_core::ot::{ReceiveCore, ReceiverCore, SendCore, SenderCore};
+use mpc_core::ot::{ExtReceiveCore, ExtReceiverCore, ExtSendCore, ExtSenderCore};
 
 pub fn main() {
     // Receiver choice bits
@@ -26,15 +26,25 @@ pub fn main() {
     println!("Sender inputs: {:?}", &inputs);
 
     // First the receiver creates a setup message and passes it to sender
-    let mut sender = SenderCore::default();
-    let setup = sender.setup();
+    let mut receiver = ExtReceiverCore::default();
+    let base_sender_setup = receiver.base_setup().unwrap();
 
     // Sender takes receiver's setup and creates its own setup message
-    let mut receiver = ReceiverCore::default();
-    let setup = receiver.setup(&choice, setup).unwrap();
+    let mut sender = ExtSenderCore::default();
+    let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
+
+    // Now the receiver generates some seeds from sender's setup and uses OT to transfer them
+    let base_payload = receiver.base_send(base_receiver_setup).unwrap();
+    sender.base_receive(base_payload).unwrap();
+
+    // Receiver generates OT extension setup and passes it to sender
+    let receiver_setup = receiver.extension_setup(&choice).unwrap();
+
+    // Sender takes receiver's setup and runs its own extension setup
+    sender.extension_setup(receiver_setup).unwrap();
 
     // Finally, sender encrypts their inputs and sends them to receiver
-    let payload = sender.send(&inputs, setup).unwrap();
+    let payload = sender.send(&inputs).unwrap();
 
     // Receiver takes the encrypted inputs and is able to decrypt according to their choice bits
     let received = receiver.receive(&choice, payload).unwrap();

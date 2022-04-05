@@ -7,53 +7,51 @@ use std::io::{Error, ErrorKind};
 
 include!(concat!(env!("OUT_DIR"), "/core.ot.rs"));
 
-pub use ot_message::Msg;
+pub use message::Msg;
 
-impl From<ot::OtMessage> for OtMessage {
+impl From<ot::Message> for Message {
     #[inline]
-    fn from(m: ot::OtMessage) -> Self {
+    fn from(m: ot::Message) -> Self {
         Self {
             msg: Some(match m {
-                ot::OtMessage::BaseReceiverSetup(msg) => {
-                    ot_message::Msg::BaseReceiverSetup(BaseOtReceiverSetup::from(msg))
+                ot::Message::ReceiverSetup(msg) => {
+                    message::Msg::ReceiverSetup(ReceiverSetup::from(msg))
                 }
-                ot::OtMessage::BaseSenderSetup(msg) => {
-                    ot_message::Msg::BaseSenderSetup(BaseOtSenderSetup::from(msg))
+                ot::Message::SenderSetup(msg) => message::Msg::SenderSetup(SenderSetup::from(msg)),
+                ot::Message::SenderPayload(msg) => {
+                    message::Msg::SenderPayload(SenderPayload::from(msg))
                 }
-                ot::OtMessage::BaseSenderPayload(msg) => {
-                    ot_message::Msg::BaseSenderPayload(BaseOtSenderPayload::from(msg))
+                ot::Message::ExtReceiverSetup(msg) => {
+                    message::Msg::ExtReceiverSetup(ExtReceiverSetup::from(msg))
                 }
-                ot::OtMessage::ReceiverSetup(msg) => {
-                    ot_message::Msg::ReceiverSetup(OtReceiverSetup::from(msg))
-                }
-                ot::OtMessage::SenderPayload(msg) => {
-                    ot_message::Msg::SenderPayload(OtSenderPayload::from(msg))
+                ot::Message::ExtSenderPayload(msg) => {
+                    message::Msg::ExtSenderPayload(ExtSenderPayload::from(msg))
                 }
             }),
         }
     }
 }
 
-impl TryFrom<OtMessage> for ot::OtMessage {
+impl TryFrom<Message> for ot::Message {
     type Error = std::io::Error;
     #[inline]
-    fn try_from(m: OtMessage) -> Result<Self, Self::Error> {
+    fn try_from(m: Message) -> Result<Self, Self::Error> {
         if let Some(msg) = m.msg {
             let m = match msg {
-                ot_message::Msg::BaseReceiverSetup(msg) => {
-                    ot::OtMessage::BaseReceiverSetup(ot::BaseOtReceiverSetup::try_from(msg)?)
+                message::Msg::ReceiverSetup(msg) => {
+                    ot::Message::ReceiverSetup(ot::ReceiverSetup::try_from(msg)?)
                 }
-                ot_message::Msg::BaseSenderSetup(msg) => {
-                    ot::OtMessage::BaseSenderSetup(ot::BaseOtSenderSetup::try_from(msg)?)
+                message::Msg::SenderSetup(msg) => {
+                    ot::Message::SenderSetup(ot::SenderSetup::try_from(msg)?)
                 }
-                ot_message::Msg::BaseSenderPayload(msg) => {
-                    ot::OtMessage::BaseSenderPayload(ot::BaseOtSenderPayload::from(msg))
+                message::Msg::SenderPayload(msg) => {
+                    ot::Message::SenderPayload(ot::SenderPayload::from(msg))
                 }
-                ot_message::Msg::ReceiverSetup(msg) => {
-                    ot::OtMessage::ReceiverSetup(ot::OtReceiverSetup::from(msg))
+                message::Msg::ExtReceiverSetup(msg) => {
+                    ot::Message::ExtReceiverSetup(ot::ExtReceiverSetup::from(msg))
                 }
-                ot_message::Msg::SenderPayload(msg) => {
-                    ot::OtMessage::SenderPayload(ot::OtSenderPayload::from(msg))
+                message::Msg::ExtSenderPayload(msg) => {
+                    ot::Message::ExtSenderPayload(ot::ExtSenderPayload::from(msg))
                 }
             };
             Ok(m)
@@ -63,29 +61,29 @@ impl TryFrom<OtMessage> for ot::OtMessage {
     }
 }
 
-impl From<ot::BaseOtSenderSetup> for BaseOtSenderSetup {
+impl From<ot::SenderSetup> for SenderSetup {
     #[inline]
-    fn from(s: ot::BaseOtSenderSetup) -> Self {
+    fn from(s: ot::SenderSetup) -> Self {
         Self {
             public_key: super::RistrettoPoint::from(s.public_key),
         }
     }
 }
 
-impl TryFrom<BaseOtSenderSetup> for ot::BaseOtSenderSetup {
+impl TryFrom<SenderSetup> for ot::SenderSetup {
     type Error = Error;
 
     #[inline]
-    fn try_from(s: BaseOtSenderSetup) -> Result<Self, Self::Error> {
+    fn try_from(s: SenderSetup) -> Result<Self, Self::Error> {
         Ok(Self {
             public_key: s.public_key.try_into()?,
         })
     }
 }
 
-impl From<ot::BaseOtSenderPayload> for BaseOtSenderPayload {
+impl From<ot::SenderPayload> for SenderPayload {
     #[inline]
-    fn from(p: ot::BaseOtSenderPayload) -> Self {
+    fn from(p: ot::SenderPayload) -> Self {
         Self {
             encrypted_values: p
                 .encrypted_values
@@ -99,9 +97,9 @@ impl From<ot::BaseOtSenderPayload> for BaseOtSenderPayload {
     }
 }
 
-impl From<BaseOtSenderPayload> for ot::BaseOtSenderPayload {
+impl From<SenderPayload> for ot::SenderPayload {
     #[inline]
-    fn from(p: BaseOtSenderPayload) -> Self {
+    fn from(p: SenderPayload) -> Self {
         Self {
             encrypted_values: p
                 .encrypted_values
@@ -112,9 +110,9 @@ impl From<BaseOtSenderPayload> for ot::BaseOtSenderPayload {
     }
 }
 
-impl From<ot::BaseOtReceiverSetup> for BaseOtReceiverSetup {
+impl From<ot::ReceiverSetup> for ReceiverSetup {
     #[inline]
-    fn from(s: ot::BaseOtReceiverSetup) -> Self {
+    fn from(s: ot::ReceiverSetup) -> Self {
         Self {
             keys: s
                 .keys
@@ -125,11 +123,11 @@ impl From<ot::BaseOtReceiverSetup> for BaseOtReceiverSetup {
     }
 }
 
-impl TryFrom<BaseOtReceiverSetup> for ot::BaseOtReceiverSetup {
+impl TryFrom<ReceiverSetup> for ot::ReceiverSetup {
     type Error = Error;
 
     #[inline]
-    fn try_from(s: BaseOtReceiverSetup) -> Result<Self, Self::Error> {
+    fn try_from(s: ReceiverSetup) -> Result<Self, Self::Error> {
         let mut keys: Vec<curve25519_dalek::ristretto::RistrettoPoint> =
             Vec::with_capacity(s.keys.len());
         for key in s.keys.into_iter() {
@@ -139,9 +137,9 @@ impl TryFrom<BaseOtReceiverSetup> for ot::BaseOtReceiverSetup {
     }
 }
 
-impl From<ot::OtReceiverSetup> for OtReceiverSetup {
+impl From<ot::ExtReceiverSetup> for ExtReceiverSetup {
     #[inline]
-    fn from(s: ot::OtReceiverSetup) -> Self {
+    fn from(s: ot::ExtReceiverSetup) -> Self {
         Self {
             ncols: s.ncols as u32,
             table: s.table,
@@ -149,9 +147,9 @@ impl From<ot::OtReceiverSetup> for OtReceiverSetup {
     }
 }
 
-impl From<OtReceiverSetup> for ot::OtReceiverSetup {
+impl From<ExtReceiverSetup> for ot::ExtReceiverSetup {
     #[inline]
-    fn from(s: OtReceiverSetup) -> Self {
+    fn from(s: ExtReceiverSetup) -> Self {
         Self {
             ncols: s.ncols as usize,
             table: s.table,
@@ -159,9 +157,9 @@ impl From<OtReceiverSetup> for ot::OtReceiverSetup {
     }
 }
 
-impl From<ot::OtSenderPayload> for OtSenderPayload {
+impl From<ot::ExtSenderPayload> for ExtSenderPayload {
     #[inline]
-    fn from(p: ot::OtSenderPayload) -> Self {
+    fn from(p: ot::ExtSenderPayload) -> Self {
         Self {
             encrypted_values: p
                 .encrypted_values
@@ -175,9 +173,9 @@ impl From<ot::OtSenderPayload> for OtSenderPayload {
     }
 }
 
-impl From<OtSenderPayload> for ot::OtSenderPayload {
+impl From<ExtSenderPayload> for ot::ExtSenderPayload {
     #[inline]
-    fn from(p: OtSenderPayload) -> Self {
+    fn from(p: ExtSenderPayload) -> Self {
         Self {
             encrypted_values: p
                 .encrypted_values
@@ -191,57 +189,54 @@ impl From<OtSenderPayload> for ot::OtSenderPayload {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::ot::base::tests::fixtures::{base_ot_core_data, BaseCoreData};
+    use crate::ot::base::tests::fixtures::{ot_core_data, Data};
     use fixtures::*;
     use rstest::*;
 
     pub mod fixtures {
         use super::*;
 
-        pub struct ProtoBaseCoreData {
-            pub sender_setup: BaseOtSenderSetup,
-            pub receiver_setup: BaseOtReceiverSetup,
-            pub sender_payload: BaseOtSenderPayload,
+        pub struct ProtoData {
+            pub sender_setup: SenderSetup,
+            pub receiver_setup: ReceiverSetup,
+            pub sender_payload: SenderPayload,
         }
 
         #[fixture]
         #[once]
-        pub fn proto_base_core_data(base_ot_core_data: &BaseCoreData) -> ProtoBaseCoreData {
-            ProtoBaseCoreData {
-                sender_setup: base_ot_core_data.sender_setup.clone().into(),
-                receiver_setup: base_ot_core_data.receiver_setup.clone().into(),
-                sender_payload: base_ot_core_data.sender_payload.clone().into(),
+        pub fn proto_base_core_data(ot_core_data: &Data) -> ProtoData {
+            ProtoData {
+                sender_setup: ot_core_data.sender_setup.clone().into(),
+                receiver_setup: ot_core_data.receiver_setup.clone().into(),
+                sender_payload: ot_core_data.sender_payload.clone().into(),
             }
         }
     }
 
     #[rstest]
-    fn test_proto_ot_base(
-        proto_base_core_data: &fixtures::ProtoBaseCoreData,
-        base_ot_core_data: &BaseCoreData,
-    ) {
-        let sender_setup: crate::ot::base::BaseOtSenderSetup = proto_base_core_data
+    fn test_proto_ot(proto_base_core_data: &fixtures::ProtoData, ot_core_data: &Data) {
+        let sender_setup: crate::ot::base::SenderSetup = proto_base_core_data
             .sender_setup
             .clone()
             .try_into()
             .unwrap();
 
-        assert_eq!(sender_setup, base_ot_core_data.sender_setup);
+        assert_eq!(sender_setup, ot_core_data.sender_setup);
 
-        let receiver_setup: crate::ot::base::BaseOtReceiverSetup = proto_base_core_data
+        let receiver_setup: crate::ot::base::ReceiverSetup = proto_base_core_data
             .receiver_setup
             .clone()
             .try_into()
             .unwrap();
 
-        assert_eq!(receiver_setup, base_ot_core_data.receiver_setup);
+        assert_eq!(receiver_setup, ot_core_data.receiver_setup);
 
-        let sender_payload: crate::ot::base::BaseOtSenderPayload = proto_base_core_data
+        let sender_payload: crate::ot::base::SenderPayload = proto_base_core_data
             .sender_payload
             .clone()
             .try_into()
             .unwrap();
 
-        assert_eq!(sender_payload, base_ot_core_data.sender_payload);
+        assert_eq!(sender_payload, ot_core_data.sender_payload);
     }
 }

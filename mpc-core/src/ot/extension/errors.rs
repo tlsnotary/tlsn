@@ -1,25 +1,9 @@
-/// Errors that may occur when using BaseOTSender
-#[derive(Debug, thiserror::Error)]
-pub enum BaseOtSenderCoreError {
-    /// Base OT has not been setup
-    #[error("Tried to send base OT prior to setup")]
-    NotSetup,
-}
-
-/// Errors that may occur when using BaseOTReceiver
-#[derive(Debug, thiserror::Error)]
-pub enum BaseOtReceiverCoreError {
-    /// Base OT has not been setup
-    #[error("Tried to receive base OT prior to setup")]
-    NotSetup,
-}
-
 /// Errors that may occur when using OTSender
 #[derive(Debug, thiserror::Error)]
-pub enum OtSenderCoreError {
+pub enum ExtSenderCoreError {
     /// Error originating from Base OT
     #[error("OT failed due to error in Base OT {0}")]
-    BaseOTError(#[from] BaseOtReceiverCoreError),
+    BaseError(#[from] crate::ot::base::ReceiverCoreError),
     /// Base OT has not been setup
     #[error("Tried to setup extension prior to Base OT setup")]
     BaseOTNotSetup,
@@ -30,10 +14,10 @@ pub enum OtSenderCoreError {
 
 /// Errors that may occur when using OTReceiver
 #[derive(Debug, thiserror::Error)]
-pub enum OtReceiverCoreError {
+pub enum ExtReceiverCoreError {
     /// Error originating from Base OT
     #[error("OT failed due to error in Base OT")]
-    BaseOTError(#[from] BaseOtSenderCoreError),
+    BaseError(#[from] crate::ot::base::SenderCoreError),
     /// Base OT has not been setup
     #[error("Tried to setup extension prior to Base OT setup")]
     BaseOTNotSetup,

@@ -5,40 +5,40 @@ import "core.proto";
 package core.ot;
 
 // Setup message sent by Base OT Sender
-message BaseOtSenderSetup {
+message SenderSetup {
     // Senders public key
     required core.RistrettoPoint public_key = 1;
 }
 
 // Message sent by OT Sender containing encrypted values
-message BaseOtSenderPayload {
+message SenderPayload {
     // Encrypted values
     repeated core.LabelPair encrypted_values = 1;
 }
 
 // Setup message sent by Base OT Receiver
-message BaseOtReceiverSetup {
+message ReceiverSetup {
     // Keys used to encrypt values by Sender
     repeated core.RistrettoPoint keys = 1;
 }
 
 // Setup message sent by OT Receiver
-message OtReceiverSetup {
+message ExtReceiverSetup {
     required uint32 ncols = 1;
     repeated bytes table = 2;
 }
 
-message OtSenderPayload {
+message ExtSenderPayload {
     // Encrypted values
     repeated core.LabelPair encrypted_values = 1;
 }
 
-message OtMessage {
+message Message {
     oneof msg {
-        BaseOtSenderSetup base_sender_setup = 1;
-        BaseOtSenderPayload base_sender_payload = 2;
-        BaseOtReceiverSetup base_receiver_setup = 3;
-        OtReceiverSetup receiver_setup = 4;
-        OtSenderPayload sender_payload = 5;
+        SenderSetup sender_setup = 1;
+        SenderPayload sender_payload = 2;
+        ReceiverSetup receiver_setup = 3;
+        ExtReceiverSetup ext_receiver_setup = 4;
+        ExtSenderPayload ext_sender_payload = 5;
     }
 }
