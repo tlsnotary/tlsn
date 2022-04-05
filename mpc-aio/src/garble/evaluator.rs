@@ -38,6 +38,7 @@ where
 
         let gc = match self.stream.next().await {
             Some(Ok(GarbleMessage::GarbledCircuit(m))) => m,
+            #[allow(unreachable_patterns)]
             Some(Ok(m)) => return Err(GarbleError::Unexpected(m)),
             Some(Err(e)) => return Err(e)?,
             None => return Err(IOError::new(ErrorKind::UnexpectedEof, ""))?,
