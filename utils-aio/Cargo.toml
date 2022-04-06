@@ -15,4 +15,3 @@ tokio-util = { version = "0.7.1", features = ["codec"] }
 async-tungstenite = { version = "0.16" }
 futures = "0.3"
 futures-util = "0.3"
-tracing = "0.1"

@@ -2,7 +2,6 @@ use bytes::BytesMut;
 use prost::Message;
 use std::marker::PhantomData;
 use tokio_util::codec::{Decoder, Encoder, LengthDelimitedCodec};
-use tracing::{instrument, trace};
 
 #[derive(Debug, Clone)]
 pub struct ProstCodec<T, U>(PhantomData<T>, PhantomData<U>);
@@ -54,19 +53,15 @@ impl<T, U: Message> Default for ProstCodecDelimited<T, U> {
     }
 }
 
-impl<T: std::fmt::Debug, U: Message + From<T>> Encoder<T> for ProstCodecDelimited<T, U> {
+impl<T, U: Message + From<T>> Encoder<T> for ProstCodecDelimited<T, U> {
     type Error = std::io::Error;
 
-    #[instrument(skip(self, item, buf))]
     fn encode(&mut self, item: T, buf: &mut BytesMut) -> Result<(), Self::Error> {
-        trace!("Mapping {:?}", &item);
-        let u = U::from(item);
-        trace!("Mapped to {:?}", &u);
-        self.inner.encode(u.encode_to_vec().into(), buf)
+        self.inner.encode(U::from(item).encode_to_vec().into(), buf)
     }
 }
 
-impl<T: TryFrom<U> + std::fmt::Debug, U: Message + Default> Decoder for ProstCodecDelimited<T, U>
+impl<T: TryFrom<U>, U: Message + Default> Decoder for ProstCodecDelimited<T, U>
 where
     std::io::Error: From<<T as TryFrom<U>>::Error>,
 {
@@ -76,11 +71,8 @@ where
     fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         let b = self.inner.decode(buf)?;
         if let Some(b) = b {
-            let u: U = Message::decode(b)?;
-            trace!("Mapping {:?}", &u);
-            let t = T::try_from(u)?;
-            trace!("Mapped to {:?}", &t);
-            return Ok(Some(t));
+            let item: U = Message::decode(b)?;
+            return Ok(Some(T::try_from(item)?));
         } else {
             return Ok(None);
         }
