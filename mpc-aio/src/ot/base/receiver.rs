@@ -49,11 +49,11 @@ where
             Some(Err(e)) => return Err(e)?,
             None => return Err(IOError::new(ErrorKind::UnexpectedEof, ""))?,
         };
-        trace!("Received SenderSetup");
+        trace!("Received SenderSetup: {:?}", &setup);
 
         let setup = self.ot.setup(choice, setup)?;
 
-        trace!("Sending ReceiverSetup");
+        trace!("Sending ReceiverSetup: {:?}", &setup);
         self.stream.send(Message::ReceiverSetup(setup)).await?;
 
         let payload = match self.stream.next().await {
@@ -62,7 +62,7 @@ where
             Some(Err(e)) => return Err(e)?,
             None => return Err(IOError::new(ErrorKind::UnexpectedEof, ""))?,
         };
-        trace!("Received SenderPayload");
+        trace!("Received SenderPayload: {:?}", &payload);
 
         let values = self.ot.receive(payload)?;
 

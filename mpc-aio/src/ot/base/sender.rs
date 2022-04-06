@@ -45,7 +45,7 @@ where
     async fn send(&mut self, payload: &[[Block; 2]]) -> Result<(), OTError> {
         let setup = self.ot.setup();
 
-        trace!("Sending SenderSetup");
+        trace!("Sending SenderSetup: {:?}", &setup);
         self.stream.send(Message::SenderSetup(setup)).await?;
 
         let setup = match self.stream.next().await {
@@ -54,12 +54,12 @@ where
             Some(Err(e)) => return Err(e)?,
             None => return Err(IOError::new(ErrorKind::UnexpectedEof, ""))?,
         };
-        trace!("Received ReceiverSetup");
+        trace!("Received ReceiverSetup: {:?}", &setup);
 
         let payload = self.ot.send(payload, setup)?;
 
+        trace!("Sending SenderPayload: {:?}", &payload);
         self.stream.send(Message::SenderPayload(payload)).await?;
-        trace!("Sending SenderPayload");
 
         Ok(())
     }
