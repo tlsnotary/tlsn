@@ -68,15 +68,12 @@ async fn receive<S: AsyncWrite + AsyncRead + Send + Unpin>(
 
     info!("Choosing {:?}", choice);
 
-    let values = match extended {
-        true => {
-            let mut receiver = ExtReceiver::new(ExtReceiverCore::default(), stream);
-            receiver.receive(&choice).await.unwrap()
-        }
-        false => {
-            let mut receiver = Receiver::new(ReceiverCore::default(), stream);
-            receiver.receive(&choice).await.unwrap()
-        }
+    let values = if extended {
+        let mut receiver = ExtReceiver::new(ExtReceiverCore::default(), stream);
+        receiver.receive(&choice).await.unwrap()
+    } else {
+        let mut receiver = Receiver::new(ReceiverCore::default(), stream);
+        receiver.receive(&choice).await.unwrap()
     };
 
     info!("Received {:?}", values);
@@ -95,16 +92,13 @@ async fn send<S: AsyncWrite + AsyncRead + Send + Unpin>(
         ProstCodecDelimited::<Message, proto::ot::Message>::default(),
     );
 
-    match extended {
-        true => {
-            let mut sender = ExtSender::new(ExtSenderCore::default(), stream);
-            let _ = sender.send(&values).await;
-        }
-        false => {
-            let mut sender = Sender::new(SenderCore::default(), stream);
-            let _ = sender.send(&values).await;
-        }
-    };
+    if extended {
+        let mut sender = ExtSender::new(ExtSenderCore::default(), stream);
+        let _ = sender.send(&values).await;
+    } else {
+        let mut sender = Sender::new(SenderCore::default(), stream);
+        let _ = sender.send(&values).await;
+    }
 
     info!("Sent {:?}", values);
 }
