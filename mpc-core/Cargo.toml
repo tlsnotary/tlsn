@@ -9,7 +9,7 @@ name = "mpc_core"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["garble", "ot", "proto", "ss"]
+default = ["proto", "ot", "ss", "garble"]
 garble = ["regex"]
 ot = []
 ss = ["elliptic-curve", "p256", "paillier", "curv"]

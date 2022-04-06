@@ -22,6 +22,7 @@ pub enum CircuitLoadError {
     #[error("encountered io error while loading circuit")]
     IoError(#[from] std::io::Error),
     /// A decoding error occurred.
+    #[cfg(feature = "proto")]
     #[error("encountered prost DecodeError while loading circuit")]
     DecodeError(#[from] prost::DecodeError),
     /// Error occurred when mapping models

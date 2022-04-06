@@ -8,12 +8,12 @@ name = "mpc_aio"
 
 [features]
 default = ["ss", "ot", "garble"]
-ot = ["rand_chacha"]
-garble = ["aes"]
-ss = ["p256"]
+ot = ["pop-mpc-core/ot", "pop-mpc-core/proto", "rand_chacha"]
+garble = ["pop-mpc-core/garble", "pop-mpc-core/proto", "aes"]
+ss = ["pop-mpc-core/ss", "pop-mpc-core/proto", "p256"]
 
 [dependencies]
-pop-mpc-core = { path = "../mpc-core" }
+pop-mpc-core = { path = "../mpc-core", default-features = false }
 pop-utils-aio = { path = "../utils-aio" }
 async-trait = "0.1.53"
 prost = "0.9"
@@ -27,6 +27,10 @@ rand_chacha = { version = "0.3", optional = true }
 p256 = { version = "0.10.1", optional = true }
 thiserror = "1.0"
 tracing = "0.1"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.2", features = ["js"] }
+wasm-bindgen = "0.2"
 
 [dev-dependencies]
 tokio = { version = "1.17", features = [
