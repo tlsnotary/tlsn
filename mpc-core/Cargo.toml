@@ -63,7 +63,3 @@ harness = false
 [[bench]]
 name = "secret_share"
 harness = false
-
-[[bin]]
-name = "measure_data"
-path = "src/bin/measure_data.rs"
