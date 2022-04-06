@@ -79,8 +79,8 @@ impl<R: Rng + CryptoRng> SendCore for SenderCore<R> {
 
         for (i, (input, receiver_key)) in inputs.iter().zip(receiver_setup.keys).enumerate() {
             let yr = private_key * receiver_key;
-            let k0 = Block::hash_point(&yr, i);
-            let k1 = Block::hash_point(&(yr - ys), i);
+            let k0 = Block::hash_point(&yr, i as u32);
+            let k1 = Block::hash_point(&(yr - ys), i as u32);
             encrypted_values.push([k0 ^ input[0], k1 ^ input[1]]);
         }
 

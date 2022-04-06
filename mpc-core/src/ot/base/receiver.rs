@@ -65,7 +65,7 @@ impl<R: Rng + CryptoRng> ReceiveCore for ReceiverCore<R> {
                 let x = Scalar::random(&mut self.rng);
                 let c = if *b { one } else { zero };
                 let k = c + &x * &RISTRETTO_BASEPOINT_TABLE;
-                let h = Block::hash_point(&(&x * &point_table), i);
+                let h = Block::hash_point(&(&x * &point_table), i as u32);
                 (k, h)
             })
             .unzip();
