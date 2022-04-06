@@ -62,7 +62,7 @@ impl Block {
     pub fn hash_point(point: &RistrettoPoint, tweak: usize) -> Self {
         let mut hasher = Sha256::new();
         hasher.update(point.compress().as_bytes());
-        hasher.update(tweak.to_be_bytes());
+        hasher.update((tweak as u32).to_be_bytes());
         let h: [u8; 16] = hasher.finalize()[..16]
             .try_into()
             .expect("Unable to convert hash to block");
