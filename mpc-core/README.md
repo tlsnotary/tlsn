@@ -1,4 +1,4 @@
-# pop-mpc-core
+# tlsn-mpc-core
 
 This crate contains core components for performing MPC, or more specifically 2PC.
 

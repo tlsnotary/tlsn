@@ -1,4 +1,4 @@
-# pop-mpc-circuits
+# tlsn-mpc-circuits
 This crate assists with converting circuits from Bristol-fashion Format to Protobuf models.
 
 ## Usage

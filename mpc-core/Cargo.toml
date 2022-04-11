@@ -1,5 +1,5 @@
 [package]
-name = "pop-mpc-core"
+name = "tlsn-mpc-core"
 version = "0.1.0"
 edition = "2018"
 

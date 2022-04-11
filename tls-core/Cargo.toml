@@ -1,5 +1,5 @@
 [package]
-name = "pop-tls-core"
+name = "tlsn-tls-core"
 version = "0.1.0"
 edition = "2018"
 
@@ -12,7 +12,7 @@ default = ["prf"]
 prf = []
 
 [dependencies]
-pop-mpc-core = { path = "../mpc-core" }
+tlsn-mpc-core = { path = "../mpc-core" }
 sha2 = { version = "0.10.1", features = ["compress"] }
 digest = { version = "0.10.3" }
 hmac = { version = "0.12.1" }
