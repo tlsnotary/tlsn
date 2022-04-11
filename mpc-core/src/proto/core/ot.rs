@@ -206,7 +206,7 @@ pub mod tests {
         #[once]
         pub fn proto_base_core_data(ot_core_data: &Data) -> ProtoData {
             ProtoData {
-                sender_setup: ot_core_data.sender_setup.clone().into(),
+                sender_setup: ot_core_data.sender_setup.into(),
                 receiver_setup: ot_core_data.receiver_setup.clone().into(),
                 sender_payload: ot_core_data.sender_payload.clone().into(),
             }
