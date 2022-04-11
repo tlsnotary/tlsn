@@ -76,7 +76,7 @@ impl CompleteGarbledCircuit {
             generator_input_labels,
             table: self.table.clone(),
             output_bits: self.output_bits.clone(),
-            public_labels: self.public_labels.clone(),
+            public_labels: self.public_labels,
         }
     }
 }
