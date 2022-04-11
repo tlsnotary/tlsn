@@ -107,7 +107,7 @@ impl<
             seeds.push([Block::random(&mut self.rng), Block::random(&mut self.rng)]);
         }
 
-        let base_send = self.base.send(&seeds.as_slice(), base_receiver_setup)?;
+        let base_send = self.base.send(seeds.as_slice(), base_receiver_setup)?;
 
         self.set_seeds(seeds);
         self.state = State::BaseSetup;
@@ -130,7 +130,7 @@ impl<
         let rngs = self
             .rngs
             .as_mut()
-            .ok_or_else(|| ExtReceiverCoreError::BaseOTNotSetup)?;
+            .ok_or(ExtReceiverCoreError::BaseOTNotSetup)?;
         for j in 0..128 {
             rngs[j][0].fill_bytes(&mut ts[j]);
             rngs[j][1].fill_bytes(&mut gs[j]);
@@ -157,10 +157,7 @@ impl<
         }
         let mut values: Vec<Block> = Vec::with_capacity(choice.len());
         let r = utils::boolvec_to_u8vec(choice);
-        let ts = self
-            .table
-            .as_ref()
-            .ok_or_else(|| ExtReceiverCoreError::NotSetup)?;
+        let ts = self.table.as_ref().ok_or(ExtReceiverCoreError::NotSetup)?;
 
         for (j, b) in choice.iter().enumerate() {
             let t: [u8; 16] = ts[j].clone().try_into().unwrap();

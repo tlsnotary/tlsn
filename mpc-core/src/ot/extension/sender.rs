@@ -113,7 +113,7 @@ impl<C: BlockCipher<BlockSize = U16> + BlockEncrypt, OT: ReceiveCore> ExtSendCor
         let rngs = self
             .rngs
             .as_mut()
-            .ok_or_else(|| ExtSenderCoreError::BaseOTNotSetup)?;
+            .ok_or(ExtSenderCoreError::BaseOTNotSetup)?;
 
         for j in 0..128 {
             rngs[j].fill_bytes(&mut qs[j]);
@@ -130,10 +130,7 @@ impl<C: BlockCipher<BlockSize = U16> + BlockEncrypt, OT: ReceiveCore> ExtSendCor
         if self.state < State::Setup {
             return Err(ExtSenderCoreError::NotSetup);
         }
-        let table = self
-            .table
-            .as_ref()
-            .ok_or_else(|| ExtSenderCoreError::NotSetup)?;
+        let table = self.table.as_ref().ok_or(ExtSenderCoreError::NotSetup)?;
 
         let mut encrypted_values: Vec<[Block; 2]> = Vec::with_capacity(table.len());
 
