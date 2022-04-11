@@ -40,7 +40,7 @@ fn main() {
     input.reverse();
 
     // Convert raw values to CircuitInputs, which indicate what input wire each value corresponds to
-    let generator_inputs = input
+    let generator_inputs: Vec<CircuitInput> = input
         .into_iter()
         .enumerate()
         .map(|(id, value)| CircuitInput { id, value })
