@@ -75,23 +75,23 @@ impl GarbledCircuitEvaluator for HalfGateEvaluator {
         for gate in circ.gates.iter() {
             match *gate {
                 Gate::Inv { xref, zref, .. } => {
-                    let x = cache[xref].ok_or_else(|| EvaluatorError::UninitializedLabel(xref))?;
+                    let x = cache[xref].ok_or(EvaluatorError::UninitializedLabel(xref))?;
                     let z = self.inv_gate(x, gc.public_labels[1]);
                     cache[zref] = Some(z);
                 }
                 Gate::Xor {
                     xref, yref, zref, ..
                 } => {
-                    let x = cache[xref].ok_or_else(|| EvaluatorError::UninitializedLabel(xref))?;
-                    let y = cache[yref].ok_or_else(|| EvaluatorError::UninitializedLabel(yref))?;
+                    let x = cache[xref].ok_or(EvaluatorError::UninitializedLabel(xref))?;
+                    let y = cache[yref].ok_or(EvaluatorError::UninitializedLabel(yref))?;
                     let z = self.xor_gate(x, y);
                     cache[zref] = Some(z);
                 }
                 Gate::And {
                     xref, yref, zref, ..
                 } => {
-                    let x = cache[xref].ok_or_else(|| EvaluatorError::UninitializedLabel(xref))?;
-                    let y = cache[yref].ok_or_else(|| EvaluatorError::UninitializedLabel(yref))?;
+                    let x = cache[xref].ok_or(EvaluatorError::UninitializedLabel(xref))?;
+                    let y = cache[yref].ok_or(EvaluatorError::UninitializedLabel(yref))?;
                     let z = self.and_gate(c, x, y, gc.table[gid - 1], gid);
                     cache[zref] = Some(z);
                     gid += 1;
