@@ -50,6 +50,12 @@ impl HalfGateEvaluator {
     }
 }
 
+impl Default for HalfGateEvaluator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GarbledCircuitEvaluator for HalfGateEvaluator {
     fn eval<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
         &self,
