@@ -55,6 +55,12 @@ impl HalfGateGenerator {
     }
 }
 
+impl Default for HalfGateGenerator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GarbledCircuitGenerator for HalfGateGenerator {
     fn garble<R: Rng + CryptoRng, C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
         &self,
