@@ -81,24 +81,19 @@ impl Circuit {
                 Gate::Xor {
                     xref, yref, zref, ..
                 } => {
-                    let x =
-                        wires[xref].ok_or_else(|| CircuitEvalError::UninitializedValue(xref))?;
-                    let y =
-                        wires[yref].ok_or_else(|| CircuitEvalError::UninitializedValue(yref))?;
+                    let x = wires[xref].ok_or(CircuitEvalError::UninitializedValue(xref))?;
+                    let y = wires[yref].ok_or(CircuitEvalError::UninitializedValue(yref))?;
                     (zref, x ^ y)
                 }
                 Gate::And {
                     xref, yref, zref, ..
                 } => {
-                    let x =
-                        wires[xref].ok_or_else(|| CircuitEvalError::UninitializedValue(xref))?;
-                    let y =
-                        wires[yref].ok_or_else(|| CircuitEvalError::UninitializedValue(yref))?;
+                    let x = wires[xref].ok_or(CircuitEvalError::UninitializedValue(xref))?;
+                    let y = wires[yref].ok_or(CircuitEvalError::UninitializedValue(yref))?;
                     (zref, x & y)
                 }
                 Gate::Inv { xref, zref, .. } => {
-                    let x =
-                        wires[xref].ok_or_else(|| CircuitEvalError::UninitializedValue(xref))?;
+                    let x = wires[xref].ok_or(CircuitEvalError::UninitializedValue(xref))?;
                     (zref, !x)
                 }
             };
