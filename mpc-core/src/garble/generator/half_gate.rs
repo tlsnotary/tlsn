@@ -77,35 +77,35 @@ impl GarbledCircuitGenerator for HalfGateGenerator {
         let mut table: Vec<[Block; 2]> = Vec::with_capacity(circ.nand);
         let mut cache: Vec<Option<[Block; 2]>> = vec![None; circ.nwires];
 
-        for i in 0..circ.ninput_wires {
+        for wire in cache.iter_mut().take(circ.ninput_wires) {
             let z_0 = Block::random(rng);
             let z_1 = z_0 ^ delta;
             let z = [z_0, z_1];
             input_labels.push(z);
-            cache[i] = Some(z);
+            *wire = Some(z);
         }
 
         let mut gid = 1;
         for gate in circ.gates.iter() {
             match *gate {
                 Gate::Inv { xref, zref, .. } => {
-                    let x = cache[xref].ok_or_else(|| GeneratorError::UninitializedLabel(xref))?;
+                    let x = cache[xref].ok_or(GeneratorError::UninitializedLabel(xref))?;
                     let z = self.inv_gate(x, public_labels, delta);
                     cache[zref] = Some(z);
                 }
                 Gate::Xor {
                     xref, yref, zref, ..
                 } => {
-                    let x = cache[xref].ok_or_else(|| GeneratorError::UninitializedLabel(xref))?;
-                    let y = cache[yref].ok_or_else(|| GeneratorError::UninitializedLabel(yref))?;
+                    let x = cache[xref].ok_or(GeneratorError::UninitializedLabel(xref))?;
+                    let y = cache[yref].ok_or(GeneratorError::UninitializedLabel(yref))?;
                     let z = self.xor_gate(x, y, delta);
                     cache[zref] = Some(z);
                 }
                 Gate::And {
                     xref, yref, zref, ..
                 } => {
-                    let x = cache[xref].ok_or_else(|| GeneratorError::UninitializedLabel(xref))?;
-                    let y = cache[yref].ok_or_else(|| GeneratorError::UninitializedLabel(yref))?;
+                    let x = cache[xref].ok_or(GeneratorError::UninitializedLabel(xref))?;
+                    let y = cache[yref].ok_or(GeneratorError::UninitializedLabel(yref))?;
                     let (z, t) = self.and_gate(c, x, y, delta, gid);
                     table.push(t);
                     cache[zref] = Some(z);
@@ -115,8 +115,12 @@ impl GarbledCircuitGenerator for HalfGateGenerator {
         }
 
         let mut output_bits: Vec<bool> = Vec::with_capacity(circ.noutput_wires);
-        for i in (circ.nwires - circ.noutput_wires)..circ.nwires {
-            output_bits.push(cache[i].unwrap()[0].lsb() != 0);
+        for wire in cache
+            .iter()
+            .take(circ.nwires)
+            .skip(circ.nwires - circ.noutput_wires)
+        {
+            output_bits.push(wire.unwrap()[0].lsb() != 0);
         }
 
         Ok(CompleteGarbledCircuit::new(
