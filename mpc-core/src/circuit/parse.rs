@@ -109,7 +109,7 @@ impl Circuit {
             ngates,
             nwires,
             ninputs,
-            input_nwires.clone(),
+            input_nwires,
             ninput_wires,
             noutput_wires,
         );
