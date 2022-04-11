@@ -7,12 +7,12 @@ use sha2::{Digest, Sha256};
 use std::convert::{From, TryInto};
 
 #[repr(transparent)]
-#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Block(u128);
 
 pub const BLOCK_LEN: usize = 16;
-pub const BLOCK_ZERO: Block = Block { 0: 0 };
-pub const BLOCK_ONES: Block = Block { 0: u128::MAX };
+pub const BLOCK_ZERO: Block = Block(0);
+pub const BLOCK_ONES: Block = Block(u128::MAX);
 pub const SELECT_MASK: [Block; 2] = [BLOCK_ZERO, BLOCK_ONES];
 
 impl Block {
@@ -111,12 +111,6 @@ impl Block {
             .as_slice()
             .try_into()
             .expect("Could not convert block into bit array")
-    }
-}
-
-impl Default for Block {
-    fn default() -> Self {
-        Self(0)
     }
 }
 
