@@ -90,7 +90,7 @@ impl From<circuit::Circuit> for Circuit {
             input_nwires: c.input_nwires.into_iter().map(|n| n as u32).collect(),
             ninput_wires: c.ninput_wires as u32,
             noutput_wires: c.noutput_wires as u32,
-            gates: c.gates.into_iter().map(|g| Gate::from(g)).collect(),
+            gates: c.gates.into_iter().map(Gate::from).collect(),
             nand: c.nand as u32,
             nxor: c.nxor as u32,
         }

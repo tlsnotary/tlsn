@@ -117,7 +117,7 @@ impl From<ot::ReceiverSetup> for ReceiverSetup {
             keys: s
                 .keys
                 .into_iter()
-                .map(|k| super::RistrettoPoint::from(k))
+                .map(super::RistrettoPoint::from)
                 .collect(),
         }
     }

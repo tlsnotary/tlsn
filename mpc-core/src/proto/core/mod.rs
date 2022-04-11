@@ -44,7 +44,7 @@ impl TryInto<curve25519_dalek::ristretto::RistrettoPoint> for RistrettoPoint {
 
     #[inline]
     fn try_into(self) -> Result<curve25519_dalek::ristretto::RistrettoPoint, Self::Error> {
-        Ok(parse_ristretto_key(self.point)?)
+        parse_ristretto_key(self.point)
     }
 }
 

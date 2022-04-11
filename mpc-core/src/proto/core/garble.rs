@@ -30,7 +30,7 @@ impl From<circuit::GarbledCircuit> for GarbledCircuit {
             generator_input_labels: c
                 .generator_input_labels
                 .into_iter()
-                .map(|l| InputLabel::from(l))
+                .map(InputLabel::from)
                 .collect(),
             table: c
                 .table
@@ -56,7 +56,7 @@ impl From<GarbledCircuit> for circuit::GarbledCircuit {
             generator_input_labels: c
                 .generator_input_labels
                 .into_iter()
-                .map(|label| circuit::InputLabel::from(label))
+                .map(circuit::InputLabel::from)
                 .collect(),
             table: c
                 .table
