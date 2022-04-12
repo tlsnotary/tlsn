@@ -149,6 +149,6 @@ mod tests {
         let circ = Circuit::load("circuits/protobuf/aes_128_reverse.bin").unwrap();
         let half_gate = HalfGateGenerator::new();
 
-        let gc = half_gate.garble(&mut cipher, &mut rng, &circ);
+        let _ = half_gate.garble(&mut cipher, &mut rng, &circ);
     }
 }

@@ -76,7 +76,7 @@ mod tests {
     fn test_transpose() {
         let mut rng = ChaCha12Rng::from_entropy();
         let a: Vec<Vec<u8>> = (0..256)
-            .map(|i| Vec::from(Block::random(&mut rng).to_be_bytes()))
+            .map(|_| Vec::from(Block::random(&mut rng).to_be_bytes()))
             .collect();
         let b = transpose(&a);
         assert_eq!(a, transpose(&b));

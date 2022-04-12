@@ -108,7 +108,7 @@ fn test_aes_128() {
 
     let gc = gc.to_public(&generator_inputs);
     let outputs = ev
-        .eval(&mut cipher, &circ, &gc, evaluator_input_labels)
+        .eval(&mut cipher, &circ, &gc, &evaluator_input_labels)
         .unwrap();
 
     let expected = circ

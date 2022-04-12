@@ -76,7 +76,7 @@ impl Circuit {
             wires[input.id] = Some(input.value);
         }
 
-        for (i, gate) in self.gates.iter().enumerate() {
+        for gate in self.gates.iter() {
             let (zref, val) = match *gate {
                 Gate::Xor {
                     xref, yref, zref, ..

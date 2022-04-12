@@ -12,6 +12,6 @@ impl Circuit {
     pub fn load(filename: &str) -> Result<Self, CircuitLoadError> {
         let file = read(filename)?;
         let circ = ProtoCircuit::decode(file.as_slice())?;
-        Circuit::try_from(circ).map_err(|e| CircuitLoadError::MappingError)
+        Circuit::try_from(circ).map_err(|_| CircuitLoadError::MappingError)
     }
 }

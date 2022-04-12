@@ -62,7 +62,7 @@ pub mod tests {
         pub fn values() -> Vec<[Block; 2]> {
             let mut rng = thread_rng();
             (0..128)
-                .map(|i| [Block::random(&mut rng), Block::random(&mut rng)])
+                .map(|_| [Block::random(&mut rng), Block::random(&mut rng)])
                 .collect()
         }
 
@@ -91,7 +91,7 @@ pub mod tests {
     fn test_ot() {
         let mut rng = thread_rng();
         let s_inputs: Vec<[Block; 2]> = (0..128)
-            .map(|i| [Block::random(&mut rng), Block::random(&mut rng)])
+            .map(|_| [Block::random(&mut rng), Block::random(&mut rng)])
             .collect();
         let mut choice = vec![0u8; 16];
         rng.fill_bytes(&mut choice);

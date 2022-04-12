@@ -50,7 +50,7 @@ fn main() {
     let gc = complete_gc.to_public(&generator_inputs);
 
     // Here we'll manually put together the evaluators input labels, this is usually retrieved using oblivious transfer
-    let evaluator_input_labels = key
+    let evaluator_input_labels: Vec<InputLabel> = key
         .into_iter()
         .zip(complete_gc.input_labels[128..256].iter())
         .enumerate()
@@ -61,7 +61,7 @@ fn main() {
         .collect();
 
     let outputs = ev
-        .eval(&mut cipher, &circ, &gc, evaluator_input_labels)
+        .eval(&mut cipher, &circ, &gc, &evaluator_input_labels)
         .unwrap();
 
     let mut ciphertext = boolvec_to_u8vec(&outputs);

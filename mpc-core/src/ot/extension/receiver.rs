@@ -103,7 +103,7 @@ impl<
         base_receiver_setup: BaseReceiverSetup,
     ) -> Result<BaseSenderPayload, ExtReceiverCoreError> {
         let mut seeds: Vec<[Block; 2]> = Vec::with_capacity(128);
-        for i in 0..128 {
+        for _ in 0..128 {
             seeds.push([Block::random(&mut self.rng), Block::random(&mut self.rng)]);
         }
 
@@ -156,7 +156,6 @@ impl<
             return Err(ExtReceiverCoreError::NotSetup);
         }
         let mut values: Vec<Block> = Vec::with_capacity(choice.len());
-        let r = utils::boolvec_to_u8vec(choice);
         let ts = self.table.as_ref().ok_or(ExtReceiverCoreError::NotSetup)?;
 
         for (j, b) in choice.iter().enumerate() {
