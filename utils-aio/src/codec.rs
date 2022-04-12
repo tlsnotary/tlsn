@@ -72,9 +72,9 @@ where
         let b = self.inner.decode(buf)?;
         if let Some(b) = b {
             let item: U = Message::decode(b)?;
-            return Ok(Some(T::try_from(item)?));
+            Ok(Some(T::try_from(item)?))
         } else {
-            return Ok(None);
+            Ok(None)
         }
     }
 }
