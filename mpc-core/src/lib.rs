@@ -1,5 +1,3 @@
-#![allow(unused_variables)]
-
 pub mod block;
 #[cfg(feature = "garble")]
 pub mod circuit;

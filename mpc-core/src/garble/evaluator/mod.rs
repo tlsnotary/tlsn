@@ -14,6 +14,6 @@ pub trait GarbledCircuitEvaluator {
         c: &mut C,
         circ: &Circuit,
         gc: &GarbledCircuit,
-        input_labels: Vec<InputLabel>,
+        input_labels: &[InputLabel],
     ) -> Result<Vec<bool>, EvaluatorError>;
 }

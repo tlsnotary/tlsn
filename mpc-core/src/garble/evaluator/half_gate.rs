@@ -62,12 +62,12 @@ impl GarbledCircuitEvaluator for HalfGateEvaluator {
         c: &mut C,
         circ: &Circuit,
         gc: &GarbledCircuit,
-        input_labels: Vec<InputLabel>,
+        input_labels: &[InputLabel],
     ) -> Result<Vec<bool>, EvaluatorError> {
         let mut cache: Vec<Option<Block>> = vec![None; circ.nwires];
 
         // todo: assert that inputs are correctly sized and do not overlap
-        for input_label in [gc.generator_input_labels.clone(), input_labels].concat() {
+        for input_label in [gc.generator_input_labels.clone(), input_labels.to_vec()].concat() {
             cache[input_label.id] = Some(input_label.label);
         }
 
