@@ -46,7 +46,7 @@ where
 
         let choice: Vec<bool> = inputs.iter().map(|input| input.value).collect();
         let input_labels = ot.receive(choice.as_slice()).await.unwrap();
-        let input_labels = input_labels
+        let input_labels: Vec<InputLabel> = input_labels
             .into_iter()
             .zip(inputs.iter())
             .map(|(label, input)| InputLabel {
@@ -56,7 +56,7 @@ where
             .collect();
 
         let values = ev
-            .eval(&mut cipher, circ, &gc.into(), input_labels)
+            .eval(&mut cipher, circ, &gc.into(), &input_labels)
             .unwrap();
 
         Ok(values)
