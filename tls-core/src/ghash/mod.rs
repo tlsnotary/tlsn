@@ -3,6 +3,7 @@
 mod common;
 mod errors;
 mod receiver;
+mod receiver_tls;
 mod sender;
 mod utils;
 
