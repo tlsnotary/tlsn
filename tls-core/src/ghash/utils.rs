@@ -1,14 +1,12 @@
-#![allow(dead_code)]
-
 use crate::ghash::{MXTableFull, YBits};
 use mpc_core::utils::u8vec_to_boolvec;
 use rand::{CryptoRng, Rng};
 use std::collections::BTreeMap;
 
-// R is GCM polynomial in little-endian. In hex: "E1000000000000000000000000000000"
+/// R is GCM polynomial in little-endian. In hex: "E1000000000000000000000000000000"
 const R: u128 = 299076299051606071403356588563077529600;
 
-// Galois field multiplication of two 128-bit blocks reduced by the GCM polynomial
+/// Galois field multiplication of two 128-bit blocks reduced by the GCM polynomial
 pub fn block_mult(mut x: u128, y: u128) -> u128 {
     let mut result: u128 = 0;
     for i in (0..128).rev() {
@@ -18,18 +16,18 @@ pub fn block_mult(mut x: u128, y: u128) -> u128 {
     result
 }
 
-// free_square squares a value. It is called "free" because due to the
-// property of Galois multiplication, squaring can be done locally without
-// the need for 2PC.
+/// Returns the squared value. It is called "free" because due to the
+/// property of Galois multiplication, squaring can be done locally without
+/// the need for 2PC.
 pub fn free_square(x: u128) -> u128 {
     block_mult(x, x)
 }
 
-// square_all performs squaring of each odd power in "powers" up to and including
-// the maximum power "max" and returns an updated map of powers. Squaring
-// will be done recursively if needed, e.g if we have power == 1 and "max" is 22,
-// then 1 will be squared to get power == 2, then 2 -> 4, 4 -> 8, 8 -> 16.
-// Those powers which have already been squared will be skipped.
+/// Performs squaring of each odd power in "powers" up to and including
+/// the maximum power "max" and returns an updated map of powers. Squaring
+/// will be done recursively if needed, e.g if we have power == 1 and "max" is 22,
+/// then 1 will be squared to get power == 2, then 2 -> 4, 4 -> 8, 8 -> 16.
+/// Those powers which have already been squared will be skipped.
 pub fn square_all(powers: &BTreeMap<u16, u128>, max: u16) -> BTreeMap<u16, u128> {
     let mut new_powers: BTreeMap<u16, u128> = BTreeMap::new();
     for (power, value) in powers.iter() {
@@ -59,10 +57,10 @@ pub fn square_all(powers: &BTreeMap<u16, u128>, max: u16) -> BTreeMap<u16, u128>
     new_powers
 }
 
-// find_sum finds 2 non-equal summands which add up to the needed sum. The
-// first returned summand will be as small as possible.
-// E.g if "summands" keys are 1,2,3,5,6 and "sum_needed" is 8, then
-// the returned value would be (2,6).
+/// Finds 2 non-equal summands which add up to the needed sum. The
+/// first returned summand will be as small as possible.
+/// E.g if "summands" keys are 1,2,3,5,6 and "sum_needed" is 8, then
+/// the returned value would be (2,6).
 pub fn find_sum(summands: &BTreeMap<u16, u128>, sum_needed: u16) -> (u16, u16) {
     for (i, _) in summands.iter() {
         for (j, _) in summands.iter() {
@@ -79,9 +77,9 @@ pub fn find_sum(summands: &BTreeMap<u16, u128>, sum_needed: u16) -> (u16, u16) {
     panic!("summands were not found")
 }
 
-// find_max_odd_power returns the maximum odd power that we'll need to compute
-// GHASH in 2PC using Block Aggregation, where "max" is maximum power for GHASH
-// (i.e it is the amount of GHASH blocks).
+/// Returns the maximum odd power that we'll need to compute GHASH in 2PC
+/// using Block Aggregation, where "max" is maximum power for GHASH
+/// (i.e it is the amount of GHASH blocks).
 pub fn find_max_odd_power(max: u16) -> u8 {
     assert!(max <= 1026);
     // max_htable's <value> shows how many GHASH blocks can be processed
@@ -120,10 +118,10 @@ pub fn find_max_odd_power(max: u16) -> u8 {
     out
 }
 
-// multiply_powers_and_blocks multiplies GHASH blocks by corresponding shares of
-// powers of H and returns a sum of all products. If some share is not present, the
-// corresponding block is not multiplied at this stage but it will later
-// participate in block aggregation.
+/// Multiplies GHASH blocks by the corresponding shares of powers of H and
+/// returns the sum of all products. If some share is not present, the
+/// corresponding block is not multiplied at this stage but it will later
+/// participate in block aggregation.
 pub fn multiply_powers_and_blocks(powers: &BTreeMap<u16, u128>, blocks: &Vec<u128>) -> u128 {
     let last_key = *powers.iter().last().unwrap().0;
     assert!(last_key as usize <= blocks.len());
@@ -136,16 +134,14 @@ pub fn multiply_powers_and_blocks(powers: &BTreeMap<u16, u128>, blocks: &Vec<u12
     sum
 }
 
-// block_aggregation implements the Block aggregation method.
-// The assumption is that we already have shares of powers H^1, H^2, H^3 from
-// Client_Finished at this stage
+/// Implements the block aggregation method.
 pub fn block_aggregation(
     powers: &BTreeMap<u16, u128>,
     blocks: &Vec<u128>,
 ) -> (BTreeMap<u16, u128>, u128) {
     let mut ghash_share = 0u128;
     let mut aggregated: BTreeMap<u16, u128> = BTreeMap::new();
-    for i in 4..blocks.len() + 1 {
+    for i in 1..blocks.len() + 1 {
         if powers.get(&(i as u16)) != None {
             // we already multiplied the block with this share of power in
             // multiply_powers_and_blocks()
@@ -158,7 +154,7 @@ pub fn block_aggregation(
             block_mult(*powers.get(&small).unwrap(), *powers.get(&big).unwrap()),
             block,
         );
-        // init value if doesn't exist
+        // initialize the value if it doesn't exist
         if aggregated.get(&small) == None {
             aggregated.insert(small, 0u128);
         }
@@ -172,15 +168,14 @@ pub fn block_aggregation(
     (aggregated, ghash_share)
 }
 
-// block_aggregation_bits returns YBits which Receiver needs to complete
-// Block Aggregation
+/// Returns YBits which Master needs to complete Block Aggregation.
 pub fn block_aggregation_bits(
     powers: &BTreeMap<u16, u128>,
     aggregated: &BTreeMap<u16, u128>,
 ) -> Vec<YBits> {
     let mut all_bits: Vec<YBits> = Vec::new();
     for (power, value) in aggregated.iter() {
-        // Receiver sends first bits of power then bits of value. Sender sends
+        // Master sends first bits of power then bits of value. Slave sends
         // masked x tables in reverse order.
         all_bits.push(u8vec_to_boolvec(
             &(*powers.get(power).unwrap()).to_be_bytes(),
@@ -190,8 +185,7 @@ pub fn block_aggregation_bits(
     all_bits
 }
 
-// block_aggregation_mxtables returns masked XTables which Sender needs to
-// complete Block Aggregation.
+/// Returns masked X tables which Slave needs to complete Block Aggregation.
 pub fn block_aggregation_mxtables<R: Rng + CryptoRng>(
     rng: &mut R,
     powers: &BTreeMap<u16, u128>,
@@ -200,7 +194,7 @@ pub fn block_aggregation_mxtables<R: Rng + CryptoRng>(
     let mut all_mxtables: Vec<MXTableFull> = Vec::new();
     let mut sum = 0u128;
     for (power, value) in aggregated.iter() {
-        // Sender sends first masked x table of agregated value then masked x
+        // Slave sends first masked x table of agregated value then masked x
         // table of power value.
         let (mxtable1, sum1) = masked_xtable(rng, *value);
         let (mxtable2, sum2) = masked_xtable(rng, *powers.get(power).unwrap());
@@ -211,7 +205,7 @@ pub fn block_aggregation_mxtables<R: Rng + CryptoRng>(
     (all_mxtables, sum)
 }
 
-// return a table of values of x after each of the 128 rounds of blockMult()
+/// Returns a table of values of x after each of the 128 rounds of blockMult()
 fn xtable(mut x: u128) -> Vec<u128> {
     let mut x_table: Vec<u128> = vec![0u128; 128];
     for i in 0..128 {
@@ -221,12 +215,12 @@ fn xtable(mut x: u128) -> Vec<u128> {
     x_table
 }
 
-// masked_xtable returns:
-// 1) a masked xTable from which OT response will be constructed and
-// 2) the XOR-sum of all masks which is our share of the block multiplication product
-// For each value of xTable, the masked xTable will contain 2 values:
-// 1) a random mask and
-// 2) the xTable entry masked with the random mask.
+/// Returns:
+/// 1) a masked xTable from which OT response will be constructed and
+/// 2) the XOR-sum of all masks which is our share of the block multiplication product
+/// For each value of xTable, the masked xTable will contain 2 values:
+/// 1) a random mask and
+/// 2) the xTable entry masked with the random mask.
 pub fn masked_xtable<R: Rng + CryptoRng>(rng: &mut R, x: u128) -> (MXTableFull, u128) {
     let x_table = xtable(x);
     // maskSum is the xor sum of all masks
@@ -241,9 +235,22 @@ pub fn masked_xtable<R: Rng + CryptoRng>(rng: &mut R, x: u128) -> (MXTableFull, 
     (masked_xtable, mask_sum)
 }
 
-// xor_sum returns an XOR sum of all elements of the vector
+/// Returns the XOR sum of all elements of the vector.
 pub fn xor_sum(vec: &Vec<u128>) -> u128 {
     vec.iter().fold(0u128, |acc, x| acc ^ x)
+}
+
+/// Converts a flat vector into a vector of chunks of the needed size.
+pub fn flat_to_chunks<T>(flat: &Vec<T>, chunk_size: usize) -> Vec<Vec<T>>
+where
+    T: Clone,
+{
+    let count = flat.len() / chunk_size;
+    let mut vec_chunks: Vec<Vec<T>> = Vec::with_capacity(count);
+    for chunk in flat.chunks(chunk_size) {
+        vec_chunks.push(chunk.to_vec());
+    }
+    vec_chunks
 }
 
 #[cfg(test)]
@@ -253,7 +260,9 @@ mod tests {
         universal_hash::{NewUniversalHash, UniversalHash},
         GHash,
     };
+    use rand::SeedableRng;
     use rand::{thread_rng, Rng};
+    use rand_chacha::ChaCha12Rng;
     use std::convert::TryInto;
 
     #[test]
@@ -437,8 +446,6 @@ mod tests {
 
     #[test]
     fn test_block_aggregation_mxtables() {
-        use rand::SeedableRng;
-        use rand_chacha::ChaCha12Rng;
         let mut rng = ChaCha12Rng::seed_from_u64(12345);
 
         let mut powers_map: BTreeMap<u16, u128> = BTreeMap::new();
@@ -485,15 +492,16 @@ mod tests {
 
     #[test]
     fn test_masked_xtable() {
-        use rand::thread_rng;
         let mut rng = thread_rng();
         let x: u128 = rng.gen();
         let y: u128 = rng.gen();
         let expected = block_mult(x, y);
         assert_eq!(expected, product_from_shares(x, y));
 
-        // corrupt one of the last byte of y value
+        // corrupt some bytes of y value
         let mut bad_bytes = y.to_be_bytes();
+        bad_bytes[5] = (bad_bytes[5] + 1) / 255;
+        bad_bytes[10] = (bad_bytes[10] + 1) / 255;
         bad_bytes[15] = (bad_bytes[15] + 1) / 255;
         let bad = u128::from_be_bytes(bad_bytes);
         assert_ne!(expected, product_from_shares(x, bad));

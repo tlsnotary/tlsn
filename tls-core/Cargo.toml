@@ -17,6 +17,7 @@ sha2 = { version = "0.10.1", features = ["compress"] }
 digest = { version = "0.10.3" }
 hmac = { version = "0.12.1" }
 rand = "0.8.5"
+thiserror = "1.0.30"
 
 [dev-dependencies]
 criterion = "0.3.5"

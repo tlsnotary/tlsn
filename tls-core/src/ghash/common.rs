@@ -1,7 +1,8 @@
-use super::utils::{find_max_odd_power, square_all};
+use super::errors::*;
+use super::utils::{find_max_odd_power, find_sum, square_all};
 use std::collections::BTreeMap;
 
-// GhashCommon is common to both GhashSender and GhashReceiver
+// GhashCommon is common to both Master and Slave
 pub struct GhashCommon {
     // blocks are input blocks for GHASH. In TLS the first block is AAD,
     // the middle blocks are AES blocks - the ciphertext, the last block
@@ -16,10 +17,15 @@ pub struct GhashCommon {
     pub max_odd_power: u8,
     // strategies are initialized in ::new(). See comments there.
     pub strategies: [BTreeMap<u8, [u8; 2]>; 2],
+    // temp_share is used to save an intermediate GHASH share
+    pub temp_share: u128,
 }
 
 impl GhashCommon {
-    pub fn new(ghash_key_share: u128, blocks: Vec<u128>) -> Self {
+    pub fn new(ghash_key_share: u128, blocks: Vec<u128>) -> Result<Self, GhashError> {
+        if blocks.len() < 3 || blocks.len() > 1026 {
+            return Err(GhashError::BlockCountWrong);
+        }
         let mut powers = BTreeMap::new();
         // GHASH key is our share H^1
         powers.insert(1, ghash_key_share);
@@ -64,11 +70,82 @@ impl GhashCommon {
             (35, [19, 16]),
         ]);
 
-        Self {
+        Ok(Self {
             max_odd_power,
             blocks,
             powers,
             strategies: [strategy1, strategy2],
+            temp_share: 0u128,
+        })
+    }
+
+    /// Returns the amount of Oblivious Transfer instances needed to complete
+    /// the protocol. The purpose is to inform the OT layer.
+    pub fn calculate_ot_count(&mut self) -> usize {
+        let mut powers: BTreeMap<u16, u128> = BTreeMap::new();
+        // only 2 2PC multiplications in round 1
+        let r1count = 2;
+        powers.insert(1, 0u128);
+        powers.insert(2, 0u128);
+        powers.insert(3, 0u128);
+        // since we just added a few new shares of powers, we need to square them
+        self.powers = square_all(&powers, self.blocks.len() as u16);
+
+        // merge 2 strategies maps into 1
+        let strategy: BTreeMap<u8, [u8; 2]> = self.strategies[0]
+            .clone()
+            .into_iter()
+            .chain(self.strategies[1].clone())
+            .collect();
+        // number of multiplications in rounds 2 and 3
+        let mut r2and3count = 0;
+        for (key, _) in strategy.iter() {
+            if *key > self.max_odd_power {
+                break;
+            };
+            powers.insert(*key as u16, 0u128);
+            r2and3count += 2;
         }
+        // since we just added a few new shares of powers, we need to square them
+        powers = square_all(&powers, self.blocks.len() as u16);
+
+        let mut aggregated: BTreeMap<u16, u128> = BTreeMap::new();
+        for i in 1..self.blocks.len() + 1 {
+            if powers.get(&(i as u16)) != None {
+                continue;
+            }
+            let (small, _) = find_sum(&powers, i as u16);
+            // initialize the value if it doesn't exist
+            if aggregated.get(&small) == None {
+                aggregated.insert(small, 0u128);
+            }
+        }
+        let r4count = aggregated.len() * 2;
+        // each multiplication requires 128 instances of Oblivious Transfer
+        (r1count + r2and3count + r4count) * 128
+    }
+
+    pub fn export_powers(&mut self) -> BTreeMap<u16, u128> {
+        self.powers.clone()
+    }
+
+    pub fn is_round2_needed(&self) -> bool {
+        // after round 1 we will have consecutive powers 1,2,3 which is enough
+        // to compute GHASH for 19 blocks with block aggregation.
+        self.blocks.len() > 19
+    }
+
+    pub fn is_round3_needed(&self) -> bool {
+        // after round 2 we will have a max of up to 19 consequitive odd powers
+        // which allows us to get 339 powers with block aggregation, see max_htable
+        // in utils::find_max_odd_power()
+        self.blocks.len() > 339
+    }
+
+    pub fn is_only_1_round(&self) -> bool {
+        // block agregation is always used except for very small block count
+        // where powers from round 1 are sufficient to perform direct multiplication
+        // of blocks by powers
+        self.blocks.len() <= 4
     }
 }
