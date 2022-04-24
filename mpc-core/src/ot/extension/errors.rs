@@ -12,7 +12,7 @@ pub enum ExtSenderCoreError {
     NotSetup,
 }
 
-/// Errors that may occur when using OTReceiver
+/// Errors that may occur when using ExtReceiverCore
 #[derive(Debug, thiserror::Error)]
 pub enum ExtReceiverCoreError {
     /// Error originating from Base OT
@@ -24,4 +24,7 @@ pub enum ExtReceiverCoreError {
     /// OT Extension has not been setup
     #[error("Tried to receive prior to setup")]
     NotSetup,
+    /// Choice bits not derandomized
+    #[error("Tried to receive prior to beaver derandomization")]
+    NotDerandomized,
 }

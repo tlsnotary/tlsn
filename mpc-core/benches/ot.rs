@@ -46,7 +46,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             sender.extension_setup(receiver_setup).unwrap();
 
             let send = sender.send(&inputs).unwrap();
-            let receive = receiver.receive(&choice, send).unwrap();
+            let receive = receiver.receive(send).unwrap();
 
             black_box(receive);
         });

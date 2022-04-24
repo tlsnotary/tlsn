@@ -47,7 +47,7 @@ pub fn main() {
     let payload = sender.send(&inputs).unwrap();
 
     // Receiver takes the encrypted inputs and is able to decrypt according to their choice bits
-    let received = receiver.receive(&choice, payload).unwrap();
+    let received = receiver.receive(payload).unwrap();
 
     println!("Transferred messages: {:?}", received);
 }

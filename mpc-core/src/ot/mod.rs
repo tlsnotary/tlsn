@@ -10,5 +10,6 @@ pub enum Message {
     SenderPayload(SenderPayload),
     ReceiverSetup(ReceiverSetup),
     ExtReceiverSetup(ExtReceiverSetup),
+    ExtDerandomize(ExtDerandomize),
     ExtSenderPayload(ExtSenderPayload),
 }

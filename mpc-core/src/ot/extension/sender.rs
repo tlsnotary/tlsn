@@ -4,7 +4,7 @@ use rand::{CryptoRng, Rng, RngCore, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 use std::convert::TryInto;
 
-use super::{ExtReceiverSetup, ExtSendCore, ExtSenderCoreError};
+use super::{ExtDerandomize, ExtRandomSendCore, ExtReceiverSetup, ExtSendCore, ExtSenderCoreError};
 use crate::block::Block;
 use crate::ot::base::{
     ReceiverSetup as BaseReceiverSetup, SenderPayload as BaseSenderPayload,
@@ -143,6 +143,41 @@ impl<C: BlockCipher<BlockSize = U16> + BlockEncrypt, OT: ReceiveCore> ExtSendCor
             let q = Block::from(q);
             let y0 = q.hash_tweak(&mut self.cipher, j) ^ input[0];
             let y1 = (q ^ delta).hash_tweak(&mut self.cipher, j) ^ input[1];
+            encrypted_values.push([y0, y1]);
+        }
+        self.state = State::Complete;
+
+        Ok(ExtSenderPayload { encrypted_values })
+    }
+}
+
+impl<C, OT> ExtRandomSendCore for ExtSenderCore<C, OT>
+where
+    C: BlockCipher<BlockSize = U16> + BlockEncrypt,
+    OT: ReceiveCore,
+{
+    fn send(
+        &mut self,
+        inputs: &[[Block; 2]],
+        derandomize: ExtDerandomize,
+    ) -> Result<ExtSenderPayload, ExtSenderCoreError> {
+        if self.state < State::Setup {
+            return Err(ExtSenderCoreError::NotSetup);
+        }
+        let table = self.table.as_ref().ok_or(ExtSenderCoreError::NotSetup)?;
+
+        let mut encrypted_values: Vec<[Block; 2]> = Vec::with_capacity(table.len());
+
+        let base_choice: [u8; 16] = utils::boolvec_to_u8vec(&self.base_choice)
+            .try_into()
+            .unwrap();
+        let delta = Block::from(base_choice);
+        for (j, input) in inputs.iter().enumerate() {
+            let q: [u8; 16] = table[j].clone().try_into().unwrap();
+            let q = Block::from(q);
+            let flip = derandomize.flip[j];
+            let y0 = (if flip { q ^ delta } else { q }).hash_tweak(&mut self.cipher, j) ^ input[0];
+            let y1 = (if flip { q } else { q ^ delta }).hash_tweak(&mut self.cipher, j) ^ input[1];
             encrypted_values.push([y0, y1]);
         }
         self.state = State::Complete;

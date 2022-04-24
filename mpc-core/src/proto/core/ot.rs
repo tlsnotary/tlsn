@@ -24,6 +24,9 @@ impl From<ot::Message> for Message {
                 ot::Message::ExtReceiverSetup(msg) => {
                     message::Msg::ExtReceiverSetup(ExtReceiverSetup::from(msg))
                 }
+                ot::Message::ExtDerandomize(msg) => {
+                    message::Msg::ExtDerandomize(ExtDerandomize::from(msg))
+                }
                 ot::Message::ExtSenderPayload(msg) => {
                     message::Msg::ExtSenderPayload(ExtSenderPayload::from(msg))
                 }
@@ -49,6 +52,9 @@ impl TryFrom<Message> for ot::Message {
                 }
                 message::Msg::ExtReceiverSetup(msg) => {
                     ot::Message::ExtReceiverSetup(ot::ExtReceiverSetup::from(msg))
+                }
+                message::Msg::ExtDerandomize(msg) => {
+                    ot::Message::ExtDerandomize(ot::ExtDerandomize::from(msg))
                 }
                 message::Msg::ExtSenderPayload(msg) => {
                     ot::Message::ExtSenderPayload(ot::ExtSenderPayload::from(msg))
@@ -154,6 +160,20 @@ impl From<ExtReceiverSetup> for ot::ExtReceiverSetup {
             ncols: s.ncols as usize,
             table: s.table,
         }
+    }
+}
+
+impl From<ot::ExtDerandomize> for ExtDerandomize {
+    #[inline]
+    fn from(d: ot::ExtDerandomize) -> Self {
+        Self { flip: d.flip }
+    }
+}
+
+impl From<ExtDerandomize> for ot::ExtDerandomize {
+    #[inline]
+    fn from(d: ExtDerandomize) -> Self {
+        Self { flip: d.flip }
     }
 }
 
