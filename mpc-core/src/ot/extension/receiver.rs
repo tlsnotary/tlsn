@@ -44,49 +44,6 @@ pub struct ExtDerandomize {
     pub flip: Vec<bool>,
 }
 
-fn setup(rngs: &mut [[ChaCha12Rng; 2]], choice: &[bool]) -> (Vec<Vec<u8>>, Vec<Vec<u8>>, usize) {
-    let r = utils::boolvec_to_u8vec(choice);
-    let m = choice.len();
-    let ncols = if m % 8 != 0 { m + (8 - m % 8) } else { m };
-    let mut ts: Vec<Vec<u8>> = vec![vec![0u8; ncols / 8]; 128];
-    let mut gs: Vec<Vec<u8>> = vec![vec![0u8; ncols / 8]; 128];
-
-    for j in 0..128 {
-        rngs[j][0].fill_bytes(&mut ts[j]);
-        rngs[j][1].fill_bytes(&mut gs[j]);
-        gs[j] = gs[j]
-            .iter()
-            .zip(&ts[j])
-            .zip(&r)
-            .map(|((g, t), r)| *g ^ *t ^ *r)
-            .collect();
-    }
-    (ts, gs, ncols)
-}
-
-fn receive<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
-    cipher: &mut C,
-    ts: &[Vec<u8>],
-    encrypted_values: &[[Block; 2]],
-    choice: &[bool],
-) -> Vec<Block> {
-    let mut values: Vec<Block> = Vec::with_capacity(choice.len());
-
-    for (j, b) in choice.iter().enumerate() {
-        let t: [u8; 16] = ts[j].clone().try_into().unwrap();
-        let t = Block::from(t);
-        let y = if *b {
-            encrypted_values[j][1]
-        } else {
-            encrypted_values[j][0]
-        };
-        let y = y ^ t.hash_tweak(cipher, j);
-        values.push(y);
-    }
-
-    values
-}
-
 impl Default for ExtReceiverCore<ChaCha12Rng, Aes128, SenderCore<ChaCha12Rng>> {
     fn default() -> Self {
         Self::new(
@@ -172,12 +129,27 @@ where
         if State::BaseSetup != self.state {
             return Err(ExtReceiverCoreError::BaseOTNotSetup);
         }
-        let mut rngs = self
+        let rngs = self
             .rngs
             .as_mut()
             .ok_or(ExtReceiverCoreError::BaseOTNotSetup)?;
 
-        let (ts, gs, ncols) = setup(&mut rngs, choice);
+        let r = utils::boolvec_to_u8vec(choice);
+        let m = choice.len();
+        let ncols = if m % 8 != 0 { m + (8 - m % 8) } else { m };
+        let mut ts: Vec<Vec<u8>> = vec![vec![0u8; ncols / 8]; 128];
+        let mut gs: Vec<Vec<u8>> = vec![vec![0u8; ncols / 8]; 128];
+
+        for j in 0..128 {
+            rngs[j][0].fill_bytes(&mut ts[j]);
+            rngs[j][1].fill_bytes(&mut gs[j]);
+            gs[j] = gs[j]
+                .iter()
+                .zip(&ts[j])
+                .zip(&r)
+                .map(|((g, t), r)| *g ^ *t ^ *r)
+                .collect();
+        }
         self.table = Some(utils::transpose(&ts));
         self.choice = Some(Vec::from(choice));
         self.state = State::Setup;
@@ -191,7 +163,19 @@ where
         }
         let choice = self.choice.as_ref().ok_or(ExtReceiverCoreError::NotSetup)?;
         let ts = self.table.as_ref().ok_or(ExtReceiverCoreError::NotSetup)?;
-        let values = receive(&mut self.cipher, ts, &payload.encrypted_values, choice);
+        let mut values: Vec<Block> = Vec::with_capacity(choice.len());
+
+        for (j, b) in choice.iter().enumerate() {
+            let t: [u8; 16] = ts[j].clone().try_into().unwrap();
+            let t = Block::from(t);
+            let y = if *b {
+                payload.encrypted_values[j][1]
+            } else {
+                payload.encrypted_values[j][0]
+            };
+            let y = y ^ t.hash_tweak(&mut self.cipher, j);
+            values.push(y);
+        }
         self.state = State::Complete;
 
         Ok(values)
