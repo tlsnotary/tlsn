@@ -99,7 +99,7 @@ pub trait ExtRandomReceiveCore: ExtReceiveCore {
         ExtReceiveCore::base_send(self, base_receiver_setup)
     }
 
-    fn extension_setup(&mut self, n: usize) -> Result<ExtReceiverSetup, ExtReceiverCoreError>;
+    fn extension_setup(&mut self) -> Result<ExtReceiverSetup, ExtReceiverCoreError>;
 
     fn derandomize(&mut self, choice: &[bool]) -> Result<ExtDerandomize, ExtReceiverCoreError>;
 
@@ -172,7 +172,7 @@ mod tests {
             .map(|_| [Block::random(&mut rng), Block::random(&mut rng)])
             .collect();
 
-        let receiver_setup = receiver.extension_setup(16).unwrap();
+        let receiver_setup = receiver.extension_setup().unwrap();
         sender.extension_setup(receiver_setup).unwrap();
 
         let derandomize = receiver.derandomize(&choice).unwrap();

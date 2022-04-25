@@ -203,6 +203,7 @@ where
     OT: SendCore,
 {
     fn extension_setup(&mut self) -> Result<ExtReceiverSetup, ExtReceiverCoreError> {
+        let n = self.count;
         // For random OT we generate random choice bits during setup then derandomize later
         let mut choice = vec![0u8; if n % 8 != 0 { n + (8 - n % 8) } else { n } / 8];
         self.rng.fill_bytes(&mut choice);
