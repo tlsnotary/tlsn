@@ -117,10 +117,10 @@ mod tests {
     fn test_ext_ot() {
         use super::{ExtReceiveCore, ExtSendCore};
 
-        let mut receiver = ExtReceiverCore::default();
+        let mut receiver = ExtReceiverCore::new(16);
         let base_sender_setup = receiver.base_setup().unwrap();
 
-        let mut sender = ExtSenderCore::default();
+        let mut sender = ExtSenderCore::new(16);
         let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
 
         let send_seeds = receiver.base_send(base_receiver_setup).unwrap();
@@ -153,10 +153,10 @@ mod tests {
     fn test_ext_random_ot() {
         use super::{ExtRandomReceiveCore, ExtRandomSendCore};
 
-        let mut receiver = ExtReceiverCore::default();
+        let mut receiver = ExtReceiverCore::new(16);
         let base_sender_setup = receiver.base_setup().unwrap();
 
-        let mut sender = ExtSenderCore::default();
+        let mut sender = ExtSenderCore::new(16);
         let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
 
         let send_seeds = receiver.base_send(base_receiver_setup).unwrap();

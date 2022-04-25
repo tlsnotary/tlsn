@@ -1,6 +1,6 @@
-use aes::{cipher::generic_array::GenericArray, Aes128, BlockCipher, BlockEncrypt, NewBlockCipher};
+use aes::{Aes128, BlockCipher, BlockEncrypt, NewBlockCipher};
 use cipher::consts::U16;
-use rand::{CryptoRng, Rng, RngCore, SeedableRng};
+use rand::{thread_rng, RngCore, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 use std::convert::TryInto;
 
@@ -18,14 +18,16 @@ pub enum State {
     Initialized,
     BaseSetup,
     Setup,
+    Sending,
     Complete,
 }
 
-pub struct ExtSenderCore<C, OT> {
+pub struct ExtSenderCore<C = Aes128, OT = ReceiverCore<ChaCha12Rng>> {
     cipher: C,
-    state: State,
-    base_choice: Vec<bool>,
     base: OT,
+    state: State,
+    count: usize,
+    base_choice: Vec<bool>,
     seeds: Option<Vec<Block>>,
     rngs: Option<Vec<ChaCha12Rng>>,
     table: Option<Vec<Vec<u8>>>,
@@ -36,25 +38,39 @@ pub struct ExtSenderPayload {
     pub encrypted_values: Vec<[Block; 2]>,
 }
 
-impl Default for ExtSenderCore<Aes128, ReceiverCore<ChaCha12Rng>> {
-    fn default() -> Self {
-        Self::new(
-            &mut ChaCha12Rng::from_entropy(),
-            Aes128::new(GenericArray::from_slice(&[0u8; 16])),
-            ReceiverCore::default(),
-        )
+impl ExtSenderCore {
+    pub fn new(count: usize) -> Self {
+        let mut rng = thread_rng();
+        let mut base_choice = vec![0u8; 128 / 8];
+        rng.fill_bytes(&mut base_choice);
+        Self {
+            cipher: Aes128::new_from_slice(&[0u8; 16]).unwrap(),
+            base: ReceiverCore::new(ChaCha12Rng::from_entropy()),
+            state: State::Initialized,
+            count,
+            base_choice: utils::u8vec_to_boolvec(&base_choice),
+            seeds: None,
+            rngs: None,
+            table: None,
+        }
     }
 }
 
-impl<C: BlockCipher<BlockSize = U16> + BlockEncrypt, OT: ReceiveCore> ExtSenderCore<C, OT> {
-    pub fn new<R: Rng + CryptoRng>(rng: &mut R, cipher: C, ot: OT) -> Self {
+impl<C, OT> ExtSenderCore<C, OT>
+where
+    C: BlockCipher<BlockSize = U16> + BlockEncrypt,
+    OT: ReceiveCore,
+{
+    pub fn new_from_custom(cipher: C, base: OT, count: usize) -> Self {
+        let mut rng = thread_rng();
         let mut base_choice = vec![0u8; 128 / 8];
         rng.fill_bytes(&mut base_choice);
         Self {
             cipher,
+            base,
             state: State::Initialized,
+            count,
             base_choice: utils::u8vec_to_boolvec(&base_choice),
-            base: ot,
             seeds: None,
             rngs: None,
             table: None,
@@ -78,8 +94,10 @@ impl<C: BlockCipher<BlockSize = U16> + BlockEncrypt, OT: ReceiveCore> ExtSenderC
     }
 }
 
-impl<C: BlockCipher<BlockSize = U16> + BlockEncrypt, OT: ReceiveCore> ExtSendCore
-    for ExtSenderCore<C, OT>
+impl<C, OT> ExtSendCore for ExtSenderCore<C, OT>
+where
+    C: BlockCipher<BlockSize = U16> + BlockEncrypt,
+    OT: ReceiveCore,
 {
     fn state(&self) -> State {
         self.state

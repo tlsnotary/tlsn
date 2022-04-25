@@ -1,5 +1,6 @@
 use aes::{cipher::generic_array::GenericArray, Aes128, BlockCipher, BlockEncrypt, NewBlockCipher};
 use cipher::consts::U16;
+use rand::prelude::ThreadRng;
 use rand::{CryptoRng, Rng, RngCore, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 use std::convert::TryInto;
@@ -19,14 +20,16 @@ pub enum State {
     BaseSetup,
     Setup,
     Derandomized,
+    Receiving,
     Complete,
 }
 
-pub struct ExtReceiverCore<R, C, OT> {
-    cipher: C,
+pub struct ExtReceiverCore<R = ChaCha12Rng, C = Aes128, OT = SenderCore<ChaCha12Rng>> {
     rng: R,
-    state: State,
+    cipher: C,
     base: OT,
+    state: State,
+    count: usize,
     choice: Option<Vec<bool>>,
     seeds: Option<Vec<[Block; 2]>>,
     rngs: Option<Vec<[ChaCha12Rng; 2]>>,
@@ -44,25 +47,35 @@ pub struct ExtDerandomize {
     pub flip: Vec<bool>,
 }
 
-impl Default for ExtReceiverCore<ChaCha12Rng, Aes128, SenderCore<ChaCha12Rng>> {
-    fn default() -> Self {
-        Self::new(
-            ChaCha12Rng::from_entropy(),
-            Aes128::new(GenericArray::from_slice(&[0u8; 16])),
-            SenderCore::default(),
-        )
+impl ExtReceiverCore {
+    pub fn new(count: usize) -> Self {
+        Self {
+            rng: ChaCha12Rng::from_entropy(),
+            cipher: Aes128::new_from_slice(&[0u8; 16]).unwrap(),
+            base: SenderCore::new(ChaCha12Rng::from_entropy()),
+            state: State::Initialized,
+            count,
+            choice: None,
+            seeds: None,
+            rngs: None,
+            table: None,
+        }
     }
 }
 
-impl<R: Rng + CryptoRng, C: BlockCipher<BlockSize = U16> + BlockEncrypt, OT: SendCore>
-    ExtReceiverCore<R, C, OT>
+impl<R, C, OT> ExtReceiverCore<R, C, OT>
+where
+    R: Rng + CryptoRng,
+    C: BlockCipher<BlockSize = U16> + BlockEncrypt,
+    OT: SendCore,
 {
-    pub fn new(rng: R, cipher: C, ot: OT) -> Self {
+    pub fn new_with_custom(rng: R, cipher: C, base: OT, count: usize) -> Self {
         Self {
             rng,
             cipher,
+            base,
             state: State::Initialized,
-            base: ot,
+            count,
             choice: None,
             seeds: None,
             rngs: None,
