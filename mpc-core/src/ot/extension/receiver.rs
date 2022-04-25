@@ -1,11 +1,12 @@
-use aes::{cipher::generic_array::GenericArray, Aes128, BlockCipher, BlockEncrypt, NewBlockCipher};
+use aes::{Aes128, BlockCipher, BlockEncrypt, NewBlockCipher};
 use cipher::consts::U16;
-use rand::prelude::ThreadRng;
 use rand::{CryptoRng, Rng, RngCore, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 use std::convert::TryInto;
 
-use super::{ExtRandomReceiveCore, ExtReceiveCore, ExtReceiverCoreError, ExtSenderPayload};
+use super::{
+    ExtRandomReceiveCore, ExtReceiveCore, ExtReceiverCoreError, ExtSenderPayload, BASE_COUNT,
+};
 use crate::block::Block;
 use crate::ot::base::{
     ReceiverSetup as BaseReceiverSetup, SenderPayload as BaseSenderPayload,
@@ -52,7 +53,7 @@ impl ExtReceiverCore {
         Self {
             rng: ChaCha12Rng::from_entropy(),
             cipher: Aes128::new_from_slice(&[0u8; 16]).unwrap(),
-            base: SenderCore::new(ChaCha12Rng::from_entropy()),
+            base: SenderCore::new(BASE_COUNT),
             state: State::Initialized,
             count,
             choice: None,
@@ -123,8 +124,8 @@ where
         &mut self,
         base_receiver_setup: BaseReceiverSetup,
     ) -> Result<BaseSenderPayload, ExtReceiverCoreError> {
-        let mut seeds: Vec<[Block; 2]> = Vec::with_capacity(128);
-        for _ in 0..128 {
+        let mut seeds: Vec<[Block; 2]> = Vec::with_capacity(BASE_COUNT);
+        for _ in 0..BASE_COUNT {
             seeds.push([Block::random(&mut self.rng), Block::random(&mut self.rng)]);
         }
 
@@ -150,10 +151,10 @@ where
         let r = utils::boolvec_to_u8vec(choice);
         let m = choice.len();
         let ncols = if m % 8 != 0 { m + (8 - m % 8) } else { m };
-        let mut ts: Vec<Vec<u8>> = vec![vec![0u8; ncols / 8]; 128];
-        let mut gs: Vec<Vec<u8>> = vec![vec![0u8; ncols / 8]; 128];
+        let mut ts: Vec<Vec<u8>> = vec![vec![0u8; ncols / 8]; BASE_COUNT];
+        let mut gs: Vec<Vec<u8>> = vec![vec![0u8; ncols / 8]; BASE_COUNT];
 
-        for j in 0..128 {
+        for j in 0..BASE_COUNT {
             rngs[j][0].fill_bytes(&mut ts[j]);
             rngs[j][1].fill_bytes(&mut gs[j]);
             gs[j] = gs[j]
@@ -201,7 +202,7 @@ where
     C: BlockCipher<BlockSize = U16> + BlockEncrypt,
     OT: SendCore,
 {
-    fn extension_setup(&mut self, n: usize) -> Result<ExtReceiverSetup, ExtReceiverCoreError> {
+    fn extension_setup(&mut self) -> Result<ExtReceiverSetup, ExtReceiverCoreError> {
         // For random OT we generate random choice bits during setup then derandomize later
         let mut choice = vec![0u8; if n % 8 != 0 { n + (8 - n % 8) } else { n } / 8];
         self.rng.fill_bytes(&mut choice);

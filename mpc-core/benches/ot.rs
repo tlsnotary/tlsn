@@ -15,10 +15,10 @@ fn criterion_benchmark(c: &mut Criterion) {
         let choice = [false; 1024];
 
         bench.iter(|| {
-            let mut sender = SenderCore::default();
+            let mut sender = SenderCore::new(1024);
             let sender_setup = sender.setup();
 
-            let mut receiver = ReceiverCore::default();
+            let mut receiver = ReceiverCore::new(1024);
 
             let receiver_setup = receiver.setup(&choice, sender_setup).unwrap();
             let send = sender.send(&s_inputs, receiver_setup).unwrap();

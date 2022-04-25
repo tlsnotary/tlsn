@@ -4,7 +4,10 @@ use rand::{thread_rng, RngCore, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 use std::convert::TryInto;
 
-use super::{ExtDerandomize, ExtRandomSendCore, ExtReceiverSetup, ExtSendCore, ExtSenderCoreError};
+use super::{
+    ExtDerandomize, ExtRandomSendCore, ExtReceiverSetup, ExtSendCore, ExtSenderCoreError,
+    BASE_COUNT,
+};
 use crate::block::Block;
 use crate::ot::base::{
     ReceiverSetup as BaseReceiverSetup, SenderPayload as BaseSenderPayload,
@@ -41,11 +44,11 @@ pub struct ExtSenderPayload {
 impl ExtSenderCore {
     pub fn new(count: usize) -> Self {
         let mut rng = thread_rng();
-        let mut base_choice = vec![0u8; 128 / 8];
+        let mut base_choice = vec![0u8; BASE_COUNT / 8];
         rng.fill_bytes(&mut base_choice);
         Self {
             cipher: Aes128::new_from_slice(&[0u8; 16]).unwrap(),
-            base: ReceiverCore::new(ChaCha12Rng::from_entropy()),
+            base: ReceiverCore::new(BASE_COUNT),
             state: State::Initialized,
             count,
             base_choice: utils::u8vec_to_boolvec(&base_choice),
@@ -63,7 +66,7 @@ where
 {
     pub fn new_from_custom(cipher: C, base: OT, count: usize) -> Self {
         let mut rng = thread_rng();
-        let mut base_choice = vec![0u8; 128 / 8];
+        let mut base_choice = vec![0u8; BASE_COUNT / 8];
         rng.fill_bytes(&mut base_choice);
         Self {
             cipher,
@@ -126,14 +129,14 @@ where
         }
         let ncols = receiver_setup.table[0].len() * 8;
         let us = receiver_setup.table;
-        let mut qs: Vec<Vec<u8>> = vec![vec![0u8; ncols / 8]; 128];
+        let mut qs: Vec<Vec<u8>> = vec![vec![0u8; ncols / 8]; BASE_COUNT];
 
         let rngs = self
             .rngs
             .as_mut()
             .ok_or(ExtSenderCoreError::BaseOTNotSetup)?;
 
-        for j in 0..128 {
+        for j in 0..BASE_COUNT {
             rngs[j].fill_bytes(&mut qs[j]);
             if self.base_choice[j] {
                 qs[j] = qs[j].iter().zip(&us[j]).map(|(q, u)| *q ^ *u).collect();

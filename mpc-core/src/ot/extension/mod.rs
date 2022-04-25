@@ -11,6 +11,8 @@ pub use errors::*;
 pub use receiver::{ExtDerandomize, ExtReceiverCore, ExtReceiverSetup};
 pub use sender::{ExtSenderCore, ExtSenderPayload};
 
+pub const BASE_COUNT: usize = 128;
+
 // will be used when implementing KOS15 check
 #[allow(dead_code)]
 const K: usize = 40;
