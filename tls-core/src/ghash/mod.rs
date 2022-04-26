@@ -17,11 +17,11 @@
 //! When performing block multiplication in 2PC, Master holds the Y value and
 //! Slave holds the X value. The Slave then computes the X table and masks it.
 
-mod common;
-mod errors;
-mod master;
-mod slave;
-mod utils;
+pub mod common;
+pub mod errors;
+pub mod master;
+pub mod slave;
+pub mod utils;
 
 /// MXTableFull is masked XTable which Slave has at the beginning of OT.
 /// MXTableFull must not be revealed to Master.

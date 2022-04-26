@@ -273,6 +273,7 @@ mod tests {
         assert_eq!(block_mult(x, y), rust_crypto_ghash(x, &vec![y]));
     }
 
+    #[test]
     fn test_free_square() {
         let mut rng = thread_rng();
         let x: u128 = rng.gen();
