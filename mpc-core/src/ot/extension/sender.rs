@@ -30,6 +30,7 @@ pub struct ExtSenderCore<C = Aes128, OT = ReceiverCore<ChaCha12Rng>> {
     base: OT,
     state: State,
     count: usize,
+    sent: usize,
     base_choice: Vec<bool>,
     seeds: Option<Vec<Block>>,
     rngs: Option<Vec<ChaCha12Rng>>,
@@ -39,6 +40,30 @@ pub struct ExtSenderCore<C = Aes128, OT = ReceiverCore<ChaCha12Rng>> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ExtSenderPayload {
     pub encrypted_values: Vec<[Block; 2]>,
+}
+
+fn encrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
+    cipher: &mut C,
+    inputs: &[[Block; 2]],
+    table: &[Vec<u8>],
+    base_choice: &[bool],
+    flip: Option<Vec<bool>>,
+) -> Vec<[Block; 2]> {
+    let mut encrypted_values: Vec<[Block; 2]> = Vec::with_capacity(table.len());
+    let base_choice: [u8; 16] = utils::boolvec_to_u8vec(base_choice).try_into().unwrap();
+    let delta = Block::from(base_choice);
+    let flip = flip.unwrap_or(vec![false; inputs.len()]);
+    for (j, (input, flip)) in inputs.iter().zip(flip).enumerate() {
+        let q: [u8; 16] = table[j].clone().try_into().unwrap();
+        let q = Block::from(q);
+        let masks = [q.hash_tweak(cipher, j), (q ^ delta).hash_tweak(cipher, j)];
+        if flip {
+            encrypted_values.push([input[0] ^ masks[1], input[1] ^ masks[0]]);
+        } else {
+            encrypted_values.push([input[0] ^ masks[0], input[1] ^ masks[1]]);
+        }
+    }
+    encrypted_values
 }
 
 impl ExtSenderCore {
@@ -51,6 +76,7 @@ impl ExtSenderCore {
             base: ReceiverCore::new(BASE_COUNT),
             state: State::Initialized,
             count,
+            sent: 0,
             base_choice: utils::u8vec_to_boolvec(&base_choice),
             seeds: None,
             rngs: None,
@@ -73,6 +99,7 @@ where
             base,
             state: State::Initialized,
             count,
+            sent: 0,
             base_choice: utils::u8vec_to_boolvec(&base_choice),
             seeds: None,
             rngs: None,
@@ -104,6 +131,10 @@ where
 {
     fn state(&self) -> State {
         self.state
+    }
+
+    fn is_complete(&self) -> bool {
+        self.state == State::Complete
     }
 
     fn base_setup(
@@ -148,24 +179,24 @@ where
     }
 
     fn send(&mut self, inputs: &[[Block; 2]]) -> Result<ExtSenderPayload, ExtSenderCoreError> {
-        if self.state < State::Setup {
-            return Err(ExtSenderCoreError::NotSetup);
+        match self.state {
+            State::Setup => self.state = State::Sending,
+            State::Sending => {
+                if inputs.len() > self.count - self.sent {
+                    return Err(ExtSenderCoreError::InvalidInputLength);
+                } else {
+                    self.sent += inputs.len();
+                    if self.sent == self.count {
+                        self.state = State::Complete
+                    }
+                }
+            }
+            State::Complete => return Err(ExtSenderCoreError::AlreadyComplete),
+            _ => return Err(ExtSenderCoreError::NotSetup),
         }
         let table = self.table.as_ref().ok_or(ExtSenderCoreError::NotSetup)?;
-
-        let mut encrypted_values: Vec<[Block; 2]> = Vec::with_capacity(table.len());
-
-        let base_choice: [u8; 16] = utils::boolvec_to_u8vec(&self.base_choice)
-            .try_into()
-            .unwrap();
-        let delta = Block::from(base_choice);
-        for (j, input) in inputs.iter().enumerate() {
-            let q: [u8; 16] = table[j].clone().try_into().unwrap();
-            let q = Block::from(q);
-            let y0 = q.hash_tweak(&mut self.cipher, j) ^ input[0];
-            let y1 = (q ^ delta).hash_tweak(&mut self.cipher, j) ^ input[1];
-            encrypted_values.push([y0, y1]);
-        }
+        let encrypted_values =
+            encrypt_values(&mut self.cipher, inputs, table, &self.base_choice, None);
         self.state = State::Complete;
 
         Ok(ExtSenderPayload { encrypted_values })
@@ -182,25 +213,32 @@ where
         inputs: &[[Block; 2]],
         derandomize: ExtDerandomize,
     ) -> Result<ExtSenderPayload, ExtSenderCoreError> {
-        if self.state < State::Setup {
-            return Err(ExtSenderCoreError::NotSetup);
+        match self.state {
+            State::Setup => self.state = State::Sending,
+            State::Sending => {
+                if inputs.len() > self.count - self.sent {
+                    return Err(ExtSenderCoreError::InvalidInputLength);
+                } else {
+                    self.sent += inputs.len();
+                    if self.sent == self.count {
+                        self.state = State::Complete
+                    }
+                }
+            }
+            State::Complete => return Err(ExtSenderCoreError::AlreadyComplete),
+            _ => return Err(ExtSenderCoreError::NotSetup),
+        }
+        if inputs.len() != derandomize.flip.len() {
+            return Err(ExtSenderCoreError::InvalidInputLength);
         }
         let table = self.table.as_ref().ok_or(ExtSenderCoreError::NotSetup)?;
-
-        let mut encrypted_values: Vec<[Block; 2]> = Vec::with_capacity(table.len());
-
-        let base_choice: [u8; 16] = utils::boolvec_to_u8vec(&self.base_choice)
-            .try_into()
-            .unwrap();
-        let delta = Block::from(base_choice);
-        for (j, input) in inputs.iter().enumerate() {
-            let q: [u8; 16] = table[j].clone().try_into().unwrap();
-            let q = Block::from(q);
-            let flip = derandomize.flip[j];
-            let y0 = (if flip { q ^ delta } else { q }).hash_tweak(&mut self.cipher, j) ^ input[0];
-            let y1 = (if flip { q } else { q ^ delta }).hash_tweak(&mut self.cipher, j) ^ input[1];
-            encrypted_values.push([y0, y1]);
-        }
+        let encrypted_values = encrypt_values(
+            &mut self.cipher,
+            inputs,
+            table,
+            &self.base_choice,
+            Some(derandomize.flip),
+        );
         self.state = State::Complete;
 
         Ok(ExtSenderPayload { encrypted_values })

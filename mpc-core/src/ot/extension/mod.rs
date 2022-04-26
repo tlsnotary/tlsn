@@ -33,6 +33,8 @@ pub trait ExtSendCore {
     ) -> Result<(), ExtSenderCoreError>;
 
     fn send(&mut self, inputs: &[[Block; 2]]) -> Result<ExtSenderPayload, ExtSenderCoreError>;
+
+    fn is_complete(&self) -> bool;
 }
 
 pub trait ExtRandomSendCore: ExtSendCore {
@@ -63,6 +65,10 @@ pub trait ExtRandomSendCore: ExtSendCore {
         inputs: &[[Block; 2]],
         derandomize: ExtDerandomize,
     ) -> Result<ExtSenderPayload, ExtSenderCoreError>;
+
+    fn is_complete(&self) -> bool {
+        ExtSendCore::is_complete(self)
+    }
 }
 
 pub trait ExtReceiveCore {
@@ -81,6 +87,8 @@ pub trait ExtReceiveCore {
     ) -> Result<ExtReceiverSetup, ExtReceiverCoreError>;
 
     fn receive(&mut self, payload: ExtSenderPayload) -> Result<Vec<Block>, ExtReceiverCoreError>;
+
+    fn is_complete(&self) -> bool;
 }
 
 pub trait ExtRandomReceiveCore: ExtReceiveCore {
@@ -104,6 +112,10 @@ pub trait ExtRandomReceiveCore: ExtReceiveCore {
     fn derandomize(&mut self, choice: &[bool]) -> Result<ExtDerandomize, ExtReceiverCoreError>;
 
     fn receive(&mut self, payload: ExtSenderPayload) -> Result<Vec<Block>, ExtReceiverCoreError>;
+
+    fn is_complete(&self) -> bool {
+        ExtReceiveCore::is_complete(self)
+    }
 }
 
 #[cfg(test)]

@@ -116,6 +116,10 @@ where
         &self.state
     }
 
+    fn is_complete(&self) -> bool {
+        self.state == State::Complete
+    }
+
     fn base_setup(&mut self) -> Result<BaseSenderSetup, ExtReceiverCoreError> {
         Ok(self.base.setup())
     }

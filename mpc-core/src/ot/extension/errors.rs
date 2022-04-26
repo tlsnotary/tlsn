@@ -10,6 +10,10 @@ pub enum ExtSenderCoreError {
     /// OT Extension has not been setup
     #[error("Tried to send prior to setup")]
     NotSetup,
+    #[error("Provided incorrect number of inputs")]
+    InvalidInputLength,
+    #[error("Tried to send after OT is already complete")]
+    AlreadyComplete,
 }
 
 /// Errors that may occur when using ExtReceiverCore
