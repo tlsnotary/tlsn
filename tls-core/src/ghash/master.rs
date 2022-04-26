@@ -122,7 +122,8 @@ impl GhashMaster {
             if self.state != MasterState::RoundReceived(4) {
                 // if the last round was not round 4 (i.e. there was no block
                 // aggregation), then we compute GHASH directly
-                self.c.temp_share = multiply_powers_and_blocks(&self.c.powers, &self.c.blocks);
+                self.c.temp_share =
+                    Some(multiply_powers_and_blocks(&self.c.powers, &self.c.blocks));
             }
             self.state = MasterState::Complete;
         }
@@ -134,7 +135,7 @@ impl GhashMaster {
         if self.state != MasterState::Complete {
             return Err(GhashError::FinalizeCalledTooEarly);
         }
-        Ok(self.c.temp_share)
+        Ok(self.c.temp_share.unwrap())
     }
 
     /// Indicates that the protocol is complete.
@@ -232,7 +233,7 @@ impl GhashMaster {
         let share1 = multiply_powers_and_blocks(&self.c.powers, &self.c.blocks);
         let (aggregated, share2) = block_aggregation(&self.c.powers, &self.c.blocks);
         let choice_bits = block_aggregation_bits(&self.c.powers, &aggregated);
-        self.c.temp_share = share1 ^ share2;
+        self.c.temp_share = Some(share1 ^ share2);
         choice_bits
     }
 
@@ -242,6 +243,6 @@ impl GhashMaster {
         for table in mxtables.iter() {
             share ^= xor_sum(table);
         }
-        self.c.temp_share ^= share;
+        self.c.temp_share = Some(self.c.temp_share.unwrap() ^ share);
     }
 }

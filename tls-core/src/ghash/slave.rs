@@ -85,7 +85,8 @@ impl<R: Rng + CryptoRng> GhashSlave<R> {
             if self.state != SlaveState::RoundReceived(4) {
                 // if the last round was not round 4 (i.e. there was no block
                 // aggregation), then we compute GHASH directly
-                self.c.temp_share = multiply_powers_and_blocks(&self.c.powers, &self.c.blocks);
+                self.c.temp_share =
+                    Some(multiply_powers_and_blocks(&self.c.powers, &self.c.blocks));
             }
             self.state = SlaveState::Complete;
         }
@@ -97,7 +98,7 @@ impl<R: Rng + CryptoRng> GhashSlave<R> {
         if self.state != SlaveState::Complete {
             return Err(GhashError::FinalizeCalledTooEarly);
         }
-        Ok(self.c.temp_share)
+        Ok(self.c.temp_share.unwrap())
     }
 
     // Indicates that the protocol is complete.
@@ -178,7 +179,7 @@ impl<R: Rng + CryptoRng> GhashSlave<R> {
         let (aggregated, share2) = block_aggregation(&self.c.powers, &self.c.blocks);
         let (mxtables, share3) =
             block_aggregation_mxtables(&mut self.rng, &self.c.powers, &aggregated);
-        self.c.temp_share = share1 ^ share2 ^ share3;
+        self.c.temp_share = Some(share1 ^ share2 ^ share3);
         mxtables
     }
 }

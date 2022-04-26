@@ -18,7 +18,7 @@ pub struct GhashCommon {
     // strategies are initialized in ::new(). See comments there.
     pub strategies: [BTreeMap<u8, [u8; 2]>; 2],
     // temp_share is used to save an intermediate GHASH share
-    pub temp_share: u128,
+    pub temp_share: Option<u128>,
 }
 
 impl GhashCommon {
@@ -75,7 +75,7 @@ impl GhashCommon {
             blocks,
             powers,
             strategies: [strategy1, strategy2],
-            temp_share: 0u128,
+            temp_share: Some(0u128),
         })
     }
 
