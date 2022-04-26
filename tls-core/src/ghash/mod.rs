@@ -65,8 +65,8 @@ mod tests {
     fn test_round12_before_block_aggregation() {
         let block_count = 30;
         let (h, mut slave, mut master, _blocks) = ghash_setup(block_count);
-        run_round(&mut slave, &mut master);
-        run_round(&mut slave, &mut master);
+        run_round(&mut slave, &mut master).unwrap();
+        run_round(&mut slave, &mut master).unwrap();
 
         let s_powers = slave.export_powers();
         let r_powers = master.export_powers();
@@ -93,9 +93,9 @@ mod tests {
     fn test_round124() {
         let block_count = 30;
         let (h, mut slave, mut master, blocks) = ghash_setup(block_count);
-        run_round(&mut slave, &mut master);
-        run_round(&mut slave, &mut master);
-        run_round(&mut slave, &mut master);
+        run_round(&mut slave, &mut master).unwrap();
+        run_round(&mut slave, &mut master).unwrap();
+        run_round(&mut slave, &mut master).unwrap();
         let ghash = finalize(&mut slave, &mut master);
         assert_eq!(ghash, rust_crypto_ghash(h, &blocks));
         assert!(master.is_complete());
@@ -107,10 +107,10 @@ mod tests {
     fn test_round1234() {
         let block_count = 340;
         let (h, mut slave, mut master, blocks) = ghash_setup(block_count);
-        run_round(&mut slave, &mut master);
-        run_round(&mut slave, &mut master);
-        run_round(&mut slave, &mut master);
-        run_round(&mut slave, &mut master);
+        run_round(&mut slave, &mut master).unwrap();
+        run_round(&mut slave, &mut master).unwrap();
+        run_round(&mut slave, &mut master).unwrap();
+        run_round(&mut slave, &mut master).unwrap();
         let ghash = finalize(&mut slave, &mut master);
         assert_eq!(ghash, rust_crypto_ghash(h, &blocks));
         assert!(master.is_complete());
@@ -122,7 +122,7 @@ mod tests {
     fn test_export_powers() {
         let block_count = 340;
         let (h, mut slave, mut master, blocks) = ghash_setup(block_count);
-        run_round(&mut slave, &mut master);
+        run_round(&mut slave, &mut master).unwrap();
         let powers_s = slave.export_powers();
         let powers_r = master.export_powers();
         // we only have 4 consecutive powers 1,2,3,4 after round 1
