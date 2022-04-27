@@ -17,11 +17,14 @@
 //! When performing block multiplication in 2PC, Master holds the Y value and
 //! Slave holds the X value. The Slave then computes the X table and masks it.
 
-pub mod common;
-pub mod errors;
+mod common;
+mod errors;
 pub mod master;
 pub mod slave;
-pub mod utils;
+mod utils;
+
+use errors::*;
+use std::collections::BTreeMap;
 
 /// MXTableFull is masked XTable which Slave has at the beginning of OT.
 /// MXTableFull must not be revealed to Master.
@@ -35,11 +38,56 @@ type MXTable = Vec<u128>;
 /// B) bits of each power are in big-endian.
 type YBits = Vec<bool>;
 
+pub trait MasterCore {
+    /// Returns choice bits for Oblivious Transfer.
+    /// While is_complete() returns false, next_request() must be called
+    /// followed by process_response().
+    fn next_request(&mut self) -> Result<Vec<bool>, GhashError>;
+
+    /// process_response() will be invoked by the Oblivious Transfer impl. It
+    /// receives masked X tables acc. to our choice bits in next_request().
+    fn process_response(&mut self, response: &Vec<u128>) -> Result<(), GhashError>;
+
+    /// Returns true when the protocol is complete.
+    fn is_complete(&mut self) -> bool;
+
+    /// Returns our GHASH share.
+    fn finalize(&mut self) -> Result<u128, GhashError>;
+
+    /// Returns the amount of Oblivious Transfer instances needed to complete
+    /// the protocol. The purpose is to inform the OT layer.
+    fn calculate_ot_count(&mut self) -> usize;
+
+    /// Exports powers of the GHASH key obtained at the current stage of the
+    /// protocol.
+    fn export_powers(&mut self) -> BTreeMap<u16, u128>;
+}
+
+pub trait SlaveCore {
+    /// Returns the full masked X table which must NOT be passed to Master. It
+    /// must be consumed by the Oblivious Transfer impl.
+    fn process_request(&mut self) -> Result<Vec<[u128; 2]>, GhashError>;
+
+    /// Returns true when the protocol is complete.
+    fn is_complete(&mut self) -> bool;
+
+    /// Returns our GHASH share.
+    fn finalize(&mut self) -> Result<u128, GhashError>;
+
+    /// Returns the amount of Oblivious Transfer instances needed to complete
+    /// the protocol. The purpose is to inform the OT layer.
+    fn calculate_ot_count(&mut self) -> usize;
+
+    /// Exports powers of the GHASH key obtained at the current stage of the
+    /// protocol.
+    fn export_powers(&mut self) -> BTreeMap<u16, u128>;
+}
+
 #[cfg(test)]
 mod tests {
     use super::errors::GhashError;
     use super::utils::block_mult;
-    use super::{master::GhashMaster, slave::GhashSlave};
+    use super::{master::GhashMaster, slave::GhashSlave, MasterCore, SlaveCore};
     use ghash::{
         universal_hash::{NewUniversalHash, UniversalHash},
         GHash,

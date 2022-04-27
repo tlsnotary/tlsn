@@ -9,7 +9,7 @@ use super::utils::{
     block_aggregation, block_aggregation_mxtables, block_mult, free_square, masked_xtable,
     multiply_powers_and_blocks, square_all,
 };
-use super::MXTableFull;
+use super::{MXTableFull, SlaveCore};
 use rand::{CryptoRng, Rng};
 use std::collections::BTreeMap;
 
@@ -27,19 +27,8 @@ pub struct GhashSlave<R> {
     state: SlaveState,
 }
 
-impl<R: Rng + CryptoRng> GhashSlave<R> {
-    pub fn new(rng: R, ghash_key_share: u128, blocks: Vec<u128>) -> Result<Self, GhashError> {
-        let c = GhashCommon::new(ghash_key_share, blocks)?;
-        Ok(Self {
-            c,
-            rng,
-            state: SlaveState::Initialized,
-        })
-    }
-
-    /// Returns the full masked X table which must NOT be passed to Master. It
-    /// must be consumed by the Oblivious Transfer impl.
-    pub fn process_request(&mut self) -> Result<Vec<[u128; 2]>, GhashError> {
+impl<R: Rng + CryptoRng> SlaveCore for GhashSlave<R> {
+    fn process_request(&mut self) -> Result<Vec<[u128; 2]>, GhashError> {
         let retval;
         let is_complete;
         match self.state {
@@ -93,25 +82,34 @@ impl<R: Rng + CryptoRng> GhashSlave<R> {
         Ok(retval)
     }
 
-    /// Returns our GHASH share.
-    pub fn finalize(&mut self) -> Result<u128, GhashError> {
+    fn finalize(&mut self) -> Result<u128, GhashError> {
         if self.state != SlaveState::Complete {
             return Err(GhashError::FinalizeCalledTooEarly);
         }
         Ok(self.c.temp_share.unwrap())
     }
 
-    // Indicates that the protocol is complete.
-    pub fn is_complete(&mut self) -> bool {
+    fn is_complete(&mut self) -> bool {
         self.state == SlaveState::Complete
     }
 
-    pub fn export_powers(&mut self) -> BTreeMap<u16, u128> {
+    fn export_powers(&mut self) -> BTreeMap<u16, u128> {
         self.c.export_powers()
     }
 
-    pub fn calculate_ot_count(&mut self) -> usize {
+    fn calculate_ot_count(&mut self) -> usize {
         self.c.calculate_ot_count()
+    }
+}
+
+impl<R: Rng + CryptoRng> GhashSlave<R> {
+    pub fn new(rng: R, ghash_key_share: u128, blocks: Vec<u128>) -> Result<Self, GhashError> {
+        let c = GhashCommon::new(ghash_key_share, blocks)?;
+        Ok(Self {
+            c,
+            rng,
+            state: SlaveState::Initialized,
+        })
     }
 
     fn is_round2_needed(&self) -> bool {

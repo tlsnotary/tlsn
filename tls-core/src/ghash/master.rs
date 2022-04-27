@@ -2,11 +2,11 @@
 //! block multiplication. Master acts as the receiver of the Oblivious
 //! Transfer and receives Slaves's masked X table entries obliviously for each
 //! bit of Y.
-use super::errors::*;
 use super::utils::{
     block_aggregation, block_aggregation_bits, block_mult, flat_to_chunks,
     multiply_powers_and_blocks, square_all, xor_sum,
 };
+use super::{errors::*, MasterCore};
 use crate::ghash::common::GhashCommon;
 use crate::ghash::{MXTable, YBits};
 use mpc_core::utils::u8vec_to_boolvec;
@@ -29,20 +29,8 @@ pub struct GhashMaster {
     is_last_round: bool,
 }
 
-impl GhashMaster {
-    pub fn new(ghash_key_share: u128, blocks: Vec<u128>) -> Result<Self, GhashError> {
-        let common = GhashCommon::new(ghash_key_share, blocks)?;
-        Ok(Self {
-            c: common,
-            state: MasterState::Initialized,
-            is_last_round: false,
-        })
-    }
-
-    /// Returns choice bits for Oblivious Transfer.
-    /// While is_complete() returns false, next_request() must be called
-    /// followed by process_response().
-    pub fn next_request(&mut self) -> Result<Vec<bool>, GhashError> {
+impl MasterCore for GhashMaster {
+    fn next_request(&mut self) -> Result<Vec<bool>, GhashError> {
         let retval;
         let is_complete;
         match self.state {
@@ -90,9 +78,7 @@ impl GhashMaster {
         Ok(retval)
     }
 
-    /// process_response() will be invoked by the Oblivious Transfer impl. It
-    /// receives masked X tables acc. to our choice bits in next_request().
-    pub fn process_response(&mut self, response: &Vec<u128>) -> Result<(), GhashError> {
+    fn process_response(&mut self, response: &Vec<u128>) -> Result<(), GhashError> {
         if response.len() % 128 != 0 {
             return Err(GhashError::DataLengthWrong);
         }
@@ -130,25 +116,36 @@ impl GhashMaster {
         Ok(())
     }
 
-    /// Returns our GHASH share.
-    pub fn finalize(&mut self) -> Result<u128, GhashError> {
+    fn is_complete(&mut self) -> bool {
+        self.state == MasterState::Complete
+    }
+
+    fn finalize(&mut self) -> Result<u128, GhashError> {
         if self.state != MasterState::Complete {
             return Err(GhashError::FinalizeCalledTooEarly);
         }
         Ok(self.c.temp_share.unwrap())
     }
 
-    /// Indicates that the protocol is complete.
-    pub fn is_complete(&mut self) -> bool {
-        self.state == MasterState::Complete
-    }
-
-    pub fn calculate_ot_count(&mut self) -> usize {
+    /// Returns the amount of Oblivious Transfer instances needed to complete
+    /// the protocol. The purpose is to inform the OT layer.
+    fn calculate_ot_count(&mut self) -> usize {
         self.c.calculate_ot_count()
     }
 
-    pub fn export_powers(&mut self) -> BTreeMap<u16, u128> {
+    fn export_powers(&mut self) -> BTreeMap<u16, u128> {
         self.c.export_powers()
+    }
+}
+
+impl GhashMaster {
+    pub fn new(ghash_key_share: u128, blocks: Vec<u128>) -> Result<Self, GhashError> {
+        let common = GhashCommon::new(ghash_key_share, blocks)?;
+        Ok(Self {
+            c: common,
+            state: MasterState::Initialized,
+            is_last_round: false,
+        })
     }
 
     fn is_round2_needed(&self) -> bool {
