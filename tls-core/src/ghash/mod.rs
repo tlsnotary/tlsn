@@ -18,7 +18,7 @@
 //! Slave holds the X value. The Slave then computes the X table and masks it.
 
 mod common;
-mod errors;
+pub mod errors;
 pub mod master;
 pub mod slave;
 mod utils;
@@ -88,7 +88,7 @@ mod tests {
     use super::errors::GhashError;
     use super::utils::block_mult;
     use super::{master::GhashMaster, slave::GhashSlave, MasterCore, SlaveCore};
-    use ghash::{
+    use ghash_rc::{
         universal_hash::{NewUniversalHash, UniversalHash},
         GHash,
     };
