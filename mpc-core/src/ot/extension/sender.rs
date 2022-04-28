@@ -20,8 +20,7 @@ use crate::utils;
 pub enum State {
     Initialized,
     BaseSetup,
-    Setup,
-    Sending,
+    Setup { sent: usize },
     Complete,
 }
 
@@ -30,7 +29,6 @@ pub struct ExtSenderCore<C = Aes128, OT = ReceiverCore<ChaCha12Rng>> {
     base: OT,
     state: State,
     count: usize,
-    sent: usize,
     base_choice: Vec<bool>,
     seeds: Option<Vec<Block>>,
     rngs: Option<Vec<ChaCha12Rng>>,
@@ -76,7 +74,6 @@ impl ExtSenderCore {
             base: ReceiverCore::new(BASE_COUNT),
             state: State::Initialized,
             count,
-            sent: 0,
             base_choice: utils::u8vec_to_boolvec(&base_choice),
             seeds: None,
             rngs: None,
@@ -99,7 +96,6 @@ where
             base,
             state: State::Initialized,
             count,
-            sent: 0,
             base_choice: utils::u8vec_to_boolvec(&base_choice),
             seeds: None,
             rngs: None,
@@ -174,30 +170,27 @@ where
             }
         }
         self.table = Some(utils::transpose(&qs));
-        self.state = State::Setup;
+        self.state = State::Setup { sent: 0 };
         Ok(())
     }
 
     fn send(&mut self, inputs: &[[Block; 2]]) -> Result<ExtSenderPayload, ExtSenderCoreError> {
-        match self.state {
-            State::Setup => self.state = State::Sending,
-            State::Sending => {
-                if inputs.len() > self.count - self.sent {
+        match &mut self.state {
+            State::Setup { sent } => {
+                if *sent + inputs.len() > self.count {
                     return Err(ExtSenderCoreError::InvalidInputLength);
-                } else {
-                    self.sent += inputs.len();
-                    if self.sent == self.count {
-                        self.state = State::Complete
-                    }
+                }
+                *sent += inputs.len();
+                if *sent == self.count {
+                    self.state = State::Complete;
                 }
             }
             State::Complete => return Err(ExtSenderCoreError::AlreadyComplete),
             _ => return Err(ExtSenderCoreError::NotSetup),
-        }
+        };
         let table = self.table.as_ref().ok_or(ExtSenderCoreError::NotSetup)?;
         let encrypted_values =
             encrypt_values(&mut self.cipher, inputs, table, &self.base_choice, None);
-        self.state = State::Complete;
 
         Ok(ExtSenderPayload { encrypted_values })
     }
@@ -213,24 +206,22 @@ where
         inputs: &[[Block; 2]],
         derandomize: ExtDerandomize,
     ) -> Result<ExtSenderPayload, ExtSenderCoreError> {
-        match self.state {
-            State::Setup => self.state = State::Sending,
-            State::Sending => {
-                if inputs.len() > self.count - self.sent {
+        if inputs.len() != derandomize.flip.len() {
+            return Err(ExtSenderCoreError::InvalidInputLength);
+        }
+        match &mut self.state {
+            State::Setup { sent } => {
+                if *sent + inputs.len() > self.count {
                     return Err(ExtSenderCoreError::InvalidInputLength);
-                } else {
-                    self.sent += inputs.len();
-                    if self.sent == self.count {
-                        self.state = State::Complete
-                    }
+                }
+                *sent += inputs.len();
+                if *sent == self.count {
+                    self.state = State::Complete;
                 }
             }
             State::Complete => return Err(ExtSenderCoreError::AlreadyComplete),
             _ => return Err(ExtSenderCoreError::NotSetup),
-        }
-        if inputs.len() != derandomize.flip.len() {
-            return Err(ExtSenderCoreError::InvalidInputLength);
-        }
+        };
         let table = self.table.as_ref().ok_or(ExtSenderCoreError::NotSetup)?;
         let encrypted_values = encrypt_values(
             &mut self.cipher,
@@ -239,7 +230,6 @@ where
             &self.base_choice,
             Some(derandomize.flip),
         );
-        self.state = State::Complete;
 
         Ok(ExtSenderPayload { encrypted_values })
     }

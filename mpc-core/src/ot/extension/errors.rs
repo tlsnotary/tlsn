@@ -29,6 +29,12 @@ pub enum ExtReceiverCoreError {
     #[error("Tried to receive prior to setup")]
     NotSetup,
     /// Choice bits not derandomized
-    #[error("Tried to receive prior to beaver derandomization")]
+    #[error("Payload contains more encrypted values than derandomized choice bits")]
     NotDerandomized,
+    #[error("Tried to derandomize more OTs than setup")]
+    InvalidChoiceLength,
+    #[error("Received payload of unexpected size")]
+    InvalidPayloadSize,
+    #[error("Tried to receive after OT is already complete")]
+    AlreadyComplete,
 }

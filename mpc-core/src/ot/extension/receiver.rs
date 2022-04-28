@@ -16,12 +16,16 @@ use crate::ot::{SendCore, SenderCore};
 use crate::utils::{self, u8vec_to_boolvec};
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct ChoiceState {
+    choice: Vec<bool>,
+    derandomized: Vec<bool>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum State {
     Initialized,
     BaseSetup,
-    Setup,
-    Derandomized,
-    Receiving,
+    Setup(ChoiceState),
     Complete,
 }
 
@@ -31,7 +35,6 @@ pub struct ExtReceiverCore<R = ChaCha12Rng, C = Aes128, OT = SenderCore<ChaCha12
     base: OT,
     state: State,
     count: usize,
-    choice: Option<Vec<bool>>,
     seeds: Option<Vec<[Block; 2]>>,
     rngs: Option<Vec<[ChaCha12Rng; 2]>>,
     table: Option<Vec<Vec<u8>>>,
@@ -56,12 +59,32 @@ impl ExtReceiverCore {
             base: SenderCore::new(BASE_COUNT),
             state: State::Initialized,
             count,
-            choice: None,
             seeds: None,
             rngs: None,
             table: None,
         }
     }
+}
+
+fn decrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
+    cipher: &mut C,
+    encrypted_values: &[[Block; 2]],
+    table: &[Vec<u8>],
+    choice: &[bool],
+) -> Vec<Block> {
+    let mut values: Vec<Block> = Vec::with_capacity(choice.len());
+    for (j, b) in choice.iter().enumerate() {
+        let t: [u8; 16] = table[j].clone().try_into().unwrap();
+        let t = Block::from(t);
+        let y = if *b {
+            encrypted_values[j][1]
+        } else {
+            encrypted_values[j][0]
+        };
+        let y = y ^ t.hash_tweak(cipher, j);
+        values.push(y);
+    }
+    values
 }
 
 impl<R, C, OT> ExtReceiverCore<R, C, OT>
@@ -77,7 +100,6 @@ where
             base,
             state: State::Initialized,
             count,
-            choice: None,
             seeds: None,
             rngs: None,
             table: None,
@@ -169,32 +191,36 @@ where
                 .collect();
         }
         self.table = Some(utils::transpose(&ts));
-        self.choice = Some(Vec::from(choice));
-        self.state = State::Setup;
+        self.state = State::Setup(ChoiceState {
+            choice: Vec::from(choice),
+            derandomized: Vec::new(),
+        });
 
         Ok(ExtReceiverSetup { ncols, table: gs })
     }
 
     fn receive(&mut self, payload: ExtSenderPayload) -> Result<Vec<Block>, ExtReceiverCoreError> {
-        if State::Setup != self.state {
-            return Err(ExtReceiverCoreError::NotSetup);
-        }
-        let choice = self.choice.as_ref().ok_or(ExtReceiverCoreError::NotSetup)?;
-        let ts = self.table.as_ref().ok_or(ExtReceiverCoreError::NotSetup)?;
-        let mut values: Vec<Block> = Vec::with_capacity(choice.len());
+        let choice_state = match &mut self.state {
+            State::Setup(state) => state,
+            State::Complete => return Err(ExtReceiverCoreError::AlreadyComplete),
+            _ => return Err(ExtReceiverCoreError::NotSetup),
+        };
 
-        for (j, b) in choice.iter().enumerate() {
-            let t: [u8; 16] = ts[j].clone().try_into().unwrap();
-            let t = Block::from(t);
-            let y = if *b {
-                payload.encrypted_values[j][1]
-            } else {
-                payload.encrypted_values[j][0]
-            };
-            let y = y ^ t.hash_tweak(&mut self.cipher, j);
-            values.push(y);
+        if payload.encrypted_values.len() > choice_state.choice.len() {
+            return Err(ExtReceiverCoreError::InvalidPayloadSize);
         }
-        self.state = State::Complete;
+
+        let choice: Vec<bool> = choice_state
+            .choice
+            .drain(..payload.encrypted_values.len())
+            .collect();
+
+        let table = self.table.as_ref().ok_or(ExtReceiverCoreError::NotSetup)?;
+        let values = decrypt_values(&mut self.cipher, &payload.encrypted_values, table, &choice);
+
+        if (choice_state.choice.len() == 0) && (choice_state.derandomized.len() == 0) {
+            self.state = State::Complete;
+        }
 
         Ok(values)
     }
@@ -218,27 +244,49 @@ where
     }
 
     fn derandomize(&mut self, choice: &[bool]) -> Result<ExtDerandomize, ExtReceiverCoreError> {
-        if State::Setup != self.state {
-            return Err(ExtReceiverCoreError::NotSetup);
+        let choice_state = match &mut self.state {
+            State::Setup(state) => state,
+            State::Complete => return Err(ExtReceiverCoreError::AlreadyComplete),
+            _ => return Err(ExtReceiverCoreError::NotSetup),
+        };
+
+        if choice.len() > choice_state.choice.len() {
+            return Err(ExtReceiverCoreError::InvalidChoiceLength);
         }
-        let flip: Vec<bool> = self
-            .choice
-            .as_ref()
-            .ok_or(ExtReceiverCoreError::NotSetup)?
+
+        let random_choice: Vec<bool> = choice_state.choice.drain(..choice.len()).collect();
+        let flip: Vec<bool> = random_choice
             .iter()
             .zip(choice)
             .map(|(a, b)| a ^ b)
             .collect();
-        self.state = State::Derandomized;
-        self.choice = Some(Vec::from(choice));
+
+        choice_state.derandomized.extend_from_slice(choice);
         Ok(ExtDerandomize { flip })
     }
 
     fn receive(&mut self, payload: ExtSenderPayload) -> Result<Vec<Block>, ExtReceiverCoreError> {
-        if State::Derandomized != self.state {
+        let choice_state = match &mut self.state {
+            State::Setup(state) => state,
+            State::Complete => return Err(ExtReceiverCoreError::AlreadyComplete),
+            _ => return Err(ExtReceiverCoreError::NotSetup),
+        };
+
+        if payload.encrypted_values.len() > choice_state.derandomized.len() {
             return Err(ExtReceiverCoreError::NotDerandomized);
         }
-        self.state = State::Setup;
-        ExtReceiveCore::receive(self, payload)
+
+        let choice: Vec<bool> = choice_state
+            .derandomized
+            .drain(..payload.encrypted_values.len())
+            .collect();
+        let table = self.table.as_ref().ok_or(ExtReceiverCoreError::NotSetup)?;
+        let values = decrypt_values(&mut self.cipher, &payload.encrypted_values, table, &choice);
+
+        if (choice_state.choice.len() == 0) && (choice_state.derandomized.len() == 0) {
+            self.state = State::Complete;
+        }
+
+        Ok(values)
     }
 }
