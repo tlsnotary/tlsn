@@ -151,6 +151,19 @@ mod tests {
         (sender, receiver)
     }
 
+    #[fixture]
+    fn random_pair_base_setup(
+        mut sender: ExtSenderCore,
+        mut receiver: ExtReceiverCore,
+    ) -> (ExtSenderCore, ExtReceiverCore) {
+        use super::{ExtRandomReceiveCore, ExtRandomSendCore};
+        let base_sender_setup = receiver.base_setup().unwrap();
+        let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
+        let send_seeds = receiver.base_send(base_receiver_setup).unwrap();
+        sender.base_receive(send_seeds).unwrap();
+        (sender, receiver)
+    }
+
     #[rstest]
     fn test_ext_ot(pair_base_setup: (ExtSenderCore, ExtReceiverCore)) {
         use super::{ExtReceiveCore, ExtSendCore};
@@ -217,17 +230,10 @@ mod tests {
     }
 
     #[rstest]
-    fn test_ext_random_ot() {
+    fn test_ext_random_ot(random_pair_base_setup: (ExtSenderCore, ExtReceiverCore)) {
         use super::{ExtRandomReceiveCore, ExtRandomSendCore};
 
-        let mut receiver = ExtReceiverCore::new(16);
-        let base_sender_setup = receiver.base_setup().unwrap();
-
-        let mut sender = ExtSenderCore::new(16);
-        let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
-
-        let send_seeds = receiver.base_send(base_receiver_setup).unwrap();
-        sender.base_receive(send_seeds).unwrap();
+        let (mut sender, mut receiver) = random_pair_base_setup;
 
         let mut choice = vec![0u8; 2];
         let mut rng = ChaCha12Rng::from_entropy();
@@ -252,5 +258,42 @@ mod tests {
             .collect();
 
         assert_eq!(expected, receive);
+    }
+
+    #[rstest]
+    fn test_ext_random_ot_batch(random_pair_base_setup: (ExtSenderCore, ExtReceiverCore)) {
+        use super::{ExtRandomReceiveCore, ExtRandomSendCore};
+
+        let (mut sender, mut receiver) = random_pair_base_setup;
+
+        let mut choice = vec![0u8; 2];
+        let mut rng = ChaCha12Rng::from_entropy();
+        rng.fill_bytes(&mut choice);
+        let choice = u8vec_to_boolvec(&choice);
+        let inputs: Vec<[Block; 2]> = (0..16)
+            .map(|_| [Block::random(&mut rng), Block::random(&mut rng)])
+            .collect();
+
+        let receiver_setup = receiver.extension_setup().unwrap();
+        sender.extension_setup(receiver_setup).unwrap();
+
+        let mut received: Vec<Block> = Vec::new();
+        for (input, choice) in inputs.chunks(4).zip(choice.chunks(4)) {
+            assert!(!sender.is_complete());
+            assert!(!receiver.is_complete());
+            let derandomize = receiver.derandomize(&choice).unwrap();
+            let payload = sender.send(&input, derandomize).unwrap();
+            received.append(&mut receiver.receive(payload).unwrap());
+        }
+        assert!(sender.is_complete());
+        assert!(receiver.is_complete());
+
+        let expected: Vec<Block> = inputs
+            .iter()
+            .zip(choice)
+            .map(|(input, choice)| input[choice as usize])
+            .collect();
+
+        assert_eq!(expected, received);
     }
 }
