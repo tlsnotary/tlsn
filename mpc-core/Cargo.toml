@@ -49,6 +49,7 @@ optional = true
 [dev-dependencies]
 rstest = "0.12.0"
 criterion = "0.3"
+pretty_assertions = "1.2.1"
 
 [build-dependencies]
 prost-build = { version = "0.9", optional = true }
