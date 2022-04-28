@@ -74,7 +74,7 @@ where
         };
         trace!("Received ExtSenderPayload");
 
-        let values = self.ot.receive(choice, payload.try_into().unwrap())?;
+        let values = self.ot.receive(payload.try_into().unwrap())?;
 
         Ok(values)
     }

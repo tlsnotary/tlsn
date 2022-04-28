@@ -1,6 +1,9 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use mpc_core::block::{Block, BLOCK_ONES};
-use mpc_core::ot::*;
+use mpc_core::ot::{
+    ExtReceiveCore, ExtReceiverCore, ExtSendCore, ExtSenderCore, ReceiveCore, ReceiverCore,
+    SendCore, SenderCore,
+};
 use mpc_core::utils::u8vec_to_boolvec;
 use rand::RngCore;
 use rand::SeedableRng;
@@ -12,10 +15,10 @@ fn criterion_benchmark(c: &mut Criterion) {
         let choice = [false; 1024];
 
         bench.iter(|| {
-            let mut sender = SenderCore::default();
+            let mut sender = SenderCore::new(1024);
             let sender_setup = sender.setup();
 
-            let mut receiver = ReceiverCore::default();
+            let mut receiver = ReceiverCore::new(1024);
 
             let receiver_setup = receiver.setup(&choice, sender_setup).unwrap();
             let send = sender.send(&s_inputs, receiver_setup).unwrap();
@@ -34,10 +37,10 @@ fn criterion_benchmark(c: &mut Criterion) {
             .collect();
 
         bench.iter(|| {
-            let mut receiver = ExtReceiverCore::default();
+            let mut receiver = ExtReceiverCore::new(1024);
             let base_sender_setup = receiver.base_setup().unwrap();
 
-            let mut sender = ExtSenderCore::default();
+            let mut sender = ExtSenderCore::new(1024);
             let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
 
             let send_seeds = receiver.base_send(base_receiver_setup).unwrap();
@@ -46,7 +49,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             sender.extension_setup(receiver_setup).unwrap();
 
             let send = sender.send(&inputs).unwrap();
-            let receive = receiver.receive(&choice, send).unwrap();
+            let receive = receiver.receive(send).unwrap();
 
             black_box(receive);
         });

@@ -69,10 +69,10 @@ pub mod tests {
         #[fixture]
         #[once]
         pub fn ot_core_data(choice: &Vec<bool>, values: &Vec<[Block; 2]>) -> Data {
-            let mut sender = SenderCore::default();
+            let mut sender = SenderCore::new(values.len());
             let sender_setup = sender.setup();
 
-            let mut receiver = ReceiverCore::default();
+            let mut receiver = ReceiverCore::new(choice.len());
             let receiver_setup = receiver.setup(choice, sender_setup).unwrap();
 
             let sender_payload = sender.send(values, receiver_setup.clone()).unwrap();
@@ -102,10 +102,10 @@ pub mod tests {
             .map(|(input, choice)| input[*choice as usize])
             .collect();
 
-        let mut sender = SenderCore::default();
+        let mut sender = SenderCore::new(s_inputs.len());
         let sender_setup = sender.setup();
 
-        let mut receiver = ReceiverCore::default();
+        let mut receiver = ReceiverCore::new(choice.len());
         let receiver_setup = receiver.setup(&choice, sender_setup).unwrap();
 
         let send = sender.send(&s_inputs, receiver_setup).unwrap();

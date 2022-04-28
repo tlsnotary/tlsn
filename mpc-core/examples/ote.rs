@@ -26,11 +26,11 @@ pub fn main() {
     println!("Sender inputs: {:?}", &inputs);
 
     // First the receiver creates a setup message and passes it to sender
-    let mut receiver = ExtReceiverCore::default();
+    let mut receiver = ExtReceiverCore::new(inputs.len());
     let base_sender_setup = receiver.base_setup().unwrap();
 
     // Sender takes receiver's setup and creates its own setup message
-    let mut sender = ExtSenderCore::default();
+    let mut sender = ExtSenderCore::new(inputs.len());
     let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
 
     // Now the receiver generates some seeds from sender's setup and uses OT to transfer them
@@ -47,7 +47,7 @@ pub fn main() {
     let payload = sender.send(&inputs).unwrap();
 
     // Receiver takes the encrypted inputs and is able to decrypt according to their choice bits
-    let received = receiver.receive(&choice, payload).unwrap();
+    let received = receiver.receive(payload).unwrap();
 
     println!("Transferred messages: {:?}", received);
 }

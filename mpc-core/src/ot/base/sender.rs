@@ -15,8 +15,9 @@ pub enum State {
     Complete,
 }
 
-pub struct SenderCore<R> {
+pub struct SenderCore<R = ChaCha12Rng> {
     rng: R,
+    count: usize,
     private_key: Option<Scalar>,
     public_key: Option<RistrettoPoint>,
     state: State,
@@ -32,16 +33,23 @@ pub struct SenderPayload {
     pub encrypted_values: Vec<[Block; 2]>,
 }
 
-impl Default for SenderCore<ChaCha12Rng> {
-    fn default() -> Self {
-        Self::new(ChaCha12Rng::from_entropy())
+impl SenderCore {
+    pub fn new(count: usize) -> Self {
+        Self {
+            rng: ChaCha12Rng::from_entropy(),
+            count,
+            private_key: None,
+            public_key: None,
+            state: State::Initialized,
+        }
     }
 }
 
 impl<R: Rng + CryptoRng> SenderCore<R> {
-    pub fn new(rng: R) -> Self {
+    pub fn new_from_rng(rng: R, count: usize) -> Self {
         Self {
             rng,
+            count,
             private_key: None,
             public_key: None,
             state: State::Initialized,
@@ -71,6 +79,8 @@ impl<R: Rng + CryptoRng> SendCore for SenderCore<R> {
     ) -> Result<SenderPayload, SenderCoreError> {
         if self.state < State::Setup {
             return Err(SenderCoreError::NotSetup);
+        } else if inputs.len() != self.count {
+            return Err(SenderCoreError::InvalidInputLength);
         }
         let private_key = self.private_key.unwrap();
         let ninputs = inputs.len();

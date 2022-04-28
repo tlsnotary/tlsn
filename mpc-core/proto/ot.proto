@@ -28,6 +28,11 @@ message ExtReceiverSetup {
     repeated bytes table = 2;
 }
 
+// Derandomization message sent by OT Receiver
+message ExtDerandomize {
+    repeated bool flip = 1;
+}
+
 message ExtSenderPayload {
     // Encrypted values
     repeated core.LabelPair encrypted_values = 1;
@@ -39,6 +44,7 @@ message Message {
         SenderPayload sender_payload = 2;
         ReceiverSetup receiver_setup = 3;
         ExtReceiverSetup ext_receiver_setup = 4;
-        ExtSenderPayload ext_sender_payload = 5;
+        ExtDerandomize ext_derandomize = 5;
+        ExtSenderPayload ext_sender_payload = 6;
     }
 }

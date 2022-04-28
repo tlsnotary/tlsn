@@ -16,8 +16,9 @@ pub enum State {
     Complete,
 }
 
-pub struct ReceiverCore<R> {
+pub struct ReceiverCore<R = ChaCha12Rng> {
     rng: R,
+    count: usize,
     hashes: Option<Vec<Block>>,
     choice: Option<Vec<bool>>,
     state: State,
@@ -28,16 +29,23 @@ pub struct ReceiverSetup {
     pub keys: Vec<RistrettoPoint>,
 }
 
-impl Default for ReceiverCore<ChaCha12Rng> {
-    fn default() -> Self {
-        Self::new(ChaCha12Rng::from_entropy())
+impl ReceiverCore {
+    pub fn new(count: usize) -> Self {
+        Self {
+            rng: ChaCha12Rng::from_entropy(),
+            count,
+            hashes: None,
+            choice: None,
+            state: State::Initialized,
+        }
     }
 }
 
 impl<R: Rng + CryptoRng> ReceiverCore<R> {
-    pub fn new(rng: R) -> Self {
+    pub fn new_from_rng(rng: R, count: usize) -> Self {
         Self {
             rng,
+            count,
             hashes: None,
             choice: None,
             state: State::Initialized,
@@ -55,6 +63,9 @@ impl<R: Rng + CryptoRng> ReceiveCore for ReceiverCore<R> {
         choice: &[bool],
         sender_setup: SenderSetup,
     ) -> Result<ReceiverSetup, ReceiverCoreError> {
+        if choice.len() != self.count {
+            return Err(ReceiverCoreError::InvalidChoiceLength);
+        }
         let point_table = RistrettoBasepointTable::create(&sender_setup.public_key);
         let zero = &Scalar::zero() * &point_table;
         let one = &Scalar::one() * &point_table;

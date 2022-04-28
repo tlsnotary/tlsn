@@ -10,9 +10,13 @@ pub enum ExtSenderCoreError {
     /// OT Extension has not been setup
     #[error("Tried to send prior to setup")]
     NotSetup,
+    #[error("Provided incorrect number of inputs")]
+    InvalidInputLength,
+    #[error("Tried to send after OT is already complete")]
+    AlreadyComplete,
 }
 
-/// Errors that may occur when using OTReceiver
+/// Errors that may occur when using ExtReceiverCore
 #[derive(Debug, thiserror::Error)]
 pub enum ExtReceiverCoreError {
     /// Error originating from Base OT
@@ -24,4 +28,13 @@ pub enum ExtReceiverCoreError {
     /// OT Extension has not been setup
     #[error("Tried to receive prior to setup")]
     NotSetup,
+    /// Choice bits not derandomized
+    #[error("Payload contains more encrypted values than derandomized choice bits")]
+    NotDerandomized,
+    #[error("Tried to derandomize more OTs than setup")]
+    InvalidChoiceLength,
+    #[error("Received payload of unexpected size")]
+    InvalidPayloadSize,
+    #[error("Tried to receive after OT is already complete")]
+    AlreadyComplete,
 }
