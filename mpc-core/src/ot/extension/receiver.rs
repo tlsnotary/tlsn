@@ -215,8 +215,9 @@ where
             .drain(..payload.encrypted_values.len())
             .collect();
 
-        let table = self.table.as_ref().ok_or(ExtReceiverCoreError::NotSetup)?;
-        let values = decrypt_values(&mut self.cipher, &payload.encrypted_values, table, &choice);
+        let table = self.table.as_mut().ok_or(ExtReceiverCoreError::NotSetup)?;
+        let table: Vec<Vec<u8>> = table.drain(..choice.len()).collect();
+        let values = decrypt_values(&mut self.cipher, &payload.encrypted_values, &table, &choice);
 
         if (choice_state.choice.len() == 0) && (choice_state.derandomized.len() == 0) {
             self.state = State::Complete;
@@ -280,8 +281,9 @@ where
             .derandomized
             .drain(..payload.encrypted_values.len())
             .collect();
-        let table = self.table.as_ref().ok_or(ExtReceiverCoreError::NotSetup)?;
-        let values = decrypt_values(&mut self.cipher, &payload.encrypted_values, table, &choice);
+        let table = self.table.as_mut().ok_or(ExtReceiverCoreError::NotSetup)?;
+        let table: Vec<Vec<u8>> = table.drain(..choice.len()).collect();
+        let values = decrypt_values(&mut self.cipher, &payload.encrypted_values, &table, &choice);
 
         if (choice_state.choice.len() == 0) && (choice_state.derandomized.len() == 0) {
             self.state = State::Complete;

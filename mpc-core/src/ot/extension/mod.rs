@@ -123,22 +123,39 @@ mod tests {
     use super::{ExtReceiverCore, ExtSenderCore};
     use crate::utils::u8vec_to_boolvec;
     use crate::Block;
+    use pretty_assertions::assert_eq;
     use rand::{RngCore, SeedableRng};
     use rand_chacha::ChaCha12Rng;
     use rstest::*;
 
-    #[rstest]
-    fn test_ext_ot() {
+    #[fixture]
+    fn receiver() -> ExtReceiverCore {
+        ExtReceiverCore::new(16)
+    }
+
+    #[fixture]
+    fn sender() -> ExtSenderCore {
+        ExtSenderCore::new(16)
+    }
+
+    #[fixture]
+    fn pair_base_setup(
+        mut sender: ExtSenderCore,
+        mut receiver: ExtReceiverCore,
+    ) -> (ExtSenderCore, ExtReceiverCore) {
         use super::{ExtReceiveCore, ExtSendCore};
-
-        let mut receiver = ExtReceiverCore::new(16);
         let base_sender_setup = receiver.base_setup().unwrap();
-
-        let mut sender = ExtSenderCore::new(16);
         let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
-
         let send_seeds = receiver.base_send(base_receiver_setup).unwrap();
         sender.base_receive(send_seeds).unwrap();
+        (sender, receiver)
+    }
+
+    #[rstest]
+    fn test_ext_ot(pair_base_setup: (ExtSenderCore, ExtReceiverCore)) {
+        use super::{ExtReceiveCore, ExtSendCore};
+
+        let (mut sender, mut receiver) = pair_base_setup;
 
         let mut choice = vec![0u8; 2];
         let mut rng = ChaCha12Rng::from_entropy();
@@ -161,6 +178,42 @@ mod tests {
             .collect();
 
         assert_eq!(expected, receive);
+    }
+
+    #[rstest]
+    fn test_ext_ot_batch(pair_base_setup: (ExtSenderCore, ExtReceiverCore)) {
+        use super::{ExtReceiveCore, ExtSendCore};
+
+        let (mut sender, mut receiver) = pair_base_setup;
+
+        let mut choice = vec![0u8; 2];
+        let mut rng = ChaCha12Rng::from_entropy();
+        rng.fill_bytes(&mut choice);
+        let choice = u8vec_to_boolvec(&choice);
+        let inputs: Vec<[Block; 2]> = (0..16)
+            .map(|_| [Block::random(&mut rng), Block::random(&mut rng)])
+            .collect();
+
+        let receiver_setup = receiver.extension_setup(&choice).unwrap();
+        sender.extension_setup(receiver_setup).unwrap();
+
+        let mut received: Vec<Block> = Vec::new();
+        for chunk in inputs.chunks(4) {
+            assert!(!sender.is_complete());
+            assert!(!receiver.is_complete());
+            let payload = sender.send(&chunk).unwrap();
+            received.append(&mut receiver.receive(payload).unwrap());
+        }
+        assert!(sender.is_complete());
+        assert!(receiver.is_complete());
+
+        let expected: Vec<Block> = inputs
+            .iter()
+            .zip(choice)
+            .map(|(input, choice)| input[choice as usize])
+            .collect();
+
+        assert_eq!(expected, received);
     }
 
     #[rstest]
