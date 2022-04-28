@@ -69,10 +69,10 @@ async fn receive<S: AsyncWrite + AsyncRead + Send + Unpin>(
     info!("Choosing {:?}", choice);
 
     let values = if extended {
-        let mut receiver = ExtReceiver::new(ExtReceiverCore::default(), stream);
+        let mut receiver = ExtReceiver::new(ExtReceiverCore::new(choice.len()), stream);
         receiver.receive(&choice).await.unwrap()
     } else {
-        let mut receiver = Receiver::new(ReceiverCore::default(), stream);
+        let mut receiver = Receiver::new(ReceiverCore::new(choice.len()), stream);
         receiver.receive(&choice).await.unwrap()
     };
 
@@ -93,10 +93,10 @@ async fn send<S: AsyncWrite + AsyncRead + Send + Unpin>(
     );
 
     if extended {
-        let mut sender = ExtSender::new(ExtSenderCore::default(), stream);
+        let mut sender = ExtSender::new(ExtSenderCore::new(values.len()), stream);
         let _ = sender.send(&values).await;
     } else {
-        let mut sender = Sender::new(SenderCore::default(), stream);
+        let mut sender = Sender::new(SenderCore::new(values.len()), stream);
         let _ = sender.send(&values).await;
     }
 
