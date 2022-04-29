@@ -35,6 +35,8 @@ pub struct ExtReceiverCore<R = ChaCha12Rng, C = Aes128, OT = SenderCore<ChaCha12
     base: OT,
     state: State,
     count: usize,
+    // seeds are the result of running base OT setup. They are used to seed the
+    // RNGs.
     seeds: Option<Vec<[Block; 2]>>,
     rngs: Option<Vec<[ChaCha12Rng; 2]>>,
     table: Option<Vec<Vec<u8>>>,
@@ -174,12 +176,19 @@ where
             .as_mut()
             .ok_or(ExtReceiverCoreError::BaseOTNotSetup)?;
 
+        // The amount of choice bits must be equal to the amount of OT instances
+        // needed plus extra 256 instances which will be sacrificed as part of the
+        // KOS protocol.
         let r = utils::boolvec_to_u8vec(choice);
         let m = choice.len();
         let ncols = if m % 8 != 0 { m + (8 - m % 8) } else { m };
         let mut ts: Vec<Vec<u8>> = vec![vec![0u8; ncols / 8]; BASE_COUNT];
         let mut gs: Vec<Vec<u8>> = vec![vec![0u8; ncols / 8]; BASE_COUNT];
 
+        // Note that for each row j of the matrix gs which will be sent to Sender,
+        // Sender knows either rng[0] or rng[1] depending on his choice bit during
+        // base OT. If he knows rng[1] then he will XOR it with gs[j] and get a
+        // row ( ts[j] ^ r ). But if he knows rng[0] then his row will be ts[j].
         for j in 0..BASE_COUNT {
             rngs[j][0].fill_bytes(&mut ts[j]);
             rngs[j][1].fill_bytes(&mut gs[j]);
@@ -190,6 +199,12 @@ where
                 .map(|((g, t), r)| *g ^ *t ^ *r)
                 .collect();
         }
+
+        // After Sender transposes his matrix, he will have a table S such that
+        // for each row j:
+        // self.table[j] = S[j], if our choice bit was 0 or
+        // self.table[j] = S[j] ^ delta, if our choice bit was 1
+        // (note that delta is known only to Sender)
         self.table = Some(utils::transpose(&ts));
         self.state = State::Setup(ChoiceState {
             choice: Vec::from(choice),

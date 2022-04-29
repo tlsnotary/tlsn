@@ -32,6 +32,16 @@ impl Block {
     }
 
     #[inline]
+    // OT extension Sender must break correlation between his 2 masks before
+    // using them in 1-out-of-2 Oblivious Transfer. Every pair of masks has
+    // a constant correlation: their XOR equals a delta (delta is choice bits
+    // in base OT).
+    // If masks were used as-is in OT, Receiver could infer bits of delta and break
+    // the OT security.
+    // For performance reasons, we don't use a hash but a construction which has
+    // tweakable correlation robustness (tcr). The GKWY20 paper shows (in
+    // Section 7.4) how to achieve tcr using a fixed-key cipher C instead of a
+    // hash, i.e. instead of Hash(x, i) we must do C(C(x) xor i) xor C(x).
     pub fn hash_tweak<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
         &self,
         c: &mut C,

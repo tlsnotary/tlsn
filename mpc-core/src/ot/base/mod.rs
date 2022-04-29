@@ -1,3 +1,6 @@
+//! this crate implements the CO15 Oblivious Transfer protocol from
+//! [ref1] https://eprint.iacr.org/2015/267.pdf (see Figure 1)
+
 pub mod errors;
 pub mod receiver;
 pub mod sender;

@@ -1,3 +1,5 @@
+//! This crate implements the KOS15 Oblivious Transfer extension protocol.
+
 pub mod errors;
 pub mod receiver;
 pub mod sender;
@@ -20,6 +22,7 @@ const K: usize = 40;
 pub trait ExtSendCore {
     fn state(&self) -> sender::State;
 
+    //
     fn base_setup(
         &mut self,
         base_sender_setup: BaseSenderSetup,
@@ -42,6 +45,8 @@ pub trait ExtRandomSendCore: ExtSendCore {
         ExtSendCore::state(self)
     }
 
+    // Sender in OT extension acts as Receiver in base OT and receives a setup
+    // message from base OT Sender and responds with its own setup message.
     fn base_setup(
         &mut self,
         base_sender_setup: BaseSenderSetup,
@@ -74,6 +79,8 @@ pub trait ExtRandomSendCore: ExtSendCore {
 pub trait ExtReceiveCore {
     fn state(&self) -> &receiver::State;
 
+    // Receiver in OT extension acts as Sender in base OT and sends the first
+    // base OT setup message.
     fn base_setup(&mut self) -> Result<BaseSenderSetup, ExtReceiverCoreError>;
 
     fn base_send(
@@ -96,6 +103,8 @@ pub trait ExtRandomReceiveCore: ExtReceiveCore {
         ExtReceiveCore::state(self)
     }
 
+    // Receiver in OT extension acts as Sender in base OT and sends the first
+    // base OT setup message.
     fn base_setup(&mut self) -> Result<BaseSenderSetup, ExtReceiverCoreError> {
         ExtReceiveCore::base_setup(self)
     }

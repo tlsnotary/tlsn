@@ -30,9 +30,17 @@ pub struct ExtSenderCore<C = Aes128, OT = ReceiverCore<ChaCha12Rng>> {
     state: State,
     count: usize,
     sent: usize,
+    // choice bits for the base OT protocol
     base_choice: Vec<bool>,
+    // seeds are the result of running base OT setup. They are used to seed the
+    // RNGs.
     seeds: Option<Vec<Block>>,
     rngs: Option<Vec<ChaCha12Rng>>,
+    // table's rows are such that for each row j:
+    // table[j] = R[j], if Receiver's choice bit was 0 or
+    // table[j] = R[j] ^ base_choice, if Receiver's choice bit was 1
+    // (where R is the table which Receiver has. Note that base_choice is known
+    // only to us).
     table: Option<Vec<Vec<u8>>>,
 }
 
@@ -41,6 +49,9 @@ pub struct ExtSenderPayload {
     pub encrypted_values: Vec<[Block; 2]>,
 }
 
+// Having 2 messages that Receiver chooses from, we encrypt each message with
+// a unique mask (i.e. XOR the message them with the mask). Receiver who knows
+// only 1 mask will be able to decrypt only 1 message out of 2.
 fn encrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     cipher: &mut C,
     inputs: &[[Block; 2]],
@@ -51,6 +62,9 @@ fn encrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     let mut encrypted_values: Vec<[Block; 2]> = Vec::with_capacity(table.len());
     let base_choice: [u8; 16] = utils::boolvec_to_u8vec(base_choice).try_into().unwrap();
     let delta = Block::from(base_choice);
+    // If Receiver used *random* choice bits during OT extension setup, he will now
+    // instruct us to de-randomize, so that the value corresponding to his *actual*
+    // choice bit would be masked by that mask which Receiver knows.
     let flip = flip.unwrap_or(vec![false; inputs.len()]);
     for (j, (input, flip)) in inputs.iter().zip(flip).enumerate() {
         let q: [u8; 16] = table[j].clone().try_into().unwrap();

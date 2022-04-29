@@ -66,6 +66,7 @@ impl<R: Rng + CryptoRng> ReceiveCore for ReceiverCore<R> {
         if choice.len() != self.count {
             return Err(ReceiverCoreError::InvalidChoiceLength);
         }
+        // point_table is A in [ref1]
         let point_table = RistrettoBasepointTable::create(&sender_setup.public_key);
         let zero = &Scalar::zero() * &point_table;
         let one = &Scalar::one() * &point_table;
@@ -73,10 +74,14 @@ impl<R: Rng + CryptoRng> ReceiveCore for ReceiverCore<R> {
             .iter()
             .enumerate()
             .map(|(i, b)| {
+                // x is b in [ref1]
                 let x = Scalar::random(&mut self.rng);
                 let c = if *b { one } else { zero };
+                // k is B in [ref1]
                 let k = c + &x * &RISTRETTO_BASEPOINT_TABLE;
+                // h is k_r in [ref1] == hash(A^b)
                 let h = Block::hash_point(&(&x * &point_table), i as u32);
+                // we send the k values to the Sender and keep the h values
                 (k, h)
             })
             .unzip();
@@ -101,7 +106,9 @@ impl<R: Rng + CryptoRng> ReceiveCore for ReceiverCore<R> {
             .zip(hashes)
             .zip(payload.encrypted_values.iter())
             .map(|((c, h), v)| {
+                // select an encrypted value based on the choice bit
                 let b = if *c { v[1] } else { v[0] };
+                // decrypt it with the corresponding key (the key is a hash)
                 *h ^ b
             })
             .collect();
