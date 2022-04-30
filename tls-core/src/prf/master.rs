@@ -116,54 +116,36 @@ impl PRFMaster {
                 if self.state != State::Ms1 {
                     return Err(PRFError::OutOfOrder);
                 }
-                // H((pms xor ipad) || a1)
-                let inner_hash = finalize_sha256_digest(self.inner_hash_state.unwrap(), 64, &m.a1);
                 self.state = State::Ms2;
-                Ok(PRFMessage::MasterMs2(MasterMs2 { inner_hash }))
+                Ok(PRFMessage::MasterMs2(MasterMs2 {
+                    inner_hash: self.ms1(&m.a1),
+                }))
             }
             PRFMessage::SlaveMs2(m) => {
                 if self.state != State::Ms2 {
                     return Err(PRFError::OutOfOrder);
                 }
-                let mut a2_seed = [0u8; 109];
-                a2_seed[..32].copy_from_slice(&m.a2);
-                a2_seed[32..].copy_from_slice(&self.seed.unwrap());
-                // H((pms xor ipad) || a2 || seed)
-                let inner_hash =
-                    finalize_sha256_digest(self.inner_hash_state.unwrap(), 64, &a2_seed);
                 self.state = State::Ms3;
-                Ok(PRFMessage::MasterMs3(MasterMs3 { inner_hash }))
+                Ok(PRFMessage::MasterMs3(MasterMs3 {
+                    inner_hash: self.ms2(&m.a2),
+                }))
             }
             PRFMessage::SlaveKe1(m) => {
                 if self.state != State::Ke1 {
                     return Err(PRFError::OutOfOrder);
                 }
                 // H((pms xor ipad) || a1)
-                let inner_hash = finalize_sha256_digest(self.inner_hash_state.unwrap(), 64, &m.a1);
                 self.a1 = Some(m.a1);
                 self.state = State::Ke2;
-                Ok(PRFMessage::MasterKe2(MasterKe2 { inner_hash }))
+                Ok(PRFMessage::MasterKe2(MasterKe2 {
+                    inner_hash: self.ke1(&m.a1),
+                }))
             }
             PRFMessage::SlaveKe2(m) => {
                 if self.state != State::Ke2 {
                     return Err(PRFError::OutOfOrder);
                 }
-                let mut a1_seed = [0u8; 109];
-                a1_seed[..32].copy_from_slice(&self.a1.unwrap());
-                a1_seed[32..].copy_from_slice(&self.seed.unwrap());
-
-                let mut a2_seed = [0u8; 109];
-                a2_seed[..32].copy_from_slice(&m.a2);
-                a2_seed[32..].copy_from_slice(&self.seed.unwrap());
-
-                // H((pms xor ipad) || a1 || seed)
-                let inner_hash_p1 =
-                    finalize_sha256_digest(self.inner_hash_state.unwrap(), 64, &a1_seed);
-
-                // H((pms xor ipad) || a2 || seed)
-                let inner_hash_p2 =
-                    finalize_sha256_digest(self.inner_hash_state.unwrap(), 64, &a2_seed);
-
+                let (inner_hash_p1, inner_hash_p2) = self.ke2(&m.a2);
                 self.state = State::Ke3;
                 Ok(PRFMessage::MasterKe3(MasterKe3 {
                     inner_hash_p1,
@@ -172,5 +154,40 @@ impl PRFMaster {
             }
             _ => Err(PRFError::InvalidMessage),
         }
+    }
+
+    fn ms1(&mut self, a1: &[u8]) -> [u8; 32] {
+        // H((pms xor ipad) || a1)
+        finalize_sha256_digest(self.inner_hash_state.unwrap(), 64, a1)
+    }
+
+    fn ms2(&mut self, a2: &[u8]) -> [u8; 32] {
+        let mut a2_seed = [0u8; 109];
+        a2_seed[..32].copy_from_slice(&a2);
+        a2_seed[32..].copy_from_slice(&self.seed.unwrap());
+        // H((pms xor ipad) || a2 || seed)
+        finalize_sha256_digest(self.inner_hash_state.unwrap(), 64, &a2_seed)
+    }
+
+    fn ke1(&mut self, a1: &[u8]) -> [u8; 32] {
+        // H((pms xor ipad) || a1)
+        finalize_sha256_digest(self.inner_hash_state.unwrap(), 64, &a1)
+    }
+
+    fn ke2(&mut self, a2: &[u8]) -> ([u8; 32], [u8; 32]) {
+        let mut a1_seed = [0u8; 109];
+        a1_seed[..32].copy_from_slice(&self.a1.unwrap());
+        a1_seed[32..].copy_from_slice(&self.seed.unwrap());
+
+        let mut a2_seed = [0u8; 109];
+        a2_seed[..32].copy_from_slice(&a2);
+        a2_seed[32..].copy_from_slice(&self.seed.unwrap());
+
+        // H((pms xor ipad) || a1 || seed)
+        let inner_hash_p1 = finalize_sha256_digest(self.inner_hash_state.unwrap(), 64, &a1_seed);
+
+        // H((pms xor ipad) || a2 || seed)
+        let inner_hash_p2 = finalize_sha256_digest(self.inner_hash_state.unwrap(), 64, &a2_seed);
+        (inner_hash_p1, inner_hash_p2)
     }
 }

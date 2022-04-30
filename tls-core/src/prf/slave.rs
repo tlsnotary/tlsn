@@ -87,48 +87,73 @@ impl PRFSlave {
                 if self.state != State::MsSetup {
                     return Err(PRFError::WrongState);
                 }
-                // H((pms xor opad) || H((pms xor ipad) || seed))
-                let a1 = finalize_sha256_digest(self.outer_hash_state.unwrap(), 64, &m.inner_hash);
                 self.state = State::Ms1;
-                Ok(PRFMessage::SlaveMs1(SlaveMs1 { a1 }))
+                Ok(PRFMessage::SlaveMs1(SlaveMs1 {
+                    a1: self.ms1(&m.inner_hash),
+                }))
             }
             PRFMessage::MasterMs2(m) => {
                 if self.state != State::Ms1 {
                     return Err(PRFError::OutOfOrder);
                 }
-                // H((pms xor opad) || H((pms xor ipad) || a1))
-                let a2 = finalize_sha256_digest(self.outer_hash_state.unwrap(), 64, &m.inner_hash);
                 self.state = State::Ms2;
-                Ok(PRFMessage::SlaveMs2(SlaveMs2 { a2 }))
+                Ok(PRFMessage::SlaveMs2(SlaveMs2 {
+                    a2: self.ms2(&m.inner_hash),
+                }))
             }
             PRFMessage::MasterMs3(m) => {
                 if self.state != State::Ms2 {
                     return Err(PRFError::OutOfOrder);
                 }
-                // H((pms xor opad) || H((pms xor ipad) || a2 || seed))
-                let p2 = finalize_sha256_digest(self.outer_hash_state.unwrap(), 64, &m.inner_hash);
                 self.state = State::Ms3;
-                Ok(PRFMessage::SlaveMs3(SlaveMs3 { p2 }))
+                Ok(PRFMessage::SlaveMs3(SlaveMs3 {
+                    p2: self.ms3(&m.inner_hash),
+                }))
             }
             PRFMessage::MasterKe1(m) => {
                 if self.state != State::KeSetup {
                     return Err(PRFError::WrongState);
                 }
-                // H((pms xor opad) || H((pms xor ipad) || seed))
-                let a1 = finalize_sha256_digest(self.outer_hash_state.unwrap(), 64, &m.inner_hash);
                 self.state = State::Ke1;
-                Ok(PRFMessage::SlaveKe1(SlaveKe1 { a1 }))
+                Ok(PRFMessage::SlaveKe1(SlaveKe1 {
+                    a1: self.ke1(&m.inner_hash),
+                }))
             }
             PRFMessage::MasterKe2(m) => {
                 if self.state != State::Ke1 {
                     return Err(PRFError::OutOfOrder);
                 }
-                // H((pms xor opad) || H((pms xor ipad) || a1))
-                let a2 = finalize_sha256_digest(self.outer_hash_state.unwrap(), 64, &m.inner_hash);
                 self.state = State::Ke2;
-                Ok(PRFMessage::SlaveKe2(SlaveKe2 { a2 }))
+                Ok(PRFMessage::SlaveKe2(SlaveKe2 {
+                    a2: self.ke2(&m.inner_hash),
+                }))
             }
             _ => Err(PRFError::InvalidMessage),
         }
+    }
+
+    fn ms1(&mut self, inner_hash: &[u8]) -> [u8; 32] {
+        // H((pms xor opad) || H((pms xor ipad) || seed))
+        finalize_sha256_digest(self.outer_hash_state.unwrap(), 64, inner_hash)
+    }
+
+    fn ms2(&mut self, inner_hash: &[u8]) -> [u8; 32] {
+        // H((pms xor opad) || H((pms xor ipad) || a1))
+        finalize_sha256_digest(self.outer_hash_state.unwrap(), 64, inner_hash)
+    }
+
+    fn ms3(&mut self, inner_hash: &[u8]) -> [u8; 32] {
+        // H((pms xor opad) || H((pms xor ipad) || a2 || seed))
+        finalize_sha256_digest(self.outer_hash_state.unwrap(), 64, inner_hash)
+    }
+
+    fn ke1(&mut self, inner_hash: &[u8]) -> [u8; 32] {
+        // H((pms xor opad) || H((pms xor ipad) || seed))
+        finalize_sha256_digest(self.outer_hash_state.unwrap(), 64, inner_hash)
+    }
+
+    fn ke2(&mut self, inner_hash: &[u8]) -> [u8; 32] {
+        // H((pms xor opad) || H((pms xor ipad) || a1))
+        finalize_sha256_digest(self.outer_hash_state.unwrap(), 64, inner_hash)
     }
 }
