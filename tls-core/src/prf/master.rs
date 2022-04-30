@@ -170,7 +170,7 @@ impl PRFMaster {
     }
 
     fn ke1(&mut self, a1: &[u8]) -> [u8; 32] {
-        // H((pms xor ipad) || a1)
+        // H((ms xor ipad) || a1)
         finalize_sha256_digest(self.inner_hash_state.unwrap(), 64, &a1)
     }
 
@@ -183,10 +183,10 @@ impl PRFMaster {
         a2_seed[..32].copy_from_slice(&a2);
         a2_seed[32..].copy_from_slice(&self.seed.unwrap());
 
-        // H((pms xor ipad) || a1 || seed)
+        // H((ms xor ipad) || a1 || seed)
         let inner_hash_p1 = finalize_sha256_digest(self.inner_hash_state.unwrap(), 64, &a1_seed);
 
-        // H((pms xor ipad) || a2 || seed)
+        // H((ms xor ipad) || a2 || seed)
         let inner_hash_p2 = finalize_sha256_digest(self.inner_hash_state.unwrap(), 64, &a2_seed);
         (inner_hash_p1, inner_hash_p2)
     }

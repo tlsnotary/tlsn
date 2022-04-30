@@ -148,12 +148,12 @@ impl PRFSlave {
     }
 
     fn ke1(&mut self, inner_hash: &[u8]) -> [u8; 32] {
-        // H((pms xor opad) || H((pms xor ipad) || seed))
+        // H((ms xor opad) || H((ms xor ipad) || seed))
         finalize_sha256_digest(self.outer_hash_state.unwrap(), 64, inner_hash)
     }
 
     fn ke2(&mut self, inner_hash: &[u8]) -> [u8; 32] {
-        // H((pms xor opad) || H((pms xor ipad) || a1))
+        // H((ms xor opad) || H((ms xor ipad) || a1))
         finalize_sha256_digest(self.outer_hash_state.unwrap(), 64, inner_hash)
     }
 }
