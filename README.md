@@ -1,5 +1,8 @@
 # TLSNotary
 
+## Project Structure
+<img src="https://github.com/tlsnotary/docs-assets/raw/main/diagrams/crate_structure.png" width=500>
+
 ## License
 All crates in this repository are licensed under either of
 
