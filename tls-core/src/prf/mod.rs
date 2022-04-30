@@ -4,8 +4,8 @@ mod sha;
 pub mod slave;
 mod utils;
 
-pub use master::PrfMaster;
-pub use slave::PrfSlave;
+pub use master::PRFMaster;
+pub use slave::PRFSlave;
 
 use master::{MasterKe1, MasterKe2, MasterKe3, MasterMs1, MasterMs2, MasterMs3};
 use slave::{SlaveKe1, SlaveKe2, SlaveMs1, SlaveMs2, SlaveMs3};
@@ -40,8 +40,8 @@ mod tests {
 
         let (ipad, opad) = generate_hmac_pads(&pms);
 
-        let mut master = PrfMaster::new(*client_random, *server_random);
-        let mut slave = PrfSlave::new();
+        let mut master = PRFMaster::new(*client_random, *server_random);
+        let mut slave = PRFSlave::new();
 
         // H(pms xor ipad)
         let inner_hash_state = partial_sha256_digest(&ipad);
