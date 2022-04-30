@@ -35,9 +35,11 @@ pub struct SlaveKe2 {
 #[derive(std::cmp::PartialEq, Copy, Clone)]
 enum State {
     Initialized,
+    MsSetup,
     Ms1,
     Ms2,
     Ms3,
+    KeSetup,
     Ke1,
     Ke2,
 }
@@ -58,19 +60,35 @@ impl PRFSlave {
         }
     }
 
-    pub fn next(
-        &mut self,
-        message: PRFMessage,
-        outer_hash_state: Option<[u32; 8]>,
-    ) -> Result<PRFMessage, PRFError> {
+    /// The first method that should be called after instantiation. Performs
+    /// setup before we can process master secret related messages.
+    pub fn ms_setup(&mut self, outer_hash_state: [u32; 8]) -> Result<(), PRFError> {
+        if self.state != State::Initialized {
+            return Err(PRFError::WrongState);
+        }
+        self.outer_hash_state = Some(outer_hash_state);
+        self.state = State::MsSetup;
+        Ok(())
+    }
+
+    // Performs setup before we can process key expansion related messages.
+    pub fn ke_setup(&mut self, outer_hash_state: [u32; 8]) -> Result<(), PRFError> {
+        if self.state != State::Ms3 {
+            return Err(PRFError::WrongState);
+        }
+        self.outer_hash_state = Some(outer_hash_state);
+        self.state = State::KeSetup;
+        Ok(())
+    }
+
+    pub fn next(&mut self, message: PRFMessage) -> Result<PRFMessage, PRFError> {
         match message {
             PRFMessage::MasterMs1(m) => {
-                if self.state != State::Initialized {
-                    return Err(PRFError::OutOfOrder);
+                if self.state != State::MsSetup {
+                    return Err(PRFError::WrongState);
                 }
                 // H((pms xor opad) || H((pms xor ipad) || seed))
-                let a1 = finalize_sha256_digest(outer_hash_state.unwrap(), 64, &m.inner_hash);
-                self.outer_hash_state = Some(outer_hash_state.unwrap());
+                let a1 = finalize_sha256_digest(self.outer_hash_state.unwrap(), 64, &m.inner_hash);
                 self.state = State::Ms1;
                 Ok(PRFMessage::SlaveMs1(SlaveMs1 { a1 }))
             }
@@ -93,12 +111,11 @@ impl PRFSlave {
                 Ok(PRFMessage::SlaveMs3(SlaveMs3 { p2 }))
             }
             PRFMessage::MasterKe1(m) => {
-                if self.state != State::Ms3 {
-                    return Err(PRFError::OutOfOrder);
+                if self.state != State::KeSetup {
+                    return Err(PRFError::WrongState);
                 }
                 // H((pms xor opad) || H((pms xor ipad) || seed))
-                let a1 = finalize_sha256_digest(outer_hash_state.unwrap(), 64, &m.inner_hash);
-                self.outer_hash_state = outer_hash_state;
+                let a1 = finalize_sha256_digest(self.outer_hash_state.unwrap(), 64, &m.inner_hash);
                 self.state = State::Ke1;
                 Ok(PRFMessage::SlaveKe1(SlaveKe1 { a1 }))
             }

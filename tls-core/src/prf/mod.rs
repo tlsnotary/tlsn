@@ -49,7 +49,8 @@ mod tests {
         let outer_hash_state = partial_sha256_digest(&opad);
 
         let message = master.ms_setup(inner_hash_state).unwrap();
-        let message = slave.next(message, Some(outer_hash_state)).unwrap();
+        slave.ms_setup(outer_hash_state).unwrap();
+        let message = slave.next(message).unwrap();
 
         // H((pms xor opad) || H((pms xor ipad) || seed))
         let a1 = if let PRFMessage::SlaveMs1(m) = message {
@@ -63,7 +64,7 @@ mod tests {
         );
 
         let message = master.next(message).unwrap();
-        let message = slave.next(message, None).unwrap();
+        let message = slave.next(message).unwrap();
 
         // H((pms xor opad) || H((pms xor ipad) || a1))
         let a2 = if let PRFMessage::SlaveMs2(m) = message {
@@ -74,7 +75,7 @@ mod tests {
         assert_eq!(&a2, &hmac_sha256(&pms, &a1));
 
         let message = master.next(message).unwrap();
-        let message = slave.next(message, None).unwrap();
+        let message = slave.next(message).unwrap();
 
         // H((pms xor opad) || H((pms xor ipad) || a2 || seed))
         let p2 = if let PRFMessage::SlaveMs3(m) = message {
@@ -103,7 +104,8 @@ mod tests {
         let outer_hash_state = partial_sha256_digest(&opad);
 
         let message = master.ke_setup(inner_hash_state).unwrap();
-        let message = slave.next(message, Some(outer_hash_state)).unwrap();
+        slave.ke_setup(outer_hash_state).unwrap();
+        let message = slave.next(message).unwrap();
 
         // H((ms xor opad) || H((ms xor ipad) || seed))
         let a1 = if let PRFMessage::SlaveKe1(m) = message {
@@ -117,7 +119,7 @@ mod tests {
         );
 
         let message = master.next(message).unwrap();
-        let message = slave.next(message, None).unwrap();
+        let message = slave.next(message).unwrap();
 
         // H((ms xor opad) || H((ms xor ipad) || a1))
         let a2 = if let PRFMessage::SlaveKe2(m) = message {
@@ -134,7 +136,7 @@ mod tests {
             panic!("unable to destructure");
         };
 
-        let p1 = finalize_sha256_digest(outer_hash_state.clone(), 64, &inner_hash_p1);
+        let p1 = finalize_sha256_digest(outer_hash_state, 64, &inner_hash_p1);
         let p2 = finalize_sha256_digest(outer_hash_state, 64, &inner_hash_p2);
 
         let mut ek = [0u8; 40];

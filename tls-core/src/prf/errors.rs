@@ -5,4 +5,6 @@ pub enum PRFError {
     OutOfOrder,
     #[error("Received invalid message")]
     InvalidMessage,
+    #[error("Method was called at the wrong time")]
+    WrongState,
 }

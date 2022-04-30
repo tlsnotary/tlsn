@@ -83,7 +83,7 @@ impl PRFMaster {
     /// setup before we can process master secret related messages.
     pub fn ms_setup(&mut self, inner_hash_state: [u32; 8]) -> Result<PRFMessage, PRFError> {
         if self.state != State::Initialized {
-            return Err(PRFError::OutOfOrder);
+            return Err(PRFError::WrongState);
         }
         let seed = seed_ms(&self.client_random, &self.server_random);
         // H((pms xor ipad) || seed)
@@ -97,7 +97,7 @@ impl PRFMaster {
     // Performs setup before we can process key expansion related messages.
     pub fn ke_setup(&mut self, inner_hash_state: [u32; 8]) -> Result<PRFMessage, PRFError> {
         if self.state != State::Ms3 {
-            return Err(PRFError::OutOfOrder);
+            return Err(PRFError::WrongState);
         }
         let seed = seed_ke(&self.client_random, &self.server_random);
         // H((ms xor ipad) || seed)
