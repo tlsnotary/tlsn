@@ -4,11 +4,6 @@ use super::utils::{seed_ke, seed_ms};
 use super::PRFMessage;
 
 #[derive(Copy, Clone)]
-pub struct MasterSetup {
-    pub inner_hash_state: [u32; 8],
-}
-
-#[derive(Copy, Clone)]
 pub struct MasterMs1 {
     /// H((pms xor ipad) || seed)
     pub inner_hash: [u8; 32],
@@ -24,11 +19,6 @@ pub struct MasterMs2 {
 pub struct MasterMs3 {
     /// H((pms xor ipad) || a2)
     pub inner_hash: [u8; 32],
-}
-
-#[derive(Copy, Clone)]
-pub struct KeInit {
-    pub inner_hash_state: [u32; 8],
 }
 
 #[derive(Copy, Clone)]
@@ -89,20 +79,39 @@ impl PrfMaster {
         }
     }
 
+    /// The first method that should be called after instantiation. Performs
+    /// setup before we can process master secret related messages.
+    pub fn ms_setup(&mut self, inner_hash_state: [u32; 8]) -> Result<PRFMessage, PRFError> {
+        if self.state != PRFMasterState::Initialized {
+            return Err(PRFError::OutOfOrder);
+        }
+        let seed = seed_ms(&self.client_random, &self.server_random);
+        // H((pms xor ipad) || seed)
+        let inner_hash = finalize_sha256_digest(inner_hash_state, 64, &seed);
+        self.seed = Some(seed);
+        self.inner_hash_state = Some(inner_hash_state);
+        self.state = PRFMasterState::MasterMs1Sent;
+        Ok(PRFMessage::MasterMs1(MasterMs1 { inner_hash }))
+    }
+
+    // Performs setup before we can process key expansion related messages.
+    pub fn ke_setup(&mut self, inner_hash_state: [u32; 8]) -> Result<PRFMessage, PRFError> {
+        if self.state != PRFMasterState::MasterMs3Sent {
+            return Err(PRFError::OutOfOrder);
+        }
+        let seed = seed_ke(&self.client_random, &self.server_random);
+        // H((ms xor ipad) || seed)
+        let inner_hash = finalize_sha256_digest(inner_hash_state, 64, &seed);
+        self.seed = Some(seed);
+        self.inner_hash_state = Some(inner_hash_state);
+        self.state = PRFMasterState::MasterKe1Sent;
+        Ok(PRFMessage::MasterKe1(MasterKe1 { inner_hash }))
+    }
+
+    /// Will be called continuously whenever there is a message from Slave that
+    /// needs to be processed.
     pub fn next(&mut self, message: PRFMessage) -> Result<PRFMessage, PRFError> {
         match message {
-            PRFMessage::MasterSetup(m) => {
-                if self.state != PRFMasterState::Initialized {
-                    return Err(PRFError::OutOfOrder);
-                }
-                let seed = seed_ms(&self.client_random, &self.server_random);
-                // H((pms xor ipad) || seed)
-                let inner_hash = finalize_sha256_digest(m.inner_hash_state, 64, &seed);
-                self.seed = Some(seed);
-                self.inner_hash_state = Some(m.inner_hash_state);
-                self.state = PRFMasterState::MasterMs1Sent;
-                Ok(PRFMessage::MasterMs1(MasterMs1 { inner_hash }))
-            }
             PRFMessage::SlaveMs1(m) => {
                 if self.state != PRFMasterState::MasterMs1Sent {
                     return Err(PRFError::OutOfOrder);
@@ -124,18 +133,6 @@ impl PrfMaster {
                     finalize_sha256_digest(self.inner_hash_state.unwrap(), 64, &a2_seed);
                 self.state = PRFMasterState::MasterMs3Sent;
                 Ok(PRFMessage::MasterMs3(MasterMs3 { inner_hash }))
-            }
-            PRFMessage::KeInit(m) => {
-                if self.state != PRFMasterState::MasterMs3Sent {
-                    return Err(PRFError::OutOfOrder);
-                }
-                let seed = seed_ke(&self.client_random, &self.server_random);
-                // H((ms xor ipad) || seed)
-                let inner_hash = finalize_sha256_digest(m.inner_hash_state, 64, &seed);
-                self.seed = Some(seed);
-                self.inner_hash_state = Some(m.inner_hash_state);
-                self.state = PRFMasterState::MasterKe1Sent;
-                Ok(PRFMessage::MasterKe1(MasterKe1 { inner_hash }))
             }
             PRFMessage::SlaveKe1(m) => {
                 if self.state != PRFMasterState::MasterKe1Sent {

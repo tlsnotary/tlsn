@@ -7,21 +7,17 @@ mod utils;
 pub use master::PrfMaster;
 pub use slave::PrfSlave;
 
-use master::{
-    KeInit, MasterKe1, MasterKe2, MasterKe3, MasterMs1, MasterMs2, MasterMs3, MasterSetup,
-};
+use master::{MasterKe1, MasterKe2, MasterKe3, MasterMs1, MasterMs2, MasterMs3};
 use slave::{SlaveKe1, SlaveKe2, SlaveMs1, SlaveMs2, SlaveMs3};
 
 #[derive(Copy, Clone)]
 pub enum PRFMessage {
-    MasterSetup(MasterSetup),
     MasterMs1(MasterMs1),
     SlaveMs1(SlaveMs1),
     MasterMs2(MasterMs2),
     SlaveMs2(SlaveMs2),
     MasterMs3(MasterMs3),
     SlaveMs3(SlaveMs3),
-    KeInit(KeInit),
     MasterKe1(MasterKe1),
     SlaveKe1(SlaveKe1),
     MasterKe2(MasterKe2),
@@ -52,9 +48,7 @@ mod tests {
         // H(pms xor opad)
         let outer_hash_state = partial_sha256_digest(&opad);
 
-        let message = master
-            .next(PRFMessage::MasterSetup(MasterSetup { inner_hash_state }))
-            .unwrap();
+        let message = master.ms_setup(inner_hash_state).unwrap();
         let message = slave.next(message, Some(outer_hash_state)).unwrap();
 
         // H((pms xor opad) || H((pms xor ipad) || seed))
@@ -108,8 +102,7 @@ mod tests {
         // H(ms xor opad)
         let outer_hash_state = partial_sha256_digest(&opad);
 
-        let message = PRFMessage::KeInit(KeInit { inner_hash_state });
-        let message = master.next(message).unwrap();
+        let message = master.ke_setup(inner_hash_state).unwrap();
         let message = slave.next(message, Some(outer_hash_state)).unwrap();
 
         // H((ms xor opad) || H((ms xor ipad) || seed))
