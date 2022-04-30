@@ -256,7 +256,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ghash::{
+    use ghash_rc::{
         universal_hash::{NewUniversalHash, UniversalHash},
         GHash,
     };
