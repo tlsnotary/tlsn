@@ -180,7 +180,7 @@ impl PRFMaster {
         a1_seed[32..].copy_from_slice(&self.seed.unwrap());
 
         let mut a2_seed = [0u8; 109];
-        a2_seed[..32].copy_from_slice(&a2);
+        a2_seed[..32].copy_from_slice(a2);
         a2_seed[32..].copy_from_slice(&self.seed.unwrap());
 
         // H((ms xor ipad) || a1 || seed)

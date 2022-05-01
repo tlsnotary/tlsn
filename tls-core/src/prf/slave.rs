@@ -32,7 +32,7 @@ pub struct SlaveKe2 {
     pub a2: [u8; 32],
 }
 
-#[derive(std::cmp::PartialEq, Copy, Clone)]
+#[derive(PartialEq, Copy, Clone)]
 enum State {
     Initialized,
     MsSetup,
