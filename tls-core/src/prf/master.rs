@@ -1,7 +1,7 @@
-use super::errors::*;
 use super::sha::finalize_sha256_digest;
 use super::utils::{seed_cf, seed_ke, seed_ms, seed_sf};
 use super::PRFMessage;
+use super::{errors::*, MasterCore};
 
 #[derive(Copy, Clone)]
 pub struct MasterMs1 {
@@ -99,26 +99,10 @@ pub struct PRFMaster {
     server_finished_vd: Option<[u8; 12]>,
 }
 
-impl PRFMaster {
-    pub fn new(client_random: [u8; 32], server_random: [u8; 32]) -> Self {
-        Self {
-            state: State::Initialized,
-            client_random,
-            server_random,
-            inner_hash_state: None,
-            seed: None,
-            a1: None,
-            inner_hash_p1: None,
-            inner_hash_p2: None,
-            client_finished_vd: None,
-            server_finished_vd: None,
-            seed_fin: None,
-        }
-    }
-
+impl MasterCore for PRFMaster {
     /// The first method that should be called after instantiation. Performs
     /// setup before we can process master secret related messages.
-    pub fn ms_setup(&mut self, inner_hash_state: [u32; 8]) -> Result<PRFMessage, PRFError> {
+    fn ms_setup(&mut self, inner_hash_state: [u32; 8]) -> Result<PRFMessage, PRFError> {
         if self.state != State::Initialized {
             return Err(PRFError::WrongState);
         }
@@ -132,7 +116,7 @@ impl PRFMaster {
     }
 
     // Performs setup before we can process key expansion related messages.
-    pub fn ke_setup(&mut self, inner_hash_state: [u32; 8]) -> Result<PRFMessage, PRFError> {
+    fn ke_setup(&mut self, inner_hash_state: [u32; 8]) -> Result<PRFMessage, PRFError> {
         if self.state != State::Ms3 {
             return Err(PRFError::WrongState);
         }
@@ -146,7 +130,7 @@ impl PRFMaster {
     }
 
     // Performs setup before we can process Client_Finished related messages.
-    pub fn cf_setup(&mut self, handshake_blob: &[u8]) -> Result<PRFMessage, PRFError> {
+    fn cf_setup(&mut self, handshake_blob: &[u8]) -> Result<PRFMessage, PRFError> {
         if self.state != State::KeComplete {
             return Err(PRFError::WrongState);
         }
@@ -159,7 +143,7 @@ impl PRFMaster {
     }
 
     // Performs setup before we can process Server_Finished related messages.
-    pub fn sf_setup(&mut self, handshake_blob: &[u8]) -> Result<PRFMessage, PRFError> {
+    fn sf_setup(&mut self, handshake_blob: &[u8]) -> Result<PRFMessage, PRFError> {
         if self.state != State::CfComplete {
             return Err(PRFError::WrongState);
         }
@@ -171,9 +155,9 @@ impl PRFMaster {
         Ok(PRFMessage::MasterSf1(MasterSf1 { inner_hash }))
     }
 
-    /// Will be called continuously whenever there is a message from Slave that
+    /// Will be called repeatedly whenever there is a message from Slave that
     /// needs to be processed.
-    pub fn next(&mut self, message: PRFMessage) -> Result<Option<PRFMessage>, PRFError> {
+    fn next(&mut self, message: PRFMessage) -> Result<Option<PRFMessage>, PRFError> {
         match message {
             PRFMessage::SlaveMs1(m) => {
                 if self.state != State::Ms1 {
@@ -236,7 +220,7 @@ impl PRFMaster {
                 }
                 self.state = State::Sf2;
                 Ok(Some(PRFMessage::MasterSf2(MasterSf2 {
-                    inner_hash: self.cf1(&m.a1),
+                    inner_hash: self.sf1(&m.a1),
                 })))
             }
             PRFMessage::SlaveSf2(m) => {
@@ -251,18 +235,35 @@ impl PRFMaster {
         }
     }
 
-    pub fn get_inner_hashes_ke(self) -> ([u8; 32], [u8; 32]) {
+    fn get_inner_hashes_ke(self) -> ([u8; 32], [u8; 32]) {
         (self.inner_hash_p1.unwrap(), self.inner_hash_p2.unwrap())
     }
 
-    pub fn get_client_finished_vd(self) -> [u8; 12] {
+    fn get_client_finished_vd(self) -> [u8; 12] {
         self.client_finished_vd.unwrap()
     }
 
-    pub fn get_server_finished_vd(self) -> [u8; 12] {
+    fn get_server_finished_vd(self) -> [u8; 12] {
         self.server_finished_vd.unwrap()
     }
+}
 
+impl PRFMaster {
+    pub fn new(client_random: [u8; 32], server_random: [u8; 32]) -> Self {
+        Self {
+            state: State::Initialized,
+            client_random,
+            server_random,
+            inner_hash_state: None,
+            seed: None,
+            a1: None,
+            inner_hash_p1: None,
+            inner_hash_p2: None,
+            client_finished_vd: None,
+            server_finished_vd: None,
+            seed_fin: None,
+        }
+    }
     fn ms1(&mut self, a1: &[u8]) -> [u8; 32] {
         // H((pms xor ipad) || a1)
         finalize_sha256_digest(self.inner_hash_state.unwrap(), 64, a1)

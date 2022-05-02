@@ -1,6 +1,6 @@
-use super::errors::*;
 use super::sha::finalize_sha256_digest;
 use super::PRFMessage;
+use super::{errors::*, SlaveCore};
 
 #[derive(Copy, Clone)]
 pub struct SlaveMs1 {
@@ -78,17 +78,10 @@ pub struct PRFSlave {
     outer_hash_state: Option<[u32; 8]>,
 }
 
-impl PRFSlave {
-    pub fn new() -> Self {
-        Self {
-            state: State::Initialized,
-            outer_hash_state: None,
-        }
-    }
-
+impl SlaveCore for PRFSlave {
     /// The first method that should be called after instantiation. Performs
     /// setup before we can process master secret related messages.
-    pub fn ms_setup(&mut self, outer_hash_state: [u32; 8]) -> Result<(), PRFError> {
+    fn ms_setup(&mut self, outer_hash_state: [u32; 8]) -> Result<(), PRFError> {
         if self.state != State::Initialized {
             return Err(PRFError::WrongState);
         }
@@ -98,7 +91,7 @@ impl PRFSlave {
     }
 
     // Performs setup before we can process key expansion related messages.
-    pub fn ke_setup(&mut self, outer_hash_state: [u32; 8]) -> Result<(), PRFError> {
+    fn ke_setup(&mut self, outer_hash_state: [u32; 8]) -> Result<(), PRFError> {
         if self.state != State::Ms3 {
             return Err(PRFError::WrongState);
         }
@@ -107,7 +100,9 @@ impl PRFSlave {
         Ok(())
     }
 
-    pub fn next(&mut self, message: PRFMessage) -> Result<PRFMessage, PRFError> {
+    /// Will be called repeatedly whenever there is a message from Master that
+    /// needs to be processed.
+    fn next(&mut self, message: PRFMessage) -> Result<PRFMessage, PRFError> {
         match message {
             PRFMessage::MasterMs1(m) => {
                 if self.state != State::MsSetup {
@@ -191,6 +186,15 @@ impl PRFSlave {
                 }))
             }
             _ => Err(PRFError::InvalidMessage),
+        }
+    }
+}
+
+impl PRFSlave {
+    pub fn new() -> Self {
+        Self {
+            state: State::Initialized,
+            outer_hash_state: None,
         }
     }
 

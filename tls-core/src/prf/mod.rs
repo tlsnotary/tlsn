@@ -4,13 +4,13 @@ mod sha;
 pub mod slave;
 mod utils;
 
+use errors::*;
 pub use master::PRFMaster;
-pub use slave::PRFSlave;
-
 use master::{
     MasterCf1, MasterCf2, MasterKe1, MasterKe2, MasterMs1, MasterMs2, MasterMs3, MasterSf1,
     MasterSf2,
 };
+pub use slave::PRFSlave;
 use slave::{
     SlaveCf1, SlaveCf2, SlaveKe1, SlaveKe2, SlaveMs1, SlaveMs2, SlaveMs3, SlaveSf1, SlaveSf2,
 };
@@ -35,6 +35,47 @@ pub enum PRFMessage {
     SlaveSf1(SlaveSf1),
     MasterSf2(MasterSf2),
     SlaveSf2(SlaveSf2),
+}
+
+pub trait MasterCore {
+    /// The first method that should be called after instantiation. Performs
+    /// setup before we can process master secret related messages.
+    fn ms_setup(&mut self, inner_hash_state: [u32; 8]) -> Result<PRFMessage, PRFError>;
+
+    // Performs setup before we can process key expansion related messages.
+    fn ke_setup(&mut self, inner_hash_state: [u32; 8]) -> Result<PRFMessage, PRFError>;
+
+    // Performs setup before we can process Client_Finished related messages.
+    fn cf_setup(&mut self, handshake_blob: &[u8]) -> Result<PRFMessage, PRFError>;
+
+    // Performs setup before we can process Server_Finished related messages.
+    fn sf_setup(&mut self, handshake_blob: &[u8]) -> Result<PRFMessage, PRFError>;
+
+    /// Will be called repeatedly whenever there is a message from Slave that
+    /// needs to be processed.
+    fn next(&mut self, message: PRFMessage) -> Result<Option<PRFMessage>, PRFError>;
+
+    // Returns inner_hashes for p1 and p2 for key expansion
+    fn get_inner_hashes_ke(self) -> ([u8; 32], [u8; 32]);
+
+    // Returns verify_data for Client_Finished
+    fn get_client_finished_vd(self) -> [u8; 12];
+
+    // Returns verify_data for Server_Finished
+    fn get_server_finished_vd(self) -> [u8; 12];
+}
+
+pub trait SlaveCore {
+    /// The first method that should be called after instantiation. Performs
+    /// setup before we can process master secret related messages.
+    fn ms_setup(&mut self, outer_hash_state: [u32; 8]) -> Result<(), PRFError>;
+
+    // Performs setup before we can process key expansion related messages.
+    fn ke_setup(&mut self, outer_hash_state: [u32; 8]) -> Result<(), PRFError>;
+
+    /// Will be called repeatedly whenever there is a message from Master that
+    /// needs to be processed.
+    fn next(&mut self, message: PRFMessage) -> Result<PRFMessage, PRFError>;
 }
 
 #[cfg(test)]
