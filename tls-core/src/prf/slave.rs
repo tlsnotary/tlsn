@@ -32,6 +32,28 @@ pub struct SlaveKe2 {
     pub a2: [u8; 32],
 }
 
+#[derive(Copy, Clone)]
+pub struct SlaveCf1 {
+    /// H((ms xor opad) || H((ms xor ipad) || seed))
+    pub a1: [u8; 32],
+}
+
+#[derive(Copy, Clone)]
+pub struct SlaveCf2 {
+    pub verify_data: [u8; 12],
+}
+
+#[derive(Copy, Clone)]
+pub struct SlaveSf1 {
+    /// H((ms xor opad) || H((ms xor ipad) || seed))
+    pub a1: [u8; 32],
+}
+
+#[derive(Copy, Clone)]
+pub struct SlaveSf2 {
+    pub verify_data: [u8; 12],
+}
+
 #[derive(PartialEq, Copy, Clone)]
 enum State {
     Initialized,
@@ -42,6 +64,10 @@ enum State {
     KeSetup,
     Ke1,
     Ke2,
+    Cf1,
+    Cf2,
+    Sf1,
+    Sf2,
 }
 
 #[derive(Copy, Clone)]
@@ -128,6 +154,42 @@ impl PRFSlave {
                     a2: self.ke2(&m.inner_hash),
                 }))
             }
+            PRFMessage::MasterCf1(m) => {
+                if self.state != State::Ke2 {
+                    return Err(PRFError::OutOfOrder);
+                }
+                self.state = State::Cf1;
+                Ok(PRFMessage::SlaveCf1(SlaveCf1 {
+                    a1: self.cf1(&m.inner_hash),
+                }))
+            }
+            PRFMessage::MasterCf2(m) => {
+                if self.state != State::Cf1 {
+                    return Err(PRFError::OutOfOrder);
+                }
+                self.state = State::Cf2;
+                Ok(PRFMessage::SlaveCf2(SlaveCf2 {
+                    verify_data: self.cf2(&m.inner_hash),
+                }))
+            }
+            PRFMessage::MasterSf1(m) => {
+                if self.state != State::Cf2 {
+                    return Err(PRFError::OutOfOrder);
+                }
+                self.state = State::Sf1;
+                Ok(PRFMessage::SlaveSf1(SlaveSf1 {
+                    a1: self.sf1(&m.inner_hash),
+                }))
+            }
+            PRFMessage::MasterSf2(m) => {
+                if self.state != State::Sf1 {
+                    return Err(PRFError::OutOfOrder);
+                }
+                self.state = State::Sf2;
+                Ok(PRFMessage::SlaveSf2(SlaveSf2 {
+                    verify_data: self.sf2(&m.inner_hash),
+                }))
+            }
             _ => Err(PRFError::InvalidMessage),
         }
     }
@@ -155,5 +217,31 @@ impl PRFSlave {
     fn ke2(&mut self, inner_hash: &[u8]) -> [u8; 32] {
         // H((ms xor opad) || H((ms xor ipad) || a1))
         finalize_sha256_digest(self.outer_hash_state.unwrap(), 64, inner_hash)
+    }
+
+    fn cf1(&mut self, inner_hash: &[u8]) -> [u8; 32] {
+        // H((ms xor opad) || H((ms xor ipad) || seed))
+        finalize_sha256_digest(self.outer_hash_state.unwrap(), 64, inner_hash)
+    }
+
+    fn cf2(&mut self, inner_hash: &[u8]) -> [u8; 12] {
+        // H((ms xor opad) || H((ms xor ipad) || a1 || seed))
+        let p1 = finalize_sha256_digest(self.outer_hash_state.unwrap(), 64, inner_hash);
+        let mut verify_data = [0u8; 12];
+        verify_data.copy_from_slice(&p1[..12]);
+        verify_data
+    }
+
+    fn sf1(&mut self, inner_hash: &[u8]) -> [u8; 32] {
+        // H((ms xor opad) || H((ms xor ipad) || seed))
+        finalize_sha256_digest(self.outer_hash_state.unwrap(), 64, inner_hash)
+    }
+
+    fn sf2(&mut self, inner_hash: &[u8]) -> [u8; 12] {
+        // H((ms xor opad) || H((ms xor ipad) || a1 || seed))
+        let p1 = finalize_sha256_digest(self.outer_hash_state.unwrap(), 64, inner_hash);
+        let mut verify_data = [0u8; 12];
+        verify_data.copy_from_slice(&p1[..12]);
+        verify_data
     }
 }

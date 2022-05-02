@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use digest::Digest;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use std::convert::TryInto;
@@ -41,5 +42,23 @@ pub(crate) fn seed_ke(client_random: &[u8; 32], server_random: &[u8; 32]) -> [u8
     seed[..13].copy_from_slice(b"key expansion");
     seed[13..45].copy_from_slice(server_random);
     seed[45..].copy_from_slice(client_random);
+    seed
+}
+
+pub(crate) fn seed_cf(handshake_blob: &[u8]) -> [u8; 47] {
+    let mut hasher = Sha256::new();
+    hasher.update(handshake_blob);
+    let mut seed = [0u8; 47];
+    seed[..15].copy_from_slice(b"client finished");
+    seed[15..].copy_from_slice(hasher.finalize().as_slice());
+    seed
+}
+
+pub(crate) fn seed_sf(handshake_blob: &[u8]) -> [u8; 47] {
+    let mut hasher = Sha256::new();
+    hasher.update(handshake_blob);
+    let mut seed = [0u8; 47];
+    seed[..15].copy_from_slice(b"server finished");
+    seed[15..].copy_from_slice(hasher.finalize().as_slice());
     seed
 }
