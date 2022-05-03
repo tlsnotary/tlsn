@@ -1,0 +1,10 @@
+[book]
+authors = ["sinu.eth"]
+language = "en"
+multilingual = false
+src = "src"
+title = "tlsn-docs"
+
+[output.html]
+mathjax-support = true
+default-theme = "light"
