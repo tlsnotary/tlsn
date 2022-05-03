@@ -85,3 +85,32 @@ C = - x_p - x_q \\]
 `Client`:
 
 11.  Computes multiplicative inverse \\( \small{inv = (M_b^{p-3})^{-1} \bmod p} \\)
+12.  Computes \\( \small{E((b * M_b)^{p-3} \bmod p) * inv = E(b^{p-3} * (M_b^{p-3})^{-1}) = E(b^{p-3}) = E(B)} \\)
+13.  Generates random masks \\( \small{M_B} \\) and \\( \small{N_B)} \\) and computes \\( \small{E(B * M_B + N_B)} \\)
+14.  Sends \\( \small{E(B * M_B + N_B)} \\) and \\( \small{N_B \bmod p} \\)
+
+`Notary`:
+
+15. Decrypts and gets \\( \small{(B * M_B + N_B)} \\)
+16. Reduces \\( \small{(B * M_B + N_B) \bmod p} \\)
+17. Computes \\( \small{(B * M_B) \bmod p = (B * M_B + N_B) \bmod p - N_B \bmod p} \\)
+
+## Computing \\( \small{x_r = A * B + C} \\)
+
+`Notary`:
+
+1. Sends \\( \small{E(A * M_A * B * M_B)} \\) and \\( \small{E(-x_q)} \\)
+
+`Client`:
+
+2. Computes \\( \small{E(A * B) = E(A * M_A * B * M_B) * (M_A * M_B)^{-1}} \\) and \\( \small{E(-x_p)} \\)
+3. Computes \\( \small{E(A * B + C) = E(A * B) + E(-x_q) + E(-x_p)} \\)
+4. Generates and applies a random mask \\( \small{E(S_q)} \\) and sends \\( \small{E(A * B + C + S_q)} \\)
+5. Computes additive `PMS` share \\( \small{s_q = (S_q \bmod p)} \\)
+
+`Notary`:
+
+6. Decrypts and gets \\( \small{A * B + C + S_q} \\)
+7. Computes additive `PMS` share \\( \small{s_p = (A * B + C + S_q) \bmod p} \\)
+
+The protocol described above is secure against `Notary` sending malicious inputs. Indeed, because `Client` only sends back masked values, `Notary` cannot learn anything about those values.
