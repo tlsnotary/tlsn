@@ -5,18 +5,18 @@ pub mod slave;
 mod utils;
 
 use errors::*;
-pub use master::PRFMaster;
+pub use master::HandshakeMaster;
 use master::{
     MasterCf1, MasterCf2, MasterKe1, MasterKe2, MasterMs1, MasterMs2, MasterMs3, MasterSf1,
     MasterSf2,
 };
-pub use slave::PRFSlave;
+pub use slave::HandshakeSlave;
 use slave::{
     SlaveCf1, SlaveCf2, SlaveKe1, SlaveKe2, SlaveMs1, SlaveMs2, SlaveMs3, SlaveSf1, SlaveSf2,
 };
 
 #[derive(Copy, Clone)]
-pub enum PRFMessage {
+pub enum HandshakeMessage {
     MasterMs1(MasterMs1),
     SlaveMs1(SlaveMs1),
     MasterMs2(MasterMs2),
@@ -40,20 +40,23 @@ pub enum PRFMessage {
 pub trait MasterCore {
     /// The first method that should be called after instantiation. Performs
     /// setup before we can process master secret related messages.
-    fn ms_setup(&mut self, inner_hash_state: [u32; 8]) -> Result<PRFMessage, PRFError>;
+    fn ms_setup(&mut self, inner_hash_state: [u32; 8]) -> Result<HandshakeMessage, HandshakeError>;
 
     // Performs setup before we can process key expansion related messages.
-    fn ke_setup(&mut self, inner_hash_state: [u32; 8]) -> Result<PRFMessage, PRFError>;
+    fn ke_setup(&mut self, inner_hash_state: [u32; 8]) -> Result<HandshakeMessage, HandshakeError>;
 
     // Performs setup before we can process Client_Finished related messages.
-    fn cf_setup(&mut self, handshake_blob: &[u8]) -> Result<PRFMessage, PRFError>;
+    fn cf_setup(&mut self, handshake_blob: &[u8]) -> Result<HandshakeMessage, HandshakeError>;
 
     // Performs setup before we can process Server_Finished related messages.
-    fn sf_setup(&mut self, handshake_blob: &[u8]) -> Result<PRFMessage, PRFError>;
+    fn sf_setup(&mut self, handshake_blob: &[u8]) -> Result<HandshakeMessage, HandshakeError>;
 
     /// Will be called repeatedly whenever there is a message from Slave that
     /// needs to be processed.
-    fn next(&mut self, message: PRFMessage) -> Result<Option<PRFMessage>, PRFError>;
+    fn next(
+        &mut self,
+        message: HandshakeMessage,
+    ) -> Result<Option<HandshakeMessage>, HandshakeError>;
 
     // Returns inner_hashes for p1 and p2 for key expansion
     fn get_inner_hashes_ke(self) -> ([u8; 32], [u8; 32]);
@@ -68,14 +71,14 @@ pub trait MasterCore {
 pub trait SlaveCore {
     /// The first method that should be called after instantiation. Performs
     /// setup before we can process master secret related messages.
-    fn ms_setup(&mut self, outer_hash_state: [u32; 8]) -> Result<(), PRFError>;
+    fn ms_setup(&mut self, outer_hash_state: [u32; 8]) -> Result<(), HandshakeError>;
 
     // Performs setup before we can process key expansion related messages.
-    fn ke_setup(&mut self, outer_hash_state: [u32; 8]) -> Result<(), PRFError>;
+    fn ke_setup(&mut self, outer_hash_state: [u32; 8]) -> Result<(), HandshakeError>;
 
     /// Will be called repeatedly whenever there is a message from Master that
     /// needs to be processed.
-    fn next(&mut self, message: PRFMessage) -> Result<PRFMessage, PRFError>;
+    fn next(&mut self, message: HandshakeMessage) -> Result<HandshakeMessage, HandshakeError>;
 }
 
 #[cfg(test)]
@@ -93,8 +96,8 @@ mod tests {
 
         let (ipad, opad) = generate_hmac_pads(&pms);
 
-        let mut master = PRFMaster::new(client_random, server_random);
-        let mut slave = PRFSlave::new();
+        let mut master = HandshakeMaster::new(client_random, server_random);
+        let mut slave = HandshakeSlave::new();
 
         // H(pms xor ipad)
         let inner_hash_state = partial_sha256_digest(&ipad);
@@ -106,7 +109,7 @@ mod tests {
         let message = slave.next(message).unwrap();
 
         // H((pms xor opad) || H((pms xor ipad) || seed))
-        let a1 = if let PRFMessage::SlaveMs1(m) = message {
+        let a1 = if let HandshakeMessage::SlaveMs1(m) = message {
             m.a1
         } else {
             panic!("unable to destructure");
@@ -120,7 +123,7 @@ mod tests {
         let message = slave.next(message).unwrap();
 
         // H((pms xor opad) || H((pms xor ipad) || a1))
-        let a2 = if let PRFMessage::SlaveMs2(m) = message {
+        let a2 = if let HandshakeMessage::SlaveMs2(m) = message {
             m.a2
         } else {
             panic!("unable to destructure");
@@ -131,7 +134,7 @@ mod tests {
         let message = slave.next(message).unwrap();
 
         // H((pms xor opad) || H((pms xor ipad) || a2 || seed))
-        let p2 = if let PRFMessage::SlaveMs3(m) = message {
+        let p2 = if let HandshakeMessage::SlaveMs3(m) = message {
             m.p2
         } else {
             panic!("unable to destructure");
@@ -167,7 +170,7 @@ mod tests {
         let message = slave.next(message).unwrap();
 
         // H((ms xor opad) || H((ms xor ipad) || seed))
-        let a1 = if let PRFMessage::SlaveKe1(m) = message {
+        let a1 = if let HandshakeMessage::SlaveKe1(m) = message {
             m.a1
         } else {
             panic!("unable to destructure");
@@ -181,7 +184,7 @@ mod tests {
         let message = slave.next(message).unwrap();
 
         // H((ms xor opad) || H((ms xor ipad) || a1))
-        let a2 = if let PRFMessage::SlaveKe2(m) = message {
+        let a2 = if let HandshakeMessage::SlaveKe2(m) = message {
             m.a2
         } else {
             panic!("unable to destructure");
@@ -203,7 +206,7 @@ mod tests {
         let message = slave.next(message).unwrap();
 
         // H((ms xor opad) || H((ms xor ipad) || seed))
-        let a1 = if let PRFMessage::SlaveCf1(m) = message {
+        let a1 = if let HandshakeMessage::SlaveCf1(m) = message {
             m.a1
         } else {
             panic!("unable to destructure");
@@ -214,7 +217,7 @@ mod tests {
         let message = slave.next(message).unwrap();
 
         // H((ms xor opad) || H((ms xor ipad) || a1 || seed))
-        let vd = if let PRFMessage::SlaveCf2(m) = message {
+        let vd = if let HandshakeMessage::SlaveCf2(m) = message {
             m.verify_data
         } else {
             panic!("unable to destructure");
@@ -232,7 +235,7 @@ mod tests {
         let message = slave.next(message).unwrap();
 
         // H((ms xor opad) || H((ms xor ipad) || seed))
-        let a1 = if let PRFMessage::SlaveSf1(m) = message {
+        let a1 = if let HandshakeMessage::SlaveSf1(m) = message {
             m.a1
         } else {
             panic!("unable to destructure");
@@ -243,7 +246,7 @@ mod tests {
         let message = slave.next(message).unwrap();
 
         // H((ms xor opad) || H((ms xor ipad) || a1 || seed))
-        let vd = if let PRFMessage::SlaveSf2(m) = message {
+        let vd = if let HandshakeMessage::SlaveSf2(m) = message {
             m.verify_data
         } else {
             panic!("unable to destructure");

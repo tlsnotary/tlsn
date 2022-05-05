@@ -1,5 +1,5 @@
 use super::sha::finalize_sha256_digest;
-use super::PRFMessage;
+use super::HandshakeMessage;
 use super::{errors::*, SlaveCore};
 
 #[derive(Copy, Clone)]
@@ -71,19 +71,19 @@ enum State {
 }
 
 #[derive(Copy, Clone)]
-pub struct PRFSlave {
+pub struct HandshakeSlave {
     state: State,
     // Depending on the state, the outer hash state will be used for master
     // secret or for key expansion.
     outer_hash_state: Option<[u32; 8]>,
 }
 
-impl SlaveCore for PRFSlave {
+impl SlaveCore for HandshakeSlave {
     /// The first method that should be called after instantiation. Performs
     /// setup before we can process master secret related messages.
-    fn ms_setup(&mut self, outer_hash_state: [u32; 8]) -> Result<(), PRFError> {
+    fn ms_setup(&mut self, outer_hash_state: [u32; 8]) -> Result<(), HandshakeError> {
         if self.state != State::Initialized {
-            return Err(PRFError::WrongState);
+            return Err(HandshakeError::WrongState);
         }
         self.outer_hash_state = Some(outer_hash_state);
         self.state = State::MsSetup;
@@ -91,9 +91,9 @@ impl SlaveCore for PRFSlave {
     }
 
     // Performs setup before we can process key expansion related messages.
-    fn ke_setup(&mut self, outer_hash_state: [u32; 8]) -> Result<(), PRFError> {
+    fn ke_setup(&mut self, outer_hash_state: [u32; 8]) -> Result<(), HandshakeError> {
         if self.state != State::Ms3 {
-            return Err(PRFError::WrongState);
+            return Err(HandshakeError::WrongState);
         }
         self.outer_hash_state = Some(outer_hash_state);
         self.state = State::KeSetup;
@@ -102,95 +102,95 @@ impl SlaveCore for PRFSlave {
 
     /// Will be called repeatedly whenever there is a message from Master that
     /// needs to be processed.
-    fn next(&mut self, message: PRFMessage) -> Result<PRFMessage, PRFError> {
+    fn next(&mut self, message: HandshakeMessage) -> Result<HandshakeMessage, HandshakeError> {
         match message {
-            PRFMessage::MasterMs1(m) => {
+            HandshakeMessage::MasterMs1(m) => {
                 if self.state != State::MsSetup {
-                    return Err(PRFError::WrongState);
+                    return Err(HandshakeError::WrongState);
                 }
                 self.state = State::Ms1;
-                Ok(PRFMessage::SlaveMs1(SlaveMs1 {
+                Ok(HandshakeMessage::SlaveMs1(SlaveMs1 {
                     a1: self.ms1(&m.inner_hash),
                 }))
             }
-            PRFMessage::MasterMs2(m) => {
+            HandshakeMessage::MasterMs2(m) => {
                 if self.state != State::Ms1 {
-                    return Err(PRFError::OutOfOrder);
+                    return Err(HandshakeError::OutOfOrder);
                 }
                 self.state = State::Ms2;
-                Ok(PRFMessage::SlaveMs2(SlaveMs2 {
+                Ok(HandshakeMessage::SlaveMs2(SlaveMs2 {
                     a2: self.ms2(&m.inner_hash),
                 }))
             }
-            PRFMessage::MasterMs3(m) => {
+            HandshakeMessage::MasterMs3(m) => {
                 if self.state != State::Ms2 {
-                    return Err(PRFError::OutOfOrder);
+                    return Err(HandshakeError::OutOfOrder);
                 }
                 self.state = State::Ms3;
-                Ok(PRFMessage::SlaveMs3(SlaveMs3 {
+                Ok(HandshakeMessage::SlaveMs3(SlaveMs3 {
                     p2: self.ms3(&m.inner_hash),
                 }))
             }
-            PRFMessage::MasterKe1(m) => {
+            HandshakeMessage::MasterKe1(m) => {
                 if self.state != State::KeSetup {
-                    return Err(PRFError::WrongState);
+                    return Err(HandshakeError::WrongState);
                 }
                 self.state = State::Ke1;
-                Ok(PRFMessage::SlaveKe1(SlaveKe1 {
+                Ok(HandshakeMessage::SlaveKe1(SlaveKe1 {
                     a1: self.ke1(&m.inner_hash),
                 }))
             }
-            PRFMessage::MasterKe2(m) => {
+            HandshakeMessage::MasterKe2(m) => {
                 if self.state != State::Ke1 {
-                    return Err(PRFError::OutOfOrder);
+                    return Err(HandshakeError::OutOfOrder);
                 }
                 self.state = State::Ke2;
-                Ok(PRFMessage::SlaveKe2(SlaveKe2 {
+                Ok(HandshakeMessage::SlaveKe2(SlaveKe2 {
                     a2: self.ke2(&m.inner_hash),
                 }))
             }
-            PRFMessage::MasterCf1(m) => {
+            HandshakeMessage::MasterCf1(m) => {
                 if self.state != State::Ke2 {
-                    return Err(PRFError::OutOfOrder);
+                    return Err(HandshakeError::OutOfOrder);
                 }
                 self.state = State::Cf1;
-                Ok(PRFMessage::SlaveCf1(SlaveCf1 {
+                Ok(HandshakeMessage::SlaveCf1(SlaveCf1 {
                     a1: self.cf1(&m.inner_hash),
                 }))
             }
-            PRFMessage::MasterCf2(m) => {
+            HandshakeMessage::MasterCf2(m) => {
                 if self.state != State::Cf1 {
-                    return Err(PRFError::OutOfOrder);
+                    return Err(HandshakeError::OutOfOrder);
                 }
                 self.state = State::Cf2;
-                Ok(PRFMessage::SlaveCf2(SlaveCf2 {
+                Ok(HandshakeMessage::SlaveCf2(SlaveCf2 {
                     verify_data: self.cf2(&m.inner_hash),
                 }))
             }
-            PRFMessage::MasterSf1(m) => {
+            HandshakeMessage::MasterSf1(m) => {
                 if self.state != State::Cf2 {
-                    return Err(PRFError::OutOfOrder);
+                    return Err(HandshakeError::OutOfOrder);
                 }
                 self.state = State::Sf1;
-                Ok(PRFMessage::SlaveSf1(SlaveSf1 {
+                Ok(HandshakeMessage::SlaveSf1(SlaveSf1 {
                     a1: self.sf1(&m.inner_hash),
                 }))
             }
-            PRFMessage::MasterSf2(m) => {
+            HandshakeMessage::MasterSf2(m) => {
                 if self.state != State::Sf1 {
-                    return Err(PRFError::OutOfOrder);
+                    return Err(HandshakeError::OutOfOrder);
                 }
                 self.state = State::Sf2;
-                Ok(PRFMessage::SlaveSf2(SlaveSf2 {
+                Ok(HandshakeMessage::SlaveSf2(SlaveSf2 {
                     verify_data: self.sf2(&m.inner_hash),
                 }))
             }
-            _ => Err(PRFError::InvalidMessage),
+            _ => Err(HandshakeError::InvalidMessage),
         }
     }
 }
 
-impl PRFSlave {
+impl HandshakeSlave {
     pub fn new() -> Self {
         Self {
             state: State::Initialized,
