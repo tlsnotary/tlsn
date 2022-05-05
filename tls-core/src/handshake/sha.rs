@@ -69,7 +69,7 @@ mod tests {
 
         let state = partial_sha256_digest(s);
 
-        let s2 = b"additional data";
+        let s2 = b"additional data ";
 
         let digest = finalize_sha256_digest(state, s.len(), s2);
 

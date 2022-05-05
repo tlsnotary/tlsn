@@ -8,8 +8,8 @@ name = "tls_core"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
-default = ["prf", "ghash"]
-prf = []
+default = ["handshake", "ghash"]
+handshake = []
 ghash = []
 
 [dependencies]
@@ -24,3 +24,4 @@ thiserror = "1.0.30"
 criterion = "0.3.5"
 ghash_rc = { package = "ghash", version = "0.4.4" }
 rand_chacha = "0.3.1"
+hex = "0.4"
