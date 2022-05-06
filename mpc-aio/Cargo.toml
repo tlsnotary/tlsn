@@ -7,10 +7,10 @@ edition = "2021"
 name = "mpc_aio"
 
 [features]
-default = ["ss", "ot", "garble"]
+default = ["pa", "ot", "garble"]
 ot = ["tlsn-mpc-core/ot", "tlsn-mpc-core/proto", "rand_chacha"]
 garble = ["tlsn-mpc-core/garble", "tlsn-mpc-core/proto", "aes"]
-ss = ["tlsn-mpc-core/ss", "tlsn-mpc-core/proto", "p256"]
+pa = ["tlsn-mpc-core/pa", "tlsn-mpc-core/proto", "p256"]
 
 [dependencies]
 tlsn-mpc-core = { path = "../mpc-core", default-features = false }
