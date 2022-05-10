@@ -77,13 +77,13 @@ use std::marker::PhantomData;
 ///
 /// 1. Call [`ClientConfig::builder()`] or [`ServerConfig::builder()`] to initialize a builder.
 /// 1. You must make a decision on which cipher suites to use, typically
-///    by calling [`ConfigBuilder<S, WantsCipherSuites>::with_safe_default_cipher_suites()`].
+///    by calling [`ConfigBuilder<WantsCipherSuites>::with_safe_default_cipher_suites()`].
 /// 2. Now you must make a decision
 ///    on key exchange groups: typically by calling
-///    [`ConfigBuilder<S, WantsKxGroups>::with_safe_default_kx_groups()`].
+///    [`ConfigBuilder<WantsKxGroups>::with_safe_default_kx_groups()`].
 /// 3. Now you must make
 ///    a decision on which protocol versions to support, typically by calling
-///    [`ConfigBuilder<S, WantsVersions>::with_safe_default_protocol_versions()`].
+///    [`ConfigBuilder<WantsVersions>::with_safe_default_protocol_versions()`].
 /// 5. Now see [`ConfigBuilder<ClientConfig, WantsVerifier>`] or
 ///    [`ConfigBuilder<ServerConfig, WantsVerifier>`] for further steps.
 ///
@@ -94,15 +94,13 @@ use std::marker::PhantomData;
 /// [`ConfigBuilder<ClientConfig, WantsVerifier>`]: struct.ConfigBuilder.html#impl-3
 /// [`ConfigBuilder<ServerConfig, WantsVerifier>`]: struct.ConfigBuilder.html#impl-6
 #[derive(Clone)]
-pub struct ConfigBuilder<Side: ConfigSide, State> {
+pub struct ConfigBuilder<State> {
     pub(crate) state: State,
-    pub(crate) side: PhantomData<Side>,
 }
 
-impl<Side: ConfigSide, State> fmt::Debug for ConfigBuilder<Side, State> {
+impl<State> fmt::Debug for ConfigBuilder<State> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ConfigBuilder")
-            .field("side", &format_args!("{}", &std::any::type_name::<Side>()))
             .field(
                 "state",
                 &format_args!("{}", &std::any::type_name::<State>()),
@@ -117,7 +115,7 @@ impl<Side: ConfigSide, State> fmt::Debug for ConfigBuilder<Side, State> {
 #[derive(Clone)]
 pub struct WantsCipherSuites(pub(crate) ());
 
-impl<S: ConfigSide> ConfigBuilder<S, WantsCipherSuites> {
+impl ConfigBuilder<WantsCipherSuites> {
     /// Start side-specific config with defaults for underlying cryptography.
     ///
     /// If used, this will enable all safe supported cipher suites ([`DEFAULT_CIPHER_SUITES`]), all
@@ -127,14 +125,13 @@ impl<S: ConfigSide> ConfigBuilder<S, WantsCipherSuites> {
     /// These are safe defaults, useful for 99% of applications.
     ///
     /// [`DEFAULT_VERSIONS`]: versions::DEFAULT_VERSIONS
-    pub fn with_safe_defaults(self) -> ConfigBuilder<S, WantsVerifier> {
+    pub fn with_safe_defaults(self) -> ConfigBuilder<WantsVerifier> {
         ConfigBuilder {
             state: WantsVerifier {
                 cipher_suites: DEFAULT_CIPHER_SUITES.to_vec(),
                 kx_groups: ALL_KX_GROUPS.to_vec(),
                 versions: versions::EnabledVersions::new(versions::DEFAULT_VERSIONS),
             },
-            side: self.side,
         }
     }
 
@@ -142,12 +139,11 @@ impl<S: ConfigSide> ConfigBuilder<S, WantsCipherSuites> {
     pub fn with_cipher_suites(
         self,
         cipher_suites: &[SupportedCipherSuite],
-    ) -> ConfigBuilder<S, WantsKxGroups> {
+    ) -> ConfigBuilder<WantsKxGroups> {
         ConfigBuilder {
             state: WantsKxGroups {
                 cipher_suites: cipher_suites.to_vec(),
             },
-            side: self.side,
         }
     }
 
@@ -156,7 +152,7 @@ impl<S: ConfigSide> ConfigBuilder<S, WantsCipherSuites> {
     /// Note that this default provides only high-quality suites: there is no need
     /// to filter out low-, export- or NULL-strength cipher suites: rustls does not
     /// implement these.
-    pub fn with_safe_default_cipher_suites(self) -> ConfigBuilder<S, WantsKxGroups> {
+    pub fn with_safe_default_cipher_suites(self) -> ConfigBuilder<WantsKxGroups> {
         self.with_cipher_suites(DEFAULT_CIPHER_SUITES)
     }
 }
@@ -169,25 +165,24 @@ pub struct WantsKxGroups {
     cipher_suites: Vec<SupportedCipherSuite>,
 }
 
-impl<S: ConfigSide> ConfigBuilder<S, WantsKxGroups> {
+impl ConfigBuilder<WantsKxGroups> {
     /// Choose a specific set of key exchange groups.
     pub fn with_kx_groups(
         self,
         kx_groups: &[&'static SupportedKxGroup],
-    ) -> ConfigBuilder<S, WantsVersions> {
+    ) -> ConfigBuilder<WantsVersions> {
         ConfigBuilder {
             state: WantsVersions {
                 cipher_suites: self.state.cipher_suites,
                 kx_groups: kx_groups.to_vec(),
             },
-            side: self.side,
         }
     }
 
     /// Choose the default set of key exchange groups ([`ALL_KX_GROUPS`]).
     ///
     /// This is a safe default: rustls doesn't implement any poor-quality groups.
-    pub fn with_safe_default_kx_groups(self) -> ConfigBuilder<S, WantsVersions> {
+    pub fn with_safe_default_kx_groups(self) -> ConfigBuilder<WantsVersions> {
         self.with_kx_groups(&ALL_KX_GROUPS)
     }
 }
@@ -200,11 +195,11 @@ pub struct WantsVersions {
     kx_groups: Vec<&'static SupportedKxGroup>,
 }
 
-impl<S: ConfigSide> ConfigBuilder<S, WantsVersions> {
+impl ConfigBuilder<WantsVersions> {
     /// Accept the default protocol versions: both TLS1.2 and TLS1.3 are enabled.
     pub fn with_safe_default_protocol_versions(
         self,
-    ) -> Result<ConfigBuilder<S, WantsVerifier>, Error> {
+    ) -> Result<ConfigBuilder<WantsVerifier>, Error> {
         self.with_protocol_versions(versions::DEFAULT_VERSIONS)
     }
 
@@ -212,7 +207,7 @@ impl<S: ConfigSide> ConfigBuilder<S, WantsVersions> {
     pub fn with_protocol_versions(
         self,
         versions: &[&'static versions::SupportedProtocolVersion],
-    ) -> Result<ConfigBuilder<S, WantsVerifier>, Error> {
+    ) -> Result<ConfigBuilder<WantsVerifier>, Error> {
         let mut any_usable_suite = false;
         for suite in &self.state.cipher_suites {
             if versions.contains(&suite.version()) {
@@ -235,7 +230,6 @@ impl<S: ConfigSide> ConfigBuilder<S, WantsVersions> {
                 kx_groups: self.state.kx_groups,
                 versions: versions::EnabledVersions::new(versions),
             },
-            side: self.side,
         })
     }
 }
@@ -247,19 +241,4 @@ pub struct WantsVerifier {
     pub(crate) cipher_suites: Vec<SupportedCipherSuite>,
     pub(crate) kx_groups: Vec<&'static SupportedKxGroup>,
     pub(crate) versions: versions::EnabledVersions,
-}
-
-/// Helper trait to abstract [`ConfigBuilder`] over building a [`ClientConfig`] or [`ServerConfig`].
-///
-/// [`ClientConfig`]: crate::ClientConfig
-/// [`ServerConfig`]: crate::ServerConfig
-pub trait ConfigSide: sealed::Sealed {}
-
-impl ConfigSide for crate::ClientConfig {}
-impl ConfigSide for crate::ServerConfig {}
-
-mod sealed {
-    pub trait Sealed {}
-    impl Sealed for crate::ClientConfig {}
-    impl Sealed for crate::ServerConfig {}
 }

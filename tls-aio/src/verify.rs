@@ -75,16 +75,16 @@ impl ServerCertVerified {
     }
 }
 
-/// Zero-sized marker type representing verification of a client cert chain.
-#[derive(Debug)]
-pub struct ClientCertVerified(());
+// /// Zero-sized marker type representing verification of a client cert chain.
+// #[derive(Debug)]
+// pub struct ClientCertVerified(());
 
-impl ClientCertVerified {
-    /// Make a `ClientCertVerified`
-    pub fn assertion() -> Self {
-        Self(())
-    }
-}
+// impl ClientCertVerified {
+//     /// Make a `ClientCertVerified`
+//     pub fn assertion() -> Self {
+//         Self(())
+//     }
+// }
 
 /// Something that can verify a server certificate chain, and verify
 /// signatures made by certificates.
@@ -212,18 +212,18 @@ pub trait ClientCertVerifier: Send + Sync {
     /// the handshake without passing a list of CA DNs.
     fn client_auth_root_subjects(&self) -> Option<DistinguishedNames>;
 
-    /// Verify the end-entity certificate `end_entity` is valid for the
-    /// and chains to at least one of the trust anchors in `roots`.
-    ///
-    /// `intermediates` contains the intermediate certificates the
-    /// client sent along with the end-entity certificate; it is in the same
-    /// order that the peer sent them and may be empty.
-    fn verify_client_cert(
-        &self,
-        end_entity: &Certificate,
-        intermediates: &[Certificate],
-        now: SystemTime,
-    ) -> Result<ClientCertVerified, Error>;
+    // /// Verify the end-entity certificate `end_entity` is valid for the
+    // /// and chains to at least one of the trust anchors in `roots`.
+    // ///
+    // /// `intermediates` contains the intermediate certificates the
+    // /// client sent along with the end-entity certificate; it is in the same
+    // /// order that the peer sent them and may be empty.
+    // fn verify_client_cert(
+    //     &self,
+    //     end_entity: &Certificate,
+    //     intermediates: &[Certificate],
+    //     now: SystemTime,
+    // ) -> Result<ClientCertVerified, Error>;
 
     /// Verify a signature allegedly by the given server certificate.
     ///
@@ -399,11 +399,7 @@ impl CertificateTransparencyPolicy {
     ) -> Result<(), Error> {
         if self.logs.is_empty() {
             return Ok(());
-        } else if self
-            .validation_deadline
-            .duration_since(now)
-            .is_err()
-        {
+        } else if self.validation_deadline.duration_since(now).is_err() {
             warn!("certificate transparency logs have expired, validation disabled");
             return Ok(());
         }
@@ -455,10 +451,7 @@ fn prepare<'a, 'b>(
     // EE cert must appear first.
     let cert = webpki::EndEntityCert::try_from(end_entity.0.as_ref()).map_err(pki_error)?;
 
-    let intermediates: Vec<&'a [u8]> = intermediates
-        .iter()
-        .map(|cert| cert.0.as_ref())
-        .collect();
+    let intermediates: Vec<&'a [u8]> = intermediates.iter().map(|cert| cert.0.as_ref()).collect();
 
     let trustroots: Vec<webpki::TrustAnchor> = roots
         .roots
@@ -469,93 +462,93 @@ fn prepare<'a, 'b>(
     Ok((cert, intermediates, trustroots))
 }
 
-/// A `ClientCertVerifier` that will ensure that every client provides a trusted
-/// certificate, without any name checking.
-pub struct AllowAnyAuthenticatedClient {
-    roots: RootCertStore,
-}
+// /// A `ClientCertVerifier` that will ensure that every client provides a trusted
+// /// certificate, without any name checking.
+// pub struct AllowAnyAuthenticatedClient {
+//     roots: RootCertStore,
+// }
 
-impl AllowAnyAuthenticatedClient {
-    /// Construct a new `AllowAnyAuthenticatedClient`.
-    ///
-    /// `roots` is the list of trust anchors to use for certificate validation.
-    pub fn new(roots: RootCertStore) -> Arc<dyn ClientCertVerifier> {
-        Arc::new(Self { roots })
-    }
-}
+// impl AllowAnyAuthenticatedClient {
+//     /// Construct a new `AllowAnyAuthenticatedClient`.
+//     ///
+//     /// `roots` is the list of trust anchors to use for certificate validation.
+//     pub fn new(roots: RootCertStore) -> Arc<dyn ClientCertVerifier> {
+//         Arc::new(Self { roots })
+//     }
+// }
 
-impl ClientCertVerifier for AllowAnyAuthenticatedClient {
-    fn offer_client_auth(&self) -> bool {
-        true
-    }
+// impl ClientCertVerifier for AllowAnyAuthenticatedClient {
+//     fn offer_client_auth(&self) -> bool {
+//         true
+//     }
 
-    fn client_auth_root_subjects(&self) -> Option<DistinguishedNames> {
-        Some(self.roots.subjects())
-    }
+//     fn client_auth_root_subjects(&self) -> Option<DistinguishedNames> {
+//         Some(self.roots.subjects())
+//     }
 
-    fn verify_client_cert(
-        &self,
-        end_entity: &Certificate,
-        intermediates: &[Certificate],
-        now: SystemTime,
-    ) -> Result<ClientCertVerified, Error> {
-        let (cert, chain, trustroots) = prepare(end_entity, intermediates, &self.roots)?;
-        let now = webpki::Time::try_from(now).map_err(|_| Error::FailedToGetCurrentTime)?;
-        cert.verify_is_valid_tls_client_cert(
-            SUPPORTED_SIG_ALGS,
-            &webpki::TlsClientTrustAnchors(&trustroots),
-            &chain,
-            now,
-        )
-        .map_err(pki_error)
-        .map(|_| ClientCertVerified::assertion())
-    }
-}
+//     fn verify_client_cert(
+//         &self,
+//         end_entity: &Certificate,
+//         intermediates: &[Certificate],
+//         now: SystemTime,
+//     ) -> Result<ClientCertVerified, Error> {
+//         let (cert, chain, trustroots) = prepare(end_entity, intermediates, &self.roots)?;
+//         let now = webpki::Time::try_from(now).map_err(|_| Error::FailedToGetCurrentTime)?;
+//         cert.verify_is_valid_tls_client_cert(
+//             SUPPORTED_SIG_ALGS,
+//             &webpki::TlsClientTrustAnchors(&trustroots),
+//             &chain,
+//             now,
+//         )
+//         .map_err(pki_error)
+//         .map(|_| ClientCertVerified::assertion())
+//     }
+// }
 
-/// A `ClientCertVerifier` that will allow both anonymous and authenticated
-/// clients, without any name checking.
-///
-/// Client authentication will be requested during the TLS handshake. If the
-/// client offers a certificate then this acts like
-/// `AllowAnyAuthenticatedClient`, otherwise this acts like `NoClientAuth`.
-pub struct AllowAnyAnonymousOrAuthenticatedClient {
-    inner: AllowAnyAuthenticatedClient,
-}
+// /// A `ClientCertVerifier` that will allow both anonymous and authenticated
+// /// clients, without any name checking.
+// ///
+// /// Client authentication will be requested during the TLS handshake. If the
+// /// client offers a certificate then this acts like
+// /// `AllowAnyAuthenticatedClient`, otherwise this acts like `NoClientAuth`.
+// pub struct AllowAnyAnonymousOrAuthenticatedClient {
+//     inner: AllowAnyAuthenticatedClient,
+// }
 
-impl AllowAnyAnonymousOrAuthenticatedClient {
-    /// Construct a new `AllowAnyAnonymousOrAuthenticatedClient`.
-    ///
-    /// `roots` is the list of trust anchors to use for certificate validation.
-    pub fn new(roots: RootCertStore) -> Arc<dyn ClientCertVerifier> {
-        Arc::new(Self {
-            inner: AllowAnyAuthenticatedClient { roots },
-        })
-    }
-}
+// impl AllowAnyAnonymousOrAuthenticatedClient {
+//     /// Construct a new `AllowAnyAnonymousOrAuthenticatedClient`.
+//     ///
+//     /// `roots` is the list of trust anchors to use for certificate validation.
+//     pub fn new(roots: RootCertStore) -> Arc<dyn ClientCertVerifier> {
+//         Arc::new(Self {
+//             inner: AllowAnyAuthenticatedClient { roots },
+//         })
+//     }
+// }
 
-impl ClientCertVerifier for AllowAnyAnonymousOrAuthenticatedClient {
-    fn offer_client_auth(&self) -> bool {
-        self.inner.offer_client_auth()
-    }
+// impl ClientCertVerifier for AllowAnyAnonymousOrAuthenticatedClient {
+//     fn offer_client_auth(&self) -> bool {
+//         self.inner.offer_client_auth()
+//     }
 
-    fn client_auth_mandatory(&self) -> Option<bool> {
-        Some(false)
-    }
+//     fn client_auth_mandatory(&self) -> Option<bool> {
+//         Some(false)
+//     }
 
-    fn client_auth_root_subjects(&self) -> Option<DistinguishedNames> {
-        self.inner.client_auth_root_subjects()
-    }
+//     fn client_auth_root_subjects(&self) -> Option<DistinguishedNames> {
+//         self.inner.client_auth_root_subjects()
+//     }
 
-    fn verify_client_cert(
-        &self,
-        end_entity: &Certificate,
-        intermediates: &[Certificate],
-        now: SystemTime,
-    ) -> Result<ClientCertVerified, Error> {
-        self.inner
-            .verify_client_cert(end_entity, intermediates, now)
-    }
-}
+//     fn verify_client_cert(
+//         &self,
+//         end_entity: &Certificate,
+//         intermediates: &[Certificate],
+//         now: SystemTime,
+//     ) -> Result<ClientCertVerified, Error> {
+//         self.inner
+//             .verify_client_cert(end_entity, intermediates, now)
+//     }
+// }
 
 fn pki_error(error: webpki::Error) -> Error {
     use webpki::Error::*;
@@ -569,34 +562,34 @@ fn pki_error(error: webpki::Error) -> Error {
     }
 }
 
-/// Turns off client authentication.
-pub struct NoClientAuth;
+// /// Turns off client authentication.
+// pub struct NoClientAuth;
 
-impl NoClientAuth {
-    /// Constructs a `NoClientAuth` and wraps it in an `Arc`.
-    pub fn new() -> Arc<dyn ClientCertVerifier> {
-        Arc::new(NoClientAuth)
-    }
-}
+// impl NoClientAuth {
+//     /// Constructs a `NoClientAuth` and wraps it in an `Arc`.
+//     pub fn new() -> Arc<dyn ClientCertVerifier> {
+//         Arc::new(NoClientAuth)
+//     }
+// }
 
-impl ClientCertVerifier for NoClientAuth {
-    fn offer_client_auth(&self) -> bool {
-        false
-    }
+// impl ClientCertVerifier for NoClientAuth {
+//     fn offer_client_auth(&self) -> bool {
+//         false
+//     }
 
-    fn client_auth_root_subjects(&self) -> Option<DistinguishedNames> {
-        unimplemented!();
-    }
+//     fn client_auth_root_subjects(&self) -> Option<DistinguishedNames> {
+//         unimplemented!();
+//     }
 
-    fn verify_client_cert(
-        &self,
-        _end_entity: &Certificate,
-        _intermediates: &[Certificate],
-        _now: SystemTime,
-    ) -> Result<ClientCertVerified, Error> {
-        unimplemented!();
-    }
-}
+//     fn verify_client_cert(
+//         &self,
+//         _end_entity: &Certificate,
+//         _intermediates: &[Certificate],
+//         _now: SystemTime,
+//     ) -> Result<ClientCertVerified, Error> {
+//         unimplemented!();
+//     }
+// }
 
 static ECDSA_SHA256: SignatureAlgorithms =
     &[&webpki::ECDSA_P256_SHA256, &webpki::ECDSA_P384_SHA256];
@@ -725,10 +718,7 @@ fn unix_time_millis(now: SystemTime) -> Result<u64, Error> {
     now.duration_since(std::time::UNIX_EPOCH)
         .map(|dur| dur.as_secs())
         .map_err(|_| Error::FailedToGetCurrentTime)
-        .and_then(|secs| {
-            secs.checked_mul(1000)
-                .ok_or(Error::FailedToGetCurrentTime)
-        })
+        .and_then(|secs| secs.checked_mul(1000).ok_or(Error::FailedToGetCurrentTime))
 }
 
 #[cfg(test)]
@@ -737,10 +727,10 @@ mod tests {
 
     #[test]
     fn assertions_are_debug() {
-        assert_eq!(
-            format!("{:?}", ClientCertVerified::assertion()),
-            "ClientCertVerified(())"
-        );
+        // assert_eq!(
+        //     format!("{:?}", ClientCertVerified::assertion()),
+        //     "ClientCertVerified(())"
+        // );
         assert_eq!(
             format!("{:?}", HandshakeSignatureValid::assertion()),
             "HandshakeSignatureValid(())"

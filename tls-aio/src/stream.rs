@@ -121,10 +121,7 @@ where
     fn write_vectored(&mut self, bufs: &[IoSlice<'_>]) -> Result<usize> {
         self.complete_prior_io()?;
 
-        let len = self
-            .conn
-            .writer()
-            .write_vectored(bufs)?;
+        let len = self.conn.writer().write_vectored(bufs)?;
 
         // Try to write the underlying transport here, but don't let
         // any errors mask the fact we've consumed `len` bytes.
@@ -234,7 +231,6 @@ where
 mod tests {
     use super::{Stream, StreamOwned};
     use crate::client::ClientConnection;
-    use crate::server::ServerConnection;
     use std::net::TcpStream;
 
     #[test]
@@ -245,10 +241,5 @@ mod tests {
     #[test]
     fn streamowned_can_be_created_for_client_and_tcpstream() {
         type _Test = StreamOwned<ClientConnection, TcpStream>;
-    }
-
-    #[test]
-    fn streamowned_can_be_created_for_server_and_tcpstream() {
-        type _Test = StreamOwned<ServerConnection, TcpStream>;
     }
 }

@@ -10,16 +10,15 @@ use crate::verify::{self, CertificateTransparencyPolicy};
 use crate::versions;
 use crate::NoKeyLog;
 
-use std::marker::PhantomData;
 use std::sync::Arc;
 use std::time::SystemTime;
 
-impl ConfigBuilder<ClientConfig, WantsVerifier> {
+impl ConfigBuilder<WantsVerifier> {
     /// Choose how to verify client certificates.
     pub fn with_root_certificates(
         self,
         root_store: anchors::RootCertStore,
-    ) -> ConfigBuilder<ClientConfig, WantsTransparencyPolicyOrClientCert> {
+    ) -> ConfigBuilder<WantsTransparencyPolicyOrClientCert> {
         ConfigBuilder {
             state: WantsTransparencyPolicyOrClientCert {
                 cipher_suites: self.state.cipher_suites,
@@ -27,7 +26,6 @@ impl ConfigBuilder<ClientConfig, WantsVerifier> {
                 versions: self.state.versions,
                 root_store,
             },
-            side: PhantomData::default(),
         }
     }
 
@@ -36,7 +34,7 @@ impl ConfigBuilder<ClientConfig, WantsVerifier> {
     pub fn with_custom_certificate_verifier(
         self,
         verifier: Arc<dyn verify::ServerCertVerifier>,
-    ) -> ConfigBuilder<ClientConfig, WantsClientCert> {
+    ) -> ConfigBuilder<WantsClientCert> {
         ConfigBuilder {
             state: WantsClientCert {
                 cipher_suites: self.state.cipher_suites,
@@ -44,7 +42,6 @@ impl ConfigBuilder<ClientConfig, WantsVerifier> {
                 versions: self.state.versions,
                 verifier,
             },
-            side: PhantomData::default(),
         }
     }
 }
@@ -63,7 +60,7 @@ pub struct WantsTransparencyPolicyOrClientCert {
     root_store: anchors::RootCertStore,
 }
 
-impl ConfigBuilder<ClientConfig, WantsTransparencyPolicyOrClientCert> {
+impl ConfigBuilder<WantsTransparencyPolicyOrClientCert> {
     /// Set Certificate Transparency logs to use for server certificate validation.
     ///
     /// Because Certificate Transparency logs are sharded on a per-year basis and can be trusted or
@@ -75,7 +72,7 @@ impl ConfigBuilder<ClientConfig, WantsTransparencyPolicyOrClientCert> {
         self,
         logs: &'static [&'static sct::Log],
         validation_deadline: SystemTime,
-    ) -> ConfigBuilder<ClientConfig, WantsClientCert> {
+    ) -> ConfigBuilder<WantsClientCert> {
         self.with_logs(Some(CertificateTransparencyPolicy::new(
             logs,
             validation_deadline,
@@ -94,8 +91,7 @@ impl ConfigBuilder<ClientConfig, WantsTransparencyPolicyOrClientCert> {
         cert_chain: Vec<key::Certificate>,
         key_der: key::PrivateKey,
     ) -> Result<ClientConfig, Error> {
-        self.with_logs(None)
-            .with_single_cert(cert_chain, key_der)
+        self.with_logs(None).with_single_cert(cert_chain, key_der)
     }
 
     /// Do not support client auth.
@@ -116,7 +112,7 @@ impl ConfigBuilder<ClientConfig, WantsTransparencyPolicyOrClientCert> {
     fn with_logs(
         self,
         ct_policy: Option<CertificateTransparencyPolicy>,
-    ) -> ConfigBuilder<ClientConfig, WantsClientCert> {
+    ) -> ConfigBuilder<WantsClientCert> {
         ConfigBuilder {
             state: WantsClientCert {
                 cipher_suites: self.state.cipher_suites,
@@ -127,7 +123,6 @@ impl ConfigBuilder<ClientConfig, WantsTransparencyPolicyOrClientCert> {
                     ct_policy,
                 )),
             },
-            side: PhantomData,
         }
     }
 }
@@ -143,7 +138,7 @@ pub struct WantsClientCert {
     verifier: Arc<dyn verify::ServerCertVerifier>,
 }
 
-impl ConfigBuilder<ClientConfig, WantsClientCert> {
+impl ConfigBuilder<WantsClientCert> {
     /// Sets a single certificate chain and matching private key for use
     /// in client authentication.
     ///
