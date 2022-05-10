@@ -152,10 +152,9 @@ impl ClientConfig {
     /// Create a builder to build up the client configuration.
     ///
     /// For more information, see the [`ConfigBuilder`] documentation.
-    pub fn builder() -> ConfigBuilder<Self, WantsCipherSuites> {
+    pub fn builder() -> ConfigBuilder<WantsCipherSuites> {
         ConfigBuilder {
             state: WantsCipherSuites(()),
-            side: PhantomData::default(),
         }
     }
 
@@ -387,11 +386,7 @@ impl<'a> WriteEarlyData<'a> {
     /// How many bytes you may send.  Writes will become short
     /// once this reaches zero.
     pub fn bytes_left(&self) -> usize {
-        self.sess
-            .inner
-            .data
-            .early_data
-            .bytes_left()
+        self.sess.inner.data.early_data.bytes_left()
     }
 }
 
@@ -412,8 +407,7 @@ pub struct ClientConnection {
 
 impl fmt::Debug for ClientConnection {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("ClientConnection")
-            .finish()
+        f.debug_struct("ClientConnection").finish()
     }
 }
 
@@ -486,11 +480,7 @@ impl ClientConnection {
             .data
             .early_data
             .check_write(data.len())
-            .map(|sz| {
-                self.inner
-                    .common_state
-                    .send_early_plaintext(&data[..sz])
-            })
+            .map(|sz| self.inner.common_state.send_early_plaintext(&data[..sz]))
     }
 }
 
@@ -516,7 +506,6 @@ impl<'a> TryFrom<&'a mut crate::Connection> for &'a mut ClientConnection {
         use crate::Connection::*;
         match value {
             Client(conn) => Ok(conn),
-            Server(_) => Err(()),
         }
     }
 }
@@ -561,11 +550,7 @@ impl quic::QuicExt for ClientConnection {
                 .data
                 .resumption_ciphersuite
                 .and_then(|suite| suite.tls13())?,
-            self.inner
-                .common_state
-                .quic
-                .early_secret
-                .as_ref()?,
+            self.inner.common_state.quic.early_secret.as_ref()?,
         ))
     }
 

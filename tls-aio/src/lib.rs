@@ -265,7 +265,7 @@
     trivial_casts,
     trivial_numeric_casts,
     missing_docs,
-    unreachable_pub,
+    //unreachable_pub,
     unused_import_braces,
     unused_extern_crates,
     unused_qualifications
@@ -360,7 +360,7 @@ pub mod internal {
 // The public interface is:
 pub use crate::anchors::{OwnedTrustAnchor, RootCertStore};
 pub use crate::builder::{
-    ConfigBuilder, ConfigSide, WantsCipherSuites, WantsKxGroups, WantsVerifier, WantsVersions,
+    ConfigBuilder, WantsCipherSuites, WantsKxGroups, WantsVerifier, WantsVersions,
 };
 pub use crate::conn::{
     CommonState, Connection, ConnectionCommon, IoState, Reader, SideData, Writer,
@@ -378,7 +378,7 @@ pub use crate::stream::{Stream, StreamOwned};
 pub use crate::suites::{
     BulkAlgorithm, SupportedCipherSuite, ALL_CIPHER_SUITES, DEFAULT_CIPHER_SUITES,
 };
-pub use crate::ticketer::Ticketer;
+//pub use crate::ticketer::Ticketer;
 #[cfg(feature = "tls12")]
 pub use crate::tls12::Tls12CipherSuite;
 pub use crate::tls13::Tls13CipherSuite;
@@ -418,39 +418,6 @@ pub mod client {
 }
 
 pub use client::{ClientConfig, ClientConnection, ServerName};
-
-/// Items for use in a server.
-pub mod server {
-    pub(crate) mod builder;
-    mod common;
-    pub(crate) mod handy;
-    mod hs;
-    mod server_conn;
-    #[cfg(feature = "tls12")]
-    mod tls12;
-    mod tls13;
-
-    pub use crate::verify::{
-        AllowAnyAnonymousOrAuthenticatedClient, AllowAnyAuthenticatedClient, NoClientAuth,
-    };
-    pub use builder::WantsServerCert;
-    pub use handy::ResolvesServerCertUsingSni;
-    pub use handy::{NoServerSessionStorage, ServerSessionMemoryCache};
-    #[cfg(feature = "quic")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "quic")))]
-    pub use server_conn::ServerQuicExt;
-    pub use server_conn::StoresServerSessions;
-    pub use server_conn::{
-        Accepted, Acceptor, ReadEarlyData, ServerConfig, ServerConnection, ServerConnectionData,
-    };
-    pub use server_conn::{ClientHello, ProducesTickets, ResolvesServerCert};
-
-    #[cfg(feature = "dangerous_configuration")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous_configuration")))]
-    pub use crate::verify::{ClientCertVerified, ClientCertVerifier, DnsName};
-}
-
-pub use server::{ServerConfig, ServerConnection};
 
 /// All defined ciphersuites appear in this module.
 ///
@@ -505,10 +472,6 @@ pub mod manual;
 
 /** Type renames. */
 #[allow(clippy::upper_case_acronyms)]
-#[doc(hidden)]
-#[deprecated(since = "0.20.0", note = "Use ResolvesServerCertUsingSni")]
-pub type ResolvesServerCertUsingSNI = server::ResolvesServerCertUsingSni;
-#[allow(clippy::upper_case_acronyms)]
 #[cfg(feature = "dangerous_configuration")]
 #[cfg_attr(docsrs, doc(cfg(feature = "dangerous_configuration")))]
 #[doc(hidden)]
@@ -521,9 +484,6 @@ pub type TLSError = Error;
 #[doc(hidden)]
 #[deprecated(since = "0.20.0", note = "Use ClientConnection")]
 pub type ClientSession = ClientConnection;
-#[doc(hidden)]
-#[deprecated(since = "0.20.0", note = "Use ServerConnection")]
-pub type ServerSession = ServerConnection;
 
 /* Apologies: would make a trait alias here, but those remain unstable.
 pub trait Session = Connection;
