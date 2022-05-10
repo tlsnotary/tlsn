@@ -23,7 +23,7 @@ macro_rules! embed_files {
     ) => {
         $(
             const $name: &'static [u8] = include_bytes!(
-                concat!("../../../test-ca/", $keytype, "/", $path));
+                concat!("../test-ca/", $keytype, "/", $path));
         )+
 
         pub fn bytes_for(keytype: &str, path: &str) -> &'static [u8] {
@@ -167,9 +167,7 @@ where
             };
 
             let message_enc_reader: &mut dyn io::Read = &mut &message_enc[..];
-            let len = right
-                .read_tls(message_enc_reader)
-                .unwrap();
+            let len = right.read_tls(message_enc_reader).unwrap();
             assert_eq!(len, message_enc.len());
         }
     }
