@@ -91,10 +91,7 @@ impl ExtensionProcessing {
         if let Some(their_protocols) = maybe_their_protocols {
             let their_protocols = their_protocols.to_slices();
 
-            if their_protocols
-                .iter()
-                .any(|protocol| protocol.is_empty())
-            {
+            if their_protocols.iter().any(|protocol| protocol.is_empty()) {
                 return Err(Error::PeerMisbehavedError(
                     "client offered empty ALPN protocol".to_string(),
                 ));
@@ -115,71 +112,31 @@ impl ExtensionProcessing {
             }
         }
 
-        #[cfg(feature = "quic")]
-        {
-            if cx.common.is_quic() {
-                // QUIC has strict ALPN, unlike TLS's more backwards-compatible behavior. RFC 9001
-                // says: "The server MUST treat the inability to select a compatible application
-                // protocol as a connection error of type 0x0178". We judge that ALPN was desired
-                // (rather than some out-of-band protocol negotiation mechanism) iff any ALPN
-                // protocols were configured locally or offered by the client. This helps prevent
-                // successful establishment of connections between peers that can't understand
-                // each other.
-                if cx.common.alpn_protocol.is_none()
-                    && (!our_protocols.is_empty() || maybe_their_protocols.is_some())
-                {
-                    cx.common
-                        .send_fatal_alert(AlertDescription::NoApplicationProtocol);
-                    return Err(Error::NoApplicationProtocol);
-                }
-
-                match hello.get_quic_params_extension() {
-                    Some(params) => cx.common.quic.params = Some(params),
-                    None => {
-                        return Err(cx
-                            .common
-                            .missing_extension("QUIC transport parameters not found"));
-                    }
-                }
-            }
-        }
-
         let for_resume = resumedata.is_some();
         // SNI
         if !for_resume && hello.get_sni_extension().is_some() {
-            self.exts
-                .push(ServerExtension::ServerNameAck);
+            self.exts.push(ServerExtension::ServerNameAck);
         }
 
         // Send status_request response if we have one.  This is not allowed
         // if we're resuming, and is only triggered if we have an OCSP response
         // to send.
-        if !for_resume
-            && hello
-                .find_extension(ExtensionType::StatusRequest)
-                .is_some()
-        {
+        if !for_resume && hello.find_extension(ExtensionType::StatusRequest).is_some() {
             if ocsp_response.is_some() && !cx.common.is_tls13() {
                 // Only TLS1.2 sends confirmation in ServerHello
-                self.exts
-                    .push(ServerExtension::CertificateStatusAck);
+                self.exts.push(ServerExtension::CertificateStatusAck);
             }
         } else {
             // Throw away any OCSP response so we don't try to send it later.
             ocsp_response.take();
         }
 
-        if !for_resume
-            && hello
-                .find_extension(ExtensionType::SCT)
-                .is_some()
-        {
+        if !for_resume && hello.find_extension(ExtensionType::SCT).is_some() {
             if !cx.common.is_tls13() {
                 // Take the SCT list, if any, so we don't send it later,
                 // and put it in the legacy extension.
                 if let Some(sct_list) = sct_list.take() {
-                    self.exts
-                        .push(ServerExtension::make_sct(sct_list.to_vec()));
+                    self.exts.push(ServerExtension::make_sct(sct_list.to_vec()));
                 }
             }
         } else {
@@ -216,20 +173,15 @@ impl ExtensionProcessing {
         // Tickets:
         // If we get any SessionTicket extension and have tickets enabled,
         // we send an ack.
-        if hello
-            .find_extension(ExtensionType::SessionTicket)
-            .is_some()
-            && config.ticketer.enabled()
+        if hello.find_extension(ExtensionType::SessionTicket).is_some() && config.ticketer.enabled()
         {
             self.send_ticket = true;
-            self.exts
-                .push(ServerExtension::SessionTicketAck);
+            self.exts.push(ServerExtension::SessionTicketAck);
         }
 
         // Confirm use of EMS if offered.
         if using_ems {
-            self.exts
-                .push(ServerExtension::ExtendedMasterSecretAck);
+            self.exts.push(ServerExtension::ExtendedMasterSecretAck);
         }
     }
 }
@@ -275,12 +227,8 @@ impl ExpectClientHello {
         m: &Message,
         cx: &mut ServerContext<'_>,
     ) -> NextStateOrError {
-        let tls13_enabled = self
-            .config
-            .supports_version(ProtocolVersion::TLSv1_3);
-        let tls12_enabled = self
-            .config
-            .supports_version(ProtocolVersion::TLSv1_2);
+        let tls13_enabled = self.config.supports_version(ProtocolVersion::TLSv1_3);
+        let tls12_enabled = self.config.supports_version(ProtocolVersion::TLSv1_2);
 
         // Are we doing TLS1.3?
         let maybe_versions_ext = client_hello.get_versions_extension();
@@ -289,11 +237,6 @@ impl ExpectClientHello {
                 ProtocolVersion::TLSv1_3
             } else if !versions.contains(&ProtocolVersion::TLSv1_2) || !tls12_enabled {
                 return Err(bad_version(cx.common, "TLS1.2 not offered/enabled"));
-            } else if cx.common.is_quic() {
-                return Err(bad_version(
-                    cx.common,
-                    "Expecting QUIC connection, but client does not support TLSv1_3",
-                ));
             } else {
                 ProtocolVersion::TLSv1_2
             }
@@ -303,11 +246,6 @@ impl ExpectClientHello {
             return Err(bad_version(
                 cx.common,
                 "Server requires TLS1.3, but client omitted versions ext",
-            ));
-        } else if cx.common.is_quic() {
-            return Err(bad_version(
-                cx.common,
-                "Expecting QUIC connection, but client does not support TLSv1_3",
             ));
         } else {
             ProtocolVersion::TLSv1_2
@@ -323,14 +261,10 @@ impl ExpectClientHello {
                 client_hello.get_alpn_extension(),
             );
 
-            let certkey = self
-                .config
-                .cert_resolver
-                .resolve(client_hello);
+            let certkey = self.config.cert_resolver.resolve(client_hello);
 
             certkey.ok_or_else(|| {
-                cx.common
-                    .send_fatal_alert(AlertDescription::AccessDenied);
+                cx.common.send_fatal_alert(AlertDescription::AccessDenied);
                 Error::General("no server certificate chain resolved".to_string())
             })?
         };
@@ -366,9 +300,7 @@ impl ExpectClientHello {
             HandshakeHashOrBuffer::Buffer(inner) => inner.start_hash(starting_hash),
             HandshakeHashOrBuffer::Hash(inner) if inner.algorithm() == starting_hash => inner,
             _ => {
-                return Err(cx
-                    .common
-                    .illegal_param("hash differed on retry"));
+                return Err(cx.common.illegal_param("hash differed on retry"));
             }
         };
 
@@ -499,11 +431,7 @@ pub(super) fn process_client_hello<'a>(
     let client_suites = supported_cipher_suites
         .iter()
         .copied()
-        .filter(|scs| {
-            client_hello
-                .cipher_suites
-                .contains(&scs.suite())
-        })
+        .filter(|scs| client_hello.cipher_suites.contains(&scs.suite()))
         .collect::<Vec<_>>();
 
     let mut sig_schemes = client_hello

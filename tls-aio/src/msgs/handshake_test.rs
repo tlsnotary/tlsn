@@ -184,10 +184,7 @@ fn can_roundtrip_multiname_sni() {
 
             assert!(req.has_duplicate_names_for_type());
 
-            let dns_name_str: &str = req
-                .get_single_hostname()
-                .unwrap()
-                .into();
+            let dns_name_str: &str = req.get_single_hostname().unwrap().into();
             assert_eq!(dns_name_str, "hi");
 
             assert_eq!(req[0].typ, ServerNameType::HostName);
@@ -516,8 +513,7 @@ fn client_get_sigalgs_extension() {
 #[test]
 fn client_get_namedgroups_extension() {
     test_client_extension_getter(ExtensionType::EllipticCurves, |chp| {
-        chp.get_namedgroups_extension()
-            .is_some()
+        chp.get_namedgroups_extension().is_some()
     });
 }
 
@@ -532,14 +528,6 @@ fn client_get_ecpoints_extension() {
 fn client_get_alpn_extension() {
     test_client_extension_getter(ExtensionType::ALProtocolNegotiation, |chp| {
         chp.get_alpn_extension().is_some()
-    });
-}
-
-#[test]
-fn client_get_quic_params_extension() {
-    test_client_extension_getter(ExtensionType::TransportParameters, |chp| {
-        chp.get_quic_params_extension()
-            .is_some()
     });
 }
 
@@ -618,8 +606,7 @@ fn test_helloretry_extension_getter(typ: ExtensionType, getter: fn(&HelloRetryRe
 #[test]
 fn helloretry_get_requested_key_share_group() {
     test_helloretry_extension_getter(ExtensionType::KeyShare, |hrr| {
-        hrr.get_requested_key_share_group()
-            .is_some()
+        hrr.get_requested_key_share_group().is_some()
     });
 }
 
@@ -716,9 +703,7 @@ fn server_get_supported_versions() {
 }
 
 fn test_cert_extension_getter(typ: ExtensionType, getter: fn(&CertificateEntry) -> bool) {
-    let mut ce = get_sample_certificatepayloadtls13()
-        .entries
-        .remove(0);
+    let mut ce = get_sample_certificatepayloadtls13().entries.remove(0);
     let mut exts = std::mem::take(&mut ce.exts);
     exts.retain(|ext| ext.get_type() == typ);
 

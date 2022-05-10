@@ -25,10 +25,6 @@ pub(crate) static TLS13_CHACHA20_POLY1305_SHA256_INTERNAL: &Tls13CipherSuite = &
         aead_algorithm: &ring::aead::CHACHA20_POLY1305,
     },
     hkdf_algorithm: ring::hkdf::HKDF_SHA256,
-    #[cfg(feature = "quic")]
-    confidentiality_limit: u64::MAX,
-    #[cfg(feature = "quic")]
-    integrity_limit: 1 << 36,
 };
 
 /// The TLS1.3 ciphersuite TLS_AES_256_GCM_SHA384
@@ -40,10 +36,6 @@ pub static TLS13_AES_256_GCM_SHA384: SupportedCipherSuite =
             aead_algorithm: &ring::aead::AES_256_GCM,
         },
         hkdf_algorithm: ring::hkdf::HKDF_SHA384,
-        #[cfg(feature = "quic")]
-        confidentiality_limit: 1 << 23,
-        #[cfg(feature = "quic")]
-        integrity_limit: 1 << 52,
     });
 
 /// The TLS1.3 ciphersuite TLS_AES_128_GCM_SHA256
@@ -57,10 +49,6 @@ pub(crate) static TLS13_AES_128_GCM_SHA256_INTERNAL: &Tls13CipherSuite = &Tls13C
         aead_algorithm: &ring::aead::AES_128_GCM,
     },
     hkdf_algorithm: ring::hkdf::HKDF_SHA256,
-    #[cfg(feature = "quic")]
-    confidentiality_limit: 1 << 23,
-    #[cfg(feature = "quic")]
-    integrity_limit: 1 << 52,
 };
 
 /// A TLS 1.3 cipher suite supported by rustls.
@@ -68,10 +56,6 @@ pub struct Tls13CipherSuite {
     /// Common cipher suite fields.
     pub common: CipherSuiteCommon,
     pub(crate) hkdf_algorithm: ring::hkdf::Algorithm,
-    #[cfg(feature = "quic")]
-    pub(crate) confidentiality_limit: u64,
-    #[cfg(feature = "quic")]
-    pub(crate) integrity_limit: u64,
 }
 
 impl Tls13CipherSuite {
@@ -99,9 +83,7 @@ impl Tls13CipherSuite {
 
     /// Which hash function to use with this suite.
     pub fn hash_algorithm(&self) -> &'static ring::digest::Algorithm {
-        self.hkdf_algorithm
-            .hmac_algorithm()
-            .digest_algorithm()
+        self.hkdf_algorithm.hmac_algorithm().digest_algorithm()
     }
 
     /// Can a session using suite self resume from suite prev?

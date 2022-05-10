@@ -8,8 +8,6 @@ use crate::kx;
 #[cfg(feature = "logging")]
 use crate::log::{debug, trace};
 use crate::msgs::base::Payload;
-#[cfg(feature = "quic")]
-use crate::msgs::base::PayloadU16;
 use crate::msgs::codec::{Codec, Reader};
 use crate::msgs::enums::{
     AlertDescription, CipherSuite, Compression, ContentType, ProtocolVersion,
@@ -44,18 +42,14 @@ pub(super) type ClientContext<'a> = crate::conn::Context<'a, ClientConnectionDat
 fn find_session(
     server_name: &ServerName,
     config: &ClientConfig,
-    #[cfg(feature = "quic")] cx: &mut ClientContext<'_>,
 ) -> Option<persist::Retrieved<persist::ClientSessionValue>> {
     let key = persist::ClientSessionKey::session_for_server_name(server_name);
     let key_buf = key.get_encoding();
 
-    let value = config
-        .session_storage
-        .get(&key_buf)
-        .or_else(|| {
-            debug!("No cached session for {:?}", server_name);
-            None
-        })?;
+    let value = config.session_storage.get(&key_buf).or_else(|| {
+        debug!("No cached session for {:?}", server_name);
+        None
+    })?;
 
     #[allow(unused_mut)]
     let mut reader = Reader::init(&value[2..]);
@@ -71,14 +65,7 @@ fn find_session(
                 true => None,
             }
         })
-        .and_then(|resuming| {
-            #[cfg(feature = "quic")]
-            if cx.common.is_quic() {
-                let params = PayloadU16::read(&mut reader)?;
-                cx.common.quic.params = Some(params.0);
-            }
-            Some(resuming)
-        })
+        .and_then(|resuming| Some(resuming))
 }
 
 pub(super) fn start_handshake(
@@ -88,22 +75,14 @@ pub(super) fn start_handshake(
     cx: &mut ClientContext<'_>,
 ) -> NextStateOrError {
     let mut transcript_buffer = HandshakeHashBuffer::new();
-    if config
-        .client_auth_cert_resolver
-        .has_certs()
-    {
+    if config.client_auth_cert_resolver.has_certs() {
         transcript_buffer.set_client_auth_enabled();
     }
 
     let support_tls13 = config.supports_version(ProtocolVersion::TLSv1_3);
 
     let mut session_id: Option<SessionID> = None;
-    let mut resuming_session = find_session(
-        &server_name,
-        &config,
-        #[cfg(feature = "quic")]
-        cx,
-    );
+    let mut resuming_session = find_session(&server_name, &config);
 
     let key_share = if support_tls13 {
         Some(tls13::initial_key_share(&config, &server_name)?)
@@ -129,8 +108,7 @@ pub(super) fn start_handshake(
     }
 
     // https://tools.ietf.org/html/rfc8446#appendix-D.4
-    // https://tools.ietf.org/html/draft-ietf-quic-tls-34#section-8.4
-    if session_id.is_none() && !cx.common.is_quic() {
+    if session_id.is_none() {
         session_id = Some(SessionID::random()?);
     }
 
@@ -209,7 +187,7 @@ fn emit_client_hello_for_retry(
         (Vec::new(), ProtocolVersion::Unknown(0))
     };
 
-    let support_tls12 = config.supports_version(ProtocolVersion::TLSv1_2) && !cx.common.is_quic();
+    let support_tls12 = config.supports_version(ProtocolVersion::TLSv1_2);
     let support_tls13 = config.supports_version(ProtocolVersion::TLSv1_3);
 
     let mut supported_versions = Vec::new();
@@ -227,18 +205,8 @@ fn emit_client_hello_for_retry(
     let mut exts = vec![
         ClientExtension::SupportedVersions(supported_versions),
         ClientExtension::ECPointFormats(ECPointFormatList::supported()),
-        ClientExtension::NamedGroups(
-            config
-                .kx_groups
-                .iter()
-                .map(|skxg| skxg.name)
-                .collect(),
-        ),
-        ClientExtension::SignatureAlgorithms(
-            config
-                .verifier
-                .supported_verify_schemes(),
-        ),
+        ClientExtension::NamedGroups(config.kx_groups.iter().map(|skxg| skxg.name).collect()),
+        ClientExtension::SignatureAlgorithms(config.verifier.supported_verify_schemes()),
         ClientExtension::ExtendedMasterSecretRequest,
         ClientExtension::CertificateStatusRequest(CertificateStatusRequest::build_ocsp()),
     ];
@@ -290,9 +258,7 @@ fn emit_client_hello_for_retry(
             .as_ref()
             .and_then(|resuming| match (suite, resuming.tls13()) {
                 (Some(suite), Some(resuming)) => {
-                    suite
-                        .tls13()?
-                        .can_resume_from(resuming.suite())?;
+                    suite.tls13()?.can_resume_from(resuming.suite())?;
                     Some(resuming)
                 }
                 (None, Some(resuming)) => Some(resuming),
@@ -324,17 +290,10 @@ fn emit_client_hello_for_retry(
     };
 
     // Note what extensions we sent.
-    hello.sent_extensions = exts
-        .iter()
-        .map(ClientExtension::get_type)
-        .collect();
+    hello.sent_extensions = exts.iter().map(ClientExtension::get_type).collect();
 
     let session_id = session_id.unwrap_or_else(SessionID::empty);
-    let mut cipher_suites: Vec<_> = config
-        .cipher_suites
-        .iter()
-        .map(|cs| cs.suite())
-        .collect();
+    let mut cipher_suites: Vec<_> = config.cipher_suites.iter().map(|cs| cs.suite()).collect();
     // We don't do renegotiation at all, in fact.
     cipher_suites.push(CipherSuite::TLS_EMPTY_RENEGOTIATION_INFO_SCSV);
 
@@ -428,34 +387,14 @@ pub(super) fn process_alpn_protocol(
     common.alpn_protocol = proto.map(ToOwned::to_owned);
 
     if let Some(alpn_protocol) = &common.alpn_protocol {
-        if !config
-            .alpn_protocols
-            .contains(alpn_protocol)
-        {
+        if !config.alpn_protocols.contains(alpn_protocol) {
             return Err(common.illegal_param("server sent non-offered ALPN protocol"));
-        }
-    }
-
-    #[cfg(feature = "quic")]
-    {
-        // RFC 9001 says: "While ALPN only specifies that servers use this alert, QUIC clients MUST
-        // use error 0x0178 to terminate a connection when ALPN negotiation fails." We judge that
-        // the user intended to use ALPN (rather than some out-of-band protocol negotiation
-        // mechanism) iff any ALPN protocols were configured. This defends against badly-behaved
-        // servers which accept a connection that requires an application-layer protocol they do not
-        // understand.
-        if common.is_quic() && common.alpn_protocol.is_none() && !config.alpn_protocols.is_empty() {
-            common.send_fatal_alert(AlertDescription::NoApplicationProtocol);
-            return Err(Error::NoApplicationProtocol);
         }
     }
 
     debug!(
         "ALPN protocol is {:?}",
-        common
-            .alpn_protocol
-            .as_ref()
-            .map(|v| bs_debug::BsDebug(v))
+        common.alpn_protocol.as_ref().map(|v| bs_debug::BsDebug(v))
     );
     Ok(())
 }
@@ -492,10 +431,7 @@ impl State<ClientConnectionData> for ExpectServerHello {
                     ));
                 }
 
-                if server_hello
-                    .get_supported_versions()
-                    .is_some()
-                {
+                if server_hello.get_supported_versions().is_some() {
                     return Err(cx
                         .common
                         .illegal_param("server chose v1.2 using v1.3 extension"));
@@ -515,14 +451,11 @@ impl State<ClientConnectionData> for ExpectServerHello {
         };
 
         if server_hello.compression_method != Compression::Null {
-            return Err(cx
-                .common
-                .illegal_param("server chose non-Null compression"));
+            return Err(cx.common.illegal_param("server chose non-Null compression"));
         }
 
         if server_hello.has_duplicate_extension() {
-            cx.common
-                .send_fatal_alert(AlertDescription::DecodeError);
+            cx.common.send_fatal_alert(AlertDescription::DecodeError);
             return Err(Error::PeerMisbehavedError(
                 "server sent duplicate extensions".to_string(),
             ));
@@ -588,9 +521,7 @@ impl State<ClientConnectionData> for ExpectServerHello {
         }
 
         // Start our handshake hash, and input the server-hello.
-        let mut transcript = self
-            .transcript_buffer
-            .start_hash(suite.hash_algorithm());
+        let mut transcript = self.transcript_buffer.start_hash(suite.hash_algorithm());
         transcript.add_message(&m);
 
         let randoms = ConnectionRandoms::new(self.random, server_hello.random);
@@ -598,13 +529,13 @@ impl State<ClientConnectionData> for ExpectServerHello {
         // handshake_traffic_secret.
         match suite {
             SupportedCipherSuite::Tls13(suite) => {
-                let resuming_session = self
-                    .resuming_session
-                    .and_then(|resuming| match resuming.value {
-                        persist::ClientSessionValue::Tls13(inner) => Some(inner),
-                        #[cfg(feature = "tls12")]
-                        persist::ClientSessionValue::Tls12(_) => None,
-                    });
+                let resuming_session =
+                    self.resuming_session
+                        .and_then(|resuming| match resuming.value {
+                            persist::ClientSessionValue::Tls13(inner) => Some(inner),
+                            #[cfg(feature = "tls12")]
+                            persist::ClientSessionValue::Tls12(_) => None,
+                        });
 
                 tls13::handle_server_hello(
                     self.config,
@@ -624,12 +555,12 @@ impl State<ClientConnectionData> for ExpectServerHello {
             }
             #[cfg(feature = "tls12")]
             SupportedCipherSuite::Tls12(suite) => {
-                let resuming_session = self
-                    .resuming_session
-                    .and_then(|resuming| match resuming.value {
-                        persist::ClientSessionValue::Tls12(inner) => Some(inner),
-                        persist::ClientSessionValue::Tls13(_) => None,
-                    });
+                let resuming_session =
+                    self.resuming_session
+                        .and_then(|resuming| match resuming.value {
+                            persist::ClientSessionValue::Tls12(inner) => Some(inner),
+                            persist::ClientSessionValue::Tls13(_) => None,
+                        });
 
                 tls12::CompleteServerHelloHandling {
                     config: self.config,
@@ -723,10 +654,7 @@ impl ExpectServerHelloOrHelloRetryRequest {
         }
 
         // Or asks us to use a ciphersuite we didn't offer.
-        let maybe_cs = self
-            .next
-            .config
-            .find_cipher_suite(hrr.cipher_suite);
+        let maybe_cs = self.next.config.find_cipher_suite(hrr.cipher_suite);
         let cs = match maybe_cs {
             Some(cs) => cs,
             None => {
@@ -740,10 +668,7 @@ impl ExpectServerHelloOrHelloRetryRequest {
         cx.common.suite = Some(cs);
 
         // This is the draft19 change where the transcript became a tree
-        let transcript = self
-            .next
-            .transcript_buffer
-            .start_hash(cs.hash_algorithm());
+        let transcript = self.next.transcript_buffer.start_hash(cs.hash_algorithm());
         let mut transcript_buffer = transcript.into_hrr_buffer();
         transcript_buffer.add_message(&m);
 
@@ -752,10 +677,7 @@ impl ExpectServerHelloOrHelloRetryRequest {
             cx.data.early_data.rejected();
         }
 
-        let may_send_sct_list = self
-            .next
-            .hello
-            .server_may_send_sct_list();
+        let may_send_sct_list = self.next.hello.server_may_send_sct_list();
 
         let key_share = match req_group {
             Some(group) if group != offered_key_share.group() => {
@@ -795,9 +717,7 @@ impl State<ClientConnectionData> for ExpectServerHelloOrHelloRetryRequest {
             MessagePayload::Handshake(HandshakeMessagePayload {
                 payload: HandshakePayload::ServerHello(..),
                 ..
-            }) => self
-                .into_expect_server_hello()
-                .handle(cx, m),
+            }) => self.into_expect_server_hello().handle(cx, m),
             MessagePayload::Handshake(HandshakeMessagePayload {
                 payload: HandshakePayload::HelloRetryRequest(..),
                 ..

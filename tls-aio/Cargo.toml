@@ -25,7 +25,6 @@ webpki = { version = "0.22.0", features = ["alloc", "std"] }
 default = ["logging", "tls12"]
 logging = ["log"]
 dangerous_configuration = []
-quic = []
 tls12 = []
 read_buf = ["rustversion"]
 
@@ -37,11 +36,6 @@ criterion = "0.3.0"
 rustls-pemfile = "0.3.0"
 base64 = "0.13.0"
 rustls = "0.20.4"
-
-[[example]]
-name = "bogo_shim"
-path = "examples/internal/bogo_shim.rs"
-required-features = ["dangerous_configuration", "quic"]
 
 [[example]]
 name = "trytls_shim"
