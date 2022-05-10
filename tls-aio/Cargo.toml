@@ -1,11 +1,61 @@
 [package]
-name = "tlsn-tls-aio"
-version = "0.1.0"
-edition = "2021"
+name = "rustls"
+version = "0.20.4"
+edition = "2018"
+authors = ["Joseph Birr-Pixton <jpixton@gmail.com>"]
+license = "Apache-2.0/ISC/MIT"
+readme = "../README.md"
+description = "Rustls is a modern TLS library written in Rust."
+homepage = "https://github.com/rustls/rustls"
+repository = "https://github.com/rustls/rustls"
+categories = ["network-programming", "cryptography"]
+autobenches = false
+build = "build.rs"
+resolver = "2"
 
-[lib]
-name = "tls_aio"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[build-dependencies]
+rustversion = { version = "1.0.6", optional = true }
 
 [dependencies]
+log = { version = "0.4.4", optional = true }
+ring = "0.16.20"
+sct = "0.7.0"
+webpki = { version = "0.22.0", features = ["alloc", "std"] }
+
+[features]
+default = ["logging", "tls12"]
+logging = ["log"]
+dangerous_configuration = []
+quic = []
+tls12 = []
+read_buf = ["rustversion"]
+
+[dev-dependencies]
+env_logger = "0.9.0"
+log = "0.4.4"
+webpki-roots = "0.22.0"
+criterion = "0.3.0"
+rustls-pemfile = "0.3.0"
+base64 = "0.13.0"
+
+[[example]]
+name = "bogo_shim"
+path = "examples/internal/bogo_shim.rs"
+required-features = ["dangerous_configuration", "quic"]
+
+[[example]]
+name = "trytls_shim"
+path = "examples/internal/trytls_shim.rs"
+
+[[example]]
+name = "bench"
+path = "examples/internal/bench.rs"
+
+[[bench]]
+name = "benchmarks"
+path = "tests/benchmarks.rs"
+harness = false
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
