@@ -4,7 +4,6 @@ use crate::suites::{SupportedCipherSuite, DEFAULT_CIPHER_SUITES};
 use crate::versions;
 
 use std::fmt;
-use std::marker::PhantomData;
 
 /// Building a [`ServerConfig`] or [`ClientConfig`] in a linker-friendly and
 /// complete way.

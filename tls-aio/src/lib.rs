@@ -241,11 +241,6 @@
 //!   such as replacing the certificate verification process.  Applications
 //!   requesting this feature should be reviewed carefully.
 //!
-//! - `quic`: this feature exposes additional constructors and functions
-//!   for using rustls as a TLS library for QUIC.  See the `quic` module for
-//!   details of these.  You will only need this if you're writing a QUIC
-//!   implementation.
-//!
 //! - `tls12`: enables support for TLS version 1.2. This feature is in the default
 //!   set. Note that, due to the additive nature of Cargo features and because it
 //!   is enabled by default, other crates in your dependency graph could re-enable
@@ -396,9 +391,6 @@ pub mod client {
     mod tls13;
 
     pub use builder::{WantsClientCert, WantsTransparencyPolicyOrClientCert};
-    #[cfg(feature = "quic")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "quic")))]
-    pub use client_conn::ClientQuicExt;
     pub use client_conn::InvalidDnsNameError;
     pub use client_conn::ResolvesClientCert;
     pub use client_conn::ServerName;
@@ -461,11 +453,6 @@ pub mod kx_group {
 
 /// Message signing interfaces and implementations.
 pub mod sign;
-
-#[cfg(feature = "quic")]
-#[cfg_attr(docsrs, doc(cfg(feature = "quic")))]
-/// APIs for implementing QUIC TLS
-pub mod quic;
 
 /// This is the rustls manual.
 pub mod manual;

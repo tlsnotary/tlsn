@@ -14,8 +14,6 @@ use std::sync::Mutex;
 use log;
 
 use rustls::client::ResolvesClientCert;
-#[cfg(feature = "quic")]
-use rustls::quic::{self, ClientQuicExt, QuicExt, ServerQuicExt};
 use rustls::server::{AllowAnyAnonymousOrAuthenticatedClient, ClientHello, ResolvesServerCert};
 use rustls::{sign, ConnectionCommon, Error, KeyLog, SideData};
 use rustls::{CipherSuite, ProtocolVersion, SignatureScheme};
@@ -304,20 +302,8 @@ fn buffered_both_data_sent() {
         let (mut client, mut server) =
             make_pair_for_arc_configs(&Arc::new(client_config), &server_config);
 
-        assert_eq!(
-            12,
-            server
-                .writer()
-                .write(b"from-server!")
-                .unwrap()
-        );
-        assert_eq!(
-            12,
-            client
-                .writer()
-                .write(b"from-client!")
-                .unwrap()
-        );
+        assert_eq!(12, server.writer().write(b"from-server!").unwrap());
+        assert_eq!(12, client.writer().write(b"from-client!").unwrap());
 
         do_handshake(&mut client, &mut server);
 
@@ -460,20 +446,8 @@ fn server_close_notify() {
         do_handshake(&mut client, &mut server);
 
         // check that alerts don't overtake appdata
-        assert_eq!(
-            12,
-            server
-                .writer()
-                .write(b"from-server!")
-                .unwrap()
-        );
-        assert_eq!(
-            12,
-            client
-                .writer()
-                .write(b"from-client!")
-                .unwrap()
-        );
+        assert_eq!(12, server.writer().write(b"from-server!").unwrap());
+        assert_eq!(12, client.writer().write(b"from-client!").unwrap());
         server.send_close_notify();
 
         transfer(&mut server, &mut client);
@@ -499,20 +473,8 @@ fn client_close_notify() {
         do_handshake(&mut client, &mut server);
 
         // check that alerts don't overtake appdata
-        assert_eq!(
-            12,
-            server
-                .writer()
-                .write(b"from-server!")
-                .unwrap()
-        );
-        assert_eq!(
-            12,
-            client
-                .writer()
-                .write(b"from-client!")
-                .unwrap()
-        );
+        assert_eq!(12, server.writer().write(b"from-server!").unwrap());
+        assert_eq!(12, client.writer().write(b"from-client!").unwrap());
         client.send_close_notify();
 
         transfer(&mut client, &mut server);
@@ -538,20 +500,8 @@ fn server_closes_uncleanly() {
         do_handshake(&mut client, &mut server);
 
         // check that unclean EOF reporting does not overtake appdata
-        assert_eq!(
-            12,
-            server
-                .writer()
-                .write(b"from-server!")
-                .unwrap()
-        );
-        assert_eq!(
-            12,
-            client
-                .writer()
-                .write(b"from-client!")
-                .unwrap()
-        );
+        assert_eq!(12, server.writer().write(b"from-server!").unwrap());
+        assert_eq!(12, client.writer().write(b"from-client!").unwrap());
 
         transfer(&mut server, &mut client);
         transfer_eof(&mut client);
@@ -581,20 +531,8 @@ fn client_closes_uncleanly() {
         do_handshake(&mut client, &mut server);
 
         // check that unclean EOF reporting does not overtake appdata
-        assert_eq!(
-            12,
-            server
-                .writer()
-                .write(b"from-server!")
-                .unwrap()
-        );
-        assert_eq!(
-            12,
-            client
-                .writer()
-                .write(b"from-client!")
-                .unwrap()
-        );
+        assert_eq!(12, server.writer().write(b"from-server!").unwrap());
+        assert_eq!(12, client.writer().write(b"from-client!").unwrap());
 
         transfer(&mut client, &mut server);
         transfer_eof(&mut server);
@@ -621,17 +559,12 @@ struct ServerCheckCertResolve {
 
 impl ResolvesServerCert for ServerCheckCertResolve {
     fn resolve(&self, client_hello: ClientHello) -> Option<Arc<sign::CertifiedKey>> {
-        if client_hello
-            .signature_schemes()
-            .is_empty()
-        {
+        if client_hello.signature_schemes().is_empty() {
             panic!("no signature schemes shared by client");
         }
 
         if let Some(expected_sni) = &self.expected_sni {
-            let sni: &str = client_hello
-                .server_name()
-                .expect("sni unexpectedly absent");
+            let sni: &str = client_hello.server_name().expect("sni unexpectedly absent");
             assert_eq!(expected_sni, sni);
         }
 
@@ -867,8 +800,7 @@ impl ResolvesClientCert for ClientCheckCertResolve {
         acceptable_issuers: &[&[u8]],
         sigschemes: &[SignatureScheme],
     ) -> Option<Arc<sign::CertifiedKey>> {
-        self.query_count
-            .fetch_add(1, Ordering::SeqCst);
+        self.query_count.fetch_add(1, Ordering::SeqCst);
 
         if acceptable_issuers.is_empty() {
             panic!("no issuers offered by server");
@@ -976,20 +908,8 @@ fn server_respects_buffer_limit_pre_handshake() {
 
     server.set_buffer_limit(Some(32));
 
-    assert_eq!(
-        server
-            .writer()
-            .write(b"01234567890123456789")
-            .unwrap(),
-        20
-    );
-    assert_eq!(
-        server
-            .writer()
-            .write(b"01234567890123456789")
-            .unwrap(),
-        12
-    );
+    assert_eq!(server.writer().write(b"01234567890123456789").unwrap(), 20);
+    assert_eq!(server.writer().write(b"01234567890123456789").unwrap(), 12);
 
     do_handshake(&mut client, &mut server);
     transfer(&mut server, &mut client);
@@ -1030,20 +950,8 @@ fn server_respects_buffer_limit_post_handshake() {
     do_handshake(&mut client, &mut server);
     server.set_buffer_limit(Some(48));
 
-    assert_eq!(
-        server
-            .writer()
-            .write(b"01234567890123456789")
-            .unwrap(),
-        20
-    );
-    assert_eq!(
-        server
-            .writer()
-            .write(b"01234567890123456789")
-            .unwrap(),
-        6
-    );
+    assert_eq!(server.writer().write(b"01234567890123456789").unwrap(), 20);
+    assert_eq!(server.writer().write(b"01234567890123456789").unwrap(), 6);
 
     transfer(&mut server, &mut client);
     client.process_new_packets().unwrap();
@@ -1057,20 +965,8 @@ fn client_respects_buffer_limit_pre_handshake() {
 
     client.set_buffer_limit(Some(32));
 
-    assert_eq!(
-        client
-            .writer()
-            .write(b"01234567890123456789")
-            .unwrap(),
-        20
-    );
-    assert_eq!(
-        client
-            .writer()
-            .write(b"01234567890123456789")
-            .unwrap(),
-        12
-    );
+    assert_eq!(client.writer().write(b"01234567890123456789").unwrap(), 20);
+    assert_eq!(client.writer().write(b"01234567890123456789").unwrap(), 12);
 
     do_handshake(&mut client, &mut server);
     transfer(&mut client, &mut server);
@@ -1110,20 +1006,8 @@ fn client_respects_buffer_limit_post_handshake() {
     do_handshake(&mut client, &mut server);
     client.set_buffer_limit(Some(48));
 
-    assert_eq!(
-        client
-            .writer()
-            .write(b"01234567890123456789")
-            .unwrap(),
-        20
-    );
-    assert_eq!(
-        client
-            .writer()
-            .write(b"01234567890123456789")
-            .unwrap(),
-        6
-    );
+    assert_eq!(client.writer().write(b"01234567890123456789").unwrap(), 20);
+    assert_eq!(client.writer().write(b"01234567890123456789").unwrap(), 6);
 
     transfer(&mut client, &mut server);
     server.process_new_packets().unwrap();
@@ -1279,9 +1163,7 @@ fn client_complete_io_for_handshake_eof() {
     let mut input = io::Cursor::new(Vec::new());
 
     assert!(client.is_handshaking());
-    let err = client
-        .complete_io(&mut input)
-        .unwrap_err();
+    let err = client.complete_io(&mut input).unwrap_err();
     assert_eq!(io::ErrorKind::UnexpectedEof, err.kind());
 }
 
@@ -1292,14 +1174,8 @@ fn client_complete_io_for_write() {
 
         do_handshake(&mut client, &mut server);
 
-        client
-            .writer()
-            .write_all(b"01234567890123456789")
-            .unwrap();
-        client
-            .writer()
-            .write_all(b"01234567890123456789")
-            .unwrap();
+        client.writer().write_all(b"01234567890123456789").unwrap();
+        client.writer().write_all(b"01234567890123456789").unwrap();
         {
             let mut pipe = OtherSession::new(&mut server);
             let (rdlen, wrlen) = client.complete_io(&mut pipe).unwrap();
@@ -1321,10 +1197,7 @@ fn client_complete_io_for_read() {
 
         do_handshake(&mut client, &mut server);
 
-        server
-            .writer()
-            .write_all(b"01234567890123456789")
-            .unwrap();
+        server.writer().write_all(b"01234567890123456789").unwrap();
         {
             let mut pipe = OtherSession::new(&mut server);
             let (rdlen, wrlen) = client.complete_io(&mut pipe).unwrap();
@@ -1355,9 +1228,7 @@ fn server_complete_io_for_handshake_eof() {
     let mut input = io::Cursor::new(Vec::new());
 
     assert!(server.is_handshaking());
-    let err = server
-        .complete_io(&mut input)
-        .unwrap_err();
+    let err = server.complete_io(&mut input).unwrap_err();
     assert_eq!(io::ErrorKind::UnexpectedEof, err.kind());
 }
 
@@ -1368,14 +1239,8 @@ fn server_complete_io_for_write() {
 
         do_handshake(&mut client, &mut server);
 
-        server
-            .writer()
-            .write_all(b"01234567890123456789")
-            .unwrap();
-        server
-            .writer()
-            .write_all(b"01234567890123456789")
-            .unwrap();
+        server.writer().write_all(b"01234567890123456789").unwrap();
+        server.writer().write_all(b"01234567890123456789").unwrap();
         {
             let mut pipe = OtherSession::new(&mut client);
             let (rdlen, wrlen) = server.complete_io(&mut pipe).unwrap();
@@ -1396,10 +1261,7 @@ fn server_complete_io_for_read() {
 
         do_handshake(&mut client, &mut server);
 
-        client
-            .writer()
-            .write_all(b"01234567890123456789")
-            .unwrap();
+        client.writer().write_all(b"01234567890123456789").unwrap();
         {
             let mut pipe = OtherSession::new(&mut client);
             let (rdlen, wrlen) = server.complete_io(&mut pipe).unwrap();
@@ -1443,10 +1305,7 @@ fn client_stream_read() {
     for kt in ALL_KEY_TYPES.iter() {
         let (mut client, mut server) = make_pair(*kt);
 
-        server
-            .writer()
-            .write_all(b"world")
-            .unwrap();
+        server.writer().write_all(b"world").unwrap();
 
         {
             let mut pipe = OtherSession::new(&mut server);
@@ -1461,10 +1320,7 @@ fn client_streamowned_read() {
     for kt in ALL_KEY_TYPES.iter() {
         let (client, mut server) = make_pair(*kt);
 
-        server
-            .writer()
-            .write_all(b"world")
-            .unwrap();
+        server.writer().write_all(b"world").unwrap();
 
         {
             let pipe = OtherSession::new(&mut server);
@@ -1507,10 +1363,7 @@ fn server_stream_read() {
     for kt in ALL_KEY_TYPES.iter() {
         let (mut client, mut server) = make_pair(*kt);
 
-        client
-            .writer()
-            .write_all(b"world")
-            .unwrap();
+        client.writer().write_all(b"world").unwrap();
 
         {
             let mut pipe = OtherSession::new(&mut client);
@@ -1525,10 +1378,7 @@ fn server_streamowned_read() {
     for kt in ALL_KEY_TYPES.iter() {
         let (mut client, server) = make_pair(*kt);
 
-        client
-            .writer()
-            .write_all(b"world")
-            .unwrap();
+        client.writer().write_all(b"world").unwrap();
 
         {
             let pipe = OtherSession::new(&mut client);
@@ -1573,10 +1423,7 @@ fn stream_write_reports_underlying_io_error_before_plaintext_processed() {
         errkind: io::ErrorKind::ConnectionAborted,
         after: 0,
     };
-    client
-        .writer()
-        .write_all(b"hello")
-        .unwrap();
+    client.writer().write_all(b"hello").unwrap();
     let mut client_stream = Stream::new(&mut client, &mut pipe);
     let rc = client_stream.write(b"world");
     assert!(rc.is_err());
@@ -1593,10 +1440,7 @@ fn stream_write_swallows_underlying_io_error_after_plaintext_processed() {
         errkind: io::ErrorKind::ConnectionAborted,
         after: 1,
     };
-    client
-        .writer()
-        .write_all(b"hello")
-        .unwrap();
+    client.writer().write_all(b"hello").unwrap();
     let mut client_stream = Stream::new(&mut client, &mut pipe);
     let rc = client_stream.write(b"world");
     assert_eq!(format!("{:?}", rc), "Ok(5)");
@@ -1674,10 +1518,7 @@ fn server_stream_handshake_error() {
     let (client_config, server_config) = make_disjoint_suite_configs();
     let (mut client, mut server) = make_pair_for_configs(client_config, server_config);
 
-    client
-        .writer()
-        .write_all(b"world")
-        .unwrap();
+    client.writer().write_all(b"world").unwrap();
 
     {
         let mut pipe = OtherSession::new_fails(&mut client);
@@ -1697,10 +1538,7 @@ fn server_streamowned_handshake_error() {
     let (client_config, server_config) = make_disjoint_suite_configs();
     let (mut client, server) = make_pair_for_configs(client_config, server_config);
 
-    client
-        .writer()
-        .write_all(b"world")
-        .unwrap();
+    client.writer().write_all(b"world").unwrap();
 
     let pipe = OtherSession::new_fails(&mut client);
     let mut server_stream = StreamOwned::new(server, pipe);
@@ -2291,14 +2129,8 @@ fn vectored_write_for_server_appdata() {
     let (mut client, mut server) = make_pair(KeyType::Rsa);
     do_handshake(&mut client, &mut server);
 
-    server
-        .writer()
-        .write_all(b"01234567890123456789")
-        .unwrap();
-    server
-        .writer()
-        .write_all(b"01234567890123456789")
-        .unwrap();
+    server.writer().write_all(b"01234567890123456789").unwrap();
+    server.writer().write_all(b"01234567890123456789").unwrap();
     {
         let mut pipe = OtherSession::new(&mut client);
         let wrlen = server.write_tls(&mut pipe).unwrap();
@@ -2316,14 +2148,8 @@ fn vectored_write_for_client_appdata() {
     let (mut client, mut server) = make_pair(KeyType::Rsa);
     do_handshake(&mut client, &mut server);
 
-    client
-        .writer()
-        .write_all(b"01234567890123456789")
-        .unwrap();
-    client
-        .writer()
-        .write_all(b"01234567890123456789")
-        .unwrap();
+    client.writer().write_all(b"01234567890123456789").unwrap();
+    client.writer().write_all(b"01234567890123456789").unwrap();
     {
         let mut pipe = OtherSession::new(&mut server);
         let wrlen = client.write_tls(&mut pipe).unwrap();
@@ -2343,14 +2169,8 @@ fn vectored_write_for_server_handshake_with_half_rtt_data() {
     let (mut client, mut server) =
         make_pair_for_configs(make_client_config_with_auth(KeyType::Rsa), server_config);
 
-    server
-        .writer()
-        .write_all(b"01234567890123456789")
-        .unwrap();
-    server
-        .writer()
-        .write_all(b"0123456789")
-        .unwrap();
+    server.writer().write_all(b"01234567890123456789").unwrap();
+    server.writer().write_all(b"0123456789").unwrap();
 
     transfer(&mut client, &mut server);
     server.process_new_packets().unwrap();
@@ -2382,14 +2202,8 @@ fn check_half_rtt_does_not_work(server_config: ServerConfig) {
     let (mut client, mut server) =
         make_pair_for_configs(make_client_config_with_auth(KeyType::Rsa), server_config);
 
-    server
-        .writer()
-        .write_all(b"01234567890123456789")
-        .unwrap();
-    server
-        .writer()
-        .write_all(b"0123456789")
-        .unwrap();
+    server.writer().write_all(b"01234567890123456789").unwrap();
+    server.writer().write_all(b"0123456789").unwrap();
 
     transfer(&mut client, &mut server);
     server.process_new_packets().unwrap();
@@ -2440,14 +2254,8 @@ fn vectored_write_for_server_handshake_no_half_rtt_by_default() {
 fn vectored_write_for_client_handshake() {
     let (mut client, mut server) = make_pair(KeyType::Rsa);
 
-    client
-        .writer()
-        .write_all(b"01234567890123456789")
-        .unwrap();
-    client
-        .writer()
-        .write_all(b"0123456789")
-        .unwrap();
+    client.writer().write_all(b"01234567890123456789").unwrap();
+    client.writer().write_all(b"0123456789").unwrap();
     {
         let mut pipe = OtherSession::new(&mut server);
         let wrlen = client.write_tls(&mut pipe).unwrap();
@@ -2480,10 +2288,7 @@ fn vectored_write_with_slow_client() {
     client.set_buffer_limit(Some(32));
 
     do_handshake(&mut client, &mut server);
-    server
-        .writer()
-        .write_all(b"01234567890123456789")
-        .unwrap();
+    server.writer().write_all(b"01234567890123456789").unwrap();
 
     {
         let mut pipe = OtherSession::new(&mut client);
@@ -2543,20 +2348,17 @@ impl fmt::Debug for ServerStorage {
 
 impl rustls::server::StoresServerSessions for ServerStorage {
     fn put(&self, key: Vec<u8>, value: Vec<u8>) -> bool {
-        self.put_count
-            .fetch_add(1, Ordering::SeqCst);
+        self.put_count.fetch_add(1, Ordering::SeqCst);
         self.storage.put(key, value)
     }
 
     fn get(&self, key: &[u8]) -> Option<Vec<u8>> {
-        self.get_count
-            .fetch_add(1, Ordering::SeqCst);
+        self.get_count.fetch_add(1, Ordering::SeqCst);
         self.storage.get(key)
     }
 
     fn take(&self, key: &[u8]) -> Option<Vec<u8>> {
-        self.take_count
-            .fetch_add(1, Ordering::SeqCst);
+        self.take_count.fetch_add(1, Ordering::SeqCst);
         self.storage.take(key)
     }
 
@@ -2602,15 +2404,13 @@ impl fmt::Debug for ClientStorage {
 
 impl rustls::client::StoresClientSessions for ClientStorage {
     fn put(&self, key: Vec<u8>, value: Vec<u8>) -> bool {
-        self.put_count
-            .fetch_add(1, Ordering::SeqCst);
+        self.put_count.fetch_add(1, Ordering::SeqCst);
         *self.last_put_key.lock().unwrap() = Some(key.clone());
         self.storage.put(key, value)
     }
 
     fn get(&self, key: &[u8]) -> Option<Vec<u8>> {
-        self.get_count
-            .fetch_add(1, Ordering::SeqCst);
+        self.get_count.fetch_add(1, Ordering::SeqCst);
         self.storage.get(key)
     }
 }
@@ -2632,12 +2432,7 @@ fn tls13_stateful_resumption() {
     assert_eq!(storage.puts(), 1);
     assert_eq!(storage.gets(), 0);
     assert_eq!(storage.takes(), 0);
-    assert_eq!(
-        client
-            .peer_certificates()
-            .map(|certs| certs.len()),
-        Some(3)
-    );
+    assert_eq!(client.peer_certificates().map(|certs| certs.len()), Some(3));
 
     // resumed
     let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config);
@@ -2647,12 +2442,7 @@ fn tls13_stateful_resumption() {
     assert_eq!(storage.puts(), 2);
     assert_eq!(storage.gets(), 0);
     assert_eq!(storage.takes(), 1);
-    assert_eq!(
-        client
-            .peer_certificates()
-            .map(|certs| certs.len()),
-        Some(3)
-    );
+    assert_eq!(client.peer_certificates().map(|certs| certs.len()), Some(3));
 
     // resumed again
     let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config);
@@ -2662,12 +2452,7 @@ fn tls13_stateful_resumption() {
     assert_eq!(storage.puts(), 3);
     assert_eq!(storage.gets(), 0);
     assert_eq!(storage.takes(), 2);
-    assert_eq!(
-        client
-            .peer_certificates()
-            .map(|certs| certs.len()),
-        Some(3)
-    );
+    assert_eq!(client.peer_certificates().map(|certs| certs.len()), Some(3));
 }
 
 #[test]
@@ -2688,12 +2473,7 @@ fn tls13_stateless_resumption() {
     assert_eq!(storage.puts(), 0);
     assert_eq!(storage.gets(), 0);
     assert_eq!(storage.takes(), 0);
-    assert_eq!(
-        client
-            .peer_certificates()
-            .map(|certs| certs.len()),
-        Some(3)
-    );
+    assert_eq!(client.peer_certificates().map(|certs| certs.len()), Some(3));
 
     // resumed
     let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config);
@@ -2703,12 +2483,7 @@ fn tls13_stateless_resumption() {
     assert_eq!(storage.puts(), 0);
     assert_eq!(storage.gets(), 0);
     assert_eq!(storage.takes(), 0);
-    assert_eq!(
-        client
-            .peer_certificates()
-            .map(|certs| certs.len()),
-        Some(3)
-    );
+    assert_eq!(client.peer_certificates().map(|certs| certs.len()), Some(3));
 
     // resumed again
     let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config);
@@ -2718,12 +2493,7 @@ fn tls13_stateless_resumption() {
     assert_eq!(storage.puts(), 0);
     assert_eq!(storage.gets(), 0);
     assert_eq!(storage.takes(), 0);
-    assert_eq!(
-        client
-            .peer_certificates()
-            .map(|certs| certs.len()),
-        Some(3)
-    );
+    assert_eq!(client.peer_certificates().map(|certs| certs.len()), Some(3));
 }
 
 #[test]
@@ -2752,26 +2522,9 @@ fn early_data_is_available_on_resumption() {
 
     let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config);
     assert!(client.early_data().is_some());
-    assert_eq!(
-        client
-            .early_data()
-            .unwrap()
-            .bytes_left(),
-        1234
-    );
-    client
-        .early_data()
-        .unwrap()
-        .flush()
-        .unwrap();
-    assert_eq!(
-        client
-            .early_data()
-            .unwrap()
-            .write(b"hello")
-            .unwrap(),
-        5
-    );
+    assert_eq!(client.early_data().unwrap().bytes_left(), 1234);
+    client.early_data().unwrap().flush().unwrap();
+    assert_eq!(client.early_data().unwrap().write(b"hello").unwrap(), 5);
     do_handshake(&mut client, &mut server);
 
     let mut received_early_data = [0u8; 5];
@@ -2801,696 +2554,14 @@ fn early_data_can_be_rejected_by_server() {
 
     let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config);
     assert!(client.early_data().is_some());
-    assert_eq!(
-        client
-            .early_data()
-            .unwrap()
-            .bytes_left(),
-        1234
-    );
-    client
-        .early_data()
-        .unwrap()
-        .flush()
-        .unwrap();
-    assert_eq!(
-        client
-            .early_data()
-            .unwrap()
-            .write(b"hello")
-            .unwrap(),
-        5
-    );
+    assert_eq!(client.early_data().unwrap().bytes_left(), 1234);
+    client.early_data().unwrap().flush().unwrap();
+    assert_eq!(client.early_data().unwrap().write(b"hello").unwrap(), 5);
     server.reject_early_data();
     do_handshake(&mut client, &mut server);
 
     assert_eq!(client.is_early_data_accepted(), false);
 }
-
-#[cfg(feature = "quic")]
-mod test_quic {
-    use super::*;
-    use rustls::Connection;
-
-    // Returns the sender's next secrets to use, or the receiver's error.
-    fn step(
-        send: &mut dyn QuicExt,
-        recv: &mut dyn QuicExt,
-    ) -> Result<Option<quic::KeyChange>, Error> {
-        let mut buf = Vec::new();
-        let change = loop {
-            let prev = buf.len();
-            if let Some(x) = send.write_hs(&mut buf) {
-                break Some(x);
-            }
-            if prev == buf.len() {
-                break None;
-            }
-        };
-        if let Err(e) = recv.read_hs(&buf) {
-            return Err(e);
-        } else {
-            assert_eq!(recv.alert(), None);
-        }
-
-        Ok(change)
-    }
-
-    #[test]
-    fn test_quic_handshake() {
-        fn equal_packet_keys(x: &quic::PacketKey, y: &quic::PacketKey) -> bool {
-            // Check that these two sets of keys are equal.
-            let mut buf = vec![0; 32];
-            let (header, payload_tag) = buf.split_at_mut(8);
-            let (payload, tag_buf) = payload_tag.split_at_mut(8);
-            let tag = x
-                .encrypt_in_place(42, &*header, payload)
-                .unwrap();
-            tag_buf.copy_from_slice(tag.as_ref());
-
-            let result = y.decrypt_in_place(42, &*header, payload_tag);
-            match result {
-                Ok(payload) => payload == &[0; 8],
-                Err(_) => false,
-            }
-        }
-
-        fn compatible_keys(x: &quic::KeyChange, y: &quic::KeyChange) -> bool {
-            fn keys(kc: &quic::KeyChange) -> &quic::Keys {
-                match kc {
-                    quic::KeyChange::Handshake { keys } => keys,
-                    quic::KeyChange::OneRtt { keys, .. } => keys,
-                }
-            }
-
-            let (x, y) = (keys(x), keys(y));
-            equal_packet_keys(&x.local.packet, &y.remote.packet)
-                && equal_packet_keys(&x.remote.packet, &y.local.packet)
-        }
-
-        let kt = KeyType::Rsa;
-        let mut client_config = make_client_config_with_versions(kt, &[&rustls::version::TLS13]);
-        client_config.enable_early_data = true;
-        let client_config = Arc::new(client_config);
-        let mut server_config = make_server_config_with_versions(kt, &[&rustls::version::TLS13]);
-        server_config.max_early_data_size = 0xffffffff;
-        let server_config = Arc::new(server_config);
-        let client_params = &b"client params"[..];
-        let server_params = &b"server params"[..];
-
-        // full handshake
-        let mut client = Connection::from(
-            ClientConnection::new_quic(
-                Arc::clone(&client_config),
-                quic::Version::V1,
-                dns_name("localhost"),
-                client_params.into(),
-            )
-            .unwrap(),
-        );
-
-        let mut server = Connection::from(
-            ServerConnection::new_quic(
-                Arc::clone(&server_config),
-                quic::Version::V1,
-                server_params.into(),
-            )
-            .unwrap(),
-        );
-
-        let client_initial = step(&mut client, &mut server).unwrap();
-        assert!(client_initial.is_none());
-        assert!(client.zero_rtt_keys().is_none());
-        assert_eq!(server.quic_transport_parameters(), Some(client_params));
-        let server_hs = step(&mut server, &mut client)
-            .unwrap()
-            .unwrap();
-        assert!(server.zero_rtt_keys().is_none());
-        let client_hs = step(&mut client, &mut server)
-            .unwrap()
-            .unwrap();
-        assert!(compatible_keys(&server_hs, &client_hs));
-        assert!(client.is_handshaking());
-        let server_1rtt = step(&mut server, &mut client)
-            .unwrap()
-            .unwrap();
-        assert!(!client.is_handshaking());
-        assert_eq!(client.quic_transport_parameters(), Some(server_params));
-        assert!(server.is_handshaking());
-        let client_1rtt = step(&mut client, &mut server)
-            .unwrap()
-            .unwrap();
-        assert!(!server.is_handshaking());
-        assert!(compatible_keys(&server_1rtt, &client_1rtt));
-        assert!(!compatible_keys(&server_hs, &server_1rtt));
-        assert!(step(&mut client, &mut server)
-            .unwrap()
-            .is_none());
-        assert!(step(&mut server, &mut client)
-            .unwrap()
-            .is_none());
-
-        // 0-RTT handshake
-        let mut client = ClientConnection::new_quic(
-            Arc::clone(&client_config),
-            quic::Version::V1,
-            dns_name("localhost"),
-            client_params.into(),
-        )
-        .unwrap();
-        assert!(client
-            .negotiated_cipher_suite()
-            .is_some());
-
-        let mut server = ServerConnection::new_quic(
-            Arc::clone(&server_config),
-            quic::Version::V1,
-            server_params.into(),
-        )
-        .unwrap();
-
-        step(&mut client, &mut server).unwrap();
-        assert_eq!(client.quic_transport_parameters(), Some(server_params));
-        {
-            let client_early = client.zero_rtt_keys().unwrap();
-            let server_early = server.zero_rtt_keys().unwrap();
-            assert!(equal_packet_keys(
-                &client_early.packet,
-                &server_early.packet
-            ));
-        }
-        step(&mut server, &mut client)
-            .unwrap()
-            .unwrap();
-        step(&mut client, &mut server)
-            .unwrap()
-            .unwrap();
-        step(&mut server, &mut client)
-            .unwrap()
-            .unwrap();
-        assert!(client.is_early_data_accepted());
-
-        // 0-RTT rejection
-        {
-            let client_config = (*client_config).clone();
-            let mut client = ClientConnection::new_quic(
-                Arc::new(client_config),
-                quic::Version::V1,
-                dns_name("localhost"),
-                client_params.into(),
-            )
-            .unwrap();
-
-            let mut server = ServerConnection::new_quic(
-                Arc::clone(&server_config),
-                quic::Version::V1,
-                server_params.into(),
-            )
-            .unwrap();
-
-            step(&mut client, &mut server).unwrap();
-            assert_eq!(client.quic_transport_parameters(), Some(server_params));
-            assert!(client.zero_rtt_keys().is_some());
-            assert!(server.zero_rtt_keys().is_none());
-            step(&mut server, &mut client)
-                .unwrap()
-                .unwrap();
-            step(&mut client, &mut server)
-                .unwrap()
-                .unwrap();
-            step(&mut server, &mut client)
-                .unwrap()
-                .unwrap();
-            assert!(!client.is_early_data_accepted());
-        }
-
-        // failed handshake
-        let mut client = ClientConnection::new_quic(
-            client_config,
-            quic::Version::V1,
-            dns_name("example.com"),
-            client_params.into(),
-        )
-        .unwrap();
-
-        let mut server =
-            ServerConnection::new_quic(server_config, quic::Version::V1, server_params.into())
-                .unwrap();
-
-        step(&mut client, &mut server).unwrap();
-        step(&mut server, &mut client)
-            .unwrap()
-            .unwrap();
-        assert!(step(&mut server, &mut client).is_err());
-        assert_eq!(
-            client.alert(),
-            Some(rustls::internal::msgs::enums::AlertDescription::BadCertificate)
-        );
-
-        // Key updates
-
-        let (mut client_secrets, mut server_secrets) = match (client_1rtt, server_1rtt) {
-            (quic::KeyChange::OneRtt { next: c, .. }, quic::KeyChange::OneRtt { next: s, .. }) => {
-                (c, s)
-            }
-            _ => unreachable!(),
-        };
-
-        let mut client_next = client_secrets.next_packet_keys();
-        let mut server_next = server_secrets.next_packet_keys();
-        assert!(equal_packet_keys(&client_next.local, &server_next.remote));
-        assert!(equal_packet_keys(&server_next.local, &client_next.remote));
-
-        client_next = client_secrets.next_packet_keys();
-        server_next = server_secrets.next_packet_keys();
-        assert!(equal_packet_keys(&client_next.local, &server_next.remote));
-        assert!(equal_packet_keys(&server_next.local, &client_next.remote));
-    }
-
-    #[test]
-    fn test_quic_rejects_missing_alpn() {
-        let client_params = &b"client params"[..];
-        let server_params = &b"server params"[..];
-
-        for &kt in ALL_KEY_TYPES.iter() {
-            let client_config = make_client_config_with_versions(kt, &[&rustls::version::TLS13]);
-            let client_config = Arc::new(client_config);
-
-            let mut server_config =
-                make_server_config_with_versions(kt, &[&rustls::version::TLS13]);
-            server_config.alpn_protocols = vec!["foo".into()];
-            let server_config = Arc::new(server_config);
-
-            let mut client = ClientConnection::new_quic(
-                client_config,
-                quic::Version::V1,
-                dns_name("localhost"),
-                client_params.into(),
-            )
-            .unwrap();
-            let mut server =
-                ServerConnection::new_quic(server_config, quic::Version::V1, server_params.into())
-                    .unwrap();
-
-            assert_eq!(
-                step(&mut client, &mut server)
-                    .err()
-                    .unwrap(),
-                Error::NoApplicationProtocol
-            );
-
-            assert_eq!(
-                server.alert(),
-                Some(rustls::internal::msgs::enums::AlertDescription::NoApplicationProtocol)
-            );
-        }
-    }
-
-    #[test]
-    fn test_quic_no_tls13_error() {
-        let mut client_config =
-            make_client_config_with_versions(KeyType::Ed25519, &[&rustls::version::TLS12]);
-        client_config.alpn_protocols = vec!["foo".into()];
-        let client_config = Arc::new(client_config);
-
-        assert!(ClientConnection::new_quic(
-            client_config,
-            quic::Version::V1,
-            dns_name("localhost"),
-            b"client params".to_vec(),
-        )
-        .is_err());
-
-        let mut server_config =
-            make_server_config_with_versions(KeyType::Ed25519, &[&rustls::version::TLS12]);
-        server_config.alpn_protocols = vec!["foo".into()];
-        let server_config = Arc::new(server_config);
-
-        assert!(ServerConnection::new_quic(
-            server_config,
-            quic::Version::V1,
-            b"server params".to_vec(),
-        )
-        .is_err());
-    }
-
-    #[test]
-    fn test_quic_invalid_early_data_size() {
-        let mut server_config =
-            make_server_config_with_versions(KeyType::Ed25519, &[&rustls::version::TLS13]);
-        server_config.alpn_protocols = vec!["foo".into()];
-
-        let cases = [
-            (None, true),
-            (Some(0u32), true),
-            (Some(5), false),
-            (Some(0xffff_ffff), true),
-        ];
-
-        for &(size, ok) in cases.iter() {
-            println!("early data size case: {:?}", size);
-            if let Some(new) = size {
-                server_config.max_early_data_size = new;
-            }
-
-            let wrapped = Arc::new(server_config.clone());
-            assert_eq!(
-                ServerConnection::new_quic(wrapped, quic::Version::V1, b"server params".to_vec(),)
-                    .is_ok(),
-                ok
-            );
-        }
-    }
-
-    #[test]
-    fn test_quic_server_no_params_received() {
-        let server_config =
-            make_server_config_with_versions(KeyType::Ed25519, &[&rustls::version::TLS13]);
-        let server_config = Arc::new(server_config);
-
-        let mut server =
-            ServerConnection::new_quic(server_config, quic::Version::V1, b"server params".to_vec())
-                .unwrap();
-
-        use ring::rand::SecureRandom;
-        use rustls::internal::msgs::base::PayloadU16;
-        use rustls::internal::msgs::enums::{
-            CipherSuite, Compression, HandshakeType, NamedGroup, SignatureScheme,
-        };
-        use rustls::internal::msgs::handshake::{
-            ClientHelloPayload, HandshakeMessagePayload, KeyShareEntry, Random, SessionID,
-        };
-        use rustls::internal::msgs::message::PlainMessage;
-
-        let rng = ring::rand::SystemRandom::new();
-        let mut random = [0; 32];
-        rng.fill(&mut random).unwrap();
-        let random = Random::from(random);
-
-        let kx = ring::agreement::EphemeralPrivateKey::generate(&ring::agreement::X25519, &rng)
-            .unwrap()
-            .compute_public_key()
-            .unwrap();
-
-        let client_hello = Message {
-            version: ProtocolVersion::TLSv1_3,
-            payload: MessagePayload::Handshake(HandshakeMessagePayload {
-                typ: HandshakeType::ClientHello,
-                payload: HandshakePayload::ClientHello(ClientHelloPayload {
-                    client_version: ProtocolVersion::TLSv1_3,
-                    random,
-                    session_id: SessionID::random().unwrap(),
-                    cipher_suites: vec![CipherSuite::TLS13_AES_128_GCM_SHA256],
-                    compression_methods: vec![Compression::Null],
-                    extensions: vec![
-                        ClientExtension::SupportedVersions(vec![ProtocolVersion::TLSv1_3]),
-                        ClientExtension::NamedGroups(vec![NamedGroup::X25519]),
-                        ClientExtension::SignatureAlgorithms(vec![SignatureScheme::ED25519]),
-                        ClientExtension::KeyShare(vec![KeyShareEntry {
-                            group: NamedGroup::X25519,
-                            payload: PayloadU16::new(kx.as_ref().to_vec()),
-                        }]),
-                    ],
-                }),
-            }),
-        };
-
-        let buf = PlainMessage::from(client_hello)
-            .into_unencrypted_opaque()
-            .encode();
-        server
-            .read_tls(&mut buf.as_slice())
-            .unwrap();
-        assert_eq!(
-            server.process_new_packets().err(),
-            Some(Error::PeerMisbehavedError(
-                "QUIC transport parameters not found".into(),
-            )),
-        );
-    }
-
-    #[test]
-    fn test_quic_server_no_tls12() {
-        let mut server_config =
-            make_server_config_with_versions(KeyType::Ed25519, &[&rustls::version::TLS13]);
-        server_config.alpn_protocols = vec!["foo".into()];
-        let server_config = Arc::new(server_config);
-
-        use ring::rand::SecureRandom;
-        use rustls::internal::msgs::base::PayloadU16;
-        use rustls::internal::msgs::enums::{
-            CipherSuite, Compression, HandshakeType, NamedGroup, SignatureScheme,
-        };
-        use rustls::internal::msgs::handshake::{
-            ClientHelloPayload, HandshakeMessagePayload, KeyShareEntry, Random, SessionID,
-        };
-        use rustls::internal::msgs::message::PlainMessage;
-
-        let rng = ring::rand::SystemRandom::new();
-        let mut random = [0; 32];
-        rng.fill(&mut random).unwrap();
-        let random = Random::from(random);
-
-        let kx = ring::agreement::EphemeralPrivateKey::generate(&ring::agreement::X25519, &rng)
-            .unwrap()
-            .compute_public_key()
-            .unwrap();
-
-        let mut server =
-            ServerConnection::new_quic(server_config, quic::Version::V1, b"server params".to_vec())
-                .unwrap();
-
-        let client_hello = Message {
-            version: ProtocolVersion::TLSv1_2,
-            payload: MessagePayload::Handshake(HandshakeMessagePayload {
-                typ: HandshakeType::ClientHello,
-                payload: HandshakePayload::ClientHello(ClientHelloPayload {
-                    client_version: ProtocolVersion::TLSv1_2,
-                    random: random.clone(),
-                    session_id: SessionID::random().unwrap(),
-                    cipher_suites: vec![CipherSuite::TLS13_AES_128_GCM_SHA256],
-                    compression_methods: vec![Compression::Null],
-                    extensions: vec![
-                        ClientExtension::NamedGroups(vec![NamedGroup::X25519]),
-                        ClientExtension::SignatureAlgorithms(vec![SignatureScheme::ED25519]),
-                        ClientExtension::KeyShare(vec![KeyShareEntry {
-                            group: NamedGroup::X25519,
-                            payload: PayloadU16::new(kx.as_ref().to_vec()),
-                        }]),
-                    ],
-                }),
-            }),
-        };
-
-        let buf = PlainMessage::from(client_hello)
-            .into_unencrypted_opaque()
-            .encode();
-        server
-            .read_tls(&mut buf.as_slice())
-            .unwrap();
-        assert_eq!(
-            server.process_new_packets().err(),
-            Some(Error::PeerIncompatibleError(
-                "Server requires TLS1.3, but client omitted versions ext".into(),
-            )),
-        );
-    }
-
-    #[test]
-    fn packet_key_api() {
-        use rustls::quic::{Keys, Version};
-
-        // Test vectors: https://www.rfc-editor.org/rfc/rfc9001.html#name-client-initial
-        const CONNECTION_ID: &[u8] = &[0x83, 0x94, 0xc8, 0xf0, 0x3e, 0x51, 0x57, 0x08];
-        const PACKET_NUMBER: u64 = 2;
-        const PLAIN_HEADER: &[u8] = &[
-            0xc3, 0x00, 0x00, 0x00, 0x01, 0x08, 0x83, 0x94, 0xc8, 0xf0, 0x3e, 0x51, 0x57, 0x08,
-            0x00, 0x00, 0x44, 0x9e, 0x00, 0x00, 0x00, 0x02,
-        ];
-
-        const PAYLOAD: &[u8] = &[
-            0x06, 0x00, 0x40, 0xf1, 0x01, 0x00, 0x00, 0xed, 0x03, 0x03, 0xeb, 0xf8, 0xfa, 0x56,
-            0xf1, 0x29, 0x39, 0xb9, 0x58, 0x4a, 0x38, 0x96, 0x47, 0x2e, 0xc4, 0x0b, 0xb8, 0x63,
-            0xcf, 0xd3, 0xe8, 0x68, 0x04, 0xfe, 0x3a, 0x47, 0xf0, 0x6a, 0x2b, 0x69, 0x48, 0x4c,
-            0x00, 0x00, 0x04, 0x13, 0x01, 0x13, 0x02, 0x01, 0x00, 0x00, 0xc0, 0x00, 0x00, 0x00,
-            0x10, 0x00, 0x0e, 0x00, 0x00, 0x0b, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, 0x2e,
-            0x63, 0x6f, 0x6d, 0xff, 0x01, 0x00, 0x01, 0x00, 0x00, 0x0a, 0x00, 0x08, 0x00, 0x06,
-            0x00, 0x1d, 0x00, 0x17, 0x00, 0x18, 0x00, 0x10, 0x00, 0x07, 0x00, 0x05, 0x04, 0x61,
-            0x6c, 0x70, 0x6e, 0x00, 0x05, 0x00, 0x05, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x33,
-            0x00, 0x26, 0x00, 0x24, 0x00, 0x1d, 0x00, 0x20, 0x93, 0x70, 0xb2, 0xc9, 0xca, 0xa4,
-            0x7f, 0xba, 0xba, 0xf4, 0x55, 0x9f, 0xed, 0xba, 0x75, 0x3d, 0xe1, 0x71, 0xfa, 0x71,
-            0xf5, 0x0f, 0x1c, 0xe1, 0x5d, 0x43, 0xe9, 0x94, 0xec, 0x74, 0xd7, 0x48, 0x00, 0x2b,
-            0x00, 0x03, 0x02, 0x03, 0x04, 0x00, 0x0d, 0x00, 0x10, 0x00, 0x0e, 0x04, 0x03, 0x05,
-            0x03, 0x06, 0x03, 0x02, 0x03, 0x08, 0x04, 0x08, 0x05, 0x08, 0x06, 0x00, 0x2d, 0x00,
-            0x02, 0x01, 0x01, 0x00, 0x1c, 0x00, 0x02, 0x40, 0x01, 0x00, 0x39, 0x00, 0x32, 0x04,
-            0x08, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x05, 0x04, 0x80, 0x00, 0xff,
-            0xff, 0x07, 0x04, 0x80, 0x00, 0xff, 0xff, 0x08, 0x01, 0x10, 0x01, 0x04, 0x80, 0x00,
-            0x75, 0x30, 0x09, 0x01, 0x10, 0x0f, 0x08, 0x83, 0x94, 0xc8, 0xf0, 0x3e, 0x51, 0x57,
-            0x08, 0x06, 0x04, 0x80, 0x00, 0xff, 0xff,
-        ];
-
-        let client_keys = Keys::initial(Version::V1, &CONNECTION_ID, true);
-        assert_eq!(
-            client_keys
-                .local
-                .packet
-                .confidentiality_limit(),
-            2u64.pow(23)
-        );
-        assert_eq!(
-            client_keys
-                .local
-                .packet
-                .integrity_limit(),
-            2u64.pow(52)
-        );
-        assert_eq!(client_keys.local.packet.tag_len(), 16);
-
-        let mut buf = Vec::new();
-        buf.extend(PLAIN_HEADER);
-        buf.extend(PAYLOAD);
-        let header_len = PLAIN_HEADER.len();
-        let tag_len = client_keys.local.packet.tag_len();
-        let padding_len = 1200 - header_len - PAYLOAD.len() - tag_len;
-        buf.extend(std::iter::repeat(0).take(padding_len));
-        let (header, payload) = buf.split_at_mut(header_len);
-        let tag = client_keys
-            .local
-            .packet
-            .encrypt_in_place(PACKET_NUMBER, &*header, payload)
-            .unwrap();
-
-        let sample_len = client_keys.local.header.sample_len();
-        let sample = &payload[..sample_len];
-        let (first, rest) = header.split_at_mut(1);
-        client_keys
-            .local
-            .header
-            .encrypt_in_place(sample, &mut first[0], &mut rest[17..21])
-            .unwrap();
-        buf.extend_from_slice(tag.as_ref());
-
-        const PROTECTED: &[u8] = &[
-            0xc0, 0x00, 0x00, 0x00, 0x01, 0x08, 0x83, 0x94, 0xc8, 0xf0, 0x3e, 0x51, 0x57, 0x08,
-            0x00, 0x00, 0x44, 0x9e, 0x7b, 0x9a, 0xec, 0x34, 0xd1, 0xb1, 0xc9, 0x8d, 0xd7, 0x68,
-            0x9f, 0xb8, 0xec, 0x11, 0xd2, 0x42, 0xb1, 0x23, 0xdc, 0x9b, 0xd8, 0xba, 0xb9, 0x36,
-            0xb4, 0x7d, 0x92, 0xec, 0x35, 0x6c, 0x0b, 0xab, 0x7d, 0xf5, 0x97, 0x6d, 0x27, 0xcd,
-            0x44, 0x9f, 0x63, 0x30, 0x00, 0x99, 0xf3, 0x99, 0x1c, 0x26, 0x0e, 0xc4, 0xc6, 0x0d,
-            0x17, 0xb3, 0x1f, 0x84, 0x29, 0x15, 0x7b, 0xb3, 0x5a, 0x12, 0x82, 0xa6, 0x43, 0xa8,
-            0xd2, 0x26, 0x2c, 0xad, 0x67, 0x50, 0x0c, 0xad, 0xb8, 0xe7, 0x37, 0x8c, 0x8e, 0xb7,
-            0x53, 0x9e, 0xc4, 0xd4, 0x90, 0x5f, 0xed, 0x1b, 0xee, 0x1f, 0xc8, 0xaa, 0xfb, 0xa1,
-            0x7c, 0x75, 0x0e, 0x2c, 0x7a, 0xce, 0x01, 0xe6, 0x00, 0x5f, 0x80, 0xfc, 0xb7, 0xdf,
-            0x62, 0x12, 0x30, 0xc8, 0x37, 0x11, 0xb3, 0x93, 0x43, 0xfa, 0x02, 0x8c, 0xea, 0x7f,
-            0x7f, 0xb5, 0xff, 0x89, 0xea, 0xc2, 0x30, 0x82, 0x49, 0xa0, 0x22, 0x52, 0x15, 0x5e,
-            0x23, 0x47, 0xb6, 0x3d, 0x58, 0xc5, 0x45, 0x7a, 0xfd, 0x84, 0xd0, 0x5d, 0xff, 0xfd,
-            0xb2, 0x03, 0x92, 0x84, 0x4a, 0xe8, 0x12, 0x15, 0x46, 0x82, 0xe9, 0xcf, 0x01, 0x2f,
-            0x90, 0x21, 0xa6, 0xf0, 0xbe, 0x17, 0xdd, 0xd0, 0xc2, 0x08, 0x4d, 0xce, 0x25, 0xff,
-            0x9b, 0x06, 0xcd, 0xe5, 0x35, 0xd0, 0xf9, 0x20, 0xa2, 0xdb, 0x1b, 0xf3, 0x62, 0xc2,
-            0x3e, 0x59, 0x6d, 0x11, 0xa4, 0xf5, 0xa6, 0xcf, 0x39, 0x48, 0x83, 0x8a, 0x3a, 0xec,
-            0x4e, 0x15, 0xda, 0xf8, 0x50, 0x0a, 0x6e, 0xf6, 0x9e, 0xc4, 0xe3, 0xfe, 0xb6, 0xb1,
-            0xd9, 0x8e, 0x61, 0x0a, 0xc8, 0xb7, 0xec, 0x3f, 0xaf, 0x6a, 0xd7, 0x60, 0xb7, 0xba,
-            0xd1, 0xdb, 0x4b, 0xa3, 0x48, 0x5e, 0x8a, 0x94, 0xdc, 0x25, 0x0a, 0xe3, 0xfd, 0xb4,
-            0x1e, 0xd1, 0x5f, 0xb6, 0xa8, 0xe5, 0xeb, 0xa0, 0xfc, 0x3d, 0xd6, 0x0b, 0xc8, 0xe3,
-            0x0c, 0x5c, 0x42, 0x87, 0xe5, 0x38, 0x05, 0xdb, 0x05, 0x9a, 0xe0, 0x64, 0x8d, 0xb2,
-            0xf6, 0x42, 0x64, 0xed, 0x5e, 0x39, 0xbe, 0x2e, 0x20, 0xd8, 0x2d, 0xf5, 0x66, 0xda,
-            0x8d, 0xd5, 0x99, 0x8c, 0xca, 0xbd, 0xae, 0x05, 0x30, 0x60, 0xae, 0x6c, 0x7b, 0x43,
-            0x78, 0xe8, 0x46, 0xd2, 0x9f, 0x37, 0xed, 0x7b, 0x4e, 0xa9, 0xec, 0x5d, 0x82, 0xe7,
-            0x96, 0x1b, 0x7f, 0x25, 0xa9, 0x32, 0x38, 0x51, 0xf6, 0x81, 0xd5, 0x82, 0x36, 0x3a,
-            0xa5, 0xf8, 0x99, 0x37, 0xf5, 0xa6, 0x72, 0x58, 0xbf, 0x63, 0xad, 0x6f, 0x1a, 0x0b,
-            0x1d, 0x96, 0xdb, 0xd4, 0xfa, 0xdd, 0xfc, 0xef, 0xc5, 0x26, 0x6b, 0xa6, 0x61, 0x17,
-            0x22, 0x39, 0x5c, 0x90, 0x65, 0x56, 0xbe, 0x52, 0xaf, 0xe3, 0xf5, 0x65, 0x63, 0x6a,
-            0xd1, 0xb1, 0x7d, 0x50, 0x8b, 0x73, 0xd8, 0x74, 0x3e, 0xeb, 0x52, 0x4b, 0xe2, 0x2b,
-            0x3d, 0xcb, 0xc2, 0xc7, 0x46, 0x8d, 0x54, 0x11, 0x9c, 0x74, 0x68, 0x44, 0x9a, 0x13,
-            0xd8, 0xe3, 0xb9, 0x58, 0x11, 0xa1, 0x98, 0xf3, 0x49, 0x1d, 0xe3, 0xe7, 0xfe, 0x94,
-            0x2b, 0x33, 0x04, 0x07, 0xab, 0xf8, 0x2a, 0x4e, 0xd7, 0xc1, 0xb3, 0x11, 0x66, 0x3a,
-            0xc6, 0x98, 0x90, 0xf4, 0x15, 0x70, 0x15, 0x85, 0x3d, 0x91, 0xe9, 0x23, 0x03, 0x7c,
-            0x22, 0x7a, 0x33, 0xcd, 0xd5, 0xec, 0x28, 0x1c, 0xa3, 0xf7, 0x9c, 0x44, 0x54, 0x6b,
-            0x9d, 0x90, 0xca, 0x00, 0xf0, 0x64, 0xc9, 0x9e, 0x3d, 0xd9, 0x79, 0x11, 0xd3, 0x9f,
-            0xe9, 0xc5, 0xd0, 0xb2, 0x3a, 0x22, 0x9a, 0x23, 0x4c, 0xb3, 0x61, 0x86, 0xc4, 0x81,
-            0x9e, 0x8b, 0x9c, 0x59, 0x27, 0x72, 0x66, 0x32, 0x29, 0x1d, 0x6a, 0x41, 0x82, 0x11,
-            0xcc, 0x29, 0x62, 0xe2, 0x0f, 0xe4, 0x7f, 0xeb, 0x3e, 0xdf, 0x33, 0x0f, 0x2c, 0x60,
-            0x3a, 0x9d, 0x48, 0xc0, 0xfc, 0xb5, 0x69, 0x9d, 0xbf, 0xe5, 0x89, 0x64, 0x25, 0xc5,
-            0xba, 0xc4, 0xae, 0xe8, 0x2e, 0x57, 0xa8, 0x5a, 0xaf, 0x4e, 0x25, 0x13, 0xe4, 0xf0,
-            0x57, 0x96, 0xb0, 0x7b, 0xa2, 0xee, 0x47, 0xd8, 0x05, 0x06, 0xf8, 0xd2, 0xc2, 0x5e,
-            0x50, 0xfd, 0x14, 0xde, 0x71, 0xe6, 0xc4, 0x18, 0x55, 0x93, 0x02, 0xf9, 0x39, 0xb0,
-            0xe1, 0xab, 0xd5, 0x76, 0xf2, 0x79, 0xc4, 0xb2, 0xe0, 0xfe, 0xb8, 0x5c, 0x1f, 0x28,
-            0xff, 0x18, 0xf5, 0x88, 0x91, 0xff, 0xef, 0x13, 0x2e, 0xef, 0x2f, 0xa0, 0x93, 0x46,
-            0xae, 0xe3, 0x3c, 0x28, 0xeb, 0x13, 0x0f, 0xf2, 0x8f, 0x5b, 0x76, 0x69, 0x53, 0x33,
-            0x41, 0x13, 0x21, 0x19, 0x96, 0xd2, 0x00, 0x11, 0xa1, 0x98, 0xe3, 0xfc, 0x43, 0x3f,
-            0x9f, 0x25, 0x41, 0x01, 0x0a, 0xe1, 0x7c, 0x1b, 0xf2, 0x02, 0x58, 0x0f, 0x60, 0x47,
-            0x47, 0x2f, 0xb3, 0x68, 0x57, 0xfe, 0x84, 0x3b, 0x19, 0xf5, 0x98, 0x40, 0x09, 0xdd,
-            0xc3, 0x24, 0x04, 0x4e, 0x84, 0x7a, 0x4f, 0x4a, 0x0a, 0xb3, 0x4f, 0x71, 0x95, 0x95,
-            0xde, 0x37, 0x25, 0x2d, 0x62, 0x35, 0x36, 0x5e, 0x9b, 0x84, 0x39, 0x2b, 0x06, 0x10,
-            0x85, 0x34, 0x9d, 0x73, 0x20, 0x3a, 0x4a, 0x13, 0xe9, 0x6f, 0x54, 0x32, 0xec, 0x0f,
-            0xd4, 0xa1, 0xee, 0x65, 0xac, 0xcd, 0xd5, 0xe3, 0x90, 0x4d, 0xf5, 0x4c, 0x1d, 0xa5,
-            0x10, 0xb0, 0xff, 0x20, 0xdc, 0xc0, 0xc7, 0x7f, 0xcb, 0x2c, 0x0e, 0x0e, 0xb6, 0x05,
-            0xcb, 0x05, 0x04, 0xdb, 0x87, 0x63, 0x2c, 0xf3, 0xd8, 0xb4, 0xda, 0xe6, 0xe7, 0x05,
-            0x76, 0x9d, 0x1d, 0xe3, 0x54, 0x27, 0x01, 0x23, 0xcb, 0x11, 0x45, 0x0e, 0xfc, 0x60,
-            0xac, 0x47, 0x68, 0x3d, 0x7b, 0x8d, 0x0f, 0x81, 0x13, 0x65, 0x56, 0x5f, 0xd9, 0x8c,
-            0x4c, 0x8e, 0xb9, 0x36, 0xbc, 0xab, 0x8d, 0x06, 0x9f, 0xc3, 0x3b, 0xd8, 0x01, 0xb0,
-            0x3a, 0xde, 0xa2, 0xe1, 0xfb, 0xc5, 0xaa, 0x46, 0x3d, 0x08, 0xca, 0x19, 0x89, 0x6d,
-            0x2b, 0xf5, 0x9a, 0x07, 0x1b, 0x85, 0x1e, 0x6c, 0x23, 0x90, 0x52, 0x17, 0x2f, 0x29,
-            0x6b, 0xfb, 0x5e, 0x72, 0x40, 0x47, 0x90, 0xa2, 0x18, 0x10, 0x14, 0xf3, 0xb9, 0x4a,
-            0x4e, 0x97, 0xd1, 0x17, 0xb4, 0x38, 0x13, 0x03, 0x68, 0xcc, 0x39, 0xdb, 0xb2, 0xd1,
-            0x98, 0x06, 0x5a, 0xe3, 0x98, 0x65, 0x47, 0x92, 0x6c, 0xd2, 0x16, 0x2f, 0x40, 0xa2,
-            0x9f, 0x0c, 0x3c, 0x87, 0x45, 0xc0, 0xf5, 0x0f, 0xba, 0x38, 0x52, 0xe5, 0x66, 0xd4,
-            0x45, 0x75, 0xc2, 0x9d, 0x39, 0xa0, 0x3f, 0x0c, 0xda, 0x72, 0x19, 0x84, 0xb6, 0xf4,
-            0x40, 0x59, 0x1f, 0x35, 0x5e, 0x12, 0xd4, 0x39, 0xff, 0x15, 0x0a, 0xab, 0x76, 0x13,
-            0x49, 0x9d, 0xbd, 0x49, 0xad, 0xab, 0xc8, 0x67, 0x6e, 0xef, 0x02, 0x3b, 0x15, 0xb6,
-            0x5b, 0xfc, 0x5c, 0xa0, 0x69, 0x48, 0x10, 0x9f, 0x23, 0xf3, 0x50, 0xdb, 0x82, 0x12,
-            0x35, 0x35, 0xeb, 0x8a, 0x74, 0x33, 0xbd, 0xab, 0xcb, 0x90, 0x92, 0x71, 0xa6, 0xec,
-            0xbc, 0xb5, 0x8b, 0x93, 0x6a, 0x88, 0xcd, 0x4e, 0x8f, 0x2e, 0x6f, 0xf5, 0x80, 0x01,
-            0x75, 0xf1, 0x13, 0x25, 0x3d, 0x8f, 0xa9, 0xca, 0x88, 0x85, 0xc2, 0xf5, 0x52, 0xe6,
-            0x57, 0xdc, 0x60, 0x3f, 0x25, 0x2e, 0x1a, 0x8e, 0x30, 0x8f, 0x76, 0xf0, 0xbe, 0x79,
-            0xe2, 0xfb, 0x8f, 0x5d, 0x5f, 0xbb, 0xe2, 0xe3, 0x0e, 0xca, 0xdd, 0x22, 0x07, 0x23,
-            0xc8, 0xc0, 0xae, 0xa8, 0x07, 0x8c, 0xdf, 0xcb, 0x38, 0x68, 0x26, 0x3f, 0xf8, 0xf0,
-            0x94, 0x00, 0x54, 0xda, 0x48, 0x78, 0x18, 0x93, 0xa7, 0xe4, 0x9a, 0xd5, 0xaf, 0xf4,
-            0xaf, 0x30, 0x0c, 0xd8, 0x04, 0xa6, 0xb6, 0x27, 0x9a, 0xb3, 0xff, 0x3a, 0xfb, 0x64,
-            0x49, 0x1c, 0x85, 0x19, 0x4a, 0xab, 0x76, 0x0d, 0x58, 0xa6, 0x06, 0x65, 0x4f, 0x9f,
-            0x44, 0x00, 0xe8, 0xb3, 0x85, 0x91, 0x35, 0x6f, 0xbf, 0x64, 0x25, 0xac, 0xa2, 0x6d,
-            0xc8, 0x52, 0x44, 0x25, 0x9f, 0xf2, 0xb1, 0x9c, 0x41, 0xb9, 0xf9, 0x6f, 0x3c, 0xa9,
-            0xec, 0x1d, 0xde, 0x43, 0x4d, 0xa7, 0xd2, 0xd3, 0x92, 0xb9, 0x05, 0xdd, 0xf3, 0xd1,
-            0xf9, 0xaf, 0x93, 0xd1, 0xaf, 0x59, 0x50, 0xbd, 0x49, 0x3f, 0x5a, 0xa7, 0x31, 0xb4,
-            0x05, 0x6d, 0xf3, 0x1b, 0xd2, 0x67, 0xb6, 0xb9, 0x0a, 0x07, 0x98, 0x31, 0xaa, 0xf5,
-            0x79, 0xbe, 0x0a, 0x39, 0x01, 0x31, 0x37, 0xaa, 0xc6, 0xd4, 0x04, 0xf5, 0x18, 0xcf,
-            0xd4, 0x68, 0x40, 0x64, 0x7e, 0x78, 0xbf, 0xe7, 0x06, 0xca, 0x4c, 0xf5, 0xe9, 0xc5,
-            0x45, 0x3e, 0x9f, 0x7c, 0xfd, 0x2b, 0x8b, 0x4c, 0x8d, 0x16, 0x9a, 0x44, 0xe5, 0x5c,
-            0x88, 0xd4, 0xa9, 0xa7, 0xf9, 0x47, 0x42, 0x41, 0xe2, 0x21, 0xaf, 0x44, 0x86, 0x00,
-            0x18, 0xab, 0x08, 0x56, 0x97, 0x2e, 0x19, 0x4c, 0xd9, 0x34,
-        ];
-
-        assert_eq!(&buf, PROTECTED);
-
-        let (header, payload) = buf.split_at_mut(header_len);
-        let (first, rest) = header.split_at_mut(1);
-        let sample = &payload[..sample_len];
-
-        let server_keys = Keys::initial(Version::V1, &CONNECTION_ID, false);
-        server_keys
-            .remote
-            .header
-            .decrypt_in_place(sample, &mut first[0], &mut rest[17..21])
-            .unwrap();
-        let payload = server_keys
-            .remote
-            .packet
-            .decrypt_in_place(PACKET_NUMBER, &*header, payload)
-            .unwrap();
-
-        assert_eq!(&payload[..PAYLOAD.len()], PAYLOAD);
-        assert_eq!(payload.len(), buf.len() - header_len - tag_len);
-    }
-
-    #[test]
-    fn test_quic_exporter() {
-        for &kt in ALL_KEY_TYPES.iter() {
-            let client_config = make_client_config_with_versions(kt, &[&rustls::version::TLS13]);
-            let server_config = make_server_config_with_versions(kt, &[&rustls::version::TLS13]);
-
-            do_exporter_test(client_config, server_config);
-        }
-    }
-} // mod test_quic
 
 #[test]
 fn test_client_does_not_offer_sha1() {
@@ -3506,9 +2577,7 @@ fn test_client_does_not_offer_sha1() {
 
             assert!(client.wants_write());
             let mut buf = [0u8; 262144];
-            let sz = client
-                .write_tls(&mut buf.as_mut())
-                .unwrap();
+            let sz = client.write_tls(&mut buf.as_mut()).unwrap();
             let msg = OpaqueMessage::read(&mut Reader::init(&buf[..sz])).unwrap();
             let msg = Message::try_from(msg.into_plain_message()).unwrap();
             assert!(msg.is_handshake_type(HandshakeType::ClientHello));
@@ -3521,9 +2590,7 @@ fn test_client_does_not_offer_sha1() {
                 _ => unreachable!(),
             };
 
-            let sigalgs = client_hello
-                .get_sigalgs_extension()
-                .unwrap();
+            let sigalgs = client_hello.get_sigalgs_extension().unwrap();
             assert!(
                 !sigalgs.contains(&SignatureScheme::RSA_PKCS1_SHA1),
                 "sha1 unexpectedly offered"
@@ -3654,10 +2721,7 @@ fn test_client_mtu_reduction() {
             panic!()
         }
         fn write_vectored<'b>(&mut self, b: &[io::IoSlice<'b>]) -> io::Result<usize> {
-            let writes = b
-                .iter()
-                .map(|slice| slice.len())
-                .collect::<Vec<usize>>();
+            let writes = b.iter().map(|slice| slice.len()).collect::<Vec<usize>>();
             let len = writes.iter().sum();
             self.writevs.push(writes);
             Ok(len)
@@ -3667,9 +2731,7 @@ fn test_client_mtu_reduction() {
     fn collect_write_lengths(client: &mut ClientConnection) -> Vec<usize> {
         let mut collector = CollectWrites { writevs: vec![] };
 
-        client
-            .write_tls(&mut collector)
-            .unwrap();
+        client.write_tls(&mut collector).unwrap();
         assert_eq!(collector.writevs.len(), 1);
         collector.writevs[0].clone()
     }
@@ -3695,10 +2757,7 @@ fn test_server_mtu_reduction() {
         make_pair_for_configs(make_client_config(KeyType::Rsa), server_config);
 
     let big_data = [0u8; 2048];
-    server
-        .writer()
-        .write_all(&big_data)
-        .unwrap();
+    server.writer().write_all(&big_data).unwrap();
 
     let encryption_overhead = 20; // FIXME: see issue #991
 
@@ -3936,25 +2995,17 @@ fn test_acceptor() {
     let server_config = Arc::new(make_server_config(KeyType::Ed25519));
     let mut acceptor = Acceptor::new().unwrap();
     assert!(acceptor.wants_read());
-    acceptor
-        .read_tls(&mut buf.as_slice())
-        .unwrap();
+    acceptor.read_tls(&mut buf.as_slice()).unwrap();
     let accepted = acceptor.accept().unwrap().unwrap();
     let ch = accepted.client_hello();
     assert_eq!(ch.server_name(), Some("localhost"));
 
-    let server = accepted
-        .into_connection(server_config)
-        .unwrap();
+    let server = accepted.into_connection(server_config).unwrap();
     assert!(server.wants_write());
 
     // Reusing an acceptor is not allowed
     assert_eq!(
-        acceptor
-            .read_tls(&mut [0u8].as_ref())
-            .err()
-            .unwrap()
-            .kind(),
+        acceptor.read_tls(&mut [0u8].as_ref()).err().unwrap().kind(),
         io::ErrorKind::Other,
     );
     assert_eq!(
@@ -3966,13 +3017,9 @@ fn test_acceptor() {
 
     let mut acceptor = Acceptor::new().unwrap();
     assert!(acceptor.accept().unwrap().is_none());
-    acceptor
-        .read_tls(&mut &buf[..3])
-        .unwrap(); // incomplete message
+    acceptor.read_tls(&mut &buf[..3]).unwrap(); // incomplete message
     assert!(acceptor.accept().unwrap().is_none());
-    acceptor
-        .read_tls(&mut [0x80, 0x00].as_ref())
-        .unwrap(); // invalid message (len = 32k bytes)
+    acceptor.read_tls(&mut [0x80, 0x00].as_ref()).unwrap(); // invalid message (len = 32k bytes)
     assert!(acceptor.accept().is_err());
 
     let mut acceptor = Acceptor::new().unwrap();

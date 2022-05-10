@@ -334,9 +334,7 @@ impl ConvertServerNameList for ServerNameRequest {
             }
         }
 
-        self.iter()
-            .filter_map(only_dns_hostnames)
-            .next()
+        self.iter().filter_map(only_dns_hostnames).next()
     }
 }
 
@@ -908,9 +906,7 @@ impl ClientHelloPayload {
     }
 
     pub fn find_extension(&self, ext: ExtensionType) -> Option<&ClientExtension> {
-        self.extensions
-            .iter()
-            .find(|x| x.get_type() == ext)
+        self.extensions.iter().find(|x| x.get_type() == ext)
     }
 
     pub fn get_sni_extension(&self) -> Option<&ServerNameRequest> {
@@ -949,17 +945,6 @@ impl ClientHelloPayload {
         let ext = self.find_extension(ExtensionType::ALProtocolNegotiation)?;
         match *ext {
             ClientExtension::Protocols(ref req) => Some(req),
-            _ => None,
-        }
-    }
-
-    pub fn get_quic_params_extension(&self) -> Option<Vec<u8>> {
-        let ext = self
-            .find_extension(ExtensionType::TransportParameters)
-            .or_else(|| self.find_extension(ExtensionType::TransportParametersDraft))?;
-        match *ext {
-            ClientExtension::TransportParameters(ref bytes)
-            | ClientExtension::TransportParametersDraft(ref bytes) => Some(bytes.to_vec()),
             _ => None,
         }
     }
@@ -1041,8 +1026,7 @@ impl ClientHelloPayload {
     }
 
     pub fn early_data_extension_offered(&self) -> bool {
-        self.find_extension(ExtensionType::EarlyData)
-            .is_some()
+        self.find_extension(ExtensionType::EarlyData).is_some()
     }
 }
 
@@ -1166,9 +1150,7 @@ impl HelloRetryRequest {
     }
 
     fn find_extension(&self, ext: ExtensionType) -> Option<&HelloRetryExtension> {
-        self.extensions
-            .iter()
-            .find(|x| x.get_type() == ext)
+        self.extensions.iter().find(|x| x.get_type() == ext)
     }
 
     pub fn get_requested_key_share_group(&self) -> Option<NamedGroup> {
@@ -1740,9 +1722,7 @@ pub trait HasServerExtensions {
     }
 
     fn find_extension(&self, ext: ExtensionType) -> Option<&ServerExtension> {
-        self.get_extensions()
-            .iter()
-            .find(|x| x.get_type() == ext)
+        self.get_extensions().iter().find(|x| x.get_type() == ext)
     }
 
     fn get_alpn_protocol(&self) -> Option<&[u8]> {
@@ -1753,20 +1733,8 @@ pub trait HasServerExtensions {
         }
     }
 
-    fn get_quic_params_extension(&self) -> Option<Vec<u8>> {
-        let ext = self
-            .find_extension(ExtensionType::TransportParameters)
-            .or_else(|| self.find_extension(ExtensionType::TransportParametersDraft))?;
-        match *ext {
-            ServerExtension::TransportParameters(ref bytes)
-            | ServerExtension::TransportParametersDraft(ref bytes) => Some(bytes.to_vec()),
-            _ => None,
-        }
-    }
-
     fn early_data_extension_offered(&self) -> bool {
-        self.find_extension(ExtensionType::EarlyData)
-            .is_some()
+        self.find_extension(ExtensionType::EarlyData).is_some()
     }
 }
 
@@ -1900,9 +1868,7 @@ impl Codec for CertificateRequestPayloadTLS13 {
 
 impl CertificateRequestPayloadTLS13 {
     pub fn find_extension(&self, ext: ExtensionType) -> Option<&CertReqExtension> {
-        self.extensions
-            .iter()
-            .find(|x| x.get_type() == ext)
+        self.extensions.iter().find(|x| x.get_type() == ext)
     }
 
     pub fn get_sigalgs_extension(&self) -> Option<&SupportedSignatureSchemes> {
@@ -2041,9 +2007,7 @@ impl NewSessionTicketPayloadTLS13 {
     }
 
     pub fn find_extension(&self, ext: ExtensionType) -> Option<&NewSessionTicketExtension> {
-        self.exts
-            .iter()
-            .find(|x| x.get_type() == ext)
+        self.exts.iter().find(|x| x.get_type() == ext)
     }
 
     pub fn get_max_early_data_size(&self) -> Option<u32> {
@@ -2313,9 +2277,7 @@ impl HandshakeMessagePayload {
             HandshakePayload::ClientHello(ref ch) => match ch.extensions.last() {
                 Some(ClientExtension::PresharedKey(ref offer)) => {
                     let mut binders_encoding = Vec::new();
-                    offer
-                        .binders
-                        .encode(&mut binders_encoding);
+                    offer.binders.encode(&mut binders_encoding);
                     binders_encoding.len()
                 }
                 _ => 0,

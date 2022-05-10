@@ -13,8 +13,6 @@ use crate::msgs::hsjoiner::HandshakeJoiner;
 use crate::msgs::message::{
     BorrowedPlainMessage, Message, MessagePayload, OpaqueMessage, PlainMessage,
 };
-#[cfg(feature = "quic")]
-use crate::quic;
 use crate::record_layer;
 use crate::suites::SupportedCipherSuite;
 #[cfg(feature = "tls12")]
@@ -90,44 +88,6 @@ impl Connection {
     {
         match self {
             Connection::Client(conn) => conn.complete_io(io),
-        }
-    }
-}
-
-#[cfg(feature = "quic")]
-impl crate::quic::QuicExt for Connection {
-    fn quic_transport_parameters(&self) -> Option<&[u8]> {
-        match self {
-            Connection::Client(conn) => conn.quic_transport_parameters(),
-            Connection::Server(conn) => conn.quic_transport_parameters(),
-        }
-    }
-
-    fn zero_rtt_keys(&self) -> Option<quic::DirectionalKeys> {
-        match self {
-            Connection::Client(conn) => conn.zero_rtt_keys(),
-            Connection::Server(conn) => conn.zero_rtt_keys(),
-        }
-    }
-
-    fn read_hs(&mut self, plaintext: &[u8]) -> Result<(), Error> {
-        match self {
-            Connection::Client(conn) => conn.read_quic_hs(plaintext),
-            Connection::Server(conn) => conn.read_quic_hs(plaintext),
-        }
-    }
-
-    fn write_hs(&mut self, buf: &mut Vec<u8>) -> Option<quic::KeyChange> {
-        match self {
-            Connection::Client(conn) => quic::write_hs(conn, buf),
-            Connection::Server(conn) => quic::write_hs(conn, buf),
-        }
-    }
-
-    fn alert(&self) -> Option<AlertDescription> {
-        match self {
-            Connection::Client(conn) => conn.alert(),
-            Connection::Server(conn) => conn.alert(),
         }
     }
 }
@@ -344,8 +304,6 @@ impl<'a> io::Write for Writer<'a> {
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub(crate) enum Protocol {
     Tcp,
-    #[cfg(feature = "quic")]
-    Quic,
 }
 
 #[derive(Debug)]
@@ -712,33 +670,6 @@ impl<Data> ConnectionCommon<Data> {
     }
 }
 
-#[cfg(feature = "quic")]
-impl<Data> ConnectionCommon<Data> {
-    pub(crate) fn read_quic_hs(&mut self, plaintext: &[u8]) -> Result<(), Error> {
-        let state = match mem::replace(&mut self.state, Err(Error::HandshakeNotComplete)) {
-            Ok(state) => state,
-            Err(e) => {
-                self.state = Err(e.clone());
-                return Err(e);
-            }
-        };
-
-        let msg = PlainMessage {
-            typ: ContentType::Handshake,
-            version: ProtocolVersion::TLSv1_3,
-            payload: Payload::new(plaintext.to_vec()),
-        };
-
-        if self.handshake_joiner.take_message(msg).is_none() {
-            self.common_state.quic.alert = Some(AlertDescription::DecodeError);
-            return Err(Error::CorruptMessage);
-        }
-
-        self.process_new_handshake_messages(state)
-            .map(|state| self.state = Ok(state))
-    }
-}
-
 impl<T> Deref for ConnectionCommon<T> {
     type Target = CommonState;
 
@@ -774,11 +705,9 @@ pub struct CommonState {
     received_plaintext: ChunkVecBuffer,
     sendable_plaintext: ChunkVecBuffer,
     pub(crate) sendable_tls: ChunkVecBuffer,
-    #[allow(dead_code)] // only read for QUIC
+    #[allow(dead_code)]
     /// Protocol whose key schedule should be used. Unused for TLS < 1.3.
     pub(crate) protocol: Protocol,
-    #[cfg(feature = "quic")]
-    pub(crate) quic: Quic,
 }
 
 impl CommonState {
@@ -805,8 +734,6 @@ impl CommonState {
             sendable_tls: ChunkVecBuffer::new(Some(DEFAULT_BUFFER_LIMIT)),
 
             protocol: Protocol::Tcp,
-            #[cfg(feature = "quic")]
-            quic: Quic::new(),
         })
     }
 
@@ -1139,23 +1066,6 @@ impl CommonState {
 
     /// Send a raw TLS message, fragmenting it if needed.
     pub(crate) fn send_msg(&mut self, m: Message, must_encrypt: bool) {
-        #[cfg(feature = "quic")]
-        {
-            if let Protocol::Quic = self.protocol {
-                if let MessagePayload::Alert(alert) = m.payload {
-                    self.quic.alert = Some(alert.description);
-                } else {
-                    debug_assert!(
-                        matches!(m.payload, MessagePayload::Handshake(_)),
-                        "QUIC uses TLS for the cryptographic handshake only"
-                    );
-                    let mut bytes = Vec::new();
-                    m.payload.encode(&mut bytes);
-                    self.quic.hs_queue.push_back((must_encrypt, bytes));
-                }
-                return;
-            }
-        }
         if !must_encrypt {
             let mut to_send = VecDeque::new();
             self.message_fragmenter.fragment(m.into(), &mut to_send);
@@ -1176,12 +1086,6 @@ impl CommonState {
         let (dec, enc) = secrets.make_cipher_pair(side);
         self.record_layer.prepare_message_encrypter(enc);
         self.record_layer.prepare_message_decrypter(dec);
-    }
-
-    #[cfg(feature = "quic")]
-    pub(crate) fn missing_extension(&mut self, why: &str) -> Error {
-        self.send_fatal_alert(AlertDescription::MissingExtension);
-        Error::PeerMisbehavedError(why.to_string())
     }
 
     fn send_warning_alert(&mut self, desc: AlertDescription) {
@@ -1271,15 +1175,6 @@ impl CommonState {
             peer_has_closed: self.has_received_close_notify,
         }
     }
-
-    pub(crate) fn is_quic(&self) -> bool {
-        #[cfg(feature = "quic")]
-        {
-            self.protocol == Protocol::Quic
-        }
-        #[cfg(not(feature = "quic"))]
-        false
-    }
 }
 
 pub(crate) trait State<Data>: Send + Sync {
@@ -1304,34 +1199,6 @@ pub(crate) trait State<Data>: Send + Sync {
 pub(crate) struct Context<'a, Data> {
     pub(crate) common: &'a mut CommonState,
     pub(crate) data: &'a mut Data,
-}
-
-#[cfg(feature = "quic")]
-pub(crate) struct Quic {
-    /// QUIC transport parameters received from the peer during the handshake
-    pub(crate) params: Option<Vec<u8>>,
-    pub(crate) alert: Option<AlertDescription>,
-    pub(crate) hs_queue: VecDeque<(bool, Vec<u8>)>,
-    pub(crate) early_secret: Option<ring::hkdf::Prk>,
-    pub(crate) hs_secrets: Option<quic::Secrets>,
-    pub(crate) traffic_secrets: Option<quic::Secrets>,
-    /// Whether keys derived from traffic_secrets have been passed to the QUIC implementation
-    pub(crate) returned_traffic_keys: bool,
-}
-
-#[cfg(feature = "quic")]
-impl Quic {
-    fn new() -> Self {
-        Self {
-            params: None,
-            alert: None,
-            hs_queue: VecDeque::new(),
-            early_secret: None,
-            hs_secrets: None,
-            traffic_secrets: None,
-            returned_traffic_keys: false,
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
