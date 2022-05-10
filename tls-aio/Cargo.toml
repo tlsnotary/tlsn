@@ -1,14 +1,10 @@
 [package]
-name = "rustls"
-version = "0.20.4"
+name = "tlsn-tls-aio"
+version = "0.1.0"
 edition = "2018"
-authors = ["Joseph Birr-Pixton <jpixton@gmail.com>"]
-license = "Apache-2.0/ISC/MIT"
+authors = []
+license = "Apache-2.0/MIT"
 readme = "../README.md"
-description = "Rustls is a modern TLS library written in Rust."
-homepage = "https://github.com/rustls/rustls"
-repository = "https://github.com/rustls/rustls"
-categories = ["network-programming", "cryptography"]
 autobenches = false
 build = "build.rs"
 resolver = "2"
@@ -37,6 +33,7 @@ webpki-roots = "0.22.0"
 criterion = "0.3.0"
 rustls-pemfile = "0.3.0"
 base64 = "0.13.0"
+rustls = "0.20.4"
 
 [[example]]
 name = "bogo_shim"
