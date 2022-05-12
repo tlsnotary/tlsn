@@ -39,10 +39,6 @@ rustls = "0.20.4"
 bimap = "0.6.2"
 
 [[example]]
-name = "trytls_shim"
-path = "examples/internal/trytls_shim.rs"
-
-[[example]]
 name = "bench"
 path = "examples/internal/bench.rs"
 
