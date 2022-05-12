@@ -582,3 +582,11 @@ impl io::Read for FailsReads {
         Err(io::Error::from(self.errkind))
     }
 }
+
+pub fn version_compat(v: Option<rustls::ProtocolVersion>) -> Option<tls_aio::ProtocolVersion> {
+    if let Some(v) = v {
+        Some(tls_aio::ProtocolVersion::from(v.get_u16()))
+    } else {
+        None
+    }
+}
