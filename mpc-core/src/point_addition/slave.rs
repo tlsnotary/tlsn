@@ -8,7 +8,7 @@ use curv::arithmetic::{Converter, Modulo, Samplable};
 use p256::EncodedPoint;
 use paillier::*;
 
-#[derive(PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum State {
     Initialized,
     S1,
@@ -93,36 +93,32 @@ pub struct S3 {
 impl SlaveCore for PointAdditionSlave {
     fn next(
         &mut self,
-        message: PointAdditionMessage,
-    ) -> Result<PointAdditionMessage, PointAdditionError> {
-        match message {
-            PointAdditionMessage::M1(m) => {
-                if self.state != State::Initialized {
-                    return Err(PointAdditionError::OutOfOrder);
-                }
+        message: Option<PointAdditionMessage>,
+    ) -> Result<Option<PointAdditionMessage>, PointAdditionError> {
+        let message = match (self.state, message) {
+            (State::Initialized, Some(PointAdditionMessage::M1(m))) => {
                 self.state = State::S1;
-                Ok(PointAdditionMessage::S1(self.step1(m)))
+                Some(PointAdditionMessage::S1(self.step1(m)))
             }
-            PointAdditionMessage::M2(m) => {
-                if self.state != State::S1 {
-                    return Err(PointAdditionError::OutOfOrder);
-                }
+            (State::S1, Some(PointAdditionMessage::M2(m))) => {
                 self.state = State::S2;
-                Ok(PointAdditionMessage::S2(self.step2(m)))
+                Some(PointAdditionMessage::S2(self.step2(m)))
             }
-            PointAdditionMessage::M3(m) => {
-                if self.state != State::S2 {
-                    return Err(PointAdditionError::OutOfOrder);
-                }
+            (State::S2, Some(PointAdditionMessage::M3(m))) => {
                 self.state = State::Complete;
-                Ok(PointAdditionMessage::S3(self.step3(m)))
+                Some(PointAdditionMessage::S3(self.step3(m)))
             }
-            _ => panic!("now"),
-        }
+            (state, message) => Err(PointAdditionError::ProtocolError(Box::new(state), message))?,
+        };
+        Ok(message)
     }
 
-    fn get_secret(self) -> SecretShare {
-        &self.p - (self.secret % &self.p)
+    fn is_complete(&self) -> bool {
+        self.state == State::Complete
+    }
+
+    fn get_secret(self) -> Result<SecretShare, PointAdditionError> {
+        Ok(&self.p - (self.secret % &self.p))
     }
 }
 

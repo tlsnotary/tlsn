@@ -57,7 +57,7 @@ message S3 {
     required bytes e_pms_masked = 1;
 }
 
-message PAMessage {
+message PointAdditionMessage {
     oneof msg {
         M1 m1 = 1;
         M2 m2 = 2;

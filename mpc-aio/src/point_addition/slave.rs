@@ -1,83 +1,53 @@
 use super::PointAdditionError;
-use futures_util::{Sink, SinkExt, Stream, StreamExt};
+use futures::{SinkExt, StreamExt};
 use mpc_core::point_addition::{slave, PointAdditionMessage, SecretShare, SlaveCore};
+use mpc_core::proto::point_addition::PointAdditionMessage as ProtoMessage;
 use p256::EncodedPoint;
 use std::io::Error as IOError;
 use std::io::ErrorKind;
+use tokio::io::{AsyncRead, AsyncWrite};
+use tokio_util::codec::Framed;
 use tracing::{instrument, trace};
+use utils_aio::codec::ProstCodecDelimited;
 
 pub struct PointAdditionSlave<S> {
-    stream: S,
+    stream: Framed<S, ProstCodecDelimited<PointAdditionMessage, ProtoMessage>>,
 }
 
-impl<
-        S: Sink<PointAdditionMessage> + Stream<Item = Result<PointAdditionMessage, E>> + Send + Unpin,
-        E: std::fmt::Debug,
-    > PointAdditionSlave<S>
-where
-    PointAdditionError: From<<S as Sink<PointAdditionMessage>>::Error>,
-    PointAdditionError: From<E>,
-{
+impl<S: AsyncRead + AsyncWrite + Unpin> PointAdditionSlave<S> {
     pub fn new(stream: S) -> Self {
-        Self { stream }
+        Self {
+            stream: Framed::new(
+                stream,
+                ProstCodecDelimited::<PointAdditionMessage, ProtoMessage>::default(),
+            ),
+        }
     }
 
     #[instrument(skip(self, point))]
     pub async fn run(&mut self, point: &EncodedPoint) -> Result<SecretShare, PointAdditionError> {
+        trace!("Starting");
         let mut slave = slave::PointAdditionSlave::new(point);
 
-        // Step 1
-        let master_message = match self.stream.next().await {
-            Some(Ok(PointAdditionMessage::M1(m))) => PointAdditionMessage::M1(m),
-            Some(Ok(m)) => return Err(PointAdditionError::Unexpected(m)),
-            Some(Err(e)) => return Err(e)?,
-            None => return Err(IOError::new(ErrorKind::UnexpectedEof, ""))?,
-        };
-        trace!("Received M1");
-        let message = slave.next(master_message);
-        if message.is_err() {
-            // TODO: come up with a way to cleanly return the specific error
-            return Err(PointAdditionError::UnderlyingError);
+        let mut master_message;
+        loop {
+            master_message = Some(
+                self.stream
+                    .next()
+                    .await
+                    .ok_or(IOError::new(ErrorKind::UnexpectedEof, ""))??,
+            );
+            trace!("Received Message");
+            if let Some(message) = slave.next(master_message)? {
+                self.stream.send(message).await?;
+                trace!("Sent Message");
+            }
+            if slave.is_complete() {
+                break;
+            }
         }
-        let message = message.unwrap();
-        trace!("Sending S1");
-        self.stream.send(message).await?;
 
-        // Step 2
-        let master_message = match self.stream.next().await {
-            Some(Ok(PointAdditionMessage::M2(m))) => PointAdditionMessage::M2(m),
-            Some(Ok(m)) => return Err(PointAdditionError::Unexpected(m)),
-            Some(Err(e)) => return Err(e)?,
-            None => return Err(IOError::new(ErrorKind::UnexpectedEof, ""))?,
-        };
-        trace!("Received M2");
-        let message = slave.next(master_message);
-        if message.is_err() {
-            // TODO: come up with a way to cleanly return the specific error
-            return Err(PointAdditionError::UnderlyingError);
-        }
-        let message = message.unwrap();
-        trace!("Sending S2");
-        self.stream.send(message).await?;
-
-        // Complete
-        let master_message = match self.stream.next().await {
-            Some(Ok(PointAdditionMessage::M3(m))) => PointAdditionMessage::M3(m),
-            Some(Ok(m)) => return Err(PointAdditionError::Unexpected(m)),
-            Some(Err(e)) => return Err(e)?,
-            None => return Err(IOError::new(ErrorKind::UnexpectedEof, ""))?,
-        };
-        trace!("Received M3");
-
-        let message = slave.next(master_message);
-        if message.is_err() {
-            // TODO: come up with a way to cleanly return the specific error
-            return Err(PointAdditionError::UnderlyingError);
-        }
-        let message = message.unwrap();
-        trace!("Sending S3");
-        self.stream.send(message).await?;
-
-        Ok(slave.get_secret())
+        trace!("Finished");
+        Ok(slave.get_secret()?)
     }
 }

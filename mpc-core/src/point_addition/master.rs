@@ -6,7 +6,7 @@ use curv::arithmetic::{Converter, Modulo};
 use p256::EncodedPoint;
 use paillier::*;
 
-#[derive(PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum State {
     Initialized,
     M1,
@@ -65,42 +65,35 @@ impl MasterCore for PointAdditionMaster {
         &mut self,
         message: Option<PointAdditionMessage>,
     ) -> Result<Option<PointAdditionMessage>, PointAdditionError> {
-        if message == None {
-            if self.state != State::Initialized {
-                return Err(PointAdditionError::OutOfOrder);
+        let message = match (self.state, message) {
+            (State::Initialized, None) => {
+                self.state = State::M1;
+                Some(PointAdditionMessage::M1(self.step1()))
             }
-            self.state = State::M1;
-            return Ok(Some(PointAdditionMessage::M1(self.step1())));
-        }
-        match message.unwrap() {
-            PointAdditionMessage::S1(s) => {
-                if self.state != State::M1 {
-                    return Err(PointAdditionError::OutOfOrder);
-                }
+            (State::M1, Some(PointAdditionMessage::S1(s))) => {
                 self.state = State::M2;
-                Ok(Some(PointAdditionMessage::M2(self.step2(s))))
+                Some(PointAdditionMessage::M2(self.step2(s)))
             }
-            PointAdditionMessage::S2(s) => {
-                if self.state != State::M2 {
-                    return Err(PointAdditionError::OutOfOrder);
-                }
+            (State::M2, Some(PointAdditionMessage::S2(s))) => {
                 self.state = State::M3;
-                Ok(Some(PointAdditionMessage::M3(self.step3(s))))
+                Some(PointAdditionMessage::M3(self.step3(s)))
             }
-            PointAdditionMessage::S3(s) => {
-                if self.state != State::M3 {
-                    return Err(PointAdditionError::OutOfOrder);
-                }
+            (State::M3, Some(PointAdditionMessage::S3(s))) => {
                 self.state = State::Complete;
                 self.step4(s);
-                Ok(None)
+                None
             }
-            _ => Err(PointAdditionError::OutOfOrder),
-        }
+            (state, message) => Err(PointAdditionError::ProtocolError(Box::new(state), message))?,
+        };
+        Ok(message)
     }
 
-    fn get_secret(self) -> SecretShare {
-        self.secret.unwrap()
+    fn is_complete(&self) -> bool {
+        self.state == State::Complete
+    }
+
+    fn get_secret(self) -> Result<SecretShare, PointAdditionError> {
+        Ok(self.secret.ok_or(PointAdditionError::ProtocolIncomplete)?)
     }
 }
 

@@ -5,7 +5,7 @@ use std::convert::TryFrom;
 
 include!(concat!(env!("OUT_DIR"), "/core.point_addition.rs"));
 
-pub use pa_message::Msg;
+pub use point_addition_message::Msg;
 
 impl From<paillier::EncryptionKey> for EncryptionKey {
     #[inline]
@@ -27,46 +27,34 @@ impl From<EncryptionKey> for paillier::EncryptionKey {
     }
 }
 
-impl From<point_addition::PointAdditionMessage> for PaMessage {
+impl From<point_addition::PointAdditionMessage> for PointAdditionMessage {
     #[inline]
     fn from(m: point_addition::PointAdditionMessage) -> Self {
         Self {
             msg: Some(match m {
-                point_addition::PointAdditionMessage::M1(msg) => pa_message::Msg::M1(M1::from(msg)),
-                point_addition::PointAdditionMessage::M2(msg) => pa_message::Msg::M2(M2::from(msg)),
-                point_addition::PointAdditionMessage::M3(msg) => pa_message::Msg::M3(M3::from(msg)),
-                point_addition::PointAdditionMessage::S1(msg) => pa_message::Msg::S1(S1::from(msg)),
-                point_addition::PointAdditionMessage::S2(msg) => pa_message::Msg::S2(S2::from(msg)),
-                point_addition::PointAdditionMessage::S3(msg) => pa_message::Msg::S3(S3::from(msg)),
+                point_addition::PointAdditionMessage::M1(msg) => Msg::M1(M1::from(msg)),
+                point_addition::PointAdditionMessage::M2(msg) => Msg::M2(M2::from(msg)),
+                point_addition::PointAdditionMessage::M3(msg) => Msg::M3(M3::from(msg)),
+                point_addition::PointAdditionMessage::S1(msg) => Msg::S1(S1::from(msg)),
+                point_addition::PointAdditionMessage::S2(msg) => Msg::S2(S2::from(msg)),
+                point_addition::PointAdditionMessage::S3(msg) => Msg::S3(S3::from(msg)),
             }),
         }
     }
 }
 
-impl TryFrom<PaMessage> for point_addition::PointAdditionMessage {
+impl TryFrom<PointAdditionMessage> for point_addition::PointAdditionMessage {
     type Error = std::io::Error;
     #[inline]
-    fn try_from(m: PaMessage) -> Result<Self, Self::Error> {
+    fn try_from(m: PointAdditionMessage) -> Result<Self, Self::Error> {
         if let Some(msg) = m.msg {
             let m = match msg {
-                pa_message::Msg::M1(msg) => {
-                    point_addition::PointAdditionMessage::M1(master::M1::from(msg))
-                }
-                pa_message::Msg::M2(msg) => {
-                    point_addition::PointAdditionMessage::M2(master::M2::from(msg))
-                }
-                pa_message::Msg::M3(msg) => {
-                    point_addition::PointAdditionMessage::M3(master::M3::from(msg))
-                }
-                pa_message::Msg::S1(msg) => {
-                    point_addition::PointAdditionMessage::S1(slave::S1::from(msg))
-                }
-                pa_message::Msg::S2(msg) => {
-                    point_addition::PointAdditionMessage::S2(slave::S2::from(msg))
-                }
-                pa_message::Msg::S3(msg) => {
-                    point_addition::PointAdditionMessage::S3(slave::S3::from(msg))
-                }
+                Msg::M1(msg) => point_addition::PointAdditionMessage::M1(master::M1::from(msg)),
+                Msg::M2(msg) => point_addition::PointAdditionMessage::M2(master::M2::from(msg)),
+                Msg::M3(msg) => point_addition::PointAdditionMessage::M3(master::M3::from(msg)),
+                Msg::S1(msg) => point_addition::PointAdditionMessage::S1(slave::S1::from(msg)),
+                Msg::S2(msg) => point_addition::PointAdditionMessage::S2(slave::S2::from(msg)),
+                Msg::S3(msg) => point_addition::PointAdditionMessage::S3(slave::S3::from(msg)),
             };
             Ok(m)
         } else {
