@@ -1,48 +1,28 @@
-use mpc_aio::secret_share::{SecretShareMaster, SecretShareSlave};
-use mpc_core::proto;
-use mpc_core::secret_share::{SecretShare, SecretShareMessage};
+use mpc_aio::point_addition::{PointAdditionMaster, PointAdditionSlave};
 use p256::elliptic_curve::sec1::ToEncodedPoint;
 use p256::{EncodedPoint, SecretKey};
 use rand::thread_rng;
 use tokio;
 use tokio::net::UnixStream;
-use tokio_util::codec::Framed;
 use tracing::{info, instrument};
 use tracing_subscriber;
-use utils_aio::codec::ProstCodecDelimited;
 
 #[instrument(skip(stream, point))]
-async fn master(stream: UnixStream, point: EncodedPoint) -> SecretShare {
-    let stream = Framed::new(
-        stream,
-        ProstCodecDelimited::<SecretShareMessage, proto::secret_share::SecretShareMessage>::default(
-        ),
-    );
-
-    let mut master = SecretShareMaster::new(stream);
+async fn master(stream: UnixStream, point: EncodedPoint) {
+    let mut master = PointAdditionMaster::new(stream);
 
     let share = master.run(&point).await.unwrap();
 
     info!("Master keyshare: {:?}", share);
-
-    share
 }
 
 #[instrument(skip(stream, point))]
-async fn slave(stream: UnixStream, point: EncodedPoint) -> SecretShare {
-    let stream = Framed::new(
-        stream,
-        ProstCodecDelimited::<SecretShareMessage, proto::secret_share::SecretShareMessage>::default(
-        ),
-    );
-
-    let mut slave = SecretShareSlave::new(stream);
+async fn slave(stream: UnixStream, point: EncodedPoint) {
+    let mut slave = PointAdditionSlave::new(stream);
 
     let share = slave.run(&point).await.unwrap();
 
-    info!("Slave key share: {:?}", share);
-
-    share
+    info!("Slave keyshare: {:?}", share);
 }
 
 #[instrument]

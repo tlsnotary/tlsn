@@ -9,10 +9,10 @@ name = "mpc_core"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["proto", "ot", "ss", "garble"]
+default = ["proto", "ot", "pa", "garble"]
 garble = ["regex"]
 ot = []
-ss = ["elliptic-curve", "p256", "paillier", "curv"]
+pa = ["elliptic-curve", "p256", "paillier", "curv"]
 proto = ["prost", "prost-build"]
 
 [dependencies]
@@ -63,5 +63,5 @@ name = "ot"
 harness = false
 
 [[bench]]
-name = "secret_share"
+name = "point_addition"
 harness = false

@@ -7,10 +7,10 @@ edition = "2021"
 name = "mpc_aio"
 
 [features]
-default = ["ss", "ot", "garble"]
+default = ["pa", "ot", "garble"]
 ot = ["tlsn-mpc-core/ot", "tlsn-mpc-core/proto", "rand_chacha"]
 garble = ["tlsn-mpc-core/garble", "tlsn-mpc-core/proto", "aes"]
-ss = ["tlsn-mpc-core/ss", "tlsn-mpc-core/proto", "p256"]
+pa = ["tlsn-mpc-core/pa", "tlsn-mpc-core/proto", "p256"]
 
 [dependencies]
 tlsn-mpc-core = { path = "../mpc-core", default-features = false }
@@ -27,19 +27,19 @@ rand_chacha = { version = "0.3", optional = true }
 p256 = { version = "0.10.1", optional = true }
 thiserror = "1.0"
 tracing = "0.1"
-
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-getrandom = { version = "0.2", features = ["js"] }
-wasm-bindgen = "0.2"
-
-[dev-dependencies]
+tokio-util = { version = "0.7.1", features = ["codec"] }
 tokio = { version = "1.17", features = [
     "net",
     "macros",
     "rt",
     "rt-multi-thread",
 ] }
-tokio-util = { version = "0.7.1", features = ["codec"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.2", features = ["js"] }
+wasm-bindgen = "0.2"
+
+[dev-dependencies]
 async-tungstenite = { version = "0.16", features = ["tokio-runtime"] }
 ws_stream_tungstenite = { version = "0.7.0", features = ["tokio_io"] }
 yamux = "0.10.1"

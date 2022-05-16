@@ -2,7 +2,7 @@ syntax = "proto2";
 
 import "core.proto";
 
-package core.secret_share;
+package core.point_addition;
 
 message EncryptionKey {
     // Modulus
@@ -57,7 +57,7 @@ message S3 {
     required bytes e_pms_masked = 1;
 }
 
-message SecretShareMessage {
+message PointAdditionMessage {
     oneof msg {
         M1 m1 = 1;
         M2 m2 = 2;

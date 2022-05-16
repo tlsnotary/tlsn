@@ -4,8 +4,8 @@ pub mod circuits;
 pub mod garble;
 #[cfg(feature = "ot")]
 pub mod ot;
-#[cfg(feature = "ss")]
-pub mod secret_share;
+#[cfg(feature = "pa")]
+pub mod point_addition;
 
 use std::convert::TryInto;
 
