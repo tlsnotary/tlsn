@@ -2,18 +2,15 @@ use clap;
 use clap::{ArgEnum, Parser, Subcommand};
 use futures::{AsyncRead, AsyncWrite};
 use mpc_aio::ot::{
-    ExtOTReceive, ExtOTSend, ExtReceiver, ExtSender, Message, OTReceive, OTSend, Receiver, Sender,
+    ExtOTReceive, ExtOTSend, ExtReceiver, ExtSender, OTReceive, OTSend, Receiver, Sender,
 };
 use mpc_core::ot::{ExtReceiverCore, ExtSenderCore, ReceiverCore, SenderCore};
-use mpc_core::proto;
 use mpc_core::Block;
 use rand::{thread_rng, Rng};
 use tokio;
 use tokio::net::{TcpListener, UnixStream};
-use tokio_util::codec::Framed;
 use tracing::{info, instrument};
 use tracing_subscriber;
-use utils_aio::codec::ProstCodecDelimited;
 use ws_stream_tungstenite::WsStream;
 
 #[derive(Subcommand, Debug)]
@@ -59,12 +56,7 @@ async fn receive<S: AsyncWrite + AsyncRead + Send + Unpin>(
     choice: Vec<bool>,
     extended: bool,
 ) {
-    let ws = WsStream::new(ws);
-
-    let stream = Framed::new(
-        ws,
-        ProstCodecDelimited::<Message, proto::ot::Message>::default(),
-    );
+    let stream = WsStream::new(ws);
 
     info!("Choosing {:?}", choice);
 
@@ -85,12 +77,7 @@ async fn send<S: AsyncWrite + AsyncRead + Send + Unpin>(
     values: Vec<[Block; 2]>,
     extended: bool,
 ) {
-    let ws = WsStream::new(ws);
-
-    let stream = Framed::new(
-        ws,
-        ProstCodecDelimited::<Message, proto::ot::Message>::default(),
-    );
+    let stream = WsStream::new(ws);
 
     if extended {
         let mut sender = ExtSender::new(ExtSenderCore::new(values.len()), stream);
