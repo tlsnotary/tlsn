@@ -494,24 +494,6 @@ impl DerefMut for ClientConnection {
     }
 }
 
-#[doc(hidden)]
-impl<'a> TryFrom<&'a mut crate::Connection> for &'a mut ClientConnection {
-    type Error = ();
-
-    fn try_from(value: &'a mut crate::Connection) -> Result<Self, Self::Error> {
-        use crate::Connection::*;
-        match value {
-            Client(conn) => Ok(conn),
-        }
-    }
-}
-
-impl From<ClientConnection> for crate::Connection {
-    fn from(conn: ClientConnection) -> Self {
-        Self::Client(conn)
-    }
-}
-
 /// State associated with a client connection.
 pub struct ClientConnectionData {
     pub(super) early_data: EarlyData,

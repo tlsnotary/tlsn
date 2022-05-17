@@ -7,7 +7,6 @@ use std::sync::Arc;
 
 use tls_aio::internal::msgs::codec::Reader;
 use tls_aio::internal::msgs::message::{Message, OpaqueMessage, PlainMessage};
-use tls_aio::Connection;
 use tls_aio::Error;
 use tls_aio::RootCertStore;
 use tls_aio::{Certificate, PrivateKey};
@@ -175,7 +174,11 @@ pub enum Altered {
     Raw(Vec<u8>),
 }
 
-pub fn send_altered<F>(client: &mut Connection, filter: F, server: &mut rustls::Connection) -> usize
+pub fn send_altered<F>(
+    client: &mut ClientConnection,
+    filter: F,
+    server: &mut rustls::Connection,
+) -> usize
 where
     F: Fn(&mut Message) -> Altered,
 {
@@ -215,7 +218,7 @@ where
 pub fn receive_altered<F>(
     server: &mut rustls::Connection,
     filter: F,
-    client: &mut Connection,
+    client: &mut ClientConnection,
 ) -> usize
 where
     F: Fn(&mut Message) -> Altered,
