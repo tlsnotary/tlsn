@@ -318,7 +318,7 @@ mod hash_hs;
 mod limited_cache;
 mod rand;
 mod record_layer;
-mod stream;
+//mod stream;
 #[cfg(feature = "tls12")]
 mod tls12;
 mod tls13;
@@ -367,7 +367,7 @@ pub use crate::msgs::enums::CipherSuite;
 pub use crate::msgs::enums::ProtocolVersion;
 pub use crate::msgs::enums::SignatureScheme;
 pub use crate::msgs::handshake::DistinguishedNames;
-pub use crate::stream::{Stream, StreamOwned};
+//pub use crate::stream::{Stream, StreamOwned};
 pub use crate::suites::{
     BulkAlgorithm, SupportedCipherSuite, ALL_CIPHER_SUITES, DEFAULT_CIPHER_SUITES,
 };

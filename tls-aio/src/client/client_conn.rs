@@ -18,10 +18,12 @@ use super::hs;
 
 use std::convert::TryFrom;
 use std::error::Error as StdError;
-use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{Context, Poll};
 use std::{fmt, io, mem};
+use tokio::io::AsyncWrite;
 
 /// A trait for the ability to store client session data.
 /// The keys and values are opaque.
@@ -372,11 +374,12 @@ impl EarlyData {
 /// Stub that implements io::Write and dispatches to `write_early_data`.
 pub struct WriteEarlyData<'a> {
     sess: &'a mut ClientConnection,
+    fut: Option<futures::future::BoxFuture<'a, io::Result<usize>>>,
 }
 
 impl<'a> WriteEarlyData<'a> {
     fn new(sess: &'a mut ClientConnection) -> WriteEarlyData<'a> {
-        WriteEarlyData { sess }
+        WriteEarlyData { sess, fut: None }
     }
 
     /// How many bytes you may send.  Writes will become short
@@ -386,19 +389,31 @@ impl<'a> WriteEarlyData<'a> {
     }
 }
 
-impl<'a> io::Write for WriteEarlyData<'a> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.sess.write_early_data(buf)
+impl<'a> AsyncWrite for WriteEarlyData<'a> {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<Result<usize, io::Error>> {
+        let fut = match self.fut {
+            Some(fut) => fut,
+            None => Box::pin(self.sess.write_early_data(buf)),
+        };
+        fut.as_mut().poll(cx)
     }
 
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
+        Poll::Ready(Ok(()))
     }
 }
 
 /// This represents a single TLS client connection.
 pub struct ClientConnection {
-    inner: ConnectionCommon<ClientConnectionData>,
+    inner: ConnectionCommon,
 }
 
 impl fmt::Debug for ClientConnection {
@@ -411,11 +426,11 @@ impl ClientConnection {
     /// Make a new ClientConnection.  `config` controls how
     /// we behave in the TLS protocol, `name` is the
     /// name of the server we want to talk to.
-    pub fn new(config: Arc<ClientConfig>, name: ServerName) -> Result<Self, Error> {
-        Self::new_inner(config, name, Vec::new(), Protocol::Tcp)
+    pub async fn new(config: Arc<ClientConfig>, name: ServerName) -> Result<Self, Error> {
+        Self::new_inner(config, name, Vec::new(), Protocol::Tcp).await
     }
 
-    fn new_inner(
+    async fn new_inner(
         config: Arc<ClientConfig>,
         name: ServerName,
         extra_exts: Vec<ClientExtension>,
@@ -430,7 +445,7 @@ impl ClientConnection {
             data: &mut data,
         };
 
-        let state = hs::start_handshake(name, extra_exts, config, &mut cx)?;
+        let state = hs::start_handshake(name, extra_exts, config, &mut cx).await?;
         let inner = ConnectionCommon::new(state, data, common_state);
 
         Ok(Self { inner })
@@ -471,17 +486,23 @@ impl ClientConnection {
         self.inner.data.early_data.is_accepted()
     }
 
-    fn write_early_data(&mut self, data: &[u8]) -> io::Result<usize> {
-        self.inner
-            .data
-            .early_data
-            .check_write(data.len())
-            .map(|sz| self.inner.common_state.send_early_plaintext(&data[..sz]))
+    async fn write_early_data(&mut self, data: &[u8]) -> io::Result<usize> {
+        let sz = self.inner.data.early_data.check_write(data.len());
+
+        if let Ok(sz) = sz {
+            Ok(self
+                .inner
+                .common_state
+                .send_early_plaintext(&data[..sz])
+                .await)
+        } else {
+            sz
+        }
     }
 }
 
 impl Deref for ClientConnection {
-    type Target = ConnectionCommon<ClientConnectionData>;
+    type Target = ConnectionCommon;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
