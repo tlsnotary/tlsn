@@ -1,4 +1,5 @@
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
+use sha2::{Digest, Sha256};
 
 #[inline]
 pub fn boolvec_to_u8vec(bv: &[bool]) -> Vec<u8> {
@@ -65,6 +66,18 @@ pub fn parse_ristretto_key(b: Vec<u8>) -> Result<RistrettoPoint, std::io::Error>
     }
 }
 
+pub fn sha256(data: &[u8]) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(data);
+    hasher.finalize().into()
+}
+
+/// XORs 2 slices of bytes of equal length
+pub fn xor(a: &[u8], b: &[u8]) -> Vec<u8> {
+    assert!(a.len() == b.len());
+    a.iter().zip(b.iter()).map(|(&x1, &x2)| x1 ^ x2).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -106,5 +119,21 @@ mod tests {
         let v_ = u8vec_to_boolvec(&v);
         let v__ = boolvec_to_u8vec(&v_);
         assert_eq!(v, v__);
+    }
+
+    #[test]
+    fn test_xor() {
+        let a = [2u8; 32];
+        let b = [3u8; 32];
+        let expected = [1u8; 32];
+        assert_eq!(xor(&a, &b), expected);
+    }
+
+    #[should_panic]
+    #[test]
+    fn test_xor_panic() {
+        let a = [2u8; 32];
+        let b = [3u8; 31];
+        xor(&a, &b);
     }
 }

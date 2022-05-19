@@ -46,7 +46,7 @@ where
     #[instrument(skip(self, payload))]
     async fn send(&mut self, payload: &[[Block; 2]]) -> Result<(), OTError> {
         let base_sender_setup = match self.stream.next().await {
-            Some(Ok(Message::SenderSetup(m))) => m,
+            Some(Ok(Message::BaseSenderSetup(m))) => m,
             Some(Ok(m)) => return Err(OTError::Unexpected(m)),
             Some(Err(e)) => return Err(e)?,
             None => return Err(IOError::new(ErrorKind::UnexpectedEof, ""))?,
@@ -56,10 +56,12 @@ where
         let base_setup = self.ot.base_setup(base_sender_setup.try_into().unwrap())?;
 
         trace!("Sending ReceiverSetup");
-        self.stream.send(Message::ReceiverSetup(base_setup)).await?;
+        self.stream
+            .send(Message::BaseReceiverSetup(base_setup))
+            .await?;
 
         let base_payload = match self.stream.next().await {
-            Some(Ok(Message::SenderPayload(m))) => m,
+            Some(Ok(Message::BaseSenderPayload(m))) => m,
             Some(Ok(m)) => return Err(OTError::Unexpected(m)),
             Some(Err(e)) => return Err(e)?,
             None => return Err(IOError::new(ErrorKind::UnexpectedEof, ""))?,

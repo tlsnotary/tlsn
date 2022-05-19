@@ -30,6 +30,15 @@ impl From<ot::Message> for Message {
                 ot::Message::ExtSenderPayload(msg) => {
                     message::Msg::ExtSenderPayload(ExtSenderPayload::from(msg))
                 }
+                ot::Message::BaseSenderSetup(msg) => {
+                    message::Msg::BaseSenderSetup(BaseSenderSetup::from(msg))
+                }
+                ot::Message::BaseReceiverSetup(msg) => {
+                    message::Msg::BaseReceiverSetup(BaseReceiverSetup::from(msg))
+                }
+                ot::Message::BaseSenderPayload(msg) => {
+                    message::Msg::BaseSenderPayload(BaseSenderPayload::from(msg))
+                }
             }),
         }
     }
@@ -58,6 +67,15 @@ impl TryFrom<Message> for ot::Message {
                 }
                 message::Msg::ExtSenderPayload(msg) => {
                     ot::Message::ExtSenderPayload(ot::ExtSenderPayload::from(msg))
+                }
+                message::Msg::BaseSenderSetup(msg) => {
+                    ot::Message::BaseSenderSetup(ot::BaseSenderSetup::from(msg))
+                }
+                message::Msg::BaseReceiverSetup(msg) => {
+                    ot::Message::BaseReceiverSetup(ot::BaseReceiverSetup::from(msg))
+                }
+                message::Msg::BaseSenderPayload(msg) => {
+                    ot::Message::BaseSenderPayload(ot::BaseSenderPayload::from(msg))
                 }
             };
             Ok(m)
@@ -149,6 +167,9 @@ impl From<ot::ExtReceiverSetup> for ExtReceiverSetup {
         Self {
             ncols: s.ncols as u32,
             table: s.table,
+            x: s.x.to_vec(),
+            t0: s.t0.to_vec(),
+            t1: s.t1.to_vec(),
         }
     }
 }
@@ -156,9 +177,18 @@ impl From<ot::ExtReceiverSetup> for ExtReceiverSetup {
 impl From<ExtReceiverSetup> for ot::ExtReceiverSetup {
     #[inline]
     fn from(s: ExtReceiverSetup) -> Self {
+        let mut x = [0u8; 16];
+        let mut t0 = [0u8; 16];
+        let mut t1 = [0u8; 16];
+        x.copy_from_slice(&s.x);
+        t0.copy_from_slice(&s.t0);
+        t1.copy_from_slice(&s.t1);
         Self {
             ncols: s.ncols as usize,
             table: s.table,
+            x,
+            t0,
+            t1,
         }
     }
 }
@@ -206,10 +236,78 @@ impl From<ExtSenderPayload> for ot::ExtSenderPayload {
     }
 }
 
+impl From<ot::BaseSenderSetup> for BaseSenderSetup {
+    #[inline]
+    fn from(s: ot::BaseSenderSetup) -> Self {
+        Self {
+            setup: SenderSetup::from(s.setup),
+            cointoss_commit: s.cointoss_commit.to_vec(),
+        }
+    }
+}
+
+impl From<BaseSenderSetup> for ot::BaseSenderSetup {
+    #[inline]
+    fn from(s: BaseSenderSetup) -> Self {
+        let mut cointoss_commit = [0u8; 32];
+        cointoss_commit.copy_from_slice(s.cointoss_commit.as_slice());
+        Self {
+            setup: ot::SenderSetup::try_from(s.setup).unwrap(),
+            cointoss_commit,
+        }
+    }
+}
+
+impl From<ot::BaseReceiverSetup> for BaseReceiverSetup {
+    #[inline]
+    fn from(s: ot::BaseReceiverSetup) -> Self {
+        Self {
+            setup: ReceiverSetup::from(s.setup),
+            cointoss_share: s.cointoss_share.to_vec(),
+        }
+    }
+}
+
+impl From<BaseReceiverSetup> for ot::BaseReceiverSetup {
+    #[inline]
+    fn from(s: BaseReceiverSetup) -> Self {
+        let mut cointoss_share = [0u8; 32];
+        cointoss_share.copy_from_slice(s.cointoss_share.as_slice());
+        Self {
+            setup: ot::ReceiverSetup::try_from(s.setup).unwrap(),
+            cointoss_share,
+        }
+    }
+}
+
+impl From<ot::BaseSenderPayload> for BaseSenderPayload {
+    #[inline]
+    fn from(s: ot::BaseSenderPayload) -> Self {
+        Self {
+            payload: SenderPayload::from(s.payload),
+            cointoss_share: s.cointoss_share.to_vec(),
+        }
+    }
+}
+
+impl From<BaseSenderPayload> for ot::BaseSenderPayload {
+    #[inline]
+    fn from(s: BaseSenderPayload) -> Self {
+        let mut cointoss_share = [0u8; 32];
+        cointoss_share.copy_from_slice(s.cointoss_share.as_slice());
+        Self {
+            payload: ot::SenderPayload::try_from(s.payload).unwrap(),
+            cointoss_share,
+        }
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
     use super::*;
     use crate::ot::base::tests::fixtures::{ot_core_data, Data};
+    use crate::ot::extension::tests::fixtures::{ot_ext_core_data, Data as Data2};
+
     use fixtures::*;
     use rstest::*;
 
@@ -222,6 +320,12 @@ pub mod tests {
             pub sender_payload: SenderPayload,
         }
 
+        pub struct ProtoData2 {
+            pub base_sender_setup: BaseSenderSetup,
+            pub base_receiver_setup: BaseReceiverSetup,
+            pub base_sender_payload: BaseSenderPayload,
+        }
+
         #[fixture]
         #[once]
         pub fn proto_base_core_data(ot_core_data: &Data) -> ProtoData {
@@ -229,6 +333,16 @@ pub mod tests {
                 sender_setup: ot_core_data.sender_setup.into(),
                 receiver_setup: ot_core_data.receiver_setup.clone().into(),
                 sender_payload: ot_core_data.sender_payload.clone().into(),
+            }
+        }
+
+        #[fixture]
+        #[once]
+        pub fn proto_base_core_data2(ot_ext_core_data: &Data2) -> ProtoData2 {
+            ProtoData2 {
+                base_sender_setup: ot_ext_core_data.base_sender_setup.into(),
+                base_receiver_setup: ot_ext_core_data.base_receiver_setup.clone().into(),
+                base_sender_payload: ot_ext_core_data.base_sender_payload.clone().into(),
             }
         }
     }
@@ -258,5 +372,32 @@ pub mod tests {
             .unwrap();
 
         assert_eq!(sender_payload, ot_core_data.sender_payload);
+    }
+
+    #[rstest]
+    fn test_proto_ot2(proto_base_core_data2: &fixtures::ProtoData2, ot_ext_core_data: &Data2) {
+        let base_sender_setup: crate::ot::extension::BaseSenderSetup = proto_base_core_data2
+            .base_sender_setup
+            .clone()
+            .try_into()
+            .unwrap();
+
+        assert_eq!(base_sender_setup, ot_ext_core_data.base_sender_setup);
+
+        let base_receiver_setup: crate::ot::extension::BaseReceiverSetup = proto_base_core_data2
+            .base_receiver_setup
+            .clone()
+            .try_into()
+            .unwrap();
+
+        assert_eq!(base_receiver_setup, ot_ext_core_data.base_receiver_setup);
+
+        let base_sender_payload: crate::ot::extension::BaseSenderPayload = proto_base_core_data2
+            .base_sender_payload
+            .clone()
+            .try_into()
+            .unwrap();
+
+        assert_eq!(base_sender_payload, ot_ext_core_data.base_sender_payload);
     }
 }

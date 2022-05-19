@@ -1,5 +1,5 @@
 /// Errors that may occur when using OTSender
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, PartialEq)]
 pub enum ExtSenderCoreError {
     /// Error originating from Base OT
     #[error("OT failed due to error in Base OT {0}")]
@@ -14,10 +14,14 @@ pub enum ExtSenderCoreError {
     InvalidInputLength,
     #[error("Tried to send after OT is already complete")]
     AlreadyComplete,
+    #[error("Cointoss commitment check failed")]
+    CommitmentCheckFailed,
+    #[error("KOS15 consistency check failed")]
+    ConsistencyCheckFailed,
 }
 
 /// Errors that may occur when using ExtReceiverCore
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, PartialEq)]
 pub enum ExtReceiverCoreError {
     /// Error originating from Base OT
     #[error("OT failed due to error in Base OT")]
