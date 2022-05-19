@@ -33,11 +33,12 @@ use crate::client::client_conn::ClientConnectionData;
 use crate::client::common::ClientHelloDetails;
 use crate::client::{tls13, ClientConfig, ServerName};
 
+use async_trait::async_trait;
 use std::sync::Arc;
 
 pub(super) type NextState = Box<dyn State<ClientConnectionData>>;
 pub(super) type NextStateOrError = Result<NextState, Error>;
-pub(super) type ClientContext<'a> = crate::conn::Context<'a, ClientConnectionData>;
+pub(super) type ClientContext<'a> = crate::conn::Context<'a>;
 
 fn find_session(
     server_name: &ServerName,
@@ -68,7 +69,7 @@ fn find_session(
         .and_then(|resuming| Some(resuming))
 }
 
-pub(super) fn start_handshake(
+pub(super) async fn start_handshake(
     server_name: ServerName,
     extra_exts: Vec<ClientExtension>,
     config: Arc<ClientConfig>,
@@ -132,7 +133,8 @@ pub(super) fn start_handshake(
         extra_exts,
         may_send_sct_list,
         None,
-    ))
+    )
+    .await)
 }
 
 struct ExpectServerHello {
@@ -155,7 +157,7 @@ struct ExpectServerHelloOrHelloRetryRequest {
     extra_exts: Vec<ClientExtension>,
 }
 
-fn emit_client_hello_for_retry(
+async fn emit_client_hello_for_retry(
     config: Arc<ClientConfig>,
     cx: &mut ClientContext<'_>,
     resuming_session: Option<persist::Retrieved<persist::ClientSessionValue>>,
@@ -403,8 +405,13 @@ pub(super) fn sct_list_is_invalid(scts: &SCTList) -> bool {
     scts.is_empty() || scts.iter().any(|sct| sct.0.is_empty())
 }
 
+#[async_trait]
 impl State<ClientConnectionData> for ExpectServerHello {
-    fn handle(mut self: Box<Self>, cx: &mut ClientContext<'_>, m: Message) -> NextStateOrError {
+    async fn handle(
+        mut self: Box<Self>,
+        cx: &mut ClientContext<'_>,
+        m: Message,
+    ) -> NextStateOrError {
         let server_hello =
             require_handshake_msg!(m, HandshakeType::ServerHello, HandshakePayload::ServerHello)?;
         trace!("We got ServerHello {:#?}", server_hello);
@@ -552,6 +559,7 @@ impl State<ClientConnectionData> for ExpectServerHello {
                     self.offered_key_share.unwrap(),
                     self.sent_tls13_fake_ccs,
                 )
+                .await
             }
             #[cfg(feature = "tls12")]
             SupportedCipherSuite::Tls12(suite) => {
@@ -571,6 +579,7 @@ impl State<ClientConnectionData> for ExpectServerHello {
                     transcript,
                 }
                 .handle_server_hello(cx, suite, server_hello, tls13_supported)
+                .await
             }
         }
     }
@@ -581,7 +590,7 @@ impl ExpectServerHelloOrHelloRetryRequest {
         Box::new(self.next)
     }
 
-    fn handle_hello_retry_request(
+    async fn handle_hello_retry_request(
         self,
         cx: &mut ClientContext<'_>,
         m: Message,
@@ -707,21 +716,23 @@ impl ExpectServerHelloOrHelloRetryRequest {
             self.extra_exts,
             may_send_sct_list,
             Some(cs),
-        ))
+        )
+        .await)
     }
 }
 
+#[async_trait]
 impl State<ClientConnectionData> for ExpectServerHelloOrHelloRetryRequest {
-    fn handle(self: Box<Self>, cx: &mut ClientContext<'_>, m: Message) -> NextStateOrError {
+    async fn handle(self: Box<Self>, cx: &mut ClientContext<'_>, m: Message) -> NextStateOrError {
         match m.payload {
             MessagePayload::Handshake(HandshakeMessagePayload {
                 payload: HandshakePayload::ServerHello(..),
                 ..
-            }) => self.into_expect_server_hello().handle(cx, m),
+            }) => self.into_expect_server_hello().handle(cx, m).await,
             MessagePayload::Handshake(HandshakeMessagePayload {
                 payload: HandshakePayload::HelloRetryRequest(..),
                 ..
-            }) => self.handle_hello_retry_request(cx, m),
+            }) => self.handle_hello_retry_request(cx, m).await,
             payload => Err(inappropriate_handshake_message(
                 &payload,
                 &[ContentType::Handshake],
