@@ -357,7 +357,7 @@ pub use crate::anchors::{OwnedTrustAnchor, RootCertStore};
 pub use crate::builder::{
     ConfigBuilder, WantsCipherSuites, WantsKxGroups, WantsVerifier, WantsVersions,
 };
-pub use crate::conn::{CommonState, ConnectionCommon, IoState, Reader, SideData, Writer};
+pub use crate::conn::{CommonState, ConnectionCommon, IoState, Reader, SideData};
 pub use crate::error::Error;
 pub use crate::key::{Certificate, PrivateKey};
 pub use crate::key_log::{KeyLog, NoKeyLog};
@@ -393,7 +393,7 @@ pub mod client {
     pub use client_conn::ResolvesClientCert;
     pub use client_conn::ServerName;
     pub use client_conn::StoresClientSessions;
-    pub use client_conn::{ClientConfig, ClientConnection, ClientConnectionData, WriteEarlyData};
+    pub use client_conn::{ClientConfig, ClientConnection, ClientConnectionData};
     pub use handy::{ClientSessionMemoryCache, NoClientSessionStorage};
 
     #[cfg(feature = "dangerous_configuration")]

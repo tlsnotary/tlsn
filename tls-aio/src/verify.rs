@@ -104,7 +104,7 @@ pub trait ServerCertVerifier: Send + Sync {
         end_entity: &Certificate,
         intermediates: &[Certificate],
         server_name: &ServerName,
-        scts: &mut dyn Iterator<Item = &[u8]>,
+        scts: &mut (dyn Iterator<Item = &[u8]> + Send),
         ocsp_response: &[u8],
         now: SystemTime,
     ) -> Result<ServerCertVerified, Error>;
@@ -295,7 +295,7 @@ impl ServerCertVerifier for WebPkiVerifier {
         end_entity: &Certificate,
         intermediates: &[Certificate],
         server_name: &ServerName,
-        scts: &mut dyn Iterator<Item = &[u8]>,
+        scts: &mut (dyn Iterator<Item = &[u8]> + Send),
         ocsp_response: &[u8],
         now: SystemTime,
     ) -> Result<ServerCertVerified, Error> {

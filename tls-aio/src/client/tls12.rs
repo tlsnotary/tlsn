@@ -67,7 +67,8 @@ mod server_hello {
             if tls13_supported && has_downgrade_marker {
                 return Err(cx
                     .common
-                    .illegal_param("downgrade to TLS1.2 when TLS1.3 is supported"));
+                    .illegal_param("downgrade to TLS1.2 when TLS1.3 is supported")
+                    .await);
             }
 
             // Doing EMS?
@@ -408,10 +409,15 @@ impl State<ClientConnectionData> for ExpectServerKx {
         )?;
         self.transcript.add_message(&m);
 
-        let ecdhe = opaque_kx.unwrap_given_kxa(&self.suite.kx).ok_or_else(|| {
-            cx.common.send_fatal_alert(AlertDescription::DecodeError);
-            Error::CorruptMessagePayload(ContentType::Handshake)
-        })?;
+        let ecdhe = match opaque_kx.unwrap_given_kxa(&self.suite.kx) {
+            Some(ecdhe) => ecdhe,
+            None => {
+                cx.common
+                    .send_fatal_alert(AlertDescription::DecodeError)
+                    .await;
+                return Err(Error::CorruptMessagePayload(ContentType::Handshake));
+            }
+        };
 
         // Save the signature and signed parameters for later verification.
         let mut kx_params = Vec::new();
@@ -439,7 +445,7 @@ impl State<ClientConnectionData> for ExpectServerKx {
     }
 }
 
-fn emit_certificate(
+async fn emit_certificate(
     transcript: &mut HandshakeHash,
     cert_chain: CertificatePayload,
     common: &mut CommonState,
@@ -453,10 +459,14 @@ fn emit_certificate(
     };
 
     transcript.add_message(&cert);
-    common.send_msg(cert, false);
+    common.send_msg(cert, false).await;
 }
 
-fn emit_clientkx(transcript: &mut HandshakeHash, common: &mut CommonState, pubkey: &PublicKey) {
+async fn emit_clientkx(
+    transcript: &mut HandshakeHash,
+    common: &mut CommonState,
+    pubkey: &PublicKey,
+) {
     let mut buf = Vec::new();
     let ecpoint = PayloadU8::new(Vec::from(pubkey.as_ref()));
     ecpoint.encode(&mut buf);
@@ -471,10 +481,10 @@ fn emit_clientkx(transcript: &mut HandshakeHash, common: &mut CommonState, pubke
     };
 
     transcript.add_message(&ckx);
-    common.send_msg(ckx, false);
+    common.send_msg(ckx, false).await;
 }
 
-fn emit_certverify(
+async fn emit_certverify(
     transcript: &mut HandshakeHash,
     signer: &dyn Signer,
     common: &mut CommonState,
@@ -496,20 +506,20 @@ fn emit_certverify(
     };
 
     transcript.add_message(&m);
-    common.send_msg(m, false);
+    common.send_msg(m, false).await;
     Ok(())
 }
 
-fn emit_ccs(common: &mut CommonState) {
+async fn emit_ccs(common: &mut CommonState) {
     let ccs = Message {
         version: ProtocolVersion::TLSv1_2,
         payload: MessagePayload::ChangeCipherSpec(ChangeCipherSpecPayload {}),
     };
 
-    common.send_msg(ccs, false);
+    common.send_msg(ccs, false).await;
 }
 
-fn emit_finished(
+async fn emit_finished(
     secrets: &ConnectionSecrets,
     transcript: &mut HandshakeHash,
     common: &mut CommonState,
@@ -527,7 +537,7 @@ fn emit_finished(
     };
 
     transcript.add_message(&f);
-    common.send_msg(f, true);
+    common.send_msg(f, true).await;
 }
 
 struct ServerKxDetails {
@@ -712,7 +722,7 @@ impl State<ClientConnectionData> for ExpectServerDone {
         let mut st = *self;
         st.transcript.add_message(&m);
 
-        cx.common.check_aligned_handshake()?;
+        cx.common.check_aligned_handshake().await?;
 
         trace!("Server cert is {:?}", st.server_cert.cert_chain);
         debug!("Server DNS name is {:?}", st.server_name);
@@ -738,18 +748,17 @@ impl State<ClientConnectionData> for ExpectServerDone {
             .split_first()
             .ok_or(Error::NoCertificatesPresented)?;
         let now = std::time::SystemTime::now();
-        let cert_verified = st
-            .config
-            .verifier
-            .verify_server_cert(
-                end_entity,
-                intermediates,
-                &st.server_name,
-                &mut st.server_cert.scts(),
-                &st.server_cert.ocsp_response,
-                now,
-            )
-            .map_err(|err| hs::send_cert_error_alert(cx.common, err))?;
+        let cert_verified = match st.config.verifier.verify_server_cert(
+            end_entity,
+            intermediates,
+            &st.server_name,
+            &mut st.server_cert.scts(),
+            &st.server_cert.ocsp_response,
+            now,
+        ) {
+            Ok(cert_verified) => cert_verified,
+            Err(e) => return Err(hs::send_cert_error_alert(cx.common, e).await),
+        };
 
         // 3.
         // Build up the contents of the signed message.
@@ -772,10 +781,14 @@ impl State<ClientConnectionData> for ExpectServerDone {
                 return Err(Error::PeerMisbehavedError(error_message));
             }
 
-            st.config
-                .verifier
-                .verify_tls12_signature(&message, &st.server_cert.cert_chain[0], sig)
-                .map_err(|err| hs::send_cert_error_alert(cx.common, err))?
+            match st.config.verifier.verify_tls12_signature(
+                &message,
+                &st.server_cert.cert_chain[0],
+                sig,
+            ) {
+                Ok(sig_verified) => sig_verified,
+                Err(e) => return Err(hs::send_cert_error_alert(cx.common, e).await),
+            }
         };
         cx.common.peer_certificates = Some(st.server_cert.cert_chain);
 
@@ -785,7 +798,7 @@ impl State<ClientConnectionData> for ExpectServerDone {
                 ClientAuthDetails::Empty { .. } => Vec::new(),
                 ClientAuthDetails::Verify { certkey, .. } => certkey.cert.clone(),
             };
-            emit_certificate(&mut st.transcript, certs, cx.common);
+            emit_certificate(&mut st.transcript, certs, cx.common).await;
         }
 
         // 5a.
@@ -800,17 +813,17 @@ impl State<ClientConnectionData> for ExpectServerDone {
 
         // 5b.
         let mut transcript = st.transcript;
-        emit_clientkx(&mut transcript, cx.common, &kx.pubkey);
+        emit_clientkx(&mut transcript, cx.common, &kx.pubkey).await;
         // nb. EMS handshake hash only runs up to ClientKeyExchange.
         let ems_seed = st.using_ems.then(|| transcript.get_current_hash());
 
         // 5c.
         if let Some(ClientAuthDetails::Verify { signer, .. }) = &st.client_auth {
-            emit_certverify(&mut transcript, signer.as_ref(), cx.common)?;
+            emit_certverify(&mut transcript, signer.as_ref(), cx.common).await?;
         }
 
         // 5d.
-        emit_ccs(cx.common);
+        emit_ccs(cx.common).await;
 
         // 5e. Now commit secrets.
         let secrets = ConnectionSecrets::from_key_exchange(
@@ -830,7 +843,7 @@ impl State<ClientConnectionData> for ExpectServerDone {
         cx.common.record_layer.start_encrypting();
 
         // 6.
-        emit_finished(&secrets, &mut transcript, cx.common);
+        emit_finished(&secrets, &mut transcript, cx.common).await;
 
         if st.must_issue_new_ticket {
             Ok(Box::new(ExpectNewTicket {
@@ -940,7 +953,7 @@ impl State<ClientConnectionData> for ExpectCcs {
         }
         // CCS should not be received interleaved with fragmented handshake-level
         // message.
-        cx.common.check_aligned_handshake()?;
+        cx.common.check_aligned_handshake().await?;
 
         // nb. msgs layer validates trivial contents of CCS
         cx.common.record_layer.start_decrypting();
@@ -1040,7 +1053,7 @@ impl State<ClientConnectionData> for ExpectFinished {
         let finished =
             require_handshake_msg!(m, HandshakeType::Finished, HandshakePayload::Finished)?;
 
-        cx.common.check_aligned_handshake()?;
+        cx.common.check_aligned_handshake().await?;
 
         // Work out what verify_data we expect.
         let vh = st.transcript.get_current_hash();
@@ -1049,12 +1062,15 @@ impl State<ClientConnectionData> for ExpectFinished {
         // Constant-time verification of this is relatively unimportant: they only
         // get one chance.  But it can't hurt.
         let _fin_verified =
-            constant_time::verify_slices_are_equal(&expect_verify_data, &finished.0)
-                .map_err(|_| {
-                    cx.common.send_fatal_alert(AlertDescription::DecryptError);
-                    Error::DecryptError
-                })
-                .map(|_| verify::FinishedMessageVerified::assertion())?;
+            match constant_time::verify_slices_are_equal(&expect_verify_data, &finished.0) {
+                Ok(()) => verify::FinishedMessageVerified::assertion(),
+                Err(_) => {
+                    cx.common
+                        .send_fatal_alert(AlertDescription::DecryptError)
+                        .await;
+                    return Err(Error::DecryptError);
+                }
+            };
 
         // Hash this message too.
         st.transcript.add_message(&m);
@@ -1062,9 +1078,9 @@ impl State<ClientConnectionData> for ExpectFinished {
         st.save_session(cx);
 
         if st.resuming {
-            emit_ccs(cx.common);
+            emit_ccs(cx.common).await;
             cx.common.record_layer.start_encrypting();
-            emit_finished(&st.secrets, &mut st.transcript, cx.common);
+            emit_finished(&st.secrets, &mut st.transcript, cx.common).await;
         }
 
         cx.common.start_traffic();

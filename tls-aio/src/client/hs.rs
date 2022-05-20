@@ -256,27 +256,29 @@ async fn emit_client_hello_for_retry(
         && resume_version == ProtocolVersion::TLSv1_3
         && !ticket.is_empty()
     {
-        resuming_session
-            .as_ref()
-            .and_then(|resuming| match (suite, resuming.tls13()) {
-                (Some(suite), Some(resuming)) => {
-                    suite.tls13()?.can_resume_from(resuming.suite())?;
-                    Some(resuming)
-                }
-                (None, Some(resuming)) => Some(resuming),
-                _ => None,
-            })
-            .map(|resuming| {
-                tls13::prepare_resumption(
-                    &config,
-                    cx,
-                    ticket,
-                    &resuming,
-                    &mut exts,
-                    retryreq.is_some(),
-                );
-                resuming
-            })
+        let resuming =
+            resuming_session
+                .as_ref()
+                .and_then(|resuming| match (suite, resuming.tls13()) {
+                    (Some(suite), Some(resuming)) => {
+                        suite.tls13()?.can_resume_from(resuming.suite())?;
+                        Some(resuming)
+                    }
+                    (None, Some(resuming)) => Some(resuming),
+                    _ => None,
+                });
+        if let Some(ref resuming) = resuming {
+            tls13::prepare_resumption(
+                &config,
+                cx,
+                ticket,
+                &resuming,
+                &mut exts,
+                retryreq.is_some(),
+            )
+            .await;
+        }
+        resuming
     } else if config.enable_tickets {
         // If we have a ticket, include it.  Otherwise, request one.
         if ticket.is_empty() {
@@ -333,31 +335,33 @@ async fn emit_client_hello_for_retry(
     if retryreq.is_some() {
         // send dummy CCS to fool middleboxes prior
         // to second client hello
-        tls13::emit_fake_ccs(&mut sent_tls13_fake_ccs, cx.common);
+        tls13::emit_fake_ccs(&mut sent_tls13_fake_ccs, cx.common).await;
     }
 
     trace!("Sending ClientHello {:#?}", ch);
 
     transcript_buffer.add_message(&ch);
-    cx.common.send_msg(ch, false);
+    cx.common.send_msg(ch, false).await;
 
     // Calculate the hash of ClientHello and use it to derive EarlyTrafficSecret
-    let early_key_schedule = early_key_schedule.map(|(resuming_suite, schedule)| {
-        if !cx.data.early_data.is_enabled() {
-            return schedule;
+    let early_key_schedule = match early_key_schedule {
+        Some((resuming_suite, schedule)) => {
+            if cx.data.early_data.is_enabled() {
+                tls13::derive_early_traffic_secret(
+                    &*config.key_log,
+                    cx,
+                    resuming_suite,
+                    &schedule,
+                    &mut sent_tls13_fake_ccs,
+                    &transcript_buffer,
+                    &random.0,
+                )
+                .await;
+            }
+            Some(schedule)
         }
-
-        tls13::derive_early_traffic_secret(
-            &*config.key_log,
-            cx,
-            resuming_suite,
-            &schedule,
-            &mut sent_tls13_fake_ccs,
-            &transcript_buffer,
-            &random.0,
-        );
-        schedule
-    });
+        None => None,
+    };
 
     let next = ExpectServerHello {
         config,
@@ -381,7 +385,7 @@ async fn emit_client_hello_for_retry(
     }
 }
 
-pub(super) fn process_alpn_protocol(
+pub(super) async fn process_alpn_protocol(
     common: &mut CommonState,
     config: &ClientConfig,
     proto: Option<&[u8]>,
@@ -390,7 +394,9 @@ pub(super) fn process_alpn_protocol(
 
     if let Some(alpn_protocol) = &common.alpn_protocol {
         if !config.alpn_protocols.contains(alpn_protocol) {
-            return Err(common.illegal_param("server sent non-offered ALPN protocol"));
+            return Err(common
+                .illegal_param("server sent non-offered ALPN protocol")
+                .await);
         }
     }
 
@@ -441,14 +447,16 @@ impl State<ClientConnectionData> for ExpectServerHello {
                 if server_hello.get_supported_versions().is_some() {
                     return Err(cx
                         .common
-                        .illegal_param("server chose v1.2 using v1.3 extension"));
+                        .illegal_param("server chose v1.2 using v1.3 extension")
+                        .await);
                 }
 
                 TLSv1_2
             }
             _ => {
                 cx.common
-                    .send_fatal_alert(AlertDescription::ProtocolVersion);
+                    .send_fatal_alert(AlertDescription::ProtocolVersion)
+                    .await;
                 let msg = match server_version {
                     TLSv1_2 | TLSv1_3 => "server's TLS version is disabled in client",
                     _ => "server does not support TLS v1.2/v1.3",
@@ -458,11 +466,16 @@ impl State<ClientConnectionData> for ExpectServerHello {
         };
 
         if server_hello.compression_method != Compression::Null {
-            return Err(cx.common.illegal_param("server chose non-Null compression"));
+            return Err(cx
+                .common
+                .illegal_param("server chose non-Null compression")
+                .await);
         }
 
         if server_hello.has_duplicate_extension() {
-            cx.common.send_fatal_alert(AlertDescription::DecodeError);
+            cx.common
+                .send_fatal_alert(AlertDescription::DecodeError)
+                .await;
             return Err(Error::PeerMisbehavedError(
                 "server sent duplicate extensions".to_string(),
             ));
@@ -474,7 +487,8 @@ impl State<ClientConnectionData> for ExpectServerHello {
             .server_sent_unsolicited_extensions(&server_hello.extensions, &allowed_unsolicited)
         {
             cx.common
-                .send_fatal_alert(AlertDescription::UnsupportedExtension);
+                .send_fatal_alert(AlertDescription::UnsupportedExtension)
+                .await;
             return Err(Error::PeerMisbehavedError(
                 "server sent unsolicited extension".to_string(),
             ));
@@ -484,7 +498,8 @@ impl State<ClientConnectionData> for ExpectServerHello {
 
         // Extract ALPN protocol
         if !cx.common.is_tls13() {
-            process_alpn_protocol(cx.common, &self.config, server_hello.get_alpn_protocol())?;
+            process_alpn_protocol(cx.common, &self.config, server_hello.get_alpn_protocol())
+                .await?;
         }
 
         // If ECPointFormats extension is supplied by the server, it must contain
@@ -492,33 +507,39 @@ impl State<ClientConnectionData> for ExpectServerHello {
         if let Some(point_fmts) = server_hello.get_ecpoints_extension() {
             if !point_fmts.contains(&ECPointFormat::Uncompressed) {
                 cx.common
-                    .send_fatal_alert(AlertDescription::HandshakeFailure);
+                    .send_fatal_alert(AlertDescription::HandshakeFailure)
+                    .await;
                 return Err(Error::PeerMisbehavedError(
                     "server does not support uncompressed points".to_string(),
                 ));
             }
         }
 
-        let suite = self
-            .config
-            .find_cipher_suite(server_hello.cipher_suite)
-            .ok_or_else(|| {
+        let suite = match self.config.find_cipher_suite(server_hello.cipher_suite) {
+            Some(suite) => suite,
+            None => {
                 cx.common
-                    .send_fatal_alert(AlertDescription::HandshakeFailure);
-                Error::PeerMisbehavedError("server chose non-offered ciphersuite".to_string())
-            })?;
+                    .send_fatal_alert(AlertDescription::HandshakeFailure)
+                    .await;
+                return Err(Error::PeerMisbehavedError(
+                    "server chose non-offered ciphersuite".to_string(),
+                ));
+            }
+        };
 
         if version != suite.version().version {
             return Err(cx
                 .common
-                .illegal_param("server chose unusable ciphersuite for version"));
+                .illegal_param("server chose unusable ciphersuite for version")
+                .await);
         }
 
         match self.suite {
             Some(prev_suite) if prev_suite != suite => {
                 return Err(cx
                     .common
-                    .illegal_param("server varied selected ciphersuite"));
+                    .illegal_param("server varied selected ciphersuite")
+                    .await);
             }
             _ => {
                 debug!("Using ciphersuite {:?}", suite);
@@ -602,7 +623,7 @@ impl ExpectServerHelloOrHelloRetryRequest {
         )?;
         trace!("Got HRR {:?}", hrr);
 
-        cx.common.check_aligned_handshake()?;
+        cx.common.check_aligned_handshake().await?;
 
         let cookie = hrr.get_cookie();
         let req_group = hrr.get_requested_key_share_group();
@@ -615,7 +636,8 @@ impl ExpectServerHelloOrHelloRetryRequest {
         if cookie.is_none() && req_group == Some(offered_key_share.group()) {
             return Err(cx
                 .common
-                .illegal_param("server requested hrr with our group"));
+                .illegal_param("server requested hrr with our group")
+                .await);
         }
 
         // Or has an empty cookie.
@@ -623,14 +645,16 @@ impl ExpectServerHelloOrHelloRetryRequest {
             if cookie.0.is_empty() {
                 return Err(cx
                     .common
-                    .illegal_param("server requested hrr with empty cookie"));
+                    .illegal_param("server requested hrr with empty cookie")
+                    .await);
             }
         }
 
         // Or has something unrecognised
         if hrr.has_unknown_extension() {
             cx.common
-                .send_fatal_alert(AlertDescription::UnsupportedExtension);
+                .send_fatal_alert(AlertDescription::UnsupportedExtension)
+                .await;
             return Err(Error::PeerIncompatibleError(
                 "server sent hrr with unhandled extension".to_string(),
             ));
@@ -640,14 +664,16 @@ impl ExpectServerHelloOrHelloRetryRequest {
         if hrr.has_duplicate_extension() {
             return Err(cx
                 .common
-                .illegal_param("server send duplicate hrr extensions"));
+                .illegal_param("server send duplicate hrr extensions")
+                .await);
         }
 
         // Or asks us to change nothing.
         if cookie.is_none() && req_group.is_none() {
             return Err(cx
                 .common
-                .illegal_param("server requested hrr with no changes"));
+                .illegal_param("server requested hrr with no changes")
+                .await);
         }
 
         // Or asks us to talk a protocol we didn't offer, or doesn't support HRR at all.
@@ -658,7 +684,8 @@ impl ExpectServerHelloOrHelloRetryRequest {
             _ => {
                 return Err(cx
                     .common
-                    .illegal_param("server requested unsupported version in hrr"));
+                    .illegal_param("server requested unsupported version in hrr")
+                    .await);
             }
         }
 
@@ -669,7 +696,8 @@ impl ExpectServerHelloOrHelloRetryRequest {
             None => {
                 return Err(cx
                     .common
-                    .illegal_param("server requested unsupported cs in hrr"));
+                    .illegal_param("server requested unsupported cs in hrr")
+                    .await);
             }
         };
 
@@ -690,11 +718,15 @@ impl ExpectServerHelloOrHelloRetryRequest {
 
         let key_share = match req_group {
             Some(group) if group != offered_key_share.group() => {
-                let group = kx::KeyExchange::choose(group, &self.next.config.kx_groups)
-                    .ok_or_else(|| {
-                        cx.common
+                let group = match kx::KeyExchange::choose(group, &self.next.config.kx_groups) {
+                    Some(group) => group,
+                    None => {
+                        return Err(cx
+                            .common
                             .illegal_param("server requested hrr with bad group")
-                    })?;
+                            .await)
+                    }
+                };
                 kx::KeyExchange::start(group).ok_or(Error::FailedToGetRandomBytes)?
             }
             _ => offered_key_share,
@@ -742,16 +774,20 @@ impl State<ClientConnectionData> for ExpectServerHelloOrHelloRetryRequest {
     }
 }
 
-pub(super) fn send_cert_error_alert(common: &mut CommonState, err: Error) -> Error {
+pub(super) async fn send_cert_error_alert(common: &mut CommonState, err: Error) -> Error {
     match err {
         Error::InvalidCertificateEncoding => {
-            common.send_fatal_alert(AlertDescription::DecodeError);
+            common.send_fatal_alert(AlertDescription::DecodeError).await;
         }
         Error::PeerMisbehavedError(_) => {
-            common.send_fatal_alert(AlertDescription::IllegalParameter);
+            common
+                .send_fatal_alert(AlertDescription::IllegalParameter)
+                .await;
         }
         _ => {
-            common.send_fatal_alert(AlertDescription::BadCertificate);
+            common
+                .send_fatal_alert(AlertDescription::BadCertificate)
+                .await;
         }
     };
 
