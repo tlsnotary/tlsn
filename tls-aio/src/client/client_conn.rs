@@ -371,46 +371,6 @@ impl EarlyData {
     }
 }
 
-/// Stub that implements io::Write and dispatches to `write_early_data`.
-pub struct WriteEarlyData<'a> {
-    sess: &'a mut ClientConnection,
-    fut: Option<futures::future::BoxFuture<'a, io::Result<usize>>>,
-}
-
-impl<'a> WriteEarlyData<'a> {
-    fn new(sess: &'a mut ClientConnection) -> WriteEarlyData<'a> {
-        WriteEarlyData { sess, fut: None }
-    }
-
-    /// How many bytes you may send.  Writes will become short
-    /// once this reaches zero.
-    pub fn bytes_left(&self) -> usize {
-        self.sess.inner.data.early_data.bytes_left()
-    }
-}
-
-impl<'a> AsyncWrite for WriteEarlyData<'a> {
-    fn poll_write(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<Result<usize, io::Error>> {
-        let fut = match self.fut {
-            Some(fut) => fut,
-            None => Box::pin(self.sess.write_early_data(buf)),
-        };
-        fut.as_mut().poll(cx)
-    }
-
-    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
-        Poll::Ready(Ok(()))
-    }
-}
-
 /// This represents a single TLS client connection.
 pub struct ClientConnection {
     inner: ConnectionCommon,
@@ -451,31 +411,31 @@ impl ClientConnection {
         Ok(Self { inner })
     }
 
-    /// Returns an `io::Write` implementer you can write bytes to
-    /// to send TLS1.3 early data (a.k.a. "0-RTT data") to the server.
-    ///
-    /// This returns None in many circumstances when the capability to
-    /// send early data is not available, including but not limited to:
-    ///
-    /// - The server hasn't been talked to previously.
-    /// - The server does not support resumption.
-    /// - The server does not support early data.
-    /// - The resumption data for the server has expired.
-    ///
-    /// The server specifies a maximum amount of early data.  You can
-    /// learn this limit through the returned object, and writes through
-    /// it will process only this many bytes.
-    ///
-    /// The server can choose not to accept any sent early data --
-    /// in this case the data is lost but the connection continues.  You
-    /// can tell this happened using `is_early_data_accepted`.
-    pub fn early_data(&mut self) -> Option<WriteEarlyData> {
-        if self.inner.data.early_data.is_enabled() {
-            Some(WriteEarlyData::new(self))
-        } else {
-            None
-        }
-    }
+    // /// Returns an `io::Write` implementer you can write bytes to
+    // /// to send TLS1.3 early data (a.k.a. "0-RTT data") to the server.
+    // ///
+    // /// This returns None in many circumstances when the capability to
+    // /// send early data is not available, including but not limited to:
+    // ///
+    // /// - The server hasn't been talked to previously.
+    // /// - The server does not support resumption.
+    // /// - The server does not support early data.
+    // /// - The resumption data for the server has expired.
+    // ///
+    // /// The server specifies a maximum amount of early data.  You can
+    // /// learn this limit through the returned object, and writes through
+    // /// it will process only this many bytes.
+    // ///
+    // /// The server can choose not to accept any sent early data --
+    // /// in this case the data is lost but the connection continues.  You
+    // /// can tell this happened using `is_early_data_accepted`.
+    // pub fn early_data(&mut self) -> Option<WriteEarlyData> {
+    //     if self.inner.data.early_data.is_enabled() {
+    //         Some(WriteEarlyData::new(self))
+    //     } else {
+    //         None
+    //     }
+    // }
 
     /// Returns True if the server signalled it will process early data.
     ///
