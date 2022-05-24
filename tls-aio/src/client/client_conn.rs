@@ -19,11 +19,8 @@ use super::hs;
 use std::convert::TryFrom;
 use std::error::Error as StdError;
 use std::ops::{Deref, DerefMut};
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
 use std::{fmt, io, mem};
-use tokio::io::AsyncWrite;
 
 /// A trait for the ability to store client session data.
 /// The keys and values are opaque.

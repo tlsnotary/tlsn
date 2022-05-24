@@ -35,7 +35,6 @@ use crate::client::common::{ClientAuthDetails, ClientHelloDetails};
 use crate::client::{hs, ClientConfig, ServerName, StoresClientSessions};
 
 use crate::ticketer::TimeBase;
-use futures::Future;
 use ring::constant_time;
 
 use crate::sign::{CertifiedKey, Signer};
@@ -918,7 +917,7 @@ impl State<ClientConnectionData> for ExpectFinished {
             .record_layer
             .set_message_encrypter(st.suite.derive_encrypter(&client_key));
 
-        cx.common.start_traffic();
+        cx.common.start_traffic().await;
 
         let st = ExpectTraffic {
             session_storage: Arc::clone(&st.config.session_storage),

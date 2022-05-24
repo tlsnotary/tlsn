@@ -261,8 +261,7 @@ impl ConnectionSecrets {
             suite,
             master_secret: [0u8; 48],
         };
-        ret.master_secret
-            .copy_from_slice(master_secret);
+        ret.master_secret.copy_from_slice(master_secret);
         ret
     }
 
@@ -299,21 +298,11 @@ impl ConnectionSecrets {
                 server_write_key,
                 server_write_iv,
             ),
-            Side::Server => (
-                server_write_key,
-                server_write_iv,
-                client_write_key,
-                client_write_iv,
-            ),
         };
 
         (
-            suite
-                .aead_alg
-                .decrypter(read_key, read_iv),
-            suite
-                .aead_alg
-                .encrypter(write_key, write_iv, extra),
+            suite.aead_alg.decrypter(read_key, read_iv),
+            suite.aead_alg.encrypter(write_key, write_iv, extra),
         )
     }
 
@@ -421,14 +410,18 @@ fn join_randoms(first: &[u8; 32], second: &[u8; 32]) -> [u8; 64] {
 
 type MessageCipherPair = (Box<dyn MessageDecrypter>, Box<dyn MessageEncrypter>);
 
-pub(crate) fn decode_ecdh_params<T: Codec>(
+pub(crate) async fn decode_ecdh_params<T: Codec>(
     common: &mut CommonState,
     kx_params: &[u8],
 ) -> Result<T, Error> {
-    decode_ecdh_params_::<T>(kx_params).ok_or_else(|| {
-        common.send_fatal_alert(AlertDescription::DecodeError);
-        Error::CorruptMessagePayload(ContentType::Handshake)
-    })
+    let ecdh_params = decode_ecdh_params_::<T>(kx_params);
+    match ecdh_params {
+        Some(ecdh_params) => Ok(ecdh_params),
+        None => {
+            common.send_fatal_alert(AlertDescription::DecodeError).await;
+            Err(Error::CorruptMessagePayload(ContentType::Handshake))
+        }
+    }
 }
 
 fn decode_ecdh_params_<T: Codec>(kx_params: &[u8]) -> Option<T> {
