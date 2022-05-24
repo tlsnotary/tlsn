@@ -803,7 +803,8 @@ impl State<ClientConnectionData> for ExpectServerDone {
 
         // 5a.
         let ecdh_params =
-            tls12::decode_ecdh_params::<ServerECDHParams>(cx.common, &st.server_kx.kx_params)?;
+            tls12::decode_ecdh_params::<ServerECDHParams>(cx.common, &st.server_kx.kx_params)
+                .await?;
         let group =
             kx::KeyExchange::choose(ecdh_params.curve_params.named_group, &st.config.kx_groups)
                 .ok_or_else(|| {
@@ -1083,7 +1084,7 @@ impl State<ClientConnectionData> for ExpectFinished {
             emit_finished(&st.secrets, &mut st.transcript, cx.common).await;
         }
 
-        cx.common.start_traffic();
+        cx.common.start_traffic().await;
         Ok(Box::new(ExpectTraffic {
             secrets: st.secrets,
             _cert_verified: st.cert_verified,

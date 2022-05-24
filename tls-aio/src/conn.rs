@@ -20,19 +20,13 @@ use crate::suites::SupportedCipherSuite;
 use crate::tls12::ConnectionSecrets;
 use crate::vecbuf::ChunkVecBuffer;
 
+use async_recursion::async_recursion;
 use async_trait::async_trait;
-use futures::future::BoxFuture;
-use futures::ready;
 use std::collections::VecDeque;
 use std::convert::TryFrom;
 use std::io;
 use std::mem;
 use std::ops::{Deref, DerefMut};
-use std::pin::Pin;
-use std::sync::Arc;
-use std::task;
-use tokio::io::AsyncWrite;
-use tokio_util::sync::ReusableBoxFuture;
 
 /// Values of this structure are returned from [`Connection::process_new_packets`]
 /// and tell the caller the current I/O state of the TLS connection.
@@ -205,7 +199,6 @@ pub struct ConnectionCommon {
     pub(crate) common_state: CommonState,
     message_deframer: MessageDeframer,
     handshake_joiner: HandshakeJoiner,
-    write_fut: Option<ReusableBoxFuture<'static, usize>>,
 }
 
 impl ConnectionCommon {
@@ -220,7 +213,6 @@ impl ConnectionCommon {
             common_state,
             message_deframer: MessageDeframer::new(),
             handshake_joiner: HandshakeJoiner::new(),
-            write_fut: None,
         }
     }
 
@@ -682,7 +674,6 @@ impl CommonState {
         if self.may_receive_application_data && !self.is_tls13() {
             let reject_ty = match self.side {
                 Side::Client => HandshakeType::HelloRequest,
-                Side::Server => HandshakeType::ClientHello,
             };
             if msg.is_handshake_type(reject_ty) {
                 self.send_warning_alert(AlertDescription::NoRenegotiation)
@@ -782,6 +773,7 @@ impl CommonState {
 
     /// Fragment `m`, encrypt the fragments, and then queue
     /// the encrypted fragments for sending.
+    #[async_recursion]
     pub(crate) async fn send_msg_encrypt(&mut self, m: PlainMessage) {
         let mut plain_messages = VecDeque::new();
         self.message_fragmenter.fragment(m, &mut plain_messages);
@@ -871,14 +863,14 @@ impl CommonState {
         self.send_appdata_encrypt(data, limit).await
     }
 
-    pub(crate) fn start_outgoing_traffic(&mut self) {
+    pub(crate) async fn start_outgoing_traffic(&mut self) {
         self.may_send_application_data = true;
-        self.flush_plaintext();
+        self.flush_plaintext().await;
     }
 
-    pub(crate) fn start_traffic(&mut self) {
+    pub(crate) async fn start_traffic(&mut self) {
         self.may_receive_application_data = true;
-        self.start_outgoing_traffic();
+        self.start_outgoing_traffic().await;
     }
 
     /// Sets a limit on the internal buffers used to buffer
@@ -1085,7 +1077,6 @@ pub(crate) struct Context<'a> {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Side {
     Client,
-    Server,
 }
 
 /// Data specific to the peer's side (client or server).
