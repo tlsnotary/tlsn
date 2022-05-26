@@ -476,28 +476,30 @@ pub fn make_client_config_with_versions_with_auth(
     finish_client_config_with_creds(kt, builder)
 }
 
-pub fn make_pair(kt: KeyType) -> (ClientConnection, ServerConnection) {
-    make_pair_for_configs(make_client_config(kt), make_server_config(kt))
+pub async fn make_pair(kt: KeyType) -> (ClientConnection, ServerConnection) {
+    make_pair_for_configs(make_client_config(kt), make_server_config(kt)).await
 }
 
-pub fn make_pair_for_configs(
+pub async fn make_pair_for_configs(
     client_config: ClientConfig,
     server_config: ServerConfig,
 ) -> (ClientConnection, ServerConnection) {
-    make_pair_for_arc_configs(&Arc::new(client_config), &Arc::new(server_config))
+    make_pair_for_arc_configs(&Arc::new(client_config), &Arc::new(server_config)).await
 }
 
-pub fn make_pair_for_arc_configs(
+pub async fn make_pair_for_arc_configs(
     client_config: &Arc<ClientConfig>,
     server_config: &Arc<ServerConfig>,
 ) -> (ClientConnection, ServerConnection) {
     (
-        ClientConnection::new(Arc::clone(client_config), dns_name("localhost")).unwrap(),
+        ClientConnection::new(Arc::clone(client_config), dns_name("localhost"))
+            .await
+            .unwrap(),
         ServerConnection::new(Arc::clone(server_config)).unwrap(),
     )
 }
 
-pub fn do_handshake(
+pub async fn do_handshake(
     client: &mut ClientConnection,
     server: &mut ServerConnection,
 ) -> (usize, usize) {
@@ -506,7 +508,7 @@ pub fn do_handshake(
         to_server += send(client, server);
         server.process_new_packets().unwrap();
         to_client += receive(server, client);
-        client.process_new_packets().unwrap();
+        client.process_new_packets().await.unwrap();
     }
     (to_server, to_client)
 }
@@ -517,7 +519,7 @@ pub enum ErrorFromPeer {
     Server(rustls::Error),
 }
 
-pub fn do_handshake_until_error(
+pub async fn do_handshake_until_error(
     client: &mut ClientConnection,
     server: &mut ServerConnection,
 ) -> Result<(), ErrorFromPeer> {
@@ -529,22 +531,24 @@ pub fn do_handshake_until_error(
         receive(server, client);
         client
             .process_new_packets()
+            .await
             .map_err(ErrorFromPeer::Client)?;
     }
 
     Ok(())
 }
 
-pub fn do_handshake_until_both_error(
+pub async fn do_handshake_until_both_error(
     client: &mut ClientConnection,
     server: &mut ServerConnection,
 ) -> Result<(), Vec<ErrorFromPeer>> {
-    match do_handshake_until_error(client, server) {
+    match do_handshake_until_error(client, server).await {
         Err(server_err @ ErrorFromPeer::Server(_)) => {
             let mut errors = vec![server_err];
             receive(server, client);
             let client_err = client
                 .process_new_packets()
+                .await
                 .map_err(ErrorFromPeer::Client)
                 .expect_err("client didn't produce error after server error");
             errors.push(client_err);

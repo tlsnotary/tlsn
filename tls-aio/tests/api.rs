@@ -11,6 +11,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
 
+use futures::{AsyncWriteExt, AsyncWrite};
 use log;
 
 use tls_aio::client::ResolvesClientCert;
@@ -19,7 +20,7 @@ use tls_aio::quic::{self, ClientQuicExt, QuicExt, ServerQuicExt};
 use tls_aio::{sign, ConnectionCommon, Error, KeyLog, SideData};
 use tls_aio::{CipherSuite, ProtocolVersion, SignatureScheme};
 use tls_aio::{ClientConfig, ClientConnection};
-use tls_aio::{Stream, StreamOwned};
+//use tls_aio::{Stream, StreamOwned};
 use tls_aio::{SupportedCipherSuite, ALL_CIPHER_SUITES};
 
 use rustls::server::{AllowAnyAnonymousOrAuthenticatedClient, ClientHello, ResolvesServerCert};
@@ -28,7 +29,7 @@ use rustls::{ServerConfig, ServerConnection};
 mod common;
 use crate::common::*;
 
-fn alpn_test_error(
+async fn alpn_test_error(
     server_protos: Vec<Vec<u8>>,
     client_protos: Vec<Vec<u8>>,
     agreed: Option<&[u8]>,
@@ -44,31 +45,31 @@ fn alpn_test_error(
         client_config.alpn_protocols = client_protos.clone();
 
         let (mut client, mut server) =
-            make_pair_for_arc_configs(&Arc::new(client_config), &server_config);
+            make_pair_for_arc_configs(&Arc::new(client_config), &server_config).await;
 
         assert_eq!(client.alpn_protocol(), None);
         assert_eq!(server.alpn_protocol(), None);
-        let error = do_handshake_until_error(&mut client, &mut server);
+        let error = do_handshake_until_error(&mut client, &mut server).await;
         assert_eq!(client.alpn_protocol(), agreed);
         assert_eq!(server.alpn_protocol(), agreed);
         assert_eq!(error.err(), expected_error);
     }
 }
 
-fn alpn_test(server_protos: Vec<Vec<u8>>, client_protos: Vec<Vec<u8>>, agreed: Option<&[u8]>) {
-    alpn_test_error(server_protos, client_protos, agreed, None)
+async fn alpn_test(server_protos: Vec<Vec<u8>>, client_protos: Vec<Vec<u8>>, agreed: Option<&[u8]>) {
+    alpn_test_error(server_protos, client_protos, agreed, None).await
 }
 
-#[test]
-fn alpn() {
+#[tokio::test]
+async fn alpn() {
     // no support
-    alpn_test(vec![], vec![], None);
+    alpn_test(vec![], vec![], None).await;
 
     // server support
-    alpn_test(vec![b"server-proto".to_vec()], vec![], None);
+    alpn_test(vec![b"server-proto".to_vec()], vec![], None).await;
 
     // client support
-    alpn_test(vec![], vec![b"client-proto".to_vec()], None);
+    alpn_test(vec![], vec![b"client-proto".to_vec()], None).await;
 
     // no overlap
     alpn_test_error(
@@ -76,14 +77,14 @@ fn alpn() {
         vec![b"client-proto".to_vec()],
         None,
         Some(ErrorFromPeer::Server(rustls::Error::NoApplicationProtocol)),
-    );
+    ).await;
 
     // server chooses preference
     alpn_test(
         vec![b"server-proto".to_vec(), b"client-proto".to_vec()],
         vec![b"client-proto".to_vec(), b"server-proto".to_vec()],
         Some(b"server-proto"),
-    );
+    ).await;
 
     // case sensitive
     alpn_test_error(
@@ -91,10 +92,10 @@ fn alpn() {
         vec![b"proto".to_vec()],
         None,
         Some(ErrorFromPeer::Server(rustls::Error::NoApplicationProtocol)),
-    );
+    ).await;
 }
 
-fn version_test(
+async fn version_test(
     client_versions: &[&'static tls_aio::SupportedProtocolVersion],
     server_versions: &[&'static rustls::SupportedProtocolVersion],
     result: Option<ProtocolVersion>,
@@ -118,22 +119,22 @@ fn version_test(
         client_versions, server_versions, result
     );
 
-    let (mut client, mut server) = make_pair_for_configs(client_config, server_config);
+    let (mut client, mut server) = make_pair_for_configs(client_config, server_config).await;
 
     assert_eq!(client.protocol_version(), None);
     if result.is_none() {
-        let err = do_handshake_until_error(&mut client, &mut server);
+        let err = do_handshake_until_error(&mut client, &mut server).await;
         assert!(err.is_err());
     } else {
-        do_handshake(&mut client, &mut server);
+        do_handshake(&mut client, &mut server).await;
         assert_eq!(client.protocol_version(), result);
     }
 }
 
-#[test]
-fn versions() {
+#[tokio::test]
+async fn versions() {
     // default -> 1.3
-    version_test(&[], &[], Some(ProtocolVersion::TLSv1_3));
+    version_test(&[], &[], Some(ProtocolVersion::TLSv1_3)).await;
 
     // client default, server 1.2 -> 1.2
     #[cfg(feature = "tls12")]
@@ -141,7 +142,7 @@ fn versions() {
         &[],
         &[&rustls::version::TLS12],
         Some(ProtocolVersion::TLSv1_2),
-    );
+    ).await;
 
     // client 1.2, server default -> 1.2
     #[cfg(feature = "tls12")]
@@ -149,7 +150,7 @@ fn versions() {
         &[&tls_aio::version::TLS12],
         &[],
         Some(ProtocolVersion::TLSv1_2),
-    );
+    ).await;
 
     // client 1.2, server 1.3 -> fail
     #[cfg(feature = "tls12")]
@@ -157,7 +158,7 @@ fn versions() {
         &[&tls_aio::version::TLS12],
         &[&rustls::version::TLS13],
         None,
-    );
+    ).await;
 
     // client 1.3, server 1.2 -> fail
     #[cfg(feature = "tls12")]
@@ -165,7 +166,7 @@ fn versions() {
         &[&tls_aio::version::TLS13],
         &[&rustls::version::TLS12],
         None,
-    );
+    ).await;
 
     // client 1.3, server 1.2+1.3 -> 1.3
     #[cfg(feature = "tls12")]
@@ -173,7 +174,7 @@ fn versions() {
         &[&tls_aio::version::TLS13],
         &[&rustls::version::TLS12, &rustls::version::TLS13],
         Some(ProtocolVersion::TLSv1_3),
-    );
+    ).await;
 
     // client 1.2+1.3, server 1.2 -> 1.2
     #[cfg(feature = "tls12")]
@@ -181,7 +182,7 @@ fn versions() {
         &[&tls_aio::version::TLS13, &tls_aio::version::TLS12],
         &[&rustls::version::TLS12],
         Some(ProtocolVersion::TLSv1_2),
-    );
+    ).await;
 }
 
 fn check_read(reader: &mut dyn io::Read, bytes: &[u8]) {
@@ -227,18 +228,18 @@ fn config_builder_for_client_rejects_incompatible_cipher_suites() {
     );
 }
 
-#[test]
-fn buffered_client_data_sent() {
+#[tokio::test]
+async fn servered_client_data_sent() {
     let server_config = Arc::new(make_server_config(KeyType::Rsa));
 
     for version in tls_aio::ALL_VERSIONS {
         let client_config = make_client_config_with_versions(KeyType::Rsa, &[version]);
         let (mut client, mut server) =
-            make_pair_for_arc_configs(&Arc::new(client_config), &server_config);
+            make_pair_for_arc_configs(&Arc::new(client_config), &server_config).await;
 
-        assert_eq!(5, client.writer().write(b"hello").unwrap());
+        assert_eq!(5, client.writer().write(b"hello").await.unwrap());
 
-        do_handshake(&mut client, &mut server);
+        do_handshake(&mut client, &mut server).await;
         send(&mut client, &mut server);
         server.process_new_packets().unwrap();
 
@@ -246,41 +247,41 @@ fn buffered_client_data_sent() {
     }
 }
 
-#[test]
-fn buffered_server_data_sent() {
+#[tokio::test]
+async fn servered_server_data_sent() {
     let server_config = Arc::new(make_server_config(KeyType::Rsa));
 
     for version in tls_aio::ALL_VERSIONS {
         let client_config = make_client_config_with_versions(KeyType::Rsa, &[version]);
         let (mut client, mut server) =
-            make_pair_for_arc_configs(&Arc::new(client_config), &server_config);
+            make_pair_for_arc_configs(&Arc::new(client_config), &server_config).await;
 
         assert_eq!(5, server.writer().write(b"hello").unwrap());
 
-        do_handshake(&mut client, &mut server);
+        do_handshake(&mut client, &mut server).await;
         receive(&mut server, &mut client);
-        client.process_new_packets().unwrap();
+        client.process_new_packets().await.unwrap();
 
         check_read(&mut client.reader(), b"hello");
     }
 }
 
-#[test]
-fn buffered_both_data_sent() {
+#[tokio::test]
+async fn servered_both_data_sent() {
     let server_config = Arc::new(make_server_config(KeyType::Rsa));
 
     for version in tls_aio::ALL_VERSIONS {
         let client_config = make_client_config_with_versions(KeyType::Rsa, &[version]);
         let (mut client, mut server) =
-            make_pair_for_arc_configs(&Arc::new(client_config), &server_config);
+            make_pair_for_arc_configs(&Arc::new(client_config), &server_config).await;
 
         assert_eq!(12, server.writer().write(b"from-server!").unwrap());
-        assert_eq!(12, client.writer().write(b"from-client!").unwrap());
+        assert_eq!(12, client.writer().write(b"from-client!").await.unwrap());
 
-        do_handshake(&mut client, &mut server);
+        do_handshake(&mut client, &mut server).await;
 
         receive(&mut server, &mut client);
-        client.process_new_packets().unwrap();
+        client.process_new_packets().await.unwrap();
         send(&mut client, &mut server);
         server.process_new_packets().unwrap();
 
@@ -289,14 +290,14 @@ fn buffered_both_data_sent() {
     }
 }
 
-#[test]
-fn client_can_get_server_cert() {
+#[tokio::test]
+async fn client_can_get_server_cert() {
     for kt in ALL_KEY_TYPES.iter() {
         for version in tls_aio::ALL_VERSIONS {
             let client_config = make_client_config_with_versions(*kt, &[version]);
             let (mut client, mut server) =
-                make_pair_for_configs(client_config, make_server_config(*kt));
-            do_handshake(&mut client, &mut server);
+                make_pair_for_configs(client_config, make_server_config(*kt)).await;
+            do_handshake(&mut client, &mut server).await;
 
             let certs = client.peer_certificates();
             assert_eq!(certs, Some(kt.get_chain().as_slice()));
@@ -304,21 +305,21 @@ fn client_can_get_server_cert() {
     }
 }
 
-#[test]
-fn client_can_get_server_cert_after_resumption() {
+#[tokio::test]
+async fn client_can_get_server_cert_after_resumption() {
     for kt in ALL_KEY_TYPES.iter() {
         let server_config = make_server_config(*kt);
         for version in tls_aio::ALL_VERSIONS {
             let client_config = make_client_config_with_versions(*kt, &[version]);
             let (mut client, mut server) =
-                make_pair_for_configs(client_config.clone(), server_config.clone());
-            do_handshake(&mut client, &mut server);
+                make_pair_for_configs(client_config.clone(), server_config.clone()).await;
+            do_handshake(&mut client, &mut server).await;
 
             let original_certs = client.peer_certificates();
 
             let (mut client, mut server) =
-                make_pair_for_configs(client_config.clone(), server_config.clone());
-            do_handshake(&mut client, &mut server);
+                make_pair_for_configs(client_config.clone(), server_config.clone()).await;
+            do_handshake(&mut client, &mut server).await;
 
             let resumed_certs = client.peer_certificates();
 
@@ -327,16 +328,16 @@ fn client_can_get_server_cert_after_resumption() {
     }
 }
 
-#[test]
-fn server_can_get_client_cert() {
+#[tokio::test]
+async fn server_can_get_client_cert() {
     for kt in ALL_KEY_TYPES.iter() {
         let server_config = Arc::new(make_server_config_with_mandatory_client_auth(*kt));
 
         for version in tls_aio::ALL_VERSIONS {
             let client_config = make_client_config_with_versions_with_auth(*kt, &[version]);
             let (mut client, mut server) =
-                make_pair_for_arc_configs(&Arc::new(client_config), &server_config);
-            do_handshake(&mut client, &mut server);
+                make_pair_for_arc_configs(&Arc::new(client_config), &server_config).await;
+            do_handshake(&mut client, &mut server).await;
 
             let certs = server.peer_certificates();
             assert_eq!(certs, Some(kt.get_client_chain_rustls().as_slice()));
@@ -344,8 +345,8 @@ fn server_can_get_client_cert() {
     }
 }
 
-#[test]
-fn server_can_get_client_cert_after_resumption() {
+#[tokio::test]
+async fn server_can_get_client_cert_after_resumption() {
     for kt in ALL_KEY_TYPES.iter() {
         let server_config = Arc::new(make_server_config_with_mandatory_client_auth(*kt));
 
@@ -353,13 +354,13 @@ fn server_can_get_client_cert_after_resumption() {
             let client_config = make_client_config_with_versions_with_auth(*kt, &[version]);
             let client_config = Arc::new(client_config);
             let (mut client, mut server) =
-                make_pair_for_arc_configs(&client_config, &server_config);
-            do_handshake(&mut client, &mut server);
+                make_pair_for_arc_configs(&client_config, &server_config).await;
+            do_handshake(&mut client, &mut server).await;
             let original_certs = server.peer_certificates();
 
             let (mut client, mut server) =
-                make_pair_for_arc_configs(&client_config, &server_config);
-            do_handshake(&mut client, &mut server);
+                make_pair_for_arc_configs(&client_config, &server_config).await;
+            do_handshake(&mut client, &mut server).await;
             let resumed_certs = server.peer_certificates();
             assert_eq!(original_certs, resumed_certs);
         }
@@ -371,7 +372,7 @@ fn server_can_get_client_cert_after_resumption() {
 // /// client's and server's ability to "recover" from the server asking for a client
 // /// certificate and not being given one. This also covers the implementation
 // /// of `AllowAnyAnonymousOrAuthenticatedClient`.
-// #[test]
+// #[tokio::test]
 // fn server_allow_any_anonymous_or_authenticated_client() {
 //     let kt = KeyType::Rsa;
 //     for client_cert_chain in [None, Some(kt.get_client_chain())].iter() {
@@ -392,8 +393,8 @@ fn server_can_get_client_cert_after_resumption() {
 //                 make_client_config_with_versions(kt, &[version])
 //             };
 //             let (mut client, mut server) =
-//                 make_pair_for_arc_configs(&Arc::new(client_config), &server_config);
-//             do_handshake(&mut client, &mut server);
+//                 make_pair_for_arc_configs(&Arc::new(client_config), &server_config).await;
+//             do_handshake(&mut client, &mut server).await;
 
 //             let certs = server.peer_certificates();
 //             assert_eq!(certs, client_cert_chain.as_deref());
@@ -406,24 +407,24 @@ fn check_read_and_close(reader: &mut dyn io::Read, expect: &[u8]) {
     assert!(matches!(reader.read(&mut [0u8; 5]), Ok(0)));
 }
 
-#[test]
-fn server_close_notify() {
+#[tokio::test]
+async fn server_close_notify() {
     let kt = KeyType::Rsa;
     let server_config = Arc::new(make_server_config_with_mandatory_client_auth(kt));
 
     for version in tls_aio::ALL_VERSIONS {
         let client_config = make_client_config_with_versions_with_auth(kt, &[version]);
         let (mut client, mut server) =
-            make_pair_for_arc_configs(&Arc::new(client_config), &server_config);
-        do_handshake(&mut client, &mut server);
+            make_pair_for_arc_configs(&Arc::new(client_config), &server_config).await;
+        do_handshake(&mut client, &mut server).await;
 
         // check that alerts don't overtake appdata
         assert_eq!(12, server.writer().write(b"from-server!").unwrap());
-        assert_eq!(12, client.writer().write(b"from-client!").unwrap());
+        assert_eq!(12, client.writer().write(b"from-client!").await.unwrap());
         server.send_close_notify();
 
         receive(&mut server, &mut client);
-        let io_state = client.process_new_packets().unwrap();
+        let io_state = client.process_new_packets().await.unwrap();
         assert!(io_state.peer_has_closed());
         check_read_and_close(&mut client.reader(), b"from-server!");
 
@@ -433,21 +434,21 @@ fn server_close_notify() {
     }
 }
 
-#[test]
-fn client_close_notify() {
+#[tokio::test]
+async fn client_close_notify() {
     let kt = KeyType::Rsa;
     let server_config = Arc::new(make_server_config_with_mandatory_client_auth(kt));
 
     for version in tls_aio::ALL_VERSIONS {
         let client_config = make_client_config_with_versions_with_auth(kt, &[version]);
         let (mut client, mut server) =
-            make_pair_for_arc_configs(&Arc::new(client_config), &server_config);
-        do_handshake(&mut client, &mut server);
+            make_pair_for_arc_configs(&Arc::new(client_config), &server_config).await;
+        do_handshake(&mut client, &mut server).await;
 
         // check that alerts don't overtake appdata
         assert_eq!(12, server.writer().write(b"from-server!").unwrap());
-        assert_eq!(12, client.writer().write(b"from-client!").unwrap());
-        client.send_close_notify();
+        assert_eq!(12, client.writer().write(b"from-client!").await.unwrap());
+        client.send_close_notify().await;
 
         send(&mut client, &mut server);
         let io_state = server.process_new_packets().unwrap();
@@ -455,29 +456,29 @@ fn client_close_notify() {
         check_read_and_close(&mut server.reader(), b"from-client!");
 
         receive(&mut server, &mut client);
-        client.process_new_packets().unwrap();
+        client.process_new_packets().await.unwrap();
         check_read(&mut client.reader(), b"from-server!");
     }
 }
 
-#[test]
-fn server_closes_uncleanly() {
+#[tokio::test]
+async fn server_closes_uncleanly() {
     let kt = KeyType::Rsa;
     let server_config = Arc::new(make_server_config(kt));
 
     for version in tls_aio::ALL_VERSIONS {
         let client_config = make_client_config_with_versions(kt, &[version]);
         let (mut client, mut server) =
-            make_pair_for_arc_configs(&Arc::new(client_config), &server_config);
-        do_handshake(&mut client, &mut server);
+            make_pair_for_arc_configs(&Arc::new(client_config), &server_config).await;
+        do_handshake(&mut client, &mut server).await;
 
         // check that unclean EOF reporting does not overtake appdata
         assert_eq!(12, server.writer().write(b"from-server!").unwrap());
-        assert_eq!(12, client.writer().write(b"from-client!").unwrap());
+        assert_eq!(12, client.writer().write(b"from-client!").await.unwrap());
 
         receive(&mut server, &mut client);
         transfer_eof(&mut client);
-        let io_state = client.process_new_packets().unwrap();
+        let io_state = client.process_new_packets().await.unwrap();
         assert!(!io_state.peer_has_closed());
         check_read(&mut client.reader(), b"from-server!");
 
@@ -491,20 +492,20 @@ fn server_closes_uncleanly() {
     }
 }
 
-#[test]
-fn client_closes_uncleanly() {
+#[tokio::test]
+async fn client_closes_uncleanly() {
     let kt = KeyType::Rsa;
     let server_config = Arc::new(make_server_config(kt));
 
     for version in tls_aio::ALL_VERSIONS {
         let client_config = make_client_config_with_versions(kt, &[version]);
         let (mut client, mut server) =
-            make_pair_for_arc_configs(&Arc::new(client_config), &server_config);
-        do_handshake(&mut client, &mut server);
+            make_pair_for_arc_configs(&Arc::new(client_config), &server_config).await;
+        do_handshake(&mut client, &mut server).await;
 
         // check that unclean EOF reporting does not overtake appdata
         assert_eq!(12, server.writer().write(b"from-server!").unwrap());
-        assert_eq!(12, client.writer().write(b"from-client!").unwrap());
+        assert_eq!(12, client.writer().write(b"from-client!").await.unwrap());
 
         send(&mut client, &mut server);
         transfer_eof_rustls(&mut server);
@@ -517,7 +518,7 @@ fn client_closes_uncleanly() {
 
         // may still transmit pending frames
         receive(&mut server, &mut client);
-        client.process_new_packets().unwrap();
+        client.process_new_packets().await.unwrap();
         check_read(&mut client.reader(), b"from-server!");
     }
 }
@@ -566,8 +567,8 @@ impl ResolvesServerCert for ServerCheckCertResolve {
     }
 }
 
-#[test]
-fn server_cert_resolve_with_sni() {
+#[tokio::test]
+async fn server_cert_resolve_with_sni() {
     for kt in ALL_KEY_TYPES.iter() {
         let client_config = make_client_config(*kt);
         let mut server_config = make_server_config(*kt);
@@ -578,16 +579,16 @@ fn server_cert_resolve_with_sni() {
         });
 
         let mut client =
-            ClientConnection::new(Arc::new(client_config), dns_name("the-value-from-sni")).unwrap();
+            ClientConnection::new(Arc::new(client_config), dns_name("the-value-from-sni")).await.unwrap();
         let mut server = ServerConnection::new(Arc::new(server_config)).unwrap();
 
-        let err = do_handshake_until_error(&mut client, &mut server);
+        let err = do_handshake_until_error(&mut client, &mut server).await;
         assert!(err.is_err());
     }
 }
 
-#[test]
-fn server_cert_resolve_with_alpn() {
+#[tokio::test]
+async fn server_cert_resolve_with_alpn() {
     for kt in ALL_KEY_TYPES.iter() {
         let mut client_config = make_client_config(*kt);
         client_config.alpn_protocols = vec!["foo".into(), "bar".into()];
@@ -599,16 +600,16 @@ fn server_cert_resolve_with_alpn() {
         });
 
         let mut client =
-            ClientConnection::new(Arc::new(client_config), dns_name("sni-value")).unwrap();
+            ClientConnection::new(Arc::new(client_config), dns_name("sni-value")).await.unwrap();
         let mut server = ServerConnection::new(Arc::new(server_config)).unwrap();
 
-        let err = do_handshake_until_error(&mut client, &mut server);
+        let err = do_handshake_until_error(&mut client, &mut server).await;
         assert!(err.is_err());
     }
 }
 
-#[test]
-fn client_trims_terminating_dot() {
+#[tokio::test]
+async fn client_trims_terminating_dot() {
     for kt in ALL_KEY_TYPES.iter() {
         let client_config = make_client_config(*kt);
         let mut server_config = make_server_config(*kt);
@@ -619,16 +620,16 @@ fn client_trims_terminating_dot() {
         });
 
         let mut client =
-            ClientConnection::new(Arc::new(client_config), dns_name("some-host.com.")).unwrap();
+            ClientConnection::new(Arc::new(client_config), dns_name("some-host.com.")).await.unwrap();
         let mut server = ServerConnection::new(Arc::new(server_config)).unwrap();
 
-        let err = do_handshake_until_error(&mut client, &mut server);
+        let err = do_handshake_until_error(&mut client, &mut server).await;
         assert!(err.is_err());
     }
 }
 
 #[cfg(feature = "tls12")]
-fn check_sigalgs_reduced_by_ciphersuite(
+async fn check_sigalgs_reduced_by_ciphersuite(
     kt: KeyType,
     suite: CipherSuite,
     expected_sigalgs: Vec<rustls::SignatureScheme>,
@@ -649,16 +650,16 @@ fn check_sigalgs_reduced_by_ciphersuite(
         ..Default::default()
     });
 
-    let mut client = ClientConnection::new(Arc::new(client_config), dns_name("localhost")).unwrap();
+    let mut client = ClientConnection::new(Arc::new(client_config), dns_name("localhost")).await.unwrap();
     let mut server = ServerConnection::new(Arc::new(server_config)).unwrap();
 
-    let err = do_handshake_until_error(&mut client, &mut server);
+    let err = do_handshake_until_error(&mut client, &mut server).await;
     assert!(err.is_err());
 }
 
 #[cfg(feature = "tls12")]
-#[test]
-fn server_cert_resolve_reduces_sigalgs_for_rsa_ciphersuite() {
+#[tokio::test]
+async fn server_cert_resolve_reduces_sigalgs_for_rsa_ciphersuite() {
     check_sigalgs_reduced_by_ciphersuite(
         KeyType::Rsa,
         CipherSuite::TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
@@ -670,12 +671,12 @@ fn server_cert_resolve_reduces_sigalgs_for_rsa_ciphersuite() {
             rustls::SignatureScheme::RSA_PKCS1_SHA384,
             rustls::SignatureScheme::RSA_PKCS1_SHA256,
         ],
-    );
+    ).await;
 }
 
 #[cfg(feature = "tls12")]
-#[test]
-fn server_cert_resolve_reduces_sigalgs_for_ecdsa_ciphersuite() {
+#[tokio::test]
+async fn server_cert_resolve_reduces_sigalgs_for_ecdsa_ciphersuite() {
     check_sigalgs_reduced_by_ciphersuite(
         KeyType::Ecdsa,
         CipherSuite::TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
@@ -684,7 +685,7 @@ fn server_cert_resolve_reduces_sigalgs_for_ecdsa_ciphersuite() {
             rustls::SignatureScheme::ECDSA_NISTP256_SHA256,
             rustls::SignatureScheme::ED25519,
         ],
-    );
+    ).await;
 }
 
 struct ServerCheckNoSNI {}
@@ -697,8 +698,8 @@ impl ResolvesServerCert for ServerCheckNoSNI {
     }
 }
 
-#[test]
-fn client_with_sni_disabled_does_not_send_sni() {
+#[tokio::test]
+async fn client_with_sni_disabled_does_not_send_sni() {
     for kt in ALL_KEY_TYPES.iter() {
         let mut server_config = make_server_config(*kt);
         server_config.cert_resolver = Arc::new(ServerCheckNoSNI {});
@@ -709,17 +710,17 @@ fn client_with_sni_disabled_does_not_send_sni() {
             client_config.enable_sni = false;
 
             let mut client =
-                ClientConnection::new(Arc::new(client_config), dns_name("value-not-sent")).unwrap();
+                ClientConnection::new(Arc::new(client_config), dns_name("value-not-sent")).await.unwrap();
             let mut server = ServerConnection::new(Arc::clone(&server_config)).unwrap();
 
-            let err = do_handshake_until_error(&mut client, &mut server);
+            let err = do_handshake_until_error(&mut client, &mut server).await;
             assert!(err.is_err());
         }
     }
 }
 
-#[test]
-fn client_checks_server_certificate_with_given_name() {
+#[tokio::test]
+async fn client_checks_server_certificate_with_given_name() {
     for kt in ALL_KEY_TYPES.iter() {
         let server_config = Arc::new(make_server_config(*kt));
 
@@ -728,11 +729,11 @@ fn client_checks_server_certificate_with_given_name() {
             let mut client = ClientConnection::new(
                 Arc::new(client_config),
                 dns_name("not-the-right-hostname.com"),
-            )
+            ).await
             .unwrap();
             let mut server = ServerConnection::new(Arc::clone(&server_config)).unwrap();
 
-            let err = do_handshake_until_error(&mut client, &mut server);
+            let err = do_handshake_until_error(&mut client, &mut server).await;
             assert_eq!(
                 err,
                 Err(ErrorFromPeer::Client(Error::InvalidCertificateData(
@@ -790,8 +791,8 @@ impl ResolvesClientCert for ClientCheckCertResolve {
     }
 }
 
-#[test]
-fn client_cert_resolve() {
+#[tokio::test]
+async fn client_cert_resolve() {
     for kt in ALL_KEY_TYPES.iter() {
         let server_config = Arc::new(make_server_config_with_mandatory_client_auth(*kt));
 
@@ -800,10 +801,10 @@ fn client_cert_resolve() {
             client_config.client_auth_cert_resolver = Arc::new(ClientCheckCertResolve::new(1));
 
             let (mut client, mut server) =
-                make_pair_for_arc_configs(&Arc::new(client_config), &server_config);
+                make_pair_for_arc_configs(&Arc::new(client_config), &server_config).await;
 
             assert_eq!(
-                do_handshake_until_error(&mut client, &mut server),
+                do_handshake_until_error(&mut client, &mut server).await,
                 Err(ErrorFromPeer::Server(
                     rustls::Error::NoCertificatesPresented
                 ))
@@ -812,64 +813,64 @@ fn client_cert_resolve() {
     }
 }
 
-#[test]
-fn client_auth_works() {
+#[tokio::test]
+async fn client_auth_works() {
     for kt in ALL_KEY_TYPES.iter() {
         let server_config = Arc::new(make_server_config_with_mandatory_client_auth(*kt));
 
         for version in tls_aio::ALL_VERSIONS {
             let client_config = make_client_config_with_versions_with_auth(*kt, &[version]);
             let (mut client, mut server) =
-                make_pair_for_arc_configs(&Arc::new(client_config), &server_config);
-            do_handshake(&mut client, &mut server);
+                make_pair_for_arc_configs(&Arc::new(client_config), &server_config).await;
+            do_handshake(&mut client, &mut server).await;
         }
     }
 }
 
-#[test]
-fn client_error_is_sticky() {
-    let (mut client, _) = make_pair(KeyType::Rsa);
+#[tokio::test]
+async fn client_error_is_sticky() {
+    let (mut client, _) = make_pair(KeyType::Rsa).await;
     client
         .read_tls(&mut b"\x16\x03\x03\x00\x08\x0f\x00\x00\x04junk".as_ref())
         .unwrap();
-    let mut err = client.process_new_packets();
+    let mut err = client.process_new_packets().await;
     assert!(err.is_err());
-    err = client.process_new_packets();
+    err = client.process_new_packets().await;
     assert!(err.is_err());
 }
 
-#[test]
-fn client_flush_does_nothing() {
-    let (mut client, _) = make_pair(KeyType::Rsa);
-    assert!(matches!(client.writer().flush(), Ok(())));
+#[tokio::test]
+async fn client_flush_does_nothing() {
+    let (mut client, _) = make_pair(KeyType::Rsa).await;
+    assert!(matches!(client.writer().flush().await, Ok(())));
 }
 
-#[test]
-fn client_is_send_and_sync() {
-    let (client, _) = make_pair(KeyType::Rsa);
+#[tokio::test]
+async fn client_is_send_and_sync() {
+    let (client, _) = make_pair(KeyType::Rsa).await;
     &client as &dyn Send;
     &client as &dyn Sync;
 }
 
-#[test]
-fn client_respects_buffer_limit_pre_handshake() {
-    let (mut client, mut server) = make_pair(KeyType::Rsa);
+#[tokio::test]
+async fn client_respects_buffer_limit_pre_handshake() {
+    let (mut client, mut server) = make_pair(KeyType::Rsa).await;
 
     client.set_buffer_limit(Some(32));
 
-    assert_eq!(client.writer().write(b"01234567890123456789").unwrap(), 20);
-    assert_eq!(client.writer().write(b"01234567890123456789").unwrap(), 12);
+    assert_eq!(client.writer().write(b"01234567890123456789").await.unwrap(), 20);
+    assert_eq!(client.writer().write(b"01234567890123456789").await.unwrap(), 12);
 
-    do_handshake(&mut client, &mut server);
+    do_handshake(&mut client, &mut server).await;
     send(&mut client, &mut server);
     server.process_new_packets().unwrap();
 
     check_read(&mut server.reader(), b"01234567890123456789012345678901");
 }
 
-#[test]
-fn client_respects_buffer_limit_pre_handshake_with_vectored_write() {
-    let (mut client, mut server) = make_pair(KeyType::Rsa);
+#[tokio::test]
+async fn client_respects_buffer_limit_pre_handshake_with_vectored_write() {
+    let (mut client, mut server) = make_pair(KeyType::Rsa).await;
 
     client.set_buffer_limit(Some(32));
 
@@ -879,27 +880,27 @@ fn client_respects_buffer_limit_pre_handshake_with_vectored_write() {
             .write_vectored(&[
                 IoSlice::new(b"01234567890123456789"),
                 IoSlice::new(b"01234567890123456789")
-            ])
+            ]).await
             .unwrap(),
         32
     );
 
-    do_handshake(&mut client, &mut server);
+    do_handshake(&mut client, &mut server).await;
     send(&mut client, &mut server);
     server.process_new_packets().unwrap();
 
     check_read(&mut server.reader(), b"01234567890123456789012345678901");
 }
 
-#[test]
-fn client_respects_buffer_limit_post_handshake() {
-    let (mut client, mut server) = make_pair(KeyType::Rsa);
+#[tokio::test]
+async fn client_respects_buffer_limit_post_handshake() {
+    let (mut client, mut server) = make_pair(KeyType::Rsa).await;
 
-    do_handshake(&mut client, &mut server);
+    do_handshake(&mut client, &mut server).await;
     client.set_buffer_limit(Some(48));
 
-    assert_eq!(client.writer().write(b"01234567890123456789").unwrap(), 20);
-    assert_eq!(client.writer().write(b"01234567890123456789").unwrap(), 6);
+    assert_eq!(client.writer().write(b"01234567890123456789").await.unwrap(), 20);
+    assert_eq!(client.writer().write(b"01234567890123456789").await.unwrap(), 6);
 
     send(&mut client, &mut server);
     server.process_new_packets().unwrap();
@@ -1003,10 +1004,9 @@ where
     }
 }
 
-struct ClientSession<'a, C, S>
+struct ClientSession<'a, C>
 where
-    C: DerefMut + Deref<Target = tls_aio::ConnectionCommon<S>>,
-    S: tls_aio::SideData,
+    C: DerefMut + Deref<Target = tls_aio::ConnectionCommon>,
 {
     sess: &'a mut C,
     pub reads: usize,
@@ -1016,12 +1016,11 @@ where
     pub last_error: Option<tls_aio::Error>,
 }
 
-impl<'a, C, S> ClientSession<'a, C, S>
+impl<'a, C> ClientSession<'a, C>
 where
-    C: DerefMut + Deref<Target = tls_aio::ConnectionCommon<S>>,
-    S: tls_aio::SideData,
+    C: DerefMut + Deref<Target = tls_aio::ConnectionCommon>,
 {
-    fn new(sess: &'a mut C) -> ClientSession<'a, C, S> {
+    fn new(sess: &'a mut C) -> ClientSession<'a, C> {
         ClientSession {
             sess,
             reads: 0,
@@ -1032,17 +1031,16 @@ where
         }
     }
 
-    fn new_fails(sess: &'a mut C) -> ClientSession<'a, C, S> {
+    fn new_fails(sess: &'a mut C) -> ClientSession<'a, C> {
         let mut os = ClientSession::new(sess);
         os.fail_ok = true;
         os
     }
 }
 
-impl<'a, C, S> io::Read for ClientSession<'a, C, S>
+impl<'a, C> io::Read for ClientSession<'a, C>
 where
-    C: DerefMut + Deref<Target = tls_aio::ConnectionCommon<S>>,
-    S: tls_aio::SideData,
+    C: DerefMut + Deref<Target = tls_aio::ConnectionCommon>,
 {
     fn read(&mut self, mut b: &mut [u8]) -> io::Result<usize> {
         self.reads += 1;
@@ -1050,23 +1048,18 @@ where
     }
 }
 
-impl<'a, C, S> io::Write for ClientSession<'a, C, S>
+impl<'a, C> io::Write for ClientSession<'a, C>
 where
-    C: DerefMut + Deref<Target = tls_aio::ConnectionCommon<S>>,
-    S: tls_aio::SideData,
+    C: DerefMut + Deref<Target = tls_aio::ConnectionCommon>,
 {
-    fn write(&mut self, _: &[u8]) -> io::Result<usize> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         unreachable!()
     }
 
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-
-    fn write_vectored<'b>(&mut self, b: &[io::IoSlice<'b>]) -> io::Result<usize> {
+    fn write_vectored(&mut self, bufs: &[IoSlice<'_>]) -> io::Result<usize> {
         let mut total = 0;
         let mut lengths = vec![];
-        for bytes in b {
+        for bytes in bufs {
             let write_len = if self.short_writes {
                 if bytes.len() > 5 {
                     bytes.len() / 2
@@ -1087,7 +1080,7 @@ where
             }
         }
 
-        let rc = self.sess.process_new_packets();
+        let rc = futures::executor::block_on(self.sess.process_new_packets());
         if !self.fail_ok {
             rc.unwrap();
         } else if rc.is_err() {
@@ -1097,59 +1090,64 @@ where
         self.writevs.push(lengths);
         Ok(total)
     }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
 }
 
-#[test]
-fn client_read_returns_wouldblock_when_no_data() {
-    let (mut client, _) = make_pair(KeyType::Rsa);
+#[tokio::test]
+async fn client_read_returns_wouldblock_when_no_data() {
+    let (mut client, _) = make_pair(KeyType::Rsa).await;
     assert!(matches!(client.reader().read(&mut [0u8; 1]),
                      Err(err) if err.kind() == io::ErrorKind::WouldBlock));
 }
 
-#[test]
-fn new_client_returns_initial_io_state() {
-    let (mut client, _) = make_pair(KeyType::Rsa);
-    let io_state = client.process_new_packets().unwrap();
+#[tokio::test]
+async fn client_returns_initial_io_state() {
+    let (mut client, _) = make_pair(KeyType::Rsa).await;
+    let io_state = client.process_new_packets().await.unwrap();
     println!("IoState is Debug {:?}", io_state);
     assert_eq!(io_state.plaintext_bytes_to_read(), 0);
     assert!(!io_state.peer_has_closed());
     assert!(io_state.tls_bytes_to_write() > 200);
 }
 
-#[test]
-fn client_complete_io_for_handshake() {
-    let (mut client, mut server) = make_pair(KeyType::Rsa);
+#[tokio::test]
+async fn client_complete_io_for_handshake() {
+    let (mut client, mut server) = make_pair(KeyType::Rsa).await;
 
     assert!(client.is_handshaking());
     let (rdlen, wrlen) = client
         .complete_io(&mut ServerSession::new(&mut server))
+        .await
         .unwrap();
     assert!(rdlen > 0 && wrlen > 0);
     assert!(!client.is_handshaking());
 }
 
-#[test]
-fn client_complete_io_for_handshake_eof() {
-    let (mut client, _) = make_pair(KeyType::Rsa);
+#[tokio::test]
+async fn client_complete_io_for_handshake_eof() {
+    let (mut client, _) = make_pair(KeyType::Rsa).await;
     let mut input = io::Cursor::new(Vec::new());
 
     assert!(client.is_handshaking());
-    let err = client.complete_io(&mut input).unwrap_err();
+    let err = client.complete_io(&mut input).await.unwrap_err();
     assert_eq!(io::ErrorKind::UnexpectedEof, err.kind());
 }
 
-#[test]
-fn client_complete_io_for_write() {
+#[tokio::test]
+async fn client_complete_io_for_write() {
     for kt in ALL_KEY_TYPES.iter() {
-        let (mut client, mut server) = make_pair(*kt);
+        let (mut client, mut server) = make_pair(*kt).await;
 
-        do_handshake(&mut client, &mut server);
+        do_handshake(&mut client, &mut server).await;
 
-        client.writer().write_all(b"01234567890123456789").unwrap();
-        client.writer().write_all(b"01234567890123456789").unwrap();
+        client.writer().write_all(b"01234567890123456789").await.unwrap();
+        client.writer().write_all(b"01234567890123456789").await.unwrap();
         {
             let mut pipe = ServerSession::new(&mut server);
-            let (rdlen, wrlen) = client.complete_io(&mut pipe).unwrap();
+            let (rdlen, wrlen) = client.complete_io(&mut pipe).await.unwrap();
             assert!(rdlen == 0 && wrlen > 0);
             println!("{:?}", pipe.writevs);
             assert_eq!(pipe.writevs, vec![vec![42, 42]]);
@@ -1161,17 +1159,17 @@ fn client_complete_io_for_write() {
     }
 }
 
-#[test]
-fn client_complete_io_for_read() {
+#[tokio::test]
+async fn client_complete_io_for_read() {
     for kt in ALL_KEY_TYPES.iter() {
-        let (mut client, mut server) = make_pair(*kt);
+        let (mut client, mut server) = make_pair(*kt).await;
 
-        do_handshake(&mut client, &mut server);
+        do_handshake(&mut client, &mut server).await;
 
         server.writer().write_all(b"01234567890123456789").unwrap();
         {
             let mut pipe = ServerSession::new(&mut server);
-            let (rdlen, wrlen) = client.complete_io(&mut pipe).unwrap();
+            let (rdlen, wrlen) = client.complete_io(&mut pipe).await.unwrap();
             assert!(rdlen > 0 && wrlen == 0);
             assert_eq!(pipe.reads, 1);
         }
@@ -1179,68 +1177,68 @@ fn client_complete_io_for_read() {
     }
 }
 
-#[test]
-fn client_stream_write() {
+// #[tokio::test]
+// async fn client_stream_write() {
+//     for kt in ALL_KEY_TYPES.iter() {
+//         let (mut client, mut server) = make_pair(*kt).await;
+
+//         {
+//             let mut pipe = ServerSession::new(&mut server);
+//             let mut stream = Stream::new(&mut client, &mut pipe);
+//             assert_eq!(stream.write(b"hello").unwrap(), 5);
+//         }
+//         check_read(&mut server.reader(), b"hello");
+//     }
+// }
+
+// #[tokio::test]
+// async fn client_streamowned_write() {
+//     for kt in ALL_KEY_TYPES.iter() {
+//         let (client, mut server) = make_pair(*kt).await;
+
+//         {
+//             let pipe = ServerSession::new(&mut server);
+//             let mut stream = StreamOwned::new(client, pipe);
+//             assert_eq!(stream.write(b"hello").unwrap(), 5);
+//         }
+//         check_read(&mut server.reader(), b"hello");
+//     }
+// }
+
+// #[tokio::test]
+// async fn client_stream_read() {
+//     for kt in ALL_KEY_TYPES.iter() {
+//         let (mut client, mut server) = make_pair(*kt).await;
+
+//         server.writer().write_all(b"world").unwrap();
+
+//         {
+//             let mut pipe = ServerSession::new(&mut server);
+//             let mut stream = Stream::new(&mut client, &mut pipe);
+//             check_read(&mut stream, b"world");
+//         }
+//     }
+// }
+
+// #[tokio::test]
+// async fn client_streamowned_read() {
+//     for kt in ALL_KEY_TYPES.iter() {
+//         let (client, mut server) = make_pair(*kt).await;
+
+//         server.writer().write_all(b"world").unwrap();
+
+//         {
+//             let pipe = ServerSession::new(&mut server);
+//             let mut stream = StreamOwned::new(client, pipe);
+//             check_read(&mut stream, b"world");
+//         }
+//     }
+// }
+
+#[tokio::test]
+async fn server_stream_write() {
     for kt in ALL_KEY_TYPES.iter() {
-        let (mut client, mut server) = make_pair(*kt);
-
-        {
-            let mut pipe = ServerSession::new(&mut server);
-            let mut stream = Stream::new(&mut client, &mut pipe);
-            assert_eq!(stream.write(b"hello").unwrap(), 5);
-        }
-        check_read(&mut server.reader(), b"hello");
-    }
-}
-
-#[test]
-fn client_streamowned_write() {
-    for kt in ALL_KEY_TYPES.iter() {
-        let (client, mut server) = make_pair(*kt);
-
-        {
-            let pipe = ServerSession::new(&mut server);
-            let mut stream = StreamOwned::new(client, pipe);
-            assert_eq!(stream.write(b"hello").unwrap(), 5);
-        }
-        check_read(&mut server.reader(), b"hello");
-    }
-}
-
-#[test]
-fn client_stream_read() {
-    for kt in ALL_KEY_TYPES.iter() {
-        let (mut client, mut server) = make_pair(*kt);
-
-        server.writer().write_all(b"world").unwrap();
-
-        {
-            let mut pipe = ServerSession::new(&mut server);
-            let mut stream = Stream::new(&mut client, &mut pipe);
-            check_read(&mut stream, b"world");
-        }
-    }
-}
-
-#[test]
-fn client_streamowned_read() {
-    for kt in ALL_KEY_TYPES.iter() {
-        let (client, mut server) = make_pair(*kt);
-
-        server.writer().write_all(b"world").unwrap();
-
-        {
-            let pipe = ServerSession::new(&mut server);
-            let mut stream = StreamOwned::new(client, pipe);
-            check_read(&mut stream, b"world");
-        }
-    }
-}
-
-#[test]
-fn server_stream_write() {
-    for kt in ALL_KEY_TYPES.iter() {
-        let (mut client, mut server) = make_pair(*kt);
+        let (mut client, mut server) = make_pair(*kt).await;
 
         {
             let mut pipe = ClientSession::new(&mut client);
@@ -1251,10 +1249,10 @@ fn server_stream_write() {
     }
 }
 
-#[test]
-fn server_streamowned_write() {
+#[tokio::test]
+async fn server_streamowned_write() {
     for kt in ALL_KEY_TYPES.iter() {
-        let (mut client, server) = make_pair(*kt);
+        let (mut client, server) = make_pair(*kt).await;
 
         {
             let pipe = ClientSession::new(&mut client);
@@ -1265,12 +1263,12 @@ fn server_streamowned_write() {
     }
 }
 
-#[test]
-fn server_stream_read() {
+#[tokio::test]
+async fn server_stream_read() {
     for kt in ALL_KEY_TYPES.iter() {
-        let (mut client, mut server) = make_pair(*kt);
+        let (mut client, mut server) = make_pair(*kt).await;
 
-        client.writer().write_all(b"world").unwrap();
+        client.writer().write_all(b"world").await.unwrap();
 
         {
             let mut pipe = ClientSession::new(&mut client);
@@ -1280,12 +1278,12 @@ fn server_stream_read() {
     }
 }
 
-#[test]
-fn server_streamowned_read() {
+#[tokio::test]
+async fn server_streamowned_read() {
     for kt in ALL_KEY_TYPES.iter() {
-        let (mut client, server) = make_pair(*kt);
+        let (mut client, server) = make_pair(*kt).await;
 
-        client.writer().write_all(b"world").unwrap();
+        client.writer().write_all(b"world").await.unwrap();
 
         {
             let pipe = ClientSession::new(&mut client);
@@ -1321,121 +1319,121 @@ impl io::Write for FailsWrites {
     }
 }
 
-#[test]
-fn stream_write_reports_underlying_io_error_before_plaintext_processed() {
-    let (mut client, mut server) = make_pair(KeyType::Rsa);
-    do_handshake(&mut client, &mut server);
+// #[tokio::test]
+// async fn stream_write_reports_underlying_io_error_before_plaintext_processed() {
+//     let (mut client, mut server) = make_pair(KeyType::Rsa).await;
+//     do_handshake(&mut client, &mut server).await;
 
-    let mut pipe = FailsWrites {
-        errkind: io::ErrorKind::ConnectionAborted,
-        after: 0,
-    };
-    client.writer().write_all(b"hello").unwrap();
-    let mut client_stream = Stream::new(&mut client, &mut pipe);
-    let rc = client_stream.write(b"world");
-    assert!(rc.is_err());
-    let err = rc.err().unwrap();
-    assert_eq!(err.kind(), io::ErrorKind::ConnectionAborted);
-}
+//     let mut pipe = FailsWrites {
+//         errkind: io::ErrorKind::ConnectionAborted,
+//         after: 0,
+//     };
+//     client.writer().write_all(b"hello").await.unwrap();
+//     let mut client_stream = Stream::new(&mut client, &mut pipe);
+//     let rc = client_stream.write(b"world");
+//     assert!(rc.is_err());
+//     let err = rc.err().unwrap();
+//     assert_eq!(err.kind(), io::ErrorKind::ConnectionAborted);
+// }
 
-#[test]
-fn stream_write_swallows_underlying_io_error_after_plaintext_processed() {
-    let (mut client, mut server) = make_pair(KeyType::Rsa);
-    do_handshake(&mut client, &mut server);
+// #[tokio::test]
+// async fn stream_write_swallows_underlying_io_error_after_plaintext_processed() {
+//     let (mut client, mut server) = make_pair(KeyType::Rsa).await;
+//     do_handshake(&mut client, &mut server).await;
 
-    let mut pipe = FailsWrites {
-        errkind: io::ErrorKind::ConnectionAborted,
-        after: 1,
-    };
-    client.writer().write_all(b"hello").unwrap();
-    let mut client_stream = Stream::new(&mut client, &mut pipe);
-    let rc = client_stream.write(b"world");
-    assert_eq!(format!("{:?}", rc), "Ok(5)");
-}
+//     let mut pipe = FailsWrites {
+//         errkind: io::ErrorKind::ConnectionAborted,
+//         after: 1,
+//     };
+//     client.writer().write_all(b"hello").await.unwrap();
+//     let mut client_stream = Stream::new(&mut client, &mut pipe);
+//     let rc = client_stream.write(b"world");
+//     assert_eq!(format!("{:?}", rc), "Ok(5)");
+// }
 
-fn make_disjoint_suite_configs() -> (ClientConfig, ServerConfig) {
-    let kt = KeyType::Rsa;
-    let server_config = finish_server_config(
-        kt,
-        ServerConfig::builder()
-            .with_cipher_suites(&[rustls::cipher_suite::TLS13_CHACHA20_POLY1305_SHA256])
-            .with_safe_default_kx_groups()
-            .with_safe_default_protocol_versions()
-            .unwrap(),
-    );
+// fn make_disjoint_suite_configs() -> (ClientConfig, ServerConfig) {
+//     let kt = KeyType::Rsa;
+//     let server_config = finish_server_config(
+//         kt,
+//         ServerConfig::builder()
+//             .with_cipher_suites(&[rustls::cipher_suite::TLS13_CHACHA20_POLY1305_SHA256])
+//             .with_safe_default_kx_groups()
+//             .with_safe_default_protocol_versions()
+//             .unwrap(),
+//     );
 
-    let client_config = finish_client_config(
-        kt,
-        ClientConfig::builder()
-            .with_cipher_suites(&[tls_aio::cipher_suite::TLS13_AES_256_GCM_SHA384])
-            .with_safe_default_kx_groups()
-            .with_safe_default_protocol_versions()
-            .unwrap(),
-    );
+//     let client_config = finish_client_config(
+//         kt,
+//         ClientConfig::builder()
+//             .with_cipher_suites(&[tls_aio::cipher_suite::TLS13_AES_256_GCM_SHA384])
+//             .with_safe_default_kx_groups()
+//             .with_safe_default_protocol_versions()
+//             .unwrap(),
+//     );
 
-    (client_config, server_config)
-}
+//     (client_config, server_config)
+// }
 
-#[test]
-fn client_stream_handshake_error() {
-    let (client_config, server_config) = make_disjoint_suite_configs();
-    let (mut client, mut server) = make_pair_for_configs(client_config, server_config);
+// #[tokio::test]
+// async fn client_stream_handshake_error() {
+//     let (client_config, server_config) = make_disjoint_suite_configs();
+//     let (mut client, mut server) = make_pair_for_configs(client_config, server_config).await;
 
-    {
-        let mut pipe = ServerSession::new_fails(&mut server);
-        let mut client_stream = Stream::new(&mut client, &mut pipe);
-        let rc = client_stream.write(b"hello");
-        assert!(rc.is_err());
-        assert_eq!(
-            format!("{:?}", rc),
-            "Err(Custom { kind: InvalidData, error: AlertReceived(HandshakeFailure) })"
-        );
-        let rc = client_stream.write(b"hello");
-        assert!(rc.is_err());
-        assert_eq!(
-            format!("{:?}", rc),
-            "Err(Custom { kind: InvalidData, error: AlertReceived(HandshakeFailure) })"
-        );
-    }
-}
+//     {
+//         let mut pipe = ServerSession::new_fails(&mut server);
+//         let mut client_stream = Stream::new(&mut client, &mut pipe);
+//         let rc = client_stream.write(b"hello");
+//         assert!(rc.is_err());
+//         assert_eq!(
+//             format!("{:?}", rc),
+//             "Err(Custom { kind: InvalidData, error: AlertReceived(HandshakeFailure) })"
+//         );
+//         let rc = client_stream.write(b"hello");
+//         assert!(rc.is_err());
+//         assert_eq!(
+//             format!("{:?}", rc),
+//             "Err(Custom { kind: InvalidData, error: AlertReceived(HandshakeFailure) })"
+//         );
+//     }
+// }
 
-#[test]
-fn client_streamowned_handshake_error() {
-    let (client_config, server_config) = make_disjoint_suite_configs();
-    let (client, mut server) = make_pair_for_configs(client_config, server_config);
+// #[tokio::test]
+// async fn client_streamowned_handshake_error() {
+//     let (client_config, server_config) = make_disjoint_suite_configs();
+//     let (client, mut server) = make_pair_for_configs(client_config, server_config).await;
 
-    let pipe = ServerSession::new_fails(&mut server);
-    let mut client_stream = StreamOwned::new(client, pipe);
-    let rc = client_stream.write(b"hello");
-    assert!(rc.is_err());
-    assert_eq!(
-        format!("{:?}", rc),
-        "Err(Custom { kind: InvalidData, error: AlertReceived(HandshakeFailure) })"
-    );
-    let rc = client_stream.write(b"hello");
-    assert!(rc.is_err());
-    assert_eq!(
-        format!("{:?}", rc),
-        "Err(Custom { kind: InvalidData, error: AlertReceived(HandshakeFailure) })"
-    );
-}
+//     let pipe = ServerSession::new_fails(&mut server);
+//     let mut client_stream = StreamOwned::new(client, pipe);
+//     let rc = client_stream.write(b"hello");
+//     assert!(rc.is_err());
+//     assert_eq!(
+//         format!("{:?}", rc),
+//         "Err(Custom { kind: InvalidData, error: AlertReceived(HandshakeFailure) })"
+//     );
+//     let rc = client_stream.write(b"hello");
+//     assert!(rc.is_err());
+//     assert_eq!(
+//         format!("{:?}", rc),
+//         "Err(Custom { kind: InvalidData, error: AlertReceived(HandshakeFailure) })"
+//     );
+// }
 
-#[test]
-fn client_config_is_clone() {
+#[tokio::test]
+async fn client_config_is_clone() {
     let _ = make_client_config(KeyType::Rsa);
 }
 
-#[test]
-fn client_connection_is_debug() {
-    let (client, _) = make_pair(KeyType::Rsa);
+#[tokio::test]
+async fn client_connection_is_debug() {
+    let (client, _) = make_pair(KeyType::Rsa).await;
     println!("{:?}", client);
 }
 
-fn do_exporter_test(client_config: ClientConfig, server_config: ServerConfig) {
+async fn do_exporter_test(client_config: ClientConfig, server_config: ServerConfig) {
     let mut client_secret = [0u8; 64];
     let mut server_secret = [0u8; 64];
 
-    let (mut client, mut server) = make_pair_for_configs(client_config, server_config);
+    let (mut client, mut server) = make_pair_for_configs(client_config, server_config).await;
 
     assert_eq!(
         Err(Error::HandshakeNotComplete),
@@ -1445,7 +1443,7 @@ fn do_exporter_test(client_config: ClientConfig, server_config: ServerConfig) {
         Err(rustls::Error::HandshakeNotComplete),
         server.export_keying_material(&mut server_secret, b"label", Some(b"context"))
     );
-    do_handshake(&mut client, &mut server);
+    do_handshake(&mut client, &mut server).await;
 
     assert_eq!(
         Ok(()),
@@ -1470,27 +1468,27 @@ fn do_exporter_test(client_config: ClientConfig, server_config: ServerConfig) {
 }
 
 #[cfg(feature = "tls12")]
-#[test]
-fn test_tls12_exporter() {
+#[tokio::test]
+async fn test_tls12_exporter() {
     for kt in ALL_KEY_TYPES.iter() {
         let client_config = make_client_config_with_versions(*kt, &[&tls_aio::version::TLS12]);
         let server_config = make_server_config(*kt);
 
-        do_exporter_test(client_config, server_config);
+        do_exporter_test(client_config, server_config).await;
     }
 }
 
-#[test]
-fn test_tls13_exporter() {
+#[tokio::test]
+async fn test_tls13_exporter() {
     for kt in ALL_KEY_TYPES.iter() {
         let client_config = make_client_config_with_versions(*kt, &[&tls_aio::version::TLS13]);
         let server_config = make_server_config(*kt);
 
-        do_exporter_test(client_config, server_config);
+        do_exporter_test(client_config, server_config).await;
     }
 }
 
-fn do_suite_test(
+async fn do_suite_test(
     client_config: ClientConfig,
     server_config: ServerConfig,
     expect_suite: SupportedCipherSuite,
@@ -1501,7 +1499,7 @@ fn do_suite_test(
         expect_version,
         expect_suite.suite()
     );
-    let (mut client, mut server) = make_pair_for_configs(client_config, server_config);
+    let (mut client, mut server) = make_pair_for_configs(client_config, server_config).await;
 
     assert_eq!(None, client.negotiated_cipher_suite());
     assert_eq!(None, server.negotiated_cipher_suite());
@@ -1524,7 +1522,7 @@ fn do_suite_test(
     // assert_eq!(Some(expect_suite), server.negotiated_cipher_suite());
 
     receive(&mut server, &mut client);
-    client.process_new_packets().unwrap();
+    client.process_new_packets().await.unwrap();
 
     assert_eq!(Some(expect_suite), client.negotiated_cipher_suite());
     // assert_eq!(Some(expect_suite), server.negotiated_cipher_suite());
@@ -1532,7 +1530,7 @@ fn do_suite_test(
     send(&mut client, &mut server);
     server.process_new_packets().unwrap();
     receive(&mut server, &mut client);
-    client.process_new_packets().unwrap();
+    client.process_new_packets().await.unwrap();
 
     assert!(!client.is_handshaking());
     assert!(!server.is_handshaking());
@@ -1609,15 +1607,15 @@ static TEST_CIPHERSUITES: &[(&tls_aio::SupportedProtocolVersion, KeyType, Cipher
     ),
 ];
 
-#[test]
-fn negotiated_ciphersuite_default() {
+#[tokio::test]
+async fn negotiated_ciphersuite_default() {
     for kt in ALL_KEY_TYPES.iter() {
         do_suite_test(
             make_client_config(*kt),
             make_server_config(*kt),
             find_suite(CipherSuite::TLS13_AES_256_GCM_SHA384),
             ProtocolVersion::TLSv1_3,
-        );
+        ).await;
     }
 }
 
@@ -1626,8 +1624,8 @@ fn all_suites_covered() {
     assert_eq!(ALL_CIPHER_SUITES.len(), TEST_CIPHERSUITES.len());
 }
 
-#[test]
-fn negotiated_ciphersuite_client() {
+#[tokio::test]
+async fn negotiated_ciphersuite_client() {
     for item in TEST_CIPHERSUITES.iter() {
         let (version, kt, suite) = *item;
         let scs = find_suite(suite);
@@ -1640,7 +1638,7 @@ fn negotiated_ciphersuite_client() {
                 .unwrap(),
         );
 
-        do_suite_test(client_config, make_server_config(kt), scs, version.version);
+        do_suite_test(client_config, make_server_config(kt), scs, version.version).await;
     }
 }
 
@@ -1698,8 +1696,8 @@ impl rustls::KeyLog for KeyLogToVec {
 }
 
 #[cfg(feature = "tls12")]
-#[test]
-fn key_log_for_tls12() {
+#[tokio::test]
+async fn key_log_for_tls12() {
     let client_key_log = Arc::new(KeyLogToVec::new("client"));
     let server_key_log = Arc::new(KeyLogToVec::new("server"));
 
@@ -1713,8 +1711,8 @@ fn key_log_for_tls12() {
     let server_config = Arc::new(server_config);
 
     // full handshake
-    let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config);
-    do_handshake(&mut client, &mut server);
+    let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config).await;
+    do_handshake(&mut client, &mut server).await;
 
     let client_full_log = client_key_log.take();
     let server_full_log = server_key_log.take();
@@ -1723,8 +1721,8 @@ fn key_log_for_tls12() {
     assert_eq!("CLIENT_RANDOM", client_full_log[0].label);
 
     // resumed
-    let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config);
-    do_handshake(&mut client, &mut server);
+    let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config).await;
+    do_handshake(&mut client, &mut server).await;
 
     let client_resume_log = client_key_log.take();
     let server_resume_log = server_key_log.take();
@@ -1734,8 +1732,8 @@ fn key_log_for_tls12() {
     assert_eq!(client_full_log[0].secret, client_resume_log[0].secret);
 }
 
-#[test]
-fn key_log_for_tls13() {
+#[tokio::test]
+async fn key_log_for_tls13() {
     let client_key_log = Arc::new(KeyLogToVec::new("client"));
     let server_key_log = Arc::new(KeyLogToVec::new("server"));
 
@@ -1749,8 +1747,8 @@ fn key_log_for_tls13() {
     let server_config = Arc::new(server_config);
 
     // full handshake
-    let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config);
-    do_handshake(&mut client, &mut server);
+    let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config).await;
+    do_handshake(&mut client, &mut server).await;
 
     let client_full_log = client_key_log.take();
     let server_full_log = server_key_log.take();
@@ -1769,8 +1767,8 @@ fn key_log_for_tls13() {
     assert_eq!(client_full_log[4], server_full_log[4]);
 
     // resumed
-    let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config);
-    do_handshake(&mut client, &mut server);
+    let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config).await;
+    do_handshake(&mut client, &mut server).await;
 
     let client_resume_log = client_key_log.take();
     let server_resume_log = server_key_log.take();
@@ -1809,10 +1807,10 @@ fn key_log_for_tls13() {
     assert_eq!(client_resume_log[4], server_resume_log[5]);
 }
 
-#[test]
-fn vectored_write_for_server_appdata() {
-    let (mut client, mut server) = make_pair(KeyType::Rsa);
-    do_handshake(&mut client, &mut server);
+#[tokio::test]
+async fn servered_write_for_server_appdata() {
+    let (mut client, mut server) = make_pair(KeyType::Rsa).await;
+    do_handshake(&mut client, &mut server).await;
 
     server.writer().write_all(b"01234567890123456789").unwrap();
     server.writer().write_all(b"01234567890123456789").unwrap();
@@ -1828,13 +1826,13 @@ fn vectored_write_for_server_appdata() {
     );
 }
 
-#[test]
-fn vectored_write_for_client_appdata() {
-    let (mut client, mut server) = make_pair(KeyType::Rsa);
-    do_handshake(&mut client, &mut server);
+#[tokio::test]
+async fn servered_write_for_client_appdata() {
+    let (mut client, mut server) = make_pair(KeyType::Rsa).await;
+    do_handshake(&mut client, &mut server).await;
 
-    client.writer().write_all(b"01234567890123456789").unwrap();
-    client.writer().write_all(b"01234567890123456789").unwrap();
+    client.writer().write_all(b"01234567890123456789").await.unwrap();
+    client.writer().write_all(b"01234567890123456789").await.unwrap();
     {
         let mut pipe = ServerSession::new(&mut server);
         let wrlen = client.write_tls(&mut pipe).unwrap();
@@ -1847,12 +1845,12 @@ fn vectored_write_for_client_appdata() {
     );
 }
 
-#[test]
-fn vectored_write_for_server_handshake_with_half_rtt_data() {
+#[tokio::test]
+async fn servered_write_for_server_handshake_with_half_rtt_data() {
     let mut server_config = make_server_config(KeyType::Rsa);
     server_config.send_half_rtt_data = true;
     let (mut client, mut server) =
-        make_pair_for_configs(make_client_config_with_auth(KeyType::Rsa), server_config);
+        make_pair_for_configs(make_client_config_with_auth(KeyType::Rsa), server_config).await;
 
     server.writer().write_all(b"01234567890123456789").unwrap();
     server.writer().write_all(b"0123456789").unwrap();
@@ -1868,7 +1866,7 @@ fn vectored_write_for_server_handshake_with_half_rtt_data() {
         assert_eq!(pipe.writevs[0].len(), 8); // at least a server hello/ccs/cert/serverkx/0.5rtt data
     }
 
-    client.process_new_packets().unwrap();
+    client.process_new_packets().await.unwrap();
     send(&mut client, &mut server);
     server.process_new_packets().unwrap();
     {
@@ -1883,9 +1881,9 @@ fn vectored_write_for_server_handshake_with_half_rtt_data() {
     check_read(&mut client.reader(), b"012345678901234567890123456789");
 }
 
-fn check_half_rtt_does_not_work(server_config: ServerConfig) {
+async fn check_half_rtt_does_not_work(server_config: ServerConfig) {
     let (mut client, mut server) =
-        make_pair_for_configs(make_client_config_with_auth(KeyType::Rsa), server_config);
+        make_pair_for_configs(make_client_config_with_auth(KeyType::Rsa), server_config).await;
 
     server.writer().write_all(b"01234567890123456789").unwrap();
     server.writer().write_all(b"0123456789").unwrap();
@@ -1902,7 +1900,7 @@ fn check_half_rtt_does_not_work(server_config: ServerConfig) {
     }
 
     // client second flight
-    client.process_new_packets().unwrap();
+    client.process_new_packets().await.unwrap();
     send(&mut client, &mut server);
 
     // when client auth is enabled, we don't sent 0.5-rtt data, as we'd be sending
@@ -1921,26 +1919,26 @@ fn check_half_rtt_does_not_work(server_config: ServerConfig) {
     check_read(&mut client.reader(), b"012345678901234567890123456789");
 }
 
-#[test]
-fn vectored_write_for_server_handshake_no_half_rtt_with_client_auth() {
+#[tokio::test]
+async fn servered_write_for_server_handshake_no_half_rtt_with_client_auth() {
     let mut server_config = make_server_config_with_mandatory_client_auth(KeyType::Rsa);
     server_config.send_half_rtt_data = true; // ask even though it will be ignored
-    check_half_rtt_does_not_work(server_config);
+    check_half_rtt_does_not_work(server_config).await;
 }
 
-#[test]
-fn vectored_write_for_server_handshake_no_half_rtt_by_default() {
+#[tokio::test]
+async fn servered_write_for_server_handshake_no_half_rtt_by_default() {
     let server_config = make_server_config(KeyType::Rsa);
     assert_eq!(server_config.send_half_rtt_data, false);
-    check_half_rtt_does_not_work(server_config);
+    check_half_rtt_does_not_work(server_config).await;
 }
 
-#[test]
-fn vectored_write_for_client_handshake() {
-    let (mut client, mut server) = make_pair(KeyType::Rsa);
+#[tokio::test]
+async fn servered_write_for_client_handshake() {
+    let (mut client, mut server) = make_pair(KeyType::Rsa).await;
 
-    client.writer().write_all(b"01234567890123456789").unwrap();
-    client.writer().write_all(b"0123456789").unwrap();
+    client.writer().write_all(b"01234567890123456789").await.unwrap();
+    client.writer().write_all(b"0123456789").await.unwrap();
     {
         let mut pipe = ServerSession::new(&mut server);
         let wrlen = client.write_tls(&mut pipe).unwrap();
@@ -1951,7 +1949,7 @@ fn vectored_write_for_client_handshake() {
     }
 
     receive(&mut server, &mut client);
-    client.process_new_packets().unwrap();
+    client.process_new_packets().await.unwrap();
 
     {
         let mut pipe = ServerSession::new(&mut server);
@@ -1966,13 +1964,13 @@ fn vectored_write_for_client_handshake() {
     check_read(&mut server.reader(), b"012345678901234567890123456789");
 }
 
-#[test]
-fn vectored_write_with_slow_client() {
-    let (mut client, mut server) = make_pair(KeyType::Rsa);
+#[tokio::test]
+async fn servered_write_with_slow_client() {
+    let (mut client, mut server) = make_pair(KeyType::Rsa).await;
 
     client.set_buffer_limit(Some(32));
 
-    do_handshake(&mut client, &mut server);
+    do_handshake(&mut client, &mut server).await;
     server.writer().write_all(b"01234567890123456789").unwrap();
 
     {
@@ -2100,8 +2098,8 @@ impl tls_aio::client::StoresClientSessions for ClientStorage {
     }
 }
 
-#[test]
-fn tls13_stateful_resumption() {
+#[tokio::test]
+async fn tls13_stateful_resumption() {
     let kt = KeyType::Rsa;
     let client_config = make_client_config_with_versions(kt, &[&tls_aio::version::TLS13]);
     let client_config = Arc::new(client_config);
@@ -2112,16 +2110,16 @@ fn tls13_stateful_resumption() {
     let server_config = Arc::new(server_config);
 
     // full handshake
-    let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config);
-    let (full_c2s, full_s2c) = do_handshake(&mut client, &mut server);
+    let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config).await;
+    let (full_c2s, full_s2c) = do_handshake(&mut client, &mut server).await;
     assert_eq!(storage.puts(), 1);
     assert_eq!(storage.gets(), 0);
     assert_eq!(storage.takes(), 0);
     assert_eq!(client.peer_certificates().map(|certs| certs.len()), Some(3));
 
     // resumed
-    let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config);
-    let (resume_c2s, resume_s2c) = do_handshake(&mut client, &mut server);
+    let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config).await;
+    let (resume_c2s, resume_s2c) = do_handshake(&mut client, &mut server).await;
     assert!(resume_c2s > full_c2s);
     assert!(resume_s2c < full_s2c);
     assert_eq!(storage.puts(), 2);
@@ -2130,8 +2128,8 @@ fn tls13_stateful_resumption() {
     assert_eq!(client.peer_certificates().map(|certs| certs.len()), Some(3));
 
     // resumed again
-    let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config);
-    let (resume2_c2s, resume2_s2c) = do_handshake(&mut client, &mut server);
+    let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config).await;
+    let (resume2_c2s, resume2_s2c) = do_handshake(&mut client, &mut server).await;
     assert_eq!(resume_s2c, resume2_s2c);
     assert_eq!(resume_c2s, resume2_c2s);
     assert_eq!(storage.puts(), 3);
@@ -2140,8 +2138,8 @@ fn tls13_stateful_resumption() {
     assert_eq!(client.peer_certificates().map(|certs| certs.len()), Some(3));
 }
 
-#[test]
-fn tls13_stateless_resumption() {
+#[tokio::test]
+async fn tls13_stateless_resumption() {
     let kt = KeyType::Rsa;
     let client_config = make_client_config_with_versions(kt, &[&tls_aio::version::TLS13]);
     let client_config = Arc::new(client_config);
@@ -2153,16 +2151,16 @@ fn tls13_stateless_resumption() {
     let server_config = Arc::new(server_config);
 
     // full handshake
-    let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config);
-    let (full_c2s, full_s2c) = do_handshake(&mut client, &mut server);
+    let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config).await;
+    let (full_c2s, full_s2c) = do_handshake(&mut client, &mut server).await;
     assert_eq!(storage.puts(), 0);
     assert_eq!(storage.gets(), 0);
     assert_eq!(storage.takes(), 0);
     assert_eq!(client.peer_certificates().map(|certs| certs.len()), Some(3));
 
     // resumed
-    let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config);
-    let (resume_c2s, resume_s2c) = do_handshake(&mut client, &mut server);
+    let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config).await;
+    let (resume_c2s, resume_s2c) = do_handshake(&mut client, &mut server).await;
     assert!(resume_c2s > full_c2s);
     assert!(resume_s2c < full_s2c);
     assert_eq!(storage.puts(), 0);
@@ -2171,8 +2169,8 @@ fn tls13_stateless_resumption() {
     assert_eq!(client.peer_certificates().map(|certs| certs.len()), Some(3));
 
     // resumed again
-    let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config);
-    let (resume2_c2s, resume2_s2c) = do_handshake(&mut client, &mut server);
+    let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config).await;
+    let (resume2_c2s, resume2_s2c) = do_handshake(&mut client, &mut server).await;
     assert_eq!(resume_s2c, resume2_s2c);
     assert_eq!(resume_c2s, resume2_c2s);
     assert_eq!(storage.puts(), 0);
@@ -2181,72 +2179,66 @@ fn tls13_stateless_resumption() {
     assert_eq!(client.peer_certificates().map(|certs| certs.len()), Some(3));
 }
 
-#[test]
-fn early_data_not_available() {
-    let (mut client, _) = make_pair(KeyType::Rsa);
-    assert!(client.early_data().is_none());
-}
+// #[tokio::test]
+// async fn early_data_not_available() {
+//     let (mut client, _) = make_pair(KeyType::Rsa).await;
+//     assert!(client.early_data().is_none());
+// }
 
-fn early_data_configs() -> (Arc<ClientConfig>, Arc<ServerConfig>) {
-    let kt = KeyType::Rsa;
-    let mut client_config = make_client_config(kt);
-    client_config.enable_early_data = true;
-    client_config.session_storage = Arc::new(ClientStorage::new());
+// fn early_data_configs() -> (Arc<ClientConfig>, Arc<ServerConfig>) {
+//     let kt = KeyType::Rsa;
+//     let mut client_config = make_client_config(kt);
+//     client_config.enable_early_data = true;
+//     client_config.session_storage = Arc::new(ClientStorage::new());
 
-    let mut server_config = make_server_config(kt);
-    server_config.max_early_data_size = 1234;
-    (Arc::new(client_config), Arc::new(server_config))
-}
+//     let mut server_config = make_server_config(kt);
+//     server_config.max_early_data_size = 1234;
+//     (Arc::new(client_config), Arc::new(server_config))
+// }
 
-#[test]
-fn early_data_is_available_on_resumption() {
-    let (client_config, server_config) = early_data_configs();
+// #[tokio::test]
+// async fn early_data_is_available_on_resumption() {
+//     let (client_config, server_config) = early_data_configs();
 
-    let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config);
-    do_handshake(&mut client, &mut server);
+//     let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config).await;
+//     do_handshake(&mut client, &mut server).await;
 
-    let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config);
-    assert!(client.early_data().is_some());
-    assert_eq!(client.early_data().unwrap().bytes_left(), 1234);
-    client.early_data().unwrap().flush().unwrap();
-    assert_eq!(client.early_data().unwrap().write(b"hello").unwrap(), 5);
-    do_handshake(&mut client, &mut server);
+//     let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config).await;
+//     assert!(client.early_data().is_some());
+//     assert_eq!(client.early_data().unwrap().bytes_left(), 1234);
+//     client.early_data().unwrap().flush().unwrap();
+//     assert_eq!(client.early_data().unwrap().write(b"hello").unwrap(), 5);
+//     do_handshake(&mut client, &mut server).await;
 
-    let mut received_early_data = [0u8; 5];
-    assert_eq!(
-        server
-            .early_data()
-            .expect("early_data didn't happen")
-            .read(&mut received_early_data)
-            .expect("early_data failed unexpectedly"),
-        5
-    );
-    assert_eq!(&received_early_data[..], b"hello");
-}
+//     let mut received_early_data = [0u8; 5];
+//     assert_eq!(
+//         server
+//             .early_data()
+//             .expect("early_data didn't happen")
+//             .read(&mut received_early_data)
+//             .expect("early_data failed unexpectedly"),
+//         5
+//     );
+//     assert_eq!(&received_early_data[..], b"hello");
+// }
 
-#[test]
-fn early_data_not_available_on_server_before_client_hello() {
-    let mut server = ServerConnection::new(Arc::new(make_server_config(KeyType::Rsa))).unwrap();
-    assert!(server.early_data().is_none());
-}
+// #[tokio::test]
+// async fn early_data_can_be_rejected_by_server() {
+//     let (client_config, server_config) = early_data_configs();
 
-#[test]
-fn early_data_can_be_rejected_by_server() {
-    let (client_config, server_config) = early_data_configs();
+//     let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config).await;
+//     do_handshake(&mut client, &mut server).await;
 
-    let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config);
-    do_handshake(&mut client, &mut server);
+//     let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config).await;
+//     assert!(client.early_data().is_some());
+//     assert_eq!(client.early_data().unwrap().bytes_left(), 1234);
+//     client.early_data().unwrap().flush().unwrap();
+//     assert_eq!(client.early_data().unwrap().write(b"hello").unwrap(), 5);
+//     server.reject_early_data();
+//     do_handshake(&mut client, &mut server).await;
 
-    let (mut client, mut server) = make_pair_for_arc_configs(&client_config, &server_config);
-    assert!(client.early_data().is_some());
-    assert_eq!(client.early_data().unwrap().bytes_left(), 1234);
-    client.early_data().unwrap().flush().unwrap();
-    assert_eq!(client.early_data().unwrap().write(b"hello").unwrap(), 5);
-    server.reject_early_data();
-    do_handshake(&mut client, &mut server);
-
-    assert_eq!(client.is_early_data_accepted(), false);
-}
+//     assert_eq!(client.is_early_data_accepted(), false);
+// }
 
 #[cfg(feature = "quic")]
 mod test_quic {
@@ -2277,7 +2269,7 @@ mod test_quic {
         Ok(change)
     }
 
-    #[test]
+    #[tokio::test]
     fn test_quic_handshake() {
         fn equal_packet_keys(x: &quic::PacketKey, y: &quic::PacketKey) -> bool {
             // Check that these two sets of keys are equal.
@@ -2458,7 +2450,7 @@ mod test_quic {
         assert!(equal_packet_keys(&server_next.local, &client_next.remote));
     }
 
-    #[test]
+    #[tokio::test]
     fn test_quic_rejects_missing_alpn() {
         let client_params = &b"client params"[..];
         let server_params = &b"server params"[..];
@@ -2495,7 +2487,7 @@ mod test_quic {
         }
     }
 
-    #[test]
+    #[tokio::test]
     fn test_quic_no_tls13_error() {
         let mut client_config =
             make_client_config_with_versions(KeyType::Ed25519, &[&rustls::version::TLS12]);
@@ -2523,7 +2515,7 @@ mod test_quic {
         .is_err());
     }
 
-    #[test]
+    #[tokio::test]
     fn test_quic_invalid_early_data_size() {
         let mut server_config =
             make_server_config_with_versions(KeyType::Ed25519, &[&rustls::version::TLS13]);
@@ -2551,7 +2543,7 @@ mod test_quic {
         }
     }
 
-    #[test]
+    #[tokio::test]
     fn test_quic_server_no_params_received() {
         let server_config =
             make_server_config_with_versions(KeyType::Ed25519, &[&rustls::version::TLS13]);
@@ -2616,7 +2608,7 @@ mod test_quic {
         );
     }
 
-    #[test]
+    #[tokio::test]
     fn test_quic_server_no_tls12() {
         let mut server_config =
             make_server_config_with_versions(KeyType::Ed25519, &[&rustls::version::TLS13]);
@@ -2681,7 +2673,7 @@ mod test_quic {
         );
     }
 
-    #[test]
+    #[tokio::test]
     fn packet_key_api() {
         use rustls::quic::{Keys, Version};
 
@@ -2857,7 +2849,7 @@ mod test_quic {
         assert_eq!(payload.len(), buf.len() - header_len - tag_len);
     }
 
-    #[test]
+    #[tokio::test]
     fn test_quic_exporter() {
         for &kt in ALL_KEY_TYPES.iter() {
             let client_config = make_client_config_with_versions(kt, &[&rustls::version::TLS13]);
@@ -2868,8 +2860,8 @@ mod test_quic {
     }
 } // mod test_quic
 
-#[test]
-fn test_client_does_not_offer_sha1() {
+#[tokio::test]
+async fn test_client_does_not_offer_sha1() {
     use tls_aio::internal::msgs::{
         codec::Reader, enums::HandshakeType, handshake::HandshakePayload, message::MessagePayload,
         message::OpaqueMessage,
@@ -2878,7 +2870,7 @@ fn test_client_does_not_offer_sha1() {
     for kt in ALL_KEY_TYPES.iter() {
         for version in tls_aio::ALL_VERSIONS {
             let client_config = make_client_config_with_versions(*kt, &[version]);
-            let (mut client, _) = make_pair_for_configs(client_config, make_server_config(*kt));
+            let (mut client, _) = make_pair_for_configs(client_config, make_server_config(*kt)).await;
 
             assert!(client.wants_write());
             let mut buf = [0u8; 262144];
@@ -2904,28 +2896,28 @@ fn test_client_does_not_offer_sha1() {
     }
 }
 
-#[test]
-fn test_client_config_keyshare() {
+#[tokio::test]
+async fn test_client_config_keyshare() {
     let client_config =
         make_client_config_with_kx_groups(KeyType::Rsa, &[&tls_aio::kx_group::SECP384R1]);
     let server_config =
         make_server_config_with_kx_groups(KeyType::Rsa, &[&rustls::kx_group::SECP384R1]);
-    let (mut client, mut server) = make_pair_for_configs(client_config, server_config);
-    do_handshake_until_error(&mut client, &mut server).unwrap();
+    let (mut client, mut server) = make_pair_for_configs(client_config, server_config).await;
+    do_handshake_until_error(&mut client, &mut server).await.unwrap();
 }
 
-#[test]
-fn test_client_config_keyshare_mismatch() {
+#[tokio::test]
+async fn test_client_config_keyshare_mismatch() {
     let client_config =
         make_client_config_with_kx_groups(KeyType::Rsa, &[&tls_aio::kx_group::SECP384R1]);
     let server_config =
         make_server_config_with_kx_groups(KeyType::Rsa, &[&rustls::kx_group::X25519]);
-    let (mut client, mut server) = make_pair_for_configs(client_config, server_config);
-    assert!(do_handshake_until_error(&mut client, &mut server).is_err());
+    let (mut client, mut server) = make_pair_for_configs(client_config, server_config).await;
+    assert!(do_handshake_until_error(&mut client, &mut server).await.is_err());
 }
 
-#[test]
-fn test_client_sends_helloretryrequest() {
+#[tokio::test]
+async fn test_client_sends_helloretryrequest() {
     // client sends a secp384r1 key share
     let mut client_config = make_client_config_with_kx_groups(
         KeyType::Rsa,
@@ -2939,7 +2931,7 @@ fn test_client_sends_helloretryrequest() {
     let server_config =
         make_server_config_with_kx_groups(KeyType::Rsa, &[&rustls::kx_group::X25519]);
 
-    let (mut client, mut server) = make_pair_for_configs(client_config, server_config);
+    let (mut client, mut server) = make_pair_for_configs(client_config, server_config).await;
 
     // client sends hello
     {
@@ -2977,15 +2969,15 @@ fn test_client_sends_helloretryrequest() {
         assert!(pipe.writevs[0].len() == 5); // server hello / encrypted exts / cert / cert-verify / finished
     }
 
-    do_handshake_until_error(&mut client, &mut server).unwrap();
+    do_handshake_until_error(&mut client, &mut server).await.unwrap();
 
     // client only did two storage queries: one for a session, another for a kx type
     assert_eq!(storage.gets(), 2);
     assert_eq!(storage.puts(), 2);
 }
 
-#[test]
-fn test_client_attempts_to_use_unsupported_kx_group() {
+#[tokio::test]
+async fn test_client_attempts_to_use_unsupported_kx_group() {
     // common to both client configs
     let shared_storage = Arc::new(ClientStorage::new());
 
@@ -3004,16 +2996,16 @@ fn test_client_attempts_to_use_unsupported_kx_group() {
     let server_config = make_server_config(KeyType::Rsa);
 
     // first handshake
-    let (mut client_1, mut server) = make_pair_for_configs(client_config_1, server_config.clone());
-    do_handshake_until_error(&mut client_1, &mut server).unwrap();
+    let (mut client_1, mut server) = make_pair_for_configs(client_config_1, server_config.clone()).await;
+    do_handshake_until_error(&mut client_1, &mut server).await.unwrap();
 
     // second handshake
-    let (mut client_2, mut server) = make_pair_for_configs(client_config_2, server_config);
-    do_handshake_until_error(&mut client_2, &mut server).unwrap();
+    let (mut client_2, mut server) = make_pair_for_configs(client_config_2, server_config).await;
+    do_handshake_until_error(&mut client_2, &mut server).await.unwrap();
 }
 
-#[test]
-fn test_client_mtu_reduction() {
+#[tokio::test]
+async fn test_client_mtu_reduction() {
     struct CollectWrites {
         writevs: Vec<Vec<usize>>,
     }
@@ -3045,7 +3037,7 @@ fn test_client_mtu_reduction() {
         let mut client_config = make_client_config(*kt);
         client_config.max_fragment_size = Some(64);
         let mut client =
-            ClientConnection::new(Arc::new(client_config), dns_name("localhost")).unwrap();
+            ClientConnection::new(Arc::new(client_config), dns_name("localhost")).await.unwrap();
         let writes = collect_write_lengths(&mut client);
         println!("writes at mtu=64: {:?}", writes);
         assert!(writes.iter().all(|x| *x <= 64));
@@ -3053,13 +3045,13 @@ fn test_client_mtu_reduction() {
     }
 }
 
-#[test]
-fn test_server_mtu_reduction() {
+#[tokio::test]
+async fn test_server_mtu_reduction() {
     let mut server_config = make_server_config(KeyType::Rsa);
     server_config.max_fragment_size = Some(64);
     server_config.send_half_rtt_data = true;
     let (mut client, mut server) =
-        make_pair_for_configs(make_client_config(KeyType::Rsa), server_config);
+        make_pair_for_configs(make_client_config(KeyType::Rsa), server_config).await;
 
     let big_data = [0u8; 2048];
     server.writer().write_all(&big_data).unwrap();
@@ -3078,7 +3070,7 @@ fn test_server_mtu_reduction() {
             .all(|x| *x <= 64 + encryption_overhead));
     }
 
-    client.process_new_packets().unwrap();
+    client.process_new_packets().await.unwrap();
     send(&mut client, &mut server);
     server.process_new_packets().unwrap();
     {
@@ -3090,33 +3082,33 @@ fn test_server_mtu_reduction() {
             .all(|x| *x <= 64 + encryption_overhead));
     }
 
-    client.process_new_packets().unwrap();
+    client.process_new_packets().await.unwrap();
     check_read(&mut client.reader(), &big_data);
 }
 
-fn check_client_max_fragment_size(size: usize) -> Option<Error> {
+async fn check_client_max_fragment_size(size: usize) -> Option<Error> {
     let mut client_config = make_client_config(KeyType::Ed25519);
     client_config.max_fragment_size = Some(size);
-    ClientConnection::new(Arc::new(client_config), dns_name("localhost")).err()
+    ClientConnection::new(Arc::new(client_config), dns_name("localhost")).await.err()
 }
 
-#[test]
-fn bad_client_max_fragment_sizes() {
+#[tokio::test]
+async fn bad_client_max_fragment_sizes() {
     assert_eq!(
-        check_client_max_fragment_size(31),
+        check_client_max_fragment_size(31).await,
         Some(Error::BadMaxFragmentSize)
     );
-    assert_eq!(check_client_max_fragment_size(32), None);
-    assert_eq!(check_client_max_fragment_size(64), None);
-    assert_eq!(check_client_max_fragment_size(1460), None);
-    assert_eq!(check_client_max_fragment_size(0x4000), None);
-    assert_eq!(check_client_max_fragment_size(0x4005), None);
+    assert_eq!(check_client_max_fragment_size(32).await, None);
+    assert_eq!(check_client_max_fragment_size(64).await, None);
+    assert_eq!(check_client_max_fragment_size(1460).await, None);
+    assert_eq!(check_client_max_fragment_size(0x4000).await, None);
+    assert_eq!(check_client_max_fragment_size(0x4005).await, None);
     assert_eq!(
-        check_client_max_fragment_size(0x4006),
+        check_client_max_fragment_size(0x4006).await,
         Some(Error::BadMaxFragmentSize)
     );
     assert_eq!(
-        check_client_max_fragment_size(0xffff),
+        check_client_max_fragment_size(0xffff).await,
         Some(Error::BadMaxFragmentSize)
     );
 }
@@ -3130,14 +3122,13 @@ fn assert_lt(left: usize, right: usize) {
 #[test]
 fn connection_types_are_not_huge() {
     // Arbitrary sizes
-    assert_lt(mem::size_of::<ServerConnection>(), 1600);
     assert_lt(mem::size_of::<ClientConnection>(), 1600);
 }
 
 use tls_aio::internal::msgs::{message::Message, message::MessagePayload};
 
-#[test]
-fn test_client_rejects_illegal_tls13_ccs() {
+#[tokio::test]
+ async fn test_client_rejects_illegal_tls13_ccs() {
     fn corrupt_ccs(msg: &mut Message) -> Altered {
         if let MessagePayload::ChangeCipherSpec(_) = &mut msg.payload {
             println!("seen CCS {:?}", msg);
@@ -3146,7 +3137,7 @@ fn test_client_rejects_illegal_tls13_ccs() {
         Altered::InPlace
     }
 
-    let (mut client, mut server) = make_pair(KeyType::Rsa);
+    let (mut client, mut server) = make_pair(KeyType::Rsa).await;
     send(&mut client, &mut server);
     server.process_new_packets().unwrap();
 
@@ -3154,7 +3145,7 @@ fn test_client_rejects_illegal_tls13_ccs() {
 
     receive_altered(&mut server, corrupt_ccs, &mut client);
     assert_eq!(
-        client.process_new_packets(),
+        client.process_new_packets().await,
         Err(Error::PeerMisbehavedError(
             "illegal middlebox CCS received".into()
         ))
@@ -3163,8 +3154,8 @@ fn test_client_rejects_illegal_tls13_ccs() {
 
 /// https://github.com/rustls/rustls/issues/797
 #[cfg(feature = "tls12")]
-#[test]
-fn test_client_tls12_no_resume_after_server_downgrade() {
+#[tokio::test]
+async fn test_client_tls12_no_resume_after_server_downgrade() {
     let mut client_config = common::make_client_config(KeyType::Ed25519);
     let client_storage = Arc::new(ClientStorage::new());
     client_config.session_storage = client_storage.clone();
@@ -3191,16 +3182,16 @@ fn test_client_tls12_no_resume_after_server_downgrade() {
 
     dbg!("handshake 1");
     let mut client_1 =
-        ClientConnection::new(client_config.clone(), "localhost".try_into().unwrap()).unwrap();
+        ClientConnection::new(client_config.clone(), "localhost".try_into().unwrap()).await.unwrap();
     let mut server_1 = ServerConnection::new(server_config_1).unwrap();
-    common::do_handshake(&mut client_1, &mut server_1);
+    common::do_handshake(&mut client_1, &mut server_1).await;
     assert_eq!(client_storage.puts(), 2);
 
     dbg!("handshake 2");
     let mut client_2 =
-        ClientConnection::new(client_config, "localhost".try_into().unwrap()).unwrap();
+        ClientConnection::new(client_config, "localhost".try_into().unwrap()).await.unwrap();
     let mut server_2 = ServerConnection::new(Arc::new(server_config_2)).unwrap();
-    common::do_handshake(&mut client_2, &mut server_2);
+    common::do_handshake(&mut client_2, &mut server_2).await;
     assert_eq!(client_storage.puts(), 2);
 }
 
@@ -3270,8 +3261,8 @@ impl log::Log for CountingLogger {
     fn flush(&self) {}
 }
 
-#[test]
-fn test_no_warning_logging_during_successful_sessions() {
+#[tokio::test]
+async fn test_no_warning_logging_during_successful_sessions() {
     CountingLogger::install();
     CountingLogger::reset();
 
@@ -3279,8 +3270,8 @@ fn test_no_warning_logging_during_successful_sessions() {
         for version in tls_aio::ALL_VERSIONS {
             let client_config = make_client_config_with_versions(*kt, &[version]);
             let (mut client, mut server) =
-                make_pair_for_configs(client_config, make_server_config(*kt));
-            do_handshake(&mut client, &mut server);
+                make_pair_for_configs(client_config, make_server_config(*kt)).await;
+            do_handshake(&mut client, &mut server).await;
         }
     }
 

@@ -57,48 +57,48 @@ fn serialized(f: impl FnOnce()) {
     f()
 }
 
-#[test]
-fn exercise_key_log_file_for_client() {
-    serialized(|| {
-        let server_config = Arc::new(make_server_config(KeyType::Rsa));
-        env::set_var("SSLKEYLOGFILE", "./sslkeylogfile.txt");
+// #[test]
+// fn exercise_key_log_file_for_client() {
+//     serialized(|| {
+//         let server_config = Arc::new(make_server_config(KeyType::Rsa));
+//         env::set_var("SSLKEYLOGFILE", "./sslkeylogfile.txt");
 
-        for version in tls_aio::ALL_VERSIONS {
-            let mut client_config = make_client_config_with_versions(KeyType::Rsa, &[version]);
-            client_config.key_log = Arc::new(tls_aio::KeyLogFile::new());
+//         for version in tls_aio::ALL_VERSIONS {
+//             let mut client_config = make_client_config_with_versions(KeyType::Rsa, &[version]);
+//             client_config.key_log = Arc::new(tls_aio::KeyLogFile::new());
 
-            let (mut client, mut server) =
-                make_pair_for_arc_configs(&Arc::new(client_config), &server_config);
+//             let (mut client, mut server) =
+//                 make_pair_for_arc_configs(&Arc::new(client_config), &server_config);
 
-            assert_eq!(5, client.writer().write(b"hello").unwrap());
+//             assert_eq!(5, client.writer().write(b"hello").unwrap());
 
-            do_handshake(&mut client, &mut server);
-            send(&mut client, &mut server);
-            server.process_new_packets().unwrap();
-        }
-    })
-}
+//             do_handshake(&mut client, &mut server);
+//             send(&mut client, &mut server);
+//             server.process_new_packets().unwrap();
+//         }
+//     })
+// }
 
-#[test]
-fn exercise_key_log_file_for_server() {
-    serialized(|| {
-        let mut server_config = make_server_config(KeyType::Rsa);
+// #[test]
+// fn exercise_key_log_file_for_server() {
+//     serialized(|| {
+//         let mut server_config = make_server_config(KeyType::Rsa);
 
-        env::set_var("SSLKEYLOGFILE", "./sslkeylogfile.txt");
-        server_config.key_log = Arc::new(rustls::KeyLogFile::new());
+//         env::set_var("SSLKEYLOGFILE", "./sslkeylogfile.txt");
+//         server_config.key_log = Arc::new(rustls::KeyLogFile::new());
 
-        let server_config = Arc::new(server_config);
+//         let server_config = Arc::new(server_config);
 
-        for version in tls_aio::ALL_VERSIONS {
-            let client_config = make_client_config_with_versions(KeyType::Rsa, &[version]);
-            let (mut client, mut server) =
-                make_pair_for_arc_configs(&Arc::new(client_config), &server_config);
+//         for version in tls_aio::ALL_VERSIONS {
+//             let client_config = make_client_config_with_versions(KeyType::Rsa, &[version]);
+//             let (mut client, mut server) =
+//                 make_pair_for_arc_configs(&Arc::new(client_config), &server_config);
 
-            assert_eq!(5, client.writer().write(b"hello").unwrap());
+//             assert_eq!(5, client.writer().write(b"hello").unwrap());
 
-            do_handshake(&mut client, &mut server);
-            send(&mut client, &mut server);
-            server.process_new_packets().unwrap();
-        }
-    })
-}
+//             do_handshake(&mut client, &mut server);
+//             send(&mut client, &mut server);
+//             server.process_new_packets().unwrap();
+//         }
+//     })
+// }

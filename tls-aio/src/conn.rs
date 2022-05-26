@@ -22,6 +22,7 @@ use crate::vecbuf::ChunkVecBuffer;
 
 use async_recursion::async_recursion;
 use async_trait::async_trait;
+use futures::AsyncWrite;
 use std::collections::VecDeque;
 use std::convert::TryFrom;
 use std::io;
@@ -60,6 +61,29 @@ impl IoState {
     /// retrieved.
     pub fn peer_has_closed(&self) -> bool {
         self.peer_has_closed
+    }
+}
+
+
+pub struct Writer<'a> {
+    conn: &'a mut ConnectionCommon
+}
+
+impl<'a> AsyncWrite for Writer<'a> {
+    fn poll_write(
+            self: std::pin::Pin<&mut Self>,
+            cx: &mut std::task::Context<'_>,
+            buf: &[u8],
+        ) -> std::task::Poll<io::Result<usize>> {
+        todo!()
+    }
+
+    fn poll_flush(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<io::Result<()>> {
+        todo!()
+    }
+
+    fn poll_close(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<io::Result<()>> {
+        todo!()
     }
 }
 
@@ -229,8 +253,10 @@ impl ConnectionCommon {
     }
 
     /// Writes plaintext
-    pub async fn write(&mut self, buf: &[u8]) -> usize {
-        self.send_some_plaintext(buf).await
+    pub fn writer(&mut self) -> Writer {
+        Writer {
+            conn: self
+        }
     }
 
     /// This function uses `io` to complete any outstanding IO for
