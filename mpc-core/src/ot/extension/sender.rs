@@ -204,7 +204,7 @@ where
             return Err(ExtSenderCoreError::CommitmentCheckFailed);
         }
         let mut result = [0u8; 32];
-        result.copy_from_slice(&xor(&payload.cointoss_share, &self.cointoss_share));
+        xor(&payload.cointoss_share, &self.cointoss_share, &mut result);
         self.cointoss_random = Some(result);
 
         self.state = State::BaseReceive;

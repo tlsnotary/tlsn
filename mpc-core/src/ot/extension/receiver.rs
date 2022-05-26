@@ -205,10 +205,11 @@ where
 
         self.set_seeds(seeds);
         let mut result = [0u8; 32];
-        result.copy_from_slice(&xor(
+        xor(
             &base_receiver_setup.cointoss_share,
             &self.cointoss_share,
-        ));
+            &mut result,
+        );
         self.cointoss_random = Some(result);
         self.state = State::BaseSend;
         Ok(BaseSenderPayload {

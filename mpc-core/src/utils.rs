@@ -73,9 +73,11 @@ pub fn sha256(data: &[u8]) -> [u8; 32] {
 }
 
 /// XORs 2 slices of bytes of equal length
-pub fn xor(a: &[u8], b: &[u8]) -> Vec<u8> {
-    assert!(a.len() == b.len());
-    a.iter().zip(b.iter()).map(|(&x1, &x2)| x1 ^ x2).collect()
+pub fn xor(a: &[u8], b: &[u8], out: &mut [u8]) {
+    assert!(a.len() == b.len() && a.len() == out.len());
+    for ((a, b), out) in a.iter().zip(b.iter()).zip(out.iter_mut()) {
+        *out = a ^ b;
+    }
 }
 
 #[cfg(test)]
@@ -125,8 +127,10 @@ mod tests {
     fn test_xor() {
         let a = [2u8; 32];
         let b = [3u8; 32];
+        let mut out = [0u8; 32];
+        xor(&a, &b, &mut out);
         let expected = [1u8; 32];
-        assert_eq!(xor(&a, &b), expected);
+        assert_eq!(out, expected);
     }
 
     #[should_panic]
@@ -134,6 +138,7 @@ mod tests {
     fn test_xor_panic() {
         let a = [2u8; 32];
         let b = [3u8; 31];
-        xor(&a, &b);
+        let mut out = [0u8; 32];
+        xor(&a, &b, &mut out);
     }
 }
