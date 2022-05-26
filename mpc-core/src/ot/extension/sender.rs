@@ -18,6 +18,7 @@ use crate::utils::{self, sha256, xor};
 pub enum State {
     Initialized,
     BaseSetup,
+    BaseReceive,
     Setup,
     Complete,
 }
@@ -174,7 +175,11 @@ where
         &mut self,
         base_sender_setup: BaseSenderSetup,
     ) -> Result<BaseReceiverSetup, ExtSenderCoreError> {
+        if self.state != State::Initialized {
+            return Err(ExtSenderCoreError::WrongState);
+        }
         self.receiver_cointoss_commit = Some(base_sender_setup.cointoss_commit);
+        self.state = State::BaseSetup;
         Ok(BaseReceiverSetup {
             setup: self
                 .base
@@ -184,12 +189,17 @@ where
     }
 
     fn base_receive(&mut self, payload: BaseSenderPayload) -> Result<(), ExtSenderCoreError> {
+        if self.state != State::BaseSetup {
+            return Err(ExtSenderCoreError::WrongState);
+        }
         let receive = self.base.receive(payload.payload)?;
         self.set_seeds(receive);
 
         // check the decommitment for the other party's share
         if sha256(&payload.cointoss_share)
-            != self.receiver_cointoss_commit.as_ref().unwrap().as_slice()
+            != self
+                .receiver_cointoss_commit
+                .ok_or(ExtSenderCoreError::InternalError)?
         {
             return Err(ExtSenderCoreError::CommitmentCheckFailed);
         }
@@ -197,7 +207,7 @@ where
         result.copy_from_slice(&xor(&payload.cointoss_share, &self.cointoss_share));
         self.cointoss_random = Some(result);
 
-        self.state = State::BaseSetup;
+        self.state = State::BaseReceive;
         Ok(())
     }
 
@@ -205,7 +215,7 @@ where
         &mut self,
         receiver_setup: ExtReceiverSetup,
     ) -> Result<(), ExtSenderCoreError> {
-        if self.state < State::BaseSetup {
+        if self.state != State::BaseReceive {
             return Err(ExtSenderCoreError::BaseOTNotSetup);
         }
         let ncols = receiver_setup.table[0].len() * 8;
@@ -232,7 +242,10 @@ where
 
         // Seeding with a value from cointoss so that neither party could influence
         // the randomness
-        let mut rng = ChaCha12Rng::from_seed(self.cointoss_random.unwrap());
+        let mut rng = ChaCha12Rng::from_seed(
+            self.cointoss_random
+                .ok_or(ExtSenderCoreError::InternalError)?,
+        );
 
         let mut check0 = U64x2::from([0u8; 16]);
         let mut check1 = U64x2::from([0u8; 16]);

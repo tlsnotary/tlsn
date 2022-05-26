@@ -18,6 +18,10 @@ pub enum ExtSenderCoreError {
     CommitmentCheckFailed,
     #[error("KOS15 consistency check failed")]
     ConsistencyCheckFailed,
+    #[error("A method was called at the incorrect state of the protocol")]
+    WrongState,
+    #[error("An internal error happened")]
+    InternalError,
 }
 
 /// Errors that may occur when using ExtReceiverCore
@@ -41,4 +45,8 @@ pub enum ExtReceiverCoreError {
     InvalidPayloadSize,
     #[error("Tried to receive after OT is already complete")]
     AlreadyComplete,
+    #[error("A method was called at the incorrect state of the protocol")]
+    WrongState,
+    #[error("An internal error happened")]
+    InternalError,
 }

@@ -24,6 +24,7 @@ pub struct ChoiceState {
 pub enum State {
     Initialized,
     BaseSetup,
+    BaseSend,
     Setup(ChoiceState),
     Complete,
 }
@@ -176,6 +177,10 @@ where
     }
 
     fn base_setup(&mut self) -> Result<BaseSenderSetup, ExtReceiverCoreError> {
+        if self.state != State::Initialized {
+            return Err(ExtReceiverCoreError::WrongState);
+        }
+        self.state = State::BaseSetup;
         Ok(BaseSenderSetup {
             setup: self.base.setup(),
             cointoss_commit: sha256(&self.cointoss_share),
@@ -186,6 +191,9 @@ where
         &mut self,
         base_receiver_setup: BaseReceiverSetup,
     ) -> Result<BaseSenderPayload, ExtReceiverCoreError> {
+        if self.state != State::BaseSetup {
+            return Err(ExtReceiverCoreError::WrongState);
+        }
         let mut seeds: Vec<[Block; 2]> = Vec::with_capacity(BASE_COUNT);
         for _ in 0..BASE_COUNT {
             seeds.push([Block::random(&mut self.rng), Block::random(&mut self.rng)]);
@@ -202,7 +210,7 @@ where
             &self.cointoss_share,
         ));
         self.cointoss_random = Some(result);
-        self.state = State::BaseSetup;
+        self.state = State::BaseSend;
         Ok(BaseSenderPayload {
             payload: base_send,
             cointoss_share: self.cointoss_share,
@@ -213,7 +221,7 @@ where
         &mut self,
         choice: &[bool],
     ) -> Result<ExtReceiverSetup, ExtReceiverCoreError> {
-        if State::BaseSetup != self.state {
+        if State::BaseSend != self.state {
             return Err(ExtReceiverCoreError::BaseOTNotSetup);
         }
         let rngs = self
@@ -270,7 +278,10 @@ where
 
         // Seeding with a value from cointoss so that neither party could influence
         // the randomness
-        let mut rng = ChaCha12Rng::from_seed(self.cointoss_random.unwrap());
+        let mut rng = ChaCha12Rng::from_seed(
+            self.cointoss_random
+                .ok_or(ExtReceiverCoreError::InternalError)?,
+        );
 
         let mut x = U64x2::from([0u8; 16]);
         let mut t0 = U64x2::from([0u8; 16]);

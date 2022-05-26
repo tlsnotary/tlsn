@@ -77,7 +77,6 @@ pub mod tests {
 
             let mut receiver = ReceiverCore::new(choice.len());
             let receiver_setup = receiver.setup(choice, sender_setup).unwrap();
-
             let sender_payload = sender.send(values, receiver_setup.clone()).unwrap();
             let receiver_values = receiver.receive(sender_payload.clone()).unwrap();
 
