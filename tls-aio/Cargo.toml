@@ -22,7 +22,7 @@ futures = "0.3.21"
 log = { version = "0.4.4", optional = true }
 ring = "0.16.20"
 sct = "0.7.0"
-tokio = "1.18.2"
+tokio = { version = "1.18.2", features = ["macros", "rt"] }
 tokio-util = "0.7.2"
 webpki = { version = "0.22.0", features = ["alloc", "std"] }
 
