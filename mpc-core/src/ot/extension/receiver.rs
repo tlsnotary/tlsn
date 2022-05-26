@@ -28,8 +28,8 @@ pub enum State {
     Complete,
 }
 
-// OT extension Receiver plays the role of base OT Sender and sends the
-// first message containing base OT setup and cointoss commitment
+/// OT extension Receiver plays the role of base OT Sender and sends the
+/// first message containing base OT setup and cointoss commitment
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BaseSenderSetup {
     pub setup: SenderSetup,

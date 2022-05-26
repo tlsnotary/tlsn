@@ -22,8 +22,8 @@ pub enum State {
     Complete,
 }
 
-// OT extension Sender plays the role of base OT Receiver and sends the
-// second message containing base OT setup and cointoss share
+/// OT extension Sender plays the role of base OT Receiver and sends the
+/// second message containing base OT setup and cointoss share
 #[derive(Debug, Clone, std::cmp::PartialEq)]
 pub struct BaseReceiverSetup {
     pub setup: ReceiverSetup,
@@ -51,8 +51,8 @@ pub struct ExtSenderCore<C = Aes128, OT = ReceiverCore<ChaCha12Rng>> {
     table: Option<Vec<Vec<u8>>>,
     // our XOR share for the cointoss protocol
     cointoss_share: [u8; 32],
-    // the other party's sha256 commitment to their cointoss share
-    his_cointoss_commit: Option<[u8; 32]>,
+    // the Receiver's sha256 commitment to their cointoss share
+    receiver_cointoss_commit: Option<[u8; 32]>,
     // the shared random value which both parties will have at the end of the
     // cointoss protocol
     cointoss_random: Option<[u8; 32]>,
@@ -109,7 +109,7 @@ impl ExtSenderCore {
             rngs: None,
             table: None,
             cointoss_share: rng.gen(),
-            his_cointoss_commit: None,
+            receiver_cointoss_commit: None,
             cointoss_random: None,
         }
     }
@@ -135,7 +135,7 @@ where
             rngs: None,
             table: None,
             cointoss_share: rng.gen(),
-            his_cointoss_commit: None,
+            receiver_cointoss_commit: None,
             cointoss_random: None,
         }
     }
@@ -174,7 +174,7 @@ where
         &mut self,
         base_sender_setup: BaseSenderSetup,
     ) -> Result<BaseReceiverSetup, ExtSenderCoreError> {
-        self.his_cointoss_commit = Some(base_sender_setup.cointoss_commit);
+        self.receiver_cointoss_commit = Some(base_sender_setup.cointoss_commit);
         Ok(BaseReceiverSetup {
             setup: self
                 .base
@@ -188,7 +188,8 @@ where
         self.set_seeds(receive);
 
         // check the decommitment for the other party's share
-        if sha256(&payload.cointoss_share) != self.his_cointoss_commit.as_ref().unwrap().as_slice()
+        if sha256(&payload.cointoss_share)
+            != self.receiver_cointoss_commit.as_ref().unwrap().as_slice()
         {
             return Err(ExtSenderCoreError::CommitmentCheckFailed);
         }
