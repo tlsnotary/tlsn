@@ -1,0 +1,10 @@
+[package]
+name = "tlsn-prover"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "prover"
+
+[dependencies]
+tlsn-tls-aio = { path = "../tls-aio" }

@@ -6,5 +6,8 @@ members = [
     "mpc-circuits",
     "tls-aio",
     "utils-aio",
+    "prover",
+    "notary",
+    "common",
     #"wasm",
 ]
