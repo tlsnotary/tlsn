@@ -253,6 +253,7 @@
 
 // Require docs for public APIs, deny unsafe code, etc.
 #![forbid(unsafe_code, unused_must_use)]
+#![allow(dead_code, unused_imports)]
 #![cfg_attr(not(read_buf), forbid(unstable_features))]
 #![deny(
     clippy::clone_on_ref_ptr,
