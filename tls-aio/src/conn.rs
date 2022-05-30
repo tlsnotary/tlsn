@@ -22,7 +22,6 @@ use crate::vecbuf::ChunkVecBuffer;
 
 use async_recursion::async_recursion;
 use async_trait::async_trait;
-use futures::AsyncWrite;
 use std::collections::VecDeque;
 use std::convert::TryFrom;
 use std::io;
@@ -61,29 +60,6 @@ impl IoState {
     /// retrieved.
     pub fn peer_has_closed(&self) -> bool {
         self.peer_has_closed
-    }
-}
-
-
-pub struct Writer<'a> {
-    conn: &'a mut ConnectionCommon
-}
-
-impl<'a> AsyncWrite for Writer<'a> {
-    fn poll_write(
-            self: std::pin::Pin<&mut Self>,
-            cx: &mut std::task::Context<'_>,
-            buf: &[u8],
-        ) -> std::task::Poll<io::Result<usize>> {
-        todo!()
-    }
-
-    fn poll_flush(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<io::Result<()>> {
-        todo!()
-    }
-
-    fn poll_close(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<io::Result<()>> {
-        todo!()
     }
 }
 
@@ -222,7 +198,7 @@ pub struct ConnectionCommon {
     pub(crate) data: ClientConnectionData,
     pub(crate) common_state: CommonState,
     message_deframer: MessageDeframer,
-    handshake_joiner: HandshakeJoiner,
+    handshake_joiner: HandshakeJoiner
 }
 
 impl ConnectionCommon {
@@ -249,13 +225,6 @@ impl ConnectionCommon {
             peer_cleanly_closed: self.common_state.has_received_close_notify
                 && !self.message_deframer.has_pending(),
             has_seen_eof: self.common_state.has_seen_eof,
-        }
-    }
-
-    /// Writes plaintext
-    pub fn writer(&mut self) -> Writer {
-        Writer {
-            conn: self
         }
     }
 
@@ -505,11 +474,21 @@ impl ConnectionCommon {
         Ok(state)
     }
 
-    pub(crate) async fn send_some_plaintext(&mut self, buf: &[u8]) -> usize {
+    /// Write buffer into connection
+    pub async fn write_plaintext(&mut self, buf: &[u8]) -> io::Result<usize> {
         if let Ok(st) = &mut self.state {
             st.perhaps_write_key_update(&mut self.common_state).await;
         }
-        self.common_state.send_some_plaintext(buf).await
+        Ok(self.common_state.send_some_plaintext(buf).await)
+    }
+
+    /// Write entire buffer into connection
+    pub async fn write_all_plaintext(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let mut pos = 0;
+        while pos < buf.len() {
+            pos += self.write_plaintext(&buf[pos..]).await?;
+        }
+        Ok(pos)
     }
 
     /// Read TLS content from `rd`.  This method does internal
