@@ -491,10 +491,10 @@ pub async fn make_pair_for_arc_configs(
     client_config: &Arc<ClientConfig>,
     server_config: &Arc<ServerConfig>,
 ) -> (ClientConnection, ServerConnection) {
+    let mut client = ClientConnection::new(Arc::clone(client_config), dns_name("localhost")).unwrap();
+    client.start().await.unwrap();
     (
-        ClientConnection::new(Arc::clone(client_config), dns_name("localhost"))
-            .await
-            .unwrap(),
+        client,
         ServerConnection::new(Arc::clone(server_config)).unwrap(),
     )
 }

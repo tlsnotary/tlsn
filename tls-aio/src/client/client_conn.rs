@@ -1,5 +1,7 @@
+use async_trait::async_trait;
+
 use crate::builder::{ConfigBuilder, WantsCipherSuites};
-use crate::conn::{CommonState, ConnectionCommon, Protocol, Side};
+use crate::conn::{CommonState, ConnectionCommon, Protocol, Side, State};
 use crate::error::Error;
 use crate::kx::SupportedKxGroup;
 #[cfg(feature = "logging")]
@@ -8,6 +10,7 @@ use crate::msgs::enums::CipherSuite;
 use crate::msgs::enums::ProtocolVersion;
 use crate::msgs::enums::SignatureScheme;
 use crate::msgs::handshake::ClientExtension;
+use crate::msgs::message::Message;
 use crate::sign;
 use crate::suites::SupportedCipherSuite;
 use crate::verify;
@@ -368,6 +371,28 @@ impl EarlyData {
     }
 }
 
+pub struct Initialized {
+    server_name: ServerName,
+    extra_exts: Vec<ClientExtension>,
+    proto: Protocol,
+    config: Arc<ClientConfig>
+}
+
+#[async_trait]
+impl State<ClientConnectionData> for Initialized {
+    async fn start(self: Box<Self>, cx: &mut crate::conn::Context<'_>) -> Result<Box<dyn State<ClientConnectionData>>, Error> {
+        hs::start_handshake(self.server_name, self.extra_exts, self.config, cx).await
+    }
+
+    async fn handle(
+        self: Box<Self>,
+        _cx: &mut crate::conn::Context<'_>,
+        _message: Message
+    ) -> Result<Box<dyn State<ClientConnectionData> > ,Error> {
+        unreachable!()
+    }
+}
+
 /// This represents a single TLS client connection.
 pub struct ClientConnection {
     inner: ConnectionCommon,
@@ -383,11 +408,11 @@ impl ClientConnection {
     /// Make a new ClientConnection.  `config` controls how
     /// we behave in the TLS protocol, `name` is the
     /// name of the server we want to talk to.
-    pub async fn new(config: Arc<ClientConfig>, name: ServerName) -> Result<Self, Error> {
-        Self::new_inner(config, name, Vec::new(), Protocol::Tcp).await
+    pub fn new(config: Arc<ClientConfig>, name: ServerName) -> Result<Self, Error> {
+        Self::new_inner(config, name, Vec::new(), Protocol::Tcp)
     }
 
-    async fn new_inner(
+    fn new_inner(
         config: Arc<ClientConfig>,
         name: ServerName,
         extra_exts: Vec<ClientExtension>,
@@ -395,14 +420,14 @@ impl ClientConnection {
     ) -> Result<Self, Error> {
         let mut common_state = CommonState::new(config.max_fragment_size, Side::Client)?;
         common_state.protocol = proto;
-        let mut data = ClientConnectionData::new();
+        let data = ClientConnectionData::new();
 
-        let mut cx = hs::ClientContext {
-            common: &mut common_state,
-            data: &mut data,
-        };
-
-        let state = hs::start_handshake(name, extra_exts, config, &mut cx).await?;
+        let state = Box::new(Initialized {
+            server_name: name,
+            extra_exts,
+            proto,
+            config
+        });
         let inner = ConnectionCommon::new(state, data, common_state);
 
         Ok(Self { inner })

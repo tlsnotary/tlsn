@@ -579,7 +579,8 @@ async fn server_cert_resolve_with_sni() {
         });
 
         let mut client =
-            ClientConnection::new(Arc::new(client_config), dns_name("the-value-from-sni")).await.unwrap();
+            ClientConnection::new(Arc::new(client_config), dns_name("the-value-from-sni")).unwrap();
+        client.start().await.unwrap();
         let mut server = ServerConnection::new(Arc::new(server_config)).unwrap();
 
         let err = do_handshake_until_error(&mut client, &mut server).await;
@@ -600,7 +601,8 @@ async fn server_cert_resolve_with_alpn() {
         });
 
         let mut client =
-            ClientConnection::new(Arc::new(client_config), dns_name("sni-value")).await.unwrap();
+            ClientConnection::new(Arc::new(client_config), dns_name("sni-value")).unwrap();
+        client.start().await.unwrap();
         let mut server = ServerConnection::new(Arc::new(server_config)).unwrap();
 
         let err = do_handshake_until_error(&mut client, &mut server).await;
@@ -620,7 +622,8 @@ async fn client_trims_terminating_dot() {
         });
 
         let mut client =
-            ClientConnection::new(Arc::new(client_config), dns_name("some-host.com.")).await.unwrap();
+            ClientConnection::new(Arc::new(client_config), dns_name("some-host.com.")).unwrap();
+        client.start().await.unwrap();
         let mut server = ServerConnection::new(Arc::new(server_config)).unwrap();
 
         let err = do_handshake_until_error(&mut client, &mut server).await;
@@ -650,7 +653,8 @@ async fn check_sigalgs_reduced_by_ciphersuite(
         ..Default::default()
     });
 
-    let mut client = ClientConnection::new(Arc::new(client_config), dns_name("localhost")).await.unwrap();
+    let mut client = ClientConnection::new(Arc::new(client_config), dns_name("localhost")).unwrap();
+    client.start().await.unwrap();
     let mut server = ServerConnection::new(Arc::new(server_config)).unwrap();
 
     let err = do_handshake_until_error(&mut client, &mut server).await;
@@ -710,7 +714,8 @@ async fn client_with_sni_disabled_does_not_send_sni() {
             client_config.enable_sni = false;
 
             let mut client =
-                ClientConnection::new(Arc::new(client_config), dns_name("value-not-sent")).await.unwrap();
+                ClientConnection::new(Arc::new(client_config), dns_name("value-not-sent")).unwrap();
+            client.start().await.unwrap();
             let mut server = ServerConnection::new(Arc::clone(&server_config)).unwrap();
 
             let err = do_handshake_until_error(&mut client, &mut server).await;
@@ -729,8 +734,8 @@ async fn client_checks_server_certificate_with_given_name() {
             let mut client = ClientConnection::new(
                 Arc::new(client_config),
                 dns_name("not-the-right-hostname.com"),
-            ).await
-            .unwrap();
+            ).unwrap();
+            client.start().await.unwrap();
             let mut server = ServerConnection::new(Arc::clone(&server_config)).unwrap();
 
             let err = do_handshake_until_error(&mut client, &mut server).await;
@@ -3030,7 +3035,8 @@ async fn test_client_mtu_reduction() {
         let mut client_config = make_client_config(*kt);
         client_config.max_fragment_size = Some(64);
         let mut client =
-            ClientConnection::new(Arc::new(client_config), dns_name("localhost")).await.unwrap();
+            ClientConnection::new(Arc::new(client_config), dns_name("localhost")).unwrap();
+        client.start().await.unwrap();
         let writes = collect_write_lengths(&mut client);
         println!("writes at mtu=64: {:?}", writes);
         assert!(writes.iter().all(|x| *x <= 64));
@@ -3082,7 +3088,7 @@ async fn test_server_mtu_reduction() {
 async fn check_client_max_fragment_size(size: usize) -> Option<Error> {
     let mut client_config = make_client_config(KeyType::Ed25519);
     client_config.max_fragment_size = Some(size);
-    ClientConnection::new(Arc::new(client_config), dns_name("localhost")).await.err()
+    ClientConnection::new(Arc::new(client_config), dns_name("localhost")).err()
 }
 
 #[tokio::test]
@@ -3175,14 +3181,16 @@ async fn test_client_tls12_no_resume_after_server_downgrade() {
 
     dbg!("handshake 1");
     let mut client_1 =
-        ClientConnection::new(client_config.clone(), "localhost".try_into().unwrap()).await.unwrap();
+        ClientConnection::new(client_config.clone(), "localhost".try_into().unwrap()).unwrap();
+    client_1.start().await.unwrap();
     let mut server_1 = ServerConnection::new(server_config_1).unwrap();
     common::do_handshake(&mut client_1, &mut server_1).await;
     assert_eq!(client_storage.puts(), 2);
 
     dbg!("handshake 2");
     let mut client_2 =
-        ClientConnection::new(client_config, "localhost".try_into().unwrap()).await.unwrap();
+        ClientConnection::new(client_config, "localhost".try_into().unwrap()).unwrap();
+    client_2.start().await.unwrap();
     let mut server_2 = ServerConnection::new(Arc::new(server_config_2)).unwrap();
     common::do_handshake(&mut client_2, &mut server_2).await;
     assert_eq!(client_storage.puts(), 2);

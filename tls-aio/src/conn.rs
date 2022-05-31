@@ -228,6 +228,23 @@ impl ConnectionCommon {
         }
     }
 
+    /// Initiate the TLS protocol
+    pub async fn start(&mut self) -> Result<(), Error> {
+        let state = match mem::replace(&mut self.state, Err(Error::HandshakeNotComplete)) {
+            Ok(state) => state,
+            Err(e) => {
+                self.state = Err(e.clone());
+                return Err(e);
+            }
+        };
+        let mut cx = Context {
+            common: &mut self.common_state,
+            data: &mut self.data,
+        };
+        self.state = state.start(&mut cx).await;
+        Ok(())
+    }
+
     /// This function uses `io` to complete any outstanding IO for
     /// this connection.
     ///
@@ -1056,6 +1073,10 @@ impl CommonState {
 
 #[async_trait]
 pub(crate) trait State<ClientConnectionData>: Send + Sync {
+    async fn start(self: Box<Self>, cx: &mut Context<'_>) -> Result<Box<dyn State<ClientConnectionData>>, Error> {
+        panic!("Start called on unexpected state")
+    }
+
     async fn handle(
         self: Box<Self>,
         cx: &mut Context<'_>,
