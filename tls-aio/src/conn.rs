@@ -1,6 +1,5 @@
 use crate::client::ClientConnectionData;
 use crate::error::Error;
-use crate::key;
 #[cfg(feature = "logging")]
 use crate::log::{debug, error, trace, warn};
 use crate::msgs::alert::AlertMessagePayload;
@@ -19,6 +18,7 @@ use crate::suites::SupportedCipherSuite;
 #[cfg(feature = "tls12")]
 use crate::tls12::ConnectionSecrets;
 use crate::vecbuf::ChunkVecBuffer;
+use crate::{handshaker, key};
 
 use async_recursion::async_recursion;
 use async_trait::async_trait;
@@ -198,7 +198,7 @@ pub struct ConnectionCommon {
     pub(crate) data: ClientConnectionData,
     pub(crate) common_state: CommonState,
     message_deframer: MessageDeframer,
-    handshake_joiner: HandshakeJoiner
+    handshake_joiner: HandshakeJoiner,
 }
 
 impl ConnectionCommon {
@@ -576,6 +576,7 @@ pub struct CommonState {
     pub(crate) negotiated_version: Option<ProtocolVersion>,
     pub(crate) side: Side,
     pub(crate) record_layer: record_layer::RecordLayer,
+    pub(crate) handshaker: handshaker::Handshaker,
     pub(crate) suite: Option<SupportedCipherSuite>,
     pub(crate) alpn_protocol: Option<Vec<u8>>,
     aligned_handshake: bool,
@@ -603,6 +604,7 @@ impl CommonState {
             negotiated_version: None,
             side,
             record_layer: record_layer::RecordLayer::new(),
+            handshaker: handshaker::Handshaker::new(),
             suite: None,
             alpn_protocol: None,
             aligned_handshake: true,
@@ -1073,7 +1075,10 @@ impl CommonState {
 
 #[async_trait]
 pub(crate) trait State<ClientConnectionData>: Send + Sync {
-    async fn start(self: Box<Self>, cx: &mut Context<'_>) -> Result<Box<dyn State<ClientConnectionData>>, Error> {
+    async fn start(
+        self: Box<Self>,
+        cx: &mut Context<'_>,
+    ) -> Result<Box<dyn State<ClientConnectionData>>, Error> {
         panic!("Start called on unexpected state")
     }
 
