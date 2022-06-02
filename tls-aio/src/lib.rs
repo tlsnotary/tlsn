@@ -319,6 +319,7 @@ mod hash_hs;
 mod limited_cache;
 mod rand;
 mod record_layer;
+mod handshaker;
 //mod stream;
 #[cfg(feature = "tls12")]
 mod tls12;

@@ -113,7 +113,7 @@ pub(super) async fn start_handshake(
         session_id = Some(SessionID::random()?);
     }
 
-    let random = Random::new()?;
+    let random = cx.common.handshaker.client_random().await?;
     let hello_details = ClientHelloDetails::new();
     let sent_tls13_fake_ccs = false;
     let may_send_sct_list = config.verifier.request_scts();
