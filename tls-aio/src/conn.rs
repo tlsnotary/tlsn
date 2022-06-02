@@ -1079,7 +1079,7 @@ impl CommonState {
 pub(crate) trait State<ClientConnectionData>: Send + Sync {
     async fn start(
         self: Box<Self>,
-        cx: &mut Context<'_>,
+        _cx: &mut Context<'_>,
     ) -> Result<Box<dyn State<ClientConnectionData>>, Error> {
         panic!("Start called on unexpected state")
     }
