@@ -803,7 +803,7 @@ impl CommonState {
         self.message_fragmenter.fragment(m, &mut plain_messages);
 
         for m in plain_messages {
-            self.send_single_fragment(m.borrow()).await;
+            self.send_single_fragment(m).await;
         }
     }
 
@@ -819,10 +819,12 @@ impl CommonState {
         };
 
         let mut plain_messages = VecDeque::new();
-        self.message_fragmenter.fragment_borrow(
-            ContentType::ApplicationData,
-            ProtocolVersion::TLSv1_2,
-            &payload[..len],
+        self.message_fragmenter.fragment(
+            PlainMessage {
+                typ: ContentType::ApplicationData,
+                version: ProtocolVersion::TLSv1_2,
+                payload: Payload::new(&payload[..len]),
+            },
             &mut plain_messages,
         );
 
@@ -833,7 +835,7 @@ impl CommonState {
         len
     }
 
-    async fn send_single_fragment<'a>(&mut self, m: BorrowedPlainMessage<'a>) {
+    async fn send_single_fragment(&mut self, m: PlainMessage) {
         // Close connection once we start to run out of
         // sequence space.
         if self.record_layer.wants_close_before_encrypt() {

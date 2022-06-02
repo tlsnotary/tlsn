@@ -6,6 +6,7 @@ use crate::msgs::enums::{ContentType, ProtocolVersion};
 use crate::msgs::fragmenter::MAX_FRAGMENT_LEN;
 use crate::msgs::message::{BorrowedPlainMessage, OpaqueMessage, PlainMessage};
 
+use async_trait::async_trait;
 use ring::aead;
 
 const TLS12_AAD_SIZE: usize = 8 + 1 + 2 + 2;
@@ -110,8 +111,9 @@ struct GcmMessageDecrypter {
 const GCM_EXPLICIT_NONCE_LEN: usize = 8;
 const GCM_OVERHEAD: usize = GCM_EXPLICIT_NONCE_LEN + 16;
 
+#[async_trait]
 impl MessageDecrypter for GcmMessageDecrypter {
-    fn decrypt(&self, mut msg: OpaqueMessage, seq: u64) -> Result<PlainMessage, Error> {
+    async fn decrypt(&self, mut msg: OpaqueMessage, seq: u64) -> Result<PlainMessage, Error> {
         let payload = &mut msg.payload.0;
         if payload.len() < GCM_OVERHEAD {
             return Err(Error::DecryptError);
@@ -141,15 +143,16 @@ impl MessageDecrypter for GcmMessageDecrypter {
     }
 }
 
+#[async_trait]
 impl MessageEncrypter for GcmMessageEncrypter {
-    fn encrypt(&self, msg: BorrowedPlainMessage, seq: u64) -> Result<OpaqueMessage, Error> {
+    async fn encrypt(&self, msg: PlainMessage, seq: u64) -> Result<OpaqueMessage, Error> {
         let nonce = make_nonce(&self.iv, seq);
-        let aad = make_tls12_aad(seq, msg.typ, msg.version, msg.payload.len());
+        let aad = make_tls12_aad(seq, msg.typ, msg.version, msg.payload.0.len());
 
-        let total_len = msg.payload.len() + self.enc_key.algorithm().tag_len();
+        let total_len = msg.payload.0.len() + self.enc_key.algorithm().tag_len();
         let mut payload = Vec::with_capacity(GCM_EXPLICIT_NONCE_LEN + total_len);
         payload.extend_from_slice(&nonce.as_ref()[4..]);
-        payload.extend_from_slice(msg.payload);
+        payload.extend_from_slice(&msg.payload.0);
 
         self.enc_key
             .seal_in_place_separate_tag(nonce, aad, &mut payload[GCM_EXPLICIT_NONCE_LEN..])
@@ -182,8 +185,9 @@ struct ChaCha20Poly1305MessageDecrypter {
 
 const CHACHAPOLY1305_OVERHEAD: usize = 16;
 
+#[async_trait]
 impl MessageDecrypter for ChaCha20Poly1305MessageDecrypter {
-    fn decrypt(&self, mut msg: OpaqueMessage, seq: u64) -> Result<PlainMessage, Error> {
+    async fn decrypt(&self, mut msg: OpaqueMessage, seq: u64) -> Result<PlainMessage, Error> {
         let payload = &mut msg.payload.0;
 
         if payload.len() < CHACHAPOLY1305_OVERHEAD {
@@ -213,14 +217,15 @@ impl MessageDecrypter for ChaCha20Poly1305MessageDecrypter {
     }
 }
 
+#[async_trait]
 impl MessageEncrypter for ChaCha20Poly1305MessageEncrypter {
-    fn encrypt(&self, msg: BorrowedPlainMessage, seq: u64) -> Result<OpaqueMessage, Error> {
+    async fn encrypt(&self, msg: PlainMessage, seq: u64) -> Result<OpaqueMessage, Error> {
         let nonce = make_nonce(&self.enc_offset, seq);
-        let aad = make_tls12_aad(seq, msg.typ, msg.version, msg.payload.len());
+        let aad = make_tls12_aad(seq, msg.typ, msg.version, msg.payload.0.len());
 
-        let total_len = msg.payload.len() + self.enc_key.algorithm().tag_len();
+        let total_len = msg.payload.0.len() + self.enc_key.algorithm().tag_len();
         let mut buf = Vec::with_capacity(total_len);
-        buf.extend_from_slice(msg.payload);
+        buf.extend_from_slice(&msg.payload.0);
 
         self.enc_key
             .seal_in_place_append_tag(nonce, aad, &mut buf)

@@ -9,6 +9,7 @@ use crate::suites::{BulkAlgorithm, CipherSuiteCommon, SupportedCipherSuite};
 
 use ring::{aead, hkdf};
 
+use async_trait::async_trait;
 use std::fmt;
 
 pub(crate) mod key_schedule;
@@ -146,11 +147,12 @@ fn make_tls13_aad(len: usize) -> ring::aead::Aad<[u8; TLS13_AAD_SIZE]> {
 // https://datatracker.ietf.org/doc/html/rfc8446#section-5.2
 const TLS13_AAD_SIZE: usize = 1 + 2 + 2;
 
+#[async_trait]
 impl MessageEncrypter for Tls13MessageEncrypter {
-    fn encrypt(&self, msg: BorrowedPlainMessage, seq: u64) -> Result<OpaqueMessage, Error> {
-        let total_len = msg.payload.len() + 1 + self.enc_key.algorithm().tag_len();
+    async fn encrypt(&self, msg: PlainMessage, seq: u64) -> Result<OpaqueMessage, Error> {
+        let total_len = msg.payload.0.len() + 1 + self.enc_key.algorithm().tag_len();
         let mut payload = Vec::with_capacity(total_len);
-        payload.extend_from_slice(msg.payload);
+        payload.extend_from_slice(&msg.payload.0);
         msg.typ.encode(&mut payload);
 
         let nonce = make_nonce(&self.iv, seq);
@@ -168,8 +170,9 @@ impl MessageEncrypter for Tls13MessageEncrypter {
     }
 }
 
+#[async_trait]
 impl MessageDecrypter for Tls13MessageDecrypter {
-    fn decrypt(&self, mut msg: OpaqueMessage, seq: u64) -> Result<PlainMessage, Error> {
+    async fn decrypt(&self, mut msg: OpaqueMessage, seq: u64) -> Result<PlainMessage, Error> {
         let payload = &mut msg.payload.0;
         if payload.len() < self.dec_key.algorithm().tag_len() {
             return Err(Error::DecryptError);
