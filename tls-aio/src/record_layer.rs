@@ -162,7 +162,7 @@ impl RecordLayer {
     ) -> Result<PlainMessage, Error> {
         debug_assert!(self.is_decrypting());
         let seq = self.read_seq;
-        let msg = self.message_decrypter.decrypt(encr, seq)?;
+        let msg = self.message_decrypter.decrypt(encr, seq).await?;
         self.read_seq += 1;
         Ok(msg)
     }
@@ -171,14 +171,11 @@ impl RecordLayer {
     ///
     /// `plain` is a TLS message we'd like to send.  This function
     /// panics if the requisite keying material hasn't been established yet.
-    pub(crate) async fn encrypt_outgoing<'a>(
-        &mut self,
-        plain: BorrowedPlainMessage<'a>,
-    ) -> OpaqueMessage {
+    pub(crate) async fn encrypt_outgoing(&mut self, plain: PlainMessage) -> OpaqueMessage {
         debug_assert!(self.encrypt_state == DirectionState::Active);
         assert!(!self.encrypt_exhausted());
         let seq = self.write_seq;
         self.write_seq += 1;
-        self.message_encrypter.encrypt(plain, seq).unwrap()
+        self.message_encrypter.encrypt(plain, seq).await.unwrap()
     }
 }
