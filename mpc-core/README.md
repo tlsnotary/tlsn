@@ -2,6 +2,13 @@
 
 This crate contains core components for performing MPC, or more specifically 2PC.
 
+## Building
+
+If you're on a Mac:
+
+* `brew install gmp`
+* If you're on an M1 Mac, make sure to add `/opt/homebrew/lib` to your `LIBRARY_PATH` environment variable.
+
 ## Usage
 
 ### Garbled Circuits
