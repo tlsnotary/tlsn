@@ -1,6 +1,6 @@
-use crate::msgs::enums::ProtocolVersion;
-use crate::msgs::enums::{CipherSuite, SignatureAlgorithm, SignatureScheme};
-use crate::msgs::handshake::DecomposedSignatureScheme;
+use tls_core::msgs::enums::ProtocolVersion;
+use tls_core::msgs::enums::{CipherSuite, SignatureAlgorithm, SignatureScheme};
+use tls_core::msgs::handshake::DecomposedSignatureScheme;
 #[cfg(feature = "tls12")]
 use crate::tls12::Tls12CipherSuite;
 #[cfg(feature = "tls12")]
@@ -209,7 +209,7 @@ pub(crate) fn compatible_sigscheme_for_suites(
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::msgs::enums::CipherSuite;
+    use tls_core::msgs::enums::CipherSuite;
 
     #[test]
     fn test_client_pref() {

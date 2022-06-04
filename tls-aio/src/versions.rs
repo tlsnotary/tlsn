@@ -1,4 +1,4 @@
-use crate::msgs::enums::ProtocolVersion;
+use tls_core::msgs::enums::ProtocolVersion;
 
 /// A TLS protocl version supported by rustls.
 ///

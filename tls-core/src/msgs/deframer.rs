@@ -123,8 +123,7 @@ impl MessageDeframer {
              * 0          ^ self.used
              */
 
-            self.buf
-                .copy_within(taken..self.used, 0);
+            self.buf.copy_within(taken..self.used, 0);
             self.used -= taken;
         } else if taken == self.used {
             self.used = 0;
@@ -140,18 +139,20 @@ mod tests {
     use std::convert::TryFrom;
     use std::io;
 
-    const FIRST_MESSAGE: &[u8] = include_bytes!("../testdata/deframer-test.1.bin");
-    const SECOND_MESSAGE: &[u8] = include_bytes!("../testdata/deframer-test.2.bin");
+    const FIRST_MESSAGE: &[u8] = include_bytes!("../../testdata/deframer-test.1.bin");
+    const SECOND_MESSAGE: &[u8] = include_bytes!("../../testdata/deframer-test.2.bin");
 
     const EMPTY_APPLICATIONDATA_MESSAGE: &[u8] =
-        include_bytes!("../testdata/deframer-empty-applicationdata.bin");
+        include_bytes!("../../testdata/deframer-empty-applicationdata.bin");
 
-    const INVALID_EMPTY_MESSAGE: &[u8] = include_bytes!("../testdata/deframer-invalid-empty.bin");
+    const INVALID_EMPTY_MESSAGE: &[u8] =
+        include_bytes!("../../testdata/deframer-invalid-empty.bin");
     const INVALID_CONTENTTYPE_MESSAGE: &[u8] =
-        include_bytes!("../testdata/deframer-invalid-contenttype.bin");
+        include_bytes!("../../testdata/deframer-invalid-contenttype.bin");
     const INVALID_VERSION_MESSAGE: &[u8] =
-        include_bytes!("../testdata/deframer-invalid-version.bin");
-    const INVALID_LENGTH_MESSAGE: &[u8] = include_bytes!("../testdata/deframer-invalid-length.bin");
+        include_bytes!("../../testdata/deframer-invalid-version.bin");
+    const INVALID_LENGTH_MESSAGE: &[u8] =
+        include_bytes!("../../testdata/deframer-invalid-length.bin");
 
     struct ByteRead<'a> {
         buf: &'a [u8],
@@ -223,8 +224,7 @@ mod tests {
     fn input_error(d: &mut MessageDeframer) {
         let error = io::Error::from(io::ErrorKind::TimedOut);
         let mut rd = ErrorRead::new(error);
-        d.read(&mut rd)
-            .expect_err("error not propagated");
+        d.read(&mut rd).expect_err("error not propagated");
     }
 
     fn input_whole_incremental(d: &mut MessageDeframer, bytes: &[u8]) {

@@ -3,12 +3,12 @@ use crate::builder::{ConfigBuilder, WantsVerifier};
 use crate::client::handy;
 use crate::client::{ClientConfig, ResolvesClientCert};
 use crate::error::Error;
-use crate::key;
 use crate::kx::SupportedKxGroup;
 use crate::suites::SupportedCipherSuite;
 use crate::verify::{self, CertificateTransparencyPolicy};
 use crate::versions;
 use crate::NoKeyLog;
+use tls_core::key;
 
 use std::sync::Arc;
 use std::time::SystemTime;
@@ -88,7 +88,7 @@ impl ConfigBuilder<WantsTransparencyPolicyOrClientCert> {
     /// This function fails if `key_der` is invalid.
     pub fn with_single_cert(
         self,
-        cert_chain: Vec<key::Certificate>,
+        cert_chain: Vec<tls_core::key::Certificate>,
         key_der: key::PrivateKey,
     ) -> Result<ClientConfig, Error> {
         self.with_logs(None).with_single_cert(cert_chain, key_der)
@@ -148,7 +148,7 @@ impl ConfigBuilder<WantsClientCert> {
     /// This function fails if `key_der` is invalid.
     pub fn with_single_cert(
         self,
-        cert_chain: Vec<key::Certificate>,
+        cert_chain: Vec<tls_core::key::Certificate>,
         key_der: key::PrivateKey,
     ) -> Result<ClientConfig, Error> {
         let resolver = handy::AlwaysResolvesClientCert::new(cert_chain, &key_der)?;

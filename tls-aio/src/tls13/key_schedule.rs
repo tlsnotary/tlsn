@@ -1,7 +1,7 @@
 use crate::cipher::{Iv, IvLen};
 use crate::error::Error;
-use crate::msgs::base::PayloadU8;
 use crate::KeyLog;
+use tls_core::msgs::base::{PayloadU8, PayloadU8Len};
 
 /// Key schedule maintenance for TLS1.3
 use ring::{
@@ -200,12 +200,8 @@ impl KeyScheduleHandshake {
     ) {
         let traffic = KeyScheduleTraffic::new(self.ks, hs_hash, key_log, client_random);
 
-        let client_secret = traffic
-            .current_client_traffic_secret
-            .clone();
-        let server_secret = traffic
-            .current_server_traffic_secret
-            .clone();
+        let client_secret = traffic.current_client_traffic_secret.clone();
+        let server_secret = traffic.current_server_traffic_secret.clone();
 
         let new = KeyScheduleTrafficWithClientFinishedPending {
             handshake_client_traffic_secret: self.client_handshake_traffic_secret,
@@ -238,10 +234,7 @@ impl KeyScheduleTrafficWithClientFinishedPending {
             .ks
             .sign_finish(&self.handshake_client_traffic_secret, hs_hash);
 
-        let client_secret = self
-            .traffic
-            .current_client_traffic_secret
-            .clone();
+        let client_secret = self.traffic.current_client_traffic_secret.clone();
 
         (self.traffic, tag, client_secret)
     }
@@ -295,17 +288,13 @@ impl KeyScheduleTraffic {
     }
 
     pub(crate) fn next_server_application_traffic_secret(&mut self) -> hkdf::Prk {
-        let secret = self
-            .ks
-            .derive_next(&self.current_server_traffic_secret);
+        let secret = self.ks.derive_next(&self.current_server_traffic_secret);
         self.current_server_traffic_secret = secret.clone();
         secret
     }
 
     pub(crate) fn next_client_application_traffic_secret(&mut self) -> hkdf::Prk {
-        let secret = self
-            .ks
-            .derive_next(&self.current_client_traffic_secret);
+        let secret = self.ks.derive_next(&self.current_client_traffic_secret);
         self.current_client_traffic_secret = secret.clone();
         secret
     }
@@ -320,8 +309,7 @@ impl KeyScheduleTraffic {
             SecretKind::ResumptionMasterSecret,
             hs_hash.as_ref(),
         );
-        self.ks
-            .derive_ticket_psk(&resumption_master_secret, nonce)
+        self.ks.derive_ticket_psk(&resumption_master_secret, nonce)
     }
 
     pub(crate) fn export_keying_material(
@@ -383,9 +371,7 @@ impl KeySchedule {
         key_log: &dyn KeyLog,
         client_random: &[u8; 32],
     ) -> hkdf::Prk {
-        let log_label = kind
-            .log_label()
-            .expect("not a loggable secret");
+        let log_label = kind.log_label().expect("not a loggable secret");
         if key_log.will_log(log_label) {
             let secret = self
                 .derive::<PayloadU8, _>(PayloadU8Len(self.algorithm.len()), kind, hs_hash)
@@ -403,10 +389,7 @@ impl KeySchedule {
     where
         T: for<'a> From<hkdf::Okm<'a, hkdf::Algorithm>>,
     {
-        let digest_alg = self
-            .algorithm
-            .hmac_algorithm()
-            .digest_algorithm();
+        let digest_alg = self.algorithm.hmac_algorithm().digest_algorithm();
         let empty_hash = digest::digest(digest_alg, &[]);
         self.derive(self.algorithm, kind, empty_hash.as_ref())
     }
@@ -449,10 +432,7 @@ impl KeySchedule {
         label: &[u8],
         context: Option<&[u8]>,
     ) -> Result<(), Error> {
-        let digest_alg = self
-            .algorithm
-            .hmac_algorithm()
-            .digest_algorithm();
+        let digest_alg = self.algorithm.hmac_algorithm().digest_algorithm();
 
         let h_empty = digest::digest(digest_alg, &[]);
         let secret: hkdf::Prk = hkdf_expand(
@@ -512,21 +492,6 @@ where
     let okm = secret.expand(info, key_type).unwrap();
 
     f(okm)
-}
-
-pub(crate) struct PayloadU8Len(pub(crate) usize);
-impl hkdf::KeyType for PayloadU8Len {
-    fn len(&self) -> usize {
-        self.0
-    }
-}
-
-impl From<hkdf::Okm<'_, PayloadU8Len>> for PayloadU8 {
-    fn from(okm: hkdf::Okm<PayloadU8Len>) -> Self {
-        let mut r = vec![0u8; okm.len().0];
-        okm.fill(&mut r[..]).unwrap();
-        Self::new(r)
-    }
 }
 
 pub(crate) fn derive_traffic_key(

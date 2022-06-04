@@ -308,18 +308,19 @@ mod log {
     macro_rules! error    ( ($($tt:tt)*) => {{}} );
 }
 
-#[allow(missing_docs)]
 #[macro_use]
-mod msgs;
+pub extern crate tls_core;
+
 mod anchors;
 mod cipher;
 mod conn;
 mod error;
+mod handshaker;
 mod hash_hs;
 mod limited_cache;
+mod msgs;
 mod rand;
 mod record_layer;
-mod handshaker;
 //mod stream;
 #[cfg(feature = "tls12")]
 mod tls12;
@@ -346,7 +347,7 @@ mod versions;
 pub mod internal {
     /// Low-level TLS message parsing and encoding functions.
     pub mod msgs {
-        pub use crate::msgs::*;
+        pub use tls_core::msgs::*;
     }
     /// Low-level TLS message decryption functions.
     pub mod cipher {
@@ -361,14 +362,14 @@ pub use crate::builder::{
 };
 pub use crate::conn::{CommonState, ConnectionCommon, IoState, Reader, SideData};
 pub use crate::error::Error;
-pub use crate::key::{Certificate, PrivateKey};
 pub use crate::key_log::{KeyLog, NoKeyLog};
 pub use crate::key_log_file::KeyLogFile;
 pub use crate::kx::{SupportedKxGroup, ALL_KX_GROUPS};
-pub use crate::msgs::enums::CipherSuite;
-pub use crate::msgs::enums::ProtocolVersion;
-pub use crate::msgs::enums::SignatureScheme;
-pub use crate::msgs::handshake::DistinguishedNames;
+pub use tls_core::key::{Certificate, PrivateKey};
+pub use tls_core::msgs::enums::CipherSuite;
+pub use tls_core::msgs::enums::ProtocolVersion;
+pub use tls_core::msgs::enums::SignatureScheme;
+pub use tls_core::msgs::handshake::DistinguishedNames;
 //pub use crate::stream::{Stream, StreamOwned};
 pub use crate::suites::{
     BulkAlgorithm, SupportedCipherSuite, ALL_CIPHER_SUITES, DEFAULT_CIPHER_SUITES,

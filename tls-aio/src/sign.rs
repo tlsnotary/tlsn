@@ -1,7 +1,7 @@
 use crate::error::Error;
-use crate::key;
-use crate::msgs::enums::{SignatureAlgorithm, SignatureScheme};
 use crate::x509::{wrap_in_asn1_len, wrap_in_sequence};
+use tls_core::key;
+use tls_core::msgs::enums::{SignatureAlgorithm, SignatureScheme};
 
 use ring::io::der;
 use ring::signature::{self, EcdsaKeyPair, Ed25519KeyPair, RsaKeyPair};
@@ -37,7 +37,7 @@ pub trait Signer: Send + Sync {
 #[derive(Clone)]
 pub struct CertifiedKey {
     /// The certificate chain.
-    pub cert: Vec<key::Certificate>,
+    pub cert: Vec<tls_core::key::Certificate>,
 
     /// The certified key.
     pub key: Arc<dyn SigningKey>,
@@ -57,7 +57,7 @@ impl CertifiedKey {
     ///
     /// The cert chain must not be empty. The first certificate in the chain
     /// must be the end-entity certificate.
-    pub fn new(cert: Vec<key::Certificate>, key: Arc<dyn SigningKey>) -> Self {
+    pub fn new(cert: Vec<tls_core::key::Certificate>, key: Arc<dyn SigningKey>) -> Self {
         Self {
             cert,
             key,
@@ -67,7 +67,7 @@ impl CertifiedKey {
     }
 
     /// The end-entity certificate.
-    pub fn end_entity_cert(&self) -> Result<&key::Certificate, SignError> {
+    pub fn end_entity_cert(&self) -> Result<&tls_core::key::Certificate, SignError> {
         self.cert.get(0).ok_or(SignError(()))
     }
 
@@ -84,11 +84,9 @@ impl CertifiedKey {
         name: Option<webpki::DnsNameRef>,
     ) -> Result<(), Error> {
         // Always reject an empty certificate chain.
-        let end_entity_cert = self
-            .end_entity_cert()
-            .map_err(|SignError(())| {
-                Error::General("No end-entity certificate in certificate chain".to_string())
-            })?;
+        let end_entity_cert = self.end_entity_cert().map_err(|SignError(())| {
+            Error::General("No end-entity certificate in certificate chain".to_string())
+        })?;
 
         // Reject syntactically-invalid end-entity certificates.
         let end_entity_cert =
@@ -106,10 +104,7 @@ impl CertifiedKey {
             // certificate is valid; it only validates that the name is one
             // that the certificate is valid for, if the certificate is
             // valid.
-            if end_entity_cert
-                .verify_is_valid_for_dns_name(name)
-                .is_err()
-            {
+            if end_entity_cert.verify_is_valid_for_dns_name(name).is_err() {
                 return Err(Error::General(
                     "The server certificate is not \
                                              valid for the given name"
@@ -354,7 +349,7 @@ impl SigningKey for EcdsaSigningKey {
     }
 
     fn algorithm(&self) -> SignatureAlgorithm {
-        use crate::msgs::handshake::DecomposedSignatureScheme;
+        use tls_core::msgs::handshake::DecomposedSignatureScheme;
         self.scheme.sign()
     }
 }
@@ -420,7 +415,7 @@ impl SigningKey for Ed25519SigningKey {
     }
 
     fn algorithm(&self) -> SignatureAlgorithm {
-        use crate::msgs::handshake::DecomposedSignatureScheme;
+        use tls_core::msgs::handshake::DecomposedSignatureScheme;
         self.scheme.sign()
     }
 }

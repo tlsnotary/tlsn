@@ -1,15 +1,15 @@
 use crate::client::ServerName;
-use crate::key;
-use crate::msgs::base::{PayloadU16, PayloadU8};
-use crate::msgs::codec::{Codec, Reader};
-use crate::msgs::enums::{CipherSuite, ProtocolVersion};
-use crate::msgs::handshake::CertificatePayload;
-use crate::msgs::handshake::SessionID;
 use crate::suites::SupportedCipherSuite;
 use crate::ticketer::TimeBase;
 #[cfg(feature = "tls12")]
 use crate::tls12::Tls12CipherSuite;
 use crate::tls13::Tls13CipherSuite;
+use tls_core::key;
+use tls_core::msgs::base::{PayloadU16, PayloadU8};
+use tls_core::msgs::codec::{Codec, Reader};
+use tls_core::msgs::enums::{CipherSuite, ProtocolVersion};
+use tls_core::msgs::handshake::CertificatePayload;
+use tls_core::msgs::handshake::SessionID;
 
 use std::cmp;
 #[cfg(feature = "tls12")]
@@ -67,10 +67,7 @@ impl ClientSessionValue {
         suite: CipherSuite,
         supported: &[SupportedCipherSuite],
     ) -> Option<Self> {
-        match supported
-            .iter()
-            .find(|s| s.suite() == suite)?
-        {
+        match supported.iter().find(|s| s.suite() == suite)? {
             SupportedCipherSuite::Tls13(inner) => {
                 Tls13ClientSessionValue::read(inner, reader).map(ClientSessionValue::Tls13)
             }
@@ -165,7 +162,7 @@ impl Tls13ClientSessionValue {
         suite: &'static Tls13CipherSuite,
         ticket: Vec<u8>,
         secret: Vec<u8>,
-        server_cert_chain: Vec<key::Certificate>,
+        server_cert_chain: Vec<tls_core::key::Certificate>,
         time_now: TimeBase,
         lifetime_secs: u32,
         age_add: u32,
@@ -203,13 +200,9 @@ impl Tls13ClientSessionValue {
     /// (See `read()` for why this is inherent here.)
     pub fn get_encoding(&self) -> Vec<u8> {
         let mut bytes = Vec::with_capacity(16);
-        self.suite
-            .common
-            .suite
-            .encode(&mut bytes);
+        self.suite.common.suite.encode(&mut bytes);
         self.age_add.encode(&mut bytes);
-        self.max_early_data_size
-            .encode(&mut bytes);
+        self.max_early_data_size.encode(&mut bytes);
         self.common.encode(&mut bytes);
         bytes
     }
@@ -247,7 +240,7 @@ impl Tls12ClientSessionValue {
         session_id: SessionID,
         ticket: Vec<u8>,
         master_secret: Vec<u8>,
-        server_cert_chain: Vec<key::Certificate>,
+        server_cert_chain: Vec<tls_core::key::Certificate>,
         time_now: TimeBase,
         lifetime_secs: u32,
         extended_ms: bool,
@@ -284,10 +277,7 @@ impl Tls12ClientSessionValue {
     /// (See `read()` for why this is inherent here.)
     pub fn get_encoding(&self) -> Vec<u8> {
         let mut bytes = Vec::with_capacity(16);
-        self.suite
-            .common
-            .suite
-            .encode(&mut bytes);
+        self.suite.common.suite.encode(&mut bytes);
         self.session_id.encode(&mut bytes);
         (if self.extended_ms { 1u8 } else { 0u8 }).encode(&mut bytes);
         self.common.encode(&mut bytes);
@@ -331,7 +321,7 @@ impl ClientSessionCommon {
         secret: Vec<u8>,
         time_now: TimeBase,
         lifetime_secs: u32,
-        server_cert_chain: Vec<key::Certificate>,
+        server_cert_chain: Vec<tls_core::key::Certificate>,
     ) -> Self {
         Self {
             ticket: PayloadU16(ticket),
@@ -366,7 +356,7 @@ impl ClientSessionCommon {
         self.server_cert_chain.encode(bytes);
     }
 
-    pub fn server_cert_chain(&self) -> &[key::Certificate] {
+    pub fn server_cert_chain(&self) -> &[tls_core::key::Certificate] {
         self.server_cert_chain.as_ref()
     }
 
@@ -437,8 +427,7 @@ impl Codec for ServerSessionValue {
         }
         self.application_data.encode(bytes);
         self.creation_time_sec.encode(bytes);
-        self.age_obfuscation_offset
-            .encode(bytes);
+        self.age_obfuscation_offset.encode(bytes);
     }
 
     fn read(r: &mut Reader) -> Option<Self> {
@@ -519,10 +508,8 @@ impl ServerSessionValue {
 
     pub fn set_freshness(mut self, obfuscated_client_age_ms: u32, time_now: TimeBase) -> Self {
         let client_age_ms = obfuscated_client_age_ms.wrapping_sub(self.age_obfuscation_offset);
-        let server_age_ms = (time_now
-            .as_secs()
-            .saturating_sub(self.creation_time_sec) as u32)
-            .saturating_mul(1000);
+        let server_age_ms =
+            (time_now.as_secs().saturating_sub(self.creation_time_sec) as u32).saturating_mul(1000);
 
         let age_difference = if client_age_ms < server_age_ms {
             server_age_ms - client_age_ms

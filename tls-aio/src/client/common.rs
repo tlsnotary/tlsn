@@ -1,11 +1,11 @@
 use super::ResolvesClientCert;
 #[cfg(feature = "logging")]
 use crate::log::{debug, trace};
-use crate::msgs::enums::ExtensionType;
-use crate::msgs::handshake::CertificatePayload;
-use crate::msgs::handshake::SCTList;
-use crate::msgs::handshake::ServerExtension;
 use crate::{sign, DistinguishedNames, SignatureScheme};
+use tls_core::msgs::enums::ExtensionType;
+use tls_core::msgs::handshake::CertificatePayload;
+use tls_core::msgs::handshake::SCTList;
+use tls_core::msgs::handshake::ServerExtension;
 
 use std::sync::Arc;
 
@@ -49,8 +49,7 @@ impl ClientHelloDetails {
     }
 
     pub(super) fn server_may_send_sct_list(&self) -> bool {
-        self.sent_extensions
-            .contains(&ExtensionType::SCT)
+        self.sent_extensions.contains(&ExtensionType::SCT)
     }
 
     pub(super) fn server_sent_unsolicited_extensions(

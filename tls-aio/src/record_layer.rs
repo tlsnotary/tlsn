@@ -1,6 +1,6 @@
 use crate::cipher::{MessageDecrypter, MessageEncrypter};
 use crate::error::Error;
-use crate::msgs::message::{BorrowedPlainMessage, OpaqueMessage, PlainMessage};
+use tls_core::msgs::message::{BorrowedPlainMessage, OpaqueMessage, PlainMessage};
 
 static SEQ_SOFT_LIMIT: u64 = 0xffff_ffff_ffff_0000u64;
 static SEQ_HARD_LIMIT: u64 = 0xffff_ffff_ffff_fffeu64;

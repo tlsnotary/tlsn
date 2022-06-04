@@ -4,21 +4,25 @@ use crate::error::Error;
 use crate::hash_hs::HandshakeHash;
 #[cfg(feature = "logging")]
 use crate::log::{debug, trace};
-use crate::msgs::base::{Payload, PayloadU8};
-use crate::msgs::ccs::ChangeCipherSpecPayload;
-use crate::msgs::codec::Codec;
-use crate::msgs::enums::{AlertDescription, ProtocolVersion};
-use crate::msgs::enums::{ContentType, HandshakeType};
-use crate::msgs::handshake::{CertificatePayload, DecomposedSignatureScheme, SCTList, SessionID};
-use crate::msgs::handshake::{DigitallySignedStruct, ServerECDHParams};
-use crate::msgs::handshake::{HandshakeMessagePayload, HandshakePayload, NewSessionTicketPayload};
-use crate::msgs::message::{Message, MessagePayload};
 use crate::msgs::persist;
 use crate::sign::Signer;
 use crate::suites::SupportedCipherSuite;
 use crate::ticketer::TimeBase;
 use crate::tls12::{self, ConnectionSecrets, Tls12CipherSuite};
 use crate::{kx, verify};
+use tls_core::msgs::base::{Payload, PayloadU8};
+use tls_core::msgs::ccs::ChangeCipherSpecPayload;
+use tls_core::msgs::codec::Codec;
+use tls_core::msgs::enums::{AlertDescription, ProtocolVersion};
+use tls_core::msgs::enums::{ContentType, HandshakeType};
+use tls_core::msgs::handshake::{
+    CertificatePayload, DecomposedSignatureScheme, SCTList, SessionID,
+};
+use tls_core::msgs::handshake::{DigitallySignedStruct, ServerECDHParams};
+use tls_core::msgs::handshake::{
+    HandshakeMessagePayload, HandshakePayload, NewSessionTicketPayload,
+};
+use tls_core::msgs::message::{Message, MessagePayload};
 
 use super::client_conn::ClientConnectionData;
 use super::hs::ClientContext;
@@ -35,9 +39,9 @@ use std::sync::Arc;
 pub(super) use server_hello::CompleteServerHelloHandling;
 
 mod server_hello {
-    use crate::msgs::enums::ExtensionType;
-    use crate::msgs::handshake::HasServerExtensions;
-    use crate::msgs::handshake::ServerHelloPayload;
+    use tls_core::msgs::enums::ExtensionType;
+    use tls_core::msgs::handshake::HasServerExtensions;
+    use tls_core::msgs::handshake::ServerHelloPayload;
 
     use super::*;
 

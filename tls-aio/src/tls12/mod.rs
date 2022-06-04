@@ -1,10 +1,10 @@
 use crate::cipher::{MessageDecrypter, MessageEncrypter};
 use crate::conn::{CommonState, ConnectionRandoms, Side};
 use crate::kx;
-use crate::msgs::codec::{Codec, Reader};
-use crate::msgs::enums::{AlertDescription, ContentType};
-use crate::msgs::enums::{CipherSuite, SignatureScheme};
-use crate::msgs::handshake::KeyExchangeAlgorithm;
+use tls_core::msgs::codec::{Codec, Reader};
+use tls_core::msgs::enums::{AlertDescription, ContentType};
+use tls_core::msgs::enums::{CipherSuite, SignatureScheme};
+use tls_core::msgs::handshake::KeyExchangeAlgorithm;
 use crate::suites::{BulkAlgorithm, CipherSuiteCommon, SupportedCipherSuite};
 use crate::Error;
 
@@ -438,7 +438,7 @@ pub(crate) const DOWNGRADE_SENTINEL: [u8; 8] = [0x44, 0x4f, 0x57, 0x4e, 0x47, 0x
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::msgs::handshake::{ClientECDHParams, ServerECDHParams};
+    use tls_core::msgs::handshake::{ClientECDHParams, ServerECDHParams};
 
     #[test]
     fn server_ecdhe_remaining_bytes() {

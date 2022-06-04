@@ -1,6 +1,6 @@
-use crate::msgs::codec::Codec;
-use crate::msgs::handshake::HandshakeMessagePayload;
-use crate::msgs::message::{Message, MessagePayload};
+use tls_core::msgs::codec::Codec;
+use tls_core::msgs::handshake::HandshakeMessagePayload;
+use tls_core::msgs::message::{Message, MessagePayload};
 use ring::digest;
 use std::mem;
 

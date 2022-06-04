@@ -1,5 +1,6 @@
-use crate::msgs::enums::{AlertDescription, ContentType, HandshakeType};
 use crate::rand;
+use tls_core::msgs::enums::{AlertDescription, ContentType, HandshakeType};
+use tls_core::Error as CoreError;
 
 use std::error::Error as StdError;
 use std::fmt;
@@ -8,6 +9,9 @@ use std::time::SystemTimeError;
 /// rustls reports protocol errors using this type.
 #[derive(Debug, PartialEq, Clone)]
 pub enum Error {
+    /// Error propagated from Core component
+    CoreError(CoreError),
+
     /// We received a TLS message that isn't valid right now.
     /// `expect_types` lists the message types we can expect right now.
     /// `got_type` is the type we found.  This error is typically
@@ -110,6 +114,9 @@ fn join<T: fmt::Debug>(items: &[T]) -> String {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
+            Error::CoreError(ref e) => {
+                write!(f, "core error: {}", e)
+            }
             Error::InappropriateMessage {
                 ref expect_types,
                 ref got_type,
@@ -165,6 +172,13 @@ impl fmt::Display for Error {
     }
 }
 
+impl From<CoreError> for Error {
+    #[inline]
+    fn from(e: CoreError) -> Self {
+        Self::CoreError(e)
+    }
+}
+
 impl From<SystemTimeError> for Error {
     #[inline]
     fn from(_: SystemTimeError) -> Self {
@@ -186,8 +200,8 @@ mod tests {
 
     #[test]
     fn smoke() {
-        use crate::msgs::enums::{AlertDescription, ContentType, HandshakeType};
         use sct;
+        use tls_core::msgs::enums::{AlertDescription, ContentType, HandshakeType};
 
         let all = vec![
             Error::InappropriateMessage {

@@ -1,7 +1,7 @@
 use std::ops::{Deref, DerefMut};
 
 use crate::kx::KeyExchange;
-use crate::msgs::handshake::Random;
+use tls_core::msgs::handshake::Random;
 use crate::Error;
 
 use async_trait::async_trait;

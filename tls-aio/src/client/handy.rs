@@ -1,9 +1,9 @@
 use crate::client;
 use crate::error::Error;
-use crate::key;
 use crate::limited_cache;
-use crate::msgs::enums::SignatureScheme;
 use crate::sign;
+use tls_core::key;
+use tls_core::msgs::enums::SignatureScheme;
 
 use std::sync::{Arc, Mutex};
 
@@ -40,19 +40,12 @@ impl ClientSessionMemoryCache {
 
 impl client::StoresClientSessions for ClientSessionMemoryCache {
     fn put(&self, key: Vec<u8>, value: Vec<u8>) -> bool {
-        self.cache
-            .lock()
-            .unwrap()
-            .insert(key, value);
+        self.cache.lock().unwrap().insert(key, value);
         true
     }
 
     fn get(&self, key: &[u8]) -> Option<Vec<u8>> {
-        self.cache
-            .lock()
-            .unwrap()
-            .get(key)
-            .cloned()
+        self.cache.lock().unwrap().get(key).cloned()
     }
 }
 
@@ -76,7 +69,7 @@ pub(super) struct AlwaysResolvesClientCert(Arc<sign::CertifiedKey>);
 
 impl AlwaysResolvesClientCert {
     pub(super) fn new(
-        chain: Vec<key::Certificate>,
+        chain: Vec<tls_core::key::Certificate>,
         priv_key: &key::PrivateKey,
     ) -> Result<Self, Error> {
         let key = sign::any_supported_type(priv_key)

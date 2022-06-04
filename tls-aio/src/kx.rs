@@ -1,5 +1,5 @@
 use crate::error::Error;
-use crate::msgs::enums::NamedGroup;
+use tls_core::msgs::enums::NamedGroup;
 
 /// An in-progress key exchange.  This has the algorithm,
 /// our private key, and our public key.
