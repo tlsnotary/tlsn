@@ -349,10 +349,6 @@ pub mod internal {
     pub mod msgs {
         pub use tls_core::msgs::*;
     }
-    /// Low-level TLS message decryption functions.
-    pub mod cipher {
-        pub use crate::cipher::MessageDecrypter;
-    }
 }
 
 // The public interface is:

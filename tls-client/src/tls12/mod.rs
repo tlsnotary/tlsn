@@ -1,12 +1,12 @@
-use crate::cipher::{MessageDecrypter, MessageEncrypter};
 use crate::conn::{CommonState, ConnectionRandoms, Side};
 use crate::kx;
+use crate::suites::{BulkAlgorithm, CipherSuiteCommon, SupportedCipherSuite};
+use crate::Error;
+use tls_aio::cipher::{MessageDecrypter, MessageEncrypter};
 use tls_core::msgs::codec::{Codec, Reader};
 use tls_core::msgs::enums::{AlertDescription, ContentType};
 use tls_core::msgs::enums::{CipherSuite, SignatureScheme};
 use tls_core::msgs::handshake::KeyExchangeAlgorithm;
-use crate::suites::{BulkAlgorithm, CipherSuiteCommon, SupportedCipherSuite};
-use crate::Error;
 
 use ring::aead;
 use ring::digest::Digest;
@@ -408,7 +408,10 @@ fn join_randoms(first: &[u8; 32], second: &[u8; 32]) -> [u8; 64] {
     randoms
 }
 
-type MessageCipherPair = (Box<dyn MessageDecrypter>, Box<dyn MessageEncrypter>);
+type MessageCipherPair = (
+    Box<dyn MessageDecrypter<Error = Error>>,
+    Box<dyn MessageEncrypter<Error = Error>>,
+);
 
 pub(crate) async fn decode_ecdh_params<T: Codec>(
     common: &mut CommonState,
