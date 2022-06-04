@@ -1,0 +1,57 @@
+[package]
+name = "tlsn-tls-client"
+version = "0.1.0"
+edition = "2018"
+authors = []
+license = "Apache-2.0/MIT"
+readme = "../README.md"
+autobenches = false
+build = "build.rs"
+resolver = "2"
+
+[lib]
+name = "tls_client"
+
+[build-dependencies]
+rustversion = { version = "1.0.6", optional = true }
+
+[dependencies]
+async-recursion = "1.0.0"
+async-trait = "0.1.53"
+futures = "0.3.21"
+log = { version = "0.4.4", optional = true }
+ring = "0.16.20"
+sct = "0.7.0"
+tokio = { version = "1.18.2", features = ["macros", "rt", "rt-multi-thread"] }
+webpki = { version = "0.22.0", features = ["alloc", "std"] }
+tlsn-tls-core = { path = "../tls-core" }
+
+[features]
+default = ["logging", "tls12"]
+logging = ["log"]
+dangerous_configuration = []
+tls12 = []
+read_buf = ["rustversion"]
+
+[dev-dependencies]
+env_logger = "0.9.0"
+log = "0.4.4"
+webpki-roots = "0.22.0"
+criterion = "0.3.0"
+rustls-pemfile = "0.3.0"
+base64 = "0.13.0"
+rustls = "0.20.4"
+bimap = "0.6.2"
+
+[[example]]
+name = "bench"
+path = "examples/internal/bench.rs"
+
+[[bench]]
+name = "benchmarks"
+path = "tests/benchmarks.rs"
+harness = false
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

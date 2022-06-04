@@ -4,12 +4,12 @@ use std::convert::{TryFrom, TryInto};
 use std::io;
 use std::sync::Arc;
 
-use tls_aio::internal::msgs::codec::Reader;
-use tls_aio::internal::msgs::message::{Message, OpaqueMessage, PlainMessage};
-use tls_aio::Error;
-use tls_aio::RootCertStore;
-use tls_aio::{Certificate, PrivateKey};
-use tls_aio::{ClientConfig, ClientConnection};
+use tls_client::internal::msgs::codec::Reader;
+use tls_client::internal::msgs::message::{Message, OpaqueMessage, PlainMessage};
+use tls_client::Error;
+use tls_client::RootCertStore;
+use tls_client::{Certificate, PrivateKey};
+use tls_client::{ClientConfig, ClientConnection};
 
 use rustls::server::AllowAnyAuthenticatedClient;
 use rustls::{ServerConfig, ServerConnection};
@@ -93,7 +93,7 @@ embed_files! {
     (RSA_INTER_REQ, "rsa", "inter.req");
 }
 
-pub fn version_eq(left: tls_aio::ProtocolVersion, right: rustls::ProtocolVersion) -> bool {
+pub fn version_eq(left: tls_client::ProtocolVersion, right: rustls::ProtocolVersion) -> bool {
     left.as_str() == right.as_str()
 }
 
@@ -405,7 +405,7 @@ pub fn make_server_config_with_mandatory_client_auth(kt: KeyType) -> ServerConfi
 
 pub fn finish_client_config(
     kt: KeyType,
-    config: tls_aio::ConfigBuilder<tls_aio::WantsVerifier>,
+    config: tls_client::ConfigBuilder<tls_client::WantsVerifier>,
 ) -> ClientConfig {
     let mut root_store = RootCertStore::empty();
     let mut rootbuf = io::BufReader::new(kt.bytes_for("ca.cert"));
@@ -418,7 +418,7 @@ pub fn finish_client_config(
 
 pub fn finish_client_config_with_creds(
     kt: KeyType,
-    config: tls_aio::ConfigBuilder<tls_aio::WantsVerifier>,
+    config: tls_client::ConfigBuilder<tls_client::WantsVerifier>,
 ) -> ClientConfig {
     let mut root_store = RootCertStore::empty();
     let mut rootbuf = io::BufReader::new(kt.bytes_for("ca.cert"));
@@ -436,7 +436,7 @@ pub fn make_client_config(kt: KeyType) -> ClientConfig {
 
 pub fn make_client_config_with_kx_groups(
     kt: KeyType,
-    kx_groups: &[&'static tls_aio::SupportedKxGroup],
+    kx_groups: &[&'static tls_client::SupportedKxGroup],
 ) -> ClientConfig {
     let builder = ClientConfig::builder()
         .with_safe_default_cipher_suites()
@@ -448,7 +448,7 @@ pub fn make_client_config_with_kx_groups(
 
 pub fn make_client_config_with_versions(
     kt: KeyType,
-    versions: &[&'static tls_aio::SupportedProtocolVersion],
+    versions: &[&'static tls_client::SupportedProtocolVersion],
 ) -> ClientConfig {
     let builder = ClientConfig::builder()
         .with_safe_default_cipher_suites()
@@ -464,7 +464,7 @@ pub fn make_client_config_with_auth(kt: KeyType) -> ClientConfig {
 
 pub fn make_client_config_with_versions_with_auth(
     kt: KeyType,
-    versions: &[&'static tls_aio::SupportedProtocolVersion],
+    versions: &[&'static tls_client::SupportedProtocolVersion],
 ) -> ClientConfig {
     let builder = ClientConfig::builder()
         .with_safe_default_cipher_suites()
@@ -569,7 +569,7 @@ pub async fn do_handshake_until_both_error(
     }
 }
 
-pub fn dns_name(name: &'static str) -> tls_aio::ServerName {
+pub fn dns_name(name: &'static str) -> tls_client::ServerName {
     name.try_into().unwrap()
 }
 
@@ -589,9 +589,9 @@ impl io::Read for FailsReads {
     }
 }
 
-pub fn version_compat(v: Option<rustls::ProtocolVersion>) -> Option<tls_aio::ProtocolVersion> {
+pub fn version_compat(v: Option<rustls::ProtocolVersion>) -> Option<tls_client::ProtocolVersion> {
     if let Some(v) = v {
-        Some(tls_aio::ProtocolVersion::from(v.get_u16()))
+        Some(tls_client::ProtocolVersion::from(v.get_u16()))
     } else {
         None
     }

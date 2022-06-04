@@ -13,14 +13,14 @@ use std::sync::Mutex;
 
 use log;
 
-use tls_aio::client::ResolvesClientCert;
+use tls_client::client::ResolvesClientCert;
 #[cfg(feature = "quic")]
-use tls_aio::quic::{self, ClientQuicExt, QuicExt, ServerQuicExt};
-use tls_aio::{sign, Error, KeyLog};
-use tls_aio::{CipherSuite, ProtocolVersion, SignatureScheme};
-use tls_aio::{ClientConfig, ClientConnection};
-//use tls_aio::{Stream, StreamOwned};
-use tls_aio::{SupportedCipherSuite, ALL_CIPHER_SUITES};
+use tls_client::quic::{self, ClientQuicExt, QuicExt, ServerQuicExt};
+use tls_client::{sign, Error, KeyLog};
+use tls_client::{CipherSuite, ProtocolVersion, SignatureScheme};
+use tls_client::{ClientConfig, ClientConnection};
+//use tls_client::{Stream, StreamOwned};
+use tls_client::{SupportedCipherSuite, ALL_CIPHER_SUITES};
 
 use rustls::server::{ClientHello, ResolvesServerCert};
 use rustls::{ServerConfig, ServerConnection};
@@ -39,7 +39,7 @@ async fn alpn_test_error(
 
     let server_config = Arc::new(server_config);
 
-    for version in tls_aio::ALL_VERSIONS {
+    for version in tls_client::ALL_VERSIONS {
         let mut client_config = make_client_config_with_versions(KeyType::Rsa, &[version]);
         client_config.alpn_protocols = client_protos.clone();
 
@@ -102,12 +102,12 @@ async fn alpn() {
 }
 
 async fn version_test(
-    client_versions: &[&'static tls_aio::SupportedProtocolVersion],
+    client_versions: &[&'static tls_client::SupportedProtocolVersion],
     server_versions: &[&'static rustls::SupportedProtocolVersion],
     result: Option<ProtocolVersion>,
 ) {
     let client_versions = if client_versions.is_empty() {
-        &tls_aio::ALL_VERSIONS
+        &tls_client::ALL_VERSIONS
     } else {
         client_versions
     };
@@ -154,7 +154,7 @@ async fn versions() {
     // client 1.2, server default -> 1.2
     #[cfg(feature = "tls12")]
     version_test(
-        &[&tls_aio::version::TLS12],
+        &[&tls_client::version::TLS12],
         &[],
         Some(ProtocolVersion::TLSv1_2),
     )
@@ -163,7 +163,7 @@ async fn versions() {
     // client 1.2, server 1.3 -> fail
     #[cfg(feature = "tls12")]
     version_test(
-        &[&tls_aio::version::TLS12],
+        &[&tls_client::version::TLS12],
         &[&rustls::version::TLS13],
         None,
     )
@@ -172,7 +172,7 @@ async fn versions() {
     // client 1.3, server 1.2 -> fail
     #[cfg(feature = "tls12")]
     version_test(
-        &[&tls_aio::version::TLS13],
+        &[&tls_client::version::TLS13],
         &[&rustls::version::TLS12],
         None,
     )
@@ -181,7 +181,7 @@ async fn versions() {
     // client 1.3, server 1.2+1.3 -> 1.3
     #[cfg(feature = "tls12")]
     version_test(
-        &[&tls_aio::version::TLS13],
+        &[&tls_client::version::TLS13],
         &[&rustls::version::TLS12, &rustls::version::TLS13],
         Some(ProtocolVersion::TLSv1_3),
     )
@@ -190,7 +190,7 @@ async fn versions() {
     // client 1.2+1.3, server 1.2 -> 1.2
     #[cfg(feature = "tls12")]
     version_test(
-        &[&tls_aio::version::TLS13, &tls_aio::version::TLS12],
+        &[&tls_client::version::TLS13, &tls_client::version::TLS12],
         &[&rustls::version::TLS12],
         Some(ProtocolVersion::TLSv1_2),
     )
@@ -232,9 +232,9 @@ fn config_builder_for_client_rejects_empty_cipher_suites() {
 fn config_builder_for_client_rejects_incompatible_cipher_suites() {
     assert_eq!(
         ClientConfig::builder()
-            .with_cipher_suites(&[tls_aio::cipher_suite::TLS13_AES_256_GCM_SHA384])
+            .with_cipher_suites(&[tls_client::cipher_suite::TLS13_AES_256_GCM_SHA384])
             .with_safe_default_kx_groups()
-            .with_protocol_versions(&[&tls_aio::version::TLS12])
+            .with_protocol_versions(&[&tls_client::version::TLS12])
             .err(),
         Some(Error::General("no usable cipher suites configured".into()))
     );
@@ -244,7 +244,7 @@ fn config_builder_for_client_rejects_incompatible_cipher_suites() {
 async fn servered_client_data_sent() {
     let server_config = Arc::new(make_server_config(KeyType::Rsa));
 
-    for version in tls_aio::ALL_VERSIONS {
+    for version in tls_client::ALL_VERSIONS {
         let client_config = make_client_config_with_versions(KeyType::Rsa, &[version]);
         let (mut client, mut server) =
             make_pair_for_arc_configs(&Arc::new(client_config), &server_config).await;
@@ -263,7 +263,7 @@ async fn servered_client_data_sent() {
 async fn servered_server_data_sent() {
     let server_config = Arc::new(make_server_config(KeyType::Rsa));
 
-    for version in tls_aio::ALL_VERSIONS {
+    for version in tls_client::ALL_VERSIONS {
         let client_config = make_client_config_with_versions(KeyType::Rsa, &[version]);
         let (mut client, mut server) =
             make_pair_for_arc_configs(&Arc::new(client_config), &server_config).await;
@@ -282,7 +282,7 @@ async fn servered_server_data_sent() {
 async fn servered_both_data_sent() {
     let server_config = Arc::new(make_server_config(KeyType::Rsa));
 
-    for version in tls_aio::ALL_VERSIONS {
+    for version in tls_client::ALL_VERSIONS {
         let client_config = make_client_config_with_versions(KeyType::Rsa, &[version]);
         let (mut client, mut server) =
             make_pair_for_arc_configs(&Arc::new(client_config), &server_config).await;
@@ -305,7 +305,7 @@ async fn servered_both_data_sent() {
 #[tokio::test]
 async fn client_can_get_server_cert() {
     for kt in ALL_KEY_TYPES.iter() {
-        for version in tls_aio::ALL_VERSIONS {
+        for version in tls_client::ALL_VERSIONS {
             let client_config = make_client_config_with_versions(*kt, &[version]);
             let (mut client, mut server) =
                 make_pair_for_configs(client_config, make_server_config(*kt)).await;
@@ -321,7 +321,7 @@ async fn client_can_get_server_cert() {
 async fn client_can_get_server_cert_after_resumption() {
     for kt in ALL_KEY_TYPES.iter() {
         let server_config = make_server_config(*kt);
-        for version in tls_aio::ALL_VERSIONS {
+        for version in tls_client::ALL_VERSIONS {
             let client_config = make_client_config_with_versions(*kt, &[version]);
             let (mut client, mut server) =
                 make_pair_for_configs(client_config.clone(), server_config.clone()).await;
@@ -345,7 +345,7 @@ async fn server_can_get_client_cert() {
     for kt in ALL_KEY_TYPES.iter() {
         let server_config = Arc::new(make_server_config_with_mandatory_client_auth(*kt));
 
-        for version in tls_aio::ALL_VERSIONS {
+        for version in tls_client::ALL_VERSIONS {
             let client_config = make_client_config_with_versions_with_auth(*kt, &[version]);
             let (mut client, mut server) =
                 make_pair_for_arc_configs(&Arc::new(client_config), &server_config).await;
@@ -362,7 +362,7 @@ async fn server_can_get_client_cert_after_resumption() {
     for kt in ALL_KEY_TYPES.iter() {
         let server_config = Arc::new(make_server_config_with_mandatory_client_auth(*kt));
 
-        for version in tls_aio::ALL_VERSIONS {
+        for version in tls_client::ALL_VERSIONS {
             let client_config = make_client_config_with_versions_with_auth(*kt, &[version]);
             let client_config = Arc::new(client_config);
             let (mut client, mut server) =
@@ -398,7 +398,7 @@ async fn server_can_get_client_cert_after_resumption() {
 //             .unwrap();
 //         let server_config = Arc::new(server_config);
 
-//         for version in tls_aio::ALL_VERSIONS {
+//         for version in tls_client::ALL_VERSIONS {
 //             let client_config = if client_cert_chain.is_some() {
 //                 make_client_config_with_versions_with_auth(kt, &[version])
 //             } else {
@@ -424,7 +424,7 @@ async fn server_close_notify() {
     let kt = KeyType::Rsa;
     let server_config = Arc::new(make_server_config_with_mandatory_client_auth(kt));
 
-    for version in tls_aio::ALL_VERSIONS {
+    for version in tls_client::ALL_VERSIONS {
         let client_config = make_client_config_with_versions_with_auth(kt, &[version]);
         let (mut client, mut server) =
             make_pair_for_arc_configs(&Arc::new(client_config), &server_config).await;
@@ -451,7 +451,7 @@ async fn client_close_notify() {
     let kt = KeyType::Rsa;
     let server_config = Arc::new(make_server_config_with_mandatory_client_auth(kt));
 
-    for version in tls_aio::ALL_VERSIONS {
+    for version in tls_client::ALL_VERSIONS {
         let client_config = make_client_config_with_versions_with_auth(kt, &[version]);
         let (mut client, mut server) =
             make_pair_for_arc_configs(&Arc::new(client_config), &server_config).await;
@@ -478,7 +478,7 @@ async fn server_closes_uncleanly() {
     let kt = KeyType::Rsa;
     let server_config = Arc::new(make_server_config(kt));
 
-    for version in tls_aio::ALL_VERSIONS {
+    for version in tls_client::ALL_VERSIONS {
         let client_config = make_client_config_with_versions(kt, &[version]);
         let (mut client, mut server) =
             make_pair_for_arc_configs(&Arc::new(client_config), &server_config).await;
@@ -509,7 +509,7 @@ async fn client_closes_uncleanly() {
     let kt = KeyType::Rsa;
     let server_config = Arc::new(make_server_config(kt));
 
-    for version in tls_aio::ALL_VERSIONS {
+    for version in tls_client::ALL_VERSIONS {
         let client_config = make_client_config_with_versions(kt, &[version]);
         let (mut client, mut server) =
             make_pair_for_arc_configs(&Arc::new(client_config), &server_config).await;
@@ -723,7 +723,7 @@ async fn client_with_sni_disabled_does_not_send_sni() {
         server_config.cert_resolver = Arc::new(ServerCheckNoSNI {});
         let server_config = Arc::new(server_config);
 
-        for version in tls_aio::ALL_VERSIONS {
+        for version in tls_client::ALL_VERSIONS {
             let mut client_config = make_client_config_with_versions(*kt, &[version]);
             client_config.enable_sni = false;
 
@@ -743,7 +743,7 @@ async fn client_checks_server_certificate_with_given_name() {
     for kt in ALL_KEY_TYPES.iter() {
         let server_config = Arc::new(make_server_config(*kt));
 
-        for version in tls_aio::ALL_VERSIONS {
+        for version in tls_client::ALL_VERSIONS {
             let client_config = make_client_config_with_versions(*kt, &[version]);
             let mut client = ClientConnection::new(
                 Arc::new(client_config),
@@ -816,7 +816,7 @@ async fn client_cert_resolve() {
     for kt in ALL_KEY_TYPES.iter() {
         let server_config = Arc::new(make_server_config_with_mandatory_client_auth(*kt));
 
-        for version in tls_aio::ALL_VERSIONS {
+        for version in tls_client::ALL_VERSIONS {
             let mut client_config = make_client_config_with_versions(*kt, &[version]);
             client_config.client_auth_cert_resolver = Arc::new(ClientCheckCertResolve::new(1));
 
@@ -838,7 +838,7 @@ async fn client_auth_works() {
     for kt in ALL_KEY_TYPES.iter() {
         let server_config = Arc::new(make_server_config_with_mandatory_client_auth(*kt));
 
-        for version in tls_aio::ALL_VERSIONS {
+        for version in tls_client::ALL_VERSIONS {
             let client_config = make_client_config_with_versions_with_auth(*kt, &[version]);
             let (mut client, mut server) =
                 make_pair_for_arc_configs(&Arc::new(client_config), &server_config).await;
@@ -1043,19 +1043,19 @@ where
 
 struct ClientSession<'a, C>
 where
-    C: DerefMut + Deref<Target = tls_aio::ConnectionCommon>,
+    C: DerefMut + Deref<Target = tls_client::ConnectionCommon>,
 {
     sess: &'a mut C,
     pub reads: usize,
     pub writevs: Vec<Vec<usize>>,
     fail_ok: bool,
     pub short_writes: bool,
-    pub last_error: Option<tls_aio::Error>,
+    pub last_error: Option<tls_client::Error>,
 }
 
 impl<'a, C> ClientSession<'a, C>
 where
-    C: DerefMut + Deref<Target = tls_aio::ConnectionCommon>,
+    C: DerefMut + Deref<Target = tls_client::ConnectionCommon>,
 {
     fn new(sess: &'a mut C) -> ClientSession<'a, C> {
         ClientSession {
@@ -1077,7 +1077,7 @@ where
 
 impl<'a, C> io::Read for ClientSession<'a, C>
 where
-    C: DerefMut + Deref<Target = tls_aio::ConnectionCommon>,
+    C: DerefMut + Deref<Target = tls_client::ConnectionCommon>,
 {
     fn read(&mut self, mut b: &mut [u8]) -> io::Result<usize> {
         self.reads += 1;
@@ -1087,7 +1087,7 @@ where
 
 impl<'a, C> io::Write for ClientSession<'a, C>
 where
-    C: DerefMut + Deref<Target = tls_aio::ConnectionCommon>,
+    C: DerefMut + Deref<Target = tls_client::ConnectionCommon>,
 {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         unreachable!()
@@ -1408,7 +1408,7 @@ impl io::Write for FailsWrites {
 //     let client_config = finish_client_config(
 //         kt,
 //         ClientConfig::builder()
-//             .with_cipher_suites(&[tls_aio::cipher_suite::TLS13_AES_256_GCM_SHA384])
+//             .with_cipher_suites(&[tls_client::cipher_suite::TLS13_AES_256_GCM_SHA384])
 //             .with_safe_default_kx_groups()
 //             .with_safe_default_protocol_versions()
 //             .unwrap(),
@@ -1514,7 +1514,7 @@ async fn do_exporter_test(client_config: ClientConfig, server_config: ServerConf
 #[tokio::test]
 async fn test_tls12_exporter() {
     for kt in ALL_KEY_TYPES.iter() {
-        let client_config = make_client_config_with_versions(*kt, &[&tls_aio::version::TLS12]);
+        let client_config = make_client_config_with_versions(*kt, &[&tls_client::version::TLS12]);
         let server_config = make_server_config(*kt);
 
         do_exporter_test(client_config, server_config).await;
@@ -1524,7 +1524,7 @@ async fn test_tls12_exporter() {
 #[tokio::test]
 async fn test_tls13_exporter() {
     for kt in ALL_KEY_TYPES.iter() {
-        let client_config = make_client_config_with_versions(*kt, &[&tls_aio::version::TLS13]);
+        let client_config = make_client_config_with_versions(*kt, &[&tls_client::version::TLS13]);
         let server_config = make_server_config(*kt);
 
         do_exporter_test(client_config, server_config).await;
@@ -1596,55 +1596,55 @@ fn find_suite(suite: CipherSuite) -> SupportedCipherSuite {
     panic!("find_suite given unsupported suite");
 }
 
-static TEST_CIPHERSUITES: &[(&tls_aio::SupportedProtocolVersion, KeyType, CipherSuite)] = &[
+static TEST_CIPHERSUITES: &[(&tls_client::SupportedProtocolVersion, KeyType, CipherSuite)] = &[
     (
-        &tls_aio::version::TLS13,
+        &tls_client::version::TLS13,
         KeyType::Rsa,
         CipherSuite::TLS13_CHACHA20_POLY1305_SHA256,
     ),
     (
-        &tls_aio::version::TLS13,
+        &tls_client::version::TLS13,
         KeyType::Rsa,
         CipherSuite::TLS13_AES_256_GCM_SHA384,
     ),
     (
-        &tls_aio::version::TLS13,
+        &tls_client::version::TLS13,
         KeyType::Rsa,
         CipherSuite::TLS13_AES_128_GCM_SHA256,
     ),
     #[cfg(feature = "tls12")]
     (
-        &tls_aio::version::TLS12,
+        &tls_client::version::TLS12,
         KeyType::Ecdsa,
         CipherSuite::TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
     ),
     #[cfg(feature = "tls12")]
     (
-        &tls_aio::version::TLS12,
+        &tls_client::version::TLS12,
         KeyType::Rsa,
         CipherSuite::TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
     ),
     #[cfg(feature = "tls12")]
     (
-        &tls_aio::version::TLS12,
+        &tls_client::version::TLS12,
         KeyType::Ecdsa,
         CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
     ),
     #[cfg(feature = "tls12")]
     (
-        &tls_aio::version::TLS12,
+        &tls_client::version::TLS12,
         KeyType::Ecdsa,
         CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
     ),
     #[cfg(feature = "tls12")]
     (
-        &tls_aio::version::TLS12,
+        &tls_client::version::TLS12,
         KeyType::Rsa,
         CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
     ),
     #[cfg(feature = "tls12")]
     (
-        &tls_aio::version::TLS12,
+        &tls_client::version::TLS12,
         KeyType::Rsa,
         CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
     ),
@@ -1746,7 +1746,7 @@ async fn key_log_for_tls12() {
     let server_key_log = Arc::new(KeyLogToVec::new("server"));
 
     let kt = KeyType::Rsa;
-    let mut client_config = make_client_config_with_versions(kt, &[&tls_aio::version::TLS12]);
+    let mut client_config = make_client_config_with_versions(kt, &[&tls_client::version::TLS12]);
     client_config.key_log = client_key_log.clone();
     let client_config = Arc::new(client_config);
 
@@ -1782,7 +1782,7 @@ async fn key_log_for_tls13() {
     let server_key_log = Arc::new(KeyLogToVec::new("server"));
 
     let kt = KeyType::Rsa;
-    let mut client_config = make_client_config_with_versions(kt, &[&tls_aio::version::TLS13]);
+    let mut client_config = make_client_config_with_versions(kt, &[&tls_client::version::TLS13]);
     client_config.key_log = client_key_log.clone();
     let client_config = Arc::new(client_config);
 
@@ -2104,7 +2104,7 @@ impl rustls::server::StoresServerSessions for ServerStorage {
 }
 
 struct ClientStorage {
-    storage: Arc<dyn tls_aio::client::StoresClientSessions>,
+    storage: Arc<dyn tls_client::client::StoresClientSessions>,
     put_count: AtomicUsize,
     get_count: AtomicUsize,
     last_put_key: Mutex<Option<Vec<u8>>>,
@@ -2113,7 +2113,7 @@ struct ClientStorage {
 impl ClientStorage {
     fn new() -> Self {
         ClientStorage {
-            storage: tls_aio::client::ClientSessionMemoryCache::new(1024),
+            storage: tls_client::client::ClientSessionMemoryCache::new(1024),
             put_count: AtomicUsize::new(0),
             get_count: AtomicUsize::new(0),
             last_put_key: Mutex::new(None),
@@ -2138,7 +2138,7 @@ impl fmt::Debug for ClientStorage {
     }
 }
 
-impl tls_aio::client::StoresClientSessions for ClientStorage {
+impl tls_client::client::StoresClientSessions for ClientStorage {
     fn put(&self, key: Vec<u8>, value: Vec<u8>) -> bool {
         self.put_count.fetch_add(1, Ordering::SeqCst);
         *self.last_put_key.lock().unwrap() = Some(key.clone());
@@ -2154,7 +2154,7 @@ impl tls_aio::client::StoresClientSessions for ClientStorage {
 #[tokio::test]
 async fn tls13_stateful_resumption() {
     let kt = KeyType::Rsa;
-    let client_config = make_client_config_with_versions(kt, &[&tls_aio::version::TLS13]);
+    let client_config = make_client_config_with_versions(kt, &[&tls_client::version::TLS13]);
     let client_config = Arc::new(client_config);
 
     let mut server_config = make_server_config(kt);
@@ -2194,7 +2194,7 @@ async fn tls13_stateful_resumption() {
 #[tokio::test]
 async fn tls13_stateless_resumption() {
     let kt = KeyType::Rsa;
-    let client_config = make_client_config_with_versions(kt, &[&tls_aio::version::TLS13]);
+    let client_config = make_client_config_with_versions(kt, &[&tls_client::version::TLS13]);
     let client_config = Arc::new(client_config);
 
     let mut server_config = make_server_config(kt);
@@ -2915,13 +2915,13 @@ mod test_quic {
 
 #[tokio::test]
 async fn test_client_does_not_offer_sha1() {
-    use tls_aio::internal::msgs::{
+    use tls_client::internal::msgs::{
         codec::Reader, enums::HandshakeType, handshake::HandshakePayload, message::MessagePayload,
         message::OpaqueMessage,
     };
 
     for kt in ALL_KEY_TYPES.iter() {
-        for version in tls_aio::ALL_VERSIONS {
+        for version in tls_client::ALL_VERSIONS {
             let client_config = make_client_config_with_versions(*kt, &[version]);
             let (mut client, _) =
                 make_pair_for_configs(client_config, make_server_config(*kt)).await;
@@ -2953,7 +2953,7 @@ async fn test_client_does_not_offer_sha1() {
 #[tokio::test]
 async fn test_client_config_keyshare() {
     let client_config =
-        make_client_config_with_kx_groups(KeyType::Rsa, &[&tls_aio::kx_group::SECP384R1]);
+        make_client_config_with_kx_groups(KeyType::Rsa, &[&tls_client::kx_group::SECP384R1]);
     let server_config =
         make_server_config_with_kx_groups(KeyType::Rsa, &[&rustls::kx_group::SECP384R1]);
     let (mut client, mut server) = make_pair_for_configs(client_config, server_config).await;
@@ -2965,7 +2965,7 @@ async fn test_client_config_keyshare() {
 #[tokio::test]
 async fn test_client_config_keyshare_mismatch() {
     let client_config =
-        make_client_config_with_kx_groups(KeyType::Rsa, &[&tls_aio::kx_group::SECP384R1]);
+        make_client_config_with_kx_groups(KeyType::Rsa, &[&tls_client::kx_group::SECP384R1]);
     let server_config =
         make_server_config_with_kx_groups(KeyType::Rsa, &[&rustls::kx_group::X25519]);
     let (mut client, mut server) = make_pair_for_configs(client_config, server_config).await;
@@ -2979,7 +2979,10 @@ async fn test_client_sends_helloretryrequest() {
     // client sends a secp384r1 key share
     let mut client_config = make_client_config_with_kx_groups(
         KeyType::Rsa,
-        &[&tls_aio::kx_group::SECP384R1, &tls_aio::kx_group::X25519],
+        &[
+            &tls_client::kx_group::SECP384R1,
+            &tls_client::kx_group::X25519,
+        ],
     );
 
     let storage = Arc::new(ClientStorage::new());
@@ -3044,13 +3047,13 @@ async fn test_client_attempts_to_use_unsupported_kx_group() {
     // first, client sends a x25519 and server agrees. x25519 is inserted
     //   into kx group cache.
     let mut client_config_1 =
-        make_client_config_with_kx_groups(KeyType::Rsa, &[&tls_aio::kx_group::X25519]);
+        make_client_config_with_kx_groups(KeyType::Rsa, &[&tls_client::kx_group::X25519]);
     client_config_1.session_storage = shared_storage.clone();
 
     // second, client only supports secp-384 and so kx group cache
     //   contains an unusable value.
     let mut client_config_2 =
-        make_client_config_with_kx_groups(KeyType::Rsa, &[&tls_aio::kx_group::SECP384R1]);
+        make_client_config_with_kx_groups(KeyType::Rsa, &[&tls_client::kx_group::SECP384R1]);
     client_config_2.session_storage = shared_storage;
 
     let server_config = make_server_config(KeyType::Rsa);
@@ -3191,7 +3194,7 @@ fn connection_types_are_not_huge() {
     assert_lt(mem::size_of::<ClientConnection>(), 1600);
 }
 
-use tls_aio::internal::msgs::{message::Message, message::MessagePayload};
+use tls_client::internal::msgs::{message::Message, message::MessagePayload};
 
 #[tokio::test]
 async fn test_client_rejects_illegal_tls13_ccs() {
@@ -3335,7 +3338,7 @@ async fn test_no_warning_logging_during_successful_sessions() {
     CountingLogger::reset();
 
     for kt in ALL_KEY_TYPES.iter() {
-        for version in tls_aio::ALL_VERSIONS {
+        for version in tls_client::ALL_VERSIONS {
             let client_config = make_client_config_with_versions(*kt, &[version]);
             let (mut client, mut server) =
                 make_pair_for_configs(client_config, make_server_config(*kt)).await;
