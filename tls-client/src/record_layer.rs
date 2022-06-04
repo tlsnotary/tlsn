@@ -1,5 +1,8 @@
-use crate::cipher::{MessageDecrypter, MessageEncrypter};
-use crate::error::Error;
+use crate::{
+    cipher::{InvalidMessageDecrypter, InvalidMessageEncrypter},
+    error::Error,
+};
+use tls_aio::cipher::{MessageDecrypter, MessageEncrypter};
 use tls_core::msgs::message::{OpaqueMessage, PlainMessage};
 
 static SEQ_SOFT_LIMIT: u64 = 0xffff_ffff_ffff_0000u64;
@@ -18,8 +21,8 @@ enum DirectionState {
 }
 
 pub(crate) struct RecordLayer {
-    message_encrypter: Box<dyn MessageEncrypter>,
-    message_decrypter: Box<dyn MessageDecrypter>,
+    message_encrypter: Box<dyn MessageEncrypter<Error = Error>>,
+    message_decrypter: Box<dyn MessageDecrypter<Error = Error>>,
     write_seq: u64,
     read_seq: u64,
     encrypt_state: DirectionState,
@@ -34,8 +37,8 @@ pub(crate) struct RecordLayer {
 impl RecordLayer {
     pub(crate) fn new() -> Self {
         Self {
-            message_encrypter: <dyn MessageEncrypter>::invalid(),
-            message_decrypter: <dyn MessageDecrypter>::invalid(),
+            message_encrypter: Box::new(InvalidMessageEncrypter {}),
+            message_decrypter: Box::new(InvalidMessageDecrypter {}),
             write_seq: 0,
             read_seq: 0,
             encrypt_state: DirectionState::Invalid,
@@ -67,7 +70,10 @@ impl RecordLayer {
 
     /// Prepare to use the given `MessageEncrypter` for future message encryption.
     /// It is not used until you call `start_encrypting`.
-    pub(crate) fn prepare_message_encrypter(&mut self, cipher: Box<dyn MessageEncrypter>) {
+    pub(crate) fn prepare_message_encrypter(
+        &mut self,
+        cipher: Box<dyn MessageEncrypter<Error = Error>>,
+    ) {
         self.message_encrypter = cipher;
         self.write_seq = 0;
         self.encrypt_state = DirectionState::Prepared;
@@ -75,7 +81,10 @@ impl RecordLayer {
 
     /// Prepare to use the given `MessageDecrypter` for future message decryption.
     /// It is not used until you call `start_decrypting`.
-    pub(crate) fn prepare_message_decrypter(&mut self, cipher: Box<dyn MessageDecrypter>) {
+    pub(crate) fn prepare_message_decrypter(
+        &mut self,
+        cipher: Box<dyn MessageDecrypter<Error = Error>>,
+    ) {
         self.message_decrypter = cipher;
         self.read_seq = 0;
         self.decrypt_state = DirectionState::Prepared;
@@ -97,14 +106,20 @@ impl RecordLayer {
 
     /// Set and start using the given `MessageEncrypter` for future outgoing
     /// message encryption.
-    pub(crate) fn set_message_encrypter(&mut self, cipher: Box<dyn MessageEncrypter>) {
+    pub(crate) fn set_message_encrypter(
+        &mut self,
+        cipher: Box<dyn MessageEncrypter<Error = Error>>,
+    ) {
         self.prepare_message_encrypter(cipher);
         self.start_encrypting();
     }
 
     /// Set and start using the given `MessageDecrypter` for future incoming
     /// message decryption.
-    pub(crate) fn set_message_decrypter(&mut self, cipher: Box<dyn MessageDecrypter>) {
+    pub(crate) fn set_message_decrypter(
+        &mut self,
+        cipher: Box<dyn MessageDecrypter<Error = Error>>,
+    ) {
         self.prepare_message_decrypter(cipher);
         self.start_decrypting();
         self.trial_decryption_len = None;
@@ -115,7 +130,7 @@ impl RecordLayer {
     /// 0-RTT is attempted but rejected by the server.
     pub(crate) fn set_message_decrypter_with_trial_decryption(
         &mut self,
-        cipher: Box<dyn MessageDecrypter>,
+        cipher: Box<dyn MessageDecrypter<Error = Error>>,
         max_length: usize,
     ) {
         self.prepare_message_decrypter(cipher);

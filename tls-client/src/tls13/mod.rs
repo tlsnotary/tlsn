@@ -1,6 +1,7 @@
-use crate::cipher::{make_nonce, Iv, MessageDecrypter, MessageEncrypter};
+use crate::cipher::{make_nonce, Iv};
 use crate::error::Error;
 use crate::suites::{BulkAlgorithm, CipherSuiteCommon, SupportedCipherSuite};
+use tls_aio::cipher::{MessageDecrypter, MessageEncrypter};
 use tls_core::msgs::base::Payload;
 use tls_core::msgs::codec::Codec;
 use tls_core::msgs::enums::{CipherSuite, ContentType, ProtocolVersion};
@@ -60,7 +61,10 @@ pub struct Tls13CipherSuite {
 }
 
 impl Tls13CipherSuite {
-    pub(crate) fn derive_encrypter(&self, secret: &hkdf::Prk) -> Box<dyn MessageEncrypter> {
+    pub(crate) fn derive_encrypter(
+        &self,
+        secret: &hkdf::Prk,
+    ) -> Box<dyn MessageEncrypter<Error = Error>> {
         let key = derive_traffic_key(secret, self.common.aead_algorithm);
         let iv = derive_traffic_iv(secret);
 
@@ -72,7 +76,7 @@ impl Tls13CipherSuite {
 
     /// Derive a `MessageDecrypter` object from the concerned TLS 1.3
     /// cipher suite.
-    pub fn derive_decrypter(&self, secret: &hkdf::Prk) -> Box<dyn MessageDecrypter> {
+    pub fn derive_decrypter(&self, secret: &hkdf::Prk) -> Box<dyn MessageDecrypter<Error = Error>> {
         let key = derive_traffic_key(secret, self.common.aead_algorithm);
         let iv = derive_traffic_iv(secret);
 
@@ -149,6 +153,7 @@ const TLS13_AAD_SIZE: usize = 1 + 2 + 2;
 
 #[async_trait]
 impl MessageEncrypter for Tls13MessageEncrypter {
+    type Error = Error;
     async fn encrypt(&self, msg: PlainMessage, seq: u64) -> Result<OpaqueMessage, Error> {
         let total_len = msg.payload.0.len() + 1 + self.enc_key.algorithm().tag_len();
         let mut payload = Vec::with_capacity(total_len);
@@ -172,6 +177,7 @@ impl MessageEncrypter for Tls13MessageEncrypter {
 
 #[async_trait]
 impl MessageDecrypter for Tls13MessageDecrypter {
+    type Error = Error;
     async fn decrypt(&self, mut msg: OpaqueMessage, seq: u64) -> Result<PlainMessage, Error> {
         let payload = &mut msg.payload.0;
         if payload.len() < self.dec_key.algorithm().tag_len() {

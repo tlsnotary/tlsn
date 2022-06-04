@@ -1,33 +1,32 @@
-use crate::error::Error;
-use tls_core::msgs::codec;
-use tls_core::msgs::message::{OpaqueMessage, PlainMessage};
+use crate::Error;
+use tls_aio::cipher::{MessageDecrypter, MessageEncrypter};
+use tls_core::msgs::{
+    codec,
+    message::{OpaqueMessage, PlainMessage},
+};
 
 use async_trait::async_trait;
 use ring::{aead, hkdf};
 
-/// Objects with this trait can decrypt TLS messages.
+/// A `MessageEncrypter` which doesn't work.
+pub struct InvalidMessageEncrypter {}
+
 #[async_trait]
-pub trait MessageDecrypter: Send + Sync {
-    /// Perform the decryption over the concerned TLS message.
-
-    async fn decrypt(&self, m: OpaqueMessage, seq: u64) -> Result<PlainMessage, Error>;
-}
-
-/// Objects with this trait can encrypt TLS messages.
-#[async_trait]
-pub trait MessageEncrypter: Send + Sync {
-    async fn encrypt(&self, m: PlainMessage, seq: u64) -> Result<OpaqueMessage, Error>;
-}
-
-impl dyn MessageEncrypter {
-    pub(crate) fn invalid() -> Box<dyn MessageEncrypter> {
-        Box::new(InvalidMessageEncrypter {})
+impl MessageEncrypter for InvalidMessageEncrypter {
+    type Error = Error;
+    async fn encrypt(&self, _m: PlainMessage, _seq: u64) -> Result<OpaqueMessage, Error> {
+        Err(Error::EncryptError)
     }
 }
 
-impl dyn MessageDecrypter {
-    pub(crate) fn invalid() -> Box<dyn MessageDecrypter> {
-        Box::new(InvalidMessageDecrypter {})
+/// A `MessageDecrypter` which doesn't work.
+pub struct InvalidMessageDecrypter {}
+
+#[async_trait]
+impl MessageDecrypter for InvalidMessageDecrypter {
+    type Error = Error;
+    async fn decrypt(&self, _m: OpaqueMessage, _seq: u64) -> Result<PlainMessage, Error> {
+        Err(Error::DecryptError)
     }
 }
 
@@ -80,24 +79,4 @@ pub(crate) fn make_nonce(iv: &Iv, seq: u64) -> ring::aead::Nonce {
     });
 
     aead::Nonce::assume_unique_for_key(nonce)
-}
-
-/// A `MessageEncrypter` which doesn't work.
-struct InvalidMessageEncrypter {}
-
-#[async_trait]
-impl MessageEncrypter for InvalidMessageEncrypter {
-    async fn encrypt(&self, _m: PlainMessage, _seq: u64) -> Result<OpaqueMessage, Error> {
-        Err(Error::General("encrypt not yet available".to_string()))
-    }
-}
-
-/// A `MessageDecrypter` which doesn't work.
-struct InvalidMessageDecrypter {}
-
-#[async_trait]
-impl MessageDecrypter for InvalidMessageDecrypter {
-    async fn decrypt(&self, _m: OpaqueMessage, _seq: u64) -> Result<PlainMessage, Error> {
-        Err(Error::DecryptError)
-    }
 }

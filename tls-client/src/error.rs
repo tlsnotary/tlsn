@@ -1,4 +1,5 @@
 use crate::rand;
+use tls_aio::Error as AioError;
 use tls_core::msgs::enums::{AlertDescription, ContentType, HandshakeType};
 use tls_core::Error as CoreError;
 
@@ -9,8 +10,11 @@ use std::time::SystemTimeError;
 /// rustls reports protocol errors using this type.
 #[derive(Debug, PartialEq, Clone)]
 pub enum Error {
-    /// Error propagated from Core component
+    /// Error propagated from tls-core library
     CoreError(CoreError),
+
+    /// Error propagated from tls-aio library
+    AioError(AioError),
 
     /// We received a TLS message that isn't valid right now.
     /// `expect_types` lists the message types we can expect right now.
@@ -34,6 +38,13 @@ pub enum Error {
         got_type: HandshakeType,
     },
 
+    /// We couldn't decrypt a message.  This is invariably fatal.
+    DecryptError,
+
+    /// We couldn't encrypt a message because it was larger than the allowed message size.
+    /// This should never happen if the application is using valid record sizes.
+    EncryptError,
+
     /// The peer sent us a syntactically incorrect TLS message.
     CorruptMessage,
 
@@ -45,13 +56,6 @@ pub enum Error {
 
     /// The certificate verifier doesn't support the given type of name.
     UnsupportedNameType,
-
-    /// We couldn't decrypt a message.  This is invariably fatal.
-    DecryptError,
-
-    /// We couldn't encrypt a message because it was larger than the allowed message size.
-    /// This should never happen if the application is using valid record sizes.
-    EncryptError,
 
     /// The peer doesn't support a protocol version/feature we require.
     /// The parameter gives a hint as to what version/feature it is.
@@ -117,6 +121,9 @@ impl fmt::Display for Error {
             Error::CoreError(ref e) => {
                 write!(f, "core error: {}", e)
             }
+            Error::AioError(ref e) => {
+                write!(f, "aio error: {}", e)
+            }
             Error::InappropriateMessage {
                 ref expect_types,
                 ref got_type,
@@ -179,6 +186,17 @@ impl From<CoreError> for Error {
     }
 }
 
+impl From<AioError> for Error {
+    #[inline]
+    fn from(e: AioError) -> Self {
+        match e {
+            AioError::DecryptError => Self::DecryptError,
+            AioError::EncryptError => Self::EncryptError,
+            e => Self::AioError(e),
+        }
+    }
+}
+
 impl From<SystemTimeError> for Error {
     #[inline]
     fn from(_: SystemTimeError) -> Self {
@@ -215,7 +233,6 @@ mod tests {
             Error::CorruptMessage,
             Error::CorruptMessagePayload(ContentType::Alert),
             Error::NoCertificatesPresented,
-            Error::DecryptError,
             Error::PeerIncompatibleError("no tls1.2".to_string()),
             Error::PeerMisbehavedError("inconsistent something".to_string()),
             Error::AlertReceived(AlertDescription::ExportRestriction),

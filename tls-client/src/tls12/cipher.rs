@@ -1,5 +1,6 @@
-use crate::cipher::{make_nonce, Iv, MessageDecrypter, MessageEncrypter};
+use crate::cipher::{make_nonce, Iv};
 use crate::error::Error;
+use tls_aio::cipher::{MessageDecrypter, MessageEncrypter};
 use tls_core::msgs::base::Payload;
 use tls_core::msgs::codec;
 use tls_core::msgs::enums::{ContentType, ProtocolVersion};
@@ -28,7 +29,11 @@ fn make_tls12_aad(
 pub(crate) struct AesGcm;
 
 impl Tls12AeadAlgorithm for AesGcm {
-    fn decrypter(&self, dec_key: aead::LessSafeKey, dec_iv: &[u8]) -> Box<dyn MessageDecrypter> {
+    fn decrypter(
+        &self,
+        dec_key: aead::LessSafeKey,
+        dec_iv: &[u8],
+    ) -> Box<dyn MessageDecrypter<Error = Error>> {
         let mut ret = GcmMessageDecrypter {
             dec_key,
             dec_salt: [0u8; 4],
@@ -44,7 +49,7 @@ impl Tls12AeadAlgorithm for AesGcm {
         enc_key: aead::LessSafeKey,
         write_iv: &[u8],
         explicit: &[u8],
-    ) -> Box<dyn MessageEncrypter> {
+    ) -> Box<dyn MessageEncrypter<Error = Error>> {
         debug_assert_eq!(write_iv.len(), 4);
         debug_assert_eq!(explicit.len(), 8);
 
@@ -66,7 +71,11 @@ impl Tls12AeadAlgorithm for AesGcm {
 pub(crate) struct ChaCha20Poly1305;
 
 impl Tls12AeadAlgorithm for ChaCha20Poly1305 {
-    fn decrypter(&self, dec_key: aead::LessSafeKey, iv: &[u8]) -> Box<dyn MessageDecrypter> {
+    fn decrypter(
+        &self,
+        dec_key: aead::LessSafeKey,
+        iv: &[u8],
+    ) -> Box<dyn MessageDecrypter<Error = Error>> {
         Box::new(ChaCha20Poly1305MessageDecrypter {
             dec_key,
             dec_offset: Iv::copy(iv),
@@ -78,7 +87,7 @@ impl Tls12AeadAlgorithm for ChaCha20Poly1305 {
         enc_key: aead::LessSafeKey,
         enc_iv: &[u8],
         _: &[u8],
-    ) -> Box<dyn MessageEncrypter> {
+    ) -> Box<dyn MessageEncrypter<Error = Error>> {
         Box::new(ChaCha20Poly1305MessageEncrypter {
             enc_key,
             enc_offset: Iv::copy(enc_iv),
@@ -87,13 +96,17 @@ impl Tls12AeadAlgorithm for ChaCha20Poly1305 {
 }
 
 pub(crate) trait Tls12AeadAlgorithm: Send + Sync + 'static {
-    fn decrypter(&self, key: aead::LessSafeKey, iv: &[u8]) -> Box<dyn MessageDecrypter>;
+    fn decrypter(
+        &self,
+        key: aead::LessSafeKey,
+        iv: &[u8],
+    ) -> Box<dyn MessageDecrypter<Error = Error>>;
     fn encrypter(
         &self,
         key: aead::LessSafeKey,
         iv: &[u8],
         extra: &[u8],
-    ) -> Box<dyn MessageEncrypter>;
+    ) -> Box<dyn MessageEncrypter<Error = Error>>;
 }
 
 /// A `MessageEncrypter` for AES-GCM AEAD ciphersuites. TLS 1.2 only.
@@ -113,6 +126,7 @@ const GCM_OVERHEAD: usize = GCM_EXPLICIT_NONCE_LEN + 16;
 
 #[async_trait]
 impl MessageDecrypter for GcmMessageDecrypter {
+    type Error = Error;
     async fn decrypt(&self, mut msg: OpaqueMessage, seq: u64) -> Result<PlainMessage, Error> {
         let payload = &mut msg.payload.0;
         if payload.len() < GCM_OVERHEAD {
@@ -145,6 +159,7 @@ impl MessageDecrypter for GcmMessageDecrypter {
 
 #[async_trait]
 impl MessageEncrypter for GcmMessageEncrypter {
+    type Error = Error;
     async fn encrypt(&self, msg: PlainMessage, seq: u64) -> Result<OpaqueMessage, Error> {
         let nonce = make_nonce(&self.iv, seq);
         let aad = make_tls12_aad(seq, msg.typ, msg.version, msg.payload.0.len());
@@ -187,6 +202,7 @@ const CHACHAPOLY1305_OVERHEAD: usize = 16;
 
 #[async_trait]
 impl MessageDecrypter for ChaCha20Poly1305MessageDecrypter {
+    type Error = Error;
     async fn decrypt(&self, mut msg: OpaqueMessage, seq: u64) -> Result<PlainMessage, Error> {
         let payload = &mut msg.payload.0;
 
@@ -219,6 +235,7 @@ impl MessageDecrypter for ChaCha20Poly1305MessageDecrypter {
 
 #[async_trait]
 impl MessageEncrypter for ChaCha20Poly1305MessageEncrypter {
+    type Error = Error;
     async fn encrypt(&self, msg: PlainMessage, seq: u64) -> Result<OpaqueMessage, Error> {
         let nonce = make_nonce(&self.enc_offset, seq);
         let aad = make_tls12_aad(seq, msg.typ, msg.version, msg.payload.0.len());
