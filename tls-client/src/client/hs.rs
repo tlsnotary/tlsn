@@ -80,33 +80,34 @@ pub(super) async fn start_handshake(
         transcript_buffer.set_client_auth_enabled();
     }
 
-    let support_tls13 = config.supports_version(ProtocolVersion::TLSv1_3);
-
     let mut session_id: Option<SessionID> = None;
-    let mut resuming_session = find_session(&server_name, &config);
 
+    let support_tls13 = config.supports_version(ProtocolVersion::TLSv1_3);
     let key_share = if support_tls13 {
-        Some(tls13::initial_key_share(&config, &server_name)?)
+        Some(cx.common.handshaker.initial_key_share().await?)
     } else {
         None
     };
 
-    if let Some(_resuming) = &mut resuming_session {
-        #[cfg(feature = "tls12")]
-        if let persist::ClientSessionValue::Tls12(inner) = &mut _resuming.value {
-            // If we have a ticket, we use the sessionid as a signal that
-            // we're  doing an abbreviated handshake.  See section 3.4 in
-            // RFC5077.
-            if !inner.ticket().is_empty() {
-                inner.session_id = SessionID::random()?;
-            }
-            session_id = Some(inner.session_id);
-        }
+    // For now we do not support session resumption
+    //
+    // let mut resuming_session = find_session(&server_name, &config);
+    // if let Some(_resuming) = &mut resuming_session {
+    //     #[cfg(feature = "tls12")]
+    //     if let persist::ClientSessionValue::Tls12(inner) = &mut _resuming.value {
+    //         // If we have a ticket, we use the sessionid as a signal that
+    //         // we're  doing an abbreviated handshake.  See section 3.4 in
+    //         // RFC5077.
+    //         if !inner.ticket().is_empty() {
+    //             inner.session_id = SessionID::random()?;
+    //         }
+    //         session_id = Some(inner.session_id);
+    //     }
 
-        debug!("Resuming session");
-    } else {
-        debug!("Not resuming any session");
-    }
+    //     debug!("Resuming session");
+    // } else {
+    //     debug!("Not resuming any session");
+    // }
 
     // https://tools.ietf.org/html/rfc8446#appendix-D.4
     if session_id.is_none() {
@@ -120,7 +121,7 @@ pub(super) async fn start_handshake(
     Ok(emit_client_hello_for_retry(
         config,
         cx,
-        resuming_session,
+        None,
         random,
         false,
         transcript_buffer,
@@ -146,7 +147,7 @@ struct ExpectServerHello {
     transcript_buffer: HandshakeHashBuffer,
     early_key_schedule: Option<KeyScheduleEarly>,
     hello: ClientHelloDetails,
-    offered_key_share: Option<kx::KeyExchange>,
+    offered_key_share: Option<KeyShareEntry>,
     session_id: SessionID,
     sent_tls13_fake_ccs: bool,
     suite: Option<SupportedCipherSuite>,
@@ -169,25 +170,29 @@ async fn emit_client_hello_for_retry(
     session_id: Option<SessionID>,
     retryreq: Option<&HelloRetryRequest>,
     server_name: ServerName,
-    key_share: Option<kx::KeyExchange>,
+    key_share: Option<KeyShareEntry>,
     extra_exts: Vec<ClientExtension>,
     may_send_sct_list: bool,
     suite: Option<SupportedCipherSuite>,
 ) -> NextState {
+    // For now we do not support session resumption
+    //
     // Do we have a SessionID or ticket cached for this host?
-    let (ticket, resume_version) = if let Some(resuming) = &resuming_session {
-        match &resuming.value {
-            persist::ClientSessionValue::Tls13(inner) => {
-                (inner.ticket().to_vec(), ProtocolVersion::TLSv1_3)
-            }
-            #[cfg(feature = "tls12")]
-            persist::ClientSessionValue::Tls12(inner) => {
-                (inner.ticket().to_vec(), ProtocolVersion::TLSv1_2)
-            }
-        }
-    } else {
-        (Vec::new(), ProtocolVersion::Unknown(0))
-    };
+    // let (ticket, resume_version) = if let Some(resuming) = &resuming_session {
+    //     match &resuming.value {
+    //         persist::ClientSessionValue::Tls13(inner) => {
+    //             (inner.ticket().to_vec(), ProtocolVersion::TLSv1_3)
+    //         }
+    //         #[cfg(feature = "tls12")]
+    //         persist::ClientSessionValue::Tls12(inner) => {
+    //             (inner.ticket().to_vec(), ProtocolVersion::TLSv1_2)
+    //         }
+    //     }
+    // } else {
+    //     (Vec::new(), ProtocolVersion::Unknown(0))
+    // };
+
+    let (ticket, resume_version) = (Vec::new(), ProtocolVersion::Unknown(0));
 
     let support_tls12 = config.supports_version(ProtocolVersion::TLSv1_2);
     let support_tls13 = config.supports_version(ProtocolVersion::TLSv1_3);
@@ -223,8 +228,7 @@ async fn emit_client_hello_for_retry(
 
     if let Some(key_share) = &key_share {
         debug_assert!(support_tls13);
-        let key_share = KeyShareEntry::new(key_share.group(), key_share.pubkey.as_ref());
-        exts.push(ClientExtension::KeyShare(vec![key_share]));
+        exts.push(ClientExtension::KeyShare(vec![key_share.clone()]));
     }
 
     if let Some(cookie) = retryreq.and_then(HelloRetryRequest::get_cookie) {
@@ -633,7 +637,7 @@ impl ExpectServerHelloOrHelloRetryRequest {
 
         // A retry request is illegal if it contains no cookie and asks for
         // retry of a group we already sent.
-        if cookie.is_none() && req_group == Some(offered_key_share.group()) {
+        if cookie.is_none() && req_group == Some(offered_key_share.group) {
             return Err(cx
                 .common
                 .illegal_param("server requested hrr with our group")
@@ -717,17 +721,12 @@ impl ExpectServerHelloOrHelloRetryRequest {
         let may_send_sct_list = self.next.hello.server_may_send_sct_list();
 
         let key_share = match req_group {
-            Some(group) if group != offered_key_share.group() => {
-                let group = match kx::KeyExchange::choose(group, &self.next.config.kx_groups) {
-                    Some(group) => group,
-                    None => {
-                        return Err(cx
-                            .common
-                            .illegal_param("server requested hrr with bad group")
-                            .await)
-                    }
-                };
-                kx::KeyExchange::start(group).ok_or(Error::FailedToGetRandomBytes)?
+            Some(group) if group != offered_key_share.group => {
+                // For now we do not support changing group after starting hs
+                return Err(cx
+                    .common
+                    .illegal_param("server requested hrr with bad group")
+                    .await);
             }
             _ => offered_key_share,
         };

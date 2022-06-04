@@ -19,6 +19,7 @@ tlsn-mpc-core = { path = "../mpc-core" }
 sha2 = { version = "0.10.1", features = ["compress"] }
 digest = { version = "0.10.3" }
 hmac = { version = "0.12.1" }
+elliptic-curve = { version = "0.11.12" }
 rand = "0.8.5"
 thiserror = "1.0.30"
 sct = "0.7.0"

@@ -8,6 +8,7 @@ use crate::suites::SupportedCipherSuite;
 #[cfg(feature = "tls12")]
 use crate::tls12::ConnectionSecrets;
 use crate::vecbuf::ChunkVecBuffer;
+use tls_aio::handshaker::Handshake;
 use tls_core::msgs::alert::AlertMessagePayload;
 use tls_core::msgs::base::Payload;
 use tls_core::msgs::deframer::MessageDeframer;
@@ -574,7 +575,7 @@ pub struct CommonState {
     pub(crate) negotiated_version: Option<ProtocolVersion>,
     pub(crate) side: Side,
     pub(crate) record_layer: record_layer::RecordLayer,
-    pub(crate) handshaker: handshaker::Handshaker,
+    pub(crate) handshaker: Box<dyn Handshake<Error = Error>>,
     pub(crate) suite: Option<SupportedCipherSuite>,
     pub(crate) alpn_protocol: Option<Vec<u8>>,
     aligned_handshake: bool,
@@ -602,7 +603,7 @@ impl CommonState {
             negotiated_version: None,
             side,
             record_layer: record_layer::RecordLayer::new(),
-            handshaker: handshaker::Handshaker::new(),
+            handshaker: Box::new(handshaker::InvalidHandShaker {}),
             suite: None,
             alpn_protocol: None,
             aligned_handshake: true,
@@ -954,7 +955,7 @@ impl CommonState {
     }
 
     // Put m into sendable_tls for writing.
-    fn queue_tls_message(&mut self, m: OpaqueMessage) {
+    pub(crate) fn queue_tls_message(&mut self, m: OpaqueMessage) {
         self.sendable_tls.append(m.encode());
     }
 
