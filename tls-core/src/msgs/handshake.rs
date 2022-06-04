@@ -10,9 +10,10 @@ use crate::msgs::enums::{HandshakeType, ProtocolVersion};
 use crate::msgs::enums::{HashAlgorithm, ServerNameType, SignatureAlgorithm};
 use crate::msgs::enums::{KeyUpdateRequest, NamedGroup, SignatureScheme};
 use crate::rand;
+use crate::Error;
 
 #[cfg(feature = "logging")]
-use crate::log::warn;
+use tracing::warn;
 
 use std::collections;
 use std::fmt;
@@ -77,7 +78,7 @@ impl Codec for Random {
 }
 
 impl Random {
-    pub fn new() -> Result<Self, rand::GetRandomFailed> {
+    pub fn new() -> Result<Self, Error> {
         let mut data = [0u8; 32];
         rand::fill_random(&mut data)?;
         Ok(Self(data))
@@ -147,7 +148,7 @@ impl Codec for SessionID {
 }
 
 impl SessionID {
-    pub fn random() -> Result<Self, rand::GetRandomFailed> {
+    pub fn random() -> Result<Self, Error> {
         let mut data = [0u8; 32];
         rand::fill_random(&mut data)?;
         Ok(Self { data, len: 32 })

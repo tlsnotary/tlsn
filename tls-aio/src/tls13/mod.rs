@@ -1,11 +1,11 @@
 use crate::cipher::{make_nonce, Iv, MessageDecrypter, MessageEncrypter};
 use crate::error::Error;
-use crate::msgs::base::Payload;
-use crate::msgs::codec::Codec;
-use crate::msgs::enums::{CipherSuite, ContentType, ProtocolVersion};
-use crate::msgs::fragmenter::MAX_FRAGMENT_LEN;
-use crate::msgs::message::{BorrowedPlainMessage, OpaqueMessage, PlainMessage};
 use crate::suites::{BulkAlgorithm, CipherSuiteCommon, SupportedCipherSuite};
+use tls_core::msgs::base::Payload;
+use tls_core::msgs::codec::Codec;
+use tls_core::msgs::enums::{CipherSuite, ContentType, ProtocolVersion};
+use tls_core::msgs::fragmenter::MAX_FRAGMENT_LEN;
+use tls_core::msgs::message::{BorrowedPlainMessage, OpaqueMessage, PlainMessage};
 
 use ring::{aead, hkdf};
 

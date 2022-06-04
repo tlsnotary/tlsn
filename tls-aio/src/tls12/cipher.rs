@@ -1,10 +1,10 @@
 use crate::cipher::{make_nonce, Iv, MessageDecrypter, MessageEncrypter};
 use crate::error::Error;
-use crate::msgs::base::Payload;
-use crate::msgs::codec;
-use crate::msgs::enums::{ContentType, ProtocolVersion};
-use crate::msgs::fragmenter::MAX_FRAGMENT_LEN;
-use crate::msgs::message::{BorrowedPlainMessage, OpaqueMessage, PlainMessage};
+use tls_core::msgs::base::Payload;
+use tls_core::msgs::codec;
+use tls_core::msgs::enums::{ContentType, ProtocolVersion};
+use tls_core::msgs::fragmenter::MAX_FRAGMENT_LEN;
+use tls_core::msgs::message::{BorrowedPlainMessage, OpaqueMessage, PlainMessage};
 
 use async_trait::async_trait;
 use ring::aead;

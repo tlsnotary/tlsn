@@ -5,21 +5,6 @@ use crate::hash_hs::{HandshakeHash, HandshakeHashBuffer};
 use crate::kx;
 #[cfg(feature = "logging")]
 use crate::log::{debug, trace, warn};
-use crate::msgs::base::{Payload, PayloadU8};
-use crate::msgs::ccs::ChangeCipherSpecPayload;
-use crate::msgs::codec::Codec;
-use crate::msgs::enums::KeyUpdateRequest;
-use crate::msgs::enums::{AlertDescription, NamedGroup, ProtocolVersion};
-use crate::msgs::enums::{ContentType, ExtensionType, HandshakeType, SignatureScheme};
-use crate::msgs::handshake::ClientExtension;
-use crate::msgs::handshake::DigitallySignedStruct;
-use crate::msgs::handshake::EncryptedExtensions;
-use crate::msgs::handshake::NewSessionTicketPayloadTLS13;
-use crate::msgs::handshake::{CertificateEntry, CertificatePayloadTLS13};
-use crate::msgs::handshake::{HandshakeMessagePayload, HandshakePayload};
-use crate::msgs::handshake::{HasServerExtensions, ServerHelloPayload};
-use crate::msgs::handshake::{PresharedKeyIdentity, PresharedKeyOffer};
-use crate::msgs::message::{Message, MessagePayload};
 use crate::msgs::persist;
 use crate::tls13::key_schedule::{
     KeyScheduleEarly, KeyScheduleHandshake, KeySchedulePreHandshake, KeyScheduleTraffic,
@@ -27,6 +12,21 @@ use crate::tls13::key_schedule::{
 use crate::tls13::Tls13CipherSuite;
 use crate::verify;
 use crate::{sign, KeyLog};
+use tls_core::msgs::base::{Payload, PayloadU8};
+use tls_core::msgs::ccs::ChangeCipherSpecPayload;
+use tls_core::msgs::codec::Codec;
+use tls_core::msgs::enums::KeyUpdateRequest;
+use tls_core::msgs::enums::{AlertDescription, NamedGroup, ProtocolVersion};
+use tls_core::msgs::enums::{ContentType, ExtensionType, HandshakeType, SignatureScheme};
+use tls_core::msgs::handshake::ClientExtension;
+use tls_core::msgs::handshake::DigitallySignedStruct;
+use tls_core::msgs::handshake::EncryptedExtensions;
+use tls_core::msgs::handshake::NewSessionTicketPayloadTLS13;
+use tls_core::msgs::handshake::{CertificateEntry, CertificatePayloadTLS13};
+use tls_core::msgs::handshake::{HandshakeMessagePayload, HandshakePayload};
+use tls_core::msgs::handshake::{HasServerExtensions, ServerHelloPayload};
+use tls_core::msgs::handshake::{PresharedKeyIdentity, PresharedKeyOffer};
+use tls_core::msgs::message::{Message, MessagePayload};
 
 use super::client_conn::ClientConnectionData;
 use super::hs::ClientContext;

@@ -1,8 +1,8 @@
 use crate::error::Error;
 #[cfg(feature = "logging")]
 use crate::log::warn;
-use crate::msgs::enums::{ContentType, HandshakeType};
-use crate::msgs::message::MessagePayload;
+use tls_core::msgs::enums::{ContentType, HandshakeType};
+use tls_core::msgs::message::MessagePayload;
 
 /// For a Message $m, and a HandshakePayload enum member $payload_type,
 /// return Ok(payload) if $m is both a handshake message and one that
@@ -11,13 +11,13 @@ use crate::msgs::message::MessagePayload;
 macro_rules! require_handshake_msg(
   ( $m:expr, $handshake_type:path, $payload_type:path ) => (
     match &$m.payload {
-        MessagePayload::Handshake($crate::msgs::handshake::HandshakeMessagePayload {
+        MessagePayload::Handshake($crate::tls_core::msgs::handshake::HandshakeMessagePayload {
             payload: $payload_type(hm),
             ..
         }) => Ok(hm),
         payload => Err($crate::check::inappropriate_handshake_message(
             payload,
-            &[$crate::msgs::enums::ContentType::Handshake],
+            &[$crate::tls_core::msgs::enums::ContentType::Handshake],
             &[$handshake_type]))
     }
   )
@@ -28,14 +28,14 @@ macro_rules! require_handshake_msg(
 macro_rules! require_handshake_msg_move(
   ( $m:expr, $handshake_type:path, $payload_type:path ) => (
     match $m.payload {
-        MessagePayload::Handshake($crate::msgs::handshake::HandshakeMessagePayload {
+        MessagePayload::Handshake($crate::tls_core::msgs::handshake::HandshakeMessagePayload {
             payload: $payload_type(hm),
             ..
         }) => Ok(hm),
         payload =>
             Err($crate::check::inappropriate_handshake_message(
                 &payload,
-                &[$crate::msgs::enums::ContentType::Handshake],
+                &[$crate::tls_core::msgs::enums::ContentType::Handshake],
                 &[$handshake_type]))
     }
   )

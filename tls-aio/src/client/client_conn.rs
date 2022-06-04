@@ -6,16 +6,16 @@ use crate::error::Error;
 use crate::kx::SupportedKxGroup;
 #[cfg(feature = "logging")]
 use crate::log::trace;
-use crate::msgs::enums::CipherSuite;
-use crate::msgs::enums::ProtocolVersion;
-use crate::msgs::enums::SignatureScheme;
-use crate::msgs::handshake::ClientExtension;
-use crate::msgs::message::Message;
 use crate::sign;
 use crate::suites::SupportedCipherSuite;
 use crate::verify;
 use crate::versions;
 use crate::KeyLog;
+use tls_core::msgs::enums::CipherSuite;
+use tls_core::msgs::enums::ProtocolVersion;
+use tls_core::msgs::enums::SignatureScheme;
+use tls_core::msgs::handshake::ClientExtension;
+use tls_core::msgs::message::Message;
 
 use super::hs;
 
@@ -375,20 +375,23 @@ pub struct Initialized {
     server_name: ServerName,
     extra_exts: Vec<ClientExtension>,
     proto: Protocol,
-    config: Arc<ClientConfig>
+    config: Arc<ClientConfig>,
 }
 
 #[async_trait]
 impl State<ClientConnectionData> for Initialized {
-    async fn start(self: Box<Self>, cx: &mut crate::conn::Context<'_>) -> Result<Box<dyn State<ClientConnectionData>>, Error> {
+    async fn start(
+        self: Box<Self>,
+        cx: &mut crate::conn::Context<'_>,
+    ) -> Result<Box<dyn State<ClientConnectionData>>, Error> {
         hs::start_handshake(self.server_name, self.extra_exts, self.config, cx).await
     }
 
     async fn handle(
         self: Box<Self>,
         _cx: &mut crate::conn::Context<'_>,
-        _message: Message
-    ) -> Result<Box<dyn State<ClientConnectionData> > ,Error> {
+        _message: Message,
+    ) -> Result<Box<dyn State<ClientConnectionData>>, Error> {
         unreachable!()
     }
 }
@@ -426,7 +429,7 @@ impl ClientConnection {
             server_name: name,
             extra_exts,
             proto,
-            config
+            config,
         });
         let inner = ConnectionCommon::new(state, data, common_state);
 

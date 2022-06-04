@@ -7,10 +7,10 @@
 use std::convert::TryInto;
 use std::time::{Duration, Instant, SystemTime};
 
-use crate::key;
 use crate::verify;
 use crate::verify::ServerCertVerifier;
 use crate::{anchors, OwnedTrustAnchor};
+use tls_core::key;
 
 use webpki_roots;
 
@@ -181,25 +181,20 @@ struct Context {
     name: &'static str,
     domain: &'static str,
     roots: anchors::RootCertStore,
-    chain: Vec<key::Certificate>,
+    chain: Vec<tls_core::key::Certificate>,
     now: SystemTime,
 }
 
 impl Context {
     fn new(name: &'static str, domain: &'static str, certs: &[&'static [u8]]) -> Self {
         let mut roots = anchors::RootCertStore::empty();
-        roots.add_server_trust_anchors(
-            webpki_roots::TLS_SERVER_ROOTS
-                .0
-                .iter()
-                .map(|ta| {
-                    OwnedTrustAnchor::from_subject_spki_name_constraints(
-                        ta.subject,
-                        ta.spki,
-                        ta.name_constraints,
-                    )
-                }),
-        );
+        roots.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
+            OwnedTrustAnchor::from_subject_spki_name_constraints(
+                ta.subject,
+                ta.spki,
+                ta.name_constraints,
+            )
+        }));
         Self {
             name,
             domain,
@@ -207,7 +202,7 @@ impl Context {
             chain: certs
                 .iter()
                 .copied()
-                .map(|bytes| key::Certificate(bytes.to_vec()))
+                .map(|bytes| tls_core::key::Certificate(bytes.to_vec()))
                 .collect(),
             now: SystemTime::UNIX_EPOCH + Duration::from_secs(1640870720),
         }

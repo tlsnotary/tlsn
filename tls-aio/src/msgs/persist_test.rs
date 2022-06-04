@@ -1,10 +1,10 @@
-use super::codec::{Codec, Reader};
-use super::enums::*;
 use super::persist::*;
+use tls_core::msgs::codec::{Codec, Reader};
+use tls_core::msgs::enums::*;
 
-use crate::key::Certificate;
 use crate::ticketer::TimeBase;
 use crate::tls13::TLS13_AES_128_GCM_SHA256;
+use tls_core::key::Certificate;
 
 use std::convert::TryInto;
 
@@ -25,9 +25,7 @@ fn clientsessionkey_cannot_be_read() {
 #[test]
 fn clientsessionvalue_is_debug() {
     let csv = ClientSessionValue::from(Tls13ClientSessionValue::new(
-        TLS13_AES_128_GCM_SHA256
-            .tls13()
-            .unwrap(),
+        TLS13_AES_128_GCM_SHA256.tls13().unwrap(),
         vec![],
         vec![1, 2, 3],
         vec![Certificate(b"abc".to_vec()), Certificate(b"def".to_vec())],

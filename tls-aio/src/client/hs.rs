@@ -7,25 +7,25 @@ use crate::hash_hs::HandshakeHashBuffer;
 use crate::kx;
 #[cfg(feature = "logging")]
 use crate::log::{debug, trace};
-use crate::msgs::base::Payload;
-use crate::msgs::codec::{Codec, Reader};
-use crate::msgs::enums::{
-    AlertDescription, CipherSuite, Compression, ContentType, ProtocolVersion,
-};
-use crate::msgs::enums::{ECPointFormat, PSKKeyExchangeMode};
-use crate::msgs::enums::{ExtensionType, HandshakeType};
-use crate::msgs::handshake::{CertificateStatusRequest, ClientSessionTicket, SCTList};
-use crate::msgs::handshake::{ClientExtension, HasServerExtensions};
-use crate::msgs::handshake::{ClientHelloPayload, HandshakeMessagePayload, HandshakePayload};
-use crate::msgs::handshake::{ConvertProtocolNameList, ProtocolNameList};
-use crate::msgs::handshake::{ECPointFormatList, SupportedPointFormats};
-use crate::msgs::handshake::{HelloRetryRequest, KeyShareEntry};
-use crate::msgs::handshake::{Random, SessionID};
-use crate::msgs::message::{Message, MessagePayload};
 use crate::msgs::persist;
 use crate::ticketer::TimeBase;
 use crate::tls13::key_schedule::KeyScheduleEarly;
 use crate::SupportedCipherSuite;
+use tls_core::msgs::base::Payload;
+use tls_core::msgs::codec::{Codec, Reader};
+use tls_core::msgs::enums::{
+    AlertDescription, CipherSuite, Compression, ContentType, ProtocolVersion,
+};
+use tls_core::msgs::enums::{ECPointFormat, PSKKeyExchangeMode};
+use tls_core::msgs::enums::{ExtensionType, HandshakeType};
+use tls_core::msgs::handshake::{CertificateStatusRequest, ClientSessionTicket, SCTList};
+use tls_core::msgs::handshake::{ClientExtension, HasServerExtensions};
+use tls_core::msgs::handshake::{ClientHelloPayload, HandshakeMessagePayload, HandshakePayload};
+use tls_core::msgs::handshake::{ConvertProtocolNameList, ProtocolNameList};
+use tls_core::msgs::handshake::{ECPointFormatList, SupportedPointFormats};
+use tls_core::msgs::handshake::{HelloRetryRequest, KeyShareEntry};
+use tls_core::msgs::handshake::{Random, SessionID};
+use tls_core::msgs::message::{Message, MessagePayload};
 
 #[cfg(feature = "tls12")]
 use super::tls12;

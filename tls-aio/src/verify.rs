@@ -1,11 +1,11 @@
 use crate::anchors::{OwnedTrustAnchor, RootCertStore};
 use crate::client::ServerName;
 use crate::error::Error;
-use crate::key::Certificate;
 #[cfg(feature = "logging")]
 use crate::log::{debug, trace, warn};
-use crate::msgs::enums::SignatureScheme;
-use crate::msgs::handshake::{DigitallySignedStruct, DistinguishedNames};
+use tls_core::key::Certificate;
+use tls_core::msgs::enums::SignatureScheme;
+use tls_core::msgs::handshake::{DigitallySignedStruct, DistinguishedNames};
 
 use ring::digest::Digest;
 
@@ -663,7 +663,7 @@ fn verify_signed_struct(
 fn convert_alg_tls13(
     scheme: SignatureScheme,
 ) -> Result<&'static webpki::SignatureAlgorithm, Error> {
-    use crate::msgs::enums::SignatureScheme::*;
+    use tls_core::msgs::enums::SignatureScheme::*;
 
     match scheme {
         ECDSA_NISTP256_SHA256 => Ok(&webpki::ECDSA_P256_SHA256),

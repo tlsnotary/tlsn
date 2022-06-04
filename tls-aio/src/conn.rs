@@ -2,23 +2,23 @@ use crate::client::ClientConnectionData;
 use crate::error::Error;
 #[cfg(feature = "logging")]
 use crate::log::{debug, error, trace, warn};
-use crate::msgs::alert::AlertMessagePayload;
-use crate::msgs::base::Payload;
-use crate::msgs::deframer::MessageDeframer;
-use crate::msgs::enums::HandshakeType;
-use crate::msgs::enums::{AlertDescription, AlertLevel, ContentType, ProtocolVersion};
-use crate::msgs::fragmenter::MessageFragmenter;
-use crate::msgs::handshake::Random;
-use crate::msgs::hsjoiner::HandshakeJoiner;
-use crate::msgs::message::{
-    BorrowedPlainMessage, Message, MessagePayload, OpaqueMessage, PlainMessage,
-};
 use crate::record_layer;
 use crate::suites::SupportedCipherSuite;
 #[cfg(feature = "tls12")]
 use crate::tls12::ConnectionSecrets;
 use crate::vecbuf::ChunkVecBuffer;
 use crate::{handshaker, key};
+use tls_core::msgs::alert::AlertMessagePayload;
+use tls_core::msgs::base::Payload;
+use tls_core::msgs::deframer::MessageDeframer;
+use tls_core::msgs::enums::HandshakeType;
+use tls_core::msgs::enums::{AlertDescription, AlertLevel, ContentType, ProtocolVersion};
+use tls_core::msgs::fragmenter::MessageFragmenter;
+use tls_core::msgs::handshake::Random;
+use tls_core::msgs::hsjoiner::HandshakeJoiner;
+use tls_core::msgs::message::{
+    BorrowedPlainMessage, Message, MessagePayload, OpaqueMessage, PlainMessage,
+};
 
 use async_recursion::async_recursion;
 use async_trait::async_trait;
@@ -588,7 +588,7 @@ pub struct CommonState {
     has_received_close_notify: bool,
     has_seen_eof: bool,
     received_middlebox_ccs: u8,
-    pub(crate) peer_certificates: Option<Vec<key::Certificate>>,
+    pub(crate) peer_certificates: Option<Vec<tls_core::key::Certificate>>,
     message_fragmenter: MessageFragmenter,
     received_plaintext: ChunkVecBuffer,
     sendable_plaintext: ChunkVecBuffer,
@@ -656,7 +656,7 @@ impl CommonState {
     /// if client authentication was completed.
     ///
     /// The return value is None until this value is available.
-    pub fn peer_certificates(&self) -> Option<&[key::Certificate]> {
+    pub fn peer_certificates(&self) -> Option<&[tls_core::key::Certificate]> {
         self.peer_certificates.as_deref()
     }
 
@@ -1041,7 +1041,9 @@ impl CommonState {
     }
 
     pub(crate) fn set_max_fragment_size(&mut self, new: Option<usize>) -> Result<(), Error> {
-        self.message_fragmenter.set_max_fragment_size(new)
+        self.message_fragmenter
+            .set_max_fragment_size(new)
+            .map_err(|e| Error::from(e))
     }
 
     pub(crate) fn get_alpn_protocol(&self) -> Option<&[u8]> {
