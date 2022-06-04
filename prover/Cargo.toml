@@ -7,4 +7,4 @@ edition = "2021"
 name = "prover"
 
 [dependencies]
-tlsn-tls-aio = { path = "../tls-aio" }
+tlsn-tls-client = { path = "../tls-client" }

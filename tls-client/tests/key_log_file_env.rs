@@ -1,4 +1,4 @@
-//! Tests of [`tls_aio::KeyLogFile`] that require us to set environment variables.
+//! Tests of [`tls_client::KeyLogFile`] that require us to set environment variables.
 //!
 //!                                 vvvv
 //! Every test you add to this file MUST execute through `serialized()`.
@@ -63,9 +63,9 @@ fn serialized(f: impl FnOnce()) {
 //         let server_config = Arc::new(make_server_config(KeyType::Rsa));
 //         env::set_var("SSLKEYLOGFILE", "./sslkeylogfile.txt");
 
-//         for version in tls_aio::ALL_VERSIONS {
+//         for version in tls_client::ALL_VERSIONS {
 //             let mut client_config = make_client_config_with_versions(KeyType::Rsa, &[version]);
-//             client_config.key_log = Arc::new(tls_aio::KeyLogFile::new());
+//             client_config.key_log = Arc::new(tls_client::KeyLogFile::new());
 
 //             let (mut client, mut server) =
 //                 make_pair_for_arc_configs(&Arc::new(client_config), &server_config);
@@ -89,7 +89,7 @@ fn serialized(f: impl FnOnce()) {
 
 //         let server_config = Arc::new(server_config);
 
-//         for version in tls_aio::ALL_VERSIONS {
+//         for version in tls_client::ALL_VERSIONS {
 //             let client_config = make_client_config_with_versions(KeyType::Rsa, &[version]);
 //             let (mut client, mut server) =
 //                 make_pair_for_arc_configs(&Arc::new(client_config), &server_config);

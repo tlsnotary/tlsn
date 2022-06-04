@@ -1,4 +1,4 @@
-use tls_aio::ClientConnection;
+use tls_client::ClientConnection;
 
 pub struct Prover {
     tls: ClientConnection
