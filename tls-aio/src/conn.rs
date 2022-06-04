@@ -1,5 +1,6 @@
 use crate::client::ClientConnectionData;
 use crate::error::Error;
+use crate::handshaker;
 #[cfg(feature = "logging")]
 use crate::log::{debug, error, trace, warn};
 use crate::record_layer;
@@ -7,7 +8,6 @@ use crate::suites::SupportedCipherSuite;
 #[cfg(feature = "tls12")]
 use crate::tls12::ConnectionSecrets;
 use crate::vecbuf::ChunkVecBuffer;
-use crate::{handshaker, key};
 use tls_core::msgs::alert::AlertMessagePayload;
 use tls_core::msgs::base::Payload;
 use tls_core::msgs::deframer::MessageDeframer;
@@ -16,9 +16,7 @@ use tls_core::msgs::enums::{AlertDescription, AlertLevel, ContentType, ProtocolV
 use tls_core::msgs::fragmenter::MessageFragmenter;
 use tls_core::msgs::handshake::Random;
 use tls_core::msgs::hsjoiner::HandshakeJoiner;
-use tls_core::msgs::message::{
-    BorrowedPlainMessage, Message, MessagePayload, OpaqueMessage, PlainMessage,
-};
+use tls_core::msgs::message::{Message, MessagePayload, OpaqueMessage, PlainMessage};
 
 use async_recursion::async_recursion;
 use async_trait::async_trait;

@@ -253,7 +253,7 @@
 
 // Require docs for public APIs, deny unsafe code, etc.
 #![forbid(unsafe_code, unused_must_use)]
-#![allow(dead_code, unused_imports)]
+#![allow(dead_code)]
 #![cfg_attr(not(read_buf), forbid(unstable_features))]
 #![deny(
     clippy::clone_on_ref_ptr,
@@ -308,6 +308,7 @@ mod log {
     macro_rules! error    ( ($($tt:tt)*) => {{}} );
 }
 
+#[allow(unused_imports)]
 #[macro_use]
 pub extern crate tls_core;
 
@@ -334,7 +335,6 @@ mod x509;
 mod check;
 mod bs_debug;
 mod builder;
-mod key;
 mod key_log;
 mod key_log_file;
 mod kx;

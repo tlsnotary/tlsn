@@ -4,7 +4,7 @@ use tls_core::msgs::base::Payload;
 use tls_core::msgs::codec;
 use tls_core::msgs::enums::{ContentType, ProtocolVersion};
 use tls_core::msgs::fragmenter::MAX_FRAGMENT_LEN;
-use tls_core::msgs::message::{BorrowedPlainMessage, OpaqueMessage, PlainMessage};
+use tls_core::msgs::message::{OpaqueMessage, PlainMessage};
 
 use async_trait::async_trait;
 use ring::aead;

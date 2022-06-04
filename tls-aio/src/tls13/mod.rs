@@ -5,7 +5,7 @@ use tls_core::msgs::base::Payload;
 use tls_core::msgs::codec::Codec;
 use tls_core::msgs::enums::{CipherSuite, ContentType, ProtocolVersion};
 use tls_core::msgs::fragmenter::MAX_FRAGMENT_LEN;
-use tls_core::msgs::message::{BorrowedPlainMessage, OpaqueMessage, PlainMessage};
+use tls_core::msgs::message::{OpaqueMessage, PlainMessage};
 
 use ring::{aead, hkdf};
 

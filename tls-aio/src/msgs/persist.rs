@@ -4,7 +4,6 @@ use crate::ticketer::TimeBase;
 #[cfg(feature = "tls12")]
 use crate::tls12::Tls12CipherSuite;
 use crate::tls13::Tls13CipherSuite;
-use tls_core::key;
 use tls_core::msgs::base::{PayloadU16, PayloadU8};
 use tls_core::msgs::codec::{Codec, Reader};
 use tls_core::msgs::enums::{CipherSuite, ProtocolVersion};
