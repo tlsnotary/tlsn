@@ -7,6 +7,7 @@ pub mod key;
 #[allow(missing_docs)]
 #[macro_use]
 pub mod msgs;
+pub mod cipher;
 pub mod rand;
 pub mod utils;
 
