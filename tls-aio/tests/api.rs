@@ -11,19 +11,18 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use futures::{AsyncWriteExt, AsyncWrite};
 use log;
 
 use tls_aio::client::ResolvesClientCert;
 #[cfg(feature = "quic")]
 use tls_aio::quic::{self, ClientQuicExt, QuicExt, ServerQuicExt};
-use tls_aio::{sign, ConnectionCommon, Error, KeyLog, SideData};
+use tls_aio::{sign, Error, KeyLog};
 use tls_aio::{CipherSuite, ProtocolVersion, SignatureScheme};
 use tls_aio::{ClientConfig, ClientConnection};
 //use tls_aio::{Stream, StreamOwned};
 use tls_aio::{SupportedCipherSuite, ALL_CIPHER_SUITES};
 
-use rustls::server::{AllowAnyAnonymousOrAuthenticatedClient, ClientHello, ResolvesServerCert};
+use rustls::server::{ClientHello, ResolvesServerCert};
 use rustls::{ServerConfig, ServerConnection};
 
 mod common;
@@ -56,7 +55,11 @@ async fn alpn_test_error(
     }
 }
 
-async fn alpn_test(server_protos: Vec<Vec<u8>>, client_protos: Vec<Vec<u8>>, agreed: Option<&[u8]>) {
+async fn alpn_test(
+    server_protos: Vec<Vec<u8>>,
+    client_protos: Vec<Vec<u8>>,
+    agreed: Option<&[u8]>,
+) {
     alpn_test_error(server_protos, client_protos, agreed, None).await
 }
 
@@ -77,14 +80,16 @@ async fn alpn() {
         vec![b"client-proto".to_vec()],
         None,
         Some(ErrorFromPeer::Server(rustls::Error::NoApplicationProtocol)),
-    ).await;
+    )
+    .await;
 
     // server chooses preference
     alpn_test(
         vec![b"server-proto".to_vec(), b"client-proto".to_vec()],
         vec![b"client-proto".to_vec(), b"server-proto".to_vec()],
         Some(b"server-proto"),
-    ).await;
+    )
+    .await;
 
     // case sensitive
     alpn_test_error(
@@ -92,7 +97,8 @@ async fn alpn() {
         vec![b"proto".to_vec()],
         None,
         Some(ErrorFromPeer::Server(rustls::Error::NoApplicationProtocol)),
-    ).await;
+    )
+    .await;
 }
 
 async fn version_test(
@@ -142,7 +148,8 @@ async fn versions() {
         &[],
         &[&rustls::version::TLS12],
         Some(ProtocolVersion::TLSv1_2),
-    ).await;
+    )
+    .await;
 
     // client 1.2, server default -> 1.2
     #[cfg(feature = "tls12")]
@@ -150,7 +157,8 @@ async fn versions() {
         &[&tls_aio::version::TLS12],
         &[],
         Some(ProtocolVersion::TLSv1_2),
-    ).await;
+    )
+    .await;
 
     // client 1.2, server 1.3 -> fail
     #[cfg(feature = "tls12")]
@@ -158,7 +166,8 @@ async fn versions() {
         &[&tls_aio::version::TLS12],
         &[&rustls::version::TLS13],
         None,
-    ).await;
+    )
+    .await;
 
     // client 1.3, server 1.2 -> fail
     #[cfg(feature = "tls12")]
@@ -166,7 +175,8 @@ async fn versions() {
         &[&tls_aio::version::TLS13],
         &[&rustls::version::TLS12],
         None,
-    ).await;
+    )
+    .await;
 
     // client 1.3, server 1.2+1.3 -> 1.3
     #[cfg(feature = "tls12")]
@@ -174,7 +184,8 @@ async fn versions() {
         &[&tls_aio::version::TLS13],
         &[&rustls::version::TLS12, &rustls::version::TLS13],
         Some(ProtocolVersion::TLSv1_3),
-    ).await;
+    )
+    .await;
 
     // client 1.2+1.3, server 1.2 -> 1.2
     #[cfg(feature = "tls12")]
@@ -182,7 +193,8 @@ async fn versions() {
         &[&tls_aio::version::TLS13, &tls_aio::version::TLS12],
         &[&rustls::version::TLS12],
         Some(ProtocolVersion::TLSv1_2),
-    ).await;
+    )
+    .await;
 }
 
 fn check_read(reader: &mut dyn io::Read, bytes: &[u8]) {
@@ -675,7 +687,8 @@ async fn server_cert_resolve_reduces_sigalgs_for_rsa_ciphersuite() {
             rustls::SignatureScheme::RSA_PKCS1_SHA384,
             rustls::SignatureScheme::RSA_PKCS1_SHA256,
         ],
-    ).await;
+    )
+    .await;
 }
 
 #[cfg(feature = "tls12")]
@@ -689,7 +702,8 @@ async fn server_cert_resolve_reduces_sigalgs_for_ecdsa_ciphersuite() {
             rustls::SignatureScheme::ECDSA_NISTP256_SHA256,
             rustls::SignatureScheme::ED25519,
         ],
-    ).await;
+    )
+    .await;
 }
 
 struct ServerCheckNoSNI {}
@@ -734,7 +748,8 @@ async fn client_checks_server_certificate_with_given_name() {
             let mut client = ClientConnection::new(
                 Arc::new(client_config),
                 dns_name("not-the-right-hostname.com"),
-            ).unwrap();
+            )
+            .unwrap();
             client.start().await.unwrap();
             let mut server = ServerConnection::new(Arc::clone(&server_config)).unwrap();
 
@@ -857,8 +872,20 @@ async fn client_respects_buffer_limit_pre_handshake() {
 
     client.set_buffer_limit(Some(32));
 
-    assert_eq!(client.write_plaintext(b"01234567890123456789").await.unwrap(), 20);
-    assert_eq!(client.write_plaintext(b"01234567890123456789").await.unwrap(), 12);
+    assert_eq!(
+        client
+            .write_plaintext(b"01234567890123456789")
+            .await
+            .unwrap(),
+        20
+    );
+    assert_eq!(
+        client
+            .write_plaintext(b"01234567890123456789")
+            .await
+            .unwrap(),
+        12
+    );
 
     do_handshake(&mut client, &mut server).await;
     send(&mut client, &mut server);
@@ -897,8 +924,20 @@ async fn client_respects_buffer_limit_post_handshake() {
     do_handshake(&mut client, &mut server).await;
     client.set_buffer_limit(Some(48));
 
-    assert_eq!(client.write_plaintext(b"01234567890123456789").await.unwrap(), 20);
-    assert_eq!(client.write_plaintext(b"01234567890123456789").await.unwrap(), 6);
+    assert_eq!(
+        client
+            .write_plaintext(b"01234567890123456789")
+            .await
+            .unwrap(),
+        20
+    );
+    assert_eq!(
+        client
+            .write_plaintext(b"01234567890123456789")
+            .await
+            .unwrap(),
+        6
+    );
 
     send(&mut client, &mut server);
     server.process_new_packets().unwrap();
@@ -1141,8 +1180,14 @@ async fn client_complete_io_for_write() {
 
         do_handshake(&mut client, &mut server).await;
 
-        client.write_plaintext(b"01234567890123456789").await.unwrap();
-        client.write_plaintext(b"01234567890123456789").await.unwrap();
+        client
+            .write_plaintext(b"01234567890123456789")
+            .await
+            .unwrap();
+        client
+            .write_plaintext(b"01234567890123456789")
+            .await
+            .unwrap();
         {
             let mut pipe = ServerSession::new(&mut server);
             let (rdlen, wrlen) = client.complete_io(&mut pipe).await.unwrap();
@@ -1613,7 +1658,8 @@ async fn negotiated_ciphersuite_default() {
             make_server_config(*kt),
             find_suite(CipherSuite::TLS13_AES_256_GCM_SHA384),
             ProtocolVersion::TLSv1_3,
-        ).await;
+        )
+        .await;
     }
 }
 
@@ -1829,8 +1875,14 @@ async fn servered_write_for_client_appdata() {
     let (mut client, mut server) = make_pair(KeyType::Rsa).await;
     do_handshake(&mut client, &mut server).await;
 
-    client.write_all_plaintext(b"01234567890123456789").await.unwrap();
-    client.write_all_plaintext(b"01234567890123456789").await.unwrap();
+    client
+        .write_all_plaintext(b"01234567890123456789")
+        .await
+        .unwrap();
+    client
+        .write_all_plaintext(b"01234567890123456789")
+        .await
+        .unwrap();
     {
         let mut pipe = ServerSession::new(&mut server);
         let wrlen = client.write_tls(&mut pipe).unwrap();
@@ -1935,7 +1987,10 @@ async fn servered_write_for_server_handshake_no_half_rtt_by_default() {
 async fn servered_write_for_client_handshake() {
     let (mut client, mut server) = make_pair(KeyType::Rsa).await;
 
-    client.write_all_plaintext(b"01234567890123456789").await.unwrap();
+    client
+        .write_all_plaintext(b"01234567890123456789")
+        .await
+        .unwrap();
     client.write_all_plaintext(b"0123456789").await.unwrap();
     {
         let mut pipe = ServerSession::new(&mut server);
@@ -2868,7 +2923,8 @@ async fn test_client_does_not_offer_sha1() {
     for kt in ALL_KEY_TYPES.iter() {
         for version in tls_aio::ALL_VERSIONS {
             let client_config = make_client_config_with_versions(*kt, &[version]);
-            let (mut client, _) = make_pair_for_configs(client_config, make_server_config(*kt)).await;
+            let (mut client, _) =
+                make_pair_for_configs(client_config, make_server_config(*kt)).await;
 
             assert!(client.wants_write());
             let mut buf = [0u8; 262144];
@@ -2901,7 +2957,9 @@ async fn test_client_config_keyshare() {
     let server_config =
         make_server_config_with_kx_groups(KeyType::Rsa, &[&rustls::kx_group::SECP384R1]);
     let (mut client, mut server) = make_pair_for_configs(client_config, server_config).await;
-    do_handshake_until_error(&mut client, &mut server).await.unwrap();
+    do_handshake_until_error(&mut client, &mut server)
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
@@ -2911,7 +2969,9 @@ async fn test_client_config_keyshare_mismatch() {
     let server_config =
         make_server_config_with_kx_groups(KeyType::Rsa, &[&rustls::kx_group::X25519]);
     let (mut client, mut server) = make_pair_for_configs(client_config, server_config).await;
-    assert!(do_handshake_until_error(&mut client, &mut server).await.is_err());
+    assert!(do_handshake_until_error(&mut client, &mut server)
+        .await
+        .is_err());
 }
 
 #[tokio::test]
@@ -2967,7 +3027,9 @@ async fn test_client_sends_helloretryrequest() {
         assert!(pipe.writevs[0].len() == 5); // server hello / encrypted exts / cert / cert-verify / finished
     }
 
-    do_handshake_until_error(&mut client, &mut server).await.unwrap();
+    do_handshake_until_error(&mut client, &mut server)
+        .await
+        .unwrap();
 
     // client only did two storage queries: one for a session, another for a kx type
     assert_eq!(storage.gets(), 2);
@@ -2994,12 +3056,17 @@ async fn test_client_attempts_to_use_unsupported_kx_group() {
     let server_config = make_server_config(KeyType::Rsa);
 
     // first handshake
-    let (mut client_1, mut server) = make_pair_for_configs(client_config_1, server_config.clone()).await;
-    do_handshake_until_error(&mut client_1, &mut server).await.unwrap();
+    let (mut client_1, mut server) =
+        make_pair_for_configs(client_config_1, server_config.clone()).await;
+    do_handshake_until_error(&mut client_1, &mut server)
+        .await
+        .unwrap();
 
     // second handshake
     let (mut client_2, mut server) = make_pair_for_configs(client_config_2, server_config).await;
-    do_handshake_until_error(&mut client_2, &mut server).await.unwrap();
+    do_handshake_until_error(&mut client_2, &mut server)
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
@@ -3127,7 +3194,7 @@ fn connection_types_are_not_huge() {
 use tls_aio::internal::msgs::{message::Message, message::MessagePayload};
 
 #[tokio::test]
- async fn test_client_rejects_illegal_tls13_ccs() {
+async fn test_client_rejects_illegal_tls13_ccs() {
     fn corrupt_ccs(msg: &mut Message) -> Altered {
         if let MessagePayload::ChangeCipherSpec(_) = &mut msg.payload {
             println!("seen CCS {:?}", msg);

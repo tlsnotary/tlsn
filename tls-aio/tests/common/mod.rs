@@ -2,7 +2,6 @@
 
 use std::convert::{TryFrom, TryInto};
 use std::io;
-use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
 use tls_aio::internal::msgs::codec::Reader;
@@ -11,7 +10,6 @@ use tls_aio::Error;
 use tls_aio::RootCertStore;
 use tls_aio::{Certificate, PrivateKey};
 use tls_aio::{ClientConfig, ClientConnection};
-use tls_aio::{ConnectionCommon, SideData};
 
 use rustls::server::AllowAnyAuthenticatedClient;
 use rustls::{ServerConfig, ServerConnection};
@@ -491,7 +489,8 @@ pub async fn make_pair_for_arc_configs(
     client_config: &Arc<ClientConfig>,
     server_config: &Arc<ServerConfig>,
 ) -> (ClientConnection, ServerConnection) {
-    let mut client = ClientConnection::new(Arc::clone(client_config), dns_name("localhost")).unwrap();
+    let mut client =
+        ClientConnection::new(Arc::clone(client_config), dns_name("localhost")).unwrap();
     client.start().await.unwrap();
     (
         client,
