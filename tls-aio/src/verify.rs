@@ -10,7 +10,6 @@ use tls_core::msgs::handshake::{DigitallySignedStruct, DistinguishedNames};
 use ring::digest::Digest;
 
 use std::convert::TryFrom;
-use std::sync::Arc;
 use std::time::SystemTime;
 
 type SignatureAlgorithms = &'static [&'static webpki::SignatureAlgorithm];

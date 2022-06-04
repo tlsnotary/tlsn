@@ -1,7 +1,6 @@
 #[cfg(feature = "logging")]
 use crate::log::{debug, trace};
 use crate::x509;
-use tls_core::key;
 use tls_core::msgs::handshake::{DistinguishedName, DistinguishedNames};
 
 /// A trust anchor, commonly known as a "Root Certificate."

@@ -1,9 +1,6 @@
 use crate::rand;
-use crate::Error;
 
 use ring::aead;
-use std::mem;
-use std::sync::{Arc, Mutex, MutexGuard};
 use std::time;
 
 /// The timebase for expiring and rolling tickets and ticketing

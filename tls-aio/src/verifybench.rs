@@ -10,7 +10,6 @@ use std::time::{Duration, Instant, SystemTime};
 use crate::verify;
 use crate::verify::ServerCertVerifier;
 use crate::{anchors, OwnedTrustAnchor};
-use tls_core::key;
 
 use webpki_roots;
 
