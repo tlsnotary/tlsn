@@ -4,7 +4,6 @@ use rand::{thread_rng, Rng, RngCore, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 use std::convert::TryInto;
 
-use super::u64x2::U64x2;
 use super::{
     BaseSenderPayload, BaseSenderSetup, ExtDerandomize, ExtRandomSendCore, ExtReceiverSetup,
     ExtSendCore, ExtSenderCoreError, BASE_COUNT,
@@ -13,6 +12,7 @@ use crate::block::Block;
 use crate::ot::base::ReceiverSetup;
 use crate::ot::{ReceiveCore, ReceiverCore};
 use crate::utils::{self, sha256, xor};
+use clmul::Clmul;
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub enum State {
@@ -247,26 +247,42 @@ where
                 .ok_or(ExtSenderCoreError::InternalError)?,
         );
 
-        let mut check0 = U64x2::from([0u8; 16]);
-        let mut check1 = U64x2::from([0u8; 16]);
+        let mut check0 = Clmul::new(&[0u8; 16]);
+        let mut check1 = Clmul::new(&[0u8; 16]);
         for j in 0..ncols {
-            let q = U64x2::from(&qs[j]);
+            let mut q: [u8; 16] = [0u8; 16];
+            q.copy_from_slice(&qs[j]);
+            let q = Clmul::new(&q);
             // chi is the random weight
-            let chi = U64x2::random(&mut rng);
+            let chi: [u8; 16] = rng.gen();
+            let chi = Clmul::new(&chi);
+
             // multiplication in the finite field (p.14 Implementation Optimizations.
             // suggests that it can be done without reduction).
-            let (tmp0, tmp1) = q * chi;
-            check0 = check0 ^ tmp0;
-            check1 = check1 ^ tmp1;
+            let (tmp0, tmp1) = q.clmul(chi);
+            check0 ^= tmp0;
+            check1 ^= tmp1;
         }
-        let delta = U64x2::from(&utils::boolvec_to_u8vec(&self.base_choice));
-        let x = U64x2::from(receiver_setup.x);
-        let t0 = U64x2::from(receiver_setup.t0);
-        let t1 = U64x2::from(receiver_setup.t1);
 
-        let (tmp0, tmp1) = x * delta;
-        check0 = check0 ^ tmp0;
-        check1 = check1 ^ tmp1;
+        let mut delta: [u8; 16] = [0u8; 16];
+        delta.copy_from_slice(&utils::boolvec_to_u8vec(&self.base_choice));
+        let delta = Clmul::new(&delta);
+
+        let mut x: [u8; 16] = [0u8; 16];
+        x.copy_from_slice(&receiver_setup.x);
+        let x = Clmul::new(&x);
+
+        let mut t0: [u8; 16] = [0u8; 16];
+        t0.copy_from_slice(&receiver_setup.t0);
+        let t0 = Clmul::new(&t0);
+
+        let mut t1: [u8; 16] = [0u8; 16];
+        t1.copy_from_slice(&receiver_setup.t1);
+        let t1 = Clmul::new(&t1);
+
+        let (tmp0, tmp1) = x.clmul(delta);
+        check0 ^= tmp0;
+        check1 ^= tmp1;
         if !(check0 == t0 && check1 == t1) {
             return Err(ExtSenderCoreError::ConsistencyCheckFailed);
         }

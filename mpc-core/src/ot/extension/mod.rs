@@ -3,10 +3,10 @@
 pub mod errors;
 pub mod receiver;
 pub mod sender;
-mod u64x2;
 
 pub use crate::ot::base::{ReceiverSetup, SenderPayload, SenderSetup};
 pub use crate::Block;
+pub use clmul::Clmul;
 pub use errors::*;
 pub use receiver::{
     BaseSenderPayload, BaseSenderSetup, ExtDerandomize, ExtReceiverCore, ExtReceiverSetup,

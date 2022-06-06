@@ -4,7 +4,6 @@ use rand::{CryptoRng, Rng, RngCore, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 use std::convert::TryInto;
 
-use super::u64x2::U64x2;
 use super::{
     BaseReceiverSetup, ExtRandomReceiveCore, ExtReceiveCore, ExtReceiverCoreError,
     ExtSenderPayload, BASE_COUNT,
@@ -13,6 +12,7 @@ use crate::block::Block;
 use crate::ot::base::{SenderPayload, SenderSetup};
 use crate::ot::{SendCore, SenderCore};
 use crate::utils::{self, sha256, u8vec_to_boolvec, xor};
+use clmul::Clmul;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ChoiceState {
@@ -284,21 +284,24 @@ where
                 .ok_or(ExtReceiverCoreError::InternalError)?,
         );
 
-        let mut x = U64x2::from([0u8; 16]);
-        let mut t0 = U64x2::from([0u8; 16]);
-        let mut t1 = U64x2::from([0u8; 16]);
+        let mut x = Clmul::new(&[0u8; 16]);
+        let mut t0 = Clmul::new(&[0u8; 16]);
+        let mut t1 = Clmul::new(&[0u8; 16]);
         for (j, xj) in r_bool.into_iter().enumerate() {
-            let tj = U64x2::from(&ts[j]);
+            let mut tj: [u8; 16] = [0u8; 16];
+            tj.copy_from_slice(&ts[j]);
+            let tj = Clmul::new(&tj);
             // chi is the random weight
-            let chi = U64x2::random(&mut rng);
+            let chi: [u8; 16] = rng.gen();
+            let chi = Clmul::new(&chi);
             if xj {
-                x = x ^ chi;
+                x ^= chi;
             }
             // multiplication in the finite field (p.14 Implementation Optimizations.
             // suggests that it can be done without reduction).
-            let (tmp0, tmp1) = tj * chi;
-            t0 = t0 ^ tmp0;
-            t1 = t1 ^ tmp1;
+            let (tmp0, tmp1) = tj.clmul(chi);
+            t0 ^= tmp0;
+            t1 ^= tmp1;
         }
 
         self.state = State::Setup(ChoiceState {
@@ -311,9 +314,9 @@ where
         Ok(ExtReceiverSetup {
             ncols,
             table: gs,
-            x: x.to_array(),
-            t0: t0.to_array(),
-            t1: t1.to_array(),
+            x: x.into(),
+            t0: t0.into(),
+            t1: t1.into(),
         })
     }
 
