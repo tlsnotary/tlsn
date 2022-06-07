@@ -107,24 +107,17 @@ mod tests {
 
         let (r64_0, r64_1) = s64::new(&a).clmul(s64::new(&b));
         let (r32_0, r32_1) = s32::new(&a).clmul(s32::new(&b));
-
         assert_eq!(u128::from(r64_0), u128::from(r32_0));
         assert_eq!(u128::from(r64_1), u128::from(r32_1));
-
-        // println!("{:x} {:x}", u128::from(r64_0), u128::from(r64_1));
-        // println!("{:x} {:x} {:x} {:x}", r_320.1, r_320.0, r_320.3, r_320.2);
-        // println!("{:x} {:x} {:x} {:x}", r_321.1, r_321.0, r_321.3, r_321.2);
 
         cfg_if! {
             if #[cfg(all(any(target_arch = "x86_64", target_arch = "x86")))] {
                 use clmul::Clmul as clm;
                 let (rclm_0, rclm_1) = clm::new(&a).clmul(clm::new(&b));
-                //std::println!("{:x} {:x}", u128::from(rclm_0.clone()), u128::from(rclm_1.clone()));
                 assert_eq!(u128::from(r64_0), u128::from(rclm_0));
                 assert_eq!(u128::from(r64_1), u128::from(rclm_1));
 
                 let (ref_0, ref_1) = clmul128(u128::from_le_bytes(a), u128::from_le_bytes(b));
-                //std::println!("{:x} {:x}", u128::from(ref_0), u128::from(ref_1));
                 assert_eq!(u128::from(r64_0), ref_0);
                 assert_eq!(u128::from(r64_1), ref_1);
             }
@@ -133,14 +126,6 @@ mod tests {
                 let (rpm_0, rpm_1) = pm::new(&a).clmul(pm::new(&b));
                 assert_eq!(u128::from(r64_0), u128::from(rpm_0));
                 assert_eq!(u128::from(r64_1), u128::from(rpm_1));
-
-                // let mut pm1 = 0u128;
-                // pm1 = pmul2_0.into();
-                // let mut pm2 = 0u128;
-                // pm2 = pmul2_1.into();
-
-                // println!("in arm");
-                // println!("{:x} {:x}", pm1, pm2);
             }
         }
     }
