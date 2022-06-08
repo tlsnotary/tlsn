@@ -1,5 +1,7 @@
 use std::fmt;
 
+use crate::msgs::enums::NamedGroup;
+
 /// This type contains a private key by value.
 ///
 /// The private key must be DER-encoded ASN.1 in either
@@ -30,6 +32,31 @@ impl fmt::Debug for Certificate {
         f.debug_tuple("Certificate")
             .field(&BsDebug(&self.0))
             .finish()
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct PublicKey {
+    pub group: NamedGroup,
+    pub key: Vec<u8>,
+}
+
+impl PublicKey {
+    pub fn new(group: NamedGroup, key: &[u8]) -> Self {
+        Self {
+            group,
+            key: Vec::from(key),
+        }
+    }
+}
+
+impl From<crate::msgs::handshake::KeyShareEntry> for PublicKey {
+    #[inline]
+    fn from(k: crate::msgs::handshake::KeyShareEntry) -> Self {
+        Self {
+            group: k.group,
+            key: k.payload.0,
+        }
     }
 }
 
