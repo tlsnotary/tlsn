@@ -1,7 +1,4 @@
-use tls_core::{
-    key::PublicKey,
-    msgs::{handshake::Random, message::PlainMessage},
-};
+use tls_core::{key::PublicKey, msgs::handshake::Random};
 
 use async_trait::async_trait;
 

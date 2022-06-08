@@ -403,6 +403,13 @@ impl Codec for KeyShareEntry {
     }
 }
 
+impl From<crate::key::PublicKey> for KeyShareEntry {
+    #[inline]
+    fn from(k: crate::key::PublicKey) -> Self {
+        Self::new(k.group, &k.key)
+    }
+}
+
 // --- TLS 1.3 PresharedKey offers ---
 #[derive(Clone, Debug)]
 pub struct PresharedKeyIdentity {
