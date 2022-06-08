@@ -10,21 +10,22 @@ use crate::tls13::key_schedule::KeyScheduleEarly;
 use crate::tls13::Tls13CipherSuite;
 use crate::verify;
 use crate::{sign, KeyLog};
-use tls_core::msgs::base::PayloadU8;
+use tls_core::key::PublicKey;
+use tls_core::msgs::base::{Payload, PayloadU8};
 use tls_core::msgs::ccs::ChangeCipherSpecPayload;
 use tls_core::msgs::codec::Codec;
 use tls_core::msgs::enums::KeyUpdateRequest;
 use tls_core::msgs::enums::{AlertDescription, NamedGroup, ProtocolVersion};
 use tls_core::msgs::enums::{ContentType, ExtensionType, HandshakeType, SignatureScheme};
+use tls_core::msgs::handshake::ClientExtension;
 use tls_core::msgs::handshake::DigitallySignedStruct;
 use tls_core::msgs::handshake::EncryptedExtensions;
 use tls_core::msgs::handshake::NewSessionTicketPayloadTLS13;
 use tls_core::msgs::handshake::{CertificateEntry, CertificatePayloadTLS13};
-use tls_core::msgs::handshake::{ClientExtension, KeyShareEntry};
 use tls_core::msgs::handshake::{HandshakeMessagePayload, HandshakePayload};
 use tls_core::msgs::handshake::{HasServerExtensions, ServerHelloPayload};
 use tls_core::msgs::handshake::{PresharedKeyIdentity, PresharedKeyOffer};
-use tls_core::msgs::message::{Message, MessagePayload, OpaqueMessage};
+use tls_core::msgs::message::{Message, MessagePayload};
 
 use super::client_conn::ClientConnectionData;
 use super::hs::ClientContext;
@@ -65,7 +66,7 @@ pub(super) async fn handle_server_hello(
     transcript: HandshakeHash,
     early_key_schedule: Option<KeyScheduleEarly>,
     hello: ClientHelloDetails,
-    our_key_share: KeyShareEntry,
+    our_key_share: PublicKey,
     mut sent_tls13_fake_ccs: bool,
 ) -> hs::NextStateOrError {
     validate_server_hello(cx.common, server_hello).await?;
@@ -86,7 +87,7 @@ pub(super) async fn handle_server_hello(
 
     cx.common
         .handshaker
-        .receive_server_key_share(their_key_share.clone())
+        .set_server_key_share(their_key_share.clone().into())
         .await?;
 
     if let (Some(_selected_psk), Some(_early_key_schedule)) =
@@ -144,7 +145,7 @@ pub(super) async fn handle_server_hello(
 
     cx.common
         .handshaker
-        .receive_hs_hash_server_hello(transcript.get_current_hash().as_ref())
+        .set_hs_hash_server_hello(transcript.get_current_hash().as_ref())
         .await?;
 
     let dec = cx.common.handshaker.message_decrypter().await?;
@@ -766,10 +767,23 @@ async fn emit_certverify_tls13(
     Ok(())
 }
 
-async fn emit_finished_tls13(msg: OpaqueMessage, common: &mut CommonState) {
-    // Do we need to add the plaintext ClientFinished?
-    // transcript.add_message(&m);
-    common.queue_tls_message(msg);
+async fn emit_finished_tls13(
+    verify_data: &[u8],
+    transcript: &mut HandshakeHash,
+    common: &mut CommonState,
+) {
+    let verify_data_payload = Payload::new(verify_data);
+
+    let m = Message {
+        version: ProtocolVersion::TLSv1_3,
+        payload: MessagePayload::Handshake(HandshakeMessagePayload {
+            typ: HandshakeType::Finished,
+            payload: HandshakePayload::Finished(verify_data_payload),
+        }),
+    };
+
+    transcript.add_message(&m);
+    common.send_msg(m, true).await;
 }
 
 async fn emit_end_of_early_data_tls13(transcript: &mut HandshakeHash, common: &mut CommonState) {
@@ -871,7 +885,7 @@ impl State<ClientConnectionData> for ExpectFinished {
             .handshaker
             .client_finished(handshake_hash.as_ref())
             .await?;
-        emit_finished_tls13(client_finished, cx.common).await;
+        emit_finished_tls13(&client_finished, &mut st.transcript, cx.common).await;
 
         /* Now move to our application traffic keys. */
         cx.common.check_aligned_handshake().await?;

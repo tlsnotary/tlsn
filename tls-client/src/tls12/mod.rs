@@ -413,21 +413,7 @@ type MessageCipherPair = (
     Box<dyn MessageEncrypter<Error = Error>>,
 );
 
-pub(crate) async fn decode_ecdh_params<T: Codec>(
-    common: &mut CommonState,
-    kx_params: &[u8],
-) -> Result<T, Error> {
-    let ecdh_params = decode_ecdh_params_::<T>(kx_params);
-    match ecdh_params {
-        Some(ecdh_params) => Ok(ecdh_params),
-        None => {
-            common.send_fatal_alert(AlertDescription::DecodeError).await;
-            Err(Error::CorruptMessagePayload(ContentType::Handshake))
-        }
-    }
-}
-
-fn decode_ecdh_params_<T: Codec>(kx_params: &[u8]) -> Option<T> {
+pub(crate) fn decode_ecdh_params<T: Codec>(kx_params: &[u8]) -> Option<T> {
     let mut rd = Reader::init(kx_params);
     let ecdh_params = T::read(&mut rd)?;
     match rd.any_left() {
@@ -450,11 +436,11 @@ mod tests {
         let mut server_buf = Vec::new();
         server_params.encode(&mut server_buf);
         server_buf.push(34);
-        assert!(decode_ecdh_params_::<ServerECDHParams>(&server_buf).is_none());
+        assert!(decode_ecdh_params::<ServerECDHParams>(&server_buf).is_none());
     }
 
     #[test]
     fn client_ecdhe_invalid() {
-        assert!(decode_ecdh_params_::<ClientECDHParams>(&[34]).is_none());
+        assert!(decode_ecdh_params::<ClientECDHParams>(&[34]).is_none());
     }
 }

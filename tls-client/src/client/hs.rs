@@ -11,6 +11,7 @@ use crate::msgs::persist;
 use crate::ticketer::TimeBase;
 use crate::tls13::key_schedule::KeyScheduleEarly;
 use crate::SupportedCipherSuite;
+use tls_core::key::PublicKey;
 use tls_core::msgs::base::Payload;
 use tls_core::msgs::codec::{Codec, Reader};
 use tls_core::msgs::enums::{
@@ -18,12 +19,12 @@ use tls_core::msgs::enums::{
 };
 use tls_core::msgs::enums::{ECPointFormat, PSKKeyExchangeMode};
 use tls_core::msgs::enums::{ExtensionType, HandshakeType};
+use tls_core::msgs::handshake::HelloRetryRequest;
 use tls_core::msgs::handshake::{CertificateStatusRequest, ClientSessionTicket, SCTList};
 use tls_core::msgs::handshake::{ClientExtension, HasServerExtensions};
 use tls_core::msgs::handshake::{ClientHelloPayload, HandshakeMessagePayload, HandshakePayload};
 use tls_core::msgs::handshake::{ConvertProtocolNameList, ProtocolNameList};
 use tls_core::msgs::handshake::{ECPointFormatList, SupportedPointFormats};
-use tls_core::msgs::handshake::{HelloRetryRequest, KeyShareEntry};
 use tls_core::msgs::handshake::{Random, SessionID};
 use tls_core::msgs::message::{Message, MessagePayload};
 
@@ -84,7 +85,7 @@ pub(super) async fn start_handshake(
 
     let support_tls13 = config.supports_version(ProtocolVersion::TLSv1_3);
     let key_share = if support_tls13 {
-        Some(cx.common.handshaker.initial_key_share().await?)
+        Some(cx.common.handshaker.client_key_share().await?)
     } else {
         None
     };
@@ -147,7 +148,7 @@ struct ExpectServerHello {
     transcript_buffer: HandshakeHashBuffer,
     early_key_schedule: Option<KeyScheduleEarly>,
     hello: ClientHelloDetails,
-    offered_key_share: Option<KeyShareEntry>,
+    offered_key_share: Option<PublicKey>,
     session_id: SessionID,
     sent_tls13_fake_ccs: bool,
     suite: Option<SupportedCipherSuite>,
@@ -170,7 +171,7 @@ async fn emit_client_hello_for_retry(
     session_id: Option<SessionID>,
     retryreq: Option<&HelloRetryRequest>,
     server_name: ServerName,
-    key_share: Option<KeyShareEntry>,
+    key_share: Option<PublicKey>,
     extra_exts: Vec<ClientExtension>,
     may_send_sct_list: bool,
     suite: Option<SupportedCipherSuite>,
@@ -228,7 +229,7 @@ async fn emit_client_hello_for_retry(
 
     if let Some(key_share) = &key_share {
         debug_assert!(support_tls13);
-        exts.push(ClientExtension::KeyShare(vec![key_share.clone()]));
+        exts.push(ClientExtension::KeyShare(vec![key_share.clone().into()]));
     }
 
     if let Some(cookie) = retryreq.and_then(HelloRetryRequest::get_cookie) {
