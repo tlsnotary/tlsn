@@ -232,7 +232,7 @@ fn config_builder_for_client_rejects_empty_cipher_suites() {
 fn config_builder_for_client_rejects_incompatible_cipher_suites() {
     assert_eq!(
         ClientConfig::builder()
-            .with_cipher_suites(&[tls_client::cipher_suite::TLS13_AES_256_GCM_SHA384])
+            .with_cipher_suites(&[tls_core::suites::TLS13_AES_256_GCM_SHA384])
             .with_safe_default_kx_groups()
             .with_protocol_versions(&[&tls_client::version::TLS12])
             .err(),

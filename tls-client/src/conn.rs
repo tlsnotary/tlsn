@@ -4,9 +4,6 @@ use crate::handshaker;
 #[cfg(feature = "logging")]
 use crate::log::{debug, error, trace, warn};
 use crate::record_layer;
-use crate::suites::SupportedCipherSuite;
-#[cfg(feature = "tls12")]
-use crate::tls12::ConnectionSecrets;
 use crate::vecbuf::ChunkVecBuffer;
 use tls_aio::handshaker::Handshake;
 use tls_core::msgs::alert::AlertMessagePayload;
@@ -18,6 +15,7 @@ use tls_core::msgs::fragmenter::MessageFragmenter;
 use tls_core::msgs::handshake::Random;
 use tls_core::msgs::hsjoiner::HandshakeJoiner;
 use tls_core::msgs::message::{Message, MessagePayload, OpaqueMessage, PlainMessage};
+use tls_core::suites::SupportedCipherSuite;
 
 use async_recursion::async_recursion;
 use async_trait::async_trait;
@@ -730,18 +728,6 @@ impl CommonState {
         self.send_plain(data, Limit::Yes).await
     }
 
-    pub(crate) async fn send_early_plaintext(&mut self, data: &[u8]) -> usize {
-        debug_assert!(self.early_traffic);
-        debug_assert!(self.record_layer.is_encrypting());
-
-        if data.is_empty() {
-            // Don't send empty fragments.
-            return 0;
-        }
-
-        self.send_appdata_encrypt(data, Limit::Yes).await
-    }
-
     // Changing the keys must not span any fragmented handshake
     // messages.  Otherwise the defragmented messages will have
     // been protected with two different record layer protections,
@@ -974,13 +960,6 @@ impl CommonState {
 
     pub(crate) fn take_received_plaintext(&mut self, bytes: Payload) {
         self.received_plaintext.append(bytes.0);
-    }
-
-    #[cfg(feature = "tls12")]
-    pub(crate) fn start_encryption_tls12(&mut self, secrets: &ConnectionSecrets, side: Side) {
-        let (dec, enc) = secrets.make_cipher_pair(side);
-        self.record_layer.prepare_message_encrypter(enc);
-        self.record_layer.prepare_message_decrypter(dec);
     }
 
     async fn send_warning_alert(&mut self, desc: AlertDescription) {

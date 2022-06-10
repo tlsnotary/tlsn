@@ -1,4 +1,4 @@
-use tls_core::msgs::enums::ProtocolVersion;
+use crate::msgs::enums::ProtocolVersion;
 
 /// A TLS protocl version supported by rustls.
 ///
@@ -40,14 +40,14 @@ pub static ALL_VERSIONS: &[&SupportedProtocolVersion] = &[
 pub static DEFAULT_VERSIONS: &[&SupportedProtocolVersion] = ALL_VERSIONS;
 
 #[derive(Debug, Clone)]
-pub(crate) struct EnabledVersions {
+pub struct EnabledVersions {
     #[cfg(feature = "tls12")]
     tls12: Option<&'static SupportedProtocolVersion>,
     tls13: Option<&'static SupportedProtocolVersion>,
 }
 
 impl EnabledVersions {
-    pub(crate) fn new(versions: &[&'static SupportedProtocolVersion]) -> Self {
+    pub fn new(versions: &[&'static SupportedProtocolVersion]) -> Self {
         let mut ev = Self {
             #[cfg(feature = "tls12")]
             tls12: None,
@@ -66,7 +66,7 @@ impl EnabledVersions {
         ev
     }
 
-    pub(crate) fn contains(&self, version: ProtocolVersion) -> bool {
+    pub fn contains(&self, version: ProtocolVersion) -> bool {
         match version {
             #[cfg(feature = "tls12")]
             ProtocolVersion::TLSv1_2 => self.tls12.is_some(),

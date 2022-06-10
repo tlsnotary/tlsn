@@ -6,9 +6,7 @@ use crate::hash_hs::HandshakeHash;
 use crate::log::{debug, trace};
 use crate::msgs::persist;
 use crate::sign::Signer;
-use crate::suites::SupportedCipherSuite;
 use crate::ticketer::TimeBase;
-use crate::tls12::{self, Tls12CipherSuite};
 use crate::verify;
 use tls_core::key::PublicKey;
 use tls_core::msgs::base::{Payload, PayloadU8};
@@ -24,6 +22,8 @@ use tls_core::msgs::handshake::{
     HandshakeMessagePayload, HandshakePayload, NewSessionTicketPayload,
 };
 use tls_core::msgs::message::{Message, MessagePayload};
+use tls_core::suites::SupportedCipherSuite;
+use tls_core::suites::{tls12, Tls12CipherSuite};
 
 use super::client_conn::ClientConnectionData;
 use super::hs::ClientContext;

@@ -1,8 +1,9 @@
+use ring::digest;
+use std::mem;
 use tls_core::msgs::codec::Codec;
 use tls_core::msgs::handshake::HandshakeMessagePayload;
 use tls_core::msgs::message::{Message, MessagePayload};
-use ring::digest;
-use std::mem;
+use tls_core::suites::HashAlgorithm;
 
 /// Early stage buffering of handshake payloads.
 ///
@@ -12,6 +13,16 @@ use std::mem;
 pub(crate) struct HandshakeHashBuffer {
     buffer: Vec<u8>,
     client_auth_enabled: bool,
+}
+
+fn map_algorithm(algorithm: &'static HashAlgorithm) -> &'static digest::Algorithm {
+    match algorithm {
+        HashAlgorithm::SHA1 => &digest::SHA1_FOR_LEGACY_USE_ONLY,
+        HashAlgorithm::SHA256 => &digest::SHA256,
+        HashAlgorithm::SHA384 => &digest::SHA384,
+        HashAlgorithm::SHA512 => &digest::SHA512,
+        HashAlgorithm::SHA512_256 => &digest::SHA512_256,
+    }
 }
 
 impl HandshakeHashBuffer {
@@ -31,8 +42,7 @@ impl HandshakeHashBuffer {
     /// Hash/buffer a handshake message.
     pub(crate) fn add_message(&mut self, m: &Message) {
         if let MessagePayload::Handshake(hs) = &m.payload {
-            self.buffer
-                .extend_from_slice(&hs.get_encoding());
+            self.buffer.extend_from_slice(&hs.get_encoding());
         }
     }
 
@@ -45,18 +55,18 @@ impl HandshakeHashBuffer {
     /// Get the hash value if we were to hash `extra` too.
     pub(crate) fn get_hash_given(
         &self,
-        hash: &'static digest::Algorithm,
+        hash: &'static HashAlgorithm,
         extra: &[u8],
     ) -> digest::Digest {
-        let mut ctx = digest::Context::new(hash);
+        let mut ctx = digest::Context::new(map_algorithm(hash));
         ctx.update(&self.buffer);
         ctx.update(extra);
         ctx.finish()
     }
 
     /// We now know what hash function the verify_data will use.
-    pub(crate) fn start_hash(self, alg: &'static digest::Algorithm) -> HandshakeHash {
-        let mut ctx = digest::Context::new(alg);
+    pub(crate) fn start_hash(self, alg: &'static HashAlgorithm) -> HandshakeHash {
+        let mut ctx = digest::Context::new(map_algorithm(alg));
         ctx.update(&self.buffer);
         HandshakeHash {
             ctx,
@@ -165,14 +175,14 @@ impl HandshakeHash {
 #[cfg(test)]
 mod test {
     use super::HandshakeHashBuffer;
-    use ring::digest;
+    use tls_core::suites::HashAlgorithm;
 
     #[test]
     fn hashes_correctly() {
         let mut hhb = HandshakeHashBuffer::new();
         hhb.update_raw(b"hello");
         assert_eq!(hhb.buffer.len(), 5);
-        let mut hh = hhb.start_hash(&digest::SHA256);
+        let mut hh = hhb.start_hash(&HashAlgorithm::SHA256);
         assert!(hh.client_auth.is_none());
         hh.update_raw(b"world");
         let h = hh.get_current_hash();
@@ -190,20 +200,10 @@ mod test {
         hhb.set_client_auth_enabled();
         hhb.update_raw(b"hello");
         assert_eq!(hhb.buffer.len(), 5);
-        let mut hh = hhb.start_hash(&digest::SHA256);
-        assert_eq!(
-            hh.client_auth
-                .as_ref()
-                .map(|buf| buf.len()),
-            Some(5)
-        );
+        let mut hh = hhb.start_hash(&HashAlgorithm::SHA256);
+        assert_eq!(hh.client_auth.as_ref().map(|buf| buf.len()), Some(5));
         hh.update_raw(b"world");
-        assert_eq!(
-            hh.client_auth
-                .as_ref()
-                .map(|buf| buf.len()),
-            Some(10)
-        );
+        assert_eq!(hh.client_auth.as_ref().map(|buf| buf.len()), Some(10));
         let h = hh.get_current_hash();
         let h = h.as_ref();
         assert_eq!(h[0], 0x93);
@@ -220,13 +220,8 @@ mod test {
         hhb.set_client_auth_enabled();
         hhb.update_raw(b"hello");
         assert_eq!(hhb.buffer.len(), 5);
-        let mut hh = hhb.start_hash(&digest::SHA256);
-        assert_eq!(
-            hh.client_auth
-                .as_ref()
-                .map(|buf| buf.len()),
-            Some(5)
-        );
+        let mut hh = hhb.start_hash(&HashAlgorithm::SHA256);
+        assert_eq!(hh.client_auth.as_ref().map(|buf| buf.len()), Some(5));
         hh.abandon_client_auth();
         assert_eq!(hh.client_auth, None);
         hh.update_raw(b"world");

@@ -1,4 +1,4 @@
-use tls_core::{key::PublicKey, msgs::handshake::Random};
+use tls_core::{key::PublicKey, msgs::handshake::Random, suites::SupportedCipherSuite};
 
 use async_trait::async_trait;
 
@@ -7,6 +7,7 @@ use crate::cipher::{MessageDecrypter, MessageEncrypter};
 #[async_trait]
 pub trait Handshake: Send + Sync {
     type Error;
+    fn suite(&self) -> Result<SupportedCipherSuite, Self::Error>;
     /// Returns client_random value
     async fn client_random(&mut self) -> Result<Random, Self::Error>;
     /// Returns public client keyshare

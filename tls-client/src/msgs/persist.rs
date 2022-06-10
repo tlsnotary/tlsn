@@ -1,14 +1,14 @@
 use crate::client::ServerName;
-use crate::suites::SupportedCipherSuite;
 use crate::ticketer::TimeBase;
-#[cfg(feature = "tls12")]
-use crate::tls12::Tls12CipherSuite;
-use crate::tls13::Tls13CipherSuite;
 use tls_core::msgs::base::{PayloadU16, PayloadU8};
 use tls_core::msgs::codec::{Codec, Reader};
 use tls_core::msgs::enums::{CipherSuite, ProtocolVersion};
 use tls_core::msgs::handshake::CertificatePayload;
 use tls_core::msgs::handshake::SessionID;
+use tls_core::suites::SupportedCipherSuite;
+#[cfg(feature = "tls12")]
+use tls_core::suites::Tls12CipherSuite;
+use tls_core::suites::Tls13CipherSuite;
 
 use std::cmp;
 #[cfg(feature = "tls12")]

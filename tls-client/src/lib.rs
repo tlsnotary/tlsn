@@ -323,9 +323,6 @@ mod msgs;
 mod rand;
 mod record_layer;
 //mod stream;
-#[cfg(feature = "tls12")]
-mod tls12;
-mod tls13;
 mod vecbuf;
 mod verify;
 #[cfg(test)]
@@ -338,9 +335,7 @@ mod builder;
 mod key_log;
 mod key_log_file;
 mod kx;
-mod suites;
 mod ticketer;
-mod versions;
 
 /// Internal classes which may be useful outside the library.
 /// The contents of this section DO NOT form part of the stable interface.
@@ -366,15 +361,10 @@ pub use tls_core::msgs::enums::CipherSuite;
 pub use tls_core::msgs::enums::ProtocolVersion;
 pub use tls_core::msgs::enums::SignatureScheme;
 pub use tls_core::msgs::handshake::DistinguishedNames;
+pub use tls_core::suites::{SupportedCipherSuite, ALL_CIPHER_SUITES};
+pub use tls_core::versions::{SupportedProtocolVersion, ALL_VERSIONS};
 //pub use crate::stream::{Stream, StreamOwned};
-pub use crate::suites::{
-    BulkAlgorithm, SupportedCipherSuite, ALL_CIPHER_SUITES, DEFAULT_CIPHER_SUITES,
-};
 //pub use crate::ticketer::Ticketer;
-#[cfg(feature = "tls12")]
-pub use crate::tls12::Tls12CipherSuite;
-pub use crate::tls13::Tls13CipherSuite;
-pub use crate::versions::{SupportedProtocolVersion, ALL_VERSIONS, DEFAULT_VERSIONS};
 
 /// Items for use in a client.
 pub mod client {
@@ -408,35 +398,13 @@ pub mod client {
 
 pub use client::{ClientConfig, ClientConnection, ServerName};
 
-/// All defined ciphersuites appear in this module.
-///
-/// [`ALL_CIPHER_SUITES`] is provided as an array of all of these values.
-pub mod cipher_suite {
-    pub use crate::suites::CipherSuiteCommon;
-    #[cfg(feature = "tls12")]
-    pub use crate::tls12::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256;
-    #[cfg(feature = "tls12")]
-    pub use crate::tls12::TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384;
-    #[cfg(feature = "tls12")]
-    pub use crate::tls12::TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256;
-    #[cfg(feature = "tls12")]
-    pub use crate::tls12::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256;
-    #[cfg(feature = "tls12")]
-    pub use crate::tls12::TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384;
-    #[cfg(feature = "tls12")]
-    pub use crate::tls12::TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256;
-    pub use crate::tls13::TLS13_AES_128_GCM_SHA256;
-    pub use crate::tls13::TLS13_AES_256_GCM_SHA384;
-    pub use crate::tls13::TLS13_CHACHA20_POLY1305_SHA256;
-}
-
 /// All defined protocol versions appear in this module.
 ///
 /// ALL_VERSIONS is a provided as an array of all of these values.
 pub mod version {
     #[cfg(feature = "tls12")]
-    pub use crate::versions::TLS12;
-    pub use crate::versions::TLS13;
+    pub use tls_core::versions::TLS12;
+    pub use tls_core::versions::TLS13;
 }
 
 /// All defined key exchange groups appear in this module.

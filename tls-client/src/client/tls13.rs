@@ -2,30 +2,25 @@ use crate::check::inappropriate_handshake_message;
 use crate::conn::{CommonState, ConnectionRandoms, State};
 use crate::error::Error;
 use crate::hash_hs::{HandshakeHash, HandshakeHashBuffer};
-use crate::kx;
 #[cfg(feature = "logging")]
 use crate::log::{debug, trace, warn};
 use crate::msgs::persist;
-use crate::tls13::key_schedule::KeyScheduleEarly;
-use crate::tls13::Tls13CipherSuite;
 use crate::verify;
 use crate::{sign, KeyLog};
 use tls_core::key::PublicKey;
 use tls_core::msgs::base::{Payload, PayloadU8};
 use tls_core::msgs::ccs::ChangeCipherSpecPayload;
-use tls_core::msgs::codec::Codec;
 use tls_core::msgs::enums::KeyUpdateRequest;
-use tls_core::msgs::enums::{AlertDescription, NamedGroup, ProtocolVersion};
+use tls_core::msgs::enums::{AlertDescription, ProtocolVersion};
 use tls_core::msgs::enums::{ContentType, ExtensionType, HandshakeType, SignatureScheme};
-use tls_core::msgs::handshake::ClientExtension;
-use tls_core::msgs::handshake::DigitallySignedStruct;
-use tls_core::msgs::handshake::EncryptedExtensions;
-use tls_core::msgs::handshake::NewSessionTicketPayloadTLS13;
 use tls_core::msgs::handshake::{CertificateEntry, CertificatePayloadTLS13};
+use tls_core::msgs::handshake::{ClientExtension, DigitallySignedStruct};
+use tls_core::msgs::handshake::{EncryptedExtensions, PresharedKeyIdentity};
 use tls_core::msgs::handshake::{HandshakeMessagePayload, HandshakePayload};
 use tls_core::msgs::handshake::{HasServerExtensions, ServerHelloPayload};
-use tls_core::msgs::handshake::{PresharedKeyIdentity, PresharedKeyOffer};
+use tls_core::msgs::handshake::{NewSessionTicketPayloadTLS13, PresharedKeyOffer};
 use tls_core::msgs::message::{Message, MessagePayload};
+use tls_core::suites::Tls13CipherSuite;
 
 use super::client_conn::ClientConnectionData;
 use super::hs::ClientContext;
@@ -64,7 +59,6 @@ pub(super) async fn handle_server_hello(
     randoms: ConnectionRandoms,
     suite: &'static Tls13CipherSuite,
     transcript: HandshakeHash,
-    early_key_schedule: Option<KeyScheduleEarly>,
     hello: ClientHelloDetails,
     our_key_share: PublicKey,
     mut sent_tls13_fake_ccs: bool,
@@ -90,54 +84,31 @@ pub(super) async fn handle_server_hello(
         .set_server_key_share(their_key_share.clone().into())
         .await?;
 
-    if let (Some(_selected_psk), Some(_early_key_schedule)) =
-        (server_hello.get_psk_index(), early_key_schedule)
-    {
-        if let Some(ref _resuming) = resuming_session {
-            return Err(Error::General(
-                "client does not support session resumption".to_string(),
-            ));
+    // if let Some(ref resuming) = resuming_session {
+    //     let resuming_suite = match suite.can_resume_from(resuming.suite()) {
+    //         Some(resuming) => resuming,
+    //         None => {
+    //             return Err(cx
+    //                 .common
+    //                 .illegal_param("server resuming incompatible suite")
+    //                 .await);
+    //         }
+    //     };
 
-            // let resuming_suite = match suite.can_resume_from(resuming.suite()) {
-            //     Some(resuming) => resuming,
-            //     None => {
-            //         return Err(cx
-            //             .common
-            //             .illegal_param("server resuming incompatible suite")
-            //             .await);
-            //     }
-            // };
+    //     if server_hello.get_psk_index() != Some(0) {
+    //         return Err(cx.common.illegal_param("server selected invalid psk").await);
+    //     }
 
-            // // If the server varies the suite here, we will have encrypted early data with
-            // // the wrong suite.
-            // if cx.data.early_data.is_enabled() && resuming_suite != suite {
-            //     return Err(cx
-            //         .common
-            //         .illegal_param("server varied suite with early data")
-            //         .await);
-            // }
+    //     debug!("Resuming using PSK");
+    //     // The key schedule has been initialized and set in fill_in_psk_binder()
+    // } else {
+    //     return Err(Error::PeerMisbehavedError(
+    //         "server selected unoffered psk".to_string(),
+    //     ));
+    // }
 
-            // if selected_psk != 0 {
-            //     return Err(cx.common.illegal_param("server selected invalid psk").await);
-            // }
-
-            // debug!("Resuming using PSK");
-            // // The key schedule has been initialized and set in fill_in_psk_binder()
-        } else {
-            return Err(Error::PeerMisbehavedError(
-                "server selected unoffered psk".to_string(),
-            ));
-        }
-    } else {
-        debug!("Not resuming");
-        // Discard the early data key schedule.
-        cx.data.early_data.rejected();
-        cx.common.early_traffic = false;
-        resuming_session.take();
-    };
-
-    // Remember what KX group the server liked for next time.
-    save_kx_hint(&config, &server_name, their_key_share.group);
+    // // Remember what KX group the server liked for next time.
+    // save_kx_hint(&config, &server_name, their_key_share.group);
 
     // If we change keying when a subsequent handshake message is being joined,
     // the two halves will have different record layer protections.  Disallow this.
@@ -190,117 +161,68 @@ async fn validate_server_hello(
     Ok(())
 }
 
-pub(super) fn initial_key_share(
-    config: &ClientConfig,
-    server_name: &ServerName,
-) -> Result<kx::KeyExchange, Error> {
-    let key = persist::ClientSessionKey::hint_for_server_name(server_name);
-    let key_buf = key.get_encoding();
+// fn save_kx_hint(config: &ClientConfig, server_name: &ServerName, group: NamedGroup) {
+//     let key = persist::ClientSessionKey::hint_for_server_name(server_name);
 
-    let maybe_value = config.session_storage.get(&key_buf);
+//     config
+//         .session_storage
+//         .put(key.get_encoding(), group.get_encoding());
+// }
 
-    let group = maybe_value
-        .and_then(|enc| NamedGroup::read_bytes(&enc))
-        .and_then(|group| kx::KeyExchange::choose(group, &config.kx_groups))
-        .unwrap_or_else(|| config.kx_groups.first().expect("No kx groups configured"));
+// /// This implements the horrifying TLS1.3 hack where PSK binders have a
+// /// data dependency on the message they are contained within.
+// pub(super) fn fill_in_psk_binder(
+//     resuming: &persist::Tls13ClientSessionValue,
+//     transcript: &HandshakeHashBuffer,
+//     hmp: &mut HandshakeMessagePayload,
+// ) -> KeyScheduleEarly {
+//     // We need to know the hash function of the suite we're trying to resume into.
+//     let hkdf_alg = &resuming.suite().hkdf_algorithm;
+//     let suite_hash = resuming.suite().hash_algorithm();
 
-    kx::KeyExchange::start(group).ok_or(Error::FailedToGetRandomBytes)
-}
+//     // The binder is calculated over the clienthello, but doesn't include itself or its
+//     // length, or the length of its container.
+//     let binder_plaintext = hmp.get_encoding_for_binder_signing();
+//     let handshake_hash = transcript.get_hash_given(suite_hash, &binder_plaintext);
 
-fn save_kx_hint(config: &ClientConfig, server_name: &ServerName, group: NamedGroup) {
-    let key = persist::ClientSessionKey::hint_for_server_name(server_name);
+//     // Run a fake key_schedule to simulate what the server will do if it chooses
+//     // to resume.
+//     let key_schedule = KeyScheduleEarly::new(hkdf_alg, resuming.secret());
+//     let real_binder = key_schedule.resumption_psk_binder_key_and_sign_verify_data(&handshake_hash);
 
-    config
-        .session_storage
-        .put(key.get_encoding(), group.get_encoding());
-}
+//     if let HandshakePayload::ClientHello(ref mut ch) = hmp.payload {
+//         ch.set_psk_binder(real_binder.as_ref());
+//     };
 
-/// This implements the horrifying TLS1.3 hack where PSK binders have a
-/// data dependency on the message they are contained within.
-pub(super) fn fill_in_psk_binder(
-    resuming: &persist::Tls13ClientSessionValue,
-    transcript: &HandshakeHashBuffer,
-    hmp: &mut HandshakeMessagePayload,
-) -> KeyScheduleEarly {
-    // We need to know the hash function of the suite we're trying to resume into.
-    let hkdf_alg = resuming.suite().hkdf_algorithm;
-    let suite_hash = resuming.suite().hash_algorithm();
+//     key_schedule
+// }
 
-    // The binder is calculated over the clienthello, but doesn't include itself or its
-    // length, or the length of its container.
-    let binder_plaintext = hmp.get_encoding_for_binder_signing();
-    let handshake_hash = transcript.get_hash_given(suite_hash, &binder_plaintext);
+// pub(super) async fn prepare_resumption(
+//     config: &ClientConfig,
+//     cx: &mut ClientContext<'_>,
+//     ticket: Vec<u8>,
+//     resuming_session: &persist::Retrieved<&persist::Tls13ClientSessionValue>,
+//     exts: &mut Vec<ClientExtension>,
+//     doing_retry: bool,
+// ) {
+//     let resuming_suite = resuming_session.suite();
+//     cx.common.suite = Some(resuming_suite.into());
+//     cx.data.resumption_ciphersuite = Some(resuming_suite.into());
 
-    // Run a fake key_schedule to simulate what the server will do if it chooses
-    // to resume.
-    let key_schedule = KeyScheduleEarly::new(hkdf_alg, resuming.secret());
-    let real_binder = key_schedule.resumption_psk_binder_key_and_sign_verify_data(&handshake_hash);
+//     // Finally, and only for TLS1.3 with a ticket resumption, include a binder
+//     // for our ticket.  This must go last.
+//     //
+//     // Include an empty binder. It gets filled in below because it depends on
+//     // the message it's contained in (!!!).
+//     let obfuscated_ticket_age = resuming_session.obfuscated_ticket_age();
 
-    if let HandshakePayload::ClientHello(ref mut ch) = hmp.payload {
-        ch.set_psk_binder(real_binder.as_ref());
-    };
+//     let binder_len = resuming_suite.hash_algorithm().output_len();
+//     let binder = vec![0u8; binder_len];
 
-    key_schedule
-}
-
-pub(super) async fn prepare_resumption(
-    config: &ClientConfig,
-    cx: &mut ClientContext<'_>,
-    ticket: Vec<u8>,
-    resuming_session: &persist::Retrieved<&persist::Tls13ClientSessionValue>,
-    exts: &mut Vec<ClientExtension>,
-    doing_retry: bool,
-) {
-    let resuming_suite = resuming_session.suite();
-    cx.common.suite = Some(resuming_suite.into());
-    cx.data.resumption_ciphersuite = Some(resuming_suite.into());
-    // The EarlyData extension MUST be supplied together with the
-    // PreSharedKey extension.
-    let max_early_data_size = resuming_session.max_early_data_size();
-    if config.enable_early_data && max_early_data_size > 0 && !doing_retry {
-        cx.data.early_data.enable(max_early_data_size as usize);
-        exts.push(ClientExtension::EarlyData);
-    }
-
-    // Finally, and only for TLS1.3 with a ticket resumption, include a binder
-    // for our ticket.  This must go last.
-    //
-    // Include an empty binder. It gets filled in below because it depends on
-    // the message it's contained in (!!!).
-    let obfuscated_ticket_age = resuming_session.obfuscated_ticket_age();
-
-    let binder_len = resuming_suite.hash_algorithm().output_len;
-    let binder = vec![0u8; binder_len];
-
-    let psk_identity = PresharedKeyIdentity::new(ticket, obfuscated_ticket_age);
-    let psk_ext = PresharedKeyOffer::new(psk_identity, binder);
-    exts.push(ClientExtension::PresharedKey(psk_ext));
-}
-
-pub(super) async fn derive_early_traffic_secret(
-    key_log: &dyn KeyLog,
-    cx: &mut ClientContext<'_>,
-    resuming_suite: &Tls13CipherSuite,
-    early_key_schedule: &KeyScheduleEarly,
-    sent_tls13_fake_ccs: &mut bool,
-    transcript_buffer: &HandshakeHashBuffer,
-    client_random: &[u8; 32],
-) {
-    // For middlebox compatibility
-    emit_fake_ccs(sent_tls13_fake_ccs, cx.common).await;
-
-    let client_hello_hash = transcript_buffer.get_hash_given(resuming_suite.hash_algorithm(), &[]);
-    let client_early_traffic_secret =
-        early_key_schedule.client_early_traffic_secret(&client_hello_hash, key_log, client_random);
-    // Set early data encryption key
-    cx.common
-        .record_layer
-        .set_message_encrypter(resuming_suite.derive_encrypter(&client_early_traffic_secret));
-
-    // Now the client can send encrypted early data
-    cx.common.early_traffic = true;
-    trace!("Starting early data traffic");
-}
+//     let psk_identity = PresharedKeyIdentity::new(ticket, obfuscated_ticket_age);
+//     let psk_ext = PresharedKeyOffer::new(psk_identity, binder);
+//     exts.push(ClientExtension::PresharedKey(psk_ext));
+// }
 
 pub(super) async fn emit_fake_ccs(sent_tls13_fake_ccs: &mut bool, common: &mut CommonState) {
     if std::mem::replace(sent_tls13_fake_ccs, true) {

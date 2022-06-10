@@ -4,13 +4,10 @@ use crate::check::inappropriate_handshake_message;
 use crate::conn::{CommonState, ConnectionRandoms, State};
 use crate::error::Error;
 use crate::hash_hs::HandshakeHashBuffer;
-use crate::kx;
 #[cfg(feature = "logging")]
 use crate::log::{debug, trace};
 use crate::msgs::persist;
 use crate::ticketer::TimeBase;
-use crate::tls13::key_schedule::KeyScheduleEarly;
-use crate::SupportedCipherSuite;
 use tls_core::key::PublicKey;
 use tls_core::msgs::base::Payload;
 use tls_core::msgs::codec::{Codec, Reader};
@@ -27,6 +24,7 @@ use tls_core::msgs::handshake::{ConvertProtocolNameList, ProtocolNameList};
 use tls_core::msgs::handshake::{ECPointFormatList, SupportedPointFormats};
 use tls_core::msgs::handshake::{Random, SessionID};
 use tls_core::msgs::message::{Message, MessagePayload};
+use tls_core::suites::SupportedCipherSuite;
 
 #[cfg(feature = "tls12")]
 use super::tls12;
@@ -146,7 +144,6 @@ struct ExpectServerHello {
     random: Random,
     using_ems: bool,
     transcript_buffer: HandshakeHashBuffer,
-    early_key_schedule: Option<KeyScheduleEarly>,
     hello: ClientHelloDetails,
     offered_key_share: Option<PublicKey>,
     session_id: SessionID,
@@ -193,7 +190,7 @@ async fn emit_client_hello_for_retry(
     //     (Vec::new(), ProtocolVersion::Unknown(0))
     // };
 
-    let (ticket, resume_version) = (Vec::new(), ProtocolVersion::Unknown(0));
+    // let (ticket, resume_version) = (Vec::new(), ProtocolVersion::Unknown(0));
 
     let support_tls12 = config.supports_version(ProtocolVersion::TLSv1_2);
     let support_tls13 = config.supports_version(ProtocolVersion::TLSv1_3);
@@ -256,47 +253,47 @@ async fn emit_client_hello_for_retry(
     // Extra extensions must be placed before the PSK extension
     exts.extend(extra_exts.iter().cloned());
 
-    let fill_in_binder = if support_tls13
-        && config.enable_tickets
-        && resume_version == ProtocolVersion::TLSv1_3
-        && !ticket.is_empty()
-    {
-        let resuming =
-            resuming_session
-                .as_ref()
-                .and_then(|resuming| match (suite, resuming.tls13()) {
-                    (Some(suite), Some(resuming)) => {
-                        suite.tls13()?.can_resume_from(resuming.suite())?;
-                        Some(resuming)
-                    }
-                    (None, Some(resuming)) => Some(resuming),
-                    _ => None,
-                });
-        if let Some(ref resuming) = resuming {
-            tls13::prepare_resumption(
-                &config,
-                cx,
-                ticket,
-                &resuming,
-                &mut exts,
-                retryreq.is_some(),
-            )
-            .await;
-        }
-        resuming
-    } else if config.enable_tickets {
-        // If we have a ticket, include it.  Otherwise, request one.
-        if ticket.is_empty() {
-            exts.push(ClientExtension::SessionTicket(ClientSessionTicket::Request));
-        } else {
-            exts.push(ClientExtension::SessionTicket(ClientSessionTicket::Offer(
-                Payload::new(ticket),
-            )));
-        }
-        None
-    } else {
-        None
-    };
+    // let fill_in_binder = if support_tls13
+    //     && config.enable_tickets
+    //     && resume_version == ProtocolVersion::TLSv1_3
+    //     && !ticket.is_empty()
+    // {
+    //     let resuming =
+    //         resuming_session
+    //             .as_ref()
+    //             .and_then(|resuming| match (suite, resuming.tls13()) {
+    //                 (Some(suite), Some(resuming)) => {
+    //                     suite.tls13()?.can_resume_from(resuming.suite())?;
+    //                     Some(resuming)
+    //                 }
+    //                 (None, Some(resuming)) => Some(resuming),
+    //                 _ => None,
+    //             });
+    //     if let Some(ref resuming) = resuming {
+    //         tls13::prepare_resumption(
+    //             &config,
+    //             cx,
+    //             ticket,
+    //             &resuming,
+    //             &mut exts,
+    //             retryreq.is_some(),
+    //         )
+    //         .await;
+    //     }
+    //     resuming
+    // } else if config.enable_tickets {
+    //     // If we have a ticket, include it.  Otherwise, request one.
+    //     if ticket.is_empty() {
+    //         exts.push(ClientExtension::SessionTicket(ClientSessionTicket::Request));
+    //     } else {
+    //         exts.push(ClientExtension::SessionTicket(ClientSessionTicket::Offer(
+    //             Payload::new(ticket),
+    //         )));
+    //     }
+    //     None
+    // } else {
+    //     None
+    // };
 
     // Note what extensions we sent.
     hello.sent_extensions = exts.iter().map(ClientExtension::get_type).collect();
@@ -306,7 +303,7 @@ async fn emit_client_hello_for_retry(
     // We don't do renegotiation at all, in fact.
     cipher_suites.push(CipherSuite::TLS_EMPTY_RENEGOTIATION_INFO_SCSV);
 
-    let mut chp = HandshakeMessagePayload {
+    let chp = HandshakeMessagePayload {
         typ: HandshakeType::ClientHello,
         payload: HandshakePayload::ClientHello(ClientHelloPayload {
             client_version: ProtocolVersion::TLSv1_2,
@@ -318,12 +315,12 @@ async fn emit_client_hello_for_retry(
         }),
     };
 
-    let early_key_schedule = if let Some(resuming) = fill_in_binder {
-        let schedule = tls13::fill_in_psk_binder(&resuming, &transcript_buffer, &mut chp);
-        Some((resuming.suite(), schedule))
-    } else {
-        None
-    };
+    // let early_key_schedule = if let Some(resuming) = fill_in_binder {
+    //     let schedule = tls13::fill_in_psk_binder(&resuming, &transcript_buffer, &mut chp);
+    //     Some((resuming.suite(), schedule))
+    // } else {
+    //     None
+    // };
 
     let ch = Message {
         // "This value MUST be set to 0x0303 for all records generated
@@ -348,26 +345,6 @@ async fn emit_client_hello_for_retry(
     transcript_buffer.add_message(&ch);
     cx.common.send_msg(ch, false).await;
 
-    // Calculate the hash of ClientHello and use it to derive EarlyTrafficSecret
-    let early_key_schedule = match early_key_schedule {
-        Some((resuming_suite, schedule)) => {
-            if cx.data.early_data.is_enabled() {
-                tls13::derive_early_traffic_secret(
-                    &*config.key_log,
-                    cx,
-                    resuming_suite,
-                    &schedule,
-                    &mut sent_tls13_fake_ccs,
-                    &transcript_buffer,
-                    &random.0,
-                )
-                .await;
-            }
-            Some(schedule)
-        }
-        None => None,
-    };
-
     let next = ExpectServerHello {
         config,
         resuming_session,
@@ -375,7 +352,6 @@ async fn emit_client_hello_for_retry(
         random,
         using_ems,
         transcript_buffer,
-        early_key_schedule,
         hello,
         offered_key_share: key_share,
         session_id,
@@ -579,7 +555,6 @@ impl State<ClientConnectionData> for ExpectServerHello {
                     randoms,
                     suite,
                     transcript,
-                    self.early_key_schedule,
                     self.hello,
                     // We always send a key share when TLS 1.3 is enabled.
                     self.offered_key_share.unwrap(),

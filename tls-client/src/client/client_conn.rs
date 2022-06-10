@@ -7,15 +7,15 @@ use crate::kx::SupportedKxGroup;
 #[cfg(feature = "logging")]
 use crate::log::trace;
 use crate::sign;
-use crate::suites::SupportedCipherSuite;
 use crate::verify;
-use crate::versions;
 use crate::KeyLog;
 use tls_core::msgs::enums::CipherSuite;
 use tls_core::msgs::enums::ProtocolVersion;
 use tls_core::msgs::enums::SignatureScheme;
 use tls_core::msgs::handshake::ClientExtension;
 use tls_core::msgs::message::Message;
+use tls_core::suites::SupportedCipherSuite;
+use tls_core::versions;
 
 use super::hs;
 
@@ -436,53 +436,13 @@ impl ClientConnection {
         Ok(Self { inner })
     }
 
-    // /// Returns an `io::Write` implementer you can write bytes to
-    // /// to send TLS1.3 early data (a.k.a. "0-RTT data") to the server.
-    // ///
-    // /// This returns None in many circumstances when the capability to
-    // /// send early data is not available, including but not limited to:
-    // ///
-    // /// - The server hasn't been talked to previously.
-    // /// - The server does not support resumption.
-    // /// - The server does not support early data.
-    // /// - The resumption data for the server has expired.
-    // ///
-    // /// The server specifies a maximum amount of early data.  You can
-    // /// learn this limit through the returned object, and writes through
-    // /// it will process only this many bytes.
-    // ///
-    // /// The server can choose not to accept any sent early data --
-    // /// in this case the data is lost but the connection continues.  You
-    // /// can tell this happened using `is_early_data_accepted`.
-    // pub fn early_data(&mut self) -> Option<WriteEarlyData> {
-    //     if self.inner.data.early_data.is_enabled() {
-    //         Some(WriteEarlyData::new(self))
-    //     } else {
-    //         None
-    //     }
-    // }
-
     /// Returns True if the server signalled it will process early data.
     ///
     /// If you sent early data and this returns false at the end of the
     /// handshake then the server will not process the data.  This
     /// is not an error, but you may wish to resend the data.
     pub fn is_early_data_accepted(&self) -> bool {
-        self.inner.data.early_data.is_accepted()
-    }
-
-    async fn write_early_data(&mut self, data: &[u8]) -> io::Result<usize> {
-        let sz = self.inner.data.early_data.check_write(data.len());
-
-        if let Ok(sz) = sz {
-            Ok(self
-                .inner
-                .common_state
-                .send_early_plaintext(&data[..sz])
-                .await)
-        } else {
-            sz
-        }
+        false
     }
 }
 

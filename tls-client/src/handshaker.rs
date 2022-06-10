@@ -3,8 +3,8 @@ use tls_aio::{
     cipher::{MessageDecrypter, MessageEncrypter},
     handshaker::Handshake,
 };
-use tls_core::key::PublicKey;
 use tls_core::msgs::handshake::Random;
+use tls_core::{key::PublicKey, suites::SupportedCipherSuite};
 
 use async_trait::async_trait;
 
@@ -13,6 +13,10 @@ pub struct InvalidHandShaker {}
 #[async_trait]
 impl Handshake for InvalidHandShaker {
     type Error = Error;
+
+    fn suite(&self) -> Result<SupportedCipherSuite, Self::Error> {
+        Err(Error::General("handshaker not yet available".to_string()))
+    }
     async fn client_random(&mut self) -> Result<Random, Error> {
         Err(Error::General("handshaker not yet available".to_string()))
     }

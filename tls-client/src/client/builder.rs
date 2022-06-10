@@ -4,11 +4,11 @@ use crate::client::handy;
 use crate::client::{ClientConfig, ResolvesClientCert};
 use crate::error::Error;
 use crate::kx::SupportedKxGroup;
-use crate::suites::SupportedCipherSuite;
 use crate::verify::{self, CertificateTransparencyPolicy};
-use crate::versions;
 use crate::NoKeyLog;
 use tls_core::key;
+use tls_core::suites::SupportedCipherSuite;
+use tls_core::versions;
 
 use std::sync::Arc;
 use std::time::SystemTime;
