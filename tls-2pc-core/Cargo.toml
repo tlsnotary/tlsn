@@ -1,0 +1,29 @@
+[package]
+name = "tlsn-tls-2pc-core"
+version = "0.1.0"
+edition = "2018"
+
+[lib]
+name = "tls_2pc_core"
+
+[features]
+default = ["handshake", "ghash"]
+tls12 = []
+handshake = []
+ghash = []
+logging = ["tracing"]
+
+[dependencies]
+tlsn-mpc-core = { path = "../mpc-core" }
+sha2 = { version = "0.10.1", features = ["compress"] }
+digest = { version = "0.10.3" }
+hmac = { version = "0.12.1" }
+elliptic-curve = { version = "0.11.12" }
+rand = "0.8.5"
+thiserror = "1.0.30"
+
+[dev-dependencies]
+criterion = "0.3.5"
+ghash_rc = { package = "ghash", version = "0.4.4" }
+rand_chacha = "0.3.1"
+hex = "0.4"
