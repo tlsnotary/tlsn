@@ -1,5 +1,4 @@
 use crate::rand;
-use tls_aio::Error as AioError;
 use tls_core::msgs::enums::{AlertDescription, ContentType, HandshakeType};
 use tls_core::Error as CoreError;
 
@@ -12,9 +11,6 @@ use std::time::SystemTimeError;
 pub enum Error {
     /// Error propagated from tls-core library
     CoreError(CoreError),
-
-    /// Error propagated from tls-aio library
-    AioError(AioError),
 
     /// We received a TLS message that isn't valid right now.
     /// `expect_types` lists the message types we can expect right now.
@@ -121,9 +117,6 @@ impl fmt::Display for Error {
             Error::CoreError(ref e) => {
                 write!(f, "core error: {}", e)
             }
-            Error::AioError(ref e) => {
-                write!(f, "aio error: {}", e)
-            }
             Error::InappropriateMessage {
                 ref expect_types,
                 ref got_type,
@@ -183,17 +176,6 @@ impl From<CoreError> for Error {
     #[inline]
     fn from(e: CoreError) -> Self {
         Self::CoreError(e)
-    }
-}
-
-impl From<AioError> for Error {
-    #[inline]
-    fn from(e: AioError) -> Self {
-        match e {
-            AioError::DecryptError => Self::DecryptError,
-            AioError::EncryptError => Self::EncryptError,
-            e => Self::AioError(e),
-        }
     }
 }
 

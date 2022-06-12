@@ -1,11 +1,10 @@
 use crate::client::ClientConnectionData;
 use crate::error::Error;
-use crate::handshaker;
+use crate::handshaker::{Handshake, InvalidHandShaker};
 #[cfg(feature = "logging")]
 use crate::log::{debug, error, trace, warn};
 use crate::record_layer;
 use crate::vecbuf::ChunkVecBuffer;
-use tls_aio::handshaker::Handshake;
 use tls_core::msgs::alert::AlertMessagePayload;
 use tls_core::msgs::base::Payload;
 use tls_core::msgs::deframer::MessageDeframer;
@@ -573,7 +572,7 @@ pub struct CommonState {
     pub(crate) negotiated_version: Option<ProtocolVersion>,
     pub(crate) side: Side,
     pub(crate) record_layer: record_layer::RecordLayer,
-    pub(crate) handshaker: Box<dyn Handshake<Error = Error>>,
+    pub(crate) handshaker: Box<dyn Handshake>,
     pub(crate) suite: Option<SupportedCipherSuite>,
     pub(crate) alpn_protocol: Option<Vec<u8>>,
     aligned_handshake: bool,
@@ -601,7 +600,7 @@ impl CommonState {
             negotiated_version: None,
             side,
             record_layer: record_layer::RecordLayer::new(),
-            handshaker: Box::new(handshaker::InvalidHandShaker {}),
+            handshaker: Box::new(InvalidHandShaker {}),
             suite: None,
             alpn_protocol: None,
             aligned_handshake: true,

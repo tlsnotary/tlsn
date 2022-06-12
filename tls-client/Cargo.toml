@@ -25,7 +25,6 @@ sct = "0.7.0"
 tokio = { version = "1.18.2", features = ["macros", "rt", "rt-multi-thread"] }
 webpki = { version = "0.22.0", features = ["alloc", "std"] }
 tlsn-tls-core = { path = "../tls-core" }
-tlsn-tls-aio = { path = "../tls-aio" }
 
 [features]
 default = ["logging", "tls12"]
