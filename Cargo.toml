@@ -4,10 +4,10 @@ members = [
     "mpc-core",
     "mpc-aio",
     "mpc-circuits",
-    "tls-aio",
+    "tls-2pc-aio",
     "utils-aio",
     "prover",
     "notary",
-    "common",
+    "core",
     #"wasm",
 ]
