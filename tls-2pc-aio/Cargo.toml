@@ -1,0 +1,12 @@
+[package]
+name = "tlsn-tls-aio"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "tls_aio"
+
+[dependencies]
+async-trait = "0.1.56"
+thiserror = "1.0.30"
+tlsn-tls-core = { path = "../tls-core" }
