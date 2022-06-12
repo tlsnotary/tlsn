@@ -4,6 +4,7 @@ members = [
     "mpc-core",
     "mpc-aio",
     "mpc-circuits",
+    "tls-2pc-core",
     "tls-2pc-aio",
     "utils-aio",
     "prover",

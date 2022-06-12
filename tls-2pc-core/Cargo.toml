@@ -8,10 +8,8 @@ name = "tls_2pc_core"
 
 [features]
 default = ["handshake", "ghash"]
-tls12 = []
 handshake = []
 ghash = []
-logging = ["tracing"]
 
 [dependencies]
 tlsn-mpc-core = { path = "../mpc-core" }

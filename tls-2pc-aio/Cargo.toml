@@ -1,10 +1,10 @@
 [package]
-name = "tlsn-tls-aio"
+name = "tlsn-tls-2pc-aio"
 version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "tls_aio"
+name = "tls_2pc_aio"
 
 [dependencies]
 async-trait = "0.1.56"
