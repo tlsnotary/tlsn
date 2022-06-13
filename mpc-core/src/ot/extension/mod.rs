@@ -248,8 +248,8 @@ pub mod tests {
         base_sender_setup.cointoss_commit = [77u8; 32];
         let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
         let send_seeds = receiver.base_send(base_receiver_setup).unwrap();
-        let err = sender.base_receive(send_seeds).err().unwrap();
-        assert_eq!(err, ExtSenderCoreError::CommitmentCheckFailed);
+        let res = sender.base_receive(send_seeds);
+        assert_eq!(res, Err(ExtSenderCoreError::CommitmentCheckFailed));
     }
 
     #[rstest]
@@ -266,8 +266,8 @@ pub mod tests {
 
         let mut receiver_setup = receiver.extension_setup(&choice).unwrap();
         receiver_setup.x = [33u8; 16];
-        let err = sender.extension_setup(receiver_setup).err().unwrap();
-        assert_eq!(err, ExtSenderCoreError::ConsistencyCheckFailed);
+        let res = sender.extension_setup(receiver_setup);
+        assert_eq!(res, Err(ExtSenderCoreError::ConsistencyCheckFailed));
     }
 
     #[rstest]
@@ -298,13 +298,13 @@ pub mod tests {
         assert!(receiver.is_complete());
 
         // Trying to send/receive more OTs should return an error
-        let err = sender.send(&[[Block::random(&mut rng); 2]]).err().unwrap();
-        assert_eq!(err, ExtSenderCoreError::InvalidInputLength);
+        let res = sender.send(&[[Block::random(&mut rng); 2]]);
+        assert_eq!(res, Err(ExtSenderCoreError::InvalidInputLength));
         let p = ExtSenderPayload {
             encrypted_values: vec![[Block::random(&mut rng); 2]],
         };
-        let err = receiver.receive(p).err().unwrap();
-        assert_eq!(err, ExtReceiverCoreError::AlreadyComplete);
+        let res = receiver.receive(p);
+        assert_eq!(res, Err(ExtReceiverCoreError::AlreadyComplete));
 
         let expected: Vec<Block> = inputs
             .iter()
@@ -376,16 +376,13 @@ pub mod tests {
 
         // Trying to send/receive more OTs should return an error
         let d = ExtDerandomize { flip: vec![true] };
-        let err = sender
-            .send(&[[Block::random(&mut rng); 2]], d)
-            .err()
-            .unwrap();
-        assert_eq!(err, ExtSenderCoreError::InvalidInputLength);
+        let res = sender.send(&[[Block::random(&mut rng); 2]], d);
+        assert_eq!(res, Err(ExtSenderCoreError::InvalidInputLength));
         let p = ExtSenderPayload {
             encrypted_values: vec![[Block::random(&mut rng); 2]],
         };
-        let err = receiver.receive(p).err().unwrap();
-        assert_eq!(err, ExtReceiverCoreError::AlreadyComplete);
+        let res = receiver.receive(p);
+        assert_eq!(res, Err(ExtReceiverCoreError::AlreadyComplete));
 
         let expected: Vec<Block> = inputs
             .iter()
