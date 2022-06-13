@@ -50,45 +50,9 @@ pub use crate::backend::Clmul;
 
 #[cfg(test)]
 mod tests {
-    use cfg_if::cfg_if;
     use rand::Rng;
     use rand_chacha::rand_core::SeedableRng;
     use rand_chacha::ChaCha12Rng;
-
-    cfg_if! {
-        if #[cfg(all(any(target_arch = "x86_64", target_arch = "x86")))] {
-            #[path = "../backend/clmul.rs"]
-            mod clmul;
-            use std::arch::x86_64::*;
-
-            /// Carryless multiplication. Reference implementation.
-            ///
-            /// This code was adapted from swanky
-            /// https://github.com/GaloisInc/swanky/blob/ac7d5d1e8286bbcddcdaf5501d5d925fe79d0591/scuttlebutt/src/block.rs#L51
-            /// which in turn adapted it from the EMP toolkit's implementation.
-            fn clmul128(a: u128, b: u128) -> (u128, u128) {
-                unsafe {
-                    let x = std::mem::transmute(a);
-                    let y = std::mem::transmute(b);
-                    let zero = _mm_clmulepi64_si128(x, y, 0x00);
-                    let one = _mm_clmulepi64_si128(x, y, 0x10);
-                    let two = _mm_clmulepi64_si128(x, y, 0x01);
-                    let three = _mm_clmulepi64_si128(x, y, 0x11);
-                    let tmp = _mm_xor_si128(one, two);
-                    let ll = _mm_slli_si128(tmp, 8);
-                    let rl = _mm_srli_si128(tmp, 8);
-                    let x = _mm_xor_si128(zero, ll);
-                    let y = _mm_xor_si128(three, rl);
-                    (std::mem::transmute(x), std::mem::transmute(y))
-                }
-            }
-        }
-        else if #[cfg(all(target_arch = "aarch64", feature = "armv8"))] {
-            #[path = "../backend/pmull.rs"]
-            mod pmull;
-        }
-    }
-
     // TODO I had to create an empty tests folder otherwise the path
     // tests/../backend/soft32.rs was not found. Is this expected???
     #[path = "../backend/soft32.rs"]
@@ -97,7 +61,9 @@ mod tests {
     mod soft64;
 
     #[test]
+    // test backends against each other
     fn clmul_test() {
+        // test soft backends
         use soft32::Clmul as s32;
         use soft64::Clmul as s64;
 
@@ -110,23 +76,106 @@ mod tests {
         assert_eq!(u128::from(r64_0), u128::from(r32_0));
         assert_eq!(u128::from(r64_1), u128::from(r32_1));
 
-        cfg_if! {
-            if #[cfg(all(any(target_arch = "x86_64", target_arch = "x86")))] {
-                use clmul::Clmul as clm;
-                let (rclm_0, rclm_1) = clm::new(&a).clmul(clm::new(&b));
-                assert_eq!(u128::from(r64_0), u128::from(rclm_0));
-                assert_eq!(u128::from(r64_1), u128::from(rclm_1));
+        // this will test the hard backend (if "force-soft" was set then it will
+        // test the soft backend again)
+        use super::backend::Clmul;
 
-                let (ref_0, ref_1) = clmul128(u128::from_le_bytes(a), u128::from_le_bytes(b));
-                assert_eq!(u128::from(r64_0), ref_0);
-                assert_eq!(u128::from(r64_1), ref_1);
-            }
-            else if #[cfg(all(target_arch = "aarch64", feature = "armv8", not(feature = "force-soft")))] {
-                use pmull::Clmul as pm;
-                let (rpm_0, rpm_1) = pm::new(&a).clmul(pm::new(&b));
-                assert_eq!(u128::from(r64_0), u128::from(rpm_0));
-                assert_eq!(u128::from(r64_1), u128::from(rpm_1));
-            }
-        }
+        let (c, d) = Clmul::new(&a).clmul(Clmul::new(&b));
+        assert_eq!(u128::from(r64_0), u128::from_le_bytes(c.into()));
+        assert_eq!(u128::from(r64_1), u128::from_le_bytes(d.into()));
+    }
+
+    #[test]
+    // test soft32 backend
+    fn clmul_xor_eq_soft32() {
+        use soft32::Clmul;
+
+        let mut one = [0u8; 16];
+        one[15] = 1;
+        let mut two = [0u8; 16];
+        two[15] = 2;
+        let mut three = [0u8; 16];
+        three[15] = 3;
+        let mut six = [0u8; 16];
+        six[15] = 6;
+
+        let a1 = Clmul::new(&one);
+        let a2 = Clmul::new(&two);
+        let a3 = Clmul::new(&three);
+        let a6 = Clmul::new(&six);
+
+        assert!(a1 ^ a2 == a3);
+        assert!(a1 ^ a6 != a3);
+
+        let b = a1.clmul(a6);
+        let c = a2.clmul(a3);
+        let d = a3.clmul(a6);
+        assert!(b.0 == c.0);
+        assert!(b.1 == c.1);
+        // d.0 is zero
+        assert!(b.1 != d.1);
+    }
+
+    #[test]
+    // test soft64 backend
+    fn clmul_xor_eq_soft64() {
+        use soft64::Clmul;
+
+        let mut one = [0u8; 16];
+        one[15] = 1;
+        let mut two = [0u8; 16];
+        two[15] = 2;
+        let mut three = [0u8; 16];
+        three[15] = 3;
+        let mut six = [0u8; 16];
+        six[15] = 6;
+
+        let a1 = Clmul::new(&one);
+        let a2 = Clmul::new(&two);
+        let a3 = Clmul::new(&three);
+        let a6 = Clmul::new(&six);
+
+        assert!(a1 ^ a2 == a3);
+        assert!(a1 ^ a6 != a3);
+
+        let b = a1.clmul(a6);
+        let c = a2.clmul(a3);
+        let d = a3.clmul(a6);
+        assert!(b.0 == c.0);
+        assert!(b.1 == c.1);
+        // d.0 is zero
+        assert!(b.1 != d.1);
+    }
+
+    #[test]
+    // test CPU intrinsics backend (if "force-soft" was set then it will
+    // test the soft backend again)
+    fn clmul_xor_eq_hard() {
+        use super::backend::Clmul;
+
+        let mut one = [0u8; 16];
+        one[15] = 1;
+        let mut two = [0u8; 16];
+        two[15] = 2;
+        let mut three = [0u8; 16];
+        three[15] = 3;
+        let mut six = [0u8; 16];
+        six[15] = 6;
+
+        let a1 = Clmul::new(&one);
+        let a2 = Clmul::new(&two);
+        let a3 = Clmul::new(&three);
+        let a6 = Clmul::new(&six);
+
+        assert!(a1 ^ a2 == a3);
+        assert!(a1 ^ a6 != a3);
+
+        let b = a1.clmul(a6);
+        let c = a2.clmul(a3);
+        let d = a3.clmul(a6);
+        assert!(b.0 == c.0);
+        assert!(b.1 == c.1);
+        // d.0 is zero
+        assert!(b.1 != d.1);
     }
 }

@@ -94,31 +94,3 @@ unsafe fn pmull<const A_LANE: i32, const B_LANE: i32>(a: uint8x16_t, b: uint8x16
         vgetq_lane_u64(vreinterpretq_u64_u8(b), B_LANE),
     ))
 }
-
-#[test]
-fn clmul_xor_eq() {
-    let mut one = [0u8; 16];
-    one[15] = 1;
-    let mut two = [0u8; 16];
-    two[15] = 2;
-    let mut three = [0u8; 16];
-    three[15] = 3;
-    let mut six = [0u8; 16];
-    six[15] = 6;
-
-    let a1 = Clmul::new(&one);
-    let a2 = Clmul::new(&two);
-    let a3 = Clmul::new(&three);
-    let a6 = Clmul::new(&six);
-
-    assert!(a1 ^ a2 == a3);
-    assert!(a1 ^ a6 != a3);
-
-    let b = a1.clmul(a6);
-    let c = a2.clmul(a3);
-    let d = a3.clmul(a6);
-    assert!(b.0 == c.0);
-    assert!(b.1 == c.1);
-    // d.0 is zero
-    assert!(b.1 != d.1);
-}
