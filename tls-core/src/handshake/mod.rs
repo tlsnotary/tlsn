@@ -2,7 +2,7 @@ pub mod errors;
 pub mod master;
 mod sha;
 pub mod slave;
-mod utils;
+pub mod utils;
 
 use errors::*;
 pub use master::HandshakeMaster;
