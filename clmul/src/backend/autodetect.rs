@@ -78,6 +78,34 @@ impl Clmul {
             },
         }
     }
+
+    /// Performs carryless multiplication. Same as clmul() but reusing the
+    /// operands to return the result. This gives a ~6x speed up compared
+    /// to clmul() where we create new objects containing the result.
+    /// The bits will be placed in `self`, the low bits - in `x`
+    pub fn clmul_reuse(&mut self, x: &mut Self) {
+        match self.intrinsics {
+            Some(s_intr) => match x.intrinsics {
+                Some(x_intr) => {
+                    let (r0, r1) = s_intr.clmul(x_intr);
+                    self.intrinsics = Some(r0);
+                    x.intrinsics = Some(r1);
+                }
+                None => unreachable!(),
+            },
+            None => match self.soft {
+                Some(s_soft) => match x.soft {
+                    Some(x_soft) => {
+                        let (r0, r1) = s_soft.clmul(x_soft);
+                        self.soft = Some(r0);
+                        x.soft = Some(r1);
+                    }
+                    None => unreachable!(),
+                },
+                None => unreachable!(),
+            },
+        }
+    }
 }
 
 impl From<Clmul> for [u8; 16] {

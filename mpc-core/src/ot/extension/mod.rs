@@ -298,10 +298,10 @@ pub mod tests {
         assert!(receiver.is_complete());
 
         // Trying to send/receive more OTs should return an error
-        let res = sender.send(&[[Block::random(&mut rng); 2]]);
+        let res = sender.send(&[[Block::random(&mut rng), Block::random(&mut rng)]]);
         assert_eq!(res, Err(ExtSenderCoreError::InvalidInputLength));
         let p = ExtSenderPayload {
-            encrypted_values: vec![[Block::random(&mut rng); 2]],
+            encrypted_values: vec![[Block::random(&mut rng), Block::random(&mut rng)]],
         };
         let res = receiver.receive(p);
         assert_eq!(res, Err(ExtReceiverCoreError::AlreadyComplete));

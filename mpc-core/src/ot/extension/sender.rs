@@ -252,16 +252,16 @@ where
         for j in 0..ncols {
             let mut q: [u8; 16] = [0u8; 16];
             q.copy_from_slice(&qs[j]);
-            let q = Clmul::new(&q);
+            let mut q = Clmul::new(&q);
             // chi is the random weight
             let chi: [u8; 16] = rng.gen();
-            let chi = Clmul::new(&chi);
+            let mut chi = Clmul::new(&chi);
 
             // multiplication in the finite field (p.14 Implementation Optimizations.
             // suggests that it can be done without reduction).
-            let (tmp0, tmp1) = q.clmul(chi);
-            check0 ^= tmp0;
-            check1 ^= tmp1;
+            q.clmul_reuse(&mut chi);
+            check0 ^= q;
+            check1 ^= chi;
         }
 
         let mut delta: [u8; 16] = [0u8; 16];

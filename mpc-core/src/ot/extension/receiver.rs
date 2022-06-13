@@ -290,18 +290,18 @@ where
         for (j, xj) in r_bool.into_iter().enumerate() {
             let mut tj: [u8; 16] = [0u8; 16];
             tj.copy_from_slice(&ts[j]);
-            let tj = Clmul::new(&tj);
+            let mut tj = Clmul::new(&tj);
             // chi is the random weight
             let chi: [u8; 16] = rng.gen();
-            let chi = Clmul::new(&chi);
+            let mut chi = Clmul::new(&chi);
             if xj {
                 x ^= chi;
             }
             // multiplication in the finite field (p.14 Implementation Optimizations.
             // suggests that it can be done without reduction).
-            let (tmp0, tmp1) = tj.clmul(chi);
-            t0 ^= tmp0;
-            t1 ^= tmp1;
+            tj.clmul_reuse(&mut chi);
+            t0 ^= tj;
+            t1 ^= chi;
         }
 
         self.state = State::Setup(ChoiceState {

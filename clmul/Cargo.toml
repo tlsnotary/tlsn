@@ -14,7 +14,12 @@ cpufeatures = "0.2"
 rand_chacha = "0.3.1"
 rand = "0.8.5"
 rand_core = "0.6.3"
+criterion = "0.3"
 
 [features]
 armv8 = [] # Enable nightly-only ARMv8 intrinsics support
 force-soft = [] # Disable support for hardware intrinsics
+
+[[bench]]
+name = "clmul"
+harness = false
