@@ -7,6 +7,8 @@ use async_trait::async_trait;
 
 use crate::cipher::{MessageDecrypter, MessageEncrypter};
 
+/// Core trait which manages crypto operations for the TLS connection such as key exchange, encryption
+/// and decryption.
 #[async_trait]
 pub trait Handshake: Send + Sync {
     /// Signals selected protocol version to implementor.
