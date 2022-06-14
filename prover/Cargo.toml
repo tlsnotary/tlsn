@@ -8,3 +8,5 @@ name = "prover"
 
 [dependencies]
 tlsn-tls-client = { path = "../tls-client" }
+tlsn-core = { path = "../core" }
+tlsn-tls-core = { path = "../tls-core" }

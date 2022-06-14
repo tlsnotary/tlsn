@@ -7,3 +7,4 @@ edition = "2021"
 name = "notary"
 
 [dependencies]
+tlsn-core = { path = "../core" }

@@ -10,3 +10,5 @@ name = "tls_2pc_aio"
 async-trait = "0.1.56"
 thiserror = "1.0.30"
 tlsn-tls-core = { path = "../tls-core" }
+tlsn-tls-client = { path = "../tls-client" }
+futures = "0.3.21"
