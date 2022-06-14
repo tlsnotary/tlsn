@@ -10,7 +10,7 @@ use crate::cipher::{MessageDecrypter, MessageEncrypter};
 /// Core trait which manages crypto operations for the TLS connection such as key exchange, encryption
 /// and decryption.
 #[async_trait]
-pub trait Handshake: Send + Sync {
+pub trait Handshake: Send {
     /// Signals selected protocol version to implementor.
     /// Throws error if version is not supported.
     fn select_protocol_version(&mut self, version: ProtocolVersion) -> Result<(), Error>;

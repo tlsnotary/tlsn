@@ -860,10 +860,9 @@ async fn client_error_is_sticky() {
 }
 
 #[tokio::test]
-async fn client_is_send_and_sync() {
+async fn client_is_send() {
     let (client, _) = make_pair(KeyType::Rsa).await;
     &client as &dyn Send;
-    &client as &dyn Sync;
 }
 
 #[tokio::test]
