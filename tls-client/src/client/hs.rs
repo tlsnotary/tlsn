@@ -446,6 +446,8 @@ impl State<ClientConnectionData> for ExpectServerHello {
             }
         };
 
+        cx.common.handshaker.select_protocol_version(version)?;
+
         if server_hello.compression_method != Compression::Null {
             return Err(cx
                 .common
@@ -526,6 +528,7 @@ impl State<ClientConnectionData> for ExpectServerHello {
                 debug!("Using ciphersuite {:?}", suite);
                 self.suite = Some(suite);
                 cx.common.suite = Some(suite);
+                cx.common.handshaker.select_cipher_suite(suite)?;
             }
         }
 
