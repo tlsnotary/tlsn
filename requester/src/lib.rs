@@ -2,5 +2,5 @@
 
 pub mod builder;
 pub mod config;
-pub mod prover;
+pub mod requester;
 pub mod session;
