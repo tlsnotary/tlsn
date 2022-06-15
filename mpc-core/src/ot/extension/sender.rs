@@ -1,27 +1,35 @@
 use aes::{Aes128, BlockCipher, BlockEncrypt, NewBlockCipher};
 use cipher::consts::U16;
-use rand::{thread_rng, RngCore, SeedableRng};
+use rand::{thread_rng, Rng, RngCore, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 use std::convert::TryInto;
 
 use super::{
-    ExtDerandomize, ExtRandomSendCore, ExtReceiverSetup, ExtSendCore, ExtSenderCoreError,
-    BASE_COUNT,
+    BaseSenderPayload, BaseSenderSetup, ExtDerandomize, ExtRandomSendCore, ExtReceiverSetup,
+    ExtSendCore, ExtSenderCoreError, BASE_COUNT,
 };
 use crate::block::Block;
-use crate::ot::base::{
-    ReceiverSetup as BaseReceiverSetup, SenderPayload as BaseSenderPayload,
-    SenderSetup as BaseSenderSetup,
-};
+use crate::ot::base::ReceiverSetup;
 use crate::ot::{ReceiveCore, ReceiverCore};
-use crate::utils;
+use crate::utils::{self, sha256, xor};
+use clmul::Clmul;
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub enum State {
     Initialized,
     BaseSetup,
+    BaseReceive,
     Setup,
     Complete,
+}
+
+/// OT extension Sender plays the role of base OT Receiver and sends the
+/// second message containing base OT setup and cointoss share
+#[derive(Debug, Clone, std::cmp::PartialEq)]
+pub struct BaseReceiverSetup {
+    pub setup: ReceiverSetup,
+    // Cointoss protocol's 2nd message: Receiver reveals share
+    pub cointoss_share: [u8; 32],
 }
 
 pub struct ExtSenderCore<C = Aes128, OT = ReceiverCore<ChaCha12Rng>> {
@@ -42,6 +50,13 @@ pub struct ExtSenderCore<C = Aes128, OT = ReceiverCore<ChaCha12Rng>> {
     // (where R is the table which Receiver has. Note that base_choice is known
     // only to us).
     table: Option<Vec<Vec<u8>>>,
+    // our XOR share for the cointoss protocol
+    cointoss_share: [u8; 32],
+    // the Receiver's sha256 commitment to their cointoss share
+    receiver_cointoss_commit: Option<[u8; 32]>,
+    // the shared random value which both parties will have at the end of the
+    // cointoss protocol
+    cointoss_random: Option<[u8; 32]>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -81,7 +96,7 @@ fn encrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
 
 impl ExtSenderCore {
     pub fn new(count: usize) -> Self {
-        let mut rng = thread_rng();
+        let mut rng = ChaCha12Rng::from_entropy();
         let mut base_choice = vec![0u8; BASE_COUNT / 8];
         rng.fill_bytes(&mut base_choice);
         Self {
@@ -94,6 +109,9 @@ impl ExtSenderCore {
             seeds: None,
             rngs: None,
             table: None,
+            cointoss_share: rng.gen(),
+            receiver_cointoss_commit: None,
+            cointoss_random: None,
         }
     }
 }
@@ -117,6 +135,9 @@ where
             seeds: None,
             rngs: None,
             table: None,
+            cointoss_share: rng.gen(),
+            receiver_cointoss_commit: None,
+            cointoss_random: None,
         }
     }
 
@@ -154,13 +175,39 @@ where
         &mut self,
         base_sender_setup: BaseSenderSetup,
     ) -> Result<BaseReceiverSetup, ExtSenderCoreError> {
-        Ok(self.base.setup(&self.base_choice, base_sender_setup)?)
+        if self.state != State::Initialized {
+            return Err(ExtSenderCoreError::WrongState);
+        }
+        self.receiver_cointoss_commit = Some(base_sender_setup.cointoss_commit);
+        self.state = State::BaseSetup;
+        Ok(BaseReceiverSetup {
+            setup: self
+                .base
+                .setup(&self.base_choice, base_sender_setup.setup)?,
+            cointoss_share: self.cointoss_share,
+        })
     }
 
     fn base_receive(&mut self, payload: BaseSenderPayload) -> Result<(), ExtSenderCoreError> {
-        let receive = self.base.receive(payload)?;
+        if self.state != State::BaseSetup {
+            return Err(ExtSenderCoreError::WrongState);
+        }
+        let receive = self.base.receive(payload.payload)?;
         self.set_seeds(receive);
-        self.state = State::BaseSetup;
+
+        // check the decommitment for the other party's share
+        if sha256(&payload.cointoss_share)
+            != self
+                .receiver_cointoss_commit
+                .ok_or(ExtSenderCoreError::InternalError)?
+        {
+            return Err(ExtSenderCoreError::CommitmentCheckFailed);
+        }
+        let mut result = [0u8; 32];
+        xor(&payload.cointoss_share, &self.cointoss_share, &mut result);
+        self.cointoss_random = Some(result);
+
+        self.state = State::BaseReceive;
         Ok(())
     }
 
@@ -168,7 +215,7 @@ where
         &mut self,
         receiver_setup: ExtReceiverSetup,
     ) -> Result<(), ExtSenderCoreError> {
-        if self.state < State::BaseSetup {
+        if self.state != State::BaseReceive {
             return Err(ExtSenderCoreError::BaseOTNotSetup);
         }
         let ncols = receiver_setup.table[0].len() * 8;
@@ -186,7 +233,64 @@ where
                 qs[j] = qs[j].iter().zip(&us[j]).map(|(q, u)| *q ^ *u).collect();
             }
         }
-        self.table = Some(utils::transpose(&qs));
+        let mut qs = utils::transpose(&qs);
+
+        // Check correlation
+        // The check is explaned in the KOS15 paper in a paragraph on page 8
+        // starting with "To carry out the check..."
+        // We use the exact same notation as the paper.
+
+        // Seeding with a value from cointoss so that neither party could influence
+        // the randomness
+        let mut rng = ChaCha12Rng::from_seed(
+            self.cointoss_random
+                .ok_or(ExtSenderCoreError::InternalError)?,
+        );
+
+        let mut check0 = Clmul::new(&[0u8; 16]);
+        let mut check1 = Clmul::new(&[0u8; 16]);
+        for j in 0..ncols {
+            let mut q: [u8; 16] = [0u8; 16];
+            q.copy_from_slice(&qs[j]);
+            let mut q = Clmul::new(&q);
+            // chi is the random weight
+            let chi: [u8; 16] = rng.gen();
+            let mut chi = Clmul::new(&chi);
+
+            // multiplication in the finite field (p.14 Implementation Optimizations.
+            // suggests that it can be done without reduction).
+            q.clmul_reuse(&mut chi);
+            check0 ^= q;
+            check1 ^= chi;
+        }
+
+        let mut delta: [u8; 16] = [0u8; 16];
+        delta.copy_from_slice(&utils::boolvec_to_u8vec(&self.base_choice));
+        let delta = Clmul::new(&delta);
+
+        let mut x: [u8; 16] = [0u8; 16];
+        x.copy_from_slice(&receiver_setup.x);
+        let x = Clmul::new(&x);
+
+        let mut t0: [u8; 16] = [0u8; 16];
+        t0.copy_from_slice(&receiver_setup.t0);
+        let t0 = Clmul::new(&t0);
+
+        let mut t1: [u8; 16] = [0u8; 16];
+        t1.copy_from_slice(&receiver_setup.t1);
+        let t1 = Clmul::new(&t1);
+
+        let (tmp0, tmp1) = x.clmul(delta);
+        check0 ^= tmp0;
+        check1 ^= tmp1;
+        if !(check0 == t0 && check1 == t1) {
+            return Err(ExtSenderCoreError::ConsistencyCheckFailed);
+        }
+
+        // remove the last 256 elements which were sacrificed during the
+        // KOS check
+        qs.drain(qs.len() - 256..);
+        self.table = Some(qs);
         self.state = State::Setup;
         Ok(())
     }

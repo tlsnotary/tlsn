@@ -30,6 +30,15 @@ impl From<ot::Message> for Message {
                 ot::Message::ExtSenderPayload(msg) => {
                     message::Msg::ExtSenderPayload(ExtSenderPayload::from(msg))
                 }
+                ot::Message::BaseSenderSetup(msg) => {
+                    message::Msg::BaseSenderSetup(BaseSenderSetup::from(msg))
+                }
+                ot::Message::BaseReceiverSetup(msg) => {
+                    message::Msg::BaseReceiverSetup(BaseReceiverSetup::from(msg))
+                }
+                ot::Message::BaseSenderPayload(msg) => {
+                    message::Msg::BaseSenderPayload(BaseSenderPayload::from(msg))
+                }
             }),
         }
     }
@@ -51,13 +60,22 @@ impl TryFrom<Message> for ot::Message {
                     ot::Message::SenderPayload(ot::SenderPayload::from(msg))
                 }
                 message::Msg::ExtReceiverSetup(msg) => {
-                    ot::Message::ExtReceiverSetup(ot::ExtReceiverSetup::from(msg))
+                    ot::Message::ExtReceiverSetup(ot::ExtReceiverSetup::try_from(msg)?)
                 }
                 message::Msg::ExtDerandomize(msg) => {
                     ot::Message::ExtDerandomize(ot::ExtDerandomize::from(msg))
                 }
                 message::Msg::ExtSenderPayload(msg) => {
                     ot::Message::ExtSenderPayload(ot::ExtSenderPayload::from(msg))
+                }
+                message::Msg::BaseSenderSetup(msg) => {
+                    ot::Message::BaseSenderSetup(ot::BaseSenderSetup::try_from(msg)?)
+                }
+                message::Msg::BaseReceiverSetup(msg) => {
+                    ot::Message::BaseReceiverSetup(ot::BaseReceiverSetup::try_from(msg)?)
+                }
+                message::Msg::BaseSenderPayload(msg) => {
+                    ot::Message::BaseSenderPayload(ot::BaseSenderPayload::try_from(msg)?)
                 }
             };
             Ok(m)
@@ -149,17 +167,25 @@ impl From<ot::ExtReceiverSetup> for ExtReceiverSetup {
         Self {
             ncols: s.ncols as u32,
             table: s.table,
+            x: s.x.to_vec(),
+            t0: s.t0.to_vec(),
+            t1: s.t1.to_vec(),
         }
     }
 }
 
-impl From<ExtReceiverSetup> for ot::ExtReceiverSetup {
+impl TryFrom<ExtReceiverSetup> for ot::ExtReceiverSetup {
+    type Error = Error;
+
     #[inline]
-    fn from(s: ExtReceiverSetup) -> Self {
-        Self {
+    fn try_from(s: ExtReceiverSetup) -> Result<Self, Error> {
+        Ok(Self {
             ncols: s.ncols as usize,
             table: s.table,
-        }
+            x: s.x.try_into().map_err(|_| ErrorKind::InvalidData)?,
+            t0: s.t0.try_into().map_err(|_| ErrorKind::InvalidData)?,
+            t1: s.t1.try_into().map_err(|_| ErrorKind::InvalidData)?,
+        })
     }
 }
 
@@ -206,10 +232,87 @@ impl From<ExtSenderPayload> for ot::ExtSenderPayload {
     }
 }
 
+impl From<ot::BaseSenderSetup> for BaseSenderSetup {
+    #[inline]
+    fn from(s: ot::BaseSenderSetup) -> Self {
+        Self {
+            setup: SenderSetup::from(s.setup),
+            cointoss_commit: s.cointoss_commit.to_vec(),
+        }
+    }
+}
+
+impl TryFrom<BaseSenderSetup> for ot::BaseSenderSetup {
+    type Error = Error;
+
+    #[inline]
+    fn try_from(s: BaseSenderSetup) -> Result<Self, Error> {
+        Ok(Self {
+            setup: s.setup.try_into().map_err(|_| ErrorKind::InvalidData)?,
+            cointoss_commit: s
+                .cointoss_commit
+                .try_into()
+                .map_err(|_| ErrorKind::InvalidData)?,
+        })
+    }
+}
+
+impl From<ot::BaseReceiverSetup> for BaseReceiverSetup {
+    #[inline]
+    fn from(s: ot::BaseReceiverSetup) -> Self {
+        Self {
+            setup: ReceiverSetup::from(s.setup),
+            cointoss_share: s.cointoss_share.to_vec(),
+        }
+    }
+}
+
+impl TryFrom<BaseReceiverSetup> for ot::BaseReceiverSetup {
+    type Error = Error;
+
+    #[inline]
+    fn try_from(s: BaseReceiverSetup) -> Result<Self, Error> {
+        Ok(Self {
+            setup: s.setup.try_into().map_err(|_| ErrorKind::InvalidData)?,
+            cointoss_share: s
+                .cointoss_share
+                .try_into()
+                .map_err(|_| ErrorKind::InvalidData)?,
+        })
+    }
+}
+
+impl From<ot::BaseSenderPayload> for BaseSenderPayload {
+    #[inline]
+    fn from(s: ot::BaseSenderPayload) -> Self {
+        Self {
+            payload: SenderPayload::from(s.payload),
+            cointoss_share: s.cointoss_share.to_vec(),
+        }
+    }
+}
+
+impl TryFrom<BaseSenderPayload> for ot::BaseSenderPayload {
+    type Error = Error;
+
+    #[inline]
+    fn try_from(s: BaseSenderPayload) -> Result<Self, Error> {
+        Ok(Self {
+            payload: s.payload.try_into().map_err(|_| ErrorKind::InvalidData)?,
+            cointoss_share: s
+                .cointoss_share
+                .try_into()
+                .map_err(|_| ErrorKind::InvalidData)?,
+        })
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
     use super::*;
     use crate::ot::base::tests::fixtures::{ot_core_data, Data};
+    use crate::ot::extension::tests::fixtures::{ot_ext_core_data, Data as ExtData};
+
     use fixtures::*;
     use rstest::*;
 
@@ -222,6 +325,12 @@ pub mod tests {
             pub sender_payload: SenderPayload,
         }
 
+        pub struct ProtoExtData {
+            pub base_sender_setup: BaseSenderSetup,
+            pub base_receiver_setup: BaseReceiverSetup,
+            pub base_sender_payload: BaseSenderPayload,
+        }
+
         #[fixture]
         #[once]
         pub fn proto_base_core_data(ot_core_data: &Data) -> ProtoData {
@@ -229,6 +338,16 @@ pub mod tests {
                 sender_setup: ot_core_data.sender_setup.into(),
                 receiver_setup: ot_core_data.receiver_setup.clone().into(),
                 sender_payload: ot_core_data.sender_payload.clone().into(),
+            }
+        }
+
+        #[fixture]
+        #[once]
+        pub fn proto_ext_core_data(ot_ext_core_data: &ExtData) -> ProtoExtData {
+            ProtoExtData {
+                base_sender_setup: ot_ext_core_data.base_sender_setup.into(),
+                base_receiver_setup: ot_ext_core_data.base_receiver_setup.clone().into(),
+                base_sender_payload: ot_ext_core_data.base_sender_payload.clone().into(),
             }
         }
     }
@@ -258,5 +377,32 @@ pub mod tests {
             .unwrap();
 
         assert_eq!(sender_payload, ot_core_data.sender_payload);
+    }
+
+    #[rstest]
+    fn test_proto_ext(proto_ext_core_data: &fixtures::ProtoExtData, ot_ext_core_data: &ExtData) {
+        let base_sender_setup: crate::ot::extension::BaseSenderSetup = proto_ext_core_data
+            .base_sender_setup
+            .clone()
+            .try_into()
+            .unwrap();
+
+        assert_eq!(base_sender_setup, ot_ext_core_data.base_sender_setup);
+
+        let base_receiver_setup: crate::ot::extension::BaseReceiverSetup = proto_ext_core_data
+            .base_receiver_setup
+            .clone()
+            .try_into()
+            .unwrap();
+
+        assert_eq!(base_receiver_setup, ot_ext_core_data.base_receiver_setup);
+
+        let base_sender_payload: crate::ot::extension::BaseSenderPayload = proto_ext_core_data
+            .base_sender_payload
+            .clone()
+            .try_into()
+            .unwrap();
+
+        assert_eq!(base_sender_payload, ot_ext_core_data.base_sender_payload);
     }
 }

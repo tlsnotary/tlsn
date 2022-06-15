@@ -6,7 +6,7 @@ package core.ot;
 
 // Setup message sent by Base OT Sender
 message SenderSetup {
-    // Senders public key
+    // Sender's public key
     required core.RistrettoPoint public_key = 1;
 }
 
@@ -26,6 +26,9 @@ message ReceiverSetup {
 message ExtReceiverSetup {
     required uint32 ncols = 1;
     repeated bytes table = 2;
+    required bytes x = 3;
+    required bytes t0 = 4;
+    required bytes t1 = 5;
 }
 
 // Derandomization message sent by OT Receiver
@@ -38,6 +41,28 @@ message ExtSenderPayload {
     repeated core.LabelPair encrypted_values = 1;
 }
 
+// Setup message sent by Base OT Sender in preparation for the OT extension
+// protocol
+message BaseSenderSetup {
+    required SenderSetup setup = 1;
+    required bytes cointoss_commit = 2;
+}
+
+// Setup message sent by Base OT Receiver in preparation for the OT extension
+// protocol
+message BaseReceiverSetup {
+    required ReceiverSetup setup = 1;
+    required bytes cointoss_share = 2;
+}
+
+// Message sent by OT Sender in preparation for the OT extension
+// protocol
+message BaseSenderPayload {
+    required SenderPayload payload = 1;
+    required bytes cointoss_share = 2;
+}
+
+
 message Message {
     oneof msg {
         SenderSetup sender_setup = 1;
@@ -46,5 +71,8 @@ message Message {
         ExtReceiverSetup ext_receiver_setup = 4;
         ExtDerandomize ext_derandomize = 5;
         ExtSenderPayload ext_sender_payload = 6;
+        BaseSenderSetup base_sender_setup = 7;
+        BaseReceiverSetup base_receiver_setup = 8;
+        BaseSenderPayload base_sender_payload = 9;
     }
 }

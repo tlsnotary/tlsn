@@ -47,21 +47,25 @@ where
     async fn receive(&mut self, choice: &[bool]) -> Result<Vec<Block>, OTError> {
         let base_setup = self.ot.base_setup()?;
 
-        trace!("Sending SenderSetup");
-        self.stream.send(Message::SenderSetup(base_setup)).await?;
+        trace!("Sending BaseSenderSetup");
+        self.stream
+            .send(Message::BaseSenderSetup(base_setup))
+            .await?;
 
         let base_receiver_setup = match self.stream.next().await {
-            Some(Ok(Message::ReceiverSetup(m))) => m,
+            Some(Ok(Message::BaseReceiverSetup(m))) => m,
             Some(Ok(m)) => return Err(OTError::Unexpected(m)),
             Some(Err(e)) => return Err(e)?,
             None => return Err(IOError::new(ErrorKind::UnexpectedEof, ""))?,
         };
-        trace!("Received ReceiverSetup");
+        trace!("Received BaseReceiverSetup");
 
         let payload = self.ot.base_send(base_receiver_setup.try_into().unwrap())?;
 
-        trace!("Sending SenderPayload");
-        self.stream.send(Message::SenderPayload(payload)).await?;
+        trace!("Sending BaseSenderPayload");
+        self.stream
+            .send(Message::BaseSenderPayload(payload))
+            .await?;
 
         let setup = self.ot.extension_setup(choice)?;
 

@@ -1,5 +1,5 @@
 /// Errors that may occur when using OTSender
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, PartialEq)]
 pub enum ExtSenderCoreError {
     /// Error originating from Base OT
     #[error("OT failed due to error in Base OT {0}")]
@@ -14,10 +14,18 @@ pub enum ExtSenderCoreError {
     InvalidInputLength,
     #[error("Tried to send after OT is already complete")]
     AlreadyComplete,
+    #[error("Cointoss commitment check failed")]
+    CommitmentCheckFailed,
+    #[error("KOS15 consistency check failed")]
+    ConsistencyCheckFailed,
+    #[error("A method was called at the incorrect state of the protocol")]
+    WrongState,
+    #[error("An internal error happened")]
+    InternalError,
 }
 
 /// Errors that may occur when using ExtReceiverCore
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, PartialEq)]
 pub enum ExtReceiverCoreError {
     /// Error originating from Base OT
     #[error("OT failed due to error in Base OT")]
@@ -37,4 +45,8 @@ pub enum ExtReceiverCoreError {
     InvalidPayloadSize,
     #[error("Tried to receive after OT is already complete")]
     AlreadyComplete,
+    #[error("A method was called at the incorrect state of the protocol")]
+    WrongState,
+    #[error("An internal error happened")]
+    InternalError,
 }

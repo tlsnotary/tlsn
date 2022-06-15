@@ -4,14 +4,14 @@ pub mod errors;
 pub mod receiver;
 pub mod sender;
 
-pub use crate::ot::base::{
-    ReceiverSetup as BaseReceiverSetup, SenderPayload as BaseSenderPayload,
-    SenderSetup as BaseSenderSetup,
-};
+pub use crate::ot::base::{ReceiverSetup, SenderPayload, SenderSetup};
 pub use crate::Block;
+pub use clmul::Clmul;
 pub use errors::*;
-pub use receiver::{ExtDerandomize, ExtReceiverCore, ExtReceiverSetup};
-pub use sender::{ExtSenderCore, ExtSenderPayload};
+pub use receiver::{
+    BaseSenderPayload, BaseSenderSetup, ExtDerandomize, ExtReceiverCore, ExtReceiverSetup,
+};
+pub use sender::{BaseReceiverSetup, ExtSenderCore, ExtSenderPayload};
 
 pub const BASE_COUNT: usize = 128;
 
@@ -128,14 +128,51 @@ pub trait ExtRandomReceiveCore: ExtReceiveCore {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{ExtReceiverCore, ExtSenderCore};
+pub mod tests {
+    use super::errors::{ExtReceiverCoreError, ExtSenderCoreError};
+    use super::{
+        BaseReceiverSetup, BaseSenderPayload, BaseSenderSetup, ExtDerandomize, ExtReceiverCore,
+        ExtSenderCore, ExtSenderPayload,
+    };
     use crate::utils::u8vec_to_boolvec;
     use crate::Block;
     use pretty_assertions::assert_eq;
     use rand::{RngCore, SeedableRng};
     use rand_chacha::ChaCha12Rng;
     use rstest::*;
+
+    pub mod fixtures {
+        use super::{BaseReceiverSetup, BaseSenderPayload, BaseSenderSetup};
+        use crate::ot::base::tests::fixtures::{choice, values};
+        use crate::Block;
+        use rstest::*;
+
+        pub struct Data {
+            pub base_sender_setup: BaseSenderSetup,
+            pub base_receiver_setup: BaseReceiverSetup,
+            pub base_sender_payload: BaseSenderPayload,
+        }
+
+        #[fixture]
+        #[once]
+        pub fn ot_ext_core_data(choice: &Vec<bool>, values: &Vec<[Block; 2]>) -> Data {
+            use crate::ot::extension::{
+                ExtReceiveCore, ExtReceiverCore, ExtSendCore, ExtSenderCore,
+            };
+
+            let mut sender = ExtSenderCore::new(values.len());
+            let mut receiver = ExtReceiverCore::new(choice.len());
+            let base_sender_setup = receiver.base_setup().unwrap();
+            let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
+            let base_sender_payload = receiver.base_send(base_receiver_setup.clone()).unwrap();
+
+            Data {
+                base_sender_setup,
+                base_receiver_setup,
+                base_sender_payload,
+            }
+        }
+    }
 
     #[fixture]
     fn receiver() -> ExtReceiverCore {
@@ -203,6 +240,37 @@ mod tests {
     }
 
     #[rstest]
+    // Test that the cointoss check fails on wrong data
+    fn test_ext_ot_cointoss_failure(mut sender: ExtSenderCore, mut receiver: ExtReceiverCore) {
+        use super::{ExtReceiveCore, ExtSendCore};
+
+        let mut base_sender_setup = receiver.base_setup().unwrap();
+        base_sender_setup.cointoss_commit = [77u8; 32];
+        let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
+        let send_seeds = receiver.base_send(base_receiver_setup).unwrap();
+        let res = sender.base_receive(send_seeds);
+        assert_eq!(res, Err(ExtSenderCoreError::CommitmentCheckFailed));
+    }
+
+    #[rstest]
+    // Test that the KOS15 check fails on wrong data
+    fn test_ext_ot_kos_failure(pair_base_setup: (ExtSenderCore, ExtReceiverCore)) {
+        use super::{ExtReceiveCore, ExtSendCore};
+
+        let (mut sender, mut receiver) = pair_base_setup;
+
+        let mut choice = vec![0u8; 2];
+        let mut rng = ChaCha12Rng::from_entropy();
+        rng.fill_bytes(&mut choice);
+        let choice = u8vec_to_boolvec(&choice);
+
+        let mut receiver_setup = receiver.extension_setup(&choice).unwrap();
+        receiver_setup.x = [33u8; 16];
+        let res = sender.extension_setup(receiver_setup);
+        assert_eq!(res, Err(ExtSenderCoreError::ConsistencyCheckFailed));
+    }
+
+    #[rstest]
     fn test_ext_ot_batch(pair_base_setup: (ExtSenderCore, ExtReceiverCore)) {
         use super::{ExtReceiveCore, ExtSendCore};
 
@@ -228,6 +296,15 @@ mod tests {
         }
         assert!(sender.is_complete());
         assert!(receiver.is_complete());
+
+        // Trying to send/receive more OTs should return an error
+        let res = sender.send(&[[Block::random(&mut rng), Block::random(&mut rng)]]);
+        assert_eq!(res, Err(ExtSenderCoreError::InvalidInputLength));
+        let p = ExtSenderPayload {
+            encrypted_values: vec![[Block::random(&mut rng), Block::random(&mut rng)]],
+        };
+        let res = receiver.receive(p);
+        assert_eq!(res, Err(ExtReceiverCoreError::AlreadyComplete));
 
         let expected: Vec<Block> = inputs
             .iter()
@@ -296,6 +373,16 @@ mod tests {
         }
         assert!(sender.is_complete());
         assert!(receiver.is_complete());
+
+        // Trying to send/receive more OTs should return an error
+        let d = ExtDerandomize { flip: vec![true] };
+        let res = sender.send(&[[Block::random(&mut rng); 2]], d);
+        assert_eq!(res, Err(ExtSenderCoreError::InvalidInputLength));
+        let p = ExtSenderPayload {
+            encrypted_values: vec![[Block::random(&mut rng); 2]],
+        };
+        let res = receiver.receive(p);
+        assert_eq!(res, Err(ExtReceiverCoreError::AlreadyComplete));
 
         let expected: Vec<Block> = inputs
             .iter()
