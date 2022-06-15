@@ -54,7 +54,7 @@ pub(super) async fn handle_server_hello(
     config: Arc<ClientConfig>,
     cx: &mut ClientContext<'_>,
     server_hello: &ServerHelloPayload,
-    mut resuming_session: Option<persist::Tls13ClientSessionValue>,
+    resuming_session: Option<persist::Tls13ClientSessionValue>,
     server_name: ServerName,
     randoms: ConnectionRandoms,
     suite: &'static Tls13CipherSuite,
