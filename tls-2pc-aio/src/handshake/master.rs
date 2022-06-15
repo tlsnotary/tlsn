@@ -1,18 +1,17 @@
 use async_trait::async_trait;
 use futures::{AsyncRead, AsyncWrite};
-use tls_client::{
-    Error, Handshake, MessageDecrypter, MessageEncrypter, ProtocolVersion, SupportedCipherSuite,
-};
+use tls_client::{Crypto, DecryptMode, EncryptMode, Error, ProtocolVersion, SupportedCipherSuite};
 use tls_core::key::PublicKey;
 use tls_core::msgs::handshake::Random;
+use tls_core::msgs::message::{OpaqueMessage, PlainMessage};
 
-/// HandshakeMaster implements the TLS handshake trait using 2PC protocols.
-pub struct HandshakeMaster<S> {
-    /// Stream connection to [`HandshakeSlave`]
+/// CryptoMaster implements the TLS Crypto trait using 2PC protocols.
+pub struct CryptoMaster<S> {
+    /// Stream connection to [`CryptoSlave`]
     stream: S,
 }
 
-impl<S> HandshakeMaster<S>
+impl<S> CryptoMaster<S>
 where
     S: AsyncWrite + AsyncRead + Send,
 {
@@ -27,7 +26,7 @@ where
 }
 
 #[async_trait]
-impl<S> Handshake for HandshakeMaster<S>
+impl<S> Crypto for CryptoMaster<S>
 where
     S: AsyncWrite + AsyncRead + Send,
 {
@@ -38,6 +37,12 @@ where
         todo!()
     }
     fn suite(&self) -> Result<SupportedCipherSuite, Error> {
+        todo!()
+    }
+    fn set_encrypt(&mut self, _mode: EncryptMode) -> Result<(), Error> {
+        todo!()
+    }
+    fn set_decrypt(&mut self, _mode: DecryptMode) -> Result<(), Error> {
         todo!()
     }
     async fn client_random(&mut self) -> Result<Random, Error> {
@@ -61,10 +66,10 @@ where
     async fn client_finished(&mut self, _hash: &[u8]) -> Result<Vec<u8>, Error> {
         todo!()
     }
-    async fn message_encrypter(&mut self) -> Result<Box<dyn MessageEncrypter>, Error> {
+    async fn encrypt(&mut self, _m: PlainMessage, _seq: u64) -> Result<OpaqueMessage, Error> {
         todo!()
     }
-    async fn message_decrypter(&mut self) -> Result<Box<dyn MessageDecrypter>, Error> {
+    async fn decrypt(&mut self, _m: OpaqueMessage, _seq: u64) -> Result<PlainMessage, Error> {
         todo!()
     }
 }
