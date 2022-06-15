@@ -8,6 +8,7 @@ use async_trait::async_trait;
 
 use crate::cipher::{MessageDecrypter, MessageEncrypter};
 
+/// Encryption modes for Crypto implementor
 #[derive(Debug, Clone)]
 pub enum EncryptMode {
     /// Encrypt payload with PSK
@@ -18,6 +19,7 @@ pub enum EncryptMode {
     Application,
 }
 
+/// Decryption modes for Crypto implementor
 #[derive(Debug, Clone)]
 pub enum DecryptMode {
     /// Decrypt payload with Handshake keys
@@ -57,9 +59,9 @@ pub trait Crypto: Send {
     /// Returns ClientFinished verify_data.
     async fn client_finished(&mut self, hash: &[u8]) -> Result<Vec<u8>, Error>;
     /// Perform the encryption over the concerned TLS message.
-    async fn encrypt(&self, m: PlainMessage, seq: u64) -> Result<OpaqueMessage, Error>;
+    async fn encrypt(&mut self, m: PlainMessage, seq: u64) -> Result<OpaqueMessage, Error>;
     /// Perform the decryption over the concerned TLS message.
-    async fn decrypt(&self, m: OpaqueMessage, seq: u64) -> Result<PlainMessage, Error>;
+    async fn decrypt(&mut self, m: OpaqueMessage, seq: u64) -> Result<PlainMessage, Error>;
 }
 
 pub struct InvalidCrypto {}
@@ -104,10 +106,10 @@ impl Crypto for InvalidCrypto {
     async fn client_finished(&mut self, _hash: &[u8]) -> Result<Vec<u8>, Error> {
         Err(Error::General("handshaker not yet available".to_string()))
     }
-    async fn encrypt(&self, _m: PlainMessage, _seq: u64) -> Result<OpaqueMessage, Error> {
+    async fn encrypt(&mut self, _m: PlainMessage, _seq: u64) -> Result<OpaqueMessage, Error> {
         Err(Error::General("handshaker not yet available".to_string()))
     }
-    async fn decrypt(&self, _m: OpaqueMessage, _seq: u64) -> Result<PlainMessage, Error> {
+    async fn decrypt(&mut self, _m: OpaqueMessage, _seq: u64) -> Result<PlainMessage, Error> {
         Err(Error::General("handshaker not yet available".to_string()))
     }
 }

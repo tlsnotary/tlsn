@@ -16,7 +16,6 @@ use tls_core::msgs::hsjoiner::HandshakeJoiner;
 use tls_core::msgs::message::{Message, MessagePayload, OpaqueMessage, PlainMessage};
 use tls_core::suites::SupportedCipherSuite;
 
-use async_recursion::async_recursion;
 use async_trait::async_trait;
 use std::collections::VecDeque;
 use std::convert::TryFrom;

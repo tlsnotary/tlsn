@@ -357,7 +357,7 @@ pub use crate::key_log::{KeyLog, NoKeyLog};
 pub use crate::key_log_file::KeyLogFile;
 pub use crate::kx::{SupportedKxGroup, ALL_KX_GROUPS};
 pub use cipher::{MessageDecrypter, MessageEncrypter};
-pub use crypto::Crypto;
+pub use crypto::{Crypto, DecryptMode, EncryptMode};
 pub use tls_core::key::{Certificate, PrivateKey};
 pub use tls_core::msgs::enums::CipherSuite;
 pub use tls_core::msgs::enums::ProtocolVersion;
