@@ -21,7 +21,8 @@
 //! file was created successfully, with the right permissions, etc., and that it
 //! contains something like what we expect.
 
-#[allow(dead_code)]
+#![allow(dead_code, allow_unused_imports)]
+
 mod common;
 
 use crate::common::{
