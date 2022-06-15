@@ -1,7 +1,4 @@
 use futures::{AsyncRead, AsyncWrite};
-use tls_core::key::PublicKey;
-use tls_core::suites::SupportedCipherSuite;
-use tls_core::versions::SupportedProtocolVersion;
 
 /// HandshakeSlave communicates with [`HandshakeMaster`] over a stream to execute TLS operations in 2PC
 pub struct HandshakeSlave<S> {

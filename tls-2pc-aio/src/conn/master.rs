@@ -1,7 +1,7 @@
 use futures::{AsyncRead, AsyncWrite};
 use std::sync::Arc;
 
-use tls_client::{ClientConfig, ClientConnection, ServerName};
+use tls_client::{ClientConnection, ServerName};
 
 use super::builder::MasterConfig as Config;
 use crate::Error;
@@ -40,7 +40,7 @@ where
     }
 
     /// Sends application payload to Server
-    pub async fn send(&mut self, payload: &[u8]) -> Result<(), Error> {
+    pub async fn send(&mut self, _payload: &[u8]) -> Result<(), Error> {
         todo!()
     }
 }
