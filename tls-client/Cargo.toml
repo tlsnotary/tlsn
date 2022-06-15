@@ -7,7 +7,6 @@ license = "Apache-2.0/MIT"
 readme = "../README.md"
 autobenches = false
 build = "build.rs"
-resolver = "2"
 
 [lib]
 name = "tls_client"
