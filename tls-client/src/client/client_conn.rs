@@ -378,7 +378,7 @@ pub struct Initialized {
     config: Arc<ClientConfig>,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl State<ClientConnectionData> for Initialized {
     async fn start(
         self: Box<Self>,

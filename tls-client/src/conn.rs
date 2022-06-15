@@ -1,6 +1,6 @@
 use crate::client::ClientConnectionData;
+use crate::crypto::{Crypto, InvalidCrypto};
 use crate::error::Error;
-use crate::handshaker::{Handshake, InvalidHandShaker};
 #[cfg(feature = "logging")]
 use crate::log::{debug, error, trace, warn};
 use crate::record_layer;
@@ -339,7 +339,7 @@ impl ConnectionCommon {
         if self.handshake_joiner.take_message(msg).is_none() {
             self.common_state
                 .send_fatal_alert(AlertDescription::DecodeError)
-                .await;
+                .await?;
             return Err(Error::CorruptMessagePayload(ContentType::Handshake));
         }
 
@@ -369,7 +369,7 @@ impl ConnectionCommon {
                 //  handshake with an "unexpected_message" alert."
                 self.common_state
                     .send_fatal_alert(AlertDescription::UnexpectedMessage)
-                    .await;
+                    .await?;
                 return Err(Error::PeerMisbehavedError(
                     "illegal middlebox CCS received".into(),
                 ));
@@ -406,7 +406,7 @@ impl ConnectionCommon {
                 None => {
                     self.common_state
                         .send_fatal_alert(AlertDescription::DecodeError)
-                        .await;
+                        .await?;
                     return Err(Error::CorruptMessagePayload(ContentType::Handshake));
                 }
             }
@@ -488,15 +488,15 @@ impl ConnectionCommon {
     }
 
     /// Write buffer into connection
-    pub async fn write_plaintext(&mut self, buf: &[u8]) -> io::Result<usize> {
+    pub async fn write_plaintext(&mut self, buf: &[u8]) -> Result<usize, Error> {
         if let Ok(st) = &mut self.state {
             st.perhaps_write_key_update(&mut self.common_state).await;
         }
-        Ok(self.common_state.send_some_plaintext(buf).await)
+        self.common_state.send_some_plaintext(buf).await
     }
 
     /// Write entire buffer into connection
-    pub async fn write_all_plaintext(&mut self, buf: &[u8]) -> io::Result<usize> {
+    pub async fn write_all_plaintext(&mut self, buf: &[u8]) -> Result<usize, Error> {
         let mut pos = 0;
         while pos < buf.len() {
             pos += self.write_plaintext(&buf[pos..]).await?;
@@ -572,7 +572,7 @@ pub struct CommonState {
     pub(crate) negotiated_version: Option<ProtocolVersion>,
     pub(crate) side: Side,
     pub(crate) record_layer: record_layer::RecordLayer,
-    pub(crate) handshaker: Box<dyn Handshake>,
+    pub(crate) crypto: Box<dyn Crypto>,
     pub(crate) suite: Option<SupportedCipherSuite>,
     pub(crate) alpn_protocol: Option<Vec<u8>>,
     aligned_handshake: bool,
@@ -600,7 +600,7 @@ impl CommonState {
             negotiated_version: None,
             side,
             record_layer: record_layer::RecordLayer::new(),
-            handshaker: Box::new(InvalidHandShaker {}),
+            crypto: Box::new(InvalidCrypto {}),
             suite: None,
             alpn_protocol: None,
             aligned_handshake: true,
@@ -697,7 +697,7 @@ impl CommonState {
             };
             if msg.is_handshake_type(reject_ty) {
                 self.send_warning_alert(AlertDescription::NoRenegotiation)
-                    .await;
+                    .await?;
                 return Ok(state);
             }
         }
@@ -711,7 +711,7 @@ impl CommonState {
             Err(e @ Error::InappropriateMessage { .. })
             | Err(e @ Error::InappropriateHandshakeMessage { .. }) => {
                 self.send_fatal_alert(AlertDescription::UnexpectedMessage)
-                    .await;
+                    .await?;
                 Err(e)
             }
             Err(e) => Err(e),
@@ -723,7 +723,7 @@ impl CommonState {
     ///
     /// If internal buffers are too small, this function will not accept
     /// all the data.
-    pub(crate) async fn send_some_plaintext(&mut self, data: &[u8]) -> usize {
+    pub(crate) async fn send_some_plaintext(&mut self, data: &[u8]) -> Result<usize, Error> {
         self.send_plain(data, Limit::Yes).await
     }
 
@@ -734,7 +734,7 @@ impl CommonState {
     pub(crate) async fn check_aligned_handshake(&mut self) -> Result<(), Error> {
         if !self.aligned_handshake {
             self.send_fatal_alert(AlertDescription::UnexpectedMessage)
-                .await;
+                .await?;
             Err(Error::PeerMisbehavedError(
                 "key epoch or handshake flight with pending fragment".to_string(),
             ))
@@ -743,10 +743,10 @@ impl CommonState {
         }
     }
 
-    pub(crate) async fn illegal_param(&mut self, why: &str) -> Error {
+    pub(crate) async fn illegal_param(&mut self, why: &str) -> Result<Error, Error> {
         self.send_fatal_alert(AlertDescription::IllegalParameter)
-            .await;
-        Error::PeerMisbehavedError(why.to_string())
+            .await?;
+        Ok(Error::PeerMisbehavedError(why.to_string()))
     }
 
     pub(crate) async fn decrypt_incoming(
@@ -754,16 +754,19 @@ impl CommonState {
         encr: OpaqueMessage,
     ) -> Result<Option<PlainMessage>, Error> {
         if self.record_layer.wants_close_before_decrypt() {
-            self.send_close_notify().await;
+            self.send_close_notify().await?;
         }
 
         let encrypted_len = encr.payload.0.len();
-        let plain = self.record_layer.decrypt_incoming(encr).await;
+        let plain = self
+            .record_layer
+            .decrypt_incoming(self.crypto.as_mut(), encr)
+            .await;
 
         match plain {
             Err(Error::PeerSentOversizedRecord) => {
                 self.send_fatal_alert(AlertDescription::RecordOverflow)
-                    .await;
+                    .await?;
                 Err(Error::PeerSentOversizedRecord)
             }
             Err(Error::DecryptError) if self.record_layer.doing_trial_decryption(encrypted_len) => {
@@ -771,7 +774,8 @@ impl CommonState {
                 Ok(None)
             }
             Err(Error::DecryptError) => {
-                self.send_fatal_alert(AlertDescription::BadRecordMac).await;
+                self.send_fatal_alert(AlertDescription::BadRecordMac)
+                    .await?;
                 Err(Error::DecryptError)
             }
             Err(e) => Err(e),
@@ -781,18 +785,26 @@ impl CommonState {
 
     /// Fragment `m`, encrypt the fragments, and then queue
     /// the encrypted fragments for sending.
-    #[async_recursion]
-    pub(crate) async fn send_msg_encrypt(&mut self, m: PlainMessage) {
+    pub(crate) async fn send_msg_encrypt(&mut self, m: PlainMessage) -> Result<(), Error> {
         let mut plain_messages = VecDeque::new();
         self.message_fragmenter.fragment(m, &mut plain_messages);
 
-        for m in plain_messages {
-            self.send_single_fragment(m).await;
+        // Close connection once we start to run out of
+        // sequence space.
+        if self.record_layer.wants_close_before_encrypt() {
+            debug!("Sending warning alert {:?}", AlertDescription::CloseNotify);
+            let m = Message::build_alert(AlertLevel::Warning, AlertDescription::CloseNotify);
+            self.send_single_fragment(m.into()).await?;
         }
+
+        for m in plain_messages {
+            self.send_single_fragment(m).await?;
+        }
+        Ok(())
     }
 
     /// Like send_msg_encrypt, but operate on an appdata directly.
-    async fn send_appdata_encrypt(&mut self, payload: &[u8], limit: Limit) -> usize {
+    async fn send_appdata_encrypt(&mut self, payload: &[u8], limit: Limit) -> Result<usize, Error> {
         // Here, the limit on sendable_tls applies to encrypted data,
         // but we're respecting it for plaintext data -- so we'll
         // be out by whatever the cipher+record overhead is.  That's a
@@ -813,27 +825,25 @@ impl CommonState {
         );
 
         for m in plain_messages {
-            self.send_single_fragment(m).await;
+            self.send_single_fragment(m).await?;
         }
 
-        len
+        Ok(len)
     }
 
-    async fn send_single_fragment(&mut self, m: PlainMessage) {
-        // Close connection once we start to run out of
-        // sequence space.
-        if self.record_layer.wants_close_before_encrypt() {
-            self.send_close_notify().await;
-        }
-
+    async fn send_single_fragment(&mut self, m: PlainMessage) -> Result<(), Error> {
         // Refuse to wrap counter at all costs.  This
         // is basically untestable unfortunately.
         if self.record_layer.encrypt_exhausted() {
-            return;
+            return Err(Error::EncryptError);
         }
 
-        let em = self.record_layer.encrypt_outgoing(m).await;
+        let em = self
+            .record_layer
+            .encrypt_outgoing(self.crypto.as_mut(), m)
+            .await?;
         self.queue_tls_message(em);
+        Ok(())
     }
 
     /// Writes TLS messages to `wr`.
@@ -852,7 +862,7 @@ impl CommonState {
     ///
     /// Returns the number of bytes written from `data`: this might
     /// be less than `data.len()` if buffer limits were exceeded.
-    async fn send_plain(&mut self, data: &[u8], limit: Limit) -> usize {
+    async fn send_plain(&mut self, data: &[u8], limit: Limit) -> Result<usize, Error> {
         if !self.may_send_application_data {
             // If we haven't completed handshaking, buffer
             // plaintext to send once we do.
@@ -860,27 +870,27 @@ impl CommonState {
                 Limit::Yes => self.sendable_plaintext.append_limited_copy(data),
                 Limit::No => self.sendable_plaintext.append(data.to_vec()),
             };
-            return len;
+            return Ok(len);
         }
 
         debug_assert!(self.record_layer.is_encrypting());
 
         if data.is_empty() {
             // Don't send empty fragments.
-            return 0;
+            return Ok(0);
         }
 
         self.send_appdata_encrypt(data, limit).await
     }
 
-    pub(crate) async fn start_outgoing_traffic(&mut self) {
+    pub(crate) async fn start_outgoing_traffic(&mut self) -> Result<(), Error> {
         self.may_send_application_data = true;
-        self.flush_plaintext().await;
+        self.flush_plaintext().await
     }
 
-    pub(crate) async fn start_traffic(&mut self) {
+    pub(crate) async fn start_traffic(&mut self) -> Result<(), Error> {
         self.may_receive_application_data = true;
-        self.start_outgoing_traffic().await;
+        self.start_outgoing_traffic().await
     }
 
     /// Sets a limit on the internal buffers used to buffer
@@ -929,14 +939,16 @@ impl CommonState {
 
     /// Send any buffered plaintext.  Plaintext is buffered if
     /// written during handshake.
-    async fn flush_plaintext(&mut self) {
+    async fn flush_plaintext(&mut self) -> Result<(), Error> {
         if !self.may_send_application_data {
-            return;
+            return Ok(());
         }
 
         while let Some(buf) = self.sendable_plaintext.pop() {
-            self.send_plain(&buf, Limit::No).await;
+            self.send_plain(&buf, Limit::No).await?;
         }
+
+        Ok(())
     }
 
     // Put m into sendable_tls for writing.
@@ -945,15 +957,16 @@ impl CommonState {
     }
 
     /// Send a raw TLS message, fragmenting it if needed.
-    pub(crate) async fn send_msg(&mut self, m: Message, must_encrypt: bool) {
+    pub(crate) async fn send_msg(&mut self, m: Message, must_encrypt: bool) -> Result<(), Error> {
         if !must_encrypt {
             let mut to_send = VecDeque::new();
             self.message_fragmenter.fragment(m.into(), &mut to_send);
             for mm in to_send {
                 self.queue_tls_message(mm.into_unencrypted_opaque());
             }
+            return Ok(());
         } else {
-            self.send_msg_encrypt(m.into()).await;
+            self.send_msg_encrypt(m.into()).await
         }
     }
 
@@ -961,16 +974,16 @@ impl CommonState {
         self.received_plaintext.append(bytes.0);
     }
 
-    async fn send_warning_alert(&mut self, desc: AlertDescription) {
+    async fn send_warning_alert(&mut self, desc: AlertDescription) -> Result<(), Error> {
         warn!("Sending warning alert {:?}", desc);
-        self.send_warning_alert_no_log(desc).await;
+        self.send_warning_alert_no_log(desc).await
     }
 
     async fn process_alert(&mut self, alert: &AlertMessagePayload) -> Result<(), Error> {
         // Reject unknown AlertLevels.
         if let AlertLevel::Unknown(_) = alert.level {
             self.send_fatal_alert(AlertDescription::IllegalParameter)
-                .await;
+                .await?;
         }
 
         // If we get a CloseNotify, make a note to declare EOF to our
@@ -984,7 +997,7 @@ impl CommonState {
         // (except, for no good reason, user_cancelled).
         if alert.level == AlertLevel::Warning {
             if self.is_tls13() && alert.description != AlertDescription::UserCanceled {
-                self.send_fatal_alert(AlertDescription::DecodeError).await;
+                self.send_fatal_alert(AlertDescription::DecodeError).await?;
             } else {
                 warn!("TLS alert warning received: {:#?}", alert);
                 return Ok(());
@@ -995,26 +1008,27 @@ impl CommonState {
         Err(Error::AlertReceived(alert.description))
     }
 
-    pub(crate) async fn send_fatal_alert(&mut self, desc: AlertDescription) {
+    pub(crate) async fn send_fatal_alert(&mut self, desc: AlertDescription) -> Result<(), Error> {
         warn!("Sending fatal alert {:?}", desc);
         debug_assert!(!self.sent_fatal_alert);
         let m = Message::build_alert(AlertLevel::Fatal, desc);
-        self.send_msg(m, self.record_layer.is_encrypting()).await;
+        self.send_msg(m, self.record_layer.is_encrypting()).await?;
         self.sent_fatal_alert = true;
+        Ok(())
     }
 
     /// Queues a close_notify warning alert to be sent in the next
     /// [`CommonState::write_tls`] call.  This informs the peer that the
     /// connection is being closed.
-    pub async fn send_close_notify(&mut self) {
+    pub async fn send_close_notify(&mut self) -> Result<(), Error> {
         debug!("Sending warning alert {:?}", AlertDescription::CloseNotify);
         self.send_warning_alert_no_log(AlertDescription::CloseNotify)
-            .await;
+            .await
     }
 
-    async fn send_warning_alert_no_log(&mut self, desc: AlertDescription) {
+    async fn send_warning_alert_no_log(&mut self, desc: AlertDescription) -> Result<(), Error> {
         let m = Message::build_alert(AlertLevel::Warning, desc);
-        self.send_msg(m, self.record_layer.is_encrypting()).await;
+        self.send_msg(m, self.record_layer.is_encrypting()).await
     }
 
     pub(crate) fn set_max_fragment_size(&mut self, new: Option<usize>) -> Result<(), Error> {
@@ -1054,7 +1068,7 @@ impl CommonState {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 pub(crate) trait State<ClientConnectionData>: Send + Sync {
     async fn start(
         self: Box<Self>,

@@ -3,6 +3,7 @@ use crate::{
         InvalidMessageDecrypter, InvalidMessageEncrypter, MessageDecrypter, MessageEncrypter,
     },
     error::Error,
+    Crypto,
 };
 use tls_core::msgs::message::{OpaqueMessage, PlainMessage};
 
@@ -22,8 +23,6 @@ enum DirectionState {
 }
 
 pub(crate) struct RecordLayer {
-    message_encrypter: Box<dyn MessageEncrypter>,
-    message_decrypter: Box<dyn MessageDecrypter>,
     write_seq: u64,
     read_seq: u64,
     encrypt_state: DirectionState,
@@ -38,8 +37,6 @@ pub(crate) struct RecordLayer {
 impl RecordLayer {
     pub(crate) fn new() -> Self {
         Self {
-            message_encrypter: Box::new(InvalidMessageEncrypter {}),
-            message_decrypter: Box::new(InvalidMessageDecrypter {}),
             write_seq: 0,
             read_seq: 0,
             encrypt_state: DirectionState::Invalid,
@@ -71,16 +68,14 @@ impl RecordLayer {
 
     /// Prepare to use the given `MessageEncrypter` for future message encryption.
     /// It is not used until you call `start_encrypting`.
-    pub(crate) fn prepare_message_encrypter(&mut self, cipher: Box<dyn MessageEncrypter>) {
-        self.message_encrypter = cipher;
+    pub(crate) fn prepare_message_encrypter(&mut self) {
         self.write_seq = 0;
         self.encrypt_state = DirectionState::Prepared;
     }
 
     /// Prepare to use the given `MessageDecrypter` for future message decryption.
     /// It is not used until you call `start_decrypting`.
-    pub(crate) fn prepare_message_decrypter(&mut self, cipher: Box<dyn MessageDecrypter>) {
-        self.message_decrypter = cipher;
+    pub(crate) fn prepare_message_decrypter(&mut self) {
         self.read_seq = 0;
         self.decrypt_state = DirectionState::Prepared;
     }
@@ -101,15 +96,15 @@ impl RecordLayer {
 
     /// Set and start using the given `MessageEncrypter` for future outgoing
     /// message encryption.
-    pub(crate) fn set_message_encrypter(&mut self, cipher: Box<dyn MessageEncrypter>) {
-        self.prepare_message_encrypter(cipher);
+    pub(crate) fn set_message_encrypter(&mut self) {
+        self.prepare_message_encrypter();
         self.start_encrypting();
     }
 
     /// Set and start using the given `MessageDecrypter` for future incoming
     /// message decryption.
-    pub(crate) fn set_message_decrypter(&mut self, cipher: Box<dyn MessageDecrypter>) {
-        self.prepare_message_decrypter(cipher);
+    pub(crate) fn set_message_decrypter(&mut self) {
+        self.prepare_message_decrypter();
         self.start_decrypting();
         self.trial_decryption_len = None;
     }
@@ -117,12 +112,8 @@ impl RecordLayer {
     /// Set and start using the given `MessageDecrypter` for future incoming
     /// message decryption, and enable "trial decryption" mode for when TLS1.3
     /// 0-RTT is attempted but rejected by the server.
-    pub(crate) fn set_message_decrypter_with_trial_decryption(
-        &mut self,
-        cipher: Box<dyn MessageDecrypter>,
-        max_length: usize,
-    ) {
-        self.prepare_message_decrypter(cipher);
+    pub(crate) fn set_message_decrypter_with_trial_decryption(&mut self, max_length: usize) {
+        self.prepare_message_decrypter();
         self.start_decrypting();
         self.trial_decryption_len = Some(max_length);
     }
@@ -162,11 +153,12 @@ impl RecordLayer {
     /// an error is returned.
     pub(crate) async fn decrypt_incoming(
         &mut self,
+        cipher: &mut dyn Crypto,
         encr: OpaqueMessage,
     ) -> Result<PlainMessage, Error> {
         debug_assert!(self.is_decrypting());
         let seq = self.read_seq;
-        let msg = self.message_decrypter.decrypt(encr, seq).await?;
+        let msg = cipher.decrypt(encr, seq).await?;
         self.read_seq += 1;
         Ok(msg)
     }
@@ -175,11 +167,15 @@ impl RecordLayer {
     ///
     /// `plain` is a TLS message we'd like to send.  This function
     /// panics if the requisite keying material hasn't been established yet.
-    pub(crate) async fn encrypt_outgoing(&mut self, plain: PlainMessage) -> OpaqueMessage {
+    pub(crate) async fn encrypt_outgoing(
+        &mut self,
+        cipher: &mut dyn Crypto,
+        plain: PlainMessage,
+    ) -> Result<OpaqueMessage, Error> {
         debug_assert!(self.encrypt_state == DirectionState::Active);
         assert!(!self.encrypt_exhausted());
         let seq = self.write_seq;
         self.write_seq += 1;
-        self.message_encrypter.encrypt(plain, seq).await.unwrap()
+        cipher.encrypt(plain, seq).await
     }
 }

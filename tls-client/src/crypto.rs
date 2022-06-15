@@ -1,16 +1,35 @@
 use crate::Error;
 use tls_core::msgs::enums::ProtocolVersion;
 use tls_core::msgs::handshake::Random;
+use tls_core::msgs::message::{OpaqueMessage, PlainMessage};
 use tls_core::{key::PublicKey, suites::SupportedCipherSuite};
 
 use async_trait::async_trait;
 
 use crate::cipher::{MessageDecrypter, MessageEncrypter};
 
+#[derive(Debug, Clone)]
+pub enum EncryptMode {
+    /// Encrypt payload with PSK
+    EarlyData,
+    /// Encrypt payload with Handshake keys
+    Handshake,
+    /// Encrypt payload with Application traffic keys
+    Application,
+}
+
+#[derive(Debug, Clone)]
+pub enum DecryptMode {
+    /// Decrypt payload with Handshake keys
+    Handshake,
+    /// Decrypt payload with Application traffic keys
+    Application,
+}
+
 /// Core trait which manages crypto operations for the TLS connection such as key exchange, encryption
 /// and decryption.
 #[async_trait]
-pub trait Handshake: Send {
+pub trait Crypto: Send {
     /// Signals selected protocol version to implementor.
     /// Throws error if version is not supported.
     fn select_protocol_version(&mut self, version: ProtocolVersion) -> Result<(), Error>;
@@ -19,6 +38,10 @@ pub trait Handshake: Send {
     fn select_cipher_suite(&mut self, suite: SupportedCipherSuite) -> Result<(), Error>;
     /// Returns configured cipher suite.
     fn suite(&self) -> Result<SupportedCipherSuite, Error>;
+    /// Set encryption mode
+    fn set_encrypt(&mut self, mode: EncryptMode) -> Result<(), Error>;
+    /// Start decryption
+    fn set_decrypt(&mut self, mode: DecryptMode) -> Result<(), Error>;
     /// Returns client_random value.
     async fn client_random(&mut self) -> Result<Random, Error>;
     /// Returns public client keyshare.
@@ -33,16 +56,16 @@ pub trait Handshake: Send {
     async fn server_finished(&mut self, hash: &[u8]) -> Result<Vec<u8>, Error>;
     /// Returns ClientFinished verify_data.
     async fn client_finished(&mut self, hash: &[u8]) -> Result<Vec<u8>, Error>;
-    /// Returns initialized MessageEncrypter.
-    async fn message_encrypter(&mut self) -> Result<Box<dyn MessageEncrypter>, Error>;
-    /// Returns initialized MessageDecrypter.
-    async fn message_decrypter(&mut self) -> Result<Box<dyn MessageDecrypter>, Error>;
+    /// Perform the encryption over the concerned TLS message.
+    async fn encrypt(&self, m: PlainMessage, seq: u64) -> Result<OpaqueMessage, Error>;
+    /// Perform the decryption over the concerned TLS message.
+    async fn decrypt(&self, m: OpaqueMessage, seq: u64) -> Result<PlainMessage, Error>;
 }
 
-pub struct InvalidHandShaker {}
+pub struct InvalidCrypto {}
 
 #[async_trait]
-impl Handshake for InvalidHandShaker {
+impl Crypto for InvalidCrypto {
     fn select_protocol_version(&mut self, _version: ProtocolVersion) -> Result<(), Error> {
         Err(Error::General("handshaker not yet available".to_string()))
     }
@@ -50,6 +73,14 @@ impl Handshake for InvalidHandShaker {
         Err(Error::General("handshaker not yet available".to_string()))
     }
     fn suite(&self) -> Result<SupportedCipherSuite, Error> {
+        Err(Error::General("handshaker not yet available".to_string()))
+    }
+    /// Start encryption
+    fn set_encrypt(&mut self, _mode: EncryptMode) -> Result<(), Error> {
+        Err(Error::General("handshaker not yet available".to_string()))
+    }
+    /// Start decryption
+    fn set_decrypt(&mut self, _mode: DecryptMode) -> Result<(), Error> {
         Err(Error::General("handshaker not yet available".to_string()))
     }
     async fn client_random(&mut self) -> Result<Random, Error> {
@@ -73,10 +104,10 @@ impl Handshake for InvalidHandShaker {
     async fn client_finished(&mut self, _hash: &[u8]) -> Result<Vec<u8>, Error> {
         Err(Error::General("handshaker not yet available".to_string()))
     }
-    async fn message_encrypter(&mut self) -> Result<Box<dyn MessageEncrypter>, Error> {
+    async fn encrypt(&self, _m: PlainMessage, _seq: u64) -> Result<OpaqueMessage, Error> {
         Err(Error::General("handshaker not yet available".to_string()))
     }
-    async fn message_decrypter(&mut self) -> Result<Box<dyn MessageDecrypter>, Error> {
+    async fn decrypt(&self, _m: OpaqueMessage, _seq: u64) -> Result<PlainMessage, Error> {
         Err(Error::General("handshaker not yet available".to_string()))
     }
 }

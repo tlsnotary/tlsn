@@ -460,7 +460,7 @@ async fn client_close_notify() {
         // check that alerts don't overtake appdata
         assert_eq!(12, server.writer().write(b"from-server!").unwrap());
         assert_eq!(12, client.write_plaintext(b"from-client!").await.unwrap());
-        client.send_close_notify().await;
+        client.send_close_notify().await.unwrap();
 
         send(&mut client, &mut server);
         let io_state = server.process_new_packets().unwrap();
@@ -973,7 +973,7 @@ where
         }
     }
 
-    fn new_fails(sess: &'a mut C) -> ServerSession<'a, C, S> {
+    fn _new_fails(sess: &'a mut C) -> ServerSession<'a, C, S> {
         let mut os = ServerSession::new(sess);
         os.fail_ok = true;
         os
@@ -1067,7 +1067,7 @@ where
         }
     }
 
-    fn new_fails(sess: &'a mut C) -> ClientSession<'a, C> {
+    fn _new_fails(sess: &'a mut C) -> ClientSession<'a, C> {
         let mut os = ClientSession::new(sess);
         os.fail_ok = true;
         os
@@ -1088,7 +1088,7 @@ impl<'a, C> io::Write for ClientSession<'a, C>
 where
     C: DerefMut + Deref<Target = tls_client::ConnectionCommon>,
 {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+    fn write(&mut self, _buf: &[u8]) -> io::Result<usize> {
         unreachable!()
     }
 
