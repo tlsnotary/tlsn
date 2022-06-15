@@ -30,17 +30,17 @@ where
 
     /// Setup all possible 2PC protocols prior to connecting to Server.
     /// Probes Server for supported ciphersuites if configured.
-    pub fn setup(&mut self) -> Result<(), Error> {
+    pub async fn setup(&mut self) -> Result<(), Error> {
         todo!()
     }
 
     /// Runs TLS handshake with Server to completion
-    pub fn complete_handshake(&mut self) -> Result<(), Error> {
+    pub async fn complete_handshake(&mut self) -> Result<(), Error> {
         todo!()
     }
 
     /// Sends application payload to Server
-    pub fn send(&mut self, payload: &[u8]) -> Result<(), Error> {
+    pub async fn send(&mut self, payload: &[u8]) -> Result<(), Error> {
         todo!()
     }
 }
