@@ -1,3 +1,0 @@
-"tests" folder must be present because in lib.rs inside "mod tests" we resolve the path
-#[path = "../backend/soft32.rs"]
-without a tests folder this path will not be resolved.

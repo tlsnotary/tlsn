@@ -49,15 +49,16 @@ mod backend;
 pub use backend::Clmul;
 
 #[cfg(test)]
+#[path = ""]
 mod tests {
     use rand::Rng;
     use rand_chacha::rand_core::SeedableRng;
     use rand_chacha::ChaCha12Rng;
-    // TODO I had to create an empty tests folder otherwise the path
-    // tests/../backend/soft32.rs was not found. Is this expected???
-    #[path = "../backend/soft32.rs"]
+
+    #[path = "backend/soft32.rs"]
     mod soft32;
-    #[path = "../backend/soft64.rs"]
+
+    #[path = "backend/soft64.rs"]
     mod soft64;
 
     #[test]
