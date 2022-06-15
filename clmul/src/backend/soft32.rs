@@ -26,7 +26,7 @@
 //! bit-reverse (over 64 bits) the result.
 
 use core::num::Wrapping;
-use core::ops::{BitXor, BitXorAssign};
+use core::ops::BitXor;
 
 pub type Clmul = U32x4;
 
@@ -46,17 +46,6 @@ impl From<U32x4> for [u8; 16] {
     }
 }
 
-impl From<U32x4> for u128 {
-    fn from(m: U32x4) -> u128 {
-        let mut b = [0u8; 16];
-        b[0..4].copy_from_slice(&m.2.to_le_bytes());
-        b[4..8].copy_from_slice(&m.3.to_le_bytes());
-        b[8..12].copy_from_slice(&m.0.to_le_bytes());
-        b[12..16].copy_from_slice(&m.1.to_le_bytes());
-        u128::from_le_bytes(b)
-    }
-}
-
 impl BitXor for U32x4 {
     type Output = Self;
 
@@ -68,16 +57,6 @@ impl BitXor for U32x4 {
             self.2 ^ other.2,
             self.3 ^ other.3,
         )
-    }
-}
-
-impl BitXorAssign for U32x4 {
-    #[inline]
-    fn bitxor_assign(&mut self, other: Self) {
-        self.0 ^= other.0;
-        self.1 ^= other.1;
-        self.2 ^= other.2;
-        self.3 ^= other.3;
     }
 }
 
@@ -169,8 +148,8 @@ impl U32x4 {
         zw[7] = rev32(c[12]) >> 1;
 
         (
-            U32x4(zw[2], zw[3], zw[0], zw[1]),
-            U32x4(zw[6], zw[7], zw[4], zw[5]),
+            U32x4(zw[0], zw[1], zw[2], zw[3]),
+            U32x4(zw[4], zw[5], zw[6], zw[7]),
         )
     }
 }

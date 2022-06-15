@@ -6,7 +6,7 @@
 //! Copyright (c) 2016 Thomas Pornin <pornin@bolet.org>
 //!
 use core::num::Wrapping;
-use core::ops::{BitXor, BitXorAssign};
+use core::ops::BitXor;
 
 pub type Clmul = U64x2;
 
@@ -24,29 +24,12 @@ impl From<U64x2> for [u8; 16] {
     }
 }
 
-impl From<U64x2> for u128 {
-    fn from(m: U64x2) -> u128 {
-        let mut b = [0u8; 16];
-        b[0..8].copy_from_slice(&m.1.to_le_bytes());
-        b[8..16].copy_from_slice(&m.0.to_le_bytes());
-        u128::from_le_bytes(b)
-    }
-}
-
 impl BitXor for U64x2 {
     type Output = Self;
 
     #[inline]
     fn bitxor(self, other: Self) -> Self::Output {
         Self(self.0 ^ other.0, self.1 ^ other.1)
-    }
-}
-
-impl BitXorAssign for U64x2 {
-    #[inline]
-    fn bitxor_assign(&mut self, other: Self) {
-        self.0 ^= other.0;
-        self.1 ^= other.1;
     }
 }
 
@@ -91,7 +74,7 @@ impl U64x2 {
         let v2 = z1 ^ z2h;
         let v3 = z1h;
 
-        (U64x2(v1, v0), U64x2(v3, v2))
+        (U64x2(v0, v1), U64x2(v2, v3))
     }
 }
 

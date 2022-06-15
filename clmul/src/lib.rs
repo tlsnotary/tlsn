@@ -46,7 +46,7 @@
 #![cfg_attr(all(feature = "armv8", target_arch = "aarch64"), feature(stdsimd))]
 
 mod backend;
-pub use crate::backend::Clmul;
+pub use backend::Clmul;
 
 #[cfg(test)]
 mod tests {
@@ -73,16 +73,22 @@ mod tests {
 
         let (r64_0, r64_1) = s64::new(&a).clmul(s64::new(&b));
         let (r32_0, r32_1) = s32::new(&a).clmul(s32::new(&b));
-        assert_eq!(u128::from(r64_0), u128::from(r32_0));
-        assert_eq!(u128::from(r64_1), u128::from(r32_1));
+        let r64_0: [u8; 16] = r64_0.into();
+        let r64_1: [u8; 16] = r64_1.into();
+        let r32_0: [u8; 16] = r32_0.into();
+        let r32_1: [u8; 16] = r32_1.into();
+        assert_eq!(r64_0, r32_0);
+        assert_eq!(r64_1, r32_1);
 
         // this will test the hard backend (if "force-soft" was set then it will
         // test the soft backend again)
-        use super::backend::Clmul;
+        use super::Clmul;
 
         let (c, d) = Clmul::new(&a).clmul(Clmul::new(&b));
-        assert_eq!(u128::from(r64_0), u128::from_le_bytes(c.into()));
-        assert_eq!(u128::from(r64_1), u128::from_le_bytes(d.into()));
+        let c: [u8; 16] = c.into();
+        let d: [u8; 16] = d.into();
+        assert_eq!(r64_0, c);
+        assert_eq!(r64_1, d);
     }
 
     #[test]
@@ -151,7 +157,7 @@ mod tests {
     // test CPU intrinsics backend (if "force-soft" was set then it will
     // test the soft backend again)
     fn clmul_xor_eq_hard() {
-        use super::backend::Clmul;
+        use super::Clmul;
 
         let mut one = [0u8; 16];
         one[15] = 1;

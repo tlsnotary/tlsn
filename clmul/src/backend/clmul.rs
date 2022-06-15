@@ -23,13 +23,6 @@ impl From<ClmulX86> for [u8; 16] {
     }
 }
 
-impl From<ClmulX86> for u128 {
-    #[inline]
-    fn from(m: ClmulX86) -> u128 {
-        unsafe { u128::from_le_bytes(core::mem::transmute(m)) }
-    }
-}
-
 impl BitXor for ClmulX86 {
     type Output = Self;
 
@@ -49,6 +42,7 @@ impl PartialEq for ClmulX86 {
 }
 
 impl ClmulX86 {
+    /// expects bytes in little-endian
     pub fn new(bytes: &[u8; 16]) -> Self {
         unsafe {
             // `_mm_loadu_si128` performs an unaligned load
@@ -118,7 +112,9 @@ mod tests {
             let rl = _mm_srli_si128(tmp, 8);
             let x = _mm_xor_si128(zero, ll);
             let y = _mm_xor_si128(three, rl);
-            (std::mem::transmute(x), std::mem::transmute(y))
+            let x_le: [u8; 16] = std::mem::transmute(x);
+            let y_le: [u8; 16] = std::mem::transmute(y);
+            (u128::from_le_bytes(x_le), u128::from_le_bytes(y_le))
         }
     }
 
@@ -128,9 +124,11 @@ mod tests {
         let a: [u8; 16] = rng.gen();
         let b: [u8; 16] = rng.gen();
 
-        let (rclm_0, rclm_1) = ClmulX86::new(&a).clmul(ClmulX86::new(&b));
+        let (r_0, r_1) = ClmulX86::new(&a).clmul(ClmulX86::new(&b));
         let (ref_0, ref_1) = clmul128(u128::from_le_bytes(a), u128::from_le_bytes(b));
-        assert_eq!(u128::from(rclm_0), ref_0);
-        assert_eq!(u128::from(rclm_1), ref_1);
+        let r_0: [u8; 16] = r_0.into();
+        let r_1: [u8; 16] = r_1.into();
+        assert_eq!(r_0, ref_0.to_le_bytes());
+        assert_eq!(r_1, ref_1.to_le_bytes());
     }
 }
