@@ -21,7 +21,7 @@
 //! file was created successfully, with the right permissions, etc., and that it
 //! contains something like what we expect.
 
-#![allow(dead_code, allow_unused_imports)]
+#![allow(dead_code, unused_imports)]
 
 mod common;
 
