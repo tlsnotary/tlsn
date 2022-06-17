@@ -3,7 +3,7 @@ use super::HandshakeMessage;
 use super::{errors::*, SlaveCore};
 use crate::msgs::handshake::*;
 
-#[derive(PartialEq, Copy, Clone)]
+#[derive(PartialEq, Copy, Clone, Debug)]
 enum State {
     Initialized,
     MsSetup,
@@ -19,7 +19,7 @@ enum State {
     Sf2,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct HandshakeSlaveCore {
     state: State,
     // Depending on the state, the outer hash state will be used for master
@@ -52,90 +52,69 @@ impl SlaveCore for HandshakeSlaveCore {
     /// Will be called repeatedly whenever there is a message from Master that
     /// needs to be processed.
     fn next(&mut self, message: HandshakeMessage) -> Result<HandshakeMessage, HandshakeError> {
-        match message {
-            HandshakeMessage::MasterMs1(m) => {
-                if self.state != State::MsSetup {
-                    return Err(HandshakeError::WrongState);
-                }
+        let message = match (self.state, message) {
+            (State::MsSetup, HandshakeMessage::MasterMs1(m)) => {
                 self.state = State::Ms1;
-                Ok(HandshakeMessage::SlaveMs1(SlaveMs1 {
+                HandshakeMessage::SlaveMs1(SlaveMs1 {
                     a1: self.ms1(&m.inner_hash),
-                }))
+                })
             }
-            HandshakeMessage::MasterMs2(m) => {
-                if self.state != State::Ms1 {
-                    return Err(HandshakeError::OutOfOrder);
-                }
+            (State::Ms1, HandshakeMessage::MasterMs2(m)) => {
                 self.state = State::Ms2;
-                Ok(HandshakeMessage::SlaveMs2(SlaveMs2 {
+                HandshakeMessage::SlaveMs2(SlaveMs2 {
                     a2: self.ms2(&m.inner_hash),
-                }))
+                })
             }
-            HandshakeMessage::MasterMs3(m) => {
-                if self.state != State::Ms2 {
-                    return Err(HandshakeError::OutOfOrder);
-                }
+            (State::Ms2, HandshakeMessage::MasterMs3(m)) => {
                 self.state = State::Ms3;
-                Ok(HandshakeMessage::SlaveMs3(SlaveMs3 {
+                HandshakeMessage::SlaveMs3(SlaveMs3 {
                     p2: self.ms3(&m.inner_hash),
-                }))
+                })
             }
-            HandshakeMessage::MasterKe1(m) => {
-                if self.state != State::KeSetup {
-                    return Err(HandshakeError::WrongState);
-                }
+            (State::KeSetup, HandshakeMessage::MasterKe1(m)) => {
                 self.state = State::Ke1;
-                Ok(HandshakeMessage::SlaveKe1(SlaveKe1 {
+                HandshakeMessage::SlaveKe1(SlaveKe1 {
                     a1: self.ke1(&m.inner_hash),
-                }))
+                })
             }
-            HandshakeMessage::MasterKe2(m) => {
-                if self.state != State::Ke1 {
-                    return Err(HandshakeError::OutOfOrder);
-                }
+            (State::Ke1, HandshakeMessage::MasterKe2(m)) => {
                 self.state = State::Ke2;
-                Ok(HandshakeMessage::SlaveKe2(SlaveKe2 {
+                HandshakeMessage::SlaveKe2(SlaveKe2 {
                     a2: self.ke2(&m.inner_hash),
-                }))
+                })
             }
-            HandshakeMessage::MasterCf1(m) => {
-                if self.state != State::Ke2 {
-                    return Err(HandshakeError::OutOfOrder);
-                }
+            (State::Ke2, HandshakeMessage::MasterCf1(m)) => {
                 self.state = State::Cf1;
-                Ok(HandshakeMessage::SlaveCf1(SlaveCf1 {
+                HandshakeMessage::SlaveCf1(SlaveCf1 {
                     a1: self.cf1(&m.inner_hash),
-                }))
+                })
             }
-            HandshakeMessage::MasterCf2(m) => {
-                if self.state != State::Cf1 {
-                    return Err(HandshakeError::OutOfOrder);
-                }
+            (State::Cf1, HandshakeMessage::MasterCf2(m)) => {
                 self.state = State::Cf2;
-                Ok(HandshakeMessage::SlaveCf2(SlaveCf2 {
+                HandshakeMessage::SlaveCf2(SlaveCf2 {
                     verify_data: self.cf2(&m.inner_hash),
-                }))
+                })
             }
-            HandshakeMessage::MasterSf1(m) => {
-                if self.state != State::Cf2 {
-                    return Err(HandshakeError::OutOfOrder);
-                }
+            (State::Cf2, HandshakeMessage::MasterSf1(m)) => {
                 self.state = State::Sf1;
-                Ok(HandshakeMessage::SlaveSf1(SlaveSf1 {
+                HandshakeMessage::SlaveSf1(SlaveSf1 {
                     a1: self.sf1(&m.inner_hash),
-                }))
+                })
             }
-            HandshakeMessage::MasterSf2(m) => {
-                if self.state != State::Sf1 {
-                    return Err(HandshakeError::OutOfOrder);
-                }
+            (State::Sf1, HandshakeMessage::MasterSf2(m)) => {
                 self.state = State::Sf2;
-                Ok(HandshakeMessage::SlaveSf2(SlaveSf2 {
+                HandshakeMessage::SlaveSf2(SlaveSf2 {
                     verify_data: self.sf2(&m.inner_hash),
-                }))
+                })
             }
-            _ => Err(HandshakeError::InvalidMessage),
-        }
+            _ => {
+                return Err(HandshakeError::InvalidMessage(
+                    Box::new(self.state),
+                    Box::new(message),
+                ))
+            }
+        };
+        Ok(message)
     }
 }
 
