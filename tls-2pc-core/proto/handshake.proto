@@ -1,0 +1,114 @@
+syntax = "proto2";
+
+package handshake;
+
+message MasterMs1 {
+    // H((pms xor ipad) || seed)
+    required bytes inner_hash = 1;
+}
+
+message MasterMs2 {
+    // H((pms xor ipad) || a1)
+    required bytes inner_hash = 1;
+}
+
+message MasterMs3 {
+    // H((pms xor ipad) || a2)
+    required bytes inner_hash = 1;
+}
+
+message MasterKe1 {
+    // H((ms xor ipad) || seed)
+    required bytes inner_hash = 1;
+}
+
+message MasterKe2 {
+    // H((ms xor ipad) || a1)
+    required bytes inner_hash = 1;
+}
+
+message MasterCf1 {
+    // H((ms xor ipad) || seed)
+    required bytes inner_hash = 1;
+}
+
+message MasterCf2 {
+    // H((ms xor ipad) || a1 || seed)
+    required bytes inner_hash = 1;
+}
+
+message MasterSf1 {
+    // H((ms xor ipad) || seed)
+    required bytes inner_hash = 1;
+}
+
+message MasterSf2 {
+    // H((ms xor ipad) || a1 || seed)
+    required bytes inner_hash = 1;
+}
+
+message SlaveMs1 {
+    // H((pms xor opad) || H((pms xor ipad) || seed))
+    required bytes a1 = 1;
+}
+
+message SlaveMs2 {
+    // H((pms xor opad) || H((pms xor ipad) || a1))
+    required bytes a2 = 1;
+}
+
+message SlaveMs3 {
+    // H((pms xor opad) || H((pms xor ipad) || a2 || seed))
+    required bytes p2 = 1;
+}
+
+message SlaveKe1 {
+    // H((ms xor opad) || H((ms xor ipad) || seed))
+    required bytes a1 = 1;
+}
+
+message SlaveKe2 {
+    // H((ms xor opad) || H((ms xor ipad) || a1))
+    required bytes a2 = 1;
+}
+
+message SlaveCf1 {
+    // H((ms xor opad) || H((ms xor ipad) || seed))
+    required bytes a1 = 1;
+}
+
+message SlaveCf2 {
+    required bytes verify_data = 1;
+}
+
+message SlaveSf1 {
+    // H((ms xor opad) || H((ms xor ipad) || seed))
+    required bytes a1 = 1;
+}
+
+message SlaveSf2 {
+    required bytes verify_data = 1;
+}
+
+message HandshakeMessage {
+    oneof msg {
+        MasterMs1 mms1 = 1;
+        MasterMs2 mms2 = 2;
+        MasterMs3 mms3 = 3;
+        MasterKe1 mke1 = 4;
+        MasterKe2 mke2 = 5;
+        MasterCf1 mcf1 = 6;
+        MasterCf2 mcf2 = 7;
+        MasterSf1 msf1 = 8;
+        MasterSf2 msf2 = 9;
+        SlaveMs1 sms1 = 10;
+        SlaveMs2 sms2 = 11;
+        SlaveMs3 sms3 = 12;
+        SlaveKe1 ske1 = 13;
+        SlaveKe2 ske2 = 14;
+        SlaveCf1 scf1 = 15;
+        SlaveCf2 scf2 = 16;
+        SlaveSf1 ssf1 = 17;
+        SlaveSf2 ssf2 = 18;
+    }
+}

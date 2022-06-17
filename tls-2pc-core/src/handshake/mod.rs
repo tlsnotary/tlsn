@@ -6,8 +6,8 @@ mod utils;
 
 pub use crate::msgs::handshake::HandshakeMessage;
 use errors::*;
-pub use master::HandshakeMaster;
-pub use slave::HandshakeSlave;
+pub use master::HandshakeMasterCore;
+pub use slave::HandshakeSlaveCore;
 
 pub trait MasterCore {
     /// The first method that should be called after instantiation. Performs
@@ -68,8 +68,8 @@ mod tests {
 
         let (ipad, opad) = generate_hmac_pads(&pms);
 
-        let mut master = HandshakeMaster::new(client_random, server_random);
-        let mut slave = HandshakeSlave::new();
+        let mut master = HandshakeMasterCore::new(client_random, server_random);
+        let mut slave = HandshakeSlaveCore::new();
 
         // H(pms xor ipad)
         let inner_hash_state = partial_sha256_digest(&ipad);

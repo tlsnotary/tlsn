@@ -20,14 +20,14 @@ enum State {
 }
 
 #[derive(Copy, Clone)]
-pub struct HandshakeSlave {
+pub struct HandshakeSlaveCore {
     state: State,
     // Depending on the state, the outer hash state will be used for master
     // secret or for key expansion.
     outer_hash_state: Option<[u32; 8]>,
 }
 
-impl SlaveCore for HandshakeSlave {
+impl SlaveCore for HandshakeSlaveCore {
     /// The first method that should be called after instantiation. Performs
     /// setup before we can process master secret related messages.
     fn ms_setup(&mut self, outer_hash_state: [u32; 8]) -> Result<(), HandshakeError> {
@@ -139,7 +139,7 @@ impl SlaveCore for HandshakeSlave {
     }
 }
 
-impl HandshakeSlave {
+impl HandshakeSlaveCore {
     pub fn new() -> Self {
         Self {
             state: State::Initialized,

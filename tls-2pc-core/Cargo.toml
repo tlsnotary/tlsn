@@ -7,9 +7,10 @@ edition = "2018"
 name = "tls_2pc_core"
 
 [features]
-default = ["handshake", "ghash"]
+default = ["handshake", "ghash", "proto"]
 handshake = []
 ghash = []
+proto = ["prost", "prost-build"]
 
 [dependencies]
 tlsn-mpc-core = { path = "../mpc-core" }
@@ -19,9 +20,13 @@ hmac = { version = "0.12.1" }
 elliptic-curve = { version = "0.11.12" }
 rand = "0.8.5"
 thiserror = "1.0.30"
+prost = { version = "0.9", optional = true }
 
 [dev-dependencies]
 criterion = "0.3.5"
 ghash_rc = { package = "ghash", version = "0.4.4" }
 rand_chacha = "0.3.1"
 hex = "0.4"
+
+[build-dependencies]
+prost-build = { version = "0.9", optional = true }

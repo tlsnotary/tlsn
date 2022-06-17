@@ -22,7 +22,7 @@ enum State {
 }
 
 #[derive(Copy, Clone)]
-pub struct HandshakeMaster {
+pub struct HandshakeMasterCore {
     client_random: [u8; 32],
     server_random: [u8; 32],
     state: State,
@@ -46,7 +46,7 @@ pub struct HandshakeMaster {
     server_finished_vd: Option<[u8; 12]>,
 }
 
-impl MasterCore for HandshakeMaster {
+impl MasterCore for HandshakeMasterCore {
     /// The first method that should be called after instantiation. Performs
     /// setup before we can process master secret related messages.
     fn ms_setup(&mut self, inner_hash_state: [u32; 8]) -> Result<HandshakeMessage, HandshakeError> {
@@ -198,7 +198,7 @@ impl MasterCore for HandshakeMaster {
     }
 }
 
-impl HandshakeMaster {
+impl HandshakeMasterCore {
     pub fn new(client_random: [u8; 32], server_random: [u8; 32]) -> Self {
         Self {
             state: State::Initialized,
