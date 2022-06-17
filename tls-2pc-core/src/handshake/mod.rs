@@ -31,13 +31,13 @@ pub trait MasterCore {
     ) -> Result<Option<HandshakeMessage>, HandshakeError>;
 
     // Returns inner_hashes for p1 and p2 for key expansion
-    fn get_inner_hashes_ke(self) -> ([u8; 32], [u8; 32]);
+    fn get_inner_hashes_ke(self) -> Result<([u8; 32], [u8; 32]), HandshakeError>;
 
     // Returns verify_data for Client_Finished
-    fn get_client_finished_vd(self) -> [u8; 12];
+    fn get_client_finished_vd(self) -> Result<[u8; 12], HandshakeError>;
 
     // Returns verify_data for Server_Finished
-    fn get_server_finished_vd(self) -> [u8; 12];
+    fn get_server_finished_vd(self) -> Result<[u8; 12], HandshakeError>;
 }
 
 pub trait SlaveCore {
@@ -164,7 +164,7 @@ mod tests {
         assert_eq!(&a2, &hmac_sha256(&ms, &a1));
 
         master.next(message).unwrap();
-        let (inner_hash_p1, inner_hash_p2) = master.get_inner_hashes_ke();
+        let (inner_hash_p1, inner_hash_p2) = master.get_inner_hashes_ke().unwrap();
 
         let p1 = finalize_sha256_digest(outer_hash_state, 64, &inner_hash_p1);
         let p2 = finalize_sha256_digest(outer_hash_state, 64, &inner_hash_p2);
@@ -201,7 +201,7 @@ mod tests {
         assert_eq!(&vd, &hmac_sha256(&ms, &a1_seed)[..12]);
 
         master.next(message).unwrap();
-        let cfvd = master.get_client_finished_vd();
+        let cfvd = master.get_client_finished_vd().unwrap();
 
         let message = master.sf_setup(&handshake_blob).unwrap();
         let message = slave.next(message).unwrap();
@@ -230,7 +230,7 @@ mod tests {
         assert_eq!(&vd, &hmac_sha256(&ms, &a1_seed)[..12]);
 
         master.next(message).unwrap();
-        let sfvd = master.get_server_finished_vd();
+        let sfvd = master.get_server_finished_vd().unwrap();
 
         // reference values were computed with python3:
         // import scapy

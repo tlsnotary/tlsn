@@ -1,7 +1,7 @@
 use super::sha::finalize_sha256_digest;
 use super::utils::{seed_cf, seed_ke, seed_ms, seed_sf};
 use super::HandshakeMessage;
-use super::{errors::*, MasterCore};
+use super::{errors::HandshakeError, MasterCore};
 use crate::msgs::handshake::*;
 
 #[derive(PartialEq, Copy, Clone, Debug)]
@@ -78,12 +78,13 @@ impl MasterCore for HandshakeMasterCore {
 
     // Performs setup before we can process Client_Finished related messages.
     fn cf_setup(&mut self, handshake_blob: &[u8]) -> Result<HandshakeMessage, HandshakeError> {
-        if self.state != State::KeComplete {
-            return Err(HandshakeError::WrongState);
-        }
+        let inner_hash_state = match (self.state, self.inner_hash_state) {
+            (State::KeComplete, Some(state)) => state,
+            _ => return Err(HandshakeError::WrongState),
+        };
         let seed = seed_cf(handshake_blob);
         // H((ms xor ipad) || seed)
-        let inner_hash = finalize_sha256_digest(self.inner_hash_state.unwrap(), 64, &seed);
+        let inner_hash = finalize_sha256_digest(inner_hash_state, 64, &seed);
         self.seed_fin = Some(seed);
         self.state = State::Cf1;
         Ok(HandshakeMessage::MasterCf1(MasterCf1 { inner_hash }))
@@ -91,12 +92,13 @@ impl MasterCore for HandshakeMasterCore {
 
     // Performs setup before we can process Server_Finished related messages.
     fn sf_setup(&mut self, handshake_blob: &[u8]) -> Result<HandshakeMessage, HandshakeError> {
-        if self.state != State::CfComplete {
-            return Err(HandshakeError::WrongState);
-        }
+        let inner_hash_state = match (self.state, self.inner_hash_state) {
+            (State::CfComplete, Some(state)) => state,
+            _ => return Err(HandshakeError::WrongState),
+        };
         let seed = seed_sf(handshake_blob);
         // H((ms xor ipad) || seed)
-        let inner_hash = finalize_sha256_digest(self.inner_hash_state.unwrap(), 64, &seed);
+        let inner_hash = finalize_sha256_digest(inner_hash_state, 64, &seed);
         self.seed_fin = Some(seed);
         self.state = State::Sf1;
         Ok(HandshakeMessage::MasterSf1(MasterSf1 { inner_hash }))
@@ -167,16 +169,19 @@ impl MasterCore for HandshakeMasterCore {
         Ok(message)
     }
 
-    fn get_inner_hashes_ke(self) -> ([u8; 32], [u8; 32]) {
-        (self.inner_hash_p1.unwrap(), self.inner_hash_p2.unwrap())
+    fn get_inner_hashes_ke(self) -> Result<([u8; 32], [u8; 32]), HandshakeError> {
+        match (self.inner_hash_p1, self.inner_hash_p2) {
+            (Some(p1), Some(p2)) => Ok((p1, p2)),
+            _ => return Err(HandshakeError::WrongState),
+        }
     }
 
-    fn get_client_finished_vd(self) -> [u8; 12] {
-        self.client_finished_vd.unwrap()
+    fn get_client_finished_vd(self) -> Result<[u8; 12], HandshakeError> {
+        self.client_finished_vd.ok_or(HandshakeError::WrongState)
     }
 
-    fn get_server_finished_vd(self) -> [u8; 12] {
-        self.server_finished_vd.unwrap()
+    fn get_server_finished_vd(self) -> Result<[u8; 12], HandshakeError> {
+        self.server_finished_vd.ok_or(HandshakeError::WrongState)
     }
 }
 
