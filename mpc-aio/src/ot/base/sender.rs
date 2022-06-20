@@ -51,7 +51,7 @@ where
         self.stream.send(Message::SenderSetup(setup)).await?;
 
         let setup = match self.stream.next().await {
-            Some(Ok(Message::ReceiverSetup(m))) => m,
+            Some(Ok(Message::ReceiverChoices(m))) => m,
             Some(Ok(m)) => return Err(OTError::Unexpected(m)),
             Some(Err(e)) => return Err(e)?,
             None => return Err(IOError::new(ErrorKind::UnexpectedEof, ""))?,
@@ -61,7 +61,7 @@ where
         let payload = self.ot.send(payload, setup)?;
 
         trace!("Sending SenderPayload: {:?}", &payload);
-        self.stream.send(Message::SenderPayload(payload)).await?;
+        self.stream.send(Message::SenderOutput(payload)).await?;
 
         Ok(())
     }

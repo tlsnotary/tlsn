@@ -1,37 +1,24 @@
-//! this crate implements the CO15 Oblivious Transfer protocol from
-//! [ref1] https://eprint.iacr.org/2015/267.pdf (see Figure 1)
+//! This crate implements types and imple
 
+pub mod dh_ot;
 pub mod errors;
-pub mod receiver;
-pub mod sender;
 
 pub use errors::*;
 
-pub use receiver::{ReceiverCore, ReceiverSetup};
-pub use sender::{SenderCore, SenderPayload, SenderSetup};
-
-pub trait SendCore {
-    fn state(&self) -> sender::State;
-
-    fn setup(&mut self) -> SenderSetup;
-
-    fn send(
-        &mut self,
-        inputs: &[[crate::Block; 2]],
-        receiver_setup: ReceiverSetup,
-    ) -> Result<SenderPayload, SenderCoreError>;
+/// The state of an OT sender
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SenderState {
+    Initialized,
+    ReadyToSend,
+    Complete,
 }
 
-pub trait ReceiveCore {
-    fn state(&self) -> receiver::State;
-
-    fn setup(
-        &mut self,
-        choice: &[bool],
-        sender_setup: SenderSetup,
-    ) -> Result<ReceiverSetup, ReceiverCoreError>;
-
-    fn receive(&mut self, payload: SenderPayload) -> Result<Vec<crate::Block>, ReceiverCoreError>;
+/// The state of an OT receiver
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ReceiverState {
+    Initialized,
+    Setup,
+    Complete,
 }
 
 #[cfg(test)]
@@ -42,13 +29,16 @@ pub mod tests {
     use rand::{thread_rng, RngCore};
     use rstest::*;
 
+    // We test the CO15 scheme only
+    use dh_ot::*;
+
     pub mod fixtures {
         use super::*;
 
         pub struct Data {
             pub sender_setup: SenderSetup,
-            pub receiver_setup: ReceiverSetup,
-            pub sender_payload: SenderPayload,
+            pub receiver_choices: ReceiverChoices,
+            pub sender_output: SenderPayload,
             pub receiver_values: Vec<Block>,
         }
 
@@ -72,18 +62,19 @@ pub mod tests {
         #[fixture]
         #[once]
         pub fn ot_core_data(choice: &Vec<bool>, values: &Vec<[Block; 2]>) -> Data {
-            let mut sender = SenderCore::new(values.len());
+            let mut sender = DhOtSender::new(values.len());
             let sender_setup = sender.setup();
 
-            let mut receiver = ReceiverCore::new(choice.len());
-            let receiver_setup = receiver.setup(choice, sender_setup).unwrap();
-            let sender_payload = sender.send(values, receiver_setup.clone()).unwrap();
-            let receiver_values = receiver.receive(sender_payload.clone()).unwrap();
+            let mut receiver = DhOtReceiver::new(choice.len());
+            let receiver_choices = receiver.setup(choice, sender_setup).unwrap();
+
+            let sender_output = sender.send(values, receiver_choices.clone()).unwrap();
+            let receiver_values = receiver.receive(sender_output.clone()).unwrap();
 
             Data {
                 sender_setup,
-                receiver_setup,
-                sender_payload,
+                receiver_choices,
+                sender_output,
                 receiver_values,
             }
         }
@@ -104,13 +95,13 @@ pub mod tests {
             .map(|(input, choice)| input[*choice as usize])
             .collect();
 
-        let mut sender = SenderCore::new(s_inputs.len());
+        let mut sender = DhOtSender::new(s_inputs.len());
         let sender_setup = sender.setup();
 
-        let mut receiver = ReceiverCore::new(choice.len());
-        let receiver_setup = receiver.setup(&choice, sender_setup).unwrap();
+        let mut receiver = DhOtReceiver::new(choice.len());
+        let receiver_choices = receiver.setup(&choice, sender_setup).unwrap();
 
-        let send = sender.send(&s_inputs, receiver_setup).unwrap();
+        let send = sender.send(&s_inputs, receiver_choices).unwrap();
         let receive = receiver.receive(send).unwrap();
         assert_eq!(expected, receive);
     }
