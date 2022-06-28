@@ -2,7 +2,6 @@ use cipher::{consts::U16, generic_array::GenericArray, BlockCipher, BlockEncrypt
 use core::ops::{BitAnd, BitXor};
 use rand::{CryptoRng, Rng};
 use serde::{Deserialize, Serialize};
-use sha2::Digest;
 use std::convert::{From, TryInto};
 
 #[repr(transparent)]

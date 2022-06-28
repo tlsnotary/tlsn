@@ -2,7 +2,7 @@ use crate::{
     ot::base::{
         dh_ot::{
             decrypt_input, hash_point, ReceiverChoices, ReceiverCoreError, SenderPayload,
-            SenderSetup,
+            SenderSetup, DOMAIN_SEP,
         },
         ReceiverState,
     },
@@ -23,43 +23,48 @@ pub struct DhOtReceiver {
     /// The transcript of the protocol so far
     transcript: Transcript,
     /// The keys used to decrypt the sender's responses
-    decryption_keys: Option<Vec<[u8; 32]>>,
+    decryption_keys: Option<Vec<Block>>,
     /// The bits that this receiver picked
     choices: Option<Vec<bool>>,
 }
 
+impl Default for DhOtReceiver {
+    fn default() -> Self {
+        DhOtReceiver {
+            state: ReceiverState::Initialized,
+            transcript: Transcript::new(DOMAIN_SEP),
+            decryption_keys: None,
+            choices: None,
+        }
+    }
+}
+
 impl DhOtReceiver {
     /// Returns current state of this OT protocol
-    fn state(&self) -> ReceiverState {
+    pub fn state(&self) -> ReceiverState {
         self.state
     }
 
     /// Constructs all the blinded choices, given the sender's pubkey
-    fn setup<R: CryptoRng + RngCore>(
+    pub fn setup<R: CryptoRng + RngCore>(
         &mut self,
         rng: &mut R,
         choices: &[bool],
         sender_setup: SenderSetup,
     ) -> Result<ReceiverChoices, ReceiverCoreError> {
-        if choices.len() != self.count {
-            return Err(ReceiverCoreError::InvalidchoicesLength);
-        }
-
         // Log the sending of the pubkey
         self.transcript
-            .append_msg(sender_setup.public_key.compress().as_bytes());
+            .append_message(b"pubkey", sender_setup.public_key.compress().as_bytes());
 
         // point_table is A in [ref1]
         let public_key = sender_setup.public_key;
         let point_table = RistrettoBasepointTable::create(&public_key);
-        let zero = RistrettoPoint::zero();
 
         // Construct the return value and compute the decryption keys in advance for the sender's
         // response ciphertexts
         let (blinded_choices, decryption_keys): (Vec<RistrettoPoint>, Vec<Block>) = choices
             .iter()
-            .enumerate()
-            .map(|(i, c)| {
+            .map(|c| {
                 let b = Scalar::random(rng);
                 // blinded_choice is B in [ref1]
                 let blinded_choice = if *c {
@@ -70,14 +75,14 @@ impl DhOtReceiver {
 
                 // Witness the blinded choice in the transcript
                 self.transcript
-                    .append_message(&blinded_choice.compress().as_bytes(), "B");
+                    .append_message(b"B", blinded_choice.compress().as_bytes());
 
                 // Construct a tweak to domain-separate the ristretto point hashes
                 let mut tweak = [0u8; 16];
-                self.transcript.challenge_bytes(&mut tweak, "tweak");
+                self.transcript.challenge_bytes(b"tweak", &mut tweak);
 
                 // dec_key is k_r in [ref1] == hash(A^b)
-                let dec_key = hash_point(&b * point_table, &tweak);
+                let dec_key = hash_point(&(&b * &point_table), &tweak);
                 // we send the choice values to the Sender and keep the h values
                 (blinded_choice, dec_key)
             })
@@ -86,29 +91,31 @@ impl DhOtReceiver {
         // Update the state
         self.decryption_keys = Some(decryption_keys);
         self.choices = Some(Vec::from(choices));
-        self.state = ReceiverState::Setup;
+        self.state = ReceiverState::Initialized;
 
         // Return the blinded choices
         Ok(ReceiverChoices { blinded_choices })
     }
 
     /// Decrypts the OT sender's ciphertexts
-    fn receive(&mut self, payload: SenderPayload) -> Result<Vec<Block>, ReceiverCoreError> {
-        if self.state != ReceiverState::Setup {
+    pub fn receive(&mut self, payload: SenderPayload) -> Result<Vec<Block>, ReceiverCoreError> {
+        if self.state != ReceiverState::Initialized {
             return Err(ReceiverCoreError::NotSetup);
         }
 
         let keys = self.decryption_keys.as_ref().unwrap();
         let selected_inputs: Result<Vec<Block>, ReceiverCoreError> = self
             .choices
+            .as_ref()
+            .unwrap()
             .iter()
             .zip(keys)
             .zip(payload.ciphertexts.iter())
-            .map(|((c, key), [ct0, ct1])| {
+            .map(|((&c, &key), [ct0, ct1])| {
                 // Select an encrypted value based on the choices bit
                 let ct = if c { ct1 } else { ct0 };
                 // Decrypt it with the corresponding key
-                decrypt_input(key, ct)
+                decrypt_input(key, *ct)
             })
             .collect();
 

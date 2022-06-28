@@ -38,13 +38,8 @@ impl Default for DhOtSender {
 }
 
 impl DhOtSender {
-    /// Returns current state of this OT protocol
-    fn state(&self) -> SenderState {
-        self.state
-    }
-
     /// Generates the keypair to be used by the sender for this OT
-    fn setup<R: CryptoRng + RngCore>(&mut self, rng: &mut R) -> SenderSetup {
+    pub fn setup<R: CryptoRng + RngCore>(&mut self, rng: &mut R) -> SenderSetup {
         // Randomly sample a
         let private_key = Scalar::random(rng);
         // Compute the pubkey A = aG where G is a generator
@@ -56,7 +51,8 @@ impl DhOtSender {
         self.state = SenderState::ReadyToSend;
 
         // Log the sending of the pubkey
-        self.transcript.append_msg(public_key.compress().as_bytes());
+        self.transcript
+            .append_message(b"pubkey", public_key.compress().as_bytes());
 
         // Return the pubkey
         SenderSetup { public_key }
@@ -64,14 +60,14 @@ impl DhOtSender {
 
     /// For each i, sends `inputs[i][0]` or `inputs[i][1]` base on the corresponding receiver's
     /// choices. Panics if `inputs.len() != receivers_choices.blinded_choices.len()`.
-    fn send(
+    pub fn send(
         &mut self,
-        inputs: Vec<[Block; 2]>,
+        inputs: &[[Block; 2]],
         receivers_choices: ReceiverChoices,
     ) -> Result<SenderPayload, SenderCoreError> {
         // This sender needs to be ready to send, and the number of inputs needs to be equal to the
         // number of choices
-        if self.state != SenderState::Setup {
+        if self.state != SenderState::Initialized {
             return Err(SenderCoreError::NotSetup);
         } else if self.state != SenderState::ReadyToSend {
             return Err(SenderCoreError::NotSetup);
@@ -89,17 +85,17 @@ impl DhOtSender {
             .map(|(input, receivers_choice)| {
                 // Witness the receiver's choice in the transcript
                 self.transcript
-                    .append_message(&receivers_choice.compress().as_bytes(), "B");
+                    .append_message(b"B", &*receivers_choice.compress().as_bytes());
 
                 // Construct a tweak to domain-separate the ristretto point hashes
                 let mut tweak = [0u8; 16];
-                self.transcript.challenge_bytes(&mut tweak, "tweak");
+                self.transcript.challenge_bytes(b"tweak", &mut tweak);
 
                 // yr is B^a in [ref1]
                 let yr = private_key * receivers_choice;
-                let k0 = hash_point(&yr, &tweak);
+                let k0 = hash_point(&yr, &tweak).into();
                 // yr - ys == (B/A)^a in [ref1]
-                let k1 = hash_point(&(yr - ys), &tweak);
+                let k1 = hash_point(&(yr - ys), &tweak).into();
 
                 [encrypt_input(k0, input[0]), encrypt_input(k1, input[1])]
             })

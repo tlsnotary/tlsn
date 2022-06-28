@@ -1,17 +1,11 @@
 //! This crate implements the KOS15 Oblivious Transfer extension protocol.
 
 pub mod errors;
-pub mod receiver;
-pub mod sender;
+pub mod kos15;
 
-pub use crate::ot::base::{ReceiverSetup, SenderPayload, SenderSetup};
 pub use crate::Block;
 pub use clmul::Clmul;
 pub use errors::*;
-pub use receiver::{
-    BaseSenderPayload, BaseSenderSetup, ExtDerandomize, ExtReceiverCore, ExtReceiverSetup,
-};
-pub use sender::{BaseReceiverSetup, ExtSenderCore, ExtSenderPayload};
 
 pub const BASE_COUNT: usize = 128;
 
@@ -20,111 +14,89 @@ pub const BASE_COUNT: usize = 128;
 const K: usize = 40;
 
 pub trait ExtSendCore {
-    fn state(&self) -> sender::State;
+    type State;
+    type BaseSenderSetup;
+    type BaseSenderPayload;
+    type BaseReceiverSetup;
+    type ExtSenderPayload;
+    type ExtReceiverSetup;
 
-    //
+    fn state(&self) -> &Self::State;
+
     fn base_setup(
         &mut self,
-        base_sender_setup: BaseSenderSetup,
-    ) -> Result<BaseReceiverSetup, ExtSenderCoreError>;
+        base_sender_setup: Self::BaseSenderSetup,
+    ) -> Result<Self::BaseReceiverSetup, ExtSenderCoreError>;
 
-    fn base_receive(&mut self, payload: BaseSenderPayload) -> Result<(), ExtSenderCoreError>;
+    fn base_receive(&mut self, payload: Self::BaseSenderPayload) -> Result<(), ExtSenderCoreError>;
 
     fn extension_setup(
         &mut self,
-        receiver_setup: ExtReceiverSetup,
+        receiver_setup: Self::ExtReceiverSetup,
     ) -> Result<(), ExtSenderCoreError>;
 
-    fn send(&mut self, inputs: &[[Block; 2]]) -> Result<ExtSenderPayload, ExtSenderCoreError>;
+    fn send(&mut self, inputs: &[[Block; 2]])
+        -> Result<Self::ExtSenderPayload, ExtSenderCoreError>;
 
     fn is_complete(&self) -> bool;
 }
 
 pub trait ExtRandomSendCore: ExtSendCore {
-    fn state(&self) -> sender::State {
-        ExtSendCore::state(self)
-    }
-
-    // Sender in OT extension acts as Receiver in base OT and receives a setup
-    // message from base OT Sender and responds with its own setup message.
-    fn base_setup(
-        &mut self,
-        base_sender_setup: BaseSenderSetup,
-    ) -> Result<BaseReceiverSetup, ExtSenderCoreError> {
-        ExtSendCore::base_setup(self, base_sender_setup)
-    }
-
-    fn base_receive(&mut self, payload: BaseSenderPayload) -> Result<(), ExtSenderCoreError> {
-        ExtSendCore::base_receive(self, payload)
-    }
-
-    fn extension_setup(
-        &mut self,
-        receiver_setup: ExtReceiverSetup,
-    ) -> Result<(), ExtSenderCoreError> {
-        ExtSendCore::extension_setup(self, receiver_setup)
-    }
+    type ExtDerandomize;
 
     fn send(
         &mut self,
         inputs: &[[Block; 2]],
-        derandomize: ExtDerandomize,
-    ) -> Result<ExtSenderPayload, ExtSenderCoreError>;
-
-    fn is_complete(&self) -> bool {
-        ExtSendCore::is_complete(self)
-    }
+        derandomize: Self::ExtDerandomize,
+    ) -> Result<Self::ExtSenderPayload, ExtSenderCoreError>;
 }
 
 pub trait ExtReceiveCore {
-    fn state(&self) -> &receiver::State;
+    type State;
+    type BaseSenderSetup;
+    type BaseSenderPayload;
+    type BaseReceiverSetup;
+    type ExtSenderPayload;
+    type ExtReceiverSetup;
+
+    fn state(&self) -> &Self::State;
 
     // Receiver in OT extension acts as Sender in base OT and sends the first
     // base OT setup message.
-    fn base_setup(&mut self) -> Result<BaseSenderSetup, ExtReceiverCoreError>;
+    fn base_setup(&mut self) -> Result<Self::BaseSenderSetup, ExtReceiverCoreError>;
 
     fn base_send(
         &mut self,
-        base_receiver_setup: BaseReceiverSetup,
-    ) -> Result<BaseSenderPayload, ExtReceiverCoreError>;
+        base_receiver_setup: Self::BaseReceiverSetup,
+    ) -> Result<Self::BaseSenderPayload, ExtReceiverCoreError>;
 
     fn extension_setup(
         &mut self,
         choice: &[bool],
-    ) -> Result<ExtReceiverSetup, ExtReceiverCoreError>;
+    ) -> Result<Self::ExtReceiverSetup, ExtReceiverCoreError>;
 
-    fn receive(&mut self, payload: ExtSenderPayload) -> Result<Vec<Block>, ExtReceiverCoreError>;
+    fn receive(
+        &mut self,
+        payload: Self::ExtSenderPayload,
+    ) -> Result<Vec<Block>, ExtReceiverCoreError>;
 
     fn is_complete(&self) -> bool;
 }
 
 pub trait ExtRandomReceiveCore: ExtReceiveCore {
-    fn state(&self) -> &receiver::State {
-        ExtReceiveCore::state(self)
-    }
+    type ExtDerandomize;
 
-    // Receiver in OT extension acts as Sender in base OT and sends the first
-    // base OT setup message.
-    fn base_setup(&mut self) -> Result<BaseSenderSetup, ExtReceiverCoreError> {
-        ExtReceiveCore::base_setup(self)
-    }
+    fn rand_extension_setup(&mut self) -> Result<Self::ExtReceiverSetup, ExtReceiverCoreError>;
 
-    fn base_send(
+    fn rand_receive(
         &mut self,
-        base_receiver_setup: BaseReceiverSetup,
-    ) -> Result<BaseSenderPayload, ExtReceiverCoreError> {
-        ExtReceiveCore::base_send(self, base_receiver_setup)
-    }
+        payload: Self::ExtSenderPayload,
+    ) -> Result<Vec<Block>, ExtReceiverCoreError>;
 
-    fn extension_setup(&mut self) -> Result<ExtReceiverSetup, ExtReceiverCoreError>;
-
-    fn derandomize(&mut self, choice: &[bool]) -> Result<ExtDerandomize, ExtReceiverCoreError>;
-
-    fn receive(&mut self, payload: ExtSenderPayload) -> Result<Vec<Block>, ExtReceiverCoreError>;
-
-    fn is_complete(&self) -> bool {
-        ExtReceiveCore::is_complete(self)
-    }
+    fn derandomize(
+        &mut self,
+        choice: &[bool],
+    ) -> Result<Self::ExtDerandomize, ExtReceiverCoreError>;
 }
 
 #[cfg(test)]
