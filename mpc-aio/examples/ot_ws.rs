@@ -4,7 +4,7 @@ use futures::{AsyncRead, AsyncWrite};
 use mpc_aio::ot::{
     ExtOTReceive, ExtOTSend, ExtReceiver, ExtSender, OTReceive, OTSend, Receiver, Sender,
 };
-use mpc_core::ot::{ExtReceiverCore, ExtSenderCore, ReceiverCore, SenderCore};
+use mpc_core::ot::{DhOtSender, ExtReceiverCore, ExtSenderCore, ReceiverCore};
 use mpc_core::Block;
 use rand::{thread_rng, Rng};
 use tokio;
@@ -83,7 +83,7 @@ async fn send<S: AsyncWrite + AsyncRead + Send + Unpin>(
         let mut sender = ExtSender::new(ExtSenderCore::new(values.len()), stream);
         let _ = sender.send(&values).await;
     } else {
-        let mut sender = Sender::new(SenderCore::new(values.len()), stream);
+        let mut sender = Sender::new(DhOtSender::new(values.len()), stream);
         let _ = sender.send(&values).await;
     }
 

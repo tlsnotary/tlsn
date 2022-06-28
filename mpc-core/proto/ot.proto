@@ -13,13 +13,13 @@ message SenderSetup {
 // Message sent by OT Sender containing encrypted values
 message SenderPayload {
     // Encrypted values
-    repeated core.LabelPair encrypted_values = 1;
+    repeated core.LabelPair ciphertexts = 1;
 }
 
 // Setup message sent by Base OT Receiver
 message ReceiverSetup {
-    // Keys used to encrypt values by Sender
-    repeated core.RistrettoPoint keys = 1;
+    // The blinded choice bit sent by the receiver
+    repeated core.RistrettoPoint blinded_choices = 1;
 }
 
 // Setup message sent by OT Receiver
@@ -38,7 +38,7 @@ message ExtDerandomize {
 
 message ExtSenderPayload {
     // Encrypted values
-    repeated core.LabelPair encrypted_values = 1;
+    repeated core.LabelPair ciphertexts = 1;
 }
 
 // Setup message sent by Base OT Sender in preparation for the OT extension
