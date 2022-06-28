@@ -67,9 +67,7 @@ impl DhOtSender {
     ) -> Result<SenderPayload, SenderCoreError> {
         // This sender needs to be ready to send, and the number of inputs needs to be equal to the
         // number of choices
-        if self.state != SenderState::Initialized {
-            return Err(SenderCoreError::NotSetup);
-        } else if self.state != SenderState::ReadyToSend {
+        if self.state != SenderState::ReadyToSend {
             return Err(SenderCoreError::NotSetup);
         }
 

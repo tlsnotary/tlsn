@@ -213,6 +213,7 @@ where
         &mut self,
         choice: &[bool],
     ) -> Result<ExtReceiverSetup, ExtReceiverCoreError> {
+        println!("Doing extension setup with {} choices", choice.len());
         if State::BaseSend != self.state {
             return Err(ExtReceiverCoreError::BaseOTNotSetup);
         }
@@ -299,6 +300,14 @@ where
             choice: Vec::from(choice),
             derandomized: Vec::new(),
         });
+        println!(
+            "self.state.choice.len() == {}",
+            if let State::Setup(ChoiceState { choice, .. }) = &self.state {
+                choice.len()
+            } else {
+                0
+            }
+        );
         // remove the last 256 elements which were sacrificed
         ts.drain(ts.len() - 256..);
         self.table = Some(ts);
@@ -319,6 +328,11 @@ where
         };
 
         if payload.ciphertexts.len() > choice_state.choice.len() {
+            println!(
+                "Got {} payload ciphertexts with {} choices",
+                payload.ciphertexts.len(),
+                choice_state.choice.len()
+            );
             return Err(ExtReceiverCoreError::InvalidPayloadSize);
         }
 
@@ -354,6 +368,7 @@ where
         let mut choice = u8vec_to_boolvec(&choice);
         choice.resize(n, false);
 
+        println!("In rand_extension_setup");
         ExtReceiveCore::extension_setup(self, &choice)
     }
 
