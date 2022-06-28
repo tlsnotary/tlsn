@@ -356,7 +356,7 @@ pub mod tests {
 
     #[rstest]
     fn test_proto_ot(proto_base_core_data: &fixtures::ProtoData, ot_core_data: &Data) {
-        let sender_setup: crate::ot::base::SenderSetup = proto_base_core_data
+        let sender_setup: crate::ot::base::dh_ot::SenderSetup = proto_base_core_data
             .sender_setup
             .clone()
             .try_into()
@@ -364,7 +364,7 @@ pub mod tests {
 
         assert_eq!(sender_setup, ot_core_data.sender_setup);
 
-        let receiver_setup: crate::ot::base::ReceiverSetup = proto_base_core_data
+        let receiver_setup: crate::ot::base::dh_ot::ReceiverChoices = proto_base_core_data
             .receiver_setup
             .clone()
             .try_into()
@@ -372,7 +372,7 @@ pub mod tests {
 
         assert_eq!(receiver_setup, ot_core_data.receiver_setup);
 
-        let sender_payload: crate::ot::base::SenderPayload = proto_base_core_data
+        let sender_payload: crate::ot::base::dh_ot::SenderPayload = proto_base_core_data
             .sender_payload
             .clone()
             .try_into()
@@ -383,7 +383,7 @@ pub mod tests {
 
     #[rstest]
     fn test_proto_ext(proto_ext_core_data: &fixtures::ProtoExtData, ot_ext_core_data: &ExtData) {
-        let base_sender_setup: crate::ot::extension::BaseSenderSetup = proto_ext_core_data
+        let base_sender_setup: crate::ot::extension::kos15::BaseSenderSetup = proto_ext_core_data
             .base_sender_setup
             .clone()
             .try_into()
@@ -391,19 +391,21 @@ pub mod tests {
 
         assert_eq!(base_sender_setup, ot_ext_core_data.base_sender_setup);
 
-        let base_receiver_setup: crate::ot::extension::BaseReceiverSetup = proto_ext_core_data
-            .base_receiver_setup
-            .clone()
-            .try_into()
-            .unwrap();
+        let base_receiver_setup: crate::ot::extension::kos15::BaseReceiverSetup =
+            proto_ext_core_data
+                .base_receiver_setup
+                .clone()
+                .try_into()
+                .unwrap();
 
         assert_eq!(base_receiver_setup, ot_ext_core_data.base_receiver_setup);
 
-        let base_sender_payload: crate::ot::extension::BaseSenderPayload = proto_ext_core_data
-            .base_sender_payload
-            .clone()
-            .try_into()
-            .unwrap();
+        let base_sender_payload: crate::ot::extension::kos15::BaseSenderPayload =
+            proto_ext_core_data
+                .base_sender_payload
+                .clone()
+                .try_into()
+                .unwrap();
 
         assert_eq!(base_sender_payload, ot_ext_core_data.base_sender_payload);
     }

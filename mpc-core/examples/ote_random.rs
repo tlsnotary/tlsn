@@ -6,7 +6,10 @@
 // For simplicity, this example shows how to use OT components in memory.
 
 use mpc_core::block::Block;
-use mpc_core::ot::{ExtRandomReceiveCore, ExtRandomSendCore, ExtReceiverCore, ExtSenderCore};
+use mpc_core::ot::extension::{
+    kos15::{Kos15Receiver, Kos15Sender},
+    ExtRandomReceiveCore, ExtRandomSendCore, ExtReceiveCore, ExtSendCore,
+};
 
 pub fn main() {
     // Sender messages the receiver chooses from
@@ -24,11 +27,11 @@ pub fn main() {
     println!("Sender inputs: {:?}", &inputs);
 
     // First the receiver creates a setup message and passes it to sender
-    let mut receiver = ExtReceiverCore::new(inputs.len());
+    let mut receiver = Kos15Receiver::new(inputs.len());
     let base_sender_setup = receiver.base_setup().unwrap();
 
     // Sender takes receiver's setup and creates its own setup message
-    let mut sender = ExtSenderCore::new(inputs.len());
+    let mut sender = Kos15Sender::new(inputs.len());
     let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
 
     // Now the receiver generates some seeds from sender's setup and uses OT to transfer them
@@ -36,7 +39,7 @@ pub fn main() {
     sender.base_receive(base_payload).unwrap();
 
     // Receiver generates OT extension setup and passes it to sender
-    let receiver_setup = receiver.extension_setup().unwrap();
+    let receiver_setup = receiver.rand_extension_setup().unwrap();
 
     // Sender takes receiver's setup and runs its own extension setup
     sender.extension_setup(receiver_setup).unwrap();
@@ -47,13 +50,13 @@ pub fn main() {
     // their choices depending on what they received in earlier batches
     let initial_choices = vec![false, true];
     let derandomize = receiver.derandomize(&initial_choices).unwrap();
-    let initial_payload = sender.send(&inputs[..2], derandomize).unwrap();
-    received.append(&mut receiver.receive(initial_payload).unwrap());
+    let initial_payload = sender.rand_send(&inputs[..2], derandomize).unwrap();
+    received.append(&mut receiver.rand_receive(initial_payload).unwrap());
     for chunk in inputs[2..].chunks(2) {
         let received_sum: u128 = received.iter().map(|b| b.inner()).sum();
         let choice = received_sum % 2 == 0;
         let derandomize = receiver.derandomize(&[choice, !choice]).unwrap();
-        let payload = sender.send(&chunk, derandomize).unwrap();
+        let payload = sender.rand_send(&chunk, derandomize).unwrap();
         received.append(&mut receiver.receive(payload).unwrap());
     }
 

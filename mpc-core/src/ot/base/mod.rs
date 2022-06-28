@@ -37,8 +37,8 @@ pub mod tests {
 
         pub struct Data {
             pub sender_setup: SenderSetup,
-            pub receiver_choices: ReceiverChoices,
-            pub sender_output: SenderPayload,
+            pub receiver_setup: ReceiverChoices,
+            pub sender_payload: SenderPayload,
             pub receiver_values: Vec<Block>,
         }
 
@@ -62,19 +62,21 @@ pub mod tests {
         #[fixture]
         #[once]
         pub fn ot_core_data(choice: &Vec<bool>, values: &Vec<[Block; 2]>) -> Data {
-            let mut sender = DhOtSender::new(values.len());
-            let sender_setup = sender.setup();
+            let mut rng = thread_rng();
 
-            let mut receiver = DhOtReceiver::new(choice.len());
-            let receiver_choices = receiver.setup(choice, sender_setup).unwrap();
+            let mut sender = DhOtSender::default();
+            let sender_setup = sender.setup(&mut rng);
 
-            let sender_output = sender.send(values, receiver_choices.clone()).unwrap();
-            let receiver_values = receiver.receive(sender_output.clone()).unwrap();
+            let mut receiver = DhOtReceiver::default();
+            let receiver_setup = receiver.setup(&mut rng, choice, sender_setup).unwrap();
+
+            let sender_payload = sender.send(values, receiver_setup.clone()).unwrap();
+            let receiver_values = receiver.receive(sender_payload.clone()).unwrap();
 
             Data {
                 sender_setup,
-                receiver_choices,
-                sender_output,
+                receiver_setup,
+                sender_payload,
                 receiver_values,
             }
         }
@@ -95,11 +97,11 @@ pub mod tests {
             .map(|(input, choice)| input[*choice as usize])
             .collect();
 
-        let mut sender = DhOtSender::new(s_inputs.len());
-        let sender_setup = sender.setup();
+        let mut sender = DhOtSender::default();
+        let sender_setup = sender.setup(&mut rng);
 
-        let mut receiver = DhOtReceiver::new(choice.len());
-        let receiver_choices = receiver.setup(&choice, sender_setup).unwrap();
+        let mut receiver = DhOtReceiver::default();
+        let receiver_choices = receiver.setup(&mut rng, &choice, sender_setup).unwrap();
 
         let send = sender.send(&s_inputs, receiver_choices).unwrap();
         let receive = receiver.receive(send).unwrap();

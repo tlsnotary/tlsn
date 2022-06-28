@@ -341,7 +341,7 @@ where
 {
     type ExtDerandomize = ExtDerandomize;
 
-    fn send(
+    fn rand_send(
         &mut self,
         inputs: &[[Block; 2]],
         derandomize: ExtDerandomize,

@@ -14,7 +14,7 @@ pub(crate) use crate::ot::base::dh_ot::{
 
 /// OT extension Sender plays the role of base OT Receiver and sends the
 /// second message containing base OT setup and cointoss share
-#[derive(Debug, Clone, std::cmp::PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BaseReceiverSetup {
     pub setup: ReceiverSetup,
     // Cointoss protocol's 2nd message: Receiver reveals share

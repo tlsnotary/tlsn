@@ -4,12 +4,12 @@ use rand::{CryptoRng, Rng, RngCore, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 use std::convert::TryInto;
 
-use super::{BaseSender, ReceiverSetup};
+use super::BaseSender;
 use crate::{
     ot::extension::{
         kos15::{
             sender::{BaseSenderPayload, BaseSenderSetup},
-            ExtSenderPayload,
+            BaseReceiverSetup, ExtSenderPayload,
         },
         ExtRandomReceiveCore, ExtReceiveCore, ExtReceiverCoreError, BASE_COUNT,
     },
@@ -31,15 +31,6 @@ pub enum State {
     BaseSend,
     Setup(ChoiceState),
     Complete,
-}
-
-/// OT extension Sender plays the role of base OT Receiver and sends the
-/// second message containing base OT setup and cointoss share
-#[derive(Debug, Clone, std::cmp::PartialEq)]
-pub struct BaseReceiverSetup {
-    pub setup: ReceiverSetup,
-    // Cointoss protocol's 2nd message: Receiver reveals share
-    pub cointoss_share: [u8; 32],
 }
 
 pub struct Kos15Receiver<R = ChaCha12Rng, C = Aes128> {
