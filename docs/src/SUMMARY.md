@@ -6,6 +6,7 @@
     - [Garbled Circuits](./protocol/2pc/garbled_circuits.md)
     - [Oblivious Transfer](./protocol/2pc/oblivious_transfer.md)
     - [Paillier](./protocol/2pc/paillier.md)
+    - [MAC](./protocol/2pc/mac.md)
   - [Handshake](./protocol/handshake/README.md)
     - [Key Exchange](./protocol/handshake/key_exchange.md)
     - [PRF](./protocol/handshake/prf.md)
