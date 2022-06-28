@@ -1,19 +1,18 @@
-use crate::block::Block;
-use crate::ot::extension::{
-    kos15::{
-        BaseReceiver, BaseReceiverSetup, ExtDerandomize, ExtReceiverSetup, ExtSenderPayload,
-        SenderPayload, SenderSetup,
-    },
-    ExtRandomSendCore, ExtSendCore, ExtSenderCoreError, BASE_COUNT,
-};
-use crate::utils::{self, sha256, xor};
-
 use aes::{Aes128, BlockCipher, BlockEncrypt, NewBlockCipher};
 use cipher::consts::U16;
-use clmul::Clmul;
-use rand::{Rng, RngCore, SeedableRng};
+use rand::{thread_rng, Rng, RngCore, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 use std::convert::TryInto;
+
+use super::{
+    BaseSenderPayload, BaseSenderSetup, ExtDerandomize, ExtRandomSendCore, ExtReceiverSetup,
+    ExtSendCore, ExtSenderCoreError, BASE_COUNT,
+};
+use crate::block::Block;
+use crate::ot::base::ReceiverSetup;
+use crate::ot::{ReceiveCore, ReceiverCore};
+use crate::utils::{self, sha256, xor};
+use clmul::Clmul;
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub enum State {
@@ -24,10 +23,18 @@ pub enum State {
     Complete,
 }
 
-pub struct Kos15Sender<C = Aes128> {
-    rng: ChaCha12Rng,
+/// OT extension Sender plays the role of base OT Receiver and sends the
+/// second message containing base OT setup and cointoss share
+#[derive(Debug, Clone, std::cmp::PartialEq)]
+pub struct BaseReceiverSetup {
+    pub setup: ReceiverSetup,
+    // Cointoss protocol's 2nd message: Receiver reveals share
+    pub cointoss_share: [u8; 32],
+}
+
+pub struct ExtSenderCore<C = Aes128, OT = ReceiverCore<ChaCha12Rng>> {
     cipher: C,
-    base: BaseReceiver,
+    base: OT,
     state: State,
     count: usize,
     sent: usize,
@@ -52,20 +59,9 @@ pub struct Kos15Sender<C = Aes128> {
     cointoss_random: Option<[u8; 32]>,
 }
 
-/// OT extension Receiver plays the role of base OT Sender and sends the
-/// first message containing base OT setup and cointoss commitment
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct BaseSenderSetup {
-    pub setup: SenderSetup,
-    // Cointoss protocol's 1st message: sha256 commitment
-    pub cointoss_commit: [u8; 32],
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct BaseSenderPayload {
-    pub payload: SenderPayload,
-    // Cointoss protocol's 3rd message: Sender reveals share
-    pub cointoss_share: [u8; 32],
+#[derive(Clone, Debug, PartialEq)]
+pub struct ExtSenderPayload {
+    pub encrypted_values: Vec<[Block; 2]>,
 }
 
 // Having 2 messages that Receiver chooses from, we encrypt each message with
@@ -78,7 +74,7 @@ fn encrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     base_choice: &[bool],
     flip: Option<Vec<bool>>,
 ) -> Vec<[Block; 2]> {
-    let mut ciphertexts: Vec<[Block; 2]> = Vec::with_capacity(table.len());
+    let mut encrypted_values: Vec<[Block; 2]> = Vec::with_capacity(table.len());
     let base_choice: [u8; 16] = utils::boolvec_to_u8vec(base_choice).try_into().unwrap();
     let delta = Block::from(base_choice);
     // If Receiver used *random* choice bits during OT extension setup, he will now
@@ -90,26 +86,22 @@ fn encrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
         let q = Block::from(q);
         let masks = [q.hash_tweak(cipher, j), (q ^ delta).hash_tweak(cipher, j)];
         if flip {
-            ciphertexts.push([input[0] ^ masks[1], input[1] ^ masks[0]]);
+            encrypted_values.push([input[0] ^ masks[1], input[1] ^ masks[0]]);
         } else {
-            ciphertexts.push([input[0] ^ masks[0], input[1] ^ masks[1]]);
+            encrypted_values.push([input[0] ^ masks[0], input[1] ^ masks[1]]);
         }
     }
-    ciphertexts
+    encrypted_values
 }
 
-impl Kos15Sender {
+impl ExtSenderCore {
     pub fn new(count: usize) -> Self {
         let mut rng = ChaCha12Rng::from_entropy();
-
-        let cointoss_share = rng.gen();
         let mut base_choice = vec![0u8; BASE_COUNT / 8];
         rng.fill_bytes(&mut base_choice);
-
         Self {
-            rng,
             cipher: Aes128::new_from_slice(&[0u8; 16]).unwrap(),
-            base: BaseReceiver::default(),
+            base: ReceiverCore::new(BASE_COUNT),
             state: State::Initialized,
             count,
             sent: 0,
@@ -117,26 +109,23 @@ impl Kos15Sender {
             seeds: None,
             rngs: None,
             table: None,
-            cointoss_share,
+            cointoss_share: rng.gen(),
             receiver_cointoss_commit: None,
             cointoss_random: None,
         }
     }
 }
 
-impl<C> Kos15Sender<C>
+impl<C, OT> ExtSenderCore<C, OT>
 where
     C: BlockCipher<BlockSize = U16> + BlockEncrypt,
+    OT: ReceiveCore,
 {
-    pub fn new_from_custom(cipher: C, base: BaseReceiver, count: usize) -> Self {
-        let mut rng = ChaCha12Rng::from_entropy();
-
-        let cointoss_share = rng.gen();
+    pub fn new_from_custom(cipher: C, base: OT, count: usize) -> Self {
+        let mut rng = thread_rng();
         let mut base_choice = vec![0u8; BASE_COUNT / 8];
         rng.fill_bytes(&mut base_choice);
-
         Self {
-            rng,
             cipher,
             base,
             state: State::Initialized,
@@ -146,7 +135,7 @@ where
             seeds: None,
             rngs: None,
             table: None,
-            cointoss_share,
+            cointoss_share: rng.gen(),
             receiver_cointoss_commit: None,
             cointoss_random: None,
         }
@@ -169,19 +158,13 @@ where
     }
 }
 
-impl<C> ExtSendCore for Kos15Sender<C>
+impl<C, OT> ExtSendCore for ExtSenderCore<C, OT>
 where
     C: BlockCipher<BlockSize = U16> + BlockEncrypt,
+    OT: ReceiveCore,
 {
-    type State = State;
-    type BaseSenderSetup = BaseSenderSetup;
-    type BaseSenderPayload = BaseSenderPayload;
-    type BaseReceiverSetup = BaseReceiverSetup;
-    type ExtSenderPayload = ExtSenderPayload;
-    type ExtReceiverSetup = ExtReceiverSetup;
-
-    fn state(&self) -> &State {
-        &self.state
+    fn state(&self) -> State {
+        self.state
     }
 
     fn is_complete(&self) -> bool {
@@ -200,7 +183,7 @@ where
         Ok(BaseReceiverSetup {
             setup: self
                 .base
-                .setup(&mut self.rng, &self.base_choice, base_sender_setup.setup)?,
+                .setup(&self.base_choice, base_sender_setup.setup)?,
             cointoss_share: self.cointoss_share,
         })
     }
@@ -308,7 +291,7 @@ where
         // KOS check
         qs.drain(qs.len() - 256..);
         self.table = Some(qs);
-        self.state = State::Initialized;
+        self.state = State::Setup;
         Ok(())
     }
 
@@ -317,31 +300,31 @@ where
             return Err(ExtSenderCoreError::InvalidInputLength);
         }
         match self.state {
-            State::Initialized => {}
+            State::Setup => {}
             State::Complete => return Err(ExtSenderCoreError::AlreadyComplete),
             _ => return Err(ExtSenderCoreError::NotSetup),
         };
 
         let table = self.table.as_mut().ok_or(ExtSenderCoreError::NotSetup)?;
         let table: Vec<Vec<u8>> = table.drain(..inputs.len()).collect();
-        let ciphertexts = encrypt_values(&mut self.cipher, inputs, &table, &self.base_choice, None);
+        let encrypted_values =
+            encrypt_values(&mut self.cipher, inputs, &table, &self.base_choice, None);
 
         self.sent += inputs.len();
         if self.sent == self.count {
             self.state = State::Complete;
         }
 
-        Ok(ExtSenderPayload { ciphertexts })
+        Ok(ExtSenderPayload { encrypted_values })
     }
 }
 
-impl<C> ExtRandomSendCore for Kos15Sender<C>
+impl<C, OT> ExtRandomSendCore for ExtSenderCore<C, OT>
 where
     C: BlockCipher<BlockSize = U16> + BlockEncrypt,
+    OT: ReceiveCore,
 {
-    type ExtDerandomize = ExtDerandomize;
-
-    fn rand_send(
+    fn send(
         &mut self,
         inputs: &[[Block; 2]],
         derandomize: ExtDerandomize,
@@ -350,14 +333,14 @@ where
             return Err(ExtSenderCoreError::InvalidInputLength);
         }
         match self.state {
-            State::Initialized => {}
+            State::Setup => {}
             State::Complete => return Err(ExtSenderCoreError::AlreadyComplete),
             _ => return Err(ExtSenderCoreError::NotSetup),
         };
 
         let table = self.table.as_mut().ok_or(ExtSenderCoreError::NotSetup)?;
         let table: Vec<Vec<u8>> = table.drain(..inputs.len()).collect();
-        let ciphertexts = encrypt_values(
+        let encrypted_values = encrypt_values(
             &mut self.cipher,
             inputs,
             &table,
@@ -370,6 +353,6 @@ where
             self.state = State::Complete;
         }
 
-        Ok(ExtSenderPayload { ciphertexts })
+        Ok(ExtSenderPayload { encrypted_values })
     }
 }

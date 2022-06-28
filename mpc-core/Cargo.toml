@@ -33,7 +33,6 @@ anyhow = "1.0.55"
 elliptic-curve = { version = "0.11.12", optional = true }
 p256 = { version = "0.10.1", optional = true }
 derive_builder = "0.11.2"
-merlin = "3.0.0"
 
 [dependencies.paillier]
 package = "kzen-paillier"

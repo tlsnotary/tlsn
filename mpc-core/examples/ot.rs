@@ -3,12 +3,9 @@
 // For simplicity, this example shows how to use OT components in memory.
 
 use mpc_core::block::Block;
-use mpc_core::ot::dh_ot::{DhOtReceiver, DhOtSender};
-use rand::thread_rng;
+use mpc_core::ot::{ReceiveCore, ReceiverCore, SendCore, SenderCore};
 
 pub fn main() {
-    let mut rng = thread_rng();
-
     // Receiver choice bits
     let choice = vec![false, true, false, false, true, true, false, true];
 
@@ -29,12 +26,12 @@ pub fn main() {
     println!("Sender inputs: {:?}", &inputs);
 
     // First the sender creates a setup message and passes it to sender
-    let mut sender = DhOtSender::default();
-    let setup = sender.setup(&mut rng);
+    let mut sender = SenderCore::new(inputs.len());
+    let setup = sender.setup();
 
     // Receiver takes sender's setup and creates its own setup message
-    let mut receiver = DhOtReceiver::default();
-    let setup = receiver.setup(&mut rng, &choice, setup).unwrap();
+    let mut receiver = ReceiverCore::new(choice.len());
+    let setup = receiver.setup(&choice, setup).unwrap();
 
     // Finally, sender encrypts their inputs and sends them to receiver
     let payload = sender.send(&inputs, setup).unwrap();

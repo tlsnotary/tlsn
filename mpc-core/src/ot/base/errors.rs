@@ -16,6 +16,4 @@ pub enum ReceiverCoreError {
     NotSetup,
     #[error("Provided incorrect number of choice bits")]
     InvalidChoiceLength,
-    #[error("Sender's ciphertext is malformed")]
-    MalformedCiphertext,
 }

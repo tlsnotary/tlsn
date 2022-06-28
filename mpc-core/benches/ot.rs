@@ -1,8 +1,8 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use mpc_core::block::{Block, BLOCK_ONES};
 use mpc_core::ot::{
-    DhOtSender, ExtReceiveCore, ExtReceiverCore, ExtSendCore, ExtSenderCore, ReceiveCore,
-    ReceiverCore, SendCore,
+    ExtReceiveCore, ExtReceiverCore, ExtSendCore, ExtSenderCore, ReceiveCore, ReceiverCore,
+    SendCore, SenderCore,
 };
 use mpc_core::utils::u8vec_to_boolvec;
 use rand::RngCore;
@@ -15,7 +15,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         let choice = [false; 1024];
 
         bench.iter(|| {
-            let mut sender = DhOtSender::new(1024);
+            let mut sender = SenderCore::new(1024);
             let sender_setup = sender.setup();
 
             let mut receiver = ReceiverCore::new(1024);
