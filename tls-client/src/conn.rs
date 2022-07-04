@@ -1,5 +1,5 @@
 use crate::client::ClientConnectionData;
-use crate::crypto::{Crypto, InvalidCrypto};
+use crate::crypto::{Crypto, StandardCrypto};
 use crate::error::Error;
 #[cfg(feature = "logging")]
 use crate::log::{debug, error, trace, warn};
@@ -599,7 +599,7 @@ impl CommonState {
             negotiated_version: None,
             side,
             record_layer: record_layer::RecordLayer::new(),
-            crypto: Box::new(InvalidCrypto {}),
+            crypto: Box::new(StandardCrypto::new()),
             suite: None,
             alpn_protocol: None,
             aligned_handshake: true,

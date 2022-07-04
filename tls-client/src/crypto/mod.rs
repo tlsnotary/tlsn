@@ -1,12 +1,16 @@
+mod standard;
+
 use crate::Error;
 use tls_core::msgs::enums::ProtocolVersion;
+use tls_core::msgs::enums::{CipherSuite, ContentType, NamedGroup};
 use tls_core::msgs::handshake::Random;
 use tls_core::msgs::message::{OpaqueMessage, PlainMessage};
+use tls_core::suites;
 use tls_core::{key::PublicKey, suites::SupportedCipherSuite};
 
 use async_trait::async_trait;
 
-use crate::cipher::{MessageDecrypter, MessageEncrypter};
+pub(crate) use standard::StandardCrypto;
 
 /// Encryption modes for Crypto implementor
 #[derive(Debug, Clone)]
@@ -42,7 +46,7 @@ pub trait Crypto: Send {
     fn suite(&self) -> Result<SupportedCipherSuite, Error>;
     /// Set encryption mode
     fn set_encrypt(&mut self, mode: EncryptMode) -> Result<(), Error>;
-    /// Start decryption
+    /// Set decryption mode
     fn set_decrypt(&mut self, mode: DecryptMode) -> Result<(), Error>;
     /// Returns client_random value.
     async fn client_random(&mut self) -> Result<Random, Error>;
