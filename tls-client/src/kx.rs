@@ -15,10 +15,7 @@ impl KeyExchange {
         name: NamedGroup,
         supported: &[&'static SupportedKxGroup],
     ) -> Option<&'static SupportedKxGroup> {
-        supported
-            .iter()
-            .find(|skxg| skxg.name == name)
-            .cloned()
+        supported.iter().find(|skxg| skxg.name == name).cloned()
     }
 
     /// Start a key exchange, using the given SupportedKxGroup.
@@ -90,4 +87,8 @@ pub static SECP384R1: SupportedKxGroup = SupportedKxGroup {
 };
 
 /// A list of all the key exchange groups supported by rustls.
-pub static ALL_KX_GROUPS: [&SupportedKxGroup; 3] = [&X25519, &SECP256R1, &SECP384R1];
+pub static ALL_KX_GROUPS: [&SupportedKxGroup; 1] = [
+    // &X25519,
+    &SECP256R1,
+    // &SECP384R1
+];
