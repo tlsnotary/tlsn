@@ -2,10 +2,8 @@ mod standard;
 
 use crate::Error;
 use tls_core::msgs::enums::ProtocolVersion;
-use tls_core::msgs::enums::{CipherSuite, ContentType, NamedGroup};
 use tls_core::msgs::handshake::Random;
 use tls_core::msgs::message::{OpaqueMessage, PlainMessage};
-use tls_core::suites;
 use tls_core::{key::PublicKey, suites::SupportedCipherSuite};
 
 use async_trait::async_trait;

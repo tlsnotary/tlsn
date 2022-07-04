@@ -1,6 +1,4 @@
 use super::Crypto;
-use crate::conn::Protocol;
-use crate::rand::GetRandomFailed;
 use crate::{DecryptMode, EncryptMode, Error};
 
 use aes_gcm::aead::{generic_array::GenericArray, Aead, NewAead, Payload};
