@@ -1,7 +1,7 @@
 use crate::{
     ot::base::{
         dh_ot::{
-            decrypt_input, hash_point, ReceiverChoices, ReceiverCoreError, SenderPayload,
+            decrypt_input, hash_point, ReceiverCoreError, ReceiverSetup, SenderPayload,
             SenderSetup, DOMAIN_SEP,
         },
         ReceiverState,
@@ -51,7 +51,7 @@ impl DhOtReceiver {
         rng: &mut R,
         choices: &[bool],
         sender_setup: SenderSetup,
-    ) -> Result<ReceiverChoices, ReceiverCoreError> {
+    ) -> Result<ReceiverSetup, ReceiverCoreError> {
         // Log the sending of the pubkey
         self.transcript
             .append_message(b"pubkey", sender_setup.public_key.compress().as_bytes());
@@ -94,7 +94,7 @@ impl DhOtReceiver {
         self.state = ReceiverState::Initialized;
 
         // Return the blinded choices
-        Ok(ReceiverChoices { blinded_choices })
+        Ok(ReceiverSetup { blinded_choices })
     }
 
     /// Decrypts the OT sender's ciphertexts

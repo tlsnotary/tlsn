@@ -1,7 +1,7 @@
 use super::OTError;
 use async_trait::async_trait;
 use futures_util::{SinkExt, StreamExt};
-use mpc_core::ot::{ExtReceiveCore, Message};
+use mpc_core::ot::{ExtStandardReceiveCore, Message};
 use mpc_core::proto::ot::Message as ProtoMessage;
 use mpc_core::Block;
 use std::io::Error as IOError;
@@ -23,7 +23,7 @@ pub trait ExtOTReceive {
 
 impl<OT, S> ExtReceiver<OT, S>
 where
-    OT: ExtReceiveCore + Send,
+    OT: ExtStandardReceiveCore + Send,
     S: AsyncRead + AsyncWrite + Send + Unpin,
 {
     pub fn new(ot: OT, stream: S) -> Self {
@@ -40,7 +40,7 @@ where
 #[async_trait]
 impl<OT, S> ExtOTReceive for ExtReceiver<OT, S>
 where
-    OT: ExtReceiveCore + Send,
+    OT: ExtStandardReceiveCore + Send,
     S: AsyncRead + AsyncWrite + Send + Unpin,
 {
     #[instrument(skip(self, choice))]

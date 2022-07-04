@@ -53,7 +53,7 @@ impl TryFrom<Message> for ot::Kos15Message {
         if let Some(msg) = m.msg {
             let m = match msg {
                 message::Msg::ReceiverSetup(msg) => {
-                    ot::Kos15Message::ReceiverSetup(dh_ot::ReceiverChoices::try_from(msg)?)
+                    ot::Kos15Message::ReceiverSetup(dh_ot::ReceiverSetup::try_from(msg)?)
                 }
                 message::Msg::SenderSetup(msg) => {
                     ot::Kos15Message::SenderSetup(dh_ot::SenderSetup::try_from(msg)?)
@@ -62,23 +62,23 @@ impl TryFrom<Message> for ot::Kos15Message {
                     ot::Kos15Message::SenderPayload(dh_ot::SenderPayload::from(msg))
                 }
                 message::Msg::ExtReceiverSetup(msg) => {
-                    ot::Kos15Message::ExtReceiverSetup(kos15::ExtReceiverSetup::try_from(msg)?)
+                    ot::Kos15Message::ExtReceiverSetup(kos15::ReceiverSetup::try_from(msg)?)
                 }
                 message::Msg::ExtDerandomize(msg) => {
                     ot::Kos15Message::ExtDerandomize(kos15::ExtDerandomize::from(msg))
                 }
                 message::Msg::ExtSenderPayload(msg) => {
-                    ot::Kos15Message::ExtSenderPayload(kos15::ExtSenderPayload::from(msg))
+                    ot::Kos15Message::ExtSenderPayload(kos15::SenderPayload::from(msg))
                 }
                 message::Msg::BaseSenderSetup(msg) => {
-                    ot::Kos15Message::BaseSenderSetup(kos15::BaseSenderSetup::try_from(msg)?)
+                    ot::Kos15Message::BaseSenderSetup(kos15::SenderSetup::try_from(msg)?)
                 }
-                message::Msg::BaseReceiverSetup(msg) => {
-                    ot::Kos15Message::BaseReceiverSetup(kos15::BaseReceiverSetup::try_from(msg)?)
-                }
-                message::Msg::BaseSenderPayload(msg) => {
-                    ot::Kos15Message::BaseSenderPayload(kos15::BaseSenderPayload::try_from(msg)?)
-                }
+                message::Msg::BaseReceiverSetup(msg) => ot::Kos15Message::BaseReceiverSetup(
+                    kos15::BaseReceiverSetupWrapper::try_from(msg)?,
+                ),
+                message::Msg::BaseSenderPayload(msg) => ot::Kos15Message::BaseSenderPayload(
+                    kos15::BaseSenderPayloadWrapper::try_from(msg)?,
+                ),
             };
             Ok(m)
         } else {
@@ -136,9 +136,9 @@ impl From<SenderPayload> for dh_ot::SenderPayload {
     }
 }
 
-impl From<dh_ot::ReceiverChoices> for ReceiverSetup {
+impl From<dh_ot::ReceiverSetup> for ReceiverSetup {
     #[inline]
-    fn from(s: dh_ot::ReceiverChoices) -> Self {
+    fn from(s: dh_ot::ReceiverSetup) -> Self {
         Self {
             blinded_choices: s
                 .blinded_choices
@@ -149,7 +149,7 @@ impl From<dh_ot::ReceiverChoices> for ReceiverSetup {
     }
 }
 
-impl TryFrom<ReceiverSetup> for dh_ot::ReceiverChoices {
+impl TryFrom<ReceiverSetup> for dh_ot::ReceiverSetup {
     type Error = Error;
 
     #[inline]
@@ -163,9 +163,9 @@ impl TryFrom<ReceiverSetup> for dh_ot::ReceiverChoices {
     }
 }
 
-impl From<kos15::ExtReceiverSetup> for ExtReceiverSetup {
+impl From<kos15::ReceiverSetup> for ExtReceiverSetup {
     #[inline]
-    fn from(s: kos15::ExtReceiverSetup) -> Self {
+    fn from(s: kos15::ReceiverSetup) -> Self {
         Self {
             ncols: s.ncols as u32,
             table: s.table,
@@ -176,7 +176,7 @@ impl From<kos15::ExtReceiverSetup> for ExtReceiverSetup {
     }
 }
 
-impl TryFrom<ExtReceiverSetup> for kos15::ExtReceiverSetup {
+impl TryFrom<ExtReceiverSetup> for kos15::ReceiverSetup {
     type Error = Error;
 
     #[inline]
@@ -205,9 +205,9 @@ impl From<ExtDerandomize> for kos15::ExtDerandomize {
     }
 }
 
-impl From<kos15::ExtSenderPayload> for ExtSenderPayload {
+impl From<kos15::SenderPayload> for ExtSenderPayload {
     #[inline]
-    fn from(p: kos15::ExtSenderPayload) -> Self {
+    fn from(p: kos15::SenderPayload) -> Self {
         Self {
             ciphertexts: p
                 .ciphertexts
@@ -221,7 +221,7 @@ impl From<kos15::ExtSenderPayload> for ExtSenderPayload {
     }
 }
 
-impl From<ExtSenderPayload> for kos15::ExtSenderPayload {
+impl From<ExtSenderPayload> for kos15::SenderPayload {
     #[inline]
     fn from(p: ExtSenderPayload) -> Self {
         Self {
@@ -234,9 +234,9 @@ impl From<ExtSenderPayload> for kos15::ExtSenderPayload {
     }
 }
 
-impl From<kos15::BaseSenderSetup> for BaseSenderSetup {
+impl From<kos15::SenderSetup> for BaseSenderSetup {
     #[inline]
-    fn from(s: kos15::BaseSenderSetup) -> Self {
+    fn from(s: kos15::SenderSetup) -> Self {
         Self {
             setup: SenderSetup::from(s.setup),
             cointoss_commit: s.cointoss_commit.to_vec(),
@@ -244,7 +244,7 @@ impl From<kos15::BaseSenderSetup> for BaseSenderSetup {
     }
 }
 
-impl TryFrom<BaseSenderSetup> for kos15::BaseSenderSetup {
+impl TryFrom<BaseSenderSetup> for kos15::SenderSetup {
     type Error = Error;
 
     #[inline]
@@ -259,9 +259,9 @@ impl TryFrom<BaseSenderSetup> for kos15::BaseSenderSetup {
     }
 }
 
-impl From<kos15::BaseReceiverSetup> for BaseReceiverSetup {
+impl From<kos15::BaseReceiverSetupWrapper> for BaseReceiverSetup {
     #[inline]
-    fn from(s: kos15::BaseReceiverSetup) -> Self {
+    fn from(s: kos15::BaseReceiverSetupWrapper) -> Self {
         Self {
             setup: ReceiverSetup::from(s.setup),
             cointoss_share: s.cointoss_share.to_vec(),
@@ -269,7 +269,7 @@ impl From<kos15::BaseReceiverSetup> for BaseReceiverSetup {
     }
 }
 
-impl TryFrom<BaseReceiverSetup> for kos15::BaseReceiverSetup {
+impl TryFrom<BaseReceiverSetup> for kos15::BaseReceiverSetupWrapper {
     type Error = Error;
 
     #[inline]
@@ -284,9 +284,9 @@ impl TryFrom<BaseReceiverSetup> for kos15::BaseReceiverSetup {
     }
 }
 
-impl From<kos15::BaseSenderPayload> for BaseSenderPayload {
+impl From<kos15::BaseSenderPayloadWrapper> for BaseSenderPayload {
     #[inline]
-    fn from(s: kos15::BaseSenderPayload) -> Self {
+    fn from(s: kos15::BaseSenderPayloadWrapper) -> Self {
         Self {
             payload: SenderPayload::from(s.payload),
             cointoss_share: s.cointoss_share.to_vec(),
@@ -294,7 +294,7 @@ impl From<kos15::BaseSenderPayload> for BaseSenderPayload {
     }
 }
 
-impl TryFrom<BaseSenderPayload> for kos15::BaseSenderPayload {
+impl TryFrom<BaseSenderPayload> for kos15::BaseSenderPayloadWrapper {
     type Error = Error;
 
     #[inline]
@@ -364,7 +364,7 @@ pub mod tests {
 
         assert_eq!(sender_setup, ot_core_data.sender_setup);
 
-        let receiver_setup: crate::ot::base::dh_ot::ReceiverChoices = proto_base_core_data
+        let receiver_setup: crate::ot::base::dh_ot::ReceiverSetup = proto_base_core_data
             .receiver_setup
             .clone()
             .try_into()
@@ -383,7 +383,7 @@ pub mod tests {
 
     #[rstest]
     fn test_proto_ext(proto_ext_core_data: &fixtures::ProtoExtData, ot_ext_core_data: &ExtData) {
-        let base_sender_setup: crate::ot::extension::kos15::BaseSenderSetup = proto_ext_core_data
+        let base_sender_setup: crate::ot::extension::kos15::SenderSetup = proto_ext_core_data
             .base_sender_setup
             .clone()
             .try_into()
@@ -391,7 +391,7 @@ pub mod tests {
 
         assert_eq!(base_sender_setup, ot_ext_core_data.base_sender_setup);
 
-        let base_receiver_setup: crate::ot::extension::kos15::BaseReceiverSetup =
+        let base_receiver_setup: crate::ot::extension::kos15::BaseReceiverSetupWrapper =
             proto_ext_core_data
                 .base_receiver_setup
                 .clone()
@@ -400,7 +400,7 @@ pub mod tests {
 
         assert_eq!(base_receiver_setup, ot_ext_core_data.base_receiver_setup);
 
-        let base_sender_payload: crate::ot::extension::kos15::BaseSenderPayload =
+        let base_sender_payload: crate::ot::extension::kos15::BaseSenderPayloadWrapper =
             proto_ext_core_data
                 .base_sender_payload
                 .clone()

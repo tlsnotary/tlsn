@@ -27,7 +27,7 @@ pub struct SenderPayload {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct ReceiverChoices {
+pub struct ReceiverSetup {
     pub blinded_choices: Vec<RistrettoPoint>,
 }
 

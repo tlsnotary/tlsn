@@ -1,7 +1,7 @@
 use crate::{
     ot::base::{
         dh_ot::{
-            encrypt_input, hash_point, DhOtCiphertext, ReceiverChoices, SenderPayload, SenderSetup,
+            encrypt_input, hash_point, DhOtCiphertext, ReceiverSetup, SenderPayload, SenderSetup,
             DOMAIN_SEP,
         },
         SenderCoreError, SenderState,
@@ -63,7 +63,7 @@ impl DhOtSender {
     pub fn send(
         &mut self,
         inputs: &[[Block; 2]],
-        receivers_choices: ReceiverChoices,
+        receivers_choices: ReceiverSetup,
     ) -> Result<SenderPayload, SenderCoreError> {
         // This sender needs to be ready to send, and the number of inputs needs to be equal to the
         // number of choices

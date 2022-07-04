@@ -37,7 +37,7 @@ pub mod tests {
 
         pub struct Data {
             pub sender_setup: SenderSetup,
-            pub receiver_setup: ReceiverChoices,
+            pub receiver_setup: ReceiverSetup,
             pub sender_payload: SenderPayload,
             pub receiver_values: Vec<Block>,
         }

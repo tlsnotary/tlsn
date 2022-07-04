@@ -1,8 +1,8 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use mpc_core::block::{Block, BLOCK_ONES};
 use mpc_core::ot::{
-    DhOtSender, ExtReceiveCore, ExtReceiverCore, ExtSendCore, ExtSenderCore, ReceiveCore,
-    ReceiverCore, SendCore,
+    DhOtSender, ExtReceiverCore, ExtSenderCore, ExtStandardReceiveCore, ExtStandardSendCore,
+    ReceiveCore, ReceiverCore, SendCore,
 };
 use mpc_core::utils::u8vec_to_boolvec;
 use rand::RngCore;

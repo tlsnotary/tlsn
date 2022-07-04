@@ -8,7 +8,7 @@
 use mpc_core::block::Block;
 use mpc_core::ot::extension::{
     kos15::{Kos15Receiver, Kos15Sender},
-    ExtRandomReceiveCore, ExtRandomSendCore, ExtReceiveCore, ExtSendCore,
+    ExtRandomReceiveCore, ExtRandomSendCore, ExtStandardReceiveCore, ExtStandardSendCore,
 };
 
 pub fn main() {
