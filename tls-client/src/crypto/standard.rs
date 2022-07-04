@@ -175,6 +175,85 @@ impl StandardCrypto {
         verify_data.copy_from_slice(&hmac_sha256(ms, &a1_seed)[..12]);
         verify_data
     }
+
+    fn set_encrypter(&mut self) -> Result<(), Error> {
+        println!("IN message_encrypter ");
+
+        let cipher_suite = match self.cipher_suite_name {
+            Some(cs) => cs,
+            None => {
+                return Err(Error::General(
+                    "internal error: cipher_suite is not set".to_string(),
+                ))
+            }
+        };
+
+        match cipher_suite {
+            CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+            | CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 => {
+                // extract client_write_key and client_write_iv. They may be at different
+                // offsets depending on the cipher suite.
+                let mut write_key = [0u8; 16];
+                let mut write_iv = [0u8; 4];
+                let session_keys = match &self.session_keys {
+                    Some(k) => k,
+                    None => {
+                        return Err(Error::General(
+                            "internal error: session_keys is not set".to_string(),
+                        ))
+                    }
+                };
+                write_key.copy_from_slice(&session_keys[0..16]);
+                write_iv.copy_from_slice(&session_keys[32..36]);
+                self.encrypter = Some(Encrypter::new(write_key, write_iv, cipher_suite));
+            }
+            _ => {
+                return Err(Error::General(
+                    "Cipher suite is not yet implemented".to_string(),
+                ))
+            }
+        }
+        Ok(())
+    }
+    fn set_decrypter(&mut self) -> Result<(), Error> {
+        println!("IN message_decrypter ");
+
+        let cipher_suite = match self.cipher_suite_name {
+            Some(cs) => cs,
+            None => {
+                return Err(Error::General(
+                    "internal error: cipher_suite is not set".to_string(),
+                ))
+            }
+        };
+
+        match cipher_suite {
+            CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+            | CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 => {
+                // extract client_write_key and client_write_iv. They may be at different
+                // offsets depending on the cipher suite.
+                let mut write_key = [0u8; 16];
+                let mut write_iv = [0u8; 4];
+                let session_keys = match &self.session_keys {
+                    Some(k) => k,
+                    None => {
+                        return Err(Error::General(
+                            "internal error: session_keys is not set".to_string(),
+                        ))
+                    }
+                };
+                write_key.copy_from_slice(&session_keys[0..16]);
+                write_iv.copy_from_slice(&session_keys[32..36]);
+                self.decrypter = Some(Decrypter::new(write_key, write_iv, cipher_suite));
+            }
+            _ => {
+                return Err(Error::General(
+                    "Cipher suite is not yet implemented".to_string(),
+                ))
+            }
+        }
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -336,6 +415,9 @@ impl Crypto for StandardCrypto {
             self.master_secret
         );
 
+        self.set_encrypter()?;
+        self.set_decrypter()?;
+
         Ok(())
     }
     async fn set_hs_hash_server_hello(&mut self, _hash: &[u8]) -> Result<(), Error> {
@@ -390,89 +472,14 @@ impl Crypto for StandardCrypto {
         };
         Ok(verify_data.to_vec())
     }
-    // async fn message_encrypter(&self) -> Result<Box<dyn MessageEncrypter>, Error> {
-    //     println!("IN message_encrypter ");
-
-    //     let cipher_suite = match self.cipher_suite_name {
-    //         Some(cs) => cs,
-    //         None => {
-    //             return Err(Error::General(
-    //                 "internal error: cipher_suite is not set".to_string(),
-    //             ))
-    //         }
-    //     };
-
-    //     match cipher_suite {
-    //         CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-    //         | CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 => {
-    //             // extract client_write_key and client_write_iv. They may be at different
-    //             // offsets depending on the cipher suite.
-    //             let mut write_key = [0u8; 16];
-    //             let mut write_iv = [0u8; 4];
-    //             let session_keys = match &self.session_keys {
-    //                 Some(k) => k,
-    //                 None => {
-    //                     return Err(Error::General(
-    //                         "internal error: session_keys is not set".to_string(),
-    //                     ))
-    //                 }
-    //             };
-    //             write_key.copy_from_slice(&session_keys[0..16]);
-    //             write_iv.copy_from_slice(&session_keys[32..36]);
-    //             return Ok(Box::new(Encrypter::new(write_key, write_iv, cipher_suite)));
-    //         }
-    //         _ => {
-    //             return Err(Error::General(
-    //                 "Cipher suite is not yet implemented".to_string(),
-    //             ))
-    //         }
-    //     }
-    // }
-    // async fn message_decrypter(&self) -> Result<Box<dyn MessageDecrypter>, Error> {
-    //     println!("IN message_decrypter ");
-
-    //     let cipher_suite = match self.cipher_suite_name {
-    //         Some(cs) => cs,
-    //         None => {
-    //             return Err(Error::General(
-    //                 "internal error: cipher_suite is not set".to_string(),
-    //             ))
-    //         }
-    //     };
-
-    //     match cipher_suite {
-    //         CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-    //         | CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 => {
-    //             // extract client_write_key and client_write_iv. They may be at different
-    //             // offsets depending on the cipher suite.
-    //             let mut write_key = [0u8; 16];
-    //             let mut write_iv = [0u8; 4];
-    //             let session_keys = match &self.session_keys {
-    //                 Some(k) => k,
-    //                 None => {
-    //                     return Err(Error::General(
-    //                         "internal error: session_keys is not set".to_string(),
-    //                     ))
-    //                 }
-    //             };
-    //             write_key.copy_from_slice(&session_keys[0..16]);
-    //             write_iv.copy_from_slice(&session_keys[32..36]);
-    //             return Ok(Box::new(Decrypter::new(write_key, write_iv, cipher_suite)));
-    //         }
-    //         _ => {
-    //             return Err(Error::General(
-    //                 "Cipher suite is not yet implemented".to_string(),
-    //             ))
-    //         }
-    //     }
-    // }
     async fn encrypt(&mut self, m: PlainMessage, seq: u64) -> Result<OpaqueMessage, Error> {
         let enc = self
             .encrypter
             .as_mut()
             .ok_or(Error::General("encrypter not ready".to_string()))?;
         match enc.cipher_suite {
-            CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 => {
+            CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+            | CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 => {
                 match m.version {
                     ProtocolVersion::TLSv1_2 => {
                         let explicit_nonce;
@@ -519,7 +526,7 @@ impl Crypto for StandardCrypto {
         let dec = self
             .decrypter
             .as_mut()
-            .ok_or(Error::General("encrypter not ready".to_string()))?;
+            .ok_or(Error::General("decrypter not ready".to_string()))?;
         match dec.cipher_suite {
             CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
             | CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 => match m.version {
