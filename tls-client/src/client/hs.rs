@@ -540,6 +540,10 @@ impl State<ClientConnectionData> for ExpectServerHello {
         transcript.add_message(&m);
 
         let randoms = ConnectionRandoms::new(self.random, server_hello.random);
+        cx.common
+            .crypto
+            .set_server_random(server_hello.random)
+            .await?;
         // For TLS1.3, start message encryption using
         // handshake_traffic_secret.
         match suite {
