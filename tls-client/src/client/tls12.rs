@@ -848,6 +848,8 @@ impl State<ClientConnectionData> for ExpectServerDone {
             .crypto
             .set_server_key_share(server_key_share)
             .await?;
+        cx.common.record_layer.prepare_message_encrypter();
+        cx.common.record_layer.start_encrypting();
 
         st.config
             .key_log
