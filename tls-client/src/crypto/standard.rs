@@ -601,7 +601,7 @@ impl Encrypter {
         let om = OpaqueMessage {
             typ: m.typ,
             version: m.version,
-            payload: TLSPayload(nonce_ct_mac),
+            payload: TLSPayload::new(nonce_ct_mac),
         };
         println!("IN encrypt_aes128gcm {:?}", om);
         Ok(om)
