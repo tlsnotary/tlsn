@@ -230,7 +230,7 @@ impl StandardCrypto {
         match cipher_suite {
             CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
             | CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 => {
-                // extract client_write_key and client_write_iv. They may be at different
+                // extract server_write_key and server_write_iv. They may be at different
                 // offsets depending on the cipher suite.
                 let mut write_key = [0u8; 16];
                 let mut write_iv = [0u8; 4];
