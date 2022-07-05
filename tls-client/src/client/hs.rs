@@ -212,7 +212,7 @@ async fn emit_client_hello_for_retry(
         ClientExtension::ECPointFormats(ECPointFormatList::supported()),
         ClientExtension::NamedGroups(config.kx_groups.iter().map(|skxg| skxg.name).collect()),
         ClientExtension::SignatureAlgorithms(config.verifier.supported_verify_schemes()),
-        ClientExtension::ExtendedMasterSecretRequest,
+        //ClientExtension::ExtendedMasterSecretRequest,
         ClientExtension::CertificateStatusRequest(CertificateStatusRequest::build_ocsp()),
     ];
 

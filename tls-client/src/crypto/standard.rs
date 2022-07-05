@@ -70,6 +70,8 @@ pub struct StandardCrypto {
     server_random: Option<Random>,
     // master_secret size is the same for all cipher suites
     master_secret: Option<[u8; 48]>,
+    // extended master secret seed
+    ems_seed: Option<Vec<u8>>,
     ecdh_pubkey: Option<Vec<u8>>,
     ecdh_secret: Option<EphemeralSecret>,
     // session_keys size can vary depending on the ciphersuite
@@ -90,6 +92,7 @@ impl StandardCrypto {
             ecdh_pubkey: None,
             ecdh_secret: None,
             master_secret: None,
+            ems_seed: None,
             session_keys: None,
             protocol_version: None,
             cipher_suite_name: None,
@@ -418,6 +421,10 @@ impl Crypto for StandardCrypto {
         self.set_encrypter()?;
         self.set_decrypter()?;
 
+        Ok(())
+    }
+    async fn set_hs_hash_client_key_exchange(&mut self, hash: &[u8]) -> Result<(), Error> {
+        self.ems_seed = Some(hash.to_vec());
         Ok(())
     }
     async fn set_hs_hash_server_hello(&mut self, _hash: &[u8]) -> Result<(), Error> {

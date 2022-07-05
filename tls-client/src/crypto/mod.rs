@@ -54,6 +54,8 @@ pub trait Crypto: Send {
     async fn set_server_random(&mut self, random: Random) -> Result<(), Error>;
     /// Sets server keyshare.
     async fn set_server_key_share(&mut self, key: PublicKey) -> Result<(), Error>;
+    /// Sets handshake hash at ClientKeyExchange for EMS.
+    async fn set_hs_hash_client_key_exchange(&mut self, hash: &[u8]) -> Result<(), Error>;
     /// Sets handshake hash at ServerHello.
     async fn set_hs_hash_server_hello(&mut self, hash: &[u8]) -> Result<(), Error>;
     /// Returns expected ServerFinished verify_data.
@@ -97,6 +99,9 @@ impl Crypto for InvalidCrypto {
         Err(Error::General("handshaker not yet available".to_string()))
     }
     async fn set_server_key_share(&mut self, _key: PublicKey) -> Result<(), Error> {
+        Err(Error::General("handshaker not yet available".to_string()))
+    }
+    async fn set_hs_hash_client_key_exchange(&mut self, _hash: &[u8]) -> Result<(), Error> {
         Err(Error::General("handshaker not yet available".to_string()))
     }
     async fn set_hs_hash_server_hello(&mut self, _hash: &[u8]) -> Result<(), Error> {

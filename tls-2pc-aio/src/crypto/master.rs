@@ -57,6 +57,9 @@ where
     async fn set_server_key_share(&mut self, _key: PublicKey) -> Result<(), Error> {
         todo!()
     }
+    async fn set_hs_hash_client_key_exchange(&mut self, _hash: &[u8]) -> Result<(), Error> {
+        todo!()
+    }
     async fn set_hs_hash_server_hello(&mut self, _hash: &[u8]) -> Result<(), Error> {
         todo!()
     }
