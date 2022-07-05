@@ -27,7 +27,7 @@ pub static TLS13: SupportedProtocolVersion = SupportedProtocolVersion {
 
 /// A list of all the protocol versions supported by rustls.
 pub static ALL_VERSIONS: &[&SupportedProtocolVersion] = &[
-    &TLS13,
+    //&TLS13,
     #[cfg(feature = "tls12")]
     &TLS12,
 ];

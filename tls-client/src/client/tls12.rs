@@ -830,7 +830,12 @@ impl State<ClientConnectionData> for ExpectServerDone {
         let mut transcript = st.transcript;
         emit_clientkx(&mut transcript, cx.common, &key_share).await?;
         // nb. EMS handshake hash only runs up to ClientKeyExchange.
-        let _ems_seed = st.using_ems.then(|| transcript.get_current_hash());
+        let ems_seed = transcript.get_current_hash();
+
+        cx.common
+            .crypto
+            .set_hs_hash_client_key_exchange(ems_seed.as_ref())
+            .await?;
 
         // 5c.
         if let Some(ClientAuthDetails::Verify { signer, .. }) = &st.client_auth {
@@ -848,6 +853,9 @@ impl State<ClientConnectionData> for ExpectServerDone {
             .crypto
             .set_server_key_share(server_key_share)
             .await?;
+        cx.common.record_layer.prepare_message_encrypter();
+        cx.common.record_layer.prepare_message_decrypter();
+        cx.common.record_layer.start_encrypting();
 
         st.config
             .key_log

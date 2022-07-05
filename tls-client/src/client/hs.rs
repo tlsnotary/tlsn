@@ -212,7 +212,7 @@ async fn emit_client_hello_for_retry(
         ClientExtension::ECPointFormats(ECPointFormatList::supported()),
         ClientExtension::NamedGroups(config.kx_groups.iter().map(|skxg| skxg.name).collect()),
         ClientExtension::SignatureAlgorithms(config.verifier.supported_verify_schemes()),
-        ClientExtension::ExtendedMasterSecretRequest,
+        //ClientExtension::ExtendedMasterSecretRequest,
         ClientExtension::CertificateStatusRequest(CertificateStatusRequest::build_ocsp()),
     ];
 
@@ -540,6 +540,10 @@ impl State<ClientConnectionData> for ExpectServerHello {
         transcript.add_message(&m);
 
         let randoms = ConnectionRandoms::new(self.random, server_hello.random);
+        cx.common
+            .crypto
+            .set_server_random(server_hello.random)
+            .await?;
         // For TLS1.3, start message encryption using
         // handshake_traffic_secret.
         match suite {

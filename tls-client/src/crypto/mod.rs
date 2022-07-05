@@ -1,3 +1,5 @@
+mod standard;
+
 use crate::Error;
 use tls_core::msgs::enums::ProtocolVersion;
 use tls_core::msgs::handshake::Random;
@@ -6,7 +8,7 @@ use tls_core::{key::PublicKey, suites::SupportedCipherSuite};
 
 use async_trait::async_trait;
 
-use crate::cipher::{MessageDecrypter, MessageEncrypter};
+pub(crate) use standard::StandardCrypto;
 
 /// Encryption modes for Crypto implementor
 #[derive(Debug, Clone)]
@@ -42,7 +44,7 @@ pub trait Crypto: Send {
     fn suite(&self) -> Result<SupportedCipherSuite, Error>;
     /// Set encryption mode
     fn set_encrypt(&mut self, mode: EncryptMode) -> Result<(), Error>;
-    /// Start decryption
+    /// Set decryption mode
     fn set_decrypt(&mut self, mode: DecryptMode) -> Result<(), Error>;
     /// Returns client_random value.
     async fn client_random(&mut self) -> Result<Random, Error>;
@@ -52,6 +54,8 @@ pub trait Crypto: Send {
     async fn set_server_random(&mut self, random: Random) -> Result<(), Error>;
     /// Sets server keyshare.
     async fn set_server_key_share(&mut self, key: PublicKey) -> Result<(), Error>;
+    /// Sets handshake hash at ClientKeyExchange for EMS.
+    async fn set_hs_hash_client_key_exchange(&mut self, hash: &[u8]) -> Result<(), Error>;
     /// Sets handshake hash at ServerHello.
     async fn set_hs_hash_server_hello(&mut self, hash: &[u8]) -> Result<(), Error>;
     /// Returns expected ServerFinished verify_data.
@@ -95,6 +99,9 @@ impl Crypto for InvalidCrypto {
         Err(Error::General("handshaker not yet available".to_string()))
     }
     async fn set_server_key_share(&mut self, _key: PublicKey) -> Result<(), Error> {
+        Err(Error::General("handshaker not yet available".to_string()))
+    }
+    async fn set_hs_hash_client_key_exchange(&mut self, _hash: &[u8]) -> Result<(), Error> {
         Err(Error::General("handshaker not yet available".to_string()))
     }
     async fn set_hs_hash_server_hello(&mut self, _hash: &[u8]) -> Result<(), Error> {
