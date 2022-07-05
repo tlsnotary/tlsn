@@ -242,8 +242,8 @@ impl StandardCrypto {
                         ))
                     }
                 };
-                write_key.copy_from_slice(&session_keys[0..16]);
-                write_iv.copy_from_slice(&session_keys[32..36]);
+                write_key.copy_from_slice(&session_keys[16..32]);
+                write_iv.copy_from_slice(&session_keys[36..40]);
                 self.decrypter = Some(Decrypter::new(write_key, write_iv, cipher_suite));
             }
             _ => {
