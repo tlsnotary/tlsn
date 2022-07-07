@@ -1,58 +1,7 @@
 use super::sha::finalize_sha256_digest;
 use super::HandshakeMessage;
 use super::{errors::*, SlaveCore};
-
-#[derive(Copy, Clone)]
-pub struct SlaveMs1 {
-    /// H((pms xor opad) || H((pms xor ipad) || seed))
-    pub a1: [u8; 32],
-}
-
-#[derive(Copy, Clone)]
-pub struct SlaveMs2 {
-    /// H((pms xor opad) || H((pms xor ipad) || a1))
-    pub a2: [u8; 32],
-}
-
-#[derive(Copy, Clone)]
-pub struct SlaveMs3 {
-    /// H((pms xor opad) || H((pms xor ipad) || a2 || seed))
-    pub p2: [u8; 32],
-}
-
-#[derive(Copy, Clone)]
-pub struct SlaveKe1 {
-    /// H((ms xor opad) || H((ms xor ipad) || seed))
-    pub a1: [u8; 32],
-}
-
-#[derive(Copy, Clone)]
-pub struct SlaveKe2 {
-    /// H((ms xor opad) || H((ms xor ipad) || a1))
-    pub a2: [u8; 32],
-}
-
-#[derive(Copy, Clone)]
-pub struct SlaveCf1 {
-    /// H((ms xor opad) || H((ms xor ipad) || seed))
-    pub a1: [u8; 32],
-}
-
-#[derive(Copy, Clone)]
-pub struct SlaveCf2 {
-    pub verify_data: [u8; 12],
-}
-
-#[derive(Copy, Clone)]
-pub struct SlaveSf1 {
-    /// H((ms xor opad) || H((ms xor ipad) || seed))
-    pub a1: [u8; 32],
-}
-
-#[derive(Copy, Clone)]
-pub struct SlaveSf2 {
-    pub verify_data: [u8; 12],
-}
+use crate::msgs::handshake::*;
 
 #[derive(PartialEq, Copy, Clone)]
 enum State {

@@ -2,60 +2,7 @@ use super::sha::finalize_sha256_digest;
 use super::utils::{seed_cf, seed_ke, seed_ms, seed_sf};
 use super::HandshakeMessage;
 use super::{errors::*, MasterCore};
-
-#[derive(Copy, Clone)]
-pub struct MasterMs1 {
-    /// H((pms xor ipad) || seed)
-    pub inner_hash: [u8; 32],
-}
-
-#[derive(Copy, Clone)]
-pub struct MasterMs2 {
-    /// H((pms xor ipad) || a1)
-    pub inner_hash: [u8; 32],
-}
-
-#[derive(Copy, Clone)]
-pub struct MasterMs3 {
-    /// H((pms xor ipad) || a2)
-    pub inner_hash: [u8; 32],
-}
-
-#[derive(Copy, Clone)]
-pub struct MasterKe1 {
-    /// H((ms xor ipad) || seed)
-    pub inner_hash: [u8; 32],
-}
-
-#[derive(Copy, Clone)]
-pub struct MasterKe2 {
-    /// H((ms xor ipad) || a1)
-    pub inner_hash: [u8; 32],
-}
-
-#[derive(Copy, Clone)]
-pub struct MasterCf1 {
-    /// H((ms xor ipad) || seed)
-    pub inner_hash: [u8; 32],
-}
-
-#[derive(Copy, Clone)]
-pub struct MasterCf2 {
-    /// H((ms xor ipad) || a1 || seed)
-    pub inner_hash: [u8; 32],
-}
-
-#[derive(Copy, Clone)]
-pub struct MasterSf1 {
-    /// H((ms xor ipad) || seed)
-    pub inner_hash: [u8; 32],
-}
-
-#[derive(Copy, Clone)]
-pub struct MasterSf2 {
-    /// H((ms xor ipad) || a1 || seed)
-    pub inner_hash: [u8; 32],
-}
+use crate::msgs::handshake::*;
 
 #[derive(PartialEq, Copy, Clone)]
 enum State {

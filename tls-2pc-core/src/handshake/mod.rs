@@ -4,38 +4,10 @@ mod sha;
 pub mod slave;
 mod utils;
 
+pub use crate::msgs::handshake::HandshakeMessage;
 use errors::*;
 pub use master::HandshakeMaster;
-use master::{
-    MasterCf1, MasterCf2, MasterKe1, MasterKe2, MasterMs1, MasterMs2, MasterMs3, MasterSf1,
-    MasterSf2,
-};
 pub use slave::HandshakeSlave;
-use slave::{
-    SlaveCf1, SlaveCf2, SlaveKe1, SlaveKe2, SlaveMs1, SlaveMs2, SlaveMs3, SlaveSf1, SlaveSf2,
-};
-
-#[derive(Copy, Clone)]
-pub enum HandshakeMessage {
-    MasterMs1(MasterMs1),
-    SlaveMs1(SlaveMs1),
-    MasterMs2(MasterMs2),
-    SlaveMs2(SlaveMs2),
-    MasterMs3(MasterMs3),
-    SlaveMs3(SlaveMs3),
-    MasterKe1(MasterKe1),
-    SlaveKe1(SlaveKe1),
-    MasterKe2(MasterKe2),
-    SlaveKe2(SlaveKe2),
-    MasterCf1(MasterCf1),
-    SlaveCf1(SlaveCf1),
-    MasterCf2(MasterCf2),
-    SlaveCf2(SlaveCf2),
-    MasterSf1(MasterSf1),
-    SlaveSf1(SlaveSf1),
-    MasterSf2(MasterSf2),
-    SlaveSf2(SlaveSf2),
-}
 
 pub trait MasterCore {
     /// The first method that should be called after instantiation. Performs
