@@ -1,8 +1,8 @@
 use crate::block::Block;
 use crate::ot::extension::{
     kos15::{
-        BaseReceiver, BaseReceiverSetupWrapper, BaseSenderPayload, BaseSenderSetup, ExtDerandomize,
-        ReceiverSetup, SenderPayload,
+        BaseReceiver, BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper,
+        ExtDerandomize, ExtReceiverSetup, ExtSenderPayload,
     },
     ExtRandomSendCore, ExtSenderCoreError, ExtStandardSendCore, BASE_COUNT,
 };
@@ -50,22 +50,6 @@ pub struct Kos15Sender<C = Aes128> {
     // the shared random value which both parties will have at the end of the
     // cointoss protocol
     cointoss_random: Option<[u8; 32]>,
-}
-
-/// OT extension Receiver plays the role of base OT Sender and sends the
-/// first message containing base OT setup and cointoss commitment
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct SenderSetup {
-    pub setup: BaseSenderSetup,
-    // Cointoss protocol's 1st message: sha256 commitment
-    pub cointoss_commit: [u8; 32],
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct BaseSenderPayloadWrapper {
-    pub payload: BaseSenderPayload,
-    // Cointoss protocol's 3rd message: Sender reveals share
-    pub cointoss_share: [u8; 32],
 }
 
 // Having 2 messages that Receiver chooses from, we encrypt each message with
@@ -174,11 +158,11 @@ where
     C: BlockCipher<BlockSize = U16> + BlockEncrypt,
 {
     type State = State;
-    type BaseSenderSetup = SenderSetup;
+    type BaseSenderSetup = BaseSenderSetupWrapper;
     type BaseSenderPayload = BaseSenderPayloadWrapper;
     type BaseReceiverSetup = BaseReceiverSetupWrapper;
-    type ExtSenderPayload = SenderPayload;
-    type ExtReceiverSetup = ReceiverSetup;
+    type ExtSenderPayload = ExtSenderPayload;
+    type ExtReceiverSetup = ExtReceiverSetup;
 
     fn state(&self) -> &State {
         &self.state
@@ -190,7 +174,7 @@ where
 
     fn base_setup(
         &mut self,
-        base_sender_setup: SenderSetup,
+        base_sender_setup: BaseSenderSetupWrapper,
     ) -> Result<BaseReceiverSetupWrapper, ExtSenderCoreError> {
         if self.state != State::Initialized {
             return Err(ExtSenderCoreError::WrongState);
@@ -231,7 +215,10 @@ where
         Ok(())
     }
 
-    fn extension_setup(&mut self, receiver_setup: ReceiverSetup) -> Result<(), ExtSenderCoreError> {
+    fn extension_setup(
+        &mut self,
+        receiver_setup: ExtReceiverSetup,
+    ) -> Result<(), ExtSenderCoreError> {
         if self.state != State::BaseReceive {
             return Err(ExtSenderCoreError::BaseOTNotSetup);
         }
@@ -312,7 +299,7 @@ where
         Ok(())
     }
 
-    fn send(&mut self, inputs: &[[Block; 2]]) -> Result<SenderPayload, ExtSenderCoreError> {
+    fn send(&mut self, inputs: &[[Block; 2]]) -> Result<ExtSenderPayload, ExtSenderCoreError> {
         if self.sent + inputs.len() > self.count {
             return Err(ExtSenderCoreError::InvalidInputLength);
         }
@@ -331,7 +318,7 @@ where
             self.state = State::Complete;
         }
 
-        Ok(SenderPayload { ciphertexts })
+        Ok(ExtSenderPayload { ciphertexts })
     }
 }
 
@@ -345,7 +332,7 @@ where
         &mut self,
         inputs: &[[Block; 2]],
         derandomize: ExtDerandomize,
-    ) -> Result<SenderPayload, ExtSenderCoreError> {
+    ) -> Result<ExtSenderPayload, ExtSenderCoreError> {
         if self.sent + inputs.len() > self.count {
             return Err(ExtSenderCoreError::InvalidInputLength);
         }
@@ -370,6 +357,6 @@ where
             self.state = State::Complete;
         }
 
-        Ok(SenderPayload { ciphertexts })
+        Ok(ExtSenderPayload { ciphertexts })
     }
 }

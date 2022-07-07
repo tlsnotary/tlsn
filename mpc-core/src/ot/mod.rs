@@ -6,13 +6,13 @@ pub use extension::*;
 
 #[derive(Debug, Clone)]
 pub enum Kos15Message {
-    SenderSetup(dh_ot::SenderSetup),
-    BaseSenderSetup(kos15::SenderSetup),
-    SenderPayload(dh_ot::SenderPayload),
-    BaseSenderPayload(kos15::BaseSenderPayloadWrapper),
-    ReceiverSetup(dh_ot::ReceiverSetup),
-    BaseReceiverSetup(kos15::BaseReceiverSetupWrapper),
-    ExtReceiverSetup(kos15::ReceiverSetup),
+    BaseSenderSetup(dh_ot::SenderSetup),
+    BaseSenderSetupWrapper(kos15::BaseSenderSetupWrapper),
+    BaseSenderPayload(dh_ot::SenderPayload),
+    BaseSenderPayloadWrapper(kos15::BaseSenderPayloadWrapper),
+    BaseReceiverSetup(dh_ot::ReceiverSetup),
+    BaseReceiverSetupWrapper(kos15::BaseReceiverSetupWrapper),
+    ExtReceiverSetup(kos15::ExtReceiverSetup),
     ExtDerandomize(kos15::ExtDerandomize),
-    ExtSenderPayload(kos15::SenderPayload),
+    ExtSenderPayload(kos15::ExtSenderPayload),
 }

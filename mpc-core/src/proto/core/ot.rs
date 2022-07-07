@@ -14,14 +14,23 @@ impl From<ot::Kos15Message> for Message {
     fn from(m: ot::Kos15Message) -> Self {
         Self {
             msg: Some(match m {
-                ot::Kos15Message::ReceiverSetup(msg) => {
-                    message::Msg::ReceiverSetup(ReceiverSetup::from(msg))
+                ot::Kos15Message::BaseReceiverSetupWrapper(msg) => {
+                    message::Msg::BaseReceiverSetupWrapper(BaseReceiverSetupWrapper::from(msg))
                 }
-                ot::Kos15Message::SenderSetup(msg) => {
-                    message::Msg::SenderSetup(SenderSetup::from(msg))
+                ot::Kos15Message::BaseReceiverSetup(msg) => {
+                    message::Msg::BaseReceiverSetup(BaseReceiverSetup::from(msg))
                 }
-                ot::Kos15Message::SenderPayload(msg) => {
-                    message::Msg::SenderPayload(SenderPayload::from(msg))
+                ot::Kos15Message::BaseSenderSetup(msg) => {
+                    message::Msg::BaseSenderSetup(BaseSenderSetup::from(msg))
+                }
+                ot::Kos15Message::BaseSenderSetupWrapper(msg) => {
+                    message::Msg::BaseSenderSetupWrapper(BaseSenderSetupWrapper::from(msg))
+                }
+                ot::Kos15Message::BaseSenderPayloadWrapper(msg) => {
+                    message::Msg::BaseSenderPayloadWrapper(BaseSenderPayloadWrapper::from(msg))
+                }
+                ot::Kos15Message::BaseSenderPayload(msg) => {
+                    message::Msg::BaseSenderPayload(BaseSenderPayload::from(msg))
                 }
                 ot::Kos15Message::ExtReceiverSetup(msg) => {
                     message::Msg::ExtReceiverSetup(ExtReceiverSetup::from(msg))
@@ -31,15 +40,6 @@ impl From<ot::Kos15Message> for Message {
                 }
                 ot::Kos15Message::ExtSenderPayload(msg) => {
                     message::Msg::ExtSenderPayload(ExtSenderPayload::from(msg))
-                }
-                ot::Kos15Message::BaseSenderSetup(msg) => {
-                    message::Msg::BaseSenderSetup(BaseSenderSetup::from(msg))
-                }
-                ot::Kos15Message::BaseReceiverSetup(msg) => {
-                    message::Msg::BaseReceiverSetup(BaseReceiverSetup::from(msg))
-                }
-                ot::Kos15Message::BaseSenderPayload(msg) => {
-                    message::Msg::BaseSenderPayload(BaseSenderPayload::from(msg))
                 }
             }),
         }
@@ -52,33 +52,39 @@ impl TryFrom<Message> for ot::Kos15Message {
     fn try_from(m: Message) -> Result<Self, Self::Error> {
         if let Some(msg) = m.msg {
             let m = match msg {
-                message::Msg::ReceiverSetup(msg) => {
-                    ot::Kos15Message::ReceiverSetup(dh_ot::ReceiverSetup::try_from(msg)?)
+                message::Msg::BaseReceiverSetupWrapper(msg) => {
+                    ot::Kos15Message::BaseReceiverSetupWrapper(
+                        kos15::BaseReceiverSetupWrapper::try_from(msg)?,
+                    )
                 }
-                message::Msg::SenderSetup(msg) => {
-                    ot::Kos15Message::SenderSetup(dh_ot::SenderSetup::try_from(msg)?)
+                message::Msg::BaseReceiverSetup(msg) => {
+                    ot::Kos15Message::BaseReceiverSetup(kos15::BaseReceiverSetup::try_from(msg)?)
                 }
-                message::Msg::SenderPayload(msg) => {
-                    ot::Kos15Message::SenderPayload(dh_ot::SenderPayload::from(msg))
+                message::Msg::BaseSenderSetup(msg) => {
+                    ot::Kos15Message::BaseSenderSetup(kos15::BaseSenderSetup::try_from(msg)?)
+                }
+                message::Msg::BaseSenderSetupWrapper(msg) => {
+                    ot::Kos15Message::BaseSenderSetupWrapper(
+                        kos15::BaseSenderSetupWrapper::try_from(msg)?,
+                    )
+                }
+                message::Msg::BaseSenderPayloadWrapper(msg) => {
+                    ot::Kos15Message::BaseSenderPayloadWrapper(
+                        kos15::BaseSenderPayloadWrapper::try_from(msg)?,
+                    )
+                }
+                message::Msg::BaseSenderPayload(msg) => {
+                    ot::Kos15Message::BaseSenderPayload(kos15::BaseSenderPayload::from(msg))
                 }
                 message::Msg::ExtReceiverSetup(msg) => {
-                    ot::Kos15Message::ExtReceiverSetup(kos15::ReceiverSetup::try_from(msg)?)
+                    ot::Kos15Message::ExtReceiverSetup(kos15::ExtReceiverSetup::try_from(msg)?)
                 }
                 message::Msg::ExtDerandomize(msg) => {
                     ot::Kos15Message::ExtDerandomize(kos15::ExtDerandomize::from(msg))
                 }
                 message::Msg::ExtSenderPayload(msg) => {
-                    ot::Kos15Message::ExtSenderPayload(kos15::SenderPayload::from(msg))
+                    ot::Kos15Message::ExtSenderPayload(kos15::ExtSenderPayload::from(msg))
                 }
-                message::Msg::BaseSenderSetup(msg) => {
-                    ot::Kos15Message::BaseSenderSetup(kos15::SenderSetup::try_from(msg)?)
-                }
-                message::Msg::BaseReceiverSetup(msg) => ot::Kos15Message::BaseReceiverSetup(
-                    kos15::BaseReceiverSetupWrapper::try_from(msg)?,
-                ),
-                message::Msg::BaseSenderPayload(msg) => ot::Kos15Message::BaseSenderPayload(
-                    kos15::BaseSenderPayloadWrapper::try_from(msg)?,
-                ),
             };
             Ok(m)
         } else {
@@ -87,7 +93,7 @@ impl TryFrom<Message> for ot::Kos15Message {
     }
 }
 
-impl From<dh_ot::SenderSetup> for SenderSetup {
+impl From<dh_ot::SenderSetup> for BaseSenderSetup {
     #[inline]
     fn from(s: dh_ot::SenderSetup) -> Self {
         Self {
@@ -96,18 +102,18 @@ impl From<dh_ot::SenderSetup> for SenderSetup {
     }
 }
 
-impl TryFrom<SenderSetup> for dh_ot::SenderSetup {
+impl TryFrom<BaseSenderSetup> for dh_ot::SenderSetup {
     type Error = Error;
 
     #[inline]
-    fn try_from(s: SenderSetup) -> Result<Self, Self::Error> {
+    fn try_from(s: BaseSenderSetup) -> Result<Self, Self::Error> {
         Ok(Self {
             public_key: s.public_key.try_into()?,
         })
     }
 }
 
-impl From<dh_ot::SenderPayload> for SenderPayload {
+impl From<dh_ot::SenderPayload> for BaseSenderPayload {
     #[inline]
     fn from(p: dh_ot::SenderPayload) -> Self {
         Self {
@@ -123,9 +129,9 @@ impl From<dh_ot::SenderPayload> for SenderPayload {
     }
 }
 
-impl From<SenderPayload> for dh_ot::SenderPayload {
+impl From<BaseSenderPayload> for dh_ot::SenderPayload {
     #[inline]
-    fn from(p: SenderPayload) -> Self {
+    fn from(p: BaseSenderPayload) -> Self {
         Self {
             ciphertexts: p
                 .ciphertexts
@@ -136,7 +142,7 @@ impl From<SenderPayload> for dh_ot::SenderPayload {
     }
 }
 
-impl From<dh_ot::ReceiverSetup> for ReceiverSetup {
+impl From<dh_ot::ReceiverSetup> for BaseReceiverSetup {
     #[inline]
     fn from(s: dh_ot::ReceiverSetup) -> Self {
         Self {
@@ -149,11 +155,11 @@ impl From<dh_ot::ReceiverSetup> for ReceiverSetup {
     }
 }
 
-impl TryFrom<ReceiverSetup> for dh_ot::ReceiverSetup {
+impl TryFrom<BaseReceiverSetup> for dh_ot::ReceiverSetup {
     type Error = Error;
 
     #[inline]
-    fn try_from(s: ReceiverSetup) -> Result<Self, Self::Error> {
+    fn try_from(s: BaseReceiverSetup) -> Result<Self, Self::Error> {
         let mut blinded_choices: Vec<curve25519_dalek::ristretto::RistrettoPoint> =
             Vec::with_capacity(s.blinded_choices.len());
         for key in s.blinded_choices.into_iter() {
@@ -163,9 +169,9 @@ impl TryFrom<ReceiverSetup> for dh_ot::ReceiverSetup {
     }
 }
 
-impl From<kos15::ReceiverSetup> for ExtReceiverSetup {
+impl From<kos15::ExtReceiverSetup> for ExtReceiverSetup {
     #[inline]
-    fn from(s: kos15::ReceiverSetup) -> Self {
+    fn from(s: kos15::ExtReceiverSetup) -> Self {
         Self {
             ncols: s.ncols as u32,
             table: s.table,
@@ -176,7 +182,7 @@ impl From<kos15::ReceiverSetup> for ExtReceiverSetup {
     }
 }
 
-impl TryFrom<ExtReceiverSetup> for kos15::ReceiverSetup {
+impl TryFrom<ExtReceiverSetup> for kos15::ExtReceiverSetup {
     type Error = Error;
 
     #[inline]
@@ -205,9 +211,9 @@ impl From<ExtDerandomize> for kos15::ExtDerandomize {
     }
 }
 
-impl From<kos15::SenderPayload> for ExtSenderPayload {
+impl From<kos15::ExtSenderPayload> for ExtSenderPayload {
     #[inline]
-    fn from(p: kos15::SenderPayload) -> Self {
+    fn from(p: kos15::ExtSenderPayload) -> Self {
         Self {
             ciphertexts: p
                 .ciphertexts
@@ -221,7 +227,7 @@ impl From<kos15::SenderPayload> for ExtSenderPayload {
     }
 }
 
-impl From<ExtSenderPayload> for kos15::SenderPayload {
+impl From<ExtSenderPayload> for kos15::ExtSenderPayload {
     #[inline]
     fn from(p: ExtSenderPayload) -> Self {
         Self {
@@ -234,21 +240,21 @@ impl From<ExtSenderPayload> for kos15::SenderPayload {
     }
 }
 
-impl From<kos15::SenderSetup> for BaseSenderSetup {
+impl From<kos15::BaseSenderSetupWrapper> for BaseSenderSetupWrapper {
     #[inline]
-    fn from(s: kos15::SenderSetup) -> Self {
+    fn from(s: kos15::BaseSenderSetupWrapper) -> Self {
         Self {
-            setup: SenderSetup::from(s.setup),
+            setup: BaseSenderSetup::from(s.setup),
             cointoss_commit: s.cointoss_commit.to_vec(),
         }
     }
 }
 
-impl TryFrom<BaseSenderSetup> for kos15::SenderSetup {
+impl TryFrom<BaseSenderSetupWrapper> for kos15::BaseSenderSetupWrapper {
     type Error = Error;
 
     #[inline]
-    fn try_from(s: BaseSenderSetup) -> Result<Self, Error> {
+    fn try_from(s: BaseSenderSetupWrapper) -> Result<Self, Error> {
         Ok(Self {
             setup: s.setup.try_into().map_err(|_| ErrorKind::InvalidData)?,
             cointoss_commit: s
@@ -259,21 +265,21 @@ impl TryFrom<BaseSenderSetup> for kos15::SenderSetup {
     }
 }
 
-impl From<kos15::BaseReceiverSetupWrapper> for BaseReceiverSetup {
+impl From<kos15::BaseReceiverSetupWrapper> for BaseReceiverSetupWrapper {
     #[inline]
     fn from(s: kos15::BaseReceiverSetupWrapper) -> Self {
         Self {
-            setup: ReceiverSetup::from(s.setup),
+            setup: BaseReceiverSetup::from(s.setup),
             cointoss_share: s.cointoss_share.to_vec(),
         }
     }
 }
 
-impl TryFrom<BaseReceiverSetup> for kos15::BaseReceiverSetupWrapper {
+impl TryFrom<BaseReceiverSetupWrapper> for kos15::BaseReceiverSetupWrapper {
     type Error = Error;
 
     #[inline]
-    fn try_from(s: BaseReceiverSetup) -> Result<Self, Error> {
+    fn try_from(s: BaseReceiverSetupWrapper) -> Result<Self, Error> {
         Ok(Self {
             setup: s.setup.try_into().map_err(|_| ErrorKind::InvalidData)?,
             cointoss_share: s
@@ -284,21 +290,21 @@ impl TryFrom<BaseReceiverSetup> for kos15::BaseReceiverSetupWrapper {
     }
 }
 
-impl From<kos15::BaseSenderPayloadWrapper> for BaseSenderPayload {
+impl From<kos15::BaseSenderPayloadWrapper> for BaseSenderPayloadWrapper {
     #[inline]
     fn from(s: kos15::BaseSenderPayloadWrapper) -> Self {
         Self {
-            payload: SenderPayload::from(s.payload),
+            payload: BaseSenderPayload::from(s.payload),
             cointoss_share: s.cointoss_share.to_vec(),
         }
     }
 }
 
-impl TryFrom<BaseSenderPayload> for kos15::BaseSenderPayloadWrapper {
+impl TryFrom<BaseSenderPayloadWrapper> for kos15::BaseSenderPayloadWrapper {
     type Error = Error;
 
     #[inline]
-    fn try_from(s: BaseSenderPayload) -> Result<Self, Error> {
+    fn try_from(s: BaseSenderPayloadWrapper) -> Result<Self, Error> {
         Ok(Self {
             payload: s.payload.try_into().map_err(|_| ErrorKind::InvalidData)?,
             cointoss_share: s
@@ -322,15 +328,15 @@ pub mod tests {
         use super::*;
 
         pub struct ProtoData {
-            pub sender_setup: SenderSetup,
-            pub receiver_setup: ReceiverSetup,
-            pub sender_payload: SenderPayload,
+            pub sender_setup: BaseSenderSetup,
+            pub receiver_setup: BaseReceiverSetup,
+            pub sender_payload: BaseSenderPayload,
         }
 
         pub struct ProtoExtData {
-            pub base_sender_setup: BaseSenderSetup,
-            pub base_receiver_setup: BaseReceiverSetup,
-            pub base_sender_payload: BaseSenderPayload,
+            pub base_sender_setup: BaseSenderSetupWrapper,
+            pub base_receiver_setup: BaseReceiverSetupWrapper,
+            pub base_sender_payload: BaseSenderPayloadWrapper,
         }
 
         #[fixture]
@@ -383,11 +389,12 @@ pub mod tests {
 
     #[rstest]
     fn test_proto_ext(proto_ext_core_data: &fixtures::ProtoExtData, ot_ext_core_data: &ExtData) {
-        let base_sender_setup: crate::ot::extension::kos15::SenderSetup = proto_ext_core_data
-            .base_sender_setup
-            .clone()
-            .try_into()
-            .unwrap();
+        let base_sender_setup: crate::ot::extension::kos15::BaseSenderSetupWrapper =
+            proto_ext_core_data
+                .base_sender_setup
+                .clone()
+                .try_into()
+                .unwrap();
 
         assert_eq!(base_sender_setup, ot_ext_core_data.base_sender_setup);
 

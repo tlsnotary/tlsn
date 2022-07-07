@@ -40,7 +40,7 @@ impl Default for DhOtSender {
 impl DhOtSender {
     /// Generates the keypair to be used by the sender for this OT
     pub fn setup<R: CryptoRng + RngCore>(&mut self, rng: &mut R) -> SenderSetup {
-        // Randomly sample a
+        // Randomly sample a private key
         let private_key = Scalar::random(rng);
         // Compute the pubkey A = aG where G is a generator
         let public_key = &private_key * &RISTRETTO_BASEPOINT_TABLE;

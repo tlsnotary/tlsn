@@ -4,12 +4,12 @@ use rand::{CryptoRng, Rng, RngCore, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 use std::convert::TryInto;
 
-use super::{BaseSender, ExtDerandomize};
+use super::BaseSender;
 use crate::{
     ot::extension::{
         kos15::{
-            sender::{BaseSenderPayloadWrapper, SenderSetup},
-            BaseReceiverSetupWrapper, SenderPayload,
+            BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper,
+            ExtDerandomize, ExtReceiverSetup, ExtSenderPayload,
         },
         ExtRandomReceiveCore, ExtReceiverCoreError, ExtStandardReceiveCore, BASE_COUNT,
     },
@@ -49,16 +49,6 @@ pub struct Kos15Receiver<R = ChaCha12Rng, C = Aes128> {
     // the shared random value which both parties will have at the end of the
     // cointoss protocol
     cointoss_random: Option<[u8; 32]>,
-}
-
-#[derive(Clone, Debug)]
-pub struct ReceiverSetup {
-    pub ncols: usize,
-    pub table: Vec<Vec<u8>>,
-    // x, t0, t1 are used for the KOS15 check
-    pub x: [u8; 16],
-    pub t0: [u8; 16],
-    pub t1: [u8; 16],
 }
 
 impl Kos15Receiver {
@@ -150,11 +140,11 @@ where
     C: BlockCipher<BlockSize = U16> + BlockEncrypt,
 {
     type State = State;
-    type BaseSenderSetup = SenderSetup;
+    type BaseSenderSetup = BaseSenderSetupWrapper;
     type BaseSenderPayload = BaseSenderPayloadWrapper;
     type BaseReceiverSetup = BaseReceiverSetupWrapper;
-    type ExtSenderPayload = SenderPayload;
-    type ExtReceiverSetup = ReceiverSetup;
+    type ExtSenderPayload = ExtSenderPayload;
+    type ExtReceiverSetup = ExtReceiverSetup;
 
     fn state(&self) -> &State {
         &self.state
@@ -164,12 +154,12 @@ where
         self.state == State::Complete
     }
 
-    fn base_setup(&mut self) -> Result<SenderSetup, ExtReceiverCoreError> {
+    fn base_setup(&mut self) -> Result<BaseSenderSetupWrapper, ExtReceiverCoreError> {
         if self.state != State::Initialized {
             return Err(ExtReceiverCoreError::WrongState);
         }
         self.state = State::BaseSetup;
-        Ok(SenderSetup {
+        Ok(BaseSenderSetupWrapper {
             setup: self.base.setup(&mut self.rng),
             cointoss_commit: sha256(&self.cointoss_share),
         })
@@ -204,7 +194,10 @@ where
         })
     }
 
-    fn extension_setup(&mut self, choice: &[bool]) -> Result<ReceiverSetup, ExtReceiverCoreError> {
+    fn extension_setup(
+        &mut self,
+        choice: &[bool],
+    ) -> Result<ExtReceiverSetup, ExtReceiverCoreError> {
         if State::BaseSend != self.state {
             return Err(ExtReceiverCoreError::BaseOTNotSetup);
         }
@@ -294,7 +287,7 @@ where
         // remove the last 256 elements which were sacrificed
         ts.drain(ts.len() - 256..);
         self.table = Some(ts);
-        Ok(ReceiverSetup {
+        Ok(ExtReceiverSetup {
             ncols,
             table: gs,
             x: x.into(),
@@ -303,7 +296,7 @@ where
         })
     }
 
-    fn receive(&mut self, payload: SenderPayload) -> Result<Vec<Block>, ExtReceiverCoreError> {
+    fn receive(&mut self, payload: ExtSenderPayload) -> Result<Vec<Block>, ExtReceiverCoreError> {
         let choice_state = match &mut self.state {
             State::Setup(state) => state,
             State::Complete => return Err(ExtReceiverCoreError::AlreadyComplete),
@@ -338,7 +331,7 @@ where
 {
     type ExtDerandomize = ExtDerandomize;
 
-    fn rand_extension_setup(&mut self) -> Result<ReceiverSetup, ExtReceiverCoreError> {
+    fn rand_extension_setup(&mut self) -> Result<ExtReceiverSetup, ExtReceiverCoreError> {
         let n = self.count;
         // For random OT we generate random choice bits during setup then derandomize later
         let mut choice = vec![0u8; if n % 8 != 0 { n + (8 - n % 8) } else { n } / 8];
@@ -371,7 +364,10 @@ where
         Ok(ExtDerandomize { flip })
     }
 
-    fn rand_receive(&mut self, payload: SenderPayload) -> Result<Vec<Block>, ExtReceiverCoreError> {
+    fn rand_receive(
+        &mut self,
+        payload: ExtSenderPayload,
+    ) -> Result<Vec<Block>, ExtReceiverCoreError> {
         let choice_state = match &mut self.state {
             State::Setup(state) => state,
             State::Complete => return Err(ExtReceiverCoreError::AlreadyComplete),

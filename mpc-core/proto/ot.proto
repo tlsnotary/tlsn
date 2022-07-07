@@ -5,19 +5,19 @@ import "core.proto";
 package core.ot;
 
 // Setup message sent by Base OT Sender
-message SenderSetup {
+message BaseSenderSetup {
     // Sender's public key
     required core.RistrettoPoint public_key = 1;
 }
 
 // Message sent by OT Sender containing encrypted values
-message SenderPayload {
+message BaseSenderPayload {
     // Encrypted values
     repeated core.LabelPair ciphertexts = 1;
 }
 
 // Setup message sent by Base OT Receiver
-message ReceiverSetup {
+message BaseReceiverSetup {
     // The blinded choice bit sent by the receiver
     repeated core.RistrettoPoint blinded_choices = 1;
 }
@@ -43,36 +43,36 @@ message ExtSenderPayload {
 
 // Setup message sent by Base OT Sender in preparation for the OT extension
 // protocol
-message BaseSenderSetup {
-    required SenderSetup setup = 1;
+message BaseSenderSetupWrapper {
+    required BaseSenderSetup setup = 1;
     required bytes cointoss_commit = 2;
 }
 
 // Setup message sent by Base OT Receiver in preparation for the OT extension
 // protocol
-message BaseReceiverSetup {
-    required ReceiverSetup setup = 1;
+message BaseReceiverSetupWrapper {
+    required BaseReceiverSetup setup = 1;
     required bytes cointoss_share = 2;
 }
 
 // Message sent by OT Sender in preparation for the OT extension
 // protocol
-message BaseSenderPayload {
-    required SenderPayload payload = 1;
+message BaseSenderPayloadWrapper {
+    required BaseSenderPayload payload = 1;
     required bytes cointoss_share = 2;
 }
 
 
 message Message {
     oneof msg {
-        SenderSetup sender_setup = 1;
-        SenderPayload sender_payload = 2;
-        ReceiverSetup receiver_setup = 3;
+        BaseSenderSetup base_sender_setup = 1;
+        BaseSenderPayload base_sender_payload = 2;
+        BaseReceiverSetup base_receiver_setup = 3;
         ExtReceiverSetup ext_receiver_setup = 4;
         ExtDerandomize ext_derandomize = 5;
         ExtSenderPayload ext_sender_payload = 6;
-        BaseSenderSetup base_sender_setup = 7;
-        BaseReceiverSetup base_receiver_setup = 8;
-        BaseSenderPayload base_sender_payload = 9;
+        BaseSenderSetupWrapper base_sender_setup_wrapper = 7;
+        BaseReceiverSetupWrapper base_receiver_setup_wrapper = 8;
+        BaseSenderPayloadWrapper base_sender_payload_wrapper = 9;
     }
 }

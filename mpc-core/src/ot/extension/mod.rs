@@ -108,8 +108,8 @@ pub mod tests {
     use super::{
         errors::{ExtReceiverCoreError, ExtSenderCoreError},
         kos15::{
-            BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, ExtDerandomize, Kos15Receiver,
-            Kos15Sender, SenderPayload, SenderSetup,
+            BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper,
+            ExtDerandomize, ExtSenderPayload, Kos15Receiver, Kos15Sender,
         },
         ExtStandardReceiveCore, ExtStandardSendCore,
     };
@@ -121,13 +121,13 @@ pub mod tests {
     use rstest::*;
 
     pub mod fixtures {
-        use super::{BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, SenderSetup};
+        use super::{BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper};
         use crate::ot::base::tests::fixtures::{choice, values};
         use crate::Block;
         use rstest::*;
 
         pub struct Data {
-            pub base_sender_setup: SenderSetup,
+            pub base_sender_setup: BaseSenderSetupWrapper,
             pub base_receiver_setup: BaseReceiverSetupWrapper,
             pub base_sender_payload: BaseSenderPayloadWrapper,
         }
@@ -279,7 +279,7 @@ pub mod tests {
         // Trying to send/receive more OTs should return an error
         let res = sender.send(&[[Block::random(&mut rng), Block::random(&mut rng)]]);
         assert_eq!(res, Err(ExtSenderCoreError::InvalidInputLength));
-        let p = SenderPayload {
+        let p = ExtSenderPayload {
             ciphertexts: vec![[Block::random(&mut rng), Block::random(&mut rng)]],
         };
         let res = receiver.receive(p);
@@ -357,7 +357,7 @@ pub mod tests {
         let d = ExtDerandomize { flip: vec![true] };
         let res = sender.rand_send(&[[Block::random(&mut rng); 2]], d);
         assert_eq!(res, Err(ExtSenderCoreError::InvalidInputLength));
-        let p = SenderPayload {
+        let p = ExtSenderPayload {
             ciphertexts: vec![[Block::random(&mut rng); 2]],
         };
         let res = receiver.receive(p);
