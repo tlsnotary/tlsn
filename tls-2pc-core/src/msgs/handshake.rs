@@ -1,4 +1,4 @@
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum HandshakeMessage {
     MasterMs1(MasterMs1),
     SlaveMs1(SlaveMs1),
@@ -20,108 +20,108 @@ pub enum HandshakeMessage {
     SlaveSf2(SlaveSf2),
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct MasterMs1 {
     /// H((pms xor ipad) || seed)
     pub inner_hash: [u8; 32],
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct MasterMs2 {
     /// H((pms xor ipad) || a1)
     pub inner_hash: [u8; 32],
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct MasterMs3 {
     /// H((pms xor ipad) || a2)
     pub inner_hash: [u8; 32],
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct MasterKe1 {
     /// H((ms xor ipad) || seed)
     pub inner_hash: [u8; 32],
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct MasterKe2 {
     /// H((ms xor ipad) || a1)
     pub inner_hash: [u8; 32],
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct MasterCf1 {
     /// H((ms xor ipad) || seed)
     pub inner_hash: [u8; 32],
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct MasterCf2 {
     /// H((ms xor ipad) || a1 || seed)
     pub inner_hash: [u8; 32],
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct MasterSf1 {
     /// H((ms xor ipad) || seed)
     pub inner_hash: [u8; 32],
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct MasterSf2 {
     /// H((ms xor ipad) || a1 || seed)
     pub inner_hash: [u8; 32],
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct SlaveMs1 {
     /// H((pms xor opad) || H((pms xor ipad) || seed))
     pub a1: [u8; 32],
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct SlaveMs2 {
     /// H((pms xor opad) || H((pms xor ipad) || a1))
     pub a2: [u8; 32],
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct SlaveMs3 {
     /// H((pms xor opad) || H((pms xor ipad) || a2 || seed))
     pub p2: [u8; 32],
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct SlaveKe1 {
     /// H((ms xor opad) || H((ms xor ipad) || seed))
     pub a1: [u8; 32],
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct SlaveKe2 {
     /// H((ms xor opad) || H((ms xor ipad) || a1))
     pub a2: [u8; 32],
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct SlaveCf1 {
     /// H((ms xor opad) || H((ms xor ipad) || seed))
     pub a1: [u8; 32],
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct SlaveCf2 {
     pub verify_data: [u8; 12],
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct SlaveSf1 {
     /// H((ms xor opad) || H((ms xor ipad) || seed))
     pub a1: [u8; 32],
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct SlaveSf2 {
     pub verify_data: [u8; 12],
 }

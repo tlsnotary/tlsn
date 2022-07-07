@@ -1,7 +1,7 @@
 use std::convert::{TryFrom, TryInto};
 use std::io::{Error, ErrorKind};
 
-use crate::handshake;
+use crate::msgs::handshake;
 use crate::proto;
 
 impl From<handshake::HandshakeMessage> for proto::HandshakeMessage {
