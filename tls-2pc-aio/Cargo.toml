@@ -11,4 +11,10 @@ async-trait = "0.1.56"
 thiserror = "1.0.30"
 tlsn-tls-core = { path = "../tls-core" }
 tlsn-tls-client = { path = "../tls-client" }
+tlsn-mpc-aio = { path = "../mpc-aio" }
+tlsn-tls-2pc-core = { path = "../tls-2pc-core" }
 futures = "0.3.21"
+typed-builder = "0.10.0"
+rand = "0.8.5"
+elliptic-curve = { version = "0.11.12" }
+p256 = { version = "0.10.1", features = ["ecdh"] }
