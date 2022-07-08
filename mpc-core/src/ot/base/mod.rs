@@ -65,7 +65,7 @@ pub mod tests {
             let mut rng = thread_rng();
 
             let mut sender = DhOtSender::default();
-            let sender_setup = sender.setup(&mut rng);
+            let sender_setup = sender.setup(&mut rng).unwrap();
 
             let mut receiver = DhOtReceiver::default();
             let receiver_setup = receiver.setup(&mut rng, choice, sender_setup).unwrap();
@@ -98,7 +98,7 @@ pub mod tests {
             .collect();
 
         let mut sender = DhOtSender::default();
-        let sender_setup = sender.setup(&mut rng);
+        let sender_setup = sender.setup(&mut rng).unwrap();
 
         let mut receiver = DhOtReceiver::default();
         let receiver_choices = receiver.setup(&mut rng, &choice, sender_setup).unwrap();

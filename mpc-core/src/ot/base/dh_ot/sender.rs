@@ -39,7 +39,14 @@ impl Default for DhOtSender {
 
 impl DhOtSender {
     /// Generates the keypair to be used by the sender for this OT
-    pub fn setup<R: CryptoRng + RngCore>(&mut self, rng: &mut R) -> SenderSetup {
+    pub fn setup<R: CryptoRng + RngCore>(
+        &mut self,
+        rng: &mut R,
+    ) -> Result<SenderSetup, SenderCoreError> {
+        if self.state != SenderState::Initialized {
+            return Err(SenderCoreError::BadState("cannot setup an OT sender twice"));
+        }
+
         // Randomly sample a private key
         let private_key = Scalar::random(rng);
         // Compute the pubkey A = aG where G is a generator
@@ -55,7 +62,7 @@ impl DhOtSender {
             .append_message(b"pubkey", public_key.compress().as_bytes());
 
         // Return the pubkey
-        SenderSetup { public_key }
+        Ok(SenderSetup { public_key })
     }
 
     /// For each i, sends `inputs[i][0]` or `inputs[i][1]` base on the corresponding receiver's
@@ -68,7 +75,9 @@ impl DhOtSender {
         // This sender needs to be ready to send, and the number of inputs needs to be equal to the
         // number of choices
         if self.state != SenderState::ReadyToSend {
-            return Err(SenderCoreError::NotSetup);
+            return Err(SenderCoreError::BadState(
+                "cannot send() without doing setup() first",
+            ));
         }
 
         let private_key = self.private_key.unwrap();

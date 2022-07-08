@@ -30,7 +30,7 @@ pub fn main() {
 
     // First the sender creates a setup message and passes it to sender
     let mut sender = DhOtSender::default();
-    let setup = sender.setup(&mut rng);
+    let setup = sender.setup(&mut rng).unwrap();
 
     // Receiver takes sender's setup and creates its own setup message
     let mut receiver = DhOtReceiver::default();

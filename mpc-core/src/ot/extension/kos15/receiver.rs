@@ -160,7 +160,7 @@ where
         }
         self.state = State::BaseSetup;
         Ok(BaseSenderSetupWrapper {
-            setup: self.base.setup(&mut self.rng),
+            setup: self.base.setup(&mut self.rng)?,
             cointoss_commit: sha256(&self.cointoss_share),
         })
     }
