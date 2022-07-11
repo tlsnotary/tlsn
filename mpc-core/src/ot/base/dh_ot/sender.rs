@@ -85,6 +85,12 @@ impl DhOtSender {
         // number of choices
         check_state(SenderState::ReadyToSend, self.state)?;
 
+        assert_eq!(
+            inputs.len(),
+            receivers_choices.blinded_choices.len(),
+            "num. OT choices doesn't match num. inputs"
+        );
+
         let private_key = self.private_key.unwrap();
 
         // ys is A^a in [ref1]
