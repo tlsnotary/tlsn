@@ -24,6 +24,18 @@ pub enum State {
     Complete,
 }
 
+// Helper function for making sure the OT state machine is being used correctly
+fn check_state(expected: &State, received: &State) -> Result<(), ExtSenderCoreError> {
+    if expected != received {
+        Err(ExtSenderCoreError::BadState(
+            format!("{:?}", expected),
+            format!("{:?}", received),
+        ))
+    } else {
+        Ok(())
+    }
+}
+
 pub struct Kos15Sender<C = Aes128> {
     rng: ChaCha12Rng,
     cipher: C,
@@ -176,9 +188,8 @@ where
         &mut self,
         base_sender_setup: BaseSenderSetupWrapper,
     ) -> Result<BaseReceiverSetupWrapper, ExtSenderCoreError> {
-        if self.state != State::Initialized {
-            return Err(ExtSenderCoreError::WrongState);
-        }
+        check_state(&self.state, &State::Initialized)?;
+
         self.receiver_cointoss_commit = Some(base_sender_setup.cointoss_commit);
         self.state = State::BaseSetup;
         Ok(BaseReceiverSetupWrapper {
@@ -193,9 +204,8 @@ where
         &mut self,
         payload: BaseSenderPayloadWrapper,
     ) -> Result<(), ExtSenderCoreError> {
-        if self.state != State::BaseSetup {
-            return Err(ExtSenderCoreError::WrongState);
-        }
+        check_state(&self.state, &State::BaseSetup)?;
+
         let receive = self.base.receive(payload.payload)?;
         self.set_seeds(receive);
 
@@ -219,17 +229,18 @@ where
         &mut self,
         receiver_setup: ExtReceiverSetup,
     ) -> Result<(), ExtSenderCoreError> {
-        if self.state != State::BaseReceive {
-            return Err(ExtSenderCoreError::BaseOTNotSetup);
-        }
+        check_state(&self.state, &State::BaseReceive)?;
+
         let ncols = receiver_setup.table[0].len() * 8;
         let us = receiver_setup.table;
         let mut qs: Vec<Vec<u8>> = vec![vec![0u8; ncols / 8]; BASE_COUNT];
 
+        // This is guaranteed to be set because we can only reach the BaseReceive by running
+        // base_receive(), which runs set_seeds(), which sets the RNGs
         let rngs = self
             .rngs
             .as_mut()
-            .ok_or(ExtSenderCoreError::BaseOTNotSetup)?;
+            .expect("RNGs were not set even when in State::BaseReceive");
 
         for j in 0..BASE_COUNT {
             rngs[j].fill_bytes(&mut qs[j]);
@@ -295,21 +306,23 @@ where
         // KOS check
         qs.drain(qs.len() - 256..);
         self.table = Some(qs);
-        self.state = State::Initialized;
+        self.state = State::Setup;
         Ok(())
     }
 
     fn send(&mut self, inputs: &[[Block; 2]]) -> Result<ExtSenderPayload, ExtSenderCoreError> {
+        check_state(&self.state, &State::Setup)?;
+
         if self.sent + inputs.len() > self.count {
             return Err(ExtSenderCoreError::InvalidInputLength);
         }
-        match self.state {
-            State::Initialized => {}
-            State::Complete => return Err(ExtSenderCoreError::AlreadyComplete),
-            _ => return Err(ExtSenderCoreError::NotSetup),
-        };
 
-        let table = self.table.as_mut().ok_or(ExtSenderCoreError::NotSetup)?;
+        // This is guaranteed to be present because State::Setup is only set by extension_setup,
+        // which sets self.table
+        let table = self
+            .table
+            .as_mut()
+            .expect("table was not set even when in State::Setup");
         let table: Vec<Vec<u8>> = table.drain(..inputs.len()).collect();
         let ciphertexts = encrypt_values(&mut self.cipher, inputs, &table, &self.base_choice, None);
 
@@ -333,16 +346,18 @@ where
         inputs: &[[Block; 2]],
         derandomize: ExtDerandomize,
     ) -> Result<ExtSenderPayload, ExtSenderCoreError> {
+        check_state(&self.state, &State::Setup)?;
+
         if self.sent + inputs.len() > self.count {
             return Err(ExtSenderCoreError::InvalidInputLength);
         }
-        match self.state {
-            State::Initialized => {}
-            State::Complete => return Err(ExtSenderCoreError::AlreadyComplete),
-            _ => return Err(ExtSenderCoreError::NotSetup),
-        };
 
-        let table = self.table.as_mut().ok_or(ExtSenderCoreError::NotSetup)?;
+        // This is guaranteed to be present because State::Setup is only set by extension_setup,
+        // which sets self.table
+        let table = self
+            .table
+            .as_mut()
+            .expect("table was not set even when in State::Setup");
         let table: Vec<Vec<u8>> = table.drain(..inputs.len()).collect();
         let ciphertexts = encrypt_values(
             &mut self.cipher,

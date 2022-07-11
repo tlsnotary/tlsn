@@ -266,6 +266,13 @@ pub mod tests {
         let receiver_setup = receiver.extension_setup(&choice).unwrap();
         sender.extension_setup(receiver_setup).unwrap();
 
+        // Try sending too much. This should fail
+        let oversized_inputs = &[inputs.as_slice(), inputs.as_slice()].concat();
+        assert_eq!(
+            sender.send(&oversized_inputs),
+            Err(ExtSenderCoreError::InvalidInputLength)
+        );
+
         let mut received: Vec<Block> = Vec::new();
         for chunk in inputs.chunks(4) {
             assert!(!sender.is_complete());
@@ -276,14 +283,25 @@ pub mod tests {
         assert!(sender.is_complete());
         assert!(receiver.is_complete());
 
-        // Trying to send/receive more OTs should return an error
+        // Trying to send more OTs should return an error
         let res = sender.send(&[[Block::random(&mut rng), Block::random(&mut rng)]]);
-        assert_eq!(res, Err(ExtSenderCoreError::InvalidInputLength));
+        if let Err(ExtSenderCoreError::BadState(..)) = res {
+            ()
+        } else {
+            panic!("sending more OTs should be a state error");
+        }
+
         let p = ExtSenderPayload {
             ciphertexts: vec![[Block::random(&mut rng), Block::random(&mut rng)]],
         };
+
+        // Trying to receive more OTs should return an error
         let res = receiver.receive(p);
-        assert_eq!(res, Err(ExtReceiverCoreError::AlreadyComplete));
+        if let Err(ExtReceiverCoreError::BadState(..)) = res {
+            ()
+        } else {
+            panic!("receiving more OTs should be a state error");
+        }
 
         let expected: Vec<Block> = inputs
             .iter()
@@ -353,15 +371,26 @@ pub mod tests {
         assert!(sender.is_complete());
         assert!(receiver.is_complete());
 
-        // Trying to send/receive more OTs should return an error
+        // Trying to send more OTs should return an error
         let d = ExtDerandomize { flip: vec![true] };
         let res = sender.rand_send(&[[Block::random(&mut rng); 2]], d);
-        assert_eq!(res, Err(ExtSenderCoreError::InvalidInputLength));
+        if let Err(ExtSenderCoreError::BadState(..)) = res {
+            ()
+        } else {
+            panic!("sending more OTs should be a state error");
+        }
+
         let p = ExtSenderPayload {
             ciphertexts: vec![[Block::random(&mut rng); 2]],
         };
+
+        // Trying to receive more OTs should return an error
         let res = receiver.receive(p);
-        assert_eq!(res, Err(ExtReceiverCoreError::AlreadyComplete));
+        if let Err(ExtReceiverCoreError::BadState(..)) = res {
+            ()
+        } else {
+            panic!("receiving more OTs should be a state error");
+        }
 
         let expected: Vec<Block> = inputs
             .iter()

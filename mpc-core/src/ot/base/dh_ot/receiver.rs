@@ -39,6 +39,17 @@ impl Default for DhOtReceiver {
     }
 }
 
+fn check_state(expected: ReceiverState, received: ReceiverState) -> Result<(), ReceiverCoreError> {
+    if expected != received {
+        Err(ReceiverCoreError::BadState(
+            format!("{:?}", expected),
+            format!("{:?}", received),
+        ))
+    } else {
+        Ok(())
+    }
+}
+
 impl DhOtReceiver {
     /// Returns current state of this OT protocol
     pub fn state(&self) -> ReceiverState {
@@ -52,11 +63,7 @@ impl DhOtReceiver {
         choices: &[bool],
         sender_setup: SenderSetup,
     ) -> Result<ReceiverSetup, ReceiverCoreError> {
-        if self.state != ReceiverState::Initialized {
-            return Err(ReceiverCoreError::BadState(
-                "cannot setup an OT receiver twice",
-            ));
-        }
+        check_state(ReceiverState::Initialized, self.state)?;
 
         // Log the sending of the pubkey
         self.transcript
@@ -105,11 +112,7 @@ impl DhOtReceiver {
 
     /// Decrypts the OT sender's ciphertexts
     pub fn receive(&mut self, payload: SenderPayload) -> Result<Vec<Block>, ReceiverCoreError> {
-        if self.state != ReceiverState::Setup {
-            return Err(ReceiverCoreError::BadState(
-                "cannot receive() without doing setup() first",
-            ));
-        }
+        check_state(ReceiverState::Setup, self.state)?;
 
         let keys = self.decryption_keys.as_ref().unwrap();
         let selected_inputs: Result<Vec<Block>, ReceiverCoreError> = self

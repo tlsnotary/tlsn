@@ -33,6 +33,18 @@ pub enum State {
     Complete,
 }
 
+// Helper function for making sure the OT state machine is being used correctly
+fn check_state(expected: &State, received: &State) -> Result<(), ExtReceiverCoreError> {
+    if expected != received {
+        Err(ExtReceiverCoreError::BadState(
+            format!("{:?}", expected),
+            format!("{:?}", received),
+        ))
+    } else {
+        Ok(())
+    }
+}
+
 pub struct Kos15Receiver<R = ChaCha12Rng, C = Aes128> {
     rng: R,
     cipher: C,
@@ -155,9 +167,8 @@ where
     }
 
     fn base_setup(&mut self) -> Result<BaseSenderSetupWrapper, ExtReceiverCoreError> {
-        if self.state != State::Initialized {
-            return Err(ExtReceiverCoreError::WrongState);
-        }
+        check_state(&self.state, &State::Initialized)?;
+
         self.state = State::BaseSetup;
         Ok(BaseSenderSetupWrapper {
             setup: self.base.setup(&mut self.rng)?,
@@ -169,9 +180,8 @@ where
         &mut self,
         base_receiver_setup: BaseReceiverSetupWrapper,
     ) -> Result<BaseSenderPayloadWrapper, ExtReceiverCoreError> {
-        if self.state != State::BaseSetup {
-            return Err(ExtReceiverCoreError::WrongState);
-        }
+        check_state(&self.state, &State::BaseSetup)?;
+
         let mut seeds: Vec<[Block; 2]> = Vec::with_capacity(BASE_COUNT);
         for _ in 0..BASE_COUNT {
             seeds.push([Block::random(&mut self.rng), Block::random(&mut self.rng)]);
@@ -198,13 +208,14 @@ where
         &mut self,
         choice: &[bool],
     ) -> Result<ExtReceiverSetup, ExtReceiverCoreError> {
-        if State::BaseSend != self.state {
-            return Err(ExtReceiverCoreError::BaseOTNotSetup);
-        }
+        check_state(&self.state, &State::BaseSend)?;
+
+        // This is guaranteed to be set because we can only reach the BaseReceive by running
+        // base_send(), which runs set_seeds(), which sets the RNGs
         let rngs = self
             .rngs
             .as_mut()
-            .ok_or(ExtReceiverCoreError::BaseOTNotSetup)?;
+            .expect("RNGs were not set even when in State::BaseSend");
 
         // We will pad with extra bits to make the total count a multiple of 8
         // to make handling easier
@@ -299,8 +310,12 @@ where
     fn receive(&mut self, payload: ExtSenderPayload) -> Result<Vec<Block>, ExtReceiverCoreError> {
         let choice_state = match &mut self.state {
             State::Setup(state) => state,
-            State::Complete => return Err(ExtReceiverCoreError::AlreadyComplete),
-            _ => return Err(ExtReceiverCoreError::NotSetup),
+            received => {
+                return Err(ExtReceiverCoreError::BadState(
+                    format!("Setup"),
+                    format!("{:?}", received),
+                ))
+            }
         };
 
         if payload.ciphertexts.len() > choice_state.choice.len() {
@@ -312,7 +327,12 @@ where
             .drain(..payload.ciphertexts.len())
             .collect();
 
-        let table = self.table.as_mut().ok_or(ExtReceiverCoreError::NotSetup)?;
+        // This is guaranteed to be present because State::Setup is only set by extension_setup,
+        // which sets self.table
+        let table = self
+            .table
+            .as_mut()
+            .expect("table was not set even when in State::Setup");
         let table: Vec<Vec<u8>> = table.drain(..choice.len()).collect();
         let values = decrypt_values(&mut self.cipher, &payload.ciphertexts, &table, &choice);
 
@@ -345,8 +365,12 @@ where
     fn derandomize(&mut self, choice: &[bool]) -> Result<ExtDerandomize, ExtReceiverCoreError> {
         let choice_state = match &mut self.state {
             State::Setup(state) => state,
-            State::Complete => return Err(ExtReceiverCoreError::AlreadyComplete),
-            _ => return Err(ExtReceiverCoreError::NotSetup),
+            received => {
+                return Err(ExtReceiverCoreError::BadState(
+                    format!("Setup"),
+                    format!("{:?}", received),
+                ))
+            }
         };
 
         if choice.len() > choice_state.choice.len() {
@@ -370,8 +394,12 @@ where
     ) -> Result<Vec<Block>, ExtReceiverCoreError> {
         let choice_state = match &mut self.state {
             State::Setup(state) => state,
-            State::Complete => return Err(ExtReceiverCoreError::AlreadyComplete),
-            _ => return Err(ExtReceiverCoreError::NotSetup),
+            received => {
+                return Err(ExtReceiverCoreError::BadState(
+                    format!("Setup"),
+                    format!("{:?}", received),
+                ))
+            }
         };
 
         if payload.ciphertexts.len() > choice_state.derandomized.len() {
@@ -382,7 +410,13 @@ where
             .derandomized
             .drain(..payload.ciphertexts.len())
             .collect();
-        let table = self.table.as_mut().ok_or(ExtReceiverCoreError::NotSetup)?;
+
+        // This is guaranteed to be present because State::Setup is only set by extension_setup,
+        // which sets self.table
+        let table = self
+            .table
+            .as_mut()
+            .expect("table was not set even when in State::Setup");
         let table: Vec<Vec<u8>> = table.drain(..choice.len()).collect();
         let values = decrypt_values(&mut self.cipher, &payload.ciphertexts, &table, &choice);
 
