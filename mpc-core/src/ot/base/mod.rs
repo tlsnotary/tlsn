@@ -9,7 +9,7 @@ pub use errors::*;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SenderState {
     Initialized,
-    ReadyToSend,
+    Setup,
     Complete,
 }
 

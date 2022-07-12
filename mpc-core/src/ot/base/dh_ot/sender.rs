@@ -64,7 +64,7 @@ impl DhOtSender {
         // Update the state
         self.private_key = Some(private_key);
         self.public_key = Some(public_key);
-        self.state = SenderState::ReadyToSend;
+        self.state = SenderState::Setup;
 
         // Log the sending of the pubkey
         self.transcript
@@ -83,7 +83,7 @@ impl DhOtSender {
     ) -> Result<SenderPayload, SenderCoreError> {
         // This sender needs to be ready to send, and the number of inputs needs to be equal to the
         // number of choices
-        check_state(SenderState::ReadyToSend, self.state)?;
+        check_state(SenderState::Setup, self.state)?;
 
         assert_eq!(
             inputs.len(),
