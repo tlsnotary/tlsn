@@ -15,8 +15,8 @@ use tls_core::key::PublicKey;
 use tls_core::msgs::handshake::Random;
 use tls_core::msgs::message::{OpaqueMessage, PlainMessage};
 
-/// CryptoMaster implements the TLS Crypto trait using 2PC protocols.
-pub struct CryptoMaster<S> {
+/// CryptoLeader implements the TLS Crypto trait using 2PC protocols.
+pub struct CryptoLeader<S> {
     /// Stream connection to [`CryptoSlave`]
     stream: S,
     state: State,
@@ -32,7 +32,7 @@ pub enum State {
     Setup,
 }
 
-/// Configuration for [`CryptoMaster`].
+/// Configuration for [`CryptoLeader`].
 /// TLS protocol version and ciphersuite must be known prior to the connection.
 /// This is to allow for heavy setup operations to take place in the offline phase.
 #[derive(TypedBuilder)]
@@ -41,7 +41,7 @@ pub struct Config {
     cipher_suite: SupportedCipherSuite,
 }
 
-impl<S> CryptoMaster<S>
+impl<S> CryptoLeader<S>
 where
     S: AsyncWrite + AsyncRead + Send,
 {
@@ -67,7 +67,7 @@ where
 }
 
 #[async_trait]
-impl<S> Crypto for CryptoMaster<S>
+impl<S> Crypto for CryptoLeader<S>
 where
     S: AsyncWrite + AsyncRead + Send,
 {
@@ -196,7 +196,7 @@ mod tests {
             .cipher_suite(TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256)
             .build();
 
-        let mut master = CryptoMaster::new(DummyStream, Arc::new(config));
+        let mut master = CryptoLeader::new(DummyStream, Arc::new(config));
 
         assert!(matches!(
             master.select_protocol_version(ProtocolVersion::TLSv1_0),
@@ -215,7 +215,7 @@ mod tests {
             .cipher_suite(TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256)
             .build();
 
-        let mut master = CryptoMaster::new(DummyStream, Arc::new(config));
+        let mut master = CryptoLeader::new(DummyStream, Arc::new(config));
 
         assert!(matches!(
             master.select_cipher_suite(TLS13_AES_128_GCM_SHA256),

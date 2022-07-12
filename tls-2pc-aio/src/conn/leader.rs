@@ -10,14 +10,14 @@ pub enum State {
     Initialized,
 }
 
-pub struct ConnectionMaster<S> {
+pub struct ConnectionLeader<S> {
     config: Arc<Config>,
     state: State,
     client: ClientConnection,
     slave_conn: S,
 }
 
-impl<S> ConnectionMaster<S>
+impl<S> ConnectionLeader<S>
 where
     S: AsyncWrite + AsyncRead,
 {

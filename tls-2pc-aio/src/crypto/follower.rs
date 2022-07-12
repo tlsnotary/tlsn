@@ -1,12 +1,12 @@
 use futures::{AsyncRead, AsyncWrite};
 
 /// HandshakeSlave communicates with [`HandshakeMaster`] over a stream to execute TLS operations in 2PC
-pub struct HandshakeSlave<S> {
+pub struct CryptoFollower<S> {
     /// Stream connection to [`HandshakeSlave`]
     stream: S,
 }
 
-impl<S> HandshakeSlave<S>
+impl<S> CryptoFollower<S>
 where
     S: AsyncWrite + AsyncRead + Send,
 {

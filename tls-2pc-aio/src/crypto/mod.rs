@@ -1,7 +1,7 @@
-mod master;
-mod slave;
+mod follower;
+mod leader;
 
-pub use master::{Config, CryptoMaster};
+pub use leader::{Config, CryptoLeader};
 
 #[derive(Clone, PartialEq)]
 pub enum Error {
