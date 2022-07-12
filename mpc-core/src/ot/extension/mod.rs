@@ -13,96 +13,6 @@ pub const BASE_COUNT: usize = 128;
 #[allow(dead_code)]
 const K: usize = 40;
 
-/// Functionality for "standard" (not random) OT extension. Sender's side
-pub trait ExtStandardSendCore {
-    type State;
-    type BaseSenderSetup;
-    type BaseSenderPayload;
-    type BaseReceiverSetup;
-    type ExtSenderPayload;
-    type ExtReceiverSetup;
-
-    fn state(&self) -> &Self::State;
-
-    fn base_setup(
-        &mut self,
-        base_sender_setup: Self::BaseSenderSetup,
-    ) -> Result<Self::BaseReceiverSetup, ExtSenderCoreError>;
-
-    fn base_receive(&mut self, payload: Self::BaseSenderPayload) -> Result<(), ExtSenderCoreError>;
-
-    fn extension_setup(
-        &mut self,
-        receiver_setup: Self::ExtReceiverSetup,
-    ) -> Result<(), ExtSenderCoreError>;
-
-    fn send(&mut self, inputs: &[[Block; 2]])
-        -> Result<Self::ExtSenderPayload, ExtSenderCoreError>;
-
-    fn is_complete(&self) -> bool;
-}
-
-/// Functionality for random OT
-pub trait ExtRandomSendCore: ExtStandardSendCore {
-    type ExtDerandomize;
-
-    fn rand_send(
-        &mut self,
-        inputs: &[[Block; 2]],
-        derandomize: Self::ExtDerandomize,
-    ) -> Result<Self::ExtSenderPayload, ExtSenderCoreError>;
-}
-
-/// Functionality for "standard" (not random) OT extension. Receiver's side
-pub trait ExtStandardReceiveCore {
-    type State;
-    type BaseSenderSetup;
-    type BaseSenderPayload;
-    type BaseReceiverSetup;
-    type ExtSenderPayload;
-    type ExtReceiverSetup;
-
-    fn state(&self) -> &Self::State;
-
-    // Receiver in OT extension acts as Sender in base OT and sends the first
-    // base OT setup message.
-    fn base_setup(&mut self) -> Result<Self::BaseSenderSetup, ExtReceiverCoreError>;
-
-    fn base_send(
-        &mut self,
-        base_receiver_setup: Self::BaseReceiverSetup,
-    ) -> Result<Self::BaseSenderPayload, ExtReceiverCoreError>;
-
-    fn extension_setup(
-        &mut self,
-        choice: &[bool],
-    ) -> Result<Self::ExtReceiverSetup, ExtReceiverCoreError>;
-
-    fn receive(
-        &mut self,
-        payload: Self::ExtSenderPayload,
-    ) -> Result<Vec<Block>, ExtReceiverCoreError>;
-
-    fn is_complete(&self) -> bool;
-}
-
-/// Functionality for random OT extension. Receiver's side
-pub trait ExtRandomReceiveCore: ExtStandardReceiveCore {
-    type ExtDerandomize;
-
-    fn rand_extension_setup(&mut self) -> Result<Self::ExtReceiverSetup, ExtReceiverCoreError>;
-
-    fn rand_receive(
-        &mut self,
-        payload: Self::ExtSenderPayload,
-    ) -> Result<Vec<Block>, ExtReceiverCoreError>;
-
-    fn derandomize(
-        &mut self,
-        choice: &[bool],
-    ) -> Result<Self::ExtDerandomize, ExtReceiverCoreError>;
-}
-
 #[cfg(test)]
 pub mod tests {
     use super::{
@@ -111,7 +21,6 @@ pub mod tests {
             BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper,
             ExtDerandomize, ExtSenderPayload, Kos15Receiver, Kos15Sender,
         },
-        ExtStandardReceiveCore, ExtStandardSendCore,
     };
     use crate::utils::u8vec_to_boolvec;
     use crate::Block;
@@ -135,10 +44,7 @@ pub mod tests {
         #[fixture]
         #[once]
         pub fn ot_ext_core_data(choice: &Vec<bool>, values: &Vec<[Block; 2]>) -> Data {
-            use crate::ot::extension::{
-                kos15::{Kos15Receiver, Kos15Sender},
-                ExtStandardReceiveCore, ExtStandardSendCore,
-            };
+            use crate::ot::extension::kos15::{Kos15Receiver, Kos15Sender};
 
             let mut sender = Kos15Sender::new(values.len());
             let mut receiver = Kos15Receiver::new(choice.len());
@@ -169,7 +75,6 @@ pub mod tests {
         mut sender: Kos15Sender,
         mut receiver: Kos15Receiver,
     ) -> (Kos15Sender, Kos15Receiver) {
-        use super::{ExtStandardReceiveCore, ExtStandardSendCore};
         let base_sender_setup = receiver.base_setup().unwrap();
         let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
         let send_seeds = receiver.base_send(base_receiver_setup).unwrap();
@@ -191,8 +96,6 @@ pub mod tests {
 
     #[rstest]
     fn test_ext_ot(pair_base_setup: (Kos15Sender, Kos15Receiver)) {
-        use super::{ExtStandardReceiveCore, ExtStandardSendCore};
-
         let (mut sender, mut receiver) = pair_base_setup;
 
         let mut choice = vec![0u8; 2];
@@ -221,8 +124,6 @@ pub mod tests {
     #[rstest]
     // Test that the cointoss check fails on wrong data
     fn test_ext_ot_cointoss_failure(mut sender: Kos15Sender, mut receiver: Kos15Receiver) {
-        use super::{ExtStandardReceiveCore, ExtStandardSendCore};
-
         let mut base_sender_setup = receiver.base_setup().unwrap();
         base_sender_setup.cointoss_commit = [77u8; 32];
         let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
@@ -234,8 +135,6 @@ pub mod tests {
     #[rstest]
     // Test that the KOS15 check fails on wrong data
     fn test_ext_ot_kos_failure(pair_base_setup: (Kos15Sender, Kos15Receiver)) {
-        use super::{ExtStandardReceiveCore, ExtStandardSendCore};
-
         let (mut sender, mut receiver) = pair_base_setup;
 
         let mut choice = vec![0u8; 2];
@@ -251,8 +150,6 @@ pub mod tests {
 
     #[rstest]
     fn test_ext_ot_batch(pair_base_setup: (Kos15Sender, Kos15Receiver)) {
-        use super::{ExtStandardReceiveCore, ExtStandardSendCore};
-
         let (mut sender, mut receiver) = pair_base_setup;
 
         let mut choice = vec![0u8; 2];
@@ -314,8 +211,6 @@ pub mod tests {
 
     #[rstest]
     fn test_ext_random_ot(random_pair_base_setup: (Kos15Sender, Kos15Receiver)) {
-        use super::{ExtRandomReceiveCore, ExtRandomSendCore};
-
         let (mut sender, mut receiver) = random_pair_base_setup;
 
         let mut choice = vec![0u8; 2];
@@ -345,8 +240,6 @@ pub mod tests {
 
     #[rstest]
     fn test_ext_random_ot_batch(random_pair_base_setup: (Kos15Sender, Kos15Receiver)) {
-        use super::{ExtRandomReceiveCore, ExtRandomSendCore};
-
         let (mut sender, mut receiver) = random_pair_base_setup;
 
         let mut choice = vec![0u8; 2];

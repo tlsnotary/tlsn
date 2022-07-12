@@ -11,7 +11,7 @@ use crate::{
             BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper,
             ExtDerandomize, ExtReceiverSetup, ExtSenderPayload,
         },
-        ExtRandomReceiveCore, ExtReceiverCoreError, ExtStandardReceiveCore, BASE_COUNT,
+        ExtReceiverCoreError, BASE_COUNT,
     },
     utils::{self, sha256, u8vec_to_boolvec, xor},
     Block,
@@ -146,27 +146,21 @@ where
     }
 }
 
-impl<R, C> ExtStandardReceiveCore for Kos15Receiver<R, C>
+// Implement standard OT methods
+impl<R, C> Kos15Receiver<R, C>
 where
     R: Rng + CryptoRng + SeedableRng,
     C: BlockCipher<BlockSize = U16> + BlockEncrypt,
 {
-    type State = State;
-    type BaseSenderSetup = BaseSenderSetupWrapper;
-    type BaseSenderPayload = BaseSenderPayloadWrapper;
-    type BaseReceiverSetup = BaseReceiverSetupWrapper;
-    type ExtSenderPayload = ExtSenderPayload;
-    type ExtReceiverSetup = ExtReceiverSetup;
-
-    fn state(&self) -> &State {
+    pub fn state(&self) -> &State {
         &self.state
     }
 
-    fn is_complete(&self) -> bool {
+    pub fn is_complete(&self) -> bool {
         self.state == State::Complete
     }
 
-    fn base_setup(&mut self) -> Result<BaseSenderSetupWrapper, ExtReceiverCoreError> {
+    pub fn base_setup(&mut self) -> Result<BaseSenderSetupWrapper, ExtReceiverCoreError> {
         check_state(&self.state, &State::Initialized)?;
 
         self.state = State::BaseSetup;
@@ -176,7 +170,7 @@ where
         })
     }
 
-    fn base_send(
+    pub fn base_send(
         &mut self,
         base_receiver_setup: BaseReceiverSetupWrapper,
     ) -> Result<BaseSenderPayloadWrapper, ExtReceiverCoreError> {
@@ -204,7 +198,7 @@ where
         })
     }
 
-    fn extension_setup(
+    pub fn extension_setup(
         &mut self,
         choice: &[bool],
     ) -> Result<ExtReceiverSetup, ExtReceiverCoreError> {
@@ -307,7 +301,10 @@ where
         })
     }
 
-    fn receive(&mut self, payload: ExtSenderPayload) -> Result<Vec<Block>, ExtReceiverCoreError> {
+    pub fn receive(
+        &mut self,
+        payload: ExtSenderPayload,
+    ) -> Result<Vec<Block>, ExtReceiverCoreError> {
         let choice_state = match &mut self.state {
             State::Setup(state) => state,
             received => {
@@ -344,14 +341,13 @@ where
     }
 }
 
-impl<R, C> ExtRandomReceiveCore for Kos15Receiver<R, C>
+// Implement random OT methods
+impl<R, C> Kos15Receiver<R, C>
 where
     R: Rng + CryptoRng + SeedableRng,
     C: BlockCipher<BlockSize = U16> + BlockEncrypt,
 {
-    type ExtDerandomize = ExtDerandomize;
-
-    fn rand_extension_setup(&mut self) -> Result<ExtReceiverSetup, ExtReceiverCoreError> {
+    pub fn rand_extension_setup(&mut self) -> Result<ExtReceiverSetup, ExtReceiverCoreError> {
         let n = self.count;
         // For random OT we generate random choice bits during setup then derandomize later
         let mut choice = vec![0u8; if n % 8 != 0 { n + (8 - n % 8) } else { n } / 8];
@@ -359,10 +355,10 @@ where
         let mut choice = u8vec_to_boolvec(&choice);
         choice.resize(n, false);
 
-        ExtStandardReceiveCore::extension_setup(self, &choice)
+        self.extension_setup(&choice)
     }
 
-    fn derandomize(&mut self, choice: &[bool]) -> Result<ExtDerandomize, ExtReceiverCoreError> {
+    pub fn derandomize(&mut self, choice: &[bool]) -> Result<ExtDerandomize, ExtReceiverCoreError> {
         let choice_state = match &mut self.state {
             State::Setup(state) => state,
             received => {
@@ -388,7 +384,7 @@ where
         Ok(ExtDerandomize { flip })
     }
 
-    fn rand_receive(
+    pub fn rand_receive(
         &mut self,
         payload: ExtSenderPayload,
     ) -> Result<Vec<Block>, ExtReceiverCoreError> {

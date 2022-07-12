@@ -6,10 +6,7 @@
 // For simplicity, this example shows how to use OT components in memory.
 
 use mpc_core::block::Block;
-use mpc_core::ot::extension::{
-    kos15::{Kos15Receiver, Kos15Sender},
-    ExtRandomReceiveCore, ExtRandomSendCore, ExtStandardReceiveCore, ExtStandardSendCore,
-};
+use mpc_core::ot::extension::kos15::{Kos15Receiver, Kos15Sender};
 
 pub fn main() {
     // Sender messages the receiver chooses from

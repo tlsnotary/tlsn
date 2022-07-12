@@ -4,7 +4,7 @@ use crate::ot::extension::{
         BaseReceiver, BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper,
         ExtDerandomize, ExtReceiverSetup, ExtSenderPayload,
     },
-    ExtRandomSendCore, ExtSenderCoreError, ExtStandardSendCore, BASE_COUNT,
+    ExtSenderCoreError, BASE_COUNT,
 };
 use crate::utils::{self, sha256, xor};
 
@@ -165,26 +165,20 @@ where
     }
 }
 
-impl<C> ExtStandardSendCore for Kos15Sender<C>
+// Implement standard OT methods
+impl<C> Kos15Sender<C>
 where
     C: BlockCipher<BlockSize = U16> + BlockEncrypt,
 {
-    type State = State;
-    type BaseSenderSetup = BaseSenderSetupWrapper;
-    type BaseSenderPayload = BaseSenderPayloadWrapper;
-    type BaseReceiverSetup = BaseReceiverSetupWrapper;
-    type ExtSenderPayload = ExtSenderPayload;
-    type ExtReceiverSetup = ExtReceiverSetup;
-
-    fn state(&self) -> &State {
+    pub fn state(&self) -> &State {
         &self.state
     }
 
-    fn is_complete(&self) -> bool {
+    pub fn is_complete(&self) -> bool {
         self.state == State::Complete
     }
 
-    fn base_setup(
+    pub fn base_setup(
         &mut self,
         base_sender_setup: BaseSenderSetupWrapper,
     ) -> Result<BaseReceiverSetupWrapper, ExtSenderCoreError> {
@@ -200,7 +194,7 @@ where
         })
     }
 
-    fn base_receive(
+    pub fn base_receive(
         &mut self,
         payload: BaseSenderPayloadWrapper,
     ) -> Result<(), ExtSenderCoreError> {
@@ -225,7 +219,7 @@ where
         Ok(())
     }
 
-    fn extension_setup(
+    pub fn extension_setup(
         &mut self,
         receiver_setup: ExtReceiverSetup,
     ) -> Result<(), ExtSenderCoreError> {
@@ -310,7 +304,7 @@ where
         Ok(())
     }
 
-    fn send(&mut self, inputs: &[[Block; 2]]) -> Result<ExtSenderPayload, ExtSenderCoreError> {
+    pub fn send(&mut self, inputs: &[[Block; 2]]) -> Result<ExtSenderPayload, ExtSenderCoreError> {
         check_state(&self.state, &State::Setup)?;
 
         if self.sent + inputs.len() > self.count {
@@ -335,13 +329,12 @@ where
     }
 }
 
-impl<C> ExtRandomSendCore for Kos15Sender<C>
+// Implement random OT methods
+impl<C> Kos15Sender<C>
 where
     C: BlockCipher<BlockSize = U16> + BlockEncrypt,
 {
-    type ExtDerandomize = ExtDerandomize;
-
-    fn rand_send(
+    pub fn rand_send(
         &mut self,
         inputs: &[[Block; 2]],
         derandomize: ExtDerandomize,
