@@ -4,14 +4,18 @@ use rand::{CryptoRng, Rng, RngCore, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 use std::convert::TryInto;
 
-use super::{
-    BaseReceiverSetup, ExtRandomReceiveCore, ExtReceiveCore, ExtReceiverCoreError,
-    ExtSenderPayload, BASE_COUNT,
+use super::BaseSender;
+use crate::{
+    ot::extension::{
+        kos15::{
+            BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper,
+            ExtDerandomize, ExtReceiverSetup, ExtSenderPayload,
+        },
+        ExtReceiverCoreError, BASE_COUNT,
+    },
+    utils::{self, sha256, u8vec_to_boolvec, xor},
+    Block,
 };
-use crate::block::Block;
-use crate::ot::base::{SenderPayload, SenderSetup};
-use crate::ot::{SendCore, SenderCore};
-use crate::utils::{self, sha256, u8vec_to_boolvec, xor};
 use clmul::Clmul;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -29,26 +33,22 @@ pub enum State {
     Complete,
 }
 
-/// OT extension Receiver plays the role of base OT Sender and sends the
-/// first message containing base OT setup and cointoss commitment
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct BaseSenderSetup {
-    pub setup: SenderSetup,
-    // Cointoss protocol's 1st message: sha256 commitment
-    pub cointoss_commit: [u8; 32],
+// Helper function for making sure the OT state machine is being used correctly
+fn check_state(expected: &State, received: &State) -> Result<(), ExtReceiverCoreError> {
+    if expected != received {
+        Err(ExtReceiverCoreError::BadState(
+            format!("{:?}", expected),
+            format!("{:?}", received),
+        ))
+    } else {
+        Ok(())
+    }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct BaseSenderPayload {
-    pub payload: SenderPayload,
-    // Cointoss protocol's 3rd message: Sender reveals share
-    pub cointoss_share: [u8; 32],
-}
-
-pub struct ExtReceiverCore<R = ChaCha12Rng, C = Aes128, OT = SenderCore<ChaCha12Rng>> {
+pub struct Kos15Receiver<R = ChaCha12Rng, C = Aes128> {
     rng: R,
     cipher: C,
-    base: OT,
+    base: BaseSender,
     state: State,
     count: usize,
     // seeds are the result of running base OT setup. They are used to seed the
@@ -63,29 +63,14 @@ pub struct ExtReceiverCore<R = ChaCha12Rng, C = Aes128, OT = SenderCore<ChaCha12
     cointoss_random: Option<[u8; 32]>,
 }
 
-#[derive(Clone, Debug)]
-pub struct ExtReceiverSetup {
-    pub ncols: usize,
-    pub table: Vec<Vec<u8>>,
-    // x, t0, t1 are used for the KOS15 check
-    pub x: [u8; 16],
-    pub t0: [u8; 16],
-    pub t1: [u8; 16],
-}
-
-#[derive(Clone, Debug)]
-pub struct ExtDerandomize {
-    pub flip: Vec<bool>,
-}
-
-impl ExtReceiverCore {
+impl Kos15Receiver {
     pub fn new(count: usize) -> Self {
         let mut rng = ChaCha12Rng::from_entropy();
         let cointoss_share = rng.gen();
         Self {
             rng,
             cipher: Aes128::new_from_slice(&[0u8; 16]).unwrap(),
-            base: SenderCore::new(BASE_COUNT),
+            base: BaseSender::default(),
             state: State::Initialized,
             count,
             seeds: None,
@@ -99,7 +84,7 @@ impl ExtReceiverCore {
 
 fn decrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     cipher: &mut C,
-    encrypted_values: &[[Block; 2]],
+    ciphertexts: &[[Block; 2]],
     table: &[Vec<u8>],
     choice: &[bool],
 ) -> Vec<Block> {
@@ -108,9 +93,9 @@ fn decrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
         let t: [u8; 16] = table[j].clone().try_into().unwrap();
         let t = Block::from(t);
         let y = if *b {
-            encrypted_values[j][1]
+            ciphertexts[j][1]
         } else {
-            encrypted_values[j][0]
+            ciphertexts[j][0]
         };
         let y = y ^ t.hash_tweak(cipher, j);
         values.push(y);
@@ -118,13 +103,12 @@ fn decrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     values
 }
 
-impl<R, C, OT> ExtReceiverCore<R, C, OT>
+impl<R, C> Kos15Receiver<R, C>
 where
     R: Rng + CryptoRng,
     C: BlockCipher<BlockSize = U16> + BlockEncrypt,
-    OT: SendCore,
 {
-    pub fn new_with_custom(mut rng: R, cipher: C, base: OT, count: usize) -> Self {
+    pub fn new_with_custom(mut rng: R, cipher: C, base: BaseSender, count: usize) -> Self {
         let cointoss_share = rng.gen();
         Self {
             rng,
@@ -162,46 +146,42 @@ where
     }
 }
 
-impl<R, C, OT> ExtReceiveCore for ExtReceiverCore<R, C, OT>
+// Implement standard OT methods
+impl<R, C> Kos15Receiver<R, C>
 where
     R: Rng + CryptoRng + SeedableRng,
     C: BlockCipher<BlockSize = U16> + BlockEncrypt,
-    OT: SendCore,
 {
-    fn state(&self) -> &State {
+    pub fn state(&self) -> &State {
         &self.state
     }
 
-    fn is_complete(&self) -> bool {
+    pub fn is_complete(&self) -> bool {
         self.state == State::Complete
     }
 
-    fn base_setup(&mut self) -> Result<BaseSenderSetup, ExtReceiverCoreError> {
-        if self.state != State::Initialized {
-            return Err(ExtReceiverCoreError::WrongState);
-        }
+    pub fn base_setup(&mut self) -> Result<BaseSenderSetupWrapper, ExtReceiverCoreError> {
+        check_state(&self.state, &State::Initialized)?;
+
         self.state = State::BaseSetup;
-        Ok(BaseSenderSetup {
-            setup: self.base.setup(),
+        Ok(BaseSenderSetupWrapper {
+            setup: self.base.setup(&mut self.rng)?,
             cointoss_commit: sha256(&self.cointoss_share),
         })
     }
 
-    fn base_send(
+    pub fn base_send(
         &mut self,
-        base_receiver_setup: BaseReceiverSetup,
-    ) -> Result<BaseSenderPayload, ExtReceiverCoreError> {
-        if self.state != State::BaseSetup {
-            return Err(ExtReceiverCoreError::WrongState);
-        }
+        base_receiver_setup: BaseReceiverSetupWrapper,
+    ) -> Result<BaseSenderPayloadWrapper, ExtReceiverCoreError> {
+        check_state(&self.state, &State::BaseSetup)?;
+
         let mut seeds: Vec<[Block; 2]> = Vec::with_capacity(BASE_COUNT);
         for _ in 0..BASE_COUNT {
             seeds.push([Block::random(&mut self.rng), Block::random(&mut self.rng)]);
         }
 
-        let base_send = self
-            .base
-            .send(seeds.as_slice(), base_receiver_setup.setup)?;
+        let base_send = self.base.send(&seeds, base_receiver_setup.setup)?;
 
         self.set_seeds(seeds);
         let mut result = [0u8; 32];
@@ -212,23 +192,24 @@ where
         );
         self.cointoss_random = Some(result);
         self.state = State::BaseSend;
-        Ok(BaseSenderPayload {
+        Ok(BaseSenderPayloadWrapper {
             payload: base_send,
             cointoss_share: self.cointoss_share,
         })
     }
 
-    fn extension_setup(
+    pub fn extension_setup(
         &mut self,
         choice: &[bool],
     ) -> Result<ExtReceiverSetup, ExtReceiverCoreError> {
-        if State::BaseSend != self.state {
-            return Err(ExtReceiverCoreError::BaseOTNotSetup);
-        }
+        check_state(&self.state, &State::BaseSend)?;
+
+        // This is guaranteed to be set because we can only reach the BaseReceive by running
+        // base_send(), which runs set_seeds(), which sets the RNGs
         let rngs = self
             .rngs
             .as_mut()
-            .ok_or(ExtReceiverCoreError::BaseOTNotSetup)?;
+            .expect("RNGs were not set even when in State::BaseSend");
 
         // We will pad with extra bits to make the total count a multiple of 8
         // to make handling easier
@@ -320,25 +301,37 @@ where
         })
     }
 
-    fn receive(&mut self, payload: ExtSenderPayload) -> Result<Vec<Block>, ExtReceiverCoreError> {
+    pub fn receive(
+        &mut self,
+        payload: ExtSenderPayload,
+    ) -> Result<Vec<Block>, ExtReceiverCoreError> {
         let choice_state = match &mut self.state {
             State::Setup(state) => state,
-            State::Complete => return Err(ExtReceiverCoreError::AlreadyComplete),
-            _ => return Err(ExtReceiverCoreError::NotSetup),
+            received => {
+                return Err(ExtReceiverCoreError::BadState(
+                    format!("Setup"),
+                    format!("{:?}", received),
+                ))
+            }
         };
 
-        if payload.encrypted_values.len() > choice_state.choice.len() {
+        if payload.ciphertexts.len() > choice_state.choice.len() {
             return Err(ExtReceiverCoreError::InvalidPayloadSize);
         }
 
         let choice: Vec<bool> = choice_state
             .choice
-            .drain(..payload.encrypted_values.len())
+            .drain(..payload.ciphertexts.len())
             .collect();
 
-        let table = self.table.as_mut().ok_or(ExtReceiverCoreError::NotSetup)?;
+        // This is guaranteed to be present because State::Setup is only set by extension_setup,
+        // which sets self.table
+        let table = self
+            .table
+            .as_mut()
+            .expect("table was not set even when in State::Setup");
         let table: Vec<Vec<u8>> = table.drain(..choice.len()).collect();
-        let values = decrypt_values(&mut self.cipher, &payload.encrypted_values, &table, &choice);
+        let values = decrypt_values(&mut self.cipher, &payload.ciphertexts, &table, &choice);
 
         if (choice_state.choice.len() == 0) && (choice_state.derandomized.len() == 0) {
             self.state = State::Complete;
@@ -348,13 +341,13 @@ where
     }
 }
 
-impl<R, C, OT> ExtRandomReceiveCore for ExtReceiverCore<R, C, OT>
+// Implement random OT methods
+impl<R, C> Kos15Receiver<R, C>
 where
     R: Rng + CryptoRng + SeedableRng,
     C: BlockCipher<BlockSize = U16> + BlockEncrypt,
-    OT: SendCore,
 {
-    fn extension_setup(&mut self) -> Result<ExtReceiverSetup, ExtReceiverCoreError> {
+    pub fn rand_extension_setup(&mut self) -> Result<ExtReceiverSetup, ExtReceiverCoreError> {
         let n = self.count;
         // For random OT we generate random choice bits during setup then derandomize later
         let mut choice = vec![0u8; if n % 8 != 0 { n + (8 - n % 8) } else { n } / 8];
@@ -362,14 +355,18 @@ where
         let mut choice = u8vec_to_boolvec(&choice);
         choice.resize(n, false);
 
-        ExtReceiveCore::extension_setup(self, &choice)
+        self.extension_setup(&choice)
     }
 
-    fn derandomize(&mut self, choice: &[bool]) -> Result<ExtDerandomize, ExtReceiverCoreError> {
+    pub fn derandomize(&mut self, choice: &[bool]) -> Result<ExtDerandomize, ExtReceiverCoreError> {
         let choice_state = match &mut self.state {
             State::Setup(state) => state,
-            State::Complete => return Err(ExtReceiverCoreError::AlreadyComplete),
-            _ => return Err(ExtReceiverCoreError::NotSetup),
+            received => {
+                return Err(ExtReceiverCoreError::BadState(
+                    format!("Setup"),
+                    format!("{:?}", received),
+                ))
+            }
         };
 
         if choice.len() > choice_state.choice.len() {
@@ -387,24 +384,37 @@ where
         Ok(ExtDerandomize { flip })
     }
 
-    fn receive(&mut self, payload: ExtSenderPayload) -> Result<Vec<Block>, ExtReceiverCoreError> {
+    pub fn rand_receive(
+        &mut self,
+        payload: ExtSenderPayload,
+    ) -> Result<Vec<Block>, ExtReceiverCoreError> {
         let choice_state = match &mut self.state {
             State::Setup(state) => state,
-            State::Complete => return Err(ExtReceiverCoreError::AlreadyComplete),
-            _ => return Err(ExtReceiverCoreError::NotSetup),
+            received => {
+                return Err(ExtReceiverCoreError::BadState(
+                    format!("Setup"),
+                    format!("{:?}", received),
+                ))
+            }
         };
 
-        if payload.encrypted_values.len() > choice_state.derandomized.len() {
+        if payload.ciphertexts.len() > choice_state.derandomized.len() {
             return Err(ExtReceiverCoreError::NotDerandomized);
         }
 
         let choice: Vec<bool> = choice_state
             .derandomized
-            .drain(..payload.encrypted_values.len())
+            .drain(..payload.ciphertexts.len())
             .collect();
-        let table = self.table.as_mut().ok_or(ExtReceiverCoreError::NotSetup)?;
+
+        // This is guaranteed to be present because State::Setup is only set by extension_setup,
+        // which sets self.table
+        let table = self
+            .table
+            .as_mut()
+            .expect("table was not set even when in State::Setup");
         let table: Vec<Vec<u8>> = table.drain(..choice.len()).collect();
-        let values = decrypt_values(&mut self.cipher, &payload.encrypted_values, &table, &choice);
+        let values = decrypt_values(&mut self.cipher, &payload.ciphertexts, &table, &choice);
 
         if (choice_state.choice.len() == 0) && (choice_state.derandomized.len() == 0) {
             self.state = State::Complete;

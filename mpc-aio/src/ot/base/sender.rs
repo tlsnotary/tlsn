@@ -61,7 +61,7 @@ where
         let payload = self.ot.send(payload, setup)?;
 
         trace!("Sending SenderPayload: {:?}", &payload);
-        self.stream.send(Message::SenderPayload(payload)).await?;
+        self.stream.send(Message::SenderOutput(payload)).await?;
 
         Ok(())
     }

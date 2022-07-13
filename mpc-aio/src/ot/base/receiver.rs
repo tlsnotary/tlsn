@@ -59,7 +59,7 @@ where
         self.stream.send(Message::ReceiverSetup(setup)).await?;
 
         let payload = match self.stream.next().await {
-            Some(Ok(Message::SenderPayload(m))) => m,
+            Some(Ok(Message::SenderOutput(m))) => m,
             Some(Ok(m)) => return Err(OTError::Unexpected(m)),
             Some(Err(e)) => return Err(e)?,
             None => return Err(IOError::new(ErrorKind::UnexpectedEof, ""))?,

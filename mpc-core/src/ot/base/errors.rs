@@ -1,9 +1,8 @@
 /// Errors that may occur when using BaseOTSender
 #[derive(Debug, thiserror::Error, PartialEq)]
 pub enum SenderCoreError {
-    /// Base OT has not been setup
-    #[error("Tried to send base OT prior to setup")]
-    NotSetup,
+    #[error("Bad state. Expected {0}. Got {1}.")]
+    BadState(String, String),
     #[error("Provided incorrect number of inputs")]
     InvalidInputLength,
 }
@@ -11,9 +10,10 @@ pub enum SenderCoreError {
 /// Errors that may occur when using BaseOTReceiver
 #[derive(Debug, thiserror::Error, PartialEq)]
 pub enum ReceiverCoreError {
-    /// Base OT has not been setup
-    #[error("Tried to receive base OT prior to setup")]
-    NotSetup,
+    #[error("Bad state. Expected {0}. Got {1}.")]
+    BadState(String, String),
     #[error("Provided incorrect number of choice bits")]
     InvalidChoiceLength,
+    #[error("Sender's ciphertext is malformed")]
+    MalformedCiphertext,
 }

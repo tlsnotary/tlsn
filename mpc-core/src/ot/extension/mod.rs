@@ -1,17 +1,11 @@
 //! This crate implements the KOS15 Oblivious Transfer extension protocol.
 
 pub mod errors;
-pub mod receiver;
-pub mod sender;
+pub mod kos15;
 
-pub use crate::ot::base::{ReceiverSetup, SenderPayload, SenderSetup};
 pub use crate::Block;
 pub use clmul::Clmul;
 pub use errors::*;
-pub use receiver::{
-    BaseSenderPayload, BaseSenderSetup, ExtDerandomize, ExtReceiverCore, ExtReceiverSetup,
-};
-pub use sender::{BaseReceiverSetup, ExtSenderCore, ExtSenderPayload};
 
 pub const BASE_COUNT: usize = 128;
 
@@ -19,120 +13,14 @@ pub const BASE_COUNT: usize = 128;
 #[allow(dead_code)]
 const K: usize = 40;
 
-pub trait ExtSendCore {
-    fn state(&self) -> sender::State;
-
-    //
-    fn base_setup(
-        &mut self,
-        base_sender_setup: BaseSenderSetup,
-    ) -> Result<BaseReceiverSetup, ExtSenderCoreError>;
-
-    fn base_receive(&mut self, payload: BaseSenderPayload) -> Result<(), ExtSenderCoreError>;
-
-    fn extension_setup(
-        &mut self,
-        receiver_setup: ExtReceiverSetup,
-    ) -> Result<(), ExtSenderCoreError>;
-
-    fn send(&mut self, inputs: &[[Block; 2]]) -> Result<ExtSenderPayload, ExtSenderCoreError>;
-
-    fn is_complete(&self) -> bool;
-}
-
-pub trait ExtRandomSendCore: ExtSendCore {
-    fn state(&self) -> sender::State {
-        ExtSendCore::state(self)
-    }
-
-    // Sender in OT extension acts as Receiver in base OT and receives a setup
-    // message from base OT Sender and responds with its own setup message.
-    fn base_setup(
-        &mut self,
-        base_sender_setup: BaseSenderSetup,
-    ) -> Result<BaseReceiverSetup, ExtSenderCoreError> {
-        ExtSendCore::base_setup(self, base_sender_setup)
-    }
-
-    fn base_receive(&mut self, payload: BaseSenderPayload) -> Result<(), ExtSenderCoreError> {
-        ExtSendCore::base_receive(self, payload)
-    }
-
-    fn extension_setup(
-        &mut self,
-        receiver_setup: ExtReceiverSetup,
-    ) -> Result<(), ExtSenderCoreError> {
-        ExtSendCore::extension_setup(self, receiver_setup)
-    }
-
-    fn send(
-        &mut self,
-        inputs: &[[Block; 2]],
-        derandomize: ExtDerandomize,
-    ) -> Result<ExtSenderPayload, ExtSenderCoreError>;
-
-    fn is_complete(&self) -> bool {
-        ExtSendCore::is_complete(self)
-    }
-}
-
-pub trait ExtReceiveCore {
-    fn state(&self) -> &receiver::State;
-
-    // Receiver in OT extension acts as Sender in base OT and sends the first
-    // base OT setup message.
-    fn base_setup(&mut self) -> Result<BaseSenderSetup, ExtReceiverCoreError>;
-
-    fn base_send(
-        &mut self,
-        base_receiver_setup: BaseReceiverSetup,
-    ) -> Result<BaseSenderPayload, ExtReceiverCoreError>;
-
-    fn extension_setup(
-        &mut self,
-        choice: &[bool],
-    ) -> Result<ExtReceiverSetup, ExtReceiverCoreError>;
-
-    fn receive(&mut self, payload: ExtSenderPayload) -> Result<Vec<Block>, ExtReceiverCoreError>;
-
-    fn is_complete(&self) -> bool;
-}
-
-pub trait ExtRandomReceiveCore: ExtReceiveCore {
-    fn state(&self) -> &receiver::State {
-        ExtReceiveCore::state(self)
-    }
-
-    // Receiver in OT extension acts as Sender in base OT and sends the first
-    // base OT setup message.
-    fn base_setup(&mut self) -> Result<BaseSenderSetup, ExtReceiverCoreError> {
-        ExtReceiveCore::base_setup(self)
-    }
-
-    fn base_send(
-        &mut self,
-        base_receiver_setup: BaseReceiverSetup,
-    ) -> Result<BaseSenderPayload, ExtReceiverCoreError> {
-        ExtReceiveCore::base_send(self, base_receiver_setup)
-    }
-
-    fn extension_setup(&mut self) -> Result<ExtReceiverSetup, ExtReceiverCoreError>;
-
-    fn derandomize(&mut self, choice: &[bool]) -> Result<ExtDerandomize, ExtReceiverCoreError>;
-
-    fn receive(&mut self, payload: ExtSenderPayload) -> Result<Vec<Block>, ExtReceiverCoreError>;
-
-    fn is_complete(&self) -> bool {
-        ExtReceiveCore::is_complete(self)
-    }
-}
-
 #[cfg(test)]
 pub mod tests {
-    use super::errors::{ExtReceiverCoreError, ExtSenderCoreError};
     use super::{
-        BaseReceiverSetup, BaseSenderPayload, BaseSenderSetup, ExtDerandomize, ExtReceiverCore,
-        ExtSenderCore, ExtSenderPayload,
+        errors::{ExtReceiverCoreError, ExtSenderCoreError},
+        kos15::{
+            BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper,
+            ExtDerandomize, ExtSenderPayload, Kos15Receiver, Kos15Sender,
+        },
     };
     use crate::utils::u8vec_to_boolvec;
     use crate::Block;
@@ -142,26 +30,24 @@ pub mod tests {
     use rstest::*;
 
     pub mod fixtures {
-        use super::{BaseReceiverSetup, BaseSenderPayload, BaseSenderSetup};
+        use super::{BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper};
         use crate::ot::base::tests::fixtures::{choice, values};
         use crate::Block;
         use rstest::*;
 
         pub struct Data {
-            pub base_sender_setup: BaseSenderSetup,
-            pub base_receiver_setup: BaseReceiverSetup,
-            pub base_sender_payload: BaseSenderPayload,
+            pub base_sender_setup: BaseSenderSetupWrapper,
+            pub base_receiver_setup: BaseReceiverSetupWrapper,
+            pub base_sender_payload: BaseSenderPayloadWrapper,
         }
 
         #[fixture]
         #[once]
         pub fn ot_ext_core_data(choice: &Vec<bool>, values: &Vec<[Block; 2]>) -> Data {
-            use crate::ot::extension::{
-                ExtReceiveCore, ExtReceiverCore, ExtSendCore, ExtSenderCore,
-            };
+            use crate::ot::extension::kos15::{Kos15Receiver, Kos15Sender};
 
-            let mut sender = ExtSenderCore::new(values.len());
-            let mut receiver = ExtReceiverCore::new(choice.len());
+            let mut sender = Kos15Sender::new(values.len());
+            let mut receiver = Kos15Receiver::new(choice.len());
             let base_sender_setup = receiver.base_setup().unwrap();
             let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
             let base_sender_payload = receiver.base_send(base_receiver_setup.clone()).unwrap();
@@ -175,21 +61,20 @@ pub mod tests {
     }
 
     #[fixture]
-    fn receiver() -> ExtReceiverCore {
-        ExtReceiverCore::new(16)
+    fn receiver() -> Kos15Receiver {
+        Kos15Receiver::new(16)
     }
 
     #[fixture]
-    fn sender() -> ExtSenderCore {
-        ExtSenderCore::new(16)
+    fn sender() -> Kos15Sender {
+        Kos15Sender::new(16)
     }
 
     #[fixture]
     fn pair_base_setup(
-        mut sender: ExtSenderCore,
-        mut receiver: ExtReceiverCore,
-    ) -> (ExtSenderCore, ExtReceiverCore) {
-        use super::{ExtReceiveCore, ExtSendCore};
+        mut sender: Kos15Sender,
+        mut receiver: Kos15Receiver,
+    ) -> (Kos15Sender, Kos15Receiver) {
         let base_sender_setup = receiver.base_setup().unwrap();
         let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
         let send_seeds = receiver.base_send(base_receiver_setup).unwrap();
@@ -199,10 +84,9 @@ pub mod tests {
 
     #[fixture]
     fn random_pair_base_setup(
-        mut sender: ExtSenderCore,
-        mut receiver: ExtReceiverCore,
-    ) -> (ExtSenderCore, ExtReceiverCore) {
-        use super::{ExtRandomReceiveCore, ExtRandomSendCore};
+        mut sender: Kos15Sender,
+        mut receiver: Kos15Receiver,
+    ) -> (Kos15Sender, Kos15Receiver) {
         let base_sender_setup = receiver.base_setup().unwrap();
         let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
         let send_seeds = receiver.base_send(base_receiver_setup).unwrap();
@@ -211,9 +95,7 @@ pub mod tests {
     }
 
     #[rstest]
-    fn test_ext_ot(pair_base_setup: (ExtSenderCore, ExtReceiverCore)) {
-        use super::{ExtReceiveCore, ExtSendCore};
-
+    fn test_ext_ot(pair_base_setup: (Kos15Sender, Kos15Receiver)) {
         let (mut sender, mut receiver) = pair_base_setup;
 
         let mut choice = vec![0u8; 2];
@@ -241,9 +123,7 @@ pub mod tests {
 
     #[rstest]
     // Test that the cointoss check fails on wrong data
-    fn test_ext_ot_cointoss_failure(mut sender: ExtSenderCore, mut receiver: ExtReceiverCore) {
-        use super::{ExtReceiveCore, ExtSendCore};
-
+    fn test_ext_ot_cointoss_failure(mut sender: Kos15Sender, mut receiver: Kos15Receiver) {
         let mut base_sender_setup = receiver.base_setup().unwrap();
         base_sender_setup.cointoss_commit = [77u8; 32];
         let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
@@ -254,9 +134,7 @@ pub mod tests {
 
     #[rstest]
     // Test that the KOS15 check fails on wrong data
-    fn test_ext_ot_kos_failure(pair_base_setup: (ExtSenderCore, ExtReceiverCore)) {
-        use super::{ExtReceiveCore, ExtSendCore};
-
+    fn test_ext_ot_kos_failure(pair_base_setup: (Kos15Sender, Kos15Receiver)) {
         let (mut sender, mut receiver) = pair_base_setup;
 
         let mut choice = vec![0u8; 2];
@@ -271,9 +149,7 @@ pub mod tests {
     }
 
     #[rstest]
-    fn test_ext_ot_batch(pair_base_setup: (ExtSenderCore, ExtReceiverCore)) {
-        use super::{ExtReceiveCore, ExtSendCore};
-
+    fn test_ext_ot_batch(pair_base_setup: (Kos15Sender, Kos15Receiver)) {
         let (mut sender, mut receiver) = pair_base_setup;
 
         let mut choice = vec![0u8; 2];
@@ -287,6 +163,13 @@ pub mod tests {
         let receiver_setup = receiver.extension_setup(&choice).unwrap();
         sender.extension_setup(receiver_setup).unwrap();
 
+        // Try sending too much. This should fail
+        let oversized_inputs = &[inputs.as_slice(), inputs.as_slice()].concat();
+        assert_eq!(
+            sender.send(&oversized_inputs),
+            Err(ExtSenderCoreError::InvalidInputLength)
+        );
+
         let mut received: Vec<Block> = Vec::new();
         for chunk in inputs.chunks(4) {
             assert!(!sender.is_complete());
@@ -297,14 +180,25 @@ pub mod tests {
         assert!(sender.is_complete());
         assert!(receiver.is_complete());
 
-        // Trying to send/receive more OTs should return an error
+        // Trying to send more OTs should return an error
         let res = sender.send(&[[Block::random(&mut rng), Block::random(&mut rng)]]);
-        assert_eq!(res, Err(ExtSenderCoreError::InvalidInputLength));
+        if let Err(ExtSenderCoreError::BadState(..)) = res {
+            ()
+        } else {
+            panic!("sending more OTs should be a state error");
+        }
+
         let p = ExtSenderPayload {
-            encrypted_values: vec![[Block::random(&mut rng), Block::random(&mut rng)]],
+            ciphertexts: vec![[Block::random(&mut rng), Block::random(&mut rng)]],
         };
+
+        // Trying to receive more OTs should return an error
         let res = receiver.receive(p);
-        assert_eq!(res, Err(ExtReceiverCoreError::AlreadyComplete));
+        if let Err(ExtReceiverCoreError::BadState(..)) = res {
+            ()
+        } else {
+            panic!("receiving more OTs should be a state error");
+        }
 
         let expected: Vec<Block> = inputs
             .iter()
@@ -316,9 +210,7 @@ pub mod tests {
     }
 
     #[rstest]
-    fn test_ext_random_ot(random_pair_base_setup: (ExtSenderCore, ExtReceiverCore)) {
-        use super::{ExtRandomReceiveCore, ExtRandomSendCore};
-
+    fn test_ext_random_ot(random_pair_base_setup: (Kos15Sender, Kos15Receiver)) {
         let (mut sender, mut receiver) = random_pair_base_setup;
 
         let mut choice = vec![0u8; 2];
@@ -329,13 +221,13 @@ pub mod tests {
             .map(|_| [Block::random(&mut rng), Block::random(&mut rng)])
             .collect();
 
-        let receiver_setup = receiver.extension_setup().unwrap();
+        let receiver_setup = receiver.rand_extension_setup().unwrap();
         sender.extension_setup(receiver_setup).unwrap();
 
         let derandomize = receiver.derandomize(&choice).unwrap();
 
-        let payload = sender.send(&inputs, derandomize).unwrap();
-        let receive = receiver.receive(payload).unwrap();
+        let payload = sender.rand_send(&inputs, derandomize).unwrap();
+        let receive = receiver.rand_receive(payload).unwrap();
 
         let expected: Vec<Block> = inputs
             .iter()
@@ -347,9 +239,7 @@ pub mod tests {
     }
 
     #[rstest]
-    fn test_ext_random_ot_batch(random_pair_base_setup: (ExtSenderCore, ExtReceiverCore)) {
-        use super::{ExtRandomReceiveCore, ExtRandomSendCore};
-
+    fn test_ext_random_ot_batch(random_pair_base_setup: (Kos15Sender, Kos15Receiver)) {
         let (mut sender, mut receiver) = random_pair_base_setup;
 
         let mut choice = vec![0u8; 2];
@@ -360,7 +250,7 @@ pub mod tests {
             .map(|_| [Block::random(&mut rng), Block::random(&mut rng)])
             .collect();
 
-        let receiver_setup = receiver.extension_setup().unwrap();
+        let receiver_setup = receiver.rand_extension_setup().unwrap();
         sender.extension_setup(receiver_setup).unwrap();
 
         let mut received: Vec<Block> = Vec::new();
@@ -368,21 +258,32 @@ pub mod tests {
             assert!(!sender.is_complete());
             assert!(!receiver.is_complete());
             let derandomize = receiver.derandomize(&choice).unwrap();
-            let payload = sender.send(&input, derandomize).unwrap();
-            received.append(&mut receiver.receive(payload).unwrap());
+            let payload = sender.rand_send(&input, derandomize).unwrap();
+            received.append(&mut receiver.rand_receive(payload).unwrap());
         }
         assert!(sender.is_complete());
         assert!(receiver.is_complete());
 
-        // Trying to send/receive more OTs should return an error
+        // Trying to send more OTs should return an error
         let d = ExtDerandomize { flip: vec![true] };
-        let res = sender.send(&[[Block::random(&mut rng); 2]], d);
-        assert_eq!(res, Err(ExtSenderCoreError::InvalidInputLength));
+        let res = sender.rand_send(&[[Block::random(&mut rng); 2]], d);
+        if let Err(ExtSenderCoreError::BadState(..)) = res {
+            ()
+        } else {
+            panic!("sending more OTs should be a state error");
+        }
+
         let p = ExtSenderPayload {
-            encrypted_values: vec![[Block::random(&mut rng); 2]],
+            ciphertexts: vec![[Block::random(&mut rng); 2]],
         };
+
+        // Trying to receive more OTs should return an error
         let res = receiver.receive(p);
-        assert_eq!(res, Err(ExtReceiverCoreError::AlreadyComplete));
+        if let Err(ExtReceiverCoreError::BadState(..)) = res {
+            ()
+        } else {
+            panic!("receiving more OTs should be a state error");
+        }
 
         let expected: Vec<Block> = inputs
             .iter()
