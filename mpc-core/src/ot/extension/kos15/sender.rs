@@ -67,6 +67,8 @@ pub struct Kos15Sender<C = Aes128> {
 // Having 2 messages that Receiver chooses from, we encrypt each message with
 // a unique mask (i.e. XOR the message them with the mask). Receiver who knows
 // only 1 mask will be able to decrypt only 1 message out of 2.
+//
+// The lengths of `inputs`, `table`, and `flip` MUST all be equal. If not, this function panics.
 fn encrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     cipher: &mut C,
     inputs: &[[Block; 2]],
@@ -74,6 +76,12 @@ fn encrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     base_choice: &[bool],
     flip: Option<Vec<bool>>,
 ) -> Vec<[Block; 2]> {
+    // Check that all the lengths match
+    assert_eq!(inputs.len(), table.len());
+    if let Some(f) = &flip {
+        assert_eq!(table.len(), f.len());
+    }
+
     let mut ciphertexts: Vec<[Block; 2]> = Vec::with_capacity(table.len());
     let base_choice: [u8; 16] = utils::boolvec_to_u8vec(base_choice).try_into().unwrap();
     let delta = Block::from(base_choice);
@@ -318,6 +326,12 @@ where
             .as_mut()
             .expect("table was not set even when in State::Setup");
         let table: Vec<Vec<u8>> = table.drain(..inputs.len()).collect();
+
+        // Check that all the input lengths are equal
+        if inputs.len() != table.len() {
+            return Err(ExtSenderCoreError::InvalidInputLength);
+        }
+
         let ciphertexts = encrypt_values(&mut self.cipher, inputs, &table, &self.base_choice, None);
 
         self.sent += inputs.len();
@@ -352,6 +366,12 @@ where
             .as_mut()
             .expect("table was not set even when in State::Setup");
         let table: Vec<Vec<u8>> = table.drain(..inputs.len()).collect();
+
+        // Check that all the input lengths are equal
+        if inputs.len() != table.len() || table.len() != derandomize.flip.len() {
+            return Err(ExtSenderCoreError::InvalidInputLength);
+        }
+
         let ciphertexts = encrypt_values(
             &mut self.cipher,
             inputs,
