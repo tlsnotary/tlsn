@@ -5,7 +5,7 @@ pub use base::*;
 pub use extension::*;
 
 #[derive(Debug, Clone)]
-pub enum Kos15Message {
+pub enum Message {
     BaseSenderSetup(dh_ot::SenderSetup),
     BaseSenderSetupWrapper(kos15::BaseSenderSetupWrapper),
     BaseSenderPayload(dh_ot::SenderPayload),

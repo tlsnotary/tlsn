@@ -9,36 +9,36 @@ include!(concat!(env!("OUT_DIR"), "/core.ot.rs"));
 
 pub use message::Msg;
 
-impl From<ot::Kos15Message> for Message {
+impl From<ot::Message> for Message {
     #[inline]
-    fn from(m: ot::Kos15Message) -> Self {
+    fn from(m: ot::Message) -> Self {
         Self {
             msg: Some(match m {
-                ot::Kos15Message::BaseReceiverSetupWrapper(msg) => {
+                ot::Message::BaseReceiverSetupWrapper(msg) => {
                     message::Msg::BaseReceiverSetupWrapper(BaseReceiverSetupWrapper::from(msg))
                 }
-                ot::Kos15Message::BaseReceiverSetup(msg) => {
+                ot::Message::BaseReceiverSetup(msg) => {
                     message::Msg::BaseReceiverSetup(BaseReceiverSetup::from(msg))
                 }
-                ot::Kos15Message::BaseSenderSetup(msg) => {
+                ot::Message::BaseSenderSetup(msg) => {
                     message::Msg::BaseSenderSetup(BaseSenderSetup::from(msg))
                 }
-                ot::Kos15Message::BaseSenderSetupWrapper(msg) => {
+                ot::Message::BaseSenderSetupWrapper(msg) => {
                     message::Msg::BaseSenderSetupWrapper(BaseSenderSetupWrapper::from(msg))
                 }
-                ot::Kos15Message::BaseSenderPayloadWrapper(msg) => {
+                ot::Message::BaseSenderPayloadWrapper(msg) => {
                     message::Msg::BaseSenderPayloadWrapper(BaseSenderPayloadWrapper::from(msg))
                 }
-                ot::Kos15Message::BaseSenderPayload(msg) => {
+                ot::Message::BaseSenderPayload(msg) => {
                     message::Msg::BaseSenderPayload(BaseSenderPayload::from(msg))
                 }
-                ot::Kos15Message::ExtReceiverSetup(msg) => {
+                ot::Message::ExtReceiverSetup(msg) => {
                     message::Msg::ExtReceiverSetup(ExtReceiverSetup::from(msg))
                 }
-                ot::Kos15Message::ExtDerandomize(msg) => {
+                ot::Message::ExtDerandomize(msg) => {
                     message::Msg::ExtDerandomize(ExtDerandomize::from(msg))
                 }
-                ot::Kos15Message::ExtSenderPayload(msg) => {
+                ot::Message::ExtSenderPayload(msg) => {
                     message::Msg::ExtSenderPayload(ExtSenderPayload::from(msg))
                 }
             }),
@@ -46,44 +46,42 @@ impl From<ot::Kos15Message> for Message {
     }
 }
 
-impl TryFrom<Message> for ot::Kos15Message {
+impl TryFrom<Message> for ot::Message {
     type Error = std::io::Error;
     #[inline]
     fn try_from(m: Message) -> Result<Self, Self::Error> {
         if let Some(msg) = m.msg {
             let m = match msg {
                 message::Msg::BaseReceiverSetupWrapper(msg) => {
-                    ot::Kos15Message::BaseReceiverSetupWrapper(
+                    ot::Message::BaseReceiverSetupWrapper(
                         kos15::BaseReceiverSetupWrapper::try_from(msg)?,
                     )
                 }
                 message::Msg::BaseReceiverSetup(msg) => {
-                    ot::Kos15Message::BaseReceiverSetup(kos15::BaseReceiverSetup::try_from(msg)?)
+                    ot::Message::BaseReceiverSetup(kos15::BaseReceiverSetup::try_from(msg)?)
                 }
                 message::Msg::BaseSenderSetup(msg) => {
-                    ot::Kos15Message::BaseSenderSetup(kos15::BaseSenderSetup::try_from(msg)?)
+                    ot::Message::BaseSenderSetup(kos15::BaseSenderSetup::try_from(msg)?)
                 }
-                message::Msg::BaseSenderSetupWrapper(msg) => {
-                    ot::Kos15Message::BaseSenderSetupWrapper(
-                        kos15::BaseSenderSetupWrapper::try_from(msg)?,
-                    )
-                }
+                message::Msg::BaseSenderSetupWrapper(msg) => ot::Message::BaseSenderSetupWrapper(
+                    kos15::BaseSenderSetupWrapper::try_from(msg)?,
+                ),
                 message::Msg::BaseSenderPayloadWrapper(msg) => {
-                    ot::Kos15Message::BaseSenderPayloadWrapper(
+                    ot::Message::BaseSenderPayloadWrapper(
                         kos15::BaseSenderPayloadWrapper::try_from(msg)?,
                     )
                 }
                 message::Msg::BaseSenderPayload(msg) => {
-                    ot::Kos15Message::BaseSenderPayload(kos15::BaseSenderPayload::from(msg))
+                    ot::Message::BaseSenderPayload(kos15::BaseSenderPayload::from(msg))
                 }
                 message::Msg::ExtReceiverSetup(msg) => {
-                    ot::Kos15Message::ExtReceiverSetup(kos15::ExtReceiverSetup::try_from(msg)?)
+                    ot::Message::ExtReceiverSetup(kos15::ExtReceiverSetup::try_from(msg)?)
                 }
                 message::Msg::ExtDerandomize(msg) => {
-                    ot::Kos15Message::ExtDerandomize(kos15::ExtDerandomize::from(msg))
+                    ot::Message::ExtDerandomize(kos15::ExtDerandomize::from(msg))
                 }
                 message::Msg::ExtSenderPayload(msg) => {
-                    ot::Kos15Message::ExtSenderPayload(kos15::ExtSenderPayload::from(msg))
+                    ot::Message::ExtSenderPayload(kos15::ExtSenderPayload::from(msg))
                 }
             };
             Ok(m)
