@@ -1,10 +1,10 @@
 use futures::{AsyncRead, AsyncWrite};
 
-pub struct ConnectionSlave<S> {
+pub struct ConnectionFollower<S> {
     master_conn: S,
 }
 
-impl<S> ConnectionSlave<S>
+impl<S> ConnectionFollower<S>
 where
     S: AsyncWrite + AsyncRead,
 {

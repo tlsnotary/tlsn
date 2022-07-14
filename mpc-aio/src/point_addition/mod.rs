@@ -6,7 +6,7 @@ pub use errors::PointAdditionError;
 pub use follower::PaillierFollower;
 pub use leader::PaillierLeader;
 
-use mpc_core::point_addition::SecretShare;
+pub use mpc_core::point_addition::SecretShare;
 
 use async_trait::async_trait;
 use mockall::automock;

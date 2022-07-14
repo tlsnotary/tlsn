@@ -1,6 +1,6 @@
 mod builder;
-mod master;
-mod slave;
+mod follower;
+mod leader;
 
-pub use master::ConnectionMaster;
-pub use slave::ConnectionSlave;
+pub use follower::ConnectionFollower;
+pub use leader::ConnectionLeader;

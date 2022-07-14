@@ -10,20 +10,23 @@ pub enum State {
     Initialized,
 }
 
-pub struct ConnectionMaster<S> {
+pub struct ConnectionLeader<S> {
+    config: Arc<Config>,
     state: State,
     client: ClientConnection,
     slave_conn: S,
 }
 
-impl<S> ConnectionMaster<S>
+impl<S> ConnectionLeader<S>
 where
     S: AsyncWrite + AsyncRead,
 {
     pub fn new(config: Arc<Config>, server_name: ServerName, slave_conn: S) -> Result<Self, Error> {
+        let client_config = config.client.clone();
         Ok(Self {
+            config,
             state: State::Initialized,
-            client: ClientConnection::new(config.client.clone(), server_name)?,
+            client: ClientConnection::new(client_config, server_name)?,
             slave_conn,
         })
     }
