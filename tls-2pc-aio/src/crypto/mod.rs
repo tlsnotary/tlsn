@@ -3,8 +3,12 @@ mod leader;
 
 pub use leader::{Config, CryptoLeader};
 
-#[derive(Clone, PartialEq)]
+use mpc_aio::point_addition::PointAdditionError;
+
+#[derive(thiserror::Error, Debug)]
 pub enum Error {
-    /// Encountered when user attempts to run setup again
+    #[error("encountered error during point addition: {0}")]
+    PointAdditionError(#[from] PointAdditionError),
+    #[error("")]
     AlreadySetup,
 }

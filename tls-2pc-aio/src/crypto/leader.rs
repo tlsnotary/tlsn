@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use futures::{AsyncRead, AsyncWrite};
-use p256::ecdh::EphemeralSecret;
 use p256::SecretKey;
 use rand::rngs::OsRng;
 use rand::{thread_rng, Rng};
@@ -8,6 +7,7 @@ use std::sync::Arc;
 use typed_builder::TypedBuilder;
 
 use super::Error;
+use mpc_aio::point_addition::{PointAddition2PC, SecretShare};
 use tls_client::{
     Crypto, DecryptMode, EncryptMode, Error as ClientError, ProtocolVersion, SupportedCipherSuite,
 };
@@ -16,14 +16,17 @@ use tls_core::msgs::handshake::Random;
 use tls_core::msgs::message::{OpaqueMessage, PlainMessage};
 
 /// CryptoLeader implements the TLS Crypto trait using 2PC protocols.
-pub struct CryptoLeader<S> {
+pub struct CryptoLeader<S, PA> {
     /// Stream connection to [`CryptoSlave`]
     stream: S,
     state: State,
     config: Arc<Config>,
+    point_addition: PA,
 
     client_random: Option<Random>,
     server_random: Option<Random>,
+
+    pms_share: Option<SecretShare>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -41,17 +44,20 @@ pub struct Config {
     cipher_suite: SupportedCipherSuite,
 }
 
-impl<S> CryptoLeader<S>
+impl<S, PA> CryptoLeader<S, PA>
 where
     S: AsyncWrite + AsyncRead + Send,
+    PA: PointAddition2PC,
 {
-    pub fn new(stream: S, config: Arc<Config>) -> Self {
+    pub fn new(stream: S, config: Arc<Config>, point_addition: PA) -> Self {
         Self {
             stream,
             state: State::Initialized,
             config,
+            point_addition,
             client_random: None,
             server_random: None,
+            pms_share: None,
         }
     }
 
@@ -61,15 +67,18 @@ where
             return Err(Error::AlreadySetup);
         }
 
-        let sk = EphemeralSecret::random(&mut OsRng);
+        let sk = SecretKey::random(&mut OsRng);
+        let pk = sk.public_key();
+
         Ok(())
     }
 }
 
 #[async_trait]
-impl<S> Crypto for CryptoLeader<S>
+impl<S, PA> Crypto for CryptoLeader<S, PA>
 where
     S: AsyncWrite + AsyncRead + Send,
+    PA: PointAddition2PC + Send,
 {
     fn select_protocol_version(&mut self, version: ProtocolVersion) -> Result<(), ClientError> {
         if version == self.config.protocol_version {
@@ -151,6 +160,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use mpc_aio::point_addition::MockPointAddition2PC;
     use tls_core::suites::{TLS13_AES_128_GCM_SHA256, TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256};
 
     use super::*;
@@ -196,7 +206,11 @@ mod tests {
             .cipher_suite(TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256)
             .build();
 
-        let mut master = CryptoLeader::new(DummyStream, Arc::new(config));
+        let mut master = CryptoLeader::new(
+            DummyStream,
+            Arc::new(config),
+            MockPointAddition2PC::default(),
+        );
 
         assert!(matches!(
             master.select_protocol_version(ProtocolVersion::TLSv1_0),
@@ -215,7 +229,11 @@ mod tests {
             .cipher_suite(TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256)
             .build();
 
-        let mut master = CryptoLeader::new(DummyStream, Arc::new(config));
+        let mut master = CryptoLeader::new(
+            DummyStream,
+            Arc::new(config),
+            MockPointAddition2PC::default(),
+        );
 
         assert!(matches!(
             master.select_cipher_suite(TLS13_AES_128_GCM_SHA256),
