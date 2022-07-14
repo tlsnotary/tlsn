@@ -1,10 +1,10 @@
 pub mod errors;
-pub mod master;
-pub mod slave;
+pub mod follower;
+pub mod leader;
 
 pub use errors::PointAdditionError;
-pub use master::PointAdditionMaster;
-pub use slave::PointAdditionSlave;
+pub use follower::PaillierFollower;
+pub use leader::PaillierLeader;
 
 use mpc_core::point_addition::SecretShare;
 
@@ -12,8 +12,7 @@ use async_trait::async_trait;
 use mockall::automock;
 
 /// This trait is for securely secret-sharing the addition of two elliptic curve points.
-/// [`PointAdditionMaster`] holds point P and [`PointAdditionSlave`] holds point Q where `P + Q = O = (x, y)`. Each party
-/// receives additive shares of the x-coordinate where `x_m + x_s = x`.
+/// Let `P + Q = O = (x, y)`. Each party receives additive shares of the x-coordinate where `x_m + x_s = x`.
 #[automock]
 #[async_trait]
 pub trait PointAddition2PC {
@@ -31,8 +30,8 @@ mod tests {
     async fn test_point_addition() {
         let (socket_m, socket_s) = tokio::net::UnixStream::pair().unwrap();
 
-        let mut master = PointAdditionMaster::new(socket_m);
-        let mut slave = PointAdditionSlave::new(socket_s);
+        let mut master = PaillierLeader::new(socket_m);
+        let mut slave = PaillierFollower::new(socket_s);
 
         let mut rng = thread_rng();
 

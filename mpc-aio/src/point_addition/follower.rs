@@ -11,11 +11,14 @@ use tokio_util::codec::Framed;
 use tracing::{instrument, trace};
 use utils_aio::codec::ProstCodecDelimited;
 
-pub struct PointAdditionSlave<S> {
+pub struct PaillierFollower<S> {
     stream: Framed<S, ProstCodecDelimited<PointAdditionMessage, ProtoMessage>>,
 }
 
-impl<S: AsyncRead + AsyncWrite + Send + Unpin> PointAdditionSlave<S> {
+impl<S> PaillierFollower<S>
+where
+    S: AsyncRead + AsyncWrite + Send + Unpin,
+{
     pub fn new(stream: S) -> Self {
         Self {
             stream: Framed::new(
@@ -27,7 +30,10 @@ impl<S: AsyncRead + AsyncWrite + Send + Unpin> PointAdditionSlave<S> {
 }
 
 #[async_trait]
-impl<S: AsyncRead + AsyncWrite + Send + Unpin> PointAddition2PC for PointAdditionSlave<S> {
+impl<S> PointAddition2PC for PaillierFollower<S>
+where
+    S: AsyncRead + AsyncWrite + Send + Unpin,
+{
     #[instrument(skip(self, point))]
     async fn add(&mut self, point: &EncodedPoint) -> Result<SecretShare, PointAdditionError> {
         trace!("Starting");
