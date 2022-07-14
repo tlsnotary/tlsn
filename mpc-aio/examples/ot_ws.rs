@@ -4,7 +4,6 @@ use futures::{AsyncRead, AsyncWrite};
 use mpc_aio::ot::{
     ExtOTReceive, ExtOTSend, ExtReceiver, ExtSender, OTReceive, OTSend, Receiver, Sender,
 };
-use mpc_core::ot::{DhOtSender, ExtReceiverCore, ExtSenderCore, ReceiverCore};
 use mpc_core::Block;
 use rand::{thread_rng, Rng};
 use tokio;
@@ -61,10 +60,10 @@ async fn receive<S: AsyncWrite + AsyncRead + Send + Unpin>(
     info!("Choosing {:?}", choice);
 
     let values = if extended {
-        let mut receiver = ExtReceiver::new(ExtReceiverCore::new(choice.len()), stream);
+        let mut receiver = ExtReceiver::new(stream, choice.len());
         receiver.receive(&choice).await.unwrap()
     } else {
-        let mut receiver = Receiver::new(ReceiverCore::new(choice.len()), stream);
+        let mut receiver = Receiver::new(stream);
         receiver.receive(&choice).await.unwrap()
     };
 
@@ -80,10 +79,10 @@ async fn send<S: AsyncWrite + AsyncRead + Send + Unpin>(
     let stream = WsStream::new(ws);
 
     if extended {
-        let mut sender = ExtSender::new(ExtSenderCore::new(values.len()), stream);
+        let mut sender = ExtSender::new(stream, values.len());
         let _ = sender.send(&values).await;
     } else {
-        let mut sender = Sender::new(DhOtSender::new(values.len()), stream);
+        let mut sender = Sender::new(stream);
         let _ = sender.send(&values).await;
     }
 

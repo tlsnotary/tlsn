@@ -1,7 +1,7 @@
 use super::OTError;
 use async_trait::async_trait;
 use futures_util::{SinkExt, StreamExt};
-use mpc_core::ot::{ExtStandardSendCore, Message};
+use mpc_core::ot::{Kos15Sender, Message};
 use mpc_core::proto::ot::Message as ProtoMessage;
 use mpc_core::Block;
 use std::io::Error as IOError;
@@ -11,8 +11,8 @@ use tokio_util::codec::Framed;
 use tracing::{instrument, trace};
 use utils_aio::codec::ProstCodecDelimited;
 
-pub struct ExtSender<OT, S> {
-    ot: OT,
+pub struct ExtSender<S> {
+    ot: Kos15Sender,
     stream: Framed<S, ProstCodecDelimited<Message, ProtoMessage>>,
 }
 
@@ -21,14 +21,13 @@ pub trait ExtOTSend {
     async fn send(&mut self, payload: &[[Block; 2]]) -> Result<(), OTError>;
 }
 
-impl<OT, S> ExtSender<OT, S>
+impl<S> ExtSender<S>
 where
-    OT: ExtStandardSendCore + Send,
     S: AsyncRead + AsyncWrite + Send + Unpin,
 {
-    pub fn new(ot: OT, stream: S) -> Self {
+    pub fn new(stream: S, count: usize) -> Self {
         Self {
-            ot,
+            ot: Kos15Sender::new(count),
             stream: Framed::new(
                 stream,
                 ProstCodecDelimited::<Message, ProtoMessage>::default(),
@@ -38,15 +37,14 @@ where
 }
 
 #[async_trait]
-impl<OT, S> ExtOTSend for ExtSender<OT, S>
+impl<S> ExtOTSend for ExtSender<S>
 where
-    OT: ExtStandardSendCore + Send,
     S: AsyncRead + AsyncWrite + Send + Unpin,
 {
     #[instrument(skip(self, payload))]
     async fn send(&mut self, payload: &[[Block; 2]]) -> Result<(), OTError> {
         let base_sender_setup = match self.stream.next().await {
-            Some(Ok(Message::BaseSenderSetup(m))) => m,
+            Some(Ok(Message::BaseSenderSetupWrapper(m))) => m,
             Some(Ok(m)) => return Err(OTError::Unexpected(m)),
             Some(Err(e)) => return Err(e)?,
             None => return Err(IOError::new(ErrorKind::UnexpectedEof, ""))?,
@@ -57,11 +55,11 @@ where
 
         trace!("Sending ReceiverSetup");
         self.stream
-            .send(Message::BaseReceiverSetup(base_setup))
+            .send(Message::BaseReceiverSetupWrapper(base_setup))
             .await?;
 
         let base_payload = match self.stream.next().await {
-            Some(Ok(Message::BaseSenderPayload(m))) => m,
+            Some(Ok(Message::BaseSenderPayloadWrapper(m))) => m,
             Some(Ok(m)) => return Err(OTError::Unexpected(m)),
             Some(Err(e)) => return Err(e)?,
             None => return Err(IOError::new(ErrorKind::UnexpectedEof, ""))?,
