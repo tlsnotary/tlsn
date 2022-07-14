@@ -1,4 +1,4 @@
-use mpc_aio::point_addition::{PointAdditionMaster, PointAdditionSlave};
+use mpc_aio::point_addition::{PointAddition2PC, PointAdditionMaster, PointAdditionSlave};
 use p256::elliptic_curve::sec1::ToEncodedPoint;
 use p256::{EncodedPoint, SecretKey};
 use rand::thread_rng;
@@ -11,7 +11,7 @@ use tracing_subscriber;
 async fn master(stream: UnixStream, point: EncodedPoint) {
     let mut master = PointAdditionMaster::new(stream);
 
-    let share = master.run(&point).await.unwrap();
+    let share = master.add(&point).await.unwrap();
 
     info!("Master keyshare: {:?}", share);
 }
@@ -20,7 +20,7 @@ async fn master(stream: UnixStream, point: EncodedPoint) {
 async fn slave(stream: UnixStream, point: EncodedPoint) {
     let mut slave = PointAdditionSlave::new(stream);
 
-    let share = slave.run(&point).await.unwrap();
+    let share = slave.add(&point).await.unwrap();
 
     info!("Slave keyshare: {:?}", share);
 }

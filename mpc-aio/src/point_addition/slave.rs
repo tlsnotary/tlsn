@@ -1,4 +1,5 @@
-use super::PointAdditionError;
+use super::{PointAddition2PC, PointAdditionError};
+use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use mpc_core::point_addition::{slave, PointAdditionMessage, SecretShare, SlaveCore};
 use mpc_core::proto::point_addition::PointAdditionMessage as ProtoMessage;
@@ -14,7 +15,7 @@ pub struct PointAdditionSlave<S> {
     stream: Framed<S, ProstCodecDelimited<PointAdditionMessage, ProtoMessage>>,
 }
 
-impl<S: AsyncRead + AsyncWrite + Unpin> PointAdditionSlave<S> {
+impl<S: AsyncRead + AsyncWrite + Send + Unpin> PointAdditionSlave<S> {
     pub fn new(stream: S) -> Self {
         Self {
             stream: Framed::new(
@@ -23,9 +24,12 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PointAdditionSlave<S> {
             ),
         }
     }
+}
 
+#[async_trait]
+impl<S: AsyncRead + AsyncWrite + Send + Unpin> PointAddition2PC for PointAdditionSlave<S> {
     #[instrument(skip(self, point))]
-    pub async fn run(&mut self, point: &EncodedPoint) -> Result<SecretShare, PointAdditionError> {
+    async fn add(&mut self, point: &EncodedPoint) -> Result<SecretShare, PointAdditionError> {
         trace!("Starting");
         let mut slave = slave::PointAdditionSlave::new(point);
 

@@ -6,6 +6,20 @@ pub use errors::PointAdditionError;
 pub use master::PointAdditionMaster;
 pub use slave::PointAdditionSlave;
 
+use mpc_core::point_addition::SecretShare;
+
+use async_trait::async_trait;
+use mockall::automock;
+
+/// This trait is for securely secret-sharing the addition of two elliptic curve points.
+/// [`PointAdditionMaster`] holds point P and [`PointAdditionSlave`] holds point Q where `P + Q = O = (x, y)`. Each party
+/// receives additive shares of the x-coordinate where `x_m + x_s = x`.
+#[automock]
+#[async_trait]
+pub trait PointAddition2PC {
+    async fn add(&mut self, point: &p256::EncodedPoint) -> Result<SecretShare, PointAdditionError>;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -33,8 +47,8 @@ mod tests {
         let slave_point = (&server_pk * &slave_secret.to_nonzero_scalar()).to_encoded_point(false);
 
         let (task_m, task_s) = tokio::join!(
-            tokio::spawn(async move { master.run(&master_point).await }),
-            tokio::spawn(async move { slave.run(&slave_point).await })
+            tokio::spawn(async move { master.add(&master_point).await }),
+            tokio::spawn(async move { slave.add(&slave_point).await })
         );
 
         let master_share = task_m.unwrap().unwrap();

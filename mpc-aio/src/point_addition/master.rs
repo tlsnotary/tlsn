@@ -1,4 +1,5 @@
-use super::PointAdditionError;
+use super::{PointAddition2PC, PointAdditionError};
+use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use mpc_core::point_addition::{master, MasterCore, PointAdditionMessage, SecretShare};
 use mpc_core::proto::point_addition::PointAdditionMessage as ProtoMessage;
@@ -23,9 +24,12 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PointAdditionMaster<S> {
             ),
         }
     }
+}
 
+#[async_trait]
+impl<S: AsyncRead + AsyncWrite + Send + Unpin> PointAddition2PC for PointAdditionMaster<S> {
     #[instrument(skip(self, point))]
-    pub async fn run(&mut self, point: &EncodedPoint) -> Result<SecretShare, PointAdditionError> {
+    async fn add(&mut self, point: &EncodedPoint) -> Result<SecretShare, PointAdditionError> {
         trace!("Starting");
         let mut master = master::PointAdditionMaster::new(point);
 
