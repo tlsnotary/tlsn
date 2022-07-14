@@ -1,0 +1,20 @@
+#return 0x36 == 0011 0110
+
+10 11
+1 1 #input can be any random bit
+1 8
+
+2 1 0 0 1 XOR # 0 
+1 1 1 2 INV   # 1
+
+# We use INV to set bits
+# output's first wire is lsb
+
+1 1 2 3 INV
+1 1 1 4 INV
+1 1 1 5 INV
+1 1 2 6 INV
+1 1 1 7 INV
+1 1 1 8 INV
+1 1 2 9 INV
+1 1 2 10 INV

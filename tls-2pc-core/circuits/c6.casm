@@ -1,0 +1,33 @@
+# AES-ECB-encrypt one block
+# (To remind how AES-GCM works: AES-ECB-encrypted counter block is xored with
+# the plaintext to get the ciphertext)
+
+5 885
+2 160 308
+
+# notary inputs
+#  128: client_write_key share
+#  32 : client_write_IV share
+# user inputs
+#  128: client_write_key share
+#  32 : client_write_IV share
+#  128: output mask
+#  10 : nonce
+#  10 : counter (max block counter that can fit into 10 bits is 1023)
+
+1 128
+# all outputs go to the evaluator
+# 128: encrypted counter block xor-masked by user 
+
+2 1 0 0 468 XOR # 0
+
+# combine client_write_key shares
+256 128 [0|>128] [160|>128] [469|>128] xor128bits.casm
+
+# combine client_write_IV shares
+64 32 [128|>32] [288|>32] [597|>32] xor32bits.casm
+
+# encrypt client_write_IV + nonce (8 bytes) + counter (4 bytes)
+256 128 [469|>128] [458|>10] [468*22] [448|>10] [468*54] [597|>32] [629|>128] aes-128-reverse.txt
+
+256 128 [629|>128] [320|>128] [757|>128] xor128bits.casm
