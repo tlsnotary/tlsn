@@ -1,9 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use mpc_core::block::{Block, BLOCK_ONES};
-use mpc_core::ot::{
-    DhOtSender, ExtReceiverCore, ExtSenderCore, ExtStandardReceiveCore, ExtStandardSendCore,
-    ReceiveCore, ReceiverCore, SendCore,
-};
+use mpc_core::ot::{DhOtReceiver, DhOtSender, Kos15Receiver, Kos15Sender};
 use mpc_core::utils::u8vec_to_boolvec;
 use rand::RngCore;
 use rand::SeedableRng;
@@ -15,12 +12,14 @@ fn criterion_benchmark(c: &mut Criterion) {
         let choice = [false; 1024];
 
         bench.iter(|| {
-            let mut sender = DhOtSender::new(1024);
-            let sender_setup = sender.setup();
+            let mut rng = ChaCha12Rng::from_entropy();
 
-            let mut receiver = ReceiverCore::new(1024);
+            let mut sender = DhOtSender::default();
+            let sender_setup = sender.setup(&mut rng).unwrap();
 
-            let receiver_setup = receiver.setup(&choice, sender_setup).unwrap();
+            let mut receiver = DhOtReceiver::default();
+
+            let receiver_setup = receiver.setup(&mut rng, &choice, sender_setup).unwrap();
             let send = sender.send(&s_inputs, receiver_setup).unwrap();
             let receive = receiver.receive(send).unwrap();
             black_box(receive);
@@ -37,10 +36,10 @@ fn criterion_benchmark(c: &mut Criterion) {
             .collect();
 
         bench.iter(|| {
-            let mut receiver = ExtReceiverCore::new(1024);
+            let mut receiver = Kos15Receiver::new(1024);
             let base_sender_setup = receiver.base_setup().unwrap();
 
-            let mut sender = ExtSenderCore::new(1024);
+            let mut sender = Kos15Sender::new(1024);
             let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
 
             let send_seeds = receiver.base_send(base_receiver_setup).unwrap();

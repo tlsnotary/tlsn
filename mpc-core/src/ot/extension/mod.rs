@@ -3,6 +3,8 @@
 pub mod errors;
 pub mod kos15;
 
+pub use kos15::{Kos15Receiver, Kos15Sender};
+
 pub use crate::Block;
 pub use clmul::Clmul;
 pub use errors::*;
