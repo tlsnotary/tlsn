@@ -32,6 +32,7 @@ where `W₀ = (W₁₀, ..., Wₙ₀)` (the "zeros" vector) and `Δ` is the glob
 * What can you do with `com_P` once you have it? It's a Pedersen commitment to a bytestring, which is nice, but how fast would a substring proof concretely be? You'd presumably have to do an inclusion proof for every byte, and then batch them at the end.
 * Relatedly, can we do "conversion proofs", i.e., proofs that let you convert `com_P` from one commitment scheme to another? Concretely, this is a proof that shows that there exists a `(σ, com_P)` that are consistent with a new `com_P'` which uses a different commitment scheme. You can imagine a proof π that proves `σ` is a valid signature of `com_P`, and that `com_P'` is the Poseidon hash of `P`. Then to prove a predicate `φ` over `P` to a third party, you construct a recursive ZKP that verifies π wrt `com_P'` (public) and `σ` (hidden) and `com_P` (hidden), and proves `φ(P) = 1`. Opening `P` inside π might be expensive, but one possible optimization is to pack 255 bits at a time rather than just 8.
 * In reality, the Requester actually knows `p` in advance. Can we leverage that to give us any concrete speedups?
+* What malicious- and cover-secure schemes are compatible with doing the arithmetic delta trick at the end? Cut and choose is an easy fit, for example.
 
 ## Prelims
 
@@ -214,3 +215,8 @@ Let `Wᵢⱼ' ∈ {0,1}¹²⁸` represent a bitstring label of the underlying ga
 When the underlying 2PC protocol terminates, the Requester will compute `wᵢ = Enc_{wᵢ'}(Cᵢ₀)` and `wᵢ = Enc_{wᵢ'}(Cᵢ₁)`, keeping whichever decryption succeeds.
 
 Thus, we have constructed a post-GC setup whereby each `wᵢ` is a random field element, and each column of `W ∈ 𝔽²ⁿ` is related by a global, uniform Δ.
+
+**Security:** Without modification, this technique is only secure to passive adversaries. A malicious garbler can for the evaluator to leak a bit: the garbler could simply pick a partially malformed `W` and see if the user aborts or not, thus revealing if they encountered a malformed bit. We have two answers to this observation
+
+1. In our specific case, the garbled circuit protocol is actually a privacy-free protocol. That is, the Notary has no values which it considers secret anymore. And so, just after `com_w` is sent, the Notary can reveal the full garbling of the circuit, and the full set of output labels (optimization: this can all be generated from a single PRG seed). The User will regenerate the whole circuit and see that it matches the garbling it received earlier. If they notice a discrepancy, the User will abort.
+2. A well-formedness check for the `W` values can possibly be included in any malicious-secure or covert-secure mechanism used for the rest of the circuit. In a cut-and-choose scheme, for example, the evaluator would force the garbler to also open its `W` values. Similarly, for a ZKP-based malicious-secure scheme, the garbler would prove ZKPs over the finite field that `W` belongs to in order to show well-formedness.
