@@ -27,6 +27,7 @@ where `W₀ = (W₁₀, ..., Wₙ₀)` (the "zeros" vector) and `Δ` is the glob
 ## Open questions
 
 * When precisely is `R_binary` ZK? Is two blinders sufficient? Is there an easier way to prove it ZK?
+* It seems AUTHDECODE inherently leaks a bit whenever `n = 1`. One way to work around this is to ensure `n > 1` always, which is easy. Is there another clean way of making this secure?
 * `R_decode` should be a simple polyn equality check where everything important is public. Someone familiar with Mina's commitment scheme should figure out the best protocol for that.
 * How efficient is our protocol below? How many polynomial evals and proofs are necessary (it looks like we have 3 eval proofs rn, plus a large sigma protocol proof)? Can we optimize further? What about batching to ease verification?
 * What can you do with `com_P` once you have it? It's a Pedersen commitment to a bytestring, which is nice, but how fast would a substring proof concretely be? You'd presumably have to do an inclusion proof for every byte, and then batch them at the end.
@@ -52,13 +53,15 @@ Some terminology:
 
 ## The AUTHDECODE functionality
 
-We formalize our goal as an ideal functionality. In words, the below functionality takes the Requester's output labels, and gives it back its decoding, plus a signed commitment of the (packed) decoding. Note the Notary doesn't actually send the labels, rather it sends the PRG seed used to generate those labels.
+We formalize our goal as an ideal functionality. In words, the below functionality takes the Requester's output labels, and gives it back its decoding, plus a signed commitment of the (packed) decoding. Note the Notary doesn't actually send the labels, rather it sends the PRG seed used to generate the 0-labels, and the global `Δ` offset used to calculate the 1-labels.
 ```
 Ideal functionality for AUTHDECODE:
     Requester → ℱ: w
-    Notary → ℱ: ρ, sk
+    Notary → ℱ: ρ, Δ, sk
     ℱ → Requester:
-        Let W = PRG(ρ)
+        Let W₀ = PRG(ρ)
+        Let W₁ = W₀ + (Δ, Δ, ..., Δ)
+        Let W = W₀ || W₁
         Let p be the decoding of w wrt W
         If decoding fails: abort
         Else: return P, r, σ
@@ -70,6 +73,8 @@ Ideal functionality for AUTHDECODE:
             σ = Sign_sk(N || com_P),
 ```
 
+**NOTE:** It appears this functionality leaks 1 bit of information when `n = 1`. This is because, for just 1 wire, `ρ` and `Δ` can be set to produce an desired 1-label while clobbering the 0-label. This fails at `n > 1` because `Δ` can only be selected once, and has to apply to all wires.
+
 ## Protocol
 
 To start, we write a full real world protocol that instantiates the AUTHDECODE functionality. This makes use of various subprotocols, which we define below.
@@ -79,11 +84,12 @@ Impl for AUTHDECODE
         // Requester must commit to w before it learns the decoding
             Send com_w = PolyCom(ck, w)
     Requester ← Notary:
-        // ρ is sufficient to derive the full label set W
-            Send ρ
+        // ρ and Δ are sufficient to derive the full label set W
+            Send ρ, Δ
     Requester → Notary:
         // Reconstruct W and decode w into plaintext bits p
-            Let W = PRG(ρ)
+            Let W₀ = PRG(ρ)
+            Let W₁ = W₀ + (Δ, Δ, ..., Δ)
             Let p = Decode(w, W) or abort
             Let P = pack(p)
         // Commit to everything
