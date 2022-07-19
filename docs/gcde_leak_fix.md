@@ -1,32 +1,27 @@
 Prevent plaintext leak of the Request (for the Response see * at the bottom) by a malicious Notary.
 
-#### Idea:
+## Idea
 
 It is possible to fix the GCDE leak by synthesizing multiple ideas: avoiding GCDE equality check, having the User (U) regenerate Notary's (N) circuits and building the decoding table from the hashes of labels.
 
 Note that this protocol only fixes the leak by a malicious N. If the U is malicious, she may still guess N's AES keys' bits as per GCDE's 1-bit leakage. (but we already concluded that leaking bits of the AES key is not a threat).
 
 
-#### Prelim:
+## Prelim
 
 Each party already has the to-be-evaluated GC sent by the other party and all the necessary input labels.
 
-
-#### Steps:
+## Steps
 
 1. The GC (for the Request) which each party evaluates has the following input/output:
 
-- N's inputs:
-    TLS key share
-- U's inputs:
-    TLS key share
-    plaintext
-- Output:
-    `Request's ciphertext`
+- N's inputs: TLS key share,
+- U's inputs: TLS key share, plaintext
+- Output: `Request's ciphertext`
 
 2. U sends `HashedLabels`: hashes of all output label pairs. See Step 12 on why this is necessary.
 
-3. N evaluates the GC, obtains `N's active output labels`, sends them to U. 
+3. N evaluates the GC, obtains `N's active output labels`, sends them to U.
 
 4. U decodes `N's active output labels` into `Request's ciphertext` and trusts that the `Request's ciphertext` is legitimate.
 
@@ -55,18 +50,11 @@ Note that if instead of revealing the hashes of the labels, U revealed the label
 13. N checks that `ciphertext1` == `ciphertext2`.
 
 
-
-*
 The same protocol works also for multi-round TLS session when the Server Response has to be decrypted in the online phase.
 The GC which the parties would use is:
 
-- N's inputs:
-    TLS key share
-- U's inputs:
-    TLS key share
-    ciphertext
-    mask
-- Output:
-    (plaintext XOR mask)
+- N's inputs: TLS key share
+- U's inputs: TLS key share, ciphertext mask
+- Output: (plaintext XOR mask)
 
 The reason why the mask is needed is to hide the plaintext from the Notary.
