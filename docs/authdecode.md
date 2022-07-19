@@ -1,10 +1,10 @@
 # The AUTHDECODE Protocol
 
-This document describes a protocol that runs after a garbled-circuit two-party computation, that allows the receiver to obtain a signed commitment to their output (with the sender being the signing party). This protocol is generic over choice of polynomial commitment scheme and garbled-circuit implementation.
+This document describes a protocol that runs after a garbled-circuit two-party computation, that allows the receiver to obtain a signed commitment to their output labels (with the sender being the signing party). This protocol is generic over choice of polynomial commitment scheme and garbled-circuit implementation.
 
 ## Background
 
-Parties called the Notary (aka "Sender") and Requester (aka "Receiver") perform some 2-party garbled-circuit computation together. At the end, the Requester has "garbled bits" or "labels" `wᵢ ∈ 𝔽` (where 𝐅 is a finite field; see "Note on arithmetic delta" below for an explanation of why this isn't an unstructured 128-bit string). When decoded, each `wᵢ` will reveal the i-th bit of the output of the 2-party computation.
+Parties called the Notary (aka "Sender") and Requester (aka "Receiver") perform some 2-party garbled-circuit computation together. At the end, the Requester has "garbled bits" or "labels" `wᵢ ∈ 𝔽` (where 𝔽 is a finite field; see "Note on arithmetic delta" below for an explanation of why this isn't an unstructured 128-bit string). When decoded, each `wᵢ` will reveal the i-th bit of the output of the 2-party computation.
 
 ## Goal
 
@@ -210,6 +210,14 @@ Protocol: // This is almost identical to a Schnorr identity proof
     Verifier:
         Check that φ(s) = K + c·(com_p, com_P)
 ```
+
+## Authenticated OT
+
+The above technique also works for getting a signature on committed _input_ to a garbled circuit. Suppose an Evaluator evaluates a garbled circuit on encoded input `w` (each `wᵢ` is derived via OT), and returns the encoded output `o` to the Garbler.
+
+If the Evaluator wants to prove knowledge of the encoding of the plaintext `p` that produced `o`, it suffices to show that the encoding `w` is a subset of the full set of the Evaluator's input labels (this is guaranteed by authenticity). To do this, the evaluator commits to `w` at any point during the evaluation, and sends `com_w` to the Garbler. After evaluation, the Garbler reveals all of the input wires `W`. Then the AUTHDECODE protocol proceeds as normal, constructing a plaintext input commitment `com_p` and showing  that it is compatible with `com_w` and `W`.
+
+More succinctly, AUTHDECODE on input labels is equivalent to authenticated OT: it proves that the committed values are a subset of all the Evaluator's input labels. By authenticity of MPC, authenticated OT immediately yields a method for constructing authenticated MPC inputs.
 
 ## Note on arithmetic delta
 
