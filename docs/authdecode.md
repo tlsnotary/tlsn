@@ -121,19 +121,24 @@ Protocol
             Prove R_binary over (ck, com_p, n; p)
     Prover ← Verifier:
             Sample and send a challenge point c
-            Let com_d = com_w - Δ·com_p
     Prover → Verifier:
         // Evaluate the LHS of the equation W₀ = w - Δp at c
+            Let com_W₀ = PolyCom(ck, W₀; 0)
+            Let com_d = com_w - Δ·com_p
+            Let π₁ = PolyWit(ck, W₀, com_d, (c, W₀c))
+        // The prover evals W₀(c) even though the verifier
+        // could do it. This is to save verif. cost.
             Let W₀(X) = interp(W₀)
             Let W₀c = W₀(c)
-            Let π = PolyWit(ck, W₀, (c, W₀c))
+            Let π₂ = PolyWit(ck, W₀, com_W₀, (c, W₀c))
+            Send (com_d, W₀c, π₁, π₂)
     Verifier:
         // Check the eval on W₀
             Let com_W₀ = PolyCom(ck, W₀; 0)
-            Check PolyWitEval(ck, π, com_W₀, (c, W₀c))
+            Check PolyWitEval(ck, π₂, com_W₀, (c, W₀c))
         // Then verify the same eval wrt the RHS commitment
             Let com_d = com_w - Δ·com_p
-            Check PolyWitEval(ck, π, com_d, (c, W₀c))
+            Check PolyWitEval(ck, π₁, com_d, (c, W₀c))
 ```
 
 `R_binary` states that `com_p` is binary. This may only be ZK if `p` has two blinders in it. Say at positions `n+1` and `n+2`.
