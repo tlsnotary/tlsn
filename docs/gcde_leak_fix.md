@@ -63,11 +63,11 @@ Now that the session is over and `k` is no longer secret, the Notary begins the 
 
 To do this check, the Notary will do a privacy-free garbling to compute `Enc_k(p)` where `k` is public and `p` is known only to the User:
 
-* The Notary sends `[k]₂` and a garbled encryption circuit to the User. He does _not_ send the decoding information to the User
-* The User derives `k` and evaluates the circuit on `k` and `p`, getting as a result the encoded ciphertext `C'`. She commits `com_C' := Com(C'; r')` for some randomness `r'` and sends `com_C'` to the Notary.
-* The Notary opens the garbled circuit to the User, revealing all the wire labels (this can be done e.g., by sending a PRG seed ρ that was used to generate the wire labels).
-* The User checks that the opening is well-formed and consistent with the wire labels and gates she received earlier. On success, she opens her commitment, sending `C'` and `r'` to the notary.
-* The notary checks the commitment opening and decodes `C'` to ciphertext `c'`. Finally the Notary verifies that `c == c'`. On success, the Notary outputs success.
+4. The Notary sends `[k]₂` and a garbled encryption circuit to the User. He does _not_ send the decoding information to the User
+5. The User derives `k` and evaluates the circuit on `k` and `p`, getting as a result the encoded ciphertext `C'`. She commits `com_C' := Com(C'; r')` for some randomness `r'` and sends `com_C'` to the Notary.
+6. The Notary opens the garbled circuit to the User, revealing all the wire labels (this can be done e.g., by sending a PRG seed ρ that was used to generate the wire labels).
+7. The User checks that the opening is well-formed and consistent with the wire labels and gates she received earlier. On success, she opens her commitment, sending `C'` and `r'` to the notary.
+8. The notary checks the commitment opening and decodes `C'` to ciphertext `c'`. Finally the Notary verifies that `c == c'`. On success, the Notary outputs success.
 
 To recap, the Notary forced the User to produce the ciphertext `c'` herself, and then checked that it was equal to the ciphertext he saw earlier. If this is the case, then nothing prematurely leaked to the User.
 
