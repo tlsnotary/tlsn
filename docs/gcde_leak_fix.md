@@ -61,7 +61,7 @@ Also at this point, the User has learned the ciphertext, and, if malicious, has 
 
 Now that the session is over and `k` is no longer secret, the Notary begins the maliciousness check. Taking a page out of the Dual-Execution method, the Notary will check that the User can derive the same ciphertext, given the full key. If she can, then the MPC done in Part 1 was performed honestly, and nothing prematurely leaked to the User.
 
-To do this check, the Notary will do a privacy-free garbling to compute `Enc_k(p)` where `k` is public and `p` is known only to the User:
+To do this check, the Notary will do a privacy-free garbling to compute `Enc_k(p)` where `k` and `p` are known only to the User:
 
 4. The Notary sends `[k]₂` and a garbled encryption circuit to the User. He does _not_ send the decoding information to the User
 5. The User derives `k` and evaluates the circuit on `k` and `p`, getting as a result the encoded ciphertext `C'`. She commits `com_C' := Com(C'; r')` for some randomness `r'` and sends `com_C'` to the Notary.
