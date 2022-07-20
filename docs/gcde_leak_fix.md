@@ -16,7 +16,7 @@ Secondly, we observe that the Notary's keyshare is an _ephemeral secret_: it is 
 * `p` is the User's plaintext request
 * `k` is the AES key
 * `[k]₁` and `[k]₂` are the User's and Notary's AES keyshares, respectively
-* `Enc` denotes the encryption algorithm used by the TLS session
+* `Enc` denotes the authenticated encryption algorithm used by the TLS session
 * `Com(x; r)` denotes a binding commitment to `x` with randomness `r`
 
 ## Ideal functionality
@@ -32,10 +32,6 @@ Ideal functionality for ONESHOTENC:
     ℱ → User: k
     ℱ → Notary: com_resp
 ```
-
-## Open questions
-
-* Is the encryption here an AEAD or just the CTR part of AES-GCM? If the Notary only learns the ciphertext without the auth tag, can the user open it to garbage later on?
 
 ## Protocol
 
