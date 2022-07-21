@@ -46,6 +46,12 @@ To set up for dual-execution, the parties set up the OTs. In the first step of t
 2. The Notary uses his OT values to evaluate the circuit on $[k]\_2$. He derives the encoded ciphertext $C$, and sends it to the User
 3. The User uses her decoding information to derive the ciphertext $c$ from the Notary. She sends $c$ to the Notary.
 
+--------------
+Footnote:
+A question may arise at this point re Steps 2 and 3: why doesn't the User simply reveal the decoding information to the Notary, so that the Notary himself would be able to decode the ciphertext C and sends C to the User. 
+The reason is that after the decoding the Notary could send to the User a malicious C, e.g. the Notary could flip a bit in C (which translates into flipping a bit in the plaintext). The User would then forward the malicious ciphertext to the server. 
+--------------
+
 At this point, the Notary (even if malicious) has learned nothing about the key, the ciphertext, or the plaintext.
 
 Also at this point, the User has learned the ciphertext, and, if malicious, has potentially learned the entire key $k$. As mentioned in the second observation above, it is okay if the User was malicious and learned $k$, but the Notary has to detect it and then abort the rest of the TLSNotary protocol. Before this step, the Notary waits for the User to complete their TLS session:
