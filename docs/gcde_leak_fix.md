@@ -42,21 +42,21 @@ We now describe the protocol at a high level. Broadly, it has the structure of t
 To set up for dual-execution, the parties set up the OTs. In the first step of the protocol, the User has to get her ciphertext from the Notary. The User does not trust the Notary (for privacy or integrity), and the User's data is far more sensitive to leakage than the Notary's. So the parties do an ordinary MPC:
 
 0. The User and Notary both garble a copy of the encryption circuit, and do OTs for each other.
-1. The User sends her garbled encryption circuit and garbled wires for $[k]\_1$ and $p$. She _does not_ send the output decoding information.
-2. The Notary uses his OT values to evaluate the circuit on $[k]\_2$. He derives the encoded ciphertext $C$, and sends it to the User
-3. The User uses her decoding information to derive the ciphertext $c$ from the Notary. She sends $c$ to the Notary.
+1. The User sends her garbled encryption circuit and garbled wires for $[k]\_1$ and $p$. She also sends the output decoding information.
+2. The Notary uses his OT values to evaluate the circuit on $[k]\_2$. He derives the encoded ciphertext $C$ and decodes it into ciphertext $c$ using output decoding information. He sends $C$ to the User.  
+3. The User decodes $C$ and derives the ciphertext $c_u$.
 
 //--------------
 
 Footnote:
 
-A question may arise at this point re Steps 2 and 3: why doesn't the User simply reveal the decoding information to the Notary, so that the Notary himself would be able to decode the ciphertext $C$ and send $c$ to the User. 
+A question may arise at this point re Step 3: why doesn't the Notary simply send $c$ to the User. 
 
-The reason is that after the decoding the Notary could send to the User a malicious $c$, e.g. the Notary could flip a bit in $c$ (which translates into flipping a bit in the plaintext). The User would then forward the malicious $c$ to the server. 
+The reason is that the Notary could send a maliciously crafted $c$: the Notary could flip a bit in $c$ (which translates into flipping a bit in the plaintext). The User would then forward the malicious $c$ to the server. 
 
 //--------------
 
-At this point, the Notary (even if malicious) has learned nothing about the key, the ciphertext, or the plaintext.
+At this point, the Notary (even if malicious) has learned nothing about the key or the plaintext. He has only learned the ciphertext.
 
 Also at this point, the User has learned the ciphertext, and, if malicious, has potentially learned the entire key $k$. As mentioned in the second observation above, it is okay if the User was malicious and learned $k$, but the Notary has to detect it and then abort the rest of the TLSNotary protocol. Before this step, the Notary waits for the User to complete their TLS session:
 
