@@ -4,7 +4,7 @@ The User wants to encrypt a TLS request with some server, but she doesn't have t
 
 ## Idea
 
-We make two observations. Firstly, a small amount of keyshare leakage is tolerable. E.g., if the Notary leaks 3 bits of their keyshare, it gives the User no meaningful advantage in any attack, as she could have simply guessed the bits correctly with ($1/2^3$) 12.5% probability and mounted the same attack.
+We make two observations. Firstly, a small amount of keyshare leakage is tolerable. For example, if the Notary leaks 3 bits of their keyshare, it gives the User no meaningful advantage in any attack, as she could have simply guessed the bits correctly with $1/2^3 = 12.5$% probability and mounted the same attack.
 
 Secondly, we observe that the Notary's keyshare is an _ephemeral secret_: it is only private for the duration of the User's TLS session. This implies two things:
 
@@ -17,7 +17,8 @@ Secondly, we observe that the Notary's keyshare is an _ephemeral secret_: it is 
 * $k$ is the AES key
 * $[k]\_1$ and $[k]\_2$ are the User's and Notary's AES keyshares, respectively. That is, $k = [k]\_1 \oplus [k]\_2$.
 * $\mathsf{Enc}$ denotes the encryption algorithm used by the TLS session
-* $\mathsf{Com}(x; r)$ denotes a binding commitment to $x$ with randomness $r$
+* $\mathsf{PRG}$ denotes a pseudorandom generator
+* $\mathsf{com}_x$ denotes a binding commitment to the value $x$
 
 ## Ideal functionality
 
@@ -39,22 +40,16 @@ We now describe the protocol at a high level. Broadly, it has the structure of t
 
 ### Part 1
 
-To set up for dual-execution, the parties set up the OTs. In the first step of the protocol, the User has to get her ciphertext from the Notary. The User does not trust the Notary (for privacy or integrity), and the User's data is far more sensitive to leakage than the Notary's. So the parties do an ordinary MPC:
+To set up for dual-execution, the parties set up the OTs. Because we have a privacy-free step later, the Notary's OT needs to be opened up later, so we have the notary do a "committed OT" (see section 2 of [JKO13](https://eprint.iacr.org/2013/073)), so that he can be forced to open the labels later on.
 
-0. The User and Notary both garble a copy of the encryption circuit, and do OTs for each other.
+In the first step of the protocol, the User has to get her ciphertext from the Notary. The User does not trust the Notary (for privacy or integrity), and the User's data is far more sensitive to leakage than the Notary's. So the parties do an ordinary MPC:
+
+0. The User and Notary both garble a copy of the encryption circuit, and do OTs for each other. For committed OT the Notary constructs the input wire labels as $\mathsf{PRG}(\rho)$ where $\rho$ is a randomly sampled PRG seed, and sends $\mathsf{com}_\rho$ to the User after the OT is done.
 1. The User sends her garbled encryption circuit and garbled wires for $[k]\_1$ and $p$. She also sends the output decoding information.
-2. The Notary uses his OT values to evaluate the circuit on $[k]\_2$. He derives the encoded ciphertext $C$ and decodes it into ciphertext $c$ using output decoding information. He sends $C$ to the User.  
+2. The Notary uses his OT values to evaluate the circuit on $[k]\_2$. He derives the encoded ciphertext $C$ and decodes it into ciphertext $c$ using output decoding information. He sends $C$ to the User.[^1]
 3. The User decodes $C$ and derives the ciphertext $c_u$.
 
-//--------------
-
-Footnote:
-
-A question may arise at this point re Step 3: why doesn't the Notary simply send $c$ to the User. 
-
-The reason is that the Notary could send a maliciously crafted $c$: the Notary could flip a bit in $c$ (which translates into flipping a bit in the plaintext). The User would then forward the malicious $c$ to the server. 
-
-//--------------
+[^1]: A question may arise at this point re Step 3: why doesn't the Notary simply send $c$ to the User. The reason is that the Notary could send a maliciously crafted $c$: the Notary could flip a bit in $c$ (which translates into flipping a bit in the plaintext). The User would then forward the malicious $c$ to the server. 
 
 At this point, the Notary (even if malicious) has learned nothing about the key or the plaintext. He has only learned the ciphertext.
 
@@ -62,7 +57,7 @@ Also at this point, the User has learned the ciphertext, and, if malicious, has 
 
 ### Part 2
 
-4. The User completes her TLS session and sends $\mathsf{com}\_\mathsf{resp} := \mathsf{Com}(\mathsf{resp}; r)$
+4. The User completes her TLS session and sends $\mathsf{com}\_\mathsf{resp}$
 
 ### Part 3
 
@@ -71,9 +66,9 @@ Now that the session is over and $[k]\_2$ is no longer secret, the Notary begins
 To do this check, the Notary will do a privacy-free garbling to compute $\mathsf{Enc}\_k(p)$ where $k$ and $p$ are known only to the User:
 
 5. The Notary sends his garbled encryption circuit to the User, as well as the garbled wires for $[k]\_2$. He _does not_ send the decoding information to the User.
-6. The User evaluates the circuit on $[k]\_1$ and $p$, using the OT values from step 0. The result is the encoded ciphertext $C'$, which the User commits to as $\mathsf{com}\_{C'} := \mathsf{Com}(C'; r')$ for some randomness $r'$. She then sends $\mathsf{com}\_{C'}$ to the Notary.
-7. The Notary opens the garbled circuit to the User, revealing all the wire labels (this can be done, e.g., by sending a PRG seed ρ that was used to generate the wire labels).
-8. The User checks that the opening is well-formed, consistent with the wire labels and gates she received earlier. On success, she opens her commitment, sending $C'$ and $r'$ to the Notary.
+6. The User evaluates the circuit on $[k]\_1$ and $p$, using the OT values from step 0. The result is the encoded ciphertext $C'$. She then computes and sends $\mathsf{com}\_{C'}$ to the Notary.
+7. The Notary reveals all the wire labels by opening $\mathsf{com}_\rho$.
+8. The User checks that the opening is correct, and that $\mathsf{PRG}(\rho)$ is consistent with the wire labels and gates she received (this procedure is called $\mathsf{Ve}$ in [JKO13](https://eprint.iacr.org/2013/073)). On success, she opens her commitment, sending $C'$ and the commitment's randomness to the notary.
 9. The Notary checks the commitment opening and decodes $C'$ to ciphertext $c'$. Finally the Notary verifies that $c == c'$. On success, the Notary outputs success.
 
 To recap, the Notary forced the User to produce the ciphertext $c'$ herself, and then checked that it was equal to the ciphertext he saw earlier. If this is the case, then nothing prematurely leaked to the User. Also note: this part could have only happened after the TLS session was over, because step 7 reveals $k$ to the User.
