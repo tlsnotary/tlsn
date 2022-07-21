@@ -50,9 +50,9 @@ To set up for dual-execution, the parties set up the OTs. In the first step of t
 
 Footnote:
 
-A question may arise at this point re Steps 2 and 3: why doesn't the User simply reveal the decoding information to the Notary, so that the Notary himself would be able to decode the ciphertext C and sends C to the User. 
+A question may arise at this point re Steps 2 and 3: why doesn't the User simply reveal the decoding information to the Notary, so that the Notary himself would be able to decode the ciphertext $C$ and send $c$ to the User. 
 
-The reason is that after the decoding the Notary could send to the User a malicious C, e.g. the Notary could flip a bit in C (which translates into flipping a bit in the plaintext). The User would then forward the malicious ciphertext to the server. 
+The reason is that after the decoding the Notary could send to the User a malicious $c$, e.g. the Notary could flip a bit in $c$ (which translates into flipping a bit in the plaintext). The User would then forward the malicious $c$ to the server. 
 
 //--------------
 
