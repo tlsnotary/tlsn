@@ -1,0 +1,70 @@
+# TLS stage 4.
+# Compute ghash H, gctr block, encrypted counter block - needed for Client Finished 
+
+14 2626
+2 576 704
+
+# notary inputs
+#  128: swk
+#  128: cwk
+#  32:  siv
+#  32:  civ
+#  128: output mask5 (for H)
+#  128: output mask6 (for gctr block)
+
+# user inputs
+#  128: swk
+#  128: cwk
+#  32:  siv
+#  32:  civ
+#  128: output mask5 (for H)
+#  128: output mask6 (for gctr block)
+#  128: output mask7 (for encrypted counter) 
+
+1 384
+
+# all outputs go to the evaluator
+# 128: H xor-masked twice (by mask5)
+# 128: gctr block for client_finished xor-masked twice (by each mask6)
+# 128: encrypted counter block for cf xor-masked by user's mask7
+
+2 1 0 0 1280 XOR  # 0
+1 1 1280 1281 INV # 1
+
+# combine key shares
+256 128 [0|>128] [576|>128] [1282|>128] xor128bits.casm    # swk
+256 128 [128|>128] [704|>128] [1410|>128] xor128bits.casm  # cwk
+64 32 [256|>32] [832|>32] [1538|>32] xor32bits.casm        # siv
+64 32 [288|>32] [864|>32] [1570|>32] xor32bits.casm        # civ
+
+
+# get encrypted zero - AES-GCM's H
+#    client_write_key zeroes
+#      \          /  /      \ 
+256 128 [1410|>128] [1280*128] [1602|>128] aes-128-reverse.txt
+
+# gctr block for client_finished
+# to be encrypted: 4-byte client_write_IV + 8-byte nonce == 1 + 4-byte block counter value == 1
+#    client_write_key 1  31 zeros   1   63 zeros client_write_IV
+#      \           /                              \         /
+256 128 [1410|>128] 1281 [1280*31] 1281 [1280*63] [1570|>32] [1730|>128] aes-128-reverse.txt
+
+# encrypted counter block
+# to be encrypted: 4-byte client_write_IV + 8-byte nonce == 1 + 4-byte block counter value == 2
+# note that input is "lsb first"
+#    client_write_key 0   1   30 zeros   1   63 zeros client_write_IV
+#      \           /                                  \         /
+256 128 [1410|>128] 1280 1281 [1280*30] 1281 [1280*63] [1570|>32] [1858|>128] aes-128-reverse.txt
+
+
+#prepare all outputs
+
+# xor H/gctr with notary's masks
+256 128 [1602|>128] [320|>128] [1986|>128] xor128bits.casm
+256 128 [1730|>128] [448|>128] [2114|>128] xor128bits.casm
+# and then with user's masks
+256 128 [1986|>128] [896|>128]  [2242|>128] xor128bits.casm
+256 128 [2114|>128] [1024|>128] [2370|>128] xor128bits.casm
+
+# mask encrypted counter block only with the user's mask
+256 128 [1858|>128] [1152|>128] [2498|>128] xor128bits.casm

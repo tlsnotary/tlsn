@@ -25,3 +25,12 @@ criterion = "0.3.5"
 ghash_rc = { package = "ghash", version = "0.4.4" }
 rand_chacha = "0.3.1"
 hex = "0.4"
+curv-kzen = "0.9"
+num = { version = "0.4", features = ["rand"]}
+aes = { version = "0.7.5", features = [] }
+
+[[test]]
+# don't run the heavy circuit_test unless explicitely invoked with
+# cargo test --test circuit_test
+name = "circuit_test"
+test = false

@@ -1,6 +1,6 @@
 pub mod errors;
 pub mod master;
-mod sha;
+pub mod sha;
 pub mod slave;
 mod utils;
 
