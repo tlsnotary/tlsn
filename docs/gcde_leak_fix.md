@@ -44,10 +44,10 @@ To set up for dual-execution, the parties set up the OTs. Because we have a priv
 
 In the first step of the protocol, the User has to get her ciphertext from the Notary. The User does not trust the Notary (for privacy or integrity), and the User's data is far more sensitive to leakage than the Notary's. So the parties do an ordinary MPC:
 
-0. The User and Notary both garble a copy of the encryption circuit, and do OTs for each other. For committed OT the Notary constructs the input wire labels as $\mathsf{PRG}(\rho)$ where $\rho$ is a randomly sampled PRG seed, and sends $\mathsf{com}_\rho$ to the User after the OT is done.
+0. The User and Notary both garble a copy of the encryption circuit, and do OTs for each other. For committed OT the Notary constructs the input wire labels and OT encryption keys as $\mathsf{PRG}(\rho)$ where $\rho$ is a randomly sampled PRG seed, and sends $\mathsf{com}_\rho$ to the User after the OT is done.
 1. The User sends her garbled encryption circuit and garbled wires for $[k]\_1$ and $p$. She also sends the output decoding information.
 2. The Notary uses his OT values to evaluate the circuit on $[k]\_2$. He derives the encoded ciphertext $C$ and decodes it into ciphertext $c$ using output decoding information. He sends $C$ to the User.[^1]
-3. The User decodes $C$ and derives the ciphertext $c_u$.
+3. The User decodes $C$ and derives the ciphertext $c$.
 
 [^1]: A question may arise at this point re Step 3: why doesn't the Notary simply send $c$ to the User. The reason is that the Notary could send a maliciously crafted $c$: the Notary could flip a bit in $c$ (which translates into flipping a bit in the plaintext). The User would then forward the malicious $c$ to the server. 
 
@@ -67,7 +67,7 @@ To do this check, the Notary will do a privacy-free garbling to compute $\mathsf
 
 5. The Notary sends his garbled encryption circuit to the User, as well as the garbled wires for $[k]\_2$. He _does not_ send the decoding information to the User.
 6. The User evaluates the circuit on $[k]\_1$ and $p$, using the OT values from step 0. The result is the encoded ciphertext $C'$. She then computes and sends $\mathsf{com}\_{C'}$ to the Notary.
-7. The Notary reveals all the wire labels by opening $\mathsf{com}_\rho$.
+7. The Notary reveals all the wire labels and OT encryption keys by opening $\mathsf{com}_\rho$.
 8. The User checks that the opening is correct, and that $\mathsf{PRG}(\rho)$ is consistent with the wire labels and gates she received (this procedure is called $\mathsf{Ve}$ in [JKO13](https://eprint.iacr.org/2013/073)). On success, she opens her commitment, sending $C'$ and the commitment's randomness to the notary.
 9. The Notary checks the commitment opening and decodes $C'$ to ciphertext $c'$. Finally the Notary verifies that $c == c'$. On success, the Notary outputs success.
 
