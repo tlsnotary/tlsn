@@ -30,6 +30,11 @@ impl Block {
     }
 
     #[inline]
+    pub fn random_vec<R: Rng + CryptoRng>(rng: &mut R, n: usize) -> Vec<Self> {
+        (0..n).map(|_| Self::random(rng)).collect()
+    }
+
+    #[inline]
     // OT extension Sender must break correlation between his 2 masks before
     // using them in 1-out-of-2 Oblivious Transfer. Every pair of masks has
     // a constant correlation: their XOR equals a delta (delta is choice bits
