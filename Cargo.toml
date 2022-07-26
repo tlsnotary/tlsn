@@ -11,5 +11,8 @@ members = [
     "notary",
     "core",
     "clmul",
-    #"wasm",
+]
+
+exclude = [
+    "wasm-test"
 ]
