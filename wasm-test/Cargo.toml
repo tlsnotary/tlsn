@@ -9,4 +9,5 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
+thiserror = "1.0.31"
 wasm-bindgen = "0.2"
