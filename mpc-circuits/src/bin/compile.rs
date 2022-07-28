@@ -1,6 +1,8 @@
+// Parses Bristol-fashion circuits
+
 use clap::Parser;
-use mpc_core::circuit::Circuit;
-use mpc_core::proto::circuits::Circuit as ProtoCircuit;
+use mpc_circuits::circuit::Circuit;
+use mpc_circuits::proto::Circuit as ProtoCircuit;
 use prost::Message;
 use rayon::prelude::*;
 use regex::Regex;
@@ -12,10 +14,10 @@ use std::io::Result;
 #[clap(author, version, about, long_about = None)]
 struct Args {
     /// Path to directory containing circuits
-    #[clap(required = true, short)]
+    #[clap(short, default_value = "circuits/bristol")]
     i: String,
     /// Path to directory to save outputs
-    #[clap(required = true, short)]
+    #[clap(short, default_value = "circuits/protobuf")]
     o: String,
 }
 

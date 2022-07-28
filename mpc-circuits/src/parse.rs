@@ -1,6 +1,5 @@
-use super::errors::CircuitParserError;
-use super::gate::Gate;
-use super::Circuit;
+use crate::circuit::CircuitDescription;
+use crate::{Circuit, Error, Gate, Group};
 use anyhow::{anyhow, Context};
 use regex::Regex;
 use std::{
@@ -9,7 +8,7 @@ use std::{
 };
 
 /// Parses captures into a Vec for convenience
-fn line2vec<'a>(re: &Regex, line: &'a str) -> Result<Vec<&'a str>, CircuitParserError> {
+fn line2vec<'a>(re: &Regex, line: &'a str) -> Result<Vec<&'a str>, Error> {
     let v: Vec<&'a str> = re
         .captures_iter(line)
         .map(|cap| {
@@ -23,7 +22,7 @@ fn line2vec<'a>(re: &Regex, line: &'a str) -> Result<Vec<&'a str>, CircuitParser
 impl Circuit {
     /// Parses circuit files in Bristol Fashion format as specified here:
     /// `https://homes.esat.kuleuven.be/~nsmart/MPC/`
-    pub fn parse(filename: &str, name: &str, version: &str) -> Result<Self, CircuitParserError> {
+    pub fn parse(filename: &str, name: &str, version: &str) -> Result<Self, Error> {
         let f = File::open(filename)
             .with_context(|| format!("Failed to read circuit from {}", filename))?;
         let mut reader = BufReader::new(f);
@@ -36,7 +35,7 @@ impl Circuit {
 
         // Check that first line has 2 values: ngates, nwires
         if line_1.len() != 2 {
-            return Err(CircuitParserError::ParsingError(anyhow!(
+            return Err(Error::ParsingError(anyhow!(
                 "Expecting line to be ngates, nwires: {}",
                 line
             )));
@@ -45,7 +44,7 @@ impl Circuit {
         let ngates: usize = line_1[0]
             .parse()
             .with_context(|| format!("Failed to parse ngates: {}", line_1[0]))?;
-        let nwires: usize = line_1[1]
+        let wire_count: usize = line_1[1]
             .parse()
             .with_context(|| format!("Failed to parse nwires: {}", line_1[1]))?;
 
@@ -66,15 +65,27 @@ impl Circuit {
                 nwires
             })
             .collect();
-        let ninput_wires: usize = input_nwires.iter().sum();
 
         // Check that nwires is specified for every input
         if input_nwires.len() != ninputs {
-            return Err(CircuitParserError::ParsingError(anyhow!(
+            return Err(Error::ParsingError(anyhow!(
                 "Expecting wire count to be specified for every input: {}",
                 line
             )));
         }
+
+        let input_groups = (0..ninputs)
+            .map(|id| {
+                let start_id = input_nwires[..id].iter().sum();
+                let count = input_nwires[id];
+                let wires = (start_id..start_id + count).collect();
+                Group::Input {
+                    name: "".to_string(),
+                    desc: "".to_string(),
+                    wires,
+                }
+            })
+            .collect();
 
         // Parse third line: noutputs output_0_nwires output_1_nwires...
         let mut line = String::new();
@@ -93,30 +104,34 @@ impl Circuit {
                 nwires
             })
             .collect();
-        let noutput_wires: usize = output_nwires.iter().sum();
 
         // Check that nwires is specified for every output
         if output_nwires.len() != noutputs {
-            return Err(CircuitParserError::ParsingError(anyhow!(
+            return Err(Error::ParsingError(anyhow!(
                 "Expecting wire count to be specified for every output: {}",
                 line
             )));
         }
 
-        let mut circ = Self::new(
-            name.to_string(),
-            version.to_string(),
-            ngates,
-            nwires,
-            ninputs,
-            input_nwires,
-            ninput_wires,
-            noutput_wires,
-        );
+        let output_groups = (0..noutputs)
+            .map(|id| {
+                let start_id = output_nwires[..id].iter().sum();
+                let count = output_nwires[id];
+                let wires = (start_id..start_id + count).collect();
+                Group::Output {
+                    name: "".to_string(),
+                    desc: "".to_string(),
+                    wires,
+                }
+            })
+            .collect();
 
         let re = Regex::new(r"(\d+|\S+)\s*").context("Failed to compile regex")?;
 
         let mut id = 0;
+        let mut gates = Vec::with_capacity(ngates);
+        let mut and_count = 0;
+        let mut xor_count = 0;
 
         // Process gates
         for line in reader.lines() {
@@ -136,7 +151,7 @@ impl Circuit {
                     let xref: usize = gate_vals[2].parse().context("Failed to parse gate")?;
                     let yref: usize = gate_vals[3].parse().context("Failed to parse gate")?;
                     let zref: usize = gate_vals[4].parse().context("Failed to parse gate")?;
-                    circ.nand += 1;
+                    and_count += 1;
                     Gate::And {
                         id,
                         xref,
@@ -148,7 +163,7 @@ impl Circuit {
                     let xref: usize = gate_vals[2].parse().context("Failed to parse gate")?;
                     let yref: usize = gate_vals[3].parse().context("Failed to parse gate")?;
                     let zref: usize = gate_vals[4].parse().context("Failed to parse gate")?;
-                    circ.nxor += 1;
+                    xor_count += 1;
                     Gate::Xor {
                         id,
                         xref,
@@ -157,47 +172,53 @@ impl Circuit {
                     }
                 }
                 _ => {
-                    return Err(CircuitParserError::ParsingError(anyhow!(
+                    return Err(Error::ParsingError(anyhow!(
                         "Encountered unsupported gate type: {}",
                         typ
                     )));
                 }
             };
-            circ.gates.push(gate);
+            gates.push(gate);
             id += 1;
         }
         if id != ngates {
-            return Err(CircuitParserError::ParsingError(anyhow!(
+            return Err(Error::ParsingError(anyhow!(
                 "expecting {ngates} gates, parsed {id}"
             )));
         }
-        Ok(circ)
+        Ok(Circuit {
+            desc: CircuitDescription {
+                name: name.to_string(),
+                version: version.to_string(),
+                wire_count,
+                and_count,
+                xor_count,
+                inputs: input_groups,
+                outputs: output_groups,
+            },
+            gates,
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::circuit::CircuitInput;
 
     #[test]
     fn test_parse_adder64() {
         let circ = Circuit::parse("circuits/bristol/adder64.txt", "adder64", "").unwrap();
 
-        assert_eq!(circ.ninput_wires, 128);
-        assert_eq!(circ.noutput_wires, 64);
-        assert_eq!(circ.nxor, 313);
-        assert_eq!(circ.nand, 63);
+        assert_eq!(circ.input_len(), 128);
+        assert_eq!(circ.output_len(), 64);
+        assert_eq!(circ.xor_count(), 313);
+        assert_eq!(circ.and_count(), 63);
 
         let a = vec![false; 64];
         let b = vec![false; 64];
         let inputs = [a, b].concat();
-        let inputs = inputs
-            .into_iter()
-            .enumerate()
-            .map(|(id, value)| CircuitInput { id, value })
-            .collect();
-        let output = circ.eval(inputs).unwrap();
+
+        let output = circ.evaluate(&inputs).unwrap();
         assert_eq!(
             output
                 .into_iter()
@@ -211,12 +232,8 @@ mod tests {
         a.reverse();
         let b = vec![false; 64];
         let inputs = [a, b].concat();
-        let inputs = inputs
-            .into_iter()
-            .enumerate()
-            .map(|(id, value)| CircuitInput { id, value })
-            .collect();
-        let mut output = circ.eval(inputs).unwrap();
+
+        let mut output = circ.evaluate(&inputs).unwrap();
         output.reverse();
         assert_eq!(
             output
@@ -231,12 +248,8 @@ mod tests {
         b[63] = true;
         b.reverse();
         let inputs = [a, b].concat();
-        let inputs = inputs
-            .into_iter()
-            .enumerate()
-            .map(|(id, value)| CircuitInput { id, value })
-            .collect();
-        let mut output = circ.eval(inputs).unwrap();
+
+        let mut output = circ.evaluate(&inputs).unwrap();
         output.reverse();
         assert_eq!(
             output
@@ -253,12 +266,8 @@ mod tests {
         b[63] = true;
         b.reverse();
         let inputs = [a, b].concat();
-        let inputs = inputs
-            .into_iter()
-            .enumerate()
-            .map(|(id, value)| CircuitInput { id, value })
-            .collect();
-        let mut output = circ.eval(inputs).unwrap();
+
+        let mut output = circ.evaluate(&inputs).unwrap();
         output.reverse();
         assert_eq!(
             output
@@ -273,12 +282,8 @@ mod tests {
         b[63] = true;
         b.reverse();
         let inputs = [a, b].concat();
-        let inputs = inputs
-            .into_iter()
-            .enumerate()
-            .map(|(id, value)| CircuitInput { id, value })
-            .collect();
-        let mut output = circ.eval(inputs).unwrap();
+
+        let mut output = circ.evaluate(&inputs).unwrap();
         output.reverse();
         assert_eq!(
             output
@@ -298,20 +303,16 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(circ.ninput_wires, 256);
-        assert_eq!(circ.noutput_wires, 128);
-        assert_eq!(circ.nxor, 28176);
-        assert_eq!(circ.nand, 6400);
+        assert_eq!(circ.input_len(), 256);
+        assert_eq!(circ.output_len(), 128);
+        assert_eq!(circ.xor_count(), 28176);
+        assert_eq!(circ.and_count(), 6400);
 
         let mut key = vec![false; 128];
         let mut pt = vec![false; 128];
         let inputs = [key, pt].concat();
-        let inputs = inputs
-            .into_iter()
-            .enumerate()
-            .map(|(id, value)| CircuitInput { id, value })
-            .collect();
-        let mut output = circ.eval(inputs).unwrap();
+
+        let mut output = circ.evaluate(&inputs).unwrap();
         output.reverse();
         assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
                    "01100110111010010100101111010100111011111000101000101100001110111000100001001100111110100101100111001010001101000010101100101110");
@@ -319,12 +320,8 @@ mod tests {
         key = vec![true; 128];
         pt = vec![false; 128];
         let inputs = [key, pt].concat();
-        let inputs = inputs
-            .into_iter()
-            .enumerate()
-            .map(|(id, value)| CircuitInput { id, value })
-            .collect();
-        output = circ.eval(inputs).unwrap();
+
+        output = circ.evaluate(&inputs).unwrap();
         output.reverse();
         assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
                    "10100001111101100010010110001100100001110111110101011111110011011000100101100100010010000100010100111000101111111100100100101100");
@@ -334,12 +331,8 @@ mod tests {
         key.reverse();
         pt = vec![false; 128];
         let inputs = [key, pt].concat();
-        let inputs = inputs
-            .into_iter()
-            .enumerate()
-            .map(|(id, value)| CircuitInput { id, value })
-            .collect();
-        output = circ.eval(inputs).unwrap();
+
+        output = circ.evaluate(&inputs).unwrap();
         output.reverse();
         assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
                    "11011100000011101101100001011101111110010110000100011010101110110111001001001001110011011101000101101000110001010100011001111110");
@@ -351,12 +344,8 @@ mod tests {
         key.reverse();
         pt = vec![false; 128];
         let inputs = [key, pt].concat();
-        let inputs = inputs
-            .into_iter()
-            .enumerate()
-            .map(|(id, value)| CircuitInput { id, value })
-            .collect();
-        output = circ.eval(inputs).unwrap();
+
+        output = circ.evaluate(&inputs).unwrap();
         output.reverse();
         assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
                    "11010101110010011000110001001000001001010101111101111000110011000100011111100001010010011110010101011100111111000011111111111101");
@@ -370,12 +359,8 @@ mod tests {
         key.reverse();
         pt = vec![false; 128];
         let inputs = [key, pt].concat();
-        let inputs = inputs
-            .into_iter()
-            .enumerate()
-            .map(|(id, value)| CircuitInput { id, value })
-            .collect();
-        output = circ.eval(inputs).unwrap();
+
+        output = circ.evaluate(&inputs).unwrap();
         output.reverse();
         assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
                     "10110001110101110101100000100101011010110010100011111101100001010000101011010100100101000100001000001000110011110001000101010101");
@@ -385,32 +370,24 @@ mod tests {
     fn test_aes_old() {
         let circ = Circuit::parse("circuits/bristol/aes_128.txt", "aes_128", "").unwrap();
 
-        assert_eq!(circ.ninput_wires, 256);
-        assert_eq!(circ.noutput_wires, 128);
-        assert_eq!(circ.nxor, 25124);
-        assert_eq!(circ.nand, 6800);
+        assert_eq!(circ.input_len(), 256);
+        assert_eq!(circ.output_len(), 128);
+        assert_eq!(circ.xor_count(), 25124);
+        assert_eq!(circ.and_count(), 6800);
 
         let mut key = vec![false; 128];
         let mut pt = vec![false; 128];
         let inputs = [pt, key].concat();
-        let inputs = inputs
-            .into_iter()
-            .enumerate()
-            .map(|(id, value)| CircuitInput { id, value })
-            .collect();
-        let mut output = circ.eval(inputs).unwrap();
+
+        let mut output = circ.evaluate(&inputs).unwrap();
         assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
                    "01100110111010010100101111010100111011111000101000101100001110111000100001001100111110100101100111001010001101000010101100101110");
 
         key = vec![true; 128];
         pt = vec![false; 128];
         let inputs = [pt, key].concat();
-        let inputs = inputs
-            .into_iter()
-            .enumerate()
-            .map(|(id, value)| CircuitInput { id, value })
-            .collect();
-        output = circ.eval(inputs).unwrap();
+
+        output = circ.evaluate(&inputs).unwrap();
         assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
                    "10100001111101100010010110001100100001110111110101011111110011011000100101100100010010000100010100111000101111111100100100101100");
 
@@ -419,12 +396,8 @@ mod tests {
 
         pt = vec![false; 128];
         let inputs = [pt, key].concat();
-        let inputs = inputs
-            .into_iter()
-            .enumerate()
-            .map(|(id, value)| CircuitInput { id, value })
-            .collect();
-        output = circ.eval(inputs).unwrap();
+
+        output = circ.evaluate(&inputs).unwrap();
         assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
                    "11011100000011101101100001011101111110010110000100011010101110110111001001001001110011011101000101101000110001010100011001111110");
 
@@ -435,12 +408,8 @@ mod tests {
 
         pt = vec![false; 128];
         let inputs = [pt, key].concat();
-        let inputs = inputs
-            .into_iter()
-            .enumerate()
-            .map(|(id, value)| CircuitInput { id, value })
-            .collect();
-        output = circ.eval(inputs).unwrap();
+
+        output = circ.evaluate(&inputs).unwrap();
         assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
                    "11010101110010011000110001001000001001010101111101111000110011000100011111100001010010011110010101011100111111000011111111111101");
 
@@ -452,12 +421,8 @@ mod tests {
 
         pt = vec![false; 128];
         let inputs = [pt, key].concat();
-        let inputs = inputs
-            .into_iter()
-            .enumerate()
-            .map(|(id, value)| CircuitInput { id, value })
-            .collect();
-        output = circ.eval(inputs).unwrap();
+
+        output = circ.evaluate(&inputs).unwrap();
         assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
                     "10110001110101110101100000100101011010110010100011111101100001010000101011010100100101000100001000001000110011110001000101010101");
     }

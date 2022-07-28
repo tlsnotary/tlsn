@@ -4,12 +4,14 @@ import "core.proto";
 
 package core.garble;
 
-// Input label of garbled circuit
-message InputLabel {
-    // Input wire label id
+// Wire label of garbled circuit
+message WireLabel {
+    // Wire label id
     required uint32 id = 1;
-    // Input wire label
-    required core.Block label = 2;
+    // Wire label type
+    required uint32 typ = 2;
+    // Wire label value
+    required core.Block label = 3;
 }
 
 // Garbled Circuit Data
@@ -17,7 +19,7 @@ message GarbledCircuit {
     // Public wire labels corresponding to low and high bits
     required core.LabelPair public_labels = 1;
     // Generator's wire labels corresponding to their input bits
-    repeated InputLabel generator_input_labels = 2;
+    repeated WireLabel generator_input_labels = 2;
     // Truth table for garbled AND gates
     repeated core.LabelPair table = 3;
     // LSB of each outputs low wire label
