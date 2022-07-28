@@ -51,14 +51,14 @@ where
     LaneCount<N>: SupportedLaneCount,
 {
     let half = matrix.len() >> 1;
-    let mut matrix_copy = vec![0_u8; half];
+    let mut matrix_copy_half = vec![0_u8; half];
     let mut matrix_pointer;
     let mut s1: Simd<u8, N>;
     let mut s2: Simd<u8, N>;
     for _ in 0..rounds as usize {
-        matrix_copy.copy_from_slice(&matrix[..half]);
+        matrix_copy_half.copy_from_slice(&matrix[..half]);
         matrix_pointer = matrix.as_mut_ptr();
-        for (v1, v2) in matrix_copy
+        for (v1, v2) in matrix_copy_half
             .as_chunks_unchecked_mut::<N>()
             .iter_mut()
             .zip(&mut matrix[half..].as_chunks_unchecked_mut::<N>().iter_mut())
@@ -68,6 +68,30 @@ where
             matrix_pointer = matrix_pointer.add(N);
             std::ptr::copy_nonoverlapping(s2.to_array().as_ptr(), matrix_pointer, N);
             matrix_pointer = matrix_pointer.add(N);
+        }
+    }
+}
+
+/// This is the byte-level transpose
+unsafe fn transpose_bytes_2<const N: usize>(matrix: &mut [u8], rounds: u32)
+where
+    LaneCount<N>: SupportedLaneCount,
+{
+    let half = matrix.len() >> 1;
+    let mut matrix_copy_half = vec![0_u8; half];
+    for _ in 0..rounds as usize {
+        matrix_copy_half.copy_from_slice(&matrix[..half]);
+        let mut lanes: Vec<Simd<u8, N>> = matrix_copy_half
+            .as_chunks_unchecked_mut::<N>()
+            .iter_mut()
+            .chain(&mut matrix[half..].as_chunks_unchecked_mut::<N>().iter_mut())
+            .map(|lane| Simd::from_array(*lane))
+            .collect();
+        let (chunk1, chunk2) = lanes.split_at_mut_unchecked(half / N);
+        for (k, (v1, v2)) in chunk1.iter_mut().zip(chunk2).enumerate() {
+            (*v1, *v2) = v1.interleave(*v2);
+            matrix[2 * k * N..(2 * k + 1) * N].copy_from_slice(&v1.to_array());
+            matrix[(2 * k + 1) * N..(k + 1) * 2 * N].copy_from_slice(&v2.to_array());
         }
     }
 }
@@ -101,7 +125,7 @@ mod tests {
 
     #[test]
     fn test_transpose_bytes() {
-        let rounds = 6;
+        let rounds = 8;
         let mut m: Vec<u8> = random_matrix::<u8>(2_usize.pow(rounds) * 2_usize.pow(rounds));
         let original = m.clone();
         unsafe {
@@ -111,10 +135,28 @@ mod tests {
         assert_eq!(m, original);
     }
 
-    #[bench]
-    fn bench_transpose_bytes(b: &mut Bencher) {
+    #[test]
+    fn test_transpose_bytes_2() {
         let rounds = 8;
         let mut m: Vec<u8> = random_matrix::<u8>(2_usize.pow(rounds) * 2_usize.pow(rounds));
+        let original = m.clone();
+        unsafe {
+            transpose_bytes_2::<32>(&mut m, rounds);
+            transpose_bytes_2::<32>(&mut m, rounds);
+        }
+        assert_eq!(m, original);
+    }
+    #[bench]
+    fn bench_transpose_bytes(b: &mut Bencher) {
+        let rounds = 11;
+        let mut m: Vec<u8> = random_matrix::<u8>(2_usize.pow(rounds) * 2_usize.pow(rounds));
         b.iter(|| unsafe { black_box(transpose_bytes::<32>(&mut m, rounds)) })
+    }
+
+    #[bench]
+    fn bench_transpose_bytes_2(b: &mut Bencher) {
+        let rounds = 11;
+        let mut m: Vec<u8> = random_matrix::<u8>(2_usize.pow(rounds) * 2_usize.pow(rounds));
+        b.iter(|| unsafe { black_box(transpose_bytes_2::<32>(&mut m, rounds)) })
     }
 }
