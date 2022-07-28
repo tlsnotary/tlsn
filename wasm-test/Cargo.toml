@@ -11,3 +11,6 @@ crate-type = ["cdylib"]
 [dependencies]
 thiserror = "1.0.31"
 wasm-bindgen = "0.2"
+
+[dev-dependencies]
+rand = "0.8.5"
