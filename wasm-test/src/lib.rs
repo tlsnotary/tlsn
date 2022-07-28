@@ -1,6 +1,8 @@
 #![feature(portable_simd)]
 #![feature(slice_as_chunks)]
 #![feature(slice_split_at_unchecked)]
+#![feature(test)]
+extern crate test;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
 use thiserror::Error;
 
@@ -43,6 +45,7 @@ where
     Ok(())
 }
 
+/// This is the byte-level transpose
 unsafe fn transpose_bytes<const N: usize>(matrix: &mut [u8], rounds: u32)
 where
     LaneCount<N>: SupportedLaneCount,
@@ -82,6 +85,7 @@ mod tests {
     use super::*;
     use rand::distributions::{Distribution, Standard};
     use rand::prelude::*;
+    use test::Bencher;
 
     fn random_matrix<T>(elements: usize) -> Vec<T>
     where
@@ -101,5 +105,12 @@ mod tests {
             transpose_bytes::<32>(&mut m, rounds);
         }
         assert_eq!(m, original);
+    }
+
+    #[bench]
+    fn bench_transpose_bytes(b: &mut Bencher) {
+        let rounds = 8;
+        let mut m: Vec<u8> = random_matrix::<u8>(2_usize.pow(rounds) * 2_usize.pow(rounds));
+        b.iter(|| unsafe { transpose_bytes::<32>(&mut m, rounds) })
     }
 }
