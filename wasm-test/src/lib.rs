@@ -51,12 +51,13 @@ where
     LaneCount<N>: SupportedLaneCount,
 {
     let half = matrix.len() >> 1;
-    let mut matrix_copy = vec![0_u8; matrix.len()];
+    let mut matrix_copy = vec![0_u8; half];
     for _ in 0..rounds as usize {
-        matrix_copy.copy_from_slice(matrix);
+        matrix_copy.copy_from_slice(&matrix[..half]);
         let mut lanes: Vec<Simd<u8, N>> = matrix_copy
             .as_chunks_unchecked_mut::<N>()
             .iter_mut()
+            .chain(&mut matrix[half..].as_chunks_unchecked_mut::<N>().iter_mut())
             .map(|lane| Simd::from_array(*lane))
             .collect();
         let (chunk1, chunk2) = lanes.split_at_mut_unchecked(half / N);
