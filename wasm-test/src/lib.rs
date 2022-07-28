@@ -52,11 +52,12 @@ where
 {
     let half = matrix.len() >> 1;
     let mut matrix_copy = vec![0_u8; half];
+    let mut matrix_pointer;
     let mut s1: Simd<u8, N>;
     let mut s2: Simd<u8, N>;
     for _ in 0..rounds as usize {
         matrix_copy.copy_from_slice(&matrix[..half]);
-        let mut matrix_pointer = matrix.as_mut_ptr();
+        matrix_pointer = matrix.as_mut_ptr();
         for (v1, v2) in matrix_copy
             .as_chunks_unchecked_mut::<N>()
             .iter_mut()
