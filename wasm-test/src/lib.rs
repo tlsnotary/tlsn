@@ -52,19 +52,21 @@ where
 {
     let half = matrix.len() >> 1;
     let mut matrix_copy = vec![0_u8; half];
+    let mut s1: Simd<u8, N>;
+    let mut s2: Simd<u8, N>;
     for _ in 0..rounds as usize {
         matrix_copy.copy_from_slice(&matrix[..half]);
-        let mut lanes: Vec<Simd<u8, N>> = matrix_copy
+        let mut matrix_pointer = matrix.as_mut_ptr();
+        for (v1, v2) in matrix_copy
             .as_chunks_unchecked_mut::<N>()
             .iter_mut()
-            .chain(&mut matrix[half..].as_chunks_unchecked_mut::<N>().iter_mut())
-            .map(|lane| Simd::from_array(*lane))
-            .collect();
-        let (chunk1, chunk2) = lanes.split_at_mut_unchecked(half / N);
-        for (k, (v1, v2)) in chunk1.iter_mut().zip(chunk2).enumerate() {
-            (*v1, *v2) = v1.interleave(*v2);
-            matrix[2 * k * N..(2 * k + 1) * N].copy_from_slice(&v1.to_array());
-            matrix[(2 * k + 1) * N..(k + 1) * 2 * N].copy_from_slice(&v2.to_array());
+            .zip(&mut matrix[half..].as_chunks_unchecked_mut::<N>().iter_mut())
+        {
+            (s1, s2) = Simd::from_array(*v1).interleave(Simd::from_array(*v2));
+            std::ptr::copy_nonoverlapping(s1.to_array().as_ptr(), matrix_pointer, N);
+            matrix_pointer = matrix_pointer.add(N);
+            std::ptr::copy_nonoverlapping(s2.to_array().as_ptr(), matrix_pointer, N);
+            matrix_pointer = matrix_pointer.add(N);
         }
     }
 }
@@ -75,7 +77,7 @@ pub enum TransposeError {
     InvalidNumberOfRows,
     #[error("Provided slice is not of rectangular shape")]
     MalformedSlice,
-    #[error("Number of elements per row must be multiple of lane count")]
+    #[error("Number of elements per row must be a multiple of lane count")]
     InvalidLaneCount,
     #[error(" A lane count of 1 is not supported.")]
     LaneCountOne,
@@ -86,7 +88,7 @@ mod tests {
     use super::*;
     use rand::distributions::{Distribution, Standard};
     use rand::prelude::*;
-    use test::Bencher;
+    use test::{black_box, Bencher};
 
     fn random_matrix<T>(elements: usize) -> Vec<T>
     where
@@ -112,6 +114,6 @@ mod tests {
     fn bench_transpose_bytes(b: &mut Bencher) {
         let rounds = 8;
         let mut m: Vec<u8> = random_matrix::<u8>(2_usize.pow(rounds) * 2_usize.pow(rounds));
-        b.iter(|| unsafe { transpose_bytes::<32>(&mut m, rounds) })
+        b.iter(|| unsafe { black_box(transpose_bytes::<32>(&mut m, rounds)) })
     }
 }
