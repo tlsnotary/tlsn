@@ -6,7 +6,6 @@ fn main() -> Result<()> {
             "proto/core.proto",
             "proto/ot.proto",
             "proto/garble.proto",
-            "proto/circuits.proto",
             "proto/point_addition.proto",
         ],
         &["proto/"],

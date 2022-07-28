@@ -1,0 +1,43 @@
+syntax = "proto2";
+
+package core.circuits;
+
+message Gate {
+    enum GateType {
+        XOR = 0;
+        AND = 1;
+        INV = 2;
+    }
+    required uint32 id = 1;
+    required uint32 xref = 2;
+    required uint32 yref = 3;
+    required uint32 zref = 4;
+    required GateType gate_type = 5;
+}
+
+message Group {
+    enum GroupType {
+        Input = 0;
+        Intermediate = 1;
+        Output = 2;
+    }
+    required string name = 1;
+    required string desc = 2;
+    repeated uint32 wires = 3;
+    required GroupType group_type = 4;
+}
+
+message CircuitDescription {
+    required string name = 1;
+    required string version = 2;
+    required uint32 wire_count = 3;
+    required uint32 and_count = 4;
+    required uint32 xor_count = 5;
+    repeated Group inputs = 6;
+    repeated Group outputs = 7;
+}
+
+message Circuit {
+    required CircuitDescription desc = 1;
+    repeated Gate gates = 2;
+}
