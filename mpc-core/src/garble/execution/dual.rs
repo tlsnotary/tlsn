@@ -32,6 +32,9 @@ impl OutputCommit {
 }
 
 pub trait State {}
+impl State for Generator {}
+impl State for Evaluator {}
+impl State for Check {}
 
 pub struct Generator {}
 
@@ -47,7 +50,10 @@ pub struct Check {
     commit: Option<OutputCommit>,
 }
 
-pub struct DualExecution<S = Generator> {
+pub struct DualExecution<S = Generator>
+where
+    S: State,
+{
     state: S,
     circ: Arc<Circuit>,
     role: bool,
@@ -102,7 +108,12 @@ impl DualExecution<Evaluator> {
 
         let output_labels = evaluate_garbled_circuit(&cipher, &gc, input_labels)?;
 
-        let output = decode(&output_labels, gc.decoding.as_ref().unwrap());
+        let output = decode(
+            &output_labels,
+            gc.decoding.as_ref().ok_or(Error::PeerError(
+                "Peer did not provide label decoding".to_string(),
+            ))?,
+        );
 
         let our_labels = choose(self.state.gc.output_labels(), &output);
 
