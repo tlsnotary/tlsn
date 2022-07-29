@@ -1,13 +1,18 @@
-use super::codec::Reader;
-use super::enums::{AlertDescription, AlertLevel, HandshakeType};
-use super::message::{Message, OpaqueMessage, PlainMessage};
+use super::{
+    codec::Reader,
+    enums::{AlertDescription, AlertLevel, HandshakeType},
+    message::{Message, OpaqueMessage, PlainMessage},
+};
 
-use std::convert::TryFrom;
-use std::fs;
-use std::io::Read;
-use std::path::{Path, PathBuf};
+use std::{
+    convert::TryFrom,
+    fs,
+    io::Read,
+    path::{Path, PathBuf},
+};
 
 #[test]
+#[ignore]
 fn test_read_fuzz_corpus() {
     fn corpus_dir() -> PathBuf {
         let from_subcrate = Path::new("../fuzz/corpus/message");

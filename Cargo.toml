@@ -11,5 +11,5 @@ members = [
     "notary",
     "core",
     "clmul",
-    #"wasm",
 ]
+exclude = ["tls-client"]
