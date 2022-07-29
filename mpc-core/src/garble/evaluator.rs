@@ -43,7 +43,7 @@ pub(crate) fn inv_gate(x: &Block, public_label: &Block) -> Block {
     *x ^ *public_label
 }
 
-pub fn eval<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
+pub fn evaluate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     cipher: &C,
     circ: &Circuit,
     input_labels: &[BinaryLabel],
