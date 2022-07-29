@@ -153,8 +153,9 @@ pub fn generate_public_labels<R: Rng + CryptoRng>(rng: &mut R, delta: &Block) ->
     ]
 }
 
-/// Sorts an array of input labels and validates according to a circuit description.
-pub fn prepare_inputs(circ: &Circuit, mut inputs: Vec<BinaryLabel>) -> Result<Vec<Block>, Error> {
+/// Clones an array of input labels, sorts them, and validates according to a circuit description.
+pub fn prepare_inputs(circ: &Circuit, inputs: &[BinaryLabel]) -> Result<Vec<BinaryLabel>, Error> {
+    let mut inputs = Vec::from(inputs);
     if circ.input_len() != inputs.len() {
         return Err(Error::InvalidInput(InputError::InvalidCount(
             circ.input_len(),
@@ -169,11 +170,11 @@ pub fn prepare_inputs(circ: &Circuit, mut inputs: Vec<BinaryLabel>) -> Result<Ve
         return Err(Error::InvalidInput(InputError::Duplicate));
     }
 
-    Ok(inputs.into_iter().map(|label| label.value).collect())
+    Ok(inputs)
 }
 
 /// Decodes output wire labels into plaintext
-pub fn decode(labels: &[Block], decoding: &[bool]) -> Vec<bool> {
+pub fn decode(labels: &[BinaryLabel], decoding: &[bool]) -> Vec<bool> {
     assert!(
         labels.len() == decoding.len(),
         "arrays are different length"
@@ -181,6 +182,6 @@ pub fn decode(labels: &[Block], decoding: &[bool]) -> Vec<bool> {
     labels
         .iter()
         .zip(decoding)
-        .map(|(label, decode)| (label.lsb() != 0) ^ decode)
+        .map(|(label, decode)| (label.value().lsb() != 0) ^ decode)
         .collect()
 }

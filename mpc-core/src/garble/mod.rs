@@ -116,7 +116,7 @@ mod tests {
         let choice = [true; 256];
         let input_labels = utils::choose(&input_labels, &choice);
 
-        let output_labels = ev::evaluate(
+        let output_labels = ev::evaluate_garbled_circuit(
             &cipher,
             &circ,
             &input_labels,
