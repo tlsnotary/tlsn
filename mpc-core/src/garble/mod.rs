@@ -9,6 +9,7 @@ pub use circuit::{
     GarbledCircuit,
 };
 pub use error::{Error, InputError};
+pub use evaluator::evaluate_garbled_circuit;
 pub use generator::generate_garbled_circuit;
 
 #[derive(Debug, Clone)]
@@ -17,14 +18,15 @@ pub enum GarbleMessage {}
 #[cfg(test)]
 mod tests {
     use super::{evaluator as ev, generator as gen, *};
-    use aes::cipher::{generic_array::GenericArray, NewBlockCipher};
-    use aes::Aes128;
+    use aes::{
+        cipher::{generic_array::GenericArray, NewBlockCipher},
+        Aes128,
+    };
     use rand::SeedableRng;
     use rand_chacha::ChaCha12Rng;
     use std::sync::Arc;
 
-    use crate::garble::circuit::generate_labels;
-    use crate::{utils, Block};
+    use crate::{garble::circuit::generate_labels, utils, Block};
     use mpc_circuits::{Circuit, AES_128_REVERSE};
 
     #[test]
@@ -116,14 +118,7 @@ mod tests {
         let choice = [true; 256];
         let input_labels = utils::choose(&input_labels, &choice);
 
-        let output_labels = ev::evaluate_garbled_circuit(
-            &cipher,
-            &circ,
-            &input_labels,
-            &public_labels,
-            &gc.encrypted_gates,
-        )
-        .unwrap();
+        let output_labels = ev::evaluate_garbled_circuit(&cipher, &gc, &input_labels).unwrap();
 
         let output = decode(&output_labels, &gc.decoding.unwrap());
 

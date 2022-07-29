@@ -1,8 +1,10 @@
 use rand::{CryptoRng, Rng};
 use std::sync::Arc;
 
-use crate::block::Block;
-use crate::garble::{Error, InputError};
+use crate::{
+    block::Block,
+    garble::{Error, InputError},
+};
 use mpc_circuits::Circuit;
 
 pub type BinaryLabel = WireLabel<Block>;
@@ -63,6 +65,7 @@ pub struct GarbledCircuit {
 }
 
 impl FullGarbledCircuit {
+    /// Returns output label decoding
     pub fn decoding(&self) -> Vec<bool> {
         self.wire_labels
             .iter()
@@ -71,6 +74,12 @@ impl FullGarbledCircuit {
             .collect()
     }
 
+    /// Returns full set of output labels
+    pub fn output_labels(&self) -> &[[BinaryLabel; 2]] {
+        &self.wire_labels[self.circ.len() - self.circ.output_len()..]
+    }
+
+    /// Returns `GarbledCircuit` which is safe to send an evaluator
     pub fn to_evaluator(&self, input_labels: &[BinaryLabel], decoding: bool) -> GarbledCircuit {
         GarbledCircuit {
             circ: self.circ.clone(),

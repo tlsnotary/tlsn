@@ -1,11 +1,15 @@
 use cipher::{consts::U16, BlockCipher, BlockEncrypt};
 
-use crate::block::{Block, SELECT_MASK};
-use crate::garble::Error;
+use crate::{
+    block::{Block, SELECT_MASK},
+    garble::Error,
+};
 use mpc_circuits::{Circuit, Gate};
 
-use super::circuit::{prepare_inputs, BinaryLabel};
-use super::EncryptedGate;
+use super::{
+    circuit::{prepare_inputs, BinaryLabel},
+    EncryptedGate, GarbledCircuit,
+};
 
 /// Evaluates AND gate
 #[inline]
@@ -103,17 +107,15 @@ pub fn evaluate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
 
 pub fn evaluate_garbled_circuit<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     cipher: &C,
-    circ: &Circuit,
+    gc: &GarbledCircuit,
     input_labels: &[BinaryLabel],
-    public_labels: &[BinaryLabel; 2],
-    encrypted_gates: &[EncryptedGate],
 ) -> Result<Vec<BinaryLabel>, Error> {
-    let input_labels = prepare_inputs(circ, input_labels)?;
+    let input_labels = prepare_inputs(&gc.circ, &[input_labels, &gc.input_labels].concat())?;
     Ok(evaluate(
         cipher,
-        circ,
+        &gc.circ,
         &input_labels,
-        public_labels,
-        encrypted_gates,
+        &gc.public_labels,
+        &gc.encrypted_gates,
     )?)
 }
