@@ -1,7 +1,7 @@
 use crate::{
     garble::{
-        circuit::BinaryLabel, decode, evaluate_garbled_circuit, generate_garbled_circuit,
-        EncryptedGate, Error, FullGarbledCircuit, GarbledCircuit,
+        circuit::BinaryLabel, decode, evaluate_garbled_circuit, generate_garbled_circuit, Error,
+        FullGarbledCircuit, GarbledCircuit,
     },
     utils::{choose, sha256},
     Block,

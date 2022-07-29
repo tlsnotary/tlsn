@@ -10,6 +10,7 @@ pub use circuit::{
 };
 pub use error::{Error, InputError};
 pub use evaluator::evaluate_garbled_circuit;
+pub use execution::DualExecution;
 pub use generator::generate_garbled_circuit;
 
 #[derive(Debug, Clone)]
