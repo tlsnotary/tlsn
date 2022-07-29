@@ -10,6 +10,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 thiserror = "1.0.31"
+packed_simd = { version = "0.3", package = "packed_simd_2" }
 wasm-bindgen = "0.2"
 
 [dev-dependencies]
