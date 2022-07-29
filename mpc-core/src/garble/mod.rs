@@ -1,10 +1,12 @@
 pub mod circuit;
 pub mod error;
 pub mod evaluator;
+mod execution;
 pub mod generator;
 
 pub use circuit::{
-    decode, generate_labels, generate_public_labels, FullGarbledCircuit, GarbledCircuit,
+    decode, generate_labels, generate_public_labels, EncryptedGate, FullGarbledCircuit,
+    GarbledCircuit,
 };
 pub use error::{Error, InputError};
 pub use generator::generate_garbled_circuit;
@@ -38,12 +40,24 @@ mod tests {
         let y = [y_0, y_0 ^ delta];
         let gid: usize = 1;
 
-        let (z, table) = gen::and_gate(&cipher, &x, &y, &delta, gid);
+        let (z, encrypted_gate) = gen::and_gate(&cipher, &x, &y, &delta, gid);
 
-        assert_eq!(ev::and_gate(&mut cipher, &x[0], &y[0], &table, gid), z[0]);
-        assert_eq!(ev::and_gate(&mut cipher, &x[0], &y[1], &table, gid), z[0]);
-        assert_eq!(ev::and_gate(&mut cipher, &x[1], &y[0], &table, gid), z[0]);
-        assert_eq!(ev::and_gate(&mut cipher, &x[1], &y[1], &table, gid), z[1]);
+        assert_eq!(
+            ev::and_gate(&mut cipher, &x[0], &y[0], &encrypted_gate, gid),
+            z[0]
+        );
+        assert_eq!(
+            ev::and_gate(&mut cipher, &x[0], &y[1], &encrypted_gate, gid),
+            z[0]
+        );
+        assert_eq!(
+            ev::and_gate(&mut cipher, &x[1], &y[0], &encrypted_gate, gid),
+            z[0]
+        );
+        assert_eq!(
+            ev::and_gate(&mut cipher, &x[1], &y[1], &encrypted_gate, gid),
+            z[1]
+        );
     }
 
     #[test]
@@ -86,8 +100,8 @@ mod tests {
         let cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
         let circ = Arc::new(Circuit::load_bytes(AES_128_REVERSE).unwrap());
 
-        let (input_labels, delta) = generate_labels(&mut rng, None, 256);
-        let public_labels = [Block::random(&mut rng), Block::random(&mut rng) ^ delta];
+        let (input_labels, delta) = generate_labels(&mut rng, None, 256, 0);
+        let public_labels = generate_public_labels(&mut rng, &delta);
 
         let gc = gen::generate_garbled_circuit(
             &cipher,
@@ -97,13 +111,19 @@ mod tests {
             &public_labels,
         )
         .unwrap();
-        let gc = gc.to_eval(&[], true);
+        let gc = gc.to_evaluator(&[], true);
 
         let choice = [true; 256];
         let input_labels = utils::choose(&input_labels, &choice);
 
-        let output_labels =
-            ev::eval(&cipher, &circ, &input_labels, &public_labels, &gc.table).unwrap();
+        let output_labels = ev::eval(
+            &cipher,
+            &circ,
+            &input_labels,
+            &public_labels,
+            &gc.encrypted_gates,
+        )
+        .unwrap();
 
         let output = decode(&output_labels, &gc.decoding.unwrap());
 

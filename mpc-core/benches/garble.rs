@@ -17,7 +17,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         let cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
         let circ = Arc::new(Circuit::load_bytes(AES_128_REVERSE).unwrap());
 
-        let (labels, delta) = generate_labels(&mut rng, None, 256);
+        let (labels, delta) = generate_labels(&mut rng, None, 256, 0);
         let public_labels = generate_public_labels(&mut rng, &delta);
 
         bench.iter(|| {

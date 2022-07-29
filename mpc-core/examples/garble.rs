@@ -51,7 +51,7 @@ fn main() {
         .collect();
 
     // Convert `FullGarbledCircuit` to `GarbledCircuit` which strips data that the evaluator should not receive
-    let gc = full_gc.to_eval(&gen_inputs, true);
+    let gc = full_gc.to_evaluator(&gen_inputs, true);
 
     // This is usually retrieved using oblivious transfer
     let ev_inputs: Vec<BinaryLabel> = choose(&input_labels[128..], &key)
@@ -66,7 +66,8 @@ fn main() {
     let inputs = [gen_inputs, ev_inputs].concat();
     let inputs = prepare_inputs(&circ, inputs).unwrap();
 
-    let output_labels = ev::eval(&cipher, &circ, &inputs, &public_labels, &gc.table).unwrap();
+    let output_labels =
+        ev::eval(&cipher, &circ, &inputs, &public_labels, &gc.encrypted_gates).unwrap();
 
     let output = decode(&output_labels, &gc.decoding.unwrap());
 

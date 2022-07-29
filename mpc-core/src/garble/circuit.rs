@@ -16,6 +16,12 @@ pub struct WireLabel<T> {
     pub value: T,
 }
 
+impl<T> WireLabel<T> {
+    pub fn value(&self) -> &T {
+        &self.value
+    }
+}
+
 impl WireLabel<Block> {
     pub fn random<R: Rng + CryptoRng>(id: usize, rng: &mut R) -> Self {
         Self {
@@ -25,23 +31,34 @@ impl WireLabel<Block> {
     }
 }
 
+#[derive(Clone)]
+pub struct EncryptedGate([Block; 2]);
+
+impl EncryptedGate {
+    pub(crate) fn new(inner: [Block; 2]) -> Self {
+        Self(inner)
+    }
+
+    pub(crate) fn inner(&self) -> &[Block; 2] {
+        &self.0
+    }
+}
+
 /// Complete half-gate garbled circuit data, including delta which can be used to
 /// derive the private inputs of the Garbler
-#[derive(Clone)]
 pub struct FullGarbledCircuit {
     pub circ: Arc<Circuit>,
-    pub wire_labels: Vec<[Block; 2]>,
-    pub public_labels: [Block; 2],
-    pub table: Vec<[Block; 2]>,
+    pub wire_labels: Vec<[BinaryLabel; 2]>,
+    pub public_labels: [BinaryLabel; 2],
+    pub encrypted_gates: Vec<EncryptedGate>,
     pub delta: Block,
 }
 
-#[derive(Clone)]
 pub struct GarbledCircuit {
     pub circ: Arc<Circuit>,
     pub input_labels: Vec<BinaryLabel>,
-    pub public_labels: [Block; 2],
-    pub table: Vec<[Block; 2]>,
+    pub public_labels: [BinaryLabel; 2],
+    pub encrypted_gates: Vec<EncryptedGate>,
     pub decoding: Option<Vec<bool>>,
 }
 
@@ -50,16 +67,16 @@ impl FullGarbledCircuit {
         self.wire_labels
             .iter()
             .skip(self.circ.len() - self.circ.output_len())
-            .map(|labels| labels[0].lsb() == 1)
+            .map(|labels| labels[0].value().lsb() == 1)
             .collect()
     }
 
-    pub fn to_eval(&self, input_labels: &[BinaryLabel], decoding: bool) -> GarbledCircuit {
+    pub fn to_evaluator(&self, input_labels: &[BinaryLabel], decoding: bool) -> GarbledCircuit {
         GarbledCircuit {
             circ: self.circ.clone(),
             input_labels: input_labels.into(),
             public_labels: self.public_labels,
-            table: self.table.clone(),
+            encrypted_gates: self.encrypted_gates.clone(),
             decoding: decoding.then(|| self.decoding()),
         }
     }
@@ -76,7 +93,8 @@ impl FullGarbledCircuit {
             .skip(self.circ.len() - self.circ.output_len());
 
         if output_labels.iter().zip(pairs).all(|(label, (id, pair))| {
-            (label.id == id) & ((label.value == pair[0]) | (label.value == pair[1]))
+            (label.id == id)
+                & ((label.value == *pair[0].value()) | (label.value == *pair[1].value()))
         }) {
             Ok(())
         } else {
@@ -90,7 +108,8 @@ pub fn generate_labels<R: Rng + CryptoRng>(
     rng: &mut R,
     delta: Option<&Block>,
     count: usize,
-) -> (Vec<[Block; 2]>, Block) {
+    offset: usize,
+) -> (Vec<[BinaryLabel; 2]>, Block) {
     let delta = match delta {
         Some(delta) => *delta,
         None => {
@@ -101,14 +120,37 @@ pub fn generate_labels<R: Rng + CryptoRng>(
     };
     let low = Block::random_vec(rng, count);
     (
-        low.into_iter().map(|low| [low, low ^ delta]).collect(),
+        low.into_iter()
+            .enumerate()
+            .map(|(id, value)| {
+                [
+                    BinaryLabel {
+                        id: id + offset,
+                        value,
+                    },
+                    BinaryLabel {
+                        id: id + offset,
+                        value: value ^ delta,
+                    },
+                ]
+            })
+            .collect(),
         delta,
     )
 }
 
 /// Generates wire labels corresponding to public truth values [0, 1]
-pub fn generate_public_labels<R: Rng + CryptoRng>(rng: &mut R, delta: &Block) -> [Block; 2] {
-    [Block::random(rng), Block::random(rng) ^ *delta]
+pub fn generate_public_labels<R: Rng + CryptoRng>(rng: &mut R, delta: &Block) -> [BinaryLabel; 2] {
+    [
+        BinaryLabel {
+            id: usize::MAX - 1,
+            value: Block::random(rng),
+        },
+        BinaryLabel {
+            id: usize::MAX,
+            value: Block::random(rng) ^ *delta,
+        },
+    ]
 }
 
 /// Sorts an array of input labels and validates according to a circuit description.

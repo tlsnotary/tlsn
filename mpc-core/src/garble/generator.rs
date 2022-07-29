@@ -5,6 +5,7 @@ use crate::block::{Block, SELECT_MASK};
 use crate::garble::Error;
 use mpc_circuits::{Circuit, Gate};
 
+use super::circuit::{BinaryLabel, EncryptedGate};
 use super::FullGarbledCircuit;
 
 /// Computes garbled AND gate
@@ -57,16 +58,17 @@ pub fn garble<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     cipher: &C,
     circ: &Circuit,
     delta: &Block,
-    input_labels: &[[Block; 2]],
-    public_labels: &[Block; 2],
-) -> Result<(Vec<[Block; 2]>, Vec<[Block; 2]>), Error> {
-    let mut table: Vec<[Block; 2]> = Vec::with_capacity(circ.and_count());
+    input_labels: &[[BinaryLabel; 2]],
+    public_labels: &[BinaryLabel; 2],
+) -> Result<(Vec<[BinaryLabel; 2]>, Vec<EncryptedGate>), Error> {
+    let mut encrypted_gates: Vec<EncryptedGate> = Vec::with_capacity(circ.and_count());
     // Every wire label pair for the circuit
     let mut labels: Vec<Option<[Block; 2]>> = vec![None; circ.len()];
+    let public_labels = [*public_labels[0].value(), *public_labels[1].value()];
 
     // Insert input labels
     for (labels, pair) in labels.iter_mut().zip(input_labels) {
-        *labels = Some(*pair)
+        *labels = Some([*pair[0].value(), *pair[1].value()])
     }
 
     let mut gid = 1;
@@ -74,7 +76,7 @@ pub fn garble<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
         match *gate {
             Gate::Inv { xref, zref, .. } => {
                 let x = labels[xref].ok_or(Error::UninitializedLabel(xref))?;
-                let z = inv_gate(&x, public_labels, delta);
+                let z = inv_gate(&x, &public_labels, delta);
                 labels[zref] = Some(z);
             }
             Gate::Xor {
@@ -91,31 +93,41 @@ pub fn garble<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
                 let x = labels[xref].ok_or(Error::UninitializedLabel(xref))?;
                 let y = labels[yref].ok_or(Error::UninitializedLabel(yref))?;
                 let (z, t) = and_gate(cipher, &x, &y, &delta, gid);
-                table.push(t);
+                encrypted_gates.push(EncryptedGate::new(t));
                 labels[zref] = Some(z);
                 gid += 2;
             }
         };
     }
 
-    let wire_labels = labels.into_iter().map(|w| w.unwrap()).collect();
+    let wire_labels = labels
+        .into_iter()
+        .enumerate()
+        .map(|(id, pair)| {
+            let [low, high] = pair.unwrap();
+            [
+                BinaryLabel { id, value: low },
+                BinaryLabel { id, value: high },
+            ]
+        })
+        .collect();
 
-    Ok((wire_labels, table))
+    Ok((wire_labels, encrypted_gates))
 }
 
 pub fn generate_garbled_circuit<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     cipher: &C,
     circ: Arc<Circuit>,
     delta: &Block,
-    input_labels: &[[Block; 2]],
-    public_labels: &[Block; 2],
+    input_labels: &[[BinaryLabel; 2]],
+    public_labels: &[BinaryLabel; 2],
 ) -> Result<FullGarbledCircuit, Error> {
-    let (wire_labels, table) = garble(cipher, &circ, delta, input_labels, public_labels)?;
+    let (wire_labels, encrypted_gates) = garble(cipher, &circ, delta, input_labels, public_labels)?;
     Ok(FullGarbledCircuit {
         circ,
         wire_labels,
         public_labels: public_labels.clone(),
-        table,
+        encrypted_gates,
         delta: delta.clone(),
     })
 }
@@ -137,7 +149,7 @@ mod tests {
         let mut rng = ChaCha12Rng::from_entropy();
         let circ = Arc::new(Circuit::load_bytes(AES_128_REVERSE).unwrap());
 
-        let (input_labels, delta) = generate_labels(&mut rng, None, circ.input_len() - 1);
+        let (input_labels, delta) = generate_labels(&mut rng, None, circ.input_len() - 1, 0);
         let public_labels = generate_public_labels(&mut rng, &delta);
 
         let result = garble(&cipher, &circ, &delta, &input_labels, &public_labels);
