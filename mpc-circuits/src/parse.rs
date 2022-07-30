@@ -1,5 +1,5 @@
 use crate::{
-    circuit::{CircuitDescription, Input, Output},
+    circuit::{CircuitId, Input, Output},
     Circuit, Error, Gate, Group,
 };
 use anyhow::{anyhow, Context};
@@ -181,15 +181,14 @@ impl Circuit {
             )));
         }
         Ok(Circuit {
-            desc: CircuitDescription {
-                name: name.to_string(),
-                version: version.to_string(),
-                wire_count,
-                and_count,
-                xor_count,
-                inputs: input_groups,
-                outputs: output_groups,
-            },
+            id: CircuitId::new(&gates),
+            name: name.to_string(),
+            version: version.to_string(),
+            wire_count,
+            and_count,
+            xor_count,
+            inputs: input_groups,
+            outputs: output_groups,
             gates,
         })
     }

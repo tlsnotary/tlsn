@@ -1,7 +1,9 @@
 use crate::{proto::Circuit as ProtoCircuit, Error};
-use prost::Message;
 
+use prost::Message;
+use sha2::{Digest, Sha256};
 use std::convert::TryFrom;
+
 /// Group of circuit wires
 #[derive(Debug, Clone)]
 pub struct Group {
@@ -93,8 +95,61 @@ pub enum Gate {
     },
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct CircuitDescription {
+impl Gate {
+    pub(crate) fn to_bytes(&self) -> [u8; 16] {
+        let (id, xref, yref, zref) = match *self {
+            Gate::Xor {
+                id,
+                xref,
+                yref,
+                zref,
+            } => (id as u32, xref as u32, yref as u32, zref as u32),
+            Gate::And {
+                id,
+                xref,
+                yref,
+                zref,
+            } => (id as u32, xref as u32, yref as u32, zref as u32),
+            Gate::Inv { id, xref, zref } => (id as u32, xref as u32, u32::MAX, zref as u32),
+        };
+        let mut bytes = [0u8; 16];
+        bytes[..4].copy_from_slice(&id.to_be_bytes());
+        bytes[4..8].copy_from_slice(&xref.to_be_bytes());
+        bytes[8..12].copy_from_slice(&yref.to_be_bytes());
+        bytes[12..].copy_from_slice(&zref.to_be_bytes());
+        bytes
+    }
+}
+
+/// `CircuitId` is a unique identifier for a `Circuit` based on it's gate structure
+#[derive(Debug, Clone, PartialEq)]
+pub struct CircuitId(String);
+
+impl CircuitId {
+    pub(crate) fn new(gates: &[Gate]) -> Self {
+        let mut hasher = Sha256::new();
+        for gate in gates {
+            hasher.update(&gate.to_bytes());
+        }
+        Self(hex::encode(hasher.finalize()))
+    }
+}
+
+impl ToString for CircuitId {
+    fn to_string(&self) -> String {
+        self.0.clone()
+    }
+}
+
+impl From<String> for CircuitId {
+    fn from(id: String) -> Self {
+        Self(id)
+    }
+}
+
+#[derive(Clone)]
+pub struct Circuit {
+    pub(crate) id: CircuitId,
     /// Name of circuit
     pub(crate) name: String,
     /// Version of circuit
@@ -107,13 +162,11 @@ pub(crate) struct CircuitDescription {
     /// Total number of XOR gates
     pub(crate) xor_count: usize,
 
+    /// Groups of wires corresponding to circuit inputs
     pub(crate) inputs: Vec<Input>,
+    /// Groups of wires corresponding to circuit outputs
     pub(crate) outputs: Vec<Output>,
-}
-
-#[derive(Clone)]
-pub struct Circuit {
-    pub(crate) desc: CircuitDescription,
+    /// Circuit logic gates
     pub(crate) gates: Vec<Gate>,
 }
 
@@ -124,59 +177,63 @@ impl Circuit {
         Circuit::try_from(circ).map_err(|_| Error::MappingError)
     }
 
+    pub fn id(&self) -> &CircuitId {
+        &self.id
+    }
+
     /// Returns circuit name
     pub fn name(&self) -> &str {
-        &self.desc.name
+        &self.name
     }
 
     /// Returns circuit version
     pub fn version(&self) -> &str {
-        &self.desc.version
+        &self.version
     }
 
     /// Returns total number of wires in circuit
     pub fn len(&self) -> usize {
-        self.desc.wire_count
+        self.wire_count
     }
 
     /// Returns group corresponding to input id
     pub fn input(&self, id: usize) -> &Input {
-        &self.desc.inputs[id]
+        &self.inputs[id]
     }
 
     /// Returns reference to all circuit inputs
     pub fn inputs(&self) -> &[Input] {
-        &self.desc.inputs
+        &self.inputs
     }
 
     /// Returns number of inputs
     pub fn input_count(&self) -> usize {
-        self.desc.inputs.len()
+        self.inputs.len()
     }
 
     /// Returns the total number of input wires of the circuit
     pub fn input_len(&self) -> usize {
-        self.desc.inputs.iter().map(|input| input.0.len()).sum()
+        self.inputs.iter().map(|input| input.0.len()).sum()
     }
 
     /// Returns group corresponding to output id
     pub fn output(&self, id: usize) -> &Output {
-        &self.desc.outputs[id]
+        &self.outputs[id]
     }
 
     /// Returns reference to all circuit outputs
     pub fn outputs(&self) -> &[Output] {
-        &self.desc.outputs
+        &self.outputs
     }
 
     /// Return number of outputs
     pub fn output_count(&self) -> usize {
-        self.desc.outputs.len()
+        self.outputs.len()
     }
 
     /// Returns the total number of input wires of the circuit
     pub fn output_len(&self) -> usize {
-        self.desc.outputs.iter().map(|output| output.0.len()).sum()
+        self.outputs.iter().map(|output| output.0.len()).sum()
     }
 
     /// Returns circuit gates
@@ -186,12 +243,12 @@ impl Circuit {
 
     /// Returns number of AND gates in circuit
     pub fn and_count(&self) -> usize {
-        self.desc.and_count
+        self.and_count
     }
 
     /// Returns number of XOR gates in circuit
     pub fn xor_count(&self) -> usize {
-        self.desc.xor_count
+        self.xor_count
     }
 
     /// Validates circuit structure
