@@ -81,7 +81,7 @@ impl Circuit {
                 let start_id = input_nwires[..id].iter().sum();
                 let count = input_nwires[id];
                 let wires: Vec<usize> = (start_id..start_id + count).collect();
-                Input(Group::new("", "", &wires))
+                Input::new(Group::new("", "", &wires))
             })
             .collect();
 
@@ -116,7 +116,7 @@ impl Circuit {
                 let start_id = output_nwires[..id].iter().sum();
                 let count = output_nwires[id];
                 let wires: Vec<usize> = (start_id..start_id + count).collect();
-                Output(Group::new("", "", &wires))
+                Output::new(Group::new("", "", &wires))
             })
             .collect();
 
