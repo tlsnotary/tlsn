@@ -106,8 +106,16 @@ impl From<crate::circuit::CircuitDescription> for CircuitDescription {
             wire_count: c.wire_count as u32,
             and_count: c.and_count as u32,
             xor_count: c.xor_count as u32,
-            inputs: c.inputs.iter().map(|g| Group::from(g.0.clone())).collect(),
-            outputs: c.inputs.iter().map(|g| Group::from(g.0.clone())).collect(),
+            inputs: c
+                .inputs
+                .iter()
+                .map(|input| Group::from(input.group().clone()))
+                .collect(),
+            outputs: c
+                .outputs
+                .iter()
+                .map(|output| Group::from(output.group().clone()))
+                .collect(),
         }
     }
 }
@@ -117,14 +125,14 @@ impl TryFrom<CircuitDescription> for crate::circuit::CircuitDescription {
 
     #[inline]
     fn try_from(c: CircuitDescription) -> Result<Self, Self::Error> {
-        let mut inputs: Vec<crate::Group> = Vec::with_capacity(c.inputs.len());
+        let mut inputs: Vec<crate::Input> = Vec::with_capacity(c.inputs.len());
         for group in c.inputs {
-            inputs.push(crate::Group::try_from(group)?);
+            inputs.push(crate::Input::new(crate::Group::try_from(group)?));
         }
 
-        let mut outputs: Vec<crate::Group> = Vec::with_capacity(c.outputs.len());
+        let mut outputs: Vec<crate::Output> = Vec::with_capacity(c.outputs.len());
         for group in c.outputs {
-            outputs.push(crate::Group::try_from(group)?);
+            outputs.push(crate::Output::new(crate::Group::try_from(group)?));
         }
 
         Ok(Self {
@@ -133,14 +141,8 @@ impl TryFrom<CircuitDescription> for crate::circuit::CircuitDescription {
             wire_count: c.wire_count as usize,
             and_count: c.and_count as usize,
             xor_count: c.xor_count as usize,
-            inputs: inputs
-                .iter()
-                .map(|group| crate::Input(group.clone()))
-                .collect(),
-            outputs: outputs
-                .iter()
-                .map(|group| crate::Output(group.clone()))
-                .collect(),
+            inputs,
+            outputs,
         })
     }
 }

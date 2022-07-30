@@ -2,7 +2,6 @@ use crate::{proto::Circuit as ProtoCircuit, Error};
 use prost::Message;
 
 use std::convert::TryFrom;
-
 /// Group of circuit wires
 #[derive(Debug, Clone)]
 pub struct Group {
@@ -11,14 +10,6 @@ pub struct Group {
     /// Wire ids
     wires: Vec<usize>,
 }
-
-/// Group of wires corresponding to a circuit input
-#[derive(Debug, Clone)]
-pub struct Input(pub Group);
-
-/// Group of wires corresponding to a circuit output
-#[derive(Debug, Clone)]
-pub struct Output(pub Group);
 
 impl Group {
     pub fn new(name: &str, desc: &str, wires: &[usize]) -> Self {
@@ -29,12 +20,10 @@ impl Group {
         }
     }
 
-    /// Returns name of the group
     pub fn name(&self) -> &str {
         &self.name
     }
 
-    /// Returns description of the group
     pub fn desc(&self) -> &str {
         &self.desc
     }
@@ -43,9 +32,36 @@ impl Group {
         &self.wires
     }
 
-    /// Returns the number of wires in the group
     pub fn len(&self) -> usize {
         self.wires.len()
+    }
+}
+
+/// Group of wires corresponding to a circuit input
+#[derive(Debug, Clone)]
+pub struct Input(Group);
+
+impl Input {
+    pub fn new(group: Group) -> Self {
+        Self(group)
+    }
+
+    pub fn group(&self) -> &Group {
+        &self.0
+    }
+}
+
+/// Group of wires corresponding to a circuit output
+#[derive(Debug, Clone)]
+pub struct Output(Group);
+
+impl Output {
+    pub fn new(group: Group) -> Self {
+        Self(group)
+    }
+
+    pub fn group(&self) -> &Group {
+        &self.0
     }
 }
 
