@@ -97,10 +97,12 @@ impl TryFrom<Gate> for crate::Gate {
     }
 }
 
-impl From<crate::circuit::CircuitDescription> for CircuitDescription {
+impl From<crate::Circuit> for Circuit {
     #[inline]
-    fn from(c: crate::circuit::CircuitDescription) -> Self {
+    fn from(c: crate::Circuit) -> Self {
+        let gates = c.gates().iter().map(|g| Gate::from(*g)).collect();
         Self {
+            id: c.id.to_string(),
             name: c.name,
             version: c.version,
             wire_count: c.wire_count as u32,
@@ -116,43 +118,6 @@ impl From<crate::circuit::CircuitDescription> for CircuitDescription {
                 .iter()
                 .map(|output| Group::from(output.group().clone()))
                 .collect(),
-        }
-    }
-}
-
-impl TryFrom<CircuitDescription> for crate::circuit::CircuitDescription {
-    type Error = Error;
-
-    #[inline]
-    fn try_from(c: CircuitDescription) -> Result<Self, Self::Error> {
-        let mut inputs: Vec<crate::Input> = Vec::with_capacity(c.inputs.len());
-        for group in c.inputs {
-            inputs.push(crate::Input::new(crate::Group::try_from(group)?));
-        }
-
-        let mut outputs: Vec<crate::Output> = Vec::with_capacity(c.outputs.len());
-        for group in c.outputs {
-            outputs.push(crate::Output::new(crate::Group::try_from(group)?));
-        }
-
-        Ok(Self {
-            name: c.name,
-            version: c.version,
-            wire_count: c.wire_count as usize,
-            and_count: c.and_count as usize,
-            xor_count: c.xor_count as usize,
-            inputs,
-            outputs,
-        })
-    }
-}
-
-impl From<crate::Circuit> for Circuit {
-    #[inline]
-    fn from(c: crate::Circuit) -> Self {
-        let gates = c.gates().iter().map(|g| Gate::from(*g)).collect();
-        Self {
-            desc: c.desc.into(),
             gates,
         }
     }
@@ -163,12 +128,29 @@ impl TryFrom<Circuit> for crate::Circuit {
 
     #[inline]
     fn try_from(c: Circuit) -> Result<Self, Self::Error> {
+        let mut inputs: Vec<crate::Input> = Vec::with_capacity(c.inputs.len());
+        for group in c.inputs {
+            inputs.push(crate::Input::new(crate::Group::try_from(group)?));
+        }
+
+        let mut outputs: Vec<crate::Output> = Vec::with_capacity(c.outputs.len());
+        for group in c.outputs {
+            outputs.push(crate::Output::new(crate::Group::try_from(group)?));
+        }
+
         let mut gates: Vec<crate::Gate> = Vec::with_capacity(c.gates.len());
         for gate in c.gates {
             gates.push(crate::Gate::try_from(gate)?);
         }
         Ok(Self {
-            desc: crate::circuit::CircuitDescription::try_from(c.desc)?,
+            id: c.id.into(),
+            name: c.name,
+            version: c.version,
+            wire_count: c.wire_count as usize,
+            and_count: c.and_count as usize,
+            xor_count: c.xor_count as usize,
+            inputs,
+            outputs,
             gates,
         })
     }
