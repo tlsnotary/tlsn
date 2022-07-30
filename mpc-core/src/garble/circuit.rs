@@ -120,6 +120,12 @@ pub struct GarbledCircuit {
     pub decoding: Option<Vec<bool>>,
 }
 
+pub struct EvaluatedGarbledCircuit {
+    pub circ: Arc<Circuit>,
+    pub output_labels: Vec<BinaryLabel>,
+    pub output: Vec<OutputValue>,
+}
+
 impl GarbledCircuit {
     fn from_msg(circ: Arc<Circuit>, msg: msgs::GarbledCircuit) -> Result<Self, Error> {
         if msg.id != *circ.id() {
@@ -247,7 +253,7 @@ pub fn generate_public_labels<R: Rng + CryptoRng>(rng: &mut R, delta: &Block) ->
 /// Returns wire labels corresponding to wire truth values
 ///
 /// Panics if wire id not in label collection
-pub fn choose_labels<T>(labels: &[[T; 2]], wires: &[usize], values: &[bool]) -> Vec<T> {
+pub fn choose_labels<T: Copy>(labels: &[[T; 2]], wires: &[usize], values: &[bool]) -> Vec<T> {
     wires
         .iter()
         .zip(values.iter())
