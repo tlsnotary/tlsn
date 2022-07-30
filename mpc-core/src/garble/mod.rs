@@ -4,9 +4,10 @@ pub mod evaluator;
 mod execution;
 pub mod generator;
 
+use crate::msgs::garble as msgs;
 pub use circuit::{
-    decode, generate_labels, generate_public_labels, EncryptedGate, FullGarbledCircuit,
-    GarbledCircuit,
+    decode, generate_labels, generate_public_labels, BinaryLabel, EncryptedGate,
+    FullGarbledCircuit, GarbledCircuit,
 };
 pub use error::{Error, InputError};
 pub use evaluator::evaluate_garbled_circuit;
@@ -14,7 +15,9 @@ pub use execution::DualExecution;
 pub use generator::generate_garbled_circuit;
 
 #[derive(Debug, Clone)]
-pub enum GarbleMessage {}
+pub enum GarbleMessage {
+    GarbledCircuit(msgs::GarbledCircuit),
+}
 
 #[cfg(test)]
 mod tests {
