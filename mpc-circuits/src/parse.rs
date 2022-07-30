@@ -1,5 +1,7 @@
-use crate::circuit::CircuitDescription;
-use crate::{Circuit, Error, Gate, Group};
+use crate::{
+    circuit::{CircuitDescription, Input, Output},
+    Circuit, Error, Gate, Group,
+};
 use anyhow::{anyhow, Context};
 use regex::Regex;
 use std::{
@@ -78,12 +80,8 @@ impl Circuit {
             .map(|id| {
                 let start_id = input_nwires[..id].iter().sum();
                 let count = input_nwires[id];
-                let wires = (start_id..start_id + count).collect();
-                Group::Input {
-                    name: "".to_string(),
-                    desc: "".to_string(),
-                    wires,
-                }
+                let wires: Vec<usize> = (start_id..start_id + count).collect();
+                Input(Group::new("", "", &wires))
             })
             .collect();
 
@@ -117,12 +115,8 @@ impl Circuit {
             .map(|id| {
                 let start_id = output_nwires[..id].iter().sum();
                 let count = output_nwires[id];
-                let wires = (start_id..start_id + count).collect();
-                Group::Output {
-                    name: "".to_string(),
-                    desc: "".to_string(),
-                    wires,
-                }
+                let wires: Vec<usize> = (start_id..start_id + count).collect();
+                Output(Group::new("", "", &wires))
             })
             .collect();
 

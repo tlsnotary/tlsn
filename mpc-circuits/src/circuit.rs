@@ -1,58 +1,51 @@
-use crate::proto::Circuit as ProtoCircuit;
-use crate::Error;
+use crate::{proto::Circuit as ProtoCircuit, Error};
 use prost::Message;
 
 use std::convert::TryFrom;
 
 /// Group of circuit wires
 #[derive(Debug, Clone)]
-pub enum Group {
-    Input {
-        name: String,
-        desc: String,
-        /// Wire ids
-        wires: Vec<usize>,
-    },
-    Intermediate {
-        name: String,
-        desc: String,
-        /// Wire ids
-        wires: Vec<usize>,
-    },
-    Output {
-        name: String,
-        desc: String,
-        /// Wire ids
-        wires: Vec<usize>,
-    },
+pub struct Group {
+    name: String,
+    desc: String,
+    /// Wire ids
+    wires: Vec<usize>,
 }
 
+/// Group of wires corresponding to a circuit input
+#[derive(Debug, Clone)]
+pub struct Input(pub Group);
+
+/// Group of wires corresponding to a circuit output
+#[derive(Debug, Clone)]
+pub struct Output(pub Group);
+
 impl Group {
+    pub fn new(name: &str, desc: &str, wires: &[usize]) -> Self {
+        Self {
+            name: name.to_string(),
+            desc: desc.to_string(),
+            wires: wires.to_vec(),
+        }
+    }
+
     /// Returns name of the group
     pub fn name(&self) -> &str {
-        match self {
-            Group::Input { name, .. } => name,
-            Group::Intermediate { name, .. } => name,
-            Group::Output { name, .. } => name,
-        }
+        &self.name
     }
 
     /// Returns description of the group
     pub fn desc(&self) -> &str {
-        match self {
-            Group::Input { desc, .. } => desc,
-            Group::Intermediate { desc, .. } => desc,
-            Group::Output { desc, .. } => desc,
-        }
+        &self.desc
+    }
+
+    pub fn wires(&self) -> &[usize] {
+        &self.wires
     }
 
     /// Returns the number of wires in the group
     pub fn len(&self) -> usize {
-        match self {
-            Group::Input { wires, .. } => wires.len(),
-            Group::Intermediate { wires, .. } => wires.len(),
-            Group::Output { wires, .. } => wires.len(),
-        }
+        self.wires.len()
     }
 }
 
@@ -98,8 +91,8 @@ pub(crate) struct CircuitDescription {
     /// Total number of XOR gates
     pub(crate) xor_count: usize,
 
-    pub(crate) inputs: Vec<Group>,
-    pub(crate) outputs: Vec<Group>,
+    pub(crate) inputs: Vec<Input>,
+    pub(crate) outputs: Vec<Output>,
 }
 
 #[derive(Clone)]
@@ -131,12 +124,12 @@ impl Circuit {
     }
 
     /// Returns group corresponding to input id
-    pub fn input(&self, id: usize) -> &Group {
+    pub fn input(&self, id: usize) -> &Input {
         &self.desc.inputs[id]
     }
 
     /// Returns reference to all circuit inputs
-    pub fn inputs(&self) -> &Vec<Group> {
+    pub fn inputs(&self) -> &[Input] {
         &self.desc.inputs
     }
 
@@ -147,16 +140,16 @@ impl Circuit {
 
     /// Returns the total number of input wires of the circuit
     pub fn input_len(&self) -> usize {
-        self.desc.inputs.iter().map(|group| group.len()).sum()
+        self.desc.inputs.iter().map(|input| input.0.len()).sum()
     }
 
     /// Returns group corresponding to output id
-    pub fn output(&self, id: usize) -> &Group {
+    pub fn output(&self, id: usize) -> &Output {
         &self.desc.outputs[id]
     }
 
     /// Returns reference to all circuit outputs
-    pub fn outputs(&self) -> &Vec<Group> {
+    pub fn outputs(&self) -> &[Output] {
         &self.desc.outputs
     }
 
@@ -167,7 +160,7 @@ impl Circuit {
 
     /// Returns the total number of input wires of the circuit
     pub fn output_len(&self) -> usize {
-        self.desc.outputs.iter().map(|group| group.len()).sum()
+        self.desc.outputs.iter().map(|output| output.0.len()).sum()
     }
 
     /// Returns circuit gates
