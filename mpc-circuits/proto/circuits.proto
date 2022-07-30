@@ -16,15 +16,9 @@ message Gate {
 }
 
 message Group {
-    enum GroupType {
-        Input = 0;
-        Intermediate = 1;
-        Output = 2;
-    }
     required string name = 1;
     required string desc = 2;
     repeated uint32 wires = 3;
-    required GroupType group_type = 4;
 }
 
 message CircuitDescription {

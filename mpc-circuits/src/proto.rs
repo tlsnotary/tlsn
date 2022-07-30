@@ -7,16 +7,10 @@ include!(concat!(env!("OUT_DIR"), "/core.circuits.rs"));
 impl From<crate::Group> for Group {
     #[inline]
     fn from(g: crate::Group) -> Self {
-        let (name, desc, wires, group_type) = match g {
-            crate::Group::Input { name, desc, wires } => (name, desc, wires, 0),
-            crate::Group::Intermediate { name, desc, wires } => (name, desc, wires, 1),
-            crate::Group::Output { name, desc, wires } => (name, desc, wires, 2),
-        };
         Self {
-            name,
-            desc,
-            wires: wires.into_iter().map(|id| id as u32).collect(),
-            group_type,
+            name: g.name().to_string(),
+            desc: g.desc().to_string(),
+            wires: g.wires().iter().map(|id| *id as u32).collect(),
         }
     }
 }
@@ -25,25 +19,14 @@ impl TryFrom<Group> for crate::Group {
     type Error = Error;
     #[inline]
     fn try_from(g: Group) -> Result<Self, Self::Error> {
-        let group = match g.group_type {
-            0 => crate::Group::Input {
-                name: g.name,
-                desc: g.desc,
-                wires: g.wires.into_iter().map(|id| id as usize).collect(),
-            },
-            1 => crate::Group::Intermediate {
-                name: g.name,
-                desc: g.desc,
-                wires: g.wires.into_iter().map(|id| id as usize).collect(),
-            },
-            2 => crate::Group::Output {
-                name: g.name,
-                desc: g.desc,
-                wires: g.wires.into_iter().map(|id| id as usize).collect(),
-            },
-            _ => return Err(Error::MappingError),
-        };
-        Ok(group)
+        Ok(crate::Group::new(
+            &g.name,
+            &g.desc,
+            &g.wires
+                .iter()
+                .map(|id| *id as usize)
+                .collect::<Vec<usize>>(),
+        ))
     }
 }
 
@@ -123,8 +106,8 @@ impl From<crate::circuit::CircuitDescription> for CircuitDescription {
             wire_count: c.wire_count as u32,
             and_count: c.and_count as u32,
             xor_count: c.xor_count as u32,
-            inputs: c.inputs.iter().map(|g| Group::from(g.clone())).collect(),
-            outputs: c.inputs.iter().map(|g| Group::from(g.clone())).collect(),
+            inputs: c.inputs.iter().map(|g| Group::from(g.0.clone())).collect(),
+            outputs: c.inputs.iter().map(|g| Group::from(g.0.clone())).collect(),
         }
     }
 }
@@ -150,8 +133,14 @@ impl TryFrom<CircuitDescription> for crate::circuit::CircuitDescription {
             wire_count: c.wire_count as usize,
             and_count: c.and_count as usize,
             xor_count: c.xor_count as usize,
-            inputs: inputs,
-            outputs: outputs,
+            inputs: inputs
+                .iter()
+                .map(|group| crate::Input(group.clone()))
+                .collect(),
+            outputs: outputs
+                .iter()
+                .map(|group| crate::Output(group.clone()))
+                .collect(),
         })
     }
 }
