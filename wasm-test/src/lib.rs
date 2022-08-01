@@ -79,36 +79,42 @@ where
     }
 }
 
-unsafe fn transpose_bits(matrix: &mut [u8], rows: u32) {
-    let simd_one = Simd::splat(1);
-    let mut s: Simd<u8, 16>;
-    for chunk in matrix.as_chunks_unchecked_mut::<16>().iter_mut() {
-        s = Simd::from_array(*chunk);
-        for i in 0..8 {
-            #[cfg(target_arch = "wasm32")]
-            let out = movemask_wasm(s);
-
-            #[cfg(target_arch = "x86_64")]
-            let out = movemask_x86_64(s);
-
-            s.shl_assign(simd_one);
-            chunk[i..i + 2].copy_from_slice(&out)
-        }
-    }
+unsafe fn transpose_bits(matrix: &mut [u8], row_length: u32) {
+    #[cfg(target_arch = "wasm32")]
+    wasm_transpose_bits(matrix, row_length)
 }
 
 #[cfg(target_arch = "wasm32")]
 #[target_feature(enable = "simd128")]
 #[inline]
-unsafe fn movemask_wasm(s: Simd<u8, 16>) -> [u8; 2] {
+unsafe fn wasm_transpose_bits(matrix: &mut [u8], row_length: usize) {
     use std::arch::wasm32::{u8x16_bitmask, v128};
-    let v = v128::from(s);
-    u8x16_bitmask(v).to_ne_bytes()
+    let simd_one = Simd::<u8, 16>::splat(1);
+    let mut v: v128;
+    let mut high_bits: u16;
+    let mut s: Simd<u8, 16>;
+    for row in matrix.chunks_mut(row_length) {
+        let mut shifted_row = Vec::with_capacity(row_length);
+        for _ in 0..8 {
+            for chunk in row.as_chunks_unchecked_mut::<16>().iter_mut() {
+                s = Simd::from_array(*chunk);
+                v = v128::from(s);
+                high_bits = u8x16_bitmask(v128::from(v));
+                shifted_row.push((high_bits >> 8) as u8);
+                shifted_row.push((high_bits & 0xff) as u8);
+                s.shl_assign(simd_one);
+                *chunk = s.to_array();
+            }
+        }
+        row.copy_from_slice(&shifted_row)
+    }
 }
 
 #[cfg(target_arch = "x86_64")]
-unsafe fn movemask_x86_64(s: Simd<u8, 16>) -> [u8; 2] {
-    todo!()
+#[inline]
+unsafe fn movemask_x86_64(s: Simd<u8, 16>) {
+    use std::arch::x86_64::_mm256_movemask_epi8;
+    use std::simd::u8x32;
 }
 
 #[derive(Error, Debug)]
