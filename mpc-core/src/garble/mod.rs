@@ -1,7 +1,7 @@
 pub mod circuit;
 pub mod error;
 pub mod evaluator;
-pub mod execution;
+pub mod exec;
 pub mod generator;
 
 use crate::msgs::garble as msgs;
