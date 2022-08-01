@@ -1,3 +1,1 @@
-mod dual;
-
-pub use dual::DualExecution;
+pub mod dual;

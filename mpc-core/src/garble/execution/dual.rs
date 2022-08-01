@@ -1,3 +1,6 @@
+//! An implementation of "Dual Execution" mode which provides authenticity
+//! but may leak all private inputs of the [`DualExFollower`] if the [`DualExLeader`] is malicious. Either party,
+//! if malicious, can learn bits of the others input with 1/2^n probability of it going undetected.
 use crate::{
     garble::{
         circuit::{BinaryLabel, EvaluatedGarbledCircuit, InputValue},
@@ -10,7 +13,7 @@ use crate::{
 use mpc_circuits::Circuit;
 
 use aes::{Aes128, NewBlockCipher};
-use std::{marker::PhantomData, sync::Arc};
+use std::sync::Arc;
 
 #[derive(Clone, PartialEq)]
 pub struct OutputCheck([u8; 32]);
@@ -38,17 +41,9 @@ mod sealed {
     impl Sealed for super::Reveal {}
     impl Sealed for super::Check {}
     impl Sealed for super::Complete {}
-    impl Sealed for super::Leader {}
-    impl Sealed for super::Follower {}
 }
-pub trait Role: sealed::Sealed {}
+
 pub trait State: sealed::Sealed {}
-
-pub struct Leader;
-pub struct Follower;
-
-impl Role for Leader {}
-impl Role for Follower {}
 
 pub struct Generator {
     circ: Arc<Circuit>,
@@ -94,40 +89,37 @@ impl State for Reveal {}
 impl State for Check {}
 impl State for Complete {}
 
-/// An implementation of "Dual Execution" mode which provides authenticity
-/// but may leak all private inputs of the `Follower` if the `Leader` is malicious. Either party,
-/// if malicious, can learn bits of the others input with 1/2^n probability of it going undetected.
-pub struct DualExecution<R, S = Generator>
+pub struct DualExLeader<S = Generator>
 where
-    R: Role,
     S: State,
 {
     state: S,
-    _role: PhantomData<R>,
 }
 
-impl DualExecution<Leader> {
-    pub fn new_leader(circ: Arc<Circuit>) -> DualExecution<Leader, Generator> {
-        DualExecution {
-            state: Generator { circ },
-            _role: PhantomData::<Leader>,
-        }
-    }
-}
-
-impl DualExecution<Follower> {
-    pub fn new_follower(circ: Arc<Circuit>) -> DualExecution<Follower, Generator> {
-        DualExecution {
-            state: Generator { circ },
-            _role: PhantomData::<Follower>,
-        }
-    }
-}
-
-impl<R> DualExecution<R, Generator>
+pub struct DualExFollower<S = Generator>
 where
-    R: Role,
+    S: State,
 {
+    state: S,
+}
+
+impl DualExLeader {
+    pub fn new(circ: Arc<Circuit>) -> DualExLeader<Generator> {
+        DualExLeader {
+            state: Generator { circ },
+        }
+    }
+}
+
+impl DualExFollower {
+    pub fn new(circ: Arc<Circuit>) -> DualExFollower<Generator> {
+        DualExFollower {
+            state: Generator { circ },
+        }
+    }
+}
+
+impl DualExLeader<Generator> {
     /// Garble circuit and send to peer
     pub fn garble(
         self,
@@ -135,7 +127,7 @@ where
         input_labels: &[[BinaryLabel; 2]],
         public_labels: &[BinaryLabel; 2],
         delta: &Block,
-    ) -> Result<(GarbledCircuit, DualExecution<R, Evaluator>), Error> {
+    ) -> Result<(GarbledCircuit, DualExLeader<Evaluator>), Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
 
         let gc = generate_garbled_circuit(
@@ -148,24 +140,54 @@ where
 
         Ok((
             gc.to_evaluator(inputs, true),
-            DualExecution {
+            DualExLeader {
                 state: Evaluator {
                     gc,
                     circ: self.state.circ,
                 },
-                _role: self._role,
             },
         ))
     }
 }
 
-impl DualExecution<Leader, Evaluator> {
-    /// Evaluate `Follower` circuit
+impl DualExFollower<Generator> {
+    /// Garble circuit and send to peer
+    pub fn garble(
+        self,
+        inputs: &[InputValue],
+        input_labels: &[[BinaryLabel; 2]],
+        public_labels: &[BinaryLabel; 2],
+        delta: &Block,
+    ) -> Result<(GarbledCircuit, DualExFollower<Evaluator>), Error> {
+        let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
+
+        let gc = generate_garbled_circuit(
+            &cipher,
+            self.state.circ.clone(),
+            delta,
+            input_labels,
+            public_labels,
+        )?;
+
+        Ok((
+            gc.to_evaluator(inputs, true),
+            DualExFollower {
+                state: Evaluator {
+                    gc,
+                    circ: self.state.circ,
+                },
+            },
+        ))
+    }
+}
+
+impl DualExLeader<Evaluator> {
+    /// Evaluate [`DualExFollower`] circuit
     pub fn evaluate(
         self,
         gc: &GarbledCircuit,
         input_labels: &[BinaryLabel],
-    ) -> Result<DualExecution<Leader, Commit>, Error> {
+    ) -> Result<DualExLeader<Commit>, Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
 
         let output_labels = evaluate_garbled_circuit(&cipher, &gc, input_labels)?;
@@ -188,25 +210,24 @@ impl DualExecution<Leader, Evaluator> {
                 .collect::<Vec<u8>>(),
         );
 
-        Ok(DualExecution {
+        Ok(DualExLeader {
             state: Commit {
                 circ: self.state.circ,
                 output_labels,
                 output,
                 check,
             },
-            _role: self._role,
         })
     }
 }
 
-impl DualExecution<Follower, Evaluator> {
-    /// Evaluate `Leader` circuit
+impl DualExFollower<Evaluator> {
+    /// Evaluate [`DualExLeader`] circuit
     pub fn evaluate(
         self,
         gc: &GarbledCircuit,
         input_labels: &[BinaryLabel],
-    ) -> Result<DualExecution<Follower, Reveal>, Error> {
+    ) -> Result<DualExFollower<Reveal>, Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
 
         let output_labels = evaluate_garbled_circuit(&cipher, &gc, input_labels)?;
@@ -229,24 +250,23 @@ impl DualExecution<Follower, Evaluator> {
                 .collect::<Vec<u8>>(),
         );
 
-        Ok(DualExecution {
+        Ok(DualExFollower {
             state: Reveal {
                 circ: self.state.circ,
                 output_labels,
                 output,
                 check,
             },
-            _role: self._role,
         })
     }
 }
 
-impl DualExecution<Leader, Commit> {
+impl DualExLeader<Commit> {
     /// Commit to output
-    pub fn commit(self) -> (OutputCommit, DualExecution<Leader, Check>) {
+    pub fn commit(self) -> (OutputCommit, DualExLeader<Check>) {
         (
             OutputCommit::new(&self.state.check),
-            DualExecution {
+            DualExLeader {
                 state: Check {
                     circ: self.state.circ,
                     output_labels: self.state.output_labels,
@@ -254,18 +274,17 @@ impl DualExecution<Leader, Commit> {
                     check: self.state.check,
                     commit: None,
                 },
-                _role: self._role,
             },
         )
     }
 }
 
-impl DualExecution<Follower, Reveal> {
-    /// Receive commitment from `Leader` and reveal `Follower` check
-    pub fn reveal(self, commit: OutputCommit) -> (OutputCheck, DualExecution<Follower, Check>) {
+impl DualExFollower<Reveal> {
+    /// Receive commitment from [`DualExLeader`] and reveal [`DualExFollower`] check
+    pub fn reveal(self, commit: OutputCommit) -> (OutputCheck, DualExFollower<Check>) {
         (
             self.state.check.clone(),
-            DualExecution {
+            DualExFollower {
                 state: Check {
                     circ: self.state.circ,
                     output_labels: self.state.output_labels,
@@ -273,15 +292,14 @@ impl DualExecution<Follower, Reveal> {
                     check: self.state.check,
                     commit: Some(commit),
                 },
-                _role: self._role,
             },
         )
     }
 }
 
-impl DualExecution<Leader, Check> {
-    /// Check `Follower` output matches expected
-    pub fn check(self, check: OutputCheck) -> Result<DualExecution<Leader, Reveal>, Error> {
+impl DualExLeader<Check> {
+    /// Check [`DualExFollower`] output matches expected
+    pub fn check(self, check: OutputCheck) -> Result<DualExLeader<Reveal>, Error> {
         // If this fails then the peer was cheating and your private inputs were potentially leaked
         // with a probability of 1/2^n per bit, and you should call the police immediately
         if check != self.state.check {
@@ -290,38 +308,36 @@ impl DualExecution<Leader, Check> {
             ));
         }
 
-        Ok(DualExecution {
+        Ok(DualExLeader {
             state: Reveal {
                 circ: self.state.circ,
                 output_labels: self.state.output_labels,
                 output: self.state.output,
                 check: self.state.check,
             },
-            _role: self._role,
         })
     }
 }
 
-impl DualExecution<Leader, Reveal> {
-    /// Open output commitment to `Follower`
-    pub fn reveal(self) -> (OutputCheck, DualExecution<Leader, Complete>) {
+impl DualExLeader<Reveal> {
+    /// Open output commitment to [`DualExFollower`]
+    pub fn reveal(self) -> (OutputCheck, DualExLeader<Complete>) {
         (
             self.state.check,
-            DualExecution {
+            DualExLeader {
                 state: Complete {
                     circ: self.state.circ,
                     output_labels: self.state.output_labels,
                     output: self.state.output,
                 },
-                _role: self._role,
             },
         )
     }
 }
 
-impl DualExecution<Follower, Check> {
-    /// Check `Leader` output matches expected
-    pub fn check(self, check: OutputCheck) -> Result<DualExecution<Follower, Complete>, Error> {
+impl DualExFollower<Check> {
+    /// Check [`DualExLeader`] output matches expected
+    pub fn check(self, check: OutputCheck) -> Result<DualExFollower<Complete>, Error> {
         // If this fails then the peer was cheating and your private inputs were potentially leaked
         // and you should call the police immediately
         if check != self.state.check {
@@ -337,13 +353,12 @@ impl DualExecution<Follower, Check> {
             ));
         }
 
-        Ok(DualExecution {
+        Ok(DualExFollower {
             state: Complete {
                 circ: self.state.circ,
                 output_labels: self.state.output_labels,
                 output: self.state.output,
             },
-            _role: self._role,
         })
     }
 }
@@ -362,8 +377,8 @@ mod tests {
         let mut rng = thread_rng();
         let circ = Arc::new(Circuit::load_bytes(ADDER_64).unwrap());
 
-        let alice = DualExecution::new_leader(circ.clone());
-        let bob = DualExecution::new_follower(circ.clone());
+        let alice = DualExLeader::new(circ.clone());
+        let bob = DualExFollower::new(circ.clone());
 
         // Alice and Bob have u64 inputs of 1
         let value = [vec![false; 63], vec![true; 1]].concat();

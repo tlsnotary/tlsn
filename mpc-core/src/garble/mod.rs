@@ -1,7 +1,7 @@
 pub mod circuit;
 pub mod error;
 pub mod evaluator;
-mod execution;
+pub mod execution;
 pub mod generator;
 
 use crate::msgs::garble as msgs;
@@ -11,7 +11,6 @@ pub use circuit::{
 };
 pub use error::{Error, InputError};
 pub use evaluator::evaluate_garbled_circuit;
-pub use execution::DualExecution;
 pub use generator::generate_garbled_circuit;
 
 #[derive(Debug, Clone)]
