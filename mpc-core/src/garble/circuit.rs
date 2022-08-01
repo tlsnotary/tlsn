@@ -26,6 +26,10 @@ impl<T: Copy> AsRef<T> for WireLabel<T> {
 }
 
 impl WireLabel<Block> {
+    pub fn new(id: usize, value: Block) -> Self {
+        Self { id, value }
+    }
+
     pub fn random<R: Rng + CryptoRng>(id: usize, rng: &mut R) -> Self {
         Self {
             id,

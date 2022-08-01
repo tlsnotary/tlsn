@@ -105,10 +105,7 @@ pub fn garble<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
         .enumerate()
         .map(|(id, pair)| {
             let [low, high] = pair.unwrap();
-            [
-                BinaryLabel { id, value: low },
-                BinaryLabel { id, value: high },
-            ]
+            [BinaryLabel::new(id, low), BinaryLabel::new(id, high)]
         })
         .collect();
 

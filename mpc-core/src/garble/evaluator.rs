@@ -96,10 +96,7 @@ pub fn evaluate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     let outputs = labels
         .drain(output_id_offset..)
         .enumerate()
-        .map(|(id, value)| BinaryLabel {
-            id: id + output_id_offset,
-            value: value.unwrap(),
-        })
+        .map(|(id, value)| BinaryLabel::new(id + output_id_offset, value.unwrap()))
         .collect();
 
     Ok(outputs)
