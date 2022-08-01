@@ -64,11 +64,11 @@ pub fn garble<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     let mut encrypted_gates: Vec<EncryptedGate> = Vec::with_capacity(circ.and_count());
     // Every wire label pair for the circuit
     let mut labels: Vec<Option<[Block; 2]>> = vec![None; circ.len()];
-    let public_labels = [*public_labels[0].value(), *public_labels[1].value()];
+    let public_labels = [*public_labels[0].as_ref(), *public_labels[1].as_ref()];
 
     // Insert input labels
     for (labels, pair) in labels.iter_mut().zip(input_labels) {
-        *labels = Some([*pair[0].value(), *pair[1].value()])
+        *labels = Some([*pair[0].as_ref(), *pair[1].as_ref()])
     }
 
     let mut gid = 1;

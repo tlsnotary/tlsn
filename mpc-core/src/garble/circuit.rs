@@ -9,17 +9,18 @@ use crate::{
 use mpc_circuits::{Circuit, Input, Output};
 
 pub type BinaryLabel = WireLabel<Block>;
+
 /// Wire label of a garbled circuit
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct WireLabel<T> {
+pub struct WireLabel<T: Copy> {
     /// Wire id
     pub id: usize,
     /// Wire label value
-    pub value: T,
+    value: T,
 }
 
-impl<T> WireLabel<T> {
-    pub fn value(&self) -> &T {
+impl<T: Copy> AsRef<T> for WireLabel<T> {
+    fn as_ref(&self) -> &T {
         &self.value
     }
 }
@@ -152,7 +153,7 @@ impl FullGarbledCircuit {
         self.wire_labels
             .iter()
             .skip(self.circ.len() - self.circ.output_len())
-            .map(|labels| labels[0].value().lsb() == 1)
+            .map(|labels| labels[0].as_ref().lsb() == 1)
             .collect()
     }
 
@@ -191,7 +192,7 @@ impl FullGarbledCircuit {
 
         if output_labels.iter().zip(pairs).all(|(label, (id, pair))| {
             (label.id == id)
-                & ((label.value == *pair[0].value()) | (label.value == *pair[1].value()))
+                & ((label.value == *pair[0].as_ref()) | (label.value == *pair[1].as_ref()))
         }) {
             Ok(())
         } else {
@@ -290,6 +291,6 @@ pub fn decode(labels: &[BinaryLabel], decoding: &[bool]) -> Vec<bool> {
     labels
         .iter()
         .zip(decoding)
-        .map(|(label, decode)| (label.value().lsb() != 0) ^ decode)
+        .map(|(label, decode)| (label.as_ref().lsb() != 0) ^ decode)
         .collect()
 }

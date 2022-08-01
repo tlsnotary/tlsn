@@ -183,7 +183,7 @@ impl DualExecution<Leader, Evaluator> {
             &expected_labels
                 .iter()
                 .chain(output_labels.iter())
-                .map(|label| label.value().to_be_bytes())
+                .map(|label| label.as_ref().to_be_bytes())
                 .flatten()
                 .collect::<Vec<u8>>(),
         );
@@ -224,7 +224,7 @@ impl DualExecution<Follower, Evaluator> {
             &output_labels
                 .iter()
                 .chain(expected_labels.iter())
-                .map(|label| label.value().to_be_bytes())
+                .map(|label| label.as_ref().to_be_bytes())
                 .flatten()
                 .collect::<Vec<u8>>(),
         );

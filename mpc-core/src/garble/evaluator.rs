@@ -55,11 +55,11 @@ pub fn evaluate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     encrypted_gates: &[EncryptedGate],
 ) -> Result<Vec<BinaryLabel>, Error> {
     let mut labels: Vec<Option<Block>> = vec![None; circ.len()];
-    let public_labels = [*public_labels[0].value(), *public_labels[1].value()];
+    let public_labels = [*public_labels[0].as_ref(), *public_labels[1].as_ref()];
 
     // Insert input labels
     for (labels, label) in labels.iter_mut().zip(input_labels) {
-        *labels = Some(*label.value())
+        *labels = Some(*label.as_ref())
     }
 
     let mut tid = 0;
