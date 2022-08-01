@@ -15,7 +15,7 @@ use mpc_circuits::Circuit;
 use aes::{Aes128, NewBlockCipher};
 use std::sync::Arc;
 
-#[derive(Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct OutputCheck([u8; 32]);
 
 #[derive(Clone, PartialEq)]
