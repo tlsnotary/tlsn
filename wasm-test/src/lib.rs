@@ -3,7 +3,6 @@
 #![feature(slice_split_at_unchecked)]
 #![feature(test)]
 extern crate test;
-use std::mem::transmute;
 use std::ops::ShlAssign;
 use std::simd::{LaneCount, Simd, SimdElement, SupportedLaneCount};
 use thiserror::Error;
@@ -99,7 +98,7 @@ unsafe fn transpose_bits_unchecked(matrix: &mut [u8], columns: usize) {
                 s = Simd::from_array(*chunk);
                 v = v128::from(s);
                 high_bits = u8x16_bitmask(v128::from(v));
-                shifted_row.extend_from_slice(&transmute::<u16, [u8; 2]>(high_bits));
+                shifted_row.extend_from_slice(&high_bits.to_ne_bytes());
                 s.shl_assign(simd_one);
                 *chunk = s.to_array();
             }
@@ -130,7 +129,7 @@ unsafe fn transpose_bits_unchecked(matrix: &mut [u8], columns: usize) {
                 s = Simd::from_array(*chunk);
                 u = u8x32::from(s);
                 high_bits = _mm256_movemask_epi8(u.into());
-                shifted_row.extend_from_slice(&transmute::<i32, [u8; 4]>(high_bits));
+                shifted_row.extend_from_slice(&high_bits.to_ne_bytes());
                 s.shl_assign(simd_one);
                 *chunk = s.to_array();
             }
