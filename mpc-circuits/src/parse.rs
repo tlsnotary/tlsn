@@ -200,7 +200,7 @@ mod tests {
 
     #[test]
     fn test_parse_adder64() {
-        let circ = Circuit::parse("circuits/bristol/adder64.txt", "adder64", "").unwrap();
+        let circ = Circuit::parse("../bristol-circuits/adder64.txt", "adder64", "").unwrap();
 
         assert_eq!(circ.input_len(), 128);
         assert_eq!(circ.output_len(), 64);
@@ -290,7 +290,7 @@ mod tests {
     #[test]
     fn test_aes_reverse() {
         let circ = Circuit::parse(
-            "circuits/bristol/aes_128_reverse.txt",
+            "../bristol-circuits/aes_128_reverse.txt",
             "aes_128_reverse",
             "",
         )
@@ -361,7 +361,7 @@ mod tests {
 
     #[test]
     fn test_aes_old() {
-        let circ = Circuit::parse("circuits/bristol/aes_128.txt", "aes_128", "").unwrap();
+        let circ = Circuit::parse("../bristol-circuits/aes_128.txt", "aes_128", "").unwrap();
 
         assert_eq!(circ.input_len(), 256);
         assert_eq!(circ.output_len(), 128);

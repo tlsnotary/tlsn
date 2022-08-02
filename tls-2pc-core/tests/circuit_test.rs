@@ -1,15 +1,17 @@
-// Here we test all the c*.out circuits from ../circuits
+// Here we test all the c*.bin circuits from ../circuits
 
-use aes::cipher::{generic_array::GenericArray, BlockEncrypt, NewBlockCipher};
-use aes::Aes128;
+use aes::{
+    cipher::{generic_array::GenericArray, BlockEncrypt, NewBlockCipher},
+    Aes128,
+};
 use hex::FromHex;
-use mpc_core::circuit::{Circuit, CircuitInput};
+use mpc_circuits::Circuit;
 use mpc_core::utils::{boolvec_to_u8vec, u8vec_to_boolvec, xor};
-use num::bigint::RandBigInt;
-use num::{BigUint, Zero};
+use num::{bigint::RandBigInt, BigUint, Zero};
 use rand::{thread_rng, Rng};
-use std::path::Path;
-use tls_2pc_core::handshake::sha;
+use tls_2pc_core::{
+    handshake::sha, CIRCUIT_1, CIRCUIT_2, CIRCUIT_3, CIRCUIT_4, CIRCUIT_5, CIRCUIT_6, CIRCUIT_7,
+};
 
 /// NIST P-256 Prime
 pub const P: &str = "ffffffff00000001000000000000000000000000ffffffffffffffffffffffff";
@@ -17,7 +19,7 @@ pub const P: &str = "ffffffff00000001000000000000000000000000fffffffffffffffffff
 // Evaluates the circuit "name" with the given inputs (and their sizes in bits)
 // and the expected bitsize of outputs. Returns individual outputs as bytes.
 fn evaluate_circuit(
-    name: &str,
+    circ: &Circuit,
     inputs: Vec<Vec<u8>>,
     input_sizes: Vec<usize>,
     output_sizes: Vec<usize>,
@@ -32,28 +34,10 @@ fn evaluate_circuit(
         tmp.reverse();
         all_inputs.push(tmp);
     }
-    let concat_inputs: Vec<bool> = all_inputs.into_iter().flatten().collect();
-
-    let inputs = concat_inputs
-        .into_iter()
-        .enumerate()
-        .map(|(id, value)| CircuitInput { id, value })
-        .collect();
-
-    let mut path = "circuits/".to_string();
-    path.push_str(name);
-    path.push_str(".out");
-    if !Path::new(&path).exists() {
-        println!("Error: the circuit {:?} does not exist.", path);
-        println!("You must generate the circuits by running inside the /circuits dir:");
-        println!("nodejs assemble.js");
-        println!("Then rerun this test.");
-        panic!();
-    }
-    let circ = Circuit::parse(path.as_str(), name, "").unwrap();
+    let inputs: Vec<bool> = all_inputs.into_iter().flatten().collect();
 
     // same as with inputs, the outputs are "least bit first" and must be reversed individually
-    let mut output = circ.eval(inputs).unwrap();
+    let mut output = circ.evaluate(&inputs).unwrap();
 
     let mut outputs: Vec<Vec<u8>> = Vec::with_capacity(output_sizes.len());
     let mut pos: usize = 0;
@@ -67,7 +51,7 @@ fn evaluate_circuit(
 }
 
 // Tests correctness of the c1.casm circuit
-fn circuit1(u_share: BigUint, n_share: BigUint) {
+fn circuit1(circ: &Circuit, u_share: BigUint, n_share: BigUint) {
     // Perform in the clear all the computations which happen inside the ciruit:
     let mut rng = thread_rng();
 
@@ -115,7 +99,7 @@ fn circuit1(u_share: BigUint, n_share: BigUint) {
 
     // Evaluate the circuit.
     let outputs = evaluate_circuit(
-        "c1",
+        circ,
         vec![
             n_share.to_bytes_be().to_vec(),
             mask_n.to_vec(),
@@ -134,6 +118,7 @@ fn circuit1(u_share: BigUint, n_share: BigUint) {
 // and MUST NOT be reduced.
 fn circuit1_no_overflow() {
     let mut rng = thread_rng();
+    let circ = Circuit::load_bytes(CIRCUIT_1).unwrap();
 
     let prime = <[u8; 32]>::from_hex(P).unwrap();
     let prime = BigUint::from_bytes_be(&prime);
@@ -143,7 +128,7 @@ fn circuit1_no_overflow() {
         let n_share = rng.gen_biguint_range(&BigUint::zero(), &prime);
         let u_share = rng.gen_biguint_range(&BigUint::zero(), &prime);
         if (u_share.clone() + n_share.clone()) < prime {
-            circuit1(u_share, n_share);
+            circuit1(&circ, u_share, n_share);
             break;
         }
     }
@@ -154,6 +139,7 @@ fn circuit1_no_overflow() {
 // and MUST be reduced.
 fn circuit1_with_overflow() {
     let mut rng = thread_rng();
+    let circ = Circuit::load_bytes(CIRCUIT_1).unwrap();
 
     let prime = <[u8; 32]>::from_hex(P).unwrap();
     let prime = BigUint::from_bytes_be(&prime);
@@ -163,7 +149,7 @@ fn circuit1_with_overflow() {
         let n_share = rng.gen_biguint_range(&BigUint::zero(), &prime);
         let u_share = rng.gen_biguint_range(&BigUint::zero(), &prime);
         if (u_share.clone() + n_share.clone()) >= prime {
-            circuit1(u_share, n_share);
+            circuit1(&circ, u_share, n_share);
             break;
         }
     }
@@ -230,7 +216,7 @@ fn circuit2() {
 
     // Evaluate the circuit.
     let outputs = evaluate_circuit(
-        "c2",
+        &Circuit::load_bytes(CIRCUIT_2).unwrap(),
         vec![
             n_outer_hash_state.to_vec(),
             n_output_mask.to_vec(),
@@ -306,7 +292,7 @@ fn circuit3() {
 
     // Evaluate the circuit.
     let outputs = evaluate_circuit(
-        "c3",
+        &Circuit::load_bytes(CIRCUIT_3).unwrap(),
         vec![
             n_outer_hash_state.to_vec(),
             n_output_mask1.to_vec(),
@@ -412,7 +398,7 @@ fn circuit4() {
 
     // Evaluate the circuit.
     let outputs = evaluate_circuit(
-        "c4",
+        &Circuit::load_bytes(CIRCUIT_4).unwrap(),
         vec![
             n_swk.to_vec(),
             n_cwk.to_vec(),
@@ -528,7 +514,7 @@ fn circuit5() {
 
     // Evaluate the circuit.
     let outputs = evaluate_circuit(
-        "c5",
+        &Circuit::load_bytes(CIRCUIT_5).unwrap(),
         vec![
             n_outer_hash_state_p1.to_vec(),
             n_swk.to_vec(),
@@ -598,7 +584,7 @@ fn circuit6() {
 
     // Evaluate the circuit.
     let outputs = evaluate_circuit(
-        "c6",
+        &Circuit::load_bytes(CIRCUIT_6).unwrap(),
         vec![
             n_cwk.to_vec(),
             n_civ.to_vec(),
@@ -662,7 +648,7 @@ fn circuit7() {
 
     // Evaluate the circuit.
     let outputs = evaluate_circuit(
-        "c7",
+        &Circuit::load_bytes(CIRCUIT_7).unwrap(),
         vec![
             n_cwk.to_vec(),
             n_civ.to_vec(),
