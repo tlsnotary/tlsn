@@ -53,6 +53,7 @@ pub fn transpose_bits(matrix: &mut [u8], rows: usize) -> Result<(), TransposeErr
 ///   - columns is a multiple of N
 ///   - N != 1 c.f. https://github.com/rust-lang/portable-simd/issues/298
 ///   - rounds == ld(rows)
+#[inline]
 pub unsafe fn transpose_unchecked<const N: usize, T>(matrix: &mut [T], rounds: usize)
 where
     LaneCount<N>: SupportedLaneCount,
