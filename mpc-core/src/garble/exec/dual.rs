@@ -239,7 +239,7 @@ impl DualExFollower<Evaluator> {
             ))?,
         );
 
-        let expected_labels = choose(self.state.gc.output_labels(), &output);
+        let expected_labels = choose(self.state.gc.output_labels(), output.as_ref());
 
         let check = OutputCheck::new(
             &output_labels

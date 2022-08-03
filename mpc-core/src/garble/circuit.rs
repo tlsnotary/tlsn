@@ -75,6 +75,12 @@ pub struct OutputValue {
     value: Vec<bool>,
 }
 
+impl AsRef<[bool]> for OutputValue {
+    fn as_ref(&self) -> &[bool] {
+        &self.value
+    }
+}
+
 impl OutputValue {
     pub fn new(output: Output, value: &[bool]) -> Self {
         assert!(output.group().len() == value.len());
