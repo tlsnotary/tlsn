@@ -57,7 +57,7 @@ where
 {
     let half = matrix.len() >> 1;
     let mut matrix_copy_half = vec![T::default(); half];
-    let mut matrix_pointer;
+    let mut matrix_pointer: *mut T;
     let (mut s1, mut s2): (Simd<T, N>, Simd<T, N>);
     for _ in 0..rounds {
         matrix_copy_half.copy_from_slice(&matrix[..half]);
@@ -88,17 +88,15 @@ unsafe fn transpose_bits_unchecked(matrix: &mut [u8], columns: usize) {
     use std::arch::wasm32::{u8x16_bitmask, v128};
 
     let simd_one = Simd::<u8, 16>::splat(1);
-    let mut v: v128;
-    let mut high_bits: u16;
+    let mut high_bits;
     let mut s: Simd<u8, 16>;
     for row in matrix.chunks_mut(columns) {
         let mut shifted_row = Vec::with_capacity(columns);
         for _ in 0..8 {
             for chunk in row.as_chunks_unchecked_mut::<16>().iter_mut() {
                 s = Simd::from_array(*chunk);
-                v = v128::from(s);
-                high_bits = u8x16_bitmask(v128::from(v));
-                shifted_row.extend_from_slice(&high_bits.to_ne_bytes());
+                high_bits = u8x16_bitmask(s.reverse().into());
+                shifted_row.extend_from_slice(&high_bits.to_be_bytes());
                 s.shl_assign(simd_one);
                 *chunk = s.to_array();
             }
@@ -116,20 +114,17 @@ unsafe fn transpose_bits_unchecked(matrix: &mut [u8], columns: usize) {
 #[inline]
 unsafe fn transpose_bits_unchecked(matrix: &mut [u8], columns: usize) {
     use std::arch::x86_64::_mm256_movemask_epi8;
-    use std::simd::u8x32;
 
     let simd_one = Simd::<u8, 32>::splat(1);
-    let mut u: u8x32;
-    let mut high_bits: i32;
+    let mut high_bits;
     let mut s: Simd<u8, 32>;
     for row in matrix.chunks_mut(columns) {
         let mut shifted_row = Vec::with_capacity(columns);
         for _ in 0..8 {
             for chunk in row.as_chunks_unchecked_mut::<32>().iter_mut() {
                 s = Simd::from_array(*chunk);
-                u = u8x32::from(s);
-                high_bits = _mm256_movemask_epi8(u.into());
-                shifted_row.extend_from_slice(&high_bits.to_ne_bytes());
+                high_bits = _mm256_movemask_epi8(s.reverse().into());
+                shifted_row.extend_from_slice(&high_bits.to_be_bytes());
                 s.shl_assign(simd_one);
                 *chunk = s.to_array();
             }
@@ -155,7 +150,7 @@ mod tests {
     use rand::prelude::*;
     use test::{black_box, Bencher};
 
-    fn random_matrix<T>(elements: usize) -> Vec<T>
+    fn random_vec<T>(elements: usize) -> Vec<T>
     where
         Standard: Distribution<T>,
     {
@@ -165,22 +160,55 @@ mod tests {
 
     #[test]
     fn test_transpose_unchecked() {
-        let rounds = 8_usize;
-        let mut m: Vec<u8> =
-            random_matrix::<u8>(2_usize.pow(rounds as u32) * 2_usize.pow(rounds as u32));
-        let original = m.clone();
+        let rounds = 8_u32;
+        let mut rows = 2_usize.pow(rounds);
+        let mut columns = 64;
+
+        let mut matrix: Vec<u8> = random_vec::<u8>(columns * rows);
+        let original = matrix.clone();
         unsafe {
-            transpose_unchecked::<32, u8>(&mut m, rounds);
-            transpose_unchecked::<32, u8>(&mut m, rounds);
+            transpose_unchecked::<32, u8>(&mut matrix, rounds as usize);
         }
-        assert_eq!(m, original);
+
+        (rows, columns) = (columns, rows);
+        for (k, element) in matrix.iter().enumerate() {
+            let row_number = k / columns;
+            let column_number = k % columns;
+            assert_eq!(*element, original[column_number * rows + row_number])
+        }
+    }
+
+    #[test]
+    fn test_transpose_bits_unchecked() {
+        let columns = 2_usize.pow(8);
+        let rows = 64;
+
+        let mut matrix: Vec<u8> = random_vec::<u8>(columns * rows);
+        let mut original = matrix.clone();
+        unsafe {
+            transpose_bits_unchecked(&mut matrix, columns);
+        }
+
+        for (row_index, row) in original.chunks_mut(columns).enumerate() {
+            for k in 0..8 {
+                for (l, chunk) in row.chunks(8).enumerate() {
+                    let expected: u8 = chunk.iter().enumerate().fold(0, |acc, (m, element)| {
+                        acc + (element >> 7) * 2_u8.pow(7_u32 - m as u32)
+                    });
+                    let actual = matrix[row_index * columns + columns / 8 * k + l];
+                    assert_eq!(expected, actual);
+                }
+                let shifted_row = row.iter_mut().map(|el| *el << 1).collect::<Vec<u8>>();
+                row.copy_from_slice(&shifted_row);
+            }
+        }
     }
 
     #[bench]
     fn bench_transpose_unchecked(b: &mut Bencher) {
         let rounds = 12_usize;
         let mut m: Vec<u8> =
-            random_matrix::<u8>(2_usize.pow(rounds as u32) * 2_usize.pow(rounds as u32));
+            random_vec::<u8>(2_usize.pow(rounds as u32) * 2_usize.pow(rounds as u32));
         b.iter(|| unsafe { black_box(transpose_unchecked::<32, u8>(&mut m, rounds)) })
     }
 }
