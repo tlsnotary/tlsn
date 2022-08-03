@@ -13,3 +13,4 @@ members = [
     "clmul",
     "matrix-transpose"
 ]
+exclude = ["tls-client"]
