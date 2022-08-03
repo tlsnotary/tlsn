@@ -1,22 +1,38 @@
 use rand::{CryptoRng, Rng};
 use std::sync::Arc;
 
-use crate::block::Block;
-use crate::garble::{Error, InputError};
-use mpc_circuits::Circuit;
+use crate::{
+    block::Block,
+    garble::{Error, InputError},
+    msgs::garble as msgs,
+};
+use mpc_circuits::{Circuit, Input, Output};
 
+/// We call the wire labels "binary" to emphasize that acc.to Free-XOR,
+/// W₀ XOR Δ, = W₁. Later in the zk label decoding protocol we will convert
+/// Δ into an "arithmetic" one, so that W₀ + Δ, = W₁.
 pub type BinaryLabel = WireLabel<Block>;
 
 /// Wire label of a garbled circuit
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct WireLabel<T> {
+pub struct WireLabel<T: Copy> {
     /// Wire id
     pub id: usize,
     /// Wire label value
-    pub value: T,
+    value: T,
+}
+
+impl<T: Copy> AsRef<T> for WireLabel<T> {
+    fn as_ref(&self) -> &T {
+        &self.value
+    }
 }
 
 impl WireLabel<Block> {
+    pub fn new(id: usize, value: Block) -> Self {
+        Self { id, value }
+    }
+
     pub fn random<R: Rng + CryptoRng>(id: usize, rng: &mut R) -> Self {
         Self {
             id,
@@ -25,41 +41,147 @@ impl WireLabel<Block> {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct InputValue {
+    input: Input,
+    value: Vec<bool>,
+}
+
+impl InputValue {
+    pub fn new(input: Input, value: &[bool]) -> Self {
+        assert!(input.group().len() == value.len());
+        Self {
+            input,
+            value: value.to_vec(),
+        }
+    }
+
+    pub fn value(&self) -> &[bool] {
+        &self.value
+    }
+
+    pub fn len(&self) -> usize {
+        self.input.group().len()
+    }
+
+    pub fn wires(&self) -> &[usize] {
+        self.input.group().wires()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct OutputValue {
+    output: Output,
+    value: Vec<bool>,
+}
+
+impl OutputValue {
+    pub fn new(output: Output, value: &[bool]) -> Self {
+        assert!(output.group().len() == value.len());
+        Self {
+            output,
+            value: value.to_vec(),
+        }
+    }
+
+    pub fn value(&self) -> &[bool] {
+        &self.value
+    }
+
+    pub fn len(&self) -> usize {
+        self.output.group().len()
+    }
+
+    pub fn wires(&self) -> &[usize] {
+        self.output.group().wires()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct EncryptedGate([Block; 2]);
+
+impl EncryptedGate {
+    pub(crate) fn new(inner: [Block; 2]) -> Self {
+        Self(inner)
+    }
+
+    pub(crate) fn inner(&self) -> &[Block; 2] {
+        &self.0
+    }
+}
+
 /// Complete half-gate garbled circuit data, including delta which can be used to
 /// derive the private inputs of the Garbler
-#[derive(Clone)]
 pub struct FullGarbledCircuit {
     pub circ: Arc<Circuit>,
-    pub wire_labels: Vec<[Block; 2]>,
-    pub public_labels: [Block; 2],
-    pub table: Vec<[Block; 2]>,
+    pub wire_labels: Vec<[BinaryLabel; 2]>,
+    pub public_labels: [BinaryLabel; 2],
+    pub encrypted_gates: Vec<EncryptedGate>,
     pub delta: Block,
 }
 
-#[derive(Clone)]
 pub struct GarbledCircuit {
     pub circ: Arc<Circuit>,
     pub input_labels: Vec<BinaryLabel>,
-    pub public_labels: [Block; 2],
-    pub table: Vec<[Block; 2]>,
+    pub public_labels: [BinaryLabel; 2],
+    pub encrypted_gates: Vec<EncryptedGate>,
     pub decoding: Option<Vec<bool>>,
 }
 
+pub struct EvaluatedGarbledCircuit {
+    pub circ: Arc<Circuit>,
+    pub output_labels: Vec<BinaryLabel>,
+    pub output: Vec<OutputValue>,
+}
+
+impl GarbledCircuit {
+    fn from_msg(circ: Arc<Circuit>, msg: msgs::GarbledCircuit) -> Result<Self, Error> {
+        if msg.id != *circ.id() {
+            return Err(Error::PeerError(format!(
+                "Received garbled circuit with wrong id: expected {}, received {}",
+                circ.id().to_string(),
+                msg.id.to_string()
+            )));
+        }
+
+        Ok(GarbledCircuit {
+            circ,
+            input_labels: msg.input_labels,
+            public_labels: msg.public_labels,
+            encrypted_gates: msg.encrypted_gates,
+            decoding: msg.decoding,
+        })
+    }
+}
+
 impl FullGarbledCircuit {
+    /// Returns output label decoding
     pub fn decoding(&self) -> Vec<bool> {
         self.wire_labels
             .iter()
             .skip(self.circ.len() - self.circ.output_len())
-            .map(|labels| labels[0].lsb() == 1)
+            .map(|labels| labels[0].as_ref().lsb() == 1)
             .collect()
     }
 
-    pub fn to_eval(&self, input_labels: &[BinaryLabel], decoding: bool) -> GarbledCircuit {
+    /// Returns full set of output labels
+    pub fn output_labels(&self) -> &[[BinaryLabel; 2]] {
+        &self.wire_labels[self.circ.len() - self.circ.output_len()..]
+    }
+
+    /// Returns `GarbledCircuit` which is safe to send an evaluator
+    pub fn to_evaluator(&self, inputs: &[InputValue], decoding: bool) -> GarbledCircuit {
+        let input_labels: Vec<BinaryLabel> = inputs
+            .iter()
+            .map(|input| choose_labels(&self.wire_labels, input.wires(), input.value()))
+            .flatten()
+            .collect();
+
         GarbledCircuit {
             circ: self.circ.clone(),
-            input_labels: input_labels.into(),
+            input_labels: input_labels,
             public_labels: self.public_labels,
-            table: self.table.clone(),
+            encrypted_gates: self.encrypted_gates.clone(),
             decoding: decoding.then(|| self.decoding()),
         }
     }
@@ -76,7 +198,8 @@ impl FullGarbledCircuit {
             .skip(self.circ.len() - self.circ.output_len());
 
         if output_labels.iter().zip(pairs).all(|(label, (id, pair))| {
-            (label.id == id) & ((label.value == pair[0]) | (label.value == pair[1]))
+            (label.id == id)
+                & ((label.value == *pair[0].as_ref()) | (label.value == *pair[1].as_ref()))
         }) {
             Ok(())
         } else {
@@ -90,7 +213,8 @@ pub fn generate_labels<R: Rng + CryptoRng>(
     rng: &mut R,
     delta: Option<&Block>,
     count: usize,
-) -> (Vec<[Block; 2]>, Block) {
+    offset: usize,
+) -> (Vec<[BinaryLabel; 2]>, Block) {
     let delta = match delta {
         Some(delta) => *delta,
         None => {
@@ -101,18 +225,53 @@ pub fn generate_labels<R: Rng + CryptoRng>(
     };
     let low = Block::random_vec(rng, count);
     (
-        low.into_iter().map(|low| [low, low ^ delta]).collect(),
+        low.into_iter()
+            .enumerate()
+            .map(|(id, value)| {
+                [
+                    BinaryLabel {
+                        id: id + offset,
+                        value,
+                    },
+                    BinaryLabel {
+                        id: id + offset,
+                        value: value ^ delta,
+                    },
+                ]
+            })
+            .collect(),
         delta,
     )
 }
 
 /// Generates wire labels corresponding to public truth values [0, 1]
-pub fn generate_public_labels<R: Rng + CryptoRng>(rng: &mut R, delta: &Block) -> [Block; 2] {
-    [Block::random(rng), Block::random(rng) ^ *delta]
+pub fn generate_public_labels<R: Rng + CryptoRng>(rng: &mut R, delta: &Block) -> [BinaryLabel; 2] {
+    [
+        BinaryLabel {
+            id: usize::MAX - 1,
+            value: Block::random(rng),
+        },
+        BinaryLabel {
+            id: usize::MAX,
+            value: Block::random(rng) ^ *delta,
+        },
+    ]
 }
 
-/// Sorts an array of input labels and validates according to a circuit description.
-pub fn prepare_inputs(circ: &Circuit, mut inputs: Vec<BinaryLabel>) -> Result<Vec<Block>, Error> {
+/// Returns wire labels corresponding to wire truth values
+///
+/// Panics if wire id not in label collection
+pub fn choose_labels<T: Copy>(labels: &[[T; 2]], wires: &[usize], values: &[bool]) -> Vec<T> {
+    wires
+        .iter()
+        .zip(values.iter())
+        .map(|(id, value)| labels[*id][*value as usize])
+        .collect()
+}
+
+/// Clones an array of input labels, sorts them, and validates according to a circuit description.
+pub fn prepare_inputs(circ: &Circuit, inputs: &[BinaryLabel]) -> Result<Vec<BinaryLabel>, Error> {
+    let mut inputs = Vec::from(inputs);
     if circ.input_len() != inputs.len() {
         return Err(Error::InvalidInput(InputError::InvalidCount(
             circ.input_len(),
@@ -127,11 +286,15 @@ pub fn prepare_inputs(circ: &Circuit, mut inputs: Vec<BinaryLabel>) -> Result<Ve
         return Err(Error::InvalidInput(InputError::Duplicate));
     }
 
-    Ok(inputs.into_iter().map(|label| label.value).collect())
+    Ok(inputs)
 }
 
-/// Decodes output wire labels into plaintext
-pub fn decode(labels: &[Block], decoding: &[bool]) -> Vec<bool> {
+/// Decodes output wire labels into plaintext.
+///
+/// Using the point-and-permute (p&p) technique, the two adjacent labels
+/// will have the opposite p&p bits. By convention, a label with p&p bit 1
+/// is encoded to 1, the other one is encoded to 0.
+pub fn decode(labels: &[BinaryLabel], decoding: &[bool]) -> Vec<bool> {
     assert!(
         labels.len() == decoding.len(),
         "arrays are different length"
@@ -139,6 +302,6 @@ pub fn decode(labels: &[Block], decoding: &[bool]) -> Vec<bool> {
     labels
         .iter()
         .zip(decoding)
-        .map(|(label, decode)| (label.lsb() != 0) ^ decode)
+        .map(|(label, decode)| (label.as_ref().lsb() != 0) ^ decode)
         .collect()
 }

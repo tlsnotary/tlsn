@@ -1,6 +1,7 @@
 pub mod block;
 #[cfg(feature = "garble")]
 pub mod garble;
+pub mod msgs;
 #[cfg(feature = "ot")]
 pub mod ot;
 #[cfg(feature = "pa")]

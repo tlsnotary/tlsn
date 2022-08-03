@@ -8,6 +8,8 @@ pub enum Error {
     InvalidLabelDecoding,
     #[error("Invalid output labels")]
     InvalidOutputLabels,
+    #[error("Peer behaved unexpectedly: {0}")]
+    PeerError(String),
 }
 
 #[derive(Debug, thiserror::Error)]

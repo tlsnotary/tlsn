@@ -1,8 +1,15 @@
 use cipher::{consts::U16, BlockCipher, BlockEncrypt};
 
-use crate::block::{Block, SELECT_MASK};
-use crate::garble::Error;
+use crate::{
+    block::{Block, SELECT_MASK},
+    garble::Error,
+};
 use mpc_circuits::{Circuit, Gate};
+
+use super::{
+    circuit::{prepare_inputs, BinaryLabel},
+    EncryptedGate, GarbledCircuit,
+};
 
 /// Evaluates AND gate
 #[inline]
@@ -10,7 +17,7 @@ pub(crate) fn and_gate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     cipher: &C,
     x: &Block,
     y: &Block,
-    table: &[Block; 2],
+    encrypted_gate: &[Block; 2],
     gid: usize,
 ) -> Block {
     let s_a = x.lsb();
@@ -22,8 +29,8 @@ pub(crate) fn and_gate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     let hx = x.hash_tweak(cipher, j);
     let hy = y.hash_tweak(cipher, k);
 
-    let w_g = hx ^ (table[0] & SELECT_MASK[s_a]);
-    let w_e = hy ^ (SELECT_MASK[s_b] & (table[1] ^ *x));
+    let w_g = hx ^ (encrypted_gate[0] & SELECT_MASK[s_a]);
+    let w_e = hy ^ (SELECT_MASK[s_b] & (encrypted_gate[1] ^ *x));
 
     w_g ^ w_e
 }
@@ -40,18 +47,19 @@ pub(crate) fn inv_gate(x: &Block, public_label: &Block) -> Block {
     *x ^ *public_label
 }
 
-pub fn eval<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
+pub fn evaluate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     cipher: &C,
     circ: &Circuit,
-    input_labels: &[Block],
-    public_labels: &[Block; 2],
-    table: &[[Block; 2]],
-) -> Result<Vec<Block>, Error> {
+    input_labels: &[BinaryLabel],
+    public_labels: &[BinaryLabel; 2],
+    encrypted_gates: &[EncryptedGate],
+) -> Result<Vec<BinaryLabel>, Error> {
     let mut labels: Vec<Option<Block>> = vec![None; circ.len()];
+    let public_labels = [*public_labels[0].as_ref(), *public_labels[1].as_ref()];
 
     // Insert input labels
     for (labels, label) in labels.iter_mut().zip(input_labels) {
-        *labels = Some(*label)
+        *labels = Some(*label.as_ref())
     }
 
     let mut tid = 0;
@@ -76,7 +84,7 @@ pub fn eval<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
             } => {
                 let x = labels[xref].ok_or(Error::UninitializedLabel(xref))?;
                 let y = labels[yref].ok_or(Error::UninitializedLabel(yref))?;
-                let z = and_gate(cipher, &x, &y, &table[tid], gid);
+                let z = and_gate(cipher, &x, &y, &encrypted_gates[tid].inner(), gid);
                 labels[zref] = Some(z);
                 tid += 1;
                 gid += 2;
@@ -84,10 +92,27 @@ pub fn eval<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
         };
     }
 
+    let output_id_offset = circ.len() - circ.output_len();
     let outputs = labels
-        .drain(circ.len() - circ.output_len()..)
-        .map(|label| label.unwrap())
+        .drain(output_id_offset..)
+        .enumerate()
+        .map(|(id, value)| BinaryLabel::new(id + output_id_offset, value.unwrap()))
         .collect();
 
     Ok(outputs)
+}
+
+pub fn evaluate_garbled_circuit<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
+    cipher: &C,
+    gc: &GarbledCircuit,
+    input_labels: &[BinaryLabel],
+) -> Result<Vec<BinaryLabel>, Error> {
+    let input_labels = prepare_inputs(&gc.circ, &[input_labels, &gc.input_labels].concat())?;
+    Ok(evaluate(
+        cipher,
+        &gc.circ,
+        &input_labels,
+        &gc.public_labels,
+        &gc.encrypted_gates,
+    )?)
 }
