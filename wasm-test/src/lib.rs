@@ -1,6 +1,7 @@
 #![feature(portable_simd)]
 #![feature(slice_as_chunks)]
 #![feature(slice_split_at_unchecked)]
+#![feature(stmt_expr_attributes)]
 #![feature(test)]
 extern crate test;
 use std::ops::ShlAssign;
@@ -10,11 +11,13 @@ use thiserror::Error;
 /// This function transposes a matrix on the bit-level.
 ///
 /// This implementation requires that the number of rows is a power of 2 and
-/// that the matrix has at least 32 columns
+/// that the matrix has at least 16 or 32 columns and rows
+#[cfg(any(target_arch = "x86_64", target_arch = "wasm32"))]
 pub fn transpose_bits(matrix: &mut [u8], rows: usize) -> Result<(), TransposeError> {
-    const LANE_SIZE: usize = 32;
+    const LANE_COUNT: usize = if cfg!(target_arch = "wasm32") { 16 } else { 32 };
     // Check that number of rows is a power of 2
-    if rows & (rows - 1) != 0 {
+    // and a multiple of LANE_COUNT
+    if rows & (rows - 1) != 0 && rows >= LANE_COUNT {
         return Err(TransposeError::InvalidNumberOfRows);
     }
 
@@ -23,18 +26,18 @@ pub fn transpose_bits(matrix: &mut [u8], rows: usize) -> Result<(), TransposeErr
         return Err(TransposeError::MalformedSlice);
     }
 
-    // Check that row length is a multiple of LANE_SIZE
+    // Check that row length is a multiple of LANE_COUNT
     let columns = matrix.len() / rows;
-    if columns & (LANE_SIZE - 1) != 0 {
+    if columns & (LANE_COUNT - 1) != 0 && columns >= LANE_COUNT {
         return Err(TransposeError::InvalidNumberOfColumns);
     }
 
     // Perform transposition on bit-level consisting of:
     // 1. normal transposition of elements
-    // 2. single-row bit-level tranposition
+    // 2. single-row bit-mask shift
     unsafe {
-        transpose_unchecked::<LANE_SIZE, u8>(matrix, rows.trailing_zeros() as usize);
-        transpose_bits_unchecked(matrix, columns);
+        transpose_unchecked::<LANE_COUNT, u8>(matrix, rows.trailing_zeros() as usize);
+        bitmask_shift_unchecked(matrix, rows);
     }
     Ok(())
 }
@@ -47,7 +50,7 @@ pub fn transpose_bits(matrix: &mut [u8], rows: usize) -> Result<(), TransposeErr
 /// Caller has to ensure that
 ///   - number of rows is a power of 2
 ///   - slice is rectangular (matrix)
-///   - row length is a multiple of N
+///   - columns is a multiple of N
 ///   - N != 1 c.f. https://github.com/rust-lang/portable-simd/issues/298
 ///   - rounds == ld(rows)
 pub unsafe fn transpose_unchecked<const N: usize, T>(matrix: &mut [T], rounds: usize)
@@ -80,50 +83,27 @@ where
 ///
 /// This function is an implementation of the bit-level transpose in
 /// https://docs.rs/oblivious-transfer/latest/oblivious_transfer/extension/fn.transpose128.html
-/// Caller has to make sure that columns is a multiple of 16
-#[cfg(target_arch = "wasm32")]
-#[target_feature(enable = "simd128")]
+/// Caller has to make sure that columns is a multiple of 16 or 32
+#[cfg(any(target_arch = "x86_64", target_arch = "wasm32"))]
 #[inline]
-unsafe fn transpose_bits_unchecked(matrix: &mut [u8], columns: usize) {
-    use std::arch::wasm32::{u8x16_bitmask, v128};
-
-    let simd_one = Simd::<u8, 16>::splat(1);
-    let mut high_bits;
-    let mut s: Simd<u8, 16>;
-    for row in matrix.chunks_mut(columns) {
-        let mut shifted_row = Vec::with_capacity(columns);
-        for _ in 0..8 {
-            for chunk in row.as_chunks_unchecked_mut::<16>().iter_mut() {
-                s = Simd::from_array(*chunk);
-                high_bits = u8x16_bitmask(s.reverse().into());
-                shifted_row.extend_from_slice(&high_bits.to_be_bytes());
-                s.shl_assign(simd_one);
-                *chunk = s.to_array();
-            }
-        }
-        row.copy_from_slice(&shifted_row)
-    }
-}
-
-/// Unsafe single-row bit-level transpose
-///
-/// This function is an implementation of the bit-level transpose in
-/// https://docs.rs/oblivious-transfer/latest/oblivious_transfer/extension/fn.transpose128.html
-/// Caller has to make sure that columns is a multiple of 32
-#[cfg(target_arch = "x86_64")]
-#[inline]
-unsafe fn transpose_bits_unchecked(matrix: &mut [u8], columns: usize) {
+unsafe fn bitmask_shift_unchecked(matrix: &mut [u8], columns: usize) {
+    #[cfg(target_arch = "wasm32")]
+    use std::arch::wasm32::u8x16_bitmask;
+    #[cfg(target_arch = "x86_64")]
     use std::arch::x86_64::_mm256_movemask_epi8;
+    const LANE_COUNT: usize = if cfg!(target_arch = "wasm32") { 16 } else { 32 };
 
-    let simd_one = Simd::<u8, 32>::splat(1);
-    let mut high_bits;
-    let mut s: Simd<u8, 32>;
+    let simd_one = Simd::<u8, LANE_COUNT>::splat(1);
+    let mut s: Simd<u8, LANE_COUNT>;
     for row in matrix.chunks_mut(columns) {
         let mut shifted_row = Vec::with_capacity(columns);
         for _ in 0..8 {
-            for chunk in row.as_chunks_unchecked_mut::<32>().iter_mut() {
+            for chunk in row.as_chunks_unchecked_mut::<LANE_COUNT>().iter_mut() {
                 s = Simd::from_array(*chunk);
-                high_bits = _mm256_movemask_epi8(s.reverse().into());
+                #[cfg(target_arch = "x86_64")]
+                let high_bits = _mm256_movemask_epi8(s.reverse().into());
+                #[cfg(target_arch = "wasm32")]
+                let high_bits = u8x16_bitmask(s.reverse().into());
                 shifted_row.extend_from_slice(&high_bits.to_be_bytes());
                 s.shl_assign(simd_one);
                 *chunk = s.to_array();
@@ -159,6 +139,19 @@ mod tests {
     }
 
     #[test]
+    fn test_transpose_bits() {
+        let rounds = 8_u32;
+        let rows = 2_usize.pow(rounds);
+        let columns = rows;
+
+        let mut matrix: Vec<u8> = random_vec::<u8>(columns * rows);
+        let original = matrix.clone();
+        transpose_bits(&mut matrix, rows).unwrap();
+        transpose_bits(&mut matrix, rows).unwrap();
+        assert_eq!(original, matrix);
+    }
+
+    #[test]
     fn test_transpose_unchecked() {
         let rounds = 8_u32;
         let mut rows = 2_usize.pow(rounds);
@@ -179,14 +172,14 @@ mod tests {
     }
 
     #[test]
-    fn test_transpose_bits_unchecked() {
-        let columns = 2_usize.pow(8);
+    fn test_bitmask_shift_unchecked() {
+        let columns = 128;
         let rows = 64;
 
         let mut matrix: Vec<u8> = random_vec::<u8>(columns * rows);
         let mut original = matrix.clone();
         unsafe {
-            transpose_bits_unchecked(&mut matrix, columns);
+            bitmask_shift_unchecked(&mut matrix, columns);
         }
 
         for (row_index, row) in original.chunks_mut(columns).enumerate() {
@@ -206,9 +199,16 @@ mod tests {
 
     #[bench]
     fn bench_transpose_unchecked(b: &mut Bencher) {
-        let rounds = 12_usize;
-        let mut m: Vec<u8> =
-            random_vec::<u8>(2_usize.pow(rounds as u32) * 2_usize.pow(rounds as u32));
+        let rounds = 10_usize;
+        let rows = 2_usize.pow(rounds as u32);
+        let mut m: Vec<u8> = random_vec::<u8>(rows * rows);
         b.iter(|| unsafe { black_box(transpose_unchecked::<32, u8>(&mut m, rounds)) })
+    }
+
+    #[bench]
+    fn bench_bitmask_shift_unchecked(b: &mut Bencher) {
+        let columns = 1024_usize;
+        let mut m: Vec<u8> = random_vec::<u8>(columns * columns);
+        b.iter(|| unsafe { black_box(bitmask_shift_unchecked(&mut m, columns)) })
     }
 }
