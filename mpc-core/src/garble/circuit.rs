@@ -8,6 +8,9 @@ use crate::{
 };
 use mpc_circuits::{Circuit, Input, Output};
 
+/// We call the wire labels "binary" to emphasize that acc.to Free-XOR,
+/// W₀ XOR Δ, = W₁. Later in the zk label decoding protocol we will convert
+/// Δ into an "arithmetic" one, so that W₀ + Δ, = W₁.
 pub type BinaryLabel = WireLabel<Block>;
 
 /// Wire label of a garbled circuit
@@ -286,7 +289,11 @@ pub fn prepare_inputs(circ: &Circuit, inputs: &[BinaryLabel]) -> Result<Vec<Bina
     Ok(inputs)
 }
 
-/// Decodes output wire labels into plaintext
+/// Decodes output wire labels into plaintext.
+///
+/// Using the point-and-permute (p&p) technique, the two adjacent labels
+/// will have the opposite p&p bits. By convention, a label with p&p bit 1
+/// is encoded to 1, the other one is encoded to 0.
 pub fn decode(labels: &[BinaryLabel], decoding: &[bool]) -> Vec<bool> {
     assert!(
         labels.len() == decoding.len(),
