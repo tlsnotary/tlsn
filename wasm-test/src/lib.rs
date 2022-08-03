@@ -98,7 +98,7 @@ unsafe fn bitmask_shift_unchecked(matrix: &mut [u8], columns: usize) {
     for row in matrix.chunks_mut(columns) {
         let mut shifted_row = Vec::with_capacity(columns);
         for _ in 0..8 {
-            for chunk in row.as_chunks_unchecked_mut::<LANE_COUNT>().iter_mut() {
+            for chunk in row.as_chunks_unchecked_mut::<LANE_COUNT>() {
                 s = Simd::from_array(*chunk);
                 #[cfg(target_arch = "x86_64")]
                 let high_bits = _mm256_movemask_epi8(s.reverse().into());
@@ -140,20 +140,20 @@ mod tests {
 
     #[test]
     fn test_transpose_bits() {
-        let rounds = 8_u32;
-        let rows = 2_usize.pow(rounds);
-        let columns = rows;
+        let mut rows = 128;
+        let columns = 64;
 
         let mut matrix: Vec<u8> = random_vec::<u8>(columns * rows);
         let original = matrix.clone();
         transpose_bits(&mut matrix, rows).unwrap();
-        transpose_bits(&mut matrix, rows).unwrap();
+        rows = columns;
+        transpose_bits(&mut matrix, 8 * rows).unwrap();
         assert_eq!(original, matrix);
     }
 
     #[test]
     fn test_transpose_unchecked() {
-        let rounds = 8_u32;
+        let rounds = 7_u32;
         let mut rows = 2_usize.pow(rounds);
         let mut columns = 64;
 
