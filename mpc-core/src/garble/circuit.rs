@@ -135,7 +135,7 @@ pub struct GarbledCircuit {
 pub struct EvaluatedGarbledCircuit {
     pub circ: Arc<Circuit>,
     pub output_labels: Vec<BinaryLabel>,
-    pub output: Vec<OutputValue>,
+    pub output: Vec<bool>,
 }
 
 impl GarbledCircuit {

@@ -40,7 +40,6 @@ mod sealed {
     impl Sealed for super::Commit {}
     impl Sealed for super::Reveal {}
     impl Sealed for super::Check {}
-    impl Sealed for super::Complete {}
 }
 
 pub trait State: sealed::Sealed {}
@@ -76,18 +75,11 @@ pub struct Check {
     commit: Option<OutputCommit>,
 }
 
-pub struct Complete {
-    circ: Arc<Circuit>,
-    output_labels: Vec<BinaryLabel>,
-    output: Vec<bool>,
-}
-
 impl State for Generator {}
 impl State for Evaluator {}
 impl State for Commit {}
 impl State for Reveal {}
 impl State for Check {}
-impl State for Complete {}
 
 pub struct DualExLeader<S = Generator>
 where
@@ -307,15 +299,13 @@ impl DualExLeader<Check> {
 
 impl DualExLeader<Reveal> {
     /// Open output commitment to [`DualExFollower`]
-    pub fn reveal(self) -> (OutputCheck, DualExLeader<Complete>) {
+    pub fn reveal(self) -> (OutputCheck, EvaluatedGarbledCircuit) {
         (
             self.state.check,
-            DualExLeader {
-                state: Complete {
-                    circ: self.state.circ,
-                    output_labels: self.state.output_labels,
-                    output: self.state.output,
-                },
+            EvaluatedGarbledCircuit {
+                circ: self.state.circ,
+                output_labels: self.state.output_labels,
+                output: self.state.output,
             },
         )
     }
@@ -323,7 +313,7 @@ impl DualExLeader<Reveal> {
 
 impl DualExFollower<Check> {
     /// Check [`DualExLeader`] output matches expected
-    pub fn check(self, check: OutputCheck) -> Result<DualExFollower<Complete>, Error> {
+    pub fn check(self, check: OutputCheck) -> Result<EvaluatedGarbledCircuit, Error> {
         // If this fails then the peer was cheating and your private inputs were potentially leaked
         // and you should call the police immediately
         if check != self.state.check {
@@ -339,12 +329,10 @@ impl DualExFollower<Check> {
             ));
         }
 
-        Ok(DualExFollower {
-            state: Complete {
-                circ: self.state.circ,
-                output_labels: self.state.output_labels,
-                output: self.state.output,
-            },
+        Ok(EvaluatedGarbledCircuit {
+            circ: self.state.circ,
+            output_labels: self.state.output_labels,
+            output: self.state.output,
         })
     }
 }
@@ -358,49 +346,108 @@ mod tests {
     use rand::thread_rng;
     use std::sync::Arc;
 
-    #[test]
-    fn test_success() {
+    fn evaluated_pair() -> (DualExLeader<Commit>, DualExFollower<Reveal>) {
         let mut rng = thread_rng();
         let circ = Arc::new(Circuit::load_bytes(ADDER_64).unwrap());
 
-        let alice = DualExLeader::new(circ.clone());
-        let bob = DualExFollower::new(circ.clone());
+        let leader = DualExLeader::new(circ.clone());
+        let follower = DualExFollower::new(circ.clone());
 
         // Alice and Bob have u64 inputs of 1
         let value = [vec![false; 63], vec![true; 1]].concat();
-        let alice_inputs = [InputValue::new(circ.input(0).clone(), &value)];
-        let bob_inputs = [InputValue::new(circ.input(1).clone(), &value)];
+        let leader_inputs = [InputValue::new(circ.input(0).clone(), &value)];
+        let follower_inputs = [InputValue::new(circ.input(1).clone(), &value)];
 
-        let (alice_labels, alice_delta) = generate_labels(&mut rng, None, 128, 0);
-        let (bob_labels, bob_delta) = generate_labels(&mut rng, None, 128, 0);
+        let (leader_labels, leader_delta) = generate_labels(&mut rng, None, 128, 0);
+        let (follower_labels, follower_delta) = generate_labels(&mut rng, None, 128, 0);
 
-        let (alice_gc, alice) = alice
-            .garble(&alice_inputs, &alice_labels, &alice_delta)
+        let (leader_gc, leader) = leader
+            .garble(&leader_inputs, &leader_labels, &leader_delta)
             .unwrap();
 
-        let (bob_gc, bob) = bob.garble(&bob_inputs, &bob_labels, &bob_delta).unwrap();
+        let (follower_gc, follower) = follower
+            .garble(&follower_inputs, &follower_labels, &follower_delta)
+            .unwrap();
 
-        let (alice_commit, alice) = alice
+        let leader = leader
             .evaluate(
-                &bob_gc,
+                &follower_gc,
                 &choose_labels(
-                    &bob_labels,
-                    alice_inputs[0].wires(),
-                    alice_inputs[0].value(),
+                    &follower_labels,
+                    leader_inputs[0].wires(),
+                    leader_inputs[0].value(),
                 ),
             )
-            .unwrap()
-            .commit();
+            .unwrap();
 
-        let (bob_reveal, bob) = bob
+        let follower = follower
             .evaluate(
-                &alice_gc,
-                &choose_labels(&alice_labels, bob_inputs[0].wires(), bob_inputs[0].value()),
+                &leader_gc,
+                &choose_labels(
+                    &leader_labels,
+                    follower_inputs[0].wires(),
+                    follower_inputs[0].value(),
+                ),
             )
-            .unwrap()
-            .reveal(alice_commit);
+            .unwrap();
 
-        let (alice_reveal, _) = alice.check(bob_reveal).unwrap().reveal();
-        let _ = bob.check(alice_reveal).unwrap();
+        (leader, follower)
+    }
+
+    #[test]
+    fn test_success() {
+        let (leader, follower) = evaluated_pair();
+
+        let (leader_commit, leader) = leader.commit();
+        let (follower_reveal, follower) = follower.reveal(leader_commit);
+
+        let (leader_reveal, leader_gc) = leader.check(follower_reveal).unwrap().reveal();
+        let follower_gc = follower.check(leader_reveal).unwrap();
+
+        assert_eq!(leader_gc.output, follower_gc.output);
+    }
+
+    #[test]
+    fn test_leader_fail_reveal() {
+        let (leader, follower) = evaluated_pair();
+
+        let (leader_commit, _) = leader.commit();
+        let (_, follower) = follower.reveal(leader_commit);
+
+        let malicious_leader_reveal = OutputCheck::new(&[]);
+
+        let follower_result = follower.check(malicious_leader_reveal);
+
+        assert!(matches!(follower_result, Err(Error::PeerError(_))));
+    }
+
+    #[test]
+    fn test_leader_fail_commit() {
+        let (leader, follower) = evaluated_pair();
+
+        let (_, leader) = leader.commit();
+
+        let malicious_leader_commit = OutputCommit::new(&OutputCheck::new(&[]));
+
+        let (follower_reveal, follower) = follower.reveal(malicious_leader_commit);
+
+        let (leader_reveal, _) = leader.check(follower_reveal).unwrap().reveal();
+
+        let follower_result = follower.check(leader_reveal);
+
+        assert!(matches!(follower_result, Err(Error::PeerError(_))));
+    }
+
+    #[test]
+    fn test_follower_fail_reveal() {
+        let (leader, _) = evaluated_pair();
+
+        let (_, leader) = leader.commit();
+
+        let malicious_follower_reveal = OutputCheck::new(&[]);
+
+        let leader_result = leader.check(malicious_follower_reveal);
+
+        assert!(matches!(leader_result, Err(Error::PeerError(_))));
     }
 }
