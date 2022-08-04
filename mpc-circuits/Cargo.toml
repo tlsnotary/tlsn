@@ -26,6 +26,6 @@ prost-build = { version = "0.9" }
 name = "mpc_circuits"
 path = "src/lib.rs"
 
-# [[bin]]
-# name = "compile"
-# path = "src/bin/compile.rs"
+[[bin]]
+name = "compile"
+path = "src/bin/compile.rs"
