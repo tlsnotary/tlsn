@@ -17,7 +17,7 @@ pub fn transpose_bits(matrix: &mut [u8], rows: usize) -> Result<(), TransposeErr
     const LANE_COUNT: usize = if cfg!(target_arch = "wasm32") { 16 } else { 32 };
     // Check that number of rows is a power of 2
     // and a multiple of LANE_COUNT
-    if rows & (rows - 1) != 0 && rows >= LANE_COUNT {
+    if rows & (rows - 1) != 0 || rows < LANE_COUNT {
         return Err(TransposeError::InvalidNumberOfRows);
     }
 
@@ -28,7 +28,7 @@ pub fn transpose_bits(matrix: &mut [u8], rows: usize) -> Result<(), TransposeErr
 
     // Check that row length is a multiple of LANE_COUNT
     let columns = matrix.len() / rows;
-    if columns & (LANE_COUNT - 1) != 0 && columns >= LANE_COUNT {
+    if columns & (LANE_COUNT - 1) != 0 || columns < LANE_COUNT {
         return Err(TransposeError::InvalidNumberOfColumns);
     }
 
@@ -114,7 +114,7 @@ unsafe fn bitmask_shift_unchecked(matrix: &mut [u8], columns: usize) {
     }
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq)]
 pub enum TransposeError {
     #[error("Number of rows is not a power of 2")]
     InvalidNumberOfRows,

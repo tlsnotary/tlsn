@@ -16,6 +16,9 @@ pub enum ExtSenderCoreError {
     ConsistencyCheckFailed,
     #[error("An internal error happened")]
     InternalError,
+    #[cfg(feature = "simd-transpose")]
+    #[error("An error occured during matrix transposition")]
+    TransposeError(#[source] matrix_transpose::TransposeError),
 }
 
 /// Errors that may occur when using ExtReceiverCore
@@ -35,4 +38,7 @@ pub enum ExtReceiverCoreError {
     InvalidPayloadSize,
     #[error("An internal error happened")]
     InternalError,
+    #[cfg(feature = "simd-transpose")]
+    #[error("An error occured during matrix transposition")]
+    TransposeError(#[source] matrix_transpose::TransposeError),
 }

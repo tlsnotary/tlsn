@@ -1,4 +1,6 @@
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
+#[cfg(feature = "simd-transpose")]
+use matrix_transpose::{transpose_bits, TransposeError};
 use sha2::{Digest, Sha256};
 
 #[inline]
@@ -48,14 +50,12 @@ pub fn transpose(m: &[Vec<u8>]) -> Vec<Vec<u8>> {
 }
 
 #[cfg(feature = "simd-transpose")]
-pub fn transpose_simd(m: Vec<Vec<u8>>) -> Vec<Vec<u8>> {
-    // The following code is not yet compatible with the KOS implementation
-    use matrix_transpose::transpose_bits;
+pub fn transpose_simd(m: Vec<Vec<u8>>) -> Result<Vec<Vec<u8>>, TransposeError> {
     let rows = m.len();
     let mut m = m.into_iter().flatten().collect::<Vec<u8>>();
 
-    let _ = transpose_bits(&mut m, rows);
-    m.chunks(rows / 8).map(|s| s.to_vec()).collect()
+    let _ = transpose_bits(&mut m, rows)?;
+    Ok(m.chunks(rows / 8).map(|s| s.to_vec()).collect())
 }
 
 #[inline]

@@ -255,7 +255,8 @@ where
         let mut ts = utils::transpose(&ts);
 
         #[cfg(feature = "simd-transpose")]
-        let mut ts = utils::transpose_simd(ts);
+        let mut ts =
+            utils::transpose_simd(ts).map_err(|err| ExtReceiverCoreError::TransposeError(err))?;
 
         // Check correlation
         // The check is explaned in the KOS15 paper in a paragraph on page 8
