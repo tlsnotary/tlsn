@@ -2,8 +2,10 @@
 
 pub use crate::ot::{self, dh_ot, kos15};
 use crate::utils::parse_ristretto_key;
-use std::convert::{TryFrom, TryInto};
-use std::io::{Error, ErrorKind};
+use std::{
+    convert::{TryFrom, TryInto},
+    io::{Error, ErrorKind},
+};
 
 include!(concat!(env!("OUT_DIR"), "/core.ot.rs"));
 
@@ -118,7 +120,7 @@ impl From<dh_ot::SenderPayload> for BaseSenderPayload {
             ciphertexts: p
                 .ciphertexts
                 .into_iter()
-                .map(|b| super::LabelPair {
+                .map(|b| super::BlockPair {
                     low: super::Block::from(b[0]),
                     high: super::Block::from(b[1]),
                 })
@@ -216,7 +218,7 @@ impl From<kos15::ExtSenderPayload> for ExtSenderPayload {
             ciphertexts: p
                 .ciphertexts
                 .into_iter()
-                .map(|b| super::LabelPair {
+                .map(|b| super::BlockPair {
                     low: super::Block::from(b[0]),
                     high: super::Block::from(b[1]),
                 })
@@ -316,8 +318,10 @@ impl TryFrom<BaseSenderPayloadWrapper> for kos15::BaseSenderPayloadWrapper {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::ot::base::tests::fixtures::{ot_core_data, Data};
-    use crate::ot::extension::tests::fixtures::{ot_ext_core_data, Data as ExtData};
+    use crate::ot::{
+        base::tests::fixtures::{ot_core_data, Data},
+        extension::tests::fixtures::{ot_ext_core_data, Data as ExtData},
+    };
 
     use fixtures::*;
     use rstest::*;

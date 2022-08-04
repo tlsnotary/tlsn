@@ -139,7 +139,7 @@ pub struct EvaluatedGarbledCircuit {
 }
 
 impl GarbledCircuit {
-    fn from_msg(circ: Arc<Circuit>, msg: msgs::GarbledCircuit) -> Result<Self, Error> {
+    pub fn from_msg(circ: Arc<Circuit>, msg: msgs::GarbledCircuit) -> Result<Self, Error> {
         if msg.id != *circ.id() {
             return Err(Error::PeerError(format!(
                 "Received garbled circuit with wrong id: expected {}, received {}",

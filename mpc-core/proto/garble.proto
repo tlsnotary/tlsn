@@ -8,22 +8,20 @@ package core.garble;
 message WireLabel {
     // Wire label id
     required uint32 id = 1;
-    // Wire label type
-    required uint32 typ = 2;
     // Wire label value
-    required core.Block label = 3;
+    required core.Block value = 2;
 }
 
-// Garbled Circuit Data
+// Garbled Circuit
 message GarbledCircuit {
-    // Public wire labels corresponding to low and high bits
-    required core.LabelPair public_labels = 1;
+    // Circuit unique id
+    required string id = 1;
     // Generator's wire labels corresponding to their input bits
-    repeated WireLabel generator_input_labels = 2;
+    repeated WireLabel input_labels = 2;
     // Truth table for garbled AND gates
-    repeated core.LabelPair table = 3;
+    repeated core.Block encrypted_gates = 3;
     // LSB of each outputs low wire label
-    repeated bool output_bits = 4;
+    repeated bool decoding = 4;
 }
 
 message GarbleMessage {
