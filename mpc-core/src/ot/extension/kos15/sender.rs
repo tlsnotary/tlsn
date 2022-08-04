@@ -250,7 +250,11 @@ where
                 qs[j] = qs[j].iter().zip(&us[j]).map(|(q, u)| *q ^ *u).collect();
             }
         }
+        #[cfg(not(feature = "simd-transpose"))]
         let mut qs = utils::transpose(&qs);
+
+        #[cfg(feature = "simd-transpose")]
+        let mut qs = utils::transpose_simd(qs);
 
         // Check correlation
         // The check is explaned in the KOS15 paper in a paragraph on page 8

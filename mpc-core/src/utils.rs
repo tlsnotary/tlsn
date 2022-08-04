@@ -47,6 +47,17 @@ pub fn transpose(m: &[Vec<u8>]) -> Vec<Vec<u8>> {
     m_
 }
 
+#[cfg(feature = "simd-transpose")]
+pub fn transpose_simd(m: Vec<Vec<u8>>) -> Vec<Vec<u8>> {
+    // The following code is not yet compatible with the KOS implementation
+    use matrix_transpose::transpose_bits;
+    let rows = m.len();
+    let mut m = m.into_iter().flatten().collect::<Vec<u8>>();
+
+    let _ = transpose_bits(&mut m, rows);
+    m.chunks(rows).map(|s| s.to_vec()).collect()
+}
+
 #[inline]
 pub fn parse_ristretto_key(b: Vec<u8>) -> Result<RistrettoPoint, std::io::Error> {
     if b.len() != 32 {
