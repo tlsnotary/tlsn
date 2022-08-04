@@ -55,7 +55,7 @@ pub fn transpose_simd(m: Vec<Vec<u8>>) -> Vec<Vec<u8>> {
     let mut m = m.into_iter().flatten().collect::<Vec<u8>>();
 
     let _ = transpose_bits(&mut m, rows);
-    m.chunks(rows).map(|s| s.to_vec()).collect()
+    m.chunks(rows / 8).map(|s| s.to_vec()).collect()
 }
 
 #[inline]
