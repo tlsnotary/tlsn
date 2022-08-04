@@ -279,9 +279,8 @@ pub fn prepare_inputs(circ: &Circuit, inputs: &[BinaryLabel]) -> Result<Vec<Bina
 
 /// Decodes output wire labels into plaintext.
 ///
-/// Using the point-and-permute (p&p) technique, the two adjacent labels
-/// will have the opposite p&p bits. By convention, a label with p&p bit 1
-/// is encoded to 1, the other one is encoded to 0.
+/// Thanks to the point-and-permute (p&p) technique, the two adjacent labels
+/// will have the opposite p&p bits. We apply the decoding to the p&p bits.
 pub fn decode(labels: &[BinaryLabel], decoding: &[bool]) -> Vec<bool> {
     assert!(
         labels.len() == decoding.len(),
@@ -290,6 +289,6 @@ pub fn decode(labels: &[BinaryLabel], decoding: &[bool]) -> Vec<bool> {
     labels
         .iter()
         .zip(decoding)
-        .map(|(label, decode)| (label.as_ref().lsb() != 0) ^ decode)
+        .map(|(label, decode)| (label.as_ref().lsb() == 1) ^ decode)
         .collect()
 }
