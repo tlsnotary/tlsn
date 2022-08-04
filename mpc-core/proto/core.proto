@@ -10,9 +10,9 @@ message Block {
 }
 
 message BlockPair {
-    // Block corresponding to low bit
+    // Block corresponding to logical low
     required Block low = 1;
-    // Block corresponding to high bit
+    // Block corresponding to logical high
     required Block high = 2;
 }
 

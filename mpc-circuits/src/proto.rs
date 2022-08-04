@@ -102,7 +102,7 @@ impl From<crate::Circuit> for Circuit {
     fn from(c: crate::Circuit) -> Self {
         let gates = c.gates().iter().map(|g| Gate::from(*g)).collect();
         Self {
-            id: c.id.to_string(),
+            id: c.id.as_ref().to_string(),
             name: c.name,
             version: c.version,
             wire_count: c.wire_count as u32,

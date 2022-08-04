@@ -135,9 +135,9 @@ impl CircuitId {
     }
 }
 
-impl ToString for CircuitId {
-    fn to_string(&self) -> String {
-        self.0.clone()
+impl AsRef<String> for CircuitId {
+    fn as_ref(&self) -> &String {
+        &self.0
     }
 }
 
@@ -168,6 +168,16 @@ pub struct Circuit {
     pub(crate) outputs: Vec<Output>,
     /// Circuit logic gates
     pub(crate) gates: Vec<Gate>,
+}
+
+impl std::fmt::Debug for Circuit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Circuit")
+            .field("id", &self.id)
+            .field("name", &self.name)
+            .field("version", &self.version)
+            .finish()
+    }
 }
 
 impl Circuit {

@@ -18,7 +18,7 @@ pub type BinaryLabel = WireLabel<Block>;
 pub struct WireLabel<T: Copy> {
     /// Wire id
     pub id: usize,
-    /// Wire label value
+    /// Wire label which corresponds to the logical level of a circuit wire
     value: T,
 }
 
@@ -143,8 +143,8 @@ impl GarbledCircuit {
         if msg.id != *circ.id() {
             return Err(Error::PeerError(format!(
                 "Received garbled circuit with wrong id: expected {}, received {}",
-                circ.id().to_string(),
-                msg.id.to_string()
+                circ.id().as_ref().to_string(),
+                msg.id.as_ref().to_string()
             )));
         }
 
@@ -248,7 +248,7 @@ pub fn generate_labels<R: Rng + CryptoRng>(
 
 /// Returns wire labels corresponding to wire truth values
 ///
-/// Panics if wire id not in label collection
+/// Panics if wire is not in label collection
 pub fn choose_labels<T: Copy>(labels: &[[T; 2]], wires: &[usize], values: &[bool]) -> Vec<T> {
     wires
         .iter()

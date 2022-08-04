@@ -20,7 +20,7 @@ message GarbledCircuit {
     repeated WireLabel input_labels = 2;
     // Truth table for garbled AND gates
     repeated core.Block encrypted_gates = 3;
-    // LSB of each outputs low wire label
+    // Output decoding bits
     repeated bool decoding = 4;
 }
 
