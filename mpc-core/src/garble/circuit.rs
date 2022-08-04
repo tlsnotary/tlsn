@@ -109,8 +109,10 @@ impl EncryptedGate {
     pub(crate) fn new(inner: [Block; 2]) -> Self {
         Self(inner)
     }
+}
 
-    pub(crate) fn inner(&self) -> &[Block; 2] {
+impl AsRef<[Block; 2]> for EncryptedGate {
+    fn as_ref(&self) -> &[Block; 2] {
         &self.0
     }
 }
