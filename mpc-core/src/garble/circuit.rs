@@ -225,6 +225,7 @@ pub fn generate_labels<R: Rng + CryptoRng>(
             delta
         }
     };
+    // Logical low wire labels, [W_0; count]
     let low = Block::random_vec(rng, count);
     (
         low.into_iter()
