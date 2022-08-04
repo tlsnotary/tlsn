@@ -9,8 +9,7 @@ use crate::{
 use mpc_circuits::{Circuit, Input, Output};
 
 /// We call the wire labels "binary" to emphasize that acc.to Free-XOR,
-/// W₀ XOR Δ, = W₁. Later in the zk label decoding protocol we will convert
-/// Δ into an "arithmetic" one, so that W₀ + Δ, = W₁.
+/// W₀ XOR Δ, = W₁
 pub type BinaryLabel = WireLabel<Block>;
 
 /// Wire label of a garbled circuit
