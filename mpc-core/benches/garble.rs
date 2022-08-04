@@ -4,10 +4,7 @@ use aes::{
 };
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use mpc_circuits::{Circuit, AES_128_REVERSE};
-use mpc_core::{
-    block::Block,
-    garble::{circuit::generate_labels, evaluator as ev, generator as gen},
-};
+use mpc_core::garble::{circuit::generate_labels, generator as gen};
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 use std::sync::Arc;
