@@ -6,8 +6,7 @@ pub mod generator;
 
 use crate::msgs::garble as msgs;
 pub use circuit::{
-    decode, generate_labels, generate_public_labels, BinaryLabel, EncryptedGate,
-    FullGarbledCircuit, GarbledCircuit,
+    decode, generate_labels, BinaryLabel, EncryptedGate, FullGarbledCircuit, GarbledCircuit,
 };
 pub use error::{Error, InputError};
 pub use evaluator::evaluate_garbled_circuit;
@@ -85,37 +84,15 @@ mod tests {
     }
 
     #[test]
-    fn test_inv_gate() {
-        let mut rng = ChaCha12Rng::from_entropy();
-
-        let mut delta = Block::random(&mut rng);
-        delta.set_lsb();
-        let public_labels = [Block::random(&mut rng), Block::random(&mut rng) ^ delta];
-        let x_0 = Block::random(&mut rng);
-        let x = [x_0, x_0 ^ delta];
-
-        let z = gen::inv_gate(&x, &public_labels, &delta);
-        assert_eq!(ev::inv_gate(&x[0], &public_labels[1]), z[1]);
-        assert_eq!(ev::inv_gate(&x[1], &public_labels[1]), z[0]);
-    }
-
-    #[test]
     fn test_aes_128() {
         let mut rng = ChaCha12Rng::from_entropy();
         let cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
         let circ = Arc::new(Circuit::load_bytes(AES_128_REVERSE).unwrap());
 
         let (input_labels, delta) = generate_labels(&mut rng, None, 256, 0);
-        let public_labels = generate_public_labels(&mut rng, &delta);
 
-        let gc = gen::generate_garbled_circuit(
-            &cipher,
-            circ.clone(),
-            &delta,
-            &input_labels,
-            &public_labels,
-        )
-        .unwrap();
+        let gc =
+            gen::generate_garbled_circuit(&cipher, circ.clone(), &delta, &input_labels).unwrap();
         let gc = gc.to_evaluator(&[], true);
 
         let choice = [true; 256];

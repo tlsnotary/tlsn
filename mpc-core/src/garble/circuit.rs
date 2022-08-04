@@ -121,7 +121,6 @@ impl EncryptedGate {
 pub struct FullGarbledCircuit {
     pub circ: Arc<Circuit>,
     pub wire_labels: Vec<[BinaryLabel; 2]>,
-    pub public_labels: [BinaryLabel; 2],
     pub encrypted_gates: Vec<EncryptedGate>,
     pub delta: Block,
 }
@@ -129,7 +128,6 @@ pub struct FullGarbledCircuit {
 pub struct GarbledCircuit {
     pub circ: Arc<Circuit>,
     pub input_labels: Vec<BinaryLabel>,
-    pub public_labels: [BinaryLabel; 2],
     pub encrypted_gates: Vec<EncryptedGate>,
     pub decoding: Option<Vec<bool>>,
 }
@@ -153,7 +151,6 @@ impl GarbledCircuit {
         Ok(GarbledCircuit {
             circ,
             input_labels: msg.input_labels,
-            public_labels: msg.public_labels,
             encrypted_gates: msg.encrypted_gates,
             decoding: msg.decoding,
         })
@@ -186,7 +183,6 @@ impl FullGarbledCircuit {
         GarbledCircuit {
             circ: self.circ.clone(),
             input_labels: input_labels,
-            public_labels: self.public_labels,
             encrypted_gates: self.encrypted_gates.clone(),
             decoding: decoding.then(|| self.decoding()),
         }
@@ -248,20 +244,6 @@ pub fn generate_labels<R: Rng + CryptoRng>(
             .collect(),
         delta,
     )
-}
-
-/// Generates wire labels corresponding to public truth values [0, 1]
-pub fn generate_public_labels<R: Rng + CryptoRng>(rng: &mut R, delta: &Block) -> [BinaryLabel; 2] {
-    [
-        BinaryLabel {
-            id: usize::MAX - 1,
-            value: Block::random(rng),
-        },
-        BinaryLabel {
-            id: usize::MAX,
-            value: Block::random(rng) ^ *delta,
-        },
-    ]
 }
 
 /// Returns wire labels corresponding to wire truth values

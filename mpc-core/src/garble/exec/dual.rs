@@ -125,18 +125,11 @@ impl DualExLeader<Generator> {
         self,
         inputs: &[InputValue],
         input_labels: &[[BinaryLabel; 2]],
-        public_labels: &[BinaryLabel; 2],
         delta: &Block,
     ) -> Result<(GarbledCircuit, DualExLeader<Evaluator>), Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
 
-        let gc = generate_garbled_circuit(
-            &cipher,
-            self.state.circ.clone(),
-            delta,
-            input_labels,
-            public_labels,
-        )?;
+        let gc = generate_garbled_circuit(&cipher, self.state.circ.clone(), delta, input_labels)?;
 
         Ok((
             gc.to_evaluator(inputs, true),
@@ -156,18 +149,11 @@ impl DualExFollower<Generator> {
         self,
         inputs: &[InputValue],
         input_labels: &[[BinaryLabel; 2]],
-        public_labels: &[BinaryLabel; 2],
         delta: &Block,
     ) -> Result<(GarbledCircuit, DualExFollower<Evaluator>), Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
 
-        let gc = generate_garbled_circuit(
-            &cipher,
-            self.state.circ.clone(),
-            delta,
-            input_labels,
-            public_labels,
-        )?;
+        let gc = generate_garbled_circuit(&cipher, self.state.circ.clone(), delta, input_labels)?;
 
         Ok((
             gc.to_evaluator(inputs, true),
@@ -365,7 +351,7 @@ impl DualExFollower<Check> {
 
 #[cfg(test)]
 mod tests {
-    use crate::garble::{circuit::choose_labels, generate_labels, generate_public_labels};
+    use crate::garble::{circuit::choose_labels, generate_labels};
 
     use super::*;
     use mpc_circuits::ADDER_64;
@@ -386,23 +372,13 @@ mod tests {
         let bob_inputs = [InputValue::new(circ.input(1).clone(), &value)];
 
         let (alice_labels, alice_delta) = generate_labels(&mut rng, None, 128, 0);
-        let alice_pub_labels = generate_public_labels(&mut rng, &alice_delta);
-
         let (bob_labels, bob_delta) = generate_labels(&mut rng, None, 128, 0);
-        let bob_pub_labels = generate_public_labels(&mut rng, &bob_delta);
 
         let (alice_gc, alice) = alice
-            .garble(
-                &alice_inputs,
-                &alice_labels,
-                &alice_pub_labels,
-                &alice_delta,
-            )
+            .garble(&alice_inputs, &alice_labels, &alice_delta)
             .unwrap();
 
-        let (bob_gc, bob) = bob
-            .garble(&bob_inputs, &bob_labels, &bob_pub_labels, &bob_delta)
-            .unwrap();
+        let (bob_gc, bob) = bob.garble(&bob_inputs, &bob_labels, &bob_delta).unwrap();
 
         let (alice_commit, alice) = alice
             .evaluate(

@@ -41,21 +41,13 @@ pub(crate) fn xor_gate(x: &Block, y: &Block) -> Block {
     *x ^ *y
 }
 
-/// Evaluates INV gate
-#[inline]
-pub(crate) fn inv_gate(x: &Block, public_label: &Block) -> Block {
-    *x ^ *public_label
-}
-
 pub fn evaluate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     cipher: &C,
     circ: &Circuit,
     input_labels: &[BinaryLabel],
-    public_labels: &[BinaryLabel; 2],
     encrypted_gates: &[EncryptedGate],
 ) -> Result<Vec<BinaryLabel>, Error> {
     let mut labels: Vec<Option<Block>> = vec![None; circ.len()];
-    let public_labels = [*public_labels[0].as_ref(), *public_labels[1].as_ref()];
 
     // Insert input labels
     for (labels, label) in labels.iter_mut().zip(input_labels) {
@@ -68,8 +60,7 @@ pub fn evaluate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
         match *gate {
             Gate::Inv { xref, zref, .. } => {
                 let x = labels[xref].ok_or(Error::UninitializedLabel(xref))?;
-                let z = inv_gate(&x, &public_labels[1]);
-                labels[zref] = Some(z);
+                labels[zref] = Some(x);
             }
             Gate::Xor {
                 xref, yref, zref, ..
@@ -112,7 +103,6 @@ pub fn evaluate_garbled_circuit<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
         cipher,
         &gc.circ,
         &input_labels,
-        &gc.public_labels,
         &gc.encrypted_gates,
     )?)
 }
