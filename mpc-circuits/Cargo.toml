@@ -12,7 +12,6 @@ adder64 = []
 
 [dependencies]
 thiserror = "1.0"
-anyhow = "1.0"
 regex = "1.5.4"
 prost = "0.9"
 rayon = "1.5"

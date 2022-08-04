@@ -3,8 +3,8 @@ pub enum Error {
     #[error("uninitialized wire, id: {0}")]
     UninitializedWire(usize),
     /// An I/O error occurred.
-    #[error("encountered error while parsing circuit")]
-    ParsingError(#[from] anyhow::Error),
+    #[error("encountered error while parsing circuit: {0}")]
+    ParsingError(String),
     /// An error occurred due to invalid garbler/evaluator inputs.
     #[error("invalid circuit inputs")]
     InputError,
