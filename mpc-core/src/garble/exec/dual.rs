@@ -305,7 +305,7 @@ impl DualExLeader<Reveal> {
             EvaluatedGarbledCircuit {
                 circ: self.state.circ,
                 output_labels: self.state.output_labels,
-                output: self.state.output,
+                output: Some(self.state.output),
             },
         )
     }
@@ -332,7 +332,7 @@ impl DualExFollower<Check> {
         Ok(EvaluatedGarbledCircuit {
             circ: self.state.circ,
             output_labels: self.state.output_labels,
-            output: self.state.output,
+            output: Some(self.state.output),
         })
     }
 }
