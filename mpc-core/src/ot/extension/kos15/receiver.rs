@@ -212,17 +212,21 @@ where
             .expect("RNGs were not set even when in State::BaseSend");
 
         // We will pad with extra bits to make the total count a multiple of 8
-        // to make handling easier
+        // to make handling easier. Those extra paddings bits will be random an
+        // will not be used for OT.
         let pad_count = if choice.len() % 8 == 0 {
             0
         } else {
             8 - choice.len() % 8
         };
         // Also add 256 extra bits which will be sacrificed as part of the
-        // KOS15 protocol
+        // KOS15 protocol.
+        // 1 extra byte is also added to contain "extra paddings bits" metioned
+        // above.
         let mut extra_bytes = [0u8; 33];
         self.rng.fill(&mut extra_bytes[..]);
-        // extend choice bits with the exact amount of extra bits that we need
+        // extend choice bits with the exact amount of extra bits that we need.
+        // Some bits of the 1 extra byte will be discarded.
         let mut r_bool = choice.to_vec();
         r_bool.extend(utils::u8vec_to_boolvec(&extra_bytes)[0..pad_count + 256].iter());
         let r = utils::boolvec_to_u8vec(&r_bool);
