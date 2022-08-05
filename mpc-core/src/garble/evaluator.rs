@@ -7,7 +7,7 @@ use crate::{
 use mpc_circuits::{Circuit, Gate};
 
 use super::{
-    circuit::{prepare_inputs, BinaryLabel},
+    circuit::{BinaryLabel, SanitizedInputLabels},
     EncryptedGate, GarbledCircuit,
 };
 
@@ -41,16 +41,17 @@ pub(crate) fn xor_gate(x: &Block, y: &Block) -> Block {
     *x ^ *y
 }
 
+/// Evaluates a garbled circuit using [`SanitizedInputLabels`].
 pub fn evaluate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     cipher: &C,
     circ: &Circuit,
-    input_labels: &[BinaryLabel],
+    input_labels: SanitizedInputLabels<Block>,
     encrypted_gates: &[EncryptedGate],
 ) -> Result<Vec<BinaryLabel>, Error> {
     let mut labels: Vec<Option<Block>> = vec![None; circ.len()];
 
     // Insert input labels
-    for (labels, label) in labels.iter_mut().zip(input_labels) {
+    for (labels, label) in labels.iter_mut().zip(input_labels.inner()) {
         *labels = Some(*label.as_ref())
     }
 
@@ -93,16 +94,18 @@ pub fn evaluate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     Ok(outputs)
 }
 
+/// Evaluates a garbled circuit using provided input labels. These labels are combined with labels sent by the generator
+/// and checked for correctness using the circuit spec.
 pub fn evaluate_garbled_circuit<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     cipher: &C,
     gc: &GarbledCircuit,
     input_labels: &[BinaryLabel],
 ) -> Result<Vec<BinaryLabel>, Error> {
-    let input_labels = prepare_inputs(&gc.circ, &[input_labels, &gc.input_labels].concat())?;
+    let input_labels = SanitizedInputLabels::new(&gc.circ, &gc.input_labels, input_labels)?;
     Ok(evaluate(
         cipher,
         &gc.circ,
-        &input_labels,
+        input_labels,
         &gc.encrypted_gates,
     )?)
 }

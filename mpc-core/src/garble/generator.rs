@@ -51,6 +51,9 @@ pub(crate) fn xor_gate(x: &[Block; 2], y: &[Block; 2], delta: &Block) -> [Block;
     [z_0, z_0 ^ *delta]
 }
 
+/// Garbles a circuit using the provided input labels and delta
+///
+/// This function assumes that the input labels are provided in order according to their wire ids
 pub fn garble<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     cipher: &C,
     circ: &Circuit,
@@ -106,6 +109,8 @@ pub fn garble<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     Ok((wire_labels, encrypted_gates))
 }
 
+/// Generate a garbled circuit with the provided input labels and delta. This function assumes that the input labels
+/// are provided in order according to their wire ids
 pub fn generate_garbled_circuit<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     cipher: &C,
     circ: Arc<Circuit>,

@@ -102,6 +102,45 @@ impl OutputValue {
     }
 }
 
+/// Input labels that have been sanitized are safe to use to evaluate a garbled circuit
+///
+/// It is important to check that the generator has provided the expected input labels,
+/// otherwise they may have an opportunity to behave maliciously to extract the evaluator's
+/// private inputs.
+#[derive(Debug, Clone)]
+pub struct SanitizedInputLabels<T: Copy>(Vec<WireLabel<T>>);
+
+impl<T: Copy> SanitizedInputLabels<T> {
+    pub fn new(
+        circ: &Circuit,
+        gen_labels: &[WireLabel<T>],
+        ev_labels: &[WireLabel<T>],
+    ) -> Result<Self, Error> {
+        if circ.input_len() != gen_labels.len() + ev_labels.len() {
+            return Err(Error::InvalidInput(InputError::InvalidCount(
+                circ.input_len(),
+                gen_labels.len() + ev_labels.len(),
+            )));
+        }
+
+        let mut labels = [gen_labels, ev_labels].concat();
+
+        labels.sort_by_key(|label| label.id);
+        labels.dedup_by_key(|label| label.id);
+
+        if circ.input_len() != labels.len() {
+            return Err(Error::InvalidInput(InputError::Duplicate));
+        }
+
+        Ok(Self(labels))
+    }
+
+    /// Consumes `self` returning the inner input labels
+    pub(crate) fn inner(self) -> Vec<WireLabel<T>> {
+        self.0
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct EncryptedGate([Block; 2]);
 
@@ -257,26 +296,6 @@ pub fn choose_labels<T: Copy>(labels: &[[T; 2]], wires: &[usize], values: &[bool
         .zip(values.iter())
         .map(|(id, value)| labels[*id][*value as usize])
         .collect()
-}
-
-/// Clones an array of input labels, sorts them, and validates according to a circuit description.
-pub fn prepare_inputs(circ: &Circuit, inputs: &[BinaryLabel]) -> Result<Vec<BinaryLabel>, Error> {
-    let mut inputs = Vec::from(inputs);
-    if circ.input_len() != inputs.len() {
-        return Err(Error::InvalidInput(InputError::InvalidCount(
-            circ.input_len(),
-            inputs.len(),
-        )));
-    }
-
-    inputs.sort_by_key(|label| label.id);
-    inputs.dedup_by_key(|label| label.id);
-
-    if circ.input_len() != inputs.len() {
-        return Err(Error::InvalidInput(InputError::Duplicate));
-    }
-
-    Ok(inputs)
 }
 
 /// Decodes output wire labels into plaintext.
