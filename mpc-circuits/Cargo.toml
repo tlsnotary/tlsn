@@ -3,15 +3,29 @@ name = "tlsn-mpc-circuits"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+default = ["full"]
+full = ["aes_128_reverse", "aes_128", "adder64"]
+aes_128_reverse = []
+aes_128 = []
+adder64 = []
 
 [dependencies]
-tlsn-mpc-core = { path = "../mpc-core" }
+thiserror = "1.0"
 regex = "1.5.4"
 prost = "0.9"
 rayon = "1.5"
 clap = { version = "3.1.5", features = ["derive"] }
+sha2 = { version = "0.10" }
+hex = "0.4.3"
+
+[build-dependencies]
+prost-build = { version = "0.9" }
+
+[lib]
+name = "mpc_circuits"
+path = "src/lib.rs"
 
 [[bin]]
 name = "compile"
-path = "src/compile.rs"
+path = "src/bin/compile.rs"

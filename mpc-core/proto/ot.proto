@@ -13,7 +13,7 @@ message BaseSenderSetup {
 // Message sent by OT Sender containing encrypted values
 message BaseSenderPayload {
     // Encrypted values
-    repeated core.LabelPair ciphertexts = 1;
+    repeated core.BlockPair ciphertexts = 1;
 }
 
 // Setup message sent by Base OT Receiver
@@ -38,7 +38,7 @@ message ExtDerandomize {
 
 message ExtSenderPayload {
     // Encrypted values
-    repeated core.LabelPair ciphertexts = 1;
+    repeated core.BlockPair ciphertexts = 1;
 }
 
 // Setup message sent by Base OT Sender in preparation for the OT extension

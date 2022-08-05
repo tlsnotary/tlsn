@@ -1,0 +1,31 @@
+# pad 256 inputs with zeroes on the RIGHT from the input, then XOR with the 
+# padding byte and sha256 the result
+# return sha256 state 
+
+8 1552
+2 256 256
+# inputs:
+#  256: msg to hash
+#  256: sha256 state from which to resume hashing
+1 512
+# outputs:
+#  256: HMAC's inner hash state
+#  256: HMAC's outer hash state
+
+1 8 0 [512|>8] getIpadByte.casm
+1 8 0 [520|>8] getOpadByte.casm
+8 128 [512|>8] [528|>128] repeatByte16Times.casm
+8 128 [520|>8] [656|>128] repeatByte16Times.casm
+
+# we repeat the padding byte 32 times
+512 256 [528|>128] [528|>128] [0|>256] [784|>256] xor256bits.casm
+
+# the zero padding (xored with ipad byte) is on the RIGHT from the input. i.e. the 
+# padding is "lsb first"
+# we repeat the padding byte 32 times
+768 256 [528|>128] [528|>128] [784|>256] [256|>256] [1040|>256] sha256.txt
+
+# same for opad
+512 256 [656|>128] [656|>128] [0|>256] [784|>256] xor256bits.casm
+
+768 256 [656|>128] [656|>128] [784|>256] [256|>256] [1296|>256] sha256.txt

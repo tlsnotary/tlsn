@@ -7,11 +7,20 @@ edition = "2018"
 name = "tls_2pc_core"
 
 [features]
-default = ["handshake", "ghash"]
+default = ["handshake", "ghash", "circuits"]
 handshake = []
 ghash = []
+circuits = ["c1", "c2", "c3", "c4", "c5", "c6", "c7"]
+c1 = []
+c2 = []
+c3 = []
+c4 = []
+c5 = []
+c6 = []
+c7 = []
 
 [dependencies]
+tlsn-mpc-circuits = { path = "../mpc-circuits" }
 tlsn-mpc-core = { path = "../mpc-core" }
 sha2 = { version = "0.10.1", features = ["compress"] }
 digest = { version = "0.10.3" }
@@ -26,7 +35,7 @@ ghash_rc = { package = "ghash", version = "0.4.4" }
 rand_chacha = "0.3.1"
 hex = "0.4"
 curv-kzen = "0.9"
-num = { version = "0.4", features = ["rand"]}
+num = { version = "0.4", features = ["rand"] }
 aes = { version = "0.7.5", features = [] }
 
 [[test]]
