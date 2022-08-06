@@ -43,3 +43,7 @@ aes = { version = "0.7.5", features = [] }
 # cargo test --test circuit_test
 name = "circuit_test"
 test = false
+
+[[bench]]
+name = "garble"
+harness = false
