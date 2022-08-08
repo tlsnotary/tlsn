@@ -7,12 +7,6 @@ pub enum Error {
     /// An I/O error occurred.
     #[error("encountered error while parsing circuit: {0}")]
     ParsingError(String),
-    /// An error occured trying to get an invalid input
-    #[error("encountered error trying to get an invalid input: {0}")]
-    InvalidInput(usize),
-    /// An error occured trying to get an invalid output
-    #[error("encountered error trying to get an invalid output: {0}")]
-    InvalidOutput(usize),
     /// An error occurred trying to map values to wire group
     #[error(
         "encountered error while trying to map values to wire group, Group: {0:?}, value: {1:?}"
