@@ -17,7 +17,8 @@ proto = ["prost", "prost-build"]
 simd-transpose = ["matrix-transpose"]
 
 [dependencies]
-clmul = { path = "../clmul"}
+tlsn-mpc-circuits = { path = "../mpc-circuits" }
+clmul = { path = "../clmul" }
 aes = { version = "0.7.5", features = [] }
 cipher = "0.3"
 sha2 = { version = "0.10.1", features = ["compress"] }
@@ -59,7 +60,7 @@ pretty_assertions = "1.2.1"
 prost-build = { version = "0.9", optional = true }
 
 [[bench]]
-name = "half_gate"
+name = "garble"
 harness = false
 
 [[bench]]

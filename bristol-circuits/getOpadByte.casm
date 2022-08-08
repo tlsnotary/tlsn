@@ -1,0 +1,20 @@
+#return 0x5c == 0101 1100
+
+10 11
+1 1 #input can be any random bit
+1 8
+
+2 1 0 0 1 XOR # 0 
+1 1 1 2 INV   # 1
+
+# we use INV to set bits
+# output's first wire is lsb
+
+1 1 2 3 INV
+1 1 2 4 INV
+1 1 1 5 INV
+1 1 1 6 INV
+1 1 1 7 INV
+1 1 2 8 INV
+1 1 1 9 INV
+1 1 2 10 INV

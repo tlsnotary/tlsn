@@ -91,6 +91,16 @@ pub fn xor(a: &[u8], b: &[u8], out: &mut [u8]) {
     }
 }
 
+/// Unzips a slice of pairs, returning items corresponding to choice
+pub fn choose<T: Copy>(items: &[[T; 2]], choice: &[bool]) -> Vec<T> {
+    assert!(items.len() == choice.len(), "arrays are different length");
+    items
+        .iter()
+        .zip(choice)
+        .map(|(items, choice)| items[*choice as usize])
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
