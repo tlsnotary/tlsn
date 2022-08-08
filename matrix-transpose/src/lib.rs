@@ -5,19 +5,17 @@
     feature(stmt_expr_attributes),
     feature(slice_as_chunks)
 )]
-#![feature(test)]
-extern crate test;
 
+#[cfg(not(feature = "simd-transpose"))]
+mod scalar;
 #[cfg(feature = "simd-transpose")]
 mod simd;
-#[cfg(not(feature = "simd-transpose"))]
-mod standard;
 
 #[cfg(feature = "simd-transpose")]
 pub use simd::transpose_unchecked;
 
 #[cfg(not(feature = "simd-transpose"))]
-pub use standard::transpose_unchecked;
+pub use scalar::transpose_unchecked;
 
 use thiserror::Error;
 
@@ -46,8 +44,8 @@ pub fn transpose_bits(matrix: &mut [u8], rows: usize) -> Result<(), TransposeErr
     simd::transpose_bits(matrix, rows)?;
     #[cfg(not(feature = "simd-transpose"))]
     unsafe {
-        standard::transpose_unchecked(matrix, rows.trailing_zeros() as usize);
-        standard::bitmask_shift(matrix, rows);
+        scalar::transpose_unchecked(matrix, rows.trailing_zeros() as usize);
+        scalar::bitmask_shift(matrix, rows);
     }
     Ok(())
 }
@@ -67,7 +65,6 @@ mod tests {
     use super::*;
     use rand::distributions::{Distribution, Standard};
     use rand::prelude::*;
-    use test::{black_box, Bencher};
 
     fn random_vec<T>(elements: usize) -> Vec<T>
     where
@@ -102,7 +99,7 @@ mod tests {
             #[cfg(feature = "simd-transpose")]
             simd::transpose_unchecked::<32, u8>(&mut matrix, rounds as usize);
             #[cfg(not(feature = "simd-transpose"))]
-            standard::transpose_unchecked::<u8>(&mut matrix, rounds as usize);
+            scalar::transpose_unchecked::<u8>(&mut matrix, rounds as usize);
         }
 
         (rows, columns) = (columns, rows);
@@ -125,7 +122,7 @@ mod tests {
             simd::bitmask_shift_unchecked(&mut matrix, columns);
         }
         #[cfg(not(feature = "simd-transpose"))]
-        standard::bitmask_shift(&mut matrix, columns);
+        scalar::bitmask_shift(&mut matrix, columns);
 
         for (row_index, row) in original.chunks_mut(columns).enumerate() {
             for k in 0..8 {
@@ -140,32 +137,5 @@ mod tests {
                 row.copy_from_slice(&shifted_row);
             }
         }
-    }
-
-    #[bench]
-    fn bench_transpose(b: &mut Bencher) {
-        let rounds = 10_usize;
-        let rows = 2_usize.pow(rounds as u32);
-        let mut m: Vec<u8> = random_vec::<u8>(rows * rows);
-        b.iter(|| unsafe {
-            #[cfg(feature = "simd-transpose")]
-            black_box(simd::transpose_unchecked::<32, u8>(&mut m, rounds));
-            #[cfg(not(feature = "simd-transpose"))]
-            black_box(standard::transpose_unchecked::<u8>(&mut m, rounds));
-        })
-    }
-
-    #[bench]
-    fn bench_bitmask_shift(b: &mut Bencher) {
-        let columns = 1024_usize;
-        let mut m: Vec<u8> = random_vec::<u8>(columns * columns);
-        #[cfg(feature = "simd-transpose")]
-        b.iter(|| unsafe {
-            black_box(simd::bitmask_shift_unchecked(&mut m, columns));
-        });
-        #[cfg(not(feature = "simd-transpose"))]
-        b.iter(|| {
-            black_box(standard::bitmask_shift(&mut m, columns));
-        });
     }
 }
