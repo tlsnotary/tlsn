@@ -13,6 +13,12 @@ mod simd;
 #[cfg(not(feature = "simd-transpose"))]
 mod standard;
 
+#[cfg(feature = "simd-transpose")]
+pub use simd::transpose_unchecked;
+
+#[cfg(not(feature = "simd-transpose"))]
+pub use standard::transpose_unchecked;
+
 use thiserror::Error;
 
 /// This function transposes a matrix on the bit-level.
@@ -20,16 +26,17 @@ use thiserror::Error;
 /// This implementation requires that the number of rows is a power of 2
 /// and that the number of columns is a multiple of 8
 pub fn transpose_bits(matrix: &mut [u8], rows: usize) -> Result<(), TransposeError> {
-    // Check that number of rows is a power of 2
-    if rows & (rows - 1) != 0 {
-        return Err(TransposeError::InvalidNumberOfRows);
-    }
-
     // Check that slice is rectangular
     if matrix.len() & (rows - 1) != 0 {
         return Err(TransposeError::MalformedSlice);
     }
 
+    // Check that number of rows is a power of 2
+    if rows & (rows - 1) != 0 {
+        return Err(TransposeError::InvalidNumberOfRows);
+    }
+
+    // Check that columns is a multiple of 8
     let columns = matrix.len() / rows;
     if columns & 7 != 0 || columns < 8 {
         return Err(TransposeError::InvalidNumberOfColumns);
@@ -39,7 +46,7 @@ pub fn transpose_bits(matrix: &mut [u8], rows: usize) -> Result<(), TransposeErr
     simd::transpose_bits(matrix, rows)?;
     #[cfg(not(feature = "simd-transpose"))]
     unsafe {
-        standard::transpose_unchecked(matrix, rows);
+        standard::transpose_unchecked(matrix, rows.trailing_zeros() as usize);
         standard::bitmask_shift(matrix, rows);
     }
     Ok(())
@@ -79,7 +86,6 @@ mod tests {
         let original = matrix.clone();
         transpose_bits(&mut matrix, rows).unwrap();
         rows = columns;
-        dbg!("second");
         transpose_bits(&mut matrix, 8 * rows).unwrap();
         assert_eq!(original, matrix);
     }
@@ -109,8 +115,8 @@ mod tests {
 
     #[test]
     fn test_bitmask_shift() {
-        let columns = 128;
-        let rows = 64;
+        let columns = 64;
+        let rows = 128;
 
         let mut matrix: Vec<u8> = random_vec::<u8>(columns * rows);
         let mut original = matrix.clone();

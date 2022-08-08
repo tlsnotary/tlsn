@@ -5,7 +5,7 @@ use std::simd::{LaneCount, Simd, SimdElement, SupportedLaneCount};
 /// SIMD version for bit-level transposition
 ///
 /// This SIMD implementation additionally requires that the matrix has at least
-/// 16 or 32 columns and rows
+/// 16 (WASM) or 32 (x86_64) columns and rows
 #[cfg(any(target_arch = "x86_64", target_arch = "wasm32"))]
 pub fn transpose_bits(matrix: &mut [u8], rows: usize) -> Result<(), TransposeError> {
     const LANE_COUNT: usize = if cfg!(target_arch = "wasm32") { 16 } else { 32 };
