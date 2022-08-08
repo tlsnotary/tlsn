@@ -48,11 +48,15 @@ pub struct InputValue {
 
 impl InputValue {
     pub fn new(input: Input, value: &[bool]) -> Self {
-        assert!(input.group().len() == value.len());
+        assert!(input.as_ref().len() == value.len());
         Self {
             input,
             value: value.to_vec(),
         }
+    }
+
+    pub fn id(&self) -> usize {
+        self.input.id
     }
 
     pub fn value(&self) -> &[bool] {
@@ -60,11 +64,11 @@ impl InputValue {
     }
 
     pub fn len(&self) -> usize {
-        self.input.group().len()
+        self.input.as_ref().len()
     }
 
     pub fn wires(&self) -> &[usize] {
-        self.input.group().wires()
+        self.input.as_ref().wires()
     }
 }
 
@@ -82,11 +86,15 @@ impl AsRef<[bool]> for OutputValue {
 
 impl OutputValue {
     pub fn new(output: Output, value: &[bool]) -> Self {
-        assert!(output.group().len() == value.len());
+        assert!(output.as_ref().len() == value.len());
         Self {
             output,
             value: value.to_vec(),
         }
+    }
+
+    pub fn id(&self) -> usize {
+        self.output.id
     }
 
     pub fn value(&self) -> &[bool] {
@@ -94,11 +102,11 @@ impl OutputValue {
     }
 
     pub fn len(&self) -> usize {
-        self.output.group().len()
+        self.output.as_ref().len()
     }
 
     pub fn wires(&self) -> &[usize] {
-        self.output.group().wires()
+        self.output.as_ref().wires()
     }
 }
 

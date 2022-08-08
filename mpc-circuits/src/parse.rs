@@ -81,7 +81,7 @@ impl Circuit {
                 let start_id = input_nwires[..id].iter().sum();
                 let count = input_nwires[id];
                 let wires: Vec<usize> = (start_id..start_id + count).collect();
-                Input::new(Group::new("", "", &wires))
+                Input::new(id, Group::new("", "", &wires))
             })
             .collect();
 
@@ -118,10 +118,11 @@ impl Circuit {
 
         let output_groups = (0..noutputs)
             .map(|id| {
-                let start_id = output_nwires[..id].iter().sum();
+                let start_id = (wire_count - output_nwires.iter().sum::<usize>())
+                    + output_nwires[..id].iter().sum::<usize>();
                 let count = output_nwires[id];
                 let wires: Vec<usize> = (start_id..start_id + count).collect();
-                Output::new(Group::new("", "", &wires))
+                Output::new(id, Group::new("", "", &wires))
             })
             .collect();
 
@@ -226,85 +227,6 @@ mod tests {
         assert_eq!(circ.output_len(), 64);
         assert_eq!(circ.xor_count(), 313);
         assert_eq!(circ.and_count(), 63);
-
-        let a = vec![false; 64];
-        let b = vec![false; 64];
-        let inputs = [a, b].concat();
-
-        let output = circ.evaluate(&inputs).unwrap();
-        assert_eq!(
-            output
-                .into_iter()
-                .map(|i| (i as u8).to_string())
-                .collect::<String>(),
-            "0000000000000000000000000000000000000000000000000000000000000000"
-        );
-
-        let mut a = vec![false; 64];
-        a[63] = true;
-        a.reverse();
-        let b = vec![false; 64];
-        let inputs = [a, b].concat();
-
-        let mut output = circ.evaluate(&inputs).unwrap();
-        output.reverse();
-        assert_eq!(
-            output
-                .into_iter()
-                .map(|i| (i as u8).to_string())
-                .collect::<String>(),
-            "0000000000000000000000000000000000000000000000000000000000000001"
-        );
-
-        let a = vec![false; 64];
-        let mut b = vec![false; 64];
-        b[63] = true;
-        b.reverse();
-        let inputs = [a, b].concat();
-
-        let mut output = circ.evaluate(&inputs).unwrap();
-        output.reverse();
-        assert_eq!(
-            output
-                .into_iter()
-                .map(|i| (i as u8).to_string())
-                .collect::<String>(),
-            "0000000000000000000000000000000000000000000000000000000000000001"
-        );
-
-        let mut a = vec![false; 64];
-        a[63] = true;
-        a.reverse();
-        let mut b = vec![false; 64];
-        b[63] = true;
-        b.reverse();
-        let inputs = [a, b].concat();
-
-        let mut output = circ.evaluate(&inputs).unwrap();
-        output.reverse();
-        assert_eq!(
-            output
-                .into_iter()
-                .map(|i| (i as u8).to_string())
-                .collect::<String>(),
-            "0000000000000000000000000000000000000000000000000000000000000010"
-        );
-
-        let a = vec![true; 64];
-        let mut b = vec![false; 64];
-        b[63] = true;
-        b.reverse();
-        let inputs = [a, b].concat();
-
-        let mut output = circ.evaluate(&inputs).unwrap();
-        output.reverse();
-        assert_eq!(
-            output
-                .into_iter()
-                .map(|i| (i as u8).to_string())
-                .collect::<String>(),
-            "0000000000000000000000000000000000000000000000000000000000000000"
-        );
     }
 
     #[test]
@@ -320,123 +242,5 @@ mod tests {
         assert_eq!(circ.output_len(), 128);
         assert_eq!(circ.xor_count(), 28176);
         assert_eq!(circ.and_count(), 6400);
-
-        let mut key = vec![false; 128];
-        let mut pt = vec![false; 128];
-        let inputs = [key, pt].concat();
-
-        let mut output = circ.evaluate(&inputs).unwrap();
-        output.reverse();
-        assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
-                   "01100110111010010100101111010100111011111000101000101100001110111000100001001100111110100101100111001010001101000010101100101110");
-
-        key = vec![true; 128];
-        pt = vec![false; 128];
-        let inputs = [key, pt].concat();
-
-        output = circ.evaluate(&inputs).unwrap();
-        output.reverse();
-        assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
-                   "10100001111101100010010110001100100001110111110101011111110011011000100101100100010010000100010100111000101111111100100100101100");
-
-        key = vec![false; 128];
-        key[7] = true;
-        key.reverse();
-        pt = vec![false; 128];
-        let inputs = [key, pt].concat();
-
-        output = circ.evaluate(&inputs).unwrap();
-        output.reverse();
-        assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
-                   "11011100000011101101100001011101111110010110000100011010101110110111001001001001110011011101000101101000110001010100011001111110");
-
-        key = vec![false; 128];
-        for i in 0..8 {
-            key[127 - i] = true;
-        }
-        key.reverse();
-        pt = vec![false; 128];
-        let inputs = [key, pt].concat();
-
-        output = circ.evaluate(&inputs).unwrap();
-        output.reverse();
-        assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
-                   "11010101110010011000110001001000001001010101111101111000110011000100011111100001010010011110010101011100111111000011111111111101");
-
-        key = vec![false; 128];
-
-        for i in 0..8 {
-            key[i] = true;
-        }
-
-        key.reverse();
-        pt = vec![false; 128];
-        let inputs = [key, pt].concat();
-
-        output = circ.evaluate(&inputs).unwrap();
-        output.reverse();
-        assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
-                    "10110001110101110101100000100101011010110010100011111101100001010000101011010100100101000100001000001000110011110001000101010101");
-    }
-
-    #[test]
-    fn test_aes_old() {
-        let circ = Circuit::parse("../bristol-circuits/aes_128.txt", "aes_128", "").unwrap();
-
-        assert_eq!(circ.input_len(), 256);
-        assert_eq!(circ.output_len(), 128);
-        assert_eq!(circ.xor_count(), 25124);
-        assert_eq!(circ.and_count(), 6800);
-
-        let mut key = vec![false; 128];
-        let mut pt = vec![false; 128];
-        let inputs = [pt, key].concat();
-
-        let mut output = circ.evaluate(&inputs).unwrap();
-        assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
-                   "01100110111010010100101111010100111011111000101000101100001110111000100001001100111110100101100111001010001101000010101100101110");
-
-        key = vec![true; 128];
-        pt = vec![false; 128];
-        let inputs = [pt, key].concat();
-
-        output = circ.evaluate(&inputs).unwrap();
-        assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
-                   "10100001111101100010010110001100100001110111110101011111110011011000100101100100010010000100010100111000101111111100100100101100");
-
-        key = vec![false; 128];
-        key[7] = true;
-
-        pt = vec![false; 128];
-        let inputs = [pt, key].concat();
-
-        output = circ.evaluate(&inputs).unwrap();
-        assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
-                   "11011100000011101101100001011101111110010110000100011010101110110111001001001001110011011101000101101000110001010100011001111110");
-
-        key = vec![false; 128];
-        for i in 0..8 {
-            key[127 - i] = true;
-        }
-
-        pt = vec![false; 128];
-        let inputs = [pt, key].concat();
-
-        output = circ.evaluate(&inputs).unwrap();
-        assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
-                   "11010101110010011000110001001000001001010101111101111000110011000100011111100001010010011110010101011100111111000011111111111101");
-
-        key = vec![false; 128];
-
-        for i in 0..8 {
-            key[i] = true;
-        }
-
-        pt = vec![false; 128];
-        let inputs = [pt, key].concat();
-
-        output = circ.evaluate(&inputs).unwrap();
-        assert_eq!(output.into_iter().map(|i| (i as u8).to_string()).collect::<String>(),
-                    "10110001110101110101100000100101011010110010100011111101100001010000101011010100100101000100001000001000110011110001000101010101");
     }
 }

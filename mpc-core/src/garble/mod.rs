@@ -7,6 +7,7 @@ pub mod generator;
 use crate::msgs::garble as msgs;
 pub use circuit::{
     decode, generate_labels, BinaryLabel, EncryptedGate, FullGarbledCircuit, GarbledCircuit,
+    WireLabel,
 };
 pub use error::{Error, InputError};
 pub use evaluator::evaluate_garbled_circuit;

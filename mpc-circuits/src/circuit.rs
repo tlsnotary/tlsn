@@ -15,10 +15,13 @@ pub struct Group {
 
 impl Group {
     pub fn new(name: &str, desc: &str, wires: &[usize]) -> Self {
+        let mut wires = wires.to_vec();
+        // Ensure wire ids are always sorted
+        wires.sort();
         Self {
             name: name.to_string(),
             desc: desc.to_string(),
-            wires: wires.to_vec(),
+            wires,
         }
     }
 
@@ -41,29 +44,122 @@ impl Group {
 
 /// Group of wires corresponding to a circuit input
 #[derive(Debug, Clone)]
-pub struct Input(Group);
+pub struct Input {
+    /// Input id of circuit
+    pub id: usize,
+    group: Group,
+}
 
 impl Input {
-    pub fn new(group: Group) -> Self {
-        Self(group)
+    pub fn new(id: usize, group: Group) -> Self {
+        Self { id, group }
     }
 
-    pub fn group(&self) -> &Group {
-        &self.0
+    pub fn to_value(&self, value: &[bool]) -> Result<InputValue, Error> {
+        InputValue::new(self.clone(), value)
+    }
+}
+
+impl AsRef<Group> for Input {
+    fn as_ref(&self) -> &Group {
+        &self.group
     }
 }
 
 /// Group of wires corresponding to a circuit output
 #[derive(Debug, Clone)]
-pub struct Output(Group);
+pub struct Output {
+    /// Output id of circuit
+    pub id: usize,
+    group: Group,
+}
 
 impl Output {
-    pub fn new(group: Group) -> Self {
-        Self(group)
+    pub fn new(id: usize, group: Group) -> Self {
+        Self { id, group }
     }
 
-    pub fn group(&self) -> &Group {
-        &self.0
+    pub fn to_value(&self, value: &[bool]) -> Result<OutputValue, Error> {
+        OutputValue::new(self.clone(), value)
+    }
+}
+
+impl AsRef<Group> for Output {
+    fn as_ref(&self) -> &Group {
+        &self.group
+    }
+}
+
+/// Circuit input with corresponding wire values
+#[derive(Debug, Clone)]
+pub struct InputValue {
+    input: Input,
+    value: Vec<bool>,
+}
+
+impl InputValue {
+    pub fn new(input: Input, value: &[bool]) -> Result<Self, Error> {
+        if input.as_ref().len() != value.len() {
+            return Err(Error::InvalidValue(input.as_ref().clone(), value.to_vec()));
+        }
+        Ok(Self {
+            input,
+            value: value.to_vec(),
+        })
+    }
+
+    pub fn id(&self) -> usize {
+        self.input.id
+    }
+
+    pub fn len(&self) -> usize {
+        self.input.as_ref().len()
+    }
+
+    pub fn wires(&self) -> &[usize] {
+        self.input.as_ref().wires()
+    }
+}
+
+impl AsRef<[bool]> for InputValue {
+    fn as_ref(&self) -> &[bool] {
+        &self.value
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct OutputValue {
+    output: Output,
+    value: Vec<bool>,
+}
+
+impl AsRef<[bool]> for OutputValue {
+    fn as_ref(&self) -> &[bool] {
+        &self.value
+    }
+}
+
+impl OutputValue {
+    pub fn new(output: Output, value: &[bool]) -> Result<Self, Error> {
+        if output.as_ref().len() != value.len() {
+            return Err(Error::InvalidValue(output.as_ref().clone(), value.to_vec()));
+        }
+        Ok(Self {
+            output,
+            value: value.to_vec(),
+        })
+    }
+
+    pub fn id(&self) -> usize {
+        self.output.id
+    }
+
+    pub fn len(&self) -> usize {
+        self.output.as_ref().len()
+    }
+
+    pub fn wires(&self) -> &[usize] {
+        self.output.as_ref().wires()
     }
 }
 
@@ -207,8 +303,8 @@ impl Circuit {
     }
 
     /// Returns group corresponding to input id
-    pub fn input(&self, id: usize) -> &Input {
-        &self.inputs[id]
+    pub fn input(&self, id: usize) -> Result<Input, Error> {
+        Ok(self.inputs.get(id).ok_or(Error::InvalidInput(id))?.clone())
     }
 
     /// Returns reference to all circuit inputs
@@ -223,12 +319,16 @@ impl Circuit {
 
     /// Returns the total number of input wires of the circuit
     pub fn input_len(&self) -> usize {
-        self.inputs.iter().map(|input| input.0.len()).sum()
+        self.inputs.iter().map(|input| input.as_ref().len()).sum()
     }
 
     /// Returns group corresponding to output id
-    pub fn output(&self, id: usize) -> &Output {
-        &self.outputs[id]
+    pub fn output(&self, id: usize) -> Result<Output, Error> {
+        Ok(self
+            .outputs
+            .get(id)
+            .ok_or(Error::InvalidOutput(id))?
+            .clone())
     }
 
     /// Returns reference to all circuit outputs
@@ -243,7 +343,10 @@ impl Circuit {
 
     /// Returns the total number of input wires of the circuit
     pub fn output_len(&self) -> usize {
-        self.outputs.iter().map(|output| output.0.len()).sum()
+        self.outputs
+            .iter()
+            .map(|output| output.as_ref().len())
+            .sum()
     }
 
     /// Returns circuit gates
@@ -267,10 +370,12 @@ impl Circuit {
     }
 
     /// Evaluates the circuit in plaintext with the provided inputs
-    pub fn evaluate(&self, inputs: &[bool]) -> Result<Vec<bool>, Error> {
+    pub fn evaluate(&self, inputs: &[InputValue]) -> Result<Vec<OutputValue>, Error> {
         let mut wires: Vec<Option<bool>> = vec![None; self.len()];
-        for (wire, input) in wires.iter_mut().zip(inputs) {
-            *wire = Some(*input);
+        for input in inputs {
+            for (value, wire_id) in input.as_ref().iter().zip(input.wires()) {
+                wires[*wire_id] = Some(*value);
+            }
         }
 
         for gate in self.gates.iter() {
@@ -297,10 +402,14 @@ impl Circuit {
             wires[zref] = Some(val);
         }
 
-        let outputs = wires
-            .drain(self.len() - self.output_len()..)
-            .map(|wire| wire.unwrap())
-            .collect();
+        let mut outputs: Vec<OutputValue> = Vec::with_capacity(self.output_count());
+        for output in self.outputs.iter() {
+            let mut value: Vec<bool> = Vec::with_capacity(output.as_ref().len());
+            for id in output.as_ref().wires() {
+                value.push(wires[*id].ok_or(Error::UninitializedWire(*id))?);
+            }
+            outputs.push(OutputValue::new(output.clone(), &value)?);
+        }
 
         Ok(outputs)
     }
