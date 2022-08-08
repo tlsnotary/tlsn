@@ -3,7 +3,7 @@ mod error;
 pub mod parse;
 pub mod proto;
 
-pub use circuit::{Circuit, CircuitId, Gate, Group, Input, Output};
+pub use circuit::{Circuit, CircuitId, Gate, Group, Input, InputValue, Output, OutputValue};
 pub use error::Error;
 
 #[cfg(feature = "aes_128_reverse")]
