@@ -14,7 +14,6 @@ garble = ["regex"]
 ot = []
 pa = ["elliptic-curve", "p256", "paillier", "curv"]
 proto = ["prost", "prost-build"]
-simd-transpose = ["matrix-transpose"]
 
 [dependencies]
 tlsn-mpc-circuits = { path = "../mpc-circuits" }
@@ -36,7 +35,6 @@ elliptic-curve = { version = "0.11.12", optional = true }
 p256 = { version = "0.10.1", optional = true }
 derive_builder = "0.11.2"
 merlin = "3.0.0"
-matrix-transpose = {path = "../matrix-transpose", optional = true}
 
 [dependencies.paillier]
 package = "kzen-paillier"
