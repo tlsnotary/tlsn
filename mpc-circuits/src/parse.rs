@@ -1,5 +1,5 @@
 use crate::{
-    circuit::{CircuitId, Input, Output},
+    circuit::{Input, Output},
     Circuit, Error, Gate, Group,
 };
 use regex::Regex;
@@ -130,8 +130,6 @@ impl Circuit {
 
         let mut id = 0;
         let mut gates = Vec::with_capacity(ngates);
-        let mut and_count = 0;
-        let mut xor_count = 0;
 
         // Process gates
         for line in reader.lines() {
@@ -161,7 +159,6 @@ impl Circuit {
                     let zref: usize = gate_vals[4]
                         .parse()
                         .map_err(|_| Error::ParsingError("failed to parse gate".to_string()))?;
-                    and_count += 1;
                     Gate::And {
                         id,
                         xref,
@@ -179,7 +176,6 @@ impl Circuit {
                     let zref: usize = gate_vals[4]
                         .parse()
                         .map_err(|_| Error::ParsingError("failed to parse gate".to_string()))?;
-                    xor_count += 1;
                     Gate::Xor {
                         id,
                         xref,
@@ -201,17 +197,13 @@ impl Circuit {
                 format!("expecting {ngates} gates, parsed {id}").to_string(),
             ));
         }
-        Ok(Circuit {
-            id: CircuitId::new(&gates),
-            name: name.to_string(),
-            version: version.to_string(),
-            wire_count,
-            and_count,
-            xor_count,
-            inputs: input_groups,
-            outputs: output_groups,
+        Ok(Circuit::new(
+            name,
+            version,
+            input_groups,
+            output_groups,
             gates,
-        })
+        )?)
     }
 }
 
