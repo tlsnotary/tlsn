@@ -13,17 +13,22 @@ where
     T: Default + Copy,
 {
     let half = matrix.len() >> 1;
-    let mut matrix_copy_half = vec![T::default(); half];
-    let mut matrix_pointer: *mut T;
+    let mut matrix_cache = matrix.to_vec();
+    let mut write_reference = (*matrix).as_mut_ptr();
+    let mut read_reference = matrix_cache.as_mut_ptr();
+    if rounds & 1 == 0 {
+        std::mem::swap(&mut write_reference, &mut read_reference);
+    }
     for _ in 0..rounds {
-        matrix_copy_half.copy_from_slice(&matrix[..half]);
-        matrix_pointer = matrix.as_mut_ptr();
         for k in 0..half {
-            std::ptr::copy_nonoverlapping(&matrix_copy_half[k], matrix_pointer, 1);
-            matrix_pointer = matrix_pointer.add(1);
-            std::ptr::copy_nonoverlapping(&matrix[half + k], matrix_pointer, 1);
-            matrix_pointer = matrix_pointer.add(1);
+            write_reference
+                .add(2 * k)
+                .copy_from_nonoverlapping(read_reference.add(k), 1);
+            write_reference
+                .add(2 * k + 1)
+                .copy_from_nonoverlapping(read_reference.add(half + k), 1);
         }
+        std::mem::swap(&mut write_reference, &mut read_reference);
     }
 }
 

@@ -74,31 +74,26 @@ fn criterion_benchmark(c: &mut Criterion) {
     let mut m1: Vec<u8> = matrix.clone();
     c.bench_function("transpose", move |bench| {
         bench.iter(|| unsafe {
-            black_box(
-                #[cfg(feature = "simd-transpose")]
-                matrix_transpose::transpose_unchecked::<32, _>(
-                    &mut m1,
-                    rows.trailing_zeros() as usize,
-                ),
-                #[cfg(not(feature = "simd-transpose"))]
-                matrix_transpose::transpose_unchecked(&mut m1, rows.trailing_zeros() as usize),
-            )
+            #[cfg(feature = "simd-transpose")]
+            matrix_transpose::transpose_unchecked::<32, _>(&mut m1, rows.trailing_zeros() as usize);
+            #[cfg(not(feature = "simd-transpose"))]
+            matrix_transpose::transpose_unchecked(&mut m1, rows.trailing_zeros() as usize);
         });
     });
 
     let mut m2 = matrix.clone();
     c.bench_function("transpose_bits", move |bench| {
-        bench.iter(|| black_box(matrix_transpose::transpose_bits(&mut m2, rows)));
+        bench.iter(|| matrix_transpose::transpose_bits(&mut m2, rows));
     });
 
     let m3: Vec<Vec<u8>> = matrix.clone().chunks(columns).map(|r| r.to_vec()).collect();
     c.bench_function("transpose_bits_baseline", move |bench| {
-        bench.iter(|| black_box(transpose_bits(&m3)));
+        bench.iter(|| transpose_bits(&m3));
     });
 
     let m4: Vec<Vec<u8>> = matrix.clone().chunks(columns).map(|r| r.to_vec()).collect();
     c.bench_function("transpose_baseline", move |bench| {
-        bench.iter(|| black_box(transpose(&m4)));
+        bench.iter(|| transpose(&m4));
     });
 }
 criterion_group!(benches, criterion_benchmark);
