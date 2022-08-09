@@ -55,7 +55,7 @@ pub struct Kos15Receiver<R = ChaCha12Rng, C = Aes128> {
     // RNGs.
     seeds: Option<Vec<[Block; 2]>>,
     rngs: Option<Vec<[ChaCha12Rng; 2]>>,
-    table: Option<Vec<Vec<u8>>>,
+    table: Option<Vec<u8>>,
     // our XOR share for the cointoss protocol
     cointoss_share: [u8; 32],
     // the shared random value which both parties will have at the end of the
@@ -85,12 +85,12 @@ impl Kos15Receiver {
 fn decrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     cipher: &mut C,
     ciphertexts: &[[Block; 2]],
-    table: &[Vec<u8>],
+    table: &[u8],
     choice: &[bool],
 ) -> Vec<Block> {
     let mut values: Vec<Block> = Vec::with_capacity(choice.len());
     for (j, b) in choice.iter().enumerate() {
-        let t: [u8; 16] = table[j].clone().try_into().unwrap();
+        let t: [u8; 16] = table[16 * j..16 * (j + 1)].try_into().unwrap();
         let t = Block::from(t);
         let y = if *b {
             ciphertexts[j][1]
@@ -204,6 +204,10 @@ where
     ) -> Result<ExtReceiverSetup, ExtReceiverCoreError> {
         check_state(&self.state, &State::BaseSend)?;
 
+        if choice.len() % 8 != 0 {
+            return Err(ExtReceiverCoreError::InvalidChoiceLength);
+        }
+
         // This is guaranteed to be set because we can only reach the BaseReceive by running
         // base_send(), which runs set_seeds(), which sets the RNGs
         let rngs = self
@@ -211,14 +215,6 @@ where
             .as_mut()
             .expect("RNGs were not set even when in State::BaseSend");
 
-        // We will pad with extra bits to make the total count a multiple of 8
-        // to make handling easier. Those extra paddings bits will be random and
-        // will not be used for OT.
-        let pad_count = if choice.len() % 8 == 0 {
-            0
-        } else {
-            8 - choice.len() % 8
-        };
         // Also add 256 extra bits which will be sacrificed as part of the
         // KOS15 protocol.
         // 1 extra byte is also added to contain "extra paddings bits" mentioned
@@ -228,20 +224,22 @@ where
         // extend choice bits with the exact amount of extra bits that we need.
         // Some bits of the 1 extra byte will be discarded.
         let mut r_bool = choice.to_vec();
-        r_bool.extend(utils::u8vec_to_boolvec(&extra_bytes)[0..pad_count + 256].iter());
+        r_bool.extend(utils::u8vec_to_boolvec(&extra_bytes)[0..256].iter());
         let r = utils::boolvec_to_u8vec(&r_bool);
 
         let ncols = r_bool.len();
-        let mut ts: Vec<Vec<u8>> = vec![vec![0u8; ncols / 8]; BASE_COUNT];
-        let mut gs: Vec<Vec<u8>> = vec![vec![0u8; ncols / 8]; BASE_COUNT];
+        let mut ts: Vec<u8> = vec![0_u8; ncols / 8 * BASE_COUNT];
+        let mut gs: Vec<u8> = vec![0u8; ncols / 8 * BASE_COUNT];
 
         // Note that for each row j of the matrix gs which will be sent to Sender,
         // Sender knows either rng[0] or rng[1] depending on his choice bit during
         // base OT. If he knows rng[1] then he will XOR it with gs[j] and get a
         // row ( ts[j] ^ r ). But if he knows rng[0] then his row will be ts[j].
         for j in 0..BASE_COUNT {
-            rngs[j][0].fill_bytes(&mut ts[j]);
-            rngs[j][1].fill_bytes(&mut gs[j]);
+            rngs[j][0].fill_bytes(&mut ts[BASE_COUNT * j..BASE_COUNT * (j + 1)]);
+            rngs[j][1].fill_bytes(&mut gs[BASE_COUNT * j..BASE_COUNT * (j + 1)]);
+
+            // MARKER: UNTIL  HERE
             gs[j] = gs[j]
                 .iter()
                 .zip(&ts[j])
@@ -273,7 +271,7 @@ where
         let mut t0 = Clmul::new(&[0u8; 16]);
         let mut t1 = Clmul::new(&[0u8; 16]);
         for (j, xj) in r_bool.into_iter().enumerate() {
-            let mut tj: [u8; 16] = [0u8; 16];
+            let mut tj = [0u8; 16];
             tj.copy_from_slice(&ts[j]);
             let mut tj = Clmul::new(&tj);
             // chi is the random weight
