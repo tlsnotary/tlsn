@@ -3,8 +3,8 @@ use sha2::{Digest, Sha256};
 
 #[inline]
 pub fn boolvec_to_u8vec(bv: &[bool]) -> Vec<u8> {
-    let offset = if bv.len() % 8 == 0 { 0 } else { 1 };
-    let mut v = vec![0u8; bv.len() / 8 + offset];
+    assert!(bv.len() & 7 == 0);
+    let mut v = vec![0u8; bv.len() / 8];
     for (i, b) in bv.iter().enumerate() {
         v[i / 8] |= (*b as u8) << (7 - (i % 8));
     }
