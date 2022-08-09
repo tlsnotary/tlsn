@@ -32,7 +32,7 @@ where
     }
 }
 
-/// Unsafe single-row bit-mask shift
+/// Single-row bit-mask shift
 ///
 /// This function is an implementation of the bit-level transpose in
 /// https://docs.rs/oblivious-transfer/latest/oblivious_transfer/extension/fn.transpose128.html

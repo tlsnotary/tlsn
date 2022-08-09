@@ -45,26 +45,28 @@ pub fn transpose_bits(matrix: &mut [u8], rows: usize) -> Result<(), TransposeErr
 pub unsafe fn transpose_unchecked<const N: usize, T>(matrix: &mut [T], rounds: usize)
 where
     LaneCount<N>: SupportedLaneCount,
-    T: Default + SimdElement + Copy,
+    T: SimdElement + Copy,
 {
     let half = matrix.len() >> 1;
-    let mut matrix_copy_half = vec![T::default(); half];
-    let mut matrix_pointer: *mut T;
+    let mut matrix_cache = matrix.to_vec();
+    let mut write_reference = matrix;
+    let mut read_reference = &mut matrix_cache[..];
     let (mut s1, mut s2): (Simd<T, N>, Simd<T, N>);
+    if rounds & 1 == 0 {
+        std::mem::swap(&mut write_reference, &mut read_reference);
+    }
     for _ in 0..rounds {
-        matrix_copy_half.copy_from_slice(&matrix[..half]);
-        matrix_pointer = matrix.as_mut_ptr();
-        for (v1, v2) in matrix_copy_half
+        for (k, (v1, v2)) in read_reference
             .as_chunks_unchecked::<N>()
             .iter()
-            .zip(matrix[half..].as_chunks_unchecked::<N>().iter())
+            .zip(read_reference[half..].as_chunks_unchecked())
+            .enumerate()
         {
             (s1, s2) = Simd::from_array(*v1).interleave(Simd::from_array(*v2));
-            std::ptr::copy_nonoverlapping(s1.to_array().as_ptr(), matrix_pointer, N);
-            matrix_pointer = matrix_pointer.add(N);
-            std::ptr::copy_nonoverlapping(s2.to_array().as_ptr(), matrix_pointer, N);
-            matrix_pointer = matrix_pointer.add(N);
+            write_reference[N * 2 * k..N * (2 * k + 1)].copy_from_slice(&s1.to_array());
+            write_reference[N * (2 * k + 1)..N * (2 * k + 2)].copy_from_slice(&s2.to_array());
         }
+        std::mem::swap(&mut write_reference, &mut read_reference);
     }
 }
 
