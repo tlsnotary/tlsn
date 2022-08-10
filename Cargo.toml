@@ -11,5 +11,6 @@ members = [
     "notary",
     "core",
     "clmul",
+    "matrix-transpose"
 ]
 exclude = ["tls-client"]
