@@ -100,6 +100,7 @@ pub struct InputValue {
 }
 
 impl InputValue {
+    /// Creates new input value
     pub fn new(input: Input, value: &[bool]) -> Result<Self, Error> {
         if input.as_ref().len() != value.len() {
             return Err(Error::InvalidValue(input.as_ref().clone(), value.to_vec()));
@@ -110,14 +111,22 @@ impl InputValue {
         })
     }
 
+    /// Returns input id
     pub fn id(&self) -> usize {
         self.input.id
     }
 
+    /// Returns [`Input`] corresponding to this value
+    pub fn input(&self) -> &Input {
+        &self.input
+    }
+
+    /// Returns number of wires corresponding to this input
     pub fn len(&self) -> usize {
         self.input.as_ref().len()
     }
 
+    /// Returns reference to input wires
     pub fn wires(&self) -> &[usize] {
         self.input.as_ref().wires()
     }
@@ -142,6 +151,7 @@ impl AsRef<[bool]> for OutputValue {
 }
 
 impl OutputValue {
+    /// Creates new output value
     pub fn new(output: Output, value: &[bool]) -> Result<Self, Error> {
         if output.as_ref().len() != value.len() {
             return Err(Error::InvalidValue(output.as_ref().clone(), value.to_vec()));
@@ -152,14 +162,22 @@ impl OutputValue {
         })
     }
 
+    /// Returns output id
     pub fn id(&self) -> usize {
         self.output.id
     }
 
+    /// Returns [`Output`] corresponding to this value
+    pub fn input(&self) -> &Output {
+        &self.output
+    }
+
+    /// Returns number of wires corresponding to this output
     pub fn len(&self) -> usize {
         self.output.as_ref().len()
     }
 
+    /// Returns reference to output wires
     pub fn wires(&self) -> &[usize] {
         self.output.as_ref().wires()
     }
