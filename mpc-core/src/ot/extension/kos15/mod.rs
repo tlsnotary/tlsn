@@ -3,6 +3,7 @@ use crate::Block;
 mod receiver;
 mod sender;
 
+use super::BASE_COUNT;
 pub use receiver::*;
 pub use sender::*;
 
@@ -50,9 +51,9 @@ pub struct ExtDerandomize {
 #[derive(Clone, Debug)]
 pub struct ExtReceiverSetup {
     pub ncols: usize,
-    pub table: Vec<Vec<u8>>,
+    pub table: Vec<u8>,
     // x, t0, t1 are used for the KOS15 check
-    pub x: [u8; 16],
-    pub t0: [u8; 16],
-    pub t1: [u8; 16],
+    pub x: [u8; BASE_COUNT / 8],
+    pub t0: [u8; BASE_COUNT / 8],
+    pub t1: [u8; BASE_COUNT / 8],
 }

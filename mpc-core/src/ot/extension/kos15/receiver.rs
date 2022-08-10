@@ -1,5 +1,7 @@
 use aes::{Aes128, BlockCipher, BlockEncrypt, NewBlockCipher};
+
 use cipher::consts::U16;
+use matrix_transpose::transpose_bits;
 use rand::{CryptoRng, Rng, RngCore, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 use std::convert::TryInto;
@@ -90,7 +92,9 @@ fn decrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
 ) -> Vec<Block> {
     let mut values: Vec<Block> = Vec::with_capacity(choice.len());
     for (j, b) in choice.iter().enumerate() {
-        let t: [u8; 16] = table[16 * j..16 * (j + 1)].try_into().unwrap();
+        let t: [u8; BASE_COUNT / 8] = table[BASE_COUNT / 8 * j..BASE_COUNT / 8 * (j + 1)]
+            .try_into()
+            .unwrap();
         let t = Block::from(t);
         let y = if *b {
             ciphertexts[j][1]
@@ -217,43 +221,37 @@ where
 
         // Also add 256 extra bits which will be sacrificed as part of the
         // KOS15 protocol.
-        // 1 extra byte is also added to contain "extra paddings bits" mentioned
-        // above.
-        let mut extra_bytes = [0u8; 33];
+        let mut extra_bytes = [0u8; 32];
         self.rng.fill(&mut extra_bytes[..]);
+
         // extend choice bits with the exact amount of extra bits that we need.
-        // Some bits of the 1 extra byte will be discarded.
         let mut r_bool = choice.to_vec();
-        r_bool.extend(utils::u8vec_to_boolvec(&extra_bytes)[0..256].iter());
+        r_bool.extend(utils::u8vec_to_boolvec(&extra_bytes).iter());
         let r = utils::boolvec_to_u8vec(&r_bool);
 
         let ncols = r_bool.len();
         let mut ts: Vec<u8> = vec![0_u8; ncols / 8 * BASE_COUNT];
-        let mut gs: Vec<u8> = vec![0u8; ncols / 8 * BASE_COUNT];
+        let mut gs: Vec<u8> = vec![0_u8; ncols / 8 * BASE_COUNT];
 
         // Note that for each row j of the matrix gs which will be sent to Sender,
         // Sender knows either rng[0] or rng[1] depending on his choice bit during
         // base OT. If he knows rng[1] then he will XOR it with gs[j] and get a
         // row ( ts[j] ^ r ). But if he knows rng[0] then his row will be ts[j].
         for j in 0..BASE_COUNT {
-            rngs[j][0].fill_bytes(&mut ts[BASE_COUNT * j..BASE_COUNT * (j + 1)]);
-            rngs[j][1].fill_bytes(&mut gs[BASE_COUNT * j..BASE_COUNT * (j + 1)]);
-
-            // MARKER: UNTIL  HERE
-            gs[j] = gs[j]
-                .iter()
-                .zip(&ts[j])
-                .zip(&r)
-                .map(|((g, t), r)| *g ^ *t ^ *r)
-                .collect();
+            rngs[j][0].fill_bytes(&mut ts[ncols / 8 * j..ncols / 8 * (j + 1)]);
+            rngs[j][1].fill_bytes(&mut gs[ncols / 8 * j..ncols / 8 * (j + 1)]);
         }
+        gs.iter_mut()
+            .zip(&ts)
+            .zip(&r)
+            .for_each(|((g, t), r)| *g = *g ^ *t ^ *r);
 
         // After Sender transposes his matrix, he will have a table S such that
         // for each row j:
         // self.table[j] = S[j], if our choice bit was 0 or
         // self.table[j] = S[j] ^ delta, if our choice bit was 1
         // (note that delta is known only to Sender)
-        let mut ts = utils::transpose(&ts);
+        transpose_bits(&mut ts, BASE_COUNT.trailing_zeros() as usize);
 
         // Check correlation
         // The check is explaned in the KOS15 paper in a paragraph on page 8
@@ -267,15 +265,15 @@ where
                 .ok_or(ExtReceiverCoreError::InternalError)?,
         );
 
-        let mut x = Clmul::new(&[0u8; 16]);
-        let mut t0 = Clmul::new(&[0u8; 16]);
-        let mut t1 = Clmul::new(&[0u8; 16]);
+        let mut x = Clmul::new(&[0u8; BASE_COUNT / 8]);
+        let mut t0 = Clmul::new(&[0u8; BASE_COUNT / 8]);
+        let mut t1 = Clmul::new(&[0u8; BASE_COUNT / 8]);
         for (j, xj) in r_bool.into_iter().enumerate() {
-            let mut tj = [0u8; 16];
-            tj.copy_from_slice(&ts[j]);
+            let mut tj = [0u8; BASE_COUNT / 8];
+            tj.copy_from_slice(&ts[BASE_COUNT / 8 * j..BASE_COUNT / 8 * (j + 1)]);
             let mut tj = Clmul::new(&tj);
             // chi is the random weight
-            let chi: [u8; 16] = rng.gen();
+            let chi: [u8; BASE_COUNT / 8] = rng.gen();
             let mut chi = Clmul::new(&chi);
             if xj {
                 x ^= chi;
@@ -332,7 +330,7 @@ where
             .table
             .as_mut()
             .expect("table was not set even when in State::Setup");
-        let table: Vec<Vec<u8>> = table.drain(..choice.len()).collect();
+        let table: Vec<u8> = table.drain(..choice.len() * BASE_COUNT / 8).collect();
         let values = decrypt_values(&mut self.cipher, &payload.ciphertexts, &table, &choice);
 
         if (choice_state.choice.len() == 0) && (choice_state.derandomized.len() == 0) {
@@ -415,7 +413,7 @@ where
             .table
             .as_mut()
             .expect("table was not set even when in State::Setup");
-        let table: Vec<Vec<u8>> = table.drain(..choice.len()).collect();
+        let table: Vec<u8> = table.drain(..choice.len() * BASE_COUNT / 8).collect();
         let values = decrypt_values(&mut self.cipher, &payload.ciphertexts, &table, &choice);
 
         if (choice_state.choice.len() == 0) && (choice_state.derandomized.len() == 0) {
