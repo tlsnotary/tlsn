@@ -24,14 +24,14 @@ use thiserror::Error;
 /// This implementation requires that the number of rows is a power of 2
 /// and that the number of columns is a multiple of 8
 pub fn transpose_bits(matrix: &mut [u8], rows: usize) -> Result<(), TransposeError> {
-    // Check that slice is rectangular
-    if matrix.len() & (rows - 1) != 0 {
-        return Err(TransposeError::MalformedSlice);
-    }
-
     // Check that number of rows is a power of 2
     if rows & (rows - 1) != 0 {
         return Err(TransposeError::InvalidNumberOfRows);
+    }
+
+    // Check that slice is rectangular i.e. the number of cells is a multiple of the number of rows
+    if matrix.len() & (rows - 1) != 0 {
+        return Err(TransposeError::MalformedSlice);
     }
 
     // Check that columns is a multiple of 8
