@@ -238,7 +238,7 @@ where
     ) -> Result<(), ExtSenderCoreError> {
         check_state(&self.state, &State::BaseReceive)?;
 
-        let ncols = receiver_setup.table.len() * 8;
+        let ncols = receiver_setup.table.len() * 8 / BASE_COUNT;
         self.prepared = ncols;
 
         let us = receiver_setup.table;
@@ -260,7 +260,7 @@ where
                     .for_each(|(q, u)| *q = *q ^ *u);
             }
         }
-        transpose_bits(&mut qs, BASE_COUNT.trailing_zeros() as usize)?;
+        transpose_bits(&mut qs, BASE_COUNT)?;
 
         // Check correlation
         // The check is explaned in the KOS15 paper in a paragraph on page 8

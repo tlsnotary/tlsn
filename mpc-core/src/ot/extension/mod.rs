@@ -33,8 +33,6 @@ pub mod tests {
 
     pub mod fixtures {
         use super::{BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper};
-        use crate::ot::base::tests::fixtures::{choice, values};
-        use crate::Block;
         use rstest::*;
 
         pub struct Data {
@@ -45,7 +43,7 @@ pub mod tests {
 
         #[fixture]
         #[once]
-        pub fn ot_ext_core_data(choice: &Vec<bool>, values: &Vec<[Block; 2]>) -> Data {
+        pub fn ot_ext_core_data() -> Data {
             use crate::ot::extension::kos15::{Kos15Receiver, Kos15Sender};
 
             let mut sender = Kos15Sender::default();
@@ -100,11 +98,11 @@ pub mod tests {
     fn test_ext_ot(pair_base_setup: (Kos15Sender, Kos15Receiver)) {
         let (mut sender, mut receiver) = pair_base_setup;
 
-        let mut choice = vec![0u8; 2];
+        let mut choice = vec![0u8; 32];
         let mut rng = ChaCha12Rng::from_entropy();
         rng.fill_bytes(&mut choice);
         let choice = u8vec_to_boolvec(&choice);
-        let inputs: Vec<[Block; 2]> = (0..16)
+        let inputs: Vec<[Block; 2]> = (0..256)
             .map(|_| [Block::random(&mut rng), Block::random(&mut rng)])
             .collect();
 
@@ -139,7 +137,7 @@ pub mod tests {
     fn test_ext_ot_kos_failure(pair_base_setup: (Kos15Sender, Kos15Receiver)) {
         let (mut sender, mut receiver) = pair_base_setup;
 
-        let mut choice = vec![0u8; 2];
+        let mut choice = vec![0u8; 32];
         let mut rng = ChaCha12Rng::from_entropy();
         rng.fill_bytes(&mut choice);
         let choice = u8vec_to_boolvec(&choice);
@@ -154,11 +152,11 @@ pub mod tests {
     fn test_ext_ot_batch(pair_base_setup: (Kos15Sender, Kos15Receiver)) {
         let (mut sender, mut receiver) = pair_base_setup;
 
-        let mut choice = vec![0u8; 2];
+        let mut choice = vec![0u8; 32];
         let mut rng = ChaCha12Rng::from_entropy();
         rng.fill_bytes(&mut choice);
         let choice = u8vec_to_boolvec(&choice);
-        let inputs: Vec<[Block; 2]> = (0..16)
+        let inputs: Vec<[Block; 2]> = (0..256)
             .map(|_| [Block::random(&mut rng), Block::random(&mut rng)])
             .collect();
 
@@ -215,7 +213,7 @@ pub mod tests {
     fn test_ext_random_ot(random_pair_base_setup: (Kos15Sender, Kos15Receiver)) {
         let (mut sender, mut receiver) = random_pair_base_setup;
 
-        let mut choice = vec![0u8; 2];
+        let mut choice = vec![0u8; 32];
         let mut rng = ChaCha12Rng::from_entropy();
         rng.fill_bytes(&mut choice);
         let choice = u8vec_to_boolvec(&choice);
@@ -244,7 +242,7 @@ pub mod tests {
     fn test_ext_random_ot_batch(random_pair_base_setup: (Kos15Sender, Kos15Receiver)) {
         let (mut sender, mut receiver) = random_pair_base_setup;
 
-        let mut choice = vec![0u8; 2];
+        let mut choice = vec![0u8; 32];
         let mut rng = ChaCha12Rng::from_entropy();
         rng.fill_bytes(&mut choice);
         let choice = u8vec_to_boolvec(&choice);
