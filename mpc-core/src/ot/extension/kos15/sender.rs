@@ -11,6 +11,7 @@ use crate::utils::{self, sha256, xor};
 use aes::{Aes128, BlockCipher, BlockEncrypt, NewBlockCipher};
 use cipher::consts::U16;
 use clmul::Clmul;
+use matrix_transpose::transpose_bits;
 use rand::{Rng, RngCore, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 use std::convert::TryInto;
@@ -41,7 +42,9 @@ pub struct Kos15Sender<C = Aes128> {
     cipher: C,
     base: BaseReceiver,
     state: State,
-    count: usize,
+    // number of extended OTs
+    prepared: usize,
+    // sent extended OTs
     sent: usize,
     // choice bits for the base OT protocol
     base_choice: Vec<bool>,
@@ -54,7 +57,7 @@ pub struct Kos15Sender<C = Aes128> {
     // table[j] = R[j] ^ base_choice, if Receiver's choice bit was 1
     // (where R is the table which Receiver has. Note that base_choice is known
     // only to us).
-    table: Option<Vec<Vec<u8>>>,
+    table: Option<Vec<u8>>,
     // our XOR share for the cointoss protocol
     cointoss_share: [u8; 32],
     // the Receiver's sha256 commitment to their cointoss share
@@ -72,7 +75,7 @@ pub struct Kos15Sender<C = Aes128> {
 fn encrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     cipher: &mut C,
     inputs: &[[Block; 2]],
-    table: &[Vec<u8>],
+    table: &[u8],
     base_choice: &[bool],
     flip: Option<Vec<bool>>,
 ) -> Vec<[Block; 2]> {
@@ -90,7 +93,9 @@ fn encrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     // choice bit would be masked by that mask which Receiver knows.
     let flip = flip.unwrap_or(vec![false; inputs.len()]);
     for (j, (input, flip)) in inputs.iter().zip(flip).enumerate() {
-        let q: [u8; 16] = table[j].clone().try_into().unwrap();
+        let q: [u8; BASE_COUNT / 8] = table[BASE_COUNT / 8 * j..BASE_COUNT / 8 * (j + 1)]
+            .try_into()
+            .unwrap();
         let q = Block::from(q);
         let masks = [q.hash_tweak(cipher, j), (q ^ delta).hash_tweak(cipher, j)];
         if flip {
@@ -102,8 +107,8 @@ fn encrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     ciphertexts
 }
 
-impl Kos15Sender {
-    pub fn new(count: usize) -> Self {
+impl Default for Kos15Sender {
+    fn default() -> Self {
         let mut rng = ChaCha12Rng::from_entropy();
 
         let cointoss_share = rng.gen();
@@ -115,7 +120,7 @@ impl Kos15Sender {
             cipher: Aes128::new_from_slice(&[0u8; 16]).unwrap(),
             base: BaseReceiver::default(),
             state: State::Initialized,
-            count,
+            prepared: 0,
             sent: 0,
             base_choice: utils::u8vec_to_boolvec(&base_choice),
             seeds: None,
@@ -132,7 +137,7 @@ impl<C> Kos15Sender<C>
 where
     C: BlockCipher<BlockSize = U16> + BlockEncrypt,
 {
-    pub fn new_from_custom(cipher: C, base: BaseReceiver, count: usize) -> Self {
+    pub fn new_from_custom(cipher: C, base: BaseReceiver) -> Self {
         let mut rng = ChaCha12Rng::from_entropy();
 
         let cointoss_share = rng.gen();
@@ -144,7 +149,7 @@ where
             cipher,
             base,
             state: State::Initialized,
-            count,
+            prepared: 0,
             sent: 0,
             base_choice: utils::u8vec_to_boolvec(&base_choice),
             seeds: None,
@@ -233,9 +238,11 @@ where
     ) -> Result<(), ExtSenderCoreError> {
         check_state(&self.state, &State::BaseReceive)?;
 
-        let ncols = receiver_setup.table[0].len() * 8;
+        let ncols = receiver_setup.table.len() * 8;
+        self.prepared = ncols;
+
         let us = receiver_setup.table;
-        let mut qs: Vec<Vec<u8>> = vec![vec![0u8; ncols / 8]; BASE_COUNT];
+        let mut qs: Vec<u8> = vec![0u8; ncols / 8 * BASE_COUNT];
 
         // This is guaranteed to be set because we can only reach the BaseReceive by running
         // base_receive(), which runs set_seeds(), which sets the RNGs
@@ -245,12 +252,15 @@ where
             .expect("RNGs were not set even when in State::BaseReceive");
 
         for j in 0..BASE_COUNT {
-            rngs[j].fill_bytes(&mut qs[j]);
+            rngs[j].fill_bytes(&mut qs[ncols / 8 * j..ncols / 8 * (j + 1)]);
             if self.base_choice[j] {
-                qs[j] = qs[j].iter().zip(&us[j]).map(|(q, u)| *q ^ *u).collect();
+                qs[ncols / 8 * j..ncols / 8 * (j + 1)]
+                    .iter_mut()
+                    .zip(&us[ncols / 8 * j..ncols / 8 * (j + 1)])
+                    .for_each(|(q, u)| *q = *q ^ *u);
             }
         }
-        let mut qs = utils::transpose(&qs);
+        transpose_bits(&mut qs, BASE_COUNT.trailing_zeros() as usize)?;
 
         // Check correlation
         // The check is explaned in the KOS15 paper in a paragraph on page 8
@@ -264,14 +274,14 @@ where
                 .ok_or(ExtSenderCoreError::InternalError)?,
         );
 
-        let mut check0 = Clmul::new(&[0u8; 16]);
-        let mut check1 = Clmul::new(&[0u8; 16]);
+        let mut check0 = Clmul::new(&[0u8; BASE_COUNT / 8]);
+        let mut check1 = Clmul::new(&[0u8; BASE_COUNT / 8]);
         for j in 0..ncols {
-            let mut q: [u8; 16] = [0u8; 16];
-            q.copy_from_slice(&qs[j]);
+            let mut q = [0u8; BASE_COUNT / 8];
+            q.copy_from_slice(&qs[16 * j..16 * (j + 1)]);
             let mut q = Clmul::new(&q);
             // chi is the random weight
-            let chi: [u8; 16] = rng.gen();
+            let chi: [u8; BASE_COUNT / 8] = rng.gen();
             let mut chi = Clmul::new(&chi);
 
             // multiplication in the finite field (p.14 Implementation Optimizations.
@@ -281,19 +291,19 @@ where
             check1 ^= chi;
         }
 
-        let mut delta: [u8; 16] = [0u8; 16];
+        let mut delta = [0u8; BASE_COUNT / 8];
         delta.copy_from_slice(&utils::boolvec_to_u8vec(&self.base_choice));
         let delta = Clmul::new(&delta);
 
-        let mut x: [u8; 16] = [0u8; 16];
+        let mut x = [0u8; BASE_COUNT / 8];
         x.copy_from_slice(&receiver_setup.x);
         let x = Clmul::new(&x);
 
-        let mut t0: [u8; 16] = [0u8; 16];
+        let mut t0 = [0u8; BASE_COUNT / 8];
         t0.copy_from_slice(&receiver_setup.t0);
         let t0 = Clmul::new(&t0);
 
-        let mut t1: [u8; 16] = [0u8; 16];
+        let mut t1 = [0u8; BASE_COUNT / 8];
         t1.copy_from_slice(&receiver_setup.t1);
         let t1 = Clmul::new(&t1);
 
@@ -315,7 +325,7 @@ where
     pub fn send(&mut self, inputs: &[[Block; 2]]) -> Result<ExtSenderPayload, ExtSenderCoreError> {
         check_state(&self.state, &State::Setup)?;
 
-        if self.sent + inputs.len() > self.count {
+        if self.sent + inputs.len() > self.prepared {
             return Err(ExtSenderCoreError::InvalidInputLength);
         }
 
@@ -325,7 +335,7 @@ where
             .table
             .as_mut()
             .expect("table was not set even when in State::Setup");
-        let table: Vec<Vec<u8>> = table.drain(..inputs.len()).collect();
+        let table: Vec<u8> = table.drain(..inputs.len() * BASE_COUNT / 8).collect();
 
         // Check that all the input lengths are equal
         if inputs.len() != table.len() {
@@ -335,7 +345,7 @@ where
         let ciphertexts = encrypt_values(&mut self.cipher, inputs, &table, &self.base_choice, None);
 
         self.sent += inputs.len();
-        if self.sent == self.count {
+        if self.sent == self.prepared {
             self.state = State::Complete;
         }
 
@@ -355,7 +365,7 @@ where
     ) -> Result<ExtSenderPayload, ExtSenderCoreError> {
         check_state(&self.state, &State::Setup)?;
 
-        if self.sent + inputs.len() > self.count {
+        if self.sent + inputs.len() > self.prepared {
             return Err(ExtSenderCoreError::InvalidInputLength);
         }
 
@@ -365,7 +375,7 @@ where
             .table
             .as_mut()
             .expect("table was not set even when in State::Setup");
-        let table: Vec<Vec<u8>> = table.drain(..inputs.len()).collect();
+        let table: Vec<u8> = table.drain(..inputs.len() * BASE_COUNT / 8).collect();
 
         // Check that all the input lengths are equal
         if inputs.len() != table.len() || table.len() != derandomize.flip.len() {
@@ -381,7 +391,7 @@ where
         );
 
         self.sent += inputs.len();
-        if self.sent == self.count {
+        if self.sent == self.prepared {
             self.state = State::Complete;
         }
 

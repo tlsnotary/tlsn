@@ -25,9 +25,9 @@ impl<S> ExtSender<S>
 where
     S: AsyncRead + AsyncWrite + Send + Unpin,
 {
-    pub fn new(stream: S, count: usize) -> Self {
+    pub fn new(stream: S) -> Self {
         Self {
-            ot: Kos15Sender::new(count),
+            ot: Kos15Sender::default(),
             stream: Framed::new(
                 stream,
                 ProstCodecDelimited::<Message, ProtoMessage>::default(),

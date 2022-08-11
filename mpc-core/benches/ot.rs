@@ -40,7 +40,7 @@ fn ext_ot(c: &mut Criterion) {
             rng.fill_bytes(&mut choice);
             let choice = u8vec_to_boolvec(&choice);
             b.iter(|| {
-                let mut receiver = Kos15Receiver::new(n);
+                let mut receiver = Kos15Receiver::default();
                 let base_sender_setup = receiver.base_setup().unwrap();
 
                 let mut sender = Kos15Sender::new(n);

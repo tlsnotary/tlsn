@@ -16,6 +16,8 @@ pub enum ExtSenderCoreError {
     ConsistencyCheckFailed,
     #[error("An internal error happened")]
     InternalError,
+    #[error("Transpose Error: {0}")]
+    TransposeError(#[from] matrix_transpose::TransposeError),
 }
 
 /// Errors that may occur when using ExtReceiverCore
@@ -35,4 +37,6 @@ pub enum ExtReceiverCoreError {
     InvalidPayloadSize,
     #[error("An internal error happened")]
     InternalError,
+    #[error("Transpose Error: {0}")]
+    TransposeError(#[from] matrix_transpose::TransposeError),
 }

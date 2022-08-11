@@ -52,7 +52,6 @@ pub struct Kos15Receiver<R = ChaCha12Rng, C = Aes128> {
     cipher: C,
     base: BaseSender,
     state: State,
-    count: usize,
     // seeds are the result of running base OT setup. They are used to seed the
     // RNGs.
     seeds: Option<Vec<[Block; 2]>>,
@@ -65,8 +64,8 @@ pub struct Kos15Receiver<R = ChaCha12Rng, C = Aes128> {
     cointoss_random: Option<[u8; 32]>,
 }
 
-impl Kos15Receiver {
-    pub fn new(count: usize) -> Self {
+impl Default for Kos15Receiver {
+    fn default() -> Self {
         let mut rng = ChaCha12Rng::from_entropy();
         let cointoss_share = rng.gen();
         Self {
@@ -74,7 +73,6 @@ impl Kos15Receiver {
             cipher: Aes128::new_from_slice(&[0u8; 16]).unwrap(),
             base: BaseSender::default(),
             state: State::Initialized,
-            count,
             seeds: None,
             rngs: None,
             table: None,
@@ -112,14 +110,13 @@ where
     R: Rng + CryptoRng,
     C: BlockCipher<BlockSize = U16> + BlockEncrypt,
 {
-    pub fn new_with_custom(mut rng: R, cipher: C, base: BaseSender, count: usize) -> Self {
+    pub fn new_with_custom(mut rng: R, cipher: C, base: BaseSender) -> Self {
         let cointoss_share = rng.gen();
         Self {
             rng,
             cipher,
             base,
             state: State::Initialized,
-            count,
             seeds: None,
             rngs: None,
             table: None,
@@ -208,7 +205,9 @@ where
     ) -> Result<ExtReceiverSetup, ExtReceiverCoreError> {
         check_state(&self.state, &State::BaseSend)?;
 
-        if choice.len() % 8 != 0 {
+        // For performance purposes and to get rid of padding we require that choice is a
+        // multiple of 2^k for some k
+        if choice.len() % 256 != 0 {
             return Err(ExtReceiverCoreError::InvalidChoiceLength);
         }
 
@@ -251,7 +250,7 @@ where
         // self.table[j] = S[j], if our choice bit was 0 or
         // self.table[j] = S[j] ^ delta, if our choice bit was 1
         // (note that delta is known only to Sender)
-        transpose_bits(&mut ts, BASE_COUNT.trailing_zeros() as usize);
+        transpose_bits(&mut ts, BASE_COUNT.trailing_zeros() as usize)?;
 
         // Check correlation
         // The check is explaned in the KOS15 paper in a paragraph on page 8
@@ -347,15 +346,22 @@ where
     R: Rng + CryptoRng + SeedableRng,
     C: BlockCipher<BlockSize = U16> + BlockEncrypt,
 {
-    pub fn rand_extension_setup(&mut self) -> Result<ExtReceiverSetup, ExtReceiverCoreError> {
-        let n = self.count;
-        // For random OT we generate random choice bits during setup then derandomize later
-        let mut choice = vec![0u8; if n % 8 != 0 { n + (8 - n % 8) } else { n } / 8];
-        self.rng.fill_bytes(&mut choice);
-        let mut choice = u8vec_to_boolvec(&choice);
-        choice.resize(n, false);
+    pub fn rand_extension_setup(
+        &mut self,
+        choice_len: usize,
+    ) -> Result<ExtReceiverSetup, ExtReceiverCoreError> {
+        // For performance purposes and to get rid of padding we require that choice is a
+        // multiple of 2^k for some k
+        if choice_len % 256 != 0 {
+            return Err(ExtReceiverCoreError::InvalidChoiceLength);
+        }
 
-        self.extension_setup(&choice)
+        // For random OT we generate random choice bits during setup then derandomize later
+        let mut choice_bytes = vec![0u8; choice_len / 8];
+        self.rng.fill_bytes(&mut choice_bytes);
+        let choices = u8vec_to_boolvec(&choice_bytes);
+
+        self.extension_setup(&choices)
     }
 
     pub fn derandomize(&mut self, choice: &[bool]) -> Result<ExtDerandomize, ExtReceiverCoreError> {
