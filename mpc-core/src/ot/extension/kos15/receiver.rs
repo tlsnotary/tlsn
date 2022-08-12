@@ -218,8 +218,12 @@ where
             .as_mut()
             .expect("RNGs were not set even when in State::BaseSend");
 
-        // Also add 256 extra bits which will be sacrificed as part of the
-        // KOS15 protocol.
+        // Also add 256 extra bits which will be sacrificed as part of the KOS15 protocol.
+        //
+        // These 256 extra bits are 32 extra bytes in u8 encoding, so it will increase the KOS extension
+        // matrix by 32 columns. After transposition these additional columns turn into additional rows,
+        // namely 32 * 8, where the factor 8 comes from the fact that it is a bit-level transpose.
+        // This is why, in the end we will have to drain 256 rows in total.
         let mut extra_bytes = [0u8; 32];
         self.rng.fill(&mut extra_bytes[..]);
 
@@ -288,7 +292,8 @@ where
             choice: Vec::from(choice),
             derandomized: Vec::new(),
         });
-        // remove the last 256 elements which were sacrificed
+
+        // Remove the last 256 rows which were sacrificed due to the KOS check
         ts.drain(ts.len() - 256 * BASE_COUNT / 8..);
         self.table = Some(ts);
         Ok(ExtReceiverSetup {

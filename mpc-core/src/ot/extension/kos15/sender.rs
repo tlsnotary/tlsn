@@ -240,9 +240,8 @@ where
 
         let ncols = receiver_setup.ncols;
 
-        // This is because of the extension of the receiver choices with extra 32 bytes, which is
-        // drained afterwards. We have to subtract that here, in order to get the right number of
-        // choices of the receiver
+        // This is because of the extension of the receiver choices with extra 32 bytes
+        // We have to subtract these 256 rows here to get the right number of choices
         self.prepared = ncols - 256;
 
         let us = receiver_setup.table;
@@ -318,8 +317,7 @@ where
             return Err(ExtSenderCoreError::ConsistencyCheckFailed);
         }
 
-        // remove the last 256 elements which were sacrificed during the
-        // KOS check
+        // Remove the last 256 rows which were sacrificed due to the KOS check
         qs.drain(qs.len() - 256 * BASE_COUNT / 8..);
         self.table = Some(qs);
         self.state = State::Setup;
