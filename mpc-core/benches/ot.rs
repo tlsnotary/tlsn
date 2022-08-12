@@ -43,7 +43,7 @@ fn ext_ot(c: &mut Criterion) {
                 let mut receiver = Kos15Receiver::default();
                 let base_sender_setup = receiver.base_setup().unwrap();
 
-                let mut sender = Kos15Sender::new(n);
+                let mut sender = Kos15Sender::default();
                 let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
 
                 let send_seeds = receiver.base_send(base_receiver_setup).unwrap();
