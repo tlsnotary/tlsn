@@ -42,8 +42,8 @@ pub struct Kos15Sender<C = Aes128> {
     cipher: C,
     base: BaseReceiver,
     state: State,
-    // number of extended OTs
-    prepared: usize,
+    // number of extended OTs available
+    count: usize,
     // sent extended OTs
     sent: usize,
     // choice bits for the base OT protocol
@@ -120,7 +120,7 @@ impl Default for Kos15Sender {
             cipher: Aes128::new_from_slice(&[0u8; 16]).unwrap(),
             base: BaseReceiver::default(),
             state: State::Initialized,
-            prepared: 0,
+            count: 0,
             sent: 0,
             base_choice: utils::u8vec_to_boolvec(&base_choice),
             seeds: None,
@@ -149,7 +149,7 @@ where
             cipher,
             base,
             state: State::Initialized,
-            prepared: 0,
+            count: 0,
             sent: 0,
             base_choice: utils::u8vec_to_boolvec(&base_choice),
             seeds: None,
@@ -242,7 +242,7 @@ where
 
         // This is because of the extension of the receiver choices with extra 32 bytes
         // We have to subtract these 256 rows here to get the right number of choices
-        self.prepared = ncols - 256;
+        self.count = ncols - 256;
 
         let us = receiver_setup.table;
         let mut qs: Vec<u8> = vec![0u8; ncols / 8 * BASE_COUNT];
@@ -327,7 +327,7 @@ where
     pub fn send(&mut self, inputs: &[[Block; 2]]) -> Result<ExtSenderPayload, ExtSenderCoreError> {
         check_state(&self.state, &State::Setup)?;
 
-        if self.sent + inputs.len() > self.prepared {
+        if self.sent + inputs.len() > self.count {
             return Err(ExtSenderCoreError::InvalidInputLength);
         }
 
@@ -348,7 +348,7 @@ where
             encrypt_values(&mut self.cipher, inputs, &consumed, &self.base_choice, None);
 
         self.sent += inputs.len();
-        if self.sent == self.prepared {
+        if self.sent == self.count {
             self.state = State::Complete;
         }
 
@@ -368,7 +368,7 @@ where
     ) -> Result<ExtSenderPayload, ExtSenderCoreError> {
         check_state(&self.state, &State::Setup)?;
 
-        if self.sent + inputs.len() > self.prepared {
+        if self.sent + inputs.len() > self.count {
             return Err(ExtSenderCoreError::InvalidInputLength);
         }
 
@@ -396,7 +396,7 @@ where
         );
 
         self.sent += inputs.len();
-        if self.sent == self.prepared {
+        if self.sent == self.count {
             self.state = State::Complete;
         }
 

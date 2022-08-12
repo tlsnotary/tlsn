@@ -334,8 +334,8 @@ where
             .table
             .as_mut()
             .expect("table was not set even when in State::Setup");
-        let table: Vec<u8> = table.drain(..choice.len() * BASE_COUNT / 8).collect();
-        let values = decrypt_values(&mut self.cipher, &payload.ciphertexts, &table, &choice);
+        let consumed: Vec<u8> = table.drain(..choice.len() * BASE_COUNT / 8).collect();
+        let values = decrypt_values(&mut self.cipher, &payload.ciphertexts, &consumed, &choice);
 
         if (choice_state.choice.len() == 0) && (choice_state.derandomized.len() == 0) {
             self.state = State::Complete;
