@@ -320,7 +320,7 @@ where
 
         // remove the last 256 elements which were sacrificed during the
         // KOS check
-        qs.drain(qs.len() - 256..);
+        qs.drain(qs.len() - 256 * BASE_COUNT / 8..);
         self.table = Some(qs);
         self.state = State::Setup;
         Ok(())

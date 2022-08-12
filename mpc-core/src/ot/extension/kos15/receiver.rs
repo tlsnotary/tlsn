@@ -289,7 +289,7 @@ where
             derandomized: Vec::new(),
         });
         // remove the last 256 elements which were sacrificed
-        ts.drain(ts.len() - 256..);
+        ts.drain(ts.len() - 256 * BASE_COUNT / 8..);
         self.table = Some(ts);
         Ok(ExtReceiverSetup {
             ncols,
