@@ -80,9 +80,9 @@ fn encrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     flip: Option<Vec<bool>>,
 ) -> Vec<[Block; 2]> {
     // Check that all the lengths match
-    assert_eq!(inputs.len(), table.len());
+    assert_eq!(inputs.len() * BASE_COUNT / 8, table.len());
     if let Some(f) = &flip {
-        assert_eq!(table.len(), f.len());
+        assert_eq!(table.len(), f.len() * BASE_COUNT / 8);
     }
 
     let mut ciphertexts: Vec<[Block; 2]> = Vec::with_capacity(table.len());
@@ -239,7 +239,11 @@ where
         check_state(&self.state, &State::BaseReceive)?;
 
         let ncols = receiver_setup.ncols;
-        self.prepared = ncols;
+
+        // This is because of the extension of the receiver choices with extra 32 bytes, which is
+        // drained afterwards. We have to subtract that here, in order to get the right number of
+        // choices of the receiver
+        self.prepared = ncols - 256;
 
         let us = receiver_setup.table;
         let mut qs: Vec<u8> = vec![0u8; ncols / 8 * BASE_COUNT];
@@ -335,14 +339,15 @@ where
             .table
             .as_mut()
             .expect("table was not set even when in State::Setup");
-        let table: Vec<u8> = table.drain(..inputs.len() * BASE_COUNT / 8).collect();
+        let consumed: Vec<u8> = table.drain(..inputs.len() * BASE_COUNT / 8).collect();
 
         // Check that all the input lengths are equal
-        if inputs.len() != table.len() {
+        if inputs.len() * BASE_COUNT / 8 != consumed.len() {
             return Err(ExtSenderCoreError::InvalidInputLength);
         }
 
-        let ciphertexts = encrypt_values(&mut self.cipher, inputs, &table, &self.base_choice, None);
+        let ciphertexts =
+            encrypt_values(&mut self.cipher, inputs, &consumed, &self.base_choice, None);
 
         self.sent += inputs.len();
         if self.sent == self.prepared {
@@ -378,7 +383,9 @@ where
         let table: Vec<u8> = table.drain(..inputs.len() * BASE_COUNT / 8).collect();
 
         // Check that all the input lengths are equal
-        if inputs.len() != table.len() || table.len() != derandomize.flip.len() {
+        if inputs.len() * BASE_COUNT / 8 != table.len()
+            || table.len() != derandomize.flip.len() * BASE_COUNT / 8
+        {
             return Err(ExtSenderCoreError::InvalidInputLength);
         }
 

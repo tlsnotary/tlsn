@@ -242,7 +242,7 @@ where
         }
         gs.iter_mut()
             .zip(&ts)
-            .zip(&r)
+            .zip(r.iter().cycle())
             .for_each(|((g, t), r)| *g = *g ^ *t ^ *r);
 
         // After Sender transposes his matrix, he will have a table S such that
