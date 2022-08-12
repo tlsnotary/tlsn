@@ -238,7 +238,7 @@ where
     ) -> Result<(), ExtSenderCoreError> {
         check_state(&self.state, &State::BaseReceive)?;
 
-        let ncols = receiver_setup.table.len() * 8 / BASE_COUNT;
+        let ncols = receiver_setup.ncols;
         self.prepared = ncols;
 
         let us = receiver_setup.table;
@@ -278,7 +278,7 @@ where
         let mut check1 = Clmul::new(&[0u8; BASE_COUNT / 8]);
         for j in 0..ncols {
             let mut q = [0u8; BASE_COUNT / 8];
-            q.copy_from_slice(&qs[16 * j..16 * (j + 1)]);
+            q.copy_from_slice(&qs[BASE_COUNT / 8 * j..BASE_COUNT / 8 * (j + 1)]);
             let mut q = Clmul::new(&q);
             // chi is the random weight
             let chi: [u8; BASE_COUNT / 8] = rng.gen();
