@@ -6,6 +6,8 @@ use crate::{
 };
 use mpc_circuits::{Circuit, InputValue, OutputValue};
 
+use super::label::OutputLabels;
+
 #[derive(Debug, Clone)]
 pub struct EncryptedGate([Block; 2]);
 
@@ -54,9 +56,23 @@ impl FullGarbledCircuit {
             .collect()
     }
 
-    /// Returns full set of output labels
-    pub fn output_labels(&self) -> &[WireLabelPair] {
-        &self.labels[self.circ.len() - self.circ.output_len()..]
+    /// Returns all output labels
+    pub fn output_labels(&self) -> Vec<OutputLabels<WireLabelPair>> {
+        self.circ
+            .outputs()
+            .iter()
+            .map(|output| {
+                OutputLabels::new(
+                    *output,
+                    &output
+                        .as_ref()
+                        .wires()
+                        .iter()
+                        .map(|wire_id| self.labels[*wire_id])
+                        .collect::<Vec<WireLabelPair>>(),
+                )
+            })
+            .collect()
     }
 
     /// Returns [`GarbledCircuit`] which is safe to send an evaluator
@@ -129,6 +145,25 @@ impl EvaluatedGarbledCircuit {
             labels,
             decoding,
         }
+    }
+
+    /// Returns all output labels
+    pub fn output_labels(&self) -> Vec<OutputLabels<WireLabel>> {
+        self.circ
+            .outputs()
+            .iter()
+            .map(|output| {
+                OutputLabels::new(
+                    *output,
+                    &output
+                        .as_ref()
+                        .wires()
+                        .iter()
+                        .map(|wire_id| self.labels[*wire_id])
+                        .collect::<Vec<WireLabel>>(),
+                )
+            })
+            .collect()
     }
 
     pub fn decode(&self) -> Result<Vec<OutputValue>, Error> {
