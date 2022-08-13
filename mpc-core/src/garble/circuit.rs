@@ -166,6 +166,7 @@ impl EvaluatedGarbledCircuit {
             .collect()
     }
 
+    /// Returns decoded circuit outputs
     pub fn decode(&self) -> Result<Vec<OutputValue>, Error> {
         let decoding = match &self.decoding {
             Some(decoding) => decoding,
