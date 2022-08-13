@@ -5,7 +5,7 @@ import "core.proto";
 package core.garble;
 
 // Wire label of garbled circuit
-message WireLabel {
+message BinaryLabel {
     // Wire label id
     required uint32 id = 1;
     // Wire label value
@@ -17,14 +17,14 @@ message GarbledCircuit {
     // Circuit unique id
     required string id = 1;
     // Generator's wire labels corresponding to their input bits
-    repeated WireLabel input_labels = 2;
+    repeated BinaryLabel input_labels = 2;
     // Truth table for garbled AND gates
     repeated core.Block encrypted_gates = 3;
     // Output decoding bits
     repeated bool decoding = 4;
 }
 
-message GarbleMessage {
+message Message {
     oneof msg {
         GarbledCircuit garbled_circuit = 1;
     }

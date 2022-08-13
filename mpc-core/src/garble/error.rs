@@ -6,8 +6,14 @@ pub enum Error {
     InvalidInput(InputError),
     #[error("Invalid label decoding")]
     InvalidLabelDecoding,
+    #[error("Invalid input labels")]
+    InvalidInputLabels,
     #[error("Invalid output labels")]
     InvalidOutputLabels,
+    #[error("Circuit error: {0:?}")]
+    CircuitError(#[from] mpc_circuits::Error),
+    #[error("General error: {0}")]
+    General(String),
     #[error("Peer behaved unexpectedly: {0}")]
     PeerError(String),
 }
