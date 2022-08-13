@@ -6,7 +6,7 @@ use crate::{
     garble::{Error, InputError},
     utils::pick,
 };
-use mpc_circuits::{Circuit, Input, InputValue};
+use mpc_circuits::{Circuit, Input, InputValue, Output, OutputValue};
 
 /// Global binary offset used by the Free-XOR technique to create wire label
 /// pairs where W_1 = W_0 ^ Delta.
@@ -230,6 +230,53 @@ impl SanitizedInputLabels {
     /// Consumes `self` returning the inner input labels
     pub(crate) fn inner(self) -> Vec<WireLabel> {
         self.0
+    }
+}
+
+/// Wire labels corresponding to a circuit output
+#[derive(Debug, Clone)]
+pub struct OutputLabels<T> {
+    output: Output,
+    labels: Vec<T>,
+}
+
+impl<T: Copy> OutputLabels<T> {
+    pub(crate) fn new(output: Output, labels: &[T]) -> Self {
+        debug_assert_eq!(output.as_ref().len(), labels.len());
+        Self {
+            output,
+            labels: labels.to_vec(),
+        }
+    }
+
+    pub fn id(&self) -> usize {
+        self.output.id
+    }
+}
+
+impl OutputLabels<WireLabelPair> {
+    /// Returns output wire labels corresponding to an [`OutputValue`]
+    pub fn select(&self, value: &OutputValue) -> Result<OutputLabels<WireLabel>, Error> {
+        // TODO: Don't panic, return proper error
+        assert_eq!(value.id(), self.output.id);
+
+        let labels: Vec<WireLabel> = self
+            .labels
+            .iter()
+            .zip(value.as_ref())
+            .map(|(pair, value)| pair.select(*value))
+            .collect();
+
+        Ok(OutputLabels {
+            output: self.output.clone(),
+            labels,
+        })
+    }
+}
+
+impl<T> AsRef<[T]> for OutputLabels<T> {
+    fn as_ref(&self) -> &[T] {
+        &self.labels
     }
 }
 
