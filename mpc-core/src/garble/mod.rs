@@ -5,7 +5,7 @@ pub mod exec;
 pub mod generator;
 mod label;
 
-pub use circuit::{EncryptedGate, FullGarbledCircuit, GarbledCircuit};
+pub use circuit::{EncryptedGate, EvaluatedGarbledCircuit, FullGarbledCircuit, GarbledCircuit};
 pub use error::{Error, InputError};
 pub use evaluator::evaluate_garbled_circuit;
 pub use generator::generate_garbled_circuit;
