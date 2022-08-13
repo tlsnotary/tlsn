@@ -3,14 +3,14 @@
 //! if malicious, can learn bits of the others input with 1/2^n probability of it going undetected.
 use crate::{
     garble::{
-        circuit::{BinaryLabel, EvaluatedGarbledCircuit, InputValue},
+        circuit::{BinaryInputLabels, BinaryLabel, EvaluatedGarbledCircuit},
         decode, evaluate_garbled_circuit, generate_garbled_circuit, Error, FullGarbledCircuit,
         GarbledCircuit,
     },
     utils::{choose, sha256},
     Block,
 };
-use mpc_circuits::Circuit;
+use mpc_circuits::{Circuit, InputValue};
 
 use aes::{Aes128, NewBlockCipher};
 use std::sync::Arc;
@@ -116,7 +116,7 @@ impl DualExLeader<Generator> {
     pub fn garble(
         self,
         inputs: &[InputValue],
-        input_labels: &[[BinaryLabel; 2]],
+        input_labels: &[BinaryInputLabels],
         delta: &Block,
     ) -> Result<(GarbledCircuit, DualExLeader<Evaluator>), Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
@@ -140,7 +140,7 @@ impl DualExFollower<Generator> {
     pub fn garble(
         self,
         inputs: &[InputValue],
-        input_labels: &[[BinaryLabel; 2]],
+        input_labels: &[BinaryInputLabels],
         delta: &Block,
     ) -> Result<(GarbledCircuit, DualExFollower<Evaluator>), Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
@@ -339,7 +339,7 @@ impl DualExFollower<Check> {
 
 #[cfg(test)]
 mod tests {
-    use crate::garble::{circuit::choose_labels, generate_labels};
+    use crate::garble::{circuit::choose_labels, generate_label_pairs};
 
     use super::*;
     use mpc_circuits::ADDER_64;
@@ -355,11 +355,11 @@ mod tests {
 
         // Alice and Bob have u64 inputs of 1
         let value = [vec![false; 63], vec![true; 1]].concat();
-        let leader_inputs = [InputValue::new(circ.input(0).clone(), &value)];
-        let follower_inputs = [InputValue::new(circ.input(1).clone(), &value)];
+        let leader_inputs = [InputValue::new(circ.input(0).unwrap().clone(), &value).unwrap()];
+        let follower_inputs = [InputValue::new(circ.input(1).unwrap().clone(), &value).unwrap()];
 
-        let (leader_labels, leader_delta) = generate_labels(&mut rng, None, 128, 0);
-        let (follower_labels, follower_delta) = generate_labels(&mut rng, None, 128, 0);
+        let (leader_labels, leader_delta) = generate_label_pairs(&mut rng, None, 128, 0);
+        let (follower_labels, follower_delta) = generate_label_pairs(&mut rng, None, 128, 0);
 
         let (leader_gc, leader) = leader
             .garble(&leader_inputs, &leader_labels, &leader_delta)
@@ -375,7 +375,7 @@ mod tests {
                 &choose_labels(
                     &follower_labels,
                     leader_inputs[0].wires(),
-                    leader_inputs[0].value(),
+                    leader_inputs[0].as_ref(),
                 ),
             )
             .unwrap();
@@ -386,7 +386,7 @@ mod tests {
                 &choose_labels(
                     &leader_labels,
                     follower_inputs[0].wires(),
-                    follower_inputs[0].value(),
+                    follower_inputs[0].as_ref(),
                 ),
             )
             .unwrap();
