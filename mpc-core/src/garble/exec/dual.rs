@@ -3,12 +3,11 @@
 //! if malicious, can learn bits of the others input with 1/2^n probability of it going undetected.
 use crate::{
     garble::{
-        circuit::{BinaryInputLabels, BinaryLabel, EvaluatedGarbledCircuit},
-        decode, evaluate_garbled_circuit, generate_garbled_circuit, Error, FullGarbledCircuit,
-        GarbledCircuit,
+        circuit::EvaluatedGarbledCircuit, evaluate_garbled_circuit, generate_garbled_circuit,
+        label::OutputLabels, Delta, Error, FullGarbledCircuit, GarbledCircuit, InputLabels,
+        WireLabel, WireLabelPair,
     },
-    utils::{choose, sha256},
-    Block,
+    utils::sha256,
 };
 use mpc_circuits::{Circuit, InputValue};
 
@@ -22,8 +21,20 @@ pub struct OutputCheck([u8; 32]);
 pub struct OutputCommit([u8; 32]);
 
 impl OutputCheck {
-    pub fn new(expected: &[u8]) -> Self {
-        Self(sha256(expected))
+    /// Creates new output check
+    ///
+    /// This output check is a hash of the output wire labels from the peer's circuit along with the
+    /// expected labels from the callers garbled circuit. The expected labels are determined using
+    /// the decoded output values from evaluating the peer's garbled circuit.
+    pub fn new(labels: (&[OutputLabels<WireLabel>], &[OutputLabels<WireLabel>])) -> Self {
+        let bytes: Vec<u8> = labels
+            .0
+            .iter()
+            .chain(labels.1.iter())
+            .map(|labels| labels.to_be_bytes())
+            .flatten()
+            .collect();
+        Self(sha256(&bytes))
     }
 }
 
@@ -55,22 +66,19 @@ pub struct Evaluator {
 
 pub struct Commit {
     circ: Arc<Circuit>,
-    output_labels: Vec<BinaryLabel>,
-    output: Vec<bool>,
+    evaluated_gc: EvaluatedGarbledCircuit,
     check: OutputCheck,
 }
 
 pub struct Reveal {
     circ: Arc<Circuit>,
-    output_labels: Vec<BinaryLabel>,
-    output: Vec<bool>,
+    evaluated_gc: EvaluatedGarbledCircuit,
     check: OutputCheck,
 }
 
 pub struct Check {
     circ: Arc<Circuit>,
-    output_labels: Vec<BinaryLabel>,
-    output: Vec<bool>,
+    evaluated_gc: EvaluatedGarbledCircuit,
     check: OutputCheck,
     commit: Option<OutputCommit>,
 }
@@ -116,8 +124,8 @@ impl DualExLeader<Generator> {
     pub fn garble(
         self,
         inputs: &[InputValue],
-        input_labels: &[BinaryInputLabels],
-        delta: &Block,
+        input_labels: &[InputLabels<WireLabelPair>],
+        delta: Delta,
     ) -> Result<(GarbledCircuit, DualExLeader<Evaluator>), Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
 
@@ -140,8 +148,8 @@ impl DualExFollower<Generator> {
     pub fn garble(
         self,
         inputs: &[InputValue],
-        input_labels: &[BinaryInputLabels],
-        delta: &Block,
+        input_labels: &[InputLabels<WireLabelPair>],
+        delta: Delta,
     ) -> Result<(GarbledCircuit, DualExFollower<Evaluator>), Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
 
@@ -164,35 +172,29 @@ impl DualExLeader<Evaluator> {
     pub fn evaluate(
         self,
         gc: &GarbledCircuit,
-        input_labels: &[BinaryLabel],
+        input_labels: &[InputLabels<WireLabel>],
     ) -> Result<DualExLeader<Commit>, Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
 
-        let output_labels = evaluate_garbled_circuit(&cipher, &gc, input_labels)?;
+        let evaluated_gc = evaluate_garbled_circuit(&cipher, &gc, input_labels)?;
 
-        let output = decode(
-            &output_labels,
-            gc.decoding.as_ref().ok_or(Error::PeerError(
-                "Peer did not provide label decoding".to_string(),
-            ))?,
-        );
+        let output = evaluated_gc
+            .decode()
+            .map_err(|_| Error::PeerError("Peer did not provide label decoding".to_string()))?;
 
-        let expected_labels = choose(self.state.gc.output_labels(), &output);
+        let mut expected_labels: Vec<OutputLabels<WireLabel>> =
+            Vec::with_capacity(self.state.circ.output_count());
+        // Here we use the output values from the peer's circuit to select the corresponding output labels from our garbled circuit
+        for (labels, value) in self.state.gc.output_labels().iter().zip(output.iter()) {
+            expected_labels.push(labels.select(value)?);
+        }
 
-        let check = OutputCheck::new(
-            &expected_labels
-                .iter()
-                .chain(output_labels.iter())
-                .map(|label| label.as_ref().to_be_bytes())
-                .flatten()
-                .collect::<Vec<u8>>(),
-        );
+        let check = OutputCheck::new((&expected_labels, &evaluated_gc.output_labels()));
 
         Ok(DualExLeader {
             state: Commit {
                 circ: self.state.circ,
-                output_labels,
-                output,
+                evaluated_gc,
                 check,
             },
         })
@@ -204,35 +206,29 @@ impl DualExFollower<Evaluator> {
     pub fn evaluate(
         self,
         gc: &GarbledCircuit,
-        input_labels: &[BinaryLabel],
+        input_labels: &[InputLabels<WireLabel>],
     ) -> Result<DualExFollower<Reveal>, Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
 
-        let output_labels = evaluate_garbled_circuit(&cipher, &gc, input_labels)?;
+        let evaluated_gc = evaluate_garbled_circuit(&cipher, &gc, input_labels)?;
 
-        let output = decode(
-            &output_labels,
-            gc.decoding.as_ref().ok_or(Error::PeerError(
-                "Peer did not provide label decoding".to_string(),
-            ))?,
-        );
+        let output = evaluated_gc
+            .decode()
+            .map_err(|_| Error::PeerError("Peer did not provide label decoding".to_string()))?;
 
-        let expected_labels = choose(self.state.gc.output_labels(), output.as_ref());
+        let mut expected_labels: Vec<OutputLabels<WireLabel>> =
+            Vec::with_capacity(self.state.circ.output_count());
+        // Here we use the output values from the peer's circuit to select the corresponding output labels from our garbled circuit
+        for (labels, value) in self.state.gc.output_labels().iter().zip(output.iter()) {
+            expected_labels.push(labels.select(value)?);
+        }
 
-        let check = OutputCheck::new(
-            &output_labels
-                .iter()
-                .chain(expected_labels.iter())
-                .map(|label| label.as_ref().to_be_bytes())
-                .flatten()
-                .collect::<Vec<u8>>(),
-        );
+        let check = OutputCheck::new((&evaluated_gc.output_labels(), &expected_labels));
 
         Ok(DualExFollower {
             state: Reveal {
                 circ: self.state.circ,
-                output_labels,
-                output,
+                evaluated_gc,
                 check,
             },
         })
@@ -247,8 +243,7 @@ impl DualExLeader<Commit> {
             DualExLeader {
                 state: Check {
                     circ: self.state.circ,
-                    output_labels: self.state.output_labels,
-                    output: self.state.output,
+                    evaluated_gc: self.state.evaluated_gc,
                     check: self.state.check,
                     commit: None,
                 },
@@ -265,8 +260,7 @@ impl DualExFollower<Reveal> {
             DualExFollower {
                 state: Check {
                     circ: self.state.circ,
-                    output_labels: self.state.output_labels,
-                    output: self.state.output,
+                    evaluated_gc: self.state.evaluated_gc,
                     check: self.state.check,
                     commit: Some(commit),
                 },
@@ -289,8 +283,7 @@ impl DualExLeader<Check> {
         Ok(DualExLeader {
             state: Reveal {
                 circ: self.state.circ,
-                output_labels: self.state.output_labels,
-                output: self.state.output,
+                evaluated_gc: self.state.evaluated_gc,
                 check: self.state.check,
             },
         })
@@ -300,14 +293,7 @@ impl DualExLeader<Check> {
 impl DualExLeader<Reveal> {
     /// Open output commitment to [`DualExFollower`]
     pub fn reveal(self) -> (OutputCheck, EvaluatedGarbledCircuit) {
-        (
-            self.state.check,
-            EvaluatedGarbledCircuit {
-                circ: self.state.circ,
-                output_labels: self.state.output_labels,
-                output: Some(self.state.output),
-            },
-        )
+        (self.state.check, self.state.evaluated_gc)
     }
 }
 
@@ -329,17 +315,13 @@ impl DualExFollower<Check> {
             ));
         }
 
-        Ok(EvaluatedGarbledCircuit {
-            circ: self.state.circ,
-            output_labels: self.state.output_labels,
-            output: Some(self.state.output),
-        })
+        Ok(self.state.evaluated_gc)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::garble::{circuit::choose_labels, generate_label_pairs};
+    use crate::garble::generate_input_labels;
 
     use super::*;
     use mpc_circuits::ADDER_64;
@@ -353,41 +335,33 @@ mod tests {
         let leader = DualExLeader::new(circ.clone());
         let follower = DualExFollower::new(circ.clone());
 
-        // Alice and Bob have u64 inputs of 1
+        // Leader and Follower have u64 inputs of 1
         let value = [vec![false; 63], vec![true; 1]].concat();
-        let leader_inputs = [InputValue::new(circ.input(0).unwrap().clone(), &value).unwrap()];
-        let follower_inputs = [InputValue::new(circ.input(1).unwrap().clone(), &value).unwrap()];
+        let leader_input = circ.input(0).unwrap().to_value(&value).unwrap();
+        let follower_input = circ.input(1).unwrap().to_value(&value).unwrap();
 
-        let (leader_labels, leader_delta) = generate_label_pairs(&mut rng, None, 128, 0);
-        let (follower_labels, follower_delta) = generate_label_pairs(&mut rng, None, 128, 0);
+        let (leader_labels, leader_delta) = generate_input_labels(&mut rng, &circ, None);
+        let (follower_labels, follower_delta) = generate_input_labels(&mut rng, &circ, None);
 
         let (leader_gc, leader) = leader
-            .garble(&leader_inputs, &leader_labels, &leader_delta)
+            .garble(&[leader_input.clone()], &leader_labels, leader_delta)
             .unwrap();
 
         let (follower_gc, follower) = follower
-            .garble(&follower_inputs, &follower_labels, &follower_delta)
+            .garble(&[follower_input.clone()], &follower_labels, follower_delta)
             .unwrap();
 
         let leader = leader
             .evaluate(
                 &follower_gc,
-                &choose_labels(
-                    &follower_labels,
-                    leader_inputs[0].wires(),
-                    leader_inputs[0].as_ref(),
-                ),
+                &[follower_labels[0].select(&leader_input).unwrap()],
             )
             .unwrap();
 
         let follower = follower
             .evaluate(
                 &leader_gc,
-                &choose_labels(
-                    &leader_labels,
-                    follower_inputs[0].wires(),
-                    follower_inputs[0].as_ref(),
-                ),
+                &[leader_labels[1].select(&follower_input).unwrap()],
             )
             .unwrap();
 
@@ -404,7 +378,7 @@ mod tests {
         let (leader_reveal, leader_gc) = leader.check(follower_reveal).unwrap().reveal();
         let follower_gc = follower.check(leader_reveal).unwrap();
 
-        assert_eq!(leader_gc.output, follower_gc.output);
+        assert_eq!(leader_gc.decode().unwrap(), follower_gc.decode().unwrap());
     }
 
     #[test]
@@ -414,7 +388,7 @@ mod tests {
         let (leader_commit, _) = leader.commit();
         let (_, follower) = follower.reveal(leader_commit);
 
-        let malicious_leader_reveal = OutputCheck::new(&[]);
+        let malicious_leader_reveal = OutputCheck::new((&[], &[]));
 
         let follower_result = follower.check(malicious_leader_reveal);
 
@@ -427,7 +401,7 @@ mod tests {
 
         let (_, leader) = leader.commit();
 
-        let malicious_leader_commit = OutputCommit::new(&OutputCheck::new(&[]));
+        let malicious_leader_commit = OutputCommit::new(&OutputCheck::new((&[], &[])));
 
         let (follower_reveal, follower) = follower.reveal(malicious_leader_commit);
 
@@ -444,7 +418,7 @@ mod tests {
 
         let (_, leader) = leader.commit();
 
-        let malicious_follower_reveal = OutputCheck::new(&[]);
+        let malicious_follower_reveal = OutputCheck::new((&[], &[]));
 
         let leader_result = leader.check(malicious_follower_reveal);
 

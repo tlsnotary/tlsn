@@ -274,6 +274,17 @@ impl OutputLabels<WireLabelPair> {
     }
 }
 
+impl OutputLabels<WireLabel> {
+    /// Convenience function to convert labels into bytes
+    pub(crate) fn to_be_bytes(&self) -> Vec<u8> {
+        self.labels
+            .iter()
+            .map(|label| label.as_ref().to_be_bytes())
+            .flatten()
+            .collect()
+    }
+}
+
 impl<T> AsRef<[T]> for OutputLabels<T> {
     fn as_ref(&self) -> &[T] {
         &self.labels
