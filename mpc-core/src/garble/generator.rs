@@ -1,9 +1,8 @@
 use cipher::{consts::U16, BlockCipher, BlockEncrypt};
-use std::sync::Arc;
 
 use crate::{
     block::SELECT_MASK,
-    garble::{Delta, EncryptedGate, Error, FullGarbledCircuit, InputLabels, WireLabelPair},
+    garble::{Delta, EncryptedGate, Error, WireLabelPair},
 };
 use mpc_circuits::{Circuit, Gate};
 
@@ -103,52 +102,4 @@ pub fn garble<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
         .collect();
 
     Ok((labels, encrypted_gates))
-}
-
-/// Generate a garbled circuit with the provided input labels and delta.
-pub fn generate_garbled_circuit<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
-    cipher: &C,
-    circ: Arc<Circuit>,
-    delta: Delta,
-    input_labels: &[InputLabels<WireLabelPair>],
-) -> Result<FullGarbledCircuit, Error> {
-    let input_labels: Vec<WireLabelPair> = input_labels
-        .iter()
-        .map(|pair| pair.as_ref())
-        .flatten()
-        .copied()
-        .collect();
-    let (labels, encrypted_gates) = garble(cipher, &circ, delta, &input_labels)?;
-    Ok(FullGarbledCircuit::new(
-        circ,
-        labels,
-        encrypted_gates,
-        delta,
-    ))
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::garble::generate_label_pairs;
-
-    use super::*;
-    use aes::{
-        cipher::{generic_array::GenericArray, NewBlockCipher},
-        Aes128,
-    };
-    use mpc_circuits::AES_128_REVERSE;
-    use rand::SeedableRng;
-    use rand_chacha::ChaCha12Rng;
-
-    #[test]
-    fn test_uninitialized_label() {
-        let cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
-        let mut rng = ChaCha12Rng::from_entropy();
-        let circ = Arc::new(Circuit::load_bytes(AES_128_REVERSE).unwrap());
-
-        let (input_labels, delta) = generate_label_pairs(&mut rng, None, circ.input_len() - 1, 0);
-
-        let result = garble(&cipher, &circ, delta, &input_labels);
-        assert!(matches!(result, Err(Error::UninitializedLabel(_))));
-    }
 }

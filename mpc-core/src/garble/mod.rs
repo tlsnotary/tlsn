@@ -7,12 +7,7 @@ mod label;
 
 pub use circuit::{EncryptedGate, EvaluatedGarbledCircuit, FullGarbledCircuit, GarbledCircuit};
 pub use error::{Error, InputError};
-pub use evaluator::evaluate_garbled_circuit;
-pub use generator::generate_garbled_circuit;
-pub use label::{
-    decode_labels, generate_input_labels, generate_label_pairs, Delta, InputLabels, OutputLabels,
-    SanitizedInputLabels, WireLabel, WireLabelPair,
-};
+pub use label::{Delta, InputLabels, OutputLabels, SanitizedInputLabels, WireLabel, WireLabelPair};
 
 #[cfg(test)]
 mod tests {
@@ -25,7 +20,7 @@ mod tests {
     use rand_chacha::ChaCha12Rng;
     use std::sync::Arc;
 
-    use crate::{garble::generate_input_labels, utils, Block};
+    use crate::{utils, Block};
     use mpc_circuits::{Circuit, AES_128_REVERSE};
 
     #[test]
@@ -124,22 +119,21 @@ mod tests {
         let cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
         let circ = Arc::new(Circuit::load_bytes(AES_128_REVERSE).unwrap());
 
-        let (input_labels, delta) = generate_input_labels(&mut rng, &circ, None);
+        let (input_labels, delta) = InputLabels::generate(&mut rng, &circ, None);
 
         // Generator provides key
         let gen_input = circ.input(0).unwrap().to_value(&[false; 128]).unwrap();
         // Evaluator provides message
         let ev_input = circ.input(1).unwrap().to_value(&[false; 128]).unwrap();
 
-        let gc =
-            gen::generate_garbled_circuit(&cipher, circ.clone(), delta, &input_labels).unwrap();
+        let gc = FullGarbledCircuit::generate(&cipher, circ.clone(), delta, &input_labels).unwrap();
 
         let gc = gc.to_evaluator(&[gen_input.clone()], true);
 
         // Evaluator typically receives these using OT
         let ev_input_labels = input_labels[1].select(&ev_input).unwrap();
 
-        let evaluated_gc = ev::evaluate_garbled_circuit(&cipher, &gc, &[ev_input_labels]).unwrap();
+        let evaluated_gc = gc.evaluate(&cipher, &[ev_input_labels]).unwrap();
         let output = evaluated_gc.decode().unwrap();
 
         let expected = circ.evaluate(&[gen_input, ev_input]).unwrap();

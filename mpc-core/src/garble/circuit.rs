@@ -1,8 +1,13 @@
+use cipher::{consts::U16, BlockCipher, BlockEncrypt};
 use std::sync::Arc;
 
 use crate::{
     block::Block,
-    garble::{label::decode, Delta, Error, InputLabels, WireLabel, WireLabelPair},
+    garble::{
+        evaluator::evaluate, generator::garble, Delta, Error, InputLabels, SanitizedInputLabels,
+        WireLabel, WireLabelPair,
+    },
+    utils::pick,
 };
 use mpc_circuits::{Circuit, InputValue, OutputValue};
 
@@ -33,18 +38,26 @@ pub struct FullGarbledCircuit {
 }
 
 impl FullGarbledCircuit {
-    pub(crate) fn new(
+    /// Generate a garbled circuit with the provided input labels and delta.
+    pub fn generate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
+        cipher: &C,
         circ: Arc<Circuit>,
-        labels: Vec<WireLabelPair>,
-        encrypted_gates: Vec<EncryptedGate>,
         delta: Delta,
-    ) -> Self {
-        Self {
+        input_labels: &[InputLabels<WireLabelPair>],
+    ) -> Result<Self, Error> {
+        let input_labels: Vec<WireLabelPair> = input_labels
+            .iter()
+            .map(|pair| pair.as_ref())
+            .flatten()
+            .copied()
+            .collect();
+        let (labels, encrypted_gates) = garble(cipher, &circ, delta, &input_labels)?;
+        Ok(Self {
             circ,
             labels,
             encrypted_gates,
             delta,
-        }
+        })
     }
 
     /// Returns output label decoding
@@ -126,6 +139,25 @@ pub struct GarbledCircuit {
     pub(crate) decoding: Option<Vec<bool>>,
 }
 
+impl GarbledCircuit {
+    /// Evaluates a garbled circuit using provided input labels. These labels are combined with labels sent by the generator
+    /// and checked for correctness using the circuit spec.
+    pub fn evaluate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
+        &self,
+        cipher: &C,
+        input_labels: &[InputLabels<WireLabel>],
+    ) -> Result<EvaluatedGarbledCircuit, Error> {
+        let input_labels = SanitizedInputLabels::new(&self.circ, &self.input_labels, input_labels)?;
+        let labels = evaluate(cipher, &self.circ, input_labels, &self.encrypted_gates)?;
+
+        Ok(EvaluatedGarbledCircuit::new(
+            self.circ.clone(),
+            labels,
+            self.decoding.clone(),
+        ))
+    }
+}
+
 /// A garbled circuit which has been evaluated
 pub struct EvaluatedGarbledCircuit {
     pub circ: Arc<Circuit>,
@@ -135,11 +167,7 @@ pub struct EvaluatedGarbledCircuit {
 
 impl EvaluatedGarbledCircuit {
     /// Creates new evaluated circuit
-    pub(crate) fn new(
-        circ: Arc<Circuit>,
-        labels: Vec<WireLabel>,
-        decoding: Option<Vec<bool>>,
-    ) -> Self {
+    fn new(circ: Arc<Circuit>, labels: Vec<WireLabel>, decoding: Option<Vec<bool>>) -> Self {
         Self {
             circ,
             labels,
@@ -176,21 +204,31 @@ impl EvaluatedGarbledCircuit {
             return Err(Error::InvalidLabelDecoding);
         }
         let mut outputs: Vec<OutputValue> = Vec::with_capacity(self.circ.output_count());
-        let id_offset = self.circ.len() - self.circ.output_len();
-        for output in self.circ.outputs() {
-            outputs.push(OutputValue::new(
-                output.clone(),
-                &output
-                    .as_ref()
-                    .wires()
-                    .iter()
-                    .map(|wire_id| {
-                        // This should never panic due to invariants upheld by `Circuit`
-                        decode(&self.labels[*wire_id], decoding[*wire_id - id_offset])
-                    })
-                    .collect::<Vec<bool>>(),
-            )?)
+        for output in self.output_labels() {
+            outputs.push(output.decode(&pick(&decoding, output.output.as_ref().wires()))?);
         }
         Ok(outputs)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use aes::{Aes128, NewBlockCipher};
+    use mpc_circuits::AES_128_REVERSE;
+    use rand_chacha::ChaCha12Rng;
+    use rand_core::SeedableRng;
+
+    use super::*;
+
+    #[test]
+    fn test_uninitialized_label() {
+        let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
+        let mut rng = ChaCha12Rng::from_entropy();
+        let circ = Arc::new(Circuit::load_bytes(AES_128_REVERSE).unwrap());
+
+        let (input_labels, delta) = InputLabels::generate(&mut rng, &circ, None);
+
+        let result = FullGarbledCircuit::generate(&cipher, circ, delta, &input_labels);
+        assert!(matches!(result, Err(Error::UninitializedLabel(_))));
     }
 }
