@@ -1,7 +1,7 @@
 pub mod circuit;
 pub mod error;
 pub mod evaluator;
-//pub mod exec;
+pub mod exec;
 pub mod generator;
 mod label;
 
