@@ -63,7 +63,7 @@ impl FullGarbledCircuit {
             .iter()
             .map(|output| {
                 OutputLabels::new(
-                    *output,
+                    output.clone(),
                     &output
                         .as_ref()
                         .wires()
@@ -154,7 +154,7 @@ impl EvaluatedGarbledCircuit {
             .iter()
             .map(|output| {
                 OutputLabels::new(
-                    *output,
+                    output.clone(),
                     &output
                         .as_ref()
                         .wires()
