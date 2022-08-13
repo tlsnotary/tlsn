@@ -67,6 +67,27 @@ impl WireLabel {
         self.value.lsb() == 1
     }
 
+    /// Decodes wire label to it's corresponding truth value
+    #[inline]
+    pub fn decode(&self, decode: bool) -> bool {
+        self.permute_bit() ^ decode
+    }
+
+    /// Decodes output wire labels into plaintext.
+    ///
+    /// Thanks to the permute-and-point (p&p) technique, the two adjacent labels
+    /// will have the opposite p&p bits. We apply the decoding to the p&p bits.
+    pub fn decode_many(labels: &[Self], decoding: &[bool]) -> Result<Vec<bool>, Error> {
+        if labels.len() != decoding.len() {
+            return Err(Error::InvalidLabelDecoding);
+        }
+        Ok(labels
+            .iter()
+            .zip(decoding)
+            .map(|(label, decode_bit)| label.decode(*decode_bit))
+            .collect())
+    }
+
     /// Creates a new random wire label
     pub fn random<R: Rng + CryptoRng>(id: usize, rng: &mut R) -> Self {
         Self {
@@ -92,6 +113,28 @@ impl WireLabelPair {
     #[inline]
     pub(crate) fn new(id: usize, low: Block, high: Block) -> Self {
         Self { id, low, high }
+    }
+
+    /// Generates pairs of wire labels \[W_0, W_0 ^ delta\]
+    pub fn generate<R: Rng + CryptoRng>(
+        rng: &mut R,
+        delta: Option<Delta>,
+        count: usize,
+        offset: usize,
+    ) -> (Vec<Self>, Delta) {
+        let delta = match delta {
+            Some(delta) => delta,
+            None => Delta::random(rng),
+        };
+        // Logical low wire labels, [W_0; count]
+        let low = Block::random_vec(rng, count);
+        (
+            low.into_iter()
+                .enumerate()
+                .map(|(id, value)| WireLabelPair::new(id + offset, value, value ^ *delta))
+                .collect(),
+            delta,
+        )
     }
 
     /// Returns wire id
@@ -134,7 +177,7 @@ impl WireLabelPair {
 /// Wire labels corresponding to a circuit input
 #[derive(Debug, Clone)]
 pub struct InputLabels<T> {
-    input: Input,
+    pub input: Input,
     labels: Vec<T>,
 }
 
@@ -153,6 +196,24 @@ impl<T: Copy> InputLabels<T> {
 }
 
 impl InputLabels<WireLabelPair> {
+    /// Generates a full set of input [`WireLabelPair`] for the provided [`Circuit`]
+    pub fn generate<R: Rng + CryptoRng>(
+        rng: &mut R,
+        circ: &Circuit,
+        delta: Option<Delta>,
+    ) -> (Vec<Self>, Delta) {
+        let (labels, delta) = WireLabelPair::generate(rng, delta, circ.input_len(), 0);
+
+        // This should never panic due to invariants enforced during the construction of a `Circuit`
+        let inputs: Vec<InputLabels<WireLabelPair>> = circ
+            .inputs()
+            .iter()
+            .map(|input| InputLabels::new(input.clone(), &pick(&labels, input.as_ref().wires())))
+            .collect();
+
+        (inputs, delta)
+    }
+
     /// Returns input wire labels corresponding to an [`InputValue`]
     pub fn select(&self, value: &InputValue) -> Result<InputLabels<WireLabel>, Error> {
         // TODO: Don't panic, return proper error
@@ -236,7 +297,7 @@ impl SanitizedInputLabels {
 /// Wire labels corresponding to a circuit output
 #[derive(Debug, Clone)]
 pub struct OutputLabels<T> {
-    output: Output,
+    pub output: Output,
     labels: Vec<T>,
 }
 
@@ -275,6 +336,17 @@ impl OutputLabels<WireLabelPair> {
 }
 
 impl OutputLabels<WireLabel> {
+    /// Decodes output wire labels
+    pub(crate) fn decode(&self, decoding: &[bool]) -> Result<OutputValue, Error> {
+        if decoding.len() != self.labels.len() {
+            return Err(Error::InvalidLabelDecoding);
+        }
+        Ok(OutputValue::new(
+            self.output.clone(),
+            &WireLabel::decode_many(&self.labels, decoding)?,
+        )?)
+    }
+
     /// Convenience function to convert labels into bytes
     pub(crate) fn to_be_bytes(&self) -> Vec<u8> {
         self.labels
@@ -289,65 +361,4 @@ impl<T> AsRef<[T]> for OutputLabels<T> {
     fn as_ref(&self) -> &[T] {
         &self.labels
     }
-}
-
-/// Generates pairs of wire labels \[W_0, W_0 ^ delta\]
-pub fn generate_label_pairs<R: Rng + CryptoRng>(
-    rng: &mut R,
-    delta: Option<Delta>,
-    count: usize,
-    offset: usize,
-) -> (Vec<WireLabelPair>, Delta) {
-    let delta = match delta {
-        Some(delta) => delta,
-        None => Delta::random(rng),
-    };
-    // Logical low wire labels, [W_0; count]
-    let low = Block::random_vec(rng, count);
-    (
-        low.into_iter()
-            .enumerate()
-            .map(|(id, value)| WireLabelPair::new(id + offset, value, value ^ *delta))
-            .collect(),
-        delta,
-    )
-}
-
-/// Generates a full set of input [`WireLabelPair`] for the provided [`Circuit`]
-pub fn generate_input_labels<R: Rng + CryptoRng>(
-    rng: &mut R,
-    circ: &Circuit,
-    delta: Option<Delta>,
-) -> (Vec<InputLabels<WireLabelPair>>, Delta) {
-    let (labels, delta) = generate_label_pairs(rng, delta, circ.input_len(), 0);
-
-    // This should never panic due to invariants enforced during the construction of a `Circuit`
-    let inputs: Vec<InputLabels<WireLabelPair>> = circ
-        .inputs()
-        .iter()
-        .map(|input| InputLabels::new(input.clone(), &pick(&labels, input.as_ref().wires())))
-        .collect();
-
-    (inputs, delta)
-}
-
-/// Decodes output wire labels into plaintext.
-///
-/// Thanks to the permute-and-point (p&p) technique, the two adjacent labels
-/// will have the opposite p&p bits. We apply the decoding to the p&p bits.
-pub fn decode_labels(labels: &[WireLabel], decoding: &[bool]) -> Result<Vec<bool>, Error> {
-    if labels.len() != decoding.len() {
-        return Err(Error::InvalidLabelDecoding);
-    }
-    Ok(labels
-        .iter()
-        .zip(decoding)
-        .map(|(label, decode_bit)| decode(label, *decode_bit))
-        .collect())
-}
-
-/// Decodes a wire label using it's point-and-permute bit.
-#[inline]
-pub fn decode(label: &WireLabel, decode_bit: bool) -> bool {
-    label.permute_bit() ^ decode_bit
 }

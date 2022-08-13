@@ -2,11 +2,9 @@ use cipher::{consts::U16, BlockCipher, BlockEncrypt};
 
 use crate::{
     block::{Block, SELECT_MASK},
-    garble::{EncryptedGate, Error, GarbledCircuit, InputLabels, SanitizedInputLabels, WireLabel},
+    garble::{EncryptedGate, Error, SanitizedInputLabels, WireLabel},
 };
 use mpc_circuits::{Circuit, Gate};
-
-use super::circuit::EvaluatedGarbledCircuit;
 
 /// Evaluates AND gate
 #[inline]
@@ -86,21 +84,4 @@ pub fn evaluate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
         .into_iter()
         .map(|label| label.expect("wire label was not initialized"))
         .collect())
-}
-
-/// Evaluates a garbled circuit using provided input labels. These labels are combined with labels sent by the generator
-/// and checked for correctness using the circuit spec.
-pub fn evaluate_garbled_circuit<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
-    cipher: &C,
-    gc: &GarbledCircuit,
-    input_labels: &[InputLabels<WireLabel>],
-) -> Result<EvaluatedGarbledCircuit, Error> {
-    let input_labels = SanitizedInputLabels::new(&gc.circ, &gc.input_labels, input_labels)?;
-    let labels = evaluate(cipher, &gc.circ, input_labels, &gc.encrypted_gates)?;
-
-    Ok(EvaluatedGarbledCircuit::new(
-        gc.circ.clone(),
-        labels,
-        gc.decoding.clone(),
-    ))
 }

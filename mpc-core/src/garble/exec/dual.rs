@@ -3,9 +3,8 @@
 //! if malicious, can learn bits of the others input with 1/2^n probability of it going undetected.
 use crate::{
     garble::{
-        circuit::EvaluatedGarbledCircuit, evaluate_garbled_circuit, generate_garbled_circuit,
-        label::OutputLabels, Delta, Error, FullGarbledCircuit, GarbledCircuit, InputLabels,
-        WireLabel, WireLabelPair,
+        circuit::EvaluatedGarbledCircuit, label::OutputLabels, Delta, Error, FullGarbledCircuit,
+        GarbledCircuit, InputLabels, WireLabel, WireLabelPair,
     },
     utils::sha256,
 };
@@ -129,7 +128,8 @@ impl DualExLeader<Generator> {
     ) -> Result<(GarbledCircuit, DualExLeader<Evaluator>), Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
 
-        let gc = generate_garbled_circuit(&cipher, self.state.circ.clone(), delta, input_labels)?;
+        let gc =
+            FullGarbledCircuit::generate(&cipher, self.state.circ.clone(), delta, input_labels)?;
 
         Ok((
             gc.to_evaluator(inputs, true),
@@ -153,7 +153,8 @@ impl DualExFollower<Generator> {
     ) -> Result<(GarbledCircuit, DualExFollower<Evaluator>), Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
 
-        let gc = generate_garbled_circuit(&cipher, self.state.circ.clone(), delta, input_labels)?;
+        let gc =
+            FullGarbledCircuit::generate(&cipher, self.state.circ.clone(), delta, input_labels)?;
 
         Ok((
             gc.to_evaluator(inputs, true),
@@ -176,7 +177,7 @@ impl DualExLeader<Evaluator> {
     ) -> Result<DualExLeader<Commit>, Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
 
-        let evaluated_gc = evaluate_garbled_circuit(&cipher, &gc, input_labels)?;
+        let evaluated_gc = gc.evaluate(&cipher, input_labels)?;
 
         let output = evaluated_gc
             .decode()
@@ -210,7 +211,7 @@ impl DualExFollower<Evaluator> {
     ) -> Result<DualExFollower<Reveal>, Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
 
-        let evaluated_gc = evaluate_garbled_circuit(&cipher, &gc, input_labels)?;
+        let evaluated_gc = gc.evaluate(&cipher, input_labels)?;
 
         let output = evaluated_gc
             .decode()
@@ -321,8 +322,6 @@ impl DualExFollower<Check> {
 
 #[cfg(test)]
 mod tests {
-    use crate::garble::generate_input_labels;
-
     use super::*;
     use mpc_circuits::ADDER_64;
     use rand::thread_rng;
@@ -340,8 +339,8 @@ mod tests {
         let leader_input = circ.input(0).unwrap().to_value(&value).unwrap();
         let follower_input = circ.input(1).unwrap().to_value(&value).unwrap();
 
-        let (leader_labels, leader_delta) = generate_input_labels(&mut rng, &circ, None);
-        let (follower_labels, follower_delta) = generate_input_labels(&mut rng, &circ, None);
+        let (leader_labels, leader_delta) = InputLabels::generate(&mut rng, &circ, None);
+        let (follower_labels, follower_delta) = InputLabels::generate(&mut rng, &circ, None);
 
         let (leader_gc, leader) = leader
             .garble(&[leader_input.clone()], &leader_labels, leader_delta)
