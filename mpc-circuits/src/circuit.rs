@@ -42,8 +42,14 @@ impl Group {
     }
 }
 
+impl PartialEq for Group {
+    fn eq(&self, other: &Self) -> bool {
+        self.wires == other.wires
+    }
+}
+
 /// Group of wires corresponding to a circuit input
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Input {
     /// Input id of circuit
     pub id: usize,
@@ -68,7 +74,7 @@ impl AsRef<Group> for Input {
 }
 
 /// Group of wires corresponding to a circuit output
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Output {
     /// Output id of circuit
     pub id: usize,
@@ -93,7 +99,7 @@ impl AsRef<Group> for Output {
 }
 
 /// Circuit input with corresponding wire values
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct InputValue {
     input: Input,
     value: Vec<bool>,
@@ -138,7 +144,7 @@ impl AsRef<[bool]> for InputValue {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct OutputValue {
     output: Output,
     value: Vec<bool>,
