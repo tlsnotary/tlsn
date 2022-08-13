@@ -10,7 +10,7 @@ pub use error::{Error, InputError};
 pub use evaluator::evaluate_garbled_circuit;
 pub use generator::generate_garbled_circuit;
 pub use label::{
-    decode_labels, generate_input_labels, generate_label_pairs, Delta, InputLabels,
+    decode_labels, generate_input_labels, generate_label_pairs, Delta, InputLabels, OutputLabels,
     SanitizedInputLabels, WireLabel, WireLabelPair,
 };
 
