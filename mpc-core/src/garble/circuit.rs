@@ -27,16 +27,40 @@ impl AsRef<[Block; 2]> for EncryptedGate {
     }
 }
 
-/// Complete half-gate garbled circuit data, including delta which can be used to
-/// derive the private inputs of the Garbler
-pub struct FullGarbledCircuit {
-    pub circ: Arc<Circuit>,
+pub trait Data {}
+
+/// Full garbled circuit data. This includes all wire label pairs, encrypted gates and delta.
+pub struct Full {
     labels: Vec<WireLabelPair>,
     encrypted_gates: Vec<EncryptedGate>,
     delta: Delta,
 }
 
-impl FullGarbledCircuit {
+/// Garbled circuit data including input labels from the generator and (optionally) the output encoding
+/// to reveal the plaintext output of the circuit.
+pub struct Partial {
+    pub(crate) input_labels: Vec<InputLabels<WireLabel>>,
+    pub(crate) encrypted_gates: Vec<EncryptedGate>,
+    pub(crate) encoding: Option<Vec<OutputLabelsEncoding>>,
+}
+
+/// Evaluated garbled circuit data, which can be used to determine the plaintext circuit output if
+/// the generator sent the output label encoding.
+pub struct Evaluated {
+    labels: Vec<WireLabel>,
+    encoding: Option<Vec<OutputLabelsEncoding>>,
+}
+
+impl Data for Full {}
+impl Data for Partial {}
+impl Data for Evaluated {}
+
+pub struct GarbledCircuit<D: Data> {
+    pub circ: Arc<Circuit>,
+    data: D,
+}
+
+impl GarbledCircuit<Full> {
     /// Generate a garbled circuit with the provided input labels and delta.
     pub fn generate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
         cipher: &C,
@@ -53,9 +77,11 @@ impl FullGarbledCircuit {
         let (labels, encrypted_gates) = garble(cipher, &circ, delta, &input_labels)?;
         Ok(Self {
             circ,
-            labels,
-            encrypted_gates,
-            delta,
+            data: Full {
+                labels,
+                encrypted_gates,
+                delta,
+            },
         })
     }
 
@@ -79,30 +105,32 @@ impl FullGarbledCircuit {
                         .as_ref()
                         .wires()
                         .iter()
-                        .map(|wire_id| self.labels[*wire_id])
+                        .map(|wire_id| self.data.labels[*wire_id])
                         .collect::<Vec<WireLabelPair>>(),
                 )
             })
             .collect()
     }
 
-    /// Returns [`GarbledCircuit`] which is safe to send an evaluator
-    pub fn to_evaluator(&self, inputs: &[InputValue], encoding: bool) -> GarbledCircuit {
+    /// Returns [`GarbledCircuit<Partial>`] which is safe to send an evaluator
+    pub fn to_evaluator(&self, inputs: &[InputValue], encoding: bool) -> GarbledCircuit<Partial> {
         let input_labels: Vec<InputLabels<WireLabel>> = inputs
             .iter()
             .map(|value| {
                 InputLabels::new(
                     value.input().clone(),
-                    &WireLabelPair::choose(&self.labels, value.wires(), value.as_ref()),
+                    &WireLabelPair::choose(&self.data.labels, value.wires(), value.as_ref()),
                 )
             })
             .collect();
 
         GarbledCircuit {
             circ: self.circ.clone(),
-            input_labels: input_labels,
-            encrypted_gates: self.encrypted_gates.clone(),
-            encoding: encoding.then(|| self.encoding()),
+            data: Partial {
+                input_labels,
+                encrypted_gates: self.data.encrypted_gates.clone(),
+                encoding: encoding.then(|| self.encoding()),
+            },
         }
     }
 
@@ -112,6 +140,7 @@ impl FullGarbledCircuit {
             return Err(Error::InvalidOutputLabels);
         }
         let pairs = self
+            .data
             .labels
             .iter()
             .enumerate()
@@ -128,19 +157,10 @@ impl FullGarbledCircuit {
     }
 }
 
-/// A garbled circuit including input labels from the generator and (optionally) the encoding
-/// to reveal the plaintext output of the circuit.
-pub struct GarbledCircuit {
-    pub circ: Arc<Circuit>,
-    pub(crate) input_labels: Vec<InputLabels<WireLabel>>,
-    pub(crate) encrypted_gates: Vec<EncryptedGate>,
-    pub(crate) encoding: Option<Vec<OutputLabelsEncoding>>,
-}
-
-impl GarbledCircuit {
+impl GarbledCircuit<Partial> {
     /// Returns whether or not output encoding was provided
     pub fn has_encoding(&self) -> bool {
-        self.encoding.is_some()
+        self.data.encoding.is_some()
     }
 
     /// Evaluates a garbled circuit using provided input labels. These labels are combined with labels sent by the generator
@@ -149,39 +169,22 @@ impl GarbledCircuit {
         &self,
         cipher: &C,
         input_labels: &[InputLabels<WireLabel>],
-    ) -> Result<EvaluatedGarbledCircuit, Error> {
-        let input_labels = SanitizedInputLabels::new(&self.circ, &self.input_labels, input_labels)?;
-        let labels = evaluate(cipher, &self.circ, input_labels, &self.encrypted_gates)?;
+    ) -> Result<GarbledCircuit<Evaluated>, Error> {
+        let input_labels =
+            SanitizedInputLabels::new(&self.circ, &self.data.input_labels, input_labels)?;
+        let labels = evaluate(cipher, &self.circ, input_labels, &self.data.encrypted_gates)?;
 
-        Ok(EvaluatedGarbledCircuit::new(
-            self.circ.clone(),
-            labels,
-            self.encoding.clone(),
-        ))
+        Ok(GarbledCircuit {
+            circ: self.circ.clone(),
+            data: Evaluated {
+                labels,
+                encoding: self.data.encoding.clone(),
+            },
+        })
     }
 }
 
-/// A garbled circuit which has been evaluated
-pub struct EvaluatedGarbledCircuit {
-    pub circ: Arc<Circuit>,
-    labels: Vec<WireLabel>,
-    encoding: Option<Vec<OutputLabelsEncoding>>,
-}
-
-impl EvaluatedGarbledCircuit {
-    /// Creates new evaluated circuit
-    fn new(
-        circ: Arc<Circuit>,
-        labels: Vec<WireLabel>,
-        encoding: Option<Vec<OutputLabelsEncoding>>,
-    ) -> Self {
-        Self {
-            circ,
-            labels,
-            encoding,
-        }
-    }
-
+impl GarbledCircuit<Evaluated> {
     /// Returns all output labels
     pub fn output_labels(&self) -> Vec<OutputLabels<WireLabel>> {
         self.circ
@@ -194,7 +197,7 @@ impl EvaluatedGarbledCircuit {
                         .as_ref()
                         .wires()
                         .iter()
-                        .map(|wire_id| self.labels[*wire_id])
+                        .map(|wire_id| self.data.labels[*wire_id])
                         .collect::<Vec<WireLabel>>(),
                 )
             })
@@ -203,12 +206,12 @@ impl EvaluatedGarbledCircuit {
 
     /// Returns whether or not output encoding was provided
     pub fn has_encoding(&self) -> bool {
-        self.encoding.is_some()
+        self.data.encoding.is_some()
     }
 
     /// Returns decoded circuit outputs
     pub fn decode(&self) -> Result<Vec<OutputValue>, Error> {
-        let encoding = match &self.encoding {
+        let encoding = match &self.data.encoding {
             Some(encoding) => encoding,
             None => return Err(Error::InvalidLabelEncoding),
         };
@@ -240,7 +243,7 @@ mod tests {
 
         let (input_labels, delta) = InputLabels::generate(&mut rng, &circ, None);
 
-        let result = FullGarbledCircuit::generate(&cipher, circ, delta, &input_labels[1..]);
+        let result = GarbledCircuit::generate(&cipher, circ, delta, &input_labels[1..]);
         assert!(matches!(result, Err(Error::UninitializedLabel(_))));
     }
 }

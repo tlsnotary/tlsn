@@ -3,8 +3,9 @@
 //! if malicious, can learn bits of the others input with 1/2^n probability of it going undetected.
 use crate::{
     garble::{
-        circuit::EvaluatedGarbledCircuit, label::OutputLabels, Delta, Error, FullGarbledCircuit,
-        GarbledCircuit, InputLabels, WireLabel, WireLabelPair,
+        circuit::{Evaluated, Full, GarbledCircuit, Partial},
+        label::OutputLabels,
+        Delta, Error, InputLabels, WireLabel, WireLabelPair,
     },
     utils::sha256,
 };
@@ -60,24 +61,24 @@ pub struct Generator {
 
 pub struct Evaluator {
     circ: Arc<Circuit>,
-    gc: FullGarbledCircuit,
+    gc: GarbledCircuit<Full>,
 }
 
 pub struct Commit {
     circ: Arc<Circuit>,
-    evaluated_gc: EvaluatedGarbledCircuit,
+    evaluated_gc: GarbledCircuit<Evaluated>,
     check: OutputCheck,
 }
 
 pub struct Reveal {
     circ: Arc<Circuit>,
-    evaluated_gc: EvaluatedGarbledCircuit,
+    evaluated_gc: GarbledCircuit<Evaluated>,
     check: OutputCheck,
 }
 
 pub struct Check {
     circ: Arc<Circuit>,
-    evaluated_gc: EvaluatedGarbledCircuit,
+    evaluated_gc: GarbledCircuit<Evaluated>,
     check: OutputCheck,
     commit: Option<OutputCommit>,
 }
@@ -125,11 +126,10 @@ impl DualExLeader<Generator> {
         inputs: &[InputValue],
         input_labels: &[InputLabels<WireLabelPair>],
         delta: Delta,
-    ) -> Result<(GarbledCircuit, DualExLeader<Evaluator>), Error> {
+    ) -> Result<(GarbledCircuit<Partial>, DualExLeader<Evaluator>), Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
 
-        let gc =
-            FullGarbledCircuit::generate(&cipher, self.state.circ.clone(), delta, input_labels)?;
+        let gc = GarbledCircuit::generate(&cipher, self.state.circ.clone(), delta, input_labels)?;
 
         Ok((
             gc.to_evaluator(inputs, true),
@@ -150,11 +150,10 @@ impl DualExFollower<Generator> {
         inputs: &[InputValue],
         input_labels: &[InputLabels<WireLabelPair>],
         delta: Delta,
-    ) -> Result<(GarbledCircuit, DualExFollower<Evaluator>), Error> {
+    ) -> Result<(GarbledCircuit<Partial>, DualExFollower<Evaluator>), Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
 
-        let gc =
-            FullGarbledCircuit::generate(&cipher, self.state.circ.clone(), delta, input_labels)?;
+        let gc = GarbledCircuit::generate(&cipher, self.state.circ.clone(), delta, input_labels)?;
 
         Ok((
             gc.to_evaluator(inputs, true),
@@ -172,7 +171,7 @@ impl DualExLeader<Evaluator> {
     /// Evaluate [`DualExFollower`] circuit
     pub fn evaluate(
         self,
-        gc: &GarbledCircuit,
+        gc: &GarbledCircuit<Partial>,
         input_labels: &[InputLabels<WireLabel>],
     ) -> Result<DualExLeader<Commit>, Error> {
         if !gc.has_encoding() {
@@ -210,7 +209,7 @@ impl DualExFollower<Evaluator> {
     /// Evaluate [`DualExLeader`] circuit
     pub fn evaluate(
         self,
-        gc: &GarbledCircuit,
+        gc: &GarbledCircuit<Partial>,
         input_labels: &[InputLabels<WireLabel>],
     ) -> Result<DualExFollower<Reveal>, Error> {
         if !gc.has_encoding() {
@@ -301,14 +300,14 @@ impl DualExLeader<Check> {
 
 impl DualExLeader<Reveal> {
     /// Open output commitment to [`DualExFollower`]
-    pub fn reveal(self) -> (OutputCheck, EvaluatedGarbledCircuit) {
+    pub fn reveal(self) -> (OutputCheck, GarbledCircuit<Evaluated>) {
         (self.state.check, self.state.evaluated_gc)
     }
 }
 
 impl DualExFollower<Check> {
     /// Check [`DualExLeader`] output matches expected
-    pub fn check(self, check: OutputCheck) -> Result<EvaluatedGarbledCircuit, Error> {
+    pub fn check(self, check: OutputCheck) -> Result<GarbledCircuit<Evaluated>, Error> {
         // If this fails then the peer was cheating and your private inputs were potentially leaked
         // and you should call the police immediately
         if check != self.state.check {
