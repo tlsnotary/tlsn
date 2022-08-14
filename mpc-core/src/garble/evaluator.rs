@@ -2,7 +2,7 @@ use cipher::{consts::U16, BlockCipher, BlockEncrypt};
 
 use crate::{
     block::{Block, SELECT_MASK},
-    garble::{EncryptedGate, Error, SanitizedInputLabels, WireLabel},
+    garble::{circuit::EncryptedGate, label::SanitizedInputLabels, Error, WireLabel},
 };
 use mpc_circuits::{Circuit, Gate};
 
