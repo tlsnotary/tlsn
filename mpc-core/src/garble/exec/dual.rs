@@ -175,13 +175,17 @@ impl DualExLeader<Evaluator> {
         gc: &GarbledCircuit,
         input_labels: &[InputLabels<WireLabel>],
     ) -> Result<DualExLeader<Commit>, Error> {
+        if !gc.has_encoding() {
+            return Err(Error::PeerError(
+                "Peer did not provide label encoding".to_string(),
+            ));
+        }
+
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
 
         let evaluated_gc = gc.evaluate(&cipher, input_labels)?;
 
-        let output = evaluated_gc
-            .decode()
-            .map_err(|_| Error::PeerError("Peer did not provide label decoding".to_string()))?;
+        let output = evaluated_gc.decode()?;
 
         let mut expected_labels: Vec<OutputLabels<WireLabel>> =
             Vec::with_capacity(self.state.circ.output_count());
@@ -209,13 +213,17 @@ impl DualExFollower<Evaluator> {
         gc: &GarbledCircuit,
         input_labels: &[InputLabels<WireLabel>],
     ) -> Result<DualExFollower<Reveal>, Error> {
+        if !gc.has_encoding() {
+            return Err(Error::PeerError(
+                "Peer did not provide label encoding".to_string(),
+            ));
+        }
+
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
 
         let evaluated_gc = gc.evaluate(&cipher, input_labels)?;
 
-        let output = evaluated_gc
-            .decode()
-            .map_err(|_| Error::PeerError("Peer did not provide label decoding".to_string()))?;
+        let output = evaluated_gc.decode()?;
 
         let mut expected_labels: Vec<OutputLabels<WireLabel>> =
             Vec::with_capacity(self.state.circ.output_count());
