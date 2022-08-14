@@ -1,16 +1,13 @@
-mod circuit;
+pub(crate) mod circuit;
 mod error;
 mod evaluator;
 pub mod exec;
 mod generator;
-mod label;
+pub(crate) mod label;
 
-pub use circuit::{EncryptedGate, Evaluated, Full, GarbledCircuit, Partial};
+pub use circuit::{Evaluated, Full, GarbledCircuit, Partial};
 pub use error::{Error, InputError};
-pub use label::{
-    Delta, InputLabels, LabelEncoding, OutputLabels, OutputLabelsEncoding, SanitizedInputLabels,
-    WireLabel, WireLabelPair,
-};
+pub use label::{Delta, InputLabels, OutputLabels, WireLabel, WireLabelPair};
 
 #[cfg(test)]
 mod tests {

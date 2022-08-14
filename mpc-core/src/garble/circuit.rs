@@ -4,8 +4,8 @@ use std::sync::Arc;
 use crate::{
     block::Block,
     garble::{
-        evaluator::evaluate, generator::garble, Delta, Error, InputLabels, SanitizedInputLabels,
-        WireLabel, WireLabelPair,
+        evaluator::evaluate, generator::garble, label::SanitizedInputLabels, Delta, Error,
+        InputLabels, WireLabel, WireLabelPair,
     },
 };
 use mpc_circuits::{Circuit, InputValue, OutputValue};

@@ -33,8 +33,8 @@ pub struct OutputEncoding {
     pub encoding: Vec<bool>,
 }
 
-impl From<garble::OutputLabelsEncoding> for OutputEncoding {
-    fn from(encoding: garble::OutputLabelsEncoding) -> Self {
+impl From<garble::label::OutputLabelsEncoding> for OutputEncoding {
+    fn from(encoding: garble::label::OutputLabelsEncoding) -> Self {
         Self {
             id: encoding.output.id,
             encoding: encoding
@@ -144,7 +144,7 @@ impl crate::garble::GarbledCircuit<garble::Partial> {
             .encrypted_gates
             .chunks_exact(2)
             .into_iter()
-            .map(|gate| garble::EncryptedGate::new([gate[0], gate[1]]))
+            .map(|gate| garble::circuit::EncryptedGate::new([gate[0], gate[1]]))
             .collect();
 
         // Validate output encoding
@@ -152,7 +152,7 @@ impl crate::garble::GarbledCircuit<garble::Partial> {
             Some(enc) => {
                 // Check that peer sent all output encodings
                 if enc.len() == circ.output_count() {
-                    let mut encoding: Vec<garble::OutputLabelsEncoding> =
+                    let mut encoding: Vec<garble::label::OutputLabelsEncoding> =
                         Vec::with_capacity(circ.output_count());
                     for encoding_ in enc {
                         let circ_output = match circ.output(encoding_.id) {
@@ -164,7 +164,7 @@ impl crate::garble::GarbledCircuit<garble::Partial> {
                                 ));
                             }
                         };
-                        encoding.push(garble::OutputLabelsEncoding::new(
+                        encoding.push(garble::label::OutputLabelsEncoding::new(
                             circ_output,
                             encoding_.encoding,
                         ))
