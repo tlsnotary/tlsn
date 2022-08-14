@@ -5,7 +5,7 @@ pub mod exec;
 mod generator;
 mod label;
 
-pub use circuit::{EncryptedGate, GarbledCircuit};
+pub use circuit::{EncryptedGate, Evaluated, Full, GarbledCircuit, Partial};
 pub use error::{Error, InputError};
 pub use label::{
     Delta, InputLabels, LabelEncoding, OutputLabels, OutputLabelsEncoding, SanitizedInputLabels,
