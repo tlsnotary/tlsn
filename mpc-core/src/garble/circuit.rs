@@ -57,7 +57,7 @@ impl Data for Evaluated {}
 
 pub struct GarbledCircuit<D: Data> {
     pub circ: Arc<Circuit>,
-    data: D,
+    pub(crate) data: D,
 }
 
 impl GarbledCircuit<Full> {
