@@ -4,8 +4,8 @@ pub enum Error {
     UninitializedLabel(usize),
     #[error("Invalid input: {0:?}")]
     InvalidInput(InputError),
-    #[error("Invalid label decoding")]
-    InvalidLabelDecoding,
+    #[error("Invalid label encoding")]
+    InvalidLabelEncoding,
     #[error("Invalid input labels")]
     InvalidInputLabels,
     #[error("Invalid output labels")]

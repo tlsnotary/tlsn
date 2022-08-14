@@ -69,22 +69,22 @@ impl WireLabel {
 
     /// Decodes wire label to it's corresponding truth value
     #[inline]
-    pub fn decode(&self, decode: bool) -> bool {
-        self.permute_bit() ^ decode
+    pub fn decode(&self, encoding: LabelEncoding) -> bool {
+        self.permute_bit() ^ *encoding
     }
 
     /// Decodes output wire labels into plaintext.
     ///
     /// Thanks to the permute-and-point (p&p) technique, the two adjacent labels
-    /// will have the opposite p&p bits. We apply the decoding to the p&p bits.
-    pub fn decode_many(labels: &[Self], decoding: &[bool]) -> Result<Vec<bool>, Error> {
-        if labels.len() != decoding.len() {
-            return Err(Error::InvalidLabelDecoding);
+    /// will have the opposite p&p bits. We apply the encoding to the p&p bits.
+    pub fn decode_many(labels: &[Self], encoding: &[LabelEncoding]) -> Result<Vec<bool>, Error> {
+        if labels.len() != encoding.len() {
+            return Err(Error::InvalidLabelEncoding);
         }
         Ok(labels
             .iter()
-            .zip(decoding)
-            .map(|(label, decode_bit)| label.decode(*decode_bit))
+            .zip(encoding)
+            .map(|(label, encoding)| label.decode(*encoding))
             .collect())
     }
 
@@ -316,6 +316,11 @@ impl<T: Copy> OutputLabels<T> {
 }
 
 impl OutputLabels<WireLabelPair> {
+    /// Returns output labels encoding
+    pub(crate) fn encode(&self) -> OutputLabelsEncoding {
+        OutputLabelsEncoding::new(self)
+    }
+
     /// Returns output wire labels corresponding to an [`OutputValue`]
     pub fn select(&self, value: &OutputValue) -> Result<OutputLabels<WireLabel>, Error> {
         // TODO: Don't panic, return proper error
@@ -337,13 +342,13 @@ impl OutputLabels<WireLabelPair> {
 
 impl OutputLabels<WireLabel> {
     /// Decodes output wire labels
-    pub(crate) fn decode(&self, decoding: &[bool]) -> Result<OutputValue, Error> {
-        if decoding.len() != self.labels.len() {
-            return Err(Error::InvalidLabelDecoding);
+    pub(crate) fn decode(&self, encoding: &OutputLabelsEncoding) -> Result<OutputValue, Error> {
+        if encoding.output != self.output {
+            return Err(Error::InvalidLabelEncoding);
         }
         Ok(OutputValue::new(
             self.output.clone(),
-            &WireLabel::decode_many(&self.labels, decoding)?,
+            &WireLabel::decode_many(&self.labels, encoding.as_ref())?,
         )?)
     }
 
@@ -360,5 +365,53 @@ impl OutputLabels<WireLabel> {
 impl<T> AsRef<[T]> for OutputLabels<T> {
     fn as_ref(&self) -> &[T] {
         &self.labels
+    }
+}
+
+/// Encoding of garbled circuit wire label.
+///
+/// W_1 = W_0 ^ Delta where LSB(Delta) = 1
+///
+/// thus LSB(W_1) = LSB(W_0) ^ LSB(Delta) = LSB(W_0) ^ 1
+///
+/// To determine the truth value of a wire label W, we simply compute:
+///
+/// Decode(W) = LSB(W) ^ Encode(W)
+///
+/// where Encode(W) = LSB(W_0).
+#[derive(Debug, Clone, Copy)]
+pub struct LabelEncoding(bool);
+
+impl Deref for LabelEncoding {
+    type Target = bool;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+/// For details about label encoding see [`LabelEncoding`]
+#[derive(Debug, Clone)]
+pub struct OutputLabelsEncoding {
+    output: Output,
+    encoding: Vec<LabelEncoding>,
+}
+
+impl OutputLabelsEncoding {
+    fn new(labels: &OutputLabels<WireLabelPair>) -> Self {
+        Self {
+            output: labels.output.clone(),
+            encoding: labels
+                .labels
+                .iter()
+                .map(|label| LabelEncoding(label.low().lsb() == 1))
+                .collect::<Vec<LabelEncoding>>(),
+        }
+    }
+}
+
+impl AsRef<[LabelEncoding]> for OutputLabelsEncoding {
+    fn as_ref(&self) -> &[LabelEncoding] {
+        &self.encoding
     }
 }
