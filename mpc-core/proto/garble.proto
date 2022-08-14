@@ -4,24 +4,30 @@ import "core.proto";
 
 package core.garble;
 
-// Wire label of garbled circuit
-message BinaryLabel {
-    // Wire label id
+message InputLabels {
+    // Input id
     required uint32 id = 1;
-    // Wire label value
-    required core.Block value = 2;
+    // Wire labels
+    repeated core.Block labels = 2;
+}
+
+message OutputEncoding {
+    // Output id
+    required uint32 id = 1;
+    // Encoding
+    repeated bool encoding = 2;
 }
 
 // Garbled Circuit
 message GarbledCircuit {
     // Circuit unique id
     required string id = 1;
-    // Generator's wire labels corresponding to their input bits
-    repeated BinaryLabel input_labels = 2;
+    // Generator's input labels
+    repeated InputLabels input_labels = 2;
     // Truth table for garbled AND gates
     repeated core.Block encrypted_gates = 3;
-    // Output decoding bits
-    repeated bool decoding = 4;
+    // Output label encodings
+    repeated OutputEncoding encoding = 4;
 }
 
 message Message {

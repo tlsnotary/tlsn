@@ -318,7 +318,7 @@ impl<T: Copy> OutputLabels<T> {
 impl OutputLabels<WireLabelPair> {
     /// Returns output labels encoding
     pub(crate) fn encode(&self) -> OutputLabelsEncoding {
-        OutputLabelsEncoding::new(self)
+        OutputLabelsEncoding::from_labels(self)
     }
 
     /// Returns output wire labels corresponding to an [`OutputValue`]
@@ -393,12 +393,20 @@ impl Deref for LabelEncoding {
 /// For details about label encoding see [`LabelEncoding`]
 #[derive(Debug, Clone)]
 pub struct OutputLabelsEncoding {
-    output: Output,
+    pub output: Output,
     encoding: Vec<LabelEncoding>,
 }
 
 impl OutputLabelsEncoding {
-    fn new(labels: &OutputLabels<WireLabelPair>) -> Self {
+    pub(crate) fn new(output: Output, encoding: Vec<bool>) -> Self {
+        debug_assert_eq!(output.as_ref().len(), encoding.len());
+        Self {
+            output,
+            encoding: encoding.into_iter().map(|enc| LabelEncoding(enc)).collect(),
+        }
+    }
+
+    fn from_labels(labels: &OutputLabels<WireLabelPair>) -> Self {
         Self {
             output: labels.output.clone(),
             encoding: labels
