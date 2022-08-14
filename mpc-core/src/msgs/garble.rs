@@ -1,5 +1,7 @@
-use crate::garble::{BinaryLabel, EncryptedGate};
-use mpc_circuits::CircuitId;
+use std::{collections::HashSet, sync::Arc};
+
+use crate::{garble, Block};
+use mpc_circuits::{Circuit, CircuitId};
 
 #[derive(Debug, Clone)]
 pub enum GarbleMessage {
@@ -7,39 +9,183 @@ pub enum GarbleMessage {
 }
 
 #[derive(Debug, Clone)]
-pub struct GarbledCircuit {
-    pub id: CircuitId,
-    pub input_labels: Vec<BinaryLabel>,
-    pub encrypted_gates: Vec<EncryptedGate>,
-    pub decoding: Option<Vec<bool>>,
+pub struct InputLabels {
+    pub id: usize,
+    pub labels: Vec<Block>,
 }
 
-impl From<crate::garble::GarbledCircuit> for GarbledCircuit {
-    fn from(gc: crate::garble::GarbledCircuit) -> Self {
+impl From<garble::InputLabels<garble::WireLabel>> for InputLabels {
+    fn from(labels: garble::InputLabels<garble::WireLabel>) -> Self {
         Self {
-            id: gc.circ.id().clone(),
-            input_labels: gc.input_labels,
-            encrypted_gates: gc.encrypted_gates,
-            decoding: gc.decoding,
+            id: labels.id(),
+            labels: labels
+                .as_ref()
+                .into_iter()
+                .map(|label| *label.as_ref())
+                .collect::<Vec<Block>>(),
         }
     }
 }
 
-impl crate::garble::GarbledCircuit {
-    pub fn from_msg(circ: Arc<Circuit>, msg: GarbledCircuit) -> Result<Self, Error> {
+#[derive(Debug, Clone)]
+pub struct OutputEncoding {
+    pub id: usize,
+    pub encoding: Vec<bool>,
+}
+
+impl From<garble::OutputLabelsEncoding> for OutputEncoding {
+    fn from(encoding: garble::OutputLabelsEncoding) -> Self {
+        Self {
+            id: encoding.output.id,
+            encoding: encoding
+                .as_ref()
+                .iter()
+                .copied()
+                .map(|enc| *enc)
+                .collect::<Vec<bool>>(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct GarbledCircuit {
+    pub id: CircuitId,
+    pub input_labels: Vec<InputLabels>,
+    pub encrypted_gates: Vec<Block>,
+    pub encoding: Option<Vec<OutputEncoding>>,
+}
+
+impl From<garble::GarbledCircuit<garble::Partial>> for GarbledCircuit {
+    fn from(gc: garble::GarbledCircuit<garble::Partial>) -> Self {
+        Self {
+            id: gc.circ.id().clone(),
+            input_labels: gc
+                .data
+                .input_labels
+                .into_iter()
+                .map(InputLabels::from)
+                .collect::<Vec<InputLabels>>(),
+            encrypted_gates: gc
+                .data
+                .encrypted_gates
+                .into_iter()
+                .map(|gate| *gate.as_ref())
+                .flatten()
+                .collect::<Vec<Block>>(),
+            encoding: gc.data.encoding.and_then(|encoding| {
+                Some(
+                    encoding
+                        .into_iter()
+                        .map(OutputEncoding::from)
+                        .collect::<Vec<OutputEncoding>>(),
+                )
+            }),
+        }
+    }
+}
+
+impl crate::garble::GarbledCircuit<garble::Partial> {
+    pub fn from_msg(circ: Arc<Circuit>, msg: GarbledCircuit) -> Result<Self, crate::garble::Error> {
+        // Validate circuit id
         if msg.id != *circ.id() {
-            return Err(Error::PeerError(format!(
+            return Err(crate::garble::Error::PeerError(format!(
                 "Received garbled circuit with wrong id: expected {}, received {}",
                 circ.id().as_ref().to_string(),
                 msg.id.as_ref().to_string()
             )));
         }
 
+        // Validate input labels
+        let input_ids: HashSet<usize> = msg.input_labels.iter().map(|input| input.id).collect();
+        if input_ids.len() != msg.input_labels.len() {
+            return Err(crate::garble::Error::PeerError(
+                "Received garbled circuit with duplicate inputs".to_string(),
+            ));
+        }
+
+        let mut input_labels: Vec<garble::InputLabels<garble::WireLabel>> =
+            Vec::with_capacity(msg.input_labels.len());
+        for input in msg.input_labels.into_iter() {
+            let circ_input = match circ.input(input.id) {
+                Some(circ_input) => circ_input,
+                None => {
+                    return Err(crate::garble::Error::PeerError(format!(
+                        "Received garbled circuit with invalid input {}",
+                        input.id
+                    )))
+                }
+            };
+            if circ_input.as_ref().len() != input.labels.len() {
+                return Err(crate::garble::Error::PeerError(format!(
+                    "Received invalid garbled circuit input {}, expected {} labels received {}",
+                    input.id,
+                    circ_input.as_ref().len(),
+                    input.labels.len()
+                )));
+            }
+            input_labels.push(garble::InputLabels::new(
+                circ_input,
+                &input
+                    .labels
+                    .iter()
+                    .map(|label| garble::WireLabel::new(input.id, *label))
+                    .collect::<Vec<garble::WireLabel>>(),
+            ))
+        }
+
+        // Validate encrypted gates
+        if msg.encrypted_gates.len() != 2 * circ.and_count() {
+            return Err(crate::garble::Error::PeerError(
+                "Received garbled circuit with incorrect number of encrypted gates".to_string(),
+            ));
+        }
+
+        let encrypted_gates = msg
+            .encrypted_gates
+            .chunks_exact(2)
+            .into_iter()
+            .map(|gate| garble::EncryptedGate::new([gate[0], gate[1]]))
+            .collect();
+
+        // Validate output encoding
+        let encoding = match msg.encoding {
+            Some(enc) => {
+                // Check that peer sent all output encodings
+                if enc.len() == circ.output_count() {
+                    let mut encoding: Vec<garble::OutputLabelsEncoding> =
+                        Vec::with_capacity(circ.output_count());
+                    for encoding_ in enc {
+                        let circ_output = match circ.output(encoding_.id) {
+                            Some(circ_output) => circ_output,
+                            None => {
+                                return Err(crate::garble::Error::PeerError(
+                                    "Received garbled circuit with invalid output encoding"
+                                        .to_string(),
+                                ));
+                            }
+                        };
+                        encoding.push(garble::OutputLabelsEncoding::new(
+                            circ_output,
+                            encoding_.encoding,
+                        ))
+                    }
+                    Some(encoding)
+                } else {
+                    return Err(crate::garble::Error::PeerError(
+                        "Received garbled circuit with invalid output encoding".to_string(),
+                    ));
+                }
+            }
+            None => None,
+        };
+
         Ok(crate::garble::GarbledCircuit {
             circ,
-            input_labels: msg.input_labels,
-            encrypted_gates: msg.encrypted_gates,
-            decoding: msg.decoding,
+            data: garble::Partial {
+                input_labels,
+                encrypted_gates,
+                encoding,
+            },
         })
     }
 }
@@ -49,7 +195,7 @@ mod proto {
     use std::convert::TryFrom;
 
     use super::*;
-    use crate::{garble::BinaryLabel, proto};
+    use crate::proto;
 
     impl From<GarbleMessage> for proto::garble::Message {
         fn from(m: GarbleMessage) -> Self {
@@ -83,20 +229,47 @@ mod proto {
         }
     }
 
-    impl From<BinaryLabel> for proto::garble::BinaryLabel {
-        fn from(label: BinaryLabel) -> Self {
+    impl From<InputLabels> for proto::garble::InputLabels {
+        fn from(labels: InputLabels) -> Self {
             Self {
-                id: label.id as u32,
-                value: (*label.as_ref()).into(),
+                id: labels.id as u32,
+                labels: labels
+                    .labels
+                    .into_iter()
+                    .map(|block| block.into())
+                    .collect::<Vec<proto::Block>>(),
             }
         }
     }
 
-    impl TryFrom<proto::garble::BinaryLabel> for BinaryLabel {
+    impl TryFrom<proto::garble::InputLabels> for InputLabels {
         type Error = std::io::Error;
 
-        fn try_from(label: proto::garble::BinaryLabel) -> Result<Self, Self::Error> {
-            Ok(Self::new(label.id as usize, label.value.into()))
+        fn try_from(labels: proto::garble::InputLabels) -> Result<Self, Self::Error> {
+            Ok(InputLabels {
+                id: labels.id as usize,
+                labels: labels.labels.into_iter().map(Block::from).collect(),
+            })
+        }
+    }
+
+    impl From<OutputEncoding> for proto::garble::OutputEncoding {
+        fn from(encoding: OutputEncoding) -> Self {
+            Self {
+                id: encoding.id as u32,
+                encoding: encoding.encoding,
+            }
+        }
+    }
+
+    impl TryFrom<proto::garble::OutputEncoding> for OutputEncoding {
+        type Error = std::io::Error;
+
+        fn try_from(encoding: proto::garble::OutputEncoding) -> Result<Self, Self::Error> {
+            Ok(OutputEncoding {
+                id: encoding.id as usize,
+                encoding: encoding.encoding,
+            })
         }
     }
 
@@ -107,19 +280,18 @@ mod proto {
                 input_labels: gc
                     .input_labels
                     .into_iter()
-                    .map(|l| proto::garble::BinaryLabel::from(l))
+                    .map(|l| proto::garble::InputLabels::from(l))
                     .collect(),
                 encrypted_gates: gc
                     .encrypted_gates
                     .into_iter()
-                    .map(|e| {
-                        let e = *e.as_ref();
-                        [proto::Block::from(e[0]), proto::Block::from(e[1])]
-                    })
-                    .flatten()
+                    .map(proto::Block::from)
                     .collect(),
-                decoding: if let Some(decoding) = gc.decoding {
-                    decoding
+                encoding: if let Some(encoding) = gc.encoding {
+                    encoding
+                        .into_iter()
+                        .map(proto::garble::OutputEncoding::from)
+                        .collect()
                 } else {
                     Vec::new()
                 },
@@ -131,32 +303,22 @@ mod proto {
         type Error = std::io::Error;
 
         fn try_from(gc: proto::garble::GarbledCircuit) -> Result<Self, Self::Error> {
-            let mut input_labels = Vec::with_capacity(gc.input_labels.len());
-            for label in gc.input_labels.into_iter() {
-                input_labels.push(BinaryLabel::try_from(label)?);
-            }
-
-            if gc.encrypted_gates.len() % 2 != 0 {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    "Invalid number of encrypted gates",
-                ));
-            }
-            let mut encrypted_gates = Vec::with_capacity(gc.encrypted_gates.len());
-            for gates in gc.encrypted_gates.chunks_exact(2) {
-                encrypted_gates.push(EncryptedGate::new([
-                    gates[0].clone().into(),
-                    gates[1].clone().into(),
-                ]));
+            let mut input_labels: Vec<InputLabels> = Vec::with_capacity(gc.input_labels.len());
+            for labels in gc.input_labels {
+                input_labels.push(InputLabels::try_from(labels)?);
             }
             Ok(Self {
                 id: gc.id.into(),
                 input_labels,
-                encrypted_gates,
-                decoding: if gc.decoding.len() > 0 {
-                    Some(gc.decoding)
-                } else {
+                encrypted_gates: gc.encrypted_gates.into_iter().map(Block::from).collect(),
+                encoding: if gc.encoding.len() == 0 {
                     None
+                } else {
+                    let mut encoding: Vec<OutputEncoding> = Vec::with_capacity(gc.encoding.len());
+                    for enc in gc.encoding {
+                        encoding.push(OutputEncoding::try_from(enc)?);
+                    }
+                    Some(encoding)
                 },
             })
         }
