@@ -5,7 +5,7 @@ pub mod exec;
 pub mod generator;
 mod label;
 
-pub use circuit::{EncryptedGate, EvaluatedGarbledCircuit, FullGarbledCircuit, GarbledCircuit};
+pub use circuit::{EncryptedGate, GarbledCircuit};
 pub use error::{Error, InputError};
 pub use label::{Delta, InputLabels, OutputLabels, SanitizedInputLabels, WireLabel, WireLabelPair};
 
@@ -126,7 +126,7 @@ mod tests {
         // Evaluator provides message
         let ev_input = circ.input(1).unwrap().to_value(&[false; 128]).unwrap();
 
-        let gc = FullGarbledCircuit::generate(&cipher, circ.clone(), delta, &input_labels).unwrap();
+        let gc = GarbledCircuit::generate(&cipher, circ.clone(), delta, &input_labels).unwrap();
 
         let gc = gc.to_evaluator(&[gen_input.clone()], true);
 
