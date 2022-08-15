@@ -1,4 +1,4 @@
-use std::{collections::HashSet, sync::Arc};
+use std::{collections::HashSet, convert::TryInto, sync::Arc};
 
 use crate::{garble, Block};
 use mpc_circuits::{Circuit, CircuitId};
@@ -6,6 +6,8 @@ use mpc_circuits::{Circuit, CircuitId};
 #[derive(Debug, Clone)]
 pub enum GarbleMessage {
     GarbledCircuit(GarbledCircuit),
+    OutputCommit(OutputCommit),
+    OutputCheck(OutputCheck),
 }
 
 #[derive(Debug, Clone)]
@@ -44,6 +46,66 @@ impl From<garble::label::OutputLabelsEncoding> for OutputEncoding {
                 .map(|enc| *enc)
                 .collect::<Vec<bool>>(),
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct OutputCommit {
+    commit: Vec<u8>,
+}
+
+impl From<garble::exec::OutputCommit> for OutputCommit {
+    fn from(commit: garble::exec::OutputCommit) -> Self {
+        Self {
+            commit: commit.0.to_vec(),
+        }
+    }
+}
+
+impl garble::exec::OutputCommit {
+    pub fn from_msg(commit: OutputCommit) -> Result<Self, crate::garble::Error> {
+        if commit.commit.len() != 32 {
+            return Err(crate::garble::Error::PeerError(format!(
+                "Received invalid output commit: expected 32 bytes received {}",
+                commit.commit.len()
+            )));
+        }
+        Ok(garble::exec::OutputCommit(
+            commit
+                .commit
+                .try_into()
+                .expect("failed to convert Vec<u8> to [u8; 32]"),
+        ))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct OutputCheck {
+    check: Vec<u8>,
+}
+
+impl From<garble::exec::OutputCheck> for OutputCheck {
+    fn from(check: garble::exec::OutputCheck) -> Self {
+        Self {
+            check: check.0.to_vec(),
+        }
+    }
+}
+
+impl garble::exec::OutputCheck {
+    pub fn from_msg(check: OutputCheck) -> Result<Self, crate::garble::Error> {
+        if check.check.len() != 32 {
+            return Err(crate::garble::Error::PeerError(format!(
+                "Received invalid output check: expected 32 bytes received {}",
+                check.check.len()
+            )));
+        }
+        Ok(garble::exec::OutputCheck(
+            check
+                .check
+                .try_into()
+                .expect("failed to convert Vec<u8> to [u8; 32]"),
+        ))
     }
 }
 
@@ -205,6 +267,12 @@ mod proto {
                     GarbleMessage::GarbledCircuit(gc) => {
                         proto::garble::message::Msg::GarbledCircuit(gc.into())
                     }
+                    GarbleMessage::OutputCommit(commit) => {
+                        proto::garble::message::Msg::OutputCommit(commit.into())
+                    }
+                    GarbleMessage::OutputCheck(check) => {
+                        proto::garble::message::Msg::OutputCheck(check.into())
+                    }
                 }),
             }
         }
@@ -218,6 +286,12 @@ mod proto {
                 match m {
                     proto::garble::message::Msg::GarbledCircuit(gc) => {
                         GarbleMessage::GarbledCircuit(GarbledCircuit::try_from(gc)?)
+                    }
+                    proto::garble::message::Msg::OutputCommit(commit) => {
+                        GarbleMessage::OutputCommit(OutputCommit::try_from(commit)?)
+                    }
+                    proto::garble::message::Msg::OutputCheck(check) => {
+                        GarbleMessage::OutputCheck(OutputCheck::try_from(check)?)
                     }
                 }
             } else {
@@ -271,6 +345,38 @@ mod proto {
                 id: encoding.id as usize,
                 encoding: encoding.encoding,
             })
+        }
+    }
+
+    impl From<OutputCommit> for proto::garble::OutputCommit {
+        fn from(commit: OutputCommit) -> Self {
+            Self {
+                commit: commit.commit,
+            }
+        }
+    }
+
+    impl TryFrom<proto::garble::OutputCommit> for OutputCommit {
+        type Error = std::io::Error;
+
+        fn try_from(commit: proto::garble::OutputCommit) -> Result<Self, Self::Error> {
+            Ok(OutputCommit {
+                commit: commit.commit,
+            })
+        }
+    }
+
+    impl From<OutputCheck> for proto::garble::OutputCheck {
+        fn from(check: OutputCheck) -> Self {
+            Self { check: check.check }
+        }
+    }
+
+    impl TryFrom<proto::garble::OutputCheck> for OutputCheck {
+        type Error = std::io::Error;
+
+        fn try_from(check: proto::garble::OutputCheck) -> Result<Self, Self::Error> {
+            Ok(OutputCheck { check: check.check })
         }
     }
 

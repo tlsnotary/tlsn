@@ -7,13 +7,20 @@ edition = "2021"
 name = "mpc_aio"
 
 [features]
-default = ["pa", "ot"]
+default = ["pa", "ot", "garble"]
 ot = ["tlsn-mpc-core/ot", "tlsn-mpc-core/proto", "rand_chacha"]
 pa = ["tlsn-mpc-core/pa", "tlsn-mpc-core/proto", "p256"]
+garble = [
+    "tlsn-mpc-core/garble",
+    "tlsn-mpc-core/proto",
+    "ot",
+    "tlsn-mpc-circuits",
+]
 
 [dependencies]
 tlsn-mpc-core = { path = "../mpc-core", default-features = false }
 tlsn-utils-aio = { path = "../utils-aio" }
+tlsn-mpc-circuits = { path = "../mpc-circuits", optional = true }
 async-trait = "0.1.53"
 prost = "0.9"
 futures = "0.3"

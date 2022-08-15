@@ -18,6 +18,14 @@ message OutputEncoding {
     repeated bool encoding = 2;
 }
 
+message OutputCommit {
+    required bytes commit = 1;
+}
+
+message OutputCheck {
+    required bytes check = 1;
+}
+
 // Garbled Circuit
 message GarbledCircuit {
     // Circuit unique id
@@ -33,5 +41,7 @@ message GarbledCircuit {
 message Message {
     oneof msg {
         GarbledCircuit garbled_circuit = 1;
+        OutputCommit output_commit = 2;
+        OutputCheck output_check = 3;
     }
 }

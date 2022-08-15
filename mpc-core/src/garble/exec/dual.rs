@@ -15,10 +15,10 @@ use aes::{Aes128, NewBlockCipher};
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct OutputCheck([u8; 32]);
+pub struct OutputCheck(pub(crate) [u8; 32]);
 
 #[derive(Clone, PartialEq)]
-pub struct OutputCommit([u8; 32]);
+pub struct OutputCommit(pub(crate) [u8; 32]);
 
 impl OutputCheck {
     /// Creates new output check
