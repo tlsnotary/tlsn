@@ -214,6 +214,32 @@ impl InputLabels<WireLabelPair> {
         (inputs, delta)
     }
 
+    /// Generates a full set of input [`WireLabelPair`] for the provided [`Circuit`], split by provided input ids.
+    /// The first collection corresponds to the provided ids, the other collection is the remainder.
+    pub fn generate_split<R: Rng + CryptoRng>(
+        rng: &mut R,
+        circ: &Circuit,
+        input_ids: &[usize],
+        delta: Option<Delta>,
+    ) -> Result<((Vec<Self>, Vec<Self>), Delta), Error> {
+        let mut input_ids = input_ids.to_vec();
+        input_ids.sort();
+        input_ids.dedup();
+        for id in input_ids.iter() {
+            if circ.input(*id).is_none() {
+                return Err(Error::InvalidInput(InputError::InvalidId(*id)));
+            }
+        }
+
+        let (labels, delta) = Self::generate(rng, circ, delta);
+
+        let (left, right): (Vec<Self>, Vec<Self>) = labels
+            .into_iter()
+            .partition(|labels| input_ids.contains(&labels.id()));
+
+        Ok(((left, right), delta))
+    }
+
     /// Returns input wire labels corresponding to an [`InputValue`]
     pub fn select(&self, value: &InputValue) -> Result<InputLabels<WireLabel>, Error> {
         // TODO: Don't panic, return proper error
