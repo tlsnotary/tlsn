@@ -6,7 +6,7 @@ use crate::{
 };
 use mpc_circuits::{Circuit, Gate};
 
-/// Computes garbled AND gate
+/// Computes half-gate garbled AND gate
 #[inline]
 pub(crate) fn and_gate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     c: &C,
@@ -40,7 +40,7 @@ pub(crate) fn and_gate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     )
 }
 
-/// Computes garbled XOR gate
+/// Computes half-gate garbled XOR gate
 #[inline]
 pub(crate) fn xor_gate(
     x: &WireLabelPair,
