@@ -1,7 +1,7 @@
 use std::{collections::HashSet, sync::Arc};
 
 use crate::{garble, Block};
-use mpc_circuits::{Circuit, CircuitId};
+use mpc_circuits::Circuit;
 
 #[derive(Debug, Clone)]
 pub enum GarbleMessage {
@@ -49,7 +49,7 @@ impl From<garble::label::OutputLabelsEncoding> for OutputEncoding {
 
 #[derive(Debug, Clone)]
 pub struct GarbledCircuit {
-    pub id: CircuitId,
+    pub id: String,
     pub input_labels: Vec<InputLabels>,
     pub encrypted_gates: Vec<Block>,
     pub encoding: Option<Vec<OutputEncoding>>,
@@ -58,7 +58,7 @@ pub struct GarbledCircuit {
 impl From<garble::GarbledCircuit<garble::Partial>> for GarbledCircuit {
     fn from(gc: garble::GarbledCircuit<garble::Partial>) -> Self {
         Self {
-            id: gc.circ.id().clone(),
+            id: (*gc.circ.id().as_ref()).clone(),
             input_labels: gc
                 .data
                 .input_labels
@@ -87,11 +87,11 @@ impl From<garble::GarbledCircuit<garble::Partial>> for GarbledCircuit {
 impl crate::garble::GarbledCircuit<garble::Partial> {
     pub fn from_msg(circ: Arc<Circuit>, msg: GarbledCircuit) -> Result<Self, crate::garble::Error> {
         // Validate circuit id
-        if msg.id != *circ.id() {
+        if msg.id != *circ.id().as_ref() {
             return Err(crate::garble::Error::PeerError(format!(
                 "Received garbled circuit with wrong id: expected {}, received {}",
                 circ.id().as_ref().to_string(),
-                msg.id.as_ref().to_string()
+                msg.id
             )));
         }
 
@@ -277,7 +277,7 @@ mod proto {
     impl From<GarbledCircuit> for proto::garble::GarbledCircuit {
         fn from(gc: GarbledCircuit) -> Self {
             Self {
-                id: gc.id.as_ref().to_string(),
+                id: gc.id,
                 input_labels: gc
                     .input_labels
                     .into_iter()
