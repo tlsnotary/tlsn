@@ -124,11 +124,12 @@ impl crate::garble::GarbledCircuit<garble::Partial> {
                 )));
             }
             input_labels.push(garble::InputLabels::new(
-                circ_input,
+                circ_input.clone(),
                 &input
                     .labels
                     .iter()
-                    .map(|label| garble::WireLabel::new(input.id, *label))
+                    .zip(circ_input.as_ref().wires())
+                    .map(|(label, wire_id)| garble::WireLabel::new(*wire_id, *label))
                     .collect::<Vec<garble::WireLabel>>(),
             ))
         }
