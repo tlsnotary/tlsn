@@ -391,6 +391,12 @@ impl std::fmt::Debug for Circuit {
     }
 }
 
+struct CircuitInfo {
+    wire_count: usize,
+    and_count: usize,
+    xor_count: usize,
+}
+
 impl Circuit {
     /// Creates a new circuit
     ///
@@ -407,20 +413,41 @@ impl Circuit {
     pub fn new(
         name: &str,
         version: &str,
-        mut inputs: Vec<Input>,
-        mut outputs: Vec<Output>,
+        inputs: Vec<Input>,
+        outputs: Vec<Output>,
         gates: Vec<Gate>,
     ) -> Result<Self, Error> {
+        let (inputs, input_wires) = Self::validate_inputs(inputs)?;
+        let (outputs, output_wires) = Self::validate_outputs(outputs)?;
+        let (gates, info) = Self::validate_gates(gates, &input_wires, &output_wires)?;
+
+        Ok(Self {
+            id: CircuitId::new(&gates),
+            name: name.to_string(),
+            version: version.to_string(),
+            wire_count: info.wire_count,
+            and_count: info.and_count,
+            xor_count: info.xor_count,
+            inputs,
+            outputs,
+            gates,
+        })
+    }
+
+    fn validate_inputs(mut inputs: Vec<Input>) -> Result<(Vec<Input>, Vec<usize>), Error> {
+        // Sort inputs by input id
         inputs.sort_by_key(|input| input.id);
 
         let mut input_ids: Vec<usize> = inputs.iter().map(|input| input.id).collect();
         let input_count = input_ids.len();
         input_ids.dedup();
 
+        // Make sure duplicates inputs are not present
         if input_count != input_ids.len() {
             return Err(Error::InvalidCircuit("Duplicate input ids".to_string()));
         }
 
+        // Gather up and sort input wire ids
         let mut input_wire_ids: Vec<usize> = inputs
             .iter()
             .map(|input| input.as_ref().wires())
@@ -432,22 +459,29 @@ impl Circuit {
         let input_wire_count = input_wire_ids.len();
         input_wire_ids.dedup();
 
+        // Make sure input wires only belong to 1 input
         if input_wire_count != input_wire_ids.len() {
             return Err(Error::InvalidCircuit(
                 "Duplicate input wire ids".to_string(),
             ));
         }
+        Ok((inputs, input_wire_ids))
+    }
 
+    fn validate_outputs(mut outputs: Vec<Output>) -> Result<(Vec<Output>, Vec<usize>), Error> {
+        // Sort outputs by output id
         outputs.sort_by_key(|output| output.id);
 
         let mut output_ids: Vec<usize> = outputs.iter().map(|output| output.id).collect();
         let output_count = output_ids.len();
         output_ids.dedup();
 
+        // Make sure duplicate outputs are not present
         if output_count != output_ids.len() {
             return Err(Error::InvalidCircuit("Duplicate output ids".to_string()));
         }
 
+        // Gather up and sort output wire ids
         let mut output_wire_ids: Vec<usize> = outputs
             .iter()
             .map(|output| output.as_ref().wires())
@@ -459,11 +493,21 @@ impl Circuit {
         let output_wire_count = output_wire_ids.len();
         output_wire_ids.dedup();
 
+        // Make sure output wires only belong to 1 output
         if output_wire_count != output_wire_ids.len() {
             return Err(Error::InvalidCircuit(
                 "Duplicate output wire ids".to_string(),
             ));
         }
+        Ok((outputs, output_wire_ids))
+    }
+
+    fn validate_gates(
+        gates: Vec<Gate>,
+        input_wires: &[usize],
+        output_wires: &[usize],
+    ) -> Result<(Vec<Gate>, CircuitInfo), Error> {
+        // TODO: Implement sorting algorithm for gates
 
         let mut and_count = 0;
         let mut xor_count = 0;
@@ -500,6 +544,7 @@ impl Circuit {
         let gate_output_wire_count = gate_output_wire_ids.len();
         gate_output_wire_ids.dedup();
 
+        // Check that all gate output wires are unique
         if gate_output_wire_count != gate_output_wire_ids.len() {
             return Err(Error::InvalidCircuit(
                 "Duplicate gate output wire ids".to_string(),
@@ -507,10 +552,11 @@ impl Circuit {
         }
 
         let wire_ids: HashSet<usize> = HashSet::from_iter(wire_ids);
-        let input_wire_ids: HashSet<usize> = HashSet::from_iter(input_wire_ids);
+        let input_wire_ids: HashSet<usize> = HashSet::from_iter(input_wires.iter().copied());
         let gate_output_wire_ids: HashSet<usize> = HashSet::from_iter(gate_output_wire_ids);
-        let output_wire_ids: HashSet<usize> = HashSet::from_iter(output_wire_ids);
+        let output_wire_ids: HashSet<usize> = HashSet::from_iter(output_wires.iter().copied());
 
+        // Check that all gate output wires in last layer are assigned ot an Output
         if wire_ids
             .difference(&gate_input_wire_ids)
             .cloned()
@@ -523,6 +569,7 @@ impl Circuit {
             )));
         }
 
+        // Check that all gate input wires in the first layer are assigned to an Input
         if gate_input_wire_ids
             .difference(&gate_output_wire_ids)
             .cloned()
@@ -534,17 +581,14 @@ impl Circuit {
             ));
         }
 
-        Ok(Self {
-            id: CircuitId::new(&gates),
-            name: name.to_string(),
-            version: version.to_string(),
-            wire_count,
-            and_count,
-            xor_count,
-            inputs,
-            outputs,
+        Ok((
             gates,
-        })
+            CircuitInfo {
+                wire_count,
+                and_count,
+                xor_count,
+            },
+        ))
     }
 
     /// Loads a circuit from a byte-array in protobuf format
