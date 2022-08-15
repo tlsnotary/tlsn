@@ -25,10 +25,11 @@ message BaseReceiverSetup {
 // Setup message sent by OT Receiver
 message ExtReceiverSetup {
     required uint32 ncols = 1;
-    required bytes table = 2;
-    required bytes x = 3;
-    required bytes t0 = 4;
-    required bytes t1 = 5;
+    required uint32 padding = 2;
+    required bytes table = 3;
+    required bytes x = 4;
+    required bytes t0 = 5;
+    required bytes t1 = 6;
 }
 
 // Derandomization message sent by OT Receiver

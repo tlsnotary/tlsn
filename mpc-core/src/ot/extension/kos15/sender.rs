@@ -137,30 +137,6 @@ impl<C> Kos15Sender<C>
 where
     C: BlockCipher<BlockSize = U16> + BlockEncrypt,
 {
-    pub fn new_from_custom(cipher: C, base: BaseReceiver) -> Self {
-        let mut rng = ChaCha12Rng::from_entropy();
-
-        let cointoss_share = rng.gen();
-        let mut base_choice = vec![0u8; BASE_COUNT / 8];
-        rng.fill_bytes(&mut base_choice);
-
-        Self {
-            rng,
-            cipher,
-            base,
-            state: State::Initialized,
-            count: 0,
-            sent: 0,
-            base_choice: utils::u8vec_to_boolvec(&base_choice),
-            seeds: None,
-            rngs: None,
-            table: None,
-            cointoss_share,
-            receiver_cointoss_commit: None,
-            cointoss_random: None,
-        }
-    }
-
     fn set_seeds(&mut self, seeds: Vec<Block>) {
         let rngs: Vec<ChaCha12Rng> = seeds
             .iter()
@@ -240,9 +216,9 @@ where
 
         let ncols = receiver_setup.ncols;
 
-        // This is because of the extension of the receiver choices with extra 32 bytes
-        // We have to subtract these 256 rows here to get the right number of choices
-        self.count = ncols - 256;
+        // This is because of the extension of the receiver choices with extra padding bytes
+        // We have to subtract them here.
+        self.count = ncols - receiver_setup.padding;
 
         let us = receiver_setup.table;
         let mut qs: Vec<u8> = vec![0u8; ncols / 8 * BASE_COUNT];

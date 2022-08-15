@@ -110,21 +110,6 @@ where
     R: Rng + CryptoRng,
     C: BlockCipher<BlockSize = U16> + BlockEncrypt,
 {
-    pub fn new_with_custom(mut rng: R, cipher: C, base: BaseSender) -> Self {
-        let cointoss_share = rng.gen();
-        Self {
-            rng,
-            cipher,
-            base,
-            state: State::Initialized,
-            seeds: None,
-            rngs: None,
-            table: None,
-            cointoss_share,
-            cointoss_random: None,
-        }
-    }
-
     fn set_seeds(&mut self, seeds: Vec<[Block; 2]>) {
         let rngs: Vec<[ChaCha12Rng; 2]> = seeds
             .iter()
@@ -205,11 +190,9 @@ where
     ) -> Result<ExtReceiverSetup, ExtReceiverCoreError> {
         check_state(&self.state, &State::BaseSend)?;
 
-        // For performance purposes and to get rid of padding we require that choice is a
-        // multiple of 2^k for some k
-        if choice.len() % 256 != 0 {
-            return Err(ExtReceiverCoreError::InvalidChoiceLength);
-        }
+        // For performance purposes we require that choice is a multiple of 2^k for some k. If it
+        // is not, we pad. Note that this padding is never used for OTs on the sender side.
+        let mut padding = choice.len() % 256;
 
         // This is guaranteed to be set because we can only reach the BaseReceive by running
         // base_send(), which runs set_seeds(), which sets the RNGs
@@ -224,12 +207,16 @@ where
         // matrix by 32 columns. After transposition these additional columns turn into additional rows,
         // namely 32 * 8, where the factor 8 comes from the fact that it is a bit-level transpose.
         // This is why, in the end we will have to drain 256 rows in total.
-        let mut extra_bytes = [0u8; 32];
+        padding += 256;
+
+        // Divide paddding by 8 because this is a byte vector and add 1 byte safety margin, when
+        // choice.len() is not a multiple of 8
+        let mut extra_bytes = vec![0_u8; padding / 8 + 1];
         self.rng.fill(&mut extra_bytes[..]);
 
         // extend choice bits with the exact amount of extra bits that we need.
         let mut r_bool = choice.to_vec();
-        r_bool.extend(utils::u8vec_to_boolvec(&extra_bytes).iter());
+        r_bool.extend(utils::u8vec_to_boolvec(&extra_bytes)[..padding].iter());
         let r = utils::boolvec_to_u8vec(&r_bool);
 
         let ncols = r_bool.len();
@@ -298,6 +285,7 @@ where
         self.table = Some(ts);
         Ok(ExtReceiverSetup {
             ncols,
+            padding,
             table: gs,
             x: x.into(),
             t0: t0.into(),
@@ -355,12 +343,6 @@ where
         &mut self,
         choice_len: usize,
     ) -> Result<ExtReceiverSetup, ExtReceiverCoreError> {
-        // For performance purposes and to get rid of padding we require that choice is a
-        // multiple of 2^k for some k
-        if choice_len % 256 != 0 {
-            return Err(ExtReceiverCoreError::InvalidChoiceLength);
-        }
-
         // For random OT we generate random choice bits during setup then derandomize later
         let mut choice_bytes = vec![0u8; choice_len / 8];
         self.rng.fill_bytes(&mut choice_bytes);

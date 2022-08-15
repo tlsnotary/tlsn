@@ -51,6 +51,9 @@ pub struct ExtDerandomize {
 #[derive(Clone, Debug)]
 pub struct ExtReceiverSetup {
     pub ncols: usize,
+    // Indicates by how many bits the boolean choices of the receiver have been extended for
+    // performance or security checks
+    pub padding: usize,
     pub table: Vec<u8>,
     // x, t0, t1 are used for the KOS15 check
     pub x: [u8; BASE_COUNT / 8],
