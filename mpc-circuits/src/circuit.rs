@@ -274,14 +274,14 @@ impl Gate {
             Gate::Xor {
                 xref, yref, zref, ..
             } => {
-                if xref == yref || xref == zref || yref == zref {
+                if xref == zref || yref == zref {
                     return Err(Error::InvalidCircuit(format!("invalid gate: {:?}", self)));
                 }
             }
             Gate::And {
                 xref, yref, zref, ..
             } => {
-                if xref == yref || xref == zref || yref == zref {
+                if xref == zref || yref == zref {
                     return Err(Error::InvalidCircuit(format!("invalid gate: {:?}", self)));
                 }
             }
