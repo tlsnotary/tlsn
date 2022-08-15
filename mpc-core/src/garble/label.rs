@@ -122,10 +122,7 @@ impl WireLabelPair {
         count: usize,
         offset: usize,
     ) -> (Vec<Self>, Delta) {
-        let delta = match delta {
-            Some(delta) => delta,
-            None => Delta::random(rng),
-        };
+        let delta = delta.unwrap_or_else(|| Delta::random(rng));
         // Logical low wire labels, [W_0; count]
         let low = Block::random_vec(rng, count);
         (
