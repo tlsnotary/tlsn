@@ -20,6 +20,8 @@ pub enum Error {
 
 #[derive(Debug, thiserror::Error)]
 pub enum InputError {
+    #[error("Invalid input id: {0}")]
+    InvalidId(usize),
     #[error("Invalid input count: expected {0}, got {1}")]
     InvalidCount(usize, usize),
     #[error("Duplicate wire labels")]
