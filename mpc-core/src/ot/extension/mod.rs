@@ -98,11 +98,11 @@ pub mod tests {
     fn test_ext_ot(pair_base_setup: (Kos15Sender, Kos15Receiver)) {
         let (mut sender, mut receiver) = pair_base_setup;
 
-        let mut choice = vec![0u8; 32];
+        let mut choice = vec![0u8; 37];
         let mut rng = ChaCha12Rng::from_entropy();
         rng.fill_bytes(&mut choice);
         let choice = u8vec_to_boolvec(&choice);
-        let inputs: Vec<[Block; 2]> = (0..256)
+        let inputs: Vec<[Block; 2]> = (0..8 * 37)
             .map(|_| [Block::random(&mut rng), Block::random(&mut rng)])
             .collect();
 

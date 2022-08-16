@@ -192,7 +192,7 @@ where
 
         // For performance purposes we require that choice is a multiple of 2^k for some k. If it
         // is not, we pad. Note that this padding is never used for OTs on the sender side.
-        let mut padding = choice.len() % 256;
+        let mut padding = 256 - choice.len() % 256;
 
         // This is guaranteed to be set because we can only reach the BaseReceive by running
         // base_send(), which runs set_seeds(), which sets the RNGs
