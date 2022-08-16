@@ -27,7 +27,7 @@ pub mod tests {
     use crate::utils::u8vec_to_boolvec;
     use crate::Block;
     use pretty_assertions::assert_eq;
-    use rand::{RngCore, SeedableRng};
+    use rand::{thread_rng, Rng, RngCore, SeedableRng};
     use rand_chacha::ChaCha12Rng;
     use rstest::*;
 
@@ -98,7 +98,10 @@ pub mod tests {
     fn test_ext_ot(pair_base_setup: (Kos15Sender, Kos15Receiver)) {
         let (mut sender, mut receiver) = pair_base_setup;
 
-        let mut choice = vec![0u8; 37];
+        let mut rng = thread_rng();
+        let choice_len: usize = rng.gen_range(0..1024);
+
+        let mut choice = vec![0u8; choice_len];
         let mut rng = ChaCha12Rng::from_entropy();
         rng.fill_bytes(&mut choice);
         let choice = u8vec_to_boolvec(&choice);
