@@ -332,7 +332,7 @@ impl Gate {
     }
 }
 
-/// `CircuitId` is a unique identifier for a `Circuit` based on it's gate structure
+/// `CircuitId` is a unique identifier for a `Circuit` based on its gate structure
 #[derive(Debug, Clone, PartialEq)]
 pub struct CircuitId(String);
 

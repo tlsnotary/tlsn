@@ -67,7 +67,7 @@ impl WireLabel {
         self.value.lsb() == 1
     }
 
-    /// Decodes wire label to it's corresponding truth value
+    /// Decodes wire label to its corresponding truth value
     #[inline]
     pub fn decode(&self, encoding: LabelEncoding) -> bool {
         self.permute_bit() ^ *encoding
