@@ -38,7 +38,7 @@ impl Deref for Delta {
 pub struct WireLabel {
     /// Wire id
     id: usize,
-    /// Wire label which corresponds to the logical level of a circuit wire
+    /// Wire label which corresponds to the logical level (low/high) of a circuit wire
     value: Block,
 }
 
@@ -301,11 +301,20 @@ impl SanitizedInputLabels {
             .collect();
 
         labels.sort_by_key(|label| label.id);
+        let label_count = labels.len();
         labels.dedup_by_key(|label| label.id);
 
         // Error if input labels contain duplicate wire ids
-        if circ.input_len() != labels.len() {
+        if label_count != labels.len() {
             return Err(Error::InvalidInput(InputError::Duplicate));
+        }
+
+        // Error if incorrect number of input wires
+        if label_count != circ.input_len() {
+            return Err(Error::InvalidInput(InputError::InvalidWireCount(
+                circ.input_len(),
+                label_count,
+            )));
         }
 
         Ok(Self(labels))
@@ -444,5 +453,153 @@ impl OutputLabelsEncoding {
 impl AsRef<[LabelEncoding]> for OutputLabelsEncoding {
     fn as_ref(&self) -> &[LabelEncoding] {
         &self.encoding
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::*;
+
+    use mpc_circuits::{Circuit, ADDER_64};
+    use rand::thread_rng;
+
+    #[fixture]
+    pub fn circ() -> Circuit {
+        Circuit::load_bytes(ADDER_64).unwrap()
+    }
+
+    #[rstest]
+    fn test_sanitized_labels_dup(circ: Circuit) {
+        let (labels, _) = InputLabels::generate(&mut thread_rng(), &circ, None);
+        let input_values = [
+            circ.input(0).unwrap().to_value(&[false; 64]).unwrap(),
+            circ.input(1).unwrap().to_value(&[false; 64]).unwrap(),
+        ];
+
+        // Generator provides labels for both inputs, this is a no no
+        let gen_labels = [
+            labels[0].clone().select(&input_values[0]).unwrap(),
+            labels[1].clone().select(&input_values[1]).unwrap(),
+        ];
+        let ev_labels = [labels[0].clone().select(&input_values[0]).unwrap()];
+
+        assert!(matches!(
+            SanitizedInputLabels::new(&circ, &gen_labels, &ev_labels),
+            Err(Error::InvalidInput(InputError::Duplicate))
+        ))
+    }
+
+    #[rstest]
+    fn test_sanitized_labels_wrong_count(circ: Circuit) {
+        let (labels, _) = InputLabels::generate(&mut thread_rng(), &circ, None);
+        let input_values = [
+            circ.input(0).unwrap().to_value(&[false; 64]).unwrap(),
+            circ.input(1).unwrap().to_value(&[false; 64]).unwrap(),
+        ];
+
+        // Generator provides no labels
+        let gen_labels = [];
+        let ev_labels = [labels[0].clone().select(&input_values[0]).unwrap()];
+
+        assert!(matches!(
+            SanitizedInputLabels::new(&circ, &gen_labels, &ev_labels),
+            Err(Error::InvalidInput(InputError::InvalidCount(2, 1)))
+        ));
+
+        // Evaluator provides no labels
+        let gen_labels = [labels[0].clone().select(&input_values[0]).unwrap()];
+        let ev_labels = [];
+
+        assert!(matches!(
+            SanitizedInputLabels::new(&circ, &gen_labels, &ev_labels),
+            Err(Error::InvalidInput(InputError::InvalidCount(2, 1)))
+        ));
+    }
+
+    #[rstest]
+    fn test_sanitized_labels_duplicate_wires(circ: Circuit) {
+        let (labels, _) = InputLabels::generate(&mut thread_rng(), &circ, None);
+        let input_values = [
+            circ.input(0).unwrap().to_value(&[false; 64]).unwrap(),
+            circ.input(1).unwrap().to_value(&[false; 64]).unwrap(),
+        ];
+
+        let mut input_labels = [
+            labels[0].clone().select(&input_values[0]).unwrap(),
+            labels[1].clone().select(&input_values[1]).unwrap(),
+        ];
+
+        // Somehow manages to get an overlapping label id here
+        input_labels[1].labels[0].id = 0;
+
+        let gen_labels = [input_labels[1].clone()];
+        let ev_labels = [input_labels[0].clone()];
+
+        assert!(matches!(
+            SanitizedInputLabels::new(&circ, &gen_labels, &ev_labels),
+            Err(Error::InvalidInput(InputError::Duplicate))
+        ));
+
+        let mut input_labels = [
+            labels[0].clone().select(&input_values[0]).unwrap(),
+            labels[1].clone().select(&input_values[1]).unwrap(),
+        ];
+
+        // Somehow manages to get an extra wire label here which overwrites another label
+        input_labels[1]
+            .labels
+            .push(WireLabel::new(0, crate::Block::new(0)));
+
+        let gen_labels = [input_labels[1].clone()];
+        let ev_labels = [input_labels[0].clone()];
+
+        assert!(matches!(
+            SanitizedInputLabels::new(&circ, &gen_labels, &ev_labels),
+            Err(Error::InvalidInput(InputError::Duplicate))
+        ));
+    }
+
+    #[rstest]
+    fn test_sanitized_labels_invalid_wire_count(circ: Circuit) {
+        let (labels, _) = InputLabels::generate(&mut thread_rng(), &circ, None);
+        let input_values = [
+            circ.input(0).unwrap().to_value(&[false; 64]).unwrap(),
+            circ.input(1).unwrap().to_value(&[false; 64]).unwrap(),
+        ];
+
+        let mut input_labels = [
+            labels[0].clone().select(&input_values[0]).unwrap(),
+            labels[1].clone().select(&input_values[1]).unwrap(),
+        ];
+
+        // Somehow manages to get an input missing a wire label here
+        input_labels[1].labels.pop();
+
+        let gen_labels = [input_labels[1].clone()];
+        let ev_labels = [input_labels[0].clone()];
+
+        assert!(matches!(
+            SanitizedInputLabels::new(&circ, &gen_labels, &ev_labels),
+            Err(Error::InvalidInput(InputError::InvalidWireCount(_, _)))
+        ));
+
+        let mut input_labels = [
+            labels[0].clone().select(&input_values[0]).unwrap(),
+            labels[1].clone().select(&input_values[1]).unwrap(),
+        ];
+
+        // Somehow manages to get an extra wire label here
+        input_labels[1]
+            .labels
+            .push(WireLabel::new(usize::MAX, crate::Block::new(0)));
+
+        let gen_labels = [input_labels[1].clone()];
+        let ev_labels = [input_labels[0].clone()];
+
+        assert!(matches!(
+            SanitizedInputLabels::new(&circ, &gen_labels, &ev_labels),
+            Err(Error::InvalidInput(InputError::InvalidWireCount(_, _)))
+        ));
     }
 }

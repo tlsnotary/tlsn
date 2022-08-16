@@ -24,6 +24,8 @@ pub enum InputError {
     InvalidId(usize),
     #[error("Invalid input count: expected {0}, got {1}")]
     InvalidCount(usize, usize),
+    #[error("Invalid wire count: expected {0}, got {1}")]
+    InvalidWireCount(usize, usize),
     #[error("Duplicate wire labels")]
     Duplicate,
 }
