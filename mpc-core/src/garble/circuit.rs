@@ -33,6 +33,7 @@ pub trait Data {}
 pub struct Full {
     labels: Vec<WireLabelPair>,
     encrypted_gates: Vec<EncryptedGate>,
+    #[allow(dead_code)]
     delta: Delta,
 }
 
