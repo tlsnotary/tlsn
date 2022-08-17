@@ -122,6 +122,7 @@ impl GarbledCircuit<Full> {
                     value.input().clone(),
                     &WireLabelPair::choose(&self.data.labels, value.wires(), value.as_ref()),
                 )
+                .expect("Circuit invariant violated, wrong wire count")
             })
             .collect();
 

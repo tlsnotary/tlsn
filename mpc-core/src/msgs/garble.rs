@@ -27,6 +27,29 @@ impl From<garble::InputLabels<garble::WireLabel>> for InputLabels {
     }
 }
 
+impl garble::InputLabels<garble::WireLabel> {
+    pub fn from_msg(
+        circ: &Circuit,
+        input_labels: InputLabels,
+    ) -> Result<Self, crate::garble::Error> {
+        let input = circ
+            .input(input_labels.id)
+            .ok_or(crate::garble::Error::InvalidInputLabels)?;
+        if input.as_ref().len() != input_labels.labels.len() {
+            return Err(crate::garble::Error::InvalidInputLabels);
+        }
+        garble::InputLabels::new(
+            input.clone(),
+            &input_labels
+                .labels
+                .iter()
+                .zip(input.as_ref().wires())
+                .map(|(label, wire_id)| garble::WireLabel::new(*wire_id, *label))
+                .collect::<Vec<garble::WireLabel>>(),
+        )
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct OutputEncoding {
     pub id: usize,
@@ -44,6 +67,19 @@ impl From<garble::label::OutputLabelsEncoding> for OutputEncoding {
                 .map(|enc| *enc)
                 .collect::<Vec<bool>>(),
         }
+    }
+}
+
+impl garble::label::OutputLabelsEncoding {
+    pub fn from_msg(
+        circ: &Circuit,
+        encoding: OutputEncoding,
+    ) -> Result<Self, crate::garble::Error> {
+        let output = circ
+            .output(encoding.id)
+            .ok_or(crate::garble::Error::InvalidLabelEncoding)?;
+
+        Self::new(output, encoding.encoding)
     }
 }
 
@@ -103,36 +139,11 @@ impl crate::garble::GarbledCircuit<garble::Partial> {
             ));
         }
 
-        let mut input_labels: Vec<garble::InputLabels<garble::WireLabel>> =
-            Vec::with_capacity(msg.input_labels.len());
-        for input in msg.input_labels.into_iter() {
-            let circ_input = match circ.input(input.id) {
-                Some(circ_input) => circ_input,
-                None => {
-                    return Err(crate::garble::Error::PeerError(format!(
-                        "Received garbled circuit with invalid input {}",
-                        input.id
-                    )))
-                }
-            };
-            if circ_input.as_ref().len() != input.labels.len() {
-                return Err(crate::garble::Error::PeerError(format!(
-                    "Received invalid garbled circuit input {}, expected {} labels received {}",
-                    input.id,
-                    circ_input.as_ref().len(),
-                    input.labels.len()
-                )));
-            }
-            input_labels.push(garble::InputLabels::new(
-                circ_input.clone(),
-                &input
-                    .labels
-                    .iter()
-                    .zip(circ_input.as_ref().wires())
-                    .map(|(label, wire_id)| garble::WireLabel::new(*wire_id, *label))
-                    .collect::<Vec<garble::WireLabel>>(),
-            ))
-        }
+        let input_labels = msg
+            .input_labels
+            .into_iter()
+            .map(|labels| garble::InputLabels::from_msg(&circ, labels))
+            .collect::<Result<Vec<_>, _>>()?;
 
         // Validate encrypted gates
         if msg.encrypted_gates.len() != 2 * circ.and_count() {
@@ -150,27 +161,15 @@ impl crate::garble::GarbledCircuit<garble::Partial> {
 
         // Validate output encoding
         let encoding = match msg.encoding {
-            Some(enc) => {
+            Some(encoding) => {
                 // Check that peer sent all output encodings
-                if enc.len() == circ.output_count() {
-                    let mut encoding: Vec<garble::label::OutputLabelsEncoding> =
-                        Vec::with_capacity(circ.output_count());
-                    for encoding_ in enc {
-                        let circ_output = match circ.output(encoding_.id) {
-                            Some(circ_output) => circ_output,
-                            None => {
-                                return Err(crate::garble::Error::PeerError(
-                                    "Received garbled circuit with invalid output encoding"
-                                        .to_string(),
-                                ));
-                            }
-                        };
-                        encoding.push(garble::label::OutputLabelsEncoding::new(
-                            circ_output,
-                            encoding_.encoding,
-                        ))
-                    }
-                    Some(encoding)
+                if encoding.len() == circ.output_count() {
+                    Some(
+                        encoding
+                            .into_iter()
+                            .map(|e| garble::label::OutputLabelsEncoding::from_msg(&circ, e))
+                            .collect::<Result<Vec<_>, _>>()?,
+                    )
                 } else {
                     return Err(crate::garble::Error::PeerError(
                         "Received garbled circuit with invalid output encoding".to_string(),

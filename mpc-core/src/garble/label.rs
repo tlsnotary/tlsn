@@ -179,12 +179,15 @@ pub struct InputLabels<T> {
 }
 
 impl<T: Copy> InputLabels<T> {
-    pub(crate) fn new(input: Input, labels: &[T]) -> Self {
-        debug_assert_eq!(input.as_ref().len(), labels.len());
-        Self {
+    pub(crate) fn new(input: Input, labels: &[T]) -> Result<Self, Error> {
+        if input.as_ref().len() != labels.len() {
+            return Err(Error::InvalidInputLabels);
+        }
+
+        Ok(Self {
             input,
             labels: labels.to_vec(),
-        }
+        })
     }
 
     pub fn id(&self) -> usize {
@@ -205,7 +208,10 @@ impl InputLabels<WireLabelPair> {
         let inputs: Vec<InputLabels<WireLabelPair>> = circ
             .inputs()
             .iter()
-            .map(|input| InputLabels::new(input.clone(), &pick(&labels, input.as_ref().wires())))
+            .map(|input| {
+                InputLabels::new(input.clone(), &pick(&labels, input.as_ref().wires()))
+                    .expect("Circuit invariant violated, wrong wire count")
+            })
             .collect();
 
         (inputs, delta)
@@ -430,12 +436,15 @@ pub struct OutputLabelsEncoding {
 }
 
 impl OutputLabelsEncoding {
-    pub(crate) fn new(output: Output, encoding: Vec<bool>) -> Self {
-        debug_assert_eq!(output.as_ref().len(), encoding.len());
-        Self {
+    pub(crate) fn new(output: Output, encoding: Vec<bool>) -> Result<Self, Error> {
+        if output.as_ref().len() != encoding.len() {
+            return Err(Error::InvalidLabelEncoding);
+        }
+
+        Ok(Self {
             output,
             encoding: encoding.into_iter().map(|enc| LabelEncoding(enc)).collect(),
-        }
+        })
     }
 
     fn from_labels(labels: &OutputLabels<WireLabelPair>) -> Self {
