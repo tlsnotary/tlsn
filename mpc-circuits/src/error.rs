@@ -1,3 +1,5 @@
+use crate::Group;
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("uninitialized wire, id: {0}")]
@@ -5,9 +7,14 @@ pub enum Error {
     /// An I/O error occurred.
     #[error("encountered error while parsing circuit: {0}")]
     ParsingError(String),
-    /// An error occurred due to invalid garbler/evaluator inputs.
-    #[error("invalid circuit inputs")]
-    InputError,
+    /// An error occurred trying to map values to wire group
+    #[error(
+        "encountered error while trying to map values to wire group, Group: {0:?}, value: {1:?}"
+    )]
+    InvalidValue(Group, Vec<bool>),
+    /// An error occurred while constructing a circuit
+    #[error("encountered error while constructing a circuit: {0}")]
+    InvalidCircuit(String),
     /// An I/O error occurred.
     #[error("encountered io error while loading circuit")]
     IoError(#[from] std::io::Error),
