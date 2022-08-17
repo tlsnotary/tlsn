@@ -1,14 +1,15 @@
+use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, sync::Arc};
 
 use crate::{garble, Block};
 use mpc_circuits::Circuit;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum GarbleMessage {
     GarbledCircuit(GarbledCircuit),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InputLabels {
     pub id: usize,
     pub labels: Vec<Block>,
@@ -50,7 +51,7 @@ impl garble::InputLabels<garble::WireLabel> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OutputEncoding {
     pub id: usize,
     pub encoding: Vec<bool>,
@@ -83,7 +84,7 @@ impl garble::label::OutputLabelsEncoding {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GarbledCircuit {
     pub id: String,
     pub input_labels: Vec<InputLabels>,
