@@ -1,9 +1,7 @@
 use crate::{
+    msgs::ot as msgs,
     ot::base::{
-        dh_ot::{
-            decrypt_input, hash_point, ReceiverCoreError, ReceiverSetup, SenderPayload,
-            SenderSetup, DOMAIN_SEP,
-        },
+        dh_ot::{decrypt_input, hash_point, ReceiverCoreError, DOMAIN_SEP},
         ReceiverState,
     },
     Block,
@@ -61,8 +59,8 @@ impl DhOtReceiver {
         &mut self,
         rng: &mut R,
         choices: &[bool],
-        sender_setup: SenderSetup,
-    ) -> Result<ReceiverSetup, ReceiverCoreError> {
+        sender_setup: msgs::SenderSetup,
+    ) -> Result<msgs::ReceiverSetup, ReceiverCoreError> {
         check_state(ReceiverState::Initialized, self.state)?;
 
         // Log the sending of the pubkey
@@ -107,11 +105,14 @@ impl DhOtReceiver {
         self.state = ReceiverState::Setup;
 
         // Return the blinded choices
-        Ok(ReceiverSetup { blinded_choices })
+        Ok(msgs::ReceiverSetup { blinded_choices })
     }
 
     /// Decrypts the OT sender's ciphertexts
-    pub fn receive(&mut self, payload: SenderPayload) -> Result<Vec<Block>, ReceiverCoreError> {
+    pub fn receive(
+        &mut self,
+        payload: msgs::SenderPayload,
+    ) -> Result<Vec<Block>, ReceiverCoreError> {
         check_state(ReceiverState::Setup, self.state)?;
 
         let keys = self.decryption_keys.as_ref().unwrap();

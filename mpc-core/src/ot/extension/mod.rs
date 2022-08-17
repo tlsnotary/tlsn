@@ -19,28 +19,26 @@ const K: usize = 40;
 pub mod tests {
     use super::{
         errors::{ExtReceiverCoreError, ExtSenderCoreError},
-        kos15::{
-            BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper,
-            ExtDerandomize, ExtSenderPayload, Kos15Receiver, Kos15Sender,
-        },
+        kos15::{Kos15Receiver, Kos15Sender},
     };
-    use crate::utils::u8vec_to_boolvec;
-    use crate::Block;
+    use crate::{msgs::ot as msgs, utils::u8vec_to_boolvec, Block};
     use pretty_assertions::assert_eq;
     use rand::{RngCore, SeedableRng};
     use rand_chacha::ChaCha12Rng;
     use rstest::*;
 
     pub mod fixtures {
-        use super::{BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper};
-        use crate::ot::base::tests::fixtures::{choice, values};
-        use crate::Block;
+        use crate::{
+            msgs::ot as msgs,
+            ot::base::tests::fixtures::{choice, values},
+            Block,
+        };
         use rstest::*;
 
         pub struct Data {
-            pub base_sender_setup: BaseSenderSetupWrapper,
-            pub base_receiver_setup: BaseReceiverSetupWrapper,
-            pub base_sender_payload: BaseSenderPayloadWrapper,
+            pub base_sender_setup: msgs::BaseSenderSetupWrapper,
+            pub base_receiver_setup: msgs::BaseReceiverSetupWrapper,
+            pub base_sender_payload: msgs::BaseSenderPayloadWrapper,
         }
 
         #[fixture]
@@ -190,7 +188,7 @@ pub mod tests {
             panic!("sending more OTs should be a state error");
         }
 
-        let p = ExtSenderPayload {
+        let p = msgs::ExtSenderPayload {
             ciphertexts: vec![[Block::random(&mut rng), Block::random(&mut rng)]],
         };
 
@@ -267,7 +265,7 @@ pub mod tests {
         assert!(receiver.is_complete());
 
         // Trying to send more OTs should return an error
-        let d = ExtDerandomize { flip: vec![true] };
+        let d = msgs::ExtDerandomize { flip: vec![true] };
         let res = sender.rand_send(&[[Block::random(&mut rng); 2]], d);
         if let Err(ExtSenderCoreError::BadState(..)) = res {
             ()
@@ -275,7 +273,7 @@ pub mod tests {
             panic!("sending more OTs should be a state error");
         }
 
-        let p = ExtSenderPayload {
+        let p = msgs::ExtSenderPayload {
             ciphertexts: vec![[Block::random(&mut rng); 2]],
         };
 

@@ -1,12 +1,9 @@
-use crate::block::Block;
-use crate::ot::extension::{
-    kos15::{
-        BaseReceiver, BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper,
-        ExtDerandomize, ExtReceiverSetup, ExtSenderPayload,
-    },
-    ExtSenderCoreError, BASE_COUNT,
+use crate::{
+    block::Block,
+    msgs::ot as msgs,
+    ot::extension::{kos15::BaseReceiver, ExtSenderCoreError, BASE_COUNT},
+    utils::{self, sha256, xor},
 };
-use crate::utils::{self, sha256, xor};
 
 use aes::{Aes128, BlockCipher, BlockEncrypt, NewBlockCipher};
 use cipher::consts::U16;
@@ -188,13 +185,13 @@ where
 
     pub fn base_setup(
         &mut self,
-        base_sender_setup: BaseSenderSetupWrapper,
-    ) -> Result<BaseReceiverSetupWrapper, ExtSenderCoreError> {
+        base_sender_setup: msgs::BaseSenderSetupWrapper,
+    ) -> Result<msgs::BaseReceiverSetupWrapper, ExtSenderCoreError> {
         check_state(&self.state, &State::Initialized)?;
 
         self.receiver_cointoss_commit = Some(base_sender_setup.cointoss_commit);
         self.state = State::BaseSetup;
-        Ok(BaseReceiverSetupWrapper {
+        Ok(msgs::BaseReceiverSetupWrapper {
             setup: self
                 .base
                 .setup(&mut self.rng, &self.base_choice, base_sender_setup.setup)?,
@@ -204,7 +201,7 @@ where
 
     pub fn base_receive(
         &mut self,
-        payload: BaseSenderPayloadWrapper,
+        payload: msgs::BaseSenderPayloadWrapper,
     ) -> Result<(), ExtSenderCoreError> {
         check_state(&self.state, &State::BaseSetup)?;
 
@@ -229,7 +226,7 @@ where
 
     pub fn extension_setup(
         &mut self,
-        receiver_setup: ExtReceiverSetup,
+        receiver_setup: msgs::ExtReceiverSetup,
     ) -> Result<(), ExtSenderCoreError> {
         check_state(&self.state, &State::BaseReceive)?;
 
@@ -312,7 +309,10 @@ where
         Ok(())
     }
 
-    pub fn send(&mut self, inputs: &[[Block; 2]]) -> Result<ExtSenderPayload, ExtSenderCoreError> {
+    pub fn send(
+        &mut self,
+        inputs: &[[Block; 2]],
+    ) -> Result<msgs::ExtSenderPayload, ExtSenderCoreError> {
         check_state(&self.state, &State::Setup)?;
 
         if self.sent + inputs.len() > self.count {
@@ -339,7 +339,7 @@ where
             self.state = State::Complete;
         }
 
-        Ok(ExtSenderPayload { ciphertexts })
+        Ok(msgs::ExtSenderPayload { ciphertexts })
     }
 }
 
@@ -351,8 +351,8 @@ where
     pub fn rand_send(
         &mut self,
         inputs: &[[Block; 2]],
-        derandomize: ExtDerandomize,
-    ) -> Result<ExtSenderPayload, ExtSenderCoreError> {
+        derandomize: msgs::ExtDerandomize,
+    ) -> Result<msgs::ExtSenderPayload, ExtSenderCoreError> {
         check_state(&self.state, &State::Setup)?;
 
         if self.sent + inputs.len() > self.count {
@@ -385,6 +385,6 @@ where
             self.state = State::Complete;
         }
 
-        Ok(ExtSenderPayload { ciphertexts })
+        Ok(msgs::ExtSenderPayload { ciphertexts })
     }
 }
