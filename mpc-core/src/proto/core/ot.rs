@@ -174,7 +174,6 @@ impl From<kos15::ExtReceiverSetup> for ExtReceiverSetup {
     fn from(s: kos15::ExtReceiverSetup) -> Self {
         Self {
             ncols: s.ncols as u32,
-            padding: s.padding as u32,
             table: s.table,
             x: s.x.to_vec(),
             t0: s.t0.to_vec(),
@@ -190,7 +189,6 @@ impl TryFrom<ExtReceiverSetup> for kos15::ExtReceiverSetup {
     fn try_from(s: ExtReceiverSetup) -> Result<Self, Error> {
         Ok(Self {
             ncols: s.ncols as usize,
-            padding: s.padding as usize,
             table: s.table,
             x: s.x.try_into().map_err(|_| ErrorKind::InvalidData)?,
             t0: s.t0.try_into().map_err(|_| ErrorKind::InvalidData)?,

@@ -216,14 +216,17 @@ where
 
         let ncols = receiver_setup.ncols;
 
-        // Prevent DOS attacks
         if ncols > 1_000_000 {
             return Err(ExtSenderCoreError::InvalidInputLength);
         }
 
-        // This is because of the extension of the receiver choices with extra padding bytes
+        // This is because of the extension of the receiver choices with extra padding bytes.
         // We have to subtract them here.
-        self.count = ncols - receiver_setup.padding;
+        //
+        // - 256 for KOS check
+        // - 256 % (...) is the padding calculated from the non-transposed matrix of the receiver
+        //   setup
+        self.count = ncols - (256 + 256 % (receiver_setup.table.len() / BASE_COUNT * 8));
 
         let us = receiver_setup.table;
         let mut qs: Vec<u8> = vec![0u8; ncols / 8 * BASE_COUNT];

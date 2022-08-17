@@ -51,6 +51,9 @@ pub struct Kos15Receiver<R = ChaCha12Rng, C = Aes128> {
     rng: R,
     cipher: C,
     base: BaseSender,
+    // Indicates by how many bits the boolean choices of the receiver have been extended for
+    // performance or security checks
+    padding: usize,
     state: State,
     // seeds are the result of running base OT setup. They are used to seed the
     // RNGs.
@@ -72,6 +75,7 @@ impl Default for Kos15Receiver {
             rng,
             cipher: Aes128::new_from_slice(&[0u8; 16]).unwrap(),
             base: BaseSender::default(),
+            padding: 0,
             state: State::Initialized,
             seeds: None,
             rngs: None,
@@ -283,13 +287,13 @@ where
             choice: Vec::from(choice),
             derandomized: Vec::new(),
         });
+        self.padding = padding;
 
         // Remove the last 256 rows which were sacrificed due to the KOS check
         ts.drain(ts.len() - 256 * BASE_COUNT / 8..);
         self.table = Some(ts);
         Ok(ExtReceiverSetup {
             ncols,
-            padding,
             table: gs,
             x: x.into(),
             t0: t0.into(),
