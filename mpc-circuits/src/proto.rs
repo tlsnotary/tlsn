@@ -111,12 +111,12 @@ impl From<crate::Circuit> for Circuit {
             inputs: c
                 .inputs
                 .iter()
-                .map(|input| Group::from(input.group().clone()))
+                .map(|input| Group::from(input.as_ref().clone()))
                 .collect(),
             outputs: c
                 .outputs
                 .iter()
-                .map(|output| Group::from(output.group().clone()))
+                .map(|output| Group::from(output.as_ref().clone()))
                 .collect(),
             gates,
         }
@@ -129,13 +129,13 @@ impl TryFrom<Circuit> for crate::Circuit {
     #[inline]
     fn try_from(c: Circuit) -> Result<Self, Self::Error> {
         let mut inputs: Vec<crate::Input> = Vec::with_capacity(c.inputs.len());
-        for group in c.inputs {
-            inputs.push(crate::Input::new(crate::Group::try_from(group)?));
+        for (id, group) in c.inputs.into_iter().enumerate() {
+            inputs.push(crate::Input::new(id, crate::Group::try_from(group)?));
         }
 
         let mut outputs: Vec<crate::Output> = Vec::with_capacity(c.outputs.len());
-        for group in c.outputs {
-            outputs.push(crate::Output::new(crate::Group::try_from(group)?));
+        for (id, group) in c.outputs.into_iter().enumerate() {
+            outputs.push(crate::Output::new(id, crate::Group::try_from(group)?));
         }
 
         let mut gates: Vec<crate::Gate> = Vec::with_capacity(c.gates.len());

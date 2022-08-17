@@ -69,6 +69,13 @@ pub fn choose<T: Copy>(items: &[[T; 2]], choice: &[bool]) -> Vec<T> {
         .collect()
 }
 
+/// Returns a subset of items in a collection which corresponds to provided indices
+///
+/// Panics if index is out of bounds
+pub fn pick<T: Copy>(items: &[T], idx: &[usize]) -> Vec<T> {
+    idx.iter().map(|i| items[*i]).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

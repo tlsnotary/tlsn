@@ -1,21 +1,13 @@
-pub mod circuit;
-pub mod error;
-pub mod evaluator;
+pub(crate) mod circuit;
+mod error;
+mod evaluator;
 pub mod exec;
-pub mod generator;
+mod generator;
+pub(crate) mod label;
 
-use crate::msgs::garble as msgs;
-pub use circuit::{
-    decode, generate_labels, BinaryLabel, EncryptedGate, FullGarbledCircuit, GarbledCircuit,
-};
+pub use circuit::{Evaluated, Full, GarbledCircuit, Partial};
 pub use error::{Error, InputError};
-pub use evaluator::evaluate_garbled_circuit;
-pub use generator::generate_garbled_circuit;
-
-#[derive(Debug, Clone)]
-pub enum GarbleMessage {
-    GarbledCircuit(msgs::GarbledCircuit),
-}
+pub use label::{Delta, InputLabels, OutputLabels, WireLabel, WireLabelPair};
 
 #[cfg(test)]
 mod tests {
@@ -28,7 +20,7 @@ mod tests {
     use rand_chacha::ChaCha12Rng;
     use std::sync::Arc;
 
-    use crate::{garble::circuit::generate_labels, utils, Block};
+    use crate::{utils, Block};
     use mpc_circuits::{Circuit, AES_128_REVERSE};
 
     #[test]
@@ -36,31 +28,58 @@ mod tests {
         let mut rng = ChaCha12Rng::from_entropy();
         let mut cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
 
-        let mut delta = Block::random(&mut rng);
-        delta.set_lsb();
+        let delta = Delta::random(&mut rng);
         let x_0 = Block::random(&mut rng);
-        let x = [x_0, x_0 ^ delta];
+        let x = WireLabelPair::new(0, x_0, x_0 ^ *delta);
         let y_0 = Block::random(&mut rng);
-        let y = [y_0, y_0 ^ delta];
+        let y = WireLabelPair::new(1, y_0, y_0 ^ *delta);
         let gid: usize = 1;
 
-        let (z, encrypted_gate) = gen::and_gate(&cipher, &x, &y, &delta, gid);
+        let (z, encrypted_gate) = gen::and_gate(&cipher, &x, &y, 2, delta, gid);
 
         assert_eq!(
-            ev::and_gate(&mut cipher, &x[0], &y[0], &encrypted_gate, gid),
-            z[0]
+            ev::and_gate(
+                &mut cipher,
+                &x.select(false),
+                &y.select(false),
+                2,
+                encrypted_gate.as_ref(),
+                gid
+            ),
+            z.select(false)
         );
         assert_eq!(
-            ev::and_gate(&mut cipher, &x[0], &y[1], &encrypted_gate, gid),
-            z[0]
+            ev::and_gate(
+                &mut cipher,
+                &x.select(false),
+                &y.select(true),
+                2,
+                encrypted_gate.as_ref(),
+                gid
+            ),
+            z.select(false)
         );
         assert_eq!(
-            ev::and_gate(&mut cipher, &x[1], &y[0], &encrypted_gate, gid),
-            z[0]
+            ev::and_gate(
+                &mut cipher,
+                &x.select(true),
+                &y.select(false),
+                2,
+                encrypted_gate.as_ref(),
+                gid
+            ),
+            z.select(false)
         );
         assert_eq!(
-            ev::and_gate(&mut cipher, &x[1], &y[1], &encrypted_gate, gid),
-            z[1]
+            ev::and_gate(
+                &mut cipher,
+                &x.select(true),
+                &y.select(true),
+                2,
+                encrypted_gate.as_ref(),
+                gid
+            ),
+            z.select(true)
         );
     }
 
@@ -68,19 +87,30 @@ mod tests {
     fn test_xor_gate() {
         let mut rng = ChaCha12Rng::from_entropy();
 
-        let mut delta = Block::random(&mut rng);
-        delta.set_lsb();
+        let delta = Delta::random(&mut rng);
         let x_0 = Block::random(&mut rng);
-        let x = [x_0, x_0 ^ delta];
+        let x = WireLabelPair::new(0, x_0, x_0 ^ *delta);
         let y_0 = Block::random(&mut rng);
-        let y = [y_0, y_0 ^ delta];
+        let y = WireLabelPair::new(1, y_0, y_0 ^ *delta);
 
-        let z = gen::xor_gate(&x, &y, &delta);
+        let z = gen::xor_gate(&x, &y, 2, delta);
 
-        assert_eq!(ev::xor_gate(&x[0], &y[0]), z[0]);
-        assert_eq!(ev::xor_gate(&x[0], &y[1]), z[1]);
-        assert_eq!(ev::xor_gate(&x[1], &y[0]), z[1]);
-        assert_eq!(ev::xor_gate(&x[1], &y[1]), z[0]);
+        assert_eq!(
+            ev::xor_gate(&x.select(false), &y.select(false), 2),
+            z.select(false)
+        );
+        assert_eq!(
+            ev::xor_gate(&x.select(false), &y.select(true), 2),
+            z.select(true)
+        );
+        assert_eq!(
+            ev::xor_gate(&x.select(true), &y.select(false), 2),
+            z.select(true),
+        );
+        assert_eq!(
+            ev::xor_gate(&x.select(true), &y.select(true), 2),
+            z.select(false)
+        );
     }
 
     #[test]
@@ -89,23 +119,28 @@ mod tests {
         let cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
         let circ = Arc::new(Circuit::load_bytes(AES_128_REVERSE).unwrap());
 
-        let (input_labels, delta) = generate_labels(&mut rng, None, 256, 0);
+        let (input_labels, delta) = InputLabels::generate(&mut rng, &circ, None);
 
-        let gc =
-            gen::generate_garbled_circuit(&cipher, circ.clone(), &delta, &input_labels).unwrap();
-        let gc = gc.to_evaluator(&[], true);
+        // Generator provides key
+        let gen_input = circ.input(0).unwrap().to_value(&[false; 128]).unwrap();
+        // Evaluator provides message
+        let ev_input = circ.input(1).unwrap().to_value(&[false; 128]).unwrap();
 
-        let choice = [true; 256];
-        let input_labels = utils::choose(&input_labels, &choice);
+        let gc = GarbledCircuit::generate(&cipher, circ.clone(), delta, &input_labels).unwrap();
 
-        let output_labels = ev::evaluate_garbled_circuit(&cipher, &gc, &input_labels).unwrap();
+        let gc = gc.to_evaluator(&[gen_input.clone()], true);
 
-        let output = decode(&output_labels, &gc.decoding.unwrap());
+        // Evaluator typically receives these using OT
+        let ev_input_labels = input_labels[1].select(&ev_input).unwrap();
 
-        let expected = circ.evaluate(&choice).unwrap();
+        let evaluated_gc = gc.evaluate(&cipher, &[ev_input_labels]).unwrap();
+        let output = evaluated_gc.decode().unwrap();
+
+        let expected = circ.evaluate(&[gen_input, ev_input]).unwrap();
+
         assert_eq!(
-            utils::boolvec_to_string(&output),
-            utils::boolvec_to_string(&expected)
+            utils::boolvec_to_string(output[0].as_ref()),
+            utils::boolvec_to_string(expected[0].as_ref())
         );
     }
 }
