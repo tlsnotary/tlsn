@@ -224,7 +224,7 @@ where
         // We have to subtract them here.
         //
         // - 256 for KOS check
-        // - 256 % (...) is the padding calculated from the non-transposed matrix of the receiver
+        // - 256 - (...) is the padding calculated from the non-transposed matrix of the receiver
         //   setup
         self.count = ncols - (256 + 256 - (receiver_setup.table.len() / BASE_COUNT * 8) % 256);
 
