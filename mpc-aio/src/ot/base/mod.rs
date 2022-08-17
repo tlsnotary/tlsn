@@ -1,6 +1,6 @@
 pub mod receiver;
 pub mod sender;
 
-use super::OTError;
+use super::{OTError, ObliviousReceive, ObliviousSend};
 pub use receiver::{OTReceive, Receiver};
-pub use sender::{OTSend, Sender};
+pub use sender::Sender;

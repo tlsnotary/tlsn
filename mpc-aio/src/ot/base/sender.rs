@@ -1,4 +1,4 @@
-use super::OTError;
+use super::{OTError, ObliviousSend};
 use async_trait::async_trait;
 use futures_util::{SinkExt, StreamExt};
 use mpc_core::ot::{DhOtSender, Message};
@@ -12,21 +12,13 @@ use tokio_util::codec::Framed;
 use tracing::{instrument, trace};
 use utils_aio::codec::ProstCodecDelimited;
 
-pub struct Sender<S> {
+pub struct Sender<T: AsyncWrite + AsyncRead> {
     ot: DhOtSender,
-    stream: Framed<S, ProstCodecDelimited<Message, ProtoMessage>>,
+    stream: Framed<T, ProstCodecDelimited<Message, ProtoMessage>>,
 }
 
-#[async_trait]
-pub trait OTSend {
-    async fn send(&mut self, payload: &[[Block; 2]]) -> Result<(), OTError>;
-}
-
-impl<S> Sender<S>
-where
-    S: AsyncRead + AsyncWrite + Send + Unpin,
-{
-    pub fn new(stream: S) -> Self {
+impl<T: AsyncWrite + AsyncRead> Sender<T> {
+    pub fn new(stream: T) -> Self {
         Self {
             ot: DhOtSender::default(),
             stream: Framed::new(
@@ -38,12 +30,14 @@ where
 }
 
 #[async_trait]
-impl<S> OTSend for Sender<S>
+impl<T> ObliviousSend for Sender<T>
 where
-    S: AsyncRead + AsyncWrite + Send + Unpin,
+    T: AsyncWrite + AsyncRead + Send + Unpin,
 {
+    type Payload = Vec<[Block; 2]>;
+
     #[instrument(skip(self, payload))]
-    async fn send(&mut self, payload: &[[Block; 2]]) -> Result<(), OTError> {
+    async fn send<T>(&mut self, payload: Payload, channel: T) -> Result<(), OTError> {
         let setup = self.ot.setup(&mut thread_rng())?;
 
         trace!("Sending SenderSetup: {:?}", &setup);

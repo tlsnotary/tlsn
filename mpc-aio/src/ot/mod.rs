@@ -1,36 +1,37 @@
 pub mod base;
 pub mod extension;
 
-pub use base::{OTReceive, OTSend, Receiver, Sender};
+pub use base::{OTReceive, Receiver, Sender};
 pub use extension::{ExtOTReceive, ExtOTSend, ExtReceiver, ExtSender};
 pub use mpc_core::ot::Message;
 
 use async_trait::async_trait;
+use futures::{Sink, Stream};
 use mpc_core::ot::{ExtReceiverCoreError, ExtSenderCoreError, ReceiverCoreError, SenderCoreError};
+use std::fmt::Debug;
 use thiserror::Error;
-use tokio::io::{AsyncRead, AsyncWrite};
 
 #[async_trait]
-pub trait ObliviousTransferSend {
-    type Payload: std::fmt::Debug + 'static;
+pub trait ObliviousSend {
+    type Payload: Debug;
 
-    async fn send(
+    async fn send<T: Sink<Self::Payload> + Stream>(
         &mut self,
         payload: Self::Payload,
-        stream: impl AsyncWrite + AsyncRead,
+        channel: &mut T,
     ) -> Result<(), OTError>;
 }
 
 #[async_trait]
-pub trait ObliviousTransferReceive {
-    type Choice: std::fmt::Debug + 'static;
-    type Output: std::fmt::Debug + 'static;
+pub trait ObliviousReceive {
+    type Choice: Debug;
+    type Output: Debug;
 
-    async fn receive(
+    async fn receive<T: Sink<Self::Output> + Stream>(
         &mut self,
         choice: Self::Choice,
-        stream: impl AsyncWrite + AsyncRead,
-    ) -> Result<Self::Output, OTError>;
+        stream: &mut T,
+    ) -> Result<(), OTError>;
 }
 
 /// Errors that may occur when using AsyncOTSender
