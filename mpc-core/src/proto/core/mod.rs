@@ -1,9 +1,15 @@
 #[cfg(feature = "garble")]
-pub mod garble;
+pub mod garble {
+    include!(concat!(env!("OUT_DIR"), "/core.garble.rs"));
+}
 #[cfg(feature = "ot")]
-pub mod ot;
+pub mod ot {
+    include!(concat!(env!("OUT_DIR"), "/core.ot.rs"));
+}
 #[cfg(feature = "pa")]
-pub mod point_addition;
+pub mod point_addition {
+    include!(concat!(env!("OUT_DIR"), "/core.point_addition.rs"));
+}
 
 use std::convert::TryInto;
 

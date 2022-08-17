@@ -6,13 +6,8 @@ use std::convert::TryInto;
 
 use super::BaseSender;
 use crate::{
-    ot::extension::{
-        kos15::{
-            BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper,
-            ExtDerandomize, ExtReceiverSetup, ExtSenderPayload,
-        },
-        ExtReceiverCoreError, BASE_COUNT,
-    },
+    msgs::ot as msgs,
+    ot::extension::{ExtReceiverCoreError, BASE_COUNT},
     utils::{self, sha256, u8vec_to_boolvec, xor},
     Block,
 };
@@ -160,11 +155,11 @@ where
         self.state == State::Complete
     }
 
-    pub fn base_setup(&mut self) -> Result<BaseSenderSetupWrapper, ExtReceiverCoreError> {
+    pub fn base_setup(&mut self) -> Result<msgs::BaseSenderSetupWrapper, ExtReceiverCoreError> {
         check_state(&self.state, &State::Initialized)?;
 
         self.state = State::BaseSetup;
-        Ok(BaseSenderSetupWrapper {
+        Ok(msgs::BaseSenderSetupWrapper {
             setup: self.base.setup(&mut self.rng)?,
             cointoss_commit: sha256(&self.cointoss_share),
         })
@@ -172,8 +167,8 @@ where
 
     pub fn base_send(
         &mut self,
-        base_receiver_setup: BaseReceiverSetupWrapper,
-    ) -> Result<BaseSenderPayloadWrapper, ExtReceiverCoreError> {
+        base_receiver_setup: msgs::BaseReceiverSetupWrapper,
+    ) -> Result<msgs::BaseSenderPayloadWrapper, ExtReceiverCoreError> {
         check_state(&self.state, &State::BaseSetup)?;
 
         let mut seeds: Vec<[Block; 2]> = Vec::with_capacity(BASE_COUNT);
@@ -192,7 +187,7 @@ where
         );
         self.cointoss_random = Some(result);
         self.state = State::BaseSend;
-        Ok(BaseSenderPayloadWrapper {
+        Ok(msgs::BaseSenderPayloadWrapper {
             payload: base_send,
             cointoss_share: self.cointoss_share,
         })
@@ -201,7 +196,7 @@ where
     pub fn extension_setup(
         &mut self,
         choice: &[bool],
-    ) -> Result<ExtReceiverSetup, ExtReceiverCoreError> {
+    ) -> Result<msgs::ExtReceiverSetup, ExtReceiverCoreError> {
         check_state(&self.state, &State::BaseSend)?;
 
         // This is guaranteed to be set because we can only reach the BaseReceive by running
@@ -296,7 +291,7 @@ where
         // remove the last 256 elements which were sacrificed
         ts.drain(ts.len() - 256..);
         self.table = Some(ts);
-        Ok(ExtReceiverSetup {
+        Ok(msgs::ExtReceiverSetup {
             ncols,
             table: gs,
             x: x.into(),
@@ -307,7 +302,7 @@ where
 
     pub fn receive(
         &mut self,
-        payload: ExtSenderPayload,
+        payload: msgs::ExtSenderPayload,
     ) -> Result<Vec<Block>, ExtReceiverCoreError> {
         let choice_state = match &mut self.state {
             State::Setup(state) => state,
@@ -351,7 +346,7 @@ where
     R: Rng + CryptoRng + SeedableRng,
     C: BlockCipher<BlockSize = U16> + BlockEncrypt,
 {
-    pub fn rand_extension_setup(&mut self) -> Result<ExtReceiverSetup, ExtReceiverCoreError> {
+    pub fn rand_extension_setup(&mut self) -> Result<msgs::ExtReceiverSetup, ExtReceiverCoreError> {
         let n = self.count;
         // For random OT we generate random choice bits during setup then derandomize later
         let mut choice = vec![0u8; if n % 8 != 0 { n + (8 - n % 8) } else { n } / 8];
@@ -362,7 +357,10 @@ where
         self.extension_setup(&choice)
     }
 
-    pub fn derandomize(&mut self, choice: &[bool]) -> Result<ExtDerandomize, ExtReceiverCoreError> {
+    pub fn derandomize(
+        &mut self,
+        choice: &[bool],
+    ) -> Result<msgs::ExtDerandomize, ExtReceiverCoreError> {
         let choice_state = match &mut self.state {
             State::Setup(state) => state,
             received => {
@@ -385,12 +383,12 @@ where
             .collect();
 
         choice_state.derandomized.extend_from_slice(choice);
-        Ok(ExtDerandomize { flip })
+        Ok(msgs::ExtDerandomize { flip })
     }
 
     pub fn rand_receive(
         &mut self,
-        payload: ExtSenderPayload,
+        payload: msgs::ExtSenderPayload,
     ) -> Result<Vec<Block>, ExtReceiverCoreError> {
         let choice_state = match &mut self.state {
             State::Setup(state) => state,

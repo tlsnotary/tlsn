@@ -13,24 +13,6 @@ use sha2::{Digest, Sha256};
 
 pub(crate) const DOMAIN_SEP: &[u8] = b"CO15 DH-OT";
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct SenderSetup {
-    pub public_key: RistrettoPoint,
-}
-
-/// The final output of the sender to the receiver
-#[derive(Clone, Debug, PartialEq)]
-pub struct SenderPayload {
-    /// The pairs of ciphertexts output by the sender. At most one of these can be decrypted by the
-    /// receiver.
-    pub ciphertexts: Vec<[DhOtCiphertext; 2]>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct ReceiverSetup {
-    pub blinded_choices: Vec<RistrettoPoint>,
-}
-
 /// Hashes a ristretto point to a symmetric key
 pub(crate) fn hash_point(point: &RistrettoPoint, tweak: &[u8]) -> Block {
     // Compute H(tweak || point)

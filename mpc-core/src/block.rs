@@ -1,11 +1,13 @@
 use cipher::{consts::U16, generic_array::GenericArray, BlockCipher, BlockEncrypt};
 use core::ops::{BitAnd, BitXor};
 use rand::{CryptoRng, Rng};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::convert::{From, TryInto};
 
 #[repr(transparent)]
-#[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Block(u128);
 
 pub const BLOCK_LEN: usize = 16;

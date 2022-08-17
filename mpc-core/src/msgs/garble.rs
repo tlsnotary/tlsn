@@ -1,14 +1,18 @@
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, sync::Arc};
 
 use crate::{garble, Block};
 use mpc_circuits::Circuit;
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum GarbleMessage {
     GarbledCircuit(GarbledCircuit),
 }
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct InputLabels {
     pub id: usize,
     pub labels: Vec<Block>,
@@ -51,6 +55,7 @@ impl garble::InputLabels<garble::WireLabel> {
 }
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct OutputEncoding {
     pub id: usize,
     pub encoding: Vec<bool>,
@@ -84,6 +89,7 @@ impl garble::label::OutputLabelsEncoding {
 }
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct GarbledCircuit {
     pub id: String,
     pub input_labels: Vec<InputLabels>,

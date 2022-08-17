@@ -9,11 +9,12 @@ name = "mpc_core"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["proto", "ot", "pa", "garble"]
+default = ["ot", "pa", "garble"]
 garble = ["regex"]
 ot = []
 pa = ["elliptic-curve", "p256", "paillier", "curv"]
 proto = ["prost", "prost-build"]
+serde = ["dep:serde"]
 
 [dependencies]
 tlsn-mpc-circuits = { path = "../mpc-circuits" }
@@ -27,7 +28,7 @@ rand_chacha = "0.3.1"
 regex = { version = "1.5.4", optional = true }
 rayon = "1.5"
 curve25519-dalek = { version = "4.0.0-pre.2", features = ["serde"] }
-serde = { version = "1.0.136", features = ["derive"] }
+serde = { version = "1.0.136", features = ["derive"], optional = true }
 prost = { version = "0.9", optional = true }
 thiserror = "1.0.30"
 anyhow = "1.0.55"

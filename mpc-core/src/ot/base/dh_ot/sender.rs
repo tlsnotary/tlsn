@@ -1,9 +1,7 @@
 use crate::{
+    msgs::ot as msgs,
     ot::base::{
-        dh_ot::{
-            encrypt_input, hash_point, DhOtCiphertext, ReceiverSetup, SenderPayload, SenderSetup,
-            DOMAIN_SEP,
-        },
+        dh_ot::{encrypt_input, hash_point, DhOtCiphertext, DOMAIN_SEP},
         SenderCoreError, SenderState,
     },
     Block,
@@ -53,7 +51,7 @@ impl DhOtSender {
     pub fn setup<R: CryptoRng + RngCore>(
         &mut self,
         rng: &mut R,
-    ) -> Result<SenderSetup, SenderCoreError> {
+    ) -> Result<msgs::SenderSetup, SenderCoreError> {
         check_state(SenderState::Initialized, self.state)?;
 
         // Randomly sample a private key
@@ -71,7 +69,7 @@ impl DhOtSender {
             .append_message(b"pubkey", public_key.compress().as_bytes());
 
         // Return the pubkey
-        Ok(SenderSetup { public_key })
+        Ok(msgs::SenderSetup { public_key })
     }
 
     /// For each i, sends `inputs[i][0]` or `inputs[i][1]` base on the corresponding receiver's
@@ -79,8 +77,8 @@ impl DhOtSender {
     pub fn send(
         &mut self,
         inputs: &[[Block; 2]],
-        receivers_choices: ReceiverSetup,
-    ) -> Result<SenderPayload, SenderCoreError> {
+        receivers_choices: msgs::ReceiverSetup,
+    ) -> Result<msgs::SenderPayload, SenderCoreError> {
         // This sender needs to be ready to send, and the number of inputs needs to be equal to the
         // number of choices
         check_state(SenderState::Setup, self.state)?;
@@ -121,6 +119,6 @@ impl DhOtSender {
 
         // Update the state and return the ciphertexts
         self.state = SenderState::Complete;
-        Ok(SenderPayload { ciphertexts })
+        Ok(msgs::SenderPayload { ciphertexts })
     }
 }

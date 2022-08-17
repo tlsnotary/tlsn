@@ -2,7 +2,6 @@
 members = [
     "tls-core",
     "mpc-core",
-    "mpc-aio",
     "mpc-circuits",
     "tls-2pc-core",
     "tls-2pc-aio",
@@ -11,6 +10,6 @@ members = [
     "notary",
     "core",
     "clmul",
-    "matrix-transpose"
+    "matrix-transpose",
 ]
-exclude = ["tls-client"]
+exclude = ["tls-client", "mpc-aio"]
