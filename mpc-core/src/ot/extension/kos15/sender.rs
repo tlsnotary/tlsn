@@ -216,6 +216,11 @@ where
 
         let ncols = receiver_setup.ncols;
 
+        // Prevent DOS attacks
+        if ncols > 1_000_000 {
+            return Err(ExtSenderCoreError::InvalidInputLength);
+        }
+
         // This is because of the extension of the receiver choices with extra padding bytes
         // We have to subtract them here.
         self.count = ncols - receiver_setup.padding;
@@ -354,11 +359,11 @@ where
             .table
             .as_mut()
             .expect("table was not set even when in State::Setup");
-        let table: Vec<u8> = table.drain(..inputs.len() * BASE_COUNT / 8).collect();
+        let consumed: Vec<u8> = table.drain(..inputs.len() * BASE_COUNT / 8).collect();
 
         // Check that all the input lengths are equal
-        if inputs.len() * BASE_COUNT / 8 != table.len()
-            || table.len() != derandomize.flip.len() * BASE_COUNT / 8
+        if inputs.len() * BASE_COUNT / 8 != consumed.len()
+            || consumed.len() != derandomize.flip.len() * BASE_COUNT / 8
         {
             return Err(ExtSenderCoreError::InvalidInputLength);
         }
@@ -366,7 +371,7 @@ where
         let ciphertexts = encrypt_values(
             &mut self.cipher,
             inputs,
-            &table,
+            &consumed,
             &self.base_choice,
             Some(derandomize.flip),
         );

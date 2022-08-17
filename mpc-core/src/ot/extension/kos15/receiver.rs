@@ -192,6 +192,10 @@ where
 
         // For performance purposes we require that choice is a multiple of 2^k for some k. If it
         // is not, we pad. Note that this padding is never used for OTs on the sender side.
+        //
+        // The x86_64 implementation requires a matrix with minimum row/columns 32, so we need 8*32
+        // = 256 choices minimum, thus k should be at least 8. However, making k > 8 will not bring
+        // performance gains.
         let mut padding = 256 - choice.len() % 256;
 
         // This is guaranteed to be set because we can only reach the BaseReceive by running
