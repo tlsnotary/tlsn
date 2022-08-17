@@ -81,8 +81,8 @@ mod tests {
         let message = slave.next(message).unwrap();
 
         // H((pms xor opad) || H((pms xor ipad) || seed))
-        let a1 = if let HandshakeMessage::SlaveMs1(m) = message {
-            m.a1
+        let a1 = if let HandshakeMessage::SlaveMs1(m) = &message {
+            m.a1.clone()
         } else {
             panic!("unable to destructure");
         };
@@ -95,8 +95,8 @@ mod tests {
         let message = slave.next(message).unwrap();
 
         // H((pms xor opad) || H((pms xor ipad) || a1))
-        let a2 = if let HandshakeMessage::SlaveMs2(m) = message {
-            m.a2
+        let a2 = if let HandshakeMessage::SlaveMs2(m) = &message {
+            m.a2.clone()
         } else {
             panic!("unable to destructure");
         };
@@ -106,8 +106,8 @@ mod tests {
         let message = slave.next(message).unwrap();
 
         // H((pms xor opad) || H((pms xor ipad) || a2 || seed))
-        let p2 = if let HandshakeMessage::SlaveMs3(m) = message {
-            m.p2
+        let p2 = if let HandshakeMessage::SlaveMs3(m) = &message {
+            m.p2.clone()
         } else {
             panic!("unable to destructure");
         };
@@ -142,8 +142,8 @@ mod tests {
         let message = slave.next(message).unwrap();
 
         // H((ms xor opad) || H((ms xor ipad) || seed))
-        let a1 = if let HandshakeMessage::SlaveKe1(m) = message {
-            m.a1
+        let a1 = if let HandshakeMessage::SlaveKe1(m) = &message {
+            m.a1.clone()
         } else {
             panic!("unable to destructure");
         };
@@ -156,8 +156,8 @@ mod tests {
         let message = slave.next(message).unwrap();
 
         // H((ms xor opad) || H((ms xor ipad) || a1))
-        let a2 = if let HandshakeMessage::SlaveKe2(m) = message {
-            m.a2
+        let a2 = if let HandshakeMessage::SlaveKe2(m) = &message {
+            m.a2.clone()
         } else {
             panic!("unable to destructure");
         };
@@ -178,8 +178,8 @@ mod tests {
         let message = slave.next(message).unwrap();
 
         // H((ms xor opad) || H((ms xor ipad) || seed))
-        let a1 = if let HandshakeMessage::SlaveCf1(m) = message {
-            m.a1
+        let a1 = if let HandshakeMessage::SlaveCf1(m) = &message {
+            m.a1.clone()
         } else {
             panic!("unable to destructure");
         };
@@ -189,8 +189,8 @@ mod tests {
         let message = slave.next(message).unwrap();
 
         // H((ms xor opad) || H((ms xor ipad) || a1 || seed))
-        let vd = if let HandshakeMessage::SlaveCf2(m) = message {
-            m.verify_data
+        let vd = if let HandshakeMessage::SlaveCf2(m) = &message {
+            m.verify_data.clone()
         } else {
             panic!("unable to destructure");
         };
@@ -207,8 +207,8 @@ mod tests {
         let message = slave.next(message).unwrap();
 
         // H((ms xor opad) || H((ms xor ipad) || seed))
-        let a1 = if let HandshakeMessage::SlaveSf1(m) = message {
-            m.a1
+        let a1 = if let HandshakeMessage::SlaveSf1(m) = &message {
+            m.a1.clone()
         } else {
             panic!("unable to destructure");
         };
@@ -218,8 +218,8 @@ mod tests {
         let message = slave.next(message).unwrap();
 
         // H((ms xor opad) || H((ms xor ipad) || a1 || seed))
-        let vd = if let HandshakeMessage::SlaveSf2(m) = message {
-            m.verify_data
+        let vd = if let HandshakeMessage::SlaveSf2(m) = &message {
+            m.verify_data.clone()
         } else {
             panic!("unable to destructure");
         };

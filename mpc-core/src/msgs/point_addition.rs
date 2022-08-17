@@ -1,7 +1,9 @@
 use paillier::{BigInt, EncryptionKey};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum PointAdditionMessage {
     M1(M1),
     M2(M2),
@@ -11,7 +13,8 @@ pub enum PointAdditionMessage {
     S3(S3),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct M1 {
     /// Master's encryption key
     pub enc_key: EncryptionKey,
@@ -25,19 +28,22 @@ pub struct M1 {
     pub e_neg_2_y_q: BigInt,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct M2 {
     /// E((T * M_T)^p-3 mod p)
     pub e_t_mod_pow: BigInt,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct M3 {
     /// E(A * M_A * B * M_B)
     pub e_ab_masked: BigInt,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct S1 {
     /// N_A mod p
     pub n_a_mod_p: BigInt,
@@ -49,7 +55,8 @@ pub struct S1 {
     pub e_t_masked: BigInt,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct S2 {
     /// N_B mod p
     pub n_b_mod_p: BigInt,
@@ -57,7 +64,8 @@ pub struct S2 {
     pub e_b_masked: BigInt,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct S3 {
     /// E(PMS + S_q)
     pub e_pms_masked: BigInt,

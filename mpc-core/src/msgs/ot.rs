@@ -1,8 +1,11 @@
 use crate::Block;
 use curve25519_dalek::ristretto::RistrettoPoint;
+
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum OTMessage {
     BaseSenderSetup(SenderSetup),
     BaseSenderSetupWrapper(BaseSenderSetupWrapper),
@@ -15,27 +18,31 @@ pub enum OTMessage {
     ExtSenderPayload(ExtSenderPayload),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct SenderSetup {
     pub public_key: RistrettoPoint,
 }
 
 /// The final output of the sender to the receiver
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct SenderPayload {
     /// The pairs of ciphertexts output by the sender. At most one of these can be decrypted by the
     /// receiver.
     pub ciphertexts: Vec<[Block; 2]>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ReceiverSetup {
     pub blinded_choices: Vec<RistrettoPoint>,
 }
 
 /// OT extension Sender plays the role of base OT Receiver and sends the
 /// second message containing base OT setup and cointoss share
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct BaseReceiverSetupWrapper {
     pub setup: ReceiverSetup,
     // Cointoss protocol's 2nd message: Receiver reveals share
@@ -44,31 +51,36 @@ pub struct BaseReceiverSetupWrapper {
 
 /// OT extension Receiver plays the role of base OT Sender and sends the
 /// first message containing base OT setup and cointoss commitment
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct BaseSenderSetupWrapper {
     pub setup: SenderSetup,
     // Cointoss protocol's 1st message: sha256 commitment
     pub cointoss_commit: [u8; 32],
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct BaseSenderPayloadWrapper {
     pub payload: SenderPayload,
     // Cointoss protocol's 3rd message: Sender reveals share
     pub cointoss_share: [u8; 32],
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ExtSenderPayload {
     pub ciphertexts: Vec<[Block; 2]>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ExtDerandomize {
     pub flip: Vec<bool>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ExtReceiverSetup {
     pub ncols: usize,
     pub table: Vec<Vec<u8>>,
