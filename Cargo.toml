@@ -6,9 +6,6 @@ members = [
     "tls-2pc-core",
     "tls-2pc-aio",
     "utils-aio",
-    "requester",
-    "notary",
-    "core",
     "clmul",
     "matrix-transpose",
 ]
