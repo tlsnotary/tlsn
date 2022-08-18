@@ -9,7 +9,9 @@ pub mod errors;
 pub mod master;
 pub mod slave;
 
-pub use crate::point_addition::errors::PointAdditionError;
+pub use crate::{
+    msgs::point_addition::PointAdditionMessage, point_addition::errors::PointAdditionError,
+};
 use curv::{arithmetic::Converter, BigInt};
 pub use master::PointAdditionMaster;
 pub use slave::PointAdditionSlave;
@@ -18,16 +20,6 @@ pub use slave::PointAdditionSlave;
 pub const P: &str = "ffffffff00000001000000000000000000000000ffffffffffffffffffffffff";
 
 pub type SecretShare = BigInt;
-
-#[derive(PartialEq, Debug)]
-pub enum PointAdditionMessage {
-    M1(master::M1),
-    M2(master::M2),
-    M3(master::M3),
-    S1(slave::S1),
-    S2(slave::S2),
-    S3(slave::S3),
-}
 
 pub trait MasterCore {
     /// processes the next message of the protocol

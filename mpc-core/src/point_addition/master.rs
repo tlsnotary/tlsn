@@ -1,7 +1,5 @@
-use super::errors::*;
-use super::slave::{S1, S2, S3};
-use super::{MasterCore, SecretShare, P};
-use crate::point_addition::PointAdditionMessage;
+use super::{errors::*, MasterCore, SecretShare, P};
+use crate::msgs::point_addition as msgs;
 use curv::arithmetic::{Converter, Modulo};
 use p256::EncodedPoint;
 use paillier::*;
@@ -34,51 +32,25 @@ pub struct PointAdditionMaster {
     secret: Option<BigInt>,
 }
 
-#[derive(PartialEq, Debug)]
-pub struct M1 {
-    /// Master's encryption key
-    pub(crate) enc_key: EncryptionKey,
-    /// E(x_q)
-    pub(crate) e_x_q: BigInt,
-    /// E(-x_q)
-    pub(crate) e_neg_x_q: BigInt,
-    /// E(y_q^2)
-    pub(crate) e_y_q_pow_2: BigInt,
-    /// E(-2y_q)
-    pub(crate) e_neg_2_y_q: BigInt,
-}
-
-#[derive(PartialEq, Debug)]
-pub struct M2 {
-    /// E((T * M_T)^p-3 mod p)
-    pub(crate) e_t_mod_pow: BigInt,
-}
-
-#[derive(PartialEq, Debug)]
-pub struct M3 {
-    /// E(A * M_A * B * M_B)
-    pub(crate) e_ab_masked: BigInt,
-}
-
 impl MasterCore for PointAdditionMaster {
     fn next(
         &mut self,
-        message: Option<PointAdditionMessage>,
-    ) -> Result<Option<PointAdditionMessage>, PointAdditionError> {
+        message: Option<msgs::PointAdditionMessage>,
+    ) -> Result<Option<msgs::PointAdditionMessage>, PointAdditionError> {
         let message = match (self.state, message) {
             (State::Initialized, None) => {
                 self.state = State::M1;
-                Some(PointAdditionMessage::M1(self.step1()))
+                Some(msgs::PointAdditionMessage::M1(self.step1()))
             }
-            (State::M1, Some(PointAdditionMessage::S1(s))) => {
+            (State::M1, Some(msgs::PointAdditionMessage::S1(s))) => {
                 self.state = State::M2;
-                Some(PointAdditionMessage::M2(self.step2(s)))
+                Some(msgs::PointAdditionMessage::M2(self.step2(s)))
             }
-            (State::M2, Some(PointAdditionMessage::S2(s))) => {
+            (State::M2, Some(msgs::PointAdditionMessage::S2(s))) => {
                 self.state = State::M3;
-                Some(PointAdditionMessage::M3(self.step3(s)))
+                Some(msgs::PointAdditionMessage::M3(self.step3(s)))
             }
-            (State::M3, Some(PointAdditionMessage::S3(s))) => {
+            (State::M3, Some(msgs::PointAdditionMessage::S3(s))) => {
                 self.state = State::Complete;
                 self.step4(s);
                 None
@@ -112,7 +84,7 @@ impl PointAdditionMaster {
         }
     }
 
-    fn step1(&mut self) -> M1 {
+    fn step1(&mut self) -> msgs::M1 {
         // Computes E(x_q)
         let e_x_q: BigInt = Paillier::encrypt(&self.enc_key, RawPlaintext::from(&self.x)).into();
 
@@ -137,7 +109,7 @@ impl PointAdditionMaster {
         )
         .into();
 
-        M1 {
+        msgs::M1 {
             enc_key: self.enc_key.clone(),
             e_x_q,
             e_neg_x_q,
@@ -146,7 +118,7 @@ impl PointAdditionMaster {
         }
     }
 
-    fn step2(&mut self, s: S1) -> M2 {
+    fn step2(&mut self, s: msgs::S1) -> msgs::M2 {
         // Computes A * M_A mod p
         let a_masked: BigInt =
             Paillier::decrypt(&self.dec_key, RawCiphertext::from(s.e_a_masked)).into();
@@ -163,10 +135,10 @@ impl PointAdditionMaster {
             Paillier::encrypt(&self.enc_key, RawPlaintext::from(t_mod_pow)).into();
         self.a_masked_mod_p = Some(a_masked_mod_p);
 
-        M2 { e_t_mod_pow }
+        msgs::M2 { e_t_mod_pow }
     }
 
-    fn step3(&mut self, s: S2) -> M3 {
+    fn step3(&mut self, s: msgs::S2) -> msgs::M3 {
         // Computes B * M_B mod p
         let b_masked: BigInt =
             Paillier::decrypt(&self.dec_key, RawCiphertext::from(s.e_b_masked)).into();
@@ -183,10 +155,10 @@ impl PointAdditionMaster {
         )
         .into();
 
-        M3 { e_ab_masked }
+        msgs::M3 { e_ab_masked }
     }
 
-    fn step4(&mut self, s: S3) {
+    fn step4(&mut self, s: msgs::S3) {
         // Computes master's secret, s_p
         let pms_masked: BigInt =
             Paillier::decrypt(&self.dec_key, RawCiphertext::from(s.e_pms_masked)).into();

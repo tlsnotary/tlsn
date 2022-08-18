@@ -26,21 +26,18 @@ pub enum ReceiverState {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::utils::u8vec_to_boolvec;
-    use crate::Block;
+    use crate::{msgs::ot as msgs, utils::u8vec_to_boolvec, Block};
+
     use rand::{thread_rng, RngCore};
     use rstest::*;
-
-    // We test the CO15 scheme only
-    use dh_ot::*;
 
     pub mod fixtures {
         use super::*;
 
         pub struct Data {
-            pub sender_setup: SenderSetup,
-            pub receiver_setup: ReceiverSetup,
-            pub sender_payload: SenderPayload,
+            pub sender_setup: msgs::SenderSetup,
+            pub receiver_setup: msgs::ReceiverSetup,
+            pub sender_payload: msgs::SenderPayload,
             pub receiver_values: Vec<Block>,
         }
 
