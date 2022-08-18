@@ -7,8 +7,6 @@ pub use errors::*;
 
 pub use dh_ot::{DhOtReceiver, DhOtSender};
 
-use super::OTSlice;
-
 /// The state of an OT sender
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SenderState {
