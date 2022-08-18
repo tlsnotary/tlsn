@@ -7,6 +7,10 @@ pub mod sender;
 pub use receiver::*;
 pub use sender::*;
 
+use super::{
+    errors::{ReceiverCoreError, SenderCoreError},
+    OTSlice, SenderState,
+};
 use crate::{ot::base::ReceiverCoreError, Block};
 use curve25519_dalek::ristretto::RistrettoPoint;
 use sha2::{Digest, Sha256};

@@ -12,6 +12,7 @@ use curve25519_dalek::{
 };
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
+use super::OTSlice;
 
 pub struct DhOtSender {
     /// The current state of the protocol
@@ -32,6 +33,14 @@ impl Default for DhOtSender {
             state: SenderState::Initialized,
             transcript: Transcript::new(DOMAIN_SEP),
         }
+    }
+}
+
+impl OTSlice for DhOtSender {
+    fn slice(&mut self, N: usize) -> Result<Self, SenderCoreError> {
+       check_state(SenderState::Setup, self.state)?;
+        }
+        todo!()
     }
 }
 
