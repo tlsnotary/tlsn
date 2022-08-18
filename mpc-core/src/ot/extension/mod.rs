@@ -96,12 +96,13 @@ pub mod tests {
 
         let mut rng = thread_rng();
         let choice_len: usize = rng.gen_range(0..1024);
+        dbg!(choice_len);
 
         let mut choice = vec![0u8; choice_len];
         let mut rng = ChaCha12Rng::from_entropy();
         rng.fill_bytes(&mut choice);
         let choice = u8vec_to_boolvec(&choice);
-        let inputs: Vec<[Block; 2]> = (0..8 * choice_len)
+        let inputs: Vec<[Block; 2]> = (0..choice.len())
             .map(|_| [Block::random(&mut rng), Block::random(&mut rng)])
             .collect();
 
@@ -155,7 +156,7 @@ pub mod tests {
         let mut rng = ChaCha12Rng::from_entropy();
         rng.fill_bytes(&mut choice);
         let choice = u8vec_to_boolvec(&choice);
-        let inputs: Vec<[Block; 2]> = (0..256)
+        let inputs: Vec<[Block; 2]> = (0..choice.len())
             .map(|_| [Block::random(&mut rng), Block::random(&mut rng)])
             .collect();
 
@@ -216,11 +217,11 @@ pub mod tests {
         let mut rng = ChaCha12Rng::from_entropy();
         rng.fill_bytes(&mut choice);
         let choice = u8vec_to_boolvec(&choice);
-        let inputs: Vec<[Block; 2]> = (0..256)
+        let inputs: Vec<[Block; 2]> = (0..choice.len())
             .map(|_| [Block::random(&mut rng), Block::random(&mut rng)])
             .collect();
 
-        let receiver_setup = receiver.rand_extension_setup(256).unwrap();
+        let receiver_setup = receiver.rand_extension_setup(choice.len()).unwrap();
         sender.extension_setup(receiver_setup).unwrap();
 
         let derandomize = receiver.derandomize(&choice).unwrap();
@@ -245,11 +246,11 @@ pub mod tests {
         let mut rng = ChaCha12Rng::from_entropy();
         rng.fill_bytes(&mut choice);
         let choice = u8vec_to_boolvec(&choice);
-        let inputs: Vec<[Block; 2]> = (0..256)
+        let inputs: Vec<[Block; 2]> = (0..choice.len())
             .map(|_| [Block::random(&mut rng), Block::random(&mut rng)])
             .collect();
 
-        let receiver_setup = receiver.rand_extension_setup(256).unwrap();
+        let receiver_setup = receiver.rand_extension_setup(choice.len()).unwrap();
         sender.extension_setup(receiver_setup).unwrap();
 
         let mut received: Vec<Block> = Vec::new();
