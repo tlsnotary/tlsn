@@ -101,7 +101,7 @@ pub mod tests {
         let mut rng = ChaCha12Rng::from_entropy();
         rng.fill_bytes(&mut choice);
         let choice = u8vec_to_boolvec(&choice);
-        let inputs: Vec<[Block; 2]> = (0..8 * 37)
+        let inputs: Vec<[Block; 2]> = (0..8 * choice_len)
             .map(|_| [Block::random(&mut rng), Block::random(&mut rng)])
             .collect();
 
