@@ -83,7 +83,7 @@ pub struct ExtDerandomize {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ExtReceiverSetup {
     pub ncols: usize,
-    pub table: Vec<Vec<u8>>,
+    pub table: Vec<u8>,
     // x, t0, t1 are used for the KOS15 check
     pub x: [u8; 16],
     pub t0: [u8; 16],
