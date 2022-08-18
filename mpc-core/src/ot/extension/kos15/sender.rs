@@ -66,6 +66,9 @@ where
     // the shared random value which both parties will have at the end of the
     // cointoss protocol
     cointoss_random: Option<[u8; 32]>,
+    // We track the split index to determine the offset of this OT instance
+    // to the original Extended OT
+    split_index: usize,
 }
 
 // Having 2 messages that Receiver chooses from, we encrypt each message with
@@ -130,6 +133,7 @@ impl Default for Kos15Sender {
             cointoss_share,
             receiver_cointoss_commit: None,
             cointoss_random: None,
+            split_index: 0,
         }
     }
 }
@@ -401,11 +405,28 @@ where
 
     pub fn split(&mut self, split_at: usize) -> Result<Self, ExtSenderCoreError> {
         check_state(&self.state, &State::Setup)?;
+
+        if split_at >= self.count - self.sent {
+            return Err(ExtSenderCoreError::InvalidSplitIndex);
+        }
+
         let mut ot_piece = self.clone();
         ot_piece.table = self
             .table
             .as_mut()
             .map(|some_table| some_table.split_off(split_at));
+        self.count -= ot_piece
+            .table
+            .as_ref()
+            .expect("No table for extension OTs available")
+            .len();
+        ot_piece.count -= self
+            .table
+            .as_ref()
+            .expect("No table for extension OTs available")
+            .len();
+        ot_piece.sent = 0;
+        ot_piece.split_index = split_at;
         Ok(ot_piece)
     }
 }

@@ -13,6 +13,7 @@ use curve25519_dalek::{
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 
+#[derive(Clone)]
 pub struct DhOtSender {
     /// The current state of the protocol
     state: SenderState,

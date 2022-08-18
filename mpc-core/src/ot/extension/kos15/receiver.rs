@@ -42,7 +42,12 @@ fn check_state(expected: &State, received: &State) -> Result<(), ExtReceiverCore
     }
 }
 
-pub struct Kos15Receiver<R = ChaCha12Rng, C = Aes128> {
+#[derive(Clone)]
+pub struct Kos15Receiver<R = ChaCha12Rng, C = Aes128>
+where
+    R: Clone,
+    C: Clone,
+{
     rng: R,
     cipher: C,
     base: BaseSender,
@@ -60,6 +65,9 @@ pub struct Kos15Receiver<R = ChaCha12Rng, C = Aes128> {
     // the shared random value which both parties will have at the end of the
     // cointoss protocol
     cointoss_random: Option<[u8; 32]>,
+    // We track the split index to determine the offset of this OT instance
+    // to the original Extended OT
+    split_index: usize,
 }
 
 impl Default for Kos15Receiver {
@@ -77,6 +85,7 @@ impl Default for Kos15Receiver {
             table: None,
             cointoss_share,
             cointoss_random: None,
+            split_index: 0,
         }
     }
 }
@@ -106,8 +115,8 @@ fn decrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
 
 impl<R, C> Kos15Receiver<R, C>
 where
-    R: Rng + CryptoRng,
-    C: BlockCipher<BlockSize = U16> + BlockEncrypt,
+    R: Rng + CryptoRng + Clone,
+    C: BlockCipher<BlockSize = U16> + BlockEncrypt + Clone,
 {
     fn set_seeds(&mut self, seeds: Vec<[Block; 2]>) {
         let rngs: Vec<[ChaCha12Rng; 2]> = seeds
@@ -134,8 +143,8 @@ where
 // Implement standard OT methods
 impl<R, C> Kos15Receiver<R, C>
 where
-    R: Rng + CryptoRng + SeedableRng,
-    C: BlockCipher<BlockSize = U16> + BlockEncrypt,
+    R: Rng + CryptoRng + SeedableRng + Clone,
+    C: BlockCipher<BlockSize = U16> + BlockEncrypt + Clone,
 {
     pub fn state(&self) -> &State {
         &self.state
@@ -340,8 +349,8 @@ where
 // Implement random OT methods
 impl<R, C> Kos15Receiver<R, C>
 where
-    R: Rng + CryptoRng + SeedableRng,
-    C: BlockCipher<BlockSize = U16> + BlockEncrypt,
+    R: Rng + CryptoRng + SeedableRng + Clone,
+    C: BlockCipher<BlockSize = U16> + BlockEncrypt + Clone,
 {
     pub fn rand_extension_setup(
         &mut self,
@@ -356,10 +365,6 @@ where
         let choices = u8vec_to_boolvec(&choice_bytes);
 
         self.extension_setup(&choices)
-    }
-
-    pub fn split(&mut self, split_at: usize) -> Self {
-        todo!()
     }
 
     pub fn derandomize(
@@ -428,5 +433,39 @@ where
         }
 
         Ok(values)
+    }
+
+    pub fn split(&mut self, split_at: usize) -> Result<Self, ExtReceiverCoreError> {
+        let choice_state = match self.state {
+            State::Setup(ref mut state) => state,
+            ref received => {
+                return Err(ExtReceiverCoreError::BadState(
+                    format!("Setup"),
+                    format!("{:?}", received),
+                ))
+            }
+        };
+        if choice_state.derandomized.len() > 0 {
+            return Err(ExtReceiverCoreError::SplitAfterDerand);
+        }
+
+        if split_at >= choice_state.choice.len() {
+            return Err(ExtReceiverCoreError::InvalidSplitIndex);
+        }
+
+        let ot_piece_choice_state = choice_state.choice.split_off(split_at);
+
+        let mut ot_piece = self.clone();
+        ot_piece.table = self
+            .table
+            .as_mut()
+            .map(|some_table| some_table.split_off(split_at));
+
+        match ot_piece.state {
+            State::Setup(ref mut choice_state) => choice_state.choice = ot_piece_choice_state,
+            _ => unreachable!(),
+        }
+        ot_piece.split_index = split_at;
+        Ok(ot_piece)
     }
 }

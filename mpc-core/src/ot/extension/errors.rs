@@ -16,6 +16,8 @@ pub enum ExtSenderCoreError {
     CommitmentCheckFailed,
     #[error("KOS15 consistency check failed")]
     ConsistencyCheckFailed,
+    #[error("Invalid split index")]
+    InvalidSplitIndex,
     #[error("An internal error happened")]
     InternalError,
     #[error("Transpose Error: {0}")]
@@ -39,6 +41,10 @@ pub enum ExtReceiverCoreError {
     ChoiceNotMultipleOfEight,
     #[error("Received payload of unexpected size")]
     InvalidPayloadSize,
+    #[error("Invalid split index")]
+    InvalidSplitIndex,
+    #[error("Splitting only possible before derandomization")]
+    SplitAfterDerand,
     #[error("An internal error happened")]
     InternalError,
     #[error("Transpose Error: {0}")]
