@@ -33,7 +33,11 @@ fn check_state(expected: &State, received: &State) -> Result<(), ExtSenderCoreEr
     }
 }
 
-pub struct Kos15Sender<C = Aes128> {
+#[derive(Clone)]
+pub struct Kos15Sender<C = Aes128>
+where
+    C: Clone,
+{
     rng: ChaCha12Rng,
     cipher: C,
     base: BaseReceiver,
@@ -66,7 +70,7 @@ pub struct Kos15Sender<C = Aes128> {
 // only 1 mask will be able to decrypt only 1 message out of 2.
 //
 // The lengths of `inputs`, `table`, and `flip` MUST all be equal. If not, this function panics.
-fn encrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
+fn encrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt + Clone>(
     cipher: &mut C,
     inputs: &[[Block; 2]],
     table: &[Vec<u8>],
@@ -127,7 +131,7 @@ impl Kos15Sender {
 
 impl<C> Kos15Sender<C>
 where
-    C: BlockCipher<BlockSize = U16> + BlockEncrypt,
+    C: BlockCipher<BlockSize = U16> + BlockEncrypt + Clone,
 {
     pub fn new_from_custom(cipher: C, base: BaseReceiver, count: usize) -> Self {
         let mut rng = ChaCha12Rng::from_entropy();
@@ -173,7 +177,7 @@ where
 // Implement standard OT methods
 impl<C> Kos15Sender<C>
 where
-    C: BlockCipher<BlockSize = U16> + BlockEncrypt,
+    C: BlockCipher<BlockSize = U16> + BlockEncrypt + Clone,
 {
     pub fn state(&self) -> &State {
         &self.state
@@ -346,7 +350,7 @@ where
 // Implement random OT methods
 impl<C> Kos15Sender<C>
 where
-    C: BlockCipher<BlockSize = U16> + BlockEncrypt,
+    C: BlockCipher<BlockSize = U16> + BlockEncrypt + Clone,
 {
     pub fn rand_send(
         &mut self,
@@ -386,5 +390,15 @@ where
         }
 
         Ok(msgs::ExtSenderPayload { ciphertexts })
+    }
+
+    pub fn split(&mut self, split_at: usize) -> Result<Self, ExtSenderCoreError> {
+        check_state(&self.state, &State::Setup)?;
+        let mut ot_piece = self.clone();
+        ot_piece.table = self
+            .table
+            .as_mut()
+            .map(|some_table| some_table.split_off(split_at));
+        Ok(ot_piece)
     }
 }

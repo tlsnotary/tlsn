@@ -357,6 +357,10 @@ where
         self.extension_setup(&choice)
     }
 
+    pub fn split(&mut self, split_at: usize) -> Self {
+        todo!()
+    }
+
     pub fn derandomize(
         &mut self,
         choice: &[bool],
