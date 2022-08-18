@@ -211,19 +211,27 @@ where
     ) -> Result<(), ExtSenderCoreError> {
         check_state(&self.state, &State::BaseReceive)?;
 
-        let ncols = receiver_setup.ncols;
+        let ncols_unpadded = receiver_setup.ncols;
 
-        if ncols > 1_000_000 {
+        if ncols_unpadded > 1_000_000 {
             return Err(ExtSenderCoreError::InvalidInputLength);
         }
 
-        // This is because of the extension of the receiver choices with extra padding bytes.
-        // We have to subtract them here.
+        // Receiver choices were extended with extra padding bytes.
         //
         // - 256 for KOS check
         // - 256 - (...) is the padding calculated from the non-transposed matrix of the receiver
         //   setup
-        self.count = ncols - (256 + 256 - (receiver_setup.table.len() / BASE_COUNT * 8) % 256);
+        let rem = ncols_unpadded % 256;
+        let pad1 = if rem == 0 { 0 } else { 256 - rem };
+        let expected_padding = if pad1 == 0 { 256 + 0 } else { 256 + pad1 };
+        let ncols = receiver_setup.table.len() / BASE_COUNT * 8;
+
+        if ncols != ncols_unpadded + expected_padding {
+            return Err(ExtSenderCoreError::InvalidPadding);
+        }
+
+        self.count = ncols_unpadded;
 
         let us = receiver_setup.table;
         let mut qs: Vec<u8> = vec![0u8; ncols / 8 * BASE_COUNT];

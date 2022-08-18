@@ -8,6 +8,8 @@ pub enum ExtSenderCoreError {
     BadState(String, String),
     #[error("Provided incorrect number of inputs")]
     InvalidInputLength,
+    #[error("Provided incorrect padding")]
+    InvalidPadding,
     #[error("Tried to send after OT is already complete")]
     AlreadyComplete,
     #[error("Cointoss commitment check failed")]
@@ -33,6 +35,8 @@ pub enum ExtReceiverCoreError {
     NotDerandomized,
     #[error("Tried to derandomize more OTs than setup")]
     InvalidChoiceLength,
+    #[error("Received choice length which is not a multiple of 8")]
+    ChoiceNotMultipleOfEight,
     #[error("Received payload of unexpected size")]
     InvalidPayloadSize,
     #[error("An internal error happened")]

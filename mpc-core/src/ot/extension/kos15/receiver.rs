@@ -195,7 +195,8 @@ where
         // The x86_64 implementation requires a matrix with minimum row/columns 32, so we need 8*32
         // = 256 choices minimum, thus k should be at least 8. However, making k > 8 will not bring
         // performance gains.
-        let mut padding = 256 - choice.len() % 256;
+        let rem = choice.len() % 256;
+        let mut padding = if rem == 0 { 0 } else { 256 - rem };
 
         // This is guaranteed to be set because we can only reach the BaseReceive by running
         // base_send(), which runs set_seeds(), which sets the RNGs
@@ -288,7 +289,7 @@ where
         ts.drain(ts.len() - 256 * BASE_COUNT / 8..);
         self.table = Some(ts);
         Ok(msgs::ExtReceiverSetup {
-            ncols,
+            ncols: choice.len(),
             table: gs,
             x: x.into(),
             t0: t0.into(),
@@ -347,6 +348,9 @@ where
         choice_len: usize,
     ) -> Result<msgs::ExtReceiverSetup, ExtReceiverCoreError> {
         // For random OT we generate random choice bits during setup then derandomize later
+        if choice_len % 8 != 0 {
+            return Err(ExtReceiverCoreError::ChoiceNotMultipleOfEight);
+        }
         let mut choice_bytes = vec![0u8; choice_len / 8];
         self.rng.fill_bytes(&mut choice_bytes);
         let choices = u8vec_to_boolvec(&choice_bytes);
