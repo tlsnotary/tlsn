@@ -1,9 +1,7 @@
 //! 2-Party Elliptic curve secret-sharing using Paillier Cryptosystem
 
-use super::errors::*;
-use super::master::{M1, M2, M3};
-use super::{SecretShare, SlaveCore, P};
-use crate::point_addition::PointAdditionMessage;
+use super::{errors::*, SecretShare, SlaveCore, P};
+use crate::msgs::point_addition as msgs;
 use curv::arithmetic::{Converter, Modulo, Samplable};
 use p256::EncodedPoint;
 use paillier::*;
@@ -64,49 +62,23 @@ impl Masks {
     }
 }
 
-#[derive(PartialEq, Debug)]
-pub struct S1 {
-    /// N_A mod p
-    pub(crate) n_a_mod_p: BigInt,
-    /// N_T mod p
-    pub(crate) n_t_mod_p: BigInt,
-    /// E(A * M_A + N_A)
-    pub(crate) e_a_masked: BigInt,
-    /// E(T * M_T + N_T)
-    pub(crate) e_t_masked: BigInt,
-}
-
-#[derive(PartialEq, Debug)]
-pub struct S2 {
-    /// N_B mod p
-    pub(crate) n_b_mod_p: BigInt,
-    /// E(B * M_C + N_C)
-    pub(crate) e_b_masked: BigInt,
-}
-
-#[derive(PartialEq, Debug)]
-pub struct S3 {
-    /// E(PMS + S_q)
-    pub(crate) e_pms_masked: BigInt,
-}
-
 impl SlaveCore for PointAdditionSlave {
     fn next(
         &mut self,
-        message: Option<PointAdditionMessage>,
-    ) -> Result<Option<PointAdditionMessage>, PointAdditionError> {
+        message: Option<msgs::PointAdditionMessage>,
+    ) -> Result<Option<msgs::PointAdditionMessage>, PointAdditionError> {
         let message = match (self.state, message) {
-            (State::Initialized, Some(PointAdditionMessage::M1(m))) => {
+            (State::Initialized, Some(msgs::PointAdditionMessage::M1(m))) => {
                 self.state = State::S1;
-                Some(PointAdditionMessage::S1(self.step1(m)))
+                Some(msgs::PointAdditionMessage::S1(self.step1(m)))
             }
-            (State::S1, Some(PointAdditionMessage::M2(m))) => {
+            (State::S1, Some(msgs::PointAdditionMessage::M2(m))) => {
                 self.state = State::S2;
-                Some(PointAdditionMessage::S2(self.step2(m)))
+                Some(msgs::PointAdditionMessage::S2(self.step2(m)))
             }
-            (State::S2, Some(PointAdditionMessage::M3(m))) => {
+            (State::S2, Some(msgs::PointAdditionMessage::M3(m))) => {
                 self.state = State::Complete;
-                Some(PointAdditionMessage::S3(self.step3(m)))
+                Some(msgs::PointAdditionMessage::S3(self.step3(m)))
             }
             (state, message) => Err(PointAdditionError::ProtocolError(Box::new(state), message))?,
         };
@@ -151,7 +123,7 @@ impl PointAdditionSlave {
         }
     }
 
-    fn step1(&mut self, m: M1) -> S1 {
+    fn step1(&mut self, m: msgs::M1) -> msgs::S1 {
         // Computes E(T) = E(x_q - x_p)
         let e_x_q: RawCiphertext = m.e_x_q.into();
         let e_neg_x_p = Paillier::encrypt(
@@ -188,7 +160,7 @@ impl PointAdditionSlave {
         self.e_neg_x_q = Some(m.e_neg_x_q);
         self.e_neg_x_p = Some(BigInt::from(e_neg_x_p));
 
-        S1 {
+        msgs::S1 {
             n_a_mod_p: &self.masks.n_a % &self.p,
             n_t_mod_p: &self.masks.n_t % &self.p,
             e_a_masked,
@@ -196,7 +168,7 @@ impl PointAdditionSlave {
         }
     }
 
-    fn step2(&mut self, m: M2) -> S2 {
+    fn step2(&mut self, m: msgs::M2) -> msgs::S2 {
         // Computes E(B) = E((T * M_T)^p-3 mod p) * (M_T^p-3)^-1 mod p
         let inv = BigInt::mod_inv(
             &BigInt::mod_pow(&self.masks.m_t, &(&self.p - 3), &self.p),
@@ -215,13 +187,13 @@ impl PointAdditionSlave {
         let e_n_b = Paillier::encrypt(enc_key, RawPlaintext::from(&self.masks.n_b));
         let e_b_masked = Paillier::add(enc_key, e_b_m_b, e_n_b);
 
-        S2 {
+        msgs::S2 {
             n_b_mod_p: &self.masks.n_b % &self.p,
             e_b_masked: Paillier::rerandomize(enc_key, e_b_masked).into(),
         }
     }
 
-    fn step3(&mut self, m: M3) -> S3 {
+    fn step3(&mut self, m: msgs::M3) -> msgs::S3 {
         // Computes E(A * B)
         let inv = BigInt::mod_inv(
             &BigInt::mod_mul(&self.masks.m_a, &self.masks.m_b, &self.p),
@@ -248,7 +220,7 @@ impl PointAdditionSlave {
         let e_secret = Paillier::encrypt(enc_key, RawPlaintext::from(&self.secret));
         let e_pms_masked = Paillier::add(enc_key, e_pms, e_secret);
 
-        S3 {
+        msgs::S3 {
             e_pms_masked: Paillier::rerandomize(enc_key, e_pms_masked).into(),
         }
     }

@@ -26,27 +26,6 @@ pub fn boolvec_to_string(v: &[bool]) -> String {
     v.iter().map(|b| (*b as u8).to_string()).collect::<String>()
 }
 
-pub fn transpose(m: &[Vec<u8>]) -> Vec<Vec<u8>> {
-    let bits: Vec<Vec<bool>> = m.iter().map(|row| u8vec_to_boolvec(row)).collect();
-    let col_count = bits[0].len();
-    let row_count = bits.len();
-
-    let mut bits_: Vec<Vec<bool>> = vec![vec![false; row_count]; col_count];
-    let mut m_: Vec<Vec<u8>> = Vec::with_capacity(col_count);
-
-    for j in 0..row_count {
-        for i in 0..col_count {
-            bits_[i][j] = bits[j][i];
-        }
-    }
-
-    for row in bits_.iter() {
-        m_.push(boolvec_to_u8vec(row));
-    }
-
-    m_
-}
-
 #[inline]
 pub fn parse_ristretto_key(b: Vec<u8>) -> Result<RistrettoPoint, std::io::Error> {
     if b.len() != 32 {
@@ -100,19 +79,6 @@ pub fn pick<T: Copy>(items: &[T], idx: &[usize]) -> Vec<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::block::Block;
-    use rand::SeedableRng;
-    use rand_chacha::ChaCha12Rng;
-
-    #[test]
-    fn test_transpose() {
-        let mut rng = ChaCha12Rng::from_entropy();
-        let a: Vec<Vec<u8>> = (0..256)
-            .map(|_| Vec::from(Block::random(&mut rng).to_be_bytes()))
-            .collect();
-        let b = transpose(&a);
-        assert_eq!(a, transpose(&b));
-    }
 
     #[test]
     fn test_boolvec_to_u8vec() {
