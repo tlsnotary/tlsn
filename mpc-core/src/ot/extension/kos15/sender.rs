@@ -414,7 +414,7 @@ where
         ot_piece.table = self
             .table
             .as_mut()
-            .map(|some_table| some_table.split_off(split_at));
+            .map(|some_table| some_table.split_off(split_at * BASE_COUNT / 8));
         self.count -= ot_piece
             .table
             .as_ref()

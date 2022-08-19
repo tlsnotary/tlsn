@@ -459,7 +459,7 @@ where
         ot_piece.table = self
             .table
             .as_mut()
-            .map(|some_table| some_table.split_off(split_at));
+            .map(|some_table| some_table.split_off(split_at * BASE_COUNT / 8));
 
         match ot_piece.state {
             State::Setup(ref mut choice_state) => choice_state.choice = ot_piece_choice_state,
