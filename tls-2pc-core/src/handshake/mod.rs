@@ -1,57 +1,11 @@
-pub mod errors;
-pub mod master;
+mod follower;
+mod leader;
 pub mod sha;
-pub mod slave;
 mod utils;
 
 pub use crate::msgs::handshake::HandshakeMessage;
-use errors::*;
-pub use master::HandshakeMaster;
-pub use slave::HandshakeSlave;
-
-pub trait MasterCore {
-    /// The first method that should be called after instantiation. Performs
-    /// setup before we can process master secret related messages.
-    fn ms_setup(&mut self, inner_hash_state: [u32; 8]) -> Result<HandshakeMessage, HandshakeError>;
-
-    // Performs setup before we can process key expansion related messages.
-    fn ke_setup(&mut self, inner_hash_state: [u32; 8]) -> Result<HandshakeMessage, HandshakeError>;
-
-    // Performs setup before we can process Client_Finished related messages.
-    fn cf_setup(&mut self, handshake_blob: &[u8]) -> Result<HandshakeMessage, HandshakeError>;
-
-    // Performs setup before we can process Server_Finished related messages.
-    fn sf_setup(&mut self, handshake_blob: &[u8]) -> Result<HandshakeMessage, HandshakeError>;
-
-    /// Will be called repeatedly whenever there is a message from Slave that
-    /// needs to be processed.
-    fn next(
-        &mut self,
-        message: HandshakeMessage,
-    ) -> Result<Option<HandshakeMessage>, HandshakeError>;
-
-    // Returns inner_hashes for p1 and p2 for key expansion
-    fn get_inner_hashes_ke(self) -> ([u8; 32], [u8; 32]);
-
-    // Returns verify_data for Client_Finished
-    fn get_client_finished_vd(self) -> [u8; 12];
-
-    // Returns verify_data for Server_Finished
-    fn get_server_finished_vd(self) -> [u8; 12];
-}
-
-pub trait SlaveCore {
-    /// The first method that should be called after instantiation. Performs
-    /// setup before we can process master secret related messages.
-    fn ms_setup(&mut self, outer_hash_state: [u32; 8]) -> Result<(), HandshakeError>;
-
-    // Performs setup before we can process key expansion related messages.
-    fn ke_setup(&mut self, outer_hash_state: [u32; 8]) -> Result<(), HandshakeError>;
-
-    /// Will be called repeatedly whenever there is a message from Master that
-    /// needs to be processed.
-    fn next(&mut self, message: HandshakeMessage) -> Result<HandshakeMessage, HandshakeError>;
-}
+pub use follower::HandshakeFollower;
+pub use leader::HandshakeLeader;
 
 #[cfg(test)]
 mod tests {
@@ -68,49 +22,36 @@ mod tests {
 
         let (ipad, opad) = generate_hmac_pads(&pms);
 
-        let mut master = HandshakeMaster::new(client_random, server_random);
-        let mut slave = HandshakeSlave::new();
-
         // H(pms xor ipad)
         let inner_hash_state = partial_sha256_digest(&ipad);
         // H(pms xor opad)
         let outer_hash_state = partial_sha256_digest(&opad);
 
-        let message = master.ms_setup(inner_hash_state).unwrap();
-        slave.ms_setup(outer_hash_state).unwrap();
-        let message = slave.next(message).unwrap();
+        let leader = HandshakeLeader::new(client_random, server_random, inner_hash_state);
+        let follower = HandshakeFollower::new(outer_hash_state);
+
+        let (leader_msg, leader) = leader.next();
+        let (follower_msg, follower) = follower.next(leader_msg);
 
         // H((pms xor opad) || H((pms xor ipad) || seed))
-        let a1 = if let HandshakeMessage::SlaveMs1(m) = &message {
-            m.a1.clone()
-        } else {
-            panic!("unable to destructure");
-        };
+        let a1 = follower_msg.a1.clone();
         assert_eq!(
             &a1,
             &hmac_sha256(&pms, &seed_ms(&client_random, &server_random))
         );
 
-        let message = master.next(message).unwrap().unwrap();
-        let message = slave.next(message).unwrap();
+        let (leader_msg, leader) = leader.next(follower_msg);
+        let (follower_msg, follower) = follower.next(leader_msg);
 
         // H((pms xor opad) || H((pms xor ipad) || a1))
-        let a2 = if let HandshakeMessage::SlaveMs2(m) = &message {
-            m.a2.clone()
-        } else {
-            panic!("unable to destructure");
-        };
+        let a2 = follower_msg.a2.clone();
         assert_eq!(&a2, &hmac_sha256(&pms, &a1));
 
-        let message = master.next(message).unwrap().unwrap();
-        let message = slave.next(message).unwrap();
+        let (leader_msg, leader) = leader.next(follower_msg);
+        let (follower_msg, follower) = follower.next(leader_msg);
 
         // H((pms xor opad) || H((pms xor ipad) || a2 || seed))
-        let p2 = if let HandshakeMessage::SlaveMs3(m) = &message {
-            m.p2.clone()
-        } else {
-            panic!("unable to destructure");
-        };
+        let p2 = follower_msg.p2.clone();
         // a2 || seed
         let mut a2_seed = [0u8; 109];
         a2_seed[..32].copy_from_slice(&a2);
@@ -137,34 +78,24 @@ mod tests {
         // H(ms xor opad)
         let outer_hash_state = partial_sha256_digest(&opad);
 
-        let message = master.ke_setup(inner_hash_state).unwrap();
-        slave.ke_setup(outer_hash_state).unwrap();
-        let message = slave.next(message).unwrap();
+        let (leader_msg, leader) = leader.next(inner_hash_state);
+        let (follower_msg, follower) = follower.next(outer_hash_state).next(leader_msg);
 
         // H((ms xor opad) || H((ms xor ipad) || seed))
-        let a1 = if let HandshakeMessage::SlaveKe1(m) = &message {
-            m.a1.clone()
-        } else {
-            panic!("unable to destructure");
-        };
+        let a1 = follower_msg.a1.clone();
         assert_eq!(
             &a1,
             &hmac_sha256(&ms, &seed_ke(&client_random, &server_random))
         );
 
-        let message = master.next(message).unwrap().unwrap();
-        let message = slave.next(message).unwrap();
+        let (leader_msg, leader) = leader.next(follower_msg);
+        let (follower_msg, follower) = follower.next(leader_msg);
 
         // H((ms xor opad) || H((ms xor ipad) || a1))
-        let a2 = if let HandshakeMessage::SlaveKe2(m) = &message {
-            m.a2.clone()
-        } else {
-            panic!("unable to destructure");
-        };
+        let a2 = follower_msg.a2.clone();
         assert_eq!(&a2, &hmac_sha256(&ms, &a1));
 
-        master.next(message).unwrap();
-        let (inner_hash_p1, inner_hash_p2) = master.get_inner_hashes_ke();
+        let ((inner_hash_p1, inner_hash_p2), leader) = leader.next(follower_msg);
 
         let p1 = finalize_sha256_digest(outer_hash_state, 64, &inner_hash_p1);
         let p2 = finalize_sha256_digest(outer_hash_state, 64, &inner_hash_p2);
@@ -174,63 +105,45 @@ mod tests {
         ek[32..].copy_from_slice(&p2[..8]);
 
         let handshake_blob = [0x04_u8; 256];
-        let message = master.cf_setup(&handshake_blob).unwrap();
-        let message = slave.next(message).unwrap();
+        let (leader_msg, leader) = leader.next(&handshake_blob);
+        let (follower_msg, follower) = follower.next(leader_msg);
 
         // H((ms xor opad) || H((ms xor ipad) || seed))
-        let a1 = if let HandshakeMessage::SlaveCf1(m) = &message {
-            m.a1.clone()
-        } else {
-            panic!("unable to destructure");
-        };
+        let a1 = follower_msg.a1.clone();
         assert_eq!(&a1, &hmac_sha256(&ms, &seed_cf(&handshake_blob)));
 
-        let message = master.next(message).unwrap().unwrap();
-        let message = slave.next(message).unwrap();
+        let (leader_msg, leader) = leader.next(follower_msg);
+        let (follower_msg, follower) = follower.next(leader_msg);
 
         // H((ms xor opad) || H((ms xor ipad) || a1 || seed))
-        let vd = if let HandshakeMessage::SlaveCf2(m) = &message {
-            m.verify_data.clone()
-        } else {
-            panic!("unable to destructure");
-        };
+        let vd = follower_msg.verify_data.clone();
         // a1 || seed
         let mut a1_seed = [0u8; 79];
         a1_seed[..32].copy_from_slice(&a1);
         a1_seed[32..].copy_from_slice(&seed_cf(&handshake_blob));
         assert_eq!(&vd, &hmac_sha256(&ms, &a1_seed)[..12]);
 
-        master.next(message).unwrap();
-        let cfvd = master.get_client_finished_vd();
+        let (cfvd, leader) = leader.next(follower_msg);
 
-        let message = master.sf_setup(&handshake_blob).unwrap();
-        let message = slave.next(message).unwrap();
+        let (leader_msg, leader) = leader.next(&handshake_blob);
+        let (follower_msg, follower) = follower.next(leader_msg);
 
         // H((ms xor opad) || H((ms xor ipad) || seed))
-        let a1 = if let HandshakeMessage::SlaveSf1(m) = &message {
-            m.a1.clone()
-        } else {
-            panic!("unable to destructure");
-        };
+        let a1 = follower_msg.a1.clone();
         assert_eq!(&a1, &hmac_sha256(&ms, &seed_sf(&handshake_blob)));
 
-        let message = master.next(message).unwrap().unwrap();
-        let message = slave.next(message).unwrap();
+        let (leader_msg, leader) = leader.next(follower_msg);
+        let follower_msg = follower.next(leader_msg);
 
         // H((ms xor opad) || H((ms xor ipad) || a1 || seed))
-        let vd = if let HandshakeMessage::SlaveSf2(m) = &message {
-            m.verify_data.clone()
-        } else {
-            panic!("unable to destructure");
-        };
+        let vd = follower_msg.verify_data;
         // a1 || seed
         let mut a1_seed = [0u8; 79];
         a1_seed[..32].copy_from_slice(&a1);
         a1_seed[32..].copy_from_slice(&seed_sf(&handshake_blob));
         assert_eq!(&vd, &hmac_sha256(&ms, &a1_seed)[..12]);
 
-        master.next(message).unwrap();
-        let sfvd = master.get_server_finished_vd();
+        let sfvd = leader.next(follower_msg);
 
         // reference values were computed with python3:
         // import scapy
