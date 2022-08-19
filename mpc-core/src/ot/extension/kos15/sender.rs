@@ -224,7 +224,7 @@ where
         //   setup
         let rem = ncols_unpadded % 256;
         let pad1 = if rem == 0 { 0 } else { 256 - rem };
-        let expected_padding = if pad1 == 0 { 256 + 0 } else { 256 + pad1 };
+        let expected_padding = 256 + pad1;
         let ncols = receiver_setup.table.len() / BASE_COUNT * 8;
 
         if ncols != ncols_unpadded + expected_padding {
@@ -306,8 +306,8 @@ where
             return Err(ExtSenderCoreError::ConsistencyCheckFailed);
         }
 
-        // Remove the last 256 rows which were sacrificed due to the KOS check
-        qs.drain(qs.len() - 256 * BASE_COUNT / 8..);
+        // Remove additional rows introduced by padding
+        qs.drain(qs.len() - expected_padding * BASE_COUNT / 8..);
         self.table = Some(qs);
         self.state = State::Setup;
         Ok(())
