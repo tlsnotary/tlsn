@@ -306,7 +306,7 @@ where
             return Err(ExtSenderCoreError::ConsistencyCheckFailed);
         }
 
-        // Remove the last 256 rows which were sacrificed due to the KOS check
+        // Remove additional rows introduced by padding
         qs.drain(qs.len() - expected_padding * BASE_COUNT / 8..);
         self.table = Some(qs);
         self.state = State::Setup;
