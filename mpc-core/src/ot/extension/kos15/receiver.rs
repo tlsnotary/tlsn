@@ -460,7 +460,7 @@ where
             State::Setup(ref mut choice_state) => choice_state.choice = ot_piece_choice_state,
             _ => unreachable!(),
         }
-        ot_piece.split_index = split_at;
+        ot_piece.split_index = split_at + self.split_index;
         Ok(ot_piece)
     }
 }

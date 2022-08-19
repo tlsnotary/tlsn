@@ -426,7 +426,7 @@ where
             .expect("No table for extension OTs available")
             .len();
         ot_piece.sent = 0;
-        ot_piece.split_index = split_at;
+        ot_piece.split_index = split_at + self.split_index;
         Ok(ot_piece)
     }
 }
