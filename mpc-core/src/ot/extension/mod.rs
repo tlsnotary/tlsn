@@ -2,6 +2,7 @@
 
 pub mod errors;
 pub mod kos15;
+pub mod kos15refactor;
 
 pub use kos15::{Kos15Receiver, Kos15Sender};
 
