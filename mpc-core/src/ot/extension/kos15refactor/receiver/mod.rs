@@ -1,18 +1,26 @@
+mod error;
 mod state;
 mod utils;
 
 use self::state::Setup;
+use self::utils::decrypt_values;
 
 use super::BASE_COUNT;
-use crate::msgs::ot::{BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, ExtReceiverSetup};
+use crate::matrix::ByteMatrix;
+use crate::msgs::ot::{
+    BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper, ExtReceiverSetup,
+    ExtSenderPayload,
+};
 use crate::ot::DhOtSender as BaseSender;
 use crate::utils::{boolvec_to_u8vec, sha256, u8vec_to_boolvec, xor};
 use crate::Block;
-use crate::{msgs::ot::BaseSenderSetupWrapper, ot::ExtReceiverCoreError};
+use aes::{Aes128, NewBlockCipher};
+use error::ExtReceiverCoreError;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha12Rng;
+use rand_core::RngCore;
 use state::{BaseSend, BaseSetup, Initialized, SenderState};
-use utils::seed_rngs;
+use utils::{kos15_check, seed_rngs};
 
 pub struct Kos15Receiver<S = Initialized>(S)
 where
@@ -88,8 +96,8 @@ impl Kos15Receiver<BaseSetup> {
 
 impl Kos15Receiver<BaseSend> {
     pub fn extension_setup(
-        self,
-        choice: &[bool],
+        mut self,
+        choices: &[bool],
     ) -> Result<(Kos15Receiver<Setup>, ExtReceiverSetup), ExtReceiverCoreError> {
         // For performance purposes we require that choice is a multiple of 2^k for some k. If it
         // is not, we pad. Note that this padding is never used for OTs on the sender side.
@@ -105,7 +113,7 @@ impl Kos15Receiver<BaseSend> {
         // matrix by 32 columns. After transposition these additional columns turn into additional rows,
         // namely 32 * 8, where the factor 8 comes from the fact that it is a bit-level transpose.
         // This is why, in the end we will have to drain 256 rows in total.
-        let remainder = choice.len() % 256;
+        let remainder = choices.len() % 256;
         let padding = if remainder == 0 { 256 } else { 512 - remainder };
 
         // Divide padding by 8 because this is a byte vector and add 1 byte safety margin, when
@@ -114,10 +122,79 @@ impl Kos15Receiver<BaseSend> {
         self.0.rng.fill(&mut extra_bytes[..]);
 
         // Extend choice bits with the exact amount of extra bits that we need.
-        let mut r_bool = choice.to_vec();
+        let mut r_bool = choices.to_vec();
         r_bool.extend(u8vec_to_boolvec(&extra_bytes)[..padding].iter());
         let r = boolvec_to_u8vec(&r_bool);
-
         let ncols = r_bool.len();
+
+        let row_length = ncols / 8;
+        let num_elements = BASE_COUNT * row_length;
+        let mut ts: ByteMatrix = ByteMatrix::new(vec![0_u8; num_elements], row_length)?;
+        let mut gs: ByteMatrix = ByteMatrix::new(vec![0_u8; num_elements], row_length)?;
+
+        // Note that for each row j of the matrix gs which will be sent to Sender,
+        // Sender knows either rng[0] or rng[1] depending on his choice bit during
+        // base OT. If he knows rng[1] then he will XOR it with gs[j] and get a
+        // row ( ts[j] ^ r ). But if he knows rng[0] then his row will be ts[j].
+        for (j, (row_gs, row_ts)) in gs.iter_rows_mut().zip(ts.iter_rows_mut()).enumerate() {
+            self.0.rngs[j][0].fill_bytes(row_gs);
+            self.0.rngs[j][0].fill_bytes(row_ts);
+            row_gs
+                .iter_mut()
+                .zip(row_ts.iter())
+                .zip(r.iter())
+                .for_each(|((g, t), r)| *g ^= *t ^ *r);
+        }
+
+        // After Sender transposes his matrix, he will have a table S such that
+        // for each row j:
+        // self.table[j] = S[j], if our choice bit was 0 or
+        // self.table[j] = S[j] ^ delta, if our choice bit was 1
+        // (note that delta is known only to Sender)
+        ts.transpose_bits()?;
+
+        // Perform KOS15 check
+        let mut rng = ChaCha12Rng::from_seed(self.0.cointoss_random);
+        let kos15check_results = kos15_check(&mut rng, &ts, &r_bool);
+
+        // Remove the last 256 rows which were sacrificed due to the KOS check
+        ts.split_off_rows(ts.rows() - 256)?;
+
+        let kos_receiver = Kos15Receiver::<Setup>(Setup {
+            table: ts,
+            choices: choices.to_vec(),
+            derandomized: Vec::new(),
+        });
+        let message = ExtReceiverSetup {
+            ncols: choices.len(),
+            table: gs.into_inner(),
+            x: kos15check_results[0].into(),
+            t0: kos15check_results[1].into(),
+            t1: kos15check_results[2].into(),
+        };
+        Ok((kos_receiver, message))
+    }
+}
+
+impl Kos15Receiver<Setup> {
+    pub fn receive(
+        &mut self,
+        payload: ExtSenderPayload,
+    ) -> Result<Vec<Block>, ExtReceiverCoreError> {
+        if payload.ciphertexts.len() > self.0.choices.len() {
+            return Err(ExtReceiverCoreError::InvalidPayloadSize);
+        }
+
+        let consumed_choices: Vec<bool> =
+            self.0.choices.drain(..payload.ciphertexts.len()).collect();
+
+        let consumed_table: ByteMatrix = self.0.table.split_off_rows(consumed_choices.len())?;
+        let values = decrypt_values::<Aes128>(
+            &Aes128::new_from_slice(&[0u8; 16]).unwrap(),
+            &payload.ciphertexts,
+            consumed_table.inner(),
+            &consumed_choices,
+        );
+        Ok(values)
     }
 }

@@ -1,4 +1,3 @@
-mod matrix;
 pub mod receiver;
 pub mod sender;
 
