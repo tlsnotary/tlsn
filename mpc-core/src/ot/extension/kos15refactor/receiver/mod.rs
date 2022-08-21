@@ -8,8 +8,8 @@ use self::utils::decrypt_values;
 use super::BASE_COUNT;
 use crate::matrix::ByteMatrix;
 use crate::msgs::ot::{
-    BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper, ExtReceiverSetup,
-    ExtSenderPayload,
+    BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper, ExtDerandomize,
+    ExtReceiverSetup, ExtSenderPayload,
 };
 use crate::ot::DhOtSender as BaseSender;
 use crate::utils::{boolvec_to_u8vec, sha256, u8vec_to_boolvec, xor};
@@ -174,27 +174,69 @@ impl Kos15Receiver<BaseSend> {
         };
         Ok((kos_receiver, message))
     }
+
+    pub fn rand_extension_setup(
+        mut self,
+        choice_len: usize,
+    ) -> Result<(Kos15Receiver<Setup>, ExtReceiverSetup), ExtReceiverCoreError> {
+        let mut choices = vec![false; choice_len];
+        self.0.rng.fill::<[bool]>(&mut choices);
+        self.extension_setup(&choices)
+    }
 }
 
 impl Kos15Receiver<Setup> {
+    pub fn derandomize(
+        &mut self,
+        derand_choices: &[bool],
+    ) -> Result<ExtDerandomize, ExtReceiverCoreError> {
+        if derand_choices.len() > self.0.choices.len() {
+            return Err(ExtReceiverCoreError::InvalidChoiceLength);
+        }
+
+        let random_choices: Vec<bool> = self.0.choices.drain(..derand_choices.len()).collect();
+        let flip: Vec<bool> = random_choices
+            .iter()
+            .zip(derand_choices)
+            .map(|(a, b)| a ^ b)
+            .collect();
+
+        self.0.derandomized.extend_from_slice(derand_choices);
+        Ok(ExtDerandomize { flip })
+    }
+
     pub fn receive(
         &mut self,
         payload: ExtSenderPayload,
     ) -> Result<Vec<Block>, ExtReceiverCoreError> {
-        if payload.ciphertexts.len() > self.0.choices.len() {
-            return Err(ExtReceiverCoreError::InvalidPayloadSize);
-        }
-
-        let consumed_choices: Vec<bool> =
-            self.0.choices.drain(..payload.ciphertexts.len()).collect();
-
-        let consumed_table: ByteMatrix = self.0.table.split_off_rows(consumed_choices.len())?;
-        let values = decrypt_values::<Aes128>(
-            &Aes128::new_from_slice(&[0u8; 16]).unwrap(),
-            &payload.ciphertexts,
-            consumed_table.inner(),
-            &consumed_choices,
-        );
-        Ok(values)
+        receive_from(&mut self.0.table, &mut self.0.choices, payload)
     }
+
+    pub fn rand_receive(
+        &mut self,
+        payload: ExtSenderPayload,
+    ) -> Result<Vec<Block>, ExtReceiverCoreError> {
+        receive_from(&mut self.0.table, &mut self.0.derandomized, payload)
+    }
+}
+
+fn receive_from(
+    table: &mut ByteMatrix,
+    choices: &mut Vec<bool>,
+    payload: ExtSenderPayload,
+) -> Result<Vec<Block>, ExtReceiverCoreError> {
+    if payload.ciphertexts.len() > choices.len() {
+        return Err(ExtReceiverCoreError::InvalidPayloadSize);
+    }
+
+    let consumed_choices: Vec<bool> = choices.drain(..payload.ciphertexts.len()).collect();
+
+    let consumed_table: ByteMatrix = table.split_off_rows(consumed_choices.len())?;
+    let values = decrypt_values::<Aes128>(
+        &Aes128::new_from_slice(&[0u8; 16]).unwrap(),
+        &payload.ciphertexts,
+        consumed_table.inner(),
+        &consumed_choices,
+    );
+    Ok(values)
 }
