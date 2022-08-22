@@ -7,23 +7,31 @@ use rand_chacha::ChaCha12Rng;
 use std::convert::TryInto;
 
 /// Helper function to seed ChaChaRngs
-pub fn seed_rngs(seeds: &[[Block; 2]]) -> Vec<[ChaCha12Rng; 2]> {
+pub fn seed_rngs<const N: usize>(seeds: &[[Block; N]]) -> Vec<[ChaCha12Rng; N]> {
     seeds
         .iter()
-        .map(|k| {
-            let k0: [u8; 16] = k[0].to_be_bytes();
-            let k1: [u8; 16] = k[1].to_be_bytes();
-            let k0: [u8; 32] = [k0, k0]
-                .concat()
+        .map(|seed| {
+            seed.iter()
+                .map(|block| {
+                    let bytes = block.to_be_bytes();
+                    let concat_seed = [bytes, bytes]
+                        .concat()
+                        .try_into()
+                        .expect("Could not convert block into [u8; 32]");
+                    ChaCha12Rng::from_seed(concat_seed)
+                })
+                .collect::<Vec<ChaCha12Rng>>()
                 .try_into()
-                .expect("Could not convert block into [u8; 32]");
-            let k1: [u8; 32] = [k1, k1]
-                .concat()
-                .try_into()
-                .expect("Could not convert block into [u8; 32]");
-            [ChaCha12Rng::from_seed(k0), ChaCha12Rng::from_seed(k1)]
+                .unwrap()
         })
         .collect()
+}
+
+/// A wrapper to deal with array lenghts of 1
+pub fn seed_rngs_one(seeds: &[Block]) -> Vec<ChaCha12Rng> {
+    let seeds_packed = seeds.iter().map(|b| [*b]).collect::<Vec<[Block; 1]>>();
+    let rngs_packed = seed_rngs(seeds_packed.as_slice());
+    rngs_packed.into_iter().map(|rng| rng[0].clone()).collect()
 }
 
 /// Performs the KOS15 check explained in the paper

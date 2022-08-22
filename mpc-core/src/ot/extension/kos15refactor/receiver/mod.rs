@@ -1,10 +1,7 @@
 mod error;
 mod state;
-mod utils;
 
-use self::state::Setup;
-use self::utils::decrypt_values;
-
+use super::utils::{decrypt_values, kos15_check, seed_rngs};
 use super::BASE_COUNT;
 use crate::matrix::ByteMatrix;
 use crate::msgs::ot::{
@@ -19,12 +16,11 @@ use error::ExtReceiverCoreError;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 use rand_core::RngCore;
-use state::{BaseSend, BaseSetup, Initialized, SenderState};
-use utils::{kos15_check, seed_rngs};
+use state::{BaseSend, BaseSetup, Initialized, RecevierState, Setup};
 
 pub struct Kos15Receiver<S = Initialized>(S)
 where
-    S: SenderState;
+    S: RecevierState;
 
 impl Default for Kos15Receiver {
     fn default() -> Self {
@@ -59,7 +55,7 @@ impl Kos15Receiver {
 impl Kos15Receiver<BaseSetup> {
     pub fn base_send(
         mut self,
-        base_receiver_setup: BaseReceiverSetupWrapper,
+        setup_msg: BaseReceiverSetupWrapper,
     ) -> Result<(Kos15Receiver<BaseSend>, BaseSenderPayloadWrapper), ExtReceiverCoreError> {
         let mut seeds: Vec<[Block; 2]> = Vec::with_capacity(BASE_COUNT);
         for _ in 0..BASE_COUNT {
@@ -69,11 +65,11 @@ impl Kos15Receiver<BaseSetup> {
             ]);
         }
 
-        let base_send = self.0.base_sender.send(&seeds, base_receiver_setup.setup)?;
+        let base_send = self.0.base_sender.send(&seeds, setup_msg.setup)?;
         let rngs = seed_rngs(&seeds);
         let mut cointoss_random = [0_u8; 32];
         xor(
-            &base_receiver_setup.cointoss_share,
+            &setup_msg.cointoss_share,
             &self.0.cointoss_share,
             &mut cointoss_random,
         );
