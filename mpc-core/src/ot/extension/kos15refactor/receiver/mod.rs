@@ -1,7 +1,7 @@
 mod error;
 mod state;
 
-use super::utils::{decrypt_values, kos15_check, seed_rngs};
+use super::utils::{decrypt_values, kos15_check, seed_rngs_from_nested};
 use super::BASE_COUNT;
 use crate::matrix::ByteMatrix;
 use crate::msgs::ot::{
@@ -66,7 +66,7 @@ impl Kos15Receiver<BaseSetup> {
         }
 
         let base_send = self.0.base_sender.send(&seeds, setup_msg.setup)?;
-        let rngs = seed_rngs(&seeds);
+        let rngs = seed_rngs_from_nested(&seeds);
         let mut cointoss_random = [0_u8; 32];
         xor(
             &setup_msg.cointoss_share,

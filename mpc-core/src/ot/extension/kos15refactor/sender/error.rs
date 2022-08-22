@@ -1,3 +1,5 @@
+use crate::matrix::Error as MatrixError;
+
 /// Errors that may occur when using OTSender
 #[derive(Debug, thiserror::Error, PartialEq)]
 pub enum ExtSenderCoreError {
@@ -18,6 +20,6 @@ pub enum ExtSenderCoreError {
     ConsistencyCheckFailed,
     #[error("An internal error happened")]
     InternalError,
-    #[error("Transpose Error: {0}")]
-    TransposeError(#[from] matrix_transpose::TransposeError),
+    #[error("Matrix Error: {0}")]
+    MatrixError(#[from] MatrixError),
 }

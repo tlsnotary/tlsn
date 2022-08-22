@@ -6,8 +6,8 @@ use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 use std::convert::TryInto;
 
-/// Helper function to seed ChaChaRngs
-pub fn seed_rngs<const N: usize>(seeds: &[[Block; N]]) -> Vec<[ChaCha12Rng; N]> {
+/// Helper function to seed ChaChaRngs from a nested slice of blocks
+pub fn seed_rngs_from_nested<const N: usize>(seeds: &[[Block; N]]) -> Vec<[ChaCha12Rng; N]> {
     seeds
         .iter()
         .map(|seed| {
@@ -27,11 +27,20 @@ pub fn seed_rngs<const N: usize>(seeds: &[[Block; N]]) -> Vec<[ChaCha12Rng; N]> 
         .collect()
 }
 
-/// A wrapper to deal with array lenghts of 1
-pub fn seed_rngs_one(seeds: &[Block]) -> Vec<ChaCha12Rng> {
-    let seeds_packed = seeds.iter().map(|b| [*b]).collect::<Vec<[Block; 1]>>();
-    let rngs_packed = seed_rngs(seeds_packed.as_slice());
-    rngs_packed.into_iter().map(|rng| rng[0].clone()).collect()
+/// Helper function to seed ChaChaRngs from a slice of blocks
+pub fn seed_rngs(seeds: &[Block]) -> Vec<ChaCha12Rng> {
+    seeds
+        .iter()
+        .map(|b| {
+            let bytes = b.to_be_bytes();
+            ChaCha12Rng::from_seed(
+                [bytes, bytes]
+                    .concat()
+                    .try_into()
+                    .expect("Could not convert block into  [u8; 32]"),
+            )
+        })
+        .collect()
 }
 
 /// Performs the KOS15 check explained in the paper
