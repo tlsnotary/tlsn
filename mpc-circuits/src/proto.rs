@@ -1,6 +1,6 @@
 use std::convert::{From, TryFrom};
 
-use crate::Error;
+use crate::{Error, ValueType};
 
 include!(concat!(env!("OUT_DIR"), "/core.circuits.rs"));
 
@@ -10,6 +10,7 @@ impl From<crate::Group> for Group {
         Self {
             name: g.name().to_string(),
             desc: g.desc().to_string(),
+            value_type: g.value_type() as i32,
             wires: g.wires().iter().map(|id| *id as u32).collect(),
         }
     }
@@ -22,6 +23,16 @@ impl TryFrom<Group> for crate::Group {
         Ok(crate::Group::new(
             &g.name,
             &g.desc,
+            match g.value_type {
+                0 => ValueType::Bool,
+                1 => ValueType::BitString,
+                2 => ValueType::U8,
+                3 => ValueType::U16,
+                4 => ValueType::U32,
+                5 => ValueType::U64,
+                6 => ValueType::U128,
+                _ => return Err(Error::MappingError),
+            },
             &g.wires
                 .iter()
                 .map(|id| *id as usize)

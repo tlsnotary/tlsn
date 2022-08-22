@@ -1,4 +1,4 @@
-use crate::{proto::Circuit as ProtoCircuit, Error};
+use crate::{error::ValueError, proto::Circuit as ProtoCircuit, Error, Value, ValueType};
 
 use prost::Message;
 use sha2::{Digest, Sha256};
@@ -9,18 +9,20 @@ use std::{collections::HashSet, convert::TryFrom};
 pub struct Group {
     name: String,
     desc: String,
+    typ: ValueType,
     /// Wire ids
     wires: Vec<usize>,
 }
 
 impl Group {
-    pub fn new(name: &str, desc: &str, wires: &[usize]) -> Self {
+    pub fn new(name: &str, desc: &str, typ: ValueType, wires: &[usize]) -> Self {
         let mut wires = wires.to_vec();
         // Ensure wire ids are always sorted
         wires.sort();
         Self {
             name: name.to_string(),
             desc: desc.to_string(),
+            typ,
             wires,
         }
     }
@@ -31,6 +33,10 @@ impl Group {
 
     pub fn desc(&self) -> &str {
         &self.desc
+    }
+
+    pub fn value_type(&self) -> ValueType {
+        self.typ
     }
 
     pub fn wires(&self) -> &[usize] {
@@ -62,8 +68,13 @@ impl Input {
         Self { id, group }
     }
 
-    pub fn to_value(&self, value: &[bool]) -> Result<InputValue, Error> {
-        InputValue::new(self.clone(), value)
+    /// Returns value type
+    pub fn value_type(&self) -> ValueType {
+        self.group.value_type()
+    }
+
+    pub fn to_value(&self, value: impl Into<Value>) -> Result<InputValue, Error> {
+        InputValue::new(self.clone(), value.into())
     }
 }
 
@@ -87,8 +98,13 @@ impl Output {
         Self { id, group }
     }
 
-    pub fn to_value(&self, value: &[bool]) -> Result<OutputValue, Error> {
-        OutputValue::new(self.clone(), value)
+    /// Returns value type
+    pub fn value_type(&self) -> ValueType {
+        self.group.value_type()
+    }
+
+    pub fn to_value(&self, value: impl Into<Value>) -> Result<OutputValue, Error> {
+        OutputValue::new(self.clone(), value.into())
     }
 }
 
@@ -102,24 +118,34 @@ impl AsRef<Group> for Output {
 #[derive(Debug, Clone, PartialEq)]
 pub struct InputValue {
     input: Input,
-    value: Vec<bool>,
+    value: Value,
 }
 
 impl InputValue {
     /// Creates new input value
-    pub fn new(input: Input, value: &[bool]) -> Result<Self, Error> {
-        if input.as_ref().len() != value.len() {
-            return Err(Error::InvalidValue(input.as_ref().clone(), value.to_vec()));
+    pub fn new(input: Input, value: Value) -> Result<Self, Error> {
+        if input.group.value_type() != value.value_type() {
+            return Err(Error::ValueError(ValueError::InvalidType(
+                input.group,
+                value.value_type(),
+            )));
         }
-        Ok(Self {
-            input,
-            value: value.to_vec(),
-        })
+        Ok(Self { input, value })
     }
 
     /// Returns input id
     pub fn id(&self) -> usize {
         self.input.id
+    }
+
+    /// Returns value
+    pub fn value(&self) -> &Value {
+        &self.value
+    }
+
+    /// Returns input value type
+    pub fn value_type(&self) -> ValueType {
+        self.input.value_type()
     }
 
     /// Returns [`Input`] corresponding to this value
@@ -136,41 +162,44 @@ impl InputValue {
     pub fn wires(&self) -> &[usize] {
         self.input.as_ref().wires()
     }
-}
 
-impl AsRef<[bool]> for InputValue {
-    fn as_ref(&self) -> &[bool] {
-        &self.value
+    /// Returns wire values
+    pub fn wire_values(&self) -> Vec<bool> {
+        self.value.to_bits()
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct OutputValue {
     output: Output,
-    value: Vec<bool>,
-}
-
-impl AsRef<[bool]> for OutputValue {
-    fn as_ref(&self) -> &[bool] {
-        &self.value
-    }
+    value: Value,
 }
 
 impl OutputValue {
     /// Creates new output value
-    pub fn new(output: Output, value: &[bool]) -> Result<Self, Error> {
-        if output.as_ref().len() != value.len() {
-            return Err(Error::InvalidValue(output.as_ref().clone(), value.to_vec()));
+    pub fn new(output: Output, value: Value) -> Result<Self, Error> {
+        if output.group.value_type() != value.value_type() {
+            return Err(Error::ValueError(ValueError::InvalidType(
+                output.group,
+                value.value_type(),
+            )));
         }
-        Ok(Self {
-            output,
-            value: value.to_vec(),
-        })
+        Ok(Self { output, value })
     }
 
     /// Returns output id
     pub fn id(&self) -> usize {
         self.output.id
+    }
+
+    /// Returns value
+    pub fn value(&self) -> &Value {
+        &self.value
+    }
+
+    /// Returns output value type
+    pub fn value_type(&self) -> ValueType {
+        self.output.value_type()
     }
 
     /// Returns [`Output`] corresponding to this value
@@ -186,6 +215,11 @@ impl OutputValue {
     /// Returns reference to output wires
     pub fn wires(&self) -> &[usize] {
         self.output.as_ref().wires()
+    }
+
+    /// Returns wire values
+    pub fn wire_values(&self) -> Vec<bool> {
+        self.value.to_bits()
     }
 }
 
@@ -678,8 +712,8 @@ impl Circuit {
     pub fn evaluate(&self, inputs: &[InputValue]) -> Result<Vec<OutputValue>, Error> {
         let mut wires: Vec<Option<bool>> = vec![None; self.len()];
         for input in inputs {
-            for (value, wire_id) in input.as_ref().iter().zip(input.wires()) {
-                wires[*wire_id] = Some(*value);
+            for (value, wire_id) in input.wire_values().into_iter().zip(input.wires()) {
+                wires[*wire_id] = Some(value);
             }
         }
 
@@ -713,7 +747,10 @@ impl Circuit {
             for id in output.as_ref().wires() {
                 value.push(wires[*id].ok_or(Error::UninitializedWire(*id))?);
             }
-            outputs.push(OutputValue::new(output.clone(), &value)?);
+            outputs.push(OutputValue::new(
+                output.clone(),
+                Value::new(output.value_type(), value)?,
+            )?);
         }
 
         Ok(outputs)

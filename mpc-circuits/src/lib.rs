@@ -2,9 +2,11 @@ pub mod circuit;
 mod error;
 pub mod parse;
 pub mod proto;
+mod value;
 
 pub use circuit::{Circuit, CircuitId, Gate, Group, Input, InputValue, Output, OutputValue};
 pub use error::Error;
+pub use value::{Value, ValueType};
 
 #[cfg(feature = "aes_128_reverse")]
 pub static AES_128_REVERSE: &'static [u8] = std::include_bytes!("../circuits/aes_128_reverse.bin");
@@ -25,34 +27,26 @@ mod tests {
         s.chars().map(|char| char == '1').collect()
     }
 
-    fn test_circ(circ: &Circuit, inputs: &[Vec<bool>], expected: &[Vec<bool>]) {
+    fn test_circ(circ: &Circuit, inputs: &[Value], expected: &[Value]) {
         let inputs: Vec<InputValue> = inputs
             .iter()
             .zip(circ.inputs.iter())
-            .map(|(value, input)| input.to_value(value).unwrap())
+            .map(|(value, input)| input.to_value(value.clone()).unwrap())
             .collect();
         let outputs = circ.evaluate(&inputs).unwrap();
         for (output, expected) in outputs.iter().zip(expected) {
-            if output.as_ref() != expected {
+            if output.value() != expected {
                 let report = format!(
-                    "Circuit {}\n{}{}Expected: {}",
+                    "Circuit {}\n{}{}Expected: {:?}",
                     circ.name(),
                     inputs
                         .iter()
                         .enumerate()
-                        .map(|(id, input)| format!(
-                            "Input {}:  {}\n",
-                            id,
-                            boolvec_to_string(input.as_ref())
-                        ))
+                        .map(|(id, input)| format!("Input {}:  {:?}\n", id, input.value()))
                         .collect::<Vec<String>>()
                         .join(""),
-                    format!(
-                        "Output {}: {}\n",
-                        output.id(),
-                        boolvec_to_string(output.as_ref())
-                    ),
-                    boolvec_to_string(expected)
+                    format!("Output {}: {:?}\n", output.id(), output.value()),
+                    expected
                 );
                 panic!("{}", report.to_string());
             }
@@ -67,32 +61,29 @@ mod tests {
         fn test_adder_64() {
             let circ = Circuit::load_bytes(ADDER_64).unwrap();
 
-            let a = vec![false; 64];
-            let b = vec![false; 64];
-            let c = vec![false; 64];
-            test_circ(&circ, &[a, b], &[c]);
+            test_circ(
+                &circ,
+                &[Value::from(0u64), Value::from(1u64)],
+                &[Value::from(1u64)],
+            );
 
-            let mut a = vec![false; 64];
-            a[0] = true;
-            let b = vec![false; 64];
-            let mut c = vec![false; 64];
-            c[0] = true;
-            test_circ(&circ, &[a, b], &[c]);
+            test_circ(
+                &circ,
+                &[Value::from(1u64), Value::from(1u64)],
+                &[Value::from(2u64)],
+            );
 
-            let mut a = vec![false; 64];
-            a[0] = true;
-            let mut b = vec![false; 64];
-            b[0] = true;
-            let mut c = vec![false; 64];
-            c[1] = true;
-            test_circ(&circ, &[a, b], &[c]);
+            test_circ(
+                &circ,
+                &[Value::from(1u64), Value::from(2u64)],
+                &[Value::from(3u64)],
+            );
 
-            let mut a = vec![false; 64];
-            a[63] = true;
-            let mut b = vec![false; 64];
-            b[63] = true;
-            let c = vec![false; 64];
-            test_circ(&circ, &[a, b], &[c]);
+            test_circ(
+                &circ,
+                &[Value::from(u64::MAX), Value::from(u64::MAX)],
+                &[Value::from(0u64)],
+            );
         }
     }
 
@@ -104,24 +95,24 @@ mod tests {
         fn test_aes_128_reverse() {
             let circ = Circuit::load_bytes(AES_128_REVERSE).unwrap();
 
-            let key = vec![false; 128];
-            let pt = vec![false; 128];
-            let mut ct = string_to_boolvec("01100110111010010100101111010100111011111000101000101100001110111000100001001100111110100101100111001010001101000010101100101110");
-            ct.reverse();
-            test_circ(&circ, &[key, pt], &[ct]);
+            test_circ(
+                &circ,
+                &[Value::from(0u128), Value::from(0u128)],
+                &[Value::from(136792598789324718765670228683992083246u128)],
+            );
 
-            let key = vec![true; 128];
-            let pt = vec![false; 128];
-            let mut ct = string_to_boolvec("10100001111101100010010110001100100001110111110101011111110011011000100101100100010010000100010100111000101111111100100100101100");
-            ct.reverse();
-            test_circ(&circ, &[key, pt], &[ct]);
+            test_circ(
+                &circ,
+                &[Value::from(u128::MAX), Value::from(0u128)],
+                &[Value::from(215283773931601154712576325941020576044u128)],
+            );
 
-            let mut key = vec![false; 128];
-            key[120] = true;
-            let pt = vec![false; 128];
-            let mut ct = string_to_boolvec("11011100000011101101100001011101111110010110000100011010101110110111001001001001110011011101000101101000110001010100011001111110");
-            ct.reverse();
-            test_circ(&circ, &[key, pt], &[ct]);
+            // let mut key = vec![false; 128];
+            // key[120] = true;
+            // let pt = vec![false; 128];
+            // let mut ct = string_to_boolvec("11011100000011101101100001011101111110010110000100011010101110110111001001001001110011011101000101101000110001010100011001111110");
+            // ct.reverse();
+            // test_circ(&circ, &[key, pt], &[ct]);
         }
     }
 }
