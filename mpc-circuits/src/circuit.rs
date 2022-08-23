@@ -73,6 +73,12 @@ impl Input {
         self.group.value_type()
     }
 
+    /// Parses bits to [`InputValue`]
+    pub fn parse_bits(&self, bits: Vec<bool>) -> Result<InputValue, Error> {
+        InputValue::new(self.clone(), Value::new(self.group.value_type(), bits)?)
+    }
+
+    /// Converts input to [`InputValue`]
     pub fn to_value(&self, value: impl Into<Value>) -> Result<InputValue, Error> {
         InputValue::new(self.clone(), value.into())
     }
@@ -103,6 +109,12 @@ impl Output {
         self.group.value_type()
     }
 
+    /// Parses bits to [`OutputValue`]
+    pub fn parse_bits(&self, bits: Vec<bool>) -> Result<OutputValue, Error> {
+        OutputValue::new(self.clone(), Value::new(self.group.value_type(), bits)?)
+    }
+
+    /// Converts output to [`OutputValue`]
     pub fn to_value(&self, value: impl Into<Value>) -> Result<OutputValue, Error> {
         OutputValue::new(self.clone(), value.into())
     }
