@@ -1,10 +1,13 @@
-use crate::{matrix::ByteMatrix, ot::kos15refactor::BASE_COUNT, Block};
+use crate::{matrix::ByteMatrix, ot::kos15refactor::BASE_COUNT, utils, Block};
 use aes::{BlockCipher, BlockEncrypt};
 use cipher::consts::U16;
 use clmul::Clmul;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 use std::convert::TryInto;
+
+/// Row length of the transposed KOS15 matrix
+const ROW_LENGTH_TR: usize = BASE_COUNT / 8;
 
 /// Helper function to seed ChaChaRngs from a nested slice of blocks
 pub fn seed_rngs_from_nested<const N: usize>(seeds: &[[Block; N]]) -> Vec<[ChaCha12Rng; N]> {
@@ -43,24 +46,28 @@ pub fn seed_rngs(seeds: &[Block]) -> Vec<ChaCha12Rng> {
         .collect()
 }
 
-/// Performs the KOS15 check explained in the paper
-pub fn kos15_check(rng: &mut ChaCha12Rng, matrix: &ByteMatrix, choices: &[bool]) -> [Clmul; 3] {
+/// Performs the KOS15 check explained in the paper for the receiver
+pub fn kos15_check_receiver(
+    rng: &mut ChaCha12Rng,
+    matrix: &ByteMatrix,
+    choices: &[bool],
+) -> [Clmul; 3] {
     // Check correlation
-    // The check is explaned in the KOS15 paper in a paragraph on page 8
+    // The check is explained in the KOS15 paper in a paragraph on page 8
     // starting with "To carry out the check..."
     // We use the exact same notation as the paper.
 
-    // Seeding with a value from cointoss so that neither party could influence
+    // Seeding with a value from coin toss so that neither party could influence
     // the randomness
-    let mut x = Clmul::new(&[0u8; BASE_COUNT / 8]);
-    let mut t0 = Clmul::new(&[0u8; BASE_COUNT / 8]);
-    let mut t1 = Clmul::new(&[0u8; BASE_COUNT / 8]);
+    let mut x = Clmul::new(&[0u8; ROW_LENGTH_TR]);
+    let mut t0 = Clmul::new(&[0u8; ROW_LENGTH_TR]);
+    let mut t1 = Clmul::new(&[0u8; ROW_LENGTH_TR]);
     for (j, xj) in choices.into_iter().enumerate() {
-        let mut tj = [0u8; BASE_COUNT / 8];
-        tj.copy_from_slice(&matrix[BASE_COUNT / 8 * j..BASE_COUNT / 8 * (j + 1)]);
+        let mut tj = [0u8; ROW_LENGTH_TR];
+        tj.copy_from_slice(&matrix[ROW_LENGTH_TR * j..ROW_LENGTH_TR * (j + 1)]);
         let mut tj = Clmul::new(&tj);
         // chi is the random weight
-        let chi: [u8; BASE_COUNT / 8] = rng.gen();
+        let chi: [u8; ROW_LENGTH_TR] = rng.gen();
         let mut chi = Clmul::new(&chi);
         if *xj {
             x ^= chi;
@@ -74,6 +81,55 @@ pub fn kos15_check(rng: &mut ChaCha12Rng, matrix: &ByteMatrix, choices: &[bool])
     [x, t0, t1]
 }
 
+/// Performs the KOS15 check for the sender
+pub fn kos15_check_sender(
+    rng: &mut ChaCha12Rng,
+    matrix: &ByteMatrix,
+    ncols: usize,
+    x: &[u8; 16],
+    t0: &[u8; 16],
+    t1: &[u8; 16],
+    base_choices: &[bool],
+) -> bool {
+    // Check correlation
+    // The check is explaned in the KOS15 paper in a paragraph on page 8
+    // starting with "To carry out the check..."
+    // We use the exact same notation as the paper.
+    let mut check0 = Clmul::new(&[0u8; ROW_LENGTH_TR]);
+    let mut check1 = Clmul::new(&[0u8; ROW_LENGTH_TR]);
+    for j in 0..ncols {
+        let mut q = [0u8; ROW_LENGTH_TR];
+        q.copy_from_slice(&matrix[ROW_LENGTH_TR * j..ROW_LENGTH_TR * (j + 1)]);
+        let mut q = Clmul::new(&q);
+        // chi is the random weight
+        let chi: [u8; ROW_LENGTH_TR] = rng.gen();
+        let mut chi = Clmul::new(&chi);
+
+        // multiplication in the finite field (p.14 Implementation Optimizations.
+        // suggests that it can be done without reduction).
+        q.clmul_reuse(&mut chi);
+        check0 ^= q;
+        check1 ^= chi;
+    }
+
+    let mut delta = [0u8; ROW_LENGTH_TR];
+    delta.copy_from_slice(&utils::boolvec_to_u8vec(base_choices));
+    let delta = Clmul::new(&delta);
+
+    let x = Clmul::new(&x);
+    let t0 = Clmul::new(&t0);
+    let t1 = Clmul::new(&t1);
+
+    let (tmp0, tmp1) = x.clmul(delta);
+    check0 ^= tmp0;
+    check1 ^= tmp1;
+    if !(check0 == t0 && check1 == t1) {
+        return false;
+    }
+    true
+}
+
+/// Decrypt the sender values depending on the receiver choices
 pub fn decrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     cipher: &C,
     ciphertexts: &[[Block; 2]],
@@ -82,7 +138,7 @@ pub fn decrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
 ) -> Vec<Block> {
     let mut values: Vec<Block> = Vec::with_capacity(choice.len());
     for (j, b) in choice.iter().enumerate() {
-        let t: [u8; BASE_COUNT / 8] = table[BASE_COUNT / 8 * j..BASE_COUNT / 8 * (j + 1)]
+        let t: [u8; ROW_LENGTH_TR] = table[ROW_LENGTH_TR * j..ROW_LENGTH_TR * (j + 1)]
             .try_into()
             .unwrap();
         let t = Block::from(t);

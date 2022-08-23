@@ -16,7 +16,10 @@ use rand_chacha::ChaCha12Rng;
 use rand_core::{RngCore, SeedableRng};
 use state::{BaseReceive, BaseSetup, Initialized, SenderState, Setup};
 
-use super::{utils::seed_rngs, BASE_COUNT};
+use super::{
+    utils::{kos15_check_sender, seed_rngs},
+    BASE_COUNT,
+};
 
 pub struct Kos15Sender<S = Initialized>(S)
 where
@@ -64,7 +67,7 @@ impl Kos15Sender {
 
 impl Kos15Sender<BaseSetup> {
     pub fn base_receive(
-        self,
+        mut self,
         setup_msg: BaseSenderPayloadWrapper,
     ) -> Result<Kos15Sender<BaseReceive>, ExtSenderCoreError> {
         let sender_blocks = self.0.base_receiver.receive(setup_msg.payload)?;
@@ -95,7 +98,7 @@ impl Kos15Sender<BaseSetup> {
 
 impl Kos15Sender<BaseReceive> {
     pub fn extension_setup(
-        self,
+        mut self,
         setup_msg: ExtReceiverSetup,
     ) -> Result<Kos15Sender<Setup>, ExtSenderCoreError> {
         let ncols_unpadded = setup_msg.ncols;
@@ -124,9 +127,6 @@ impl Kos15Sender<BaseReceive> {
         let us = ByteMatrix::new(setup_msg.table, row_length)?;
         let mut qs = ByteMatrix::new(vec![0u8; num_elements * row_length], row_length)?;
 
-        // TODO
-        self.count = ncols_unpadded;
-
         for (j, (row_qs, row_us)) in qs.iter_rows_mut().zip(us.iter_rows()).enumerate() {
             self.0.rngs[j].fill_bytes(row_qs);
             if self.0.base_choices[j] {
@@ -137,5 +137,32 @@ impl Kos15Sender<BaseReceive> {
             }
         }
         qs.transpose_bits()?;
+
+        // Seeding with a value from cointoss so that neither party could influence
+        // the randomness
+        let mut rng = ChaCha12Rng::from_seed(self.0.cointoss_random);
+
+        // Perform KOS15 sender check
+        if !kos15_check_sender(
+            &mut rng,
+            &qs,
+            ncols,
+            &setup_msg.x,
+            &setup_msg.t0,
+            &setup_msg.t1,
+            &self.0.base_choices,
+        ) {
+            return Err(ExtSenderCoreError::ConsistencyCheckFailed);
+        };
+
+        // Remove additional rows introduced by padding
+        qs.split_off_rows(qs.rows() - expected_padding)?;
+
+        let kos15_sender = Kos15Sender::<Setup>(Setup {
+            table: qs,
+            count: ncols_unpadded,
+        });
+
+        Ok(kos15_sender)
     }
 }

@@ -1,3 +1,4 @@
+use crate::matrix::ByteMatrix;
 use crate::ot::DhOtReceiver as BaseReceiver;
 use crate::Block;
 use rand_chacha::ChaCha12Rng;
@@ -28,5 +29,8 @@ pub struct BaseReceive {
 }
 impl SenderState for BaseReceive {}
 
-pub struct Setup {}
+pub struct Setup {
+    pub table: ByteMatrix,
+    pub count: usize,
+}
 impl SenderState for Setup {}

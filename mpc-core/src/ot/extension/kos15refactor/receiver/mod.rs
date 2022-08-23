@@ -1,7 +1,7 @@
 mod error;
 mod state;
 
-use super::utils::{decrypt_values, kos15_check, seed_rngs_from_nested};
+use super::utils::{decrypt_values, kos15_check_receiver, seed_rngs_from_nested};
 use super::BASE_COUNT;
 use crate::matrix::ByteMatrix;
 use crate::msgs::ot::{
@@ -151,10 +151,10 @@ impl Kos15Receiver<BaseSend> {
 
         // Perform KOS15 check
         let mut rng = ChaCha12Rng::from_seed(self.0.cointoss_random);
-        let kos15check_results = kos15_check(&mut rng, &ts, &r_bool);
+        let kos15check_results = kos15_check_receiver(&mut rng, &ts, &r_bool);
 
-        // Remove the last 256 rows which were sacrificed due to the KOS check
-        ts.split_off_rows(ts.rows() - 256)?;
+        // Remove padding and the last 256 rows which were sacrificed due to the KOS check
+        ts.split_off_rows(ts.rows() - padding)?;
 
         let kos_receiver = Kos15Receiver::<Setup>(Setup {
             table: ts,
