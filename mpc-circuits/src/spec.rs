@@ -189,8 +189,8 @@ mod tests {
     }
 
     #[test]
-    fn test_load_aes_128() {
-        let bytes = std::fs::read("circuits/specs/aes_128.yml").unwrap();
+    fn test_load_aes_128_reverse() {
+        let bytes = std::fs::read("circuits/specs/aes_128_reverse.yml").unwrap();
         let _ = CircuitSpec::from_yaml(&bytes).unwrap();
     }
 
@@ -208,8 +208,8 @@ mod tests {
     }
 
     #[test]
-    fn test_build_aes_128() {
-        let bytes = std::fs::read("circuits/specs/aes_128.yml").unwrap();
+    fn test_build_aes_128_reverse() {
+        let bytes = std::fs::read("circuits/specs/aes_128_reverse.yml").unwrap();
         let spec = CircuitSpec::from_yaml(&bytes).unwrap();
         let _ = spec.build().unwrap();
     }

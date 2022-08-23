@@ -22,14 +22,6 @@ mod tests {
 
     use super::*;
 
-    fn boolvec_to_string(v: &[bool]) -> String {
-        v.iter().map(|b| (*b as u8).to_string()).collect::<String>()
-    }
-
-    fn string_to_boolvec(s: &str) -> Vec<bool> {
-        s.chars().map(|char| char == '1').collect()
-    }
-
     fn test_circ(circ: &Circuit, inputs: &[Value], expected: &[Value]) {
         let inputs: Vec<InputValue> = inputs
             .iter()
@@ -84,7 +76,7 @@ mod tests {
 
             test_circ(
                 &circ,
-                &[Value::from(u64::MAX), Value::from(u64::MAX)],
+                &[Value::from(u64::MAX), Value::from(1u64)],
                 &[Value::from(0u64)],
             );
         }
@@ -93,29 +85,55 @@ mod tests {
     #[cfg(feature = "aes_128_reverse")]
     mod aes_128_reverse {
         use super::*;
+        use aes::{Aes128, BlockEncrypt, NewBlockCipher};
 
         #[test]
         fn test_aes_128_reverse() {
             let circ = Circuit::load_bytes(AES_128_REVERSE).unwrap();
 
+            let key = vec![0x00; 16];
+            let m = vec![0x00; 16];
+            let cipher = Aes128::new_from_slice(&key).unwrap();
+            let mut ciphertext = [0x00; 16].into();
+            cipher.encrypt_block(&mut ciphertext);
+
+            ciphertext.reverse();
             test_circ(
                 &circ,
-                &[Value::from(0u128), Value::from(0u128)],
-                &[Value::from(136792598789324718765670228683992083246u128)],
+                &[Value::from(key), Value::from(m)],
+                &[Value::from(ciphertext.to_vec())],
             );
 
+            let key = vec![0xFF; 16];
+            let m = vec![0x00; 16];
+            let cipher = Aes128::new_from_slice(&key).unwrap();
+            let mut ciphertext = [0x00; 16].into();
+            cipher.encrypt_block(&mut ciphertext);
+
+            ciphertext.reverse();
             test_circ(
                 &circ,
-                &[Value::from(u128::MAX), Value::from(0u128)],
-                &[Value::from(215283773931601154712576325941020576044u128)],
+                &[Value::from(key), Value::from(m)],
+                &[Value::from(ciphertext.to_vec())],
             );
 
-            // let mut key = vec![false; 128];
-            // key[120] = true;
-            // let pt = vec![false; 128];
-            // let mut ct = string_to_boolvec("11011100000011101101100001011101111110010110000100011010101110110111001001001001110011011101000101101000110001010100011001111110");
-            // ct.reverse();
-            // test_circ(&circ, &[key, pt], &[ct]);
+            let mut key = vec![
+                0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00,
+            ];
+            let mut pt = vec![0x00; 16];
+            let cipher = Aes128::new_from_slice(&key).unwrap();
+            let mut ciphertext = [0x00; 16].into();
+            cipher.encrypt_block(&mut ciphertext);
+
+            key.reverse();
+            pt.reverse();
+            ciphertext.reverse();
+            test_circ(
+                &circ,
+                &[Value::from(key), Value::from(pt)],
+                &[Value::from(ciphertext.to_vec())],
+            );
         }
     }
 }

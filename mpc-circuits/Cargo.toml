@@ -5,9 +5,8 @@ edition = "2021"
 
 [features]
 default = ["full"]
-full = ["aes_128_reverse", "aes_128", "adder64"]
+full = ["aes_128_reverse", "adder64"]
 aes_128_reverse = []
-aes_128 = []
 adder64 = []
 
 [dependencies]
@@ -21,6 +20,9 @@ hex = "0.4.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9.10"
 lazy_static = "1.4.0"
+
+[dev-dependencies]
+aes = { version = "0.7.5" }
 
 [build-dependencies]
 prost-build = { version = "0.9" }

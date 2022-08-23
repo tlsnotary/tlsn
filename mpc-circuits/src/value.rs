@@ -118,6 +118,12 @@ impl From<Vec<bool>> for Value {
     }
 }
 
+impl From<Vec<u8>> for Value {
+    fn from(v: Vec<u8>) -> Self {
+        Value::Bytes(v)
+    }
+}
+
 impl From<u8> for Value {
     fn from(v: u8) -> Self {
         Value::U8(v)
