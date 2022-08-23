@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::{error::SpecError as Error, Circuit, Gate, Group, Input, Output, ValueType};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct GroupSpec {
+pub struct GroupSpec {
     name: String,
     desc: String,
     value_type: String,
@@ -34,7 +34,7 @@ impl GroupSpec {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct GateSpec(String);
+pub struct GateSpec(String);
 
 impl GateSpec {
     fn to_gate(self, id: usize) -> Result<Gate, Error> {

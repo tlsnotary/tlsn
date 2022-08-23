@@ -7,6 +7,7 @@ mod value;
 
 pub use circuit::{Circuit, CircuitId, Gate, Group, Input, InputValue, Output, OutputValue};
 pub use error::Error;
+pub use spec::CircuitSpec;
 pub use value::{Value, ValueType};
 
 #[cfg(feature = "aes_128_reverse")]
