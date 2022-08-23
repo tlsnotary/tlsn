@@ -551,7 +551,7 @@ impl Circuit {
     fn validate_gates(
         gates: Vec<Gate>,
         input_wires: &[usize],
-        output_wires: &[usize],
+        _output_wires: &[usize],
     ) -> Result<(Vec<Gate>, CircuitInfo), Error> {
         // TODO: Implement sorting algorithm for gates
 
@@ -587,44 +587,46 @@ impl Circuit {
         }
 
         gate_output_wire_ids.sort();
-        let gate_output_wire_count = gate_output_wire_ids.len();
-        gate_output_wire_ids.dedup();
+        let duplicate_output_wire_ids = {
+            let mut dups: HashSet<usize> = HashSet::with_capacity(gate_output_wire_ids.len());
+            let mut set: HashSet<usize> = HashSet::with_capacity(gate_output_wire_ids.len());
+            for id in gate_output_wire_ids.iter() {
+                if let Some(_) = set.get(id) {
+                    dups.insert(*id);
+                } else {
+                    set.insert(*id);
+                }
+            }
+            dups
+        };
 
         // Check that all gate output wires are unique
-        if gate_output_wire_count != gate_output_wire_ids.len() {
-            return Err(Error::InvalidCircuit(
-                "Duplicate gate output wire ids".to_string(),
-            ));
+        if duplicate_output_wire_ids.len() > 0 {
+            return Err(Error::InvalidCircuit(format!(
+                "Duplicate gate output wire ids: {:?}",
+                duplicate_output_wire_ids
+            )));
         }
 
         let wire_ids: HashSet<usize> = HashSet::from_iter(wire_ids);
         let input_wire_ids: HashSet<usize> = HashSet::from_iter(input_wires.iter().copied());
         let gate_output_wire_ids: HashSet<usize> = HashSet::from_iter(gate_output_wire_ids);
-        let output_wire_ids: HashSet<usize> = HashSet::from_iter(output_wires.iter().copied());
-
-        // Check that all gate output wires in last layer are assigned ot an Output
-        if wire_ids
-            .difference(&gate_input_wire_ids)
-            .cloned()
-            .collect::<HashSet<usize>>()
-            != output_wire_ids
-        {
-            return Err(Error::InvalidCircuit(format!(
-                "All gate outputs must be mapped to output groups: {:?}",
-                gate_output_wire_ids.difference(&output_wire_ids)
-            )));
-        }
 
         // Check that all gate input wires in the first layer are assigned to an Input
-        if gate_input_wire_ids
+        let expected_input_ids = wire_ids
             .difference(&gate_output_wire_ids)
             .cloned()
-            .collect::<HashSet<usize>>()
-            != input_wire_ids
-        {
-            return Err(Error::InvalidCircuit(
-                "All input groups must be mapped to gate inputs".to_string(),
-            ));
+            .collect::<HashSet<usize>>();
+        if expected_input_ids != input_wire_ids {
+            let mut diff = input_wire_ids
+                .difference(&expected_input_ids)
+                .copied()
+                .collect::<Vec<usize>>();
+            diff.sort();
+            return Err(Error::InvalidCircuit(format!(
+                "All input groups must be mapped to gate inputs: {:?}",
+                diff
+            )));
         }
 
         Ok((
