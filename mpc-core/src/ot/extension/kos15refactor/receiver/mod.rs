@@ -227,7 +227,8 @@ fn receive_from(
 
     let consumed_choices: Vec<bool> = choices.drain(..payload.ciphertexts.len()).collect();
 
-    let consumed_table: ByteMatrix = table.split_off_rows(consumed_choices.len())?;
+    let consumed_table: ByteMatrix = table.split_off_rows_reverse(consumed_choices.len())?;
+
     let values = decrypt_values::<Aes128>(
         &Aes128::new_from_slice(&[0u8; 16]).unwrap(),
         &payload.ciphertexts,

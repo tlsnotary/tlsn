@@ -32,5 +32,7 @@ impl SenderState for BaseReceive {}
 pub struct Setup {
     pub table: ByteMatrix,
     pub count: usize,
+    pub sent: usize,
+    pub base_choices: Vec<bool>,
 }
 impl SenderState for Setup {}

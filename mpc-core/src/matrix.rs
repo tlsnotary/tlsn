@@ -75,13 +75,32 @@ impl ByteMatrix {
 
         let split_off = n * self.columns();
 
-        let split_vec = self.inner.split_off(split_off);
+        let split_vec = self.inner.drain(split_off..).collect();
         let split_matrix = Self {
             inner: split_vec,
             rows: self.rows() - split_off,
             columns: self.columns(),
         };
         self.rows = split_off;
+        Ok(split_matrix)
+    }
+
+    /// Like `split_off_rows` but returns the first part and the second part
+    /// will be `self`
+    pub fn split_off_rows_reverse(&mut self, n: usize) -> Result<Self, Error> {
+        if n > self.rows() {
+            return Err(Error::InvalidNumberOfRows);
+        }
+
+        let split_off = n * self.columns();
+
+        let split_vec = self.inner.drain(..split_off).collect();
+        let split_matrix = Self {
+            inner: split_vec,
+            rows: split_off,
+            columns: self.columns(),
+        };
+        self.rows = self.rows() - split_off;
         Ok(split_matrix)
     }
 

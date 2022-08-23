@@ -4,12 +4,14 @@ mod state;
 use crate::{
     matrix::ByteMatrix,
     msgs::ot::{
-        BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper,
-        ExtReceiverSetup,
+        BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper, ExtDerandomize,
+        ExtReceiverSetup, ExtSenderPayload,
     },
     ot::DhOtReceiver as BaseReceiver,
     utils::{sha256, xor},
+    Block,
 };
+use aes::{Aes128, NewBlockCipher};
 use error::ExtSenderCoreError;
 use rand::Rng;
 use rand_chacha::ChaCha12Rng;
@@ -17,7 +19,7 @@ use rand_core::{RngCore, SeedableRng};
 use state::{BaseReceive, BaseSetup, Initialized, SenderState, Setup};
 
 use super::{
-    utils::{kos15_check_sender, seed_rngs},
+    utils::{encrypt_values, kos15_check_sender, seed_rngs},
     BASE_COUNT,
 };
 
@@ -161,8 +163,57 @@ impl Kos15Sender<BaseReceive> {
         let kos15_sender = Kos15Sender::<Setup>(Setup {
             table: qs,
             count: ncols_unpadded,
+            sent: 0,
+            base_choices: self.0.base_choices,
         });
 
         Ok(kos15_sender)
+    }
+}
+impl Kos15Sender<Setup> {
+    pub fn send(&mut self, inputs: &[[Block; 2]]) -> Result<ExtSenderPayload, ExtSenderCoreError> {
+        self.send_from(inputs, None)
+    }
+
+    pub fn rand_send(
+        &mut self,
+        inputs: &[[Block; 2]],
+        derandomize: ExtDerandomize,
+    ) -> Result<ExtSenderPayload, ExtSenderCoreError> {
+        self.send_from(inputs, Some(derandomize))
+    }
+
+    fn send_from(
+        &mut self,
+        inputs: &[[Block; 2]],
+        derandomize: Option<ExtDerandomize>,
+    ) -> Result<ExtSenderPayload, ExtSenderCoreError> {
+        if self.0.sent + inputs.len() > self.0.count {
+            return Err(ExtSenderCoreError::InvalidInputLength);
+        }
+
+        let consumed_table: ByteMatrix = self.0.table.split_off_rows_reverse(inputs.len())?;
+
+        // Check that all the input lengths are equal
+        if inputs.len() != consumed_table.rows() {
+            return Err(ExtSenderCoreError::InvalidInputLength);
+        }
+
+        if let Some(ref inner) = derandomize {
+            if inner.flip.len() != consumed_table.columns() {
+                return Err(ExtSenderCoreError::InvalidInputLength);
+            }
+        }
+
+        let ciphertexts = encrypt_values(
+            &Aes128::new_from_slice(&[0u8; 16]).unwrap(),
+            inputs,
+            &consumed_table.inner(),
+            &self.0.base_choices,
+            derandomize.map(|inner| inner.flip),
+        );
+
+        self.0.sent += inputs.len();
+        Ok(ExtSenderPayload { ciphertexts })
     }
 }

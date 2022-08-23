@@ -129,15 +129,51 @@ pub fn kos15_check_sender(
     true
 }
 
+/// Encrypt the sender's values
+pub fn encrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
+    cipher: &C,
+    inputs: &[[Block; 2]],
+    table: &[u8],
+    choices: &[bool],
+    flip: Option<Vec<bool>>,
+) -> Vec<[Block; 2]> {
+    // Check that all the lengths match
+    assert_eq!(inputs.len() * ROW_LENGTH_TR, table.len());
+    if let Some(f) = &flip {
+        assert_eq!(table.len(), f.len() * ROW_LENGTH_TR);
+    }
+
+    let mut ciphertexts: Vec<[Block; 2]> = Vec::with_capacity(table.len());
+    let base_choice: [u8; 16] = utils::boolvec_to_u8vec(choices).try_into().unwrap();
+    let delta = Block::from(base_choice);
+    // If Receiver used *random* choice bits during OT extension setup, he will now
+    // instruct us to de-randomize, so that the value corresponding to his *actual*
+    // choice bit would be masked by that mask which Receiver knows.
+    let flip = flip.unwrap_or(vec![false; inputs.len()]);
+    for (j, (input, flip)) in inputs.iter().zip(flip).enumerate() {
+        let q: [u8; ROW_LENGTH_TR] = table[ROW_LENGTH_TR * j..ROW_LENGTH_TR * (j + 1)]
+            .try_into()
+            .unwrap();
+        let q = Block::from(q);
+        let masks = [q.hash_tweak(cipher, j), (q ^ delta).hash_tweak(cipher, j)];
+        if flip {
+            ciphertexts.push([input[0] ^ masks[1], input[1] ^ masks[0]]);
+        } else {
+            ciphertexts.push([input[0] ^ masks[0], input[1] ^ masks[1]]);
+        }
+    }
+    ciphertexts
+}
+
 /// Decrypt the sender values depending on the receiver choices
 pub fn decrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     cipher: &C,
     ciphertexts: &[[Block; 2]],
     table: &[u8],
-    choice: &[bool],
+    choices: &[bool],
 ) -> Vec<Block> {
-    let mut values: Vec<Block> = Vec::with_capacity(choice.len());
-    for (j, b) in choice.iter().enumerate() {
+    let mut values: Vec<Block> = Vec::with_capacity(choices.len());
+    for (j, b) in choices.iter().enumerate() {
         let t: [u8; ROW_LENGTH_TR] = table[ROW_LENGTH_TR * j..ROW_LENGTH_TR * (j + 1)]
             .try_into()
             .unwrap();
