@@ -251,8 +251,8 @@ impl InputLabels<WireLabelPair> {
         let labels: Vec<WireLabel> = self
             .labels
             .iter()
-            .zip(value.as_ref().iter())
-            .map(|(pair, value)| pair.select(*value))
+            .zip(value.wire_values())
+            .map(|(pair, value)| pair.select(value))
             .collect();
 
         Ok(InputLabels {
@@ -367,8 +367,8 @@ impl OutputLabels<WireLabelPair> {
         let labels: Vec<WireLabel> = self
             .labels
             .iter()
-            .zip(value.as_ref())
-            .map(|(pair, value)| pair.select(*value))
+            .zip(value.wire_values())
+            .map(|(pair, value)| pair.select(value))
             .collect();
 
         Ok(OutputLabels {
@@ -384,10 +384,9 @@ impl OutputLabels<WireLabel> {
         if encoding.output != self.output {
             return Err(Error::InvalidLabelEncoding);
         }
-        Ok(OutputValue::new(
-            self.output.clone(),
-            &WireLabel::decode_many(&self.labels, encoding.as_ref())?,
-        )?)
+        Ok(self
+            .output
+            .parse_bits(WireLabel::decode_many(&self.labels, encoding.as_ref())?)?)
     }
 
     /// Convenience function to convert labels into bytes
@@ -482,8 +481,8 @@ mod tests {
     fn test_sanitized_labels_dup(circ: Circuit) {
         let (labels, _) = InputLabels::generate(&mut thread_rng(), &circ, None);
         let input_values = [
-            circ.input(0).unwrap().to_value(&[false; 64]).unwrap(),
-            circ.input(1).unwrap().to_value(&[false; 64]).unwrap(),
+            circ.input(0).unwrap().to_value(0u64).unwrap(),
+            circ.input(1).unwrap().to_value(0u64).unwrap(),
         ];
 
         // Generator provides labels for both inputs, this is a no no
@@ -503,8 +502,8 @@ mod tests {
     fn test_sanitized_labels_wrong_count(circ: Circuit) {
         let (labels, _) = InputLabels::generate(&mut thread_rng(), &circ, None);
         let input_values = [
-            circ.input(0).unwrap().to_value(&[false; 64]).unwrap(),
-            circ.input(1).unwrap().to_value(&[false; 64]).unwrap(),
+            circ.input(0).unwrap().to_value(0u64).unwrap(),
+            circ.input(1).unwrap().to_value(0u64).unwrap(),
         ];
 
         // Generator provides no labels
@@ -530,8 +529,8 @@ mod tests {
     fn test_sanitized_labels_duplicate_wires(circ: Circuit) {
         let (labels, _) = InputLabels::generate(&mut thread_rng(), &circ, None);
         let input_values = [
-            circ.input(0).unwrap().to_value(&[false; 64]).unwrap(),
-            circ.input(1).unwrap().to_value(&[false; 64]).unwrap(),
+            circ.input(0).unwrap().to_value(0u64).unwrap(),
+            circ.input(1).unwrap().to_value(0u64).unwrap(),
         ];
 
         let mut input_labels = [
@@ -573,8 +572,8 @@ mod tests {
     fn test_sanitized_labels_invalid_wire_count(circ: Circuit) {
         let (labels, _) = InputLabels::generate(&mut thread_rng(), &circ, None);
         let input_values = [
-            circ.input(0).unwrap().to_value(&[false; 64]).unwrap(),
-            circ.input(1).unwrap().to_value(&[false; 64]).unwrap(),
+            circ.input(0).unwrap().to_value(0u64).unwrap(),
+            circ.input(1).unwrap().to_value(0u64).unwrap(),
         ];
 
         let mut input_labels = [

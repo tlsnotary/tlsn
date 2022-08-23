@@ -341,10 +341,8 @@ mod tests {
         let leader = DualExLeader::new(circ.clone());
         let follower = DualExFollower::new(circ.clone());
 
-        // Leader and Follower have u64 inputs of 1
-        let value = [vec![false; 63], vec![true; 1]].concat();
-        let leader_input = circ.input(0).unwrap().to_value(&value).unwrap();
-        let follower_input = circ.input(1).unwrap().to_value(&value).unwrap();
+        let leader_input = circ.input(0).unwrap().to_value(0u64).unwrap();
+        let follower_input = circ.input(1).unwrap().to_value(0u64).unwrap();
 
         let (leader_labels, leader_delta) = InputLabels::generate(&mut rng, &circ, None);
         let (follower_labels, follower_delta) = InputLabels::generate(&mut rng, &circ, None);

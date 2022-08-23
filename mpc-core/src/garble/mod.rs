@@ -20,7 +20,7 @@ mod tests {
     use rand_chacha::ChaCha12Rng;
     use std::sync::Arc;
 
-    use crate::{utils, Block};
+    use crate::Block;
     use mpc_circuits::{Circuit, AES_128_REVERSE};
 
     #[test]
@@ -122,9 +122,9 @@ mod tests {
         let (input_labels, delta) = InputLabels::generate(&mut rng, &circ, None);
 
         // Generator provides key
-        let gen_input = circ.input(0).unwrap().to_value(&[false; 128]).unwrap();
+        let gen_input = circ.input(0).unwrap().to_value(vec![0x32; 16]).unwrap();
         // Evaluator provides message
-        let ev_input = circ.input(1).unwrap().to_value(&[false; 128]).unwrap();
+        let ev_input = circ.input(1).unwrap().to_value(vec![0x11; 16]).unwrap();
 
         let gc = GarbledCircuit::generate(&cipher, circ.clone(), delta, &input_labels).unwrap();
 
@@ -138,9 +138,6 @@ mod tests {
 
         let expected = circ.evaluate(&[gen_input, ev_input]).unwrap();
 
-        assert_eq!(
-            utils::boolvec_to_string(output[0].as_ref()),
-            utils::boolvec_to_string(expected[0].as_ref())
-        );
+        assert_eq!(output[0], expected[0]);
     }
 }
