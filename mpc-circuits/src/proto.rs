@@ -26,11 +26,12 @@ impl TryFrom<Group> for crate::Group {
             match g.value_type {
                 0 => ValueType::Bool,
                 1 => ValueType::Bits,
-                2 => ValueType::U8,
-                3 => ValueType::U16,
-                4 => ValueType::U32,
-                5 => ValueType::U64,
-                6 => ValueType::U128,
+                2 => ValueType::Bytes,
+                3 => ValueType::U8,
+                4 => ValueType::U16,
+                5 => ValueType::U32,
+                6 => ValueType::U64,
+                7 => ValueType::U128,
                 _ => return Err(Error::MappingError),
             },
             &g.wires

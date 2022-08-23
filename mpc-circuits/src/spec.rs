@@ -17,6 +17,7 @@ impl GroupSpec {
         let value_type = match self.value_type.to_lowercase().as_str() {
             "bool" => ValueType::Bool,
             "bits" => ValueType::Bits,
+            "bytes" => ValueType::Bytes,
             "u8" => ValueType::U8,
             "u16" => ValueType::U16,
             "u32" => ValueType::U32,

@@ -4,6 +4,7 @@ use crate::error::ValueError as Error;
 pub enum Value {
     Bool(bool),
     Bits(Vec<bool>),
+    Bytes(Vec<u8>),
     U8(u8),
     U16(u16),
     U32(u32),
@@ -21,6 +22,15 @@ impl Value {
                     .expect("slice with length 1 has no element at index 0"),
             ),
             ValueType::Bits => Value::Bits(bits),
+            ValueType::Bytes if bits.len() % 8 == 0 => Value::Bytes(
+                bits.chunks_exact(8)
+                    .map(|b| {
+                        b.iter()
+                            .enumerate()
+                            .fold(0, |acc, (i, v)| acc | (*v as u8) << i)
+                    })
+                    .collect(),
+            ),
             ValueType::U8 if bits.len() == 8 => Value::U8(
                 bits.iter()
                     .enumerate()
@@ -56,6 +66,7 @@ impl Value {
         match self {
             Value::Bool(_) => ValueType::Bool,
             Value::Bits(_) => ValueType::Bits,
+            Value::Bytes(_) => ValueType::Bytes,
             Value::U8(_) => ValueType::U8,
             Value::U16(_) => ValueType::U16,
             Value::U32(_) => ValueType::U32,
@@ -69,6 +80,11 @@ impl Value {
         match self {
             Value::Bool(v) => vec![*v],
             Value::Bits(v) => v.clone(),
+            Value::Bytes(v) => v
+                .iter()
+                .map(|byte| (0..8).map(|i| (byte >> i & 1) == 1).collect::<Vec<bool>>())
+                .flatten()
+                .collect(),
             Value::U8(v) => (0..8).map(|i| (v >> i & 1) == 1).collect(),
             Value::U16(v) => (0..16).map(|i| (v >> i & 1) == 1).collect(),
             Value::U32(v) => (0..32).map(|i| (v >> i & 1) == 1).collect(),
@@ -82,6 +98,7 @@ impl Value {
 pub enum ValueType {
     Bool,
     Bits,
+    Bytes,
     U8,
     U16,
     U32,
