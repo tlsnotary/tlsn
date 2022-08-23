@@ -2,6 +2,7 @@ pub mod circuit;
 mod error;
 pub mod parse;
 pub mod proto;
+mod spec;
 mod value;
 
 pub use circuit::{Circuit, CircuitId, Gate, Group, Input, InputValue, Output, OutputValue};
@@ -9,9 +10,10 @@ pub use error::Error;
 pub use value::{Value, ValueType};
 
 #[cfg(feature = "aes_128_reverse")]
-pub static AES_128_REVERSE: &'static [u8] = std::include_bytes!("../circuits/aes_128_reverse.bin");
+pub static AES_128_REVERSE: &'static [u8] =
+    std::include_bytes!("../circuits/bin/aes_128_reverse.bin");
 #[cfg(feature = "adder64")]
-pub static ADDER_64: &'static [u8] = std::include_bytes!("../circuits/adder64.bin");
+pub static ADDER_64: &'static [u8] = std::include_bytes!("../circuits/bin/adder64.bin");
 
 #[cfg(test)]
 mod tests {

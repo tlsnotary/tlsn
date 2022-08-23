@@ -25,7 +25,7 @@ impl TryFrom<Group> for crate::Group {
             &g.desc,
             match g.value_type {
                 0 => ValueType::Bool,
-                1 => ValueType::BitString,
+                1 => ValueType::Bits,
                 2 => ValueType::U8,
                 3 => ValueType::U16,
                 4 => ValueType::U32,

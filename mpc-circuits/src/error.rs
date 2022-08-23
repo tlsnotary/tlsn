@@ -1,4 +1,8 @@
-use crate::{value::ValueType, Group};
+use crate::{
+    spec::{GateSpec, GroupSpec},
+    value::ValueType,
+    Group,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -23,10 +27,22 @@ pub enum Error {
     MappingError,
 }
 
-#[derive(Debug, Clone, thiserror::Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum ValueError {
     #[error("Invalid bit string provided for value type")]
     InvalidValue(ValueType, Vec<bool>),
     #[error("Invalid value type for group")]
     InvalidType(Group, ValueType),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum SpecError {
+    #[error("encountered error deserializing spec")]
+    ReadError(#[from] serde_yaml::Error),
+    #[error("invalid circuit spec")]
+    InvalidCircuit(#[from] Error),
+    #[error("invalid group spec")]
+    InvalidGroup(GroupSpec),
+    #[error("invalid gate spec")]
+    InvalidGate(GateSpec),
 }

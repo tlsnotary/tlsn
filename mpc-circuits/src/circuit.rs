@@ -9,20 +9,20 @@ use std::{collections::HashSet, convert::TryFrom};
 pub struct Group {
     name: String,
     desc: String,
-    typ: ValueType,
+    value_type: ValueType,
     /// Wire ids
     wires: Vec<usize>,
 }
 
 impl Group {
-    pub fn new(name: &str, desc: &str, typ: ValueType, wires: &[usize]) -> Self {
+    pub fn new(name: &str, desc: &str, value_type: ValueType, wires: &[usize]) -> Self {
         let mut wires = wires.to_vec();
         // Ensure wire ids are always sorted
         wires.sort();
         Self {
             name: name.to_string(),
             desc: desc.to_string(),
-            typ,
+            value_type,
             wires,
         }
     }
@@ -36,7 +36,7 @@ impl Group {
     }
 
     pub fn value_type(&self) -> ValueType {
-        self.typ
+        self.value_type
     }
 
     pub fn wires(&self) -> &[usize] {

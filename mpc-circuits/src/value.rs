@@ -3,7 +3,7 @@ use crate::error::ValueError as Error;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Bool(bool),
-    BitString(Vec<bool>),
+    Bits(Vec<bool>),
     U8(u8),
     U16(u16),
     U32(u32),
@@ -20,7 +20,7 @@ impl Value {
                     .get(0)
                     .expect("slice with length 1 has no element at index 0"),
             ),
-            ValueType::BitString => Value::BitString(bits),
+            ValueType::Bits => Value::Bits(bits),
             ValueType::U8 if bits.len() == 8 => Value::U8(
                 bits.iter()
                     .enumerate()
@@ -55,7 +55,7 @@ impl Value {
     pub fn value_type(&self) -> ValueType {
         match self {
             Value::Bool(_) => ValueType::Bool,
-            Value::BitString(_) => ValueType::BitString,
+            Value::Bits(_) => ValueType::Bits,
             Value::U8(_) => ValueType::U8,
             Value::U16(_) => ValueType::U16,
             Value::U32(_) => ValueType::U32,
@@ -68,7 +68,7 @@ impl Value {
     pub fn to_bits(&self) -> Vec<bool> {
         match self {
             Value::Bool(v) => vec![*v],
-            Value::BitString(v) => v.clone(),
+            Value::Bits(v) => v.clone(),
             Value::U8(v) => (0..8).map(|i| (v >> i & 1) == 1).collect(),
             Value::U16(v) => (0..16).map(|i| (v >> i & 1) == 1).collect(),
             Value::U32(v) => (0..32).map(|i| (v >> i & 1) == 1).collect(),
@@ -81,7 +81,7 @@ impl Value {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ValueType {
     Bool,
-    BitString,
+    Bits,
     U8,
     U16,
     U32,
@@ -97,7 +97,7 @@ impl From<bool> for Value {
 
 impl From<Vec<bool>> for Value {
     fn from(v: Vec<bool>) -> Self {
-        Value::BitString(v)
+        Value::Bits(v)
     }
 }
 
