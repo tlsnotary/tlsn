@@ -14,7 +14,7 @@ pub struct Group {
     desc: String,
     value_type: ValueType,
     /// Wire ids
-    wires: Vec<usize>,
+    pub(crate) wires: Vec<usize>,
 }
 
 impl Group {
@@ -62,7 +62,7 @@ impl PartialEq for Group {
 pub struct Input {
     /// Input id of circuit
     pub id: usize,
-    group: Group,
+    pub(crate) group: Group,
 }
 
 impl Input {
@@ -98,7 +98,7 @@ impl AsRef<Group> for Input {
 pub struct Output {
     /// Output id of circuit
     pub id: usize,
-    group: Group,
+    pub(crate) group: Group,
 }
 
 impl Output {
@@ -238,6 +238,13 @@ impl OutputValue {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum GateType {
+    Xor,
+    And,
+    Inv,
+}
+
 /// Logic gates of a circuit.
 ///
 /// `id` represents the gate id.
@@ -316,6 +323,15 @@ impl Gate {
     /// Returns whether gate is INV
     pub fn is_inv(&self) -> bool {
         matches!(self, Gate::Inv { .. })
+    }
+
+    /// Returns gate type
+    pub fn gate_type(&self) -> GateType {
+        match self {
+            Gate::Xor { .. } => GateType::Xor,
+            Gate::And { .. } => GateType::And,
+            Gate::Inv { .. } => GateType::Inv,
+        }
     }
 
     fn validate(&self) -> Result<(), Error> {

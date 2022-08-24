@@ -1,3 +1,4 @@
+pub mod builder;
 pub mod circuit;
 mod error;
 pub mod parse;
