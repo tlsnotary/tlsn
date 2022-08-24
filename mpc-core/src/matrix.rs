@@ -19,7 +19,7 @@ impl ByteMatrix {
     /// Use columns to indicate the row length of the matrix
     pub fn new(bytes: Vec<u8>, columns: usize) -> Result<Self, Error> {
         let length = bytes.len();
-        if length % columns != 0 {
+        if bytes.is_empty() || length % columns != 0 {
             return Err(Error::Initialize);
         }
 
@@ -78,10 +78,10 @@ impl ByteMatrix {
         let split_vec = self.inner.drain(split_off..).collect();
         let split_matrix = Self {
             inner: split_vec,
-            rows: self.rows() - split_off,
+            rows: self.rows() - n,
             columns: self.columns(),
         };
-        self.rows = split_off;
+        self.rows = n;
         Ok(split_matrix)
     }
 
@@ -97,10 +97,10 @@ impl ByteMatrix {
         let split_vec = self.inner.drain(..split_off).collect();
         let split_matrix = Self {
             inner: split_vec,
-            rows: split_off,
+            rows: n,
             columns: self.columns(),
         };
-        self.rows = self.rows() - split_off;
+        self.rows = self.rows() - n;
         Ok(split_matrix)
     }
 
@@ -144,4 +144,83 @@ pub enum Error {
     Transpose(#[source] matrix_transpose::TransposeError),
     #[error("Invalid number of rows")]
     InvalidNumberOfRows,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn gen_vec(n: u8) -> Vec<u8> {
+        (0..n).collect()
+    }
+
+    #[test]
+    fn test_byte_matrix_new() {
+        let inner = gen_vec(12);
+        let _matrix = ByteMatrix::new(inner, 3).unwrap();
+        assert!(true);
+    }
+
+    #[test]
+    fn test_byte_matrix_new_panic() {
+        let inner = gen_vec(12);
+        let matrix_empty = ByteMatrix::new(vec![], 7).unwrap_err();
+        let matrix_remainder = ByteMatrix::new(inner, 7).unwrap_err();
+        assert_eq!(matrix_empty, Error::Initialize);
+        assert_eq!(matrix_remainder, Error::Initialize);
+    }
+
+    #[test]
+    fn test_byte_matrix_getters() {
+        let inner = gen_vec(12);
+        let matrix = ByteMatrix::new(inner, 3).unwrap();
+        assert_eq!(matrix.columns(), 3);
+        assert_eq!(matrix.rows(), 4);
+        assert_eq!(matrix.len(), 12);
+    }
+
+    #[test]
+    fn test_byte_matrix_transpose() {
+        let inner = gen_vec(128);
+        let mut matrix = ByteMatrix::new(inner, 8).unwrap();
+        matrix.transpose_bits().unwrap();
+        assert_eq!(matrix.columns(), 2);
+        assert_eq!(matrix.rows(), 64);
+    }
+
+    #[test]
+    fn test_byte_matrix_split() {
+        let inner = gen_vec(12);
+        let mut matrix = ByteMatrix::new(inner, 4).unwrap();
+        let split_matrix = matrix.split_off_rows(1).unwrap();
+        assert_eq!(matrix.len(), 4);
+        assert_eq!(split_matrix.len(), 8);
+
+        assert_eq!(matrix.rows(), 1);
+        assert_eq!(split_matrix.rows(), 2);
+
+        assert_eq!(matrix.columns(), 4);
+        assert_eq!(split_matrix.columns(), 4);
+
+        assert_eq!(matrix.inner(), &(0..4).collect::<Vec<u8>>());
+        assert_eq!(split_matrix.inner(), &(4..12).collect::<Vec<u8>>());
+    }
+
+    #[test]
+    fn test_byte_matrix_split_reverse() {
+        let inner = gen_vec(12);
+        let mut matrix = ByteMatrix::new(inner, 4).unwrap();
+        let split_matrix = matrix.split_off_rows_reverse(1).unwrap();
+        assert_eq!(matrix.len(), 8);
+        assert_eq!(split_matrix.len(), 4);
+
+        assert_eq!(matrix.rows(), 2);
+        assert_eq!(split_matrix.rows(), 1);
+
+        assert_eq!(matrix.columns(), 4);
+        assert_eq!(split_matrix.columns(), 4);
+
+        assert_eq!(matrix.inner(), &(4..12).collect::<Vec<u8>>());
+        assert_eq!(split_matrix.inner(), &(0..4).collect::<Vec<u8>>());
+    }
 }
