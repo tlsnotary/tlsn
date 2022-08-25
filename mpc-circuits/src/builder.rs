@@ -158,6 +158,26 @@ pub struct GateHandle {
 }
 
 impl GateHandle {
+    /// Returns handle to x
+    pub fn x(&self) -> WireHandle<Sink> {
+        self.x
+    }
+
+    /// Returns handle to y
+    pub fn y(&self) -> Option<WireHandle<Sink>> {
+        self.y
+    }
+
+    /// Returns handle to z
+    pub fn z(&self) -> WireHandle<Feed> {
+        self.z
+    }
+
+    /// Returns gate type
+    pub fn gate_type(&self) -> GateType {
+        self.gate_type
+    }
+
     fn from_gate(gate: &Gate) -> Self {
         Self {
             x: WireHandle::sink(gate.xref()),
