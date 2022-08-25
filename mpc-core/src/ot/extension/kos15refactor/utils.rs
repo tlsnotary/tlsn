@@ -191,6 +191,17 @@ pub fn decrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     values
 }
 
+/// This function calculates the necessary padding for the boolean choices of the receiver, so that
+/// the resulting byte matrix will be easy to transpose. It also adds minimum 256 extra choices for the
+/// KOS15 check.
+pub fn calc_padding(n: usize) -> usize {
+    if n > 256 {
+        2 * n.next_power_of_two() - n
+    } else {
+        512 - n
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -20,7 +20,7 @@ pub use state::{BaseReceive, BaseSetup, Initialized, Setup};
 
 use super::{
     matrix::{Error as MatrixError, KosMatrix},
-    utils::{encrypt_values, kos15_check_sender, seed_rngs},
+    utils::{calc_padding, encrypt_values, kos15_check_sender, seed_rngs},
     BASE_COUNT,
 };
 
@@ -111,14 +111,7 @@ impl Kos15Sender<BaseReceive> {
             return Err(ExtSenderCoreError::InvalidInputLength);
         }
 
-        // Receiver choices were extended with extra padding bytes.
-        //
-        // - 256 for KOS check
-        // - 256 - (...) is the padding calculated from the non-transposed matrix of the receiver
-        //   setup
-        let rem = ncols_unpadded % 256;
-        let pad1 = if rem == 0 { 0 } else { 256 - rem };
-        let expected_padding = 256 + pad1;
+        let expected_padding = calc_padding(ncols_unpadded);
         let ncols = setup_msg.table.len() / BASE_COUNT * 8;
 
         if ncols != ncols_unpadded + expected_padding {

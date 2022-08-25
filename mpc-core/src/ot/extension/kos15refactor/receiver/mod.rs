@@ -2,7 +2,7 @@ pub mod error;
 mod state;
 
 use super::matrix::{Error as MatrixError, KosMatrix};
-use super::utils::{decrypt_values, kos15_check_receiver, seed_rngs_from_nested};
+use super::utils::{calc_padding, decrypt_values, kos15_check_receiver, seed_rngs_from_nested};
 use super::BASE_COUNT;
 use crate::msgs::ot::{
     BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper, ExtDerandomize,
@@ -103,15 +103,16 @@ impl Kos15Receiver<BaseSend> {
         // = 256 choices minimum, thus k should be at least 8. However, making k > 8 will not bring
         // performance gains.
         //
-        // We also add 256 extra bits which will be sacrificed for the KOS15 check as part of the
+        // We also add minimum 256 extra bits which will be sacrificed for the KOS15 check as part of the
         // KOS15 protocol.
         //
-        // These 256 extra bits are 32 extra bytes in u8 encoding, so it will increase the KOS extension
-        // matrix by 32 columns. After transposition these additional columns turn into additional rows,
-        // namely 32 * 8, where the factor 8 comes from the fact that it is a bit-level transpose.
-        // This is why, in the end we will have to drain 256 rows in total.
-        let remainder = choices.len() % 256;
-        let padding = if remainder == 0 { 256 } else { 512 - remainder };
+        // How does the padding affect the drainage of rows after the transpose?
+        // For simplicity, lets suppose we padded the choices to 256 bits. These are 32 extra
+        // bytes in u8 encoding, so it will increase the KOS extension matrix by 32 columns. After
+        // transposition these additional columns turn into additional rows, namely 32 * 8, where
+        // the factor 8 comes from the fact that it is a bit-level transpose. This is why, in the
+        // end we will have to drain 256 rows in total.
+        let padding = calc_padding(choices.len());
 
         // Divide padding by 8 because this is a byte vector and add 1 byte safety margin, when
         // choice.len() is not a multiple of 8
