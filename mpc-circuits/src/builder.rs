@@ -273,7 +273,7 @@ impl CircuitBuilder<Inputs> {
     }
 
     /// Sets inputs and moves to next state where gates and subcircuits are added
-    pub fn build(self) -> CircuitBuilder<Gates> {
+    pub fn build_inputs(self) -> CircuitBuilder<Gates> {
         CircuitBuilder(Gates {
             name: self.0.name,
             version: self.0.version,
@@ -367,8 +367,15 @@ impl CircuitBuilder<Gates> {
         }
     }
 
+    // Fan out feed to multiple sinks
+    pub fn connect_fan_out(&mut self, feed: WireHandle<Feed>, sinks: &[WireHandle<Sink>]) {
+        for sink in sinks {
+            self.0.conns.insert(sink.id, feed.id);
+        }
+    }
+
     // Sets gates and moves to next state where outputs can be added
-    pub fn build(self) -> CircuitBuilder<Outputs> {
+    pub fn build_gates(self) -> CircuitBuilder<Outputs> {
         CircuitBuilder(Outputs {
             name: self.0.name,
             version: self.0.version,
@@ -411,8 +418,15 @@ impl CircuitBuilder<Outputs> {
         }
     }
 
+    // Fan out feed to multiple sinks
+    pub fn connect_fan_out(&mut self, feed: WireHandle<Feed>, sinks: &[WireHandle<Sink>]) {
+        for sink in sinks {
+            self.0.conns.insert(sink.id, feed.id);
+        }
+    }
+
     // Fully builds circuit
-    pub fn build(mut self) -> Result<Circuit, BuilderError> {
+    pub fn build_circuit(mut self) -> Result<Circuit, BuilderError> {
         // Connect all gate wires and create id set
         let mut id_set: BTreeSet<usize> = BTreeSet::new();
         self.0.gates.iter_mut().for_each(|gate| {
@@ -516,7 +530,7 @@ mod tests {
         let in_1 = builder.add_input("in_1", "", ValueType::U64, 64);
         let in_2 = builder.add_input("in_2", "", ValueType::U64, 64);
 
-        let mut builder = builder.build();
+        let mut builder = builder.build_inputs();
 
         let circ_1 = builder.add_circ(adder_64.clone());
         let circ_2 = builder.add_circ(adder_64.clone());
@@ -534,13 +548,13 @@ mod tests {
         builder.connect(&c[..], &x[..]);
         builder.connect(&in_1[..], &y[..]);
 
-        let mut builder = builder.build();
+        let mut builder = builder.build_gates();
 
         let out = builder.add_output("out", "", ValueType::U64, 64);
 
         builder.connect(&z[..], &out[..]);
 
-        let circ = builder.build().unwrap();
+        let circ = builder.build_circuit().unwrap();
 
         let a = circ.input(0).unwrap();
         let b = circ.input(1).unwrap();
@@ -561,7 +575,7 @@ mod tests {
         let in_1 = builder.add_input("0", "", ValueType::U8, 8);
         let in_2 = builder.add_input("1", "", ValueType::U8, 8);
 
-        let mut builder = builder.build();
+        let mut builder = builder.build_inputs();
 
         let gates: Vec<GateHandle> = (0..8).map(|_| builder.add_gate(GateType::Xor)).collect();
 
@@ -570,7 +584,7 @@ mod tests {
             builder.connect(&[in_2[i]], &[gate.y.unwrap()]);
         });
 
-        let mut builder = builder.build();
+        let mut builder = builder.build_gates();
 
         let out = builder.add_output("0", "", ValueType::U8, 8);
 
@@ -578,7 +592,7 @@ mod tests {
             builder.connect(&[gate.z], &[out[i]]);
         });
 
-        let circ = builder.build().unwrap();
+        let circ = builder.build_circuit().unwrap();
 
         let a = circ.input(0).unwrap();
         let b = circ.input(1).unwrap();
