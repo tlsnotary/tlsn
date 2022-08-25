@@ -16,7 +16,8 @@ use error::ExtSenderCoreError;
 use rand::Rng;
 use rand_chacha::ChaCha12Rng;
 use rand_core::{RngCore, SeedableRng};
-use state::{BaseReceive, BaseSetup, Initialized, SenderState, Setup};
+use state::SenderState;
+pub use state::{BaseReceive, BaseSetup, Initialized, Setup};
 
 use super::{
     utils::{encrypt_values, kos15_check_sender, seed_rngs},

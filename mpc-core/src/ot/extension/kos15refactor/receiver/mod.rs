@@ -16,7 +16,8 @@ use error::ExtReceiverCoreError;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 use rand_core::RngCore;
-use state::{BaseSend, BaseSetup, Initialized, RecevierState, Setup};
+use state::RecevierState;
+pub use state::{BaseSend, BaseSetup, Initialized, Setup};
 
 pub struct Kos15Receiver<S = Initialized>(S)
 where

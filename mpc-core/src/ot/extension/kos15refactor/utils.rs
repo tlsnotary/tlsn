@@ -188,3 +188,51 @@ pub fn decrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     }
     values
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_kos15_utils_seed_rngs_nested() {
+        let blocks = vec![
+            [Block::from(0), Block::from(1)],
+            [Block::from(2), Block::from(3)],
+            [Block::from(4), Block::from(5)],
+        ];
+        let rngs = seed_rngs_from_nested(&blocks);
+        for (k, [rng1, rng2]) in rngs.iter().enumerate() {
+            let seed1 = (2 * k as u128).to_be_bytes();
+            let seed2 = (2 * k as u128 + 1).to_be_bytes();
+            let expected1: [u8; 32] = [seed1, seed1].concat().try_into().unwrap();
+            let expected2: [u8; 32] = [seed2, seed2].concat().try_into().unwrap();
+            assert_eq!(rng1.get_seed(), expected1);
+            assert_eq!(rng2.get_seed(), expected2);
+        }
+    }
+
+    #[test]
+    fn test_kos15_utils_seed_rngs() {
+        let blocks = vec![Block::from(0), Block::from(1), Block::from(2)];
+        let rngs = seed_rngs(&blocks);
+        for (k, rng) in rngs.iter().enumerate() {
+            let seed = (k as u128).to_be_bytes();
+            let expected: [u8; 32] = [seed, seed].concat().try_into().unwrap();
+            assert_eq!(rng.get_seed(), expected);
+        }
+    }
+
+    #[test]
+    fn test_kos15_utils_check_receiver() {
+        let choices = [true];
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
+        let inner = vec![0_u8; 16];
+        let matrix = ByteMatrix::new(inner, 16).unwrap();
+
+        // We now perform the kos15_receiver check
+        // Invoking the rng with the provided seed, to generate a [u8; 32] will output this:
+        // [155, 7, 129, 95, 4, 73, 126, 46, 5, 210, 44, 172, 58, 160, 97, 65, 11, 32, 134, 140,
+        // 198, 25, 21, 76, 66, 161, 198, 27, 233, 144, 39, 23]
+        kos15_check_receiver(&mut rng, &matrix, &choices);
+    }
+}

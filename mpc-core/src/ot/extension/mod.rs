@@ -1,10 +1,17 @@
 //! This crate implements the KOS15 Oblivious Transfer extension protocol.
 
 pub mod errors;
-pub mod kos15;
 pub mod kos15refactor;
 
-pub use kos15::{Kos15Receiver, Kos15Sender};
+pub use kos15refactor::receiver::{
+    BaseSend as RBaseSend, BaseSetup as RBaseSetup, Initialized as RInitialized, Kos15Receiver,
+    Setup as RSetup,
+};
+
+pub use kos15refactor::sender::{
+    BaseReceive as SBaseReceive, BaseSetup as SBaseSetup, Initialized as SInitialized, Kos15Sender,
+    Setup as SSetup,
+};
 
 pub use crate::Block;
 pub use clmul::Clmul;
@@ -12,17 +19,9 @@ pub use errors::*;
 
 pub const BASE_COUNT: usize = 128;
 
-// will be used when implementing KOS15 check
-#[allow(dead_code)]
-const K: usize = 40;
-
 #[cfg(test)]
 pub mod tests {
-    use super::{
-        errors::{ExtReceiverCoreError, ExtSenderCoreError},
-        kos15::{Kos15Receiver, Kos15Sender},
-        BASE_COUNT,
-    };
+    use super::*;
     use crate::{msgs::ot as msgs, utils::u8vec_to_boolvec, Block};
     use pretty_assertions::assert_eq;
     use rand::{thread_rng, Rng, RngCore, SeedableRng};
@@ -30,8 +29,8 @@ pub mod tests {
     use rstest::*;
 
     pub mod fixtures {
+        use super::*;
         use crate::msgs::ot as msgs;
-        use rstest::*;
 
         pub struct Data {
             pub base_sender_setup: msgs::BaseSenderSetupWrapper,
@@ -42,13 +41,12 @@ pub mod tests {
         #[fixture]
         #[once]
         pub fn ot_ext_core_data() -> Data {
-            use crate::ot::extension::kos15::{Kos15Receiver, Kos15Sender};
-
             let mut sender = Kos15Sender::default();
             let mut receiver = Kos15Receiver::default();
-            let base_sender_setup = receiver.base_setup().unwrap();
-            let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
-            let base_sender_payload = receiver.base_send(base_receiver_setup.clone()).unwrap();
+            let (receiver, base_sender_setup) = receiver.base_setup().unwrap();
+            let (sender, base_receiver_setup) = sender.base_setup(base_sender_setup).unwrap();
+            let (receiver, base_sender_payload) =
+                receiver.base_send(base_receiver_setup.clone()).unwrap();
 
             Data {
                 base_sender_setup,
@@ -72,11 +70,11 @@ pub mod tests {
     fn pair_base_setup(
         mut sender: Kos15Sender,
         mut receiver: Kos15Receiver,
-    ) -> (Kos15Sender, Kos15Receiver) {
-        let base_sender_setup = receiver.base_setup().unwrap();
-        let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
-        let send_seeds = receiver.base_send(base_receiver_setup).unwrap();
-        sender.base_receive(send_seeds).unwrap();
+    ) -> (Kos15Sender<SBaseReceive>, Kos15Receiver<RBaseSend>) {
+        let (receiver, base_sender_setup) = receiver.base_setup().unwrap();
+        let (sender, base_receiver_setup) = sender.base_setup(base_sender_setup).unwrap();
+        let (receiver, send_seeds) = receiver.base_send(base_receiver_setup).unwrap();
+        let sender = sender.base_receive(send_seeds).unwrap();
         (sender, receiver)
     }
 
