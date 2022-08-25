@@ -1,4 +1,6 @@
-use crate::{matrix::ByteMatrix, ot::kos15refactor::BASE_COUNT, utils, Block};
+use super::matrix::KosMatrix;
+use super::BASE_COUNT;
+use crate::{utils, Block};
 use aes::{BlockCipher, BlockEncrypt};
 use cipher::consts::U16;
 use clmul::Clmul;
@@ -49,7 +51,7 @@ pub fn seed_rngs(seeds: &[Block]) -> Vec<ChaCha12Rng> {
 /// Performs the KOS15 check explained in the paper for the receiver
 pub fn kos15_check_receiver(
     rng: &mut ChaCha12Rng,
-    matrix: &ByteMatrix,
+    matrix: &KosMatrix,
     choices: &[bool],
 ) -> [Clmul; 3] {
     // Check correlation
@@ -84,7 +86,7 @@ pub fn kos15_check_receiver(
 /// Performs the KOS15 check for the sender
 pub fn kos15_check_sender(
     rng: &mut ChaCha12Rng,
-    matrix: &ByteMatrix,
+    matrix: &KosMatrix,
     ncols: usize,
     x: &[u8; 16],
     t0: &[u8; 16],
@@ -227,7 +229,7 @@ mod tests {
         let choices = [true];
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
         let inner = vec![0_u8; 16];
-        let matrix = ByteMatrix::new(inner, 16).unwrap();
+        let matrix = KosMatrix::new(inner, 16).unwrap();
 
         // We now perform the kos15_receiver check
         // Invoking the rng with the provided seed, to generate a [u8; 32] will output this:

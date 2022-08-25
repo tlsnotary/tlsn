@@ -1,3 +1,4 @@
+use super::BASE_COUNT;
 use std::slice::{Chunks, ChunksMut};
 
 use matrix_transpose::transpose_bits;
@@ -7,13 +8,13 @@ use thiserror::Error;
 ///
 /// This provides some comfort when dealing with matrices in the KOS15 protocol
 #[derive(Debug, Clone)]
-pub struct ByteMatrix {
+pub struct KosMatrix {
     inner: Vec<u8>,
     rows: usize,
     columns: usize,
 }
 
-impl ByteMatrix {
+impl KosMatrix {
     /// Create a new matrix from a vector of bytes
     ///
     /// Use columns to indicate the row length of the matrix
@@ -116,7 +117,7 @@ impl ByteMatrix {
     }
 }
 
-impl<T> std::ops::Index<T> for ByteMatrix
+impl<T> std::ops::Index<T> for KosMatrix
 where
     T: std::slice::SliceIndex<[u8]>,
 {
@@ -127,7 +128,7 @@ where
     }
 }
 
-impl<T> std::ops::IndexMut<T> for ByteMatrix
+impl<T> std::ops::IndexMut<T> for KosMatrix
 where
     T: std::slice::SliceIndex<[u8]>,
 {
@@ -157,15 +158,15 @@ mod tests {
     #[test]
     fn test_byte_matrix_new() {
         let inner = gen_vec(12);
-        let _matrix = ByteMatrix::new(inner, 3).unwrap();
+        let _matrix = KosMatrix::new(inner, 3).unwrap();
         assert!(true);
     }
 
     #[test]
     fn test_byte_matrix_new_panic() {
         let inner = gen_vec(12);
-        let matrix_empty = ByteMatrix::new(vec![], 7).unwrap_err();
-        let matrix_remainder = ByteMatrix::new(inner, 7).unwrap_err();
+        let matrix_empty = KosMatrix::new(vec![], 7).unwrap_err();
+        let matrix_remainder = KosMatrix::new(inner, 7).unwrap_err();
         assert_eq!(matrix_empty, Error::Initialize);
         assert_eq!(matrix_remainder, Error::Initialize);
     }
@@ -173,7 +174,7 @@ mod tests {
     #[test]
     fn test_byte_matrix_getters() {
         let inner = gen_vec(12);
-        let matrix = ByteMatrix::new(inner, 3).unwrap();
+        let matrix = KosMatrix::new(inner, 3).unwrap();
         assert_eq!(matrix.columns(), 3);
         assert_eq!(matrix.rows(), 4);
         assert_eq!(matrix.len(), 12);
@@ -182,7 +183,7 @@ mod tests {
     #[test]
     fn test_byte_matrix_transpose() {
         let inner = gen_vec(128);
-        let mut matrix = ByteMatrix::new(inner, 8).unwrap();
+        let mut matrix = KosMatrix::new(inner, 8).unwrap();
         matrix.transpose_bits().unwrap();
         assert_eq!(matrix.columns(), 2);
         assert_eq!(matrix.rows(), 64);
@@ -191,7 +192,7 @@ mod tests {
     #[test]
     fn test_byte_matrix_split() {
         let inner = gen_vec(12);
-        let mut matrix = ByteMatrix::new(inner, 4).unwrap();
+        let mut matrix = KosMatrix::new(inner, 4).unwrap();
         let split_matrix = matrix.split_off_rows(1).unwrap();
         assert_eq!(matrix.len(), 4);
         assert_eq!(split_matrix.len(), 8);
@@ -209,7 +210,7 @@ mod tests {
     #[test]
     fn test_byte_matrix_split_reverse() {
         let inner = gen_vec(12);
-        let mut matrix = ByteMatrix::new(inner, 4).unwrap();
+        let mut matrix = KosMatrix::new(inner, 4).unwrap();
         let split_matrix = matrix.split_off_rows_reverse(1).unwrap();
         assert_eq!(matrix.len(), 8);
         assert_eq!(split_matrix.len(), 4);

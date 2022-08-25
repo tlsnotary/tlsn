@@ -1,9 +1,9 @@
 mod error;
 mod state;
 
+use super::matrix::{Error as MatrixError, KosMatrix};
 use super::utils::{decrypt_values, kos15_check_receiver, seed_rngs_from_nested};
 use super::BASE_COUNT;
-use crate::matrix::ByteMatrix;
 use crate::msgs::ot::{
     BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper, ExtDerandomize,
     ExtReceiverSetup, ExtSenderPayload,
@@ -126,8 +126,8 @@ impl Kos15Receiver<BaseSend> {
 
         let row_length = ncols / 8;
         let num_elements = BASE_COUNT * row_length;
-        let mut ts: ByteMatrix = ByteMatrix::new(vec![0_u8; num_elements], row_length)?;
-        let mut gs: ByteMatrix = ByteMatrix::new(vec![0_u8; num_elements], row_length)?;
+        let mut ts: KosMatrix = KosMatrix::new(vec![0_u8; num_elements], row_length)?;
+        let mut gs: KosMatrix = KosMatrix::new(vec![0_u8; num_elements], row_length)?;
 
         // Note that for each row j of the matrix gs which will be sent to Sender,
         // Sender knows either rng[0] or rng[1] depending on his choice bit during
@@ -218,7 +218,7 @@ impl Kos15Receiver<Setup> {
 }
 
 fn receive_from(
-    table: &mut ByteMatrix,
+    table: &mut KosMatrix,
     choices: &mut Vec<bool>,
     payload: ExtSenderPayload,
 ) -> Result<Vec<Block>, ExtReceiverCoreError> {
@@ -228,7 +228,7 @@ fn receive_from(
 
     let consumed_choices: Vec<bool> = choices.drain(..payload.ciphertexts.len()).collect();
 
-    let consumed_table: ByteMatrix = table.split_off_rows_reverse(consumed_choices.len())?;
+    let consumed_table: KosMatrix = table.split_off_rows_reverse(consumed_choices.len())?;
 
     let values = decrypt_values::<Aes128>(
         &Aes128::new_from_slice(&[0u8; 16]).unwrap(),

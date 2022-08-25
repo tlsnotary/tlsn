@@ -1,4 +1,4 @@
-use crate::matrix::Error as MatrixError;
+use super::MatrixError;
 
 /// Errors that may occur when using OTSender
 #[derive(Debug, thiserror::Error, PartialEq)]

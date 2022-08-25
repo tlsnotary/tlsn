@@ -1,5 +1,5 @@
-use crate::matrix::ByteMatrix;
-use crate::ot::DhOtReceiver as BaseReceiver;
+use super::BaseReceiver;
+use super::KosMatrix;
 use crate::Block;
 use rand_chacha::ChaCha12Rng;
 
@@ -30,7 +30,7 @@ pub struct BaseReceive {
 impl SenderState for BaseReceive {}
 
 pub struct Setup {
-    pub table: ByteMatrix,
+    pub table: KosMatrix,
     pub count: usize,
     pub sent: usize,
     pub base_choices: Vec<bool>,

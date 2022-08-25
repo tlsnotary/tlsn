@@ -2,7 +2,6 @@ mod error;
 mod state;
 
 use crate::{
-    matrix::ByteMatrix,
     msgs::ot::{
         BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper, ExtDerandomize,
         ExtReceiverSetup, ExtSenderPayload,
@@ -20,6 +19,7 @@ use state::SenderState;
 pub use state::{BaseReceive, BaseSetup, Initialized, Setup};
 
 use super::{
+    matrix::{Error as MatrixError, KosMatrix},
     utils::{encrypt_values, kos15_check_sender, seed_rngs},
     BASE_COUNT,
 };
@@ -127,8 +127,8 @@ impl Kos15Sender<BaseReceive> {
         let row_length = ncols / 8;
         let num_elements = BASE_COUNT * row_length;
 
-        let us = ByteMatrix::new(setup_msg.table, row_length)?;
-        let mut qs = ByteMatrix::new(vec![0u8; num_elements * row_length], row_length)?;
+        let us = KosMatrix::new(setup_msg.table, row_length)?;
+        let mut qs = KosMatrix::new(vec![0u8; num_elements * row_length], row_length)?;
 
         for (j, (row_qs, row_us)) in qs.iter_rows_mut().zip(us.iter_rows()).enumerate() {
             self.0.rngs[j].fill_bytes(row_qs);
@@ -193,7 +193,7 @@ impl Kos15Sender<Setup> {
             return Err(ExtSenderCoreError::InvalidInputLength);
         }
 
-        let consumed_table: ByteMatrix = self.0.table.split_off_rows_reverse(inputs.len())?;
+        let consumed_table: KosMatrix = self.0.table.split_off_rows_reverse(inputs.len())?;
 
         // Check that all the input lengths are equal
         if inputs.len() != consumed_table.rows() {

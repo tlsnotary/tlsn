@@ -1,5 +1,6 @@
 use super::BaseSender;
-use crate::{matrix::ByteMatrix, Block};
+use super::KosMatrix;
+use crate::Block;
 use rand_chacha::ChaCha12Rng;
 
 pub trait RecevierState {}
@@ -28,7 +29,7 @@ pub struct BaseSend {
 impl RecevierState for BaseSend {}
 
 pub struct Setup {
-    pub table: ByteMatrix,
+    pub table: KosMatrix,
     pub choices: Vec<bool>,
     pub derandomized: Vec<bool>,
 }
