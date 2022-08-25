@@ -487,7 +487,8 @@ impl CircuitBuilder<Outputs> {
                     .map(|id| {
                         let mut feed =
                             self.0.conns.get(id).ok_or(BuilderError::MissingConnection(
-                                format!("Output {} was not fully mapped to gates", output.id),
+                                format!("Output {} was not fully mapped to gates", output.id)
+                                    .to_string(),
                             ))?;
                         if let Some(new_id) = id_map.get(feed) {
                             feed = new_id;
