@@ -340,15 +340,11 @@ impl CircuitBuilder<Gates> {
         handle
     }
 
-    pub fn connect(
-        &mut self,
-        feeds: &[WireHandle<Feed>],
-        sinks: &[WireHandle<Sink>],
-    ) -> Result<(), BuilderError> {
+    // Connect wires together
+    pub fn connect(&mut self, feeds: &[WireHandle<Feed>], sinks: &[WireHandle<Sink>]) {
         for (feed, sink) in feeds.iter().zip(sinks) {
             self.0.conns.insert(sink.id, feed.id);
         }
-        Ok(())
     }
 
     // Sets gates and moves to next state where outputs can be added
@@ -388,15 +384,11 @@ impl CircuitBuilder<Outputs> {
         output
     }
 
-    pub fn connect(
-        &mut self,
-        feeds: &[WireHandle<Feed>],
-        sinks: &[WireHandle<Sink>],
-    ) -> Result<(), BuilderError> {
+    // Connect wires together
+    pub fn connect(&mut self, feeds: &[WireHandle<Feed>], sinks: &[WireHandle<Sink>]) {
         for (feed, sink) in feeds.iter().zip(sinks) {
             self.0.conns.insert(sink.id, feed.id);
         }
-        Ok(())
     }
 
     // Fully builds circuit
@@ -517,16 +509,16 @@ mod tests {
         let y = circ_2.input(1).unwrap();
         let z = circ_2.output(0).unwrap();
 
-        builder.connect(&in_1[..], &a[..]).unwrap();
-        builder.connect(&in_2[..], &b[..]).unwrap();
-        builder.connect(&c[..], &x[..]).unwrap();
-        builder.connect(&in_1[..], &y[..]).unwrap();
+        builder.connect(&in_1[..], &a[..]);
+        builder.connect(&in_2[..], &b[..]);
+        builder.connect(&c[..], &x[..]);
+        builder.connect(&in_1[..], &y[..]);
 
         let mut builder = builder.build();
 
         let out = builder.add_output("out", "", ValueType::U64, 64);
 
-        builder.connect(&z[..], &out[..]).unwrap();
+        builder.connect(&z[..], &out[..]);
 
         let circ = builder.build().unwrap();
 
@@ -553,31 +545,18 @@ mod tests {
 
         let gates: Vec<GateHandle> = (0..8).map(|_| builder.add_gate(GateType::Xor)).collect();
 
-        gates
-            .iter()
-            .cloned()
-            .enumerate()
-            .map(|(i, gate)| {
-                builder.connect(&[in_1[i]], &[gate.x])?;
-                builder.connect(&[in_2[i]], &[gate.y.unwrap()])?;
-                Ok(())
-            })
-            .collect::<Result<(), BuilderError>>()
-            .unwrap();
+        gates.iter().cloned().enumerate().for_each(|(i, gate)| {
+            builder.connect(&[in_1[i]], &[gate.x]);
+            builder.connect(&[in_2[i]], &[gate.y.unwrap()]);
+        });
 
         let mut builder = builder.build();
 
         let out = builder.add_output("0", "", ValueType::U8, 8);
 
-        gates
-            .iter()
-            .enumerate()
-            .map(|(i, gate)| {
-                builder.connect(&[gate.z], &[out[i]])?;
-                Ok(())
-            })
-            .collect::<Result<(), BuilderError>>()
-            .unwrap();
+        gates.iter().enumerate().for_each(|(i, gate)| {
+            builder.connect(&[gate.z], &[out[i]]);
+        });
 
         let circ = builder.build().unwrap();
 
