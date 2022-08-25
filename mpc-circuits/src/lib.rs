@@ -1,4 +1,4 @@
-pub mod builder;
+mod builder;
 pub mod circuit;
 mod error;
 pub mod parse;
@@ -7,6 +7,7 @@ mod spec;
 pub mod utils;
 mod value;
 
+pub use builder::CircuitBuilder;
 pub use circuit::{Circuit, CircuitId, Gate, Group, Input, InputValue, Output, OutputValue};
 pub use error::Error;
 pub use spec::CircuitSpec;
