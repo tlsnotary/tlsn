@@ -10,6 +10,8 @@ use crate::{circuit::GateType, Circuit, Gate, Group, Input, Output, ValueType};
 pub enum BuilderError {
     #[error("Circuit input or output was not fully mapped to gates")]
     MissingConnection(String),
+    #[error("Circuit error")]
+    CircuitError(#[from] crate::Error),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -190,11 +192,15 @@ impl GateHandle {
 
 pub trait BuilderState {}
 pub struct Inputs {
+    name: String,
+    version: String,
     input_wire_id: usize,
     inputs: Vec<InputHandle>,
 }
 impl BuilderState for Inputs {}
 pub struct Gates {
+    name: String,
+    version: String,
     inputs: Vec<InputHandle>,
     gate_wire_id: usize,
     gates: Vec<GateHandle>,
@@ -202,6 +208,8 @@ pub struct Gates {
 }
 impl BuilderState for Gates {}
 pub struct Outputs {
+    name: String,
+    version: String,
     inputs: Vec<InputHandle>,
     gates: Vec<GateHandle>,
     conns: HashMap<usize, usize>,
@@ -214,8 +222,10 @@ impl BuilderState for Outputs {}
 pub struct CircuitBuilder<S: BuilderState>(S);
 
 impl CircuitBuilder<Inputs> {
-    pub fn new() -> Self {
+    pub fn new(name: &str, version: &str) -> Self {
         Self(Inputs {
+            name: name.to_string(),
+            version: version.to_string(),
             input_wire_id: 0,
             inputs: vec![],
         })
@@ -245,6 +255,8 @@ impl CircuitBuilder<Inputs> {
     /// Sets inputs and moves to next state where gates and subcircuits are added
     pub fn build(self) -> CircuitBuilder<Gates> {
         CircuitBuilder(Gates {
+            name: self.0.name,
+            version: self.0.version,
             inputs: self.0.inputs,
             gate_wire_id: self.0.input_wire_id,
             gates: Vec::new(),
@@ -342,6 +354,8 @@ impl CircuitBuilder<Gates> {
     // Sets gates and moves to next state where outputs can be added
     pub fn build(self) -> CircuitBuilder<Outputs> {
         CircuitBuilder(Outputs {
+            name: self.0.name,
+            version: self.0.version,
             inputs: self.0.inputs,
             gates: self.0.gates,
             conns: self.0.conns,
@@ -467,7 +481,13 @@ impl CircuitBuilder<Outputs> {
             .map(|(id, handle)| handle.to_gate(id))
             .collect();
 
-        Ok(Circuit::new("", "", inputs, outputs, gates).unwrap())
+        Ok(Circuit::new(
+            &self.0.name,
+            &self.0.version,
+            inputs,
+            outputs,
+            gates,
+        )?)
     }
 }
 
@@ -478,7 +498,7 @@ mod tests {
 
     #[test]
     fn test_adder_64() {
-        let mut builder = CircuitBuilder::new();
+        let mut builder = CircuitBuilder::new("", "");
         let adder_64 = Circuit::load_bytes(ADDER_64).unwrap();
 
         let in_1 = builder.add_input("in_1", "", ValueType::U64, 64);
@@ -524,7 +544,7 @@ mod tests {
 
     #[test]
     fn test_u8_xor() {
-        let mut builder = CircuitBuilder::new();
+        let mut builder = CircuitBuilder::new("", "");
 
         let in_1 = builder.add_input("0", "", ValueType::U8, 8);
         let in_2 = builder.add_input("1", "", ValueType::U8, 8);
