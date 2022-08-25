@@ -292,6 +292,15 @@ impl Gate {
         }
     }
 
+    /// Sets new wire id for xref
+    pub(crate) fn set_xref(&mut self, id: usize) {
+        match self {
+            Gate::Xor { xref, .. } => *xref = id,
+            Gate::And { xref, .. } => *xref = id,
+            Gate::Inv { xref, .. } => *xref = id,
+        }
+    }
+
     /// Returns gate yref
     pub fn yref(&self) -> Option<usize> {
         match self {
@@ -301,12 +310,30 @@ impl Gate {
         }
     }
 
+    /// Sets new wire id for yref
+    pub(crate) fn set_yref(&mut self, id: usize) {
+        match self {
+            Gate::Xor { yref, .. } => *yref = id,
+            Gate::And { yref, .. } => *yref = id,
+            Gate::Inv { .. } => panic!("tried to set yref of INV gate"),
+        }
+    }
+
     /// Returns gate zref
     pub fn zref(&self) -> usize {
         match self {
             Gate::Xor { zref, .. } => *zref,
             Gate::And { zref, .. } => *zref,
             Gate::Inv { zref, .. } => *zref,
+        }
+    }
+
+    /// Sets new wire id for zref
+    pub(crate) fn set_zref(&mut self, id: usize) {
+        match self {
+            Gate::Xor { zref, .. } => *zref = id,
+            Gate::And { zref, .. } => *zref = id,
+            Gate::Inv { zref, .. } => *zref = id,
         }
     }
 
