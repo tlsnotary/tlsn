@@ -4,57 +4,28 @@ pub mod errors;
 pub mod kos15refactor;
 
 pub use kos15refactor::receiver::{
-    BaseSend as RBaseSend, BaseSetup as RBaseSetup, Initialized as RInitialized, Kos15Receiver,
-    Setup as RSetup,
+    error::ExtReceiverCoreError, BaseSend as RBaseSend, BaseSetup as RBaseSetup,
+    Initialized as RInitialized, Kos15Receiver, Setup as RSetup,
 };
 
 pub use kos15refactor::sender::{
-    BaseReceive as SBaseReceive, BaseSetup as SBaseSetup, Initialized as SInitialized, Kos15Sender,
-    Setup as SSetup,
+    error::ExtSenderCoreError, BaseReceive as SBaseReceive, BaseSetup as SBaseSetup,
+    Initialized as SInitialized, Kos15Sender, Setup as SSetup,
 };
 
 pub use crate::Block;
 pub use clmul::Clmul;
-pub use errors::*;
 
 pub const BASE_COUNT: usize = 128;
 
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::{msgs::ot as msgs, utils::u8vec_to_boolvec, Block};
+    use crate::{msgs::ot as msgs, Block};
     use pretty_assertions::assert_eq;
-    use rand::{thread_rng, Rng, RngCore, SeedableRng};
+    use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
     use rstest::*;
-
-    pub mod fixtures {
-        use super::*;
-        use crate::msgs::ot as msgs;
-
-        pub struct Data {
-            pub base_sender_setup: msgs::BaseSenderSetupWrapper,
-            pub base_receiver_setup: msgs::BaseReceiverSetupWrapper,
-            pub base_sender_payload: msgs::BaseSenderPayloadWrapper,
-        }
-
-        #[fixture]
-        #[once]
-        pub fn ot_ext_core_data() -> Data {
-            let mut sender = Kos15Sender::default();
-            let mut receiver = Kos15Receiver::default();
-            let (receiver, base_sender_setup) = receiver.base_setup().unwrap();
-            let (sender, base_receiver_setup) = sender.base_setup(base_sender_setup).unwrap();
-            let (receiver, base_sender_payload) =
-                receiver.base_send(base_receiver_setup.clone()).unwrap();
-
-            Data {
-                base_sender_setup,
-                base_receiver_setup,
-                base_sender_payload,
-            }
-        }
-    }
 
     #[fixture]
     fn receiver() -> Kos15Receiver {
@@ -68,8 +39,8 @@ pub mod tests {
 
     #[fixture]
     fn pair_base_setup(
-        mut sender: Kos15Sender,
-        mut receiver: Kos15Receiver,
+        sender: Kos15Sender,
+        receiver: Kos15Receiver,
     ) -> (Kos15Sender<SBaseReceive>, Kos15Receiver<RBaseSend>) {
         let (receiver, base_sender_setup) = receiver.base_setup().unwrap();
         let (sender, base_receiver_setup) = sender.base_setup(base_sender_setup).unwrap();
@@ -79,41 +50,35 @@ pub mod tests {
     }
 
     #[fixture]
-    fn random_pair_base_setup(
-        mut sender: Kos15Sender,
-        mut receiver: Kos15Receiver,
-    ) -> (Kos15Sender, Kos15Receiver) {
-        let base_sender_setup = receiver.base_setup().unwrap();
-        let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
-        let send_seeds = receiver.base_send(base_receiver_setup).unwrap();
-        sender.base_receive(send_seeds).unwrap();
-        (sender, receiver)
+    fn input_setup() -> (Vec<bool>, Vec<[Block; 2]>) {
+        let mut rng = ChaCha12Rng::from_entropy();
+        let choice_len: usize = rng.gen_range(0..1024);
+        let mut choices = vec![false; choice_len];
+
+        rng.fill::<[bool]>(&mut choices);
+        let inputs: Vec<[Block; 2]> = (0..choices.len())
+            .map(|_| [Block::random(&mut rng), Block::random(&mut rng)])
+            .collect();
+        (choices, inputs)
     }
 
     #[rstest]
-    fn test_ext_ot(pair_base_setup: (Kos15Sender, Kos15Receiver)) {
-        let (mut sender, mut receiver) = pair_base_setup;
+    fn test_ext_ot(
+        pair_base_setup: (Kos15Sender<SBaseReceive>, Kos15Receiver<RBaseSend>),
+        input_setup: (Vec<bool>, Vec<[Block; 2]>),
+    ) {
+        let (sender, receiver) = pair_base_setup;
+        let (choices, inputs) = input_setup;
 
-        let mut rng = thread_rng();
-        let choice_len: usize = rng.gen_range(0..1024);
-
-        let mut choice = vec![0u8; choice_len];
-        let mut rng = ChaCha12Rng::from_entropy();
-        rng.fill_bytes(&mut choice);
-        let choice = u8vec_to_boolvec(&choice);
-        let inputs: Vec<[Block; 2]> = (0..choice.len())
-            .map(|_| [Block::random(&mut rng), Block::random(&mut rng)])
-            .collect();
-
-        let receiver_setup = receiver.extension_setup(&choice).unwrap();
-        sender.extension_setup(receiver_setup).unwrap();
+        let (mut receiver, receiver_setup) = receiver.extension_setup(&choices).unwrap();
+        let mut sender = sender.extension_setup(receiver_setup).unwrap();
 
         let payload = sender.send(&inputs).unwrap();
         let receive = receiver.receive(payload).unwrap();
 
         let expected: Vec<Block> = inputs
             .iter()
-            .zip(choice)
+            .zip(choices)
             .map(|(input, choice)| input[choice as usize])
             .collect();
 
@@ -122,49 +87,40 @@ pub mod tests {
 
     #[rstest]
     // Test that the cointoss check fails on wrong data
-    fn test_ext_ot_cointoss_failure(mut sender: Kos15Sender, mut receiver: Kos15Receiver) {
-        let mut base_sender_setup = receiver.base_setup().unwrap();
+    fn test_ext_ot_cointoss_failure(sender: Kos15Sender, receiver: Kos15Receiver) {
+        let (receiver, mut base_sender_setup) = receiver.base_setup().unwrap();
         base_sender_setup.cointoss_commit = [77u8; 32];
-        let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
-        let send_seeds = receiver.base_send(base_receiver_setup).unwrap();
-        let res = sender.base_receive(send_seeds);
-        assert_eq!(res, Err(ExtSenderCoreError::CommitmentCheckFailed));
+        let (sender, base_receiver_setup) = sender.base_setup(base_sender_setup).unwrap();
+        let (_, send_seeds) = receiver.base_send(base_receiver_setup).unwrap();
+        let err = sender.base_receive(send_seeds).unwrap_err();
+        assert_eq!(err, ExtSenderCoreError::CommitmentCheckFailed);
     }
 
     #[rstest]
     // Test that the KOS15 check fails on wrong data
-    fn test_ext_ot_kos_failure(pair_base_setup: (Kos15Sender, Kos15Receiver)) {
-        let (mut sender, mut receiver) = pair_base_setup;
+    fn test_ext_ot_kos_failure(
+        pair_base_setup: (Kos15Sender<SBaseReceive>, Kos15Receiver<RBaseSend>),
+        input_setup: (Vec<bool>, Vec<[Block; 2]>),
+    ) {
+        let (sender, receiver) = pair_base_setup;
+        let (choices, _) = input_setup;
 
-        let mut rng = thread_rng();
-        let choice_len: usize = rng.gen_range(0..1024);
-        let mut choice = vec![0u8; choice_len];
-        let mut rng = ChaCha12Rng::from_entropy();
-        rng.fill_bytes(&mut choice);
-        let choice = u8vec_to_boolvec(&choice);
-
-        let mut receiver_setup = receiver.extension_setup(&choice).unwrap();
+        let (_, mut receiver_setup) = receiver.extension_setup(&choices).unwrap();
         receiver_setup.x = [33u8; 16];
-        let res = sender.extension_setup(receiver_setup);
-        assert_eq!(res, Err(ExtSenderCoreError::ConsistencyCheckFailed));
+        let err = sender.extension_setup(receiver_setup).unwrap_err();
+        assert_eq!(err, ExtSenderCoreError::ConsistencyCheckFailed);
     }
 
     #[rstest]
-    fn test_ext_ot_batch(pair_base_setup: (Kos15Sender, Kos15Receiver)) {
-        let (mut sender, mut receiver) = pair_base_setup;
+    fn test_ext_ot_batch(
+        pair_base_setup: (Kos15Sender<SBaseReceive>, Kos15Receiver<RBaseSend>),
+        input_setup: (Vec<bool>, Vec<[Block; 2]>),
+    ) {
+        let (sender, receiver) = pair_base_setup;
+        let (choices, inputs) = input_setup;
 
-        let mut rng = thread_rng();
-        let choice_len: usize = rng.gen_range(0..1024);
-        let mut choice = vec![0u8; choice_len];
-        let mut rng = ChaCha12Rng::from_entropy();
-        rng.fill_bytes(&mut choice);
-        let choice = u8vec_to_boolvec(&choice);
-        let inputs: Vec<[Block; 2]> = (0..choice.len())
-            .map(|_| [Block::random(&mut rng), Block::random(&mut rng)])
-            .collect();
-
-        let receiver_setup = receiver.extension_setup(&choice).unwrap();
-        sender.extension_setup(receiver_setup).unwrap();
+        let (mut receiver, receiver_setup) = receiver.extension_setup(&choices).unwrap();
+        let mut sender = sender.extension_setup(receiver_setup).unwrap();
 
         // Try sending too much. This should fail
         let oversized_inputs = &[inputs.as_slice(), inputs.as_slice()].concat();
@@ -184,6 +140,7 @@ pub mod tests {
         assert!(receiver.is_complete());
 
         // Trying to send more OTs should return an error
+        let mut rng = ChaCha12Rng::from_entropy();
         let res = sender.send(&[[Block::random(&mut rng), Block::random(&mut rng)]]);
         if let Err(ExtSenderCoreError::BadState(..)) = res {
             ()
@@ -205,7 +162,7 @@ pub mod tests {
 
         let expected: Vec<Block> = inputs
             .iter()
-            .zip(choice)
+            .zip(choices)
             .map(|(input, choice)| input[choice as usize])
             .collect();
 
@@ -213,30 +170,24 @@ pub mod tests {
     }
 
     #[rstest]
-    fn test_ext_random_ot(random_pair_base_setup: (Kos15Sender, Kos15Receiver)) {
-        let (mut sender, mut receiver) = random_pair_base_setup;
+    fn test_ext_random_ot(
+        pair_base_setup: (Kos15Sender<SBaseReceive>, Kos15Receiver<RBaseSend>),
+        input_setup: (Vec<bool>, Vec<[Block; 2]>),
+    ) {
+        let (sender, receiver) = pair_base_setup;
+        let (choices, inputs) = input_setup;
 
-        let mut rng = thread_rng();
-        let choice_len: usize = rng.gen_range(0..1024);
-        let mut choice = vec![0u8; choice_len];
-        let mut rng = ChaCha12Rng::from_entropy();
-        rng.fill_bytes(&mut choice);
-        let choice = u8vec_to_boolvec(&choice);
-        let inputs: Vec<[Block; 2]> = (0..choice.len())
-            .map(|_| [Block::random(&mut rng), Block::random(&mut rng)])
-            .collect();
+        let (mut receiver, receiver_setup) = receiver.rand_extension_setup(choices.len()).unwrap();
+        let mut sender = sender.extension_setup(receiver_setup).unwrap();
 
-        let receiver_setup = receiver.rand_extension_setup(choice.len()).unwrap();
-        sender.extension_setup(receiver_setup).unwrap();
-
-        let derandomize = receiver.derandomize(&choice).unwrap();
+        let derandomize = receiver.derandomize(&choices).unwrap();
 
         let payload = sender.rand_send(&inputs, derandomize).unwrap();
         let receive = receiver.rand_receive(payload).unwrap();
 
         let expected: Vec<Block> = inputs
             .iter()
-            .zip(choice)
+            .zip(choices)
             .map(|(input, choice)| input[choice as usize])
             .collect();
 
@@ -244,24 +195,18 @@ pub mod tests {
     }
 
     #[rstest]
-    fn test_ext_random_ot_batch(random_pair_base_setup: (Kos15Sender, Kos15Receiver)) {
-        let (mut sender, mut receiver) = random_pair_base_setup;
+    fn test_ext_random_ot_batch(
+        pair_base_setup: (Kos15Sender<SBaseReceive>, Kos15Receiver<RBaseSend>),
+        input_setup: (Vec<bool>, Vec<[Block; 2]>),
+    ) {
+        let (sender, receiver) = pair_base_setup;
+        let (choices, inputs) = input_setup;
 
-        let mut rng = thread_rng();
-        let choice_len: usize = rng.gen_range(0..1024);
-        let mut choice = vec![0u8; choice_len];
-        let mut rng = ChaCha12Rng::from_entropy();
-        rng.fill_bytes(&mut choice);
-        let choice = u8vec_to_boolvec(&choice);
-        let inputs: Vec<[Block; 2]> = (0..choice.len())
-            .map(|_| [Block::random(&mut rng), Block::random(&mut rng)])
-            .collect();
-
-        let receiver_setup = receiver.rand_extension_setup(choice.len()).unwrap();
-        sender.extension_setup(receiver_setup).unwrap();
+        let (mut receiver, receiver_setup) = receiver.rand_extension_setup(choices.len()).unwrap();
+        let mut sender = sender.extension_setup(receiver_setup).unwrap();
 
         let mut received: Vec<Block> = Vec::new();
-        for (input, choice) in inputs.chunks(4).zip(choice.chunks(4)) {
+        for (input, choice) in inputs.chunks(4).zip(choices.chunks(4)) {
             assert!(!sender.is_complete());
             assert!(!receiver.is_complete());
             let derandomize = receiver.derandomize(&choice).unwrap();
@@ -271,92 +216,63 @@ pub mod tests {
         assert!(sender.is_complete());
         assert!(receiver.is_complete());
 
-        // Trying to send more OTs should return an error
-        let d = msgs::ExtDerandomize { flip: vec![true] };
-        let res = sender.rand_send(&[[Block::random(&mut rng); 2]], d);
-        if let Err(ExtSenderCoreError::BadState(..)) = res {
-            ()
-        } else {
-            panic!("sending more OTs should be a state error");
-        }
+        let mut rng = ChaCha12Rng::from_entropy();
 
-        let p = msgs::ExtSenderPayload {
-            ciphertexts: vec![[Block::random(&mut rng); 2]],
-        };
+        // Trying to send more OTs should return an error
+        let add_derand = msgs::ExtDerandomize { flip: vec![true] };
+        let sender = sender
+            .rand_send(&[[Block::random(&mut rng); 2]], add_derand)
+            .expect_err("Sending more OTs should be a state error");
+        assert!(
+            std::matches!(sender, ExtSenderCoreError::BadState(..)),
+            "Sending more OTs should be a state error"
+        );
 
         // Trying to receive more OTs should return an error
-        let res = receiver.receive(p);
-        if let Err(ExtReceiverCoreError::BadState(..)) = res {
-            ()
-        } else {
-            panic!("receiving more OTs should be a state error");
-        }
+        let add_ciphers = msgs::ExtSenderPayload {
+            ciphertexts: vec![[Block::random(&mut rng); 2]],
+        };
+        let receiver = receiver
+            .receive(add_ciphers)
+            .expect_err("Sending more OTs should be a state error");
+        assert!(
+            std::matches!(receiver, ExtReceiverCoreError::BadState(..)),
+            "Sending more OTs should be a state error"
+        );
 
         let expected: Vec<Block> = inputs
             .iter()
-            .zip(choice)
+            .zip(choices)
             .map(|(input, choice)| input[choice as usize])
             .collect();
 
         assert_eq!(expected, received);
     }
 
-    // Test the wrong padding when the choice count is 256
+    // Test the wrong padding
     #[rstest]
-    fn test_wrong_padding_256(random_pair_base_setup: (Kos15Sender, Kos15Receiver)) {
+    fn test_wrong_padding(
+        pair_base_setup: (Kos15Sender<SBaseReceive>, Kos15Receiver<RBaseSend>),
+        input_setup: (Vec<bool>, Vec<[Block; 2]>),
+    ) {
         // create one instances with "bad" column counts
-        let (mut sender, mut receiver) = random_pair_base_setup;
-        let mut receiver_setup = receiver.rand_extension_setup(256).unwrap();
+        let (sender, receiver) = pair_base_setup;
+        let (choices, _) = input_setup;
+        let (_, mut receiver_setup) = receiver.extension_setup(&choices).unwrap();
 
-        // sender must not accept more columns
-        receiver_setup.table.extend(vec![0u8; BASE_COUNT]);
+        // sender must not accept more or less columns
+        let mut rng = ChaCha12Rng::from_entropy();
+        let coinflip: bool = rng.gen();
 
-        let res = sender.extension_setup(receiver_setup.clone());
-        if let Err(ExtSenderCoreError::InvalidPadding) = res {
-            ()
+        if coinflip {
+            receiver_setup.table.extend(vec![0u8; BASE_COUNT]);
         } else {
-            panic!("invalid padding should be an error");
+            receiver_setup.table.drain(0..BASE_COUNT * 2);
         }
 
-        // sender must not accept less columns
-        receiver_setup.table.drain(0..BASE_COUNT * 2);
-
-        let res = sender.extension_setup(receiver_setup.clone());
-        if let Err(ExtSenderCoreError::InvalidPadding) = res {
-            ()
-        } else {
-            panic!("invalid padding should be an error");
-        }
-    }
-
-    // Test the wrong padding when the choice count is random
-    #[rstest]
-    fn test_wrong_padding_random(random_pair_base_setup: (Kos15Sender, Kos15Receiver)) {
-        // create one instances with "bad" column counts
-        let mut rng = thread_rng();
-        // choice count is expcted to be a multiple of 8
-        let choice_len: usize = rng.gen_range(0..1024) * 8;
-        let (mut sender, mut receiver) = random_pair_base_setup;
-        let mut receiver_setup = receiver.rand_extension_setup(choice_len).unwrap();
-
-        // sender must not accept more columns
-        receiver_setup.table.extend(vec![0u8; BASE_COUNT]);
-
-        let res = sender.extension_setup(receiver_setup.clone());
-        if let Err(ExtSenderCoreError::InvalidPadding) = res {
-            ()
-        } else {
-            panic!("invalid padding should be an error");
-        }
-
-        // sender must not accept less columns
-        receiver_setup.table.drain(0..BASE_COUNT * 2);
-
-        let res = sender.extension_setup(receiver_setup.clone());
-        if let Err(ExtSenderCoreError::InvalidPadding) = res {
-            ()
-        } else {
-            panic!("invalid padding should be an error");
-        }
+        let sender = sender
+            .extension_setup(receiver_setup)
+            .expect_err("invalid padding should be an error");
+        assert_eq!(sender, ExtSenderCoreError::InvalidPadding);
     }
 }

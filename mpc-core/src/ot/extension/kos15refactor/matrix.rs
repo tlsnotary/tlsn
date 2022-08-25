@@ -1,4 +1,3 @@
-use super::BASE_COUNT;
 use std::slice::{Chunks, ChunksMut};
 
 use matrix_transpose::transpose_bits;
@@ -7,7 +6,7 @@ use thiserror::Error;
 /// Minimal matrix implementation
 ///
 /// This provides some comfort when dealing with matrices in the KOS15 protocol
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct KosMatrix {
     inner: Vec<u8>,
     rows: usize,

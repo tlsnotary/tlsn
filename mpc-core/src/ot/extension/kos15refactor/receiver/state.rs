@@ -3,21 +3,21 @@ use super::KosMatrix;
 use crate::Block;
 use rand_chacha::ChaCha12Rng;
 
-pub trait RecevierState {}
+pub trait ReceiverState {}
 
 pub struct Initialized {
     pub base_sender: BaseSender,
     pub rng: ChaCha12Rng,
     pub cointoss_share: [u8; 32],
 }
-impl RecevierState for Initialized {}
+impl ReceiverState for Initialized {}
 
 pub struct BaseSetup {
     pub rng: ChaCha12Rng,
     pub base_sender: BaseSender,
     pub cointoss_share: [u8; 32],
 }
-impl RecevierState for BaseSetup {}
+impl ReceiverState for BaseSetup {}
 
 pub struct BaseSend {
     pub rng: ChaCha12Rng,
@@ -26,11 +26,11 @@ pub struct BaseSend {
     pub cointoss_random: [u8; 32],
     pub cointoss_share: [u8; 32],
 }
-impl RecevierState for BaseSend {}
+impl ReceiverState for BaseSend {}
 
 pub struct Setup {
     pub table: KosMatrix,
     pub choices: Vec<bool>,
     pub derandomized: Vec<bool>,
 }
-impl RecevierState for Setup {}
+impl ReceiverState for Setup {}

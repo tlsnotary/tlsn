@@ -1,4 +1,4 @@
-mod error;
+pub mod error;
 mod state;
 
 use super::matrix::{Error as MatrixError, KosMatrix};
@@ -16,12 +16,12 @@ use error::ExtReceiverCoreError;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 use rand_core::RngCore;
-use state::RecevierState;
+use state::ReceiverState;
 pub use state::{BaseSend, BaseSetup, Initialized, Setup};
 
-pub struct Kos15Receiver<S = Initialized>(S)
+pub struct Kos15Receiver<S = Initialized>(pub S)
 where
-    S: RecevierState;
+    S: ReceiverState;
 
 impl Default for Kos15Receiver {
     fn default() -> Self {
@@ -206,6 +206,9 @@ impl Kos15Receiver<Setup> {
         &mut self,
         payload: ExtSenderPayload,
     ) -> Result<Vec<Block>, ExtReceiverCoreError> {
+        if payload.ciphertexts.len() > self.0.choices.len() {
+            return Err(ExtReceiverCoreError::InvalidPayloadSize);
+        }
         receive_from(&mut self.0.table, &mut self.0.choices, payload)
     }
 
@@ -213,7 +216,14 @@ impl Kos15Receiver<Setup> {
         &mut self,
         payload: ExtSenderPayload,
     ) -> Result<Vec<Block>, ExtReceiverCoreError> {
+        if payload.ciphertexts.len() > self.0.derandomized.len() {
+            return Err(ExtReceiverCoreError::NotDerandomized);
+        }
         receive_from(&mut self.0.table, &mut self.0.derandomized, payload)
+    }
+
+    pub fn is_complete(&self) -> bool {
+        self.0.derandomized.len() == 0 && self.0.choices.len() == 0
     }
 }
 
@@ -222,10 +232,6 @@ fn receive_from(
     choices: &mut Vec<bool>,
     payload: ExtSenderPayload,
 ) -> Result<Vec<Block>, ExtReceiverCoreError> {
-    if payload.ciphertexts.len() > choices.len() {
-        return Err(ExtReceiverCoreError::InvalidPayloadSize);
-    }
-
     let consumed_choices: Vec<bool> = choices.drain(..payload.ciphertexts.len()).collect();
 
     let consumed_table: KosMatrix = table.split_off_rows_reverse(consumed_choices.len())?;

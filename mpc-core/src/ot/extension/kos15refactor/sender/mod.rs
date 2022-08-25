@@ -1,4 +1,4 @@
-mod error;
+pub mod error;
 mod state;
 
 use crate::{
@@ -24,7 +24,8 @@ use super::{
     BASE_COUNT,
 };
 
-pub struct Kos15Sender<S = Initialized>(S)
+#[derive(Debug)]
+pub struct Kos15Sender<S = Initialized>(pub S)
 where
     S: SenderState;
 
@@ -216,5 +217,9 @@ impl Kos15Sender<Setup> {
 
         self.0.sent += inputs.len();
         Ok(ExtSenderPayload { ciphertexts })
+    }
+
+    pub fn is_complete(&self) -> bool {
+        self.0.sent < self.0.count
     }
 }

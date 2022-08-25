@@ -21,6 +21,7 @@ pub struct BaseSetup {
 }
 impl SenderState for BaseSetup {}
 
+#[derive(PartialEq, Debug)]
 pub struct BaseReceive {
     pub cointoss_random: [u8; 32],
     pub base_choices: Vec<bool>,
@@ -29,6 +30,7 @@ pub struct BaseReceive {
 }
 impl SenderState for BaseReceive {}
 
+#[derive(PartialEq, Debug)]
 pub struct Setup {
     pub table: KosMatrix,
     pub count: usize,
