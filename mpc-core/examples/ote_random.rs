@@ -6,8 +6,16 @@
 // For simplicity, this example shows how to use OT components in memory.
 
 use mpc_core::block::Block;
-use mpc_core::ot::extension::kos15::{Kos15Receiver, Kos15Sender};
 
+pub use mpc_core::ot::extension::kos15refactor::receiver::{
+    error::ExtReceiverCoreError, BaseSend as RBaseSend, BaseSetup as RBaseSetup,
+    Initialized as RInitialized, Kos15Receiver, Setup as RSetup,
+};
+
+pub use mpc_core::ot::extension::kos15refactor::sender::{
+    error::ExtSenderCoreError, BaseReceive as SBaseReceive, BaseSetup as SBaseSetup,
+    Initialized as SInitialized, Kos15Sender, Setup as SSetup,
+};
 pub fn main() {
     // Sender messages the receiver chooses from
     let inputs = [
@@ -24,22 +32,22 @@ pub fn main() {
     println!("Sender inputs: {:?}", &inputs);
 
     // First the receiver creates a setup message and passes it to sender
-    let mut receiver = Kos15Receiver::default();
-    let base_sender_setup = receiver.base_setup().unwrap();
+    let receiver = Kos15Receiver::default();
+    let (receiver, base_sender_setup) = receiver.base_setup().unwrap();
 
     // Sender takes receiver's setup and creates its own setup message
-    let mut sender = Kos15Sender::default();
-    let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
+    let sender = Kos15Sender::default();
+    let (sender, base_receiver_setup) = sender.base_setup(base_sender_setup).unwrap();
 
     // Now the receiver generates some seeds from sender's setup and uses OT to transfer them
-    let base_payload = receiver.base_send(base_receiver_setup).unwrap();
-    sender.base_receive(base_payload).unwrap();
+    let (receiver, base_payload) = receiver.base_send(base_receiver_setup).unwrap();
+    let sender = sender.base_receive(base_payload).unwrap();
 
     // Receiver generates OT extension setup and passes it to sender
-    let receiver_setup = receiver.rand_extension_setup(256).unwrap();
+    let (mut receiver, receiver_setup) = receiver.rand_extension_setup(256).unwrap();
 
     // Sender takes receiver's setup and runs its own extension setup
-    sender.extension_setup(receiver_setup).unwrap();
+    let mut sender = sender.extension_setup(receiver_setup).unwrap();
 
     let mut received: Vec<Block> = Vec::new();
 
