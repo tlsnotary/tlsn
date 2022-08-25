@@ -141,24 +141,20 @@ pub mod tests {
 
         // Trying to send more OTs should return an error
         let mut rng = ChaCha12Rng::from_entropy();
-        let res = sender.send(&[[Block::random(&mut rng), Block::random(&mut rng)]]);
-        if let Err(ExtSenderCoreError::BadState(..)) = res {
-            ()
-        } else {
-            panic!("sending more OTs should be a state error");
-        }
+        let sender = sender
+            .send(&[[Block::random(&mut rng), Block::random(&mut rng)]])
+            .expect_err("Sending more OTs should be a state error");
+        assert_eq!(sender, ExtSenderCoreError::InvalidInputLength);
 
-        let p = msgs::ExtSenderPayload {
+        let oversized_payload = msgs::ExtSenderPayload {
             ciphertexts: vec![[Block::random(&mut rng), Block::random(&mut rng)]],
         };
 
         // Trying to receive more OTs should return an error
-        let res = receiver.receive(p);
-        if let Err(ExtReceiverCoreError::BadState(..)) = res {
-            ()
-        } else {
-            panic!("receiving more OTs should be a state error");
-        }
+        let receiver = receiver
+            .receive(oversized_payload)
+            .expect_err("Sending more OTs should be a state error");
+        assert_eq!(receiver, ExtReceiverCoreError::InvalidPayloadSize);
 
         let expected: Vec<Block> = inputs
             .iter()
@@ -223,10 +219,7 @@ pub mod tests {
         let sender = sender
             .rand_send(&[[Block::random(&mut rng); 2]], add_derand)
             .expect_err("Sending more OTs should be a state error");
-        assert!(
-            std::matches!(sender, ExtSenderCoreError::BadState(..)),
-            "Sending more OTs should be a state error"
-        );
+        assert_eq!(sender, ExtSenderCoreError::InvalidInputLength);
 
         // Trying to receive more OTs should return an error
         let add_ciphers = msgs::ExtSenderPayload {
@@ -235,10 +228,7 @@ pub mod tests {
         let receiver = receiver
             .receive(add_ciphers)
             .expect_err("Sending more OTs should be a state error");
-        assert!(
-            std::matches!(receiver, ExtReceiverCoreError::BadState(..)),
-            "Sending more OTs should be a state error"
-        );
+        assert_eq!(receiver, ExtReceiverCoreError::InvalidPayloadSize);
 
         let expected: Vec<Block> = inputs
             .iter()

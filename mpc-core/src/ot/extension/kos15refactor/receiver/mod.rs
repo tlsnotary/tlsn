@@ -135,8 +135,8 @@ impl Kos15Receiver<BaseSend> {
         // base OT. If he knows rng[1] then he will XOR it with gs[j] and get a
         // row ( ts[j] ^ r ). But if he knows rng[0] then his row will be ts[j].
         for (j, (row_gs, row_ts)) in gs.iter_rows_mut().zip(ts.iter_rows_mut()).enumerate() {
-            self.0.rngs[j][0].fill_bytes(row_gs);
             self.0.rngs[j][0].fill_bytes(row_ts);
+            self.0.rngs[j][1].fill_bytes(row_gs);
             row_gs
                 .iter_mut()
                 .zip(row_ts.iter())

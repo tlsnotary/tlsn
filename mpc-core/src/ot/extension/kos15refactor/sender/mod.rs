@@ -122,7 +122,7 @@ impl Kos15Sender<BaseReceive> {
         let num_elements = BASE_COUNT * row_length;
 
         let us = KosMatrix::new(setup_msg.table, row_length)?;
-        let mut qs = KosMatrix::new(vec![0u8; num_elements * row_length], row_length)?;
+        let mut qs = KosMatrix::new(vec![0u8; num_elements], row_length)?;
 
         for (j, (row_qs, row_us)) in qs.iter_rows_mut().zip(us.iter_rows()).enumerate() {
             self.0.rngs[j].fill_bytes(row_qs);
@@ -195,7 +195,7 @@ impl Kos15Sender<Setup> {
         }
 
         if let Some(ref inner) = derandomize {
-            if inner.flip.len() != consumed_table.columns() {
+            if inner.flip.len() != consumed_table.rows() {
                 return Err(ExtSenderCoreError::InvalidInputLength);
             }
         }
@@ -213,6 +213,6 @@ impl Kos15Sender<Setup> {
     }
 
     pub fn is_complete(&self) -> bool {
-        self.0.sent < self.0.count
+        self.0.sent == self.0.count
     }
 }

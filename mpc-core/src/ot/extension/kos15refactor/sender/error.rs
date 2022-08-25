@@ -6,8 +6,6 @@ pub enum ExtSenderCoreError {
     /// Error originating from Base OT
     #[error("OT failed due to error in Base OT {0}")]
     BaseError(#[from] crate::ot::base::ReceiverCoreError),
-    #[error("Bad state. Expected {0}. Got {1}.")]
-    BadState(String, String),
     #[error("Provided incorrect number of inputs")]
     InvalidInputLength,
     #[error("Provided incorrect padding")]

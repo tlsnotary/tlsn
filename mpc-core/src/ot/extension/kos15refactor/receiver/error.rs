@@ -6,8 +6,6 @@ pub enum ExtReceiverCoreError {
     /// Error originating from Base OT
     #[error("OT failed due to error in Base OT")]
     BaseError(#[from] crate::ot::base::SenderCoreError),
-    #[error("Bad state. Expected {0}. Got {1}.")]
-    BadState(String, String),
     /// Choice bits not derandomized
     #[error("Payload contains more encrypted values than derandomized choice bits")]
     NotDerandomized,
