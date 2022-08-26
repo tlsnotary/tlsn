@@ -14,10 +14,14 @@ pub enum BuilderError {
     CircuitError(#[from] crate::Error),
 }
 
+/// A circuit feed
 #[derive(Debug, Clone, Copy)]
 pub struct Feed;
+/// A circuit sink
 #[derive(Debug, Clone, Copy)]
 pub struct Sink;
+
+/// A handle on a circuit wire
 #[derive(Debug, Clone, Copy)]
 pub struct WireHandle<T> {
     id: usize,
@@ -44,6 +48,7 @@ impl WireHandle<Sink> {
     }
 }
 
+/// A handle on a sub-circuit
 #[derive(Debug, Clone)]
 pub struct CircuitHandle {
     circ: Arc<Circuit>,
@@ -83,6 +88,7 @@ impl CircuitHandle {
     }
 }
 
+/// A handle on a circuit input
 #[derive(Debug, Clone)]
 pub struct InputHandle {
     input: Input,
@@ -100,6 +106,7 @@ where
     }
 }
 
+/// A handle on a circuit output
 #[derive(Debug, Clone)]
 pub struct OutputHandle {
     output: Output,
@@ -117,6 +124,7 @@ where
     }
 }
 
+/// A handle on a sub-circuits input
 #[derive(Debug, Clone)]
 pub struct SubInputHandle {
     wire_handles: Vec<WireHandle<Sink>>,
@@ -133,6 +141,7 @@ where
     }
 }
 
+/// A handle on a sub-circuits output
 #[derive(Debug, Clone)]
 pub struct SubOutputHandle {
     wire_handles: Vec<WireHandle<Feed>>,
@@ -149,6 +158,7 @@ where
     }
 }
 
+/// A handle to a circuit gate which can be used to create connections
 #[derive(Debug, Clone, Copy)]
 pub struct GateHandle {
     x: WireHandle<Sink>,
@@ -240,10 +250,19 @@ pub struct Outputs {
 }
 impl BuilderState for Outputs {}
 
+/// Circuit Builder
+///
+/// This can be used to construct new circuits and synthesize existing circuits together.
+///
+/// It has three states:
+/// 1. Define inputs
+/// 2. Define gates
+/// 3. Define outputs
 #[derive(Debug)]
 pub struct CircuitBuilder<S: BuilderState>(S);
 
 impl CircuitBuilder<Inputs> {
+    /// Creats new builder
     pub fn new(name: &str, version: &str) -> Self {
         Self(Inputs {
             name: name.to_string(),
@@ -288,6 +307,7 @@ impl CircuitBuilder<Inputs> {
 }
 
 impl CircuitBuilder<Gates> {
+    /// Add sub-circuit to circuit
     pub fn add_circ(&mut self, mut circ: Circuit) -> CircuitHandle {
         let offset = self.0.gate_wire_id;
         self.0.gate_wire_id += circ.len();
@@ -329,6 +349,7 @@ impl CircuitBuilder<Gates> {
         handle
     }
 
+    /// Add gate to circuit
     pub fn add_gate(&mut self, gate_type: GateType) -> GateHandle {
         let (x, y, z) = match gate_type {
             GateType::Xor => {
@@ -413,21 +434,21 @@ impl CircuitBuilder<Outputs> {
         output
     }
 
-    // Connect wires together
+    /// Connect wires together
     pub fn connect(&mut self, feeds: &[WireHandle<Feed>], sinks: &[WireHandle<Sink>]) {
         for (feed, sink) in feeds.iter().zip(sinks) {
             self.0.conns.insert(sink.id, feed.id);
         }
     }
 
-    // Fan out feed to multiple sinks
+    /// Fan out feed to multiple sinks
     pub fn connect_fan_out(&mut self, feed: WireHandle<Feed>, sinks: &[WireHandle<Sink>]) {
         for sink in sinks {
             self.0.conns.insert(sink.id, feed.id);
         }
     }
 
-    // Fully builds circuit
+    /// Fully builds circuit
     pub fn build_circuit(mut self) -> Result<Circuit, BuilderError> {
         // Connect all gate wires and create id set
         let mut id_set: BTreeSet<usize> = BTreeSet::new();
