@@ -481,6 +481,8 @@ pub struct Circuit {
 
     /// Groups of wires corresponding to circuit inputs
     pub(crate) inputs: Vec<Input>,
+    /// Constant inputs
+    pub(crate) const_inputs: Vec<Input>,
     /// Groups of wires corresponding to circuit outputs
     pub(crate) outputs: Vec<Output>,
     /// Circuit logic gates
@@ -526,6 +528,11 @@ impl Circuit {
         let (inputs, input_wires) = Self::validate_inputs(inputs)?;
         let (outputs, output_wires) = Self::validate_outputs(outputs)?;
         let (gates, info) = Self::validate_gates(gates, &input_wires, &output_wires)?;
+        let const_inputs = inputs
+            .iter()
+            .filter(|input| input.value_type().is_constant())
+            .cloned()
+            .collect();
 
         Ok(Self {
             id: CircuitId::new(&gates),
@@ -535,6 +542,7 @@ impl Circuit {
             and_count: info.and_count,
             xor_count: info.xor_count,
             inputs,
+            const_inputs,
             outputs,
             gates: topological_sort(gates),
         })
@@ -783,14 +791,35 @@ impl Circuit {
     }
 
     /// Evaluates the circuit in plaintext with the provided inputs
+    ///
+    /// Constant inputs may be provided, but it is not required
     pub fn evaluate(&self, inputs: &[InputValue]) -> Result<Vec<OutputValue>, Error> {
         let mut wires: Vec<Option<bool>> = vec![None; self.len()];
+
+        // Insert constant inputs
+        for input in self.const_inputs.iter() {
+            let wire_id = input.group.wires().get(0).ok_or(Error::InvalidCircuit(
+                "Constant input missing wire id".to_string(),
+            ))?;
+            match input.value_type() {
+                ValueType::ConstZero => wires[*wire_id] = Some(false),
+                ValueType::ConstOne => wires[*wire_id] = Some(true),
+                _ => {
+                    return Err(Error::InvalidCircuit(
+                        "Constant input isn't a constant type".to_string(),
+                    ))
+                }
+            }
+        }
+
+        // Insert input values
         for input in inputs {
             for (value, wire_id) in input.wire_values().into_iter().zip(input.wires()) {
                 wires[*wire_id] = Some(value);
             }
         }
 
+        // Evaluate gates
         for gate in self.gates.iter() {
             let (zref, val) = match *gate {
                 Gate::Xor {
@@ -815,6 +844,7 @@ impl Circuit {
             wires[zref] = Some(val);
         }
 
+        // Map wires to outputs and convert to values
         let mut outputs: Vec<OutputValue> = Vec::with_capacity(self.output_count());
         for output in self.outputs.iter() {
             let mut value: Vec<bool> = Vec::with_capacity(output.as_ref().len());

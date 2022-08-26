@@ -154,16 +154,8 @@ impl TryFrom<Circuit> for crate::Circuit {
         for gate in c.gates {
             gates.push(crate::Gate::try_from(gate)?);
         }
-        Ok(Self {
-            id: c.id.into(),
-            name: c.name,
-            version: c.version,
-            wire_count: c.wire_count as usize,
-            and_count: c.and_count as usize,
-            xor_count: c.xor_count as usize,
-            inputs,
-            outputs,
-            gates,
-        })
+        Ok(crate::Circuit::new(
+            &c.name, &c.version, inputs, outputs, gates,
+        )?)
     }
 }
