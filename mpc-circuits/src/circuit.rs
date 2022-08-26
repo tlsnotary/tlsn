@@ -320,14 +320,14 @@ impl Gate {
             Gate::Xor {
                 xref, yref, zref, ..
             } => {
-                if xref == zref || yref == zref {
+                if xref == yref || xref == zref || yref == zref {
                     return Err(Error::InvalidCircuit(format!("invalid gate: {:?}", self)));
                 }
             }
             Gate::And {
                 xref, yref, zref, ..
             } => {
-                if xref == zref || yref == zref {
+                if xref == yref || xref == zref || yref == zref {
                     return Err(Error::InvalidCircuit(format!("invalid gate: {:?}", self)));
                 }
             }
@@ -404,6 +404,20 @@ impl From<String> for CircuitId {
     }
 }
 
+/// Binary Circuit
+///
+/// Circuits Wire IDs are in ascending order, organized in the following manner:
+/// 1. Input wires
+/// 2. Gate wires
+/// 3. Output wires
+///
+/// Invariants of circuit structure:
+/// 1. A circuit MUST be acyclic, ie a gate output wire MUST NOT be connected to one of its inputs directly or indirectly
+/// 2. A gate MUST NOT have identical input wires, ie xref != yref
+/// 3. A gate input wire id MUST NOT be greater than its output wire id
+/// 4. Input wires MUST be connected to gate inputs
+/// 5. Output wires MUST be connected to gate outputs
+/// 6. Gates MUST be sorted topologically
 #[derive(Clone)]
 pub struct Circuit {
     pub(crate) id: CircuitId,
