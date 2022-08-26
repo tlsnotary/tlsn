@@ -10,14 +10,10 @@ pub enum ExtSenderCoreError {
     InvalidInputLength,
     #[error("Provided incorrect padding")]
     InvalidPadding,
-    #[error("Tried to send after OT is already complete")]
-    AlreadyComplete,
     #[error("Cointoss commitment check failed")]
     CommitmentCheckFailed,
     #[error("KOS15 consistency check failed")]
     ConsistencyCheckFailed,
-    #[error("An internal error happened")]
-    InternalError,
     #[error("Matrix Error: {0}")]
     MatrixError(#[from] MatrixError),
 }

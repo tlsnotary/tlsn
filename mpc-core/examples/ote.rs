@@ -5,15 +5,11 @@
 use mpc_core::block::Block;
 use rand::prelude::*;
 
-pub use mpc_core::ot::extension::kos15refactor::receiver::{
-    error::ExtReceiverCoreError, BaseSend as RBaseSend, BaseSetup as RBaseSetup,
-    Initialized as RInitialized, Kos15Receiver, Setup as RSetup,
+pub use mpc_core::ot::extension::{
+    ExtReceiverCoreError, ExtSenderCoreError, Kos15Receiver, Kos15Sender, RBaseSend, RBaseSetup,
+    RInitialized, RSetup, SBaseReceive, SBaseSetup, SInitialized, SSetup,
 };
 
-pub use mpc_core::ot::extension::kos15refactor::sender::{
-    error::ExtSenderCoreError, BaseReceive as SBaseReceive, BaseSetup as SBaseSetup,
-    Initialized as SInitialized, Kos15Sender, Setup as SSetup,
-};
 pub fn main() {
     // Receiver choice bits
     let mut rng = thread_rng();
