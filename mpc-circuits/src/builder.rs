@@ -26,7 +26,7 @@ pub struct WireHandle<T> {
 
 impl WireHandle<Feed> {
     /// Creates new feed
-    fn feed(id: usize) -> WireHandle<Feed> {
+    fn new_feed(id: usize) -> WireHandle<Feed> {
         WireHandle {
             id,
             _pd: PhantomData::<Feed>,
@@ -36,7 +36,7 @@ impl WireHandle<Feed> {
 
 impl WireHandle<Sink> {
     /// Creates new sink
-    fn sink(id: usize) -> WireHandle<Sink> {
+    fn new_sink(id: usize) -> WireHandle<Sink> {
         WireHandle {
             id,
             _pd: PhantomData::<Sink>,
@@ -58,7 +58,7 @@ impl CircuitHandle {
                     .wires()
                     .iter()
                     .copied()
-                    .map(WireHandle::sink)
+                    .map(WireHandle::new_sink)
                     .collect(),
             })
         } else {
@@ -74,7 +74,7 @@ impl CircuitHandle {
                     .wires()
                     .iter()
                     .copied()
-                    .map(WireHandle::feed)
+                    .map(WireHandle::new_feed)
                     .collect(),
             })
         } else {
@@ -180,9 +180,11 @@ impl GateHandle {
 
     fn from_gate(gate: &Gate) -> Self {
         Self {
-            x: WireHandle::sink(gate.xref()),
-            y: gate.yref().and_then(|yref| Some(WireHandle::sink(yref))),
-            z: WireHandle::feed(gate.zref()),
+            x: WireHandle::new_sink(gate.xref()),
+            y: gate
+                .yref()
+                .and_then(|yref| Some(WireHandle::new_sink(yref))),
+            z: WireHandle::new_feed(gate.zref()),
             gate_type: gate.gate_type(),
         }
     }
@@ -266,7 +268,7 @@ impl CircuitBuilder<Inputs> {
                 self.0.inputs.len(),
                 Group::new(name, desc, value_type, &wires),
             ),
-            wire_handles: wires.iter().copied().map(WireHandle::feed).collect(),
+            wire_handles: wires.iter().copied().map(WireHandle::new_feed).collect(),
         };
         self.0.inputs.push(input.clone());
         input
@@ -351,9 +353,9 @@ impl CircuitBuilder<Gates> {
             }
         };
         let handle = GateHandle {
-            x: WireHandle::sink(x),
-            y: y.and_then(|y| Some(WireHandle::sink(y))),
-            z: WireHandle::feed(z),
+            x: WireHandle::new_sink(x),
+            y: y.and_then(|y| Some(WireHandle::new_sink(y))),
+            z: WireHandle::new_feed(z),
             gate_type,
         };
         self.0.gates.push(handle.clone());
@@ -405,7 +407,7 @@ impl CircuitBuilder<Outputs> {
                 self.0.outputs.len(),
                 Group::new(name, desc, value_type, &wires),
             ),
-            wire_handles: wires.iter().copied().map(WireHandle::sink).collect(),
+            wire_handles: wires.iter().copied().map(WireHandle::new_sink).collect(),
         };
         self.0.outputs.push(output.clone());
         output
