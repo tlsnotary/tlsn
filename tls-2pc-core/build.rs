@@ -35,6 +35,6 @@ fn build_specs() -> Result<(), io::Error> {
 }
 
 fn main() -> io::Result<()> {
-    build_specs()?;
+    //build_specs()?;
     Ok(())
 }
