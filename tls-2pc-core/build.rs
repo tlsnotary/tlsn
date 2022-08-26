@@ -3,6 +3,7 @@ use prost::Message;
 use regex::Regex;
 use std::{fs, io, path::Path};
 
+#[allow(dead_code)]
 fn build_specs() -> Result<(), io::Error> {
     let re = Regex::new(r"(\w+)\.yml").unwrap();
     let spec_files = fs::read_dir("circuits/specs")?;
