@@ -1,4 +1,7 @@
-use crate::{error::ValueError, proto::Circuit as ProtoCircuit, Error, Value, ValueType};
+use crate::{
+    error::ValueError, proto::Circuit as ProtoCircuit, utils::topological_sort, Error, Value,
+    ValueType,
+};
 
 use prost::Message;
 use sha2::{Digest, Sha256};
@@ -490,7 +493,7 @@ impl Circuit {
             xor_count: info.xor_count,
             inputs,
             outputs,
-            gates,
+            gates: topological_sort(gates),
         })
     }
 

@@ -3,6 +3,7 @@ mod error;
 pub mod parse;
 pub mod proto;
 mod spec;
+pub mod utils;
 mod value;
 
 pub use circuit::{Circuit, CircuitId, Gate, Group, Input, InputValue, Output, OutputValue};
