@@ -99,19 +99,18 @@ impl Kos15Receiver<BaseSend> {
         // For performance purposes we require that choice is a multiple of 2^k for some k. If it
         // is not, we pad. Note that this padding is never used for OTs on the sender side.
         //
-        // The x86_64 implementation requires a matrix with minimum row/columns 32, so we need 8*32
+        // The x86_64 simd implementation requires a matrix with minimum row/columns 32, so we need 8*32
         // = 256 choices minimum, thus k should be at least 8. However, making k > 8 will not bring
         // performance gains.
         //
         // We also add minimum 256 extra bits which will be sacrificed for the KOS15 check as part of the
         // KOS15 protocol.
         //
-        // How does the padding affect the drainage of rows after the transpose?
-        // For simplicity, lets suppose we padded the choices to 256 bits. These are 32 extra
-        // bytes in u8 encoding, so it will increase the KOS extension matrix by 32 columns. After
-        // transposition these additional columns turn into additional rows, namely 32 * 8, where
-        // the factor 8 comes from the fact that it is a bit-level transpose. This is why, in the
-        // end we will have to drain 256 rows in total.
+        // How does the padding affect the drainage of rows after the transpose? When padding with
+        // e.g. 256 extra bits, these are 32 extra bytes in u8 encoding, so it will increase the
+        // KOS extension matrix by 32 columns. After transposition these additional columns turn
+        // into additional rows, namely 32 * 8, where the factor 8 comes from the fact that it is a
+        // bit-level transpose. This is why, in the end we will have to drain 256 rows in total.
         let padding = calc_padding(choices.len());
 
         // Divide padding by 8 because this is a byte vector and add 1 byte safety margin, when

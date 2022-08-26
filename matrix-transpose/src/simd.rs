@@ -1,4 +1,4 @@
-use super::TransposeError;
+use super::{TransposeError, LANE_COUNT};
 use std::ops::ShlAssign;
 use std::simd::{LaneCount, Simd, SimdElement, SupportedLaneCount};
 
@@ -8,7 +8,6 @@ use std::simd::{LaneCount, Simd, SimdElement, SupportedLaneCount};
 /// 16 (WASM) or 32 (x86_64) columns and rows
 #[cfg(any(target_arch = "x86_64", target_arch = "wasm32"))]
 pub fn transpose_bits(matrix: &mut [u8], rows: usize) -> Result<(), TransposeError> {
-    const LANE_COUNT: usize = if cfg!(target_arch = "wasm32") { 16 } else { 32 };
     // Check that number of rows is not smaller than LANE_COUNT
     if rows < LANE_COUNT {
         return Err(TransposeError::InvalidNumberOfRows);
@@ -82,7 +81,6 @@ pub unsafe fn bitmask_shift_unchecked(matrix: &mut [u8], columns: usize) {
     use std::arch::wasm32::u8x16_bitmask;
     #[cfg(target_arch = "x86_64")]
     use std::arch::x86_64::_mm256_movemask_epi8;
-    const LANE_COUNT: usize = if cfg!(target_arch = "wasm32") { 16 } else { 32 };
 
     let simd_one = Simd::<u8, LANE_COUNT>::splat(1);
     let mut s: Simd<u8, LANE_COUNT>;

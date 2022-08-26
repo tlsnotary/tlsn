@@ -4,6 +4,7 @@ use crate::{utils, Block};
 use aes::{BlockCipher, BlockEncrypt};
 use cipher::consts::U16;
 use clmul::Clmul;
+use matrix_transpose::LANE_COUNT;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 use std::convert::TryInto;
@@ -192,14 +193,10 @@ pub fn decrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
 }
 
 /// This function calculates the necessary padding for the boolean choices of the receiver, so that
-/// the resulting byte matrix will be easy to transpose. It also adds minimum 256 extra choices for the
+/// the resulting byte matrix will be easy to transpose. It also adds 256 extra choices for the
 /// KOS15 check.
 pub fn calc_padding(n: usize) -> usize {
-    if n > 256 {
-        2 * n.next_power_of_two() - n
-    } else {
-        512 - n
-    }
+    256 + LANE_COUNT * 8 - n % (LANE_COUNT * 8)
 }
 
 #[cfg(test)]
