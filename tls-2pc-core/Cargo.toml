@@ -51,6 +51,6 @@ prost = { version = "0.9" }
 name = "circuit_test"
 test = false
 
-[[bench]]
-name = "garble"
-harness = false
+#[[bench]]
+#name = "garble"
+#harness = false
