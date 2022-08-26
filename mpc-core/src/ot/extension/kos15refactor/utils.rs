@@ -65,7 +65,7 @@ pub fn kos15_check_receiver(
     let mut x = Clmul::new(&[0u8; ROW_LENGTH_TR]);
     let mut t0 = Clmul::new(&[0u8; ROW_LENGTH_TR]);
     let mut t1 = Clmul::new(&[0u8; ROW_LENGTH_TR]);
-    for (j, xj) in choices.into_iter().enumerate() {
+    for (j, xj) in choices.iter().enumerate() {
         let mut tj = [0u8; ROW_LENGTH_TR];
         tj.copy_from_slice(&matrix[ROW_LENGTH_TR * j..ROW_LENGTH_TR * (j + 1)]);
         let mut tj = Clmul::new(&tj);
@@ -119,9 +119,9 @@ pub fn kos15_check_sender(
     delta.copy_from_slice(&utils::boolvec_to_u8vec(base_choices));
     let delta = Clmul::new(&delta);
 
-    let x = Clmul::new(&x);
-    let t0 = Clmul::new(&t0);
-    let t1 = Clmul::new(&t1);
+    let x = Clmul::new(x);
+    let t0 = Clmul::new(t0);
+    let t1 = Clmul::new(t1);
 
     let (tmp0, tmp1) = x.clmul(delta);
     check0 ^= tmp0;
@@ -152,7 +152,7 @@ pub fn encrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     // If Receiver used *random* choice bits during OT extension setup, he will now
     // instruct us to de-randomize, so that the value corresponding to his *actual*
     // choice bit would be masked by that mask which Receiver knows.
-    let flip = flip.unwrap_or(vec![false; inputs.len()]);
+    let flip = flip.unwrap_or_else(|| vec![false; inputs.len()]);
     for (j, (input, flip)) in inputs.iter().zip(flip).enumerate() {
         let q: [u8; ROW_LENGTH_TR] = table[ROW_LENGTH_TR * j..ROW_LENGTH_TR * (j + 1)]
             .try_into()

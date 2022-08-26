@@ -62,7 +62,7 @@ impl KosMatrix {
     /// matrix
     pub fn transpose_bits(&mut self) -> Result<(), Error> {
         let rows = self.rows;
-        let _ = transpose_bits(&mut self.inner, rows).map_err(|err| Error::Transpose(err))?;
+        transpose_bits(&mut self.inner, rows).map_err(Error::Transpose)?;
         (self.rows, self.columns) = (self.columns * 8, self.rows / 8);
         Ok(())
     }

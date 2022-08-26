@@ -203,7 +203,7 @@ impl Kos15Sender<Setup> {
         let ciphertexts = encrypt_values(
             &Aes128::new_from_slice(&[0u8; 16]).unwrap(),
             inputs,
-            &consumed_table.inner(),
+            consumed_table.inner(),
             &self.0.base_choices,
             derandomize.map(|inner| inner.flip),
         );

@@ -9,7 +9,7 @@ use crate::msgs::ot::{
     ExtReceiverSetup, ExtSenderPayload,
 };
 use crate::ot::DhOtSender as BaseSender;
-use crate::utils::{boolvec_to_u8vec, sha256, u8vec_to_boolvec, xor};
+use crate::utils::{boolvec_to_u8vec, sha256, xor};
 use crate::Block;
 use aes::{Aes128, NewBlockCipher};
 use error::ExtReceiverCoreError;
@@ -112,15 +112,12 @@ impl Kos15Receiver<BaseSend> {
         // into additional rows, namely 32 * 8, where the factor 8 comes from the fact that it is a
         // bit-level transpose. This is why, in the end we will have to drain 256 rows in total.
         let padding = calc_padding(choices.len());
+        let mut padding_values = vec![false; padding];
+        self.0.rng.fill::<[bool]>(&mut padding_values);
 
-        // Divide padding by 8 because this is a byte vector and add 1 byte safety margin, when
-        // choice.len() is not a multiple of 8
-        let mut extra_bytes = vec![0_u8; padding / 8 + 1];
-        self.0.rng.fill(&mut extra_bytes[..]);
-
-        // Extend choice bits with the exact amount of extra bits that we need.
+        // Extend choice bits
         let mut r_bool = choices.to_vec();
-        r_bool.extend(u8vec_to_boolvec(&extra_bytes)[..padding].iter());
+        r_bool.extend(&padding_values);
         let r = boolvec_to_u8vec(&r_bool);
         let ncols = r_bool.len();
 
@@ -223,7 +220,7 @@ impl Kos15Receiver<Setup> {
     }
 
     pub fn is_complete(&self) -> bool {
-        self.0.derandomized.len() == 0 && self.0.choices.len() == 0
+        self.0.derandomized.is_empty() && self.0.choices.is_empty()
     }
 }
 
