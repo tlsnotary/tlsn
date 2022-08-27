@@ -221,9 +221,9 @@ pub mod tests {
             ciphertexts: vec![[Block::random(&mut rng); 2]],
         };
         let receiver = receiver
-            .receive(add_ciphers)
-            .expect_err("Sending more OTs should be a state error");
-        assert_eq!(receiver, ExtReceiverCoreError::InvalidPayloadSize);
+            .rand_receive(add_ciphers)
+            .expect_err("Sending more OTs should be state error");
+        assert_eq!(receiver, ExtReceiverCoreError::NotDerandomized);
 
         let expected: Vec<Block> = inputs
             .iter()

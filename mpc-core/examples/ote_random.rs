@@ -58,7 +58,7 @@ pub fn main() {
         let choice = received_sum % 2 == 0;
         let derandomize = receiver.derandomize(&[choice, !choice]).unwrap();
         let payload = sender.rand_send(&chunk, derandomize).unwrap();
-        received.append(&mut receiver.receive(payload).unwrap());
+        received.append(&mut receiver.rand_receive(payload).unwrap());
     }
 
     println!("Transferred messages: {:?}", received);

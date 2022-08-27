@@ -31,6 +31,12 @@ impl ReceiverState for BaseSend {}
 pub struct Setup {
     pub table: KosMatrix,
     pub choices: Vec<bool>,
-    pub derandomized: Vec<bool>,
 }
 impl ReceiverState for Setup {}
+
+pub struct RandSetup {
+    pub table: KosMatrix,
+    pub choices: Vec<bool>,
+    pub derandomized: Vec<bool>,
+}
+impl ReceiverState for RandSetup {}
