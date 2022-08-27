@@ -169,7 +169,7 @@ pub mod tests {
         let (choices, inputs) = input_setup;
 
         let (mut receiver, receiver_setup) = receiver.rand_extension_setup(choices.len()).unwrap();
-        let mut sender = sender.extension_setup(receiver_setup).unwrap();
+        let mut sender = sender.rand_extension_setup(receiver_setup).unwrap();
 
         let derandomize = receiver.derandomize(&choices).unwrap();
 
@@ -194,7 +194,7 @@ pub mod tests {
         let (choices, inputs) = input_setup;
 
         let (mut receiver, receiver_setup) = receiver.rand_extension_setup(choices.len()).unwrap();
-        let mut sender = sender.extension_setup(receiver_setup).unwrap();
+        let mut sender = sender.rand_extension_setup(receiver_setup).unwrap();
 
         let mut received: Vec<Block> = Vec::new();
         for (input, choice) in inputs.chunks(4).zip(choices.chunks(4)) {

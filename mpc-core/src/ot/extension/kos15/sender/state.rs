@@ -38,3 +38,12 @@ pub struct Setup {
     pub base_choices: Vec<bool>,
 }
 impl SenderState for Setup {}
+
+#[derive(PartialEq, Debug)]
+pub struct RandSetup {
+    pub table: KosMatrix,
+    pub count: usize,
+    pub sent: usize,
+    pub base_choices: Vec<bool>,
+}
+impl SenderState for RandSetup {}

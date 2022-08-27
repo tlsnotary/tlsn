@@ -16,7 +16,7 @@ use rand::Rng;
 use rand_chacha::ChaCha12Rng;
 use rand_core::{RngCore, SeedableRng};
 use state::SenderState;
-pub use state::{BaseReceive, BaseSetup, Initialized, Setup};
+pub use state::{BaseReceive, BaseSetup, Initialized, RandSetup, Setup};
 
 use super::{
     matrix::{Error as MatrixError, KosMatrix},
@@ -105,114 +105,168 @@ impl Kos15Sender<BaseReceive> {
         mut self,
         setup_msg: ExtReceiverSetup,
     ) -> Result<Kos15Sender<Setup>, ExtSenderCoreError> {
-        let ncols_unpadded = setup_msg.ncols;
-
-        if ncols_unpadded > 1_000_000 {
-            return Err(ExtSenderCoreError::InvalidInputLength);
-        }
-
-        let expected_padding = calc_padding(ncols_unpadded);
-        let ncols = setup_msg.table.len() / BASE_COUNT * 8;
-
-        if ncols != ncols_unpadded + expected_padding {
-            return Err(ExtSenderCoreError::InvalidPadding);
-        }
-
-        let row_length = ncols / 8;
-        let num_elements = BASE_COUNT * row_length;
-
-        let us = KosMatrix::new(setup_msg.table, row_length)?;
-        let mut qs = KosMatrix::new(vec![0u8; num_elements], row_length)?;
-
-        for (j, (row_qs, row_us)) in qs.iter_rows_mut().zip(us.iter_rows()).enumerate() {
-            self.0.rngs[j].fill_bytes(row_qs);
-            if self.0.base_choices[j] {
-                row_qs
-                    .iter_mut()
-                    .zip(row_us.iter())
-                    .for_each(|(q, u)| *q ^= *u);
-            }
-        }
-        qs.transpose_bits()?;
-
-        // Seeding with a value from cointoss so that neither party could influence
-        // the randomness
-        let mut rng = ChaCha12Rng::from_seed(self.0.cointoss_random);
-
-        // Perform KOS15 sender check
-        if !kos15_check_sender(
-            &mut rng,
-            &qs,
-            ncols,
-            &setup_msg.x,
-            &setup_msg.t0,
-            &setup_msg.t1,
+        let (table, ncols_unpadded) = extension_setup_from(
+            &mut self.0.rngs,
             &self.0.base_choices,
-        ) {
-            return Err(ExtSenderCoreError::ConsistencyCheckFailed);
-        };
-
-        // Remove additional rows introduced by padding
-        qs.split_off_rows(qs.rows() - expected_padding)?;
-
-        let kos15_sender = Kos15Sender::<Setup>(Setup {
-            table: qs,
+            setup_msg,
+            &self.0.cointoss_random,
+        )?;
+        Ok(Kos15Sender(Setup {
+            table,
             count: ncols_unpadded,
             sent: 0,
             base_choices: self.0.base_choices,
-        });
-
-        Ok(kos15_sender)
+        }))
+    }
+    pub fn rand_extension_setup(
+        mut self,
+        setup_msg: ExtReceiverSetup,
+    ) -> Result<Kos15Sender<RandSetup>, ExtSenderCoreError> {
+        let (table, ncols_unpadded) = extension_setup_from(
+            &mut self.0.rngs,
+            &self.0.base_choices,
+            setup_msg,
+            &self.0.cointoss_random,
+        )?;
+        Ok(Kos15Sender(RandSetup {
+            table,
+            count: ncols_unpadded,
+            sent: 0,
+            base_choices: self.0.base_choices,
+        }))
     }
 }
+
 impl Kos15Sender<Setup> {
     pub fn send(&mut self, inputs: &[[Block; 2]]) -> Result<ExtSenderPayload, ExtSenderCoreError> {
-        self.send_from(inputs, None)
-    }
-
-    pub fn rand_send(
-        &mut self,
-        inputs: &[[Block; 2]],
-        derandomize: ExtDerandomize,
-    ) -> Result<ExtSenderPayload, ExtSenderCoreError> {
-        self.send_from(inputs, Some(derandomize))
-    }
-
-    fn send_from(
-        &mut self,
-        inputs: &[[Block; 2]],
-        derandomize: Option<ExtDerandomize>,
-    ) -> Result<ExtSenderPayload, ExtSenderCoreError> {
-        if self.0.sent + inputs.len() > self.0.count {
-            return Err(ExtSenderCoreError::InvalidInputLength);
-        }
-
-        let consumed_table: KosMatrix = self.0.table.split_off_rows_reverse(inputs.len())?;
-
-        // Check that all the input lengths are equal
-        if inputs.len() != consumed_table.rows() {
-            return Err(ExtSenderCoreError::InvalidInputLength);
-        }
-
-        if let Some(ref inner) = derandomize {
-            if inner.flip.len() != consumed_table.rows() {
-                return Err(ExtSenderCoreError::InvalidInputLength);
-            }
-        }
-
-        let ciphertexts = encrypt_values(
-            &Aes128::new_from_slice(&[0u8; 16]).unwrap(),
-            inputs,
-            consumed_table.inner(),
+        send_from(
+            &mut self.0.count,
+            &mut self.0.sent,
+            &mut self.0.table,
             &self.0.base_choices,
-            derandomize.map(|inner| inner.flip),
-        );
-
-        self.0.sent += inputs.len();
-        Ok(ExtSenderPayload { ciphertexts })
+            inputs,
+            None,
+        )
     }
 
     pub fn is_complete(&self) -> bool {
         self.0.sent == self.0.count
     }
+}
+
+impl Kos15Sender<RandSetup> {
+    pub fn rand_send(
+        &mut self,
+        inputs: &[[Block; 2]],
+        derandomize: ExtDerandomize,
+    ) -> Result<ExtSenderPayload, ExtSenderCoreError> {
+        send_from(
+            &mut self.0.count,
+            &mut self.0.sent,
+            &mut self.0.table,
+            &self.0.base_choices,
+            inputs,
+            Some(derandomize),
+        )
+    }
+
+    pub fn is_complete(&self) -> bool {
+        self.0.sent == self.0.count
+    }
+}
+
+fn send_from(
+    count: &mut usize,
+    sent: &mut usize,
+    table: &mut KosMatrix,
+    base_choices: &[bool],
+    inputs: &[[Block; 2]],
+    derandomize: Option<ExtDerandomize>,
+) -> Result<ExtSenderPayload, ExtSenderCoreError> {
+    if *sent + inputs.len() > *count {
+        return Err(ExtSenderCoreError::InvalidInputLength);
+    }
+
+    let consumed_table: KosMatrix = table.split_off_rows_reverse(inputs.len())?;
+
+    // Check that all the input lengths are equal
+    if inputs.len() != consumed_table.rows() {
+        return Err(ExtSenderCoreError::InvalidInputLength);
+    }
+
+    if let Some(ref inner) = derandomize {
+        if inner.flip.len() != consumed_table.rows() {
+            return Err(ExtSenderCoreError::InvalidInputLength);
+        }
+    }
+
+    let ciphertexts = encrypt_values(
+        &Aes128::new_from_slice(&[0u8; 16]).unwrap(),
+        inputs,
+        consumed_table.inner(),
+        base_choices,
+        derandomize.map(|inner| inner.flip),
+    );
+
+    *sent += inputs.len();
+    Ok(ExtSenderPayload { ciphertexts })
+}
+
+fn extension_setup_from(
+    rngs: &mut [ChaCha12Rng],
+    base_choices: &[bool],
+    setup_msg: ExtReceiverSetup,
+    cointoss_random: &[u8; 32],
+) -> Result<(KosMatrix, usize), ExtSenderCoreError> {
+    let ncols_unpadded = setup_msg.ncols;
+
+    if ncols_unpadded > 1_000_000 {
+        return Err(ExtSenderCoreError::InvalidInputLength);
+    }
+
+    let expected_padding = calc_padding(ncols_unpadded);
+    let ncols = setup_msg.table.len() / BASE_COUNT * 8;
+
+    if ncols != ncols_unpadded + expected_padding {
+        return Err(ExtSenderCoreError::InvalidPadding);
+    }
+
+    let row_length = ncols / 8;
+    let num_elements = BASE_COUNT * row_length;
+
+    let us = KosMatrix::new(setup_msg.table, row_length)?;
+    let mut qs = KosMatrix::new(vec![0u8; num_elements], row_length)?;
+
+    for (j, (row_qs, row_us)) in qs.iter_rows_mut().zip(us.iter_rows()).enumerate() {
+        rngs[j].fill_bytes(row_qs);
+        if base_choices[j] {
+            row_qs
+                .iter_mut()
+                .zip(row_us.iter())
+                .for_each(|(q, u)| *q ^= *u);
+        }
+    }
+    qs.transpose_bits()?;
+
+    // Seeding with a value from cointoss so that neither party could influence
+    // the randomness
+    let mut rng = ChaCha12Rng::from_seed(*cointoss_random);
+
+    // Perform KOS15 sender check
+    if !kos15_check_sender(
+        &mut rng,
+        &qs,
+        ncols,
+        &setup_msg.x,
+        &setup_msg.t0,
+        &setup_msg.t1,
+        &base_choices,
+    ) {
+        return Err(ExtSenderCoreError::ConsistencyCheckFailed);
+    };
+
+    // Remove additional rows introduced by padding
+    qs.split_off_rows(qs.rows() - expected_padding)?;
+
+    Ok((qs, ncols_unpadded))
 }

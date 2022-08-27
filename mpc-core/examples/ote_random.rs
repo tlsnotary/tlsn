@@ -43,7 +43,7 @@ pub fn main() {
     let (mut receiver, receiver_setup) = receiver.rand_extension_setup(256).unwrap();
 
     // Sender takes receiver's setup and runs its own extension setup
-    let mut sender = sender.extension_setup(receiver_setup).unwrap();
+    let mut sender = sender.rand_extension_setup(receiver_setup).unwrap();
 
     let mut received: Vec<Block> = Vec::new();
 
