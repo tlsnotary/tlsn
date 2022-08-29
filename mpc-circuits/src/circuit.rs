@@ -469,10 +469,9 @@ impl From<String> for CircuitId {
 /// Invariants of circuit structure:
 /// 1. A circuit MUST be acyclic, ie a gate output wire MUST NOT be connected to one of its inputs directly or indirectly
 /// 2. A gate MUST NOT have identical input wires, ie xref != yref
-/// 3. A gate input wire id MUST NOT be greater than its output wire id
-/// 4. Input wires MUST be connected to gate inputs
-/// 5. Output wires MUST be connected to gate outputs
-/// 6. Gates MUST be sorted topologically
+/// 3. Input wires MUST be connected to gate inputs
+/// 4. Output wires MUST be connected to gate outputs
+/// 5. Gates MUST be sorted topologically
 #[derive(Clone)]
 pub struct Circuit {
     pub(crate) id: CircuitId,
@@ -634,8 +633,14 @@ impl Circuit {
     fn validate_gates(
         gates: Vec<Gate>,
         input_wires: &[usize],
-        _output_wires: &[usize],
+        output_wires: &[usize],
     ) -> Result<(Vec<Gate>, CircuitInfo), CircuitError> {
+        if gates.len() == 0 {
+            return Err(CircuitError::InvalidCircuit(
+                "Circuits must have at least 1 gate".to_string(),
+            ));
+        }
+
         let mut and_count = 0;
         let mut xor_count = 0;
         let mut gate_output_wire_ids: Vec<usize> = Vec::with_capacity(gates.len());
@@ -691,6 +696,7 @@ impl Circuit {
 
         let wire_ids: HashSet<usize> = HashSet::from_iter(wire_ids);
         let input_wire_ids: HashSet<usize> = HashSet::from_iter(input_wires.iter().copied());
+        let output_wire_ids: HashSet<usize> = HashSet::from_iter(output_wires.iter().copied());
         let gate_output_wire_ids: HashSet<usize> = HashSet::from_iter(gate_output_wire_ids);
 
         // Check that all gate input wires in the first layer are assigned to an Input
@@ -705,7 +711,20 @@ impl Circuit {
                 .collect::<Vec<usize>>();
             diff.sort();
             return Err(CircuitError::InvalidCircuit(format!(
-                "All input groups must be mapped to gate inputs: {:?}",
+                "All input wires must be mapped to gate inputs: {:?}",
+                diff
+            )));
+        }
+
+        // Check that all Output wires are mapped to a gate output
+        if !gate_output_wire_ids.is_superset(&output_wire_ids) {
+            let mut diff = output_wire_ids
+                .difference(&gate_output_wire_ids)
+                .copied()
+                .collect::<Vec<usize>>();
+            diff.sort();
+            return Err(CircuitError::InvalidCircuit(format!(
+                "All output wires must be mapped to gate outputs: {:?}",
                 diff
             )));
         }
@@ -885,7 +904,54 @@ mod tests {
     #[test]
     fn test_all_inputs_must_be_connected() {
         let inputs = vec![Input::new(0, Group::new("", "", ValueType::Bool, &[0]))];
-        let err = Circuit::new("", "", inputs, vec![], vec![]).unwrap_err();
+        let gates = vec![Gate::Xor {
+            id: 0,
+            xref: 0,
+            yref: 1,
+            zref: 2,
+        }];
+        let err = Circuit::new("", "", inputs, vec![], gates).unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("All input wires must be mapped to gate inputs"));
+    }
+
+    #[test]
+    fn test_all_outputs_must_be_connected() {
+        let inputs = vec![Input::new(0, Group::new("", "", ValueType::Bool, &[0, 1]))];
+        let gates = vec![Gate::Xor {
+            id: 0,
+            xref: 0,
+            yref: 1,
+            zref: 2,
+        }];
+        let outputs = vec![Output::new(0, Group::new("", "", ValueType::Bool, &[3]))];
+        let err = Circuit::new("", "", inputs, outputs, gates).unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("All output wires must be mapped to gate outputs"));
+    }
+
+    #[test]
+    fn test_gate_invariants() {
+        // No duplicate input wires
+        let gate = Gate::Xor {
+            id: 0,
+            xref: 0,
+            yref: 0,
+            zref: 2,
+        };
+        let err = gate.validate().unwrap_err();
+        assert!(matches!(err, CircuitError::InvalidCircuit(_)));
+
+        // output can't be connected to input
+        let gate = Gate::Xor {
+            id: 0,
+            xref: 0,
+            yref: 1,
+            zref: 1,
+        };
+        let err = gate.validate().unwrap_err();
         assert!(matches!(err, CircuitError::InvalidCircuit(_)));
     }
 }
