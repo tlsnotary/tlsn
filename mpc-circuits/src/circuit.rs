@@ -636,8 +636,6 @@ impl Circuit {
         input_wires: &[usize],
         _output_wires: &[usize],
     ) -> Result<(Vec<Gate>, CircuitInfo), CircuitError> {
-        // TODO: Implement sorting algorithm for gates
-
         let mut and_count = 0;
         let mut xor_count = 0;
         let mut gate_output_wire_ids: Vec<usize> = Vec::with_capacity(gates.len());
