@@ -11,7 +11,7 @@ pub enum Error {
     #[error("Invalid output labels")]
     InvalidOutputLabels,
     #[error("Circuit error: {0:?}")]
-    CircuitError(#[from] mpc_circuits::Error),
+    CircuitError(#[from] mpc_circuits::CircuitError),
     #[error("General error: {0}")]
     General(String),
     #[error("Peer behaved unexpectedly: {0}")]
