@@ -4,15 +4,8 @@ use std::{
     sync::Arc,
 };
 
+pub use crate::error::BuilderError;
 use crate::{circuit::GateType, Circuit, Gate, Group, Input, Output, ValueType};
-
-#[derive(Debug, thiserror::Error)]
-pub enum BuilderError {
-    #[error("Circuit input or output was not fully mapped to gates")]
-    MissingConnection(String),
-    #[error("Circuit error")]
-    CircuitError(#[from] crate::Error),
-}
 
 /// A circuit feed
 #[derive(Debug, Clone, Copy)]

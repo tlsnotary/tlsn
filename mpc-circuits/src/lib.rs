@@ -8,7 +8,7 @@ pub mod utils;
 mod value;
 
 pub use circuit::{Circuit, CircuitId, Gate, Group, Input, InputValue, Output, OutputValue};
-pub use error::Error;
+pub use error::CircuitError;
 pub use spec::CircuitSpec;
 pub use value::{Value, ValueType};
 

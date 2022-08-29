@@ -1,6 +1,6 @@
 use std::convert::{From, TryFrom};
 
-use crate::{Error, ValueType};
+use crate::{CircuitError, ValueType};
 
 include!(concat!(env!("OUT_DIR"), "/core.circuits.rs"));
 
@@ -17,7 +17,7 @@ impl From<crate::Group> for Group {
 }
 
 impl TryFrom<Group> for crate::Group {
-    type Error = Error;
+    type Error = CircuitError;
     #[inline]
     fn try_from(g: Group) -> Result<Self, Self::Error> {
         Ok(crate::Group::new(
@@ -32,7 +32,7 @@ impl TryFrom<Group> for crate::Group {
                 5 => ValueType::U32,
                 6 => ValueType::U64,
                 7 => ValueType::U128,
-                _ => return Err(Error::MappingError),
+                _ => return Err(CircuitError::MappingError),
             },
             &g.wires
                 .iter()
@@ -82,7 +82,7 @@ impl From<crate::Gate> for Gate {
 }
 
 impl TryFrom<Gate> for crate::Gate {
-    type Error = Error;
+    type Error = CircuitError;
 
     fn try_from(g: Gate) -> Result<Self, Self::Error> {
         let gate = match g.gate_type {
@@ -103,7 +103,7 @@ impl TryFrom<Gate> for crate::Gate {
                 xref: g.xref as usize,
                 zref: g.zref as usize,
             },
-            _ => return Err(Error::MappingError),
+            _ => return Err(CircuitError::MappingError),
         };
         Ok(gate)
     }
@@ -136,7 +136,7 @@ impl From<crate::Circuit> for Circuit {
 }
 
 impl TryFrom<Circuit> for crate::Circuit {
-    type Error = Error;
+    type Error = CircuitError;
 
     #[inline]
     fn try_from(c: Circuit) -> Result<Self, Self::Error> {

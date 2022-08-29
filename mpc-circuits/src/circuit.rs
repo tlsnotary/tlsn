@@ -1,6 +1,6 @@
 use crate::{
-    error::ValueError, proto::Circuit as ProtoCircuit, utils::topological_sort, Error, Value,
-    ValueType,
+    error::ValueError, proto::Circuit as ProtoCircuit, utils::topological_sort, CircuitError,
+    Value, ValueType,
 };
 
 use prost::Message;
@@ -77,12 +77,12 @@ impl Input {
     }
 
     /// Parses bits to [`InputValue`]
-    pub fn parse_bits(&self, bits: Vec<bool>) -> Result<InputValue, Error> {
+    pub fn parse_bits(&self, bits: Vec<bool>) -> Result<InputValue, CircuitError> {
         InputValue::new(self.clone(), Value::new(self.group.value_type(), bits)?)
     }
 
     /// Converts input to [`InputValue`]
-    pub fn to_value(&self, value: impl Into<Value>) -> Result<InputValue, Error> {
+    pub fn to_value(&self, value: impl Into<Value>) -> Result<InputValue, CircuitError> {
         InputValue::new(self.clone(), value.into())
     }
 }
@@ -113,12 +113,12 @@ impl Output {
     }
 
     /// Parses bits to [`OutputValue`]
-    pub fn parse_bits(&self, bits: Vec<bool>) -> Result<OutputValue, Error> {
+    pub fn parse_bits(&self, bits: Vec<bool>) -> Result<OutputValue, CircuitError> {
         OutputValue::new(self.clone(), Value::new(self.group.value_type(), bits)?)
     }
 
     /// Converts output to [`OutputValue`]
-    pub fn to_value(&self, value: impl Into<Value>) -> Result<OutputValue, Error> {
+    pub fn to_value(&self, value: impl Into<Value>) -> Result<OutputValue, CircuitError> {
         OutputValue::new(self.clone(), value.into())
     }
 }
@@ -138,9 +138,9 @@ pub struct InputValue {
 
 impl InputValue {
     /// Creates new input value
-    pub fn new(input: Input, value: Value) -> Result<Self, Error> {
+    pub fn new(input: Input, value: Value) -> Result<Self, CircuitError> {
         if input.group.value_type() != value.value_type() {
-            return Err(Error::ValueError(ValueError::InvalidType(
+            return Err(CircuitError::ValueError(ValueError::InvalidType(
                 input.group,
                 value.value_type(),
             )));
@@ -192,9 +192,9 @@ pub struct OutputValue {
 
 impl OutputValue {
     /// Creates new output value
-    pub fn new(output: Output, value: Value) -> Result<Self, Error> {
+    pub fn new(output: Output, value: Value) -> Result<Self, CircuitError> {
         if output.group.value_type() != value.value_type() {
-            return Err(Error::ValueError(ValueError::InvalidType(
+            return Err(CircuitError::ValueError(ValueError::InvalidType(
                 output.group,
                 value.value_type(),
             )));
@@ -361,25 +361,34 @@ impl Gate {
         }
     }
 
-    fn validate(&self) -> Result<(), Error> {
+    fn validate(&self) -> Result<(), CircuitError> {
         match *self {
             Gate::Xor {
                 xref, yref, zref, ..
             } => {
                 if xref == yref || xref == zref || yref == zref {
-                    return Err(Error::InvalidCircuit(format!("invalid gate: {:?}", self)));
+                    return Err(CircuitError::InvalidCircuit(format!(
+                        "invalid gate: {:?}",
+                        self
+                    )));
                 }
             }
             Gate::And {
                 xref, yref, zref, ..
             } => {
                 if xref == yref || xref == zref || yref == zref {
-                    return Err(Error::InvalidCircuit(format!("invalid gate: {:?}", self)));
+                    return Err(CircuitError::InvalidCircuit(format!(
+                        "invalid gate: {:?}",
+                        self
+                    )));
                 }
             }
             Gate::Inv { xref, zref, .. } => {
                 if xref == zref {
-                    return Err(Error::InvalidCircuit(format!("invalid gate: {:?}", self)));
+                    return Err(CircuitError::InvalidCircuit(format!(
+                        "invalid gate: {:?}",
+                        self
+                    )));
                 }
             }
         }
@@ -524,7 +533,7 @@ impl Circuit {
         inputs: Vec<Input>,
         outputs: Vec<Output>,
         gates: Vec<Gate>,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, CircuitError> {
         let (inputs, input_wires) = Self::validate_inputs(inputs)?;
         let (outputs, output_wires) = Self::validate_outputs(outputs)?;
         let (gates, info) = Self::validate_gates(gates, &input_wires, &output_wires)?;
@@ -548,7 +557,7 @@ impl Circuit {
         })
     }
 
-    fn validate_inputs(mut inputs: Vec<Input>) -> Result<(Vec<Input>, Vec<usize>), Error> {
+    fn validate_inputs(mut inputs: Vec<Input>) -> Result<(Vec<Input>, Vec<usize>), CircuitError> {
         // Sort inputs by input id
         inputs.sort_by_key(|input| input.id);
 
@@ -558,7 +567,9 @@ impl Circuit {
 
         // Make sure duplicates inputs are not present
         if input_count != input_ids.len() {
-            return Err(Error::InvalidCircuit("Duplicate input ids".to_string()));
+            return Err(CircuitError::InvalidCircuit(
+                "Duplicate input ids".to_string(),
+            ));
         }
 
         // Gather up and sort input wire ids
@@ -575,14 +586,16 @@ impl Circuit {
 
         // Make sure input wires only belong to 1 input
         if input_wire_count != input_wire_ids.len() {
-            return Err(Error::InvalidCircuit(
+            return Err(CircuitError::InvalidCircuit(
                 "Duplicate input wire ids".to_string(),
             ));
         }
         Ok((inputs, input_wire_ids))
     }
 
-    fn validate_outputs(mut outputs: Vec<Output>) -> Result<(Vec<Output>, Vec<usize>), Error> {
+    fn validate_outputs(
+        mut outputs: Vec<Output>,
+    ) -> Result<(Vec<Output>, Vec<usize>), CircuitError> {
         // Sort outputs by output id
         outputs.sort_by_key(|output| output.id);
 
@@ -592,7 +605,9 @@ impl Circuit {
 
         // Make sure duplicate outputs are not present
         if output_count != output_ids.len() {
-            return Err(Error::InvalidCircuit("Duplicate output ids".to_string()));
+            return Err(CircuitError::InvalidCircuit(
+                "Duplicate output ids".to_string(),
+            ));
         }
 
         // Gather up and sort output wire ids
@@ -609,7 +624,7 @@ impl Circuit {
 
         // Make sure output wires only belong to 1 output
         if output_wire_count != output_wire_ids.len() {
-            return Err(Error::InvalidCircuit(
+            return Err(CircuitError::InvalidCircuit(
                 "Duplicate output wire ids".to_string(),
             ));
         }
@@ -620,7 +635,7 @@ impl Circuit {
         gates: Vec<Gate>,
         input_wires: &[usize],
         _output_wires: &[usize],
-    ) -> Result<(Vec<Gate>, CircuitInfo), Error> {
+    ) -> Result<(Vec<Gate>, CircuitInfo), CircuitError> {
         // TODO: Implement sorting algorithm for gates
 
         let mut and_count = 0;
@@ -649,7 +664,7 @@ impl Circuit {
 
         // Check that wire ids start at 0 and are contiguous
         if wire_ids[0] != 0 || !(1..wire_count).all(|i| (wire_ids[i] - wire_ids[i - 1]) == 1) {
-            return Err(Error::InvalidCircuit(
+            return Err(CircuitError::InvalidCircuit(
                 "Wire ids must start at 0 and be contiguous".to_string(),
             ));
         }
@@ -670,7 +685,7 @@ impl Circuit {
 
         // Check that all gate output wires are unique
         if duplicate_output_wire_ids.len() > 0 {
-            return Err(Error::InvalidCircuit(format!(
+            return Err(CircuitError::InvalidCircuit(format!(
                 "Duplicate gate output wire ids: {:?}",
                 duplicate_output_wire_ids
             )));
@@ -691,7 +706,7 @@ impl Circuit {
                 .copied()
                 .collect::<Vec<usize>>();
             diff.sort();
-            return Err(Error::InvalidCircuit(format!(
+            return Err(CircuitError::InvalidCircuit(format!(
                 "All input groups must be mapped to gate inputs: {:?}",
                 diff
             )));
@@ -708,9 +723,9 @@ impl Circuit {
     }
 
     /// Loads a circuit from a byte-array in protobuf format
-    pub fn load_bytes(bytes: &[u8]) -> Result<Self, Error> {
+    pub fn load_bytes(bytes: &[u8]) -> Result<Self, CircuitError> {
         let circ = ProtoCircuit::decode(bytes)?;
-        Circuit::try_from(circ).map_err(|_| Error::MappingError)
+        Circuit::try_from(circ).map_err(|_| CircuitError::MappingError)
     }
 
     pub fn id(&self) -> &CircuitId {
@@ -793,19 +808,23 @@ impl Circuit {
     /// Evaluates the circuit in plaintext with the provided inputs
     ///
     /// Constant inputs may be provided, but it is not required
-    pub fn evaluate(&self, inputs: &[InputValue]) -> Result<Vec<OutputValue>, Error> {
+    pub fn evaluate(&self, inputs: &[InputValue]) -> Result<Vec<OutputValue>, CircuitError> {
         let mut wires: Vec<Option<bool>> = vec![None; self.len()];
 
         // Insert constant inputs
         for input in self.const_inputs.iter() {
-            let wire_id = input.group.wires().get(0).ok_or(Error::InvalidCircuit(
-                "Constant input missing wire id".to_string(),
-            ))?;
+            let wire_id = input
+                .group
+                .wires()
+                .get(0)
+                .ok_or(CircuitError::InvalidCircuit(
+                    "Constant input missing wire id".to_string(),
+                ))?;
             match input.value_type() {
                 ValueType::ConstZero => wires[*wire_id] = Some(false),
                 ValueType::ConstOne => wires[*wire_id] = Some(true),
                 _ => {
-                    return Err(Error::InvalidCircuit(
+                    return Err(CircuitError::InvalidCircuit(
                         "Constant input isn't a constant type".to_string(),
                     ))
                 }
@@ -825,19 +844,19 @@ impl Circuit {
                 Gate::Xor {
                     xref, yref, zref, ..
                 } => {
-                    let x = wires[xref].ok_or(Error::UninitializedWire(xref))?;
-                    let y = wires[yref].ok_or(Error::UninitializedWire(yref))?;
+                    let x = wires[xref].ok_or(CircuitError::UninitializedWire(xref))?;
+                    let y = wires[yref].ok_or(CircuitError::UninitializedWire(yref))?;
                     (zref, x ^ y)
                 }
                 Gate::And {
                     xref, yref, zref, ..
                 } => {
-                    let x = wires[xref].ok_or(Error::UninitializedWire(xref))?;
-                    let y = wires[yref].ok_or(Error::UninitializedWire(yref))?;
+                    let x = wires[xref].ok_or(CircuitError::UninitializedWire(xref))?;
+                    let y = wires[yref].ok_or(CircuitError::UninitializedWire(yref))?;
                     (zref, x & y)
                 }
                 Gate::Inv { xref, zref, .. } => {
-                    let x = wires[xref].ok_or(Error::UninitializedWire(xref))?;
+                    let x = wires[xref].ok_or(CircuitError::UninitializedWire(xref))?;
                     (zref, !x)
                 }
             };
@@ -849,7 +868,7 @@ impl Circuit {
         for output in self.outputs.iter() {
             let mut value: Vec<bool> = Vec::with_capacity(output.as_ref().len());
             for id in output.as_ref().wires() {
-                value.push(wires[*id].ok_or(Error::UninitializedWire(*id))?);
+                value.push(wires[*id].ok_or(CircuitError::UninitializedWire(*id))?);
             }
             outputs.push(OutputValue::new(
                 output.clone(),
@@ -858,5 +877,17 @@ impl Circuit {
         }
 
         Ok(outputs)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_all_inputs_must_be_connected() {
+        let inputs = vec![Input::new(0, Group::new("", "", ValueType::Bool, &[0]))];
+        let result = Circuit::new("", "", inputs, vec![], vec![]);
+        assert!(matches!(result, Err(CircuitError::InvalidCircuit(_))));
     }
 }
