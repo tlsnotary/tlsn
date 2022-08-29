@@ -1,4 +1,7 @@
-use crate::{proto::Circuit as ProtoCircuit, Error};
+use crate::{
+    error::ValueError, proto::Circuit as ProtoCircuit, utils::topological_sort, Error, Value,
+    ValueType,
+};
 
 use prost::Message;
 use sha2::{Digest, Sha256};
@@ -9,18 +12,20 @@ use std::{collections::HashSet, convert::TryFrom};
 pub struct Group {
     name: String,
     desc: String,
+    value_type: ValueType,
     /// Wire ids
     wires: Vec<usize>,
 }
 
 impl Group {
-    pub fn new(name: &str, desc: &str, wires: &[usize]) -> Self {
+    pub fn new(name: &str, desc: &str, value_type: ValueType, wires: &[usize]) -> Self {
         let mut wires = wires.to_vec();
         // Ensure wire ids are always sorted
         wires.sort();
         Self {
             name: name.to_string(),
             desc: desc.to_string(),
+            value_type,
             wires,
         }
     }
@@ -31,6 +36,10 @@ impl Group {
 
     pub fn desc(&self) -> &str {
         &self.desc
+    }
+
+    pub fn value_type(&self) -> ValueType {
+        self.value_type
     }
 
     pub fn wires(&self) -> &[usize] {
@@ -62,8 +71,19 @@ impl Input {
         Self { id, group }
     }
 
-    pub fn to_value(&self, value: &[bool]) -> Result<InputValue, Error> {
-        InputValue::new(self.clone(), value)
+    /// Returns value type
+    pub fn value_type(&self) -> ValueType {
+        self.group.value_type()
+    }
+
+    /// Parses bits to [`InputValue`]
+    pub fn parse_bits(&self, bits: Vec<bool>) -> Result<InputValue, Error> {
+        InputValue::new(self.clone(), Value::new(self.group.value_type(), bits)?)
+    }
+
+    /// Converts input to [`InputValue`]
+    pub fn to_value(&self, value: impl Into<Value>) -> Result<InputValue, Error> {
+        InputValue::new(self.clone(), value.into())
     }
 }
 
@@ -87,8 +107,19 @@ impl Output {
         Self { id, group }
     }
 
-    pub fn to_value(&self, value: &[bool]) -> Result<OutputValue, Error> {
-        OutputValue::new(self.clone(), value)
+    /// Returns value type
+    pub fn value_type(&self) -> ValueType {
+        self.group.value_type()
+    }
+
+    /// Parses bits to [`OutputValue`]
+    pub fn parse_bits(&self, bits: Vec<bool>) -> Result<OutputValue, Error> {
+        OutputValue::new(self.clone(), Value::new(self.group.value_type(), bits)?)
+    }
+
+    /// Converts output to [`OutputValue`]
+    pub fn to_value(&self, value: impl Into<Value>) -> Result<OutputValue, Error> {
+        OutputValue::new(self.clone(), value.into())
     }
 }
 
@@ -102,24 +133,34 @@ impl AsRef<Group> for Output {
 #[derive(Debug, Clone, PartialEq)]
 pub struct InputValue {
     input: Input,
-    value: Vec<bool>,
+    value: Value,
 }
 
 impl InputValue {
     /// Creates new input value
-    pub fn new(input: Input, value: &[bool]) -> Result<Self, Error> {
-        if input.as_ref().len() != value.len() {
-            return Err(Error::InvalidValue(input.as_ref().clone(), value.to_vec()));
+    pub fn new(input: Input, value: Value) -> Result<Self, Error> {
+        if input.group.value_type() != value.value_type() {
+            return Err(Error::ValueError(ValueError::InvalidType(
+                input.group,
+                value.value_type(),
+            )));
         }
-        Ok(Self {
-            input,
-            value: value.to_vec(),
-        })
+        Ok(Self { input, value })
     }
 
     /// Returns input id
     pub fn id(&self) -> usize {
         self.input.id
+    }
+
+    /// Returns value
+    pub fn value(&self) -> &Value {
+        &self.value
+    }
+
+    /// Returns input value type
+    pub fn value_type(&self) -> ValueType {
+        self.input.value_type()
     }
 
     /// Returns [`Input`] corresponding to this value
@@ -136,41 +177,44 @@ impl InputValue {
     pub fn wires(&self) -> &[usize] {
         self.input.as_ref().wires()
     }
-}
 
-impl AsRef<[bool]> for InputValue {
-    fn as_ref(&self) -> &[bool] {
-        &self.value
+    /// Returns wire values
+    pub fn wire_values(&self) -> Vec<bool> {
+        self.value.to_bits()
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct OutputValue {
     output: Output,
-    value: Vec<bool>,
-}
-
-impl AsRef<[bool]> for OutputValue {
-    fn as_ref(&self) -> &[bool] {
-        &self.value
-    }
+    value: Value,
 }
 
 impl OutputValue {
     /// Creates new output value
-    pub fn new(output: Output, value: &[bool]) -> Result<Self, Error> {
-        if output.as_ref().len() != value.len() {
-            return Err(Error::InvalidValue(output.as_ref().clone(), value.to_vec()));
+    pub fn new(output: Output, value: Value) -> Result<Self, Error> {
+        if output.group.value_type() != value.value_type() {
+            return Err(Error::ValueError(ValueError::InvalidType(
+                output.group,
+                value.value_type(),
+            )));
         }
-        Ok(Self {
-            output,
-            value: value.to_vec(),
-        })
+        Ok(Self { output, value })
     }
 
     /// Returns output id
     pub fn id(&self) -> usize {
         self.output.id
+    }
+
+    /// Returns value
+    pub fn value(&self) -> &Value {
+        &self.value
+    }
+
+    /// Returns output value type
+    pub fn value_type(&self) -> ValueType {
+        self.output.value_type()
     }
 
     /// Returns [`Output`] corresponding to this value
@@ -186,6 +230,11 @@ impl OutputValue {
     /// Returns reference to output wires
     pub fn wires(&self) -> &[usize] {
         self.output.as_ref().wires()
+    }
+
+    /// Returns wire values
+    pub fn wire_values(&self) -> Vec<bool> {
+        self.value.to_bits()
     }
 }
 
@@ -274,14 +323,14 @@ impl Gate {
             Gate::Xor {
                 xref, yref, zref, ..
             } => {
-                if xref == zref || yref == zref {
+                if xref == yref || xref == zref || yref == zref {
                     return Err(Error::InvalidCircuit(format!("invalid gate: {:?}", self)));
                 }
             }
             Gate::And {
                 xref, yref, zref, ..
             } => {
-                if xref == zref || yref == zref {
+                if xref == yref || xref == zref || yref == zref {
                     return Err(Error::InvalidCircuit(format!("invalid gate: {:?}", self)));
                 }
             }
@@ -358,6 +407,20 @@ impl From<String> for CircuitId {
     }
 }
 
+/// Binary Circuit
+///
+/// Circuits Wire IDs are in ascending order, organized in the following manner:
+/// 1. Input wires
+/// 2. Gate wires
+/// 3. Output wires
+///
+/// Invariants of circuit structure:
+/// 1. A circuit MUST be acyclic, ie a gate output wire MUST NOT be connected to one of its inputs directly or indirectly
+/// 2. A gate MUST NOT have identical input wires, ie xref != yref
+/// 3. A gate input wire id MUST NOT be greater than its output wire id
+/// 4. Input wires MUST be connected to gate inputs
+/// 5. Output wires MUST be connected to gate outputs
+/// 6. Gates MUST be sorted topologically
 #[derive(Clone)]
 pub struct Circuit {
     pub(crate) id: CircuitId,
@@ -430,7 +493,7 @@ impl Circuit {
             xor_count: info.xor_count,
             inputs,
             outputs,
-            gates,
+            gates: topological_sort(gates),
         })
     }
 
@@ -505,7 +568,7 @@ impl Circuit {
     fn validate_gates(
         gates: Vec<Gate>,
         input_wires: &[usize],
-        output_wires: &[usize],
+        _output_wires: &[usize],
     ) -> Result<(Vec<Gate>, CircuitInfo), Error> {
         // TODO: Implement sorting algorithm for gates
 
@@ -541,44 +604,46 @@ impl Circuit {
         }
 
         gate_output_wire_ids.sort();
-        let gate_output_wire_count = gate_output_wire_ids.len();
-        gate_output_wire_ids.dedup();
+        let duplicate_output_wire_ids = {
+            let mut dups: HashSet<usize> = HashSet::with_capacity(gate_output_wire_ids.len());
+            let mut set: HashSet<usize> = HashSet::with_capacity(gate_output_wire_ids.len());
+            for id in gate_output_wire_ids.iter() {
+                if let Some(_) = set.get(id) {
+                    dups.insert(*id);
+                } else {
+                    set.insert(*id);
+                }
+            }
+            dups
+        };
 
         // Check that all gate output wires are unique
-        if gate_output_wire_count != gate_output_wire_ids.len() {
-            return Err(Error::InvalidCircuit(
-                "Duplicate gate output wire ids".to_string(),
-            ));
+        if duplicate_output_wire_ids.len() > 0 {
+            return Err(Error::InvalidCircuit(format!(
+                "Duplicate gate output wire ids: {:?}",
+                duplicate_output_wire_ids
+            )));
         }
 
         let wire_ids: HashSet<usize> = HashSet::from_iter(wire_ids);
         let input_wire_ids: HashSet<usize> = HashSet::from_iter(input_wires.iter().copied());
         let gate_output_wire_ids: HashSet<usize> = HashSet::from_iter(gate_output_wire_ids);
-        let output_wire_ids: HashSet<usize> = HashSet::from_iter(output_wires.iter().copied());
-
-        // Check that all gate output wires in last layer are assigned ot an Output
-        if wire_ids
-            .difference(&gate_input_wire_ids)
-            .cloned()
-            .collect::<HashSet<usize>>()
-            != output_wire_ids
-        {
-            return Err(Error::InvalidCircuit(format!(
-                "All gate outputs must be mapped to output groups: {:?}",
-                gate_output_wire_ids.difference(&output_wire_ids)
-            )));
-        }
 
         // Check that all gate input wires in the first layer are assigned to an Input
-        if gate_input_wire_ids
+        let expected_input_ids = wire_ids
             .difference(&gate_output_wire_ids)
             .cloned()
-            .collect::<HashSet<usize>>()
-            != input_wire_ids
-        {
-            return Err(Error::InvalidCircuit(
-                "All input groups must be mapped to gate inputs".to_string(),
-            ));
+            .collect::<HashSet<usize>>();
+        if expected_input_ids != input_wire_ids {
+            let mut diff = input_wire_ids
+                .difference(&expected_input_ids)
+                .copied()
+                .collect::<Vec<usize>>();
+            diff.sort();
+            return Err(Error::InvalidCircuit(format!(
+                "All input groups must be mapped to gate inputs: {:?}",
+                diff
+            )));
         }
 
         Ok((
@@ -678,8 +743,8 @@ impl Circuit {
     pub fn evaluate(&self, inputs: &[InputValue]) -> Result<Vec<OutputValue>, Error> {
         let mut wires: Vec<Option<bool>> = vec![None; self.len()];
         for input in inputs {
-            for (value, wire_id) in input.as_ref().iter().zip(input.wires()) {
-                wires[*wire_id] = Some(*value);
+            for (value, wire_id) in input.wire_values().into_iter().zip(input.wires()) {
+                wires[*wire_id] = Some(value);
             }
         }
 
@@ -713,7 +778,10 @@ impl Circuit {
             for id in output.as_ref().wires() {
                 value.push(wires[*id].ok_or(Error::UninitializedWire(*id))?);
             }
-            outputs.push(OutputValue::new(output.clone(), &value)?);
+            outputs.push(OutputValue::new(
+                output.clone(),
+                Value::new(output.value_type(), value)?,
+            )?);
         }
 
         Ok(outputs)

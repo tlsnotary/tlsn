@@ -120,7 +120,7 @@ impl GarbledCircuit<Full> {
             .map(|value| {
                 InputLabels::new(
                     value.input().clone(),
-                    &WireLabelPair::choose(&self.data.labels, value.wires(), value.as_ref()),
+                    &WireLabelPair::choose(&self.data.labels, value.wires(), &value.wire_values()),
                 )
                 .expect("Circuit invariant violated, wrong wire count")
             })

@@ -16,9 +16,20 @@ message Gate {
 }
 
 message Group {
+    enum ValueType {
+        Bool = 0;
+        Bits = 1;
+        Bytes = 2;
+        U8 = 3;
+        U16 = 4;
+        U32 = 5;
+        U64 = 6;
+        U128 = 7;
+    }
     required string name = 1;
     required string desc = 2;
-    repeated uint32 wires = 3;
+    required ValueType value_type = 3;
+    repeated uint32 wires = 4;
 }
 
 message Circuit {

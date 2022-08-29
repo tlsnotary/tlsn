@@ -40,12 +40,17 @@ curv-kzen = "0.9"
 num = { version = "0.4", features = ["rand"] }
 aes = { version = "0.7.5", features = [] }
 
+[build-dependencies]
+tlsn-mpc-circuits = { path = "../mpc-circuits" }
+regex = { version = "1.5.4" }
+prost = { version = "0.9" }
+
 [[test]]
 # don't run the heavy circuit_test unless explicitely invoked with
 # cargo test --test circuit_test
 name = "circuit_test"
 test = false
 
-[[bench]]
-name = "garble"
-harness = false
+#[[bench]]
+#name = "garble"
+#harness = false

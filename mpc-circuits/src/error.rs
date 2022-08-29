@@ -1,4 +1,8 @@
-use crate::Group;
+use crate::{
+    spec::{GateSpec, GroupSpec},
+    value::ValueType,
+    Group,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -7,11 +11,8 @@ pub enum Error {
     /// An I/O error occurred.
     #[error("encountered error while parsing circuit: {0}")]
     ParsingError(String),
-    /// An error occurred trying to map values to wire group
-    #[error(
-        "encountered error while trying to map values to wire group, Group: {0:?}, value: {1:?}"
-    )]
-    InvalidValue(Group, Vec<bool>),
+    #[error("encountered value error")]
+    ValueError(#[from] ValueError),
     /// An error occurred while constructing a circuit
     #[error("encountered error while constructing a circuit: {0}")]
     InvalidCircuit(String),
@@ -24,4 +25,24 @@ pub enum Error {
     /// Error occurred when mapping models
     #[error("encountered error while mapping protobuf model to core model")]
     MappingError,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ValueError {
+    #[error("Invalid bit string provided for value type")]
+    InvalidValue(ValueType, Vec<bool>),
+    #[error("Invalid value type for group")]
+    InvalidType(Group, ValueType),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum SpecError {
+    #[error("encountered error deserializing spec")]
+    ReadError(#[from] serde_yaml::Error),
+    #[error("invalid circuit spec")]
+    InvalidCircuit(#[from] Error),
+    #[error("invalid group spec")]
+    InvalidGroup(GroupSpec),
+    #[error("invalid gate spec")]
+    InvalidGate(GateSpec),
 }

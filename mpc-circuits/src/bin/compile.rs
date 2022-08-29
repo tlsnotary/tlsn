@@ -1,32 +1,32 @@
 // Parses Bristol-fashion circuits
 
 use clap::Parser;
-use mpc_circuits::circuit::Circuit;
-use mpc_circuits::proto::Circuit as ProtoCircuit;
+use mpc_circuits::{proto::Circuit as ProtoCircuit, CircuitSpec};
 use prost::Message;
 use rayon::prelude::*;
 use regex::Regex;
-use std::env;
-use std::fs::{create_dir, read_dir, write};
-use std::io::Result;
+use std::{
+    fs::{create_dir, read_dir, write},
+    io::Result,
+};
 
 #[derive(Clone, Debug, Parser)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
     /// Path to directory containing circuits
-    #[clap(short, default_value = "circuits/bristol")]
+    #[clap(short, default_value = "circuits/specs")]
     i: String,
     /// Path to directory to save outputs
-    #[clap(short, default_value = "circuits/protobuf")]
+    #[clap(short, default_value = "circuits/bin")]
     o: String,
 }
 
 fn process_file(file: &String, out_dir: &String) -> Result<()> {
-    let version = env::var("CARGO_PKG_VERSION").unwrap();
-    let name_pattern = Regex::new(r"(\w+)\.txt").unwrap();
+    let name_pattern = Regex::new(r"(\w+)\.yml").unwrap();
     if let Some(cap) = name_pattern.captures(file.as_str()) {
+        let bytes = std::fs::read(file).unwrap();
         let name = cap.get(1).unwrap().as_str();
-        let circ = Circuit::parse(file.as_str(), name, version.as_str()).unwrap();
+        let circ = CircuitSpec::from_yaml(&bytes).unwrap().build().unwrap();
         let circ = ProtoCircuit::from(circ);
         write(format!("{}/{}.bin", out_dir, name), circ.encode_to_vec()).unwrap();
     }
