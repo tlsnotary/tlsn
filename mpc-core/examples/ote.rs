@@ -6,8 +6,7 @@ use mpc_core::block::Block;
 use rand::prelude::*;
 
 pub use mpc_core::ot::extension::{
-    ExtReceiverCoreError, ExtSenderCoreError, Kos15Receiver, Kos15Sender, RBaseSend, RBaseSetup,
-    RInitialized, RSetup, SBaseReceive, SBaseSetup, SInitialized, SSetup,
+    ExtReceiverCoreError, ExtSenderCoreError, Kos15Receiver, Kos15Sender,
 };
 
 pub fn main() {

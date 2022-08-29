@@ -18,9 +18,9 @@ pub mod tests {
     use pretty_assertions::assert_eq;
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
-    use receiver::{error::ExtReceiverCoreError, BaseSend as RBaseSend, Kos15Receiver};
+    use receiver::{error::ExtReceiverCoreError, r_state, Kos15Receiver};
     use rstest::*;
-    use sender::{error::ExtSenderCoreError, BaseReceive as SBaseReceive, Kos15Sender};
+    use sender::{error::ExtSenderCoreError, s_state, Kos15Sender};
 
     #[fixture]
     fn kos_receiver() -> Kos15Receiver {
@@ -36,7 +36,10 @@ pub mod tests {
     fn pair_base_setup(
         kos_sender: Kos15Sender,
         kos_receiver: Kos15Receiver,
-    ) -> (Kos15Sender<SBaseReceive>, Kos15Receiver<RBaseSend>) {
+    ) -> (
+        Kos15Sender<s_state::BaseReceive>,
+        Kos15Receiver<r_state::BaseSend>,
+    ) {
         let (receiver, base_sender_setup) = kos_receiver.base_setup().unwrap();
         let (sender, base_receiver_setup) = kos_sender.base_setup(base_sender_setup).unwrap();
         let (receiver, send_seeds) = receiver.base_send(base_receiver_setup).unwrap();
@@ -59,7 +62,10 @@ pub mod tests {
 
     #[rstest]
     fn test_ext_ot(
-        pair_base_setup: (Kos15Sender<SBaseReceive>, Kos15Receiver<RBaseSend>),
+        pair_base_setup: (
+            Kos15Sender<s_state::BaseReceive>,
+            Kos15Receiver<r_state::BaseSend>,
+        ),
         input_setup: (Vec<bool>, Vec<[Block; 2]>),
     ) {
         let (sender, receiver) = pair_base_setup;
@@ -94,7 +100,10 @@ pub mod tests {
     #[rstest]
     // Test that the KOS15 check fails on wrong data
     fn test_ext_ot_kos_failure(
-        pair_base_setup: (Kos15Sender<SBaseReceive>, Kos15Receiver<RBaseSend>),
+        pair_base_setup: (
+            Kos15Sender<s_state::BaseReceive>,
+            Kos15Receiver<r_state::BaseSend>,
+        ),
         input_setup: (Vec<bool>, Vec<[Block; 2]>),
     ) {
         let (sender, receiver) = pair_base_setup;
@@ -108,7 +117,10 @@ pub mod tests {
 
     #[rstest]
     fn test_ext_ot_batch(
-        pair_base_setup: (Kos15Sender<SBaseReceive>, Kos15Receiver<RBaseSend>),
+        pair_base_setup: (
+            Kos15Sender<s_state::BaseReceive>,
+            Kos15Receiver<r_state::BaseSend>,
+        ),
         input_setup: (Vec<bool>, Vec<[Block; 2]>),
     ) {
         let (sender, receiver) = pair_base_setup;
@@ -162,7 +174,10 @@ pub mod tests {
 
     #[rstest]
     fn test_ext_random_ot(
-        pair_base_setup: (Kos15Sender<SBaseReceive>, Kos15Receiver<RBaseSend>),
+        pair_base_setup: (
+            Kos15Sender<s_state::BaseReceive>,
+            Kos15Receiver<r_state::BaseSend>,
+        ),
         input_setup: (Vec<bool>, Vec<[Block; 2]>),
     ) {
         let (sender, receiver) = pair_base_setup;
@@ -187,7 +202,10 @@ pub mod tests {
 
     #[rstest]
     fn test_ext_random_ot_batch(
-        pair_base_setup: (Kos15Sender<SBaseReceive>, Kos15Receiver<RBaseSend>),
+        pair_base_setup: (
+            Kos15Sender<s_state::BaseReceive>,
+            Kos15Receiver<r_state::BaseSend>,
+        ),
         input_setup: (Vec<bool>, Vec<[Block; 2]>),
     ) {
         let (sender, receiver) = pair_base_setup;
@@ -237,7 +255,10 @@ pub mod tests {
     // Test the wrong padding
     #[rstest]
     fn test_wrong_padding(
-        pair_base_setup: (Kos15Sender<SBaseReceive>, Kos15Receiver<RBaseSend>),
+        pair_base_setup: (
+            Kos15Sender<s_state::BaseReceive>,
+            Kos15Receiver<r_state::BaseSend>,
+        ),
         input_setup: (Vec<bool>, Vec<[Block; 2]>),
     ) {
         // create one instances with "bad" column counts

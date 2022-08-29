@@ -21,7 +21,7 @@ pub struct BaseSetup {
 }
 impl SenderState for BaseSetup {}
 
-#[derive(PartialEq, Debug)]
+#[cfg_attr(test, derive(Debug))]
 pub struct BaseReceive {
     pub cointoss_random: [u8; 32],
     pub base_choices: Vec<bool>,
@@ -30,7 +30,7 @@ pub struct BaseReceive {
 }
 impl SenderState for BaseReceive {}
 
-#[derive(PartialEq, Debug)]
+#[cfg_attr(test, derive(Debug))]
 pub struct Setup {
     pub table: KosMatrix,
     pub count: usize,
@@ -39,7 +39,7 @@ pub struct Setup {
 }
 impl SenderState for Setup {}
 
-#[derive(PartialEq, Debug)]
+#[cfg_attr(test, derive(Debug))]
 pub struct RandSetup {
     pub table: KosMatrix,
     pub count: usize,

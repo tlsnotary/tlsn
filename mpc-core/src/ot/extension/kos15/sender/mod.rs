@@ -1,5 +1,5 @@
 pub mod error;
-mod state;
+pub mod s_state;
 
 use crate::{
     msgs::ot::{
@@ -15,8 +15,6 @@ use error::ExtSenderCoreError;
 use rand::Rng;
 use rand_chacha::ChaCha12Rng;
 use rand_core::{RngCore, SeedableRng};
-use state::SenderState;
-pub use state::{BaseReceive, BaseSetup, Initialized, RandSetup, Setup};
 
 use super::{
     matrix::{Error as MatrixError, KosMatrix},
@@ -25,9 +23,9 @@ use super::{
 };
 
 #[derive(Debug)]
-pub struct Kos15Sender<S = Initialized>(pub S)
+pub struct Kos15Sender<S = s_state::Initialized>(S)
 where
-    S: SenderState;
+    S: s_state::SenderState;
 
 impl Default for Kos15Sender {
     fn default() -> Self {
@@ -37,7 +35,7 @@ impl Default for Kos15Sender {
         let mut base_choices = vec![false; BASE_COUNT];
         rng.fill::<[bool]>(&mut base_choices);
 
-        Self(Initialized {
+        Self(s_state::Initialized {
             rng,
             base_receiver: BaseReceiver::default(),
             base_choices,
@@ -50,7 +48,8 @@ impl Kos15Sender {
     pub fn base_setup(
         mut self,
         setup_msg: BaseSenderSetupWrapper,
-    ) -> Result<(Kos15Sender<BaseSetup>, BaseReceiverSetupWrapper), ExtSenderCoreError> {
+    ) -> Result<(Kos15Sender<s_state::BaseSetup>, BaseReceiverSetupWrapper), ExtSenderCoreError>
+    {
         let message = BaseReceiverSetupWrapper {
             setup: self.0.base_receiver.setup(
                 &mut self.0.rng,
@@ -59,7 +58,7 @@ impl Kos15Sender {
             )?,
             cointoss_share: self.0.cointoss_share,
         };
-        let kos_15_sender = Kos15Sender::<BaseSetup>(BaseSetup {
+        let kos_15_sender = Kos15Sender(s_state::BaseSetup {
             receiver_cointoss_commit: setup_msg.cointoss_commit,
             base_receiver: self.0.base_receiver,
             base_choices: self.0.base_choices,
@@ -69,11 +68,11 @@ impl Kos15Sender {
     }
 }
 
-impl Kos15Sender<BaseSetup> {
+impl Kos15Sender<s_state::BaseSetup> {
     pub fn base_receive(
         mut self,
         setup_msg: BaseSenderPayloadWrapper,
-    ) -> Result<Kos15Sender<BaseReceive>, ExtSenderCoreError> {
+    ) -> Result<Kos15Sender<s_state::BaseReceive>, ExtSenderCoreError> {
         let sender_blocks = self.0.base_receiver.receive(setup_msg.payload)?;
         let rngs = seed_rngs(&sender_blocks);
 
@@ -89,7 +88,7 @@ impl Kos15Sender<BaseSetup> {
             &mut cointoss_random,
         );
 
-        let kos_15_sender = Kos15Sender::<BaseReceive>(BaseReceive {
+        let kos_15_sender = Kos15Sender(s_state::BaseReceive {
             seeds: sender_blocks,
             cointoss_random,
             base_choices: self.0.base_choices,
@@ -100,18 +99,18 @@ impl Kos15Sender<BaseSetup> {
     }
 }
 
-impl Kos15Sender<BaseReceive> {
+impl Kos15Sender<s_state::BaseReceive> {
     pub fn extension_setup(
         mut self,
         setup_msg: ExtReceiverSetup,
-    ) -> Result<Kos15Sender<Setup>, ExtSenderCoreError> {
+    ) -> Result<Kos15Sender<s_state::Setup>, ExtSenderCoreError> {
         let (table, ncols_unpadded) = extension_setup_from(
             &mut self.0.rngs,
             &self.0.base_choices,
             setup_msg,
             &self.0.cointoss_random,
         )?;
-        Ok(Kos15Sender(Setup {
+        Ok(Kos15Sender(s_state::Setup {
             table,
             count: ncols_unpadded,
             sent: 0,
@@ -121,14 +120,14 @@ impl Kos15Sender<BaseReceive> {
     pub fn rand_extension_setup(
         mut self,
         setup_msg: ExtReceiverSetup,
-    ) -> Result<Kos15Sender<RandSetup>, ExtSenderCoreError> {
+    ) -> Result<Kos15Sender<s_state::RandSetup>, ExtSenderCoreError> {
         let (table, ncols_unpadded) = extension_setup_from(
             &mut self.0.rngs,
             &self.0.base_choices,
             setup_msg,
             &self.0.cointoss_random,
         )?;
-        Ok(Kos15Sender(RandSetup {
+        Ok(Kos15Sender(s_state::RandSetup {
             table,
             count: ncols_unpadded,
             sent: 0,
@@ -137,7 +136,7 @@ impl Kos15Sender<BaseReceive> {
     }
 }
 
-impl Kos15Sender<Setup> {
+impl Kos15Sender<s_state::Setup> {
     pub fn send(&mut self, inputs: &[[Block; 2]]) -> Result<ExtSenderPayload, ExtSenderCoreError> {
         send_from(
             &mut self.0.count,
@@ -154,7 +153,7 @@ impl Kos15Sender<Setup> {
     }
 }
 
-impl Kos15Sender<RandSetup> {
+impl Kos15Sender<s_state::RandSetup> {
     pub fn rand_send(
         &mut self,
         inputs: &[[Block; 2]],
@@ -220,6 +219,7 @@ fn extension_setup_from(
 ) -> Result<(KosMatrix, usize), ExtSenderCoreError> {
     let ncols_unpadded = setup_msg.ncols;
 
+    // Prevent possible DOS attacks
     if ncols_unpadded > 1_000_000 {
         return Err(ExtSenderCoreError::InvalidInputLength);
     }
