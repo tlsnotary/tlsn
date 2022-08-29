@@ -133,6 +133,12 @@ pub fn kos15_check_sender(
 }
 
 /// Encrypt the sender's values
+///
+/// Having 2 messages that Receiver chooses from, we encrypt each message with
+/// a unique mask (i.e. XOR the message them with the mask). Receiver who knows
+/// only 1 mask will be able to decrypt only 1 message out of 2.
+///
+/// The lengths of `inputs`, `table`, and `flip` MUST all be equal. If not, this function panics.
 pub fn encrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     cipher: &C,
     inputs: &[[Block; 2]],
@@ -196,7 +202,12 @@ pub fn decrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
 /// the resulting byte matrix will be easy to transpose. It also adds 256 extra choices for the
 /// KOS15 check.
 pub fn calc_padding(n: usize) -> usize {
-    256 + LANE_COUNT * 8 - n % (LANE_COUNT * 8)
+    let remainder = n % (LANE_COUNT * 8);
+    if remainder == 0 {
+        256
+    } else {
+        256 + LANE_COUNT * 8 - remainder
+    }
 }
 
 #[cfg(test)]
@@ -232,17 +243,18 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_kos15_utils_check_receiver() {
-        let choices = [true];
-        let mut rng = ChaCha12Rng::from_seed([0; 32]);
-        let inner = vec![0_u8; 16];
-        let matrix = KosMatrix::new(inner, 16).unwrap();
-
-        // We now perform the kos15_receiver check
-        // Invoking the rng with the provided seed, to generate a [u8; 32] will output this:
-        // [155, 7, 129, 95, 4, 73, 126, 46, 5, 210, 44, 172, 58, 160, 97, 65, 11, 32, 134, 140,
-        // 198, 25, 21, 76, 66, 161, 198, 27, 233, 144, 39, 23]
-        kos15_check_receiver(&mut rng, &matrix, &choices);
-    }
+    // TODO: Add some tests to check this module for correctness
+    //    #[test]
+    //    fn test_kos15_utils_check_receiver() {
+    //        let choices = [true];
+    //        let mut rng = ChaCha12Rng::from_seed([0; 32]);
+    //        let inner = vec![0_u8; 16];
+    //        let matrix = KosMatrix::new(inner, 16).unwrap();
+    //
+    //        // We now perform the kos15_receiver check
+    //        // Invoking the rng with the provided seed, to generate a [u8; 32] will output this:
+    //        // [155, 7, 129, 95, 4, 73, 126, 46, 5, 210, 44, 172, 58, 160, 97, 65, 11, 32, 134, 140,
+    //        // 198, 25, 21, 76, 66, 161, 198, 27, 233, 144, 39, 23]
+    //        kos15_check_receiver(&mut rng, &matrix, &choices);
+    //    }
 }

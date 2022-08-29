@@ -202,12 +202,12 @@ fn extension_setup_from(
     rngs: &mut Vec<[ChaCha12Rng; 2]>,
     cointoss_random: &[u8; 32],
 ) -> Result<(KosMatrix, Vec<bool>, ExtReceiverSetup), ExtReceiverCoreError> {
-    // For performance purposes we require that choice is a multiple of 2^k for some k. If it
-    // is not, we pad. Note that this padding is never used for OTs on the sender side.
+    // For performance purposes we require that choice + padding is a multiple of 8 * LANE_COUNT.
+    // Note that this padding is never used for OTs on the sender side.
     //
-    // The x86_64 simd implementation requires a matrix with minimum row/columns 32, so we need 8*32
-    // = 256 choices minimum, thus k should be at least 8. However, making k > 8 will not bring
-    // performance gains.
+    // For example in the case of x86_64 simd implementation of matrix transposition, LANE_COUNT =
+    // 32, so we need the choices to be a multiple 256 = 8 * 32. Adding any additional padding
+    // will not improve the performance.
     //
     // We also add minimum 256 extra bits which will be sacrificed for the KOS15 check as part of the
     // KOS15 protocol.
