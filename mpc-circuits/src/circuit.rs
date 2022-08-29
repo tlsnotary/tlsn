@@ -885,7 +885,7 @@ mod tests {
     #[test]
     fn test_all_inputs_must_be_connected() {
         let inputs = vec![Input::new(0, Group::new("", "", ValueType::Bool, &[0]))];
-        let result = Circuit::new("", "", inputs, vec![], vec![]);
-        assert!(matches!(result, Err(CircuitError::InvalidCircuit(_))));
+        let err = Circuit::new("", "", inputs, vec![], vec![]).unwrap_err();
+        assert!(matches!(err, CircuitError::InvalidCircuit(_)));
     }
 }
