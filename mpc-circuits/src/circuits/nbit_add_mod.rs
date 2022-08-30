@@ -15,8 +15,7 @@ pub fn nbit_add_mod(n: usize) -> Circuit {
         ValueType::Bits,
         n,
     );
-    let const_zero_0 = builder.add_input("CONST_ZERO_0", "Constant 0 bit", ValueType::ConstZero, 1);
-    let const_zero_1 = builder.add_input("CONST_ZERO_1", "Constant 0 bit", ValueType::ConstZero, 1);
+    let const_zero = builder.add_input("CONST_ZERO", "Constant 0 bit", ValueType::ConstZero, 1);
     let const_one = builder.add_input("CONST_ONE", "Constant 1 bit", ValueType::ConstOne, 1);
 
     let mut builder = builder.build_inputs();
@@ -26,9 +25,9 @@ pub fn nbit_add_mod(n: usize) -> Circuit {
     let adder_in_0 = adder.input(0).expect("adder missing input 0");
     let adder_in_1 = adder.input(1).expect("adder missing input 1");
     builder.connect(&a[..], &adder_in_0[..n]);
-    builder.connect(&[const_zero_0[0]], &[adder_in_0[n]]);
+    builder.connect(&[const_zero[0]], &[adder_in_0[n]]);
     builder.connect(&b[..], &adder_in_1[..n]);
-    builder.connect(&[const_zero_1[0]], &[adder_in_1[n]]);
+    builder.connect(&[const_zero[0]], &[adder_in_1[n]]);
 
     let adder_sum = adder.output(0).expect("adder missing output 0");
 
@@ -39,7 +38,7 @@ pub fn nbit_add_mod(n: usize) -> Circuit {
     let sub_in_const_one = sub.input(2).expect("subtractor missing input 2");
     builder.connect(&adder_sum[..], &sub_in_0[..]);
     builder.connect(&modulo[..], &sub_in_1[..n]);
-    builder.connect(&[const_zero_0[0]], &[sub_in_1[n]]);
+    builder.connect(&[const_zero[0]], &[sub_in_1[n]]);
     builder.connect(&[const_one[0]], &[sub_in_const_one[0]]);
 
     let sub_out = sub.output(0).expect("subtractor missing output 0");
@@ -113,6 +112,16 @@ mod tests {
             &circ,
             &[Value::Bits(u8(3)), Value::Bits(u8(2)), Value::Bits(u8(3))],
             &[Value::Bits(u8(2))],
+        );
+        // 254 + 1 mod 255 = 0
+        test_circ(
+            &circ,
+            &[
+                Value::Bits(u8(u8::MAX - 1)),
+                Value::Bits(u8(1)),
+                Value::Bits(u8(u8::MAX)),
+            ],
+            &[Value::Bits(u8(0))],
         );
         // 253 + 253 mod 254 = 252
         test_circ(

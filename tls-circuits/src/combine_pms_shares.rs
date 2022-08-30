@@ -18,10 +18,8 @@ fn p256prime(
     for i in 96..192 {
         builder.connect(&[*const_zero], &[sinks[i]]);
     }
-    for i in 192..196 {
-        builder.connect(&[*const_one], &[sinks[i]]);
-    }
-    for i in 196..224 {
+    builder.connect(&[*const_one], &[sinks[192]]);
+    for i in 193..224 {
         builder.connect(&[*const_zero], &[sinks[i]]);
     }
     for i in 224..256 {
@@ -44,13 +42,7 @@ pub fn combine_pms_shares() -> Circuit {
         ValueType::Bytes,
         256,
     );
-    let const_zero_0 = builder.add_input(
-        "const_zero",
-        "input that is always 0",
-        ValueType::ConstZero,
-        1,
-    );
-    let const_zero_1 = builder.add_input(
+    let const_zero = builder.add_input(
         "const_zero",
         "input that is always 0",
         ValueType::ConstZero,
@@ -69,22 +61,19 @@ pub fn combine_pms_shares() -> Circuit {
     let add_mod_a = add_mod.input(0).expect("add mod is missing input 0");
     let add_mod_b = add_mod.input(1).expect("add mod is missing input 1");
     let add_mod_mod = add_mod.input(2).expect("add mod is missing input 2");
-    let add_mod_const_zero_0 = add_mod.input(3).expect("add mod is missing input 3");
-    let add_mod_const_zero_1 = add_mod.input(4).expect("add mod is missing input 4");
-    let add_mod_const_one = add_mod.input(5).expect("add mod is missing input 5");
+    let add_mod_const_zero = add_mod.input(3).expect("add mod is missing input 3");
+    let add_mod_const_one = add_mod.input(4).expect("add mod is missing input 4");
     let add_mod_out = add_mod.output(0).expect("add mod is missing output 0");
 
-    builder.connect(&[const_zero_0[0]], &[add_mod_const_zero_0[0]]);
-    builder.connect(&[const_zero_1[0]], &[add_mod_const_zero_1[0]]);
+    builder.connect(&[const_zero[0]], &[add_mod_const_zero[0]]);
     builder.connect(&[const_one[0]], &[add_mod_const_one[0]]);
 
     builder.connect(&a[..], &add_mod_a[..]);
     builder.connect(&b[..], &add_mod_b[..]);
-    builder.connect(&a[..], &add_mod_a[..]);
     // map p256 prime to mod
     p256prime(
         &mut builder,
-        &const_zero_0[0],
+        &const_zero[0],
         &const_one[0],
         &add_mod_mod[..],
     );
@@ -101,8 +90,6 @@ pub fn combine_pms_shares() -> Circuit {
 
 #[cfg(test)]
 mod tests {
-    use std::ops::Sub;
-
     use super::*;
     use mpc_circuits::{circuits::test_circ, Value};
     use num_bigint::BigUint;
@@ -115,26 +102,56 @@ mod tests {
     fn test_combine_pms_shares() {
         let circ = combine_pms_shares();
         let p = BigUint::parse_bytes(P.as_bytes(), 16).unwrap();
-        let p_bytes = p.to_bytes_le();
+        let mut one = vec![0x00; 32];
+        one[0] = 1;
+        let mut two = vec![0x00; 32];
+        two[0] = 2;
+        // 0 + 0 mod p = 0
         test_circ(
             &circ,
             &[Value::Bytes(vec![0x00; 32]), Value::Bytes(vec![0x00; 32])],
             &[Value::Bytes(vec![0x00; 32])],
         );
+        // 0 + 1 mod p = 1
         test_circ(
             &circ,
-            &[Value::Bytes(vec![0x00; 32]), Value::Bytes(vec![0x01; 32])],
-            &[Value::Bytes(vec![0x01; 32])],
+            &[Value::Bytes(vec![0x00; 32]), Value::Bytes(one.clone())],
+            &[Value::Bytes(one.clone())],
         );
-        let mut b = BigUint::one().to_bytes_le();
-        b.resize(32, 0);
+        let a = [vec![255; 16], vec![0; 16]].concat();
+        let b = [vec![255; 16], vec![0; 16]].concat();
+        let expected = [vec![254], vec![255; 15], vec![1], vec![0; 15]].concat();
+        test_circ(
+            &circ,
+            &[Value::Bytes(a), Value::Bytes(b)],
+            &[Value::Bytes(expected)],
+        );
+        let p_minus_one = p.clone() - BigUint::one();
+        // (p + p - 2) mod p = p - 2
         test_circ(
             &circ,
             &[
-                Value::Bytes((p - BigUint::one()).to_bytes_le()),
-                Value::Bytes(b.clone()),
+                Value::Bytes(p_minus_one.to_bytes_le()),
+                Value::Bytes(p_minus_one.to_bytes_le()),
             ],
-            &[Value::Bytes(b)],
+            &[Value::Bytes(
+                ((p_minus_one.clone() + p_minus_one) % p.clone()).to_bytes_le(),
+            )],
+        );
+        // (p - 1) + 2 mod p = 1
+        test_circ(
+            &circ,
+            &[
+                Value::Bytes((p.clone() - BigUint::one()).to_bytes_le()),
+                Value::Bytes(two.clone()),
+            ],
+            &[Value::Bytes(one.clone())],
+        );
+        // p + 0 mod p = 0
+        test_circ(
+            &circ,
+            &[Value::Bytes(p.to_bytes_le()), Value::Bytes(vec![0; 32])],
+            &[Value::Bytes(vec![0; 32])],
         );
     }
 }
