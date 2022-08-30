@@ -6,6 +6,17 @@
     feature(slice_as_chunks)
 )]
 
+#[cfg(feature = "simd-transpose")]
+#[cfg(target_arch = "x86_64")]
+pub const LANE_COUNT: usize = 32;
+
+#[cfg(feature = "simd-transpose")]
+#[cfg(target_arch = "wasm32")]
+pub const LANE_COUNT: usize = 16;
+
+#[cfg(not(feature = "simd-transpose"))]
+pub const LANE_COUNT: usize = 8;
+
 #[cfg(not(feature = "simd-transpose"))]
 mod scalar;
 #[cfg(feature = "simd-transpose")]

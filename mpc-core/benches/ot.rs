@@ -40,19 +40,19 @@ fn ext_ot(c: &mut Criterion) {
             rng.fill_bytes(&mut choice);
             let choice = u8vec_to_boolvec(&choice);
             b.iter(|| {
-                let mut receiver = Kos15Receiver::default();
-                let base_sender_setup = receiver.base_setup().unwrap();
+                let receiver = Kos15Receiver::default();
+                let (receiver, base_sender_setup) = receiver.base_setup().unwrap();
 
-                let mut sender = Kos15Sender::default();
-                let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
+                let sender = Kos15Sender::default();
+                let (sender, base_receiver_setup) = sender.base_setup(base_sender_setup).unwrap();
 
-                let send_seeds = receiver.base_send(base_receiver_setup).unwrap();
-                sender.base_receive(send_seeds).unwrap();
-                let receiver_setup = receiver.extension_setup(&choice).unwrap();
-                sender.extension_setup(receiver_setup).unwrap();
+                let (receiver, send_seeds) = receiver.base_send(base_receiver_setup).unwrap();
+                let sender = sender.base_receive(send_seeds).unwrap();
+                let (mut receiver, receiver_setup) = receiver.extension_setup(&choice).unwrap();
+                let mut sender = sender.extension_setup(receiver_setup).unwrap();
 
                 let send = sender.send(&msgs).unwrap();
-                let _ = receiver.receive(send).unwrap();
+                let _received = receiver.receive(send).unwrap();
             })
         });
     }

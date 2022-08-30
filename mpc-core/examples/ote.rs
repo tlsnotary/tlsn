@@ -3,8 +3,11 @@
 // For simplicity, this example shows how to use OT components in memory.
 
 use mpc_core::block::Block;
-use mpc_core::ot::extension::kos15::{Kos15Receiver, Kos15Sender};
 use rand::prelude::*;
+
+pub use mpc_core::ot::extension::{
+    ExtReceiverCoreError, ExtSenderCoreError, Kos15Receiver, Kos15Sender,
+};
 
 pub fn main() {
     // Receiver choice bits
@@ -28,22 +31,22 @@ pub fn main() {
     println!("Sender inputs: {:?}", &inputs);
 
     // First the receiver creates a setup message and passes it to sender
-    let mut receiver = Kos15Receiver::default();
-    let base_sender_setup = receiver.base_setup().unwrap();
+    let receiver = Kos15Receiver::default();
+    let (receiver, base_sender_setup) = receiver.base_setup().unwrap();
 
     // Sender takes receiver's setup and creates its own setup message
-    let mut sender = Kos15Sender::default();
-    let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
+    let sender = Kos15Sender::default();
+    let (sender, base_receiver_setup) = sender.base_setup(base_sender_setup).unwrap();
 
     // Now the receiver generates some seeds from sender's setup and uses OT to transfer them
-    let base_payload = receiver.base_send(base_receiver_setup).unwrap();
-    sender.base_receive(base_payload).unwrap();
+    let (receiver, base_payload) = receiver.base_send(base_receiver_setup).unwrap();
+    let sender = sender.base_receive(base_payload).unwrap();
 
     // Receiver generates OT extension setup and passes it to sender
-    let receiver_setup = receiver.extension_setup(&choice).unwrap();
+    let (mut receiver, receiver_setup) = receiver.extension_setup(&choice).unwrap();
 
     // Sender takes receiver's setup and runs its own extension setup
-    sender.extension_setup(receiver_setup).unwrap();
+    let mut sender = sender.extension_setup(receiver_setup).unwrap();
 
     // Finally, sender encrypts their inputs and sends them to receiver
     let payload = sender.send(&inputs).unwrap();
