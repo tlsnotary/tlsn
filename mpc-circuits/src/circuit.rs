@@ -705,8 +705,8 @@ impl Circuit {
             .cloned()
             .collect::<HashSet<usize>>();
         if expected_input_ids != input_wire_ids {
-            let mut diff = input_wire_ids
-                .difference(&expected_input_ids)
+            let mut diff = expected_input_ids
+                .difference(&input_wire_ids)
                 .copied()
                 .collect::<Vec<usize>>();
             diff.sort();
