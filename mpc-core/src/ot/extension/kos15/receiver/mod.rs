@@ -1,5 +1,5 @@
 pub mod error;
-pub mod r_state;
+pub mod state;
 
 use super::matrix::{Error as MatrixError, KosMatrix};
 use super::utils::{calc_padding, decrypt_values, kos15_check_receiver, seed_rngs_from_nested};
@@ -17,15 +17,15 @@ use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 use rand_core::RngCore;
 
-pub struct Kos15Receiver<S = r_state::Initialized>(S)
+pub struct Kos15Receiver<S = state::Initialized>(S)
 where
-    S: r_state::ReceiverState;
+    S: state::ReceiverState;
 
 impl Default for Kos15Receiver {
     fn default() -> Self {
         let mut rng = ChaCha12Rng::from_entropy();
         let cointoss_share = rng.gen();
-        Self(r_state::Initialized {
+        Self(state::Initialized {
             base_sender: BaseSender::default(),
             rng,
             cointoss_share,
@@ -36,10 +36,10 @@ impl Default for Kos15Receiver {
 impl Kos15Receiver {
     pub fn base_setup(
         mut self,
-    ) -> Result<(Kos15Receiver<r_state::BaseSetup>, BaseSenderSetupWrapper), ExtReceiverCoreError>
+    ) -> Result<(Kos15Receiver<state::BaseSetup>, BaseSenderSetupWrapper), ExtReceiverCoreError>
     {
         let base_setup_message = self.0.base_sender.setup(&mut self.0.rng)?;
-        let kos_receiver = Kos15Receiver(r_state::BaseSetup {
+        let kos_receiver = Kos15Receiver(state::BaseSetup {
             rng: self.0.rng,
             base_sender: self.0.base_sender,
             cointoss_share: self.0.cointoss_share,
@@ -52,11 +52,11 @@ impl Kos15Receiver {
     }
 }
 
-impl Kos15Receiver<r_state::BaseSetup> {
+impl Kos15Receiver<state::BaseSetup> {
     pub fn base_send(
         mut self,
         setup_msg: BaseReceiverSetupWrapper,
-    ) -> Result<(Kos15Receiver<r_state::BaseSend>, BaseSenderPayloadWrapper), ExtReceiverCoreError>
+    ) -> Result<(Kos15Receiver<state::BaseSend>, BaseSenderPayloadWrapper), ExtReceiverCoreError>
     {
         let mut seeds: Vec<[Block; 2]> = Vec::with_capacity(BASE_COUNT);
         for _ in 0..BASE_COUNT {
@@ -75,12 +75,11 @@ impl Kos15Receiver<r_state::BaseSetup> {
             &mut cointoss_random,
         );
 
-        let kos_receiver = Kos15Receiver(r_state::BaseSend {
+        let kos_receiver = Kos15Receiver(state::BaseSend {
             rng: self.0.rng,
             seeds,
             rngs,
             cointoss_random,
-            cointoss_share: self.0.cointoss_share,
         });
         let message = BaseSenderPayloadWrapper {
             payload: base_send,
@@ -91,25 +90,25 @@ impl Kos15Receiver<r_state::BaseSetup> {
     }
 }
 
-impl Kos15Receiver<r_state::BaseSend> {
+impl Kos15Receiver<state::BaseSend> {
     pub fn extension_setup(
         mut self,
         choices: &[bool],
-    ) -> Result<(Kos15Receiver<r_state::Setup>, ExtReceiverSetup), ExtReceiverCoreError> {
+    ) -> Result<(Kos15Receiver<state::Setup>, ExtReceiverSetup), ExtReceiverCoreError> {
         let (table, choices, message) = extension_setup_from(
             &choices,
             &mut self.0.rng,
             &mut self.0.rngs,
             &self.0.cointoss_random,
         )?;
-        let receiver = Kos15Receiver(r_state::Setup { table, choices });
+        let receiver = Kos15Receiver(state::Setup { table, choices });
         Ok((receiver, message))
     }
 
     pub fn rand_extension_setup(
         mut self,
         choice_len: usize,
-    ) -> Result<(Kos15Receiver<r_state::RandSetup>, ExtReceiverSetup), ExtReceiverCoreError> {
+    ) -> Result<(Kos15Receiver<state::RandSetup>, ExtReceiverSetup), ExtReceiverCoreError> {
         let mut choices = vec![false; choice_len];
         self.0.rng.fill::<[bool]>(&mut choices);
         let (table, choices, message) = extension_setup_from(
@@ -118,7 +117,7 @@ impl Kos15Receiver<r_state::BaseSend> {
             &mut self.0.rngs,
             &self.0.cointoss_random,
         )?;
-        let receiver = Kos15Receiver(r_state::RandSetup {
+        let receiver = Kos15Receiver(state::RandSetup {
             table,
             choices,
             derandomized: Vec::new(),
@@ -127,7 +126,7 @@ impl Kos15Receiver<r_state::BaseSend> {
     }
 }
 
-impl Kos15Receiver<r_state::Setup> {
+impl Kos15Receiver<state::Setup> {
     pub fn receive(
         &mut self,
         payload: ExtSenderPayload,
@@ -143,7 +142,7 @@ impl Kos15Receiver<r_state::Setup> {
     }
 }
 
-impl Kos15Receiver<r_state::RandSetup> {
+impl Kos15Receiver<state::RandSetup> {
     pub fn derandomize(
         &mut self,
         derand_choices: &[bool],

@@ -18,9 +18,9 @@ pub mod tests {
     use pretty_assertions::assert_eq;
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
-    use receiver::{error::ExtReceiverCoreError, r_state, Kos15Receiver};
+    use receiver::{error::ExtReceiverCoreError, state as r_state, Kos15Receiver};
     use rstest::*;
-    use sender::{error::ExtSenderCoreError, s_state, Kos15Sender};
+    use sender::{error::ExtSenderCoreError, state as s_state, Kos15Sender};
 
     #[fixture]
     fn kos_receiver() -> Kos15Receiver {

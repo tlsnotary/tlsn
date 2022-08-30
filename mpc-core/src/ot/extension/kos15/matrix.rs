@@ -41,11 +41,6 @@ impl KosMatrix {
         self.columns
     }
 
-    /// Returns the number of elements
-    pub fn len(&self) -> usize {
-        self.inner.len()
-    }
-
     /// Returns a reference to the inner Vec
     pub fn inner(&self) -> &Vec<u8> {
         &self.inner
@@ -113,6 +108,14 @@ impl KosMatrix {
     pub fn iter_rows_mut(&mut self) -> ChunksMut<u8> {
         let columns = self.columns();
         self.inner.chunks_mut(columns)
+    }
+}
+
+#[cfg(test)]
+impl KosMatrix {
+    /// Returns the number of elements
+    pub fn len(&self) -> usize {
+        self.inner.len()
     }
 }
 

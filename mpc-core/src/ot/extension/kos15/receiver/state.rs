@@ -9,39 +9,38 @@ pub trait ReceiverState {}
 pub type CointossShare = [u8; 32];
 
 pub struct Initialized {
-    pub base_sender: BaseSender,
-    pub rng: ChaCha12Rng,
-    pub cointoss_share: CointossShare,
+    pub(crate) base_sender: BaseSender,
+    pub(crate) rng: ChaCha12Rng,
+    pub(crate) cointoss_share: CointossShare,
 }
 impl ReceiverState for Initialized {}
 
 pub struct BaseSetup {
-    pub rng: ChaCha12Rng,
-    pub base_sender: BaseSender,
-    pub cointoss_share: CointossShare,
+    pub(crate) rng: ChaCha12Rng,
+    pub(crate) base_sender: BaseSender,
+    pub(crate) cointoss_share: CointossShare,
 }
 impl ReceiverState for BaseSetup {}
 
 pub struct BaseSend {
-    pub rng: ChaCha12Rng,
+    pub(crate) rng: ChaCha12Rng,
     // Seeds are the result of running base OT setup. They are used to seed the RNGs.
-    pub seeds: Vec<[Block; 2]>,
-    pub rngs: Vec<[ChaCha12Rng; 2]>,
+    pub(crate) seeds: Vec<[Block; 2]>,
+    pub(crate) rngs: Vec<[ChaCha12Rng; 2]>,
     // The shared random value which both parties will have at the end of the cointoss protocol
-    pub cointoss_random: [u8; 32],
-    pub cointoss_share: CointossShare,
+    pub(crate) cointoss_random: [u8; 32],
 }
 impl ReceiverState for BaseSend {}
 
 pub struct Setup {
-    pub table: KosMatrix,
-    pub choices: Vec<bool>,
+    pub(crate) table: KosMatrix,
+    pub(crate) choices: Vec<bool>,
 }
 impl ReceiverState for Setup {}
 
 pub struct RandSetup {
-    pub table: KosMatrix,
-    pub choices: Vec<bool>,
-    pub derandomized: Vec<bool>,
+    pub(crate) table: KosMatrix,
+    pub(crate) choices: Vec<bool>,
+    pub(crate) derandomized: Vec<bool>,
 }
 impl ReceiverState for RandSetup {}

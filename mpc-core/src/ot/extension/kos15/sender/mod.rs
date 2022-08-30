@@ -1,5 +1,5 @@
 pub mod error;
-pub mod s_state;
+pub mod state;
 
 use crate::{
     msgs::ot::{
@@ -23,9 +23,9 @@ use super::{
 };
 
 #[derive(Debug)]
-pub struct Kos15Sender<S = s_state::Initialized>(S)
+pub struct Kos15Sender<S = state::Initialized>(S)
 where
-    S: s_state::SenderState;
+    S: state::SenderState;
 
 impl Default for Kos15Sender {
     fn default() -> Self {
@@ -35,7 +35,7 @@ impl Default for Kos15Sender {
         let mut base_choices = vec![false; BASE_COUNT];
         rng.fill::<[bool]>(&mut base_choices);
 
-        Self(s_state::Initialized {
+        Self(state::Initialized {
             rng,
             base_receiver: BaseReceiver::default(),
             base_choices,
@@ -48,8 +48,7 @@ impl Kos15Sender {
     pub fn base_setup(
         mut self,
         setup_msg: BaseSenderSetupWrapper,
-    ) -> Result<(Kos15Sender<s_state::BaseSetup>, BaseReceiverSetupWrapper), ExtSenderCoreError>
-    {
+    ) -> Result<(Kos15Sender<state::BaseSetup>, BaseReceiverSetupWrapper), ExtSenderCoreError> {
         let message = BaseReceiverSetupWrapper {
             setup: self.0.base_receiver.setup(
                 &mut self.0.rng,
@@ -58,7 +57,7 @@ impl Kos15Sender {
             )?,
             cointoss_share: self.0.cointoss_share,
         };
-        let kos_15_sender = Kos15Sender(s_state::BaseSetup {
+        let kos_15_sender = Kos15Sender(state::BaseSetup {
             receiver_cointoss_commit: setup_msg.cointoss_commit,
             base_receiver: self.0.base_receiver,
             base_choices: self.0.base_choices,
@@ -68,11 +67,11 @@ impl Kos15Sender {
     }
 }
 
-impl Kos15Sender<s_state::BaseSetup> {
+impl Kos15Sender<state::BaseSetup> {
     pub fn base_receive(
         mut self,
         setup_msg: BaseSenderPayloadWrapper,
-    ) -> Result<Kos15Sender<s_state::BaseReceive>, ExtSenderCoreError> {
+    ) -> Result<Kos15Sender<state::BaseReceive>, ExtSenderCoreError> {
         let sender_blocks = self.0.base_receiver.receive(setup_msg.payload)?;
         let rngs = seed_rngs(&sender_blocks);
 
@@ -88,7 +87,7 @@ impl Kos15Sender<s_state::BaseSetup> {
             &mut cointoss_random,
         );
 
-        let kos_15_sender = Kos15Sender(s_state::BaseReceive {
+        let kos_15_sender = Kos15Sender(state::BaseReceive {
             seeds: sender_blocks,
             cointoss_random,
             base_choices: self.0.base_choices,
@@ -99,18 +98,18 @@ impl Kos15Sender<s_state::BaseSetup> {
     }
 }
 
-impl Kos15Sender<s_state::BaseReceive> {
+impl Kos15Sender<state::BaseReceive> {
     pub fn extension_setup(
         mut self,
         setup_msg: ExtReceiverSetup,
-    ) -> Result<Kos15Sender<s_state::Setup>, ExtSenderCoreError> {
+    ) -> Result<Kos15Sender<state::Setup>, ExtSenderCoreError> {
         let (table, ncols_unpadded) = extension_setup_from(
             &mut self.0.rngs,
             &self.0.base_choices,
             setup_msg,
             &self.0.cointoss_random,
         )?;
-        Ok(Kos15Sender(s_state::Setup {
+        Ok(Kos15Sender(state::Setup {
             table,
             count: ncols_unpadded,
             sent: 0,
@@ -120,14 +119,14 @@ impl Kos15Sender<s_state::BaseReceive> {
     pub fn rand_extension_setup(
         mut self,
         setup_msg: ExtReceiverSetup,
-    ) -> Result<Kos15Sender<s_state::RandSetup>, ExtSenderCoreError> {
+    ) -> Result<Kos15Sender<state::RandSetup>, ExtSenderCoreError> {
         let (table, ncols_unpadded) = extension_setup_from(
             &mut self.0.rngs,
             &self.0.base_choices,
             setup_msg,
             &self.0.cointoss_random,
         )?;
-        Ok(Kos15Sender(s_state::RandSetup {
+        Ok(Kos15Sender(state::RandSetup {
             table,
             count: ncols_unpadded,
             sent: 0,
@@ -136,7 +135,7 @@ impl Kos15Sender<s_state::BaseReceive> {
     }
 }
 
-impl Kos15Sender<s_state::Setup> {
+impl Kos15Sender<state::Setup> {
     pub fn send(&mut self, inputs: &[[Block; 2]]) -> Result<ExtSenderPayload, ExtSenderCoreError> {
         send_from(
             &mut self.0.count,
@@ -153,7 +152,7 @@ impl Kos15Sender<s_state::Setup> {
     }
 }
 
-impl Kos15Sender<s_state::RandSetup> {
+impl Kos15Sender<state::RandSetup> {
     pub fn rand_send(
         &mut self,
         inputs: &[[Block; 2]],
