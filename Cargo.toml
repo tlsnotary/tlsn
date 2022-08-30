@@ -3,6 +3,7 @@ members = [
     "tls-core",
     "mpc-core",
     "mpc-circuits",
+    "tls-circuits",
     "tls-2pc-core",
     "tls-2pc-aio",
     "utils-aio",
