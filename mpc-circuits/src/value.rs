@@ -119,10 +119,7 @@ pub enum ValueType {
 impl ValueType {
     /// Returns whether value is a constant type
     pub fn is_constant(&self) -> bool {
-        match self {
-            ValueType::ConstZero | ValueType::ConstOne => true,
-            _ => false,
-        }
+        matches!(self, ValueType::ConstZero | ValueType::ConstOne)
     }
 }
 
