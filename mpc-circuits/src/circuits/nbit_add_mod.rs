@@ -15,6 +15,7 @@ pub fn nbit_add_mod(n: usize) -> Circuit {
     );
     let const_zero_0 = builder.add_input("CONST_ZERO_0", "Constant 0 bit", ValueType::ConstZero, 1);
     let const_zero_1 = builder.add_input("CONST_ZERO_1", "Constant 0 bit", ValueType::ConstZero, 1);
+    let const_one = builder.add_input("CONST_ONE", "Constant 1 bit", ValueType::ConstOne, 1);
 
     let mut builder = builder.build_inputs();
 
@@ -33,9 +34,11 @@ pub fn nbit_add_mod(n: usize) -> Circuit {
     let sub = builder.add_circ(nbit_subtractor(n + 1));
     let sub_in_0 = sub.input(0).expect("subtractor missing input 0");
     let sub_in_1 = sub.input(1).expect("subtractor missing input 1");
+    let sub_in_const_one = sub.input(2).expect("subtractor missing input 2");
     builder.connect(&adder_sum[..], &sub_in_0[..]);
     builder.connect(&modulo[..], &sub_in_1[..n]);
     builder.connect(&[const_zero_0[0]], &[sub_in_1[n]]);
+    builder.connect(&[const_one[0]], &[sub_in_const_one[0]]);
 
     let sub_out = sub.output(0).expect("subtractor missing output 0");
     // this eq 0 if MOD > (A+B)
@@ -64,10 +67,60 @@ pub fn nbit_add_mod(n: usize) -> Circuit {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{circuits::test_circ, Value};
+
+    fn u8(v: u8) -> Vec<bool> {
+        (0..8).map(|n| (v >> n & 1) == 1).collect()
+    }
 
     #[test]
     fn test_add_mod() {
         let circ = nbit_add_mod(8);
-        println!("{} {}", circ.and_count(), circ.xor_count());
+        // 0 + 0 mod 1 = 0
+        test_circ(
+            &circ,
+            &[Value::Bits(u8(0)), Value::Bits(u8(0)), Value::Bits(u8(1))],
+            &[Value::Bits(u8(0))],
+        );
+        // 0 + 1 mod 1 = 0
+        test_circ(
+            &circ,
+            &[Value::Bits(u8(0)), Value::Bits(u8(1)), Value::Bits(u8(1))],
+            &[Value::Bits(u8(0))],
+        );
+        // 1 + 0 mod 1 = 0
+        test_circ(
+            &circ,
+            &[Value::Bits(u8(1)), Value::Bits(u8(0)), Value::Bits(u8(1))],
+            &[Value::Bits(u8(0))],
+        );
+        // 1 + 1 mod 2 = 0
+        test_circ(
+            &circ,
+            &[Value::Bits(u8(1)), Value::Bits(u8(1)), Value::Bits(u8(2))],
+            &[Value::Bits(u8(0))],
+        );
+        // 1 + 0 mod 2 = 1
+        test_circ(
+            &circ,
+            &[Value::Bits(u8(1)), Value::Bits(u8(0)), Value::Bits(u8(2))],
+            &[Value::Bits(u8(1))],
+        );
+        // 3 + 2 mod 3 = 2
+        test_circ(
+            &circ,
+            &[Value::Bits(u8(3)), Value::Bits(u8(2)), Value::Bits(u8(3))],
+            &[Value::Bits(u8(2))],
+        );
+        // 255 + 255 mod 4 = 2
+        test_circ(
+            &circ,
+            &[
+                Value::Bits(u8(u8::MAX)),
+                Value::Bits(u8(u8::MAX)),
+                Value::Bits(u8(4)),
+            ],
+            &[Value::Bits(u8(2))],
+        );
     }
 }
