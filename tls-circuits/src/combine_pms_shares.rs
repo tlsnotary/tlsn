@@ -27,6 +27,9 @@ fn p256prime(
     }
 }
 
+/// Combines two PMS shares
+///
+/// Each share must already be reduced mod P
 pub fn combine_pms_shares() -> Circuit {
     let mut builder = CircuitBuilder::new("combine_pms_shares", "0.1.0");
 
@@ -101,6 +104,7 @@ mod tests {
     #[test]
     fn test_combine_pms_shares() {
         let circ = combine_pms_shares();
+        println!("{}", circ.and_count());
         let p = BigUint::parse_bytes(P.as_bytes(), 16).unwrap();
         let mut one = vec![0x00; 32];
         one[0] = 1;
