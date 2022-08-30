@@ -12,6 +12,7 @@ fn p256prime(
     const_one: &WireHandle<Feed>,
     sinks: &[WireHandle<Sink>],
 ) {
+    debug_assert!(sinks.len() == 256);
     for i in 0..96 {
         builder.connect(&[*const_one], &[sinks[i]]);
     }
