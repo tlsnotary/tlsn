@@ -366,7 +366,7 @@ impl Gate {
             Gate::Xor {
                 xref, yref, zref, ..
             } => {
-                if xref == yref || xref == zref || yref == zref {
+                if xref == zref || yref == zref {
                     return Err(CircuitError::InvalidCircuit(format!(
                         "invalid gate: {:?}",
                         self
@@ -376,7 +376,7 @@ impl Gate {
             Gate::And {
                 xref, yref, zref, ..
             } => {
-                if xref == yref || xref == zref || yref == zref {
+                if xref == zref || yref == zref {
                     return Err(CircuitError::InvalidCircuit(format!(
                         "invalid gate: {:?}",
                         self
@@ -468,10 +468,9 @@ impl From<String> for CircuitId {
 ///
 /// Invariants of circuit structure:
 /// 1. A circuit MUST be acyclic, ie a gate output wire MUST NOT be connected to one of its inputs directly or indirectly
-/// 2. A gate MUST NOT have identical input wires, ie xref != yref
-/// 3. Input wires MUST be connected to gate inputs
-/// 4. Output wires MUST be connected to gate outputs
-/// 5. Gates MUST be sorted topologically
+/// 2. Input wires MUST be connected to gate inputs
+/// 3. Output wires MUST be connected to gate outputs
+/// 4. Gates MUST be sorted topologically
 #[derive(Clone)]
 pub struct Circuit {
     pub(crate) id: CircuitId,
@@ -934,16 +933,6 @@ mod tests {
 
     #[test]
     fn test_gate_invariants() {
-        // No duplicate input wires
-        let gate = Gate::Xor {
-            id: 0,
-            xref: 0,
-            yref: 0,
-            zref: 2,
-        };
-        let err = gate.validate().unwrap_err();
-        assert!(matches!(err, CircuitError::InvalidCircuit(_)));
-
         // output can't be connected to input
         let gate = Gate::Xor {
             id: 0,
