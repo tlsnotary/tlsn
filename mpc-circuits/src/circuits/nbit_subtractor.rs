@@ -167,6 +167,11 @@ mod tests {
         );
         test_circ(
             &circ,
+            &[Value::Bits(u64(0)), Value::Bits(u64(1001))],
+            &[Value::Bits(u64(u64::MAX - 1000)), Value::Bool(false)],
+        );
+        test_circ(
+            &circ,
             &[Value::Bits(u64(u64::MAX)), Value::Bits(u64(u64::MAX))],
             &[Value::Bits(u64(0)), Value::Bool(true)],
         );

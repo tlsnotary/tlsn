@@ -1,8 +1,10 @@
-use crate::{builder::CircuitBuilder, circuit::GateType, Circuit, ValueType};
+use crate::{builder::CircuitBuilder, Circuit, ValueType};
 
 use super::{nbit_adder, nbit_subtractor, nbit_switch};
 
 /// Adds two n-bit numbers modulo another n-bit number
+///
+/// **NOTE** A and B must already be < MOD
 pub fn nbit_add_mod(n: usize) -> Circuit {
     let mut builder = CircuitBuilder::new(&format!("{}_bit add mod", n), "0.1.0");
     let a = builder.add_input("A", &format!("{}_bit number", n), ValueType::Bits, n);
@@ -112,15 +114,15 @@ mod tests {
             &[Value::Bits(u8(3)), Value::Bits(u8(2)), Value::Bits(u8(3))],
             &[Value::Bits(u8(2))],
         );
-        // 255 + 255 mod 4 = 2
+        // 253 + 253 mod 254 = 252
         test_circ(
             &circ,
             &[
-                Value::Bits(u8(u8::MAX)),
-                Value::Bits(u8(u8::MAX)),
-                Value::Bits(u8(4)),
+                Value::Bits(u8(u8::MAX - 2)),
+                Value::Bits(u8(u8::MAX - 2)),
+                Value::Bits(u8(u8::MAX - 1)),
             ],
-            &[Value::Bits(u8(2))],
+            &[Value::Bits(u8(u8::MAX - 3))],
         );
     }
 }

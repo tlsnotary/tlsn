@@ -8,6 +8,7 @@ mod nbit_switch;
 
 pub use full_adder::full_adder;
 pub use half_adder::half_adder;
+pub use nbit_add_mod::nbit_add_mod;
 pub use nbit_adder::nbit_adder;
 pub use nbit_inverter::nbit_inverter;
 pub use nbit_subtractor::nbit_subtractor;
