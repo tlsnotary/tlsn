@@ -25,7 +25,7 @@ message BaseReceiverSetup {
 // Setup message sent by OT Receiver
 message ExtReceiverSetup {
     required uint32 ncols = 1;
-    repeated bytes table = 2;
+    required bytes table = 2;
     required bytes x = 3;
     required bytes t0 = 4;
     required bytes t1 = 5;

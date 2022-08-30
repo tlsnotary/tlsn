@@ -20,19 +20,16 @@ pub mod tests {
     use super::{
         errors::{ExtReceiverCoreError, ExtSenderCoreError},
         kos15::{Kos15Receiver, Kos15Sender},
+        BASE_COUNT,
     };
     use crate::{msgs::ot as msgs, utils::u8vec_to_boolvec, Block};
     use pretty_assertions::assert_eq;
-    use rand::{RngCore, SeedableRng};
+    use rand::{thread_rng, Rng, RngCore, SeedableRng};
     use rand_chacha::ChaCha12Rng;
     use rstest::*;
 
     pub mod fixtures {
-        use crate::{
-            msgs::ot as msgs,
-            ot::base::tests::fixtures::{choice, values},
-            Block,
-        };
+        use crate::msgs::ot as msgs;
         use rstest::*;
 
         pub struct Data {
@@ -43,11 +40,11 @@ pub mod tests {
 
         #[fixture]
         #[once]
-        pub fn ot_ext_core_data(choice: &Vec<bool>, values: &Vec<[Block; 2]>) -> Data {
+        pub fn ot_ext_core_data() -> Data {
             use crate::ot::extension::kos15::{Kos15Receiver, Kos15Sender};
 
-            let mut sender = Kos15Sender::new(values.len());
-            let mut receiver = Kos15Receiver::new(choice.len());
+            let mut sender = Kos15Sender::default();
+            let mut receiver = Kos15Receiver::default();
             let base_sender_setup = receiver.base_setup().unwrap();
             let base_receiver_setup = sender.base_setup(base_sender_setup).unwrap();
             let base_sender_payload = receiver.base_send(base_receiver_setup.clone()).unwrap();
@@ -62,12 +59,12 @@ pub mod tests {
 
     #[fixture]
     fn receiver() -> Kos15Receiver {
-        Kos15Receiver::new(16)
+        Kos15Receiver::default()
     }
 
     #[fixture]
     fn sender() -> Kos15Sender {
-        Kos15Sender::new(16)
+        Kos15Sender::default()
     }
 
     #[fixture]
@@ -98,11 +95,14 @@ pub mod tests {
     fn test_ext_ot(pair_base_setup: (Kos15Sender, Kos15Receiver)) {
         let (mut sender, mut receiver) = pair_base_setup;
 
-        let mut choice = vec![0u8; 2];
+        let mut rng = thread_rng();
+        let choice_len: usize = rng.gen_range(0..1024);
+
+        let mut choice = vec![0u8; choice_len];
         let mut rng = ChaCha12Rng::from_entropy();
         rng.fill_bytes(&mut choice);
         let choice = u8vec_to_boolvec(&choice);
-        let inputs: Vec<[Block; 2]> = (0..16)
+        let inputs: Vec<[Block; 2]> = (0..choice.len())
             .map(|_| [Block::random(&mut rng), Block::random(&mut rng)])
             .collect();
 
@@ -137,7 +137,9 @@ pub mod tests {
     fn test_ext_ot_kos_failure(pair_base_setup: (Kos15Sender, Kos15Receiver)) {
         let (mut sender, mut receiver) = pair_base_setup;
 
-        let mut choice = vec![0u8; 2];
+        let mut rng = thread_rng();
+        let choice_len: usize = rng.gen_range(0..1024);
+        let mut choice = vec![0u8; choice_len];
         let mut rng = ChaCha12Rng::from_entropy();
         rng.fill_bytes(&mut choice);
         let choice = u8vec_to_boolvec(&choice);
@@ -152,11 +154,13 @@ pub mod tests {
     fn test_ext_ot_batch(pair_base_setup: (Kos15Sender, Kos15Receiver)) {
         let (mut sender, mut receiver) = pair_base_setup;
 
-        let mut choice = vec![0u8; 2];
+        let mut rng = thread_rng();
+        let choice_len: usize = rng.gen_range(0..1024);
+        let mut choice = vec![0u8; choice_len];
         let mut rng = ChaCha12Rng::from_entropy();
         rng.fill_bytes(&mut choice);
         let choice = u8vec_to_boolvec(&choice);
-        let inputs: Vec<[Block; 2]> = (0..16)
+        let inputs: Vec<[Block; 2]> = (0..choice.len())
             .map(|_| [Block::random(&mut rng), Block::random(&mut rng)])
             .collect();
 
@@ -213,15 +217,17 @@ pub mod tests {
     fn test_ext_random_ot(random_pair_base_setup: (Kos15Sender, Kos15Receiver)) {
         let (mut sender, mut receiver) = random_pair_base_setup;
 
-        let mut choice = vec![0u8; 2];
+        let mut rng = thread_rng();
+        let choice_len: usize = rng.gen_range(0..1024);
+        let mut choice = vec![0u8; choice_len];
         let mut rng = ChaCha12Rng::from_entropy();
         rng.fill_bytes(&mut choice);
         let choice = u8vec_to_boolvec(&choice);
-        let inputs: Vec<[Block; 2]> = (0..16)
+        let inputs: Vec<[Block; 2]> = (0..choice.len())
             .map(|_| [Block::random(&mut rng), Block::random(&mut rng)])
             .collect();
 
-        let receiver_setup = receiver.rand_extension_setup().unwrap();
+        let receiver_setup = receiver.rand_extension_setup(choice.len()).unwrap();
         sender.extension_setup(receiver_setup).unwrap();
 
         let derandomize = receiver.derandomize(&choice).unwrap();
@@ -242,15 +248,17 @@ pub mod tests {
     fn test_ext_random_ot_batch(random_pair_base_setup: (Kos15Sender, Kos15Receiver)) {
         let (mut sender, mut receiver) = random_pair_base_setup;
 
-        let mut choice = vec![0u8; 2];
+        let mut rng = thread_rng();
+        let choice_len: usize = rng.gen_range(0..1024);
+        let mut choice = vec![0u8; choice_len];
         let mut rng = ChaCha12Rng::from_entropy();
         rng.fill_bytes(&mut choice);
         let choice = u8vec_to_boolvec(&choice);
-        let inputs: Vec<[Block; 2]> = (0..16)
+        let inputs: Vec<[Block; 2]> = (0..choice.len())
             .map(|_| [Block::random(&mut rng), Block::random(&mut rng)])
             .collect();
 
-        let receiver_setup = receiver.rand_extension_setup().unwrap();
+        let receiver_setup = receiver.rand_extension_setup(choice.len()).unwrap();
         sender.extension_setup(receiver_setup).unwrap();
 
         let mut received: Vec<Block> = Vec::new();
@@ -292,5 +300,64 @@ pub mod tests {
             .collect();
 
         assert_eq!(expected, received);
+    }
+
+    // Test the wrong padding when the choice count is 256
+    #[rstest]
+    fn test_wrong_padding_256(random_pair_base_setup: (Kos15Sender, Kos15Receiver)) {
+        // create one instances with "bad" column counts
+        let (mut sender, mut receiver) = random_pair_base_setup;
+        let mut receiver_setup = receiver.rand_extension_setup(256).unwrap();
+
+        // sender must not accept more columns
+        receiver_setup.table.extend(vec![0u8; BASE_COUNT]);
+
+        let res = sender.extension_setup(receiver_setup.clone());
+        if let Err(ExtSenderCoreError::InvalidPadding) = res {
+            ()
+        } else {
+            panic!("invalid padding should be an error");
+        }
+
+        // sender must not accept less columns
+        receiver_setup.table.drain(0..BASE_COUNT * 2);
+
+        let res = sender.extension_setup(receiver_setup.clone());
+        if let Err(ExtSenderCoreError::InvalidPadding) = res {
+            ()
+        } else {
+            panic!("invalid padding should be an error");
+        }
+    }
+
+    // Test the wrong padding when the choice count is random
+    #[rstest]
+    fn test_wrong_padding_random(random_pair_base_setup: (Kos15Sender, Kos15Receiver)) {
+        // create one instances with "bad" column counts
+        let mut rng = thread_rng();
+        // choice count is expcted to be a multiple of 8
+        let choice_len: usize = rng.gen_range(0..1024) * 8;
+        let (mut sender, mut receiver) = random_pair_base_setup;
+        let mut receiver_setup = receiver.rand_extension_setup(choice_len).unwrap();
+
+        // sender must not accept more columns
+        receiver_setup.table.extend(vec![0u8; BASE_COUNT]);
+
+        let res = sender.extension_setup(receiver_setup.clone());
+        if let Err(ExtSenderCoreError::InvalidPadding) = res {
+            ()
+        } else {
+            panic!("invalid padding should be an error");
+        }
+
+        // sender must not accept less columns
+        receiver_setup.table.drain(0..BASE_COUNT * 2);
+
+        let res = sender.extension_setup(receiver_setup.clone());
+        if let Err(ExtSenderCoreError::InvalidPadding) = res {
+            ()
+        } else {
+            panic!("invalid padding should be an error");
+        }
     }
 }

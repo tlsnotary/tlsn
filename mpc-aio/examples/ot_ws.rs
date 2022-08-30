@@ -60,7 +60,7 @@ async fn receive<S: AsyncWrite + AsyncRead + Send + Unpin>(
     info!("Choosing {:?}", choice);
 
     let values = if extended {
-        let mut receiver = ExtReceiver::new(stream, choice.len());
+        let mut receiver = ExtReceiver::new(stream);
         receiver.receive(&choice).await.unwrap()
     } else {
         let mut receiver = Receiver::new(stream);
@@ -79,7 +79,7 @@ async fn send<S: AsyncWrite + AsyncRead + Send + Unpin>(
     let stream = WsStream::new(ws);
 
     if extended {
-        let mut sender = ExtSender::new(stream, values.len());
+        let mut sender = ExtSender::new(stream);
         let _ = sender.send(&values).await;
     } else {
         let mut sender = Sender::new(stream);
