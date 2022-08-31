@@ -555,6 +555,34 @@ impl Circuit {
         })
     }
 
+    /// Creates new circuit without performing any checks on circuit structure
+    pub(crate) fn new_unchecked(
+        name: &str,
+        version: &str,
+        inputs: Vec<Input>,
+        outputs: Vec<Output>,
+        gates: Vec<Gate>,
+    ) -> Self {
+        let info = Self::compute_stats(&gates);
+        let const_inputs = inputs
+            .iter()
+            .filter(|input| input.value_type().is_constant())
+            .cloned()
+            .collect();
+        Self {
+            id: CircuitId::new(&gates),
+            name: name.to_string(),
+            version: version.to_string(),
+            wire_count: info.wire_count,
+            and_count: info.and_count,
+            xor_count: info.xor_count,
+            inputs,
+            const_inputs,
+            outputs,
+            gates,
+        }
+    }
+
     fn validate_inputs(mut inputs: Vec<Input>) -> Result<(Vec<Input>, Vec<usize>), CircuitError> {
         // Sort inputs by input id
         inputs.sort_by_key(|input| input.id);
@@ -627,6 +655,25 @@ impl Circuit {
             ));
         }
         Ok((outputs, output_wire_ids))
+    }
+
+    fn compute_stats(gates: &[Gate]) -> CircuitInfo {
+        let mut and_count = 0;
+        let mut xor_count = 0;
+        let mut wires = HashSet::with_capacity(gates.len() * 3);
+        for gate in gates {
+            wires.extend(gate.wires());
+            if gate.is_and() {
+                and_count += 1;
+            } else if gate.is_xor() {
+                xor_count += 1;
+            }
+        }
+        CircuitInfo {
+            wire_count: wires.len(),
+            and_count,
+            xor_count,
+        }
     }
 
     fn validate_gates(

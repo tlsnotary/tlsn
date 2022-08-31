@@ -156,8 +156,8 @@ impl TryFrom<Circuit> for crate::Circuit {
         for gate in c.gates {
             gates.push(crate::Gate::try_from(gate)?);
         }
-        Ok(crate::Circuit::new(
+        Ok(crate::Circuit::new_unchecked(
             &c.name, &c.version, inputs, outputs, gates,
-        )?)
+        ))
     }
 }
