@@ -38,6 +38,8 @@ impl From<Group> for GroupSpec {
 impl GroupSpec {
     fn to_group(self, id_offset: usize) -> Result<Group, Error> {
         let value_type = match self.value_type.to_lowercase().as_str() {
+            "const_0" => ValueType::ConstZero,
+            "const_1" => ValueType::ConstOne,
             "bool" => ValueType::Bool,
             "bits" => ValueType::Bits,
             "bytes" => ValueType::Bytes,
