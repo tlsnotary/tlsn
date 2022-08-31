@@ -147,6 +147,19 @@ impl Kos15Sender<state::Setup> {
         )
     }
 
+    pub fn split(&mut self, split_at: usize) -> Result<Self, ExtSenderCoreError> {
+        let split_table = self.0.table.split_off_rows(split_at)?;
+        let rows = split_table.rows();
+        self.0.count -= rows;
+
+        Ok(Kos15Sender(state::Setup {
+            table: split_table,
+            count: rows,
+            sent: 0,
+            base_choices: self.0.base_choices.clone(),
+        }))
+    }
+
     pub fn is_complete(&self) -> bool {
         self.0.sent == self.0.count
     }
@@ -166,6 +179,19 @@ impl Kos15Sender<state::RandSetup> {
             inputs,
             Some(derandomize),
         )
+    }
+
+    pub fn split(&mut self, split_at: usize) -> Result<Self, ExtSenderCoreError> {
+        let split_table = self.0.table.split_off_rows(split_at)?;
+        let rows = split_table.rows();
+        self.0.count -= rows;
+
+        Ok(Kos15Sender(state::RandSetup {
+            table: split_table,
+            count: rows,
+            sent: 0,
+            base_choices: self.0.base_choices.clone(),
+        }))
     }
 
     pub fn is_complete(&self) -> bool {
