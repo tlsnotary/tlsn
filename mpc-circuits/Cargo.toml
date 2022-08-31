@@ -35,3 +35,7 @@ path = "src/lib.rs"
 [[bin]]
 name = "compile"
 path = "src/bin/compile.rs"
+
+[[bin]]
+name = "parse"
+path = "src/bin/parse.rs"
