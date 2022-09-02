@@ -1,32 +1,8 @@
 use mpc_circuits::{
-    builder::{CircuitBuilder, Feed, Gates, Sink, WireHandle},
+    builder::{map_le_bytes, CircuitBuilder},
     circuits::nbit_add_mod,
     Circuit, ValueType,
 };
-
-/// Maps P-256 Prime to sink wires
-/// ffffffff00000001000000000000000000000000ffffffffffffffffffffffff
-fn p256prime(
-    builder: &mut CircuitBuilder<Gates>,
-    const_zero: &WireHandle<Feed>,
-    const_one: &WireHandle<Feed>,
-    sinks: &[WireHandle<Sink>],
-) {
-    debug_assert!(sinks.len() == 256);
-    for i in 0..96 {
-        builder.connect(&[*const_one], &[sinks[i]]);
-    }
-    for i in 96..192 {
-        builder.connect(&[*const_zero], &[sinks[i]]);
-    }
-    builder.connect(&[*const_one], &[sinks[192]]);
-    for i in 193..224 {
-        builder.connect(&[*const_zero], &[sinks[i]]);
-    }
-    for i in 224..256 {
-        builder.connect(&[*const_one], &[sinks[i]]);
-    }
-}
 
 /// Combines two PMS shares
 ///
@@ -74,12 +50,18 @@ pub fn combine_pms_shares() -> Circuit {
 
     builder.connect(&a[..], &add_mod_a[..]);
     builder.connect(&b[..], &add_mod_b[..]);
+
     // map p256 prime to mod
-    p256prime(
+    map_le_bytes(
         &mut builder,
-        &const_zero[0],
-        &const_one[0],
+        const_zero[0],
+        const_one[0],
         &add_mod_mod[..],
+        &[
+            0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+            0xFF, 0xFF, 0xFF, 0xFF,
+        ],
     );
 
     let mut builder = builder.build_gates();
@@ -105,7 +87,6 @@ mod tests {
     #[test]
     fn test_combine_pms_shares() {
         let circ = combine_pms_shares();
-        println!("{}", circ.and_count());
         let p = BigUint::parse_bytes(P.as_bytes(), 16).unwrap();
         let mut one = vec![0x00; 32];
         one[0] = 1;
