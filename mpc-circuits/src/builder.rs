@@ -534,6 +534,30 @@ impl CircuitBuilder<Outputs> {
     }
 }
 
+/// Maps byte values to sinks using constant wires
+///
+/// Bytes must be in little-endian order
+///
+/// Panics if a sink is not provided for every bit in byte array
+pub fn map_bytes(
+    builder: &mut CircuitBuilder<Gates>,
+    zero: WireHandle<Feed>,
+    one: WireHandle<Feed>,
+    sinks: &[WireHandle<Sink>],
+    bytes: &[u8],
+) {
+    debug_assert_eq!(sinks.len(), bytes.len() * 8);
+    bytes.iter().enumerate().for_each(|(n, byte)| {
+        (0..8).for_each(|i| {
+            if (byte >> i & 1) == 1 {
+                builder.connect(&[one], &[sinks[(n * 8) + i]])
+            } else {
+                builder.connect(&[zero], &[sinks[(n * 8) + i]])
+            }
+        })
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -621,5 +645,40 @@ mod tests {
                 .value(),
             Value::U8(0)
         );
+    }
+
+    #[test]
+    fn test_map_bytes() {
+        let mut builder = CircuitBuilder::new("", "");
+
+        let const_zero = builder.add_input("", "", ValueType::ConstZero, 1);
+        let const_one = builder.add_input("", "", ValueType::ConstOne, 1);
+
+        let mut builder = builder.build_inputs();
+
+        let gates: Vec<_> = (0..16).map(|_| builder.add_gate(GateType::Inv)).collect();
+
+        map_bytes(
+            &mut builder,
+            const_zero[0],
+            const_one[0],
+            &gates.iter().map(|gate| gate.x()).collect::<Vec<_>>(),
+            &[0xFF, 0x00],
+        );
+
+        let mut builder = builder.build_gates();
+
+        let out = builder.add_output("", "", ValueType::Bytes, 16);
+
+        gates
+            .iter()
+            .enumerate()
+            .for_each(|(i, gate)| builder.connect(&[gate.z()], &[out[i]]));
+
+        let circ = builder.build_circuit().unwrap();
+
+        let result = circ.evaluate(&[]).unwrap();
+
+        assert_eq!(*result[0].value(), Value::Bytes(vec![0x00, 0xFF]));
     }
 }
