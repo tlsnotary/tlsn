@@ -539,7 +539,7 @@ impl CircuitBuilder<Outputs> {
 /// Bytes must be in little-endian order
 ///
 /// Panics if a sink is not provided for every bit in byte array
-pub fn map_bytes(
+pub fn map_le_bytes(
     builder: &mut CircuitBuilder<Gates>,
     zero: WireHandle<Feed>,
     one: WireHandle<Feed>,
@@ -656,19 +656,19 @@ mod tests {
 
         let mut builder = builder.build_inputs();
 
-        let gates: Vec<_> = (0..16).map(|_| builder.add_gate(GateType::Inv)).collect();
+        let gates: Vec<_> = (0..24).map(|_| builder.add_gate(GateType::Inv)).collect();
 
-        map_bytes(
+        map_le_bytes(
             &mut builder,
             const_zero[0],
             const_one[0],
             &gates.iter().map(|gate| gate.x()).collect::<Vec<_>>(),
-            &[0xFF, 0x00],
+            &[0xAB, 0x00, 0xCD],
         );
 
         let mut builder = builder.build_gates();
 
-        let out = builder.add_output("", "", ValueType::Bytes, 16);
+        let out = builder.add_output("", "", ValueType::Bytes, 24);
 
         gates
             .iter()
@@ -679,6 +679,6 @@ mod tests {
 
         let result = circ.evaluate(&[]).unwrap();
 
-        assert_eq!(*result[0].value(), Value::Bytes(vec![0x00, 0xFF]));
+        assert_eq!(*result[0].value(), Value::Bytes(vec![0x54, 0xFF, 0x32]));
     }
 }
