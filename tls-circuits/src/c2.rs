@@ -7,7 +7,12 @@ use mpc_circuits::{
 
 /// TLS stage 2
 ///
+/// Computes the master secret (MS).
+/// Outputs sha256(ms xor opad) called "ms outer hash state" and
+/// sha256(ms xor ipad) called "ms inner hash state"
+///
 /// Inputs:
+///
 ///   0. PMS_O_STATE: 32-byte PMS outer-hash state
 ///   1. P1_INNER: 32-byte inner hash of P1
 ///   2. P2: 16-byte P2
@@ -15,12 +20,9 @@ use mpc_circuits::{
 ///   4. MASK_O: 32-byte mask for outer-state
 ///
 /// Outputs:
+///
 ///   0. MASKED_I: 32-byte masked HMAC inner hash state
 ///   1. MASKED_O: 32-byte masked HMAC outer hash state
-///
-/// Computes the master secret (MS).
-/// Outputs sha256(ms xor opad) called "ms outer hash state" and
-/// sha256(ms xor ipad) called "ms inner hash state"
 pub fn c2() -> Circuit {
     let mut builder = CircuitBuilder::new("c2", "0.1.0");
 
