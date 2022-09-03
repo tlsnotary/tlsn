@@ -55,3 +55,20 @@ pub fn partial_sha256_digest(input: &[u8]) -> [u32; 8] {
     }
     state
 }
+
+#[cfg(test)]
+fn finalize_sha256_digest(mut state: [u32; 8], pos: usize, input: &[u8]) -> [u8; 32] {
+    let mut buffer = BlockBuffer::<U64, Eager>::default();
+    buffer.digest_blocks(input, |b| compress256(&mut state, b));
+    buffer.digest_pad(
+        0x80,
+        &(((input.len() + pos) * 8) as u64).to_be_bytes(),
+        |b| compress256(&mut state, from_ref(b)),
+    );
+
+    let mut out: [u8; 32] = [0; 32];
+    for (chunk, v) in out.chunks_exact_mut(4).zip(state.iter()) {
+        chunk.copy_from_slice(&v.to_be_bytes());
+    }
+    out
+}

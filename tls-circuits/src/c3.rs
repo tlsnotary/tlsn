@@ -296,33 +296,10 @@ pub fn c3() -> Circuit {
 
 #[cfg(test)]
 mod tests {
-    use std::slice::from_ref;
-
     use super::*;
-    use crate::test_circ;
-    use generic_array::typenum::U64;
+    use crate::{finalize_sha256_digest, test_circ};
     use mpc_circuits::Value;
     use rand::{thread_rng, Rng};
-    use sha2::{
-        compress256,
-        digest::block_buffer::{BlockBuffer, Eager},
-    };
-
-    fn finalize_sha256_digest(mut state: [u32; 8], pos: usize, input: &[u8]) -> [u8; 32] {
-        let mut buffer = BlockBuffer::<U64, Eager>::default();
-        buffer.digest_blocks(input, |b| compress256(&mut state, b));
-        buffer.digest_pad(
-            0x80,
-            &(((input.len() + pos) * 8) as u64).to_be_bytes(),
-            |b| compress256(&mut state, from_ref(b)),
-        );
-
-        let mut out: [u8; 32] = [0; 32];
-        for (chunk, v) in out.chunks_exact_mut(4).zip(state.iter()) {
-            chunk.copy_from_slice(&v.to_be_bytes());
-        }
-        out
-    }
 
     #[test]
     fn test_c3() {
