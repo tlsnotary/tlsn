@@ -297,7 +297,7 @@ pub fn c3() -> Circuit {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{finalize_sha256_digest, test_circ};
+    use crate::test_helpers::{finalize_sha256_digest, test_circ};
     use mpc_circuits::Value;
     use rand::{thread_rng, Rng};
 

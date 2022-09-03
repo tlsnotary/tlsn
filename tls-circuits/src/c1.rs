@@ -219,7 +219,7 @@ pub fn c1() -> Circuit {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{partial_sha256_digest, test_circ};
+    use crate::test_helpers::{partial_sha256_digest, test_circ};
     use mpc_circuits::Value;
     use num_bigint::{BigUint, RandBigInt};
     use rand::{thread_rng, Rng};
