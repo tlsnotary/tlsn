@@ -8,15 +8,15 @@ use mpc_circuits::{
 /// TLS stage 2
 ///
 /// Inputs:
-///   - PMS_O_STATE: 32-byte PMS outer-hash state
-///   - P1_INNER: 32-byte inner hash of P1
-///   - P2: 16-byte P2
-///   - MASK_I: 32-byte mask for inner-state
-///   - MASK_O: 32-byte mask for outer-state
+///   0. PMS_O_STATE: 32-byte PMS outer-hash state
+///   1. P1_INNER: 32-byte inner hash of P1
+///   2. P2: 16-byte P2
+///   3. MASK_I: 32-byte mask for inner-state
+///   4. MASK_O: 32-byte mask for outer-state
 ///
 /// Outputs:
-///   - MASKED_I: 32-byte masked HMAC inner hash state
-///   - MASKED_O: 32-byte masked HMAC outer hash state
+///   0. MASKED_I: 32-byte masked HMAC inner hash state
+///   1. MASKED_O: 32-byte masked HMAC outer hash state
 ///
 /// Computes the master secret (MS).
 /// Outputs sha256(ms xor opad) called "ms outer hash state" and

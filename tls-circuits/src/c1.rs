@@ -8,14 +8,14 @@ use mpc_circuits::{
 /// TLS stage 1
 ///
 /// Inputs:
-///   - PMS_SHARE_A: 32-byte PMS Additive Share
-///   - PMS_SHARE_B: 32-byte PMS Additive Share
-///   - MASK_I: 32-byte mask for inner-state
-///   - MASK_O: 32-byte mask for outer-state
+///   0. PMS_SHARE_A: 32-byte PMS Additive Share
+///   1. PMS_SHARE_B: 32-byte PMS Additive Share
+///   2. MASK_I: 32-byte mask for inner-state
+///   3. MASK_O: 32-byte mask for outer-state
 ///
 /// Outputs:
-///   - MASKED_I: 32-byte masked HMAC inner hash state
-///   - MASKED_O: 32-byte masked HMAC outer hash state
+///   0. MASKED_I: 32-byte masked HMAC inner hash state
+///   1. MASKED_O: 32-byte masked HMAC outer hash state
 ///
 /// Parties input their additive shares of the pre-master secret (PMS).
 /// Outputs sha256(pms xor opad) called "pms outer hash state" to Notary and
