@@ -1,15 +1,16 @@
-use crate::{combine_pms_shares, SHA256_STATE};
+use crate::SHA256_STATE;
 use mpc_circuits::{
     builder::{map_le_bytes, CircuitBuilder},
     circuits::nbit_xor,
     Circuit, ValueType, SHA_256,
 };
 
-/// TLS stage 1
+/// TLS stage 2
 ///
 /// Inputs:
-///   - PMS_SHARE_A: 32-byte PMS Additive Share
-///   - PMS_SHARE_B: 32-byte PMS Additive Share
+///   - PMS_O_STATE: 32-byte PMS outer-hash state
+///   - P1_INNER: 32-byte inner hash of P1
+///   - P2: 16-byte P2
 ///   - MASK_I: 32-byte mask for inner-state
 ///   - MASK_O: 32-byte mask for outer-state
 ///
@@ -17,24 +18,15 @@ use mpc_circuits::{
 ///   - MASKED_I: 32-byte masked HMAC inner hash state
 ///   - MASKED_O: 32-byte masked HMAC outer hash state
 ///
-/// Parties input their additive shares of the pre-master secret (PMS).
-/// Outputs sha256(pms xor opad) called "pms outer hash state" to Notary and
-/// also outputs sha256(pms xor ipad) called "pms inner hash state" to User.
-pub fn c1() -> Circuit {
-    let mut builder = CircuitBuilder::new("c1", "0.1.0");
+/// Computes the master secret (MS).
+/// Outputs sha256(ms xor opad) called "ms outer hash state" and
+/// sha256(ms xor ipad) called "ms inner hash state"
+pub fn c2() -> Circuit {
+    let mut builder = CircuitBuilder::new("c2", "0.1.0");
 
-    let share_a = builder.add_input(
-        "PMS_SHARE_A",
-        "32-byte PMS Additive Share",
-        ValueType::Bytes,
-        256,
-    );
-    let share_b = builder.add_input(
-        "PMS_SHARE_B",
-        "32-byte PMS Additive Share",
-        ValueType::Bytes,
-        256,
-    );
+    let pms_o = builder.add_input("PMS_O_STATE", "32-byte hash state", ValueType::Bytes, 256);
+    let p1_inner = builder.add_input("P1_INNER", "32-byte hash state", ValueType::Bytes, 256);
+    let p2 = builder.add_input("P2", "16-byte P2", ValueType::Bytes, 128);
     let mask_inner = builder.add_input(
         "MASK_I",
         "32-byte mask for inner-state",
@@ -64,61 +56,59 @@ pub fn c1() -> Circuit {
 
     let sha256 = Circuit::load_bytes(SHA_256).expect("failed to load sha256 circuit");
 
-    let combine_pms = builder.add_circ(combine_pms_shares());
+    let sha256_p1 = builder.add_circ(sha256.clone());
     let sha256_ipad = builder.add_circ(sha256.clone());
     let sha256_opad = builder.add_circ(sha256);
-    let pms_ipad = builder.add_circ(nbit_xor(512));
-    let pms_opad = builder.add_circ(nbit_xor(512));
+    let ms_ipad = builder.add_circ(nbit_xor(512));
+    let ms_opad = builder.add_circ(nbit_xor(512));
     let masked_inner = builder.add_circ(nbit_xor(256));
     let masked_outer = builder.add_circ(nbit_xor(256));
 
-    builder.connect(
-        &share_a[..],
-        &combine_pms
-            .input(0)
-            .expect("combine_pms_shares missing input 0")[..],
+    // p1
+    let sha256_p1_msg = sha256_p1.input(0).expect("sha256 missing input 1");
+    builder.connect(&p1_inner[..], &sha256_p1_msg[256..]);
+    // append a single '1' bit
+    builder.connect(&[const_one[0]], &[sha256_p1_msg[255]]);
+    // append K '0' bits, where K is the minimum number >= 0 such that (L + 1 + K + 64) is a multiple of 512
+    builder.connect(&[const_zero[0]; 239], &sha256_p1_msg[16..255]);
+    // append L as a 64-bit big-endian integer, making the total post-processed length a multiple of 512 bits
+    // L = 768 = 0x0300
+    map_le_bytes(
+        &mut builder,
+        const_zero[0],
+        const_one[0],
+        &sha256_p1_msg[..16],
+        &[0x00, 0x03],
     );
     builder.connect(
-        &share_b[..],
-        &combine_pms
-            .input(1)
-            .expect("combine_pms_shares missing input 0")[..],
-    );
-    builder.connect(
-        &const_zero[..],
-        &combine_pms
-            .input(2)
-            .expect("combine_pms_shares missing input 2")[..],
-    );
-    builder.connect(
-        &const_one[..],
-        &combine_pms
-            .input(3)
-            .expect("combine_pms_shares missing input 3")[..],
+        &pms_o[..],
+        &sha256_p1.input(1).expect("sha256 missing input 1")[..],
     );
 
-    let pms = combine_pms
-        .output(0)
-        .expect("combine_pms_shares missing output 0");
+    let p1 = sha256_p1.output(0).expect("sha256 missing output 0");
 
     // inner
     map_le_bytes(
         &mut builder,
         const_zero[0],
         const_one[0],
-        &pms_ipad.input(0).expect("nbit_xor missing input 0")[..],
+        &ms_ipad.input(0).expect("nbit_xor missing input 0")[..],
         &[0x36u8; 64],
     );
     builder.connect(
-        &pms[..],
-        &pms_ipad.input(1).expect("nbit_xor missing input 1")[256..],
+        &p1[..],
+        &ms_ipad.input(1).expect("nbit_xor missing input 1")[256..],
     );
     builder.connect(
-        &[const_zero[0]; 256],
-        &pms_ipad.input(1).expect("nbit_xor missing input 1")[..256],
+        &p2[..],
+        &ms_ipad.input(1).expect("nbit_xor missing input 1")[128..256],
     );
     builder.connect(
-        &pms_ipad.output(0).expect("nbit_xor missing output 0")[..],
+        &[const_zero[0]; 128],
+        &ms_ipad.input(1).expect("nbit_xor missing input 1")[..128],
+    );
+    builder.connect(
+        &ms_ipad.output(0).expect("nbit_xor missing output 0")[..],
         &sha256_ipad.input(0).expect("sha256 missing input 0")[..],
     );
     // map SHA256 initial state
@@ -140,19 +130,23 @@ pub fn c1() -> Circuit {
         &mut builder,
         const_zero[0],
         const_one[0],
-        &pms_opad.input(0).expect("nbit_xor missing input 0")[..],
+        &ms_opad.input(0).expect("nbit_xor missing input 0")[..],
         &[0x5cu8; 64],
     );
     builder.connect(
-        &pms[..],
-        &pms_opad.input(1).expect("nbit_xor missing input 1")[256..],
+        &p1[..],
+        &ms_opad.input(1).expect("nbit_xor missing input 1")[256..],
     );
     builder.connect(
-        &[const_zero[0]; 256],
-        &pms_opad.input(1).expect("nbit_xor missing input 1")[..256],
+        &p2[..],
+        &ms_opad.input(1).expect("nbit_xor missing input 1")[128..256],
     );
     builder.connect(
-        &pms_opad.output(0).expect("nbit_xor missing output 0")[..],
+        &[const_zero[0]; 128],
+        &ms_opad.input(1).expect("nbit_xor missing input 1")[..128],
+    );
+    builder.connect(
+        &ms_opad.output(0).expect("nbit_xor missing output 0")[..],
         &sha256_opad.input(0).expect("sha256 missing input 0")[..],
     );
     // map SHA256 initial state
@@ -213,43 +207,78 @@ pub fn c1() -> Circuit {
         &out_outer[..],
     );
 
-    builder.build_circuit().expect("failed to build c1")
+    builder.build_circuit().expect("failed to build c2")
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{partial_sha256_digest, test_circ};
-    use mpc_circuits::Value;
-    use num_bigint::{BigUint, RandBigInt};
-    use rand::{thread_rng, Rng};
+    use std::slice::from_ref;
 
-    /// NIST P-256 Prime
-    pub const P: &str = "ffffffff00000001000000000000000000000000ffffffffffffffffffffffff";
+    use super::*;
+    use crate::test_circ;
+    use generic_array::{typenum::U64, GenericArray};
+    use mpc_circuits::Value;
+    use rand::{thread_rng, Rng};
+    use sha2::{
+        compress256,
+        digest::block_buffer::{BlockBuffer, Eager},
+    };
+
+    fn partial_sha256_digest(input: &[u8]) -> [u32; 8] {
+        let mut state = [
+            0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
+            0x5be0cd19,
+        ];
+        for b in input.chunks_exact(64) {
+            let block = GenericArray::from_slice(b);
+            compress256(&mut state, &[*block]);
+        }
+        state
+    }
+
+    fn finalize_sha256_digest(mut state: [u32; 8], pos: usize, input: &[u8]) -> [u8; 32] {
+        let mut buffer = BlockBuffer::<U64, Eager>::default();
+        buffer.digest_blocks(input, |b| compress256(&mut state, b));
+        buffer.digest_pad(
+            0x80,
+            &(((input.len() + pos) * 8) as u64).to_be_bytes(),
+            |b| compress256(&mut state, from_ref(b)),
+        );
+
+        let mut out: [u8; 32] = [0; 32];
+        for (chunk, v) in out.chunks_exact_mut(4).zip(state.iter()) {
+            chunk.copy_from_slice(&v.to_be_bytes());
+        }
+        out
+    }
 
     #[test]
-    fn test_c1() {
-        let circ = c1();
+    fn test_c2() {
+        let circ = c2();
         // Perform in the clear all the computations which happen inside the ciruit:
         let mut rng = thread_rng();
 
-        let p = BigUint::parse_bytes(P.as_bytes(), 16).unwrap();
-        let share_a = rng.gen_biguint_below(&p);
-        let share_b = rng.gen_biguint_below(&p);
+        let n_outer_hash_state: [u32; 8] = rng.gen();
+        let u_inner_hash_p1: [u8; 32] = rng.gen();
+        let u_p2: [u8; 16] = rng.gen();
 
         // * generate user's and notary's inside-the-GC-masks to mask the GC output
         let mask_n: [u8; 32] = rng.gen();
         let mask_u: [u8; 32] = rng.gen();
 
-        // reduce pms mod prime if necessary
-        let pms = (share_a.clone() + share_b.clone()) % p;
+        // finalize the hash to get p1
+        let p1 = finalize_sha256_digest(n_outer_hash_state, 64, &u_inner_hash_p1);
+        // get master_secret
+        let mut ms = [0u8; 48];
+        ms[..32].copy_from_slice(&p1);
+        ms[32..48].copy_from_slice(&u_p2[..16]);
 
-        // * XOR pms (zero-padded to 64 bytes) with inner/outer padding of HMAC
-        let mut pms_zeropadded = [0u8; 64];
-        pms_zeropadded[0..32].copy_from_slice(&pms.to_bytes_be());
+        // * XOR ms (zero-padded to 64 bytes) with inner/outer padding of HMAC
+        let mut ms_zeropadded = [0u8; 64];
+        ms_zeropadded[0..48].copy_from_slice(&ms);
 
-        let pms_ipad = pms_zeropadded.iter().map(|b| b ^ 0x36).collect::<Vec<u8>>();
-        let pms_opad = pms_zeropadded.iter().map(|b| b ^ 0x5c).collect::<Vec<u8>>();
+        let pms_ipad = ms_zeropadded.iter().map(|b| b ^ 0x36).collect::<Vec<u8>>();
+        let pms_opad = ms_zeropadded.iter().map(|b| b ^ 0x5c).collect::<Vec<u8>>();
 
         // * hash the padded PMS
         let ohash_state = partial_sha256_digest(&pms_opad);
@@ -281,8 +310,16 @@ mod tests {
         test_circ(
             &circ,
             &[
-                Value::Bytes(share_a.to_bytes_le().to_vec()),
-                Value::Bytes(share_b.to_bytes_le().to_vec()),
+                Value::Bytes(
+                    n_outer_hash_state
+                        .into_iter()
+                        .rev()
+                        .map(|v| v.to_le_bytes())
+                        .flatten()
+                        .collect::<Vec<u8>>(),
+                ),
+                Value::Bytes(u_inner_hash_p1.into_iter().rev().collect()),
+                Value::Bytes(u_p2.into_iter().rev().collect()),
                 Value::Bytes(mask_u.iter().rev().copied().collect::<Vec<u8>>()),
                 Value::Bytes(mask_n.iter().rev().copied().collect::<Vec<u8>>()),
             ],
