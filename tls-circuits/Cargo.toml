@@ -21,3 +21,4 @@ num-bigint = { version = "0.4", features = ["rand"] }
 num-traits = "0.2.15"
 rand = { version = "0.8.5" }
 sha2 = { version = "0.10.1", features = ["compress"] }
+aes = { version = "0.7.5" }
