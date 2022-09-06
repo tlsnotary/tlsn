@@ -147,7 +147,7 @@ where
     }
 }
 
-/// A handle to a circuit gate which can be used to create connections
+/// A handle to a circuit gate
 #[derive(Debug, Clone, Copy)]
 pub struct GateHandle {
     x: WireHandle<Sink>,
