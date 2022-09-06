@@ -556,7 +556,7 @@ pub fn map_le_bytes(
     sinks: &[WireHandle<Sink>],
     bytes: &[u8],
 ) {
-    debug_assert_eq!(sinks.len(), bytes.len() * 8);
+    assert_eq!(sinks.len(), bytes.len() * 8);
     bytes.iter().enumerate().for_each(|(n, byte)| {
         (0..8).for_each(|i| {
             if (byte >> i & 1) == 1 {
