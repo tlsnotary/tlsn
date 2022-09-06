@@ -49,7 +49,7 @@ pub struct CircuitHandle {
 
 impl CircuitHandle {
     pub fn input(&self, id: usize) -> Option<SubInputHandle> {
-        if let Some(input) = self.circ.input(id) {
+        self.circ.input(id).and_then(|input| {
             Some(SubInputHandle {
                 wire_handles: input
                     .as_ref()
@@ -59,13 +59,11 @@ impl CircuitHandle {
                     .map(WireHandle::new_sink)
                     .collect(),
             })
-        } else {
-            None
-        }
+        })
     }
 
     pub fn output(&self, id: usize) -> Option<SubOutputHandle> {
-        if let Some(output) = self.circ.output(id) {
+        self.circ.output(id).and_then(|output| {
             Some(SubOutputHandle {
                 wire_handles: output
                     .as_ref()
@@ -75,9 +73,7 @@ impl CircuitHandle {
                     .map(WireHandle::new_feed)
                     .collect(),
             })
-        } else {
-            None
-        }
+        })
     }
 }
 
