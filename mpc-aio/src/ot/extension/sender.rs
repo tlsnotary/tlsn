@@ -2,10 +2,9 @@ use crate::ot::OTError;
 
 use super::{ObliviousSend, ObliviousSetup};
 use async_trait::async_trait;
-use futures::{stream, Sink, SinkExt, Stream, StreamExt};
+use futures::{Sink, SinkExt, Stream, StreamExt};
 use mpc_core::{
-    msgs::ot::ExtSenderPayload,
-    msgs::ot::OTMessage,
+    msgs::ot::{ExtDerandomize, OTMessage},
     ot::extension::{s_state, Kos15Sender},
     Block,
 };
@@ -13,25 +12,19 @@ use mpc_core::{
 #[async_trait]
 impl ObliviousSend for Kos15Sender<s_state::RandSetup> {
     type Inputs = Vec<[Block; 2]>;
-    type Envelope = ExtSenderPayload;
-    type Message = OTMessage;
+    type Envelope = Vec<[Block; 2]>;
+    type Message = ExtDerandomize;
 
     async fn send(
         &mut self,
         stream: impl Stream<Item = Self::Message> + Unpin + Send,
-        sink: impl Sink<Self::Message> + Unpin + Send,
         inputs: Self::Inputs,
     ) -> Box<dyn Stream<Item = Result<Self::Envelope, OTError>>> {
-        let message = match stream.next().await {
-            Some(OTMessage::ExtDerandomize(m)) => m,
-            Some(m) => return Err(OTError::Unexpected(m)),
-            None => return Err(OTError::IOError)?,
-        };
-        Box::new(
-            stream::iter(inputs)
-                .zip(stream::iter(message.flip))
-                .map(|(input, flip)| self.rand_send(input, flip)),
-        )
+        Box::new(stream.map(|message| {
+            self.rand_send(&inputs, message)
+                .map(|payload| payload.ciphertexts)
+                .map_err(OTError::from)
+        }))
     }
 }
 
@@ -41,22 +34,21 @@ impl ObliviousSetup for Kos15Sender {
     type Message = OTMessage;
 
     async fn setup(
-        input: impl Stream<Item = OTMessage> + Unpin + Send,
-        output: impl Sink<OTMessage> + Unpin + Send,
+        stream: impl Stream<Item = OTMessage> + Unpin + Send,
+        sink: impl Sink<OTMessage> + Unpin + Send,
     ) -> Result<Self::Actor, OTError> {
         let kos_sender = Kos15Sender::default();
-        let message = match input.next().await {
+        let message = match stream.next().await {
             Some(OTMessage::BaseSenderSetupWrapper(m)) => m,
             Some(m) => return Err(OTError::Unexpected(m)),
             None => return Err(OTError::IOError)?,
         };
 
         let (kos_sender, message) = kos_sender.base_setup(message)?;
-        output
-            .send(OTMessage::BaseReceiverSetupWrapper(message))
+        sink.send(OTMessage::BaseReceiverSetupWrapper(message))
             .await;
 
-        let message = match input.next().await {
+        let message = match stream.next().await {
             Some(OTMessage::BaseSenderPayloadWrapper(m)) => m,
             Some(m) => return Err(OTError::Unexpected(m)),
             None => return Err(OTError::IOError)?,
@@ -64,7 +56,7 @@ impl ObliviousSetup for Kos15Sender {
 
         let kos_sender = kos_sender.base_receive(message)?;
 
-        let message = match input.next().await {
+        let message = match stream.next().await {
             Some(OTMessage::ExtReceiverSetup(m)) => m,
             Some(m) => return Err(OTError::Unexpected(m)),
             None => return Err(OTError::IOError)?,
