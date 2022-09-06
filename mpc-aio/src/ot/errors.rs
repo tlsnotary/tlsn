@@ -1,4 +1,4 @@
-use mpc_core::ot::Message;
+use mpc_core::msgs::ot::OTMessage;
 use mpc_core::ot::{ExtReceiverCoreError, ExtSenderCoreError, ReceiverCoreError, SenderCoreError};
 use thiserror::Error;
 
@@ -13,8 +13,8 @@ pub enum OTError {
     ExtSenderCoreError(#[from] ExtSenderCoreError),
     #[error("OT receiver core error: {0}")]
     ExtReceiverCoreError(#[from] ExtReceiverCoreError),
-    #[error("IO error: {0}")]
-    IOError(#[from] std::io::Error),
+    #[error("IO error")]
+    IOError,
     #[error("Received unexpected message: {0:?}")]
-    Unexpected(Message),
+    Unexpected(OTMessage),
 }

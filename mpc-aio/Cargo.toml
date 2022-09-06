@@ -7,7 +7,7 @@ edition = "2021"
 name = "mpc_aio"
 
 [features]
-default = ["pa", "ot"]
+default = ["ot"]
 ot = ["tlsn-mpc-core/ot", "tlsn-mpc-core/proto", "rand_chacha"]
 pa = ["tlsn-mpc-core/pa", "tlsn-mpc-core/proto", "p256"]
 
@@ -33,6 +33,7 @@ tokio = { version = "1.17", features = [
     "rt-multi-thread",
 ] }
 mockall = "0.11.1"
+async-stream = "0.3"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.2", features = ["js"] }

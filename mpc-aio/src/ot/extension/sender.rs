@@ -1,88 +1,76 @@
-use super::OTError;
-use async_trait::async_trait;
-use futures_util::{SinkExt, StreamExt};
-use mpc_core::ot::{Kos15Sender, Message};
-use mpc_core::proto::ot::Message as ProtoMessage;
-use mpc_core::Block;
-use std::io::Error as IOError;
-use std::io::ErrorKind;
-use tokio::io::{AsyncRead, AsyncWrite};
-use tokio_util::codec::Framed;
-use tracing::{instrument, trace};
-use utils_aio::codec::ProstCodecDelimited;
+use crate::ot::OTError;
 
-pub struct ExtSender<S> {
-    ot: Kos15Sender,
-    stream: Framed<S, ProstCodecDelimited<Message, ProtoMessage>>,
-}
+use super::{ObliviousSend, ObliviousSetup};
+use async_trait::async_trait;
+use futures::{stream, Sink, SinkExt, Stream, StreamExt};
+use mpc_core::{
+    msgs::ot::ExtSenderPayload,
+    msgs::ot::OTMessage,
+    ot::extension::{s_state, Kos15Sender},
+    Block,
+};
 
 #[async_trait]
-pub trait ExtOTSend {
-    async fn send(&mut self, payload: &[[Block; 2]]) -> Result<(), OTError>;
-}
+impl ObliviousSend for Kos15Sender<s_state::RandSetup> {
+    type Inputs = Vec<[Block; 2]>;
+    type Envelope = ExtSenderPayload;
+    type Message = OTMessage;
 
-impl<S> ExtSender<S>
-where
-    S: AsyncRead + AsyncWrite + Send + Unpin,
-{
-    pub fn new(stream: S) -> Self {
-        Self {
-            ot: Kos15Sender::default(),
-            stream: Framed::new(
-                stream,
-                ProstCodecDelimited::<Message, ProtoMessage>::default(),
-            ),
-        }
+    async fn send(
+        &mut self,
+        stream: impl Stream<Item = Self::Message> + Unpin + Send,
+        sink: impl Sink<Self::Message> + Unpin + Send,
+        inputs: Self::Inputs,
+    ) -> Box<dyn Stream<Item = Result<Self::Envelope, OTError>>> {
+        let message = match stream.next().await {
+            Some(OTMessage::ExtDerandomize(m)) => m,
+            Some(m) => return Err(OTError::Unexpected(m)),
+            None => return Err(OTError::IOError)?,
+        };
+        Box::new(
+            stream::iter(inputs)
+                .zip(stream::iter(message.flip))
+                .map(|(input, flip)| self.rand_send(input, flip)),
+        )
     }
 }
 
 #[async_trait]
-impl<S> ExtOTSend for ExtSender<S>
-where
-    S: AsyncRead + AsyncWrite + Send + Unpin,
-{
-    #[instrument(skip(self, payload))]
-    async fn send(&mut self, payload: &[[Block; 2]]) -> Result<(), OTError> {
-        let base_sender_setup = match self.stream.next().await {
-            Some(Ok(Message::BaseSenderSetupWrapper(m))) => m,
-            Some(Ok(m)) => return Err(OTError::Unexpected(m)),
-            Some(Err(e)) => return Err(e)?,
-            None => return Err(IOError::new(ErrorKind::UnexpectedEof, ""))?,
+impl ObliviousSetup for Kos15Sender {
+    type Actor = Kos15Sender<s_state::RandSetup>;
+    type Message = OTMessage;
+
+    async fn setup(
+        input: impl Stream<Item = OTMessage> + Unpin + Send,
+        output: impl Sink<OTMessage> + Unpin + Send,
+    ) -> Result<Self::Actor, OTError> {
+        let kos_sender = Kos15Sender::default();
+        let message = match input.next().await {
+            Some(OTMessage::BaseSenderSetupWrapper(m)) => m,
+            Some(m) => return Err(OTError::Unexpected(m)),
+            None => return Err(OTError::IOError)?,
         };
-        trace!("Received SenderSetup");
 
-        let base_setup = self.ot.base_setup(base_sender_setup.try_into().unwrap())?;
+        let (kos_sender, message) = kos_sender.base_setup(message)?;
+        output
+            .send(OTMessage::BaseReceiverSetupWrapper(message))
+            .await;
 
-        trace!("Sending ReceiverSetup");
-        self.stream
-            .send(Message::BaseReceiverSetupWrapper(base_setup))
-            .await?;
-
-        let base_payload = match self.stream.next().await {
-            Some(Ok(Message::BaseSenderPayloadWrapper(m))) => m,
-            Some(Ok(m)) => return Err(OTError::Unexpected(m)),
-            Some(Err(e)) => return Err(e)?,
-            None => return Err(IOError::new(ErrorKind::UnexpectedEof, ""))?,
+        let message = match input.next().await {
+            Some(OTMessage::BaseSenderPayloadWrapper(m)) => m,
+            Some(m) => return Err(OTError::Unexpected(m)),
+            None => return Err(OTError::IOError)?,
         };
-        trace!("Received SenderPayload");
 
-        self.ot.base_receive(base_payload.try_into().unwrap())?;
+        let kos_sender = kos_sender.base_receive(message)?;
 
-        let extension_receiver_setup = match self.stream.next().await {
-            Some(Ok(Message::ExtReceiverSetup(m))) => m,
-            Some(Ok(m)) => return Err(OTError::Unexpected(m)),
-            Some(Err(e)) => return Err(e)?,
-            None => return Err(IOError::new(ErrorKind::UnexpectedEof, ""))?,
+        let message = match input.next().await {
+            Some(OTMessage::ExtReceiverSetup(m)) => m,
+            Some(m) => return Err(OTError::Unexpected(m)),
+            None => return Err(OTError::IOError)?,
         };
-        trace!("Received ExtReceiverSetup");
 
-        self.ot
-            .extension_setup(extension_receiver_setup.try_into().unwrap())?;
-        let payload = self.ot.send(payload)?;
-
-        self.stream.send(Message::ExtSenderPayload(payload)).await?;
-        trace!("Sending ExtSenderPayload");
-
-        Ok(())
+        let kos_sender = kos_sender.rand_extension_setup(message)?;
+        Ok(kos_sender)
     }
 }
