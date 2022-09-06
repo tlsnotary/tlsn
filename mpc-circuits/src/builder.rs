@@ -1,7 +1,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     marker::PhantomData,
-    sync::Arc,
 };
 
 pub use crate::error::BuilderError;
@@ -44,36 +43,50 @@ impl WireHandle<Sink> {
 /// A handle on a sub-circuit
 #[derive(Debug, Clone)]
 pub struct CircuitHandle {
-    circ: Arc<Circuit>,
+    inputs: Vec<SubInputHandle>,
+    outputs: Vec<SubOutputHandle>,
 }
 
 impl CircuitHandle {
-    pub fn input(&self, id: usize) -> Option<SubInputHandle> {
-        self.circ.input(id).and_then(|input| {
-            Some(SubInputHandle {
-                wire_handles: input
-                    .as_ref()
-                    .wires()
-                    .iter()
-                    .copied()
-                    .map(WireHandle::new_sink)
-                    .collect(),
-            })
-        })
+    fn new(circ: Circuit) -> Self {
+        Self {
+            inputs: circ
+                .inputs
+                .into_iter()
+                .map(|input| SubInputHandle {
+                    wire_handles: input
+                        .as_ref()
+                        .wires()
+                        .iter()
+                        .copied()
+                        .map(WireHandle::new_sink)
+                        .collect(),
+                })
+                .collect(),
+            outputs: circ
+                .outputs
+                .into_iter()
+                .map(|output| SubOutputHandle {
+                    wire_handles: output
+                        .as_ref()
+                        .wires()
+                        .iter()
+                        .copied()
+                        .map(WireHandle::new_feed)
+                        .collect(),
+                })
+                .collect(),
+        }
     }
 
+    /// Returns a handle to the sub-circuit input
+    pub fn input(&self, id: usize) -> Option<SubInputHandle> {
+        self.inputs.get(id).cloned()
+    }
+
+    /// Returns a handle ot the sub-circuit output
     pub fn output(&self, id: usize) -> Option<SubOutputHandle> {
-        self.circ.output(id).and_then(|output| {
-            Some(SubOutputHandle {
-                wire_handles: output
-                    .as_ref()
-                    .wires()
-                    .iter()
-                    .copied()
-                    .map(WireHandle::new_feed)
-                    .collect(),
-            })
-        })
+        self.outputs.get(id).cloned()
     }
 }
 
@@ -211,7 +224,9 @@ impl GateHandle {
     }
 }
 
+/// State of [`CircuitBuilder`]
 pub trait BuilderState {}
+
 pub struct Inputs {
     name: String,
     version: String,
@@ -219,6 +234,7 @@ pub struct Inputs {
     inputs: Vec<InputHandle>,
 }
 impl BuilderState for Inputs {}
+
 pub struct Gates {
     name: String,
     version: String,
@@ -333,9 +349,7 @@ impl CircuitBuilder<Gates> {
                 .collect::<Vec<GateHandle>>(),
         );
 
-        let circ = Arc::new(circ);
-        let handle = CircuitHandle { circ: circ.clone() };
-        handle
+        CircuitHandle::new(circ)
     }
 
     /// Add gate to circuit
