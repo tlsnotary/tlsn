@@ -3,6 +3,7 @@ mod c2;
 mod c3;
 mod c4;
 mod c5;
+mod c6;
 mod combine_pms_shares;
 
 pub use c1::c1;
@@ -10,6 +11,7 @@ pub use c2::c2;
 pub use c3::c3;
 pub use c4::c4;
 pub use c5::c5;
+pub use c6::c6;
 pub use combine_pms_shares::combine_pms_shares;
 
 static SHA256_STATE: [u32; 8] = [
