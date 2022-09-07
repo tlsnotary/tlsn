@@ -84,7 +84,7 @@ impl CircuitHandle {
         self.inputs.get(id).cloned()
     }
 
-    /// Returns a handle ot the sub-circuit output
+    /// Returns a handle to the sub-circuit output
     pub fn output(&self, id: usize) -> Option<SubOutputHandle> {
         self.outputs.get(id).cloned()
     }
@@ -267,7 +267,7 @@ impl BuilderState for Outputs {}
 pub struct CircuitBuilder<S: BuilderState>(S);
 
 impl CircuitBuilder<Inputs> {
-    /// Creats new builder
+    /// Creates new builder
     pub fn new(name: &str, version: &str) -> Self {
         Self(Inputs {
             name: name.to_string(),
