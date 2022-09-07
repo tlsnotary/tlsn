@@ -2,7 +2,7 @@ use mpc_circuits::{proto, Circuit};
 use prost::Message;
 use rayon::prelude::*;
 use std::{env, fs, io, path::Path};
-use tls_circuits::{c1, c2, c3, c4, c5, c6};
+use tls_circuits::{c1, c2, c3, c4, c5, c6, c7};
 
 static CIRCUITS: &[(&str, fn() -> Circuit)] = &[
     ("c1", c1),
@@ -11,6 +11,7 @@ static CIRCUITS: &[(&str, fn() -> Circuit)] = &[
     ("c4", c4),
     ("c5", c5),
     ("c6", c6),
+    ("c7", c7),
 ];
 
 fn build_circuit<F>(name: &str, f: F) -> io::Result<()>
