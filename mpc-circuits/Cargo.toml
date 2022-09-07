@@ -5,9 +5,10 @@ edition = "2021"
 
 [features]
 default = ["full"]
-full = ["aes_128_reverse", "adder64"]
+full = ["aes_128_reverse", "adder64", "sha256"]
 aes_128_reverse = []
 adder64 = []
+sha256 = []
 
 [dependencies]
 thiserror = "1.0"
@@ -15,7 +16,7 @@ regex = "1.5.4"
 prost = "0.9"
 rayon = "1.5"
 clap = { version = "3.1.5", features = ["derive"] }
-sha2 = { version = "0.10" }
+sha2 = { version = "0.10", features = ["compress"] }
 hex = "0.4.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9.10"
@@ -23,6 +24,7 @@ lazy_static = "1.4.0"
 
 [dev-dependencies]
 aes = { version = "0.7.5" }
+digest = "0.10.3"
 rand = "0.8.5"
 
 [build-dependencies]
@@ -35,3 +37,7 @@ path = "src/lib.rs"
 [[bin]]
 name = "compile"
 path = "src/bin/compile.rs"
+
+[[bin]]
+name = "parse"
+path = "src/bin/parse.rs"

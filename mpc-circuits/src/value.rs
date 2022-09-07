@@ -2,6 +2,8 @@ use crate::error::ValueError as Error;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
+    ConstZero,
+    ConstOne,
     Bool(bool),
     Bits(Vec<bool>),
     Bytes(Vec<u8>),
@@ -16,6 +18,8 @@ impl Value {
     /// Creates value from LSB0 bit vec
     pub fn new(typ: ValueType, bits: Vec<bool>) -> Result<Self, Error> {
         let value = match typ {
+            ValueType::ConstZero if bits.len() == 0 => Value::ConstZero,
+            ValueType::ConstOne if bits.len() == 0 => Value::ConstOne,
             ValueType::Bool if bits.len() == 1 => Value::Bool(
                 *bits
                     .get(0)
@@ -64,6 +68,8 @@ impl Value {
     /// Returns type of value
     pub fn value_type(&self) -> ValueType {
         match self {
+            Value::ConstZero => ValueType::ConstZero,
+            Value::ConstOne => ValueType::ConstOne,
             Value::Bool(_) => ValueType::Bool,
             Value::Bits(_) => ValueType::Bits,
             Value::Bytes(_) => ValueType::Bytes,
@@ -78,6 +84,8 @@ impl Value {
     /// Converts value to bit vector in LSB0 order
     pub fn to_bits(&self) -> Vec<bool> {
         match self {
+            Value::ConstZero => vec![false],
+            Value::ConstOne => vec![true],
             Value::Bool(v) => vec![*v],
             Value::Bits(v) => v.clone(),
             Value::Bytes(v) => v
@@ -96,6 +104,8 @@ impl Value {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ValueType {
+    ConstZero,
+    ConstOne,
     Bool,
     Bits,
     Bytes,
@@ -104,6 +114,13 @@ pub enum ValueType {
     U32,
     U64,
     U128,
+}
+
+impl ValueType {
+    /// Returns whether value is a constant type
+    pub fn is_constant(&self) -> bool {
+        matches!(self, ValueType::ConstZero | ValueType::ConstOne)
+    }
 }
 
 impl From<bool> for Value {

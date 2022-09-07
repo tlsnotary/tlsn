@@ -12,9 +12,34 @@ pub struct GroupSpec {
     wire_count: usize,
 }
 
+impl From<Group> for GroupSpec {
+    fn from(g: Group) -> Self {
+        Self {
+            name: g.name().to_string(),
+            desc: g.desc().to_string(),
+            value_type: match g.value_type() {
+                ValueType::ConstZero => "zero",
+                ValueType::ConstOne => "one",
+                ValueType::Bool => "bool",
+                ValueType::Bits => "bits",
+                ValueType::Bytes => "bytes",
+                ValueType::U8 => "u8",
+                ValueType::U16 => "u16",
+                ValueType::U32 => "u32",
+                ValueType::U64 => "u64",
+                ValueType::U128 => "u128",
+            }
+            .to_string(),
+            wire_count: g.wires.len(),
+        }
+    }
+}
+
 impl GroupSpec {
     fn to_group(self, id_offset: usize) -> Result<Group, Error> {
         let value_type = match self.value_type.to_lowercase().as_str() {
+            "const_0" => ValueType::ConstZero,
+            "const_1" => ValueType::ConstOne,
             "bool" => ValueType::Bool,
             "bits" => ValueType::Bits,
             "bytes" => ValueType::Bytes,
@@ -36,6 +61,20 @@ impl GroupSpec {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GateSpec(String);
+
+impl From<Gate> for GateSpec {
+    fn from(g: Gate) -> Self {
+        Self(match g {
+            Gate::Xor {
+                xref, yref, zref, ..
+            } => format!("2 1 {xref} {yref} {zref} XOR"),
+            Gate::And {
+                xref, yref, zref, ..
+            } => format!("2 1 {xref} {yref} {zref} AND"),
+            Gate::Inv { xref, zref, .. } => format!("1 1 {xref} {zref} INV"),
+        })
+    }
+}
 
 impl GateSpec {
     fn to_gate(self, id: usize) -> Result<Gate, Error> {
@@ -122,6 +161,31 @@ pub struct CircuitSpec {
     inputs: Vec<GroupSpec>,
     outputs: Vec<GroupSpec>,
     gates: Vec<GateSpec>,
+}
+
+impl From<Circuit> for CircuitSpec {
+    fn from(c: Circuit) -> Self {
+        Self {
+            name: c.name,
+            version: c.version,
+            wires: c.wire_count,
+            inputs: c
+                .inputs
+                .into_iter()
+                .map(|input| GroupSpec::from(input.group))
+                .collect(),
+            outputs: c
+                .outputs
+                .into_iter()
+                .map(|output| GroupSpec::from(output.group))
+                .collect(),
+            gates: c
+                .gates
+                .into_iter()
+                .map(|gate| GateSpec::from(gate))
+                .collect(),
+        }
+    }
 }
 
 impl CircuitSpec {

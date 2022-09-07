@@ -1,4 +1,4 @@
-// Parses Bristol-fashion circuits
+// Compiles circuit specs to binary format
 
 use clap::Parser;
 use mpc_circuits::{proto::Circuit as ProtoCircuit, CircuitSpec};

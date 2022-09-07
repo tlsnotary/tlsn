@@ -17,14 +17,16 @@ message Gate {
 
 message Group {
     enum ValueType {
-        Bool = 0;
-        Bits = 1;
-        Bytes = 2;
-        U8 = 3;
-        U16 = 4;
-        U32 = 5;
-        U64 = 6;
-        U128 = 7;
+        ConstZero = 0;
+        ConstOne = 1;
+        Bool = 2;
+        Bits = 3;
+        Bytes = 4;
+        U8 = 5;
+        U16 = 6;
+        U32 = 7;
+        U64 = 8;
+        U128 = 9;
     }
     required string name = 1;
     required string desc = 2;
