@@ -15,6 +15,7 @@ pub trait ObliviousSend {
     async fn send(
         &mut self,
         stream: impl Stream<Item = Self::Message> + Unpin + Send,
+        sink: impl Sink<Self::Message> + Unpin + Send,
         inputs: Self::Inputs,
     ) -> Box<dyn Stream<Item = Result<Self::Envelope, OTError>>>;
 }
