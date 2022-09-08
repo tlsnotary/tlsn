@@ -19,4 +19,4 @@ jobs:
       - name: Build
         run: cargo build --verbose
       - name: Run tests
-        run: cargo test --verbose --all-targets
+        run: cargo test --all-targets --workspace --exclude tlsn-tls-circuits
