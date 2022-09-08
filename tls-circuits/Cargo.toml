@@ -1,0 +1,24 @@
+[package]
+name = "tlsn-tls-circuits"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "tls_circuits"
+
+[features]
+default = ["compile"]
+compile = ["dep:rayon", "dep:prost"]
+
+[dependencies]
+tlsn-mpc-circuits = { path = "../mpc-circuits" }
+rayon = { version = "1.5.3", optional = true }
+prost = { version = "0.9", optional = true }
+
+[dev-dependencies]
+generic-array = "0.14.6"
+num-bigint = { version = "0.4", features = ["rand"] }
+num-traits = "0.2.15"
+rand = { version = "0.8.5" }
+sha2 = { version = "0.10.1", features = ["compress"] }
+aes = { version = "0.7.5" }

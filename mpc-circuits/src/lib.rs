@@ -1,5 +1,6 @@
 pub mod builder;
 pub mod circuit;
+pub mod circuits;
 mod error;
 pub mod parse;
 pub mod proto;
