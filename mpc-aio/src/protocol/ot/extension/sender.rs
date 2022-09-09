@@ -9,6 +9,17 @@ use mpc_core::{
     Block,
 };
 
+impl<T> Protocol for Kos15Sender<T> {
+    type Message = OTMessage;
+    type Error = ExtSenderCoreError;
+}
+
+impl Agent<Kos15Sender<s_state::Initialized>> {
+    fn setup(self) -> Kos15Sender<s_state::Setup> {
+        todo!()
+    }
+}
+
 #[async_trait]
 impl ObliviousSend for Kos15Sender<s_state::RandSetup> {
     type Inputs = Vec<[Block; 2]>;

@@ -1,4 +1,2 @@
-#[cfg(feature = "ot")]
-pub mod ot;
-#[cfg(feature = "pa")]
-pub mod point_addition;
+pub mod coordinator;
+pub mod protocol;
