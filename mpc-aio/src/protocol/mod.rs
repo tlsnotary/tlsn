@@ -1,3 +1,5 @@
+use futures::{Sink, Stream};
+
 #[cfg(feature = "ot")]
 pub mod ot;
 #[cfg(feature = "pa")]
