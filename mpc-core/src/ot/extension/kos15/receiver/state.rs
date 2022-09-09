@@ -1,6 +1,5 @@
 use super::BaseSender;
 use super::KosMatrix;
-use crate::Block;
 use rand_chacha::ChaCha12Rng;
 
 pub trait ReceiverState {}
@@ -24,8 +23,6 @@ impl ReceiverState for BaseSetup {}
 
 pub struct BaseSend {
     pub(crate) rng: ChaCha12Rng,
-    // Seeds are the result of running base OT setup. They are used to seed the RNGs.
-    pub(crate) seeds: Vec<[Block; 2]>,
     pub(crate) rngs: Vec<[ChaCha12Rng; 2]>,
     // The shared random value which both parties will have at the end of the cointoss protocol
     pub(crate) cointoss_random: [u8; 32],

@@ -77,7 +77,6 @@ impl Kos15Receiver<state::BaseSetup> {
 
         let kos_receiver = Kos15Receiver(state::BaseSend {
             rng: self.0.rng,
-            seeds,
             rngs,
             cointoss_random,
         });
