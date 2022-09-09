@@ -7,7 +7,7 @@ edition = "2021"
 name = "mpc_aio"
 
 [features]
-default = ["ot"]
+default = ["pa" ,"ot"]
 ot = ["tlsn-mpc-core/ot", "tlsn-mpc-core/proto", "rand_chacha"]
 pa = ["tlsn-mpc-core/pa", "tlsn-mpc-core/proto", "p256"]
 
