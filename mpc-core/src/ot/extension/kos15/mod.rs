@@ -281,4 +281,85 @@ pub mod tests {
             .expect_err("invalid padding should be an error");
         assert_eq!(sender, ExtSenderCoreError::InvalidPadding);
     }
+
+    #[rstest]
+    fn test_ot_splitting(
+        pair_base_setup: (
+            Kos15Sender<s_state::BaseReceive>,
+            Kos15Receiver<r_state::BaseSend>,
+        ),
+        input_setup: (Vec<bool>, Vec<[Block; 2]>),
+    ) {
+        let (sender, receiver) = pair_base_setup;
+        let (choices, inputs) = input_setup;
+        let mut rng = ChaCha12Rng::from_entropy();
+        let split_at: usize = rng.gen_range(0..inputs.len());
+
+        let (mut receiver, receiver_setup) = receiver.extension_setup(&choices).unwrap();
+        let mut sender = sender.extension_setup(receiver_setup).unwrap();
+
+        let mut receiver_2 = receiver.split(split_at).unwrap();
+        let mut sender_2 = sender.split(split_at).unwrap();
+
+        // Check original sender/receiver
+        let payload = sender.send(&inputs[..split_at]).unwrap();
+        let receive = receiver.receive(payload).unwrap();
+
+        let expected: Vec<Block> = inputs[..split_at]
+            .iter()
+            .zip(choices[..split_at].iter())
+            .map(|(input, choice)| input[*choice as usize])
+            .collect();
+
+        assert_eq!(expected, receive);
+
+        //Check split sender/receiver
+        let payload_2 = sender_2.send(&inputs[split_at..]).unwrap();
+        let receive_2 = receiver_2.receive(payload_2).unwrap();
+
+        let expected_2: Vec<Block> = inputs[split_at..]
+            .iter()
+            .zip(choices[split_at..].iter())
+            .map(|(input, choice)| input[*choice as usize])
+            .collect();
+
+        assert_eq!(expected_2, receive_2);
+
+        // Check for completeness
+        assert!(sender.is_complete());
+        assert!(receiver.is_complete());
+        assert!(sender_2.is_complete());
+        assert!(receiver_2.is_complete());
+    }
+
+    #[should_panic]
+    #[rstest]
+    fn test_ot_splitting_mix_pairs(
+        pair_base_setup: (
+            Kos15Sender<s_state::BaseReceive>,
+            Kos15Receiver<r_state::BaseSend>,
+        ),
+        input_setup: (Vec<bool>, Vec<[Block; 2]>),
+    ) {
+        let (sender, receiver) = pair_base_setup;
+        let (choices, inputs) = input_setup;
+        let length = inputs.len();
+
+        let (mut receiver, receiver_setup) = receiver.extension_setup(&choices).unwrap();
+        let mut sender = sender.extension_setup(receiver_setup).unwrap();
+
+        // Use original sender together with split receiver, should panic
+        let mut receiver_2 = receiver.split(length / 2).unwrap();
+
+        let payload = sender.send(&inputs[..length / 2]).unwrap();
+        let receive = receiver_2.receive(payload).unwrap();
+
+        let expected: Vec<Block> = inputs[..length / 2]
+            .iter()
+            .zip(choices[length / 2..].iter())
+            .map(|(input, choice)| input[*choice as usize])
+            .collect();
+
+        assert_eq!(expected, receive);
+    }
 }
