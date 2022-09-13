@@ -2,6 +2,7 @@
 pub mod errors;
 pub mod extension;
 
+use super::{Channel, Protocol};
 use async_trait::async_trait;
 pub use errors::OTError;
 

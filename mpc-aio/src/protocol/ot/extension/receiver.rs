@@ -1,5 +1,5 @@
 use super::ObliviousReceive;
-use crate::protocol::{ot::OTError, Agent, Protocol};
+use crate::protocol::{ot::OTError, Protocol};
 use async_trait::async_trait;
 use futures::Stream;
 use mpc_core::{
@@ -13,18 +13,6 @@ use mpc_core::{
 impl<T: ReceiverState> Protocol for Kos15Receiver<T> {
     type Message = OTMessage;
     type Error = OTError;
-}
-
-impl Agent<Kos15Receiver<r_state::Initialized>> {
-    pub fn new(
-        stream: Box<dyn Stream<Item = OTMessage> + Send>,
-    ) -> (Box<dyn Stream<Item = OTMessage> + Send>, Self) {
-        todo!()
-    }
-
-    fn setup(self) -> Kos15Receiver<r_state::Setup> {
-        todo!()
-    }
 }
 
 #[async_trait]
