@@ -1,5 +1,4 @@
 use futures::{Sink, Stream};
-use thiserror::Error;
 
 #[cfg(feature = "ot")]
 pub mod ot;

@@ -1,25 +1,15 @@
-use super::{Channel, ObliviousSend, Protocol};
-use crate::protocol::ot::OTError;
+use super::{ObliviousSend, Protocol};
+use crate::protocol::ot::{OTChannel, OTError, ObliviousTransfer};
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use mpc_core::{
-    msgs::ot::OTMessage,
+    msgs::ot::{ExtReceiverSetup, OTMessage},
     ot::{
         extension::{s_state, Kos15Sender},
         s_state::SenderState,
     },
     Block,
 };
-use std::pin::Pin;
-
-impl<T: SenderState> Protocol for Kos15Sender<T> {
-    type Message = OTMessage;
-    type Error = OTError;
-}
-
-type OTChannel = Pin<
-    Box<dyn Channel<<Kos15Sender as Protocol>::Message, Error = <Kos15Sender as Protocol>::Error>>,
->;
 
 pub struct Kos15IOSender<T: SenderState> {
     inner: Kos15Sender<T>,
@@ -35,8 +25,35 @@ impl Kos15IOSender<s_state::Initialized> {
     }
 
     pub async fn setup(
+        self,
+    ) -> Result<Kos15IOSender<s_state::Setup>, <ObliviousTransfer as Protocol>::Error> {
+        let (kos_io_sender, message) = self.setup_from().await?;
+        let kos_sender = kos_io_sender.inner.extension_setup(message)?;
+        let kos_io_sender = Kos15IOSender {
+            inner: kos_sender,
+            channel: kos_io_sender.channel,
+        };
+        Ok(kos_io_sender)
+    }
+
+    pub async fn rand_setup(
+        self,
+    ) -> Result<Kos15IOSender<s_state::RandSetup>, <ObliviousTransfer as Protocol>::Error> {
+        let (kos_io_sender, message) = self.setup_from().await?;
+        let kos_sender = kos_io_sender.inner.rand_extension_setup(message)?;
+        let kos_io_sender = Kos15IOSender {
+            inner: kos_sender,
+            channel: kos_io_sender.channel,
+        };
+        Ok(kos_io_sender)
+    }
+
+    async fn setup_from(
         mut self,
-    ) -> Result<Kos15IOSender<s_state::Setup>, <Kos15Sender as Protocol>::Error> {
+    ) -> Result<
+        (Kos15IOSender<s_state::BaseReceive>, ExtReceiverSetup),
+        <ObliviousTransfer as Protocol>::Error,
+    > {
         let message = match self.channel.next().await {
             Some(OTMessage::BaseSenderSetupWrapper(m)) => m,
             Some(m) => return Err(OTError::Unexpected(m)),
@@ -62,12 +79,13 @@ impl Kos15IOSender<s_state::Initialized> {
             None => return Err(OTError::IOError),
         };
 
-        let kos_sender = kos_sender.extension_setup(message)?;
-
-        Ok(Kos15IOSender {
-            inner: kos_sender,
-            channel: self.channel,
-        })
+        Ok((
+            Kos15IOSender {
+                inner: kos_sender,
+                channel: self.channel,
+            },
+            message,
+        ))
     }
 }
 
@@ -77,6 +95,24 @@ impl ObliviousSend for Kos15IOSender<s_state::Setup> {
 
     async fn send(&mut self, inputs: Self::Inputs) -> Result<(), OTError> {
         let message = self.inner.send(&inputs)?;
+        self.channel
+            .send(OTMessage::ExtSenderPayload(message))
+            .await?;
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl ObliviousSend for Kos15IOSender<s_state::RandSetup> {
+    type Inputs = Vec<[Block; 2]>;
+
+    async fn send(&mut self, inputs: Self::Inputs) -> Result<(), OTError> {
+        let message = match self.channel.next().await {
+            Some(OTMessage::ExtDerandomize(m)) => m,
+            Some(m) => return Err(OTError::Unexpected(m)),
+            None => return Err(OTError::IOError),
+        };
+        let message = self.inner.rand_send(&inputs, message)?;
         self.channel
             .send(OTMessage::ExtSenderPayload(message))
             .await?;
