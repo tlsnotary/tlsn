@@ -184,25 +184,13 @@ impl Kos15Receiver<state::RandSetup> {
 
     pub fn split(&mut self, split_at: usize) -> Result<Self, ExtReceiverCoreError> {
         if !self.0.derandomized.is_empty() {
-            return Err(ExtReceiverCoreError::InvalidSplit);
+            return Err(ExtReceiverCoreError::SplitAfterDerand);
         }
 
         Ok(Kos15Receiver(state::RandSetup {
             table: self.0.table.split_off_rows(split_at)?,
             choices: self.0.choices.split_off(split_at),
             derandomized: Vec::new(),
-        }))
-    }
-
-    pub fn split_derand(&mut self, split_at: usize) -> Result<Self, ExtReceiverCoreError> {
-        if split_at > self.0.derandomized.len() {
-            return Err(ExtReceiverCoreError::InvalidSplit);
-        }
-
-        Ok(Kos15Receiver(state::RandSetup {
-            table: self.0.table.split_off_rows(split_at)?,
-            choices: Vec::new(),
-            derandomized: self.0.derandomized.split_off(split_at),
         }))
     }
 }
