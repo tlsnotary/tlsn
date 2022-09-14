@@ -1,4 +1,4 @@
 pub mod receiver;
 pub mod sender;
 
-use super::{ObliviousReceive, ObliviousSend, Protocol};
+use super::{OTChannel, ObliviousReceive, ObliviousSend, ObliviousTransfer, Protocol};
