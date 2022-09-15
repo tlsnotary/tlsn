@@ -1,12 +1,13 @@
-pub mod errors;
 pub mod kos;
 
 use std::pin::Pin;
 
 use super::{Channel, Protocol};
 use async_trait::async_trait;
-pub use errors::OTError;
-use mpc_core::msgs::ot::OTMessage;
+use mpc_core::{
+    msgs::ot::OTMessage,
+    ot::{ExtReceiverCoreError, ExtSenderCoreError, ReceiverCoreError, SenderCoreError},
+};
 
 pub struct ObliviousTransfer;
 
@@ -23,6 +24,32 @@ type OTChannel = Pin<
         >,
     >,
 >;
+
+#[derive(Debug, thiserror::Error)]
+pub enum OTError {
+    #[error("OT sender core error: {0}")]
+    SenderCoreError(#[from] SenderCoreError),
+    #[error("OT receiver core error: {0}")]
+    ReceiverCoreError(#[from] ReceiverCoreError),
+    #[error("OT sender core error: {0}")]
+    ExtSenderCoreError(#[from] ExtSenderCoreError),
+    #[error("OT receiver core error: {0}")]
+    ExtReceiverCoreError(#[from] ExtReceiverCoreError),
+    #[error("IO error")]
+    IOError,
+    #[error("Received unexpected message: {0:?}")]
+    Unexpected(OTMessage),
+    #[cfg(test)]
+    #[error("PollSenderError")]
+    PollSend,
+}
+
+#[cfg(test)]
+impl<T> From<tokio_util::sync::PollSendError<T>> for OTError {
+    fn from(_: tokio_util::sync::PollSendError<T>) -> Self {
+        OTError::PollSend
+    }
+}
 
 #[async_trait]
 pub trait ObliviousSend {
