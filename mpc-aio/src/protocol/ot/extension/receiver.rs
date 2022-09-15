@@ -44,10 +44,10 @@ impl Kos15IOReceiver<r_state::Initialized> {
 
     pub async fn setup(
         self,
-        choices: &[bool],
+        choices: Vec<bool>,
     ) -> Result<Kos15IOReceiver<r_state::Setup>, <ObliviousTransfer as Protocol>::Error> {
         let mut kos_io_receiver = self.setup_from().await?;
-        let (kos_receiver, message) = kos_io_receiver.inner.extension_setup(choices)?;
+        let (kos_receiver, message) = kos_io_receiver.inner.extension_setup(&choices)?;
 
         kos_io_receiver
             .channel
