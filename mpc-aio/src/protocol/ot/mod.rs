@@ -1,6 +1,5 @@
-// pub mod base;
 pub mod errors;
-pub mod extension;
+pub mod kos;
 
 use std::pin::Pin;
 

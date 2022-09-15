@@ -5,9 +5,10 @@ use super::{OTChannel, ObliviousReceive, ObliviousSend, ObliviousTransfer, Proto
 
 #[cfg(test)]
 mod tests {
-    use super::receiver::Kos15IOReceiver;
-    use super::sender::Kos15IOSender;
-    use super::{ObliviousReceive, ObliviousSend, ObliviousTransfer};
+    use super::{
+        receiver::Kos15IOReceiver, sender::Kos15IOSender, ObliviousReceive, ObliviousSend,
+        ObliviousTransfer,
+    };
     use crate::protocol::duplex::DuplexChannel;
     use mpc_core::Block;
 
