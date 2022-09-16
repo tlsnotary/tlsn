@@ -16,14 +16,7 @@ impl Protocol for ObliviousTransfer {
     type Error = OTError;
 }
 
-type OTChannel = Pin<
-    Box<
-        dyn Channel<
-            <ObliviousTransfer as Protocol>::Message,
-            Error = <ObliviousTransfer as Protocol>::Error,
-        >,
-    >,
->;
+type OTChannel = Pin<Box<dyn Channel<<ObliviousTransfer as Protocol>::Message, Error = OTError>>>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum OTError {
@@ -55,10 +48,7 @@ impl<T> From<tokio_util::sync::PollSendError<T>> for OTError {
 pub trait ObliviousSend {
     type Inputs;
 
-    async fn send(
-        &mut self,
-        inputs: Self::Inputs,
-    ) -> Result<(), <ObliviousTransfer as Protocol>::Error>;
+    async fn send(&mut self, inputs: Self::Inputs) -> Result<(), OTError>;
 }
 
 #[async_trait]
@@ -66,10 +56,7 @@ pub trait ObliviousReceive {
     type Choice;
     type Outputs;
 
-    async fn receive(
-        &mut self,
-        choices: &[Self::Choice],
-    ) -> Result<Self::Outputs, <ObliviousTransfer as Protocol>::Error>;
+    async fn receive(&mut self, choices: &[Self::Choice]) -> Result<Self::Outputs, OTError>;
 }
 
 #[cfg(test)]
@@ -83,7 +70,7 @@ mockall::mock! {
         async fn send(
             &mut self,
             inputs: Vec<[mpc_core::Block; 2]>,
-        ) -> Result<(), <ObliviousTransfer as Protocol>::Error>;
+        ) -> Result<(), OTError>;
     }
 }
 
@@ -99,6 +86,6 @@ mockall::mock! {
         async fn receive(
             &mut self,
             choices: &[bool],
-        ) -> Result<Vec<mpc_core::Block>, <ObliviousTransfer as Protocol>::Error>;
+        ) -> Result<Vec<mpc_core::Block>, OTError>;
     }
 }
