@@ -8,8 +8,8 @@ mod tests {
     use super::{
         receiver::Kos15IOReceiver, sender::Kos15IOSender, ObliviousReceive, ObliviousSend,
     };
-    use crate::protocol::duplex::DuplexChannel;
     use mpc_core::{msgs::ot::OTMessage, Block};
+    use utils_aio::duplex::DuplexChannel;
 
     const ITERATIONS: usize = 1024;
 
