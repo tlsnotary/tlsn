@@ -4,7 +4,6 @@ use super::BaseReceiver;
 // or table[j] = R[j] ^ base_choices, if Receiver's choice bit was 1
 // (where R is the table which Receiver has. Note that base_choices is known only to us).
 use super::KosMatrix;
-use crate::Block;
 use rand_chacha::ChaCha12Rng;
 
 pub trait SenderState {}
@@ -43,8 +42,6 @@ pub struct BaseReceive {
     // The shared random value which both parties will have at the end of the cointoss protocol
     pub(crate) cointoss_random: [u8; 32],
     pub(crate) base_choices: BaseChoices,
-    // Seeds are the result of running base OT setup. They are used to seed the RNGs.
-    pub(crate) seeds: Vec<Block>,
     pub(crate) rngs: Vec<ChaCha12Rng>,
 }
 impl SenderState for BaseReceive {}

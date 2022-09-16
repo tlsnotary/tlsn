@@ -77,7 +77,6 @@ impl Kos15Receiver<state::BaseSetup> {
 
         let kos_receiver = Kos15Receiver(state::BaseSend {
             rng: self.0.rng,
-            seeds,
             rngs,
             cointoss_random,
         });
@@ -140,6 +139,13 @@ impl Kos15Receiver<state::Setup> {
     pub fn is_complete(&self) -> bool {
         self.0.choices.is_empty()
     }
+
+    pub fn split(&mut self, split_at: usize) -> Result<Self, ExtReceiverCoreError> {
+        Ok(Kos15Receiver(state::Setup {
+            table: self.0.table.split_off_rows(split_at)?,
+            choices: self.0.choices.split_off(split_at),
+        }))
+    }
 }
 
 impl Kos15Receiver<state::RandSetup> {
@@ -174,6 +180,18 @@ impl Kos15Receiver<state::RandSetup> {
 
     pub fn is_complete(&self) -> bool {
         self.0.derandomized.is_empty() && self.0.choices.is_empty()
+    }
+
+    pub fn split(&mut self, split_at: usize) -> Result<Self, ExtReceiverCoreError> {
+        if !self.0.derandomized.is_empty() {
+            return Err(ExtReceiverCoreError::SplitAfterDerand);
+        }
+
+        Ok(Kos15Receiver(state::RandSetup {
+            table: self.0.table.split_off_rows(split_at)?,
+            choices: self.0.choices.split_off(split_at),
+            derandomized: Vec::new(),
+        }))
     }
 }
 
