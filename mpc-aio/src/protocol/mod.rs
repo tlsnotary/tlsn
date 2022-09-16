@@ -6,10 +6,7 @@ pub mod ot;
 
 pub trait Protocol {
     type Message: Send + 'static;
-    #[cfg(not(test))]
     type Error: std::error::Error;
-    #[cfg(test)]
-    type Error: std::error::Error + From<tokio_util::sync::PollSendError<Self::Message>>;
 }
 
 pub trait Channel<T>: futures::Stream<Item = T> + futures::Sink<T> + Send {}

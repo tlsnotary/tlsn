@@ -25,16 +25,6 @@ pub enum OTError {
     IOError(#[from] std::io::Error),
     #[error("Received unexpected message: {0:?}")]
     Unexpected(OTMessage),
-    #[cfg(test)]
-    #[error("PollSenderError")]
-    PollSend,
-}
-
-#[cfg(test)]
-impl<T> From<tokio_util::sync::PollSendError<T>> for OTError {
-    fn from(_: tokio_util::sync::PollSendError<T>) -> Self {
-        OTError::PollSend
-    }
 }
 
 #[async_trait]
