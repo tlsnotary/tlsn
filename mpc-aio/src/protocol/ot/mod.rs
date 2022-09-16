@@ -1,11 +1,11 @@
 pub mod kos;
 
-use super::Channel;
 use async_trait::async_trait;
 use mpc_core::{
     msgs::ot::OTMessage,
     ot::{ExtReceiverCoreError, ExtSenderCoreError, ReceiverCoreError, SenderCoreError},
 };
+use utils_aio::Channel;
 
 type OTChannel = Box<dyn Channel<OTMessage, Error = std::io::Error>>;
 
