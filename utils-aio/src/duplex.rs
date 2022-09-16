@@ -1,15 +1,12 @@
-use futures::{Sink, Stream};
+use futures::{channel::mpsc, Sink, Stream};
 use std::{
     io::{Error, ErrorKind},
     pin::Pin,
 };
-use tokio::sync::mpsc;
-use tokio_stream::wrappers::ReceiverStream;
-use tokio_util::sync::PollSender;
 
 pub struct DuplexChannel<T> {
-    sink: PollSender<T>,
-    stream: ReceiverStream<T>,
+    sink: mpsc::Sender<T>,
+    stream: mpsc::Receiver<T>,
 }
 
 impl<T> DuplexChannel<T>
@@ -19,13 +16,14 @@ where
     pub fn new() -> (Self, Self) {
         let (sender, receiver) = mpsc::channel(10);
         let (sender_2, receiver_2) = mpsc::channel(10);
-        let (sink, stream) = (PollSender::new(sender), ReceiverStream::new(receiver_2));
-        let (sink_2, stream_2) = (PollSender::new(sender_2), ReceiverStream::new(receiver));
         (
-            Self { sink, stream },
             Self {
-                sink: sink_2,
-                stream: stream_2,
+                sink: sender,
+                stream: receiver_2,
+            },
+            Self {
+                sink: sender_2,
+                stream: receiver,
             },
         )
     }
