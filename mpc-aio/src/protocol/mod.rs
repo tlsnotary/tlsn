@@ -2,7 +2,7 @@
 pub mod ot;
 //#[cfg(feature = "pa")]
 //pub mod point_addition;
-pub mod garble;
+//pub mod garble;
 
 pub trait Protocol {
     type Message: Send + 'static;
@@ -33,7 +33,7 @@ mod duplex {
 
     impl<T> DuplexChannel<T>
     where
-        T: Send,
+        T: Send + 'static,
     {
         pub fn new() -> (Self, Self) {
             let (sender, receiver) = mpsc::channel(10);
@@ -52,7 +52,7 @@ mod duplex {
 
     impl<T> Sink<T> for DuplexChannel<T>
     where
-        T: Send,
+        T: Send + 'static,
     {
         type Error = std::io::Error;
 
@@ -101,5 +101,5 @@ mod duplex {
         }
     }
 
-    impl<T> Channel<T> for DuplexChannel<T> where T: Send {}
+    impl<T> Channel<T> for DuplexChannel<T> where T: Send + 'static {}
 }
