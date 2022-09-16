@@ -1,4 +1,5 @@
-use super::{OTChannel, ObliviousReceive, ObliviousTransfer, Protocol};
+use super::{OTChannel, ObliviousReceive};
+use crate::protocol::ot::OTError;
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use mpc_core::{
@@ -26,7 +27,7 @@ impl Kos15IOReceiver<r_state::Initialized> {
     pub async fn rand_setup(
         mut self,
         choice_len: usize,
-    ) -> Result<Kos15IOReceiver<r_state::RandSetup>, <ObliviousTransfer as Protocol>::Error> {
+    ) -> Result<Kos15IOReceiver<r_state::RandSetup>, OTError> {
         let (kos_receiver, message) = self.inner.base_setup()?;
         self.channel
             .send(OTMessage::BaseSenderSetupWrapper(message))
@@ -34,8 +35,13 @@ impl Kos15IOReceiver<r_state::Initialized> {
 
         let message = match self.channel.next().await {
             Some(OTMessage::BaseReceiverSetupWrapper(m)) => m,
-            Some(m) => return Err(<ObliviousTransfer as Protocol>::Error::Unexpected(m)),
-            None => return Err(<ObliviousTransfer as Protocol>::Error::IOError),
+            Some(m) => return Err(OTError::Unexpected(m)),
+            None => {
+                return Err(OTError::from(std::io::Error::new(
+                    std::io::ErrorKind::ConnectionAborted,
+                    "stream closed unexpectedly",
+                )))
+            }
         };
 
         let (kos_receiver, message) = kos_receiver.base_send(message)?;
@@ -62,10 +68,7 @@ impl ObliviousReceive for Kos15IOReceiver<r_state::RandSetup> {
     type Choice = bool;
     type Outputs = Vec<Block>;
 
-    async fn receive(
-        &mut self,
-        choices: &[bool],
-    ) -> Result<Self::Outputs, <ObliviousTransfer as Protocol>::Error> {
+    async fn receive(&mut self, choices: &[bool]) -> Result<Self::Outputs, OTError> {
         let message = self.inner.derandomize(&choices)?;
         self.channel
             .send(OTMessage::ExtDerandomize(message))
@@ -73,8 +76,13 @@ impl ObliviousReceive for Kos15IOReceiver<r_state::RandSetup> {
 
         let message = match self.channel.next().await {
             Some(OTMessage::ExtSenderPayload(m)) => m,
-            Some(m) => return Err(<ObliviousTransfer as Protocol>::Error::Unexpected(m)),
-            None => return Err(<ObliviousTransfer as Protocol>::Error::IOError),
+            Some(m) => return Err(OTError::Unexpected(m)),
+            None => {
+                return Err(OTError::from(std::io::Error::new(
+                    std::io::ErrorKind::ConnectionAborted,
+                    "stream closed unexpectedly",
+                )))
+            }
         };
         let out = self.inner.rand_receive(message)?;
         Ok(out)

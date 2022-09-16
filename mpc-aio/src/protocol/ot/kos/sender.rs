@@ -1,4 +1,5 @@
-use super::{OTChannel, ObliviousSend, ObliviousTransfer, Protocol};
+use super::{OTChannel, ObliviousSend};
+use crate::protocol::ot::OTError;
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use mpc_core::{
@@ -23,13 +24,16 @@ impl Kos15IOSender<s_state::Initialized> {
         }
     }
 
-    pub async fn rand_setup(
-        mut self,
-    ) -> Result<Kos15IOSender<s_state::RandSetup>, <ObliviousTransfer as Protocol>::Error> {
+    pub async fn rand_setup(mut self) -> Result<Kos15IOSender<s_state::RandSetup>, OTError> {
         let message = match self.channel.next().await {
             Some(OTMessage::BaseSenderSetupWrapper(m)) => m,
-            Some(m) => return Err(<ObliviousTransfer as Protocol>::Error::Unexpected(m)),
-            None => return Err(<ObliviousTransfer as Protocol>::Error::IOError),
+            Some(m) => return Err(OTError::Unexpected(m)),
+            None => {
+                return Err(OTError::from(std::io::Error::new(
+                    std::io::ErrorKind::ConnectionAborted,
+                    "stream closed unexpectedly",
+                )))
+            }
         };
 
         let (kos_sender, message) = self.inner.base_setup(message)?;
@@ -39,16 +43,26 @@ impl Kos15IOSender<s_state::Initialized> {
 
         let message = match self.channel.next().await {
             Some(OTMessage::BaseSenderPayloadWrapper(m)) => m,
-            Some(m) => return Err(<ObliviousTransfer as Protocol>::Error::Unexpected(m)),
-            None => return Err(<ObliviousTransfer as Protocol>::Error::IOError),
+            Some(m) => return Err(OTError::Unexpected(m)),
+            None => {
+                return Err(OTError::from(std::io::Error::new(
+                    std::io::ErrorKind::ConnectionAborted,
+                    "stream closed unexpectedly",
+                )))
+            }
         };
 
         let kos_sender = kos_sender.base_receive(message)?;
 
         let message = match self.channel.next().await {
             Some(OTMessage::ExtReceiverSetup(m)) => m,
-            Some(m) => return Err(<ObliviousTransfer as Protocol>::Error::Unexpected(m)),
-            None => return Err(<ObliviousTransfer as Protocol>::Error::IOError),
+            Some(m) => return Err(OTError::Unexpected(m)),
+            None => {
+                return Err(OTError::from(std::io::Error::new(
+                    std::io::ErrorKind::ConnectionAborted,
+                    "stream closed unexpectedly",
+                )))
+            }
         };
 
         let kos_sender = kos_sender.rand_extension_setup(message)?;
@@ -64,14 +78,16 @@ impl Kos15IOSender<s_state::Initialized> {
 impl ObliviousSend for Kos15IOSender<s_state::RandSetup> {
     type Inputs = Vec<[Block; 2]>;
 
-    async fn send(
-        &mut self,
-        inputs: Self::Inputs,
-    ) -> Result<(), <ObliviousTransfer as Protocol>::Error> {
+    async fn send(&mut self, inputs: Self::Inputs) -> Result<(), OTError> {
         let message = match self.channel.next().await {
             Some(OTMessage::ExtDerandomize(m)) => m,
-            Some(m) => return Err(<ObliviousTransfer as Protocol>::Error::Unexpected(m)),
-            None => return Err(<ObliviousTransfer as Protocol>::Error::IOError),
+            Some(m) => return Err(OTError::Unexpected(m)),
+            None => {
+                return Err(OTError::from(std::io::Error::new(
+                    std::io::ErrorKind::ConnectionAborted,
+                    "stream closed unexpectedly",
+                )))
+            }
         };
         let message = self.inner.rand_send(&inputs, message)?;
         self.channel

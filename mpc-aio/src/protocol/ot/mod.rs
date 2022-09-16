@@ -2,21 +2,14 @@ pub mod kos;
 
 use std::pin::Pin;
 
-use super::{Channel, Protocol};
+use super::Channel;
 use async_trait::async_trait;
 use mpc_core::{
     msgs::ot::OTMessage,
     ot::{ExtReceiverCoreError, ExtSenderCoreError, ReceiverCoreError, SenderCoreError},
 };
 
-pub struct ObliviousTransfer;
-
-impl Protocol for ObliviousTransfer {
-    type Message = OTMessage;
-    type Error = OTError;
-}
-
-type OTChannel = Pin<Box<dyn Channel<<ObliviousTransfer as Protocol>::Message, Error = OTError>>>;
+type OTChannel = Pin<Box<dyn Channel<OTMessage, Error = std::io::Error>>>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum OTError {
@@ -29,7 +22,7 @@ pub enum OTError {
     #[error("OT receiver core error: {0}")]
     ExtReceiverCoreError(#[from] ExtReceiverCoreError),
     #[error("IO error")]
-    IOError,
+    IOError(#[from] std::io::Error),
     #[error("Received unexpected message: {0:?}")]
     Unexpected(OTMessage),
     #[cfg(test)]

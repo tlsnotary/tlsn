@@ -1,16 +1,15 @@
 pub mod receiver;
 pub mod sender;
 
-use super::{OTChannel, ObliviousReceive, ObliviousSend, ObliviousTransfer, Protocol};
+use super::{OTChannel, ObliviousReceive, ObliviousSend};
 
 #[cfg(test)]
 mod tests {
     use super::{
         receiver::Kos15IOReceiver, sender::Kos15IOSender, ObliviousReceive, ObliviousSend,
-        ObliviousTransfer,
     };
     use crate::protocol::duplex::DuplexChannel;
-    use mpc_core::Block;
+    use mpc_core::{msgs::ot::OTMessage, Block};
 
     const ITERATIONS: usize = 1024;
 
@@ -21,7 +20,7 @@ mod tests {
 
         let blocks = vec![[Block::new(0), Block::new(1)]; ITERATIONS];
 
-        let (channel, channel_2) = DuplexChannel::<ObliviousTransfer>::new();
+        let (channel, channel_2) = DuplexChannel::<OTMessage>::new();
         let (sender, receiver) = (
             Kos15IOSender::new(Box::pin(channel)),
             Kos15IOReceiver::new(Box::pin(channel_2)),
