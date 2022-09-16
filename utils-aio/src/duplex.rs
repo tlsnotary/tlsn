@@ -9,6 +9,8 @@ pub struct DuplexChannel<T> {
     stream: mpsc::Receiver<T>,
 }
 
+impl<T> super::Channel<T> for DuplexChannel<T> where T: Send + 'static {}
+
 impl<T> DuplexChannel<T>
 where
     T: Send + 'static,
