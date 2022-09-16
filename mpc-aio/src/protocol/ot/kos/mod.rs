@@ -22,8 +22,8 @@ mod tests {
 
         let (channel, channel_2) = DuplexChannel::<OTMessage>::new();
         let (sender, receiver) = (
-            Kos15IOSender::new(Box::pin(channel)),
-            Kos15IOReceiver::new(Box::pin(channel_2)),
+            Kos15IOSender::new(Box::new(channel)),
+            Kos15IOReceiver::new(Box::new(channel_2)),
         );
         let send = tokio::spawn(async {
             let mut sender = sender.rand_setup().await.unwrap();

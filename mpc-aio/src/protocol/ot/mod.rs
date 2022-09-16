@@ -1,7 +1,5 @@
 pub mod kos;
 
-use std::pin::Pin;
-
 use super::Channel;
 use async_trait::async_trait;
 use mpc_core::{
@@ -9,7 +7,7 @@ use mpc_core::{
     ot::{ExtReceiverCoreError, ExtSenderCoreError, ReceiverCoreError, SenderCoreError},
 };
 
-type OTChannel = Pin<Box<dyn Channel<OTMessage, Error = std::io::Error>>>;
+type OTChannel = Box<dyn Channel<OTMessage, Error = std::io::Error>>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum OTError {

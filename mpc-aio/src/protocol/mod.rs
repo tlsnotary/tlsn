@@ -9,7 +9,7 @@ pub trait Protocol {
     type Error: std::error::Error;
 }
 
-pub trait Channel<T>: futures::Stream<Item = T> + futures::Sink<T> + Send {}
+pub trait Channel<T>: futures::Stream<Item = T> + futures::Sink<T> + Send + Unpin {}
 
 #[cfg(test)]
 mod duplex {
