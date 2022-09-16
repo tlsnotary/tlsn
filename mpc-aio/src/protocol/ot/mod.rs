@@ -74,10 +74,10 @@ pub trait ObliviousReceive {
 
 #[cfg(test)]
 mockall::mock! {
-    pub MockObliviousSend {}
+    pub ObliviousSender {}
 
     #[async_trait]
-    impl ObliviousSend for MockObliviousSend {
+    impl ObliviousSend for ObliviousSender {
         type Inputs = Vec<[mpc_core::Block; 2]>;
 
         async fn send(
@@ -89,10 +89,10 @@ mockall::mock! {
 
 #[cfg(test)]
 mockall::mock! {
-    pub MockObliviousReceive {}
+    pub ObliviousReceiver {}
 
     #[async_trait]
-    impl ObliviousReceive for MockObliviousReceive {
+    impl ObliviousReceive for ObliviousReceiver {
         type Choice = bool;
         type Outputs = Vec<mpc_core::Block>;
 
