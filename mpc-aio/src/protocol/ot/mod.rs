@@ -74,6 +74,21 @@ pub trait ObliviousReceive {
 
 #[cfg(test)]
 mockall::mock! {
+    pub MockObliviousSend {}
+
+    #[async_trait]
+    impl ObliviousSend for MockObliviousSend {
+        type Inputs = Vec<[mpc_core::Block; 2]>;
+
+        async fn send(
+            &mut self,
+            inputs: Vec<[mpc_core::Block; 2]>,
+        ) -> Result<(), <ObliviousTransfer as Protocol>::Error>;
+    }
+}
+
+#[cfg(test)]
+mockall::mock! {
     pub MockObliviousReceive {}
 
     #[async_trait]
