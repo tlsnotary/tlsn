@@ -32,7 +32,7 @@ mod tests {
         });
         let receive = tokio::spawn(async move {
             let mut receiver = receiver.rand_setup(ITERATIONS).await.unwrap();
-            receiver.receive(choices).await.unwrap()
+            receiver.receive(&choices).await.unwrap()
         });
 
         let (_, output) = tokio::join!(send, receive);

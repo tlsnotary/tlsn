@@ -63,11 +63,27 @@ pub trait ObliviousSend {
 
 #[async_trait]
 pub trait ObliviousReceive {
-    type Choices;
+    type Choice;
     type Outputs;
 
     async fn receive(
         &mut self,
-        choices: Self::Choices,
+        choices: &[Self::Choice],
     ) -> Result<Self::Outputs, <ObliviousTransfer as Protocol>::Error>;
+}
+
+#[cfg(test)]
+mockall::mock! {
+    pub MockObliviousReceive {}
+
+    #[async_trait]
+    impl ObliviousReceive for MockObliviousReceive {
+        type Choice = bool;
+        type Outputs = Vec<mpc_core::Block>;
+
+        async fn receive(
+            &mut self,
+            choices: &[bool],
+        ) -> Result<Vec<mpc_core::Block>, <ObliviousTransfer as Protocol>::Error>;
+    }
 }
