@@ -226,10 +226,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol::ot::mock::mock_ot_pair;
+    use crate::protocol::{garble::Execute, ot::mock::mock_ot_pair};
     use mpc_circuits::ADDER_64;
-    use mpc_core::{garble::InputLabels, msgs::garble::GarbleMessage};
-    use rand::thread_rng;
+    use mpc_core::msgs::garble::GarbleMessage;
     use utils_aio::duplex::DuplexChannel;
 
     #[tokio::test]
@@ -247,31 +246,19 @@ mod tests {
             follower_receiver,
         );
 
-        let (leader_labels, leader_delta) = InputLabels::generate(&mut thread_rng(), &circ, None);
-        let (follower_labels, follower_delta) =
-            InputLabels::generate(&mut thread_rng(), &circ, None);
-
         let leader_input = circ.input(0).unwrap().to_value(1u64).unwrap();
         let follower_input = circ.input(1).unwrap().to_value(2u64).unwrap();
 
         let leader_circ = circ.clone();
         let leader_task = tokio::spawn(async move {
-            let leader_output = leader
-                .execute_with_labels(leader_circ, &[leader_input], &leader_labels, leader_delta)
-                .await
-                .unwrap();
+            let leader_output = leader.execute(leader_circ, &[leader_input]).await.unwrap();
             leader_output
         });
 
         let follower_circ = circ.clone();
         let follower_task = tokio::spawn(async move {
             let follower_output = follower
-                .execute_with_labels(
-                    follower_circ,
-                    &[follower_input],
-                    &follower_labels,
-                    follower_delta,
-                )
+                .execute(follower_circ, &[follower_input])
                 .await
                 .unwrap();
             follower_output
