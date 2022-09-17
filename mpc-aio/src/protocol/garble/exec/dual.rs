@@ -5,16 +5,13 @@
 use std::sync::Arc;
 
 use crate::protocol::garble::{
-    label::{WireLabelError, WireLabelOTReceive, WireLabelOTSend},
+    label::{WireLabelOTReceive, WireLabelOTSend},
     ExecuteWithLabels, GCError, GarbleChannel, GarbleMessage,
 };
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use mpc_circuits::{Circuit, InputValue, OutputValue};
-use mpc_core::garble::{
-    exec::{dual as core, dual::state},
-    Delta, GarbledCircuit, InputLabels, WireLabelPair,
-};
+use mpc_core::garble::{exec::dual as core, Delta, GarbledCircuit, InputLabels, WireLabelPair};
 
 pub struct DualExLeader<S, R>
 where

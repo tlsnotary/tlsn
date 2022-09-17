@@ -1,4 +1,4 @@
-mod exec;
+pub mod exec;
 mod label;
 
 use std::sync::Arc;

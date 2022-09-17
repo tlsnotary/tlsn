@@ -1,1 +1,1 @@
-mod dual;
+pub mod dual;
