@@ -1,4 +1,6 @@
 pub mod kos;
+#[cfg(test)]
+pub mod mock;
 
 use async_trait::async_trait;
 use mpc_core::{
