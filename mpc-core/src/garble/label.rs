@@ -51,7 +51,7 @@ impl AsRef<Block> for WireLabel {
 impl WireLabel {
     /// Creates a new wire label
     #[inline]
-    pub(crate) fn new(id: usize, value: Block) -> Self {
+    pub fn new(id: usize, value: Block) -> Self {
         Self { id, value }
     }
 
