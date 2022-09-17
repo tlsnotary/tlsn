@@ -10,8 +10,10 @@ use crate::protocol::garble::{
 };
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
-use mpc_circuits::{Circuit, InputValue, OutputValue};
-use mpc_core::garble::{exec::dual as core, Delta, GarbledCircuit, InputLabels, WireLabelPair};
+use mpc_circuits::{Circuit, InputValue};
+use mpc_core::garble::{
+    exec::dual as core, Delta, Evaluated, GarbledCircuit, InputLabels, WireLabelPair,
+};
 
 pub struct DualExLeader<S, R>
 where
@@ -49,7 +51,7 @@ where
         inputs: &[InputValue],
         input_labels: &[InputLabels<WireLabelPair>],
         delta: Delta,
-    ) -> Result<Vec<OutputValue>, GCError> {
+    ) -> Result<GarbledCircuit<Evaluated>, GCError> {
         let leader = core::DualExLeader::new(circ.clone());
 
         let (gc, leader) = leader.garble(inputs, input_labels, delta)?;
@@ -110,7 +112,7 @@ where
             .send(GarbleMessage::OutputCheck(reveal.into()))
             .await?;
 
-        Ok(gc_evaluated.decode()?)
+        Ok(gc_evaluated)
     }
 }
 
@@ -150,7 +152,7 @@ where
         inputs: &[InputValue],
         input_labels: &[InputLabels<WireLabelPair>],
         delta: Delta,
-    ) -> Result<Vec<OutputValue>, GCError> {
+    ) -> Result<GarbledCircuit<Evaluated>, GCError> {
         let follower = core::DualExFollower::new(circ.clone());
 
         let (gc, follower) = follower.garble(inputs, input_labels, delta)?;
@@ -219,7 +221,7 @@ where
         let leader_check = msg.into();
         let gc_evaluated = follower.check(leader_check)?;
 
-        Ok(gc_evaluated.decode()?)
+        Ok(gc_evaluated)
     }
 }
 
@@ -264,11 +266,15 @@ mod tests {
             follower_output
         });
 
-        let (leader_out, follower_out) = tokio::join!(leader_task, follower_task);
+        let (leader_gc_evaluated, follower_gc_evaluated) = tokio::join!(leader_task, follower_task);
 
         let expected_out = circ.output(0).unwrap().to_value(3u64).unwrap();
-        let leader_out = leader_out.unwrap();
-        let follower_out = follower_out.unwrap();
+
+        let leader_gc_evaluated = leader_gc_evaluated.unwrap();
+        let follower_gc_evaluated = follower_gc_evaluated.unwrap();
+
+        let leader_out = leader_gc_evaluated.decode().unwrap();
+        let follower_out = follower_gc_evaluated.decode().unwrap();
 
         assert_eq!(expected_out, leader_out[0]);
         assert_eq!(leader_out, follower_out);

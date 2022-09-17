@@ -4,9 +4,9 @@ mod label;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use mpc_circuits::{Circuit, InputValue, OutputValue};
+use mpc_circuits::{Circuit, InputValue};
 use mpc_core::{
-    garble::{Delta, InputLabels, WireLabelPair},
+    garble::{Delta, Evaluated, GarbledCircuit, InputLabels, WireLabelPair},
     msgs::garble::GarbleMessage,
 };
 use rand::thread_rng;
@@ -35,7 +35,7 @@ pub trait ExecuteWithLabels {
         inputs: &[InputValue],
         input_labels: &[InputLabels<WireLabelPair>],
         delta: Delta,
-    ) -> Result<Vec<OutputValue>, GCError>;
+    ) -> Result<GarbledCircuit<Evaluated>, GCError>;
 }
 
 #[async_trait]
@@ -45,7 +45,7 @@ pub trait Execute: ExecuteWithLabels {
         &mut self,
         circ: Arc<Circuit>,
         inputs: &[InputValue],
-    ) -> Result<Vec<OutputValue>, GCError> {
+    ) -> Result<GarbledCircuit<Evaluated>, GCError> {
         let (input_labels, delta) = InputLabels::generate(&mut thread_rng(), &circ, None);
         self.execute_with_labels(circ, inputs, &input_labels, delta)
             .await
