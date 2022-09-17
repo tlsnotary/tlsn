@@ -44,50 +44,56 @@ impl OutputCommit {
     }
 }
 
-mod sealed {
-    pub trait Sealed {}
-    impl Sealed for super::Generator {}
-    impl Sealed for super::Evaluator {}
-    impl Sealed for super::Commit {}
-    impl Sealed for super::Reveal {}
-    impl Sealed for super::Check {}
+pub mod state {
+    use super::*;
+
+    mod sealed {
+        pub trait Sealed {}
+        impl Sealed for super::Generator {}
+        impl Sealed for super::Evaluator {}
+        impl Sealed for super::Commit {}
+        impl Sealed for super::Reveal {}
+        impl Sealed for super::Check {}
+    }
+
+    pub trait State: sealed::Sealed {}
+
+    pub struct Generator {
+        pub(super) circ: Arc<Circuit>,
+    }
+
+    pub struct Evaluator {
+        pub(super) circ: Arc<Circuit>,
+        pub(super) gc: GarbledCircuit<Full>,
+    }
+
+    pub struct Commit {
+        pub(super) circ: Arc<Circuit>,
+        pub(super) evaluated_gc: GarbledCircuit<Evaluated>,
+        pub(super) check: OutputCheck,
+    }
+
+    pub struct Reveal {
+        pub(super) circ: Arc<Circuit>,
+        pub(super) evaluated_gc: GarbledCircuit<Evaluated>,
+        pub(super) check: OutputCheck,
+    }
+
+    pub struct Check {
+        pub(super) circ: Arc<Circuit>,
+        pub(super) evaluated_gc: GarbledCircuit<Evaluated>,
+        pub(super) check: OutputCheck,
+        pub(super) commit: Option<OutputCommit>,
+    }
+
+    impl State for Generator {}
+    impl State for Evaluator {}
+    impl State for Commit {}
+    impl State for Reveal {}
+    impl State for Check {}
 }
 
-pub trait State: sealed::Sealed {}
-
-pub struct Generator {
-    circ: Arc<Circuit>,
-}
-
-pub struct Evaluator {
-    circ: Arc<Circuit>,
-    gc: GarbledCircuit<Full>,
-}
-
-pub struct Commit {
-    circ: Arc<Circuit>,
-    evaluated_gc: GarbledCircuit<Evaluated>,
-    check: OutputCheck,
-}
-
-pub struct Reveal {
-    circ: Arc<Circuit>,
-    evaluated_gc: GarbledCircuit<Evaluated>,
-    check: OutputCheck,
-}
-
-pub struct Check {
-    circ: Arc<Circuit>,
-    evaluated_gc: GarbledCircuit<Evaluated>,
-    check: OutputCheck,
-    commit: Option<OutputCommit>,
-}
-
-impl State for Generator {}
-impl State for Evaluator {}
-impl State for Commit {}
-impl State for Reveal {}
-impl State for Check {}
+use state::*;
 
 pub struct DualExLeader<S = Generator>
 where

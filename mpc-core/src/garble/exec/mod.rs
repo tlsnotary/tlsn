@@ -1,3 +1,1 @@
-mod dual;
-
-pub use dual::{DualExFollower, DualExLeader};
+pub mod dual;
