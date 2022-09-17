@@ -4,8 +4,8 @@ pub mod sha;
 mod utils;
 
 pub use crate::msgs::handshake::HandshakeMessage;
-pub use follower::HandshakeFollower;
-pub use leader::HandshakeLeader;
+pub use follower::{state as follower_state, HandshakeFollower};
+pub use leader::{state as leader_state, HandshakeLeader};
 
 #[cfg(test)]
 mod tests {
