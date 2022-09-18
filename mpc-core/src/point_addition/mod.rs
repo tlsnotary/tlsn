@@ -8,7 +8,7 @@
 mod follower;
 mod leader;
 
-use std::convert::TryFrom;
+use std::{convert::TryFrom, ops::Add};
 
 pub use crate::msgs::point_addition::PointAdditionMessage;
 use curv::{arithmetic::Converter, BigInt};
@@ -24,6 +24,16 @@ pub struct P256SecretShare(pub(crate) [u8; 32]);
 impl P256SecretShare {
     pub fn as_bytes(&self) -> &[u8] {
         &self.0
+    }
+}
+
+impl Add<P256SecretShare> for P256SecretShare {
+    type Output = Vec<u8>;
+
+    fn add(self, rhs: P256SecretShare) -> Self::Output {
+        let key = (BigInt::from_bytes(self.as_bytes()) + BigInt::from_bytes(rhs.as_bytes()))
+            % BigInt::from_hex(P).unwrap();
+        key.to_bytes()
     }
 }
 
@@ -81,14 +91,11 @@ mod tests {
 
         let pms = ((&server_pk * &leader_secret.to_nonzero_scalar())
             + (&server_pk * &follower_secret.to_nonzero_scalar()))
-            .to_affine();
-        let pms = BigInt::from_bytes(pms.to_encoded_point(false).x().unwrap());
+            .to_encoded_point(false)
+            .x()
+            .unwrap()
+            .to_vec();
 
-        assert_eq!(
-            pms,
-            (BigInt::from_bytes(leader_share.as_bytes())
-                + BigInt::from_bytes(follower_share.as_bytes()))
-                % BigInt::from_hex(P).unwrap()
-        );
+        assert_eq!(pms, leader_share + follower_share);
     }
 }
