@@ -5,50 +5,41 @@
 //! would also be possible using this approach, but it hasn't been
 //! implemented here).
 
-pub mod errors;
-pub mod master;
-pub mod slave;
+mod follower;
+mod leader;
 
-pub use crate::{
-    msgs::point_addition::PointAdditionMessage, point_addition::errors::PointAdditionError,
-};
+use std::convert::TryFrom;
+
+pub use crate::msgs::point_addition::PointAdditionMessage;
 use curv::{arithmetic::Converter, BigInt};
-pub use master::PointAdditionMaster;
-pub use slave::PointAdditionSlave;
+pub use follower::{state as follower_state, PointAdditionFollower};
+pub use leader::{state as leader_state, PointAdditionLeader};
 
 /// NIST P-256 Prime
 pub const P: &str = "ffffffff00000001000000000000000000000000ffffffffffffffffffffffff";
 
-pub type SecretShare = BigInt;
+/// Additive secret share of a NIST P-256 private key
+pub struct P256SecretShare(pub(crate) [u8; 32]);
 
-pub trait MasterCore {
-    /// processes the next message of the protocol
-    fn next(
-        &mut self,
-        message: Option<PointAdditionMessage>,
-    ) -> Result<Option<PointAdditionMessage>, PointAdditionError>;
-
-    fn is_complete(&self) -> bool;
-
-    /// returns Master's share of the resulting X coordinate
-    fn get_secret(self) -> Result<SecretShare, PointAdditionError>;
+impl P256SecretShare {
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
 }
 
-pub trait SlaveCore {
-    /// processes the next message of the protocol
-    fn next(
-        &mut self,
-        message: Option<PointAdditionMessage>,
-    ) -> Result<Option<PointAdditionMessage>, PointAdditionError>;
+impl TryFrom<BigInt> for P256SecretShare {
+    type Error = BigInt;
 
-    fn is_complete(&self) -> bool;
-
-    /// returns Slave's share of the resulting X coordinate
-    fn get_secret(self) -> Result<SecretShare, PointAdditionError>;
+    fn try_from(key: BigInt) -> Result<Self, BigInt> {
+        Ok(Self(key.to_bytes_array::<32>().ok_or(key)?))
+    }
 }
 
-pub fn combine_shares(a: SecretShare, b: SecretShare) -> Vec<u8> {
-    ((a + b) % BigInt::from_hex(P).unwrap()).to_bytes()
+/// Errors that may occur when using the point_addition module
+#[derive(Debug, thiserror::Error)]
+pub enum PointAdditionError {
+    #[error("Protocol generated invalid P256 key share")]
+    InvalidKeyshare,
 }
 
 #[cfg(test)]
@@ -65,45 +56,39 @@ mod tests {
         let server_secret = SecretKey::random(&mut rng);
         let server_pk = server_secret.public_key().to_projective();
 
-        let master_secret = SecretKey::random(&mut rng);
-        let master_point =
-            (&server_pk * &master_secret.to_nonzero_scalar()).to_encoded_point(false);
+        let leader_secret = SecretKey::random(&mut rng);
+        let leader_point =
+            (&server_pk * &leader_secret.to_nonzero_scalar()).to_encoded_point(false);
 
-        let slave_secret = SecretKey::random(&mut rng);
-        let slave_point = (&server_pk * &slave_secret.to_nonzero_scalar()).to_encoded_point(false);
+        let follower_secret = SecretKey::random(&mut rng);
+        let follower_point =
+            (&server_pk * &follower_secret.to_nonzero_scalar()).to_encoded_point(false);
 
-        let mut master = PointAdditionMaster::new(&master_point);
-        let mut slave = PointAdditionSlave::new(&slave_point);
+        let leader = PointAdditionLeader::new(&leader_point);
+        let follower = PointAdditionFollower::new(&follower_point);
 
-        let mut master_message;
-        let mut slave_message: Option<PointAdditionMessage> = None;
-        loop {
-            if !master.is_complete() {
-                master_message = master.next(slave_message).unwrap();
-            } else {
-                master_message = None;
-            }
-            if !slave.is_complete() {
-                slave_message = slave.next(master_message).unwrap();
-            } else {
-                slave_message = None;
-            }
-            if master.is_complete() && slave.is_complete() {
-                break;
-            }
-        }
+        let (leader_msg, leader) = leader.next();
+        let (follower_msg, follower) = follower.next(leader_msg);
 
-        let master_share = master.get_secret().unwrap();
-        let slave_share = slave.get_secret().unwrap();
+        let (leader_msg, leader) = leader.next(follower_msg);
+        let (follower_msg, follower) = follower.next(leader_msg);
 
-        let pms = ((&server_pk * &master_secret.to_nonzero_scalar())
-            + (&server_pk * &slave_secret.to_nonzero_scalar()))
+        let (leader_msg, leader) = leader.next(follower_msg);
+        let (follower_msg, follower) = follower.next(leader_msg);
+
+        let leader_share = leader.finalize(follower_msg).unwrap();
+        let follower_share = follower.finalize().unwrap();
+
+        let pms = ((&server_pk * &leader_secret.to_nonzero_scalar())
+            + (&server_pk * &follower_secret.to_nonzero_scalar()))
             .to_affine();
         let pms = BigInt::from_bytes(pms.to_encoded_point(false).x().unwrap());
 
         assert_eq!(
             pms,
-            (master_share + slave_share) % BigInt::from_hex(P).unwrap()
+            (BigInt::from_bytes(leader_share.as_bytes())
+                + BigInt::from_bytes(follower_share.as_bytes()))
+                % BigInt::from_hex(P).unwrap()
         );
     }
 }
