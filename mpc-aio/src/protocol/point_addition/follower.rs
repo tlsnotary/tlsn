@@ -1,63 +1,73 @@
-use super::{PointAddition2PC, PointAdditionError};
+use super::{PAChannel, PointAddition2PC, PointAdditionError};
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
-use mpc_core::point_addition::{slave, PointAdditionMessage, SecretShare, SlaveCore};
-use mpc_core::proto::point_addition::PointAdditionMessage as ProtoMessage;
+use mpc_core::point_addition::{P256SecretShare, PointAdditionFollower, PointAdditionMessage};
 use p256::EncodedPoint;
-use std::io::Error as IOError;
-use std::io::ErrorKind;
-use tokio::io::{AsyncRead, AsyncWrite};
-use tokio_util::codec::Framed;
 use tracing::{instrument, trace};
-use utils_aio::codec::ProstCodecDelimited;
 
-pub struct PaillierFollower<S> {
-    stream: Framed<S, ProstCodecDelimited<PointAdditionMessage, ProtoMessage>>,
+pub struct PaillierFollower {
+    channel: PAChannel,
 }
 
-impl<S> PaillierFollower<S>
-where
-    S: AsyncRead + AsyncWrite + Send + Unpin,
-{
-    pub fn new(stream: S) -> Self {
-        Self {
-            stream: Framed::new(
-                stream,
-                ProstCodecDelimited::<PointAdditionMessage, ProtoMessage>::default(),
-            ),
-        }
+impl PaillierFollower {
+    pub fn new(channel: PAChannel) -> Self {
+        Self { channel }
     }
 }
 
 #[async_trait]
-impl<S> PointAddition2PC for PaillierFollower<S>
-where
-    S: AsyncRead + AsyncWrite + Send + Unpin,
-{
+impl PointAddition2PC for PaillierFollower {
     #[instrument(skip(self, point))]
-    async fn add(&mut self, point: &EncodedPoint) -> Result<SecretShare, PointAdditionError> {
+    async fn add(&mut self, point: &EncodedPoint) -> Result<P256SecretShare, PointAdditionError> {
         trace!("Starting");
-        let mut slave = slave::PointAdditionSlave::new(point);
+        let follower = PointAdditionFollower::new(point);
 
-        let mut master_message;
-        loop {
-            master_message = Some(
-                self.stream
-                    .next()
-                    .await
-                    .ok_or(IOError::new(ErrorKind::UnexpectedEof, ""))??,
-            );
-            trace!("Received Message");
-            if let Some(message) = slave.next(master_message)? {
-                self.stream.send(message).await?;
-                trace!("Sent Message");
+        let msg = match self.channel.next().await {
+            Some(PointAdditionMessage::M1(msg)) => msg,
+            Some(m) => return Err(PointAdditionError::UnexpectedMessage(m)),
+            None => {
+                return Err(PointAdditionError::from(std::io::Error::new(
+                    std::io::ErrorKind::ConnectionAborted,
+                    "stream closed unexpectedly",
+                )))
             }
-            if slave.is_complete() {
-                break;
+        };
+
+        let (msg, follower) = follower.next(msg);
+
+        self.channel.send(PointAdditionMessage::S1(msg)).await?;
+
+        let msg = match self.channel.next().await {
+            Some(PointAdditionMessage::M2(msg)) => msg,
+            Some(m) => return Err(PointAdditionError::UnexpectedMessage(m)),
+            None => {
+                return Err(PointAdditionError::from(std::io::Error::new(
+                    std::io::ErrorKind::ConnectionAborted,
+                    "stream closed unexpectedly",
+                )))
             }
-        }
+        };
+
+        let (msg, follower) = follower.next(msg);
+
+        self.channel.send(PointAdditionMessage::S2(msg)).await?;
+
+        let msg = match self.channel.next().await {
+            Some(PointAdditionMessage::M3(msg)) => msg,
+            Some(m) => return Err(PointAdditionError::UnexpectedMessage(m)),
+            None => {
+                return Err(PointAdditionError::from(std::io::Error::new(
+                    std::io::ErrorKind::ConnectionAborted,
+                    "stream closed unexpectedly",
+                )))
+            }
+        };
+
+        let (msg, follower) = follower.next(msg);
+
+        self.channel.send(PointAdditionMessage::S3(msg)).await?;
 
         trace!("Finished");
-        Ok(slave.get_secret()?)
+        Ok(follower.finalize()?)
     }
 }

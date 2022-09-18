@@ -1,63 +1,73 @@
-use super::{PointAddition2PC, PointAdditionError};
+use super::{PAChannel, PointAddition2PC, PointAdditionError};
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
-use mpc_core::point_addition::{master, MasterCore, PointAdditionMessage, SecretShare};
-use mpc_core::proto::point_addition::PointAdditionMessage as ProtoMessage;
+use mpc_core::point_addition::{P256SecretShare, PointAdditionLeader, PointAdditionMessage};
 use p256::EncodedPoint;
-use std::io::Error as IOError;
-use std::io::ErrorKind;
-use tokio::io::{AsyncRead, AsyncWrite};
-use tokio_util::codec::Framed;
 use tracing::{instrument, trace};
-use utils_aio::codec::ProstCodecDelimited;
 
-pub struct PaillierLeader<S> {
-    stream: Framed<S, ProstCodecDelimited<PointAdditionMessage, ProtoMessage>>,
+pub struct PaillierLeader {
+    channel: PAChannel,
 }
 
-impl<S> PaillierLeader<S>
-where
-    S: AsyncRead + AsyncWrite + Send + Unpin,
-{
-    pub fn new(stream: S) -> Self {
-        Self {
-            stream: Framed::new(
-                stream,
-                ProstCodecDelimited::<PointAdditionMessage, ProtoMessage>::default(),
-            ),
-        }
+impl PaillierLeader {
+    pub fn new(channel: PAChannel) -> Self {
+        Self { channel }
     }
 }
 
 #[async_trait]
-impl<S> PointAddition2PC for PaillierLeader<S>
-where
-    S: AsyncRead + AsyncWrite + Send + Unpin,
-{
+impl PointAddition2PC for PaillierLeader {
     #[instrument(skip(self, point))]
-    async fn add(&mut self, point: &EncodedPoint) -> Result<SecretShare, PointAdditionError> {
+    async fn add(&mut self, point: &EncodedPoint) -> Result<P256SecretShare, PointAdditionError> {
         trace!("Starting");
-        let mut master = master::PointAdditionMaster::new(point);
+        let leader = PointAdditionLeader::new(point);
 
-        let mut slave_message: Option<PointAdditionMessage> = None;
-        loop {
-            if let Some(message) = master.next(slave_message)? {
-                self.stream.send(message).await?;
-                trace!("Sent message");
+        let (msg, leader) = leader.next();
+
+        self.channel.send(PointAdditionMessage::M1(msg)).await?;
+
+        let msg = match self.channel.next().await {
+            Some(PointAdditionMessage::S1(msg)) => msg,
+            Some(m) => return Err(PointAdditionError::UnexpectedMessage(m)),
+            None => {
+                return Err(PointAdditionError::from(std::io::Error::new(
+                    std::io::ErrorKind::ConnectionAborted,
+                    "stream closed unexpectedly",
+                )))
             }
-            if master.is_complete() {
-                break;
+        };
+
+        let (msg, leader) = leader.next(msg);
+
+        self.channel.send(PointAdditionMessage::M2(msg)).await?;
+
+        let msg = match self.channel.next().await {
+            Some(PointAdditionMessage::S2(msg)) => msg,
+            Some(m) => return Err(PointAdditionError::UnexpectedMessage(m)),
+            None => {
+                return Err(PointAdditionError::from(std::io::Error::new(
+                    std::io::ErrorKind::ConnectionAborted,
+                    "stream closed unexpectedly",
+                )))
             }
-            slave_message = Some(
-                self.stream
-                    .next()
-                    .await
-                    .ok_or(IOError::new(ErrorKind::UnexpectedEof, ""))??,
-            );
-            trace!("Received message");
-        }
+        };
+
+        let (msg, leader) = leader.next(msg);
+
+        self.channel.send(PointAdditionMessage::M3(msg)).await?;
+
+        let msg = match self.channel.next().await {
+            Some(PointAdditionMessage::S3(msg)) => msg,
+            Some(m) => return Err(PointAdditionError::UnexpectedMessage(m)),
+            None => {
+                return Err(PointAdditionError::from(std::io::Error::new(
+                    std::io::ErrorKind::ConnectionAborted,
+                    "stream closed unexpectedly",
+                )))
+            }
+        };
 
         trace!("Finished");
-        Ok(master.get_secret()?)
+        Ok(leader.finalize(msg)?)
     }
 }
