@@ -71,13 +71,18 @@ pub struct PRFFollower<S: State> {
 }
 
 impl PRFFollower<Ms1> {
+    /// Returns new PRF follower
     pub fn new(outer_hash_state: [u32; 8]) -> PRFFollower<Ms1> {
         PRFFollower {
             state: Ms1 { outer_hash_state },
         }
     }
 
+    /// Computes a1
+    /// ```text
     /// H((pms xor opad) || H((pms xor ipad) || seed))
+    /// ```
+    /// Returns message to [`super::PRFLeader`] and next state
     pub fn next(self, msg: msgs::LeaderMs1) -> (msgs::FollowerMs1, PRFFollower<Ms2>) {
         (
             msgs::FollowerMs1 {
@@ -93,7 +98,11 @@ impl PRFFollower<Ms1> {
 }
 
 impl PRFFollower<Ms2> {
+    /// Computes a2
+    /// ```text
     /// H((pms xor opad) || H((pms xor ipad) || a1))
+    /// ```
+    /// Returns message to [`super::PRFLeader`] and next state
     pub fn next(self, msg: msgs::LeaderMs2) -> (msgs::FollowerMs2, PRFFollower<Ms3>) {
         (
             msgs::FollowerMs2 {
@@ -109,7 +118,11 @@ impl PRFFollower<Ms2> {
 }
 
 impl PRFFollower<Ms3> {
+    /// Computes p2
+    /// ```text
     /// H((pms xor opad) || H((pms xor ipad) || a2 || seed))
+    /// ```
+    /// Returns message to [`super::PRFLeader`] and next state
     pub fn next(self, msg: msgs::LeaderMs3) -> PRFFollower<MsComplete> {
         let p2 = finalize_sha256_digest(self.state.outer_hash_state, 64, &msg.p2_inner_hash);
         PRFFollower {
@@ -120,16 +133,21 @@ impl PRFFollower<Ms3> {
 
 impl PRFFollower<MsComplete> {
     /// Returns master secret p2
+    /// ```text
+    /// H((pms xor opad) || H((pms xor ipad) || a2 || seed))
+    /// ```
     pub fn p2(&self) -> [u8; 32] {
         self.state.p2
     }
 
+    /// Returns next state
     pub fn next(self) -> PRFFollower<Ke1> {
         PRFFollower { state: Ke1 {} }
     }
 }
 
 impl PRFFollower<Ke1> {
+    /// Returns next state
     pub fn next(self, outer_hash_state: [u32; 8]) -> PRFFollower<Ke2> {
         PRFFollower {
             state: Ke2 { outer_hash_state },
@@ -138,7 +156,11 @@ impl PRFFollower<Ke1> {
 }
 
 impl PRFFollower<Ke2> {
+    /// Computes a1
+    /// ```text
     /// H((ms xor opad) || H((ms xor ipad) || seed))
+    /// ```
+    /// Returns message to [`super::PRFLeader`] and next state
     pub fn next(self, msg: msgs::LeaderKe1) -> (msgs::FollowerKe2, PRFFollower<Ke3>) {
         (
             msgs::FollowerKe2 {
@@ -154,7 +176,11 @@ impl PRFFollower<Ke2> {
 }
 
 impl PRFFollower<Ke3> {
+    /// Computes a2
+    /// ```text
     /// H((ms xor opad) || H((ms xor ipad) || a1))
+    /// ```
+    /// Returns message to [`super::PRFLeader`] and next state
     pub fn next(self, msg: msgs::LeaderKe2) -> (msgs::FollowerKe3, PRFFollower<Cf1>) {
         (
             msgs::FollowerKe3 {
@@ -170,11 +196,15 @@ impl PRFFollower<Ke3> {
 }
 
 impl PRFFollower<Cf1> {
-    /// H((ms xor opad) || H((ms xor ipad) || seed))
+    /// Computes a1
+    /// ```text
+    /// H((ms xor opad) || H((ms xor ipad) || cf_seed))
+    /// ```
+    /// Returns message to [`super::PRFLeader`] and next state
     pub fn next(self, msg: msgs::LeaderCf1) -> (msgs::FollowerCf1, PRFFollower<Cf2>) {
         (
             msgs::FollowerCf1 {
-                a1: finalize_sha256_digest(self.state.outer_hash_state, 64, &msg.inner_hash),
+                a1: finalize_sha256_digest(self.state.outer_hash_state, 64, &msg.a1_inner_hash),
             },
             PRFFollower {
                 state: Cf2 {
@@ -186,9 +216,13 @@ impl PRFFollower<Cf1> {
 }
 
 impl PRFFollower<Cf2> {
-    /// H((ms xor opad) || H((ms xor ipad) || a1 || seed))
+    /// Computes client finished verify_data
+    /// ```text
+    /// H((ms xor opad) || H((ms xor ipad) || a1 || cf_seed))
+    /// ```
+    /// Returns message to [`super::PRFLeader`] and next state
     pub fn next(self, msg: msgs::LeaderCf2) -> (msgs::FollowerCf2, PRFFollower<Sf1>) {
-        let p1 = finalize_sha256_digest(self.state.outer_hash_state, 64, &msg.inner_hash);
+        let p1 = finalize_sha256_digest(self.state.outer_hash_state, 64, &msg.p1_inner_hash);
         let mut verify_data = [0u8; 12];
         verify_data.copy_from_slice(&p1[..12]);
         (
@@ -203,11 +237,15 @@ impl PRFFollower<Cf2> {
 }
 
 impl PRFFollower<Sf1> {
-    /// H((ms xor opad) || H((ms xor ipad) || seed))
+    /// Computes a1
+    /// ```text
+    /// H((ms xor opad) || H((ms xor ipad) || sf_seed))
+    /// ```
+    /// Returns message to [`super::PRFLeader`] and next state
     pub fn next(self, msg: msgs::LeaderSf1) -> (msgs::FollowerSf1, PRFFollower<Sf2>) {
         (
             msgs::FollowerSf1 {
-                a1: finalize_sha256_digest(self.state.outer_hash_state, 64, &msg.inner_hash),
+                a1: finalize_sha256_digest(self.state.outer_hash_state, 64, &msg.a1_inner_hash),
             },
             PRFFollower {
                 state: Sf2 {
@@ -219,9 +257,13 @@ impl PRFFollower<Sf1> {
 }
 
 impl PRFFollower<Sf2> {
-    /// H((ms xor opad) || H((ms xor ipad) || a1 || seed))
+    /// Computes server finished verify_data
+    /// ```text
+    /// H((ms xor opad) || H((ms xor ipad) || a1 || sf_seed))
+    /// ```
+    /// Returns message to [`super::PRFLeader`]
     pub fn next(self, msg: msgs::LeaderSf2) -> msgs::FollowerSf2 {
-        let p1 = finalize_sha256_digest(self.state.outer_hash_state, 64, &msg.inner_hash);
+        let p1 = finalize_sha256_digest(self.state.outer_hash_state, 64, &msg.sf_vd_inner_hash);
         let mut verify_data = [0u8; 12];
         verify_data.copy_from_slice(&p1[..12]);
         msgs::FollowerSf2 { verify_data }

@@ -63,28 +63,28 @@ pub struct LeaderKe2 {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LeaderCf1 {
     /// H((ms xor ipad) || seed)
-    pub inner_hash: [u8; 32],
+    pub a1_inner_hash: [u8; 32],
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LeaderCf2 {
     /// H((ms xor ipad) || a1 || seed)
-    pub inner_hash: [u8; 32],
+    pub p1_inner_hash: [u8; 32],
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LeaderSf1 {
     /// H((ms xor ipad) || seed)
-    pub inner_hash: [u8; 32],
+    pub a1_inner_hash: [u8; 32],
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LeaderSf2 {
     /// H((ms xor ipad) || a1 || seed)
-    pub inner_hash: [u8; 32],
+    pub sf_vd_inner_hash: [u8; 32],
 }
 
 #[derive(Debug, Clone)]
