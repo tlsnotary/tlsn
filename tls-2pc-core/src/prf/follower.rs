@@ -7,6 +7,7 @@ pub mod state {
         impl Sealed for super::Ms1 {}
         impl Sealed for super::Ms2 {}
         impl Sealed for super::Ms3 {}
+        impl Sealed for super::MsComplete {}
         impl Sealed for super::Ke1 {}
         impl Sealed for super::Ke2 {}
         impl Sealed for super::Ke3 {}
@@ -26,6 +27,9 @@ pub mod state {
     }
     pub struct Ms3 {
         pub(super) outer_hash_state: [u32; 8],
+    }
+    pub struct MsComplete {
+        pub(super) p2: [u8; 32],
     }
     pub struct Ke1 {}
     pub struct Ke2 {
@@ -50,6 +54,7 @@ pub mod state {
     impl State for Ms1 {}
     impl State for Ms2 {}
     impl State for Ms3 {}
+    impl State for MsComplete {}
     impl State for Ke1 {}
     impl State for Ke2 {}
     impl State for Ke3 {}
@@ -76,7 +81,7 @@ impl PRFFollower<Ms1> {
     pub fn next(self, msg: msgs::LeaderMs1) -> (msgs::FollowerMs1, PRFFollower<Ms2>) {
         (
             msgs::FollowerMs1 {
-                a1: finalize_sha256_digest(self.state.outer_hash_state, 64, &msg.inner_hash),
+                a1: finalize_sha256_digest(self.state.outer_hash_state, 64, &msg.a1_inner_hash),
             },
             PRFFollower {
                 state: Ms2 {
@@ -92,7 +97,7 @@ impl PRFFollower<Ms2> {
     pub fn next(self, msg: msgs::LeaderMs2) -> (msgs::FollowerMs2, PRFFollower<Ms3>) {
         (
             msgs::FollowerMs2 {
-                a2: finalize_sha256_digest(self.state.outer_hash_state, 64, &msg.inner_hash),
+                a2: finalize_sha256_digest(self.state.outer_hash_state, 64, &msg.a2_inner_hash),
             },
             PRFFollower {
                 state: Ms3 {
@@ -105,13 +110,22 @@ impl PRFFollower<Ms2> {
 
 impl PRFFollower<Ms3> {
     /// H((pms xor opad) || H((pms xor ipad) || a2 || seed))
-    pub fn next(self, msg: msgs::LeaderMs3) -> (msgs::FollowerMs3, PRFFollower<Ke1>) {
-        (
-            msgs::FollowerMs3 {
-                p2: finalize_sha256_digest(self.state.outer_hash_state, 64, &msg.inner_hash),
-            },
-            PRFFollower { state: Ke1 {} },
-        )
+    pub fn next(self, msg: msgs::LeaderMs3) -> PRFFollower<MsComplete> {
+        let p2 = finalize_sha256_digest(self.state.outer_hash_state, 64, &msg.p2_inner_hash);
+        PRFFollower {
+            state: MsComplete { p2 },
+        }
+    }
+}
+
+impl PRFFollower<MsComplete> {
+    /// Returns master secret p2
+    pub fn p2(&self) -> [u8; 32] {
+        self.state.p2
+    }
+
+    pub fn next(self) -> PRFFollower<Ke1> {
+        PRFFollower { state: Ke1 {} }
     }
 }
 
@@ -128,7 +142,7 @@ impl PRFFollower<Ke2> {
     pub fn next(self, msg: msgs::LeaderKe1) -> (msgs::FollowerKe2, PRFFollower<Ke3>) {
         (
             msgs::FollowerKe2 {
-                a1: finalize_sha256_digest(self.state.outer_hash_state, 64, &msg.inner_hash),
+                a1: finalize_sha256_digest(self.state.outer_hash_state, 64, &msg.a1_inner_hash),
             },
             PRFFollower {
                 state: Ke3 {
@@ -144,7 +158,7 @@ impl PRFFollower<Ke3> {
     pub fn next(self, msg: msgs::LeaderKe2) -> (msgs::FollowerKe3, PRFFollower<Cf1>) {
         (
             msgs::FollowerKe3 {
-                a2: finalize_sha256_digest(self.state.outer_hash_state, 64, &msg.inner_hash),
+                a2: finalize_sha256_digest(self.state.outer_hash_state, 64, &msg.a2_inner_hash),
             },
             PRFFollower {
                 state: Cf1 {

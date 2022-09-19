@@ -28,35 +28,35 @@ pub enum PRFMessage {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LeaderMs1 {
     /// H((pms xor ipad) || seed)
-    pub inner_hash: [u8; 32],
+    pub a1_inner_hash: [u8; 32],
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LeaderMs2 {
     /// H((pms xor ipad) || a1)
-    pub inner_hash: [u8; 32],
+    pub a2_inner_hash: [u8; 32],
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LeaderMs3 {
     /// H((pms xor ipad) || a2)
-    pub inner_hash: [u8; 32],
+    pub p2_inner_hash: [u8; 32],
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LeaderKe1 {
     /// H((ms xor ipad) || seed)
-    pub inner_hash: [u8; 32],
+    pub a1_inner_hash: [u8; 32],
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LeaderKe2 {
     /// H((ms xor ipad) || a1)
-    pub inner_hash: [u8; 32],
+    pub a2_inner_hash: [u8; 32],
 }
 
 #[derive(Debug, Clone)]
