@@ -2,7 +2,7 @@ use super::{
     sha::finalize_sha256_digest,
     utils::{seed_cf, seed_ke, seed_ms, seed_sf},
 };
-use crate::msgs::handshake as msgs;
+use crate::msgs::prf as msgs;
 
 pub mod state {
     mod sealed {
@@ -79,19 +79,19 @@ pub mod state {
 
 use state::*;
 
-pub struct HandshakeLeader<S: State> {
+pub struct PRFLeader<S: State> {
     state: S,
     client_random: [u8; 32],
     server_random: [u8; 32],
 }
 
-impl HandshakeLeader<Ms1> {
+impl PRFLeader<Ms1> {
     pub fn new(
         client_random: [u8; 32],
         server_random: [u8; 32],
         inner_hash_state: [u32; 8],
-    ) -> HandshakeLeader<Ms1> {
-        HandshakeLeader {
+    ) -> PRFLeader<Ms1> {
+        PRFLeader {
             state: Ms1 { inner_hash_state },
             client_random,
             server_random,
@@ -99,12 +99,12 @@ impl HandshakeLeader<Ms1> {
     }
 
     /// H((pms xor ipad) || seed)
-    pub fn next(self) -> (msgs::LeaderMs1, HandshakeLeader<Ms2>) {
+    pub fn next(self) -> (msgs::LeaderMs1, PRFLeader<Ms2>) {
         let seed_ms = seed_ms(&self.client_random, &self.server_random);
         let inner_hash = finalize_sha256_digest(self.state.inner_hash_state, 64, &seed_ms);
         (
             msgs::LeaderMs1 { inner_hash },
-            HandshakeLeader {
+            PRFLeader {
                 state: Ms2 {
                     seed_ms,
                     inner_hash_state: self.state.inner_hash_state,
@@ -116,13 +116,13 @@ impl HandshakeLeader<Ms1> {
     }
 }
 
-impl HandshakeLeader<Ms2> {
+impl PRFLeader<Ms2> {
     /// H((pms xor ipad) || a1)
-    pub fn next(self, msg: msgs::FollowerMs1) -> (msgs::LeaderMs2, HandshakeLeader<Ms3>) {
+    pub fn next(self, msg: msgs::FollowerMs1) -> (msgs::LeaderMs2, PRFLeader<Ms3>) {
         let inner_hash = finalize_sha256_digest(self.state.inner_hash_state, 64, &msg.a1);
         (
             msgs::LeaderMs2 { inner_hash },
-            HandshakeLeader {
+            PRFLeader {
                 state: Ms3 {
                     seed_ms: self.state.seed_ms,
                     inner_hash_state: self.state.inner_hash_state,
@@ -134,8 +134,8 @@ impl HandshakeLeader<Ms2> {
     }
 }
 
-impl HandshakeLeader<Ms3> {
-    pub fn next(self, msg: msgs::FollowerMs2) -> (msgs::LeaderMs3, HandshakeLeader<Ke1>) {
+impl PRFLeader<Ms3> {
+    pub fn next(self, msg: msgs::FollowerMs2) -> (msgs::LeaderMs3, PRFLeader<Ke1>) {
         let mut a2_seed = [0u8; 109];
         a2_seed[..32].copy_from_slice(&msg.a2);
         a2_seed[32..].copy_from_slice(&self.state.seed_ms);
@@ -143,7 +143,7 @@ impl HandshakeLeader<Ms3> {
         let inner_hash = finalize_sha256_digest(self.state.inner_hash_state, 64, &a2_seed);
         (
             msgs::LeaderMs3 { inner_hash },
-            HandshakeLeader {
+            PRFLeader {
                 state: Ke1 {},
                 client_random: self.client_random,
                 server_random: self.server_random,
@@ -152,14 +152,14 @@ impl HandshakeLeader<Ms3> {
     }
 }
 
-impl HandshakeLeader<Ke1> {
+impl PRFLeader<Ke1> {
     /// H((ms xor ipad) || seed)
-    pub fn next(self, inner_hash_state: [u32; 8]) -> (msgs::LeaderKe1, HandshakeLeader<Ke2>) {
+    pub fn next(self, inner_hash_state: [u32; 8]) -> (msgs::LeaderKe1, PRFLeader<Ke2>) {
         let seed_ke = seed_ke(&self.client_random, &self.server_random);
         let inner_hash = finalize_sha256_digest(inner_hash_state, 64, &seed_ke);
         (
             msgs::LeaderKe1 { inner_hash },
-            HandshakeLeader {
+            PRFLeader {
                 state: Ke2 {
                     seed_ke,
                     inner_hash_state,
@@ -171,13 +171,13 @@ impl HandshakeLeader<Ke1> {
     }
 }
 
-impl HandshakeLeader<Ke2> {
+impl PRFLeader<Ke2> {
     /// H((ms xor ipad) || a1)
-    pub fn next(self, msg: msgs::FollowerKe2) -> (msgs::LeaderKe2, HandshakeLeader<Ke3>) {
+    pub fn next(self, msg: msgs::FollowerKe2) -> (msgs::LeaderKe2, PRFLeader<Ke3>) {
         let inner_hash = finalize_sha256_digest(self.state.inner_hash_state, 64, &msg.a1);
         (
             msgs::LeaderKe2 { inner_hash },
-            HandshakeLeader {
+            PRFLeader {
                 state: Ke3 {
                     seed_ke: self.state.seed_ke,
                     inner_hash_state: self.state.inner_hash_state,
@@ -190,8 +190,8 @@ impl HandshakeLeader<Ke2> {
     }
 }
 
-impl HandshakeLeader<Ke3> {
-    pub fn next(self, msg: msgs::FollowerKe3) -> (([u8; 32], [u8; 32]), HandshakeLeader<Cf1>) {
+impl PRFLeader<Ke3> {
+    pub fn next(self, msg: msgs::FollowerKe3) -> (([u8; 32], [u8; 32]), PRFLeader<Cf1>) {
         let mut a1_seed = [0u8; 109];
         a1_seed[..32].copy_from_slice(&self.state.a1);
         a1_seed[32..].copy_from_slice(&self.state.seed_ke);
@@ -206,7 +206,7 @@ impl HandshakeLeader<Ke3> {
         let inner_hash_p2 = finalize_sha256_digest(self.state.inner_hash_state, 64, &a2_seed);
         (
             (inner_hash_p1, inner_hash_p2),
-            HandshakeLeader {
+            PRFLeader {
                 state: Cf1 {
                     inner_hash_state: self.state.inner_hash_state,
                 },
@@ -217,14 +217,14 @@ impl HandshakeLeader<Ke3> {
     }
 }
 
-impl HandshakeLeader<Cf1> {
+impl PRFLeader<Cf1> {
     /// H((ms xor ipad) || seed)
-    pub fn next(self, handshake_blob: &[u8]) -> (msgs::LeaderCf1, HandshakeLeader<Cf2>) {
+    pub fn next(self, handshake_blob: &[u8]) -> (msgs::LeaderCf1, PRFLeader<Cf2>) {
         let seed_cf = seed_cf(handshake_blob);
         let inner_hash = finalize_sha256_digest(self.state.inner_hash_state, 64, &seed_cf);
         (
             msgs::LeaderCf1 { inner_hash },
-            HandshakeLeader {
+            PRFLeader {
                 state: Cf2 {
                     seed_cf,
                     inner_hash_state: self.state.inner_hash_state,
@@ -236,16 +236,16 @@ impl HandshakeLeader<Cf1> {
     }
 }
 
-impl HandshakeLeader<Cf2> {
+impl PRFLeader<Cf2> {
     /// H((ms xor ipad) || a1 || seed)
-    pub fn next(self, msg: msgs::FollowerCf1) -> (msgs::LeaderCf2, HandshakeLeader<Cf3>) {
+    pub fn next(self, msg: msgs::FollowerCf1) -> (msgs::LeaderCf2, PRFLeader<Cf3>) {
         let mut a1_seed = [0u8; 79];
         a1_seed[..32].copy_from_slice(&msg.a1);
         a1_seed[32..].copy_from_slice(&self.state.seed_cf);
         let inner_hash = finalize_sha256_digest(self.state.inner_hash_state, 64, &a1_seed);
         (
             msgs::LeaderCf2 { inner_hash },
-            HandshakeLeader {
+            PRFLeader {
                 state: Cf3 {
                     inner_hash_state: self.state.inner_hash_state,
                 },
@@ -256,11 +256,11 @@ impl HandshakeLeader<Cf2> {
     }
 }
 
-impl HandshakeLeader<Cf3> {
-    pub fn next(self, msg: msgs::FollowerCf2) -> ([u8; 12], HandshakeLeader<Sf1>) {
+impl PRFLeader<Cf3> {
+    pub fn next(self, msg: msgs::FollowerCf2) -> ([u8; 12], PRFLeader<Sf1>) {
         (
             msg.verify_data,
-            HandshakeLeader {
+            PRFLeader {
                 state: Sf1 {
                     inner_hash_state: self.state.inner_hash_state,
                 },
@@ -271,13 +271,13 @@ impl HandshakeLeader<Cf3> {
     }
 }
 
-impl HandshakeLeader<Sf1> {
-    pub fn next(self, handshake_blob: &[u8]) -> (msgs::LeaderSf1, HandshakeLeader<Sf2>) {
+impl PRFLeader<Sf1> {
+    pub fn next(self, handshake_blob: &[u8]) -> (msgs::LeaderSf1, PRFLeader<Sf2>) {
         let seed_sf = seed_sf(handshake_blob);
         let inner_hash = finalize_sha256_digest(self.state.inner_hash_state, 64, &seed_sf);
         (
             msgs::LeaderSf1 { inner_hash },
-            HandshakeLeader {
+            PRFLeader {
                 state: Sf2 {
                     seed_sf,
                     inner_hash_state: self.state.inner_hash_state,
@@ -289,16 +289,16 @@ impl HandshakeLeader<Sf1> {
     }
 }
 
-impl HandshakeLeader<Sf2> {
+impl PRFLeader<Sf2> {
     /// H((ms xor ipad) || a1 || seed)
-    pub fn next(self, msg: msgs::FollowerSf1) -> (msgs::LeaderSf2, HandshakeLeader<Sf3>) {
+    pub fn next(self, msg: msgs::FollowerSf1) -> (msgs::LeaderSf2, PRFLeader<Sf3>) {
         let mut a1_seed = [0u8; 79];
         a1_seed[..32].copy_from_slice(&msg.a1);
         a1_seed[32..].copy_from_slice(&self.state.seed_sf);
         let inner_hash = finalize_sha256_digest(self.state.inner_hash_state, 64, &a1_seed);
         (
             msgs::LeaderSf2 { inner_hash },
-            HandshakeLeader {
+            PRFLeader {
                 state: Sf3 {},
                 client_random: self.client_random,
                 server_random: self.server_random,
@@ -307,7 +307,7 @@ impl HandshakeLeader<Sf2> {
     }
 }
 
-impl HandshakeLeader<Sf3> {
+impl PRFLeader<Sf3> {
     pub fn next(self, msg: msgs::FollowerSf2) -> [u8; 12] {
         msg.verify_data
     }

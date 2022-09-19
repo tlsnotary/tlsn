@@ -1,5 +1,5 @@
 use super::sha::finalize_sha256_digest;
-use crate::msgs::handshake as msgs;
+use crate::msgs::prf as msgs;
 
 pub mod state {
     mod sealed {
@@ -61,24 +61,24 @@ pub mod state {
 
 use state::*;
 
-pub struct HandshakeFollower<S: State> {
+pub struct PRFFollower<S: State> {
     state: S,
 }
 
-impl HandshakeFollower<Ms1> {
-    pub fn new(outer_hash_state: [u32; 8]) -> HandshakeFollower<Ms1> {
-        HandshakeFollower {
+impl PRFFollower<Ms1> {
+    pub fn new(outer_hash_state: [u32; 8]) -> PRFFollower<Ms1> {
+        PRFFollower {
             state: Ms1 { outer_hash_state },
         }
     }
 
     /// H((pms xor opad) || H((pms xor ipad) || seed))
-    pub fn next(self, msg: msgs::LeaderMs1) -> (msgs::FollowerMs1, HandshakeFollower<Ms2>) {
+    pub fn next(self, msg: msgs::LeaderMs1) -> (msgs::FollowerMs1, PRFFollower<Ms2>) {
         (
             msgs::FollowerMs1 {
                 a1: finalize_sha256_digest(self.state.outer_hash_state, 64, &msg.inner_hash),
             },
-            HandshakeFollower {
+            PRFFollower {
                 state: Ms2 {
                     outer_hash_state: self.state.outer_hash_state,
                 },
@@ -87,14 +87,14 @@ impl HandshakeFollower<Ms1> {
     }
 }
 
-impl HandshakeFollower<Ms2> {
+impl PRFFollower<Ms2> {
     /// H((pms xor opad) || H((pms xor ipad) || a1))
-    pub fn next(self, msg: msgs::LeaderMs2) -> (msgs::FollowerMs2, HandshakeFollower<Ms3>) {
+    pub fn next(self, msg: msgs::LeaderMs2) -> (msgs::FollowerMs2, PRFFollower<Ms3>) {
         (
             msgs::FollowerMs2 {
                 a2: finalize_sha256_digest(self.state.outer_hash_state, 64, &msg.inner_hash),
             },
-            HandshakeFollower {
+            PRFFollower {
                 state: Ms3 {
                     outer_hash_state: self.state.outer_hash_state,
                 },
@@ -103,34 +103,34 @@ impl HandshakeFollower<Ms2> {
     }
 }
 
-impl HandshakeFollower<Ms3> {
+impl PRFFollower<Ms3> {
     /// H((pms xor opad) || H((pms xor ipad) || a2 || seed))
-    pub fn next(self, msg: msgs::LeaderMs3) -> (msgs::FollowerMs3, HandshakeFollower<Ke1>) {
+    pub fn next(self, msg: msgs::LeaderMs3) -> (msgs::FollowerMs3, PRFFollower<Ke1>) {
         (
             msgs::FollowerMs3 {
                 p2: finalize_sha256_digest(self.state.outer_hash_state, 64, &msg.inner_hash),
             },
-            HandshakeFollower { state: Ke1 {} },
+            PRFFollower { state: Ke1 {} },
         )
     }
 }
 
-impl HandshakeFollower<Ke1> {
-    pub fn next(self, outer_hash_state: [u32; 8]) -> HandshakeFollower<Ke2> {
-        HandshakeFollower {
+impl PRFFollower<Ke1> {
+    pub fn next(self, outer_hash_state: [u32; 8]) -> PRFFollower<Ke2> {
+        PRFFollower {
             state: Ke2 { outer_hash_state },
         }
     }
 }
 
-impl HandshakeFollower<Ke2> {
+impl PRFFollower<Ke2> {
     /// H((ms xor opad) || H((ms xor ipad) || seed))
-    pub fn next(self, msg: msgs::LeaderKe1) -> (msgs::FollowerKe2, HandshakeFollower<Ke3>) {
+    pub fn next(self, msg: msgs::LeaderKe1) -> (msgs::FollowerKe2, PRFFollower<Ke3>) {
         (
             msgs::FollowerKe2 {
                 a1: finalize_sha256_digest(self.state.outer_hash_state, 64, &msg.inner_hash),
             },
-            HandshakeFollower {
+            PRFFollower {
                 state: Ke3 {
                     outer_hash_state: self.state.outer_hash_state,
                 },
@@ -139,14 +139,14 @@ impl HandshakeFollower<Ke2> {
     }
 }
 
-impl HandshakeFollower<Ke3> {
+impl PRFFollower<Ke3> {
     /// H((ms xor opad) || H((ms xor ipad) || a1))
-    pub fn next(self, msg: msgs::LeaderKe2) -> (msgs::FollowerKe3, HandshakeFollower<Cf1>) {
+    pub fn next(self, msg: msgs::LeaderKe2) -> (msgs::FollowerKe3, PRFFollower<Cf1>) {
         (
             msgs::FollowerKe3 {
                 a2: finalize_sha256_digest(self.state.outer_hash_state, 64, &msg.inner_hash),
             },
-            HandshakeFollower {
+            PRFFollower {
                 state: Cf1 {
                     outer_hash_state: self.state.outer_hash_state,
                 },
@@ -155,14 +155,14 @@ impl HandshakeFollower<Ke3> {
     }
 }
 
-impl HandshakeFollower<Cf1> {
+impl PRFFollower<Cf1> {
     /// H((ms xor opad) || H((ms xor ipad) || seed))
-    pub fn next(self, msg: msgs::LeaderCf1) -> (msgs::FollowerCf1, HandshakeFollower<Cf2>) {
+    pub fn next(self, msg: msgs::LeaderCf1) -> (msgs::FollowerCf1, PRFFollower<Cf2>) {
         (
             msgs::FollowerCf1 {
                 a1: finalize_sha256_digest(self.state.outer_hash_state, 64, &msg.inner_hash),
             },
-            HandshakeFollower {
+            PRFFollower {
                 state: Cf2 {
                     outer_hash_state: self.state.outer_hash_state,
                 },
@@ -171,15 +171,15 @@ impl HandshakeFollower<Cf1> {
     }
 }
 
-impl HandshakeFollower<Cf2> {
+impl PRFFollower<Cf2> {
     /// H((ms xor opad) || H((ms xor ipad) || a1 || seed))
-    pub fn next(self, msg: msgs::LeaderCf2) -> (msgs::FollowerCf2, HandshakeFollower<Sf1>) {
+    pub fn next(self, msg: msgs::LeaderCf2) -> (msgs::FollowerCf2, PRFFollower<Sf1>) {
         let p1 = finalize_sha256_digest(self.state.outer_hash_state, 64, &msg.inner_hash);
         let mut verify_data = [0u8; 12];
         verify_data.copy_from_slice(&p1[..12]);
         (
             msgs::FollowerCf2 { verify_data },
-            HandshakeFollower {
+            PRFFollower {
                 state: Sf1 {
                     outer_hash_state: self.state.outer_hash_state,
                 },
@@ -188,14 +188,14 @@ impl HandshakeFollower<Cf2> {
     }
 }
 
-impl HandshakeFollower<Sf1> {
+impl PRFFollower<Sf1> {
     /// H((ms xor opad) || H((ms xor ipad) || seed))
-    pub fn next(self, msg: msgs::LeaderSf1) -> (msgs::FollowerSf1, HandshakeFollower<Sf2>) {
+    pub fn next(self, msg: msgs::LeaderSf1) -> (msgs::FollowerSf1, PRFFollower<Sf2>) {
         (
             msgs::FollowerSf1 {
                 a1: finalize_sha256_digest(self.state.outer_hash_state, 64, &msg.inner_hash),
             },
-            HandshakeFollower {
+            PRFFollower {
                 state: Sf2 {
                     outer_hash_state: self.state.outer_hash_state,
                 },
@@ -204,7 +204,7 @@ impl HandshakeFollower<Sf1> {
     }
 }
 
-impl HandshakeFollower<Sf2> {
+impl PRFFollower<Sf2> {
     /// H((ms xor opad) || H((ms xor ipad) || a1 || seed))
     pub fn next(self, msg: msgs::LeaderSf2) -> msgs::FollowerSf2 {
         let p1 = finalize_sha256_digest(self.state.outer_hash_state, 64, &msg.inner_hash);

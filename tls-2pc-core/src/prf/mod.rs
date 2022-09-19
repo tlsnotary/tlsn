@@ -3,9 +3,9 @@ mod leader;
 pub mod sha;
 mod utils;
 
-pub use crate::msgs::handshake::HandshakeMessage;
-pub use follower::{state as follower_state, HandshakeFollower};
-pub use leader::{state as leader_state, HandshakeLeader};
+pub use crate::msgs::prf::PRFMessage;
+pub use follower::{state as follower_state, PRFFollower};
+pub use leader::{state as leader_state, PRFLeader};
 
 #[cfg(test)]
 mod tests {
@@ -27,8 +27,8 @@ mod tests {
         // H(pms xor opad)
         let outer_hash_state = partial_sha256_digest(&opad);
 
-        let leader = HandshakeLeader::new(client_random, server_random, inner_hash_state);
-        let follower = HandshakeFollower::new(outer_hash_state);
+        let leader = PRFLeader::new(client_random, server_random, inner_hash_state);
+        let follower = PRFFollower::new(outer_hash_state);
 
         let (leader_msg, leader) = leader.next();
         let (follower_msg, follower) = follower.next(leader_msg);

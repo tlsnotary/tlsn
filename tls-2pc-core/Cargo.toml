@@ -7,8 +7,8 @@ edition = "2018"
 name = "tls_2pc_core"
 
 [features]
-default = ["handshake", "ghash", "circuits"]
-handshake = []
+default = ["prf", "ghash", "circuits"]
+prf = []
 ghash = []
 circuits = ["c1", "c2", "c3", "c4", "c5", "c6", "c7"]
 c1 = []

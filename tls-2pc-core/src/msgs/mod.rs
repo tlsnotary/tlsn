@@ -1,2 +1,2 @@
-#[cfg(feature = "handshake")]
-pub mod handshake;
+#[cfg(feature = "prf")]
+pub mod prf;
