@@ -1,5 +1,3 @@
-//! 2-Party Elliptic curve secret-sharing using Paillier Cryptosystem
-
 use std::convert::TryInto;
 
 use super::{P256SecretShare, PointAdditionError, P};

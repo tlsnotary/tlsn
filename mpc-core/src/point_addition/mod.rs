@@ -1,9 +1,13 @@
-//! This crate implements EC point addition in 2PC using the Paillier
-//! cryptosystem. The two parties have their secret points A and B which they
+//! This module implements EC point addition in 2PC using the Paillier
+//! cryptosystem.
+//!
+//! The two parties have their secret points A and B which they
 //! want to add. At the end, the parties will have with their shares of the
 //! resulting point's X coordinate. (Obtaining the shares of the Y coordinate
 //! would also be possible using this approach, but it hasn't been
 //! implemented here).
+//!
+//! For a more comprehensive explanation of this protocol, see our [documentation](https://tlsnotary.github.io/docs-mdbook/)
 
 mod follower;
 mod leader;
@@ -18,7 +22,7 @@ pub use leader::{state as leader_state, PointAdditionLeader};
 /// NIST P-256 Prime
 pub const P: &str = "ffffffff00000001000000000000000000000000ffffffffffffffffffffffff";
 
-/// Additive secret share of a NIST P-256 private key
+/// Additive secret share of resulting X coordinate
 pub struct P256SecretShare(pub(crate) [u8; 32]);
 
 impl P256SecretShare {
@@ -31,9 +35,9 @@ impl Add<P256SecretShare> for P256SecretShare {
     type Output = Vec<u8>;
 
     fn add(self, rhs: P256SecretShare) -> Self::Output {
-        let key = (BigInt::from_bytes(self.as_bytes()) + BigInt::from_bytes(rhs.as_bytes()))
+        let x = (BigInt::from_bytes(self.as_bytes()) + BigInt::from_bytes(rhs.as_bytes()))
             % BigInt::from_hex(P).unwrap();
-        key.to_bytes()
+        x.to_bytes()
     }
 }
 
