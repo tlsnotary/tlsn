@@ -501,15 +501,9 @@ mod tests {
 
         // corrupt some bytes of y value
         let mut bad_bytes = y.to_be_bytes();
-        bad_bytes[5] = bad_bytes[5]
-            .checked_add(1)
-            .unwrap_or_else(|| bad_bytes[5] - 1);
-        bad_bytes[10] = bad_bytes[10]
-            .checked_add(1)
-            .unwrap_or_else(|| bad_bytes[10] - 1);
-        bad_bytes[15] = bad_bytes[15]
-            .checked_add(1)
-            .unwrap_or_else(|| bad_bytes[15] - 1);
+        bad_bytes[5] = bad_bytes[5].checked_add(1).unwrap_or_default();
+        bad_bytes[10] = bad_bytes[10].checked_add(1).unwrap_or_default();
+        bad_bytes[15] = bad_bytes[15].checked_add(1).unwrap_or_default();
         let bad = u128::from_be_bytes(bad_bytes);
         assert_ne!(expected, product_from_shares(x, bad));
     }
