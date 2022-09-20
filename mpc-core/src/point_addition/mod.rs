@@ -44,8 +44,8 @@ impl Add<P256SecretShare> for P256SecretShare {
 impl TryFrom<BigInt> for P256SecretShare {
     type Error = BigInt;
 
-    fn try_from(key: BigInt) -> Result<Self, BigInt> {
-        Ok(Self(key.to_bytes_array::<32>().ok_or(key)?))
+    fn try_from(share: BigInt) -> Result<Self, BigInt> {
+        Ok(Self(share.to_bytes_array::<32>().ok_or(share)?))
     }
 }
 
