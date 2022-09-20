@@ -1,6 +1,8 @@
 //! This module contains the protocol for computing TLS SHA-256 HMAC PRF using 2PC in such a way
 //! that neither party learns the session keys, rather they learn respective XOR shares of the keys.
 //!
+//! For a more comprehensive explanation of this protocol see our [documentation](https://tlsnotary.github.io/docs-mdbook)
+//!
 //! To save some compute and bandwidth, the PRF can be broken down into smaller units where some can be
 //! computed without using 2PC.
 //!
