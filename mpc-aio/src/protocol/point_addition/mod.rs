@@ -3,10 +3,10 @@ mod leader;
 
 pub use follower::PaillierFollower;
 pub use leader::PaillierLeader;
+pub use mpc_core::point_addition::P256SecretShare;
 
 use mpc_core::{
-    msgs::point_addition::PointAdditionMessage,
-    point_addition::{P256SecretShare, PointAdditionError as CoreError},
+    msgs::point_addition::PointAdditionMessage, point_addition::PointAdditionError as CoreError,
 };
 use utils_aio::Channel;
 
