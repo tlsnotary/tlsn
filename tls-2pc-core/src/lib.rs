@@ -1,8 +1,8 @@
 #[cfg(feature = "ghash")]
 pub mod ghash;
-#[cfg(feature = "handshake")]
-pub mod handshake;
 pub mod msgs;
+#[cfg(feature = "prf")]
+pub mod prf;
 
 #[cfg(feature = "c1")]
 pub static CIRCUIT_1: &'static [u8] = std::include_bytes!("../circuits/bin/c1.bin");
