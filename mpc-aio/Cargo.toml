@@ -10,6 +10,7 @@ name = "mpc_aio"
 default = ["pa", "ot"]
 ot = ["tlsn-mpc-core/ot", "tlsn-mpc-core/proto", "rand_chacha"]
 pa = ["tlsn-mpc-core/pa", "tlsn-mpc-core/proto", "p256"]
+mock = []
 
 [dependencies]
 tlsn-mpc-circuits = { path = "../mpc-circuits" }

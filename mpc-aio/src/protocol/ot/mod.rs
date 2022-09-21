@@ -1,5 +1,5 @@
 pub mod kos;
-#[cfg(test)]
+#[cfg(feature = "ot")]
 pub mod mock;
 
 use async_trait::async_trait;
