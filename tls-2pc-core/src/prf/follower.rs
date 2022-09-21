@@ -19,9 +19,7 @@ pub mod state {
 
     pub trait State: sealed::Sealed {}
 
-    pub struct Ms1 {
-        pub(super) outer_hash_state: [u32; 8],
-    }
+    pub struct Ms1 {}
     pub struct Ms2 {
         pub(super) outer_hash_state: [u32; 8],
     }
@@ -72,10 +70,8 @@ pub struct PRFFollower<S: State> {
 
 impl PRFFollower<Ms1> {
     /// Returns new PRF follower
-    pub fn new(outer_hash_state: [u32; 8]) -> PRFFollower<Ms1> {
-        PRFFollower {
-            state: Ms1 { outer_hash_state },
-        }
+    pub fn new() -> PRFFollower<Ms1> {
+        PRFFollower { state: Ms1 {} }
     }
 
     /// Computes a1
@@ -83,15 +79,17 @@ impl PRFFollower<Ms1> {
     /// H((pms xor opad) || H((pms xor ipad) || seed))
     /// ```
     /// Returns message to [`super::PRFLeader`] and next state
-    pub fn next(self, msg: msgs::LeaderMs1) -> (msgs::FollowerMs1, PRFFollower<Ms2>) {
+    pub fn next(
+        self,
+        outer_hash_state: [u32; 8],
+        msg: msgs::LeaderMs1,
+    ) -> (msgs::FollowerMs1, PRFFollower<Ms2>) {
         (
             msgs::FollowerMs1 {
-                a1: finalize_sha256_digest(self.state.outer_hash_state, 64, &msg.a1_inner_hash),
+                a1: finalize_sha256_digest(outer_hash_state, 64, &msg.a1_inner_hash),
             },
             PRFFollower {
-                state: Ms2 {
-                    outer_hash_state: self.state.outer_hash_state,
-                },
+                state: Ms2 { outer_hash_state },
             },
         )
     }
