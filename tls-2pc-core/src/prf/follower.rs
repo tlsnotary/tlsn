@@ -159,9 +159,9 @@ impl PRFFollower<Ke2> {
     /// H((ms xor opad) || H((ms xor ipad) || seed))
     /// ```
     /// Returns message to [`super::PRFLeader`] and next state
-    pub fn next(self, msg: msgs::LeaderKe1) -> (msgs::FollowerKe2, PRFFollower<Ke3>) {
+    pub fn next(self, msg: msgs::LeaderKe1) -> (msgs::FollowerKe1, PRFFollower<Ke3>) {
         (
-            msgs::FollowerKe2 {
+            msgs::FollowerKe1 {
                 a1: finalize_sha256_digest(self.state.outer_hash_state, 64, &msg.a1_inner_hash),
             },
             PRFFollower {
@@ -179,9 +179,9 @@ impl PRFFollower<Ke3> {
     /// H((ms xor opad) || H((ms xor ipad) || a1))
     /// ```
     /// Returns message to [`super::PRFLeader`] and next state
-    pub fn next(self, msg: msgs::LeaderKe2) -> (msgs::FollowerKe3, PRFFollower<Cf1>) {
+    pub fn next(self, msg: msgs::LeaderKe2) -> (msgs::FollowerKe2, PRFFollower<Cf1>) {
         (
-            msgs::FollowerKe3 {
+            msgs::FollowerKe2 {
                 a2: finalize_sha256_digest(self.state.outer_hash_state, 64, &msg.a2_inner_hash),
             },
             PRFFollower {

@@ -240,7 +240,7 @@ impl PRFLeader<Ke2> {
     /// a2_inner_hash = H((ms xor ipad) || a1)
     /// ```
     /// Returns message to [`super::PRFFollower`] and next state
-    pub fn next(self, msg: msgs::FollowerKe2) -> (msgs::LeaderKe2, PRFLeader<Ke3>) {
+    pub fn next(self, msg: msgs::FollowerKe1) -> (msgs::LeaderKe2, PRFLeader<Ke3>) {
         let a2_inner_hash = finalize_sha256_digest(self.state.inner_hash_state, 64, &msg.a1);
         (
             msgs::LeaderKe2 { a2_inner_hash },
@@ -262,7 +262,7 @@ impl PRFLeader<Ke3> {
     /// p2_inner_hash = H((ms xor ipad) || a2 || seed)
     /// ```
     /// Returns next state
-    pub fn next(self, msg: msgs::FollowerKe3) -> PRFLeader<KeComplete> {
+    pub fn next(self, msg: msgs::FollowerKe2) -> PRFLeader<KeComplete> {
         let mut a1_seed = [0u8; 109];
         a1_seed[..32].copy_from_slice(&self.state.a1);
         a1_seed[32..].copy_from_slice(&self.state.seed_ke);
