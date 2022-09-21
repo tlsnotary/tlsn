@@ -271,6 +271,7 @@ mod tests {
     use tokio::io::duplex;
     use tokio_util::compat::TokioAsyncReadCompatExt;
 
+    #[ignore]
     #[tokio::test]
     async fn test_open_stream() {
         let (client, server) = duplex(1024);
