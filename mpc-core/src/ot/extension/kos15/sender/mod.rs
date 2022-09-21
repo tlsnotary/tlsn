@@ -29,8 +29,13 @@ where
 
 impl Default for Kos15Sender {
     fn default() -> Self {
-        let mut rng = ChaCha12Rng::from_entropy();
+        let rng = ChaCha12Rng::from_entropy();
+        Self::new_with_rng(rng)
+    }
+}
 
+impl Kos15Sender {
+    pub fn new_with_rng(mut rng: ChaCha12Rng) -> Self {
         let cointoss_share = rng.gen();
         let mut base_choices = vec![false; BASE_COUNT];
         rng.fill::<[bool]>(&mut base_choices);
@@ -42,9 +47,12 @@ impl Default for Kos15Sender {
             cointoss_share,
         })
     }
-}
 
-impl Kos15Sender {
+    pub fn new_from_seed(seed: [u8; 32]) -> Self {
+        let rng = ChaCha12Rng::from_seed(seed);
+        Self::new_with_rng(rng)
+    }
+
     pub fn base_setup(
         mut self,
         setup_msg: BaseSenderSetupWrapper,
