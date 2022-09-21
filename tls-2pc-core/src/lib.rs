@@ -4,6 +4,8 @@ pub mod msgs;
 #[cfg(feature = "prf")]
 pub mod prf;
 
+pub use mpc_circuits::{Circuit, CircuitError};
+
 #[cfg(feature = "c1")]
 pub static CIRCUIT_1: &'static [u8] = std::include_bytes!("../circuits/bin/c1.bin");
 #[cfg(feature = "c2")]
