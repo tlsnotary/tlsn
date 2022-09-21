@@ -18,3 +18,6 @@ tlsn-utils-aio = { path = "../utils-aio" }
 futures = "0.3.21"
 p256 = "0.10.1"
 rand = "0.8.5"
+
+[dev-dependencies]
+tokio = "1.21.1"

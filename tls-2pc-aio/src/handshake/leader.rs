@@ -10,11 +10,11 @@ use mpc_circuits::Circuit;
 use p256::elliptic_curve::sec1::ToEncodedPoint;
 use rand::{thread_rng, Rng};
 use tls_2pc_core::{
-    prf::{self as core, leader_state as state, PRFMessage},
+    prf::{self as core, PRFMessage},
     CIRCUIT_1, CIRCUIT_2,
 };
 
-pub struct PRFLeader<G, P>
+pub struct HandshakeLeader<G, P>
 where
     G: Execute + Send,
     P: PointAddition2PC + Send,
@@ -24,7 +24,7 @@ where
     point_addition: P,
 }
 
-impl<G, P> PRFLeader<G, P>
+impl<G, P> HandshakeLeader<G, P>
 where
     G: Execute + Send,
     P: PointAddition2PC + Send,
@@ -62,10 +62,8 @@ where
             .map_err(|e| GCError::from(e))?;
 
         // todo make this less gross
-        let masked_inner_hash_state = if let mpc_circuits::Value::Bytes(v) = c1_out
-            .get(0)
-            .expect("Circuit 1 should have output 0")
-            .value()
+        let masked_inner_hash_state = if let mpc_circuits::Value::Bytes(v) =
+            out.get(0).expect("Circuit 1 should have output 0").value()
         {
             v
         } else {
@@ -91,37 +89,35 @@ where
 
     async fn c2(&mut self, p1_inner_hash: P256SecretShare) -> Result<[u32; 8], PRFError> {
         // todo lazy static load circuits
-        let c2 = Arc::new(Circuit::load_bytes(CIRCUIT_2).expect("Circuit 2 should deserialize"));
-        let input_pms_share = c2
+        let circ = Arc::new(Circuit::load_bytes(CIRCUIT_2).expect("Circuit 2 should deserialize"));
+        let input_pms_share = circ
             .input(0)
-            .expect("Circuit 1 should have input 0")
+            .expect("Circuit 2 should have input 0")
             .to_value(p1_inner_hash.as_bytes().to_vec())
             .expect("P256SecretShare should always be 32 bytes");
 
         let mask: Vec<u8> = thread_rng().gen::<[u8; 32]>().to_vec();
-        let input_mask = c2
+        let input_mask = circ
             .input(2)
-            .expect("Circuit 1 should have input 2")
+            .expect("Circuit 2 should have input 2")
             .to_value(mask.clone())
             .expect("Mask should always be 32 bytes");
 
         let inputs = vec![input_pms_share, input_mask];
         let out = self
             .gc_exec
-            .execute(c2, &c1_inputs)
+            .execute(circ, &inputs)
             .await?
             .decode()
             .map_err(|e| GCError::from(e))?;
 
         // todo make this less gross
-        let masked_inner_hash_state = if let mpc_circuits::Value::Bytes(v) = c1_out
-            .get(0)
-            .expect("Circuit 1 should have output 0")
-            .value()
+        let masked_inner_hash_state = if let mpc_circuits::Value::Bytes(v) =
+            out.get(0).expect("Circuit 2 should have output 0").value()
         {
             v
         } else {
-            panic!("Circuit 1 output 0 should be 32 bytes")
+            panic!("Circuit 2 output 0 should be 32 bytes")
         };
 
         let inner_hash_state = masked_inner_hash_state

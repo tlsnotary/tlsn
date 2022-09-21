@@ -1,0 +1,268 @@
+use std::sync::Arc;
+
+use mpc_aio::protocol::garble::{Execute, GCError};
+use rand::{thread_rng, Rng};
+use tls_2pc_core::{Circuit, SessionKeyShares, CIRCUIT_3};
+
+/// Executes c3 as PRFLeader
+///
+/// Returns session key shares
+pub async fn leader_c3<T: Execute + Send>(
+    exec: &mut T,
+    p1_inner_hash: [u8; 32],
+    p2_inner_hash: [u8; 32],
+) -> Result<SessionKeyShares, GCError> {
+    // todo lazy static load
+    let circ = Arc::new(Circuit::load_bytes(CIRCUIT_3).expect("Circuit 3 should deserialize"));
+
+    let input_p1_inner_hash = circ
+        .input(5)
+        .expect("Circuit 3 should have input 5")
+        .to_value(p1_inner_hash.to_vec())
+        .expect("p1_inner_hash should always be 32 bytes");
+
+    let input_p2_inner_hash = circ
+        .input(6)
+        .expect("Circuit 3 should have input 6")
+        .to_value(p2_inner_hash.to_vec())
+        .expect("p2_inner_hash should always be 32 bytes");
+
+    let swk_mask: Vec<u8> = thread_rng().gen::<[u8; 16]>().to_vec();
+    let input_swk_mask = circ
+        .input(7)
+        .expect("Circuit 3 should have input 7")
+        .to_value(swk_mask.clone())
+        .expect("SWK mask should always be 16 bytes");
+
+    let cwk_mask: Vec<u8> = thread_rng().gen::<[u8; 16]>().to_vec();
+    let input_cwk_mask = circ
+        .input(8)
+        .expect("Circuit 3 should have input 8")
+        .to_value(cwk_mask.clone())
+        .expect("CWK mask should always be 16 bytes");
+
+    let siv_mask: Vec<u8> = thread_rng().gen::<[u8; 4]>().to_vec();
+    let input_siv_mask = circ
+        .input(9)
+        .expect("Circuit 3 should have input 9")
+        .to_value(siv_mask.clone())
+        .expect("SIV mask should always be 4 bytes");
+
+    let civ_mask: Vec<u8> = thread_rng().gen::<[u8; 4]>().to_vec();
+    let input_civ_mask = circ
+        .input(10)
+        .expect("Circuit 3 should have input 10")
+        .to_value(civ_mask.clone())
+        .expect("CIV mask should always be 4 bytes");
+
+    let inputs = vec![
+        input_p1_inner_hash,
+        input_p2_inner_hash,
+        input_swk_mask,
+        input_cwk_mask,
+        input_siv_mask,
+        input_civ_mask,
+    ];
+
+    let out = exec
+        .execute(circ, &inputs)
+        .await?
+        .decode()
+        .map_err(|e| GCError::from(e))?;
+
+    // todo make this less gross
+    let masked_swk = if let mpc_circuits::Value::Bytes(v) =
+        out.get(0).expect("Circuit 3 should have output 0").value()
+    {
+        v
+    } else {
+        panic!("Circuit 3 output 0 should be 16 bytes")
+    };
+
+    let masked_cwk = if let mpc_circuits::Value::Bytes(v) =
+        out.get(1).expect("Circuit 3 should have output 1").value()
+    {
+        v
+    } else {
+        panic!("Circuit 3 output 1 should be 16 bytes")
+    };
+
+    let masked_siv = if let mpc_circuits::Value::Bytes(v) =
+        out.get(2).expect("Circuit 3 should have output 2").value()
+    {
+        v
+    } else {
+        panic!("Circuit 3 output 2 should be 4 bytes")
+    };
+
+    let masked_civ = if let mpc_circuits::Value::Bytes(v) =
+        out.get(3).expect("Circuit 3 should have output 2").value()
+    {
+        v
+    } else {
+        panic!("Circuit 3 output 3 should be 4 bytes")
+    };
+
+    let swk = masked_swk
+        .iter()
+        .zip(swk_mask.iter())
+        .map(|(v, m)| v ^ m)
+        .rev()
+        .collect::<Vec<u8>>();
+    let cwk = masked_cwk
+        .iter()
+        .zip(cwk_mask.iter())
+        .map(|(v, m)| v ^ m)
+        .rev()
+        .collect::<Vec<u8>>();
+    let siv = masked_siv
+        .iter()
+        .zip(siv_mask.iter())
+        .map(|(v, m)| v ^ m)
+        .rev()
+        .collect::<Vec<u8>>();
+    let civ = masked_civ
+        .iter()
+        .zip(civ_mask.iter())
+        .map(|(v, m)| v ^ m)
+        .rev()
+        .collect::<Vec<u8>>();
+
+    let swk: [u8; 16] = swk.try_into().expect("swk should be 16 bytes");
+    let cwk: [u8; 16] = cwk.try_into().expect("cwk should be 16 bytes");
+    let siv: [u8; 4] = siv.try_into().expect("siv should be 4 bytes");
+    let civ: [u8; 4] = civ.try_into().expect("civ should be 4 bytes");
+
+    Ok(SessionKeyShares::new(swk, cwk, siv, civ))
+}
+
+/// Executes c3 as PRFFollower
+///
+/// Returns outer_hash_state
+pub async fn follower_c3<T: Execute + Send>(
+    exec: &mut T,
+    outer_hash_state: [u32; 8],
+) -> Result<SessionKeyShares, GCError> {
+    // todo lazy static load
+    let circ = Arc::new(Circuit::load_bytes(CIRCUIT_3).expect("Circuit 3 should deserialize"));
+
+    let input_outer_hash_state = circ
+        .input(0)
+        .expect("Circuit 3 should have input 0")
+        .to_value(
+            outer_hash_state
+                .into_iter()
+                .rev()
+                .map(|v| v.to_le_bytes())
+                .flatten()
+                .collect::<Vec<u8>>(),
+        )
+        .expect("outer_hash_state should always be 32 bytes");
+
+    let swk_mask: Vec<u8> = thread_rng().gen::<[u8; 16]>().to_vec();
+    let input_swk_mask = circ
+        .input(1)
+        .expect("Circuit 3 should have input 1")
+        .to_value(swk_mask.clone())
+        .expect("SWK mask should always be 16 bytes");
+
+    let cwk_mask: Vec<u8> = thread_rng().gen::<[u8; 16]>().to_vec();
+    let input_cwk_mask = circ
+        .input(2)
+        .expect("Circuit 3 should have input 2")
+        .to_value(cwk_mask.clone())
+        .expect("CWK mask should always be 16 bytes");
+
+    let siv_mask: Vec<u8> = thread_rng().gen::<[u8; 4]>().to_vec();
+    let input_siv_mask = circ
+        .input(3)
+        .expect("Circuit 3 should have input 3")
+        .to_value(siv_mask.clone())
+        .expect("SIV mask should always be 4 bytes");
+
+    let civ_mask: Vec<u8> = thread_rng().gen::<[u8; 4]>().to_vec();
+    let input_civ_mask = circ
+        .input(4)
+        .expect("Circuit 3 should have input 4")
+        .to_value(civ_mask.clone())
+        .expect("CIV mask should always be 4 bytes");
+
+    let inputs = vec![
+        input_outer_hash_state,
+        input_swk_mask,
+        input_cwk_mask,
+        input_siv_mask,
+        input_civ_mask,
+    ];
+
+    let out = exec
+        .execute(circ, &inputs)
+        .await?
+        .decode()
+        .map_err(|e| GCError::from(e))?;
+
+    // todo make this less gross
+    let masked_swk = if let mpc_circuits::Value::Bytes(v) =
+        out.get(0).expect("Circuit 3 should have output 0").value()
+    {
+        v
+    } else {
+        panic!("Circuit 3 output 0 should be 16 bytes")
+    };
+
+    let masked_cwk = if let mpc_circuits::Value::Bytes(v) =
+        out.get(1).expect("Circuit 3 should have output 1").value()
+    {
+        v
+    } else {
+        panic!("Circuit 3 output 1 should be 16 bytes")
+    };
+
+    let masked_siv = if let mpc_circuits::Value::Bytes(v) =
+        out.get(2).expect("Circuit 3 should have output 2").value()
+    {
+        v
+    } else {
+        panic!("Circuit 3 output 2 should be 4 bytes")
+    };
+
+    let masked_civ = if let mpc_circuits::Value::Bytes(v) =
+        out.get(3).expect("Circuit 3 should have output 2").value()
+    {
+        v
+    } else {
+        panic!("Circuit 3 output 3 should be 4 bytes")
+    };
+
+    let swk = masked_swk
+        .iter()
+        .zip(swk_mask.iter())
+        .map(|(v, m)| v ^ m)
+        .rev()
+        .collect::<Vec<u8>>();
+    let cwk = masked_cwk
+        .iter()
+        .zip(cwk_mask.iter())
+        .map(|(v, m)| v ^ m)
+        .rev()
+        .collect::<Vec<u8>>();
+    let siv = masked_siv
+        .iter()
+        .zip(siv_mask.iter())
+        .map(|(v, m)| v ^ m)
+        .rev()
+        .collect::<Vec<u8>>();
+    let civ = masked_civ
+        .iter()
+        .zip(civ_mask.iter())
+        .map(|(v, m)| v ^ m)
+        .rev()
+        .collect::<Vec<u8>>();
+
+    let swk: [u8; 16] = swk.try_into().expect("swk should be 16 bytes");
+    let cwk: [u8; 16] = cwk.try_into().expect("cwk should be 16 bytes");
+    let siv: [u8; 4] = siv.try_into().expect("siv should be 4 bytes");
+    let civ: [u8; 4] = civ.try_into().expect("civ should be 4 bytes");
+
+    Ok(SessionKeyShares::new(swk, cwk, siv, civ))
+}
