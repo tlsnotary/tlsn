@@ -225,6 +225,30 @@ where
     }
 }
 
+#[cfg(feature = "mock")]
+mod mock {
+    use super::*;
+    use crate::protocol::ot::mock::mock_ot_pair;
+    use utils_aio::duplex::DuplexChannel;
+
+    pub fn mock_dualex_pair() -> (impl ExecuteWithLabels, impl ExecuteWithLabels) {
+        let (leader_channel, follower_channel) = DuplexChannel::<GarbleMessage>::new();
+        let (leader_sender, follower_receiver) = mock_ot_pair();
+        let (follower_sender, leader_receiver) = mock_ot_pair();
+
+        let leader = DualExLeader::new(Box::new(leader_channel), leader_sender, leader_receiver);
+        let follower = DualExFollower::new(
+            Box::new(follower_channel),
+            follower_sender,
+            follower_receiver,
+        );
+        (leader, follower)
+    }
+}
+
+#[cfg(feature = "mock")]
+pub use mock::mock_dualex_pair;
+
 #[cfg(test)]
 mod tests {
     use super::*;
