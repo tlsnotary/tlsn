@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use crate::{
     msgs::ot::{
         BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper, ExtDerandomize,
-        ExtReceiverSetup, ExtSenderPayload,
+        ExtReceiverSetup, ExtSenderCommit, ExtSenderDecommit, ExtSenderPayload,
     },
     ot::DhOtReceiver as BaseReceiver,
     utils::{sha256, xor},
@@ -55,6 +55,10 @@ impl Kos15Sender {
         Self::new_with_rng(rng)
     }
 
+    pub fn commit_to_seed(&self) -> ExtSenderCommit {
+        ExtSenderCommit(sha256(&self.0.rng.get_seed()))
+    }
+
     pub fn base_setup(
         mut self,
         setup_msg: BaseSenderSetupWrapper,
@@ -75,10 +79,6 @@ impl Kos15Sender {
             cointoss_share: self.0.cointoss_share,
         });
         Ok((kos_15_sender, message))
-    }
-
-    pub fn get_seed(&self) -> [u8; 32] {
-        self.0.rng.get_seed()
     }
 }
 
@@ -161,6 +161,16 @@ impl Kos15Sender<state::BaseReceive> {
 
 impl Kos15Sender<state::Setup> {
     pub fn send(&mut self, inputs: &[[Block; 2]]) -> Result<ExtSenderPayload, ExtSenderCoreError> {
+        if *self
+            .0
+            .shutdown
+            .lock()
+            .map_err(|_| ExtSenderCoreError::Poison)?
+            == true
+        {
+            return Err(ExtSenderCoreError::Shutdown);
+        }
+
         let result = send_from(
             &mut self.0.count,
             &mut self.0.sent,
@@ -206,6 +216,19 @@ impl Kos15Sender<state::Setup> {
     pub fn is_complete(&self) -> bool {
         self.0.sent == self.0.count
     }
+
+    pub fn decommit(self) -> Result<ExtSenderDecommit, ExtSenderCoreError> {
+        *self
+            .0
+            .shutdown
+            .lock()
+            .map_err(|_| ExtSenderCoreError::Poison)? = true;
+
+        Ok(ExtSenderDecommit {
+            seed: self.0.rng.get_seed(),
+            tape: self.0.tape,
+        })
+    }
 }
 
 impl Kos15Sender<state::RandSetup> {
@@ -214,6 +237,16 @@ impl Kos15Sender<state::RandSetup> {
         inputs: &[[Block; 2]],
         derandomize: ExtDerandomize,
     ) -> Result<ExtSenderPayload, ExtSenderCoreError> {
+        if *self
+            .0
+            .shutdown
+            .lock()
+            .map_err(|_| ExtSenderCoreError::Poison)?
+            == true
+        {
+            return Err(ExtSenderCoreError::Shutdown);
+        }
+
         let result = send_from(
             &mut self.0.count,
             &mut self.0.sent,
@@ -258,6 +291,19 @@ impl Kos15Sender<state::RandSetup> {
 
     pub fn is_complete(&self) -> bool {
         self.0.sent == self.0.count
+    }
+
+    pub fn decommit(self) -> Result<ExtSenderDecommit, ExtSenderCoreError> {
+        *self
+            .0
+            .shutdown
+            .lock()
+            .map_err(|_| ExtSenderCoreError::Poison)? = true;
+
+        Ok(ExtSenderDecommit {
+            seed: self.0.rng.get_seed(),
+            tape: self.0.tape,
+        })
     }
 }
 
