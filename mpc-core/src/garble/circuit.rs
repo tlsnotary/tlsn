@@ -126,10 +126,38 @@ impl GarbledCircuit<Full> {
             })
             .collect();
 
+        let constant_labels = self
+            .circ
+            .inputs()
+            .iter()
+            .filter_map(|input| {
+                if input.value_type().is_constant() {
+                    let value = match input.value_type() {
+                        mpc_circuits::ValueType::ConstZero => false,
+                        mpc_circuits::ValueType::ConstOne => true,
+                        _ => panic!("value type should be constant"),
+                    };
+                    Some(
+                        InputLabels::new(
+                            input.clone(),
+                            &WireLabelPair::choose(
+                                &self.data.labels,
+                                input.as_ref().wires(),
+                                &[value],
+                            ),
+                        )
+                        .expect("Circuit invariant violated, wrong wire count"),
+                    )
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<InputLabels<WireLabel>>>();
+
         GarbledCircuit {
             circ: self.circ.clone(),
             data: Partial {
-                input_labels,
+                input_labels: [input_labels, constant_labels].concat(),
                 encrypted_gates: self.data.encrypted_gates.clone(),
                 encoding: encoding.then(|| self.encoding()),
             },
