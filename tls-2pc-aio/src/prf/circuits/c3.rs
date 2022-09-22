@@ -1,8 +1,6 @@
-use std::sync::Arc;
-
 use mpc_aio::protocol::garble::{Execute, GCError};
 use rand::{thread_rng, Rng};
-use tls_2pc_core::{Circuit, SessionKeyShares, CIRCUIT_3};
+use tls_2pc_core::{SessionKeyShares, CIRCUIT_3};
 
 /// Executes c3 as PRFLeader
 ///
@@ -12,8 +10,7 @@ pub async fn leader_c3<T: Execute + Send>(
     p1_inner_hash: [u8; 32],
     p2_inner_hash: [u8; 32],
 ) -> Result<SessionKeyShares, GCError> {
-    // todo lazy static load
-    let circ = Arc::new(Circuit::load_bytes(CIRCUIT_3).expect("Circuit 3 should deserialize"));
+    let circ = CIRCUIT_3.clone();
 
     let input_p1_inner_hash = circ
         .input(5)
@@ -143,8 +140,7 @@ pub async fn follower_c3<T: Execute + Send>(
     exec: &mut T,
     outer_hash_state: [u32; 8],
 ) -> Result<SessionKeyShares, GCError> {
-    // todo lazy static load
-    let circ = Arc::new(Circuit::load_bytes(CIRCUIT_3).expect("Circuit 3 should deserialize"));
+    let circ = CIRCUIT_3.clone();
 
     let input_outer_hash_state = circ
         .input(0)

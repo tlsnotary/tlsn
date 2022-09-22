@@ -10,7 +10,8 @@ use mpc_core::utils::{boolvec_to_u8vec, u8vec_to_boolvec, xor};
 use num::{bigint::RandBigInt, BigUint, Zero};
 use rand::{thread_rng, Rng};
 use tls_2pc_core::{
-    handshake::sha, CIRCUIT_1, CIRCUIT_2, CIRCUIT_3, CIRCUIT_4, CIRCUIT_5, CIRCUIT_6, CIRCUIT_7,
+    handshake::sha, CIRCUIT_1_BYTES, CIRCUIT_2_BYTES, CIRCUIT_3_BYTES, CIRCUIT_4_BYTES,
+    CIRCUIT_5_BYTES, CIRCUIT_6_BYTES, CIRCUIT_7_BYTES,
 };
 
 /// NIST P-256 Prime
@@ -118,7 +119,7 @@ fn circuit1(circ: &Circuit, u_share: BigUint, n_share: BigUint) {
 // and MUST NOT be reduced.
 fn circuit1_no_overflow() {
     let mut rng = thread_rng();
-    let circ = Circuit::load_bytes(CIRCUIT_1).unwrap();
+    let circ = Circuit::load_bytes(CIRCUIT_1_BYTES).unwrap();
 
     let prime = <[u8; 32]>::from_hex(P).unwrap();
     let prime = BigUint::from_bytes_be(&prime);
@@ -139,7 +140,7 @@ fn circuit1_no_overflow() {
 // and MUST be reduced.
 fn circuit1_with_overflow() {
     let mut rng = thread_rng();
-    let circ = Circuit::load_bytes(CIRCUIT_1).unwrap();
+    let circ = Circuit::load_bytes(CIRCUIT_1_BYTES).unwrap();
 
     let prime = <[u8; 32]>::from_hex(P).unwrap();
     let prime = BigUint::from_bytes_be(&prime);
@@ -216,7 +217,7 @@ fn circuit2() {
 
     // Evaluate the circuit.
     let outputs = evaluate_circuit(
-        &Circuit::load_bytes(CIRCUIT_2).unwrap(),
+        &Circuit::load_bytes(CIRCUIT_2_BYTES).unwrap(),
         vec![
             n_outer_hash_state.to_vec(),
             n_output_mask.to_vec(),
@@ -292,7 +293,7 @@ fn circuit3() {
 
     // Evaluate the circuit.
     let outputs = evaluate_circuit(
-        &Circuit::load_bytes(CIRCUIT_3).unwrap(),
+        &Circuit::load_bytes(CIRCUIT_3_BYTES).unwrap(),
         vec![
             n_outer_hash_state.to_vec(),
             n_output_mask1.to_vec(),
@@ -398,7 +399,7 @@ fn circuit4() {
 
     // Evaluate the circuit.
     let outputs = evaluate_circuit(
-        &Circuit::load_bytes(CIRCUIT_4).unwrap(),
+        &Circuit::load_bytes(CIRCUIT_4_BYTES).unwrap(),
         vec![
             n_swk.to_vec(),
             n_cwk.to_vec(),
@@ -514,7 +515,7 @@ fn circuit5() {
 
     // Evaluate the circuit.
     let outputs = evaluate_circuit(
-        &Circuit::load_bytes(CIRCUIT_5).unwrap(),
+        &Circuit::load_bytes(CIRCUIT_5_BYTES).unwrap(),
         vec![
             n_outer_hash_state_p1.to_vec(),
             n_swk.to_vec(),
@@ -584,7 +585,7 @@ fn circuit6() {
 
     // Evaluate the circuit.
     let outputs = evaluate_circuit(
-        &Circuit::load_bytes(CIRCUIT_6).unwrap(),
+        &Circuit::load_bytes(CIRCUIT_6_BYTES).unwrap(),
         vec![
             n_cwk.to_vec(),
             n_civ.to_vec(),
@@ -648,7 +649,7 @@ fn circuit7() {
 
     // Evaluate the circuit.
     let outputs = evaluate_circuit(
-        &Circuit::load_bytes(CIRCUIT_7).unwrap(),
+        &Circuit::load_bytes(CIRCUIT_7_BYTES).unwrap(),
         vec![
             n_cwk.to_vec(),
             n_civ.to_vec(),

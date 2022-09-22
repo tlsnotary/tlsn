@@ -22,3 +22,4 @@ rand = "0.8.5"
 [dev-dependencies]
 tokio = "1.21.1"
 tlsn-mpc-aio = { path = "../mpc-aio", features = ["mock"] }
+criterion = "0.4.0"

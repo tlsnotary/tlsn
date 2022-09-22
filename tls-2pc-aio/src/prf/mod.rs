@@ -63,7 +63,7 @@ mod tests {
         (leader_share, follower_share)
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_prf() {
         let (leader_channel, follower_channel) = DuplexChannel::<PRFMessage>::new();
         let (gc_leader, gc_follower) = mock_dualex_pair();
@@ -86,5 +86,7 @@ mod tests {
 
         let leader_keys = task_leader.unwrap().unwrap();
         let follower_keys = task_follower.unwrap().unwrap();
+
+        println!("{:?}", leader_keys.swk());
     }
 }

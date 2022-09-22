@@ -1,11 +1,9 @@
-use std::sync::Arc;
-
 use mpc_aio::protocol::{
     garble::{Execute, GCError},
     point_addition::P256SecretShare,
 };
 use rand::{thread_rng, Rng};
-use tls_2pc_core::{Circuit, CIRCUIT_1};
+use tls_2pc_core::CIRCUIT_1;
 
 /// Executes c1 as PRFLeader
 ///
@@ -14,7 +12,7 @@ pub async fn leader_c1<T: Execute + Send>(
     exec: &mut T,
     secret_share: P256SecretShare,
 ) -> Result<[u32; 8], GCError> {
-    let circ = Arc::new(Circuit::load_bytes(CIRCUIT_1).expect("Circuit 1 should deserialize"));
+    let circ = CIRCUIT_1.clone();
 
     let input_pms_share = circ
         .input(0)
@@ -69,7 +67,7 @@ pub async fn follower_c1<T: Execute + Send>(
     exec: &mut T,
     secret_share: P256SecretShare,
 ) -> Result<[u32; 8], GCError> {
-    let circ = Arc::new(Circuit::load_bytes(CIRCUIT_1).expect("Circuit 1 should deserialize"));
+    let circ = CIRCUIT_1.clone();
 
     let input_pms_share = circ
         .input(1)

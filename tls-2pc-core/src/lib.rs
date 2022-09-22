@@ -6,20 +6,45 @@ pub mod prf;
 
 pub use mpc_circuits::{Circuit, CircuitError};
 
+use once_cell::sync::Lazy;
+use std::sync::Arc;
+
 #[cfg(feature = "c1")]
-pub static CIRCUIT_1: &'static [u8] = std::include_bytes!("../circuits/bin/c1.bin");
+pub static CIRCUIT_1_BYTES: &'static [u8] = std::include_bytes!("../circuits/bin/c1.bin");
 #[cfg(feature = "c2")]
-pub static CIRCUIT_2: &'static [u8] = std::include_bytes!("../circuits/bin/c2.bin");
+pub static CIRCUIT_2_BYTES: &'static [u8] = std::include_bytes!("../circuits/bin/c2.bin");
 #[cfg(feature = "c3")]
-pub static CIRCUIT_3: &'static [u8] = std::include_bytes!("../circuits/bin/c3.bin");
+pub static CIRCUIT_3_BYTES: &'static [u8] = std::include_bytes!("../circuits/bin/c3.bin");
 #[cfg(feature = "c4")]
-pub static CIRCUIT_4: &'static [u8] = std::include_bytes!("../circuits/bin/c4.bin");
+pub static CIRCUIT_4_BYTES: &'static [u8] = std::include_bytes!("../circuits/bin/c4.bin");
 #[cfg(feature = "c5")]
-pub static CIRCUIT_5: &'static [u8] = std::include_bytes!("../circuits/bin/c5.bin");
+pub static CIRCUIT_5_BYTES: &'static [u8] = std::include_bytes!("../circuits/bin/c5.bin");
 #[cfg(feature = "c6")]
-pub static CIRCUIT_6: &'static [u8] = std::include_bytes!("../circuits/bin/c6.bin");
+pub static CIRCUIT_6_BYTES: &'static [u8] = std::include_bytes!("../circuits/bin/c6.bin");
 #[cfg(feature = "c7")]
-pub static CIRCUIT_7: &'static [u8] = std::include_bytes!("../circuits/bin/c7.bin");
+pub static CIRCUIT_7_BYTES: &'static [u8] = std::include_bytes!("../circuits/bin/c7.bin");
+
+#[cfg(feature = "c1")]
+pub static CIRCUIT_1: Lazy<Arc<Circuit>> =
+    Lazy::new(|| Arc::new(Circuit::load_bytes(CIRCUIT_1_BYTES).unwrap()));
+#[cfg(feature = "c2")]
+pub static CIRCUIT_2: Lazy<Arc<Circuit>> =
+    Lazy::new(|| Arc::new(Circuit::load_bytes(CIRCUIT_2_BYTES).unwrap()));
+#[cfg(feature = "c3")]
+pub static CIRCUIT_3: Lazy<Arc<Circuit>> =
+    Lazy::new(|| Arc::new(Circuit::load_bytes(CIRCUIT_3_BYTES).unwrap()));
+#[cfg(feature = "c4")]
+pub static CIRCUIT_4: Lazy<Arc<Circuit>> =
+    Lazy::new(|| Arc::new(Circuit::load_bytes(CIRCUIT_4_BYTES).unwrap()));
+#[cfg(feature = "c5")]
+pub static CIRCUIT_5: Lazy<Arc<Circuit>> =
+    Lazy::new(|| Arc::new(Circuit::load_bytes(CIRCUIT_5_BYTES).unwrap()));
+#[cfg(feature = "c6")]
+pub static CIRCUIT_6: Lazy<Arc<Circuit>> =
+    Lazy::new(|| Arc::new(Circuit::load_bytes(CIRCUIT_6_BYTES).unwrap()));
+#[cfg(feature = "c7")]
+pub static CIRCUIT_7: Lazy<Arc<Circuit>> =
+    Lazy::new(|| Arc::new(Circuit::load_bytes(CIRCUIT_7_BYTES).unwrap()));
 
 pub struct SessionKeyShares {
     swk: [u8; 16],
