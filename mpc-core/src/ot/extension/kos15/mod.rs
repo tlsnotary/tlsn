@@ -189,7 +189,7 @@ pub mod tests {
         let derandomize = receiver.derandomize(&choices).unwrap();
 
         let payload = sender.rand_send(&inputs, derandomize).unwrap();
-        let receive = receiver.rand_receive(payload).unwrap();
+        let receive = receiver.receive(payload).unwrap();
 
         let expected: Vec<Block> = inputs
             .iter()
@@ -220,7 +220,7 @@ pub mod tests {
             assert!(!receiver.is_complete());
             let derandomize = receiver.derandomize(&choice).unwrap();
             let payload = sender.rand_send(&input, derandomize).unwrap();
-            received.append(&mut receiver.rand_receive(payload).unwrap());
+            received.append(&mut receiver.receive(payload).unwrap());
         }
         assert!(sender.is_complete());
         assert!(receiver.is_complete());
@@ -239,7 +239,7 @@ pub mod tests {
             ciphertexts: vec![[Block::random(&mut rng); 2]],
         };
         let receiver = receiver
-            .rand_receive(add_ciphers)
+            .receive(add_ciphers)
             .expect_err("Sending more OTs should be state error");
         assert_eq!(receiver, ExtReceiverCoreError::NotDerandomized);
 

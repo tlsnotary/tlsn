@@ -178,7 +178,9 @@ impl Kos15Receiver<state::RandSetup> {
         Ok(ExtDerandomize { flip })
     }
 
-    pub fn rand_receive(
+    /// (After derandomization we are in the Standard OT mode) Receives
+    /// encrypted OT messages.
+    pub fn receive(
         &mut self,
         payload: ExtSenderPayload,
     ) -> Result<Vec<Block>, ExtReceiverCoreError> {
