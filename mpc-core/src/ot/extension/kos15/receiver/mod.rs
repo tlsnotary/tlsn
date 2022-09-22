@@ -23,13 +23,7 @@ where
 
 impl Default for Kos15Receiver {
     fn default() -> Self {
-        let rng = ChaCha12Rng::from_entropy();
-        Self::new_with_rng(rng)
-    }
-}
-
-impl Kos15Receiver {
-    pub fn new_with_rng(mut rng: ChaCha12Rng) -> Self {
+        let mut rng = ChaCha12Rng::from_entropy();
         let cointoss_share = rng.gen();
         Self(state::Initialized {
             base_sender: BaseSender::default(),
@@ -37,12 +31,9 @@ impl Kos15Receiver {
             cointoss_share,
         })
     }
+}
 
-    pub fn new_from_seed(seed: [u8; 32]) -> Self {
-        let rng = ChaCha12Rng::from_seed(seed);
-        Self::new_with_rng(rng)
-    }
-
+impl Kos15Receiver {
     pub fn base_setup(
         mut self,
     ) -> Result<(Kos15Receiver<state::BaseSetup>, BaseSenderSetupWrapper), ExtReceiverCoreError>
@@ -58,10 +49,6 @@ impl Kos15Receiver {
             cointoss_commit: sha256(&self.0.cointoss_share),
         };
         Ok((kos_receiver, message))
-    }
-
-    pub fn get_seed(&self) -> [u8; 32] {
-        self.0.rng.get_seed()
     }
 }
 
