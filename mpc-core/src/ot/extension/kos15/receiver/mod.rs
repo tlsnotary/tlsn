@@ -149,6 +149,16 @@ impl Kos15Receiver<state::Setup> {
 }
 
 impl Kos15Receiver<state::RandSetup> {
+    /// At this point, the Receiver has a bunch of random bits. Each bit `r` has
+    /// a corresponding symmetric key, i.e. if `r` == 0 then the key is `K_0`, but
+    /// if `r` == 1 then the key is `K_1`.
+    /// The Sender has both symmetric keys `K_0` and `K_1`, but he does not know
+    /// `r`. He has two labels, only one of which the Receiver must learn.
+    /// If the Receiver's choice bit matches `r`, then he signals "0", meaning
+    /// "use `K_0` to encrypt label_0 and use `K_1` to encrypt label_1", otherwise
+    /// he signals "1", meaning "use `K_1` to encrypt label_0 and `K_0` to encrypt
+    /// label_1".
+    /// By so signalling, the Receiver is "derandomizing" the Oblivious Transfer.
     pub fn derandomize(
         &mut self,
         derand_choices: &[bool],
