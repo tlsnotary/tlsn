@@ -74,7 +74,7 @@ impl ObliviousReceive for Kos15IOReceiver<r_state::RandSetup> {
             OTMessage::ExtSenderPayload,
             OTError::Unexpected
         )?;
-        let out = self.inner.rand_receive(message)?;
+        let out = self.inner.receive(message)?;
         Ok(out)
     }
 }
