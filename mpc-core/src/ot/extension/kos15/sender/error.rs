@@ -16,4 +16,8 @@ pub enum ExtSenderCoreError {
     ConsistencyCheckFailed,
     #[error("Matrix Error: {0}")]
     MatrixError(#[from] MatrixError),
+    #[error("OT can no longer be used because it or its parent was opened")]
+    Shutdown,
+    #[error("Unable to check if OT is active")]
+    Poison,
 }

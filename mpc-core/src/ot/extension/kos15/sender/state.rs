@@ -1,4 +1,7 @@
+use std::sync::{Arc, Mutex};
+
 use super::BaseReceiver;
+use crate::Block;
 
 // Table's rows are such that for each row j: table[j] = R[j], if Receiver's choice bit was 0
 // or table[j] = R[j] ^ base_choices, if Receiver's choice bit was 1
@@ -20,6 +23,16 @@ pub type CointossShare = [u8; 32];
 // Choice bits for the base OT protocol
 pub type BaseChoices = Vec<bool>;
 
+// Record sent values for committed OT
+pub type Tape = Vec<[Block; 2]>;
+
+// Track the offset of OTs split off from other OTs
+pub type Offset = usize;
+
+// Track if this OT can be used or if it or a parent has revealed its
+// seed for committed OT
+pub type Shutdown = Arc<Mutex<bool>>;
+
 pub struct Initialized {
     pub(crate) rng: ChaCha12Rng,
     pub(crate) base_receiver: BaseReceiver,
@@ -29,6 +42,7 @@ pub struct Initialized {
 impl SenderState for Initialized {}
 
 pub struct BaseSetup {
+    pub(crate) rng: ChaCha12Rng,
     // The Receiver's sha256 commitment to their cointoss share
     pub(crate) receiver_cointoss_commit: [u8; 32],
     pub(crate) base_receiver: BaseReceiver,
@@ -39,6 +53,7 @@ impl SenderState for BaseSetup {}
 
 #[cfg_attr(test, derive(Debug))]
 pub struct BaseReceive {
+    pub(crate) rng: ChaCha12Rng,
     // The shared random value which both parties will have at the end of the cointoss protocol
     pub(crate) cointoss_random: [u8; 32],
     pub(crate) base_choices: BaseChoices,
@@ -48,18 +63,26 @@ impl SenderState for BaseReceive {}
 
 #[cfg_attr(test, derive(Debug))]
 pub struct Setup {
+    pub(crate) rng: ChaCha12Rng,
     pub(crate) table: KosMatrix,
     pub(crate) count: Count,
     pub(crate) sent: Sent,
     pub(crate) base_choices: BaseChoices,
+    pub(crate) tape: Tape,
+    pub(crate) offset: Offset,
+    pub(crate) shutdown: Shutdown,
 }
 impl SenderState for Setup {}
 
 #[cfg_attr(test, derive(Debug))]
 pub struct RandSetup {
+    pub(crate) rng: ChaCha12Rng,
     pub(crate) table: KosMatrix,
     pub(crate) count: Count,
     pub(crate) sent: Sent,
     pub(crate) base_choices: BaseChoices,
+    pub(crate) tape: Tape,
+    pub(crate) offset: Offset,
+    pub(crate) shutdown: Shutdown,
 }
 impl SenderState for RandSetup {}

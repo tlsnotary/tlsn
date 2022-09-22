@@ -59,6 +59,10 @@ impl Kos15Receiver {
         };
         Ok((kos_receiver, message))
     }
+
+    pub fn get_seed(&self) -> [u8; 32] {
+        self.0.rng.get_seed()
+    }
 }
 
 impl Kos15Receiver<state::BaseSetup> {

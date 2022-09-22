@@ -1,6 +1,8 @@
 pub mod error;
 pub mod state;
 
+use std::sync::{Arc, Mutex};
+
 use crate::{
     msgs::ot::{
         BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper, ExtDerandomize,
@@ -66,12 +68,17 @@ impl Kos15Sender {
             cointoss_share: self.0.cointoss_share,
         };
         let kos_15_sender = Kos15Sender(state::BaseSetup {
+            rng: self.0.rng,
             receiver_cointoss_commit: setup_msg.cointoss_commit,
             base_receiver: self.0.base_receiver,
             base_choices: self.0.base_choices,
             cointoss_share: self.0.cointoss_share,
         });
         Ok((kos_15_sender, message))
+    }
+
+    pub fn get_seed(&self) -> [u8; 32] {
+        self.0.rng.get_seed()
     }
 }
 
@@ -96,6 +103,7 @@ impl Kos15Sender<state::BaseSetup> {
         );
 
         let kos_15_sender = Kos15Sender(state::BaseReceive {
+            rng: self.0.rng,
             cointoss_random,
             base_choices: self.0.base_choices,
             rngs,
@@ -117,12 +125,17 @@ impl Kos15Sender<state::BaseReceive> {
             &self.0.cointoss_random,
         )?;
         Ok(Kos15Sender(state::Setup {
+            rng: self.0.rng,
             table,
             count: ncols_unpadded,
             sent: 0,
             base_choices: self.0.base_choices,
+            tape: Vec::new(),
+            offset: 0,
+            shutdown: Arc::new(Mutex::new(false)),
         }))
     }
+
     pub fn rand_extension_setup(
         mut self,
         setup_msg: ExtReceiverSetup,
@@ -134,36 +147,59 @@ impl Kos15Sender<state::BaseReceive> {
             &self.0.cointoss_random,
         )?;
         Ok(Kos15Sender(state::RandSetup {
+            rng: self.0.rng,
             table,
             count: ncols_unpadded,
             sent: 0,
             base_choices: self.0.base_choices,
+            tape: Vec::new(),
+            offset: 0,
+            shutdown: Arc::new(Mutex::new(false)),
         }))
     }
 }
 
 impl Kos15Sender<state::Setup> {
     pub fn send(&mut self, inputs: &[[Block; 2]]) -> Result<ExtSenderPayload, ExtSenderCoreError> {
-        send_from(
+        let result = send_from(
             &mut self.0.count,
             &mut self.0.sent,
             &mut self.0.table,
             &self.0.base_choices,
             inputs,
             None,
-        )
+        );
+
+        if result.is_ok() {
+            self.0.tape.extend_from_slice(inputs);
+        }
+        result
     }
 
     pub fn split(&mut self, split_at: usize) -> Result<Self, ExtSenderCoreError> {
+        if *self
+            .0
+            .shutdown
+            .lock()
+            .map_err(|_| ExtSenderCoreError::Poison)?
+            == true
+        {
+            return Err(ExtSenderCoreError::Shutdown);
+        }
+
         let split_table = self.0.table.split_off_rows(split_at)?;
         let rows = split_table.rows();
         self.0.count -= rows;
 
         Ok(Kos15Sender(state::Setup {
+            rng: self.0.rng.clone(),
             table: split_table,
             count: rows,
             sent: 0,
             base_choices: self.0.base_choices.clone(),
+            tape: Vec::new(),
+            offset: self.0.offset + split_at,
+            shutdown: Arc::clone(&self.0.shutdown),
         }))
     }
 
@@ -178,26 +214,45 @@ impl Kos15Sender<state::RandSetup> {
         inputs: &[[Block; 2]],
         derandomize: ExtDerandomize,
     ) -> Result<ExtSenderPayload, ExtSenderCoreError> {
-        send_from(
+        let result = send_from(
             &mut self.0.count,
             &mut self.0.sent,
             &mut self.0.table,
             &self.0.base_choices,
             inputs,
             Some(derandomize),
-        )
+        );
+
+        if result.is_ok() {
+            self.0.tape.extend_from_slice(inputs);
+        }
+        result
     }
 
     pub fn split(&mut self, split_at: usize) -> Result<Self, ExtSenderCoreError> {
+        if *self
+            .0
+            .shutdown
+            .lock()
+            .map_err(|_| ExtSenderCoreError::Poison)?
+            == true
+        {
+            return Err(ExtSenderCoreError::Shutdown);
+        }
+
         let split_table = self.0.table.split_off_rows(split_at)?;
         let rows = split_table.rows();
         self.0.count -= rows;
 
         Ok(Kos15Sender(state::RandSetup {
+            rng: self.0.rng.clone(),
             table: split_table,
             count: rows,
             sent: 0,
             base_choices: self.0.base_choices.clone(),
+            tape: Vec::new(),
+            offset: self.0.offset + split_at,
+            shutdown: Arc::clone(&self.0.shutdown),
         }))
     }
 
