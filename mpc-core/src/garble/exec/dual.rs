@@ -335,7 +335,7 @@ impl DualExLeader<Check> {
     /// Check [`DualExFollower`] output matches expected
     pub fn check(self, check: OutputCheck) -> Result<DualExLeader<Reveal>, Error> {
         // If this fails then the peer was cheating and your private inputs were potentially leaked
-        // with a probability of 1/2^n per bit, and you should call the police immediately
+        // with a probability of 1/2 per bit, and you should call the police immediately
         if check != self.state.check {
             return Err(Error::PeerError(
                 "Peer sent invalid output check".to_string(),
