@@ -11,33 +11,32 @@ use mpc_circuits::{
 ///
 /// Inputs:
 ///
-///   0. O_STATE: 32-byte outer-hash state
-///   1. N_SWK_MASK: 16-byte mask for server write-key
-///   2. N_CWK_MASK: 16-byte mask for client write-key
-///   3. N_SIV_MASK: 4-byte mask for server IV
-///   4. N_CIV_MASK: 4-byte mask for client IV
+///   0. OUTER_HASH_STATE: 32-byte outer-hash state
+///   1. N_CWK_MASK: 16-byte mask for client write-key
+///   2. N_SWK_MASK: 16-byte mask for server write-key
+///   3. N_CIV_MASK: 4-byte mask for client IV
+///   4. N_SIV_MASK: 4-byte mask for server IV
 ///   5. P1_INNER: 32-byte inner hash for p1_expanded_keys
 ///   6. P2_INNER: 32-byte inner hash for p2_expanded_keys
-///   7. U_SWK_MASK: 16-byte mask for server write-key
-///   8. U_CWK_MASK: 16-byte mask for client write-key
-///   9. U_SIV_MASK: 4-byte mask for server IV
-///   10. U_CIV_MASK: 4-byte mask for client IV
+///   7. U_CWK_MASK: 16-byte mask for client write-key
+///   8. U_SWK_MASK: 16-byte mask for server write-key
+///   9. U_CIV_MASK: 4-byte mask for client IV
+///   10. U_SIV_MASK: 4-byte mask for server IV
 ///
 /// Outputs:
 ///
-///   0. MASKED_SWK: 16-byte masked (N_SWK_MASK + U_SWK_MASK) server write-key
-///   1. MASKED_CWK: 16-byte masked (N_CWK_MASK + U_CWK_MASK) client write-key
-///   2. MASKED_SIV: 16-byte masked (N_SIV_MASK + U_SIV_MASK) server IV
-///   3. MASKED_CIV: 16-byte masked (N_CIV_MASK + U_CIV_MASK) client IV
+///   0. MASKED_CWK: 16-byte masked (N_CWK_MASK + U_CWK_MASK) client write-key
+///   1. MASKED_SWK: 16-byte masked (N_SWK_MASK + U_SWK_MASK) server write-key
+///   2. MASKED_CIV: 4-byte masked (N_CIV_MASK + U_CIV_MASK) client IV
+///   3. MASKED_SIV: 4-byte masked (N_SIV_MASK + U_SIV_MASK) server IV
 pub fn c3() -> Circuit {
     let mut builder = CircuitBuilder::new("c3", "0.1.0");
 
-    let outer_state = builder.add_input("O_STATE", "32-byte hash state", ValueType::Bytes, 256);
-    let n_swk_mask = builder.add_input(
-        "N_SWK_MASK",
-        "16-byte mask for server write-key",
+    let outer_state = builder.add_input(
+        "OUTER_HASH_STATE",
+        "32-byte hash state",
         ValueType::Bytes,
-        128,
+        256,
     );
     let n_cwk_mask = builder.add_input(
         "N_CWK_MASK",
@@ -45,15 +44,21 @@ pub fn c3() -> Circuit {
         ValueType::Bytes,
         128,
     );
-    let n_siv_mask = builder.add_input(
-        "N_SIV_MASK",
-        "4-byte mask for server IV",
+    let n_swk_mask = builder.add_input(
+        "N_SWK_MASK",
+        "16-byte mask for server write-key",
         ValueType::Bytes,
-        32,
+        128,
     );
     let n_civ_mask = builder.add_input(
         "N_CIV_MASK",
         "4-byte mask for client IV",
+        ValueType::Bytes,
+        32,
+    );
+    let n_siv_mask = builder.add_input(
+        "N_SIV_MASK",
+        "4-byte mask for server IV",
         ValueType::Bytes,
         32,
     );
@@ -69,27 +74,27 @@ pub fn c3() -> Circuit {
         ValueType::Bytes,
         256,
     );
-    let u_swk_mask = builder.add_input(
-        "U_SWK_MASK",
-        "16-byte mask for server write-key",
-        ValueType::Bytes,
-        128,
-    );
     let u_cwk_mask = builder.add_input(
         "U_CWK_MASK",
         "16-byte mask for client write-key",
         ValueType::Bytes,
         128,
     );
-    let u_siv_mask = builder.add_input(
-        "U_SIV_MASK",
-        "4-byte mask for server IV",
+    let u_swk_mask = builder.add_input(
+        "U_SWK_MASK",
+        "16-byte mask for server write-key",
         ValueType::Bytes,
-        32,
+        128,
     );
     let u_civ_mask = builder.add_input(
         "U_CIV_MASK",
         "4-byte mask for client IV",
+        ValueType::Bytes,
+        32,
+    );
+    let u_siv_mask = builder.add_input(
+        "U_SIV_MASK",
+        "4-byte mask for server IV",
         ValueType::Bytes,
         32,
     );
@@ -112,14 +117,14 @@ pub fn c3() -> Circuit {
 
     let sha256_p1 = builder.add_circ(sha256.clone());
     let sha256_p2 = builder.add_circ(sha256);
-    let mask_swk = builder.add_circ(nbit_xor(128));
     let mask_cwk = builder.add_circ(nbit_xor(128));
-    let mask_siv = builder.add_circ(nbit_xor(32));
+    let mask_swk = builder.add_circ(nbit_xor(128));
     let mask_civ = builder.add_circ(nbit_xor(32));
-    let masked_swk = builder.add_circ(nbit_xor(128));
+    let mask_siv = builder.add_circ(nbit_xor(32));
     let masked_cwk = builder.add_circ(nbit_xor(128));
-    let masked_siv = builder.add_circ(nbit_xor(32));
+    let masked_swk = builder.add_circ(nbit_xor(128));
     let masked_civ = builder.add_circ(nbit_xor(32));
+    let masked_siv = builder.add_circ(nbit_xor(32));
 
     // p1
     let sha256_p1_msg = sha256_p1.input(0).expect("sha256 missing input 0");
@@ -167,16 +172,6 @@ pub fn c3() -> Circuit {
 
     let p2 = sha256_p2.output(0).expect("sha256 missing output 0");
 
-    // swk mask
-    builder.connect(
-        &n_swk_mask[..],
-        &mask_swk.input(0).expect("nbit_xor missing input 0")[..],
-    );
-    builder.connect(
-        &u_swk_mask[..],
-        &mask_swk.input(1).expect("nbit_xor missing input 1")[..],
-    );
-
     // cwk mask
     builder.connect(
         &n_cwk_mask[..],
@@ -187,14 +182,14 @@ pub fn c3() -> Circuit {
         &mask_cwk.input(1).expect("nbit_xor missing input 1")[..],
     );
 
-    // siv mask
+    // swk mask
     builder.connect(
-        &n_siv_mask[..],
-        &mask_siv.input(0).expect("nbit_xor missing input 0")[..],
+        &n_swk_mask[..],
+        &mask_swk.input(0).expect("nbit_xor missing input 0")[..],
     );
     builder.connect(
-        &u_siv_mask[..],
-        &mask_siv.input(1).expect("nbit_xor missing input 1")[..],
+        &u_swk_mask[..],
+        &mask_swk.input(1).expect("nbit_xor missing input 1")[..],
     );
 
     // civ mask
@@ -207,14 +202,14 @@ pub fn c3() -> Circuit {
         &mask_civ.input(1).expect("nbit_xor missing input 1")[..],
     );
 
-    // apply swk mask
+    // siv mask
     builder.connect(
-        &mask_swk.output(0).expect("nbit_xor missing output 0")[..],
-        &masked_swk.input(0).expect("nbit_xor missing input 0")[..],
+        &n_siv_mask[..],
+        &mask_siv.input(0).expect("nbit_xor missing input 0")[..],
     );
     builder.connect(
-        &p1[..128],
-        &masked_swk.input(1).expect("nbit_xor missing input 1")[..],
+        &u_siv_mask[..],
+        &mask_siv.input(1).expect("nbit_xor missing input 1")[..],
     );
 
     // apply cwk mask
@@ -227,14 +222,14 @@ pub fn c3() -> Circuit {
         &masked_cwk.input(1).expect("nbit_xor missing input 1")[..],
     );
 
-    // apply siv mask
+    // apply swk mask
     builder.connect(
-        &mask_siv.output(0).expect("nbit_xor missing output 0")[..],
-        &masked_siv.input(0).expect("nbit_xor missing input 0")[..],
+        &mask_swk.output(0).expect("nbit_xor missing output 0")[..],
+        &masked_swk.input(0).expect("nbit_xor missing input 0")[..],
     );
     builder.connect(
-        &p2[192..224],
-        &masked_siv.input(1).expect("nbit_xor missing input 1")[..],
+        &p1[..128],
+        &masked_swk.input(1).expect("nbit_xor missing input 1")[..],
     );
 
     // apply civ mask
@@ -247,25 +242,29 @@ pub fn c3() -> Circuit {
         &masked_civ.input(1).expect("nbit_xor missing input 1")[..],
     );
 
+    // apply siv mask
+    builder.connect(
+        &mask_siv.output(0).expect("nbit_xor missing output 0")[..],
+        &masked_siv.input(0).expect("nbit_xor missing input 0")[..],
+    );
+    builder.connect(
+        &p2[192..224],
+        &masked_siv.input(1).expect("nbit_xor missing input 1")[..],
+    );
+
     let mut builder = builder.build_gates();
 
-    let swk = builder.add_output(
-        "MASKED_SWK",
-        "16-byte masked server write-key",
-        ValueType::Bytes,
-        128,
-    );
     let cwk = builder.add_output(
         "MASKED_CWK",
         "16-byte masked client write-key",
         ValueType::Bytes,
         128,
     );
-    let siv = builder.add_output(
-        "MASKED_SIV",
-        "4-byte masked server IV",
+    let swk = builder.add_output(
+        "MASKED_SWK",
+        "16-byte masked server write-key",
         ValueType::Bytes,
-        32,
+        128,
     );
     let civ = builder.add_output(
         "MASKED_CIV",
@@ -273,22 +272,28 @@ pub fn c3() -> Circuit {
         ValueType::Bytes,
         32,
     );
-
-    builder.connect(
-        &masked_swk.output(0).expect("nbit_xor missing output 0")[..],
-        &swk[..],
+    let siv = builder.add_output(
+        "MASKED_SIV",
+        "4-byte masked server IV",
+        ValueType::Bytes,
+        32,
     );
+
     builder.connect(
         &masked_cwk.output(0).expect("nbit_xor missing output 0")[..],
         &cwk[..],
     );
     builder.connect(
-        &masked_siv.output(0).expect("nbit_xor missing output 0")[..],
-        &siv[..],
+        &masked_swk.output(0).expect("nbit_xor missing output 0")[..],
+        &swk[..],
     );
     builder.connect(
         &masked_civ.output(0).expect("nbit_xor missing output 0")[..],
         &civ[..],
+    );
+    builder.connect(
+        &masked_siv.output(0).expect("nbit_xor missing output 0")[..],
+        &siv[..],
     );
 
     builder.build_circuit().expect("failed to build c3")
@@ -308,16 +313,16 @@ mod tests {
         let mut rng = thread_rng();
 
         let n_outer_hash_state: [u32; 8] = rng.gen();
-        let n_swk_mask: [u8; 16] = rng.gen();
         let n_cwk_mask: [u8; 16] = rng.gen();
-        let n_siv_mask: [u8; 4] = rng.gen();
+        let n_swk_mask: [u8; 16] = rng.gen();
         let n_civ_mask: [u8; 4] = rng.gen();
+        let n_siv_mask: [u8; 4] = rng.gen();
         let u_inner_hash_p1: [u8; 32] = rng.gen();
         let u_inner_hash_p2: [u8; 32] = rng.gen();
-        let u_swk_mask: [u8; 16] = rng.gen();
         let u_cwk_mask: [u8; 16] = rng.gen();
-        let u_siv_mask: [u8; 4] = rng.gen();
+        let u_swk_mask: [u8; 16] = rng.gen();
         let u_civ_mask: [u8; 4] = rng.gen();
+        let u_siv_mask: [u8; 4] = rng.gen();
 
         // finalize the hash to get p1
         let p1 = finalize_sha256_digest(n_outer_hash_state, 64, &u_inner_hash_p1);
@@ -338,28 +343,28 @@ mod tests {
         let mut siv = [0u8; 4];
         siv.copy_from_slice(&ek[36..40]);
 
-        let swk_masked = swk
-            .iter()
-            .zip(n_swk_mask)
-            .zip(u_swk_mask)
-            .map(|((v, n_mask), u_mask)| v ^ n_mask ^ u_mask)
-            .collect::<Vec<u8>>();
         let cwk_masked = cwk
             .iter()
             .zip(n_cwk_mask)
             .zip(u_cwk_mask)
             .map(|((v, n_mask), u_mask)| v ^ n_mask ^ u_mask)
             .collect::<Vec<u8>>();
-        let siv_masked = siv
+        let swk_masked = swk
             .iter()
-            .zip(n_siv_mask)
-            .zip(u_siv_mask)
+            .zip(n_swk_mask)
+            .zip(u_swk_mask)
             .map(|((v, n_mask), u_mask)| v ^ n_mask ^ u_mask)
             .collect::<Vec<u8>>();
         let civ_masked = civ
             .iter()
             .zip(n_civ_mask)
             .zip(u_civ_mask)
+            .map(|((v, n_mask), u_mask)| v ^ n_mask ^ u_mask)
+            .collect::<Vec<u8>>();
+        let siv_masked = siv
+            .iter()
+            .zip(n_siv_mask)
+            .zip(u_siv_mask)
             .map(|((v, n_mask), u_mask)| v ^ n_mask ^ u_mask)
             .collect::<Vec<u8>>();
 
@@ -374,22 +379,22 @@ mod tests {
                         .flatten()
                         .collect::<Vec<u8>>(),
                 ),
-                Value::Bytes(n_swk_mask.iter().rev().copied().collect::<Vec<u8>>()),
                 Value::Bytes(n_cwk_mask.iter().rev().copied().collect::<Vec<u8>>()),
-                Value::Bytes(n_siv_mask.iter().rev().copied().collect::<Vec<u8>>()),
+                Value::Bytes(n_swk_mask.iter().rev().copied().collect::<Vec<u8>>()),
                 Value::Bytes(n_civ_mask.iter().rev().copied().collect::<Vec<u8>>()),
+                Value::Bytes(n_siv_mask.iter().rev().copied().collect::<Vec<u8>>()),
                 Value::Bytes(u_inner_hash_p1.into_iter().rev().collect()),
                 Value::Bytes(u_inner_hash_p2.into_iter().rev().collect()),
-                Value::Bytes(u_swk_mask.iter().rev().copied().collect::<Vec<u8>>()),
                 Value::Bytes(u_cwk_mask.iter().rev().copied().collect::<Vec<u8>>()),
-                Value::Bytes(u_siv_mask.iter().rev().copied().collect::<Vec<u8>>()),
+                Value::Bytes(u_swk_mask.iter().rev().copied().collect::<Vec<u8>>()),
                 Value::Bytes(u_civ_mask.iter().rev().copied().collect::<Vec<u8>>()),
+                Value::Bytes(u_siv_mask.iter().rev().copied().collect::<Vec<u8>>()),
             ],
             &[
-                Value::Bytes(swk_masked.into_iter().rev().collect()),
                 Value::Bytes(cwk_masked.into_iter().rev().collect()),
-                Value::Bytes(siv_masked.into_iter().rev().collect()),
+                Value::Bytes(swk_masked.into_iter().rev().collect()),
                 Value::Bytes(civ_masked.into_iter().rev().collect()),
+                Value::Bytes(siv_masked.into_iter().rev().collect()),
             ],
         );
     }
