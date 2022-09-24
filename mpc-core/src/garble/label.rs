@@ -51,7 +51,7 @@ impl AsRef<Block> for WireLabel {
 impl WireLabel {
     /// Creates a new wire label
     #[inline]
-    pub(crate) fn new(id: usize, value: Block) -> Self {
+    pub fn new(id: usize, value: Block) -> Self {
         Self { id, value }
     }
 
@@ -179,7 +179,7 @@ pub struct InputLabels<T> {
 }
 
 impl<T: Copy> InputLabels<T> {
-    pub(crate) fn new(input: Input, labels: &[T]) -> Result<Self, Error> {
+    pub fn new(input: Input, labels: &[T]) -> Result<Self, Error> {
         if input.as_ref().len() != labels.len() {
             return Err(Error::InvalidInputLabels);
         }
