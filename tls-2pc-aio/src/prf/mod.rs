@@ -65,7 +65,7 @@ mod tests {
     }
 
     /// Expands pre-master secret into session key using TLS 1.2 PRF
-    /// Returns master_secret and session keys
+    /// Returns session keys
     pub fn key_expansion_tls12(
         client_random: &[u8; 32],
         server_random: &[u8; 32],
@@ -115,7 +115,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_prf() {
+    async fn test_key_expansion() {
         let (leader_channel, follower_channel) = DuplexChannel::<PRFMessage>::new();
         let (gc_leader, gc_follower) = mock_dualex_pair();
         let leader = PRFLeader::new(Box::new(leader_channel), gc_leader);
