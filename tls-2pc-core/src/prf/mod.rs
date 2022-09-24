@@ -74,7 +74,7 @@
 mod follower;
 mod leader;
 pub mod sha;
-mod utils;
+pub mod utils;
 
 pub use crate::msgs::prf::PRFMessage;
 pub use follower::{state as follower_state, PRFFollower};

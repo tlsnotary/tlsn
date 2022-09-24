@@ -3,11 +3,11 @@ mod follower;
 mod leader;
 
 use mpc_aio::protocol::garble::GCError;
-use tls_2pc_core::msgs::prf::PRFMessage;
 use utils_aio::Channel;
 
 pub use follower::PRFFollower;
 pub use leader::PRFLeader;
+pub use tls_2pc_core::msgs::prf::PRFMessage;
 
 pub type PRFChannel = Box<dyn Channel<PRFMessage, Error = std::io::Error>>;
 
@@ -29,6 +29,7 @@ mod tests {
     };
     use p256::{elliptic_curve::sec1::ToEncodedPoint, SecretKey};
     use rand::{thread_rng, Rng};
+    use tls_2pc_core::prf::utils::{hmac_sha256, seed_ke, seed_ms};
     use utils_aio::duplex::DuplexChannel;
 
     use super::*;
@@ -63,6 +64,56 @@ mod tests {
         (leader_share, follower_share)
     }
 
+    /// Expands pre-master secret into session key using TLS 1.2 PRF
+    /// Returns master_secret and session keys
+    pub fn key_expansion_tls12(
+        client_random: &[u8; 32],
+        server_random: &[u8; 32],
+        pms: &[u8],
+    ) -> ([u8; 16], [u8; 16], [u8; 4], [u8; 4]) {
+        // first expand pms into ms
+        let seed = seed_ms(client_random, server_random);
+        let a1 = hmac_sha256(pms, &seed);
+        let a2 = hmac_sha256(pms, &a1);
+        let mut a1_seed = [0u8; 109];
+        a1_seed[..32].copy_from_slice(&a1);
+        a1_seed[32..].copy_from_slice(&seed);
+        let mut a2_seed = [0u8; 109];
+        a2_seed[..32].copy_from_slice(&a2);
+        a2_seed[32..].copy_from_slice(&seed);
+        let p1 = hmac_sha256(pms, &a1_seed);
+        let p2 = hmac_sha256(pms, &a2_seed);
+        let mut ms = [0u8; 48];
+        ms[..32].copy_from_slice(&p1);
+        ms[32..].copy_from_slice(&p2[..16]);
+
+        // expand ms into session keys
+        let seed = seed_ke(client_random, server_random);
+        let a1 = hmac_sha256(&ms, &seed);
+        let a2 = hmac_sha256(&ms, &a1);
+        let mut a1_seed = [0u8; 109];
+        a1_seed[..32].copy_from_slice(&a1);
+        a1_seed[32..].copy_from_slice(&seed);
+        let mut a2_seed = [0u8; 109];
+        a2_seed[..32].copy_from_slice(&a2);
+        a2_seed[32..].copy_from_slice(&seed);
+        let p1 = hmac_sha256(&ms, &a1_seed);
+        let p2 = hmac_sha256(&ms, &a2_seed);
+        let mut ek = [0u8; 40];
+        ek[..32].copy_from_slice(&p1);
+        ek[32..].copy_from_slice(&p2[..8]);
+
+        let mut cwk = [0u8; 16];
+        cwk.copy_from_slice(&ek[..16]);
+        let mut swk = [0u8; 16];
+        swk.copy_from_slice(&ek[16..32]);
+        let mut civ = [0u8; 4];
+        civ.copy_from_slice(&ek[32..36]);
+        let mut siv = [0u8; 4];
+        siv.copy_from_slice(&ek[36..]);
+        (cwk, swk, civ, siv)
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_prf() {
         let (leader_channel, follower_channel) = DuplexChannel::<PRFMessage>::new();
@@ -74,6 +125,8 @@ mod tests {
         let server_random: [u8; 32] = thread_rng().gen();
 
         let (leader_share, follower_share) = get_shares().await;
+
+        let pms = leader_share + follower_share;
 
         let (task_leader, task_follower) = tokio::join!(
             tokio::spawn(async move {
@@ -87,6 +140,37 @@ mod tests {
         let leader_keys = task_leader.unwrap().unwrap();
         let follower_keys = task_follower.unwrap().unwrap();
 
-        println!("{:?}", leader_keys.swk());
+        let cwk = leader_keys
+            .cwk()
+            .iter()
+            .zip(follower_keys.cwk())
+            .map(|(a, b)| a ^ b)
+            .collect::<Vec<u8>>();
+        let swk = leader_keys
+            .swk()
+            .iter()
+            .zip(follower_keys.swk())
+            .map(|(a, b)| a ^ b)
+            .collect::<Vec<u8>>();
+        let civ = leader_keys
+            .civ()
+            .iter()
+            .zip(follower_keys.civ())
+            .map(|(a, b)| a ^ b)
+            .collect::<Vec<u8>>();
+        let siv = leader_keys
+            .siv()
+            .iter()
+            .zip(follower_keys.siv())
+            .map(|(a, b)| a ^ b)
+            .collect::<Vec<u8>>();
+
+        let (expected_swk, expected_cwk, expected_siv, expected_civ) =
+            key_expansion_tls12(&client_random, &server_random, &pms);
+
+        assert_eq!(cwk, expected_cwk);
+        assert_eq!(swk, expected_swk);
+        assert_eq!(civ, expected_civ);
+        assert_eq!(siv, expected_siv);
     }
 }

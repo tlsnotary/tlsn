@@ -15,50 +15,50 @@ pub async fn leader_c3<T: Execute + Send>(
     let input_p1_inner_hash = circ
         .input(5)
         .expect("Circuit 3 should have input 5")
-        .to_value(p1_inner_hash.to_vec())
+        .to_value(p1_inner_hash.iter().rev().copied().collect::<Vec<u8>>())
         .expect("p1_inner_hash should always be 32 bytes");
 
     let input_p2_inner_hash = circ
         .input(6)
         .expect("Circuit 3 should have input 6")
-        .to_value(p2_inner_hash.to_vec())
+        .to_value(p2_inner_hash.iter().rev().copied().collect::<Vec<u8>>())
         .expect("p2_inner_hash should always be 32 bytes");
-
-    let swk_mask: Vec<u8> = thread_rng().gen::<[u8; 16]>().to_vec();
-    let input_swk_mask = circ
-        .input(7)
-        .expect("Circuit 3 should have input 7")
-        .to_value(swk_mask.clone())
-        .expect("SWK mask should always be 16 bytes");
 
     let cwk_mask: Vec<u8> = thread_rng().gen::<[u8; 16]>().to_vec();
     let input_cwk_mask = circ
-        .input(8)
+        .input(7)
         .expect("Circuit 3 should have input 8")
         .to_value(cwk_mask.clone())
         .expect("CWK mask should always be 16 bytes");
 
-    let siv_mask: Vec<u8> = thread_rng().gen::<[u8; 4]>().to_vec();
-    let input_siv_mask = circ
-        .input(9)
-        .expect("Circuit 3 should have input 9")
-        .to_value(siv_mask.clone())
-        .expect("SIV mask should always be 4 bytes");
+    let swk_mask: Vec<u8> = thread_rng().gen::<[u8; 16]>().to_vec();
+    let input_swk_mask = circ
+        .input(8)
+        .expect("Circuit 3 should have input 7")
+        .to_value(swk_mask.clone())
+        .expect("SWK mask should always be 16 bytes");
 
     let civ_mask: Vec<u8> = thread_rng().gen::<[u8; 4]>().to_vec();
     let input_civ_mask = circ
-        .input(10)
+        .input(9)
         .expect("Circuit 3 should have input 10")
         .to_value(civ_mask.clone())
         .expect("CIV mask should always be 4 bytes");
 
+    let siv_mask: Vec<u8> = thread_rng().gen::<[u8; 4]>().to_vec();
+    let input_siv_mask = circ
+        .input(10)
+        .expect("Circuit 3 should have input 9")
+        .to_value(siv_mask.clone())
+        .expect("SIV mask should always be 4 bytes");
+
     let inputs = vec![
         input_p1_inner_hash,
         input_p2_inner_hash,
-        input_swk_mask,
         input_cwk_mask,
-        input_siv_mask,
+        input_swk_mask,
         input_civ_mask,
+        input_siv_mask,
     ];
 
     let out = exec
@@ -68,23 +68,23 @@ pub async fn leader_c3<T: Execute + Send>(
         .map_err(|e| GCError::from(e))?;
 
     // todo make this less gross
-    let masked_swk = if let mpc_circuits::Value::Bytes(v) =
-        out.get(0).expect("Circuit 3 should have output 0").value()
+    let cwk_masked = if let mpc_circuits::Value::Bytes(v) =
+        out.get(0).expect("Circuit 3 should have output 1").value()
     {
         v
     } else {
         panic!("Circuit 3 output 0 should be 16 bytes")
     };
 
-    let masked_cwk = if let mpc_circuits::Value::Bytes(v) =
-        out.get(1).expect("Circuit 3 should have output 1").value()
+    let swk_masked = if let mpc_circuits::Value::Bytes(v) =
+        out.get(1).expect("Circuit 3 should have output 0").value()
     {
         v
     } else {
         panic!("Circuit 3 output 1 should be 16 bytes")
     };
 
-    let masked_siv = if let mpc_circuits::Value::Bytes(v) =
+    let civ_masked = if let mpc_circuits::Value::Bytes(v) =
         out.get(2).expect("Circuit 3 should have output 2").value()
     {
         v
@@ -92,7 +92,7 @@ pub async fn leader_c3<T: Execute + Send>(
         panic!("Circuit 3 output 2 should be 4 bytes")
     };
 
-    let masked_civ = if let mpc_circuits::Value::Bytes(v) =
+    let siv_masked = if let mpc_circuits::Value::Bytes(v) =
         out.get(3).expect("Circuit 3 should have output 2").value()
     {
         v
@@ -100,37 +100,39 @@ pub async fn leader_c3<T: Execute + Send>(
         panic!("Circuit 3 output 3 should be 4 bytes")
     };
 
-    let swk = masked_swk
-        .iter()
-        .zip(swk_mask.iter())
-        .map(|(v, m)| v ^ m)
-        .rev()
-        .collect::<Vec<u8>>();
-    let cwk = masked_cwk
+    // Only the leader removes their key masks
+    let cwk = cwk_masked
         .iter()
         .zip(cwk_mask.iter())
-        .map(|(v, m)| v ^ m)
+        .map(|(a, b)| a ^ b)
         .rev()
         .collect::<Vec<u8>>();
-    let siv = masked_siv
+    let swk = swk_masked
         .iter()
-        .zip(siv_mask.iter())
-        .map(|(v, m)| v ^ m)
+        .zip(swk_mask.iter())
+        .map(|(a, b)| a ^ b)
         .rev()
         .collect::<Vec<u8>>();
-    let civ = masked_civ
+    let civ = civ_masked
         .iter()
         .zip(civ_mask.iter())
-        .map(|(v, m)| v ^ m)
+        .map(|(a, b)| a ^ b)
+        .rev()
+        .collect::<Vec<u8>>();
+    let siv = siv_masked
+        .iter()
+        .zip(siv_mask.iter())
+        .map(|(a, b)| a ^ b)
         .rev()
         .collect::<Vec<u8>>();
 
-    let swk: [u8; 16] = swk.try_into().expect("swk should be 16 bytes");
+    // The leader's key shares are k ⊕ follower_mask
     let cwk: [u8; 16] = cwk.try_into().expect("cwk should be 16 bytes");
-    let siv: [u8; 4] = siv.try_into().expect("siv should be 4 bytes");
+    let swk: [u8; 16] = swk.try_into().expect("swk should be 16 bytes");
     let civ: [u8; 4] = civ.try_into().expect("civ should be 4 bytes");
+    let siv: [u8; 4] = siv.try_into().expect("siv should be 4 bytes");
 
-    Ok(SessionKeyShares::new(swk, cwk, siv, civ))
+    Ok(SessionKeyShares::new(cwk, swk, civ, siv))
 }
 
 /// Executes c3 as PRFFollower
@@ -155,110 +157,58 @@ pub async fn follower_c3<T: Execute + Send>(
         )
         .expect("outer_hash_state should always be 32 bytes");
 
-    let swk_mask: Vec<u8> = thread_rng().gen::<[u8; 16]>().to_vec();
-    let input_swk_mask = circ
-        .input(1)
-        .expect("Circuit 3 should have input 1")
-        .to_value(swk_mask.clone())
-        .expect("SWK mask should always be 16 bytes");
-
-    let cwk_mask: Vec<u8> = thread_rng().gen::<[u8; 16]>().to_vec();
+    let mut cwk_mask: Vec<u8> = thread_rng().gen::<[u8; 16]>().to_vec();
     let input_cwk_mask = circ
-        .input(2)
+        .input(1)
         .expect("Circuit 3 should have input 2")
         .to_value(cwk_mask.clone())
         .expect("CWK mask should always be 16 bytes");
 
-    let siv_mask: Vec<u8> = thread_rng().gen::<[u8; 4]>().to_vec();
-    let input_siv_mask = circ
-        .input(3)
-        .expect("Circuit 3 should have input 3")
-        .to_value(siv_mask.clone())
-        .expect("SIV mask should always be 4 bytes");
+    let mut swk_mask: Vec<u8> = thread_rng().gen::<[u8; 16]>().to_vec();
+    let input_swk_mask = circ
+        .input(2)
+        .expect("Circuit 3 should have input 1")
+        .to_value(swk_mask.clone())
+        .expect("SWK mask should always be 16 bytes");
 
-    let civ_mask: Vec<u8> = thread_rng().gen::<[u8; 4]>().to_vec();
+    let mut civ_mask: Vec<u8> = thread_rng().gen::<[u8; 4]>().to_vec();
     let input_civ_mask = circ
-        .input(4)
+        .input(3)
         .expect("Circuit 3 should have input 4")
         .to_value(civ_mask.clone())
         .expect("CIV mask should always be 4 bytes");
 
+    let mut siv_mask: Vec<u8> = thread_rng().gen::<[u8; 4]>().to_vec();
+    let input_siv_mask = circ
+        .input(4)
+        .expect("Circuit 3 should have input 3")
+        .to_value(siv_mask.clone())
+        .expect("SIV mask should always be 4 bytes");
+
     let inputs = vec![
         input_outer_hash_state,
-        input_swk_mask,
         input_cwk_mask,
-        input_siv_mask,
+        input_swk_mask,
         input_civ_mask,
+        input_siv_mask,
     ];
 
-    let out = exec
+    let _ = exec
         .execute(circ, &inputs)
         .await?
         .decode()
         .map_err(|e| GCError::from(e))?;
 
-    // todo make this less gross
-    let masked_swk = if let mpc_circuits::Value::Bytes(v) =
-        out.get(0).expect("Circuit 3 should have output 0").value()
-    {
-        v
-    } else {
-        panic!("Circuit 3 output 0 should be 16 bytes")
-    };
+    cwk_mask.reverse();
+    swk_mask.reverse();
+    civ_mask.reverse();
+    siv_mask.reverse();
 
-    let masked_cwk = if let mpc_circuits::Value::Bytes(v) =
-        out.get(1).expect("Circuit 3 should have output 1").value()
-    {
-        v
-    } else {
-        panic!("Circuit 3 output 1 should be 16 bytes")
-    };
+    // The followers's key shares are just their masks
+    let cwk: [u8; 16] = cwk_mask.try_into().expect("cwk should be 16 bytes");
+    let swk: [u8; 16] = swk_mask.try_into().expect("swk should be 16 bytes");
+    let civ: [u8; 4] = civ_mask.try_into().expect("civ should be 4 bytes");
+    let siv: [u8; 4] = siv_mask.try_into().expect("siv should be 4 bytes");
 
-    let masked_siv = if let mpc_circuits::Value::Bytes(v) =
-        out.get(2).expect("Circuit 3 should have output 2").value()
-    {
-        v
-    } else {
-        panic!("Circuit 3 output 2 should be 4 bytes")
-    };
-
-    let masked_civ = if let mpc_circuits::Value::Bytes(v) =
-        out.get(3).expect("Circuit 3 should have output 2").value()
-    {
-        v
-    } else {
-        panic!("Circuit 3 output 3 should be 4 bytes")
-    };
-
-    let swk = masked_swk
-        .iter()
-        .zip(swk_mask.iter())
-        .map(|(v, m)| v ^ m)
-        .rev()
-        .collect::<Vec<u8>>();
-    let cwk = masked_cwk
-        .iter()
-        .zip(cwk_mask.iter())
-        .map(|(v, m)| v ^ m)
-        .rev()
-        .collect::<Vec<u8>>();
-    let siv = masked_siv
-        .iter()
-        .zip(siv_mask.iter())
-        .map(|(v, m)| v ^ m)
-        .rev()
-        .collect::<Vec<u8>>();
-    let civ = masked_civ
-        .iter()
-        .zip(civ_mask.iter())
-        .map(|(v, m)| v ^ m)
-        .rev()
-        .collect::<Vec<u8>>();
-
-    let swk: [u8; 16] = swk.try_into().expect("swk should be 16 bytes");
-    let cwk: [u8; 16] = cwk.try_into().expect("cwk should be 16 bytes");
-    let siv: [u8; 4] = siv.try_into().expect("siv should be 4 bytes");
-    let civ: [u8; 4] = civ.try_into().expect("civ should be 4 bytes");
-
-    Ok(SessionKeyShares::new(swk, cwk, siv, civ))
+    Ok(SessionKeyShares::new(cwk, swk, civ, siv))
 }

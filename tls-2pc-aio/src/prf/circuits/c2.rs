@@ -11,10 +11,11 @@ pub async fn leader_c2<T: Execute + Send>(
 ) -> Result<[u32; 8], GCError> {
     let circ = CIRCUIT_2.clone();
 
+    // convert to little-endian
     let input_inner_hash = circ
         .input(1)
         .expect("Circuit 2 should have input 1")
-        .to_value(p1_inner_hash.to_vec())
+        .to_value(p1_inner_hash.iter().rev().copied().collect::<Vec<u8>>())
         .expect("p1_inner_hash should always be 32 bytes");
 
     let mask: Vec<u8> = thread_rng().gen::<[u8; 32]>().to_vec();
@@ -40,16 +41,17 @@ pub async fn leader_c2<T: Execute + Send>(
         panic!("Circuit 2 output 0 should be 32 bytes")
     };
 
+    // remove XOR mask and convert to big-endian
     let inner_hash_state = masked_inner_hash_state
         .iter()
         .zip(mask.iter())
         .map(|(v, m)| v ^ m)
-        .rev()
         .collect::<Vec<u8>>();
 
     let inner_hash_state: [u32; 8] = inner_hash_state
         .chunks_exact(4)
-        .map(|chunk| u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
+        .map(|chunk| u32::from_be_bytes([chunk[3], chunk[2], chunk[1], chunk[0]]))
+        .rev()
         .collect::<Vec<u32>>()
         .try_into()
         .expect("Circuit 2 output 0 should be 32 bytes");
@@ -67,6 +69,7 @@ pub async fn follower_c2<T: Execute + Send>(
 ) -> Result<[u32; 8], GCError> {
     let circ = CIRCUIT_2.clone();
 
+    // convert to little-endian
     let input_outer_hash_state = circ
         .input(0)
         .expect("Circuit 2 should have input 0")
@@ -83,7 +86,7 @@ pub async fn follower_c2<T: Execute + Send>(
     let input_p2 = circ
         .input(2)
         .expect("Circuit 2 should have input 2")
-        .to_value(p2[..16].to_vec())
+        .to_value(p2[..16].iter().rev().copied().collect::<Vec<u8>>())
         .expect("p2 should always be 16 bytes");
 
     let mask: Vec<u8> = thread_rng().gen::<[u8; 32]>().to_vec();
@@ -109,19 +112,54 @@ pub async fn follower_c2<T: Execute + Send>(
         panic!("Circuit 2 output 1 should be 32 bytes")
     };
 
+    // remove XOR mask and convert to big-endian
     let outer_hash_state = masked_outer_hash_state
         .iter()
         .zip(mask.iter())
         .map(|(v, m)| v ^ m)
-        .rev()
         .collect::<Vec<u8>>();
 
     let outer_hash_state: [u32; 8] = outer_hash_state
         .chunks_exact(4)
-        .map(|chunk| u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
+        .map(|chunk| u32::from_be_bytes([chunk[3], chunk[2], chunk[1], chunk[0]]))
+        .rev()
         .collect::<Vec<u32>>()
         .try_into()
         .expect("Circuit 2 output 1 should be 32 bytes");
 
     Ok(outer_hash_state)
 }
+
+// #[cfg(test)]
+// mod tests {
+//     use mpc_aio::protocol::garble::exec::dual::mock_dualex_pair;
+//     use tls_2pc_core::prf::sha::partial_sha256_digest;
+
+//     use super::*;
+
+//     #[tokio::test]
+//     async fn test_c2() {
+//         let (mut gc_leader, mut gc_follower) = mock_dualex_pair();
+
+//         let pms = leader_share + follower_share;
+//         let mut pms_zeropadded = [0u8; 64];
+//         pms_zeropadded[..32].copy_from_slice(&pms);
+//         let pms_ipad = pms_zeropadded.iter().map(|b| b ^ 0x36).collect::<Vec<u8>>();
+//         let pms_opad = pms_zeropadded.iter().map(|b| b ^ 0x5c).collect::<Vec<u8>>();
+//         let expected_inner_hash_state = partial_sha256_digest(&pms_ipad);
+//         let expected_outer_hash_state = partial_sha256_digest(&pms_opad);
+
+//         let (task_leader, task_follower) = tokio::join!(
+//             tokio::spawn(async move { leader_c2(&mut gc_leader, leader_share).await.unwrap() }),
+//             tokio::spawn(
+//                 async move { follower_c2(&mut gc_follower, follower_share).await.unwrap() }
+//             )
+//         );
+
+//         let inner_hash_state = task_leader.unwrap();
+//         let outer_hash_state = task_follower.unwrap();
+
+//         assert_eq!(inner_hash_state, expected_inner_hash_state);
+//         assert_eq!(outer_hash_state, expected_outer_hash_state);
+//     }
+// }

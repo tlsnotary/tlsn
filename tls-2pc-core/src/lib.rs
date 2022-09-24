@@ -47,21 +47,16 @@ pub static CIRCUIT_7: Lazy<Arc<Circuit>> =
     Lazy::new(|| Arc::new(Circuit::load_bytes(CIRCUIT_7_BYTES).unwrap()));
 
 pub struct SessionKeyShares {
-    swk: [u8; 16],
     cwk: [u8; 16],
-    siv: [u8; 4],
+    swk: [u8; 16],
     civ: [u8; 4],
+    siv: [u8; 4],
 }
 
 impl SessionKeyShares {
     /// Creates new SessionKeyShares
-    pub fn new(swk: [u8; 16], cwk: [u8; 16], siv: [u8; 4], civ: [u8; 4]) -> Self {
-        Self { swk, cwk, siv, civ }
-    }
-
-    /// Returns server_write_key share
-    pub fn swk(&self) -> [u8; 16] {
-        self.swk
+    pub fn new(cwk: [u8; 16], swk: [u8; 16], civ: [u8; 4], siv: [u8; 4]) -> Self {
+        Self { cwk, swk, civ, siv }
     }
 
     /// Returns client_write_key share
@@ -69,13 +64,18 @@ impl SessionKeyShares {
         self.cwk
     }
 
-    /// Returns server IV share
-    pub fn siv(&self) -> [u8; 4] {
-        self.siv
+    /// Returns server_write_key share
+    pub fn swk(&self) -> [u8; 16] {
+        self.swk
     }
 
     /// Returns client IV share
     pub fn civ(&self) -> [u8; 4] {
         self.civ
+    }
+
+    /// Returns server IV share
+    pub fn siv(&self) -> [u8; 4] {
+        self.siv
     }
 }
