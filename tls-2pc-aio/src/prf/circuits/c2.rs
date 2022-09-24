@@ -129,37 +129,3 @@ pub async fn follower_c2<T: Execute + Send>(
 
     Ok(outer_hash_state)
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use mpc_aio::protocol::garble::exec::dual::mock_dualex_pair;
-//     use tls_2pc_core::prf::sha::partial_sha256_digest;
-
-//     use super::*;
-
-//     #[tokio::test]
-//     async fn test_c2() {
-//         let (mut gc_leader, mut gc_follower) = mock_dualex_pair();
-
-//         let pms = leader_share + follower_share;
-//         let mut pms_zeropadded = [0u8; 64];
-//         pms_zeropadded[..32].copy_from_slice(&pms);
-//         let pms_ipad = pms_zeropadded.iter().map(|b| b ^ 0x36).collect::<Vec<u8>>();
-//         let pms_opad = pms_zeropadded.iter().map(|b| b ^ 0x5c).collect::<Vec<u8>>();
-//         let expected_inner_hash_state = partial_sha256_digest(&pms_ipad);
-//         let expected_outer_hash_state = partial_sha256_digest(&pms_opad);
-
-//         let (task_leader, task_follower) = tokio::join!(
-//             tokio::spawn(async move { leader_c2(&mut gc_leader, leader_share).await.unwrap() }),
-//             tokio::spawn(
-//                 async move { follower_c2(&mut gc_follower, follower_share).await.unwrap() }
-//             )
-//         );
-
-//         let inner_hash_state = task_leader.unwrap();
-//         let outer_hash_state = task_follower.unwrap();
-
-//         assert_eq!(inner_hash_state, expected_inner_hash_state);
-//         assert_eq!(outer_hash_state, expected_outer_hash_state);
-//     }
-// }
