@@ -1,6 +1,6 @@
 //! An implementation of "Dual Execution" mode which provides authenticity
 //! but may leak all private inputs of the [`DualExFollower`] if the [`DualExLeader`] is malicious. Either party,
-//! if malicious, can learn bits of the others input with 1/2^n probability of it going undetected.
+//! if malicious, can learn n bits of the others input with 1/2^n probability of it going undetected.
 
 use std::sync::Arc;
 
