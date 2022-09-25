@@ -252,9 +252,9 @@ impl Kos15Receiver<state::RandSetup> {
             receiver.rand_extension_setup(decommitment.offset + decommitment.tape.len())?;
         let mut sender = sender.rand_extension_setup(r_message)?;
 
-        // Fast-forward sender
+        // Fast-forward sender, input should not matter
         let _ = sender.rand_send(
-            &decommitment.tape,
+            &vec![[Block::default(); 2]; decommitment.offset],
             ExtDerandomize {
                 flip: vec![false; decommitment.offset],
             },
@@ -270,7 +270,7 @@ impl Kos15Receiver<state::RandSetup> {
             .ciphertexts;
 
         for k in 0..actual_messages.len() {
-            if actual_messages[k] != decommitment.tape[k] {
+            if actual_messages[k] != self.0.sender_output_tape[k] {
                 return Err(CommittedOTError::Verify);
             }
         }
