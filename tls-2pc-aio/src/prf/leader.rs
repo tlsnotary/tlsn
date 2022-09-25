@@ -10,6 +10,14 @@ pub struct MasterSecret {
     core: core::PRFLeader<state::Ms1>,
 }
 
+pub struct ClientFinished {
+    core: core::PRFLeader<state::Cf1>,
+}
+
+pub struct ServerFinished {
+    core: core::PRFLeader<state::Sf1>,
+}
+
 pub struct PRFLeader<G, S>
 where
     G: Execute + Send,
@@ -33,12 +41,16 @@ where
         }
     }
 
+    /// Computes leader's shares of the TLS session keys using the session randoms and their
+    /// share of the PMS
+    ///
+    /// Returns session key shares
     pub async fn compute_session_keys(
         mut self,
         client_random: [u8; 32],
         server_random: [u8; 32],
         secret_share: P256SecretShare,
-    ) -> Result<SessionKeyShares, PRFError> {
+    ) -> Result<(SessionKeyShares, PRFLeader<G, ClientFinished>), PRFError> {
         let inner_hash_state = circuits::leader_c1(&mut self.gc_exec, secret_share).await?;
         let (msg, core) = self
             .state
@@ -113,6 +125,107 @@ where
         let session_keys =
             circuits::leader_c3(&mut self.gc_exec, p1_inner_hash, p2_inner_hash).await?;
 
-        Ok(session_keys)
+        Ok((
+            session_keys,
+            PRFLeader {
+                state: ClientFinished { core: core.next() },
+                channel: self.channel,
+                gc_exec: self.gc_exec,
+            },
+        ))
+    }
+}
+
+impl<G> PRFLeader<G, ClientFinished>
+where
+    G: Execute + Send,
+{
+    /// Computes client finished data using handshake hash
+    ///
+    /// Returns client finished data and next state
+    pub async fn compute_client_finished(
+        mut self,
+        hash: &[u8],
+    ) -> Result<([u8; 12], PRFLeader<G, ServerFinished>), PRFError> {
+        let (msg, core) = self.state.core.next(hash);
+        self.channel.send(PRFMessage::LeaderCf1(msg)).await?;
+
+        let msg = match self.channel.next().await {
+            Some(PRFMessage::FollowerCf1(msg)) => msg,
+            Some(m) => return Err(PRFError::UnexpectedMessage(m)),
+            None => {
+                return Err(PRFError::from(std::io::Error::new(
+                    std::io::ErrorKind::ConnectionAborted,
+                    "stream closed unexpectedly",
+                )))
+            }
+        };
+
+        let (msg, core) = core.next(msg);
+        self.channel.send(PRFMessage::LeaderCf2(msg)).await?;
+
+        let msg = match self.channel.next().await {
+            Some(PRFMessage::FollowerCf2(msg)) => msg,
+            Some(m) => return Err(PRFError::UnexpectedMessage(m)),
+            None => {
+                return Err(PRFError::from(std::io::Error::new(
+                    std::io::ErrorKind::ConnectionAborted,
+                    "stream closed unexpectedly",
+                )))
+            }
+        };
+
+        let (vd, core) = core.next(msg);
+
+        Ok((
+            vd,
+            PRFLeader {
+                state: ServerFinished { core },
+                channel: self.channel,
+                gc_exec: self.gc_exec,
+            },
+        ))
+    }
+}
+
+impl<G> PRFLeader<G, ServerFinished>
+where
+    G: Execute + Send,
+{
+    /// Computes server finished data using handshake hash
+    ///
+    /// Returns server finished data
+    pub async fn compute_server_finished(mut self, hash: &[u8]) -> Result<[u8; 12], PRFError> {
+        let (msg, core) = self.state.core.next(hash);
+        self.channel.send(PRFMessage::LeaderSf1(msg)).await?;
+
+        let msg = match self.channel.next().await {
+            Some(PRFMessage::FollowerSf1(msg)) => msg,
+            Some(m) => return Err(PRFError::UnexpectedMessage(m)),
+            None => {
+                return Err(PRFError::from(std::io::Error::new(
+                    std::io::ErrorKind::ConnectionAborted,
+                    "stream closed unexpectedly",
+                )))
+            }
+        };
+
+        let (msg, core) = core.next(msg);
+        self.channel.send(PRFMessage::LeaderSf2(msg)).await?;
+
+        let msg = match self.channel.next().await {
+            Some(PRFMessage::FollowerSf2(msg)) => msg,
+            Some(m) => return Err(PRFError::UnexpectedMessage(m)),
+            None => {
+                return Err(PRFError::from(std::io::Error::new(
+                    std::io::ErrorKind::ConnectionAborted,
+                    "stream closed unexpectedly",
+                )))
+            }
+        };
+
+        let vd = core.next(msg);
+
+        Ok(vd)
     }
 }

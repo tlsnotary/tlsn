@@ -114,8 +114,9 @@ mod tests {
         (cwk, swk, civ, siv)
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_key_expansion() {
+    #[ignore = "expensive"]
+    #[tokio::test]
+    async fn test_prf() {
         let (leader_channel, follower_channel) = DuplexChannel::<PRFMessage>::new();
         let (gc_leader, gc_follower) = mock_dualex_pair();
         let leader = PRFLeader::new(Box::new(leader_channel), gc_leader);
@@ -137,8 +138,8 @@ mod tests {
             tokio::spawn(async move { follower.compute_session_keys(follower_share).await })
         );
 
-        let leader_keys = task_leader.unwrap().unwrap();
-        let follower_keys = task_follower.unwrap().unwrap();
+        let (leader_keys, _leader) = task_leader.unwrap().unwrap();
+        let (follower_keys, _follower) = task_follower.unwrap().unwrap();
 
         let cwk = leader_keys
             .cwk()

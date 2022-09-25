@@ -140,6 +140,7 @@ mod tests {
 
     use super::*;
 
+    #[ignore = "expensive"]
     #[tokio::test]
     async fn test_c1() {
         let (mut gc_leader, mut gc_follower) = mock_dualex_pair();
