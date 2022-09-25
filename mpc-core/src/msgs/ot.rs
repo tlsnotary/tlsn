@@ -101,6 +101,7 @@ pub struct ExtSenderCommit(pub [u8; 32]);
 pub struct ExtSenderDecommit {
     pub seed: [u8; 32],
     pub tape: Vec<[Block; 2]>,
+    pub offset: usize,
 }
 
 // #[cfg(feature = "proto")]

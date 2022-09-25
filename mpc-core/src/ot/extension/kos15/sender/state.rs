@@ -53,7 +53,6 @@ impl SenderState for BaseReceive {}
 
 #[cfg_attr(test, derive(Debug))]
 pub struct Setup {
-    pub(crate) rng: ChaCha12Rng,
     pub(crate) table: KosMatrix,
     pub(crate) count: Count,
     pub(crate) sent: Sent,

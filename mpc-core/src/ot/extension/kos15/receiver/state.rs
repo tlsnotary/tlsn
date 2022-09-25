@@ -1,5 +1,5 @@
-use super::BaseSender;
-use super::KosMatrix;
+use super::{BaseSender, KosMatrix};
+use crate::Block;
 use rand_chacha::ChaCha12Rng;
 
 pub trait ReceiverState {}
@@ -36,8 +36,13 @@ pub struct Setup {
 impl ReceiverState for Setup {}
 
 pub struct RandSetup {
+    pub(crate) rng: ChaCha12Rng,
     pub(crate) table: KosMatrix,
     pub(crate) choices: Vec<bool>,
     pub(crate) derandomized: Vec<bool>,
+    // Records the received, encrypted blocks, sent by the sender for later use in committed OT
+    pub(crate) sender_output_tape: Vec<[Block; 2]>,
+    // Records the choices made by the receiver for later use in committed OT
+    pub(crate) choices_tape: Vec<bool>,
 }
 impl ReceiverState for RandSetup {}

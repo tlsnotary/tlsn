@@ -1,3 +1,5 @@
+use crate::ot::ExtSenderCoreError;
+
 use super::MatrixError;
 
 /// Errors that may occur when using ExtReceiverCore
@@ -17,4 +19,17 @@ pub enum ExtReceiverCoreError {
     SplitAfterDerand,
     #[error("Matrix Error: {0}")]
     MatrixError(#[from] MatrixError),
+}
+
+/// Errors for committed OT verification
+#[derive(Debug, thiserror::Error, PartialEq)]
+pub enum CommittedOTError {
+    #[error("Verification of commitment for committed OT failed")]
+    CommitmentCheck,
+    #[error("Committed OT sender error: {0}")]
+    Sender(#[from] ExtSenderCoreError),
+    #[error("Committed OT receiver error: {0}")]
+    Receiver(#[from] ExtReceiverCoreError),
+    #[error("Verification failed")]
+    Verify,
 }

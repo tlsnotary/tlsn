@@ -125,7 +125,6 @@ impl Kos15Sender<state::BaseReceive> {
             &self.0.cointoss_random,
         )?;
         Ok(Kos15Sender(state::Setup {
-            rng: self.0.rng,
             table,
             count: ncols_unpadded,
             sent: 0,
@@ -174,7 +173,6 @@ impl Kos15Sender<state::Setup> {
         self.0.count -= rows;
 
         Ok(Kos15Sender(state::Setup {
-            rng: self.0.rng.clone(),
             table: split_table,
             count: rows,
             sent: 0,
@@ -210,12 +208,10 @@ impl Kos15Sender<state::RandSetup> {
             &self.0.base_choices,
             inputs,
             Some(derandomize),
-        );
+        )?;
 
-        if result.is_ok() {
-            self.0.tape.extend_from_slice(inputs);
-        }
-        result
+        self.0.tape.extend_from_slice(inputs);
+        Ok(result)
     }
 
     pub fn split(&mut self, split_at: usize) -> Result<Self, ExtSenderCoreError> {
@@ -259,6 +255,7 @@ impl Kos15Sender<state::RandSetup> {
         Ok(ExtSenderDecommit {
             seed: self.0.rng.get_seed(),
             tape: self.0.tape,
+            offset: self.0.offset,
         })
     }
 }
