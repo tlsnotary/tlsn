@@ -130,9 +130,6 @@ impl Kos15Sender<state::BaseReceive> {
             count: ncols_unpadded,
             sent: 0,
             base_choices: self.0.base_choices,
-            tape: Vec::new(),
-            offset: 0,
-            shutdown: Arc::new(Mutex::new(false)),
         }))
     }
 
@@ -161,42 +158,17 @@ impl Kos15Sender<state::BaseReceive> {
 
 impl Kos15Sender<state::Setup> {
     pub fn send(&mut self, inputs: &[[Block; 2]]) -> Result<ExtSenderPayload, ExtSenderCoreError> {
-        if *self
-            .0
-            .shutdown
-            .lock()
-            .map_err(|_| ExtSenderCoreError::Poison)?
-            == true
-        {
-            return Err(ExtSenderCoreError::Shutdown);
-        }
-
-        let result = send_from(
+        send_from(
             &mut self.0.count,
             &mut self.0.sent,
             &mut self.0.table,
             &self.0.base_choices,
             inputs,
             None,
-        );
-
-        if result.is_ok() {
-            self.0.tape.extend_from_slice(inputs);
-        }
-        result
+        )
     }
 
     pub fn split(&mut self, split_at: usize) -> Result<Self, ExtSenderCoreError> {
-        if *self
-            .0
-            .shutdown
-            .lock()
-            .map_err(|_| ExtSenderCoreError::Poison)?
-            == true
-        {
-            return Err(ExtSenderCoreError::Shutdown);
-        }
-
         let split_table = self.0.table.split_off_rows(split_at)?;
         let rows = split_table.rows();
         self.0.count -= rows;
@@ -207,27 +179,11 @@ impl Kos15Sender<state::Setup> {
             count: rows,
             sent: 0,
             base_choices: self.0.base_choices.clone(),
-            tape: Vec::new(),
-            offset: self.0.offset + split_at,
-            shutdown: Arc::clone(&self.0.shutdown),
         }))
     }
 
     pub fn is_complete(&self) -> bool {
         self.0.sent == self.0.count
-    }
-
-    pub fn decommit(self) -> Result<ExtSenderDecommit, ExtSenderCoreError> {
-        *self
-            .0
-            .shutdown
-            .lock()
-            .map_err(|_| ExtSenderCoreError::Poison)? = true;
-
-        Ok(ExtSenderDecommit {
-            seed: self.0.rng.get_seed(),
-            tape: self.0.tape,
-        })
     }
 }
 

@@ -23,16 +23,6 @@ pub type CointossShare = [u8; 32];
 // Choice bits for the base OT protocol
 pub type BaseChoices = Vec<bool>;
 
-// Record sent values for committed OT
-pub type Tape = Vec<[Block; 2]>;
-
-// Track the offset of OTs split off from other OTs
-pub type Offset = usize;
-
-// Track if this OT can be used or if it or a parent has revealed its
-// seed for committed OT
-pub type Shutdown = Arc<Mutex<bool>>;
-
 pub struct Initialized {
     pub(crate) rng: ChaCha12Rng,
     pub(crate) base_receiver: BaseReceiver,
@@ -68,9 +58,6 @@ pub struct Setup {
     pub(crate) count: Count,
     pub(crate) sent: Sent,
     pub(crate) base_choices: BaseChoices,
-    pub(crate) tape: Tape,
-    pub(crate) offset: Offset,
-    pub(crate) shutdown: Shutdown,
 }
 impl SenderState for Setup {}
 
@@ -81,8 +68,12 @@ pub struct RandSetup {
     pub(crate) count: Count,
     pub(crate) sent: Sent,
     pub(crate) base_choices: BaseChoices,
-    pub(crate) tape: Tape,
-    pub(crate) offset: Offset,
-    pub(crate) shutdown: Shutdown,
+    // Record sent values for committed OT
+    pub(crate) tape: Vec<[Block; 2]>,
+    // Track the offset of OTs split off from other OTs
+    pub(crate) offset: usize,
+    // Track if this OT can be used or if it or a parent has revealed its
+    // seed for committed OT
+    pub(crate) shutdown: Arc<Mutex<bool>>,
 }
 impl SenderState for RandSetup {}

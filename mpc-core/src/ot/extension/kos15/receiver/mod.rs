@@ -6,7 +6,7 @@ use super::utils::{calc_padding, decrypt_values, kos15_check_receiver, seed_rngs
 use super::BASE_COUNT;
 use crate::msgs::ot::{
     BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper, ExtDerandomize,
-    ExtReceiverSetup, ExtSenderPayload,
+    ExtReceiverSetup, ExtSenderCommit, ExtSenderDecommit, ExtSenderPayload,
 };
 use crate::ot::DhOtSender as BaseSender;
 use crate::utils::{boolvec_to_u8vec, sha256, xor};
@@ -23,7 +23,13 @@ where
 
 impl Default for Kos15Receiver {
     fn default() -> Self {
-        let mut rng = ChaCha12Rng::from_entropy();
+        let rng = ChaCha12Rng::from_entropy();
+        Self::new_with_rng(rng)
+    }
+}
+
+impl Kos15Receiver {
+    pub fn new_with_rng(mut rng: ChaCha12Rng) -> Self {
         let cointoss_share = rng.gen();
         Self(state::Initialized {
             base_sender: BaseSender::default(),
@@ -31,9 +37,12 @@ impl Default for Kos15Receiver {
             cointoss_share,
         })
     }
-}
 
-impl Kos15Receiver {
+    pub fn new_from_seed(seed: [u8; 32]) -> Self {
+        let rng = ChaCha12Rng::from_seed(seed);
+        Self::new_with_rng(rng)
+    }
+
     pub fn base_setup(
         mut self,
     ) -> Result<(Kos15Receiver<state::BaseSetup>, BaseSenderSetupWrapper), ExtReceiverCoreError>
@@ -202,6 +211,14 @@ impl Kos15Receiver<state::RandSetup> {
             choices: self.0.choices.split_off(split_at),
             derandomized: Vec::new(),
         }))
+    }
+
+    pub fn verify(
+        self,
+        _commitment: ExtSenderCommit,
+        _decommitment: ExtSenderDecommit,
+    ) -> Result<bool, ExtReceiverCoreError> {
+        todo!()
     }
 }
 
