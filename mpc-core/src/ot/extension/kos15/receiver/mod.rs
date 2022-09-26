@@ -252,7 +252,7 @@ impl Kos15Receiver<state::RandSetup> {
             receiver.rand_extension_setup(decommitment.offset + decommitment.tape.len())?;
         let mut sender = sender.rand_extension_setup(r_message)?;
 
-        // Fast-forward sender, input should not matter
+        // Fast-forward sender and receiver, input should not matter
         if decommitment.offset > 0 {
             let _ = sender.rand_send(
                 &vec![[Block::default(); 2]; decommitment.offset],
@@ -260,6 +260,7 @@ impl Kos15Receiver<state::RandSetup> {
                     flip: vec![false; decommitment.offset],
                 },
             )?;
+            let _ = receiver.derandomize(&vec![false; decommitment.offset])?;
         }
 
         let derandomized = receiver.derandomize(&self.0.choices_tape)?;

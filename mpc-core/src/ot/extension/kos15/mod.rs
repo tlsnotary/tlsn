@@ -417,4 +417,36 @@ pub mod tests {
         let check = receiver.verify(commitment, decommitment);
         assert!(check.unwrap_err() == CommittedOTError::Verify);
     }
+
+    #[rstest]
+    fn test_committed_ot_split(input_setup: (Vec<bool>, Vec<[Block; 2]>)) {
+        let (choices, inputs) = input_setup;
+        let (sender, receiver) = (Kos15Sender::default(), Kos15Receiver::default());
+
+        let commitment = sender.commit_to_seed();
+
+        let (receiver, message) = receiver.base_setup().unwrap();
+        let (sender, message) = sender.base_setup(message).unwrap();
+
+        let (receiver, message) = receiver.base_send(message).unwrap();
+        let sender = sender.base_receive(message).unwrap();
+
+        let (mut receiver, receiver_setup) = receiver.rand_extension_setup(choices.len()).unwrap();
+        let mut sender = sender.rand_extension_setup(receiver_setup).unwrap();
+
+        let mut sender = sender.split(inputs.len() / 2).unwrap();
+        let mut receiver = receiver.split(inputs.len() / 2).unwrap();
+
+        let message = receiver.derandomize(&choices[choices.len() / 2..]).unwrap();
+
+        let sender_output = sender
+            .rand_send(&inputs[inputs.len() / 2..], message)
+            .unwrap();
+        let _ = receiver.rand_receive(&sender_output).unwrap();
+
+        let decommitment = sender.decommit().unwrap();
+
+        let check = receiver.verify(commitment, decommitment);
+        assert!(check.is_ok());
+    }
 }
