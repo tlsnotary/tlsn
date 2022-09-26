@@ -1,8 +1,8 @@
+pub mod garble;
 #[cfg(feature = "ot")]
 pub mod ot;
-//#[cfg(feature = "pa")]
-//pub mod point_addition;
-pub mod garble;
+#[cfg(feature = "pa")]
+pub mod point_addition;
 
 pub trait Protocol {
     type Message: Send + 'static;
