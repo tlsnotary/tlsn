@@ -1,9 +1,9 @@
 use super::{OTChannel, ObliviousSend};
-use crate::protocol::ot::OTError;
+use crate::protocol::ot::{OTError, ObliviousCommit, ObliviousDecommit};
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use mpc_core::{
-    msgs::ot::OTMessage,
+    msgs::ot::{ExtSenderCommit, ExtSenderDecommit, OTMessage},
     ot::{
         extension::{s_state, Kos15Sender},
         s_state::SenderState,
@@ -92,6 +92,32 @@ impl ObliviousSend for Kos15IOSender<s_state::RandSetup> {
         let message = self.inner.rand_send(&inputs, message)?;
         self.channel
             .send(OTMessage::ExtSenderPayload(message))
+            .await?;
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl ObliviousCommit for Kos15IOSender<s_state::Initialized> {
+    type Commitment = ExtSenderCommit;
+
+    async fn commit(&mut self) -> Result<(), OTError> {
+        let message = self.inner.commit_to_seed();
+        self.channel
+            .send(OTMessage::ExtSenderCommit(message))
+            .await?;
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl ObliviousDecommit for Kos15IOSender<s_state::RandSetup> {
+    type Decommitment = ExtSenderDecommit;
+
+    async fn decommit(mut self) -> Result<(), OTError> {
+        let message = self.inner.decommit()?;
+        self.channel
+            .send(OTMessage::ExtSenderDecommit(message))
             .await?;
         Ok(())
     }

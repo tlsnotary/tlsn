@@ -5,7 +5,10 @@ pub mod mock;
 use async_trait::async_trait;
 use mpc_core::{
     msgs::ot::OTMessage,
-    ot::{ExtReceiverCoreError, ExtSenderCoreError, ReceiverCoreError, SenderCoreError},
+    ot::{
+        CommittedOTError, ExtReceiverCoreError, ExtSenderCoreError, ReceiverCoreError,
+        SenderCoreError,
+    },
 };
 use utils_aio::Channel;
 
@@ -23,6 +26,8 @@ pub enum OTError {
     ExtReceiverCoreError(#[from] ExtReceiverCoreError),
     #[error("IO error")]
     IOError(#[from] std::io::Error),
+    #[error("CommittedOT Error: {0}")]
+    CommittedOT(#[from] CommittedOTError),
     #[error("Received unexpected message: {0:?}")]
     Unexpected(OTMessage),
 }
@@ -40,6 +45,32 @@ pub trait ObliviousReceive {
     type Outputs;
 
     async fn receive(&mut self, choices: &[Self::Choice]) -> Result<Self::Outputs, OTError>;
+}
+
+#[async_trait]
+pub trait ObliviousCommit {
+    type Commitment;
+
+    async fn commit(&mut self) -> Result<(), OTError>;
+}
+
+#[async_trait]
+pub trait ObliviousDecommit {
+    type Decommitment;
+
+    async fn decommit(mut self) -> Result<(), OTError>;
+}
+
+#[async_trait]
+pub trait ObliviousVerify {
+    type Commitment;
+    type Decommitment;
+
+    async fn verify(
+        self,
+        commit: Self::Commitment,
+        decommit: Self::Decommitment,
+    ) -> Result<(), OTError>;
 }
 
 #[cfg(test)]

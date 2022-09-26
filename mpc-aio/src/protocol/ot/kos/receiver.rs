@@ -1,9 +1,9 @@
 use super::{OTChannel, ObliviousReceive};
-use crate::protocol::ot::OTError;
+use crate::protocol::ot::{OTError, ObliviousVerify};
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use mpc_core::{
-    msgs::ot::OTMessage,
+    msgs::ot::{ExtSenderCommit, ExtSenderDecommit, OTMessage},
     ot::{
         extension::{r_state, Kos15Receiver},
         r_state::ReceiverState,
@@ -86,5 +86,20 @@ impl ObliviousReceive for Kos15IOReceiver<r_state::RandSetup> {
         };
         let out = self.inner.rand_receive(&message)?;
         Ok(out)
+    }
+}
+
+#[async_trait]
+impl ObliviousVerify for Kos15IOReceiver<r_state::RandSetup> {
+    type Commitment = ExtSenderCommit;
+    type Decommitment = ExtSenderDecommit;
+    async fn verify(
+        mut self,
+        commit: Self::Commitment,
+        decommit: Self::Decommitment,
+    ) -> Result<(), OTError> {
+        self.inner
+            .verify(commit, decommit)
+            .map_err(OTError::CommittedOT)
     }
 }
