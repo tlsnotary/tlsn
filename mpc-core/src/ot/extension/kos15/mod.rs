@@ -14,7 +14,7 @@ pub const BASE_COUNT: usize = 128;
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::{msgs::ot as msgs, Block};
+    use crate::{msgs::ot as msgs, ot::extension::kos15::receiver::error::CommittedOTError, Block};
     use pretty_assertions::assert_eq;
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
@@ -387,6 +387,34 @@ pub mod tests {
         let decommitment = sender.decommit().unwrap();
 
         let check = receiver.verify(commitment, decommitment);
-        assert!(check.is_ok())
+        assert!(check.is_ok());
+    }
+
+    #[rstest]
+    fn test_committed_ot_fail(input_setup: (Vec<bool>, Vec<[Block; 2]>)) {
+        let (choices, inputs) = input_setup;
+        let (sender, receiver) = (Kos15Sender::default(), Kos15Receiver::default());
+
+        let commitment = sender.commit_to_seed();
+
+        let (receiver, message) = receiver.base_setup().unwrap();
+        let (sender, message) = sender.base_setup(message).unwrap();
+
+        let (receiver, message) = receiver.base_send(message).unwrap();
+        let sender = sender.base_receive(message).unwrap();
+
+        let (mut receiver, receiver_setup) = receiver.rand_extension_setup(choices.len()).unwrap();
+        let mut sender = sender.rand_extension_setup(receiver_setup).unwrap();
+
+        let message = receiver.derandomize(&choices).unwrap();
+
+        let sender_output = sender.rand_send(&inputs, message).unwrap();
+        let _ = receiver.rand_receive(&sender_output).unwrap();
+
+        let mut decommitment = sender.decommit().unwrap();
+        *decommitment.tape.last_mut().unwrap() = *decommitment.tape.first().unwrap();
+
+        let check = receiver.verify(commitment, decommitment);
+        assert!(check.unwrap_err() == CommittedOTError::Verify);
     }
 }
