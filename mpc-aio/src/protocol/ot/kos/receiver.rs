@@ -84,7 +84,7 @@ impl ObliviousReceive for Kos15IOReceiver<r_state::RandSetup> {
                 )))
             }
         };
-        let out = self.inner.rand_receive(message)?;
+        let out = self.inner.rand_receive(&message)?;
         Ok(out)
     }
 }

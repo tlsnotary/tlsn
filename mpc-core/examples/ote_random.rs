@@ -51,13 +51,13 @@ pub fn main() {
     let initial_choices = vec![false, true];
     let derandomize = receiver.derandomize(&initial_choices).unwrap();
     let initial_payload = sender.rand_send(&inputs[..2], derandomize).unwrap();
-    received.append(&mut receiver.rand_receive(initial_payload).unwrap());
+    received.append(&mut receiver.rand_receive(&initial_payload).unwrap());
     for chunk in inputs[2..].chunks(2) {
         let received_sum: u128 = received.iter().map(|b| b.inner()).sum();
         let choice = received_sum % 2 == 0;
         let derandomize = receiver.derandomize(&[choice, !choice]).unwrap();
         let payload = sender.rand_send(&chunk, derandomize).unwrap();
-        received.append(&mut receiver.rand_receive(payload).unwrap());
+        received.append(&mut receiver.rand_receive(&payload).unwrap());
     }
 
     println!("Transferred messages: {:?}", received);

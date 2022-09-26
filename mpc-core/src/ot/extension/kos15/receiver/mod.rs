@@ -193,7 +193,7 @@ impl Kos15Receiver<state::RandSetup> {
 
     pub fn rand_receive(
         &mut self,
-        payload: ExtSenderPayload,
+        payload: &ExtSenderPayload,
     ) -> Result<Vec<Block>, ExtReceiverCoreError> {
         if payload.ciphertexts.len() > self.0.derandomized.len() {
             return Err(ExtReceiverCoreError::NotDerandomized);
@@ -248,29 +248,29 @@ impl Kos15Receiver<state::RandSetup> {
         let (receiver, r_message) = receiver.base_send(s_message)?;
         let sender = sender.base_receive(r_message)?;
 
-        let (_receiver, r_message) =
+        let (mut receiver, r_message) =
             receiver.rand_extension_setup(decommitment.offset + decommitment.tape.len())?;
         let mut sender = sender.rand_extension_setup(r_message)?;
 
         // Fast-forward sender, input should not matter
-        let _ = sender.rand_send(
-            &vec![[Block::default(); 2]; decommitment.offset],
-            ExtDerandomize {
-                flip: vec![false; decommitment.offset],
-            },
-        )?;
-
-        let actual_messages = sender
-            .rand_send(
-                &decommitment.tape,
+        if decommitment.offset > 0 {
+            let _ = sender.rand_send(
+                &vec![[Block::default(); 2]; decommitment.offset],
                 ExtDerandomize {
-                    flip: self.0.choices_tape,
+                    flip: vec![false; decommitment.offset],
                 },
-            )?
-            .ciphertexts;
+            )?;
+        }
 
-        for k in 0..actual_messages.len() {
-            if actual_messages[k] != self.0.sender_output_tape[k] {
+        let derandomized = receiver.derandomize(&self.0.choices_tape)?;
+        let sender_output = sender.rand_send(&decommitment.tape, derandomized)?;
+
+        if sender_output.ciphertexts.len() != self.0.sender_output_tape.len() {
+            return Err(CommittedOTError::IncompleteTape);
+        }
+
+        for k in 0..sender_output.ciphertexts.len() {
+            if sender_output.ciphertexts[k] != self.0.sender_output_tape[k] {
                 return Err(CommittedOTError::Verify);
             }
         }

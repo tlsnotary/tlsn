@@ -30,6 +30,8 @@ pub enum CommittedOTError {
     Sender(#[from] ExtSenderCoreError),
     #[error("Committed OT receiver error: {0}")]
     Receiver(#[from] ExtReceiverCoreError),
+    #[error("Incomplete tape")]
+    IncompleteTape,
     #[error("Verification failed")]
     Verify,
 }

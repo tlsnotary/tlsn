@@ -189,7 +189,7 @@ pub mod tests {
         let derandomize = receiver.derandomize(&choices).unwrap();
 
         let payload = sender.rand_send(&inputs, derandomize).unwrap();
-        let receive = receiver.rand_receive(payload).unwrap();
+        let receive = receiver.rand_receive(&payload).unwrap();
 
         let expected: Vec<Block> = inputs
             .iter()
@@ -220,7 +220,7 @@ pub mod tests {
             assert!(!receiver.is_complete());
             let derandomize = receiver.derandomize(&choice).unwrap();
             let payload = sender.rand_send(&input, derandomize).unwrap();
-            received.append(&mut receiver.rand_receive(payload).unwrap());
+            received.append(&mut receiver.rand_receive(&payload).unwrap());
         }
         assert!(sender.is_complete());
         assert!(receiver.is_complete());
@@ -239,7 +239,7 @@ pub mod tests {
             ciphertexts: vec![[Block::random(&mut rng); 2]],
         };
         let receiver = receiver
-            .rand_receive(add_ciphers)
+            .rand_receive(&add_ciphers)
             .expect_err("Sending more OTs should be state error");
         assert_eq!(receiver, ExtReceiverCoreError::NotDerandomized);
 
@@ -361,5 +361,32 @@ pub mod tests {
             .collect();
 
         assert_eq!(expected, receive);
+    }
+
+    #[rstest]
+    fn test_committed_ot(input_setup: (Vec<bool>, Vec<[Block; 2]>)) {
+        let (choices, inputs) = input_setup;
+        let (sender, receiver) = (Kos15Sender::default(), Kos15Receiver::default());
+
+        let commitment = sender.commit_to_seed();
+
+        let (receiver, message) = receiver.base_setup().unwrap();
+        let (sender, message) = sender.base_setup(message).unwrap();
+
+        let (receiver, message) = receiver.base_send(message).unwrap();
+        let sender = sender.base_receive(message).unwrap();
+
+        let (mut receiver, receiver_setup) = receiver.rand_extension_setup(choices.len()).unwrap();
+        let mut sender = sender.rand_extension_setup(receiver_setup).unwrap();
+
+        let message = receiver.derandomize(&choices).unwrap();
+
+        let sender_output = sender.rand_send(&inputs, message).unwrap();
+        let _ = receiver.rand_receive(&sender_output).unwrap();
+
+        let decommitment = sender.decommit().unwrap();
+
+        let check = receiver.verify(commitment, decommitment);
+        assert!(check.is_ok())
     }
 }
