@@ -9,6 +9,40 @@ use mpc_circuits::Circuit;
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum GarbleMessage {
     GarbledCircuit(GarbledCircuit),
+    OutputCommit(OutputCommit),
+    OutputCheck(OutputCheck),
+}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct OutputCommit([u8; 32]);
+
+impl From<garble::exec::OutputCommit> for OutputCommit {
+    fn from(c: garble::exec::OutputCommit) -> Self {
+        Self(c.0)
+    }
+}
+
+impl From<OutputCommit> for garble::exec::OutputCommit {
+    fn from(c: OutputCommit) -> Self {
+        Self(c.0)
+    }
+}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct OutputCheck([u8; 32]);
+
+impl From<garble::exec::OutputCheck> for OutputCheck {
+    fn from(c: garble::exec::OutputCheck) -> Self {
+        Self(c.0)
+    }
+}
+
+impl From<OutputCheck> for garble::exec::OutputCheck {
+    fn from(c: OutputCheck) -> Self {
+        Self(c.0)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -210,6 +244,7 @@ mod proto {
                     GarbleMessage::GarbledCircuit(gc) => {
                         proto::garble::message::Msg::GarbledCircuit(gc.into())
                     }
+                    _ => todo!(),
                 }),
             }
         }

@@ -1,93 +1,67 @@
 //! An implementation of "Dual Execution" mode which provides authenticity
 //! but may leak all private inputs of the [`DualExFollower`] if the [`DualExLeader`] is malicious. Either party,
-//! if malicious, can learn bits of the others input with 1/2^n probability of it going undetected.
-use crate::{
-    garble::{
-        circuit::{Evaluated, Full, GarbledCircuit, Partial},
-        label::OutputLabels,
-        Delta, Error, InputLabels, WireLabel, WireLabelPair,
-    },
-    utils::sha256,
+//! if malicious, can learn n bits of the other's input with 1/2^n probability of it going undetected.
+use super::{OutputCheck, OutputCommit};
+use crate::garble::{
+    circuit::{Evaluated, Full, GarbledCircuit, Partial},
+    label::OutputLabels,
+    Delta, Error, InputLabels, WireLabel, WireLabelPair,
 };
 use mpc_circuits::{Circuit, InputValue};
 
 use aes::{Aes128, NewBlockCipher};
 use std::sync::Arc;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct OutputCheck([u8; 32]);
+pub mod state {
+    use super::*;
 
-#[derive(Clone, PartialEq)]
-pub struct OutputCommit([u8; 32]);
-
-impl OutputCheck {
-    /// Creates new output check
-    ///
-    /// This output check is a hash of the output wire labels from the peer's circuit along with the
-    /// expected labels from the callers garbled circuit. The expected labels are determined using
-    /// the decoded output values from evaluating the peer's garbled circuit.
-    pub fn new(labels: (&[OutputLabels<WireLabel>], &[OutputLabels<WireLabel>])) -> Self {
-        let bytes: Vec<u8> = labels
-            .0
-            .iter()
-            .chain(labels.1.iter())
-            .map(|labels| labels.to_be_bytes())
-            .flatten()
-            .collect();
-        Self(sha256(&bytes))
+    mod sealed {
+        pub trait Sealed {}
+        impl Sealed for super::Generator {}
+        impl Sealed for super::Evaluator {}
+        impl Sealed for super::Commit {}
+        impl Sealed for super::Reveal {}
+        impl Sealed for super::Check {}
     }
-}
 
-impl OutputCommit {
-    pub fn new(check: &OutputCheck) -> Self {
-        Self(sha256(&check.0))
+    pub trait State: sealed::Sealed {}
+
+    pub struct Generator {
+        pub(super) circ: Arc<Circuit>,
     }
+
+    pub struct Evaluator {
+        pub(super) circ: Arc<Circuit>,
+        pub(super) gc: GarbledCircuit<Full>,
+    }
+
+    pub struct Commit {
+        pub(super) circ: Arc<Circuit>,
+        pub(super) evaluated_gc: GarbledCircuit<Evaluated>,
+        pub(super) check: OutputCheck,
+    }
+
+    pub struct Reveal {
+        pub(super) circ: Arc<Circuit>,
+        pub(super) evaluated_gc: GarbledCircuit<Evaluated>,
+        pub(super) check: OutputCheck,
+    }
+
+    pub struct Check {
+        pub(super) circ: Arc<Circuit>,
+        pub(super) evaluated_gc: GarbledCircuit<Evaluated>,
+        pub(super) check: OutputCheck,
+        pub(super) commit: Option<OutputCommit>,
+    }
+
+    impl State for Generator {}
+    impl State for Evaluator {}
+    impl State for Commit {}
+    impl State for Reveal {}
+    impl State for Check {}
 }
 
-mod sealed {
-    pub trait Sealed {}
-    impl Sealed for super::Generator {}
-    impl Sealed for super::Evaluator {}
-    impl Sealed for super::Commit {}
-    impl Sealed for super::Reveal {}
-    impl Sealed for super::Check {}
-}
-
-pub trait State: sealed::Sealed {}
-
-pub struct Generator {
-    circ: Arc<Circuit>,
-}
-
-pub struct Evaluator {
-    circ: Arc<Circuit>,
-    gc: GarbledCircuit<Full>,
-}
-
-pub struct Commit {
-    circ: Arc<Circuit>,
-    evaluated_gc: GarbledCircuit<Evaluated>,
-    check: OutputCheck,
-}
-
-pub struct Reveal {
-    circ: Arc<Circuit>,
-    evaluated_gc: GarbledCircuit<Evaluated>,
-    check: OutputCheck,
-}
-
-pub struct Check {
-    circ: Arc<Circuit>,
-    evaluated_gc: GarbledCircuit<Evaluated>,
-    check: OutputCheck,
-    commit: Option<OutputCommit>,
-}
-
-impl State for Generator {}
-impl State for Evaluator {}
-impl State for Commit {}
-impl State for Reveal {}
-impl State for Check {}
+use state::*;
 
 pub struct DualExLeader<S = Generator>
 where
