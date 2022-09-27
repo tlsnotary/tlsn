@@ -112,7 +112,7 @@ impl ObliviousAcceptCommit for Kos15IOReceiver<r_state::Initialized> {
 impl ObliviousVerify for Kos15IOReceiver<r_state::RandSetup> {
     type Commitment = ExtSenderCommit;
 
-    async fn verify(mut self, commit: Self::Commitment) -> Result<(), OTError> {
+    async fn verify(mut self, commitment: Self::Commitment) -> Result<(), OTError> {
         let decommitment = match self.channel.next().await {
             Some(OTMessage::ExtSenderDecommit(m)) => m,
             Some(m) => return Err(OTError::Unexpected(m)),
@@ -124,7 +124,7 @@ impl ObliviousVerify for Kos15IOReceiver<r_state::RandSetup> {
             }
         };
         self.inner
-            .verify(commit, decommitment)
+            .verify(commitment, decommitment)
             .map_err(OTError::CommittedOT)
     }
 }

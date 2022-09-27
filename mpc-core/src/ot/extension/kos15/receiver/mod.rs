@@ -29,15 +29,6 @@ impl Default for Kos15Receiver {
 }
 
 impl Kos15Receiver {
-    pub fn new_with_rng(mut rng: ChaCha12Rng) -> Self {
-        let cointoss_share = rng.gen();
-        Self(state::Initialized {
-            base_sender: BaseSender::default(),
-            rng,
-            cointoss_share,
-        })
-    }
-
     pub fn new_from_seed(seed: [u8; 32]) -> Self {
         let rng = ChaCha12Rng::from_seed(seed);
         Self::new_with_rng(rng)
@@ -58,6 +49,15 @@ impl Kos15Receiver {
             cointoss_commit: sha256(&self.0.cointoss_share),
         };
         Ok((kos_receiver, message))
+    }
+
+    fn new_with_rng(mut rng: ChaCha12Rng) -> Self {
+        let cointoss_share = rng.gen();
+        Self(state::Initialized {
+            base_sender: BaseSender::default(),
+            rng,
+            cointoss_share,
+        })
     }
 }
 
@@ -227,6 +227,16 @@ impl Kos15Receiver<state::RandSetup> {
         }))
     }
 
+    /// Implements a weak version of verifiable OT
+    ///
+    /// This function is an implementation of verifiable OT for the sender only. It uses a
+    /// commitment and decommitment of the sender to replay the OT session between sender and
+    /// receiver and allows the receiver to check that the sender acted correctly.
+    ///
+    /// The sender commits in the beginning to the seed of his RNG. During the session the receiver
+    /// records all ciphertext blocks received by the sender and his choices. Afterwards in the
+    /// decommitment the sender sends all his OTs in cleartext and the RNG seed. This allows the
+    /// receiver to replay the whole session and check for correctness.
     pub fn verify(
         self,
         commitment: ExtSenderCommit,

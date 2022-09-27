@@ -37,19 +37,6 @@ impl Default for Kos15Sender {
 }
 
 impl Kos15Sender {
-    pub fn new_with_rng(mut rng: ChaCha12Rng) -> Self {
-        let cointoss_share = rng.gen();
-        let mut base_choices = vec![false; BASE_COUNT];
-        rng.fill::<[bool]>(&mut base_choices);
-
-        Self(state::Initialized {
-            rng,
-            base_receiver: BaseReceiver::default(),
-            base_choices,
-            cointoss_share,
-        })
-    }
-
     pub fn new_from_seed(seed: [u8; 32]) -> Self {
         let rng = ChaCha12Rng::from_seed(seed);
         Self::new_with_rng(rng)
@@ -79,6 +66,19 @@ impl Kos15Sender {
             cointoss_share: self.0.cointoss_share,
         });
         Ok((kos_15_sender, message))
+    }
+
+    fn new_with_rng(mut rng: ChaCha12Rng) -> Self {
+        let cointoss_share = rng.gen();
+        let mut base_choices = vec![false; BASE_COUNT];
+        rng.fill::<[bool]>(&mut base_choices);
+
+        Self(state::Initialized {
+            rng,
+            base_receiver: BaseReceiver::default(),
+            base_choices,
+            cointoss_share,
+        })
     }
 }
 

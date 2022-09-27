@@ -67,11 +67,11 @@ pub struct RandSetup {
     pub(crate) count: Count,
     pub(crate) sent: Sent,
     pub(crate) base_choices: BaseChoices,
-    // Record sent values for committed OT
+    // Record sent cleartext values for committed OT
     pub(crate) tape: Vec<[Block; 2]>,
-    // Track the offset of OTs split off from other OTs
+    // Tracks the offset of OTs split off from other OTs
     pub(crate) offset: usize,
-    // Track if this OT can be used or if it or a parent has revealed its
+    // Tracks if this OT can be used or if it or its parent has revealed its
     // seed for committed OT
     pub(crate) shutdown: Arc<Mutex<bool>>,
 }
