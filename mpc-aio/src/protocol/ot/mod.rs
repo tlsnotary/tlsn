@@ -49,28 +49,26 @@ pub trait ObliviousReceive {
 
 #[async_trait]
 pub trait ObliviousCommit {
-    type Commitment;
-
     async fn commit(&mut self) -> Result<(), OTError>;
 }
 
 #[async_trait]
 pub trait ObliviousDecommit {
-    type Decommitment;
-
     async fn decommit(mut self) -> Result<(), OTError>;
+}
+
+#[async_trait]
+pub trait ObliviousAcceptCommit {
+    type Commitment;
+
+    async fn accept_commit(&mut self) -> Result<Self::Commitment, OTError>;
 }
 
 #[async_trait]
 pub trait ObliviousVerify {
     type Commitment;
-    type Decommitment;
 
-    async fn verify(
-        self,
-        commit: Self::Commitment,
-        decommit: Self::Decommitment,
-    ) -> Result<(), OTError>;
+    async fn verify(self, commit: Self::Commitment) -> Result<(), OTError>;
 }
 
 #[cfg(test)]

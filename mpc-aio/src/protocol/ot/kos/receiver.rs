@@ -1,9 +1,9 @@
 use super::{OTChannel, ObliviousReceive};
-use crate::protocol::ot::{OTError, ObliviousVerify};
+use crate::protocol::ot::{OTError, ObliviousAcceptCommit, ObliviousVerify};
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use mpc_core::{
-    msgs::ot::{ExtSenderCommit, ExtSenderDecommit, OTMessage},
+    msgs::ot::{ExtSenderCommit, OTMessage},
     ot::{
         extension::{r_state, Kos15Receiver},
         r_state::ReceiverState,
@@ -90,16 +90,41 @@ impl ObliviousReceive for Kos15IOReceiver<r_state::RandSetup> {
 }
 
 #[async_trait]
+impl ObliviousAcceptCommit for Kos15IOReceiver<r_state::Initialized> {
+    type Commitment = ExtSenderCommit;
+
+    async fn accept_commit(&mut self) -> Result<Self::Commitment, OTError> {
+        let commitment = match self.channel.next().await {
+            Some(OTMessage::ExtSenderCommit(m)) => m,
+            Some(m) => return Err(OTError::Unexpected(m)),
+            None => {
+                return Err(OTError::from(std::io::Error::new(
+                    std::io::ErrorKind::ConnectionAborted,
+                    "stream closed unexpectedly",
+                )))
+            }
+        };
+        Ok(commitment)
+    }
+}
+
+#[async_trait]
 impl ObliviousVerify for Kos15IOReceiver<r_state::RandSetup> {
     type Commitment = ExtSenderCommit;
-    type Decommitment = ExtSenderDecommit;
-    async fn verify(
-        mut self,
-        commit: Self::Commitment,
-        decommit: Self::Decommitment,
-    ) -> Result<(), OTError> {
+
+    async fn verify(mut self, commit: Self::Commitment) -> Result<(), OTError> {
+        let decommitment = match self.channel.next().await {
+            Some(OTMessage::ExtSenderDecommit(m)) => m,
+            Some(m) => return Err(OTError::Unexpected(m)),
+            None => {
+                return Err(OTError::from(std::io::Error::new(
+                    std::io::ErrorKind::ConnectionAborted,
+                    "stream closed unexpectedly",
+                )))
+            }
+        };
         self.inner
-            .verify(commit, decommit)
+            .verify(commit, decommitment)
             .map_err(OTError::CommittedOT)
     }
 }
