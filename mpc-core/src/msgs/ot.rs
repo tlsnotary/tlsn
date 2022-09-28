@@ -17,7 +17,7 @@ pub enum OTMessage {
     ExtDerandomize(ExtDerandomize),
     ExtSenderPayload(ExtSenderPayload),
     ExtSenderCommit(ExtSenderCommit),
-    ExtSenderDecommit(ExtSenderDecommit),
+    ExtSenderReveal(ExtSenderReveal),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -98,7 +98,7 @@ pub struct ExtSenderCommit(pub [u8; 32]);
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct ExtSenderDecommit {
+pub struct ExtSenderReveal {
     pub seed: [u8; 32],
     pub tape: Vec<[Block; 2]>,
     pub offset: usize,

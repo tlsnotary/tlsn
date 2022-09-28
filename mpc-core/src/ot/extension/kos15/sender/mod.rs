@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use crate::{
     msgs::ot::{
         BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper, ExtDerandomize,
-        ExtReceiverSetup, ExtSenderCommit, ExtSenderDecommit, ExtSenderPayload,
+        ExtReceiverSetup, ExtSenderCommit, ExtSenderPayload, ExtSenderReveal,
     },
     ot::DhOtReceiver as BaseReceiver,
     utils::{sha256, xor},
@@ -245,14 +245,14 @@ impl Kos15Sender<state::RandSetup> {
         self.0.sent == self.0.count
     }
 
-    pub fn decommit(self) -> Result<ExtSenderDecommit, ExtSenderCoreError> {
+    pub fn reveal(self) -> Result<ExtSenderReveal, ExtSenderCoreError> {
         *self
             .0
             .shutdown
             .lock()
             .map_err(|_| ExtSenderCoreError::Poison)? = true;
 
-        Ok(ExtSenderDecommit {
+        Ok(ExtSenderReveal {
             seed: self.0.rng.get_seed(),
             tape: self.0.tape,
             offset: self.0.offset,

@@ -6,7 +6,7 @@ use super::{OTChannel, ObliviousReceive, ObliviousSend};
 #[cfg(test)]
 mod tests {
     use crate::protocol::ot::{
-        ObliviousAcceptCommit, ObliviousCommit, ObliviousDecommit, ObliviousVerify,
+        ObliviousAcceptCommit, ObliviousCommit, ObliviousReveal, ObliviousVerify,
     };
 
     use super::{
@@ -64,7 +64,7 @@ mod tests {
             sender.commit().await.unwrap();
             let mut sender = sender.rand_setup().await.unwrap();
             sender.send(blocks).await.unwrap();
-            sender.decommit().await.unwrap();
+            sender.reveal().await.unwrap();
         });
         let receive = tokio::spawn(async move {
             let commitment = receiver.accept_commit().await.unwrap();

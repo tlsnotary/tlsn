@@ -189,7 +189,7 @@ pub mod tests {
         let derandomize = receiver.derandomize(&choices).unwrap();
 
         let payload = sender.rand_send(&inputs, derandomize).unwrap();
-        let receive = receiver.rand_receive(&payload).unwrap();
+        let receive = receiver.rand_receive(payload).unwrap();
 
         let expected: Vec<Block> = inputs
             .iter()
@@ -220,7 +220,7 @@ pub mod tests {
             assert!(!receiver.is_complete());
             let derandomize = receiver.derandomize(&choice).unwrap();
             let payload = sender.rand_send(&input, derandomize).unwrap();
-            received.append(&mut receiver.rand_receive(&payload).unwrap());
+            received.append(&mut receiver.rand_receive(payload).unwrap());
         }
         assert!(sender.is_complete());
         assert!(receiver.is_complete());
@@ -239,7 +239,7 @@ pub mod tests {
             ciphertexts: vec![[Block::random(&mut rng); 2]],
         };
         let receiver = receiver
-            .rand_receive(&add_ciphers)
+            .rand_receive(add_ciphers)
             .expect_err("Sending more OTs should be state error");
         assert_eq!(receiver, ExtReceiverCoreError::NotDerandomized);
 
@@ -382,11 +382,11 @@ pub mod tests {
         let message = receiver.derandomize(&choices).unwrap();
 
         let sender_output = sender.rand_send(&inputs, message).unwrap();
-        let _ = receiver.rand_receive(&sender_output).unwrap();
+        let _ = receiver.rand_receive(sender_output).unwrap();
 
-        let decommitment = sender.decommit().unwrap();
+        let reveal = sender.reveal().unwrap();
 
-        let check = receiver.verify(commitment, decommitment);
+        let check = receiver.verify(commitment, reveal);
         assert!(check.is_ok());
     }
 
@@ -409,12 +409,12 @@ pub mod tests {
         let message = receiver.derandomize(&choices).unwrap();
 
         let sender_output = sender.rand_send(&inputs, message).unwrap();
-        let _ = receiver.rand_receive(&sender_output).unwrap();
+        let _ = receiver.rand_receive(sender_output).unwrap();
 
-        let mut decommitment = sender.decommit().unwrap();
-        *decommitment.tape.last_mut().unwrap() = *decommitment.tape.first().unwrap();
+        let mut reveal = sender.reveal().unwrap();
+        *reveal.tape.last_mut().unwrap() = *reveal.tape.first().unwrap();
 
-        let check = receiver.verify(commitment, decommitment);
+        let check = receiver.verify(commitment, reveal);
         assert!(check.unwrap_err() == CommittedOTError::Verify);
     }
 
@@ -442,11 +442,11 @@ pub mod tests {
         let sender_output = sender
             .rand_send(&inputs[inputs.len() / 2..], message)
             .unwrap();
-        let _ = receiver.rand_receive(&sender_output).unwrap();
+        let _ = receiver.rand_receive(sender_output).unwrap();
 
-        let decommitment = sender.decommit().unwrap();
+        let reveal = sender.reveal().unwrap();
 
-        let check = receiver.verify(commitment, decommitment);
+        let check = receiver.verify(commitment, reveal);
         assert!(check.is_ok());
     }
 }

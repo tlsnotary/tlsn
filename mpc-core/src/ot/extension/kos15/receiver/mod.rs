@@ -6,7 +6,7 @@ use super::utils::{calc_padding, decrypt_values, kos15_check_receiver, seed_rngs
 use super::BASE_COUNT;
 use crate::msgs::ot::{
     BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper, ExtDerandomize,
-    ExtReceiverSetup, ExtSenderCommit, ExtSenderDecommit, ExtSenderPayload,
+    ExtReceiverSetup, ExtSenderCommit, ExtSenderPayload, ExtSenderReveal,
 };
 use crate::ot::{DhOtSender as BaseSender, Kos15Sender};
 use crate::utils::{boolvec_to_u8vec, sha256, xor};
@@ -193,7 +193,7 @@ impl Kos15Receiver<state::RandSetup> {
 
     pub fn rand_receive(
         &mut self,
-        payload: &ExtSenderPayload,
+        payload: ExtSenderPayload,
     ) -> Result<Vec<Block>, ExtReceiverCoreError> {
         if payload.ciphertexts.len() > self.0.derandomized.len() {
             return Err(ExtReceiverCoreError::NotDerandomized);
@@ -230,26 +230,26 @@ impl Kos15Receiver<state::RandSetup> {
     /// Implements a weak version of verifiable OT
     ///
     /// This function is an implementation of verifiable OT for the sender only. It uses a
-    /// commitment and decommitment of the sender to replay the OT session between sender and
+    /// commitment and reveal of the sender to replay the OT session between sender and
     /// receiver and allows the receiver to check that the sender acted correctly.
     ///
     /// The sender commits in the beginning to the seed of his RNG. During the session the receiver
     /// records all ciphertext blocks received by the sender and his choices. Afterwards in the
-    /// decommitment the sender sends all his OTs in cleartext and the RNG seed. This allows the
+    /// reveal the sender sends all his OTs in cleartext and the RNG seed. This allows the
     /// receiver to replay the whole session and check for correctness.
     pub fn verify(
         self,
         commitment: ExtSenderCommit,
-        decommitment: ExtSenderDecommit,
-    ) -> Result<(), CommittedOTError> {
+        reveal: ExtSenderReveal,
+    ) -> Result<Vec<[Block; 2]>, CommittedOTError> {
         // Check commitment for correctness
-        if sha256(&decommitment.seed) != commitment.0 {
+        if sha256(&reveal.seed) != commitment.0 {
             return Err(CommittedOTError::CommitmentCheck);
         }
 
         // We now instantiate sender and receiver from the given seeds,
         // replay the session and check for message correctness of the sender
-        let sender = Kos15Sender::new_from_seed(decommitment.seed);
+        let sender = Kos15Sender::new_from_seed(reveal.seed);
         let receiver = Kos15Receiver::new_from_seed(self.0.rng.get_seed());
 
         let (receiver, r_message) = receiver.base_setup()?;
@@ -259,22 +259,22 @@ impl Kos15Receiver<state::RandSetup> {
         let sender = sender.base_receive(r_message)?;
 
         let (mut receiver, r_message) =
-            receiver.rand_extension_setup(decommitment.offset + decommitment.tape.len())?;
+            receiver.rand_extension_setup(reveal.offset + reveal.tape.len())?;
         let mut sender = sender.rand_extension_setup(r_message)?;
 
         // Fast-forward sender and receiver, input should not matter
-        if decommitment.offset > 0 {
+        if reveal.offset > 0 {
             let _ = sender.rand_send(
-                &vec![[Block::default(); 2]; decommitment.offset],
+                &vec![[Block::default(); 2]; reveal.offset],
                 ExtDerandomize {
-                    flip: vec![false; decommitment.offset],
+                    flip: vec![false; reveal.offset],
                 },
             )?;
-            let _ = receiver.derandomize(&vec![false; decommitment.offset])?;
+            let _ = receiver.derandomize(&vec![false; reveal.offset])?;
         }
 
         let derandomized = receiver.derandomize(&self.0.choices_tape)?;
-        let sender_output = sender.rand_send(&decommitment.tape, derandomized)?;
+        let sender_output = sender.rand_send(&reveal.tape, derandomized)?;
 
         if sender_output.ciphertexts.len() != self.0.sender_output_tape.len() {
             return Err(CommittedOTError::IncompleteTape);
@@ -286,7 +286,7 @@ impl Kos15Receiver<state::RandSetup> {
             }
         }
 
-        Ok(())
+        Ok(reveal.tape)
     }
 }
 

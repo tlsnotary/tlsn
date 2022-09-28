@@ -53,8 +53,8 @@ pub trait ObliviousCommit {
 }
 
 #[async_trait]
-pub trait ObliviousDecommit {
-    async fn decommit(mut self) -> Result<(), OTError>;
+pub trait ObliviousReveal {
+    async fn reveal(mut self) -> Result<(), OTError>;
 }
 
 #[async_trait]
@@ -67,8 +67,9 @@ pub trait ObliviousAcceptCommit {
 #[async_trait]
 pub trait ObliviousVerify {
     type Commitment;
+    type Output;
 
-    async fn verify(self, commit: Self::Commitment) -> Result<(), OTError>;
+    async fn verify(self, commit: Self::Commitment) -> Result<Vec<Self::Output>, OTError>;
 }
 
 #[cfg(test)]

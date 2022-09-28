@@ -1,5 +1,5 @@
 use super::{OTChannel, ObliviousSend};
-use crate::protocol::ot::{OTError, ObliviousCommit, ObliviousDecommit};
+use crate::protocol::ot::{OTError, ObliviousCommit, ObliviousReveal};
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use mpc_core::{
@@ -109,11 +109,11 @@ impl ObliviousCommit for Kos15IOSender<s_state::Initialized> {
 }
 
 #[async_trait]
-impl ObliviousDecommit for Kos15IOSender<s_state::RandSetup> {
-    async fn decommit(mut self) -> Result<(), OTError> {
-        let message = self.inner.decommit()?;
+impl ObliviousReveal for Kos15IOSender<s_state::RandSetup> {
+    async fn reveal(mut self) -> Result<(), OTError> {
+        let message = self.inner.reveal()?;
         self.channel
-            .send(OTMessage::ExtSenderDecommit(message))
+            .send(OTMessage::ExtSenderReveal(message))
             .await?;
         Ok(())
     }
