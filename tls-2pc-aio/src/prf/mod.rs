@@ -130,12 +130,16 @@ mod tests {
         let pms = leader_share + follower_share;
 
         let (task_leader, task_follower) = tokio::join!(
-            tokio::spawn(async move {
-                leader
-                    .compute_session_keys(client_random, server_random, leader_share)
-                    .await
+            tokio::task::spawn_blocking(move || {
+                futures::executor::block_on(leader.compute_session_keys(
+                    client_random,
+                    server_random,
+                    leader_share,
+                ))
             }),
-            tokio::spawn(async move { follower.compute_session_keys(follower_share).await })
+            tokio::task::spawn_blocking(move || {
+                futures::executor::block_on(follower.compute_session_keys(follower_share))
+            })
         );
 
         let (leader_keys, _leader) = task_leader.unwrap().unwrap();

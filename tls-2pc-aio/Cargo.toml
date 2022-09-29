@@ -22,6 +22,7 @@ rand = "0.8.5"
 [dev-dependencies]
 tokio = "1.21.1"
 tlsn-mpc-aio = { path = "../mpc-aio", features = ["mock"] }
+tlsn-utils-aio = { path = "../utils-aio", features = ["duplex"] }
 criterion = { version = "0.4", features = ["async", "async_tokio"] }
 
 [[bench]]

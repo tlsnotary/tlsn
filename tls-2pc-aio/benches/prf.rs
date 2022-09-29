@@ -11,15 +11,17 @@ async fn run_prf() {
     let follower = PRFFollower::new(Box::new(follower_channel), gc_follower);
 
     let (task_leader, task_follower) = tokio::join!(
-        tokio::spawn(async move {
-            leader
-                .compute_session_keys([0u8; 32], [0u8; 32], P256SecretShare::new([0u8; 32]))
-                .await
+        tokio::task::spawn_blocking(move || {
+            futures::executor::block_on(leader.compute_session_keys(
+                [0u8; 32],
+                [0u8; 32],
+                P256SecretShare::new([0u8; 32]),
+            ))
         }),
-        tokio::spawn(async move {
-            follower
-                .compute_session_keys(P256SecretShare::new([0u8; 32]))
-                .await
+        tokio::task::spawn_blocking(move || {
+            futures::executor::block_on(
+                follower.compute_session_keys(P256SecretShare::new([0u8; 32])),
+            )
         })
     );
 
