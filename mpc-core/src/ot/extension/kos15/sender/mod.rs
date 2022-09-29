@@ -1,8 +1,6 @@
 pub mod error;
 pub mod state;
 
-use std::sync::{Arc, Mutex};
-
 use crate::{
     msgs::ot::{
         BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper, ExtDerandomize,
@@ -158,7 +156,6 @@ impl Kos15Sender<state::BaseReceive> {
             base_choices: self.0.base_choices,
             tape: Vec::new(),
             offset: 0,
-            shutdown: Arc::new(Mutex::new(false)),
         }))
     }
 }
@@ -199,16 +196,6 @@ impl Kos15Sender<state::RandSetup> {
         inputs: &[[Block; 2]],
         derandomize: ExtDerandomize,
     ) -> Result<ExtSenderPayload, ExtSenderCoreError> {
-        if *self
-            .0
-            .shutdown
-            .lock()
-            .map_err(|_| ExtSenderCoreError::Poison)?
-            == true
-        {
-            return Err(ExtSenderCoreError::Shutdown);
-        }
-
         let result = send_from(
             &mut self.0.count,
             &mut self.0.sent,
@@ -223,16 +210,6 @@ impl Kos15Sender<state::RandSetup> {
     }
 
     pub fn split(&mut self, split_at: usize) -> Result<Self, ExtSenderCoreError> {
-        if *self
-            .0
-            .shutdown
-            .lock()
-            .map_err(|_| ExtSenderCoreError::Poison)?
-            == true
-        {
-            return Err(ExtSenderCoreError::Shutdown);
-        }
-
         let split_table = self.0.table.split_off_rows(split_at)?;
         let rows = split_table.rows();
         self.0.count -= rows;
@@ -246,7 +223,6 @@ impl Kos15Sender<state::RandSetup> {
             base_choices: self.0.base_choices.clone(),
             tape: Vec::new(),
             offset: self.0.offset + split_at,
-            shutdown: Arc::clone(&self.0.shutdown),
         }))
     }
 
@@ -255,12 +231,6 @@ impl Kos15Sender<state::RandSetup> {
     }
 
     pub fn reveal(self) -> Result<ExtSenderReveal, ExtSenderCoreError> {
-        *self
-            .0
-            .shutdown
-            .lock()
-            .map_err(|_| ExtSenderCoreError::Poison)? = true;
-
         Ok(ExtSenderReveal {
             seed: self.0.rng.get_seed(),
             salt: self.0.salt,

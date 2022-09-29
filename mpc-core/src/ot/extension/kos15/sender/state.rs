@@ -1,5 +1,3 @@
-use std::sync::{Arc, Mutex};
-
 use super::BaseReceiver;
 use crate::Block;
 
@@ -77,9 +75,6 @@ pub struct RandSetup {
     pub(crate) tape: Vec<[Block; 2]>,
     // Tracks the offset of OTs split off from other OTs
     pub(crate) offset: usize,
-    // Tracks if this OT can be used or if it or its parent has revealed its
-    // seed for committed OT
-    pub(crate) shutdown: Arc<Mutex<bool>>,
     pub(crate) salt: Salt,
 }
 impl SenderState for RandSetup {}
