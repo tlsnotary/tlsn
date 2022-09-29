@@ -23,11 +23,15 @@ pub type CointossShare = [u8; 32];
 // Choice bits for the base OT protocol
 pub type BaseChoices = Vec<bool>;
 
+// Salt for the seed of the rng
+pub type Salt = [u8; 32];
+
 pub struct Initialized {
     pub(crate) rng: ChaCha12Rng,
     pub(crate) base_receiver: BaseReceiver,
     pub(crate) base_choices: Vec<bool>,
     pub(crate) cointoss_share: CointossShare,
+    pub(crate) salt: Salt,
 }
 impl SenderState for Initialized {}
 
@@ -38,6 +42,7 @@ pub struct BaseSetup {
     pub(crate) base_receiver: BaseReceiver,
     pub(crate) base_choices: BaseChoices,
     pub(crate) cointoss_share: CointossShare,
+    pub(crate) salt: Salt,
 }
 impl SenderState for BaseSetup {}
 
@@ -48,6 +53,7 @@ pub struct BaseReceive {
     pub(crate) cointoss_random: [u8; 32],
     pub(crate) base_choices: BaseChoices,
     pub(crate) rngs: Vec<ChaCha12Rng>,
+    pub(crate) salt: Salt,
 }
 impl SenderState for BaseReceive {}
 
@@ -74,5 +80,6 @@ pub struct RandSetup {
     // Tracks if this OT can be used or if it or its parent has revealed its
     // seed for committed OT
     pub(crate) shutdown: Arc<Mutex<bool>>,
+    pub(crate) salt: Salt,
 }
 impl SenderState for RandSetup {}

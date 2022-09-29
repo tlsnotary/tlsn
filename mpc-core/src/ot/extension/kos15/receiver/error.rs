@@ -32,6 +32,8 @@ pub enum CommittedOTError {
     Receiver(#[from] ExtReceiverCoreError),
     #[error("Incomplete tape")]
     IncompleteTape,
+    #[error("No commitment to verify")]
+    NoCommitment,
     #[error("Verification failed")]
     Verify,
 }

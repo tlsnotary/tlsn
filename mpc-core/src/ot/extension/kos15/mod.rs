@@ -366,9 +366,10 @@ pub mod tests {
     #[rstest]
     fn test_committed_ot(input_setup: (Vec<bool>, Vec<[Block; 2]>)) {
         let (choices, inputs) = input_setup;
-        let (sender, receiver) = (Kos15Sender::default(), Kos15Receiver::default());
+        let (sender, mut receiver) = (Kos15Sender::default(), Kos15Receiver::default());
 
         let commitment = sender.commit_to_seed();
+        receiver.store_commitment(commitment.0);
 
         let (receiver, message) = receiver.base_setup().unwrap();
         let (sender, message) = sender.base_setup(message).unwrap();
@@ -386,16 +387,17 @@ pub mod tests {
 
         let reveal = sender.reveal().unwrap();
 
-        let check = receiver.verify(commitment, reveal);
+        let check = receiver.verify(reveal);
         assert!(check.is_ok());
     }
 
     #[rstest]
     fn test_committed_ot_fail(input_setup: (Vec<bool>, Vec<[Block; 2]>)) {
         let (choices, inputs) = input_setup;
-        let (sender, receiver) = (Kos15Sender::default(), Kos15Receiver::default());
+        let (sender, mut receiver) = (Kos15Sender::default(), Kos15Receiver::default());
 
         let commitment = sender.commit_to_seed();
+        receiver.store_commitment(commitment.0);
 
         let (receiver, message) = receiver.base_setup().unwrap();
         let (sender, message) = sender.base_setup(message).unwrap();
@@ -414,16 +416,17 @@ pub mod tests {
         let mut reveal = sender.reveal().unwrap();
         *reveal.tape.last_mut().unwrap() = *reveal.tape.first().unwrap();
 
-        let check = receiver.verify(commitment, reveal);
+        let check = receiver.verify(reveal);
         assert!(check.unwrap_err() == CommittedOTError::Verify);
     }
 
     #[rstest]
     fn test_committed_ot_split(input_setup: (Vec<bool>, Vec<[Block; 2]>)) {
         let (choices, inputs) = input_setup;
-        let (sender, receiver) = (Kos15Sender::default(), Kos15Receiver::default());
+        let (sender, mut receiver) = (Kos15Sender::default(), Kos15Receiver::default());
 
         let commitment = sender.commit_to_seed();
+        receiver.store_commitment(commitment.0);
 
         let (receiver, message) = receiver.base_setup().unwrap();
         let (sender, message) = sender.base_setup(message).unwrap();
@@ -446,7 +449,7 @@ pub mod tests {
 
         let reveal = sender.reveal().unwrap();
 
-        let check = receiver.verify(commitment, reveal);
+        let check = receiver.verify(reveal);
         assert!(check.is_ok());
     }
 }

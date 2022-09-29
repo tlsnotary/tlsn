@@ -67,10 +67,10 @@ mod tests {
             sender.reveal().await.unwrap();
         });
         let receive = tokio::spawn(async move {
-            let commitment = receiver.accept_commit().await.unwrap();
+            receiver.accept_commit().await.unwrap();
             let mut receiver = receiver.rand_setup(ITERATIONS).await.unwrap();
             let ot_output = receiver.receive(&choices).await.unwrap();
-            let verification = receiver.verify(commitment).await;
+            let verification = receiver.verify().await;
             (ot_output, verification)
         });
 

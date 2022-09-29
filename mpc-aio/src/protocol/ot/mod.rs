@@ -59,17 +59,14 @@ pub trait ObliviousReveal {
 
 #[async_trait]
 pub trait ObliviousAcceptCommit {
-    type Commitment;
-
-    async fn accept_commit(&mut self) -> Result<Self::Commitment, OTError>;
+    async fn accept_commit(&mut self) -> Result<(), OTError>;
 }
 
 #[async_trait]
 pub trait ObliviousVerify {
-    type Commitment;
     type Output;
 
-    async fn verify(self, commit: Self::Commitment) -> Result<Vec<Self::Output>, OTError>;
+    async fn verify(self) -> Result<Vec<Self::Output>, OTError>;
 }
 
 #[cfg(test)]

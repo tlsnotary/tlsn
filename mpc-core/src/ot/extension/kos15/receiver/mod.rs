@@ -6,7 +6,7 @@ use super::utils::{calc_padding, decrypt_values, kos15_check_receiver, seed_rngs
 use super::BASE_COUNT;
 use crate::msgs::ot::{
     BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper, ExtDerandomize,
-    ExtReceiverSetup, ExtSenderCommit, ExtSenderPayload, ExtSenderReveal,
+    ExtReceiverSetup, ExtSenderPayload, ExtSenderReveal,
 };
 use crate::ot::{DhOtSender as BaseSender, Kos15Sender};
 use crate::utils::{boolvec_to_u8vec, sha256, xor};
@@ -43,6 +43,7 @@ impl Kos15Receiver {
             rng: self.0.rng,
             base_sender: self.0.base_sender,
             cointoss_share: self.0.cointoss_share,
+            commitment: self.0.commitment,
         });
         let message = BaseSenderSetupWrapper {
             setup: base_setup_message,
@@ -51,12 +52,17 @@ impl Kos15Receiver {
         Ok((kos_receiver, message))
     }
 
+    pub fn store_commitment(&mut self, commitment: [u8; 32]) {
+        self.0.commitment = Some(commitment);
+    }
+
     fn new_with_rng(mut rng: ChaCha12Rng) -> Self {
         let cointoss_share = rng.gen();
         Self(state::Initialized {
             base_sender: BaseSender::default(),
             rng,
             cointoss_share,
+            commitment: None,
         })
     }
 }
@@ -88,6 +94,7 @@ impl Kos15Receiver<state::BaseSetup> {
             rng: self.0.rng,
             rngs,
             cointoss_random,
+            commitment: self.0.commitment,
         });
         let message = BaseSenderPayloadWrapper {
             payload: base_send,
@@ -132,6 +139,7 @@ impl Kos15Receiver<state::BaseSend> {
             derandomized: Vec::new(),
             sender_output_tape: Vec::new(),
             choices_tape: Vec::new(),
+            commitment: self.0.commitment,
         });
         Ok((receiver, message))
     }
@@ -224,6 +232,7 @@ impl Kos15Receiver<state::RandSetup> {
             derandomized: Vec::new(),
             sender_output_tape: Vec::new(),
             choices_tape: Vec::new(),
+            commitment: self.0.commitment,
         }))
     }
 
@@ -237,14 +246,16 @@ impl Kos15Receiver<state::RandSetup> {
     /// records all ciphertext blocks received by the sender and his choices. Afterwards in the
     /// reveal the sender sends all his OTs in cleartext and the RNG seed. This allows the
     /// receiver to replay the whole session and check for correctness.
-    pub fn verify(
-        self,
-        commitment: ExtSenderCommit,
-        reveal: ExtSenderReveal,
-    ) -> Result<Vec<[Block; 2]>, CommittedOTError> {
+    pub fn verify(self, reveal: ExtSenderReveal) -> Result<Vec<[Block; 2]>, CommittedOTError> {
         // Check commitment for correctness
-        if sha256(&reveal.seed) != commitment.0 {
-            return Err(CommittedOTError::CommitmentCheck);
+        let hash = [reveal.seed.as_slice(), reveal.salt.as_slice()].concat();
+
+        if let Some(commitment) = self.0.commitment {
+            if sha256(&hash) != commitment {
+                return Err(CommittedOTError::CommitmentCheck);
+            }
+        } else {
+            return Err(CommittedOTError::NoCommitment);
         }
 
         // We now instantiate sender and receiver from the given seeds,

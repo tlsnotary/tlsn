@@ -43,7 +43,8 @@ impl Kos15Sender {
     }
 
     pub fn commit_to_seed(&self) -> ExtSenderCommit {
-        ExtSenderCommit(sha256(&self.0.rng.get_seed()))
+        let salted_seed = [self.0.rng.get_seed().as_slice(), self.0.salt.as_slice()].concat();
+        ExtSenderCommit(sha256(&salted_seed))
     }
 
     pub fn base_setup(
@@ -60,6 +61,7 @@ impl Kos15Sender {
         };
         let kos_15_sender = Kos15Sender(state::BaseSetup {
             rng: self.0.rng,
+            salt: self.0.salt,
             receiver_cointoss_commit: setup_msg.cointoss_commit,
             base_receiver: self.0.base_receiver,
             base_choices: self.0.base_choices,
@@ -73,8 +75,12 @@ impl Kos15Sender {
         let mut base_choices = vec![false; BASE_COUNT];
         rng.fill::<[bool]>(&mut base_choices);
 
+        let mut salt = [0_u8; 32];
+        rng.fill(&mut salt);
+
         Self(state::Initialized {
             rng,
+            salt,
             base_receiver: BaseReceiver::default(),
             base_choices,
             cointoss_share,
@@ -104,6 +110,7 @@ impl Kos15Sender<state::BaseSetup> {
 
         let kos_15_sender = Kos15Sender(state::BaseReceive {
             rng: self.0.rng,
+            salt: self.0.salt,
             cointoss_random,
             base_choices: self.0.base_choices,
             rngs,
@@ -144,6 +151,7 @@ impl Kos15Sender<state::BaseReceive> {
         )?;
         Ok(Kos15Sender(state::RandSetup {
             rng: self.0.rng,
+            salt: self.0.salt,
             table,
             count: ncols_unpadded,
             sent: 0,
@@ -231,6 +239,7 @@ impl Kos15Sender<state::RandSetup> {
 
         Ok(Kos15Sender(state::RandSetup {
             rng: self.0.rng.clone(),
+            salt: self.0.salt,
             table: split_table,
             count: rows,
             sent: 0,
@@ -254,6 +263,7 @@ impl Kos15Sender<state::RandSetup> {
 
         Ok(ExtSenderReveal {
             seed: self.0.rng.get_seed(),
+            salt: self.0.salt,
             tape: self.0.tape,
             offset: self.0.offset,
         })

@@ -3,7 +3,7 @@ use crate::protocol::ot::{OTError, ObliviousAcceptCommit, ObliviousVerify};
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use mpc_core::{
-    msgs::ot::{ExtSenderCommit, OTMessage},
+    msgs::ot::OTMessage,
     ot::{
         extension::{r_state, Kos15Receiver},
         r_state::ReceiverState,
@@ -91,10 +91,8 @@ impl ObliviousReceive for Kos15IOReceiver<r_state::RandSetup> {
 
 #[async_trait]
 impl ObliviousAcceptCommit for Kos15IOReceiver<r_state::Initialized> {
-    type Commitment = ExtSenderCommit;
-
-    async fn accept_commit(&mut self) -> Result<Self::Commitment, OTError> {
-        let commitment = match self.channel.next().await {
+    async fn accept_commit(&mut self) -> Result<(), OTError> {
+        let message = match self.channel.next().await {
             Some(OTMessage::ExtSenderCommit(m)) => m,
             Some(m) => return Err(OTError::Unexpected(m)),
             None => {
@@ -104,16 +102,16 @@ impl ObliviousAcceptCommit for Kos15IOReceiver<r_state::Initialized> {
                 )))
             }
         };
-        Ok(commitment)
+        self.inner.store_commitment(message.0);
+        Ok(())
     }
 }
 
 #[async_trait]
 impl ObliviousVerify for Kos15IOReceiver<r_state::RandSetup> {
-    type Commitment = ExtSenderCommit;
     type Output = [Block; 2];
 
-    async fn verify(mut self, commitment: Self::Commitment) -> Result<Vec<Self::Output>, OTError> {
+    async fn verify(mut self) -> Result<Vec<Self::Output>, OTError> {
         let reveal = match self.channel.next().await {
             Some(OTMessage::ExtSenderReveal(m)) => m,
             Some(m) => return Err(OTError::Unexpected(m)),
@@ -124,8 +122,6 @@ impl ObliviousVerify for Kos15IOReceiver<r_state::RandSetup> {
                 )))
             }
         };
-        self.inner
-            .verify(commitment, reveal)
-            .map_err(OTError::CommittedOT)
+        self.inner.verify(reveal).map_err(OTError::CommittedOT)
     }
 }

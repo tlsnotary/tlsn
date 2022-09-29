@@ -100,6 +100,7 @@ pub struct ExtSenderCommit(pub [u8; 32]);
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ExtSenderReveal {
     pub seed: [u8; 32],
+    pub salt: [u8; 32],
     pub tape: Vec<[Block; 2]>,
     pub offset: usize,
 }
