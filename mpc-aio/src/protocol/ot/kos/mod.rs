@@ -54,6 +54,7 @@ mod tests {
         let choices_clone = choices.clone();
 
         let blocks = vec![[Block::new(0), Block::new(1)]; ITERATIONS];
+        let blocks_clone = blocks.clone();
 
         let (channel, channel_2) = DuplexChannel::<OTMessage>::new();
         let (mut sender, mut receiver) = (
@@ -63,14 +64,14 @@ mod tests {
         let send = tokio::spawn(async {
             sender.commit().await.unwrap();
             let mut sender = sender.rand_setup().await.unwrap();
-            sender.send(blocks).await.unwrap();
+            sender.send(blocks_clone).await.unwrap();
             sender.reveal().await.unwrap();
         });
         let receive = tokio::spawn(async move {
             receiver.accept_commit().await.unwrap();
             let mut receiver = receiver.rand_setup(ITERATIONS).await.unwrap();
             let ot_output = receiver.receive(&choices).await.unwrap();
-            let verification = receiver.verify().await;
+            let verification = receiver.verify(blocks).await;
             (ot_output, verification)
         });
 

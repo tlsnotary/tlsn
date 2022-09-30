@@ -109,9 +109,9 @@ impl ObliviousAcceptCommit for Kos15IOReceiver<r_state::Initialized> {
 
 #[async_trait]
 impl ObliviousVerify for Kos15IOReceiver<r_state::RandSetup> {
-    type Output = [Block; 2];
+    type Input = [Block; 2];
 
-    async fn verify(mut self) -> Result<Vec<Self::Output>, OTError> {
+    async fn verify(mut self, input: Vec<Self::Input>) -> Result<(), OTError> {
         let reveal = match self.channel.next().await {
             Some(OTMessage::ExtSenderReveal(m)) => m,
             Some(m) => return Err(OTError::Unexpected(m)),
@@ -122,6 +122,8 @@ impl ObliviousVerify for Kos15IOReceiver<r_state::RandSetup> {
                 )))
             }
         };
-        self.inner.verify(reveal).map_err(OTError::CommittedOT)
+        self.inner
+            .verify(reveal, &input)
+            .map_err(OTError::CommittedOT)
     }
 }

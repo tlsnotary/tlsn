@@ -106,6 +106,11 @@ impl Kos15Receiver<state::BaseSetup> {
 }
 
 impl Kos15Receiver<state::BaseSend> {
+    pub fn increment_rng_offset(&mut self, offset: u128) {
+        let current_offset = self.0.rng.get_word_pos();
+        self.0.rng.set_word_pos(current_offset + offset);
+    }
+
     pub fn extension_setup(
         mut self,
         choices: &[bool],
@@ -246,7 +251,11 @@ impl Kos15Receiver<state::RandSetup> {
     /// records all ciphertext blocks received by the sender and his choices. Afterwards in the
     /// reveal the sender sends all his OTs in cleartext and the RNG seed. This allows the
     /// receiver to replay the whole session and check for correctness.
-    pub fn verify(self, reveal: ExtSenderReveal) -> Result<Vec<[Block; 2]>, CommittedOTError> {
+    pub fn verify(
+        self,
+        reveal: ExtSenderReveal,
+        expected_sender_input: &[[Block; 2]],
+    ) -> Result<(), CommittedOTError> {
         // Check commitment for correctness
         let hash = [reveal.seed.as_slice(), reveal.salt.as_slice()].concat();
 
@@ -266,26 +275,20 @@ impl Kos15Receiver<state::RandSetup> {
         let (receiver, r_message) = receiver.base_setup()?;
         let (sender, s_message) = sender.base_setup(r_message)?;
 
-        let (receiver, r_message) = receiver.base_send(s_message)?;
-        let sender = sender.base_receive(r_message)?;
+        let (mut receiver, r_message) = receiver.base_send(s_message)?;
+        let mut sender = sender.base_receive(r_message)?;
+
+        // Adjust the rng offset to derive the correct KOS Matrix
+        // with the appropriate offset
+        receiver.increment_rng_offset(reveal.offset as u128);
+        sender.increment_rng_offset(reveal.offset as u128);
 
         let (mut receiver, r_message) =
-            receiver.rand_extension_setup(reveal.offset + reveal.tape.len())?;
+            receiver.rand_extension_setup(expected_sender_input.len())?;
         let mut sender = sender.rand_extension_setup(r_message)?;
 
-        // Fast-forward sender and receiver, input should not matter
-        if reveal.offset > 0 {
-            let _ = sender.rand_send(
-                &vec![[Block::default(); 2]; reveal.offset],
-                ExtDerandomize {
-                    flip: vec![false; reveal.offset],
-                },
-            )?;
-            let _ = receiver.derandomize(&vec![false; reveal.offset])?;
-        }
-
         let derandomized = receiver.derandomize(&self.0.choices_tape)?;
-        let sender_output = sender.rand_send(&reveal.tape, derandomized)?;
+        let sender_output = sender.rand_send(expected_sender_input, derandomized)?;
 
         if sender_output.ciphertexts.len() != self.0.sender_output_tape.len() {
             return Err(CommittedOTError::IncompleteTape);
@@ -297,7 +300,7 @@ impl Kos15Receiver<state::RandSetup> {
             }
         }
 
-        Ok(reveal.tape)
+        Ok(())
     }
 }
 

@@ -387,13 +387,13 @@ pub mod tests {
 
         let reveal = unsafe { sender.reveal().unwrap() };
 
-        let check = receiver.verify(reveal);
+        let check = receiver.verify(reveal, &inputs);
         assert!(check.is_ok());
     }
 
     #[rstest]
     fn test_committed_ot_fail(input_setup: (Vec<bool>, Vec<[Block; 2]>)) {
-        let (choices, inputs) = input_setup;
+        let (choices, mut inputs) = input_setup;
         let (sender, mut receiver) = (Kos15Sender::default(), Kos15Receiver::default());
 
         let commitment = sender.commit_to_seed();
@@ -413,10 +413,10 @@ pub mod tests {
         let sender_output = sender.rand_send(&inputs, message).unwrap();
         let _ = receiver.rand_receive(sender_output).unwrap();
 
-        let mut reveal = unsafe { sender.reveal().unwrap() };
-        *reveal.tape.last_mut().unwrap() = *reveal.tape.first().unwrap();
+        let reveal = unsafe { sender.reveal().unwrap() };
+        *inputs.last_mut().unwrap() = *inputs.first().unwrap();
 
-        let check = receiver.verify(reveal);
+        let check = receiver.verify(reveal, &inputs);
         assert!(check.unwrap_err() == CommittedOTError::Verify);
     }
 
@@ -434,7 +434,8 @@ pub mod tests {
         let (receiver, message) = receiver.base_send(message).unwrap();
         let sender = sender.base_receive(message).unwrap();
 
-        let (mut receiver, receiver_setup) = receiver.rand_extension_setup(choices.len()).unwrap();
+        let (mut receiver, receiver_setup) =
+            receiver.rand_extension_setup(choices.len() / 2).unwrap();
         let mut sender = sender.rand_extension_setup(receiver_setup).unwrap();
 
         let mut sender = sender.split(inputs.len() / 2).unwrap();
@@ -449,7 +450,7 @@ pub mod tests {
 
         let reveal = unsafe { sender.reveal().unwrap() };
 
-        let check = receiver.verify(reveal);
+        let check = receiver.verify(reveal, &inputs[inputs.len() / 2..]);
         assert!(check.is_ok());
     }
 }

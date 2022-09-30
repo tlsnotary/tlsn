@@ -119,6 +119,11 @@ impl Kos15Sender<state::BaseSetup> {
 }
 
 impl Kos15Sender<state::BaseReceive> {
+    pub fn increment_rng_offset(&mut self, offset: u128) {
+        let current_offset = self.0.rng.get_word_pos();
+        self.0.rng.set_word_pos(current_offset + offset);
+    }
+
     pub fn extension_setup(
         mut self,
         setup_msg: ExtReceiverSetup,
@@ -154,7 +159,6 @@ impl Kos15Sender<state::BaseReceive> {
             count: ncols_unpadded,
             sent: 0,
             base_choices: self.0.base_choices,
-            tape: Vec::new(),
             offset: 0,
         }))
     }
@@ -196,17 +200,14 @@ impl Kos15Sender<state::RandSetup> {
         inputs: &[[Block; 2]],
         derandomize: ExtDerandomize,
     ) -> Result<ExtSenderPayload, ExtSenderCoreError> {
-        let result = send_from(
+        send_from(
             &mut self.0.count,
             &mut self.0.sent,
             &mut self.0.table,
             &self.0.base_choices,
             inputs,
             Some(derandomize),
-        )?;
-
-        self.0.tape.extend_from_slice(inputs);
-        Ok(result)
+        )
     }
 
     pub fn split(&mut self, split_at: usize) -> Result<Self, ExtSenderCoreError> {
@@ -221,7 +222,6 @@ impl Kos15Sender<state::RandSetup> {
             count: rows,
             sent: 0,
             base_choices: self.0.base_choices.clone(),
-            tape: Vec::new(),
             offset: self.0.offset + split_at,
         }))
     }
@@ -241,7 +241,6 @@ impl Kos15Sender<state::RandSetup> {
         Ok(ExtSenderReveal {
             seed: self.0.rng.get_seed(),
             salt: self.0.salt,
-            tape: self.0.tape,
             offset: self.0.offset,
         })
     }

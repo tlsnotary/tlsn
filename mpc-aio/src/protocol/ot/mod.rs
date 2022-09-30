@@ -64,9 +64,9 @@ pub trait ObliviousAcceptCommit {
 
 #[async_trait]
 pub trait ObliviousVerify {
-    type Output;
+    type Input;
 
-    async fn verify(self) -> Result<Vec<Self::Output>, OTError>;
+    async fn verify(self, input: Vec<Self::Input>) -> Result<(), OTError>;
 }
 
 #[cfg(test)]

@@ -1,5 +1,4 @@
 use super::BaseReceiver;
-use crate::Block;
 
 // Table's rows are such that for each row j: table[j] = R[j], if Receiver's choice bit was 0
 // or table[j] = R[j] ^ base_choices, if Receiver's choice bit was 1
@@ -71,8 +70,6 @@ pub struct RandSetup {
     pub(crate) count: Count,
     pub(crate) sent: Sent,
     pub(crate) base_choices: BaseChoices,
-    // Record sent cleartext values for committed OT
-    pub(crate) tape: Vec<[Block; 2]>,
     // Tracks the offset of OTs split off from other OTs
     pub(crate) offset: usize,
     pub(crate) salt: Salt,
