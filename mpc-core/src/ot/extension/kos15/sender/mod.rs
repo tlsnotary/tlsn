@@ -230,7 +230,14 @@ impl Kos15Sender<state::RandSetup> {
         self.0.sent == self.0.count
     }
 
-    pub fn reveal(self) -> Result<ExtSenderReveal, ExtSenderCoreError> {
+    /// Reveals secrets needed for Committed OT
+    ///
+    /// # Safety
+    ///
+    /// This function reveals the RNG seed. This is dangerous when this OT instance has been
+    /// split before, because the split-off OTs share the same RNG seed. The caller has to ensure
+    /// that all these other OTs are not used anymore after this function is called on one of them.
+    pub unsafe fn reveal(self) -> Result<ExtSenderReveal, ExtSenderCoreError> {
         Ok(ExtSenderReveal {
             seed: self.0.rng.get_seed(),
             salt: self.0.salt,

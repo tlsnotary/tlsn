@@ -385,7 +385,7 @@ pub mod tests {
         let sender_output = sender.rand_send(&inputs, message).unwrap();
         let _ = receiver.rand_receive(sender_output).unwrap();
 
-        let reveal = sender.reveal().unwrap();
+        let reveal = unsafe { sender.reveal().unwrap() };
 
         let check = receiver.verify(reveal);
         assert!(check.is_ok());
@@ -413,7 +413,7 @@ pub mod tests {
         let sender_output = sender.rand_send(&inputs, message).unwrap();
         let _ = receiver.rand_receive(sender_output).unwrap();
 
-        let mut reveal = sender.reveal().unwrap();
+        let mut reveal = unsafe { sender.reveal().unwrap() };
         *reveal.tape.last_mut().unwrap() = *reveal.tape.first().unwrap();
 
         let check = receiver.verify(reveal);
@@ -447,7 +447,7 @@ pub mod tests {
             .unwrap();
         let _ = receiver.rand_receive(sender_output).unwrap();
 
-        let reveal = sender.reveal().unwrap();
+        let reveal = unsafe { sender.reveal().unwrap() };
 
         let check = receiver.verify(reveal);
         assert!(check.is_ok());
