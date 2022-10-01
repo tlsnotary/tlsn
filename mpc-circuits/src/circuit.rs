@@ -811,8 +811,11 @@ impl Circuit {
     }
 
     /// Returns group corresponding to input id
-    pub fn input(&self, id: usize) -> Option<Input> {
-        self.inputs.get(id).cloned()
+    pub fn input(&self, id: usize) -> Result<Input, CircuitError> {
+        self.inputs
+            .get(id)
+            .cloned()
+            .ok_or(CircuitError::InputError(id, self.name.clone()))
     }
 
     /// Returns reference to all circuit inputs
@@ -831,8 +834,11 @@ impl Circuit {
     }
 
     /// Returns group corresponding to output id
-    pub fn output(&self, id: usize) -> Option<Output> {
-        self.outputs.get(id).cloned()
+    pub fn output(&self, id: usize) -> Result<Output, CircuitError> {
+        self.outputs
+            .get(id)
+            .cloned()
+            .ok_or(CircuitError::OutputError(id, self.name.clone()))
     }
 
     /// Returns reference to all circuit outputs

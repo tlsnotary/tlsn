@@ -70,9 +70,7 @@ impl garble::InputLabels<garble::WireLabel> {
         circ: &Circuit,
         input_labels: InputLabels,
     ) -> Result<Self, crate::garble::Error> {
-        let input = circ
-            .input(input_labels.id)
-            .ok_or(crate::garble::Error::InvalidInputLabels)?;
+        let input = circ.input(input_labels.id)?;
         if input.as_ref().len() != input_labels.labels.len() {
             return Err(crate::garble::Error::InvalidInputLabels);
         }
@@ -114,9 +112,7 @@ impl garble::label::OutputLabelsEncoding {
         circ: &Circuit,
         encoding: OutputEncoding,
     ) -> Result<Self, crate::garble::Error> {
-        let output = circ
-            .output(encoding.id)
-            .ok_or(crate::garble::Error::InvalidLabelEncoding)?;
+        let output = circ.output(encoding.id)?;
 
         Self::new(output, encoding.encoding)
     }

@@ -228,10 +228,10 @@ impl InputLabels<WireLabelPair> {
         let mut input_ids = input_ids.to_vec();
         input_ids.sort();
         input_ids.dedup();
+
+        // Check input ids are valid
         for id in input_ids.iter() {
-            if circ.input(*id).is_none() {
-                return Err(Error::InvalidInput(InputError::InvalidId(*id)));
-            }
+            _ = circ.input(*id)?
         }
 
         let (labels, delta) = Self::generate(rng, circ, delta);
