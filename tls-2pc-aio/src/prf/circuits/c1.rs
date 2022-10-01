@@ -14,33 +14,21 @@ pub async fn leader_c1<T: Execute + Send>(
 ) -> Result<[u32; 8], GCError> {
     let circ = CIRCUIT_1.clone();
 
-    let input_pms_share = circ
-        .input(0)
-        .expect("Circuit 1 should have input 0")
-        .to_value(
-            secret_share
-                .as_bytes()
-                .iter()
-                // convert to little-endian
-                .rev()
-                .copied()
-                .collect::<Vec<u8>>(),
-        )
-        .expect("P256SecretShare should always be 32 bytes");
+    let input_pms_share = circ.input(0)?.to_value(
+        secret_share
+            .as_bytes()
+            .iter()
+            // convert to little-endian
+            .rev()
+            .copied()
+            .collect::<Vec<u8>>(),
+    )?;
 
     let mask: Vec<u8> = thread_rng().gen::<[u8; 32]>().to_vec();
-    let input_mask = circ
-        .input(2)
-        .expect("Circuit 1 should have input 2")
-        .to_value(mask.clone())
-        .expect("Mask should always be 32 bytes");
+    let input_mask = circ.input(2)?.to_value(mask.clone())?;
 
     let inputs = vec![input_pms_share, input_mask];
-    let out = exec
-        .execute(circ, &inputs)
-        .await?
-        .decode()
-        .map_err(|e| GCError::from(e))?;
+    let out = exec.execute(circ, &inputs).await?.decode()?;
 
     // todo make this less gross
     let masked_inner_hash_state = if let mpc_circuits::Value::Bytes(v) =
@@ -78,33 +66,21 @@ pub async fn follower_c1<T: Execute + Send>(
 ) -> Result<[u32; 8], GCError> {
     let circ = CIRCUIT_1.clone();
 
-    let input_pms_share = circ
-        .input(1)
-        .expect("Circuit 1 should have input 1")
-        .to_value(
-            secret_share
-                .as_bytes()
-                .iter()
-                // convert to little-endian
-                .rev()
-                .copied()
-                .collect::<Vec<u8>>(),
-        )
-        .expect("P256SecretShare should always be 32 bytes");
+    let input_pms_share = circ.input(1)?.to_value(
+        secret_share
+            .as_bytes()
+            .iter()
+            // convert to little-endian
+            .rev()
+            .copied()
+            .collect::<Vec<u8>>(),
+    )?;
 
     let mask: Vec<u8> = thread_rng().gen::<[u8; 32]>().to_vec();
-    let input_mask = circ
-        .input(3)
-        .expect("Circuit 1 should have input 3")
-        .to_value(mask.clone())
-        .expect("Mask should always be 32 bytes");
+    let input_mask = circ.input(3)?.to_value(mask.clone())?;
 
     let inputs = vec![input_pms_share, input_mask];
-    let out = exec
-        .execute(circ, &inputs)
-        .await?
-        .decode()
-        .map_err(|e| GCError::from(e))?;
+    let out = exec.execute(circ, &inputs).await?.decode()?;
 
     // todo make this less gross
     let masked_outer_hash_state = if let mpc_circuits::Value::Bytes(v) =
