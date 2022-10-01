@@ -14,7 +14,8 @@ pub async fn leader_c1<T: Execute + Send>(
 ) -> Result<[u32; 8], GCError> {
     let circ = CIRCUIT_1.clone();
 
-    let input_pms_share = circ.input(0)?.to_value(
+    let input_pms_share = circ.input_value(
+        0,
         secret_share
             .as_bytes()
             .iter()
@@ -25,7 +26,7 @@ pub async fn leader_c1<T: Execute + Send>(
     )?;
 
     let mask: Vec<u8> = thread_rng().gen::<[u8; 32]>().to_vec();
-    let input_mask = circ.input(2)?.to_value(mask.clone())?;
+    let input_mask = circ.input_value(2, mask.clone())?;
 
     let inputs = vec![input_pms_share, input_mask];
     let out = exec.execute(circ, &inputs).await?.decode()?;
@@ -66,7 +67,8 @@ pub async fn follower_c1<T: Execute + Send>(
 ) -> Result<[u32; 8], GCError> {
     let circ = CIRCUIT_1.clone();
 
-    let input_pms_share = circ.input(1)?.to_value(
+    let input_pms_share = circ.input_value(
+        1,
         secret_share
             .as_bytes()
             .iter()
@@ -77,7 +79,7 @@ pub async fn follower_c1<T: Execute + Send>(
     )?;
 
     let mask: Vec<u8> = thread_rng().gen::<[u8; 32]>().to_vec();
-    let input_mask = circ.input(3)?.to_value(mask.clone())?;
+    let input_mask = circ.input_value(3, mask.clone())?;
 
     let inputs = vec![input_pms_share, input_mask];
     let out = exec.execute(circ, &inputs).await?.decode()?;

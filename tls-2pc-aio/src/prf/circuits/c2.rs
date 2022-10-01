@@ -12,12 +12,11 @@ pub async fn leader_c2<T: Execute + Send>(
     let circ = CIRCUIT_2.clone();
 
     // convert to little-endian
-    let input_inner_hash = circ
-        .input(1)?
-        .to_value(p1_inner_hash.iter().rev().copied().collect::<Vec<u8>>())?;
+    let input_inner_hash =
+        circ.input_value(1, p1_inner_hash.iter().rev().copied().collect::<Vec<u8>>())?;
 
     let mask: Vec<u8> = thread_rng().gen::<[u8; 32]>().to_vec();
-    let input_mask = circ.input(3)?.to_value(mask.clone())?;
+    let input_mask = circ.input_value(3, mask.clone())?;
 
     let inputs = vec![input_inner_hash, input_mask];
     let out = exec.execute(circ, &inputs).await?.decode()?;
@@ -60,7 +59,8 @@ pub async fn follower_c2<T: Execute + Send>(
     let circ = CIRCUIT_2.clone();
 
     // convert to little-endian
-    let input_outer_hash_state = circ.input(0)?.to_value(
+    let input_outer_hash_state = circ.input_value(
+        0,
         outer_hash_state
             .into_iter()
             .rev()
@@ -69,12 +69,10 @@ pub async fn follower_c2<T: Execute + Send>(
             .collect::<Vec<u8>>(),
     )?;
 
-    let input_p2 = circ
-        .input(2)?
-        .to_value(p2[..16].iter().rev().copied().collect::<Vec<u8>>())?;
+    let input_p2 = circ.input_value(2, p2[..16].iter().rev().copied().collect::<Vec<u8>>())?;
 
     let mask: Vec<u8> = thread_rng().gen::<[u8; 32]>().to_vec();
-    let input_mask = circ.input(4)?.to_value(mask.clone())?;
+    let input_mask = circ.input_value(4, mask.clone())?;
 
     let inputs = vec![input_outer_hash_state, input_p2, input_mask];
     let out = exec.execute(circ, &inputs).await?.decode()?;

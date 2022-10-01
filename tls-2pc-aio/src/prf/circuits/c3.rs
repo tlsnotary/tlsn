@@ -12,25 +12,23 @@ pub async fn leader_c3<T: Execute + Send>(
 ) -> Result<SessionKeyShares, GCError> {
     let circ = CIRCUIT_3.clone();
 
-    let input_p1_inner_hash = circ
-        .input(5)?
-        .to_value(p1_inner_hash.iter().rev().copied().collect::<Vec<u8>>())?;
+    let input_p1_inner_hash =
+        circ.input_value(5, p1_inner_hash.iter().rev().copied().collect::<Vec<u8>>())?;
 
-    let input_p2_inner_hash = circ
-        .input(6)?
-        .to_value(p2_inner_hash.iter().rev().copied().collect::<Vec<u8>>())?;
+    let input_p2_inner_hash =
+        circ.input_value(6, p2_inner_hash.iter().rev().copied().collect::<Vec<u8>>())?;
 
     let cwk_mask: Vec<u8> = thread_rng().gen::<[u8; 16]>().to_vec();
-    let input_cwk_mask = circ.input(7)?.to_value(cwk_mask.clone())?;
+    let input_cwk_mask = circ.input_value(7, cwk_mask.clone())?;
 
     let swk_mask: Vec<u8> = thread_rng().gen::<[u8; 16]>().to_vec();
-    let input_swk_mask = circ.input(8)?.to_value(swk_mask.clone())?;
+    let input_swk_mask = circ.input_value(8, swk_mask.clone())?;
 
     let civ_mask: Vec<u8> = thread_rng().gen::<[u8; 4]>().to_vec();
-    let input_civ_mask = circ.input(9)?.to_value(civ_mask.clone())?;
+    let input_civ_mask = circ.input_value(9, civ_mask.clone())?;
 
     let siv_mask: Vec<u8> = thread_rng().gen::<[u8; 4]>().to_vec();
-    let input_siv_mask = circ.input(10)?.to_value(siv_mask.clone())?;
+    let input_siv_mask = circ.input_value(10, siv_mask.clone())?;
 
     let inputs = vec![
         input_p1_inner_hash,
@@ -120,7 +118,8 @@ pub async fn follower_c3<T: Execute + Send>(
 ) -> Result<SessionKeyShares, GCError> {
     let circ = CIRCUIT_3.clone();
 
-    let input_outer_hash_state = circ.input(0)?.to_value(
+    let input_outer_hash_state = circ.input_value(
+        0,
         outer_hash_state
             .into_iter()
             .rev()
@@ -130,16 +129,16 @@ pub async fn follower_c3<T: Execute + Send>(
     )?;
 
     let mut cwk_mask: Vec<u8> = thread_rng().gen::<[u8; 16]>().to_vec();
-    let input_cwk_mask = circ.input(1)?.to_value(cwk_mask.clone())?;
+    let input_cwk_mask = circ.input_value(1, cwk_mask.clone())?;
 
     let mut swk_mask: Vec<u8> = thread_rng().gen::<[u8; 16]>().to_vec();
-    let input_swk_mask = circ.input(2)?.to_value(swk_mask.clone())?;
+    let input_swk_mask = circ.input_value(2, swk_mask.clone())?;
 
     let mut civ_mask: Vec<u8> = thread_rng().gen::<[u8; 4]>().to_vec();
-    let input_civ_mask = circ.input(3)?.to_value(civ_mask.clone())?;
+    let input_civ_mask = circ.input_value(3, civ_mask.clone())?;
 
     let mut siv_mask: Vec<u8> = thread_rng().gen::<[u8; 4]>().to_vec();
-    let input_siv_mask = circ.input(4)?.to_value(siv_mask.clone())?;
+    let input_siv_mask = circ.input_value(4, siv_mask.clone())?;
 
     let inputs = vec![
         input_outer_hash_state,
