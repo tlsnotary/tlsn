@@ -14,6 +14,10 @@ pub enum CircuitError {
     ValueError(#[from] ValueError),
     #[error("encountered error while constructing a circuit: {0}")]
     InvalidCircuit(String),
+    #[error("Input {0} does not exist in {1:?} circuit")]
+    InputError(usize, String),
+    #[error("Output {0} does not exist in {1:?} circuit")]
+    OutputError(usize, String),
     #[error("encountered io error while loading circuit")]
     IoError(#[from] std::io::Error),
     #[error("encountered prost DecodeError while loading circuit")]
