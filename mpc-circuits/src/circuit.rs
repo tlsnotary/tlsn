@@ -818,6 +818,15 @@ impl Circuit {
             .ok_or(CircuitError::InputError(id, self.name.clone()))
     }
 
+    /// Returns input value from id and value
+    pub fn input_value(
+        &self,
+        id: usize,
+        value: impl Into<Value>,
+    ) -> Result<InputValue, CircuitError> {
+        self.input(id)?.to_value(value)
+    }
+
     /// Returns reference to all circuit inputs
     pub fn inputs(&self) -> &[Input] {
         &self.inputs
