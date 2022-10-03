@@ -18,6 +18,8 @@ pub type GarbleChannel = Box<dyn Channel<GarbleMessage, Error = std::io::Error>>
 pub enum GCError {
     #[error("core error")]
     CoreError(#[from] mpc_core::garble::Error),
+    #[error("circuit error")]
+    CircuitError(#[from] mpc_circuits::CircuitError),
     #[error("io error")]
     IOError(#[from] std::io::Error),
     #[error("ot error")]

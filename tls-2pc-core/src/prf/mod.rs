@@ -74,7 +74,7 @@
 mod follower;
 mod leader;
 pub mod sha;
-mod utils;
+pub mod utils;
 
 pub use crate::msgs::prf::PRFMessage;
 pub use follower::{state as follower_state, PRFFollower};
@@ -100,11 +100,11 @@ mod tests {
         // H(pms xor opad)
         let outer_hash_state = partial_sha256_digest(&opad);
 
-        let leader = PRFLeader::new(client_random, server_random, inner_hash_state);
-        let follower = PRFFollower::new(outer_hash_state);
+        let leader = PRFLeader::new();
+        let follower = PRFFollower::new();
 
-        let (leader_msg, leader) = leader.next();
-        let (follower_msg, follower) = follower.next(leader_msg);
+        let (leader_msg, leader) = leader.next(client_random, server_random, inner_hash_state);
+        let (follower_msg, follower) = follower.next(outer_hash_state, leader_msg);
 
         // H((pms xor opad) || H((pms xor ipad) || seed))
         let a1 = follower_msg.a1.clone();

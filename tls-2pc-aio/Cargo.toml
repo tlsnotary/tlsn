@@ -11,4 +11,20 @@ async-trait = "0.1.56"
 thiserror = "1.0.30"
 tlsn-tls-core = { path = "../tls-core" }
 tlsn-tls-client = { path = "../tls-client" }
+tlsn-mpc-aio = { path = "../mpc-aio" }
+tlsn-mpc-circuits = { path = "../mpc-circuits" }
+tlsn-tls-2pc-core = { path = "../tls-2pc-core" }
+tlsn-utils-aio = { path = "../utils-aio" }
 futures = "0.3.21"
+p256 = "0.10.1"
+rand = "0.8.5"
+
+[dev-dependencies]
+tokio = "1.21.1"
+tlsn-mpc-aio = { path = "../mpc-aio", features = ["mock"] }
+tlsn-utils-aio = { path = "../utils-aio", features = ["duplex"] }
+criterion = { version = "0.4", features = ["async", "async_tokio"] }
+
+[[bench]]
+name = "prf"
+harness = false

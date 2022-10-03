@@ -23,21 +23,28 @@ pub use leader::{state as leader_state, PointAdditionLeader};
 pub const P: &str = "ffffffff00000001000000000000000000000000ffffffffffffffffffffffff";
 
 /// Additive secret share of resulting X coordinate
+#[derive(Clone, Copy)]
 pub struct P256SecretShare(pub(crate) [u8; 32]);
 
 impl P256SecretShare {
+    /// Creates new secret share
+    pub fn new(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
     pub fn as_bytes(&self) -> &[u8] {
         &self.0
     }
 }
 
 impl Add<P256SecretShare> for P256SecretShare {
-    type Output = Vec<u8>;
+    type Output = [u8; 32];
 
     fn add(self, rhs: P256SecretShare) -> Self::Output {
         let x = (BigInt::from_bytes(self.as_bytes()) + BigInt::from_bytes(rhs.as_bytes()))
             % BigInt::from_hex(P).unwrap();
-        x.to_bytes()
+        x.to_bytes_array::<32>()
+            .expect("x coordinate should be 32 bytes")
     }
 }
 

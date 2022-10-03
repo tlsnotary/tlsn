@@ -11,9 +11,9 @@ pub enum PRFMessage {
     LeaderMs3(LeaderMs3),
     FollowerMs3(FollowerMs3),
     LeaderKe1(LeaderKe1),
-    FollowerKe1(FollowerKe2),
+    FollowerKe1(FollowerKe1),
     LeaderKe2(LeaderKe2),
-    FollowerKe2(FollowerKe3),
+    FollowerKe2(FollowerKe2),
     LeaderCf1(LeaderCf1),
     FollowerCf1(FollowerCf1),
     LeaderCf2(LeaderCf2),
@@ -110,14 +110,14 @@ pub struct FollowerMs3 {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct FollowerKe2 {
+pub struct FollowerKe1 {
     /// H((ms xor opad) || H((ms xor ipad) || seed))
     pub a1: [u8; 32],
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct FollowerKe3 {
+pub struct FollowerKe2 {
     /// H((ms xor opad) || H((ms xor ipad) || a1))
     pub a2: [u8; 32],
 }
