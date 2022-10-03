@@ -111,6 +111,7 @@ mod tests {
         civ.copy_from_slice(&ek[32..36]);
         let mut siv = [0u8; 4];
         siv.copy_from_slice(&ek[36..]);
+
         (cwk, swk, civ, siv)
     }
 
@@ -170,7 +171,7 @@ mod tests {
             .map(|(a, b)| a ^ b)
             .collect::<Vec<u8>>();
 
-        let (expected_swk, expected_cwk, expected_siv, expected_civ) =
+        let (expected_cwk, expected_swk, expected_civ, expected_siv) =
             key_expansion_tls12(&client_random, &server_random, &pms);
 
         assert_eq!(cwk, expected_cwk);
