@@ -434,12 +434,11 @@ pub mod tests {
         let (receiver, message) = receiver.base_send(message).unwrap();
         let sender = sender.base_receive(message).unwrap();
 
-        let (mut receiver, receiver_setup) =
-            receiver.rand_extension_setup(choices.len() / 2).unwrap();
+        let (mut receiver, receiver_setup) = receiver.rand_extension_setup(choices.len()).unwrap();
         let mut sender = sender.rand_extension_setup(receiver_setup).unwrap();
 
         let mut sender = sender.split(inputs.len() / 2).unwrap();
-        let mut receiver = receiver.split(inputs.len() / 2).unwrap();
+        let mut receiver = receiver.split(choices.len() / 2).unwrap();
 
         let message = receiver.derandomize(&choices[choices.len() / 2..]).unwrap();
 

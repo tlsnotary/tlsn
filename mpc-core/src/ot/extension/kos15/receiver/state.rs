@@ -51,5 +51,8 @@ pub struct RandSetup {
     // Records the choices made by the receiver for later use in committed OT
     pub(crate) choices_tape: Vec<bool>,
     pub(crate) commitment: Option<Commitment>,
+    // The initial number of OTs supported by this setup
+    // Used for committed OT
+    pub(crate) init_ot_number: usize,
 }
 impl ReceiverState for RandSetup {}

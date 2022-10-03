@@ -119,11 +119,6 @@ impl Kos15Sender<state::BaseSetup> {
 }
 
 impl Kos15Sender<state::BaseReceive> {
-    pub fn increment_rng_offset(&mut self, offset: u128) {
-        let current_offset = self.0.rng.get_word_pos();
-        self.0.rng.set_word_pos(current_offset + offset);
-    }
-
     pub fn extension_setup(
         mut self,
         setup_msg: ExtReceiverSetup,

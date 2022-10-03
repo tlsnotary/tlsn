@@ -106,11 +106,6 @@ impl Kos15Receiver<state::BaseSetup> {
 }
 
 impl Kos15Receiver<state::BaseSend> {
-    pub fn increment_rng_offset(&mut self, offset: u128) {
-        let current_offset = self.0.rng.get_word_pos();
-        self.0.rng.set_word_pos(current_offset + offset);
-    }
-
     pub fn extension_setup(
         mut self,
         choices: &[bool],
@@ -137,6 +132,7 @@ impl Kos15Receiver<state::BaseSend> {
             &mut self.0.rngs,
             &self.0.cointoss_random,
         )?;
+        let init_ot_number = choices.len();
         let receiver = Kos15Receiver(state::RandSetup {
             rng: self.0.rng,
             table,
@@ -145,6 +141,7 @@ impl Kos15Receiver<state::BaseSend> {
             sender_output_tape: Vec::new(),
             choices_tape: Vec::new(),
             commitment: self.0.commitment,
+            init_ot_number,
         });
         Ok((receiver, message))
     }
@@ -238,6 +235,7 @@ impl Kos15Receiver<state::RandSetup> {
             sender_output_tape: Vec::new(),
             choices_tape: Vec::new(),
             commitment: self.0.commitment,
+            init_ot_number: self.0.init_ot_number,
         }))
     }
 
@@ -275,17 +273,17 @@ impl Kos15Receiver<state::RandSetup> {
         let (receiver, r_message) = receiver.base_setup()?;
         let (sender, s_message) = sender.base_setup(r_message)?;
 
-        let (mut receiver, r_message) = receiver.base_send(s_message)?;
-        let mut sender = sender.base_receive(r_message)?;
+        let (receiver, r_message) = receiver.base_send(s_message)?;
+        let sender = sender.base_receive(r_message)?;
 
-        // Adjust the rng offset to derive the correct KOS Matrix
-        // with the appropriate offset
-        receiver.increment_rng_offset(reveal.offset as u128);
-        sender.increment_rng_offset(reveal.offset as u128);
-
-        let (mut receiver, r_message) =
-            receiver.rand_extension_setup(expected_sender_input.len())?;
+        let (mut receiver, r_message) = receiver.rand_extension_setup(self.0.init_ot_number)?;
         let mut sender = sender.rand_extension_setup(r_message)?;
+
+        let (mut sender, mut receiver) = if reveal.offset > 0 {
+            (sender.split(reveal.offset)?, receiver.split(reveal.offset)?)
+        } else {
+            (sender, receiver)
+        };
 
         let derandomized = receiver.derandomize(&self.0.choices_tape)?;
         let sender_output = sender.rand_send(expected_sender_input, derandomized)?;
