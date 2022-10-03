@@ -217,7 +217,7 @@ impl Kos15Sender<state::RandSetup> {
             count: rows,
             sent: 0,
             base_choices: self.0.base_choices.clone(),
-            offset: self.0.offset + split_at,
+            offset: self.0.offset + self.0.sent + split_at,
         }))
     }
 
