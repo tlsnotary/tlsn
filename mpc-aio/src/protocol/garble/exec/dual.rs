@@ -14,6 +14,7 @@ use mpc_circuits::{Circuit, InputValue};
 use mpc_core::garble::{
     exec::dual as core, Delta, Evaluated, GarbledCircuit, InputLabels, WireLabelPair,
 };
+use utils_aio::expect_msg_or_err;
 
 pub struct DualExLeader<S, R>
 where
@@ -72,16 +73,7 @@ where
 
         self.label_sender.send_labels(follower_labels).await?;
 
-        let msg = match self.channel.next().await {
-            Some(GarbleMessage::GarbledCircuit(gc)) => gc,
-            Some(m) => return Err(GCError::Unexpected(m)),
-            None => {
-                return Err(GCError::from(std::io::Error::new(
-                    std::io::ErrorKind::ConnectionAborted,
-                    "stream closed unexpectedly",
-                )))
-            }
-        };
+        let msg = expect_msg_or_err! {self.channel.next().await, GarbleMessage::GarbledCircuit, GCError::Unexpected}?;
 
         let gc_ev = GarbledCircuit::from_msg(circ, msg)?;
         let labels_ev = self.label_receiver.receive_labels(inputs.to_vec()).await?;
@@ -93,16 +85,7 @@ where
             .send(GarbleMessage::OutputCommit(commit.into()))
             .await?;
 
-        let msg = match self.channel.next().await {
-            Some(GarbleMessage::OutputCheck(check)) => check,
-            Some(m) => return Err(GCError::Unexpected(m)),
-            None => {
-                return Err(GCError::from(std::io::Error::new(
-                    std::io::ErrorKind::ConnectionAborted,
-                    "stream closed unexpectedly",
-                )))
-            }
-        };
+        let msg = expect_msg_or_err! {self.channel.next().await, GarbleMessage::OutputCheck, GCError::Unexpected}?;
 
         let follower_check = msg.into();
         let leader = leader.check(follower_check)?;
@@ -173,33 +156,13 @@ where
 
         self.label_sender.send_labels(leader_labels).await?;
 
-        let msg = match self.channel.next().await {
-            Some(GarbleMessage::GarbledCircuit(gc)) => gc,
-            Some(m) => return Err(GCError::Unexpected(m)),
-            None => {
-                return Err(GCError::from(std::io::Error::new(
-                    std::io::ErrorKind::ConnectionAborted,
-                    "stream closed unexpectedly",
-                )))
-            }
-        };
-
+        let msg = expect_msg_or_err! {self.channel.next().await, GarbleMessage::GarbledCircuit, GCError::Unexpected}?;
         let gc_ev = GarbledCircuit::from_msg(circ, msg)?;
         let labels_ev = self.label_receiver.receive_labels(inputs.to_vec()).await?;
 
         let follower = follower.evaluate(&gc_ev, &labels_ev)?;
 
-        let msg = match self.channel.next().await {
-            Some(GarbleMessage::OutputCommit(commit)) => commit,
-            Some(m) => return Err(GCError::Unexpected(m)),
-            None => {
-                return Err(GCError::from(std::io::Error::new(
-                    std::io::ErrorKind::ConnectionAborted,
-                    "stream closed unexpectedly",
-                )))
-            }
-        };
-
+        let msg = expect_msg_or_err! {self.channel.next().await, GarbleMessage::OutputCommit, GCError::Unexpected}?;
         let leader_commit = msg.into();
         let (check, follower) = follower.reveal(leader_commit);
 
@@ -207,17 +170,7 @@ where
             .send(GarbleMessage::OutputCheck(check.into()))
             .await?;
 
-        let msg = match self.channel.next().await {
-            Some(GarbleMessage::OutputCheck(check)) => check,
-            Some(m) => return Err(GCError::Unexpected(m)),
-            None => {
-                return Err(GCError::from(std::io::Error::new(
-                    std::io::ErrorKind::ConnectionAborted,
-                    "stream closed unexpectedly",
-                )))
-            }
-        };
-
+        let msg = expect_msg_or_err! {self.channel.next().await, GarbleMessage::OutputCheck, GCError::Unexpected}?;
         let leader_check = msg.into();
         let gc_evaluated = follower.check(leader_check)?;
 

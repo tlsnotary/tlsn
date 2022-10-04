@@ -4,6 +4,7 @@ use futures::{SinkExt, StreamExt};
 use mpc_core::point_addition::{P256SecretShare, PointAdditionLeader, PointAdditionMessage};
 use p256::EncodedPoint;
 use tracing::{instrument, trace};
+use utils_aio::expect_msg_or_err;
 
 pub struct PaillierLeader {
     channel: PAChannel,
@@ -26,46 +27,17 @@ impl PointAddition2PC for PaillierLeader {
 
         self.channel.send(PointAdditionMessage::M1(msg)).await?;
 
-        let msg = match self.channel.next().await {
-            Some(PointAdditionMessage::S1(msg)) => msg,
-            Some(m) => return Err(PointAdditionError::UnexpectedMessage(m)),
-            None => {
-                return Err(PointAdditionError::from(std::io::Error::new(
-                    std::io::ErrorKind::ConnectionAborted,
-                    "stream closed unexpectedly",
-                )))
-            }
-        };
-
+        let msg = expect_msg_or_err! {self.channel.next().await, PointAdditionMessage::S1, PointAdditionError::UnexpectedMessage}?;
         let (msg, leader) = leader.next(msg);
 
         self.channel.send(PointAdditionMessage::M2(msg)).await?;
 
-        let msg = match self.channel.next().await {
-            Some(PointAdditionMessage::S2(msg)) => msg,
-            Some(m) => return Err(PointAdditionError::UnexpectedMessage(m)),
-            None => {
-                return Err(PointAdditionError::from(std::io::Error::new(
-                    std::io::ErrorKind::ConnectionAborted,
-                    "stream closed unexpectedly",
-                )))
-            }
-        };
-
+        let msg = expect_msg_or_err! {self.channel.next().await, PointAdditionMessage::S2, PointAdditionError::UnexpectedMessage}?;
         let (msg, leader) = leader.next(msg);
 
         self.channel.send(PointAdditionMessage::M3(msg)).await?;
 
-        let msg = match self.channel.next().await {
-            Some(PointAdditionMessage::S3(msg)) => msg,
-            Some(m) => return Err(PointAdditionError::UnexpectedMessage(m)),
-            None => {
-                return Err(PointAdditionError::from(std::io::Error::new(
-                    std::io::ErrorKind::ConnectionAborted,
-                    "stream closed unexpectedly",
-                )))
-            }
-        };
+        let msg = expect_msg_or_err! {self.channel.next().await, PointAdditionMessage::S3, PointAdditionError::UnexpectedMessage}?;
 
         trace!("Finished");
         Ok(leader.finalize(msg)?)
