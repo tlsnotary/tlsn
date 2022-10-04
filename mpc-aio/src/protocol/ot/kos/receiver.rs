@@ -1,5 +1,5 @@
 use super::{OTChannel, ObliviousReceive};
-use crate::protocol::ot::OTError;
+use crate::protocol::ot::{OTError, ObliviousAcceptCommit, ObliviousVerify};
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use mpc_core::{
@@ -86,5 +86,44 @@ impl ObliviousReceive for Kos15IOReceiver<r_state::RandSetup> {
         };
         let out = self.inner.rand_receive(message)?;
         Ok(out)
+    }
+}
+
+#[async_trait]
+impl ObliviousAcceptCommit for Kos15IOReceiver<r_state::Initialized> {
+    async fn accept_commit(&mut self) -> Result<(), OTError> {
+        let message = match self.channel.next().await {
+            Some(OTMessage::ExtSenderCommit(m)) => m,
+            Some(m) => return Err(OTError::Unexpected(m)),
+            None => {
+                return Err(OTError::from(std::io::Error::new(
+                    std::io::ErrorKind::ConnectionAborted,
+                    "stream closed unexpectedly",
+                )))
+            }
+        };
+        self.inner.store_commitment(message.0);
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl ObliviousVerify for Kos15IOReceiver<r_state::RandSetup> {
+    type Input = [Block; 2];
+
+    async fn verify(mut self, input: Vec<Self::Input>) -> Result<(), OTError> {
+        let reveal = match self.channel.next().await {
+            Some(OTMessage::ExtSenderReveal(m)) => m,
+            Some(m) => return Err(OTError::Unexpected(m)),
+            None => {
+                return Err(OTError::from(std::io::Error::new(
+                    std::io::ErrorKind::ConnectionAborted,
+                    "stream closed unexpectedly",
+                )))
+            }
+        };
+        self.inner
+            .verify(reveal, &input)
+            .map_err(OTError::CommittedOT)
     }
 }

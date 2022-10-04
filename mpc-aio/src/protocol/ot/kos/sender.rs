@@ -1,5 +1,5 @@
 use super::{OTChannel, ObliviousSend};
-use crate::protocol::ot::OTError;
+use crate::protocol::ot::{OTError, ObliviousCommit, ObliviousReveal};
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use mpc_core::{
@@ -10,10 +10,13 @@ use mpc_core::{
     },
     Block,
 };
+use utils_aio::adaptive_barrier::AdaptiveBarrier;
 
 pub struct Kos15IOSender<T: SenderState> {
     inner: Kos15Sender<T>,
     channel: OTChannel,
+    // Needed for task synchronization for committed OT
+    barrier: AdaptiveBarrier,
 }
 
 impl Kos15IOSender<s_state::Initialized> {
@@ -21,6 +24,7 @@ impl Kos15IOSender<s_state::Initialized> {
         Self {
             inner: Kos15Sender::default(),
             channel,
+            barrier: AdaptiveBarrier::new(),
         }
     }
 
@@ -69,8 +73,20 @@ impl Kos15IOSender<s_state::Initialized> {
         let kos_io_sender = Kos15IOSender {
             inner: kos_sender,
             channel: self.channel,
+            barrier: self.barrier,
         };
         Ok(kos_io_sender)
+    }
+}
+
+impl Kos15IOSender<s_state::RandSetup> {
+    pub fn split(&mut self, channel: OTChannel, split_at: usize) -> Result<Self, OTError> {
+        let new_ot = self.inner.split(split_at)?;
+        Ok(Self {
+            inner: new_ot,
+            channel,
+            barrier: self.barrier.clone(),
+        })
     }
 }
 
@@ -92,6 +108,29 @@ impl ObliviousSend for Kos15IOSender<s_state::RandSetup> {
         let message = self.inner.rand_send(&inputs, message)?;
         self.channel
             .send(OTMessage::ExtSenderPayload(message))
+            .await?;
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl ObliviousCommit for Kos15IOSender<s_state::Initialized> {
+    async fn commit(&mut self) -> Result<(), OTError> {
+        let message = self.inner.commit_to_seed();
+        self.channel
+            .send(OTMessage::ExtSenderCommit(message))
+            .await?;
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl ObliviousReveal for Kos15IOSender<s_state::RandSetup> {
+    async fn reveal(mut self) -> Result<(), OTError> {
+        self.barrier.wait().await;
+        let message = unsafe { self.inner.reveal()? };
+        self.channel
+            .send(OTMessage::ExtSenderReveal(message))
             .await?;
         Ok(())
     }

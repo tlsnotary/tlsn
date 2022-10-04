@@ -16,6 +16,8 @@ pub enum OTMessage {
     ExtReceiverSetup(ExtReceiverSetup),
     ExtDerandomize(ExtDerandomize),
     ExtSenderPayload(ExtSenderPayload),
+    ExtSenderCommit(ExtSenderCommit),
+    ExtSenderReveal(ExtSenderReveal),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -88,6 +90,18 @@ pub struct ExtReceiverSetup {
     pub x: [u8; 16],
     pub t0: [u8; 16],
     pub t1: [u8; 16],
+}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct ExtSenderCommit(pub [u8; 32]);
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct ExtSenderReveal {
+    pub seed: [u8; 32],
+    pub salt: [u8; 32],
+    pub offset: usize,
 }
 
 // #[cfg(feature = "proto")]

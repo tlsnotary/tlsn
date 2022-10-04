@@ -14,7 +14,7 @@ pub const BASE_COUNT: usize = 128;
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::{msgs::ot as msgs, Block};
+    use crate::{msgs::ot as msgs, ot::extension::kos15::receiver::error::CommittedOTError, Block};
     use pretty_assertions::assert_eq;
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
@@ -361,5 +361,95 @@ pub mod tests {
             .collect();
 
         assert_eq!(expected, receive);
+    }
+
+    #[rstest]
+    fn test_committed_ot(input_setup: (Vec<bool>, Vec<[Block; 2]>)) {
+        let (choices, inputs) = input_setup;
+        let (sender, mut receiver) = (Kos15Sender::default(), Kos15Receiver::default());
+
+        let commitment = sender.commit_to_seed();
+        receiver.store_commitment(commitment.0);
+
+        let (receiver, message) = receiver.base_setup().unwrap();
+        let (sender, message) = sender.base_setup(message).unwrap();
+
+        let (receiver, message) = receiver.base_send(message).unwrap();
+        let sender = sender.base_receive(message).unwrap();
+
+        let (mut receiver, receiver_setup) = receiver.rand_extension_setup(choices.len()).unwrap();
+        let mut sender = sender.rand_extension_setup(receiver_setup).unwrap();
+
+        let message = receiver.derandomize(&choices).unwrap();
+
+        let sender_output = sender.rand_send(&inputs, message).unwrap();
+        let _ = receiver.rand_receive(sender_output).unwrap();
+
+        let reveal = unsafe { sender.reveal().unwrap() };
+
+        let check = receiver.verify(reveal, &inputs);
+        assert!(check.is_ok());
+    }
+
+    #[rstest]
+    fn test_committed_ot_fail(input_setup: (Vec<bool>, Vec<[Block; 2]>)) {
+        let (choices, mut inputs) = input_setup;
+        let (sender, mut receiver) = (Kos15Sender::default(), Kos15Receiver::default());
+
+        let commitment = sender.commit_to_seed();
+        receiver.store_commitment(commitment.0);
+
+        let (receiver, message) = receiver.base_setup().unwrap();
+        let (sender, message) = sender.base_setup(message).unwrap();
+
+        let (receiver, message) = receiver.base_send(message).unwrap();
+        let sender = sender.base_receive(message).unwrap();
+
+        let (mut receiver, receiver_setup) = receiver.rand_extension_setup(choices.len()).unwrap();
+        let mut sender = sender.rand_extension_setup(receiver_setup).unwrap();
+
+        let message = receiver.derandomize(&choices).unwrap();
+
+        let sender_output = sender.rand_send(&inputs, message).unwrap();
+        let _ = receiver.rand_receive(sender_output).unwrap();
+
+        let reveal = unsafe { sender.reveal().unwrap() };
+        *inputs.last_mut().unwrap() = *inputs.first().unwrap();
+
+        let check = receiver.verify(reveal, &inputs);
+        assert!(check.unwrap_err() == CommittedOTError::Verify);
+    }
+
+    #[rstest]
+    fn test_committed_ot_split(input_setup: (Vec<bool>, Vec<[Block; 2]>)) {
+        let (choices, inputs) = input_setup;
+        let (sender, mut receiver) = (Kos15Sender::default(), Kos15Receiver::default());
+
+        let commitment = sender.commit_to_seed();
+        receiver.store_commitment(commitment.0);
+
+        let (receiver, message) = receiver.base_setup().unwrap();
+        let (sender, message) = sender.base_setup(message).unwrap();
+
+        let (receiver, message) = receiver.base_send(message).unwrap();
+        let sender = sender.base_receive(message).unwrap();
+
+        let (mut receiver, receiver_setup) = receiver.rand_extension_setup(choices.len()).unwrap();
+        let mut sender = sender.rand_extension_setup(receiver_setup).unwrap();
+
+        let mut sender = sender.split(inputs.len() / 2).unwrap();
+        let mut receiver = receiver.split(choices.len() / 2).unwrap();
+
+        let message = receiver.derandomize(&choices[choices.len() / 2..]).unwrap();
+
+        let sender_output = sender
+            .rand_send(&inputs[inputs.len() / 2..], message)
+            .unwrap();
+        let _ = receiver.rand_receive(sender_output).unwrap();
+
+        let reveal = unsafe { sender.reveal().unwrap() };
+
+        let check = receiver.verify(reveal, &inputs[inputs.len() / 2..]);
+        assert!(check.is_ok());
     }
 }

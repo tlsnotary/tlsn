@@ -4,5 +4,6 @@ pub mod codec;
 pub mod duplex;
 // #[cfg(feature = "muxer")]
 // pub mod muxer;
+pub mod adaptive_barrier;
 
 pub trait Channel<T>: futures::Stream<Item = T> + futures::Sink<T> + Send + Unpin {}

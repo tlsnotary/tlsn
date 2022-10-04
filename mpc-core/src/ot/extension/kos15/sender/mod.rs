@@ -4,7 +4,7 @@ pub mod state;
 use crate::{
     msgs::ot::{
         BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper, ExtDerandomize,
-        ExtReceiverSetup, ExtSenderPayload,
+        ExtReceiverSetup, ExtSenderCommit, ExtSenderPayload, ExtSenderReveal,
     },
     ot::DhOtReceiver as BaseReceiver,
     utils::{sha256, xor},
@@ -29,22 +29,22 @@ where
 
 impl Default for Kos15Sender {
     fn default() -> Self {
-        let mut rng = ChaCha12Rng::from_entropy();
-
-        let cointoss_share = rng.gen();
-        let mut base_choices = vec![false; BASE_COUNT];
-        rng.fill::<[bool]>(&mut base_choices);
-
-        Self(state::Initialized {
-            rng,
-            base_receiver: BaseReceiver::default(),
-            base_choices,
-            cointoss_share,
-        })
+        let rng = ChaCha12Rng::from_entropy();
+        Self::new_with_rng(rng)
     }
 }
 
 impl Kos15Sender {
+    pub fn new_from_seed(seed: [u8; 32]) -> Self {
+        let rng = ChaCha12Rng::from_seed(seed);
+        Self::new_with_rng(rng)
+    }
+
+    pub fn commit_to_seed(&self) -> ExtSenderCommit {
+        let salted_seed = [self.0.rng.get_seed().as_slice(), self.0.salt.as_slice()].concat();
+        ExtSenderCommit(sha256(&salted_seed))
+    }
+
     pub fn base_setup(
         mut self,
         setup_msg: BaseSenderSetupWrapper,
@@ -58,12 +58,31 @@ impl Kos15Sender {
             cointoss_share: self.0.cointoss_share,
         };
         let kos_15_sender = Kos15Sender(state::BaseSetup {
+            rng: self.0.rng,
+            salt: self.0.salt,
             receiver_cointoss_commit: setup_msg.cointoss_commit,
             base_receiver: self.0.base_receiver,
             base_choices: self.0.base_choices,
             cointoss_share: self.0.cointoss_share,
         });
         Ok((kos_15_sender, message))
+    }
+
+    fn new_with_rng(mut rng: ChaCha12Rng) -> Self {
+        let cointoss_share = rng.gen();
+        let mut base_choices = vec![false; BASE_COUNT];
+        rng.fill::<[bool]>(&mut base_choices);
+
+        let mut salt = [0_u8; 32];
+        rng.fill(&mut salt);
+
+        Self(state::Initialized {
+            rng,
+            salt,
+            base_receiver: BaseReceiver::default(),
+            base_choices,
+            cointoss_share,
+        })
     }
 }
 
@@ -88,6 +107,8 @@ impl Kos15Sender<state::BaseSetup> {
         );
 
         let kos_15_sender = Kos15Sender(state::BaseReceive {
+            rng: self.0.rng,
+            salt: self.0.salt,
             cointoss_random,
             base_choices: self.0.base_choices,
             rngs,
@@ -115,6 +136,7 @@ impl Kos15Sender<state::BaseReceive> {
             base_choices: self.0.base_choices,
         }))
     }
+
     pub fn rand_extension_setup(
         mut self,
         setup_msg: ExtReceiverSetup,
@@ -126,10 +148,13 @@ impl Kos15Sender<state::BaseReceive> {
             &self.0.cointoss_random,
         )?;
         Ok(Kos15Sender(state::RandSetup {
+            rng: self.0.rng,
+            salt: self.0.salt,
             table,
             count: ncols_unpadded,
             sent: 0,
             base_choices: self.0.base_choices,
+            offset: 0,
         }))
     }
 }
@@ -186,15 +211,33 @@ impl Kos15Sender<state::RandSetup> {
         self.0.count -= rows;
 
         Ok(Kos15Sender(state::RandSetup {
+            rng: self.0.rng.clone(),
+            salt: self.0.salt,
             table: split_table,
             count: rows,
             sent: 0,
             base_choices: self.0.base_choices.clone(),
+            offset: self.0.offset + self.0.sent + split_at,
         }))
     }
 
     pub fn is_complete(&self) -> bool {
         self.0.sent == self.0.count
+    }
+
+    /// Reveals secrets needed for Committed OT
+    ///
+    /// # Safety
+    ///
+    /// This function reveals the RNG seed. This is dangerous when this OT instance has been
+    /// split before, because the split-off OTs share the same RNG seed. The caller has to ensure
+    /// that all these other OTs are not used anymore after this function is called on one of them.
+    pub unsafe fn reveal(self) -> Result<ExtSenderReveal, ExtSenderCoreError> {
+        Ok(ExtSenderReveal {
+            seed: self.0.rng.get_seed(),
+            salt: self.0.salt,
+            offset: self.0.offset,
+        })
     }
 }
 

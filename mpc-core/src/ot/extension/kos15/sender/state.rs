@@ -20,29 +20,37 @@ pub type CointossShare = [u8; 32];
 // Choice bits for the base OT protocol
 pub type BaseChoices = Vec<bool>;
 
+// Salt for the seed of the rng
+pub type Salt = [u8; 32];
+
 pub struct Initialized {
     pub(crate) rng: ChaCha12Rng,
     pub(crate) base_receiver: BaseReceiver,
     pub(crate) base_choices: Vec<bool>,
     pub(crate) cointoss_share: CointossShare,
+    pub(crate) salt: Salt,
 }
 impl SenderState for Initialized {}
 
 pub struct BaseSetup {
+    pub(crate) rng: ChaCha12Rng,
     // The Receiver's sha256 commitment to their cointoss share
     pub(crate) receiver_cointoss_commit: [u8; 32],
     pub(crate) base_receiver: BaseReceiver,
     pub(crate) base_choices: BaseChoices,
     pub(crate) cointoss_share: CointossShare,
+    pub(crate) salt: Salt,
 }
 impl SenderState for BaseSetup {}
 
 #[cfg_attr(test, derive(Debug))]
 pub struct BaseReceive {
+    pub(crate) rng: ChaCha12Rng,
     // The shared random value which both parties will have at the end of the cointoss protocol
     pub(crate) cointoss_random: [u8; 32],
     pub(crate) base_choices: BaseChoices,
     pub(crate) rngs: Vec<ChaCha12Rng>,
+    pub(crate) salt: Salt,
 }
 impl SenderState for BaseReceive {}
 
@@ -57,9 +65,13 @@ impl SenderState for Setup {}
 
 #[cfg_attr(test, derive(Debug))]
 pub struct RandSetup {
+    pub(crate) rng: ChaCha12Rng,
     pub(crate) table: KosMatrix,
     pub(crate) count: Count,
     pub(crate) sent: Sent,
     pub(crate) base_choices: BaseChoices,
+    // Tracks the offset of OTs split off from other OTs
+    pub(crate) offset: usize,
+    pub(crate) salt: Salt,
 }
 impl SenderState for RandSetup {}

@@ -6,13 +6,13 @@ use super::utils::{calc_padding, decrypt_values, kos15_check_receiver, seed_rngs
 use super::BASE_COUNT;
 use crate::msgs::ot::{
     BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper, ExtDerandomize,
-    ExtReceiverSetup, ExtSenderPayload,
+    ExtReceiverSetup, ExtSenderPayload, ExtSenderReveal,
 };
-use crate::ot::DhOtSender as BaseSender;
+use crate::ot::{DhOtSender as BaseSender, Kos15Sender};
 use crate::utils::{boolvec_to_u8vec, sha256, xor};
 use crate::Block;
 use aes::{Aes128, NewBlockCipher};
-use error::ExtReceiverCoreError;
+use error::{CommittedOTError, ExtReceiverCoreError};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 use rand_core::RngCore;
@@ -23,17 +23,17 @@ where
 
 impl Default for Kos15Receiver {
     fn default() -> Self {
-        let mut rng = ChaCha12Rng::from_entropy();
-        let cointoss_share = rng.gen();
-        Self(state::Initialized {
-            base_sender: BaseSender::default(),
-            rng,
-            cointoss_share,
-        })
+        let rng = ChaCha12Rng::from_entropy();
+        Self::new_with_rng(rng)
     }
 }
 
 impl Kos15Receiver {
+    pub fn new_from_seed(seed: [u8; 32]) -> Self {
+        let rng = ChaCha12Rng::from_seed(seed);
+        Self::new_with_rng(rng)
+    }
+
     pub fn base_setup(
         mut self,
     ) -> Result<(Kos15Receiver<state::BaseSetup>, BaseSenderSetupWrapper), ExtReceiverCoreError>
@@ -43,12 +43,27 @@ impl Kos15Receiver {
             rng: self.0.rng,
             base_sender: self.0.base_sender,
             cointoss_share: self.0.cointoss_share,
+            commitment: self.0.commitment,
         });
         let message = BaseSenderSetupWrapper {
             setup: base_setup_message,
             cointoss_commit: sha256(&self.0.cointoss_share),
         };
         Ok((kos_receiver, message))
+    }
+
+    pub fn store_commitment(&mut self, commitment: [u8; 32]) {
+        self.0.commitment = Some(commitment);
+    }
+
+    fn new_with_rng(mut rng: ChaCha12Rng) -> Self {
+        let cointoss_share = rng.gen();
+        Self(state::Initialized {
+            base_sender: BaseSender::default(),
+            rng,
+            cointoss_share,
+            commitment: None,
+        })
     }
 }
 
@@ -79,6 +94,7 @@ impl Kos15Receiver<state::BaseSetup> {
             rng: self.0.rng,
             rngs,
             cointoss_random,
+            commitment: self.0.commitment,
         });
         let message = BaseSenderPayloadWrapper {
             payload: base_send,
@@ -116,10 +132,16 @@ impl Kos15Receiver<state::BaseSend> {
             &mut self.0.rngs,
             &self.0.cointoss_random,
         )?;
+        let init_ot_number = choices.len();
         let receiver = Kos15Receiver(state::RandSetup {
+            rng: self.0.rng,
             table,
             choices,
             derandomized: Vec::new(),
+            sender_output_tape: Vec::new(),
+            choices_tape: Vec::new(),
+            commitment: self.0.commitment,
+            init_ot_number,
         });
         Ok((receiver, message))
     }
@@ -133,7 +155,8 @@ impl Kos15Receiver<state::Setup> {
         if payload.ciphertexts.len() > self.0.choices.len() {
             return Err(ExtReceiverCoreError::InvalidPayloadSize);
         }
-        receive_from(&mut self.0.table, &mut self.0.choices, payload)
+        let (output, _) = receive_from(&mut self.0.table, &mut self.0.choices, &payload)?;
+        Ok(output)
     }
 
     pub fn is_complete(&self) -> bool {
@@ -185,7 +208,14 @@ impl Kos15Receiver<state::RandSetup> {
         if payload.ciphertexts.len() > self.0.derandomized.len() {
             return Err(ExtReceiverCoreError::NotDerandomized);
         }
-        receive_from(&mut self.0.table, &mut self.0.derandomized, payload)
+
+        let (output, choices) =
+            receive_from(&mut self.0.table, &mut self.0.derandomized, &payload)?;
+        self.0
+            .sender_output_tape
+            .extend_from_slice(&payload.ciphertexts);
+        self.0.choices_tape.extend_from_slice(&choices);
+        Ok(output)
     }
 
     pub fn is_complete(&self) -> bool {
@@ -198,18 +228,85 @@ impl Kos15Receiver<state::RandSetup> {
         }
 
         Ok(Kos15Receiver(state::RandSetup {
+            rng: self.0.rng.clone(),
             table: self.0.table.split_off_rows(split_at)?,
             choices: self.0.choices.split_off(split_at),
             derandomized: Vec::new(),
+            sender_output_tape: Vec::new(),
+            choices_tape: Vec::new(),
+            commitment: self.0.commitment,
+            init_ot_number: self.0.init_ot_number,
         }))
+    }
+
+    /// Implements a weak version of verifiable OT
+    ///
+    /// This function is an implementation of verifiable OT for the sender only. It uses a
+    /// commitment and reveal of the sender to replay the OT session between sender and
+    /// receiver and allows the receiver to check that the sender acted correctly.
+    ///
+    /// The sender commits in the beginning to the seed of his RNG. During the session the receiver
+    /// records all ciphertext blocks received by the sender and his choices. Afterwards in the
+    /// reveal the sender sends all his OTs in cleartext and the RNG seed. This allows the
+    /// receiver to replay the whole session and check for correctness.
+    pub fn verify(
+        self,
+        reveal: ExtSenderReveal,
+        expected_sender_input: &[[Block; 2]],
+    ) -> Result<(), CommittedOTError> {
+        // Check commitment for correctness
+        let hash = [reveal.seed.as_slice(), reveal.salt.as_slice()].concat();
+
+        if let Some(commitment) = self.0.commitment {
+            if sha256(&hash) != commitment {
+                return Err(CommittedOTError::CommitmentCheck);
+            }
+        } else {
+            return Err(CommittedOTError::NoCommitment);
+        }
+
+        // We now instantiate sender and receiver from the given seeds,
+        // replay the session and check for message correctness of the sender
+        let sender = Kos15Sender::new_from_seed(reveal.seed);
+        let receiver = Kos15Receiver::new_from_seed(self.0.rng.get_seed());
+
+        let (receiver, r_message) = receiver.base_setup()?;
+        let (sender, s_message) = sender.base_setup(r_message)?;
+
+        let (receiver, r_message) = receiver.base_send(s_message)?;
+        let sender = sender.base_receive(r_message)?;
+
+        let (mut receiver, r_message) = receiver.rand_extension_setup(self.0.init_ot_number)?;
+        let mut sender = sender.rand_extension_setup(r_message)?;
+
+        let (mut sender, mut receiver) = if reveal.offset > 0 {
+            (sender.split(reveal.offset)?, receiver.split(reveal.offset)?)
+        } else {
+            (sender, receiver)
+        };
+
+        let derandomized = receiver.derandomize(&self.0.choices_tape)?;
+        let sender_output = sender.rand_send(expected_sender_input, derandomized)?;
+
+        if sender_output.ciphertexts.len() != self.0.sender_output_tape.len() {
+            return Err(CommittedOTError::IncompleteTape);
+        }
+
+        for k in 0..sender_output.ciphertexts.len() {
+            if sender_output.ciphertexts[k] != self.0.sender_output_tape[k] {
+                return Err(CommittedOTError::Verify);
+            }
+        }
+
+        Ok(())
     }
 }
 
 fn receive_from(
     table: &mut KosMatrix,
     choices: &mut Vec<bool>,
-    payload: ExtSenderPayload,
-) -> Result<Vec<Block>, ExtReceiverCoreError> {
+    payload: &ExtSenderPayload,
+) -> Result<(Vec<Block>, Vec<bool>), ExtReceiverCoreError> {
     let consumed_choices: Vec<bool> = choices.drain(..payload.ciphertexts.len()).collect();
 
     let consumed_table: KosMatrix = table.split_off_rows_reverse(consumed_choices.len())?;
@@ -220,7 +317,7 @@ fn receive_from(
         consumed_table.inner(),
         &consumed_choices,
     );
-    Ok(values)
+    Ok((values, consumed_choices))
 }
 
 fn extension_setup_from(
