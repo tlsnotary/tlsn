@@ -73,7 +73,11 @@ where
 
         self.label_sender.send_labels(follower_labels).await?;
 
-        let msg = expect_msg_or_err! {self.channel.next().await, GarbleMessage::GarbledCircuit, GCError::Unexpected}?;
+        let msg = expect_msg_or_err!(
+            self.channel.next().await,
+            GarbleMessage::GarbledCircuit,
+            GCError::Unexpected
+        )?;
 
         let gc_ev = GarbledCircuit::from_msg(circ, msg)?;
         let labels_ev = self.label_receiver.receive_labels(inputs.to_vec()).await?;
@@ -85,7 +89,11 @@ where
             .send(GarbleMessage::OutputCommit(commit.into()))
             .await?;
 
-        let msg = expect_msg_or_err! {self.channel.next().await, GarbleMessage::OutputCheck, GCError::Unexpected}?;
+        let msg = expect_msg_or_err!(
+            self.channel.next().await,
+            GarbleMessage::OutputCheck,
+            GCError::Unexpected
+        )?;
 
         let follower_check = msg.into();
         let leader = leader.check(follower_check)?;
@@ -156,13 +164,21 @@ where
 
         self.label_sender.send_labels(leader_labels).await?;
 
-        let msg = expect_msg_or_err! {self.channel.next().await, GarbleMessage::GarbledCircuit, GCError::Unexpected}?;
+        let msg = expect_msg_or_err!(
+            self.channel.next().await,
+            GarbleMessage::GarbledCircuit,
+            GCError::Unexpected
+        )?;
         let gc_ev = GarbledCircuit::from_msg(circ, msg)?;
         let labels_ev = self.label_receiver.receive_labels(inputs.to_vec()).await?;
 
         let follower = follower.evaluate(&gc_ev, &labels_ev)?;
 
-        let msg = expect_msg_or_err! {self.channel.next().await, GarbleMessage::OutputCommit, GCError::Unexpected}?;
+        let msg = expect_msg_or_err!(
+            self.channel.next().await,
+            GarbleMessage::OutputCommit,
+            GCError::Unexpected
+        )?;
         let leader_commit = msg.into();
         let (check, follower) = follower.reveal(leader_commit);
 
@@ -170,7 +186,11 @@ where
             .send(GarbleMessage::OutputCheck(check.into()))
             .await?;
 
-        let msg = expect_msg_or_err! {self.channel.next().await, GarbleMessage::OutputCheck, GCError::Unexpected}?;
+        let msg = expect_msg_or_err!(
+            self.channel.next().await,
+            GarbleMessage::OutputCheck,
+            GCError::Unexpected
+        )?;
         let leader_check = msg.into();
         let gc_evaluated = follower.check(leader_check)?;
 

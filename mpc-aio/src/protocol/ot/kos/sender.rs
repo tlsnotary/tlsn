@@ -29,18 +29,30 @@ impl Kos15IOSender<s_state::Initialized> {
     }
 
     pub async fn rand_setup(mut self) -> Result<Kos15IOSender<s_state::RandSetup>, OTError> {
-        let message = expect_msg_or_err! {self.channel.next().await, OTMessage::BaseSenderSetupWrapper, OTError::Unexpected}?;
+        let message = expect_msg_or_err!(
+            self.channel.next().await,
+            OTMessage::BaseSenderSetupWrapper,
+            OTError::Unexpected
+        )?;
 
         let (kos_sender, message) = self.inner.base_setup(message)?;
         self.channel
             .send(OTMessage::BaseReceiverSetupWrapper(message))
             .await?;
 
-        let message = expect_msg_or_err! {self.channel.next().await, OTMessage::BaseSenderPayloadWrapper, OTError::Unexpected}?;
+        let message = expect_msg_or_err!(
+            self.channel.next().await,
+            OTMessage::BaseSenderPayloadWrapper,
+            OTError::Unexpected
+        )?;
 
         let kos_sender = kos_sender.base_receive(message)?;
 
-        let message = expect_msg_or_err! {self.channel.next().await, OTMessage::ExtReceiverSetup, OTError::Unexpected}?;
+        let message = expect_msg_or_err!(
+            self.channel.next().await,
+            OTMessage::ExtReceiverSetup,
+            OTError::Unexpected
+        )?;
 
         let kos_sender = kos_sender.rand_extension_setup(message)?;
         let kos_io_sender = Kos15IOSender {
@@ -68,7 +80,11 @@ impl ObliviousSend for Kos15IOSender<s_state::RandSetup> {
     type Inputs = Vec<[Block; 2]>;
 
     async fn send(&mut self, inputs: Self::Inputs) -> Result<(), OTError> {
-        let message = expect_msg_or_err! {self.channel.next().await, OTMessage::ExtDerandomize, OTError::Unexpected}?;
+        let message = expect_msg_or_err!(
+            self.channel.next().await,
+            OTMessage::ExtDerandomize,
+            OTError::Unexpected
+        )?;
         let message = self.inner.rand_send(&inputs, message)?;
         self.channel
             .send(OTMessage::ExtSenderPayload(message))

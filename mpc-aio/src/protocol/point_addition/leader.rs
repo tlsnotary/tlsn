@@ -27,17 +27,29 @@ impl PointAddition2PC for PaillierLeader {
 
         self.channel.send(PointAdditionMessage::M1(msg)).await?;
 
-        let msg = expect_msg_or_err! {self.channel.next().await, PointAdditionMessage::S1, PointAdditionError::UnexpectedMessage}?;
+        let msg = expect_msg_or_err!(
+            self.channel.next().await,
+            PointAdditionMessage::S1,
+            PointAdditionError::UnexpectedMessage
+        )?;
         let (msg, leader) = leader.next(msg);
 
         self.channel.send(PointAdditionMessage::M2(msg)).await?;
 
-        let msg = expect_msg_or_err! {self.channel.next().await, PointAdditionMessage::S2, PointAdditionError::UnexpectedMessage}?;
+        let msg = expect_msg_or_err!(
+            self.channel.next().await,
+            PointAdditionMessage::S2,
+            PointAdditionError::UnexpectedMessage
+        )?;
         let (msg, leader) = leader.next(msg);
 
         self.channel.send(PointAdditionMessage::M3(msg)).await?;
 
-        let msg = expect_msg_or_err! {self.channel.next().await, PointAdditionMessage::S3, PointAdditionError::UnexpectedMessage}?;
+        let msg = expect_msg_or_err!(
+            self.channel.next().await,
+            PointAdditionMessage::S3,
+            PointAdditionError::UnexpectedMessage
+        )?;
 
         trace!("Finished");
         Ok(leader.finalize(msg)?)

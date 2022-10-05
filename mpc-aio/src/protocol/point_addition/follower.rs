@@ -23,17 +23,29 @@ impl PointAddition2PC for PaillierFollower {
         trace!("Starting");
         let follower = PointAdditionFollower::new(point);
 
-        let msg = expect_msg_or_err! {self.channel.next().await, PointAdditionMessage::M1, PointAdditionError::UnexpectedMessage}?;
+        let msg = expect_msg_or_err!(
+            self.channel.next().await,
+            PointAdditionMessage::M1,
+            PointAdditionError::UnexpectedMessage
+        )?;
         let (msg, follower) = follower.next(msg);
 
         self.channel.send(PointAdditionMessage::S1(msg)).await?;
 
-        let msg = expect_msg_or_err! {self.channel.next().await, PointAdditionMessage::M2, PointAdditionError::UnexpectedMessage}?;
+        let msg = expect_msg_or_err!(
+            self.channel.next().await,
+            PointAdditionMessage::M2,
+            PointAdditionError::UnexpectedMessage
+        )?;
         let (msg, follower) = follower.next(msg);
 
         self.channel.send(PointAdditionMessage::S2(msg)).await?;
 
-        let msg = expect_msg_or_err! {self.channel.next().await, PointAdditionMessage::M3, PointAdditionError::UnexpectedMessage}?;
+        let msg = expect_msg_or_err!(
+            self.channel.next().await,
+            PointAdditionMessage::M3,
+            PointAdditionError::UnexpectedMessage
+        )?;
         let (msg, follower) = follower.next(msg);
 
         self.channel.send(PointAdditionMessage::S3(msg)).await?;

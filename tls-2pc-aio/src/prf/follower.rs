@@ -48,16 +48,28 @@ where
     ) -> Result<(SessionKeyShares, PRFFollower<G, ClientFinished>), PRFError> {
         let outer_hash_state = circuits::follower_c1(&mut self.gc_exec, secret_share).await?;
 
-        let msg = expect_msg_or_err! {self.channel.next().await, PRFMessage::LeaderMs1, PRFError::UnexpectedMessage}?;
+        let msg = expect_msg_or_err!(
+            self.channel.next().await,
+            PRFMessage::LeaderMs1,
+            PRFError::UnexpectedMessage
+        )?;
         let (msg, core) = self.state.core.next(outer_hash_state, msg);
 
         self.channel.send(PRFMessage::FollowerMs1(msg)).await?;
 
-        let msg = expect_msg_or_err! {self.channel.next().await, PRFMessage::LeaderMs2, PRFError::UnexpectedMessage}?;
+        let msg = expect_msg_or_err!(
+            self.channel.next().await,
+            PRFMessage::LeaderMs2,
+            PRFError::UnexpectedMessage
+        )?;
         let (msg, core) = core.next(msg);
         self.channel.send(PRFMessage::FollowerMs2(msg)).await?;
 
-        let msg = expect_msg_or_err! {self.channel.next().await, PRFMessage::LeaderMs3, PRFError::UnexpectedMessage}?;
+        let msg = expect_msg_or_err!(
+            self.channel.next().await,
+            PRFMessage::LeaderMs3,
+            PRFError::UnexpectedMessage
+        )?;
         let core = core.next(msg);
 
         let p2 = core.p2();
@@ -66,11 +78,19 @@ where
 
         let core = core.next().next(outer_hash_state);
 
-        let msg = expect_msg_or_err! {self.channel.next().await, PRFMessage::LeaderKe1, PRFError::UnexpectedMessage}?;
+        let msg = expect_msg_or_err!(
+            self.channel.next().await,
+            PRFMessage::LeaderKe1,
+            PRFError::UnexpectedMessage
+        )?;
         let (msg, core) = core.next(msg);
         self.channel.send(PRFMessage::FollowerKe1(msg)).await?;
 
-        let msg = expect_msg_or_err! {self.channel.next().await, PRFMessage::LeaderKe2, PRFError::UnexpectedMessage}?;
+        let msg = expect_msg_or_err!(
+            self.channel.next().await,
+            PRFMessage::LeaderKe2,
+            PRFError::UnexpectedMessage
+        )?;
         let (msg, core) = core.next(msg);
         self.channel.send(PRFMessage::FollowerKe2(msg)).await?;
 
@@ -97,11 +117,19 @@ where
     pub async fn compute_client_finished(
         mut self,
     ) -> Result<PRFFollower<G, ServerFinished>, PRFError> {
-        let msg = expect_msg_or_err! {self.channel.next().await, PRFMessage::LeaderCf1, PRFError::UnexpectedMessage}?;
+        let msg = expect_msg_or_err!(
+            self.channel.next().await,
+            PRFMessage::LeaderCf1,
+            PRFError::UnexpectedMessage
+        )?;
         let (msg, core) = self.state.core.next(msg);
         self.channel.send(PRFMessage::FollowerCf1(msg)).await?;
 
-        let msg = expect_msg_or_err! {self.channel.next().await, PRFMessage::LeaderCf2, PRFError::UnexpectedMessage}?;
+        let msg = expect_msg_or_err!(
+            self.channel.next().await,
+            PRFMessage::LeaderCf2,
+            PRFError::UnexpectedMessage
+        )?;
         let (msg, core) = core.next(msg);
         self.channel.send(PRFMessage::FollowerCf2(msg)).await?;
 
@@ -119,11 +147,19 @@ where
 {
     /// Computes server finished data using handshake hash
     pub async fn compute_server_finished(mut self) -> Result<(), PRFError> {
-        let msg = expect_msg_or_err! {self.channel.next().await, PRFMessage::LeaderSf1, PRFError::UnexpectedMessage}?;
+        let msg = expect_msg_or_err!(
+            self.channel.next().await,
+            PRFMessage::LeaderSf1,
+            PRFError::UnexpectedMessage
+        )?;
         let (msg, core) = self.state.core.next(msg);
         self.channel.send(PRFMessage::FollowerSf1(msg)).await?;
 
-        let msg = expect_msg_or_err! {self.channel.next().await, PRFMessage::LeaderSf2, PRFError::UnexpectedMessage}?;
+        let msg = expect_msg_or_err!(
+            self.channel.next().await,
+            PRFMessage::LeaderSf2,
+            PRFError::UnexpectedMessage
+        )?;
         let msg = core.next(msg);
         self.channel.send(PRFMessage::FollowerSf2(msg)).await?;
 
