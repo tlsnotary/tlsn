@@ -5,6 +5,7 @@ use tls_2pc_core::{
     prf::{self as core, leader_state as state, PRFMessage},
     SessionKeyShares,
 };
+use utils_aio::expect_msg_or_err;
 
 pub struct MasterSecret {
     core: core::PRFLeader<state::Ms1>,
@@ -59,31 +60,19 @@ where
 
         self.channel.send(PRFMessage::LeaderMs1(msg)).await?;
 
-        let msg = match self.channel.next().await {
-            Some(PRFMessage::FollowerMs1(msg)) => msg,
-            Some(m) => return Err(PRFError::UnexpectedMessage(m)),
-            None => {
-                return Err(PRFError::from(std::io::Error::new(
-                    std::io::ErrorKind::ConnectionAborted,
-                    "stream closed unexpectedly",
-                )))
-            }
-        };
-
+        let msg = expect_msg_or_err!(
+            self.channel.next().await,
+            PRFMessage::FollowerMs1,
+            PRFError::UnexpectedMessage
+        )?;
         let (msg, core) = core.next(msg);
         self.channel.send(PRFMessage::LeaderMs2(msg)).await?;
 
-        let msg = match self.channel.next().await {
-            Some(PRFMessage::FollowerMs2(msg)) => msg,
-            Some(m) => return Err(PRFError::UnexpectedMessage(m)),
-            None => {
-                return Err(PRFError::from(std::io::Error::new(
-                    std::io::ErrorKind::ConnectionAborted,
-                    "stream closed unexpectedly",
-                )))
-            }
-        };
-
+        let msg = expect_msg_or_err!(
+            self.channel.next().await,
+            PRFMessage::FollowerMs2,
+            PRFError::UnexpectedMessage
+        )?;
         let (msg, core) = core.next(msg);
         self.channel.send(PRFMessage::LeaderMs3(msg)).await?;
 
@@ -93,31 +82,19 @@ where
         let (msg, core) = core.next().next(inner_hash_state);
         self.channel.send(PRFMessage::LeaderKe1(msg)).await?;
 
-        let msg = match self.channel.next().await {
-            Some(PRFMessage::FollowerKe1(msg)) => msg,
-            Some(m) => return Err(PRFError::UnexpectedMessage(m)),
-            None => {
-                return Err(PRFError::from(std::io::Error::new(
-                    std::io::ErrorKind::ConnectionAborted,
-                    "stream closed unexpectedly",
-                )))
-            }
-        };
-
+        let msg = expect_msg_or_err!(
+            self.channel.next().await,
+            PRFMessage::FollowerKe1,
+            PRFError::UnexpectedMessage
+        )?;
         let (msg, core) = core.next(msg);
         self.channel.send(PRFMessage::LeaderKe2(msg)).await?;
 
-        let msg = match self.channel.next().await {
-            Some(PRFMessage::FollowerKe2(msg)) => msg,
-            Some(m) => return Err(PRFError::UnexpectedMessage(m)),
-            None => {
-                return Err(PRFError::from(std::io::Error::new(
-                    std::io::ErrorKind::ConnectionAborted,
-                    "stream closed unexpectedly",
-                )))
-            }
-        };
-
+        let msg = expect_msg_or_err!(
+            self.channel.next().await,
+            PRFMessage::FollowerKe2,
+            PRFError::UnexpectedMessage
+        )?;
         let core = core.next(msg);
         let p1_inner_hash = core.p1_inner_hash();
         let p2_inner_hash = core.p2_inner_hash();
@@ -150,31 +127,19 @@ where
         let (msg, core) = self.state.core.next(hash);
         self.channel.send(PRFMessage::LeaderCf1(msg)).await?;
 
-        let msg = match self.channel.next().await {
-            Some(PRFMessage::FollowerCf1(msg)) => msg,
-            Some(m) => return Err(PRFError::UnexpectedMessage(m)),
-            None => {
-                return Err(PRFError::from(std::io::Error::new(
-                    std::io::ErrorKind::ConnectionAborted,
-                    "stream closed unexpectedly",
-                )))
-            }
-        };
-
+        let msg = expect_msg_or_err!(
+            self.channel.next().await,
+            PRFMessage::FollowerCf1,
+            PRFError::UnexpectedMessage
+        )?;
         let (msg, core) = core.next(msg);
         self.channel.send(PRFMessage::LeaderCf2(msg)).await?;
 
-        let msg = match self.channel.next().await {
-            Some(PRFMessage::FollowerCf2(msg)) => msg,
-            Some(m) => return Err(PRFError::UnexpectedMessage(m)),
-            None => {
-                return Err(PRFError::from(std::io::Error::new(
-                    std::io::ErrorKind::ConnectionAborted,
-                    "stream closed unexpectedly",
-                )))
-            }
-        };
-
+        let msg = expect_msg_or_err!(
+            self.channel.next().await,
+            PRFMessage::FollowerCf2,
+            PRFError::UnexpectedMessage
+        )?;
         let (vd, core) = core.next(msg);
 
         Ok((
@@ -199,31 +164,19 @@ where
         let (msg, core) = self.state.core.next(hash);
         self.channel.send(PRFMessage::LeaderSf1(msg)).await?;
 
-        let msg = match self.channel.next().await {
-            Some(PRFMessage::FollowerSf1(msg)) => msg,
-            Some(m) => return Err(PRFError::UnexpectedMessage(m)),
-            None => {
-                return Err(PRFError::from(std::io::Error::new(
-                    std::io::ErrorKind::ConnectionAborted,
-                    "stream closed unexpectedly",
-                )))
-            }
-        };
-
+        let msg = expect_msg_or_err!(
+            self.channel.next().await,
+            PRFMessage::FollowerSf1,
+            PRFError::UnexpectedMessage
+        )?;
         let (msg, core) = core.next(msg);
         self.channel.send(PRFMessage::LeaderSf2(msg)).await?;
 
-        let msg = match self.channel.next().await {
-            Some(PRFMessage::FollowerSf2(msg)) => msg,
-            Some(m) => return Err(PRFError::UnexpectedMessage(m)),
-            None => {
-                return Err(PRFError::from(std::io::Error::new(
-                    std::io::ErrorKind::ConnectionAborted,
-                    "stream closed unexpectedly",
-                )))
-            }
-        };
-
+        let msg = expect_msg_or_err!(
+            self.channel.next().await,
+            PRFMessage::FollowerSf2,
+            PRFError::UnexpectedMessage
+        )?;
         let vd = core.next(msg);
 
         Ok(vd)
