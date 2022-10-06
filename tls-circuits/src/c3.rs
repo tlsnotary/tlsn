@@ -307,6 +307,7 @@ mod tests {
     use rand::{thread_rng, Rng};
 
     #[test]
+    #[ignore = "expensive"]
     fn test_c3() {
         let circ = c3();
         // Perform in the clear all the computations which happen inside the ciruit:

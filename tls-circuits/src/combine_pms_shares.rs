@@ -85,6 +85,7 @@ mod tests {
     const P: &str = "ffffffff00000001000000000000000000000000ffffffffffffffffffffffff";
 
     #[test]
+    #[ignore = "expensive"]
     fn test_combine_pms_shares() {
         let circ = combine_pms_shares();
         let p = BigUint::parse_bytes(P.as_bytes(), 16).unwrap();

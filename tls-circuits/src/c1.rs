@@ -230,6 +230,7 @@ mod tests {
     pub const P: &str = "ffffffff00000001000000000000000000000000ffffffffffffffffffffffff";
 
     #[test]
+    #[ignore = "expensive"]
     fn test_c1() {
         let circ = c1();
         // Perform in the clear all the computations which happen inside the ciruit:

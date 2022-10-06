@@ -348,6 +348,7 @@ mod tests {
     use rand::{thread_rng, Rng};
 
     #[test]
+    #[ignore = "expensive"]
     fn test_c5() {
         let circ = c5();
 
