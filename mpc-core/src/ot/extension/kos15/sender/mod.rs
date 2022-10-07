@@ -40,11 +40,14 @@ impl Kos15Sender {
         Self::new_with_rng(rng)
     }
 
+    /// Returns a salted commitment to the OT seed
     pub fn commit_to_seed(&self) -> ExtSenderCommit {
         let salted_seed = [self.0.rng.get_seed().as_slice(), self.0.salt.as_slice()].concat();
         ExtSenderCommit(sha256(&salted_seed))
     }
 
+    /// Performs base OT setup in which this extended OT sender acts as a
+    /// base OT receiver.
     pub fn base_setup(
         mut self,
         setup_msg: BaseSenderSetupWrapper,
@@ -171,6 +174,9 @@ impl Kos15Sender<state::Setup> {
         )
     }
 
+    /// Splits this extended OT sender into two senders. This sender will be mutated
+    /// and will contain `split_at` OT instances. A new sender will be returned
+    /// and it will contain all the remaining OT instances.
     pub fn split(&mut self, split_at: usize) -> Result<Self, ExtSenderCoreError> {
         let split_table = self.0.table.split_off_rows(split_at)?;
         let rows = split_table.rows();
@@ -205,6 +211,9 @@ impl Kos15Sender<state::RandSetup> {
         )
     }
 
+    /// Splits this extended OT sender into two senders. This sender will be mutated
+    /// and will contain `split_at` OT instances. A new sender will be returned
+    /// and it will contain all the remaining OT instances.
     pub fn split(&mut self, split_at: usize) -> Result<Self, ExtSenderCoreError> {
         let split_table = self.0.table.split_off_rows(split_at)?;
         let rows = split_table.rows();
@@ -229,9 +238,12 @@ impl Kos15Sender<state::RandSetup> {
     ///
     /// # Safety
     ///
-    /// This function reveals the RNG seed. This is dangerous when this OT instance has been
+    /// This function reveals the RNG seed. This is dangerous when this OT sender has been
     /// split before, because the split-off OTs share the same RNG seed. The caller has to ensure
     /// that all these other OTs are not used anymore after this function is called on one of them.
+    /// Specifically, if this sender was used to send the garbled circuit's generator's input
+    /// labels, then after revealing the RNG, all the secret inputs and all the garbled circuit's
+    /// outputs will become known to the evaluator.
     pub unsafe fn reveal(self) -> Result<ExtSenderReveal, ExtSenderCoreError> {
         Ok(ExtSenderReveal {
             seed: self.0.rng.get_seed(),

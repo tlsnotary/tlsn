@@ -49,16 +49,19 @@ pub trait ObliviousReceive {
 
 #[async_trait]
 pub trait ObliviousCommit {
+    /// Sends a commitment to the OT seed
     async fn commit(&mut self) -> Result<(), OTError>;
 }
 
 #[async_trait]
 pub trait ObliviousReveal {
+    /// Reveals the OT seed
     async fn reveal(mut self) -> Result<(), OTError>;
 }
 
 #[async_trait]
 pub trait ObliviousAcceptCommit {
+    /// Receives and stores a commitment to the OT seed
     async fn accept_commit(&mut self) -> Result<(), OTError>;
 }
 
@@ -66,6 +69,7 @@ pub trait ObliviousAcceptCommit {
 pub trait ObliviousVerify {
     type Input;
 
+    /// Verifies the correctness of the decommitted OT seed
     async fn verify(self, input: Vec<Self::Input>) -> Result<(), OTError>;
 }
 

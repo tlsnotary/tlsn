@@ -8,6 +8,11 @@ use thiserror::Error;
 /// This provides some convenience when dealing with matrices in the KOS15 protocol
 #[derive(Debug, PartialEq, Clone)]
 pub struct KosMatrix {
+    // The receiver of extended OT will have a matrix R and the sender of extended
+    // OT will have a matrix S, such that for each row j: if receiver's choice bit
+    // was 0 then S[j] = R[j], or if receiver's choice bit was 1 then S[j] =
+    // R[j] ⊕ B, where B is derived from base OT choices and is known only to the
+    // sender.
     inner: Vec<u8>,
     rows: usize,
     columns: usize,
@@ -62,7 +67,8 @@ impl KosMatrix {
         Ok(())
     }
 
-    /// Splits the byte matrix at the given row index
+    /// Splits the byte matrix at the given row index. Mutates `self` to become
+    /// the first part of the split and returns the second part of the split.
     pub fn split_off_rows(&mut self, n: usize) -> Result<Self, Error> {
         if n > self.rows() {
             return Err(Error::InvalidNumberOfRows);
