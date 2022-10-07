@@ -1,7 +1,7 @@
 [package]
 name = "tlsn-tls-2pc-core"
 version = "0.1.0"
-edition = "2018"
+edition = "2021"
 
 [lib]
 name = "tls_2pc_core"
@@ -24,30 +24,30 @@ serde = ["dep:serde"]
 [dependencies]
 tlsn-mpc-circuits = { path = "../mpc-circuits" }
 tlsn-mpc-core = { path = "../mpc-core" }
-sha2 = { version = "0.10.1", features = ["compress"] }
-digest = { version = "0.10.3" }
-hmac = { version = "0.12.1" }
-elliptic-curve = { version = "0.11.12" }
-rand = "0.8.5"
-thiserror = "1.0.30"
-serde = { version = "1.0.136", features = ["derive"], optional = true }
-once_cell = "1.15.0"
+sha2 = { workspace = true, features = ["compress"] }
+digest.workspace = true
+hmac.workspace = true
+elliptic-curve.workspace = true
+rand.workspace = true
+thiserror.workspace = true
+serde = { workspace = true, features = ["derive"], optional = true }
+once_cell.workspace = true
 
 [dev-dependencies]
-criterion = "0.3.5"
-ghash_rc = { package = "ghash", version = "0.4.4" }
-rand_chacha = "0.3.1"
-hex = "0.4"
-curv-kzen = "0.9"
-num = { version = "0.4", features = ["rand"] }
-aes = { version = "0.7.5", features = [] }
+criterion.workspace = true
+ghash_rc.workspace = true
+rand_chacha.workspace = true
+hex.workspace = true
+curv.workspace = true
+num = { workspace = true, features = ["rand"] }
+aes = { workspace = true, features = [] }
 
 [build-dependencies]
 tlsn-mpc-circuits = { path = "../mpc-circuits" }
 tlsn-tls-circuits = { path = "../tls-circuits" }
-regex = { version = "1.5.4" }
-prost = { version = "0.9" }
-rayon = "1.5"
+regex.workspace = true
+prost.workspace = true
+rayon.workspace = true
 
 [[test]]
 # don't run the heavy circuit_test unless explicitely invoked with

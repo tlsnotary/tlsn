@@ -11,24 +11,24 @@ adder64 = []
 sha256 = []
 
 [dependencies]
-thiserror = "1.0"
-regex = "1.5.4"
-prost = "0.9"
-rayon = "1.5"
-clap = { version = "3.1.5", features = ["derive"] }
-sha2 = { version = "0.10", features = ["compress"] }
-hex = "0.4.3"
-serde = { version = "1.0", features = ["derive"] }
-serde_yaml = "0.9.10"
-lazy_static = "1.4.0"
+thiserror.workspace = true
+regex.workspace = true
+prost.workspace = true
+rayon.workspace = true
+clap = { workspace = true, features = ["derive"] }
+sha2 = { workspace = true, features = ["compress"] }
+hex.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_yaml.workspace = true
+lazy_static.workspace = true
 
 [dev-dependencies]
-aes = { version = "0.7.5" }
-digest = "0.10.3"
-rand = "0.8.5"
+aes.workspace = true
+digest.workspace = true
+rand.workspace = true
 
 [build-dependencies]
-prost-build = { version = "0.9" }
+prost-build.workspace = true
 
 [lib]
 name = "mpc_circuits"

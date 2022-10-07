@@ -6,11 +6,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-thiserror = "1"
+thiserror.workspace = true
 
 [dev-dependencies]
-rand = "0.8"
-criterion = "0.3"
+rand.workspace = true
+criterion.workspace = true
 
 [features]
 simd-transpose = []
