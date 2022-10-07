@@ -13,20 +13,20 @@ muxer = []
 duplex = []
 
 [dependencies]
-bytes = "1"
-prost = "0.9"
-tokio = { version = "1", features = ["sync"] }
-tokio-util = { version = "0.7", features = ["codec", "compat"] }
-async-tungstenite = { version = "0.16" }
-futures = "0.3"
-futures-util = "0.3"
-async-trait = "0.1"
-yamux = "0.10"
-thiserror = "1"
-async-std = "1"
+bytes.workspace = true
+prost.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+tokio-util = { workspace = true, features = ["codec", "compat"] }
+async-tungstenite.workspace = true
+futures.workspace = true
+futures-util.workspace = true
+async-trait.workspace = true
+yamux.workspace = true
+thiserror.workspace = true
+async-std.workspace = true
 
 [dev-dependencies]
-tokio = { version = "1", features = [
+tokio = { workspace = true, features = [
     "macros",
     "rt",
     "rt-multi-thread",

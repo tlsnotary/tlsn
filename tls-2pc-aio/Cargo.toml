@@ -7,23 +7,23 @@ edition = "2021"
 name = "tls_2pc_aio"
 
 [dependencies]
-async-trait = "0.1.56"
-thiserror = "1.0.30"
+async-trait.workspace = true
+thiserror.workspace = true
 tlsn-tls-core = { path = "../tls-core" }
 tlsn-tls-client = { path = "../tls-client" }
 tlsn-mpc-aio = { path = "../mpc-aio" }
 tlsn-mpc-circuits = { path = "../mpc-circuits" }
 tlsn-tls-2pc-core = { path = "../tls-2pc-core" }
 tlsn-utils-aio = { path = "../utils-aio" }
-futures = "0.3.21"
-p256 = "0.10.1"
-rand = "0.8.5"
+futures.workspace = true
+p256.workspace = true
+rand.workspace = true
 
 [dev-dependencies]
-tokio = "1.21.1"
+tokio.workspace = true
 tlsn-mpc-aio = { path = "../mpc-aio", features = ["mock"] }
 tlsn-utils-aio = { path = "../utils-aio", features = ["duplex"] }
-criterion = { version = "0.4", features = ["async", "async_tokio"] }
+criterion = { workspace = true, features = ["async", "async_tokio"] }
 
 [[bench]]
 name = "prf"
