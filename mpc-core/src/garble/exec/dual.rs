@@ -426,6 +426,8 @@ mod tests {
         (leader, follower)
     }
 
+    /// Returns DualEx leader and follower who did not generate or evaluate the garbled
+    /// circuit themselves but received its garbled/evaluated form from an external source.
     fn evaluated_pair_external_compute() -> (DualExLeader<Commit>, DualExFollower<Reveal>) {
         let mut rng = thread_rng();
         let circ = Arc::new(Circuit::load_bytes(ADDER_64).unwrap());
@@ -440,8 +442,10 @@ mod tests {
         let (leader_labels, leader_delta) = InputLabels::generate(&mut rng, &circ, None);
         let (follower_labels, follower_delta) = InputLabels::generate(&mut rng, &circ, None);
 
+        // externally generated garbled circuit
         let leader_gc =
             GarbledCircuit::generate(&cipher, circ.clone(), leader_delta, &leader_labels).unwrap();
+        // externally generated garbled circuit
         let follower_gc =
             GarbledCircuit::generate(&cipher, circ, follower_delta, &follower_labels).unwrap();
 
@@ -453,6 +457,7 @@ mod tests {
             .from_full_circuit(&[follower_input.clone()], follower_gc)
             .unwrap();
 
+        // externally evaluated garbled circuit
         let leader_ev_gc = follower_gc
             .evaluate(
                 &cipher,
@@ -460,6 +465,7 @@ mod tests {
             )
             .unwrap();
 
+        // externally evaluated garbled circuit
         let follower_ev_gc = leader_gc
             .evaluate(
                 &cipher,
