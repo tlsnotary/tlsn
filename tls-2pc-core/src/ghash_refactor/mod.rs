@@ -142,26 +142,6 @@ impl GhashCommon {
         (r1count + r2and3count + r4count) * 128
     }
 
-    fn is_round2_needed(&self) -> bool {
-        // after round 1 we will have consecutive powers 1,2,3 which is enough
-        // to compute GHASH for 19 blocks with block aggregation.
-        self.blocks.len() > 19
-    }
-
-    fn is_round3_needed(&self) -> bool {
-        // after round 2 we will have a max of up to 19 consequitive odd powers
-        // which allows us to get 339 powers with block aggregation, see max_htable
-        // in utils::find_max_odd_power()
-        self.blocks.len() > 339
-    }
-
-    fn is_only_1_round(&self) -> bool {
-        // block agregation is always used except for very small block count
-        // where powers from round 1 are sufficient to perform direct multiplication
-        // of blocks by powers
-        self.blocks.len() <= 4
-    }
-
     #[cfg(test)]
     fn powers(&self) -> &BTreeMap<u16, u128> {
         &self.powers
