@@ -1,17 +1,21 @@
+use crate::ghash_refactor::MXTable;
+
 use super::{
-    block_aggregation, block_aggregation_bits, multiply_powers_and_blocks, GhashCommon, YBits,
+    block_aggregation, block_aggregation_bits, block_mult, multiply_powers_and_blocks, square_all,
+    xor_sum, GhashCommon, YBits,
 };
+use inner::{Common, Sealed};
 use mpc_core::utils::u8vec_to_boolvec;
 
-pub trait Received: common::Common {
+pub trait Receive: Common {
     const ROUND: usize;
 
     fn is_next_round_needed(&self) -> bool;
 
     /// Returns Y bits for a given round of communication
-    fn y_bits(&self) -> Vec<YBits> {
+    fn y_bits_for_next_round(&self) -> Vec<YBits> {
         let mut bits: Vec<YBits> = Vec::new();
-        for (key, value) in self.common().strategies[(Self::ROUND - 2) as usize].iter() {
+        for (key, value) in self.common().strategies[(Self::ROUND - 1) as usize].iter() {
             if *key > self.common().max_odd_power {
                 break;
             }
@@ -35,30 +39,17 @@ pub trait Received: common::Common {
     }
 }
 
-pub trait Sent: common::Common {
+pub trait Post: Common {
     const ROUND: usize;
 
-    /// Takes masked X tables and computes our share of H^3.
-    fn process_mxtables_for_round1(&mut self, mxtables: &Vec<MXTable>) {
-        // the XOR sum of all masked xtables' values plus H^1*H^2 is our share of H^3
-        self.c.powers.insert(
-            3,
-            xor_sum(&mxtables[0])
-                ^ xor_sum(&mxtables[1])
-                ^ block_mult(self.c.powers[&1], self.c.powers[&2]),
-        );
-        // since we just added a new share of powers, we need to square them
-        self.c.powers = square_all(&self.c.powers, self.c.blocks.len() as u16);
-    }
-
     /// Processes masked X tables for a given round of communication.
-    fn process_mxtables_for_round(&mut self, mxtables: &Vec<MXTable>, round_no: u8) {
-        assert!(round_no == 2 || round_no == 3);
-        for (count, (power, factors)) in self.c.strategies[(round_no - 2) as usize]
+    fn process_mxtables(&mut self, mxtables: &Vec<MXTable>) {
+        let mut collected_shares = vec![];
+        for (count, (power, factors)) in self.common().strategies[(Self::ROUND - 2) as usize]
             .iter()
             .enumerate()
         {
-            if *power > self.c.max_odd_power {
+            if *power > self.common().max_odd_power {
                 // for every key in the strategy which we processed, there
                 // must have been 2 masked xtables
                 assert!(count * 2 == mxtables.len());
@@ -68,30 +59,39 @@ pub trait Sent: common::Common {
             // term is our share of power
             let sum = xor_sum(&mxtables[count * 2]) ^ xor_sum(&mxtables[(count * 2) + 1]);
             let local_term = block_mult(
-                self.c.powers[&(factors[0] as u16)],
-                self.c.powers[&(factors[1] as u16)],
+                self.common().powers[&(factors[0] as u16)],
+                self.common().powers[&(factors[1] as u16)],
             );
-            self.c.powers.insert(*power as u16, sum ^ local_term);
+            collected_shares.push((*power as u16, sum ^ local_term));
         }
+        self.common_mut().powers.extend(collected_shares);
         // since we just added a few new shares of powers, we need to square them
-        self.c.powers = square_all(&self.c.powers, self.c.blocks.len() as u16);
+        self.common_mut().powers =
+            square_all(&self.common().powers, self.common().blocks.len() as u16);
     }
 
-    /// Processes masked X tables for the block aggregation method.
-    fn process_mxtables_for_block_aggr(&mut self, mxtables: &Vec<MXTable>) {
-        let mut share = 0u128;
-        for table in mxtables.iter() {
-            share ^= xor_sum(table);
-        }
-        self.c.temp_share = Some(self.c.temp_share.unwrap() ^ share);
+    /// Compute Ghash directly
+    ///
+    /// If the last round was not round 4 (i.e. there was no block
+    /// aggregation), then we compute GHASH directly
+    fn compute_ghash(&mut self) {
+        self.common_mut().temp_share = Some(multiply_powers_and_blocks(
+            &self.common().powers,
+            &self.common().blocks,
+        ))
     }
 }
 
-pub struct Initialized {
+pub struct Sent;
+pub struct Received;
+
+//-----------------------------------------
+pub struct Initialized<T: Sealed> {
     pub common: GhashCommon,
+    pub marker: std::marker::PhantomData<T>,
 }
 
-impl Received for Initialized {
+impl Receive for Initialized<Sent> {
     const ROUND: usize = 0;
 
     /// Checks if the next round is needed for the GHASH computation
@@ -102,22 +102,27 @@ impl Received for Initialized {
         self.common.blocks.len() > 4
     }
 
-    /// Returning Y bits in this state is not supported
-    /// Never called
-    fn y_bits(&self) -> Vec<YBits> {
-        unimplemented!()
+    /// Returns Y bits to compute H^3.
+    fn y_bits_for_next_round(&self) -> Vec<YBits> {
+        vec![
+            u8vec_to_boolvec(&self.common().powers[&1].to_be_bytes()),
+            u8vec_to_boolvec(&self.common().powers[&2].to_be_bytes()),
+        ]
+    }
+
+    /// Returns Y bits for the block aggregation method
+    fn ybits_for_block_aggr(&mut self) -> Vec<YBits> {
+        self.y_bits_for_next_round()
     }
 }
 
-impl Sent for Initialized {
-    const ROUND: usize = 1;
-}
-
-pub struct Round1 {
+//-----------------------------------------
+pub struct Round1<T: Sealed> {
     pub common: GhashCommon,
+    pub marker: std::marker::PhantomData<T>,
 }
 
-impl Received for Round1 {
+impl Receive for Round1<Sent> {
     const ROUND: usize = 1;
 
     fn is_next_round_needed(&self) -> bool {
@@ -125,25 +130,33 @@ impl Received for Round1 {
         // to compute GHASH for 19 blocks with block aggregation.
         self.common.blocks.len() > 19
     }
+}
 
-    /// Returns Y bits to compute H^3.
-    fn y_bits(&self) -> Vec<YBits> {
-        vec![
-            u8vec_to_boolvec(&self.common().powers[&1].to_be_bytes()),
-            u8vec_to_boolvec(&self.common().powers[&2].to_be_bytes()),
-        ]
+impl Post for Round1<Received> {
+    const ROUND: usize = 1;
+
+    /// Takes masked X tables and computes our share of H^3.
+    fn process_mxtables(&mut self, mxtables: &Vec<MXTable>) {
+        let (powers_one, powers_two) = (self.common().powers[&1], self.common().powers[&1]);
+
+        // the XOR sum of all masked xtables' values plus H^1*H^2 is our share of H^3
+        self.common_mut().powers.insert(
+            3,
+            xor_sum(&mxtables[0]) ^ xor_sum(&mxtables[1]) ^ block_mult(powers_one, powers_two),
+        );
+        // since we just added a new share of powers, we need to square them
+        self.common_mut().powers =
+            square_all(&self.common().powers, self.common().blocks.len() as u16);
     }
 }
 
-impl Sent for Round1 {
-    const ROUND: usize = 2;
-}
-
-pub struct Round2 {
+//-----------------------------------------
+pub struct Round2<T: Sealed> {
     pub common: GhashCommon,
+    pub marker: std::marker::PhantomData<T>,
 }
 
-impl Received for Round2 {
+impl Receive for Round2<Sent> {
     const ROUND: usize = 2;
 
     fn is_next_round_needed(&self) -> bool {
@@ -154,34 +167,62 @@ impl Received for Round2 {
     }
 }
 
-impl Sent for Round2 {
-    const ROUND: usize = 3;
+impl Post for Round2<Received> {
+    const ROUND: usize = 2;
 }
 
-pub struct Round3 {
+//-----------------------------------------
+pub struct Round3<T: Sealed> {
     pub common: GhashCommon,
+    pub marker: std::marker::PhantomData<T>,
 }
 
-impl Received for Round3 {
+impl Receive for Round3<Sent> {
     const ROUND: usize = 3;
 
     fn is_next_round_needed(&self) -> bool {
         false
     }
+
+    fn y_bits_for_next_round(&self) -> Vec<YBits> {
+        unimplemented!()
+    }
 }
 
-impl Sent for Round3 {
+impl Post for Round3<Received> {
+    const ROUND: usize = 3;
+}
+
+//-----------------------------------------
+pub struct Round4<T: Sealed> {
+    pub common: GhashCommon,
+    pub marker: std::marker::PhantomData<T>,
+}
+
+impl Post for Round4<Received> {
     const ROUND: usize = 4;
+
+    /// Processes masked X tables for the block aggregation method.
+    fn process_mxtables(&mut self, mxtables: &Vec<MXTable>) {
+        let mut share = 0u128;
+        for table in mxtables.iter() {
+            share ^= xor_sum(table);
+        }
+        self.common_mut().temp_share = Some(self.common().temp_share.unwrap() ^ share);
+    }
+
+    fn compute_ghash(&mut self) {}
 }
 
-mod common {
-    use super::GhashCommon;
+//-----------------------------------------
+mod inner {
+    use super::{GhashCommon, Initialized, Received, Round1, Round2, Round3, Round4, Sent};
 
     pub trait Common {
         fn common(&self) -> &GhashCommon;
         fn common_mut(&mut self) -> &mut GhashCommon;
     }
-    impl Common for super::Initialized {
+    impl<T: Sealed> Common for Initialized<T> {
         fn common(&self) -> &GhashCommon {
             &self.common
         }
@@ -190,7 +231,7 @@ mod common {
             &mut self.common
         }
     }
-    impl Common for super::Round1 {
+    impl<T: Sealed> Common for Round1<T> {
         fn common(&self) -> &GhashCommon {
             &self.common
         }
@@ -199,7 +240,7 @@ mod common {
             &mut self.common
         }
     }
-    impl Common for super::Round2 {
+    impl<T: Sealed> Common for Round2<T> {
         fn common(&self) -> &GhashCommon {
             &self.common
         }
@@ -208,7 +249,7 @@ mod common {
             &mut self.common
         }
     }
-    impl Common for super::Round3 {
+    impl<T: Sealed> Common for Round3<T> {
         fn common(&self) -> &GhashCommon {
             &self.common
         }
@@ -217,4 +258,17 @@ mod common {
             &mut self.common
         }
     }
+
+    impl<T: Sealed> Common for Round4<T> {
+        fn common(&self) -> &GhashCommon {
+            &self.common
+        }
+
+        fn common_mut(&mut self) -> &mut GhashCommon {
+            &mut self.common
+        }
+    }
+    pub trait Sealed {}
+    impl Sealed for Sent {}
+    impl Sealed for Received {}
 }
