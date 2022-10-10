@@ -69,7 +69,7 @@ pub trait ObliviousAcceptCommit {
 pub trait ObliviousVerify {
     type Input;
 
-    /// Verifies the correctness of the decommitted OT seed
+    /// Verifies the correctness of the revealed OT seed
     async fn verify(self, input: Vec<Self::Input>) -> Result<(), OTError>;
 }
 
