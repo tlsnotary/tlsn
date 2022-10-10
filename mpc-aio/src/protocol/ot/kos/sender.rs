@@ -107,6 +107,7 @@ impl ObliviousCommit for Kos15IOSender<s_state::Initialized> {
 #[async_trait]
 impl ObliviousReveal for Kos15IOSender<s_state::RandSetup> {
     async fn reveal(mut self) -> Result<(), OTError> {
+        // wait for all other split-off OTs (if any) to also call reveal()
         self.barrier.wait().await;
         let message = unsafe { self.inner.reveal()? };
         self.channel

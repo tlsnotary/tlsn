@@ -1,30 +1,34 @@
 use super::BaseReceiver;
 
-// Table's rows are such that for each row j: table[j] = R[j], if Receiver's choice bit was 0
-// or table[j] = R[j] ^ base_choices, if Receiver's choice bit was 1
-// (where R is the table which Receiver has. Note that base_choices is known only to us).
 use super::KosMatrix;
 use rand_chacha::ChaCha12Rng;
 
 pub trait SenderState {}
 
-// Number of extended OTs available
-pub type Count = usize;
+/// Number of extended OTs available
+type Count = usize;
 
-// Sent extended OTs
-pub type Sent = usize;
+/// Sent extended OTs
+type Sent = usize;
 
-// Our XOR share for the cointoss protocol
-pub type CointossShare = [u8; 32];
+/// Our XOR share for the cointoss protocol
+type CointossShare = [u8; 32];
 
-// Choice bits for the base OT protocol
-pub type BaseChoices = Vec<bool>;
+/// Choice bits for the base OT protocol
+type BaseChoices = Vec<bool>;
 
-// Salt for the seed of the rng
-pub type Salt = [u8; 32];
+/// Salt for the seed of the rng
+type Salt = [u8; 32];
+
+/// The RNG which this extended OT sender will use for the following:
+/// - base OT setup
+/// - extended OT setup
+/// - cointoss protocol inside extended OT setup
+/// - salt (when committing to this RNG's seed)
+type OTRng = ChaCha12Rng;
 
 pub struct Initialized {
-    pub(crate) rng: ChaCha12Rng,
+    pub(crate) rng: OTRng,
     pub(crate) base_receiver: BaseReceiver,
     pub(crate) base_choices: Vec<bool>,
     pub(crate) cointoss_share: CointossShare,
@@ -33,7 +37,7 @@ pub struct Initialized {
 impl SenderState for Initialized {}
 
 pub struct BaseSetup {
-    pub(crate) rng: ChaCha12Rng,
+    pub(crate) rng: OTRng,
     // The Receiver's sha256 commitment to their cointoss share
     pub(crate) receiver_cointoss_commit: [u8; 32],
     pub(crate) base_receiver: BaseReceiver,
@@ -45,10 +49,11 @@ impl SenderState for BaseSetup {}
 
 #[cfg_attr(test, derive(Debug))]
 pub struct BaseReceive {
-    pub(crate) rng: ChaCha12Rng,
+    pub(crate) rng: OTRng,
     // The shared random value which both parties will have at the end of the cointoss protocol
     pub(crate) cointoss_random: [u8; 32],
     pub(crate) base_choices: BaseChoices,
+    // RNGs seeded with random messages from base OT
     pub(crate) rngs: Vec<ChaCha12Rng>,
     pub(crate) salt: Salt,
 }
@@ -65,7 +70,7 @@ impl SenderState for Setup {}
 
 #[cfg_attr(test, derive(Debug))]
 pub struct RandSetup {
-    pub(crate) rng: ChaCha12Rng,
+    pub(crate) rng: OTRng,
     pub(crate) table: KosMatrix,
     pub(crate) count: Count,
     pub(crate) sent: Sent,

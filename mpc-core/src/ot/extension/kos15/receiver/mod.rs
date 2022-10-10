@@ -247,8 +247,8 @@ impl Kos15Receiver<state::RandSetup> {
     ///
     /// The sender commits in the beginning to the seed of his RNG. During the session the receiver
     /// records all ciphertext blocks received by the sender and his choices. Afterwards in the
-    /// reveal the sender sends all his OTs in cleartext and the RNG seed. This allows the
-    /// receiver to replay the whole session and check for correctness.
+    /// reveal phase the sender sends the RNG seed and the receiver, who knows what all the expected
+    /// plaintext OT messages are, can replay the whole session and check for correctness.
     pub fn verify(
         self,
         reveal: ExtSenderReveal,
