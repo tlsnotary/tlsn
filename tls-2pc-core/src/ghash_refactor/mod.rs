@@ -1,6 +1,5 @@
 pub mod follower;
 pub mod leader;
-mod macro_utils;
 mod utils;
 
 use std::collections::BTreeMap;
@@ -160,4 +159,8 @@ pub enum GhashError {
     BlockCountWrong,
     #[error("Tried to finalize before the protocol was complete")]
     FinalizeCalledTooEarly,
+    #[error("There is no final share available")]
+    NoFinalShare,
+    #[error("Final state is reached")]
+    FinalState,
 }

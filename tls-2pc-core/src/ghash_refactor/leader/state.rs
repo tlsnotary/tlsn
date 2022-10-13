@@ -7,7 +7,7 @@ use super::{
 use inner::{Common, Sealed};
 use mpc_core::utils::u8vec_to_boolvec;
 
-pub trait Receive: Common {
+pub trait Post: Common {
     const ROUND: usize;
 
     fn is_next_round_needed(&self) -> bool;
@@ -39,7 +39,7 @@ pub trait Receive: Common {
     }
 }
 
-pub trait Post: Common {
+pub trait Receive: Common {
     const ROUND: usize;
 
     /// Processes masked X tables for a given round of communication.
@@ -91,7 +91,7 @@ pub struct Initialized<T: Sealed> {
     pub marker: std::marker::PhantomData<T>,
 }
 
-impl Receive for Initialized<Sent> {
+impl Post for Initialized<Received> {
     const ROUND: usize = 0;
 
     /// Checks if the next round is needed for the GHASH computation
@@ -122,7 +122,7 @@ pub struct Round1<T: Sealed> {
     pub marker: std::marker::PhantomData<T>,
 }
 
-impl Receive for Round1<Sent> {
+impl Post for Round1<Received> {
     const ROUND: usize = 1;
 
     fn is_next_round_needed(&self) -> bool {
@@ -132,7 +132,7 @@ impl Receive for Round1<Sent> {
     }
 }
 
-impl Post for Round1<Received> {
+impl Receive for Round1<Sent> {
     const ROUND: usize = 1;
 
     /// Takes masked X tables and computes our share of H^3.
@@ -156,7 +156,7 @@ pub struct Round2<T: Sealed> {
     pub marker: std::marker::PhantomData<T>,
 }
 
-impl Receive for Round2<Sent> {
+impl Post for Round2<Received> {
     const ROUND: usize = 2;
 
     fn is_next_round_needed(&self) -> bool {
@@ -167,7 +167,7 @@ impl Receive for Round2<Sent> {
     }
 }
 
-impl Post for Round2<Received> {
+impl Receive for Round2<Sent> {
     const ROUND: usize = 2;
 }
 
@@ -177,7 +177,7 @@ pub struct Round3<T: Sealed> {
     pub marker: std::marker::PhantomData<T>,
 }
 
-impl Receive for Round3<Sent> {
+impl Post for Round3<Received> {
     const ROUND: usize = 3;
 
     fn is_next_round_needed(&self) -> bool {
@@ -189,7 +189,7 @@ impl Receive for Round3<Sent> {
     }
 }
 
-impl Post for Round3<Received> {
+impl Receive for Round3<Sent> {
     const ROUND: usize = 3;
 }
 
@@ -199,7 +199,7 @@ pub struct Round4<T: Sealed> {
     pub marker: std::marker::PhantomData<T>,
 }
 
-impl Post for Round4<Received> {
+impl Receive for Round4<Sent> {
     const ROUND: usize = 4;
 
     /// Processes masked X tables for the block aggregation method.
@@ -215,6 +215,11 @@ impl Post for Round4<Received> {
 }
 
 //-----------------------------------------
+pub struct Finalized {
+    pub common: GhashCommon,
+}
+
+//-----------------------------------------
 mod inner {
     use super::{GhashCommon, Initialized, Received, Round1, Round2, Round3, Round4, Sent};
 
@@ -222,52 +227,27 @@ mod inner {
         fn common(&self) -> &GhashCommon;
         fn common_mut(&mut self) -> &mut GhashCommon;
     }
-    impl<T: Sealed> Common for Initialized<T> {
-        fn common(&self) -> &GhashCommon {
-            &self.common
-        }
 
-        fn common_mut(&mut self) -> &mut GhashCommon {
-            &mut self.common
-        }
-    }
-    impl<T: Sealed> Common for Round1<T> {
-        fn common(&self) -> &GhashCommon {
-            &self.common
-        }
+    macro_rules! impl_common {
+        ($for: ty) => {
+            impl<T: Sealed> Common for $for {
+                fn common(&self) -> &GhashCommon {
+                    &self.common
+                }
 
-        fn common_mut(&mut self) -> &mut GhashCommon {
-            &mut self.common
-        }
-    }
-    impl<T: Sealed> Common for Round2<T> {
-        fn common(&self) -> &GhashCommon {
-            &self.common
-        }
-
-        fn common_mut(&mut self) -> &mut GhashCommon {
-            &mut self.common
-        }
-    }
-    impl<T: Sealed> Common for Round3<T> {
-        fn common(&self) -> &GhashCommon {
-            &self.common
-        }
-
-        fn common_mut(&mut self) -> &mut GhashCommon {
-            &mut self.common
-        }
+                fn common_mut(&mut self) -> &mut GhashCommon {
+                    &mut self.common
+                }
+            }
+        };
     }
 
-    impl<T: Sealed> Common for Round4<T> {
-        fn common(&self) -> &GhashCommon {
-            &self.common
-        }
+    impl_common!(Initialized<T>);
+    impl_common!(Round1<T>);
+    impl_common!(Round2<T>);
+    impl_common!(Round3<T>);
+    impl_common!(Round4<T>);
 
-        fn common_mut(&mut self) -> &mut GhashCommon {
-            &mut self.common
-        }
-    }
     pub trait Sealed {}
     impl Sealed for Sent {}
     impl Sealed for Received {}
