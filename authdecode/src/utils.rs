@@ -6,7 +6,7 @@ use sha2::{Digest, Sha256};
 
 /// Converts bits in MSB-first order into a `BigUint`
 pub fn bits_to_bigint(bits: &[bool]) -> BigUint {
-    BigUint::from_bytes_be(&boolvec_to_u8vec(&bits))
+    BigUint::from_bytes_be(&boolvec_to_u8vec(bits))
 }
 #[test]
 fn test_bits_to_bigint() {
@@ -127,11 +127,8 @@ fn test_encrypt_arithmetic_labels() {
     let alabels: [BigUint; 2] = [3u8.into(), 4u8.into()];
     let blabels = [0u128, 1u128];
     let res = encrypt_arithmetic_labels(&vec![alabels], &vec![blabels]).unwrap();
-    let flat = res[0]
-        .into_iter()
-        .map(|ct| ct)
-        .flatten()
-        .collect::<Vec<_>>();
+    let flat = res[0].into_iter().flatten().collect::<Vec<_>>();
+
     // expected value generated with python3:
     // from Crypto.Cipher import AES
     // k0 = AES.new((0).to_bytes(16, 'big'), AES.MODE_ECB)
@@ -171,7 +168,7 @@ fn test_compute_zero_sum_and_deltas() {
 /// Make sure that the `BigUint`s bitsize is not larger than `bitsize`
 pub fn sanitize_biguint(input: &BigUint, bitsize: usize) -> Result<(), String> {
     if (input.bits() as usize) > bitsize {
-        return Err("error".to_string());
+        Err("error".to_string())
     } else {
         Ok(())
     }
@@ -181,7 +178,7 @@ pub fn sanitize_biguint(input: &BigUint, bitsize: usize) -> Result<(), String> {
 fn test_sanitize_biguint() {
     let good = BigUint::from(2u8).pow(253) - BigUint::from(1u8);
     let res = sanitize_biguint(&good, 253);
-    assert!(!res.is_err());
+    assert!(res.is_ok());
 
     let bad = BigUint::from(2u8).pow(253);
     let res = sanitize_biguint(&bad, 253);

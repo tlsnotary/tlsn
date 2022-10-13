@@ -37,7 +37,7 @@ impl Verify for Verifier {
         let params = &self.verification_key.params;
         let vk = &self.verification_key.key;
 
-        let strategy = SingleVerifier::new(&params);
+        let strategy = SingleVerifier::new(params);
         let proof = input.proof;
         let mut transcript = Blake2bRead::<_, _, Challenge255<_>>::init(&proof[..]);
 
@@ -65,7 +65,7 @@ impl Verify for Verifier {
         );
         // println!("Proof verified [{:?}]", now.elapsed());
         if res.is_err() {
-            return Err(VerifierError::VerificationFailed);
+            Err(VerifierError::VerificationFailed)
         } else {
             Ok(true)
         }

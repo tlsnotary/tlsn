@@ -153,7 +153,7 @@ fn test_bits_to_limbs() {
 ///
 /// Assumes that the size of `deltas` is [super::CHUNK_SIZE]
 pub fn deltas_to_matrices(
-    deltas: &Vec<Delta>,
+    deltas: &[Delta],
     useful_bits: usize,
 ) -> (
     [[F; CELLS_PER_ROW]; USEFUL_ROWS],
@@ -203,14 +203,14 @@ fn test_deltas_to_matrices() {
 /// contain only 128 deltas, so we do NOT pad it.
 ///
 /// Returns padded deltas
-fn convert_and_pad_deltas(deltas: &Vec<Delta>, useful_bits: usize) -> Vec<F> {
+fn convert_and_pad_deltas(deltas: &[Delta], useful_bits: usize) -> Vec<F> {
     // convert deltas into F type
-    let deltas: Vec<F> = deltas.iter().map(|d| bigint_to_f(d)).collect();
+    let deltas: Vec<F> = deltas.iter().map(bigint_to_f).collect();
 
     deltas
         .chunks(useful_bits)
         .enumerate()
-        .map(|(i, c)| {
+        .flat_map(|(i, c)| {
             if i < 14 {
                 let mut v = vec![F::from(0); 256 - c.len()];
                 v.extend(c.to_vec());
@@ -219,12 +219,11 @@ fn convert_and_pad_deltas(deltas: &Vec<Delta>, useful_bits: usize) -> Vec<F> {
                 c.to_vec()
             }
         })
-        .flatten()
         .collect()
 }
 
 /// Converts a vec of padded deltas into a matrix of rows and returns it.
-fn deltas_to_matrix_of_rows(deltas: &Vec<F>) -> ([[F; CELLS_PER_ROW]; USEFUL_ROWS]) {
+fn deltas_to_matrix_of_rows(deltas: &[F]) -> ([[F; CELLS_PER_ROW]; USEFUL_ROWS]) {
     deltas
         .chunks(CELLS_PER_ROW)
         .map(|c| c.try_into().unwrap())
@@ -239,7 +238,7 @@ fn transpose_rows(matrix: &[[F; CELLS_PER_ROW]; USEFUL_ROWS]) -> [[F; USEFUL_ROW
         .map(|i| {
             matrix
                 .iter()
-                .map(|inner| inner[i].clone().try_into().unwrap())
+                .map(|inner| inner[i])
                 .collect::<Vec<_>>()
                 .try_into()
                 .unwrap()

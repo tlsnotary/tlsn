@@ -440,8 +440,13 @@ impl Circuit<F> for AuthDecodeCircuit {
                 }
 
                 // the grand sum of all dot products
-                let (dot_product, mut offset) =
-                    self.compute_58_cell_sum(&assigned_dot_products, &mut region, &cfg, 0)?;
+                // safe to .unwrap because we will always have exactly 58 dot_product
+                let (dot_product, mut offset) = self.compute_58_cell_sum(
+                    &assigned_dot_products.try_into().unwrap(),
+                    &mut region,
+                    &cfg,
+                    0,
+                )?;
 
                 // move `zero_sum` into `scratch_space` area to be used in computations
                 let zero_sum = region.assign_advice_from_instance(
@@ -460,13 +465,8 @@ impl Circuit<F> for AuthDecodeCircuit {
                 offset += 1;
 
                 // add salt
-                let label_sum_salted = self.add_salt(
-                    label_sum.clone(),
-                    assigned_salt.clone(),
-                    &mut region,
-                    &cfg,
-                    offset,
-                )?;
+                let label_sum_salted =
+                    self.add_salt(label_sum, assigned_salt.clone(), &mut region, &cfg, offset)?;
                 offset += 1;
 
                 // Constrains each chunks of 4 limbs to be equal to a cell and
@@ -575,7 +575,7 @@ impl AuthDecodeCircuit {
     // the resulting cell is a properly constrained sum.
     fn compute_58_cell_sum(
         &self,
-        cells: &Vec<AssignedCell<Fp, Fp>>,
+        cells: &[AssignedCell<Fp, Fp>; 58],
         region: &mut Region<F>,
         config: &TopLevelConfig,
         row_offset: usize,
@@ -588,7 +588,7 @@ impl AuthDecodeCircuit {
 
         // do not process the last chunk of level1 as it will be
         // later combined with the last chunk of level2
-        let l2_sums = self.fold_sum(&l1_chunks[..l1_chunks.len() - 1], region, &config, offset)?;
+        let l2_sums = self.fold_sum(&l1_chunks[..l1_chunks.len() - 1], region, config, offset)?;
 
         offset += l1_chunks.len() - 1;
 
@@ -602,7 +602,7 @@ impl AuthDecodeCircuit {
         // do not process the last chunk as it will be combined with
         // level1's last chunk's sums
         let mut l3_sums =
-            self.fold_sum(&l2_chunks[..l2_chunks.len() - 1], region, &config, offset)?;
+            self.fold_sum(&l2_chunks[..l2_chunks.len() - 1], region, config, offset)?;
 
         offset += l2_chunks.len() - 1;
 
@@ -614,7 +614,7 @@ impl AuthDecodeCircuit {
             l2_chunks[l2_chunks.len() - 1][0].clone(),
             l2_chunks[l2_chunks.len() - 1][1].clone(),
         ];
-        let sum = self.fold_sum(&[chunk.to_vec()], region, &config, offset)?;
+        let sum = self.fold_sum(&[chunk.to_vec()], region, config, offset)?;
 
         offset += 1;
 
@@ -626,7 +626,7 @@ impl AuthDecodeCircuit {
         let l3_chunks: Vec<Vec<AssignedCell<F, F>>> =
             l3_sums.chunks(4).map(|c| c.to_vec()).collect();
 
-        let final_sum = self.fold_sum(&l3_chunks, region, &config, offset)?[0].clone();
+        let final_sum = self.fold_sum(&l3_chunks, region, config, offset)?[0].clone();
 
         offset += 1;
 

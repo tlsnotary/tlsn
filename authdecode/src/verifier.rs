@@ -4,7 +4,7 @@ use crate::utils::{compute_zero_sum_and_deltas, encrypt_arithmetic_labels, sanit
 use crate::{Delta, LabelSumHash, PlaintextHash, Proof, ZeroSum};
 use num::BigUint;
 
-#[derive(Debug, PartialEq, thiserror::Error)]
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum VerifierError {
     #[error("The prover has provided the wrong number of proofs. Expected {0}. Got {1}.")]
     WrongProofCount(usize, usize),
@@ -147,6 +147,7 @@ impl AuthDecodeVerifier<Setup> {
 impl AuthDecodeVerifier<ReceivePlaintextHashes> {
     /// Receives hashes of plaintext and returns the encrypted
     /// arithmetic labels and the next expected state.
+    #[allow(clippy::type_complexity)]
     pub fn receive_plaintext_hashes(
         self,
         plaintext_hashes: Vec<PlaintextHash>,
@@ -216,7 +217,7 @@ impl AuthDecodeVerifier<VerifyMany> {
         let inputs = self.create_verification_inputs(proofs)?;
         for input in inputs {
             let res = self.verifier.verify(input)?;
-            if res != true {
+            if !res {
                 // we will never get here since "?" takes care of the
                 // verification error. Still, it is good to have this check
                 // just in case.

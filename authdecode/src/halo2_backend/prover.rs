@@ -43,7 +43,7 @@ impl Prove for Prover {
         let plaintext: [F; TOTAL_FIELD_ELEMENTS] = input
             .plaintext
             .iter()
-            .map(|bigint| bigint_to_f(bigint))
+            .map(bigint_to_f)
             .collect::<Vec<_>>()
             .try_into()
             .unwrap();
@@ -61,8 +61,7 @@ impl Prove for Prover {
 
         // prepare the proving system and generate the proof:
 
-        let circuit =
-            AuthDecodeCircuit::new(plaintext, bigint_to_f(&input.salt), deltas_as_rows.into());
+        let circuit = AuthDecodeCircuit::new(plaintext, bigint_to_f(&input.salt), deltas_as_rows);
 
         let params = &self.proving_key.params;
         let pk = &self.proving_key.key;
@@ -111,7 +110,7 @@ impl Prove for Prover {
         CHUNK_SIZE
     }
 
-    fn hash(&self, inputs: &Vec<BigUint>) -> Result<BigUint, ProverError> {
+    fn hash(&self, inputs: &[BigUint]) -> Result<BigUint, ProverError> {
         hash_internal(inputs)
     }
 }
@@ -123,13 +122,13 @@ impl Prover {
 }
 
 /// Hashes `inputs` with Poseidon and returns the digest as `BigUint`.
-fn hash_internal(inputs: &Vec<BigUint>) -> Result<BigUint, ProverError> {
+fn hash_internal(inputs: &[BigUint]) -> Result<BigUint, ProverError> {
     let digest = match inputs.len() {
         15 => {
             // hash with rate-15 Poseidon
             let fes: [F; 15] = inputs
                 .iter()
-                .map(|i| bigint_to_f(i))
+                .map(bigint_to_f)
                 .collect::<Vec<_>>()
                 .try_into()
                 .unwrap();
@@ -139,7 +138,7 @@ fn hash_internal(inputs: &Vec<BigUint>) -> Result<BigUint, ProverError> {
             // hash with rate-1 Poseidon
             let fes: [F; 1] = inputs
                 .iter()
-                .map(|i| bigint_to_f(i))
+                .map(bigint_to_f)
                 .collect::<Vec<_>>()
                 .try_into()
                 .unwrap();
@@ -182,7 +181,7 @@ mod tests {
             let good_plaintext: [F; TOTAL_FIELD_ELEMENTS] = input
                 .plaintext
                 .iter()
-                .map(|bigint| bigint_to_f(bigint))
+                .map(bigint_to_f)
                 .collect::<Vec<_>>()
                 .try_into()
                 .unwrap();
@@ -199,11 +198,8 @@ mod tests {
             ];
             good_inputs.push(tmp);
 
-            let circuit = AuthDecodeCircuit::new(
-                good_plaintext,
-                bigint_to_f(&input.salt),
-                deltas_as_rows.into(),
-            );
+            let circuit =
+                AuthDecodeCircuit::new(good_plaintext, bigint_to_f(&input.salt), deltas_as_rows);
 
             // Test with the correct inputs.
             // Expect successful verification.
@@ -218,7 +214,7 @@ mod tests {
             let bits = bigint_to_256bits(input.plaintext[0].clone());
             let mut offset: i32 = -1;
             for (i, b) in bits.iter().enumerate() {
-                if *b == true {
+                if *b {
                     offset = i as i32;
                     break;
                 }
@@ -253,13 +249,10 @@ mod tests {
             // Corrupt only the plaintext.
             // Expect verification error.
 
-            let mut bad_plaintext = good_plaintext.clone();
+            let mut bad_plaintext = good_plaintext;
             bad_plaintext[0] = F::from(123);
-            let circuit = AuthDecodeCircuit::new(
-                bad_plaintext,
-                bigint_to_f(&input.salt),
-                deltas_as_rows.into(),
-            );
+            let circuit =
+                AuthDecodeCircuit::new(bad_plaintext, bigint_to_f(&input.salt), deltas_as_rows);
             let prover = MockProver::run(K, &circuit, good_inputs.clone()).unwrap();
             assert!(prover.verify().is_err());
 
@@ -267,11 +260,8 @@ mod tests {
             // Expect verification error.
 
             let bad_salt = BigUint::from(123u8);
-            let circuit = AuthDecodeCircuit::new(
-                good_plaintext,
-                bigint_to_f(&bad_salt),
-                deltas_as_rows.into(),
-            );
+            let circuit =
+                AuthDecodeCircuit::new(good_plaintext, bigint_to_f(&bad_salt), deltas_as_rows);
             let prover = MockProver::run(K, &circuit, good_inputs.clone()).unwrap();
             assert!(prover.verify().is_err());
 
@@ -298,7 +288,7 @@ mod tests {
             CHUNK_SIZE
         }
 
-        fn hash(&self, inputs: &Vec<BigUint>) -> Result<BigUint, ProverError> {
+        fn hash(&self, inputs: &[BigUint]) -> Result<BigUint, ProverError> {
             hash_internal(inputs)
         }
     }

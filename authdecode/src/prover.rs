@@ -14,7 +14,7 @@ use cipher::generic_array::GenericArray;
 use num::BigUint;
 use rand::{thread_rng, Rng};
 
-#[derive(Debug, PartialEq, thiserror::Error)]
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum ProverError {
     #[error("Provided empty plaintext")]
     EmptyPlaintext,
@@ -62,7 +62,7 @@ pub struct ProofInput {
     pub salt: Salt,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ArithmeticLabelCheck([u8; 32]);
 
 impl ArithmeticLabelCheck {
@@ -79,12 +79,11 @@ impl ArithmeticLabelCheck {
     /// User from creating a zk proof. By observing whether the User succeeded in
     /// creating a zk proof, the Notary could infer whether the false label was chosen
     /// and would learn 1 bit about the User's secret plaintext.
-    pub fn new(ciphertexts: &Vec<[[u8; 16]; 2]>) -> Self {
+    pub fn new(ciphertexts: &[[[u8; 16]; 2]]) -> Self {
         // flatten the ciphertexts and hash them
         let flat: Vec<u8> = ciphertexts
             .iter()
-            .map(|pair| pair.to_vec().into_iter().flatten().collect::<Vec<u8>>())
-            .flatten()
+            .flat_map(|pair| pair.iter().copied().flatten().collect::<Vec<u8>>())
             .collect();
         Self(sha256(&flat))
     }
@@ -179,7 +178,7 @@ pub trait Prove {
     fn chunk_size(&self) -> usize;
 
     /// Evaluates the Poseidon hash on `inputs` and returns the digest.
-    fn hash(&self, inputs: &Vec<BigUint>) -> Result<BigUint, ProverError>;
+    fn hash(&self, inputs: &[BigUint]) -> Result<BigUint, ProverError>;
 }
 
 /// Implementation of the prover in the AuthDecode protocol.
@@ -205,7 +204,7 @@ impl AuthDecodeProver<Setup> {
     // Performs setup. Splits plaintext into chunks and computes a hash of each
     // chunk. Returns the next expected state.
     pub fn setup(self) -> Result<AuthDecodeProver<PlaintextCommitment>, ProverError> {
-        if self.state.plaintext.len() == 0 {
+        if self.state.plaintext.is_empty() {
             return Err(ProverError::EmptyPlaintext);
         }
         if self.prover.useful_bits() < self.prover.salt_size() {
@@ -247,7 +246,7 @@ impl AuthDecodeProver<Setup> {
             return Err(ProverError::WrongFieldElementCount);
         }
 
-        let mut bits = u8vec_to_boolvec(&plaintext);
+        let mut bits = u8vec_to_boolvec(plaintext);
 
         // chunk count (rounded up)
         let chunk_count = (bits.len() + (cs - 1)) / cs;
@@ -266,7 +265,7 @@ impl AuthDecodeProver<Setup> {
                 // chunk of field elements
                 let chunk_of_fes: Chunk = chunk_of_bits
                     .chunks(self.prover.useful_bits())
-                    .map(|fe| bits_to_bigint(fe))
+                    .map(bits_to_bigint)
                     .collect();
 
                 // generate the salt for this chunk. Do not apply the salt to the
@@ -307,15 +306,15 @@ impl AuthDecodeProver<PlaintextCommitment> {
     /// salted chunk.
     fn salt_and_hash_chunks(
         &self,
-        chunks: &Vec<Chunk>,
-        salts: &Vec<Salt>,
+        chunks: &[Chunk],
+        salts: &[Salt],
     ) -> Result<Vec<BigUint>, ProverError> {
         chunks
             .iter()
             .zip(salts.iter())
             .map(|(chunk, salt)| {
                 let salted_chunk = self.salt_chunk(chunk, salt)?;
-                Ok(self.prover.hash(&salted_chunk)?)
+                self.prover.hash(&salted_chunk)
             })
             .collect()
     }
@@ -365,7 +364,7 @@ impl AuthDecodeProver<LabelSumCommitment> {
                 //                          \    low bits   /
                 let salted_sum = sum.shl(self.prover.salt_size()) + salt;
 
-                Ok(self.prover.hash(&vec![salted_sum.clone()])?)
+                self.prover.hash(&[salted_sum])
             })
             .collect();
         if res.is_err() {
@@ -533,13 +532,13 @@ impl AuthDecodeProver<ProofCreation> {
             .map(|i| self.prover.prove(i.clone()))
             .collect::<Result<Vec<_>, _>>()?;
 
-        Ok((proofs.clone(), self.state.salts))
+        Ok((proofs, self.state.salts))
     }
 
     /// Returns [ProofInput]s for each [Chunk].
     fn create_zkproof_inputs(
         &self,
-        zero_sum: &Vec<ZeroSum>,
+        zero_sum: &[ZeroSum],
         mut deltas: Vec<Delta>,
     ) -> Vec<ProofInput> {
         // Since the last chunk is padded with zero plaintext, we also zero-pad
@@ -602,7 +601,7 @@ mod tests {
             3670
         }
 
-        fn hash(&self, _: &Vec<BigUint>) -> Result<BigUint, ProverError> {
+        fn hash(&self, _: &[BigUint]) -> Result<BigUint, ProverError> {
             Ok(BigUint::default())
         }
     }
@@ -648,7 +647,7 @@ mod tests {
                 3670
             }
 
-            fn hash(&self, _inputs: &Vec<BigUint>) -> Result<BigUint, ProverError> {
+            fn hash(&self, _inputs: &[BigUint]) -> Result<BigUint, ProverError> {
                 Ok(BigUint::default())
             }
         }
@@ -693,7 +692,7 @@ mod tests {
                 super::MAX_CHUNK_SIZE + 1 //changed from 3670
             }
 
-            fn hash(&self, _inputs: &Vec<BigUint>) -> Result<BigUint, ProverError> {
+            fn hash(&self, _inputs: &[BigUint]) -> Result<BigUint, ProverError> {
                 Ok(BigUint::default())
             }
         }
@@ -738,7 +737,7 @@ mod tests {
                 3670
             }
 
-            fn hash(&self, _inputs: &Vec<BigUint>) -> Result<BigUint, ProverError> {
+            fn hash(&self, _inputs: &[BigUint]) -> Result<BigUint, ProverError> {
                 Ok(BigUint::default())
             }
         }
@@ -797,13 +796,13 @@ mod tests {
                 3670
             }
 
-            fn hash(&self, _inputs: &Vec<BigUint>) -> Result<BigUint, ProverError> {
+            fn hash(&self, _inputs: &[BigUint]) -> Result<BigUint, ProverError> {
                 Err(ProverError::ErrorInPoseidonImplementation)
             }
         }
 
         let lsp = AuthDecodeProver::new(Plaintext::default(), Box::new(TestProver {}));
-        let res = lsp.prover.hash(&[BigUint::default()].to_vec());
+        let res = lsp.prover.hash(&[BigUint::default()]);
 
         assert_eq!(
             res.err().unwrap(),
@@ -922,7 +921,7 @@ mod tests {
                 3670
             }
 
-            fn hash(&self, _inputs: &Vec<BigUint>) -> Result<BigUint, ProverError> {
+            fn hash(&self, _inputs: &[BigUint]) -> Result<BigUint, ProverError> {
                 Ok(BigUint::default())
             }
         }

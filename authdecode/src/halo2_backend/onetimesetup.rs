@@ -43,11 +43,8 @@ impl OneTimeSetup {
         // safe to unwrap, we are inputting deterministic params and circuit on every
         // invocation
         let vk = plonk::keygen_vk(&params, &circuit).unwrap();
-        let pk = plonk::keygen_pk(&params, vk.clone(), &circuit).unwrap();
+        let pk = plonk::keygen_pk(&params, vk, &circuit).unwrap();
 
-        PK {
-            key: pk,
-            params: params,
-        }
+        PK { key: pk, params }
     }
 }

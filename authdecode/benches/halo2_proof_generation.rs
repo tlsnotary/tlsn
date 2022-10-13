@@ -38,7 +38,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
                 let (prover, verifier) =
                     create_prover(proving_key.clone(), verification_key.clone());
                 let (proofs, _salts) = prover.create_zk_proofs().unwrap();
-                black_box(verifier.verify_many(proofs.clone()).unwrap());
+                black_box(verifier.verify_many(proofs).unwrap());
             })
         },
     );

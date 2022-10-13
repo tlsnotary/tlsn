@@ -89,7 +89,6 @@ type Proof = Vec<u8>;
 
 #[cfg(test)]
 mod tests {
-    use crate::prover::ProverError;
     use crate::prover::{AuthDecodeProver, Prove};
     use crate::utils::*;
     use crate::verifier::VerifyMany;
@@ -103,13 +102,12 @@ mod tests {
     /// Corrupts the proof if `will_corrupt_proof` is `true` and expects the
     /// verification to fail.
     pub fn e2e_test(prover: Box<dyn Prove>, verifier: Box<dyn Verify>, will_corrupt_proof: bool) {
-        let (prover_result, verifier) = run_until_proofs_are_generated(prover, verifier);
-        let (proofs, _salts) = prover_result.unwrap();
+        let (proofs, _salts, verifier) = run_until_proofs_are_generated(prover, verifier);
 
         if !will_corrupt_proof {
             // Notary verifies a good proof
             let (result, _) = verifier.verify_many(proofs).unwrap();
-            assert_eq!(result, true);
+            assert!(result);
         } else {
             // corrupt one byte in each proof
             let corrupted_proofs: Vec<Proof> = proofs
@@ -135,10 +133,7 @@ mod tests {
     pub fn run_until_proofs_are_generated(
         prover: Box<dyn Prove>,
         verifier: Box<dyn Verify>,
-    ) -> (
-        Result<(Vec<Proof>, Vec<Salt>), ProverError>,
-        AuthDecodeVerifier<VerifyMany>,
-    ) {
+    ) -> (Vec<Proof>, Vec<Salt>, AuthDecodeVerifier<VerifyMany>) {
         let mut rng = thread_rng();
 
         // generate random plaintext of random size up to 1000 bytes
@@ -200,7 +195,8 @@ mod tests {
         let prover = prover.authenticate_arithmetic_labels(seed).unwrap();
 
         // Prover generates the proof
-        (prover.create_zk_proofs(), verifier)
+        let (proofs, salts) = prover.create_zk_proofs().unwrap();
+        (proofs, salts, verifier)
     }
 
     /// Unzips a slice of pairs, returning items corresponding to choice

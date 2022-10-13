@@ -56,7 +56,7 @@ impl LabelGenerator {
                         .collect::<Vec<_>>(),
                 );
 
-                let one_label = zero_label.clone() + delta.clone();
+                let one_label = zero_label.clone() + delta;
                 [zero_label, one_label]
             })
             .collect()
