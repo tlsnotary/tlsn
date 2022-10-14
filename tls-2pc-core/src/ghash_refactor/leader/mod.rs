@@ -4,11 +4,12 @@
 //! bit of Y.
 pub mod state;
 
+use super::common::{Common, GhashCommon};
 use super::utils::{
     block_aggregation, block_aggregation_bits, block_mult, flat_to_chunks,
     multiply_powers_and_blocks, square_all, xor_sum,
 };
-use super::{GhashCommon, GhashError, YBits};
+use super::{GhashError, YBits};
 use state::{
     Finalized, Initialized, Post, Receive, Received, Round1, Round2, Round3, Round4, Sent,
 };

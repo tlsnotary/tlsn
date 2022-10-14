@@ -1,10 +1,9 @@
-use crate::ghash_refactor::MXTable;
-
 use super::{
     block_aggregation, block_aggregation_bits, block_mult, multiply_powers_and_blocks, square_all,
-    xor_sum, GhashCommon, YBits,
+    xor_sum, Common, GhashCommon, YBits,
 };
-use inner::{Common, Sealed};
+use crate::ghash_refactor::MXTable;
+use crate::impl_common;
 use mpc_core::utils::u8vec_to_boolvec;
 
 pub trait Post: Common {
@@ -86,7 +85,7 @@ pub struct Sent;
 pub struct Received;
 
 //-----------------------------------------
-pub struct Initialized<T: Sealed> {
+pub struct Initialized<T> {
     pub common: GhashCommon,
     pub marker: std::marker::PhantomData<T>,
 }
@@ -117,7 +116,7 @@ impl Post for Initialized<Received> {
 }
 
 //-----------------------------------------
-pub struct Round1<T: Sealed> {
+pub struct Round1<T> {
     pub common: GhashCommon,
     pub marker: std::marker::PhantomData<T>,
 }
@@ -151,7 +150,7 @@ impl Receive for Round1<Sent> {
 }
 
 //-----------------------------------------
-pub struct Round2<T: Sealed> {
+pub struct Round2<T> {
     pub common: GhashCommon,
     pub marker: std::marker::PhantomData<T>,
 }
@@ -172,7 +171,7 @@ impl Receive for Round2<Sent> {
 }
 
 //-----------------------------------------
-pub struct Round3<T: Sealed> {
+pub struct Round3<T> {
     pub common: GhashCommon,
     pub marker: std::marker::PhantomData<T>,
 }
@@ -194,7 +193,7 @@ impl Receive for Round3<Sent> {
 }
 
 //-----------------------------------------
-pub struct Round4<T: Sealed> {
+pub struct Round4<T> {
     pub common: GhashCommon,
     pub marker: std::marker::PhantomData<T>,
 }
@@ -220,35 +219,8 @@ pub struct Finalized {
 }
 
 //-----------------------------------------
-mod inner {
-    use super::{GhashCommon, Initialized, Received, Round1, Round2, Round3, Round4, Sent};
-
-    pub trait Common {
-        fn common(&self) -> &GhashCommon;
-        fn common_mut(&mut self) -> &mut GhashCommon;
-    }
-
-    macro_rules! impl_common {
-        ($for: ty) => {
-            impl<T: Sealed> Common for $for {
-                fn common(&self) -> &GhashCommon {
-                    &self.common
-                }
-
-                fn common_mut(&mut self) -> &mut GhashCommon {
-                    &mut self.common
-                }
-            }
-        };
-    }
-
-    impl_common!(Initialized<T>);
-    impl_common!(Round1<T>);
-    impl_common!(Round2<T>);
-    impl_common!(Round3<T>);
-    impl_common!(Round4<T>);
-
-    pub trait Sealed {}
-    impl Sealed for Sent {}
-    impl Sealed for Received {}
-}
+impl_common!(Initialized<T>);
+impl_common!(Round1<T>);
+impl_common!(Round2<T>);
+impl_common!(Round3<T>);
+impl_common!(Round4<T>);
