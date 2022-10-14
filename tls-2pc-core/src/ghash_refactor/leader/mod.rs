@@ -4,14 +4,15 @@
 //! bit of Y.
 pub mod state;
 
-use super::common::{Common, GhashCommon};
+use super::common::{Common, GhashCommon, NextRound};
 use super::utils::{
     block_aggregation, block_aggregation_bits, block_mult, flat_to_chunks,
     multiply_powers_and_blocks, square_all, xor_sum,
 };
 use super::{GhashError, YBits};
 use state::{
-    Finalized, Initialized, Post, Receive, Received, Round1, Round2, Round3, Round4, Sent,
+    Finalized, Initialized, LeaderReceive, LeaderSend, Received, Round1, Round2, Round3, Round4,
+    Sent,
 };
 
 pub struct GHashLeader<T = Initialized<Received>> {
@@ -149,7 +150,7 @@ pub trait Status {
     }
 }
 
-impl<T: Receive> Status for GHashLeader<T> {}
+impl<T: LeaderReceive> Status for GHashLeader<T> {}
 impl Status for GHashLeader<Initialized<Received>> {}
 impl Status for GHashLeader<Round1<Received>> {}
 impl Status for GHashLeader<Round2<Received>> {}

@@ -1,3 +1,4 @@
+use super::leader::state::LeaderSend;
 use super::utils::{find_max_odd_power, find_sum, square_all};
 use super::GhashError;
 use std::collections::BTreeMap;
@@ -7,8 +8,34 @@ pub trait Common {
     fn common_mut(&mut self) -> &mut GhashCommon;
 }
 
+pub trait NextRound: Common {
+    const ROUND: usize;
+
+    /// Checks if the next round is needed for the GHASH computation
+    fn is_next_round_needed(&self) -> bool {
+        match <Self as NextRound>::ROUND {
+            // block agregation is always used except for very small block count
+            // where powers from round 1 are sufficient to perform direct multiplication
+            // of blocks by powers
+            0 => self.common().blocks.len() > 4,
+            // after round 1 we will have consecutive powers 1,2,3 which is enough
+            // to compute GHASH for 19 blocks with block aggregation.
+            1 => self.common().blocks.len() > 19,
+            // after round 2 we will have a max of up to 19 consequitive odd powers
+            // which allows us to get 339 powers with block aggregation, see max_htable
+            // in utils::find_max_odd_power()
+            2 => self.common().blocks.len() > 339,
+            _ => false,
+        }
+    }
+}
+
+impl<T: LeaderSend> NextRound for T {
+    const ROUND: usize = <Self as LeaderSend>::ROUND;
+}
+
 #[macro_export]
-macro_rules! impl_common {
+macro_rules! impl_ghash_common {
     ($for: ty) => {
         impl<T> Common for $for {
             fn common(&self) -> &GhashCommon {

@@ -3,18 +3,18 @@ use super::{
     xor_sum, Common, GhashCommon, YBits,
 };
 use crate::ghash_refactor::MXTable;
-use crate::impl_common;
+use crate::impl_ghash_common;
 use mpc_core::utils::u8vec_to_boolvec;
 
-pub trait Post: Common {
+pub trait LeaderSend: Common {
     const ROUND: usize;
-
-    fn is_next_round_needed(&self) -> bool;
 
     /// Returns Y bits for a given round of communication
     fn y_bits_for_next_round(&self) -> Vec<YBits> {
         let mut bits: Vec<YBits> = Vec::new();
-        for (key, value) in self.common().strategies[(Self::ROUND - 1) as usize].iter() {
+        for (key, value) in
+            self.common().strategies[(<Self as LeaderSend>::ROUND - 1) as usize].iter()
+        {
             if *key > self.common().max_odd_power {
                 break;
             }
@@ -38,7 +38,7 @@ pub trait Post: Common {
     }
 }
 
-pub trait Receive: Common {
+pub trait LeaderReceive: Common {
     const ROUND: usize;
 
     /// Processes masked X tables for a given round of communication.
@@ -90,16 +90,8 @@ pub struct Initialized<T> {
     pub marker: std::marker::PhantomData<T>,
 }
 
-impl Post for Initialized<Received> {
+impl LeaderSend for Initialized<Received> {
     const ROUND: usize = 0;
-
-    /// Checks if the next round is needed for the GHASH computation
-    fn is_next_round_needed(&self) -> bool {
-        // block agregation is always used except for very small block count
-        // where powers from round 1 are sufficient to perform direct multiplication
-        // of blocks by powers
-        self.common.blocks.len() > 4
-    }
 
     /// Returns Y bits to compute H^3.
     fn y_bits_for_next_round(&self) -> Vec<YBits> {
@@ -121,17 +113,11 @@ pub struct Round1<T> {
     pub marker: std::marker::PhantomData<T>,
 }
 
-impl Post for Round1<Received> {
+impl LeaderSend for Round1<Received> {
     const ROUND: usize = 1;
-
-    fn is_next_round_needed(&self) -> bool {
-        // after round 1 we will have consecutive powers 1,2,3 which is enough
-        // to compute GHASH for 19 blocks with block aggregation.
-        self.common.blocks.len() > 19
-    }
 }
 
-impl Receive for Round1<Sent> {
+impl LeaderReceive for Round1<Sent> {
     const ROUND: usize = 1;
 
     /// Takes masked X tables and computes our share of H^3.
@@ -155,18 +141,11 @@ pub struct Round2<T> {
     pub marker: std::marker::PhantomData<T>,
 }
 
-impl Post for Round2<Received> {
+impl LeaderSend for Round2<Received> {
     const ROUND: usize = 2;
-
-    fn is_next_round_needed(&self) -> bool {
-        // after round 2 we will have a max of up to 19 consequitive odd powers
-        // which allows us to get 339 powers with block aggregation, see max_htable
-        // in utils::find_max_odd_power()
-        self.common.blocks.len() > 339
-    }
 }
 
-impl Receive for Round2<Sent> {
+impl LeaderReceive for Round2<Sent> {
     const ROUND: usize = 2;
 }
 
@@ -176,19 +155,15 @@ pub struct Round3<T> {
     pub marker: std::marker::PhantomData<T>,
 }
 
-impl Post for Round3<Received> {
+impl LeaderSend for Round3<Received> {
     const ROUND: usize = 3;
-
-    fn is_next_round_needed(&self) -> bool {
-        false
-    }
 
     fn y_bits_for_next_round(&self) -> Vec<YBits> {
         unimplemented!()
     }
 }
 
-impl Receive for Round3<Sent> {
+impl LeaderReceive for Round3<Sent> {
     const ROUND: usize = 3;
 }
 
@@ -198,7 +173,7 @@ pub struct Round4<T> {
     pub marker: std::marker::PhantomData<T>,
 }
 
-impl Receive for Round4<Sent> {
+impl LeaderReceive for Round4<Sent> {
     const ROUND: usize = 4;
 
     /// Processes masked X tables for the block aggregation method.
@@ -219,8 +194,8 @@ pub struct Finalized {
 }
 
 //-----------------------------------------
-impl_common!(Initialized<T>);
-impl_common!(Round1<T>);
-impl_common!(Round2<T>);
-impl_common!(Round3<T>);
-impl_common!(Round4<T>);
+impl_ghash_common!(Initialized<T>);
+impl_ghash_common!(Round1<T>);
+impl_ghash_common!(Round2<T>);
+impl_ghash_common!(Round3<T>);
+impl_ghash_common!(Round4<T>);
