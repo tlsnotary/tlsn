@@ -17,6 +17,8 @@ use num::BigUint;
 
 use super::utils::{bigint_to_256bits, bigint_to_f, bits_to_limbs, f_to_bigint};
 
+// See circuit_diagram.pdf for a diagram of the circuit
+
 // The AuthDecode protocol decodes a chunk of X bits at a time.
 // Each of the bit requires 1 corresponding public input - a delta.
 // We want the deltas to use up as few instance columns as possible

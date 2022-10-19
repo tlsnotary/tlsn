@@ -20,6 +20,8 @@
 //! Specifically, in the context of the TLSNotary protocol, AuthDecode MUST ONLY
 //! start AFTER the Notary (who is the garbler) has revealed all of his TLS session
 //! keys' shares.
+//!
+//! See ../authdecode_diagram.pdf for a diagram of the whole protocol
 
 pub mod halo2_backend;
 mod label;
