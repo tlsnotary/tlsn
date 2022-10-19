@@ -49,25 +49,7 @@ pub const FULL_FIELD_ELEMENTS: usize = 14;
 
 /// The parameter informing halo2 about the upper bound of how many rows our
 /// circuit uses. This is a power of 2.
-///
-/// TODO: Initially K was set to 6 and the whole circuit was built around
-/// 58 rows. After the circuit was built, I discovered that setting
-/// rate-15 Poseidon partial rounds count to 64 produces a `NotEnoughRowsAvailable`
-/// error.
-///
-/// One solution to decrease the number of used rows is to set Poseidon rate-15 partial
-/// rounds count to 62 (which is acceptable acc.to
-/// https://github.com/filecoin-project/neptune/blob/master/spec/poseidon_spec.pdf
-/// see p.5 Security Inequalities (3) which says that total round count must be at least
-/// > 58), but that is not in keeping with the arbitrary security margin suggested in the
-/// Poseidon paper which bring the total round count to 64.
-///
-/// The other solution is to modify the circuit to hash 14 elements instead of 15. This
-/// will decrease the required partial rounds to 60. But that means modifying the circuit.
-///
-/// The simplest solution was to increase the amount of available rows by increasing
-/// K. However, this increases the proof generation time by 30%.
-pub const K: u32 = 7;
+pub const K: u32 = 6;
 
 /// For one row of the circuit, this is the amount of advice cells to put
 /// plaintext bits into and also this is the amount of instance cells to
@@ -109,16 +91,13 @@ pub struct TopLevelConfig {
     /// Each row of deltas corresponds to one limb of plaintext
     deltas: [Column<Instance>; CELLS_PER_ROW],
 
-    // When calling assign_advice_from_instance() we store the resulting cell
-    // in this column. TODO: we don't need a new column but could store it in
-    // any of the above advice column's free cell, e.g. in `scratch_space`, but
-    // when I tried to use them, assign_advice_from_instance() was giving me an error
-    // NotEnoughRowsAvailable { current_k: 6 }, even though the offset
-    // was < USEFUL_ROWS
-    poseidon_misc: Column<Advice>,
+    /// Since halo2 does not allow to constrain public inputs in instance columns
+    /// directly, we first need to copy the inputs into this advice column
+    advice_from_instance: Column<Advice>,
 
-    // SELECTORS. below is the description of what happens when a selector
-    // is activated for a given row.
+    // SELECTORS.
+    // Below is the description of what happens when a selector
+    // is activated for a given row:
     /// Computes a dot product
     selector_dot_product: Selector,
     /// Composes a given limb from bits into an integer.
@@ -130,7 +109,7 @@ pub struct TopLevelConfig {
     selector_sum4: Selector,
     /// Sums 2 cells
     selector_sum2: Selector,
-    /// Left-shifts the first cell by the size of salt and adds the salt
+    /// Left-shifts the first cell by the size of the salt and adds the salt
     selector_add_salt: Selector,
 
     /// config for Poseidon with rate 15
@@ -150,7 +129,8 @@ pub struct AuthDecodeCircuit {
     /// salt is private input
     salt: F,
     /// deltas is a public input.
-    /// Since halo2 doesn't allow to access deltas passed in [crate::prover::Prove::prove],
+    /// Since halo2 doesn't allow to access deltas which we passed in
+    /// [crate::prover::Prove::prove],
     /// we pass it here again to be able to compute the in-circuit expected values.
     /// To make handling simpler, this is a matrix of rows, where each row corresponds
     /// to a 64-bit limb of the plaintext.
@@ -205,8 +185,8 @@ impl Circuit<F> for AuthDecodeCircuit {
             .try_into()
             .unwrap();
 
-        let poseidon_misc = meta.advice_column();
-        meta.enable_equality(poseidon_misc);
+        let advice_from_instance = meta.advice_column();
+        meta.enable_equality(advice_from_instance);
 
         // INSTANCE COLUMNS
 
@@ -236,6 +216,10 @@ impl Circuit<F> for AuthDecodeCircuit {
 
         let poseidon_config_rate15 = configure_poseidon_rate_15::<Spec15>(15, meta);
         let poseidon_config_rate1 = configure_poseidon_rate_1::<Spec1>(1, meta);
+        // we need to designate one column for global constants which the Poseidon
+        // chip uses
+        let global_constants = meta.fixed_column();
+        meta.enable_constant(global_constants);
 
         // CONFIG
 
@@ -246,7 +230,7 @@ impl Circuit<F> for AuthDecodeCircuit {
             dot_product,
             expected_limbs,
             salt,
-            poseidon_misc,
+            advice_from_instance,
 
             deltas,
 
@@ -492,9 +476,7 @@ impl Circuit<F> for AuthDecodeCircuit {
                     &cfg,
                     offset,
                 )?;
-
-                // uncomment this if in the future we may want to do more
-                // computations in the scratch space
+                // uncomment if we need to do more computations in the scratch space
                 // offset += 1;
 
                 // replace the last field element with the one with salt
@@ -522,7 +504,7 @@ impl Circuit<F> for AuthDecodeCircuit {
                     || "",
                     cfg.public_inputs,
                     1,
-                    cfg.poseidon_misc,
+                    cfg.advice_from_instance,
                     0,
                 )?;
                 region.constrain_equal(output.cell(), expected.cell())?;
@@ -548,7 +530,7 @@ impl Circuit<F> for AuthDecodeCircuit {
                     || "",
                     cfg.public_inputs,
                     0,
-                    cfg.poseidon_misc,
+                    cfg.advice_from_instance,
                     1,
                 )?;
                 region.constrain_equal(output.cell(), expected.cell())?;
