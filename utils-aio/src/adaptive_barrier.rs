@@ -26,6 +26,8 @@ impl AdaptiveBarrier {
 
     pub fn new() -> Self {
         Self {
+            // even though we will not receive any data, we still
+            // need to set the channel's capacity to the required minimum 1
             inner: channel(1).0,
         }
     }
@@ -60,6 +62,8 @@ mod tests {
             }
         }
 
+        // add a new value to the counter. if no values are present in the
+        // counter, the new value will be 1.
         async fn count(self) {
             let mut counter = self.counter.lock().await;
             let last = counter.last().copied().unwrap_or_default();
@@ -67,6 +71,7 @@ mod tests {
         }
 
         async fn count_wait(mut self) {
+            // use `replace()` because we can't call `self.barrier.wait().await;` here
             let barrier = replace(&mut self.barrier, AdaptiveBarrier::new());
             barrier.wait().await;
             self.count().await;
@@ -90,12 +95,19 @@ mod tests {
             waiter_2.count().await;
         });
 
+        // the reason why we are not using here:
+        // _ = tokio::join!(task, task_2);
+        // is to make this test comparable to `test_adaptive_barrier_wait`
         tokio::time::sleep(Duration::from_millis(1000)).await;
         {
             // Add 0 to counter. But this will not be the first number
-            // since `task` and `task_2` were already able to run
+            // since `task` and `task_2` were already able to add to
+            // the counter.
             counter.lock().await.push(0);
         }
+
+        // both tasks must be finished now
+        assert!(task.is_finished() && task_2.is_finished());
 
         let task_3 = tokio::spawn(async move {
             waiter_3.count().await;
@@ -125,7 +137,10 @@ mod tests {
             counter.lock().await.push(0);
         }
 
-        // Now we wait for the last barrier, so all tasks can start now
+        // both tasks must NOT be finished yet
+        assert!(!task.is_finished() && !task_2.is_finished());
+
+        // Now we wait for the last barrier, so all tasks can start counting
         let task_3 = tokio::spawn(async move {
             waiter_3.count_wait().await;
         });
