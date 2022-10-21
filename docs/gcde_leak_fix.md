@@ -48,21 +48,15 @@ In the first step of the protocol, the User has to get her AES ciphertext from t
 2. The Notary uses his OT values to evaluate the circuit on $[k]\_2$. He derives the encoded ciphertext $C$ and decodes it into ciphertext $c$ using output decoding information.[^1]
 3. The Notary sends $C$ to the User.[^2]
 
-    Step 3 is a relaxation of DualEx. In DualEx, the User does not learn the Notary's evaluation output. As mentioned earlier, in TLSNotary protocol's setting, we are not worried that the User may leak the Notary's input, as long as this behaviour will be detected later. Also we are not worried about DualEx's inherent 1-bit leakage since it gives no meaningful advantage to the User as explained earlier. This means that in order to successfully attack this relaxation, a malicious User has to remain undetected during the DualEx equality check which will follow later in Step 14.
-
-    The are 2 ways which come the closest to accomplishing the attack:
-
-    A) The User must craft her circuit to output a fixed value $c'$. Then she must provide such inputs to the Notary's circuit that make the Notary's circuit output be $c'$.
-
-    B) Upon learning $c$ (potentially containing the Notary's leaked inputs), the User will evaluate the Notary's circuit with her inputs changed, so that the evaluation result becomes $c$. 
-
-    The attack A) is meaningless since it doesn't leak anything about the Notary's input. The attack B) is not possible because the User is locked into using the inputs she received in Step 0.
+    Step 3 is a relaxation of DualEx. In DualEx, the User would not learn the Notary's evaluation output at this point. As mentioned earlier, in TLSNotary protocol's setting, we are not worried that $C$ may leak the Notary's input, as long as this behaviour will be detected later. Also we are not worried about DualEx's inherent 1-bit leakage since it gives no meaningful advantage to the User as explained earlier. 
+    
+    There is no wiggle room for the User to exploit this relaxation because she is locked into using the inputs she received via OT in Step 0 and she has to pass the DualEx equality check which will follow later in Step 14.
 
 4. As per DualEx, now the Notary knows what the User's encoded output should be, so the Notary computes $Check_n = H(w_B || W_B^{v_B})$ and keeps it.
 5. The User decodes $C$ and derives the ciphertext $c$.
 
 
-[^1]: Note that it is in keeping with the original DualEx paper to allow a party to send the wrong output decoding information, or to provide different inputs to the two circuit evaluations. This does not result in a meaningful attack.
+[^1]: Note that it is in keeping with the DualEx paper to allow a party to send the wrong output decoding information, or to provide different inputs to the two circuit evaluations. This does not affect the security of DualEx.
 
 [^2]: A question may arise at this point re Step 3: why doesn't the Notary simply send $c$ to the User. The reason is that the Notary could send a maliciously crafted $c$: the Notary could flip a bit in $c$ (which translates into flipping a bit in the plaintext). The User would then forward the malicious $c$ to the server.
 
@@ -81,14 +75,14 @@ Now that the session is over and $[k]\_2$ is no longer secret, the Notary can sw
 
 7. The Notary sends his garbled encryption circuit to the User, as well as the garbled wires for $[k]\_2$. He also sends the output decoding information.
 8. The User evaluates the circuit on $[k]\_1$ and $p$, using the OT values from step 0, derives the encoded ciphertext $C'$ and decodes it into ciphertext $c$ using output decoding information.
-9. As per DualEx she computes $Check_u = H(w_A || W_A^{v_A})$ and sends a commitment $\mathsf{com}\_{Check_u}$ to the Notary.
+9. As per DualEx, she computes $Check_u = H(w_A || W_A^{v_A})$ and sends a commitment $\mathsf{com}\_{Check_u}$ to the Notary.
 
     Note that at this stage the Notary could reveal $Check_n$ and the User would make sure that $Check_n == Check_u$. Then likewise the User would reveal $Check_u$ and the Notary would make sure that $Check_n == Check_u$.
     As per the DualEx's inherent 1-bit leakage, the very act of performing the equality check would leak 1 bit of the User's input to a malicious Notary. To avoid the leakage, the User must first check the consistency of the Notary's OT and garbled circuits:
 
 
 10. The Notary reveals all the wire labels and OT encryption keys by opening $\mathsf{com}_\rho$.
-11. The User checks that the opening is correct, and that $\mathsf{PRG}(\rho)$ is consistent with the wire labels and gates she received (this procedure is called $\mathsf{Ve}$ in [JKO13](https://eprint.iacr.org/2013/073)). On success, she opens her commitment, sending $C'$ and the commitment's randomness to the notary.
+11. The User checks that the opening is correct, and that $\mathsf{PRG}(\rho)$ is consistent with the OT ciphertexts sent earlier by the Notary. On success, she opens her commitment, sending $C'$ and the commitment's randomness to the notary.
 
     With the consistency check passed, the parties resume the DualEx's equality check:
 
