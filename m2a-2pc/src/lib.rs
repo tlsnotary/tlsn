@@ -5,8 +5,8 @@
 //! them ends up with an additive share of A. So both parties start with `a` and `b` and want to
 //! end up with `x` and `y`, where `A = a * b = x + y`.
 //!
-//! This is an implementation for the extension field GF(2^128) of the oblivious transfer method in
-//! chapter 4.1 of <https://link.springer.com/content/pdf/10.1007/3-540-48405-1_8.pdf>
+//! This is an implementation for the extension field GF(2^128), which uses the oblivious transfer
+//! method in chapter 4.1 of <https://link.springer.com/content/pdf/10.1007/3-540-48405-1_8.pdf>
 
 mod receiver;
 mod sender;
