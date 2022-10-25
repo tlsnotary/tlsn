@@ -1,4 +1,4 @@
-use super::Mul2PCError;
+use super::{M2AChoices, M2AError};
 
 /// The receiver side of the protocol
 ///
@@ -26,13 +26,12 @@ impl Receiver {
     ///
     /// Depending on `a` the receiver makes his choices
     /// and builds `ta`
-    pub fn receive(&mut self, choices: ([u128; 128], [u128; 128])) {
+    pub fn receive(&mut self, choices: M2AChoices) {
         let mut ta = [0_u128; 128];
 
-        let mut a = self.a;
-        for k in 0..128 {
-            a = (a >> k) & 1;
-            ta[k] = a * choices.1[k] + !a * choices.0[k];
+        for (k, digit) in ta.iter_mut().enumerate() {
+            let mask = (self.a >> k) & 1;
+            *digit = (mask * choices.1[k]) ^ ((mask ^ 1) * choices.0[k]);
         }
         self.ta = Some(ta);
     }
@@ -40,9 +39,9 @@ impl Receiver {
     /// Return final additive share
     ///
     /// This is the summand `x` in `a * b = x + y`
-    pub fn finalize(&self) -> Result<u128, Mul2PCError> {
+    pub fn finalize(&self) -> Result<u128, M2AError> {
         self.ta
             .map(|ta| ta.into_iter().fold(0, |acc, i| acc ^ i))
-            .ok_or(Mul2PCError::ChoicesMissing)
+            .ok_or(M2AError::ChoicesMissing)
     }
 }
