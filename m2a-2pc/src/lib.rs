@@ -30,7 +30,7 @@ fn mul_gf2_128(mut x: u128, y: u128) -> u128 {
 /// The message between `Sender` and `Receiver`
 pub struct M2AChoices([u128; 128], [u128; 128]);
 
-/// Error for 2PC mulitplication
+/// Error for M2A protocol
 #[derive(Debug, Error)]
 pub enum M2AError {
     #[error("Choices are still missing")]
@@ -44,7 +44,7 @@ mod tests {
     use rand_chacha::ChaCha12Rng;
 
     #[test]
-    fn test_mul2pc() {
+    fn test_m2a_2pc() {
         let mut rng = ChaCha12Rng::from_entropy();
         let a: u128 = rng.gen();
         let b: u128 = rng.gen();
