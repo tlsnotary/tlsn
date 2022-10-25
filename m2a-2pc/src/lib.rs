@@ -27,10 +27,6 @@ fn mul_gf2_128(mut x: u128, y: u128) -> u128 {
     result
 }
 
-/// The message between `Sender` and `Receiver`
-pub struct M2AChoices([u128; 128], [u128; 128]);
-
-/// Error for M2A protocol
 #[derive(Debug, Error)]
 pub enum M2AError {
     #[error("Choices are still missing")]
@@ -43,6 +39,15 @@ mod tests {
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
 
+    fn ot_mock(envelopes: ([u128; 128], [u128; 128]), choices: u128) -> [u128; 128] {
+        let mut out = [0_u128; 128];
+        for (k, digit) in out.iter_mut().enumerate() {
+            let mask = (choices >> k) & 1;
+            *digit = (mask * envelopes.1[k]) ^ ((mask ^ 1) * envelopes.0[k]);
+        }
+        out
+    }
+
     #[test]
     fn test_m2a_2pc() {
         let mut rng = ChaCha12Rng::from_entropy();
@@ -52,8 +57,8 @@ mod tests {
         let mut receiver = Receiver::new(a);
         let sender = Sender::new(b);
 
-        let choices = sender.send();
-        receiver.receive(choices);
+        let envelopes = sender.send();
+        receiver.receive(ot_mock(envelopes, receiver.a()));
 
         assert_eq!(
             mul_gf2_128(a, b),

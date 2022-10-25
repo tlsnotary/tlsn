@@ -1,4 +1,4 @@
-use super::{mul_gf2_128, M2AChoices};
+use super::mul_gf2_128;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 
@@ -32,8 +32,8 @@ impl Sender {
     /// Send both choices to receiver
     ///
     /// These are the choices for the receiver to choose from
-    pub fn send(&self) -> M2AChoices {
-        M2AChoices(self.t0, self.t1)
+    pub fn send(&self) -> ([u128; 128], [u128; 128]) {
+        (self.t0, self.t1)
     }
 
     /// Return final additive share
