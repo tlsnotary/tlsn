@@ -1,4 +1,4 @@
-use super::{M2AChoices, M2AError};
+use super::M2AError;
 
 /// The receiver side of the protocol
 ///
@@ -26,14 +26,8 @@ impl Receiver {
     ///
     /// Depending on `a` the receiver makes his choices
     /// and builds `ta`
-    pub fn receive(&mut self, choices: M2AChoices) {
-        let mut ta = [0_u128; 128];
-
-        for (k, digit) in ta.iter_mut().enumerate() {
-            let mask = (self.a >> k) & 1;
-            *digit = (mask * choices.1[k]) ^ ((mask ^ 1) * choices.0[k]);
-        }
-        self.ta = Some(ta);
+    pub fn receive(&mut self, choices: [u128; 128]) {
+        self.ta = Some(choices);
     }
 
     /// Return final additive share
