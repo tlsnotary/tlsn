@@ -1,5 +1,3 @@
-use super::M2AError;
-
 /// The receiver side of the protocol
 ///
 /// The receiver obliviously receives choices depending
