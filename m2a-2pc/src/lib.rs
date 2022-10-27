@@ -12,44 +12,60 @@
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 
-pub struct MaskedMulEncoding(pub [u128; 128]);
+/// Encodes masked values for an oblivious transfer
+pub struct MaskedEncoding(pub [u128; 128], pub [u128; 128]);
+
+/// A multiplicative share of `A = a * b`
 pub struct MulShare(u128);
 
 impl MulShare {
+    /// Create a new `MulShare` holding a factor of `A`
     pub fn new(share: u128) -> Self {
         Self(share)
     }
 
+    /// Return inner share
     pub fn inner(&self) -> u128 {
         self.0
     }
 
-    pub fn encode(&self) -> (AddShare, MaskedMulEncoding, MaskedMulEncoding) {
+    /// Turn into an additive share and masked encodings
+    ///
+    /// This function returns
+    ///   * `AddShare` - The sender's additive share; this is `y` in the paper
+    ///   * `MaskedEncoding` - Used for oblivious transfer; t0 and t1 in the paper
+    pub fn encode(&self) -> (AddShare, MaskedEncoding) {
         let mut rng = ChaCha12Rng::from_entropy();
 
         let t0: [u128; 128] = std::array::from_fn(|_| rng.gen());
-        let t1: [u128; 128] = std::array::from_fn(|i| mul_gf2_128(self.0, 1 << i) ^ t0[i]);
+        let t1: [u128; 128] = std::array::from_fn(|i| mul_gf2_128(self.inner(), 1 << i) ^ t0[i]);
 
         let add_share = AddShare::new(t0.into_iter().fold(0, |acc, i| acc ^ i));
-        (add_share, MaskedMulEncoding(t0), MaskedMulEncoding(t1))
+        (add_share, MaskedEncoding(t0, t1))
     }
 }
 
+/// An additive share of `A = x + y`
 pub struct AddShare(u128);
 
 impl AddShare {
+    /// Create a new `AddShare` holding a summand of `A`
     pub fn new(share: u128) -> Self {
         Self(share)
     }
 
+    /// Return inner share
     pub fn inner(&self) -> u128 {
         self.0
     }
 }
 
-impl From<MaskedMulEncoding> for AddShare {
-    fn from(value: MaskedMulEncoding) -> Self {
-        Self::new(value.0.into_iter().fold(0, |acc, i| acc ^ i))
+impl From<[u128; 128]> for AddShare {
+    /// Create an additive share from the output of an OT
+    ///
+    /// The `value` needs to be built by choices of an oblivious transfer
+    fn from(value: [u128; 128]) -> Self {
+        Self::new(value.into_iter().fold(0, |acc, i| acc ^ i))
     }
 }
 
@@ -90,9 +106,9 @@ mod tests {
         let a: MulShare = MulShare::new(rng.gen());
         let b: MulShare = MulShare::new(rng.gen());
 
-        let (x, t0, t1) = a.encode();
+        let (x, MaskedEncoding(t0, t1)) = a.encode();
 
-        let choices = MaskedMulEncoding(ot_mock((t0.0, t1.0), b.inner()));
+        let choices = ot_mock((t0, t1), b.inner());
         let y = AddShare::from(choices);
 
         assert_eq!(mul_gf2_128(a.inner(), b.inner()), x.inner() ^ y.inner());
