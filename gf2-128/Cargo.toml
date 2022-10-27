@@ -1,5 +1,5 @@
 [package]
-name = "m2a-2pc"
+name = "gf2-128"
 version = "0.1.0"
 edition = "2021"
 

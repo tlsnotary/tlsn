@@ -1,4 +1,4 @@
-use m2a_2pc::{mul_gf2_128, AddShare, MaskedEncoding, MulShare};
+use gf2_128::{mul_gf2_128, AddShare, MaskedEncoding, MulShare};
 use mpc_aio::protocol::ot::kos::receiver::Kos15IOReceiver;
 use mpc_aio::protocol::ot::kos::sender::Kos15IOSender;
 use mpc_aio::protocol::ot::{ObliviousReceive, ObliviousSend};
