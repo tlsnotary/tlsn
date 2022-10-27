@@ -129,4 +129,22 @@ mod tests {
             u128::from_be_bytes(expected.into_bytes().try_into().unwrap())
         );
     }
+
+    #[test]
+    // Test multiplication against RustCrypto
+    fn test_mul_gf2_128() {
+        let mut rng = ChaCha12Rng::from_entropy();
+        let a: u128 = rng.gen();
+        let b: u128 = rng.gen();
+
+        let mut g = GHash::new(&a.to_be_bytes().into());
+        g.update(&b.to_be_bytes().into());
+        // Ghash will internally multiply a and b
+        let expected = g.finalize();
+
+        assert_eq!(
+            mul_gf2_128(a, b),
+            u128::from_be_bytes(expected.into_bytes().try_into().unwrap())
+        );
+    }
 }
