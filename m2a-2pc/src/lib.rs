@@ -9,11 +9,49 @@
 //! This is an implementation for the extension field GF(2^128), which uses the oblivious transfer
 //! method in chapter 4.1 of <https://link.springer.com/content/pdf/10.1007/3-540-48405-1_8.pdf>
 
-mod receiver;
-mod sender;
-pub use {receiver::Receiver, sender::Sender};
+use rand::{Rng, SeedableRng};
+use rand_chacha::ChaCha12Rng;
 
-use thiserror::Error;
+pub struct MaskedMulEncoding(pub [u128; 128]);
+pub struct MulShare(u128);
+
+impl MulShare {
+    pub fn new(share: u128) -> Self {
+        Self(share)
+    }
+
+    pub fn inner(&self) -> u128 {
+        self.0
+    }
+
+    pub fn encode(&self) -> (AddShare, MaskedMulEncoding, MaskedMulEncoding) {
+        let mut rng = ChaCha12Rng::from_entropy();
+
+        let t0: [u128; 128] = std::array::from_fn(|_| rng.gen());
+        let t1: [u128; 128] = std::array::from_fn(|i| mul_gf2_128(self.0, 1 << i) ^ t0[i]);
+
+        let add_share = AddShare::new(t0.into_iter().fold(0, |acc, i| acc ^ i));
+        (add_share, MaskedMulEncoding(t0), MaskedMulEncoding(t1))
+    }
+}
+
+pub struct AddShare(u128);
+
+impl AddShare {
+    pub fn new(share: u128) -> Self {
+        Self(share)
+    }
+
+    pub fn inner(&self) -> u128 {
+        self.0
+    }
+}
+
+impl From<MaskedMulEncoding> for AddShare {
+    fn from(value: MaskedMulEncoding) -> Self {
+        Self::new(value.0.into_iter().fold(0, |acc, i| acc ^ i))
+    }
+}
 
 /// R is GCM polynomial in little-endian. In hex: "E1000000000000000000000000000000"
 const R: u128 = 299076299051606071403356588563077529600;
@@ -26,12 +64,6 @@ fn mul_gf2_128(mut x: u128, y: u128) -> u128 {
         x = (x >> 1) ^ ((x & 1) * R);
     }
     result
-}
-
-#[derive(Debug, Error)]
-pub enum M2AError {
-    #[error("Choices are still missing")]
-    ChoicesMissing,
 }
 
 #[cfg(test)]
@@ -55,19 +87,15 @@ mod tests {
     #[test]
     fn test_m2a_2pc() {
         let mut rng = ChaCha12Rng::from_entropy();
-        let a: u128 = rng.gen();
-        let b: u128 = rng.gen();
+        let a: MulShare = MulShare::new(rng.gen());
+        let b: MulShare = MulShare::new(rng.gen());
 
-        let mut receiver = Receiver::new(a);
-        let sender = Sender::new(b);
+        let (x, t0, t1) = a.encode();
 
-        let envelopes = sender.send();
-        receiver.receive(ot_mock(envelopes, receiver.a()));
+        let choices = MaskedMulEncoding(ot_mock((t0.0, t1.0), b.inner()));
+        let y = AddShare::from(choices);
 
-        assert_eq!(
-            mul_gf2_128(a, b),
-            sender.finalize() ^ receiver.finalize().unwrap()
-        );
+        assert_eq!(mul_gf2_128(a.inner(), b.inner()), x.inner() ^ y.inner());
     }
 
     #[test]
