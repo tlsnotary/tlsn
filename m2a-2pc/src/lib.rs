@@ -1,4 +1,5 @@
 //! This subcrate implements a secure two-party (2PC) multiplication-to-addition (M2A) algorithm
+//! with semi-honest security.
 //!
 //! Let `A` be an element of some finite field with `A = a * b`, where `a` is only known to Alice
 //! and `b` is only known to Bob. A is unknown to both parties and it is their goal that each of
@@ -36,6 +37,9 @@ pub enum M2AError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ghash_rc::universal_hash::NewUniversalHash;
+    use ghash_rc::universal_hash::UniversalHash;
+    use ghash_rc::GHash;
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
 
@@ -63,6 +67,24 @@ mod tests {
         assert_eq!(
             mul_gf2_128(a, b),
             sender.finalize() ^ receiver.finalize().unwrap()
+        );
+    }
+
+    #[test]
+    // Test multiplication against RustCrypto
+    fn test_mul_gf2_128() {
+        let mut rng = ChaCha12Rng::from_entropy();
+        let a: u128 = rng.gen();
+        let b: u128 = rng.gen();
+
+        let mut g = GHash::new(&a.to_be_bytes().into());
+        g.update(&b.to_be_bytes().into());
+        // Ghash will internally multiply a and b
+        let expected = g.finalize();
+
+        assert_eq!(
+            mul_gf2_128(a, b),
+            u128::from_be_bytes(expected.into_bytes().try_into().unwrap())
         );
     }
 }
