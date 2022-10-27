@@ -45,9 +45,9 @@ mod tests {
 
     fn ot_mock(envelopes: ([u128; 128], [u128; 128]), choices: u128) -> [u128; 128] {
         let mut out = [0_u128; 128];
-        for (k, digit) in out.iter_mut().enumerate() {
-            let mask = (choices >> k) & 1;
-            *digit = (mask * envelopes.1[k]) ^ ((mask ^ 1) * envelopes.0[k]);
+        for (k, number) in out.iter_mut().enumerate() {
+            let bit = (choices >> k) & 1;
+            *number = (bit * envelopes.1[k]) ^ ((bit ^ 1) * envelopes.0[k]);
         }
         out
     }
