@@ -73,7 +73,7 @@ impl From<[u128; 128]> for AddShare {
 const R: u128 = 299076299051606071403356588563077529600;
 
 /// Galois field multiplication of two 128-bit blocks reduced by the GCM polynomial
-fn mul_gf2_128(mut x: u128, y: u128) -> u128 {
+pub fn mul_gf2_128(mut x: u128, y: u128) -> u128 {
     let mut result: u128 = 0;
     for i in (0..128).rev() {
         result ^= x * ((y >> i) & 1);

@@ -11,3 +11,7 @@ rand_chacha.workspace = true
 
 [dev-dependencies]
 ghash_rc.workspace = true
+tokio.workspace = true
+tlsn-mpc-aio = { path = "../mpc-aio" }
+tlsn-utils-aio = { path = "../utils-aio", features = ["duplex"] }
+tlsn-mpc-core = { path = "../mpc-core" }
