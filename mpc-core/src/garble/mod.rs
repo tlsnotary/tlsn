@@ -5,7 +5,7 @@ pub mod exec;
 mod generator;
 pub(crate) mod label;
 
-pub use circuit::{Evaluated, Full, GarbledCircuit, Partial};
+pub use circuit::{Evaluated, Full, GarbledCircuit, Output, Partial};
 pub use error::{Error, InputError};
 pub use label::{Delta, InputLabels, OutputLabels, WireLabel, WireLabelPair};
 

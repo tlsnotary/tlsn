@@ -340,12 +340,15 @@ pub struct OutputLabels<T> {
 }
 
 impl<T: Copy> OutputLabels<T> {
-    pub(crate) fn new(output: Output, labels: &[T]) -> Self {
-        debug_assert_eq!(output.as_ref().len(), labels.len());
-        Self {
+    pub fn new(output: Output, labels: &[T]) -> Result<Self, Error> {
+        if output.as_ref().len() != labels.len() {
+            return Err(Error::InvalidOutputLabels);
+        }
+
+        Ok(Self {
             output,
             labels: labels.to_vec(),
-        }
+        })
     }
 
     pub fn id(&self) -> usize {
@@ -375,6 +378,19 @@ impl OutputLabels<WireLabelPair> {
             output: self.output.clone(),
             labels,
         })
+    }
+
+    /// Validates whether the provided output labels are authentic according to
+    /// a full set of labels.
+    pub fn validate(&self, labels: &OutputLabels<WireLabel>) -> Result<(), Error> {
+        for (pair, label) in self.labels.iter().zip(&labels.labels) {
+            if label.value == *pair.low() || label.value == *pair.high() {
+                continue;
+            } else {
+                return Err(Error::InvalidOutputLabels);
+            }
+        }
+        Ok(())
     }
 }
 

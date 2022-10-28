@@ -9,6 +9,7 @@ use mpc_circuits::Circuit;
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum GarbleMessage {
     GarbledCircuit(GarbledCircuit),
+    Output(Output),
     OutputCommit(OutputCommit),
     OutputCheck(OutputCheck),
 }
@@ -80,6 +81,47 @@ impl garble::InputLabels<garble::WireLabel> {
                 .labels
                 .iter()
                 .zip(input.as_ref().wires())
+                .map(|(label, wire_id)| garble::WireLabel::new(*wire_id, *label))
+                .collect::<Vec<garble::WireLabel>>(),
+        )
+    }
+}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct OutputLabels {
+    pub id: usize,
+    pub labels: Vec<Block>,
+}
+
+impl From<garble::OutputLabels<garble::WireLabel>> for OutputLabels {
+    fn from(labels: garble::OutputLabels<garble::WireLabel>) -> Self {
+        Self {
+            id: labels.id(),
+            labels: labels
+                .as_ref()
+                .into_iter()
+                .map(|label| *label.as_ref())
+                .collect::<Vec<Block>>(),
+        }
+    }
+}
+
+impl garble::OutputLabels<garble::WireLabel> {
+    pub fn from_msg(
+        circ: &Circuit,
+        output_labels: OutputLabels,
+    ) -> Result<Self, crate::garble::Error> {
+        let output = circ.output(output_labels.id)?;
+        if output.as_ref().len() != output_labels.labels.len() {
+            return Err(crate::garble::Error::InvalidOutputLabels);
+        }
+        garble::OutputLabels::new(
+            output.clone(),
+            &output_labels
+                .labels
+                .iter()
+                .zip(output.as_ref().wires())
                 .map(|(label, wire_id)| garble::WireLabel::new(*wire_id, *label))
                 .collect::<Vec<garble::WireLabel>>(),
         )
@@ -221,6 +263,90 @@ impl crate::garble::GarbledCircuit<garble::Partial> {
                 input_labels,
                 encrypted_gates,
                 encoding,
+            },
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct Output {
+    pub id: String,
+    pub output_labels: Vec<OutputLabels>,
+    pub encoding: Option<Vec<OutputEncoding>>,
+}
+
+impl From<garble::GarbledCircuit<garble::Output>> for Output {
+    fn from(gc: garble::GarbledCircuit<garble::Output>) -> Self {
+        Self {
+            id: (*gc.circ.id().as_ref()).clone(),
+            output_labels: gc
+                .output_labels()
+                .into_iter()
+                .cloned()
+                .map(OutputLabels::from)
+                .collect::<Vec<OutputLabels>>(),
+            encoding: gc.encoding().and_then(|encoding| {
+                Some(
+                    encoding
+                        .into_iter()
+                        .map(OutputEncoding::from)
+                        .collect::<Vec<OutputEncoding>>(),
+                )
+            }),
+        }
+    }
+}
+
+impl crate::garble::GarbledCircuit<garble::Output> {
+    /// Validates and converts an [`Output`] to [`crate::garble::GarbledCircuit<garble::Output>`]
+    pub fn from_msg(
+        gc: &garble::GarbledCircuit<garble::Full>,
+        msg: Output,
+    ) -> Result<Self, crate::garble::Error> {
+        // Validate circuit id
+        if msg.id != *gc.circ.id().as_ref() {
+            return Err(crate::garble::Error::PeerError(format!(
+                "Received evaluated circuit with wrong id: expected {}, received {}",
+                gc.circ.id().as_ref().to_string(),
+                msg.id
+            )));
+        }
+
+        // Check for duplicates
+        let output_ids: HashSet<usize> = msg.output_labels.iter().map(|output| output.id).collect();
+        if output_ids.len() != msg.output_labels.len() {
+            return Err(crate::garble::Error::PeerError(
+                "Received garbled circuit with duplicate outputs".to_string(),
+            ));
+        }
+
+        let mut output_labels = msg
+            .output_labels
+            .into_iter()
+            .map(|labels| garble::OutputLabels::from_msg(&gc.circ, labels))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // Make sure it is sorted
+        output_labels.sort_by_key(|output_label| output_label.id());
+
+        // Check all outputs were received
+        if output_labels.len() != gc.output_labels().len() {
+            return Err(crate::garble::Error::InvalidOutputLabels);
+        }
+
+        // Validates that each output label is authentic
+        gc.output_labels()
+            .iter()
+            .zip(&output_labels)
+            .map(|(full, ev)| full.validate(ev))
+            .collect::<Result<(), crate::garble::Error>>()?;
+
+        Ok(crate::garble::GarbledCircuit {
+            circ: gc.circ.clone(),
+            data: garble::Output {
+                labels: output_labels,
+                encoding: Some(gc.encoding()),
             },
         })
     }

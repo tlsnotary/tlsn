@@ -1,4 +1,5 @@
 pub mod dual;
+pub mod semihonest;
 
 use crate::{
     garble::{OutputLabels, WireLabel},
