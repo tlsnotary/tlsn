@@ -18,7 +18,7 @@ async fn test_m2a_ot() {
         // Prepare multiplicative shares and encoding
         let a: MulShare = MulShare::new(rng.gen());
         let b: MulShare = MulShare::new(rng.gen());
-        let (x, MaskedEncoding(t0, t1)) = a.encode();
+        let (x, MaskedEncoding(t0, t1)) = a.to_additive();
 
         // Prepare inputs/outputs for OT
         let choices = u128_to_bool(b.inner());
@@ -49,7 +49,7 @@ async fn test_m2a_ot() {
             .collect::<Vec<u128>>()
             .try_into()
             .unwrap();
-        let y = AddShare::from(output);
+        let y = AddShare::from_encoding(output);
 
         assert_eq!(mul_gf2_128(a.inner(), b.inner()), x.inner() ^ y.inner());
     }
