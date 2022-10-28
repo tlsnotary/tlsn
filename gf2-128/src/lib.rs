@@ -57,7 +57,6 @@ impl MulShare {
     }
 }
 
-impl From<[u128; 128]> for MulShare {
     /// Create a multiplicative share from the output of an OT
     ///
     /// The `value` needs to be built by choices of an oblivious transfer

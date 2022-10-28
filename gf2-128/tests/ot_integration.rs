@@ -1,4 +1,4 @@
-use gf2_128::{mul_gf2_128, AddShare, MaskedEncoding, MulShare};
+use gf2_128::{mul, AddShare, MaskedEncoding, MulShare};
 use mpc_aio::protocol::ot::kos::receiver::Kos15IOReceiver;
 use mpc_aio::protocol::ot::kos::sender::Kos15IOSender;
 use mpc_aio::protocol::ot::{ObliviousReceive, ObliviousSend};
@@ -51,6 +51,6 @@ async fn test_m2a_ot() {
             .unwrap();
         let y = AddShare::from_encoding(output);
 
-        assert_eq!(mul_gf2_128(a.inner(), b.inner()), x.inner() ^ y.inner());
+        assert_eq!(mul(a.inner(), b.inner()), x.inner() ^ y.inner());
     }
 }
