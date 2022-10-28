@@ -626,4 +626,26 @@ mod tests {
             Err(Error::InvalidInput(InputError::InvalidWireCount(_, _)))
         ));
     }
+
+    #[rstest]
+    fn test_output_label_validation(circ: Circuit) {
+        let circ_out = circ.output(0).unwrap();
+        let (labels, _) = WireLabelPair::generate(&mut thread_rng(), None, 64, 0);
+        let output_labels_full = OutputLabels::new(circ_out.clone(), &labels).unwrap();
+
+        let mut output_labels = output_labels_full
+            .select(&circ_out.to_value(1u64).unwrap())
+            .unwrap();
+
+        output_labels_full
+            .validate(&output_labels)
+            .expect("output labels should be valid");
+
+        // insert bogus label
+        output_labels.labels[0].value = Block::new(0);
+
+        let error = output_labels_full.validate(&output_labels).unwrap_err();
+
+        assert!(matches!(error, Error::InvalidOutputLabels));
+    }
 }
