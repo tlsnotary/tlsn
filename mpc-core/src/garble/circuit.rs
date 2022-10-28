@@ -264,10 +264,11 @@ impl GarbledCircuit<Evaluated> {
 
     /// Returns decoded circuit outputs
     pub fn decode(&self) -> Result<Vec<OutputValue>, Error> {
-        let encoding = match &self.data.encoding {
-            Some(encoding) => encoding,
-            None => return Err(Error::InvalidLabelEncoding),
-        };
+        let encoding = self
+            .data
+            .encoding
+            .as_ref()
+            .ok_or(Error::InvalidLabelEncoding)?;
         if encoding.len() != self.circ.output_count() {
             return Err(Error::InvalidLabelEncoding);
         }
@@ -297,10 +298,11 @@ impl GarbledCircuit<Output> {
 
     /// Returns decoded circuit outputs
     pub fn decode(&self) -> Result<Vec<OutputValue>, Error> {
-        let encoding = match &self.data.encoding {
-            Some(encoding) => encoding,
-            None => return Err(Error::InvalidLabelEncoding),
-        };
+        let encoding = self
+            .data
+            .encoding
+            .as_ref()
+            .ok_or(Error::InvalidLabelEncoding)?;
         if encoding.len() != self.circ.output_count() {
             return Err(Error::InvalidLabelEncoding);
         }
