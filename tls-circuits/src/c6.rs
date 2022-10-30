@@ -4,7 +4,7 @@ use mpc_circuits::{
 
 /// TLS stage 6
 ///
-/// Compute AES-CTR
+/// Compute AES-CTR encrypted plaintext
 ///
 /// Inputs:
 ///
@@ -12,13 +12,13 @@ use mpc_circuits::{
 ///   1. N_CIV: 4-byte Notary share of client IV
 ///   2. U_CWK: 16-byte User share of client write-key
 ///   3. U_CIV: 4-byte User share of client IV
-///   4. U_MASK: 16-byte User mask for encrypted counter block
-///   5. NONCE: U16 Nonce
-///   6. CTR: U16 CTR
+///   4. U_P: 16-byte plaintext
+///   5. NONCE: U64 Nonce
+///   6. CTR: U32 CTR
 ///
 /// Outputs:
 ///
-///   0. MASKED_ECTR: 16-byte masked (U_MASK) encrypted counter block
+///   0. C: 16-byte ciphertext
 pub fn c6() -> Circuit {
     let mut builder = CircuitBuilder::new("c6", "0.1.0");
 
@@ -46,12 +46,7 @@ pub fn c6() -> Circuit {
         ValueType::Bytes,
         32,
     );
-    let u_mask = builder.add_input(
-        "U_MASK",
-        "16-byte User mask for encrypted counter block",
-        ValueType::Bytes,
-        128,
-    );
+    let u_p = builder.add_input("U_P", "16-byte plaintext", ValueType::Bytes, 128);
     let nonce = builder.add_input("NONCE", "U64 Nonce", ValueType::U64, 64);
     let ctr = builder.add_input("CTR", "U32 CTR", ValueType::U32, 32);
 
@@ -62,7 +57,7 @@ pub fn c6() -> Circuit {
     let aes_ectr = builder.add_circ(aes);
     let cwk = builder.add_circ(nbit_xor(128));
     let civ = builder.add_circ(nbit_xor(32));
-    let masked_ectr = builder.add_circ(nbit_xor(128));
+    let ciphertext = builder.add_circ(nbit_xor(128));
 
     // cwk
     builder.connect(
@@ -97,27 +92,22 @@ pub fn c6() -> Circuit {
     builder.connect(&ctr[..], &aes_ectr_m[..32]);
     let ectr = aes_ectr.output(0).expect("aes missing output 0");
 
-    // Apply ECTR mask
+    // Apply plaintext
     builder.connect(
         &ectr[..],
-        &masked_ectr.input(0).expect("nbit_xor missing input 0")[..],
+        &ciphertext.input(0).expect("nbit_xor missing input 0")[..],
     );
     builder.connect(
-        &u_mask[..],
-        &masked_ectr.input(1).expect("nbit_xor missing input 1")[..],
+        &u_p[..],
+        &ciphertext.input(1).expect("nbit_xor missing input 1")[..],
     );
 
     let mut builder = builder.build_gates();
 
-    let out_ectr = builder.add_output(
-        "MASKED_ECTR",
-        "16-byte masked (U_MASK) encrypted counter block",
-        ValueType::Bytes,
-        128,
-    );
+    let out_ectr = builder.add_output("C", "16-byte ciphertext", ValueType::Bytes, 128);
 
     builder.connect(
-        &masked_ectr.output(0).expect("nbit_xor missing output 0")[..],
+        &ciphertext.output(0).expect("nbit_xor missing output 0")[..],
         &out_ectr[..],
     );
 
@@ -144,7 +134,7 @@ mod tests {
         let n_civ: [u8; 4] = rng.gen();
         let u_cwk: [u8; 16] = rng.gen();
         let u_civ: [u8; 4] = rng.gen();
-        let u_mask: [u8; 16] = rng.gen();
+        let u_p: [u8; 16] = rng.gen();
         let nonce: u64 = rng.gen();
         let ctr: u32 = rng.gen();
 
@@ -174,9 +164,9 @@ mod tests {
         let ectr = msg;
 
         // XOR the first block and verify_data with User's mask
-        let ectr_masked = ectr
+        let ciphertext = ectr
             .iter()
-            .zip(u_mask)
+            .zip(u_p)
             .map(|(v, u)| v ^ u)
             .collect::<Vec<u8>>();
 
@@ -187,11 +177,11 @@ mod tests {
                 Value::Bytes(n_civ.into_iter().rev().collect()),
                 Value::Bytes(u_cwk.into_iter().rev().collect()),
                 Value::Bytes(u_civ.into_iter().rev().collect()),
-                Value::Bytes(u_mask.into_iter().rev().collect()),
+                Value::Bytes(u_p.into_iter().rev().collect()),
                 Value::U64(nonce),
                 Value::U32(ctr),
             ],
-            &[Value::Bytes(ectr_masked.into_iter().rev().collect())],
+            &[Value::Bytes(ciphertext.into_iter().rev().collect())],
         );
     }
 }
