@@ -49,7 +49,7 @@ async fn test_m2a_ot() {
             .collect::<Vec<u128>>()
             .try_into()
             .unwrap();
-        let y = AddShare::from_encoding(output);
+        let y = AddShare::from_choice(output);
 
         assert_eq!(mul(a.inner(), b.inner()), x.inner() ^ y.inner());
     }

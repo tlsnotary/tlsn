@@ -50,17 +50,16 @@ impl MulShare {
         let mut rng = ChaCha12Rng::from_entropy();
 
         let t0: [u128; 128] = std::array::from_fn(|_| rng.gen());
-        let t1: [u128; 128] = std::array::from_fn(|i| mul_gf2_128(self.inner(), 1 << i) ^ t0[i]);
+        let t1: [u128; 128] = std::array::from_fn(|i| mul(self.inner(), 1 << i) ^ t0[i]);
 
         let add_share = AddShare::new(t0.into_iter().fold(0, |acc, i| acc ^ i));
         (add_share, MaskedEncoding(t0, t1))
     }
-}
 
     /// Create a multiplicative share from the output of an OT
     ///
     /// The `value` needs to be built by choices of an oblivious transfer
-    fn from(value: [u128; 128]) -> Self {
+    pub fn from_choice(value: [u128; 128]) -> Self {
         Self::new(value.into_iter().fold(0, |acc, i| acc ^ i))
     }
 }
@@ -84,19 +83,17 @@ impl AddShare {
     /// This function returns
     ///   * `MulShare` - The sender's multiplicative share
     ///   * `MaskedEncoding` - Used for oblivious transfer
-    pub fn encode(&self) -> (MulShare, MaskedEncoding) {
+    pub fn to_multiplicative(&self) -> (MulShare, MaskedEncoding) {
         let mut rng = ChaCha12Rng::from_entropy();
 
         let a: u128 = rng.gen();
         let mut masks: [u128; 128] = std::array::from_fn(|_| rng.gen());
         masks[127] = masks.into_iter().take(127).fold(0, |acc, i| acc ^ i);
 
-        let mul_share = MulShare::new(inverse_gf2_128(a));
-        let b0: [u128; 128] =
-            std::array::from_fn(|i| mul_gf2_128(self.inner() & (1 << i), a) + masks[i]);
-        let b1: [u128; 128] = std::array::from_fn(|i| {
-            mul_gf2_128((self.inner() & (1 << i)) ^ (1 << i), a) + masks[i]
-        });
+        let mul_share = MulShare::new(inverse(a));
+        let b0: [u128; 128] = std::array::from_fn(|i| mul(self.inner() & (1 << i), a) + masks[i]);
+        let b1: [u128; 128] =
+            std::array::from_fn(|i| mul((self.inner() & (1 << i)) ^ (1 << i), a) + masks[i]);
 
         (mul_share, MaskedEncoding(b0, b1))
     }
@@ -104,7 +101,7 @@ impl AddShare {
     /// Create an additive share from the output of an OT
     ///
     /// The `value` needs to be built by choices of an oblivious transfer
-    pub fn from_encoding(value: [u128; 128]) -> Self {
+    pub fn from_choice(value: [u128; 128]) -> Self {
         Self::new(value.into_iter().fold(0, |acc, i| acc ^ i))
     }
 }
@@ -113,7 +110,7 @@ impl AddShare {
 const R: u128 = 299076299051606071403356588563077529600;
 
 /// Galois field multiplication of two 128-bit blocks reduced by the GCM polynomial
-pub fn mul_gf2_128(mut x: u128, y: u128) -> u128 {
+pub fn mul(mut x: u128, y: u128) -> u128 {
     let mut result: u128 = 0;
     for i in (0..128).rev() {
         result ^= x * ((y >> i) & 1);
@@ -123,8 +120,15 @@ pub fn mul_gf2_128(mut x: u128, y: u128) -> u128 {
 }
 
 /// Galois field inversion of 128-bit block
-pub fn inverse_gf2_128(x: u128) -> u128 {
-    todo!()
+pub fn inverse(mut x: u128) -> u128 {
+    let one = 1 << 127;
+    let mut out = one;
+
+    for _ in 0..127 {
+        x = mul(x, x);
+        out = mul(out, x);
+    }
+    out
 }
 
 #[cfg(test)]
@@ -146,7 +150,7 @@ mod tests {
     }
 
     #[test]
-    fn test_m2a_2pc() {
+    fn test_m2a() {
         let mut rng = ChaCha12Rng::from_entropy();
         let a: MulShare = MulShare::new(rng.gen());
         let b: MulShare = MulShare::new(rng.gen());
@@ -154,14 +158,14 @@ mod tests {
         let (x, MaskedEncoding(t0, t1)) = a.to_additive();
 
         let choices = ot_mock((t0, t1), b.inner());
-        let y = AddShare::from_encoding(choices);
+        let y = AddShare::from_choice(choices);
 
-        assert_eq!(mul_gf2_128(a.inner(), b.inner()), x.inner() ^ y.inner());
+        assert_eq!(mul(a.inner(), b.inner()), x.inner() ^ y.inner());
     }
 
     #[test]
     // Test multiplication against RustCrypto
-    fn test_mul_gf2_128() {
+    fn test_mul() {
         let mut rng = ChaCha12Rng::from_entropy();
         let a: u128 = rng.gen();
         let b: u128 = rng.gen();
@@ -172,26 +176,17 @@ mod tests {
         let expected = g.finalize();
 
         assert_eq!(
-            mul_gf2_128(a, b),
+            mul(a, b),
             u128::from_be_bytes(expected.into_bytes().try_into().unwrap())
         );
     }
 
     #[test]
-    // Test multiplication against RustCrypto
-    fn test_mul_gf2_128() {
+    fn test_inverse() {
         let mut rng = ChaCha12Rng::from_entropy();
         let a: u128 = rng.gen();
-        let b: u128 = rng.gen();
+        let inverse_a = inverse(a);
 
-        let mut g = GHash::new(&a.to_be_bytes().into());
-        g.update(&b.to_be_bytes().into());
-        // Ghash will internally multiply a and b
-        let expected = g.finalize();
-
-        assert_eq!(
-            mul_gf2_128(a, b),
-            u128::from_be_bytes(expected.into_bytes().try_into().unwrap())
-        );
+        assert_eq!(mul(a, inverse_a), 1_u128 << 127);
     }
 }
