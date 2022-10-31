@@ -24,8 +24,8 @@
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 
-/// Encodes masked values for an oblivious transfer
-pub struct MaskedEncoding(pub [u128; 128], pub [u128; 128]);
+/// Masked values for an oblivious transfer
+pub struct MaskedPartialValue(pub [u128; 128], pub [u128; 128]);
 
 /// A multiplicative share of `A = a * b`
 pub struct MulShare(u128);
@@ -41,19 +41,19 @@ impl MulShare {
         self.0
     }
 
-    /// Turn into an additive share and masked encodings
+    /// Turn into an additive share and masked partial values
     ///
     /// This function returns
     ///   * `AddShare` - The sender's additive share; this is `y` in the paper
-    ///   * `MaskedEncoding` - Used for oblivious transfer; t0 and t1 in the paper
-    pub fn to_additive(&self) -> (AddShare, MaskedEncoding) {
+    ///   * `MaskedPartialValue` - Used for oblivious transfer; t0 and t1 in the paper
+    pub fn to_additive(&self) -> (AddShare, MaskedPartialValue) {
         let mut rng = ChaCha12Rng::from_entropy();
 
         let t0: [u128; 128] = std::array::from_fn(|_| rng.gen());
         let t1: [u128; 128] = std::array::from_fn(|i| mul(self.inner(), 1 << i) ^ t0[i]);
 
         let add_share = AddShare::new(t0.into_iter().fold(0, |acc, i| acc ^ i));
-        (add_share, MaskedEncoding(t0, t1))
+        (add_share, MaskedPartialValue(t0, t1))
     }
 
     /// Create a multiplicative share from the output of an OT
@@ -78,24 +78,25 @@ impl AddShare {
         self.0
     }
 
-    /// Turn into a multiplicative share and masked encodings
+    /// Turn into a multiplicative share and masked partial values
     ///
     /// This function returns
     ///   * `MulShare` - The sender's multiplicative share
-    ///   * `MaskedEncoding` - Used for oblivious transfer
-    pub fn to_multiplicative(&self) -> (MulShare, MaskedEncoding) {
+    ///   * `MaskedPartialValue` - Used for oblivious transfer
+    pub fn to_multiplicative(&self) -> (MulShare, MaskedPartialValue) {
         let mut rng = ChaCha12Rng::from_entropy();
 
-        let a: u128 = rng.gen();
+        let random: u128 = rng.gen();
         let mut masks: [u128; 128] = std::array::from_fn(|_| rng.gen());
         masks[127] = masks.into_iter().take(127).fold(0, |acc, i| acc ^ i);
 
-        let mul_share = MulShare::new(inverse(a));
-        let b0: [u128; 128] = std::array::from_fn(|i| mul(self.inner() & (1 << i), a) ^ masks[i]);
+        let mul_share = MulShare::new(inverse(random));
+        let b0: [u128; 128] =
+            std::array::from_fn(|i| mul(self.inner() & (1 << i), random) ^ masks[i]);
         let b1: [u128; 128] =
-            std::array::from_fn(|i| mul((self.inner() & (1 << i)) ^ (1 << i), a) ^ masks[i]);
+            std::array::from_fn(|i| mul((self.inner() & (1 << i)) ^ (1 << i), random) ^ masks[i]);
 
-        (mul_share, MaskedEncoding(b0, b1))
+        (mul_share, MaskedPartialValue(b0, b1))
     }
 
     /// Create an additive share from the output of an OT
@@ -155,7 +156,7 @@ mod tests {
         let a: MulShare = MulShare::new(rng.gen());
         let b: MulShare = MulShare::new(rng.gen());
 
-        let (x, MaskedEncoding(t0, t1)) = a.to_additive();
+        let (x, MaskedPartialValue(t0, t1)) = a.to_additive();
 
         let choice = ot_mock((t0, t1), b.inner());
         let y = AddShare::from_choice(choice);
@@ -169,7 +170,7 @@ mod tests {
         let x: AddShare = AddShare::new(rng.gen());
         let y: AddShare = AddShare::new(rng.gen());
 
-        let (a, MaskedEncoding(t0, t1)) = x.to_multiplicative();
+        let (a, MaskedPartialValue(t0, t1)) = x.to_multiplicative();
 
         let choice = ot_mock((t0, t1), y.inner());
         let b = MulShare::from_choice(choice);

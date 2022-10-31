@@ -1,4 +1,4 @@
-use gf2_128::{mul, AddShare, MaskedEncoding, MulShare};
+use gf2_128::{mul, AddShare, MaskedPartialValue, MulShare};
 use mpc_aio::protocol::ot::kos::receiver::Kos15IOReceiver;
 use mpc_aio::protocol::ot::kos::sender::Kos15IOSender;
 use mpc_aio::protocol::ot::{ObliviousReceive, ObliviousSend};
@@ -17,7 +17,7 @@ async fn test_m2a_ot() {
     // Prepare multiplicative shares and encoding
     let a: MulShare = MulShare::new(rng.gen());
     let b: MulShare = MulShare::new(rng.gen());
-    let (x, MaskedEncoding(t0, t1)) = a.to_additive();
+    let (x, MaskedPartialValue(t0, t1)) = a.to_additive();
 
     // Prepare inputs/outputs for OT
     let choices = u128_to_bool(b.inner());
@@ -60,7 +60,7 @@ async fn test_a2m_ot() {
     // Prepare additive shares and encoding
     let x: AddShare = AddShare::new(rng.gen());
     let y: AddShare = AddShare::new(rng.gen());
-    let (a, MaskedEncoding(t0, t1)) = x.to_multiplicative();
+    let (a, MaskedPartialValue(t0, t1)) = x.to_multiplicative();
 
     // Prepare inputs/outputs for OT
     let choices = u128_to_bool(y.inner());
