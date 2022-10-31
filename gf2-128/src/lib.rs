@@ -91,9 +91,9 @@ impl AddShare {
         masks[127] = masks.into_iter().take(127).fold(0, |acc, i| acc ^ i);
 
         let mul_share = MulShare::new(inverse(a));
-        let b0: [u128; 128] = std::array::from_fn(|i| mul(self.inner() & (1 << i), a) + masks[i]);
+        let b0: [u128; 128] = std::array::from_fn(|i| mul(self.inner() & (1 << i), a) ^ masks[i]);
         let b1: [u128; 128] =
-            std::array::from_fn(|i| mul((self.inner() & (1 << i)) ^ (1 << i), a) + masks[i]);
+            std::array::from_fn(|i| mul((self.inner() & (1 << i)) ^ (1 << i), a) ^ masks[i]);
 
         (mul_share, MaskedEncoding(b0, b1))
     }
@@ -157,10 +157,24 @@ mod tests {
 
         let (x, MaskedEncoding(t0, t1)) = a.to_additive();
 
-        let choices = ot_mock((t0, t1), b.inner());
-        let y = AddShare::from_choice(choices);
+        let choice = ot_mock((t0, t1), b.inner());
+        let y = AddShare::from_choice(choice);
 
         assert_eq!(mul(a.inner(), b.inner()), x.inner() ^ y.inner());
+    }
+
+    #[test]
+    fn test_a2m() {
+        let mut rng = ChaCha12Rng::from_entropy();
+        let x: AddShare = AddShare::new(rng.gen());
+        let y: AddShare = AddShare::new(rng.gen());
+
+        let (a, MaskedEncoding(t0, t1)) = x.to_multiplicative();
+
+        let choice = ot_mock((t0, t1), y.inner());
+        let b = MulShare::from_choice(choice);
+
+        assert_eq!(x.inner() ^ y.inner(), mul(a.inner(), b.inner()));
     }
 
     #[test]
