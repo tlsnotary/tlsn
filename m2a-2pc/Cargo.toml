@@ -1,0 +1,17 @@
+[package]
+name = "m2a-2pc"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rand.workspace = true
+rand_chacha.workspace = true
+
+[dev-dependencies]
+ghash_rc.workspace = true
+tokio.workspace = true
+tlsn-mpc-aio = { path = "../mpc-aio" }
+tlsn-utils-aio = { path = "../utils-aio", features = ["duplex"] }
+tlsn-mpc-core = { path = "../mpc-core" }
