@@ -106,8 +106,8 @@ impl GarbledCircuit<Full> {
             .collect()
     }
 
-    /// Returns output label commitments, optionally shuffle them
-    /// to not reveal the output decoding to the Evaluator
+    /// Returns output label commitments. To protect against the Evaluator using these
+    /// commitments to decode their output, we shuffle them.
     pub(crate) fn output_commitments(&self) -> Vec<OutputLabelsCommitment> {
         self.output_labels()
             .iter()
@@ -115,7 +115,7 @@ impl GarbledCircuit<Full> {
             .collect()
     }
 
-    /// Returns all output labels
+    /// Returns output label pairs for each circuit output
     pub fn output_labels(&self) -> Vec<OutputLabels<WireLabelPair>> {
         self.circ
             .outputs()
@@ -251,7 +251,7 @@ impl GarbledCircuit<Partial> {
 }
 
 impl GarbledCircuit<Evaluated> {
-    /// Returns all output labels
+    /// Returns all active output labels which are the result of circuit evaluation
     pub fn output_labels(&self) -> Vec<OutputLabels<WireLabel>> {
         self.circ
             .outputs()

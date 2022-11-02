@@ -243,4 +243,31 @@ mod tests {
 
         assert!(matches!(error, Error::InvalidOutputLabelCommitment));
     }
+
+    #[test]
+    // Expect an error when Generator sends encoding of an incorrect size
+    fn test_semi_honest_fail_wrong_encoding_size() {
+        let mut rng = thread_rng();
+        let circ = Arc::new(Circuit::load_bytes(ADDER_64).unwrap());
+
+        let leader = SemiHonestLeader::new(circ.clone());
+        let follower = SemiHonestFollower::new(circ.clone());
+
+        let leader_input = circ.input(0).unwrap().to_value(0u64).unwrap();
+        let follower_input = circ.input(1).unwrap().to_value(1u64).unwrap();
+
+        let (input_labels, delta) = InputLabels::generate(&mut rng, &circ, None);
+
+        let (mut msg, _) = leader
+            .garble(&[leader_input], &input_labels, delta, true)
+            .unwrap();
+
+        // Make the encoding 1 bit smaller
+        msg.encoding.as_mut().unwrap()[0].encoding.pop();
+
+        let follower_labels = input_labels[1].select(&follower_input).unwrap();
+        let error = follower.evaluate(msg, &[follower_labels]).unwrap_err();
+
+        assert!(matches!(error, Error::InvalidLabelEncoding));
+    }
 }

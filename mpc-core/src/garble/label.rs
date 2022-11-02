@@ -336,6 +336,9 @@ impl SanitizedInputLabels {
 #[derive(Debug, Clone)]
 pub struct OutputLabels<T> {
     pub output: Output,
+    /// Depending on the context, `labels` is a vector of either
+    /// - the garbler's **pairs** of output labels or
+    /// - the evaluator's active output labels
     labels: Vec<T>,
 }
 
@@ -498,7 +501,8 @@ pub struct OutputLabelsCommitment {
 impl OutputLabelsCommitment {
     /// Creates new commitments to output labels
     pub(crate) fn new(output_labels: &OutputLabels<WireLabelPair>) -> Self {
-        // randomly shuffle labels to hide output decoding
+        // randomly shuffle the two labels inside each pair in order to prevent
+        // the evaluator from decoding their active output labels
         let mut flip = vec![false; output_labels.labels.len()];
         thread_rng().fill::<[bool]>(&mut flip);
 
