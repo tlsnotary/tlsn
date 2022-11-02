@@ -87,11 +87,18 @@ impl AddShare {
         let mut rng = ChaCha12Rng::from_entropy();
 
         let random: u128 = rng.gen();
+        if random == 0 {
+            panic!("Random u128 is 0");
+        }
+
         let mut masks: [u128; 128] = std::array::from_fn(|_| rng.gen());
         // set the last mask such that the sum of all 128 masks equals 0
         masks[127] = masks.into_iter().take(127).fold(0, |acc, i| acc ^ i);
 
         let mul_share = MulShare::new(inverse(random));
+
+        // `self.inner() & (1 << i)` extracts bit of `self.inner()` in position `i` (counting from
+        // the right) shifted left by `i`
         let b0: [u128; 128] =
             std::array::from_fn(|i| mul(self.inner() & (1 << i), random) ^ masks[i]);
         let b1: [u128; 128] =
