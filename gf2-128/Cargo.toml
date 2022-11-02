@@ -1,5 +1,5 @@
 [package]
-name = "m2a-2pc"
+name = "gf2-128"
 version = "0.1.0"
 edition = "2021"
 
@@ -15,3 +15,8 @@ tokio.workspace = true
 tlsn-mpc-aio = { path = "../mpc-aio" }
 tlsn-utils-aio = { path = "../utils-aio", features = ["duplex"] }
 tlsn-mpc-core = { path = "../mpc-core" }
+criterion.workspace = true
+
+[[bench]]
+name = "inverse"
+harness = false
