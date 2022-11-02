@@ -13,13 +13,13 @@
 //!
 //! ### A2M algorithm
 //! This is the other way round.
-//! Let `A` be an element of some finite field with `A = x * y`, where `x` is only known to Alice
+//! Let `A` be an element of some finite field with `A = x + y`, where `x` is only known to Alice
 //! and `y` is only known to Bob. A is unknown to both parties and it is their goal that each of
 //! them ends up with a multiplicative share of A. So both parties start with `x` and `y` and want to
 //! end up with `a` and `b`, where `A = x + y = a * b`.
 //!
 //! This is an implementation for the extension field GF(2^128), which is a semi-honest adaptation
-//! of chapter 4 of <https://www.cs.umd.edu/~fenghao/paper/modexp.pdf>
+//! of the "A2M Protocol" in chapter 4 of <https://www.cs.umd.edu/~fenghao/paper/modexp.pdf>
 
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha12Rng;
@@ -88,6 +88,7 @@ impl AddShare {
 
         let random: u128 = rng.gen();
         let mut masks: [u128; 128] = std::array::from_fn(|_| rng.gen());
+        // set the last mask such that the sum of all 128 masks equals 0
         masks[127] = masks.into_iter().take(127).fold(0, |acc, i| acc ^ i);
 
         let mul_share = MulShare::new(inverse(random));
@@ -203,5 +204,6 @@ mod tests {
         let inverse_a = inverse(a);
 
         assert_eq!(mul(a, inverse_a), 1_u128 << 127);
+        assert_eq!(inverse(1_u128 << 127), 1_u128 << 127);
     }
 }
