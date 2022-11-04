@@ -1,11 +1,20 @@
 use super::{compute_powers, mul, AddShare, MaskedPartialValue, MulShare};
 
+/// The sender part for our 2PC Ghash implementation
+///
+/// `GhashSender` will be the sender side during the oblivious transfer.
 pub struct GhashSender<T = AddShare> {
+    /// Different hashkey representations
     hashkey_repr: T,
+    /// The ciphertext for which a 2PC MAC should be constructed
     ciphertext: Vec<u128>,
 }
 
 impl GhashSender {
+    /// Create a new `GhashSender`
+    ///
+    /// * `hashkey` - This is `H`, which is the AES-encrypted 0 block
+    /// * `ciphertext` - The AES-encrypted 128-bit blocks
     pub fn new(hashkey: u128, ciphertext: Vec<u128>) -> Self {
         Self {
             hashkey_repr: AddShare::new(hashkey),
@@ -13,7 +22,11 @@ impl GhashSender {
         }
     }
 
-    pub fn share_partial_values(self) -> (GhashSender<Vec<MulShare>>, MaskedPartialValue) {
+    /// Transform `self` into a `GhashSender` holding multiplicative shares of powers of `H`
+    ///
+    /// Converts the additive share into multiplicative shares of powers of `H`; also returns
+    /// `MaskedPartialValue`, which is needed for the receiver side
+    pub fn compute_mul_powers(self) -> (GhashSender<Vec<MulShare>>, MaskedPartialValue) {
         let (mul_share, sharing) = self.hashkey_repr.to_multiplicative();
 
         let hashkey_powers = compute_powers(mul_share.inner(), self.ciphertext.len())
@@ -31,7 +44,11 @@ impl GhashSender {
 }
 
 impl GhashSender<Vec<MulShare>> {
-    pub fn back_to_additive(self) -> (GhashSender<Vec<AddShare>>, Vec<MaskedPartialValue>) {
+    /// Convert all powers of `H` into additive shares
+    ///
+    /// Converts the multiplicative shares into additive ones; also returns
+    /// `MaskedPartialValue`, which is needed for the receiver side
+    pub fn into_add_powers(self) -> (GhashSender<Vec<AddShare>>, Vec<MaskedPartialValue>) {
         let mut sharings: Vec<MaskedPartialValue> = vec![];
         let hashkey_powers: Vec<AddShare> = self
             .hashkey_repr
@@ -53,7 +70,10 @@ impl GhashSender<Vec<MulShare>> {
 }
 
 impl GhashSender<Vec<AddShare>> {
-    pub fn finalize(self) -> u128 {
+    /// Compute the final MAC
+    ///
+    /// Computes the 2PC additive share of the MAC of `self.ciphertext`
+    pub fn into_mac(self) -> u128 {
         self.hashkey_repr
             .into_iter()
             .enumerate()
