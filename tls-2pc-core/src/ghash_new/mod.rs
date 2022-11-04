@@ -13,33 +13,8 @@
 //! blocks of the ciphertext, multiplicative-to-additive (M2A) conversions. Finally, having
 //! additive shares of `H^n` for all needed `n`, we can compute an additive share of the MAC.
 
-mod state;
-use gf2_128::{AddShare, MulShare};
-use state::{Initialized, Receiver, Role, Sender, State};
+mod receiver;
+mod sender;
+use gf2_128::{compute_powers, mul, AddShare, MaskedPartialValue, MulShare};
+pub use {receiver::GhashReceiver, sender::GhashSender};
 
-pub struct Ghash<T, U = Initialized>
-where
-    T: Role,
-    U: State,
-{
-    role: std::marker::PhantomData<T>,
-    state: U,
-}
-
-impl<T> Ghash<T> {
-    pub fn new(hashkey: u128) -> Self {
-        Ghash {
-            role: std::marker::PhantomData,
-            state: Initialized {
-                hashkey,
-            }
-        }
-    }
-}
-
-impl<T> Ghash<T, MulSharing>
-    pub fn into_mul_sharing(self) -> Ghash<Sender, MulSharing> {
-
-
-    }
-}
