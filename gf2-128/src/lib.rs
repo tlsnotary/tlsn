@@ -140,6 +140,18 @@ pub fn inverse(mut x: u128) -> u128 {
     out
 }
 
+/// Compute all the powers for some Galois field element up to and including `max_power`
+pub fn compute_powers(value: u128, max_power: usize) -> Vec<u128> {
+    let mut powers: Vec<u128> = Vec::with_capacity(max_power + 1);
+    powers.push(1 << 127);
+
+    for _ in 0..max_power {
+        let last_power = *powers.last().unwrap();
+        powers.push(mul(last_power, value));
+    }
+    powers
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -212,5 +224,18 @@ mod tests {
 
         assert_eq!(mul(a, inverse_a), 1_u128 << 127);
         assert_eq!(inverse(1_u128 << 127), 1_u128 << 127);
+    }
+
+    #[test]
+    fn test_compute_powers() {
+        let mut rng = ChaCha12Rng::from_entropy();
+        let a: u128 = rng.gen();
+
+        let powers = compute_powers(a, 4);
+
+        assert_eq!(powers[0], 1 << 127);
+        assert_eq!(powers[1], a);
+        assert_eq!(powers[2], mul(a, a));
+        assert_eq!(powers[3], mul(powers[2], powers[1]));
     }
 }
