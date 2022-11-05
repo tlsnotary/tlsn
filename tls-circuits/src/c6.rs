@@ -4,7 +4,7 @@ use mpc_circuits::{
 
 /// TLS stage 6
 ///
-/// Compute AES-CTR to encrypt plaintext or decrypt ciphertext
+/// Encrypt plaintext or decrypt ciphertext in AES-CTR mode
 ///
 /// T_IN could also just be used as a mask for the encrypted counter-block.
 ///
@@ -155,7 +155,7 @@ mod tests {
         cipher.encrypt_block(&mut msg);
         let ectr = msg;
 
-        let ciphertext = ectr
+        let t_out = ectr
             .iter()
             .zip(t_in)
             .map(|(v, u)| v ^ u)
@@ -172,7 +172,7 @@ mod tests {
                 Value::Bytes(explicit_nonce.into_iter().rev().collect()),
                 Value::U32(ctr),
             ],
-            &[Value::Bytes(ciphertext.into_iter().rev().collect())],
+            &[Value::Bytes(t_out.into_iter().rev().collect())],
         );
     }
 }
