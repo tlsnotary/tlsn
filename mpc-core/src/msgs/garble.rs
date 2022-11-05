@@ -273,7 +273,6 @@ impl crate::garble::GarbledCircuit<garble::Partial> {
 pub struct Output {
     pub id: String,
     pub output_labels: Vec<OutputLabels>,
-    pub encoding: Option<Vec<OutputEncoding>>,
 }
 
 impl From<garble::GarbledCircuit<garble::Output>> for Output {
@@ -286,14 +285,6 @@ impl From<garble::GarbledCircuit<garble::Output>> for Output {
                 .cloned()
                 .map(OutputLabels::from)
                 .collect::<Vec<OutputLabels>>(),
-            encoding: gc.encoding().and_then(|encoding| {
-                Some(
-                    encoding
-                        .into_iter()
-                        .map(OutputEncoding::from)
-                        .collect::<Vec<OutputEncoding>>(),
-                )
-            }),
         }
     }
 }
