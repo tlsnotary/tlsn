@@ -78,18 +78,25 @@ impl GhashReceiver<Vec<MulShare>> {
 }
 
 impl GhashReceiver<Vec<AddShare>> {
-    /// Compute the final MAC
+    /// Generate the final MAC
     ///
     /// Computes the 2PC additive share of the MAC of `self.ciphertext`
-    pub fn into_mac(self) -> u128 {
+    pub fn generate_mac(self) -> u128 {
         self.hashkey_repr
-            .into_iter()
+            .iter()
             .skip(1)
             .rev()
             .enumerate()
             .fold(0, |acc, (k, hashkey_power)| {
                 acc ^ mul(hashkey_power.inner(), self.ciphertext[k])
             })
+    }
+
+    /// Change the ciphertext
+    ///
+    /// This allows to reuse the hashkeys for computing a MAC for a different ciphertext
+    pub fn ciphertext_mut(&mut self, new_ciphertext: Vec<u128>) {
+        self.ciphertext = new_ciphertext;
     }
 }
 
