@@ -21,6 +21,22 @@ use crate::msgs::ghash::{
 use gf2_128::{compute_powers, mul, AddShare, MaskedPartialValue, MulShare};
 pub use {receiver::GhashReceiver, sender::GhashSender};
 
+#[derive(Clone, Debug)]
+pub struct Init {
+    pub(crate) add_share: AddShare,
+}
+
+#[derive(Clone, Debug)]
+pub struct Intermediate {
+    pub(crate) mul_shares: Vec<MulShare>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Finalized {
+    pub(crate) mul_shares: Vec<MulShare>,
+    pub(crate) add_shares: Vec<AddShare>,
+}
+
 #[cfg(test)]
 mod tests {
     use ghash_rc::universal_hash::NewUniversalHash;
@@ -80,8 +96,8 @@ mod tests {
         // Product check
         assert_eq!(
             mul(
-                sender.hashkey_repr()[1].inner(),
-                receiver.hashkey_repr()[1].inner()
+                sender.state().mul_shares[1].inner(),
+                receiver.state().mul_shares[1].inner()
             ),
             h
         );
@@ -95,11 +111,11 @@ mod tests {
 
         // Sum check for the first 2 powers `H` and `H^2`
         assert_eq!(
-            sender.hashkey_repr()[1].inner() ^ receiver.hashkey_repr()[1].inner(),
+            sender.state().add_shares[1].inner() ^ receiver.state().add_shares[1].inner(),
             h
         );
         assert_eq!(
-            sender.hashkey_repr()[2].inner() ^ receiver.hashkey_repr()[2].inner(),
+            sender.state().add_shares[2].inner() ^ receiver.state().add_shares[2].inner(),
             mul(h, h)
         );
 
