@@ -77,9 +77,17 @@ impl GhashSender<Vec<AddShare>> {
         self.hashkey_repr
             .into_iter()
             .skip(1)
+            .rev()
             .enumerate()
             .fold(0, |acc, (k, hashkey_power)| {
                 acc ^ mul(hashkey_power.inner(), self.ciphertext[k])
             })
+    }
+}
+
+#[cfg(test)]
+impl<T: Clone> GhashSender<T> {
+    pub fn hashkey_repr(&self) -> T {
+        self.hashkey_repr.clone()
     }
 }

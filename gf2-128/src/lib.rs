@@ -25,9 +25,11 @@ use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 
 /// Masked values for an oblivious transfer
+#[derive(Clone, Copy, Debug)]
 pub struct MaskedPartialValue(pub [u128; 128], pub [u128; 128]);
 
 /// A multiplicative share of `A = a * b`
+#[derive(Clone, Copy, Debug)]
 pub struct MulShare(u128);
 
 impl MulShare {
@@ -65,6 +67,7 @@ impl MulShare {
 }
 
 /// An additive share of `A = x + y`
+#[derive(Clone, Copy, Debug)]
 pub struct AddShare(u128);
 
 impl AddShare {
