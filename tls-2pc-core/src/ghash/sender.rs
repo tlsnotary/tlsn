@@ -1,14 +1,14 @@
 use super::{
-    compute_powers, mul, AddShare, MaskedPartialValue, MulShare, SenderAddSharing,
-    SenderMulPowerSharings,
+    compute_powers, mul, AddShare, Finalized, Init, Intermediate, MaskedPartialValue, MulShare,
+    SenderAddSharing, SenderMulPowerSharings,
 };
 
 /// The sender part for our 2PC Ghash implementation
 ///
 /// `GhashSender` will be the sender side during the oblivious transfer.
-pub struct GhashSender<T = AddShare> {
+pub struct GhashSender<T = Init> {
     /// Different hashkey representations
-    hashkey_repr: T,
+    state: T,
     /// The ciphertext for which a 2PC MAC should be constructed
     ciphertext: Vec<u128>,
 }
@@ -20,7 +20,9 @@ impl GhashSender {
     /// * `ciphertext` - The AES-encrypted 128-bit blocks
     pub fn new(hashkey: u128, ciphertext: Vec<u128>) -> Self {
         Self {
-            hashkey_repr: AddShare::new(hashkey),
+            state: Init {
+                add_share: AddShare::new(hashkey),
+            },
             ciphertext,
         }
     }
@@ -29,8 +31,8 @@ impl GhashSender {
     ///
     /// Converts the additive share into multiplicative shares of powers of `H`; also returns
     /// `SenderAddSharing`, which is needed for the receiver side
-    pub fn compute_mul_powers(self) -> (GhashSender<Vec<MulShare>>, SenderAddSharing) {
-        let (mul_share, sharing) = self.hashkey_repr.to_multiplicative();
+    pub fn compute_mul_powers(self) -> (GhashSender<Intermediate>, SenderAddSharing) {
+        let (mul_share, sharing) = self.state.add_share.to_multiplicative();
 
         let hashkey_powers = compute_powers(mul_share.inner(), self.ciphertext.len())
             .into_iter()
@@ -38,7 +40,9 @@ impl GhashSender {
             .collect();
         (
             GhashSender {
-                hashkey_repr: hashkey_powers,
+                state: Intermediate {
+                    mul_shares: hashkey_powers,
+                },
                 ciphertext: self.ciphertext,
             },
             SenderAddSharing(Box::new(sharing)),
@@ -46,16 +50,17 @@ impl GhashSender {
     }
 }
 
-impl GhashSender<Vec<MulShare>> {
+impl GhashSender<Intermediate> {
     /// Convert all powers of `H` into additive shares
     ///
     /// Converts the multiplicative shares into additive ones; also returns
     /// `SenderMulPowerSharings`, which is needed for the receiver side
-    pub fn into_add_powers(self) -> (GhashSender<Vec<AddShare>>, SenderMulPowerSharings) {
+    pub fn into_add_powers(self) -> (GhashSender<Finalized>, SenderMulPowerSharings) {
         let mut sharings: Vec<MaskedPartialValue> = vec![];
         let hashkey_powers: Vec<AddShare> = self
-            .hashkey_repr
-            .into_iter()
+            .state
+            .mul_shares
+            .iter()
             .map(|share| {
                 let (add_share, sharing) = share.to_additive();
                 sharings.push(sharing);
@@ -64,7 +69,10 @@ impl GhashSender<Vec<MulShare>> {
             .collect();
         (
             GhashSender {
-                hashkey_repr: hashkey_powers,
+                state: Finalized {
+                    add_shares: hashkey_powers,
+                    mul_shares: self.state.mul_shares,
+                },
                 ciphertext: self.ciphertext,
             },
             SenderMulPowerSharings(sharings),
@@ -72,12 +80,13 @@ impl GhashSender<Vec<MulShare>> {
     }
 }
 
-impl GhashSender<Vec<AddShare>> {
+impl GhashSender<Finalized> {
     /// Generate the final MAC
     ///
     /// Computes the 2PC additive share of the MAC of `self.ciphertext`
     pub fn generate_mac(&self) -> u128 {
-        self.hashkey_repr
+        self.state
+            .add_shares
             .iter()
             .skip(1)
             .rev()
@@ -90,14 +99,14 @@ impl GhashSender<Vec<AddShare>> {
     /// Change the ciphertext
     ///
     /// This allows to reuse the hashkeys for computing a MAC for a different ciphertext
-    pub fn ciphertext_mut(&mut self, new_ciphertext: Vec<u128>) {
+    pub fn change_ciphertext(&mut self, new_ciphertext: Vec<u128>) {
         self.ciphertext = new_ciphertext;
     }
 }
 
 #[cfg(test)]
-impl<T: Clone> GhashSender<T> {
-    pub fn hashkey_repr(&self) -> T {
-        self.hashkey_repr.clone()
+impl<T> GhashSender<T> {
+    pub fn state(&self) -> &T {
+        &self.state
     }
 }
