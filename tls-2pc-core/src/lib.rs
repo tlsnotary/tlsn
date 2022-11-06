@@ -1,7 +1,5 @@
 #[cfg(feature = "ghash")]
 pub mod ghash;
-#[cfg(feature = "ghash")]
-pub mod ghash_new;
 pub mod msgs;
 #[cfg(feature = "prf")]
 pub mod prf;
