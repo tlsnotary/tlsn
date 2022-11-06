@@ -84,6 +84,7 @@ impl GhashReceiver<Vec<AddShare>> {
     pub fn into_mac(self) -> u128 {
         self.hashkey_repr
             .into_iter()
+            .skip(1)
             .enumerate()
             .fold(0, |acc, (k, hashkey_power)| {
                 acc ^ mul(hashkey_power.inner(), self.ciphertext[k])
