@@ -1,4 +1,4 @@
-use super::{compute_powers, mul, AddShare, MulShare};
+use super::{compute_powers, mul, AddShare, MulShare, ReceiverAddChoice, ReceiverMulPowerChoices};
 
 /// The receiver part for our 2PC Ghash implementation
 ///
@@ -24,10 +24,10 @@ impl GhashReceiver {
 
     /// Return the choices, needed for the oblivious transfer
     ///
-    /// The bits of the returned `u128` encode the choices for
+    /// The bits in the returned `ReceiverAddChoice` encode the choices for
     /// the OT
-    pub fn choices(&self) -> u128 {
-        self.hashkey_repr.inner()
+    pub fn choices(&self) -> ReceiverAddChoice {
+        ReceiverAddChoice(self.hashkey_repr.inner())
     }
 
     /// Transform `self` into a `GhashReceiver` holding multiplicative shares of powers of `H`
@@ -53,10 +53,10 @@ impl GhashReceiver {
 impl GhashReceiver<Vec<MulShare>> {
     /// Return the choices, needed for the batched oblivious transfer
     ///
-    /// The bits of the returned `Vec<u128>` encode the choices for
+    /// The bits in the returned `ReceiverMulPowerChoices` encode the choices for
     /// the OTs
-    pub fn choices(&self) -> Vec<u128> {
-        self.hashkey_repr.iter().map(|x| x.inner()).collect()
+    pub fn choices(&self) -> ReceiverMulPowerChoices {
+        ReceiverMulPowerChoices(self.hashkey_repr.iter().map(|x| x.inner()).collect())
     }
 
     /// Convert all powers of `H` into additive shares
