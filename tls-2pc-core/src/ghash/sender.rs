@@ -31,7 +31,7 @@ impl GhashSender {
 
         let hashkey_powers = compute_powers(mul_share.inner(), self.ciphertext.len())
             .into_iter()
-            .map(|power| MulShare::new(power))
+            .map(MulShare::new)
             .collect();
         (
             GhashSender {
