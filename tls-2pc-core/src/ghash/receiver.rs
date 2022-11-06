@@ -40,7 +40,7 @@ impl GhashReceiver {
 
         let hashkey_powers = compute_powers(mul_share.inner(), self.ciphertext.len())
             .into_iter()
-            .map(|power| MulShare::new(power))
+            .map(MulShare::new)
             .collect();
 
         GhashReceiver {
@@ -67,7 +67,7 @@ impl GhashReceiver<Vec<MulShare>> {
     pub fn into_add_powers(self, chosen_inputs: Vec<[u128; 128]>) -> GhashReceiver<Vec<AddShare>> {
         let hashkey_powers: Vec<AddShare> = chosen_inputs
             .into_iter()
-            .map(|input| AddShare::from_choice(input))
+            .map(AddShare::from_choice)
             .collect();
 
         GhashReceiver {
