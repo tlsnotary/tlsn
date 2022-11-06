@@ -111,7 +111,7 @@ mod tests {
         let expected_mac = ghash.finalize();
 
         assert_eq!(
-            sender.into_mac() ^ receiver.into_mac(),
+            sender.generate_mac() ^ receiver.generate_mac(),
             u128::from_be_bytes(expected_mac.into_bytes().try_into().unwrap())
         );
     }
