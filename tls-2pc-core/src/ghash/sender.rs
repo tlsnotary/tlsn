@@ -1,4 +1,7 @@
-use super::{compute_powers, mul, AddShare, MaskedPartialValue, MulShare};
+use super::{
+    compute_powers, mul, AddShare, MaskedPartialValue, MulShare, SenderAddSharing,
+    SenderMulPowerSharings,
+};
 
 /// The sender part for our 2PC Ghash implementation
 ///
@@ -25,8 +28,8 @@ impl GhashSender {
     /// Transform `self` into a `GhashSender` holding multiplicative shares of powers of `H`
     ///
     /// Converts the additive share into multiplicative shares of powers of `H`; also returns
-    /// `MaskedPartialValue`, which is needed for the receiver side
-    pub fn compute_mul_powers(self) -> (GhashSender<Vec<MulShare>>, MaskedPartialValue) {
+    /// `SenderAddSharing`, which is needed for the receiver side
+    pub fn compute_mul_powers(self) -> (GhashSender<Vec<MulShare>>, SenderAddSharing) {
         let (mul_share, sharing) = self.hashkey_repr.to_multiplicative();
 
         let hashkey_powers = compute_powers(mul_share.inner(), self.ciphertext.len())
@@ -38,7 +41,7 @@ impl GhashSender {
                 hashkey_repr: hashkey_powers,
                 ciphertext: self.ciphertext,
             },
-            sharing,
+            SenderAddSharing(Box::new(sharing)),
         )
     }
 }
@@ -47,8 +50,8 @@ impl GhashSender<Vec<MulShare>> {
     /// Convert all powers of `H` into additive shares
     ///
     /// Converts the multiplicative shares into additive ones; also returns
-    /// `MaskedPartialValue`, which is needed for the receiver side
-    pub fn into_add_powers(self) -> (GhashSender<Vec<AddShare>>, Vec<MaskedPartialValue>) {
+    /// `SenderMulPowerSharings`, which is needed for the receiver side
+    pub fn into_add_powers(self) -> (GhashSender<Vec<AddShare>>, SenderMulPowerSharings) {
         let mut sharings: Vec<MaskedPartialValue> = vec![];
         let hashkey_powers: Vec<AddShare> = self
             .hashkey_repr
@@ -64,7 +67,7 @@ impl GhashSender<Vec<MulShare>> {
                 hashkey_repr: hashkey_powers,
                 ciphertext: self.ciphertext,
             },
-            sharings,
+            SenderMulPowerSharings(sharings),
         )
     }
 }
