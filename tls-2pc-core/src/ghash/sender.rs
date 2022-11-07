@@ -100,7 +100,7 @@ impl GhashSender<Finalized> {
     ) -> Option<SenderMulPowerSharings> {
         // new ciphertext is not longer than the old one, so we do no need to compute new powers of
         // H
-        if new_ciphertext.len() <= self.ciphertext.len() {
+        if new_ciphertext.len() < self.state.add_shares.len() {
             self.ciphertext = new_ciphertext;
             return None;
         }
