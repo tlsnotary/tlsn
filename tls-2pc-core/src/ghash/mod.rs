@@ -19,6 +19,8 @@ use crate::msgs::ghash::{
     ReceiverAddChoice, ReceiverMulPowerChoices, SenderAddSharing, SenderMulPowerSharings,
 };
 use gf2_128::{compute_powers, mul, AddShare, MaskedPartialValue, MulShare};
+use thiserror::Error;
+
 pub use {receiver::GhashReceiver, sender::GhashSender};
 
 #[derive(Clone, Debug)]
@@ -35,6 +37,12 @@ pub struct Intermediate {
 pub struct Finalized {
     pub(crate) mul_shares: Vec<MulShare>,
     pub(crate) add_shares: Vec<AddShare>,
+}
+
+#[derive(Debug, Error)]
+pub enum GhashError {
+    #[error("Unable to compute MAC for empty ciphertext")]
+    NoCipherText,
 }
 
 #[cfg(test)]
@@ -84,8 +92,8 @@ mod tests {
 
         // Compute Ghash in 2PC with mocked OT
         // 1. Get a multiplicative sharing of H
-        let sender = GhashSender::new(h1, ciphertext.clone());
-        let receiver = GhashReceiver::new(h2, ciphertext.clone());
+        let sender = GhashSender::new(h1, ciphertext.clone()).unwrap();
+        let receiver = GhashReceiver::new(h2, ciphertext.clone()).unwrap();
 
         let (sender, sharing) = sender.compute_mul_powers();
         let choices = receiver.choices();
