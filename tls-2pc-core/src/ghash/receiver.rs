@@ -1,6 +1,6 @@
 use super::{
-    compute_powers, mul, AddShare, Finalized, GhashError, Init, Intermediate, MulShare,
-    ReceiverAddChoice, ReceiverMulPowerChoices,
+    attach_missing_mul_powers, compute_powers, mul, AddShare, Finalized, GhashError, Init,
+    Intermediate, MulShare, ReceiverAddChoice, ReceiverMulPowerChoices,
 };
 
 /// The receiver part for our 2PC Ghash implementation
@@ -56,6 +56,7 @@ impl GhashReceiver {
         GhashReceiver {
             state: Intermediate {
                 mul_shares: hashkey_powers,
+                cached_add_shares: vec![],
             },
             ciphertext: self.ciphertext,
         }
@@ -67,8 +68,18 @@ impl GhashReceiver<Intermediate> {
     ///
     /// The bits in the returned `ReceiverMulPowerChoices` encode the choices for
     /// the OTs
-    pub fn choices(&self) -> ReceiverMulPowerChoices {
-        ReceiverMulPowerChoices(self.state.mul_shares.iter().map(|x| x.inner()).collect())
+    pub fn choices(&self) -> Option<ReceiverMulPowerChoices> {
+        let offset = self.state.cached_add_shares.len();
+        if offset == self.state.mul_shares.len() {
+            return None;
+        }
+
+        Some(ReceiverMulPowerChoices(
+            self.state.mul_shares[offset..]
+                .iter()
+                .map(|x| x.inner())
+                .collect(),
+        ))
     }
 
     /// Convert all powers of `H` into additive shares
@@ -76,15 +87,23 @@ impl GhashReceiver<Intermediate> {
     /// Converts the multiplicative shares into additive ones.
     ///
     /// * `chosen_inputs` - the results of the batched oblivious transfer.
-    pub fn into_add_powers(self, chosen_inputs: Vec<[u128; 128]>) -> GhashReceiver<Finalized> {
-        let hashkey_powers: Vec<AddShare> = chosen_inputs
-            .into_iter()
-            .map(AddShare::from_choice)
-            .collect();
+    pub fn into_add_powers(
+        mut self,
+        chosen_inputs: Option<Vec<[u128; 128]>>,
+    ) -> GhashReceiver<Finalized> {
+        let hashkey_powers: Vec<AddShare> = if let Some(inputs) = chosen_inputs {
+            inputs.into_iter().map(AddShare::from_choice).collect()
+        } else {
+            vec![]
+        };
+
+        self.state
+            .cached_add_shares
+            .extend_from_slice(&hashkey_powers);
 
         GhashReceiver {
             state: Finalized {
-                add_shares: hashkey_powers,
+                add_shares: self.state.cached_add_shares,
                 mul_shares: self.state.mul_shares,
             },
             ciphertext: self.ciphertext,
@@ -96,7 +115,7 @@ impl GhashReceiver<Finalized> {
     /// Generate the final MAC
     ///
     /// Computes the 2PC additive share of the MAC of `self.ciphertext`
-    pub fn generate_mac(self) -> u128 {
+    pub fn generate_mac(&self) -> u128 {
         self.state
             .add_shares
             .iter()
@@ -111,8 +130,22 @@ impl GhashReceiver<Finalized> {
     /// Change the ciphertext
     ///
     /// This allows to reuse the hashkeys for computing a MAC for a different ciphertext
-    pub fn change_ciphertext(&mut self, new_ciphertext: Vec<u128>) {
-        self.ciphertext = new_ciphertext;
+    pub fn change_ciphertext(mut self, new_ciphertext: Vec<u128>) -> GhashReceiver<Intermediate> {
+        // Check if we need to compute new powers of `H`
+        let difference = new_ciphertext.len() as i32 - self.state.add_shares.len() as i32 + 1;
+
+        if difference > 0 {
+            attach_missing_mul_powers(&mut self.state.mul_shares, difference as usize);
+        }
+
+        let receiver = GhashReceiver {
+            state: Intermediate {
+                mul_shares: self.state.mul_shares,
+                cached_add_shares: self.state.add_shares,
+            },
+            ciphertext: new_ciphertext,
+        };
+        receiver
     }
 }
 
@@ -120,5 +153,9 @@ impl GhashReceiver<Finalized> {
 impl<T> GhashReceiver<T> {
     pub fn state(&self) -> &T {
         &self.state
+    }
+
+    pub fn ciphertext(&self) -> &Vec<u128> {
+        &self.ciphertext
     }
 }

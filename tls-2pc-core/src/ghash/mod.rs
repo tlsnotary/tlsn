@@ -31,6 +31,7 @@ pub struct Init {
 #[derive(Clone, Debug)]
 pub struct Intermediate {
     pub(crate) mul_shares: Vec<MulShare>,
+    pub(crate) cached_add_shares: Vec<AddShare>,
 }
 
 #[derive(Clone, Debug)]
@@ -43,6 +44,21 @@ pub struct Finalized {
 pub enum GhashError {
     #[error("Unable to compute MAC for empty ciphertext")]
     NoCipherText,
+    #[error("The provided input is insufficient for building the missing shares")]
+    InsufficientInput,
+}
+
+fn attach_missing_mul_powers(mul_powers: &mut Vec<MulShare>, missing: usize) {
+    // Compute the needed higher powers of H
+    let mut higher_powers = vec![];
+    for _ in 0..missing {
+        let h = mul_powers[1].inner();
+        let last_power = mul_powers.last().unwrap().inner();
+
+        let new_mul_share = MulShare::new(mul(h, last_power));
+        higher_powers.push(new_mul_share);
+    }
+    mul_powers.extend_from_slice(&higher_powers);
 }
 
 #[cfg(test)]
@@ -82,8 +98,8 @@ mod tests {
         let h: u128 = rng.gen();
 
         // Sample some ciphertext
-        let cipher_text_len: usize = rng.gen_range(2..128);
-        let mut ciphertext: Vec<u128> = vec![0_u128; cipher_text_len];
+        let ciphertext_len: usize = rng.gen_range(2..128);
+        let mut ciphertext: Vec<u128> = vec![0_u128; ciphertext_len];
         ciphertext.iter_mut().for_each(|x| *x = rng.gen());
 
         // The additive sharings of the MAC key to begin with
@@ -114,8 +130,8 @@ mod tests {
         let (sender, sharing) = sender.into_add_powers();
         let choices = receiver.choices();
 
-        let chosen_inputs = ot_mock_batch(sharing.0, choices.0);
-        let receiver = receiver.into_add_powers(chosen_inputs);
+        let chosen_inputs = ot_mock_batch(sharing.0, choices.unwrap().0);
+        let receiver = receiver.into_add_powers(Some(chosen_inputs));
 
         // Sum check for the first 2 powers `H` and `H^2`
         assert_eq!(
@@ -130,6 +146,84 @@ mod tests {
         // Compare to Ghash computation from crate
         let mut ghash = GHash::new(&h.to_be_bytes().into());
         for el in ciphertext {
+            ghash.update(&el.to_be_bytes().into());
+        }
+        let expected_mac = ghash.finalize();
+
+        assert_eq!(
+            sender.generate_mac() ^ receiver.generate_mac(),
+            u128::from_be_bytes(expected_mac.into_bytes().try_into().unwrap())
+        );
+    }
+
+    #[test]
+    fn test_ghash_change_ciphertext() {
+        let mut rng = ChaCha12Rng::from_entropy();
+
+        // The MAC key
+        let h: u128 = rng.gen();
+
+        // Sample some ciphertext
+        let ciphertext_len: usize = rng.gen_range(2..128);
+        let mut ciphertext: Vec<u128> = vec![0_u128; ciphertext_len];
+        ciphertext.iter_mut().for_each(|x| *x = rng.gen());
+
+        // The additive sharings of the MAC key to begin with
+        let h1: u128 = rng.gen();
+        let h2: u128 = h ^ h1;
+
+        // Compute Ghash in 2PC with mocked OT
+        // 1. Get a multiplicative sharing of H
+        let sender = GhashSender::new(h1, ciphertext.clone()).unwrap();
+        let receiver = GhashReceiver::new(h2, ciphertext.clone()).unwrap();
+
+        let (sender, sharing) = sender.compute_mul_powers();
+        let choices = receiver.choices();
+
+        let chosen_inputs = ot_mock(*sharing.0, choices.0);
+        let receiver = receiver.compute_mul_powers(chosen_inputs);
+
+        // 2. Get additive sharings of all the powers of H
+        let (sender, sharing) = sender.into_add_powers();
+        let choices = receiver.choices();
+
+        let chosen_inputs = ot_mock_batch(sharing.0, choices.unwrap().0);
+        let receiver = receiver.into_add_powers(Some(chosen_inputs));
+
+        // 3. Generate MAC for original ciphertext
+        let _mac_sender = sender.generate_mac();
+        let _mac_receiver = receiver.generate_mac();
+
+        // Compare to Ghash computation from crate
+        let mut ghash = GHash::new(&h.to_be_bytes().into());
+        for el in ciphertext {
+            ghash.update(&el.to_be_bytes().into());
+        }
+        let expected_mac = ghash.finalize();
+
+        assert_eq!(
+            sender.generate_mac() ^ receiver.generate_mac(),
+            u128::from_be_bytes(expected_mac.into_bytes().try_into().unwrap())
+        );
+
+        // 4. Change ciphertext to a new longer ciphertext and generate MAC
+        let ciphertext_len_long: usize = rng.gen_range(129..256);
+        let mut ciphertext_long: Vec<u128> = vec![0_u128; ciphertext_len_long];
+        ciphertext_long.iter_mut().for_each(|x| *x = rng.gen());
+
+        let (sender, Some(sharing)) = sender.change_ciphertext(ciphertext_long.clone()) else {
+            panic!("Expected Some(...), but got None");
+        };
+        let receiver = receiver.change_ciphertext(ciphertext_long.clone());
+        let choices = receiver.choices();
+
+        let chosen_inputs = ot_mock_batch(sharing.0, choices.unwrap().0);
+
+        let receiver = receiver.into_add_powers(Some(chosen_inputs));
+
+        // Compare to Ghash computation from crate
+        let mut ghash = GHash::new(&h.to_be_bytes().into());
+        for el in ciphertext_long {
             ghash.update(&el.to_be_bytes().into());
         }
         let expected_mac = ghash.finalize();

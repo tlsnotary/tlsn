@@ -1,6 +1,6 @@
 use super::{
-    compute_powers, mul, AddShare, Finalized, GhashError, Init, Intermediate, MaskedPartialValue,
-    MulShare, SenderAddSharing, SenderMulPowerSharings,
+    attach_missing_mul_powers, compute_powers, mul, AddShare, Finalized, GhashError, Init,
+    Intermediate, MaskedPartialValue, MulShare, SenderAddSharing, SenderMulPowerSharings,
 };
 
 /// The sender part for our 2PC Ghash implementation
@@ -47,6 +47,7 @@ impl GhashSender {
             GhashSender {
                 state: Intermediate {
                     mul_shares: hashkey_powers,
+                    cached_add_shares: vec![],
                 },
                 ciphertext: self.ciphertext,
             },
@@ -60,17 +61,31 @@ impl GhashSender<Intermediate> {
     ///
     /// Converts the multiplicative shares into additive ones; also returns
     /// `SenderMulPowerSharings`, which is needed for the receiver side
-    pub fn into_add_powers(self) -> (GhashSender<Finalized>, SenderMulPowerSharings) {
-        let (hashkey_powers, sharings) = batch_mul_to_add(&self.state.mul_shares);
+    pub fn into_add_powers(mut self) -> (GhashSender<Finalized>, SenderMulPowerSharings) {
+        let offset = self.state.cached_add_shares.len();
+
+        let mut sharings: Vec<MaskedPartialValue> = vec![];
+        let hashkey_powers: Vec<AddShare> = self.state.mul_shares[offset..]
+            .iter()
+            .map(|share| {
+                let (add_share, sharing) = share.to_additive();
+                sharings.push(sharing);
+                add_share
+            })
+            .collect();
+
+        self.state
+            .cached_add_shares
+            .extend_from_slice(&hashkey_powers);
         (
             GhashSender {
                 state: Finalized {
-                    add_shares: hashkey_powers,
+                    add_shares: self.state.cached_add_shares,
                     mul_shares: self.state.mul_shares,
                 },
                 ciphertext: self.ciphertext,
             },
-            sharings,
+            SenderMulPowerSharings(sharings),
         )
     }
 }
@@ -93,56 +108,43 @@ impl GhashSender<Finalized> {
 
     /// Change the ciphertext
     ///
-    /// This allows to reuse the hashkeys for computing a MAC for a different ciphertext
+    /// This allows to reuse the hashkeys for computing a MAC for a different ciphertext.
+    /// If the new ciphertext is longer than the old one, we need to compute the missing
+    /// powers of `H`, so in this case we also get new sharings.
     pub fn change_ciphertext(
-        &mut self,
+        mut self,
         new_ciphertext: Vec<u128>,
-    ) -> Option<SenderMulPowerSharings> {
-        // new ciphertext is not longer than the old one, so we do no need to compute new powers of
-        // H
-        if new_ciphertext.len() < self.state.add_shares.len() {
+    ) -> (GhashSender<Finalized>, Option<SenderMulPowerSharings>) {
+        // Check if we need to compute new powers of `H`
+        let difference = new_ciphertext.len() as i32 - self.state.add_shares.len() as i32 + 1;
+
+        if difference > 0 {
+            attach_missing_mul_powers(&mut self.state.mul_shares, difference as usize);
+        } else {
             self.ciphertext = new_ciphertext;
-            return None;
+            return (self, None);
         }
 
-        let difference = new_ciphertext.len() - self.ciphertext.len();
+        let sender = GhashSender {
+            state: Intermediate {
+                mul_shares: self.state.mul_shares,
+                cached_add_shares: self.state.add_shares,
+            },
+            ciphertext: new_ciphertext,
+        };
 
-        // Compute the needed higher powers of H
-        let mut higher_powers = vec![];
-        for _ in 0..difference {
-            let h = self.state.mul_shares[1].inner();
-            let last_power = self.state.mul_shares.last().unwrap().inner();
-
-            let new_mul_share = MulShare::new(mul(h, last_power));
-            higher_powers.push(new_mul_share);
-        }
-        self.state.mul_shares.extend_from_slice(&higher_powers);
-
-        let (new_add_shares, new_sharings) = batch_mul_to_add(&higher_powers);
-        self.state.add_shares.extend_from_slice(&new_add_shares);
-
-        Some(new_sharings)
+        let (sender, sharings) = sender.into_add_powers();
+        (sender, Some(sharings))
     }
-}
-
-/// Batch converts multiplicative shares into additive shares and sharings needed for oblivious
-/// transfer
-fn batch_mul_to_add(mul_shares: &[MulShare]) -> (Vec<AddShare>, SenderMulPowerSharings) {
-    let mut sharings: Vec<MaskedPartialValue> = vec![];
-    let hashkey_powers: Vec<AddShare> = mul_shares
-        .iter()
-        .map(|share| {
-            let (add_share, sharing) = share.to_additive();
-            sharings.push(sharing);
-            add_share
-        })
-        .collect();
-    (hashkey_powers, SenderMulPowerSharings(sharings))
 }
 
 #[cfg(test)]
 impl<T> GhashSender<T> {
     pub fn state(&self) -> &T {
         &self.state
+    }
+
+    pub fn ciphertext(&self) -> &Vec<u128> {
+        &self.ciphertext
     }
 }
