@@ -1,6 +1,6 @@
 use super::{
-    compute_powers, mul, AddShare, Finalized, Init, Intermediate, MulShare, ReceiverAddChoice,
-    ReceiverMulPowerChoices,
+    compute_powers, mul, AddShare, Finalized, GhashError, Init, Intermediate, MulShare,
+    ReceiverAddChoice, ReceiverMulPowerChoices,
 };
 
 /// The receiver part for our 2PC Ghash implementation
@@ -18,13 +18,18 @@ impl GhashReceiver {
     ///
     /// * `hashkey` - This is `H`, which is the AES-encrypted 0 block
     /// * `ciphertext` - The AES-encrypted 128-bit blocks
-    pub fn new(hashkey: u128, ciphertext: Vec<u128>) -> Self {
-        Self {
+    pub fn new(hashkey: u128, ciphertext: Vec<u128>) -> Result<Self, GhashError> {
+        if ciphertext.is_empty() {
+            return Err(GhashError::NoCipherText);
+        }
+
+        let receiver = Self {
             state: Init {
                 add_share: AddShare::new(hashkey),
             },
             ciphertext,
-        }
+        };
+        Ok(receiver)
     }
 
     /// Return the choices, needed for the oblivious transfer
