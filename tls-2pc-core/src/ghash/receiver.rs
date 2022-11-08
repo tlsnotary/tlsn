@@ -1,6 +1,6 @@
 use super::{
-    attach_missing_mul_powers, compute_powers, mul, AddShare, Finalized, GhashError, Init,
-    Intermediate, MulShare, ReceiverAddChoice, ReceiverMulPowerChoices,
+    compute_higher_powers, mul, AddShare, Finalized, GhashError, Init, Intermediate, MulShare,
+    ReceiverAddChoice, ReceiverMulPowerChoices,
 };
 
 /// The receiver part for our 2PC Ghash implementation
@@ -47,11 +47,10 @@ impl GhashReceiver {
     /// * `chosen_inputs` - the result of the oblivious transfer.
     pub fn compute_mul_powers(self, chosen_inputs: [u128; 128]) -> GhashReceiver<Intermediate> {
         let mul_share = MulShare::from_choice(chosen_inputs);
+        let mut hashkey_powers = vec![1_u128 << 127, mul_share.inner()];
 
-        let hashkey_powers = compute_powers(mul_share.inner(), self.ciphertext.len())
-            .into_iter()
-            .map(MulShare::new)
-            .collect();
+        compute_higher_powers(&mut hashkey_powers, self.ciphertext.len() - 1);
+        let hashkey_powers = hashkey_powers.into_iter().map(MulShare::new).collect();
 
         GhashReceiver {
             state: Intermediate {
@@ -130,22 +129,22 @@ impl GhashReceiver<Finalized> {
     /// Change the ciphertext
     ///
     /// This allows to reuse the hashkeys for computing a MAC for a different ciphertext
-    pub fn change_ciphertext(mut self, new_ciphertext: Vec<u128>) -> GhashReceiver<Intermediate> {
+    pub fn change_ciphertext(self, new_ciphertext: Vec<u128>) -> GhashReceiver<Intermediate> {
         // Check if we need to compute new powers of `H`
         let difference = new_ciphertext.len() as i32 - self.state.add_shares.len() as i32 + 1;
 
+        let mut hashkey_powers = self.state.mul_shares.iter().map(MulShare::inner).collect();
         if difference > 0 {
-            attach_missing_mul_powers(&mut self.state.mul_shares, difference as usize);
+            compute_higher_powers(&mut hashkey_powers, difference as usize);
         }
 
-        let receiver = GhashReceiver {
+        GhashReceiver {
             state: Intermediate {
-                mul_shares: self.state.mul_shares,
+                mul_shares: hashkey_powers.iter().map(|x| MulShare::new(*x)).collect(),
                 cached_add_shares: self.state.add_shares,
             },
             ciphertext: new_ciphertext,
-        };
-        receiver
+        }
     }
 }
 

@@ -1,6 +1,6 @@
 use super::{
-    attach_missing_mul_powers, compute_powers, mul, AddShare, Finalized, GhashError, Init,
-    Intermediate, MaskedPartialValue, MulShare, SenderAddSharing, SenderMulPowerSharings,
+    compute_higher_powers, mul, AddShare, Finalized, GhashError, Init, Intermediate,
+    MaskedPartialValue, MulShare, SenderAddSharing, SenderMulPowerSharings,
 };
 
 /// The sender part for our 2PC Ghash implementation
@@ -38,11 +38,10 @@ impl GhashSender {
     /// `SenderAddSharing`, which is needed for the receiver side
     pub fn compute_mul_powers(self) -> (GhashSender<Intermediate>, SenderAddSharing) {
         let (mul_share, sharing) = self.state.add_share.to_multiplicative();
+        let mut hashkey_powers = vec![1_u128 << 127, mul_share.inner()];
 
-        let hashkey_powers = compute_powers(mul_share.inner(), self.ciphertext.len())
-            .into_iter()
-            .map(MulShare::new)
-            .collect();
+        compute_higher_powers(&mut hashkey_powers, self.ciphertext.len() - 1);
+        let hashkey_powers = hashkey_powers.into_iter().map(MulShare::new).collect();
         (
             GhashSender {
                 state: Intermediate {
@@ -118,8 +117,9 @@ impl GhashSender<Finalized> {
         // Check if we need to compute new powers of `H`
         let difference = new_ciphertext.len() as i32 - self.state.add_shares.len() as i32 + 1;
 
+        let mut hashkey_powers = self.state.mul_shares.iter().map(MulShare::inner).collect();
         if difference > 0 {
-            attach_missing_mul_powers(&mut self.state.mul_shares, difference as usize);
+            compute_higher_powers(&mut hashkey_powers, difference as usize);
         } else {
             self.ciphertext = new_ciphertext;
             return (self, None);
@@ -127,7 +127,7 @@ impl GhashSender<Finalized> {
 
         let sender = GhashSender {
             state: Intermediate {
-                mul_shares: self.state.mul_shares,
+                mul_shares: hashkey_powers.iter().map(|x| MulShare::new(*x)).collect(),
                 cached_add_shares: self.state.add_shares,
             },
             ciphertext: new_ciphertext,

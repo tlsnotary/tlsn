@@ -18,7 +18,7 @@ mod sender;
 use crate::msgs::ghash::{
     ReceiverAddChoice, ReceiverMulPowerChoices, SenderAddSharing, SenderMulPowerSharings,
 };
-use gf2_128::{compute_powers, mul, AddShare, MaskedPartialValue, MulShare};
+use gf2_128::{compute_higher_powers, mul, AddShare, MaskedPartialValue, MulShare};
 use thiserror::Error;
 
 pub use {receiver::GhashReceiver, sender::GhashSender};
@@ -46,19 +46,6 @@ pub enum GhashError {
     NoCipherText,
     #[error("The provided input is insufficient for building the missing shares")]
     InsufficientInput,
-}
-
-fn attach_missing_mul_powers(mul_powers: &mut Vec<MulShare>, missing: usize) {
-    // Compute the needed higher powers of H
-    let mut higher_powers = vec![];
-    for _ in 0..missing {
-        let h = mul_powers[1].inner();
-        let last_power = mul_powers.last().unwrap().inner();
-
-        let new_mul_share = MulShare::new(mul(h, last_power));
-        higher_powers.push(new_mul_share);
-    }
-    mul_powers.extend_from_slice(&higher_powers);
 }
 
 #[cfg(test)]

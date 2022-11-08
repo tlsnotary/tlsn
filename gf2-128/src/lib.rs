@@ -143,16 +143,22 @@ pub fn inverse(mut x: u128) -> u128 {
     out
 }
 
-/// Compute all the powers for some Galois field element up to and including `max_power`
-pub fn compute_powers(value: u128, max_power: usize) -> Vec<u128> {
-    let mut powers: Vec<u128> = Vec::with_capacity(max_power + 1);
-    powers.push(1 << 127);
-
-    for _ in 0..max_power {
-        let last_power = *powers.last().unwrap();
-        powers.push(mul(last_power, value));
+/// Compute powers of some field element
+///
+/// This function computes `missing` higher powers and pushes it to some vector. So what you
+/// get is a vector of [a, a^2, a^3, ...] This function assumes that `powers[1] == a` is present,
+/// as it is needed for exponentiation
+///
+/// * `powers` - The vector to which the new higher powers get pushed
+/// * `missing` - How many more higher powers are needed
+pub fn compute_higher_powers(powers: &mut Vec<u128>, missing: usize) {
+    for _ in 0..missing {
+        let last_power = *powers.last().expect("Vector is empty");
+        let base = *powers
+            .get(1)
+            .expect("Vector does not contain a base for exponentiation");
+        powers.push(mul(base, last_power));
     }
-    powers
 }
 
 #[cfg(test)]
@@ -234,7 +240,9 @@ mod tests {
         let mut rng = ChaCha12Rng::from_entropy();
         let a: u128 = rng.gen();
 
-        let powers = compute_powers(a, 4);
+        let mut powers = vec![1 << 127, a];
+
+        compute_higher_powers(&mut powers, 4);
 
         assert_eq!(powers[0], 1 << 127);
         assert_eq!(powers[1], a);
