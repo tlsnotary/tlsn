@@ -7,7 +7,7 @@ use super::{
 ///
 /// `GhashReceiver` will be the receiver side during the oblivious transfer.
 pub struct GhashReceiver<T = Init> {
-    /// Different hashkey representations
+    /// Inner state
     state: T,
     /// The ciphertext for which a 2PC MAC should be constructed
     ciphertext: Vec<u128>,
@@ -16,7 +16,7 @@ pub struct GhashReceiver<T = Init> {
 impl GhashReceiver {
     /// Create a new `GhashReceiver`
     ///
-    /// * `hashkey` - This is `H`, which is the AES-encrypted 0 block
+    /// * `hashkey` -  This is an additive sharing of `H`, which is the AES-encrypted 0 block
     /// * `ciphertext` - The AES-encrypted 128-bit blocks
     pub fn new(hashkey: u128, ciphertext: Vec<u128>) -> Result<Self, GhashError> {
         if ciphertext.is_empty() {
@@ -68,6 +68,8 @@ impl GhashReceiver<Intermediate> {
     /// The bits in the returned `ReceiverMulPowerChoices` encode the choices for
     /// the OTs
     pub fn choices(&self) -> Option<ReceiverMulPowerChoices> {
+        // We only return choices for multiplicative powers of `H`
+        // for which we do not already have `cached_add_shares`
         let offset = self.state.cached_add_shares.len();
         if offset == self.state.mul_shares.len() {
             return None;
@@ -90,7 +92,9 @@ impl GhashReceiver<Intermediate> {
         mut self,
         chosen_inputs: Option<Vec<[u128; 128]>>,
     ) -> GhashReceiver<Finalized> {
-        let hashkey_powers: Vec<AddShare> = if let Some(inputs) = chosen_inputs {
+        // If we get new input, we build the additive shares and add them to our
+        // `cached_add_shares`
+        let additive_shares: Vec<AddShare> = if let Some(inputs) = chosen_inputs {
             inputs.into_iter().map(AddShare::from_choice).collect()
         } else {
             vec![]
@@ -98,7 +102,7 @@ impl GhashReceiver<Intermediate> {
 
         self.state
             .cached_add_shares
-            .extend_from_slice(&hashkey_powers);
+            .extend_from_slice(&additive_shares);
 
         GhashReceiver {
             state: Finalized {
@@ -148,9 +152,5 @@ impl GhashReceiver<Finalized> {
 impl<T> GhashReceiver<T> {
     pub fn state(&self) -> &T {
         &self.state
-    }
-
-    pub fn ciphertext(&self) -> &Vec<u128> {
-        &self.ciphertext
     }
 }

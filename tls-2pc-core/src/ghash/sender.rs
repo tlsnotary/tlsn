@@ -7,7 +7,7 @@ use super::{
 ///
 /// `GhashSender` will be the sender side during the oblivious transfer.
 pub struct GhashSender<T = Init> {
-    /// Different hashkey representations
+    /// Inner state
     state: T,
     /// The ciphertext for which a 2PC MAC should be constructed
     ciphertext: Vec<u128>,
@@ -16,7 +16,7 @@ pub struct GhashSender<T = Init> {
 impl GhashSender {
     /// Create a new `GhashSender`
     ///
-    /// * `hashkey` - This is `H`, which is the AES-encrypted 0 block
+    /// * `hashkey` - This is an additive sharing of `H`, which is the AES-encrypted 0 block
     /// * `ciphertext` - The AES-encrypted 128-bit blocks
     pub fn new(hashkey: u128, ciphertext: Vec<u128>) -> Result<Self, GhashError> {
         if ciphertext.is_empty() {
@@ -61,21 +61,23 @@ impl GhashSender<Intermediate> {
     /// Converts the multiplicative shares into additive ones; also returns
     /// `SenderMulPowerSharings`, which is needed for the receiver side
     pub fn into_add_powers(mut self) -> (GhashSender<Finalized>, SenderMulPowerSharings) {
+        // If we already have some cached additive sharings, we do not need to do an OT for them.
+        // So we compute an offset to ignore them
         let offset = self.state.cached_add_shares.len();
 
-        let mut sharings: Vec<MaskedPartialValue> = vec![];
-        let hashkey_powers: Vec<AddShare> = self.state.mul_shares[offset..]
+        let mut mul_power_sharings: Vec<MaskedPartialValue> = vec![];
+        let additive_shares: Vec<AddShare> = self.state.mul_shares[offset..]
             .iter()
             .map(|share| {
                 let (add_share, sharing) = share.to_additive();
-                sharings.push(sharing);
+                mul_power_sharings.push(sharing);
                 add_share
             })
             .collect();
 
         self.state
             .cached_add_shares
-            .extend_from_slice(&hashkey_powers);
+            .extend_from_slice(&additive_shares);
         (
             GhashSender {
                 state: Finalized {
@@ -84,7 +86,7 @@ impl GhashSender<Intermediate> {
                 },
                 ciphertext: self.ciphertext,
             },
-            SenderMulPowerSharings(sharings),
+            SenderMulPowerSharings(mul_power_sharings),
         )
     }
 }
@@ -103,9 +105,9 @@ impl GhashSender<Finalized> {
 
     /// Change the ciphertext
     ///
-    /// This allows to reuse the hashkeys for computing a MAC for a different ciphertext.
-    /// If the new ciphertext is longer than the old one, we need to compute the missing
-    /// powers of `H`, so in this case we also get new sharings.
+    /// This allows to reuse the hashkeys for computing a MAC for a different ciphertext. If the
+    /// new ciphertext is longer than the old one, we need to compute the missing powers of `H`
+    /// using batched OTs, so in this case we also get new sharings for the receiver.
     pub fn change_ciphertext(
         mut self,
         new_ciphertext: Vec<u128>,
@@ -138,9 +140,5 @@ impl GhashSender<Finalized> {
 impl<T> GhashSender<T> {
     pub fn state(&self) -> &T {
         &self.state
-    }
-
-    pub fn ciphertext(&self) -> &Vec<u128> {
-        &self.ciphertext
     }
 }

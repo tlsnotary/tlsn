@@ -6,11 +6,10 @@
 //! At first we will convert the XOR (additive) share of `H`, into a multiplicative share. This
 //! allows us to compute all the necessary powers of `H^n` locally. Then each of these
 //! multiplicative shares will be converted back into additive shares. This way, we can batch
-//! nearly all the oblivious transfers, which are needed per conversion, and reduce the round
-//! complexity of the protocol.
+//! nearly all oblivious transfers and reduce the round complexity of the protocol.
 //!
 //! On the whole, we need a single additive-to-multiplicative (A2M) and `n`, which is the number of
-//! blocks of the ciphertext, multiplicative-to-additive (M2A) conversions. Finally, having
+//! blocks of ciphertext, multiplicative-to-additive (M2A) conversions. Finally, having
 //! additive shares of `H^n` for all needed `n`, we can compute an additive share of the MAC.
 
 mod receiver;
@@ -25,27 +24,25 @@ pub use {receiver::GhashReceiver, sender::GhashSender};
 
 #[derive(Clone, Debug)]
 pub struct Init {
-    pub(crate) add_share: AddShare,
+    add_share: AddShare,
 }
 
 #[derive(Clone, Debug)]
 pub struct Intermediate {
-    pub(crate) mul_shares: Vec<MulShare>,
-    pub(crate) cached_add_shares: Vec<AddShare>,
+    mul_shares: Vec<MulShare>,
+    cached_add_shares: Vec<AddShare>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Finalized {
-    pub(crate) mul_shares: Vec<MulShare>,
-    pub(crate) add_shares: Vec<AddShare>,
+    mul_shares: Vec<MulShare>,
+    add_shares: Vec<AddShare>,
 }
 
 #[derive(Debug, Error)]
 pub enum GhashError {
     #[error("Unable to compute MAC for empty ciphertext")]
     NoCipherText,
-    #[error("The provided input is insufficient for building the missing shares")]
-    InsufficientInput,
 }
 
 #[cfg(test)]
@@ -67,6 +64,7 @@ mod tests {
         let ciphertext = gen_ciphertext();
 
         let (sender, receiver) = setup_ghash_to_intermediate_state(h, ciphertext);
+
         // Product check
         assert_eq!(
             mul(
