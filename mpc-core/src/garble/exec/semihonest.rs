@@ -1,7 +1,8 @@
 //! An implementation of semi-honest mode which provides authenticity and privacy assurances to the [`SemiHonestLeader`]
-//! but not to the [`SemiHonestFollower`]. If the leader is malicious they can arbitrarily insert NOT gates
-//! into the circuit which may result in the private inputs of the follower being leaked. Additonally,
-//! the follower does not know whether the output decoding provided by the leader is authentic.
+//! but not to the [`SemiHonestFollower`]. The leader is capable of garbling the circuit maliciously
+//! which may result in the private inputs of the follower being leaked. Additonally, the follower
+//! does not know whether the output decoding provided by the leader is authentic. Thus, the follower
+//! can not rely on this execution mode for correctness or privacy.
 use crate::{
     garble::{
         circuit::{Evaluated, Full, GarbledCircuit, Partial},
