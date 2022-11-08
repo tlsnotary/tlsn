@@ -115,15 +115,11 @@ impl GhashReceiver<Finalized> {
     ///
     /// Computes the 2PC additive share of the MAC of `self.ciphertext`
     pub fn generate_mac(&self) -> u128 {
-        self.state
-            .add_shares
+        let offset = self.state.add_shares.len() - self.ciphertext.len() - 1;
+        self.ciphertext
             .iter()
-            .skip(1)
-            .rev()
-            .enumerate()
-            .fold(0, |acc, (k, hashkey_power)| {
-                acc ^ mul(hashkey_power.inner(), self.ciphertext[k])
-            })
+            .zip(self.state.add_shares.iter().rev().skip(offset))
+            .fold(0, |acc, (block, share)| acc ^ mul(*block, share.inner()))
     }
 
     /// Change the ciphertext
