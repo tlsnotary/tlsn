@@ -68,8 +68,8 @@ mod tests {
         // Product check
         assert_eq!(
             mul(
-                sender.state().mul_shares[1].inner(),
-                receiver.state().mul_shares[1].inner()
+                sender.state().mul_shares[0].inner(),
+                receiver.state().mul_shares[0].inner()
             ),
             h
         );
@@ -88,11 +88,11 @@ mod tests {
 
         // Sum check for the first 2 powers `H` and `H^2`
         assert_eq!(
-            sender.state().add_shares[1].inner() ^ receiver.state().add_shares[1].inner(),
+            sender.state().add_shares[0].inner() ^ receiver.state().add_shares[0].inner(),
             h
         );
         assert_eq!(
-            sender.state().add_shares[2].inner() ^ receiver.state().add_shares[2].inner(),
+            sender.state().add_shares[1].inner() ^ receiver.state().add_shares[1].inner(),
             mul(h, h)
         );
     }
