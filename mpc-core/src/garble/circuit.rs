@@ -10,7 +10,7 @@ use crate::{
 };
 use mpc_circuits::{Circuit, InputValue, OutputValue};
 
-use super::label::{OutputLabels, OutputLabelsEncoding};
+use super::label::{OutputLabels, OutputLabelsCommitment, OutputLabelsEncoding};
 
 #[derive(Debug, Clone)]
 pub struct EncryptedGate([Block; 2]);
@@ -45,6 +45,7 @@ pub struct Partial {
     pub(crate) input_labels: Vec<InputLabels<WireLabel>>,
     pub(crate) encrypted_gates: Vec<EncryptedGate>,
     pub(crate) encoding: Option<Vec<OutputLabelsEncoding>>,
+    pub(crate) commitments: Option<Vec<OutputLabelsCommitment>>,
 }
 
 /// Evaluated garbled circuit data containing all wire labels
@@ -105,6 +106,15 @@ impl GarbledCircuit<Full> {
             .collect()
     }
 
+    /// Returns output label commitments, optionally shuffle them
+    /// to not reveal the output decoding to the Evaluator
+    pub(crate) fn output_commitments(&self, shuffle: bool) -> Vec<OutputLabelsCommitment> {
+        self.output_labels()
+            .iter()
+            .map(|labels| labels.commit(shuffle))
+            .collect()
+    }
+
     /// Returns all output labels
     pub fn output_labels(&self) -> Vec<OutputLabels<WireLabelPair>> {
         self.circ
@@ -126,7 +136,15 @@ impl GarbledCircuit<Full> {
     }
 
     /// Returns [`GarbledCircuit<Partial>`] which is safe to send an evaluator
-    pub fn to_evaluator(&self, inputs: &[InputValue], encoding: bool) -> GarbledCircuit<Partial> {
+    ///
+    /// `reveal` flag determines whether the output decoding will be included
+    /// `commit` flag determines whether commitments to the output labels will be included
+    pub fn to_evaluator(
+        &self,
+        inputs: &[InputValue],
+        reveal: bool,
+        commit: bool,
+    ) -> GarbledCircuit<Partial> {
         let input_labels: Vec<InputLabels<WireLabel>> = inputs
             .iter()
             .map(|value| {
@@ -171,7 +189,8 @@ impl GarbledCircuit<Full> {
             data: Partial {
                 input_labels: [input_labels, constant_labels].concat(),
                 encrypted_gates: self.data.encrypted_gates.clone(),
-                encoding: encoding.then(|| self.encoding()),
+                encoding: reveal.then(|| self.encoding()),
+                commitments: commit.then(|| self.output_commitments(reveal)),
             },
         }
     }
@@ -203,6 +222,11 @@ impl GarbledCircuit<Partial> {
     /// Returns whether or not output encoding is available
     pub fn has_encoding(&self) -> bool {
         self.data.encoding.is_some()
+    }
+
+    /// Returns output commitments
+    pub fn output_commitments(&self) -> Option<&Vec<OutputLabelsCommitment>> {
+        self.data.commitments.as_ref()
     }
 
     /// Evaluates a garbled circuit using provided input labels. These labels are combined with labels sent by the generator
