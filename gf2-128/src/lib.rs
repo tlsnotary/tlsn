@@ -145,18 +145,18 @@ pub fn inverse(mut x: u128) -> u128 {
 
 /// Compute powers of some field element
 ///
-/// This function computes `missing` higher powers and pushes it to some vector. So what you
-/// get is a vector of [a, a^2, a^3, ...] This function assumes that `powers[1] == a` is present,
+/// This function computes `count` higher powers and pushes it to some vector. So what you
+/// get is a vector of [a, a^2, a^3, ...] This function assumes that `powers[0] == a` is present,
 /// as it is needed for exponentiation
 ///
 /// * `powers` - The vector to which the new higher powers get pushed
-/// * `missing` - How many more higher powers are needed
-pub fn compute_higher_powers(powers: &mut Vec<u128>, missing: usize) {
-    for _ in 0..missing {
-        let last_power = *powers.last().expect("Vector is empty");
-        let base = *powers
-            .get(1)
-            .expect("Vector does not contain a base for exponentiation");
+/// * `count` - How many more higher powers are needed
+pub fn compute_higher_powers(powers: &mut Vec<u128>, count: usize) {
+    let base = *powers
+        .get(0)
+        .expect("Vector is empty. Cannot compute higher powers");
+    for _ in 0..count {
+        let last_power = *powers.last().unwrap();
         powers.push(mul(base, last_power));
     }
 }
@@ -240,13 +240,12 @@ mod tests {
         let mut rng = ChaCha12Rng::from_entropy();
         let a: u128 = rng.gen();
 
-        let mut powers = vec![1 << 127, a];
+        let mut powers = vec![a];
 
-        compute_higher_powers(&mut powers, 4);
+        compute_higher_powers(&mut powers, 2);
 
-        assert_eq!(powers[0], 1 << 127);
-        assert_eq!(powers[1], a);
-        assert_eq!(powers[2], mul(a, a));
-        assert_eq!(powers[3], mul(powers[2], powers[1]));
+        assert_eq!(powers[0], a);
+        assert_eq!(powers[1], mul(a, a));
+        assert_eq!(powers[2], mul(powers[1], powers[0]));
     }
 }

@@ -38,9 +38,9 @@ impl GhashSender {
     /// `SenderAddSharing`, which is needed for the receiver side
     pub fn compute_mul_powers(self) -> (GhashSender<Intermediate>, SenderAddSharing) {
         let (mul_share, sharing) = self.state.add_share.to_multiplicative();
-        let mut hashkey_powers = vec![1_u128 << 127, mul_share.inner()];
+        let mut hashkey_powers = vec![mul_share.inner()];
 
-        compute_higher_powers(&mut hashkey_powers, self.ciphertext.len() - 1);
+        compute_higher_powers(&mut hashkey_powers, self.ciphertext.len());
         let hashkey_powers = hashkey_powers.into_iter().map(MulShare::new).collect();
         (
             GhashSender {
@@ -96,7 +96,7 @@ impl GhashSender<Finalized> {
     ///
     /// Computes the 2PC additive share of the MAC of `self.ciphertext`
     pub fn generate_mac(&self) -> u128 {
-        let offset = self.state.add_shares.len() - self.ciphertext.len() - 1;
+        let offset = self.state.add_shares.len() - self.ciphertext.len();
         self.ciphertext
             .iter()
             .zip(self.state.add_shares.iter().rev().skip(offset))
@@ -113,7 +113,7 @@ impl GhashSender<Finalized> {
         new_ciphertext: Vec<u128>,
     ) -> (GhashSender<Finalized>, Option<SenderMulPowerSharings>) {
         // Check if we need to compute new powers of `H`
-        let difference = new_ciphertext.len() as i32 - self.state.add_shares.len() as i32 + 1;
+        let difference = new_ciphertext.len() as i32 - self.state.add_shares.len() as i32;
 
         let mut hashkey_powers = self.state.mul_shares.iter().map(MulShare::inner).collect();
         if difference > 0 {
