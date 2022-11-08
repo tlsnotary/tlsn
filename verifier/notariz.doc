@@ -1,0 +1,102 @@
+Notarization document:
+    version: u8
+
+    Data to be signed:
+        - notarization time: u64
+        - ephemeral EC pubkey:
+            type: u8 ( e.g. p256, ed25519, ...)
+            pubkey: [u8; 33]
+
+        - bytesize of each round (one round is one request followed by one response): 
+            for each round:
+                size of req/resp: [u32; 2]
+
+        - User commitment (1): cert. chain + randoms + ephemeral EC pubkey sig
+            type: u8 (e.g. sha256, blake2f)
+            commitment: [u8; size]
+
+        - User commitment (2): input labels corresponding to counter blocks (see footnote *)
+            type: u8 (e.g. sha256, blake2f)
+            commitment: [u8; size]
+
+
+        - User commitment (3): public data 
+            - Notary's seeds:
+                number of seeds: u16 **
+                seeds: Vec<[u8; size]>
+                how many labels to expand each seed into: u32
+                type of seeds: u8 (e.g. chacha12, AES, ...)
+
+            - User commitment to all active labels (salted) ***
+                type of commitment: u8 (e.g. blake2f, sha256, ...)
+                commitment: [u8; size]
+
+        User commitments (4): private data 
+            for each commitment:
+                - type of commitment: u8 (e.g. poseidon, mimc, ...)
+                - commitments: [u8; size]
+                - hash of the labels which were decoded with authdecode
+                    (computed by the Notary who doesn't know the absolute position
+                    of these labels in the transcript, see *)
+                    type of hash: u8 (e.g. blake2f, sha256, ...)
+                    hash: [u8; size]
+
+    Additional data appended by the User to the signed data:
+        - TLS certificate chain: [u8; size] (as it appears in TLS)
+        - server sig over the ephemeral EC pubkey 
+        (from Server Key Exchange): [u8; size] (as it appears in TLS)
+        - client_random and server_random 
+        (to check server sig): [u8; size] (as it appears in TLS)
+        Notary's signature over the `Data to be signed`:
+            type: u8 (e.g. p256, bn254, ...)
+            sig: [u8; size]
+        
+    Extra data which the User passes to a specific Verifier: ****
+        - public data and its ranges in the transcripts:
+            for each range:
+                range: [u32; 2] ( each range is [start offset, end offset) )
+                plaintext: [u8; size]
+
+        - salt for public data commitment: [u8; 128]
+
+        - mapping about which Notary circuit correspond to which AES counter blocks,
+        so that the Verifier could reconstruct commitment (2)
+
+        - Decoded labels for commitments (4):
+            for each commitment
+                absolute position of the labels being decoded with authdecode
+
+        - zk proofs about private data:
+            for each proof:
+                type of proof: u16 (e.g. range proof, alphabet only, ...)
+                extra data depending on the proof type: [u8; size] 
+                proof_serialized: [u8; size]
+
+
+Verifier steps:
+    - check Notary's signature on signed data
+    - check TLS certificate chain against local root certs
+    - check that ephem. EC pubkey + randoms were signed by the leaf cert
+    - expand the seed, place the labels in the correct order 
+        based on the circuit:counter mapping
+    - check commitment (2)
+    - check label hash from commitment (4)
+    - select active labels for public data in ranges, add salt, check commitment (3)
+    - verify zk proofs about private data against commitment (4)
+    - treat all data which is neither public nor private as redacted data (i.e hidden)
+    - sanity checks:
+        private and public data must not overlap
+        there must be no duplicate commitments to the same data
+        etc.
+
+------------------------------------------------
+Footnotes:
+
+* We want the User to be able to hide from the Notary the position of private data in the TLS transcript. For this, during garbled circuit evaluation, the User requests input labels corresponding to each AES block's counter via OT and commits to them before the Notary opens all his garbled circuits.
+
+** After revealing the seed, the circuits which Notary generated from that seed cannot be used in future notarizations and must be discarded. For this reason, the Notary should generate only a moderate amount of circuits from the same seed, say, 100.
+
+
+*** We don't want the Notary to be able to learn even the public data. If we didnt use salt, then for data of small length with low entropy the Notary could brute-force the labels and learn what public data is being notarized.
+
+**** The User may want to reveal different subsets of data to different verifiers 
