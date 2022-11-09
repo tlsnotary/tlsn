@@ -65,6 +65,8 @@ Notarization document:
 Verifier steps:
     - check Notary's signature on signed data
     - check TLS certificate chain against local root certs
+    - check that the common name from the leaf certificate matches the "Host" header
+        of the request (prevent domain fronting attack)
     - check that ephem. EC pubkey + randoms were signed by the leaf cert
     - expand the seed
     - select active labels for public data in ranges, add salt, check commitment (2)
