@@ -1,6 +1,6 @@
 use super::{
-    compute_higher_powers, mul, AddShare, Finalized, GhashError, Init, Intermediate,
-    MaskedPartialValue, MulShare, SenderAddSharing, SenderMulPowerSharings,
+    compute_higher_powers, mul, AddShare, Finalized, GhashError, Init, Intermediate, MulShare,
+    SenderAddSharing, SenderMulSharings,
 };
 
 /// The sender part for our 2PC Ghash implementation
@@ -50,7 +50,9 @@ impl GhashSender {
                 },
                 ciphertext: self.ciphertext,
             },
-            SenderAddSharing(Box::new(sharing)),
+            SenderAddSharing {
+                sender_add_sharing: sharing.inner(),
+            },
         )
     }
 }
@@ -60,17 +62,17 @@ impl GhashSender<Intermediate> {
     ///
     /// Converts the multiplicative shares into additive ones; also returns
     /// `SenderMulPowerSharings`, which is needed for the receiver side
-    pub fn into_add_powers(mut self) -> (GhashSender<Finalized>, SenderMulPowerSharings) {
+    pub fn into_add_powers(mut self) -> (GhashSender<Finalized>, SenderMulSharings) {
         // If we already have some cached additive sharings, we do not need to do an OT for them.
         // So we compute an offset to ignore them
         let offset = self.state.cached_add_shares.len();
 
-        let mut mul_power_sharings: Vec<MaskedPartialValue> = vec![];
+        let mut mul_power_sharings: Vec<([u128; 128], [u128; 128])> = vec![];
         let additive_shares: Vec<AddShare> = self.state.mul_shares[offset..]
             .iter()
             .map(|share| {
                 let (add_share, sharing) = share.to_additive();
-                mul_power_sharings.push(sharing);
+                mul_power_sharings.push(sharing.inner());
                 add_share
             })
             .collect();
@@ -86,7 +88,9 @@ impl GhashSender<Intermediate> {
                 },
                 ciphertext: self.ciphertext,
             },
-            SenderMulPowerSharings(mul_power_sharings),
+            SenderMulSharings {
+                sender_mul_sharing: mul_power_sharings,
+            },
         )
     }
 }
@@ -111,7 +115,7 @@ impl GhashSender<Finalized> {
     pub fn change_ciphertext(
         mut self,
         new_ciphertext: Vec<u128>,
-    ) -> (GhashSender<Finalized>, Option<SenderMulPowerSharings>) {
+    ) -> (GhashSender<Finalized>, Option<SenderMulSharings>) {
         // Check if we need to compute new powers of `H`
         let difference = new_ciphertext.len() as i32 - self.state.add_shares.len() as i32;
 

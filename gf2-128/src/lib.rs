@@ -28,6 +28,12 @@ use rand_chacha::ChaCha12Rng;
 #[derive(Clone, Copy, Debug)]
 pub struct MaskedPartialValue(pub [u128; 128], pub [u128; 128]);
 
+impl MaskedPartialValue {
+    pub fn inner(&self) -> ([u128; 128], [u128; 128]) {
+        (self.0, self.1)
+    }
+}
+
 /// A multiplicative share of `A = a * b`
 #[derive(Clone, Copy, Debug)]
 pub struct MulShare(u128);

@@ -1,11 +1,10 @@
-use gf2_128::MaskedPartialValue;
-
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[allow(clippy::large_enum_variant)]
 /// Messages for 2PC Ghash computation
 pub enum GhashMessage {
     SenderAddSharing(SenderAddSharing),
-    SenderMulPowerSharings(SenderMulPowerSharings),
+    SenderMulSharings(SenderMulSharings),
     ReceiverAddChoice(ReceiverAddChoice),
     ReceiverMulPowerChoices(ReceiverMulPowerChoices),
 }
@@ -13,20 +12,22 @@ pub enum GhashMessage {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// The sender input for the oblivious transfer of the additive share of `H`
-pub struct SenderAddSharing(pub Box<MaskedPartialValue>);
+pub struct SenderAddSharing {
+    pub sender_add_sharing: ([u128; 128], [u128; 128]),
+}
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// The sender input for the batched oblivious transfer of the powers of the multiplicative share
 /// `H`
-pub struct SenderMulPowerSharings(pub Vec<MaskedPartialValue>);
+pub struct SenderMulSharings {
+    pub sender_mul_sharing: Vec<([u128; 128], [u128; 128])>,
+}
 
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// The receiver choice for the oblivious transfer of the additive share of `H`
 pub struct ReceiverAddChoice(pub u128);
 
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// The receiver choices for the batched oblivious transfer of the powers of the multiplicative share `H`
 pub struct ReceiverMulPowerChoices(pub Vec<u128>);
