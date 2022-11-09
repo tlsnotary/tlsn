@@ -4,7 +4,9 @@ use rayon::prelude::*;
 use std::{env, fs, io, path::Path};
 use tls_circuits::{c1, c2, c3, c4, c5, c6, c7};
 
-static CIRCUITS: &[(&str, fn() -> Circuit)] = &[
+type CircuitBuilderMap = [(&'static str, fn() -> Circuit)];
+
+static CIRCUITS: &CircuitBuilderMap = &[
     ("c1", c1),
     ("c2", c2),
     ("c3", c3),

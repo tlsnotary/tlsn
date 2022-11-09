@@ -136,6 +136,12 @@ impl PRFLeader<Ms1> {
     }
 }
 
+impl Default for PRFLeader<Ms1> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PRFLeader<Ms2> {
     /// Computes p1 and a2 inner hashes
     /// ```text

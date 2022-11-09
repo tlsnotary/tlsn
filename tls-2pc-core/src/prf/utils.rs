@@ -21,10 +21,10 @@ pub fn generate_hmac_pads(input: &[u8]) -> ([u8; 64], [u8; 64]) {
     let mut opad = [0x5c_u8; 64];
 
     for (ipad, input) in ipad.iter_mut().zip(input.iter()) {
-        *ipad = *ipad ^ *input;
+        *ipad ^= *input;
     }
     for (opad, input) in opad.iter_mut().zip(input.iter()) {
-        *opad = *opad ^ *input;
+        *opad ^= *input;
     }
     (ipad, opad)
 }

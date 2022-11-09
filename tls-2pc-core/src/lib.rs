@@ -10,19 +10,19 @@ use once_cell::sync::Lazy;
 use std::sync::Arc;
 
 #[cfg(feature = "c1")]
-pub static CIRCUIT_1_BYTES: &'static [u8] = std::include_bytes!("../circuits/bin/c1.bin");
+pub static CIRCUIT_1_BYTES: &[u8] = std::include_bytes!("../circuits/bin/c1.bin");
 #[cfg(feature = "c2")]
-pub static CIRCUIT_2_BYTES: &'static [u8] = std::include_bytes!("../circuits/bin/c2.bin");
+pub static CIRCUIT_2_BYTES: &[u8] = std::include_bytes!("../circuits/bin/c2.bin");
 #[cfg(feature = "c3")]
-pub static CIRCUIT_3_BYTES: &'static [u8] = std::include_bytes!("../circuits/bin/c3.bin");
+pub static CIRCUIT_3_BYTES: &[u8] = std::include_bytes!("../circuits/bin/c3.bin");
 #[cfg(feature = "c4")]
-pub static CIRCUIT_4_BYTES: &'static [u8] = std::include_bytes!("../circuits/bin/c4.bin");
+pub static CIRCUIT_4_BYTES: &[u8] = std::include_bytes!("../circuits/bin/c4.bin");
 #[cfg(feature = "c5")]
-pub static CIRCUIT_5_BYTES: &'static [u8] = std::include_bytes!("../circuits/bin/c5.bin");
+pub static CIRCUIT_5_BYTES: &[u8] = std::include_bytes!("../circuits/bin/c5.bin");
 #[cfg(feature = "c6")]
-pub static CIRCUIT_6_BYTES: &'static [u8] = std::include_bytes!("../circuits/bin/c6.bin");
+pub static CIRCUIT_6_BYTES: &[u8] = std::include_bytes!("../circuits/bin/c6.bin");
 #[cfg(feature = "c7")]
-pub static CIRCUIT_7_BYTES: &'static [u8] = std::include_bytes!("../circuits/bin/c7.bin");
+pub static CIRCUIT_7_BYTES: &[u8] = std::include_bytes!("../circuits/bin/c7.bin");
 
 #[cfg(feature = "c1")]
 pub static CIRCUIT_1: Lazy<Arc<Circuit>> =
