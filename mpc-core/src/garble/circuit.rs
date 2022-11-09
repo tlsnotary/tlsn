@@ -108,10 +108,10 @@ impl GarbledCircuit<Full> {
 
     /// Returns output label commitments, optionally shuffle them
     /// to not reveal the output decoding to the Evaluator
-    pub(crate) fn output_commitments(&self, shuffle: bool) -> Vec<OutputLabelsCommitment> {
+    pub(crate) fn output_commitments(&self) -> Vec<OutputLabelsCommitment> {
         self.output_labels()
             .iter()
-            .map(|labels| labels.commit(shuffle))
+            .map(|labels| labels.commit())
             .collect()
     }
 
@@ -190,7 +190,7 @@ impl GarbledCircuit<Full> {
                 input_labels: [input_labels, constant_labels].concat(),
                 encrypted_gates: self.data.encrypted_gates.clone(),
                 encoding: reveal.then(|| self.encoding()),
-                commitments: commit.then(|| self.output_commitments(reveal)),
+                commitments: commit.then(|| self.output_commitments()),
             },
         }
     }

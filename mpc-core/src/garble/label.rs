@@ -362,10 +362,9 @@ impl OutputLabels<WireLabelPair> {
         OutputLabelsEncoding::from_labels(self)
     }
 
-    /// Returns commitments for output labels, optionally
-    /// shuffling to hide output decoding from Evaluator
-    pub(crate) fn commit(&self, shuffle: bool) -> OutputLabelsCommitment {
-        OutputLabelsCommitment::new(self, shuffle)
+    /// Returns commitments for output labels
+    pub(crate) fn commit(&self) -> OutputLabelsCommitment {
+        OutputLabelsCommitment::new(self)
     }
 
     /// Returns output wire labels corresponding to an [`OutputValue`]
@@ -493,18 +492,16 @@ impl AsRef<[LabelEncoding]> for OutputLabelsEncoding {
 #[derive(Debug, Clone)]
 pub struct OutputLabelsCommitment {
     pub(crate) output: Output,
-    pub(crate) shuffled: bool,
     pub(crate) commitments: Vec<[Block; 2]>,
 }
 
 impl OutputLabelsCommitment {
-    /// Creates new commitments to output labels, optionally shuffling to hide
-    /// the output decoding from the evaluator
-    pub(crate) fn new(output_labels: &OutputLabels<WireLabelPair>, shuffle: bool) -> Self {
+    /// Creates new commitments to output labels
+    pub(crate) fn new(output_labels: &OutputLabels<WireLabelPair>) -> Self {
+        // randomly shuffle labels to hide output decoding
         let mut flip = vec![false; output_labels.labels.len()];
-        if shuffle {
-            thread_rng().fill::<[bool]>(&mut flip);
-        }
+        thread_rng().fill::<[bool]>(&mut flip);
+
         let output_id = output_labels.id();
         let commitments = output_labels
             .labels
@@ -524,7 +521,6 @@ impl OutputLabelsCommitment {
 
         Self {
             output: output_labels.output.clone(),
-            shuffled: shuffle,
             commitments,
         }
     }
@@ -742,7 +738,7 @@ mod tests {
         let circ_out = circ.output(0).unwrap();
         let (labels, _) = WireLabelPair::generate(&mut thread_rng(), None, 64, 0);
         let output_labels_full = OutputLabels::new(circ_out.clone(), &labels).unwrap();
-        let mut commitments = OutputLabelsCommitment::new(&output_labels_full, false);
+        let mut commitments = OutputLabelsCommitment::new(&output_labels_full);
 
         let output_labels = output_labels_full
             .select(&circ_out.to_value(1u64).unwrap())

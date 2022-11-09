@@ -164,7 +164,6 @@ impl garble::label::OutputLabelsEncoding {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct OutputLabelsCommitment {
     pub id: usize,
-    pub shuffled: bool,
     pub commitments: Vec<Block>,
 }
 
@@ -172,7 +171,6 @@ impl From<garble::label::OutputLabelsCommitment> for OutputLabelsCommitment {
     fn from(commitment: garble::label::OutputLabelsCommitment) -> Self {
         Self {
             id: commitment.output.id,
-            shuffled: commitment.shuffled,
             commitments: commitment.commitments.into_iter().flatten().collect(),
         }
     }
@@ -195,7 +193,6 @@ impl garble::label::OutputLabelsCommitment {
             .collect();
         Ok(Self {
             output,
-            shuffled: commitment.shuffled,
             commitments,
         })
     }
