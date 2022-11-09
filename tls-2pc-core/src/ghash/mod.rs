@@ -1,7 +1,7 @@
 //! This module implements the AES-GCM's GHASH function in a secure two-party computation (2PC)
 //! setting using 1-out-of-2 Oblivious Transfer (OT). The parties start with their secret XOR
 //! shares of H (the GHASH key) and at the end each gets their XOR share of the GHASH output. The
-//! method is described here <https://tlsnotary.org/how_it_works#section4>.
+
 //!
 //! At first we will convert the XOR (additive) share of `H`, into a multiplicative share. This
 //! allows us to compute all the necessary powers of `H^n` locally. Then each of these
@@ -17,7 +17,7 @@ mod sender;
 use crate::msgs::ghash::{
     ReceiverAddChoice, ReceiverMulPowerChoices, SenderAddSharing, SenderMulSharings,
 };
-use gf2_128::{compute_higher_powers, mul, AddShare, MulShare};
+use gf2_128::{compute_product_repeated, mul, AddShare, MulShare};
 use thiserror::Error;
 
 pub use {receiver::GhashReceiver, sender::GhashSender};
@@ -43,6 +43,28 @@ pub struct Finalized {
 pub enum GhashError {
     #[error("Unable to compute MAC for empty ciphertext")]
     NoCipherText,
+}
+
+/// Computes missing powers of multiplication shares of the hashkey
+///
+/// Checks if depending on the number of add_shares or ciphertext blocks
+/// we need more multiplicative sharings and computes them.
+///
+/// * `shares` - mul_shares already present
+/// * `needed` - how many powers we need including odd and even
+fn compute_missing_mul_shares(shares: &mut Vec<u128>, needed: usize) {
+    let needed_odd_powers: usize = needed / 2 + (needed & 1);
+    let present_odd_powers = shares.len();
+    let difference = needed_odd_powers - present_odd_powers;
+
+    if difference > 0 {
+        let h_squared = mul(shares[0], shares[0]);
+        compute_product_repeated(shares, h_squared, difference);
+    }
+}
+
+fn compute_new_add_shares(new_add_odd_shares: &[AddShare], add_shares: &mut [AddShare]) {
+    todo!()
 }
 
 #[cfg(test)]

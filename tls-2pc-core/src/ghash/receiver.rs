@@ -1,6 +1,6 @@
 use super::{
-    compute_higher_powers, mul, AddShare, Finalized, GhashError, Init, Intermediate, MulShare,
-    ReceiverAddChoice, ReceiverMulPowerChoices,
+    compute_missing_mul_shares, compute_new_add_shares, mul, AddShare, Finalized, GhashError, Init,
+    Intermediate, MulShare, ReceiverAddChoice, ReceiverMulPowerChoices,
 };
 
 /// The receiver part for our 2PC Ghash implementation
@@ -49,7 +49,7 @@ impl GhashReceiver {
         let mul_share = MulShare::from_choice(chosen_inputs);
         let mut hashkey_powers = vec![mul_share.inner()];
 
-        compute_higher_powers(&mut hashkey_powers, self.ciphertext.len());
+        compute_missing_mul_shares(&mut hashkey_powers, self.ciphertext.len());
         let hashkey_powers = hashkey_powers.into_iter().map(MulShare::new).collect();
 
         GhashReceiver {
@@ -68,9 +68,11 @@ impl GhashReceiver<Intermediate> {
     /// The bits in the returned `ReceiverMulPowerChoices` encode the choices for
     /// the OTs
     pub fn choices(&self) -> Option<ReceiverMulPowerChoices> {
-        // We only return choices for multiplicative powers of `H`
-        // for which we do not already have `cached_add_shares`
-        let offset = self.state.cached_add_shares.len();
+        // If we already have some cached additive sharings, we do not need to do an OT for them.
+        // So we compute an offset to ignore them. We divide by 2 because `cached_add_shares`
+        // contain even and odd powers, while mul_shares only have odd powers.
+        let offset =
+            self.state.cached_add_shares.len() / 2 + (self.state.cached_add_shares.len() & 1);
         if offset == self.state.mul_shares.len() {
             return None;
         }
@@ -94,15 +96,13 @@ impl GhashReceiver<Intermediate> {
     ) -> GhashReceiver<Finalized> {
         // If we get new input, we build the additive shares and add them to our
         // `cached_add_shares`
-        let additive_shares: Vec<AddShare> = if let Some(inputs) = chosen_inputs {
+        let additive_odd_shares: Vec<AddShare> = if let Some(inputs) = chosen_inputs {
             inputs.into_iter().map(AddShare::from_choice).collect()
         } else {
             vec![]
         };
 
-        self.state
-            .cached_add_shares
-            .extend_from_slice(&additive_shares);
+        compute_new_add_shares(&additive_odd_shares, &mut self.state.cached_add_shares);
 
         GhashReceiver {
             state: Finalized {
@@ -130,13 +130,8 @@ impl GhashReceiver<Finalized> {
     ///
     /// This allows to reuse the hashkeys for computing a MAC for a different ciphertext
     pub fn change_ciphertext(self, new_ciphertext: Vec<u128>) -> GhashReceiver<Intermediate> {
-        // Check if we need to compute new powers of `H`
-        let difference = new_ciphertext.len() as i32 - self.state.add_shares.len() as i32;
-
         let mut hashkey_powers = self.state.mul_shares.iter().map(MulShare::inner).collect();
-        if difference > 0 {
-            compute_higher_powers(&mut hashkey_powers, difference as usize);
-        }
+        compute_missing_mul_shares(&mut hashkey_powers, self.state.add_shares.len());
 
         GhashReceiver {
             state: Intermediate {

@@ -1,6 +1,6 @@
 use super::{
-    compute_higher_powers, mul, AddShare, Finalized, GhashError, Init, Intermediate, MulShare,
-    SenderAddSharing, SenderMulSharings,
+    compute_missing_mul_shares, compute_new_add_shares, mul, AddShare, Finalized, GhashError, Init,
+    Intermediate, MulShare, SenderAddSharing, SenderMulSharings,
 };
 
 /// The sender part for our 2PC Ghash implementation
@@ -40,7 +40,7 @@ impl GhashSender {
         let (mul_share, sharing) = self.state.add_share.to_multiplicative();
         let mut hashkey_powers = vec![mul_share.inner()];
 
-        compute_higher_powers(&mut hashkey_powers, self.ciphertext.len());
+        compute_missing_mul_shares(&mut hashkey_powers, self.ciphertext.len());
         let hashkey_powers = hashkey_powers.into_iter().map(MulShare::new).collect();
         (
             GhashSender {
@@ -64,11 +64,13 @@ impl GhashSender<Intermediate> {
     /// `SenderMulPowerSharings`, which is needed for the receiver side
     pub fn into_add_powers(mut self) -> (GhashSender<Finalized>, SenderMulSharings) {
         // If we already have some cached additive sharings, we do not need to do an OT for them.
-        // So we compute an offset to ignore them
-        let offset = self.state.cached_add_shares.len();
+        // So we compute an offset to ignore them. We divide by 2 because `cached_add_shares`
+        // contain even and odd powers, while mul_shares only have odd powers.
+        let offset =
+            self.state.cached_add_shares.len() / 2 + (self.state.cached_add_shares.len() & 1);
 
         let mut mul_power_sharings: Vec<([u128; 128], [u128; 128])> = vec![];
-        let additive_shares: Vec<AddShare> = self.state.mul_shares[offset..]
+        let additive_odd_shares: Vec<AddShare> = self.state.mul_shares[offset..]
             .iter()
             .map(|share| {
                 let (add_share, sharing) = share.to_additive();
@@ -77,9 +79,8 @@ impl GhashSender<Intermediate> {
             })
             .collect();
 
-        self.state
-            .cached_add_shares
-            .extend_from_slice(&additive_shares);
+        compute_new_add_shares(&additive_odd_shares, &mut self.state.cached_add_shares);
+
         (
             GhashSender {
                 state: Finalized {
@@ -113,17 +114,15 @@ impl GhashSender<Finalized> {
     /// new ciphertext is longer than the old one, we need to compute the missing powers of `H`
     /// using batched OTs, so in this case we also get new sharings for the receiver.
     pub fn change_ciphertext(
-        mut self,
+        self,
         new_ciphertext: Vec<u128>,
     ) -> (GhashSender<Finalized>, Option<SenderMulSharings>) {
-        // Check if we need to compute new powers of `H`
-        let difference = new_ciphertext.len() as i32 - self.state.add_shares.len() as i32;
+        let number_mul_shares_before = self.state.mul_shares.len();
 
         let mut hashkey_powers = self.state.mul_shares.iter().map(MulShare::inner).collect();
-        if difference > 0 {
-            compute_higher_powers(&mut hashkey_powers, difference as usize);
-        } else {
-            self.ciphertext = new_ciphertext;
+        compute_missing_mul_shares(&mut hashkey_powers, self.state.add_shares.len());
+
+        if number_mul_shares_before == hashkey_powers.len() {
             return (self, None);
         }
 
