@@ -5,8 +5,6 @@
 pub enum GhashMessage {
     SenderAddSharing(SenderAddSharing),
     SenderMulSharings(SenderMulSharings),
-    ReceiverAddChoice(ReceiverAddChoice),
-    ReceiverMulPowerChoices(ReceiverMulPowerChoices),
 }
 
 #[derive(Debug, Clone)]
