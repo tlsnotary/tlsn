@@ -15,9 +15,9 @@
 mod receiver;
 mod sender;
 use crate::msgs::ghash::{
-    ReceiverAddChoice, ReceiverMulPowerChoices, SenderAddSharing, SenderMulPowerSharings,
+    ReceiverAddChoice, ReceiverMulPowerChoices, SenderAddSharing, SenderMulSharings,
 };
-use gf2_128::{compute_higher_powers, mul, AddShare, MaskedPartialValue, MulShare};
+use gf2_128::{compute_higher_powers, mul, AddShare, MulShare};
 use thiserror::Error;
 
 pub use {receiver::GhashReceiver, sender::GhashSender};
@@ -161,7 +161,7 @@ mod tests {
 
         // Do another OT because we have higher powers of `H` to compute
         let choices = receiver.choices();
-        let chosen_inputs = ot_mock_batch(sharing.0, choices.unwrap().0);
+        let chosen_inputs = ot_mock_batch(sharing.sender_mul_sharing, choices.unwrap().0);
 
         let receiver = receiver.into_add_powers(Some(chosen_inputs));
 
@@ -171,7 +171,7 @@ mod tests {
         );
     }
 
-    fn ot_mock(envelope: MaskedPartialValue, choice: u128) -> [u128; 128] {
+    fn ot_mock(envelope: ([u128; 128], [u128; 128]), choice: u128) -> [u128; 128] {
         let mut out = [0_u128; 128];
         for (k, number) in out.iter_mut().enumerate() {
             let bit = (choice >> k) & 1;
@@ -180,7 +180,10 @@ mod tests {
         out
     }
 
-    fn ot_mock_batch(envelopes: Vec<MaskedPartialValue>, choices: Vec<u128>) -> Vec<[u128; 128]> {
+    fn ot_mock_batch(
+        envelopes: Vec<([u128; 128], [u128; 128])>,
+        choices: Vec<u128>,
+    ) -> Vec<[u128; 128]> {
         let mut ot_batch_outcome: Vec<[u128; 128]> = vec![];
 
         for (k, envelope) in envelopes.iter().enumerate() {
@@ -225,7 +228,7 @@ mod tests {
         let (sender, sharing) = sender.compute_mul_powers();
         let choices = receiver.choices();
 
-        let chosen_inputs = ot_mock(*sharing.0, choices.0);
+        let chosen_inputs = ot_mock(sharing.sender_add_sharing, choices.0);
         let receiver = receiver.compute_mul_powers(chosen_inputs);
         (sender, receiver)
     }
@@ -237,7 +240,7 @@ mod tests {
         let (sender, sharing) = sender.into_add_powers();
         let choices = receiver.choices();
 
-        let chosen_inputs = ot_mock_batch(sharing.0, choices.unwrap().0);
+        let chosen_inputs = ot_mock_batch(sharing.sender_mul_sharing, choices.unwrap().0);
         let receiver = receiver.into_add_powers(Some(chosen_inputs));
         (sender, receiver)
     }
