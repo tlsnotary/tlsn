@@ -9,25 +9,25 @@ use super::{
 pub struct GhashSender<T = Init> {
     /// Inner state
     state: T,
-    /// The ciphertext for which a 2PC MAC should be constructed
-    ciphertext: Vec<u128>,
+    /// This determines how many powers of the hashkey we will compute.
+    highest_hashkey_power: usize,
 }
 
 impl GhashSender {
     /// Create a new `GhashSender`
     ///
     /// * `hashkey` - This is an additive sharing of `H`, which is the AES-encrypted 0 block
-    /// * `ciphertext` - The AES-encrypted 128-bit blocks
-    pub fn new(hashkey: u128, ciphertext: Vec<u128>) -> Result<Self, GhashError> {
-        if ciphertext.is_empty() {
-            return Err(GhashError::NoCipherText);
+    /// * `highest_hashkey_power` - Determines the highest power of the hashkey to be computed
+    pub fn new(hashkey: u128, highest_hashkey_power: usize) -> Result<Self, GhashError> {
+        if highest_hashkey_power == 0 {
+            return Err(GhashError::ZeroHashkeyPower);
         }
 
         let sender = Self {
             state: Init {
                 add_share: AddShare::new(hashkey),
             },
-            ciphertext,
+            highest_hashkey_power,
         };
         Ok(sender)
     }
@@ -40,7 +40,7 @@ impl GhashSender {
         let (mul_share, sharing) = self.state.add_share.to_multiplicative();
         let mut hashkey_powers = vec![mul_share.inner()];
 
-        compute_missing_mul_shares(&mut hashkey_powers, self.ciphertext.len());
+        compute_missing_mul_shares(&mut hashkey_powers, self.highest_hashkey_power);
         let hashkey_powers = hashkey_powers.into_iter().map(MulShare::new).collect();
         (
             GhashSender {
@@ -48,7 +48,7 @@ impl GhashSender {
                     odd_mul_shares: hashkey_powers,
                     cached_add_shares: vec![],
                 },
-                ciphertext: self.ciphertext,
+                highest_hashkey_power: self.highest_hashkey_power,
             },
             SenderAddSharing {
                 sender_add_sharing: sharing.inner(),
@@ -87,7 +87,7 @@ impl GhashSender<Intermediate> {
                     add_shares: self.state.cached_add_shares,
                     odd_mul_shares: self.state.odd_mul_shares,
                 },
-                ciphertext: self.ciphertext,
+                highest_hashkey_power: self.highest_hashkey_power,
             },
             SenderMulSharings {
                 sender_mul_sharing: mul_power_sharings,
@@ -99,26 +99,27 @@ impl GhashSender<Intermediate> {
 impl GhashSender<Finalized> {
     /// Generate the final MAC
     ///
-    /// Computes the 2PC additive share of the MAC of `self.ciphertext`
-    pub fn generate_mac(&self) -> u128 {
-        let offset = self.state.add_shares.len() - self.ciphertext.len();
-        self.ciphertext
+    /// Computes the 2PC additive share of the MAC of `ciphertext`
+    pub fn generate_mac(&self, ciphertext: &[u128]) -> Result<u128, GhashError> {
+        if ciphertext.len() > self.highest_hashkey_power {
+            return Err(GhashError::InvalidCiphertextLength);
+        }
+        let offset = self.state.add_shares.len() - ciphertext.len();
+        Ok(ciphertext
             .iter()
             .zip(self.state.add_shares.iter().rev().skip(offset))
-            .fold(0, |acc, (block, share)| acc ^ mul(*block, share.inner()))
+            .fold(0, |acc, (block, share)| acc ^ mul(*block, share.inner())))
     }
 
-    /// Change the ciphertext
+    /// Change the maximum hashkey power
     ///
-    /// This allows to reuse the hashkeys for computing a MAC for a different ciphertext. If the
-    /// new ciphertext is longer than the old one, we need to compute the missing powers of `H`
-    /// using batched OTs, so in this case we also get new sharings for the receiver.
-    pub fn change_ciphertext(
-        mut self,
-        new_ciphertext: Vec<u128>,
+    /// If we want to create a MAC for a new ciphertext, which is longer than the old one, we need
+    /// to compute the missing powers of `H`, using batched OTs.
+    pub fn change_max_hashkey(
+        self,
+        new_highest_hashkey_power: usize,
     ) -> (GhashSender<Finalized>, Option<SenderMulSharings>) {
-        if new_ciphertext.len() <= self.ciphertext.len() {
-            self.ciphertext = new_ciphertext;
+        if new_highest_hashkey_power <= self.highest_hashkey_power {
             return (self, None);
         }
 
@@ -128,14 +129,14 @@ impl GhashSender<Finalized> {
             .iter()
             .map(MulShare::inner)
             .collect();
-        compute_missing_mul_shares(&mut hashkey_powers, new_ciphertext.len());
+        compute_missing_mul_shares(&mut hashkey_powers, new_highest_hashkey_power);
 
         let sender = GhashSender {
             state: Intermediate {
                 odd_mul_shares: hashkey_powers.iter().map(|x| MulShare::new(*x)).collect(),
                 cached_add_shares: self.state.add_shares,
             },
-            ciphertext: new_ciphertext,
+            highest_hashkey_power: new_highest_hashkey_power,
         };
 
         let (sender, sharings) = sender.into_add_powers();
