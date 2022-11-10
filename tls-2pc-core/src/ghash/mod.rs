@@ -29,13 +29,13 @@ pub struct Init {
 
 #[derive(Clone, Debug)]
 pub struct Intermediate {
-    mul_shares: Vec<MulShare>,
+    odd_mul_shares: Vec<MulShare>,
     cached_add_shares: Vec<AddShare>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Finalized {
-    mul_shares: Vec<MulShare>,
+    odd_mul_shares: Vec<MulShare>,
     add_shares: Vec<AddShare>,
 }
 
@@ -47,19 +47,19 @@ pub enum GhashError {
 
 /// Computes missing powers of multiplication shares of the hashkey
 ///
-/// Checks if depending on the number of add_shares or ciphertext blocks
-/// we need more multiplicative sharings and computes them.
+/// Checks if depending on the number of `needed` shares,
+/// we need more multiplicative shares and computes them.
 ///
 /// * `shares` - multiplicative shares already present
 /// * `needed` - how many powers we need including odd and even
 fn compute_missing_mul_shares(shares: &mut Vec<u128>, needed: usize) {
     let needed_odd_powers: usize = needed / 2 + (needed & 1);
     let present_odd_powers = shares.len();
-    let difference = needed_odd_powers - present_odd_powers;
+    let difference = needed_odd_powers as i32 - present_odd_powers as i32;
 
     if difference > 0 {
         let h_squared = mul(shares[0], shares[0]);
-        compute_product_repeated(shares, h_squared, difference);
+        compute_product_repeated(shares, h_squared, difference as usize);
     }
 }
 
@@ -73,23 +73,23 @@ fn compute_missing_mul_shares(shares: &mut Vec<u128>, needed: usize) {
 ///                          multiplicative shares
 /// * `add_shares`         - all powers of additive shares (even and odd) we need for the MAC
 fn compute_new_add_shares(new_add_odd_shares: &[AddShare], add_shares: &mut Vec<AddShare>) {
-    for (odd_share, current_power) in new_add_odd_shares.iter().zip(add_shares.len()..) {
-        if current_power & 1 == 1 {
-            // if the next required share is odd, we just add it
-            add_shares.push(*odd_share)
-        } else {
-            // else we compute `H^n` from `H^(n/2)`
-            let mut base_share = add_shares[current_power >> 1].inner();
-            base_share = mul(base_share, base_share);
-            add_shares.push(AddShare::new(base_share));
-        }
+    for (odd_share, current_power) in new_add_odd_shares
+        .iter()
+        .zip((add_shares.len()..).step_by(2))
+    {
+        // add_shares always has an even number of shares so we simply add the next odd share
+        add_shares.push(*odd_share);
+
+        // now we need to compute the next even share and add it
+        let mut base_share = add_shares[current_power >> 1].inner();
+        base_share = mul(base_share, base_share);
+        add_shares.push(AddShare::new(base_share));
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use ghash_rc::universal_hash::NewUniversalHash;
-    use ghash_rc::universal_hash::UniversalHash;
+    use ghash_rc::universal_hash::{NewUniversalHash, UniversalHash};
     use ghash_rc::GHash;
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
@@ -102,18 +102,34 @@ mod tests {
 
         // The MAC key
         let h: u128 = rng.gen();
-        let ciphertext = gen_ciphertext();
+        let ciphertext = gen_u128_vec();
+        let ciphertext_len = ciphertext.len();
+        let number_of_powers_needed: usize = ciphertext_len / 2 + (ciphertext_len & 1);
 
         let (sender, receiver) = setup_ghash_to_intermediate_state(h, ciphertext);
 
-        // Product check
+        let mut powers_h = vec![h];
+        compute_product_repeated(&mut powers_h, mul(h, h), number_of_powers_needed);
+
+        // Length check
+        assert_eq!(sender.state().odd_mul_shares.len(), number_of_powers_needed);
         assert_eq!(
-            mul(
-                sender.state().mul_shares[0].inner(),
-                receiver.state().mul_shares[0].inner()
-            ),
-            h
+            receiver.state().odd_mul_shares.len(),
+            number_of_powers_needed
         );
+
+        // Product check
+        for (k, (sender_share, receiver_share)) in std::iter::zip(
+            sender.state().odd_mul_shares.iter(),
+            receiver.state().odd_mul_shares.iter(),
+        )
+        .enumerate()
+        {
+            assert_eq!(
+                mul(sender_share.inner(), receiver_share.inner()),
+                powers_h[k]
+            );
+        }
     }
 
     #[test]
@@ -122,20 +138,32 @@ mod tests {
 
         // The MAC key
         let h: u128 = rng.gen();
-        let ciphertext = gen_ciphertext();
+        let ciphertext = gen_u128_vec();
+        let ciphertext_len = ciphertext.len();
 
         let (sender, receiver) = setup_ghash_to_intermediate_state(h, ciphertext);
         let (sender, receiver) = ghash_to_finalized(sender, receiver);
 
-        // Sum check for the first 2 powers `H` and `H^2`
+        let mut powers_h = vec![h];
+        compute_product_repeated(&mut powers_h, h, ciphertext_len);
+
+        // Length check
         assert_eq!(
-            sender.state().add_shares[0].inner() ^ receiver.state().add_shares[0].inner(),
-            h
+            sender.state().add_shares.len(),
+            ciphertext_len + (ciphertext_len & 1)
         );
         assert_eq!(
-            sender.state().add_shares[1].inner() ^ receiver.state().add_shares[1].inner(),
-            mul(h, h)
+            receiver.state().add_shares.len(),
+            ciphertext_len + (ciphertext_len & 1)
         );
+
+        // Sum check
+        for k in 0..ciphertext_len {
+            assert_eq!(
+                sender.state().add_shares[k].inner() ^ receiver.state().add_shares[k].inner(),
+                powers_h[k]
+            );
+        }
     }
 
     #[test]
@@ -144,7 +172,7 @@ mod tests {
 
         // The MAC key
         let h: u128 = rng.gen();
-        let ciphertext = gen_ciphertext();
+        let ciphertext = gen_u128_vec();
 
         let (sender, receiver) = setup_ghash_to_intermediate_state(h, ciphertext.clone());
         let (sender, receiver) = ghash_to_finalized(sender, receiver);
@@ -161,7 +189,7 @@ mod tests {
 
         // The MAC key
         let h: u128 = rng.gen();
-        let ciphertext = gen_ciphertext();
+        let ciphertext = gen_u128_vec();
 
         let (sender, receiver) = setup_ghash_to_intermediate_state(h, ciphertext.clone());
         let (sender, receiver) = ghash_to_finalized(sender, receiver);
@@ -187,7 +215,7 @@ mod tests {
 
         // The MAC key
         let h: u128 = rng.gen();
-        let ciphertext = gen_ciphertext();
+        let ciphertext = gen_u128_vec();
 
         let (sender, receiver) = setup_ghash_to_intermediate_state(h, ciphertext.clone());
         let (sender, receiver) = ghash_to_finalized(sender, receiver);
@@ -212,6 +240,81 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_compute_missing_mul_shares() {
+        let mut rng = ChaCha12Rng::from_entropy();
+        let h: u128 = rng.gen();
+        let mut powers: Vec<u128> = vec![h];
+        compute_product_repeated(&mut powers, mul(h, h), rng.gen_range(16..128));
+
+        let powers_len = powers.len();
+        let needed = rng.gen_range(1..256);
+
+        compute_missing_mul_shares(&mut powers, needed);
+
+        // Check length
+        if needed / 2 + (needed & 1) <= powers_len {
+            assert_eq!(powers.len(), powers_len);
+        } else {
+            assert_eq!(powers.len(), needed / 2 + (needed & 1))
+        }
+
+        // Check shares
+        let first = *powers.first().unwrap();
+        let factor = mul(first, first);
+
+        let mut expected = first;
+        for share in powers.iter() {
+            assert_eq!(*share, expected);
+            expected = mul(expected, factor);
+        }
+    }
+
+    #[test]
+    fn test_compute_new_add_shares() {
+        let mut rng = ChaCha12Rng::from_entropy();
+
+        let new_add_odd_shares: Vec<AddShare> = gen_u128_vec()
+            .iter_mut()
+            .map(|x| AddShare::new(*x))
+            .collect();
+        let mut add_shares: Vec<AddShare> = gen_u128_vec()
+            .iter_mut()
+            .map(|x| AddShare::new(*x))
+            .collect();
+
+        // We have the invariant that len of add_shares is always even
+        if add_shares.len() & 1 == 1 {
+            add_shares.push(AddShare::new(rng.gen()));
+        }
+
+        let original_len = add_shares.len();
+
+        compute_new_add_shares(&new_add_odd_shares, &mut add_shares);
+
+        // Check new length
+        assert_eq!(
+            add_shares.len(),
+            original_len + 2 * new_add_odd_shares.len()
+        );
+
+        // Check odd shares
+        for (k, l) in (original_len..add_shares.len())
+            .step_by(2)
+            .zip(0..original_len)
+        {
+            assert_eq!(add_shares[k].inner(), new_add_odd_shares[l].inner());
+        }
+
+        // Check even shares
+        for k in (original_len + 1..add_shares.len()).step_by(2) {
+            assert_eq!(
+                add_shares[k].inner(),
+                mul(add_shares[k / 2].inner(), add_shares[k / 2].inner())
+            );
+        }
+    }
+
     fn ot_mock(envelope: ([u128; 128], [u128; 128]), choice: u128) -> [u128; 128] {
         let mut out = [0_u128; 128];
         for (k, number) in out.iter_mut().enumerate() {
@@ -234,7 +337,7 @@ mod tests {
         ot_batch_outcome
     }
 
-    fn gen_ciphertext() -> Vec<u128> {
+    fn gen_u128_vec() -> Vec<u128> {
         let mut rng = ChaCha12Rng::from_entropy();
 
         // Sample some ciphertext
