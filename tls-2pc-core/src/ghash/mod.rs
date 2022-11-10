@@ -41,8 +41,10 @@ pub struct Finalized {
 
 #[derive(Debug, Error)]
 pub enum GhashError {
-    #[error("Unable to compute MAC for empty ciphertext")]
-    NoCipherText,
+    #[error("Invalid maximum hashkey power")]
+    ZeroHashkeyPower,
+    #[error("Ciphertext too long")]
+    InvalidCiphertextLength,
 }
 
 /// Computes missing powers of multiplication shares of the hashkey
@@ -106,7 +108,7 @@ mod tests {
         let ciphertext_len = ciphertext.len();
         let number_of_powers_needed: usize = ciphertext_len / 2 + (ciphertext_len & 1);
 
-        let (sender, receiver) = setup_ghash_to_intermediate_state(h, ciphertext);
+        let (sender, receiver) = setup_ghash_to_intermediate_state(h, ciphertext_len);
 
         let mut powers_h = vec![h];
         compute_product_repeated(&mut powers_h, mul(h, h), number_of_powers_needed);
@@ -141,7 +143,7 @@ mod tests {
         let ciphertext = gen_u128_vec();
         let ciphertext_len = ciphertext.len();
 
-        let (sender, receiver) = setup_ghash_to_intermediate_state(h, ciphertext);
+        let (sender, receiver) = setup_ghash_to_intermediate_state(h, ciphertext_len);
         let (sender, receiver) = ghash_to_finalized(sender, receiver);
 
         let mut powers_h = vec![h];
@@ -174,11 +176,11 @@ mod tests {
         let h: u128 = rng.gen();
         let ciphertext = gen_u128_vec();
 
-        let (sender, receiver) = setup_ghash_to_intermediate_state(h, ciphertext.clone());
+        let (sender, receiver) = setup_ghash_to_intermediate_state(h, ciphertext.len());
         let (sender, receiver) = ghash_to_finalized(sender, receiver);
 
         assert_eq!(
-            sender.generate_mac() ^ receiver.generate_mac(),
+            sender.generate_mac(&ciphertext).unwrap() ^ receiver.generate_mac(&ciphertext).unwrap(),
             ghash_reference_impl(h, ciphertext)
         );
     }
@@ -191,20 +193,21 @@ mod tests {
         let h: u128 = rng.gen();
         let ciphertext = gen_u128_vec();
 
-        let (sender, receiver) = setup_ghash_to_intermediate_state(h, ciphertext.clone());
+        let (sender, receiver) = setup_ghash_to_intermediate_state(h, ciphertext.len());
         let (sender, receiver) = ghash_to_finalized(sender, receiver);
 
         let mut ciphertext_short: Vec<u128> = vec![0; ciphertext.len() / 2];
         ciphertext_short.iter_mut().for_each(|x| *x = rng.gen());
 
-        let (sender, None) = sender.change_ciphertext(ciphertext_short.clone()) else {
+        let (sender, None) = sender.change_max_hashkey(ciphertext_short.len()) else {
             panic!("Expected None, but got Some(...)");
         };
-        let receiver = receiver.change_ciphertext(ciphertext_short.clone());
+        let receiver = receiver.change_max_hashkey(ciphertext_short.len());
         let receiver = receiver.into_add_powers(None);
 
         assert_eq!(
-            sender.generate_mac() ^ receiver.generate_mac(),
+            sender.generate_mac(&ciphertext_short).unwrap()
+                ^ receiver.generate_mac(&ciphertext_short).unwrap(),
             ghash_reference_impl(h, ciphertext_short)
         );
     }
@@ -217,16 +220,16 @@ mod tests {
         let h: u128 = rng.gen();
         let ciphertext = gen_u128_vec();
 
-        let (sender, receiver) = setup_ghash_to_intermediate_state(h, ciphertext.clone());
+        let (sender, receiver) = setup_ghash_to_intermediate_state(h, ciphertext.len());
         let (sender, receiver) = ghash_to_finalized(sender, receiver);
 
         let mut ciphertext_long: Vec<u128> = vec![0; 2 * ciphertext.len()];
         ciphertext_long.iter_mut().for_each(|x| *x = rng.gen());
 
-        let (sender, Some(sharing)) = sender.change_ciphertext(ciphertext_long.clone()) else {
+        let (sender, Some(sharing)) = sender.change_max_hashkey(ciphertext_long.len()) else {
             panic!("Expected Some(...), but got None");
         };
-        let receiver = receiver.change_ciphertext(ciphertext_long.clone());
+        let receiver = receiver.change_max_hashkey(ciphertext_long.len());
 
         // Do another OT because we have higher powers of `H` to compute
         let choices = receiver.choices();
@@ -235,7 +238,8 @@ mod tests {
         let receiver = receiver.into_add_powers(Some(chosen_inputs));
 
         assert_eq!(
-            sender.generate_mac() ^ receiver.generate_mac(),
+            sender.generate_mac(&ciphertext_long).unwrap()
+                ^ receiver.generate_mac(&ciphertext_long).unwrap(),
             ghash_reference_impl(h, ciphertext_long)
         );
     }
@@ -358,7 +362,7 @@ mod tests {
 
     fn setup_ghash_to_intermediate_state(
         hashkey: u128,
-        ciphertext: Vec<u128>,
+        max_hashkey_power: usize,
     ) -> (GhashSender<Intermediate>, GhashReceiver<Intermediate>) {
         let mut rng = ChaCha12Rng::from_entropy();
 
@@ -366,8 +370,8 @@ mod tests {
         let h1: u128 = rng.gen();
         let h2: u128 = hashkey ^ h1;
 
-        let sender = GhashSender::new(h1, ciphertext.clone()).unwrap();
-        let receiver = GhashReceiver::new(h2, ciphertext).unwrap();
+        let sender = GhashSender::new(h1, max_hashkey_power).unwrap();
+        let receiver = GhashReceiver::new(h2, max_hashkey_power).unwrap();
 
         let (sender, sharing) = sender.compute_mul_powers();
         let choices = receiver.choices();
