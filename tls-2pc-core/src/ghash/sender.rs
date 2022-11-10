@@ -45,7 +45,7 @@ impl GhashSender {
         (
             GhashSender {
                 state: Intermediate {
-                    mul_shares: hashkey_powers,
+                    odd_mul_shares: hashkey_powers,
                     cached_add_shares: vec![],
                 },
                 ciphertext: self.ciphertext,
@@ -70,7 +70,7 @@ impl GhashSender<Intermediate> {
             self.state.cached_add_shares.len() / 2 + (self.state.cached_add_shares.len() & 1);
 
         let mut mul_power_sharings: Vec<([u128; 128], [u128; 128])> = vec![];
-        let additive_odd_shares: Vec<AddShare> = self.state.mul_shares[offset..]
+        let additive_odd_shares: Vec<AddShare> = self.state.odd_mul_shares[offset..]
             .iter()
             .map(|share| {
                 let (add_share, sharing) = share.to_additive();
@@ -85,7 +85,7 @@ impl GhashSender<Intermediate> {
             GhashSender {
                 state: Finalized {
                     add_shares: self.state.cached_add_shares,
-                    mul_shares: self.state.mul_shares,
+                    odd_mul_shares: self.state.odd_mul_shares,
                 },
                 ciphertext: self.ciphertext,
             },
@@ -114,21 +114,25 @@ impl GhashSender<Finalized> {
     /// new ciphertext is longer than the old one, we need to compute the missing powers of `H`
     /// using batched OTs, so in this case we also get new sharings for the receiver.
     pub fn change_ciphertext(
-        self,
+        mut self,
         new_ciphertext: Vec<u128>,
     ) -> (GhashSender<Finalized>, Option<SenderMulSharings>) {
-        let number_mul_shares_before = self.state.mul_shares.len();
-
-        let mut hashkey_powers = self.state.mul_shares.iter().map(MulShare::inner).collect();
-        compute_missing_mul_shares(&mut hashkey_powers, self.state.add_shares.len());
-
-        if number_mul_shares_before == hashkey_powers.len() {
+        if new_ciphertext.len() <= self.ciphertext.len() {
+            self.ciphertext = new_ciphertext;
             return (self, None);
         }
 
+        let mut hashkey_powers = self
+            .state
+            .odd_mul_shares
+            .iter()
+            .map(MulShare::inner)
+            .collect();
+        compute_missing_mul_shares(&mut hashkey_powers, new_ciphertext.len());
+
         let sender = GhashSender {
             state: Intermediate {
-                mul_shares: hashkey_powers.iter().map(|x| MulShare::new(*x)).collect(),
+                odd_mul_shares: hashkey_powers.iter().map(|x| MulShare::new(*x)).collect(),
                 cached_add_shares: self.state.add_shares,
             },
             ciphertext: new_ciphertext,

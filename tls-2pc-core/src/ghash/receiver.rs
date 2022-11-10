@@ -54,7 +54,7 @@ impl GhashReceiver {
 
         GhashReceiver {
             state: Intermediate {
-                mul_shares: hashkey_powers,
+                odd_mul_shares: hashkey_powers,
                 cached_add_shares: vec![],
             },
             ciphertext: self.ciphertext,
@@ -71,14 +71,13 @@ impl GhashReceiver<Intermediate> {
         // If we already have some cached additive sharings, we do not need to do an OT for them.
         // So we compute an offset to ignore them. We divide by 2 because `cached_add_shares`
         // contain even and odd powers, while mul_shares only have odd powers.
-        let offset =
-            self.state.cached_add_shares.len() / 2 + (self.state.cached_add_shares.len() & 1);
-        if offset == self.state.mul_shares.len() {
+        let offset = self.state.cached_add_shares.len() / 2;
+        if offset == self.state.odd_mul_shares.len() {
             return None;
         }
 
         Some(ReceiverMulPowerChoices(
-            self.state.mul_shares[offset..]
+            self.state.odd_mul_shares[offset..]
                 .iter()
                 .map(|x| x.inner())
                 .collect(),
@@ -107,7 +106,7 @@ impl GhashReceiver<Intermediate> {
         GhashReceiver {
             state: Finalized {
                 add_shares: self.state.cached_add_shares,
-                mul_shares: self.state.mul_shares,
+                odd_mul_shares: self.state.odd_mul_shares,
             },
             ciphertext: self.ciphertext,
         }
@@ -130,12 +129,27 @@ impl GhashReceiver<Finalized> {
     ///
     /// This allows to reuse the hashkeys for computing a MAC for a different ciphertext
     pub fn change_ciphertext(self, new_ciphertext: Vec<u128>) -> GhashReceiver<Intermediate> {
-        let mut hashkey_powers = self.state.mul_shares.iter().map(MulShare::inner).collect();
-        compute_missing_mul_shares(&mut hashkey_powers, self.state.add_shares.len());
+        if new_ciphertext.len() <= self.ciphertext.len() {
+            return GhashReceiver {
+                state: Intermediate {
+                    odd_mul_shares: self.state.odd_mul_shares,
+                    cached_add_shares: self.state.add_shares,
+                },
+                ciphertext: new_ciphertext,
+            };
+        }
+
+        let mut hashkey_powers = self
+            .state
+            .odd_mul_shares
+            .iter()
+            .map(MulShare::inner)
+            .collect();
+        compute_missing_mul_shares(&mut hashkey_powers, new_ciphertext.len());
 
         GhashReceiver {
             state: Intermediate {
-                mul_shares: hashkey_powers.iter().map(|x| MulShare::new(*x)).collect(),
+                odd_mul_shares: hashkey_powers.iter().map(|x| MulShare::new(*x)).collect(),
                 cached_add_shares: self.state.add_shares,
             },
             ciphertext: new_ciphertext,
