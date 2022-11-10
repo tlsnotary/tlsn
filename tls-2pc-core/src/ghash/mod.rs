@@ -50,7 +50,7 @@ pub enum GhashError {
 /// Checks if depending on the number of add_shares or ciphertext blocks
 /// we need more multiplicative sharings and computes them.
 ///
-/// * `shares` - mul_shares already present
+/// * `shares` - multiplicative shares already present
 /// * `needed` - how many powers we need including odd and even
 fn compute_missing_mul_shares(shares: &mut Vec<u128>, needed: usize) {
     let needed_odd_powers: usize = needed / 2 + (needed & 1);
@@ -63,8 +63,27 @@ fn compute_missing_mul_shares(shares: &mut Vec<u128>, needed: usize) {
     }
 }
 
-fn compute_new_add_shares(new_add_odd_shares: &[AddShare], add_shares: &mut [AddShare]) {
-    todo!()
+/// Computes new additive shares from odd additive shares
+///
+/// This function implements the logic required for free squaring. Every additive share, which is
+/// an even power of `H` can be computed without an OT interaction by using `H^(n/2)` for building
+/// `H^n`.
+///
+/// * `new_add_odd_shares` - odd additive shares we get as a result from doing an OT on odd
+///                          multiplicative shares
+/// * `add_shares`         - all powers of additive shares (even and odd) we need for the MAC
+fn compute_new_add_shares(new_add_odd_shares: &[AddShare], add_shares: &mut Vec<AddShare>) {
+    for (odd_share, current_power) in new_add_odd_shares.iter().zip(add_shares.len()..) {
+        if current_power & 1 == 1 {
+            // if the next required share is odd, we just add it
+            add_shares.push(*odd_share)
+        } else {
+            // else we compute `H^n` from `H^(n/2)`
+            let mut base_share = add_shares[current_power >> 1].inner();
+            base_share = mul(base_share, base_share);
+            add_shares.push(AddShare::new(base_share));
+        }
+    }
 }
 
 #[cfg(test)]
