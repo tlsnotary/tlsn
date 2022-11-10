@@ -1,10 +1,10 @@
-use rand::{CryptoRng, Rng};
+use rand::{thread_rng, CryptoRng, Rng};
 use std::{collections::HashSet, ops::Deref};
 
 use crate::{
     block::Block,
     garble::{Error, InputError},
-    utils::pick,
+    utils::{pick, sha256},
 };
 use mpc_circuits::{Circuit, Input, InputValue, Output, OutputValue};
 
@@ -336,16 +336,22 @@ impl SanitizedInputLabels {
 #[derive(Debug, Clone)]
 pub struct OutputLabels<T> {
     pub output: Output,
+    /// Depending on the context, `labels` is a vector of either
+    /// - the garbler's **pairs** of output labels or
+    /// - the evaluator's active output labels
     labels: Vec<T>,
 }
 
 impl<T: Copy> OutputLabels<T> {
-    pub(crate) fn new(output: Output, labels: &[T]) -> Self {
-        debug_assert_eq!(output.as_ref().len(), labels.len());
-        Self {
+    pub fn new(output: Output, labels: &[T]) -> Result<Self, Error> {
+        if output.as_ref().len() != labels.len() {
+            return Err(Error::InvalidOutputLabels);
+        }
+
+        Ok(Self {
             output,
             labels: labels.to_vec(),
-        }
+        })
     }
 
     pub fn id(&self) -> usize {
@@ -357,6 +363,11 @@ impl OutputLabels<WireLabelPair> {
     /// Returns output labels encoding
     pub(crate) fn encode(&self) -> OutputLabelsEncoding {
         OutputLabelsEncoding::from_labels(self)
+    }
+
+    /// Returns commitments for output labels
+    pub(crate) fn commit(&self) -> OutputLabelsCommitment {
+        OutputLabelsCommitment::new(self)
     }
 
     /// Returns output wire labels corresponding to an [`OutputValue`]
@@ -375,6 +386,19 @@ impl OutputLabels<WireLabelPair> {
             output: self.output.clone(),
             labels,
         })
+    }
+
+    /// Validates whether the provided output labels are authentic according to
+    /// a full set of labels.
+    pub fn validate(&self, labels: &OutputLabels<WireLabel>) -> Result<(), Error> {
+        for (pair, label) in self.labels.iter().zip(&labels.labels) {
+            if label.value == *pair.low() || label.value == *pair.high() {
+                continue;
+            } else {
+                return Err(Error::InvalidOutputLabels);
+            }
+        }
+        Ok(())
     }
 }
 
@@ -461,6 +485,86 @@ impl OutputLabelsEncoding {
 impl AsRef<[LabelEncoding]> for OutputLabelsEncoding {
     fn as_ref(&self) -> &[LabelEncoding] {
         &self.encoding
+    }
+}
+
+/// Commitments to the output labels of a garbled circuit.
+///
+/// In some configurations the Generator may send hash commitments to the output labels
+/// which the Evaluator can use to detect some types of malicious garbling.
+#[derive(Debug, Clone)]
+pub struct OutputLabelsCommitment {
+    pub(crate) output: Output,
+    pub(crate) commitments: Vec<[Block; 2]>,
+}
+
+impl OutputLabelsCommitment {
+    /// Creates new commitments to output labels
+    pub(crate) fn new(output_labels: &OutputLabels<WireLabelPair>) -> Self {
+        // randomly shuffle the two labels inside each pair in order to prevent
+        // the evaluator from decoding their active output labels
+        let mut flip = vec![false; output_labels.labels.len()];
+        thread_rng().fill::<[bool]>(&mut flip);
+
+        let output_id = output_labels.id();
+        let commitments = output_labels
+            .labels
+            .iter()
+            .zip(&flip)
+            .enumerate()
+            .map(|(i, (pair, flip))| {
+                let low = Self::compute_hash(*pair.low(), output_id, i);
+                let high = Self::compute_hash(*pair.high(), output_id, i);
+                if *flip {
+                    [low, high]
+                } else {
+                    [high, low]
+                }
+            })
+            .collect();
+
+        Self {
+            output: output_labels.output.clone(),
+            commitments,
+        }
+    }
+
+    /// We use a truncated SHA256 hash with a public salt to commit to the labels
+    /// H(w || output_id || idx)
+    fn compute_hash(block: Block, output_id: usize, idx: usize) -> Block {
+        let mut m = [0u8; 32];
+        m[..16].copy_from_slice(&block.to_be_bytes());
+        m[16..24].copy_from_slice(&(output_id as u64).to_be_bytes());
+        m[24..].copy_from_slice(&(idx as u64).to_be_bytes());
+        let h = sha256(&m);
+        let mut commitment = [0u8; 16];
+        commitment.copy_from_slice(&h[..16]);
+        commitment.into()
+    }
+
+    /// Validates wire labels against commitments
+    ///
+    /// If this function returns an error the generator may be malicious
+    pub(crate) fn validate(&self, output_labels: &OutputLabels<WireLabel>) -> Result<(), Error> {
+        if self.commitments.len() != output_labels.labels.len() {
+            return Err(Error::InvalidOutputLabelCommitment);
+        }
+        let output_id = output_labels.id();
+        let valid = self
+            .commitments
+            .iter()
+            .zip(&output_labels.labels)
+            .enumerate()
+            .all(|(i, (pair, label))| {
+                let h = Self::compute_hash(label.value, output_id, i);
+                h == pair[0] || h == pair[1]
+            });
+
+        if valid {
+            Ok(())
+        } else {
+            Err(Error::InvalidOutputLabelCommitment)
+        }
     }
 }
 
@@ -609,5 +713,50 @@ mod tests {
             SanitizedInputLabels::new(&circ, &gen_labels, &ev_labels),
             Err(Error::InvalidInput(InputError::InvalidWireCount(_, _)))
         ));
+    }
+
+    #[rstest]
+    fn test_output_label_validation(circ: Circuit) {
+        let circ_out = circ.output(0).unwrap();
+        let (labels, _) = WireLabelPair::generate(&mut thread_rng(), None, 64, 0);
+        let output_labels_full = OutputLabels::new(circ_out.clone(), &labels).unwrap();
+
+        let mut output_labels = output_labels_full
+            .select(&circ_out.to_value(1u64).unwrap())
+            .unwrap();
+
+        output_labels_full
+            .validate(&output_labels)
+            .expect("output labels should be valid");
+
+        // insert bogus label
+        output_labels.labels[0].value = Block::new(0);
+
+        let error = output_labels_full.validate(&output_labels).unwrap_err();
+
+        assert!(matches!(error, Error::InvalidOutputLabels));
+    }
+
+    #[rstest]
+    fn test_output_label_commitment_validation(circ: Circuit) {
+        let circ_out = circ.output(0).unwrap();
+        let (labels, _) = WireLabelPair::generate(&mut thread_rng(), None, 64, 0);
+        let output_labels_full = OutputLabels::new(circ_out.clone(), &labels).unwrap();
+        let mut commitments = OutputLabelsCommitment::new(&output_labels_full);
+
+        let output_labels = output_labels_full
+            .select(&circ_out.to_value(1u64).unwrap())
+            .unwrap();
+
+        commitments
+            .validate(&output_labels)
+            .expect("commitments should be valid");
+
+        // insert bogus commitments
+        commitments.commitments[0] = [Block::new(0), Block::new(1)];
+
+        let error = commitments.validate(&output_labels).unwrap_err();
+
+        assert!(matches!(error, Error::InvalidOutputLabelCommitment));
     }
 }

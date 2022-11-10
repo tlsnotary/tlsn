@@ -93,7 +93,8 @@ impl AsRef<Group> for Input {
     }
 }
 
-/// Group of wires corresponding to a circuit output
+/// Group of wires corresponding to one circuit output (a circuit may have
+/// multiple outputs)
 #[derive(Debug, Clone, PartialEq)]
 pub struct Output {
     /// Output id of circuit

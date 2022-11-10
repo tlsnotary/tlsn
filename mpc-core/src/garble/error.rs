@@ -6,6 +6,8 @@ pub enum Error {
     InvalidInput(InputError),
     #[error("Invalid label encoding")]
     InvalidLabelEncoding,
+    #[error("Invalid output label commitment")]
+    InvalidOutputLabelCommitment,
     #[error("Invalid input labels")]
     InvalidInputLabels,
     #[error("Invalid output labels")]

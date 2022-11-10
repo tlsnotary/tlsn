@@ -12,7 +12,7 @@ use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use mpc_circuits::{Circuit, InputValue};
 use mpc_core::garble::{
-    exec::dual as core, Delta, Evaluated, GarbledCircuit, InputLabels, WireLabelPair,
+    exec::dual as core, Delta, Evaluated, GarbledCircuit, InputLabels, Partial, WireLabelPair,
 };
 use utils_aio::expect_msg_or_err;
 
@@ -99,7 +99,7 @@ where
             GCError::Unexpected
         )?;
 
-        let gc_ev = GarbledCircuit::from_msg(circ, msg)?;
+        let gc_ev = GarbledCircuit::<Partial>::from_msg(circ, msg)?;
         let labels_ev = self.label_receiver.receive_labels(inputs.to_vec()).await?;
 
         let evaluated_gc = self.evaluator.evaluate(gc_ev, &labels_ev).await?;
@@ -210,7 +210,7 @@ where
             GarbleMessage::GarbledCircuit,
             GCError::Unexpected
         )?;
-        let gc_ev = GarbledCircuit::from_msg(circ, msg)?;
+        let gc_ev = GarbledCircuit::<Partial>::from_msg(circ, msg)?;
         let labels_ev = self.label_receiver.receive_labels(inputs.to_vec()).await?;
 
         let evaluated_gc = self.evaluator.evaluate(gc_ev, &labels_ev).await?;

@@ -5,7 +5,7 @@ pub mod exec;
 mod generator;
 pub(crate) mod label;
 
-pub use circuit::{Evaluated, Full, GarbledCircuit, Partial};
+pub use circuit::{Evaluated, Full, GarbledCircuit, Output, Partial};
 pub use error::{Error, InputError};
 pub use label::{Delta, InputLabels, OutputLabels, WireLabel, WireLabelPair};
 
@@ -128,7 +128,7 @@ mod tests {
 
         let gc = GarbledCircuit::generate(&cipher, circ.clone(), delta, &input_labels).unwrap();
 
-        let gc = gc.to_evaluator(&[gen_input.clone()], true);
+        let gc = gc.to_evaluator(&[gen_input.clone()], true, false);
 
         // Evaluator typically receives these using OT
         let ev_input_labels = input_labels[1].select(&ev_input).unwrap();

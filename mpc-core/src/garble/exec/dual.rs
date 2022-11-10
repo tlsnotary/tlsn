@@ -105,7 +105,7 @@ impl DualExLeader<Generator> {
         let gc = GarbledCircuit::generate(&cipher, self.state.circ.clone(), delta, input_labels)?;
 
         Ok((
-            gc.to_evaluator(inputs, true),
+            gc.to_evaluator(inputs, true, false),
             DualExLeader {
                 state: Evaluator {
                     gc,
@@ -122,7 +122,7 @@ impl DualExLeader<Generator> {
         gc: GarbledCircuit<Full>,
     ) -> Result<(GarbledCircuit<Partial>, DualExLeader<Evaluator>), Error> {
         Ok((
-            gc.to_evaluator(inputs, true),
+            gc.to_evaluator(inputs, true, false),
             DualExLeader {
                 state: Evaluator {
                     gc,
@@ -145,7 +145,7 @@ impl DualExFollower<Generator> {
         let gc = GarbledCircuit::generate(&cipher, self.state.circ.clone(), delta, input_labels)?;
 
         Ok((
-            gc.to_evaluator(inputs, true),
+            gc.to_evaluator(inputs, true, false),
             DualExFollower {
                 state: Evaluator {
                     gc,
@@ -162,7 +162,7 @@ impl DualExFollower<Generator> {
         gc: GarbledCircuit<Full>,
     ) -> Result<(GarbledCircuit<Partial>, DualExFollower<Evaluator>), Error> {
         Ok((
-            gc.to_evaluator(inputs, true),
+            gc.to_evaluator(inputs, true, false),
             DualExFollower {
                 state: Evaluator {
                     gc,
