@@ -107,7 +107,7 @@ mod tests {
         let (follower_msg, follower) = follower.next(outer_hash_state, leader_msg);
 
         // H((pms xor opad) || H((pms xor ipad) || seed))
-        let a1 = follower_msg.a1.clone();
+        let a1 = follower_msg.a1;
         assert_eq!(
             &a1,
             &hmac_sha256(&pms, &seed_ms(&client_random, &server_random))
@@ -117,7 +117,7 @@ mod tests {
         let (follower_msg, follower) = follower.next(leader_msg);
 
         // H((pms xor opad) || H((pms xor ipad) || a1))
-        let a2 = follower_msg.a2.clone();
+        let a2 = follower_msg.a2;
         assert_eq!(&a2, &hmac_sha256(&pms, &a1));
 
         let (leader_msg, leader) = leader.next(follower_msg);
@@ -160,7 +160,7 @@ mod tests {
         let (follower_msg, follower) = follower.next(outer_hash_state).next(leader_msg);
 
         // H((ms xor opad) || H((ms xor ipad) || seed))
-        let a1 = follower_msg.a1.clone();
+        let a1 = follower_msg.a1;
         assert_eq!(
             &a1,
             &hmac_sha256(&ms, &seed_ke(&client_random, &server_random))
@@ -170,7 +170,7 @@ mod tests {
         let (follower_msg, follower) = follower.next(leader_msg);
 
         // H((ms xor opad) || H((ms xor ipad) || a1))
-        let a2 = follower_msg.a2.clone();
+        let a2 = follower_msg.a2;
         assert_eq!(&a2, &hmac_sha256(&ms, &a1));
 
         let leader = leader.next(follower_msg);
@@ -189,14 +189,14 @@ mod tests {
         let (follower_msg, follower) = follower.next(leader_msg);
 
         // H((ms xor opad) || H((ms xor ipad) || seed))
-        let a1 = follower_msg.a1.clone();
+        let a1 = follower_msg.a1;
         assert_eq!(&a1, &hmac_sha256(&ms, &seed_cf(&handshake_blob)));
 
         let (leader_msg, leader) = leader.next(follower_msg);
         let (follower_msg, follower) = follower.next(leader_msg);
 
         // H((ms xor opad) || H((ms xor ipad) || a1 || seed))
-        let vd = follower_msg.verify_data.clone();
+        let vd = follower_msg.verify_data;
         // a1 || seed
         let mut a1_seed = [0u8; 79];
         a1_seed[..32].copy_from_slice(&a1);
@@ -209,7 +209,7 @@ mod tests {
         let (follower_msg, follower) = follower.next(leader_msg);
 
         // H((ms xor opad) || H((ms xor ipad) || seed))
-        let a1 = follower_msg.a1.clone();
+        let a1 = follower_msg.a1;
         assert_eq!(&a1, &hmac_sha256(&ms, &seed_sf(&handshake_blob)));
 
         let (leader_msg, leader) = leader.next(follower_msg);
@@ -241,8 +241,8 @@ mod tests {
             "ede91cf0898c0ac272f1035fe20a8d24d90a6d3bf8be815b4a144cb270e3b8c8e00f2af71471ced8";
         let reference_cfvd = "dc9906a43d25742bc6a479c2";
         let reference_sfvd = "d9f56d1223dea4832a7d8295";
-        assert_eq!(hex::encode(&ek), reference_ek);
-        assert_eq!(hex::encode(&cfvd), reference_cfvd);
-        assert_eq!(hex::encode(&sfvd), reference_sfvd);
+        assert_eq!(hex::encode(ek), reference_ek);
+        assert_eq!(hex::encode(cfvd), reference_cfvd);
+        assert_eq!(hex::encode(sfvd), reference_sfvd);
     }
 }

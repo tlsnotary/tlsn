@@ -95,6 +95,12 @@ impl PRFFollower<Ms1> {
     }
 }
 
+impl Default for PRFFollower<Ms1> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PRFFollower<Ms2> {
     /// Computes a2
     /// ```text
