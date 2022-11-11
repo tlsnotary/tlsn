@@ -11,6 +11,7 @@ use mpc_core::garble::{
 
 use crate::protocol::garble::{Evaluator, GCError, Generator};
 
+/// Garbler backend using Rayon to garble and evaluate circuits asynchronously and in parallel
 pub struct RayonGarbler;
 
 #[async_trait]
