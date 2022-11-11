@@ -16,38 +16,28 @@ use mpc_core::garble::{
 };
 use utils_aio::expect_msg_or_err;
 
-pub struct DualExLeader<G, E, S, R>
+pub struct DualExLeader<T, S, R>
 where
-    G: Generator,
-    E: Evaluator,
+    T: Generator + Evaluator,
     S: WireLabelOTSend,
     R: WireLabelOTReceive,
 {
     channel: GarbleChannel,
-    generator: G,
-    evaluator: E,
+    garbler: T,
     label_sender: S,
     label_receiver: R,
 }
 
-impl<G, E, S, R> DualExLeader<G, E, S, R>
+impl<T, S, R> DualExLeader<T, S, R>
 where
-    G: Generator + Send,
-    E: Evaluator + Send,
+    T: Generator + Evaluator + Send,
     S: WireLabelOTSend + Send,
     R: WireLabelOTReceive + Send,
 {
-    pub fn new(
-        channel: GarbleChannel,
-        generator: G,
-        evaluator: E,
-        label_sender: S,
-        label_receiver: R,
-    ) -> Self {
+    pub fn new(channel: GarbleChannel, garbler: T, label_sender: S, label_receiver: R) -> Self {
         Self {
             channel,
-            generator,
-            evaluator,
+            garbler,
             label_sender,
             label_receiver,
         }
@@ -55,10 +45,9 @@ where
 }
 
 #[async_trait]
-impl<G, E, S, R> ExecuteWithLabels for DualExLeader<G, E, S, R>
+impl<T, S, R> ExecuteWithLabels for DualExLeader<T, S, R>
 where
-    G: Generator + Send,
-    E: Evaluator + Send,
+    T: Generator + Evaluator + Send,
     S: WireLabelOTSend + Send,
     R: WireLabelOTReceive + Send,
 {
@@ -71,8 +60,8 @@ where
     ) -> Result<GarbledCircuit<Evaluated>, GCError> {
         let leader = core::DualExLeader::new(circ.clone());
         let full_gc = self
-            .generator
-            .generate(circ.clone(), delta, input_labels)
+            .garbler
+            .generate(circ.clone(), delta, input_labels.to_vec())
             .await?;
 
         let (partial_gc, leader) = leader.from_full_circuit(inputs, full_gc)?;
@@ -102,7 +91,7 @@ where
         let gc_ev = GarbledCircuit::<Partial>::from_msg(circ, msg)?;
         let labels_ev = self.label_receiver.receive_labels(inputs.to_vec()).await?;
 
-        let evaluated_gc = self.evaluator.evaluate(gc_ev, &labels_ev).await?;
+        let evaluated_gc = self.garbler.evaluate(gc_ev, labels_ev).await?;
         let leader = leader.from_evaluated_circuit(evaluated_gc)?;
         let (commit, leader) = leader.commit();
 
@@ -128,38 +117,28 @@ where
     }
 }
 
-pub struct DualExFollower<G, E, S, R>
+pub struct DualExFollower<T, S, R>
 where
-    G: Generator,
-    E: Evaluator,
+    T: Generator + Evaluator,
     S: WireLabelOTSend,
     R: WireLabelOTReceive,
 {
     channel: GarbleChannel,
-    generator: G,
-    evaluator: E,
+    garbler: T,
     label_sender: S,
     label_receiver: R,
 }
 
-impl<G, E, S, R> DualExFollower<G, E, S, R>
+impl<G, S, R> DualExFollower<G, S, R>
 where
-    G: Generator + Send,
-    E: Evaluator + Send,
+    G: Generator + Evaluator + Send,
     S: WireLabelOTSend + Send,
     R: WireLabelOTReceive + Send,
 {
-    pub fn new(
-        channel: GarbleChannel,
-        generator: G,
-        evaluator: E,
-        label_sender: S,
-        label_receiver: R,
-    ) -> Self {
+    pub fn new(channel: GarbleChannel, garbler: G, label_sender: S, label_receiver: R) -> Self {
         Self {
             channel,
-            generator,
-            evaluator,
+            garbler,
             label_sender,
             label_receiver,
         }
@@ -167,10 +146,9 @@ where
 }
 
 #[async_trait]
-impl<G, E, S, R> ExecuteWithLabels for DualExFollower<G, E, S, R>
+impl<T, S, R> ExecuteWithLabels for DualExFollower<T, S, R>
 where
-    G: Generator + Send,
-    E: Evaluator + Send,
+    T: Generator + Evaluator + Send,
     S: WireLabelOTSend + Send,
     R: WireLabelOTReceive + Send,
 {
@@ -183,8 +161,8 @@ where
     ) -> Result<GarbledCircuit<Evaluated>, GCError> {
         let follower = core::DualExFollower::new(circ.clone());
         let full_gc = self
-            .generator
-            .generate(circ.clone(), delta, input_labels)
+            .garbler
+            .generate(circ.clone(), delta, input_labels.to_vec())
             .await?;
 
         let (partial_gc, follower) = follower.from_full_circuit(inputs, full_gc)?;
@@ -213,7 +191,7 @@ where
         let gc_ev = GarbledCircuit::<Partial>::from_msg(circ, msg)?;
         let labels_ev = self.label_receiver.receive_labels(inputs.to_vec()).await?;
 
-        let evaluated_gc = self.evaluator.evaluate(gc_ev, &labels_ev).await?;
+        let evaluated_gc = self.garbler.evaluate(gc_ev, labels_ev).await?;
         let follower = follower.from_evaluated_circuit(evaluated_gc)?;
 
         let msg = expect_msg_or_err!(
@@ -243,10 +221,7 @@ where
 #[cfg(feature = "mock")]
 mod mock {
     use super::*;
-    use crate::protocol::{
-        garble::mock::{MockEvaluator, MockGenerator},
-        ot::mock::mock_ot_pair,
-    };
+    use crate::protocol::{garble::mock::MockGarbler, ot::mock::mock_ot_pair};
     use utils_aio::duplex::DuplexChannel;
 
     pub fn mock_dualex_pair() -> (impl ExecuteWithLabels, impl ExecuteWithLabels) {
@@ -256,15 +231,13 @@ mod mock {
 
         let leader = DualExLeader::new(
             Box::new(leader_channel),
-            MockGenerator,
-            MockEvaluator,
+            MockGarbler,
             leader_sender,
             leader_receiver,
         );
         let follower = DualExFollower::new(
             Box::new(follower_channel),
-            MockGenerator,
-            MockEvaluator,
+            MockGarbler,
             follower_sender,
             follower_receiver,
         );

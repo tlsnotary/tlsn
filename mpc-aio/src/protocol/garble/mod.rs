@@ -28,6 +28,8 @@ pub enum GCError {
     LabelOTError(#[from] label::WireLabelError),
     #[error("Received unexpected message: {0:?}")]
     Unexpected(GarbleMessage),
+    #[error("garbler error")]
+    GarblerError(String),
 }
 
 #[async_trait]
@@ -37,7 +39,7 @@ pub trait Generator {
         &mut self,
         circ: Arc<Circuit>,
         delta: Delta,
-        input_labels: &[InputLabels<WireLabelPair>],
+        input_labels: Vec<InputLabels<WireLabelPair>>,
     ) -> Result<GarbledCircuit<Full>, GCError>;
 }
 
@@ -47,7 +49,7 @@ pub trait Evaluator {
     async fn evaluate(
         &mut self,
         circ: GarbledCircuit<Partial>,
-        input_labels: &[InputLabels<WireLabel>],
+        input_labels: Vec<InputLabels<WireLabel>>,
     ) -> Result<GarbledCircuit<Evaluated>, GCError>;
 }
 
@@ -84,36 +86,35 @@ mod mock {
     use super::*;
     use aes::{Aes128, NewBlockCipher};
 
-    pub struct MockGenerator;
-    pub struct MockEvaluator;
+    pub struct MockGarbler;
 
     #[async_trait]
-    impl Generator for MockGenerator {
+    impl Generator for MockGarbler {
         async fn generate(
             &mut self,
             circ: Arc<Circuit>,
             delta: Delta,
-            input_labels: &[InputLabels<WireLabelPair>],
+            input_labels: Vec<InputLabels<WireLabelPair>>,
         ) -> Result<GarbledCircuit<Full>, GCError> {
             let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
             Ok(GarbledCircuit::generate(
                 &cipher,
                 circ,
                 delta,
-                input_labels,
+                &input_labels,
             )?)
         }
     }
 
     #[async_trait]
-    impl Evaluator for MockEvaluator {
+    impl Evaluator for MockGarbler {
         async fn evaluate(
             &mut self,
             circ: GarbledCircuit<Partial>,
-            input_labels: &[InputLabels<WireLabel>],
+            input_labels: Vec<InputLabels<WireLabel>>,
         ) -> Result<GarbledCircuit<Evaluated>, GCError> {
             let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
-            Ok(circ.evaluate(&cipher, input_labels)?)
+            Ok(circ.evaluate(&cipher, &input_labels)?)
         }
     }
 }
