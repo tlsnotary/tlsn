@@ -9,7 +9,7 @@ name = "utils_aio"
 [features]
 default = []
 codec = []
-muxer = []
+mux = []
 duplex = []
 
 [dependencies]
@@ -31,5 +31,5 @@ tokio = { workspace = true, features = [
     "rt",
     "rt-multi-thread",
     "io-util",
-    "time"
+    "time",
 ] }
