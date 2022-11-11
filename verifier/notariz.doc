@@ -31,7 +31,7 @@ Notarization document:
                 - type of commitment: u8 (e.g. poseidon, mimc, ...)
                 - commitment: [u8; size]
                 - absolute position of decoded labels from authdecode 
-                    (known to the Notary)
+                    (known both to the User and to the Notary)
 
     Additional data appended by the User to the signed data:
         (The following 3 fields will be serialized like in the TLS handshake)
@@ -65,16 +65,17 @@ Notarization document:
 Verifier steps:
     - check Notary's signature on signed data
     - check TLS certificate chain against local root certs
+    - check the commitment (1) to misc TLS data
+    - check that ephem. EC pubkey + randoms were signed by the leaf cert
     - check that the common name from the leaf certificate matches the "Host" header
         of the request (prevent domain fronting attack)
-    - check that ephem. EC pubkey + randoms were signed by the leaf cert
-    - expand the seed
+    - expand the seed into labels
     - select active labels for public data in ranges, add salt, check commitment (2)
     - verify zk proofs about private data against commitment (3)
     - treat all data which is neither public nor private as redacted data (i.e hidden)
     - sanity checks:
-        private and public data must not overlap
-        there must be no duplicate commitments to the same data
+        private and public data must not overlap (should we allow this?)
+        there must be no duplicate commitments to the same data (should we allow this?)
         etc.
 
 ------------------------------------------------
