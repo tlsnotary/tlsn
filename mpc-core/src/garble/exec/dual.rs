@@ -1,6 +1,11 @@
-//! An implementation of "Dual Execution" mode which provides authenticity
-//! but may leak all private inputs of the [`DualExFollower`] if the [`DualExLeader`] is malicious. Either party,
-//! if malicious, can learn n bits of the other's input with 1/2^n probability of it going undetected.
+//! An implementation of "Dual Execution" mode which provides authenticity but allows a malicious
+//! party to learn n bits of the other party's input with 1/2^n probability of it going undetected.
+//!
+//! Important! Because currently we do not implement a maliciously secure equality check,
+//! all private inputs of the [`DualExFollower`] may be leaked if the [`DualExLeader`] is
+//! malicious. Such leakage, however, will be detected by the [`DualExFollower`] during the
+//! equality check.
+
 use super::{OutputCheck, OutputCommit};
 use crate::garble::{
     circuit::{Evaluated, Full, GarbledCircuit, Partial},
