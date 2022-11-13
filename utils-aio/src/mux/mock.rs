@@ -41,8 +41,8 @@ pub struct MockMuxer {
     client_channel_ids: HashSet<String>,
     server_channel_ids: HashSet<String>,
     control_receiver: mpsc::Receiver<Event>,
-    buffer: HashMap<String, Box<dyn Any + Send>>,
-    waiting: HashMap<String, oneshot::Sender<Result<Box<dyn Any + Send>, MuxerError>>>,
+    client_buffer: HashMap<String, Box<dyn Any + Send>>,
+    server_buffer: HashMap<String, oneshot::Sender<Result<Box<dyn Any + Send>, MuxerError>>>,
 }
 
 #[derive(Clone)]
@@ -125,8 +125,8 @@ impl MockMuxer {
                 control_receiver,
                 client_channel_ids: HashSet::default(),
                 server_channel_ids: HashSet::default(),
-                buffer: HashMap::default(),
-                waiting: HashMap::default(),
+                client_buffer: HashMap::default(),
+                server_buffer: HashMap::default(),
             },
             MockControl {
                 _mode: PhantomData,
@@ -152,12 +152,12 @@ impl MockMuxer {
                     // Insert id into set to avoid duplicates
                     self.client_channel_ids.insert(id.clone());
 
-                    if let Some(server_sender) = self.waiting.remove(&id) {
+                    if let Some(server_sender) = self.server_buffer.remove(&id) {
                         // Send to server control if it's already waiting
                         _ = server_sender.send(Ok(channel));
                     } else {
                         // Insert channel into buffer
-                        self.buffer.insert(id, channel);
+                        self.client_buffer.insert(id, channel);
                     }
 
                     _ = sender.send(Ok(()));
@@ -172,12 +172,12 @@ impl MockMuxer {
                     // Insert id into set to avoid duplicates
                     self.server_channel_ids.insert(id.clone());
 
-                    if let Some(channel) = self.buffer.remove(&id) {
+                    if let Some(channel) = self.client_buffer.remove(&id) {
                         // Return channel if it's already in the buffer
                         _ = sender.send(Ok(channel))
                     } else {
                         // Otherwise put the oneshot into waiting
-                        self.waiting.insert(id, sender);
+                        self.server_buffer.insert(id, sender);
                     }
                 }
                 None => {
