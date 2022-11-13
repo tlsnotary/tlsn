@@ -341,9 +341,9 @@ mod tests {
 
     fn ot_mock(envelope: [Block; 2], choice: bool) -> Block {
         if choice {
-            envelope[0]
-        } else {
             envelope[1]
+        } else {
+            envelope[0]
         }
     }
 
