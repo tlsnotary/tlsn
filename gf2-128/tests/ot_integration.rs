@@ -1,4 +1,4 @@
-use gf2_128::{mul, AddShare, MaskedPartialValue, MulShare};
+use gf2_128::{mul, AddShare, MulShare};
 use mpc_aio::protocol::ot::kos::receiver::Kos15IOReceiver;
 use mpc_aio::protocol::ot::kos::sender::Kos15IOSender;
 use mpc_aio::protocol::ot::{ObliviousReceive, ObliviousSend};
@@ -17,11 +17,11 @@ async fn test_m2a_ot() {
     // Prepare multiplicative shares and encoding
     let a: MulShare = MulShare::new(rng.gen());
     let b: MulShare = MulShare::new(rng.gen());
-    let (x, MaskedPartialValue(t0, t1)) = a.to_additive();
+    let (x, sharings) = a.to_additive();
 
     // Prepare inputs/outputs for OT
     let choices = u128_to_bool(b.inner());
-    let blocks = interleave_to_blocks((t0, t1));
+    let blocks = interleave_to_blocks(sharings);
 
     //Send via KOS OT
     let (channel, channel_2) = DuplexChannel::<OTMessage>::new();
@@ -48,7 +48,7 @@ async fn test_m2a_ot() {
         .collect::<Vec<u128>>()
         .try_into()
         .unwrap();
-    let y = AddShare::from_choice(output);
+    let y = AddShare::from_choice(&output);
 
     assert_eq!(mul(a.inner(), b.inner()), x.inner() ^ y.inner());
 }
@@ -60,11 +60,11 @@ async fn test_a2m_ot() {
     // Prepare additive shares and encoding
     let x: AddShare = AddShare::new(rng.gen());
     let y: AddShare = AddShare::new(rng.gen());
-    let (a, MaskedPartialValue(t0, t1)) = x.to_multiplicative();
+    let (a, sharings) = x.to_multiplicative();
 
     // Prepare inputs/outputs for OT
     let choices = u128_to_bool(y.inner());
-    let blocks = interleave_to_blocks((t0, t1));
+    let blocks = interleave_to_blocks(sharings);
 
     //Send via KOS OT
     let (channel, channel_2) = DuplexChannel::<OTMessage>::new();
@@ -91,7 +91,7 @@ async fn test_a2m_ot() {
         .collect::<Vec<u128>>()
         .try_into()
         .unwrap();
-    let b = MulShare::from_choice(output);
+    let b = MulShare::from_choice(&output);
 
     assert_eq!(x.inner() ^ y.inner(), mul(a.inner(), b.inner()));
 }

@@ -14,25 +14,38 @@
 
 mod receiver;
 mod sender;
-use crate::msgs::ghash::{
-    ReceiverAddChoice, ReceiverMulPowerChoices, SenderAddSharing, SenderMulSharings,
-};
+mod types;
 use gf2_128::{compute_product_repeated, mul, AddShare, MulShare};
 use thiserror::Error;
+pub use types::{
+    ReceiverAddChoice, ReceiverAddShares, ReceiverMulChoices, ReceiverMulShare, SenderAddSharing,
+    SenderMulSharing,
+};
 
 pub use {receiver::GhashReceiver, sender::GhashSender};
 
 #[derive(Clone, Debug)]
+/// Init state for Ghash protocol
+///
+/// This is before any OT has taken place
 pub struct Init {
     add_share: AddShare,
 }
 
 #[derive(Clone, Debug)]
+/// Intermediate state for Ghash protocol
+///
+/// This is when the additive share has been converted into a multiplicative share and all the
+/// needed powers have been computed
 pub struct Intermediate {
     odd_mul_shares: Vec<MulShare>,
     cached_add_shares: Vec<AddShare>,
 }
 
+/// Final state for Ghash protocol
+///
+/// This is when each party has can compute a final share of the MAC, because both now have
+/// additive shares of all the powers of `H`
 #[derive(Clone, Debug)]
 pub struct Finalized {
     odd_mul_shares: Vec<MulShare>,
@@ -49,8 +62,9 @@ pub enum GhashError {
 
 /// Computes missing powers of multiplication shares of the hashkey
 ///
-/// Checks if depending on the number of `needed` shares,
-/// we need more multiplicative shares and computes them.
+/// Checks if depending on the number of `needed` shares, we need more multiplicative shares and
+/// computes them. Notice that we need only odd multiplicative shares for the OT, because we can
+/// reconstruct even additive shares from odd additive shares, which we call free squaring.
 ///
 /// * `shares` - multiplicative shares already present
 /// * `needed` - how many powers we need including odd and even
@@ -65,11 +79,11 @@ fn compute_missing_mul_shares(shares: &mut Vec<u128>, needed: usize) {
     }
 }
 
-/// Computes new additive shares from odd additive shares
+/// Computes new even additive shares from odd additive shares
 ///
-/// This function implements the logic required for free squaring. Every additive share, which is
-/// an even power of `H` can be computed without an OT interaction by using `H^(n/2)` for building
-/// `H^n`.
+/// This function implements the derivation of the even additive shares from odd additive shares,
+/// which we refer to as free squaring. Every additive share, which is an even power of
+/// `H` can be computed without an OT interaction by using `H^(n/2)` for building `H^n`.
 ///
 /// * `new_add_odd_shares` - odd additive shares we get as a result from doing an OT on odd
 ///                          multiplicative shares
@@ -93,8 +107,11 @@ fn compute_new_add_shares(new_add_odd_shares: &[AddShare], add_shares: &mut Vec<
 mod tests {
     use ghash_rc::universal_hash::{NewUniversalHash, UniversalHash};
     use ghash_rc::GHash;
+    use mpc_core::Block;
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
+
+    use crate::msgs::ghash::{SenderAddEnvelope, SenderMulEnvelope};
 
     use super::*;
 
@@ -232,10 +249,13 @@ mod tests {
         let receiver = receiver.change_max_hashkey(ciphertext_long.len());
 
         // Do another OT because we have higher powers of `H` to compute
-        let choices = receiver.choices();
-        let chosen_inputs = ot_mock_batch(sharing.sender_mul_sharing, choices.unwrap().0);
+        let choices = receiver.choices().unwrap();
 
-        let receiver = receiver.into_add_powers(Some(chosen_inputs));
+        let sender_mul_envelope: SenderMulEnvelope = sharing.into();
+        let bool_choices: Vec<bool> = choices.into();
+
+        let chosen_inputs = ot_mock_batch(sender_mul_envelope.sender_mul_envelope, &bool_choices);
+        let receiver = receiver.into_add_powers(Some(chosen_inputs.into()));
 
         assert_eq!(
             sender.generate_mac(&ciphertext_long).unwrap()
@@ -319,26 +339,21 @@ mod tests {
         }
     }
 
-    fn ot_mock(envelope: ([u128; 128], [u128; 128]), choice: u128) -> [u128; 128] {
-        let mut out = [0_u128; 128];
-        for (k, number) in out.iter_mut().enumerate() {
-            let bit = (choice >> k) & 1;
-            *number = (bit * envelope.1[k]) ^ ((bit ^ 1) * envelope.0[k]);
+    fn ot_mock(envelope: [Block; 2], choice: bool) -> Block {
+        if choice {
+            envelope[0]
+        } else {
+            envelope[1]
         }
-        out
     }
 
-    fn ot_mock_batch(
-        envelopes: Vec<([u128; 128], [u128; 128])>,
-        choices: Vec<u128>,
-    ) -> Vec<[u128; 128]> {
-        let mut ot_batch_outcome: Vec<[u128; 128]> = vec![];
+    fn ot_mock_batch(envelopes: Vec<[Block; 2]>, choices: &[bool]) -> Vec<Block> {
+        let mut out: Vec<Block> = vec![];
 
-        for (k, envelope) in envelopes.iter().enumerate() {
-            let out = ot_mock(*envelope, choices[k]);
-            ot_batch_outcome.push(out);
+        for (envelope, choice) in envelopes.into_iter().zip(choices.iter()) {
+            out.push(ot_mock(envelope, *choice));
         }
-        ot_batch_outcome
+        out
     }
 
     fn gen_u128_vec() -> Vec<u128> {
@@ -376,8 +391,11 @@ mod tests {
         let (sender, sharing) = sender.compute_mul_powers();
         let choices = receiver.choices();
 
-        let chosen_inputs = ot_mock(sharing.sender_add_sharing, choices.0);
-        let receiver = receiver.compute_mul_powers(chosen_inputs);
+        let sender_add_envelope: SenderAddEnvelope = sharing.into();
+        let bool_choices: Vec<bool> = choices.into();
+
+        let chosen_inputs = ot_mock_batch(sender_add_envelope.sender_add_envelope, &bool_choices);
+        let receiver = receiver.compute_mul_powers(chosen_inputs.into());
         (sender, receiver)
     }
 
@@ -386,10 +404,13 @@ mod tests {
         receiver: GhashReceiver<Intermediate>,
     ) -> (GhashSender<Finalized>, GhashReceiver<Finalized>) {
         let (sender, sharing) = sender.into_add_powers();
-        let choices = receiver.choices();
+        let choices = receiver.choices().unwrap();
 
-        let chosen_inputs = ot_mock_batch(sharing.sender_mul_sharing, choices.unwrap().0);
-        let receiver = receiver.into_add_powers(Some(chosen_inputs));
+        let sender_mul_envelope: SenderMulEnvelope = sharing.into();
+        let bool_choices: Vec<bool> = choices.into();
+
+        let chosen_inputs = ot_mock_batch(sender_mul_envelope.sender_mul_envelope, &bool_choices);
+        let receiver = receiver.into_add_powers(Some(chosen_inputs.into()));
         (sender, receiver)
     }
 }
