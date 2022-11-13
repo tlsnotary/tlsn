@@ -1,3 +1,5 @@
+#[cfg_attr(predicate, attr)]
+pub mod mock;
 pub mod yamux;
 
 use super::Channel;
@@ -27,16 +29,15 @@ pub trait MuxControl: Clone {
     ) -> Result<Box<dyn DuplexByteStream + Send>, MuxerError>;
 }
 
-/// This trait extends [`MuxControl`] by attaching a codec to the substream
+/// This trait is similar to [`MuxControl`] except it provides a substream
+/// with a codec attached which handles serialization.
 #[async_trait]
-pub trait MuxChannelControl: MuxControl {
-    type Message;
-
+pub trait MuxChannelControl<T>: MuxControl {
     /// Opens a new channel with the remote using the provided id
     ///
     /// Attaches a codec to the underlying substream
     async fn get_channel(
         &mut self,
         id: String,
-    ) -> Result<Box<dyn Channel<Self::Message, Error = std::io::Error>>, MuxerError>;
+    ) -> Result<Box<dyn Channel<T, Error = std::io::Error>>, MuxerError>;
 }

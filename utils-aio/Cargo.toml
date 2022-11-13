@@ -7,7 +7,7 @@ edition = "2021"
 name = "utils_aio"
 
 [features]
-default = []
+default = ["mux", "duplex"]
 codec = []
 mux = []
 duplex = []
