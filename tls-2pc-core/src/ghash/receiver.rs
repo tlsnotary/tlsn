@@ -1,6 +1,7 @@
 use super::{
     compute_missing_mul_shares, compute_new_add_shares, mul, AddShare, Finalized, GhashError, Init,
-    Intermediate, MulShare, ReceiverAddChoice, ReceiverMulPowerChoices,
+    Intermediate, MulShare, ReceiverAddChoice, ReceiverAddShares, ReceiverMulChoices,
+    ReceiverMulShare,
 };
 
 /// The receiver part for our 2PC Ghash implementation
@@ -45,8 +46,11 @@ impl GhashReceiver {
     /// Converts the additive share into multiplicative shares of powers of `H`.
     ///
     /// * `chosen_inputs` - the result of the oblivious transfer.
-    pub fn compute_mul_powers(self, chosen_inputs: [u128; 128]) -> GhashReceiver<Intermediate> {
-        let mul_share = MulShare::from_choice(chosen_inputs);
+    pub fn compute_mul_powers(
+        self,
+        chosen_inputs: ReceiverMulShare,
+    ) -> GhashReceiver<Intermediate> {
+        let mul_share = MulShare::from_choice(&chosen_inputs.0);
         let mut hashkey_powers = vec![mul_share.inner()];
 
         compute_missing_mul_shares(&mut hashkey_powers, self.highest_hashkey_power);
@@ -67,7 +71,7 @@ impl GhashReceiver<Intermediate> {
     ///
     /// The bits in the returned `ReceiverMulPowerChoices` encode the choices for
     /// the OTs
-    pub fn choices(&self) -> Option<ReceiverMulPowerChoices> {
+    pub fn choices(&self) -> Option<ReceiverMulChoices> {
         // If we already have some cached additive sharings, we do not need to do an OT for them.
         // So we compute an offset to ignore them. We divide by 2 because `cached_add_shares`
         // contain even and odd powers, while mul_shares only have odd powers.
@@ -76,7 +80,7 @@ impl GhashReceiver<Intermediate> {
             return None;
         }
 
-        Some(ReceiverMulPowerChoices(
+        Some(ReceiverMulChoices(
             self.state.odd_mul_shares[offset..]
                 .iter()
                 .map(|x| x.inner())
@@ -91,12 +95,12 @@ impl GhashReceiver<Intermediate> {
     /// * `chosen_inputs` - the results of the batched oblivious transfer.
     pub fn into_add_powers(
         mut self,
-        chosen_inputs: Option<Vec<[u128; 128]>>,
+        chosen_inputs: Option<ReceiverAddShares>,
     ) -> GhashReceiver<Finalized> {
         // If we get new input, we build the additive shares and add them to our
         // `cached_add_shares`
         let additive_odd_shares: Vec<AddShare> = if let Some(inputs) = chosen_inputs {
-            inputs.into_iter().map(AddShare::from_choice).collect()
+            inputs.0.chunks(128).map(AddShare::from_choice).collect()
         } else {
             vec![]
         };

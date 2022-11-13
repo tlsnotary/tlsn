@@ -1,6 +1,6 @@
 use super::{
     compute_missing_mul_shares, compute_new_add_shares, mul, AddShare, Finalized, GhashError, Init,
-    Intermediate, MulShare, SenderAddSharing, SenderMulSharings,
+    Intermediate, MulShare, SenderAddSharing, SenderMulSharing,
 };
 
 /// The sender part for our 2PC Ghash implementation
@@ -42,6 +42,7 @@ impl GhashSender {
 
         compute_missing_mul_shares(&mut hashkey_powers, self.highest_hashkey_power);
         let hashkey_powers = hashkey_powers.into_iter().map(MulShare::new).collect();
+
         (
             GhashSender {
                 state: Intermediate {
@@ -51,7 +52,8 @@ impl GhashSender {
                 highest_hashkey_power: self.highest_hashkey_power,
             },
             SenderAddSharing {
-                sender_add_sharing: sharing.inner(),
+                choice_zero: sharing.0,
+                choice_one: sharing.1,
             },
         )
     }
@@ -62,19 +64,21 @@ impl GhashSender<Intermediate> {
     ///
     /// Converts the multiplicative shares into additive ones; also returns
     /// `SenderMulPowerSharings`, which is needed for the receiver side
-    pub fn into_add_powers(mut self) -> (GhashSender<Finalized>, SenderMulSharings) {
+    pub fn into_add_powers(mut self) -> (GhashSender<Finalized>, SenderMulSharing) {
         // If we already have some cached additive sharings, we do not need to do an OT for them.
         // So we compute an offset to ignore them. We divide by 2 because `cached_add_shares`
         // contain even and odd powers, while mul_shares only have odd powers.
         let offset =
             self.state.cached_add_shares.len() / 2 + (self.state.cached_add_shares.len() & 1);
 
-        let mut mul_power_sharings: Vec<([u128; 128], [u128; 128])> = vec![];
+        let mut sender_mul_sharing_zero: Vec<Vec<u128>> = vec![];
+        let mut sender_mul_sharing_one: Vec<Vec<u128>> = vec![];
         let additive_odd_shares: Vec<AddShare> = self.state.odd_mul_shares[offset..]
             .iter()
             .map(|share| {
                 let (add_share, sharing) = share.to_additive();
-                mul_power_sharings.push(sharing.inner());
+                sender_mul_sharing_zero.push(sharing.0);
+                sender_mul_sharing_one.push(sharing.1);
                 add_share
             })
             .collect();
@@ -89,8 +93,9 @@ impl GhashSender<Intermediate> {
                 },
                 highest_hashkey_power: self.highest_hashkey_power,
             },
-            SenderMulSharings {
-                sender_mul_sharing: mul_power_sharings,
+            SenderMulSharing {
+                choice_zero: sender_mul_sharing_zero,
+                choice_one: sender_mul_sharing_one,
             },
         )
     }
@@ -118,7 +123,7 @@ impl GhashSender<Finalized> {
     pub fn change_max_hashkey(
         self,
         new_highest_hashkey_power: usize,
-    ) -> (GhashSender<Finalized>, Option<SenderMulSharings>) {
+    ) -> (GhashSender<Finalized>, Option<SenderMulSharing>) {
         if new_highest_hashkey_power <= self.highest_hashkey_power {
             return (self, None);
         }

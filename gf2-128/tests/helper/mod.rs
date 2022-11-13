@@ -1,3 +1,4 @@
+use gf2_128::MaskedPartialValue;
 use mpc_core::Block;
 
 pub fn u128_to_bool(a: u128) -> [bool; 128] {
@@ -8,10 +9,10 @@ pub fn u128_to_bool(a: u128) -> [bool; 128] {
     out
 }
 
-pub fn interleave_to_blocks(values: ([u128; 128], [u128; 128])) -> Vec<[Block; 2]> {
+pub fn interleave_to_blocks(values: MaskedPartialValue) -> Vec<[Block; 2]> {
     let mut out = vec![];
-    for (first, second) in values.0.into_iter().zip(values.1.into_iter()) {
-        out.push([Block::new(first), Block::new(second)]);
+    for (first, second) in values.0.iter().zip(values.1.iter()) {
+        out.push([Block::new(*first), Block::new(*second)]);
     }
     out
 }
