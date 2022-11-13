@@ -3,44 +3,21 @@ use std::{
     marker::PhantomData,
 };
 
+use super::{DuplexByteStream, MuxControl, MuxerError};
 use async_trait::async_trait;
 use futures::{
     channel::{mpsc, oneshot},
     stream_select, AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, Future, SinkExt,
     StreamExt,
 };
-use yamux;
 
-pub trait DuplexByteStream: AsyncWrite + AsyncRead {}
-
-#[derive(Debug, thiserror::Error)]
-pub enum MuxerError {
-    #[error("Connection error occurred: {0}")]
-    ConnectionError(String),
-    #[error("IO error")]
-    IOError(#[from] std::io::Error),
-    #[error("Duplicate stream id: {0:?}")]
-    DuplicateStreamId(String),
-    #[error("Encountered internal error: {0:?}")]
-    InternalError(String),
-}
+impl DuplexByteStream for yamux::Stream {}
 
 impl From<yamux::ConnectionError> for MuxerError {
     fn from(e: yamux::ConnectionError) -> Self {
         MuxerError::ConnectionError(e.to_string())
     }
 }
-
-#[async_trait]
-pub trait MuxerControl: Clone {
-    /// Opens a new substream with the remote using the provided id
-    async fn get_substream(
-        &mut self,
-        id: String,
-    ) -> Result<Box<dyn DuplexByteStream + Send>, MuxerError>;
-}
-
-impl DuplexByteStream for yamux::Stream {}
 
 pub enum Event {
     ReceivedStream(yamux::Stream),
@@ -120,7 +97,7 @@ pub struct Control {
 }
 
 #[async_trait]
-impl MuxerControl for Control {
+impl MuxControl for Control {
     async fn get_substream(
         &mut self,
         id: String,
