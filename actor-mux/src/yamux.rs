@@ -6,7 +6,10 @@ use std::{
 use async_trait::async_trait;
 
 use futures::{channel::oneshot, AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, Future};
-use utils_aio::mux::{DuplexByteStream, MuxControl, MuxerError};
+use utils_aio::{
+    duplex::DuplexByteStream,
+    mux::{MuxControl, MuxerError},
+};
 use xtra::prelude::*;
 
 pub struct OpenStream {
@@ -20,12 +23,12 @@ pub enum Mode {
     Server,
 }
 
-pub struct Config {
+pub struct YamuxConfig {
     mode: Mode,
     yamux_config: yamux::Config,
 }
 
-impl Config {
+impl YamuxConfig {
     pub fn default_client() -> Self {
         Self {
             mode: Mode::Client,
@@ -45,7 +48,7 @@ impl Config {
 /// configurable unique stream ids
 #[derive(xtra::Actor)]
 pub struct YamuxMuxer {
-    config: Config,
+    config: YamuxConfig,
     control: yamux::Control,
     stream_ids: HashSet<String>,
     stream_buffer: HashMap<String, yamux::Stream>,
@@ -59,7 +62,7 @@ impl YamuxMuxer {
     pub fn new<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         addr: Address<Self>,
         socket: T,
-        config: Config,
+        config: YamuxConfig,
     ) -> (Self, impl Future<Output = ()> + Send) {
         let mut connection = yamux::Connection::new(
             socket,
@@ -260,13 +263,13 @@ mod tests {
         let (client_actor, client_fut) = YamuxMuxer::new(
             client_addr.clone(),
             client_socket.compat(),
-            Config::default_client(),
+            YamuxConfig::default_client(),
         );
 
         let (server_actor, server_fut) = YamuxMuxer::new(
             server_addr.clone(),
             server_socket.compat(),
-            Config::default_server(),
+            YamuxConfig::default_server(),
         );
 
         tokio::spawn(client_fut);

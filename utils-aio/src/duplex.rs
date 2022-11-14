@@ -1,9 +1,14 @@
-use futures::{channel::mpsc, Sink, Stream};
+use futures::{channel::mpsc, AsyncRead, AsyncWrite, Sink, Stream};
 use std::{
     io::{Error, ErrorKind},
     pin::Pin,
 };
 
+pub trait DuplexByteStream: AsyncWrite + AsyncRead + Unpin {}
+
+impl<T> DuplexByteStream for T where T: AsyncWrite + AsyncRead + Unpin {}
+
+#[derive(Debug)]
 pub struct DuplexChannel<T> {
     sink: mpsc::Sender<T>,
     stream: mpsc::Receiver<T>,

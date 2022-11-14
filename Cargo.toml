@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "actor-yamux",
+    "actor-mux",
     "tls-core",
     "mpc-core",
     "mpc-aio",

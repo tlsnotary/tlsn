@@ -1,12 +1,6 @@
-pub mod mock;
-
 use super::Channel;
+use crate::duplex::DuplexByteStream;
 use async_trait::async_trait;
-use futures::{AsyncRead, AsyncWrite};
-
-pub trait DuplexByteStream: AsyncWrite + AsyncRead + Unpin {}
-
-impl<T> DuplexByteStream for T where T: AsyncWrite + AsyncRead + Unpin {}
 
 #[derive(Debug, thiserror::Error)]
 pub enum MuxerError {
@@ -32,7 +26,7 @@ pub trait MuxControl: Clone {
 /// This trait is similar to [`MuxControl`] except it provides a substream
 /// with a codec attached which handles serialization.
 #[async_trait]
-pub trait MuxChannelControl<T>: MuxControl {
+pub trait MuxChannelControl<T> {
     /// Opens a new channel with the remote using the provided id
     ///
     /// Attaches a codec to the underlying substream
