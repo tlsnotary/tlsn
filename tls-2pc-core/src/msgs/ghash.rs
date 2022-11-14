@@ -3,7 +3,7 @@ use mpc_core::Block;
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-/// Messages for 2PC Ghash computation
+/// Message for 2PC Ghash computation
 pub enum GhashMessage {
     SenderAddEnvelope(SenderAddEnvelope),
     SenderMulEnvelope(SenderMulEnvelope),
@@ -33,7 +33,7 @@ impl From<SenderAddSharing> for SenderAddEnvelope {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// The sender input for the batched oblivious transfer of the powers of the multiplicative share
-/// `H`
+/// of `H`
 pub struct SenderMulEnvelope {
     pub sender_mul_envelope: Vec<[Block; 2]>,
 }

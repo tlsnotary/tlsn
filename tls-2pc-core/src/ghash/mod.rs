@@ -1,15 +1,18 @@
 //! This module implements the AES-GCM's GHASH function in a secure two-party computation (2PC)
 //! setting using 1-out-of-2 Oblivious Transfer (OT). The parties start with their secret XOR
-//! shares of H (the GHASH key) and at the end each gets their XOR share of the GHASH output. The
-
+//! shares of H (the GHASH key) and at the end each gets their XOR share of the GHASH output.
+//! The method is described here: <https://tlsnotary.org/how_it_works#section4>.
 //!
 //! At first we will convert the XOR (additive) share of `H`, into a multiplicative share. This
-//! allows us to compute all the necessary powers of `H^n` locally. Then each of these
-//! multiplicative shares will be converted back into additive shares. This way, we can batch
-//! nearly all oblivious transfers and reduce the round complexity of the protocol.
+//! allows us to compute all the necessary powers of `H^n` locally. Note, that it is only required
+//! to compute the odd multiplicative powers and transfer them in an oblivious transfer (OT),
+//! because of free squaring. Then each of these multiplicative shares will be converted back into
+//! additive shares. The even additive shares can then locally be built by using the odd ones.
+//! This way, we can batch nearly all oblivious transfers and reduce the round complexity of the
+//! protocol.
 //!
-//! On the whole, we need a single additive-to-multiplicative (A2M) and `n`, which is the number of
-//! blocks of ciphertext, multiplicative-to-additive (M2A) conversions. Finally, having
+//! On the whole, we need a single additive-to-multiplicative (A2M) and `n/2`, where `n` is the
+//! number of blocks of ciphertext, multiplicative-to-additive (M2A) conversions. Finally, having
 //! additive shares of `H^n` for all needed `n`, we can compute an additive share of the MAC.
 
 mod receiver;
@@ -44,7 +47,7 @@ pub struct Intermediate {
 
 /// Final state for Ghash protocol
 ///
-/// This is when each party has can compute a final share of the MAC, because both now have
+/// This is when each party can compute a final share of the MAC, because both now have
 /// additive shares of all the powers of `H`
 #[derive(Clone, Debug)]
 pub struct Finalized {
@@ -63,7 +66,7 @@ pub enum GhashError {
 /// Computes missing powers of multiplication shares of the hashkey
 ///
 /// Checks if depending on the number of `needed` shares, we need more multiplicative shares and
-/// computes them. Notice that we need only odd multiplicative shares for the OT, because we can
+/// computes them. Notice that we only need odd multiplicative shares for the OT, because we can
 /// reconstruct even additive shares from odd additive shares, which we call free squaring.
 ///
 /// * `shares` - multiplicative shares already present
@@ -81,19 +84,19 @@ fn compute_missing_mul_shares(shares: &mut Vec<u128>, needed: usize) {
 
 /// Computes new even additive shares from odd additive shares
 ///
-/// This function implements the derivation of the even additive shares from odd additive shares,
+/// This function implements the derivation of even additive shares from odd additive shares,
 /// which we refer to as free squaring. Every additive share, which is an even power of
-/// `H` can be computed without an OT interaction by using `H^(n/2)` for building `H^n`.
+/// `H` can be computed without an OT interaction by using `H^n = (H^(n/2) ^ H^(n/2))^2`.
 ///
 /// * `new_add_odd_shares` - odd additive shares we get as a result from doing an OT on odd
 ///                          multiplicative shares
-/// * `add_shares`         - all powers of additive shares (even and odd) we need for the MAC
+/// * `add_shares`         - all powers of additive shares (even and odd) we already have
 fn compute_new_add_shares(new_add_odd_shares: &[AddShare], add_shares: &mut Vec<AddShare>) {
     for (odd_share, current_power) in new_add_odd_shares
         .iter()
         .zip((add_shares.len()..).step_by(2))
     {
-        // add_shares always has an even number of shares so we simply add the next odd share
+        // `add_shares` always have an even number of shares so we simply add the next odd share
         add_shares.push(*odd_share);
 
         // now we need to compute the next even share and add it

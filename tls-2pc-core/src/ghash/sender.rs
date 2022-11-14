@@ -32,7 +32,7 @@ impl GhashSender {
         Ok(sender)
     }
 
-    /// Transform `self` into a `GhashSender` holding multiplicative shares of powers of `H`
+    /// Transform `self` into a `GhashSender`, holding multiplicative shares of powers of `H`
     ///
     /// Converts the additive share into multiplicative shares of powers of `H`; also returns
     /// `SenderAddSharing`, which is needed for the receiver side
@@ -63,13 +63,13 @@ impl GhashSender<Intermediate> {
     /// Convert all powers of `H` into additive shares
     ///
     /// Converts the multiplicative shares into additive ones; also returns
-    /// `SenderMulPowerSharings`, which is needed for the receiver side
+    /// `SenderMulSharing`, which is needed for the receiver side
     pub fn into_add_powers(mut self) -> (GhashSender<Finalized>, SenderMulSharing) {
         // If we already have some cached additive sharings, we do not need to do an OT for them.
-        // So we compute an offset to ignore them. We divide by 2 because `cached_add_shares`
-        // contain even and odd powers, while mul_shares only have odd powers.
-        let offset =
-            self.state.cached_add_shares.len() / 2 + (self.state.cached_add_shares.len() & 1);
+        // So we compute an offset to ignore them. We divide by 2 because
+        // `self.state.cached_add_shares` contain even and odd powers, while
+        // `self.state.odd_mul_shares` only have odd powers.
+        let offset = self.state.cached_add_shares.len() / 2;
 
         let mut sender_mul_sharing_zero: Vec<Vec<u128>> = vec![];
         let mut sender_mul_sharing_one: Vec<Vec<u128>> = vec![];
