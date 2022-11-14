@@ -4,9 +4,9 @@ use super::Channel;
 use async_trait::async_trait;
 use futures::{AsyncRead, AsyncWrite};
 
-pub trait DuplexByteStream: AsyncWrite + AsyncRead {}
+pub trait DuplexByteStream: AsyncWrite + AsyncRead + Unpin {}
 
-impl<T> DuplexByteStream for T where T: AsyncWrite + AsyncRead {}
+impl<T> DuplexByteStream for T where T: AsyncWrite + AsyncRead + Unpin {}
 
 #[derive(Debug, thiserror::Error)]
 pub enum MuxerError {

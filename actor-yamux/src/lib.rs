@@ -247,6 +247,7 @@ impl Handler<ReceivedStream> for YamuxMuxer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures::AsyncReadExt;
     use tokio::io::duplex;
     use tokio_util::compat::TokioAsyncReadCompatExt;
 
@@ -285,10 +286,23 @@ mod tests {
         let mut server_control = YamuxMuxControl::new(server_addr);
 
         let stream_id = "test_id".to_string();
-        let _ = client_control
+        let mut client_stream = client_control
             .get_substream(stream_id.clone())
             .await
             .unwrap();
-        let _ = server_control.get_substream(stream_id).await.unwrap();
+        let mut server_stream = server_control.get_substream(stream_id).await.unwrap();
+
+        let msg = "test message".as_bytes();
+
+        client_stream.write_all(msg).await.unwrap();
+        server_stream.write_all(msg).await.unwrap();
+
+        let mut received = vec![0u8; msg.len()];
+
+        client_stream.read_exact(&mut received).await.unwrap();
+        assert_eq!(received, msg);
+
+        server_stream.read_exact(&mut received).await.unwrap();
+        assert_eq!(received, msg);
     }
 }
