@@ -32,12 +32,12 @@ pub fn new_mock_mux() -> (
     MockControl<Server>,
     impl Future<Output = Result<(), MuxerError>>,
 ) {
-    let (mux, client, server) = MockMuxer::new();
+    let (mux, client, server) = MockChannelMuxer::new();
 
     (client, server, mux.run())
 }
 
-pub struct MockMuxer {
+pub struct MockChannelMuxer {
     client_channel_ids: HashSet<String>,
     server_channel_ids: HashSet<String>,
     control_receiver: mpsc::Receiver<Event>,
@@ -115,7 +115,7 @@ impl<T: Send + 'static> MuxChannelControl<T> for MockControl<Server> {
     }
 }
 
-impl MockMuxer {
+impl MockChannelMuxer {
     pub fn new() -> (Self, MockControl<Client>, MockControl<Server>) {
         let (control_client_sender, control_receiver) = mpsc::channel(MAX_COMMAND_BACKLOG);
         let control_server_sender = control_client_sender.clone();

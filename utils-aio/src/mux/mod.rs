@@ -1,12 +1,12 @@
-#[cfg_attr(predicate, attr)]
 pub mod mock;
-pub mod yamux;
 
 use super::Channel;
 use async_trait::async_trait;
 use futures::{AsyncRead, AsyncWrite};
 
 pub trait DuplexByteStream: AsyncWrite + AsyncRead {}
+
+impl<T> DuplexByteStream for T where T: AsyncWrite + AsyncRead {}
 
 #[derive(Debug, thiserror::Error)]
 pub enum MuxerError {

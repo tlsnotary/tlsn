@@ -1,0 +1,27 @@
+[package]
+name = "actor-yamux"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tlsn-utils-aio = { path = "../utils-aio" }
+async-trait = { workspace = true }
+futures = { workspace = true }
+tokio = { workspace = true, features = ["time"] }
+xtra = { workspace = true, features = [
+    "macros",
+    "tokio",
+    "sink",
+], default-features = false }
+yamux = "0.10"
+
+[dev-dependencies]
+tokio-util = { workspace = true, features = ["compat"] }
+tokio = { workspace = true, features = [
+    "macros",
+    "io-util",
+    "rt",
+    "rt-multi-thread",
+] }

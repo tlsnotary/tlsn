@@ -21,7 +21,6 @@ async-tungstenite.workspace = true
 futures.workspace = true
 futures-util.workspace = true
 async-trait.workspace = true
-yamux.workspace = true
 thiserror.workspace = true
 async-std.workspace = true
 
