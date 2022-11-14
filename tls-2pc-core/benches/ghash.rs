@@ -43,7 +43,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                     ot_mock_batch(sender_mul_envelope.sender_mul_envelope, &bool_choices);
                 let receiver = receiver.into_add_powers(Some(chosen_inputs.into()));
 
-                let _h_reconstructed = sender.generate_mac(&ciphertext).unwrap()
+                let _mac = sender.generate_mac(&ciphertext).unwrap()
                     ^ receiver.generate_mac(&ciphertext).unwrap();
             });
         });
