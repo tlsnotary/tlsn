@@ -3,7 +3,7 @@ use mpc_core::Block;
 #[derive(Debug, Clone)]
 /// The sharing for the additive share of the sender
 ///
-/// Each struct field holds a single choice
+/// Each struct field corresponds to the choices of the receiver
 pub struct SenderAddSharing {
     pub choice_zero: Vec<u128>,
     pub choice_one: Vec<u128>,
@@ -11,7 +11,8 @@ pub struct SenderAddSharing {
 
 /// The sharing for the multiplicative shares of the sender
 ///
-/// Each struct field holds n choices
+/// Each struct field corresponds to the choices of the receiver. Note that we use this to send
+/// several multiplicative shares in one go.
 #[derive(Debug, Clone)]
 pub struct SenderMulSharing {
     pub choice_zero: Vec<Vec<u128>>,
@@ -49,7 +50,7 @@ impl From<ReceiverMulChoices> for Vec<bool> {
 }
 
 #[derive(Debug, Clone)]
-/// The receiver's sharings as an result from the OT, needed to construct a multiplicative share
+/// The receiver's sharings as an output from the OT, needed to construct a multiplicative share
 pub struct ReceiverMulShare(pub Vec<u128>);
 
 impl From<Vec<Block>> for ReceiverMulShare {
@@ -59,7 +60,7 @@ impl From<Vec<Block>> for ReceiverMulShare {
 }
 
 #[derive(Debug, Clone)]
-/// The receiver's sharings as an result from the batched OT, needed to construct additive shares
+/// The receiver's sharings as an output from the batched OT, needed to construct additive shares
 pub struct ReceiverAddShares(pub Vec<u128>);
 
 impl From<Vec<Block>> for ReceiverAddShares {
