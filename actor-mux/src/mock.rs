@@ -188,31 +188,6 @@ impl<T: Send + 'static> MuxChannelControl<T> for MockServerControl {
     }
 }
 
-// #[async_trait]
-// impl<T: Send + 'static> MuxChannelControl<T> for MockControl<Server> {
-//     async fn get_channel(
-//         &mut self,
-//         id: String,
-//     ) -> Result<Box<dyn Channel<T, Error = std::io::Error>>, MuxerError> {
-//         let (sender, receiver) = oneshot::channel();
-
-//         self.sender
-//             .send(Event::ServerOpen(id, sender))
-//             .await
-//             .map_err(|_| MuxerError::InternalError("Failed to get channel".to_string()))?;
-
-//         let channel = receiver
-//             .await
-//             .map_err(|_| MuxerError::InternalError("Failed to get channel".to_string()))??;
-
-//         let channel = channel
-//             .downcast::<DuplexChannel<T>>()
-//             .expect("Should downcast to DuplexChannel");
-
-//         Ok(channel as Box<dyn Channel<T, Error = std::io::Error>>)
-//     }
-// }
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -262,13 +237,13 @@ mod test {
         let err: Result<Box<dyn Channel<Message, Error = std::io::Error>>, _> =
             client_control.get_channel(id.clone()).await;
 
-        matches!(err, Err(MuxerError::DuplicateStreamId(_)));
+        assert!(matches!(err, Err(MuxerError::DuplicateStreamId(_))));
 
         let _: Box<dyn Channel<Message, Error = std::io::Error>> =
             server_control.get_channel(id.clone()).await.unwrap();
         let err: Result<Box<dyn Channel<Message, Error = std::io::Error>>, _> =
             server_control.get_channel(id.clone()).await;
 
-        matches!(err, Err(MuxerError::DuplicateStreamId(_)));
+        assert!(matches!(err, Err(MuxerError::DuplicateStreamId(_))));
     }
 }

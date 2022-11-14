@@ -289,6 +289,7 @@ mod tests {
         let mut server_control = YamuxMuxControl::new(server_addr);
 
         let stream_id = "test_id".to_string();
+
         let mut client_stream = client_control
             .get_substream(stream_id.clone())
             .await
@@ -307,5 +308,31 @@ mod tests {
 
         server_stream.read_exact(&mut received).await.unwrap();
         assert_eq!(received, msg);
+    }
+
+    #[tokio::test]
+    async fn test_no_duplicates() {
+        let (client_addr, server_addr) = new_pair().await;
+
+        let mut client_control = YamuxMuxControl::new(client_addr);
+        let mut server_control = YamuxMuxControl::new(server_addr);
+
+        let stream_id = "test_id".to_string();
+
+        let _ = client_control
+            .get_substream(stream_id.clone())
+            .await
+            .unwrap();
+        let err = client_control.get_substream(stream_id.clone()).await;
+
+        assert!(matches!(err, Err(MuxerError::DuplicateStreamId(_))));
+
+        let _ = server_control
+            .get_substream(stream_id.clone())
+            .await
+            .unwrap();
+        let err = server_control.get_substream(stream_id).await;
+
+        assert!(matches!(err, Err(MuxerError::DuplicateStreamId(_))));
     }
 }
