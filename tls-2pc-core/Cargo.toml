@@ -63,3 +63,7 @@ harness = false
 [[bench]]
 name = "circuit"
 harness = false
+
+[[bench]]
+name = "ghash"
+harness = false
