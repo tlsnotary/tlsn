@@ -106,6 +106,9 @@ impl Kos15Receiver<state::BaseSetup> {
 }
 
 impl Kos15Receiver<state::BaseSend> {
+    /// Setup receiver for OT extension
+    ///
+    /// * `choices` - The receiver's choices for the extended OT
     pub fn extension_setup(
         mut self,
         choices: &[bool],
@@ -120,11 +123,15 @@ impl Kos15Receiver<state::BaseSend> {
         Ok((receiver, message))
     }
 
+    /// Setup receiver for random OT extension
+    ///
+    /// * `count` - The number of OTs which the receiver prepares. Needs to agree with the
+    ///             sender
     pub fn rand_extension_setup(
         mut self,
-        choice_len: usize,
+        count: usize,
     ) -> Result<(Kos15Receiver<state::RandSetup>, ExtReceiverSetup), ExtReceiverCoreError> {
-        let mut choices = vec![false; choice_len];
+        let mut choices = vec![false; count];
         self.0.rng.fill::<[bool]>(&mut choices);
         let (table, choices, message) = extension_setup_from(
             &choices,
@@ -279,7 +286,7 @@ impl Kos15Receiver<state::RandSetup> {
         let sender = sender.base_receive(r_message)?;
 
         let (mut receiver, r_message) = receiver.rand_extension_setup(self.0.init_ot_number)?;
-        let mut sender = sender.rand_extension_setup(r_message)?;
+        let mut sender = sender.rand_extension_setup(self.0.init_ot_number, r_message)?;
 
         let (mut sender, mut receiver) = if reveal.offset > 0 {
             (sender.split(reveal.offset)?, receiver.split(reveal.offset)?)
@@ -387,7 +394,7 @@ fn extension_setup_from(
     ts.split_off_rows(ts.rows() - padding)?;
 
     let message = ExtReceiverSetup {
-        ncols: choices.len(),
+        count: choices.len(),
         table: gs.into_inner(),
         x: kos15check_results[0].into(),
         t0: kos15check_results[1].into(),

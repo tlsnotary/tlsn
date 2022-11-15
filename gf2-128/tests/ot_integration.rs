@@ -30,7 +30,7 @@ async fn test_m2a_ot() {
         Kos15IOReceiver::new(Box::new(channel_2)),
     );
     let send = tokio::spawn(async {
-        let mut sender = sender.rand_setup().await.unwrap();
+        let mut sender = sender.rand_setup(128).await.unwrap();
         sender.send(blocks).await.unwrap();
     });
     let receive = tokio::spawn(async move {
@@ -73,7 +73,7 @@ async fn test_a2m_ot() {
         Kos15IOReceiver::new(Box::new(channel_2)),
     );
     let send = tokio::spawn(async {
-        let mut sender = sender.rand_setup().await.unwrap();
+        let mut sender = sender.rand_setup(128).await.unwrap();
         sender.send(blocks).await.unwrap();
     });
     let receive = tokio::spawn(async move {

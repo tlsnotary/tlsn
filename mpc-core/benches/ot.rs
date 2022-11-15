@@ -49,7 +49,9 @@ fn ext_ot(c: &mut Criterion) {
                 let (receiver, send_seeds) = receiver.base_send(base_receiver_setup).unwrap();
                 let sender = sender.base_receive(send_seeds).unwrap();
                 let (mut receiver, receiver_setup) = receiver.extension_setup(&choice).unwrap();
-                let mut sender = sender.extension_setup(receiver_setup).unwrap();
+                let mut sender = sender
+                    .extension_setup(choice.len(), receiver_setup)
+                    .unwrap();
 
                 let send = sender.send(&msgs).unwrap();
                 let _received = receiver.receive(send).unwrap();

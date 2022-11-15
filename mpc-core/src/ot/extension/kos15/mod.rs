@@ -72,7 +72,9 @@ pub mod tests {
         let (choices, inputs) = input_setup;
 
         let (mut receiver, receiver_setup) = receiver.extension_setup(&choices).unwrap();
-        let mut sender = sender.extension_setup(receiver_setup).unwrap();
+        let mut sender = sender
+            .extension_setup(choices.len(), receiver_setup)
+            .unwrap();
 
         let payload = sender.send(&inputs).unwrap();
         let receive = receiver.receive(payload).unwrap();
@@ -111,7 +113,9 @@ pub mod tests {
 
         let (_, mut receiver_setup) = receiver.extension_setup(&choices).unwrap();
         receiver_setup.x = [33u8; 16];
-        let err = sender.extension_setup(receiver_setup).unwrap_err();
+        let err = sender
+            .extension_setup(choices.len(), receiver_setup)
+            .unwrap_err();
         assert_eq!(err, ExtSenderCoreError::ConsistencyCheckFailed);
     }
 
@@ -127,7 +131,9 @@ pub mod tests {
         let (choices, inputs) = input_setup;
 
         let (mut receiver, receiver_setup) = receiver.extension_setup(&choices).unwrap();
-        let mut sender = sender.extension_setup(receiver_setup).unwrap();
+        let mut sender = sender
+            .extension_setup(choices.len(), receiver_setup)
+            .unwrap();
 
         // Try sending too much. This should fail
         let oversized_inputs = &[inputs.as_slice(), inputs.as_slice()].concat();
@@ -184,7 +190,9 @@ pub mod tests {
         let (choices, inputs) = input_setup;
 
         let (mut receiver, receiver_setup) = receiver.rand_extension_setup(choices.len()).unwrap();
-        let mut sender = sender.rand_extension_setup(receiver_setup).unwrap();
+        let mut sender = sender
+            .rand_extension_setup(choices.len(), receiver_setup)
+            .unwrap();
 
         let derandomize = receiver.derandomize(&choices).unwrap();
 
@@ -212,7 +220,9 @@ pub mod tests {
         let (choices, inputs) = input_setup;
 
         let (mut receiver, receiver_setup) = receiver.rand_extension_setup(choices.len()).unwrap();
-        let mut sender = sender.rand_extension_setup(receiver_setup).unwrap();
+        let mut sender = sender
+            .rand_extension_setup(choices.len(), receiver_setup)
+            .unwrap();
 
         let mut received: Vec<Block> = Vec::new();
         for (input, choice) in inputs.chunks(4).zip(choices.chunks(4)) {
@@ -277,7 +287,7 @@ pub mod tests {
         }
 
         let sender = sender
-            .extension_setup(receiver_setup)
+            .extension_setup(choices.len(), receiver_setup)
             .expect_err("invalid padding should be an error");
         assert_eq!(sender, ExtSenderCoreError::InvalidPadding);
     }
@@ -296,7 +306,9 @@ pub mod tests {
         let split_at: usize = rng.gen_range(0..inputs.len());
 
         let (mut receiver, receiver_setup) = receiver.extension_setup(&choices).unwrap();
-        let mut sender = sender.extension_setup(receiver_setup).unwrap();
+        let mut sender = sender
+            .extension_setup(choices.len(), receiver_setup)
+            .unwrap();
 
         let mut receiver_2 = receiver.split(split_at).unwrap();
         let mut sender_2 = sender.split(split_at).unwrap();
@@ -346,7 +358,9 @@ pub mod tests {
         let length = inputs.len();
 
         let (mut receiver, receiver_setup) = receiver.extension_setup(&choices).unwrap();
-        let mut sender = sender.extension_setup(receiver_setup).unwrap();
+        let mut sender = sender
+            .extension_setup(choices.len(), receiver_setup)
+            .unwrap();
 
         // Use original sender together with split receiver, should panic
         let mut receiver_2 = receiver.split(length / 2).unwrap();
@@ -378,7 +392,9 @@ pub mod tests {
         let sender = sender.base_receive(message).unwrap();
 
         let (mut receiver, receiver_setup) = receiver.rand_extension_setup(choices.len()).unwrap();
-        let mut sender = sender.rand_extension_setup(receiver_setup).unwrap();
+        let mut sender = sender
+            .rand_extension_setup(choices.len(), receiver_setup)
+            .unwrap();
 
         let message = receiver.derandomize(&choices).unwrap();
 
@@ -406,7 +422,9 @@ pub mod tests {
         let sender = sender.base_receive(message).unwrap();
 
         let (mut receiver, receiver_setup) = receiver.rand_extension_setup(choices.len()).unwrap();
-        let mut sender = sender.rand_extension_setup(receiver_setup).unwrap();
+        let mut sender = sender
+            .rand_extension_setup(choices.len(), receiver_setup)
+            .unwrap();
 
         let message = receiver.derandomize(&choices).unwrap();
 
@@ -435,7 +453,9 @@ pub mod tests {
         let sender = sender.base_receive(message).unwrap();
 
         let (mut receiver, receiver_setup) = receiver.rand_extension_setup(choices.len()).unwrap();
-        let mut sender = sender.rand_extension_setup(receiver_setup).unwrap();
+        let mut sender = sender
+            .rand_extension_setup(choices.len(), receiver_setup)
+            .unwrap();
 
         let mut sender = sender.split(inputs.len() / 2).unwrap();
         let mut receiver = receiver.split(choices.len() / 2).unwrap();
@@ -451,5 +471,24 @@ pub mod tests {
 
         let check = receiver.verify(reveal, &inputs[inputs.len() / 2..]);
         assert!(check.is_ok());
+    }
+
+    #[rstest]
+    fn test_ot_count_disagree(input_setup: (Vec<bool>, Vec<[Block; 2]>)) {
+        let (choices, _) = input_setup;
+        let (sender, mut receiver) = (Kos15Sender::default(), Kos15Receiver::default());
+
+        let commitment = sender.commit_to_seed();
+        receiver.store_commitment(commitment.0);
+
+        let (receiver, message) = receiver.base_setup().unwrap();
+        let (sender, message) = sender.base_setup(message).unwrap();
+
+        let (receiver, message) = receiver.base_send(message).unwrap();
+        let sender = sender.base_receive(message).unwrap();
+
+        let (_receiver, receiver_setup) = receiver.rand_extension_setup(choices.len()).unwrap();
+        let sender = sender.rand_extension_setup(choices.len() + 1, receiver_setup);
+        assert_eq!(sender.unwrap_err(), ExtSenderCoreError::OTNumberDisagree);
     }
 }
