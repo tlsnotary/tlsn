@@ -86,6 +86,7 @@ impl YamuxMuxer {
                     match connection.next_stream().await {
                         Ok(stream) => match stream {
                             Some(stream) => {
+                                // Forward streams opened by the remote to YamuxMuxer
                                 if addr
                                     .send(ReceivedStream(Ok(stream)))
                                     .priority(1)

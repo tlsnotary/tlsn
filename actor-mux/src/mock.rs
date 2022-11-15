@@ -69,18 +69,17 @@ where
     ) -> Result<DuplexChannel<T>, MuxerError> {
         if self.channel_ids.contains(&msg.id) {
             return Err(MuxerError::DuplicateStreamId(msg.id));
-        } else {
-            self.channel_ids.insert(msg.id.clone());
         }
 
         let (client, server) = DuplexChannel::<T>::new();
         self.server_addr
             .send(ChannelOpened {
-                id: msg.id,
+                id: msg.id.clone(),
                 channel: server,
             })
             .await
             .map_err(|e| MuxerError::InternalError(e.to_string()))?;
+        self.channel_ids.insert(msg.id);
 
         Ok(client)
     }
@@ -122,8 +121,6 @@ where
         if self.channel_ids.contains(&msg.id) {
             _ = sender.send(Err(MuxerError::DuplicateStreamId(msg.id)));
             return receiver;
-        } else {
-            self.channel_ids.insert(msg.id.clone());
         }
 
         if let Some(channel) = self.channel_buffer.remove(&msg.id) {
@@ -131,12 +128,13 @@ where
                 .downcast::<DuplexChannel<T>>()
                 .expect("channel type should be correct");
             _ = sender.send(Ok(channel));
-            return receiver;
         } else {
             let sender = Box::new(sender) as Box<dyn Any + Send>;
-            self.pending_buffer.insert(msg.id, sender);
+            self.pending_buffer.insert(msg.id.clone(), sender);
         }
-        return receiver;
+        self.channel_ids.insert(msg.id);
+
+        receiver
     }
 }
 
