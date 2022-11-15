@@ -29,8 +29,8 @@ pub enum GCError {
     LabelOTError(#[from] label::WireLabelError),
     #[error("Received unexpected message: {0:?}")]
     Unexpected(GarbleMessage),
-    #[error("garbler error")]
-    GarblerError(String),
+    #[error("backend error")]
+    BackendError(String),
 }
 
 #[async_trait]

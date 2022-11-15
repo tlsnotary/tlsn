@@ -32,7 +32,7 @@ impl Generator for RayonBackend {
         });
         receiver
             .await
-            .map_err(|_| GCError::GarblerError("channel error".to_string()))?
+            .map_err(|_| GCError::BackendError("channel error".to_string()))?
     }
 }
 
@@ -52,7 +52,7 @@ impl Evaluator for RayonBackend {
         });
         receiver
             .await
-            .map_err(|_| GCError::GarblerError("channel error".to_string()))?
+            .map_err(|_| GCError::BackendError("channel error".to_string()))?
     }
 }
 
