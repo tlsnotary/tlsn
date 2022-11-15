@@ -12,10 +12,10 @@ use mpc_core::garble::{
 use crate::protocol::garble::{Evaluator, GCError, Generator};
 
 /// Garbler backend using Rayon to garble and evaluate circuits asynchronously and in parallel
-pub struct RayonGarbler;
+pub struct RayonBackend;
 
 #[async_trait]
-impl Generator for RayonGarbler {
+impl Generator for RayonBackend {
     async fn generate(
         &mut self,
         circ: Arc<Circuit>,
@@ -37,7 +37,7 @@ impl Generator for RayonGarbler {
 }
 
 #[async_trait]
-impl Evaluator for RayonGarbler {
+impl Evaluator for RayonBackend {
     async fn evaluate(
         &mut self,
         circ: GarbledCircuit<Partial>,
@@ -67,7 +67,7 @@ mod test {
     async fn test_rayon_garbler() {
         let circ = Arc::new(Circuit::load_bytes(ADDER_64).unwrap());
         let (input_labels, delta) = InputLabels::generate(&mut thread_rng(), &circ, None);
-        let gc = RayonGarbler
+        let gc = RayonBackend
             .generate(circ.clone(), delta, &input_labels)
             .await
             .unwrap();
@@ -81,7 +81,7 @@ mod test {
                 .unwrap(),
         ];
 
-        let _ = RayonGarbler
+        let _ = RayonBackend
             .evaluate(gc.to_evaluator(&[], true, false), &input_labels)
             .await
             .unwrap();

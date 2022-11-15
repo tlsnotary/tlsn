@@ -1,3 +1,4 @@
+pub mod backend;
 pub mod exec;
 mod label;
 
@@ -39,7 +40,7 @@ pub trait Generator {
         &mut self,
         circ: Arc<Circuit>,
         delta: Delta,
-        input_labels: Vec<InputLabels<WireLabelPair>>,
+        input_labels: &[InputLabels<WireLabelPair>],
     ) -> Result<GarbledCircuit<Full>, GCError>;
 }
 
@@ -49,7 +50,7 @@ pub trait Evaluator {
     async fn evaluate(
         &mut self,
         circ: GarbledCircuit<Partial>,
-        input_labels: Vec<InputLabels<WireLabel>>,
+        input_labels: &[InputLabels<WireLabel>],
     ) -> Result<GarbledCircuit<Evaluated>, GCError>;
 }
 
@@ -94,7 +95,7 @@ mod mock {
             &mut self,
             circ: Arc<Circuit>,
             delta: Delta,
-            input_labels: Vec<InputLabels<WireLabelPair>>,
+            input_labels: &[InputLabels<WireLabelPair>],
         ) -> Result<GarbledCircuit<Full>, GCError> {
             let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
             Ok(GarbledCircuit::generate(
@@ -111,7 +112,7 @@ mod mock {
         async fn evaluate(
             &mut self,
             circ: GarbledCircuit<Partial>,
-            input_labels: Vec<InputLabels<WireLabel>>,
+            input_labels: &[InputLabels<WireLabel>],
         ) -> Result<GarbledCircuit<Evaluated>, GCError> {
             let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
             Ok(circ.evaluate(&cipher, &input_labels)?)

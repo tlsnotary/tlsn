@@ -16,28 +16,28 @@ use mpc_core::garble::{
 };
 use utils_aio::expect_msg_or_err;
 
-pub struct DualExLeader<T, S, R>
+pub struct DualExLeader<B, S, R>
 where
-    T: Generator + Evaluator,
+    B: Generator + Evaluator,
     S: WireLabelOTSend,
     R: WireLabelOTReceive,
 {
     channel: GarbleChannel,
-    garbler: T,
+    backend: B,
     label_sender: S,
     label_receiver: R,
 }
 
-impl<T, S, R> DualExLeader<T, S, R>
+impl<B, S, R> DualExLeader<B, S, R>
 where
-    T: Generator + Evaluator + Send,
+    B: Generator + Evaluator + Send,
     S: WireLabelOTSend + Send,
     R: WireLabelOTReceive + Send,
 {
-    pub fn new(channel: GarbleChannel, garbler: T, label_sender: S, label_receiver: R) -> Self {
+    pub fn new(channel: GarbleChannel, backend: B, label_sender: S, label_receiver: R) -> Self {
         Self {
             channel,
-            garbler,
+            backend,
             label_sender,
             label_receiver,
         }
@@ -45,9 +45,9 @@ where
 }
 
 #[async_trait]
-impl<T, S, R> ExecuteWithLabels for DualExLeader<T, S, R>
+impl<B, S, R> ExecuteWithLabels for DualExLeader<B, S, R>
 where
-    T: Generator + Evaluator + Send,
+    B: Generator + Evaluator + Send,
     S: WireLabelOTSend + Send,
     R: WireLabelOTReceive + Send,
 {
@@ -60,8 +60,8 @@ where
     ) -> Result<GarbledCircuit<Evaluated>, GCError> {
         let leader = core::DualExLeader::new(circ.clone());
         let full_gc = self
-            .garbler
-            .generate(circ.clone(), delta, input_labels.to_vec())
+            .backend
+            .generate(circ.clone(), delta, &input_labels)
             .await?;
 
         let (partial_gc, leader) = leader.from_full_circuit(inputs, full_gc)?;
@@ -91,7 +91,7 @@ where
         let gc_ev = GarbledCircuit::<Partial>::from_msg(circ, msg)?;
         let labels_ev = self.label_receiver.receive_labels(inputs.to_vec()).await?;
 
-        let evaluated_gc = self.garbler.evaluate(gc_ev, labels_ev).await?;
+        let evaluated_gc = self.backend.evaluate(gc_ev, &labels_ev).await?;
         let leader = leader.from_evaluated_circuit(evaluated_gc)?;
         let (commit, leader) = leader.commit();
 
@@ -117,28 +117,28 @@ where
     }
 }
 
-pub struct DualExFollower<T, S, R>
+pub struct DualExFollower<B, S, R>
 where
-    T: Generator + Evaluator,
+    B: Generator + Evaluator,
     S: WireLabelOTSend,
     R: WireLabelOTReceive,
 {
     channel: GarbleChannel,
-    garbler: T,
+    backend: B,
     label_sender: S,
     label_receiver: R,
 }
 
-impl<G, S, R> DualExFollower<G, S, R>
+impl<B, S, R> DualExFollower<B, S, R>
 where
-    G: Generator + Evaluator + Send,
+    B: Generator + Evaluator + Send,
     S: WireLabelOTSend + Send,
     R: WireLabelOTReceive + Send,
 {
-    pub fn new(channel: GarbleChannel, garbler: G, label_sender: S, label_receiver: R) -> Self {
+    pub fn new(channel: GarbleChannel, backend: B, label_sender: S, label_receiver: R) -> Self {
         Self {
             channel,
-            garbler,
+            backend,
             label_sender,
             label_receiver,
         }
@@ -146,9 +146,9 @@ where
 }
 
 #[async_trait]
-impl<T, S, R> ExecuteWithLabels for DualExFollower<T, S, R>
+impl<B, S, R> ExecuteWithLabels for DualExFollower<B, S, R>
 where
-    T: Generator + Evaluator + Send,
+    B: Generator + Evaluator + Send,
     S: WireLabelOTSend + Send,
     R: WireLabelOTReceive + Send,
 {
@@ -161,8 +161,8 @@ where
     ) -> Result<GarbledCircuit<Evaluated>, GCError> {
         let follower = core::DualExFollower::new(circ.clone());
         let full_gc = self
-            .garbler
-            .generate(circ.clone(), delta, input_labels.to_vec())
+            .backend
+            .generate(circ.clone(), delta, &input_labels)
             .await?;
 
         let (partial_gc, follower) = follower.from_full_circuit(inputs, full_gc)?;
@@ -191,7 +191,7 @@ where
         let gc_ev = GarbledCircuit::<Partial>::from_msg(circ, msg)?;
         let labels_ev = self.label_receiver.receive_labels(inputs.to_vec()).await?;
 
-        let evaluated_gc = self.garbler.evaluate(gc_ev, labels_ev).await?;
+        let evaluated_gc = self.backend.evaluate(gc_ev, &labels_ev).await?;
         let follower = follower.from_evaluated_circuit(evaluated_gc)?;
 
         let msg = expect_msg_or_err!(
