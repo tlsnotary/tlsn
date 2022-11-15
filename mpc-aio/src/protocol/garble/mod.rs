@@ -102,7 +102,7 @@ mod mock {
                 &cipher,
                 circ,
                 delta,
-                &input_labels,
+                input_labels,
             )?)
         }
     }
@@ -115,7 +115,7 @@ mod mock {
             input_labels: &[InputLabels<WireLabel>],
         ) -> Result<GarbledCircuit<Evaluated>, GCError> {
             let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
-            Ok(circ.evaluate(&cipher, &input_labels)?)
+            Ok(circ.evaluate(&cipher, input_labels)?)
         }
     }
 }
