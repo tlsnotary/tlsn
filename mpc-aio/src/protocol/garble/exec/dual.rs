@@ -221,7 +221,7 @@ where
 #[cfg(feature = "mock")]
 mod mock {
     use super::*;
-    use crate::protocol::{garble::mock::MockGarbler, ot::mock::mock_ot_pair};
+    use crate::protocol::{garble::backend::MockBackend, ot::mock::mock_ot_pair};
     use utils_aio::duplex::DuplexChannel;
 
     pub fn mock_dualex_pair() -> (impl ExecuteWithLabels, impl ExecuteWithLabels) {
@@ -231,13 +231,13 @@ mod mock {
 
         let leader = DualExLeader::new(
             Box::new(leader_channel),
-            MockGarbler,
+            MockBackend,
             leader_sender,
             leader_receiver,
         );
         let follower = DualExFollower::new(
             Box::new(follower_channel),
-            MockGarbler,
+            MockBackend,
             follower_sender,
             follower_receiver,
         );
