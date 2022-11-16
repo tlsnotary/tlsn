@@ -1,3 +1,4 @@
+pub mod backend;
 pub mod exec;
 mod label;
 
@@ -28,6 +29,8 @@ pub enum GCError {
     LabelOTError(#[from] label::WireLabelError),
     #[error("Received unexpected message: {0:?}")]
     Unexpected(GarbleMessage),
+    #[error("backend error")]
+    BackendError(String),
 }
 
 #[async_trait]
@@ -78,45 +81,3 @@ pub trait Execute: ExecuteWithLabels {
 }
 
 impl<T> Execute for T where T: ExecuteWithLabels {}
-
-#[cfg(feature = "mock")]
-mod mock {
-    use super::*;
-    use aes::{Aes128, NewBlockCipher};
-
-    pub struct MockGenerator;
-    pub struct MockEvaluator;
-
-    #[async_trait]
-    impl Generator for MockGenerator {
-        async fn generate(
-            &mut self,
-            circ: Arc<Circuit>,
-            delta: Delta,
-            input_labels: &[InputLabels<WireLabelPair>],
-        ) -> Result<GarbledCircuit<Full>, GCError> {
-            let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
-            Ok(GarbledCircuit::generate(
-                &cipher,
-                circ,
-                delta,
-                input_labels,
-            )?)
-        }
-    }
-
-    #[async_trait]
-    impl Evaluator for MockEvaluator {
-        async fn evaluate(
-            &mut self,
-            circ: GarbledCircuit<Partial>,
-            input_labels: &[InputLabels<WireLabel>],
-        ) -> Result<GarbledCircuit<Evaluated>, GCError> {
-            let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
-            Ok(circ.evaluate(&cipher, input_labels)?)
-        }
-    }
-}
-
-#[cfg(feature = "mock")]
-pub use mock::*;
