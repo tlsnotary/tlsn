@@ -14,7 +14,7 @@ pub enum ExtSenderCoreError {
     CommitmentCheckFailed,
     #[error("KOS15 consistency check failed")]
     ConsistencyCheckFailed,
-    #[error("Sender and receiver disagree on the number of OTs to generate)")]
+    #[error("Sender and receiver disagree on the number of OTs to generate")]
     OTNumberDisagree,
     #[error("Matrix Error: {0}")]
     MatrixError(#[from] MatrixError),
