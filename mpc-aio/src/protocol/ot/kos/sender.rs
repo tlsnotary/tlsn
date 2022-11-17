@@ -71,13 +71,26 @@ impl Kos15IOSender<s_state::Initialized> {
 }
 
 impl Kos15IOSender<s_state::RandSetup> {
-    pub fn split(&mut self, channel: OTChannel, split_at: usize) -> Result<Self, OTError> {
-        let new_ot = self.inner.split(split_at)?;
-        Ok(Self {
-            inner: new_ot,
+    pub fn split(self, channel: OTChannel, split_at: usize) -> Result<(Self, Self), OTError> {
+        let Self {
+            inner: mut child,
+            channel: parent_channel,
+            barrier,
+        } = self;
+
+        let parent = Self {
+            inner: child.split(split_at)?,
+            channel: parent_channel,
+            barrier: barrier.clone(),
+        };
+
+        let child = Self {
+            inner: child,
             channel,
-            barrier: self.barrier.clone(),
-        })
+            barrier,
+        };
+
+        Ok((parent, child))
     }
 }
 
