@@ -25,9 +25,12 @@ impl Kos15IOReceiver<r_state::Initialized> {
         }
     }
 
+    /// Set up the receiver for random OT
+    ///
+    /// * `count` - The number of OTs the receiver should prepare
     pub async fn rand_setup(
         mut self,
-        choice_len: usize,
+        count: usize,
     ) -> Result<Kos15IOReceiver<r_state::RandSetup>, OTError> {
         let (kos_receiver, message) = self.inner.base_setup()?;
         self.channel
@@ -44,7 +47,7 @@ impl Kos15IOReceiver<r_state::Initialized> {
             .send(OTMessage::BaseSenderPayloadWrapper(message))
             .await?;
 
-        let (kos_receiver, message) = kos_receiver.rand_extension_setup(choice_len)?;
+        let (kos_receiver, message) = kos_receiver.rand_extension_setup(count)?;
 
         self.channel
             .send(OTMessage::ExtReceiverSetup(message))

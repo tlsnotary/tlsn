@@ -84,7 +84,8 @@ pub struct ExtDerandomize {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ExtReceiverSetup {
-    pub ncols: usize,
+    /// The unpadded number of OTs the receiver has prepared
+    pub count: usize,
     pub table: Vec<u8>,
     // x, t0, t1 are used for the KOS15 check
     pub x: [u8; 16],

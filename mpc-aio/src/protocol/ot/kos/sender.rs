@@ -28,7 +28,13 @@ impl Kos15IOSender<s_state::Initialized> {
         }
     }
 
-    pub async fn rand_setup(mut self) -> Result<Kos15IOSender<s_state::RandSetup>, OTError> {
+    /// Set up the sender for random OT
+    ///
+    /// * `count` - The number of OTs the sender should prepare
+    pub async fn rand_setup(
+        mut self,
+        count: usize,
+    ) -> Result<Kos15IOSender<s_state::RandSetup>, OTError> {
         let message = expect_msg_or_err!(
             self.channel.next().await,
             OTMessage::BaseSenderSetupWrapper,
@@ -54,7 +60,7 @@ impl Kos15IOSender<s_state::Initialized> {
             OTError::Unexpected
         )?;
 
-        let kos_sender = kos_sender.rand_extension_setup(message)?;
+        let kos_sender = kos_sender.rand_extension_setup(count, message)?;
         let kos_io_sender = Kos15IOSender {
             inner: kos_sender,
             channel: self.channel,

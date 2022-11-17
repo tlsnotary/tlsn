@@ -30,7 +30,7 @@ mod tests {
             Kos15IOReceiver::new(Box::new(channel_2)),
         );
         let send = tokio::spawn(async {
-            let mut sender = sender.rand_setup().await.unwrap();
+            let mut sender = sender.rand_setup(ITERATIONS).await.unwrap();
             sender.send(blocks).await.unwrap();
         });
         let receive = tokio::spawn(async move {
@@ -63,7 +63,7 @@ mod tests {
         );
         let send = tokio::spawn(async {
             sender.commit().await.unwrap();
-            let mut sender = sender.rand_setup().await.unwrap();
+            let mut sender = sender.rand_setup(ITERATIONS).await.unwrap();
             sender.send(blocks_clone).await.unwrap();
             sender.reveal().await.unwrap();
         });

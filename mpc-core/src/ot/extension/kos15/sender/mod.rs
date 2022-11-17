@@ -122,11 +122,18 @@ impl Kos15Sender<state::BaseSetup> {
 }
 
 impl Kos15Sender<state::BaseReceive> {
+    /// Set up sender for OT extension
+    ///
+    /// * `count`     - The number of OTs which the sender prepares. Needs to agree with the
+    ///                 receiver's value in `setup_msg`
+    /// * `setup_msg` - Message from the receiver, containing information required for setup
     pub fn extension_setup(
         mut self,
+        count: usize,
         setup_msg: ExtReceiverSetup,
     ) -> Result<Kos15Sender<state::Setup>, ExtSenderCoreError> {
         let (table, ncols_unpadded) = extension_setup_from(
+            count,
             &mut self.0.rngs,
             &self.0.base_choices,
             setup_msg,
@@ -140,11 +147,18 @@ impl Kos15Sender<state::BaseReceive> {
         }))
     }
 
+    /// Set up sender for random OT extension
+    ///
+    /// * `count`     - The number of OTs which the sender prepares. Needs to agree with the
+    ///                 receiver's value in `setup_msg`
+    /// * `setup_msg` - Message from the receiver containing information required for setup
     pub fn rand_extension_setup(
         mut self,
+        count: usize,
         setup_msg: ExtReceiverSetup,
     ) -> Result<Kos15Sender<state::RandSetup>, ExtSenderCoreError> {
         let (table, ncols_unpadded) = extension_setup_from(
+            count,
             &mut self.0.rngs,
             &self.0.base_choices,
             setup_msg,
@@ -291,17 +305,17 @@ fn send_from(
 }
 
 fn extension_setup_from(
+    count: usize,
     rngs: &mut [ChaCha12Rng],
     base_choices: &[bool],
     setup_msg: ExtReceiverSetup,
     cointoss_random: &[u8; 32],
 ) -> Result<(KosMatrix, usize), ExtSenderCoreError> {
-    let ncols_unpadded = setup_msg.ncols;
-
-    // Prevent possible DOS attacks
-    if ncols_unpadded > 1_000_000 {
-        return Err(ExtSenderCoreError::InvalidInputLength);
+    if count != setup_msg.count {
+        return Err(ExtSenderCoreError::OTNumberDisagree);
     }
+
+    let ncols_unpadded = setup_msg.count;
 
     let expected_padding = calc_padding(ncols_unpadded);
     let ncols = setup_msg.table.len() / BASE_COUNT * 8;

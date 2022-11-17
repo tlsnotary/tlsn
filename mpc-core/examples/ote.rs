@@ -46,7 +46,9 @@ pub fn main() {
     let (mut receiver, receiver_setup) = receiver.extension_setup(&choice).unwrap();
 
     // Sender takes receiver's setup and runs its own extension setup
-    let mut sender = sender.extension_setup(receiver_setup).unwrap();
+    let mut sender = sender
+        .extension_setup(choice.len(), receiver_setup)
+        .unwrap();
 
     // Finally, sender encrypts their inputs and sends them to receiver
     let payload = sender.send(&inputs).unwrap();
