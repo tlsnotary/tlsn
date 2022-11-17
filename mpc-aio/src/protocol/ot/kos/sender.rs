@@ -28,7 +28,7 @@ impl Kos15IOSender<s_state::Initialized> {
         }
     }
 
-    /// Setup the sender for random OT
+    /// Set up the sender for random OT
     ///
     /// * `count` - The number of OTs the sender should prepare
     pub async fn rand_setup(

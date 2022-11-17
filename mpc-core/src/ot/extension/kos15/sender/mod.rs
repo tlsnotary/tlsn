@@ -122,7 +122,7 @@ impl Kos15Sender<state::BaseSetup> {
 }
 
 impl Kos15Sender<state::BaseReceive> {
-    /// Setup sender for OT extension
+    /// Set up sender for OT extension
     ///
     /// * `count`     - The number of OTs which the sender prepares. Needs to agree with the
     ///                 receiver's value in `setup_msg`
@@ -147,7 +147,7 @@ impl Kos15Sender<state::BaseReceive> {
         }))
     }
 
-    /// Setup sender for random OT extension
+    /// Set up sender for random OT extension
     ///
     /// * `count`     - The number of OTs which the sender prepares. Needs to agree with the
     ///                 receiver's value in `setup_msg`

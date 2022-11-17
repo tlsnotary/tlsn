@@ -25,7 +25,7 @@ impl Kos15IOReceiver<r_state::Initialized> {
         }
     }
 
-    /// Setup the receiver for random OT
+    /// Set up the receiver for random OT
     ///
     /// * `count` - The number of OTs the receiver should prepare
     pub async fn rand_setup(

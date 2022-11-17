@@ -106,7 +106,7 @@ impl Kos15Receiver<state::BaseSetup> {
 }
 
 impl Kos15Receiver<state::BaseSend> {
-    /// Setup receiver for OT extension
+    /// Set up receiver for OT extension
     ///
     /// * `choices` - The receiver's choices for the extended OT
     pub fn extension_setup(
@@ -123,7 +123,7 @@ impl Kos15Receiver<state::BaseSend> {
         Ok((receiver, message))
     }
 
-    /// Setup receiver for random OT extension
+    /// Set up receiver for random OT extension
     ///
     /// * `count` - The number of OTs which the receiver prepares. Needs to agree with the
     ///             sender
