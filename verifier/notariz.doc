@@ -34,8 +34,7 @@ Notarization document:
                     (known both to the User and to the Notary)
 
     Additional data appended by the User to the signed data:
-        (The following 3 fields will be serialized like in the TLS handshake)
-        - TLS certificate chain
+        - TLS certificate chain: vec of DER certs
         - server sig over the ephemeral EC pubkey (from Server Key Exchange)
         - client_random and server_random (to check server sig)
 
