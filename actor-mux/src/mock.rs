@@ -67,10 +67,13 @@ where
         msg: OpenChannel<T>,
         _ctx: &mut Context<Self>,
     ) -> Result<DuplexChannel<T>, MuxerError> {
+        // Check if this channel id has been opened before
         if self.channel_ids.contains(&msg.id) {
             return Err(MuxerError::DuplicateStreamId(msg.id));
         }
 
+        // The client side creates the duplex channel and forwards it to the
+        // server muxer actor
         let (client, server) = DuplexChannel::<T>::new();
         self.server_addr
             .send(ChannelOpened {
@@ -93,12 +96,18 @@ where
     type Return = ();
 
     async fn handle(&mut self, msg: ChannelOpened<T>, _ctx: &mut Context<Self>) {
+        // Check if the client has already opened the channel
         if let Some(sender) = self.pending_buffer.remove(&msg.id) {
+            // If the channel is already open, we immediately pass it to the
+            // caller via the oneshot opened in Hander<OpenChannel<T>> after downcasting
+            // to the expected type
             let sender = sender
-                .downcast::<oneshot::Sender<DuplexChannel<T>>>()
+                .downcast::<oneshot::Sender<Result<DuplexChannel<T>, MuxerError>>>()
                 .expect("channel type should be correct");
-            _ = sender.send(msg.channel);
+            _ = sender.send(Ok(msg.channel));
         } else {
+            // If the server side isn't expecting the channel yet, insert it
+            // into a buffer
             self.channel_buffer
                 .insert(msg.id, Box::new(msg.channel) as Box<dyn Any + Send>);
         }
@@ -117,23 +126,32 @@ where
         msg: OpenChannel<T>,
         _ctx: &mut Context<Self>,
     ) -> oneshot::Receiver<Result<DuplexChannel<T>, MuxerError>> {
+        // Because the client is the side which opens the channel we can't sit around and wait
+        // for it to do so. To avoid "blocking", we return a Future (oneshot) to the caller instead
         let (sender, receiver) = oneshot::channel();
+
+        // First check that this channel id hasn't been opened before
         if self.channel_ids.contains(&msg.id) {
             _ = sender.send(Err(MuxerError::DuplicateStreamId(msg.id)));
             return receiver;
         }
 
+        // If we've already received this channel before the server was ready for it,
+        // we pull it out of the buffer, downcast, and immediately pass it back via the oneshot
         if let Some(channel) = self.channel_buffer.remove(&msg.id) {
             let channel = *channel
                 .downcast::<DuplexChannel<T>>()
                 .expect("channel type should be correct");
             _ = sender.send(Ok(channel));
         } else {
+            // Otherwise we box it and insert the oneshot's sender into a buffer which will
+            // later be used in Handler<ChannelOpened<T>>
             let sender = Box::new(sender) as Box<dyn Any + Send>;
             self.pending_buffer.insert(msg.id.clone(), sender);
         }
         self.channel_ids.insert(msg.id);
 
+        // Now we simply return the oneshot receiver which the caller will await instead.
         receiver
     }
 }
