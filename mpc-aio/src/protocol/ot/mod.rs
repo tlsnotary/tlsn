@@ -4,13 +4,13 @@ pub mod mock;
 
 use async_trait::async_trait;
 use mpc_core::{
-    msgs::ot::OTMessage,
+    msgs::ot::{OTFactoryMessage, OTMessage},
     ot::{
         CommittedOTError, ExtReceiverCoreError, ExtSenderCoreError, ReceiverCoreError,
         SenderCoreError,
     },
 };
-use utils_aio::Channel;
+use utils_aio::{mux::MuxerError, Channel};
 
 type OTChannel = Box<dyn Channel<OTMessage, Error = std::io::Error>>;
 
@@ -34,16 +34,14 @@ pub enum OTError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum OTFactoryError {
-    // #[error("muxer error")]
-    // MuxerError(#[from] MuxerError),
+    #[error("muxer error")]
+    MuxerError(#[from] MuxerError),
     #[error("ot error")]
     OTError(#[from] OTError),
     #[error("io error")]
     IOError(#[from] std::io::Error),
-    // #[error("unexpected message")]
-    // UnexpectedMessage(OTFactoryMessage),
-    #[error("{0} Sender expects {1} OTs, Receiver expects {2}")]
-    SplitMismatch(String, usize, usize),
+    #[error("unexpected message")]
+    UnexpectedMessage(OTFactoryMessage),
     #[error("other: {0}")]
     Other(String),
 }

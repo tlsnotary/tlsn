@@ -6,6 +6,13 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum OTFactoryMessage {
+    OTMessage(OTMessage),
+    Split(Split),
+}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum OTMessage {
     BaseSenderSetup(SenderSetup),
     BaseSenderSetupWrapper(BaseSenderSetupWrapper),
@@ -103,6 +110,15 @@ pub struct ExtSenderReveal {
     pub seed: [u8; 32],
     pub salt: [u8; 32],
     pub offset: usize,
+}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct Split {
+    /// Child OT identifier
+    pub id: String,
+    /// Number of OTs
+    pub count: usize,
 }
 
 // #[cfg(feature = "proto")]

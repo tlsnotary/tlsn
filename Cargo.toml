@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "actor-mux",
+    "actor-ot",
     "tls-core",
     "mpc-core",
     "mpc-aio",

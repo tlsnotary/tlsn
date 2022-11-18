@@ -249,6 +249,11 @@ impl Kos15Sender<state::RandSetup> {
         self.0.sent == self.0.count
     }
 
+    /// Returns the number of remaining OTs which have not been consumed yet
+    pub fn remaining(&self) -> usize {
+        self.0.count - self.0.sent
+    }
+
     /// Reveals secrets needed for Committed OT
     ///
     /// # Safety

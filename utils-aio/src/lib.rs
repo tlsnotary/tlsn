@@ -8,3 +8,5 @@ pub mod expect_msg;
 pub mod mux;
 
 pub trait Channel<T>: futures::Stream<Item = T> + futures::Sink<T> + Send + Unpin {}
+
+impl<T, U> Channel<T> for U where U: futures::Stream<Item = T> + futures::Sink<T> + Send + Unpin {}
