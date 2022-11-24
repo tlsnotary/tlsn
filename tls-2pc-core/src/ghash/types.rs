@@ -21,7 +21,7 @@ pub struct SenderMulSharing {
 
 #[derive(Debug, Clone)]
 /// The receiver choice for the additive share, needed as input for the OT
-pub struct ReceiverAddChoice(pub u128);
+pub struct ReceiverAddChoice(pub(crate) u128);
 
 impl From<ReceiverAddChoice> for Vec<bool> {
     fn from(value: ReceiverAddChoice) -> Vec<bool> {
@@ -35,7 +35,7 @@ impl From<ReceiverAddChoice> for Vec<bool> {
 
 #[derive(Debug, Clone)]
 /// The receiver choices for the multiplicative shares, needed as input for the batched OT
-pub struct ReceiverMulChoices(pub Vec<u128>);
+pub struct ReceiverMulChoices(pub(crate) Vec<u128>);
 
 impl From<ReceiverMulChoices> for Vec<bool> {
     fn from(value: ReceiverMulChoices) -> Vec<bool> {
@@ -51,7 +51,7 @@ impl From<ReceiverMulChoices> for Vec<bool> {
 
 #[derive(Debug, Clone)]
 /// The receiver's sharings as an output from the OT, needed to construct a multiplicative share
-pub struct ReceiverMulShare(pub Vec<u128>);
+pub struct ReceiverMulShare(pub(crate) Vec<u128>);
 
 impl From<Vec<Block>> for ReceiverMulShare {
     fn from(value: Vec<Block>) -> Self {
@@ -61,7 +61,7 @@ impl From<Vec<Block>> for ReceiverMulShare {
 
 #[derive(Debug, Clone)]
 /// The receiver's sharings as an output from the batched OT, needed to construct additive shares
-pub struct ReceiverAddShares(pub Vec<u128>);
+pub struct ReceiverAddShares(pub(crate) Vec<u128>);
 
 impl From<Vec<Block>> for ReceiverAddShares {
     fn from(value: Vec<Block>) -> Self {
