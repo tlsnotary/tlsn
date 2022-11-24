@@ -12,7 +12,7 @@
 //! protocol.
 //!
 //! On the whole, we need a single additive-to-multiplicative (A2M) and `n/2`, where `n` is the
-//! number of blocks of ciphertext, multiplicative-to-additive (M2A) conversions. Finally, having
+//! number of blocks of message, multiplicative-to-additive (M2A) conversions. Finally, having
 //! additive shares of `H^n` for all needed `n`, we can compute an additive share of the MAC.
 
 mod receiver;
@@ -59,8 +59,8 @@ pub struct Finalized {
 pub enum GhashError {
     #[error("Invalid maximum hashkey power")]
     ZeroHashkeyPower,
-    #[error("Ciphertext too long")]
-    InvalidCiphertextLength,
+    #[error("Message too long")]
+    InvalidMessageLength,
 }
 
 /// Computes missing powers of multiplication shares of the hashkey
@@ -69,16 +69,19 @@ pub enum GhashError {
 /// computes them. Notice that we only need odd multiplicative shares for the OT, because we can
 /// reconstruct even additive shares from odd additive shares, which we call free squaring.
 ///
-/// * `shares` - multiplicative shares already present
+/// * `present_odd_mul_shares` - multiplicative odd shares already present
 /// * `needed` - how many powers we need including odd and even
-fn compute_missing_mul_shares(shares: &mut Vec<u128>, needed: usize) {
+fn compute_missing_mul_shares(present_odd_mul_shares: &mut Vec<u128>, needed: usize) {
     let needed_odd_powers: usize = needed / 2 + (needed & 1);
-    let present_odd_powers = shares.len();
-    let difference = needed_odd_powers as i32 - present_odd_powers as i32;
+    let present_odd_len = present_odd_mul_shares.len();
 
-    if difference > 0 {
-        let h_squared = mul(shares[0], shares[0]);
-        compute_product_repeated(shares, h_squared, difference as usize);
+    if needed_odd_powers > present_odd_len {
+        let h_squared = mul(present_odd_mul_shares[0], present_odd_mul_shares[0]);
+        compute_product_repeated(
+            present_odd_mul_shares,
+            h_squared,
+            needed_odd_powers - present_odd_len,
+        );
     }
 }
 
@@ -120,15 +123,15 @@ mod tests {
 
     #[test]
     fn test_ghash_product_sharing() {
-        let mut rng = ChaCha12Rng::from_entropy();
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // The MAC key
         let h: u128 = rng.gen();
-        let ciphertext = gen_u128_vec();
-        let ciphertext_len = ciphertext.len();
-        let number_of_powers_needed: usize = ciphertext_len / 2 + (ciphertext_len & 1);
+        let message = gen_u128_vec();
+        let message_len = message.len();
+        let number_of_powers_needed: usize = message_len / 2 + (message_len & 1);
 
-        let (sender, receiver) = setup_ghash_to_intermediate_state(h, ciphertext_len);
+        let (sender, receiver) = setup_ghash_to_intermediate_state(h, message_len);
 
         let mut powers_h = vec![h];
         compute_product_repeated(&mut powers_h, mul(h, h), number_of_powers_needed);
@@ -156,31 +159,31 @@ mod tests {
 
     #[test]
     fn test_ghash_sum_sharing() {
-        let mut rng = ChaCha12Rng::from_entropy();
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // The MAC key
         let h: u128 = rng.gen();
-        let ciphertext = gen_u128_vec();
-        let ciphertext_len = ciphertext.len();
+        let message = gen_u128_vec();
+        let message_len = message.len();
 
-        let (sender, receiver) = setup_ghash_to_intermediate_state(h, ciphertext_len);
+        let (sender, receiver) = setup_ghash_to_intermediate_state(h, message_len);
         let (sender, receiver) = ghash_to_finalized(sender, receiver);
 
         let mut powers_h = vec![h];
-        compute_product_repeated(&mut powers_h, h, ciphertext_len);
+        compute_product_repeated(&mut powers_h, h, message_len);
 
         // Length check
         assert_eq!(
             sender.state().add_shares.len(),
-            ciphertext_len + (ciphertext_len & 1)
+            message_len + (message_len & 1)
         );
         assert_eq!(
             receiver.state().add_shares.len(),
-            ciphertext_len + (ciphertext_len & 1)
+            message_len + (message_len & 1)
         );
 
         // Sum check
-        for k in 0..ciphertext_len {
+        for k in 0..message_len {
             assert_eq!(
                 sender.state().add_shares[k].inner() ^ receiver.state().add_shares[k].inner(),
                 powers_h[k]
@@ -190,66 +193,66 @@ mod tests {
 
     #[test]
     fn test_ghash_mac() {
-        let mut rng = ChaCha12Rng::from_entropy();
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // The MAC key
         let h: u128 = rng.gen();
-        let ciphertext = gen_u128_vec();
+        let message = gen_u128_vec();
 
-        let (sender, receiver) = setup_ghash_to_intermediate_state(h, ciphertext.len());
+        let (sender, receiver) = setup_ghash_to_intermediate_state(h, message.len());
         let (sender, receiver) = ghash_to_finalized(sender, receiver);
 
         assert_eq!(
-            sender.generate_mac(&ciphertext).unwrap() ^ receiver.generate_mac(&ciphertext).unwrap(),
-            ghash_reference_impl(h, ciphertext)
+            sender.generate_mac(&message).unwrap() ^ receiver.generate_mac(&message).unwrap(),
+            ghash_reference_impl(h, message)
         );
     }
 
     #[test]
-    fn test_ghash_change_ciphertext_short() {
-        let mut rng = ChaCha12Rng::from_entropy();
+    fn test_ghash_change_message_short() {
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // The MAC key
         let h: u128 = rng.gen();
-        let ciphertext = gen_u128_vec();
+        let message = gen_u128_vec();
 
-        let (sender, receiver) = setup_ghash_to_intermediate_state(h, ciphertext.len());
+        let (sender, receiver) = setup_ghash_to_intermediate_state(h, message.len());
         let (sender, receiver) = ghash_to_finalized(sender, receiver);
 
-        let mut ciphertext_short: Vec<u128> = vec![0; ciphertext.len() / 2];
-        ciphertext_short.iter_mut().for_each(|x| *x = rng.gen());
+        let mut message_short: Vec<u128> = vec![0; message.len() / 2];
+        message_short.iter_mut().for_each(|x| *x = rng.gen());
 
-        let (sender, None) = sender.change_max_hashkey(ciphertext_short.len()) else {
+        let (sender, None) = sender.change_max_hashkey(message_short.len()) else {
             panic!("Expected None, but got Some(...)");
         };
-        let receiver = receiver.change_max_hashkey(ciphertext_short.len());
+        let receiver = receiver.change_max_hashkey(message_short.len());
         let receiver = receiver.into_add_powers(None);
 
         assert_eq!(
-            sender.generate_mac(&ciphertext_short).unwrap()
-                ^ receiver.generate_mac(&ciphertext_short).unwrap(),
-            ghash_reference_impl(h, ciphertext_short)
+            sender.generate_mac(&message_short).unwrap()
+                ^ receiver.generate_mac(&message_short).unwrap(),
+            ghash_reference_impl(h, message_short)
         );
     }
 
     #[test]
-    fn test_ghash_change_ciphertext_long() {
-        let mut rng = ChaCha12Rng::from_entropy();
+    fn test_ghash_change_message_long() {
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // The MAC key
         let h: u128 = rng.gen();
-        let ciphertext = gen_u128_vec();
+        let message = gen_u128_vec();
 
-        let (sender, receiver) = setup_ghash_to_intermediate_state(h, ciphertext.len());
+        let (sender, receiver) = setup_ghash_to_intermediate_state(h, message.len());
         let (sender, receiver) = ghash_to_finalized(sender, receiver);
 
-        let mut ciphertext_long: Vec<u128> = vec![0; 2 * ciphertext.len()];
-        ciphertext_long.iter_mut().for_each(|x| *x = rng.gen());
+        let mut message_long: Vec<u128> = vec![0; 2 * message.len()];
+        message_long.iter_mut().for_each(|x| *x = rng.gen());
 
-        let (sender, Some(sharing)) = sender.change_max_hashkey(ciphertext_long.len()) else {
+        let (sender, Some(sharing)) = sender.change_max_hashkey(message_long.len()) else {
             panic!("Expected Some(...), but got None");
         };
-        let receiver = receiver.change_max_hashkey(ciphertext_long.len());
+        let receiver = receiver.change_max_hashkey(message_long.len());
 
         // Do another OT because we have higher powers of `H` to compute
         let choices = receiver.choices().unwrap();
@@ -261,15 +264,15 @@ mod tests {
         let receiver = receiver.into_add_powers(Some(chosen_inputs.into()));
 
         assert_eq!(
-            sender.generate_mac(&ciphertext_long).unwrap()
-                ^ receiver.generate_mac(&ciphertext_long).unwrap(),
-            ghash_reference_impl(h, ciphertext_long)
+            sender.generate_mac(&message_long).unwrap()
+                ^ receiver.generate_mac(&message_long).unwrap(),
+            ghash_reference_impl(h, message_long)
         );
     }
 
     #[test]
     fn test_compute_missing_mul_shares() {
-        let mut rng = ChaCha12Rng::from_entropy();
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
         let h: u128 = rng.gen();
         let mut powers: Vec<u128> = vec![h];
         compute_product_repeated(&mut powers, mul(h, h), rng.gen_range(16..128));
@@ -299,7 +302,7 @@ mod tests {
 
     #[test]
     fn test_compute_new_add_shares() {
-        let mut rng = ChaCha12Rng::from_entropy();
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         let new_add_odd_shares: Vec<AddShare> = gen_u128_vec()
             .iter_mut()
@@ -360,18 +363,18 @@ mod tests {
     }
 
     fn gen_u128_vec() -> Vec<u128> {
-        let mut rng = ChaCha12Rng::from_entropy();
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
-        // Sample some ciphertext
-        let ciphertext_len: usize = rng.gen_range(16..128);
-        let mut ciphertext: Vec<u128> = vec![0_u128; ciphertext_len];
-        ciphertext.iter_mut().for_each(|x| *x = rng.gen());
-        ciphertext
+        // Sample some message
+        let message_len: usize = rng.gen_range(16..128);
+        let mut message: Vec<u128> = vec![0_u128; message_len];
+        message.iter_mut().for_each(|x| *x = rng.gen());
+        message
     }
 
-    fn ghash_reference_impl(h: u128, ciphertext: Vec<u128>) -> u128 {
+    fn ghash_reference_impl(h: u128, message: Vec<u128>) -> u128 {
         let mut ghash = GHash::new(&h.to_be_bytes().into());
-        for el in ciphertext {
+        for el in message {
             ghash.update(&el.to_be_bytes().into());
         }
         let mac = ghash.finalize();
@@ -382,7 +385,7 @@ mod tests {
         hashkey: u128,
         max_hashkey_power: usize,
     ) -> (GhashSender<Intermediate>, GhashReceiver<Intermediate>) {
-        let mut rng = ChaCha12Rng::from_entropy();
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // The additive sharings of the MAC key to begin with
         let h1: u128 = rng.gen();

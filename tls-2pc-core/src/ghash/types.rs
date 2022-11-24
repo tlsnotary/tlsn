@@ -5,8 +5,8 @@ use mpc_core::Block;
 ///
 /// Each struct field corresponds to the choices of the receiver
 pub struct SenderAddSharing {
-    pub choice_zero: Vec<u128>,
-    pub choice_one: Vec<u128>,
+    pub(crate) choice_zero: Vec<u128>,
+    pub(crate) choice_one: Vec<u128>,
 }
 
 /// The sharing for the multiplicative shares of the sender
@@ -15,8 +15,8 @@ pub struct SenderAddSharing {
 /// several multiplicative shares in one go.
 #[derive(Debug, Clone)]
 pub struct SenderMulSharing {
-    pub choice_zero: Vec<Vec<u128>>,
-    pub choice_one: Vec<Vec<u128>>,
+    pub(crate) choice_zero: Vec<Vec<u128>>,
+    pub(crate) choice_one: Vec<Vec<u128>>,
 }
 
 #[derive(Debug, Clone)]
