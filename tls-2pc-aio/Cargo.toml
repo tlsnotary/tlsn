@@ -12,12 +12,14 @@ thiserror.workspace = true
 tlsn-tls-core = { path = "../tls-core" }
 tlsn-tls-client = { path = "../tls-client" }
 tlsn-mpc-aio = { path = "../mpc-aio" }
+tlsn-mpc-core = { path = "../mpc-core" }
 tlsn-mpc-circuits = { path = "../mpc-circuits" }
 tlsn-tls-2pc-core = { path = "../tls-2pc-core" }
 tlsn-utils-aio = { path = "../utils-aio" }
 futures.workspace = true
 p256.workspace = true
 rand.workspace = true
+mockall.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true

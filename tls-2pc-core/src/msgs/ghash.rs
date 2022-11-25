@@ -5,18 +5,11 @@ use mpc_core::Block;
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// Message for 2PC Ghash computation
 pub enum GhashMessage {
-    SenderAddEnvelope(SenderAddEnvelope),
-    SenderMulEnvelope(SenderMulEnvelope),
+    SenderAddEnvelope,
+    SenderMulEnvelope,
 }
 
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-/// The sender input for the oblivious transfer of the additive share of `H`
-pub struct SenderAddEnvelope {
-    pub sender_add_envelope: Vec<[Block; 2]>,
-}
-
-impl From<SenderAddSharing> for SenderAddEnvelope {
+impl From<SenderAddSharing> for Vec<[Block; 2]> {
     fn from(value: SenderAddSharing) -> Self {
         let mut sender_add_envelope: Vec<[Block; 2]> = Vec::with_capacity(value.choice_zero.len());
         for (zero, one) in
@@ -24,21 +17,11 @@ impl From<SenderAddSharing> for SenderAddEnvelope {
         {
             sender_add_envelope.push([Block::new(zero), Block::new(one)]);
         }
-        SenderAddEnvelope {
-            sender_add_envelope,
-        }
+        sender_add_envelope
     }
 }
 
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-/// The sender input for the batched oblivious transfer of the powers of the multiplicative share
-/// of `H`
-pub struct SenderMulEnvelope {
-    pub sender_mul_envelope: Vec<[Block; 2]>,
-}
-
-impl From<SenderMulSharing> for SenderMulEnvelope {
+impl From<SenderMulSharing> for Vec<[Block; 2]> {
     fn from(value: SenderMulSharing) -> Self {
         let mut sender_mul_envelope: Vec<[Block; 2]> =
             Vec::with_capacity(value.choice_zero.len() * 128);
@@ -48,8 +31,6 @@ impl From<SenderMulSharing> for SenderMulEnvelope {
         ) {
             sender_mul_envelope.push([Block::new(zero), Block::new(one)]);
         }
-        SenderMulEnvelope {
-            sender_mul_envelope,
-        }
+        sender_mul_envelope
     }
 }
