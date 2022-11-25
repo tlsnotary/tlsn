@@ -5,8 +5,8 @@ use mpc_core::Block;
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// Message for 2PC Ghash computation
 pub enum GhashMessage {
-    SenderAddEnvelope,
-    SenderMulEnvelope,
+    SenderAddEnvelope(()),
+    SenderMulEnvelope(()),
 }
 
 impl From<SenderAddSharing> for Vec<[Block; 2]> {

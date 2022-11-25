@@ -15,6 +15,8 @@ pub enum GhashIOError {
     IOError(#[from] std::io::Error),
     #[error("OT error: {0}")]
     OTError(#[from] OTError),
+    #[error("Received unexpected message: {0:?}")]
+    Unexpected(GhashMessage),
 }
 
 pub trait GhashMac {
