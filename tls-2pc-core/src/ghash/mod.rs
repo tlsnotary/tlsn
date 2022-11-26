@@ -117,8 +117,6 @@ mod tests {
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
 
-    use crate::msgs::ghash::{SenderAddEnvelope, SenderMulEnvelope};
-
     use super::*;
 
     #[test]
@@ -257,10 +255,10 @@ mod tests {
         // Do another OT because we have higher powers of `H` to compute
         let choices = receiver.choices().unwrap();
 
-        let sender_mul_envelope: SenderMulEnvelope = sharing.into();
+        let sender_mul_envelope = sharing.into();
         let bool_choices: Vec<bool> = choices.into();
 
-        let chosen_inputs = ot_mock_batch(sender_mul_envelope.sender_mul_envelope, &bool_choices);
+        let chosen_inputs = ot_mock_batch(sender_mul_envelope, &bool_choices);
         let receiver = receiver.into_add_powers(Some(chosen_inputs.into()));
 
         assert_eq!(
@@ -397,10 +395,10 @@ mod tests {
         let (sender, sharing) = sender.compute_mul_powers();
         let choices = receiver.choices();
 
-        let sender_add_envelope: SenderAddEnvelope = sharing.into();
+        let sender_add_envelope = sharing.into();
         let bool_choices: Vec<bool> = choices.into();
 
-        let chosen_inputs = ot_mock_batch(sender_add_envelope.sender_add_envelope, &bool_choices);
+        let chosen_inputs = ot_mock_batch(sender_add_envelope, &bool_choices);
         let receiver = receiver.compute_mul_powers(chosen_inputs.into());
         (sender, receiver)
     }
@@ -412,10 +410,10 @@ mod tests {
         let (sender, sharing) = sender.into_add_powers();
         let choices = receiver.choices().unwrap();
 
-        let sender_mul_envelope: SenderMulEnvelope = sharing.into();
+        let sender_mul_envelope = sharing.into();
         let bool_choices: Vec<bool> = choices.into();
 
-        let chosen_inputs = ot_mock_batch(sender_mul_envelope.sender_mul_envelope, &bool_choices);
+        let chosen_inputs = ot_mock_batch(sender_mul_envelope, &bool_choices);
         let receiver = receiver.into_add_powers(Some(chosen_inputs.into()));
         (sender, receiver)
     }

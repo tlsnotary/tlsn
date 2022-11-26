@@ -97,9 +97,8 @@ impl<T: ObliviousReceive<Choice = bool, Outputs = Vec<Block>>> GhashIOReceiver<T
     }
 }
 
-impl<T: ObliviousReceive> GhashMac for GhashIOReceiver<T, Finalized>
-where
-    <T as ObliviousReceive>::Choice: From<&'static [bool]>,
+impl<T: ObliviousReceive<Choice = bool, Outputs = Vec<Block>>> GhashMac
+    for GhashIOReceiver<T, Finalized>
 {
     fn generate_mac(&self, message: &[u128]) -> Result<u128, GhashIOError> {
         self.inner.generate_mac(message).map_err(GhashIOError::from)

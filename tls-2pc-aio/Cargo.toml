@@ -26,6 +26,8 @@ tokio.workspace = true
 tlsn-mpc-aio = { path = "../mpc-aio", features = ["mock"] }
 tlsn-utils-aio = { path = "../utils-aio", features = ["duplex"] }
 criterion = { workspace = true, features = ["async", "async_tokio"] }
+rand_chacha.workspace = true
+ghash_rc.workspace = true
 
 [[bench]]
 name = "prf"
