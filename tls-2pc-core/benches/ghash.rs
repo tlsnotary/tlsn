@@ -3,7 +3,6 @@ use rand::Rng;
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 use tls_2pc_core::ghash::{GhashReceiver, GhashSender};
-use tls_2pc_core::msgs::ghash::{SenderAddEnvelope, SenderMulEnvelope};
 
 pub mod helper;
 use helper::ot_mock_batch;
@@ -26,21 +25,19 @@ fn criterion_benchmark(c: &mut Criterion) {
                 let (sender, sharing) = sender.compute_mul_powers();
                 let choices = receiver.choices();
 
-                let sender_add_envelope: SenderAddEnvelope = sharing.into();
+                let sender_add_envelope = sharing.into();
                 let bool_choices: Vec<bool> = choices.into();
 
-                let chosen_inputs =
-                    ot_mock_batch(sender_add_envelope.sender_add_envelope, &bool_choices);
+                let chosen_inputs = ot_mock_batch(sender_add_envelope, &bool_choices);
                 let receiver = receiver.compute_mul_powers(chosen_inputs.into());
 
                 let (sender, sharing) = sender.into_add_powers();
                 let choices = receiver.choices().unwrap();
 
-                let sender_mul_envelope: SenderMulEnvelope = sharing.into();
+                let sender_mul_envelope = sharing.into();
                 let bool_choices: Vec<bool> = choices.into();
 
-                let chosen_inputs =
-                    ot_mock_batch(sender_mul_envelope.sender_mul_envelope, &bool_choices);
+                let chosen_inputs = ot_mock_batch(sender_mul_envelope, &bool_choices);
                 let receiver = receiver.into_add_powers(Some(chosen_inputs.into()));
 
                 let _mac = sender.generate_mac(&ciphertext).unwrap()
