@@ -14,6 +14,8 @@ use xtra::prelude::*;
 
 pub struct OpenStream {
     id: String,
+    /// the Client who initiated opening a new stream is waiting to receive
+    /// the stream via this oneshot channel
     sender: oneshot::Sender<Result<yamux::Stream, MuxerError>>,
 }
 pub struct ReceivedStream(Result<yamux::Stream, yamux::ConnectionError>);
@@ -50,13 +52,23 @@ impl YamuxConfig {
 pub struct YamuxMuxer {
     config: YamuxConfig,
     control: yamux::Control,
+    /// ids of streams already opened by the Client
     stream_ids: HashSet<String>,
+    /// The Server's buffer containing the streams which the Client opened and is ready to use
+    /// but the Server is not ready to use yet
+    /// For the Client it is always empty
+    /// The size of this buffer is bounded by the configuration of yamux (max open streams)
     stream_buffer: HashMap<String, yamux::Stream>,
+    /// The Server's buffer containing a mapping:
+    /// - the id of the stream which the Client is expected to open and
+    /// - the channel on which a task is waiting to receive the stream
+    /// For the Client it is always empty since the Client is the one who always
+    /// initiates the opening of new streams
     pending_buffer: HashMap<String, oneshot::Sender<Result<yamux::Stream, MuxerError>>>,
 }
 
 impl YamuxMuxer {
-    /// Creates new yamux muxer
+    /// Creates a new actor
     ///
     /// Returns actor and yamux connection future (which has to be polled to make progress)
     pub fn new<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
@@ -169,6 +181,7 @@ impl Handler<OpenStream> for YamuxMuxer {
     }
 }
 
+/// The controller of [YamuxMuxer]
 #[derive(Clone)]
 pub struct YamuxMuxControl(Address<YamuxMuxer>);
 
@@ -184,6 +197,7 @@ impl YamuxMuxControl {
 
 #[async_trait]
 impl MuxControl for YamuxMuxControl {
+    /// Asks [YamuxMuxer] to return the stream with the given id
     async fn get_substream(
         &mut self,
         id: String,
