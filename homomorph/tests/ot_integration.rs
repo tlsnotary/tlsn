@@ -1,4 +1,5 @@
-use homomorph::gf2_128::core::{mul, AddShare, MulShare};
+use homomorph::gf2_128::core::{AddShare, MulShare};
+use homomorph::gf2_128::mul;
 use mpc_aio::protocol::ot::kos::receiver::Kos15IOReceiver;
 use mpc_aio::protocol::ot::kos::sender::Kos15IOSender;
 use mpc_aio::protocol::ot::{ObliviousReceive, ObliviousSend};
@@ -12,7 +13,7 @@ use helper::{interleave_to_blocks, u128_to_bool};
 
 #[tokio::test]
 async fn test_m2a_ot() {
-    let mut rng = ChaCha12Rng::from_entropy();
+    let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
     // Prepare multiplicative shares and encoding
     let a: MulShare = MulShare::new(rng.gen());
@@ -55,7 +56,7 @@ async fn test_m2a_ot() {
 
 #[tokio::test]
 async fn test_a2m_ot() {
-    let mut rng = ChaCha12Rng::from_entropy();
+    let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
     // Prepare additive shares and encoding
     let x: AddShare = AddShare::new(rng.gen());

@@ -16,13 +16,16 @@
 
 pub mod gf2_128;
 
+use async_trait::async_trait;
+
+#[async_trait]
 pub trait AdditiveToMultiplicative {
     type FieldElement: Copy + std::fmt::Debug;
-    fn a_to_m(input: &[Self::FieldElement]) -> Vec<Self::FieldElement>;
+    async fn a_to_m(&mut self, input: &[Self::FieldElement]) -> Vec<Self::FieldElement>;
 }
 
+#[async_trait]
 pub trait MultiplicativeToAdditive {
     type FieldElement: Copy + std::fmt::Debug;
-    fn m_to_a(input: &[Self::FieldElement]) -> Vec<Self::FieldElement>;
+    async fn m_to_a(&mut self, input: &[Self::FieldElement]) -> Vec<Self::FieldElement>;
 }
-
