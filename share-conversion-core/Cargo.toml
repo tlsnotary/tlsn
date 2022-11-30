@@ -9,10 +9,17 @@ edition = "2021"
 tlsn-mpc-core = { path = "../mpc-core" }
 thiserror.workspace = true
 rand.workspace = true
+rand_chacha.workspace = true
+async-trait.workspace = true
+tlsn-mpc-aio = { path = "../mpc-aio" }
+thiserror.workspace = true
 
 [dev-dependencies]
 rand_chacha.workspace = true
 ghash_rc.workspace = true
+tokio.workspace = true
+tlsn-utils-aio = { path = "../utils-aio", features = ["duplex"] }
+tlsn-mpc-core = { path = "../mpc-core" }
 criterion.workspace = true
 
 [[bench]]
