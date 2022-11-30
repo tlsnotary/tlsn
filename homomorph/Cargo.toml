@@ -1,5 +1,5 @@
 [package]
-name = "gf2-128"
+name = "homomorph"
 version = "0.1.0"
 edition = "2021"
 
