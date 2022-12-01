@@ -16,9 +16,8 @@ thiserror.workspace = true
 ghash_rc.workspace = true
 tokio.workspace = true
 tlsn-utils-aio = { path = "../utils-aio", features = ["duplex"] }
-tlsn-mpc-core = { path = "../mpc-core" }
 criterion.workspace = true
 
 [[bench]]
-name = "inverse"
+name = "inverse_gf2_128"
 harness = false

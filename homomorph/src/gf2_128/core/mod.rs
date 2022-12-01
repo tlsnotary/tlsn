@@ -25,8 +25,8 @@ where
     /// Create a share of type `Self` from the result of an oblivious transfer (OT)
     ///
     /// The `value` needs to be built by choices of an OT
-    fn from_choice(value: &[u128]) -> Self {
-        Self::new(value.iter().fold(0, |acc, i| acc ^ i))
+    fn from_choice(value: &[u128]) -> Self::Output {
+        Self::Output::new(value.iter().fold(0, |acc, i| acc ^ i))
     }
 
     /// Prepares a share for conversion in an OT

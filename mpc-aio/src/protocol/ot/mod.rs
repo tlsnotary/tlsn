@@ -106,7 +106,7 @@ pub trait OTSenderFactory {
 
 #[async_trait]
 pub trait OTReceiverFactory {
-    type Protocol: ObliviousReceive;
+    type Protocol: ObliviousReceive + Send;
 
     /// Constructs a new Receiver
     ///
