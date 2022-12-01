@@ -91,7 +91,7 @@ pub trait ObliviousVerify {
 
 #[async_trait]
 pub trait OTSenderFactory {
-    type Protocol: ObliviousSend;
+    type Protocol: ObliviousSend + Send;
 
     /// Constructs a new Sender
     ///

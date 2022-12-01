@@ -3,6 +3,9 @@
 mod a2m;
 mod m2a;
 
+pub(crate) use a2m::AddShare;
+pub(crate) use m2a::MulShare;
+
 /// A trait for converting field elements
 ///
 /// Allows 2 parties to switch between additively and multiplicatively
@@ -35,6 +38,13 @@ where
 /// Masked values for an oblivious transfer
 #[derive(Clone, Debug)]
 pub struct MaskedPartialValue(pub(crate) Vec<u128>, pub(crate) Vec<u128>);
+
+impl MaskedPartialValue {
+    pub(crate) fn extend(&mut self, other: MaskedPartialValue) {
+        self.0.extend_from_slice(&other.0);
+        self.1.extend_from_slice(&other.1);
+    }
+}
 
 #[cfg(test)]
 mod tests {
