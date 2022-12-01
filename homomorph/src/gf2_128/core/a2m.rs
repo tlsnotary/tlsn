@@ -1,6 +1,6 @@
 //! This module implements the A2M algorithm.
 
-use super::m2a::MulShare;
+use super::MulShare;
 use super::{Gf2_128HomomorphicConvert, MaskedPartialValue};
 use crate::gf2_128::{inverse, mul};
 use rand::{Rng, SeedableRng};

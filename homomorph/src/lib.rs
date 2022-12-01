@@ -17,15 +17,33 @@
 pub mod gf2_128;
 
 use async_trait::async_trait;
+use mpc_aio::protocol::ot::{OTError, OTFactoryError};
+use thiserror::Error;
 
 #[async_trait]
 pub trait AdditiveToMultiplicative {
     type FieldElement: Copy + std::fmt::Debug;
-    async fn a_to_m(&mut self, input: &[Self::FieldElement]) -> Vec<Self::FieldElement>;
+    async fn a_to_m(
+        &mut self,
+        input: &[Self::FieldElement],
+        id: String,
+    ) -> Result<Vec<Self::FieldElement>, HomomorphicError>;
 }
 
 #[async_trait]
 pub trait MultiplicativeToAdditive {
     type FieldElement: Copy + std::fmt::Debug;
-    async fn m_to_a(&mut self, input: &[Self::FieldElement]) -> Vec<Self::FieldElement>;
+    async fn m_to_a(
+        &mut self,
+        input: &[Self::FieldElement],
+        id: String,
+    ) -> Result<Vec<Self::FieldElement>, HomomorphicError>;
+}
+
+#[derive(Debug, Error)]
+pub enum HomomorphicError {
+    #[error("OTFactoryError: {0}")]
+    OTFactoryError(#[from] OTFactoryError),
+    #[error("OTError: {0}")]
+    OTError(#[from] OTError),
 }
