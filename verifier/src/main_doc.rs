@@ -10,145 +10,61 @@ use crate::Commitment;
 // an x509 cert in DER format
 pub type CertDER = Vec<u8>;
 
-pub struct MainDoc {
-    version: u8,
-    signed: SignedData,
-    signature: Option<Signature>,
-    committedTLS: CommittedTLS,
-}
-
-impl MainDoc {
-    // pub fn new() -> Self {
-    //     //todo
-    // }
-
-    /// verifies the MainDoc. Checks that `hostname` is present in the leaf certificate.
-    /// trusted notary's pubkey. If the doc has a signature, the pubkey is expected to
-    /// verify the sig.
-    pub fn verify(&self, hostname: String, pubkey: Option<Pubkey>) -> Result<bool, Error> {
-        if self.signature.is_some() {
-            if pubkey.is_none() {
-                return Err(Error::VerificationError);
-            } else {
-                // check Notary's signature on signed data
-                self.verify_doc_signature(
-                    &pubkey.unwrap(),
-                    &self.signature.as_ref().unwrap(),
-                    &self.signed,
-                )?;
-            }
-        }
-
-        // check TLS certificate chain against local root certs. Some certs in the chain may
-        // have expired at the time of this verification. We check their validity at the time
-        // of notarization
-
-        if !webpki_utils::check_tls_cert_chain(&self.committedTLS.tls_cert_chain, self.signed.time)
-        {
-            return Err(Error::VerificationError);
-        }
-
-        let leaf_cert = webpki_utils::extract_leaf_cert(&self.committedTLS.tls_cert_chain);
-
-        if !self.check_tls_commitment(&self.committedTLS, &self.signed.commitment_to_TLS) {
-            return Err(Error::VerificationError);
-        }
-
-        //check that TLS key exchange parameters were signed by the leaf cert
-        if !webpki_utils::check_sig_ke_params(
-            &leaf_cert,
-            &self.committedTLS.sig_ke_params,
-            &self.signed.ephemeralECPubkey,
-            &self.committedTLS.client_random,
-            &self.committedTLS.server_random,
-        ) {
-            return Err(Error::VerificationError);
-        }
-
-        if !webpki_utils::check_hostname_present_in_cert(&leaf_cert, hostname) {
-            return Err(Error::VerificationError);
-        }
-
-        Ok(true)
-    }
-
-    // returns fields needed to perform verification of the DataDoc
-    pub fn fields_for_data_doc_verification(
-        &self,
-    ) -> (
-        Vec<RoundSize>,
-        LabelSeeds,
-        Commitment,
-        Vec<PrivateDataCommitment>,
-    ) {
-        (
-            self.signed.roundSizes.clone(),
-            self.signed.labelSeeds.clone(),
-            self.signed.commitment_to_active_labels.clone(),
-            self.signed.commitments_to_private_data.clone(),
-        )
-    }
-
-    // verify Notary's sig on the notarization doc
-    fn verify_doc_signature(
-        &self,
-        pubkey: &Pubkey,
-        sig: &Signature,
-        to_be_signed: &SignedData,
-    ) -> Result<bool, Error> {
-        let tbs_serialized = to_be_signed.serialize();
-        if pubkey.typ != sig.typ {
-            return Err(Error::VerificationError);
-        }
-        let result = match sig.typ {
-            Curve::secp256k1 => {
-                verify_signature::verify_sig_p256(&tbs_serialized, &pubkey.pubkey, &sig.signature)
-            }
-            _ => false,
-        };
-        if !result {
-            return Err(Error::VerificationError);
-        } else {
-            Ok(true)
-        }
-    }
-
-    // check the commitment (1) to misc TLS data
-    fn check_tls_commitment(&self, committedTLS: &CommittedTLS, commitment: &Commitment) -> bool {
-        commitment.check(committedTLS.serialize())
-    }
+#[derive(Clone)]
+// TLS-related struct which is signed by Notary
+struct SignedTLS {
+    // notarization time
+    time: u64,
+    ephemeralECPubkey: EphemeralECPubkey,
+    /// commitment to [`CommittedTLS`]
+    commitment_to_TLS: Commitment,
 }
 
 #[derive(Clone)]
-struct SignedData {
-    time: u64,
-    ephemeralECPubkey: EphemeralECPubkey,
-    roundSizes: Vec<RoundSize>,
-    commitment_to_TLS: Commitment,
-    labelSeeds: LabelSeeds,
-    commitment_to_active_labels: Commitment,
-    // this is the commitments from the authdecode protocol
-    commitments_to_private_data: Vec<PrivateDataCommitment>,
+// public/private data-related struct which is signed by Notary
+pub struct SignedData {
+    pub roundSizes: Vec<RoundSize>,
+    pub labelSeeds: LabelSeeds,
+    // commitments to request+response active labels of each round
+    // `Option` because it is allowed for a round to not have any public commitments
+    pub public_commitments: Vec<Option<Commitment>>,
+    // private commitments for each round
+    // this is the commitments from the authdecode protocol. Ordering is: commitments
+    // to the request for all rounds folowed by the commitments to the response for all rounds.
+    // All ranges must be non-overlapping and ascending.
+    // `Option` because it is permitted for a round to not have any private commitments
+    pub private_commitments: Vec<Option<PrivateDataCommitment>>,
 }
 
-impl SignedData {
+/// The data which the Notary must sign
+#[derive(Clone)]
+struct Signed {
+    tls: SignedTLS,
+    data: SignedData,
+}
+
+impl Signed {
     pub fn new(
         time: u64,
         ephemeralECPubkey: EphemeralECPubkey,
         roundSizes: Vec<RoundSize>,
         commitment_to_TLS: Commitment,
         labelSeeds: LabelSeeds,
-        commitment_to_active_labels: Commitment,
-        commitments_to_private_data: Vec<PrivateDataCommitment>,
+        public_commitments: Vec<Option<Commitment>>,
+        private_commitments: Vec<Option<PrivateDataCommitment>>,
     ) -> Self {
         Self {
-            time,
-            ephemeralECPubkey,
-            roundSizes,
-            commitment_to_TLS,
-            labelSeeds,
-            commitment_to_active_labels,
-            commitments_to_private_data,
+            tls: SignedTLS {
+                time,
+                ephemeralECPubkey,
+                commitment_to_TLS,
+            },
+            data: SignedData {
+                roundSizes,
+                labelSeeds,
+                public_commitments,
+                private_commitments,
+            },
         }
     }
 
@@ -170,7 +86,7 @@ impl SignedData {
 // the identity of the webserver.
 //
 // Note that there is no need to include the ephemeral key because it will be signed explicitely
-// by the Notary.
+// by the Notary
 struct CommittedTLS {
     tls_cert_chain: Vec<CertDER>,
     sig_ke_params: SignatureKeyExchangeParams,
@@ -227,4 +143,104 @@ pub enum SigKEParamsType {
 pub struct SignatureKeyExchangeParams {
     pub typ: SigKEParamsType,
     pub sig: Vec<u8>,
+}
+
+// MainDoc contains all the info needed to verify the authenticity of the TLS session.
+pub struct MainDoc {
+    version: u8,
+    signed: Signed,
+    signature: Option<Signature>,
+    committedTLS: CommittedTLS,
+}
+
+impl MainDoc {
+    // pub fn new() -> Self {
+    //     //todo
+    // }
+
+    /// verifies the MainDoc. Checks that `hostname` is present in the leaf certificate.
+    /// `pubkey` is trusted notary's pubkey. If the doc has a signature, the pubkey is expected to
+    /// verify the sig.
+    pub fn verify(&self, hostname: String, pubkey: Option<Pubkey>) -> Result<bool, Error> {
+        if self.signature.is_some() {
+            if pubkey.is_none() {
+                return Err(Error::VerificationError);
+            } else {
+                // check Notary's signature on signed data
+                self.verify_doc_signature(
+                    &pubkey.unwrap(),
+                    &self.signature.as_ref().unwrap(),
+                    &self.signed,
+                )?;
+            }
+        }
+
+        // check TLS certificate chain against local root certs. Some certs in the chain may
+        // have expired at the time of this verification. We check their validity at the time
+        // of notarization
+
+        if !webpki_utils::check_tls_cert_chain(
+            &self.committedTLS.tls_cert_chain,
+            self.signed.tls.time,
+        ) {
+            return Err(Error::VerificationError);
+        }
+
+        let leaf_cert = webpki_utils::extract_leaf_cert(&self.committedTLS.tls_cert_chain);
+
+        if !self.check_tls_commitment(&self.committedTLS, &self.signed.tls.commitment_to_TLS) {
+            return Err(Error::VerificationError);
+        }
+
+        //check that TLS key exchange parameters were signed by the leaf cert
+        if !webpki_utils::check_sig_ke_params(
+            &leaf_cert,
+            &self.committedTLS.sig_ke_params,
+            &self.signed.tls.ephemeralECPubkey,
+            &self.committedTLS.client_random,
+            &self.committedTLS.server_random,
+        ) {
+            return Err(Error::VerificationError);
+        }
+
+        if !webpki_utils::check_hostname_present_in_cert(&leaf_cert, hostname) {
+            return Err(Error::VerificationError);
+        }
+
+        Ok(true)
+    }
+
+    // returns fields needed to perform verification of the DataDoc
+    pub fn signed_data(&self) -> SignedData {
+        self.signed.data.clone()
+    }
+
+    // verify Notary's sig on the notarization doc
+    fn verify_doc_signature(
+        &self,
+        pubkey: &Pubkey,
+        sig: &Signature,
+        to_be_signed: &Signed,
+    ) -> Result<bool, Error> {
+        let tbs_serialized = to_be_signed.serialize();
+        if pubkey.typ != sig.typ {
+            return Err(Error::VerificationError);
+        }
+        let result = match sig.typ {
+            Curve::secp256k1 => {
+                verify_signature::verify_sig_p256(&tbs_serialized, &pubkey.pubkey, &sig.signature)
+            }
+            _ => false,
+        };
+        if !result {
+            return Err(Error::VerificationError);
+        } else {
+            Ok(true)
+        }
+    }
+
+    // check the commitment (1) to misc TLS data
+    fn check_tls_commitment(&self, committedTLS: &CommittedTLS, commitment: &Commitment) -> bool {
+        commitment.check(committedTLS.serialize())
+    }
 }
