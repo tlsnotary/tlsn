@@ -3,4 +3,5 @@ use super::core::{AddShare, Gf2_128HomomorphicConvert, MaskedPartialValue, MulSh
 mod receiver;
 mod sender;
 
-pub use sender::GF2_128HomomorphicIOSender;
+pub use receiver::Receiver;
+pub use sender::Sender;

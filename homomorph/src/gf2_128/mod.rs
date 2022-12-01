@@ -4,8 +4,10 @@
 //! * M2A: Implementation of chapter 4.1 in <https://link.springer.com/content/pdf/10.1007/3-540-48405-1_8.pdf>
 //! * A2M: Adaptation of chapter 4 in <https://www.cs.umd.edu/~fenghao/paper/modexp.pdf>
 
-pub mod aio;
+mod aio;
 mod core;
+
+pub use aio::{Receiver, Sender};
 
 /// R is GCM polynomial in little-endian. In hex: "E1000000000000000000000000000000"
 const R: u128 = 299076299051606071403356588563077529600;

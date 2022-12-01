@@ -6,12 +6,12 @@ use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive};
 use async_trait::async_trait;
 use mpc_aio::protocol::ot::{OTSenderFactory, ObliviousSend};
 
-pub struct GF2_128HomomorphicIOSender<T: OTSenderFactory, U: Gf2_128HomomorphicConvert> {
+pub struct Sender<T: OTSenderFactory, U: Gf2_128HomomorphicConvert> {
     sender_factory_control: T,
     share_type: std::marker::PhantomData<U>,
 }
 
-impl<T: OTSenderFactory, U: Gf2_128HomomorphicConvert> GF2_128HomomorphicIOSender<T, U>
+impl<T: OTSenderFactory, U: Gf2_128HomomorphicConvert> Sender<T, U>
 where
     T: Send,
     <<T as OTSenderFactory>::Protocol as ObliviousSend>::Inputs: From<MaskedPartialValue>,
@@ -46,7 +46,7 @@ where
 }
 
 #[async_trait]
-impl<T: OTSenderFactory + Send> AdditiveToMultiplicative for GF2_128HomomorphicIOSender<T, AddShare>
+impl<T: OTSenderFactory + Send> AdditiveToMultiplicative for Sender<T, AddShare>
 where
     <<T as OTSenderFactory>::Protocol as ObliviousSend>::Inputs: From<MaskedPartialValue> + Send,
 {
@@ -62,7 +62,7 @@ where
 }
 
 #[async_trait]
-impl<T: OTSenderFactory + Send> MultiplicativeToAdditive for GF2_128HomomorphicIOSender<T, MulShare>
+impl<T: OTSenderFactory + Send> MultiplicativeToAdditive for Sender<T, MulShare>
 where
     <<T as OTSenderFactory>::Protocol as ObliviousSend>::Inputs: From<MaskedPartialValue> + Send,
 {
