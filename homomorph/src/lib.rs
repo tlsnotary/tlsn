@@ -20,6 +20,7 @@ use async_trait::async_trait;
 use mpc_aio::protocol::ot::{OTError, OTFactoryError};
 use thiserror::Error;
 
+/// Allows to convert additive shares of `FieldElement` to multiplicative shares
 #[async_trait]
 pub trait AdditiveToMultiplicative {
     type FieldElement: Copy + std::fmt::Debug;
@@ -30,6 +31,7 @@ pub trait AdditiveToMultiplicative {
     ) -> Result<Vec<Self::FieldElement>, HomomorphicError>;
 }
 
+/// Allows to convert multiplicative shares of `FieldElement` to additive shares
 #[async_trait]
 pub trait MultiplicativeToAdditive {
     type FieldElement: Copy + std::fmt::Debug;
@@ -40,6 +42,7 @@ pub trait MultiplicativeToAdditive {
     ) -> Result<Vec<Self::FieldElement>, HomomorphicError>;
 }
 
+/// An error for what can go wrong during conversion
 #[derive(Debug, Error)]
 pub enum HomomorphicError {
     #[error("OTFactoryError: {0}")]

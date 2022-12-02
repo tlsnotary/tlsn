@@ -1,3 +1,5 @@
+//! This module implements the async IO layer
+
 use super::core::{AddShare, Gf2_128HomomorphicConvert, MaskedPartialValue, MulShare};
 
 mod receiver;

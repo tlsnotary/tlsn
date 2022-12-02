@@ -1,4 +1,4 @@
-//! This module implements the async IO wrapper for the core logic.
+//! This module implements the async IO sender
 
 use super::{AddShare, Gf2_128HomomorphicConvert, MaskedPartialValue, MulShare};
 use crate::HomomorphicError;
@@ -6,6 +6,9 @@ use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive};
 use async_trait::async_trait;
 use mpc_aio::protocol::ot::{OTSenderFactory, ObliviousSend};
 
+/// The sender for the conversion
+///
+/// Will be the OT sender
 pub struct Sender<T: OTSenderFactory, U: Gf2_128HomomorphicConvert> {
     sender_factory_control: T,
     share_type: std::marker::PhantomData<U>,
@@ -16,6 +19,7 @@ where
     T: Send,
     <<T as OTSenderFactory>::Protocol as ObliviousSend>::Inputs: From<MaskedPartialValue>,
 {
+    /// Creates a new sender
     pub fn new(sender_factory_control: T) -> Self {
         Self {
             sender_factory_control,
@@ -23,6 +27,7 @@ where
         }
     }
 
+    /// Convert the shares using oblivious transfer
     pub async fn convert(
         &mut self,
         shares: &[u128],
