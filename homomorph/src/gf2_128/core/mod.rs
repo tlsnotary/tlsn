@@ -1,16 +1,17 @@
-//! This module implements the core logic, i.e. no input/output.
+//! This module implements the core logic, i.e. no async IO
 
 mod a2m;
 mod m2a;
 
 pub(crate) use a2m::AddShare;
 pub(crate) use m2a::MulShare;
+use mpc_core::Block;
 
 /// A trait for converting field elements
 ///
 /// Allows 2 parties to switch between additively and multiplicatively
 /// shared representations of a field element.
-pub trait Gf2_128HomomorphicConvert
+pub trait Gf2_128HomomorphicConvert: Copy
 where
     Self: Sized,
 {
@@ -19,10 +20,19 @@ where
     /// Create a new instance
     fn new(share: u128) -> Self;
 
+    /// Converts 'self' into choices needed for the receiver input to an oblivious transfer
+    fn choices(&self) -> Vec<bool> {
+        let mut out: Vec<bool> = Vec::with_capacity(128);
+        for k in 0..128 {
+            out.push((self.inner() >> k & 1) == 1);
+        }
+        out
+    }
+
     /// Return the inner value
     fn inner(&self) -> u128;
 
-    /// Create a share of type `Self` from the result of an oblivious transfer (OT)
+    /// Create a share of type `Self::Output` from the result of an oblivious transfer (OT)
     ///
     /// The `value` needs to be built by choices of an OT
     fn from_choice(value: &[u128]) -> Self::Output {
@@ -43,6 +53,16 @@ impl MaskedPartialValue {
     pub(crate) fn extend(&mut self, other: MaskedPartialValue) {
         self.0.extend_from_slice(&other.0);
         self.1.extend_from_slice(&other.1);
+    }
+}
+
+impl From<MaskedPartialValue> for Vec<[Block; 2]> {
+    fn from(value: MaskedPartialValue) -> Self {
+        let mut out = Vec::with_capacity(value.0.len());
+        for (zero, one) in value.0.iter().zip(value.1.iter()) {
+            out.push([Block::new(*zero), Block::new(*one)])
+        }
+        out
     }
 }
 

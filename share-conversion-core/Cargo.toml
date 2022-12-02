@@ -12,6 +12,7 @@ rand.workspace = true
 rand_chacha.workspace = true
 async-trait.workspace = true
 tlsn-mpc-aio = { path = "../mpc-aio" }
+tlsn-mpc-core = { path = "../mpc-core" }
 thiserror.workspace = true
 
 [dev-dependencies]
