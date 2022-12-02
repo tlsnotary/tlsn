@@ -568,6 +568,46 @@ impl OutputLabelsCommitment {
     }
 }
 
+/// Extracts output labels from fully evaluated labels
+///
+/// Panics if output labels are invalid
+pub(crate) fn extract_output_labels(
+    circ: &Circuit,
+    labels: &[WireLabel],
+) -> Vec<OutputLabels<WireLabel>> {
+    circ.outputs()
+        .iter()
+        .map(|output| {
+            OutputLabels::new(
+                output.clone(),
+                &output
+                    .as_ref()
+                    .wires()
+                    .iter()
+                    .map(|wire_id| labels[*wire_id])
+                    .collect::<Vec<WireLabel>>(),
+            )
+        })
+        .collect::<Result<Vec<OutputLabels<WireLabel>>, Error>>()
+        .expect("Evaluated circuit output labels should be valid")
+}
+
+/// Decodes evaluated circuit output labels
+pub(crate) fn decode_output_labels(
+    circ: &Circuit,
+    labels: &[OutputLabels<WireLabel>],
+    encoding: &[OutputLabelsEncoding],
+) -> Result<Vec<OutputValue>, Error> {
+    if encoding.len() != circ.output_count() {
+        return Err(Error::InvalidLabelEncoding);
+    }
+    labels
+        .iter()
+        .zip(encoding.iter())
+        .map(|(labels, encoding)| labels.decode(encoding))
+        .collect::<Result<Vec<OutputValue>, Error>>()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

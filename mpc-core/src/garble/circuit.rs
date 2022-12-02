@@ -4,14 +4,17 @@ use std::sync::Arc;
 use crate::{
     block::Block,
     garble::{
-        evaluator::evaluate, generator::garble, label::SanitizedInputLabels, Delta, Error,
-        InputLabels, WireLabel, WireLabelPair,
+        evaluator::evaluate,
+        generator::garble,
+        label::{
+            decode_output_labels, extract_output_labels, OutputLabels, OutputLabelsCommitment,
+            OutputLabelsEncoding, SanitizedInputLabels,
+        },
+        Delta, Error, InputLabels, WireLabel, WireLabelPair,
     },
     utils::sha256,
 };
 use mpc_circuits::{Circuit, InputValue, OutputValue};
-
-use super::label::{OutputLabels, OutputLabelsCommitment, OutputLabelsEncoding};
 
 #[derive(Debug, Clone)]
 pub struct EncryptedGate([Block; 2]);
@@ -282,27 +285,6 @@ impl GarbledCircuit<Partial> {
     }
 }
 
-/// Extracts output labels from fully evaluated labels
-///
-/// Panics if output labels are invalid
-fn extract_output_labels(circ: &Circuit, labels: &[WireLabel]) -> Vec<OutputLabels<WireLabel>> {
-    circ.outputs()
-        .iter()
-        .map(|output| {
-            OutputLabels::new(
-                output.clone(),
-                &output
-                    .as_ref()
-                    .wires()
-                    .iter()
-                    .map(|wire_id| labels[*wire_id])
-                    .collect::<Vec<WireLabel>>(),
-            )
-        })
-        .collect::<Result<Vec<OutputLabels<WireLabel>>, Error>>()
-        .expect("Evaluated circuit output labels should be valid")
-}
-
 impl GarbledCircuit<Evaluated> {
     /// Returns all active output labels which are the result of circuit evaluation
     pub fn output_labels(&self) -> &[OutputLabels<WireLabel>] {
@@ -357,14 +339,7 @@ impl GarbledCircuit<Evaluated> {
             .encoding
             .as_ref()
             .ok_or(Error::InvalidLabelEncoding)?;
-        if encoding.len() != self.circ.output_count() {
-            return Err(Error::InvalidLabelEncoding);
-        }
-        let mut outputs: Vec<OutputValue> = Vec::with_capacity(self.circ.output_count());
-        for (labels, encoding) in self.output_labels().iter().zip(encoding) {
-            outputs.push(labels.decode(encoding)?);
-        }
-        Ok(outputs)
+        decode_output_labels(&self.circ, &self.data.output_labels, encoding)
     }
 }
 
@@ -391,14 +366,7 @@ impl GarbledCircuit<Output> {
             .encoding
             .as_ref()
             .ok_or(Error::InvalidLabelEncoding)?;
-        if encoding.len() != self.circ.output_count() {
-            return Err(Error::InvalidLabelEncoding);
-        }
-        let mut outputs: Vec<OutputValue> = Vec::with_capacity(self.circ.output_count());
-        for (labels, encoding) in self.output_labels().iter().zip(encoding) {
-            outputs.push(labels.decode(encoding)?);
-        }
-        Ok(outputs)
+        decode_output_labels(&self.circ, &self.data.labels, encoding)
     }
 }
 
