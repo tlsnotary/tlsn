@@ -124,24 +124,14 @@ impl SemiHonestFollower<Evaluator> {
 
         // The generator must send commitments to the output labels to mitigate
         // some types of malicious garbling
-        let output_commitments = match gc.output_commitments() {
-            Some(output_commitments) => output_commitments,
-            None => {
-                return Err(Error::PeerError(
-                    "Peer did not send output commitments with garbled circuit".to_string(),
-                ));
-            }
-        };
+        if !gc.has_output_commitments() {
+            return Err(Error::PeerError(
+                "Peer did not send output commitments with garbled circuit".to_string(),
+            ));
+        }
 
         let ev_gc = gc.evaluate(&cipher, input_labels)?;
         let output = ev_gc.to_output();
-
-        // Validate output labels against the Generator's commitments
-        output_commitments
-            .iter()
-            .zip(output.output_labels())
-            .map(|(commitment, labels)| commitment.validate(&labels))
-            .collect::<Result<_, Error>>()?;
 
         Ok((msgs::Output::from(output), ev_gc))
     }
