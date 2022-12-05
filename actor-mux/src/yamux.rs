@@ -197,8 +197,7 @@ impl YamuxMuxControl {
 
 #[async_trait]
 impl MuxControl for YamuxMuxControl {
-    /// Asks [YamuxMuxer] to return the stream with the given id
-    async fn get_substream(
+    async fn get_stream(
         &mut self,
         id: String,
     ) -> Result<Box<dyn DuplexByteStream + Send>, MuxerError> {
@@ -206,11 +205,11 @@ impl MuxControl for YamuxMuxControl {
         self.0
             .send(OpenStream { id, sender })
             .await
-            .map_err(|_| MuxerError::InternalError("Failed to get substream".to_string()))?;
+            .map_err(|_| MuxerError::InternalError("Failed to get stream".to_string()))?;
 
         let stream = receiver
             .await
-            .map_err(|_| MuxerError::InternalError("Failed to get substream".to_string()))?;
+            .map_err(|_| MuxerError::InternalError("Failed to get stream".to_string()))?;
 
         stream.map(|stream| Box::new(stream) as Box<dyn DuplexByteStream + Send>)
     }
@@ -305,11 +304,8 @@ mod tests {
 
         let stream_id = "test_id".to_string();
 
-        let mut client_stream = client_control
-            .get_substream(stream_id.clone())
-            .await
-            .unwrap();
-        let mut server_stream = server_control.get_substream(stream_id).await.unwrap();
+        let mut client_stream = client_control.get_stream(stream_id.clone()).await.unwrap();
+        let mut server_stream = server_control.get_stream(stream_id).await.unwrap();
 
         let msg = "test message".as_bytes();
 
@@ -334,19 +330,13 @@ mod tests {
 
         let stream_id = "test_id".to_string();
 
-        let _ = client_control
-            .get_substream(stream_id.clone())
-            .await
-            .unwrap();
-        let err = client_control.get_substream(stream_id.clone()).await;
+        let _ = client_control.get_stream(stream_id.clone()).await.unwrap();
+        let err = client_control.get_stream(stream_id.clone()).await;
 
         assert!(matches!(err, Err(MuxerError::DuplicateStreamId(_))));
 
-        let _ = server_control
-            .get_substream(stream_id.clone())
-            .await
-            .unwrap();
-        let err = server_control.get_substream(stream_id).await;
+        let _ = server_control.get_stream(stream_id.clone()).await.unwrap();
+        let err = server_control.get_stream(stream_id).await;
 
         assert!(matches!(err, Err(MuxerError::DuplicateStreamId(_))));
     }

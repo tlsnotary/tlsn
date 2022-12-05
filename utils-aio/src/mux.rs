@@ -16,20 +16,20 @@ pub enum MuxerError {
 
 #[async_trait]
 pub trait MuxControl: Clone {
-    /// Opens a new substream with the remote using the provided id
-    async fn get_substream(
+    /// Opens a new stream with the remote using the provided id
+    async fn get_stream(
         &mut self,
         id: String,
     ) -> Result<Box<dyn DuplexByteStream + Send>, MuxerError>;
 }
 
-/// This trait is similar to [`MuxControl`] except it provides a substream
+/// This trait is similar to [`MuxControl`] except it provides a stream
 /// with a codec attached which handles serialization.
 #[async_trait]
 pub trait MuxChannelControl<T> {
     /// Opens a new channel with the remote using the provided id
     ///
-    /// Attaches a codec to the underlying substream
+    /// Attaches a codec to the underlying stream
     async fn get_channel(
         &mut self,
         id: String,
