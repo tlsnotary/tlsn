@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "actor-mux",
     "tls-core",
     "mpc-core",
     "mpc-aio",
@@ -37,7 +38,6 @@ getrandom = "0.2"
 wasm-bindgen = "0.2"
 async-tungstenite = "0.16"
 ws_stream_tungstenite = "0.7"
-yamux = "0.10"
 tracing-subscriber = "0.3"
 clap = "3"
 tokio-stream = "0.1"
@@ -72,3 +72,5 @@ webpki = "0.22"
 ring = "0.16"
 bytes = "1"
 async-std = "1"
+xtra = { git = "https://github.com/Restioson/xtra", rev = "ca061b4" }
+yamux = "0.10"
