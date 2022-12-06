@@ -1,7 +1,7 @@
 //! This module implements the async IO sender
 
-use super::{AddShare, Gf2_128HomomorphicConvert, MaskedPartialValue, MulShare};
-use crate::HomomorphicError;
+use super::{AddShare, Gf2_128ShareConvert, MaskedPartialValue, MulShare};
+use crate::ShareConversionError;
 use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive};
 use async_trait::async_trait;
 use mpc_aio::protocol::ot::{OTSenderFactory, ObliviousSend};
@@ -9,12 +9,12 @@ use mpc_aio::protocol::ot::{OTSenderFactory, ObliviousSend};
 /// The sender for the conversion
 ///
 /// Will be the OT sender
-pub struct Sender<T: OTSenderFactory, U: Gf2_128HomomorphicConvert> {
+pub struct Sender<T: OTSenderFactory, U: Gf2_128ShareConvert> {
     sender_factory_control: T,
     share_type: std::marker::PhantomData<U>,
 }
 
-impl<T: OTSenderFactory, U: Gf2_128HomomorphicConvert> Sender<T, U>
+impl<T: OTSenderFactory, U: Gf2_128ShareConvert> Sender<T, U>
 where
     T: Send,
     <<T as OTSenderFactory>::Protocol as ObliviousSend>::Inputs: From<MaskedPartialValue>,
@@ -32,7 +32,7 @@ where
         &mut self,
         shares: &[u128],
         id: String,
-    ) -> Result<Vec<u128>, HomomorphicError> {
+    ) -> Result<Vec<u128>, ShareConversionError> {
         let mut local_shares = vec![];
         let mut ot_shares = MaskedPartialValue(vec![], vec![]);
         shares.iter().for_each(|share| {
@@ -61,7 +61,7 @@ where
         &mut self,
         input: &[Self::FieldElement],
         id: String,
-    ) -> Result<Vec<Self::FieldElement>, HomomorphicError> {
+    ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
         self.convert(input, id).await
     }
 }
@@ -77,7 +77,7 @@ where
         &mut self,
         input: &[Self::FieldElement],
         id: String,
-    ) -> Result<Vec<Self::FieldElement>, HomomorphicError> {
+    ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
         self.convert(input, id).await
     }
 }

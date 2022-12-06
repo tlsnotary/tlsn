@@ -1,7 +1,7 @@
 //! This module implements the M2A algorithm.
 
 use super::a2m::AddShare;
-use super::{Gf2_128HomomorphicConvert, MaskedPartialValue};
+use super::{Gf2_128ShareConvert, MaskedPartialValue};
 use crate::gf2_128::mul;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha12Rng;
@@ -27,7 +27,7 @@ impl MulShare {
     }
 }
 
-impl Gf2_128HomomorphicConvert for MulShare {
+impl Gf2_128ShareConvert for MulShare {
     type Output = AddShare;
 
     fn new(share: u128) -> Self {

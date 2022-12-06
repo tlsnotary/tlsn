@@ -28,7 +28,7 @@ pub trait AdditiveToMultiplicative {
         &mut self,
         input: &[Self::FieldElement],
         id: String,
-    ) -> Result<Vec<Self::FieldElement>, HomomorphicError>;
+    ) -> Result<Vec<Self::FieldElement>, ShareConversionError>;
 }
 
 /// Allows to convert multiplicative shares of `FieldElement` to additive shares
@@ -39,12 +39,12 @@ pub trait MultiplicativeToAdditive {
         &mut self,
         input: &[Self::FieldElement],
         id: String,
-    ) -> Result<Vec<Self::FieldElement>, HomomorphicError>;
+    ) -> Result<Vec<Self::FieldElement>, ShareConversionError>;
 }
 
 /// An error for what can go wrong during conversion
 #[derive(Debug, Error)]
-pub enum HomomorphicError {
+pub enum ShareConversionError {
     #[error("OTFactoryError: {0}")]
     OTFactoryError(#[from] OTFactoryError),
     #[error("OTError: {0}")]
