@@ -16,7 +16,7 @@ use crate::{
 };
 use mpc_circuits::{Circuit, InputValue, OutputValue};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct EncryptedGate([Block; 2]);
 
 impl EncryptedGate {
@@ -29,6 +29,19 @@ impl AsRef<[Block; 2]> for EncryptedGate {
     fn as_ref(&self) -> &[Block; 2] {
         &self.0
     }
+}
+
+fn gates_digest(encrypted_gates: &[EncryptedGate]) -> Vec<u8> {
+    sha256(
+        &encrypted_gates
+            .iter()
+            .map(|gate| gate.0)
+            .flatten()
+            .map(|gate| gate.to_be_bytes())
+            .flatten()
+            .collect::<Vec<u8>>(),
+    )
+    .to_vec()
 }
 
 pub trait Data {}
@@ -61,14 +74,16 @@ pub struct Evaluated {
     encrypted_gates: Vec<EncryptedGate>,
     output_labels: Vec<OutputLabels<WireLabel>>,
     encoding: Option<Vec<OutputLabelsEncoding>>,
+    commitments: Option<Vec<OutputLabelsCommitment>>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Compressed {
     input_labels: Vec<InputLabels<WireLabel>>,
-    gate_digest: Vec<u8>,
+    gates_digest: Vec<u8>,
     output_labels: Vec<OutputLabels<WireLabel>>,
     encoding: Option<Vec<OutputLabelsEncoding>>,
+    commitments: Option<Vec<OutputLabelsCommitment>>,
 }
 
 /// Evaluated garbled circuit output data
@@ -264,7 +279,7 @@ impl GarbledCircuit<Partial> {
         let output_labels = extract_output_labels(&self.circ, &labels);
 
         // Always check output labels against commitments if they're available
-        if let Some(output_commitments) = self.data.commitments {
+        if let Some(output_commitments) = self.data.commitments.as_ref() {
             output_commitments
                 .iter()
                 .zip(&output_labels)
@@ -279,13 +294,19 @@ impl GarbledCircuit<Partial> {
                 labels,
                 encrypted_gates: self.data.encrypted_gates,
                 output_labels,
-                encoding: self.data.encoding.clone(),
+                encoding: self.data.encoding,
+                commitments: self.data.commitments,
             },
         })
     }
 }
 
 impl GarbledCircuit<Evaluated> {
+    /// Returns all active inputs labels used to evaluate the circuit
+    pub fn input_labels(&self) -> &[InputLabels<WireLabel>] {
+        &self.data.input_labels
+    }
+
     /// Returns all active output labels which are the result of circuit evaluation
     pub fn output_labels(&self) -> &[OutputLabels<WireLabel>] {
         &self.data.output_labels
@@ -296,6 +317,7 @@ impl GarbledCircuit<Evaluated> {
         self.data.encoding.is_some()
     }
 
+    /// Returns garbled circuit output
     pub fn to_output(&self) -> GarbledCircuit<Output> {
         GarbledCircuit {
             circ: self.circ.clone(),
@@ -308,26 +330,14 @@ impl GarbledCircuit<Evaluated> {
 
     /// Returns a compressed evaluated circuit to reduce memory utilization
     pub fn compress(self) -> GarbledCircuit<Compressed> {
-        let gate_digest = sha256(
-            &self
-                .data
-                .encrypted_gates
-                .iter()
-                .map(|gate| gate.0)
-                .flatten()
-                .map(|gate| gate.to_be_bytes())
-                .flatten()
-                .collect::<Vec<u8>>(),
-        )
-        .to_vec();
-
         GarbledCircuit {
             circ: self.circ.clone(),
             data: Compressed {
                 input_labels: self.data.input_labels,
-                gate_digest,
+                gates_digest: gates_digest(&self.data.encrypted_gates),
                 output_labels: self.data.output_labels,
                 encoding: self.data.encoding,
+                commitments: self.data.commitments,
             },
         }
     }
@@ -340,6 +350,141 @@ impl GarbledCircuit<Evaluated> {
             .as_ref()
             .ok_or(Error::InvalidLabelEncoding)?;
         decode_output_labels(&self.circ, &self.data.output_labels, encoding)
+    }
+
+    /// Validates whether circuit was garbled honestly
+    pub fn validate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
+        &self,
+        cipher: &C,
+        delta: Delta,
+        input_labels: &[InputLabels<WireLabelPair>],
+    ) -> Result<(), Error> {
+        let input_labels: Vec<WireLabelPair> = input_labels
+            .iter()
+            .map(|pair| pair.as_ref())
+            .flatten()
+            .copied()
+            .collect();
+
+        let (labels, encrypted_gates) = garble(cipher, &self.circ, delta, &input_labels)?;
+
+        // Check encrypted gates match
+        if encrypted_gates != self.data.encrypted_gates {
+            return Err(Error::CorruptedGarbledCircuit);
+        }
+
+        // Check output encoding if it was sent
+        if let Some(self_output_encoding) = self.data.encoding.as_ref() {
+            let output_decoding = extract_output_labels(&self.circ, &labels)
+                .iter()
+                .map(|labels| labels.encode())
+                .collect::<Vec<_>>();
+
+            if &output_decoding != self_output_encoding {
+                return Err(Error::CorruptedGarbledCircuit);
+            }
+        }
+
+        // Check output commitments if they were sent
+        if let Some(self_output_commitments) = self.data.commitments.as_ref() {
+            let output_commitments = extract_output_labels(&self.circ, &labels)
+                .iter()
+                .map(|labels| labels.commit())
+                .collect::<Vec<_>>();
+
+            if &output_commitments != self_output_commitments {
+                return Err(Error::CorruptedGarbledCircuit);
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl GarbledCircuit<Compressed> {
+    /// Returns all active inputs labels used to evaluate the circuit
+    pub fn input_labels(&self) -> &[InputLabels<WireLabel>] {
+        &self.data.input_labels
+    }
+
+    /// Returns all active output labels which are the result of circuit evaluation
+    pub fn output_labels(&self) -> &[OutputLabels<WireLabel>] {
+        &self.data.output_labels
+    }
+
+    /// Returns whether or not output encoding is available
+    pub fn has_encoding(&self) -> bool {
+        self.data.encoding.is_some()
+    }
+
+    /// Returns garbled circuit output
+    pub fn to_output(&self) -> GarbledCircuit<Output> {
+        GarbledCircuit {
+            circ: self.circ.clone(),
+            data: Output {
+                labels: self.output_labels().to_vec(),
+                encoding: self.data.encoding.clone(),
+            },
+        }
+    }
+
+    /// Returns decoded circuit outputs
+    pub fn decode(&self) -> Result<Vec<OutputValue>, Error> {
+        let encoding = self
+            .data
+            .encoding
+            .as_ref()
+            .ok_or(Error::InvalidLabelEncoding)?;
+        decode_output_labels(&self.circ, &self.data.output_labels, encoding)
+    }
+
+    /// Validates whether circuit was garbled honestly
+    pub fn validate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
+        &self,
+        cipher: &C,
+        delta: Delta,
+        input_labels: &[InputLabels<WireLabelPair>],
+    ) -> Result<(), Error> {
+        let input_labels: Vec<WireLabelPair> = input_labels
+            .iter()
+            .map(|pair| pair.as_ref())
+            .flatten()
+            .copied()
+            .collect();
+
+        let (labels, encrypted_gates) = garble(cipher, &self.circ, delta, &input_labels)?;
+        let gates_digest = gates_digest(&encrypted_gates);
+
+        // If hashes don't match circuit wasn't garbled correctly
+        if gates_digest != self.data.gates_digest {
+            return Err(Error::CorruptedGarbledCircuit);
+        }
+
+        // Check output encoding if it was sent
+        if let Some(self_output_encoding) = self.data.encoding.as_ref() {
+            let output_decoding = extract_output_labels(&self.circ, &labels)
+                .iter()
+                .map(|labels| labels.encode())
+                .collect::<Vec<_>>();
+
+            if &output_decoding != self_output_encoding {
+                return Err(Error::CorruptedGarbledCircuit);
+            }
+        }
+
+        // Check output commitments if they were sent
+        if let Some(self_output_commitments) = self.data.commitments.as_ref() {
+            let output_commitments = extract_output_labels(&self.circ, &labels)
+                .iter()
+                .map(|labels| labels.commit())
+                .collect::<Vec<_>>();
+
+            if &output_commitments != self_output_commitments {
+                return Err(Error::CorruptedGarbledCircuit);
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -382,12 +527,121 @@ mod tests {
     #[test]
     fn test_uninitialized_label() {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
-        let mut rng = ChaCha12Rng::from_entropy();
+        let mut rng = ChaCha12Rng::seed_from_u64(0);
         let circ = Arc::new(Circuit::load_bytes(AES_128_REVERSE).unwrap());
 
         let (input_labels, delta) = InputLabels::generate(&mut rng, &circ, None);
 
         let result = GarbledCircuit::generate(&cipher, circ, delta, &input_labels[1..]);
         assert!(matches!(result, Err(Error::UninitializedLabel(_))));
+    }
+
+    #[test]
+    fn test_circuit_validation_pass() {
+        let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
+        let mut rng = ChaCha12Rng::seed_from_u64(0);
+        let circ = Arc::new(Circuit::load_bytes(AES_128_REVERSE).unwrap());
+
+        let key = circ.input(0).unwrap().to_value(vec![0u8; 16]).unwrap();
+        let msg = circ.input(1).unwrap().to_value(vec![0u8; 16]).unwrap();
+        let (input_labels, delta) = InputLabels::generate(&mut rng, &circ, None);
+
+        let gc = GarbledCircuit::generate(&cipher, circ, delta, &input_labels).unwrap();
+
+        let key_labels = input_labels[0].select(&key).unwrap();
+        let msg_labels = input_labels[1].select(&msg).unwrap();
+
+        let partial_gc = gc.to_evaluator(&[], true, false);
+        let ev_gc = partial_gc
+            .evaluate(&cipher, &[key_labels, msg_labels])
+            .unwrap();
+
+        ev_gc.validate(&cipher, delta, &input_labels).unwrap();
+    }
+
+    #[test]
+    fn test_circuit_validation_fail_bad_gate() {
+        let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
+        let mut rng = ChaCha12Rng::seed_from_u64(0);
+        let circ = Arc::new(Circuit::load_bytes(AES_128_REVERSE).unwrap());
+
+        let key = circ.input(0).unwrap().to_value(vec![0u8; 16]).unwrap();
+        let msg = circ.input(1).unwrap().to_value(vec![0u8; 16]).unwrap();
+        let (input_labels, delta) = InputLabels::generate(&mut rng, &circ, None);
+
+        let mut gc = GarbledCircuit::generate(&cipher, circ, delta, &input_labels).unwrap();
+
+        // set bogus gate
+        gc.data.encrypted_gates[0].0[0] = Block::new(0);
+
+        let key_labels = input_labels[0].select(&key).unwrap();
+        let msg_labels = input_labels[1].select(&msg).unwrap();
+
+        let partial_gc = gc.to_evaluator(&[], true, false);
+        let ev_gc = partial_gc
+            .evaluate(&cipher, &[key_labels, msg_labels])
+            .unwrap();
+
+        let err = ev_gc.validate(&cipher, delta, &input_labels).unwrap_err();
+
+        assert!(matches!(err, Error::CorruptedGarbledCircuit));
+    }
+
+    #[test]
+    fn test_circuit_validation_fail_bad_input_label() {
+        let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
+        let mut rng = ChaCha12Rng::seed_from_u64(0);
+        let circ = Arc::new(Circuit::load_bytes(AES_128_REVERSE).unwrap());
+
+        let key = circ.input(0).unwrap().to_value(vec![0u8; 16]).unwrap();
+        let msg = circ.input(1).unwrap().to_value(vec![0u8; 16]).unwrap();
+        let (mut input_labels, delta) = InputLabels::generate(&mut rng, &circ, None);
+
+        let gc = GarbledCircuit::generate(&cipher, circ, delta, &input_labels).unwrap();
+
+        // set bogus label
+        input_labels[0].set_label(0, WireLabelPair::new(0, Block::new(0), Block::new(0)));
+
+        let key_labels = input_labels[0].select(&key).unwrap();
+        let msg_labels = input_labels[1].select(&msg).unwrap();
+
+        let partial_gc = gc.to_evaluator(&[], true, false);
+        let ev_gc = partial_gc
+            .evaluate(&cipher, &[key_labels, msg_labels])
+            .unwrap();
+
+        let err = ev_gc.validate(&cipher, delta, &input_labels).unwrap_err();
+
+        assert!(matches!(err, Error::CorruptedGarbledCircuit));
+    }
+
+    #[test]
+    fn test_circuit_validation_fail_bad_output_commitment() {
+        let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
+        let mut rng = ChaCha12Rng::seed_from_u64(0);
+        let circ = Arc::new(Circuit::load_bytes(AES_128_REVERSE).unwrap());
+
+        let key = circ.input(0).unwrap().to_value(vec![0u8; 16]).unwrap();
+        let msg = circ.input(1).unwrap().to_value(vec![0u8; 16]).unwrap();
+        let (mut input_labels, delta) = InputLabels::generate(&mut rng, &circ, None);
+
+        let gc = GarbledCircuit::generate(&cipher, circ, delta, &input_labels).unwrap();
+
+        // set bogus high label (the opposite label the evaluator receives)
+        // evaluation should pass but the circuit validation should fail because the commitment is bad
+        let low_label = input_labels[0].get_label(0).low().clone();
+        input_labels[0].set_label(0, WireLabelPair::new(0, low_label, Block::new(0)));
+
+        let key_labels = input_labels[0].select(&key).unwrap();
+        let msg_labels = input_labels[1].select(&msg).unwrap();
+
+        let partial_gc = gc.to_evaluator(&[], true, true);
+        let ev_gc = partial_gc
+            .evaluate(&cipher, &[key_labels, msg_labels])
+            .unwrap();
+
+        let err = ev_gc.validate(&cipher, delta, &input_labels).unwrap_err();
+
+        assert!(matches!(err, Error::CorruptedGarbledCircuit));
     }
 }

@@ -12,6 +12,8 @@ pub enum Error {
     InvalidInputLabels,
     #[error("Invalid output labels")]
     InvalidOutputLabels,
+    #[error("Detected corrupted garbled circuit")]
+    CorruptedGarbledCircuit,
     #[error("Circuit error: {0:?}")]
     CircuitError(#[from] mpc_circuits::CircuitError),
     #[error("General error: {0}")]
