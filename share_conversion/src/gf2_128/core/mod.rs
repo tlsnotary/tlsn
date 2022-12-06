@@ -11,11 +11,11 @@ use mpc_core::Block;
 ///
 /// Allows 2 parties to switch between additively and multiplicatively
 /// shared representations of a field element.
-pub trait Gf2_128HomomorphicConvert: Copy
+pub trait Gf2_128ShareConvert: Copy
 where
     Self: Sized,
 {
-    type Output: Gf2_128HomomorphicConvert;
+    type Output: Gf2_128ShareConvert;
 
     /// Create a new instance
     fn new(share: u128) -> Self;

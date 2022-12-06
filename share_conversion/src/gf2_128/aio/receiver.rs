@@ -1,7 +1,7 @@
 //! This module implements the async IO receiver
 
-use super::{AddShare, Gf2_128HomomorphicConvert, MulShare};
-use crate::HomomorphicError;
+use super::{AddShare, Gf2_128ShareConvert, MulShare};
+use crate::ShareConversionError;
 use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive};
 use async_trait::async_trait;
 use mpc_aio::protocol::ot::{OTReceiverFactory, ObliviousReceive};
@@ -9,14 +9,14 @@ use mpc_aio::protocol::ot::{OTReceiverFactory, ObliviousReceive};
 /// The receiver for the conversion
 ///
 /// Will be the OT receiver
-pub struct Receiver<T: OTReceiverFactory, U: Gf2_128HomomorphicConvert> {
+pub struct Receiver<T: OTReceiverFactory, U: Gf2_128ShareConvert> {
     receiver_factory_control: T,
     share_type: std::marker::PhantomData<U>,
 }
 
 impl<
         T: OTReceiverFactory<Protocol = V> + Send,
-        U: Gf2_128HomomorphicConvert,
+        U: Gf2_128ShareConvert,
         V: ObliviousReceive<Choice = bool, Outputs = Vec<u128>>,
     > Receiver<T, U>
 {
@@ -33,7 +33,7 @@ impl<
         &mut self,
         shares: &[u128],
         id: String,
-    ) -> Result<Vec<u128>, HomomorphicError> {
+    ) -> Result<Vec<u128>, ShareConversionError> {
         let mut out: Vec<<<T as OTReceiverFactory>::Protocol as ObliviousReceive>::Choice> = vec![];
         shares.iter().for_each(|x| {
             let share = U::new(*x).choices();
@@ -65,7 +65,7 @@ impl<
         &mut self,
         input: &[Self::FieldElement],
         id: String,
-    ) -> Result<Vec<Self::FieldElement>, HomomorphicError> {
+    ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
         self.convert(input, id).await
     }
 }
@@ -82,7 +82,7 @@ impl<
         &mut self,
         input: &[Self::FieldElement],
         id: String,
-    ) -> Result<Vec<Self::FieldElement>, HomomorphicError> {
+    ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
         self.convert(input, id).await
     }
 }
