@@ -1,8 +1,8 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use homomorph::gf2_128::inverse;
 use rand::Rng;
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
+use share_conversion::gf2_128::inverse;
 
 fn bench_gf2_128_inverse(c: &mut Criterion) {
     let mut rng = ChaCha12Rng::from_entropy();
