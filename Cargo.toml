@@ -12,7 +12,7 @@ members = [
     "utils-aio",
     "clmul",
     "matrix-transpose",
-    "homomorph"
+    "share_conversion"
 ]
 exclude = ["tls-client"]
 
