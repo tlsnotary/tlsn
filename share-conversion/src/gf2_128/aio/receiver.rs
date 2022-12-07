@@ -5,6 +5,7 @@ use crate::ShareConversionError;
 use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive};
 use async_trait::async_trait;
 use mpc_aio::protocol::ot::{OTReceiverFactory, ObliviousReceive};
+use mpc_core::Block;
 
 /// The receiver for the conversion
 ///
@@ -16,7 +17,7 @@ pub struct Receiver<T: OTReceiverFactory> {
 
 impl<
         T: OTReceiverFactory<Protocol = U> + Send,
-        U: ObliviousReceive<Choice = bool, Outputs = Vec<u128>>,
+        U: ObliviousReceive<Choice = bool, Outputs = Vec<Block>>,
     > Receiver<T>
 {
     /// Creates a new receiver
@@ -28,7 +29,7 @@ impl<
     }
 
     /// Convert the shares using oblivious transfer
-    pub async fn convert<V: Gf2_128ShareConvert>(
+    pub async fn convert_from<V: Gf2_128ShareConvert>(
         &mut self,
         shares: &[u128],
     ) -> Result<Vec<u128>, ShareConversionError> {
@@ -49,7 +50,9 @@ impl<
 
         let converted_shares = ot_output
             .chunks(128)
-            .map(|chunk| V::from_choice(chunk).inner())
+            .map(|chunk| {
+                V::from_choice(&chunk.iter().map(|x| x.inner()).collect::<Vec<u128>>()).inner()
+            })
             .collect();
         Ok(converted_shares)
     }
@@ -58,7 +61,7 @@ impl<
 #[async_trait]
 impl<
         T: OTReceiverFactory<Protocol = U> + Send,
-        U: ObliviousReceive<Choice = bool, Outputs = Vec<u128>> + Send,
+        U: ObliviousReceive<Choice = bool, Outputs = Vec<Block>> + Send,
     > AdditiveToMultiplicative for Receiver<T>
 {
     type FieldElement = u128;
@@ -67,14 +70,14 @@ impl<
         &mut self,
         input: &[Self::FieldElement],
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
-        self.convert::<AddShare>(input).await
+        self.convert_from::<AddShare>(input).await
     }
 }
 
 #[async_trait]
 impl<
         T: OTReceiverFactory<Protocol = U> + Send,
-        U: ObliviousReceive<Choice = bool, Outputs = Vec<u128>> + Send,
+        U: ObliviousReceive<Choice = bool, Outputs = Vec<Block>> + Send,
     > MultiplicativeToAdditive for Receiver<T>
 {
     type FieldElement = u128;
@@ -83,6 +86,6 @@ impl<
         &mut self,
         input: &[Self::FieldElement],
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
-        self.convert::<MulShare>(input).await
+        self.convert_from::<MulShare>(input).await
     }
 }

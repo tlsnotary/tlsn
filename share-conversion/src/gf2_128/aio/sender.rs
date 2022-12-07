@@ -1,6 +1,6 @@
 //! This module implements the async IO sender
 
-use super::{AddShare, Gf2_128ShareConvert, MaskedPartialValue, MulShare};
+use super::{AddShare, Gf2_128ShareConvert, MulShare, OTEnvelope};
 use crate::ShareConversionError;
 use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive};
 use async_trait::async_trait;
@@ -17,7 +17,7 @@ pub struct Sender<T: OTSenderFactory> {
 impl<T: OTSenderFactory> Sender<T>
 where
     T: Send,
-    <<T as OTSenderFactory>::Protocol as ObliviousSend>::Inputs: From<MaskedPartialValue>,
+    <<T as OTSenderFactory>::Protocol as ObliviousSend>::Inputs: From<OTEnvelope>,
 {
     /// Creates a new sender
     pub fn new(sender_factory_control: T, id: String) -> Self {
@@ -28,7 +28,7 @@ where
     }
 
     /// Convert the shares using oblivious transfer
-    pub async fn convert<U: Gf2_128ShareConvert>(
+    pub async fn convert_from<U: Gf2_128ShareConvert>(
         &mut self,
         shares: &[u128],
     ) -> Result<Vec<u128>, ShareConversionError> {
@@ -38,7 +38,7 @@ where
             return Ok(local_shares);
         }
 
-        let mut ot_shares = MaskedPartialValue(vec![], vec![]);
+        let mut ot_shares = OTEnvelope(vec![], vec![]);
         shares.iter().for_each(|share| {
             let share = U::new(*share);
             let (local, ot) = share.convert();
@@ -57,7 +57,7 @@ where
 #[async_trait]
 impl<T: OTSenderFactory + Send> AdditiveToMultiplicative for Sender<T>
 where
-    <<T as OTSenderFactory>::Protocol as ObliviousSend>::Inputs: From<MaskedPartialValue> + Send,
+    <<T as OTSenderFactory>::Protocol as ObliviousSend>::Inputs: From<OTEnvelope> + Send,
 {
     type FieldElement = u128;
 
@@ -65,14 +65,14 @@ where
         &mut self,
         input: &[Self::FieldElement],
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
-        self.convert::<AddShare>(input).await
+        self.convert_from::<AddShare>(input).await
     }
 }
 
 #[async_trait]
 impl<T: OTSenderFactory + Send> MultiplicativeToAdditive for Sender<T>
 where
-    <<T as OTSenderFactory>::Protocol as ObliviousSend>::Inputs: From<MaskedPartialValue> + Send,
+    <<T as OTSenderFactory>::Protocol as ObliviousSend>::Inputs: From<OTEnvelope> + Send,
 {
     type FieldElement = u128;
 
@@ -80,6 +80,6 @@ where
         &mut self,
         input: &[Self::FieldElement],
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
-        self.convert::<MulShare>(input).await
+        self.convert_from::<MulShare>(input).await
     }
 }
