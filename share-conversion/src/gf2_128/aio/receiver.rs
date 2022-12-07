@@ -9,32 +9,32 @@ use mpc_aio::protocol::ot::{OTReceiverFactory, ObliviousReceive};
 /// The receiver for the conversion
 ///
 /// Will be the OT receiver
-pub struct Receiver<T: OTReceiverFactory, U: Gf2_128ShareConvert> {
+pub struct Receiver<T: OTReceiverFactory> {
     receiver_factory_control: T,
-    share_type: std::marker::PhantomData<U>,
     id: String,
 }
 
 impl<
-        T: OTReceiverFactory<Protocol = V> + Send,
-        U: Gf2_128ShareConvert,
-        V: ObliviousReceive<Choice = bool, Outputs = Vec<u128>>,
-    > Receiver<T, U>
+        T: OTReceiverFactory<Protocol = U> + Send,
+        U: ObliviousReceive<Choice = bool, Outputs = Vec<u128>>,
+    > Receiver<T>
 {
     /// Creates a new receiver
     pub fn new(receiver_factory_control: T, id: String) -> Self {
         Self {
             receiver_factory_control,
-            share_type: std::marker::PhantomData,
             id,
         }
     }
 
     /// Convert the shares using oblivious transfer
-    pub async fn convert(&mut self, shares: &[u128]) -> Result<Vec<u128>, ShareConversionError> {
+    pub async fn convert<V: Gf2_128ShareConvert>(
+        &mut self,
+        shares: &[u128],
+    ) -> Result<Vec<u128>, ShareConversionError> {
         let mut out: Vec<<<T as OTReceiverFactory>::Protocol as ObliviousReceive>::Choice> = vec![];
         shares.iter().for_each(|x| {
-            let share = U::new(*x).choices();
+            let share = V::new(*x).choices();
             out.extend_from_slice(&share);
         });
         let mut ot_receiver = self
@@ -45,7 +45,7 @@ impl<
 
         let converted_shares = ot_output
             .chunks(128)
-            .map(|chunk| U::from_choice(chunk).inner())
+            .map(|chunk| V::from_choice(chunk).inner())
             .collect();
         Ok(converted_shares)
     }
@@ -53,9 +53,9 @@ impl<
 
 #[async_trait]
 impl<
-        T: OTReceiverFactory<Protocol = V> + Send,
-        V: ObliviousReceive<Choice = bool, Outputs = Vec<u128>> + Send,
-    > AdditiveToMultiplicative for Receiver<T, AddShare>
+        T: OTReceiverFactory<Protocol = U> + Send,
+        U: ObliviousReceive<Choice = bool, Outputs = Vec<u128>> + Send,
+    > AdditiveToMultiplicative for Receiver<T>
 {
     type FieldElement = u128;
 
@@ -63,15 +63,15 @@ impl<
         &mut self,
         input: &[Self::FieldElement],
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
-        self.convert(input).await
+        self.convert::<AddShare>(input).await
     }
 }
 
 #[async_trait]
 impl<
-        T: OTReceiverFactory<Protocol = V> + Send,
-        V: ObliviousReceive<Choice = bool, Outputs = Vec<u128>> + Send,
-    > MultiplicativeToAdditive for Receiver<T, MulShare>
+        T: OTReceiverFactory<Protocol = U> + Send,
+        U: ObliviousReceive<Choice = bool, Outputs = Vec<u128>> + Send,
+    > MultiplicativeToAdditive for Receiver<T>
 {
     type FieldElement = u128;
 
@@ -79,6 +79,6 @@ impl<
         &mut self,
         input: &[Self::FieldElement],
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
-        self.convert(input).await
+        self.convert::<MulShare>(input).await
     }
 }

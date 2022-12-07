@@ -9,13 +9,12 @@ use mpc_aio::protocol::ot::{OTSenderFactory, ObliviousSend};
 /// The sender for the conversion
 ///
 /// Will be the OT sender
-pub struct Sender<T: OTSenderFactory, U: Gf2_128ShareConvert> {
+pub struct Sender<T: OTSenderFactory> {
     sender_factory_control: T,
-    share_type: std::marker::PhantomData<U>,
     id: String,
 }
 
-impl<T: OTSenderFactory, U: Gf2_128ShareConvert> Sender<T, U>
+impl<T: OTSenderFactory> Sender<T>
 where
     T: Send,
     <<T as OTSenderFactory>::Protocol as ObliviousSend>::Inputs: From<MaskedPartialValue>,
@@ -24,13 +23,15 @@ where
     pub fn new(sender_factory_control: T, id: String) -> Self {
         Self {
             sender_factory_control,
-            share_type: std::marker::PhantomData,
             id,
         }
     }
 
     /// Convert the shares using oblivious transfer
-    pub async fn convert(&mut self, shares: &[u128]) -> Result<Vec<u128>, ShareConversionError> {
+    pub async fn convert<U: Gf2_128ShareConvert>(
+        &mut self,
+        shares: &[u128],
+    ) -> Result<Vec<u128>, ShareConversionError> {
         let mut local_shares = vec![];
 
         if shares.is_empty() {
@@ -54,7 +55,7 @@ where
 }
 
 #[async_trait]
-impl<T: OTSenderFactory + Send> AdditiveToMultiplicative for Sender<T, AddShare>
+impl<T: OTSenderFactory + Send> AdditiveToMultiplicative for Sender<T>
 where
     <<T as OTSenderFactory>::Protocol as ObliviousSend>::Inputs: From<MaskedPartialValue> + Send,
 {
@@ -64,12 +65,12 @@ where
         &mut self,
         input: &[Self::FieldElement],
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
-        self.convert(input).await
+        self.convert::<AddShare>(input).await
     }
 }
 
 #[async_trait]
-impl<T: OTSenderFactory + Send> MultiplicativeToAdditive for Sender<T, MulShare>
+impl<T: OTSenderFactory + Send> MultiplicativeToAdditive for Sender<T>
 where
     <<T as OTSenderFactory>::Protocol as ObliviousSend>::Inputs: From<MaskedPartialValue> + Send,
 {
@@ -79,6 +80,6 @@ where
         &mut self,
         input: &[Self::FieldElement],
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
-        self.convert(input).await
+        self.convert::<MulShare>(input).await
     }
 }
