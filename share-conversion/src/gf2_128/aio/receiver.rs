@@ -32,16 +32,20 @@ impl<
         &mut self,
         shares: &[u128],
     ) -> Result<Vec<u128>, ShareConversionError> {
-        let mut out: Vec<<<T as OTReceiverFactory>::Protocol as ObliviousReceive>::Choice> = vec![];
+        if shares.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let mut choices: Vec<bool> = vec![];
         shares.iter().for_each(|x| {
             let share = V::new(*x).choices();
-            out.extend_from_slice(&share);
+            choices.extend_from_slice(&share);
         });
         let mut ot_receiver = self
             .receiver_factory_control
-            .new_receiver(self.id.clone(), out.len() * 128)
+            .new_receiver(self.id.clone(), choices.len() * 128)
             .await?;
-        let ot_output = ot_receiver.receive(&out).await?;
+        let ot_output = ot_receiver.receive(&choices).await?;
 
         let converted_shares = ot_output
             .chunks(128)

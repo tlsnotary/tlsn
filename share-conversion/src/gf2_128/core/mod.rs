@@ -1,4 +1,4 @@
-//! This module implements the core logic, i.e. no async IO
+//! This module implements the core logic, i.e. no IO
 
 mod a2m;
 mod m2a;
