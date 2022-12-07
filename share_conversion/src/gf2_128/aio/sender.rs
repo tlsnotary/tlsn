@@ -12,6 +12,7 @@ use mpc_aio::protocol::ot::{OTSenderFactory, ObliviousSend};
 pub struct Sender<T: OTSenderFactory, U: Gf2_128ShareConvert> {
     sender_factory_control: T,
     share_type: std::marker::PhantomData<U>,
+    id: String,
 }
 
 impl<T: OTSenderFactory, U: Gf2_128ShareConvert> Sender<T, U>
@@ -20,20 +21,22 @@ where
     <<T as OTSenderFactory>::Protocol as ObliviousSend>::Inputs: From<MaskedPartialValue>,
 {
     /// Creates a new sender
-    pub fn new(sender_factory_control: T) -> Self {
+    pub fn new(sender_factory_control: T, id: String) -> Self {
         Self {
             sender_factory_control,
             share_type: std::marker::PhantomData,
+            id,
         }
     }
 
     /// Convert the shares using oblivious transfer
-    pub async fn convert(
-        &mut self,
-        shares: &[u128],
-        id: String,
-    ) -> Result<Vec<u128>, ShareConversionError> {
+    pub async fn convert(&mut self, shares: &[u128]) -> Result<Vec<u128>, ShareConversionError> {
         let mut local_shares = vec![];
+
+        if shares.is_empty() {
+            return Ok(local_shares);
+        }
+
         let mut ot_shares = MaskedPartialValue(vec![], vec![]);
         shares.iter().for_each(|share| {
             let share = U::new(*share);
@@ -43,7 +46,7 @@ where
         });
         let mut ot_sender = self
             .sender_factory_control
-            .new_sender(id, ot_shares.0.len())
+            .new_sender(self.id.clone(), ot_shares.0.len())
             .await?;
         ot_sender.send(ot_shares.into()).await?;
         Ok(local_shares)
@@ -60,9 +63,8 @@ where
     async fn a_to_m(
         &mut self,
         input: &[Self::FieldElement],
-        id: String,
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
-        self.convert(input, id).await
+        self.convert(input).await
     }
 }
 
@@ -76,8 +78,7 @@ where
     async fn m_to_a(
         &mut self,
         input: &[Self::FieldElement],
-        id: String,
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
-        self.convert(input, id).await
+        self.convert(input).await
     }
 }

@@ -12,6 +12,7 @@ use mpc_aio::protocol::ot::{OTReceiverFactory, ObliviousReceive};
 pub struct Receiver<T: OTReceiverFactory, U: Gf2_128ShareConvert> {
     receiver_factory_control: T,
     share_type: std::marker::PhantomData<U>,
+    id: String,
 }
 
 impl<
@@ -21,19 +22,16 @@ impl<
     > Receiver<T, U>
 {
     /// Creates a new receiver
-    pub fn new(receiver_factory_control: T) -> Self {
+    pub fn new(receiver_factory_control: T, id: String) -> Self {
         Self {
             receiver_factory_control,
             share_type: std::marker::PhantomData,
+            id,
         }
     }
 
     /// Convert the shares using oblivious transfer
-    pub async fn convert(
-        &mut self,
-        shares: &[u128],
-        id: String,
-    ) -> Result<Vec<u128>, ShareConversionError> {
+    pub async fn convert(&mut self, shares: &[u128]) -> Result<Vec<u128>, ShareConversionError> {
         let mut out: Vec<<<T as OTReceiverFactory>::Protocol as ObliviousReceive>::Choice> = vec![];
         shares.iter().for_each(|x| {
             let share = U::new(*x).choices();
@@ -41,7 +39,7 @@ impl<
         });
         let mut ot_receiver = self
             .receiver_factory_control
-            .new_receiver(id, out.len() * 128)
+            .new_receiver(self.id.clone(), out.len() * 128)
             .await?;
         let ot_output = ot_receiver.receive(&out).await?;
 
@@ -64,9 +62,8 @@ impl<
     async fn a_to_m(
         &mut self,
         input: &[Self::FieldElement],
-        id: String,
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
-        self.convert(input, id).await
+        self.convert(input).await
     }
 }
 
@@ -81,8 +78,7 @@ impl<
     async fn m_to_a(
         &mut self,
         input: &[Self::FieldElement],
-        id: String,
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
-        self.convert(input, id).await
+        self.convert(input).await
     }
 }

@@ -27,7 +27,6 @@ pub trait AdditiveToMultiplicative {
     async fn a_to_m(
         &mut self,
         input: &[Self::FieldElement],
-        id: String,
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError>;
 }
 
@@ -38,7 +37,6 @@ pub trait MultiplicativeToAdditive {
     async fn m_to_a(
         &mut self,
         input: &[Self::FieldElement],
-        id: String,
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError>;
 }
 
