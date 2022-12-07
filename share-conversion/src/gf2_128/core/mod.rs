@@ -75,15 +75,6 @@ mod tests {
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
 
-    fn ot_mock(envelopes: MaskedPartialValue, choices: u128) -> Vec<u128> {
-        let mut out: Vec<u128> = vec![0; 128];
-        for (k, number) in out.iter_mut().enumerate() {
-            let bit = (choices >> k) & 1;
-            *number = (bit * envelopes.1[k]) ^ ((bit ^ 1) * envelopes.0[k]);
-        }
-        out
-    }
-
     #[test]
     fn test_m2a() {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
@@ -110,5 +101,14 @@ mod tests {
         let b = MulShare::from_choice(&choice);
 
         assert_eq!(x.inner() ^ y.inner(), mul(a.inner(), b.inner()));
+    }
+
+    fn ot_mock(envelopes: MaskedPartialValue, choices: u128) -> Vec<u128> {
+        let mut out: Vec<u128> = vec![0; 128];
+        for (k, number) in out.iter_mut().enumerate() {
+            let bit = (choices >> k) & 1;
+            *number = (bit * envelopes.1[k]) ^ ((bit ^ 1) * envelopes.0[k]);
+        }
+        out
     }
 }

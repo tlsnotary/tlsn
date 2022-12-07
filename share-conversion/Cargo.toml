@@ -1,5 +1,5 @@
 [package]
-name = "share_conversion"
+name = "share-conversion"
 version = "0.1.0"
 edition = "2021"
 
