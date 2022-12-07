@@ -301,6 +301,57 @@ impl GarbledCircuit<Partial> {
     }
 }
 
+fn validate_circuit<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
+    cipher: &C,
+    circ: &Circuit,
+    delta: Delta,
+    input_labels: &[InputLabels<WireLabelPair>],
+    digest: &[u8],
+    output_encoding: Option<&[OutputLabelsEncoding]>,
+    output_commitments: Option<&[OutputLabelsCommitment]>,
+) -> Result<(), Error> {
+    let input_labels: Vec<WireLabelPair> = input_labels
+        .iter()
+        .map(|pair| pair.as_ref())
+        .flatten()
+        .copied()
+        .collect();
+
+    let (labels, encrypted_gates) = garble(cipher, circ, delta, &input_labels)?;
+    let expected_gates_digest = gates_digest(&encrypted_gates);
+
+    // If hashes don't match circuit wasn't garbled correctly
+    if expected_gates_digest != digest {
+        return Err(Error::CorruptedGarbledCircuit);
+    }
+
+    // Check output encoding if it was sent
+    if let Some(output_encoding) = output_encoding {
+        let expected_output_decoding = extract_output_labels(circ, &labels)
+            .iter()
+            .map(|labels| labels.encode())
+            .collect::<Vec<_>>();
+
+        if &expected_output_decoding != output_encoding {
+            return Err(Error::CorruptedGarbledCircuit);
+        }
+    }
+
+    // Check output commitments if they were sent
+    if let Some(output_commitments) = output_commitments {
+        let expected_output_commitments = extract_output_labels(circ, &labels)
+            .iter()
+            .map(|labels| labels.commit())
+            .collect::<Vec<_>>();
+
+        if &expected_output_commitments != output_commitments {
+            return Err(Error::CorruptedGarbledCircuit);
+        }
+    }
+
+    Ok(())
+}
+
 impl GarbledCircuit<Evaluated> {
     /// Returns all active inputs labels used to evaluate the circuit
     pub fn input_labels(&self) -> &[InputLabels<WireLabel>] {
@@ -359,45 +410,16 @@ impl GarbledCircuit<Evaluated> {
         delta: Delta,
         input_labels: &[InputLabels<WireLabelPair>],
     ) -> Result<(), Error> {
-        let input_labels: Vec<WireLabelPair> = input_labels
-            .iter()
-            .map(|pair| pair.as_ref())
-            .flatten()
-            .copied()
-            .collect();
-
-        let (labels, encrypted_gates) = garble(cipher, &self.circ, delta, &input_labels)?;
-
-        // Check encrypted gates match
-        if encrypted_gates != self.data.encrypted_gates {
-            return Err(Error::CorruptedGarbledCircuit);
-        }
-
-        // Check output encoding if it was sent
-        if let Some(self_output_encoding) = self.data.encoding.as_ref() {
-            let output_decoding = extract_output_labels(&self.circ, &labels)
-                .iter()
-                .map(|labels| labels.encode())
-                .collect::<Vec<_>>();
-
-            if &output_decoding != self_output_encoding {
-                return Err(Error::CorruptedGarbledCircuit);
-            }
-        }
-
-        // Check output commitments if they were sent
-        if let Some(self_output_commitments) = self.data.commitments.as_ref() {
-            let output_commitments = extract_output_labels(&self.circ, &labels)
-                .iter()
-                .map(|labels| labels.commit())
-                .collect::<Vec<_>>();
-
-            if &output_commitments != self_output_commitments {
-                return Err(Error::CorruptedGarbledCircuit);
-            }
-        }
-
-        Ok(())
+        let digest = gates_digest(&self.data.encrypted_gates);
+        validate_circuit(
+            cipher,
+            &self.circ,
+            delta,
+            input_labels,
+            &digest,
+            self.data.encoding.as_ref().map(Vec::as_slice),
+            self.data.commitments.as_ref().map(Vec::as_slice),
+        )
     }
 }
 
@@ -445,46 +467,15 @@ impl GarbledCircuit<Compressed> {
         delta: Delta,
         input_labels: &[InputLabels<WireLabelPair>],
     ) -> Result<(), Error> {
-        let input_labels: Vec<WireLabelPair> = input_labels
-            .iter()
-            .map(|pair| pair.as_ref())
-            .flatten()
-            .copied()
-            .collect();
-
-        let (labels, encrypted_gates) = garble(cipher, &self.circ, delta, &input_labels)?;
-        let gates_digest = gates_digest(&encrypted_gates);
-
-        // If hashes don't match circuit wasn't garbled correctly
-        if gates_digest != self.data.gates_digest {
-            return Err(Error::CorruptedGarbledCircuit);
-        }
-
-        // Check output encoding if it was sent
-        if let Some(self_output_encoding) = self.data.encoding.as_ref() {
-            let output_decoding = extract_output_labels(&self.circ, &labels)
-                .iter()
-                .map(|labels| labels.encode())
-                .collect::<Vec<_>>();
-
-            if &output_decoding != self_output_encoding {
-                return Err(Error::CorruptedGarbledCircuit);
-            }
-        }
-
-        // Check output commitments if they were sent
-        if let Some(self_output_commitments) = self.data.commitments.as_ref() {
-            let output_commitments = extract_output_labels(&self.circ, &labels)
-                .iter()
-                .map(|labels| labels.commit())
-                .collect::<Vec<_>>();
-
-            if &output_commitments != self_output_commitments {
-                return Err(Error::CorruptedGarbledCircuit);
-            }
-        }
-
-        Ok(())
+        validate_circuit(
+            cipher,
+            &self.circ,
+            delta,
+            input_labels,
+            &self.data.gates_digest,
+            self.data.encoding.as_ref().map(Vec::as_slice),
+            self.data.commitments.as_ref().map(Vec::as_slice),
+        )
     }
 }
 
