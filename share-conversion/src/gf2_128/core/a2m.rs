@@ -1,7 +1,7 @@
 //! This module implements the A2M algorithm.
 
 use super::MulShare;
-use super::{Gf2_128ShareConvert, MaskedPartialValue};
+use super::{Gf2_128ShareConvert, OTEnvelope};
 use crate::gf2_128::{inverse, mul};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha12Rng;
@@ -11,12 +11,12 @@ use rand_chacha::ChaCha12Rng;
 pub struct AddShare(u128);
 
 impl AddShare {
-    /// Turn into a multiplicative share and masked partial values
+    /// Turn into a multiplicative share and get values for OT
     ///
     /// This function returns
     ///   * `MulShare` - The sender's multiplicative share
-    ///   * `MaskedPartialValue` - Used for oblivious transfer
-    pub fn to_multiplicative(&self) -> (MulShare, MaskedPartialValue) {
+    ///   * `OTEnvelope` - Used for oblivious transfer
+    pub fn convert_to_multiplicative(&self) -> (MulShare, OTEnvelope) {
         let mut rng = ChaCha12Rng::from_entropy();
 
         let random: u128 = rng.gen();
@@ -37,7 +37,7 @@ impl AddShare {
         let b1: [u128; 128] =
             std::array::from_fn(|i| mul((self.inner() & (1 << i)) ^ (1 << i), random) ^ masks[i]);
 
-        (mul_share, MaskedPartialValue(b0.to_vec(), b1.to_vec()))
+        (mul_share, OTEnvelope(b0.to_vec(), b1.to_vec()))
     }
 }
 
@@ -52,7 +52,7 @@ impl Gf2_128ShareConvert for AddShare {
         self.0
     }
 
-    fn convert(&self) -> (Self::Output, MaskedPartialValue) {
-        self.to_multiplicative()
+    fn convert(&self) -> (Self::Output, OTEnvelope) {
+        self.convert_to_multiplicative()
     }
 }

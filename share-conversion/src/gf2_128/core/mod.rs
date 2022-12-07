@@ -9,7 +9,7 @@ use mpc_core::Block;
 
 /// A trait for converting field elements
 ///
-/// Allows 2 parties to switch between additively and multiplicatively
+/// Allows two parties to switch between additively and multiplicatively
 /// shared representations of a field element.
 pub trait Gf2_128ShareConvert: Copy
 where
@@ -20,7 +20,7 @@ where
     /// Create a new instance
     fn new(share: u128) -> Self;
 
-    /// Converts 'self' into choices needed for the receiver input to an oblivious transfer
+    /// Converts '&self' into choices needed for the receiver input to an oblivious transfer
     fn choices(&self) -> Vec<bool> {
         let mut out: Vec<bool> = Vec::with_capacity(128);
         for k in 0..128 {
@@ -34,7 +34,7 @@ where
 
     /// Create a share of type `Self::Output` from the result of an oblivious transfer (OT)
     ///
-    /// The `value` needs to be built by choices of an OT
+    /// The `value` needs to be built from the output of an OT
     fn from_choice(value: &[u128]) -> Self::Output {
         Self::Output::new(value.iter().fold(0, |acc, i| acc ^ i))
     }
@@ -42,22 +42,25 @@ where
     /// Prepares a share for conversion in an OT
     ///
     /// Converts the share to a new share and returns, what is needed for sending in an OT.
-    fn convert(&self) -> (Self::Output, MaskedPartialValue);
+    fn convert(&self) -> (Self::Output, OTEnvelope);
 }
 
-/// Masked values for an oblivious transfer
+/// Batched values for several oblivious transfers
+///
+/// The inner tuples `.0` and `.1` belong to the corresponding receiver's choice bit
 #[derive(Clone, Debug)]
-pub struct MaskedPartialValue(pub(crate) Vec<u128>, pub(crate) Vec<u128>);
+pub struct OTEnvelope(pub(crate) Vec<u128>, pub(crate) Vec<u128>);
 
-impl MaskedPartialValue {
-    pub(crate) fn extend(&mut self, other: MaskedPartialValue) {
+impl OTEnvelope {
+    /// Allows to aggregate envelopes
+    pub(crate) fn extend(&mut self, other: OTEnvelope) {
         self.0.extend_from_slice(&other.0);
         self.1.extend_from_slice(&other.1);
     }
 }
 
-impl From<MaskedPartialValue> for Vec<[Block; 2]> {
-    fn from(value: MaskedPartialValue) -> Self {
+impl From<OTEnvelope> for Vec<[Block; 2]> {
+    fn from(value: OTEnvelope) -> Self {
         let mut out = Vec::with_capacity(value.0.len());
         for (zero, one) in value.0.iter().zip(value.1.iter()) {
             out.push([Block::new(*zero), Block::new(*one)])
@@ -81,9 +84,9 @@ mod tests {
         let a: MulShare = MulShare::new(rng.gen());
         let b: MulShare = MulShare::new(rng.gen());
 
-        let (x, sharings) = a.to_additive();
+        let (x, sharings) = a.convert_to_additive();
 
-        let choice = ot_mock(sharings, b.inner());
+        let choice = mock_ot(sharings, b.inner());
         let y = AddShare::from_choice(&choice);
 
         assert_eq!(mul(a.inner(), b.inner()), x.inner() ^ y.inner());
@@ -95,15 +98,15 @@ mod tests {
         let x: AddShare = AddShare::new(rng.gen());
         let y: AddShare = AddShare::new(rng.gen());
 
-        let (a, sharings) = x.to_multiplicative();
+        let (a, sharings) = x.convert_to_multiplicative();
 
-        let choice = ot_mock(sharings, y.inner());
+        let choice = mock_ot(sharings, y.inner());
         let b = MulShare::from_choice(&choice);
 
         assert_eq!(x.inner() ^ y.inner(), mul(a.inner(), b.inner()));
     }
 
-    fn ot_mock(envelopes: MaskedPartialValue, choices: u128) -> Vec<u128> {
+    fn mock_ot(envelopes: OTEnvelope, choices: u128) -> Vec<u128> {
         let mut out: Vec<u128> = vec![0; 128];
         for (k, number) in out.iter_mut().enumerate() {
             let bit = (choices >> k) & 1;
