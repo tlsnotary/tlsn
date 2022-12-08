@@ -1,13 +1,9 @@
-//! This module implements the M2A and A2M algorithms for field elements of GF(2^128), using
-//! oblivious transfer.
-//!
-//! * M2A: Implementation of chapter 4.1 in <https://link.springer.com/content/pdf/10.1007/3-540-48405-1_8.pdf>
-//! * A2M: Adaptation of chapter 4 in <https://www.cs.umd.edu/~fenghao/paper/modexp.pdf>
+//! This module provides the share-conversion algorithms inside the module `conversion` for
+//! elements of GF(2^128), as well as some arithmetic functions for these field elements.
 
-mod aio;
-mod core;
+mod conversion;
 
-pub use aio::{Receiver, Sender};
+pub use conversion::{AddShare, Gf2_128ShareConvert, MulShare, OTEnvelope};
 
 /// R is GCM polynomial in little-endian. In hex: "E1000000000000000000000000000000"
 const R: u128 = 299076299051606071403356588563077529600;

@@ -1,8 +1,7 @@
 //! This module implements the async IO receiver
 
 use super::{AddShare, Gf2_128ShareConvert, MulShare};
-use crate::ShareConversionError;
-use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive};
+use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive, ShareConversionError};
 use async_trait::async_trait;
 use mpc_aio::protocol::ot::{OTReceiverFactory, ObliviousReceive};
 use mpc_core::Block;

@@ -1,8 +1,7 @@
 //! This module implements the async IO sender
 
 use super::{AddShare, Gf2_128ShareConvert, MulShare, OTEnvelope};
-use crate::ShareConversionError;
-use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive};
+use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive, ShareConversionError};
 use async_trait::async_trait;
 use mpc_aio::protocol::ot::{OTSenderFactory, ObliviousSend};
 use rand::SeedableRng;
@@ -38,7 +37,7 @@ where
             return Ok(local_shares);
         }
 
-        let mut ot_shares = OTEnvelope(vec![], vec![]);
+        let mut ot_shares = OTEnvelope::default();
         shares.iter().for_each(|share| {
             let share = U::new(*share);
             let (local, ot) = share.convert(&mut rng);
@@ -47,7 +46,7 @@ where
         });
         let mut ot_sender = self
             .sender_factory
-            .new_sender(self.id.clone(), ot_shares.0.len())
+            .new_sender(self.id.clone(), ot_shares.len())
             .await?;
         ot_sender.send(ot_shares.into()).await?;
         Ok(local_shares)

@@ -1,21 +1,18 @@
 [package]
-name = "share-conversion"
+name = "share-conversion-core"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rand.workspace = true
-rand_chacha.workspace = true
-async-trait.workspace = true
-tlsn-mpc-aio = { path = "../mpc-aio" }
 tlsn-mpc-core = { path = "../mpc-core" }
 thiserror.workspace = true
+rand.workspace = true
 
 [dev-dependencies]
+rand_chacha.workspace = true
 ghash_rc.workspace = true
-tokio.workspace = true
 criterion.workspace = true
 
 [[bench]]

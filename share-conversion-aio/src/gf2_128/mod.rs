@@ -1,6 +1,7 @@
-//! This module implements the async IO layer
+//! This module implements the IO layer of share-conversion for field elements of
+//! GF(2^128), using oblivious transfer.
 
-use super::core::{AddShare, Gf2_128ShareConvert, MulShare, OTEnvelope};
+use share_conversion_core::gf2_128::{AddShare, Gf2_128ShareConvert, MulShare, OTEnvelope};
 
 mod receiver;
 mod sender;
@@ -13,12 +14,11 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use super::*;
-    use crate::gf2_128::mul;
     use mpc_aio::protocol::ot::mock::MockOTFactory;
     use mpc_core::Block;
-    use rand::Rng;
-    use rand::SeedableRng;
+    use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
+    use share_conversion_core::gf2_128::mul;
 
     #[tokio::test]
     async fn test_aio_a2m() {

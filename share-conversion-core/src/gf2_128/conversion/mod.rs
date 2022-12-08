@@ -1,10 +1,14 @@
-//! This module implements the core logic, i.e. no IO
+//! This module implements the M2A and A2M conversion algorithms for field elements of GF(2^128), using
+//! oblivious transfer.
+//!
+//! * M2A: Implementation of chapter 4.1 in <https://link.springer.com/content/pdf/10.1007/3-540-48405-1_8.pdf>
+//! * A2M: Adaptation of chapter 4 in <https://www.cs.umd.edu/~fenghao/paper/modexp.pdf>
 
 mod a2m;
 mod m2a;
 
-pub(crate) use a2m::AddShare;
-pub(crate) use m2a::MulShare;
+pub use a2m::AddShare;
+pub use m2a::MulShare;
 use mpc_core::Block;
 use rand::{CryptoRng, Rng};
 
@@ -49,14 +53,24 @@ where
 /// Batched values for several oblivious transfers
 ///
 /// The inner tuples `.0` and `.1` belong to the corresponding receiver's choice bit
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct OTEnvelope(pub(crate) Vec<u128>, pub(crate) Vec<u128>);
 
 impl OTEnvelope {
     /// Allows to aggregate envelopes
-    pub(crate) fn extend(&mut self, other: OTEnvelope) {
+    pub fn extend(&mut self, other: OTEnvelope) {
         self.0.extend_from_slice(&other.0);
         self.1.extend_from_slice(&other.1);
+    }
+
+    /// Get the number of OTs in this envelope
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Check if envelope is empty
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 }
 
