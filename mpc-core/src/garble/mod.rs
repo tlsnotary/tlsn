@@ -1,4 +1,5 @@
 pub(crate) mod circuit;
+pub mod commitment;
 mod error;
 mod evaluator;
 pub mod exec;
@@ -10,7 +11,7 @@ pub use circuit::{
     GarbledCircuit, Output, Partial,
 };
 pub use error::{Error, InputError};
-pub use label::{Delta, InputLabels, OutputLabels, WireLabel, WireLabelPair};
+pub use label::{Delta, InputLabels, OutputCheck, OutputLabels, WireLabel, WireLabelPair};
 
 #[cfg(test)]
 mod tests {

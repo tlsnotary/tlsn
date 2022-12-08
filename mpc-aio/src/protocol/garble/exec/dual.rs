@@ -100,7 +100,7 @@ where
         let (commit, leader) = leader.commit();
 
         self.channel
-            .send(GarbleMessage::OutputCommit(commit.into()))
+            .send(GarbleMessage::HashCommitment(commit.into()))
             .await?;
 
         let msg = expect_msg_or_err!(
@@ -111,10 +111,10 @@ where
 
         let follower_check = msg.into();
         let leader = leader.check(follower_check)?;
-        let (reveal, gc_evaluated) = leader.reveal();
+        let (opening, gc_evaluated) = leader.reveal();
 
         self.channel
-            .send(GarbleMessage::OutputCheck(reveal.into()))
+            .send(GarbleMessage::CommitmentOpening(opening.into()))
             .await?;
 
         Ok(gc_evaluated)
@@ -200,7 +200,7 @@ where
 
         let msg = expect_msg_or_err!(
             self.channel.next().await,
-            GarbleMessage::OutputCommit,
+            GarbleMessage::HashCommitment,
             GCError::Unexpected
         )?;
         let leader_commit = msg.into();
@@ -212,11 +212,11 @@ where
 
         let msg = expect_msg_or_err!(
             self.channel.next().await,
-            GarbleMessage::OutputCheck,
+            GarbleMessage::CommitmentOpening,
             GCError::Unexpected
         )?;
-        let leader_check = msg.into();
-        let gc_evaluated = follower.check(leader_check)?;
+        let leader_opening = msg.into();
+        let gc_evaluated = follower.verify(leader_opening)?;
 
         Ok(gc_evaluated)
     }

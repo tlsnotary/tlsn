@@ -322,6 +322,11 @@ impl GarbledCircuit<Evaluated> {
         self.data.encoding.is_some()
     }
 
+    /// Returns whether or not output label commitments were provided
+    pub fn has_output_commitments(&self) -> bool {
+        self.data.commitments.is_some()
+    }
+
     /// Returns garbled circuit output
     pub fn to_output(&self) -> GarbledCircuit<Output> {
         GarbledCircuit {

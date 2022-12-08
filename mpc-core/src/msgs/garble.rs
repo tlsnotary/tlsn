@@ -10,23 +10,65 @@ use mpc_circuits::Circuit;
 pub enum GarbleMessage {
     GarbledCircuit(GarbledCircuit),
     Output(Output),
-    OutputCommit(OutputCommit),
+    HashCommitment(HashCommitment),
+    CommitmentOpening(CommitmentOpening),
     OutputCheck(OutputCheck),
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct OutputCommit([u8; 32]);
+pub struct HashCommitment([u8; 32]);
 
-impl From<garble::exec::OutputCommit> for OutputCommit {
-    fn from(c: garble::exec::OutputCommit) -> Self {
+impl From<garble::commitment::HashCommitment> for HashCommitment {
+    fn from(c: garble::commitment::HashCommitment) -> Self {
         Self(c.0)
     }
 }
 
-impl From<OutputCommit> for garble::exec::OutputCommit {
-    fn from(c: OutputCommit) -> Self {
+impl From<HashCommitment> for garble::commitment::HashCommitment {
+    fn from(c: HashCommitment) -> Self {
         Self(c.0)
+    }
+}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct CommitmentKey([u8; 32]);
+
+impl From<garble::commitment::CommitmentKey> for CommitmentKey {
+    fn from(key: garble::commitment::CommitmentKey) -> Self {
+        Self(key.0)
+    }
+}
+
+impl From<CommitmentKey> for garble::commitment::CommitmentKey {
+    fn from(key: CommitmentKey) -> Self {
+        Self(key.0)
+    }
+}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct CommitmentOpening {
+    key: CommitmentKey,
+    message: Vec<u8>,
+}
+
+impl From<garble::commitment::Opening> for CommitmentOpening {
+    fn from(c: garble::commitment::Opening) -> Self {
+        Self {
+            key: c.key.into(),
+            message: c.message,
+        }
+    }
+}
+
+impl From<CommitmentOpening> for garble::commitment::Opening {
+    fn from(c: CommitmentOpening) -> Self {
+        Self {
+            key: c.key.into(),
+            message: c.message,
+        }
     }
 }
 
@@ -34,13 +76,13 @@ impl From<OutputCommit> for garble::exec::OutputCommit {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct OutputCheck([u8; 32]);
 
-impl From<garble::exec::OutputCheck> for OutputCheck {
-    fn from(c: garble::exec::OutputCheck) -> Self {
+impl From<garble::label::OutputCheck> for OutputCheck {
+    fn from(c: garble::label::OutputCheck) -> Self {
         Self(c.0)
     }
 }
 
-impl From<OutputCheck> for garble::exec::OutputCheck {
+impl From<OutputCheck> for garble::label::OutputCheck {
     fn from(c: OutputCheck) -> Self {
         Self(c.0)
     }
