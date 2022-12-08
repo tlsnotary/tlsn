@@ -3,8 +3,7 @@
 use super::a2m::AddShare;
 use super::{Gf2_128ShareConvert, OTEnvelope};
 use crate::gf2_128::mul;
-use rand::{Rng, SeedableRng};
-use rand_chacha::ChaCha12Rng;
+use rand::{CryptoRng, Rng};
 
 /// A multiplicative share of `A = a * b`
 #[derive(Clone, Copy, Debug)]
@@ -16,9 +15,7 @@ impl MulShare {
     /// This function returns
     ///   * `AddShare` - The sender's additive share
     ///   * `OTEnvelope` - Used for oblivious transfer
-    pub fn convert_to_additive(&self) -> (AddShare, OTEnvelope) {
-        let mut rng = ChaCha12Rng::from_entropy();
-
+    pub fn convert_to_additive<R: Rng + CryptoRng>(&self, rng: &mut R) -> (AddShare, OTEnvelope) {
         let t0: [u128; 128] = std::array::from_fn(|_| rng.gen());
         let t1: [u128; 128] = std::array::from_fn(|i| mul(self.inner(), 1 << i) ^ t0[i]);
 
@@ -34,11 +31,12 @@ impl Gf2_128ShareConvert for MulShare {
         Self(share)
     }
 
+    #[inline]
     fn inner(&self) -> u128 {
         self.0
     }
 
-    fn convert(&self) -> (Self::Output, OTEnvelope) {
-        self.convert_to_additive()
+    fn convert<R: Rng + CryptoRng>(&self, rng: &mut R) -> (Self::Output, OTEnvelope) {
+        self.convert_to_additive(rng)
     }
 }

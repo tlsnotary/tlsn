@@ -3,8 +3,7 @@
 use super::MulShare;
 use super::{Gf2_128ShareConvert, OTEnvelope};
 use crate::gf2_128::{inverse, mul};
-use rand::{Rng, SeedableRng};
-use rand_chacha::ChaCha12Rng;
+use rand::{CryptoRng, Rng};
 
 /// An additive share of `A = x + y`
 #[derive(Clone, Copy, Debug)]
@@ -16,9 +15,10 @@ impl AddShare {
     /// This function returns
     ///   * `MulShare` - The sender's multiplicative share
     ///   * `OTEnvelope` - Used for oblivious transfer
-    pub fn convert_to_multiplicative(&self) -> (MulShare, OTEnvelope) {
-        let mut rng = ChaCha12Rng::from_entropy();
-
+    pub fn convert_to_multiplicative<R: Rng + CryptoRng>(
+        &self,
+        rng: &mut R,
+    ) -> (MulShare, OTEnvelope) {
         let random: u128 = rng.gen();
         if random == 0 {
             panic!("Random u128 is 0");
@@ -48,11 +48,12 @@ impl Gf2_128ShareConvert for AddShare {
         Self(share)
     }
 
+    #[inline]
     fn inner(&self) -> u128 {
         self.0
     }
 
-    fn convert(&self) -> (Self::Output, OTEnvelope) {
-        self.convert_to_multiplicative()
+    fn convert<R: Rng + CryptoRng>(&self, rng: &mut R) -> (Self::Output, OTEnvelope) {
+        self.convert_to_multiplicative(rng)
     }
 }
