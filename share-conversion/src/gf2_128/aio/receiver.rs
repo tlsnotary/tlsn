@@ -11,7 +11,7 @@ use mpc_core::Block;
 ///
 /// Will be the OT receiver
 pub struct Receiver<T: OTReceiverFactory> {
-    receiver_factory_control: T,
+    receiver_factory: T,
     id: String,
 }
 
@@ -21,15 +21,15 @@ impl<
     > Receiver<T>
 {
     /// Creates a new receiver
-    pub fn new(receiver_factory_control: T, id: String) -> Self {
+    pub fn new(receiver_factory: T, id: String) -> Self {
         Self {
-            receiver_factory_control,
+            receiver_factory,
             id,
         }
     }
 
     /// Convert the shares using oblivious transfer
-    pub async fn convert_from<V: Gf2_128ShareConvert>(
+    pub(crate) async fn convert_from<V: Gf2_128ShareConvert>(
         &mut self,
         shares: &[u128],
     ) -> Result<Vec<u128>, ShareConversionError> {
@@ -43,7 +43,7 @@ impl<
             choices.extend_from_slice(&share);
         });
         let mut ot_receiver = self
-            .receiver_factory_control
+            .receiver_factory
             .new_receiver(self.id.clone(), choices.len() * 128)
             .await?;
         let ot_output = ot_receiver.receive(&choices).await?;

@@ -6,6 +6,7 @@ mod m2a;
 pub(crate) use a2m::AddShare;
 pub(crate) use m2a::MulShare;
 use mpc_core::Block;
+use rand::{CryptoRng, Rng};
 
 /// A trait for converting field elements
 ///
@@ -42,7 +43,7 @@ where
     /// Prepares a share for conversion in an OT
     ///
     /// Converts the share to a new share and returns, what is needed for sending in an OT.
-    fn convert(&self) -> (Self::Output, OTEnvelope);
+    fn convert<R: Rng + CryptoRng>(&self, rng: &mut R) -> (Self::Output, OTEnvelope);
 }
 
 /// Batched values for several oblivious transfers
@@ -84,7 +85,7 @@ mod tests {
         let a: MulShare = MulShare::new(rng.gen());
         let b: MulShare = MulShare::new(rng.gen());
 
-        let (x, sharings) = a.convert_to_additive();
+        let (x, sharings) = a.convert_to_additive(&mut rng);
 
         let choice = mock_ot(sharings, b.inner());
         let y = AddShare::from_choice(&choice);
@@ -98,7 +99,7 @@ mod tests {
         let x: AddShare = AddShare::new(rng.gen());
         let y: AddShare = AddShare::new(rng.gen());
 
-        let (a, sharings) = x.convert_to_multiplicative();
+        let (a, sharings) = x.convert_to_multiplicative(&mut rng);
 
         let choice = mock_ot(sharings, y.inner());
         let b = MulShare::from_choice(&choice);
