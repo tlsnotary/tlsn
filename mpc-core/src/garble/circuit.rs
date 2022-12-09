@@ -80,6 +80,11 @@ pub struct Evaluated {
 #[derive(Debug, Clone)]
 pub struct Compressed {
     input_labels: Vec<InputLabels<WireLabel>>,
+    /// Input labels plus the encrypted gates is what constitutes a garbled circuit (GC).
+    /// In scenarios where we expect the generator to prove their honest GC generation,
+    /// even after performing the evaluation, we want the evaluator to keep the GC around
+    /// in order to compare it against an honestly generated circuit. To reduce the memory
+    /// footprint, we keep a hash digest of the encrypted gates.
     gates_digest: Vec<u8>,
     output_labels: Vec<OutputLabels<WireLabel>>,
     encoding: Option<Vec<OutputLabelsEncoding>>,
@@ -467,7 +472,7 @@ fn validate_circuit<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     output_commitments: Option<&[OutputLabelsCommitment]>,
 ) -> Result<(), Error> {
     let digest = if let Some(encrypted_gates) = encrypted_gates {
-        // If gates are passed in hash them
+        // If gates are passed in, hash them
         gates_digest(encrypted_gates)
     } else if let Some(digest) = digest {
         // Otherwise if the digest was already computed, use that instead.
@@ -485,7 +490,9 @@ fn validate_circuit<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
         .copied()
         .collect();
 
-    // Re-garble circuit using input labels
+    // Re-garble circuit using input labels.
+    // We rely on the property of the "half-gates" garbling scheme that given the input
+    // labels, the encrypted gates will always be computed deterministically.
     let (labels, encrypted_gates) = garble(cipher, circ, delta, &input_labels)?;
 
     // Compute the expected gates digest
@@ -504,7 +511,7 @@ fn validate_circuit<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
             .collect::<Vec<_>>();
 
         if &expected_output_decoding != output_encoding {
-            return Err(Error::CorruptedGarbledCircuit);
+            return Err(Error::CorruptedDecodingInfo);
         }
     }
 
@@ -640,6 +647,48 @@ mod tests {
         let err = validate_compressed_circuit(&cipher, delta, &input_labels, cmp_gc).unwrap_err();
 
         assert!(matches!(err, Error::CorruptedGarbledCircuit));
+    }
+
+    #[test]
+    /// The Generator sends invalid output label decoding info which causes the evaluator to
+    /// derive incorrect output. Testing that this will be detected during validation.
+    fn test_circuit_validation_fail_bad_output_encoding() {
+        let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
+        let mut rng = ChaCha12Rng::seed_from_u64(0);
+        let circ = Arc::new(Circuit::load_bytes(AES_128_REVERSE).unwrap());
+
+        let key = circ.input(0).unwrap().to_value(vec![0u8; 16]).unwrap();
+        let msg = circ.input(1).unwrap().to_value(vec![0u8; 16]).unwrap();
+        let (mut input_labels, delta) = InputLabels::generate(&mut rng, &circ, None);
+
+        let mut gc = GarbledCircuit::generate(&cipher, circ.clone(), delta, &input_labels).unwrap();
+
+        // Flip the last two output labels. This will cause the generator to compute the
+        // corrupted decoding info.
+        let last_pair = gc.data.labels.pop().unwrap();
+        let last_pair_flipped =
+            WireLabelPair::new(last_pair.id(), *last_pair.high(), *last_pair.low());
+        gc.data.labels.push(last_pair_flipped);
+
+        let key_labels = input_labels[0].select(&key).unwrap();
+        let msg_labels = input_labels[1].select(&msg).unwrap();
+
+        let partial_gc = gc.to_evaluator(&[], true, true);
+
+        let ev_gc = partial_gc
+            .evaluate(&cipher, &[key_labels, msg_labels])
+            .unwrap();
+
+        let err =
+            validate_evaluated_circuit(&cipher, delta, &input_labels, ev_gc.clone()).unwrap_err();
+
+        assert!(matches!(err, Error::CorruptedDecodingInfo));
+
+        let cmp_gc = ev_gc.compress();
+
+        let err = validate_compressed_circuit(&cipher, delta, &input_labels, cmp_gc).unwrap_err();
+
+        assert!(matches!(err, Error::CorruptedDecodingInfo));
     }
 
     #[test]
