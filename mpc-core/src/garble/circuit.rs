@@ -16,6 +16,8 @@ use crate::{
 };
 use mpc_circuits::{Circuit, InputValue, OutputValue};
 
+use super::label::extract_input_labels;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct EncryptedGate([Block; 2]);
 
@@ -44,68 +46,96 @@ fn gates_digest(encrypted_gates: &[EncryptedGate]) -> Vec<u8> {
     .to_vec()
 }
 
-pub trait Data {}
+mod state {
+    use super::*;
 
-/// Full garbled circuit data. This includes all wire label pairs, encrypted gates and delta.
-#[derive(Debug)]
-pub struct Full {
-    labels: Vec<WireLabelPair>,
-    encrypted_gates: Vec<EncryptedGate>,
-    #[allow(dead_code)]
-    delta: Delta,
+    mod sealed {
+        use super::*;
+
+        pub trait Sealed {}
+
+        impl Sealed for Full {}
+        impl Sealed for Summary {}
+        impl Sealed for Partial {}
+        impl Sealed for Evaluated {}
+        impl Sealed for Compressed {}
+        impl Sealed for Output {}
+    }
+
+    pub trait State: sealed::Sealed {}
+
+    /// Full garbled circuit data. This includes all wire label pairs, encrypted gates and delta.
+    #[derive(Debug)]
+    pub struct Full {
+        labels: Vec<WireLabelPair>,
+        encrypted_gates: Vec<EncryptedGate>,
+        #[allow(dead_code)]
+        delta: Delta,
+    }
+
+    /// Summary of garbled circuit data, only including input/output labels and encoding.
+    #[derive(Debug)]
+    pub struct Summary {
+        input_labels: Vec<InputLabels<WireLabelPair>>,
+        output_labels: Vec<OutputLabels<WireLabelPair>>,
+        encoding: Vec<OutputLabelsEncoding>,
+    }
+
+    /// Garbled circuit data including input labels from the generator and (optionally) the output encoding
+    /// to reveal the plaintext output of the circuit.
+    #[derive(Debug)]
+    pub struct Partial {
+        pub(crate) input_labels: Vec<InputLabels<WireLabel>>,
+        pub(crate) encrypted_gates: Vec<EncryptedGate>,
+        pub(crate) encoding: Option<Vec<OutputLabelsEncoding>>,
+        pub(crate) commitments: Option<Vec<OutputLabelsCommitment>>,
+    }
+
+    /// Evaluated garbled circuit data containing all wire labels
+    #[derive(Debug, Clone)]
+    pub struct Evaluated {
+        input_labels: Vec<InputLabels<WireLabel>>,
+        #[allow(dead_code)]
+        labels: Vec<WireLabel>,
+        encrypted_gates: Vec<EncryptedGate>,
+        output_labels: Vec<OutputLabels<WireLabel>>,
+        encoding: Option<Vec<OutputLabelsEncoding>>,
+        commitments: Option<Vec<OutputLabelsCommitment>>,
+    }
+
+    #[derive(Debug, Clone)]
+    pub struct Compressed {
+        input_labels: Vec<InputLabels<WireLabel>>,
+        /// Input labels plus the encrypted gates is what constitutes a garbled circuit (GC).
+        /// In scenarios where we expect the generator to prove their honest GC generation,
+        /// even after performing the evaluation, we want the evaluator to keep the GC around
+        /// in order to compare it against an honestly generated circuit. To reduce the memory
+        /// footprint, we keep a hash digest of the encrypted gates.
+        gates_digest: Vec<u8>,
+        output_labels: Vec<OutputLabels<WireLabel>>,
+        encoding: Option<Vec<OutputLabelsEncoding>>,
+        commitments: Option<Vec<OutputLabelsCommitment>>,
+    }
+
+    /// Evaluated garbled circuit output data
+    #[derive(Debug)]
+    pub struct Output {
+        pub(crate) labels: Vec<OutputLabels<WireLabel>>,
+        pub(crate) encoding: Option<Vec<OutputLabelsEncoding>>,
+    }
+
+    impl State for Full {}
+    impl State for Summary {}
+    impl State for Partial {}
+    impl State for Evaluated {}
+    impl State for Compressed {}
+    impl State for Output {}
 }
 
-/// Garbled circuit data including input labels from the generator and (optionally) the output encoding
-/// to reveal the plaintext output of the circuit.
-#[derive(Debug)]
-pub struct Partial {
-    pub(crate) input_labels: Vec<InputLabels<WireLabel>>,
-    pub(crate) encrypted_gates: Vec<EncryptedGate>,
-    pub(crate) encoding: Option<Vec<OutputLabelsEncoding>>,
-    pub(crate) commitments: Option<Vec<OutputLabelsCommitment>>,
-}
+use state::*;
 
-/// Evaluated garbled circuit data containing all wire labels
 #[derive(Debug, Clone)]
-pub struct Evaluated {
-    input_labels: Vec<InputLabels<WireLabel>>,
-    #[allow(dead_code)]
-    labels: Vec<WireLabel>,
-    encrypted_gates: Vec<EncryptedGate>,
-    output_labels: Vec<OutputLabels<WireLabel>>,
-    encoding: Option<Vec<OutputLabelsEncoding>>,
-    commitments: Option<Vec<OutputLabelsCommitment>>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Compressed {
-    input_labels: Vec<InputLabels<WireLabel>>,
-    /// Input labels plus the encrypted gates is what constitutes a garbled circuit (GC).
-    /// In scenarios where we expect the generator to prove their honest GC generation,
-    /// even after performing the evaluation, we want the evaluator to keep the GC around
-    /// in order to compare it against an honestly generated circuit. To reduce the memory
-    /// footprint, we keep a hash digest of the encrypted gates.
-    gates_digest: Vec<u8>,
-    output_labels: Vec<OutputLabels<WireLabel>>,
-    encoding: Option<Vec<OutputLabelsEncoding>>,
-    commitments: Option<Vec<OutputLabelsCommitment>>,
-}
-
-/// Evaluated garbled circuit output data
-#[derive(Debug)]
-pub struct Output {
-    pub(crate) labels: Vec<OutputLabels<WireLabel>>,
-    pub(crate) encoding: Option<Vec<OutputLabelsEncoding>>,
-}
-
-impl Data for Full {}
-impl Data for Partial {}
-impl Data for Evaluated {}
-impl Data for Compressed {}
-impl Data for Output {}
-
-#[derive(Debug, Clone)]
-pub struct GarbledCircuit<D: Data> {
+pub struct GarbledCircuit<D: State> {
     pub circ: Arc<Circuit>,
     pub(crate) data: D,
 }
@@ -152,24 +182,16 @@ impl GarbledCircuit<Full> {
             .collect()
     }
 
+    /// Returns input label pairs for each circuit input
+    pub fn input_labels(&self) -> Vec<InputLabels<WireLabelPair>> {
+        extract_input_labels(&self.circ, &self.data.labels)
+            .expect("Garbled circuit labels should be valid")
+    }
+
     /// Returns output label pairs for each circuit output
     pub fn output_labels(&self) -> Vec<OutputLabels<WireLabelPair>> {
-        self.circ
-            .outputs()
-            .iter()
-            .map(|output| {
-                OutputLabels::new(
-                    output.clone(),
-                    &output
-                        .as_ref()
-                        .wires()
-                        .iter()
-                        .map(|wire_id| self.data.labels[*wire_id])
-                        .collect::<Vec<WireLabelPair>>(),
-                )
-            })
-            .collect::<Result<Vec<OutputLabels<WireLabelPair>>, Error>>()
-            .expect("Garbled circuit output labels should be valid")
+        extract_output_labels(&self.circ, &self.data.labels)
+            .expect("Garbled circuit labels should be valid")
     }
 
     /// Returns [`GarbledCircuit<Partial>`] which is safe to send an evaluator
@@ -251,6 +273,18 @@ impl GarbledCircuit<Full> {
             Ok(())
         } else {
             Err(Error::InvalidOutputLabels)
+        }
+    }
+
+    /// Summarizes garbled circuit data to reduce memory footprint
+    pub fn summarize(self) -> GarbledCircuit<Summary> {
+        GarbledCircuit {
+            circ: self.circ,
+            data: Summary {
+                input_labels: self.input_labels(),
+                output_labels: self.output_labels(),
+                encoding: self.encoding(),
+            },
         }
     }
 }
