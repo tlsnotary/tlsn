@@ -7,10 +7,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use mpc_circuits::{Circuit, InputValue};
 use mpc_core::{
-    garble::{
-        Compressed, Delta, Evaluated, Full, GarbledCircuit, InputLabels, Partial, WireLabel,
-        WireLabelPair,
-    },
+    garble::{gc_state, Delta, GarbledCircuit, InputLabels, WireLabel, WireLabelPair},
     msgs::garble::GarbleMessage,
 };
 use rand::thread_rng;
@@ -42,7 +39,7 @@ pub trait Generator {
         circ: Arc<Circuit>,
         delta: Delta,
         input_labels: &[InputLabels<WireLabelPair>],
-    ) -> Result<GarbledCircuit<Full>, GCError>;
+    ) -> Result<GarbledCircuit<gc_state::Full>, GCError>;
 }
 
 #[async_trait]
@@ -50,9 +47,9 @@ pub trait Evaluator {
     /// Asynchronously evaluate a garbled circuit
     async fn evaluate(
         &mut self,
-        circ: GarbledCircuit<Partial>,
+        circ: GarbledCircuit<gc_state::Partial>,
         input_labels: &[InputLabels<WireLabel>],
-    ) -> Result<GarbledCircuit<Evaluated>, GCError>;
+    ) -> Result<GarbledCircuit<gc_state::Evaluated>, GCError>;
 }
 
 #[async_trait]
@@ -60,18 +57,18 @@ pub trait Validator {
     /// Asynchronously validate an evaluated garbled circuit
     async fn validate_evaluated(
         &mut self,
-        circ: GarbledCircuit<Evaluated>,
+        circ: GarbledCircuit<gc_state::Evaluated>,
         delta: Delta,
         input_labels: &[InputLabels<WireLabelPair>],
-    ) -> Result<GarbledCircuit<Evaluated>, GCError>;
+    ) -> Result<GarbledCircuit<gc_state::Evaluated>, GCError>;
 
     /// Asynchronously validate a compress garbled circuit
     async fn validate_compressed(
         &mut self,
-        circ: GarbledCircuit<Compressed>,
+        circ: GarbledCircuit<gc_state::Compressed>,
         delta: Delta,
         input_labels: &[InputLabels<WireLabelPair>],
-    ) -> Result<GarbledCircuit<Compressed>, GCError>;
+    ) -> Result<GarbledCircuit<gc_state::Compressed>, GCError>;
 }
 
 #[async_trait]
@@ -79,8 +76,8 @@ pub trait Compressor {
     /// Asynchronously compress an evaluated garbled circuit
     async fn compress(
         &mut self,
-        circ: GarbledCircuit<Evaluated>,
-    ) -> Result<GarbledCircuit<Compressed>, GCError>;
+        circ: GarbledCircuit<gc_state::Evaluated>,
+    ) -> Result<GarbledCircuit<gc_state::Compressed>, GCError>;
 }
 
 #[async_trait]
@@ -92,7 +89,7 @@ pub trait ExecuteWithLabels {
         inputs: &[InputValue],
         input_labels: &[InputLabels<WireLabelPair>],
         delta: Delta,
-    ) -> Result<GarbledCircuit<Evaluated>, GCError>;
+    ) -> Result<GarbledCircuit<gc_state::Evaluated>, GCError>;
 }
 
 #[async_trait]
@@ -102,7 +99,7 @@ pub trait Execute: ExecuteWithLabels {
         &mut self,
         circ: Arc<Circuit>,
         inputs: &[InputValue],
-    ) -> Result<GarbledCircuit<Evaluated>, GCError> {
+    ) -> Result<GarbledCircuit<gc_state::Evaluated>, GCError> {
         let (input_labels, delta) = InputLabels::generate(&mut thread_rng(), &circ, None);
         self.execute_with_labels(circ, inputs, &input_labels, delta)
             .await
