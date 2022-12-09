@@ -656,6 +656,27 @@ impl OutputCheck {
     }
 }
 
+/// Extracts input labels from full set of circuit labels
+pub(crate) fn extract_input_labels<T: PartialEq + Copy>(
+    circ: &Circuit,
+    labels: &[T],
+) -> Result<Vec<InputLabels<T>>, Error> {
+    circ.inputs()
+        .iter()
+        .map(|input| {
+            InputLabels::new(
+                input.clone(),
+                &input
+                    .as_ref()
+                    .wires()
+                    .iter()
+                    .map(|wire_id| labels[*wire_id])
+                    .collect::<Vec<T>>(),
+            )
+        })
+        .collect::<Result<Vec<InputLabels<T>>, Error>>()
+}
+
 /// Extracts output labels from full set of circuit labels
 pub(crate) fn extract_output_labels<T: Copy>(
     circ: &Circuit,

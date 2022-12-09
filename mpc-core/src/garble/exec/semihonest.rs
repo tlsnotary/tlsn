@@ -5,8 +5,8 @@
 //! can not rely on this execution mode for correctness or privacy.
 use crate::{
     garble::{
-        circuit::{Evaluated, Full, GarbledCircuit, Partial},
-        Delta, Error, InputLabels, Output, WireLabel, WireLabelPair,
+        circuit::{state as gc_state, GarbledCircuit},
+        Delta, Error, InputLabels, WireLabel, WireLabelPair,
     },
     msgs::garble as msgs,
 };
@@ -36,7 +36,7 @@ pub mod state {
     }
 
     pub struct Validate {
-        pub(super) gc: GarbledCircuit<Full>,
+        pub(super) gc: GarbledCircuit<gc_state::Full>,
     }
 
     impl State for Generator {}
@@ -100,7 +100,7 @@ impl SemiHonestLeader<Generator> {
     pub fn from_full_circuit(
         self,
         inputs: &[InputValue],
-        gc: GarbledCircuit<Full>,
+        gc: GarbledCircuit<gc_state::Full>,
         reveal_output: bool,
     ) -> Result<(msgs::GarbledCircuit, SemiHonestLeader<Validate>), Error> {
         Ok((
@@ -118,9 +118,9 @@ impl SemiHonestFollower<Evaluator> {
         self,
         msg: msgs::GarbledCircuit,
         input_labels: &[InputLabels<WireLabel>],
-    ) -> Result<(msgs::Output, GarbledCircuit<Evaluated>), Error> {
+    ) -> Result<(msgs::Output, GarbledCircuit<gc_state::Evaluated>), Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
-        let gc = GarbledCircuit::<Partial>::from_msg(self.state.circ.clone(), msg)?;
+        let gc = GarbledCircuit::<gc_state::Partial>::from_msg(self.state.circ.clone(), msg)?;
 
         // The generator must send commitments to the output labels to mitigate
         // some types of malicious garbling
@@ -139,9 +139,9 @@ impl SemiHonestFollower<Evaluator> {
 
 impl SemiHonestLeader<Validate> {
     /// Validates evaluated circuit received from peer
-    pub fn validate(self, msg: msgs::Output) -> Result<GarbledCircuit<Output>, Error> {
+    pub fn validate(self, msg: msgs::Output) -> Result<GarbledCircuit<gc_state::Output>, Error> {
         // Validates output labels
-        GarbledCircuit::<Output>::from_msg(&self.state.gc, msg)
+        GarbledCircuit::<gc_state::Output>::from_msg(&self.state.gc, msg)
     }
 }
 

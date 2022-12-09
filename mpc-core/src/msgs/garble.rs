@@ -2,7 +2,10 @@
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, sync::Arc};
 
-use crate::{garble, Block};
+use crate::{
+    garble::{self, gc_state},
+    Block,
+};
 use mpc_circuits::Circuit;
 
 #[derive(Debug, Clone)]
@@ -250,27 +253,27 @@ pub struct GarbledCircuit {
     pub commitments: Option<Vec<OutputLabelsCommitment>>,
 }
 
-impl From<garble::GarbledCircuit<garble::Partial>> for GarbledCircuit {
-    fn from(gc: garble::GarbledCircuit<garble::Partial>) -> Self {
+impl From<garble::GarbledCircuit<gc_state::Partial>> for GarbledCircuit {
+    fn from(gc: garble::GarbledCircuit<gc_state::Partial>) -> Self {
         Self {
             id: (*gc.circ.id().as_ref()).clone(),
             input_labels: gc
-                .data
+                .state
                 .input_labels
                 .into_iter()
                 .map(InputLabels::from)
                 .collect::<Vec<InputLabels>>(),
             encrypted_gates: gc
-                .data
+                .state
                 .encrypted_gates
                 .into_iter()
                 .map(|gate| *gate.as_ref())
                 .flatten()
                 .collect::<Vec<Block>>(),
-            encoding: gc.data.encoding.and_then(|encoding| {
+            encoding: gc.state.encoding.and_then(|encoding| {
                 Some(encoding.into_iter().map(OutputEncoding::from).collect())
             }),
-            commitments: gc.data.commitments.and_then(|commitments| {
+            commitments: gc.state.commitments.and_then(|commitments| {
                 Some(
                     commitments
                         .into_iter()
@@ -282,7 +285,7 @@ impl From<garble::GarbledCircuit<garble::Partial>> for GarbledCircuit {
     }
 }
 
-impl crate::garble::GarbledCircuit<garble::Partial> {
+impl crate::garble::GarbledCircuit<gc_state::Partial> {
     pub fn from_msg(circ: Arc<Circuit>, msg: GarbledCircuit) -> Result<Self, crate::garble::Error> {
         // Validate circuit id
         if msg.id != *circ.id().as_ref() {
@@ -363,7 +366,7 @@ impl crate::garble::GarbledCircuit<garble::Partial> {
 
         Ok(crate::garble::GarbledCircuit {
             circ,
-            data: garble::Partial {
+            state: gc_state::Partial {
                 input_labels,
                 encrypted_gates,
                 encoding,
@@ -380,10 +383,10 @@ pub struct Output {
     pub output_labels: Vec<OutputLabels>,
 }
 
-impl From<garble::GarbledCircuit<garble::Output>> for Output {
-    fn from(gc: garble::GarbledCircuit<garble::Output>) -> Self {
+impl From<garble::GarbledCircuit<gc_state::Output>> for Output {
+    fn from(gc: garble::GarbledCircuit<gc_state::Output>) -> Self {
         Self {
-            id: (*gc.circ.id().as_ref()).clone(),
+            id: gc.circ.id().as_ref().clone(),
             output_labels: gc
                 .output_labels()
                 .into_iter()
@@ -394,10 +397,10 @@ impl From<garble::GarbledCircuit<garble::Output>> for Output {
     }
 }
 
-impl crate::garble::GarbledCircuit<garble::Output> {
-    /// Validates and converts an [`Output`] to [`crate::garble::GarbledCircuit<garble::Output>`]
+impl crate::garble::GarbledCircuit<gc_state::Output> {
+    /// Validates and converts an [`Output`] to [`crate::garble::GarbledCircuit<gc_state::Output>`]
     pub fn from_msg(
-        gc: &garble::GarbledCircuit<garble::Full>,
+        gc: &garble::GarbledCircuit<gc_state::Full>,
         msg: Output,
     ) -> Result<Self, crate::garble::Error> {
         // Validate circuit id
@@ -440,149 +443,10 @@ impl crate::garble::GarbledCircuit<garble::Output> {
 
         Ok(crate::garble::GarbledCircuit {
             circ: gc.circ.clone(),
-            data: garble::Output {
+            state: gc_state::Output {
                 labels: output_labels,
                 encoding: Some(gc.encoding()),
             },
         })
     }
 }
-
-// #[cfg(feature = "proto")]
-// mod proto {
-//     use std::convert::TryFrom;
-
-//     use super::*;
-//     use crate::proto;
-
-//     impl From<GarbleMessage> for proto::garble::Message {
-//         fn from(m: GarbleMessage) -> Self {
-//             Self {
-//                 msg: Some(match m {
-//                     GarbleMessage::GarbledCircuit(gc) => {
-//                         proto::garble::message::Msg::GarbledCircuit(gc.into())
-//                     }
-//                     _ => todo!(),
-//                 }),
-//             }
-//         }
-//     }
-
-//     impl TryFrom<proto::garble::Message> for GarbleMessage {
-//         type Error = std::io::Error;
-
-//         fn try_from(m: proto::garble::Message) -> Result<Self, Self::Error> {
-//             let msg = if let Some(m) = m.msg {
-//                 match m {
-//                     proto::garble::message::Msg::GarbledCircuit(gc) => {
-//                         GarbleMessage::GarbledCircuit(GarbledCircuit::try_from(gc)?)
-//                     }
-//                 }
-//             } else {
-//                 return Err(std::io::Error::new(
-//                     std::io::ErrorKind::InvalidData,
-//                     format!("{:?}", m),
-//                 ));
-//             };
-//             Ok(msg)
-//         }
-//     }
-
-//     impl From<InputLabels> for proto::garble::InputLabels {
-//         fn from(labels: InputLabels) -> Self {
-//             Self {
-//                 id: labels.id as u32,
-//                 labels: labels
-//                     .labels
-//                     .into_iter()
-//                     .map(|block| block.into())
-//                     .collect::<Vec<proto::Block>>(),
-//             }
-//         }
-//     }
-
-//     impl TryFrom<proto::garble::InputLabels> for InputLabels {
-//         type Error = std::io::Error;
-
-//         fn try_from(labels: proto::garble::InputLabels) -> Result<Self, Self::Error> {
-//             Ok(InputLabels {
-//                 id: labels.id as usize,
-//                 labels: labels.labels.into_iter().map(Block::from).collect(),
-//             })
-//         }
-//     }
-
-//     impl From<OutputEncoding> for proto::garble::OutputEncoding {
-//         fn from(encoding: OutputEncoding) -> Self {
-//             Self {
-//                 id: encoding.id as u32,
-//                 encoding: encoding.encoding,
-//             }
-//         }
-//     }
-
-//     impl TryFrom<proto::garble::OutputEncoding> for OutputEncoding {
-//         type Error = std::io::Error;
-
-//         fn try_from(encoding: proto::garble::OutputEncoding) -> Result<Self, Self::Error> {
-//             Ok(OutputEncoding {
-//                 id: encoding.id as usize,
-//                 encoding: encoding.encoding,
-//             })
-//         }
-//     }
-
-//     impl From<GarbledCircuit> for proto::garble::GarbledCircuit {
-//         fn from(gc: GarbledCircuit) -> Self {
-//             Self {
-//                 id: gc.id,
-//                 input_labels: gc
-//                     .input_labels
-//                     .into_iter()
-//                     .map(|l| proto::garble::InputLabels::from(l))
-//                     .collect(),
-//                 encrypted_gates: gc
-//                     .encrypted_gates
-//                     .into_iter()
-//                     .map(proto::Block::from)
-//                     .collect(),
-//                 encoding: if let Some(encoding) = gc.encoding {
-//                     encoding
-//                         .into_iter()
-//                         .map(proto::garble::OutputEncoding::from)
-//                         .collect()
-//                 } else {
-//                     Vec::new()
-//                 },
-//             }
-//         }
-//     }
-
-//     impl TryFrom<proto::garble::GarbledCircuit> for GarbledCircuit {
-//         type Error = std::io::Error;
-
-//         fn try_from(gc: proto::garble::GarbledCircuit) -> Result<Self, Self::Error> {
-//             let mut input_labels: Vec<InputLabels> = Vec::with_capacity(gc.input_labels.len());
-//             for labels in gc.input_labels {
-//                 input_labels.push(InputLabels::try_from(labels)?);
-//             }
-//             Ok(Self {
-//                 id: gc.id.into(),
-//                 input_labels,
-//                 encrypted_gates: gc.encrypted_gates.into_iter().map(Block::from).collect(),
-//                 encoding: if gc.encoding.len() == 0 {
-//                     None
-//                 } else {
-//                     let mut encoding: Vec<OutputEncoding> = Vec::with_capacity(gc.encoding.len());
-//                     for enc in gc.encoding {
-//                         encoding.push(OutputEncoding::try_from(enc)?);
-//                     }
-//                     Some(encoding)
-//                 },
-//             })
-//         }
-//     }
-// }
-
-// #[cfg(feature = "proto")]
-// pub use proto::*;
