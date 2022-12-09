@@ -79,7 +79,7 @@ where
         input: &[Self::FieldElement],
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
         let mut rng = ChaCha12Rng::from_entropy();
-        self.recorder.record_input(rng.get_seed(), input.to_vec());
+        self.recorder.record_sender_input(rng.get_seed(), input);
         self.convert_from::<AddShare, _>(input, &mut rng).await
     }
 }
@@ -98,7 +98,7 @@ where
         input: &[Self::FieldElement],
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
         let mut rng = ChaCha12Rng::from_entropy();
-        self.recorder.record_input(rng.get_seed(), input.to_vec());
+        self.recorder.record_sender_input(rng.get_seed(), input);
         self.convert_from::<MulShare, _>(input, &mut rng).await
     }
 }
