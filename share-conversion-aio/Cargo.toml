@@ -13,6 +13,8 @@ async-trait.workspace = true
 rand.workspace = true
 rand_chacha.workspace = true
 share-conversion-core = { path = "../share-conversion-core" }
+tlsn-utils-aio = { path = "../utils-aio" }
+futures.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true

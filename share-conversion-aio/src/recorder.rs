@@ -8,15 +8,14 @@ pub trait Recorder<T: SeedableRng + Rng, U>: Default + Send {
     fn verify(&self, converter: impl FnMut(&mut T, &U) -> U) -> bool;
 }
 
-#[derive(Debug)]
-pub struct Tape<T, U> {
-    seeds: Vec<T>,
-    sender_inputs: Vec<Vec<U>>,
-    receiver_inputs: Vec<Vec<U>>,
-    receiver_outputs: Vec<Vec<U>>,
+pub struct Tape<T: SeedableRng + Rng, U> {
+    pub(crate) seeds: Vec<<T as SeedableRng>::Seed>,
+    pub(crate) sender_inputs: Vec<Vec<U>>,
+    pub(crate) receiver_inputs: Vec<Vec<U>>,
+    pub(crate) receiver_outputs: Vec<Vec<U>>,
 }
 
-impl<T, U> Default for Tape<T, U> {
+impl<T: SeedableRng + Rng, U> Default for Tape<T, U> {
     fn default() -> Self {
         Tape {
             seeds: vec![],
@@ -28,7 +27,7 @@ impl<T, U> Default for Tape<T, U> {
 }
 
 impl<T: SeedableRng + Rng + Send, U: Default + PartialEq + Send + Clone> Recorder<T, U>
-    for Tape<<T as SeedableRng>::Seed, U>
+    for Tape<T, U>
 where
     <T as SeedableRng>::Seed: Send + Copy,
 {

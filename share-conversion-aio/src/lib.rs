@@ -5,6 +5,7 @@ use mpc_aio::protocol::ot::{OTError, OTFactoryError};
 use rand::{Rng, SeedableRng};
 use recorder::Recorder;
 use thiserror::Error;
+use utils_aio::Channel;
 
 pub mod gf2_128;
 pub mod recorder;
@@ -29,31 +30,43 @@ pub trait MultiplicativeToAdditive {
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError>;
 }
 
-#[async_trait]
-pub trait RevealSeedAndInputs<T, U, V>
-where
-    T: Recorder<U, V>,
-    U: Rng + SeedableRng,
-{
-    async fn reveal_seed_and_inputs(self);
+pub type ConversionChannel<T, U> =
+    Box<dyn Channel<ConversionMessage<T, U>, Error = std::io::Error>>;
+
+pub struct ConversionMessage<T: SeedableRng + Rng + Send, U: Default + PartialEq + Send + Clone> {
+    sender_tape: (Vec<<T as SeedableRng>::Seed>, Vec<Vec<U>>),
 }
 
 #[async_trait]
-pub trait AcceptSeedAndInputs<T, U, V>
+pub trait SendTape<T, U, V>
 where
     T: Recorder<U, V>,
-    U: Rng + SeedableRng,
+    U: SeedableRng + Rng + Send,
+    V: Default + PartialEq + Send + Clone,
 {
-    async fn accept_seed_and_inputs(&mut self);
+    async fn send_tape(self, channel: ConversionChannel<U, V>) -> Result<(), ShareConversionError>;
 }
 
 #[async_trait]
-pub trait VerifyConversion<T, U, V>
+pub trait AcceptTape<T, U, V>
+where
+    T: Recorder<U, V>,
+    U: SeedableRng + Rng + Send,
+    V: Default + PartialEq + Send + Clone,
+{
+    async fn accept_tape(
+        &mut self,
+        channel: ConversionChannel<U, V>,
+    ) -> Result<(), ShareConversionError>;
+}
+
+#[async_trait]
+pub trait VerifyTape<T, U, V>
 where
     T: Recorder<U, V>,
     U: Rng + SeedableRng,
 {
-    async fn verify_conversion(self) -> bool;
+    async fn verify_tape(self) -> Result<bool, ShareConversionError>;
 }
 
 /// An error for what can go wrong during conversion
@@ -63,4 +76,6 @@ pub enum ShareConversionError {
     OTFactoryError(#[from] OTFactoryError),
     #[error("OTError: {0}")]
     OTError(#[from] OTError),
+    #[error("IO Error: {0}")]
+    IOError(#[from] std::io::Error),
 }

@@ -2,10 +2,12 @@
 
 use super::{AddShare, Gf2_128ShareConvert, MulShare, OTEnvelope};
 use crate::{
-    recorder::{Recorder, Void},
-    AdditiveToMultiplicative, MultiplicativeToAdditive, ShareConversionError,
+    recorder::{Recorder, Tape, Void},
+    AdditiveToMultiplicative, ConversionChannel, ConversionMessage, MultiplicativeToAdditive,
+    SendTape, ShareConversionError,
 };
 use async_trait::async_trait;
+use futures::SinkExt;
 use mpc_aio::protocol::ot::{OTSenderFactory, ObliviousSend};
 use rand::{CryptoRng, Rng, SeedableRng};
 use rand_chacha::ChaCha12Rng;
@@ -100,5 +102,25 @@ where
         let mut rng = ChaCha12Rng::from_entropy();
         self.recorder.record_sender_input(rng.get_seed(), input);
         self.convert_from::<MulShare, _>(input, &mut rng).await
+    }
+}
+
+#[async_trait]
+impl<T> SendTape<Tape<ChaCha12Rng, u128>, ChaCha12Rng, u128> for Sender<T, Tape<ChaCha12Rng, u128>>
+where
+    T: OTSenderFactory + Send,
+{
+    async fn send_tape(
+        self,
+        mut channel: ConversionChannel<ChaCha12Rng, u128>,
+    ) -> Result<(), ShareConversionError> {
+        let seeds = self.recorder.seeds;
+        let sender_inputs = self.recorder.sender_inputs;
+        let message = ConversionMessage {
+            sender_tape: (seeds, sender_inputs),
+        };
+
+        channel.send(message).await?;
+        Ok(())
     }
 }
