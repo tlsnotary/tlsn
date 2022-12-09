@@ -50,6 +50,7 @@ where
     }
 
     fn verify(&self, mut converter: impl FnMut(&mut T, &U) -> U) -> bool {
+        //TODO: This is probably not yet correct
         for ((seed, input), output) in std::iter::zip(self.seeds.iter(), self.sender_inputs.iter())
             .zip(self.receiver_inputs.iter())
         {

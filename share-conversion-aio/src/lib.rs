@@ -2,6 +2,8 @@
 
 use async_trait::async_trait;
 use mpc_aio::protocol::ot::{OTError, OTFactoryError};
+use rand::{Rng, SeedableRng};
+use recorder::Recorder;
 use thiserror::Error;
 
 pub mod gf2_128;
@@ -25,6 +27,33 @@ pub trait MultiplicativeToAdditive {
         &mut self,
         input: &[Self::FieldElement],
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError>;
+}
+
+#[async_trait]
+pub trait RevealSeedAndInputs<T, U, V>
+where
+    T: Recorder<U, V>,
+    U: Rng + SeedableRng,
+{
+    async fn reveal_seed_and_inputs(self);
+}
+
+#[async_trait]
+pub trait AcceptSeedAndInputs<T, U, V>
+where
+    T: Recorder<U, V>,
+    U: Rng + SeedableRng,
+{
+    async fn accept_seed_and_inputs(&mut self);
+}
+
+#[async_trait]
+pub trait VerifyConversion<T, U, V>
+where
+    T: Recorder<U, V>,
+    U: Rng + SeedableRng,
+{
+    async fn verify_conversion(self) -> bool;
 }
 
 /// An error for what can go wrong during conversion
