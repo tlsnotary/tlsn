@@ -5,6 +5,7 @@ use mpc_aio::protocol::ot::{OTError, OTFactoryError};
 use thiserror::Error;
 
 pub mod gf2_128;
+pub mod recorder;
 
 /// Allows to convert additive shares of type `FieldElement` into multiplicative ones
 #[async_trait]

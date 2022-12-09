@@ -23,10 +23,11 @@ mod tests {
     #[tokio::test]
     async fn test_aio_a2m() {
         let (mut sender, mut receiver) = mock_converter_pair();
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
-        let random_numbers_1: Vec<u128> = get_random_gf2_128_vec(128);
-        let random_numbers_2: Vec<u128> = get_random_gf2_128_vec(128);
+        let random_numbers_1: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
+        let random_numbers_2: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
         let random_numbers: Vec<u128> =
             std::iter::zip(random_numbers_1.iter(), random_numbers_2.iter())
                 .map(|(a, b)| a ^ b)
@@ -35,7 +36,7 @@ mod tests {
         // Spawn tokio tasks and wait for them to finish
         let sender_task = tokio::spawn(async move {
             sender
-                .convert_from::<AddShare>(&random_numbers_1)
+                .convert_from::<AddShare, _>(&random_numbers_1, &mut rng)
                 .await
                 .unwrap()
         });
@@ -57,10 +58,11 @@ mod tests {
     #[tokio::test]
     async fn test_aio_m2a() {
         let (mut sender, mut receiver) = mock_converter_pair();
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
-        let random_numbers_1: Vec<u128> = get_random_gf2_128_vec(128);
-        let random_numbers_2: Vec<u128> = get_random_gf2_128_vec(128);
+        let random_numbers_1: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
+        let random_numbers_2: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
         let random_numbers: Vec<u128> =
             std::iter::zip(random_numbers_1.iter(), random_numbers_2.iter())
                 .map(|(a, b)| mul(*a, *b))
@@ -69,7 +71,7 @@ mod tests {
         // Spawn tokio tasks and wait for them to finish
         let sender_task = tokio::spawn(async move {
             sender
-                .convert_from::<MulShare>(&random_numbers_1)
+                .convert_from::<MulShare, _>(&random_numbers_1, &mut rng)
                 .await
                 .unwrap()
         });
@@ -98,8 +100,7 @@ mod tests {
         (sender, receiver)
     }
 
-    fn get_random_gf2_128_vec(len: usize) -> Vec<u128> {
-        let mut rng = ChaCha12Rng::from_seed([0; 32]);
+    fn get_random_gf2_128_vec(len: usize, rng: &mut ChaCha12Rng) -> Vec<u128> {
         (0..len).map(|_| rng.gen::<u128>()).collect()
     }
 }
