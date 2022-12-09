@@ -297,6 +297,23 @@ impl GarbledCircuit<Full> {
     }
 }
 
+impl GarbledCircuit<Summary> {
+    /// Returns all active inputs labels used to evaluate the circuit
+    pub fn input_labels(&self) -> &[InputLabels<WireLabelPair>] {
+        &self.state.input_labels
+    }
+
+    /// Returns all active output labels which are the result of circuit evaluation
+    pub fn output_labels(&self) -> &[OutputLabels<WireLabelPair>] {
+        &self.state.output_labels
+    }
+
+    /// Returns output label decoding info if available
+    pub fn decoding(&self) -> &[OutputLabelsDecodingInfo] {
+        &self.state.decoding
+    }
+}
+
 impl GarbledCircuit<Partial> {
     /// Returns whether or not output decoding info is available
     pub fn has_decoding(&self) -> bool {
