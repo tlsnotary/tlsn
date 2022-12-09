@@ -636,6 +636,7 @@ impl OutputLabelsCommitment {
     }
 }
 
+/// Digest of output wire labels used in [Dual Execution](super::exec::dual) mode
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct OutputCheck(pub(crate) [u8; 32]);
 

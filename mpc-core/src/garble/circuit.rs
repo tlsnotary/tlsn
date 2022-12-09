@@ -46,7 +46,7 @@ fn gates_digest(encrypted_gates: &[EncryptedGate]) -> Vec<u8> {
     .to_vec()
 }
 
-/// This module contains all the various states of a garbled circuit
+/// All the various states of a garbled circuit
 pub mod state {
     use super::*;
 
@@ -63,6 +63,7 @@ pub mod state {
         impl Sealed for Output {}
     }
 
+    /// Marker trait for the state of a garbled circuit
     pub trait State: sealed::Sealed {}
 
     /// Full garbled circuit data. This includes all wire label pairs, encrypted gates and delta.
@@ -104,6 +105,7 @@ pub mod state {
         pub(crate) commitments: Option<Vec<OutputLabelsCommitment>>,
     }
 
+    /// Evaluated garbled circuit that has been compressed to minimize memory footprint
     #[derive(Debug, Clone)]
     pub struct Compressed {
         pub(crate) input_labels: Vec<InputLabels<WireLabel>>,
@@ -135,6 +137,7 @@ pub mod state {
 
 use state::*;
 
+/// Primary data structure for a garbled circuit with typed states found in [`state`]
 #[derive(Debug, Clone)]
 pub struct GarbledCircuit<S: State> {
     pub circ: Arc<Circuit>,

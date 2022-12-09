@@ -1,3 +1,4 @@
+/// Error associated with garbled circuits
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("Uninitialized Label, id: {0}")]
@@ -24,6 +25,7 @@ pub enum Error {
     PeerError(String),
 }
 
+/// Error associated with garbled circuit inputs
 #[derive(Debug, thiserror::Error)]
 pub enum InputError {
     #[error("Invalid input id: {0}")]

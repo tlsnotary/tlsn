@@ -1,3 +1,9 @@
+//! Core components used to implement garbled circuit protocols
+//!
+//! This module implements "half-gate" garbled circuits from the [Two Halves Make a Whole [ZRE15]](https://eprint.iacr.org/2014/756) paper.
+//!
+//! Additionally, it provides various [execution modes](exec) which can be selected depending protocol requirements.
+
 pub(crate) mod circuit;
 pub mod commitment;
 mod error;
