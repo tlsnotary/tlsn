@@ -281,7 +281,7 @@ impl GarbledCircuit<Partial> {
             sanitized_input_labels,
             &self.data.encrypted_gates,
         )?;
-        let output_labels = extract_output_labels(&self.circ, &labels);
+        let output_labels = extract_output_labels(&self.circ, &labels)?;
 
         // Always check output labels against commitments if they're available
         if let Some(output_commitments) = self.data.commitments.as_ref() {
@@ -336,7 +336,7 @@ impl GarbledCircuit<Evaluated> {
     /// Returns a compressed evaluated circuit to reduce memory utilization
     pub fn compress(self) -> GarbledCircuit<Compressed> {
         GarbledCircuit {
-            circ: self.circ.clone(),
+            circ: self.circ,
             data: Compressed {
                 input_labels: self.data.input_labels,
                 gates_digest: gates_digest(&self.data.encrypted_gates),
@@ -505,7 +505,7 @@ fn validate_circuit<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
 
     // Check output encoding if it was sent
     if let Some(output_encoding) = output_encoding {
-        let expected_output_decoding = extract_output_labels(circ, &labels)
+        let expected_output_decoding = extract_output_labels(circ, &labels)?
             .iter()
             .map(|labels| labels.encode())
             .collect::<Vec<_>>();
@@ -517,7 +517,7 @@ fn validate_circuit<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
 
     // Check output commitments if they were sent
     if let Some(output_commitments) = output_commitments {
-        let expected_output_commitments = extract_output_labels(circ, &labels)
+        let expected_output_commitments = extract_output_labels(circ, &labels)?
             .iter()
             .map(|labels| labels.commit())
             .collect::<Vec<_>>();
@@ -659,7 +659,7 @@ mod tests {
 
         let key = circ.input(0).unwrap().to_value(vec![0u8; 16]).unwrap();
         let msg = circ.input(1).unwrap().to_value(vec![0u8; 16]).unwrap();
-        let (mut input_labels, delta) = InputLabels::generate(&mut rng, &circ, None);
+        let (input_labels, delta) = InputLabels::generate(&mut rng, &circ, None);
 
         let mut gc = GarbledCircuit::generate(&cipher, circ.clone(), delta, &input_labels).unwrap();
 

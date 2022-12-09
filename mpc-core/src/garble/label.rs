@@ -631,9 +631,10 @@ impl OutputLabelsCommitment {
 }
 
 /// Extracts output labels from full set of circuit labels
-///
-/// Panics if output labels are invalid
-pub(crate) fn extract_output_labels<T: Copy>(circ: &Circuit, labels: &[T]) -> Vec<OutputLabels<T>> {
+pub(crate) fn extract_output_labels<T: Copy>(
+    circ: &Circuit,
+    labels: &[T],
+) -> Result<Vec<OutputLabels<T>>, Error> {
     circ.outputs()
         .iter()
         .map(|output| {
@@ -648,7 +649,6 @@ pub(crate) fn extract_output_labels<T: Copy>(circ: &Circuit, labels: &[T]) -> Ve
             )
         })
         .collect::<Result<Vec<OutputLabels<T>>, Error>>()
-        .expect("Evaluated circuit output labels should be valid")
 }
 
 /// Decodes evaluated circuit output labels
