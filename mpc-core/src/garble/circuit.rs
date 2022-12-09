@@ -8,7 +8,7 @@ use crate::{
         generator::garble,
         label::{
             decode_output_labels, extract_output_labels, OutputLabels, OutputLabelsCommitment,
-            OutputLabelsEncoding, SanitizedInputLabels,
+            OutputLabelsDecodingInfo, SanitizedInputLabels,
         },
         Delta, Error, InputLabels, WireLabel, WireLabelPair,
     },
@@ -74,21 +74,21 @@ pub mod state {
         pub(crate) delta: Delta,
     }
 
-    /// Summary of garbled circuit data, only including input/output labels and encoding.
+    /// Summary of garbled circuit data, only including input/output labels and decoding info.
     #[derive(Debug)]
     pub struct Summary {
         pub(crate) input_labels: Vec<InputLabels<WireLabelPair>>,
         pub(crate) output_labels: Vec<OutputLabels<WireLabelPair>>,
-        pub(crate) encoding: Vec<OutputLabelsEncoding>,
+        pub(crate) decoding: Vec<OutputLabelsDecodingInfo>,
     }
 
-    /// Garbled circuit data including input labels from the generator and (optionally) the output encoding
+    /// Garbled circuit data including input labels from the generator and (optionally) the output decoding
     /// to reveal the plaintext output of the circuit.
     #[derive(Debug)]
     pub struct Partial {
         pub(crate) input_labels: Vec<InputLabels<WireLabel>>,
         pub(crate) encrypted_gates: Vec<EncryptedGate>,
-        pub(crate) encoding: Option<Vec<OutputLabelsEncoding>>,
+        pub(crate) decoding: Option<Vec<OutputLabelsDecodingInfo>>,
         pub(crate) commitments: Option<Vec<OutputLabelsCommitment>>,
     }
 
@@ -100,7 +100,7 @@ pub mod state {
         pub(crate) labels: Vec<WireLabel>,
         pub(crate) encrypted_gates: Vec<EncryptedGate>,
         pub(crate) output_labels: Vec<OutputLabels<WireLabel>>,
-        pub(crate) encoding: Option<Vec<OutputLabelsEncoding>>,
+        pub(crate) decoding: Option<Vec<OutputLabelsDecodingInfo>>,
         pub(crate) commitments: Option<Vec<OutputLabelsCommitment>>,
     }
 
@@ -114,7 +114,7 @@ pub mod state {
         /// footprint, we keep a hash digest of the encrypted gates.
         pub(crate) gates_digest: Vec<u8>,
         pub(crate) output_labels: Vec<OutputLabels<WireLabel>>,
-        pub(crate) encoding: Option<Vec<OutputLabelsEncoding>>,
+        pub(crate) decoding: Option<Vec<OutputLabelsDecodingInfo>>,
         pub(crate) commitments: Option<Vec<OutputLabelsCommitment>>,
     }
 
@@ -122,7 +122,7 @@ pub mod state {
     #[derive(Debug)]
     pub struct Output {
         pub(crate) labels: Vec<OutputLabels<WireLabel>>,
-        pub(crate) encoding: Option<Vec<OutputLabelsEncoding>>,
+        pub(crate) decoding: Option<Vec<OutputLabelsDecodingInfo>>,
     }
 
     impl State for Full {}
@@ -166,11 +166,11 @@ impl GarbledCircuit<Full> {
         })
     }
 
-    /// Returns output label encodings
-    pub(crate) fn encoding(&self) -> Vec<OutputLabelsEncoding> {
+    /// Returns output label decoding info
+    pub(crate) fn decoding(&self) -> Vec<OutputLabelsDecodingInfo> {
         self.output_labels()
             .iter()
-            .map(|labels| labels.encode())
+            .map(|labels| labels.decoding())
             .collect()
     }
 
@@ -249,7 +249,7 @@ impl GarbledCircuit<Full> {
             state: Partial {
                 input_labels: [input_labels, constant_labels].concat(),
                 encrypted_gates: self.state.encrypted_gates.clone(),
-                encoding: reveal.then(|| self.encoding()),
+                decoding: reveal.then(|| self.decoding()),
                 commitments: commit.then(|| self.output_commitments()),
             },
         }
@@ -281,23 +281,23 @@ impl GarbledCircuit<Full> {
     pub fn summarize(self) -> GarbledCircuit<Summary> {
         let input_labels = self.input_labels();
         let output_labels = self.output_labels();
-        let encoding = self.encoding();
+        let decoding = self.decoding();
 
         GarbledCircuit {
             circ: self.circ,
             state: Summary {
                 input_labels,
                 output_labels,
-                encoding,
+                decoding,
             },
         }
     }
 }
 
 impl GarbledCircuit<Partial> {
-    /// Returns whether or not output encoding is available
-    pub fn has_encoding(&self) -> bool {
-        self.state.encoding.is_some()
+    /// Returns whether or not output decoding info is available
+    pub fn has_decoding(&self) -> bool {
+        self.state.decoding.is_some()
     }
 
     /// Returns whether or not output label commitments were provided
@@ -338,7 +338,7 @@ impl GarbledCircuit<Partial> {
                 labels,
                 encrypted_gates: self.state.encrypted_gates,
                 output_labels,
-                encoding: self.state.encoding,
+                decoding: self.state.decoding,
                 commitments: self.state.commitments,
             },
         })
@@ -356,9 +356,9 @@ impl GarbledCircuit<Evaluated> {
         &self.state.output_labels
     }
 
-    /// Returns whether or not output encoding is available
-    pub fn has_encoding(&self) -> bool {
-        self.state.encoding.is_some()
+    /// Returns whether or not output decoding info is available
+    pub fn has_decoding(&self) -> bool {
+        self.state.decoding.is_some()
     }
 
     /// Returns whether or not output label commitments were provided
@@ -372,7 +372,7 @@ impl GarbledCircuit<Evaluated> {
             circ: self.circ.clone(),
             state: Output {
                 labels: self.output_labels().to_vec(),
-                encoding: self.state.encoding.clone(),
+                decoding: self.state.decoding.clone(),
             },
         }
     }
@@ -385,7 +385,7 @@ impl GarbledCircuit<Evaluated> {
                 input_labels: self.state.input_labels,
                 gates_digest: gates_digest(&self.state.encrypted_gates),
                 output_labels: self.state.output_labels,
-                encoding: self.state.encoding,
+                decoding: self.state.decoding,
                 commitments: self.state.commitments,
             },
         }
@@ -393,12 +393,12 @@ impl GarbledCircuit<Evaluated> {
 
     /// Returns decoded circuit outputs
     pub fn decode(&self) -> Result<Vec<OutputValue>, Error> {
-        let encoding = self
+        let decoding = self
             .state
-            .encoding
+            .decoding
             .as_ref()
-            .ok_or(Error::InvalidLabelEncoding)?;
-        decode_output_labels(&self.circ, &self.state.output_labels, encoding)
+            .ok_or(Error::InvalidLabelDecodingInfo)?;
+        decode_output_labels(&self.circ, &self.state.output_labels, decoding)
     }
 }
 
@@ -413,9 +413,9 @@ impl GarbledCircuit<Compressed> {
         &self.state.output_labels
     }
 
-    /// Returns whether or not output encoding is available
-    pub fn has_encoding(&self) -> bool {
-        self.state.encoding.is_some()
+    /// Returns whether or not output decoding info is available
+    pub fn has_decoding(&self) -> bool {
+        self.state.decoding.is_some()
     }
 
     /// Returns garbled circuit output
@@ -424,19 +424,19 @@ impl GarbledCircuit<Compressed> {
             circ: self.circ.clone(),
             state: Output {
                 labels: self.output_labels().to_vec(),
-                encoding: self.state.encoding.clone(),
+                decoding: self.state.decoding.clone(),
             },
         }
     }
 
     /// Returns decoded circuit outputs
     pub fn decode(&self) -> Result<Vec<OutputValue>, Error> {
-        let encoding = self
+        let decoding = self
             .state
-            .encoding
+            .decoding
             .as_ref()
-            .ok_or(Error::InvalidLabelEncoding)?;
-        decode_output_labels(&self.circ, &self.state.output_labels, encoding)
+            .ok_or(Error::InvalidLabelDecodingInfo)?;
+        decode_output_labels(&self.circ, &self.state.output_labels, decoding)
     }
 }
 
@@ -446,24 +446,24 @@ impl GarbledCircuit<Output> {
         &self.state.labels
     }
 
-    /// Returns whether or not output encoding is available
-    pub fn has_encoding(&self) -> bool {
-        self.state.encoding.is_some()
+    /// Returns whether or not output decoding info is available
+    pub fn has_decoding(&self) -> bool {
+        self.state.decoding.is_some()
     }
 
-    /// Returns output label encoding if available
-    pub fn encoding(&self) -> Option<Vec<OutputLabelsEncoding>> {
-        self.state.encoding.clone()
+    /// Returns output label decoding info if available
+    pub fn decoding(&self) -> Option<Vec<OutputLabelsDecodingInfo>> {
+        self.state.decoding.clone()
     }
 
     /// Returns decoded circuit outputs
     pub fn decode(&self) -> Result<Vec<OutputValue>, Error> {
-        let encoding = self
+        let decoding = self
             .state
-            .encoding
+            .decoding
             .as_ref()
-            .ok_or(Error::InvalidLabelEncoding)?;
-        decode_output_labels(&self.circ, &self.state.labels, encoding)
+            .ok_or(Error::InvalidLabelDecodingInfo)?;
+        decode_output_labels(&self.circ, &self.state.labels, decoding)
     }
 }
 
@@ -480,7 +480,7 @@ pub fn validate_compressed_circuit<C: BlockCipher<BlockSize = U16> + BlockEncryp
         input_labels,
         None,
         Some(gc.state.gates_digest.clone()),
-        gc.state.encoding.as_ref().map(Vec::as_slice),
+        gc.state.decoding.as_ref().map(Vec::as_slice),
         gc.state.commitments.as_ref().map(Vec::as_slice),
     )?;
     Ok(gc)
@@ -499,7 +499,7 @@ pub fn validate_evaluated_circuit<C: BlockCipher<BlockSize = U16> + BlockEncrypt
         input_labels,
         Some(gc.state.encrypted_gates.as_slice()),
         None,
-        gc.state.encoding.as_ref().map(Vec::as_slice),
+        gc.state.decoding.as_ref().map(Vec::as_slice),
         gc.state.commitments.as_ref().map(Vec::as_slice),
     )?;
     Ok(gc)
@@ -512,7 +512,7 @@ fn validate_circuit<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     input_labels: &[InputLabels<WireLabelPair>],
     encrypted_gates: Option<&[EncryptedGate]>,
     digest: Option<Vec<u8>>,
-    output_encoding: Option<&[OutputLabelsEncoding]>,
+    output_decoding: Option<&[OutputLabelsDecodingInfo]>,
     output_commitments: Option<&[OutputLabelsCommitment]>,
 ) -> Result<(), Error> {
     let digest = if let Some(encrypted_gates) = encrypted_gates {
@@ -547,14 +547,14 @@ fn validate_circuit<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
         return Err(Error::CorruptedGarbledCircuit);
     }
 
-    // Check output encoding if it was sent
-    if let Some(output_encoding) = output_encoding {
+    // Check output decoding info if it was sent
+    if let Some(output_decoding) = output_decoding {
         let expected_output_decoding = extract_output_labels(circ, &labels)?
             .iter()
-            .map(|labels| labels.encode())
+            .map(|labels| labels.decoding())
             .collect::<Vec<_>>();
 
-        if &expected_output_decoding != output_encoding {
+        if &expected_output_decoding != output_decoding {
             return Err(Error::CorruptedDecodingInfo);
         }
     }
@@ -696,7 +696,7 @@ mod tests {
     #[test]
     /// The Generator sends invalid output label decoding info which causes the evaluator to
     /// derive incorrect output. Testing that this will be detected during validation.
-    fn test_circuit_validation_fail_bad_output_encoding() {
+    fn test_circuit_validation_fail_bad_output_decoding() {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
         let mut rng = ChaCha12Rng::seed_from_u64(0);
         let circ = Arc::new(Circuit::load_bytes(AES_128_REVERSE).unwrap());

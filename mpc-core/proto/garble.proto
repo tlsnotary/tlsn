@@ -15,7 +15,7 @@ message OutputEncoding {
     // Output id
     required uint32 id = 1;
     // Encoding
-    repeated bool encoding = 2;
+    repeated bool decoding = 2;
 }
 
 // Garbled Circuit
@@ -26,8 +26,8 @@ message GarbledCircuit {
     repeated InputLabels input_labels = 2;
     // Truth table for garbled AND gates
     repeated core.Block encrypted_gates = 3;
-    // Output label encodings
-    repeated OutputEncoding encoding = 4;
+    // Output label decodings
+    repeated OutputEncoding decoding = 4;
 }
 
 message Message {

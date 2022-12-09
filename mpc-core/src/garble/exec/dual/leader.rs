@@ -142,9 +142,9 @@ impl DualExLeader<Evaluator> {
         &self,
         evaluated_gc: &GarbledCircuit<gc_state::Evaluated>,
     ) -> Result<OutputCheck, Error> {
-        if !evaluated_gc.has_encoding() {
+        if !evaluated_gc.has_decoding() {
             return Err(Error::PeerError(
-                "Peer did not provide label encoding".to_string(),
+                "Peer did not provide label decoding info".to_string(),
             ));
         }
 

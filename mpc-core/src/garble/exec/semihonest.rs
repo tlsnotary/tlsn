@@ -235,8 +235,8 @@ mod tests {
     }
 
     #[test]
-    // Expect an error when Generator sends encoding of an incorrect size
-    fn test_semi_honest_fail_wrong_encoding_size() {
+    // Expect an error when Generator sends decoding table of an incorrect size
+    fn test_semi_honest_fail_wrong_decoding_size() {
         let mut rng = thread_rng();
         let circ = Arc::new(Circuit::load_bytes(ADDER_64).unwrap());
 
@@ -252,12 +252,12 @@ mod tests {
             .garble(&[leader_input], &input_labels, delta, true)
             .unwrap();
 
-        // Make the encoding 1 bit smaller
-        msg.encoding.as_mut().unwrap()[0].encoding.pop();
+        // Make the decoding 1 bit smaller
+        msg.decoding.as_mut().unwrap()[0].decoding.pop();
 
         let follower_labels = input_labels[1].select(&follower_input).unwrap();
         let error = follower.evaluate(msg, &[follower_labels]).unwrap_err();
 
-        assert!(matches!(error, Error::InvalidLabelEncoding));
+        assert!(matches!(error, Error::InvalidLabelDecodingInfo));
     }
 }
