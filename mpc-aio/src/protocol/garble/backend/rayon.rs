@@ -6,10 +6,11 @@ use futures::channel::oneshot;
 
 use mpc_circuits::Circuit;
 use mpc_core::garble::{
-    Delta, Evaluated, Full, GarbledCircuit, InputLabels, Partial, WireLabel, WireLabelPair,
+    validate_compressed_circuit, validate_evaluated_circuit, Compressed, Delta, Evaluated, Full,
+    GarbledCircuit, InputLabels, Partial, WireLabel, WireLabelPair,
 };
 
-use crate::protocol::garble::{Evaluator, GCError, Generator};
+use crate::protocol::garble::{Compressor, Evaluator, GCError, Generator, Validator};
 
 /// Garbler backend using Rayon to garble and evaluate circuits asynchronously and in parallel
 pub struct RayonBackend;
@@ -56,6 +57,63 @@ impl Evaluator for RayonBackend {
     }
 }
 
+#[async_trait]
+impl Validator for RayonBackend {
+    async fn validate_evaluated(
+        &mut self,
+        circ: GarbledCircuit<Evaluated>,
+        delta: Delta,
+        input_labels: &[InputLabels<WireLabelPair>],
+    ) -> Result<GarbledCircuit<Evaluated>, GCError> {
+        let (sender, receiver) = oneshot::channel();
+        let input_labels = input_labels.to_vec();
+        rayon::spawn(move || {
+            let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
+            let circ = validate_evaluated_circuit(&cipher, delta, &input_labels, circ)
+                .map_err(GCError::from);
+            _ = sender.send(circ);
+        });
+        receiver
+            .await
+            .map_err(|_| GCError::BackendError("channel error".to_string()))?
+    }
+
+    async fn validate_compressed(
+        &mut self,
+        circ: GarbledCircuit<Compressed>,
+        delta: Delta,
+        input_labels: &[InputLabels<WireLabelPair>],
+    ) -> Result<GarbledCircuit<Compressed>, GCError> {
+        let (sender, receiver) = oneshot::channel();
+        let input_labels = input_labels.to_vec();
+        rayon::spawn(move || {
+            let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
+            let circ = validate_compressed_circuit(&cipher, delta, &input_labels, circ)
+                .map_err(GCError::from);
+            _ = sender.send(circ);
+        });
+        receiver
+            .await
+            .map_err(|_| GCError::BackendError("channel error".to_string()))?
+    }
+}
+
+#[async_trait]
+impl Compressor for RayonBackend {
+    async fn compress(
+        &mut self,
+        circ: GarbledCircuit<Evaluated>,
+    ) -> Result<GarbledCircuit<Compressed>, GCError> {
+        let (sender, receiver) = oneshot::channel();
+        rayon::spawn(move || {
+            _ = sender.send(Ok(circ.compress()));
+        });
+        receiver
+            .await
+            .map_err(|_| GCError::BackendError("channel error".to_string()))?
+    }
+}
+
 #[cfg(test)]
 mod test {
     use mpc_circuits::ADDER_64;
@@ -83,6 +141,42 @@ mod test {
 
         let _ = RayonBackend
             .evaluate(gc.to_evaluator(&[], true, false), &input_labels)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_validator() {
+        let circ = Arc::new(Circuit::load_bytes(ADDER_64).unwrap());
+        let (full_input_labels, delta) = InputLabels::generate(&mut thread_rng(), &circ, None);
+        let gc = RayonBackend
+            .generate(circ.clone(), delta, &full_input_labels)
+            .await
+            .unwrap();
+
+        let input_labels = vec![
+            full_input_labels[0]
+                .select(&circ.input(0).unwrap().to_value(0u64).unwrap())
+                .unwrap(),
+            full_input_labels[1]
+                .select(&circ.input(1).unwrap().to_value(0u64).unwrap())
+                .unwrap(),
+        ];
+
+        let ev_gc = RayonBackend
+            .evaluate(gc.to_evaluator(&[], true, false), &input_labels)
+            .await
+            .unwrap();
+
+        let ev_gc = RayonBackend
+            .validate_evaluated(ev_gc, delta, &full_input_labels)
+            .await
+            .unwrap();
+
+        let compressed_gc = RayonBackend.compress(ev_gc).await.unwrap();
+
+        let _ = RayonBackend
+            .validate_compressed(compressed_gc, delta, &full_input_labels)
             .await
             .unwrap();
     }

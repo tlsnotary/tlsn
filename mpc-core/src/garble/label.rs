@@ -95,10 +95,26 @@ impl WireLabel {
             value: Block::random(rng),
         }
     }
+
+    /// Creates wire label pair from delta and corresponding truth value
+    #[inline]
+    pub fn to_pair(self, delta: Delta, level: bool) -> WireLabelPair {
+        let (low, high) = if level {
+            (self.value ^ delta.0, self.value)
+        } else {
+            (self.value, self.value ^ delta.0)
+        };
+
+        WireLabelPair {
+            id: self.id,
+            low,
+            high,
+        }
+    }
 }
 
 /// Pair of garbled circuit wire labels
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct WireLabelPair {
     /// Wire id
     id: usize,
@@ -172,13 +188,19 @@ impl WireLabelPair {
 }
 
 /// Wire labels corresponding to a circuit input
-#[derive(Debug, Clone)]
-pub struct InputLabels<T> {
+#[derive(Debug, Clone, PartialEq)]
+pub struct InputLabels<T>
+where
+    T: PartialEq + Copy,
+{
     pub input: Input,
     labels: Vec<T>,
 }
 
-impl<T: Copy> InputLabels<T> {
+impl<T> InputLabels<T>
+where
+    T: PartialEq + Copy,
+{
     pub fn new(input: Input, labels: &[T]) -> Result<Self, Error> {
         if input.as_ref().len() != labels.len() {
             return Err(Error::InvalidInputLabels);
@@ -192,6 +214,20 @@ impl<T: Copy> InputLabels<T> {
 
     pub fn id(&self) -> usize {
         self.input.id
+    }
+
+    #[cfg(test)]
+    /// Returns label at position idx
+    ///
+    /// Panics if idx is not in range
+    pub fn get_label(&self, idx: usize) -> &T {
+        &self.labels[idx]
+    }
+
+    #[cfg(test)]
+    /// Set the value of a wire label at position idx
+    pub fn set_label(&mut self, idx: usize, label: T) {
+        self.labels[idx] = label;
     }
 }
 
@@ -260,9 +296,35 @@ impl InputLabels<WireLabelPair> {
             labels,
         })
     }
+
+    /// Reconstructs input label pairs from existing labels, delta, and value
+    pub fn from_input_labels(
+        input_labels: InputLabels<WireLabel>,
+        delta: Delta,
+        value: InputValue,
+    ) -> Result<Self, Error> {
+        if input_labels.id() != value.id() {
+            return Err(Error::InvalidInputLabels);
+        }
+
+        let labels: Vec<WireLabelPair> = input_labels
+            .labels
+            .iter()
+            .zip(value.wire_values())
+            .map(|(label, value)| label.to_pair(delta, value))
+            .collect();
+
+        Ok(InputLabels {
+            input: input_labels.input,
+            labels,
+        })
+    }
 }
 
-impl<T> AsRef<[T]> for InputLabels<T> {
+impl<T> AsRef<[T]> for InputLabels<T>
+where
+    T: PartialEq + Copy,
+{
     fn as_ref(&self) -> &[T] {
         &self.labels
     }
@@ -440,7 +502,7 @@ impl<T> AsRef<[T]> for OutputLabels<T> {
 /// Decode(W) = LSB(W) ^ Encode(W)
 ///
 /// where Encode(W) = LSB(W_0).
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LabelEncoding(bool);
 
 impl Deref for LabelEncoding {
@@ -452,7 +514,7 @@ impl Deref for LabelEncoding {
 }
 
 /// For details about label encoding see [`LabelEncoding`]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct OutputLabelsEncoding {
     pub output: Output,
     encoding: Vec<LabelEncoding>,
@@ -492,7 +554,7 @@ impl AsRef<[LabelEncoding]> for OutputLabelsEncoding {
 ///
 /// In some configurations the Generator may send hash commitments to the output labels
 /// which the Evaluator can use to detect some types of malicious garbling.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct OutputLabelsCommitment {
     pub(crate) output: Output,
     pub(crate) commitments: Vec<[Block; 2]>,
@@ -566,6 +628,43 @@ impl OutputLabelsCommitment {
             Err(Error::InvalidOutputLabelCommitment)
         }
     }
+}
+
+/// Extracts output labels from full set of circuit labels
+pub(crate) fn extract_output_labels<T: Copy>(
+    circ: &Circuit,
+    labels: &[T],
+) -> Result<Vec<OutputLabels<T>>, Error> {
+    circ.outputs()
+        .iter()
+        .map(|output| {
+            OutputLabels::new(
+                output.clone(),
+                &output
+                    .as_ref()
+                    .wires()
+                    .iter()
+                    .map(|wire_id| labels[*wire_id])
+                    .collect::<Vec<T>>(),
+            )
+        })
+        .collect::<Result<Vec<OutputLabels<T>>, Error>>()
+}
+
+/// Decodes evaluated circuit output labels
+pub(crate) fn decode_output_labels(
+    circ: &Circuit,
+    labels: &[OutputLabels<WireLabel>],
+    encoding: &[OutputLabelsEncoding],
+) -> Result<Vec<OutputValue>, Error> {
+    if encoding.len() != circ.output_count() {
+        return Err(Error::InvalidLabelEncoding);
+    }
+    labels
+        .iter()
+        .zip(encoding.iter())
+        .map(|(labels, encoding)| labels.decode(encoding))
+        .collect::<Result<Vec<OutputValue>, Error>>()
 }
 
 #[cfg(test)]
@@ -758,5 +857,22 @@ mod tests {
         let error = commitments.validate(&output_labels).unwrap_err();
 
         assert!(matches!(error, Error::InvalidOutputLabelCommitment));
+    }
+
+    #[rstest]
+    fn test_input_label_reconstruction(circ: Circuit) {
+        let (mut full_labels, delta) = InputLabels::generate(&mut thread_rng(), &circ, None);
+
+        // grab input 0
+        let full_labels = full_labels.remove(0);
+
+        // select wire labels for value
+        let value = circ.input(0).unwrap().to_value(42069u64).unwrap();
+        let labels = full_labels.select(&value).unwrap();
+
+        // using delta and value, reconstruct full wire label pairs
+        let reconstructed_labels = InputLabels::from_input_labels(labels, delta, value).unwrap();
+
+        assert_eq!(reconstructed_labels, full_labels);
     }
 }

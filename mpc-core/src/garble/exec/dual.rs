@@ -182,7 +182,7 @@ impl DualExLeader<Evaluator> {
     /// Evaluate [`DualExFollower`] circuit
     pub fn evaluate(
         self,
-        gc: &GarbledCircuit<Partial>,
+        gc: GarbledCircuit<Partial>,
         input_labels: &[InputLabels<WireLabel>],
     ) -> Result<DualExLeader<Commit>, Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
@@ -244,7 +244,7 @@ impl DualExFollower<Evaluator> {
     /// Evaluate [`DualExLeader`] circuit
     pub fn evaluate(
         self,
-        gc: &GarbledCircuit<Partial>,
+        gc: GarbledCircuit<Partial>,
         input_labels: &[InputLabels<WireLabel>],
     ) -> Result<DualExFollower<Reveal>, Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
@@ -417,14 +417,14 @@ mod tests {
 
         let leader = leader
             .evaluate(
-                &follower_gc,
+                follower_gc,
                 &[follower_labels[0].select(&leader_input).unwrap()],
             )
             .unwrap();
 
         let follower = follower
             .evaluate(
-                &leader_gc,
+                leader_gc,
                 &[leader_labels[1].select(&follower_input).unwrap()],
             )
             .unwrap();
