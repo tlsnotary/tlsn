@@ -2,15 +2,17 @@
 //! block multiplication. Master acts as the receiver of the Oblivious
 //! Transfer and receives Slaves's masked X table entries obliviously for each
 //! bit of Y.
-use super::utils::{
-    block_aggregation, block_aggregation_bits, block_mult, flat_to_chunks,
-    multiply_powers_and_blocks, square_all, xor_sum,
+use super::{
+    errors::*,
+    utils::{
+        block_aggregation, block_aggregation_bits, block_mult, flat_to_chunks,
+        multiply_powers_and_blocks, square_all, xor_sum,
+    },
+    MasterCore,
 };
-use super::{errors::*, MasterCore};
-use crate::ghash::common::GhashCommon;
-use crate::ghash::{MXTable, YBits};
-use mpc_core::utils::u8vec_to_boolvec;
+use crate::ghash::{common::GhashCommon, MXTable, YBits};
 use std::collections::BTreeMap;
+use utils::iter::u8vec_to_boolvec;
 
 #[derive(PartialEq)]
 pub enum MasterState {

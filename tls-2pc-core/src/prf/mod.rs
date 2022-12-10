@@ -82,10 +82,10 @@ pub use leader::{state as leader_state, PRFLeader};
 
 #[cfg(test)]
 mod tests {
+    use self::utils::*;
     use super::*;
     use hex;
     use sha::{finalize_sha256_digest, partial_sha256_digest};
-    use utils::*;
 
     #[test]
     fn test_prf() {

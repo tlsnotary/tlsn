@@ -151,7 +151,7 @@ mod test {
     #[test]
     fn duplicate_check_contains_no_dups_by() {
         let x = [Container(0), Container(1)];
-        assert!(x.iter().contains_dups_by(|x| x.get()));
+        assert!(!x.iter().contains_dups_by(|x| x.get()));
     }
 
     #[test]
