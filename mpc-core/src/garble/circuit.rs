@@ -1,5 +1,5 @@
 use cipher::{consts::U16, BlockCipher, BlockEncrypt};
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use crate::{
     block::Block,
@@ -7,17 +7,19 @@ use crate::{
         evaluator::evaluate,
         generator::garble,
         label::{
-            decode_output_labels, extract_output_labels, OutputLabels, OutputLabelsCommitment,
-            OutputLabelsDecodingInfo, SanitizedInputLabels,
+            decode_output_labels, extract_input_labels, extract_output_labels, OutputLabels,
+            OutputLabelsCommitment, OutputLabelsDecodingInfo, SanitizedInputLabels,
         },
         Delta, Error, InputLabels, WireLabel, WireLabelPair,
     },
     utils::sha256,
 };
-use mpc_circuits::{Circuit, InputValue, OutputValue};
+use mpc_circuits::{Circuit, CircuitId, InputValue, OutputValue};
 
-use super::label::extract_input_labels;
-
+/// Encrypted gate truth table
+///
+/// For the half-gate garbling scheme a truth table will typically have 2 rows, except for in
+/// privacy-free garbling mode where it will be reduced to 1
 #[derive(Debug, Clone, PartialEq)]
 pub struct EncryptedGate([Block; 2]);
 
@@ -123,7 +125,7 @@ pub mod state {
     /// Evaluated garbled circuit output data
     #[derive(Debug)]
     pub struct Output {
-        pub(crate) labels: Vec<OutputLabels<WireLabel>>,
+        pub(crate) output_labels: Vec<OutputLabels<WireLabel>>,
         pub(crate) decoding: Option<Vec<OutputLabelsDecodingInfo>>,
     }
 
@@ -258,28 +260,6 @@ impl GarbledCircuit<Full> {
         }
     }
 
-    /// Validates that provided output labels are correct
-    pub fn validate_output(&self, output_labels: &[WireLabel]) -> Result<(), Error> {
-        if output_labels.len() != self.circ.output_count() {
-            return Err(Error::InvalidOutputLabels);
-        }
-        let pairs = self
-            .state
-            .labels
-            .iter()
-            .enumerate()
-            .skip(self.circ.len() - self.circ.output_len());
-
-        if output_labels.iter().zip(pairs).all(|(label, (id, pair))| {
-            (label.id() == id)
-                & ((*label.as_ref() == *pair.low()) | (*label.as_ref() == *pair.high()))
-        }) {
-            Ok(())
-        } else {
-            Err(Error::InvalidOutputLabels)
-        }
-    }
-
     /// Summarizes garbled circuit data to reduce memory footprint
     pub fn summarize(self) -> GarbledCircuit<Summary> {
         let input_labels = self.input_labels();
@@ -391,7 +371,7 @@ impl GarbledCircuit<Evaluated> {
         GarbledCircuit {
             circ: self.circ.clone(),
             state: Output {
-                labels: self.output_labels().to_vec(),
+                output_labels: self.output_labels().to_vec(),
                 decoding: self.state.decoding.clone(),
             },
         }
@@ -443,7 +423,7 @@ impl GarbledCircuit<Compressed> {
         GarbledCircuit {
             circ: self.circ.clone(),
             state: Output {
-                labels: self.output_labels().to_vec(),
+                output_labels: self.output_labels().to_vec(),
                 decoding: self.state.decoding.clone(),
             },
         }
@@ -463,7 +443,7 @@ impl GarbledCircuit<Compressed> {
 impl GarbledCircuit<Output> {
     /// Returns all output labels
     pub fn output_labels(&self) -> &[OutputLabels<WireLabel>] {
-        &self.state.labels
+        &self.state.output_labels
     }
 
     /// Returns whether or not output decoding info is available
@@ -483,7 +463,7 @@ impl GarbledCircuit<Output> {
             .decoding
             .as_ref()
             .ok_or(Error::InvalidLabelDecodingInfo)?;
-        decode_output_labels(&self.circ, &self.state.labels, decoding)
+        decode_output_labels(&self.circ, &self.state.output_labels, decoding)
     }
 }
 
@@ -592,6 +572,174 @@ fn validate_circuit<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     }
 
     Ok(())
+}
+
+pub(crate) mod unchecked {
+    use super::*;
+
+    use crate::garble::label::unchecked::*;
+
+    /// Partial garbled circuit which has not been validated against a circuit spec
+    #[derive(Debug, Clone)]
+    pub struct UncheckedGarbledCircuit {
+        pub(crate) id: CircuitId,
+        pub(crate) input_labels: Vec<UncheckedInputLabels>,
+        pub(crate) encrypted_gates: Vec<Block>,
+        pub(crate) decoding: Option<Vec<UncheckedOutputLabelsDecodingInfo>>,
+        pub(crate) commitments: Option<Vec<OutputLabelsCommitment>>,
+    }
+
+    impl UncheckedGarbledCircuit {
+        pub fn validate(mut self, circ: Arc<Circuit>) -> Result<GarbledCircuit<Partial>, Error> {
+            // Validate circuit id
+            if &self.id != circ.id() {
+                return Err(Error::ValidationError(format!(
+                    "Wrong circuit id: expected {}, received {}",
+                    circ.id().as_ref(),
+                    self.id.as_ref()
+                )));
+            }
+
+            // Make sure the expected numbers of gates are present
+            if self.encrypted_gates.len() != 2 * circ.and_count() {
+                return Err(Error::ValidationError(
+                    "Incorrect number of encrypted gates".to_string(),
+                ));
+            }
+
+            // Check for duplicate inputs
+            let input_ids: HashSet<usize> =
+                self.input_labels.iter().map(|input| input.id).collect();
+            if input_ids.len() != self.input_labels.len() {
+                return Err(Error::ValidationError("Duplicate inputs".to_string()));
+            }
+
+            // Make sure inputs are sorted
+            self.input_labels.sort_by_key(|labels| labels.id);
+
+            let input_labels = self
+                .input_labels
+                .into_iter()
+                .zip(
+                    circ.inputs()
+                        .iter()
+                        .filter(|input| input_ids.contains(&input.id)),
+                )
+                .map(|(labels, input)| InputLabels::from_unchecked(input.clone(), labels))
+                .collect::<Result<Vec<_>, _>>()?;
+
+            let encrypted_gates = self
+                .encrypted_gates
+                .chunks_exact(2)
+                .into_iter()
+                .map(|gate| EncryptedGate::new([gate[0], gate[1]]))
+                .collect();
+
+            // Validate output decoding info
+            let decoding = match self.decoding {
+                Some(decoding) => {
+                    // Check that peer sent all output decodings
+                    if decoding.len() == circ.output_count() {
+                        Some(
+                            decoding
+                                .into_iter()
+                                .map(|unchecked| {
+                                    OutputLabelsDecodingInfo::from_unchecked(&circ, unchecked)
+                                })
+                                .collect::<Result<Vec<_>, _>>()?,
+                        )
+                    } else {
+                        return Err(Error::ValidationError(
+                            "Invalid output decoding".to_string(),
+                        ));
+                    }
+                }
+                None => None,
+            };
+
+            let commitments = match self.commitments {
+                Some(commitments) => {
+                    // Check that peer sent commitments for all outputs
+                    if commitments.len() == circ.output_count() {
+                        Some(
+                            commitments
+                                .into_iter()
+                                .map(|c| OutputLabelsCommitment::from_msg(&circ, c))
+                                .collect::<Result<Vec<_>, _>>()?,
+                        )
+                    } else {
+                        return Err(Error::ValidationError(
+                            "Wrong number of output commitments".to_string(),
+                        ));
+                    }
+                }
+                None => None,
+            };
+
+            todo!()
+        }
+    }
+
+    /// Output of a garbled circuit which has not been validated
+    #[derive(Debug, Clone)]
+    pub struct UncheckedOutput {
+        pub(crate) circ_id: CircuitId,
+        pub(crate) output_labels: Vec<UncheckedOutputLabels>,
+    }
+
+    impl UncheckedOutput {
+        /// Validates and decodes output using circuit spec and full output labels
+        pub fn decode(
+            mut self,
+            circ: &Circuit,
+            full_output_labels: &[OutputLabels<WireLabelPair>],
+        ) -> Result<Vec<OutputValue>, Error> {
+            // Validate circuit id
+            if &self.circ_id != circ.id() {
+                return Err(Error::PeerError(format!(
+                    "Received evaluated circuit with wrong id: expected {}, received {}",
+                    circ.id().as_ref(),
+                    self.circ_id.as_ref()
+                )));
+            }
+
+            // Check for duplicates
+            let output_ids: HashSet<usize> =
+                self.output_labels.iter().map(|output| output.id).collect();
+
+            if output_ids.len() != self.output_labels.len() {
+                return Err(Error::PeerError(
+                    "Received garbled circuit with duplicate outputs".to_string(),
+                ));
+            }
+
+            // Make sure outputs are sorted
+            self.output_labels
+                .sort_by_key(|output_label| output_label.id);
+
+            // Check all outputs were received
+            if self.output_labels.len() != circ.output_count() {
+                return Err(Error::InvalidOutputLabels);
+            }
+
+            let output_labels = self
+                .output_labels
+                .into_iter()
+                .zip(circ.outputs())
+                .map(|(labels, output)| OutputLabels::from_unchecked(output.clone(), labels))
+                .collect::<Result<Vec<_>, _>>()?;
+
+            // Validates that each output label is authentic then decodes them
+            full_output_labels
+                .iter()
+                .zip(&output_labels)
+                .map(|(full, ev)| {
+                    full.validate(ev)?;
+                    ev.decode(&full.decoding())
+                })
+                .collect::<Result<Vec<_>, Error>>()
+        }
+    }
 }
 
 #[cfg(test)]

@@ -5,12 +5,12 @@
 //! can not rely on this execution mode for correctness or privacy.
 use crate::{
     garble::{
-        circuit::{state as gc_state, GarbledCircuit},
+        circuit::{state as gc_state, GarbledCircuit, UncheckedOutput},
         Delta, Error, InputLabels, WireLabel, WireLabelPair,
     },
     msgs::garble as msgs,
 };
-use mpc_circuits::{Circuit, InputValue};
+use mpc_circuits::{Circuit, InputValue, OutputValue};
 
 use aes::{Aes128, NewBlockCipher};
 use std::sync::Arc;
@@ -22,7 +22,7 @@ pub mod state {
         pub trait Sealed {}
         impl Sealed for super::Generator {}
         impl Sealed for super::Evaluator {}
-        impl Sealed for super::Validate {}
+        impl Sealed for super::Decode {}
     }
 
     pub trait State: sealed::Sealed {}
@@ -35,13 +35,13 @@ pub mod state {
         pub(super) circ: Arc<Circuit>,
     }
 
-    pub struct Validate {
-        pub(super) gc: GarbledCircuit<gc_state::Full>,
+    pub struct Decode {
+        pub(super) gc: GarbledCircuit<gc_state::Summary>,
     }
 
     impl State for Generator {}
     impl State for Evaluator {}
-    impl State for Validate {}
+    impl State for Decode {}
 }
 
 use state::*;
@@ -84,14 +84,14 @@ impl SemiHonestLeader<Generator> {
         input_labels: &[InputLabels<WireLabelPair>],
         delta: Delta,
         reveal_output: bool,
-    ) -> Result<(msgs::GarbledCircuit, SemiHonestLeader<Validate>), Error> {
+    ) -> Result<(GarbledCircuit<gc_state::Partial>, SemiHonestLeader<Decode>), Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
         let gc = GarbledCircuit::generate(&cipher, self.state.circ.clone(), delta, input_labels)?;
 
         Ok((
-            gc.to_evaluator(inputs, reveal_output, true).into(),
+            gc.to_evaluator(inputs, reveal_output, true),
             SemiHonestLeader {
-                state: Validate { gc },
+                state: Decode { gc: gc.summarize() },
             },
         ))
     }
@@ -102,11 +102,11 @@ impl SemiHonestLeader<Generator> {
         inputs: &[InputValue],
         gc: GarbledCircuit<gc_state::Full>,
         reveal_output: bool,
-    ) -> Result<(msgs::GarbledCircuit, SemiHonestLeader<Validate>), Error> {
+    ) -> Result<(GarbledCircuit<gc_state::Partial>, SemiHonestLeader<Decode>), Error> {
         Ok((
-            gc.to_evaluator(inputs, reveal_output, true).into(),
+            gc.to_evaluator(inputs, reveal_output, true),
             SemiHonestLeader {
-                state: Validate { gc },
+                state: Decode { gc: gc.summarize() },
             },
         ))
     }
@@ -118,7 +118,7 @@ impl SemiHonestFollower<Evaluator> {
         self,
         msg: msgs::GarbledCircuit,
         input_labels: &[InputLabels<WireLabel>],
-    ) -> Result<(msgs::Output, GarbledCircuit<gc_state::Evaluated>), Error> {
+    ) -> Result<GarbledCircuit<gc_state::Evaluated>, Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
         let gc = GarbledCircuit::<gc_state::Partial>::from_msg(self.state.circ.clone(), msg)?;
 
@@ -130,18 +130,14 @@ impl SemiHonestFollower<Evaluator> {
             ));
         }
 
-        let ev_gc = gc.evaluate(&cipher, input_labels)?;
-        let output = ev_gc.to_output();
-
-        Ok((msgs::Output::from(output), ev_gc))
+        Ok(gc.evaluate(&cipher, input_labels)?)
     }
 }
 
-impl SemiHonestLeader<Validate> {
-    /// Validates evaluated circuit received from peer
-    pub fn validate(self, msg: msgs::Output) -> Result<GarbledCircuit<gc_state::Output>, Error> {
-        // Validates output labels
-        GarbledCircuit::<gc_state::Output>::from_msg(&self.state.gc, msg)
+impl SemiHonestLeader<Decode> {
+    /// Authenticates output wire labels sent by the peer and decodes the output
+    pub fn decode(self, unchecked: UncheckedOutput) -> Result<Vec<OutputValue>, Error> {
+        unchecked.decode(&self.state.gc.circ, &self.state.gc.output_labels())
     }
 }
 
@@ -174,7 +170,7 @@ mod tests {
         let follower_labels = input_labels[1].select(&follower_input).unwrap();
         let (msg, _) = follower.evaluate(msg, &[follower_labels]).unwrap();
 
-        let output = leader.validate(msg).unwrap().decode().unwrap();
+        let output = leader.decode(msg).unwrap().decode().unwrap();
 
         assert_eq!(*output[0].value(), Value::U64(1u64));
     }
@@ -202,7 +198,7 @@ mod tests {
         // Insert a bogus output label
         msg.output_labels[0].labels[0] = Block::new(1);
 
-        let error = leader.validate(msg).unwrap_err();
+        let error = leader.decode(msg).unwrap_err();
 
         assert!(matches!(error, Error::InvalidOutputLabels));
     }

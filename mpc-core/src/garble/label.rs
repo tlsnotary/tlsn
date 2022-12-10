@@ -235,6 +235,23 @@ where
     }
 }
 
+impl InputLabels<WireLabel> {
+    /// Validates and converts input labels to checked variant
+    pub fn from_unchecked(
+        input: Input,
+        unchecked: unchecked::UncheckedInputLabels,
+    ) -> Result<Self, Error> {
+        if unchecked.id != input.id || unchecked.labels.len() != input.as_ref().len() {
+            return Err(Error::InvalidOutputLabels);
+        }
+
+        Ok(Self {
+            input,
+            labels: unchecked.labels,
+        })
+    }
+}
+
 impl InputLabels<WireLabelPair> {
     /// Generates a full set of input [`WireLabelPair`] for the provided [`Circuit`]
     pub fn generate<R: Rng + CryptoRng>(
@@ -469,6 +486,21 @@ impl OutputLabels<WireLabelPair> {
 }
 
 impl OutputLabels<WireLabel> {
+    /// Validates and converts output labels to checked variant
+    pub fn from_unchecked(
+        output: Output,
+        unchecked: unchecked::UncheckedOutputLabels,
+    ) -> Result<Self, Error> {
+        if unchecked.id != output.id || unchecked.labels.len() != output.as_ref().len() {
+            return Err(Error::InvalidOutputLabels);
+        }
+
+        Ok(Self {
+            output,
+            labels: unchecked.labels,
+        })
+    }
+
     /// Decodes output wire labels
     pub(crate) fn decode(&self, decoding: &OutputLabelsDecodingInfo) -> Result<OutputValue, Error> {
         if decoding.output != self.output {
@@ -509,6 +541,13 @@ impl<T> AsRef<[T]> for OutputLabels<T> {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LabelDecodingInfo(bool);
 
+impl From<bool> for LabelDecodingInfo {
+    #[inline]
+    fn from(value: bool) -> Self {
+        Self(value)
+    }
+}
+
 impl Deref for LabelDecodingInfo {
     type Target = bool;
 
@@ -536,6 +575,20 @@ impl OutputLabelsDecodingInfo {
                 .into_iter()
                 .map(|enc| LabelDecodingInfo(enc))
                 .collect(),
+        })
+    }
+
+    pub fn from_unchecked(
+        output: Output,
+        unchecked: unchecked::UncheckedOutputLabelsDecodingInfo,
+    ) -> Result<Self, Error> {
+        if unchecked.id != output.id || unchecked.decoding.len() != output.as_ref().len() {
+            return Err(Error::InvalidLabelDecodingInfo);
+        }
+
+        Ok(Self {
+            output,
+            decoding: unchecked.decoding,
         })
     }
 
@@ -720,6 +773,33 @@ pub(crate) fn decode_output_labels(
         .zip(decoding.iter())
         .map(|(labels, decoding)| labels.decode(decoding))
         .collect::<Result<Vec<OutputValue>, Error>>()
+}
+
+pub(crate) mod unchecked {
+    use super::*;
+
+    /// Input labels which have not been validated
+    #[derive(Debug, Clone)]
+    pub struct UncheckedInputLabels {
+        pub(crate) id: usize,
+        pub(crate) labels: Vec<WireLabel>,
+    }
+
+    /// Output labels which have not been validated
+    #[derive(Debug, Clone)]
+    pub struct UncheckedOutputLabels {
+        pub(crate) id: usize,
+        pub(crate) labels: Vec<WireLabel>,
+    }
+
+    /// Output label decoding info which hasn't been validated against a circuit spec
+    ///
+    /// For more information on label decoding see [`LabelDecodingInfo`]
+    #[derive(Debug, Clone)]
+    pub struct UncheckedOutputLabelsDecodingInfo {
+        pub(crate) id: usize,
+        pub(crate) decoding: Vec<LabelDecodingInfo>,
+    }
 }
 
 #[cfg(test)]
