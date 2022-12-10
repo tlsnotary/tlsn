@@ -1,0 +1,12 @@
+[package]
+name = "tlsn-utils"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "utils"
+
+[dependencies]
+
+[dev-dependencies]
+rand = { workspace = true }

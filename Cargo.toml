@@ -8,11 +8,13 @@ members = [
     "tls-circuits",
     "tls-2pc-core",
     "tls-2pc-aio",
+    "utils",
     "utils-aio",
     "clmul",
     "matrix-transpose",
     "share-conversion-core",
     "share-conversion-aio",
+    "gf2-128",
 ]
 exclude = ["tls-client"]
 
