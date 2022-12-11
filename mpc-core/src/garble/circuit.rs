@@ -575,6 +575,8 @@ fn validate_circuit<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
 }
 
 pub(crate) mod unchecked {
+    use utils::iter::DuplicateCheckBy;
+
     use super::*;
 
     use crate::garble::label::unchecked::*;
@@ -586,38 +588,90 @@ pub(crate) mod unchecked {
         pub(crate) input_labels: Vec<UncheckedInputLabels>,
         pub(crate) encrypted_gates: Vec<Block>,
         pub(crate) decoding: Option<Vec<UncheckedOutputLabelsDecodingInfo>>,
-        pub(crate) commitments: Option<Vec<OutputLabelsCommitment>>,
+        pub(crate) commitments: Option<Vec<UncheckedOutputLabelsCommitment>>,
     }
 
-    impl UncheckedGarbledCircuit {
-        pub fn validate(mut self, circ: Arc<Circuit>) -> Result<GarbledCircuit<Partial>, Error> {
+    #[cfg(test)]
+    impl From<GarbledCircuit<Partial>> for UncheckedGarbledCircuit {
+        fn from(gc: GarbledCircuit<Partial>) -> Self {
+            Self {
+                id: gc.circ.id().clone(),
+                input_labels: gc
+                    .state
+                    .input_labels
+                    .into_iter()
+                    .map(UncheckedInputLabels::from)
+                    .collect(),
+                encrypted_gates: gc
+                    .state
+                    .encrypted_gates
+                    .into_iter()
+                    .map(|gate| gate.0)
+                    .flatten()
+                    .collect(),
+                decoding: gc.state.decoding.map(|decodings| {
+                    decodings
+                        .into_iter()
+                        .map(UncheckedOutputLabelsDecodingInfo::from)
+                        .collect()
+                }),
+                commitments: gc.state.commitments.map(|commitments| {
+                    commitments
+                        .into_iter()
+                        .map(UncheckedOutputLabelsCommitment::from)
+                        .collect()
+                }),
+            }
+        }
+    }
+
+    impl GarbledCircuit<Partial> {
+        pub fn from_unchecked(
+            circ: Arc<Circuit>,
+            mut unchecked: UncheckedGarbledCircuit,
+        ) -> Result<Self, Error> {
             // Validate circuit id
-            if &self.id != circ.id() {
+            if &unchecked.id != circ.id() {
                 return Err(Error::ValidationError(format!(
                     "Wrong circuit id: expected {}, received {}",
                     circ.id().as_ref(),
-                    self.id.as_ref()
+                    unchecked.id.as_ref()
                 )));
             }
 
             // Make sure the expected numbers of gates are present
-            if self.encrypted_gates.len() != 2 * circ.and_count() {
+            if unchecked.encrypted_gates.len() != 2 * circ.and_count() {
                 return Err(Error::ValidationError(
                     "Incorrect number of encrypted gates".to_string(),
                 ));
             }
 
-            // Check for duplicate inputs
-            let input_ids: HashSet<usize> =
-                self.input_labels.iter().map(|input| input.id).collect();
-            if input_ids.len() != self.input_labels.len() {
+            // Check for duplicate input ids
+            if unchecked
+                .input_labels
+                .iter()
+                .contains_dups_by(|input| &input.id)
+            {
                 return Err(Error::ValidationError("Duplicate inputs".to_string()));
             }
 
-            // Make sure inputs are sorted
-            self.input_labels.sort_by_key(|labels| labels.id);
+            // Make sure input labels are sorted by id
+            unchecked.input_labels.sort_by_key(|labels| labels.id);
 
-            let input_labels = self
+            // Collect set of input ids
+            let input_ids = unchecked
+                .input_labels
+                .iter()
+                .map(|input| input.id)
+                .collect::<HashSet<_>>();
+
+            // Check for unexpected input ids
+            if !input_ids.iter().all(|id| circ.is_input_id(*id)) {
+                return Err(Error::ValidationError("Invalid input id".to_string()));
+            }
+
+            // Convert input labels to checked type
+            let input_labels = unchecked
                 .input_labels
                 .into_iter()
                 .zip(
@@ -628,7 +682,8 @@ pub(crate) mod unchecked {
                 .map(|(labels, input)| InputLabels::from_unchecked(input.clone(), labels))
                 .collect::<Result<Vec<_>, _>>()?;
 
-            let encrypted_gates = self
+            // Convert encrypted gates to typed version
+            let encrypted_gates = unchecked
                 .encrypted_gates
                 .chunks_exact(2)
                 .into_iter()
@@ -636,47 +691,104 @@ pub(crate) mod unchecked {
                 .collect();
 
             // Validate output decoding info
-            let decoding = match self.decoding {
-                Some(decoding) => {
-                    // Check that peer sent all output decodings
-                    if decoding.len() == circ.output_count() {
-                        Some(
-                            decoding
-                                .into_iter()
-                                .map(|unchecked| {
-                                    OutputLabelsDecodingInfo::from_unchecked(&circ, unchecked)
-                                })
-                                .collect::<Result<Vec<_>, _>>()?,
-                        )
-                    } else {
+            let decoding = match unchecked.decoding {
+                Some(mut decoding) => {
+                    // Check for duplicates
+                    if decoding.iter().contains_dups_by(|decoding| &decoding.id) {
                         return Err(Error::ValidationError(
-                            "Invalid output decoding".to_string(),
+                            "Duplicate output decoding".to_string(),
                         ));
                     }
+
+                    // Make sure decodings are sorted by id
+                    decoding.sort_by_key(|decoding| decoding.id);
+
+                    // Check for unexpected output ids
+                    if !decoding
+                        .iter()
+                        .map(|decoding| decoding.id)
+                        .all(|id| circ.is_input_id(id))
+                    {
+                        return Err(Error::ValidationError(
+                            "Invalid decoding output id".to_string(),
+                        ));
+                    }
+
+                    // Check that all output decodings are present
+                    // NOTE: we may relax this requirement in the future
+                    if decoding.len() != circ.output_count() {
+                        return Err(Error::ValidationError(
+                            "Incorrect number of output decodings".to_string(),
+                        ));
+                    }
+
+                    Some(
+                        decoding
+                            .into_iter()
+                            .zip(circ.outputs())
+                            .map(|(unchecked, output)| {
+                                OutputLabelsDecodingInfo::from_unchecked(output.clone(), unchecked)
+                            })
+                            .collect::<Result<Vec<_>, Error>>()?,
+                    )
                 }
                 None => None,
             };
 
-            let commitments = match self.commitments {
-                Some(commitments) => {
-                    // Check that peer sent commitments for all outputs
-                    if commitments.len() == circ.output_count() {
-                        Some(
-                            commitments
-                                .into_iter()
-                                .map(|c| OutputLabelsCommitment::from_msg(&circ, c))
-                                .collect::<Result<Vec<_>, _>>()?,
-                        )
-                    } else {
+            let commitments = match unchecked.commitments {
+                Some(mut commitments) => {
+                    // Check for duplicates
+                    if commitments
+                        .iter()
+                        .contains_dups_by(|commitment| &commitment.id)
+                    {
+                        return Err(Error::ValidationError("Duplicate commitments".to_string()));
+                    }
+
+                    // Make sure decodings are sorted by id
+                    commitments.sort_by_key(|decoding| decoding.id);
+
+                    // Check for unexpected output ids
+                    if !commitments
+                        .iter()
+                        .map(|commitment| commitment.id)
+                        .all(|id| circ.is_input_id(id))
+                    {
                         return Err(Error::ValidationError(
-                            "Wrong number of output commitments".to_string(),
+                            "Invalid commitment output id".to_string(),
                         ));
                     }
+
+                    // Check that all output commitments are present
+                    // NOTE: we may relax this requirement in the future
+                    if commitments.len() != circ.output_count() {
+                        return Err(Error::ValidationError(
+                            "Incorrect number of output decodings".to_string(),
+                        ));
+                    }
+
+                    Some(
+                        commitments
+                            .into_iter()
+                            .zip(circ.outputs())
+                            .map(|(unchecked, output)| {
+                                OutputLabelsCommitment::from_unchecked(output.clone(), unchecked)
+                            })
+                            .collect::<Result<Vec<_>, Error>>()?,
+                    )
                 }
                 None => None,
             };
 
-            todo!()
+            Ok(Self {
+                circ,
+                state: Partial {
+                    input_labels,
+                    encrypted_gates,
+                    decoding,
+                    commitments,
+                },
+            })
         }
     }
 
@@ -685,6 +797,21 @@ pub(crate) mod unchecked {
     pub struct UncheckedOutput {
         pub(crate) circ_id: CircuitId,
         pub(crate) output_labels: Vec<UncheckedOutputLabels>,
+    }
+
+    #[cfg(test)]
+    impl From<GarbledCircuit<Output>> for UncheckedOutput {
+        fn from(gc: GarbledCircuit<Output>) -> Self {
+            Self {
+                circ_id: gc.circ.id().clone(),
+                output_labels: gc
+                    .state
+                    .output_labels
+                    .into_iter()
+                    .map(UncheckedOutputLabels::from)
+                    .collect(),
+            }
+        }
     }
 
     impl UncheckedOutput {

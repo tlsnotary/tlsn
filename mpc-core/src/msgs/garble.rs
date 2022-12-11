@@ -212,10 +212,13 @@ impl From<label::OutputLabelsCommitment> for OutputLabelsCommitment {
     }
 }
 
-impl From<OutputLabelsCommitment> for label::OutputLabelsCommitment {
+impl From<OutputLabelsCommitment> for unchecked_label::UncheckedOutputLabelsCommitment {
     #[inline]
     fn from(commitment: OutputLabelsCommitment) -> Self {
-        todo!()
+        Self {
+            id: commitment.id,
+            commitments: commitment.commitments,
+        }
     }
 }
 
@@ -305,7 +308,7 @@ impl From<GarbledCircuit> for unchecked_circuit::UncheckedGarbledCircuit {
                 Some(
                     commitments
                         .into_iter()
-                        .map(label::OutputLabelsCommitment::from)
+                        .map(unchecked_label::UncheckedOutputLabelsCommitment::from)
                         .collect(),
                 )
             }),

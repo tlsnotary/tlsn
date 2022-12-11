@@ -3,12 +3,13 @@
 //! which may result in the private inputs of the follower being leaked. Additonally, the follower
 //! does not know whether the output decoding provided by the leader is authentic. Thus, the follower
 //! can not rely on this execution mode for correctness or privacy.
-use crate::{
-    garble::{
-        circuit::{state as gc_state, GarbledCircuit, UncheckedOutput},
-        Delta, Error, InputLabels, WireLabel, WireLabelPair,
+use crate::garble::{
+    circuit::{
+        state as gc_state,
+        unchecked::{UncheckedGarbledCircuit, UncheckedOutput},
+        GarbledCircuit,
     },
-    msgs::garble as msgs,
+    Delta, Error, InputLabels, WireLabel, WireLabelPair,
 };
 use mpc_circuits::{Circuit, InputValue, OutputValue};
 
@@ -116,11 +117,14 @@ impl SemiHonestFollower<Evaluator> {
     /// Evaluate [`SemiHonestLeader`] circuit
     pub fn evaluate(
         self,
-        msg: msgs::GarbledCircuit,
+        unchecked_gc: UncheckedGarbledCircuit,
         input_labels: &[InputLabels<WireLabel>],
     ) -> Result<GarbledCircuit<gc_state::Evaluated>, Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
-        let gc = GarbledCircuit::<gc_state::Partial>::from_msg(self.state.circ.clone(), msg)?;
+        let gc = GarbledCircuit::<gc_state::Partial>::from_unchecked(
+            self.state.circ.clone(),
+            unchecked_gc,
+        )?;
 
         // The generator must send commitments to the output labels to mitigate
         // some types of malicious garbling
@@ -163,14 +167,18 @@ mod tests {
 
         let (input_labels, delta) = InputLabels::generate(&mut rng, &circ, None);
 
-        let (msg, leader) = leader
+        let (gc_partial, leader) = leader
             .garble(&[leader_input], &input_labels, delta, true)
             .unwrap();
 
         let follower_labels = input_labels[1].select(&follower_input).unwrap();
-        let (msg, _) = follower.evaluate(msg, &[follower_labels]).unwrap();
+        let gc_ev = follower
+            .evaluate(gc_partial.into(), &[follower_labels])
+            .unwrap();
 
-        let output = leader.decode(msg).unwrap().decode().unwrap();
+        let gc_output = gc_ev.to_output();
+
+        let output = leader.decode(gc_output.into()).unwrap();
 
         assert_eq!(*output[0].value(), Value::U64(1u64));
     }
@@ -188,17 +196,21 @@ mod tests {
 
         let (input_labels, delta) = InputLabels::generate(&mut rng, &circ, None);
 
-        let (msg, leader) = leader
+        let (gc_partial, leader) = leader
             .garble(&[leader_input], &input_labels, delta, true)
             .unwrap();
 
         let follower_labels = input_labels[1].select(&follower_input).unwrap();
-        let (mut msg, _) = follower.evaluate(msg, &[follower_labels]).unwrap();
+        let gc_ev = follower
+            .evaluate(gc_partial.into(), &[follower_labels])
+            .unwrap();
+
+        let mut gc_output = gc_ev.to_output();
 
         // Insert a bogus output label
-        msg.output_labels[0].labels[0] = Block::new(1);
+        gc_output.state.output_labels[0].set_label(0, WireLabel::new(0, Block::new(0)));
 
-        let error = leader.decode(msg).unwrap_err();
+        let error = leader.decode(gc_output.into()).unwrap_err();
 
         assert!(matches!(error, Error::InvalidOutputLabels));
     }
@@ -216,44 +228,19 @@ mod tests {
 
         let (input_labels, delta) = InputLabels::generate(&mut rng, &circ, None);
 
-        let (mut msg, _) = leader
+        let (mut gc_partial, _) = leader
             .garble(&[leader_input], &input_labels, delta, true)
             .unwrap();
 
         // Insert bogus output label commitments
-        msg.commitments.as_mut().unwrap()[0].commitments[0] = Block::new(0);
-        msg.commitments.as_mut().unwrap()[0].commitments[1] = Block::new(1);
+        gc_partial.state.commitments.as_mut().unwrap()[0].commitments[0][0] = Block::new(0);
+        gc_partial.state.commitments.as_mut().unwrap()[0].commitments[0][1] = Block::new(1);
 
         let follower_labels = input_labels[1].select(&follower_input).unwrap();
-        let error = follower.evaluate(msg, &[follower_labels]).unwrap_err();
+        let error = follower
+            .evaluate(gc_partial.into(), &[follower_labels])
+            .unwrap_err();
 
         assert!(matches!(error, Error::InvalidOutputLabelCommitment));
-    }
-
-    #[test]
-    // Expect an error when Generator sends decoding table of an incorrect size
-    fn test_semi_honest_fail_wrong_decoding_size() {
-        let mut rng = thread_rng();
-        let circ = Arc::new(Circuit::load_bytes(ADDER_64).unwrap());
-
-        let leader = SemiHonestLeader::new(circ.clone());
-        let follower = SemiHonestFollower::new(circ.clone());
-
-        let leader_input = circ.input(0).unwrap().to_value(0u64).unwrap();
-        let follower_input = circ.input(1).unwrap().to_value(1u64).unwrap();
-
-        let (input_labels, delta) = InputLabels::generate(&mut rng, &circ, None);
-
-        let (mut msg, _) = leader
-            .garble(&[leader_input], &input_labels, delta, true)
-            .unwrap();
-
-        // Make the decoding 1 bit smaller
-        msg.decoding.as_mut().unwrap()[0].decoding.pop();
-
-        let follower_labels = input_labels[1].select(&follower_input).unwrap();
-        let error = follower.evaluate(msg, &[follower_labels]).unwrap_err();
-
-        assert!(matches!(error, Error::InvalidLabelDecodingInfo));
     }
 }

@@ -440,6 +440,20 @@ impl<T: Copy> OutputLabels<T> {
     pub fn id(&self) -> usize {
         self.output.id
     }
+
+    #[cfg(test)]
+    /// Returns label at position idx
+    ///
+    /// Panics if idx is not in range
+    pub fn get_label(&self, idx: usize) -> &T {
+        &self.labels[idx]
+    }
+
+    #[cfg(test)]
+    /// Set the value of a wire label at position idx
+    pub fn set_label(&mut self, idx: usize, label: T) {
+        self.labels[idx] = label;
+    }
 }
 
 impl OutputLabels<WireLabelPair> {
@@ -564,20 +578,6 @@ pub struct OutputLabelsDecodingInfo {
 }
 
 impl OutputLabelsDecodingInfo {
-    pub(crate) fn new(output: Output, decoding: Vec<bool>) -> Result<Self, Error> {
-        if output.as_ref().len() != decoding.len() {
-            return Err(Error::InvalidLabelDecodingInfo);
-        }
-
-        Ok(Self {
-            output,
-            decoding: decoding
-                .into_iter()
-                .map(|enc| LabelDecodingInfo(enc))
-                .collect(),
-        })
-    }
-
     pub fn from_unchecked(
         output: Output,
         unchecked: unchecked::UncheckedOutputLabelsDecodingInfo,
@@ -601,6 +601,11 @@ impl OutputLabelsDecodingInfo {
                 .map(|label| LabelDecodingInfo(label.low().lsb() == 1))
                 .collect::<Vec<LabelDecodingInfo>>(),
         }
+    }
+
+    #[cfg(test)]
+    pub fn set_decoding(&mut self, idx: usize, value: bool) {
+        self.decoding[idx] = LabelDecodingInfo(value);
     }
 }
 
@@ -649,6 +654,26 @@ impl OutputLabelsCommitment {
             output: output_labels.output.clone(),
             commitments,
         }
+    }
+
+    pub(crate) fn from_unchecked(
+        output: Output,
+        unchecked: unchecked::UncheckedOutputLabelsCommitment,
+    ) -> Result<Self, Error> {
+        if unchecked.id != output.id || unchecked.commitments.len() != 2 * output.as_ref().len() {
+            return Err(Error::ValidationError(
+                "Invalid output labels commitment".to_string(),
+            ));
+        }
+
+        Ok(Self {
+            output,
+            commitments: unchecked
+                .commitments
+                .chunks_exact(2)
+                .map(|commitments| [commitments[0], commitments[1]])
+                .collect(),
+        })
     }
 
     /// We use a truncated SHA256 hash with a public salt to commit to the labels
@@ -785,11 +810,31 @@ pub(crate) mod unchecked {
         pub(crate) labels: Vec<WireLabel>,
     }
 
+    #[cfg(test)]
+    impl From<InputLabels<WireLabel>> for UncheckedInputLabels {
+        fn from(labels: InputLabels<WireLabel>) -> Self {
+            Self {
+                id: labels.id(),
+                labels: labels.labels,
+            }
+        }
+    }
+
     /// Output labels which have not been validated
     #[derive(Debug, Clone)]
     pub struct UncheckedOutputLabels {
         pub(crate) id: usize,
         pub(crate) labels: Vec<WireLabel>,
+    }
+
+    #[cfg(test)]
+    impl From<OutputLabels<WireLabel>> for UncheckedOutputLabels {
+        fn from(labels: OutputLabels<WireLabel>) -> Self {
+            Self {
+                id: labels.id(),
+                labels: labels.labels,
+            }
+        }
     }
 
     /// Output label decoding info which hasn't been validated against a circuit spec
@@ -799,6 +844,33 @@ pub(crate) mod unchecked {
     pub struct UncheckedOutputLabelsDecodingInfo {
         pub(crate) id: usize,
         pub(crate) decoding: Vec<LabelDecodingInfo>,
+    }
+
+    #[cfg(test)]
+    impl From<OutputLabelsDecodingInfo> for UncheckedOutputLabelsDecodingInfo {
+        fn from(decoding: OutputLabelsDecodingInfo) -> Self {
+            Self {
+                id: decoding.output.id,
+                decoding: decoding.decoding,
+            }
+        }
+    }
+
+    /// Output label commitments which haven't been validated against a circuit spec
+    #[derive(Debug, Clone)]
+    pub struct UncheckedOutputLabelsCommitment {
+        pub(crate) id: usize,
+        pub(crate) commitments: Vec<Block>,
+    }
+
+    #[cfg(test)]
+    impl From<OutputLabelsCommitment> for UncheckedOutputLabelsCommitment {
+        fn from(commitment: OutputLabelsCommitment) -> Self {
+            Self {
+                id: commitment.output.id,
+                commitments: commitment.commitments.into_iter().flatten().collect(),
+            }
+        }
     }
 }
 
