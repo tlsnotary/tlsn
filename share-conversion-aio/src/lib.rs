@@ -48,25 +48,16 @@ where
 }
 
 #[async_trait]
-pub trait AcceptTape<T, U, V>
-where
-    T: Recorder<U, V>,
-    U: SeedableRng + Rng + Send,
-    V: Default + PartialEq + Send + Clone,
-{
-    async fn accept_tape(
-        &mut self,
-        channel: ConversionChannel<U, V>,
-    ) -> Result<(), ShareConversionError>;
-}
-
-#[async_trait]
 pub trait VerifyTape<T, U, V>
 where
     T: Recorder<U, V>,
-    U: Rng + SeedableRng,
+    U: Rng + SeedableRng + Send,
+    V: Default + PartialEq + Send + Clone,
 {
-    async fn verify_tape(self) -> Result<bool, ShareConversionError>;
+    async fn verify_tape(
+        self,
+        channel: ConversionChannel<U, V>,
+    ) -> Result<bool, ShareConversionError>;
 }
 
 /// An error for what can go wrong during conversion

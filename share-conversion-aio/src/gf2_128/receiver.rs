@@ -2,10 +2,12 @@
 
 use super::{AddShare, Gf2_128ShareConvert, MulShare};
 use crate::{
-    recorder::{Recorder, Void},
-    AdditiveToMultiplicative, MultiplicativeToAdditive, ShareConversionError,
+    recorder::{Recorder, Tape, Void},
+    AdditiveToMultiplicative, ConversionChannel, MultiplicativeToAdditive, ShareConversionError,
+    VerifyTape,
 };
 use async_trait::async_trait;
+use futures::StreamExt;
 use mpc_aio::protocol::ot::{OTReceiverFactory, ObliviousReceive};
 use mpc_core::Block;
 use rand_chacha::ChaCha12Rng;
@@ -101,5 +103,32 @@ impl<
         let output = self.convert_from::<MulShare>(input).await?;
         self.recorder.record_receiver_output(&output);
         Ok(output)
+    }
+}
+
+#[async_trait]
+impl<T> VerifyTape<Tape<ChaCha12Rng, u128>, ChaCha12Rng, u128>
+    for Receiver<T, Tape<ChaCha12Rng, u128>>
+where
+    T: OTReceiverFactory + Send,
+{
+    async fn verify_tape(
+        mut self,
+        mut channel: ConversionChannel<ChaCha12Rng, u128>,
+    ) -> Result<bool, ShareConversionError> {
+        let (sender_seeds, sender_values) = channel
+            .next()
+            .await
+            .ok_or(std::io::Error::new(
+                std::io::ErrorKind::ConnectionAborted,
+                "stream closed unexpectedly",
+            ))?
+            .sender_tape;
+        self.recorder.set_sender_inputs(sender_seeds, sender_values);
+
+        // TODO: add verification
+        // Current problem is that we do not know if AdditiveShares or MultiplicativeShares are
+        // present
+        todo!()
     }
 }
