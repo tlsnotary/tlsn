@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     garble::{
         circuit, circuit::unchecked as unchecked_circuit, commitment, gc_state, label,
-        label::unchecked as unchecked_label, WireLabel,
+        label::unchecked as unchecked_label,
     },
     Block,
 };
@@ -117,12 +117,7 @@ impl From<InputLabels> for unchecked_label::UncheckedInputLabels {
     fn from(labels: InputLabels) -> Self {
         Self {
             id: labels.id,
-            labels: labels
-                .labels
-                .into_iter()
-                .enumerate()
-                .map(|(id, label)| WireLabel::new(id, label))
-                .collect(),
+            labels: labels.labels,
         }
     }
 }
@@ -151,12 +146,7 @@ impl From<OutputLabels> for unchecked_label::UncheckedOutputLabels {
     fn from(labels: OutputLabels) -> Self {
         Self {
             id: labels.id,
-            labels: labels
-                .labels
-                .iter()
-                .enumerate()
-                .map(|(id, block)| label::WireLabel::new(id, *block))
-                .collect(),
+            labels: labels.labels,
         }
     }
 }

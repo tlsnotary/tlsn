@@ -245,10 +245,14 @@ impl InputLabels<WireLabel> {
             return Err(Error::InvalidOutputLabels);
         }
 
-        Ok(Self {
-            input,
-            labels: unchecked.labels,
-        })
+        let labels = unchecked
+            .labels
+            .into_iter()
+            .zip(input.as_ref().wires())
+            .map(|(label, id)| WireLabel::new(*id, label))
+            .collect();
+
+        Ok(Self { input, labels })
     }
 }
 
@@ -509,10 +513,14 @@ impl OutputLabels<WireLabel> {
             return Err(Error::InvalidOutputLabels);
         }
 
-        Ok(Self {
-            output,
-            labels: unchecked.labels,
-        })
+        let labels = unchecked
+            .labels
+            .into_iter()
+            .zip(output.as_ref().wires())
+            .map(|(label, id)| WireLabel::new(*id, label))
+            .collect();
+
+        Ok(Self { output, labels })
     }
 
     /// Decodes output wire labels
@@ -807,7 +815,7 @@ pub(crate) mod unchecked {
     #[derive(Debug, Clone)]
     pub struct UncheckedInputLabels {
         pub(crate) id: usize,
-        pub(crate) labels: Vec<WireLabel>,
+        pub(crate) labels: Vec<Block>,
     }
 
     #[cfg(test)]
@@ -815,7 +823,7 @@ pub(crate) mod unchecked {
         fn from(labels: InputLabels<WireLabel>) -> Self {
             Self {
                 id: labels.id(),
-                labels: labels.labels,
+                labels: labels.labels.into_iter().map(|label| label.value).collect(),
             }
         }
     }
@@ -824,7 +832,7 @@ pub(crate) mod unchecked {
     #[derive(Debug, Clone)]
     pub struct UncheckedOutputLabels {
         pub(crate) id: usize,
-        pub(crate) labels: Vec<WireLabel>,
+        pub(crate) labels: Vec<Block>,
     }
 
     #[cfg(test)]
@@ -832,7 +840,7 @@ pub(crate) mod unchecked {
         fn from(labels: OutputLabels<WireLabel>) -> Self {
             Self {
                 id: labels.id(),
-                labels: labels.labels,
+                labels: labels.labels.into_iter().map(|label| label.value).collect(),
             }
         }
     }
