@@ -6,7 +6,7 @@ use crate::gf2_128::{inverse, mul};
 use rand::{CryptoRng, Rng};
 
 /// An additive share of `A = x + y`
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AddShare(u128);
 
 impl AddShare {

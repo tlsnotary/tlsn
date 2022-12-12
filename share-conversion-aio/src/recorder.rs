@@ -1,11 +1,31 @@
-use rand::{Rng, SeedableRng};
+use rand::{CryptoRng, Rng, SeedableRng};
+use share_conversion_core::gf2_128::Gf2_128ShareConvert;
 
 pub trait Recorder<T: SeedableRng + Rng, U>: Default + Send {
     fn record_sender_input(&mut self, seed: <T as SeedableRng>::Seed, input: &[U]);
     fn set_sender_inputs(&mut self, seeds: Vec<<T as SeedableRng>::Seed>, inputs: Vec<Vec<U>>);
     fn record_receiver_input(&mut self, input: &[U]);
     fn record_receiver_output(&mut self, output: &[U]);
-    fn verify(&self, converter: impl FnMut(&mut T, &U, &U) -> U) -> bool;
+    fn verify(&self) -> bool;
+}
+
+pub trait Verify {
+    fn verify<R: Rng + CryptoRng>(&self, other: &Self, expected: &Self, rng: &mut R) -> bool;
+}
+
+impl<T: Gf2_128ShareConvert<Output = T>> Verify for T {
+    fn verify<R: Rng + CryptoRng>(&self, other: &Self, expected: &Self, rng: &mut R) -> bool {
+        let (_, ot_envelope) = self.convert(rng);
+        let choices = other.choices();
+
+        let mut ot_output: Vec<u128> = vec![0; 128];
+        for (k, number) in ot_output.iter_mut().enumerate() {
+            let bit = choices[k] as u128;
+            *number = (bit * ot_envelope.1[k]) ^ ((bit ^ 1) * ot_envelope.0[k]);
+        }
+        let converted = Self::from_choice(&ot_output);
+        converted == *expected
+    }
 }
 
 pub struct Tape<T: SeedableRng + Rng, U> {
@@ -47,7 +67,7 @@ where
         self.receiver_outputs.push(output.to_vec());
     }
 
-    fn verify(&self, mut converter: impl FnMut(&mut T, &U, &U) -> U) -> bool {
+    fn verify(&self) -> bool {
         //TODO: This is probably not yet correct
         for ((seed, sender_input), (receiver_input, receiver_output)) in
             std::iter::zip(self.seeds.iter(), self.sender_inputs.iter()).zip(std::iter::zip(
@@ -60,9 +80,7 @@ where
                 receiver_input.iter(),
                 receiver_output.iter(),
             )) {
-                if converter(&mut rng, a, b) != *c {
-                    return false;
-                }
+                return false;
             }
         }
         true
@@ -81,7 +99,7 @@ impl<T: SeedableRng + Rng, U> Recorder<T, U> for Void {
 
     fn record_receiver_output(&mut self, _output: &[U]) {}
 
-    fn verify(&self, _converter: impl FnMut(&mut T, &U, &U) -> U) -> bool {
+    fn verify(&self) -> bool {
         unimplemented!()
     }
 }

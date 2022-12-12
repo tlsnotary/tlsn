@@ -16,7 +16,7 @@ use rand::{CryptoRng, Rng};
 ///
 /// Allows two parties to switch between additively and multiplicatively
 /// shared representations of a field element.
-pub trait Gf2_128ShareConvert: Copy
+pub trait Gf2_128ShareConvert: Copy + PartialEq
 where
     Self: Sized,
 {
@@ -54,7 +54,7 @@ where
 ///
 /// The inner tuples `.0` and `.1` belong to the corresponding receiver's choice bit
 #[derive(Clone, Debug, Default)]
-pub struct OTEnvelope(pub(crate) Vec<u128>, pub(crate) Vec<u128>);
+pub struct OTEnvelope(pub Vec<u128>, pub Vec<u128>);
 
 impl OTEnvelope {
     /// Allows to aggregate envelopes
@@ -121,11 +121,11 @@ mod tests {
         assert_eq!(x.inner() ^ y.inner(), mul(a.inner(), b.inner()));
     }
 
-    fn mock_ot(envelopes: OTEnvelope, choices: u128) -> Vec<u128> {
+    fn mock_ot(envelope: OTEnvelope, choices: u128) -> Vec<u128> {
         let mut out: Vec<u128> = vec![0; 128];
         for (k, number) in out.iter_mut().enumerate() {
             let bit = (choices >> k) & 1;
-            *number = (bit * envelopes.1[k]) ^ ((bit ^ 1) * envelopes.0[k]);
+            *number = (bit * envelope.1[k]) ^ ((bit ^ 1) * envelope.0[k]);
         }
         out
     }

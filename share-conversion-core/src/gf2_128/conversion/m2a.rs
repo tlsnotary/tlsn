@@ -5,7 +5,7 @@ use crate::gf2_128::mul;
 use rand::{CryptoRng, Rng};
 
 /// A multiplicative share of `A = a * b`
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MulShare(u128);
 
 impl MulShare {
