@@ -89,15 +89,7 @@ impl DualExLeader<Generator> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
         let gc = GarbledCircuit::generate(&cipher, self.state.circ.clone(), delta, input_labels)?;
 
-        Ok((
-            gc.to_evaluator(inputs, true, false),
-            DualExLeader {
-                state: Evaluator {
-                    gc,
-                    circ: self.state.circ,
-                },
-            },
-        ))
+        self.from_full_circuit(inputs, gc)
     }
 
     /// Proceed to next state from existing garbled circuit
@@ -127,14 +119,8 @@ impl DualExLeader<Evaluator> {
     ) -> Result<DualExLeader<Commit>, Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
         let evaluated_gc = gc.evaluate(&cipher, input_labels)?;
-        let check = self.compute_output_check(&evaluated_gc)?;
 
-        Ok(DualExLeader {
-            state: Commit {
-                evaluated_gc,
-                check,
-            },
-        })
+        self.from_evaluated_circuit(evaluated_gc)
     }
 
     /// Proceed to next state from existing evaluated circuit
