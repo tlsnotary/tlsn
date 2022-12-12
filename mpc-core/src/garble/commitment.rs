@@ -12,6 +12,16 @@ pub enum CommitmentError {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct HashCommitment(pub(crate) [u8; 32]);
 
+impl HashCommitment {
+    /// Verifies an opening against this commitment
+    pub fn verify(&self, opening: &Opening) -> Result<(), CommitmentError> {
+        if self.0 != opening.commit().0 {
+            return Err(CommitmentError::InvalidOpening);
+        }
+        Ok(())
+    }
+}
+
 /// A randomly generated 32 byte key
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CommitmentKey(pub(crate) [u8; 32]);
@@ -49,16 +59,6 @@ impl Opening {
         let mut message = self.message.clone();
         message.extend(&self.key.0);
         HashCommitment(sha256(&message))
-    }
-}
-
-impl HashCommitment {
-    /// Verifies an opening against this commitment
-    pub fn verify(&self, opening: &Opening) -> Result<(), CommitmentError> {
-        if self.0 != opening.commit().0 {
-            return Err(CommitmentError::InvalidOpening);
-        }
-        Ok(())
     }
 }
 
