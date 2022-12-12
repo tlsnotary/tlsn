@@ -1,5 +1,7 @@
 //! This module implements the A2M algorithm.
 
+use std::num::NonZeroU128;
+
 use super::MulShare;
 use super::{Gf2_128ShareConvert, OTEnvelope};
 use crate::gf2_128::{inverse, mul};
@@ -19,10 +21,10 @@ impl AddShare {
         &self,
         rng: &mut R,
     ) -> (MulShare, OTEnvelope) {
-        let random: u128 = rng.gen();
-        if random == 0 {
-            panic!("Random u128 is 0");
-        }
+        // We need to exclude 0 here, because it does not have an inverse
+        // which is needed later
+        let random: NonZeroU128 = rng.gen();
+        let random = random.get();
 
         let mut masks: [u128; 128] = std::array::from_fn(|_| rng.gen());
         // set the last mask such that the sum of all 128 masks equals 0
