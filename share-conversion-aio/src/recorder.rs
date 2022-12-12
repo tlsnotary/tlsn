@@ -5,7 +5,7 @@ pub trait Recorder<T: SeedableRng + Rng, U>: Default + Send {
     fn set_sender_inputs(&mut self, seeds: Vec<<T as SeedableRng>::Seed>, inputs: Vec<Vec<U>>);
     fn record_receiver_input(&mut self, input: &[U]);
     fn record_receiver_output(&mut self, output: &[U]);
-    fn verify(&self, converter: impl FnMut(&mut T, &U) -> U) -> bool;
+    fn verify(&self, converter: impl FnMut(&mut T, &U, &U) -> U) -> bool;
 }
 
 pub struct Tape<T: SeedableRng + Rng, U> {
@@ -26,8 +26,7 @@ impl<T: SeedableRng + Rng, U> Default for Tape<T, U> {
     }
 }
 
-impl<T: SeedableRng + Rng + Send, U: Default + PartialEq + Send + Clone> Recorder<T, U>
-    for Tape<T, U>
+impl<T: SeedableRng + Rng + Send, U: PartialEq + Send + Clone> Recorder<T, U> for Tape<T, U>
 where
     <T as SeedableRng>::Seed: Send + Copy,
 {
@@ -48,14 +47,20 @@ where
         self.receiver_outputs.push(output.to_vec());
     }
 
-    fn verify(&self, mut converter: impl FnMut(&mut T, &U) -> U) -> bool {
+    fn verify(&self, mut converter: impl FnMut(&mut T, &U, &U) -> U) -> bool {
         //TODO: This is probably not yet correct
-        for ((seed, input), output) in std::iter::zip(self.seeds.iter(), self.sender_inputs.iter())
-            .zip(self.receiver_inputs.iter())
+        for ((seed, sender_input), (receiver_input, receiver_output)) in
+            std::iter::zip(self.seeds.iter(), self.sender_inputs.iter()).zip(std::iter::zip(
+                self.receiver_inputs.iter(),
+                self.receiver_outputs.iter(),
+            ))
         {
             let mut rng = T::from_seed(*seed);
-            for (a, b) in input.iter().zip(output.iter()) {
-                if converter(&mut rng, a) != *b {
+            for (a, (b, c)) in sender_input.iter().zip(std::iter::zip(
+                receiver_input.iter(),
+                receiver_output.iter(),
+            )) {
+                if converter(&mut rng, a, b) != *c {
                     return false;
                 }
             }
@@ -76,7 +81,7 @@ impl<T: SeedableRng + Rng, U> Recorder<T, U> for Void {
 
     fn record_receiver_output(&mut self, _output: &[U]) {}
 
-    fn verify(&self, _converter: impl FnMut(&mut T, &U) -> U) -> bool {
+    fn verify(&self, _converter: impl FnMut(&mut T, &U, &U) -> U) -> bool {
         unimplemented!()
     }
 }
