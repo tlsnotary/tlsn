@@ -12,7 +12,7 @@ members = [
     "clmul",
     "matrix-transpose",
     "share-conversion-core",
-    "share-conversion-aio"
+    "share-conversion-aio",
 ]
 exclude = ["tls-client"]
 
@@ -52,7 +52,7 @@ lazy_static = "1"
 aes = "0.7"
 digest = "0.10"
 prost-build = "0.9"
-curve25519-dalek = "4.0.0-pre.2"
+curve25519-dalek = "4.0.0-pre.4"
 anyhow = "1"
 elliptic-curve = "0.11"
 derive_builder = "0.11"

@@ -28,7 +28,7 @@ rand_core.workspace = true
 rand_chacha.workspace = true
 regex = { workspace = true, optional = true }
 rayon.workspace = true
-curve25519-dalek = { workspace = true, features = ["serde"] }
+curve25519-dalek = { workspace = true, features = ["serde", "rand_core"] }
 serde = { workspace = true, features = ["derive"], optional = true }
 prost = { workspace = true, optional = true }
 thiserror.workspace = true
