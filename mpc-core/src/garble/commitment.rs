@@ -8,7 +8,7 @@ pub enum CommitmentError {
     InvalidOpening,
 }
 
-/// A commitment of the form H(message || key) using SHA256
+/// A commitment of the form H(key || message) using SHA256
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct HashCommitment(pub(crate) [u8; 32]);
 
@@ -56,8 +56,8 @@ impl Opening {
 
     /// Creates a new commitment to this opening
     pub fn commit(&self) -> HashCommitment {
-        let mut message = self.message.clone();
-        message.extend(&self.key.0);
+        let mut message = self.key.0.to_vec();
+        message.extend(&self.message);
         HashCommitment(sha256(&message))
     }
 }
