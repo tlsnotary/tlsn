@@ -502,9 +502,9 @@ impl<T> AsRef<[T]> for OutputLabels<T> {
 ///
 /// To determine the truth value of a wire label W, we simply compute:
 ///
-/// Decode(W) = LSB(W) ^ Encode(W)
+/// Decode(W) = LSB(W) ^ DecodingInfo(W)
 ///
-/// where Encode(W) = LSB(W_0).
+/// where DecodingInfo(W) = LSB(W_0).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LabelDecodingInfo(bool);
 

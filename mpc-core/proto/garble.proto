@@ -11,10 +11,10 @@ message InputLabels {
     repeated core.Block labels = 2;
 }
 
-message OutputEncoding {
+message OutputDecoding {
     // Output id
     required uint32 id = 1;
-    // Encoding
+    // Decoding information
     repeated bool decoding = 2;
 }
 
@@ -26,8 +26,8 @@ message GarbledCircuit {
     repeated InputLabels input_labels = 2;
     // Truth table for garbled AND gates
     repeated core.Block encrypted_gates = 3;
-    // Output label decodings
-    repeated OutputEncoding decoding = 4;
+    // Output label decoding information
+    repeated OutputDecoding decoding = 4;
 }
 
 message Message {
