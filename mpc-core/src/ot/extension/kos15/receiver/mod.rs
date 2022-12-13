@@ -1,21 +1,26 @@
 pub mod error;
 pub mod state;
 
-use super::matrix::{Error as MatrixError, KosMatrix};
-use super::utils::{calc_padding, decrypt_values, kos15_check_receiver, seed_rngs_from_nested};
-use super::BASE_COUNT;
-use crate::msgs::ot::{
-    BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper, ExtDerandomize,
-    ExtReceiverSetup, ExtSenderPayload, ExtSenderReveal,
+use super::{
+    matrix::{Error as MatrixError, KosMatrix},
+    utils::{calc_padding, decrypt_values, kos15_check_receiver, seed_rngs_from_nested},
+    BASE_COUNT,
 };
-use crate::ot::{DhOtSender as BaseSender, Kos15Sender};
-use crate::utils::{boolvec_to_u8vec, sha256, xor};
-use crate::Block;
+use crate::{
+    msgs::ot::{
+        BaseReceiverSetupWrapper, BaseSenderPayloadWrapper, BaseSenderSetupWrapper, ExtDerandomize,
+        ExtReceiverSetup, ExtSenderPayload, ExtSenderReveal,
+    },
+    ot::{DhOtSender as BaseSender, Kos15Sender},
+    utils::sha256,
+    Block,
+};
 use aes::{Aes128, NewBlockCipher};
 use error::{CommittedOTError, ExtReceiverCoreError};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 use rand_core::RngCore;
+use utils::iter::{boolvec_to_u8vec, xor};
 
 pub struct Kos15Receiver<S = state::Initialized>(S)
 where

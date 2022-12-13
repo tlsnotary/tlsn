@@ -2,10 +2,10 @@ use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use mpc_core::{
     block::BLOCK_ONES,
     ot::{DhOtReceiver, DhOtSender, Kos15Receiver, Kos15Sender},
-    utils::u8vec_to_boolvec,
 };
 use rand::{RngCore, SeedableRng};
 use rand_chacha::ChaCha12Rng;
+use utils::iter::u8vec_to_boolvec;
 
 fn base_ot(c: &mut Criterion) {
     let mut group = c.benchmark_group("base_ot");

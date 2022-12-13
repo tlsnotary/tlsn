@@ -26,7 +26,8 @@ pub enum ReceiverState {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::{msgs::ot as msgs, utils::u8vec_to_boolvec, Block};
+    use crate::{msgs::ot as msgs, Block};
+    use utils::iter::u8vec_to_boolvec;
 
     use rand::{thread_rng, RngCore};
     use rstest::*;

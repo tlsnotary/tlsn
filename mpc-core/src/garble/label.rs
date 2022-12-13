@@ -4,9 +4,10 @@ use std::{collections::HashSet, ops::Deref};
 use crate::{
     block::Block,
     garble::{Error, InputError},
-    utils::{pick, sha256},
+    utils::sha256,
 };
 use mpc_circuits::{Circuit, Input, InputValue, Output, OutputValue};
+use utils::iter::pick;
 
 /// Global binary offset used by the Free-XOR technique to create wire label
 /// pairs where W_1 = W_0 ^ Delta.

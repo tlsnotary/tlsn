@@ -7,7 +7,7 @@ use crate::{
         ExtReceiverSetup, ExtSenderCommit, ExtSenderPayload, ExtSenderReveal,
     },
     ot::DhOtReceiver as BaseReceiver,
-    utils::{sha256, xor},
+    utils::sha256,
     Block,
 };
 use aes::{Aes128, NewBlockCipher};
@@ -15,6 +15,7 @@ use error::ExtSenderCoreError;
 use rand::Rng;
 use rand_chacha::ChaCha12Rng;
 use rand_core::{RngCore, SeedableRng};
+use utils::iter::xor;
 
 use super::{
     matrix::{Error as MatrixError, KosMatrix},

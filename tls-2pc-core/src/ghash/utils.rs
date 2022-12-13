@@ -1,7 +1,7 @@
 use crate::ghash::{MXTableFull, YBits};
-use mpc_core::utils::u8vec_to_boolvec;
 use rand::{CryptoRng, Rng};
 use std::collections::BTreeMap;
+use utils::iter::u8vec_to_boolvec;
 
 /// R is GCM polynomial in little-endian. In hex: "E1000000000000000000000000000000"
 const R: u128 = 299076299051606071403356588563077529600;
@@ -260,8 +260,7 @@ mod tests {
         universal_hash::{NewUniversalHash, UniversalHash},
         GHash,
     };
-    use rand::SeedableRng;
-    use rand::{thread_rng, Rng};
+    use rand::{thread_rng, Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
     use std::convert::TryInto;
 

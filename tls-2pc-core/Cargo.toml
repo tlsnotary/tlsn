@@ -24,6 +24,7 @@ serde = ["dep:serde"]
 [dependencies]
 tlsn-mpc-circuits = { path = "../mpc-circuits" }
 tlsn-mpc-core = { path = "../mpc-core" }
+tlsn-utils = { path = "../utils" }
 sha2 = { workspace = true, features = ["compress"] }
 digest.workspace = true
 hmac.workspace = true
