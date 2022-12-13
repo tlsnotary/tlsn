@@ -5,8 +5,8 @@
 //! can not rely on this execution mode for correctness or privacy.
 use crate::{
     garble::{
-        circuit::{Evaluated, Full, GarbledCircuit, Partial},
-        Delta, Error, InputLabels, Output, WireLabel, WireLabelPair,
+        circuit::{state as gc_state, GarbledCircuit},
+        Delta, Error, InputLabels, WireLabel, WireLabelPair,
     },
     msgs::garble as msgs,
 };
@@ -36,7 +36,7 @@ pub mod state {
     }
 
     pub struct Validate {
-        pub(super) gc: GarbledCircuit<Full>,
+        pub(super) gc: GarbledCircuit<gc_state::Full>,
     }
 
     impl State for Generator {}
@@ -100,7 +100,7 @@ impl SemiHonestLeader<Generator> {
     pub fn from_full_circuit(
         self,
         inputs: &[InputValue],
-        gc: GarbledCircuit<Full>,
+        gc: GarbledCircuit<gc_state::Full>,
         reveal_output: bool,
     ) -> Result<(msgs::GarbledCircuit, SemiHonestLeader<Validate>), Error> {
         Ok((
@@ -118,9 +118,9 @@ impl SemiHonestFollower<Evaluator> {
         self,
         msg: msgs::GarbledCircuit,
         input_labels: &[InputLabels<WireLabel>],
-    ) -> Result<(msgs::Output, GarbledCircuit<Evaluated>), Error> {
+    ) -> Result<(msgs::Output, GarbledCircuit<gc_state::Evaluated>), Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
-        let gc = GarbledCircuit::<Partial>::from_msg(self.state.circ.clone(), msg)?;
+        let gc = GarbledCircuit::<gc_state::Partial>::from_msg(self.state.circ.clone(), msg)?;
 
         // The generator must send commitments to the output labels to mitigate
         // some types of malicious garbling
@@ -139,9 +139,9 @@ impl SemiHonestFollower<Evaluator> {
 
 impl SemiHonestLeader<Validate> {
     /// Validates evaluated circuit received from peer
-    pub fn validate(self, msg: msgs::Output) -> Result<GarbledCircuit<Output>, Error> {
+    pub fn validate(self, msg: msgs::Output) -> Result<GarbledCircuit<gc_state::Output>, Error> {
         // Validates output labels
-        GarbledCircuit::<Output>::from_msg(&self.state.gc, msg)
+        GarbledCircuit::<gc_state::Output>::from_msg(&self.state.gc, msg)
     }
 }
 
@@ -235,8 +235,8 @@ mod tests {
     }
 
     #[test]
-    // Expect an error when Generator sends encoding of an incorrect size
-    fn test_semi_honest_fail_wrong_encoding_size() {
+    // Expect an error when Generator sends decoding table of an incorrect size
+    fn test_semi_honest_fail_wrong_decoding_size() {
         let mut rng = thread_rng();
         let circ = Arc::new(Circuit::load_bytes(ADDER_64).unwrap());
 
@@ -252,12 +252,12 @@ mod tests {
             .garble(&[leader_input], &input_labels, delta, true)
             .unwrap();
 
-        // Make the encoding 1 bit smaller
-        msg.encoding.as_mut().unwrap()[0].encoding.pop();
+        // Make the decoding 1 bit smaller
+        msg.decoding.as_mut().unwrap()[0].decoding.pop();
 
         let follower_labels = input_labels[1].select(&follower_input).unwrap();
         let error = follower.evaluate(msg, &[follower_labels]).unwrap_err();
 
-        assert!(matches!(error, Error::InvalidLabelEncoding));
+        assert!(matches!(error, Error::InvalidLabelDecodingInfo));
     }
 }

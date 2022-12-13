@@ -1,3 +1,9 @@
+//! Core components used to implement garbled circuit protocols
+//!
+//! This module implements "half-gate" garbled circuits from the [Two Halves Make a Whole [ZRE15]](https://eprint.iacr.org/2014/756) paper.
+//!
+//! Additionally, it provides various [execution modes](exec) which can be selected depending on protocol requirements.
+
 pub(crate) mod circuit;
 pub mod commitment;
 mod error;
@@ -7,8 +13,7 @@ mod generator;
 pub(crate) mod label;
 
 pub use circuit::{
-    validate_compressed_circuit, validate_evaluated_circuit, Compressed, Evaluated, Full,
-    GarbledCircuit, Output, Partial,
+    state as gc_state, validate_compressed_circuit, validate_evaluated_circuit, GarbledCircuit,
 };
 pub use error::{Error, InputError};
 pub use label::{Delta, InputLabels, OutputCheck, OutputLabels, WireLabel, WireLabelPair};

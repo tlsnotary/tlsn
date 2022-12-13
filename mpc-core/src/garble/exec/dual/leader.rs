@@ -1,5 +1,5 @@
 use crate::garble::{
-    circuit::{Evaluated, Full, GarbledCircuit, Partial},
+    circuit::{state as gc_state, GarbledCircuit},
     commitment::{HashCommitment, Opening},
     label::{OutputCheck, OutputLabels},
     Delta, Error, InputLabels, WireLabel, WireLabelPair,
@@ -31,25 +31,25 @@ pub mod state {
     #[derive(Debug)]
     pub struct Evaluator {
         pub(super) circ: Arc<Circuit>,
-        pub(super) gc: GarbledCircuit<Full>,
+        pub(super) gc: GarbledCircuit<gc_state::Full>,
     }
 
     #[derive(Debug)]
     pub struct Commit {
-        pub(super) evaluated_gc: GarbledCircuit<Evaluated>,
+        pub(super) evaluated_gc: GarbledCircuit<gc_state::Evaluated>,
         pub(super) check: OutputCheck,
     }
 
     #[derive(Debug)]
     pub struct Verify {
-        pub(super) evaluated_gc: GarbledCircuit<Evaluated>,
+        pub(super) evaluated_gc: GarbledCircuit<gc_state::Evaluated>,
         pub(super) check: OutputCheck,
         pub(super) commit_opening: Opening,
     }
 
     #[derive(Debug)]
     pub struct Reveal {
-        pub(super) evaluated_gc: GarbledCircuit<Evaluated>,
+        pub(super) evaluated_gc: GarbledCircuit<gc_state::Evaluated>,
         pub(super) commit_opening: Opening,
     }
 
@@ -85,7 +85,7 @@ impl DualExLeader<Generator> {
         inputs: &[InputValue],
         input_labels: &[InputLabels<WireLabelPair>],
         delta: Delta,
-    ) -> Result<(GarbledCircuit<Partial>, DualExLeader<Evaluator>), Error> {
+    ) -> Result<(GarbledCircuit<gc_state::Partial>, DualExLeader<Evaluator>), Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
         let gc = GarbledCircuit::generate(&cipher, self.state.circ.clone(), delta, input_labels)?;
 
@@ -96,8 +96,8 @@ impl DualExLeader<Generator> {
     pub fn from_full_circuit(
         self,
         inputs: &[InputValue],
-        gc: GarbledCircuit<Full>,
-    ) -> Result<(GarbledCircuit<Partial>, DualExLeader<Evaluator>), Error> {
+        gc: GarbledCircuit<gc_state::Full>,
+    ) -> Result<(GarbledCircuit<gc_state::Partial>, DualExLeader<Evaluator>), Error> {
         Ok((
             gc.to_evaluator(inputs, true, false),
             DualExLeader {
@@ -114,7 +114,7 @@ impl DualExLeader<Evaluator> {
     /// Evaluate [`DualExFollower`] circuit
     pub fn evaluate(
         self,
-        gc: GarbledCircuit<Partial>,
+        gc: GarbledCircuit<gc_state::Partial>,
         input_labels: &[InputLabels<WireLabel>],
     ) -> Result<DualExLeader<Commit>, Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
@@ -126,7 +126,7 @@ impl DualExLeader<Evaluator> {
     /// Proceed to next state from existing evaluated circuit
     pub fn from_evaluated_circuit(
         self,
-        evaluated_gc: GarbledCircuit<Evaluated>,
+        evaluated_gc: GarbledCircuit<gc_state::Evaluated>,
     ) -> Result<DualExLeader<Commit>, Error> {
         let check = self.compute_output_check(&evaluated_gc)?;
 
@@ -140,11 +140,11 @@ impl DualExLeader<Evaluator> {
 
     fn compute_output_check(
         &self,
-        evaluated_gc: &GarbledCircuit<Evaluated>,
+        evaluated_gc: &GarbledCircuit<gc_state::Evaluated>,
     ) -> Result<OutputCheck, Error> {
-        if !evaluated_gc.has_encoding() {
+        if !evaluated_gc.has_decoding() {
             return Err(Error::PeerError(
-                "Peer did not provide label encoding".to_string(),
+                "Peer did not provide label decoding info".to_string(),
             ));
         }
 
@@ -205,7 +205,7 @@ impl DualExLeader<Verify> {
 
 impl DualExLeader<Reveal> {
     /// Open output commitment to [`DualExFollower`]
-    pub fn reveal(self) -> (Opening, GarbledCircuit<Evaluated>) {
+    pub fn reveal(self) -> (Opening, GarbledCircuit<gc_state::Evaluated>) {
         (self.state.commit_opening, self.state.evaluated_gc)
     }
 }

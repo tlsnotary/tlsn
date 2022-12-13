@@ -12,7 +12,7 @@ mod mock {
     use crate::protocol::garble::{Evaluator, GCError, Generator};
     use mpc_circuits::Circuit;
     use mpc_core::garble::{
-        Delta, Evaluated, Full, GarbledCircuit, InputLabels, Partial, WireLabel, WireLabelPair,
+        gc_state, Delta, GarbledCircuit, InputLabels, WireLabel, WireLabelPair,
     };
 
     pub struct MockBackend;
@@ -24,7 +24,7 @@ mod mock {
             circ: Arc<Circuit>,
             delta: Delta,
             input_labels: &[InputLabels<WireLabelPair>],
-        ) -> Result<GarbledCircuit<Full>, GCError> {
+        ) -> Result<GarbledCircuit<gc_state::Full>, GCError> {
             let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
             Ok(GarbledCircuit::generate(
                 &cipher,
@@ -39,9 +39,9 @@ mod mock {
     impl Evaluator for MockBackend {
         async fn evaluate(
             &mut self,
-            circ: GarbledCircuit<Partial>,
+            circ: GarbledCircuit<gc_state::Partial>,
             input_labels: &[InputLabels<WireLabel>],
-        ) -> Result<GarbledCircuit<Evaluated>, GCError> {
+        ) -> Result<GarbledCircuit<gc_state::Evaluated>, GCError> {
             let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
             Ok(circ.evaluate(&cipher, input_labels)?)
         }

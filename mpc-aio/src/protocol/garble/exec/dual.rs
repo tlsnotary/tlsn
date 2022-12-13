@@ -16,7 +16,7 @@ use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use mpc_circuits::{Circuit, InputValue};
 use mpc_core::garble::{
-    exec::dual as core, Delta, Evaluated, GarbledCircuit, InputLabels, Partial, WireLabelPair,
+    exec::dual as core, gc_state, Delta, GarbledCircuit, InputLabels, WireLabelPair,
 };
 use utils_aio::expect_msg_or_err;
 
@@ -61,7 +61,7 @@ where
         inputs: &[InputValue],
         input_labels: &[InputLabels<WireLabelPair>],
         delta: Delta,
-    ) -> Result<GarbledCircuit<Evaluated>, GCError> {
+    ) -> Result<GarbledCircuit<gc_state::Evaluated>, GCError> {
         let leader = core::DualExLeader::new(circ.clone());
         let full_gc = self
             .backend
@@ -92,7 +92,7 @@ where
             GCError::Unexpected
         )?;
 
-        let gc_ev = GarbledCircuit::<Partial>::from_msg(circ, msg)?;
+        let gc_ev = GarbledCircuit::<gc_state::Partial>::from_msg(circ, msg)?;
         let labels_ev = self.label_receiver.receive_labels(inputs.to_vec()).await?;
 
         let evaluated_gc = self.backend.evaluate(gc_ev, &labels_ev).await?;
@@ -162,7 +162,7 @@ where
         inputs: &[InputValue],
         input_labels: &[InputLabels<WireLabelPair>],
         delta: Delta,
-    ) -> Result<GarbledCircuit<Evaluated>, GCError> {
+    ) -> Result<GarbledCircuit<gc_state::Evaluated>, GCError> {
         let follower = core::DualExFollower::new(circ.clone());
         let full_gc = self
             .backend
@@ -192,7 +192,7 @@ where
             GarbleMessage::GarbledCircuit,
             GCError::Unexpected
         )?;
-        let gc_ev = GarbledCircuit::<Partial>::from_msg(circ, msg)?;
+        let gc_ev = GarbledCircuit::<gc_state::Partial>::from_msg(circ, msg)?;
         let labels_ev = self.label_receiver.receive_labels(inputs.to_vec()).await?;
 
         let evaluated_gc = self.backend.evaluate(gc_ev, &labels_ev).await?;

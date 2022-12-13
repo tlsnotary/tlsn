@@ -6,8 +6,8 @@ use futures::channel::oneshot;
 
 use mpc_circuits::Circuit;
 use mpc_core::garble::{
-    validate_compressed_circuit, validate_evaluated_circuit, Compressed, Delta, Evaluated, Full,
-    GarbledCircuit, InputLabels, Partial, WireLabel, WireLabelPair,
+    gc_state, validate_compressed_circuit, validate_evaluated_circuit, Delta, GarbledCircuit,
+    InputLabels, WireLabel, WireLabelPair,
 };
 
 use crate::protocol::garble::{Compressor, Evaluator, GCError, Generator, Validator};
@@ -22,7 +22,7 @@ impl Generator for RayonBackend {
         circ: Arc<Circuit>,
         delta: Delta,
         input_labels: &[InputLabels<WireLabelPair>],
-    ) -> Result<GarbledCircuit<Full>, GCError> {
+    ) -> Result<GarbledCircuit<gc_state::Full>, GCError> {
         let (sender, receiver) = oneshot::channel();
         let input_labels = input_labels.to_vec();
         rayon::spawn(move || {
@@ -41,9 +41,9 @@ impl Generator for RayonBackend {
 impl Evaluator for RayonBackend {
     async fn evaluate(
         &mut self,
-        circ: GarbledCircuit<Partial>,
+        circ: GarbledCircuit<gc_state::Partial>,
         input_labels: &[InputLabels<WireLabel>],
-    ) -> Result<GarbledCircuit<Evaluated>, GCError> {
+    ) -> Result<GarbledCircuit<gc_state::Evaluated>, GCError> {
         let (sender, receiver) = oneshot::channel();
         let input_labels = input_labels.to_vec();
         rayon::spawn(move || {
@@ -61,10 +61,10 @@ impl Evaluator for RayonBackend {
 impl Validator for RayonBackend {
     async fn validate_evaluated(
         &mut self,
-        circ: GarbledCircuit<Evaluated>,
+        circ: GarbledCircuit<gc_state::Evaluated>,
         delta: Delta,
         input_labels: &[InputLabels<WireLabelPair>],
-    ) -> Result<GarbledCircuit<Evaluated>, GCError> {
+    ) -> Result<GarbledCircuit<gc_state::Evaluated>, GCError> {
         let (sender, receiver) = oneshot::channel();
         let input_labels = input_labels.to_vec();
         rayon::spawn(move || {
@@ -80,10 +80,10 @@ impl Validator for RayonBackend {
 
     async fn validate_compressed(
         &mut self,
-        circ: GarbledCircuit<Compressed>,
+        circ: GarbledCircuit<gc_state::Compressed>,
         delta: Delta,
         input_labels: &[InputLabels<WireLabelPair>],
-    ) -> Result<GarbledCircuit<Compressed>, GCError> {
+    ) -> Result<GarbledCircuit<gc_state::Compressed>, GCError> {
         let (sender, receiver) = oneshot::channel();
         let input_labels = input_labels.to_vec();
         rayon::spawn(move || {
@@ -102,8 +102,8 @@ impl Validator for RayonBackend {
 impl Compressor for RayonBackend {
     async fn compress(
         &mut self,
-        circ: GarbledCircuit<Evaluated>,
-    ) -> Result<GarbledCircuit<Compressed>, GCError> {
+        circ: GarbledCircuit<gc_state::Evaluated>,
+    ) -> Result<GarbledCircuit<gc_state::Compressed>, GCError> {
         let (sender, receiver) = oneshot::channel();
         rayon::spawn(move || {
             _ = sender.send(Ok(circ.compress()));

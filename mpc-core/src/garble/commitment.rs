@@ -1,7 +1,10 @@
+//! Commitments used during execution of garbled circuit protocols
+
 use rand::{thread_rng, Rng};
 
 use crate::utils::sha256;
 
+/// Error associated with commitments
 #[derive(Debug, thiserror::Error)]
 pub enum CommitmentError {
     #[error("invalid commitment opening")]
