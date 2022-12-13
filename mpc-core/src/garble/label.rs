@@ -542,6 +542,51 @@ impl Deref for LabelDecodingInfo {
 
 /// For details about label decoding see [`LabelDecodingInfo`]
 #[derive(Debug, Clone, PartialEq)]
+pub struct InputLabelsDecodingInfo {
+    pub input: Input,
+    decoding: Vec<LabelDecodingInfo>,
+}
+
+impl InputLabelsDecodingInfo {
+    pub fn from_unchecked(
+        input: Input,
+        unchecked: unchecked::UncheckedInputLabelsDecodingInfo,
+    ) -> Result<Self, Error> {
+        if unchecked.id != input.id || unchecked.decoding.len() != input.as_ref().len() {
+            return Err(Error::InvalidLabelDecodingInfo);
+        }
+
+        Ok(Self {
+            input,
+            decoding: unchecked.decoding,
+        })
+    }
+
+    fn from_labels(labels: &InputLabels<WireLabelPair>) -> Self {
+        Self {
+            input: labels.input.clone(),
+            decoding: labels
+                .labels
+                .iter()
+                .map(|label| LabelDecodingInfo(label.low().lsb() == 1))
+                .collect::<Vec<LabelDecodingInfo>>(),
+        }
+    }
+
+    #[cfg(test)]
+    pub fn set_decoding(&mut self, idx: usize, value: bool) {
+        self.decoding[idx] = LabelDecodingInfo(value);
+    }
+}
+
+impl AsRef<[LabelDecodingInfo]> for InputLabelsDecodingInfo {
+    fn as_ref(&self) -> &[LabelDecodingInfo] {
+        &self.decoding
+    }
+}
+
+/// For details about label decoding see [`LabelDecodingInfo`]
+#[derive(Debug, Clone, PartialEq)]
 pub struct OutputLabelsDecodingInfo {
     pub output: Output,
     decoding: Vec<LabelDecodingInfo>,
@@ -812,6 +857,25 @@ pub(crate) mod unchecked {
                 .collect();
 
             Ok(Self { output, labels })
+        }
+    }
+
+    /// Input label decoding info which hasn't been validated against a circuit spec
+    ///
+    /// For more information on label decoding see [`LabelDecodingInfo`]
+    #[derive(Debug, Clone)]
+    pub struct UncheckedInputLabelsDecodingInfo {
+        pub(crate) id: usize,
+        pub(crate) decoding: Vec<LabelDecodingInfo>,
+    }
+
+    #[cfg(test)]
+    impl From<InputLabelsDecodingInfo> for UncheckedInputLabelsDecodingInfo {
+        fn from(decoding: InputLabelsDecodingInfo) -> Self {
+            Self {
+                id: decoding.input.id,
+                decoding: decoding.decoding,
+            }
         }
     }
 
