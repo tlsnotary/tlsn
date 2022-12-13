@@ -50,7 +50,7 @@ pub mod tests {
     #[fixture]
     fn input_setup() -> (Vec<bool>, Vec<[Block; 2]>) {
         let mut rng = ChaCha12Rng::from_entropy();
-        let choice_len: usize = rng.gen_range(0..1024);
+        let choice_len: usize = rng.gen_range(1..1024);
         let mut choices = vec![false; choice_len];
 
         rng.fill::<[bool]>(&mut choices);
