@@ -630,6 +630,32 @@ impl OutputLabelsCommitment {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct OutputCheck(pub(crate) [u8; 32]);
+
+impl OutputCheck {
+    /// Creates new output check
+    ///
+    /// This output check is a hash of the output wire labels from the peer's circuit along with the
+    /// expected labels from the callers garbled circuit. The expected labels are determined using
+    /// the decoded output values from evaluating the peer's garbled circuit.
+    pub fn new(labels: (&[OutputLabels<WireLabel>], &[OutputLabels<WireLabel>])) -> Self {
+        let bytes: Vec<u8> = labels
+            .0
+            .iter()
+            .chain(labels.1.iter())
+            .map(|labels| labels.to_be_bytes())
+            .flatten()
+            .collect();
+        Self(sha256(&bytes))
+    }
+
+    /// Returns check from bytes
+    pub fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+}
+
 /// Extracts output labels from full set of circuit labels
 pub(crate) fn extract_output_labels<T: Copy>(
     circ: &Circuit,
