@@ -1,6 +1,56 @@
-use super::{OTError, ObliviousReceive, ObliviousSend};
+use std::sync::{Arc, Mutex};
+
+use super::{
+    OTError, OTFactoryError, OTReceiverFactory, OTSenderFactory, ObliviousReceive, ObliviousSend,
+};
 use async_trait::async_trait;
 use futures::{channel::mpsc, StreamExt};
+
+#[derive(Default)]
+pub struct MockOTFactory<T> {
+    waiting_sender: Option<MockOTSender<T>>,
+    waiting_receiver: Option<MockOTReceiver<T>>,
+}
+
+#[async_trait]
+impl<T: Send + 'static> OTSenderFactory for Arc<Mutex<MockOTFactory<T>>> {
+    type Protocol = MockOTSender<T>;
+
+    async fn new_sender(
+        &mut self,
+        _id: String,
+        _count: usize,
+    ) -> Result<Self::Protocol, OTFactoryError> {
+        let mut inner = self.lock().unwrap();
+        if inner.waiting_sender.is_some() {
+            Ok(inner.waiting_sender.take().unwrap())
+        } else {
+            let (sender, receiver) = mock_ot_pair::<T>();
+            inner.waiting_receiver = Some(receiver);
+            Ok(sender)
+        }
+    }
+}
+
+#[async_trait]
+impl<T: Send + 'static> OTReceiverFactory for Arc<Mutex<MockOTFactory<T>>> {
+    type Protocol = MockOTReceiver<T>;
+
+    async fn new_receiver(
+        &mut self,
+        _id: String,
+        _count: usize,
+    ) -> Result<Self::Protocol, OTFactoryError> {
+        let mut inner = self.lock().unwrap();
+        if inner.waiting_receiver.is_some() {
+            Ok(inner.waiting_receiver.take().unwrap())
+        } else {
+            let (sender, receiver) = mock_ot_pair::<T>();
+            inner.waiting_sender = Some(sender);
+            Ok(receiver)
+        }
+    }
+}
 
 pub struct MockOTSender<T> {
     sender: mpsc::Sender<Vec<[T; 2]>>,

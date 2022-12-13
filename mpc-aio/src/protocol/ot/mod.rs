@@ -32,6 +32,22 @@ pub enum OTError {
     Unexpected(OTMessage),
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum OTFactoryError {
+    // #[error("muxer error")]
+    // MuxerError(#[from] MuxerError),
+    #[error("ot error")]
+    OTError(#[from] OTError),
+    #[error("io error")]
+    IOError(#[from] std::io::Error),
+    // #[error("unexpected message")]
+    // UnexpectedMessage(OTFactoryMessage),
+    #[error("{0} Sender expects {1} OTs, Receiver expects {2}")]
+    SplitMismatch(String, usize, usize),
+    #[error("other: {0}")]
+    Other(String),
+}
+
 #[async_trait]
 pub trait ObliviousSend {
     type Inputs;
@@ -71,6 +87,36 @@ pub trait ObliviousVerify {
 
     /// Verifies the correctness of the revealed OT seed
     async fn verify(self, input: Vec<Self::Input>) -> Result<(), OTError>;
+}
+
+#[async_trait]
+pub trait OTSenderFactory {
+    type Protocol: ObliviousSend + Send;
+
+    /// Constructs a new Sender
+    ///
+    /// * `id` - Instance id
+    /// * `count` - Number of OTs to provision
+    async fn new_sender(
+        &mut self,
+        id: String,
+        count: usize,
+    ) -> Result<Self::Protocol, OTFactoryError>;
+}
+
+#[async_trait]
+pub trait OTReceiverFactory {
+    type Protocol: ObliviousReceive + Send;
+
+    /// Constructs a new Receiver
+    ///
+    /// * `id` - Instance id
+    /// * `count` - Number of OTs to provision
+    async fn new_receiver(
+        &mut self,
+        id: String,
+        count: usize,
+    ) -> Result<Self::Protocol, OTFactoryError>;
 }
 
 #[cfg(test)]
