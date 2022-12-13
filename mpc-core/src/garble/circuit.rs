@@ -7,8 +7,9 @@ use crate::{
         evaluator::evaluate,
         generator::garble,
         label::{
-            decode_output_labels, extract_input_labels, extract_output_labels, OutputLabels,
-            OutputLabelsCommitment, OutputLabelsDecodingInfo, SanitizedInputLabels,
+            decode_output_labels, extract_input_labels, extract_output_labels,
+            InputLabelsDecodingInfo, OutputLabels, OutputLabelsCommitment,
+            OutputLabelsDecodingInfo, SanitizedInputLabels,
         },
         Delta, Error, InputLabels, WireLabel, WireLabelPair,
     },
@@ -144,6 +145,13 @@ use state::*;
 pub struct GarbledCircuit<S: State> {
     pub circ: Arc<Circuit>,
     pub(crate) state: S,
+}
+
+/// Data used for opening a garbled circuit to the evaluator
+#[derive(Debug)]
+pub struct Opening {
+    pub(crate) delta: Delta,
+    pub(crate) input_decoding: Vec<InputLabelsDecodingInfo>,
 }
 
 impl GarbledCircuit<Full> {
@@ -869,6 +877,68 @@ pub(crate) mod unchecked {
                     ev.decode(&full.decoding())
                 })
                 .collect::<Result<Vec<_>, Error>>()
+        }
+    }
+
+    /// Unchecked variant of [`Opening`]
+    #[derive(Debug, Clone)]
+    pub struct UncheckedOpening {
+        pub(crate) delta: Delta,
+        pub(crate) input_decoding: Vec<UncheckedInputLabelsDecodingInfo>,
+    }
+
+    #[cfg(test)]
+    impl From<Opening> for UncheckedOpening {
+        fn from(opening: Opening) -> Self {
+            Self {
+                delta: opening.delta,
+                input_decoding: opening
+                    .input_decoding
+                    .into_iter()
+                    .map(UncheckedInputLabelsDecodingInfo::from)
+                    .collect(),
+            }
+        }
+    }
+
+    impl Opening {
+        /// Validates opening data and converts to checked variant [`Opening`]
+        pub fn from_unchecked(circ: &Circuit, unchecked: UncheckedOpening) -> Result<Self, Error> {
+            let UncheckedOpening {
+                delta,
+                mut input_decoding,
+            } = unchecked;
+
+            // Sort by input id
+            input_decoding.sort_by_key(|decoding| decoding.id);
+
+            // 1. Check for duplicates
+            // 2. Check all decodings are present
+            // 3. Check all input ids are valid
+            if input_decoding
+                .iter()
+                .contains_dups_by(|decoding| &decoding.id)
+                || input_decoding.len() != circ.input_count()
+                || !input_decoding
+                    .iter()
+                    .all(|decoding| circ.is_input_id(decoding.id))
+            {
+                return Err(Error::InvalidOpening);
+            }
+
+            // Convert unchecked decodings to checked variant
+            let input_decoding = input_decoding
+                .into_iter()
+                .zip(circ.inputs())
+                .map(|(unchecked, input)| {
+                    InputLabelsDecodingInfo::from_unchecked(input.clone(), unchecked)
+                })
+                .collect::<Result<Vec<_>, Error>>()?;
+
+            Ok(Opening {
+                delta,
+                input_decoding,
+            })
         }
     }
 
