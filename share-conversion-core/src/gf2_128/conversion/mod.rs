@@ -25,11 +25,12 @@ where
     /// Create a new instance
     fn new(share: u128) -> Self;
 
-    /// Converts '&self' into choices needed for the receiver input to an oblivious transfer
+    /// Converts '&self' into choices needed for the receiver input to an oblivious transfer.
+    /// The choices are in the "least-bit-first" order.
     fn choices(&self) -> Vec<bool> {
         let mut out: Vec<bool> = Vec::with_capacity(128);
         for k in 0..128 {
-            out.push((self.inner() >> k & 1) == 1);
+            out.push(((self.inner() >> k) & 1) == 1);
         }
         out
     }
@@ -46,13 +47,13 @@ where
 
     /// Prepares a share for conversion in an OT
     ///
-    /// Converts the share to a new share and returns, what is needed for sending in an OT.
+    /// Converts the share to a new share and returns what is needed for sending in an OT.
     fn convert<R: Rng + CryptoRng>(&self, rng: &mut R) -> (Self::Output, OTEnvelope);
 }
 
 /// Batched values for several oblivious transfers
 ///
-/// The inner tuples `.0` and `.1` belong to the corresponding receiver's choice bit
+/// The inner vectors `.0` and `.1` belong to the corresponding receiver's choice bit
 #[derive(Clone, Debug, Default)]
 pub struct OTEnvelope(pub(crate) Vec<u128>, pub(crate) Vec<u128>);
 

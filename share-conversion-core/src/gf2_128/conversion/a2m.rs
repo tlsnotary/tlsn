@@ -32,12 +32,19 @@ impl AddShare {
 
         let mul_share = MulShare::new(inverse(random));
 
-        // `self.inner() & (1 << i)` extracts bit of `self.inner()` in position `i` (counting from
-        // the right) shifted left by `i`
-        let b0: [u128; 128] =
-            std::array::from_fn(|i| mul(self.inner() & (1 << i), random) ^ masks[i]);
+        // decompose the share into component sums, e.g. if the share is 10110, we decompose it into
+        // 0 + 10 + 100 + 0000 + 10000
+        let components: Vec<u128> = (0..128)
+            .map(|i| {
+                // `self.inner() & (1 << i)` first extracts a bit of `self.inner()` in position `i` (counting from
+                // the right) and then left-shifts that bit by `i`
+                self.inner() & (1 << i)
+            })
+            .collect();
+
+        let b0: [u128; 128] = std::array::from_fn(|i| mul(components[i], random) ^ masks[i]);
         let b1: [u128; 128] =
-            std::array::from_fn(|i| mul((self.inner() & (1 << i)) ^ (1 << i), random) ^ masks[i]);
+            std::array::from_fn(|i| mul(components[i] ^ (1 << i), random) ^ masks[i]);
 
         (mul_share, OTEnvelope(b0.to_vec(), b1.to_vec()))
     }

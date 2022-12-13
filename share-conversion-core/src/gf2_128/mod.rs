@@ -5,7 +5,7 @@ mod conversion;
 
 pub use conversion::{AddShare, Gf2_128ShareConvert, MulShare, OTEnvelope};
 
-/// R is GCM polynomial in little-endian. In hex: "E1000000000000000000000000000000"
+/// R is the GCM polynomial in little-endian. In hex: "E1000000000000000000000000000000"
 const R: u128 = 299076299051606071403356588563077529600;
 
 /// Galois field multiplication of two 128-bit blocks reduced by the GCM polynomial
