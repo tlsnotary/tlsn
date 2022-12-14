@@ -10,6 +10,7 @@ use async_trait::async_trait;
 use futures::StreamExt;
 use mpc_aio::protocol::ot::{OTReceiverFactory, ObliviousReceive};
 use mpc_core::Block;
+use rand::{CryptoRng, Rng};
 use rand_chacha::ChaCha12Rng;
 
 /// The receiver for the conversion
@@ -70,7 +71,7 @@ impl<
 impl<
         T: OTReceiverFactory<Protocol = U> + Send,
         U: ObliviousReceive<Choice = bool, Outputs = Vec<Block>> + Send,
-        V: Recorder<ChaCha12Rng, u128>,
+        V: Recorder<ChaCha12Rng, u128> + Default,
     > AdditiveToMultiplicative for Receiver<T, V>
 {
     type FieldElement = u128;
@@ -79,9 +80,11 @@ impl<
         &mut self,
         input: &[Self::FieldElement],
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
-        self.recorder.record_receiver_input(input);
-        let output = self.convert_from::<AddShare>(input).await?;
-        self.recorder.record_receiver_output(&output);
+        let output = self.convert_from::<MulShare>(input).await?;
+        self.recorder
+            .record_verifier(Box::new(|rng: ChaCha12Rng, sender_input: Vec<u128>| {
+                verify::<_, AddShare>(sender_input, rng, input.to_vec(), output.clone())
+            }));
         Ok(output)
     }
 }
@@ -90,7 +93,7 @@ impl<
 impl<
         T: OTReceiverFactory<Protocol = U> + Send,
         U: ObliviousReceive<Choice = bool, Outputs = Vec<Block>> + Send,
-        V: Recorder<ChaCha12Rng, u128>,
+        V: Recorder<ChaCha12Rng, u128> + Default,
     > MultiplicativeToAdditive for Receiver<T, V>
 {
     type FieldElement = u128;
@@ -99,9 +102,11 @@ impl<
         &mut self,
         input: &[Self::FieldElement],
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
-        self.recorder.record_receiver_input(input);
         let output = self.convert_from::<MulShare>(input).await?;
-        self.recorder.record_receiver_output(&output);
+        self.recorder
+            .record_verifier(Box::new(|rng: ChaCha12Rng, sender_input: Vec<u128>| {
+                verify::<_, MulShare>(sender_input, rng, input.to_vec(), output.clone())
+            }));
         Ok(output)
     }
 }
@@ -124,11 +129,36 @@ where
                 "stream closed unexpectedly",
             ))?
             .sender_tape;
-        self.recorder.set_sender_inputs(sender_seeds, sender_values);
+        self.recorder.add_sender_inputs(sender_seeds, sender_values);
 
         // TODO: add verification
         // Current problem is that we do not know if AdditiveShares or MultiplicativeShares are
         // present
         todo!()
     }
+}
+
+fn verify<R: Rng + CryptoRng, T: Gf2_128ShareConvert>(
+    sender_inputs: Vec<u128>,
+    rng: R,
+    receiver_inputs: Vec<u128>,
+    expected_outputs: Vec<u128>,
+) -> bool {
+    for ((s_input, r_input), expected) in
+        std::iter::zip(sender_inputs, receiver_inputs).zip(expected_outputs)
+    {
+        let (_, ot_envelope) = T::new(s_input).convert(&mut rng);
+        let choices = T::new(r_input).choices();
+
+        let mut ot_output: Vec<u128> = vec![0; 128];
+        for (k, number) in ot_output.iter_mut().enumerate() {
+            let bit = choices[k] as u128;
+            *number = (bit * ot_envelope.1[k]) ^ ((bit ^ 1) * ot_envelope.0[k]);
+        }
+        let converted = T::Output::from_choice(&ot_output);
+        if converted.inner() != expected {
+            return false;
+        }
+    }
+    true
 }

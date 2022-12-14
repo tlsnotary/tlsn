@@ -1,11 +1,10 @@
 use rand::{CryptoRng, Rng, SeedableRng};
 use share_conversion_core::gf2_128::Gf2_128ShareConvert;
 
-pub trait Recorder<T: SeedableRng + Rng, U>: Default + Send {
+pub trait Recorder<T: SeedableRng + Rng + Send, U: Send> {
     fn record_sender_input(&mut self, seed: <T as SeedableRng>::Seed, input: &[U]);
-    fn set_sender_inputs(&mut self, seeds: Vec<<T as SeedableRng>::Seed>, inputs: Vec<Vec<U>>);
-    fn record_receiver_input(&mut self, input: &[U]);
-    fn record_receiver_output(&mut self, output: &[U]);
+    fn add_sender_inputs(&mut self, seeds: Vec<<T as SeedableRng>::Seed>, inputs: Vec<Vec<U>>);
+    fn record_verifier(&mut self, input: Box<dyn FnOnce(T, Vec<U>) -> bool + Send>);
     fn verify(&self) -> bool;
 }
 
@@ -28,20 +27,18 @@ impl<T: Gf2_128ShareConvert<Output = T>> Verify for T {
     }
 }
 
-pub struct Tape<T: SeedableRng + Rng, U> {
+pub struct Tape<T: SeedableRng + Rng, U: Send> {
     pub(crate) seeds: Vec<<T as SeedableRng>::Seed>,
     pub(crate) sender_inputs: Vec<Vec<U>>,
-    pub(crate) receiver_inputs: Vec<Vec<U>>,
-    pub(crate) receiver_outputs: Vec<Vec<U>>,
+    pub(crate) receiver_verifier: Vec<Box<dyn FnOnce(T, Vec<U>) -> bool>>,
 }
 
-impl<T: SeedableRng + Rng, U> Default for Tape<T, U> {
+impl<T: SeedableRng + Rng, U: Send> Default for Tape<T, U> {
     fn default() -> Self {
         Tape {
             seeds: vec![],
             sender_inputs: vec![],
-            receiver_inputs: vec![],
-            receiver_outputs: vec![],
+            receiver_verifier: vec![],
         }
     }
 }
@@ -54,32 +51,23 @@ where
         self.seeds.push(seed);
         self.sender_inputs.push(input.to_vec());
     }
-    fn set_sender_inputs(&mut self, seeds: Vec<<T as SeedableRng>::Seed>, inputs: Vec<Vec<U>>) {
+
+    fn add_sender_inputs(&mut self, seeds: Vec<<T as SeedableRng>::Seed>, inputs: Vec<Vec<U>>) {
         self.seeds = seeds;
         self.sender_inputs = inputs;
     }
 
-    fn record_receiver_input(&mut self, input: &[U]) {
-        self.receiver_inputs.push(input.to_vec());
-    }
-
-    fn record_receiver_output(&mut self, output: &[U]) {
-        self.receiver_outputs.push(output.to_vec());
+    fn record_verifier(&mut self, input: Box<dyn FnOnce(T, Vec<U>) -> bool + Send>) {
+        self.receiver_verifier.push(input);
     }
 
     fn verify(&self) -> bool {
-        //TODO: This is probably not yet correct
-        for ((seed, sender_input), (receiver_input, receiver_output)) in
-            std::iter::zip(self.seeds.iter(), self.sender_inputs.iter()).zip(std::iter::zip(
-                self.receiver_inputs.iter(),
-                self.receiver_outputs.iter(),
-            ))
+        for ((seed, sender_input), verifier) in
+            std::iter::zip(self.seeds.iter(), self.sender_inputs.iter())
+                .zip(self.receiver_verifier.into_iter())
         {
             let mut rng = T::from_seed(*seed);
-            for (a, (b, c)) in sender_input.iter().zip(std::iter::zip(
-                receiver_input.iter(),
-                receiver_output.iter(),
-            )) {
+            if verifier(rng, *sender_input) == false {
                 return false;
             }
         }
@@ -90,14 +78,12 @@ where
 #[derive(Default)]
 pub struct Void;
 
-impl<T: SeedableRng + Rng, U> Recorder<T, U> for Void {
+impl<T: SeedableRng + Rng + Send, U: Send> Recorder<T, U> for Void {
     fn record_sender_input(&mut self, _seed: <T as SeedableRng>::Seed, _input: &[U]) {}
 
-    fn set_sender_inputs(&mut self, _seeds: Vec<<T as SeedableRng>::Seed>, _inputs: Vec<Vec<U>>) {}
+    fn add_sender_inputs(&mut self, _seeds: Vec<<T as SeedableRng>::Seed>, _inputs: Vec<Vec<U>>) {}
 
-    fn record_receiver_input(&mut self, _input: &[U]) {}
-
-    fn record_receiver_output(&mut self, _output: &[U]) {}
+    fn record_verifier(&mut self, input: Box<dyn FnOnce(T, Vec<U>) -> bool + Send>) {}
 
     fn verify(&self) -> bool {
         unimplemented!()

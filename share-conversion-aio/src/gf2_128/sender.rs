@@ -71,7 +71,7 @@ where
 impl<T, U> AdditiveToMultiplicative for Sender<T, U>
 where
     T: OTSenderFactory + Send,
-    U: Recorder<ChaCha12Rng, u128>,
+    U: Recorder<ChaCha12Rng, u128> + Default + Send,
     <<T as OTSenderFactory>::Protocol as ObliviousSend>::Inputs: From<OTEnvelope> + Send,
 {
     type FieldElement = u128;
@@ -90,7 +90,7 @@ where
 impl<T, U> MultiplicativeToAdditive for Sender<T, U>
 where
     T: OTSenderFactory + Send,
-    U: Recorder<ChaCha12Rng, u128>,
+    U: Recorder<ChaCha12Rng, u128> + Default + Send,
     <<T as OTSenderFactory>::Protocol as ObliviousSend>::Inputs: From<OTEnvelope> + Send,
 {
     type FieldElement = u128;
@@ -109,6 +109,7 @@ where
 impl<T> SendTape<Tape<ChaCha12Rng, u128>, ChaCha12Rng, u128> for Sender<T, Tape<ChaCha12Rng, u128>>
 where
     T: OTSenderFactory + Send,
+    Sender<T, Tape<ChaCha12Rng, u128>>: Send,
 {
     async fn send_tape(
         self,
