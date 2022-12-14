@@ -16,7 +16,7 @@ use rand::{CryptoRng, Rng};
 ///
 /// Allows two parties to switch between additively and multiplicatively
 /// shared representations of a field element.
-pub trait Gf2_128ShareConvert: Copy + PartialEq
+pub trait Gf2_128ShareConvert: Copy
 where
     Self: Sized,
 {
@@ -25,11 +25,12 @@ where
     /// Create a new instance
     fn new(share: u128) -> Self;
 
-    /// Converts '&self' into choices needed for the receiver input to an oblivious transfer
+    /// Converts '&self' into choices needed for the receiver input to an oblivious transfer.
+    /// The choices are in the "least-bit-first" order.
     fn choices(&self) -> Vec<bool> {
         let mut out: Vec<bool> = Vec::with_capacity(128);
         for k in 0..128 {
-            out.push((self.inner() >> k & 1) == 1);
+            out.push(((self.inner() >> k) & 1) == 1);
         }
         out
     }
@@ -46,15 +47,15 @@ where
 
     /// Prepares a share for conversion in an OT
     ///
-    /// Converts the share to a new share and returns, what is needed for sending in an OT.
+    /// Converts the share to a new share and returns what is needed for sending in an OT.
     fn convert<R: Rng + CryptoRng>(&self, rng: &mut R) -> (Self::Output, OTEnvelope);
 }
 
 /// Batched values for several oblivious transfers
 ///
-/// The inner tuples `.0` and `.1` belong to the corresponding receiver's choice bit
+/// The inner vectors `.0` and `.1` belong to the corresponding receiver's choice bit
 #[derive(Clone, Debug, Default)]
-pub struct OTEnvelope(pub Vec<u128>, pub Vec<u128>);
+pub struct OTEnvelope(pub(crate) Vec<u128>, pub(crate) Vec<u128>);
 
 impl OTEnvelope {
     /// Allows to aggregate envelopes
@@ -121,11 +122,11 @@ mod tests {
         assert_eq!(x.inner() ^ y.inner(), mul(a.inner(), b.inner()));
     }
 
-    fn mock_ot(envelope: OTEnvelope, choices: u128) -> Vec<u128> {
+    fn mock_ot(envelopes: OTEnvelope, choices: u128) -> Vec<u128> {
         let mut out: Vec<u128> = vec![0; 128];
         for (k, number) in out.iter_mut().enumerate() {
             let bit = (choices >> k) & 1;
-            *number = (bit * envelope.1[k]) ^ ((bit ^ 1) * envelope.0[k]);
+            *number = (bit * envelopes.1[k]) ^ ((bit ^ 1) * envelopes.0[k]);
         }
         out
     }

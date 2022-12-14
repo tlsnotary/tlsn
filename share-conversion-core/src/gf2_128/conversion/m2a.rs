@@ -5,7 +5,7 @@ use crate::gf2_128::mul;
 use rand::{CryptoRng, Rng};
 
 /// A multiplicative share of `A = a * b`
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug)]
 pub struct MulShare(u128);
 
 impl MulShare {
@@ -15,8 +15,10 @@ impl MulShare {
     ///   * `AddShare` - The sender's additive share
     ///   * `OTEnvelope` - Used for oblivious transfer
     pub fn convert_to_additive<R: Rng + CryptoRng>(&self, rng: &mut R) -> (AddShare, OTEnvelope) {
-        let t0: [u128; 128] = std::array::from_fn(|_| rng.gen());
-        let t1: [u128; 128] = std::array::from_fn(|i| mul(self.inner(), 1 << i) ^ t0[i]);
+        let masks: [u128; 128] = std::array::from_fn(|_| rng.gen());
+
+        let t0: [u128; 128] = std::array::from_fn(|i| masks[i]);
+        let t1: [u128; 128] = std::array::from_fn(|i| mul(self.inner(), 1 << i) ^ masks[i]);
 
         let add_share = AddShare::new(t0.into_iter().fold(0, |acc, i| acc ^ i));
         (add_share, OTEnvelope(t0.to_vec(), t1.to_vec()))

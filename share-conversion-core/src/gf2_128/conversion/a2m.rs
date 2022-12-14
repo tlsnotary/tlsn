@@ -1,12 +1,14 @@
 //! This module implements the A2M algorithm.
 
+use std::num::NonZeroU128;
+
 use super::MulShare;
 use super::{Gf2_128ShareConvert, OTEnvelope};
 use crate::gf2_128::{inverse, mul};
 use rand::{CryptoRng, Rng};
 
 /// An additive share of `A = x + y`
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug)]
 pub struct AddShare(u128);
 
 impl AddShare {
@@ -19,10 +21,10 @@ impl AddShare {
         &self,
         rng: &mut R,
     ) -> (MulShare, OTEnvelope) {
-        let random: u128 = rng.gen();
-        if random == 0 {
-            panic!("Random u128 is 0");
-        }
+        // We need to exclude 0 here, because it does not have an inverse
+        // which is needed later
+        let random: NonZeroU128 = rng.gen();
+        let random = random.get();
 
         let mut masks: [u128; 128] = std::array::from_fn(|_| rng.gen());
         // set the last mask such that the sum of all 128 masks equals 0
@@ -30,12 +32,19 @@ impl AddShare {
 
         let mul_share = MulShare::new(inverse(random));
 
-        // `self.inner() & (1 << i)` extracts bit of `self.inner()` in position `i` (counting from
-        // the right) shifted left by `i`
-        let b0: [u128; 128] =
-            std::array::from_fn(|i| mul(self.inner() & (1 << i), random) ^ masks[i]);
+        // decompose the share into component sums, e.g. if the share is 10110, we decompose it into
+        // 0 + 10 + 100 + 0000 + 10000
+        let components: Vec<u128> = (0..128)
+            .map(|i| {
+                // `self.inner() & (1 << i)` first extracts a bit of `self.inner()` in position `i` (counting from
+                // the right) and then left-shifts that bit by `i`
+                self.inner() & (1 << i)
+            })
+            .collect();
+
+        let b0: [u128; 128] = std::array::from_fn(|i| mul(components[i], random) ^ masks[i]);
         let b1: [u128; 128] =
-            std::array::from_fn(|i| mul((self.inner() & (1 << i)) ^ (1 << i), random) ^ masks[i]);
+            std::array::from_fn(|i| mul(components[i] ^ (1 << i), random) ^ masks[i]);
 
         (mul_share, OTEnvelope(b0.to_vec(), b1.to_vec()))
     }
