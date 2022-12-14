@@ -42,6 +42,7 @@ mod tests {
     use rand_chacha::ChaCha12Rng;
     use recorder::{Recorder, Tape, Void};
     use share_conversion_core::gf2_128::mul;
+    use utils_aio::adaptive_barrier::AdaptiveBarrier;
     use utils_aio::duplex::DuplexChannel;
 
     type Gf2ConversionChannel = DuplexChannel<ConversionMessage<ChaCha12Rng, u128>>;
@@ -219,7 +220,13 @@ mod tests {
         let (c1, c2): (Gf2ConversionChannel, Gf2ConversionChannel) = DuplexChannel::new();
         let ot_factory = Arc::new(Mutex::new(MockOTFactory::<Block>::default()));
 
-        let sender = Sender::new(Arc::clone(&ot_factory), String::from(""), Box::new(c1));
+        let barrier = AdaptiveBarrier::new();
+        let sender = Sender::new(
+            Arc::clone(&ot_factory),
+            String::from(""),
+            Box::new(c1),
+            barrier,
+        );
         let receiver = Receiver::new(Arc::clone(&ot_factory), String::from(""), Box::new(c2));
 
         (sender, receiver)

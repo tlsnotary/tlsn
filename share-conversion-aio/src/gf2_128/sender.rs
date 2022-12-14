@@ -12,6 +12,7 @@ use futures::SinkExt;
 use mpc_aio::protocol::ot::{OTSenderFactory, ObliviousSend};
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
+use utils_aio::adaptive_barrier::AdaptiveBarrier;
 
 /// The sender for the conversion
 ///
@@ -28,6 +29,7 @@ where
     rng: ChaCha12Rng,
     channel: ConversionChannel<ChaCha12Rng, u128>,
     recorder: V,
+    barrier: AdaptiveBarrier,
 }
 
 impl<T, U, V> Sender<T, U, V>
@@ -42,6 +44,7 @@ where
         sender_factory: T,
         id: String,
         channel: ConversionChannel<ChaCha12Rng, u128>,
+        barrier: AdaptiveBarrier,
     ) -> Self {
         let rng = ChaCha12Rng::from_entropy();
         Self {
@@ -51,6 +54,7 @@ where
             rng,
             channel,
             recorder: V::default(),
+            barrier,
         }
     }
 
@@ -147,6 +151,7 @@ where
             sender_tape: (seed, sender_inputs),
         };
 
+        self.barrier.wait().await;
         self.channel.send(message).await?;
         Ok(())
     }
