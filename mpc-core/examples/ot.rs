@@ -2,8 +2,10 @@
 // In practical situations data would be communicated over a channel such as TCP.
 // For simplicity, this example shows how to use OT components in memory.
 
-use mpc_core::block::Block;
-use mpc_core::ot::dh_ot::{DhOtReceiver, DhOtSender};
+use mpc_core::{
+    block::Block,
+    ot::dh_ot::{DhOtReceiver, DhOtSender},
+};
 use rand::thread_rng;
 
 pub fn main() {

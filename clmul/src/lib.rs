@@ -52,8 +52,7 @@ pub use backend::Clmul;
 #[path = ""]
 mod tests {
     use rand::Rng;
-    use rand_chacha::rand_core::SeedableRng;
-    use rand_chacha::ChaCha12Rng;
+    use rand_chacha::{rand_core::SeedableRng, ChaCha12Rng};
 
     #[path = "backend/soft32.rs"]
     mod soft32;

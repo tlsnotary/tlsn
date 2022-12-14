@@ -1,6 +1,8 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use rand::distributions::{Distribution, Standard};
-use rand::prelude::*;
+use rand::{
+    distributions::{Distribution, Standard},
+    prelude::*,
+};
 
 fn random_vec<T>(elements: usize) -> Vec<T>
 where

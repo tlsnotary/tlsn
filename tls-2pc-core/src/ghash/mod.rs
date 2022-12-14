@@ -85,15 +85,15 @@ pub trait SlaveCore {
 
 #[cfg(test)]
 mod tests {
-    use super::errors::GhashError;
-    use super::utils::block_mult;
-    use super::{master::GhashMaster, slave::GhashSlave, MasterCore, SlaveCore};
+    use super::{
+        errors::GhashError, master::GhashMaster, slave::GhashSlave, utils::block_mult, MasterCore,
+        SlaveCore,
+    };
     use ghash_rc::{
         universal_hash::{NewUniversalHash, UniversalHash},
         GHash,
     };
-    use rand::prelude::ThreadRng;
-    use rand::{thread_rng, Rng};
+    use rand::{prelude::ThreadRng, thread_rng, Rng};
     use std::convert::TryInto;
 
     #[test]

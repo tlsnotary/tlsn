@@ -1,6 +1,8 @@
 use super::{TransposeError, LANE_COUNT};
-use std::ops::ShlAssign;
-use std::simd::{LaneCount, Simd, SimdElement, SupportedLaneCount};
+use std::{
+    ops::ShlAssign,
+    simd::{LaneCount, Simd, SimdElement, SupportedLaneCount},
+};
 
 /// SIMD version for bit-level transposition
 ///

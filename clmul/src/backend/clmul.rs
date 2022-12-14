@@ -90,8 +90,7 @@ impl ClmulX86 {
 mod tests {
     use super::ClmulX86;
     use rand::Rng;
-    use rand_chacha::rand_core::SeedableRng;
-    use rand_chacha::ChaCha12Rng;
+    use rand_chacha::{rand_core::SeedableRng, ChaCha12Rng};
     use std::arch::x86_64::*;
 
     /// Carryless multiplication. Reference implementation.
