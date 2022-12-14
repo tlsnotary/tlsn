@@ -2,13 +2,20 @@ use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 use share_conversion_core::gf2_128::Gf2_128ShareConvert;
 
+/// Allows to record the conversion for sender or receiver
 pub trait Recorder<T: Gf2_128ShareConvert>: Default {
     fn set_seed(&mut self, seed: [u8; 32]);
     fn record_for_sender(&mut self, input: &[u128]);
     fn record_for_receiver(&mut self, input: &[u128], output: &[u128]);
+
+    /// Allows to check if the tape is valid
+    ///
+    /// This will replay the whole conversion with the provided inputs/outputs and check if
+    /// everything matches
     fn verify(&self) -> bool;
 }
 
+/// A tape which allows to record inputs and outputs of the conversion
 #[derive(Default)]
 pub struct Tape {
     pub(crate) seed: [u8; 32],
@@ -33,9 +40,11 @@ impl<T: Gf2_128ShareConvert> Recorder<T> for Tape {
 
     fn verify(&self) -> bool {
         let mut rng = ChaCha12Rng::from_seed(self.seed);
+
         for (sender_input, (receiver_input, receiver_output)) in self.sender_inputs.iter().zip(
             std::iter::zip(self.receiver_inputs.iter(), self.receiver_outputs.iter()),
         ) {
+            // We now replay the conversion internally
             let (_, ot_envelope) = T::new(*sender_input).convert(&mut rng);
             let choices = T::new(*receiver_input).choices();
 
@@ -44,6 +53,8 @@ impl<T: Gf2_128ShareConvert> Recorder<T> for Tape {
                 let bit = choices[k] as u128;
                 *number = (bit * ot_envelope.1[k]) ^ ((bit ^ 1) * ot_envelope.0[k]);
             }
+
+            // Now we check if the outputs match
             let expected = T::Output::from_choice(&ot_output);
             if expected.inner() != *receiver_output {
                 return false;
@@ -53,6 +64,10 @@ impl<T: Gf2_128ShareConvert> Recorder<T> for Tape {
     }
 }
 
+/// A zero-sized type not doing anything
+///
+/// We can use this to instantiate a conversion algorithm which does not provide recording
+/// functionality.
 #[derive(Default)]
 pub struct Void;
 
@@ -63,6 +78,7 @@ impl<T: Gf2_128ShareConvert> Recorder<T> for Void {
 
     fn record_for_receiver(&mut self, _input: &[u128], _output: &[u128]) {}
 
+    // Will not be callable from outside
     fn verify(&self) -> bool {
         unimplemented!()
     }

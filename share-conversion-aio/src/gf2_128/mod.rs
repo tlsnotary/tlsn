@@ -1,6 +1,7 @@
 //! This module implements the IO layer of share-conversion for field elements of
 //! GF(2^128), using oblivious transfer.
 
+use crate::ShareConversionError;
 use async_trait::async_trait;
 use share_conversion_core::gf2_128::{AddShare, Gf2_128ShareConvert, MulShare, OTEnvelope};
 
@@ -11,13 +12,19 @@ mod sender;
 pub use receiver::Receiver;
 pub use sender::Sender;
 
-use crate::ShareConversionError;
-
+/// Send a tape used for verification of the conversion
+///
+/// Implementers record their inputs used during conversion and can send them to the other
+/// party. This will allow the other party to compute all outputs of the sender.
 #[async_trait]
 pub trait SendTape {
     async fn send_tape(self) -> Result<(), ShareConversionError>;
 }
 
+/// Verify the recorded inputs of the other party
+///
+/// Will check if the conversion worked correctly. This allows to catch a malicious party but
+/// requires the malicious party to open and send all their inputs of the conversion before.
 #[async_trait]
 pub trait VerifyTape {
     async fn verify_tape(self) -> Result<bool, ShareConversionError>;
@@ -27,14 +34,13 @@ pub trait VerifyTape {
 mod tests {
     use std::sync::{Arc, Mutex};
 
-    use crate::{AdditiveToMultiplicative, ConversionMessage, MultiplicativeToAdditive};
-
-    use super::recorder::{Recorder, Tape, Void};
     use super::*;
+    use crate::{AdditiveToMultiplicative, ConversionMessage, MultiplicativeToAdditive};
     use mpc_aio::protocol::ot::mock::MockOTFactory;
     use mpc_core::Block;
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
+    use recorder::{Recorder, Tape, Void};
     use share_conversion_core::gf2_128::mul;
     use utils_aio::duplex::DuplexChannel;
 

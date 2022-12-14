@@ -30,7 +30,7 @@ impl<
         W: Recorder<V>,
     > Receiver<T, V, W>
 {
-    /// Creates a new receiver
+    /// Create a new receiver
     pub fn new(
         receiver_factory: T,
         id: String,
@@ -51,23 +51,29 @@ impl<
             return Ok(vec![]);
         }
 
+        // Get choices for OT from shares
         let mut choices: Vec<bool> = vec![];
         shares.iter().for_each(|x| {
             let share = V::new(*x).choices();
             choices.extend_from_slice(&share);
         });
+
+        // Get an OT receiver from factory
         let mut ot_receiver = self
             .receiver_factory
             .new_receiver(self.id.clone(), choices.len() * 128)
             .await?;
+
         let ot_output = ot_receiver.receive(&choices).await?;
 
+        // Aggregate chunks of OTs to get back u128 values
         let converted_shares = ot_output
             .chunks(128)
             .map(|chunk| {
                 V::from_choice(&chunk.iter().map(|x| x.inner()).collect::<Vec<u128>>()).inner()
             })
             .collect();
+
         Ok(converted_shares)
     }
 }
@@ -126,6 +132,7 @@ where
                 "stream closed unexpectedly",
             ))?
             .sender_tape;
+
         <Tape as Recorder<U>>::set_seed(&mut self.recorder, sender_seed);
         <Tape as Recorder<U>>::record_for_sender(&mut self.recorder, &sender_values);
         let is_tape_ok = <Tape as Recorder<U>>::verify(&self.recorder);

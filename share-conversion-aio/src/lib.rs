@@ -28,9 +28,11 @@ pub trait MultiplicativeToAdditive {
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError>;
 }
 
+/// A channel used for messaging of conversion protocols
 pub type ConversionChannel<T, U> =
     Box<dyn Channel<ConversionMessage<T, U>, Error = std::io::Error>>;
 
+/// The messages exchanged between sender and receiver
 pub struct ConversionMessage<T: SeedableRng + Rng + Send, U> {
     sender_tape: (<T as SeedableRng>::Seed, Vec<U>),
 }

@@ -37,7 +37,7 @@ where
     U: Gf2_128ShareConvert,
     V: Recorder<U>,
 {
-    /// Creates a new sender
+    /// Create a new sender
     pub fn new(
         sender_factory: T,
         id: String,
@@ -62,6 +62,7 @@ where
             return Ok(local_shares);
         }
 
+        // Prepare shares for OT and also create this party's converted shares
         let mut ot_shares = OTEnvelope::default();
         shares.iter().for_each(|share| {
             let share = U::new(*share);
@@ -69,15 +70,19 @@ where
             local_shares.push(local.inner());
             ot_shares.extend(ot);
         });
+
+        // Get an OT receiver from factory
         let mut ot_sender = self
             .sender_factory
             .new_sender(self.id.clone(), ot_shares.len())
             .await?;
+
         ot_sender.send(ot_shares.into()).await?;
         Ok(local_shares)
     }
 }
 
+// Used for unit testing
 #[cfg(test)]
 impl<T, U> Sender<T, U, Tape>
 where
