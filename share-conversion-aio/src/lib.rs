@@ -3,12 +3,10 @@
 use async_trait::async_trait;
 use mpc_aio::protocol::ot::{OTError, OTFactoryError};
 use rand::{Rng, SeedableRng};
-use recorder::Recorder;
 use thiserror::Error;
 use utils_aio::Channel;
 
 pub mod gf2_128;
-pub mod recorder;
 
 /// Allows to convert additive shares of type `FieldElement` into multiplicative ones
 #[async_trait]
@@ -33,31 +31,8 @@ pub trait MultiplicativeToAdditive {
 pub type ConversionChannel<T, U> =
     Box<dyn Channel<ConversionMessage<T, U>, Error = std::io::Error>>;
 
-pub struct ConversionMessage<T: SeedableRng + Rng + Send, U: Default + PartialEq + Send + Clone> {
-    sender_tape: (Vec<<T as SeedableRng>::Seed>, Vec<Vec<U>>),
-}
-
-#[async_trait]
-pub trait SendTape<T, U, V>
-where
-    T: Recorder<U, V>,
-    U: SeedableRng + Rng + Send,
-    V: Default + PartialEq + Send + Clone,
-{
-    async fn send_tape(self, channel: ConversionChannel<U, V>) -> Result<(), ShareConversionError>;
-}
-
-#[async_trait]
-pub trait VerifyTape<T, U, V>
-where
-    T: Recorder<U, V>,
-    U: Rng + SeedableRng + Send,
-    V: Default + PartialEq + Send + Clone,
-{
-    async fn verify_tape(
-        self,
-        channel: ConversionChannel<U, V>,
-    ) -> Result<bool, ShareConversionError>;
+pub struct ConversionMessage<T: SeedableRng + Rng + Send, U> {
+    sender_tape: (<T as SeedableRng>::Seed, Vec<U>),
 }
 
 /// An error for what can go wrong during conversion

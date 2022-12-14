@@ -1,13 +1,27 @@
 //! This module implements the IO layer of share-conversion for field elements of
 //! GF(2^128), using oblivious transfer.
 
+use async_trait::async_trait;
 use share_conversion_core::gf2_128::{AddShare, Gf2_128ShareConvert, MulShare, OTEnvelope};
 
 mod receiver;
+pub mod recorder;
 mod sender;
 
 pub use receiver::Receiver;
 pub use sender::Sender;
+
+use crate::ShareConversionError;
+
+#[async_trait]
+pub trait SendTape {
+    async fn send_tape(self) -> Result<(), ShareConversionError>;
+}
+
+#[async_trait]
+pub trait VerifyTape {
+    async fn verify_tape(self) -> Result<bool, ShareConversionError>;
+}
 
 #[cfg(test)]
 mod tests {
@@ -90,9 +104,9 @@ mod tests {
         }
     }
 
-    fn mock_converter_pair() -> (
-        Sender<Arc<Mutex<MockOTFactory<Block>>>>,
-        Receiver<Arc<Mutex<MockOTFactory<Block>>>>,
+    fn mock_converter_pair<U: Gf2_128ShareConvert>() -> (
+        Sender<Arc<Mutex<MockOTFactory<Block>>>, U>,
+        Receiver<Arc<Mutex<MockOTFactory<Block>>>, U>,
     ) {
         let ot_factory = Arc::new(Mutex::new(MockOTFactory::<Block>::default()));
         let sender = Sender::new(Arc::clone(&ot_factory), String::from(""));

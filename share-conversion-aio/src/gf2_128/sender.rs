@@ -1,49 +1,62 @@
 //! This module implements the async IO sender
 
 use super::{AddShare, Gf2_128ShareConvert, MulShare, OTEnvelope};
+use crate::gf2_128::SendTape;
 use crate::{
-    recorder::{Recorder, Tape, Void},
+    gf2_128::recorder::{Recorder, Tape, Void},
     AdditiveToMultiplicative, ConversionChannel, ConversionMessage, MultiplicativeToAdditive,
-    SendTape, ShareConversionError,
+    ShareConversionError,
 };
 use async_trait::async_trait;
 use futures::SinkExt;
 use mpc_aio::protocol::ot::{OTSenderFactory, ObliviousSend};
-use rand::{CryptoRng, Rng, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 
 /// The sender for the conversion
 ///
 /// Will be the OT sender
-pub struct Sender<T, U = Void>
+pub struct Sender<T, U, V = Void>
 where
     T: OTSenderFactory,
+    U: Gf2_128ShareConvert,
+    V: Recorder<U>,
 {
     sender_factory: T,
     id: String,
-    recorder: U,
+    protocol: std::marker::PhantomData<U>,
+    rng: ChaCha12Rng,
+    channel: ConversionChannel<ChaCha12Rng, u128>,
+    recorder: V,
 }
 
-impl<T, U> Sender<T, U>
+impl<T, U, V> Sender<T, U, V>
 where
     T: OTSenderFactory + Send,
     <<T as OTSenderFactory>::Protocol as ObliviousSend>::Inputs: From<OTEnvelope> + Send,
-    U: Default,
+    U: Gf2_128ShareConvert,
+    V: Recorder<U>,
 {
     /// Creates a new sender
-    pub fn new(sender_factory: T, id: String) -> Self {
+    pub fn new(
+        sender_factory: T,
+        id: String,
+        channel: ConversionChannel<ChaCha12Rng, u128>,
+    ) -> Self {
+        let rng = ChaCha12Rng::from_entropy();
         Self {
             sender_factory,
             id,
-            recorder: U::default(),
+            protocol: std::marker::PhantomData,
+            rng,
+            channel,
+            recorder: V::default(),
         }
     }
 
     /// Convert the shares using oblivious transfer
-    pub(crate) async fn convert_from<V: Gf2_128ShareConvert, W: Rng + SeedableRng + CryptoRng>(
+    pub(crate) async fn convert_from(
         &mut self,
         shares: &[u128],
-        rng: &mut W,
     ) -> Result<Vec<u128>, ShareConversionError> {
         let mut local_shares = vec![];
 
@@ -54,7 +67,7 @@ where
         let mut ot_shares = OTEnvelope::default();
         shares.iter().for_each(|share| {
             let share = V::new(*share);
-            let (local, ot) = share.convert(rng);
+            let (local, ot) = share.convert(&mut self.rng);
             local_shares.push(local.inner());
             ot_shares.extend(ot);
         });
@@ -68,11 +81,12 @@ where
 }
 
 #[async_trait]
-impl<T, U> AdditiveToMultiplicative for Sender<T, U>
+impl<T, U, V> AdditiveToMultiplicative for Sender<T, AddShare, V>
 where
     T: OTSenderFactory + Send,
-    U: Recorder<ChaCha12Rng, u128> + Default + Send,
     <<T as OTSenderFactory>::Protocol as ObliviousSend>::Inputs: From<OTEnvelope> + Send,
+    U: Gf2_128ShareConvert,
+    V: Recorder<AddShare>,
 {
     type FieldElement = u128;
 
@@ -82,16 +96,17 @@ where
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
         let mut rng = ChaCha12Rng::from_entropy();
         self.recorder.record_sender_input(rng.get_seed(), input);
-        self.convert_from::<AddShare, _>(input, &mut rng).await
+        self.convert_from(input, &mut rng).await
     }
 }
 
 #[async_trait]
-impl<T, U> MultiplicativeToAdditive for Sender<T, U>
+impl<T, U, V> MultiplicativeToAdditive for Sender<T, MulShare, V>
 where
     T: OTSenderFactory + Send,
-    U: Recorder<ChaCha12Rng, u128> + Default + Send,
     <<T as OTSenderFactory>::Protocol as ObliviousSend>::Inputs: From<OTEnvelope> + Send,
+    U: Gf2_128ShareConvert,
+    V: Recorder<MulShare>,
 {
     type FieldElement = u128;
 
@@ -101,15 +116,15 @@ where
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
         let mut rng = ChaCha12Rng::from_entropy();
         self.recorder.record_sender_input(rng.get_seed(), input);
-        self.convert_from::<MulShare, _>(input, &mut rng).await
+        self.convert_from(input, &mut rng).await
     }
 }
 
 #[async_trait]
-impl<T> SendTape<Tape<ChaCha12Rng, u128>, ChaCha12Rng, u128> for Sender<T, Tape<ChaCha12Rng, u128>>
+impl<T, U> SendTape for Sender<T, U, Tape>
 where
     T: OTSenderFactory + Send,
-    Sender<T, Tape<ChaCha12Rng, u128>>: Send,
+    U: Gf2_128ShareConvert,
 {
     async fn send_tape(
         self,
