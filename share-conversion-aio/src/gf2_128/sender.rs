@@ -55,10 +55,7 @@ where
     }
 
     /// Convert the shares using oblivious transfer
-    pub(crate) async fn convert_from(
-        &mut self,
-        shares: &[u128],
-    ) -> Result<Vec<u128>, ShareConversionError> {
+    async fn convert_from(&mut self, shares: &[u128]) -> Result<Vec<u128>, ShareConversionError> {
         let mut local_shares = vec![];
 
         if shares.is_empty() {
@@ -78,6 +75,18 @@ where
             .await?;
         ot_sender.send(ot_shares.into()).await?;
         Ok(local_shares)
+    }
+}
+
+#[cfg(test)]
+impl<T, U> Sender<T, U, Tape>
+where
+    T: OTSenderFactory + Send,
+    <<T as OTSenderFactory>::Protocol as ObliviousSend>::Inputs: From<OTEnvelope> + Send,
+    U: Gf2_128ShareConvert,
+{
+    pub fn tape_mut(&mut self) -> &mut Tape {
+        &mut self.recorder
     }
 }
 

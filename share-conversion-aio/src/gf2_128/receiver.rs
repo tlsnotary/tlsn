@@ -46,10 +46,7 @@ impl<
     }
 
     /// Convert the shares using oblivious transfer
-    pub(crate) async fn convert_from(
-        &mut self,
-        shares: &[u128],
-    ) -> Result<Vec<u128>, ShareConversionError> {
+    async fn convert_from(&mut self, shares: &[u128]) -> Result<Vec<u128>, ShareConversionError> {
         if shares.is_empty() {
             return Ok(vec![]);
         }
