@@ -1,3 +1,7 @@
+<p align="center">
+    <img src="./tlsn-banner.png" width=1280 />
+</p>
+
 # TLSNotary
 
 ## ⚠️ Notice
