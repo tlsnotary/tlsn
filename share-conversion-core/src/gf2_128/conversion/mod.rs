@@ -55,7 +55,7 @@ where
 ///
 /// The inner vectors `.0` and `.1` belong to the corresponding receiver's choice bit
 #[derive(Clone, Debug, Default)]
-pub struct OTEnvelope(pub(crate) Vec<u128>, pub(crate) Vec<u128>);
+pub struct OTEnvelope(pub Vec<u128>, pub Vec<u128>);
 
 impl OTEnvelope {
     /// Allows to aggregate envelopes

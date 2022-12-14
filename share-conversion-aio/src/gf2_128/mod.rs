@@ -27,16 +27,23 @@ pub trait VerifyTape {
 mod tests {
     use std::sync::{Arc, Mutex};
 
+    use crate::ConversionMessage;
+
     use super::*;
     use mpc_aio::protocol::ot::mock::MockOTFactory;
     use mpc_core::Block;
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
     use share_conversion_core::gf2_128::mul;
+    use utils_aio::duplex::DuplexChannel;
+
+    type Gf2ConversionChannel = DuplexChannel<ConversionMessage<ChaCha12Rng, u128>>;
+    type Gf2Sender<U> = Sender<Arc<Mutex<MockOTFactory<Block>>>, U>;
+    type Gf2Receiver<U> = Receiver<Arc<Mutex<MockOTFactory<Block>>>, U>;
 
     #[tokio::test]
     async fn test_aio_a2m() {
-        let (mut sender, mut receiver) = mock_converter_pair();
+        let (mut sender, mut receiver) = mock_converter_pair::<AddShare>();
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
@@ -48,18 +55,11 @@ mod tests {
                 .collect();
 
         // Spawn tokio tasks and wait for them to finish
-        let sender_task = tokio::spawn(async move {
-            sender
-                .convert_from::<AddShare, _>(&random_numbers_1, &mut rng)
-                .await
-                .unwrap()
-        });
-        let receiver_task = tokio::spawn(async move {
-            receiver
-                .convert_from::<AddShare>(&random_numbers_2)
-                .await
-                .unwrap()
-        });
+        let sender_task =
+            tokio::spawn(async move { sender.convert_from(&random_numbers_1).await.unwrap() });
+        let receiver_task =
+            tokio::spawn(async move { receiver.convert_from(&random_numbers_2).await.unwrap() });
+
         let (sender_output, receiver_output) = tokio::join!(sender_task, receiver_task);
         let (sender_output, receiver_output) = (sender_output.unwrap(), receiver_output.unwrap());
 
@@ -71,7 +71,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_aio_m2a() {
-        let (mut sender, mut receiver) = mock_converter_pair();
+        let (mut sender, mut receiver) = mock_converter_pair::<MulShare>();
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
@@ -83,18 +83,11 @@ mod tests {
                 .collect();
 
         // Spawn tokio tasks and wait for them to finish
-        let sender_task = tokio::spawn(async move {
-            sender
-                .convert_from::<MulShare, _>(&random_numbers_1, &mut rng)
-                .await
-                .unwrap()
-        });
-        let receiver_task = tokio::spawn(async move {
-            receiver
-                .convert_from::<MulShare>(&random_numbers_2)
-                .await
-                .unwrap()
-        });
+        let sender_task =
+            tokio::spawn(async move { sender.convert_from(&random_numbers_1).await.unwrap() });
+        let receiver_task =
+            tokio::spawn(async move { receiver.convert_from(&random_numbers_2).await.unwrap() });
+
         let (sender_output, receiver_output) = tokio::join!(sender_task, receiver_task);
         let (sender_output, receiver_output) = (sender_output.unwrap(), receiver_output.unwrap());
 
@@ -104,13 +97,13 @@ mod tests {
         }
     }
 
-    fn mock_converter_pair<U: Gf2_128ShareConvert>() -> (
-        Sender<Arc<Mutex<MockOTFactory<Block>>>, U>,
-        Receiver<Arc<Mutex<MockOTFactory<Block>>>, U>,
-    ) {
+    fn mock_converter_pair<U: Gf2_128ShareConvert>() -> (Gf2Sender<U>, Gf2Receiver<U>) {
+        let (c1, c2): (Gf2ConversionChannel, Gf2ConversionChannel) = DuplexChannel::new();
+
         let ot_factory = Arc::new(Mutex::new(MockOTFactory::<Block>::default()));
-        let sender = Sender::new(Arc::clone(&ot_factory), String::from(""));
-        let receiver = Receiver::new(Arc::clone(&ot_factory), String::from(""));
+        let sender = Sender::new(Arc::clone(&ot_factory), String::from(""), Box::new(c1));
+        let receiver = Receiver::new(Arc::clone(&ot_factory), String::from(""), Box::new(c2));
+
         (sender, receiver)
     }
 

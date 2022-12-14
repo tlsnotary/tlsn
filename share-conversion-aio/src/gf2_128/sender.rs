@@ -10,6 +10,7 @@ use crate::{
 use async_trait::async_trait;
 use futures::SinkExt;
 use mpc_aio::protocol::ot::{OTSenderFactory, ObliviousSend};
+use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 
 /// The sender for the conversion
@@ -66,7 +67,7 @@ where
 
         let mut ot_shares = OTEnvelope::default();
         shares.iter().for_each(|share| {
-            let share = V::new(*share);
+            let share = U::new(*share);
             let (local, ot) = share.convert(&mut self.rng);
             local_shares.push(local.inner());
             ot_shares.extend(ot);
@@ -81,12 +82,11 @@ where
 }
 
 #[async_trait]
-impl<T, U, V> AdditiveToMultiplicative for Sender<T, AddShare, V>
+impl<T, V> AdditiveToMultiplicative for Sender<T, AddShare, V>
 where
     T: OTSenderFactory + Send,
     <<T as OTSenderFactory>::Protocol as ObliviousSend>::Inputs: From<OTEnvelope> + Send,
-    U: Gf2_128ShareConvert,
-    V: Recorder<AddShare>,
+    V: Recorder<AddShare> + Send,
 {
     type FieldElement = u128;
 
@@ -94,19 +94,18 @@ where
         &mut self,
         input: &[Self::FieldElement],
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
-        let mut rng = ChaCha12Rng::from_entropy();
-        self.recorder.record_sender_input(rng.get_seed(), input);
-        self.convert_from(input, &mut rng).await
+        self.recorder.set_seed(self.rng.get_seed());
+        self.recorder.record_for_sender(input);
+        self.convert_from(input).await
     }
 }
 
 #[async_trait]
-impl<T, U, V> MultiplicativeToAdditive for Sender<T, MulShare, V>
+impl<T, V> MultiplicativeToAdditive for Sender<T, MulShare, V>
 where
     T: OTSenderFactory + Send,
     <<T as OTSenderFactory>::Protocol as ObliviousSend>::Inputs: From<OTEnvelope> + Send,
-    U: Gf2_128ShareConvert,
-    V: Recorder<MulShare>,
+    V: Recorder<MulShare> + Send,
 {
     type FieldElement = u128;
 
@@ -114,9 +113,9 @@ where
         &mut self,
         input: &[Self::FieldElement],
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
-        let mut rng = ChaCha12Rng::from_entropy();
-        self.recorder.record_sender_input(rng.get_seed(), input);
-        self.convert_from(input, &mut rng).await
+        self.recorder.set_seed(self.rng.get_seed());
+        self.recorder.record_for_sender(input);
+        self.convert_from(input).await
     }
 }
 
@@ -124,19 +123,17 @@ where
 impl<T, U> SendTape for Sender<T, U, Tape>
 where
     T: OTSenderFactory + Send,
-    U: Gf2_128ShareConvert,
+    U: Gf2_128ShareConvert + Send,
 {
-    async fn send_tape(
-        self,
-        mut channel: ConversionChannel<ChaCha12Rng, u128>,
-    ) -> Result<(), ShareConversionError> {
-        let seeds = self.recorder.seeds;
+    async fn send_tape(mut self) -> Result<(), ShareConversionError> {
+        let seed = self.recorder.seed;
         let sender_inputs = self.recorder.sender_inputs;
+
         let message = ConversionMessage {
-            sender_tape: (seeds, sender_inputs),
+            sender_tape: (seed, sender_inputs),
         };
 
-        channel.send(message).await?;
+        self.channel.send(message).await?;
         Ok(())
     }
 }

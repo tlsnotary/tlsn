@@ -19,7 +19,6 @@ pub struct Receiver<T: OTReceiverFactory, U: Gf2_128ShareConvert, V = Void> {
     receiver_factory: T,
     id: String,
     protocol: std::marker::PhantomData<U>,
-    rng: ChaCha12Rng,
     channel: ConversionChannel<ChaCha12Rng, u128>,
     recorder: V,
 }
@@ -29,7 +28,7 @@ impl<
         U: ObliviousReceive<Choice = bool, Outputs = Vec<Block>>,
         V: Gf2_128ShareConvert,
         W: Recorder<V>,
-    > Receiver<T, U, V>
+    > Receiver<T, V, W>
 {
     /// Creates a new receiver
     pub fn new(
@@ -37,12 +36,10 @@ impl<
         id: String,
         channel: ConversionChannel<ChaCha12Rng, u128>,
     ) -> Self {
-        let rng = ChaCha12Rng::from_entropy();
         Self {
             receiver_factory,
             id,
             protocol: std::marker::PhantomData,
-            rng,
             channel,
             recorder: W::default(),
         }
@@ -59,7 +56,7 @@ impl<
 
         let mut choices: Vec<bool> = vec![];
         shares.iter().for_each(|x| {
-            let share = W::new(*x).choices();
+            let share = V::new(*x).choices();
             choices.extend_from_slice(&share);
         });
         let mut ot_receiver = self
@@ -82,9 +79,8 @@ impl<
 impl<
         T: OTReceiverFactory<Protocol = U> + Send,
         U: ObliviousReceive<Choice = bool, Outputs = Vec<Block>> + Send,
-        V: Gf2_128ShareConvert,
-        W: Recorder<AddShare>,
-    > AdditiveToMultiplicative for Receiver<T, V, W>
+        V: Recorder<AddShare> + Send,
+    > AdditiveToMultiplicative for Receiver<T, AddShare, V>
 {
     type FieldElement = u128;
 
@@ -93,7 +89,7 @@ impl<
         input: &[Self::FieldElement],
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
         let output = self.convert_from(input).await?;
-        self.recorder.record_for_receiver(input, output);
+        self.recorder.record_for_receiver(input, &output);
         Ok(output)
     }
 }
@@ -102,9 +98,8 @@ impl<
 impl<
         T: OTReceiverFactory<Protocol = U> + Send,
         U: ObliviousReceive<Choice = bool, Outputs = Vec<Block>> + Send,
-        V: Gf2_128ShareConvert,
-        W: Recorder<AddShare>,
-    > MultiplicativeToAdditive for Receiver<T, V, W>
+        V: Recorder<MulShare> + Send,
+    > MultiplicativeToAdditive for Receiver<T, MulShare, V>
 {
     type FieldElement = u128;
 
@@ -113,19 +108,19 @@ impl<
         input: &[Self::FieldElement],
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
         let output = self.convert_from(input).await?;
-        self.recorder.record_for_receiver(input, output);
+        self.recorder.record_for_receiver(input, &output);
         Ok(output)
     }
 }
 
 #[async_trait]
-impl<T> VerifyTape<Tape<ChaCha12Rng, u128>, ChaCha12Rng, u128>
-    for Receiver<T, Tape<ChaCha12Rng, u128>>
+impl<T, U> VerifyTape for Receiver<T, U, Tape>
 where
     T: OTReceiverFactory + Send,
+    U: Gf2_128ShareConvert + Send,
 {
     async fn verify_tape(mut self) -> Result<bool, ShareConversionError> {
-        let (sender_seeds, sender_values) = self
+        let (sender_seed, sender_values) = self
             .channel
             .next()
             .await
@@ -134,11 +129,9 @@ where
                 "stream closed unexpectedly",
             ))?
             .sender_tape;
-        self.recorder.add_sender_inputs(sender_seeds, sender_values);
-
-        // TODO: add verification
-        // Current problem is that we do not know if AdditiveShares or MultiplicativeShares are
-        // present
-        todo!()
+        <Tape as Recorder<U>>::set_seed(&mut self.recorder, sender_seed);
+        <Tape as Recorder<U>>::record_for_sender(&mut self.recorder, &sender_values);
+        let is_tape_ok = <Tape as Recorder<U>>::verify(&self.recorder);
+        Ok(is_tape_ok)
     }
 }
