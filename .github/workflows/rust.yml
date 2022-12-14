@@ -17,12 +17,21 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Stable with rustfmt and clippy
+      - name: Nightly with rustfmt
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          components: rustfmt
+
+      - name: Check formatting with nightly rustfmt
+        run: cargo +nightly fmt --check
+
+      - name: Stable
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
-          components: rustfmt, clippy
 
       - uses: Swatinem/rust-cache@v2.0.0
 
