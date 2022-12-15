@@ -84,6 +84,7 @@ pub mod state {
         pub(crate) input_labels: Vec<InputLabels<WireLabelPair>>,
         pub(crate) output_labels: Vec<OutputLabels<WireLabelPair>>,
         pub(crate) decoding: Vec<OutputLabelsDecodingInfo>,
+        pub(crate) delta: Delta,
     }
 
     /// Garbled circuit data including input labels from the generator and (optionally) the output decoding
@@ -273,6 +274,7 @@ impl GarbledCircuit<Full> {
         let input_labels = self.input_labels();
         let output_labels = self.output_labels();
         let decoding = self.decoding();
+        let delta = self.state.delta;
 
         GarbledCircuit {
             circ: self.circ,
@@ -280,6 +282,7 @@ impl GarbledCircuit<Full> {
                 input_labels,
                 output_labels,
                 decoding,
+                delta,
             },
         }
     }
