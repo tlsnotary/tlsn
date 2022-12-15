@@ -6,10 +6,6 @@ pub mod garble {
 pub mod ot {
     include!(concat!(env!("OUT_DIR"), "/core.ot.rs"));
 }
-#[cfg(feature = "pa")]
-pub mod point_addition {
-    include!(concat!(env!("OUT_DIR"), "/core.point_addition.rs"));
-}
 
 use std::convert::TryInto;
 

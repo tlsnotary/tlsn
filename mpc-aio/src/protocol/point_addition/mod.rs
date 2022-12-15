@@ -1,11 +1,6 @@
 pub use mpc_core::point_addition::P256SecretShare;
 
-use mpc_core::{
-    msgs::point_addition::PointAdditionMessage, point_addition::PointAdditionError as CoreError,
-};
-use utils_aio::Channel;
-
-pub type PAChannel = Box<dyn Channel<PointAdditionMessage, Error = std::io::Error>>;
+use mpc_core::point_addition::PointAdditionError as CoreError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum PointAdditionError {
@@ -13,8 +8,6 @@ pub enum PointAdditionError {
     IOError(#[from] std::io::Error),
     #[error("Encountered core error: {0:?}")]
     CoreError(#[from] CoreError),
-    #[error("Unexpected message")]
-    UnexpectedMessage(PointAdditionMessage),
 }
 
 use async_trait::async_trait;
