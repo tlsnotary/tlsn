@@ -929,7 +929,7 @@ pub(crate) mod unchecked {
     }
 
     impl CircuitOpening {
-        /// Validates opening data and converts to checked variant [`Opening`]
+        /// Validates opening data and converts to checked variant [`CircuitOpening`]
         pub fn from_unchecked(
             circ: &Circuit,
             unchecked: UncheckedCircuitOpening,
