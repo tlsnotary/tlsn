@@ -7,7 +7,9 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use mpc_circuits::{Circuit, InputValue};
 use mpc_core::{
-    garble::{gc_state, Delta, GarbledCircuit, InputLabels, WireLabel, WireLabelPair},
+    garble::{
+        gc_state, CircuitOpening, Delta, GarbledCircuit, InputLabels, WireLabel, WireLabelPair,
+    },
     msgs::garble::GarbleMessage,
 };
 use rand::thread_rng;
@@ -58,16 +60,14 @@ pub trait Validator {
     async fn validate_evaluated(
         &mut self,
         circ: GarbledCircuit<gc_state::Evaluated>,
-        delta: Delta,
-        input_labels: &[InputLabels<WireLabelPair>],
+        opening: CircuitOpening,
     ) -> Result<GarbledCircuit<gc_state::Evaluated>, GCError>;
 
     /// Asynchronously validate a compress garbled circuit
     async fn validate_compressed(
         &mut self,
         circ: GarbledCircuit<gc_state::Compressed>,
-        delta: Delta,
-        input_labels: &[InputLabels<WireLabelPair>],
+        opening: CircuitOpening,
     ) -> Result<GarbledCircuit<gc_state::Compressed>, GCError>;
 }
 
