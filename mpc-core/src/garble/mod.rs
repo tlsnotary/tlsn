@@ -12,9 +12,7 @@ pub mod exec;
 mod generator;
 pub(crate) mod label;
 
-pub use circuit::{
-    state as gc_state, validate_compressed_circuit, validate_evaluated_circuit, GarbledCircuit,
-};
+pub use circuit::{state as gc_state, GarbledCircuit};
 pub use error::{Error, InputError};
 pub use label::{Delta, InputLabels, OutputCheck, OutputLabels, WireLabel, WireLabelPair};
 

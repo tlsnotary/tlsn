@@ -216,8 +216,14 @@ where
         })
     }
 
+    /// Returns input id
     pub fn id(&self) -> usize {
         self.input.id
+    }
+
+    /// Returns labels
+    pub(crate) fn to_inner(self) -> Vec<T> {
+        self.labels
     }
 
     #[cfg(test)]
@@ -302,21 +308,33 @@ impl InputLabels<WireLabelPair> {
         })
     }
 
+    /// Returns input label decoding info
+    pub fn decoding(&self) -> InputLabelsDecodingInfo {
+        InputLabelsDecodingInfo {
+            input: self.input.clone(),
+            decoding: self
+                .labels
+                .iter()
+                .map(|label| LabelDecodingInfo(label.low().lsb() == 1))
+                .collect(),
+        }
+    }
+
     /// Reconstructs input label pairs from existing labels, delta, and value
-    pub fn from_input_labels(
+    pub fn from_decoding(
         input_labels: InputLabels<WireLabel>,
         delta: Delta,
-        value: InputValue,
+        decoding: InputLabelsDecodingInfo,
     ) -> Result<Self, Error> {
-        if input_labels.id() != value.id() {
-            return Err(Error::InvalidInputLabels);
+        if input_labels.id() != decoding.input.id {
+            return Err(Error::InvalidLabelDecodingInfo);
         }
 
         let labels: Vec<WireLabelPair> = input_labels
             .labels
             .iter()
-            .zip(value.wire_values())
-            .map(|(label, value)| label.to_pair(delta, value))
+            .zip(decoding.decoding)
+            .map(|(label, decoding)| label.to_pair(delta, label.decode(decoding)))
             .collect();
 
         Ok(InputLabels {
@@ -560,17 +578,6 @@ impl InputLabelsDecodingInfo {
             input,
             decoding: unchecked.decoding,
         })
-    }
-
-    fn from_labels(labels: &InputLabels<WireLabelPair>) -> Self {
-        Self {
-            input: labels.input.clone(),
-            decoding: labels
-                .labels
-                .iter()
-                .map(|label| LabelDecodingInfo(label.low().lsb() == 1))
-                .collect::<Vec<LabelDecodingInfo>>(),
-        }
     }
 
     #[cfg(test)]
@@ -1330,13 +1337,14 @@ mod tests {
 
         // grab input 0
         let full_labels = full_labels.remove(0);
+        let decoding = full_labels.decoding();
 
         // select wire labels for value
         let value = circ.input(0).unwrap().to_value(42069u64).unwrap();
         let labels = full_labels.select(&value).unwrap();
 
         // using delta and value, reconstruct full wire label pairs
-        let reconstructed_labels = InputLabels::from_input_labels(labels, delta, value).unwrap();
+        let reconstructed_labels = InputLabels::from_decoding(labels, delta, decoding).unwrap();
 
         assert_eq!(reconstructed_labels, full_labels);
     }
