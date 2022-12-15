@@ -1,17 +1,19 @@
 //! This module implements the IO layer of share-conversion for field elements of
 //! GF(2^128), using oblivious transfer.
 
-use crate::ShareConversionIOError;
+use crate::ShareConversionError;
 use async_trait::async_trait;
 use share_conversion_core::gf2_128::{AddShare, Gf2_128ShareConvert, MulShare, OTEnvelope};
+use utils_aio::Channel;
 
+mod msgs;
 mod receiver;
 pub mod recorder;
 mod sender;
 
+pub use msgs::Gf2ConversionMessage;
 pub use receiver::Receiver;
 pub use sender::Sender;
-use utils_aio::Channel;
 
 /// Send a tape used for verification of the conversion
 ///
@@ -19,7 +21,7 @@ use utils_aio::Channel;
 /// party. This will allow the other party to compute all outputs of the sender.
 #[async_trait]
 pub trait SendTape {
-    async fn send_tape(self) -> Result<(), ShareConversionIOError>;
+    async fn send_tape(self) -> Result<(), ShareConversionError>;
 }
 
 /// Verify the recorded inputs of the other party
@@ -28,18 +30,11 @@ pub trait SendTape {
 /// requires the malicious party to open and send all their inputs of the conversion before.
 #[async_trait]
 pub trait VerifyTape {
-    async fn verify_tape(self) -> Result<bool, ShareConversionIOError>;
+    async fn verify_tape(self) -> Result<(), ShareConversionError>;
 }
 
 /// A channel used for messaging of conversion protocols
 pub type Gf2ConversionChannel = Box<dyn Channel<Gf2ConversionMessage, Error = std::io::Error>>;
-
-/// The messages exchanged between sender and receiver
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Gf2ConversionMessage {
-    seed: Vec<u8>,
-    sender_tape: Vec<u128>,
-}
 
 #[cfg(test)]
 mod tests {
@@ -138,7 +133,7 @@ mod tests {
         let (_, receiver_output) = (sender_output.unwrap(), receiver_output.unwrap());
 
         // Check result
-        assert!(receiver_output);
+        assert_eq!(receiver_output, ());
     }
 
     #[tokio::test]
@@ -164,7 +159,7 @@ mod tests {
         let (_, receiver_output) = (sender_output.unwrap(), receiver_output.unwrap());
 
         // Check result
-        assert!(receiver_output);
+        assert_eq!(receiver_output, ());
     }
 
     #[tokio::test]
@@ -186,14 +181,17 @@ mod tests {
         });
         let receiver_task = tokio::spawn(async move {
             receiver.a_to_m(&random_numbers_2).await.unwrap();
-            receiver.verify_tape().await.unwrap()
+            receiver.verify_tape().await.unwrap_err()
         });
 
         let (sender_output, receiver_output) = tokio::join!(sender_task, receiver_task);
         let (_, receiver_output) = (sender_output.unwrap(), receiver_output.unwrap());
 
         // Check result
-        assert!(!receiver_output);
+        assert!(matches!(
+            receiver_output,
+            ShareConversionError::VerifyTapeFailed
+        ));
     }
 
     #[tokio::test]
@@ -215,14 +213,17 @@ mod tests {
         });
         let receiver_task = tokio::spawn(async move {
             receiver.m_to_a(&random_numbers_2).await.unwrap();
-            receiver.verify_tape().await.unwrap()
+            receiver.verify_tape().await.unwrap_err()
         });
 
         let (sender_output, receiver_output) = tokio::join!(sender_task, receiver_task);
         let (_, receiver_output) = (sender_output.unwrap(), receiver_output.unwrap());
 
         // Check result
-        assert!(!receiver_output);
+        assert!(matches!(
+            receiver_output,
+            ShareConversionError::VerifyTapeFailed
+        ));
     }
 
     fn mock_converter_pair<U: Gf2_128ShareConvert, V: Recorder<U>>(

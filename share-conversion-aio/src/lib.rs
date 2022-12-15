@@ -14,7 +14,7 @@ pub trait AdditiveToMultiplicative {
     async fn a_to_m(
         &mut self,
         input: &[Self::FieldElement],
-    ) -> Result<Vec<Self::FieldElement>, ShareConversionIOError>;
+    ) -> Result<Vec<Self::FieldElement>, ShareConversionError>;
 }
 
 /// Allows to convert multiplicative shares of type `FieldElement` into additive ones
@@ -24,12 +24,12 @@ pub trait MultiplicativeToAdditive {
     async fn m_to_a(
         &mut self,
         input: &[Self::FieldElement],
-    ) -> Result<Vec<Self::FieldElement>, ShareConversionIOError>;
+    ) -> Result<Vec<Self::FieldElement>, ShareConversionError>;
 }
 
 /// An error for what can go wrong during conversion
 #[derive(Debug, Error)]
-pub enum ShareConversionIOError {
+pub enum ShareConversionError {
     #[error("OTFactoryError: {0}")]
     OTFactoryError(#[from] OTFactoryError),
     #[error("OTError: {0}")]
@@ -40,4 +40,6 @@ pub enum ShareConversionIOError {
     ShareConversionCore(#[from] ShareConversionCoreError),
     #[error("Malformed seed")]
     SeedConversion,
+    #[error("Tape verification failed")]
+    VerifyTapeFailed,
 }

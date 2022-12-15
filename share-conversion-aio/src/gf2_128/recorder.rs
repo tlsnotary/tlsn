@@ -1,4 +1,4 @@
-use crate::ShareConversionIOError;
+use crate::ShareConversionError;
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 use share_conversion_core::gf2_128::Gf2_128ShareConvert;
@@ -13,7 +13,7 @@ pub trait Recorder<T: Gf2_128ShareConvert>: Default {
     ///
     /// This will replay the whole conversion with the provided inputs/outputs and check if
     /// everything matches
-    fn verify(&self) -> Result<bool, ShareConversionIOError>;
+    fn verify(&self) -> Result<(), ShareConversionError>;
 }
 
 /// A tape which allows to record inputs and outputs of the conversion
@@ -39,7 +39,7 @@ impl<T: Gf2_128ShareConvert> Recorder<T> for Tape {
         self.receiver_outputs.extend_from_slice(output);
     }
 
-    fn verify(&self) -> Result<bool, ShareConversionIOError> {
+    fn verify(&self) -> Result<(), ShareConversionError> {
         let mut rng = ChaCha12Rng::from_seed(self.seed);
 
         for (sender_input, (receiver_input, receiver_output)) in self.sender_inputs.iter().zip(
@@ -59,10 +59,10 @@ impl<T: Gf2_128ShareConvert> Recorder<T> for Tape {
             // Now we check if the outputs match
             let expected = T::Output::from_choice(&ot_output);
             if expected.inner() != *receiver_output {
-                return Ok(false);
+                return Err(ShareConversionError::VerifyTapeFailed);
             }
         }
-        Ok(true)
+        Ok(())
     }
 }
 
@@ -81,7 +81,7 @@ impl<T: Gf2_128ShareConvert> Recorder<T> for Void {
     fn record_for_receiver(&mut self, _input: &[u128], _output: &[u128]) {}
 
     // Will not be callable from outside
-    fn verify(&self) -> Result<bool, ShareConversionIOError> {
+    fn verify(&self) -> Result<(), ShareConversionError> {
         unimplemented!()
     }
 }

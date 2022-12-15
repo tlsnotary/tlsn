@@ -2,10 +2,9 @@
 
 use super::{
     recorder::{Recorder, Tape, Void},
-    AddShare, Gf2ConversionChannel, Gf2ConversionMessage, Gf2_128ShareConvert, MulShare,
-    OTEnvelope, SendTape,
+    AddShare, Gf2ConversionChannel, Gf2_128ShareConvert, MulShare, OTEnvelope, SendTape,
 };
-use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive, ShareConversionIOError};
+use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive, ShareConversionError};
 use async_trait::async_trait;
 use futures::SinkExt;
 use mpc_aio::protocol::ot::{OTSenderFactory, ObliviousSend};
@@ -60,7 +59,7 @@ where
     }
 
     /// Convert the shares using oblivious transfer
-    async fn convert_from(&mut self, shares: &[u128]) -> Result<Vec<u128>, ShareConversionIOError> {
+    async fn convert_from(&mut self, shares: &[u128]) -> Result<Vec<u128>, ShareConversionError> {
         let mut local_shares = Vec::with_capacity(shares.len());
 
         if shares.is_empty() {
@@ -85,7 +84,7 @@ where
             )
             .await?;
 
-        self.counter += ot_shares.len();
+        self.counter += 1;
         ot_sender.send(ot_shares.into()).await?;
         Ok(local_shares)
     }
@@ -116,7 +115,7 @@ where
     async fn a_to_m(
         &mut self,
         input: &[Self::FieldElement],
-    ) -> Result<Vec<Self::FieldElement>, ShareConversionIOError> {
+    ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
         self.recorder.set_seed(self.rng.get_seed());
         self.recorder.record_for_sender(input);
         self.convert_from(input).await
@@ -135,7 +134,7 @@ where
     async fn m_to_a(
         &mut self,
         input: &[Self::FieldElement],
-    ) -> Result<Vec<Self::FieldElement>, ShareConversionIOError> {
+    ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
         self.recorder.set_seed(self.rng.get_seed());
         self.recorder.record_for_sender(input);
         self.convert_from(input).await
@@ -148,14 +147,8 @@ where
     T: OTSenderFactory + Send,
     U: Gf2_128ShareConvert + Send,
 {
-    async fn send_tape(mut self) -> Result<(), ShareConversionIOError> {
-        let seed = self.recorder.seed;
-        let sender_tape = self.recorder.sender_inputs;
-
-        let message = Gf2ConversionMessage {
-            seed: seed.to_vec(),
-            sender_tape,
-        };
+    async fn send_tape(mut self) -> Result<(), ShareConversionError> {
+        let message = (self.recorder.seed, self.recorder.sender_inputs).into();
 
         if let Some(barrier) = self.barrier {
             barrier.wait().await;
