@@ -39,7 +39,6 @@ criterion.workspace = true
 ghash_rc.workspace = true
 rand_chacha.workspace = true
 hex.workspace = true
-curv.workspace = true
 num = { workspace = true, features = ["rand"] }
 aes = { workspace = true, features = [] }
 

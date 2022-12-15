@@ -7,10 +7,10 @@ edition = "2021"
 name = "mpc_aio"
 
 [features]
-default = ["pa", "ot", "mock"]
+default = ["ot", "mock"]
 ot = ["tlsn-mpc-core/ot", "tlsn-mpc-core/proto", "rand_chacha"]
-pa = ["tlsn-mpc-core/pa", "tlsn-mpc-core/proto", "p256"]
 mock = ["dep:aes"]
+pa = ["tlsn-mpc-core/pa"]
 
 [dependencies]
 tlsn-mpc-circuits = { path = "../mpc-circuits" }

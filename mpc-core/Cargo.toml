@@ -9,10 +9,10 @@ name = "mpc_core"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["ot", "pa", "garble"]
+default = ["ot", "garble"]
 garble = ["regex"]
 ot = []
-pa = ["elliptic-curve", "p256", "paillier", "curv"]
+pa = []
 proto = ["prost", "prost-build"]
 serde = ["dep:serde"]
 
@@ -34,17 +34,8 @@ serde = { workspace = true, features = ["derive"], optional = true }
 prost = { workspace = true, optional = true }
 thiserror.workspace = true
 anyhow.workspace = true
-elliptic-curve = { workspace = true, optional = true }
-p256 = { workspace = true, optional = true }
 derive_builder.workspace = true
 merlin.workspace = true
-curv = { workspace = true, optional = true }
-
-[dependencies.paillier]
-package = "kzen-paillier"
-version = "0.4"
-default-features = false
-optional = true
 
 [dev-dependencies]
 rstest.workspace = true
@@ -60,8 +51,4 @@ harness = false
 
 [[bench]]
 name = "ot"
-harness = false
-
-[[bench]]
-name = "point_addition"
 harness = false
