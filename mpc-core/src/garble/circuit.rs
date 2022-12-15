@@ -151,7 +151,7 @@ pub struct GarbledCircuit<S: State> {
 
 /// Data used for opening a garbled circuit to the evaluator
 #[derive(Debug, Clone)]
-pub struct Opening {
+pub struct CircuitOpening {
     pub(crate) delta: Delta,
     pub(crate) input_decoding: Vec<InputLabelsDecodingInfo>,
 }
@@ -289,8 +289,8 @@ impl GarbledCircuit<Full> {
     }
 
     /// Returns circuit opening
-    pub fn open(&self) -> Opening {
-        Opening {
+    pub fn open(&self) -> CircuitOpening {
+        CircuitOpening {
             delta: self.state.delta,
             input_decoding: self
                 .input_labels()
@@ -318,8 +318,8 @@ impl GarbledCircuit<Summary> {
     }
 
     /// Returns circuit opening
-    pub fn open(&self) -> Opening {
-        Opening {
+    pub fn open(&self) -> CircuitOpening {
+        CircuitOpening {
             delta: self.state.delta,
             input_decoding: self
                 .state
@@ -439,7 +439,7 @@ impl GarbledCircuit<Evaluated> {
     }
 
     /// Validates circuit using [`Opening`]
-    pub fn validate(&self, opening: Opening) -> Result<(), Error> {
+    pub fn validate(&self, opening: CircuitOpening) -> Result<(), Error> {
         validate_circuit(
             &Aes128::new_from_slice(&[0; 16]).unwrap(),
             &self.circ,
@@ -491,7 +491,7 @@ impl GarbledCircuit<Compressed> {
     }
 
     /// Validates circuit using [`Opening`]
-    pub fn validate(&self, opening: Opening) -> Result<(), Error> {
+    pub fn validate(&self, opening: CircuitOpening) -> Result<(), Error> {
         validate_circuit(
             &Aes128::new_from_slice(&[0; 16]).unwrap(),
             &self.circ,
@@ -535,14 +535,14 @@ impl GarbledCircuit<Output> {
 fn validate_circuit<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     cipher: &C,
     circ: &Circuit,
-    opening: Opening,
+    opening: CircuitOpening,
     input_labels: &[InputLabels<WireLabel>],
     encrypted_gates: Option<&[EncryptedGate]>,
     digest: Option<Vec<u8>>,
     output_decoding: Option<&[OutputLabelsDecodingInfo]>,
     output_commitments: Option<&[OutputLabelsCommitment]>,
 ) -> Result<(), Error> {
-    let Opening {
+    let CircuitOpening {
         delta,
         input_decoding,
     } = opening;
@@ -909,14 +909,14 @@ pub(crate) mod unchecked {
 
     /// Unchecked variant of [`Opening`]
     #[derive(Debug, Clone)]
-    pub struct UncheckedOpening {
+    pub struct UncheckedCircuitOpening {
         pub(crate) delta: Delta,
         pub(crate) input_decoding: Vec<UncheckedInputLabelsDecodingInfo>,
     }
 
     #[cfg(test)]
-    impl From<Opening> for UncheckedOpening {
-        fn from(opening: Opening) -> Self {
+    impl From<CircuitOpening> for UncheckedCircuitOpening {
+        fn from(opening: CircuitOpening) -> Self {
             Self {
                 delta: opening.delta,
                 input_decoding: opening
@@ -928,10 +928,13 @@ pub(crate) mod unchecked {
         }
     }
 
-    impl Opening {
+    impl CircuitOpening {
         /// Validates opening data and converts to checked variant [`Opening`]
-        pub fn from_unchecked(circ: &Circuit, unchecked: UncheckedOpening) -> Result<Self, Error> {
-            let UncheckedOpening {
+        pub fn from_unchecked(
+            circ: &Circuit,
+            unchecked: UncheckedCircuitOpening,
+        ) -> Result<Self, Error> {
+            let UncheckedCircuitOpening {
                 delta,
                 mut input_decoding,
             } = unchecked;
@@ -962,7 +965,7 @@ pub(crate) mod unchecked {
                 })
                 .collect::<Result<Vec<_>, Error>>()?;
 
-            Ok(Opening {
+            Ok(CircuitOpening {
                 delta,
                 input_decoding,
             })
