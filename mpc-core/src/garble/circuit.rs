@@ -368,10 +368,14 @@ impl GarbledCircuit<Partial> {
                 .collect::<Result<(), Error>>()?;
         }
 
+        // Group all the input labels together
+        let mut input_labels = [self.state.input_labels, input_labels.to_vec()].concat();
+        input_labels.sort_by_key(|input| input.id());
+
         Ok(GarbledCircuit {
             circ: self.circ.clone(),
             state: Evaluated {
-                input_labels: input_labels.to_vec(),
+                input_labels,
                 labels,
                 encrypted_gates: self.state.encrypted_gates,
                 output_labels,
