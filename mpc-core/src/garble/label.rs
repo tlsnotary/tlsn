@@ -34,6 +34,13 @@ impl Deref for Delta {
     }
 }
 
+impl From<[u8; 16]> for Delta {
+    #[inline]
+    fn from(bytes: [u8; 16]) -> Self {
+        Self(Block::from(bytes))
+    }
+}
+
 /// Wire label of a garbled circuit
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct WireLabel {
