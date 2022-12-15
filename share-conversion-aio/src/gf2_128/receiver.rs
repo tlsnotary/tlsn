@@ -1,16 +1,15 @@
 //! This module implements the async IO receiver
 
-use super::{AddShare, Gf2_128ShareConvert, MulShare};
-use crate::gf2_128::VerifyTape;
-use crate::{
-    gf2_128::recorder::{Recorder, Tape, Void},
-    AdditiveToMultiplicative, ConversionChannel, MultiplicativeToAdditive, ShareConversionError,
+use super::{
+    recorder::{Recorder, Tape, Void},
+    AddShare, Gf2ConversionChannel, Gf2ConversionMessage, Gf2_128ShareConvert, MulShare,
+    VerifyTape,
 };
+use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive, ShareConversionIOError};
 use async_trait::async_trait;
 use futures::StreamExt;
 use mpc_aio::protocol::ot::{OTReceiverFactory, ObliviousReceive};
 use mpc_core::Block;
-use rand_chacha::ChaCha12Rng;
 
 /// The receiver for the conversion
 ///
@@ -19,8 +18,9 @@ pub struct Receiver<T: OTReceiverFactory, U: Gf2_128ShareConvert, V = Void> {
     receiver_factory: T,
     id: String,
     protocol: std::marker::PhantomData<U>,
-    channel: ConversionChannel<ChaCha12Rng, u128>,
+    channel: Gf2ConversionChannel,
     recorder: V,
+    counter: usize,
 }
 
 impl<
@@ -31,39 +31,38 @@ impl<
     > Receiver<T, V, W>
 {
     /// Create a new receiver
-    pub fn new(
-        receiver_factory: T,
-        id: String,
-        channel: ConversionChannel<ChaCha12Rng, u128>,
-    ) -> Self {
+    pub fn new(receiver_factory: T, id: String, channel: Gf2ConversionChannel) -> Self {
         Self {
             receiver_factory,
             id,
             protocol: std::marker::PhantomData,
             channel,
             recorder: W::default(),
+            counter: 0,
         }
     }
 
     /// Convert the shares using oblivious transfer
-    async fn convert_from(&mut self, shares: &[u128]) -> Result<Vec<u128>, ShareConversionError> {
+    async fn convert_from(&mut self, shares: &[u128]) -> Result<Vec<u128>, ShareConversionIOError> {
         if shares.is_empty() {
             return Ok(vec![]);
         }
 
         // Get choices for OT from shares
-        let mut choices: Vec<bool> = vec![];
+        let mut choices: Vec<bool> = Vec::with_capacity(shares.len());
         shares.iter().for_each(|x| {
             let share = V::new(*x).choices();
             choices.extend_from_slice(&share);
         });
+        let ot_number = choices.len() * 128;
 
         // Get an OT receiver from factory
         let mut ot_receiver = self
             .receiver_factory
-            .new_receiver(self.id.clone(), choices.len() * 128)
+            .new_receiver(format!("{}/{}/ot", &self.id, &self.counter), ot_number)
             .await?;
 
+        self.counter += ot_number;
         let ot_output = ot_receiver.receive(&choices).await?;
 
         // Aggregate chunks of OTs to get back u128 values
@@ -90,7 +89,7 @@ impl<
     async fn a_to_m(
         &mut self,
         input: &[Self::FieldElement],
-    ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
+    ) -> Result<Vec<Self::FieldElement>, ShareConversionIOError> {
         let output = self.convert_from(input).await?;
         self.recorder.record_for_receiver(input, &output);
         Ok(output)
@@ -109,7 +108,7 @@ impl<
     async fn m_to_a(
         &mut self,
         input: &[Self::FieldElement],
-    ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
+    ) -> Result<Vec<Self::FieldElement>, ShareConversionIOError> {
         let output = self.convert_from(input).await?;
         self.recorder.record_for_receiver(input, &output);
         Ok(output)
@@ -122,20 +121,18 @@ where
     T: OTReceiverFactory + Send,
     U: Gf2_128ShareConvert + Send,
 {
-    async fn verify_tape(mut self) -> Result<bool, ShareConversionError> {
-        let (sender_seed, sender_values) = self
-            .channel
-            .next()
-            .await
-            .ok_or(std::io::Error::new(
+    async fn verify_tape(mut self) -> Result<bool, ShareConversionIOError> {
+        let Gf2ConversionMessage { seed, sender_tape } =
+            self.channel.next().await.ok_or(std::io::Error::new(
                 std::io::ErrorKind::ConnectionAborted,
                 "stream closed unexpectedly",
-            ))?
-            .sender_tape;
+            ))?;
 
-        <Tape as Recorder<U>>::set_seed(&mut self.recorder, sender_seed);
-        <Tape as Recorder<U>>::record_for_sender(&mut self.recorder, &sender_values);
-        let is_tape_ok = <Tape as Recorder<U>>::verify(&self.recorder);
-        Ok(is_tape_ok)
+        let seed = seed
+            .try_into()
+            .map_err(|_| ShareConversionIOError::SeedConversion)?;
+        <Tape as Recorder<U>>::set_seed(&mut self.recorder, seed);
+        <Tape as Recorder<U>>::record_for_sender(&mut self.recorder, &sender_tape);
+        <Tape as Recorder<U>>::verify(&self.recorder)
     }
 }

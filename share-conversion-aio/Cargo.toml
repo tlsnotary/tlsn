@@ -5,6 +5,9 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+serde = ["dep:serde"]
+
 [dependencies]
 thiserror.workspace = true
 tlsn-mpc-aio = { path = "../mpc-aio" }
@@ -15,6 +18,7 @@ rand_chacha.workspace = true
 share-conversion-core = { path = "../share-conversion-core" }
 tlsn-utils-aio = { path = "../utils-aio" }
 futures.workspace = true
+serde = { workspace = true, features = ["derive"], optional = true }
 
 [dev-dependencies]
 tokio.workspace = true

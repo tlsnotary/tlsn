@@ -12,6 +12,8 @@ pub use m2a::MulShare;
 use mpc_core::Block;
 use rand::{CryptoRng, Rng};
 
+use crate::ShareConversionCoreError;
+
 /// A trait for converting field elements
 ///
 /// Allows two parties to switch between additively and multiplicatively
@@ -48,16 +50,39 @@ where
     /// Prepares a share for conversion in an OT
     ///
     /// Converts the share to a new share and returns what is needed for sending in an OT.
-    fn convert<R: Rng + CryptoRng>(&self, rng: &mut R) -> (Self::Output, OTEnvelope);
+    fn convert<R: Rng + CryptoRng>(
+        &self,
+        rng: &mut R,
+    ) -> Result<(Self::Output, OTEnvelope), ShareConversionCoreError>;
 }
 
 /// Batched values for several oblivious transfers
 ///
 /// The inner vectors `.0` and `.1` belong to the corresponding receiver's choice bit
 #[derive(Clone, Debug, Default)]
-pub struct OTEnvelope(pub Vec<u128>, pub Vec<u128>);
+pub struct OTEnvelope(Vec<u128>, Vec<u128>);
 
 impl OTEnvelope {
+    /// Create a new `OTEnvelope`
+    ///
+    /// Checks that both choice vecs have equal length
+    pub fn new(zero: Vec<u128>, one: Vec<u128>) -> Result<Self, ShareConversionCoreError> {
+        if zero.len() != one.len() {
+            return Err(ShareConversionCoreError::OTEnvelopeUnequalLength);
+        }
+        Ok(Self(zero, one))
+    }
+
+    /// Returns a slice for the `zero` choices
+    pub fn zero_choices(&self) -> &[u128] {
+        &self.0
+    }
+
+    /// Returns a slice for the `one` choices
+    pub fn one_choices(&self) -> &[u128] {
+        &self.1
+    }
+
     /// Allows to aggregate envelopes
     pub fn extend(&mut self, other: OTEnvelope) {
         self.0.extend_from_slice(&other.0);
@@ -100,7 +125,7 @@ mod tests {
         let a: MulShare = MulShare::new(rng.gen());
         let b: MulShare = MulShare::new(rng.gen());
 
-        let (x, sharings) = a.convert_to_additive(&mut rng);
+        let (x, sharings) = a.convert_to_additive(&mut rng).unwrap();
 
         let choice = mock_ot(sharings, b.inner());
         let y = AddShare::from_choice(&choice);
@@ -114,7 +139,7 @@ mod tests {
         let x: AddShare = AddShare::new(rng.gen());
         let y: AddShare = AddShare::new(rng.gen());
 
-        let (a, sharings) = x.convert_to_multiplicative(&mut rng);
+        let (a, sharings) = x.convert_to_multiplicative(&mut rng).unwrap();
 
         let choice = mock_ot(sharings, y.inner());
         let b = MulShare::from_choice(&choice);

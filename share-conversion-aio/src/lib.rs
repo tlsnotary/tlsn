@@ -2,9 +2,8 @@
 
 use async_trait::async_trait;
 use mpc_aio::protocol::ot::{OTError, OTFactoryError};
-use rand::{Rng, SeedableRng};
+use share_conversion_core::ShareConversionCoreError;
 use thiserror::Error;
-use utils_aio::Channel;
 
 pub mod gf2_128;
 
@@ -15,7 +14,7 @@ pub trait AdditiveToMultiplicative {
     async fn a_to_m(
         &mut self,
         input: &[Self::FieldElement],
-    ) -> Result<Vec<Self::FieldElement>, ShareConversionError>;
+    ) -> Result<Vec<Self::FieldElement>, ShareConversionIOError>;
 }
 
 /// Allows to convert multiplicative shares of type `FieldElement` into additive ones
@@ -25,25 +24,20 @@ pub trait MultiplicativeToAdditive {
     async fn m_to_a(
         &mut self,
         input: &[Self::FieldElement],
-    ) -> Result<Vec<Self::FieldElement>, ShareConversionError>;
-}
-
-/// A channel used for messaging of conversion protocols
-pub type ConversionChannel<T, U> =
-    Box<dyn Channel<ConversionMessage<T, U>, Error = std::io::Error>>;
-
-/// The messages exchanged between sender and receiver
-pub struct ConversionMessage<T: SeedableRng + Rng + Send, U> {
-    sender_tape: (<T as SeedableRng>::Seed, Vec<U>),
+    ) -> Result<Vec<Self::FieldElement>, ShareConversionIOError>;
 }
 
 /// An error for what can go wrong during conversion
 #[derive(Debug, Error)]
-pub enum ShareConversionError {
+pub enum ShareConversionIOError {
     #[error("OTFactoryError: {0}")]
     OTFactoryError(#[from] OTFactoryError),
     #[error("OTError: {0}")]
     OTError(#[from] OTError),
     #[error("IO Error: {0}")]
     IOError(#[from] std::io::Error),
+    #[error("ShareConversionCore Error: {0}")]
+    ShareConversionCore(#[from] ShareConversionCoreError),
+    #[error("Malformed seed")]
+    SeedConversion,
 }

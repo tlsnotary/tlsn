@@ -1,7 +1,7 @@
 //! This module implements the IO layer of share-conversion for field elements of
 //! GF(2^128), using oblivious transfer.
 
-use crate::ShareConversionError;
+use crate::ShareConversionIOError;
 use async_trait::async_trait;
 use share_conversion_core::gf2_128::{AddShare, Gf2_128ShareConvert, MulShare, OTEnvelope};
 
@@ -11,6 +11,7 @@ mod sender;
 
 pub use receiver::Receiver;
 pub use sender::Sender;
+use utils_aio::Channel;
 
 /// Send a tape used for verification of the conversion
 ///
@@ -18,7 +19,7 @@ pub use sender::Sender;
 /// party. This will allow the other party to compute all outputs of the sender.
 #[async_trait]
 pub trait SendTape {
-    async fn send_tape(self) -> Result<(), ShareConversionError>;
+    async fn send_tape(self) -> Result<(), ShareConversionIOError>;
 }
 
 /// Verify the recorded inputs of the other party
@@ -27,7 +28,17 @@ pub trait SendTape {
 /// requires the malicious party to open and send all their inputs of the conversion before.
 #[async_trait]
 pub trait VerifyTape {
-    async fn verify_tape(self) -> Result<bool, ShareConversionError>;
+    async fn verify_tape(self) -> Result<bool, ShareConversionIOError>;
+}
+
+/// A channel used for messaging of conversion protocols
+pub type Gf2ConversionChannel = Box<dyn Channel<Gf2ConversionMessage, Error = std::io::Error>>;
+
+/// The messages exchanged between sender and receiver
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Gf2ConversionMessage {
+    seed: Vec<u8>,
+    sender_tape: Vec<u128>,
 }
 
 #[cfg(test)]
@@ -35,17 +46,16 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use super::*;
-    use crate::{AdditiveToMultiplicative, ConversionMessage, MultiplicativeToAdditive};
+    use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive};
     use mpc_aio::protocol::ot::mock::MockOTFactory;
     use mpc_core::Block;
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
     use recorder::{Recorder, Tape, Void};
     use share_conversion_core::gf2_128::mul;
-    use utils_aio::adaptive_barrier::AdaptiveBarrier;
     use utils_aio::duplex::DuplexChannel;
 
-    type Gf2ConversionChannel = DuplexChannel<ConversionMessage<ChaCha12Rng, u128>>;
+    type Gf2ConversionChannel = DuplexChannel<Gf2ConversionMessage>;
     type Gf2Sender<U, V> = Sender<Arc<Mutex<MockOTFactory<Block>>>, U, V>;
     type Gf2Receiver<U, V> = Receiver<Arc<Mutex<MockOTFactory<Block>>>, U, V>;
 
@@ -220,12 +230,11 @@ mod tests {
         let (c1, c2): (Gf2ConversionChannel, Gf2ConversionChannel) = DuplexChannel::new();
         let ot_factory = Arc::new(Mutex::new(MockOTFactory::<Block>::default()));
 
-        let barrier = AdaptiveBarrier::new();
         let sender = Sender::new(
             Arc::clone(&ot_factory),
             String::from(""),
             Box::new(c1),
-            barrier,
+            None,
         );
         let receiver = Receiver::new(Arc::clone(&ot_factory), String::from(""), Box::new(c2));
 

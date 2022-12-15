@@ -15,3 +15,9 @@
 //! end up with `a` and `b`, where `A = x + y = a * b`.
 
 pub mod gf2_128;
+
+#[derive(Debug, thiserror::Error)]
+pub enum ShareConversionCoreError {
+    #[error("Cannot build OTEnvelope from vecs with unequal length")]
+    OTEnvelopeUnequalLength,
+}
