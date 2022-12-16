@@ -1,7 +1,6 @@
 //! This module implements the M2A algorithm.
 
-use super::a2m::AddShare;
-use super::{Gf2_128ShareConvert, OTEnvelope};
+use super::{a2m::AddShare, Gf2_128ShareConvert, OTEnvelope};
 use crate::gf2_128::mul;
 use rand::{CryptoRng, Rng};
 

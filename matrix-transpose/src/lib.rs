@@ -74,8 +74,10 @@ pub enum TransposeError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::distributions::{Distribution, Standard};
-    use rand::prelude::*;
+    use rand::{
+        distributions::{Distribution, Standard},
+        prelude::*,
+    };
 
     fn random_vec<T>(elements: usize) -> Vec<T>
     where

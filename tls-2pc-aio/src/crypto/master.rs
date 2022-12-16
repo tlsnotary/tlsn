@@ -1,9 +1,13 @@
 use async_trait::async_trait;
 use futures::{AsyncRead, AsyncWrite};
 use tls_client::{Crypto, DecryptMode, EncryptMode, Error, ProtocolVersion, SupportedCipherSuite};
-use tls_core::key::PublicKey;
-use tls_core::msgs::handshake::Random;
-use tls_core::msgs::message::{OpaqueMessage, PlainMessage};
+use tls_core::{
+    key::PublicKey,
+    msgs::{
+        handshake::Random,
+        message::{OpaqueMessage, PlainMessage},
+    },
+};
 
 /// CryptoMaster implements the TLS Crypto trait using 2PC protocols.
 pub struct CryptoMaster<S> {

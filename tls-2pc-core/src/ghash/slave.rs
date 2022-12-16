@@ -3,13 +3,15 @@
 //! Transfer and sends masked x_table entries obliviously for each
 //! bit of Y received from the GHASH Master.
 
-use super::common::GhashCommon;
-use super::errors::*;
-use super::utils::{
-    block_aggregation, block_aggregation_mxtables, block_mult, free_square, masked_xtable,
-    multiply_powers_and_blocks, square_all,
+use super::{
+    common::GhashCommon,
+    errors::*,
+    utils::{
+        block_aggregation, block_aggregation_mxtables, block_mult, free_square, masked_xtable,
+        multiply_powers_and_blocks, square_all,
+    },
+    MXTableFull, SlaveCore,
 };
-use super::{MXTableFull, SlaveCore};
 use rand::{CryptoRng, Rng};
 use std::collections::BTreeMap;
 

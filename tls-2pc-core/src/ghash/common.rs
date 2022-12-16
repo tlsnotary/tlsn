@@ -1,5 +1,7 @@
-use super::errors::*;
-use super::utils::{find_max_odd_power, find_sum, square_all};
+use super::{
+    errors::*,
+    utils::{find_max_odd_power, find_sum, square_all},
+};
 use std::collections::BTreeMap;
 
 // GhashCommon is common to both Master and Slave

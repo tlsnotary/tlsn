@@ -2,8 +2,7 @@
 
 use std::num::NonZeroU128;
 
-use super::MulShare;
-use super::{Gf2_128ShareConvert, OTEnvelope};
+use super::{Gf2_128ShareConvert, MulShare, OTEnvelope};
 use crate::gf2_128::{inverse, mul};
 use rand::{CryptoRng, Rng};
 

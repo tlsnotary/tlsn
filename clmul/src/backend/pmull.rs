@@ -11,8 +11,7 @@
 //! - <https://developer.arm.com/documentation/100069/0608/A64-SIMD-Vector-Instructions/PMULL--PMULL2--vector->
 //! - <https://eprint.iacr.org/2015/688.pdf>
 
-use core::ops::BitXor;
-use core::{arch::aarch64::*, mem};
+use core::{arch::aarch64::*, mem, ops::BitXor};
 
 pub type Clmul = ClmulArm;
 

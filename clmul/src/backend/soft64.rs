@@ -5,8 +5,7 @@
 //!
 //! Copyright (c) 2016 Thomas Pornin <pornin@bolet.org>
 //!
-use core::num::Wrapping;
-use core::ops::BitXor;
+use core::{num::Wrapping, ops::BitXor};
 
 pub type Clmul = U64x2;
 
