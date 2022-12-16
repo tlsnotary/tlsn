@@ -34,7 +34,7 @@ impl AddShare {
 
         let mul_share = MulShare::new(inverse(random));
 
-        // decompose the share into component sums, e.g. if the share is 10110, we decompose it into
+        // decompose the share into a sum of components, e.g. if the share is 10110, we decompose it into
         // 0 + 10 + 100 + 0000 + 10000
         let components: Vec<u128> = (0..128)
             .map(|i| {

@@ -21,6 +21,7 @@ where
     U: Gf2_128ShareConvert,
     V: Recorder<U>,
 {
+    /// Provides initialized OTs for the OT sender
     sender_factory: T,
     id: String,
     protocol: std::marker::PhantomData<U>,
@@ -28,6 +29,7 @@ where
     channel: Gf2ConversionChannel,
     recorder: V,
     barrier: Option<AdaptiveBarrier>,
+    /// keeps track of how many batched share conversions we've made so far
     counter: usize,
 }
 
@@ -58,7 +60,7 @@ where
         }
     }
 
-    /// Convert the shares using oblivious transfer
+    /// Converts a batch of shares using oblivious transfer
     async fn convert_from(&mut self, shares: &[u128]) -> Result<Vec<u128>, ShareConversionError> {
         let mut local_shares = Vec::with_capacity(shares.len());
 

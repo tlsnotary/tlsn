@@ -14,11 +14,13 @@ use mpc_core::Block;
 ///
 /// Will be the OT receiver
 pub struct Receiver<T: OTReceiverFactory, U: Gf2_128ShareConvert, V = Void> {
+    /// Provides initialized OTs for the OT receiver
     receiver_factory: T,
     id: String,
     protocol: std::marker::PhantomData<U>,
     channel: Gf2ConversionChannel,
     recorder: V,
+    /// keeps track of how many batched share conversions we've made so far
     counter: usize,
 }
 
@@ -41,7 +43,7 @@ impl<
         }
     }
 
-    /// Convert the shares using oblivious transfer
+    /// Converts a batch of shares using oblivious transfer
     async fn convert_from(&mut self, shares: &[u128]) -> Result<Vec<u128>, ShareConversionError> {
         if shares.is_empty() {
             return Ok(vec![]);
