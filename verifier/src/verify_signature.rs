@@ -2,14 +2,16 @@ use p256::ecdsa::{signature::Verifier, Signature, VerifyingKey};
 
 /// verify that a P256 signature is over the message
 pub fn verify_sig_p256(msg: &Vec<u8>, pubkey: &Vec<u8>, sig: &Vec<u8>) -> bool {
-    // TODO need to look into exactly how to deserialize key/sig
-    let vk = VerifyingKey::from_sec1_bytes(pubkey).unwrap();
-    let signature = Signature::from_der(sig).unwrap();
-    if vk.verify(msg, &signature).is_err() {
+    let Ok(vk) = VerifyingKey::from_sec1_bytes(pubkey) else {
         return false;
-    } else {
-        return true;
-    }
+    };
+    let Ok(signature) = Signature::from_der(sig) else {
+        return false;
+    };
+    let Ok(_) = vk.verify(msg, &signature) else {
+        return false;
+    };
+    true
 }
 
 pub fn verify_sig_bn254(msg: &Vec<u8>, pubkey: &Vec<u8>, sig: &Vec<u8>) -> bool {

@@ -1,4 +1,4 @@
-use super::main_doc::{CertDER, EphemeralECPubkey, SignatureKeyExchangeParams};
+use super::tls_doc::{CertDER, EphemeralECPubkey, SignatureKeyExchangeParams};
 use webpki::{self, DnsNameRef};
 use webpki_roots;
 

@@ -1,79 +1,19 @@
-mod data_doc;
-mod main_doc;
-mod public_data;
+mod commitment;
+mod signed;
+mod tls_doc;
+mod verifier_doc;
 mod verify_signature;
 mod webpki_utils;
 
-use public_data::PublicData;
+use verifier_doc::{Signature, VerifierDoc};
 
-use crate::data_doc::DataDoc;
-use crate::main_doc::MainDoc;
+use crate::signed::Signed;
 
-/// The actual document which the verifier will receive
-struct VerifierDoc {
-    version: u8,
-    main_doc: MainDoc,
-    data_doc: DataDoc,
-}
+type HashCommitment = [u8; 32];
 
 #[derive(Debug)]
 enum Error {
     VerificationError,
-}
-
-/// Verifies the correctness of the  HTTP 1.0/1.1 notarization session
-struct HTTP1Verifier {
-    verifier_core: VerifierCore,
-}
-
-impl HTTP1Verifier {
-    pub fn new(doc: VerifierDoc, trusted_pubkey: Option<Pubkey>) -> Self {
-        Self {
-            verifier_core: VerifierCore::new(doc, trusted_pubkey),
-        }
-    }
-
-    /// verifies that this session came from the server with the dns_name
-    /// and there was no domain fronting
-    pub fn verify(&self, dns_name: String) -> Result<bool, Error> {
-        if self.verifier_core.verify(dns_name).is_err() {
-            return Err(Error::VerificationError);
-        }
-        if self
-            .domain_fronting_attack_check(dns_name, self.verifier_core.doc.data_doc.public_data)
-            .is_err()
-        {
-            return Err(Error::VerificationError);
-        }
-
-        Ok(true)
-    }
-
-    /// Each request must contain a single Host header which matches the dns_name
-    fn domain_fronting_attack_check(
-        &self,
-        dns_name: String,
-        pub_data: PublicData,
-    ) -> Result<bool, Error> {
-        for round_data in pub_data {
-            // search round_data.request ranges one-by-one until the '/r/n/r/n' delimiter
-            // is found. (This delimiter separates the headers from the payload). Split off
-            // the headers ranges. Make sure there is no zero bytes in the headers ranges.
-            // Fill the gaps in headers ranges with zero bytes. Flatten all headers ranges
-            // into one bytestring.
-
-            // split the bytestring by '/r/n' (the separator between individual headers)
-            // into individual headers. Make sure there is only one Host header which matches
-            // `dns_name`.
-
-            // No substring in the headers can be hidden (i.e. neither public nor private).
-            // If it is private, it must have a corresponding zkp that the substring does not
-            // contain any '/r/n'. This ensures that an extra Host header is not hidden inside
-            // the private data.
-        }
-
-        Ok(true)
-    }
 }
 
 struct VerifierCore {
@@ -84,11 +24,11 @@ struct VerifierCore {
     trusted_pubkey: Option<Pubkey>,
 }
 
-/// verifies the core aspects of the notarization session: the Notary signature, the TLS
-/// authenticity and the correctness of public data and zk proofs.
+/// Verifies the core aspects of the notarization session: the Notary signature, the TLS
+/// authenticity and the correctness of commitments and zk proofs.
 ///
-/// Other checks like checking for domain fronting attack will be done by a higher
-/// level verifier like e.g. HTTP1Verifier
+/// After the verification completes, the application level (e.g. HTTP) parser can start
+/// parsing the openings in [VerifierDoc::commitment_openings]
 impl VerifierCore {
     pub fn new(doc: VerifierDoc, trusted_pubkey: Option<Pubkey>) -> Self {
         Self {
@@ -97,60 +37,60 @@ impl VerifierCore {
         }
     }
 
-    /// verifies that this session came from the server with the dns_name
+    /// verifies that the session in the VerifierDoc came from the server with the dns_name
     ///
     /// Note that the checks below are not sufficient to establish data provenance.
-    /// There also must be a check done on a higher level against the domain fronting
+    /// There also must be a check done on the HTTP level against the domain fronting
     /// attack.
-    pub fn verify(&self, dns_name: String) -> Result<bool, Error> {
-        // check the TLS session authenticity
-        self.doc
-            .main_doc
-            .verify(dns_name, self.trusted_pubkey.clone());
+    pub fn verify(&self, dns_name: String) -> Result<(), Error> {
+        // verify the Notary signature, if any
+        if self.doc.signature.is_some() {
+            if self.trusted_pubkey.is_none() {
+                return Err(Error::VerificationError);
+            } else {
+                // check Notary's signature on signed data
+                self.verify_doc_signature(
+                    &self.trusted_pubkey.unwrap(),
+                    &self.doc.signature.as_ref().unwrap(),
+                    &self.signed_data(),
+                )?;
+            }
+        }
 
-        // the signed_data contains commitments and also other data needed to
-        // verify the DataDoc
-        let signed_data = self.doc.main_doc.signed_data();
+        // verify all other aspects of notarization
+        self.doc.verify(dns_name)?;
 
-        // verify the commitments to public data and zk proofs about private data
-        if self.doc.data_doc.verify(signed_data).is_err() {
+        Ok(())
+    }
+
+    // verify Notary's sig on the notarization doc
+    fn verify_doc_signature(
+        &self,
+        pubkey: &Pubkey,
+        sig: &Signature,
+        msg: &Signed,
+    ) -> Result<bool, Error> {
+        if pubkey.typ != sig.typ {
             return Err(Error::VerificationError);
         }
-
-        Ok(true)
-    }
-}
-
-#[derive(Clone)]
-pub enum CommitmentType {
-    sha256,
-    blake2f,
-    poseidon,
-    mimc,
-}
-
-#[derive(Clone)]
-pub struct Commitment {
-    typ: CommitmentType,
-    commitment: Vec<u8>,
-}
-
-impl Commitment {
-    pub fn new(typ: CommitmentType, data_committed_to: Vec<u8>) -> Self {
-        // TODO match various commitment types and hash accordingly
-        let commitment = vec![0u8; 100];
-        Self { typ, commitment }
-    }
-
-    // check if this commitment was created from `data_committed_to`
-    pub fn check(&self, data_committed_to: Vec<u8>) -> bool {
-        // TODO match various commitment types and hash accordingly
-        let commitment = vec![0u8; 100];
-        if self.commitment == commitment {
-            return true;
+        let result = match sig.typ {
+            Curve::p256 => {
+                verify_signature::verify_sig_p256(&msg.serialize(), &pubkey.pubkey, &sig.signature)
+            }
+            _ => false,
+        };
+        if !result {
+            return Err(Error::VerificationError);
         } else {
-            return false;
+            Ok(true)
         }
+    }
+
+    // extracts the necessary data from the VerifierDoc into a Signed
+    // struct and returns it
+    fn signed_data(&self) -> Signed {
+        let doc = &self.doc.clone();
+        doc.into()
     }
 }
 
@@ -168,4 +108,21 @@ enum Curve {
     bn254,
     bls12381,
     pallas,
+}
+
+#[derive(Clone)]
+/// A PRG seeds from which to generate Notary's circuits' input labels for one
+/// direction. We will use 2 separate seeds: one to generate the labels for all
+/// plaintext which was sent and another seed to generate the labels for all plaintext
+/// which was received
+pub struct LabelSeed {
+    typ: SeedType,
+    value: Vec<u8>,
+}
+
+#[derive(Clone)]
+enum SeedType {
+    chacha12,
+    chacha20,
+    fixed_key_aes,
 }
