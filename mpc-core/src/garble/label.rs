@@ -235,27 +235,6 @@ where
     }
 }
 
-impl InputLabels<WireLabel> {
-    /// Validates and converts input labels to checked variant
-    pub fn from_unchecked(
-        input: Input,
-        unchecked: unchecked::UncheckedInputLabels,
-    ) -> Result<Self, Error> {
-        if unchecked.id != input.id || unchecked.labels.len() != input.as_ref().len() {
-            return Err(Error::InvalidOutputLabels);
-        }
-
-        let labels = unchecked
-            .labels
-            .into_iter()
-            .zip(input.as_ref().wires())
-            .map(|(label, id)| WireLabel::new(*id, label))
-            .collect();
-
-        Ok(Self { input, labels })
-    }
-}
-
 impl InputLabels<WireLabelPair> {
     /// Generates a full set of input [`WireLabelPair`] for the provided [`Circuit`]
     pub fn generate<R: Rng + CryptoRng>(
@@ -504,25 +483,6 @@ impl OutputLabels<WireLabelPair> {
 }
 
 impl OutputLabels<WireLabel> {
-    /// Validates and converts output labels to checked variant
-    pub fn from_unchecked(
-        output: Output,
-        unchecked: unchecked::UncheckedOutputLabels,
-    ) -> Result<Self, Error> {
-        if unchecked.id != output.id || unchecked.labels.len() != output.as_ref().len() {
-            return Err(Error::InvalidOutputLabels);
-        }
-
-        let labels = unchecked
-            .labels
-            .into_iter()
-            .zip(output.as_ref().wires())
-            .map(|(label, id)| WireLabel::new(*id, label))
-            .collect();
-
-        Ok(Self { output, labels })
-    }
-
     /// Decodes output wire labels
     pub(crate) fn decode(&self, decoding: &OutputLabelsDecodingInfo) -> Result<OutputValue, Error> {
         if decoding.output != self.output {
@@ -586,20 +546,6 @@ pub struct OutputLabelsDecodingInfo {
 }
 
 impl OutputLabelsDecodingInfo {
-    pub fn from_unchecked(
-        output: Output,
-        unchecked: unchecked::UncheckedOutputLabelsDecodingInfo,
-    ) -> Result<Self, Error> {
-        if unchecked.id != output.id || unchecked.decoding.len() != output.as_ref().len() {
-            return Err(Error::InvalidLabelDecodingInfo);
-        }
-
-        Ok(Self {
-            output,
-            decoding: unchecked.decoding,
-        })
-    }
-
     fn from_labels(labels: &OutputLabels<WireLabelPair>) -> Self {
         Self {
             output: labels.output.clone(),
@@ -662,26 +608,6 @@ impl OutputLabelsCommitment {
             output: output_labels.output.clone(),
             commitments,
         }
-    }
-
-    pub(crate) fn from_unchecked(
-        output: Output,
-        unchecked: unchecked::UncheckedOutputLabelsCommitment,
-    ) -> Result<Self, Error> {
-        if unchecked.id != output.id || unchecked.commitments.len() != 2 * output.as_ref().len() {
-            return Err(Error::ValidationError(
-                "Invalid output labels commitment".to_string(),
-            ));
-        }
-
-        Ok(Self {
-            output,
-            commitments: unchecked
-                .commitments
-                .chunks_exact(2)
-                .map(|commitments| [commitments[0], commitments[1]])
-                .collect(),
-        })
     }
 
     /// We use a truncated SHA256 hash with a public salt to commit to the labels
@@ -828,6 +754,27 @@ pub(crate) mod unchecked {
         }
     }
 
+    impl InputLabels<WireLabel> {
+        /// Validates and converts input labels to checked variant
+        pub fn from_unchecked(
+            input: Input,
+            unchecked: UncheckedInputLabels,
+        ) -> Result<Self, Error> {
+            if unchecked.id != input.id || unchecked.labels.len() != input.as_ref().len() {
+                return Err(Error::InvalidOutputLabels);
+            }
+
+            let labels = unchecked
+                .labels
+                .into_iter()
+                .zip(input.as_ref().wires())
+                .map(|(label, id)| WireLabel::new(*id, label))
+                .collect();
+
+            Ok(Self { input, labels })
+        }
+    }
+
     /// Output labels which have not been validated
     #[derive(Debug, Clone)]
     pub struct UncheckedOutputLabels {
@@ -842,6 +789,27 @@ pub(crate) mod unchecked {
                 id: labels.id(),
                 labels: labels.labels.into_iter().map(|label| label.value).collect(),
             }
+        }
+    }
+
+    impl OutputLabels<WireLabel> {
+        /// Validates and converts output labels to checked variant
+        pub fn from_unchecked(
+            output: Output,
+            unchecked: UncheckedOutputLabels,
+        ) -> Result<Self, Error> {
+            if unchecked.id != output.id || unchecked.labels.len() != output.as_ref().len() {
+                return Err(Error::InvalidOutputLabels);
+            }
+
+            let labels = unchecked
+                .labels
+                .into_iter()
+                .zip(output.as_ref().wires())
+                .map(|(label, id)| WireLabel::new(*id, label))
+                .collect();
+
+            Ok(Self { output, labels })
         }
     }
 
@@ -864,6 +832,22 @@ pub(crate) mod unchecked {
         }
     }
 
+    impl OutputLabelsDecodingInfo {
+        pub fn from_unchecked(
+            output: Output,
+            unchecked: UncheckedOutputLabelsDecodingInfo,
+        ) -> Result<Self, Error> {
+            if unchecked.id != output.id || unchecked.decoding.len() != output.as_ref().len() {
+                return Err(Error::InvalidLabelDecodingInfo);
+            }
+
+            Ok(Self {
+                output,
+                decoding: unchecked.decoding,
+            })
+        }
+    }
+
     /// Output label commitments which haven't been validated against a circuit spec
     #[derive(Debug, Clone)]
     pub struct UncheckedOutputLabelsCommitment {
@@ -878,6 +862,29 @@ pub(crate) mod unchecked {
                 id: commitment.output.id,
                 commitments: commitment.commitments.into_iter().flatten().collect(),
             }
+        }
+    }
+
+    impl OutputLabelsCommitment {
+        pub(crate) fn from_unchecked(
+            output: Output,
+            unchecked: UncheckedOutputLabelsCommitment,
+        ) -> Result<Self, Error> {
+            if unchecked.id != output.id || unchecked.commitments.len() != 2 * output.as_ref().len()
+            {
+                return Err(Error::ValidationError(
+                    "Invalid output labels commitment".to_string(),
+                ));
+            }
+
+            Ok(Self {
+                output,
+                commitments: unchecked
+                    .commitments
+                    .chunks_exact(2)
+                    .map(|commitments| [commitments[0], commitments[1]])
+                    .collect(),
+            })
         }
     }
 }
