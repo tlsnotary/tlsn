@@ -285,8 +285,9 @@ impl InputLabels<WireLabelPair> {
 
     /// Returns input wire labels corresponding to an [`InputValue`]
     pub fn select(&self, value: &InputValue) -> Result<InputLabels<WireLabel>, Error> {
-        // TODO: Don't panic, return proper error
-        assert_eq!(value.id(), self.input.id);
+        if self.input.id != value.id() {
+            return Err(Error::InvalidInputLabels);
+        }
 
         let labels: Vec<WireLabel> = self
             .labels
@@ -452,8 +453,9 @@ impl OutputLabels<WireLabelPair> {
 
     /// Returns output wire labels corresponding to an [`OutputValue`]
     pub fn select(&self, value: &OutputValue) -> Result<OutputLabels<WireLabel>, Error> {
-        // TODO: Don't panic, return proper error
-        assert_eq!(value.id(), self.output.id);
+        if self.output.id != value.id() {
+            return Err(Error::InvalidOutputLabels);
+        }
 
         let labels: Vec<WireLabel> = self
             .labels
