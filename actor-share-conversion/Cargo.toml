@@ -1,0 +1,17 @@
+[package]
+name = "actor-share-conversion"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+share-conversion-aio = { path =  "../share-conversion-aio" }
+share-conversion-core = { path = "../share-conversion-core" }
+actor-mux = { path = "../actor-mux" }
+tlsn-mpc-aio = { path = "../mpc-aio" }
+xtra = { workspace = true, features = [
+    "macros",
+], default-features = false }
+tlsn-utils-aio = { path = "../utils-aio" }
+thiserror.workspace = true

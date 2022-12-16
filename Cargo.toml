@@ -2,6 +2,7 @@
 members = [
     "actor-mux",
     "actor-ot",
+    "actor-share-conversion",
     "tls-core",
     "mpc-core",
     "mpc-aio",
