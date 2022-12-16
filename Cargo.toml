@@ -7,7 +7,7 @@ members = [
     "mpc-circuits",
     "tls-circuits",
     "tls-2pc-core",
-    "tls-2pc-aio",
+    #"tls-2pc-aio",
     "utils",
     "utils-aio",
     "clmul",
@@ -63,7 +63,6 @@ pretty_assertions = "1"
 hmac = "0.12"
 once_cell = "1"
 ghash_rc = { package = "ghash", version = "0.4" }
-curv = { package = "curv-kzen", version = "0.9" }
 num = "0.4"
 generic-array = "0.14"
 num-bigint = "0.4"
