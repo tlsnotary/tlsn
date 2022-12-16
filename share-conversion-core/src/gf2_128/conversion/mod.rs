@@ -42,9 +42,9 @@ where
 
     /// Create a share of type `Self::Output` from the result of an oblivious transfer (OT)
     ///
-    /// The `value` needs to be built from the output of an OT
-    fn from_choice(value: &[u128]) -> Self::Output {
-        Self::Output::new(value.iter().fold(0, |acc, i| acc ^ i))
+    /// The `values` needs to be built from the output of an OT
+    fn from_sender_values(values: &[u128]) -> Self::Output {
+        Self::Output::new(values.iter().fold(0, |acc, i| acc ^ i))
     }
 
     /// Prepares a share for conversion in an OT
@@ -128,7 +128,7 @@ mod tests {
         let (x, sharings) = a.convert_to_additive(&mut rng).unwrap();
 
         let choice = mock_ot(sharings, b.inner());
-        let y = AddShare::from_choice(&choice);
+        let y = AddShare::from_sender_values(&choice);
 
         assert_eq!(mul(a.inner(), b.inner()), x.inner() ^ y.inner());
     }
@@ -142,7 +142,7 @@ mod tests {
         let (a, sharings) = x.convert_to_multiplicative(&mut rng).unwrap();
 
         let choice = mock_ot(sharings, y.inner());
-        let b = MulShare::from_choice(&choice);
+        let b = MulShare::from_sender_values(&choice);
 
         assert_eq!(x.inner() ^ y.inner(), mul(a.inner(), b.inner()));
     }

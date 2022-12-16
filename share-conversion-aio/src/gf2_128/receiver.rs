@@ -46,14 +46,14 @@ impl<
         if shares.is_empty() {
             return Ok(vec![]);
         }
+        let ot_number = shares.len() * 128;
 
         // Get choices for OT from shares
-        let mut choices: Vec<bool> = Vec::with_capacity(shares.len());
+        let mut choices: Vec<bool> = Vec::with_capacity(ot_number);
         shares.iter().for_each(|x| {
             let share = V::new(*x).choices();
             choices.extend_from_slice(&share);
         });
-        let ot_number = choices.len() * 128;
 
         // Get an OT receiver from factory
         let mut ot_receiver = self
@@ -68,7 +68,8 @@ impl<
         let converted_shares = ot_output
             .chunks(128)
             .map(|chunk| {
-                V::from_choice(&chunk.iter().map(|x| x.inner()).collect::<Vec<u128>>()).inner()
+                V::from_sender_values(&chunk.iter().map(|x| x.inner()).collect::<Vec<u128>>())
+                    .inner()
             })
             .collect();
 

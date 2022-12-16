@@ -80,7 +80,7 @@ where
             .sender_factory
             .new_sender(
                 format!("{}/{}/ot", &self.id, &self.counter),
-                ot_shares.len(),
+                ot_shares.len() * 128,
             )
             .await?;
 

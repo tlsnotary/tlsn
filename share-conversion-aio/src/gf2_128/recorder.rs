@@ -57,7 +57,7 @@ impl<T: Gf2_128ShareConvert> Recorder<T> for Tape {
             }
 
             // Now we check if the outputs match
-            let expected = T::Output::from_choice(&ot_output);
+            let expected = T::Output::from_sender_values(&ot_output);
             if expected.inner() != *receiver_output {
                 return Err(ShareConversionError::VerifyTapeFailed);
             }
