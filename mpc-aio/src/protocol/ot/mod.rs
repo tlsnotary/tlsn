@@ -42,6 +42,8 @@ pub enum OTFactoryError {
     IOError(#[from] std::io::Error),
     #[error("unexpected message")]
     UnexpectedMessage(OTFactoryMessage),
+    #[error("{0} Sender expects {1} OTs, Receiver expects {2}")]
+    SplitMismatch(String, usize, usize),
     #[error("other: {0}")]
     Other(String),
 }
