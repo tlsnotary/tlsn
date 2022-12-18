@@ -105,11 +105,12 @@ where
     V: Recorder<AddShare> + Send,
 {
     type FieldElement = u128;
+    type Error = ShareConversionError;
 
     async fn a_to_m(
         &mut self,
         input: &[Self::FieldElement],
-    ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
+    ) -> Result<Vec<Self::FieldElement>, Self::Error> {
         let output = self.convert_from(input).await?;
         self.recorder.record_for_receiver(input, &output);
         Ok(output)
@@ -124,11 +125,12 @@ where
     V: Recorder<MulShare> + Send,
 {
     type FieldElement = u128;
+    type Error = ShareConversionError;
 
     async fn m_to_a(
         &mut self,
         input: &[Self::FieldElement],
-    ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
+    ) -> Result<Vec<Self::FieldElement>, Self::Error> {
         let output = self.convert_from(input).await?;
         self.recorder.record_for_receiver(input, &output);
         Ok(output)

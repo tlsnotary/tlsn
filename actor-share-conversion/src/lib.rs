@@ -1,10 +1,7 @@
 use share_conversion_aio::ShareConversionError;
 use utils_aio::mux::MuxerError;
 
-mod receiver;
-mod sender;
-
-pub use {receiver::Receiver, sender::Sender};
+pub mod gf2_128;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ActorConversionError {
@@ -12,4 +9,6 @@ pub enum ActorConversionError {
     ShareConversionError(#[from] ShareConversionError),
     #[error("MuxerError: {0}")]
     MuxerError(#[from] MuxerError),
+    #[error("ActorError: {0}")]
+    ActorError(#[from] xtra::Error),
 }

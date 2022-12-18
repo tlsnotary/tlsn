@@ -21,7 +21,9 @@ pub use sender::Sender;
 /// party. This will allow the other party to compute all outputs of the sender.
 #[async_trait]
 pub trait SendTape {
-    async fn send_tape(self) -> Result<(), ShareConversionError>;
+    type Error: std::error::Error;
+
+    async fn send_tape(self) -> Result<(), Self::Error>;
 }
 
 /// Verify the recorded inputs of the other party
