@@ -7,7 +7,7 @@ use mpc_aio::protocol::ot::{
     kos::receiver::Kos15IOReceiver, OTFactoryError, OTReceiverFactory, ObliviousAcceptCommit,
     ObliviousReceive,
 };
-use xtra::prelude::*;
+use xtra::{prelude::*, scoped};
 
 use crate::{config::ReceiverFactoryConfig, GetReceiver, Setup};
 use mpc_core::{
@@ -101,12 +101,15 @@ where
         config: ReceiverFactoryConfig,
         addr: Address<Self>,
         channel: T,
-        mux_control_child: U,
-    ) -> (Self, impl Future<Output = Result<(), OTFactoryError>>) {
+        mux_control: U,
+    ) -> (
+        Self,
+        impl Future<Output = Option<Result<(), OTFactoryError>>>,
+    ) {
         let (sink, mut stream) = channel.split();
         let (sender, receiver) = oneshot::channel();
 
-        let fut = async move {
+        let fut = scoped(&addr.clone(), async move {
             // wait for actor to signal that it is setup before we start
             // processing these messages
             _ = receiver.await;
@@ -120,13 +123,13 @@ where
                 };
             }
             Ok(())
-        };
+        });
 
         (
             Self {
                 config,
                 _sink: sink,
-                mux_control: mux_control_child,
+                mux_control,
                 state: State::Initialized(sender),
                 child_buffer: HashMap::default(),
                 pending_buffer: HashMap::default(),

@@ -5,7 +5,7 @@ use mpc_aio::protocol::ot::{
     kos::sender::Kos15IOSender, OTFactoryError, OTSenderFactory, ObliviousCommit, ObliviousReveal,
     ObliviousSend,
 };
-use xtra::prelude::*;
+use xtra::{prelude::*, scoped};
 
 use crate::{config::SenderFactoryConfig, GetSender, Setup, Verify};
 use mpc_core::{
@@ -92,25 +92,28 @@ where
 {
     pub fn new(
         config: SenderFactoryConfig,
-        _addr: Address<Self>,
+        addr: Address<Self>,
         channel: T,
-        mux_control_child: U,
-    ) -> (Self, impl Future<Output = Result<(), OTFactoryError>>) {
+        mux_control: U,
+    ) -> (
+        Self,
+        impl Future<Output = Option<Result<(), OTFactoryError>>>,
+    ) {
         let (sink, mut stream) = channel.split();
 
-        let fut = async move {
+        let fut = scoped(&addr, async move {
             while let Some(_) = stream.next().await {
                 // The receiver factory shouldn't send messages
                 unimplemented!();
             }
             Ok(())
-        };
+        });
 
         (
             Self {
                 config,
                 sink,
-                mux_control: mux_control_child,
+                mux_control,
                 state: State::Initialized,
             },
             fut,
