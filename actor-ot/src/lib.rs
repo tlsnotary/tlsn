@@ -21,15 +21,20 @@ pub struct GetReceiver {
     count: usize,
 }
 
+pub struct Verify;
+
 #[cfg(test)]
 mod test {
+    use std::time::Duration;
+
     use super::*;
 
     use actor_mux::{
         MockClientChannelMuxer, MockClientControl, MockServerChannelMuxer, MockServerControl,
     };
     use mpc_aio::protocol::ot::{
-        OTFactoryError, OTReceiverFactory, OTSenderFactory, ObliviousReceive, ObliviousSend,
+        OTFactoryError, OTReceiverFactory, OTSenderFactory, ObliviousReceive, ObliviousReveal,
+        ObliviousSend, ObliviousVerify,
     };
     use mpc_core::{msgs::ot::OTFactoryMessage, Block};
     use utils_aio::{mux::MuxChannelControl, Channel};
@@ -250,6 +255,78 @@ mod test {
                 .new_receiver(id.to_string(), 10)
                 .await
                 .unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn test_ot_factory_committed_ot() {
+        let split_count = 3;
+        let split_size = 10;
+
+        let sender_config = SenderFactoryConfigBuilder::default()
+            .initial_count(split_count * split_size)
+            .committed()
+            .build()
+            .unwrap();
+        let receiver_config = ReceiverFactoryConfigBuilder::default()
+            .initial_count(split_count * split_size)
+            .committed()
+            .build()
+            .unwrap();
+
+        let (mut sender_control, receiver_control) =
+            create_setup_pair(sender_config, receiver_config).await;
+
+        let mut handles = Vec::with_capacity(split_count);
+
+        for id in 0..split_count {
+            {
+                let mut sender_control = sender_control.clone();
+                let mut receiver_control = receiver_control.clone();
+
+                handles.push(tokio::spawn(async move {
+                    let mut sender = sender_control
+                        .new_sender(id.to_string(), split_size)
+                        .await
+                        .unwrap();
+
+                    let mut receiver = receiver_control
+                        .new_receiver(id.to_string(), split_size)
+                        .await
+                        .unwrap();
+
+                    let messages = vec![[Block::new(420), Block::new(69)]; split_size];
+                    let choices = vec![false; split_size];
+
+                    let (send, receive) =
+                        tokio::join!(sender.send(messages.clone()), receiver.receive(&choices));
+                    send.unwrap();
+                    _ = receive.unwrap();
+
+                    sender.reveal().await.unwrap();
+                    receiver.verify(messages).await.unwrap();
+                }))
+            }
+        }
+
+        // sleep to make sure all tasks hit the barrier
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // assert that the tasks haven't finished yet (they should be blocked on the barrier)
+        assert!(handles.iter().any(|handle| !handle.is_finished()));
+
+        sender_control
+            .address()
+            .send(Verify)
+            .await
+            .unwrap()
+            .unwrap();
+
+        // sleep to make sure all tasks finish
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        for handle in handles {
+            handle.await.unwrap();
         }
     }
 }

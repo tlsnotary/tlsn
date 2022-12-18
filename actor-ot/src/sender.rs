@@ -2,11 +2,12 @@ use async_trait::async_trait;
 
 use futures::{stream::SplitSink, Future, SinkExt, StreamExt};
 use mpc_aio::protocol::ot::{
-    kos::sender::Kos15IOSender, OTFactoryError, OTSenderFactory, ObliviousSend,
+    kos::sender::Kos15IOSender, OTFactoryError, OTSenderFactory, ObliviousCommit, ObliviousReveal,
+    ObliviousSend,
 };
 use xtra::prelude::*;
 
-use crate::{config::SenderFactoryConfig, GetSender, Setup};
+use crate::{config::SenderFactoryConfig, GetSender, Setup, Verify};
 use mpc_core::{
     msgs::ot::{OTFactoryMessage, OTMessage, Split},
     ot::s_state::RandSetup,
@@ -27,8 +28,13 @@ pub struct KOSSenderFactory<T, U> {
     state: State,
 }
 
-#[derive(Clone)]
 pub struct SenderFactoryControl<T>(Address<T>);
+
+impl<T> Clone for SenderFactoryControl<T> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
 
 impl<T, S> SenderFactoryControl<T>
 where
@@ -40,6 +46,12 @@ where
         Self(addr)
     }
 
+    /// Returns mutable reference to address
+    pub fn address(&mut self) -> &mut Address<T> {
+        &mut self.0
+    }
+
+    /// Sends setup message to actor
     pub async fn setup(&mut self) -> Result<(), OTFactoryError> {
         self.0
             .send(Setup)
@@ -47,6 +59,7 @@ where
             .map_err(|e| OTFactoryError::Other(e.to_string()))?
     }
 
+    /// Requests sender from actor
     pub async fn get_sender(&mut self, id: String, count: usize) -> Result<S, OTFactoryError> {
         self.0
             .send(GetSender { id, count })
@@ -129,9 +142,13 @@ where
             .mux_control
             .get_channel(self.config.ot_id.clone())
             .await?;
-        let parent_ot = Kos15IOSender::new(parent_ot_channel)
-            .rand_setup(self.config.initial_count)
-            .await?;
+        let mut parent_ot = Kos15IOSender::new(parent_ot_channel);
+
+        if self.config.committed {
+            parent_ot.commit().await?;
+        }
+
+        let parent_ot = parent_ot.rand_setup(self.config.initial_count).await?;
 
         self.state = State::Setup(parent_ot);
 
@@ -177,5 +194,36 @@ where
         self.state = State::Setup(parent_ot);
 
         Ok(child_ot)
+    }
+}
+
+#[async_trait]
+impl<T, U> Handler<Verify> for KOSSenderFactory<T, U>
+where
+    T: Channel<OTFactoryMessage, Error = std::io::Error> + Send + 'static,
+    U: MuxChannelControl<OTMessage> + Send + 'static,
+{
+    type Return = Result<(), OTFactoryError>;
+
+    async fn handle(&mut self, _msg: Verify, ctx: &mut Context<Self>) -> Self::Return {
+        if !self.config.committed {
+            return Err(OTFactoryError::Other(
+                "KOSSenderFactory not configured for committed OT".to_string(),
+            ));
+        }
+
+        // Leave actor in error state
+        let state = std::mem::replace(&mut self.state, State::Error);
+
+        let State::Setup(parent_ot) = state else {
+            return Err(OTFactoryError::Other("KOSSenderFactory is not setup".to_string()));
+        };
+
+        parent_ot.reveal().await?;
+
+        // Shut down to ensure no other OTs are sent afterwards
+        ctx.stop_self();
+
+        Ok(())
     }
 }

@@ -4,7 +4,8 @@ use async_trait::async_trait;
 
 use futures::{channel::oneshot, stream::SplitSink, Future, StreamExt};
 use mpc_aio::protocol::ot::{
-    kos::receiver::Kos15IOReceiver, OTFactoryError, OTReceiverFactory, ObliviousReceive,
+    kos::receiver::Kos15IOReceiver, OTFactoryError, OTReceiverFactory, ObliviousAcceptCommit,
+    ObliviousReceive,
 };
 use xtra::prelude::*;
 
@@ -32,8 +33,13 @@ pub struct KOSReceiverFactory<T, U> {
         HashMap<String, oneshot::Sender<Result<Kos15IOReceiver<RandSetup>, OTFactoryError>>>,
 }
 
-#[derive(Clone)]
 pub struct ReceiverFactoryControl<T>(Address<T>);
+
+impl<T> Clone for ReceiverFactoryControl<T> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
 
 impl<T, S> ReceiverFactoryControl<T>
 where
@@ -45,6 +51,12 @@ where
         Self(addr)
     }
 
+    /// Returns mutable reference to address
+    pub fn address(&mut self) -> &mut Address<T> {
+        &mut self.0
+    }
+
+    /// Sends setup message to actor
     pub async fn setup(&mut self) -> Result<(), OTFactoryError> {
         self.0
             .send(Setup)
@@ -52,6 +64,7 @@ where
             .map_err(|e| OTFactoryError::Other(e.to_string()))?
     }
 
+    /// Requests receiver from actor
     pub async fn get_receiver(&mut self, id: String, count: usize) -> Result<S, OTFactoryError> {
         self.0
             .send(GetReceiver { id, count })
@@ -148,9 +161,14 @@ where
             .mux_control
             .get_channel(self.config.ot_id.clone())
             .await?;
-        let parent_ot = Kos15IOReceiver::new(parent_ot_channel)
-            .rand_setup(self.config.initial_count)
-            .await?;
+
+        let mut parent_ot = Kos15IOReceiver::new(parent_ot_channel);
+
+        if self.config.committed {
+            parent_ot.accept_commit().await?;
+        }
+
+        let parent_ot = parent_ot.rand_setup(self.config.initial_count).await?;
 
         self.state = State::Setup(parent_ot);
 
