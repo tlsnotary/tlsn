@@ -149,7 +149,12 @@ pub struct GarbledCircuit<S: State> {
     pub(crate) state: S,
 }
 
-/// Data used for opening a garbled circuit to the evaluator
+/// Data used for opening a garbled circuit (GC) to the evaluator.
+/// To enable the evaluator to check that a GC was generated correctly, the generator
+/// "opens" the GC.
+/// We rely on the property of the "half-gates" garbling scheme that given the input
+/// label pairs and the delta, a GC will always be generated deterministically.
+/// We assume that the evaluator is already in posession of their active input labels.
 #[derive(Debug, Clone)]
 pub struct CircuitOpening {
     pub(crate) delta: Delta,
@@ -442,7 +447,7 @@ impl GarbledCircuit<Evaluated> {
         decode_output_labels(&self.circ, &self.state.output_labels, decoding)
     }
 
-    /// Validates circuit using [`Opening`]
+    /// Validates circuit using [`CircuitOpening`]
     pub fn validate(&self, opening: CircuitOpening) -> Result<(), Error> {
         validate_circuit(
             &Aes128::new_from_slice(&[0; 16]).unwrap(),
@@ -494,7 +499,7 @@ impl GarbledCircuit<Compressed> {
         decode_output_labels(&self.circ, &self.state.output_labels, decoding)
     }
 
-    /// Validates circuit using [`Opening`]
+    /// Validates circuit using [`CircuitOpening`]
     pub fn validate(&self, opening: CircuitOpening) -> Result<(), Error> {
         validate_circuit(
             &Aes128::new_from_slice(&[0; 16]).unwrap(),
@@ -911,7 +916,7 @@ pub(crate) mod unchecked {
         }
     }
 
-    /// Unchecked variant of [`Opening`]
+    /// Unchecked variant of [`CircuitOpening`]
     #[derive(Debug, Clone)]
     pub struct UncheckedCircuitOpening {
         pub(crate) delta: Delta,

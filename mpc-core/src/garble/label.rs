@@ -327,7 +327,7 @@ impl InputLabels<WireLabelPair> {
         }
     }
 
-    /// Reconstructs input label pairs from existing labels, delta, and value
+    /// Reconstructs input label pairs from existing labels, delta, and decoding info
     pub fn from_decoding(
         input_labels: InputLabels<WireLabel>,
         delta: Delta,
@@ -879,6 +879,7 @@ pub(crate) mod unchecked {
     /// For more information on label decoding see [`LabelDecodingInfo`]
     #[derive(Debug, Clone)]
     pub struct UncheckedInputLabelsDecodingInfo {
+        /// the id of the circuit [Input] which this decoding info is for
         pub(crate) id: usize,
         pub(crate) decoding: Vec<LabelDecodingInfo>,
     }
