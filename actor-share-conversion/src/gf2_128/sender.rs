@@ -1,3 +1,4 @@
+use super::{A2MMessage, M2AMessage, SendTapeMessage};
 use crate::ActorConversionError;
 use mpc_aio::protocol::ot::{OTSenderFactory, ObliviousSend};
 use share_conversion_aio::{
@@ -21,10 +22,6 @@ where
     inner: IOSender<T, U, V>,
 }
 
-pub struct M2AMessage<T>(T);
-pub struct A2MMessage<T>(T);
-pub struct SendTapeMessage;
-
 impl<T, U, V> Sender<T, U, V>
 where
     T: OTSenderFactory + Send,
@@ -33,7 +30,7 @@ where
     V: Recorder<U>,
 {
     pub async fn new<W: MuxChannelControl<Gf2ConversionMessage>>(
-        mut muxer: W,
+        muxer: &mut W,
         sender_factory: T,
         id: String,
         barrier: Option<AdaptiveBarrier>,
@@ -91,6 +88,7 @@ where
     T: Handler<SendTapeMessage, Return = Result<(), ActorConversionError>>,
 {
     type Error = ActorConversionError;
+
     async fn send_tape(self) -> Result<(), ActorConversionError> {
         self.0.send(SendTapeMessage).await?
     }
@@ -158,7 +156,6 @@ where
         _message: SendTapeMessage,
         _ctx: &mut Context<Self>,
     ) -> Self::Return {
-        // TODO: Solve &mut self vs self
         self.inner
             .send_tape()
             .await

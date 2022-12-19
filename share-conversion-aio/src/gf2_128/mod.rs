@@ -1,7 +1,6 @@
 //! This module implements the IO layer of share-conversion for field elements of
 //! GF(2^128), using oblivious transfer.
 
-use crate::ShareConversionError;
 use async_trait::async_trait;
 use share_conversion_core::gf2_128::{AddShare, Gf2_128ShareConvert, MulShare, OTEnvelope};
 use utils_aio::Channel;
@@ -32,7 +31,9 @@ pub trait SendTape {
 /// requires the malicious party to open and send all their inputs of the conversion before.
 #[async_trait]
 pub trait VerifyTape {
-    async fn verify_tape(self) -> Result<(), ShareConversionError>;
+    type Error: std::error::Error;
+
+    async fn verify_tape(self) -> Result<(), Self::Error>;
 }
 
 /// A channel used for messaging of conversion protocols

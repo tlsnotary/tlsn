@@ -144,7 +144,9 @@ where
     OT: ObliviousReceive<bool, Block> + Send,
     U: Gf2_128ShareConvert + Send,
 {
-    async fn verify_tape(mut self) -> Result<(), ShareConversionError> {
+    type Error = ShareConversionError;
+
+    async fn verify_tape(mut self) -> Result<(), Self::Error> {
         let message = self.channel.next().await.ok_or(std::io::Error::new(
             std::io::ErrorKind::ConnectionAborted,
             "stream closed unexpectedly",

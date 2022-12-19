@@ -10,6 +10,7 @@ share-conversion-aio = { path =  "../share-conversion-aio" }
 share-conversion-core = { path = "../share-conversion-core" }
 actor-mux = { path = "../actor-mux" }
 tlsn-mpc-aio = { path = "../mpc-aio" }
+tlsn-mpc-core = { path = "../mpc-core" }
 xtra = { workspace = true, features = [
     "macros",
 ], default-features = false }
