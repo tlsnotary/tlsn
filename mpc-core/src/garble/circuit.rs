@@ -823,8 +823,8 @@ pub(crate) mod unchecked {
         ) -> Result<Vec<OutputValue>, Error> {
             // Validate circuit id
             if &self.circ_id != circ.id() {
-                return Err(Error::PeerError(format!(
-                    "Received evaluated circuit with wrong id: expected {}, received {}",
+                return Err(Error::ValidationError(format!(
+                    "Received garbled output with wrong id: expected {}, received {}",
                     circ.id().as_ref(),
                     self.circ_id.as_ref()
                 )));
@@ -835,8 +835,8 @@ pub(crate) mod unchecked {
                 self.output_labels.iter().map(|output| output.id).collect();
 
             if output_ids.len() != self.output_labels.len() {
-                return Err(Error::PeerError(
-                    "Received garbled circuit with duplicate outputs".to_string(),
+                return Err(Error::ValidationError(
+                    "Received garbled output with duplicates".to_string(),
                 ));
             }
 
@@ -846,7 +846,11 @@ pub(crate) mod unchecked {
 
             // Check all outputs were received
             if self.output_labels.len() != circ.output_count() {
-                return Err(Error::InvalidOutputLabels);
+                return Err(Error::ValidationError(format!(
+                    "Received garbled output with wrong number of outputs: expected {}, received {}",
+                    circ.output_count(),
+                    self.output_labels.len()
+                )));
             }
 
             let output_labels = self
@@ -865,6 +869,275 @@ pub(crate) mod unchecked {
                     ev.decode(&full.decoding())
                 })
                 .collect::<Result<Vec<_>, Error>>()
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use aes::{Aes128, NewBlockCipher};
+        use rand_chacha::ChaCha12Rng;
+        use rand_core::SeedableRng;
+        use rstest::*;
+
+        use mpc_circuits::{Circuit, Input, ADDER_64, AES_128_REVERSE};
+
+        #[fixture]
+        fn circ() -> Circuit {
+            Circuit::load_bytes(ADDER_64).unwrap()
+        }
+
+        #[fixture]
+        fn input(circ: Circuit, #[default(0)] id: usize) -> Input {
+            circ.input(id).unwrap()
+        }
+
+        #[fixture]
+        fn garbled_circuit(circ: Circuit) -> GarbledCircuit<Full> {
+            let (input_labels, delta) =
+                InputLabels::generate(&mut ChaCha12Rng::seed_from_u64(0), &circ, None);
+            GarbledCircuit::generate(
+                &Aes128::new_from_slice(&[0; 16]).unwrap(),
+                Arc::new(circ),
+                delta,
+                &input_labels,
+            )
+            .unwrap()
+        }
+
+        #[fixture]
+        fn unchecked_garbled_circuit(
+            #[default(&[])] inputs: &[(usize, u64)],
+            garbled_circuit: GarbledCircuit<Full>,
+        ) -> UncheckedGarbledCircuit {
+            let input_values: Vec<InputValue> = inputs
+                .iter()
+                .map(|(id, value)| {
+                    garbled_circuit
+                        .circ
+                        .input(*id)
+                        .unwrap()
+                        .to_value(*value)
+                        .unwrap()
+                })
+                .collect();
+            garbled_circuit
+                .to_evaluator(&input_values, true, true)
+                .into()
+        }
+
+        #[fixture]
+        fn unchecked_garbled_output(
+            #[default(&[(0, 0), (1, 0)])] inputs: &[(usize, u64)],
+            garbled_circuit: GarbledCircuit<Full>,
+        ) -> UncheckedOutput {
+            let output_labels = garbled_circuit.output_labels();
+            let circ = garbled_circuit.circ;
+
+            let input_values: Vec<InputValue> = inputs
+                .iter()
+                .copied()
+                .map(|(id, value)| circ.input(id).unwrap().to_value(value).unwrap())
+                .collect();
+
+            let output_values = circ.evaluate(&input_values).unwrap();
+
+            UncheckedOutput {
+                circ_id: circ.id().clone(),
+                output_labels: output_labels
+                    .into_iter()
+                    .zip(&output_values)
+                    .map(|(labels, value)| labels.select(value).unwrap().into())
+                    .collect(),
+            }
+        }
+
+        // Test validation with different combinations of garbler inputs
+        #[rstest]
+        #[case(unchecked_garbled_circuit(&[], garbled_circuit(circ())))]
+        #[case(unchecked_garbled_circuit(&[(0,0)], garbled_circuit(circ())))]
+        #[case(unchecked_garbled_circuit(&[(0,0), (1, 0)], garbled_circuit(circ())))]
+        #[case(unchecked_garbled_circuit(&[(1, 0)], garbled_circuit(circ())))]
+        fn test_unchecked_garbled_circuit(
+            #[case] unchecked_garbled_circuit: UncheckedGarbledCircuit,
+            circ: Circuit,
+        ) {
+            GarbledCircuit::from_unchecked(Arc::new(circ), unchecked_garbled_circuit).unwrap();
+        }
+
+        #[rstest]
+        fn test_unchecked_garbled_circuit_wrong_id(
+            mut unchecked_garbled_circuit: UncheckedGarbledCircuit,
+            circ: Circuit,
+        ) {
+            unchecked_garbled_circuit.id =
+                Circuit::load_bytes(AES_128_REVERSE).unwrap().id().clone();
+            let err =
+                GarbledCircuit::from_unchecked(Arc::new(circ), unchecked_garbled_circuit.clone())
+                    .unwrap_err();
+
+            assert!(matches!(err, Error::ValidationError(_)));
+        }
+
+        #[rstest]
+        fn test_unchecked_garbled_circuit_wrong_gate_count(
+            mut unchecked_garbled_circuit: UncheckedGarbledCircuit,
+            circ: Circuit,
+        ) {
+            let circ = Arc::new(circ);
+            unchecked_garbled_circuit
+                .encrypted_gates
+                .push(Block::new(0));
+            let err =
+                GarbledCircuit::from_unchecked(circ.clone(), unchecked_garbled_circuit.clone())
+                    .unwrap_err();
+
+            assert!(matches!(err, Error::ValidationError(_)));
+
+            unchecked_garbled_circuit.encrypted_gates.pop();
+            unchecked_garbled_circuit.encrypted_gates.pop();
+            let err = GarbledCircuit::from_unchecked(circ, unchecked_garbled_circuit).unwrap_err();
+
+            assert!(matches!(err, Error::ValidationError(_)));
+        }
+
+        #[rstest]
+        fn test_unchecked_garbled_circuit_wrong_decoding_count(
+            mut unchecked_garbled_circuit: UncheckedGarbledCircuit,
+            circ: Circuit,
+        ) {
+            let circ = Arc::new(circ);
+            let dup = unchecked_garbled_circuit.decoding.as_ref().unwrap()[0].clone();
+            unchecked_garbled_circuit
+                .decoding
+                .as_mut()
+                .unwrap()
+                .push(dup);
+
+            let err =
+                GarbledCircuit::from_unchecked(circ.clone(), unchecked_garbled_circuit.clone())
+                    .unwrap_err();
+
+            assert!(matches!(err, Error::ValidationError(_)));
+
+            unchecked_garbled_circuit.decoding.as_mut().unwrap().pop();
+            unchecked_garbled_circuit.decoding.as_mut().unwrap().pop();
+
+            let err = GarbledCircuit::from_unchecked(circ, unchecked_garbled_circuit).unwrap_err();
+
+            assert!(matches!(err, Error::ValidationError(_)));
+        }
+
+        #[rstest]
+        fn test_unchecked_garbled_circuit_wrong_commitment_count(
+            mut unchecked_garbled_circuit: UncheckedGarbledCircuit,
+            circ: Circuit,
+        ) {
+            let circ = Arc::new(circ);
+            let dup = unchecked_garbled_circuit.commitments.as_ref().unwrap()[0].clone();
+            unchecked_garbled_circuit
+                .commitments
+                .as_mut()
+                .unwrap()
+                .push(dup);
+
+            let err =
+                GarbledCircuit::from_unchecked(circ.clone(), unchecked_garbled_circuit.clone())
+                    .unwrap_err();
+
+            assert!(matches!(err, Error::ValidationError(_)));
+
+            unchecked_garbled_circuit
+                .commitments
+                .as_mut()
+                .unwrap()
+                .pop();
+            unchecked_garbled_circuit
+                .commitments
+                .as_mut()
+                .unwrap()
+                .pop();
+
+            let err = GarbledCircuit::from_unchecked(circ, unchecked_garbled_circuit).unwrap_err();
+
+            assert!(matches!(err, Error::ValidationError(_)));
+        }
+
+        #[rstest]
+        fn test_unchecked_garbled_output(
+            unchecked_garbled_output: UncheckedOutput,
+            garbled_circuit: GarbledCircuit<Full>,
+        ) {
+            unchecked_garbled_output
+                .decode(&garbled_circuit.circ, &garbled_circuit.output_labels())
+                .unwrap();
+        }
+
+        #[rstest]
+        fn test_unchecked_garbled_output_wrong_id(
+            mut unchecked_garbled_output: UncheckedOutput,
+            garbled_circuit: GarbledCircuit<Full>,
+        ) {
+            unchecked_garbled_output.circ_id =
+                Circuit::load_bytes(AES_128_REVERSE).unwrap().id().clone();
+            let err = unchecked_garbled_output
+                .decode(&garbled_circuit.circ, &garbled_circuit.output_labels())
+                .unwrap_err();
+
+            assert!(matches!(err, Error::ValidationError(_)));
+        }
+
+        #[rstest]
+        fn test_unchecked_garbled_output_corrupt_label(
+            mut unchecked_garbled_output: UncheckedOutput,
+            garbled_circuit: GarbledCircuit<Full>,
+        ) {
+            unchecked_garbled_output.output_labels[0].labels[0] = Block::new(0);
+            let err = unchecked_garbled_output
+                .decode(&garbled_circuit.circ, &garbled_circuit.output_labels())
+                .unwrap_err();
+
+            assert!(matches!(err, Error::InvalidOutputLabels));
+        }
+
+        #[rstest]
+        fn test_unchecked_garbled_output_wrong_label_count(
+            mut unchecked_garbled_output: UncheckedOutput,
+            garbled_circuit: GarbledCircuit<Full>,
+        ) {
+            unchecked_garbled_output.output_labels[0].labels.pop();
+            let err = unchecked_garbled_output
+                .decode(&garbled_circuit.circ, &garbled_circuit.output_labels())
+                .unwrap_err();
+
+            assert!(matches!(err, Error::InvalidOutputLabels));
+        }
+
+        #[rstest]
+        fn test_unchecked_garbled_output_wrong_output_count(
+            mut unchecked_garbled_output: UncheckedOutput,
+            garbled_circuit: GarbledCircuit<Full>,
+        ) {
+            unchecked_garbled_output.output_labels.pop();
+            let err = unchecked_garbled_output
+                .decode(&garbled_circuit.circ, &garbled_circuit.output_labels())
+                .unwrap_err();
+
+            assert!(matches!(err, Error::ValidationError(_)));
+        }
+
+        #[rstest]
+        fn test_unchecked_garbled_output_duplicates(
+            mut unchecked_garbled_output: UncheckedOutput,
+            garbled_circuit: GarbledCircuit<Full>,
+        ) {
+            let dup = unchecked_garbled_output.output_labels[0].clone();
+            unchecked_garbled_output.output_labels.push(dup);
+            let err = unchecked_garbled_output
+                .decode(&garbled_circuit.circ, &garbled_circuit.output_labels())
+                .unwrap_err();
+
+            assert!(matches!(err, Error::ValidationError(_)));
         }
     }
 }

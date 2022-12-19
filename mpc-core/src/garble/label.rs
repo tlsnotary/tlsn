@@ -763,7 +763,7 @@ pub(crate) mod unchecked {
             unchecked: UncheckedInputLabels,
         ) -> Result<Self, Error> {
             if unchecked.id != input.id || unchecked.labels.len() != input.as_ref().len() {
-                return Err(Error::InvalidOutputLabels);
+                return Err(Error::InvalidInputLabels);
             }
 
             let labels = unchecked
@@ -887,6 +887,183 @@ pub(crate) mod unchecked {
                     .map(|commitments| [commitments[0], commitments[1]])
                     .collect(),
             })
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use rstest::*;
+
+        use mpc_circuits::{Circuit, ADDER_64};
+
+        #[fixture]
+        fn circ() -> Circuit {
+            Circuit::load_bytes(ADDER_64).unwrap()
+        }
+
+        #[fixture]
+        fn input(circ: Circuit) -> Input {
+            circ.input(0).unwrap()
+        }
+
+        #[fixture]
+        fn output(circ: Circuit) -> Output {
+            circ.output(0).unwrap()
+        }
+
+        #[fixture]
+        fn unchecked_input_labels(input: Input) -> UncheckedInputLabels {
+            UncheckedInputLabels {
+                id: input.id,
+                labels: vec![Block::new(0); input.as_ref().len()],
+            }
+        }
+
+        #[fixture]
+        fn unchecked_output_labels(output: Output) -> UncheckedOutputLabels {
+            UncheckedOutputLabels {
+                id: output.id,
+                labels: vec![Block::new(0); output.as_ref().len()],
+            }
+        }
+
+        #[fixture]
+        fn unchecked_output_labels_decoding_info(
+            output: Output,
+        ) -> UncheckedOutputLabelsDecodingInfo {
+            UncheckedOutputLabelsDecodingInfo {
+                id: output.id,
+                decoding: vec![LabelDecodingInfo(false); output.as_ref().len()],
+            }
+        }
+
+        #[fixture]
+        fn unchecked_output_labels_commitment(output: Output) -> UncheckedOutputLabelsCommitment {
+            UncheckedOutputLabelsCommitment {
+                id: output.id,
+                commitments: vec![Block::new(0); 2 * output.as_ref().len()],
+            }
+        }
+
+        #[rstest]
+        fn test_input_labels(input: Input, unchecked_input_labels: UncheckedInputLabels) {
+            InputLabels::from_unchecked(input, unchecked_input_labels).unwrap();
+        }
+
+        #[rstest]
+        fn test_input_labels_wrong_id(
+            input: Input,
+            mut unchecked_input_labels: UncheckedInputLabels,
+        ) {
+            unchecked_input_labels.id += 1;
+            let err = InputLabels::from_unchecked(input, unchecked_input_labels).unwrap_err();
+            assert!(matches!(err, Error::InvalidInputLabels))
+        }
+
+        #[rstest]
+        fn test_input_labels_wrong_count(
+            input: Input,
+            mut unchecked_input_labels: UncheckedInputLabels,
+        ) {
+            unchecked_input_labels.labels.pop();
+            let err = InputLabels::from_unchecked(input, unchecked_input_labels).unwrap_err();
+            assert!(matches!(err, Error::InvalidInputLabels))
+        }
+
+        #[rstest]
+        fn test_output_labels(output: Output, unchecked_output_labels: UncheckedOutputLabels) {
+            OutputLabels::from_unchecked(output, unchecked_output_labels).unwrap();
+        }
+
+        #[rstest]
+        fn test_output_labels_wrong_id(
+            output: Output,
+            mut unchecked_output_labels: UncheckedOutputLabels,
+        ) {
+            unchecked_output_labels.id += 1;
+            let err = OutputLabels::from_unchecked(output, unchecked_output_labels).unwrap_err();
+            assert!(matches!(err, Error::InvalidOutputLabels))
+        }
+
+        #[rstest]
+        fn test_output_labels_wrong_count(
+            output: Output,
+            mut unchecked_output_labels: UncheckedOutputLabels,
+        ) {
+            unchecked_output_labels.labels.pop();
+            let err = OutputLabels::from_unchecked(output, unchecked_output_labels).unwrap_err();
+            assert!(matches!(err, Error::InvalidOutputLabels))
+        }
+
+        #[rstest]
+        fn test_output_labels_decoding_info(
+            output: Output,
+            unchecked_output_labels_decoding_info: UncheckedOutputLabelsDecodingInfo,
+        ) {
+            OutputLabelsDecodingInfo::from_unchecked(output, unchecked_output_labels_decoding_info)
+                .unwrap();
+        }
+
+        #[rstest]
+        fn test_output_labels_decoding_info_wrong_id(
+            output: Output,
+            mut unchecked_output_labels_decoding_info: UncheckedOutputLabelsDecodingInfo,
+        ) {
+            unchecked_output_labels_decoding_info.id += 1;
+            let err = OutputLabelsDecodingInfo::from_unchecked(
+                output,
+                unchecked_output_labels_decoding_info,
+            )
+            .unwrap_err();
+            assert!(matches!(err, Error::InvalidLabelDecodingInfo))
+        }
+
+        #[rstest]
+        fn test_output_labels_decoding_info_wrong_count(
+            output: Output,
+            mut unchecked_output_labels_decoding_info: UncheckedOutputLabelsDecodingInfo,
+        ) {
+            unchecked_output_labels_decoding_info.decoding.pop();
+            let err = OutputLabelsDecodingInfo::from_unchecked(
+                output,
+                unchecked_output_labels_decoding_info,
+            )
+            .unwrap_err();
+            assert!(matches!(err, Error::InvalidLabelDecodingInfo))
+        }
+
+        #[rstest]
+        fn test_output_labels_commitment(
+            output: Output,
+            unchecked_output_labels_commitment: UncheckedOutputLabelsCommitment,
+        ) {
+            OutputLabelsCommitment::from_unchecked(output, unchecked_output_labels_commitment)
+                .unwrap();
+        }
+
+        #[rstest]
+        fn test_output_labels_commitment_wrong_id(
+            output: Output,
+            mut unchecked_output_labels_commitment: UncheckedOutputLabelsCommitment,
+        ) {
+            unchecked_output_labels_commitment.id += 1;
+            let err =
+                OutputLabelsCommitment::from_unchecked(output, unchecked_output_labels_commitment)
+                    .unwrap_err();
+            assert!(matches!(err, Error::ValidationError(_)))
+        }
+
+        #[rstest]
+        fn test_output_labels_commitment_wrong_count(
+            output: Output,
+            mut unchecked_output_labels_commitment: UncheckedOutputLabelsCommitment,
+        ) {
+            unchecked_output_labels_commitment.commitments.pop();
+            let err =
+                OutputLabelsCommitment::from_unchecked(output, unchecked_output_labels_commitment)
+                    .unwrap_err();
+            assert!(matches!(err, Error::ValidationError(_)))
         }
     }
 }
