@@ -92,7 +92,7 @@ where
             GCError::Unexpected
         )?;
 
-        let gc_ev = GarbledCircuit::<gc_state::Partial>::from_msg(circ, msg)?;
+        let gc_ev = GarbledCircuit::<gc_state::Partial>::from_unchecked(circ, msg.into())?;
         let labels_ev = self.label_receiver.receive_labels(inputs.to_vec()).await?;
 
         let evaluated_gc = self.backend.evaluate(gc_ev, &labels_ev).await?;
@@ -192,7 +192,8 @@ where
             GarbleMessage::GarbledCircuit,
             GCError::Unexpected
         )?;
-        let gc_ev = GarbledCircuit::<gc_state::Partial>::from_msg(circ, msg)?;
+
+        let gc_ev = GarbledCircuit::<gc_state::Partial>::from_unchecked(circ, msg.into())?;
         let labels_ev = self.label_receiver.receive_labels(inputs.to_vec()).await?;
 
         let evaluated_gc = self.backend.evaluate(gc_ev, &labels_ev).await?;

@@ -487,6 +487,11 @@ pub struct Circuit {
     /// Total number of XOR gates
     pub(crate) xor_count: usize,
 
+    /// All input ids in ascending order
+    pub(crate) input_ids: Vec<usize>,
+    /// All output ids in ascending order
+    pub(crate) output_ids: Vec<usize>,
+
     /// Groups of wires corresponding to circuit inputs
     pub(crate) inputs: Vec<Input>,
     /// Constant inputs
@@ -549,6 +554,8 @@ impl Circuit {
             wire_count: info.wire_count,
             and_count: info.and_count,
             xor_count: info.xor_count,
+            input_ids: inputs.iter().map(|input| input.id).collect(),
+            output_ids: outputs.iter().map(|output| output.id).collect(),
             inputs,
             const_inputs,
             outputs,
@@ -577,6 +584,8 @@ impl Circuit {
             wire_count: info.wire_count,
             and_count: info.and_count,
             xor_count: info.xor_count,
+            input_ids: inputs.iter().map(|input| input.id).collect(),
+            output_ids: outputs.iter().map(|output| output.id).collect(),
             inputs,
             const_inputs,
             outputs,
@@ -843,6 +852,16 @@ impl Circuit {
         self.inputs.iter().map(|input| input.as_ref().len()).sum()
     }
 
+    /// Returns all input ids in ascending order
+    pub fn input_ids(&self) -> &[usize] {
+        &self.input_ids
+    }
+
+    /// Returns whether the provided id is a valid input id
+    pub fn is_input_id(&self, id: usize) -> bool {
+        self.input_ids.binary_search(&id).is_ok()
+    }
+
     /// Returns group corresponding to output id
     pub fn output(&self, id: usize) -> Result<Output, CircuitError> {
         self.outputs
@@ -867,6 +886,16 @@ impl Circuit {
             .iter()
             .map(|output| output.as_ref().len())
             .sum()
+    }
+
+    /// Returns all output ids in ascending order
+    pub fn output_ids(&self) -> &[usize] {
+        &self.output_ids
+    }
+
+    /// Returns whether the provided id is a valid output id
+    pub fn is_output_id(&self, id: usize) -> bool {
+        self.output_ids.binary_search(&id).is_ok()
     }
 
     /// Returns circuit gates

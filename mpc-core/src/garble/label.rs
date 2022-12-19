@@ -285,8 +285,9 @@ impl InputLabels<WireLabelPair> {
 
     /// Returns input wire labels corresponding to an [`InputValue`]
     pub fn select(&self, value: &InputValue) -> Result<InputLabels<WireLabel>, Error> {
-        // TODO: Don't panic, return proper error
-        assert_eq!(value.id(), self.input.id);
+        if self.input.id != value.id() {
+            return Err(Error::InvalidInputLabels);
+        }
 
         let labels: Vec<WireLabel> = self
             .labels
@@ -423,6 +424,20 @@ impl<T: Copy> OutputLabels<T> {
     pub fn id(&self) -> usize {
         self.output.id
     }
+
+    #[cfg(test)]
+    /// Returns label at position idx
+    ///
+    /// Panics if idx is not in range
+    pub fn get_label(&self, idx: usize) -> &T {
+        &self.labels[idx]
+    }
+
+    #[cfg(test)]
+    /// Set the value of a wire label at position idx
+    pub fn set_label(&mut self, idx: usize, label: T) {
+        self.labels[idx] = label;
+    }
 }
 
 impl OutputLabels<WireLabelPair> {
@@ -438,8 +453,9 @@ impl OutputLabels<WireLabelPair> {
 
     /// Returns output wire labels corresponding to an [`OutputValue`]
     pub fn select(&self, value: &OutputValue) -> Result<OutputLabels<WireLabel>, Error> {
-        // TODO: Don't panic, return proper error
-        assert_eq!(value.id(), self.output.id);
+        if self.output.id != value.id() {
+            return Err(Error::InvalidOutputLabels);
+        }
 
         let labels: Vec<WireLabel> = self
             .labels
@@ -509,6 +525,13 @@ impl<T> AsRef<[T]> for OutputLabels<T> {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LabelDecodingInfo(bool);
 
+impl From<bool> for LabelDecodingInfo {
+    #[inline]
+    fn from(value: bool) -> Self {
+        Self(value)
+    }
+}
+
 impl Deref for LabelDecodingInfo {
     type Target = bool;
 
@@ -525,20 +548,6 @@ pub struct OutputLabelsDecodingInfo {
 }
 
 impl OutputLabelsDecodingInfo {
-    pub(crate) fn new(output: Output, decoding: Vec<bool>) -> Result<Self, Error> {
-        if output.as_ref().len() != decoding.len() {
-            return Err(Error::InvalidLabelDecodingInfo);
-        }
-
-        Ok(Self {
-            output,
-            decoding: decoding
-                .into_iter()
-                .map(|enc| LabelDecodingInfo(enc))
-                .collect(),
-        })
-    }
-
     fn from_labels(labels: &OutputLabels<WireLabelPair>) -> Self {
         Self {
             output: labels.output.clone(),
@@ -548,6 +557,11 @@ impl OutputLabelsDecodingInfo {
                 .map(|label| LabelDecodingInfo(label.low().lsb() == 1))
                 .collect::<Vec<LabelDecodingInfo>>(),
         }
+    }
+
+    #[cfg(test)]
+    pub fn set_decoding(&mut self, idx: usize, value: bool) {
+        self.decoding[idx] = LabelDecodingInfo(value);
     }
 }
 
@@ -720,6 +734,338 @@ pub(crate) fn decode_output_labels(
         .zip(decoding.iter())
         .map(|(labels, decoding)| labels.decode(decoding))
         .collect::<Result<Vec<OutputValue>, Error>>()
+}
+
+pub(crate) mod unchecked {
+    use super::*;
+
+    /// Input labels which have not been validated
+    #[derive(Debug, Clone)]
+    pub struct UncheckedInputLabels {
+        pub(crate) id: usize,
+        pub(crate) labels: Vec<Block>,
+    }
+
+    #[cfg(test)]
+    impl From<InputLabels<WireLabel>> for UncheckedInputLabels {
+        fn from(labels: InputLabels<WireLabel>) -> Self {
+            Self {
+                id: labels.id(),
+                labels: labels.labels.into_iter().map(|label| label.value).collect(),
+            }
+        }
+    }
+
+    impl InputLabels<WireLabel> {
+        /// Validates and converts input labels to checked variant
+        pub fn from_unchecked(
+            input: Input,
+            unchecked: UncheckedInputLabels,
+        ) -> Result<Self, Error> {
+            if unchecked.id != input.id || unchecked.labels.len() != input.as_ref().len() {
+                return Err(Error::InvalidInputLabels);
+            }
+
+            let labels = unchecked
+                .labels
+                .into_iter()
+                .zip(input.as_ref().wires())
+                .map(|(label, id)| WireLabel::new(*id, label))
+                .collect();
+
+            Ok(Self { input, labels })
+        }
+    }
+
+    /// Output labels which have not been validated
+    #[derive(Debug, Clone)]
+    pub struct UncheckedOutputLabels {
+        pub(crate) id: usize,
+        pub(crate) labels: Vec<Block>,
+    }
+
+    #[cfg(test)]
+    impl From<OutputLabels<WireLabel>> for UncheckedOutputLabels {
+        fn from(labels: OutputLabels<WireLabel>) -> Self {
+            Self {
+                id: labels.id(),
+                labels: labels.labels.into_iter().map(|label| label.value).collect(),
+            }
+        }
+    }
+
+    impl OutputLabels<WireLabel> {
+        /// Validates and converts output labels to checked variant
+        pub fn from_unchecked(
+            output: Output,
+            unchecked: UncheckedOutputLabels,
+        ) -> Result<Self, Error> {
+            if unchecked.id != output.id || unchecked.labels.len() != output.as_ref().len() {
+                return Err(Error::InvalidOutputLabels);
+            }
+
+            let labels = unchecked
+                .labels
+                .into_iter()
+                .zip(output.as_ref().wires())
+                .map(|(label, id)| WireLabel::new(*id, label))
+                .collect();
+
+            Ok(Self { output, labels })
+        }
+    }
+
+    /// Output label decoding info which hasn't been validated against a circuit spec
+    ///
+    /// For more information on label decoding see [`LabelDecodingInfo`]
+    #[derive(Debug, Clone)]
+    pub struct UncheckedOutputLabelsDecodingInfo {
+        pub(crate) id: usize,
+        pub(crate) decoding: Vec<LabelDecodingInfo>,
+    }
+
+    #[cfg(test)]
+    impl From<OutputLabelsDecodingInfo> for UncheckedOutputLabelsDecodingInfo {
+        fn from(decoding: OutputLabelsDecodingInfo) -> Self {
+            Self {
+                id: decoding.output.id,
+                decoding: decoding.decoding,
+            }
+        }
+    }
+
+    impl OutputLabelsDecodingInfo {
+        pub fn from_unchecked(
+            output: Output,
+            unchecked: UncheckedOutputLabelsDecodingInfo,
+        ) -> Result<Self, Error> {
+            if unchecked.id != output.id || unchecked.decoding.len() != output.as_ref().len() {
+                return Err(Error::InvalidLabelDecodingInfo);
+            }
+
+            Ok(Self {
+                output,
+                decoding: unchecked.decoding,
+            })
+        }
+    }
+
+    /// Output label commitments which haven't been validated against a circuit spec
+    #[derive(Debug, Clone)]
+    pub struct UncheckedOutputLabelsCommitment {
+        pub(crate) id: usize,
+        pub(crate) commitments: Vec<Block>,
+    }
+
+    #[cfg(test)]
+    impl From<OutputLabelsCommitment> for UncheckedOutputLabelsCommitment {
+        fn from(commitment: OutputLabelsCommitment) -> Self {
+            Self {
+                id: commitment.output.id,
+                commitments: commitment.commitments.into_iter().flatten().collect(),
+            }
+        }
+    }
+
+    impl OutputLabelsCommitment {
+        pub(crate) fn from_unchecked(
+            output: Output,
+            unchecked: UncheckedOutputLabelsCommitment,
+        ) -> Result<Self, Error> {
+            if unchecked.id != output.id || unchecked.commitments.len() != 2 * output.as_ref().len()
+            {
+                return Err(Error::ValidationError(
+                    "Invalid output labels commitment".to_string(),
+                ));
+            }
+
+            Ok(Self {
+                output,
+                commitments: unchecked
+                    .commitments
+                    .chunks_exact(2)
+                    .map(|commitments| [commitments[0], commitments[1]])
+                    .collect(),
+            })
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use rstest::*;
+
+        use mpc_circuits::{Circuit, ADDER_64};
+
+        #[fixture]
+        fn circ() -> Circuit {
+            Circuit::load_bytes(ADDER_64).unwrap()
+        }
+
+        #[fixture]
+        fn input(circ: Circuit) -> Input {
+            circ.input(0).unwrap()
+        }
+
+        #[fixture]
+        fn output(circ: Circuit) -> Output {
+            circ.output(0).unwrap()
+        }
+
+        #[fixture]
+        fn unchecked_input_labels(input: Input) -> UncheckedInputLabels {
+            UncheckedInputLabels {
+                id: input.id,
+                labels: vec![Block::new(0); input.as_ref().len()],
+            }
+        }
+
+        #[fixture]
+        fn unchecked_output_labels(output: Output) -> UncheckedOutputLabels {
+            UncheckedOutputLabels {
+                id: output.id,
+                labels: vec![Block::new(0); output.as_ref().len()],
+            }
+        }
+
+        #[fixture]
+        fn unchecked_output_labels_decoding_info(
+            output: Output,
+        ) -> UncheckedOutputLabelsDecodingInfo {
+            UncheckedOutputLabelsDecodingInfo {
+                id: output.id,
+                decoding: vec![LabelDecodingInfo(false); output.as_ref().len()],
+            }
+        }
+
+        #[fixture]
+        fn unchecked_output_labels_commitment(output: Output) -> UncheckedOutputLabelsCommitment {
+            UncheckedOutputLabelsCommitment {
+                id: output.id,
+                commitments: vec![Block::new(0); 2 * output.as_ref().len()],
+            }
+        }
+
+        #[rstest]
+        fn test_input_labels(input: Input, unchecked_input_labels: UncheckedInputLabels) {
+            InputLabels::from_unchecked(input, unchecked_input_labels).unwrap();
+        }
+
+        #[rstest]
+        fn test_input_labels_wrong_id(
+            input: Input,
+            mut unchecked_input_labels: UncheckedInputLabels,
+        ) {
+            unchecked_input_labels.id += 1;
+            let err = InputLabels::from_unchecked(input, unchecked_input_labels).unwrap_err();
+            assert!(matches!(err, Error::InvalidInputLabels))
+        }
+
+        #[rstest]
+        fn test_input_labels_wrong_count(
+            input: Input,
+            mut unchecked_input_labels: UncheckedInputLabels,
+        ) {
+            unchecked_input_labels.labels.pop();
+            let err = InputLabels::from_unchecked(input, unchecked_input_labels).unwrap_err();
+            assert!(matches!(err, Error::InvalidInputLabels))
+        }
+
+        #[rstest]
+        fn test_output_labels(output: Output, unchecked_output_labels: UncheckedOutputLabels) {
+            OutputLabels::from_unchecked(output, unchecked_output_labels).unwrap();
+        }
+
+        #[rstest]
+        fn test_output_labels_wrong_id(
+            output: Output,
+            mut unchecked_output_labels: UncheckedOutputLabels,
+        ) {
+            unchecked_output_labels.id += 1;
+            let err = OutputLabels::from_unchecked(output, unchecked_output_labels).unwrap_err();
+            assert!(matches!(err, Error::InvalidOutputLabels))
+        }
+
+        #[rstest]
+        fn test_output_labels_wrong_count(
+            output: Output,
+            mut unchecked_output_labels: UncheckedOutputLabels,
+        ) {
+            unchecked_output_labels.labels.pop();
+            let err = OutputLabels::from_unchecked(output, unchecked_output_labels).unwrap_err();
+            assert!(matches!(err, Error::InvalidOutputLabels))
+        }
+
+        #[rstest]
+        fn test_output_labels_decoding_info(
+            output: Output,
+            unchecked_output_labels_decoding_info: UncheckedOutputLabelsDecodingInfo,
+        ) {
+            OutputLabelsDecodingInfo::from_unchecked(output, unchecked_output_labels_decoding_info)
+                .unwrap();
+        }
+
+        #[rstest]
+        fn test_output_labels_decoding_info_wrong_id(
+            output: Output,
+            mut unchecked_output_labels_decoding_info: UncheckedOutputLabelsDecodingInfo,
+        ) {
+            unchecked_output_labels_decoding_info.id += 1;
+            let err = OutputLabelsDecodingInfo::from_unchecked(
+                output,
+                unchecked_output_labels_decoding_info,
+            )
+            .unwrap_err();
+            assert!(matches!(err, Error::InvalidLabelDecodingInfo))
+        }
+
+        #[rstest]
+        fn test_output_labels_decoding_info_wrong_count(
+            output: Output,
+            mut unchecked_output_labels_decoding_info: UncheckedOutputLabelsDecodingInfo,
+        ) {
+            unchecked_output_labels_decoding_info.decoding.pop();
+            let err = OutputLabelsDecodingInfo::from_unchecked(
+                output,
+                unchecked_output_labels_decoding_info,
+            )
+            .unwrap_err();
+            assert!(matches!(err, Error::InvalidLabelDecodingInfo))
+        }
+
+        #[rstest]
+        fn test_output_labels_commitment(
+            output: Output,
+            unchecked_output_labels_commitment: UncheckedOutputLabelsCommitment,
+        ) {
+            OutputLabelsCommitment::from_unchecked(output, unchecked_output_labels_commitment)
+                .unwrap();
+        }
+
+        #[rstest]
+        fn test_output_labels_commitment_wrong_id(
+            output: Output,
+            mut unchecked_output_labels_commitment: UncheckedOutputLabelsCommitment,
+        ) {
+            unchecked_output_labels_commitment.id += 1;
+            let err =
+                OutputLabelsCommitment::from_unchecked(output, unchecked_output_labels_commitment)
+                    .unwrap_err();
+            assert!(matches!(err, Error::ValidationError(_)))
+        }
+
+        #[rstest]
+        fn test_output_labels_commitment_wrong_count(
+            output: Output,
+            mut unchecked_output_labels_commitment: UncheckedOutputLabelsCommitment,
+        ) {
+            unchecked_output_labels_commitment.commitments.pop();
+            let err =
+                OutputLabelsCommitment::from_unchecked(output, unchecked_output_labels_commitment)
+                    .unwrap_err();
+            assert!(matches!(err, Error::ValidationError(_)))
+        }
+    }
 }
 
 #[cfg(test)]

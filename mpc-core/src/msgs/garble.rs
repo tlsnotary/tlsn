@@ -1,9 +1,11 @@
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use std::{collections::HashSet, sync::Arc};
 
 use crate::{
-    garble::{self, gc_state},
+    garble::{
+        circuit, circuit::unchecked as unchecked_circuit, commitment, gc_state, label,
+        label::unchecked as unchecked_label,
+    },
     Block,
 };
 use mpc_circuits::Circuit;
@@ -22,13 +24,13 @@ pub enum GarbleMessage {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct HashCommitment([u8; 32]);
 
-impl From<garble::commitment::HashCommitment> for HashCommitment {
-    fn from(c: garble::commitment::HashCommitment) -> Self {
+impl From<commitment::HashCommitment> for HashCommitment {
+    fn from(c: commitment::HashCommitment) -> Self {
         Self(c.0)
     }
 }
 
-impl From<HashCommitment> for garble::commitment::HashCommitment {
+impl From<HashCommitment> for commitment::HashCommitment {
     fn from(c: HashCommitment) -> Self {
         Self(c.0)
     }
@@ -38,13 +40,13 @@ impl From<HashCommitment> for garble::commitment::HashCommitment {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CommitmentKey([u8; 32]);
 
-impl From<garble::commitment::CommitmentKey> for CommitmentKey {
-    fn from(key: garble::commitment::CommitmentKey) -> Self {
+impl From<commitment::CommitmentKey> for CommitmentKey {
+    fn from(key: commitment::CommitmentKey) -> Self {
         Self(key.0)
     }
 }
 
-impl From<CommitmentKey> for garble::commitment::CommitmentKey {
+impl From<CommitmentKey> for commitment::CommitmentKey {
     fn from(key: CommitmentKey) -> Self {
         Self(key.0)
     }
@@ -57,8 +59,8 @@ pub struct CommitmentOpening {
     message: Vec<u8>,
 }
 
-impl From<garble::commitment::Opening> for CommitmentOpening {
-    fn from(c: garble::commitment::Opening) -> Self {
+impl From<commitment::Opening> for CommitmentOpening {
+    fn from(c: commitment::Opening) -> Self {
         Self {
             key: c.key.into(),
             message: c.message,
@@ -66,7 +68,7 @@ impl From<garble::commitment::Opening> for CommitmentOpening {
     }
 }
 
-impl From<CommitmentOpening> for garble::commitment::Opening {
+impl From<CommitmentOpening> for commitment::Opening {
     fn from(c: CommitmentOpening) -> Self {
         Self {
             key: c.key.into(),
@@ -79,13 +81,13 @@ impl From<CommitmentOpening> for garble::commitment::Opening {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct OutputCheck([u8; 32]);
 
-impl From<garble::label::OutputCheck> for OutputCheck {
-    fn from(c: garble::label::OutputCheck) -> Self {
+impl From<label::OutputCheck> for OutputCheck {
+    fn from(c: label::OutputCheck) -> Self {
         Self(c.0)
     }
 }
 
-impl From<OutputCheck> for garble::label::OutputCheck {
+impl From<OutputCheck> for label::OutputCheck {
     fn from(c: OutputCheck) -> Self {
         Self(c.0)
     }
@@ -98,8 +100,8 @@ pub struct InputLabels {
     pub labels: Vec<Block>,
 }
 
-impl From<garble::InputLabels<garble::WireLabel>> for InputLabels {
-    fn from(labels: garble::InputLabels<garble::WireLabel>) -> Self {
+impl From<label::InputLabels<label::WireLabel>> for InputLabels {
+    fn from(labels: label::InputLabels<label::WireLabel>) -> Self {
         Self {
             id: labels.id(),
             labels: labels
@@ -111,24 +113,12 @@ impl From<garble::InputLabels<garble::WireLabel>> for InputLabels {
     }
 }
 
-impl garble::InputLabels<garble::WireLabel> {
-    pub fn from_msg(
-        circ: &Circuit,
-        input_labels: InputLabels,
-    ) -> Result<Self, crate::garble::Error> {
-        let input = circ.input(input_labels.id)?;
-        if input.as_ref().len() != input_labels.labels.len() {
-            return Err(crate::garble::Error::InvalidInputLabels);
+impl From<InputLabels> for unchecked_label::UncheckedInputLabels {
+    fn from(labels: InputLabels) -> Self {
+        Self {
+            id: labels.id,
+            labels: labels.labels,
         }
-        garble::InputLabels::new(
-            input.clone(),
-            &input_labels
-                .labels
-                .iter()
-                .zip(input.as_ref().wires())
-                .map(|(label, wire_id)| garble::WireLabel::new(*wire_id, *label))
-                .collect::<Vec<garble::WireLabel>>(),
-        )
     }
 }
 
@@ -139,8 +129,8 @@ pub struct OutputLabels {
     pub labels: Vec<Block>,
 }
 
-impl From<garble::OutputLabels<garble::WireLabel>> for OutputLabels {
-    fn from(labels: garble::OutputLabels<garble::WireLabel>) -> Self {
+impl From<label::OutputLabels<label::WireLabel>> for OutputLabels {
+    fn from(labels: label::OutputLabels<label::WireLabel>) -> Self {
         Self {
             id: labels.id(),
             labels: labels
@@ -152,24 +142,12 @@ impl From<garble::OutputLabels<garble::WireLabel>> for OutputLabels {
     }
 }
 
-impl garble::OutputLabels<garble::WireLabel> {
-    pub fn from_msg(
-        circ: &Circuit,
-        output_labels: OutputLabels,
-    ) -> Result<Self, crate::garble::Error> {
-        let output = circ.output(output_labels.id)?;
-        if output.as_ref().len() != output_labels.labels.len() {
-            return Err(crate::garble::Error::InvalidOutputLabels);
+impl From<OutputLabels> for unchecked_label::UncheckedOutputLabels {
+    fn from(labels: OutputLabels) -> Self {
+        Self {
+            id: labels.id,
+            labels: labels.labels,
         }
-        garble::OutputLabels::new(
-            output.clone(),
-            &output_labels
-                .labels
-                .iter()
-                .zip(output.as_ref().wires())
-                .map(|(label, wire_id)| garble::WireLabel::new(*wire_id, *label))
-                .collect::<Vec<garble::WireLabel>>(),
-        )
     }
 }
 
@@ -180,8 +158,8 @@ pub struct OutputDecodingInfo {
     pub decoding: Vec<bool>,
 }
 
-impl From<garble::label::OutputLabelsDecodingInfo> for OutputDecodingInfo {
-    fn from(decoding: garble::label::OutputLabelsDecodingInfo) -> Self {
+impl From<label::OutputLabelsDecodingInfo> for OutputDecodingInfo {
+    fn from(decoding: label::OutputLabelsDecodingInfo) -> Self {
         Self {
             id: decoding.output.id,
             decoding: decoding
@@ -194,14 +172,16 @@ impl From<garble::label::OutputLabelsDecodingInfo> for OutputDecodingInfo {
     }
 }
 
-impl garble::label::OutputLabelsDecodingInfo {
-    pub fn from_msg(
-        circ: &Circuit,
-        decoding: OutputDecodingInfo,
-    ) -> Result<Self, crate::garble::Error> {
-        let output = circ.output(decoding.id)?;
-
-        Self::new(output, decoding.decoding)
+impl From<OutputDecodingInfo> for unchecked_label::UncheckedOutputLabelsDecodingInfo {
+    fn from(decoding: OutputDecodingInfo) -> Self {
+        Self {
+            id: decoding.id,
+            decoding: decoding
+                .decoding
+                .into_iter()
+                .map(label::LabelDecodingInfo::from)
+                .collect(),
+        }
     }
 }
 
@@ -212,8 +192,9 @@ pub struct OutputLabelsCommitment {
     pub commitments: Vec<Block>,
 }
 
-impl From<garble::label::OutputLabelsCommitment> for OutputLabelsCommitment {
-    fn from(commitment: garble::label::OutputLabelsCommitment) -> Self {
+impl From<label::OutputLabelsCommitment> for OutputLabelsCommitment {
+    #[inline]
+    fn from(commitment: label::OutputLabelsCommitment) -> Self {
         Self {
             id: commitment.output.id,
             commitments: commitment.commitments.into_iter().flatten().collect(),
@@ -221,7 +202,17 @@ impl From<garble::label::OutputLabelsCommitment> for OutputLabelsCommitment {
     }
 }
 
-impl garble::label::OutputLabelsCommitment {
+impl From<OutputLabelsCommitment> for unchecked_label::UncheckedOutputLabelsCommitment {
+    #[inline]
+    fn from(commitment: OutputLabelsCommitment) -> Self {
+        Self {
+            id: commitment.id,
+            commitments: commitment.commitments,
+        }
+    }
+}
+
+impl label::OutputLabelsCommitment {
     pub fn from_msg(
         circ: &Circuit,
         commitment: OutputLabelsCommitment,
@@ -253,8 +244,8 @@ pub struct GarbledCircuit {
     pub commitments: Option<Vec<OutputLabelsCommitment>>,
 }
 
-impl From<garble::GarbledCircuit<gc_state::Partial>> for GarbledCircuit {
-    fn from(gc: garble::GarbledCircuit<gc_state::Partial>) -> Self {
+impl From<circuit::GarbledCircuit<gc_state::Partial>> for GarbledCircuit {
+    fn from(gc: circuit::GarbledCircuit<gc_state::Partial>) -> Self {
         Self {
             id: (*gc.circ.id().as_ref()).clone(),
             input_labels: gc
@@ -285,108 +276,47 @@ impl From<garble::GarbledCircuit<gc_state::Partial>> for GarbledCircuit {
     }
 }
 
-impl crate::garble::GarbledCircuit<gc_state::Partial> {
-    pub fn from_msg(circ: Arc<Circuit>, msg: GarbledCircuit) -> Result<Self, crate::garble::Error> {
-        // Validate circuit id
-        if msg.id != *circ.id().as_ref() {
-            return Err(crate::garble::Error::PeerError(format!(
-                "Received garbled circuit with wrong id: expected {}, received {}",
-                circ.id().as_ref().to_string(),
-                msg.id
-            )));
+impl From<GarbledCircuit> for unchecked_circuit::UncheckedGarbledCircuit {
+    fn from(gc: GarbledCircuit) -> Self {
+        Self {
+            id: gc.id.into(),
+            input_labels: gc
+                .input_labels
+                .into_iter()
+                .map(unchecked_label::UncheckedInputLabels::from)
+                .collect(),
+            encrypted_gates: gc.encrypted_gates,
+            decoding: gc.decoding.and_then(|decoding| {
+                Some(
+                    decoding
+                        .into_iter()
+                        .map(unchecked_label::UncheckedOutputLabelsDecodingInfo::from)
+                        .collect(),
+                )
+            }),
+            commitments: gc.commitments.and_then(|commitments| {
+                Some(
+                    commitments
+                        .into_iter()
+                        .map(unchecked_label::UncheckedOutputLabelsCommitment::from)
+                        .collect(),
+                )
+            }),
         }
-
-        // Validate input labels
-        let input_ids: HashSet<usize> = msg.input_labels.iter().map(|input| input.id).collect();
-        if input_ids.len() != msg.input_labels.len() {
-            return Err(crate::garble::Error::PeerError(
-                "Received garbled circuit with duplicate inputs".to_string(),
-            ));
-        }
-
-        let input_labels = msg
-            .input_labels
-            .into_iter()
-            .map(|labels| garble::InputLabels::from_msg(&circ, labels))
-            .collect::<Result<Vec<_>, _>>()?;
-
-        // Validate encrypted gates
-        if msg.encrypted_gates.len() != 2 * circ.and_count() {
-            return Err(crate::garble::Error::PeerError(
-                "Received garbled circuit with incorrect number of encrypted gates".to_string(),
-            ));
-        }
-
-        let encrypted_gates = msg
-            .encrypted_gates
-            .chunks_exact(2)
-            .into_iter()
-            .map(|gate| garble::circuit::EncryptedGate::new([gate[0], gate[1]]))
-            .collect();
-
-        // Validate output decoding info
-        let decoding = match msg.decoding {
-            Some(decoding) => {
-                // Check that peer sent all output decodings
-                if decoding.len() == circ.output_count() {
-                    Some(
-                        decoding
-                            .into_iter()
-                            .map(|e| garble::label::OutputLabelsDecodingInfo::from_msg(&circ, e))
-                            .collect::<Result<Vec<_>, _>>()?,
-                    )
-                } else {
-                    return Err(crate::garble::Error::PeerError(
-                        "Received garbled circuit with invalid output decoding".to_string(),
-                    ));
-                }
-            }
-            None => None,
-        };
-
-        let commitments = match msg.commitments {
-            Some(commitments) => {
-                // Check that peer sent commitments for all outputs
-                if commitments.len() == circ.output_count() {
-                    Some(
-                        commitments
-                            .into_iter()
-                            .map(|c| garble::label::OutputLabelsCommitment::from_msg(&circ, c))
-                            .collect::<Result<Vec<_>, _>>()?,
-                    )
-                } else {
-                    return Err(crate::garble::Error::PeerError(
-                        "Received garbled circuit with wrong number of output commitments"
-                            .to_string(),
-                    ));
-                }
-            }
-            None => None,
-        };
-
-        Ok(crate::garble::GarbledCircuit {
-            circ,
-            state: gc_state::Partial {
-                input_labels,
-                encrypted_gates,
-                decoding,
-                commitments,
-            },
-        })
     }
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Output {
-    pub id: String,
+    pub circ_id: String,
     pub output_labels: Vec<OutputLabels>,
 }
 
-impl From<garble::GarbledCircuit<gc_state::Output>> for Output {
-    fn from(gc: garble::GarbledCircuit<gc_state::Output>) -> Self {
+impl From<circuit::GarbledCircuit<gc_state::Output>> for Output {
+    fn from(gc: circuit::GarbledCircuit<gc_state::Output>) -> Self {
         Self {
-            id: gc.circ.id().as_ref().clone(),
+            circ_id: gc.circ.id().as_ref().clone(),
             output_labels: gc
                 .output_labels()
                 .into_iter()
@@ -397,56 +327,15 @@ impl From<garble::GarbledCircuit<gc_state::Output>> for Output {
     }
 }
 
-impl crate::garble::GarbledCircuit<gc_state::Output> {
-    /// Validates and converts an [`Output`] to [`crate::garble::GarbledCircuit<gc_state::Output>`]
-    pub fn from_msg(
-        gc: &garble::GarbledCircuit<gc_state::Full>,
-        msg: Output,
-    ) -> Result<Self, crate::garble::Error> {
-        // Validate circuit id
-        if msg.id != *gc.circ.id().as_ref() {
-            return Err(crate::garble::Error::PeerError(format!(
-                "Received evaluated circuit with wrong id: expected {}, received {}",
-                gc.circ.id().as_ref().to_string(),
-                msg.id
-            )));
+impl From<Output> for unchecked_circuit::UncheckedOutput {
+    fn from(msg: Output) -> Self {
+        Self {
+            circ_id: msg.circ_id.into(),
+            output_labels: msg
+                .output_labels
+                .into_iter()
+                .map(unchecked_label::UncheckedOutputLabels::from)
+                .collect(),
         }
-
-        // Check for duplicates
-        let output_ids: HashSet<usize> = msg.output_labels.iter().map(|output| output.id).collect();
-        if output_ids.len() != msg.output_labels.len() {
-            return Err(crate::garble::Error::PeerError(
-                "Received garbled circuit with duplicate outputs".to_string(),
-            ));
-        }
-
-        let mut output_labels = msg
-            .output_labels
-            .into_iter()
-            .map(|labels| garble::OutputLabels::from_msg(&gc.circ, labels))
-            .collect::<Result<Vec<_>, _>>()?;
-
-        // Make sure it is sorted
-        output_labels.sort_by_key(|output_label| output_label.id());
-
-        // Check all outputs were received
-        if output_labels.len() != gc.output_labels().len() {
-            return Err(crate::garble::Error::InvalidOutputLabels);
-        }
-
-        // Validates that each output label is authentic
-        gc.output_labels()
-            .iter()
-            .zip(&output_labels)
-            .map(|(full, ev)| full.validate(ev))
-            .collect::<Result<(), crate::garble::Error>>()?;
-
-        Ok(crate::garble::GarbledCircuit {
-            circ: gc.circ.clone(),
-            state: gc_state::Output {
-                labels: output_labels,
-                decoding: Some(gc.decoding()),
-            },
-        })
     }
 }
