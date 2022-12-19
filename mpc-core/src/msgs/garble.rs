@@ -83,6 +83,7 @@ impl From<CommitmentOpening> for commitment::Opening {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CircuitOpening {
+    id: String,
     delta: [u8; 16],
     input_decoding: Vec<InputDecodingInfo>,
 }
@@ -90,6 +91,7 @@ pub struct CircuitOpening {
 impl From<garble::CircuitOpening> for CircuitOpening {
     fn from(opening: garble::CircuitOpening) -> Self {
         Self {
+            id: opening.id.as_ref().into(),
             delta: opening.delta.to_be_bytes(),
             input_decoding: opening
                 .input_decoding
@@ -103,6 +105,7 @@ impl From<garble::CircuitOpening> for CircuitOpening {
 impl From<CircuitOpening> for UncheckedCircuitOpening {
     fn from(opening: CircuitOpening) -> Self {
         Self {
+            id: opening.id.into(),
             delta: opening.delta.into(),
             input_decoding: opening
                 .input_decoding
