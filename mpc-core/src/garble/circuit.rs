@@ -157,7 +157,6 @@ pub struct GarbledCircuit<S: State> {
 /// We assume that the evaluator is already in posession of their active input labels.
 #[derive(Debug, Clone)]
 pub struct CircuitOpening {
-    pub(crate) id: CircuitId,
     pub(crate) delta: Delta,
     pub(crate) input_decoding: Vec<InputLabelsDecodingInfo>,
 }
@@ -297,7 +296,6 @@ impl GarbledCircuit<Full> {
     /// Returns circuit opening
     pub fn open(&self) -> CircuitOpening {
         CircuitOpening {
-            id: self.circ.id().clone(),
             delta: self.state.delta,
             input_decoding: self
                 .input_labels()
@@ -327,7 +325,6 @@ impl GarbledCircuit<Summary> {
     /// Returns circuit opening
     pub fn open(&self) -> CircuitOpening {
         CircuitOpening {
-            id: self.circ.id().clone(),
             delta: self.state.delta,
             input_decoding: self
                 .state
@@ -923,7 +920,6 @@ pub(crate) mod unchecked {
     /// Unchecked variant of [`CircuitOpening`]
     #[derive(Debug, Clone)]
     pub struct UncheckedCircuitOpening {
-        pub(crate) id: CircuitId,
         pub(crate) delta: Delta,
         pub(crate) input_decoding: Vec<UncheckedInputLabelsDecodingInfo>,
     }
@@ -932,7 +928,6 @@ pub(crate) mod unchecked {
     impl From<CircuitOpening> for UncheckedCircuitOpening {
         fn from(opening: CircuitOpening) -> Self {
             Self {
-                id: opening.id,
                 delta: opening.delta,
                 input_decoding: opening
                     .input_decoding
@@ -950,7 +945,6 @@ pub(crate) mod unchecked {
             unchecked: UncheckedCircuitOpening,
         ) -> Result<Self, Error> {
             let UncheckedCircuitOpening {
-                id,
                 delta,
                 mut input_decoding,
             } = unchecked;
@@ -982,7 +976,6 @@ pub(crate) mod unchecked {
                 .collect::<Result<Vec<_>, Error>>()?;
 
             Ok(CircuitOpening {
-                id,
                 delta,
                 input_decoding,
             })
@@ -1264,15 +1257,6 @@ pub(crate) mod unchecked {
 
         #[rstest]
         fn test_unchecked_opening(circ: Circuit, unchecked_opening: UncheckedCircuitOpening) {
-            CircuitOpening::from_unchecked(&circ, unchecked_opening).unwrap();
-        }
-
-        #[rstest]
-        fn test_unchecked_opening_wrong_id(
-            circ: Circuit,
-            mut unchecked_opening: UncheckedCircuitOpening,
-        ) {
-            unchecked_opening.id = Circuit::load_bytes(AES_128_REVERSE).unwrap().id().clone();
             CircuitOpening::from_unchecked(&circ, unchecked_opening).unwrap();
         }
 
