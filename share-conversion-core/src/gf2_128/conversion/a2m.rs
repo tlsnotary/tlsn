@@ -3,7 +3,10 @@
 use std::num::NonZeroU128;
 
 use super::{Gf2_128ShareConvert, MulShare, OTEnvelope};
-use crate::gf2_128::{inverse, mul};
+use crate::{
+    gf2_128::{inverse, mul},
+    ShareConversionCoreError,
+};
 use rand::{CryptoRng, Rng};
 
 /// An additive share of `A = x + y`
@@ -19,7 +22,7 @@ impl AddShare {
     pub fn convert_to_multiplicative<R: Rng + CryptoRng>(
         &self,
         rng: &mut R,
-    ) -> (MulShare, OTEnvelope) {
+    ) -> Result<(MulShare, OTEnvelope), ShareConversionCoreError> {
         // We need to exclude 0 here, because it does not have an inverse
         // which is needed later
         let random: NonZeroU128 = rng.gen();
@@ -31,7 +34,7 @@ impl AddShare {
 
         let mul_share = MulShare::new(inverse(random));
 
-        // decompose the share into component sums, e.g. if the share is 10110, we decompose it into
+        // decompose the share into a sum of components, e.g. if the share is 10110, we decompose it into
         // 0 + 10 + 100 + 0000 + 10000
         let components: Vec<u128> = (0..128)
             .map(|i| {
@@ -45,7 +48,7 @@ impl AddShare {
         let b1: [u128; 128] =
             std::array::from_fn(|i| mul(components[i] ^ (1 << i), random) ^ masks[i]);
 
-        (mul_share, OTEnvelope(b0.to_vec(), b1.to_vec()))
+        Ok((mul_share, OTEnvelope::new(b0.to_vec(), b1.to_vec())?))
     }
 }
 
@@ -61,7 +64,10 @@ impl Gf2_128ShareConvert for AddShare {
         self.0
     }
 
-    fn convert<R: Rng + CryptoRng>(&self, rng: &mut R) -> (Self::Output, OTEnvelope) {
+    fn convert<R: Rng + CryptoRng>(
+        &self,
+        rng: &mut R,
+    ) -> Result<(Self::Output, OTEnvelope), ShareConversionCoreError> {
         self.convert_to_multiplicative(rng)
     }
 }

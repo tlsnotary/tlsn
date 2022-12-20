@@ -12,6 +12,8 @@ pub use m2a::MulShare;
 use mpc_core::Block;
 use rand::{CryptoRng, Rng};
 
+use crate::ShareConversionCoreError;
+
 /// A trait for converting field elements
 ///
 /// Allows two parties to switch between additively and multiplicatively
@@ -40,24 +42,47 @@ where
 
     /// Create a share of type `Self::Output` from the result of an oblivious transfer (OT)
     ///
-    /// The `value` needs to be built from the output of an OT
-    fn from_choice(value: &[u128]) -> Self::Output {
-        Self::Output::new(value.iter().fold(0, |acc, i| acc ^ i))
+    /// The `values` needs to be built from the output of an OT
+    fn from_sender_values(values: &[u128]) -> Self::Output {
+        Self::Output::new(values.iter().fold(0, |acc, i| acc ^ i))
     }
 
     /// Prepares a share for conversion in an OT
     ///
     /// Converts the share to a new share and returns what is needed for sending in an OT.
-    fn convert<R: Rng + CryptoRng>(&self, rng: &mut R) -> (Self::Output, OTEnvelope);
+    fn convert<R: Rng + CryptoRng>(
+        &self,
+        rng: &mut R,
+    ) -> Result<(Self::Output, OTEnvelope), ShareConversionCoreError>;
 }
 
 /// Batched values for several oblivious transfers
 ///
 /// The inner vectors `.0` and `.1` belong to the corresponding receiver's choice bit
 #[derive(Clone, Debug, Default)]
-pub struct OTEnvelope(pub(crate) Vec<u128>, pub(crate) Vec<u128>);
+pub struct OTEnvelope(Vec<u128>, Vec<u128>);
 
 impl OTEnvelope {
+    /// Create a new `OTEnvelope`
+    ///
+    /// Checks that both choice vecs have equal length
+    pub fn new(zero: Vec<u128>, one: Vec<u128>) -> Result<Self, ShareConversionCoreError> {
+        if zero.len() != one.len() {
+            return Err(ShareConversionCoreError::OTEnvelopeUnequalLength);
+        }
+        Ok(Self(zero, one))
+    }
+
+    /// Returns a slice for the `zero` choices
+    pub fn zero_choices(&self) -> &[u128] {
+        &self.0
+    }
+
+    /// Returns a slice for the `one` choices
+    pub fn one_choices(&self) -> &[u128] {
+        &self.1
+    }
+
     /// Allows to aggregate envelopes
     pub fn extend(&mut self, other: OTEnvelope) {
         self.0.extend_from_slice(&other.0);
@@ -100,10 +125,10 @@ mod tests {
         let a: MulShare = MulShare::new(rng.gen());
         let b: MulShare = MulShare::new(rng.gen());
 
-        let (x, sharings) = a.convert_to_additive(&mut rng);
+        let (x, sharings) = a.convert_to_additive(&mut rng).unwrap();
 
         let choice = mock_ot(sharings, b.inner());
-        let y = AddShare::from_choice(&choice);
+        let y = AddShare::from_sender_values(&choice);
 
         assert_eq!(mul(a.inner(), b.inner()), x.inner() ^ y.inner());
     }
@@ -114,10 +139,10 @@ mod tests {
         let x: AddShare = AddShare::new(rng.gen());
         let y: AddShare = AddShare::new(rng.gen());
 
-        let (a, sharings) = x.convert_to_multiplicative(&mut rng);
+        let (a, sharings) = x.convert_to_multiplicative(&mut rng).unwrap();
 
         let choice = mock_ot(sharings, y.inner());
-        let b = MulShare::from_choice(&choice);
+        let b = MulShare::from_sender_values(&choice);
 
         assert_eq!(x.inner() ^ y.inner(), mul(a.inner(), b.inner()));
     }

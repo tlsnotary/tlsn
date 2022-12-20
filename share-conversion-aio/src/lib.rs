@@ -2,6 +2,7 @@
 
 use async_trait::async_trait;
 use mpc_aio::protocol::ot::{OTError, OTFactoryError};
+use share_conversion_core::ShareConversionCoreError;
 use thiserror::Error;
 
 pub mod gf2_128;
@@ -33,4 +34,12 @@ pub enum ShareConversionError {
     OTFactoryError(#[from] OTFactoryError),
     #[error("OTError: {0}")]
     OTError(#[from] OTError),
+    #[error("IO Error: {0}")]
+    IOError(#[from] std::io::Error),
+    #[error("ShareConversionCore Error: {0}")]
+    ShareConversionCore(#[from] ShareConversionCoreError),
+    #[error("Malformed seed")]
+    SeedConversion,
+    #[error("Tape verification failed")]
+    VerifyTapeFailed,
 }
