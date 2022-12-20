@@ -42,9 +42,12 @@ impl<T: Gf2_128ShareConvert> Recorder<T> for Tape {
     fn verify(&self) -> Result<(), ShareConversionError> {
         let mut rng = ChaCha12Rng::from_seed(self.seed);
 
-        for (sender_input, (receiver_input, receiver_output)) in self.sender_inputs.iter().zip(
-            std::iter::zip(self.receiver_inputs.iter(), self.receiver_outputs.iter()),
-        ) {
+        for ((sender_input, receiver_input), receiver_output) in self
+            .sender_inputs
+            .iter()
+            .zip(&self.receiver_inputs)
+            .zip(&self.receiver_outputs)
+        {
             // We now replay the conversion internally
             let (_, ot_envelope) = T::new(*sender_input).convert(&mut rng)?;
             let choices = T::new(*receiver_input).choices();

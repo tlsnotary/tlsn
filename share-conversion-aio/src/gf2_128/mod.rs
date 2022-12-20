@@ -130,10 +130,10 @@ mod tests {
         });
 
         let (sender_output, receiver_output) = tokio::join!(sender_task, receiver_task);
-        let (_, receiver_output) = (sender_output.unwrap(), receiver_output.unwrap());
+        let (_, _receiver_output) = (sender_output.unwrap(), receiver_output.unwrap());
 
-        // Check result
-        assert_eq!(receiver_output, ());
+        // No need to check result, because if unwrap does not fail, this means everything works
+        // fine.
     }
 
     #[tokio::test]
@@ -156,10 +156,10 @@ mod tests {
         });
 
         let (sender_output, receiver_output) = tokio::join!(sender_task, receiver_task);
-        let (_, receiver_output) = (sender_output.unwrap(), receiver_output.unwrap());
+        let (_, _receiver_output) = (sender_output.unwrap(), receiver_output.unwrap());
 
-        // Check result
-        assert_eq!(receiver_output, ());
+        // No need to check result, because if unwrap does not fail, this means everything works
+        // fine.
     }
 
     #[tokio::test]

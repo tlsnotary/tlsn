@@ -16,14 +16,14 @@ impl From<([u8; 32], Vec<u128>)> for Gf2ConversionMessage {
     }
 }
 
-impl TryInto<([u8; 32], Vec<u128>)> for Gf2ConversionMessage {
+impl TryFrom<Gf2ConversionMessage> for ([u8; 32], Vec<u128>) {
     type Error = ShareConversionError;
 
-    fn try_into(self) -> Result<([u8; 32], Vec<u128>), Self::Error> {
-        let seed: [u8; 32] = self
+    fn try_from(value: Gf2ConversionMessage) -> Result<Self, Self::Error> {
+        let seed: [u8; 32] = value
             .seed
             .try_into()
             .map_err(|_| ShareConversionError::SeedConversion)?;
-        Ok((seed, self.sender_tape))
+        Ok((seed, value.sender_tape))
     }
 }
