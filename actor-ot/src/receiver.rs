@@ -33,65 +33,6 @@ pub struct KOSReceiverFactory<T, U> {
         HashMap<String, oneshot::Sender<Result<Kos15IOReceiver<RandSetup>, OTFactoryError>>>,
 }
 
-pub struct ReceiverFactoryControl<T>(Address<T>);
-
-impl<T> Clone for ReceiverFactoryControl<T> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-
-impl<T, S> ReceiverFactoryControl<T>
-where
-    T: Handler<Setup, Return = Result<(), OTFactoryError>>
-        + Handler<GetReceiver, Return = oneshot::Receiver<Result<S, OTFactoryError>>>,
-    S: ObliviousReceive,
-{
-    pub fn new(addr: Address<T>) -> Self {
-        Self(addr)
-    }
-
-    /// Returns mutable reference to address
-    pub fn address(&mut self) -> &mut Address<T> {
-        &mut self.0
-    }
-
-    /// Sends setup message to actor
-    pub async fn setup(&mut self) -> Result<(), OTFactoryError> {
-        self.0
-            .send(Setup)
-            .await
-            .map_err(|e| OTFactoryError::Other(e.to_string()))?
-    }
-
-    /// Requests receiver from actor
-    pub async fn get_receiver(&mut self, id: String, count: usize) -> Result<S, OTFactoryError> {
-        self.0
-            .send(GetReceiver { id, count })
-            .await
-            .map_err(|e| OTFactoryError::Other(e.to_string()))?
-            .await
-            .map_err(|_| OTFactoryError::Other("oneshot channel was dropped".to_string()))?
-    }
-}
-
-#[async_trait]
-impl<T, U> OTReceiverFactory for ReceiverFactoryControl<KOSReceiverFactory<T, U>>
-where
-    T: Channel<OTFactoryMessage, Error = std::io::Error> + Send + 'static,
-    U: MuxChannelControl<OTMessage> + Send + 'static,
-{
-    type Protocol = Kos15IOReceiver<RandSetup>;
-
-    async fn new_receiver(
-        &mut self,
-        id: String,
-        count: usize,
-    ) -> Result<Self::Protocol, OTFactoryError> {
-        self.get_receiver(id, count).await
-    }
-}
-
 impl<T, U> KOSReceiverFactory<T, U>
 where
     T: Channel<OTFactoryMessage, Error = std::io::Error> + Send + 'static,
@@ -152,10 +93,11 @@ where
         _msg: Setup,
         _ctx: &mut Context<Self>,
     ) -> Result<(), OTFactoryError> {
-        // If we're already setup return an error
-        if !matches!(&self.state, &State::Initialized(_)) {
+        let state = std::mem::replace(&mut self.state, State::Error);
+
+        let State::Initialized(setup_signal) = state else {
             return Err(OTFactoryError::Other(
-                "KOSReceiverFactory is already setup".to_string(),
+                "KOSSenderFactory is already setup".to_string(),
             ));
         };
 
@@ -174,6 +116,9 @@ where
         let parent_ot = parent_ot.rand_setup(self.config.initial_count).await?;
 
         self.state = State::Setup(parent_ot);
+
+        // Signal to OTFactoryMessage stream that we're ready to process messages
+        _ = setup_signal.send(());
 
         Ok(())
     }
@@ -265,5 +210,64 @@ where
         }
 
         receiver
+    }
+}
+
+pub struct ReceiverFactoryControl<T>(Address<T>);
+
+impl<T> Clone for ReceiverFactoryControl<T> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+impl<T, S> ReceiverFactoryControl<T>
+where
+    T: Handler<Setup, Return = Result<(), OTFactoryError>>
+        + Handler<GetReceiver, Return = oneshot::Receiver<Result<S, OTFactoryError>>>,
+    S: ObliviousReceive,
+{
+    pub fn new(addr: Address<T>) -> Self {
+        Self(addr)
+    }
+
+    /// Returns mutable reference to address
+    pub fn address_mut(&mut self) -> &mut Address<T> {
+        &mut self.0
+    }
+
+    /// Sends setup message to actor
+    pub async fn setup(&mut self) -> Result<(), OTFactoryError> {
+        self.0
+            .send(Setup)
+            .await
+            .map_err(|e| OTFactoryError::Other(e.to_string()))?
+    }
+
+    /// Requests receiver from actor
+    pub async fn get_receiver(&mut self, id: String, count: usize) -> Result<S, OTFactoryError> {
+        self.0
+            .send(GetReceiver { id, count })
+            .await
+            .map_err(|e| OTFactoryError::Other(e.to_string()))?
+            .await
+            .map_err(|_| OTFactoryError::Other("oneshot channel was dropped".to_string()))?
+    }
+}
+
+#[async_trait]
+impl<T, U> OTReceiverFactory for ReceiverFactoryControl<KOSReceiverFactory<T, U>>
+where
+    T: Channel<OTFactoryMessage, Error = std::io::Error> + Send + 'static,
+    U: MuxChannelControl<OTMessage> + Send + 'static,
+{
+    type Protocol = Kos15IOReceiver<RandSetup>;
+
+    async fn new_receiver(
+        &mut self,
+        id: String,
+        count: usize,
+    ) -> Result<Self::Protocol, OTFactoryError> {
+        self.get_receiver(id, count).await
     }
 }

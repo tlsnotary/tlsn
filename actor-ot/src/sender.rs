@@ -28,63 +28,6 @@ pub struct KOSSenderFactory<T, U> {
     state: State,
 }
 
-pub struct SenderFactoryControl<T>(Address<T>);
-
-impl<T> Clone for SenderFactoryControl<T> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-
-impl<T, S> SenderFactoryControl<T>
-where
-    T: Handler<Setup, Return = Result<(), OTFactoryError>>
-        + Handler<GetSender, Return = Result<S, OTFactoryError>>,
-    S: ObliviousSend,
-{
-    pub fn new(addr: Address<T>) -> Self {
-        Self(addr)
-    }
-
-    /// Returns mutable reference to address
-    pub fn address(&mut self) -> &mut Address<T> {
-        &mut self.0
-    }
-
-    /// Sends setup message to actor
-    pub async fn setup(&mut self) -> Result<(), OTFactoryError> {
-        self.0
-            .send(Setup)
-            .await
-            .map_err(|e| OTFactoryError::Other(e.to_string()))?
-    }
-
-    /// Requests sender from actor
-    pub async fn get_sender(&mut self, id: String, count: usize) -> Result<S, OTFactoryError> {
-        self.0
-            .send(GetSender { id, count })
-            .await
-            .map_err(|e| OTFactoryError::Other(e.to_string()))?
-    }
-}
-
-#[async_trait]
-impl<T, U> OTSenderFactory for SenderFactoryControl<KOSSenderFactory<T, U>>
-where
-    T: Channel<OTFactoryMessage, Error = std::io::Error> + Send + 'static,
-    U: MuxChannelControl<OTMessage> + Send + 'static,
-{
-    type Protocol = Kos15IOSender<RandSetup>;
-
-    async fn new_sender(
-        &mut self,
-        id: String,
-        count: usize,
-    ) -> Result<Self::Protocol, OTFactoryError> {
-        self.get_sender(id, count).await
-    }
-}
-
 impl<T, U> KOSSenderFactory<T, U>
 where
     T: Channel<OTFactoryMessage, Error = std::io::Error> + Send + 'static,
@@ -134,8 +77,9 @@ where
         _msg: Setup,
         _ctx: &mut Context<Self>,
     ) -> Result<(), OTFactoryError> {
-        // If we're already setup return an error
-        if !matches!(&self.state, &State::Initialized) {
+        let state = std::mem::replace(&mut self.state, State::Error);
+
+        let State::Initialized = state else {
             return Err(OTFactoryError::Other(
                 "KOSSenderFactory is already setup".to_string(),
             ));
@@ -228,5 +172,62 @@ where
         ctx.stop_self();
 
         Ok(())
+    }
+}
+
+pub struct SenderFactoryControl<T>(Address<T>);
+
+impl<T> Clone for SenderFactoryControl<T> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+impl<T, S> SenderFactoryControl<T>
+where
+    T: Handler<Setup, Return = Result<(), OTFactoryError>>
+        + Handler<GetSender, Return = Result<S, OTFactoryError>>,
+    S: ObliviousSend,
+{
+    pub fn new(addr: Address<T>) -> Self {
+        Self(addr)
+    }
+
+    /// Returns mutable reference to address
+    pub fn address(&mut self) -> &mut Address<T> {
+        &mut self.0
+    }
+
+    /// Sends setup message to actor
+    pub async fn setup(&mut self) -> Result<(), OTFactoryError> {
+        self.0
+            .send(Setup)
+            .await
+            .map_err(|e| OTFactoryError::Other(e.to_string()))?
+    }
+
+    /// Requests sender from actor
+    pub async fn get_sender(&mut self, id: String, count: usize) -> Result<S, OTFactoryError> {
+        self.0
+            .send(GetSender { id, count })
+            .await
+            .map_err(|e| OTFactoryError::Other(e.to_string()))?
+    }
+}
+
+#[async_trait]
+impl<T, U> OTSenderFactory for SenderFactoryControl<KOSSenderFactory<T, U>>
+where
+    T: Channel<OTFactoryMessage, Error = std::io::Error> + Send + 'static,
+    U: MuxChannelControl<OTMessage> + Send + 'static,
+{
+    type Protocol = Kos15IOSender<RandSetup>;
+
+    async fn new_sender(
+        &mut self,
+        id: String,
+        count: usize,
+    ) -> Result<Self::Protocol, OTFactoryError> {
+        self.get_sender(id, count).await
     }
 }
