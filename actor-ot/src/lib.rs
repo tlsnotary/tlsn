@@ -40,22 +40,14 @@ mod test {
     use utils_aio::{mux::MuxChannelControl, Channel};
     use xtra::prelude::*;
 
+    type OTFactoryChannel = Box<dyn Channel<OTFactoryMessage, Error = std::io::Error>>;
+
     async fn create_pair(
         sender_config: SenderFactoryConfig,
         receiver_config: ReceiverFactoryConfig,
     ) -> (
-        Address<
-            KOSSenderFactory<
-                Box<dyn Channel<OTFactoryMessage, Error = std::io::Error>>,
-                MockClientControl,
-            >,
-        >,
-        Address<
-            KOSReceiverFactory<
-                Box<dyn Channel<OTFactoryMessage, Error = std::io::Error>>,
-                MockServerControl,
-            >,
-        >,
+        Address<KOSSenderFactory<OTFactoryChannel, MockClientControl>>,
+        Address<KOSReceiverFactory<OTFactoryChannel, MockServerControl>>,
     ) {
         let receiver_mux_addr =
             xtra::spawn_tokio(MockServerChannelMuxer::default(), Mailbox::unbounded());
@@ -102,18 +94,8 @@ mod test {
         sender_config: SenderFactoryConfig,
         receiver_config: ReceiverFactoryConfig,
     ) -> (
-        SenderFactoryControl<
-            KOSSenderFactory<
-                Box<dyn Channel<OTFactoryMessage, Error = std::io::Error>>,
-                MockClientControl,
-            >,
-        >,
-        ReceiverFactoryControl<
-            KOSReceiverFactory<
-                Box<dyn Channel<OTFactoryMessage, Error = std::io::Error>>,
-                MockServerControl,
-            >,
-        >,
+        SenderFactoryControl<KOSSenderFactory<OTFactoryChannel, MockClientControl>>,
+        ReceiverFactoryControl<KOSReceiverFactory<OTFactoryChannel, MockServerControl>>,
     ) {
         let (sender_addr, receiver_addr) = create_pair(sender_config, receiver_config).await;
         (
@@ -126,18 +108,8 @@ mod test {
         sender_config: SenderFactoryConfig,
         receiver_config: ReceiverFactoryConfig,
     ) -> (
-        SenderFactoryControl<
-            KOSSenderFactory<
-                Box<dyn Channel<OTFactoryMessage, Error = std::io::Error>>,
-                MockClientControl,
-            >,
-        >,
-        ReceiverFactoryControl<
-            KOSReceiverFactory<
-                Box<dyn Channel<OTFactoryMessage, Error = std::io::Error>>,
-                MockServerControl,
-            >,
-        >,
+        SenderFactoryControl<KOSSenderFactory<OTFactoryChannel, MockClientControl>>,
+        ReceiverFactoryControl<KOSReceiverFactory<OTFactoryChannel, MockServerControl>>,
     ) {
         let (mut sender_control, mut receiver_control) =
             create_pair_controls(sender_config, receiver_config).await;
