@@ -19,6 +19,8 @@ pub enum Error {
     CorruptedDecodingInfo,
     #[error("Validation error: {0}")]
     ValidationError(String),
+    #[error("Invalid opening")]
+    InvalidOpening,
     #[error("Circuit error: {0:?}")]
     CircuitError(#[from] mpc_circuits::CircuitError),
     #[error("General error: {0}")]

@@ -34,6 +34,13 @@ impl Deref for Delta {
     }
 }
 
+impl From<[u8; 16]> for Delta {
+    #[inline]
+    fn from(bytes: [u8; 16]) -> Self {
+        Self(Block::from(bytes))
+    }
+}
+
 /// Wire label of a garbled circuit
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct WireLabel {
@@ -216,8 +223,14 @@ where
         })
     }
 
+    /// Returns input id
     pub fn id(&self) -> usize {
         self.input.id
+    }
+
+    /// Returns labels
+    pub(crate) fn to_inner(self) -> Vec<T> {
+        self.labels
     }
 
     #[cfg(test)]
@@ -302,21 +315,33 @@ impl InputLabels<WireLabelPair> {
         })
     }
 
-    /// Reconstructs input label pairs from existing labels, delta, and value
-    pub fn from_input_labels(
+    /// Returns input label decoding info
+    pub fn decoding(&self) -> InputLabelsDecodingInfo {
+        InputLabelsDecodingInfo {
+            input: self.input.clone(),
+            decoding: self
+                .labels
+                .iter()
+                .map(|label| LabelDecodingInfo(label.low().lsb() == 1))
+                .collect(),
+        }
+    }
+
+    /// Reconstructs input label pairs from existing labels, delta, and decoding info
+    pub fn from_decoding(
         input_labels: InputLabels<WireLabel>,
         delta: Delta,
-        value: InputValue,
+        decoding: InputLabelsDecodingInfo,
     ) -> Result<Self, Error> {
-        if input_labels.id() != value.id() {
-            return Err(Error::InvalidInputLabels);
+        if input_labels.id() != decoding.input.id {
+            return Err(Error::InvalidLabelDecodingInfo);
         }
 
         let labels: Vec<WireLabelPair> = input_labels
             .labels
             .iter()
-            .zip(value.wire_values())
-            .map(|(label, value)| label.to_pair(delta, value))
+            .zip(decoding.decoding)
+            .map(|(label, decoding)| label.to_pair(delta, label.decode(decoding)))
             .collect();
 
         Ok(InputLabels {
@@ -537,6 +562,40 @@ impl Deref for LabelDecodingInfo {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+/// For details about label decoding see [`LabelDecodingInfo`]
+#[derive(Debug, Clone, PartialEq)]
+pub struct InputLabelsDecodingInfo {
+    pub input: Input,
+    decoding: Vec<LabelDecodingInfo>,
+}
+
+impl InputLabelsDecodingInfo {
+    pub fn from_unchecked(
+        input: Input,
+        unchecked: unchecked::UncheckedInputLabelsDecodingInfo,
+    ) -> Result<Self, Error> {
+        if unchecked.id != input.id || unchecked.decoding.len() != input.as_ref().len() {
+            return Err(Error::InvalidLabelDecodingInfo);
+        }
+
+        Ok(Self {
+            input,
+            decoding: unchecked.decoding,
+        })
+    }
+
+    #[cfg(test)]
+    pub fn set_decoding(&mut self, idx: usize, value: bool) {
+        self.decoding[idx] = LabelDecodingInfo(value);
+    }
+}
+
+impl AsRef<[LabelDecodingInfo]> for InputLabelsDecodingInfo {
+    fn as_ref(&self) -> &[LabelDecodingInfo] {
+        &self.decoding
     }
 }
 
@@ -812,6 +871,26 @@ pub(crate) mod unchecked {
                 .collect();
 
             Ok(Self { output, labels })
+        }
+    }
+
+    /// Input label decoding info which hasn't been validated against a circuit spec
+    ///
+    /// For more information on label decoding see [`LabelDecodingInfo`]
+    #[derive(Debug, Clone)]
+    pub struct UncheckedInputLabelsDecodingInfo {
+        /// the id of the circuit [Input] which this decoding info is for
+        pub(crate) id: usize,
+        pub(crate) decoding: Vec<LabelDecodingInfo>,
+    }
+
+    #[cfg(test)]
+    impl From<InputLabelsDecodingInfo> for UncheckedInputLabelsDecodingInfo {
+        fn from(decoding: InputLabelsDecodingInfo) -> Self {
+            Self {
+                id: decoding.input.id,
+                decoding: decoding.decoding,
+            }
         }
     }
 
@@ -1266,13 +1345,14 @@ mod tests {
 
         // grab input 0
         let full_labels = full_labels.remove(0);
+        let decoding = full_labels.decoding();
 
         // select wire labels for value
         let value = circ.input(0).unwrap().to_value(42069u64).unwrap();
         let labels = full_labels.select(&value).unwrap();
 
         // using delta and value, reconstruct full wire label pairs
-        let reconstructed_labels = InputLabels::from_input_labels(labels, delta, value).unwrap();
+        let reconstructed_labels = InputLabels::from_decoding(labels, delta, decoding).unwrap();
 
         assert_eq!(reconstructed_labels, full_labels);
     }

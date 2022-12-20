@@ -1,3 +1,4 @@
+use aes::{Aes128, NewBlockCipher};
 use cipher::{consts::U16, BlockCipher, BlockEncrypt};
 use std::{collections::HashSet, sync::Arc};
 
@@ -7,8 +8,9 @@ use crate::{
         evaluator::evaluate,
         generator::garble,
         label::{
-            decode_output_labels, extract_input_labels, extract_output_labels, OutputLabels,
-            OutputLabelsCommitment, OutputLabelsDecodingInfo, SanitizedInputLabels,
+            decode_output_labels, extract_input_labels, extract_output_labels,
+            InputLabelsDecodingInfo, OutputLabels, OutputLabelsCommitment,
+            OutputLabelsDecodingInfo, SanitizedInputLabels,
         },
         Delta, Error, InputLabels, WireLabel, WireLabelPair,
     },
@@ -83,6 +85,7 @@ pub mod state {
         pub(crate) input_labels: Vec<InputLabels<WireLabelPair>>,
         pub(crate) output_labels: Vec<OutputLabels<WireLabelPair>>,
         pub(crate) decoding: Vec<OutputLabelsDecodingInfo>,
+        pub(crate) delta: Delta,
     }
 
     /// Garbled circuit data including input labels from the generator and (optionally) the output decoding
@@ -144,6 +147,18 @@ use state::*;
 pub struct GarbledCircuit<S: State> {
     pub circ: Arc<Circuit>,
     pub(crate) state: S,
+}
+
+/// Data used for opening a garbled circuit (GC) to the evaluator.
+/// To enable the evaluator to check that a GC was generated correctly, the generator
+/// "opens" the GC.
+/// We rely on the property of the "half-gates" garbling scheme that given the input
+/// label pairs and the delta, a GC will always be generated deterministically.
+/// We assume that the evaluator is already in posession of their active input labels.
+#[derive(Debug, Clone)]
+pub struct CircuitOpening {
+    pub(crate) delta: Delta,
+    pub(crate) input_decoding: Vec<InputLabelsDecodingInfo>,
 }
 
 impl GarbledCircuit<Full> {
@@ -265,6 +280,7 @@ impl GarbledCircuit<Full> {
         let input_labels = self.input_labels();
         let output_labels = self.output_labels();
         let decoding = self.decoding();
+        let delta = self.state.delta;
 
         GarbledCircuit {
             circ: self.circ,
@@ -272,7 +288,20 @@ impl GarbledCircuit<Full> {
                 input_labels,
                 output_labels,
                 decoding,
+                delta,
             },
+        }
+    }
+
+    /// Returns circuit opening
+    pub fn open(&self) -> CircuitOpening {
+        CircuitOpening {
+            delta: self.state.delta,
+            input_decoding: self
+                .input_labels()
+                .iter()
+                .map(|labels| labels.decoding())
+                .collect(),
         }
     }
 }
@@ -291,6 +320,19 @@ impl GarbledCircuit<Summary> {
     /// Returns output label decoding info if available
     pub fn decoding(&self) -> &[OutputLabelsDecodingInfo] {
         &self.state.decoding
+    }
+
+    /// Returns circuit opening
+    pub fn open(&self) -> CircuitOpening {
+        CircuitOpening {
+            delta: self.state.delta,
+            input_decoding: self
+                .state
+                .input_labels
+                .iter()
+                .map(|labels| labels.decoding())
+                .collect(),
+        }
     }
 }
 
@@ -331,10 +373,14 @@ impl GarbledCircuit<Partial> {
                 .collect::<Result<(), Error>>()?;
         }
 
+        // Group all the input labels together
+        let mut input_labels = [self.state.input_labels, input_labels.to_vec()].concat();
+        input_labels.sort_by_key(|input| input.id());
+
         Ok(GarbledCircuit {
             circ: self.circ.clone(),
             state: Evaluated {
-                input_labels: input_labels.to_vec(),
+                input_labels,
                 labels,
                 encrypted_gates: self.state.encrypted_gates,
                 output_labels,
@@ -400,6 +446,20 @@ impl GarbledCircuit<Evaluated> {
             .ok_or(Error::InvalidLabelDecodingInfo)?;
         decode_output_labels(&self.circ, &self.state.output_labels, decoding)
     }
+
+    /// Validates circuit using [`CircuitOpening`]
+    pub fn validate(&self, opening: CircuitOpening) -> Result<(), Error> {
+        validate_circuit(
+            &Aes128::new_from_slice(&[0; 16]).unwrap(),
+            &self.circ,
+            opening,
+            &self.state.input_labels,
+            Some(self.state.encrypted_gates.as_slice()),
+            None,
+            self.state.decoding.as_ref().map(Vec::as_slice),
+            self.state.commitments.as_ref().map(Vec::as_slice),
+        )
+    }
 }
 
 impl GarbledCircuit<Compressed> {
@@ -438,6 +498,20 @@ impl GarbledCircuit<Compressed> {
             .ok_or(Error::InvalidLabelDecodingInfo)?;
         decode_output_labels(&self.circ, &self.state.output_labels, decoding)
     }
+
+    /// Validates circuit using [`CircuitOpening`]
+    pub fn validate(&self, opening: CircuitOpening) -> Result<(), Error> {
+        validate_circuit(
+            &Aes128::new_from_slice(&[0; 16]).unwrap(),
+            &self.circ,
+            opening,
+            &self.state.input_labels,
+            None,
+            Some(self.state.gates_digest.clone()),
+            self.state.decoding.as_ref().map(Vec::as_slice),
+            self.state.commitments.as_ref().map(Vec::as_slice),
+        )
+    }
 }
 
 impl GarbledCircuit<Output> {
@@ -467,54 +541,32 @@ impl GarbledCircuit<Output> {
     }
 }
 
-pub fn validate_compressed_circuit<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
-    cipher: &C,
-    delta: Delta,
-    input_labels: &[InputLabels<WireLabelPair>],
-    gc: GarbledCircuit<Compressed>,
-) -> Result<GarbledCircuit<Compressed>, Error> {
-    validate_circuit(
-        cipher,
-        &gc.circ,
-        delta,
-        input_labels,
-        None,
-        Some(gc.state.gates_digest.clone()),
-        gc.state.decoding.as_ref().map(Vec::as_slice),
-        gc.state.commitments.as_ref().map(Vec::as_slice),
-    )?;
-    Ok(gc)
-}
-
-pub fn validate_evaluated_circuit<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
-    cipher: &C,
-    delta: Delta,
-    input_labels: &[InputLabels<WireLabelPair>],
-    gc: GarbledCircuit<Evaluated>,
-) -> Result<GarbledCircuit<Evaluated>, Error> {
-    validate_circuit(
-        cipher,
-        &gc.circ,
-        delta,
-        input_labels,
-        Some(gc.state.encrypted_gates.as_slice()),
-        None,
-        gc.state.decoding.as_ref().map(Vec::as_slice),
-        gc.state.commitments.as_ref().map(Vec::as_slice),
-    )?;
-    Ok(gc)
-}
-
 fn validate_circuit<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     cipher: &C,
     circ: &Circuit,
-    delta: Delta,
-    input_labels: &[InputLabels<WireLabelPair>],
+    opening: CircuitOpening,
+    input_labels: &[InputLabels<WireLabel>],
     encrypted_gates: Option<&[EncryptedGate]>,
     digest: Option<Vec<u8>>,
     output_decoding: Option<&[OutputLabelsDecodingInfo]>,
     output_commitments: Option<&[OutputLabelsCommitment]>,
 ) -> Result<(), Error> {
+    let CircuitOpening {
+        delta,
+        input_decoding,
+        ..
+    } = opening;
+
+    let full_input_labels: Vec<WireLabelPair> = input_labels
+        .iter()
+        .zip(input_decoding)
+        .map(|(labels, decoding)| InputLabels::from_decoding(labels.clone(), delta, decoding))
+        .collect::<Result<Vec<_>, Error>>()?
+        .into_iter()
+        .map(|labels| labels.to_inner())
+        .flatten()
+        .collect();
+
     let digest = if let Some(encrypted_gates) = encrypted_gates {
         // If gates are passed in, hash them
         gates_digest(encrypted_gates)
@@ -527,17 +579,10 @@ fn validate_circuit<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
         ));
     };
 
-    let input_labels: Vec<WireLabelPair> = input_labels
-        .iter()
-        .map(|pair| pair.as_ref())
-        .flatten()
-        .copied()
-        .collect();
-
     // Re-garble circuit using input labels.
     // We rely on the property of the "half-gates" garbling scheme that given the input
     // labels, the encrypted gates will always be computed deterministically.
-    let (labels, encrypted_gates) = garble(cipher, circ, delta, &input_labels)?;
+    let (labels, encrypted_gates) = garble(cipher, circ, delta, &full_input_labels)?;
 
     // Compute the expected gates digest
     let expected_digest = gates_digest(&encrypted_gates);
@@ -872,6 +917,71 @@ pub(crate) mod unchecked {
         }
     }
 
+    /// Unchecked variant of [`CircuitOpening`]
+    #[derive(Debug, Clone)]
+    pub struct UncheckedCircuitOpening {
+        pub(crate) delta: Delta,
+        pub(crate) input_decoding: Vec<UncheckedInputLabelsDecodingInfo>,
+    }
+
+    #[cfg(test)]
+    impl From<CircuitOpening> for UncheckedCircuitOpening {
+        fn from(opening: CircuitOpening) -> Self {
+            Self {
+                delta: opening.delta,
+                input_decoding: opening
+                    .input_decoding
+                    .into_iter()
+                    .map(UncheckedInputLabelsDecodingInfo::from)
+                    .collect(),
+            }
+        }
+    }
+
+    impl CircuitOpening {
+        /// Validates opening data and converts to checked variant [`CircuitOpening`]
+        pub fn from_unchecked(
+            circ: &Circuit,
+            unchecked: UncheckedCircuitOpening,
+        ) -> Result<Self, Error> {
+            let UncheckedCircuitOpening {
+                delta,
+                mut input_decoding,
+            } = unchecked;
+
+            // Sort by input id
+            input_decoding.sort_by_key(|decoding| decoding.id);
+
+            // 1. Check for duplicates
+            // 2. Check all decodings are present
+            // 3. Check all input ids are valid
+            if input_decoding
+                .iter()
+                .contains_dups_by(|decoding| &decoding.id)
+                || input_decoding.len() != circ.input_count()
+                || !input_decoding
+                    .iter()
+                    .all(|decoding| circ.is_input_id(decoding.id))
+            {
+                return Err(Error::InvalidOpening);
+            }
+
+            // Convert unchecked decodings to checked variant
+            let input_decoding = input_decoding
+                .into_iter()
+                .zip(circ.inputs())
+                .map(|(unchecked, input)| {
+                    InputLabelsDecodingInfo::from_unchecked(input.clone(), unchecked)
+                })
+                .collect::<Result<Vec<_>, Error>>()?;
+
+            Ok(CircuitOpening {
+                delta,
+                input_decoding,
+            })
+        }
+    }
+
     #[cfg(test)]
     mod tests {
         use super::*;
@@ -950,6 +1060,11 @@ pub(crate) mod unchecked {
                     .map(|(labels, value)| labels.select(value).unwrap().into())
                     .collect(),
             }
+        }
+
+        #[fixture]
+        fn unchecked_opening(garbled_circuit: GarbledCircuit<Full>) -> UncheckedCircuitOpening {
+            garbled_circuit.open().into()
         }
 
         // Test validation with different combinations of garbler inputs
@@ -1139,6 +1254,22 @@ pub(crate) mod unchecked {
 
             assert!(matches!(err, Error::ValidationError(_)));
         }
+
+        #[rstest]
+        fn test_unchecked_opening(circ: Circuit, unchecked_opening: UncheckedCircuitOpening) {
+            CircuitOpening::from_unchecked(&circ, unchecked_opening).unwrap();
+        }
+
+        #[rstest]
+        fn test_unchecked_opening_wrong_decoding_count(
+            circ: Circuit,
+            mut unchecked_opening: UncheckedCircuitOpening,
+        ) {
+            unchecked_opening.input_decoding.pop();
+            let err = CircuitOpening::from_unchecked(&circ, unchecked_opening).unwrap_err();
+
+            assert!(matches!(err, Error::InvalidOpening))
+        }
     }
 }
 
@@ -1175,6 +1306,7 @@ mod tests {
         let (input_labels, delta) = InputLabels::generate(&mut rng, &circ, None);
 
         let gc = GarbledCircuit::generate(&cipher, circ.clone(), delta, &input_labels).unwrap();
+        let opening = gc.open();
 
         let key_labels = input_labels[0].select(&key).unwrap();
         let msg_labels = input_labels[1].select(&msg).unwrap();
@@ -1184,11 +1316,8 @@ mod tests {
             .evaluate(&cipher, &[key_labels, msg_labels])
             .unwrap();
 
-        let ev_gc = validate_evaluated_circuit(&cipher, delta, &input_labels, ev_gc).unwrap();
-
-        let cmp_gc = ev_gc.compress();
-
-        validate_compressed_circuit(&cipher, delta, &input_labels, cmp_gc).unwrap();
+        ev_gc.validate(opening.clone()).unwrap();
+        ev_gc.compress().validate(opening).unwrap();
     }
 
     #[test]
@@ -1202,6 +1331,7 @@ mod tests {
         let (input_labels, delta) = InputLabels::generate(&mut rng, &circ, None);
 
         let mut gc = GarbledCircuit::generate(&cipher, circ.clone(), delta, &input_labels).unwrap();
+        let opening = gc.open();
 
         // set bogus gate
         gc.state.encrypted_gates[0].0[0] = Block::new(0);
@@ -1214,14 +1344,13 @@ mod tests {
             .evaluate(&cipher, &[key_labels, msg_labels])
             .unwrap();
 
-        let err =
-            validate_evaluated_circuit(&cipher, delta, &input_labels, ev_gc.clone()).unwrap_err();
+        let err = ev_gc.validate(opening.clone()).unwrap_err();
 
         assert!(matches!(err, Error::CorruptedGarbledCircuit));
 
         let cmp_gc = ev_gc.compress();
 
-        let err = validate_compressed_circuit(&cipher, delta, &input_labels, cmp_gc).unwrap_err();
+        let err = cmp_gc.validate(opening).unwrap_err();
 
         assert!(matches!(err, Error::CorruptedGarbledCircuit));
     }
@@ -1237,6 +1366,7 @@ mod tests {
         let (mut input_labels, delta) = InputLabels::generate(&mut rng, &circ, None);
 
         let gc = GarbledCircuit::generate(&cipher, circ.clone(), delta, &input_labels).unwrap();
+        let opening = gc.open();
 
         // set bogus label
         input_labels[0].set_label(0, WireLabelPair::new(0, Block::new(0), Block::new(0)));
@@ -1249,14 +1379,13 @@ mod tests {
             .evaluate(&cipher, &[key_labels, msg_labels])
             .unwrap();
 
-        let err =
-            validate_evaluated_circuit(&cipher, delta, &input_labels, ev_gc.clone()).unwrap_err();
+        let err = ev_gc.validate(opening.clone()).unwrap_err();
 
         assert!(matches!(err, Error::CorruptedGarbledCircuit));
 
         let cmp_gc = ev_gc.compress();
 
-        let err = validate_compressed_circuit(&cipher, delta, &input_labels, cmp_gc).unwrap_err();
+        let err = cmp_gc.validate(opening).unwrap_err();
 
         assert!(matches!(err, Error::CorruptedGarbledCircuit));
     }
@@ -1274,6 +1403,7 @@ mod tests {
         let (input_labels, delta) = InputLabels::generate(&mut rng, &circ, None);
 
         let mut gc = GarbledCircuit::generate(&cipher, circ.clone(), delta, &input_labels).unwrap();
+        let opening = gc.open();
 
         // Flip the last two output labels. This will cause the generator to compute the
         // corrupted decoding info.
@@ -1291,14 +1421,13 @@ mod tests {
             .evaluate(&cipher, &[key_labels, msg_labels])
             .unwrap();
 
-        let err =
-            validate_evaluated_circuit(&cipher, delta, &input_labels, ev_gc.clone()).unwrap_err();
+        let err = ev_gc.validate(opening.clone()).unwrap_err();
 
         assert!(matches!(err, Error::CorruptedDecodingInfo));
 
         let cmp_gc = ev_gc.compress();
 
-        let err = validate_compressed_circuit(&cipher, delta, &input_labels, cmp_gc).unwrap_err();
+        let err = cmp_gc.validate(opening).unwrap_err();
 
         assert!(matches!(err, Error::CorruptedDecodingInfo));
     }
@@ -1314,6 +1443,7 @@ mod tests {
         let (mut input_labels, delta) = InputLabels::generate(&mut rng, &circ, None);
 
         let gc = GarbledCircuit::generate(&cipher, circ.clone(), delta, &input_labels).unwrap();
+        let opening = gc.open();
 
         // set bogus high label (the opposite label the evaluator receives)
         // evaluation should pass but the circuit validation should fail because the commitment is bad
@@ -1328,14 +1458,13 @@ mod tests {
             .evaluate(&cipher, &[key_labels, msg_labels])
             .unwrap();
 
-        let err =
-            validate_evaluated_circuit(&cipher, delta, &input_labels, ev_gc.clone()).unwrap_err();
+        let err = ev_gc.validate(opening.clone()).unwrap_err();
 
         assert!(matches!(err, Error::CorruptedGarbledCircuit));
 
         let cmp_gc = ev_gc.compress();
 
-        let err = validate_compressed_circuit(&cipher, delta, &input_labels, cmp_gc).unwrap_err();
+        let err = cmp_gc.validate(opening).unwrap_err();
 
         assert!(matches!(err, Error::CorruptedGarbledCircuit));
     }

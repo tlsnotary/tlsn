@@ -3,8 +3,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     garble::{
-        circuit, circuit::unchecked as unchecked_circuit, commitment, gc_state, label,
-        label::unchecked as unchecked_label,
+        self,
+        circuit::{self, unchecked as unchecked_circuit, unchecked::UncheckedCircuitOpening},
+        commitment, gc_state, label,
+        label::unchecked::{self as unchecked_label, UncheckedInputLabelsDecodingInfo},
     },
     Block,
 };
@@ -14,6 +16,7 @@ use mpc_circuits::Circuit;
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum GarbleMessage {
     GarbledCircuit(GarbledCircuit),
+    CircuitOpening(CircuitOpening),
     Output(Output),
     HashCommitment(HashCommitment),
     CommitmentOpening(CommitmentOpening),
@@ -73,6 +76,39 @@ impl From<CommitmentOpening> for commitment::Opening {
         Self {
             key: c.key.into(),
             message: c.message,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct CircuitOpening {
+    delta: [u8; 16],
+    input_decoding: Vec<InputDecodingInfo>,
+}
+
+impl From<garble::CircuitOpening> for CircuitOpening {
+    fn from(opening: garble::CircuitOpening) -> Self {
+        Self {
+            delta: opening.delta.to_be_bytes(),
+            input_decoding: opening
+                .input_decoding
+                .into_iter()
+                .map(InputDecodingInfo::from)
+                .collect(),
+        }
+    }
+}
+
+impl From<CircuitOpening> for UncheckedCircuitOpening {
+    fn from(opening: CircuitOpening) -> Self {
+        Self {
+            delta: opening.delta.into(),
+            input_decoding: opening
+                .input_decoding
+                .into_iter()
+                .map(UncheckedInputLabelsDecodingInfo::from)
+                .collect(),
         }
     }
 }
@@ -147,6 +183,40 @@ impl From<OutputLabels> for unchecked_label::UncheckedOutputLabels {
         Self {
             id: labels.id,
             labels: labels.labels,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct InputDecodingInfo {
+    pub id: usize,
+    pub decoding: Vec<bool>,
+}
+
+impl From<label::InputLabelsDecodingInfo> for InputDecodingInfo {
+    fn from(decoding: label::InputLabelsDecodingInfo) -> Self {
+        Self {
+            id: decoding.input.id,
+            decoding: decoding
+                .as_ref()
+                .iter()
+                .copied()
+                .map(|enc| *enc)
+                .collect::<Vec<bool>>(),
+        }
+    }
+}
+
+impl From<InputDecodingInfo> for unchecked_label::UncheckedInputLabelsDecodingInfo {
+    fn from(decoding: InputDecodingInfo) -> Self {
+        Self {
+            id: decoding.id,
+            decoding: decoding
+                .decoding
+                .into_iter()
+                .map(label::LabelDecodingInfo::from)
+                .collect(),
         }
     }
 }

@@ -6,8 +6,7 @@ use futures::channel::oneshot;
 
 use mpc_circuits::Circuit;
 use mpc_core::garble::{
-    gc_state, validate_compressed_circuit, validate_evaluated_circuit, Delta, GarbledCircuit,
-    InputLabels, WireLabel, WireLabelPair,
+    gc_state, CircuitOpening, Delta, GarbledCircuit, InputLabels, WireLabel, WireLabelPair,
 };
 
 use crate::protocol::garble::{Compressor, Evaluator, GCError, Generator, Validator};
@@ -62,15 +61,11 @@ impl Validator for RayonBackend {
     async fn validate_evaluated(
         &mut self,
         circ: GarbledCircuit<gc_state::Evaluated>,
-        delta: Delta,
-        input_labels: &[InputLabels<WireLabelPair>],
+        opening: CircuitOpening,
     ) -> Result<GarbledCircuit<gc_state::Evaluated>, GCError> {
         let (sender, receiver) = oneshot::channel();
-        let input_labels = input_labels.to_vec();
         rayon::spawn(move || {
-            let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
-            let circ = validate_evaluated_circuit(&cipher, delta, &input_labels, circ)
-                .map_err(GCError::from);
+            let circ = circ.validate(opening).map(|_| circ).map_err(GCError::from);
             _ = sender.send(circ);
         });
         receiver
@@ -81,15 +76,11 @@ impl Validator for RayonBackend {
     async fn validate_compressed(
         &mut self,
         circ: GarbledCircuit<gc_state::Compressed>,
-        delta: Delta,
-        input_labels: &[InputLabels<WireLabelPair>],
+        opening: CircuitOpening,
     ) -> Result<GarbledCircuit<gc_state::Compressed>, GCError> {
         let (sender, receiver) = oneshot::channel();
-        let input_labels = input_labels.to_vec();
         rayon::spawn(move || {
-            let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
-            let circ = validate_compressed_circuit(&cipher, delta, &input_labels, circ)
-                .map_err(GCError::from);
+            let circ = circ.validate(opening).map(|_| circ).map_err(GCError::from);
             _ = sender.send(circ);
         });
         receiver
@@ -153,6 +144,7 @@ mod test {
             .generate(circ.clone(), delta, &full_input_labels)
             .await
             .unwrap();
+        let opening = gc.open();
 
         let input_labels = vec![
             full_input_labels[0]
@@ -169,14 +161,14 @@ mod test {
             .unwrap();
 
         let ev_gc = RayonBackend
-            .validate_evaluated(ev_gc, delta, &full_input_labels)
+            .validate_evaluated(ev_gc, opening.clone())
             .await
             .unwrap();
 
         let compressed_gc = RayonBackend.compress(ev_gc).await.unwrap();
 
         let _ = RayonBackend
-            .validate_compressed(compressed_gc, delta, &full_input_labels)
+            .validate_compressed(compressed_gc, opening)
             .await
             .unwrap();
     }
