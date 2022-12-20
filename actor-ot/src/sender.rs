@@ -24,6 +24,7 @@ pub enum State {
 pub struct KOSSenderFactory<T, U> {
     config: SenderFactoryConfig,
     sink: SplitSink<T, OTFactoryMessage>,
+    /// Local muxer which sets up channels with the remote KOSReceiverFactory
     mux_control: U,
     state: State,
 }
@@ -36,6 +37,8 @@ where
     pub fn new(
         config: SenderFactoryConfig,
         addr: Address<Self>,
+        // the channel over which OT splits are synchronized with the remote
+        // KOSReceiverFactory
         channel: T,
         mux_control: U,
     ) -> (
@@ -72,6 +75,7 @@ where
 {
     type Return = Result<(), OTFactoryError>;
 
+    /// Handles the Setup message
     async fn handle(
         &mut self,
         _msg: Setup,
@@ -111,6 +115,7 @@ where
 {
     type Return = Result<Kos15IOSender<RandSetup>, OTFactoryError>;
 
+    /// Handles the GetSender message
     async fn handle(
         &mut self,
         msg: GetSender,
@@ -152,6 +157,7 @@ where
 {
     type Return = Result<(), OTFactoryError>;
 
+    /// Handles the Verify message
     async fn handle(&mut self, _msg: Verify, ctx: &mut Context<Self>) -> Self::Return {
         if !self.config.committed {
             return Err(OTFactoryError::Other(

@@ -26,9 +26,13 @@ pub enum State {
 pub struct KOSReceiverFactory<T, U> {
     config: ReceiverFactoryConfig,
     _sink: SplitSink<T, OTFactoryMessage>,
+    /// Local muxer which sets up channels with the remote KOSSenderFactory
     mux_control: U,
     state: State,
+    /// A buffer of ready-to-use OTs which have not yet been requested by a local caller
     child_buffer: HashMap<String, Result<Kos15IOReceiver<RandSetup>, OTFactoryError>>,
+    /// A buffer of local callers which have requested OTs. As soon as we synchronize OT
+    /// splitting with the remote KOSSenderFactory, we will send OTs to the callers.
     pending_buffer:
         HashMap<String, oneshot::Sender<Result<Kos15IOReceiver<RandSetup>, OTFactoryError>>>,
 }
@@ -41,6 +45,8 @@ where
     pub fn new(
         config: ReceiverFactoryConfig,
         addr: Address<Self>,
+        // the channel over which OT splits are synchronized with the remote
+        // KOSSenderFactory
         channel: T,
         mux_control: U,
     ) -> (
@@ -51,7 +57,7 @@ where
         let (sender, receiver) = oneshot::channel();
 
         let fut = scoped(&addr.clone(), async move {
-            // wait for actor to signal that it is setup before we start
+            // wait for actor to signal that it is set up before we start
             // processing these messages
             _ = receiver.await;
             while let Some(msg) = stream.next().await {
@@ -88,11 +94,13 @@ where
 {
     type Return = Result<(), OTFactoryError>;
 
+    /// Handles the Setup message
     async fn handle(
         &mut self,
         _msg: Setup,
         _ctx: &mut Context<Self>,
     ) -> Result<(), OTFactoryError> {
+        // we want any early return to leave this actor in an error state
         let state = std::mem::replace(&mut self.state, State::Error);
 
         let State::Initialized(setup_signal) = state else {
@@ -101,7 +109,7 @@ where
             ));
         };
 
-        // Open channel to sender factory
+        // Open channel to the remote KOSSenderFactory
         let parent_ot_channel = self
             .mux_control
             .get_channel(self.config.ot_id.clone())
@@ -132,6 +140,7 @@ where
 {
     type Return = Result<(), OTFactoryError>;
 
+    /// Handles the Split message. This message is sent by the remote KOSSenderFactory.
     async fn handle(&mut self, msg: Split, _ctx: &mut Context<Self>) -> Result<(), OTFactoryError> {
         let Split { id, count } = msg;
 
@@ -145,7 +154,7 @@ where
             return Err(OTFactoryError::Other("KOSReceiverFactory is not setup".to_string()));
         };
 
-        // Open channel to sender
+        // Open channel to the OT sender
         let child_channel = self.mux_control.get_channel(id.clone()).await?;
         // Split off OTs
         let (parent_ot, child_ot) = parent_ot.split(child_channel, count)?;
@@ -172,6 +181,7 @@ where
 {
     type Return = oneshot::Receiver<Result<Kos15IOReceiver<RandSetup>, OTFactoryError>>;
 
+    /// Handles the GetReceiver message
     async fn handle(
         &mut self,
         msg: GetReceiver,
@@ -179,9 +189,11 @@ where
     ) -> oneshot::Receiver<Result<Kos15IOReceiver<RandSetup>, OTFactoryError>> {
         let GetReceiver { id, count } = msg;
 
+        // since we may be called before we are ready to return the OTs, we use a oneshot
+        // for all our return values and errors.
         let (sender, receiver) = oneshot::channel();
 
-        // If we're not setup return an error
+        // If we're not set up, return an error
         if !matches!(&self.state, &State::Setup(_)) {
             _ = sender.send(Err(OTFactoryError::Other(
                 "KOSReceiverFactory is not setup".to_string(),
@@ -205,7 +217,7 @@ where
             // Send child instance immediately
             _ = sender.send(child_ot);
         } else {
-            // Otherwise insert this instance ID and oneshot receiver into a buffer
+            // Otherwise insert this instance ID and oneshot sender into a buffer
             self.pending_buffer.insert(id, sender);
         }
 
