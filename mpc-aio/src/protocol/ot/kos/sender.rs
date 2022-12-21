@@ -105,10 +105,8 @@ impl Kos15IOSender<s_state::RandSetup> {
 }
 
 #[async_trait]
-impl ObliviousSend for Kos15IOSender<s_state::RandSetup> {
-    type Inputs = Vec<[Block; 2]>;
-
-    async fn send(&mut self, inputs: Self::Inputs) -> Result<(), OTError> {
+impl ObliviousSend<[Block; 2]> for Kos15IOSender<s_state::RandSetup> {
+    async fn send(&mut self, inputs: Vec<[Block; 2]>) -> Result<(), OTError> {
         let message = expect_msg_or_err!(
             self.channel.next().await,
             OTMessage::ExtDerandomize,

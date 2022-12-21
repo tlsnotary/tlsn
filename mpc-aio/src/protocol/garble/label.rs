@@ -15,7 +15,7 @@ pub enum WireLabelError {
 }
 
 #[async_trait]
-pub trait WireLabelOTSend: ot::ObliviousSend<Inputs = Vec<[Block; 2]>> {
+pub trait WireLabelOTSend: ot::ObliviousSend<[Block; 2]> {
     /// Sends labels using oblivious transfer
     ///
     /// Inputs must be provided sorted ascending by input id
@@ -41,10 +41,10 @@ pub trait WireLabelOTSend: ot::ObliviousSend<Inputs = Vec<[Block; 2]>> {
     }
 }
 
-impl<T> WireLabelOTSend for T where T: ot::ObliviousSend<Inputs = Vec<[Block; 2]>> {}
+impl<T> WireLabelOTSend for T where T: ot::ObliviousSend<[Block; 2]> {}
 
 #[async_trait]
-pub trait WireLabelOTReceive: ot::ObliviousReceive<Choice = bool, Outputs = Vec<Block>> {
+pub trait WireLabelOTReceive: ot::ObliviousReceive<bool, Block> {
     /// Receives labels using oblivious transfer
     ///
     /// Inputs must be provided sorted ascending by input id
@@ -58,7 +58,7 @@ pub trait WireLabelOTReceive: ot::ObliviousReceive<Choice = bool, Outputs = Vec<
             .flatten()
             .collect::<Vec<bool>>();
 
-        let mut labels = self.receive(&choices).await?;
+        let mut labels = self.receive(choices).await?;
 
         inputs
             .into_iter()
@@ -77,7 +77,7 @@ pub trait WireLabelOTReceive: ot::ObliviousReceive<Choice = bool, Outputs = Vec<
     }
 }
 
-impl<T> WireLabelOTReceive for T where T: ot::ObliviousReceive<Choice = bool, Outputs = Vec<Block>> {}
+impl<T> WireLabelOTReceive for T where T: ot::ObliviousReceive<bool, Block> {}
 
 #[cfg(test)]
 mod tests {

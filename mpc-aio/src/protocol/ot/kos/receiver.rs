@@ -93,11 +93,8 @@ impl Kos15IOReceiver<r_state::RandSetup> {
 }
 
 #[async_trait]
-impl ObliviousReceive for Kos15IOReceiver<r_state::RandSetup> {
-    type Choice = bool;
-    type Outputs = Vec<Block>;
-
-    async fn receive(&mut self, choices: &[bool]) -> Result<Self::Outputs, OTError> {
+impl ObliviousReceive<bool, Block> for Kos15IOReceiver<r_state::RandSetup> {
+    async fn receive(&mut self, choices: Vec<bool>) -> Result<Vec<Block>, OTError> {
         let message = self.inner.derandomize(&choices)?;
         self.channel
             .send(OTMessage::ExtDerandomize(message))

@@ -9,6 +9,7 @@ use mpc_core::{
         CommittedOTError, ExtReceiverCoreError, ExtSenderCoreError, ReceiverCoreError,
         SenderCoreError,
     },
+    Block,
 };
 use utils_aio::{mux::MuxerError, Channel};
 
@@ -49,18 +50,13 @@ pub enum OTFactoryError {
 }
 
 #[async_trait]
-pub trait ObliviousSend {
-    type Inputs;
-
-    async fn send(&mut self, inputs: Self::Inputs) -> Result<(), OTError>;
+pub trait ObliviousSend<T> {
+    async fn send(&mut self, inputs: Vec<T>) -> Result<(), OTError>;
 }
 
 #[async_trait]
-pub trait ObliviousReceive {
-    type Choice;
-    type Outputs;
-
-    async fn receive(&mut self, choices: &[Self::Choice]) -> Result<Self::Outputs, OTError>;
+pub trait ObliviousReceive<T, U> {
+    async fn receive(&mut self, choices: Vec<T>) -> Result<Vec<U>, OTError>;
 }
 
 #[async_trait]
@@ -90,8 +86,8 @@ pub trait ObliviousVerify {
 }
 
 #[async_trait]
-pub trait OTSenderFactory {
-    type Protocol: ObliviousSend + Send;
+pub trait OTSenderFactory<T> {
+    type Protocol: ObliviousSend<T> + Send;
 
     /// Constructs a new Sender
     ///
@@ -105,8 +101,8 @@ pub trait OTSenderFactory {
 }
 
 #[async_trait]
-pub trait OTReceiverFactory {
-    type Protocol: ObliviousReceive + Send;
+pub trait OTReceiverFactory<T, U> {
+    type Protocol: ObliviousReceive<T, U> + Send;
 
     /// Constructs a new Receiver
     ///
@@ -124,12 +120,10 @@ mockall::mock! {
     pub ObliviousSender {}
 
     #[async_trait]
-    impl ObliviousSend for ObliviousSender {
-        type Inputs = Vec<[mpc_core::Block; 2]>;
-
+    impl ObliviousSend<[Block; 2]> for ObliviousSender {
         async fn send(
             &mut self,
-            inputs: Vec<[mpc_core::Block; 2]>,
+            inputs: Vec<[Block; 2]>,
         ) -> Result<(), OTError>;
     }
 }
@@ -139,13 +133,10 @@ mockall::mock! {
     pub ObliviousReceiver {}
 
     #[async_trait]
-    impl ObliviousReceive for ObliviousReceiver {
-        type Choice = bool;
-        type Outputs = Vec<mpc_core::Block>;
-
+    impl ObliviousReceive<bool, Block> for ObliviousReceiver {
         async fn receive(
             &mut self,
-            choices: &[bool],
-        ) -> Result<Vec<mpc_core::Block>, OTError>;
+            choices: Vec<bool>,
+        ) -> Result<Vec<Block>, OTError>;
     }
 }
