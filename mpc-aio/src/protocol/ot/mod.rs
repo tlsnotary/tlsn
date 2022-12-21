@@ -9,7 +9,6 @@ use mpc_core::{
         CommittedOTError, ExtReceiverCoreError, ExtSenderCoreError, ReceiverCoreError,
         SenderCoreError,
     },
-    Block,
 };
 use utils_aio::{mux::MuxerError, Channel};
 
@@ -120,10 +119,10 @@ mockall::mock! {
     pub ObliviousSender {}
 
     #[async_trait]
-    impl ObliviousSend<[Block; 2]> for ObliviousSender {
+    impl ObliviousSend<[mpc_core::Block; 2]> for ObliviousSender {
         async fn send(
             &mut self,
-            inputs: Vec<[Block; 2]>,
+            inputs: Vec<[mpc_core::Block; 2]>,
         ) -> Result<(), OTError>;
     }
 }
@@ -133,10 +132,10 @@ mockall::mock! {
     pub ObliviousReceiver {}
 
     #[async_trait]
-    impl ObliviousReceive<bool, Block> for ObliviousReceiver {
+    impl ObliviousReceive<bool, mpc_core::Block> for ObliviousReceiver {
         async fn receive(
             &mut self,
             choices: Vec<bool>,
-        ) -> Result<Vec<Block>, OTError>;
+        ) -> Result<Vec<mpc_core::Block>, OTError>;
     }
 }

@@ -15,6 +15,8 @@ use mpc_core::{
 use rand::thread_rng;
 use utils_aio::Channel;
 
+use super::ot::OTError;
+
 pub type GarbleChannel = Box<dyn Channel<GarbleMessage, Error = std::io::Error>>;
 
 #[derive(Debug, thiserror::Error)]
@@ -26,7 +28,7 @@ pub enum GCError {
     #[error("io error")]
     IOError(#[from] std::io::Error),
     #[error("ot error")]
-    LabelOTError(#[from] label::WireLabelError),
+    OTError(#[from] OTError),
     #[error("Received unexpected message: {0:?}")]
     Unexpected(GarbleMessage),
     #[error("backend error")]
