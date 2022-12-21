@@ -11,9 +11,22 @@ use crate::signed::Signed;
 
 type HashCommitment = [u8; 32];
 
-#[derive(Debug)]
-enum Error {
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("x509-parser error: {0}")]
+    X509ParserError(String),
+    #[error("webpki error: {0}")]
+    WebpkiError(String),
+    #[error("unspecified error")]
     VerificationError,
+    #[error("the certificate chain was empty")]
+    EmptyCertificateChain,
+    #[error("the end entity must not be a certificate authority")]
+    EndEntityIsCA,
+    #[error("the key exchange was signed using an unknown curve")]
+    UnknownCurveInKeyExchange,
+    #[error("the key exchange was signed using an unknown algorithm")]
+    UnknownSigningAlgorithmInKeyExchange,
 }
 
 struct VerifierCore {
@@ -50,7 +63,7 @@ impl VerifierCore {
             } else {
                 // check Notary's signature on signed data
                 self.verify_doc_signature(
-                    &self.trusted_pubkey.unwrap(),
+                    &self.trusted_pubkey.as_ref().unwrap(),
                     &self.doc.signature.as_ref().unwrap(),
                     &self.signed_data(),
                 )?;
@@ -101,7 +114,7 @@ struct Pubkey {
 }
 
 #[derive(PartialEq, Clone)]
-enum Curve {
+pub enum Curve {
     // different curves
     secp256k1,
     p256,

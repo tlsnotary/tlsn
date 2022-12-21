@@ -94,14 +94,14 @@ impl VerifierDoc {
 
         // hash all commitments from authdecode Step8 followed by all other commitments
         let mut second_hash_preimage: Vec<u8> = Vec::new();
-        let authdecode_step8 = authdecode_comm
+        let mut authdecode_step8 = authdecode_comm
             .iter()
-            .map(|c| c.comm[16..32])
+            .map(|c| c.comm[16..32].to_vec())
             .flatten()
             .collect::<Vec<u8>>();
 
         // also append all other commitments.
-        let other_comm: Vec<u8> = self
+        let mut other_comm: Vec<u8> = self
             .commitments
             .iter()
             .filter(|c| c.typ != CommitmentType::authdecode)
@@ -120,9 +120,9 @@ impl VerifierDoc {
     // Verify each commitment against its opening
     fn verify_each_commitment(&self) -> Result<(), Error> {
         // TODO break up commitments and openings into pairs, then for each pair:
-        let comm = self.commitments[0];
-        let open = self.commitment_openings[0];
-        comm.verify(open)?;
+        let commitment = self.commitments[0].clone();
+        let opening = self.commitment_openings[0].clone();
+        commitment.verify(opening)?;
 
         Ok(())
     }

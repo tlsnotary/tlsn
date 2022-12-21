@@ -37,14 +37,19 @@ impl Commitment {
 
             // expand the PRG seed, select only the labels belonging to the ranges
             // hash the labels, check the commitment
+            let a = 2;
+            return Ok(());
         } else if self.typ == CommitmentType::authdecode {
             // TODO how do we pass here the PRG seed from which to expand labels?
 
             // expand the PRG seed, locally break label correlation
             // compute deltas and zero_sum (see authdecode diagram)
             // verify the zkproof in opening.zkproofs
+            let a = 3;
+            return Ok(());
         } else if self.typ == CommitmentType::poseidon {
             // verify the zk proof against this poseidon commitment
+            return Ok(());
         }
 
         Ok(())

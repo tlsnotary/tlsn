@@ -43,9 +43,9 @@ impl Signed {
 impl std::convert::From<&VerifierDoc> for Signed {
     fn from(doc: &VerifierDoc) -> Self {
         Signed::new(
-            doc.tls_doc.signed_tls,
-            doc.labelSeeds,
-            doc.aggregated_commitment,
+            doc.tls_doc.signed_tls.clone(),
+            doc.labelSeeds.clone(),
+            doc.aggregated_commitment.clone(),
         )
     }
 }

@@ -12,3 +12,8 @@ webpki-roots = "0.22.5"
 rand.workspace = true
 rand_core.workspace = true
 rand_chacha.workspace = true
+thiserror.workspace = true
+x509-parser = "0.14.0"
+
+[dev-dependencies]
+hex.workspace = true

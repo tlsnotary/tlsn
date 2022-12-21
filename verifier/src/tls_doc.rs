@@ -19,27 +19,20 @@ impl TLSDoc {
         // have expired at the time of this verification. We check their validity at the time
         // of notarization
 
-        if !webpki_utils::check_tls_cert_chain(
-            &self.committedTLS.tls_cert_chain,
-            self.signed_tls.time,
-        ) {
-            return Err(Error::VerificationError);
-        }
+        webpki_utils::verify_cert_chain(&self.committedTLS.tls_cert_chain, self.signed_tls.time)?;
 
         let leaf_cert = webpki_utils::extract_leaf_cert(&self.committedTLS.tls_cert_chain);
 
         self.check_tls_commitment(&self.committedTLS, &self.signed_tls.commitment_to_TLS)?;
 
         //check that TLS key exchange parameters were signed by the leaf cert
-        if !webpki_utils::check_sig_ke_params(
+        webpki_utils::verify_sig_ke_params(
             &leaf_cert,
             &self.committedTLS.sig_ke_params,
             &self.signed_tls.ephemeralECPubkey,
             &self.committedTLS.client_random,
             &self.committedTLS.server_random,
-        ) {
-            return Err(Error::VerificationError);
-        }
+        )?;
 
         if !webpki_utils::check_hostname_present_in_cert(&leaf_cert, hostname) {
             return Err(Error::VerificationError);
@@ -71,7 +64,7 @@ pub type CertDER = Vec<u8>;
 // for ECDSA sigs it is possible to derive the pubkey from the sig and then use that pubkey to find out
 // the identity of the webserver.
 //
-// Note that there is no need to include the ephemeral key because it will be signed explicitely
+// Note that there is no need to commit to the ephemeral key because it will be signed explicitely
 // by the Notary
 #[derive(Clone)]
 struct CommittedTLS {
@@ -102,28 +95,30 @@ impl CommittedTLS {
     }
 }
 
+/// Types of the ephemeral EC pubkey supported by TLSNotary
 #[derive(Clone)]
-
 pub enum EphemeralECPubkeyType {
     p256,
     ed25519,
 }
 
+/// The ephemeral EC public key (part of the TLS key exchange parameters)
 #[derive(Clone)]
 pub struct EphemeralECPubkey {
     pub typ: EphemeralECPubkeyType,
     pub pubkey: Vec<u8>,
 }
 
-// Various key exchange params signature algorithms supported by TLS 1.2 spec
+/// Algorithms that can be used for signing the TLS key exchange parameters
 #[derive(Clone)]
-pub enum SigKEParamsType {
-    rsa_pkcs1_sha256,
+pub enum SigKEParamsAlg {
+    RSA_PKCS1_2048_8192_SHA256,
+    ECDSA_P256_SHA256,
 }
 
-// signature over the TLS key exchange params
+/// signature over the TLS key exchange params
 #[derive(Clone)]
 pub struct SignatureKeyExchangeParams {
-    pub typ: SigKEParamsType,
+    pub alg: SigKEParamsAlg,
     pub sig: Vec<u8>,
 }
