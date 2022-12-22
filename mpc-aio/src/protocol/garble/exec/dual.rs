@@ -8,16 +8,15 @@
 
 use std::sync::Arc;
 
-use crate::protocol::garble::{
-    Evaluator, ExecuteWithLabels, GCError, GarbleChannel, GarbleMessage, Generator,
+use crate::protocol::{
+    garble::{Evaluator, ExecuteWithLabels, GCError, GarbleChannel, GarbleMessage, Generator},
+    ot::{ObliviousReceive, ObliviousSend},
 };
-use crate::protocol::ot::{ObliviousReceive, ObliviousSend};
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use mpc_circuits::{Circuit, InputValue};
-use mpc_core::garble::WireLabel;
 use mpc_core::garble::{
-    exec::dual as core, gc_state, Delta, GarbledCircuit, InputLabels, WireLabelPair,
+    exec::dual as core, gc_state, Delta, GarbledCircuit, InputLabels, WireLabel, WireLabelPair,
 };
 use utils_aio::expect_msg_or_err;
 
