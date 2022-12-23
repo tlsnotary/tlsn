@@ -11,7 +11,7 @@ use crate::signed::Signed;
 
 type HashCommitment = [u8; 32];
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, PartialEq)]
 pub enum Error {
     #[error("x509-parser error: {0}")]
     X509ParserError(String),

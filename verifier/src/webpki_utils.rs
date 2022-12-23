@@ -31,14 +31,11 @@ pub fn verify_cert_chain(chain: &[CertDER], time: u64) -> Result<(), Error> {
     let time = webpki::Time::from_seconds_since_unix_epoch(time);
     let anchor = &webpki_roots::TLS_SERVER_ROOTS;
 
-    let last_cert_der = match chain.last() {
-        None => return Err(Error::EmptyCertificateChain),
-        Some(last) => last.as_slice(),
-    };
+    let last_cert_der = extract_leaf_cert(chain)?;
 
     // Parse the DER into x509. Since webpki doesn't expose the parser,
     // we use x509-parser instead
-    let (_, x509) = certificate::X509Certificate::from_der(last_cert_der)
+    let (_, x509) = certificate::X509Certificate::from_der(&last_cert_der)
         .map_err(|e| Error::X509ParserError(e.to_string()))?;
 
     // the end entity must not be a certificate authority
@@ -47,7 +44,7 @@ pub fn verify_cert_chain(chain: &[CertDER], time: u64) -> Result<(), Error> {
     }
 
     // parse the der again with webpki
-    let cert = webpki::EndEntityCert::try_from(last_cert_der)
+    let cert = webpki::EndEntityCert::try_from(last_cert_der.as_slice())
         .map_err(|e| Error::WebpkiError(e.to_string()))?;
 
     // Separate intermediate certificates (all certs except for the last one which is the end
@@ -108,15 +105,25 @@ pub fn verify_sig_ke_params(
 }
 
 // check that the hostname is present in the cert
-pub fn check_hostname_present_in_cert(cert: &CertDER, hostname: String) -> bool {
-    let cert = webpki::EndEntityCert::try_from(cert.as_slice()).unwrap();
-    let dns_name = webpki::DnsNameRef::try_from_ascii_str(hostname.as_str()).unwrap();
-    cert.verify_is_valid_for_dns_name(dns_name).is_ok()
+pub fn check_hostname_present_in_cert(cert: &CertDER, hostname: String) -> Result<(), Error> {
+    let cert = webpki::EndEntityCert::try_from(cert.as_slice())
+        .map_err(|e| Error::WebpkiError(e.to_string()))?;
+
+    let dns_name = webpki::DnsNameRef::try_from_ascii_str(hostname.as_str())
+        .map_err(|e| Error::WebpkiError(e.to_string()))?;
+
+    cert.verify_is_valid_for_dns_name(dns_name)
+        .map_err(|e| Error::WebpkiError(e.to_string()))?;
+
+    Ok(())
 }
 
 // return the leaf certificate from the chain (the last one)
-pub fn extract_leaf_cert(chain: &Vec<CertDER>) -> CertDER {
-    chain.last().unwrap().clone()
+pub fn extract_leaf_cert(chain: &[CertDER]) -> Result<CertDER, Error> {
+    match chain.last() {
+        None => Err(Error::EmptyCertificateChain),
+        Some(last) => Ok(last.clone()),
+    }
 }
 
 #[cfg(test)]
@@ -169,23 +176,27 @@ mod test {
     // Expect to fail since the end entity cert was not valid at the time
     fn test_verify_cert_chain_bad_time() {
         let err = verify_cert_chain(&[CA.to_vec(), INTER.to_vec(), EE.to_vec()], BADTIME);
-        let _str = String::from("CertNotValidYet");
-        assert!(matches!(err, Err(Error::WebpkiError(_str))));
+        assert_eq!(
+            err.unwrap_err(),
+            Error::WebpkiError("CertNotValidYet".to_string())
+        );
     }
 
     #[test]
     // Expect to fail when no end entity cert provided
     fn test_verify_cert_chain_no_leaf_cert() {
         let err = verify_cert_chain(&[CA.to_vec(), INTER.to_vec()], TIME);
-        assert!(matches!(err, Err(Error::EndEntityIsCA)));
+        assert_eq!(err.unwrap_err(), Error::EndEntityIsCA);
     }
 
     #[test]
     // Expect to fail when no intermediate cert provided
     fn test_verify_cert_chain_no_interm_cert() {
         let err = verify_cert_chain(&[CA.to_vec(), EE.to_vec()], TIME);
-        let _str = String::from("UnknownIssuer");
-        assert!(matches!(err, Err(Error::WebpkiError(_str))));
+        assert_eq!(
+            err.unwrap_err(),
+            Error::WebpkiError("UnknownIssuer".to_string())
+        );
     }
 
     #[test]
@@ -197,8 +208,11 @@ mod test {
         let ca: &[u8] = include_bytes!("testdata/unknown/ca.der");
 
         let err = verify_cert_chain(&[ca.to_vec(), ee.to_vec()], TIME);
-        let _str = String::from("UnknownIssuer");
-        assert!(matches!(err, Err(Error::WebpkiError(_str))));
+
+        assert_eq!(
+            err.unwrap_err(),
+            Error::WebpkiError("UnknownIssuer".to_string())
+        );
     }
 
     // convert a hex string to bytes
@@ -274,8 +288,10 @@ mod test {
 
         let err = verify_sig_ke_params(&RSA_CERT.to_vec(), &sig, &pubkey, &cr, sr);
 
-        let _str = String::from("InvalidSignatureForPublicKey");
-        assert!(matches!(err, Err(Error::WebpkiError(_str))));
+        assert_eq!(
+            err.unwrap_err(),
+            Error::WebpkiError("InvalidSignatureForPublicKey".to_string())
+        );
     }
 
     // Expect ECDSA sig verification to fail because the sig is wrong
@@ -303,7 +319,39 @@ mod test {
         };
 
         let err = verify_sig_ke_params(&ECDSA_CERT.to_vec(), &sig, &pubkey, cr, sr);
-        let _str = String::from("InvalidSignatureForPublicKey");
-        assert!(matches!(err, Err(Error::WebpkiError(_str))));
+        assert_eq!(
+            err.unwrap_err(),
+            Error::WebpkiError("InvalidSignatureForPublicKey".to_string())
+        );
+    }
+
+    // Expect to succeed
+    #[test]
+    fn test_check_hostname_present_in_cert() {
+        let host = String::from("tlsnotary.org");
+        assert!(check_hostname_present_in_cert(&EE.to_vec(), host).is_ok());
+    }
+
+    // Expect to fail because the host name is not in the cert
+    #[test]
+    fn test_check_hostname_present_in_cert_bad_host() {
+        let host = String::from("tlsnotary");
+        let err = check_hostname_present_in_cert(&EE.to_vec(), host);
+        let _str = String::from("CertNotValidForName");
+        assert_eq!(
+            err.unwrap_err(),
+            Error::WebpkiError("CertNotValidForName".to_string())
+        );
+    }
+
+    // Expect to fail because the host name is not a valid DNS name
+    #[test]
+    fn test_check_hostname_present_in_cert_invalid_dns_name() {
+        let host = String::from("tlsnotary.org%");
+        let err = check_hostname_present_in_cert(&EE.to_vec(), host);
+        assert_eq!(
+            err.unwrap_err(),
+            Error::WebpkiError("InvalidDnsNameError".to_string())
+        );
     }
 }

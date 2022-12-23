@@ -21,7 +21,7 @@ impl TLSDoc {
 
         webpki_utils::verify_cert_chain(&self.committedTLS.tls_cert_chain, self.signed_tls.time)?;
 
-        let leaf_cert = webpki_utils::extract_leaf_cert(&self.committedTLS.tls_cert_chain);
+        let leaf_cert = webpki_utils::extract_leaf_cert(&self.committedTLS.tls_cert_chain)?;
 
         self.check_tls_commitment(&self.committedTLS, &self.signed_tls.commitment_to_TLS)?;
 
@@ -34,9 +34,7 @@ impl TLSDoc {
             &self.committedTLS.server_random,
         )?;
 
-        if !webpki_utils::check_hostname_present_in_cert(&leaf_cert, hostname) {
-            return Err(Error::VerificationError);
-        }
+        webpki_utils::check_hostname_present_in_cert(&leaf_cert, hostname)?;
 
         Ok(())
     }
