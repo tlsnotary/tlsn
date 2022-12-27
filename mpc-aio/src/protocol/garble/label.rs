@@ -1,4 +1,4 @@
-use crate::protocol::ot::{OTError, ObliviousReceive, ObliviousSend};
+use crate::protocol::ot::{OTError, ObliviousReceive, ObliviousSend, ObliviousVerify};
 use async_trait::async_trait;
 use mpc_circuits::InputValue;
 use mpc_core::{
@@ -23,13 +23,7 @@ where
         self.send(
             inputs
                 .into_iter()
-                .map(|labels| {
-                    labels
-                        .as_ref()
-                        .iter()
-                        .map(|pair| [*pair.low(), *pair.high()])
-                        .collect::<Vec<[Block; 2]>>()
-                })
+                .map(|labels| labels.to_blocks())
                 .flatten()
                 .collect::<Vec<[Block; 2]>>(),
         )
@@ -68,6 +62,23 @@ where
                 .expect("Input labels should be valid")
             })
             .collect())
+    }
+}
+
+#[async_trait]
+impl<T> ObliviousVerify<InputLabels<WireLabelPair>> for T
+where
+    T: Send + ObliviousVerify<[Block; 2]>,
+{
+    async fn verify(self, input: Vec<InputLabels<WireLabelPair>>) -> Result<(), OTError> {
+        self.verify(
+            input
+                .into_iter()
+                .map(|labels| labels.to_blocks())
+                .flatten()
+                .collect(),
+        )
+        .await
     }
 }
 
