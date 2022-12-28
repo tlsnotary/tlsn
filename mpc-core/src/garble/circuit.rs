@@ -624,7 +624,7 @@ pub(crate) mod unchecked {
 
     use super::*;
 
-    use crate::garble::label::unchecked::*;
+    use crate::garble::label::{input::unchecked::*, output::unchecked::*};
 
     /// Partial garbled circuit which has not been validated against a circuit spec
     #[derive(Debug, Clone)]

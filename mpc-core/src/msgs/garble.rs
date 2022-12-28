@@ -6,7 +6,7 @@ use crate::{
         self,
         circuit::{self, unchecked as unchecked_circuit, unchecked::UncheckedCircuitOpening},
         commitment, gc_state, label,
-        label::unchecked::{self as unchecked_label, UncheckedInputLabelsDecodingInfo},
+        label::{input::unchecked::*, output::unchecked::*},
     },
     Block,
 };
@@ -149,7 +149,7 @@ impl From<label::InputLabels<label::WireLabel>> for InputLabels {
     }
 }
 
-impl From<InputLabels> for unchecked_label::UncheckedInputLabels {
+impl From<InputLabels> for UncheckedInputLabels {
     fn from(labels: InputLabels) -> Self {
         Self {
             id: labels.id,
@@ -178,7 +178,7 @@ impl From<label::OutputLabels<label::WireLabel>> for OutputLabels {
     }
 }
 
-impl From<OutputLabels> for unchecked_label::UncheckedOutputLabels {
+impl From<OutputLabels> for UncheckedOutputLabels {
     fn from(labels: OutputLabels) -> Self {
         Self {
             id: labels.id,
@@ -208,7 +208,7 @@ impl From<label::InputLabelsDecodingInfo> for InputDecodingInfo {
     }
 }
 
-impl From<InputDecodingInfo> for unchecked_label::UncheckedInputLabelsDecodingInfo {
+impl From<InputDecodingInfo> for UncheckedInputLabelsDecodingInfo {
     fn from(decoding: InputDecodingInfo) -> Self {
         Self {
             id: decoding.id,
@@ -242,7 +242,7 @@ impl From<label::OutputLabelsDecodingInfo> for OutputDecodingInfo {
     }
 }
 
-impl From<OutputDecodingInfo> for unchecked_label::UncheckedOutputLabelsDecodingInfo {
+impl From<OutputDecodingInfo> for UncheckedOutputLabelsDecodingInfo {
     fn from(decoding: OutputDecodingInfo) -> Self {
         Self {
             id: decoding.id,
@@ -272,7 +272,7 @@ impl From<label::OutputLabelsCommitment> for OutputLabelsCommitment {
     }
 }
 
-impl From<OutputLabelsCommitment> for unchecked_label::UncheckedOutputLabelsCommitment {
+impl From<OutputLabelsCommitment> for UncheckedOutputLabelsCommitment {
     #[inline]
     fn from(commitment: OutputLabelsCommitment) -> Self {
         Self {
@@ -353,14 +353,14 @@ impl From<GarbledCircuit> for unchecked_circuit::UncheckedGarbledCircuit {
             input_labels: gc
                 .input_labels
                 .into_iter()
-                .map(unchecked_label::UncheckedInputLabels::from)
+                .map(UncheckedInputLabels::from)
                 .collect(),
             encrypted_gates: gc.encrypted_gates,
             decoding: gc.decoding.and_then(|decoding| {
                 Some(
                     decoding
                         .into_iter()
-                        .map(unchecked_label::UncheckedOutputLabelsDecodingInfo::from)
+                        .map(UncheckedOutputLabelsDecodingInfo::from)
                         .collect(),
                 )
             }),
@@ -368,7 +368,7 @@ impl From<GarbledCircuit> for unchecked_circuit::UncheckedGarbledCircuit {
                 Some(
                     commitments
                         .into_iter()
-                        .map(unchecked_label::UncheckedOutputLabelsCommitment::from)
+                        .map(UncheckedOutputLabelsCommitment::from)
                         .collect(),
                 )
             }),
@@ -404,7 +404,7 @@ impl From<Output> for unchecked_circuit::UncheckedOutput {
             output_labels: msg
                 .output_labels
                 .into_iter()
-                .map(unchecked_label::UncheckedOutputLabels::from)
+                .map(UncheckedOutputLabels::from)
                 .collect(),
         }
     }
