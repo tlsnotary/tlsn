@@ -1,3 +1,19 @@
+//! This crate provides a pair of OT actors for provisioning bulk oblivious transfers using [KOS15](https://eprint.iacr.org/2015/546.pdf).
+//!
+//! It supports an initial setup procedure to provision a configurable number of Random OTs which can be
+//! partitioned (or "split") and distributed as required.
+//!
+//! # Committed OT
+//!
+//! This crate also supports a weak flavor of "Committed OT" which allows the Sender to reveal their private inputs
+//! so the Receiver can verify messages sent during OT were correct. This procedure is synchronized in such a way to
+//! require unanimous agreement across all "split" OTs prior to revealing the Sender's private inputs.
+//!
+//! # Partitioning Synchronization
+//!
+//! Both the Sender and Receiver factories provide an async API, however, both must synchronize the order in which they
+//! partition the pre-allocated OTs. To do this, the Sender factory dictates the order of this process.
+
 mod config;
 mod receiver;
 mod sender;

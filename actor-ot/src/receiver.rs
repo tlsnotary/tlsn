@@ -25,6 +25,9 @@ pub enum State {
 #[derive(xtra::Actor)]
 pub struct KOSReceiverFactory<T, U> {
     config: ReceiverFactoryConfig,
+    /// This sink is not used at the moment. Future features may
+    /// require the ReceiverFactory to send messages to the SenderFactory, so
+    /// we keep this around.
     _sink: SplitSink<T, OTFactoryMessage>,
     /// Local muxer which sets up channels with the remote KOSSenderFactory
     mux_control: U,
@@ -100,7 +103,8 @@ where
         _msg: Setup,
         _ctx: &mut Context<Self>,
     ) -> Result<(), OTFactoryError> {
-        // we want any early return to leave this actor in an error state
+        // We move the state into scope and replace with error state
+        // in case of early returns
         let state = std::mem::replace(&mut self.state, State::Error);
 
         let State::Initialized(setup_signal) = state else {
@@ -144,8 +148,8 @@ where
     async fn handle(&mut self, msg: Split, _ctx: &mut Context<Self>) -> Result<(), OTFactoryError> {
         let Split { id, count } = msg;
 
-        // We need this scope to own the parent OT for splitting, so we swap
-        // out the internal state
+        // We move the state into scope and replace with error state
+        // in case of early returns
         let state = std::mem::replace(&mut self.state, State::Error);
 
         // These messages should not start being processed until after setup

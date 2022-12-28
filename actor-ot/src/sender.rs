@@ -48,9 +48,9 @@ where
         let (sink, mut stream) = channel.split();
 
         let fut = scoped(&addr, async move {
-            while let Some(_) = stream.next().await {
+            while let Some(msg) = stream.next().await {
                 // The receiver factory shouldn't send messages
-                unimplemented!();
+                return Err(OTFactoryError::UnexpectedMessage(msg));
             }
             Ok(())
         });
@@ -81,6 +81,8 @@ where
         _msg: Setup,
         _ctx: &mut Context<Self>,
     ) -> Result<(), OTFactoryError> {
+        // We move the state into scope and replace with error state
+        // in case of early returns
         let state = std::mem::replace(&mut self.state, State::Error);
 
         let State::Initialized = state else {
@@ -123,6 +125,8 @@ where
     ) -> Result<Kos15IOSender<RandSetup>, OTFactoryError> {
         let GetSender { id, count } = msg;
 
+        // We move the state into scope and replace with error state
+        // in case of early returns
         let state = std::mem::replace(&mut self.state, State::Error);
 
         let State::Setup(parent_ot) = state else {
