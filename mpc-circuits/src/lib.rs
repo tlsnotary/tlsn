@@ -2,14 +2,20 @@ pub mod builder;
 pub mod circuit;
 pub mod circuits;
 mod error;
+pub(crate) mod group;
+mod input;
+mod output;
 pub mod parse;
 pub mod proto;
 mod spec;
 pub mod utils;
 mod value;
 
-pub use circuit::{Circuit, CircuitId, Gate, Group, Input, InputValue, Output, OutputValue};
+pub use circuit::{Circuit, CircuitId, Gate};
 pub use error::CircuitError;
+pub use group::{Group, WireGroup};
+pub use input::{Input, InputValue};
+pub use output::{Output, OutputValue};
 pub use spec::CircuitSpec;
 pub use value::{Value, ValueType};
 
@@ -23,7 +29,7 @@ pub static SHA_256: &'static [u8] = std::include_bytes!("../circuits/bin/sha256.
 
 #[cfg(test)]
 mod tests {
-    use crate::circuit::InputValue;
+    use crate::InputValue;
 
     use super::*;
 

@@ -1,7 +1,6 @@
 use crate::{
     spec::{GateSpec, GroupSpec},
     value::ValueType,
-    Group,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -30,8 +29,8 @@ pub enum CircuitError {
 pub enum ValueError {
     #[error("Invalid bit string provided for value type")]
     InvalidValue(ValueType, Vec<bool>),
-    #[error("Invalid value type for group")]
-    InvalidType(Group, ValueType),
+    #[error("Invalid value type for group {0:?}: {1:?}")]
+    InvalidType(String, ValueType),
 }
 
 #[derive(Debug, thiserror::Error)]

@@ -1,17 +1,17 @@
 use std::convert::{From, TryFrom};
 
-use crate::{CircuitError, ValueType};
+use crate::{CircuitError, ValueType, WireGroup};
 
 include!(concat!(env!("OUT_DIR"), "/core.circuits.rs"));
 
 impl From<crate::Group> for Group {
     #[inline]
-    fn from(g: crate::Group) -> Self {
+    fn from(group: crate::Group) -> Self {
         Self {
-            name: g.name().to_string(),
-            desc: g.desc().to_string(),
-            value_type: g.value_type() as i32,
-            wires: g.wires().iter().map(|id| *id as u32).collect(),
+            name: group.name().to_string(),
+            desc: group.description().to_string(),
+            value_type: group.value_type() as i32,
+            wires: group.wires().iter().map(|id| *id as u32).collect(),
         }
     }
 }
@@ -19,11 +19,11 @@ impl From<crate::Group> for Group {
 impl TryFrom<Group> for crate::Group {
     type Error = CircuitError;
     #[inline]
-    fn try_from(g: Group) -> Result<Self, Self::Error> {
+    fn try_from(group: Group) -> Result<Self, Self::Error> {
         Ok(crate::Group::new(
-            &g.name,
-            &g.desc,
-            match g.value_type {
+            &group.name,
+            &group.desc,
+            match group.value_type {
                 0 => ValueType::ConstZero,
                 1 => ValueType::ConstOne,
                 2 => ValueType::Bool,
@@ -36,9 +36,10 @@ impl TryFrom<Group> for crate::Group {
                 9 => ValueType::U128,
                 _ => return Err(CircuitError::MappingError),
             },
-            &g.wires
-                .iter()
-                .map(|id| *id as usize)
+            group
+                .wires
+                .into_iter()
+                .map(|id| id as usize)
                 .collect::<Vec<usize>>(),
         ))
     }
