@@ -1,0 +1,29 @@
+[package]
+name = "actor-ot"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tlsn-utils-aio = { path = "../utils-aio" }
+tlsn-mpc-aio = { path = "../mpc-aio" }
+tlsn-mpc-core = { path = "../mpc-core" }
+async-trait = { workspace = true }
+derive_builder = { workspace = true }
+futures = { workspace = true }
+thiserror = { workspace = true }
+xtra = { workspace = true, features = ["macros"], default-features = false }
+
+
+[dev-dependencies]
+actor-mux = { path = "../actor-mux", default-features = false, features = [
+    "mock",
+] }
+xtra = { workspace = true, features = ["tokio"], default-features = false }
+tokio = { workspace = true, features = [
+    "macros",
+    "io-util",
+    "rt",
+    "rt-multi-thread",
+] }

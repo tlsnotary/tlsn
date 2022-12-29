@@ -71,13 +71,36 @@ impl Kos15IOSender<s_state::Initialized> {
 }
 
 impl Kos15IOSender<s_state::RandSetup> {
-    pub fn split(&mut self, channel: OTChannel, split_at: usize) -> Result<Self, OTError> {
-        let new_ot = self.inner.split(split_at)?;
-        Ok(Self {
-            inner: new_ot,
+    /// Returns the number of remaining OTs which have not been consumed yet
+    pub fn remaining(&self) -> usize {
+        self.inner.remaining()
+    }
+
+    /// Splits OT into separate instances, returning the original instance and the new instance
+    /// respectively.
+    ///
+    /// * channel - Channel to attach to the new instance
+    /// * count - Number of OTs to allocate to the new instance
+    pub fn split(self, channel: OTChannel, count: usize) -> Result<(Self, Self), OTError> {
+        let Self {
+            inner: mut child,
+            channel: parent_channel,
+            barrier,
+        } = self;
+
+        let parent = Self {
+            inner: child.split(count)?,
+            channel: parent_channel,
+            barrier: barrier.clone(),
+        };
+
+        let child = Self {
+            inner: child,
             channel,
-            barrier: self.barrier.clone(),
-        })
+            barrier,
+        };
+
+        Ok((parent, child))
     }
 }
 

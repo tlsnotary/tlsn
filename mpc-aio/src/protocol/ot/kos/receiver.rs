@@ -61,6 +61,37 @@ impl Kos15IOReceiver<r_state::Initialized> {
     }
 }
 
+impl Kos15IOReceiver<r_state::RandSetup> {
+    /// Returns the number of remaining OTs which have not been consumed yet
+    pub fn remaining(&self) -> usize {
+        self.inner.remaining()
+    }
+
+    /// Splits OT into separate instances, returning the original instance and the new instance
+    /// respectively.
+    ///
+    /// * channel - Channel to attach to the new instance
+    /// * count - Number of OTs to allocate to the new instance
+    pub fn split(self, channel: OTChannel, split_at: usize) -> Result<(Self, Self), OTError> {
+        let Self {
+            inner: mut child,
+            channel: parent_channel,
+        } = self;
+
+        let parent = Self {
+            inner: child.split(split_at)?,
+            channel: parent_channel,
+        };
+
+        let child = Self {
+            inner: child,
+            channel,
+        };
+
+        Ok((parent, child))
+    }
+}
+
 #[async_trait]
 impl ObliviousReceive for Kos15IOReceiver<r_state::RandSetup> {
     type Choice = bool;

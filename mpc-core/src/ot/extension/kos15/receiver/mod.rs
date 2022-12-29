@@ -236,6 +236,11 @@ impl Kos15Receiver<state::RandSetup> {
         self.0.derandomized.is_empty() && self.0.choices.is_empty()
     }
 
+    /// Returns the number of remaining OTs which have not been consumed yet
+    pub fn remaining(&self) -> usize {
+        self.0.choices.len()
+    }
+
     pub fn split(&mut self, split_at: usize) -> Result<Self, ExtReceiverCoreError> {
         if !self.0.derandomized.is_empty() {
             return Err(ExtReceiverCoreError::SplitAfterDerand);
