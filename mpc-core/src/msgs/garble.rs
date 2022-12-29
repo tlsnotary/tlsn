@@ -10,7 +10,7 @@ use crate::{
     },
     Block,
 };
-use mpc_circuits::Circuit;
+use mpc_circuits::{Circuit, WireGroup};
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -197,7 +197,7 @@ pub struct InputDecodingInfo {
 impl From<label::InputLabelsDecodingInfo> for InputDecodingInfo {
     fn from(decoding: label::InputLabelsDecodingInfo) -> Self {
         Self {
-            id: decoding.input.id,
+            id: decoding.input.id(),
             decoding: decoding
                 .as_ref()
                 .iter()
@@ -231,7 +231,7 @@ pub struct OutputDecodingInfo {
 impl From<label::OutputLabelsDecodingInfo> for OutputDecodingInfo {
     fn from(decoding: label::OutputLabelsDecodingInfo) -> Self {
         Self {
-            id: decoding.output.id,
+            id: decoding.output.id(),
             decoding: decoding
                 .as_ref()
                 .iter()
@@ -266,7 +266,7 @@ impl From<label::OutputLabelsCommitment> for OutputLabelsCommitment {
     #[inline]
     fn from(commitment: label::OutputLabelsCommitment) -> Self {
         Self {
-            id: commitment.output.id,
+            id: commitment.output.id(),
             commitments: commitment.commitments.into_iter().flatten().collect(),
         }
     }
@@ -288,7 +288,7 @@ impl label::OutputLabelsCommitment {
         commitment: OutputLabelsCommitment,
     ) -> Result<Self, crate::garble::Error> {
         let output = circ.output(commitment.id)?;
-        if commitment.commitments.len() != output.as_ref().len() * 2 {
+        if commitment.commitments.len() != output.len() * 2 {
             return Err(crate::garble::Error::InvalidOutputLabelCommitment);
         }
         let commitments = commitment

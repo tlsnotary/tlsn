@@ -1,4 +1,4 @@
-use mpc_circuits::{Circuit, Output, OutputValue};
+use mpc_circuits::{Circuit, Output, OutputValue, WireGroup};
 use rand::{thread_rng, Rng};
 
 use crate::{
@@ -22,7 +22,7 @@ pub struct OutputLabels<T> {
 
 impl<T: Copy> OutputLabels<T> {
     pub fn new(output: Output, labels: &[T]) -> Result<Self, Error> {
-        if output.as_ref().len() != labels.len() {
+        if output.len() != labels.len() {
             return Err(Error::InvalidOutputLabels);
         }
 
@@ -33,7 +33,7 @@ impl<T: Copy> OutputLabels<T> {
     }
 
     pub fn id(&self) -> usize {
-        self.output.id
+        self.output.id()
     }
 
     #[cfg(test)]
@@ -64,7 +64,7 @@ impl OutputLabels<WireLabelPair> {
 
     /// Returns output wire labels corresponding to an [`OutputValue`]
     pub fn select(&self, value: &OutputValue) -> Result<OutputLabels<WireLabel>, Error> {
-        if self.output.id != value.id() {
+        if self.output.id() != value.id() {
             return Err(Error::InvalidOutputLabels);
         }
 
@@ -323,7 +323,7 @@ pub(crate) mod unchecked {
             output: Output,
             unchecked: UncheckedOutputLabels,
         ) -> Result<Self, Error> {
-            if unchecked.id != output.id || unchecked.labels.len() != output.as_ref().len() {
+            if unchecked.id != output.id() || unchecked.labels.len() != output.as_ref().len() {
                 return Err(Error::InvalidOutputLabels);
             }
 
@@ -351,7 +351,7 @@ pub(crate) mod unchecked {
     impl From<OutputLabelsDecodingInfo> for UncheckedOutputLabelsDecodingInfo {
         fn from(decoding: OutputLabelsDecodingInfo) -> Self {
             Self {
-                id: decoding.output.id,
+                id: decoding.output.id(),
                 decoding: decoding.decoding,
             }
         }
@@ -362,7 +362,7 @@ pub(crate) mod unchecked {
             output: Output,
             unchecked: UncheckedOutputLabelsDecodingInfo,
         ) -> Result<Self, Error> {
-            if unchecked.id != output.id || unchecked.decoding.len() != output.as_ref().len() {
+            if unchecked.id != output.id() || unchecked.decoding.len() != output.as_ref().len() {
                 return Err(Error::InvalidLabelDecodingInfo);
             }
 
@@ -384,7 +384,7 @@ pub(crate) mod unchecked {
     impl From<OutputLabelsCommitment> for UncheckedOutputLabelsCommitment {
         fn from(commitment: OutputLabelsCommitment) -> Self {
             Self {
-                id: commitment.output.id,
+                id: commitment.output.id(),
                 commitments: commitment.commitments.into_iter().flatten().collect(),
             }
         }
@@ -395,7 +395,8 @@ pub(crate) mod unchecked {
             output: Output,
             unchecked: UncheckedOutputLabelsCommitment,
         ) -> Result<Self, Error> {
-            if unchecked.id != output.id || unchecked.commitments.len() != 2 * output.as_ref().len()
+            if unchecked.id != output.id()
+                || unchecked.commitments.len() != 2 * output.as_ref().len()
             {
                 return Err(Error::ValidationError(
                     "Invalid output labels commitment".to_string(),
@@ -433,7 +434,7 @@ pub(crate) mod unchecked {
         #[fixture]
         fn unchecked_output_labels(output: Output) -> UncheckedOutputLabels {
             UncheckedOutputLabels {
-                id: output.id,
+                id: output.id(),
                 labels: vec![Block::new(0); output.as_ref().len()],
             }
         }
@@ -443,7 +444,7 @@ pub(crate) mod unchecked {
             output: Output,
         ) -> UncheckedOutputLabelsDecodingInfo {
             UncheckedOutputLabelsDecodingInfo {
-                id: output.id,
+                id: output.id(),
                 decoding: vec![LabelDecodingInfo(false); output.as_ref().len()],
             }
         }
@@ -451,7 +452,7 @@ pub(crate) mod unchecked {
         #[fixture]
         fn unchecked_output_labels_commitment(output: Output) -> UncheckedOutputLabelsCommitment {
             UncheckedOutputLabelsCommitment {
-                id: output.id,
+                id: output.id(),
                 commitments: vec![Block::new(0); 2 * output.as_ref().len()],
             }
         }
