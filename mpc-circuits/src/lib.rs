@@ -13,11 +13,16 @@ mod value;
 
 pub use circuit::{Circuit, CircuitId, Gate};
 pub use error::{CircuitError, ValueError};
-pub use group::{Group, WireGroup};
-pub use input::{Input, InputValue};
-pub use output::{Output, OutputValue};
+pub use group::{Group, GroupValue, WireGroup};
+pub use input::Input;
+pub use output::Output;
 pub use spec::CircuitSpec;
-pub use value::{Value, ValueType, WireGroupValue};
+pub use value::{Value, ValueType};
+
+/// Group of wires corresponding to a circuit input
+pub type InputValue = GroupValue<Input>;
+/// Group of wires corresponding to a circuit output
+pub type OutputValue = GroupValue<Output>;
 
 #[cfg(feature = "aes_128_reverse")]
 pub static AES_128_REVERSE: &'static [u8] =

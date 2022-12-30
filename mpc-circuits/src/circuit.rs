@@ -1,6 +1,6 @@
 use crate::{
-    proto::Circuit as ProtoCircuit, utils::topological_sort, value::WireGroupValue, CircuitError,
-    Input, InputValue, Output, OutputValue, Value, ValueType, WireGroup,
+    proto::Circuit as ProtoCircuit, utils::topological_sort, CircuitError, Input, InputValue,
+    Output, OutputValue, Value, ValueType, WireGroup,
 };
 
 use prost::Message;

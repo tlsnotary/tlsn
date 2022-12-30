@@ -16,6 +16,8 @@ pub use nbit_subtractor::nbit_subtractor;
 pub use nbit_switch::nbit_switch;
 pub use nbit_xor::nbit_xor;
 
+use crate::WireGroup;
+
 pub fn test_circ(circ: &crate::Circuit, inputs: &[crate::Value], expected: &[crate::Value]) {
     let inputs: Vec<crate::InputValue> = inputs
         .iter()

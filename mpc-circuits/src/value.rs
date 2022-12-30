@@ -1,9 +1,4 @@
-use crate::{error::ValueError as Error, WireGroup};
-
-pub trait WireGroupValue: WireGroup {
-    /// Returns wire ids and values
-    fn wire_values(&self) -> Vec<(usize, bool)>;
-}
+use crate::error::ValueError as Error;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
