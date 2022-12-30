@@ -5,7 +5,7 @@ use std::{
 };
 
 pub use crate::error::BuilderError;
-use crate::{circuit::GateType, Circuit, Gate, Group, Input, Output, ValueType, WireGroup};
+use crate::{circuit::GateType, Circuit, Gate, Input, Output, ValueType, WireGroup};
 
 /// A circuit feed
 #[derive(Debug, Clone, Copy)]
@@ -289,10 +289,7 @@ impl CircuitBuilder<Inputs> {
         self.0.input_wire_id += wire_count;
         let wire_handles = wires.iter().copied().map(WireHandle::new_feed).collect();
         let input = InputHandle {
-            input: Input::new(
-                self.0.inputs.len(),
-                Group::new(name, desc, value_type, wires),
-            ),
+            input: Input::new(self.0.inputs.len(), name, desc, value_type, wires),
             wire_handles,
         };
         self.0.inputs.push(input.clone());
@@ -329,12 +326,12 @@ impl CircuitBuilder<Gates> {
 
         // Shift input wires right
         for input in circ.inputs.iter_mut() {
-            input.group = Arc::new(input.group.shift_right(offset));
+            input.0 = Arc::new(input.0.shift_right(offset));
         }
 
         // Shift output wires right
         for output in circ.outputs.iter_mut() {
-            output.group = Arc::new(output.group.shift_right(offset));
+            output.0 = Arc::new(output.0.shift_right(offset));
         }
 
         // Insert gate handles
@@ -424,10 +421,7 @@ impl CircuitBuilder<Outputs> {
         self.0.output_wire_id += wire_count;
         let wire_handles = wires.iter().copied().map(WireHandle::new_sink).collect();
         let output = OutputHandle {
-            output: Output::new(
-                self.0.outputs.len(),
-                Group::new(name, desc, value_type, wires),
-            ),
+            output: Output::new(self.0.outputs.len(), name, desc, value_type, wires),
             wire_handles,
         };
         self.0.outputs.push(output.clone());
@@ -503,7 +497,7 @@ impl CircuitBuilder<Outputs> {
             .into_iter()
             .map(|handle| {
                 let mut output = handle.output;
-                let mut group = output.group.as_ref().clone();
+                let mut group = output.0.as_ref().clone();
                 group.wires = group
                     .wires
                     .into_iter()
@@ -522,7 +516,7 @@ impl CircuitBuilder<Outputs> {
                         Ok(*feed)
                     })
                     .collect::<Result<Vec<usize>, BuilderError>>()?;
-                output.group = Arc::new(group);
+                output.0 = Arc::new(group);
                 Ok(output)
             })
             .collect::<Result<Vec<Output>, BuilderError>>()?;

@@ -744,13 +744,11 @@ impl Circuit {
 
 #[cfg(test)]
 mod tests {
-    use crate::Group;
-
     use super::*;
 
     #[test]
     fn test_all_inputs_must_be_connected() {
-        let inputs = vec![Input::new(0, Group::new("", "", ValueType::Bool, vec![0]))];
+        let inputs = vec![Input::new(0, "", "", ValueType::Bool, vec![0])];
         let gates = vec![Gate::Xor {
             id: 0,
             xref: 0,
@@ -765,17 +763,14 @@ mod tests {
 
     #[test]
     fn test_all_outputs_must_be_connected() {
-        let inputs = vec![Input::new(
-            0,
-            Group::new("", "", ValueType::Bool, vec![0, 1]),
-        )];
+        let inputs = vec![Input::new(0, "", "", ValueType::Bool, vec![0, 1])];
         let gates = vec![Gate::Xor {
             id: 0,
             xref: 0,
             yref: 1,
             zref: 2,
         }];
-        let outputs = vec![Output::new(0, Group::new("", "", ValueType::Bool, vec![3]))];
+        let outputs = vec![Output::new(0, "", "", ValueType::Bool, vec![3])];
         let err = Circuit::new("", "", inputs, outputs, gates).unwrap_err();
         assert!(err
             .to_string()

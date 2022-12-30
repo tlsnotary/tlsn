@@ -28,10 +28,11 @@ message Group {
         U64 = 8;
         U128 = 9;
     }
-    required string name = 1;
-    required string desc = 2;
-    required ValueType value_type = 3;
-    repeated uint32 wires = 4;
+    required uint32 id = 1;
+    required string name = 2;
+    required string desc = 3;
+    required ValueType value_type = 4;
+    repeated uint32 wires = 5;
 }
 
 message Circuit {

@@ -1,6 +1,8 @@
 use crate::ValueType;
 
 pub trait WireGroup {
+    /// Returns id of group
+    fn id(&self) -> usize;
     /// Returns group name
     fn name(&self) -> &str;
     /// Returns group description
@@ -17,6 +19,7 @@ pub trait WireGroup {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Group {
+    id: usize,
     name: String,
     desc: String,
     value_type: ValueType,
@@ -25,6 +28,7 @@ pub struct Group {
 
 impl Group {
     pub(crate) fn new(
+        id: usize,
         name: &str,
         desc: &str,
         value_type: ValueType,
@@ -33,6 +37,7 @@ impl Group {
         // Ensure wire ids are always sorted
         wires.sort();
         Self {
+            id,
             name: name.to_string(),
             desc: desc.to_string(),
             value_type,
@@ -52,6 +57,10 @@ impl Group {
 }
 
 impl WireGroup for Group {
+    fn id(&self) -> usize {
+        self.id
+    }
+
     fn name(&self) -> &str {
         &self.name
     }

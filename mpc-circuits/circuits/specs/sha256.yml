@@ -2,16 +2,19 @@ name: "sha256"
 version: "0.1.0"
 wires: 135841
 inputs:
-- name: "msg"
+- id: 0
+  name: "msg"
   desc: "64-byte array, message to hash"
   value_type: bytes
   wire_count: 512
-- name: "state"
+- id: 1
+  name: "state"
   desc: "32-byte array, SHA256 hash state"
   value_type: bytes
   wire_count: 256
 outputs:
-- name: "hash"
+- id: 0
+  name: "hash"
   desc: "32-byte array, SHA256 hash"
   value_type: bytes
   wire_count: 256

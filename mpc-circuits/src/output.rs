@@ -5,24 +5,18 @@ use crate::{error::ValueError, value::WireGroupValue, Group, Value, ValueType, W
 /// Group of wires corresponding to one circuit output (a circuit may have
 /// multiple outputs)
 #[derive(Debug, Clone, PartialEq)]
-pub struct Output {
-    /// Output id of circuit
-    id: usize,
-    pub(crate) group: Arc<Group>,
-}
+pub struct Output(pub(crate) Arc<Group>);
 
 impl Output {
     /// Creates a new circuit output
-    pub(crate) fn new(id: usize, group: Group) -> Self {
-        Self {
-            id,
-            group: Arc::new(group),
-        }
-    }
-
-    /// Returns output id
-    pub fn id(&self) -> usize {
-        self.id
+    pub(crate) fn new(
+        id: usize,
+        name: &str,
+        desc: &str,
+        value_type: ValueType,
+        wires: Vec<usize>,
+    ) -> Self {
+        Self(Arc::new(Group::new(id, name, desc, value_type, wires)))
     }
 
     /// Converts to [`OutputValue`]
@@ -50,26 +44,30 @@ impl Output {
 }
 
 impl WireGroup for Output {
+    fn id(&self) -> usize {
+        self.0.id()
+    }
+
     fn name(&self) -> &str {
-        self.group.name()
+        self.0.name()
     }
 
     fn description(&self) -> &str {
-        self.group.description()
+        self.0.description()
     }
 
     fn value_type(&self) -> ValueType {
-        self.group.value_type()
+        self.0.value_type()
     }
 
     fn wires(&self) -> &[usize] {
-        self.group.wires()
+        self.0.wires()
     }
 }
 
 impl AsRef<Group> for Output {
     fn as_ref(&self) -> &Group {
-        &self.group
+        &self.0
     }
 }
 
@@ -88,7 +86,7 @@ impl OutputValue {
 
     /// Returns output id
     pub fn id(&self) -> usize {
-        self.output.id
+        self.output.id()
     }
 
     /// Returns [`Output`] corresponding to this value
@@ -103,6 +101,10 @@ impl OutputValue {
 }
 
 impl WireGroup for OutputValue {
+    fn id(&self) -> usize {
+        self.output.id()
+    }
+
     fn name(&self) -> &str {
         self.output.name()
     }

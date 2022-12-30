@@ -4,24 +4,18 @@ use crate::{error::ValueError, value::WireGroupValue, Group, Value, ValueType, W
 
 /// Group of wires corresponding to a circuit input
 #[derive(Debug, Clone, PartialEq)]
-pub struct Input {
-    /// Input id of circuit
-    id: usize,
-    pub(crate) group: Arc<Group>,
-}
+pub struct Input(pub(crate) Arc<Group>);
 
 impl Input {
     /// Creates a new circuit input
-    pub(crate) fn new(id: usize, group: Group) -> Self {
-        Self {
-            id,
-            group: Arc::new(group),
-        }
-    }
-
-    /// Returns input id
-    pub fn id(&self) -> usize {
-        self.id
+    pub(crate) fn new(
+        id: usize,
+        name: &str,
+        desc: &str,
+        value_type: ValueType,
+        wires: Vec<usize>,
+    ) -> Self {
+        Self(Arc::new(Group::new(id, name, desc, value_type, wires)))
     }
 
     /// Converts to [`InputValue`]
@@ -45,26 +39,30 @@ impl Input {
 }
 
 impl WireGroup for Input {
+    fn id(&self) -> usize {
+        self.0.id()
+    }
+
     fn name(&self) -> &str {
-        self.group.name()
+        self.0.name()
     }
 
     fn description(&self) -> &str {
-        self.group.description()
+        self.0.description()
     }
 
     fn value_type(&self) -> ValueType {
-        self.group.value_type()
+        self.0.value_type()
     }
 
     fn wires(&self) -> &[usize] {
-        self.group.wires()
+        self.0.wires()
     }
 }
 
 impl AsRef<Group> for Input {
     fn as_ref(&self) -> &Group {
-        &self.group
+        &self.0
     }
 }
 
@@ -78,7 +76,7 @@ pub struct InputValue {
 impl InputValue {
     /// Returns input id
     pub fn id(&self) -> usize {
-        self.input.id
+        self.input.id()
     }
 
     /// Returns [`Input`] corresponding to this value
@@ -93,6 +91,10 @@ impl InputValue {
 }
 
 impl WireGroup for InputValue {
+    fn id(&self) -> usize {
+        self.input.id()
+    }
+
     fn name(&self) -> &str {
         self.input.name()
     }

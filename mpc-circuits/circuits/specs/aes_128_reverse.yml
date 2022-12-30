@@ -2,16 +2,19 @@ name: "aes_128_reverse"
 version: "0.1.0"
 wires: 36919
 inputs:
-  - name: "key"
+  - id: 0
+    name: "key"
     desc: "16-byte string, reversed, LSB0 bit-order"
     value_type: bytes
     wire_count: 128
-  - name: "plaintext"
+  - id: 1
+    name: "plaintext"
     desc: "16-byte string, reversed, LSB0 bit-order"
     value_type: bytes
     wire_count: 128
 outputs:
-  - name: "ciphertext"
+  - id: 0
+    name: "ciphertext"
     desc: "16-byte string, reversed, LSB0 bit-order"
     value_type: bytes
     wire_count: 128
