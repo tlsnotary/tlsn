@@ -20,7 +20,7 @@ pub fn test_circ(circ: &crate::Circuit, inputs: &[crate::Value], expected: &[cra
     let inputs: Vec<crate::InputValue> = inputs
         .iter()
         .zip(circ.inputs.iter())
-        .map(|(value, input)| input.to_value(value.clone()).unwrap())
+        .map(|(value, input)| input.clone().to_value(value.clone()).unwrap())
         .collect();
     let outputs = circ.evaluate(&inputs).unwrap();
     for (output, expected) in outputs.iter().zip(expected) {

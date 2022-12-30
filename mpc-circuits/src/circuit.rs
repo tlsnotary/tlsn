@@ -1,6 +1,6 @@
 use crate::{
-    proto::Circuit as ProtoCircuit, utils::topological_sort, CircuitError, Input, InputValue,
-    Output, OutputValue, Value, ValueType, WireGroup,
+    proto::Circuit as ProtoCircuit, utils::topological_sort, value::WireGroupValue, CircuitError,
+    Input, InputValue, Output, OutputValue, Value, ValueType, WireGroup,
 };
 
 use prost::Message;
@@ -596,15 +596,6 @@ impl Circuit {
             .ok_or(CircuitError::InputError(id, self.name.clone()))
     }
 
-    /// Returns input value from id and value
-    pub fn input_value(
-        &self,
-        id: usize,
-        value: impl Into<Value>,
-    ) -> Result<InputValue, CircuitError> {
-        self.input(id)?.to_value(value)
-    }
-
     /// Returns reference to all circuit inputs
     pub fn inputs(&self) -> &[Input] {
         &self.inputs
@@ -704,10 +695,11 @@ impl Circuit {
         }
 
         // Insert input values
-        for input in inputs {
-            for (value, wire_id) in input.wire_values().into_iter().zip(input.wires()) {
-                wires[*wire_id] = Some(value);
-            }
+        for input_value in inputs {
+            input_value
+                .wire_values()
+                .into_iter()
+                .for_each(|(id, value)| wires[id] = Some(value));
         }
 
         // Evaluate gates
@@ -738,14 +730,12 @@ impl Circuit {
         // Map wires to outputs and convert to values
         let mut outputs: Vec<OutputValue> = Vec::with_capacity(self.output_count());
         for output in self.outputs.iter() {
-            let mut value: Vec<bool> = Vec::with_capacity(output.as_ref().len());
-            for id in output.as_ref().wires() {
-                value.push(wires[*id].ok_or(CircuitError::UninitializedWire(*id))?);
+            let mut bits: Vec<bool> = Vec::with_capacity(output.len());
+            for id in output.wires() {
+                bits.push(wires[*id].ok_or(CircuitError::UninitializedWire(*id))?);
             }
-            outputs.push(OutputValue::new(
-                output.clone(),
-                Value::new(output.value_type(), value)?,
-            )?);
+            let value = Value::new(output.value_type(), bits)?;
+            outputs.push(output.clone().to_value(value)?);
         }
 
         Ok(outputs)

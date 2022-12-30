@@ -1,4 +1,9 @@
-use crate::error::ValueError as Error;
+use crate::{error::ValueError as Error, WireGroup};
+
+pub trait WireGroupValue: WireGroup {
+    /// Returns wire ids and values
+    fn wire_values(&self) -> Vec<(usize, bool)>;
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
@@ -60,7 +65,7 @@ impl Value {
                     .enumerate()
                     .fold(0, |acc, (i, v)| acc | (*v as u128) << i),
             ),
-            _ => return Err(Error::InvalidValue(typ, bits.to_vec())),
+            _ => return Err(Error::ParseError(bits.len(), typ)),
         };
         Ok(value)
     }
@@ -78,6 +83,22 @@ impl Value {
             Value::U32(_) => ValueType::U32,
             Value::U64(_) => ValueType::U64,
             Value::U128(_) => ValueType::U128,
+        }
+    }
+
+    /// Returns bit length of value
+    pub fn len(&self) -> usize {
+        match self {
+            Value::ConstZero => 1,
+            Value::ConstOne => 1,
+            Value::Bool(_) => 1,
+            Value::Bits(v) => v.len(),
+            Value::Bytes(v) => v.len() * 8,
+            Value::U8(_) => 8,
+            Value::U16(_) => 16,
+            Value::U32(_) => 32,
+            Value::U64(_) => 64,
+            Value::U128(_) => 128,
         }
     }
 

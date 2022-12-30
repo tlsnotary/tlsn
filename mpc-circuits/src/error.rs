@@ -27,10 +27,12 @@ pub enum CircuitError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ValueError {
-    #[error("Invalid bit string provided for value type")]
-    InvalidValue(ValueType, Vec<bool>),
-    #[error("Invalid value type for group {0:?}: {1:?}")]
-    InvalidType(String, ValueType),
+    #[error("Could not parse {0} bits into a value of type {1:?}")]
+    ParseError(usize, ValueType),
+    #[error("Invalid number of bits provided for group {0:?}, length {1:?}: {2}")]
+    InvalidValue(String, usize, usize),
+    #[error("Invalid value type for group {0:?}: Expected {1:?} got {2:?}")]
+    InvalidType(String, ValueType, ValueType),
 }
 
 #[derive(Debug, thiserror::Error)]
