@@ -229,7 +229,7 @@ impl GarbledCircuit<Full> {
             .iter()
             .map(|value| {
                 InputLabels::new(
-                    value.input().clone(),
+                    value.group().clone(),
                     &WireLabelPair::choose(
                         &self.state.labels,
                         value.wires(),

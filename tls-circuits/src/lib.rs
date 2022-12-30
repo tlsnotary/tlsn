@@ -30,11 +30,9 @@ mod test_helpers {
         digest::block_buffer::{BlockBuffer, Eager},
     };
 
-    pub fn test_circ(
-        circ: &mpc_circuits::Circuit,
-        inputs: &[mpc_circuits::Value],
-        expected: &[mpc_circuits::Value],
-    ) {
+    use mpc_circuits::{Circuit, Value, WireGroup};
+
+    pub fn test_circ(circ: &Circuit, inputs: &[Value], expected: &[Value]) {
         let inputs: Vec<mpc_circuits::InputValue> = inputs
             .iter()
             .zip(circ.inputs())

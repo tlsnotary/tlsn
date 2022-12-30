@@ -150,7 +150,7 @@ mod tests {
     use crate::Block;
 
     use super::*;
-    use mpc_circuits::{Value, ADDER_64};
+    use mpc_circuits::{Value, WireGroup, ADDER_64};
     use rand::thread_rng;
     use std::sync::Arc;
 

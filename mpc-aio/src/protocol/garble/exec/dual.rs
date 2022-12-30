@@ -14,7 +14,7 @@ use crate::protocol::{
 };
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
-use mpc_circuits::{Circuit, InputValue};
+use mpc_circuits::{Circuit, InputValue, WireGroup};
 use mpc_core::garble::{
     exec::dual as core, gc_state, Delta, GarbledCircuit, InputLabels, WireLabel, WireLabelPair,
 };

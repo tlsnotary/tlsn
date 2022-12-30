@@ -52,7 +52,7 @@ where
             .into_iter()
             .map(|value| {
                 InputLabels::new(
-                    value.input().clone(),
+                    value.group().clone(),
                     &labels
                         .drain(..value.len())
                         .zip(value.wires().iter())

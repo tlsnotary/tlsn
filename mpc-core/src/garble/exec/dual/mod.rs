@@ -17,7 +17,7 @@ mod tests {
     use crate::garble::{commitment::Opening, Error, InputLabels, OutputCheck};
 
     use super::*;
-    use mpc_circuits::{Circuit, ADDER_64};
+    use mpc_circuits::{Circuit, WireGroup, ADDER_64};
     use rand::thread_rng;
     use std::sync::Arc;
 
