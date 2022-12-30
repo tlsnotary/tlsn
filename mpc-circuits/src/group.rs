@@ -142,6 +142,20 @@ where
             .zip(self.value.to_bits().into_iter())
             .collect()
     }
+
+    /// Creates group value from bit string
+    #[inline]
+    pub fn from_bits(group: T, bits: Vec<bool>) -> Result<Self, ValueError> {
+        if group.len() != bits.len() {
+            return Err(ValueError::InvalidValue(
+                group.name().to_string(),
+                group.len(),
+                bits.len(),
+            ));
+        }
+        let value = Value::new(group.value_type(), bits)?;
+        Ok(Self { group, value })
+    }
 }
 
 impl<T> WireGroup for GroupValue<T>
