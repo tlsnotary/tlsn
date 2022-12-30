@@ -71,7 +71,7 @@ impl OutputLabels<WireLabelPair> {
         let labels: Vec<WireLabel> = self
             .labels
             .iter()
-            .zip(value.wire_values())
+            .zip(value.value().to_bits())
             .map(|(pair, value)| pair.select(value))
             .collect();
 
@@ -101,9 +101,10 @@ impl OutputLabels<WireLabel> {
         if decoding.output != self.output {
             return Err(Error::InvalidLabelDecodingInfo);
         }
-        Ok(self
-            .output
-            .parse_bits(WireLabel::decode_many(&self.labels, decoding.as_ref())?)?)
+        Ok(OutputValue::from_bits(
+            self.output.clone(),
+            WireLabel::decode_many(&self.labels, decoding.as_ref())?,
+        )?)
     }
 
     /// Convenience function to convert labels into bytes

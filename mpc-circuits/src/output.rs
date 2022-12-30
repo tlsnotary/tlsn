@@ -26,6 +26,7 @@ impl Output {
     }
 
     /// Converts to [`OutputValue`]
+    #[inline]
     pub fn to_value(self, value: impl Into<Value>) -> Result<OutputValue, ValueError> {
         let value = value.into();
         if self.value_type() != value.value_type() {
@@ -79,6 +80,12 @@ pub struct OutputValue {
 }
 
 impl OutputValue {
+    /// Creates output value from bit string
+    pub fn from_bits(output: Output, bits: Vec<bool>) -> Result<Self, ValueError> {
+        let value = Value::new(output.value_type(), bits)?;
+        output.to_value(value)
+    }
+
     /// Returns output id
     pub fn id(&self) -> usize {
         self.output.id

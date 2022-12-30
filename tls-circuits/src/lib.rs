@@ -38,7 +38,7 @@ mod test_helpers {
         let inputs: Vec<mpc_circuits::InputValue> = inputs
             .iter()
             .zip(circ.inputs())
-            .map(|(value, input)| input.to_value(value.clone()).unwrap())
+            .map(|(value, input)| input.clone().to_value(value.clone()).unwrap())
             .collect();
         let outputs = circ.evaluate(&inputs).unwrap();
         for (output, expected) in outputs.iter().zip(expected) {

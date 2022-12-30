@@ -12,7 +12,7 @@ pub mod utils;
 mod value;
 
 pub use circuit::{Circuit, CircuitId, Gate};
-pub use error::CircuitError;
+pub use error::{CircuitError, ValueError};
 pub use group::{Group, WireGroup};
 pub use input::{Input, InputValue};
 pub use output::{Output, OutputValue};
