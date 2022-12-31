@@ -1,6 +1,6 @@
 use crate::garble::{
     circuit::{state as gc_state, GarbledCircuit},
-    commitment::{HashCommitment, Opening},
+    commitment::{CommitmentOpening, HashCommitment},
     label::{ActiveOutputLabels, LabelsDigest},
     ActiveInputLabels, Delta, Error, FullInputLabels,
 };
@@ -173,7 +173,10 @@ impl DualExFollower<Reveal> {
 
 impl DualExFollower<Verify> {
     /// Check [`DualExLeader`] output commitment matches expected
-    pub fn verify(self, opening: Opening) -> Result<GarbledCircuit<gc_state::Evaluated>, Error> {
+    pub fn verify(
+        self,
+        opening: CommitmentOpening,
+    ) -> Result<GarbledCircuit<gc_state::Evaluated>, Error> {
         // If this fails then the peer was cheating and your private inputs were potentially leaked
         // and you should call the police immediately
         if opening.message() != self.state.check.0 {

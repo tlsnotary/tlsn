@@ -14,7 +14,7 @@ pub use leader::{state as leader_state, DualExLeader};
 
 #[cfg(test)]
 mod tests {
-    use crate::garble::{commitment::Opening, Error, FullInputLabels, LabelsDigest};
+    use crate::garble::{commitment::CommitmentOpening, Error, FullInputLabels, LabelsDigest};
 
     use super::*;
     use mpc_circuits::{Circuit, WireGroup, ADDER_64};
@@ -84,7 +84,7 @@ mod tests {
 
         let (_, follower) = follower.reveal(leader_commit);
 
-        let malicious_leader_opening = Opening::new(&[0u8; 32]);
+        let malicious_leader_opening = CommitmentOpening::new(&[0u8; 32]);
 
         let err = follower.verify(malicious_leader_opening).unwrap_err();
 
@@ -97,7 +97,7 @@ mod tests {
 
         let (_, leader) = leader.commit();
 
-        let malicious_leader_commit = Opening::new(&[0u8; 32]).commit();
+        let malicious_leader_commit = CommitmentOpening::new(&[0u8; 32]).commit();
 
         let (follower_reveal, follower) = follower.reveal(malicious_leader_commit);
 

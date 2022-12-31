@@ -62,8 +62,8 @@ pub struct CommitmentOpening {
     message: Vec<u8>,
 }
 
-impl From<commitment::Opening> for CommitmentOpening {
-    fn from(c: commitment::Opening) -> Self {
+impl From<commitment::CommitmentOpening> for CommitmentOpening {
+    fn from(c: commitment::CommitmentOpening) -> Self {
         Self {
             key: c.key.into(),
             message: c.message,
@@ -71,7 +71,7 @@ impl From<commitment::Opening> for CommitmentOpening {
     }
 }
 
-impl From<CommitmentOpening> for commitment::Opening {
+impl From<CommitmentOpening> for commitment::CommitmentOpening {
     fn from(c: CommitmentOpening) -> Self {
         Self {
             key: c.key.into(),

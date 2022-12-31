@@ -160,6 +160,30 @@ pub struct CircuitOpening {
     pub(crate) input_decoding: Vec<InputLabelsDecodingInfo>,
 }
 
+impl CircuitOpening {
+    pub fn open_labels(
+        &self,
+        input_labels: &[ActiveInputLabels],
+    ) -> Result<Vec<FullInputLabels>, Error> {
+        if self.input_decoding.len() != input_labels.len() {
+            return Err(LabelError::InvalidDecodingCount(
+                input_labels.len(),
+                self.input_decoding.len(),
+            ))?;
+        }
+
+        input_labels
+            .into_iter()
+            .cloned()
+            .zip(&self.input_decoding)
+            .map(|(labels, decoding)| {
+                FullInputLabels::from_decoding(labels, self.delta, decoding.clone())
+            })
+            .collect::<Result<Vec<_>, LabelError>>()
+            .map_err(Error::from)
+    }
+}
+
 impl GarbledCircuit<Full> {
     /// Generate a garbled circuit with the provided input labels and delta.
     pub fn generate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(

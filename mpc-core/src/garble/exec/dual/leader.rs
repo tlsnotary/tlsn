@@ -1,6 +1,6 @@
 use crate::garble::{
     circuit::{state as gc_state, GarbledCircuit},
-    commitment::{HashCommitment, Opening},
+    commitment::{CommitmentOpening, HashCommitment},
     label::{ActiveOutputLabels, LabelsDigest},
     ActiveInputLabels, Delta, Error, FullInputLabels,
 };
@@ -44,13 +44,13 @@ pub mod state {
     pub struct Verify {
         pub(super) evaluated_gc: GarbledCircuit<gc_state::Evaluated>,
         pub(super) check: LabelsDigest,
-        pub(super) commit_opening: Opening,
+        pub(super) commit_opening: CommitmentOpening,
     }
 
     #[derive(Debug)]
     pub struct Reveal {
         pub(super) evaluated_gc: GarbledCircuit<gc_state::Evaluated>,
-        pub(super) commit_opening: Opening,
+        pub(super) commit_opening: CommitmentOpening,
     }
 
     impl State for Generator {}
@@ -166,7 +166,7 @@ impl DualExLeader<Evaluator> {
 impl DualExLeader<Commit> {
     /// Commit to output
     pub fn commit(self) -> (HashCommitment, DualExLeader<Verify>) {
-        let commit_opening = Opening::new(&self.state.check.0);
+        let commit_opening = CommitmentOpening::new(&self.state.check.0);
         let commitment = commit_opening.commit();
         (
             commitment,
@@ -204,7 +204,7 @@ impl DualExLeader<Verify> {
 
 impl DualExLeader<Reveal> {
     /// Open output commitment to [`DualExFollower`]
-    pub fn reveal(self) -> (Opening, GarbledCircuit<gc_state::Evaluated>) {
+    pub fn reveal(self) -> (CommitmentOpening, GarbledCircuit<gc_state::Evaluated>) {
         (self.state.commit_opening, self.state.evaluated_gc)
     }
 }

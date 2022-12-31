@@ -17,7 +17,7 @@ pub struct HashCommitment(pub(crate) [u8; 32]);
 
 impl HashCommitment {
     /// Verifies an opening against this commitment
-    pub fn verify(&self, opening: &Opening) -> Result<(), CommitmentError> {
+    pub fn verify(&self, opening: &CommitmentOpening) -> Result<(), CommitmentError> {
         if self.0 != opening.commit().0 {
             return Err(CommitmentError::InvalidOpening);
         }
@@ -38,12 +38,12 @@ impl CommitmentKey {
 
 /// Opening information for a commitment
 #[derive(Debug, Clone, PartialEq)]
-pub struct Opening {
+pub struct CommitmentOpening {
     pub(crate) key: CommitmentKey,
     pub(crate) message: Vec<u8>,
 }
 
-impl Opening {
+impl CommitmentOpening {
     /// Creates a new commitment opening
     pub fn new(message: &[u8]) -> Self {
         Self {
@@ -72,7 +72,7 @@ mod test {
     #[test]
     fn test_commitment_pass() {
         let message = [0, 1, 2, 3u8];
-        let opening = Opening::new(&message);
+        let opening = CommitmentOpening::new(&message);
         let commitment = opening.commit();
 
         commitment.verify(&opening).unwrap();
@@ -81,7 +81,7 @@ mod test {
     #[test]
     fn test_commitment_invalid_key() {
         let message = [0, 1, 2, 3u8];
-        let mut opening = Opening::new(&message);
+        let mut opening = CommitmentOpening::new(&message);
         let commitment = opening.commit();
 
         opening.key.0[0] = opening.key.0[0] - 1;
@@ -94,7 +94,7 @@ mod test {
     #[test]
     fn test_commitment_invalid_message() {
         let message = [0, 1, 2, 3u8];
-        let mut opening = Opening::new(&message);
+        let mut opening = CommitmentOpening::new(&message);
         let commitment = opening.commit();
 
         opening.message[0] = opening.message[0] + 1;
