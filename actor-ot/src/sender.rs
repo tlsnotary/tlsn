@@ -10,7 +10,7 @@ use xtra::{prelude::*, scoped};
 use crate::{config::SenderFactoryConfig, GetSender, Setup, Verify};
 use mpc_core::{
     msgs::ot::{OTFactoryMessage, OTMessage, Split},
-    ot::s_state::RandSetup,
+    ot::s_state::RandSetup, Block,
 };
 use utils_aio::{mux::MuxChannelControl, Channel};
 
@@ -197,7 +197,7 @@ impl<T, S> SenderFactoryControl<T>
 where
     T: Handler<Setup, Return = Result<(), OTFactoryError>>
         + Handler<GetSender, Return = Result<S, OTFactoryError>>,
-    S: ObliviousSend,
+    S: ObliviousSend<[Block; 2]>,
 {
     pub fn new(addr: Address<T>) -> Self {
         Self(addr)
@@ -226,7 +226,7 @@ where
 }
 
 #[async_trait]
-impl<T, U> OTSenderFactory for SenderFactoryControl<KOSSenderFactory<T, U>>
+impl<T, U> OTSenderFactory<[Block; 2]> for SenderFactoryControl<KOSSenderFactory<T, U>>
 where
     T: Channel<OTFactoryMessage, Error = std::io::Error> + Send + 'static,
     U: MuxChannelControl<OTMessage> + Send + 'static,
