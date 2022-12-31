@@ -12,7 +12,8 @@ use xtra::{prelude::*, scoped};
 use crate::{config::ReceiverFactoryConfig, GetReceiver, Setup};
 use mpc_core::{
     msgs::ot::{OTFactoryMessage, OTMessage, Split},
-    ot::r_state::RandSetup, Block,
+    ot::r_state::RandSetup,
+    Block,
 };
 use utils_aio::{mux::MuxChannelControl, Channel};
 
