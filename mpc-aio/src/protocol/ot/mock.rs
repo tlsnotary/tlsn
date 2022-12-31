@@ -1,7 +1,8 @@
 use std::sync::{Arc, Mutex};
 
 use super::{
-    OTError, OTFactoryError, OTReceiverFactory, OTSenderFactory, ObliviousReceive, ObliviousSend,
+    OTError, OTFactoryError, OTReceiverFactory, OTSenderFactory, ObliviousReceive, ObliviousReveal,
+    ObliviousSend, ObliviousVerify,
 };
 use async_trait::async_trait;
 use futures::{channel::mpsc, StreamExt};
@@ -101,6 +102,27 @@ where
                 }
             })
             .collect::<Vec<T>>())
+    }
+}
+
+#[async_trait]
+impl<T> ObliviousVerify<[T; 2]> for MockOTReceiver<T>
+where
+    T: Send + 'static,
+{
+    async fn verify(self, _input: Vec<[T; 2]>) -> Result<(), OTError> {
+        // MockOT is always honest
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl<T> ObliviousReveal for MockOTSender<T>
+where
+    T: Send + 'static,
+{
+    async fn reveal(mut self) -> Result<(), OTError> {
+        Ok(())
     }
 }
 
