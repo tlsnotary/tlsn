@@ -1,11 +1,12 @@
 use std::sync::{Arc, Mutex};
 
 use super::{
-    OTError, OTFactoryError, OTReceiverFactory, OTSenderFactory, ObliviousReceive, ObliviousReveal,
-    ObliviousSend, ObliviousVerify,
+    config::{OTReceiverConfig, OTSenderConfig},
+    OTError, OTFactoryError, ObliviousReceive, ObliviousReveal, ObliviousSend, ObliviousVerify,
 };
 use async_trait::async_trait;
 use futures::{channel::mpsc, StreamExt};
+use utils_aio::factory::AsyncFactory;
 
 #[derive(Default)]
 pub struct MockOTFactory<T> {
@@ -14,14 +15,14 @@ pub struct MockOTFactory<T> {
 }
 
 #[async_trait]
-impl<T: Send + 'static> OTSenderFactory<[T; 2]> for Arc<Mutex<MockOTFactory<T>>> {
-    type Protocol = MockOTSender<T>;
-
-    async fn new_sender(
+impl<T: Send + 'static> AsyncFactory<OTSenderConfig, MockOTSender<T>, OTFactoryError>
+    for Arc<Mutex<MockOTFactory<T>>>
+{
+    async fn new(
         &mut self,
         _id: String,
-        _count: usize,
-    ) -> Result<Self::Protocol, OTFactoryError> {
+        _config: OTSenderConfig,
+    ) -> Result<MockOTSender<T>, OTFactoryError> {
         let mut inner = self.lock().unwrap();
         if inner.waiting_sender.is_some() {
             Ok(inner.waiting_sender.take().unwrap())
@@ -34,14 +35,14 @@ impl<T: Send + 'static> OTSenderFactory<[T; 2]> for Arc<Mutex<MockOTFactory<T>>>
 }
 
 #[async_trait]
-impl<T: Send + 'static> OTReceiverFactory<bool, T> for Arc<Mutex<MockOTFactory<T>>> {
-    type Protocol = MockOTReceiver<T>;
-
-    async fn new_receiver(
+impl<T: Send + 'static> AsyncFactory<OTReceiverConfig, MockOTReceiver<T>, OTFactoryError>
+    for Arc<Mutex<MockOTFactory<T>>>
+{
+    async fn new(
         &mut self,
         _id: String,
-        _count: usize,
-    ) -> Result<Self::Protocol, OTFactoryError> {
+        _config: OTReceiverConfig,
+    ) -> Result<MockOTReceiver<T>, OTFactoryError> {
         let mut inner = self.lock().unwrap();
         if inner.waiting_receiver.is_some() {
             Ok(inner.waiting_receiver.take().unwrap())

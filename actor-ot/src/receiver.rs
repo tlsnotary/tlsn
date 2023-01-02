@@ -4,8 +4,8 @@ use async_trait::async_trait;
 
 use futures::{channel::oneshot, stream::SplitSink, Future, StreamExt};
 use mpc_aio::protocol::ot::{
-    kos::receiver::Kos15IOReceiver, OTFactoryError, OTReceiverFactory, ObliviousAcceptCommit,
-    ObliviousReceive,
+    config::OTReceiverConfig, kos::receiver::Kos15IOReceiver, OTFactoryError,
+    ObliviousAcceptCommit, ObliviousReceive,
 };
 use xtra::{prelude::*, scoped};
 
@@ -15,7 +15,7 @@ use mpc_core::{
     ot::r_state::RandSetup,
     Block,
 };
-use utils_aio::{mux::MuxChannelControl, Channel};
+use utils_aio::{factory::AsyncFactory, mux::MuxChannelControl, Channel};
 
 pub enum State {
     Initialized(oneshot::Sender<()>),
@@ -273,18 +273,17 @@ where
 }
 
 #[async_trait]
-impl<T, U> OTReceiverFactory<bool, Block> for ReceiverFactoryControl<KOSReceiverFactory<T, U>>
+impl<T, U> AsyncFactory<OTReceiverConfig, Kos15IOReceiver<RandSetup>, OTFactoryError>
+    for ReceiverFactoryControl<KOSReceiverFactory<T, U>>
 where
     T: Channel<OTFactoryMessage, Error = std::io::Error> + Send + 'static,
     U: MuxChannelControl<OTMessage> + Send + 'static,
 {
-    type Protocol = Kos15IOReceiver<RandSetup>;
-
-    async fn new_receiver(
+    async fn new(
         &mut self,
         id: String,
-        count: usize,
-    ) -> Result<Self::Protocol, OTFactoryError> {
-        self.get_receiver(id, count).await
+        config: OTReceiverConfig,
+    ) -> Result<Kos15IOReceiver<RandSetup>, OTFactoryError> {
+        self.get_receiver(id, config.count).await
     }
 }
