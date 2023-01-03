@@ -21,7 +21,7 @@ use utils_aio::factory::AsyncFactory;
 /// Will be the OT receiver
 pub struct Receiver<T, OT, U, V = Void>
 where
-    T: AsyncFactory<OTReceiverConfig, OT, OTFactoryError>,
+    T: AsyncFactory<OT>,
     U: Gf2_128ShareConvert,
 {
     /// Provides initialized OTs for the OT receiver
@@ -37,7 +37,7 @@ where
 
 impl<T, OT, V, W> Receiver<T, OT, V, W>
 where
-    T: AsyncFactory<OTReceiverConfig, OT, OTFactoryError> + Send,
+    T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
     OT: ObliviousReceive<bool, Block>,
     V: Gf2_128ShareConvert,
     W: Recorder<V>,
@@ -100,7 +100,7 @@ where
 #[async_trait]
 impl<T, OT, V> AdditiveToMultiplicative for Receiver<T, OT, AddShare, V>
 where
-    T: AsyncFactory<OTReceiverConfig, OT, OTFactoryError> + Send,
+    T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
     OT: ObliviousReceive<bool, Block> + Send,
     V: Recorder<AddShare> + Send,
 {
@@ -119,7 +119,7 @@ where
 #[async_trait]
 impl<T, OT, V> MultiplicativeToAdditive for Receiver<T, OT, MulShare, V>
 where
-    T: AsyncFactory<OTReceiverConfig, OT, OTFactoryError> + Send,
+    T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
     OT: ObliviousReceive<bool, Block> + Send,
     V: Recorder<MulShare> + Send,
 {
@@ -138,7 +138,7 @@ where
 #[async_trait]
 impl<T, OT, U> VerifyTape for Receiver<T, OT, U, Tape>
 where
-    T: AsyncFactory<OTReceiverConfig, OT, OTFactoryError> + Send,
+    T: AsyncFactory<OT> + Send,
     OT: ObliviousReceive<bool, Block> + Send,
     U: Gf2_128ShareConvert + Send,
 {

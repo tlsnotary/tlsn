@@ -273,12 +273,15 @@ where
 }
 
 #[async_trait]
-impl<T, U> AsyncFactory<OTReceiverConfig, Kos15IOReceiver<RandSetup>, OTFactoryError>
+impl<T, U> AsyncFactory<Kos15IOReceiver<RandSetup>>
     for ReceiverFactoryControl<KOSReceiverFactory<T, U>>
 where
     T: Channel<OTFactoryMessage, Error = std::io::Error> + Send + 'static,
     U: MuxChannelControl<OTMessage> + Send + 'static,
 {
+    type Config = OTReceiverConfig;
+    type Error = OTFactoryError;
+
     async fn new(
         &mut self,
         id: String,

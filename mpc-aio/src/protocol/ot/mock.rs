@@ -15,9 +15,10 @@ pub struct MockOTFactory<T> {
 }
 
 #[async_trait]
-impl<T: Send + 'static> AsyncFactory<OTSenderConfig, MockOTSender<T>, OTFactoryError>
-    for Arc<Mutex<MockOTFactory<T>>>
-{
+impl<T: Send + 'static> AsyncFactory<MockOTSender<T>> for Arc<Mutex<MockOTFactory<T>>> {
+    type Config = OTSenderConfig;
+    type Error = OTFactoryError;
+
     async fn new(
         &mut self,
         _id: String,
@@ -35,9 +36,10 @@ impl<T: Send + 'static> AsyncFactory<OTSenderConfig, MockOTSender<T>, OTFactoryE
 }
 
 #[async_trait]
-impl<T: Send + 'static> AsyncFactory<OTReceiverConfig, MockOTReceiver<T>, OTFactoryError>
-    for Arc<Mutex<MockOTFactory<T>>>
-{
+impl<T: Send + 'static> AsyncFactory<MockOTReceiver<T>> for Arc<Mutex<MockOTFactory<T>>> {
+    type Config = OTReceiverConfig;
+    type Error = OTFactoryError;
+
     async fn new(
         &mut self,
         _id: String,

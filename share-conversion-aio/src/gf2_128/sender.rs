@@ -20,7 +20,7 @@ use utils_aio::{adaptive_barrier::AdaptiveBarrier, factory::AsyncFactory};
 /// Will be the OT sender
 pub struct Sender<T, OT, U, V = Void>
 where
-    T: AsyncFactory<OTSenderConfig, OT, OTFactoryError>,
+    T: AsyncFactory<OT>,
     OT: ObliviousSend<[Block; 2]>,
     U: Gf2_128ShareConvert,
     V: Recorder<U>,
@@ -40,7 +40,7 @@ where
 
 impl<T, OT, U, V> Sender<T, OT, U, V>
 where
-    T: AsyncFactory<OTSenderConfig, OT, OTFactoryError> + Send,
+    T: AsyncFactory<OT, Config = OTSenderConfig, Error = OTFactoryError> + Send,
     OT: ObliviousSend<[Block; 2]>,
     U: Gf2_128ShareConvert,
     V: Recorder<U>,
@@ -105,7 +105,7 @@ where
 #[cfg(test)]
 impl<T, OT, U> Sender<T, OT, U, Tape>
 where
-    T: AsyncFactory<OTSenderConfig, OT, OTFactoryError> + Send,
+    T: AsyncFactory<OT> + Send,
     OT: ObliviousSend<[Block; 2]>,
     U: Gf2_128ShareConvert,
 {
@@ -117,7 +117,7 @@ where
 #[async_trait]
 impl<T, OT, V> AdditiveToMultiplicative for Sender<T, OT, AddShare, V>
 where
-    T: AsyncFactory<OTSenderConfig, OT, OTFactoryError> + Send,
+    T: AsyncFactory<OT, Config = OTSenderConfig, Error = OTFactoryError> + Send,
     OT: ObliviousSend<[Block; 2]> + Send,
     V: Recorder<AddShare> + Send,
 {
@@ -136,7 +136,7 @@ where
 #[async_trait]
 impl<T, OT, V> MultiplicativeToAdditive for Sender<T, OT, MulShare, V>
 where
-    T: AsyncFactory<OTSenderConfig, OT, OTFactoryError> + Send,
+    T: AsyncFactory<OT, Config = OTSenderConfig, Error = OTFactoryError> + Send,
     OT: ObliviousSend<[Block; 2]> + Send,
     V: Recorder<MulShare> + Send,
 {
@@ -155,7 +155,7 @@ where
 #[async_trait]
 impl<T, OT, U> SendTape for Sender<T, OT, U, Tape>
 where
-    T: AsyncFactory<OTSenderConfig, OT, OTFactoryError> + Send,
+    T: AsyncFactory<OT> + Send,
     OT: ObliviousSend<[Block; 2]> + Send,
     U: Gf2_128ShareConvert + Send,
 {
