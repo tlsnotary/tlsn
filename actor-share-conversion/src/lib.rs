@@ -11,4 +11,6 @@ pub enum ActorConversionError {
     MuxerError(#[from] MuxerError),
     #[error("ActorError: {0}")]
     ActorError(#[from] xtra::Error),
+    #[error("Actor has already been shut down")]
+    Shutdown,
 }

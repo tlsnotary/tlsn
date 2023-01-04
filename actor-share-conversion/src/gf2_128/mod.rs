@@ -1,8 +1,8 @@
 mod receiver;
 mod sender;
 
-pub use receiver::Receiver;
-pub use sender::Sender;
+pub use receiver::{Receiver, ReceiverControl};
+pub use sender::{Sender, SenderControl};
 
 pub struct SendTapeMessage;
 pub struct VerifyTapeMessage;

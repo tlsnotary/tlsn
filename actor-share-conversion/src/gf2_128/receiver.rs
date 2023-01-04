@@ -13,6 +13,11 @@ use share_conversion_core::gf2_128::Gf2_128ShareConvert;
 use utils_aio::mux::MuxChannelControl;
 use xtra::prelude::*;
 
+enum State<T: OTReceiverFactory, U: Gf2_128ShareConvert, V: Recorder<U>> {
+    Setup(IOReceiver<T, U, V>),
+    Complete,
+}
+
 #[derive(xtra::Actor)]
 pub struct Receiver<T, U, V = Void>
 where
@@ -20,7 +25,7 @@ where
     U: Gf2_128ShareConvert,
     V: Recorder<U>,
 {
-    inner: IOReceiver<T, U, V>,
+    inner: State<T, U, V>,
 }
 
 impl<
@@ -37,7 +42,9 @@ impl<
     ) -> Result<Self, ActorConversionError> {
         let channel = muxer.get_channel(id.clone()).await?;
         let receiver = IOReceiver::new(receiver_factory, id, channel);
-        Ok(Self { inner: receiver })
+        Ok(Self {
+            inner: State::Setup(receiver),
+        })
     }
 }
 
@@ -111,10 +118,13 @@ where
         message: M2AMessage<Vec<u128>>,
         _ctx: &mut Context<Self>,
     ) -> Self::Return {
-        self.inner
-            .m_to_a(message.0.as_slice())
-            .await
-            .map_err(ActorConversionError::from)
+        match self.inner {
+            State::Setup(ref mut inner) => inner
+                .m_to_a(message.0.as_slice())
+                .await
+                .map_err(ActorConversionError::from),
+            State::Complete => Err(ActorConversionError::Shutdown),
+        }
     }
 }
 
@@ -135,10 +145,13 @@ where
         message: A2MMessage<Vec<u128>>,
         _ctx: &mut Context<Self>,
     ) -> Self::Return {
-        self.inner
-            .a_to_m(message.0.as_slice())
-            .await
-            .map_err(ActorConversionError::from)
+        match self.inner {
+            State::Setup(ref mut inner) => inner
+                .a_to_m(message.0.as_slice())
+                .await
+                .map_err(ActorConversionError::from),
+            State::Complete => Err(ActorConversionError::Shutdown),
+        }
     }
 }
 
@@ -156,11 +169,20 @@ where
     async fn handle(
         &mut self,
         _message: VerifyTapeMessage,
-        _ctx: &mut Context<Self>,
+        ctx: &mut Context<Self>,
     ) -> Self::Return {
-        self.inner
-            .verify_tape()
-            .await
-            .map_err(ActorConversionError::from)
+        let inner = std::mem::replace(&mut self.inner, State::Complete);
+
+        if let State::Setup(inner) = inner {
+            inner
+                .verify_tape()
+                .await
+                .map_err(ActorConversionError::from)?
+        } else {
+            return Err(ActorConversionError::Shutdown);
+        };
+
+        ctx.stop_self();
+        Ok(())
     }
 }
