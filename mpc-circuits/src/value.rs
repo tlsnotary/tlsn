@@ -40,22 +40,22 @@ impl Value {
                     .enumerate()
                     .fold(0, |acc, (i, v)| acc | (*v as u8) << i),
             ),
-            ValueType::U16 => Value::U16(
+            ValueType::U16 if bits.len() == 16 => Value::U16(
                 bits.iter()
                     .enumerate()
                     .fold(0, |acc, (i, v)| acc | (*v as u16) << i),
             ),
-            ValueType::U32 => Value::U32(
+            ValueType::U32 if bits.len() == 32 => Value::U32(
                 bits.iter()
                     .enumerate()
                     .fold(0, |acc, (i, v)| acc | (*v as u32) << i),
             ),
-            ValueType::U64 => Value::U64(
+            ValueType::U64 if bits.len() == 64 => Value::U64(
                 bits.iter()
                     .enumerate()
                     .fold(0, |acc, (i, v)| acc | (*v as u64) << i),
             ),
-            ValueType::U128 => Value::U128(
+            ValueType::U128 if bits.len() == 128 => Value::U128(
                 bits.iter()
                     .enumerate()
                     .fold(0, |acc, (i, v)| acc | (*v as u128) << i),
@@ -184,5 +184,96 @@ impl From<u64> for Value {
 impl From<u128> for Value {
     fn from(v: u128) -> Self {
         Value::U128(v)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::*;
+
+    #[rstest]
+    #[case(ValueType::ConstZero, vec![], Value::ConstZero)]
+    #[case(ValueType::ConstOne, vec![], Value::ConstOne)]
+    #[case(ValueType::Bool, vec![false], Value::Bool(false))]
+    #[case(ValueType::Bool, vec![true], Value::Bool(true))]
+    #[case(ValueType::Bits, vec![false, true], Value::Bits(vec![false, true]))]
+    #[case(ValueType::Bytes, vec![false; 8], Value::Bytes(vec![0]))]
+    #[case(ValueType::Bytes, vec![true; 8], Value::Bytes(vec![u8::MAX]))]
+    #[case(ValueType::U8, vec![false; 8], Value::U8(0u8))]
+    #[case(ValueType::U8, vec![true; 8], Value::U8(u8::MAX))]
+    #[case(ValueType::U16, vec![false; 16], Value::U16(0u16))]
+    #[case(ValueType::U16, vec![true; 16], Value::U16(u16::MAX))]
+    #[case(ValueType::U32, vec![false; 32], Value::U32(0u32))]
+    #[case(ValueType::U32, vec![true; 32], Value::U32(u32::MAX))]
+    #[case(ValueType::U64, vec![false; 64], Value::U64(0u64))]
+    #[case(ValueType::U64, vec![true; 64], Value::U64(u64::MAX))]
+    #[case(ValueType::U128, vec![false; 128], Value::U128(0u128))]
+    #[case(ValueType::U128, vec![true; 128], Value::U128(u128::MAX))]
+    fn test_value_new(
+        #[case] value_type: ValueType,
+        #[case] bits: Vec<bool>,
+        #[case] expected: Value,
+    ) {
+        let value = Value::new(value_type, bits).unwrap();
+        assert_eq!(value, expected);
+        assert_eq!(value.value_type(), value_type);
+    }
+
+    #[rstest]
+    #[case(ValueType::Bool, vec![])]
+    #[case(ValueType::Bool, vec![false; 2])]
+    #[case(ValueType::Bytes, vec![false; 7])]
+    #[case(ValueType::Bytes, vec![false; 9])]
+    #[case(ValueType::U8, vec![false; 7])]
+    #[case(ValueType::U8, vec![false; 9])]
+    #[case(ValueType::U16, vec![false; 15])]
+    #[case(ValueType::U16, vec![false; 17])]
+    #[case(ValueType::U32, vec![false; 31])]
+    #[case(ValueType::U32, vec![false; 33])]
+    #[case(ValueType::U64, vec![false; 63])]
+    #[case(ValueType::U64, vec![false; 65])]
+    #[case(ValueType::U128, vec![false; 127])]
+    #[case(ValueType::U128, vec![false; 129])]
+    fn test_value_new_should_fail(#[case] value_type: ValueType, #[case] bits: Vec<bool>) {
+        let err = Value::new(value_type, bits).unwrap_err();
+        assert!(matches!(err, Error::ParseError(_, _)))
+    }
+
+    #[rstest]
+    #[case(ValueType::Bool, false, Value::Bool(false))]
+    #[case(ValueType::Bool, true, Value::Bool(true))]
+    #[case(ValueType::Bits, vec![false, true], Value::Bits(vec![false, true]))]
+    #[case(ValueType::Bytes, vec![0, 1], Value::Bytes(vec![0, 1]))]
+    #[case(ValueType::U8, 0u8, Value::U8(0u8))]
+    #[case(ValueType::U16, 0u16, Value::U16(0u16))]
+    #[case(ValueType::U32, 0u32, Value::U32(0u32))]
+    #[case(ValueType::U64, 0u64, Value::U64(0u64))]
+    #[case(ValueType::U128, 0u128, Value::U128(0u128))]
+    fn test_value_into(
+        #[case] value_type: ValueType,
+        #[case] value: impl Into<Value>,
+        #[case] expected: Value,
+    ) {
+        let value: Value = value.into();
+        assert_eq!(value, expected);
+        assert_eq!(value.value_type(), value_type);
+    }
+
+    #[rstest]
+    #[case(Value::ConstZero, vec![false])]
+    #[case(Value::ConstOne, vec![true])]
+    #[case(false, vec![false])]
+    #[case(true, vec![true])]
+    #[case(vec![false, true], vec![false, true])]
+    #[case(vec![0, 1], [vec![false; 8], vec![true], vec![false; 7]].concat())]
+    #[case(0u8, vec![false; 8])]
+    #[case(0u16, vec![false; 16])]
+    #[case(0u32, vec![false; 32])]
+    #[case(0u64, vec![false; 64])]
+    #[case(0u128, vec![false; 128])]
+    fn test_value_to_bits(#[case] value: impl Into<Value>, #[case] expected: Vec<bool>) {
+        let value: Value = value.into();
+        assert_eq!(value.to_bits(), expected);
     }
 }

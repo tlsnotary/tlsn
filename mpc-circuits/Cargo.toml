@@ -26,6 +26,7 @@ lazy_static.workspace = true
 aes.workspace = true
 digest.workspace = true
 rand.workspace = true
+rstest.workspace = true
 
 [build-dependencies]
 prost-build.workspace = true
