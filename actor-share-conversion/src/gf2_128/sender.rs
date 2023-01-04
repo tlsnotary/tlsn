@@ -31,11 +31,11 @@ impl<T, U, V> Sender<T, U, V>
 where
     T: OTSenderFactory + Send,
     <<T as OTSenderFactory>::Protocol as ObliviousSend>::Inputs: From<OTEnvelope> + Send,
-    U: Gf2_128ShareConvert,
+    U: Gf2_128ShareConvert + Send,
     V: Recorder<U>,
 {
     pub async fn new<W: MuxChannelControl<Gf2ConversionMessage>>(
-        muxer: &mut W,
+        mut muxer: W,
         sender_factory: T,
         id: String,
         barrier: Option<AdaptiveBarrier>,

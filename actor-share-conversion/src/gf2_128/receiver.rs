@@ -31,12 +31,12 @@ where
 impl<
         T: OTReceiverFactory<Protocol = U> + Send,
         U: ObliviousReceive<Choice = bool, Outputs = Vec<Block>>,
-        V: Gf2_128ShareConvert,
+        V: Gf2_128ShareConvert + Send,
         W: Recorder<V>,
     > Receiver<T, V, W>
 {
     pub async fn new<X: MuxChannelControl<Gf2ConversionMessage>>(
-        muxer: &mut X,
+        mut muxer: X,
         receiver_factory: T,
         id: String,
     ) -> Result<Self, ActorConversionError> {

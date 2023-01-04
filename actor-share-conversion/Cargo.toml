@@ -16,3 +16,12 @@ xtra = { workspace = true, features = [
 ], default-features = false }
 tlsn-utils-aio = { path = "../utils-aio" }
 thiserror.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+xtra = { workspace = true, features = [
+    "macros",
+    "tokio"
+], default-features = false }
+rand.workspace = true
+rand_chacha.workspace = true
