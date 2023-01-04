@@ -65,6 +65,12 @@ impl WireLabel {
         Self { id, value }
     }
 
+    /// Returns inner block
+    #[inline]
+    pub fn to_inner(self) -> Block {
+        self.value
+    }
+
     /// Returns wire id of label
     #[inline]
     pub fn id(&self) -> usize {
@@ -142,6 +148,12 @@ impl WireLabelPair {
     #[inline]
     pub(crate) fn new(id: usize, low: Block, high: Block) -> Self {
         Self { id, low, high }
+    }
+
+    /// Returns inner blocks
+    #[inline]
+    pub fn to_inner(self) -> [Block; 2] {
+        [self.low, self.high]
     }
 
     /// Generates pairs of wire labels \[W_0, W_0 ^ delta\]

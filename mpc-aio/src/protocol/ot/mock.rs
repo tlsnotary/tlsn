@@ -1,7 +1,8 @@
 use std::sync::{Arc, Mutex};
 
 use super::{
-    OTError, OTFactoryError, OTReceiverFactory, OTSenderFactory, ObliviousReceive, ObliviousSend,
+    OTError, OTFactoryError, OTReceiverFactory, OTSenderFactory, ObliviousReceive, ObliviousReveal,
+    ObliviousSend, ObliviousVerify,
 };
 use async_trait::async_trait;
 use futures::{channel::mpsc, StreamExt};
@@ -13,7 +14,7 @@ pub struct MockOTFactory<T> {
 }
 
 #[async_trait]
-impl<T: Send + 'static> OTSenderFactory for Arc<Mutex<MockOTFactory<T>>> {
+impl<T: Send + 'static> OTSenderFactory<[T; 2]> for Arc<Mutex<MockOTFactory<T>>> {
     type Protocol = MockOTSender<T>;
 
     async fn new_sender(
@@ -33,7 +34,7 @@ impl<T: Send + 'static> OTSenderFactory for Arc<Mutex<MockOTFactory<T>>> {
 }
 
 #[async_trait]
-impl<T: Send + 'static> OTReceiverFactory for Arc<Mutex<MockOTFactory<T>>> {
+impl<T: Send + 'static> OTReceiverFactory<bool, T> for Arc<Mutex<MockOTFactory<T>>> {
     type Protocol = MockOTReceiver<T>;
 
     async fn new_receiver(
@@ -66,13 +67,11 @@ pub fn mock_ot_pair<T: Send + 'static>() -> (MockOTSender<T>, MockOTReceiver<T>)
 }
 
 #[async_trait]
-impl<T> ObliviousSend for MockOTSender<T>
+impl<T> ObliviousSend<[T; 2]> for MockOTSender<T>
 where
     T: Send + 'static,
 {
-    type Inputs = Vec<[T; 2]>;
-
-    async fn send(&mut self, inputs: Self::Inputs) -> Result<(), OTError> {
+    async fn send(&mut self, inputs: Vec<[T; 2]>) -> Result<(), OTError> {
         self.sender
             .try_send(inputs)
             .expect("DummySender should be able to send");
@@ -81,14 +80,11 @@ where
 }
 
 #[async_trait]
-impl<T> ObliviousReceive for MockOTReceiver<T>
+impl<T> ObliviousReceive<bool, T> for MockOTReceiver<T>
 where
     T: Send + 'static,
 {
-    type Choice = bool;
-    type Outputs = Vec<T>;
-
-    async fn receive(&mut self, choices: &[bool]) -> Result<Vec<T>, OTError> {
+    async fn receive(&mut self, choices: Vec<bool>) -> Result<Vec<T>, OTError> {
         let payload = self
             .receiver
             .next()
@@ -99,13 +95,34 @@ where
             .zip(choices)
             .map(|(v, c)| {
                 let [low, high] = v;
-                if *c {
+                if c {
                     high
                 } else {
                     low
                 }
             })
             .collect::<Vec<T>>())
+    }
+}
+
+#[async_trait]
+impl<T> ObliviousVerify<[T; 2]> for MockOTReceiver<T>
+where
+    T: Send + 'static,
+{
+    async fn verify(self, _input: Vec<[T; 2]>) -> Result<(), OTError> {
+        // MockOT is always honest
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl<T> ObliviousReveal for MockOTSender<T>
+where
+    T: Send + 'static,
+{
+    async fn reveal(mut self) -> Result<(), OTError> {
+        Ok(())
     }
 }
 
@@ -121,7 +138,7 @@ mod tests {
 
         sender.send(values).await.unwrap();
 
-        let received = receiver.receive(&choice).await.unwrap();
+        let received = receiver.receive(choice).await.unwrap();
         assert_eq!(received, vec![0, 3]);
     }
 }

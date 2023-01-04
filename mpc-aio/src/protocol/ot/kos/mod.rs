@@ -35,7 +35,7 @@ mod tests {
         });
         let receive = tokio::spawn(async move {
             let mut receiver = receiver.rand_setup(ITERATIONS).await.unwrap();
-            receiver.receive(&choices).await.unwrap()
+            receiver.receive(choices).await.unwrap()
         });
 
         let (_, output) = tokio::join!(send, receive);
@@ -70,7 +70,7 @@ mod tests {
         let receive = tokio::spawn(async move {
             receiver.accept_commit().await.unwrap();
             let mut receiver = receiver.rand_setup(ITERATIONS).await.unwrap();
-            let ot_output = receiver.receive(&choices).await.unwrap();
+            let ot_output = receiver.receive(choices).await.unwrap();
             let verification = receiver.verify(blocks).await;
             (ot_output, verification)
         });

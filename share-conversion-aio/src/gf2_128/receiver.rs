@@ -13,7 +13,7 @@ use mpc_core::Block;
 /// The receiver for the conversion
 ///
 /// Will be the OT receiver
-pub struct Receiver<T: OTReceiverFactory, U: Gf2_128ShareConvert, V = Void> {
+pub struct Receiver<T: OTReceiverFactory<bool, Block>, U: Gf2_128ShareConvert, V = Void> {
     /// Provides initialized OTs for the OT receiver
     receiver_factory: T,
     id: String,
@@ -24,12 +24,8 @@ pub struct Receiver<T: OTReceiverFactory, U: Gf2_128ShareConvert, V = Void> {
     counter: usize,
 }
 
-impl<
-        T: OTReceiverFactory<Protocol = U> + Send,
-        U: ObliviousReceive<Choice = bool, Outputs = Vec<Block>>,
-        V: Gf2_128ShareConvert,
-        W: Recorder<V>,
-    > Receiver<T, V, W>
+impl<T: OTReceiverFactory<bool, Block> + Send, V: Gf2_128ShareConvert, W: Recorder<V>>
+    Receiver<T, V, W>
 {
     /// Create a new receiver
     pub fn new(receiver_factory: T, id: String, channel: Gf2ConversionChannel) -> Self {
@@ -64,7 +60,7 @@ impl<
             .await?;
 
         self.counter += 1;
-        let ot_output = ot_receiver.receive(&choices).await?;
+        let ot_output = ot_receiver.receive(choices).await?;
 
         // Aggregate chunks of OTs to get back u128 values
         let converted_shares = ot_output
@@ -80,11 +76,8 @@ impl<
 }
 
 #[async_trait]
-impl<
-        T: OTReceiverFactory<Protocol = U> + Send,
-        U: ObliviousReceive<Choice = bool, Outputs = Vec<Block>> + Send,
-        V: Recorder<AddShare> + Send,
-    > AdditiveToMultiplicative for Receiver<T, AddShare, V>
+impl<T: OTReceiverFactory<bool, Block> + Send, V: Recorder<AddShare> + Send>
+    AdditiveToMultiplicative for Receiver<T, AddShare, V>
 {
     type FieldElement = u128;
 
@@ -99,11 +92,8 @@ impl<
 }
 
 #[async_trait]
-impl<
-        T: OTReceiverFactory<Protocol = U> + Send,
-        U: ObliviousReceive<Choice = bool, Outputs = Vec<Block>> + Send,
-        V: Recorder<MulShare> + Send,
-    > MultiplicativeToAdditive for Receiver<T, MulShare, V>
+impl<T: OTReceiverFactory<bool, Block> + Send, V: Recorder<MulShare> + Send>
+    MultiplicativeToAdditive for Receiver<T, MulShare, V>
 {
     type FieldElement = u128;
 
@@ -120,7 +110,7 @@ impl<
 #[async_trait]
 impl<T, U> VerifyTape for Receiver<T, U, Tape>
 where
-    T: OTReceiverFactory + Send,
+    T: OTReceiverFactory<bool, Block> + Send,
     U: Gf2_128ShareConvert + Send,
 {
     async fn verify_tape(mut self) -> Result<(), ShareConversionError> {

@@ -13,6 +13,7 @@ use crate::{config::ReceiverFactoryConfig, GetReceiver, Setup};
 use mpc_core::{
     msgs::ot::{OTFactoryMessage, OTMessage, Split},
     ot::r_state::RandSetup,
+    Block,
 };
 use utils_aio::{mux::MuxChannelControl, Channel};
 
@@ -241,7 +242,7 @@ impl<T, S> ReceiverFactoryControl<T>
 where
     T: Handler<Setup, Return = Result<(), OTFactoryError>>
         + Handler<GetReceiver, Return = oneshot::Receiver<Result<S, OTFactoryError>>>,
-    S: ObliviousReceive,
+    S: ObliviousReceive<bool, Block>,
 {
     pub fn new(addr: Address<T>) -> Self {
         Self(addr)
@@ -272,7 +273,7 @@ where
 }
 
 #[async_trait]
-impl<T, U> OTReceiverFactory for ReceiverFactoryControl<KOSReceiverFactory<T, U>>
+impl<T, U> OTReceiverFactory<bool, Block> for ReceiverFactoryControl<KOSReceiverFactory<T, U>>
 where
     T: Channel<OTFactoryMessage, Error = std::io::Error> + Send + 'static,
     U: MuxChannelControl<OTMessage> + Send + 'static,

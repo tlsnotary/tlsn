@@ -63,6 +63,14 @@ where
 }
 
 impl InputLabels<WireLabelPair> {
+    /// Returns input labels in block representation
+    pub fn to_blocks(self) -> Vec<[Block; 2]> {
+        self.labels
+            .into_iter()
+            .map(|labels| labels.to_inner())
+            .collect()
+    }
+
     /// Generates a full set of input [`WireLabelPair`] for the provided [`Circuit`]
     pub fn generate<R: Rng + CryptoRng>(
         rng: &mut R,

@@ -1,4 +1,4 @@
-use crate::protocol::ot;
+use crate::protocol::ot::{OTError, ObliviousReceive, ObliviousSend, ObliviousVerify};
 use async_trait::async_trait;
 use mpc_circuits::InputValue;
 use mpc_core::{
@@ -9,58 +9,46 @@ use mpc_core::{
 #[derive(Debug, thiserror::Error)]
 pub enum WireLabelError {
     #[error("error occurred during OT")]
-    OTError(#[from] ot::OTError),
+    OTError(#[from] OTError),
     #[error("core error")]
     CoreError(#[from] mpc_core::garble::Error),
 }
 
 #[async_trait]
-pub trait WireLabelOTSend: ot::ObliviousSend<Inputs = Vec<[Block; 2]>> {
-    /// Sends labels using oblivious transfer
-    ///
-    /// Inputs must be provided sorted ascending by input id
-    async fn send_labels(
-        &mut self,
-        inputs: Vec<InputLabels<WireLabelPair>>,
-    ) -> Result<(), WireLabelError> {
+impl<T> ObliviousSend<InputLabels<WireLabelPair>> for T
+where
+    T: Send + ObliviousSend<[Block; 2]>,
+{
+    async fn send(&mut self, inputs: Vec<InputLabels<WireLabelPair>>) -> Result<(), OTError> {
         self.send(
             inputs
                 .into_iter()
-                .map(|labels| {
-                    labels
-                        .as_ref()
-                        .iter()
-                        .map(|pair| [*pair.low(), *pair.high()])
-                        .collect::<Vec<[Block; 2]>>()
-                })
+                .map(|labels| labels.to_blocks())
                 .flatten()
                 .collect::<Vec<[Block; 2]>>(),
         )
         .await
-        .map_err(WireLabelError::from)
     }
 }
 
-impl<T> WireLabelOTSend for T where T: ot::ObliviousSend<Inputs = Vec<[Block; 2]>> {}
-
 #[async_trait]
-pub trait WireLabelOTReceive: ot::ObliviousReceive<Choice = bool, Outputs = Vec<Block>> {
-    /// Receives labels using oblivious transfer
-    ///
-    /// Inputs must be provided sorted ascending by input id
-    async fn receive_labels(
+impl<T> ObliviousReceive<InputValue, InputLabels<WireLabel>> for T
+where
+    T: Send + ObliviousReceive<bool, Block>,
+{
+    async fn receive(
         &mut self,
-        inputs: Vec<InputValue>,
-    ) -> Result<Vec<InputLabels<WireLabel>>, WireLabelError> {
-        let choices = inputs
+        choices: Vec<InputValue>,
+    ) -> Result<Vec<InputLabels<WireLabel>>, OTError> {
+        let choice_bits = choices
             .iter()
             .map(|value| value.wire_values())
             .flatten()
             .collect::<Vec<bool>>();
 
-        let mut labels = self.receive(&choices).await?;
+        let mut labels = self.receive(choice_bits).await?;
 
-        inputs
+        Ok(choices
             .into_iter()
             .map(|value| {
                 InputLabels::new(
@@ -71,13 +59,28 @@ pub trait WireLabelOTReceive: ot::ObliviousReceive<Choice = bool, Outputs = Vec<
                         .map(|(block, id)| WireLabel::new(*id, block))
                         .collect::<Vec<WireLabel>>(),
                 )
-                .map_err(WireLabelError::from)
+                .expect("Input labels should be valid")
             })
-            .collect::<Result<Vec<InputLabels<WireLabel>>, WireLabelError>>()
+            .collect())
     }
 }
 
-impl<T> WireLabelOTReceive for T where T: ot::ObliviousReceive<Choice = bool, Outputs = Vec<Block>> {}
+#[async_trait]
+impl<T> ObliviousVerify<InputLabels<WireLabelPair>> for T
+where
+    T: Send + ObliviousVerify<[Block; 2]>,
+{
+    async fn verify(self, input: Vec<InputLabels<WireLabelPair>>) -> Result<(), OTError> {
+        self.verify(
+            input
+                .into_iter()
+                .map(|labels| labels.to_blocks())
+                .flatten()
+                .collect(),
+        )
+        .await
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -95,8 +98,8 @@ mod tests {
         let expected = receiver_labels[0].select(&value).unwrap();
 
         let (mut sender, mut receiver) = mock_ot_pair::<Block>();
-        sender.send_labels(receiver_labels).await.unwrap();
-        let received = receiver.receive_labels(vec![value]).await.unwrap();
+        sender.send(receiver_labels).await.unwrap();
+        let received = receiver.receive(vec![value]).await.unwrap();
 
         assert_eq!(received[0].as_ref(), expected.as_ref());
     }

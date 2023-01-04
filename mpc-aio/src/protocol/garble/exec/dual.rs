@@ -8,23 +8,23 @@
 
 use std::sync::Arc;
 
-use crate::protocol::garble::{
-    label::{WireLabelOTReceive, WireLabelOTSend},
-    Evaluator, ExecuteWithLabels, GCError, GarbleChannel, GarbleMessage, Generator,
+use crate::protocol::{
+    garble::{Evaluator, ExecuteWithLabels, GCError, GarbleChannel, GarbleMessage, Generator},
+    ot::{ObliviousReceive, ObliviousSend},
 };
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use mpc_circuits::{Circuit, InputValue};
 use mpc_core::garble::{
-    exec::dual as core, gc_state, Delta, GarbledCircuit, InputLabels, WireLabelPair,
+    exec::dual as core, gc_state, Delta, GarbledCircuit, InputLabels, WireLabel, WireLabelPair,
 };
 use utils_aio::expect_msg_or_err;
 
 pub struct DualExLeader<B, S, R>
 where
     B: Generator + Evaluator,
-    S: WireLabelOTSend,
-    R: WireLabelOTReceive,
+    S: ObliviousSend<InputLabels<WireLabelPair>>,
+    R: ObliviousReceive<InputValue, InputLabels<WireLabel>>,
 {
     channel: GarbleChannel,
     backend: B,
@@ -35,8 +35,8 @@ where
 impl<B, S, R> DualExLeader<B, S, R>
 where
     B: Generator + Evaluator + Send,
-    S: WireLabelOTSend + Send,
-    R: WireLabelOTReceive + Send,
+    S: ObliviousSend<InputLabels<WireLabelPair>> + Send,
+    R: ObliviousReceive<InputValue, InputLabels<WireLabel>> + Send,
 {
     pub fn new(channel: GarbleChannel, backend: B, label_sender: S, label_receiver: R) -> Self {
         Self {
@@ -52,8 +52,8 @@ where
 impl<B, S, R> ExecuteWithLabels for DualExLeader<B, S, R>
 where
     B: Generator + Evaluator + Send,
-    S: WireLabelOTSend + Send,
-    R: WireLabelOTReceive + Send,
+    S: ObliviousSend<InputLabels<WireLabelPair>> + Send,
+    R: ObliviousReceive<InputValue, InputLabels<WireLabel>> + Send,
 {
     async fn execute_with_labels(
         &mut self,
@@ -84,7 +84,7 @@ where
             .cloned()
             .collect::<Vec<InputLabels<WireLabelPair>>>();
 
-        self.label_sender.send_labels(follower_labels).await?;
+        self.label_sender.send(follower_labels).await?;
 
         let msg = expect_msg_or_err!(
             self.channel.next().await,
@@ -93,7 +93,7 @@ where
         )?;
 
         let gc_ev = GarbledCircuit::<gc_state::Partial>::from_unchecked(circ, msg.into())?;
-        let labels_ev = self.label_receiver.receive_labels(inputs.to_vec()).await?;
+        let labels_ev = self.label_receiver.receive(inputs.to_vec()).await?;
 
         let evaluated_gc = self.backend.evaluate(gc_ev, &labels_ev).await?;
         let leader = leader.from_evaluated_circuit(evaluated_gc)?;
@@ -124,8 +124,8 @@ where
 pub struct DualExFollower<B, S, R>
 where
     B: Generator + Evaluator,
-    S: WireLabelOTSend,
-    R: WireLabelOTReceive,
+    S: ObliviousSend<InputLabels<WireLabelPair>>,
+    R: ObliviousReceive<InputValue, InputLabels<WireLabel>>,
 {
     channel: GarbleChannel,
     backend: B,
@@ -136,8 +136,8 @@ where
 impl<B, S, R> DualExFollower<B, S, R>
 where
     B: Generator + Evaluator + Send,
-    S: WireLabelOTSend + Send,
-    R: WireLabelOTReceive + Send,
+    S: ObliviousSend<InputLabels<WireLabelPair>> + Send,
+    R: ObliviousReceive<InputValue, InputLabels<WireLabel>> + Send,
 {
     pub fn new(channel: GarbleChannel, backend: B, label_sender: S, label_receiver: R) -> Self {
         Self {
@@ -153,8 +153,8 @@ where
 impl<B, S, R> ExecuteWithLabels for DualExFollower<B, S, R>
 where
     B: Generator + Evaluator + Send,
-    S: WireLabelOTSend + Send,
-    R: WireLabelOTReceive + Send,
+    S: ObliviousSend<InputLabels<WireLabelPair>> + Send,
+    R: ObliviousReceive<InputValue, InputLabels<WireLabel>> + Send,
 {
     async fn execute_with_labels(
         &mut self,
@@ -185,7 +185,7 @@ where
             .cloned()
             .collect::<Vec<InputLabels<WireLabelPair>>>();
 
-        self.label_sender.send_labels(leader_labels).await?;
+        self.label_sender.send(leader_labels).await?;
 
         let msg = expect_msg_or_err!(
             self.channel.next().await,
@@ -194,7 +194,7 @@ where
         )?;
 
         let gc_ev = GarbledCircuit::<gc_state::Partial>::from_unchecked(circ, msg.into())?;
-        let labels_ev = self.label_receiver.receive_labels(inputs.to_vec()).await?;
+        let labels_ev = self.label_receiver.receive(inputs.to_vec()).await?;
 
         let evaluated_gc = self.backend.evaluate(gc_ev, &labels_ev).await?;
         let follower = follower.from_evaluated_circuit(evaluated_gc)?;
