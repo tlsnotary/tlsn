@@ -3,7 +3,7 @@ use std::sync::Arc;
 use aes::{cipher::NewBlockCipher, Aes128};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use mpc_circuits::Circuit;
-use mpc_core::garble::{GarbledCircuit, InputLabels};
+use mpc_core::garble::{FullInputLabels, GarbledCircuit};
 use rand::thread_rng;
 
 static CIRCUITS: &[&[u8]] = &[
@@ -31,7 +31,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         group.bench_function(circ.name(), |b| {
             let mut rng = thread_rng();
             let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
-            let (labels, delta) = InputLabels::generate(&mut rng, &circ, None);
+            let (labels, delta) = FullInputLabels::generate_set(&mut rng, &circ, None);
             b.iter(|| {
                 black_box(GarbledCircuit::generate(
                     &cipher,

@@ -9,7 +9,7 @@ use crate::garble::{
         unchecked::{UncheckedGarbledCircuit, UncheckedOutput},
         GarbledCircuit,
     },
-    Delta, Error, InputLabels, WireLabel, WireLabelPair,
+    ActiveInputLabels, Delta, Error, FullInputLabels,
 };
 use mpc_circuits::{Circuit, InputValue, OutputValue};
 
@@ -82,7 +82,7 @@ impl SemiHonestLeader<Generator> {
     pub fn garble(
         self,
         inputs: &[InputValue],
-        input_labels: &[InputLabels<WireLabelPair>],
+        input_labels: &[FullInputLabels],
         delta: Delta,
         reveal_output: bool,
     ) -> Result<(GarbledCircuit<gc_state::Partial>, SemiHonestLeader<Decode>), Error> {
@@ -90,7 +90,7 @@ impl SemiHonestLeader<Generator> {
         let gc = GarbledCircuit::generate(&cipher, self.state.circ.clone(), delta, input_labels)?;
 
         Ok((
-            gc.to_evaluator(inputs, reveal_output, true),
+            gc.to_evaluator(inputs, reveal_output, true)?,
             SemiHonestLeader {
                 state: Decode { gc: gc.summarize() },
             },
@@ -105,7 +105,7 @@ impl SemiHonestLeader<Generator> {
         reveal_output: bool,
     ) -> Result<(GarbledCircuit<gc_state::Partial>, SemiHonestLeader<Decode>), Error> {
         Ok((
-            gc.to_evaluator(inputs, reveal_output, true),
+            gc.to_evaluator(inputs, reveal_output, true)?,
             SemiHonestLeader {
                 state: Decode { gc: gc.summarize() },
             },
@@ -118,7 +118,7 @@ impl SemiHonestFollower<Evaluator> {
     pub fn evaluate(
         self,
         unchecked_gc: UncheckedGarbledCircuit,
-        input_labels: &[InputLabels<WireLabel>],
+        input_labels: &[ActiveInputLabels],
     ) -> Result<GarbledCircuit<gc_state::Evaluated>, Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
         let gc = GarbledCircuit::<gc_state::Partial>::from_unchecked(
@@ -147,7 +147,7 @@ impl SemiHonestLeader<Decode> {
 
 #[cfg(test)]
 mod tests {
-    use crate::Block;
+    use crate::{garble::WireLabel, Block};
 
     use super::*;
     use mpc_circuits::{Value, WireGroup, ADDER_64};
@@ -165,13 +165,13 @@ mod tests {
         let leader_input = circ.input(0).unwrap().to_value(0u64).unwrap();
         let follower_input = circ.input(1).unwrap().to_value(1u64).unwrap();
 
-        let (input_labels, delta) = InputLabels::generate(&mut rng, &circ, None);
+        let (input_labels, delta) = FullInputLabels::generate_set(&mut rng, &circ, None);
 
         let (gc_partial, leader) = leader
             .garble(&[leader_input], &input_labels, delta, true)
             .unwrap();
 
-        let follower_labels = input_labels[1].select(&follower_input).unwrap();
+        let follower_labels = input_labels[1].select(follower_input.value()).unwrap();
         let gc_ev = follower
             .evaluate(gc_partial.into(), &[follower_labels])
             .unwrap();
@@ -194,13 +194,13 @@ mod tests {
         let leader_input = circ.input(0).unwrap().to_value(0u64).unwrap();
         let follower_input = circ.input(1).unwrap().to_value(1u64).unwrap();
 
-        let (input_labels, delta) = InputLabels::generate(&mut rng, &circ, None);
+        let (input_labels, delta) = FullInputLabels::generate_set(&mut rng, &circ, None);
 
         let (gc_partial, leader) = leader
             .garble(&[leader_input], &input_labels, delta, true)
             .unwrap();
 
-        let follower_labels = input_labels[1].select(&follower_input).unwrap();
+        let follower_labels = input_labels[1].select(follower_input.value()).unwrap();
         let gc_ev = follower
             .evaluate(gc_partial.into(), &[follower_labels])
             .unwrap();
@@ -208,11 +208,11 @@ mod tests {
         let mut gc_output = gc_ev.to_output();
 
         // Insert a bogus output label
-        gc_output.state.output_labels[0].set_label(0, WireLabel::new(0, Block::new(0)));
+        gc_output.state.output_labels[0].set(0, WireLabel::new(0, Block::new(0)));
 
         let error = leader.decode(gc_output.into()).unwrap_err();
 
-        assert!(matches!(error, Error::InvalidOutputLabels));
+        assert!(matches!(error, Error::LabelError(_)));
     }
 
     #[test]
@@ -226,7 +226,7 @@ mod tests {
         let leader_input = circ.input(0).unwrap().to_value(0u64).unwrap();
         let follower_input = circ.input(1).unwrap().to_value(1u64).unwrap();
 
-        let (input_labels, delta) = InputLabels::generate(&mut rng, &circ, None);
+        let (input_labels, delta) = FullInputLabels::generate_set(&mut rng, &circ, None);
 
         let (mut gc_partial, _) = leader
             .garble(&[leader_input], &input_labels, delta, true)
@@ -236,11 +236,11 @@ mod tests {
         gc_partial.state.commitments.as_mut().unwrap()[0].commitments[0][0] = Block::new(0);
         gc_partial.state.commitments.as_mut().unwrap()[0].commitments[0][1] = Block::new(1);
 
-        let follower_labels = input_labels[1].select(&follower_input).unwrap();
+        let follower_labels = input_labels[1].select(follower_input.value()).unwrap();
         let error = follower
             .evaluate(gc_partial.into(), &[follower_labels])
             .unwrap_err();
 
-        assert!(matches!(error, Error::InvalidOutputLabelCommitment));
+        assert!(matches!(error, Error::LabelError(_)));
     }
 }

@@ -2,7 +2,7 @@ use cipher::{consts::U16, BlockCipher, BlockEncrypt};
 
 use crate::{
     block::SELECT_MASK,
-    garble::{circuit::EncryptedGate, Delta, Error, WireLabelPair},
+    garble::{circuit::EncryptedGate, Delta, Error, LabelError, WireLabelPair},
 };
 use mpc_circuits::{Circuit, Gate};
 
@@ -29,8 +29,8 @@ pub(crate) fn and_gate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     let w_g = hx_0 ^ (SELECT_MASK[p_a] & t_g);
 
     // Garbled row of evaluator half-gate
-    let t_e = hy_0 ^ y.high().hash_tweak(c, k) ^ *x.low();
-    let w_e = hy_0 ^ (SELECT_MASK[p_b] & (t_e ^ *x.low()));
+    let t_e = hy_0 ^ y.high().hash_tweak(c, k) ^ x.low();
+    let w_e = hy_0 ^ (SELECT_MASK[p_b] & (t_e ^ x.low()));
 
     let z_0 = w_g ^ w_e;
 
@@ -48,7 +48,7 @@ pub(crate) fn xor_gate(
     zref: usize,
     delta: Delta,
 ) -> WireLabelPair {
-    let z_0 = *x.low() ^ *y.low();
+    let z_0 = x.low() ^ y.low();
     WireLabelPair::new(zref, z_0, z_0 ^ *delta)
 }
 
@@ -72,22 +72,22 @@ pub fn garble<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     for gate in circ.gates() {
         match *gate {
             Gate::Inv { xref, zref, .. } => {
-                let x = labels[xref].ok_or(Error::UninitializedLabel(xref))?;
-                labels[zref] = Some(WireLabelPair::new(zref, *x.high(), *x.low()));
+                let x = labels[xref].ok_or(LabelError::UninitializedLabel(xref))?;
+                labels[zref] = Some(WireLabelPair::new(zref, x.high(), x.low()));
             }
             Gate::Xor {
                 xref, yref, zref, ..
             } => {
-                let x = labels[xref].ok_or(Error::UninitializedLabel(xref))?;
-                let y = labels[yref].ok_or(Error::UninitializedLabel(yref))?;
+                let x = labels[xref].ok_or(LabelError::UninitializedLabel(xref))?;
+                let y = labels[yref].ok_or(LabelError::UninitializedLabel(yref))?;
                 let z = xor_gate(&x, &y, zref, delta);
                 labels[zref] = Some(z);
             }
             Gate::And {
                 xref, yref, zref, ..
             } => {
-                let x = labels[xref].ok_or(Error::UninitializedLabel(xref))?;
-                let y = labels[yref].ok_or(Error::UninitializedLabel(yref))?;
+                let x = labels[xref].ok_or(LabelError::UninitializedLabel(xref))?;
+                let y = labels[yref].ok_or(LabelError::UninitializedLabel(yref))?;
                 let (z, t) = and_gate(cipher, &x, &y, zref, delta, gid);
                 encrypted_gates.push(t);
                 labels[zref] = Some(z);

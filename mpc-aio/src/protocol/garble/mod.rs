@@ -7,9 +7,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use mpc_circuits::{Circuit, InputValue};
 use mpc_core::{
-    garble::{
-        gc_state, CircuitOpening, Delta, GarbledCircuit, InputLabels, WireLabel, WireLabelPair,
-    },
+    garble::{gc_state, ActiveInputLabels, CircuitOpening, Delta, FullInputLabels, GarbledCircuit},
     msgs::garble::GarbleMessage,
 };
 use rand::thread_rng;
@@ -42,7 +40,7 @@ pub trait Generator {
         &mut self,
         circ: Arc<Circuit>,
         delta: Delta,
-        input_labels: &[InputLabels<WireLabelPair>],
+        input_labels: &[FullInputLabels],
     ) -> Result<GarbledCircuit<gc_state::Full>, GCError>;
 }
 
@@ -52,7 +50,7 @@ pub trait Evaluator {
     async fn evaluate(
         &mut self,
         circ: GarbledCircuit<gc_state::Partial>,
-        input_labels: &[InputLabels<WireLabel>],
+        input_labels: &[ActiveInputLabels],
     ) -> Result<GarbledCircuit<gc_state::Evaluated>, GCError>;
 }
 
@@ -89,7 +87,7 @@ pub trait ExecuteWithLabels {
         &mut self,
         circ: Arc<Circuit>,
         inputs: &[InputValue],
-        input_labels: &[InputLabels<WireLabelPair>],
+        input_labels: &[FullInputLabels],
         delta: Delta,
     ) -> Result<GarbledCircuit<gc_state::Evaluated>, GCError>;
 }
@@ -102,7 +100,7 @@ pub trait Execute: ExecuteWithLabels {
         circ: Arc<Circuit>,
         inputs: &[InputValue],
     ) -> Result<GarbledCircuit<gc_state::Evaluated>, GCError> {
-        let (input_labels, delta) = InputLabels::generate(&mut thread_rng(), &circ, None);
+        let (input_labels, delta) = FullInputLabels::generate_set(&mut thread_rng(), &circ, None);
         self.execute_with_labels(circ, inputs, &input_labels, delta)
             .await
     }
