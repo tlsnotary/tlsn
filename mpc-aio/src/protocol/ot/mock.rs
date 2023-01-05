@@ -19,7 +19,7 @@ impl<T: Send + 'static> AsyncFactory<MockOTSender<T>> for Arc<Mutex<MockOTFactor
     type Config = OTSenderConfig;
     type Error = OTFactoryError;
 
-    async fn new(
+    async fn create(
         &mut self,
         _id: String,
         _config: OTSenderConfig,
@@ -40,7 +40,7 @@ impl<T: Send + 'static> AsyncFactory<MockOTReceiver<T>> for Arc<Mutex<MockOTFact
     type Config = OTReceiverConfig;
     type Error = OTFactoryError;
 
-    async fn new(
+    async fn create(
         &mut self,
         _id: String,
         _config: OTReceiverConfig,

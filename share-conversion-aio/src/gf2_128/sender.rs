@@ -86,7 +86,7 @@ where
         // Get an OT sender from factory
         let mut ot_sender = self
             .sender_factory
-            .new(
+            .create(
                 format!("{}/{}/ot", &self.id, &self.counter),
                 OTSenderConfigBuilder::default()
                     .count(ot_shares.len() * 128)

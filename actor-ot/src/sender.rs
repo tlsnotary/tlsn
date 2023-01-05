@@ -235,7 +235,7 @@ where
     type Config = OTSenderConfig;
     type Error = OTFactoryError;
 
-    async fn new(
+    async fn create(
         &mut self,
         id: String,
         config: OTSenderConfig,

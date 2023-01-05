@@ -72,7 +72,7 @@ where
         // Get an OT receiver from factory
         let mut ot_receiver = self
             .receiver_factory
-            .new(
+            .create(
                 format!("{}/{}/ot", &self.id, &self.counter),
                 OTReceiverConfigBuilder::default()
                     .count(ot_number)

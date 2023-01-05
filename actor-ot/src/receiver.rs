@@ -282,7 +282,7 @@ where
     type Config = OTReceiverConfig;
     type Error = OTFactoryError;
 
-    async fn new(
+    async fn create(
         &mut self,
         id: String,
         config: OTReceiverConfig,

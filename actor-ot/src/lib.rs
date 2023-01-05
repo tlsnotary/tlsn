@@ -186,12 +186,12 @@ mod test {
             .collect();
 
         let mut sender = sender_control
-            .new(instance_id.clone(), sender_config(choices.len()))
+            .create(instance_id.clone(), sender_config(choices.len()))
             .await
             .unwrap();
 
         let mut receiver = receiver_control
-            .new(instance_id.clone(), receiver_config(choices.len()))
+            .create(instance_id.clone(), receiver_config(choices.len()))
             .await
             .unwrap();
 
@@ -223,12 +223,12 @@ mod test {
         let instance_id = "test".to_string();
 
         let _ = sender_control
-            .new(instance_id.clone(), sender_config(10))
+            .create(instance_id.clone(), sender_config(10))
             .await
             .unwrap();
 
         let err = receiver_control
-            .new(instance_id.clone(), receiver_config(9))
+            .create(instance_id.clone(), receiver_config(9))
             .await;
 
         assert!(matches!(
@@ -259,12 +259,12 @@ mod test {
 
         for id in 0..10 {
             let _ = sender_control
-                .new(id.to_string(), sender_config(10))
+                .create(id.to_string(), sender_config(10))
                 .await
                 .unwrap();
 
             let _ = receiver_control
-                .new(id.to_string(), receiver_config(10))
+                .create(id.to_string(), receiver_config(10))
                 .await
                 .unwrap();
         }
@@ -298,12 +298,12 @@ mod test {
 
                 handles.push(tokio::spawn(async move {
                     let mut sender = sender_control
-                        .new(id.to_string(), sender_config(split_size))
+                        .create(id.to_string(), sender_config(split_size))
                         .await
                         .unwrap();
 
                     let mut receiver = receiver_control
-                        .new(id.to_string(), receiver_config(split_size))
+                        .create(id.to_string(), receiver_config(split_size))
                         .await
                         .unwrap();
 

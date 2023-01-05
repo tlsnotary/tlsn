@@ -6,9 +6,9 @@ pub trait AsyncFactory<T> {
     type Config;
     type Error;
 
-    /// Returns new instance
+    /// Creates new instance
     ///
     /// * `id` - Unique ID of instance
     /// * `config` - Instance configuration
-    async fn new(&mut self, id: String, config: Self::Config) -> Result<T, Self::Error>;
+    async fn create(&mut self, id: String, config: Self::Config) -> Result<T, Self::Error>;
 }
