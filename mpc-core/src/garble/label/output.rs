@@ -1,4 +1,4 @@
-use mpc_circuits::{Output, WireGroup};
+use mpc_circuits::{Input, Output, WireGroup};
 use rand::{thread_rng, Rng};
 
 use crate::{
@@ -77,15 +77,15 @@ impl OutputLabelsCommitment {
             ));
         }
         let output_id = labels.id();
-        let valid =
-            self.commitments
-                .iter()
-                .zip(labels.inner())
-                .enumerate()
-                .all(|(i, (pair, label))| {
-                    let h = Self::compute_hash(label.value, output_id, i);
-                    h == pair[0] || h == pair[1]
-                });
+        let valid = self
+            .commitments
+            .iter()
+            .zip(labels.iter_blocks())
+            .enumerate()
+            .all(|(i, (pair, label))| {
+                let h = Self::compute_hash(label, output_id, i);
+                h == pair[0] || h == pair[1]
+            });
 
         if valid {
             Ok(())
@@ -104,6 +104,17 @@ impl Labels<Output, state::Full> {
     }
 }
 
+impl Labels<Output, state::Active> {
+    /// Converts active output labels to input labels.
+    ///
+    /// This can be used to chain garbled circuits together
+    ///
+    /// **Note:** This operation clones the underlying label data
+    pub fn to_input(self, input: Input) -> Result<Labels<Input, state::Active>, LabelError> {
+        Labels::<Input, state::Active>::from_labels(input, self.iter().collect())
+    }
+}
+
 pub(crate) mod unchecked {
     use super::*;
 
@@ -119,11 +130,7 @@ pub(crate) mod unchecked {
         fn from(labels: Labels<Output, state::Active>) -> Self {
             Self {
                 id: labels.id(),
-                labels: labels
-                    .inner()
-                    .into_iter()
-                    .map(|label| label.value)
-                    .collect(),
+                labels: labels.iter_blocks().collect(),
             }
         }
     }
@@ -302,7 +309,7 @@ mod tests {
     use super::*;
     use rstest::*;
 
-    use mpc_circuits::{Circuit, ADDER_64};
+    use mpc_circuits::{Circuit, ADDER_64, AES_128_REVERSE};
     use rand::thread_rng;
 
     #[fixture]
@@ -351,5 +358,37 @@ mod tests {
         let error = commitments.validate(&output_labels).unwrap_err();
 
         assert!(matches!(error, LabelError::InvalidLabelCommitment(_)));
+    }
+
+    #[rstest]
+    fn test_to_input_labels(circ: Circuit) {
+        let input = circ.input(0).unwrap();
+        let output = circ.output(0).unwrap();
+
+        let (labels, delta) = WireLabelPair::generate(&mut thread_rng(), None, 64, 0);
+        let output_labels = FullOutputLabels::from_labels(output, delta, labels)
+            .unwrap()
+            .select(&1u64.into())
+            .unwrap();
+
+        _ = output_labels.to_input(input).unwrap();
+    }
+
+    #[rstest]
+    fn test_to_input_labels_length_mismatch(circ: Circuit) {
+        let circ_2 = Circuit::load_bytes(AES_128_REVERSE).unwrap();
+
+        let input = circ_2.input(0).unwrap();
+        let output = circ.output(0).unwrap();
+
+        let (labels, delta) = WireLabelPair::generate(&mut thread_rng(), None, 64, 0);
+        let output_labels = FullOutputLabels::from_labels(output, delta, labels)
+            .unwrap()
+            .select(&1u64.into())
+            .unwrap();
+
+        let err = output_labels.to_input(input).unwrap_err();
+
+        assert!(matches!(err, LabelError::InvalidLabelCount(_, _, _)));
     }
 }

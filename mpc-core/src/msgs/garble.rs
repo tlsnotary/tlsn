@@ -140,11 +140,7 @@ impl From<label::ActiveInputLabels> for InputLabels {
     fn from(labels: label::ActiveInputLabels) -> Self {
         Self {
             id: labels.id(),
-            labels: labels
-                .inner()
-                .into_iter()
-                .map(|label| *label.as_ref())
-                .collect::<Vec<Block>>(),
+            labels: labels.iter_blocks().collect(),
         }
     }
 }
@@ -169,11 +165,7 @@ impl From<label::ActiveOutputLabels> for OutputLabels {
     fn from(labels: label::ActiveOutputLabels) -> Self {
         Self {
             id: labels.id(),
-            labels: labels
-                .inner()
-                .into_iter()
-                .map(|label| *label.as_ref())
-                .collect::<Vec<Block>>(),
+            labels: labels.iter_blocks().collect(),
         }
     }
 }
