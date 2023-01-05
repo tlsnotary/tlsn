@@ -210,22 +210,24 @@ where
 {
     /// Returns labels type, validating the provided labels using the associated group
     pub fn from_labels(group: G, labels: Vec<WireLabel>) -> Result<Self, LabelError> {
-        if group.len() != labels.len() {
-            return Err(LabelError::InvalidLabelCount(
-                group.name().to_string(),
-                group.len(),
-                labels.len(),
-            ));
-        }
-
-        Ok(Self {
+        // We strip the labels down to blocks because the wire ids
+        // will be different
+        Self::from_blocks(
             group,
-            state: state::Active::from_labels(labels),
-        })
+            labels.into_iter().map(|label| label.value()).collect(),
+        )
     }
 
     /// Returns labels type, validating the provided blocks using the associated group
     pub fn from_blocks(group: G, blocks: Vec<Block>) -> Result<Self, LabelError> {
+        if group.len() != blocks.len() {
+            return Err(LabelError::InvalidLabelCount(
+                group.name().to_string(),
+                group.len(),
+                blocks.len(),
+            ));
+        }
+
         let labels = group
             .wires()
             .iter()
@@ -233,7 +235,10 @@ where
             .map(|(id, block)| WireLabel::new(*id, block))
             .collect();
 
-        Self::from_labels(group, labels)
+        Ok(Self {
+            group,
+            state: state::Active::from_labels(labels),
+        })
     }
 
     /// Returns iterator to wire labels
