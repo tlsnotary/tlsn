@@ -78,8 +78,7 @@ impl ChaChaEncoder {
 
         // Store word position for current stream
         self.stream_state
-            .entry(current_id)
-            .or_insert(self.rng.get_word_pos());
+            .insert(current_id, self.rng.get_word_pos());
 
         // Update stream id
         self.rng.set_stream(new_id);
@@ -111,5 +110,26 @@ mod test {
         circ.inputs()
             .iter()
             .for_each(|input| _ = enc.encode(input.id() as u32, input))
+    }
+
+    #[rstest]
+    fn test_encoder_no_duplicates(circ: Circuit) {
+        let input = circ.input(0).unwrap();
+
+        let mut enc = ChaChaEncoder::new([0u8; 32], 0);
+
+        // Pull from stream 0
+        let a = enc.encode(0, &input);
+
+        // Pull from a different stream
+        let c = enc.encode(1, &input);
+
+        // Pull from stream 0 again
+        let b = enc.encode(0, &input);
+
+        // Switching back to the same stream should preserve the word position
+        assert_ne!(a, b);
+        // Different stream ids should produce different labels
+        assert_ne!(a, c);
     }
 }
