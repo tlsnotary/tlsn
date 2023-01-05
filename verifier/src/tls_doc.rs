@@ -13,12 +13,11 @@ impl TLSDoc {
     //     //todo
     // }
 
-    /// verifies the TLSDoc. Checks that `hostname` is present in the leaf certificate.
+    /// Verifies the TLSDoc. Checks that `hostname` is present in the leaf certificate.
     pub fn verify(&self, hostname: String) -> Result<(), Error> {
-        // check TLS certificate chain against local root certs. Some certs in the chain may
-        // have expired at the time of this verification. We check their validity at the time
-        // of notarization
-
+        // Verify TLS certificate chain against local root certs. Some certs in the chain may
+        // have expired at the time of this verification. We verify their validity at the time
+        // of notarization.
         webpki_utils::verify_cert_chain(&self.committedTLS.tls_cert_chain, self.signed_tls.time)?;
 
         let leaf_cert = webpki_utils::extract_leaf_cert(&self.committedTLS.tls_cert_chain)?;

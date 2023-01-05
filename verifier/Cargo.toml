@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+sha2 = { workspace = true, features = ["compress"] }
 p256 = { workspace = true, features = ["ecdsa"] }
 webpki = { workspace = true, features = ["alloc"]}
 webpki-roots = "0.22.5"
@@ -14,6 +15,7 @@ rand_core.workspace = true
 rand_chacha.workspace = true
 thiserror.workspace = true
 x509-parser = "0.14.0"
+rs_merkle = "1.2.0"
 
 [dev-dependencies]
 hex.workspace = true

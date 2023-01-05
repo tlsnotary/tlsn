@@ -1,4 +1,5 @@
 mod commitment;
+mod error;
 mod signed;
 mod tls_doc;
 mod verifier_doc;
@@ -8,26 +9,9 @@ mod webpki_utils;
 use verifier_doc::{Signature, VerifierDoc};
 
 use crate::signed::Signed;
+use error::Error;
 
 type HashCommitment = [u8; 32];
-
-#[derive(Debug, thiserror::Error, PartialEq)]
-pub enum Error {
-    #[error("x509-parser error: {0}")]
-    X509ParserError(String),
-    #[error("webpki error: {0}")]
-    WebpkiError(String),
-    #[error("unspecified error")]
-    VerificationError,
-    #[error("the certificate chain was empty")]
-    EmptyCertificateChain,
-    #[error("the end entity must not be a certificate authority")]
-    EndEntityIsCA,
-    #[error("the key exchange was signed using an unknown curve")]
-    UnknownCurveInKeyExchange,
-    #[error("the key exchange was signed using an unknown algorithm")]
-    UnknownSigningAlgorithmInKeyExchange,
-}
 
 struct VerifierCore {
     /// notarization doc which needs to be verified
@@ -57,18 +41,20 @@ impl VerifierCore {
     /// attack.
     pub fn verify(&self, dns_name: String) -> Result<(), Error> {
         // verify the Notary signature, if any
-        if self.doc.signature.is_some() {
-            if self.trusted_pubkey.is_none() {
-                return Err(Error::VerificationError);
-            } else {
-                // check Notary's signature on signed data
-                self.verify_doc_signature(
-                    &self.trusted_pubkey.as_ref().unwrap(),
-                    &self.doc.signature.as_ref().unwrap(),
-                    &self.signed_data(),
-                )?;
+        match (&self.doc.signature, &self.trusted_pubkey) {
+            (Some(sig), Some(pubkey)) => {
+                self.verify_doc_signature(pubkey, sig, &self.signed_data())?;
+            }
+            // no pubkey and no signature, do nothing
+            (None, None) => (),
+            // either pubkey or sig is missing
+            _ => {
+                return Err(Error::NoPubkeyOrSignature);
             }
         }
+
+        // perform sanity checks on the doc
+        self.doc.check()?;
 
         // verify all other aspects of notarization
         self.doc.verify(dns_name)?;
@@ -102,8 +88,8 @@ impl VerifierCore {
     // extracts the necessary data from the VerifierDoc into a Signed
     // struct and returns it
     fn signed_data(&self) -> Signed {
-        let doc = &self.doc.clone();
-        doc.into()
+        //let doc = &self.doc.clone();
+        (&self.doc).into()
     }
 }
 

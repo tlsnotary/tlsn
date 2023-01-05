@@ -2,8 +2,6 @@ use super::tls_doc::{
     CertDER, EphemeralECPubkey, EphemeralECPubkeyType, SigKEParamsAlg, SignatureKeyExchangeParams,
 };
 use crate::Error;
-use webpki::{self, DnsNameRef};
-use webpki_roots;
 use x509_parser::{certificate, prelude::FromDer};
 
 type SignatureAlgorithms = &'static [&'static webpki::SignatureAlgorithm];
@@ -118,7 +116,7 @@ pub fn check_hostname_present_in_cert(cert: &CertDER, hostname: String) -> Resul
     Ok(())
 }
 
-// return the leaf certificate from the chain (the last one)
+/// Returns the leaf certificate from the chain (the last one)
 pub fn extract_leaf_cert(chain: &[CertDER]) -> Result<CertDER, Error> {
     match chain.last() {
         None => Err(Error::EmptyCertificateChain),

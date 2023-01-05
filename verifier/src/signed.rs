@@ -15,17 +15,17 @@ pub struct SignedTLS {
 pub struct Signed {
     tls: SignedTLS,
     /// see comments in [crate::VerifierDoc] about the fields below
-    pub labelSeeds: [LabelSeed; 2],
-    aggregated_commitment: Vec<u8>,
+    pub label_seed: LabelSeed,
+    commitment_root: [u8; 32],
 }
 
 impl Signed {
     /// Creates a new struct to be signed by the Notary
-    pub fn new(tls: SignedTLS, labelSeeds: [LabelSeed; 2], aggregated_commitment: Vec<u8>) -> Self {
+    pub fn new(tls: SignedTLS, label_seed: LabelSeed, commitment_root: [u8; 32]) -> Self {
         Self {
             tls,
-            labelSeeds,
-            aggregated_commitment,
+            label_seed,
+            commitment_root,
         }
     }
 
@@ -44,8 +44,8 @@ impl std::convert::From<&VerifierDoc> for Signed {
     fn from(doc: &VerifierDoc) -> Self {
         Signed::new(
             doc.tls_doc.signed_tls.clone(),
-            doc.labelSeeds.clone(),
-            doc.aggregated_commitment.clone(),
+            doc.labelSeed.clone(),
+            doc.merkle_root.clone(),
         )
     }
 }

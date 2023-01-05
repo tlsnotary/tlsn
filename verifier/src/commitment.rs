@@ -1,16 +1,25 @@
-use super::Error;
+use crate::LabelSeed;
+
+use super::error::Error;
+use rand::Rng;
+use rand_chacha::ChaCha12Rng;
+use rand_core::SeedableRng;
+use rs_merkle::{algorithms, MerkleProof};
+use sha2::{Digest, Sha256};
 
 // A User's commitment to a portion of the TLS transcript
-#[derive(Clone)]
+//#[derive(Clone)]
 pub struct Commitment {
-    id: usize,
+    pub id: usize,
     pub typ: CommitmentType,
-    direction: Direction,
+    pub direction: Direction,
+    // The index of this commitment in the Merkle tree of commitments
+    pub merkle_tree_index: usize,
     // the actual commitment
-    pub comm: [u8; 32],
+    pub commitment: [u8; 32],
     // ranges of absolute offsets in the TLS transcript. The committed data
     // is located in those ranges.
-    ranges: Vec<Range>,
+    pub ranges: Vec<Range>,
 }
 
 impl Commitment {
@@ -18,38 +27,58 @@ impl Commitment {
         id: usize,
         typ: CommitmentType,
         direction: Direction,
-        comm: [u8; 32],
+        commitment: [u8; 32],
         ranges: Vec<Range>,
+        merkle_tree_index: usize,
     ) -> Self {
         Self {
             id,
             typ,
             direction,
-            comm,
+            commitment,
             ranges,
+            merkle_tree_index,
         }
     }
 
-    // check this commitment against the opening
-    pub fn verify(&self, opening: CommitmentOpening) -> Result<(), Error> {
-        if self.typ == CommitmentType::labels_blake3 {
-            // TODO how do we pass here the PRG seed from which to expand labels?
+    /// Check this commitment against the opening.
+    /// The opening is a (salted) hash of all garbled circuit active labels in the
+    /// ranges of the Commitment
+    pub fn verify(&self, opening: &CommitmentOpening, seed: &LabelSeed) -> Result<(), Error> {
+        // TODO: will change this method to be in agreement with the Label Encoder PR?
 
-            // expand the PRG seed, select only the labels belonging to the ranges
-            // hash the labels, check the commitment
-            let a = 2;
-            return Ok(());
-        } else if self.typ == CommitmentType::authdecode {
-            // TODO how do we pass here the PRG seed from which to expand labels?
+        let mut chacha_seed = [0u8; 32];
+        chacha_seed.copy_from_slice(seed.value.as_slice());
+        let mut rng = ChaCha12Rng::from_seed(chacha_seed);
+        let delta: u128 = rng.gen();
+        let mut bits_iter = u8_to_boolvec(&opening.opening).into_iter();
 
-            // expand the PRG seed, locally break label correlation
-            // compute deltas and zero_sum (see authdecode diagram)
-            // verify the zkproof in opening.zkproofs
-            let a = 3;
-            return Ok(());
-        } else if self.typ == CommitmentType::poseidon {
-            // verify the zk proof against this poseidon commitment
-            return Ok(());
+        // for each bit of opening, expand the zero label at the rng stream offset
+        // and, if needed, flip it to the one label, then hash the label
+        let mut hasher = Sha256::new();
+        for r in &self.ranges {
+            // set rng stream offset to the first label in range. +1 accounts for
+            // the delta
+            rng.set_word_pos(4 * ((r.start as u128) + 1));
+
+            // expand as many labels as there are bits in the range
+            (0..(r.end - r.start) * 8).map(|_| {
+                let zero_label: u128 = rng.gen();
+                let active_label = if bits_iter.next().unwrap() == true {
+                    zero_label ^ delta
+                } else {
+                    zero_label
+                };
+                hasher.update(active_label.to_be_bytes());
+            });
+        }
+        // add salt
+        let mut salt = [0u8; 16];
+        salt.copy_from_slice(opening.salt.as_slice());
+        hasher.update(salt);
+        let expected: [u8; 32] = hasher.finalize().into();
+        if expected != self.commitment {
+            return Err(Error::CommitmentVerificationFailed);
         }
 
         Ok(())
@@ -58,55 +87,25 @@ impl Commitment {
 
 #[derive(Clone, PartialEq)]
 pub enum CommitmentType {
-    // a sha256 hash of the wire labels corresponding to the bits being committed to
-    labels_sha256,
-    // a blake3 hash of the wire labels corresponding to the bits being committed to
+    // a blake3 hash of the garbled circuit wire labels corresponding to the bits
+    // of the commitment opening
     labels_blake3,
-    // A concatenation of blake3 commitment from Step 3 of the authdecode diagram followed by
-    // a blake3 commitment from Step 8 of the authdecode diagram
-    // https://github.com/tlsnotary/tlsn/blob/authdecode/authdecode/authdecode_diagram.pdf
-    authdecode,
-    // a random value which the User sends when there are no authdecode commitments. This is
-    // done for User privacy to keep the Notary from knowing that there were no authdecode
-    // commitments
-    dummy1,
-
-    // a random value which the User sends when there are no commitments at all. This is
-    // done for User privacy to keep the Notary from knowing that there are no commitments.
-    dummy2,
-
-    // The 2 types below are used in a mode when the Notary already verified the zk proofs
-    // in the authdecode protocol.
-    // This mode has downsides for User privacy, since the Notary will learn which parts of
-    // the TLS transcript the User wants to make zk-friendly.
-    // The benefit of using this mode is that the Verifier doesn't need to verify zk-proofs
-    // from the authdecode protocol. Instead, the Notary verifies them once and signs the hash
-    // of the plaintext.
-
-    // a poseidon hash of the plaintext committed to
-    poseidon,
-    // a mimc hash of the plaintext committed to
-    mimc,
 }
 
 // Commitment opening contains either the committed value or a zk proof
 // about some property of that value
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct CommitmentOpening {
     /// the id of the [Commitment] corresponding to this opening
-    id: usize,
+    pub id: usize,
     // the actual opening of the commitment. Optional because a zk proof
     // about some property of the opening can be provided instead
-    opening: Option<Vec<u8>>,
-    // all our commitments are salted
+    pub opening: Vec<u8>,
+    // all our commitments are salted by appending 16 random bytes
     salt: Vec<u8>,
-    // a zk proof about some property of the opening. Optional because the actual opening
-    // can be revealed instead. There can be potentially multiple proofs about multiple
-    // properties of one opening.
-    zkproofs: Option<Vec<ZKProof>>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 // A TLS transcript consists of a stream of bytes which were sent to the server (Request)
 // and a stream of bytes which were received from the server (Response). The User creates
 // separate commitments to bytes in each direction.
@@ -116,32 +115,13 @@ pub enum Direction {
 }
 
 #[derive(Clone)]
-/// exclusive range [start, end)
+/// half-open range [start, end). Range bounds are ascending i.e. start < end
 pub struct Range {
     pub start: usize,
     pub end: usize,
 }
 
-#[derive(Clone)]
-enum ZKProofType {
-    // the property of the private data that is proved in zk
-    range_proof,
-    absence_of_character_in_string,
-    membership_in_a_set,
-}
-
-#[derive(Clone)]
-enum ZKProofBackend {
-    halo2,
-    snarkjs,
-    plonky2,
-}
-
-#[derive(Clone)]
-struct ZKProof {
-    typ: ZKProofType,
-    backend: ZKProofBackend,
-    proof: Vec<u8>,
-    // tbd proof type-dependent parameters, public inputs, etc
-    data: Vec<u8>,
+// convert a slice of u8 into a vec of bool in the least-bit-first order
+fn u8_to_boolvec(bytes: &[u8]) -> Vec<bool> {
+    vec![false; 10]
 }
