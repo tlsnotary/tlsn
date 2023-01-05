@@ -42,7 +42,7 @@ mod tests {
 
     use super::*;
     use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive};
-    use mpc_aio::protocol::ot::mock::MockOTFactory;
+    use mpc_aio::protocol::ot::mock::{MockOTFactory, MockOTReceiver, MockOTSender};
     use mpc_core::Block;
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
@@ -51,8 +51,9 @@ mod tests {
     use utils_aio::duplex::DuplexChannel;
 
     type Gf2ConversionChannel = DuplexChannel<Gf2ConversionMessage>;
-    type Gf2Sender<U, V> = Sender<Arc<Mutex<MockOTFactory<Block>>>, U, V>;
-    type Gf2Receiver<U, V> = Receiver<Arc<Mutex<MockOTFactory<Block>>>, U, V>;
+    type Gf2Sender<U, V> = Sender<Arc<Mutex<MockOTFactory<Block>>>, MockOTSender<Block>, U, V>;
+    type Gf2Receiver<U, V> =
+        Receiver<Arc<Mutex<MockOTFactory<Block>>>, MockOTReceiver<Block>, U, V>;
 
     #[tokio::test]
     async fn test_aio_a2m() {

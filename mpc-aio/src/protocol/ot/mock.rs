@@ -1,11 +1,12 @@
 use std::sync::{Arc, Mutex};
 
 use super::{
-    OTError, OTFactoryError, OTReceiverFactory, OTSenderFactory, ObliviousReceive, ObliviousReveal,
-    ObliviousSend, ObliviousVerify,
+    config::{OTReceiverConfig, OTSenderConfig},
+    OTError, OTFactoryError, ObliviousReceive, ObliviousReveal, ObliviousSend, ObliviousVerify,
 };
 use async_trait::async_trait;
 use futures::{channel::mpsc, StreamExt};
+use utils_aio::factory::AsyncFactory;
 
 #[derive(Default)]
 pub struct MockOTFactory<T> {
@@ -14,14 +15,15 @@ pub struct MockOTFactory<T> {
 }
 
 #[async_trait]
-impl<T: Send + 'static> OTSenderFactory<[T; 2]> for Arc<Mutex<MockOTFactory<T>>> {
-    type Protocol = MockOTSender<T>;
+impl<T: Send + 'static> AsyncFactory<MockOTSender<T>> for Arc<Mutex<MockOTFactory<T>>> {
+    type Config = OTSenderConfig;
+    type Error = OTFactoryError;
 
-    async fn new_sender(
+    async fn create(
         &mut self,
         _id: String,
-        _count: usize,
-    ) -> Result<Self::Protocol, OTFactoryError> {
+        _config: OTSenderConfig,
+    ) -> Result<MockOTSender<T>, OTFactoryError> {
         let mut inner = self.lock().unwrap();
         if inner.waiting_sender.is_some() {
             Ok(inner.waiting_sender.take().unwrap())
@@ -34,14 +36,15 @@ impl<T: Send + 'static> OTSenderFactory<[T; 2]> for Arc<Mutex<MockOTFactory<T>>>
 }
 
 #[async_trait]
-impl<T: Send + 'static> OTReceiverFactory<bool, T> for Arc<Mutex<MockOTFactory<T>>> {
-    type Protocol = MockOTReceiver<T>;
+impl<T: Send + 'static> AsyncFactory<MockOTReceiver<T>> for Arc<Mutex<MockOTFactory<T>>> {
+    type Config = OTReceiverConfig;
+    type Error = OTFactoryError;
 
-    async fn new_receiver(
+    async fn create(
         &mut self,
         _id: String,
-        _count: usize,
-    ) -> Result<Self::Protocol, OTFactoryError> {
+        _config: OTReceiverConfig,
+    ) -> Result<MockOTReceiver<T>, OTFactoryError> {
         let mut inner = self.lock().unwrap();
         if inner.waiting_receiver.is_some() {
             Ok(inner.waiting_receiver.take().unwrap())

@@ -12,6 +12,8 @@ use mpc_core::{
 };
 use utils_aio::{mux::MuxerError, Channel};
 
+pub use mpc_core::ot::config;
+
 type OTChannel = Box<dyn Channel<OTMessage, Error = std::io::Error>>;
 
 #[derive(Debug, thiserror::Error)]
@@ -80,36 +82,6 @@ pub trait ObliviousAcceptCommit {
 pub trait ObliviousVerify<T> {
     /// Verifies the correctness of the revealed OT seed
     async fn verify(self, input: Vec<T>) -> Result<(), OTError>;
-}
-
-#[async_trait]
-pub trait OTSenderFactory<T> {
-    type Protocol: ObliviousSend<T> + Send;
-
-    /// Constructs a new Sender
-    ///
-    /// * `id` - Instance id
-    /// * `count` - Number of OTs to provision
-    async fn new_sender(
-        &mut self,
-        id: String,
-        count: usize,
-    ) -> Result<Self::Protocol, OTFactoryError>;
-}
-
-#[async_trait]
-pub trait OTReceiverFactory<T, U> {
-    type Protocol: ObliviousReceive<T, U> + Send;
-
-    /// Constructs a new Receiver
-    ///
-    /// * `id` - Instance id
-    /// * `count` - Number of OTs to provision
-    async fn new_receiver(
-        &mut self,
-        id: String,
-        count: usize,
-    ) -> Result<Self::Protocol, OTFactoryError>;
 }
 
 #[cfg(test)]

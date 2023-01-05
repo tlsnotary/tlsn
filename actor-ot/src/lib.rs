@@ -49,11 +49,16 @@ mod test {
         MockClientChannelMuxer, MockClientControl, MockServerChannelMuxer, MockServerControl,
     };
     use mpc_aio::protocol::ot::{
-        OTFactoryError, OTReceiverFactory, OTSenderFactory, ObliviousReceive, ObliviousReveal,
-        ObliviousSend, ObliviousVerify,
+        OTFactoryError, ObliviousReceive, ObliviousReveal, ObliviousSend, ObliviousVerify,
     };
-    use mpc_core::{msgs::ot::OTFactoryMessage, Block};
-    use utils_aio::{mux::MuxChannelControl, Channel};
+    use mpc_core::{
+        msgs::ot::OTFactoryMessage,
+        ot::config::{
+            OTReceiverConfig, OTReceiverConfigBuilder, OTSenderConfig, OTSenderConfigBuilder,
+        },
+        Block,
+    };
+    use utils_aio::{factory::AsyncFactory, mux::MuxChannelControl, Channel};
     use xtra::prelude::*;
 
     type OTFactoryChannel = Box<dyn Channel<OTFactoryMessage, Error = std::io::Error>>;
@@ -138,21 +143,35 @@ mod test {
         (sender_control, receiver_control)
     }
 
+    fn sender_config(count: usize) -> OTSenderConfig {
+        OTSenderConfigBuilder::default()
+            .count(count)
+            .build()
+            .unwrap()
+    }
+
+    fn receiver_config(count: usize) -> OTReceiverConfig {
+        OTReceiverConfigBuilder::default()
+            .count(count)
+            .build()
+            .unwrap()
+    }
+
     #[tokio::test]
     async fn test_ot_factory() {
         let initial_count = 10;
 
-        let sender_config = SenderFactoryConfigBuilder::default()
+        let sender_factory_config = SenderFactoryConfigBuilder::default()
             .initial_count(initial_count)
             .build()
             .unwrap();
-        let receiver_config = ReceiverFactoryConfigBuilder::default()
+        let receiver_factory_config = ReceiverFactoryConfigBuilder::default()
             .initial_count(initial_count)
             .build()
             .unwrap();
 
         let (mut sender_control, mut receiver_control) =
-            create_setup_pair(sender_config, receiver_config).await;
+            create_setup_pair(sender_factory_config, receiver_factory_config).await;
 
         let instance_id = "test".to_string();
         let data: Vec<[Block; 2]> = (0..10).map(|_| [Block::new(0), Block::new(1)]).collect();
@@ -167,12 +186,12 @@ mod test {
             .collect();
 
         let mut sender = sender_control
-            .new_sender(instance_id.clone(), choices.len())
+            .create(instance_id.clone(), sender_config(choices.len()))
             .await
             .unwrap();
 
         let mut receiver = receiver_control
-            .new_receiver(instance_id.clone(), choices.len())
+            .create(instance_id.clone(), receiver_config(choices.len()))
             .await
             .unwrap();
 
@@ -189,26 +208,28 @@ mod test {
     async fn test_ot_factory_mismatch() {
         let initial_count = 10;
 
-        let sender_config = SenderFactoryConfigBuilder::default()
+        let sender_factory_config = SenderFactoryConfigBuilder::default()
             .initial_count(initial_count)
             .build()
             .unwrap();
-        let receiver_config = ReceiverFactoryConfigBuilder::default()
+        let receiver_factory_config = ReceiverFactoryConfigBuilder::default()
             .initial_count(initial_count)
             .build()
             .unwrap();
 
         let (mut sender_control, mut receiver_control) =
-            create_setup_pair(sender_config, receiver_config).await;
+            create_setup_pair(sender_factory_config, receiver_factory_config).await;
 
         let instance_id = "test".to_string();
 
         let _ = sender_control
-            .new_sender(instance_id.clone(), 10)
+            .create(instance_id.clone(), sender_config(10))
             .await
             .unwrap();
 
-        let err = receiver_control.new_receiver(instance_id.clone(), 9).await;
+        let err = receiver_control
+            .create(instance_id.clone(), receiver_config(9))
+            .await;
 
         assert!(matches!(
             err,
@@ -224,23 +245,26 @@ mod test {
     async fn test_ot_factory_many_splits() {
         let initial_count = 100;
 
-        let sender_config = SenderFactoryConfigBuilder::default()
+        let sender_factory_config = SenderFactoryConfigBuilder::default()
             .initial_count(initial_count)
             .build()
             .unwrap();
-        let receiver_config = ReceiverFactoryConfigBuilder::default()
+        let receiver_factory_config = ReceiverFactoryConfigBuilder::default()
             .initial_count(initial_count)
             .build()
             .unwrap();
 
         let (mut sender_control, mut receiver_control) =
-            create_setup_pair(sender_config, receiver_config).await;
+            create_setup_pair(sender_factory_config, receiver_factory_config).await;
 
         for id in 0..10 {
-            let _ = sender_control.new_sender(id.to_string(), 10).await.unwrap();
+            let _ = sender_control
+                .create(id.to_string(), sender_config(10))
+                .await
+                .unwrap();
 
             let _ = receiver_control
-                .new_receiver(id.to_string(), 10)
+                .create(id.to_string(), receiver_config(10))
                 .await
                 .unwrap();
         }
@@ -251,19 +275,19 @@ mod test {
         let split_count = 3;
         let split_size = 10;
 
-        let sender_config = SenderFactoryConfigBuilder::default()
+        let sender_factory_config = SenderFactoryConfigBuilder::default()
             .initial_count(split_count * split_size)
             .committed()
             .build()
             .unwrap();
-        let receiver_config = ReceiverFactoryConfigBuilder::default()
+        let receiver_factory_config = ReceiverFactoryConfigBuilder::default()
             .initial_count(split_count * split_size)
             .committed()
             .build()
             .unwrap();
 
         let (mut sender_control, receiver_control) =
-            create_setup_pair(sender_config, receiver_config).await;
+            create_setup_pair(sender_factory_config, receiver_factory_config).await;
 
         let mut handles = Vec::with_capacity(split_count);
 
@@ -274,12 +298,12 @@ mod test {
 
                 handles.push(tokio::spawn(async move {
                     let mut sender = sender_control
-                        .new_sender(id.to_string(), split_size)
+                        .create(id.to_string(), sender_config(split_size))
                         .await
                         .unwrap();
 
                     let mut receiver = receiver_control
-                        .new_receiver(id.to_string(), split_size)
+                        .create(id.to_string(), receiver_config(split_size))
                         .await
                         .unwrap();
 

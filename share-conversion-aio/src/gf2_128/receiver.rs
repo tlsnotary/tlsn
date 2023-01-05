@@ -1,5 +1,7 @@
 //! This module implements the async IO receiver
 
+use std::marker::PhantomData;
+
 use super::{
     recorder::{Recorder, Tape, Void},
     AddShare, Gf2ConversionChannel, Gf2_128ShareConvert, MulShare, VerifyTape,
@@ -7,32 +9,46 @@ use super::{
 use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive, ShareConversionError};
 use async_trait::async_trait;
 use futures::StreamExt;
-use mpc_aio::protocol::ot::{OTReceiverFactory, ObliviousReceive};
+use mpc_aio::protocol::ot::{
+    config::{OTReceiverConfig, OTReceiverConfigBuilder},
+    OTFactoryError, ObliviousReceive,
+};
 use mpc_core::Block;
+use utils_aio::factory::AsyncFactory;
 
 /// The receiver for the conversion
 ///
 /// Will be the OT receiver
-pub struct Receiver<T: OTReceiverFactory<bool, Block>, U: Gf2_128ShareConvert, V = Void> {
+pub struct Receiver<T, OT, U, V = Void>
+where
+    T: AsyncFactory<OT>,
+    U: Gf2_128ShareConvert,
+{
     /// Provides initialized OTs for the OT receiver
     receiver_factory: T,
+    _ot: PhantomData<OT>,
     id: String,
-    protocol: std::marker::PhantomData<U>,
+    _protocol: PhantomData<U>,
     channel: Gf2ConversionChannel,
     recorder: V,
     /// keeps track of how many batched share conversions we've made so far
     counter: usize,
 }
 
-impl<T: OTReceiverFactory<bool, Block> + Send, V: Gf2_128ShareConvert, W: Recorder<V>>
-    Receiver<T, V, W>
+impl<T, OT, V, W> Receiver<T, OT, V, W>
+where
+    T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
+    OT: ObliviousReceive<bool, Block>,
+    V: Gf2_128ShareConvert,
+    W: Recorder<V>,
 {
     /// Create a new receiver
     pub fn new(receiver_factory: T, id: String, channel: Gf2ConversionChannel) -> Self {
         Self {
             receiver_factory,
+            _ot: PhantomData,
             id,
-            protocol: std::marker::PhantomData,
+            _protocol: PhantomData,
             channel,
             recorder: W::default(),
             counter: 0,
@@ -56,7 +72,13 @@ impl<T: OTReceiverFactory<bool, Block> + Send, V: Gf2_128ShareConvert, W: Record
         // Get an OT receiver from factory
         let mut ot_receiver = self
             .receiver_factory
-            .new_receiver(format!("{}/{}/ot", &self.id, &self.counter), ot_number)
+            .create(
+                format!("{}/{}/ot", &self.id, &self.counter),
+                OTReceiverConfigBuilder::default()
+                    .count(ot_number)
+                    .build()
+                    .expect("OTReceiverConfig should be valid"),
+            )
             .await?;
 
         self.counter += 1;
@@ -76,8 +98,11 @@ impl<T: OTReceiverFactory<bool, Block> + Send, V: Gf2_128ShareConvert, W: Record
 }
 
 #[async_trait]
-impl<T: OTReceiverFactory<bool, Block> + Send, V: Recorder<AddShare> + Send>
-    AdditiveToMultiplicative for Receiver<T, AddShare, V>
+impl<T, OT, V> AdditiveToMultiplicative for Receiver<T, OT, AddShare, V>
+where
+    T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
+    OT: ObliviousReceive<bool, Block> + Send,
+    V: Recorder<AddShare> + Send,
 {
     type FieldElement = u128;
 
@@ -92,8 +117,11 @@ impl<T: OTReceiverFactory<bool, Block> + Send, V: Recorder<AddShare> + Send>
 }
 
 #[async_trait]
-impl<T: OTReceiverFactory<bool, Block> + Send, V: Recorder<MulShare> + Send>
-    MultiplicativeToAdditive for Receiver<T, MulShare, V>
+impl<T, OT, V> MultiplicativeToAdditive for Receiver<T, OT, MulShare, V>
+where
+    T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
+    OT: ObliviousReceive<bool, Block> + Send,
+    V: Recorder<MulShare> + Send,
 {
     type FieldElement = u128;
 
@@ -108,9 +136,10 @@ impl<T: OTReceiverFactory<bool, Block> + Send, V: Recorder<MulShare> + Send>
 }
 
 #[async_trait]
-impl<T, U> VerifyTape for Receiver<T, U, Tape>
+impl<T, OT, U> VerifyTape for Receiver<T, OT, U, Tape>
 where
-    T: OTReceiverFactory<bool, Block> + Send,
+    T: AsyncFactory<OT> + Send,
+    OT: ObliviousReceive<bool, Block> + Send,
     U: Gf2_128ShareConvert + Send,
 {
     async fn verify_tape(mut self) -> Result<(), ShareConversionError> {

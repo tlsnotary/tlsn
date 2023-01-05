@@ -4,6 +4,7 @@ pub mod codec;
 #[cfg(feature = "duplex")]
 pub mod duplex;
 pub mod expect_msg;
+pub mod factory;
 #[cfg(feature = "mux")]
 pub mod mux;
 
