@@ -139,7 +139,7 @@ where
             .wires()
             .iter()
             .copied()
-            .zip(self.value.to_bits().into_iter())
+            .zip(self.value.to_lsb0_bits().into_iter())
             .collect()
     }
 

@@ -233,7 +233,7 @@ impl GarbledCircuit<Full> {
                     &WireLabelPair::choose(
                         &self.state.labels,
                         value.wires(),
-                        &value.value().to_bits(),
+                        &value.value().to_lsb0_bits(),
                     ),
                 )
                 .expect("Circuit invariant violated, wrong wire count")

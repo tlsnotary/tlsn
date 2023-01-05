@@ -127,7 +127,7 @@ impl InputLabels<WireLabelPair> {
         let labels: Vec<WireLabel> = self
             .labels
             .iter()
-            .zip(value.value().to_bits())
+            .zip(value.value().to_lsb0_bits())
             .map(|(pair, value)| pair.select(value))
             .collect();
 

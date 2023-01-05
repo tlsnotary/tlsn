@@ -25,7 +25,7 @@ impl Value {
                     .get(0)
                     .expect("slice with length 1 has no element at index 0"),
             ),
-            ValueType::Bits => Value::Bits(bits),
+            ValueType::Bits if bits.len() > 0 => Value::Bits(bits),
             ValueType::Bytes if bits.len() % 8 == 0 => Value::Bytes(
                 bits.chunks_exact(8)
                     .map(|b| {
@@ -98,7 +98,7 @@ impl Value {
     }
 
     /// Converts value to bit vector in LSB0 order
-    pub fn to_bits(&self) -> Vec<bool> {
+    pub fn to_lsb0_bits(&self) -> Vec<bool> {
         match self {
             Value::ConstZero => vec![false],
             Value::ConstOne => vec![true],
@@ -192,51 +192,67 @@ mod tests {
     use super::*;
     use rstest::*;
 
+    fn string_to_boolvec(string: &str) -> Vec<bool> {
+        string
+            .chars()
+            .map(|c| match c {
+                '1' => true,
+                '0' => false,
+                _ => {
+                    panic!()
+                }
+            })
+            .collect()
+    }
+
     #[rstest]
-    #[case(ValueType::ConstZero, vec![], Value::ConstZero)]
-    #[case(ValueType::ConstOne, vec![], Value::ConstOne)]
-    #[case(ValueType::Bool, vec![false], Value::Bool(false))]
-    #[case(ValueType::Bool, vec![true], Value::Bool(true))]
-    #[case(ValueType::Bits, vec![false, true], Value::Bits(vec![false, true]))]
-    #[case(ValueType::Bytes, vec![false; 8], Value::Bytes(vec![0]))]
-    #[case(ValueType::Bytes, vec![true; 8], Value::Bytes(vec![u8::MAX]))]
-    #[case(ValueType::U8, vec![false; 8], Value::U8(0u8))]
-    #[case(ValueType::U8, vec![true; 8], Value::U8(u8::MAX))]
-    #[case(ValueType::U16, vec![false; 16], Value::U16(0u16))]
-    #[case(ValueType::U16, vec![true; 16], Value::U16(u16::MAX))]
-    #[case(ValueType::U32, vec![false; 32], Value::U32(0u32))]
-    #[case(ValueType::U32, vec![true; 32], Value::U32(u32::MAX))]
-    #[case(ValueType::U64, vec![false; 64], Value::U64(0u64))]
-    #[case(ValueType::U64, vec![true; 64], Value::U64(u64::MAX))]
-    #[case(ValueType::U128, vec![false; 128], Value::U128(0u128))]
-    #[case(ValueType::U128, vec![true; 128], Value::U128(u128::MAX))]
-    fn test_value_new(
-        #[case] value_type: ValueType,
-        #[case] bits: Vec<bool>,
-        #[case] expected: Value,
-    ) {
-        let value = Value::new(value_type, bits).unwrap();
+    #[case(ValueType::ConstZero, "", Value::ConstZero)]
+    #[case(ValueType::ConstOne, "", Value::ConstOne)]
+    #[case(ValueType::Bool, "0", Value::Bool(false))]
+    #[case(ValueType::Bool, "1", Value::Bool(true))]
+    #[case(ValueType::Bits, "01", Value::Bits(vec![false, true]))]
+    #[case(ValueType::Bytes, "00000000", Value::Bytes(vec![0]))]
+    #[case(ValueType::Bytes, "0000000010000000", Value::Bytes(vec![0,1]))]
+    #[case(ValueType::U8, "10000000", Value::U8(1u8))]
+    #[case(ValueType::U16, "1000000000000000", Value::U16(1u16))]
+    #[case(ValueType::U32, "10000000000000000000000000000000", Value::U32(1u32))]
+    #[case(
+        ValueType::U64,
+        "1000000000000000000000000000000000000000000000000000000000000000",
+        Value::U64(1u64)
+    )]
+    #[case(
+        ValueType::U128, 
+        "10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000", 
+        Value::U128(1u128)
+    )]
+    fn test_value_new(#[case] value_type: ValueType, #[case] bits: &str, #[case] expected: Value) {
+        let value = Value::new(value_type, string_to_boolvec(bits)).unwrap();
         assert_eq!(value, expected);
         assert_eq!(value.value_type(), value_type);
     }
 
     #[rstest]
-    #[case(ValueType::Bool, vec![])]
-    #[case(ValueType::Bool, vec![false; 2])]
-    #[case(ValueType::Bytes, vec![false; 7])]
-    #[case(ValueType::Bytes, vec![false; 9])]
-    #[case(ValueType::U8, vec![false; 7])]
-    #[case(ValueType::U8, vec![false; 9])]
-    #[case(ValueType::U16, vec![false; 15])]
-    #[case(ValueType::U16, vec![false; 17])]
-    #[case(ValueType::U32, vec![false; 31])]
-    #[case(ValueType::U32, vec![false; 33])]
-    #[case(ValueType::U64, vec![false; 63])]
-    #[case(ValueType::U64, vec![false; 65])]
-    #[case(ValueType::U128, vec![false; 127])]
-    #[case(ValueType::U128, vec![false; 129])]
-    fn test_value_new_should_fail(#[case] value_type: ValueType, #[case] bits: Vec<bool>) {
-        let err = Value::new(value_type, bits).unwrap_err();
+    #[case(ValueType::ConstZero, "1")]
+    #[case(ValueType::ConstOne, "0")]
+    #[case(ValueType::Bool, "")]
+    #[case(ValueType::Bool, "11")]
+    #[case(ValueType::Bits, "")]
+    #[case(ValueType::Bytes, "0000000")]
+    #[case(ValueType::Bytes, "000000000")]
+    #[case(ValueType::U8, "1000000")]
+    #[case(ValueType::U16, "100000000000000")]
+    #[case(ValueType::U32, "1000000000000000000000000000000")]
+    #[case(
+        ValueType::U64,
+        "100000000000000000000000000000000000000000000000000000000000000"
+    )]
+    #[case(
+        ValueType::U128, 
+        "1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+    )]
+    fn test_value_wrong_bit_length(#[case] value_type: ValueType, #[case] bits: &str) {
+        let err = Value::new(value_type, string_to_boolvec(bits)).unwrap_err();
         assert!(matches!(err, Error::ParseError(_, _)))
     }
 
@@ -261,19 +277,19 @@ mod tests {
     }
 
     #[rstest]
-    #[case(Value::ConstZero, vec![false])]
-    #[case(Value::ConstOne, vec![true])]
-    #[case(false, vec![false])]
-    #[case(true, vec![true])]
-    #[case(vec![false, true], vec![false, true])]
-    #[case(vec![0, 1], [vec![false; 8], vec![true], vec![false; 7]].concat())]
-    #[case(0u8, vec![false; 8])]
-    #[case(0u16, vec![false; 16])]
-    #[case(0u32, vec![false; 32])]
-    #[case(0u64, vec![false; 64])]
-    #[case(0u128, vec![false; 128])]
-    fn test_value_to_bits(#[case] value: impl Into<Value>, #[case] expected: Vec<bool>) {
+    #[case(Value::ConstZero, "0")]
+    #[case(Value::ConstOne, "1")]
+    #[case(false, "0")]
+    #[case(true, "1")]
+    #[case(vec![false, true], "01")]
+    #[case(vec![0, 1], "0000000010000000")]
+    #[case(1u8, "10000000")]
+    #[case(1u16, "1000000000000000")]
+    #[case(1u32, "10000000000000000000000000000000")]
+    #[case(1u64, "1000000000000000000000000000000000000000000000000000000000000000")]
+    #[case(1u128, "10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")]
+    fn test_value_to_bits(#[case] value: impl Into<Value>, #[case] expected: &str) {
         let value: Value = value.into();
-        assert_eq!(value.to_bits(), expected);
+        assert_eq!(value.to_lsb0_bits(), string_to_boolvec(expected));
     }
 }

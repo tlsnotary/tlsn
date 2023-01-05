@@ -42,7 +42,7 @@ where
     ) -> Result<Vec<InputLabels<WireLabel>>, OTError> {
         let choice_bits = choices
             .iter()
-            .map(|value| value.value().to_bits())
+            .map(|value| value.value().to_lsb0_bits())
             .flatten()
             .collect::<Vec<bool>>();
 
