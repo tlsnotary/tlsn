@@ -44,7 +44,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use super::*;
-    use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive};
+    use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive, ShareConversionError};
     use mpc_aio::protocol::ot::mock::{MockOTFactory, MockOTReceiver, MockOTSender};
     use mpc_core::Block;
     use rand::{Rng, SeedableRng};

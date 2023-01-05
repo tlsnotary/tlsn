@@ -1,39 +1,46 @@
 use super::{A2MMessage, M2AMessage, VerifyTapeMessage};
 use crate::ActorConversionError;
-use mpc_aio::protocol::ot::{OTReceiverFactory, ObliviousReceive};
-use mpc_core::Block;
+use mpc_aio::protocol::ot::{OTFactoryError, ObliviousReceive};
+use mpc_core::{ot::config::OTReceiverConfig, Block};
 use share_conversion_aio::{
     gf2_128::{
-        recorder::{Recorder, Void},
+        recorder::{Recorder, Tape, Void},
         Gf2ConversionMessage, Receiver as IOReceiver, VerifyTape,
     },
     AdditiveToMultiplicative, MultiplicativeToAdditive, ShareConversionError,
 };
 use share_conversion_core::gf2_128::Gf2_128ShareConvert;
-use utils_aio::mux::MuxChannelControl;
+use utils_aio::{factory::AsyncFactory, mux::MuxChannelControl};
 use xtra::prelude::*;
 
-enum State<T: OTReceiverFactory, U: Gf2_128ShareConvert, V: Recorder<U>> {
-    Setup(IOReceiver<T, U, V>),
+enum State<T, OT, U, V>
+where
+    T: AsyncFactory<OT>,
+    OT: ObliviousReceive<bool, Block>,
+    U: Gf2_128ShareConvert,
+    V: Recorder<U>,
+{
+    Setup(IOReceiver<T, OT, U, V>),
     Complete,
 }
 
 #[derive(xtra::Actor)]
-pub struct Receiver<T, U, V = Void>
+pub struct Receiver<T, OT, U, V = Void>
 where
-    T: OTReceiverFactory,
+    T: AsyncFactory<OT>,
+    OT: ObliviousReceive<bool, Block>,
     U: Gf2_128ShareConvert,
     V: Recorder<U>,
 {
-    inner: State<T, U, V>,
+    inner: State<T, OT, U, V>,
 }
 
-impl<
-        T: OTReceiverFactory<Protocol = U> + Send,
-        U: ObliviousReceive<Choice = bool, Outputs = Vec<Block>>,
-        V: Gf2_128ShareConvert + Send,
-        W: Recorder<V>,
-    > Receiver<T, V, W>
+impl<T, OT, U, V> Receiver<T, OT, U, V>
+where
+    T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
+    OT: ObliviousReceive<bool, Block>,
+    U: Gf2_128ShareConvert,
+    V: Recorder<U>,
 {
     pub async fn new<X: MuxChannelControl<Gf2ConversionMessage>>(
         mut muxer: X,
@@ -102,13 +109,13 @@ where
 }
 
 #[async_trait]
-impl<T, U, V, W> Handler<M2AMessage<Vec<u128>>> for Receiver<T, V, W>
+impl<T, OT, U, V> Handler<M2AMessage<Vec<u128>>> for Receiver<T, OT, U, V>
 where
-    T: OTReceiverFactory<Protocol = U> + Send + 'static,
-    U: ObliviousReceive<Choice = bool, Outputs = Vec<Block>>,
-    V: Gf2_128ShareConvert + Send + 'static,
-    W: Recorder<V> + Send + 'static,
-    IOReceiver<T, V, W>:
+    T: AsyncFactory<OT> + Send + 'static,
+    OT: ObliviousReceive<bool, Block> + Send + 'static,
+    U: Gf2_128ShareConvert + Send + 'static,
+    V: Recorder<U> + Send + 'static,
+    IOReceiver<T, OT, U, V>:
         MultiplicativeToAdditive<FieldElement = u128, Error = ShareConversionError>,
 {
     type Return = Result<Vec<u128>, ActorConversionError>;
@@ -129,13 +136,13 @@ where
 }
 
 #[async_trait]
-impl<T, U, V, W> Handler<A2MMessage<Vec<u128>>> for Receiver<T, V, W>
+impl<T, OT, U, V> Handler<A2MMessage<Vec<u128>>> for Receiver<T, OT, U, V>
 where
-    T: OTReceiverFactory<Protocol = U> + Send + 'static,
-    U: ObliviousReceive<Choice = bool, Outputs = Vec<Block>>,
-    V: Gf2_128ShareConvert + Send + 'static,
-    W: Recorder<V> + Send + 'static,
-    IOReceiver<T, V, W>:
+    T: AsyncFactory<OT> + Send + 'static,
+    OT: ObliviousReceive<bool, Block> + Send + 'static,
+    U: Gf2_128ShareConvert + Send + 'static,
+    V: Recorder<U> + Send + 'static,
+    IOReceiver<T, OT, U, V>:
         AdditiveToMultiplicative<FieldElement = u128, Error = ShareConversionError>,
 {
     type Return = Result<Vec<u128>, ActorConversionError>;
@@ -156,13 +163,12 @@ where
 }
 
 #[async_trait]
-impl<T, U, V, W> Handler<VerifyTapeMessage> for Receiver<T, V, W>
+impl<T, OT, U> Handler<VerifyTapeMessage> for Receiver<T, OT, U, Tape>
 where
-    T: OTReceiverFactory<Protocol = U> + Send + 'static,
-    U: ObliviousReceive<Choice = bool, Outputs = Vec<Block>>,
-    V: Gf2_128ShareConvert + Send + 'static,
-    W: Recorder<V> + Send + 'static,
-    IOReceiver<T, V, W>: VerifyTape<Error = ShareConversionError>,
+    T: AsyncFactory<OT> + Send + 'static,
+    OT: ObliviousReceive<bool, Block> + Send + 'static,
+    U: Gf2_128ShareConvert + Send + 'static,
+    IOReceiver<T, OT, U, Tape>: VerifyTape<Error = ShareConversionError>,
 {
     type Return = Result<(), ActorConversionError>;
 

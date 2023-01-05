@@ -14,7 +14,7 @@ mod tests {
     use actor_mux::{
         MockClientChannelMuxer, MockClientControl, MockServerChannelMuxer, MockServerControl,
     };
-    use mpc_aio::protocol::ot::mock::MockOTFactory;
+    use mpc_aio::protocol::ot::mock::{MockOTFactory, MockOTReceiver, MockOTSender};
     use mpc_core::Block;
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
@@ -85,8 +85,22 @@ mod tests {
     }
 
     async fn create_conversion_controls<T: Gf2_128ShareConvert + Send + 'static>() -> (
-        SenderControl<ActorShareConversionSender<Arc<Mutex<MockOTFactory<Block>>>, T, Tape>>,
-        ReceiverControl<ActorShareConversionReceiver<Arc<Mutex<MockOTFactory<Block>>>, T, Tape>>,
+        SenderControl<
+            ActorShareConversionSender<
+                Arc<Mutex<MockOTFactory<Block>>>,
+                MockOTSender<Block>,
+                T,
+                Tape,
+            >,
+        >,
+        ReceiverControl<
+            ActorShareConversionReceiver<
+                Arc<Mutex<MockOTFactory<Block>>>,
+                MockOTReceiver<Block>,
+                T,
+                Tape,
+            >,
+        >,
     ) {
         let receiver_mux_addr =
             xtra::spawn_tokio(MockServerChannelMuxer::default(), Mailbox::unbounded());
@@ -100,7 +114,7 @@ mod tests {
 
         let ot_factory = Arc::new(Mutex::new(MockOTFactory::<Block>::default()));
 
-        let sender = ActorShareConversionSender::<_, T, Tape>::new(
+        let sender = ActorShareConversionSender::<_, _, T, Tape>::new(
             sender_mux,
             Arc::clone(&ot_factory),
             String::from(""),
@@ -108,7 +122,7 @@ mod tests {
         )
         .await
         .unwrap();
-        let receiver = ActorShareConversionReceiver::<_, T, Tape>::new(
+        let receiver = ActorShareConversionReceiver::<_, _, T, Tape>::new(
             receiver_mux,
             Arc::clone(&ot_factory),
             String::from(""),

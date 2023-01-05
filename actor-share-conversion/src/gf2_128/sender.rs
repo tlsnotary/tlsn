@@ -1,36 +1,43 @@
 use super::{A2MMessage, M2AMessage, SendTapeMessage};
 use crate::ActorConversionError;
-use mpc_aio::protocol::ot::{OTSenderFactory, ObliviousSend};
+use mpc_aio::protocol::ot::{OTFactoryError, ObliviousSend};
+use mpc_core::{ot::config::OTSenderConfig, Block};
 use share_conversion_aio::{
     gf2_128::{
-        recorder::{Recorder, Void},
+        recorder::{Recorder, Tape, Void},
         Gf2ConversionMessage, SendTape, Sender as IOSender,
     },
     AdditiveToMultiplicative, MultiplicativeToAdditive, ShareConversionError,
 };
-use share_conversion_core::gf2_128::{Gf2_128ShareConvert, OTEnvelope};
-use utils_aio::{adaptive_barrier::AdaptiveBarrier, mux::MuxChannelControl};
+use share_conversion_core::gf2_128::Gf2_128ShareConvert;
+use utils_aio::{adaptive_barrier::AdaptiveBarrier, factory::AsyncFactory, mux::MuxChannelControl};
 use xtra::prelude::*;
 
-enum State<T: OTSenderFactory, U: Gf2_128ShareConvert, V: Recorder<U>> {
-    Setup(IOSender<T, U, V>),
+enum State<
+    T: AsyncFactory<OT>,
+    OT: ObliviousSend<[Block; 2]>,
+    U: Gf2_128ShareConvert,
+    V: Recorder<U>,
+> {
+    Setup(IOSender<T, OT, U, V>),
     Complete,
 }
 
 #[derive(xtra::Actor)]
-pub struct Sender<T, U, V = Void>
+pub struct Sender<T, OT, U, V = Void>
 where
-    T: OTSenderFactory,
+    T: AsyncFactory<OT>,
+    OT: ObliviousSend<[Block; 2]>,
     U: Gf2_128ShareConvert,
     V: Recorder<U>,
 {
-    inner: State<T, U, V>,
+    inner: State<T, OT, U, V>,
 }
 
-impl<T, U, V> Sender<T, U, V>
+impl<T, OT, U, V> Sender<T, OT, U, V>
 where
-    T: OTSenderFactory + Send,
-    <<T as OTSenderFactory>::Protocol as ObliviousSend>::Inputs: From<OTEnvelope> + Send,
+    T: AsyncFactory<OT, Config = OTSenderConfig, Error = OTFactoryError> + Send,
+    OT: ObliviousSend<[Block; 2]> + Send,
     U: Gf2_128ShareConvert + Send,
     V: Recorder<U>,
 {
@@ -102,13 +109,14 @@ where
 }
 
 #[async_trait]
-impl<T, U, V> Handler<M2AMessage<Vec<u128>>> for Sender<T, U, V>
+impl<T, OT, U, V> Handler<M2AMessage<Vec<u128>>> for Sender<T, OT, U, V>
 where
-    T: OTSenderFactory + Send + 'static,
-    <<T as OTSenderFactory>::Protocol as ObliviousSend>::Inputs: From<OTEnvelope> + Send,
+    T: AsyncFactory<OT, Config = OTSenderConfig, Error = OTFactoryError> + Send + 'static,
+    OT: ObliviousSend<[Block; 2]> + Send + 'static,
     U: Gf2_128ShareConvert + Send + 'static,
     V: Recorder<U> + Send + 'static,
-    IOSender<T, U, V>: MultiplicativeToAdditive<FieldElement = u128, Error = ShareConversionError>,
+    IOSender<T, OT, U, V>:
+        MultiplicativeToAdditive<FieldElement = u128, Error = ShareConversionError>,
 {
     type Return = Result<Vec<u128>, ActorConversionError>;
 
@@ -128,13 +136,14 @@ where
 }
 
 #[async_trait]
-impl<T, U, V> Handler<A2MMessage<Vec<u128>>> for Sender<T, U, V>
+impl<T, OT, U, V> Handler<A2MMessage<Vec<u128>>> for Sender<T, OT, U, V>
 where
-    T: OTSenderFactory + Send + 'static,
-    <<T as OTSenderFactory>::Protocol as ObliviousSend>::Inputs: From<OTEnvelope> + Send,
+    T: AsyncFactory<OT, Config = OTSenderConfig, Error = OTFactoryError> + Send + 'static,
+    OT: ObliviousSend<[Block; 2]> + Send + 'static,
     U: Gf2_128ShareConvert + Send + 'static,
     V: Recorder<U> + Send + 'static,
-    IOSender<T, U, V>: AdditiveToMultiplicative<FieldElement = u128, Error = ShareConversionError>,
+    IOSender<T, OT, U, V>:
+        AdditiveToMultiplicative<FieldElement = u128, Error = ShareConversionError>,
 {
     type Return = Result<Vec<u128>, ActorConversionError>;
 
@@ -154,13 +163,12 @@ where
 }
 
 #[async_trait]
-impl<T, U, V> Handler<SendTapeMessage> for Sender<T, U, V>
+impl<T, OT, U> Handler<SendTapeMessage> for Sender<T, OT, U, Tape>
 where
-    T: OTSenderFactory + Send + 'static,
-    <<T as OTSenderFactory>::Protocol as ObliviousSend>::Inputs: From<OTEnvelope> + Send,
+    T: AsyncFactory<OT, Config = OTSenderConfig, Error = OTFactoryError> + Send + 'static,
+    OT: ObliviousSend<[Block; 2]> + Send + 'static,
     U: Gf2_128ShareConvert + Send + 'static,
-    V: Recorder<U> + Send + 'static,
-    IOSender<T, U, V>: SendTape<Error = ShareConversionError>,
+    IOSender<T, OT, U, Tape>: SendTape<Error = ShareConversionError>,
 {
     type Return = Result<(), ActorConversionError>;
 
