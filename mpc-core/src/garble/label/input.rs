@@ -1,184 +1,46 @@
 use rand::{CryptoRng, Rng};
 use std::collections::HashSet;
-use utils::iter::pick;
 
-use mpc_circuits::{Circuit, Input, InputValue, WireGroup};
+use mpc_circuits::{Circuit, Input, WireGroup};
 
 use crate::{
     garble::{
-        label::{Delta, LabelDecodingInfo, WireLabel, WireLabelPair},
-        Error, InputError,
+        label::{state, Delta, Labels, WireLabel},
+        Error, InputError, LabelError,
     },
     Block,
 };
 
-/// Wire labels corresponding to a circuit input
-#[derive(Debug, Clone, PartialEq)]
-pub struct InputLabels<T>
-where
-    T: PartialEq + Copy,
-{
-    pub input: Input,
-    labels: Vec<T>,
-}
-
-impl<T> InputLabels<T>
-where
-    T: PartialEq + Copy,
-{
-    pub fn new(input: Input, labels: &[T]) -> Result<Self, Error> {
-        if input.as_ref().len() != labels.len() {
-            return Err(Error::InvalidInputLabels);
-        }
-
-        Ok(Self {
-            input,
-            labels: labels.to_vec(),
-        })
-    }
-
-    /// Returns input id
-    pub fn id(&self) -> usize {
-        self.input.id()
-    }
-
-    /// Returns labels
-    pub(crate) fn to_inner(self) -> Vec<T> {
-        self.labels
-    }
-
-    #[cfg(test)]
-    /// Returns label at position idx
-    ///
-    /// Panics if idx is not in range
-    pub fn get_label(&self, idx: usize) -> &T {
-        &self.labels[idx]
-    }
-
-    #[cfg(test)]
-    /// Set the value of a wire label at position idx
-    pub fn set_label(&mut self, idx: usize, label: T) {
-        self.labels[idx] = label;
-    }
-}
-
-impl InputLabels<WireLabelPair> {
-    /// Returns input labels in block representation
-    pub fn to_blocks(self) -> Vec<[Block; 2]> {
-        self.labels
+impl Labels<Input, state::Full> {
+    /// Generates wire labels for an input group using the provided RNG.
+    pub fn generate<R: Rng + CryptoRng>(rng: &mut R, input: Input, delta: Delta) -> Self {
+        // Logical low wire labels, [W_0; count]
+        let low = Block::random_vec(rng, input.len())
             .into_iter()
-            .map(|labels| labels.to_inner())
-            .collect()
+            .zip(input.wires())
+            .map(|(value, id)| WireLabel { id: *id, value })
+            .collect();
+
+        Self {
+            group: input,
+            state: state::Full { low, delta },
+        }
     }
 
-    /// Generates a full set of input [`WireLabelPair`] for the provided [`Circuit`]
-    pub fn generate<R: Rng + CryptoRng>(
+    /// Generates a full set of input wire labels for a circuit using the provided RNG.
+    pub fn generate_set<R: Rng + CryptoRng>(
         rng: &mut R,
         circ: &Circuit,
         delta: Option<Delta>,
     ) -> (Vec<Self>, Delta) {
-        let (labels, delta) = WireLabelPair::generate(rng, delta, circ.input_len(), 0);
-
-        // This should never panic due to invariants enforced during the construction of a `Circuit`
-        let inputs: Vec<InputLabels<WireLabelPair>> = circ
-            .inputs()
-            .iter()
-            .map(|input| {
-                InputLabels::new(input.clone(), &pick(&labels, input.as_ref().wires()))
-                    .expect("Circuit invariant violated, wrong wire count")
-            })
-            .collect();
-
-        (inputs, delta)
-    }
-
-    /// Generates a full set of input [`WireLabelPair`] for the provided [`Circuit`], split by provided input ids.
-    /// The first collection corresponds to the provided ids, the other collection is the remainder.
-    pub fn generate_split<R: Rng + CryptoRng>(
-        rng: &mut R,
-        circ: &Circuit,
-        input_ids: &[usize],
-        delta: Option<Delta>,
-    ) -> Result<((Vec<Self>, Vec<Self>), Delta), Error> {
-        let mut input_ids = input_ids.to_vec();
-        input_ids.sort();
-        input_ids.dedup();
-
-        // Check input ids are valid
-        for id in input_ids.iter() {
-            _ = circ.input(*id)?
-        }
-
-        let (labels, delta) = Self::generate(rng, circ, delta);
-
-        let (left, right): (Vec<Self>, Vec<Self>) = labels
-            .into_iter()
-            .partition(|labels| input_ids.contains(&labels.id()));
-
-        Ok(((left, right), delta))
-    }
-
-    /// Returns input wire labels corresponding to an [`InputValue`]
-    pub fn select(&self, value: &InputValue) -> Result<InputLabels<WireLabel>, Error> {
-        if self.input.id() != value.id() {
-            return Err(Error::InvalidInputLabels);
-        }
-
-        let labels: Vec<WireLabel> = self
-            .labels
-            .iter()
-            .zip(value.value().to_lsb0_bits())
-            .map(|(pair, value)| pair.select(value))
-            .collect();
-
-        Ok(InputLabels {
-            input: self.input.clone(),
-            labels,
-        })
-    }
-
-    /// Returns input label decoding info
-    pub fn decoding(&self) -> InputLabelsDecodingInfo {
-        InputLabelsDecodingInfo {
-            input: self.input.clone(),
-            decoding: self
-                .labels
+        let delta = delta.unwrap_or_else(|| Delta::random(rng));
+        (
+            circ.inputs()
                 .iter()
-                .map(|label| LabelDecodingInfo(label.low().lsb() == 1))
+                .map(|input| Self::generate(rng, input.clone(), delta))
                 .collect(),
-        }
-    }
-
-    /// Reconstructs input label pairs from existing labels, delta, and decoding info
-    pub fn from_decoding(
-        input_labels: InputLabels<WireLabel>,
-        delta: Delta,
-        decoding: InputLabelsDecodingInfo,
-    ) -> Result<Self, Error> {
-        if input_labels.id() != decoding.input.id() {
-            return Err(Error::InvalidLabelDecodingInfo);
-        }
-
-        let labels: Vec<WireLabelPair> = input_labels
-            .labels
-            .iter()
-            .zip(decoding.decoding)
-            .map(|(label, decoding)| label.to_pair(delta, label.decode(decoding)))
-            .collect();
-
-        Ok(InputLabels {
-            input: input_labels.input,
-            labels,
-        })
-    }
-}
-
-impl<T> AsRef<[T]> for InputLabels<T>
-where
-    T: PartialEq + Copy,
-{
-    fn as_ref(&self) -> &[T] {
-        &self.labels
+            delta,
+        )
     }
 }
 
@@ -193,8 +55,8 @@ pub struct SanitizedInputLabels(Vec<WireLabel>);
 impl SanitizedInputLabels {
     pub(crate) fn new(
         circ: &Circuit,
-        gen_labels: &[InputLabels<WireLabel>],
-        ev_labels: &[InputLabels<WireLabel>],
+        gen_labels: &[Labels<Input, state::Active>],
+        ev_labels: &[Labels<Input, state::Active>],
     ) -> Result<Self, Error> {
         let gen_ids: HashSet<usize> = gen_labels.iter().map(|labels| labels.id()).collect();
         let ev_ids: HashSet<usize> = ev_labels.iter().map(|labels| labels.id()).collect();
@@ -215,9 +77,8 @@ impl SanitizedInputLabels {
         let mut labels: Vec<WireLabel> = gen_labels
             .iter()
             .chain(ev_labels.iter())
-            .map(|labels| labels.as_ref())
+            .map(|labels| labels.clone().inner())
             .flatten()
-            .copied()
             .collect();
 
         labels.sort_by_key(|label| label.id());
@@ -246,40 +107,6 @@ impl SanitizedInputLabels {
     }
 }
 
-/// For details about label decoding see [`LabelDecodingInfo`]
-#[derive(Debug, Clone, PartialEq)]
-pub struct InputLabelsDecodingInfo {
-    pub input: Input,
-    decoding: Vec<LabelDecodingInfo>,
-}
-
-impl AsRef<[LabelDecodingInfo]> for InputLabelsDecodingInfo {
-    fn as_ref(&self) -> &[LabelDecodingInfo] {
-        &self.decoding
-    }
-}
-
-/// Extracts input labels from full set of circuit labels
-pub(crate) fn extract_input_labels<T: PartialEq + Copy>(
-    circ: &Circuit,
-    labels: &[T],
-) -> Result<Vec<InputLabels<T>>, Error> {
-    circ.inputs()
-        .iter()
-        .map(|input| {
-            InputLabels::new(
-                input.clone(),
-                &input
-                    .as_ref()
-                    .wires()
-                    .iter()
-                    .map(|wire_id| labels[*wire_id])
-                    .collect::<Vec<T>>(),
-            )
-        })
-        .collect::<Result<Vec<InputLabels<T>>, Error>>()
-}
-
 pub(crate) mod unchecked {
     use super::*;
 
@@ -291,79 +118,58 @@ pub(crate) mod unchecked {
     }
 
     #[cfg(test)]
-    impl From<InputLabels<WireLabel>> for UncheckedInputLabels {
-        fn from(labels: InputLabels<WireLabel>) -> Self {
+    impl From<Labels<Input, state::Active>> for UncheckedInputLabels {
+        fn from(labels: Labels<Input, state::Active>) -> Self {
             Self {
                 id: labels.id(),
-                labels: labels.labels.into_iter().map(|label| label.value).collect(),
+                labels: labels
+                    .state
+                    .labels
+                    .into_iter()
+                    .map(|label| label.value)
+                    .collect(),
             }
         }
     }
 
-    impl InputLabels<WireLabel> {
+    impl Labels<Input, state::Active> {
         /// Validates and converts input labels to checked variant
         pub fn from_unchecked(
             input: Input,
             unchecked: UncheckedInputLabels,
-        ) -> Result<Self, Error> {
-            if unchecked.id != input.id() || unchecked.labels.len() != input.as_ref().len() {
-                return Err(Error::InvalidInputLabels);
+        ) -> Result<Self, LabelError> {
+            if unchecked.id != input.id() {
+                return Err(LabelError::InvalidLabelId(
+                    input.name().to_string(),
+                    input.id(),
+                    unchecked.id,
+                ));
+            } else if unchecked.labels.len() != input.len() {
+                return Err(LabelError::InvalidLabelCount(
+                    input.name().to_string(),
+                    input.len(),
+                    unchecked.labels.len(),
+                ));
             }
 
             let labels = unchecked
                 .labels
                 .into_iter()
-                .zip(input.as_ref().wires())
+                .zip(input.wires())
                 .map(|(label, id)| WireLabel::new(*id, label))
                 .collect();
 
-            Ok(Self { input, labels })
-        }
-    }
-
-    /// Input label decoding info which hasn't been validated against a circuit spec
-    ///
-    /// For more information on label decoding see [`LabelDecodingInfo`]
-    #[derive(Debug, Clone)]
-    pub struct UncheckedInputLabelsDecodingInfo {
-        /// the id of the circuit [Input] which this decoding info is for
-        pub(crate) id: usize,
-        pub(crate) decoding: Vec<LabelDecodingInfo>,
-    }
-
-    #[cfg(test)]
-    impl From<InputLabelsDecodingInfo> for UncheckedInputLabelsDecodingInfo {
-        fn from(decoding: InputLabelsDecodingInfo) -> Self {
-            Self {
-                id: decoding.input.id(),
-                decoding: decoding.decoding,
-            }
-        }
-    }
-
-    impl InputLabelsDecodingInfo {
-        pub fn from_unchecked(
-            input: Input,
-            unchecked: unchecked::UncheckedInputLabelsDecodingInfo,
-        ) -> Result<Self, Error> {
-            if unchecked.id != input.id() || unchecked.decoding.len() != input.as_ref().len() {
-                return Err(Error::InvalidLabelDecodingInfo);
-            }
-
-            Ok(Self {
-                input,
-                decoding: unchecked.decoding,
+            Ok(Labels {
+                group: input,
+                state: state::Active { labels },
             })
-        }
-
-        #[cfg(test)]
-        pub fn set_decoding(&mut self, idx: usize, value: bool) {
-            self.decoding[idx] = LabelDecodingInfo(value);
         }
     }
 
     #[cfg(test)]
     mod tests {
+        use crate::garble::ActiveInputLabels;
+
         use super::*;
         use rstest::*;
 
@@ -389,7 +195,7 @@ pub(crate) mod unchecked {
 
         #[rstest]
         fn test_input_labels(input: Input, unchecked_input_labels: UncheckedInputLabels) {
-            InputLabels::from_unchecked(input, unchecked_input_labels).unwrap();
+            ActiveInputLabels::from_unchecked(input, unchecked_input_labels).unwrap();
         }
 
         #[rstest]
@@ -398,8 +204,8 @@ pub(crate) mod unchecked {
             mut unchecked_input_labels: UncheckedInputLabels,
         ) {
             unchecked_input_labels.id += 1;
-            let err = InputLabels::from_unchecked(input, unchecked_input_labels).unwrap_err();
-            assert!(matches!(err, Error::InvalidInputLabels))
+            let err = ActiveInputLabels::from_unchecked(input, unchecked_input_labels).unwrap_err();
+            assert!(matches!(err, LabelError::InvalidLabelId(_, _, _)))
         }
 
         #[rstest]
@@ -408,8 +214,8 @@ pub(crate) mod unchecked {
             mut unchecked_input_labels: UncheckedInputLabels,
         ) {
             unchecked_input_labels.labels.pop();
-            let err = InputLabels::from_unchecked(input, unchecked_input_labels).unwrap_err();
-            assert!(matches!(err, Error::InvalidInputLabels))
+            let err = ActiveInputLabels::from_unchecked(input, unchecked_input_labels).unwrap_err();
+            assert!(matches!(err, LabelError::InvalidLabelCount(_, _, _)))
         }
     }
 }
@@ -419,7 +225,7 @@ mod tests {
     use super::*;
     use rstest::*;
 
-    use mpc_circuits::{Circuit, ADDER_64};
+    use mpc_circuits::{Circuit, Value, ADDER_64};
     use rand::thread_rng;
 
     #[fixture]
@@ -429,11 +235,8 @@ mod tests {
 
     #[rstest]
     fn test_sanitized_labels_dup(circ: Circuit) {
-        let (labels, _) = InputLabels::generate(&mut thread_rng(), &circ, None);
-        let input_values = [
-            circ.input(0).unwrap().to_value(0u64).unwrap(),
-            circ.input(1).unwrap().to_value(0u64).unwrap(),
-        ];
+        let (labels, _) = Labels::generate_set(&mut thread_rng(), &circ, None);
+        let input_values = [Value::from(0u64), Value::from(0u64)];
 
         // Generator provides labels for both inputs, this is a no no
         let gen_labels = [
@@ -450,11 +253,8 @@ mod tests {
 
     #[rstest]
     fn test_sanitized_labels_wrong_count(circ: Circuit) {
-        let (labels, _) = InputLabels::generate(&mut thread_rng(), &circ, None);
-        let input_values = [
-            circ.input(0).unwrap().to_value(0u64).unwrap(),
-            circ.input(1).unwrap().to_value(0u64).unwrap(),
-        ];
+        let (labels, _) = Labels::generate_set(&mut thread_rng(), &circ, None);
+        let input_values = [Value::from(0u64), Value::from(0u64)];
 
         // Generator provides no labels
         let gen_labels = [];
@@ -477,11 +277,8 @@ mod tests {
 
     #[rstest]
     fn test_sanitized_labels_duplicate_wires(circ: Circuit) {
-        let (labels, _) = InputLabels::generate(&mut thread_rng(), &circ, None);
-        let input_values = [
-            circ.input(0).unwrap().to_value(0u64).unwrap(),
-            circ.input(1).unwrap().to_value(0u64).unwrap(),
-        ];
+        let (labels, _) = Labels::generate_set(&mut thread_rng(), &circ, None);
+        let input_values = [Value::from(0u64), Value::from(0u64)];
 
         let mut input_labels = [
             labels[0].clone().select(&input_values[0]).unwrap(),
@@ -489,7 +286,7 @@ mod tests {
         ];
 
         // Somehow manages to get an overlapping label id here
-        input_labels[1].labels[0].id = 0;
+        input_labels[1].state.labels[0].id = 0;
 
         let gen_labels = [input_labels[1].clone()];
         let ev_labels = [input_labels[0].clone()];
@@ -506,6 +303,7 @@ mod tests {
 
         // Somehow manages to get an extra wire label here which overwrites another label
         input_labels[1]
+            .state
             .labels
             .push(WireLabel::new(0, crate::Block::new(0)));
 
@@ -520,11 +318,8 @@ mod tests {
 
     #[rstest]
     fn test_sanitized_labels_invalid_wire_count(circ: Circuit) {
-        let (labels, _) = InputLabels::generate(&mut thread_rng(), &circ, None);
-        let input_values = [
-            circ.input(0).unwrap().to_value(0u64).unwrap(),
-            circ.input(1).unwrap().to_value(0u64).unwrap(),
-        ];
+        let (labels, _) = Labels::generate_set(&mut thread_rng(), &circ, None);
+        let input_values = [Value::from(0u64), Value::from(0u64)];
 
         let mut input_labels = [
             labels[0].clone().select(&input_values[0]).unwrap(),
@@ -532,7 +327,7 @@ mod tests {
         ];
 
         // Somehow manages to get an input missing a wire label here
-        input_labels[1].labels.pop();
+        input_labels[1].state.labels.pop();
 
         let gen_labels = [input_labels[1].clone()];
         let ev_labels = [input_labels[0].clone()];
@@ -549,6 +344,7 @@ mod tests {
 
         // Somehow manages to get an extra wire label here
         input_labels[1]
+            .state
             .labels
             .push(WireLabel::new(usize::MAX, crate::Block::new(0)));
 
@@ -563,7 +359,7 @@ mod tests {
 
     #[rstest]
     fn test_input_label_reconstruction(circ: Circuit) {
-        let (mut full_labels, delta) = InputLabels::generate(&mut thread_rng(), &circ, None);
+        let (mut full_labels, delta) = Labels::generate_set(&mut thread_rng(), &circ, None);
 
         // grab input 0
         let full_labels = full_labels.remove(0);
@@ -571,10 +367,10 @@ mod tests {
 
         // select wire labels for value
         let value = circ.input(0).unwrap().to_value(42069u64).unwrap();
-        let labels = full_labels.select(&value).unwrap();
+        let labels = full_labels.select(&value.value()).unwrap();
 
         // using delta and value, reconstruct full wire label pairs
-        let reconstructed_labels = InputLabels::from_decoding(labels, delta, decoding).unwrap();
+        let reconstructed_labels = Labels::from_decoding(labels, delta, decoding).unwrap();
 
         assert_eq!(reconstructed_labels, full_labels);
     }

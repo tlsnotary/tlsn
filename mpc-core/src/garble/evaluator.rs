@@ -2,7 +2,7 @@ use cipher::{consts::U16, BlockCipher, BlockEncrypt};
 
 use crate::{
     block::{Block, SELECT_MASK},
-    garble::{circuit::EncryptedGate, label::SanitizedInputLabels, Error, WireLabel},
+    garble::{circuit::EncryptedGate, label::SanitizedInputLabels, Error, LabelError, WireLabel},
 };
 use mpc_circuits::{Circuit, Gate};
 
@@ -56,22 +56,22 @@ pub fn evaluate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     for gate in circ.gates() {
         match *gate {
             Gate::Inv { xref, zref, .. } => {
-                let x = labels[xref].ok_or(Error::UninitializedLabel(xref))?;
+                let x = labels[xref].ok_or(LabelError::UninitializedLabel(xref))?;
                 labels[zref] = Some(x);
             }
             Gate::Xor {
                 xref, yref, zref, ..
             } => {
-                let x = labels[xref].ok_or(Error::UninitializedLabel(xref))?;
-                let y = labels[yref].ok_or(Error::UninitializedLabel(yref))?;
+                let x = labels[xref].ok_or(LabelError::UninitializedLabel(xref))?;
+                let y = labels[yref].ok_or(LabelError::UninitializedLabel(yref))?;
                 let z = xor_gate(&x, &y, zref);
                 labels[zref] = Some(z);
             }
             Gate::And {
                 xref, yref, zref, ..
             } => {
-                let x = labels[xref].ok_or(Error::UninitializedLabel(xref))?;
-                let y = labels[yref].ok_or(Error::UninitializedLabel(yref))?;
+                let x = labels[xref].ok_or(LabelError::UninitializedLabel(xref))?;
+                let y = labels[yref].ok_or(LabelError::UninitializedLabel(yref))?;
                 let z = and_gate(cipher, &x, &y, zref, encrypted_gates[tid].as_ref(), gid);
                 labels[zref] = Some(z);
                 tid += 1;

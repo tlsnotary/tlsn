@@ -16,15 +16,15 @@ use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use mpc_circuits::{Circuit, InputValue, WireGroup};
 use mpc_core::garble::{
-    exec::dual as core, gc_state, Delta, GarbledCircuit, InputLabels, WireLabel, WireLabelPair,
+    exec::dual as core, gc_state, ActiveInputLabels, Delta, FullInputLabels, GarbledCircuit,
 };
 use utils_aio::expect_msg_or_err;
 
 pub struct DualExLeader<B, S, R>
 where
     B: Generator + Evaluator,
-    S: ObliviousSend<InputLabels<WireLabelPair>>,
-    R: ObliviousReceive<InputValue, InputLabels<WireLabel>>,
+    S: ObliviousSend<FullInputLabels>,
+    R: ObliviousReceive<InputValue, ActiveInputLabels>,
 {
     channel: GarbleChannel,
     backend: B,
@@ -35,8 +35,8 @@ where
 impl<B, S, R> DualExLeader<B, S, R>
 where
     B: Generator + Evaluator + Send,
-    S: ObliviousSend<InputLabels<WireLabelPair>> + Send,
-    R: ObliviousReceive<InputValue, InputLabels<WireLabel>> + Send,
+    S: ObliviousSend<FullInputLabels> + Send,
+    R: ObliviousReceive<InputValue, ActiveInputLabels> + Send,
 {
     pub fn new(channel: GarbleChannel, backend: B, label_sender: S, label_receiver: R) -> Self {
         Self {
@@ -52,14 +52,14 @@ where
 impl<B, S, R> ExecuteWithLabels for DualExLeader<B, S, R>
 where
     B: Generator + Evaluator + Send,
-    S: ObliviousSend<InputLabels<WireLabelPair>> + Send,
-    R: ObliviousReceive<InputValue, InputLabels<WireLabel>> + Send,
+    S: ObliviousSend<FullInputLabels> + Send,
+    R: ObliviousReceive<InputValue, ActiveInputLabels> + Send,
 {
     async fn execute_with_labels(
         &mut self,
         circ: Arc<Circuit>,
         inputs: &[InputValue],
-        input_labels: &[InputLabels<WireLabelPair>],
+        input_labels: &[FullInputLabels],
         delta: Delta,
     ) -> Result<GarbledCircuit<gc_state::Evaluated>, GCError> {
         let leader = core::DualExLeader::new(circ.clone());
@@ -82,7 +82,7 @@ where
             .iter()
             .filter(|input| !leader_input_ids.contains(&input.id()))
             .cloned()
-            .collect::<Vec<InputLabels<WireLabelPair>>>();
+            .collect::<Vec<FullInputLabels>>();
 
         self.label_sender.send(follower_labels).await?;
 
@@ -105,7 +105,7 @@ where
 
         let msg = expect_msg_or_err!(
             self.channel.next().await,
-            GarbleMessage::OutputCheck,
+            GarbleMessage::OutputLabelsDigest,
             GCError::Unexpected
         )?;
 
@@ -124,8 +124,8 @@ where
 pub struct DualExFollower<B, S, R>
 where
     B: Generator + Evaluator,
-    S: ObliviousSend<InputLabels<WireLabelPair>>,
-    R: ObliviousReceive<InputValue, InputLabels<WireLabel>>,
+    S: ObliviousSend<FullInputLabels>,
+    R: ObliviousReceive<InputValue, ActiveInputLabels>,
 {
     channel: GarbleChannel,
     backend: B,
@@ -136,8 +136,8 @@ where
 impl<B, S, R> DualExFollower<B, S, R>
 where
     B: Generator + Evaluator + Send,
-    S: ObliviousSend<InputLabels<WireLabelPair>> + Send,
-    R: ObliviousReceive<InputValue, InputLabels<WireLabel>> + Send,
+    S: ObliviousSend<FullInputLabels> + Send,
+    R: ObliviousReceive<InputValue, ActiveInputLabels> + Send,
 {
     pub fn new(channel: GarbleChannel, backend: B, label_sender: S, label_receiver: R) -> Self {
         Self {
@@ -153,14 +153,14 @@ where
 impl<B, S, R> ExecuteWithLabels for DualExFollower<B, S, R>
 where
     B: Generator + Evaluator + Send,
-    S: ObliviousSend<InputLabels<WireLabelPair>> + Send,
-    R: ObliviousReceive<InputValue, InputLabels<WireLabel>> + Send,
+    S: ObliviousSend<FullInputLabels> + Send,
+    R: ObliviousReceive<InputValue, ActiveInputLabels> + Send,
 {
     async fn execute_with_labels(
         &mut self,
         circ: Arc<Circuit>,
         inputs: &[InputValue],
-        input_labels: &[InputLabels<WireLabelPair>],
+        input_labels: &[FullInputLabels],
         delta: Delta,
     ) -> Result<GarbledCircuit<gc_state::Evaluated>, GCError> {
         let follower = core::DualExFollower::new(circ.clone());
@@ -183,7 +183,7 @@ where
             .iter()
             .filter(|input| !follower_input_ids.contains(&input.id()))
             .cloned()
-            .collect::<Vec<InputLabels<WireLabelPair>>>();
+            .collect::<Vec<FullInputLabels>>();
 
         self.label_sender.send(leader_labels).await?;
 
@@ -208,7 +208,7 @@ where
         let (check, follower) = follower.reveal(leader_commit);
 
         self.channel
-            .send(GarbleMessage::OutputCheck(check.into()))
+            .send(GarbleMessage::OutputLabelsDigest(check.into()))
             .await?;
 
         let msg = expect_msg_or_err!(
