@@ -61,6 +61,9 @@ impl From<[u8; 16]> for Delta {
 }
 
 /// Collection of labels corresponding to a wire group
+///
+/// This type uses `Arc` references to the underlying data to make it cheap to clone,
+/// and thus more memory efficient when re-using labels between garbled circuit executions.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Labels<G, S>
 where
@@ -89,19 +92,28 @@ where
             ));
         }
 
+        let low = labels
+            .into_iter()
+            .map(|label| WireLabel {
+                id: label.id,
+                value: label.low,
+            })
+            .collect();
+
         Ok(Self {
             group,
-            state: state::Full {
-                low: labels
-                    .into_iter()
-                    .map(|label| WireLabel {
-                        id: label.id,
-                        value: label.low,
-                    })
-                    .collect(),
-                delta,
-            },
+            state: state::Full::from_labels(low, delta),
         })
+    }
+
+    /// Returns iterator to wire labels
+    pub fn iter(&self) -> impl Iterator<Item = WireLabelPair> + '_ {
+        self.state.iter()
+    }
+
+    /// Returns iterator to wire labels as blocks
+    pub fn iter_blocks(&self) -> impl Iterator<Item = [Block; 2]> + '_ {
+        self.iter().map(|label| [label.low(), label.high()])
     }
 
     /// Returns delta offset
@@ -144,10 +156,8 @@ where
 
     /// Validates whether the provided active labels are authentic
     pub fn validate(&self, labels: &Labels<G, state::Active>) -> Result<(), LabelError> {
-        for (pair, label) in self.state.to_labels().into_iter().zip(&labels.state.labels) {
-            if label.value == pair.low() || label.value == pair.high() {
-                continue;
-            } else {
+        for (pair, label) in self.state.iter().zip(labels.iter()) {
+            if label.value != pair.low() && label.value != pair.high() {
                 return Err(LabelError::InauthenticLabels(
                     labels.group.name().to_string(),
                 ));
@@ -210,7 +220,7 @@ where
 
         Ok(Self {
             group,
-            state: state::Active { labels },
+            state: state::Active::from_labels(labels),
         })
     }
 
@@ -226,17 +236,14 @@ where
         Self::from_labels(group, labels)
     }
 
-    /// Returns wire labels
-    pub fn inner(&self) -> Vec<WireLabel> {
-        self.state.labels.clone()
+    /// Returns iterator to wire labels
+    pub fn iter(&self) -> impl Iterator<Item = WireLabel> + '_ {
+        self.state.iter()
     }
 
-    /// Returns labels as blocks
-    pub fn blocks(&self) -> Vec<Block> {
-        self.inner()
-            .into_iter()
-            .map(|label| label.value())
-            .collect()
+    /// Returns iterator to wire labels as blocks
+    pub fn iter_blocks(&self) -> impl Iterator<Item = Block> + '_ {
+        self.iter().map(|label| label.value())
     }
 
     /// Decode active labels to values using label decoding information.
