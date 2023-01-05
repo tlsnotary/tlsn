@@ -44,9 +44,9 @@ mod tests {
             create_conversion_controls::<AddShare>().await;
 
         let sender_task =
-            tokio::spawn(async move { sender_control.a_to_m(&random_numbers_1).await.unwrap() });
+            tokio::spawn(async move { sender_control.a_to_m(random_numbers_1).await.unwrap() });
         let receiver_task =
-            tokio::spawn(async move { receiver_control.a_to_m(&random_numbers_2).await.unwrap() });
+            tokio::spawn(async move { receiver_control.a_to_m(random_numbers_2).await.unwrap() });
 
         let (sender_output, receiver_output) = tokio::join!(sender_task, receiver_task);
         let (sender_output, receiver_output) = (sender_output.unwrap(), receiver_output.unwrap());
@@ -69,11 +69,11 @@ mod tests {
             create_conversion_controls::<AddShare>().await;
 
         let sender_task = tokio::spawn(async move {
-            let _ = sender_control.a_to_m(&random_numbers_1).await.unwrap();
+            let _ = sender_control.a_to_m(random_numbers_1).await.unwrap();
             sender_control.send_tape().await.unwrap()
         });
         let receiver_task = tokio::spawn(async move {
-            receiver_control.a_to_m(&random_numbers_2).await.unwrap();
+            receiver_control.a_to_m(random_numbers_2).await.unwrap();
             receiver_control.verify_tape().await.unwrap()
         });
 
@@ -113,22 +113,17 @@ mod tests {
         let sender_mux = MockClientControl::new(sender_mux_addr);
 
         let ot_factory = Arc::new(Mutex::new(MockOTFactory::<Block>::default()));
+        let mut sender = ActorShareConversionSender::<_, _, T, Tape>::new();
+        let mut receiver = ActorShareConversionReceiver::<_, _, T, Tape>::new();
 
-        let sender = ActorShareConversionSender::<_, _, T, Tape>::new(
-            sender_mux,
-            Arc::clone(&ot_factory),
-            String::from(""),
-            None,
-        )
-        .await
-        .unwrap();
-        let receiver = ActorShareConversionReceiver::<_, _, T, Tape>::new(
-            receiver_mux,
-            Arc::clone(&ot_factory),
-            String::from(""),
-        )
-        .await
-        .unwrap();
+        sender
+            .setup(sender_mux, Arc::clone(&ot_factory), String::from(""), None)
+            .await
+            .unwrap();
+        receiver
+            .setup(receiver_mux, Arc::clone(&ot_factory), String::from(""))
+            .await
+            .unwrap();
 
         let sender_addr = xtra::spawn_tokio(sender, Mailbox::unbounded());
         let receiver_addr = xtra::spawn_tokio(receiver, Mailbox::unbounded());

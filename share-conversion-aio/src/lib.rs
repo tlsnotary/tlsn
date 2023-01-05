@@ -15,7 +15,7 @@ pub trait AdditiveToMultiplicative {
 
     async fn a_to_m(
         &mut self,
-        input: &[Self::FieldElement],
+        input: Vec<Self::FieldElement>,
     ) -> Result<Vec<Self::FieldElement>, Self::Error>;
 }
 
@@ -27,7 +27,7 @@ pub trait MultiplicativeToAdditive {
 
     async fn m_to_a(
         &mut self,
-        input: &[Self::FieldElement],
+        input: Vec<Self::FieldElement>,
     ) -> Result<Vec<Self::FieldElement>, Self::Error>;
 }
 

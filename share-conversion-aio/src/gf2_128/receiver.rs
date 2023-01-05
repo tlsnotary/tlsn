@@ -109,10 +109,10 @@ where
 
     async fn a_to_m(
         &mut self,
-        input: &[Self::FieldElement],
+        input: Vec<Self::FieldElement>,
     ) -> Result<Vec<Self::FieldElement>, Self::Error> {
-        let output = self.convert_from(input).await?;
-        self.recorder.record_for_receiver(input, &output);
+        let output = self.convert_from(&input).await?;
+        self.recorder.record_for_receiver(&input, &output);
         Ok(output)
     }
 }
@@ -129,10 +129,10 @@ where
 
     async fn m_to_a(
         &mut self,
-        input: &[Self::FieldElement],
+        input: Vec<Self::FieldElement>,
     ) -> Result<Vec<Self::FieldElement>, Self::Error> {
-        let output = self.convert_from(input).await?;
-        self.recorder.record_for_receiver(input, &output);
+        let output = self.convert_from(&input).await?;
+        self.recorder.record_for_receiver(&input, &output);
         Ok(output)
     }
 }

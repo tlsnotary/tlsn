@@ -20,6 +20,7 @@ where
     U: Gf2_128ShareConvert,
     V: Recorder<U>,
 {
+    Initialized,
     Setup(IOReceiver<T, OT, U, V>),
     Complete,
 }
@@ -32,7 +33,21 @@ where
     U: Gf2_128ShareConvert,
     V: Recorder<U>,
 {
-    inner: State<T, OT, U, V>,
+    state: State<T, OT, U, V>,
+}
+
+impl<T, OT, U, V> Receiver<T, OT, U, V>
+where
+    T: AsyncFactory<OT>,
+    OT: ObliviousReceive<bool, Block>,
+    U: Gf2_128ShareConvert,
+    V: Recorder<U>,
+{
+    pub fn new() -> Self {
+        Self {
+            state: State::Initialized,
+        }
+    }
 }
 
 impl<T, OT, U, V> Receiver<T, OT, U, V>
@@ -42,16 +57,16 @@ where
     U: Gf2_128ShareConvert,
     V: Recorder<U>,
 {
-    pub async fn new<X: MuxChannelControl<Gf2ConversionMessage>>(
+    pub async fn setup<X: MuxChannelControl<Gf2ConversionMessage>>(
+        &mut self,
         mut muxer: X,
         receiver_factory: T,
         id: String,
-    ) -> Result<Self, ActorConversionError> {
+    ) -> Result<(), ActorConversionError> {
         let channel = muxer.get_channel(id.clone()).await?;
         let receiver = IOReceiver::new(receiver_factory, id, channel);
-        Ok(Self {
-            inner: State::Setup(receiver),
-        })
+        self.state = State::Setup(receiver);
+        Ok(())
     }
 }
 
@@ -74,9 +89,9 @@ where
 
     async fn m_to_a(
         &mut self,
-        input: &[Self::FieldElement],
+        input: Vec<Self::FieldElement>,
     ) -> Result<Vec<Self::FieldElement>, Self::Error> {
-        self.0.send(M2AMessage(input.to_vec())).await?
+        self.0.send(M2AMessage(input)).await?
     }
 }
 
@@ -90,9 +105,9 @@ where
 
     async fn a_to_m(
         &mut self,
-        input: &[Self::FieldElement],
+        input: Vec<Self::FieldElement>,
     ) -> Result<Vec<Self::FieldElement>, Self::Error> {
-        self.0.send(A2MMessage(input.to_vec())).await?
+        self.0.send(A2MMessage(input)).await?
     }
 }
 
@@ -125,12 +140,13 @@ where
         message: M2AMessage<Vec<u128>>,
         _ctx: &mut Context<Self>,
     ) -> Self::Return {
-        match self.inner {
+        match self.state {
             State::Setup(ref mut inner) => inner
-                .m_to_a(message.0.as_slice())
+                .m_to_a(message.0)
                 .await
                 .map_err(ActorConversionError::from),
             State::Complete => Err(ActorConversionError::Shutdown),
+            State::Initialized => Err(ActorConversionError::NotSetup),
         }
     }
 }
@@ -152,12 +168,13 @@ where
         message: A2MMessage<Vec<u128>>,
         _ctx: &mut Context<Self>,
     ) -> Self::Return {
-        match self.inner {
+        match self.state {
             State::Setup(ref mut inner) => inner
-                .a_to_m(message.0.as_slice())
+                .a_to_m(message.0)
                 .await
                 .map_err(ActorConversionError::from),
             State::Complete => Err(ActorConversionError::Shutdown),
+            State::Initialized => Err(ActorConversionError::NotSetup),
         }
     }
 }
@@ -177,16 +194,15 @@ where
         _message: VerifyTapeMessage,
         ctx: &mut Context<Self>,
     ) -> Self::Return {
-        let inner = std::mem::replace(&mut self.inner, State::Complete);
-
-        if let State::Setup(inner) = inner {
-            inner
+        let inner = std::mem::replace(&mut self.state, State::Complete);
+        let _ = match inner {
+            State::Setup(inner) => inner
                 .verify_tape()
                 .await
-                .map_err(ActorConversionError::from)?
-        } else {
-            return Err(ActorConversionError::Shutdown);
-        };
+                .map_err(ActorConversionError::from),
+            State::Complete => Err(ActorConversionError::Shutdown),
+            State::Initialized => Err(ActorConversionError::NotSetup),
+        }?;
 
         ctx.stop_self();
         Ok(())

@@ -126,11 +126,11 @@ where
 
     async fn a_to_m(
         &mut self,
-        input: &[Self::FieldElement],
+        input: Vec<Self::FieldElement>,
     ) -> Result<Vec<Self::FieldElement>, Self::Error> {
         self.recorder.set_seed(self.rng.get_seed());
-        self.recorder.record_for_sender(input);
-        self.convert_from(input).await
+        self.recorder.record_for_sender(&input);
+        self.convert_from(&input).await
     }
 }
 
@@ -146,11 +146,11 @@ where
 
     async fn m_to_a(
         &mut self,
-        input: &[Self::FieldElement],
+        input: Vec<Self::FieldElement>,
     ) -> Result<Vec<Self::FieldElement>, Self::Error> {
         self.recorder.set_seed(self.rng.get_seed());
-        self.recorder.record_for_sender(input);
-        self.convert_from(input).await
+        self.recorder.record_for_sender(&input);
+        self.convert_from(&input).await
     }
 }
 

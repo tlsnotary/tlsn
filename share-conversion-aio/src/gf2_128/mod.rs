@@ -73,9 +73,9 @@ mod tests {
 
         // Spawn tokio tasks and wait for them to finish
         let sender_task =
-            tokio::spawn(async move { sender.a_to_m(&random_numbers_1).await.unwrap() });
+            tokio::spawn(async move { sender.a_to_m(random_numbers_1).await.unwrap() });
         let receiver_task =
-            tokio::spawn(async move { receiver.a_to_m(&random_numbers_2).await.unwrap() });
+            tokio::spawn(async move { receiver.a_to_m(random_numbers_2).await.unwrap() });
 
         let (sender_output, receiver_output) = tokio::join!(sender_task, receiver_task);
         let (sender_output, receiver_output) = (sender_output.unwrap(), receiver_output.unwrap());
@@ -101,9 +101,9 @@ mod tests {
 
         // Spawn tokio tasks and wait for them to finish
         let sender_task =
-            tokio::spawn(async move { sender.m_to_a(&random_numbers_1).await.unwrap() });
+            tokio::spawn(async move { sender.m_to_a(random_numbers_1).await.unwrap() });
         let receiver_task =
-            tokio::spawn(async move { receiver.m_to_a(&random_numbers_2).await.unwrap() });
+            tokio::spawn(async move { receiver.m_to_a(random_numbers_2).await.unwrap() });
 
         let (sender_output, receiver_output) = tokio::join!(sender_task, receiver_task);
         let (sender_output, receiver_output) = (sender_output.unwrap(), receiver_output.unwrap());
@@ -125,11 +125,11 @@ mod tests {
 
         // Spawn tokio tasks and wait for them to finish
         let sender_task = tokio::spawn(async move {
-            let _ = sender.a_to_m(&random_numbers_1).await.unwrap();
+            let _ = sender.a_to_m(random_numbers_1).await.unwrap();
             sender.send_tape().await.unwrap()
         });
         let receiver_task = tokio::spawn(async move {
-            receiver.a_to_m(&random_numbers_2).await.unwrap();
+            receiver.a_to_m(random_numbers_2).await.unwrap();
             receiver.verify_tape().await.unwrap()
         });
 
@@ -151,11 +151,11 @@ mod tests {
 
         // Spawn tokio tasks and wait for them to finish
         let sender_task = tokio::spawn(async move {
-            let _ = sender.m_to_a(&random_numbers_1).await.unwrap();
+            let _ = sender.m_to_a(random_numbers_1).await.unwrap();
             sender.send_tape().await.unwrap()
         });
         let receiver_task = tokio::spawn(async move {
-            receiver.m_to_a(&random_numbers_2).await.unwrap();
+            receiver.m_to_a(random_numbers_2).await.unwrap();
             receiver.verify_tape().await.unwrap()
         });
 
@@ -177,14 +177,14 @@ mod tests {
 
         // Spawn tokio tasks and wait for them to finish
         let sender_task = tokio::spawn(async move {
-            let _ = sender.a_to_m(&random_numbers_1).await.unwrap();
+            let _ = sender.a_to_m(random_numbers_1).await.unwrap();
 
             // Malicious sender now changes his input in the tape before sending it
             *sender.tape_mut().sender_inputs.last_mut().unwrap() += 1;
             sender.send_tape().await.unwrap()
         });
         let receiver_task = tokio::spawn(async move {
-            receiver.a_to_m(&random_numbers_2).await.unwrap();
+            receiver.a_to_m(random_numbers_2).await.unwrap();
             receiver.verify_tape().await.unwrap_err()
         });
 
@@ -209,14 +209,14 @@ mod tests {
 
         // Spawn tokio tasks and wait for them to finish
         let sender_task = tokio::spawn(async move {
-            let _ = sender.m_to_a(&random_numbers_1).await.unwrap();
+            let _ = sender.m_to_a(random_numbers_1).await.unwrap();
 
             // Malicious sender now changes his input in the tape before sending it
             *sender.tape_mut().sender_inputs.last_mut().unwrap() += 1;
             sender.send_tape().await.unwrap()
         });
         let receiver_task = tokio::spawn(async move {
-            receiver.m_to_a(&random_numbers_2).await.unwrap();
+            receiver.m_to_a(random_numbers_2).await.unwrap();
             receiver.verify_tape().await.unwrap_err()
         });
 
