@@ -15,8 +15,6 @@ pub enum Error {
     InvalidOpening,
     #[error("Circuit error: {0:?}")]
     CircuitError(#[from] mpc_circuits::CircuitError),
-    #[error("Value error: {0:?}")]
-    ValueError(#[from] mpc_circuits::ValueError),
     #[error("General error: {0}")]
     General(String),
     #[error("Peer behaved unexpectedly: {0}")]
