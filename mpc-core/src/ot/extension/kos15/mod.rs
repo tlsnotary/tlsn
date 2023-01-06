@@ -49,7 +49,7 @@ pub mod tests {
 
     #[fixture]
     fn input_setup() -> (Vec<bool>, Vec<[Block; 2]>) {
-        let mut rng = ChaCha12Rng::from_entropy();
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
         let choice_len: usize = rng.gen_range(1..1024);
         let mut choices = vec![false; choice_len];
 
@@ -153,7 +153,7 @@ pub mod tests {
         assert!(receiver.is_complete());
 
         // Trying to send more OTs should return an error
-        let mut rng = ChaCha12Rng::from_entropy();
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
         let sender = sender
             .send(&[[Block::random(&mut rng), Block::random(&mut rng)]])
             .expect_err("Sending more OTs should be a state error");
@@ -235,7 +235,7 @@ pub mod tests {
         assert!(sender.is_complete());
         assert!(receiver.is_complete());
 
-        let mut rng = ChaCha12Rng::from_entropy();
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Trying to send more OTs should return an error
         let add_derand = msgs::ExtDerandomize { flip: vec![true] };
@@ -277,7 +277,7 @@ pub mod tests {
         let (_, mut receiver_setup) = receiver.extension_setup(&choices).unwrap();
 
         // sender must not accept more or less columns
-        let mut rng = ChaCha12Rng::from_entropy();
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
         let coinflip: bool = rng.gen();
 
         if coinflip {
@@ -302,7 +302,7 @@ pub mod tests {
     ) {
         let (sender, receiver) = pair_base_setup;
         let (choices, inputs) = input_setup;
-        let mut rng = ChaCha12Rng::from_entropy();
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
         let split_at: usize = rng.gen_range(0..inputs.len());
 
         let (mut receiver, receiver_setup) = receiver.extension_setup(&choices).unwrap();
