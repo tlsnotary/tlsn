@@ -105,12 +105,11 @@ where
     V: Recorder<AddShare> + Send,
 {
     type FieldElement = u128;
-    type Error = ShareConversionError;
 
     async fn a_to_m(
         &mut self,
         input: Vec<Self::FieldElement>,
-    ) -> Result<Vec<Self::FieldElement>, Self::Error> {
+    ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
         let output = self.convert_from(&input).await?;
         self.recorder.record_for_receiver(&input, &output);
         Ok(output)
@@ -125,12 +124,11 @@ where
     V: Recorder<MulShare> + Send,
 {
     type FieldElement = u128;
-    type Error = ShareConversionError;
 
     async fn m_to_a(
         &mut self,
         input: Vec<Self::FieldElement>,
-    ) -> Result<Vec<Self::FieldElement>, Self::Error> {
+    ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
         let output = self.convert_from(&input).await?;
         self.recorder.record_for_receiver(&input, &output);
         Ok(output)
@@ -144,9 +142,7 @@ where
     OT: ObliviousReceive<bool, Block> + Send,
     U: Gf2_128ShareConvert + Send,
 {
-    type Error = ShareConversionError;
-
-    async fn verify_tape(mut self) -> Result<(), Self::Error> {
+    async fn verify_tape(mut self) -> Result<(), ShareConversionError> {
         let message = self.channel.next().await.ok_or(std::io::Error::new(
             std::io::ErrorKind::ConnectionAborted,
             "stream closed unexpectedly",

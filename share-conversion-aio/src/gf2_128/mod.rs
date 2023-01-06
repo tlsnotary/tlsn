@@ -14,15 +14,15 @@ pub use msgs::Gf2ConversionMessage;
 pub use receiver::Receiver;
 pub use sender::Sender;
 
+use crate::ShareConversionError;
+
 /// Send a tape used for verification of the conversion
 ///
 /// Implementers record their inputs used during conversion and can send them to the other
 /// party. This will allow the other party to compute all outputs of the sender.
 #[async_trait]
 pub trait SendTape {
-    type Error: std::error::Error;
-
-    async fn send_tape(self) -> Result<(), Self::Error>;
+    async fn send_tape(self) -> Result<(), ShareConversionError>;
 }
 
 /// Verify the recorded inputs of the other party
@@ -31,9 +31,7 @@ pub trait SendTape {
 /// requires the malicious party to open and send all their inputs of the conversion before.
 #[async_trait]
 pub trait VerifyTape {
-    type Error: std::error::Error;
-
-    async fn verify_tape(self) -> Result<(), Self::Error>;
+    async fn verify_tape(self) -> Result<(), ShareConversionError>;
 }
 
 /// A channel used for messaging of conversion protocols

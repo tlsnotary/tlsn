@@ -122,12 +122,11 @@ where
     V: Recorder<AddShare> + Send,
 {
     type FieldElement = u128;
-    type Error = ShareConversionError;
 
     async fn a_to_m(
         &mut self,
         input: Vec<Self::FieldElement>,
-    ) -> Result<Vec<Self::FieldElement>, Self::Error> {
+    ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
         self.recorder.set_seed(self.rng.get_seed());
         self.recorder.record_for_sender(&input);
         self.convert_from(&input).await
@@ -142,12 +141,11 @@ where
     V: Recorder<MulShare> + Send,
 {
     type FieldElement = u128;
-    type Error = ShareConversionError;
 
     async fn m_to_a(
         &mut self,
         input: Vec<Self::FieldElement>,
-    ) -> Result<Vec<Self::FieldElement>, Self::Error> {
+    ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
         self.recorder.set_seed(self.rng.get_seed());
         self.recorder.record_for_sender(&input);
         self.convert_from(&input).await
@@ -161,9 +159,7 @@ where
     OT: ObliviousSend<[Block; 2]> + Send,
     U: Gf2_128ShareConvert + Send,
 {
-    type Error = ShareConversionError;
-
-    async fn send_tape(mut self) -> Result<(), Self::Error> {
+    async fn send_tape(mut self) -> Result<(), ShareConversionError> {
         let message = (self.recorder.seed, self.recorder.sender_inputs).into();
 
         if let Some(barrier) = self.barrier {
