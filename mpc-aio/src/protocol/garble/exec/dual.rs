@@ -6,17 +6,16 @@
 //! malicious. Such leakage, however, will be detected by the [`DualExFollower`] during the
 //! equality check.
 
-use std::sync::Arc;
-
 use crate::protocol::{
-    garble::{Evaluator, ExecuteWithLabels, GCError, GarbleChannel, GarbleMessage, Generator},
+    garble::{Evaluator, Execute, GCError, GarbleChannel, GarbleMessage, Generator},
     ot::{ObliviousReceive, ObliviousSend},
 };
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
-use mpc_circuits::{Circuit, InputValue, WireGroup};
+use mpc_circuits::{InputValue, OutputValue};
 use mpc_core::garble::{
-    exec::dual as core, gc_state, ActiveInputLabels, Delta, FullInputLabels, GarbledCircuit,
+    config::GarbleConfig, exec::dual as core, gc_state, ActiveInputLabels, Error as CoreError,
+    FullInputLabels, GarbledCircuit,
 };
 use utils_aio::expect_msg_or_err;
 
@@ -49,40 +48,50 @@ where
 }
 
 #[async_trait]
-impl<B, S, R> ExecuteWithLabels for DualExLeader<B, S, R>
+impl<B, S, R> Execute for DualExLeader<B, S, R>
 where
     B: Generator + Evaluator + Send,
     S: ObliviousSend<FullInputLabels> + Send,
     R: ObliviousReceive<InputValue, ActiveInputLabels> + Send,
 {
-    async fn execute_with_labels(
-        &mut self,
-        circ: Arc<Circuit>,
-        inputs: &[InputValue],
-        input_labels: &[FullInputLabels],
-        delta: Delta,
-    ) -> Result<GarbledCircuit<gc_state::Evaluated>, GCError> {
-        let leader = core::DualExLeader::new(circ.clone());
+    async fn execute(
+        mut self,
+        config: GarbleConfig,
+        inputs: Vec<InputValue>,
+    ) -> Result<Vec<OutputValue>, GCError> {
+        let leader = core::DualExLeader::new(config.clone());
+
+        let GarbleConfig {
+            circ,
+            generator_config,
+            evaluator_config,
+        } = config;
+
+        let generator_config = generator_config.ok_or(CoreError::ConfigError(
+            "Missing Generator config".to_string(),
+        ))?;
+
+        let evaluator_config = evaluator_config.ok_or(CoreError::ConfigError(
+            "Missing Evaluator config".to_string(),
+        ))?;
+
+        let leader_needed_inputs = evaluator_config.filter_cached_inputs(&inputs);
+        let follower_labels = generator_config.evaluator_labels(&inputs);
+
         let full_gc = self
             .backend
-            .generate(circ.clone(), delta, &input_labels)
+            .generate(
+                circ.clone(),
+                generator_config.delta,
+                generator_config.input_labels,
+            )
             .await?;
 
-        let (partial_gc, leader) = leader.from_full_circuit(inputs, full_gc)?;
+        let (partial_gc, leader) = leader.from_full_circuit(&inputs, full_gc)?;
 
         self.channel
             .send(GarbleMessage::GarbledCircuit(partial_gc.into()))
             .await?;
-
-        let leader_input_ids = inputs
-            .iter()
-            .map(|input| input.id())
-            .collect::<Vec<usize>>();
-        let follower_labels = input_labels
-            .iter()
-            .filter(|input| !leader_input_ids.contains(&input.id()))
-            .cloned()
-            .collect::<Vec<FullInputLabels>>();
 
         self.label_sender.send(follower_labels).await?;
 
@@ -93,9 +102,13 @@ where
         )?;
 
         let gc_ev = GarbledCircuit::<gc_state::Partial>::from_unchecked(circ, msg.into())?;
-        let labels_ev = self.label_receiver.receive(inputs.to_vec()).await?;
 
-        let evaluated_gc = self.backend.evaluate(gc_ev, &labels_ev).await?;
+        let labels_ev = self.label_receiver.receive(leader_needed_inputs).await?;
+
+        let evaluated_gc = self
+            .backend
+            .evaluate(gc_ev, [labels_ev, evaluator_config.input_labels].concat())
+            .await?;
         let leader = leader.from_evaluated_circuit(evaluated_gc)?;
         let (commit, leader) = leader.commit();
 
@@ -117,7 +130,7 @@ where
             .send(GarbleMessage::CommitmentOpening(opening.into()))
             .await?;
 
-        Ok(gc_evaluated)
+        Ok(gc_evaluated.decode()?)
     }
 }
 
@@ -150,40 +163,50 @@ where
 }
 
 #[async_trait]
-impl<B, S, R> ExecuteWithLabels for DualExFollower<B, S, R>
+impl<B, S, R> Execute for DualExFollower<B, S, R>
 where
     B: Generator + Evaluator + Send,
     S: ObliviousSend<FullInputLabels> + Send,
     R: ObliviousReceive<InputValue, ActiveInputLabels> + Send,
 {
-    async fn execute_with_labels(
-        &mut self,
-        circ: Arc<Circuit>,
-        inputs: &[InputValue],
-        input_labels: &[FullInputLabels],
-        delta: Delta,
-    ) -> Result<GarbledCircuit<gc_state::Evaluated>, GCError> {
-        let follower = core::DualExFollower::new(circ.clone());
+    async fn execute(
+        mut self,
+        config: GarbleConfig,
+        inputs: Vec<InputValue>,
+    ) -> Result<Vec<OutputValue>, GCError> {
+        let follower = core::DualExFollower::new(config.clone());
+
+        let GarbleConfig {
+            circ,
+            generator_config,
+            evaluator_config,
+        } = config;
+
+        let generator_config = generator_config.ok_or(CoreError::ConfigError(
+            "Missing Generator config".to_string(),
+        ))?;
+
+        let evaluator_config = evaluator_config.ok_or(CoreError::ConfigError(
+            "Missing Evaluator config".to_string(),
+        ))?;
+
+        let follower_needed_inputs = evaluator_config.filter_cached_inputs(&inputs);
+        let leader_labels = generator_config.evaluator_labels(&inputs);
+
         let full_gc = self
             .backend
-            .generate(circ.clone(), delta, &input_labels)
+            .generate(
+                circ.clone(),
+                generator_config.delta,
+                generator_config.input_labels,
+            )
             .await?;
 
-        let (partial_gc, follower) = follower.from_full_circuit(inputs, full_gc)?;
+        let (partial_gc, follower) = follower.from_full_circuit(&inputs, full_gc)?;
 
         self.channel
             .send(GarbleMessage::GarbledCircuit(partial_gc.into()))
             .await?;
-
-        let follower_input_ids = inputs
-            .iter()
-            .map(|input| input.id())
-            .collect::<Vec<usize>>();
-        let leader_labels = input_labels
-            .iter()
-            .filter(|input| !follower_input_ids.contains(&input.id()))
-            .cloned()
-            .collect::<Vec<FullInputLabels>>();
 
         self.label_sender.send(leader_labels).await?;
 
@@ -194,9 +217,14 @@ where
         )?;
 
         let gc_ev = GarbledCircuit::<gc_state::Partial>::from_unchecked(circ, msg.into())?;
-        let labels_ev = self.label_receiver.receive(inputs.to_vec()).await?;
 
-        let evaluated_gc = self.backend.evaluate(gc_ev, &labels_ev).await?;
+        let labels_ev = self.label_receiver.receive(follower_needed_inputs).await?;
+
+        let evaluated_gc = self
+            .backend
+            .evaluate(gc_ev, [labels_ev, evaluator_config.input_labels].concat())
+            .await?;
+
         let follower = follower.from_evaluated_circuit(evaluated_gc)?;
 
         let msg = expect_msg_or_err!(
@@ -219,7 +247,7 @@ where
         let leader_opening = msg.into();
         let gc_evaluated = follower.verify(leader_opening)?;
 
-        Ok(gc_evaluated)
+        Ok(gc_evaluated.decode()?)
     }
 }
 
@@ -229,7 +257,7 @@ mod mock {
     use crate::protocol::{garble::backend::MockBackend, ot::mock::mock_ot_pair};
     use utils_aio::duplex::DuplexChannel;
 
-    pub fn mock_dualex_pair() -> (impl ExecuteWithLabels, impl ExecuteWithLabels) {
+    pub fn mock_dualex_pair() -> (impl Execute, impl Execute) {
         let (leader_channel, follower_channel) = DuplexChannel::<GarbleMessage>::new();
         let (leader_sender, follower_receiver) = mock_ot_pair();
         let (follower_sender, leader_receiver) = mock_ot_pair();
@@ -255,28 +283,47 @@ pub use mock::mock_dualex_pair;
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
     use crate::protocol::garble::Execute;
-    use mpc_circuits::ADDER_64;
+    use mpc_circuits::{Circuit, WireGroup, ADDER_64};
+    use mpc_core::garble::config::GarbleConfigBuilder;
+    use rand_chacha::ChaCha12Rng;
+    use rand_core::SeedableRng;
 
     #[tokio::test]
     async fn test_dualex() {
         let circ = Arc::new(Circuit::load_bytes(ADDER_64).unwrap());
-        let (mut leader, mut follower) = mock_dualex_pair();
+        let (leader, follower) = mock_dualex_pair();
 
         let leader_input = circ.input(0).unwrap().to_value(1u64).unwrap();
         let follower_input = circ.input(1).unwrap().to_value(2u64).unwrap();
 
         let leader_circ = circ.clone();
         let leader_task = tokio::spawn(async move {
-            let leader_output = leader.execute(leader_circ, &[leader_input]).await.unwrap();
+            let config = GarbleConfigBuilder::default_dual_with_rng(
+                &mut ChaCha12Rng::seed_from_u64(0),
+                leader_circ,
+            )
+            .build()
+            .unwrap();
+
+            let leader_output = leader.execute(config, vec![leader_input]).await.unwrap();
             leader_output
         });
 
         let follower_circ = circ.clone();
         let follower_task = tokio::spawn(async move {
+            let config = GarbleConfigBuilder::default_dual_with_rng(
+                &mut ChaCha12Rng::seed_from_u64(0),
+                follower_circ,
+            )
+            .build()
+            .unwrap();
+
             let follower_output = follower
-                .execute(follower_circ, &[follower_input])
+                .execute(config, vec![follower_input])
                 .await
                 .unwrap();
             follower_output
@@ -289,8 +336,8 @@ mod tests {
         let leader_gc_evaluated = leader_gc_evaluated.unwrap();
         let follower_gc_evaluated = follower_gc_evaluated.unwrap();
 
-        let leader_out = leader_gc_evaluated.decode().unwrap();
-        let follower_out = follower_gc_evaluated.decode().unwrap();
+        let leader_out = leader_gc_evaluated;
+        let follower_out = follower_gc_evaluated;
 
         assert_eq!(expected_out, leader_out[0]);
         assert_eq!(leader_out, follower_out);

@@ -6,7 +6,9 @@ pub use leader::{state as leader_state, DEAPLeader};
 
 #[cfg(test)]
 mod tests {
-    use crate::garble::{commitment::CommitmentOpening, Delta, Error, FullInputLabels};
+    use crate::garble::{
+        commitment::CommitmentOpening, config::GarbleConfigBuilder, Delta, Error, FullInputLabels,
+    };
 
     use super::*;
     use mpc_circuits::{Circuit, OutputValue, WireGroup, ADDER_64};
@@ -22,8 +24,13 @@ mod tests {
         let mut rng = ChaCha12Rng::seed_from_u64(0);
         let circ = Arc::new(Circuit::load_bytes(ADDER_64).unwrap());
 
-        let leader = DEAPLeader::new(circ.clone());
-        let follower = DEAPFollower::new(circ.clone());
+        let config = GarbleConfigBuilder::default()
+            .circ(circ.clone())
+            .build()
+            .unwrap();
+
+        let leader = DEAPLeader::new(config.clone());
+        let follower = DEAPFollower::new(config);
 
         let leader_input = circ.input(0).unwrap().to_value(0u64).unwrap();
         let follower_input = circ.input(1).unwrap().to_value(0u64).unwrap();

@@ -1,13 +1,12 @@
-use std::sync::Arc;
-
 use crate::protocol::{
     garble::{Compressor, Evaluator, GCError, GarbleChannel, GarbleMessage, Generator, Validator},
     ot::{ObliviousReceive, ObliviousSend, ObliviousVerify},
 };
 use futures::{SinkExt, StreamExt};
-use mpc_circuits::{Circuit, InputValue, OutputValue, WireGroup};
+use mpc_circuits::{InputValue, OutputValue};
 use mpc_core::garble::{
-    exec::deap as core, gc_state, ActiveInputLabels, Delta, FullInputLabels, GarbledCircuit,
+    config::GarbleConfig, exec::deap as core, gc_state, ActiveInputLabels, Error as CoreError,
+    FullInputLabels, GarbledCircuit,
 };
 use utils_aio::expect_msg_or_err;
 
@@ -78,20 +77,39 @@ where
     /// * `delta` - Delta used to garble leader's circuit
     pub async fn execute(
         mut self,
-        circ: Arc<Circuit>,
-        inputs: &[InputValue],
-        input_labels: &[FullInputLabels],
-        delta: Delta,
+        config: GarbleConfig,
+        inputs: Vec<InputValue>,
     ) -> Result<(Vec<OutputValue>, DEAPLeader<Executed, B, LS, LR>), GCError> {
-        let leader = core::DEAPLeader::new(circ.clone());
+        let leader = core::DEAPLeader::new(config.clone());
+
+        let GarbleConfig {
+            circ,
+            generator_config,
+            evaluator_config,
+        } = config;
+
+        let generator_config = generator_config.ok_or(CoreError::ConfigError(
+            "Missing Generator config".to_string(),
+        ))?;
+
+        let evaluator_config = evaluator_config.ok_or(CoreError::ConfigError(
+            "Missing Evaluator config".to_string(),
+        ))?;
+
+        let leader_needed_inputs = evaluator_config.filter_cached_inputs(&inputs);
+        let follower_labels = generator_config.evaluator_labels(&inputs);
 
         // Garble circuit
         let full_gc = self
             .backend
-            .generate(circ.clone(), delta, &input_labels)
+            .generate(
+                circ.clone(),
+                generator_config.delta,
+                generator_config.input_labels,
+            )
             .await?;
 
-        let (partial_gc, leader) = leader.from_full_circuit(inputs, full_gc)?;
+        let (partial_gc, leader) = leader.from_full_circuit(&inputs, full_gc)?;
 
         // Send garbled circuit to follower
         self.channel
@@ -99,16 +117,6 @@ where
             .await?;
 
         // Send follower their active labels
-        let leader_input_ids = inputs
-            .iter()
-            .map(|input| input.id())
-            .collect::<Vec<usize>>();
-        let follower_labels = input_labels
-            .iter()
-            .filter(|input| !leader_input_ids.contains(&input.id()))
-            .cloned()
-            .collect::<Vec<FullInputLabels>>();
-
         self.label_sender.send(follower_labels).await?;
 
         // Receive follower's garbled circuit
@@ -122,10 +130,13 @@ where
         let gc_ev = GarbledCircuit::<gc_state::Partial>::from_unchecked(circ, msg.into())?;
 
         // Retrieve active labels to follower's circuit
-        let labels_ev = self.label_receiver.receive(inputs.to_vec()).await?;
+        let labels_ev = self.label_receiver.receive(leader_needed_inputs).await?;
 
         // Evaluate follower's garbled circuit
-        let gc_evaluated = self.backend.evaluate(gc_ev, &labels_ev).await?;
+        let gc_evaluated = self
+            .backend
+            .evaluate(gc_ev, [labels_ev, evaluator_config.input_labels].concat())
+            .await?;
 
         // Compress follower's circuit to reduce memory footprint
         let gc_cmp = self.backend.compress(gc_evaluated).await?;

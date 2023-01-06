@@ -1,13 +1,13 @@
 use crate::garble::{
     circuit::{state as gc_state, GarbledCircuit},
     commitment::{CommitmentOpening, HashCommitment},
+    config::GarbleConfig,
     label::{ActiveOutputLabels, LabelsDigest},
     ActiveInputLabels, Delta, Error, FullInputLabels,
 };
-use mpc_circuits::{Circuit, InputValue};
+use mpc_circuits::InputValue;
 
 use aes::{Aes128, NewBlockCipher};
-use std::sync::Arc;
 
 pub mod state {
     use super::*;
@@ -24,13 +24,10 @@ pub mod state {
     pub trait State: sealed::Sealed {}
 
     #[derive(Debug)]
-    pub struct Generator {
-        pub(super) circ: Arc<Circuit>,
-    }
+    pub struct Generator {}
 
     #[derive(Debug)]
     pub struct Evaluator {
-        pub(super) circ: Arc<Circuit>,
         pub(super) gc: GarbledCircuit<gc_state::Full>,
     }
 
@@ -67,14 +64,20 @@ pub struct DualExLeader<S = Generator>
 where
     S: State + std::fmt::Debug,
 {
+    config: GarbleConfig,
     state: S,
 }
 
 impl DualExLeader {
-    pub fn new(circ: Arc<Circuit>) -> DualExLeader<Generator> {
+    pub fn new(config: GarbleConfig) -> DualExLeader<Generator> {
         DualExLeader {
-            state: Generator { circ },
+            config,
+            state: Generator {},
         }
+    }
+
+    pub fn config(&self) -> &GarbleConfig {
+        &self.config
     }
 }
 
@@ -87,7 +90,7 @@ impl DualExLeader<Generator> {
         delta: Delta,
     ) -> Result<(GarbledCircuit<gc_state::Partial>, DualExLeader<Evaluator>), Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
-        let gc = GarbledCircuit::generate(&cipher, self.state.circ.clone(), delta, input_labels)?;
+        let gc = GarbledCircuit::generate(&cipher, self.config.circ.clone(), delta, input_labels)?;
 
         self.from_full_circuit(inputs, gc)
     }
@@ -101,10 +104,8 @@ impl DualExLeader<Generator> {
         Ok((
             gc.to_evaluator(inputs, true, false)?,
             DualExLeader {
-                state: Evaluator {
-                    gc,
-                    circ: self.state.circ,
-                },
+                config: self.config,
+                state: Evaluator { gc },
             },
         ))
     }
@@ -131,6 +132,7 @@ impl DualExLeader<Evaluator> {
         let check = self.compute_output_check(&evaluated_gc)?;
 
         Ok(DualExLeader {
+            config: self.config,
             state: Commit {
                 evaluated_gc,
                 check,
@@ -151,7 +153,7 @@ impl DualExLeader<Evaluator> {
         let output = evaluated_gc.decode()?;
 
         let mut expected_labels: Vec<ActiveOutputLabels> =
-            Vec::with_capacity(self.state.circ.output_count());
+            Vec::with_capacity(self.config.circ.output_count());
         // Here we use the output values from the peer's circuit to select the corresponding output labels from our garbled circuit
         for (labels, value) in self.state.gc.output_labels().iter().zip(output.iter()) {
             expected_labels.push(labels.select(value.value())?);
@@ -171,6 +173,7 @@ impl DualExLeader<Commit> {
         (
             commitment,
             DualExLeader {
+                config: self.config,
                 state: Verify {
                     evaluated_gc: self.state.evaluated_gc,
                     check: self.state.check,
@@ -194,6 +197,7 @@ impl DualExLeader<Verify> {
         }
 
         Ok(DualExLeader {
+            config: self.config,
             state: Reveal {
                 evaluated_gc: self.state.evaluated_gc,
                 commit_opening: self.state.commit_opening,

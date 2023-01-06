@@ -1,12 +1,12 @@
 use crate::garble::{
     commitment::{CommitmentOpening, HashCommitment},
+    config::GarbleConfig,
     gc_state, ActiveInputLabels, CircuitOpening, Delta, Error, FullInputLabels, GarbledCircuit,
     LabelError, LabelsDigest,
 };
-use mpc_circuits::{Circuit, InputValue, OutputValue};
+use mpc_circuits::{InputValue, OutputValue};
 
 use aes::{Aes128, NewBlockCipher};
-use std::sync::Arc;
 
 const SEND_OUTPUT_COMMITMENTS: bool = false;
 const SEND_OUTPUT_DECODING: bool = true;
@@ -26,13 +26,10 @@ pub mod state {
     pub trait State: sealed::Sealed {}
 
     #[derive(Debug)]
-    pub struct Generator {
-        pub(super) circ: Arc<Circuit>,
-    }
+    pub struct Generator {}
 
     #[derive(Debug)]
     pub struct Evaluator {
-        pub(super) circ: Arc<Circuit>,
         pub(super) gc: GarbledCircuit<gc_state::Full>,
     }
 
@@ -70,13 +67,15 @@ pub struct DEAPFollower<S = Generator>
 where
     S: State + std::fmt::Debug,
 {
+    config: GarbleConfig,
     state: S,
 }
 
 impl DEAPFollower {
-    pub fn new(circ: Arc<Circuit>) -> DEAPFollower<Generator> {
+    pub fn new(config: GarbleConfig) -> DEAPFollower<Generator> {
         DEAPFollower {
-            state: Generator { circ },
+            config,
+            state: Generator {},
         }
     }
 }
@@ -90,7 +89,7 @@ impl DEAPFollower<Generator> {
         delta: Delta,
     ) -> Result<(GarbledCircuit<gc_state::Partial>, DEAPFollower<Evaluator>), Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
-        let gc = GarbledCircuit::generate(&cipher, self.state.circ.clone(), delta, input_labels)?;
+        let gc = GarbledCircuit::generate(&cipher, self.config.circ.clone(), delta, input_labels)?;
 
         self.from_full_circuit(inputs, gc)
     }
@@ -104,10 +103,8 @@ impl DEAPFollower<Generator> {
         Ok((
             gc.to_evaluator(inputs, SEND_OUTPUT_DECODING, SEND_OUTPUT_COMMITMENTS)?,
             DEAPFollower {
-                state: Evaluator {
-                    gc,
-                    circ: self.state.circ,
-                },
+                config: self.config,
+                state: Evaluator { gc },
             },
         ))
     }
@@ -136,6 +133,7 @@ impl DEAPFollower<Evaluator> {
         Ok((
             purported_output,
             DEAPFollower {
+                config: self.config,
                 state: Reveal {
                     gc_output: gc_evaluated.to_output(),
                     opening: self.state.gc.open(),
@@ -183,6 +181,7 @@ impl DEAPFollower<Reveal> {
         (
             self.state.gc_output,
             DEAPFollower {
+                config: self.config,
                 state: Open {
                     opening: self.state.opening,
                     check: self.state.check,
@@ -199,6 +198,7 @@ impl DEAPFollower<Open> {
         (
             self.state.opening,
             DEAPFollower {
+                config: self.config,
                 state: Verify {
                     check: self.state.check,
                     commit: self.state.commit,

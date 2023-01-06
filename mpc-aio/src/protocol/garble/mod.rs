@@ -5,12 +5,14 @@ mod label;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use mpc_circuits::{Circuit, InputValue};
+use mpc_circuits::{Circuit, InputValue, OutputValue};
 use mpc_core::{
-    garble::{gc_state, ActiveInputLabels, CircuitOpening, Delta, FullInputLabels, GarbledCircuit},
+    garble::{
+        config::GarbleConfig, gc_state, ActiveInputLabels, CircuitOpening, Delta, FullInputLabels,
+        GarbledCircuit,
+    },
     msgs::garble::GarbleMessage,
 };
-use rand::thread_rng;
 use utils_aio::Channel;
 
 use super::ot::OTError;
@@ -40,7 +42,7 @@ pub trait Generator {
         &mut self,
         circ: Arc<Circuit>,
         delta: Delta,
-        input_labels: &[FullInputLabels],
+        input_labels: Vec<FullInputLabels>,
     ) -> Result<GarbledCircuit<gc_state::Full>, GCError>;
 }
 
@@ -50,7 +52,7 @@ pub trait Evaluator {
     async fn evaluate(
         &mut self,
         circ: GarbledCircuit<gc_state::Partial>,
-        input_labels: &[ActiveInputLabels],
+        input_labels: Vec<ActiveInputLabels>,
     ) -> Result<GarbledCircuit<gc_state::Evaluated>, GCError>;
 }
 
@@ -81,29 +83,13 @@ pub trait Compressor {
 }
 
 #[async_trait]
-pub trait ExecuteWithLabels {
-    /// Execute a garbled circuit with the provided labels
-    async fn execute_with_labels(
-        &mut self,
-        circ: Arc<Circuit>,
-        inputs: &[InputValue],
-        input_labels: &[FullInputLabels],
-        delta: Delta,
-    ) -> Result<GarbledCircuit<gc_state::Evaluated>, GCError>;
-}
-
-#[async_trait]
-pub trait Execute: ExecuteWithLabels {
+pub trait Execute {
     /// Execute a garbled circuit
+    ///
+    /// * `config` - Garbled circuit configuration
     async fn execute(
-        &mut self,
-        circ: Arc<Circuit>,
-        inputs: &[InputValue],
-    ) -> Result<GarbledCircuit<gc_state::Evaluated>, GCError> {
-        let (input_labels, delta) = FullInputLabels::generate_set(&mut thread_rng(), &circ, None);
-        self.execute_with_labels(circ, inputs, &input_labels, delta)
-            .await
-    }
+        self,
+        config: GarbleConfig,
+        inputs: Vec<InputValue>,
+    ) -> Result<Vec<OutputValue>, GCError>;
 }
-
-impl<T> Execute for T where T: ExecuteWithLabels {}

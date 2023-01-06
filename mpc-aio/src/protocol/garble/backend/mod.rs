@@ -21,14 +21,14 @@ mod mock {
             &mut self,
             circ: Arc<Circuit>,
             delta: Delta,
-            input_labels: &[FullInputLabels],
+            input_labels: Vec<FullInputLabels>,
         ) -> Result<GarbledCircuit<gc_state::Full>, GCError> {
             let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
             Ok(GarbledCircuit::generate(
                 &cipher,
                 circ,
                 delta,
-                input_labels,
+                &input_labels,
             )?)
         }
     }
@@ -38,10 +38,10 @@ mod mock {
         async fn evaluate(
             &mut self,
             circ: GarbledCircuit<gc_state::Partial>,
-            input_labels: &[ActiveInputLabels],
+            input_labels: Vec<ActiveInputLabels>,
         ) -> Result<GarbledCircuit<gc_state::Evaluated>, GCError> {
             let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
-            Ok(circ.evaluate(&cipher, input_labels)?)
+            Ok(circ.evaluate(&cipher, &input_labels)?)
         }
     }
 }

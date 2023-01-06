@@ -13,6 +13,8 @@ pub enum Error {
     ValidationError(String),
     #[error("Invalid opening")]
     InvalidOpening,
+    #[error("Configuration error: {0:?}")]
+    ConfigError(String),
     #[error("Circuit error: {0:?}")]
     CircuitError(#[from] mpc_circuits::CircuitError),
     #[error("Value error: {0:?}")]

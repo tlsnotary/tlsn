@@ -1,13 +1,12 @@
-use std::sync::Arc;
-
 use crate::protocol::{
     garble::{Evaluator, GCError, GarbleChannel, GarbleMessage, Generator},
     ot::{ObliviousReceive, ObliviousReveal, ObliviousSend},
 };
 use futures::{SinkExt, StreamExt};
-use mpc_circuits::{Circuit, InputValue, OutputValue, WireGroup};
+use mpc_circuits::{InputValue, OutputValue};
 use mpc_core::garble::{
-    exec::deap as core, gc_state, ActiveInputLabels, Delta, FullInputLabels, GarbledCircuit,
+    config::GarbleConfig, exec::deap as core, gc_state, ActiveInputLabels, Error as CoreError,
+    FullInputLabels, GarbledCircuit,
 };
 use utils_aio::expect_msg_or_err;
 
@@ -74,20 +73,39 @@ where
     /// * `delta` - Delta used to garble follower's circuit
     pub async fn execute(
         mut self,
-        circ: Arc<Circuit>,
-        inputs: &[InputValue],
-        input_labels: &[FullInputLabels],
-        delta: Delta,
+        config: GarbleConfig,
+        inputs: Vec<InputValue>,
     ) -> Result<(Vec<OutputValue>, DEAPFollower<Executed, B, LS, LR>), GCError> {
-        let follower = core::DEAPFollower::new(circ.clone());
+        let follower = core::DEAPFollower::new(config.clone());
+
+        let GarbleConfig {
+            circ,
+            generator_config,
+            evaluator_config,
+        } = config;
+
+        let generator_config = generator_config.ok_or(CoreError::ConfigError(
+            "Missing Generator config".to_string(),
+        ))?;
+
+        let evaluator_config = evaluator_config.ok_or(CoreError::ConfigError(
+            "Missing Evaluator config".to_string(),
+        ))?;
+
+        let follower_evaluator_labels = evaluator_config.filter_cached_inputs(&inputs);
+        let leader_labels = generator_config.evaluator_labels(&inputs);
 
         // Garble circuit
         let full_gc = self
             .backend
-            .generate(circ.clone(), delta, &input_labels)
+            .generate(
+                circ.clone(),
+                generator_config.delta,
+                generator_config.input_labels,
+            )
             .await?;
 
-        let (partial_gc, follower) = follower.from_full_circuit(inputs, full_gc)?;
+        let (partial_gc, follower) = follower.from_full_circuit(&inputs, full_gc)?;
 
         // Send garbled circuit to leader
         self.channel
@@ -95,16 +113,6 @@ where
             .await?;
 
         // Send leader their active labels
-        let follower_input_ids = inputs
-            .iter()
-            .map(|input| input.id())
-            .collect::<Vec<usize>>();
-        let leader_labels = input_labels
-            .iter()
-            .filter(|input| !follower_input_ids.contains(&input.id()))
-            .cloned()
-            .collect::<Vec<FullInputLabels>>();
-
         self.label_sender.send(leader_labels).await?;
 
         // Receive leader's garbled circuit
@@ -118,10 +126,16 @@ where
         let gc_ev = GarbledCircuit::<gc_state::Partial>::from_unchecked(circ, msg.into())?;
 
         // Retrieve active labels to leader's circuit
-        let labels_ev = self.label_receiver.receive(inputs.to_vec()).await?;
+        let labels_ev = self
+            .label_receiver
+            .receive(follower_evaluator_labels)
+            .await?;
 
         // Evaluate leader's garbled circuit
-        let evaluated_gc = self.backend.evaluate(gc_ev, &labels_ev).await?;
+        let evaluated_gc = self
+            .backend
+            .evaluate(gc_ev, [labels_ev, evaluator_config.input_labels].concat())
+            .await?;
 
         // Decode purported output
         let (purported_output, follower) = follower.from_evaluated_circuit(evaluated_gc)?;

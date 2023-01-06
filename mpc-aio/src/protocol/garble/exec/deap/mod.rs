@@ -57,7 +57,7 @@ mod tests {
 
     use super::*;
     use mpc_circuits::{Circuit, WireGroup, ADDER_64};
-    use mpc_core::garble::FullInputLabels;
+    use mpc_core::garble::config::GarbleConfigBuilder;
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
 
@@ -68,31 +68,33 @@ mod tests {
 
         let leader_input = circ.input(0).unwrap().to_value(1u64).unwrap();
         let follower_input = circ.input(1).unwrap().to_value(2u64).unwrap();
+        let expected_out = circ.output(0).unwrap().to_value(3u64).unwrap();
 
         let leader_circ = circ.clone();
         let leader_task = tokio::spawn(async move {
-            let (input_labels, delta) = FullInputLabels::generate_set(
+            let config = GarbleConfigBuilder::default_dual_with_rng(
                 &mut ChaCha12Rng::seed_from_u64(0),
-                &leader_circ,
-                None,
-            );
-            let (leader_output, leader) = leader
-                .execute(leader_circ, &[leader_input], &input_labels, delta)
-                .await
-                .unwrap();
+                leader_circ,
+            )
+            .build()
+            .unwrap();
+
+            let (leader_output, leader) = leader.execute(config, vec![leader_input]).await.unwrap();
             leader.verify().await.unwrap();
             leader_output
         });
 
         let follower_circ = circ.clone();
         let follower_task = tokio::spawn(async move {
-            let (input_labels, delta) = FullInputLabels::generate_set(
-                &mut ChaCha12Rng::seed_from_u64(1),
-                &follower_circ,
-                None,
-            );
+            let config = GarbleConfigBuilder::default_dual_with_rng(
+                &mut ChaCha12Rng::seed_from_u64(0),
+                follower_circ,
+            )
+            .build()
+            .unwrap();
+
             let (follower_output, follower) = follower
-                .execute(follower_circ, &[follower_input], &input_labels, delta)
+                .execute(config, vec![follower_input])
                 .await
                 .unwrap();
             follower.verify().await.unwrap();
@@ -100,8 +102,6 @@ mod tests {
         });
 
         let (leader_gc_evaluated, follower_gc_evaluated) = tokio::join!(leader_task, follower_task);
-
-        let expected_out = circ.output(0).unwrap().to_value(3u64).unwrap();
 
         let leader_out = leader_gc_evaluated.unwrap();
         let follower_out = follower_gc_evaluated.unwrap();

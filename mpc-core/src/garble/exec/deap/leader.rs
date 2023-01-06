@@ -1,13 +1,13 @@
 use crate::garble::{
     circuit::unchecked::{UncheckedCircuitOpening, UncheckedOutput},
     commitment::{CommitmentOpening, HashCommitment},
+    config::GarbleConfig,
     gc_state, ActiveInputLabels, CircuitOpening, Delta, Error, FullInputLabels, GarbledCircuit,
     LabelError, LabelsDigest,
 };
-use mpc_circuits::{Circuit, InputValue, OutputValue};
+use mpc_circuits::{InputValue, OutputValue};
 
 use aes::{Aes128, NewBlockCipher};
-use std::sync::Arc;
 
 const SEND_OUTPUT_COMMITMENTS: bool = true;
 const SEND_OUTPUT_DECODING: bool = true;
@@ -29,9 +29,7 @@ pub mod state {
     pub trait State: sealed::Sealed {}
 
     #[derive(Debug)]
-    pub struct Generator {
-        pub(super) circ: Arc<Circuit>,
-    }
+    pub struct Generator {}
 
     #[derive(Debug)]
     pub struct Evaluator {
@@ -85,13 +83,15 @@ pub struct DEAPLeader<S = Generator>
 where
     S: State + std::fmt::Debug,
 {
+    config: GarbleConfig,
     state: S,
 }
 
 impl DEAPLeader {
-    pub fn new(circ: Arc<Circuit>) -> DEAPLeader<Generator> {
+    pub fn new(config: GarbleConfig) -> DEAPLeader<Generator> {
         DEAPLeader {
-            state: Generator { circ },
+            config,
+            state: Generator {},
         }
     }
 }
@@ -105,7 +105,7 @@ impl DEAPLeader<Generator> {
         delta: Delta,
     ) -> Result<(GarbledCircuit<gc_state::Partial>, DEAPLeader<Evaluator>), Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
-        let gc = GarbledCircuit::generate(&cipher, self.state.circ.clone(), delta, input_labels)?;
+        let gc = GarbledCircuit::generate(&cipher, self.config.circ.clone(), delta, input_labels)?;
 
         self.from_full_circuit(inputs, gc)
     }
@@ -119,6 +119,7 @@ impl DEAPLeader<Generator> {
         Ok((
             gc.to_evaluator(inputs, SEND_OUTPUT_DECODING, SEND_OUTPUT_COMMITMENTS)?,
             DEAPLeader {
+                config: self.config,
                 state: Evaluator {
                     gc_summary: gc.summarize(),
                 },
@@ -148,6 +149,7 @@ impl DEAPLeader<Evaluator> {
         let check = self.compute_output_check(&gc_cmp)?;
 
         Ok(DEAPLeader {
+            config: self.config,
             state: Commit {
                 gc_summary: self.state.gc_summary,
                 gc_cmp,
@@ -196,6 +198,7 @@ impl DEAPLeader<Compress> {
         gc_cmp: GarbledCircuit<gc_state::Compressed>,
     ) -> DEAPLeader<Commit> {
         DEAPLeader {
+            config: self.config,
             state: Commit {
                 gc_summary: self.state.gc_summary,
                 gc_cmp,
@@ -213,6 +216,7 @@ impl DEAPLeader<Commit> {
         (
             commitment,
             DEAPLeader {
+                config: self.config,
                 state: Decode {
                     gc_summary: self.state.gc_summary,
                     gc_cmp: self.state.gc_cmp,
@@ -237,6 +241,7 @@ impl DEAPLeader<Decode> {
         Ok((
             output,
             DEAPLeader {
+                config: self.config,
                 state: Validate {
                     gc_cmp: self.state.gc_cmp,
                     commit_opening: self.state.commit_opening,
@@ -257,6 +262,7 @@ impl DEAPLeader<Validate> {
         self.state.gc_cmp.validate(opening)?;
 
         Ok(DEAPLeader {
+            config: self.config,
             state: Reveal {
                 commit_opening: self.state.commit_opening,
             },
@@ -284,6 +290,7 @@ impl DEAPLeader<Validate> {
             CircuitOpening::from_unchecked(&self.state.gc_cmp.circ, unchecked)?,
             self.state.gc_cmp,
             DEAPLeader {
+                config: self.config,
                 state: Reveal {
                     commit_opening: self.state.commit_opening,
                 },

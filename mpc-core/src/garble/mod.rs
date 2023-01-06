@@ -6,6 +6,7 @@
 
 pub(crate) mod circuit;
 pub(crate) mod commitment;
+pub mod config;
 mod error;
 mod evaluator;
 pub mod exec;

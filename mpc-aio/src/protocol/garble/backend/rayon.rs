@@ -20,7 +20,7 @@ impl Generator for RayonBackend {
         &mut self,
         circ: Arc<Circuit>,
         delta: Delta,
-        input_labels: &[FullInputLabels],
+        input_labels: Vec<FullInputLabels>,
     ) -> Result<GarbledCircuit<gc_state::Full>, GCError> {
         let (sender, receiver) = oneshot::channel();
         let input_labels = input_labels.to_vec();
@@ -41,7 +41,7 @@ impl Evaluator for RayonBackend {
     async fn evaluate(
         &mut self,
         circ: GarbledCircuit<gc_state::Partial>,
-        input_labels: &[ActiveInputLabels],
+        input_labels: Vec<ActiveInputLabels>,
     ) -> Result<GarbledCircuit<gc_state::Evaluated>, GCError> {
         let (sender, receiver) = oneshot::channel();
         let input_labels = input_labels.to_vec();
@@ -117,18 +117,22 @@ mod test {
     async fn test_rayon_garbler() {
         let circ = Arc::new(Circuit::load_bytes(ADDER_64).unwrap());
         let (input_labels, delta) = FullInputLabels::generate_set(&mut thread_rng(), &circ, None);
-        let gc = RayonBackend
-            .generate(circ.clone(), delta, &input_labels)
-            .await
-            .unwrap();
 
-        let input_labels = vec![
+        let active_input_labels = vec![
             input_labels[0].select(&0u64.into()).unwrap(),
             input_labels[1].select(&0u64.into()).unwrap(),
         ];
 
+        let gc = RayonBackend
+            .generate(circ.clone(), delta, input_labels)
+            .await
+            .unwrap();
+
         let _ = RayonBackend
-            .evaluate(gc.to_evaluator(&[], true, false).unwrap(), &input_labels)
+            .evaluate(
+                gc.to_evaluator(&[], true, false).unwrap(),
+                active_input_labels,
+            )
             .await
             .unwrap();
     }
@@ -139,7 +143,7 @@ mod test {
         let (full_input_labels, delta) =
             FullInputLabels::generate_set(&mut thread_rng(), &circ, None);
         let gc = RayonBackend
-            .generate(circ.clone(), delta, &full_input_labels)
+            .generate(circ.clone(), delta, full_input_labels.clone())
             .await
             .unwrap();
         let opening = gc.open();
@@ -150,7 +154,7 @@ mod test {
         ];
 
         let ev_gc = RayonBackend
-            .evaluate(gc.to_evaluator(&[], true, false).unwrap(), &input_labels)
+            .evaluate(gc.to_evaluator(&[], true, false).unwrap(), input_labels)
             .await
             .unwrap();
 
