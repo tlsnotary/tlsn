@@ -20,16 +20,16 @@ mod tests {
     use rand_chacha::ChaCha12Rng;
     use share_conversion_aio::{
         gf2_128::{recorder::Tape, SendTape, VerifyTape},
-        AdditiveToMultiplicative,
+        AdditiveToMultiplicative, MultiplicativeToAdditive,
     };
-    use share_conversion_core::gf2_128::{mul, AddShare, Gf2_128ShareConvert};
+    use share_conversion_core::gf2_128::{mul, AddShare, Gf2_128ShareConvert, MulShare};
     use std::sync::{Arc, Mutex};
     use xtra::prelude::*;
 
     use super::*;
 
     #[tokio::test]
-    async fn test_actor_share_conversion() {
+    async fn test_actor_share_conversion_a2m() {
         // Create some random numbers
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
         let random_numbers_1: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
@@ -54,6 +54,109 @@ mod tests {
         // Check result
         for (k, (a, b)) in std::iter::zip(sender_output, receiver_output).enumerate() {
             assert_eq!(mul(a, b), random_numbers[k]);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_actor_share_conversion_m2a() {
+        // Create some random numbers
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
+        let random_numbers_1: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
+        let random_numbers_2: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
+        let random_numbers: Vec<u128> =
+            std::iter::zip(random_numbers_1.iter(), random_numbers_2.iter())
+                .map(|(a, b)| mul(*a, *b))
+                .collect();
+
+        // Create conversion controls
+        let (mut sender_control, mut receiver_control) =
+            create_conversion_controls::<MulShare>().await;
+
+        let sender_task =
+            tokio::spawn(async move { sender_control.m_to_a(random_numbers_1).await.unwrap() });
+        let receiver_task =
+            tokio::spawn(async move { receiver_control.m_to_a(random_numbers_2).await.unwrap() });
+
+        let (sender_output, receiver_output) = tokio::join!(sender_task, receiver_task);
+        let (sender_output, receiver_output) = (sender_output.unwrap(), receiver_output.unwrap());
+
+        // Check result
+        for (k, (a, b)) in std::iter::zip(sender_output, receiver_output).enumerate() {
+            assert_eq!(a ^ b, random_numbers[k]);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_actor_share_conversion_multiple_executions() {
+        // Create some random numbers
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
+        let random_numbers_round_1_1: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
+        let random_numbers_round_1_2: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
+        let random_numbers_round_2_1: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
+        let random_numbers_round_2_2: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
+
+        let random_numbers_round_1: Vec<u128> = std::iter::zip(
+            random_numbers_round_1_1.iter(),
+            random_numbers_round_1_2.iter(),
+        )
+        .map(|(a, b)| mul(*a, *b))
+        .collect();
+
+        let random_numbers_round_2: Vec<u128> = std::iter::zip(
+            random_numbers_round_2_1.iter(),
+            random_numbers_round_2_2.iter(),
+        )
+        .map(|(a, b)| mul(*a, *b))
+        .collect();
+
+        // Create conversion controls
+        let (mut sender_control, mut receiver_control) =
+            create_conversion_controls::<MulShare>().await;
+        let (mut sender_control2, mut receiver_control2) =
+            (sender_control.clone(), receiver_control.clone());
+
+        // First round
+        let sender_task = tokio::spawn(async move {
+            sender_control
+                .m_to_a(random_numbers_round_1_1)
+                .await
+                .unwrap()
+        });
+        let receiver_task = tokio::spawn(async move {
+            receiver_control
+                .m_to_a(random_numbers_round_1_2)
+                .await
+                .unwrap()
+        });
+
+        let (sender_output, receiver_output) = tokio::join!(sender_task, receiver_task);
+        let (sender_output, receiver_output) = (sender_output.unwrap(), receiver_output.unwrap());
+
+        // Check result
+        for (k, (a, b)) in std::iter::zip(sender_output, receiver_output).enumerate() {
+            assert_eq!(a ^ b, random_numbers_round_1[k]);
+        }
+
+        // Second round
+        let sender_task = tokio::spawn(async move {
+            sender_control2
+                .m_to_a(random_numbers_round_2_1)
+                .await
+                .unwrap()
+        });
+        let receiver_task = tokio::spawn(async move {
+            receiver_control2
+                .m_to_a(random_numbers_round_2_2)
+                .await
+                .unwrap()
+        });
+
+        let (sender_output, receiver_output) = tokio::join!(sender_task, receiver_task);
+        let (sender_output, receiver_output) = (sender_output.unwrap(), receiver_output.unwrap());
+
+        // Check result
+        for (k, (a, b)) in std::iter::zip(sender_output, receiver_output).enumerate() {
+            assert_eq!(a ^ b, random_numbers_round_2[k]);
         }
     }
 
@@ -90,6 +193,7 @@ mod tests {
                 Arc<Mutex<MockOTFactory<Block>>>,
                 MockOTSender<Block>,
                 T,
+                MockClientControl,
                 Tape,
             >,
         >,
@@ -98,6 +202,7 @@ mod tests {
                 Arc<Mutex<MockOTFactory<Block>>>,
                 MockOTReceiver<Block>,
                 T,
+                MockServerControl,
                 Tape,
             >,
         >,
@@ -113,17 +218,20 @@ mod tests {
         let sender_mux = MockClientControl::new(sender_mux_addr);
 
         let ot_factory = Arc::new(Mutex::new(MockOTFactory::<Block>::default()));
-        let mut sender = ActorShareConversionSender::<_, _, T, Tape>::new();
-        let mut receiver = ActorShareConversionReceiver::<_, _, T, Tape>::new();
+        let mut sender = ActorShareConversionSender::<_, _, T, _, Tape>::new(
+            String::from(""),
+            None,
+            sender_mux,
+            Arc::clone(&ot_factory),
+        );
+        let mut receiver = ActorShareConversionReceiver::<_, _, T, _, Tape>::new(
+            String::from(""),
+            receiver_mux,
+            Arc::clone(&ot_factory),
+        );
 
-        sender
-            .setup(sender_mux, Arc::clone(&ot_factory), String::from(""), None)
-            .await
-            .unwrap();
-        receiver
-            .setup(receiver_mux, Arc::clone(&ot_factory), String::from(""))
-            .await
-            .unwrap();
+        sender.setup().await.unwrap();
+        receiver.setup().await.unwrap();
 
         let sender_addr = xtra::spawn_tokio(sender, Mailbox::unbounded());
         let receiver_addr = xtra::spawn_tokio(receiver, Mailbox::unbounded());

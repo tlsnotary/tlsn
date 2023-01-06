@@ -13,69 +13,101 @@ use share_conversion_core::gf2_128::Gf2_128ShareConvert;
 use utils_aio::{factory::AsyncFactory, mux::MuxChannelControl};
 use xtra::prelude::*;
 
-enum State<T, OT, U, V>
+enum State<T, OT, U, V, W>
 where
     T: AsyncFactory<OT>,
     OT: ObliviousReceive<bool, Block>,
     U: Gf2_128ShareConvert,
-    V: Recorder<U>,
+    V: MuxChannelControl<Gf2ConversionMessage>,
+    W: Recorder<U>,
 {
-    Initialized,
-    Setup(IOReceiver<T, OT, U, V>),
+    Initialized {
+        id: String,
+        muxer: V,
+        receiver_factory: T,
+    },
+    Setup(IOReceiver<T, OT, U, W>),
     Complete,
 }
 
 #[derive(xtra::Actor)]
-pub struct Receiver<T, OT, U, V = Void>
+pub struct Receiver<T, OT, U, V, W = Void>
 where
     T: AsyncFactory<OT>,
     OT: ObliviousReceive<bool, Block>,
     U: Gf2_128ShareConvert,
-    V: Recorder<U>,
+    V: MuxChannelControl<Gf2ConversionMessage>,
+    W: Recorder<U>,
 {
-    state: State<T, OT, U, V>,
+    state: State<T, OT, U, V, W>,
 }
 
-impl<T, OT, U, V> Receiver<T, OT, U, V>
+impl<T, OT, U, V, W> Receiver<T, OT, U, V, W>
 where
     T: AsyncFactory<OT>,
     OT: ObliviousReceive<bool, Block>,
     U: Gf2_128ShareConvert,
-    V: Recorder<U>,
+    V: MuxChannelControl<Gf2ConversionMessage>,
+    W: Recorder<U>,
 {
-    pub fn new() -> Self {
+    pub fn new(id: String, muxer: V, receiver_factory: T) -> Self {
         Self {
-            state: State::Initialized,
+            state: State::Initialized {
+                id,
+                muxer,
+                receiver_factory,
+            },
         }
     }
 }
 
-impl<T, OT, U, V> Receiver<T, OT, U, V>
+impl<T, OT, U, V, W> Receiver<T, OT, U, V, W>
 where
     T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
     OT: ObliviousReceive<bool, Block>,
     U: Gf2_128ShareConvert,
-    V: Recorder<U>,
+    V: MuxChannelControl<Gf2ConversionMessage>,
+    W: Recorder<U>,
 {
-    pub async fn setup<X: MuxChannelControl<Gf2ConversionMessage>>(
-        &mut self,
-        mut muxer: X,
-        receiver_factory: T,
-        id: String,
-    ) -> Result<(), ActorConversionError> {
-        let channel = muxer.get_channel(id.clone()).await?;
-        let receiver = IOReceiver::new(receiver_factory, id, channel);
-        self.state = State::Setup(receiver);
+    pub async fn setup(&mut self) -> Result<(), ActorConversionError> {
+        // We need to own the state, so we use this only as a temporary modification
+        let state = std::mem::replace(&mut self.state, State::Complete);
+
+        match state {
+            State::Initialized {
+                id,
+                mut muxer,
+                receiver_factory,
+            } => {
+                let channel = muxer.get_channel(id.clone()).await?;
+                let receiver = IOReceiver::new(receiver_factory, id, channel);
+                self.state = State::Setup(receiver);
+            }
+            State::Setup(_) => {
+                self.state = state;
+                return Err(ActorConversionError::AlreadySetup);
+            }
+            State::Complete => {
+                self.state = state;
+                return Err(ActorConversionError::Shutdown);
+            }
+        }
+
         Ok(())
     }
 }
 
-#[derive(Clone)]
 pub struct ReceiverControl<T>(Address<T>);
 
 impl<T> ReceiverControl<T> {
     pub fn new(address: Address<T>) -> Self {
         Self(address)
+    }
+}
+
+impl<T> Clone for ReceiverControl<T> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
     }
 }
 
@@ -124,13 +156,14 @@ where
 }
 
 #[async_trait]
-impl<T, OT, U, V> Handler<M2AMessage<Vec<u128>>> for Receiver<T, OT, U, V>
+impl<T, OT, U, V, W> Handler<M2AMessage<Vec<u128>>> for Receiver<T, OT, U, V, W>
 where
     T: AsyncFactory<OT> + Send + 'static,
     OT: ObliviousReceive<bool, Block> + Send + 'static,
     U: Gf2_128ShareConvert + Send + 'static,
-    V: Recorder<U> + Send + 'static,
-    IOReceiver<T, OT, U, V>:
+    V: MuxChannelControl<Gf2ConversionMessage> + Send + 'static,
+    W: Recorder<U> + Send + 'static,
+    IOReceiver<T, OT, U, W>:
         MultiplicativeToAdditive<FieldElement = u128, Error = ShareConversionError>,
 {
     type Return = Result<Vec<u128>, ActorConversionError>;
@@ -146,19 +179,20 @@ where
                 .await
                 .map_err(ActorConversionError::from),
             State::Complete => Err(ActorConversionError::Shutdown),
-            State::Initialized => Err(ActorConversionError::NotSetup),
+            State::Initialized { .. } => Err(ActorConversionError::NotSetup),
         }
     }
 }
 
 #[async_trait]
-impl<T, OT, U, V> Handler<A2MMessage<Vec<u128>>> for Receiver<T, OT, U, V>
+impl<T, OT, U, V, W> Handler<A2MMessage<Vec<u128>>> for Receiver<T, OT, U, V, W>
 where
     T: AsyncFactory<OT> + Send + 'static,
     OT: ObliviousReceive<bool, Block> + Send + 'static,
     U: Gf2_128ShareConvert + Send + 'static,
-    V: Recorder<U> + Send + 'static,
-    IOReceiver<T, OT, U, V>:
+    V: MuxChannelControl<Gf2ConversionMessage> + Send + 'static,
+    W: Recorder<U> + Send + 'static,
+    IOReceiver<T, OT, U, W>:
         AdditiveToMultiplicative<FieldElement = u128, Error = ShareConversionError>,
 {
     type Return = Result<Vec<u128>, ActorConversionError>;
@@ -174,17 +208,18 @@ where
                 .await
                 .map_err(ActorConversionError::from),
             State::Complete => Err(ActorConversionError::Shutdown),
-            State::Initialized => Err(ActorConversionError::NotSetup),
+            State::Initialized { .. } => Err(ActorConversionError::NotSetup),
         }
     }
 }
 
 #[async_trait]
-impl<T, OT, U> Handler<VerifyTapeMessage> for Receiver<T, OT, U, Tape>
+impl<T, OT, U, V> Handler<VerifyTapeMessage> for Receiver<T, OT, U, V, Tape>
 where
     T: AsyncFactory<OT> + Send + 'static,
     OT: ObliviousReceive<bool, Block> + Send + 'static,
     U: Gf2_128ShareConvert + Send + 'static,
+    V: MuxChannelControl<Gf2ConversionMessage> + Send + 'static,
     IOReceiver<T, OT, U, Tape>: VerifyTape<Error = ShareConversionError>,
 {
     type Return = Result<(), ActorConversionError>;
@@ -194,14 +229,14 @@ where
         _message: VerifyTapeMessage,
         ctx: &mut Context<Self>,
     ) -> Self::Return {
-        let inner = std::mem::replace(&mut self.state, State::Complete);
-        let _ = match inner {
-            State::Setup(inner) => inner
+        let state = std::mem::replace(&mut self.state, State::Complete);
+        let _ = match state {
+            State::Setup(state) => state
                 .verify_tape()
                 .await
                 .map_err(ActorConversionError::from),
             State::Complete => Err(ActorConversionError::Shutdown),
-            State::Initialized => Err(ActorConversionError::NotSetup),
+            State::Initialized { .. } => Err(ActorConversionError::NotSetup),
         }?;
 
         ctx.stop_self();

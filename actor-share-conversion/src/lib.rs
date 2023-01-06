@@ -13,6 +13,8 @@ pub enum ActorConversionError {
     ActorError(#[from] xtra::Error),
     #[error("Actor has already been shut down")]
     Shutdown,
+    #[error("Actor has already been setup")]
+    AlreadySetup,
     #[error("Actor has not been setup")]
     NotSetup,
 }
