@@ -1,8 +1,8 @@
 use crate::garble::{
     circuit::{state as gc_state, GarbledCircuit},
     commitment::{HashCommitment, Opening},
-    label::{OutputCheck, OutputLabels},
-    Delta, Error, InputLabels, WireLabel, WireLabelPair,
+    label::{ActiveOutputLabels, LabelsDigest},
+    ActiveInputLabels, Delta, Error, FullInputLabels,
 };
 use mpc_circuits::{Circuit, InputValue};
 
@@ -37,13 +37,13 @@ pub mod state {
     #[derive(Debug)]
     pub struct Commit {
         pub(super) evaluated_gc: GarbledCircuit<gc_state::Evaluated>,
-        pub(super) check: OutputCheck,
+        pub(super) check: LabelsDigest,
     }
 
     #[derive(Debug)]
     pub struct Verify {
         pub(super) evaluated_gc: GarbledCircuit<gc_state::Evaluated>,
-        pub(super) check: OutputCheck,
+        pub(super) check: LabelsDigest,
         pub(super) commit_opening: Opening,
     }
 
@@ -83,7 +83,7 @@ impl DualExLeader<Generator> {
     pub fn garble(
         self,
         inputs: &[InputValue],
-        input_labels: &[InputLabels<WireLabelPair>],
+        input_labels: &[FullInputLabels],
         delta: Delta,
     ) -> Result<(GarbledCircuit<gc_state::Partial>, DualExLeader<Evaluator>), Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
@@ -99,7 +99,7 @@ impl DualExLeader<Generator> {
         gc: GarbledCircuit<gc_state::Full>,
     ) -> Result<(GarbledCircuit<gc_state::Partial>, DualExLeader<Evaluator>), Error> {
         Ok((
-            gc.to_evaluator(inputs, true, false),
+            gc.to_evaluator(inputs, true, false)?,
             DualExLeader {
                 state: Evaluator {
                     gc,
@@ -115,7 +115,7 @@ impl DualExLeader<Evaluator> {
     pub fn evaluate(
         self,
         gc: GarbledCircuit<gc_state::Partial>,
-        input_labels: &[InputLabels<WireLabel>],
+        input_labels: &[ActiveInputLabels],
     ) -> Result<DualExLeader<Commit>, Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
         let evaluated_gc = gc.evaluate(&cipher, input_labels)?;
@@ -141,7 +141,7 @@ impl DualExLeader<Evaluator> {
     fn compute_output_check(
         &self,
         evaluated_gc: &GarbledCircuit<gc_state::Evaluated>,
-    ) -> Result<OutputCheck, Error> {
+    ) -> Result<LabelsDigest, Error> {
         if !evaluated_gc.has_decoding() {
             return Err(Error::PeerError(
                 "Peer did not provide label decoding info".to_string(),
@@ -150,17 +150,16 @@ impl DualExLeader<Evaluator> {
 
         let output = evaluated_gc.decode()?;
 
-        let mut expected_labels: Vec<OutputLabels<WireLabel>> =
+        let mut expected_labels: Vec<ActiveOutputLabels> =
             Vec::with_capacity(self.state.circ.output_count());
         // Here we use the output values from the peer's circuit to select the corresponding output labels from our garbled circuit
         for (labels, value) in self.state.gc.output_labels().iter().zip(output.iter()) {
-            expected_labels.push(labels.select(value)?);
+            expected_labels.push(labels.select(value.value())?);
         }
 
-        Ok(OutputCheck::new((
-            &expected_labels,
-            &evaluated_gc.output_labels(),
-        )))
+        Ok(LabelsDigest::new(
+            &[expected_labels, evaluated_gc.output_labels().to_vec()].concat(),
+        ))
     }
 }
 
@@ -184,7 +183,7 @@ impl DualExLeader<Commit> {
 
 impl DualExLeader<Verify> {
     /// Check [`DualExFollower`] output matches expected
-    pub fn check(self, check: OutputCheck) -> Result<DualExLeader<Reveal>, Error> {
+    pub fn check(self, check: LabelsDigest) -> Result<DualExLeader<Reveal>, Error> {
         // If this fails then the peer was cheating and your private inputs were potentially leaked
         // with a probability of 1/(2^n), where n is the number of potentially leaked bits, and you
         // should call the police immediately

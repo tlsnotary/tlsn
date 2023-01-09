@@ -45,6 +45,7 @@ pub struct Group {
     name: String,
     desc: String,
     value_type: ValueType,
+    // a vec containing ids of the wires
     pub(crate) wires: Vec<usize>,
 }
 

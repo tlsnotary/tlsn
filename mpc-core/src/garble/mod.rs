@@ -5,7 +5,7 @@
 //! Additionally, it provides various [execution modes](exec) which can be selected depending on protocol requirements.
 
 pub(crate) mod circuit;
-pub mod commitment;
+pub(crate) mod commitment;
 mod error;
 mod evaluator;
 pub mod exec;
@@ -13,8 +13,11 @@ mod generator;
 pub(crate) mod label;
 
 pub use circuit::{state as gc_state, CircuitOpening, GarbledCircuit};
-pub use error::{Error, InputError};
-pub use label::{Delta, InputLabels, OutputCheck, OutputLabels, WireLabel, WireLabelPair};
+pub use error::{Error, InputError, LabelError};
+pub use label::{
+    ActiveInputLabels, ActiveOutputLabels, Delta, FullInputLabels, FullOutputLabels, Labels,
+    LabelsDecodingInfo, LabelsDigest, WireLabel, WireLabelPair,
+};
 
 #[cfg(test)]
 mod tests {
@@ -126,7 +129,7 @@ mod tests {
         let cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
         let circ = Arc::new(Circuit::load_bytes(AES_128_REVERSE).unwrap());
 
-        let (input_labels, delta) = InputLabels::generate(&mut rng, &circ, None);
+        let (input_labels, delta) = FullInputLabels::generate_set(&mut rng, &circ, None);
 
         // Generator provides key
         let gen_input = circ.input(0).unwrap().to_value(vec![0x32; 16]).unwrap();
@@ -135,10 +138,10 @@ mod tests {
 
         let gc = GarbledCircuit::generate(&cipher, circ.clone(), delta, &input_labels).unwrap();
 
-        let gc = gc.to_evaluator(&[gen_input.clone()], true, false);
+        let gc = gc.to_evaluator(&[gen_input.clone()], true, false).unwrap();
 
         // Evaluator typically receives these using OT
-        let ev_input_labels = input_labels[1].select(&ev_input).unwrap();
+        let ev_input_labels = input_labels[1].select(&ev_input.value()).unwrap();
 
         let evaluated_gc = gc.evaluate(&cipher, &[ev_input_labels]).unwrap();
         let output = evaluated_gc.decode().unwrap();

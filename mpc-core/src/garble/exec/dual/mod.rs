@@ -14,7 +14,7 @@ pub use leader::{state as leader_state, DualExLeader};
 
 #[cfg(test)]
 mod tests {
-    use crate::garble::{commitment::Opening, Error, InputLabels, OutputCheck};
+    use crate::garble::{commitment::Opening, Error, FullInputLabels, LabelsDigest};
 
     use super::*;
     use mpc_circuits::{Circuit, WireGroup, ADDER_64};
@@ -34,8 +34,9 @@ mod tests {
         let leader_input = circ.input(0).unwrap().to_value(0u64).unwrap();
         let follower_input = circ.input(1).unwrap().to_value(0u64).unwrap();
 
-        let (leader_labels, leader_delta) = InputLabels::generate(&mut rng, &circ, None);
-        let (follower_labels, follower_delta) = InputLabels::generate(&mut rng, &circ, None);
+        let (leader_labels, leader_delta) = FullInputLabels::generate_set(&mut rng, &circ, None);
+        let (follower_labels, follower_delta) =
+            FullInputLabels::generate_set(&mut rng, &circ, None);
 
         let (leader_gc, leader) = leader
             .garble(&[leader_input.clone()], &leader_labels, leader_delta)
@@ -48,14 +49,14 @@ mod tests {
         let leader = leader
             .evaluate(
                 follower_gc,
-                &[follower_labels[0].select(&leader_input).unwrap()],
+                &[follower_labels[0].select(leader_input.value()).unwrap()],
             )
             .unwrap();
 
         let follower = follower
             .evaluate(
                 leader_gc,
-                &[leader_labels[1].select(&follower_input).unwrap()],
+                &[leader_labels[1].select(follower_input.value()).unwrap()],
             )
             .unwrap();
 
@@ -83,7 +84,7 @@ mod tests {
 
         let (_, follower) = follower.reveal(leader_commit);
 
-        let malicious_leader_opening = Opening::new(&OutputCheck::new((&[], &[])).0);
+        let malicious_leader_opening = Opening::new(&[0u8; 32]);
 
         let err = follower.verify(malicious_leader_opening).unwrap_err();
 
@@ -96,7 +97,7 @@ mod tests {
 
         let (_, leader) = leader.commit();
 
-        let malicious_leader_commit = Opening::new(&OutputCheck::new((&[], &[])).0).commit();
+        let malicious_leader_commit = Opening::new(&[0u8; 32]).commit();
 
         let (follower_reveal, follower) = follower.reveal(malicious_leader_commit);
 
@@ -113,7 +114,7 @@ mod tests {
 
         let (_, leader) = leader.commit();
 
-        let malicious_follower_reveal = OutputCheck::new((&[], &[]));
+        let malicious_follower_reveal = LabelsDigest::from_bytes([0u8; 32]);
 
         let err = leader.check(malicious_follower_reveal).unwrap_err();
 

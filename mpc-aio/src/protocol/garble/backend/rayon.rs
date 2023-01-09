@@ -6,7 +6,7 @@ use futures::channel::oneshot;
 
 use mpc_circuits::Circuit;
 use mpc_core::garble::{
-    gc_state, CircuitOpening, Delta, GarbledCircuit, InputLabels, WireLabel, WireLabelPair,
+    gc_state, ActiveInputLabels, CircuitOpening, Delta, FullInputLabels, GarbledCircuit,
 };
 
 use crate::protocol::garble::{Compressor, Evaluator, GCError, Generator, Validator};
@@ -20,7 +20,7 @@ impl Generator for RayonBackend {
         &mut self,
         circ: Arc<Circuit>,
         delta: Delta,
-        input_labels: &[InputLabels<WireLabelPair>],
+        input_labels: &[FullInputLabels],
     ) -> Result<GarbledCircuit<gc_state::Full>, GCError> {
         let (sender, receiver) = oneshot::channel();
         let input_labels = input_labels.to_vec();
@@ -41,7 +41,7 @@ impl Evaluator for RayonBackend {
     async fn evaluate(
         &mut self,
         circ: GarbledCircuit<gc_state::Partial>,
-        input_labels: &[InputLabels<WireLabel>],
+        input_labels: &[ActiveInputLabels],
     ) -> Result<GarbledCircuit<gc_state::Evaluated>, GCError> {
         let (sender, receiver) = oneshot::channel();
         let input_labels = input_labels.to_vec();
@@ -107,7 +107,8 @@ impl Compressor for RayonBackend {
 
 #[cfg(test)]
 mod test {
-    use mpc_circuits::{WireGroup, ADDER_64};
+    use mpc_circuits::ADDER_64;
+    use mpc_core::garble::FullInputLabels;
     use rand::thread_rng;
 
     use super::*;
@@ -115,23 +116,19 @@ mod test {
     #[tokio::test]
     async fn test_rayon_garbler() {
         let circ = Arc::new(Circuit::load_bytes(ADDER_64).unwrap());
-        let (input_labels, delta) = InputLabels::generate(&mut thread_rng(), &circ, None);
+        let (input_labels, delta) = FullInputLabels::generate_set(&mut thread_rng(), &circ, None);
         let gc = RayonBackend
             .generate(circ.clone(), delta, &input_labels)
             .await
             .unwrap();
 
         let input_labels = vec![
-            input_labels[0]
-                .select(&circ.input(0).unwrap().to_value(0u64).unwrap())
-                .unwrap(),
-            input_labels[1]
-                .select(&circ.input(1).unwrap().to_value(0u64).unwrap())
-                .unwrap(),
+            input_labels[0].select(&0u64.into()).unwrap(),
+            input_labels[1].select(&0u64.into()).unwrap(),
         ];
 
         let _ = RayonBackend
-            .evaluate(gc.to_evaluator(&[], true, false), &input_labels)
+            .evaluate(gc.to_evaluator(&[], true, false).unwrap(), &input_labels)
             .await
             .unwrap();
     }
@@ -139,7 +136,8 @@ mod test {
     #[tokio::test]
     async fn test_validator() {
         let circ = Arc::new(Circuit::load_bytes(ADDER_64).unwrap());
-        let (full_input_labels, delta) = InputLabels::generate(&mut thread_rng(), &circ, None);
+        let (full_input_labels, delta) =
+            FullInputLabels::generate_set(&mut thread_rng(), &circ, None);
         let gc = RayonBackend
             .generate(circ.clone(), delta, &full_input_labels)
             .await
@@ -147,16 +145,12 @@ mod test {
         let opening = gc.open();
 
         let input_labels = vec![
-            full_input_labels[0]
-                .select(&circ.input(0).unwrap().to_value(0u64).unwrap())
-                .unwrap(),
-            full_input_labels[1]
-                .select(&circ.input(1).unwrap().to_value(0u64).unwrap())
-                .unwrap(),
+            full_input_labels[0].select(&0u64.into()).unwrap(),
+            full_input_labels[1].select(&0u64.into()).unwrap(),
         ];
 
         let ev_gc = RayonBackend
-            .evaluate(gc.to_evaluator(&[], true, false), &input_labels)
+            .evaluate(gc.to_evaluator(&[], true, false).unwrap(), &input_labels)
             .await
             .unwrap();
 

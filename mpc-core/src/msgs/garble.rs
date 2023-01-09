@@ -6,7 +6,7 @@ use crate::{
         self,
         circuit::{self, unchecked as unchecked_circuit, unchecked::UncheckedCircuitOpening},
         commitment, gc_state, label,
-        label::{input::unchecked::*, output::unchecked::*},
+        label::{input::unchecked::*, output::unchecked::*, unchecked::*},
     },
     Block,
 };
@@ -20,7 +20,7 @@ pub enum GarbleMessage {
     Output(Output),
     HashCommitment(HashCommitment),
     CommitmentOpening(CommitmentOpening),
-    OutputCheck(OutputCheck),
+    OutputLabelsDigest(OutputLabelsDigest),
 }
 
 #[derive(Debug, Clone)]
@@ -107,7 +107,7 @@ impl From<CircuitOpening> for UncheckedCircuitOpening {
             input_decoding: opening
                 .input_decoding
                 .into_iter()
-                .map(UncheckedInputLabelsDecodingInfo::from)
+                .map(UncheckedLabelsDecodingInfo::from)
                 .collect(),
         }
     }
@@ -115,16 +115,16 @@ impl From<CircuitOpening> for UncheckedCircuitOpening {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct OutputCheck([u8; 32]);
+pub struct OutputLabelsDigest([u8; 32]);
 
-impl From<label::OutputCheck> for OutputCheck {
-    fn from(c: label::OutputCheck) -> Self {
+impl From<label::LabelsDigest> for OutputLabelsDigest {
+    fn from(c: label::LabelsDigest) -> Self {
         Self(c.0)
     }
 }
 
-impl From<OutputCheck> for label::OutputCheck {
-    fn from(c: OutputCheck) -> Self {
+impl From<OutputLabelsDigest> for label::LabelsDigest {
+    fn from(c: OutputLabelsDigest) -> Self {
         Self(c.0)
     }
 }
@@ -136,12 +136,12 @@ pub struct InputLabels {
     pub labels: Vec<Block>,
 }
 
-impl From<label::InputLabels<label::WireLabel>> for InputLabels {
-    fn from(labels: label::InputLabels<label::WireLabel>) -> Self {
+impl From<label::ActiveInputLabels> for InputLabels {
+    fn from(labels: label::ActiveInputLabels) -> Self {
         Self {
             id: labels.id(),
             labels: labels
-                .as_ref()
+                .inner()
                 .into_iter()
                 .map(|label| *label.as_ref())
                 .collect::<Vec<Block>>(),
@@ -165,12 +165,12 @@ pub struct OutputLabels {
     pub labels: Vec<Block>,
 }
 
-impl From<label::OutputLabels<label::WireLabel>> for OutputLabels {
-    fn from(labels: label::OutputLabels<label::WireLabel>) -> Self {
+impl From<label::ActiveOutputLabels> for OutputLabels {
+    fn from(labels: label::ActiveOutputLabels) -> Self {
         Self {
             id: labels.id(),
             labels: labels
-                .as_ref()
+                .inner()
                 .into_iter()
                 .map(|label| *label.as_ref())
                 .collect::<Vec<Block>>(),
@@ -197,26 +197,17 @@ pub struct InputDecodingInfo {
 impl From<label::InputLabelsDecodingInfo> for InputDecodingInfo {
     fn from(decoding: label::InputLabelsDecodingInfo) -> Self {
         Self {
-            id: decoding.input.id(),
-            decoding: decoding
-                .as_ref()
-                .iter()
-                .copied()
-                .map(|enc| *enc)
-                .collect::<Vec<bool>>(),
+            id: decoding.id(),
+            decoding: decoding.decoding,
         }
     }
 }
 
-impl From<InputDecodingInfo> for UncheckedInputLabelsDecodingInfo {
+impl From<InputDecodingInfo> for UncheckedLabelsDecodingInfo {
     fn from(decoding: InputDecodingInfo) -> Self {
         Self {
             id: decoding.id,
-            decoding: decoding
-                .decoding
-                .into_iter()
-                .map(label::LabelDecodingInfo::from)
-                .collect(),
+            decoding: decoding.decoding,
         }
     }
 }
@@ -231,26 +222,17 @@ pub struct OutputDecodingInfo {
 impl From<label::OutputLabelsDecodingInfo> for OutputDecodingInfo {
     fn from(decoding: label::OutputLabelsDecodingInfo) -> Self {
         Self {
-            id: decoding.output.id(),
-            decoding: decoding
-                .as_ref()
-                .iter()
-                .copied()
-                .map(|enc| *enc)
-                .collect::<Vec<bool>>(),
+            id: decoding.id(),
+            decoding: decoding.decoding,
         }
     }
 }
 
-impl From<OutputDecodingInfo> for UncheckedOutputLabelsDecodingInfo {
+impl From<OutputDecodingInfo> for UncheckedLabelsDecodingInfo {
     fn from(decoding: OutputDecodingInfo) -> Self {
         Self {
             id: decoding.id,
-            decoding: decoding
-                .decoding
-                .into_iter()
-                .map(label::LabelDecodingInfo::from)
-                .collect(),
+            decoding: decoding.decoding,
         }
     }
 }
@@ -289,7 +271,9 @@ impl label::OutputLabelsCommitment {
     ) -> Result<Self, crate::garble::Error> {
         let output = circ.output(commitment.id)?;
         if commitment.commitments.len() != output.len() * 2 {
-            return Err(crate::garble::Error::InvalidOutputLabelCommitment);
+            return Err(crate::garble::LabelError::InvalidLabelCommitment(
+                output.name().to_string(),
+            ))?;
         }
         let commitments = commitment
             .commitments
@@ -360,7 +344,7 @@ impl From<GarbledCircuit> for unchecked_circuit::UncheckedGarbledCircuit {
                 Some(
                     decoding
                         .into_iter()
-                        .map(UncheckedOutputLabelsDecodingInfo::from)
+                        .map(UncheckedLabelsDecodingInfo::from)
                         .collect(),
                 )
             }),
