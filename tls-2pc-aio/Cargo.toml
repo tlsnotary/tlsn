@@ -6,6 +6,10 @@ edition = "2021"
 [lib]
 name = "tls_2pc_aio"
 
+[features]
+default = ["mock"]
+mock = ["dep:share-conversion-core", "dep:rand_chacha", "dep:rand"]
+
 [dependencies]
 async-trait.workspace = true
 thiserror.workspace = true
@@ -15,16 +19,20 @@ tlsn-mpc-aio = { path = "../mpc-aio" }
 tlsn-mpc-circuits = { path = "../mpc-circuits" }
 tlsn-tls-2pc-core = { path = "../tls-2pc-core" }
 tlsn-utils-aio = { path = "../utils-aio" }
+share-conversion-aio = { path = "../share-conversion-aio" }
+share-conversion-core = { path = "../share-conversion-core", optional = true }
 futures.workspace = true
 p256.workspace = true
-rand.workspace = true
+rand_chacha = { workspace = true, optional = true }
+rand = { workspace = true, optional = true }
 
 [dev-dependencies]
 tokio.workspace = true
 tlsn-mpc-aio = { path = "../mpc-aio", features = ["mock"] }
 tlsn-utils-aio = { path = "../utils-aio", features = ["duplex"] }
 criterion = { workspace = true, features = ["async", "async_tokio"] }
+ghash_rc.workspace = true
 
-[[bench]]
-name = "prf"
-harness = false
+# [[bench]]
+# name = "prf"
+# harness = false

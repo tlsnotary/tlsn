@@ -1,9 +1,11 @@
-use share_conversion::ShareConversionError;
+use share_conversion_aio::ShareConversionError;
 use tls_2pc_core::ghash::GhashError;
 
-mod io;
+mod aio;
+#[cfg(feature = "mock")]
+pub mod mock;
 
-pub use io::GhashIO;
+pub use aio::GhashIO;
 
 #[derive(Debug, thiserror::Error)]
 pub enum GhashIOError {
@@ -16,40 +18,45 @@ pub enum GhashIOError {
 }
 
 pub trait GhashOutput {
-    fn generate_mac(&self, message: &[u128]) -> Result<u128, GhashIOError>;
+    fn generate_ghash_output(&self, message: &[u128]) -> Result<u128, GhashIOError>;
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ghash_rc::universal_hash::{NewUniversalHash, UniversalHash};
-    use ghash_rc::GHash;
-    use mpc_aio::protocol::ot::kos::{receiver::Kos15IOReceiver, sender::Kos15IOSender};
-    use mpc_core::msgs::ot::OTMessage;
-    use mpc_core::ot::{r_state, s_state};
-    use rand::Rng;
-    use rand::SeedableRng;
+    use crate::ghash::mock::mock_ghash_pair;
+    use ghash_rc::{
+        universal_hash::{NewUniversalHash, UniversalHash},
+        GHash,
+    };
+    use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
-    use tls_2pc_core::ghash::Finalized;
-    use utils_aio::duplex::DuplexChannel;
 
     #[tokio::test]
-    async fn test_ghash_io_mac() {
+    async fn test_ghash_aio_output() {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
         let h: u128 = rng.gen();
         let message: Vec<u128> = (0..128).map(|_| rng.gen()).collect();
 
-        let (ot_sender, ot_receiver) = setup_ot(2_usize.pow(14)).await;
-        let (sender, receiver) = setup_ghash(rng, h, message.len(), ot_sender, ot_receiver).await;
+        let (sender, receiver) = mock_ghash_pair(h, message.len()).await;
 
-        let mac1 = sender.generate_mac(&message).unwrap();
-        let mac2 = receiver.generate_mac(&message).unwrap();
+        let sender = tokio::spawn(async move { sender.setup().await.unwrap() });
+        let receiver = tokio::spawn(async move { receiver.setup().await.unwrap() });
 
-        assert_eq!(mac1 ^ mac2, ghash_reference_impl(h, message));
+        let (sender, receiver) = tokio::join!(sender, receiver);
+        let (sender, receiver) = (sender.unwrap(), receiver.unwrap());
+
+        let ghash_out_sender = sender.generate_ghash_output(&message).unwrap();
+        let ghash_out_receiver = receiver.generate_ghash_output(&message).unwrap();
+
+        assert_eq!(
+            ghash_out_sender ^ ghash_out_receiver,
+            ghash_reference_impl(h, message)
+        );
     }
 
     #[tokio::test]
-    async fn test_ghash_io_long_message() {
+    async fn test_ghash_aio_long_message() {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
         let h: u128 = rng.gen();
         let short_message: Vec<u128> = (0..128).map(|_| rng.gen()).collect();
@@ -58,42 +65,43 @@ mod tests {
         let long_message: Vec<u128> = (0..192).map(|_| rng.gen()).collect();
         let long_message_len = long_message.len();
 
-        let (ot_sender, ot_receiver) = setup_ot(2_usize.pow(14)).await;
-        let (sender, receiver) =
-            setup_ghash(rng, h, short_message.len(), ot_sender, ot_receiver).await;
+        // Create and setup sender and receiver for short message length
+        let (sender, receiver) = mock_ghash_pair(h, short_message.len()).await;
 
-        // Compute more hashkey powers
-        let sender = tokio::spawn(async move {
-            sender
-                .change_message_length(long_message_len)
-                .await
-                .unwrap()
-        });
-        let receiver = tokio::spawn(async move {
-            let receiver = receiver
-                .change_message_length(long_message_len)
-                .await
-                .unwrap();
-            receiver.setup().await.unwrap()
-        });
+        let sender = tokio::spawn(async move { sender.setup().await.unwrap() });
+        let receiver = tokio::spawn(async move { receiver.setup().await.unwrap() });
+
         let (sender, receiver) = tokio::join!(sender, receiver);
         let (sender, receiver) = (sender.unwrap(), receiver.unwrap());
 
-        // We should still be able to generate a MAC for the shorter message
-        let mac_short_1 = sender.generate_mac(&short_message).unwrap();
-        let mac_short_2 = receiver.generate_mac(&short_message).unwrap();
+        // Adapt for a longer message
+        let (sender, receiver) = (
+            sender.change_message_length(long_message_len),
+            receiver.change_message_length(long_message_len),
+        );
+
+        // Compute more hashkey powers
+        let sender = tokio::spawn(async move { sender.compute_add_shares().await.unwrap() });
+        let receiver = tokio::spawn(async move { receiver.compute_add_shares().await.unwrap() });
+
+        let (sender, receiver) = tokio::join!(sender, receiver);
+        let (sender, receiver) = (sender.unwrap(), receiver.unwrap());
+
+        // We should still be able to generate a ghash output for the shorter message
+        let ghash_out_sender = sender.generate_ghash_output(&short_message).unwrap();
+        let ghash_out_receiver = receiver.generate_ghash_output(&short_message).unwrap();
 
         assert_eq!(
-            mac_short_1 ^ mac_short_2,
+            ghash_out_sender ^ ghash_out_receiver,
             ghash_reference_impl(h, short_message)
         );
 
-        // Check if we can generate a MAC for the long message now
-        let mac_long_1 = sender.generate_mac(&long_message).unwrap();
-        let mac_long_2 = receiver.generate_mac(&long_message).unwrap();
+        // Check if we can generate a ghash output for the long message now
+        let ghash_out_sender = sender.generate_ghash_output(&long_message).unwrap();
+        let ghash_out_receiver = receiver.generate_ghash_output(&long_message).unwrap();
 
         assert_eq!(
-            mac_long_1 ^ mac_long_2,
+            ghash_out_sender ^ ghash_out_receiver,
             ghash_reference_impl(h, long_message)
         );
     }
@@ -105,45 +113,5 @@ mod tests {
         }
         let mac = ghash.finalize();
         u128::from_be_bytes(mac.into_bytes().try_into().unwrap())
-    }
-
-    async fn setup_ghash(
-        mut rng: ChaCha12Rng,
-        h: u128,
-        message_len: usize,
-        ot_sender: Kos15IOSender<s_state::RandSetup>,
-        ot_receiver: Kos15IOReceiver<r_state::RandSetup>,
-    ) -> (
-        GhashIO<Kos15IOSender<s_state::RandSetup>, Finalized>,
-        GhashIOReceiver<Kos15IOReceiver<r_state::RandSetup>, Finalized>,
-    ) {
-        let h1: u128 = rng.gen();
-        let h2 = h ^ h1;
-
-        let (c1, c2) = DuplexChannel::new();
-        let sender = GhashIO::new(h1, message_len, Box::new(c1), ot_sender).unwrap();
-        let receiver = GhashIOReceiver::new(h2, message_len, Box::new(c2), ot_receiver).unwrap();
-
-        let sender = tokio::spawn(async move { sender.setup().await.unwrap() });
-        let receiver = tokio::spawn(async move { receiver.setup().await.unwrap() });
-        let (sender, receiver) = tokio::join!(sender, receiver);
-        (sender.unwrap(), receiver.unwrap())
-    }
-
-    async fn setup_ot(
-        max_ots: usize,
-    ) -> (
-        Kos15IOSender<s_state::RandSetup>,
-        Kos15IOReceiver<r_state::RandSetup>,
-    ) {
-        let (c1, c2) = DuplexChannel::<OTMessage>::new();
-        let (sender, receiver) = (
-            Kos15IOSender::new(Box::new(c1)),
-            Kos15IOReceiver::new(Box::new(c2)),
-        );
-        let sender = tokio::spawn(async move { sender.rand_setup(max_ots).await.unwrap() });
-        let receiver = tokio::spawn(async move { receiver.rand_setup(max_ots).await.unwrap() });
-        let (sender, receiver) = tokio::join!(sender, receiver);
-        (sender.unwrap(), receiver.unwrap())
     }
 }

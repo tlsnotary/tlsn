@@ -1,4 +1,4 @@
-use share_conversion::{AdditiveToMultiplicative, MultiplicativeToAdditive};
+use share_conversion_aio::{AdditiveToMultiplicative, MultiplicativeToAdditive};
 use tls_2pc_core::ghash::{Finalized, GhashCore, Init, Intermediate};
 
 use super::{GhashIOError, GhashOutput};
@@ -78,22 +78,21 @@ where
     U: MultiplicativeToAdditive<FieldElement = u128>,
 {
     pub fn change_message_length(self, new_message_length: usize) -> GhashIO<T, U, Intermediate> {
-        let io = GhashIO {
+        GhashIO {
             core: self.core.change_max_hashkey(new_message_length),
             a2m_converter: self.a2m_converter,
             m2a_converter: self.m2a_converter,
             id: self.id,
-        };
-        io
+        }
     }
 }
 
 impl<T, U> GhashOutput for GhashIO<T, U, Finalized>
 where
-    T: AdditiveToMultiplicative<FieldElement = u128> + Send,
-    U: MultiplicativeToAdditive<FieldElement = u128> + Send,
+    T: AdditiveToMultiplicative<FieldElement = u128>,
+    U: MultiplicativeToAdditive<FieldElement = u128>,
 {
-    fn generate_mac(&self, message: &[u128]) -> Result<u128, GhashIOError> {
+    fn generate_ghash_output(&self, message: &[u128]) -> Result<u128, GhashIOError> {
         self.core.ghash_output(message).map_err(GhashIOError::from)
     }
 }

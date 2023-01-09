@@ -8,7 +8,7 @@ members = [
     "mpc-circuits",
     "tls-circuits",
     "tls-2pc-core",
-    #"tls-2pc-aio",
+    "tls-2pc-aio",
     "utils",
     "utils-aio",
     "clmul",
