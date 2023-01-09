@@ -110,9 +110,9 @@ mod tests {
         universal_hash::{NewUniversalHash, UniversalHash},
         GHash,
     };
-    use mpc_core::Block;
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
+    use share_conversion_core::gf2_128::inverse;
 
     use super::*;
 
@@ -195,7 +195,7 @@ mod tests {
         let (sender, receiver) = ghash_to_finalized(sender, receiver);
 
         assert_eq!(
-            sender.ghash_output(&message).unwrap() ^ receiver.generate_mac(&message).unwrap(),
+            sender.ghash_output(&message).unwrap() ^ receiver.ghash_output(&message).unwrap(),
             ghash_reference_impl(h, message)
         );
     }
@@ -214,15 +214,16 @@ mod tests {
         let mut message_short: Vec<u128> = vec![0; message.len() / 2];
         message_short.iter_mut().for_each(|x| *x = rng.gen());
 
-        let (sender, None) = sender.change_max_hashkey(message_short.len()) else {
-            panic!("Expected None, but got Some(...)");
-        };
-        let receiver = receiver.change_max_hashkey(message_short.len());
-        let receiver = receiver.into_add_powers(None);
+        let (sender, receiver) = (
+            sender.change_max_hashkey(message_short.len()),
+            receiver.change_max_hashkey(message_short.len()),
+        );
+
+        let (sender, receiver) = ghash_to_finalized(sender, receiver);
 
         assert_eq!(
             sender.ghash_output(&message_short).unwrap()
-                ^ receiver.generate_mac(&message_short).unwrap(),
+                ^ receiver.ghash_output(&message_short).unwrap(),
             ghash_reference_impl(h, message_short)
         );
     }
@@ -241,23 +242,16 @@ mod tests {
         let mut message_long: Vec<u128> = vec![0; 2 * message.len()];
         message_long.iter_mut().for_each(|x| *x = rng.gen());
 
-        let (sender, Some(sharing)) = sender.change_max_hashkey(message_long.len()) else {
-            panic!("Expected Some(...), but got None");
-        };
-        let receiver = receiver.change_max_hashkey(message_long.len());
+        let (sender, receiver) = (
+            sender.change_max_hashkey(message_long.len()),
+            receiver.change_max_hashkey(message_long.len()),
+        );
 
-        // Do another OT because we have higher powers of `H` to compute
-        let choices = receiver.choices().unwrap();
-
-        let sender_mul_envelope = sharing.into();
-        let bool_choices: Vec<bool> = choices.into();
-
-        let chosen_inputs = ot_mock_batch(sender_mul_envelope, &bool_choices);
-        let receiver = receiver.into_add_powers(Some(chosen_inputs.into()));
+        let (sender, receiver) = ghash_to_finalized(sender, receiver);
 
         assert_eq!(
             sender.ghash_output(&message_long).unwrap()
-                ^ receiver.generate_mac(&message_long).unwrap(),
+                ^ receiver.ghash_output(&message_long).unwrap(),
             ghash_reference_impl(h, message_long)
         );
     }
@@ -328,23 +322,6 @@ mod tests {
         }
     }
 
-    fn ot_mock(envelope: [Block; 2], choice: bool) -> Block {
-        if choice {
-            envelope[1]
-        } else {
-            envelope[0]
-        }
-    }
-
-    fn ot_mock_batch(envelopes: Vec<[Block; 2]>, choices: &[bool]) -> Vec<Block> {
-        let mut out: Vec<Block> = vec![];
-
-        for (envelope, choice) in envelopes.into_iter().zip(choices.iter()) {
-            out.push(ot_mock(envelope, *choice));
-        }
-        out
-    }
-
     fn gen_u128_vec() -> Vec<u128> {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
@@ -367,39 +344,52 @@ mod tests {
     fn setup_ghash_to_intermediate_state(
         hashkey: u128,
         max_hashkey_power: usize,
-    ) -> (GhashCore<Intermediate>, GhashReceiver<Intermediate>) {
+    ) -> (GhashCore<Intermediate>, GhashCore<Intermediate>) {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // The additive sharings of the MAC key to begin with
-        let h1: u128 = rng.gen();
-        let h2: u128 = hashkey ^ h1;
+        let h1_additive: u128 = rng.gen();
+        let h2_additive: u128 = hashkey ^ h1_additive;
 
-        let sender = GhashCore::new(h1, max_hashkey_power).unwrap();
-        let receiver = GhashReceiver::new(h2, max_hashkey_power).unwrap();
+        // Create a multiplicative sharing
+        let h1_multiplicative: u128 = rng.gen();
+        let h2_multiplicative: u128 = mul(hashkey, inverse(h1_multiplicative));
 
-        let (sender, sharing) = sender.compute_odd_mul_powers();
-        let choices = receiver.choices();
+        let sender = GhashCore::new(h1_additive, max_hashkey_power).unwrap();
+        let receiver = GhashCore::new(h2_additive, max_hashkey_power).unwrap();
 
-        let sender_add_envelope = sharing.into();
-        let bool_choices: Vec<bool> = choices.into();
+        let (sender, receiver) = (
+            sender.compute_odd_mul_powers(h1_multiplicative),
+            receiver.compute_odd_mul_powers(h2_multiplicative),
+        );
 
-        let chosen_inputs = ot_mock_batch(sender_add_envelope, &bool_choices);
-        let receiver = receiver.compute_mul_powers(chosen_inputs.into());
         (sender, receiver)
     }
 
     fn ghash_to_finalized(
         sender: GhashCore<Intermediate>,
-        receiver: GhashReceiver<Intermediate>,
-    ) -> (GhashCore<Finalized>, GhashReceiver<Finalized>) {
-        let (sender, sharing) = sender.add_new_add_shares();
-        let choices = receiver.choices().unwrap();
-
-        let sender_mul_envelope = sharing.into();
-        let bool_choices: Vec<bool> = choices.into();
-
-        let chosen_inputs = ot_mock_batch(sender_mul_envelope, &bool_choices);
-        let receiver = receiver.into_add_powers(Some(chosen_inputs.into()));
+        receiver: GhashCore<Intermediate>,
+    ) -> (GhashCore<Finalized>, GhashCore<Finalized>) {
+        let (add_shares_sender, add_shares_receiver) =
+            m2a(&sender.odd_mul_shares(), &receiver.odd_mul_shares());
+        let (sender, receiver) = (
+            sender.add_new_add_shares(&add_shares_sender),
+            receiver.add_new_add_shares(&add_shares_receiver),
+        );
         (sender, receiver)
+    }
+
+    fn m2a(first: &[u128], second: &[u128]) -> (Vec<u128>, Vec<u128>) {
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
+        let mut first_out = vec![];
+        let mut second_out = vec![];
+        for (j, k) in first.iter().zip(second.iter()) {
+            let product = mul(*j, *k);
+            let first_summand: u128 = rng.gen();
+            let second_summand: u128 = product ^ first_summand;
+            first_out.push(first_summand);
+            second_out.push(second_summand);
+        }
+        (first_out, second_out)
     }
 }
