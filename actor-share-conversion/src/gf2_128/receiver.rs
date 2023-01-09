@@ -72,27 +72,19 @@ where
         // We need to own the state, so we use this only as a temporary modification
         let state = std::mem::replace(&mut self.state, State::Complete);
 
-        match state {
-            State::Initialized {
-                id,
-                mut muxer,
-                receiver_factory,
-            } => {
-                let channel = muxer
-                    .get_channel(id.clone())
-                    .await
-                    .map_err(|err| ShareConversionError::Other(err.to_string()))?;
-                let receiver = IOReceiver::new(receiver_factory, id, channel);
-                self.state = State::Setup(receiver);
-                Ok(())
-            }
-            _ => {
-                self.state = state;
-                Err(ShareConversionError::Other(String::from(
-                    "Actor has to be initialized",
-                )))
-            }
-        }
+        let State::Initialized {id, mut muxer, receiver_factory} = state else {
+            self.state = state;
+            return Err(ShareConversionError::Other(String::from("Actor has to be initialized")));
+        };
+
+        let channel = muxer
+            .get_channel(id.clone())
+            .await
+            .map_err(|err| ShareConversionError::Other(err.to_string()))?;
+        let receiver = IOReceiver::new(receiver_factory, id, channel);
+        self.state = State::Setup(receiver);
+
+        Ok(())
     }
 }
 
@@ -228,14 +220,14 @@ where
         ctx: &mut Context<Self>,
     ) -> Self::Return {
         let state = std::mem::replace(&mut self.state, State::Complete);
-        let _ = match state {
-            State::Setup(state) => state.verify_tape().await,
-            _ => Err(ShareConversionError::Other(String::from(
-                "Actor is not setup",
-            ))),
-        }?;
+
+        let State::Setup(state) = state else {
+            return Err(ShareConversionError::Other(String::from(
+                "Actor is not setup"
+            )));
+        };
 
         ctx.stop_self();
-        Ok(())
+        state.verify_tape().await
     }
 }

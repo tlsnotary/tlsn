@@ -73,28 +73,19 @@ where
         // We need to own the state, so we use this only as a temporary modification
         let state = std::mem::replace(&mut self.state, State::Complete);
 
-        match state {
-            State::Initialized {
-                id,
-                barrier,
-                mut muxer,
-                sender_factory,
-            } => {
-                let channel = muxer
-                    .get_channel(id.clone())
-                    .await
-                    .map_err(|err| ShareConversionError::Other(err.to_string()))?;
-                let sender = IOSender::new(sender_factory, id, channel, barrier);
-                self.state = State::Setup(sender);
-                Ok(())
-            }
-            _ => {
-                self.state = state;
-                Err(ShareConversionError::Other(String::from(
-                    "Actor has to be initialized",
-                )))
-            }
-        }
+        let State::Initialized {id, barrier, mut muxer, sender_factory} = state else {
+            self.state = state;
+            return Err(ShareConversionError::Other(String::from("Actor has to be initialized")));
+        };
+
+        let channel = muxer
+            .get_channel(id.clone())
+            .await
+            .map_err(|err| ShareConversionError::Other(err.to_string()))?;
+        let sender = IOSender::new(sender_factory, id, channel, barrier);
+        self.state = State::Setup(sender);
+
+        Ok(())
     }
 }
 
@@ -226,14 +217,13 @@ where
 
     async fn handle(&mut self, _message: SendTapeMessage, ctx: &mut Context<Self>) -> Self::Return {
         let state = std::mem::replace(&mut self.state, State::Complete);
-        let _ = match state {
-            State::Setup(state) => state.send_tape().await,
-            _ => Err(ShareConversionError::Other(String::from(
-                "Actor is not setup",
-            ))),
-        }?;
+        let State::Setup(state) = state else {
+            return Err(ShareConversionError::Other(String::from(
+                "Actor is not setup"
+            )));
+        };
 
         ctx.stop_self();
-        Ok(())
+        state.send_tape().await
     }
 }
