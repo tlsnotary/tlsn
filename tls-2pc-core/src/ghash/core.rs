@@ -1,12 +1,11 @@
-use share_conversion_core::gf2_128::mul;
-
 use super::{
-    compute_missing_mul_shares, compute_new_add_shares, Finalized, GhashError, Init, Intermediate,
+    compute_missing_mul_shares, compute_new_add_shares, mul, Finalized, GhashError, Init,
+    Intermediate,
 };
 
 /// The core logic for our 2PC Ghash implementation
 ///
-/// `GhashCore` will be do all the necessary computation
+/// `GhashCore` will do all the necessary computation
 pub struct GhashCore<T = Init> {
     /// Inner state
     state: T,
@@ -58,7 +57,7 @@ impl GhashCore {
 }
 
 impl GhashCore<Intermediate> {
-    /// Return odd multilplicative shares of the hashkey
+    /// Return odd multiplicative shares of the hashkey
     ///
     /// Takes into account cached additive shares, so that
     /// multiplicative ones for which already an additive one
@@ -78,7 +77,7 @@ impl GhashCore<Intermediate> {
     /// Adds new additive hashkey powers by also computing the even ones
     /// and transforms `self` into a `GhashCore<Finalized>`
     pub fn add_new_add_shares(mut self, new_additive_odd_shares: &[u128]) -> GhashCore<Finalized> {
-        compute_new_add_shares(&new_additive_odd_shares, &mut self.state.cached_add_shares);
+        compute_new_add_shares(new_additive_odd_shares, &mut self.state.cached_add_shares);
 
         GhashCore {
             state: Finalized {
@@ -93,7 +92,7 @@ impl GhashCore<Intermediate> {
 impl GhashCore<Finalized> {
     /// Generate the GHASH output
     ///
-    /// Computes the 2PC additive share of the GHASH output, i.e. GHASH ^ GCTR`
+    /// Computes the 2PC additive share of the GHASH output
     pub fn ghash_output(&self, message: &[u128]) -> Result<u128, GhashError> {
         if message.len() > self.max_message_length {
             return Err(GhashError::InvalidMessageLength);
