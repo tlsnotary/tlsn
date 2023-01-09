@@ -1,10 +1,11 @@
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     marker::PhantomData,
+    sync::Arc,
 };
 
 pub use crate::error::BuilderError;
-use crate::{circuit::GateType, Circuit, Gate, Group, Input, Output, ValueType};
+use crate::{circuit::GateType, Circuit, Gate, Input, Output, ValueType, WireGroup};
 
 /// A circuit feed
 #[derive(Debug, Clone, Copy)]
@@ -55,7 +56,6 @@ impl CircuitHandle {
                 .into_iter()
                 .map(|input| SubInputHandle {
                     wire_handles: input
-                        .as_ref()
                         .wires()
                         .iter()
                         .copied()
@@ -287,12 +287,10 @@ impl CircuitBuilder<Inputs> {
     ) -> InputHandle {
         let wires: Vec<usize> = (self.0.input_wire_id..self.0.input_wire_id + wire_count).collect();
         self.0.input_wire_id += wire_count;
+        let wire_handles = wires.iter().copied().map(WireHandle::new_feed).collect();
         let input = InputHandle {
-            input: Input::new(
-                self.0.inputs.len(),
-                Group::new(name, desc, value_type, &wires),
-            ),
-            wire_handles: wires.iter().copied().map(WireHandle::new_feed).collect(),
+            input: Input::new(self.0.inputs.len(), name, desc, value_type, wires),
+            wire_handles,
         };
         self.0.inputs.push(input.clone());
         input
@@ -328,17 +326,12 @@ impl CircuitBuilder<Gates> {
 
         // Shift input wires right
         for input in circ.inputs.iter_mut() {
-            input.group.wires.iter_mut().for_each(|wire_id| {
-                *wire_id += offset;
-            })
+            input.0 = Arc::new(input.0.shift_right(offset));
         }
+
         // Shift output wires right
         for output in circ.outputs.iter_mut() {
-            output
-                .group
-                .wires
-                .iter_mut()
-                .for_each(|wire_id| *wire_id += offset)
+            output.0 = Arc::new(output.0.shift_right(offset));
         }
 
         // Insert gate handles
@@ -426,12 +419,10 @@ impl CircuitBuilder<Outputs> {
         let wires: Vec<usize> =
             (self.0.output_wire_id..self.0.output_wire_id + wire_count).collect();
         self.0.output_wire_id += wire_count;
+        let wire_handles = wires.iter().copied().map(WireHandle::new_sink).collect();
         let output = OutputHandle {
-            output: Output::new(
-                self.0.outputs.len(),
-                Group::new(name, desc, value_type, &wires),
-            ),
-            wire_handles: wires.iter().copied().map(WireHandle::new_sink).collect(),
+            output: Output::new(self.0.outputs.len(), name, desc, value_type, wires),
+            wire_handles,
         };
         self.0.outputs.push(output.clone());
         output
@@ -506,22 +497,26 @@ impl CircuitBuilder<Outputs> {
             .into_iter()
             .map(|handle| {
                 let mut output = handle.output;
-                output.group.wires = output
-                    .group
+                let mut group = output.0.as_ref().clone();
+                group.wires = group
                     .wires
-                    .iter()
+                    .into_iter()
                     .map(|id| {
                         let mut feed =
-                            self.0.conns.get(id).ok_or(BuilderError::MissingConnection(
-                                format!("Output {} was not fully mapped to gates", output.id)
-                                    .to_string(),
-                            ))?;
+                            self.0
+                                .conns
+                                .get(&id)
+                                .ok_or(BuilderError::MissingConnection(
+                                    format!("Output {} was not fully mapped to gates", output.id())
+                                        .to_string(),
+                                ))?;
                         if let Some(new_id) = id_map.get(feed) {
                             feed = new_id;
                         }
                         Ok(*feed)
                     })
                     .collect::<Result<Vec<usize>, BuilderError>>()?;
+                output.0 = Arc::new(group);
                 Ok(output)
             })
             .collect::<Result<Vec<Output>, BuilderError>>()?;

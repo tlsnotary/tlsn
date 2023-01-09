@@ -66,7 +66,7 @@ pub(crate) fn topological_sort(gates: Vec<Gate>) -> Vec<Gate> {
 mod tests {
     use super::*;
 
-    use crate::{Circuit, ADDER_64};
+    use crate::{Circuit, WireGroup, ADDER_64};
     use rand::{seq::SliceRandom, thread_rng};
 
     #[test]

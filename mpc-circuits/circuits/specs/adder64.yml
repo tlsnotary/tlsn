@@ -2,16 +2,19 @@ name: "adder64"
 version: "0.1.0"
 wires: 504
 inputs:
-  - name: "x"
+  - id: 0
+    name: "x"
     desc: "Unsigned 64-bit integer, LSB0 order"
     value_type: u64
     wire_count: 64
-  - name: "y"
+  - id: 1
+    name: "y"
     desc: "Unsigned 64-bit integer, LSB0 order"
     value_type: u64
     wire_count: 64
 outputs:
-  - name: "z"
+  - id: 0
+    name: "z"
     desc: "Unsigned 64-bit integer, LSB0 order"
     value_type: u64
     wire_count: 64

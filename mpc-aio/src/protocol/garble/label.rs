@@ -1,6 +1,6 @@
 use crate::protocol::ot::{OTError, ObliviousReceive, ObliviousSend, ObliviousVerify};
 use async_trait::async_trait;
-use mpc_circuits::InputValue;
+use mpc_circuits::{InputValue, WireGroup};
 use mpc_core::{
     garble::{InputLabels, WireLabel, WireLabelPair},
     Block,
@@ -42,7 +42,7 @@ where
     ) -> Result<Vec<InputLabels<WireLabel>>, OTError> {
         let choice_bits = choices
             .iter()
-            .map(|value| value.wire_values())
+            .map(|value| value.value().to_lsb0_bits())
             .flatten()
             .collect::<Vec<bool>>();
 
@@ -52,7 +52,7 @@ where
             .into_iter()
             .map(|value| {
                 InputLabels::new(
-                    value.input().clone(),
+                    value.group().clone(),
                     &labels
                         .drain(..value.len())
                         .zip(value.wires().iter())

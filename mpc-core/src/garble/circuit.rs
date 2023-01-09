@@ -16,7 +16,7 @@ use crate::{
     },
     utils::sha256,
 };
-use mpc_circuits::{Circuit, CircuitId, InputValue, OutputValue};
+use mpc_circuits::{Circuit, CircuitId, InputValue, OutputValue, WireGroup};
 
 /// Encrypted gate truth table
 ///
@@ -229,8 +229,12 @@ impl GarbledCircuit<Full> {
             .iter()
             .map(|value| {
                 InputLabels::new(
-                    value.input().clone(),
-                    &WireLabelPair::choose(&self.state.labels, value.wires(), &value.wire_values()),
+                    value.group().clone(),
+                    &WireLabelPair::choose(
+                        &self.state.labels,
+                        value.wires(),
+                        &value.value().to_lsb0_bits(),
+                    ),
                 )
                 .expect("Circuit invariant violated, wrong wire count")
             })
@@ -250,11 +254,7 @@ impl GarbledCircuit<Full> {
                     Some(
                         InputLabels::new(
                             input.clone(),
-                            &WireLabelPair::choose(
-                                &self.state.labels,
-                                input.as_ref().wires(),
-                                &[value],
-                            ),
+                            &WireLabelPair::choose(&self.state.labels, input.wires(), &[value]),
                         )
                         .expect("Circuit invariant violated, wrong wire count"),
                     )
@@ -722,7 +722,7 @@ pub(crate) mod unchecked {
                 .zip(
                     circ.inputs()
                         .iter()
-                        .filter(|input| input_ids.contains(&input.id)),
+                        .filter(|input| input_ids.contains(&input.id())),
                 )
                 .map(|(labels, input)| InputLabels::from_unchecked(input.clone(), labels))
                 .collect::<Result<Vec<_>, _>>()?;

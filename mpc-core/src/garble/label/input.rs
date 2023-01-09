@@ -2,7 +2,7 @@ use rand::{CryptoRng, Rng};
 use std::collections::HashSet;
 use utils::iter::pick;
 
-use mpc_circuits::{Circuit, Input, InputValue};
+use mpc_circuits::{Circuit, Input, InputValue, WireGroup};
 
 use crate::{
     garble::{
@@ -39,7 +39,7 @@ where
 
     /// Returns input id
     pub fn id(&self) -> usize {
-        self.input.id
+        self.input.id()
     }
 
     /// Returns labels
@@ -120,14 +120,14 @@ impl InputLabels<WireLabelPair> {
 
     /// Returns input wire labels corresponding to an [`InputValue`]
     pub fn select(&self, value: &InputValue) -> Result<InputLabels<WireLabel>, Error> {
-        if self.input.id != value.id() {
+        if self.input.id() != value.id() {
             return Err(Error::InvalidInputLabels);
         }
 
         let labels: Vec<WireLabel> = self
             .labels
             .iter()
-            .zip(value.wire_values())
+            .zip(value.value().to_lsb0_bits())
             .map(|(pair, value)| pair.select(value))
             .collect();
 
@@ -155,7 +155,7 @@ impl InputLabels<WireLabelPair> {
         delta: Delta,
         decoding: InputLabelsDecodingInfo,
     ) -> Result<Self, Error> {
-        if input_labels.id() != decoding.input.id {
+        if input_labels.id() != decoding.input.id() {
             return Err(Error::InvalidLabelDecodingInfo);
         }
 
@@ -220,9 +220,9 @@ impl SanitizedInputLabels {
             .copied()
             .collect();
 
-        labels.sort_by_key(|label| label.id);
+        labels.sort_by_key(|label| label.id());
         let label_count = labels.len();
-        labels.dedup_by_key(|label| label.id);
+        labels.dedup_by_key(|label| label.id());
 
         // Error if input labels contain duplicate wire ids
         if label_count != labels.len() {
@@ -306,7 +306,7 @@ pub(crate) mod unchecked {
             input: Input,
             unchecked: UncheckedInputLabels,
         ) -> Result<Self, Error> {
-            if unchecked.id != input.id || unchecked.labels.len() != input.as_ref().len() {
+            if unchecked.id != input.id() || unchecked.labels.len() != input.as_ref().len() {
                 return Err(Error::InvalidInputLabels);
             }
 
@@ -335,7 +335,7 @@ pub(crate) mod unchecked {
     impl From<InputLabelsDecodingInfo> for UncheckedInputLabelsDecodingInfo {
         fn from(decoding: InputLabelsDecodingInfo) -> Self {
             Self {
-                id: decoding.input.id,
+                id: decoding.input.id(),
                 decoding: decoding.decoding,
             }
         }
@@ -346,7 +346,7 @@ pub(crate) mod unchecked {
             input: Input,
             unchecked: unchecked::UncheckedInputLabelsDecodingInfo,
         ) -> Result<Self, Error> {
-            if unchecked.id != input.id || unchecked.decoding.len() != input.as_ref().len() {
+            if unchecked.id != input.id() || unchecked.decoding.len() != input.as_ref().len() {
                 return Err(Error::InvalidLabelDecodingInfo);
             }
 
@@ -382,7 +382,7 @@ pub(crate) mod unchecked {
         #[fixture]
         fn unchecked_input_labels(input: Input) -> UncheckedInputLabels {
             UncheckedInputLabels {
-                id: input.id,
+                id: input.id(),
                 labels: vec![Block::new(0); input.as_ref().len()],
             }
         }

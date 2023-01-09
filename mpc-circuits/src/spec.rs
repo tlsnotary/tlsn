@@ -1,23 +1,27 @@
+use std::sync::Arc;
+
 use lazy_static::lazy_static;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
-use crate::{error::SpecError as Error, Circuit, Gate, Group, Input, Output, ValueType};
+use crate::{error::SpecError as Error, Circuit, Gate, Group, Input, Output, ValueType, WireGroup};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GroupSpec {
+    id: usize,
     name: String,
     desc: String,
     value_type: String,
     wire_count: usize,
 }
 
-impl From<Group> for GroupSpec {
-    fn from(g: Group) -> Self {
+impl From<&Group> for GroupSpec {
+    fn from(group: &Group) -> Self {
         Self {
-            name: g.name().to_string(),
-            desc: g.desc().to_string(),
-            value_type: match g.value_type() {
+            id: group.id(),
+            name: group.name().to_string(),
+            desc: group.description().to_string(),
+            value_type: match group.value_type() {
                 ValueType::ConstZero => "zero",
                 ValueType::ConstOne => "one",
                 ValueType::Bool => "bool",
@@ -30,7 +34,7 @@ impl From<Group> for GroupSpec {
                 ValueType::U128 => "u128",
             }
             .to_string(),
-            wire_count: g.wires.len(),
+            wire_count: group.wires.len(),
         }
     }
 }
@@ -51,10 +55,11 @@ impl GroupSpec {
             _ => return Err(Error::InvalidGroup(self)),
         };
         Ok(Group::new(
+            self.id,
             &self.name,
             &self.desc,
             value_type,
-            &(id_offset..id_offset + self.wire_count).collect::<Vec<usize>>(),
+            (id_offset..id_offset + self.wire_count).collect::<Vec<usize>>(),
         ))
     }
 }
@@ -172,12 +177,12 @@ impl From<Circuit> for CircuitSpec {
             inputs: c
                 .inputs
                 .into_iter()
-                .map(|input| GroupSpec::from(input.group))
+                .map(|input| GroupSpec::from(input.as_ref()))
                 .collect(),
             outputs: c
                 .outputs
                 .into_iter()
-                .map(|output| GroupSpec::from(output.group))
+                .map(|output| GroupSpec::from(output.as_ref()))
                 .collect(),
             gates: c
                 .gates
@@ -200,9 +205,8 @@ impl CircuitSpec {
         let inputs = self
             .inputs
             .into_iter()
-            .enumerate()
-            .map(|(id, group)| {
-                let input = Input::new(id, group.to_group(input_id_offset)?);
+            .map(|group| {
+                let input = Input(Arc::new(group.to_group(input_id_offset)?));
                 input_id_offset += input.as_ref().len();
                 Ok(input)
             })
@@ -217,9 +221,8 @@ impl CircuitSpec {
         let outputs = self
             .outputs
             .into_iter()
-            .enumerate()
-            .map(|(id, group)| {
-                let output = Output::new(id, group.to_group(output_id_offset)?);
+            .map(|group| {
+                let output = Output(Arc::new(group.to_group(output_id_offset)?));
                 output_id_offset += output.as_ref().len();
                 Ok(output)
             })

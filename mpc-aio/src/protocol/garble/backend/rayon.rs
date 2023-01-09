@@ -107,7 +107,7 @@ impl Compressor for RayonBackend {
 
 #[cfg(test)]
 mod test {
-    use mpc_circuits::ADDER_64;
+    use mpc_circuits::{WireGroup, ADDER_64};
     use rand::thread_rng;
 
     use super::*;

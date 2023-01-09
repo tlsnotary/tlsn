@@ -28,7 +28,7 @@ mod tests {
     use std::sync::Arc;
 
     use crate::Block;
-    use mpc_circuits::{Circuit, AES_128_REVERSE};
+    use mpc_circuits::{Circuit, WireGroup, AES_128_REVERSE};
 
     #[test]
     fn test_and_gate() {

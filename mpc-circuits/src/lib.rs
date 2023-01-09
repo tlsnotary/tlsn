@@ -2,16 +2,27 @@ pub mod builder;
 pub mod circuit;
 pub mod circuits;
 mod error;
+pub(crate) mod group;
+mod input;
+mod output;
 pub mod parse;
 pub mod proto;
 mod spec;
 pub mod utils;
 mod value;
 
-pub use circuit::{Circuit, CircuitId, Gate, Group, Input, InputValue, Output, OutputValue};
-pub use error::CircuitError;
+pub use circuit::{Circuit, CircuitId, Gate};
+pub use error::{CircuitError, ValueError};
+pub use group::{Group, GroupValue, WireGroup};
+pub use input::Input;
+pub use output::Output;
 pub use spec::CircuitSpec;
 pub use value::{Value, ValueType};
+
+/// Group of wires corresponding to a circuit input
+pub type InputValue = GroupValue<Input>;
+/// Group of wires corresponding to a circuit output
+pub type OutputValue = GroupValue<Output>;
 
 #[cfg(feature = "aes_128_reverse")]
 pub static AES_128_REVERSE: &'static [u8] =
@@ -23,7 +34,7 @@ pub static SHA_256: &'static [u8] = std::include_bytes!("../circuits/bin/sha256.
 
 #[cfg(test)]
 mod tests {
-    use crate::circuit::InputValue;
+    use crate::InputValue;
 
     use super::*;
 
@@ -31,7 +42,7 @@ mod tests {
         let inputs: Vec<InputValue> = inputs
             .iter()
             .zip(circ.inputs.iter())
-            .map(|(value, input)| input.to_value(value.clone()).unwrap())
+            .map(|(value, input)| input.clone().to_value(value.clone()).unwrap())
             .collect();
         let outputs = circ.evaluate(&inputs).unwrap();
         for (output, expected) in outputs.iter().zip(expected) {

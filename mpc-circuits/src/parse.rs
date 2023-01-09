@@ -1,7 +1,4 @@
-use crate::{
-    circuit::{Input, Output},
-    Circuit, CircuitError, Gate, Group, ValueType,
-};
+use crate::{Circuit, CircuitError, Gate, Input, Output, ValueType};
 use regex::Regex;
 use std::{
     fs::File,
@@ -83,7 +80,7 @@ impl Circuit {
                 let start_id = input_nwires[..id].iter().sum();
                 let count = input_nwires[id];
                 let wires: Vec<usize> = (start_id..start_id + count).collect();
-                Input::new(id, Group::new("", "", ValueType::Bits, &wires))
+                Input::new(id, "", "", ValueType::Bits, wires)
             })
             .collect();
 
@@ -126,7 +123,7 @@ impl Circuit {
                     + output_nwires[..id].iter().sum::<usize>();
                 let count = output_nwires[id];
                 let wires: Vec<usize> = (start_id..start_id + count).collect();
-                Output::new(id, Group::new("", "", ValueType::Bits, &wires))
+                Output::new(id, "", "", ValueType::Bits, wires)
             })
             .collect();
 
