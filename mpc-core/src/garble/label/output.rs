@@ -107,7 +107,7 @@ impl Labels<Output, state::Full> {
 pub(crate) mod unchecked {
     use super::*;
 
-    /// Output labels which have not been validated
+    /// Active output labels which have not been validated
     #[derive(Debug, Clone)]
     pub struct UncheckedOutputLabels {
         pub(crate) id: usize,

@@ -17,7 +17,8 @@ pub trait State: sealed::Sealed {}
 /// Full wire labels
 #[derive(Debug, Clone, PartialEq)]
 pub struct Full {
-    /// Wire labels corresponding to logic low
+    /// Wire labels corresponding to logic low. The high labels are implicit because we can
+    /// always derive a high label by doing: low XOR delta.
     pub(super) low: Vec<WireLabel>,
     pub(super) delta: Delta,
 }
@@ -25,6 +26,7 @@ pub struct Full {
 impl State for Full {}
 
 impl Full {
+    /// Returns active labels corresponding to the `value`
     pub(super) fn select(&self, value: &Value) -> Result<Active, LabelError> {
         if value.len() != self.low.len() {
             return Err(LabelError::InvalidValue(self.low.len(), value.len()));

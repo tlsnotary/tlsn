@@ -89,8 +89,8 @@ pub mod state {
         pub(crate) delta: Delta,
     }
 
-    /// Garbled circuit data including input labels from the generator and (optionally) the output decoding
-    /// to reveal the plaintext output of the circuit.
+    /// Garbled circuit data including the generator's input labels (but not the evaluator's input labels)
+    /// and (optionally) the output decoding to reveal the plaintext output of the circuit.
     #[derive(Debug)]
     pub struct Partial {
         pub(crate) input_labels: Vec<ActiveInputLabels>,
@@ -314,12 +314,12 @@ impl GarbledCircuit<Full> {
 }
 
 impl GarbledCircuit<Summary> {
-    /// Returns all active inputs labels used to evaluate the circuit
+    /// Returns all input labels which are the result of garbled circuit generation
     pub fn input_labels(&self) -> &[FullInputLabels] {
         &self.state.input_labels
     }
 
-    /// Returns all active output labels which are the result of circuit evaluation
+    /// Returns all output labels which are the result of garbled circuit generation
     pub fn output_labels(&self) -> &[FullOutputLabels] {
         &self.state.output_labels
     }

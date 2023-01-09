@@ -17,13 +17,15 @@ pub use output::OutputLabelsCommitment;
 
 /// Full input labels of a garbled circuit
 pub type FullInputLabels = Labels<Input, state::Full>;
-/// Active input labels of a garbled circuit
+/// Active input labels of a garbled circuit. These are the labels which the evaluator uses
+/// to evaluate the circuit.
 pub type ActiveInputLabels = Labels<Input, state::Active>;
 /// Input labels decoding information
 pub type InputLabelsDecodingInfo = LabelsDecodingInfo<Input>;
 /// Full output labels of a garbled circuit
 pub type FullOutputLabels = Labels<Output, state::Full>;
-/// Active output labels of a garbled circuit
+/// Active output labels of a garbled circuit. These are the labels which the evaluator derives
+/// as a result of the circuit evaluation.
 pub type ActiveOutputLabels = Labels<Output, state::Active>;
 /// Output labels decoding information
 pub type OutputLabelsDecodingInfo = LabelsDecodingInfo<Output>;
@@ -75,7 +77,7 @@ impl<G> Labels<G, state::Full>
 where
     G: WireGroup + Clone,
 {
-    /// Returns labels type, validating the provided labels using the associated group
+    /// Returns Labels type, validating the provided labels using the associated group
     pub fn from_labels(
         group: G,
         delta: Delta,
@@ -198,7 +200,7 @@ impl<G> Labels<G, state::Active>
 where
     G: WireGroup + Clone,
 {
-    /// Returns labels type, validating the provided labels using the associated group
+    /// Returns Labels type, validating the provided labels using the associated group
     pub fn from_labels(group: G, labels: Vec<WireLabel>) -> Result<Self, LabelError> {
         if group.len() != labels.len() {
             return Err(LabelError::InvalidLabelCount(
@@ -214,7 +216,7 @@ where
         })
     }
 
-    /// Returns labels type, validating the provided blocks using the associated group
+    /// Returns Labels type, validating the provided blocks using the associated group
     pub fn from_blocks(group: G, blocks: Vec<Block>) -> Result<Self, LabelError> {
         let labels = group
             .wires()
@@ -248,7 +250,7 @@ where
             ));
         }
 
-        // This should be guaranteed to have the correct number of bits for this group
+        // `bits` are guaranteed to have the correct number of bits for this group
         let bits = self.state.decode(decoding.decoding)?;
 
         Ok(GroupValue::from_bits(self.group.clone(), bits)
