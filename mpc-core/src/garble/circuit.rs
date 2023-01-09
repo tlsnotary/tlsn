@@ -73,8 +73,11 @@ pub mod state {
     /// Full garbled circuit data. This includes all wire label pairs, encrypted gates and delta.
     #[derive(Debug)]
     pub struct Full {
+        /// Full input labels sorted ascending by id
         pub(crate) input_labels: Vec<FullInputLabels>,
+        /// Full output labels sorted ascending by id
         pub(crate) output_labels: Vec<FullOutputLabels>,
+        /// Encrypted gates sorted ascending by id
         pub(crate) encrypted_gates: Vec<EncryptedGate>,
         #[allow(dead_code)]
         pub(crate) delta: Delta,
@@ -83,8 +86,11 @@ pub mod state {
     /// Summary of garbled circuit data, only including input/output labels and decoding info.
     #[derive(Debug)]
     pub struct Summary {
+        /// Full input labels sorted ascending by id
         pub(crate) input_labels: Vec<FullInputLabels>,
+        /// Full output labels sorted ascending by id
         pub(crate) output_labels: Vec<FullOutputLabels>,
+        /// Output labels decoding sorted ascending by id
         pub(crate) decoding: Vec<OutputLabelsDecodingInfo>,
         pub(crate) delta: Delta,
     }
@@ -93,41 +99,56 @@ pub mod state {
     /// and (optionally) the output decoding to reveal the plaintext output of the circuit.
     #[derive(Debug)]
     pub struct Partial {
+        /// Active input labels
         pub(crate) input_labels: Vec<ActiveInputLabels>,
+        /// Encrypted gates sorted ascending by id
         pub(crate) encrypted_gates: Vec<EncryptedGate>,
+        /// Output labels decoding sorted ascending by id
         pub(crate) decoding: Option<Vec<OutputLabelsDecodingInfo>>,
+        /// Output label commitments sorted ascending by id
         pub(crate) commitments: Option<Vec<OutputLabelsCommitment>>,
     }
 
-    /// Evaluated garbled circuit data containing all wire labels
+    /// Evaluated garbled circuit data
     #[derive(Debug, Clone)]
     pub struct Evaluated {
+        /// Active input labels sorted ascending by id
         pub(crate) input_labels: Vec<ActiveInputLabels>,
-        pub(crate) encrypted_gates: Vec<EncryptedGate>,
+        /// Active output labels sorted ascending by id
         pub(crate) output_labels: Vec<ActiveOutputLabels>,
+        /// Encrypted gates sorted ascending by id
+        pub(crate) encrypted_gates: Vec<EncryptedGate>,
+        /// Output labels decoding sorted ascending by id
         pub(crate) decoding: Option<Vec<OutputLabelsDecodingInfo>>,
+        /// Output label commitments sorted ascending by id
         pub(crate) commitments: Option<Vec<OutputLabelsCommitment>>,
     }
 
     /// Evaluated garbled circuit that has been compressed to minimize memory footprint
     #[derive(Debug, Clone)]
     pub struct Compressed {
+        /// Active input labels sorted ascending by id
         pub(crate) input_labels: Vec<ActiveInputLabels>,
+        /// Active output labels sorted ascending by id
+        pub(crate) output_labels: Vec<ActiveOutputLabels>,
         /// Input labels plus the encrypted gates is what constitutes a garbled circuit (GC).
         /// In scenarios where we expect the generator to prove their honest GC generation,
         /// even after performing the evaluation, we want the evaluator to keep the GC around
         /// in order to compare it against an honestly generated circuit. To reduce the memory
         /// footprint, we keep a hash digest of the encrypted gates.
         pub(crate) gates_digest: Vec<u8>,
-        pub(crate) output_labels: Vec<ActiveOutputLabels>,
+        /// Output labels decoding sorted ascending by id
         pub(crate) decoding: Option<Vec<OutputLabelsDecodingInfo>>,
+        /// Output label commitments sorted ascending by id
         pub(crate) commitments: Option<Vec<OutputLabelsCommitment>>,
     }
 
     /// Evaluated garbled circuit output data
     #[derive(Debug)]
     pub struct Output {
+        /// Active output labels sorted ascending by id
         pub(crate) output_labels: Vec<ActiveOutputLabels>,
+        /// Output labels decoding sorted ascending by id
         pub(crate) decoding: Option<Vec<OutputLabelsDecodingInfo>>,
     }
 

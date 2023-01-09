@@ -493,7 +493,8 @@ where
     }
 }
 
-/// Extracts active labels from full set of labels
+/// Extracts active labels from a (sorted) slice containing all active labels
+/// for a garbled circuit
 ///
 /// Panics if provided an invalid group
 pub(crate) fn extract_active_labels<G: WireGroup + Clone>(
@@ -515,7 +516,8 @@ pub(crate) fn extract_active_labels<G: WireGroup + Clone>(
         .collect()
 }
 
-/// Extracts active labels from full set of labels
+/// Extracts full labels from a (sorted) slice containing all full labels
+/// for a garbled circuit
 ///
 /// Panics if provided an invalid group
 pub(crate) fn extract_full_labels<G: WireGroup + Clone>(
