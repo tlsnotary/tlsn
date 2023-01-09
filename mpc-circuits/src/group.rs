@@ -143,7 +143,7 @@ where
             .collect()
     }
 
-    /// Creates group value from bit string
+    /// Creates group value from LSB0 bit string
     #[inline]
     pub fn from_bits(group: T, bits: Vec<bool>) -> Result<Self, ValueError> {
         if group.len() != bits.len() {

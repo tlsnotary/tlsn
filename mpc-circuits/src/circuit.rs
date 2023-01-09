@@ -255,18 +255,18 @@ pub struct Circuit {
     /// Total number of XOR gates
     pub(crate) xor_count: usize,
 
-    /// All input ids in ascending order
+    /// All input ids in ascending order (sanitized)
     pub(crate) input_ids: Vec<usize>,
-    /// All output ids in ascending order
+    /// All output ids in ascending order (sanitized)
     pub(crate) output_ids: Vec<usize>,
 
-    /// Groups of wires corresponding to circuit inputs
+    /// Groups of wires corresponding to circuit inputs (sanitized)
     pub(crate) inputs: Vec<Input>,
-    /// Constant inputs
+    /// Constant inputs (sanitized)
     pub(crate) const_inputs: Vec<Input>,
-    /// Groups of wires corresponding to circuit outputs
+    /// Groups of wires corresponding to circuit outputs (sanitized)
     pub(crate) outputs: Vec<Output>,
-    /// Circuit logic gates
+    /// Circuit logic gates (sanitized)
     pub(crate) gates: Vec<Gate>,
 }
 
@@ -314,6 +314,7 @@ impl Circuit {
             .filter(|input| input.value_type().is_constant())
             .cloned()
             .collect();
+        Self::validate_constant_inputs(&const_inputs)?;
 
         Ok(Self {
             id: CircuitId::new(&gates),
@@ -331,7 +332,8 @@ impl Circuit {
         })
     }
 
-    /// Creates new circuit without performing any checks on circuit structure
+    /// Creates new circuit without performing any checks on circuit structure. This is only used
+    /// to speed up loading of the circuits which were generated and stored locally.
     pub(crate) fn new_unchecked(
         name: &str,
         version: &str,
@@ -359,6 +361,19 @@ impl Circuit {
             outputs,
             gates,
         }
+    }
+
+    /// Makes sure that, of the constant inputs (already sorted and deduped), each has only one wire
+    fn validate_constant_inputs(inputs: &Vec<Input>) -> Result<(), CircuitError> {
+        for input in inputs {
+            if input.len() != 1 {
+                return Err(CircuitError::InvalidCircuit(
+                    "Constant input does not have only one wire".to_string(),
+                ));
+            }
+        }
+
+        Ok(())
     }
 
     fn validate_inputs(mut inputs: Vec<Input>) -> Result<(Vec<Input>, Vec<usize>), CircuitError> {
@@ -680,6 +695,7 @@ impl Circuit {
 
         // Insert constant inputs
         for input in self.const_inputs.iter() {
+            // constant inputs consist of only one wire
             let wire_id = input.wires().get(0).ok_or(CircuitError::InvalidCircuit(
                 "Constant input missing wire id".to_string(),
             ))?;
