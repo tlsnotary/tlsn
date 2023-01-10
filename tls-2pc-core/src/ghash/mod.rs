@@ -18,37 +18,12 @@
 /// Contains the core logic for ghash
 mod core;
 
+/// Contains the different states
+pub mod state;
+
 pub use crate::ghash::core::GhashCore;
 use share_conversion_core::gf2_128::{compute_product_repeated, mul};
 use thiserror::Error;
-
-#[derive(Clone, Debug)]
-/// Init state for Ghash protocol
-///
-/// This is before any OT has taken place
-pub struct Init {
-    add_share: u128,
-}
-
-#[derive(Clone, Debug)]
-/// Intermediate state for Ghash protocol
-///
-/// This is when the additive share has been converted into a multiplicative share and all the
-/// needed powers have been computed
-pub struct Intermediate {
-    odd_mul_shares: Vec<u128>,
-    cached_add_shares: Vec<u128>,
-}
-
-/// Final state for Ghash protocol
-///
-/// This is when each party can compute a final share of the MAC, because both now have
-/// additive shares of all the powers of `H`
-#[derive(Clone, Debug)]
-pub struct Finalized {
-    odd_mul_shares: Vec<u128>,
-    add_shares: Vec<u128>,
-}
 
 #[derive(Debug, Error)]
 pub enum GhashError {
@@ -114,7 +89,11 @@ mod tests {
     use rand_chacha::ChaCha12Rng;
     use share_conversion_core::gf2_128::inverse;
 
-    use super::*;
+    use super::{
+        compute_missing_mul_shares, compute_new_add_shares, compute_product_repeated, mul,
+        state::{Finalized, Intermediate},
+        GhashCore,
+    };
 
     #[test]
     fn test_ghash_product_sharing() {

@@ -1,6 +1,7 @@
 use super::{
-    compute_missing_mul_shares, compute_new_add_shares, mul, Finalized, GhashError, Init,
-    Intermediate,
+    compute_missing_mul_shares, compute_new_add_shares, mul,
+    state::{Finalized, Init, Intermediate},
+    GhashError,
 };
 
 /// The core logic for our 2PC Ghash implementation
