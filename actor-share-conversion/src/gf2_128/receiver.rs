@@ -29,6 +29,7 @@ where
     },
     Setup(IOReceiver<T, OT, U, W>),
     Complete,
+    Error,
 }
 
 #[derive(xtra::Actor)]
@@ -72,7 +73,7 @@ where
 {
     pub async fn setup(&mut self) -> Result<(), ShareConversionError> {
         // We need to own the state, so we use this only as a temporary modification
-        let state = std::mem::replace(&mut self.state, State::Complete);
+        let state = std::mem::replace(&mut self.state, State::Error);
 
         let State::Initialized {id, mut muxer, receiver_factory} = state else {
             self.state = state;

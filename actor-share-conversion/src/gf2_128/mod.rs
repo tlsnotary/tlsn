@@ -24,7 +24,6 @@ mod tests {
     };
     use share_conversion_core::gf2_128::{mul, AddShare, Gf2_128ShareConvert, MulShare};
     use std::sync::{Arc, Mutex};
-    use tokio::task::JoinError;
     use utils_aio::adaptive_barrier::AdaptiveBarrier;
     use xtra::prelude::*;
 
