@@ -107,9 +107,9 @@ mod test {
     fn test_encoder(circ: Circuit) {
         let mut enc = ChaChaEncoder::new([0u8; 32], 0);
 
-        circ.inputs()
-            .iter()
-            .for_each(|input| _ = enc.encode(input.id() as u32, input))
+        for input in circ.inputs() {
+            enc.encode(input.id() as u32, input);
+        }
     }
 
     #[rstest]
