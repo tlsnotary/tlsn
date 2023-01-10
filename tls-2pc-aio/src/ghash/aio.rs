@@ -1,7 +1,6 @@
+use super::{Ghash, GhashIOError};
 use share_conversion_aio::{AdditiveToMultiplicative, MultiplicativeToAdditive};
 use tls_2pc_core::ghash::{Finalized, GhashCore, Init, Intermediate};
-
-use super::{GhashIOError, GhashOutput};
 
 pub struct GhashIO<T, U, V = Init>
 where
@@ -9,8 +8,8 @@ where
     U: MultiplicativeToAdditive<FieldElement = u128>,
 {
     core: GhashCore<V>,
-    a2m_converter: T,
-    m2a_converter: U,
+    pub(crate) a2m_converter: T,
+    pub(crate) m2a_converter: U,
     id: String,
 }
 
@@ -87,12 +86,12 @@ where
     }
 }
 
-impl<T, U> GhashOutput for GhashIO<T, U, Finalized>
+impl<T, U> Ghash for GhashIO<T, U, Finalized>
 where
     T: AdditiveToMultiplicative<FieldElement = u128>,
     U: MultiplicativeToAdditive<FieldElement = u128>,
 {
-    fn generate_ghash_output(&self, message: &[u128]) -> Result<u128, GhashIOError> {
+    fn generate_ghash(&self, message: &[u128]) -> Result<u128, GhashIOError> {
         self.core.ghash_output(message).map_err(GhashIOError::from)
     }
 }
