@@ -180,7 +180,7 @@ where
         match self.state {
             State::Setup(ref mut state) => state.m_to_a(message.0).await,
             _ => Err(ShareConversionError::Other(String::from(
-                "Actor is not setup",
+                "Actor is not in the Setup state",
             ))),
         }
     }
@@ -207,7 +207,7 @@ where
         match self.state {
             State::Setup(ref mut state) => state.a_to_m(message.0).await,
             _ => Err(ShareConversionError::Other(String::from(
-                "Actor is not setup",
+                "Actor is not in the Setup state",
             ))),
         }
     }
@@ -239,7 +239,7 @@ where
             _ => {
                 self.state = state;
                 return Err(ShareConversionError::Other(String::from(
-                    "Actor is not setup",
+                    "Actor is not in the Setup state",
                 )));
             }
         }
