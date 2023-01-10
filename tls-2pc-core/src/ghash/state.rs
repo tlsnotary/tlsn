@@ -26,7 +26,7 @@ pub struct Intermediate {
 
 /// Final state for Ghash protocol
 ///
-/// This is when each party can compute a final share of the MAC, because both now have
+/// This is when each party can compute a final share of the ghash output, because both now have
 /// additive shares of all the powers of `H`
 #[derive(Clone, Debug)]
 pub struct Finalized {

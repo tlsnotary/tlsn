@@ -163,7 +163,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ghash_mac() {
+    fn test_ghash_output() {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // The MAC key
@@ -316,8 +316,8 @@ mod tests {
         for el in message {
             ghash.update(&el.to_be_bytes().into());
         }
-        let mac = ghash.finalize();
-        u128::from_be_bytes(mac.into_bytes().try_into().unwrap())
+        let ghash_output = ghash.finalize();
+        u128::from_be_bytes(ghash_output.into_bytes().try_into().unwrap())
     }
 
     fn setup_ghash_to_intermediate_state(
