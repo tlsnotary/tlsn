@@ -99,7 +99,7 @@ mod tests {
     fn test_ghash_product_sharing() {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
-        // The MAC key
+        // The Ghash key
         let h: u128 = rng.gen();
         let message = gen_u128_vec();
         let message_len = message.len();
@@ -132,7 +132,7 @@ mod tests {
     fn test_ghash_sum_sharing() {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
-        // The MAC key
+        // The Ghash key
         let h: u128 = rng.gen();
         let message = gen_u128_vec();
         let message_len = message.len();
@@ -166,7 +166,7 @@ mod tests {
     fn test_ghash_output() {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
-        // The MAC key
+        // The Ghash key
         let h: u128 = rng.gen();
         let message = gen_u128_vec();
 
@@ -183,7 +183,7 @@ mod tests {
     fn test_ghash_change_message_short() {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
-        // The MAC key
+        // The Ghash key
         let h: u128 = rng.gen();
         let message = gen_u128_vec();
 
@@ -211,7 +211,7 @@ mod tests {
     fn test_ghash_change_message_long() {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
-        // The MAC key
+        // The Ghash key
         let h: u128 = rng.gen();
         let message = gen_u128_vec();
 
@@ -326,7 +326,7 @@ mod tests {
     ) -> (GhashCore<Intermediate>, GhashCore<Intermediate>) {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
-        // The additive sharings of the MAC key to begin with
+        // The additive sharings of the Ghash key to begin with
         let h1_additive: u128 = rng.gen();
         let h2_additive: u128 = hashkey ^ h1_additive;
 
