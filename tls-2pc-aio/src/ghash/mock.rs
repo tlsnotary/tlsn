@@ -12,6 +12,7 @@ pub type MockGhashSender<T, U> = GhashSender<Gf2Sender<AddShare, T>, Gf2Sender<M
 pub type MockGhashReceiver<T, U> =
     GhashReceiver<Gf2Receiver<AddShare, T>, Gf2Receiver<MulShare, U>>;
 
+/// Create a Ghash sender/receiver pair for testing purpose
 pub fn mock_ghash_pair<T: Recorder<AddShare> + Send, U: Recorder<MulShare> + Send>(
     hashkey: u128,
     message_len: usize,

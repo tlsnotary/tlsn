@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use share_conversion_aio::ShareConversionError;
 use tls_2pc_core::ghash::GhashError;
 
+/// Contains the logic which is used by both sender and receiver
 mod aio;
 #[cfg(feature = "mock")]
 pub mod mock;
@@ -21,10 +22,16 @@ pub enum GhashIOError {
     ShareConversionError(#[from] ShareConversionError),
 }
 
+/// Create a Ghash output for some message
+///
+/// The Ghash output is the MAC without the XOR of the GCTR block
 pub trait Ghash {
     fn generate_ghash(&self, message: &[u128]) -> Result<u128, GhashIOError>;
 }
 
+/// Verify the Ghash computation
+///
+/// This allows to check for malicious actors, deviating from the protocol.
 #[async_trait]
 pub trait VerifyGhash {
     async fn verify(self) -> Result<(), GhashIOError>;
@@ -97,7 +104,7 @@ mod tests {
         let (sender, receiver) = tokio::join!(sender, receiver);
         let (sender, receiver) = (sender.unwrap(), receiver.unwrap());
 
-        // We should still be able to generate a ghash output for the shorter message
+        // We should still be able to generate a Ghash output for the shorter message
         let ghash_out_sender = sender.generate_ghash(&short_message).unwrap();
         let ghash_out_receiver = receiver.generate_ghash(&short_message).unwrap();
 
@@ -106,7 +113,7 @@ mod tests {
             ghash_reference_impl(h, short_message)
         );
 
-        // Check if we can generate a ghash output for the long message now
+        // Check if we can generate a Ghash output for the long message now
         let ghash_out_sender = sender.generate_ghash(&long_message).unwrap();
         let ghash_out_receiver = receiver.generate_ghash(&long_message).unwrap();
 
@@ -124,7 +131,7 @@ mod tests {
 
         let (sender, receiver) = mock_ghash_pair::<Tape, Tape>(h, message.len());
 
-        // First we compute some ghash
+        // First we compute some Ghash output
         let sender = tokio::spawn(async move { sender.setup().await.unwrap() });
         let receiver = tokio::spawn(async move { receiver.setup().await.unwrap() });
 

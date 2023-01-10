@@ -2,7 +2,7 @@ use super::{Ghash, GhashIOError};
 use share_conversion_aio::{AdditiveToMultiplicative, MultiplicativeToAdditive};
 use tls_2pc_core::ghash::{Finalized, GhashCore, Init, Intermediate};
 
-/// This is the common module used by both sender and receiver
+/// This is the common instance used by both sender and receiver
 ///
 /// It is an aio wrapper which mostly uses [GhashCore] for computation
 pub struct GhashIO<T, U, V = Init>
@@ -20,6 +20,15 @@ where
     T: AdditiveToMultiplicative<FieldElement = u128>,
     U: MultiplicativeToAdditive<FieldElement = u128>,
 {
+    /// Creates a new instance
+    ///
+    /// * `hashkey`             - the key used for Ghash
+    /// * `max_message_length`  - the maximum message length for which the Ghash output can be
+    ///                           computed
+    /// * `a2m_converter`       - An instance which allows to convert additive into multiplicative
+    ///                           shares
+    /// * `m2a_converter`       - An instance which allows to convert multiplicative into additive
+    ///                           shares
     pub fn new(
         hashkey: u128,
         max_message_length: usize,
@@ -34,6 +43,11 @@ where
         })
     }
 
+    /// Setup `self` to be able to generate a Ghash output
+    ///
+    /// This will perform both conversion steps:
+    ///     1. Get a multiplicative share of the hashkey
+    ///     2. Compute all necessary additive shares
     pub async fn setup(mut self) -> Result<GhashIO<T, U, Finalized>, GhashIOError> {
         let h_additive = self.core.h_additive();
 
@@ -54,6 +68,11 @@ where
     T: AdditiveToMultiplicative<FieldElement = u128>,
     U: MultiplicativeToAdditive<FieldElement = u128>,
 {
+    /// Computes all the additive share powers
+    ///
+    /// This assumes that we already have a multiplicative share of the hashkey. So it only
+    /// performs the second step. We need this when the message length changes because in this case
+    /// we do not need to perform step 1 again.
     pub async fn compute_add_shares(mut self) -> Result<GhashIO<T, U, Finalized>, GhashIOError> {
         let odd_mul_shares = self.core.odd_mul_shares();
 
@@ -74,6 +93,10 @@ where
     T: AdditiveToMultiplicative<FieldElement = u128>,
     U: MultiplicativeToAdditive<FieldElement = u128>,
 {
+    /// Prepare `self` for a different message length
+    ///
+    /// We assume here that it is necessary to compute additional share powers. So we go back to
+    /// the intermediate state.
     pub fn change_message_length(self, new_message_length: usize) -> GhashIO<T, U, Intermediate> {
         GhashIO {
             core: self.core.change_max_hashkey(new_message_length),
