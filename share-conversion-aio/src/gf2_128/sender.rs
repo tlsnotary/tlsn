@@ -32,7 +32,10 @@ where
     _protocol: PhantomData<U>,
     rng: ChaCha12Rng,
     channel: Gf2ConversionChannel,
+    /// If a non-[Void] recorder was passed in, it will be used to record the "tape", ( see [super::recorder::Tape])
     recorder: V,
+    /// A barrier at which this Sender must wait before revealing the tape to the receiver. Used when
+    /// multiple parallel share conversion protocols need to agree when to reveal their tapes.
     barrier: Option<AdaptiveBarrier>,
     /// keeps track of how many batched share conversions we've made so far
     counter: usize,

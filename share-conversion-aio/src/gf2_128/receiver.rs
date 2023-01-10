@@ -30,6 +30,7 @@ where
     id: String,
     _protocol: PhantomData<U>,
     channel: Gf2ConversionChannel,
+    /// If a non-Void recorder was passed in, it will be used to record the "tape", ( see [Recorder::Tape])
     recorder: V,
     /// keeps track of how many batched share conversions we've made so far
     counter: usize,

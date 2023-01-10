@@ -24,6 +24,8 @@ mod tests {
     };
     use share_conversion_core::gf2_128::{mul, AddShare, Gf2_128ShareConvert, MulShare};
     use std::sync::{Arc, Mutex};
+    use tokio::task::JoinError;
+    use utils_aio::adaptive_barrier::AdaptiveBarrier;
     use xtra::prelude::*;
 
     use super::*;
@@ -41,7 +43,7 @@ mod tests {
 
         // Create conversion controls
         let (mut sender_control, mut receiver_control) =
-            create_conversion_controls::<AddShare>().await;
+            create_conversion_controls::<AddShare>(None).await;
 
         let sender_task =
             tokio::spawn(async move { sender_control.a_to_m(random_numbers_1).await.unwrap() });
@@ -70,7 +72,7 @@ mod tests {
 
         // Create conversion controls
         let (mut sender_control, mut receiver_control) =
-            create_conversion_controls::<MulShare>().await;
+            create_conversion_controls::<MulShare>(None).await;
 
         let sender_task =
             tokio::spawn(async move { sender_control.m_to_a(random_numbers_1).await.unwrap() });
@@ -111,7 +113,7 @@ mod tests {
 
         // Create conversion controls
         let (mut sender_control, mut receiver_control) =
-            create_conversion_controls::<MulShare>().await;
+            create_conversion_controls::<MulShare>(None).await;
         let (mut sender_control2, mut receiver_control2) =
             (sender_control.clone(), receiver_control.clone());
 
@@ -169,7 +171,7 @@ mod tests {
 
         // Create conversion controls
         let (mut sender_control, mut receiver_control) =
-            create_conversion_controls::<AddShare>().await;
+            create_conversion_controls::<AddShare>(None).await;
 
         let sender_task = tokio::spawn(async move {
             let _ = sender_control.a_to_m(random_numbers_1).await.unwrap();
@@ -187,7 +189,48 @@ mod tests {
         // fine.
     }
 
-    async fn create_conversion_controls<T: Gf2_128ShareConvert + Send + 'static>() -> (
+    #[tokio::test]
+    // Make sure that the sender is correctly waiting at the barrier and is not sending the tape
+    async fn test_actor_share_conversion_with_barrier() {
+        // Create some random numbers
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
+        let random_numbers_1: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
+        let random_numbers_2: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
+
+        // Create a barrier
+        let barrier = AdaptiveBarrier::new();
+        // calling .wait() on `barrier` will return only when .wait() is called on `cloned_barrier`
+        let _cloned_barrier = barrier.clone();
+
+        // Create conversion controls
+        let (mut sender_control, mut receiver_control) =
+            create_conversion_controls::<AddShare>(Some(barrier)).await;
+
+        let _sender_task = tokio::spawn(async move {
+            let _ = sender_control.a_to_m(random_numbers_1).await.unwrap();
+            sender_control.send_tape().await.unwrap()
+        });
+        let receiver_task = tokio::spawn(async move {
+            receiver_control.a_to_m(random_numbers_2).await.unwrap();
+            receiver_control.verify_tape().await.unwrap()
+        });
+
+        let timeout_duration = std::time::Duration::from_millis(200);
+        // sender is .wait()ing at the barrier, so .send_tape() was not called and consequently
+        // this causes the verifier to await on .verify_tape()
+        let result = tokio::time::timeout(timeout_duration, receiver_task).await;
+
+        fn print_type_of<T>(_: &T) -> String {
+            std::any::type_name::<T>().to_string()
+        }
+
+        // since ::Elapsed is private, comparing the name string
+        assert!(print_type_of(&result.err().unwrap()) == "tokio::time::error::Elapsed".to_string());
+    }
+
+    async fn create_conversion_controls<T: Gf2_128ShareConvert + Send + 'static>(
+        barrier: Option<AdaptiveBarrier>,
+    ) -> (
         SenderControl<
             ActorShareConversionSender<
                 Arc<Mutex<MockOTFactory<Block>>>,
@@ -207,6 +250,8 @@ mod tests {
             >,
         >,
     ) {
+        // Either party can play either role. Here we designate the Server to play the conversion Receiver
+        // role and the Client to play the conversion Sender role.
         let receiver_mux_addr =
             xtra::spawn_tokio(MockServerChannelMuxer::default(), Mailbox::unbounded());
         let receiver_mux = MockServerControl::new(receiver_mux_addr.clone());
@@ -220,7 +265,7 @@ mod tests {
         let ot_factory = Arc::new(Mutex::new(MockOTFactory::<Block>::default()));
         let mut sender = ActorShareConversionSender::<_, _, T, _, Tape>::new(
             String::from(""),
-            None,
+            barrier,
             sender_mux,
             Arc::clone(&ot_factory),
         );

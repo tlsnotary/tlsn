@@ -22,7 +22,9 @@ where
 {
     Initialized {
         id: String,
+        /// a local muxer which provides a channel to the remote conversion sender
         muxer: V,
+        /// see `receiver_factory` in [share_conversion_aio::gf2_128::Receiver]
         receiver_factory: T,
     },
     Setup(IOReceiver<T, OT, U, W>),
@@ -88,6 +90,8 @@ where
     }
 }
 
+/// The controller to talk to the local conversion receiver actor. This is the only way to talk
+/// to the actor.
 pub struct ReceiverControl<T>(Address<T>);
 
 impl<T> ReceiverControl<T> {
@@ -109,6 +113,7 @@ where
 {
     type FieldElement = u128;
 
+    /// Sends M2AMessage to the actor
     async fn m_to_a(
         &mut self,
         input: Vec<Self::FieldElement>,
@@ -127,6 +132,7 @@ where
 {
     type FieldElement = u128;
 
+    /// Sends A2MMessage to the actor
     async fn a_to_m(
         &mut self,
         input: Vec<Self::FieldElement>,
@@ -143,6 +149,7 @@ impl<T> VerifyTape for ReceiverControl<T>
 where
     T: Handler<VerifyTapeMessage, Return = Result<(), ShareConversionError>>,
 {
+    /// Sends VerifyTapeMessage to the actor
     async fn verify_tape(self) -> Result<(), ShareConversionError> {
         self.0
             .send(VerifyTapeMessage)
@@ -163,6 +170,7 @@ where
 {
     type Return = Result<Vec<u128>, ShareConversionError>;
 
+    /// This handler is called when the actor receives M2AMessage
     async fn handle(
         &mut self,
         message: M2AMessage<Vec<u128>>,
@@ -189,6 +197,7 @@ where
 {
     type Return = Result<Vec<u128>, ShareConversionError>;
 
+    /// This handler is called when the actor receives A2MMessage
     async fn handle(
         &mut self,
         message: A2MMessage<Vec<u128>>,
@@ -214,6 +223,7 @@ where
 {
     type Return = Result<(), ShareConversionError>;
 
+    /// This handler is called when the actor receives VerifyTapeMessage
     async fn handle(
         &mut self,
         _message: VerifyTapeMessage,

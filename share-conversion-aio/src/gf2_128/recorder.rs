@@ -16,7 +16,9 @@ pub trait Recorder<T: Gf2_128ShareConvert>: Default {
     fn verify(&self) -> Result<(), ShareConversionError>;
 }
 
-/// A tape which allows to record inputs and outputs of the conversion
+/// A tape which allows to record inputs and outputs of the conversion.
+/// The sender can reveal his tape (thus revealing all his secret inputs) to the receiver
+/// who will combine it with her tape to check for any malicious behaviour of the sender.
 #[derive(Default)]
 pub struct Tape {
     pub(crate) seed: [u8; 32],

@@ -21,8 +21,11 @@ enum State<
 > {
     Initialized {
         id: String,
+        /// see `barrier` in [share_conversion_aio::gf2_128::Sender]
         barrier: Option<AdaptiveBarrier>,
+        /// a local muxer which provides a channel to the remote conversion receiver
         muxer: V,
+        /// see `sender_factory` in [share_conversion_aio::gf2_128::Sender]
         sender_factory: T,
     },
     Setup(IOSender<T, OT, U, W>),
@@ -89,6 +92,8 @@ where
     }
 }
 
+/// The controller to talk to the local conversion sender actor. This is the only way to talk
+/// to the actor.
 pub struct SenderControl<T>(Address<T>);
 
 impl<T> SenderControl<T> {
@@ -110,6 +115,7 @@ where
 {
     type FieldElement = u128;
 
+    /// Sends M2AMessage to the actor
     async fn m_to_a(
         &mut self,
         input: Vec<Self::FieldElement>,
@@ -128,6 +134,7 @@ where
 {
     type FieldElement = u128;
 
+    /// Sends A2MMessage to the actor
     async fn a_to_m(
         &mut self,
         input: Vec<Self::FieldElement>,
@@ -144,6 +151,7 @@ impl<T> SendTape for SenderControl<T>
 where
     T: Handler<SendTapeMessage, Return = Result<(), ShareConversionError>>,
 {
+    /// Sends SendTapeMessage to the actor
     async fn send_tape(self) -> Result<(), ShareConversionError> {
         self.0
             .send(SendTapeMessage)
@@ -164,6 +172,7 @@ where
 {
     type Return = Result<Vec<u128>, ShareConversionError>;
 
+    /// This handler is called when the actor receives M2AMessage
     async fn handle(
         &mut self,
         message: M2AMessage<Vec<u128>>,
@@ -190,6 +199,7 @@ where
 {
     type Return = Result<Vec<u128>, ShareConversionError>;
 
+    /// This handler is called when the actor receives A2MMessage
     async fn handle(
         &mut self,
         message: A2MMessage<Vec<u128>>,
@@ -215,6 +225,7 @@ where
 {
     type Return = Result<(), ShareConversionError>;
 
+    /// This handler is called when the actor receives SendTapeMessage
     async fn handle(&mut self, _message: SendTapeMessage, ctx: &mut Context<Self>) -> Self::Return {
         let state = std::mem::replace(&mut self.state, State::Complete);
         let State::Setup(state) = state else {
