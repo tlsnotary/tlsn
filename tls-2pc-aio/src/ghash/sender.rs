@@ -18,14 +18,12 @@ where
         max_message_length: usize,
         a2m_converter: T,
         m2a_converter: U,
-        id: String,
     ) -> Result<Self, GhashIOError> {
         Ok(Self(GhashIO::new(
             hashkey,
             max_message_length,
             a2m_converter,
             m2a_converter,
-            id,
         )?))
     }
 

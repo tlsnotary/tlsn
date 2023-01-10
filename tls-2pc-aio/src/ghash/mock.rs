@@ -24,15 +24,8 @@ pub fn mock_ghash_pair<T: Recorder<AddShare> + Send, U: Recorder<MulShare> + Sen
     let (sender_m2a, receiver_m2a) = mock_converter_pair::<MulShare, _>();
 
     let (sender, receiver) = (
-        GhashSender::new(h1, message_len, sender_a2m, sender_m2a, String::from("")).unwrap(),
-        GhashReceiver::new(
-            h2,
-            message_len,
-            receiver_a2m,
-            receiver_m2a,
-            String::from(""),
-        )
-        .unwrap(),
+        GhashSender::new(h1, message_len, sender_a2m, sender_m2a).unwrap(),
+        GhashReceiver::new(h2, message_len, receiver_a2m, receiver_m2a).unwrap(),
     );
 
     (sender, receiver)

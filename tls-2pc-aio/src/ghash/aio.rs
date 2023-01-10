@@ -2,6 +2,9 @@ use super::{Ghash, GhashIOError};
 use share_conversion_aio::{AdditiveToMultiplicative, MultiplicativeToAdditive};
 use tls_2pc_core::ghash::{Finalized, GhashCore, Init, Intermediate};
 
+/// This is the common module used by both sender and receiver
+///
+/// It is an aio wrapper which mostly uses [GhashCore] for computation
 pub struct GhashIO<T, U, V = Init>
 where
     T: AdditiveToMultiplicative<FieldElement = u128>,
@@ -10,7 +13,6 @@ where
     core: GhashCore<V>,
     pub(crate) a2m_converter: T,
     pub(crate) m2a_converter: U,
-    id: String,
 }
 
 impl<T, U> GhashIO<T, U, Init>
@@ -23,14 +25,12 @@ where
         max_message_length: usize,
         a2m_converter: T,
         m2a_converter: U,
-        id: String,
     ) -> Result<Self, GhashIOError> {
         let core = GhashCore::new(hashkey, max_message_length)?;
         Ok(Self {
             core,
             a2m_converter,
             m2a_converter,
-            id,
         })
     }
 
@@ -44,7 +44,6 @@ where
             core,
             a2m_converter: self.a2m_converter,
             m2a_converter: self.m2a_converter,
-            id: self.id,
         };
         io.compute_add_shares().await
     }
@@ -65,7 +64,6 @@ where
             core,
             a2m_converter: self.a2m_converter,
             m2a_converter: self.m2a_converter,
-            id: self.id,
         };
         Ok(io)
     }
@@ -81,7 +79,6 @@ where
             core: self.core.change_max_hashkey(new_message_length),
             a2m_converter: self.a2m_converter,
             m2a_converter: self.m2a_converter,
-            id: self.id,
         }
     }
 }
