@@ -15,8 +15,8 @@ pub(crate) mod label;
 pub use circuit::{state as gc_state, CircuitOpening, GarbledCircuit};
 pub use error::{Error, InputError, LabelError};
 pub use label::{
-    ActiveInputLabels, ActiveOutputLabels, Delta, FullInputLabels, FullOutputLabels, Labels,
-    LabelsDecodingInfo, LabelsDigest, WireLabel, WireLabelPair,
+    ActiveInputLabels, ActiveOutputLabels, ChaChaEncoder, Delta, FullInputLabels, FullOutputLabels,
+    Labels, LabelsDecodingInfo, LabelsDigest, WireLabel, WireLabelPair,
 };
 
 #[cfg(test)]

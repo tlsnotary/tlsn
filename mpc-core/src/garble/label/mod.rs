@@ -1,6 +1,7 @@
 //! Collection of labels corresponding to a wire group.
 
 mod digest;
+mod encoder;
 pub(crate) mod input;
 pub(crate) mod output;
 mod state;
@@ -15,6 +16,7 @@ use std::{
 use crate::{block::Block, garble::LabelError};
 
 pub use digest::LabelsDigest;
+pub use encoder::ChaChaEncoder;
 pub(crate) use input::SanitizedInputLabels;
 pub use output::OutputLabelsCommitment;
 
