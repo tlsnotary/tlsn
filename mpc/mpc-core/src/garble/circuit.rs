@@ -253,8 +253,8 @@ impl GarbledCircuit<Full> {
             .map(|input_value| {
                 self.state
                     .input_labels
-                    .get(input_value.id())
-                    .ok_or_else(|| InputError::InvalidId(input_value.id()))
+                    .get(input_value.index())
+                    .ok_or_else(|| InputError::InvalidId(input_value.index()))
                     .map(|labels| labels.clone().select(input_value.value()))
             })
             .flatten()
@@ -276,8 +276,8 @@ impl GarbledCircuit<Full> {
                 Some(
                     self.state
                         .input_labels
-                        .get(input.id())
-                        .ok_or_else(|| InputError::InvalidId(input.id()))
+                        .get(input.index())
+                        .ok_or_else(|| InputError::InvalidId(input.index()))
                         .map(|labels| {
                             labels.select(
                                 input
@@ -404,7 +404,7 @@ impl GarbledCircuit<Partial> {
 
         // Group all the input labels together
         let mut input_labels = [self.state.input_labels, input_labels.to_vec()].concat();
-        input_labels.sort_by_key(|input| input.id());
+        input_labels.sort_by_key(|input| input.index());
 
         Ok(GarbledCircuit {
             circ: self.circ.clone(),
@@ -647,7 +647,7 @@ pub(crate) mod unchecked {
     /// Partial garbled circuit which has not been validated against a circuit spec
     #[derive(Debug, Clone)]
     pub struct UncheckedGarbledCircuit {
-        pub(crate) id: CircuitId,
+        pub(crate) id: String,
         pub(crate) input_labels: Vec<UncheckedInputLabels>,
         pub(crate) encrypted_gates: Vec<Block>,
         pub(crate) decoding: Option<Vec<UncheckedLabelsDecodingInfo>>,
@@ -658,7 +658,7 @@ pub(crate) mod unchecked {
     impl From<GarbledCircuit<Partial>> for UncheckedGarbledCircuit {
         fn from(gc: GarbledCircuit<Partial>) -> Self {
             Self {
-                id: gc.circ.id().clone(),
+                id: gc.circ.id().clone().to_string(),
                 input_labels: gc
                     .state
                     .input_labels
@@ -693,12 +693,13 @@ pub(crate) mod unchecked {
             circ: Arc<Circuit>,
             mut unchecked: UncheckedGarbledCircuit,
         ) -> Result<Self, Error> {
+            let circ_id = CircuitId::new(unchecked.id)?;
             // Validate circuit id
-            if &unchecked.id != circ.id() {
+            if &circ_id != circ.id() {
                 return Err(Error::ValidationError(format!(
                     "Wrong circuit id: expected {}, received {}",
                     circ.id().as_ref(),
-                    unchecked.id.as_ref()
+                    circ_id.to_string()
                 )));
             }
 
@@ -740,7 +741,7 @@ pub(crate) mod unchecked {
                 .zip(
                     circ.inputs()
                         .iter()
-                        .filter(|input| input_ids.contains(&input.id())),
+                        .filter(|input| input_ids.contains(&input.index())),
                 )
                 .map(|(labels, input)| ActiveInputLabels::from_unchecked(input.clone(), labels))
                 .collect::<Result<Vec<_>, _>>()?;
@@ -859,7 +860,7 @@ pub(crate) mod unchecked {
     /// Output of a garbled circuit which has not been validated
     #[derive(Debug, Clone)]
     pub struct UncheckedOutput {
-        pub(crate) circ_id: CircuitId,
+        pub(crate) circ_id: String,
         pub(crate) output_labels: Vec<UncheckedOutputLabels>,
     }
 
@@ -867,7 +868,7 @@ pub(crate) mod unchecked {
     impl From<GarbledCircuit<Output>> for UncheckedOutput {
         fn from(gc: GarbledCircuit<Output>) -> Self {
             Self {
-                circ_id: gc.circ.id().clone(),
+                circ_id: gc.circ.id().clone().to_string(),
                 output_labels: gc
                     .state
                     .output_labels
@@ -885,12 +886,13 @@ pub(crate) mod unchecked {
             circ: &Circuit,
             full_output_labels: &[FullOutputLabels],
         ) -> Result<Vec<OutputValue>, Error> {
+            let circ_id = CircuitId::new(self.circ_id)?;
             // Validate circuit id
-            if &self.circ_id != circ.id() {
+            if &circ_id != circ.id() {
                 return Err(Error::ValidationError(format!(
                     "Received garbled output with wrong id: expected {}, received {}",
                     circ.id().as_ref(),
-                    self.circ_id.as_ref()
+                    circ_id.to_string()
                 )));
             }
 
@@ -1074,7 +1076,7 @@ pub(crate) mod unchecked {
             let output_values = circ.evaluate(&input_values).unwrap();
 
             UncheckedOutput {
-                circ_id: circ.id().clone(),
+                circ_id: circ.id().clone().to_string(),
                 output_labels: output_labels
                     .into_iter()
                     .zip(&output_values)
@@ -1106,8 +1108,11 @@ pub(crate) mod unchecked {
             mut unchecked_garbled_circuit: UncheckedGarbledCircuit,
             circ: Arc<Circuit>,
         ) {
-            unchecked_garbled_circuit.id =
-                Circuit::load_bytes(AES_128_REVERSE).unwrap().id().clone();
+            unchecked_garbled_circuit.id = Circuit::load_bytes(AES_128_REVERSE)
+                .unwrap()
+                .id()
+                .clone()
+                .to_string();
             let err = GarbledCircuit::from_unchecked(circ, unchecked_garbled_circuit.clone())
                 .unwrap_err();
 
@@ -1213,8 +1218,11 @@ pub(crate) mod unchecked {
             mut unchecked_garbled_output: UncheckedOutput,
             garbled_circuit: GarbledCircuit<Full>,
         ) {
-            unchecked_garbled_output.circ_id =
-                Circuit::load_bytes(AES_128_REVERSE).unwrap().id().clone();
+            unchecked_garbled_output.circ_id = Circuit::load_bytes(AES_128_REVERSE)
+                .unwrap()
+                .id()
+                .clone()
+                .to_string();
             let err = unchecked_garbled_output
                 .decode(&garbled_circuit.circ, &garbled_circuit.output_labels())
                 .unwrap_err();

@@ -154,7 +154,7 @@ impl Gate {
 pub struct CircuitId(pub(crate) String);
 
 impl CircuitId {
-    pub(crate) fn new(id: String) -> Result<Self, CircuitError> {
+    pub fn new(id: String) -> Result<Self, CircuitError> {
         if id.len() == 0 || id.len() > 16 {
             return Err(CircuitError::InvalidCircuitId(
                 "Circuit id must be 1-16 bytes long".to_string(),
@@ -162,6 +162,11 @@ impl CircuitId {
             ));
         }
         Ok(Self(id))
+    }
+
+    /// Converts CircuitId to string
+    pub fn to_string(self) -> String {
+        self.0
     }
 }
 

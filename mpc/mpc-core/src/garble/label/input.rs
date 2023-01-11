@@ -58,8 +58,8 @@ impl SanitizedInputLabels {
         gen_labels: &[Labels<Input, state::Active>],
         ev_labels: &[Labels<Input, state::Active>],
     ) -> Result<Self, Error> {
-        let gen_ids: HashSet<usize> = gen_labels.iter().map(|labels| labels.id()).collect();
-        let ev_ids: HashSet<usize> = ev_labels.iter().map(|labels| labels.id()).collect();
+        let gen_ids: HashSet<usize> = gen_labels.iter().map(|labels| labels.index()).collect();
+        let ev_ids: HashSet<usize> = ev_labels.iter().map(|labels| labels.index()).collect();
 
         // Error if there are duplicate inputs
         if !gen_ids.is_disjoint(&ev_ids) {
@@ -121,7 +121,7 @@ pub(crate) mod unchecked {
     impl From<Labels<Input, state::Active>> for UncheckedInputLabels {
         fn from(labels: Labels<Input, state::Active>) -> Self {
             Self {
-                id: labels.id(),
+                id: labels.index(),
                 labels: labels.iter_blocks().collect(),
             }
         }
@@ -133,15 +133,15 @@ pub(crate) mod unchecked {
             input: Input,
             unchecked: UncheckedInputLabels,
         ) -> Result<Self, LabelError> {
-            if unchecked.id != input.id() {
+            if unchecked.id != input.index() {
                 return Err(LabelError::InvalidLabelId(
-                    input.name().to_string(),
-                    input.id(),
+                    input.id().clone(),
+                    input.index(),
                     unchecked.id,
                 ));
             } else if unchecked.labels.len() != input.len() {
                 return Err(LabelError::InvalidLabelCount(
-                    input.name().to_string(),
+                    input.id().clone(),
                     input.len(),
                     unchecked.labels.len(),
                 ));
@@ -185,7 +185,7 @@ pub(crate) mod unchecked {
         #[fixture]
         fn unchecked_input_labels(input: Input) -> UncheckedInputLabels {
             UncheckedInputLabels {
-                id: input.id(),
+                id: input.index(),
                 labels: vec![Block::new(0); input.as_ref().len()],
             }
         }

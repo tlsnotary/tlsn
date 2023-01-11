@@ -139,7 +139,7 @@ pub struct InputLabels {
 impl From<label::ActiveInputLabels> for InputLabels {
     fn from(labels: label::ActiveInputLabels) -> Self {
         Self {
-            id: labels.id(),
+            id: labels.index(),
             labels: labels.iter_blocks().collect(),
         }
     }
@@ -164,7 +164,7 @@ pub struct OutputLabels {
 impl From<label::ActiveOutputLabels> for OutputLabels {
     fn from(labels: label::ActiveOutputLabels) -> Self {
         Self {
-            id: labels.id(),
+            id: labels.index(),
             labels: labels.iter_blocks().collect(),
         }
     }
@@ -240,7 +240,7 @@ impl From<label::OutputLabelsCommitment> for OutputLabelsCommitment {
     #[inline]
     fn from(commitment: label::OutputLabelsCommitment) -> Self {
         Self {
-            id: commitment.output.id(),
+            id: commitment.output.index(),
             commitments: commitment.commitments.into_iter().flatten().collect(),
         }
     }
@@ -264,7 +264,7 @@ impl label::OutputLabelsCommitment {
         let output = circ.output(commitment.id)?;
         if commitment.commitments.len() != output.len() * 2 {
             return Err(crate::garble::LabelError::InvalidLabelCommitment(
-                output.name().to_string(),
+                output.id().clone(),
             ))?;
         }
         let commitments = commitment
@@ -325,7 +325,7 @@ impl From<circuit::GarbledCircuit<gc_state::Partial>> for GarbledCircuit {
 impl From<GarbledCircuit> for unchecked_circuit::UncheckedGarbledCircuit {
     fn from(gc: GarbledCircuit) -> Self {
         Self {
-            id: gc.id.into(),
+            id: gc.id,
             input_labels: gc
                 .input_labels
                 .into_iter()
@@ -376,7 +376,7 @@ impl From<circuit::GarbledCircuit<gc_state::Output>> for Output {
 impl From<Output> for unchecked_circuit::UncheckedOutput {
     fn from(msg: Output) -> Self {
         Self {
-            circ_id: msg.circ_id.into(),
+            circ_id: msg.circ_id,
             output_labels: msg
                 .output_labels
                 .into_iter()
