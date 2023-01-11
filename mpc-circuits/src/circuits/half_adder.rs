@@ -1,7 +1,9 @@
+use std::sync::Arc;
+
 use crate::{builder::CircuitBuilder, circuit::GateType, Circuit, ValueType};
 
 /// Builds a half adder circuit
-pub fn half_adder() -> Circuit {
+pub fn half_adder() -> Arc<Circuit> {
     let mut builder = CircuitBuilder::new("Binary half-adder", "0.1.0");
 
     let a = builder.add_input("A", "1 bit", ValueType::Bool, 1);

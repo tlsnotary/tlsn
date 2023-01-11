@@ -1,8 +1,9 @@
-use crate::{Circuit, CircuitError, Gate, Input, Output, ValueType};
+use crate::{group::UncheckedGroup, Circuit, CircuitError, Gate, ValueType};
 use regex::Regex;
 use std::{
     fs::File,
     io::{BufRead, BufReader},
+    sync::Arc,
 };
 
 /// Parses captures into a Vec for convenience
@@ -20,7 +21,7 @@ fn line2vec<'a>(re: &Regex, line: &'a str) -> Result<Vec<&'a str>, CircuitError>
 impl Circuit {
     /// Parses circuit files in Bristol Fashion format as specified here:
     /// `https://homes.esat.kuleuven.be/~nsmart/MPC/`
-    pub fn parse(filename: &str, name: &str, version: &str) -> Result<Self, CircuitError> {
+    pub fn parse(filename: &str, name: &str, version: &str) -> Result<Arc<Self>, CircuitError> {
         let f = File::open(filename)?;
         let mut reader = BufReader::new(f);
 
@@ -80,7 +81,7 @@ impl Circuit {
                 let start_id = input_nwires[..id].iter().sum();
                 let count = input_nwires[id];
                 let wires: Vec<usize> = (start_id..start_id + count).collect();
-                Input::new(id, "", "", ValueType::Bits, wires)
+                UncheckedGroup::new(id, "".to_string(), "".to_string(), ValueType::Bits, wires)
             })
             .collect();
 
@@ -123,7 +124,7 @@ impl Circuit {
                     + output_nwires[..id].iter().sum::<usize>();
                 let count = output_nwires[id];
                 let wires: Vec<usize> = (start_id..start_id + count).collect();
-                Output::new(id, "", "", ValueType::Bits, wires)
+                UncheckedGroup::new(id, "".to_string(), "".to_string(), ValueType::Bits, wires)
             })
             .collect();
 

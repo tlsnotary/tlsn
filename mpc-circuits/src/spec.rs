@@ -4,7 +4,9 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
-use crate::{error::SpecError as Error, Circuit, Gate, Group, Input, Output, ValueType, WireGroup};
+use crate::{
+    error::SpecError as Error, group::UncheckedGroup, Circuit, Gate, Group, ValueType, WireGroup,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GroupSpec {
@@ -40,7 +42,7 @@ impl From<&Group> for GroupSpec {
 }
 
 impl GroupSpec {
-    fn to_group(self, id_offset: usize) -> Result<Group, Error> {
+    fn to_group(self, id_offset: usize) -> Result<UncheckedGroup, Error> {
         let value_type = match self.value_type.to_lowercase().as_str() {
             "const_0" => ValueType::ConstZero,
             "const_1" => ValueType::ConstOne,
@@ -54,10 +56,11 @@ impl GroupSpec {
             "u128" => ValueType::U128,
             _ => return Err(Error::InvalidGroup(self)),
         };
-        Ok(Group::new(
+
+        Ok(UncheckedGroup::new(
             self.id,
-            &self.name,
-            &self.desc,
+            self.name,
+            self.desc,
             value_type,
             (id_offset..id_offset + self.wire_count).collect::<Vec<usize>>(),
         ))
@@ -67,8 +70,8 @@ impl GroupSpec {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GateSpec(String);
 
-impl From<Gate> for GateSpec {
-    fn from(g: Gate) -> Self {
+impl From<&Gate> for GateSpec {
+    fn from(g: &Gate) -> Self {
         Self(match g {
             Gate::Xor {
                 xref, yref, zref, ..
@@ -168,27 +171,23 @@ pub struct CircuitSpec {
     gates: Vec<GateSpec>,
 }
 
-impl From<Circuit> for CircuitSpec {
-    fn from(c: Circuit) -> Self {
+impl From<&Circuit> for CircuitSpec {
+    fn from(c: &Circuit) -> Self {
         Self {
-            name: c.name,
-            version: c.version,
+            name: c.name.clone(),
+            version: c.version.clone(),
             wires: c.wire_count,
             inputs: c
                 .inputs
-                .into_iter()
+                .iter()
                 .map(|input| GroupSpec::from(input.as_ref()))
                 .collect(),
             outputs: c
                 .outputs
-                .into_iter()
+                .iter()
                 .map(|output| GroupSpec::from(output.as_ref()))
                 .collect(),
-            gates: c
-                .gates
-                .into_iter()
-                .map(|gate| GateSpec::from(gate))
-                .collect(),
+            gates: c.gates.iter().map(|gate| GateSpec::from(gate)).collect(),
         }
     }
 }
@@ -200,17 +199,17 @@ impl CircuitSpec {
     }
 
     /// Creates a new [`Circuit`] from spec
-    pub fn build(self) -> Result<Circuit, Error> {
+    pub fn build(self) -> Result<Arc<Circuit>, Error> {
         let mut input_id_offset = 0;
         let inputs = self
             .inputs
             .into_iter()
             .map(|group| {
-                let input = Input(Arc::new(group.to_group(input_id_offset)?));
-                input_id_offset += input.as_ref().len();
+                let input = group.to_group(input_id_offset)?;
+                input_id_offset += input.len();
                 Ok(input)
             })
-            .collect::<Result<Vec<Input>, Error>>()?;
+            .collect::<Result<Vec<UncheckedGroup>, Error>>()?;
 
         let mut output_id_offset = self.wires
             - self
@@ -222,11 +221,11 @@ impl CircuitSpec {
             .outputs
             .into_iter()
             .map(|group| {
-                let output = Output(Arc::new(group.to_group(output_id_offset)?));
-                output_id_offset += output.as_ref().len();
+                let output = group.to_group(output_id_offset)?;
+                output_id_offset += output.len();
                 Ok(output)
             })
-            .collect::<Result<Vec<Output>, Error>>()?;
+            .collect::<Result<Vec<UncheckedGroup>, Error>>()?;
 
         let gates = self
             .gates

@@ -137,6 +137,26 @@ impl ValueType {
     pub fn is_constant(&self) -> bool {
         matches!(self, ValueType::ConstZero | ValueType::ConstOne)
     }
+
+    pub(crate) fn valid_length(&self, len: usize) -> Result<(), Error> {
+        let valid = match *self {
+            ValueType::ConstZero | ValueType::ConstOne | ValueType::Bool if len == 1 => true,
+            ValueType::Bits if len > 0 => true,
+            ValueType::Bytes if (len % 8 == 0) && (len > 0) => true,
+            ValueType::U8 if len == 8 => true,
+            ValueType::U16 if len == 16 => true,
+            ValueType::U32 if len == 32 => true,
+            ValueType::U64 if len == 64 => true,
+            ValueType::U128 if len == 128 => true,
+            _ => false,
+        };
+
+        if valid {
+            Ok(())
+        } else {
+            return Err(Error::InvalidLength(*self, len));
+        }
+    }
 }
 
 impl From<bool> for Value {

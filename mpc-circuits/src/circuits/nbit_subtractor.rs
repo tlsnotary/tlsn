@@ -1,8 +1,10 @@
+use std::sync::Arc;
+
 use crate::{builder::CircuitBuilder, circuit::GateType, Circuit, ValueType};
 
 use super::{full_adder, nbit_inverter};
 
-fn ripple() -> Circuit {
+fn ripple() -> Arc<Circuit> {
     let mut builder = CircuitBuilder::new("", "");
     let a = builder.add_input("A", "", ValueType::Bool, 1);
     let b = builder.add_input("B", "", ValueType::Bool, 1);
@@ -54,7 +56,7 @@ fn ripple() -> Circuit {
 /// Builds an N-bit binary subtractor with carry-out
 ///
 /// C_OUT = 0 if B > A
-pub fn nbit_subtractor(n: usize) -> Circuit {
+pub fn nbit_subtractor(n: usize) -> Arc<Circuit> {
     let mut builder = CircuitBuilder::new(&format!("{}-bit subtractor", n), "0.1.0");
 
     let a = builder.add_input("A", &format!("{}-bit number", n), ValueType::Bits, n);
@@ -63,14 +65,14 @@ pub fn nbit_subtractor(n: usize) -> Circuit {
 
     let mut builder = builder.build_inputs();
 
-    let b_inverter = builder.add_circ(nbit_inverter(n));
+    let b_inverter = builder.add_circ(&nbit_inverter(n));
     let b_inv = b_inverter.output(0).expect("b_inverter missing output 0");
     builder.connect(
         &b[..],
         &b_inverter.input(0).expect("b_inverter missing input 0")[..],
     );
 
-    let full_adder = builder.add_circ(full_adder());
+    let full_adder = builder.add_circ(&full_adder());
 
     builder.connect(
         &[a[0]],
@@ -87,9 +89,7 @@ pub fn nbit_subtractor(n: usize) -> Circuit {
 
     let adder_circ = ripple();
     // add ripple adders for bits 1 to n-1
-    let adders: Vec<_> = (1..n)
-        .map(|_| builder.add_circ(adder_circ.clone()))
-        .collect();
+    let adders: Vec<_> = (1..n).map(|_| builder.add_circ(&adder_circ)).collect();
 
     let mut builder = builder.build_gates();
     let sum = builder.add_output("SUM", &format!("{}-bit number", n), ValueType::Bits, n);

@@ -1,9 +1,13 @@
-use crate::{Value, ValueError, ValueType};
+use std::sync::{Arc, Weak};
+
+use crate::{Circuit, GroupError, Value, ValueType};
 
 pub trait WireGroup
 where
     Self: Sized,
 {
+    /// Returns Arc reference to circuit
+    fn circuit(&self) -> Arc<Circuit>;
     /// Returns id of group
     fn id(&self) -> usize;
     /// Returns group name
@@ -20,16 +24,16 @@ where
     }
     /// Converts to group with associated value
     #[inline]
-    fn to_value(self, value: impl Into<Value>) -> Result<GroupValue<Self>, ValueError> {
+    fn to_value(self, value: impl Into<Value>) -> Result<GroupValue<Self>, GroupError> {
         let value = value.into();
         if self.value_type() != value.value_type() {
-            return Err(ValueError::InvalidType(
+            return Err(GroupError::InvalidType(
                 self.name().to_string(),
                 self.value_type(),
                 value.value_type(),
             ));
         } else if self.len() != value.len() {
-            return Err(ValueError::InvalidValue(
+            return Err(GroupError::InvalidLength(
                 self.name().to_string(),
                 self.len(),
                 value.len(),
@@ -39,8 +43,9 @@ where
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct Group {
+    circ: Weak<Circuit>,
     id: usize,
     name: String,
     desc: String,
@@ -50,37 +55,83 @@ pub struct Group {
 }
 
 impl Group {
-    #[inline]
     pub(crate) fn new(
+        circ: Weak<Circuit>,
         id: usize,
-        name: &str,
-        desc: &str,
+        name: String,
+        desc: String,
         value_type: ValueType,
         mut wires: Vec<usize>,
-    ) -> Self {
+    ) -> Result<Self, GroupError> {
+        // Check if group is valid length for this type
+        value_type
+            .valid_length(wires.len())
+            .map_err(|e| GroupError::ValueError(name.clone(), e))?;
+
         // Ensure wire ids are always sorted
         wires.sort();
-        Self {
+
+        Ok(Self {
+            circ,
             id,
             name: name.to_string(),
             desc: desc.to_string(),
             value_type,
             wires,
+        })
+    }
+
+    /// Converts an unchecked group to the checked variant bypassing
+    /// all validation
+    ///
+    /// **Important**
+    ///
+    /// The weak reference to [`Circuit`] must be initialized after this
+    /// instance is created
+    pub(crate) fn new_unchecked(unchecked: UncheckedGroup) -> Self {
+        Self {
+            circ: Weak::new(),
+            id: unchecked.id,
+            name: unchecked.name,
+            desc: unchecked.desc,
+            value_type: unchecked.value_type,
+            wires: unchecked.wires,
         }
     }
 
-    /// Shifts all wire ids to the right by an offset
-    pub(crate) fn shift_right(&self, offset: usize) -> Self {
-        let mut clone = self.clone();
-        clone
-            .wires
-            .iter_mut()
-            .for_each(|wire_id| *wire_id += offset);
-        clone
+    /// Converts an unchecked group to the checked variant
+    ///
+    /// **Important**
+    ///
+    /// The weak reference to [`Circuit`] must be initialized after this
+    /// instance is created
+    pub(crate) fn from_unchecked(unchecked: UncheckedGroup) -> Result<Self, GroupError> {
+        Self::new(
+            Weak::new(),
+            unchecked.id,
+            unchecked.name,
+            unchecked.desc,
+            unchecked.value_type,
+            unchecked.wires,
+        )
+    }
+
+    pub(crate) fn set_circuit(&mut self, circuit: Weak<Circuit>) {
+        self.circ = circuit;
+    }
+}
+
+impl PartialEq for Group {
+    fn eq(&self, other: &Self) -> bool {
+        self.circuit().id() == other.circuit().id() && self.id == other.id
     }
 }
 
 impl WireGroup for Group {
+    fn circuit(&self) -> Arc<Circuit> {
+        self.circ.upgrade().expect("Circuit should not be dropped")
+    }
+
     #[inline]
     fn id(&self) -> usize {
         self.id
@@ -146,15 +197,18 @@ where
 
     /// Creates group value from LSB0 bit string
     #[inline]
-    pub fn from_bits(group: T, bits: Vec<bool>) -> Result<Self, ValueError> {
+    pub fn from_bits(group: T, bits: Vec<bool>) -> Result<Self, GroupError> {
         if group.len() != bits.len() {
-            return Err(ValueError::InvalidValue(
+            return Err(GroupError::InvalidLength(
                 group.name().to_string(),
                 group.len(),
                 bits.len(),
             ));
         }
-        let value = Value::new(group.value_type(), bits)?;
+
+        let value = Value::new(group.value_type(), bits)
+            .map_err(|e| GroupError::ValueError(group.name().to_string(), e))?;
+
         Ok(Self { group, value })
     }
 }
@@ -163,6 +217,10 @@ impl<T> WireGroup for GroupValue<T>
 where
     T: WireGroup,
 {
+    fn circuit(&self) -> Arc<Circuit> {
+        self.group.circuit()
+    }
+
     #[inline]
     fn id(&self) -> usize {
         self.group.id()
@@ -186,5 +244,75 @@ where
     #[inline]
     fn wires(&self) -> &[usize] {
         self.group.wires()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct UncheckedGroup {
+    id: usize,
+    name: String,
+    desc: String,
+    value_type: ValueType,
+    pub(crate) wires: Vec<usize>,
+}
+
+impl UncheckedGroup {
+    pub(crate) fn new(
+        id: usize,
+        name: String,
+        desc: String,
+        value_type: ValueType,
+        wires: Vec<usize>,
+    ) -> Self {
+        Self {
+            id,
+            name,
+            desc,
+            value_type,
+            wires,
+        }
+    }
+}
+
+impl WireGroup for UncheckedGroup {
+    fn circuit(&self) -> Arc<Circuit> {
+        unimplemented!()
+    }
+
+    #[inline]
+    fn id(&self) -> usize {
+        self.id
+    }
+
+    #[inline]
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    #[inline]
+    fn description(&self) -> &str {
+        &self.desc
+    }
+
+    #[inline]
+    fn value_type(&self) -> ValueType {
+        self.value_type
+    }
+
+    #[inline]
+    fn wires(&self) -> &[usize] {
+        &self.wires
+    }
+}
+
+impl From<Group> for UncheckedGroup {
+    fn from(group: Group) -> Self {
+        Self {
+            id: group.id,
+            name: group.name,
+            desc: group.desc,
+            value_type: group.value_type,
+            wires: group.wires,
+        }
     }
 }

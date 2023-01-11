@@ -1,8 +1,10 @@
+use std::sync::Arc;
+
 use crate::{builder::CircuitBuilder, circuit::GateType, Circuit, ValueType};
 
 use super::half_adder;
 
-fn ripple() -> Circuit {
+fn ripple() -> Arc<Circuit> {
     let mut builder = CircuitBuilder::new("", "");
     let a = builder.add_input("A", "", ValueType::Bool, 1);
     let b = builder.add_input("B", "", ValueType::Bool, 1);
@@ -52,7 +54,7 @@ fn ripple() -> Circuit {
 }
 
 /// Builds an N-bit binary adder
-pub fn nbit_adder(n: usize) -> Circuit {
+pub fn nbit_adder(n: usize) -> Arc<Circuit> {
     let mut builder = CircuitBuilder::new(&format!("{}-bit adder", n), "0.1.0");
 
     let a = builder.add_input("A", &format!("{}-bit number", n), ValueType::Bits, n);
@@ -60,16 +62,14 @@ pub fn nbit_adder(n: usize) -> Circuit {
 
     let mut builder = builder.build_inputs();
 
-    let half_adder = builder.add_circ(half_adder());
+    let half_adder = builder.add_circ(&half_adder());
 
     builder.connect(&[a[0]], &[half_adder.input(0).unwrap()[0]]);
     builder.connect(&[b[0]], &[half_adder.input(1).unwrap()[0]]);
 
     let adder_circ = ripple();
     // add ripple adders for bits 1 to n-1
-    let adders: Vec<_> = (1..n - 1)
-        .map(|_| builder.add_circ(adder_circ.clone()))
-        .collect();
+    let adders: Vec<_> = (1..n - 1).map(|_| builder.add_circ(&adder_circ)).collect();
 
     // last adder in chain has no c_out
     let final_ab = builder.add_gate(GateType::Xor);

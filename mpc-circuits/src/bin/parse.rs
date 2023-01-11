@@ -28,7 +28,7 @@ fn main() {
     if let Some(cap) = name_pattern.captures(path) {
         let name = cap.get(1).unwrap().as_str();
         let circ = Circuit::parse(path, name, "").expect("Failed to parse");
-        let circ = CircuitSpec::from(circ);
+        let circ = CircuitSpec::from(circ.as_ref());
         write(
             format!("{}/{}.yml", args.o.as_str(), name),
             to_string(&circ).expect("Failed to serialize yaml"),

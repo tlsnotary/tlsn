@@ -3,13 +3,13 @@ use std::{
     sync::Arc,
 };
 
-use crate::{CircuitError, ValueType, WireGroup};
+use crate::{group::UncheckedGroup, CircuitError, ValueType, WireGroup};
 
 include!(concat!(env!("OUT_DIR"), "/core.circuits.rs"));
 
-impl From<crate::Group> for Group {
+impl From<&crate::Group> for Group {
     #[inline]
-    fn from(group: crate::Group) -> Self {
+    fn from(group: &crate::Group) -> Self {
         Self {
             id: group.id() as u32,
             name: group.name().to_string(),
@@ -20,14 +20,14 @@ impl From<crate::Group> for Group {
     }
 }
 
-impl TryFrom<Group> for crate::Group {
+impl TryFrom<Group> for UncheckedGroup {
     type Error = CircuitError;
     #[inline]
     fn try_from(group: Group) -> Result<Self, Self::Error> {
-        Ok(crate::Group::new(
+        Ok(UncheckedGroup::new(
             group.id as usize,
-            &group.name,
-            &group.desc,
+            group.name,
+            group.desc,
             match group.value_type {
                 0 => ValueType::ConstZero,
                 1 => ValueType::ConstOne,
@@ -50,10 +50,10 @@ impl TryFrom<Group> for crate::Group {
     }
 }
 
-impl From<crate::Gate> for Gate {
+impl From<&crate::Gate> for Gate {
     #[inline]
-    fn from(g: crate::Gate) -> Self {
-        match g {
+    fn from(g: &crate::Gate) -> Self {
+        match g.clone() {
             crate::Gate::Xor {
                 id,
                 xref,
@@ -117,51 +117,61 @@ impl TryFrom<Gate> for crate::Gate {
     }
 }
 
-impl From<crate::Circuit> for Circuit {
+impl From<&crate::Circuit> for Circuit {
     #[inline]
-    fn from(c: crate::Circuit) -> Self {
-        let gates = c.gates().iter().map(|g| Gate::from(*g)).collect();
+    fn from(c: &crate::Circuit) -> Self {
+        let gates = c.gates().iter().map(|g| Gate::from(g)).collect();
         Self {
             id: c.id.as_ref().to_string(),
-            name: c.name,
-            version: c.version,
+            name: c.name.clone(),
+            version: c.version.clone(),
             wire_count: c.wire_count as u32,
             and_count: c.and_count as u32,
             xor_count: c.xor_count as u32,
             inputs: c
                 .inputs
                 .iter()
-                .map(|input| Group::from(input.as_ref().clone()))
+                .map(|input| Group::from(input.0.as_ref()))
                 .collect(),
             outputs: c
                 .outputs
                 .iter()
-                .map(|output| Group::from(output.as_ref().clone()))
+                .map(|output| Group::from(output.0.as_ref()))
                 .collect(),
             gates,
         }
     }
 }
 
-impl TryFrom<Circuit> for crate::Circuit {
+impl TryFrom<Circuit> for Arc<crate::Circuit> {
     type Error = CircuitError;
 
     #[inline]
     fn try_from(c: Circuit) -> Result<Self, Self::Error> {
-        let mut inputs: Vec<crate::Input> = Vec::with_capacity(c.inputs.len());
-        for group in c.inputs.into_iter() {
-            inputs.push(crate::Input(Arc::new(crate::Group::try_from(group)?)));
-        }
+        let inputs = c
+            .inputs
+            .into_iter()
+            .map(|group| UncheckedGroup::try_from(group))
+            .collect::<Result<Vec<UncheckedGroup>, _>>()?
+            .into_iter()
+            .map(crate::Group::new_unchecked)
+            .collect();
 
-        let mut outputs: Vec<crate::Output> = Vec::with_capacity(c.outputs.len());
-        for group in c.outputs.into_iter() {
-            outputs.push(crate::Output(Arc::new(crate::Group::try_from(group)?)));
-        }
+        let outputs = c
+            .outputs
+            .into_iter()
+            .map(|group| UncheckedGroup::try_from(group))
+            .collect::<Result<Vec<UncheckedGroup>, _>>()?
+            .into_iter()
+            .map(crate::Group::new_unchecked)
+            .collect();
 
-        let mut gates: Vec<crate::Gate> = Vec::with_capacity(c.gates.len());
-        for gate in c.gates {
-            gates.push(crate::Gate::try_from(gate)?);
-        }
+        let gates = c
+            .gates
+            .into_iter()
+            .map(|gate| crate::Gate::try_from(gate))
+            .collect::<Result<Vec<crate::Gate>, _>>()?;
+
         Ok(crate::Circuit::new_unchecked(
             &c.name, &c.version, inputs, outputs, gates,
         ))
