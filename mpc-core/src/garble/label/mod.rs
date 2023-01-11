@@ -212,8 +212,7 @@ where
 {
     /// Returns Labels type, validating the provided labels using the associated group
     pub fn from_labels(group: G, labels: Vec<WireLabel>) -> Result<Self, LabelError> {
-        // We strip the labels down to blocks because the wire ids
-        // will be different
+        // We strip the labels down to blocks because the wire ids will be changed
         Self::from_blocks(
             group,
             labels.into_iter().map(|label| label.value()).collect(),
