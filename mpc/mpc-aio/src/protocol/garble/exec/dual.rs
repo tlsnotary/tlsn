@@ -76,11 +76,11 @@ where
 
         let leader_input_ids = inputs
             .iter()
-            .map(|input| input.id())
+            .map(|input| input.index())
             .collect::<Vec<usize>>();
         let follower_labels = input_labels
             .iter()
-            .filter(|input| !leader_input_ids.contains(&input.id()))
+            .filter(|input| !leader_input_ids.contains(&input.index()))
             .cloned()
             .collect::<Vec<FullInputLabels>>();
 
@@ -177,11 +177,11 @@ where
 
         let follower_input_ids = inputs
             .iter()
-            .map(|input| input.id())
+            .map(|input| input.index())
             .collect::<Vec<usize>>();
         let leader_labels = input_labels
             .iter()
-            .filter(|input| !follower_input_ids.contains(&input.id()))
+            .filter(|input| !follower_input_ids.contains(&input.index()))
             .cloned()
             .collect::<Vec<FullInputLabels>>();
 
