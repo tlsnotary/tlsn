@@ -159,7 +159,7 @@ where
     /// Validates whether the provided active labels are authentic
     pub fn validate(&self, labels: &Labels<G, state::Active>) -> Result<(), LabelError> {
         for (pair, label) in self.state.iter().zip(labels.iter()) {
-            if label.value != pair.low() && label.value != pair.high() {
+            if !(label.value == pair.low() || label.value == pair.high()) {
                 return Err(LabelError::InauthenticLabels(
                     labels.group.name().to_string(),
                 ));
