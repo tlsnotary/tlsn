@@ -284,7 +284,6 @@ impl label::OutputLabelsCommitment {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct GarbledCircuit {
     pub id: String,
-    pub input_labels: Vec<InputLabels>,
     pub encrypted_gates: Vec<Block>,
     pub decoding: Option<Vec<OutputDecodingInfo>>,
     pub commitments: Option<Vec<OutputLabelsCommitment>>,
@@ -294,12 +293,6 @@ impl From<circuit::GarbledCircuit<gc_state::Partial>> for GarbledCircuit {
     fn from(gc: circuit::GarbledCircuit<gc_state::Partial>) -> Self {
         Self {
             id: (*gc.circ.id().as_ref()).clone(),
-            input_labels: gc
-                .state
-                .input_labels
-                .into_iter()
-                .map(InputLabels::from)
-                .collect::<Vec<InputLabels>>(),
             encrypted_gates: gc
                 .state
                 .encrypted_gates
@@ -326,11 +319,6 @@ impl From<GarbledCircuit> for unchecked_circuit::UncheckedGarbledCircuit {
     fn from(gc: GarbledCircuit) -> Self {
         Self {
             id: gc.id,
-            input_labels: gc
-                .input_labels
-                .into_iter()
-                .map(UncheckedInputLabels::from)
-                .collect(),
             encrypted_gates: gc.encrypted_gates,
             decoding: gc.decoding.and_then(|decoding| {
                 Some(

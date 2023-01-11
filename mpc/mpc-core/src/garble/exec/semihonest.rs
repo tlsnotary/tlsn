@@ -11,7 +11,7 @@ use crate::garble::{
     },
     ActiveInputLabels, Delta, Error, FullInputLabels,
 };
-use mpc_circuits::{Circuit, InputValue, OutputValue};
+use mpc_circuits::{Circuit, OutputValue};
 
 use aes::{Aes128, NewBlockCipher};
 use std::sync::Arc;
@@ -81,7 +81,6 @@ impl SemiHonestLeader<Generator> {
     /// Garble circuit and send to peer
     pub fn garble(
         self,
-        inputs: &[InputValue],
         input_labels: &[FullInputLabels],
         delta: Delta,
         reveal_output: bool,
@@ -89,23 +88,17 @@ impl SemiHonestLeader<Generator> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
         let gc = GarbledCircuit::generate(&cipher, self.state.circ.clone(), delta, input_labels)?;
 
-        Ok((
-            gc.to_evaluator(inputs, reveal_output, true)?,
-            SemiHonestLeader {
-                state: Decode { gc: gc.summarize() },
-            },
-        ))
+        self.from_full_circuit(gc, reveal_output)
     }
 
     /// Proceed to next state from existing garbled circuit
     pub fn from_full_circuit(
         self,
-        inputs: &[InputValue],
         gc: GarbledCircuit<gc_state::Full>,
         reveal_output: bool,
     ) -> Result<(GarbledCircuit<gc_state::Partial>, SemiHonestLeader<Decode>), Error> {
         Ok((
-            gc.to_evaluator(inputs, reveal_output, true)?,
+            gc.to_evaluator(reveal_output, true)?,
             SemiHonestLeader {
                 state: Decode { gc: gc.summarize() },
             },
@@ -166,13 +159,13 @@ mod tests {
 
         let (input_labels, delta) = FullInputLabels::generate_set(&mut rng, &circ, None);
 
-        let (gc_partial, leader) = leader
-            .garble(&[leader_input], &input_labels, delta, true)
-            .unwrap();
+        let (gc_partial, leader) = leader.garble(&input_labels, delta, true).unwrap();
 
+        let leader_labels = input_labels[0].select(leader_input.value()).unwrap();
         let follower_labels = input_labels[1].select(follower_input.value()).unwrap();
+
         let gc_ev = follower
-            .evaluate(gc_partial.into(), &[follower_labels])
+            .evaluate(gc_partial.into(), &[leader_labels, follower_labels])
             .unwrap();
 
         let gc_output = gc_ev.to_output();
@@ -195,13 +188,13 @@ mod tests {
 
         let (input_labels, delta) = FullInputLabels::generate_set(&mut rng, &circ, None);
 
-        let (gc_partial, leader) = leader
-            .garble(&[leader_input], &input_labels, delta, true)
-            .unwrap();
+        let (gc_partial, leader) = leader.garble(&input_labels, delta, true).unwrap();
 
+        let leader_labels = input_labels[0].select(leader_input.value()).unwrap();
         let follower_labels = input_labels[1].select(follower_input.value()).unwrap();
+
         let gc_ev = follower
-            .evaluate(gc_partial.into(), &[follower_labels])
+            .evaluate(gc_partial.into(), &[leader_labels, follower_labels])
             .unwrap();
 
         let mut gc_output = gc_ev.to_output();
@@ -227,17 +220,17 @@ mod tests {
 
         let (input_labels, delta) = FullInputLabels::generate_set(&mut rng, &circ, None);
 
-        let (mut gc_partial, _) = leader
-            .garble(&[leader_input], &input_labels, delta, true)
-            .unwrap();
+        let (mut gc_partial, _) = leader.garble(&input_labels, delta, true).unwrap();
 
         // Insert bogus output label commitments
         gc_partial.state.commitments.as_mut().unwrap()[0].commitments[0][0] = Block::new(0);
         gc_partial.state.commitments.as_mut().unwrap()[0].commitments[0][1] = Block::new(1);
 
+        let leader_labels = input_labels[0].select(leader_input.value()).unwrap();
         let follower_labels = input_labels[1].select(follower_input.value()).unwrap();
+
         let error = follower
-            .evaluate(gc_partial.into(), &[follower_labels])
+            .evaluate(gc_partial.into(), &[leader_labels, follower_labels])
             .unwrap_err();
 
         assert!(matches!(error, Error::LabelError(_)));

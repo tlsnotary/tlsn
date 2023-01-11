@@ -1,5 +1,5 @@
 use rand::{CryptoRng, Rng};
-use std::collections::HashSet;
+use utils::iter::DuplicateCheckBy;
 
 use mpc_circuits::{Circuit, Input, WireGroup};
 
@@ -55,28 +55,33 @@ pub struct SanitizedInputLabels(Vec<WireLabel>);
 impl SanitizedInputLabels {
     pub(crate) fn new(
         circ: &Circuit,
-        gen_labels: &[Labels<Input, state::Active>],
-        ev_labels: &[Labels<Input, state::Active>],
+        labels: &[Labels<Input, state::Active>],
     ) -> Result<Self, Error> {
-        let gen_ids: HashSet<usize> = gen_labels.iter().map(|labels| labels.index()).collect();
-        let ev_ids: HashSet<usize> = ev_labels.iter().map(|labels| labels.index()).collect();
-
         // Error if there are duplicate inputs
-        if !gen_ids.is_disjoint(&ev_ids) {
+        if labels.iter().contains_dups_by(|labels| labels.id()) {
             return Err(Error::InvalidInput(InputError::Duplicate));
         }
 
+        // Error if any of the inputs corresponds to a different circuit
+        for labels in labels.iter() {
+            if labels.circuit().id() != circ.id() {
+                return Err(Error::InvalidInput(InputError::InvalidCircuit(
+                    labels.circuit().id().clone(),
+                    circ.id().clone(),
+                )));
+            }
+        }
+
         // Error if wrong number of inputs are provided
-        if circ.input_count() != gen_ids.len() + ev_ids.len() {
+        if circ.input_count() != labels.len() {
             return Err(Error::InvalidInput(InputError::InvalidCount(
                 circ.input_count(),
-                gen_ids.len() + ev_ids.len(),
+                labels.len(),
             )));
         }
 
-        let mut labels: Vec<WireLabel> = gen_labels
+        let mut labels: Vec<WireLabel> = labels
             .iter()
-            .chain(ev_labels.iter())
             .map(|labels| labels.iter().collect::<Vec<WireLabel>>())
             .flatten()
             .collect();
@@ -238,14 +243,14 @@ mod tests {
         let input_values = [Value::from(0u64), Value::from(0u64)];
 
         // Generator provides labels for both inputs, this is a no no
-        let gen_labels = [
+        let gen_labels = vec![
             labels[0].clone().select(&input_values[0]).unwrap(),
             labels[1].clone().select(&input_values[1]).unwrap(),
         ];
-        let ev_labels = [labels[0].clone().select(&input_values[0]).unwrap()];
+        let ev_labels = vec![labels[0].clone().select(&input_values[0]).unwrap()];
 
         assert!(matches!(
-            SanitizedInputLabels::new(&circ, &gen_labels, &ev_labels),
+            SanitizedInputLabels::new(&circ, &[gen_labels, ev_labels].concat()),
             Err(Error::InvalidInput(InputError::Duplicate))
         ))
     }
@@ -256,20 +261,20 @@ mod tests {
         let input_values = [Value::from(0u64), Value::from(0u64)];
 
         // Generator provides no labels
-        let gen_labels = [];
-        let ev_labels = [labels[0].clone().select(&input_values[0]).unwrap()];
+        let gen_labels = vec![];
+        let ev_labels = vec![labels[0].clone().select(&input_values[0]).unwrap()];
 
         assert!(matches!(
-            SanitizedInputLabels::new(&circ, &gen_labels, &ev_labels),
+            SanitizedInputLabels::new(&circ, &[gen_labels, ev_labels].concat()),
             Err(Error::InvalidInput(InputError::InvalidCount(2, 1)))
         ));
 
         // Evaluator provides no labels
-        let gen_labels = [labels[0].clone().select(&input_values[0]).unwrap()];
-        let ev_labels = [];
+        let gen_labels = vec![labels[0].clone().select(&input_values[0]).unwrap()];
+        let ev_labels = vec![];
 
         assert!(matches!(
-            SanitizedInputLabels::new(&circ, &gen_labels, &ev_labels),
+            SanitizedInputLabels::new(&circ, &[gen_labels, ev_labels].concat()),
             Err(Error::InvalidInput(InputError::InvalidCount(2, 1)))
         ));
     }
@@ -279,7 +284,7 @@ mod tests {
         let (labels, _) = Labels::generate_set(&mut thread_rng(), &circ, None);
         let input_values = [Value::from(0u64), Value::from(0u64)];
 
-        let mut input_labels = [
+        let mut input_labels = vec![
             labels[0].clone().select(&input_values[0]).unwrap(),
             labels[1].clone().select(&input_values[1]).unwrap(),
         ];
@@ -291,11 +296,11 @@ mod tests {
         let ev_labels = [input_labels[0].clone()];
 
         assert!(matches!(
-            SanitizedInputLabels::new(&circ, &gen_labels, &ev_labels),
+            SanitizedInputLabels::new(&circ, &[gen_labels, ev_labels].concat()),
             Err(Error::InvalidInput(InputError::Duplicate))
         ));
 
-        let mut input_labels = [
+        let mut input_labels = vec![
             labels[0].clone().select(&input_values[0]).unwrap(),
             labels[1].clone().select(&input_values[1]).unwrap(),
         ];
@@ -309,7 +314,7 @@ mod tests {
         let ev_labels = [input_labels[0].clone()];
 
         assert!(matches!(
-            SanitizedInputLabels::new(&circ, &gen_labels, &ev_labels),
+            SanitizedInputLabels::new(&circ, &[gen_labels, ev_labels].concat()),
             Err(Error::InvalidInput(InputError::Duplicate))
         ));
     }
@@ -319,7 +324,7 @@ mod tests {
         let (labels, _) = Labels::generate_set(&mut thread_rng(), &circ, None);
         let input_values = [Value::from(0u64), Value::from(0u64)];
 
-        let mut input_labels = [
+        let mut input_labels = vec![
             labels[0].clone().select(&input_values[0]).unwrap(),
             labels[1].clone().select(&input_values[1]).unwrap(),
         ];
@@ -331,11 +336,11 @@ mod tests {
         let ev_labels = [input_labels[0].clone()];
 
         assert!(matches!(
-            SanitizedInputLabels::new(&circ, &gen_labels, &ev_labels),
+            SanitizedInputLabels::new(&circ, &[gen_labels, ev_labels].concat()),
             Err(Error::InvalidInput(InputError::InvalidWireCount(_, _)))
         ));
 
-        let mut input_labels = [
+        let mut input_labels = vec![
             labels[0].clone().select(&input_values[0]).unwrap(),
             labels[1].clone().select(&input_values[1]).unwrap(),
         ];
@@ -349,7 +354,7 @@ mod tests {
         let ev_labels = [input_labels[0].clone()];
 
         assert!(matches!(
-            SanitizedInputLabels::new(&circ, &gen_labels, &ev_labels),
+            SanitizedInputLabels::new(&circ, &[gen_labels, ev_labels].concat()),
             Err(Error::InvalidInput(InputError::InvalidWireCount(_, _)))
         ));
     }

@@ -4,7 +4,7 @@ use crate::garble::{
     label::{ActiveOutputLabels, LabelsDigest},
     ActiveInputLabels, Delta, Error, FullInputLabels,
 };
-use mpc_circuits::{Circuit, InputValue};
+use mpc_circuits::Circuit;
 
 use aes::{Aes128, NewBlockCipher};
 use std::sync::Arc;
@@ -82,24 +82,22 @@ impl DualExLeader<Generator> {
     /// Garble circuit and send to peer
     pub fn garble(
         self,
-        inputs: &[InputValue],
         input_labels: &[FullInputLabels],
         delta: Delta,
     ) -> Result<(GarbledCircuit<gc_state::Partial>, DualExLeader<Evaluator>), Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
         let gc = GarbledCircuit::generate(&cipher, self.state.circ.clone(), delta, input_labels)?;
 
-        self.from_full_circuit(inputs, gc)
+        self.from_full_circuit(gc)
     }
 
     /// Proceed to next state from existing garbled circuit
     pub fn from_full_circuit(
         self,
-        inputs: &[InputValue],
         gc: GarbledCircuit<gc_state::Full>,
     ) -> Result<(GarbledCircuit<gc_state::Partial>, DualExLeader<Evaluator>), Error> {
         Ok((
-            gc.to_evaluator(inputs, true, false)?,
+            gc.to_evaluator(true, false)?,
             DualExLeader {
                 state: Evaluator {
                     gc,

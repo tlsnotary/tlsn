@@ -1,4 +1,4 @@
-use mpc_circuits::GroupId;
+use mpc_circuits::{CircuitId, GroupId};
 
 /// Error associated with garbled circuits
 #[derive(Debug, thiserror::Error)]
@@ -28,6 +28,8 @@ pub enum Error {
 pub enum InputError {
     #[error("Invalid input id: {0}")]
     InvalidId(usize),
+    #[error("Input from wrong circuit: expected {0:?} got {1:?}")]
+    InvalidCircuit(CircuitId, CircuitId),
     #[error("Invalid input count: expected {0}, got {1}")]
     InvalidCount(usize, usize),
     #[error("Invalid wire count: expected {0}, got {1}")]

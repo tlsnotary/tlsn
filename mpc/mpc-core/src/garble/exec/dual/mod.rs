@@ -37,25 +37,27 @@ mod tests {
         let (follower_labels, follower_delta) =
             FullInputLabels::generate_set(&mut rng, &circ, None);
 
-        let (leader_gc, leader) = leader
-            .garble(&[leader_input.clone()], &leader_labels, leader_delta)
-            .unwrap();
+        let (leader_gc, leader) = leader.garble(&leader_labels, leader_delta).unwrap();
 
-        let (follower_gc, follower) = follower
-            .garble(&[follower_input.clone()], &follower_labels, follower_delta)
-            .unwrap();
+        let (follower_gc, follower) = follower.garble(&follower_labels, follower_delta).unwrap();
 
         let leader = leader
             .evaluate(
                 follower_gc,
-                &[follower_labels[0].select(leader_input.value()).unwrap()],
+                &[
+                    follower_labels[0].select(leader_input.value()).unwrap(),
+                    follower_labels[1].select(follower_input.value()).unwrap(),
+                ],
             )
             .unwrap();
 
         let follower = follower
             .evaluate(
                 leader_gc,
-                &[leader_labels[1].select(follower_input.value()).unwrap()],
+                &[
+                    leader_labels[0].select(leader_input.value()).unwrap(),
+                    leader_labels[1].select(follower_input.value()).unwrap(),
+                ],
             )
             .unwrap();
 
