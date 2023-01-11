@@ -1,5 +1,5 @@
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
-use sha2::{Digest, Sha256};
+use blake3::Hasher;
 
 #[inline]
 pub fn parse_ristretto_key(b: Vec<u8>) -> Result<RistrettoPoint, std::io::Error> {
@@ -20,8 +20,8 @@ pub fn parse_ristretto_key(b: Vec<u8>) -> Result<RistrettoPoint, std::io::Error>
     }
 }
 
-pub fn sha256(data: &[u8]) -> [u8; 32] {
-    let mut hasher = Sha256::new();
+pub fn blake3(data: &[u8]) -> [u8; 32] {
+    let mut hasher = Hasher::new();
     hasher.update(data);
     hasher.finalize().into()
 }

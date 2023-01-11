@@ -7,7 +7,7 @@ use crate::{
         ExtReceiverSetup, ExtSenderCommit, ExtSenderPayload, ExtSenderReveal,
     },
     ot::DhOtReceiver as BaseReceiver,
-    utils::sha256,
+    utils::blake3,
     Block,
 };
 use aes::{Aes128, NewBlockCipher};
@@ -44,7 +44,7 @@ impl Kos15Sender {
     /// Returns a salted commitment to the OT seed
     pub fn commit_to_seed(&self) -> ExtSenderCommit {
         let salted_seed = [self.0.rng.get_seed().as_slice(), self.0.salt.as_slice()].concat();
-        ExtSenderCommit(sha256(&salted_seed))
+        ExtSenderCommit(blake3(&salted_seed))
     }
 
     /// Performs base OT setup in which this extended OT sender acts as a
@@ -99,7 +99,7 @@ impl Kos15Sender<state::BaseSetup> {
         let rngs = seed_rngs(&sender_blocks);
 
         // Check the decommitment for the other party's share
-        if sha256(&setup_msg.cointoss_share) != self.0.receiver_cointoss_commit {
+        if blake3(&setup_msg.cointoss_share) != self.0.receiver_cointoss_commit {
             return Err(ExtSenderCoreError::CommitmentCheckFailed);
         }
 

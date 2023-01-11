@@ -9,17 +9,18 @@ pub use sender::*;
 
 use crate::{ot::base::ReceiverCoreError, Block};
 use curve25519_dalek::ristretto::RistrettoPoint;
-use sha2::{Digest, Sha256};
+use blake3::Hasher;
 
 pub(crate) const DOMAIN_SEP: &[u8] = b"CO15 DH-OT";
 
 /// Hashes a ristretto point to a symmetric key
 pub(crate) fn hash_point(point: &RistrettoPoint, tweak: &[u8]) -> Block {
     // Compute H(tweak || point)
-    let mut h = Sha256::new();
+    let mut h = Hasher::new();
     h.update(&tweak);
     h.update(point.compress().as_bytes());
     let digest = h.finalize();
+    let digest: &[u8; 32]= digest.as_bytes();
 
     // Copy the first 16 bytes into a Block
     let mut block = [0u8; 16];

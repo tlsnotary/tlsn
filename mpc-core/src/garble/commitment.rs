@@ -2,7 +2,7 @@
 
 use rand::{thread_rng, Rng};
 
-use crate::utils::sha256;
+use crate::utils::blake3;
 
 /// Error associated with commitments
 #[derive(Debug, thiserror::Error)]
@@ -11,7 +11,7 @@ pub enum CommitmentError {
     InvalidOpening,
 }
 
-/// A commitment of the form H(key || message) using SHA256
+/// A commitment of the form H(key || message) using Blake3
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct HashCommitment(pub(crate) [u8; 32]);
 
@@ -61,7 +61,7 @@ impl Opening {
     pub fn commit(&self) -> HashCommitment {
         let mut message = self.key.0.to_vec();
         message.extend(&self.message);
-        HashCommitment(sha256(&message))
+        HashCommitment(blake3(&message))
     }
 }
 

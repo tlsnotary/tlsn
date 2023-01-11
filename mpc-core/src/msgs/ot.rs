@@ -64,7 +64,7 @@ pub struct BaseReceiverSetupWrapper {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct BaseSenderSetupWrapper {
     pub setup: SenderSetup,
-    // Cointoss protocol's 1st message: sha256 commitment
+    // Cointoss protocol's 1st message: blake3 commitment
     pub cointoss_commit: [u8; 32],
 }
 

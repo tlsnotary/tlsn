@@ -14,7 +14,7 @@ use crate::{
         },
         Delta, Error, InputError, LabelError, WireLabelPair,
     },
-    utils::sha256,
+    utils::blake3,
 };
 use mpc_circuits::{Circuit, CircuitId, InputValue, OutputValue, WireGroup};
 
@@ -38,7 +38,7 @@ impl AsRef<[Block; 2]> for EncryptedGate {
 }
 
 fn gates_digest(encrypted_gates: &[EncryptedGate]) -> Vec<u8> {
-    sha256(
+    blake3(
         &encrypted_gates
             .iter()
             .map(|gate| gate.0)
