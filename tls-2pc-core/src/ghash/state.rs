@@ -6,6 +6,12 @@ mod sealed {
     impl Sealed for super::Finalized {}
 }
 
+pub trait State: sealed::Sealed {}
+
+impl State for Init {}
+impl State for Intermediate {}
+impl State for Finalized {}
+
 /// Init state for Ghash protocol
 ///
 /// This is before any OT has taken place

@@ -1,13 +1,13 @@
 use super::{
     compute_missing_mul_shares, compute_new_add_shares, mul,
-    state::{Finalized, Init, Intermediate},
+    state::{Finalized, Init, Intermediate, State},
     GhashError,
 };
 
 /// The core logic for our 2PC Ghash implementation
 ///
 /// `GhashCore` will do all the necessary computation
-pub struct GhashCore<T = Init> {
+pub struct GhashCore<T: State = Init> {
     /// Inner state
     state: T,
     /// Maximum number of message blocks we want to authenticate
@@ -124,7 +124,7 @@ impl GhashCore<Finalized> {
 }
 
 #[cfg(test)]
-impl<T> GhashCore<T> {
+impl<T: State> GhashCore<T> {
     pub fn state(&self) -> &T {
         &self.state
     }
