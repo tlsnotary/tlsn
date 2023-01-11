@@ -79,7 +79,7 @@ where
 
         let State::Initialized {id, barrier, mut muxer, sender_factory} = state else {
             self.state = state;
-            return Err(ShareConversionError::Other(String::from("Actor has to be initialized")));
+            return Err(ShareConversionError::Other(String::from("Actor has to be in the Initialized state")));
         };
 
         let channel = muxer
@@ -229,13 +229,17 @@ where
     /// This handler is called when the actor receives SendTapeMessage
     async fn handle(&mut self, _message: SendTapeMessage, ctx: &mut Context<Self>) -> Self::Return {
         let state = std::mem::replace(&mut self.state, State::Complete);
-        let State::Setup(state) = state else {
-            return Err(ShareConversionError::Other(String::from(
-                "Actor is not setup"
-            )));
-        };
-
-        ctx.stop_self();
-        state.send_tape().await
+        match state {
+            State::Setup(setup_state) => {
+                ctx.stop_self();
+                setup_state.send_tape().await
+            }
+            _ => {
+                self.state = state;
+                return Err(ShareConversionError::Other(String::from(
+                    "Actor is not setup",
+                )));
+            }
+        }
     }
 }
