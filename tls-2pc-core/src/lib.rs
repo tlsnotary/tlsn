@@ -26,25 +26,25 @@ pub static CIRCUIT_7_BYTES: &[u8] = std::include_bytes!("../circuits/bin/c7.bin"
 
 #[cfg(feature = "c1")]
 pub static CIRCUIT_1: Lazy<Arc<Circuit>> =
-    Lazy::new(|| Arc::new(Circuit::load_bytes(CIRCUIT_1_BYTES).unwrap()));
+    Lazy::new(|| Circuit::load_bytes(CIRCUIT_1_BYTES).unwrap());
 #[cfg(feature = "c2")]
 pub static CIRCUIT_2: Lazy<Arc<Circuit>> =
-    Lazy::new(|| Arc::new(Circuit::load_bytes(CIRCUIT_2_BYTES).unwrap()));
+    Lazy::new(|| Circuit::load_bytes(CIRCUIT_2_BYTES).unwrap());
 #[cfg(feature = "c3")]
 pub static CIRCUIT_3: Lazy<Arc<Circuit>> =
-    Lazy::new(|| Arc::new(Circuit::load_bytes(CIRCUIT_3_BYTES).unwrap()));
+    Lazy::new(|| Circuit::load_bytes(CIRCUIT_3_BYTES).unwrap());
 #[cfg(feature = "c4")]
 pub static CIRCUIT_4: Lazy<Arc<Circuit>> =
-    Lazy::new(|| Arc::new(Circuit::load_bytes(CIRCUIT_4_BYTES).unwrap()));
+    Lazy::new(|| Circuit::load_bytes(CIRCUIT_4_BYTES).unwrap());
 #[cfg(feature = "c5")]
 pub static CIRCUIT_5: Lazy<Arc<Circuit>> =
-    Lazy::new(|| Arc::new(Circuit::load_bytes(CIRCUIT_5_BYTES).unwrap()));
+    Lazy::new(|| Circuit::load_bytes(CIRCUIT_5_BYTES).unwrap());
 #[cfg(feature = "c6")]
 pub static CIRCUIT_6: Lazy<Arc<Circuit>> =
-    Lazy::new(|| Arc::new(Circuit::load_bytes(CIRCUIT_6_BYTES).unwrap()));
+    Lazy::new(|| Circuit::load_bytes(CIRCUIT_6_BYTES).unwrap());
 #[cfg(feature = "c7")]
 pub static CIRCUIT_7: Lazy<Arc<Circuit>> =
-    Lazy::new(|| Arc::new(Circuit::load_bytes(CIRCUIT_7_BYTES).unwrap()));
+    Lazy::new(|| Circuit::load_bytes(CIRCUIT_7_BYTES).unwrap());
 
 pub struct SessionKeyShares {
     cwk: [u8; 16],

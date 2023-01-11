@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{combine_pms_shares, SHA256_STATE};
 use mpc_circuits::{
     builder::{map_le_bytes, CircuitBuilder},
@@ -22,7 +24,7 @@ use mpc_circuits::{
 ///
 ///   0. MASKED_I: 32-byte masked HMAC inner hash state
 ///   1. MASKED_O: 32-byte masked HMAC outer hash state
-pub fn c1() -> Circuit {
+pub fn c1() -> Arc<Circuit> {
     let mut builder = CircuitBuilder::new("c1", "0.1.0");
 
     let share_a = builder.add_input(
@@ -65,14 +67,16 @@ pub fn c1() -> Circuit {
     let mut builder = builder.build_inputs();
 
     let sha256 = Circuit::load_bytes(SHA_256).expect("failed to load sha256 circuit");
+    let xor_512_circ = nbit_xor(512);
+    let xor_256_circ = nbit_xor(256);
 
-    let combine_pms = builder.add_circ(combine_pms_shares());
-    let sha256_ipad = builder.add_circ(sha256.clone());
-    let sha256_opad = builder.add_circ(sha256);
-    let pms_ipad = builder.add_circ(nbit_xor(512));
-    let pms_opad = builder.add_circ(nbit_xor(512));
-    let masked_inner = builder.add_circ(nbit_xor(256));
-    let masked_outer = builder.add_circ(nbit_xor(256));
+    let combine_pms = builder.add_circ(&combine_pms_shares());
+    let sha256_ipad = builder.add_circ(&sha256);
+    let sha256_opad = builder.add_circ(&sha256);
+    let pms_ipad = builder.add_circ(&xor_512_circ);
+    let pms_opad = builder.add_circ(&xor_512_circ);
+    let masked_inner = builder.add_circ(&xor_256_circ);
+    let masked_outer = builder.add_circ(&xor_256_circ);
 
     builder.connect(
         &share_a[..],

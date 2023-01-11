@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use mpc_circuits::{
     builder::{map_le_bytes, CircuitBuilder},
     circuits::nbit_xor,
@@ -30,7 +32,7 @@ use mpc_circuits::{
 ///   1. MASKED_GCTR: 16-byte masked (N_GCTR_MASK + U_GCTR_MASK) GCTR
 ///   2. MASKED_ECTR: 16-byte masked (U_ECTR_MASK) encrypted counter
 ///   3. MASKED_VD: 12-byte masked (U_VD_MASK) server verify data
-pub fn c5() -> Circuit {
+pub fn c5() -> Arc<Circuit> {
     let mut builder = CircuitBuilder::new("c5", "0.1.0");
 
     let p1_outer_state = builder.add_input(
@@ -123,19 +125,22 @@ pub fn c5() -> Circuit {
 
     let aes = Circuit::load_bytes(AES_128_REVERSE).expect("failed to load aes_128_reverse circuit");
     let sha256 = Circuit::load_bytes(SHA_256).expect("failed to load sha_256 circuit");
+    let xor_128_circ = nbit_xor(128);
+    let xor_96_circ = nbit_xor(96);
+    let xor_32_circ = nbit_xor(32);
 
-    let sha256_p1 = builder.add_circ(sha256);
-    let aes_h = builder.add_circ(aes.clone());
-    let aes_gctr = builder.add_circ(aes.clone());
-    let aes_ectr = builder.add_circ(aes);
-    let swk = builder.add_circ(nbit_xor(128));
-    let siv = builder.add_circ(nbit_xor(32));
-    let mask_h = builder.add_circ(nbit_xor(128));
-    let mask_gctr = builder.add_circ(nbit_xor(128));
-    let masked_h = builder.add_circ(nbit_xor(128));
-    let masked_gctr = builder.add_circ(nbit_xor(128));
-    let masked_ectr = builder.add_circ(nbit_xor(128));
-    let masked_vd = builder.add_circ(nbit_xor(96));
+    let sha256_p1 = builder.add_circ(&sha256);
+    let aes_h = builder.add_circ(&aes);
+    let aes_gctr = builder.add_circ(&aes);
+    let aes_ectr = builder.add_circ(&aes);
+    let swk = builder.add_circ(&xor_128_circ);
+    let siv = builder.add_circ(&xor_32_circ);
+    let mask_h = builder.add_circ(&xor_128_circ);
+    let mask_gctr = builder.add_circ(&xor_128_circ);
+    let masked_h = builder.add_circ(&xor_128_circ);
+    let masked_gctr = builder.add_circ(&xor_128_circ);
+    let masked_ectr = builder.add_circ(&xor_128_circ);
+    let masked_vd = builder.add_circ(&xor_96_circ);
 
     // swk
     builder.connect(

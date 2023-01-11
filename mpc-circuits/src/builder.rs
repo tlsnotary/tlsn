@@ -5,7 +5,9 @@ use std::{
 };
 
 pub use crate::error::BuilderError;
-use crate::{circuit::GateType, Circuit, Gate, Input, Output, ValueType, WireGroup};
+use crate::{
+    circuit::GateType, group::UncheckedGroup, Circuit, Gate, Input, Output, ValueType, WireGroup,
+};
 
 /// A circuit feed
 #[derive(Debug, Clone, Copy)]
@@ -49,36 +51,6 @@ pub struct CircuitHandle {
 }
 
 impl CircuitHandle {
-    fn new(circ: Circuit) -> Self {
-        Self {
-            inputs: circ
-                .inputs
-                .into_iter()
-                .map(|input| SubInputHandle {
-                    wire_handles: input
-                        .wires()
-                        .iter()
-                        .copied()
-                        .map(WireHandle::new_sink)
-                        .collect(),
-                })
-                .collect(),
-            outputs: circ
-                .outputs
-                .into_iter()
-                .map(|output| SubOutputHandle {
-                    wire_handles: output
-                        .as_ref()
-                        .wires()
-                        .iter()
-                        .copied()
-                        .map(WireHandle::new_feed)
-                        .collect(),
-                })
-                .collect(),
-        }
-    }
-
     /// Returns a handle to the sub-circuit input
     pub fn input(&self, id: usize) -> Option<SubInputHandle> {
         self.inputs.get(id).cloned()
@@ -93,7 +65,7 @@ impl CircuitHandle {
 /// A handle on a circuit input
 #[derive(Debug, Clone)]
 pub struct InputHandle {
-    input: Input,
+    input: UncheckedGroup,
     wire_handles: Vec<WireHandle<Feed>>,
 }
 
@@ -111,7 +83,7 @@ where
 /// A handle on a circuit output
 #[derive(Debug, Clone)]
 pub struct OutputHandle {
-    output: Output,
+    output: UncheckedGroup,
     wire_handles: Vec<WireHandle<Sink>>,
 }
 
@@ -132,6 +104,30 @@ pub struct SubInputHandle {
     wire_handles: Vec<WireHandle<Sink>>,
 }
 
+impl SubInputHandle {
+    fn shift_right(&mut self, offset: usize) {
+        self.wire_handles
+            .iter_mut()
+            .for_each(|handle| handle.id += offset);
+    }
+}
+
+impl From<&Input> for SubInputHandle {
+    fn from(input: &Input) -> Self {
+        Self {
+            wire_handles: input
+                .wires()
+                .iter()
+                .copied()
+                .map(|id| WireHandle {
+                    id,
+                    _pd: PhantomData,
+                })
+                .collect(),
+        }
+    }
+}
+
 impl<Idx> std::ops::Index<Idx> for SubInputHandle
 where
     Idx: std::slice::SliceIndex<[WireHandle<Sink>]>,
@@ -147,6 +143,30 @@ where
 #[derive(Debug, Clone)]
 pub struct SubOutputHandle {
     wire_handles: Vec<WireHandle<Feed>>,
+}
+
+impl SubOutputHandle {
+    fn shift_right(&mut self, offset: usize) {
+        self.wire_handles
+            .iter_mut()
+            .for_each(|handle| handle.id += offset);
+    }
+}
+
+impl From<&Output> for SubOutputHandle {
+    fn from(input: &Output) -> Self {
+        Self {
+            wire_handles: input
+                .wires()
+                .iter()
+                .copied()
+                .map(|id| WireHandle {
+                    id,
+                    _pd: PhantomData,
+                })
+                .collect(),
+        }
+    }
 }
 
 impl<Idx> std::ops::Index<Idx> for SubOutputHandle
@@ -190,15 +210,12 @@ impl GateHandle {
         self.gate_type
     }
 
-    fn from_gate(gate: &Gate) -> Self {
-        Self {
-            x: WireHandle::new_sink(gate.xref()),
-            y: gate
-                .yref()
-                .and_then(|yref| Some(WireHandle::new_sink(yref))),
-            z: WireHandle::new_feed(gate.zref()),
-            gate_type: gate.gate_type(),
+    fn shift_right(&mut self, offset: usize) {
+        self.x.id += offset;
+        if let Some(y) = self.y.as_mut() {
+            y.id += offset;
         }
+        self.z.id += offset;
     }
 
     fn to_gate(self, id: usize) -> Gate {
@@ -220,6 +237,19 @@ impl GateHandle {
                 xref: self.x.id,
                 zref: self.z.id,
             },
+        }
+    }
+}
+
+impl From<&Gate> for GateHandle {
+    fn from(gate: &Gate) -> Self {
+        Self {
+            x: WireHandle::new_sink(gate.xref()),
+            y: gate
+                .yref()
+                .and_then(|yref| Some(WireHandle::new_sink(yref))),
+            z: WireHandle::new_feed(gate.zref()),
+            gate_type: gate.gate_type(),
         }
     }
 }
@@ -289,7 +319,13 @@ impl CircuitBuilder<Inputs> {
         self.0.input_wire_id += wire_count;
         let wire_handles = wires.iter().copied().map(WireHandle::new_feed).collect();
         let input = InputHandle {
-            input: Input::new(self.0.inputs.len(), name, desc, value_type, wires),
+            input: UncheckedGroup::new(
+                self.0.inputs.len(),
+                name.to_string(),
+                desc.to_string(),
+                value_type,
+                wires,
+            ),
             wire_handles,
         };
         self.0.inputs.push(input.clone());
@@ -311,38 +347,43 @@ impl CircuitBuilder<Inputs> {
 
 impl CircuitBuilder<Gates> {
     /// Add sub-circuit to circuit
-    pub fn add_circ(&mut self, mut circ: Circuit) -> CircuitHandle {
+    pub fn add_circ(&mut self, circ: &Circuit) -> CircuitHandle {
         let offset = self.0.gate_wire_id;
         self.0.gate_wire_id += circ.len();
-
-        // Shift gates right
-        for gate in circ.gates.iter_mut() {
-            gate.set_xref(gate.xref() + offset);
-            if let Some(yref) = gate.yref() {
-                gate.set_yref(yref + offset);
-            }
-            gate.set_zref(gate.zref() + offset);
-        }
-
-        // Shift input wires right
-        for input in circ.inputs.iter_mut() {
-            input.0 = Arc::new(input.0.shift_right(offset));
-        }
-
-        // Shift output wires right
-        for output in circ.outputs.iter_mut() {
-            output.0 = Arc::new(output.0.shift_right(offset));
-        }
 
         // Insert gate handles
         self.0.gates.extend(
             circ.gates
                 .iter()
-                .map(|gate| GateHandle::from_gate(gate))
+                .map(|gate| {
+                    let mut handle: GateHandle = gate.into();
+                    handle.shift_right(offset);
+                    handle
+                })
                 .collect::<Vec<GateHandle>>(),
         );
 
-        CircuitHandle::new(circ)
+        let inputs = circ
+            .inputs
+            .iter()
+            .map(|input| {
+                let mut handle: SubInputHandle = input.into();
+                handle.shift_right(offset);
+                handle
+            })
+            .collect::<Vec<SubInputHandle>>();
+
+        let outputs = circ
+            .outputs
+            .iter()
+            .map(|input| {
+                let mut handle: SubOutputHandle = input.into();
+                handle.shift_right(offset);
+                handle
+            })
+            .collect::<Vec<SubOutputHandle>>();
+
+        CircuitHandle { inputs, outputs }
     }
 
     /// Add gate to circuit
@@ -421,7 +462,13 @@ impl CircuitBuilder<Outputs> {
         self.0.output_wire_id += wire_count;
         let wire_handles = wires.iter().copied().map(WireHandle::new_sink).collect();
         let output = OutputHandle {
-            output: Output::new(self.0.outputs.len(), name, desc, value_type, wires),
+            output: UncheckedGroup::new(
+                self.0.outputs.len(),
+                name.to_string(),
+                desc.to_string(),
+                value_type,
+                wires,
+            ),
             wire_handles,
         };
         self.0.outputs.push(output.clone());
@@ -443,7 +490,7 @@ impl CircuitBuilder<Outputs> {
     }
 
     /// Fully builds circuit
-    pub fn build_circuit(mut self) -> Result<Circuit, BuilderError> {
+    pub fn build_circuit(mut self) -> Result<Arc<Circuit>, BuilderError> {
         // Connect all gate wires and create id set
         let mut id_set: BTreeSet<usize> = BTreeSet::new();
         self.0.gates.iter_mut().for_each(|gate| {
@@ -488,38 +535,40 @@ impl CircuitBuilder<Outputs> {
             .inputs
             .into_iter()
             .map(|handle| handle.input)
-            .collect::<Vec<Input>>();
+            .collect::<Vec<UncheckedGroup>>();
 
         // Build outputs
-        let outputs = self
-            .0
-            .outputs
-            .into_iter()
-            .map(|handle| {
-                let mut output = handle.output;
-                let mut group = output.0.as_ref().clone();
-                group.wires = group
-                    .wires
-                    .into_iter()
-                    .map(|id| {
-                        let mut feed =
-                            self.0
-                                .conns
-                                .get(&id)
-                                .ok_or(BuilderError::MissingConnection(
-                                    format!("Output {} was not fully mapped to gates", output.id())
+        let outputs =
+            self.0
+                .outputs
+                .into_iter()
+                .map(|mut handle| {
+                    handle.output.wires =
+                        handle
+                            .output
+                            .wires
+                            .clone()
+                            .into_iter()
+                            .map(|id| {
+                                let mut feed = self.0.conns.get(&id).ok_or(
+                                    BuilderError::MissingConnection(
+                                        format!(
+                                            "Output {} was not fully mapped to gates",
+                                            handle.output.id()
+                                        )
                                         .to_string(),
-                                ))?;
-                        if let Some(new_id) = id_map.get(feed) {
-                            feed = new_id;
-                        }
-                        Ok(*feed)
-                    })
-                    .collect::<Result<Vec<usize>, BuilderError>>()?;
-                output.0 = Arc::new(group);
-                Ok(output)
-            })
-            .collect::<Result<Vec<Output>, BuilderError>>()?;
+                                    ),
+                                )?;
+                                if let Some(new_id) = id_map.get(feed) {
+                                    feed = new_id;
+                                }
+                                Ok(*feed)
+                            })
+                            .collect::<Result<Vec<usize>, BuilderError>>()?;
+
+                    Ok(handle.output)
+                })
+                .collect::<Result<Vec<UncheckedGroup>, BuilderError>>()?;
 
         let gates: Vec<Gate> = self
             .0
@@ -578,8 +627,8 @@ mod tests {
 
         let mut builder = builder.build_inputs();
 
-        let circ_1 = builder.add_circ(adder_64.clone());
-        let circ_2 = builder.add_circ(adder_64.clone());
+        let circ_1 = builder.add_circ(&adder_64);
+        let circ_2 = builder.add_circ(&adder_64);
 
         let a = circ_1.input(0).unwrap();
         let b = circ_1.input(1).unwrap();

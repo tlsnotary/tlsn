@@ -1,11 +1,11 @@
 use crate::{
-    proto::Circuit as ProtoCircuit, utils::topological_sort, CircuitError, Input, InputValue,
-    Output, OutputValue, Value, ValueType, WireGroup,
+    group::UncheckedGroup, proto::Circuit as ProtoCircuit, utils::topological_sort, CircuitError,
+    Group, Input, InputValue, Output, OutputValue, Value, ValueType, WireGroup,
 };
 
 use prost::Message;
 use sha2::{Digest, Sha256};
-use std::{collections::HashSet, convert::TryFrom};
+use std::{collections::HashSet, sync::Arc};
 
 #[derive(Debug, Clone, Copy)]
 pub enum GateType {
@@ -61,15 +61,6 @@ impl Gate {
         }
     }
 
-    /// Sets new wire id for xref
-    pub(crate) fn set_xref(&mut self, id: usize) {
-        match self {
-            Gate::Xor { xref, .. } => *xref = id,
-            Gate::And { xref, .. } => *xref = id,
-            Gate::Inv { xref, .. } => *xref = id,
-        }
-    }
-
     /// Returns gate yref
     pub fn yref(&self) -> Option<usize> {
         match self {
@@ -79,30 +70,12 @@ impl Gate {
         }
     }
 
-    /// Sets new wire id for yref
-    pub(crate) fn set_yref(&mut self, id: usize) {
-        match self {
-            Gate::Xor { yref, .. } => *yref = id,
-            Gate::And { yref, .. } => *yref = id,
-            Gate::Inv { .. } => panic!("tried to set yref of INV gate"),
-        }
-    }
-
     /// Returns gate zref
     pub fn zref(&self) -> usize {
         match self {
             Gate::Xor { zref, .. } => *zref,
             Gate::And { zref, .. } => *zref,
             Gate::Inv { zref, .. } => *zref,
-        }
-    }
-
-    /// Sets new wire id for zref
-    pub(crate) fn set_zref(&mut self, id: usize) {
-        match self {
-            Gate::Xor { zref, .. } => *zref = id,
-            Gate::And { zref, .. } => *zref = id,
-            Gate::Inv { zref, .. } => *zref = id,
         }
     }
 
@@ -299,37 +272,20 @@ impl Circuit {
     /// All input and output wires must belong to a [`Group`].
     ///
     /// [`Gate`] wires can not be connected to themselves, ie the [`Circuit`] must be acyclic.
-    pub fn new(
+    pub(crate) fn new(
         name: &str,
         version: &str,
-        inputs: Vec<Input>,
-        outputs: Vec<Output>,
+        inputs: Vec<UncheckedGroup>,
+        outputs: Vec<UncheckedGroup>,
         gates: Vec<Gate>,
-    ) -> Result<Self, CircuitError> {
-        let (inputs, input_wires) = Self::validate_inputs(inputs)?;
-        let (outputs, output_wires) = Self::validate_outputs(outputs)?;
-        let (gates, info) = Self::validate_gates(gates, &input_wires, &output_wires)?;
-        let const_inputs = inputs
-            .iter()
-            .filter(|input| input.value_type().is_constant())
-            .cloned()
-            .collect();
-        Self::validate_constant_inputs(&const_inputs)?;
+    ) -> Result<Arc<Self>, CircuitError> {
+        let (inputs, input_wires) = Self::validate_groups(inputs)?;
+        let (outputs, output_wires) = Self::validate_groups(outputs)?;
+        let gates = Self::validate_gates(gates, &input_wires, &output_wires)?;
 
-        Ok(Self {
-            id: CircuitId::new(&gates),
-            name: name.to_string(),
-            version: version.to_string(),
-            wire_count: info.wire_count,
-            and_count: info.and_count,
-            xor_count: info.xor_count,
-            input_ids: inputs.iter().map(|input| input.id()).collect(),
-            output_ids: outputs.iter().map(|output| output.id()).collect(),
-            inputs,
-            const_inputs,
-            outputs,
-            gates: topological_sort(gates),
-        })
+        let gates = topological_sort(gates);
+
+        Ok(Self::new_unchecked(name, version, inputs, outputs, gates))
     }
 
     /// Creates new circuit without performing any checks on circuit structure. This is only used
@@ -337,117 +293,101 @@ impl Circuit {
     pub(crate) fn new_unchecked(
         name: &str,
         version: &str,
-        inputs: Vec<Input>,
-        outputs: Vec<Output>,
+        inputs: Vec<Group>,
+        outputs: Vec<Group>,
         gates: Vec<Gate>,
-    ) -> Self {
+    ) -> Arc<Self> {
         let info = Self::compute_stats(&gates);
-        let const_inputs = inputs
-            .iter()
-            .filter(|input| input.value_type().is_constant())
-            .cloned()
-            .collect();
-        Self {
-            id: CircuitId::new(&gates),
-            name: name.to_string(),
-            version: version.to_string(),
-            wire_count: info.wire_count,
-            and_count: info.and_count,
-            xor_count: info.xor_count,
-            input_ids: inputs.iter().map(|input| input.id()).collect(),
-            output_ids: outputs.iter().map(|output| output.id()).collect(),
-            inputs,
-            const_inputs,
-            outputs,
-            gates,
-        }
-    }
 
-    /// Makes sure that, of the constant inputs (already sorted and deduped), each has only one wire
-    fn validate_constant_inputs(inputs: &Vec<Input>) -> Result<(), CircuitError> {
-        for input in inputs {
-            if input.len() != 1 {
-                return Err(CircuitError::InvalidCircuit(
-                    "Constant input does not have only one wire".to_string(),
-                ));
+        let circuit = Arc::new_cyclic(|circuit_ref| {
+            let inputs = inputs
+                .into_iter()
+                .map(|mut group| {
+                    group.set_circuit(circuit_ref.clone());
+                    Input::new(group)
+                })
+                .collect::<Vec<Input>>();
+
+            let outputs = outputs
+                .into_iter()
+                .map(|mut group| {
+                    group.set_circuit(circuit_ref.clone());
+                    Output::new(group)
+                })
+                .collect::<Vec<Output>>();
+
+            let const_inputs = inputs
+                .iter()
+                .filter(|input| input.value_type().is_constant())
+                .cloned()
+                .collect();
+
+            Self {
+                id: CircuitId::new(&gates),
+                name: name.to_string(),
+                version: version.to_string(),
+                wire_count: info.wire_count,
+                and_count: info.and_count,
+                xor_count: info.xor_count,
+                input_ids: inputs.iter().map(|input| input.id()).collect(),
+                output_ids: outputs.iter().map(|output| output.id()).collect(),
+                inputs,
+                const_inputs,
+                outputs,
+                gates,
             }
-        }
+        });
 
-        Ok(())
+        circuit
     }
 
-    fn validate_inputs(mut inputs: Vec<Input>) -> Result<(Vec<Input>, Vec<usize>), CircuitError> {
-        // Sort inputs by input id
-        inputs.sort_by_key(|input| input.id());
+    /// Performs a series of operations and checks on groups
+    ///
+    /// 1. Groups are ordered by id
+    /// 2. Duplicate groups are not present
+    /// 3. Groups do not have overlapping wire ids
+    fn validate_groups(
+        mut groups: Vec<UncheckedGroup>,
+    ) -> Result<(Vec<Group>, Vec<usize>), CircuitError> {
+        // Sort groups by id
+        groups.sort_by_key(|group| group.id());
 
-        let mut input_ids: Vec<usize> = inputs.iter().map(|input| input.id()).collect();
-        let input_count = input_ids.len();
-        input_ids.dedup();
+        let mut group_ids: Vec<usize> = groups.iter().map(|group| group.id()).collect();
+        let group_count = group_ids.len();
+        group_ids.dedup();
 
-        // Make sure duplicates inputs are not present
-        if input_count != input_ids.len() {
+        // Make sure duplicates groups are not present
+        if group_count != group_ids.len() {
             return Err(CircuitError::InvalidCircuit(
-                "Duplicate input ids".to_string(),
+                "Duplicate group ids".to_string(),
             ));
         }
 
-        // Gather up and sort input wire ids
-        let mut input_wire_ids: Vec<usize> = inputs
+        // Gather up and sort wire ids
+        let mut wire_ids: Vec<usize> = groups
             .iter()
-            .map(|input| input.as_ref().wires())
+            .map(|group| group.wires())
             .flatten()
             .cloned()
             .collect();
-        input_wire_ids.sort();
+        wire_ids.sort();
 
-        let input_wire_count = input_wire_ids.len();
-        input_wire_ids.dedup();
+        let wire_count = wire_ids.len();
+        wire_ids.dedup();
 
-        // Make sure input wires only belong to 1 input
-        if input_wire_count != input_wire_ids.len() {
+        // Make sure duplicate wires are not present
+        if wire_count != wire_ids.len() {
             return Err(CircuitError::InvalidCircuit(
                 "Duplicate input wire ids".to_string(),
             ));
         }
-        Ok((inputs, input_wire_ids))
-    }
 
-    fn validate_outputs(
-        mut outputs: Vec<Output>,
-    ) -> Result<(Vec<Output>, Vec<usize>), CircuitError> {
-        // Sort outputs by output id
-        outputs.sort_by_key(|output| output.id());
+        let groups = groups
+            .into_iter()
+            .map(Group::from_unchecked)
+            .collect::<Result<Vec<Group>, _>>()?;
 
-        let mut output_ids: Vec<usize> = outputs.iter().map(|output| output.id()).collect();
-        let output_count = output_ids.len();
-        output_ids.dedup();
-
-        // Make sure duplicate outputs are not present
-        if output_count != output_ids.len() {
-            return Err(CircuitError::InvalidCircuit(
-                "Duplicate output ids".to_string(),
-            ));
-        }
-
-        // Gather up and sort output wire ids
-        let mut output_wire_ids: Vec<usize> = outputs
-            .iter()
-            .map(|output| output.as_ref().wires())
-            .flatten()
-            .cloned()
-            .collect();
-        output_wire_ids.sort();
-
-        let output_wire_count = output_wire_ids.len();
-        output_wire_ids.dedup();
-
-        // Make sure output wires only belong to 1 output
-        if output_wire_count != output_wire_ids.len() {
-            return Err(CircuitError::InvalidCircuit(
-                "Duplicate output wire ids".to_string(),
-            ));
-        }
-        Ok((outputs, output_wire_ids))
+        Ok((groups, wire_ids))
     }
 
     fn compute_stats(gates: &[Gate]) -> CircuitInfo {
@@ -473,15 +413,13 @@ impl Circuit {
         gates: Vec<Gate>,
         input_wires: &[usize],
         output_wires: &[usize],
-    ) -> Result<(Vec<Gate>, CircuitInfo), CircuitError> {
+    ) -> Result<Vec<Gate>, CircuitError> {
         if gates.len() == 0 {
             return Err(CircuitError::InvalidCircuit(
                 "Circuits must have at least 1 gate".to_string(),
             ));
         }
 
-        let mut and_count = 0;
-        let mut xor_count = 0;
         let mut gate_output_wire_ids: Vec<usize> = Vec::with_capacity(gates.len());
         let mut gate_input_wire_ids: HashSet<usize> = HashSet::with_capacity(gates.len());
         let mut wire_ids: Vec<usize> = Vec::with_capacity(gates.len() * 3);
@@ -492,10 +430,8 @@ impl Circuit {
             gate_output_wire_ids.push(gate.zref());
             gate_input_wire_ids.insert(gate.xref());
             if gate.is_and() {
-                and_count += 1;
                 gate_input_wire_ids.insert(gate.yref().unwrap());
             } else if gate.is_xor() {
-                xor_count += 1;
                 gate_input_wire_ids.insert(gate.yref().unwrap());
             }
         }
@@ -568,20 +504,15 @@ impl Circuit {
             )));
         }
 
-        Ok((
-            gates,
-            CircuitInfo {
-                wire_count,
-                and_count,
-                xor_count,
-            },
-        ))
+        Ok(gates)
     }
 
     /// Loads a circuit from a byte-array in protobuf format
-    pub fn load_bytes(bytes: &[u8]) -> Result<Self, CircuitError> {
-        let circ = ProtoCircuit::decode(bytes)?;
-        Circuit::try_from(circ).map_err(|_| CircuitError::MappingError)
+    pub fn load_bytes(bytes: &[u8]) -> Result<Arc<Self>, CircuitError> {
+        let proto_circ = ProtoCircuit::decode(bytes)?;
+        proto_circ
+            .try_into()
+            .map_err(|_| CircuitError::MappingError)
     }
 
     pub fn id(&self) -> &CircuitId {
@@ -764,14 +695,22 @@ mod tests {
 
     #[test]
     fn test_all_inputs_must_be_connected() {
-        let inputs = vec![Input::new(0, "", "", ValueType::Bool, vec![0])];
+        let inputs = vec![UncheckedGroup::new(
+            0,
+            "".to_string(),
+            "".to_string(),
+            ValueType::Bool,
+            vec![0],
+        )];
         let gates = vec![Gate::Xor {
             id: 0,
             xref: 0,
             yref: 1,
             zref: 2,
         }];
+
         let err = Circuit::new("", "", inputs, vec![], gates).unwrap_err();
+
         assert!(err
             .to_string()
             .contains("All input wires must be mapped to gate inputs"));
@@ -779,15 +718,29 @@ mod tests {
 
     #[test]
     fn test_all_outputs_must_be_connected() {
-        let inputs = vec![Input::new(0, "", "", ValueType::Bool, vec![0, 1])];
+        let inputs = vec![UncheckedGroup::new(
+            0,
+            "".to_string(),
+            "".to_string(),
+            ValueType::Bits,
+            vec![0, 1],
+        )];
         let gates = vec![Gate::Xor {
             id: 0,
             xref: 0,
             yref: 1,
             zref: 2,
         }];
-        let outputs = vec![Output::new(0, "", "", ValueType::Bool, vec![3])];
+        let outputs = vec![UncheckedGroup::new(
+            0,
+            "".to_string(),
+            "".to_string(),
+            ValueType::Bool,
+            vec![3],
+        )];
+
         let err = Circuit::new("", "", inputs, outputs, gates).unwrap_err();
+
         assert!(err
             .to_string()
             .contains("All output wires must be mapped to gate outputs"));

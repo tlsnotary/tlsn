@@ -5,45 +5,57 @@ use crate::{
 
 #[derive(Debug, thiserror::Error)]
 pub enum CircuitError {
-    #[error("uninitialized wire, id: {0}")]
+    #[error("Uninitialized wire, id: {0}")]
     UninitializedWire(usize),
-    #[error("encountered error while parsing circuit: {0}")]
+    #[error("Encountered error while parsing circuit: {0}")]
     ParsingError(String),
-    #[error("encountered value error")]
+    #[error("Encountered group error: {0:?}")]
+    GroupError(#[from] GroupError),
+    #[error("Encountered value error: {0:?}")]
     ValueError(#[from] ValueError),
-    #[error("encountered error while constructing a circuit: {0}")]
+    #[error("Encountered error while constructing a circuit: {0}")]
     InvalidCircuit(String),
     #[error("Input {0} does not exist in {1:?} circuit")]
     InputError(usize, String),
     #[error("Output {0} does not exist in {1:?} circuit")]
     OutputError(usize, String),
-    #[error("encountered io error while loading circuit")]
+    #[error("Encountered io error while loading circuit")]
     IoError(#[from] std::io::Error),
-    #[error("encountered prost DecodeError while loading circuit")]
+    #[error("Encountered prost DecodeError while loading circuit")]
     DecodeError(#[from] prost::DecodeError),
-    #[error("encountered error while mapping protobuf model to core model")]
+    #[error("Encountered error while mapping protobuf model to core model")]
     MappingError,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum GroupError {
+    #[error("Incompatible value type for group {0:?}: expected {1:?} got {2:?}")]
+    InvalidType(String, ValueType, ValueType),
+    #[error("Incompatible value length for group {0:?}: expected {1} got {2}")]
+    InvalidLength(String, usize, usize),
+    #[error("Encountered value error for group {0:?}: {1:?}")]
+    ValueError(String, ValueError),
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum ValueError {
     #[error("Could not parse {0} bits into a value of type {1:?}")]
     ParseError(usize, ValueType),
-    #[error("Invalid number of bits provided for group {0:?}, length {1:?}: {2}")]
-    InvalidValue(String, usize, usize),
-    #[error("Invalid value type for group {0:?}: Expected {1:?} got {2:?}")]
-    InvalidType(String, ValueType, ValueType),
+    #[error("Invalid number of bits provided for value type {0:?}: {1}")]
+    InvalidLength(ValueType, usize),
+    #[error("Incompatible value types: {0:?} and {1:?}")]
+    InvalidType(ValueType, ValueType),
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum SpecError {
-    #[error("encountered error deserializing spec")]
+    #[error("Encountered error deserializing spec")]
     ReadError(#[from] serde_yaml::Error),
-    #[error("invalid circuit spec")]
+    #[error("Invalid circuit spec")]
     InvalidCircuit(#[from] CircuitError),
-    #[error("invalid group spec")]
+    #[error("Invalid group spec")]
     InvalidGroup(GroupSpec),
-    #[error("invalid gate spec")]
+    #[error("Invalid gate spec")]
     InvalidGate(GateSpec),
 }
 

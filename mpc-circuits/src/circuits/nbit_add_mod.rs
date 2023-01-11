@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{builder::CircuitBuilder, Circuit, ValueType};
 
 use super::{nbit_adder, nbit_subtractor, nbit_switch};
@@ -5,7 +7,7 @@ use super::{nbit_adder, nbit_subtractor, nbit_switch};
 /// Adds two n-bit numbers modulo another n-bit number
 ///
 /// **NOTE** A and B must already be < MOD
-pub fn nbit_add_mod(n: usize) -> Circuit {
+pub fn nbit_add_mod(n: usize) -> Arc<Circuit> {
     let mut builder = CircuitBuilder::new(&format!("{}_bit add mod", n), "0.1.0");
     let a = builder.add_input("A", &format!("{}_bit number", n), ValueType::Bits, n);
     let b = builder.add_input("B", &format!("{}_bit number", n), ValueType::Bits, n);
@@ -21,7 +23,7 @@ pub fn nbit_add_mod(n: usize) -> Circuit {
     let mut builder = builder.build_inputs();
 
     // adder has n + 1 bits to handle overflow
-    let adder = builder.add_circ(nbit_adder(n + 1));
+    let adder = builder.add_circ(&nbit_adder(n + 1));
     let adder_in_0 = adder.input(0).expect("adder missing input 0");
     let adder_in_1 = adder.input(1).expect("adder missing input 1");
     builder.connect(&a[..], &adder_in_0[..n]);
@@ -32,7 +34,7 @@ pub fn nbit_add_mod(n: usize) -> Circuit {
     let adder_sum = adder.output(0).expect("adder missing output 0");
 
     // subtractor computes (A+B) - MOD, C_OUT = 0 if MOD > (A+B)
-    let sub = builder.add_circ(nbit_subtractor(n + 1));
+    let sub = builder.add_circ(&nbit_subtractor(n + 1));
     let sub_in_0 = sub.input(0).expect("subtractor missing input 0");
     let sub_in_1 = sub.input(1).expect("subtractor missing input 1");
     let sub_in_const_one = sub.input(2).expect("subtractor missing input 2");
@@ -46,7 +48,7 @@ pub fn nbit_add_mod(n: usize) -> Circuit {
     let sub_c_out = sub.output(1).expect("subtractor missing output 1");
 
     // build a switch that returns: if MOD > (A+B) { A + B } else { A + B - MOD }
-    let switch = builder.add_circ(nbit_switch(n));
+    let switch = builder.add_circ(&nbit_switch(n));
     let switch_a = switch.input(0).expect("switch is missing input 0");
     let switch_b = switch.input(1).expect("switch is missing input 1");
     let toggle = switch.input(2).expect("switch is missing input 2");

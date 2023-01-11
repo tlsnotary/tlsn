@@ -27,7 +27,7 @@ fn process_file(file: &String, out_dir: &String) -> Result<()> {
         let bytes = std::fs::read(file).unwrap();
         let name = cap.get(1).unwrap().as_str();
         let circ = CircuitSpec::from_yaml(&bytes).unwrap().build().unwrap();
-        let circ = ProtoCircuit::from(circ);
+        let circ = ProtoCircuit::from(circ.as_ref());
         write(format!("{}/{}.bin", out_dir, name), circ.encode_to_vec()).unwrap();
     }
     Ok(())

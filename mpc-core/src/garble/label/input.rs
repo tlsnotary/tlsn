@@ -163,6 +163,8 @@ pub(crate) mod unchecked {
 
     #[cfg(test)]
     mod tests {
+        use std::sync::Arc;
+
         use crate::garble::ActiveInputLabels;
 
         use super::*;
@@ -171,12 +173,12 @@ pub(crate) mod unchecked {
         use mpc_circuits::{Circuit, ADDER_64};
 
         #[fixture]
-        fn circ() -> Circuit {
+        fn circ() -> Arc<Circuit> {
             Circuit::load_bytes(ADDER_64).unwrap()
         }
 
         #[fixture]
-        fn input(circ: Circuit) -> Input {
+        fn input(circ: Arc<Circuit>) -> Input {
             circ.input(0).unwrap()
         }
 
@@ -217,6 +219,8 @@ pub(crate) mod unchecked {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
     use rstest::*;
 
@@ -224,12 +228,12 @@ mod tests {
     use rand::thread_rng;
 
     #[fixture]
-    pub fn circ() -> Circuit {
+    pub fn circ() -> Arc<Circuit> {
         Circuit::load_bytes(ADDER_64).unwrap()
     }
 
     #[rstest]
-    fn test_sanitized_labels_dup(circ: Circuit) {
+    fn test_sanitized_labels_dup(circ: Arc<Circuit>) {
         let (labels, _) = Labels::generate_set(&mut thread_rng(), &circ, None);
         let input_values = [Value::from(0u64), Value::from(0u64)];
 
@@ -247,7 +251,7 @@ mod tests {
     }
 
     #[rstest]
-    fn test_sanitized_labels_wrong_count(circ: Circuit) {
+    fn test_sanitized_labels_wrong_count(circ: Arc<Circuit>) {
         let (labels, _) = Labels::generate_set(&mut thread_rng(), &circ, None);
         let input_values = [Value::from(0u64), Value::from(0u64)];
 
@@ -271,7 +275,7 @@ mod tests {
     }
 
     #[rstest]
-    fn test_sanitized_labels_duplicate_wires(circ: Circuit) {
+    fn test_sanitized_labels_duplicate_wires(circ: Arc<Circuit>) {
         let (labels, _) = Labels::generate_set(&mut thread_rng(), &circ, None);
         let input_values = [Value::from(0u64), Value::from(0u64)];
 
@@ -311,7 +315,7 @@ mod tests {
     }
 
     #[rstest]
-    fn test_sanitized_labels_invalid_wire_count(circ: Circuit) {
+    fn test_sanitized_labels_invalid_wire_count(circ: Arc<Circuit>) {
         let (labels, _) = Labels::generate_set(&mut thread_rng(), &circ, None);
         let input_values = [Value::from(0u64), Value::from(0u64)];
 
@@ -351,7 +355,7 @@ mod tests {
     }
 
     #[rstest]
-    fn test_input_label_reconstruction(circ: Circuit) {
+    fn test_input_label_reconstruction(circ: Arc<Circuit>) {
         let (mut full_labels, delta) = Labels::generate_set(&mut thread_rng(), &circ, None);
 
         // grab input 0

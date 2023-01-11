@@ -5,9 +5,12 @@ pub(crate) mod input;
 pub(crate) mod output;
 mod state;
 
-use mpc_circuits::{GroupValue, Input, Output, Value, WireGroup};
+use mpc_circuits::{Circuit, GroupValue, Input, Output, Value, WireGroup};
 use rand::{CryptoRng, Rng};
-use std::ops::{BitXor, Deref};
+use std::{
+    ops::{BitXor, Deref},
+    sync::Arc,
+};
 
 use crate::{block::Block, garble::LabelError};
 
@@ -290,6 +293,10 @@ where
     G: WireGroup,
     S: state::State,
 {
+    fn circuit(&self) -> Arc<Circuit> {
+        self.group.circuit()
+    }
+
     fn id(&self) -> usize {
         self.group.id()
     }
@@ -619,12 +626,12 @@ pub(crate) mod unchecked {
         use mpc_circuits::{Circuit, ADDER_64};
 
         #[fixture]
-        fn circ() -> Circuit {
+        fn circ() -> Arc<Circuit> {
             Circuit::load_bytes(ADDER_64).unwrap()
         }
 
         #[fixture]
-        fn output(circ: Circuit) -> Output {
+        fn output(circ: Arc<Circuit>) -> Output {
             circ.output(0).unwrap()
         }
 

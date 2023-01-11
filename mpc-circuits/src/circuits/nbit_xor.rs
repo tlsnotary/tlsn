@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     builder::{CircuitBuilder, Feed, WireHandle},
     circuit::GateType,
@@ -5,7 +7,7 @@ use crate::{
 };
 
 /// Builds a circuit which computes XOR of two n-bit inputs
-pub fn nbit_xor(n: usize) -> Circuit {
+pub fn nbit_xor(n: usize) -> Arc<Circuit> {
     let mut builder = CircuitBuilder::new(&format!("{}-bit XOR", n), "0.1.0");
 
     let a = builder.add_input("A", &format!("{}-bit input", n), ValueType::Bits, n);

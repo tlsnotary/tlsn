@@ -1,9 +1,11 @@
+use std::sync::Arc;
+
 use crate::{builder::CircuitBuilder, circuit::GateType, Circuit, ValueType};
 
 use super::half_adder;
 
 /// Builds a full adder circuit
-pub fn full_adder() -> Circuit {
+pub fn full_adder() -> Arc<Circuit> {
     let mut builder = CircuitBuilder::new("Binary full-adder", "0.1.0");
 
     let a = builder.add_input("A", "1 bit", ValueType::Bool, 1);
@@ -14,8 +16,8 @@ pub fn full_adder() -> Circuit {
 
     let half_circ = half_adder();
 
-    let half_1 = builder.add_circ(half_circ.clone());
-    let half_2 = builder.add_circ(half_circ);
+    let half_1 = builder.add_circ(&half_circ);
+    let half_2 = builder.add_circ(&half_circ);
     let xor = builder.add_gate(GateType::Xor);
 
     builder.connect(&[a[0]], &half_1.input(0).unwrap()[..]);

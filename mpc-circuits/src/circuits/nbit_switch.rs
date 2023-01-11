@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     builder::{CircuitBuilder, Feed, WireHandle},
     circuit::GateType,
@@ -7,7 +9,7 @@ use crate::{
 /// Builds a switch which toggles between two n-bit numbers
 ///
 /// Outputs A if toggle = 0, else B
-pub fn nbit_switch(n: usize) -> Circuit {
+pub fn nbit_switch(n: usize) -> Arc<Circuit> {
     let mut builder = CircuitBuilder::new(&format!("{}-bit switch", n), "0.1.0");
 
     let a = builder.add_input("A", &format!("{}-bit number", n), ValueType::Bits, n);

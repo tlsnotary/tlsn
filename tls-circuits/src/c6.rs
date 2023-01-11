@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use mpc_circuits::{
     builder::CircuitBuilder, circuits::nbit_xor, Circuit, ValueType, AES_128_REVERSE,
 };
@@ -21,7 +23,7 @@ use mpc_circuits::{
 /// Outputs:
 ///
 ///   0. T_OUT: 16-byte output (plaintext or ciphertext)
-pub fn c6() -> Circuit {
+pub fn c6() -> Arc<Circuit> {
     let mut builder = CircuitBuilder::new("c6", "0.1.0");
 
     let n_k = builder.add_input(
@@ -50,11 +52,13 @@ pub fn c6() -> Circuit {
     let mut builder = builder.build_inputs();
 
     let aes = Circuit::load_bytes(AES_128_REVERSE).expect("failed to load aes_128_reverse circuit");
+    let xor_128_circ = nbit_xor(128);
+    let xor_32_circ = nbit_xor(32);
 
-    let aes_ectr = builder.add_circ(aes);
-    let k = builder.add_circ(nbit_xor(128));
-    let iv = builder.add_circ(nbit_xor(32));
-    let t_out = builder.add_circ(nbit_xor(128));
+    let aes_ectr = builder.add_circ(&aes);
+    let k = builder.add_circ(&xor_128_circ);
+    let iv = builder.add_circ(&xor_32_circ);
+    let t_out = builder.add_circ(&xor_128_circ);
 
     // Compute write-key
     builder.connect(&n_k[..], &k.input(0).expect("nbit_xor missing input 0")[..]);

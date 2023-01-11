@@ -1,10 +1,10 @@
 use mpc_circuits::{proto, Circuit};
 use prost::Message;
 use rayon::prelude::*;
-use std::{env, fs, io, path::Path};
+use std::{env, fs, io, path::Path, sync::Arc};
 use tls_circuits::{c1, c2, c3, c4, c5, c6, c7};
 
-type CircuitBuilderMap = [(&'static str, fn() -> Circuit)];
+type CircuitBuilderMap = [(&'static str, fn() -> Arc<Circuit>)];
 
 static CIRCUITS: &CircuitBuilderMap = &[
     ("c1", c1),
@@ -18,10 +18,10 @@ static CIRCUITS: &CircuitBuilderMap = &[
 
 fn build_circuit<F>(name: &str, f: F) -> io::Result<()>
 where
-    F: FnOnce() -> Circuit,
+    F: FnOnce() -> Arc<Circuit>,
 {
     let circ = f();
-    let bytes = proto::Circuit::from(circ).encode_to_vec();
+    let bytes = proto::Circuit::from(circ.as_ref()).encode_to_vec();
     fs::write(format!("circuits/bin/{}.bin", name), bytes)
 }
 

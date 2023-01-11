@@ -66,24 +66,32 @@ pub(crate) fn topological_sort(gates: Vec<Gate>) -> Vec<Gate> {
 mod tests {
     use super::*;
 
-    use crate::{Circuit, WireGroup, ADDER_64};
+    use crate::{Circuit, Group, WireGroup, ADDER_64};
     use rand::{seq::SliceRandom, thread_rng};
 
     #[test]
     fn test_topological_sort() {
-        let mut circ = Circuit::load_bytes(ADDER_64).unwrap();
+        let circ = Circuit::load_bytes(ADDER_64).unwrap();
 
-        // Randomly shuffle gates then resort them prior to evaluation
-        for _ in 0..8 {
-            circ.gates.shuffle(&mut thread_rng());
+        let mut gates = circ.gates.clone();
+        // Randomly shuffle gates
+        gates.shuffle(&mut thread_rng());
+        // Sort them again
+        gates = topological_sort(gates);
 
-            circ.gates = topological_sort(circ.gates);
+        let inputs: Vec<Group> = circ.inputs.iter().map(|input| (*input.0).clone()).collect();
+        let outputs: Vec<Group> = circ
+            .inputs
+            .iter()
+            .map(|output| (*output.0).clone())
+            .collect();
 
-            circ.evaluate(&[
-                circ.input(0).unwrap().to_value(0u64).unwrap(),
-                circ.input(1).unwrap().to_value(0u64).unwrap(),
-            ])
-            .unwrap();
-        }
+        let circ = Circuit::new_unchecked(circ.name(), circ.version(), inputs, outputs, gates);
+
+        circ.evaluate(&[
+            circ.input(0).unwrap().to_value(0u64).unwrap(),
+            circ.input(1).unwrap().to_value(0u64).unwrap(),
+        ])
+        .unwrap();
     }
 }

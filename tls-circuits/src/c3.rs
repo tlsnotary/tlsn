@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use mpc_circuits::{
     builder::{map_le_bytes, CircuitBuilder},
     circuits::nbit_xor,
@@ -29,7 +31,7 @@ use mpc_circuits::{
 ///   1. MASKED_SWK: 16-byte masked (N_SWK_MASK + U_SWK_MASK) server write-key
 ///   2. MASKED_CIV: 4-byte masked (N_CIV_MASK + U_CIV_MASK) client IV
 ///   3. MASKED_SIV: 4-byte masked (N_SIV_MASK + U_SIV_MASK) server IV
-pub fn c3() -> Circuit {
+pub fn c3() -> Arc<Circuit> {
     let mut builder = CircuitBuilder::new("c3", "0.1.0");
 
     let outer_state = builder.add_input(
@@ -114,17 +116,19 @@ pub fn c3() -> Circuit {
     let mut builder = builder.build_inputs();
 
     let sha256 = Circuit::load_bytes(SHA_256).expect("failed to load sha256 circuit");
+    let xor_128_circ = nbit_xor(128);
+    let xor_32_circ = nbit_xor(32);
 
-    let sha256_p1 = builder.add_circ(sha256.clone());
-    let sha256_p2 = builder.add_circ(sha256);
-    let mask_cwk = builder.add_circ(nbit_xor(128));
-    let mask_swk = builder.add_circ(nbit_xor(128));
-    let mask_civ = builder.add_circ(nbit_xor(32));
-    let mask_siv = builder.add_circ(nbit_xor(32));
-    let masked_cwk = builder.add_circ(nbit_xor(128));
-    let masked_swk = builder.add_circ(nbit_xor(128));
-    let masked_civ = builder.add_circ(nbit_xor(32));
-    let masked_siv = builder.add_circ(nbit_xor(32));
+    let sha256_p1 = builder.add_circ(&sha256);
+    let sha256_p2 = builder.add_circ(&sha256);
+    let mask_cwk = builder.add_circ(&xor_128_circ);
+    let mask_swk = builder.add_circ(&xor_128_circ);
+    let mask_civ = builder.add_circ(&xor_32_circ);
+    let mask_siv = builder.add_circ(&xor_32_circ);
+    let masked_cwk = builder.add_circ(&xor_128_circ);
+    let masked_swk = builder.add_circ(&xor_128_circ);
+    let masked_civ = builder.add_circ(&xor_32_circ);
+    let masked_siv = builder.add_circ(&xor_32_circ);
 
     // p1
     let sha256_p1_msg = sha256_p1.input(0).expect("sha256 missing input 0");
