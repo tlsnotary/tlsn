@@ -45,6 +45,7 @@ where
 
 #[derive(Debug, Clone)]
 pub struct Group {
+    // a reference to the circuit which this group belongs to
     circ: Weak<Circuit>,
     id: usize,
     name: String,
@@ -63,7 +64,7 @@ impl Group {
         value_type: ValueType,
         mut wires: Vec<usize>,
     ) -> Result<Self, GroupError> {
-        // Check if group is valid length for this type
+        // Check if group is of valid length for this type
         value_type
             .valid_length(wires.len())
             .map_err(|e| GroupError::ValueError(name.clone(), e))?;

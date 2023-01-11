@@ -375,7 +375,7 @@ impl Circuit {
         let wire_count = wire_ids.len();
         wire_ids.dedup();
 
-        // Make sure group wires only belong to 1 group
+        // Make sure duplicate wires are not present
         if wire_count != wire_ids.len() {
             return Err(CircuitError::InvalidCircuit(
                 "Duplicate input wire ids".to_string(),
