@@ -8,7 +8,11 @@ use crate::{
 
 /// Builds an nbit inverter
 pub fn nbit_inverter(n: usize) -> Arc<Circuit> {
-    let mut builder = CircuitBuilder::new(&format!("{}-bit inverter", n), "0.1.0");
+    let mut builder = CircuitBuilder::new(
+        &format!("{n}BitInverter"),
+        &format!("{n}-bit Binary Inverter"),
+        "0.1.0",
+    );
 
     let in_0 = builder.add_input("IN", &format!("{}-bit number", n), ValueType::Bits, n);
 

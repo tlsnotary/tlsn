@@ -1,6 +1,7 @@
 use crate::{
     spec::{GateSpec, GroupSpec},
     value::ValueType,
+    GroupId,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -15,6 +16,8 @@ pub enum CircuitError {
     ValueError(#[from] ValueError),
     #[error("Encountered error while constructing a circuit: {0}")]
     InvalidCircuit(String),
+    #[error("Invalid circuit id {0:?}: {1:?}")]
+    InvalidCircuitId(String, String),
     #[error("Input {0} does not exist in {1:?} circuit")]
     InputError(usize, String),
     #[error("Output {0} does not exist in {1:?} circuit")]
@@ -29,12 +32,16 @@ pub enum CircuitError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum GroupError {
+    #[error("Circuit the group belongs to was dropped")]
+    CircuitDropped,
+    #[error("Invalid group id {0:?}: {1:?}")]
+    InvalidId(String, String),
     #[error("Incompatible value type for group {0:?}: expected {1:?} got {2:?}")]
-    InvalidType(String, ValueType, ValueType),
+    InvalidType(GroupId, ValueType, ValueType),
     #[error("Incompatible value length for group {0:?}: expected {1} got {2}")]
-    InvalidLength(String, usize, usize),
+    InvalidLength(GroupId, usize, usize),
     #[error("Encountered value error for group {0:?}: {1:?}")]
-    ValueError(String, ValueError),
+    ValueError(GroupId, ValueError),
 }
 
 #[derive(Debug, thiserror::Error)]

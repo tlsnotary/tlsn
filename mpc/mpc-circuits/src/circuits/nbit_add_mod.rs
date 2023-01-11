@@ -8,7 +8,11 @@ use super::{nbit_adder, nbit_subtractor, nbit_switch};
 ///
 /// **NOTE** A and B must already be < MOD
 pub fn nbit_add_mod(n: usize) -> Arc<Circuit> {
-    let mut builder = CircuitBuilder::new(&format!("{}_bit add mod", n), "0.1.0");
+    let mut builder = CircuitBuilder::new(
+        &format!("{n}BitAddMod"),
+        &format!("{n} bit modular addition"),
+        "0.1.0",
+    );
     let a = builder.add_input("A", &format!("{}_bit number", n), ValueType::Bits, n);
     let b = builder.add_input("B", &format!("{}_bit number", n), ValueType::Bits, n);
     let modulo = builder.add_input(

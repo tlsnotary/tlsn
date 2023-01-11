@@ -8,7 +8,11 @@ use crate::{
 
 /// Builds a circuit which computes XOR of two n-bit inputs
 pub fn nbit_xor(n: usize) -> Arc<Circuit> {
-    let mut builder = CircuitBuilder::new(&format!("{}-bit XOR", n), "0.1.0");
+    let mut builder = CircuitBuilder::new(
+        &format!("{n}BitXor"),
+        &format!("{n}-bit Binary XOR"),
+        "0.1.0",
+    );
 
     let a = builder.add_input("A", &format!("{}-bit input", n), ValueType::Bits, n);
     let b = builder.add_input("B", &format!("{}-bit input", n), ValueType::Bits, n);

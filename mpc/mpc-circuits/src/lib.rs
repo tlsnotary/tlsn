@@ -13,7 +13,7 @@ mod value;
 
 pub use circuit::{Circuit, CircuitId, Gate};
 pub use error::{CircuitError, GroupError, ValueError};
-pub use group::{Group, GroupValue, WireGroup};
+pub use group::{Group, GroupId, GroupValue, WireGroup};
 pub use input::Input;
 pub use output::Output;
 pub use spec::CircuitSpec;
@@ -49,14 +49,14 @@ mod tests {
             if output.value() != expected {
                 let report = format!(
                     "Circuit {}\n{}{}Expected: {:?}",
-                    circ.name(),
+                    circ.description(),
                     inputs
                         .iter()
                         .enumerate()
                         .map(|(id, input)| format!("Input {}:  {:?}\n", id, input.value()))
                         .collect::<Vec<String>>()
                         .join(""),
-                    format!("Output {}: {:?}\n", output.id(), output.value()),
+                    format!("Output {}: {:?}\n", output.index(), output.value()),
                     expected
                 );
                 panic!("{}", report.to_string());

@@ -29,14 +29,14 @@ pub fn test_circ(circ: &crate::Circuit, inputs: &[crate::Value], expected: &[cra
         if output.value() != expected {
             let report = format!(
                 "Circuit {}\n{}{}Expected: {:?}",
-                circ.name(),
+                circ.description(),
                 inputs
                     .iter()
                     .enumerate()
                     .map(|(id, input)| format!("Input {}:  {:?}\n", id, input.value()))
                     .collect::<Vec<String>>()
                     .join(""),
-                format!("Output {}: {:?}\n", output.id(), output.value()),
+                format!("Output {}: {:?}\n", output.index(), output.value()),
                 expected
             );
             panic!("{}", report.to_string());
