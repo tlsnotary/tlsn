@@ -674,8 +674,8 @@ mod tests {
     fn test_u8_xor() {
         let mut builder = CircuitBuilder::new("test", "", "");
 
-        let in_1 = builder.add_input("0", "", ValueType::U8, 8);
-        let in_2 = builder.add_input("1", "", ValueType::U8, 8);
+        let in_1 = builder.add_input("in_0", "", ValueType::U8, 8);
+        let in_2 = builder.add_input("in_1", "", ValueType::U8, 8);
 
         let mut builder = builder.build_inputs();
 
@@ -688,7 +688,7 @@ mod tests {
 
         let mut builder = builder.build_gates();
 
-        let out = builder.add_output("0", "", ValueType::U8, 8);
+        let out = builder.add_output("out_0", "", ValueType::U8, 8);
 
         gates.iter().enumerate().for_each(|(i, gate)| {
             builder.connect(&[gate.z], &[out[i]]);

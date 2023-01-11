@@ -3,7 +3,7 @@ use std::sync::{Arc, Weak};
 use crate::{Circuit, GroupError, Value, ValueType};
 
 /// A unique identifier for a `Group` belonging to a `Circuit`.
-#[derive(Debug, Clone, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct GroupId(String);
 
 impl GroupId {

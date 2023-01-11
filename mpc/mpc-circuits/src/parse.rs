@@ -83,7 +83,7 @@ impl Circuit {
                 let wires: Vec<usize> = (start_id..start_id + count).collect();
                 UncheckedGroup::new(
                     index,
-                    index.to_string(),
+                    format!("input_{index}"),
                     "".to_string(),
                     ValueType::Bits,
                     wires,
@@ -132,7 +132,7 @@ impl Circuit {
                 let wires: Vec<usize> = (start_id..start_id + count).collect();
                 UncheckedGroup::new(
                     index,
-                    index.to_string(),
+                    format!("output_{index}"),
                     "".to_string(),
                     ValueType::Bits,
                     wires,

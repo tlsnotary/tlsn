@@ -11,6 +11,7 @@ adder64 = []
 sha256 = []
 
 [dependencies]
+tlsn-utils = { path = "../utils" }
 thiserror.workspace = true
 regex.workspace = true
 prost.workspace = true

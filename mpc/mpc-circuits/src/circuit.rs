@@ -5,6 +5,7 @@ use crate::{
 
 use prost::Message;
 use std::{collections::HashSet, sync::Arc};
+use utils::iter::DuplicateCheckBy;
 
 #[derive(Debug, Clone, Copy)]
 pub enum GateType {
@@ -259,6 +260,16 @@ impl Circuit {
         let (outputs, output_wires) = Self::validate_groups(outputs)?;
         let gates = Self::validate_gates(gates, &input_wires, &output_wires)?;
 
+        if inputs
+            .iter()
+            .chain(outputs.iter())
+            .contains_dups_by(|group| group.id())
+        {
+            return Err(CircuitError::InvalidCircuit(
+                "Circuit contains duplicate group ids".to_string(),
+            ));
+        }
+
         let gates = topological_sort(gates);
 
         Ok(Self::new_unchecked(
@@ -336,14 +347,14 @@ impl Circuit {
         // Sort groups by id
         groups.sort_by_key(|group| group.index());
 
-        let mut group_ids: Vec<usize> = groups.iter().map(|group| group.index()).collect();
-        let group_count = group_ids.len();
-        group_ids.dedup();
+        let mut group_indices: Vec<usize> = groups.iter().map(|group| group.index()).collect();
+        let group_count = group_indices.len();
+        group_indices.dedup();
 
         // Make sure duplicates groups are not present
-        if group_count != group_ids.len() {
+        if group_count != group_indices.len() {
             return Err(CircuitError::InvalidCircuit(
-                "Duplicate group ids".to_string(),
+                "Duplicate group indices".to_string(),
             ));
         }
 
@@ -729,6 +740,36 @@ mod tests {
         assert!(err
             .to_string()
             .contains("All output wires must be mapped to gate outputs"));
+    }
+
+    #[test]
+    fn test_no_duplicate_group_ids() {
+        let inputs = vec![UncheckedGroup::new(
+            0,
+            "test".to_string(),
+            "".to_string(),
+            ValueType::Bits,
+            vec![0, 1],
+        )];
+        let gates = vec![Gate::Xor {
+            id: 0,
+            xref: 0,
+            yref: 1,
+            zref: 2,
+        }];
+        let outputs = vec![UncheckedGroup::new(
+            0,
+            "test".to_string(),
+            "".to_string(),
+            ValueType::Bool,
+            vec![3],
+        )];
+
+        let err = Circuit::new("test", "", "", inputs, outputs, gates).unwrap_err();
+
+        assert!(err
+            .to_string()
+            .contains("Circuit contains duplicate group ids"));
     }
 
     #[test]
