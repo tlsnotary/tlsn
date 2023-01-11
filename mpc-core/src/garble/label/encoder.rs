@@ -93,18 +93,20 @@ impl ChaChaEncoder {
 
 #[cfg(test)]
 mod test {
+    use std::sync::Arc;
+
     use mpc_circuits::{Circuit, WireGroup, ADDER_64};
 
     use super::*;
     use rstest::*;
 
     #[fixture]
-    fn circ() -> Circuit {
+    fn circ() -> Arc<Circuit> {
         Circuit::load_bytes(ADDER_64).unwrap()
     }
 
     #[rstest]
-    fn test_encoder(circ: Circuit) {
+    fn test_encoder(circ: Arc<Circuit>) {
         let mut enc = ChaChaEncoder::new([0u8; 32], 0);
 
         for input in circ.inputs() {
@@ -113,7 +115,7 @@ mod test {
     }
 
     #[rstest]
-    fn test_encoder_no_duplicates(circ: Circuit) {
+    fn test_encoder_no_duplicates(circ: Arc<Circuit>) {
         let input = circ.input(0).unwrap();
 
         let mut enc = ChaChaEncoder::new([0u8; 32], 0);

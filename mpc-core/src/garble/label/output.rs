@@ -365,7 +365,7 @@ mod tests {
     }
 
     #[rstest]
-    fn test_to_input_labels(circ: Circuit) {
+    fn test_to_input_labels(circ: Arc<Circuit>) {
         let input = circ.input(0).unwrap();
         let output = circ.output(0).unwrap();
 
@@ -379,7 +379,7 @@ mod tests {
     }
 
     #[rstest]
-    fn test_to_input_labels_length_mismatch(circ: Circuit) {
+    fn test_to_input_labels_length_mismatch(circ: Arc<Circuit>) {
         let circ_2 = Circuit::load_bytes(AES_128_REVERSE).unwrap();
 
         let input = circ_2.input(0).unwrap();
