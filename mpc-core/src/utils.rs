@@ -1,5 +1,5 @@
-use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use blake3::Hasher;
+use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 
 #[inline]
 pub fn parse_ristretto_key(b: Vec<u8>) -> Result<RistrettoPoint, std::io::Error> {

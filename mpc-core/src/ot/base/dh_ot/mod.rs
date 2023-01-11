@@ -8,8 +8,8 @@ pub use receiver::*;
 pub use sender::*;
 
 use crate::{ot::base::ReceiverCoreError, Block};
-use curve25519_dalek::ristretto::RistrettoPoint;
 use blake3::Hasher;
+use curve25519_dalek::ristretto::RistrettoPoint;
 
 pub(crate) const DOMAIN_SEP: &[u8] = b"CO15 DH-OT";
 
@@ -20,7 +20,7 @@ pub(crate) fn hash_point(point: &RistrettoPoint, tweak: &[u8]) -> Block {
     h.update(&tweak);
     h.update(point.compress().as_bytes());
     let digest = h.finalize();
-    let digest: &[u8; 32]= digest.as_bytes();
+    let digest: &[u8; 32] = digest.as_bytes();
 
     // Copy the first 16 bytes into a Block
     let mut block = [0u8; 16];
