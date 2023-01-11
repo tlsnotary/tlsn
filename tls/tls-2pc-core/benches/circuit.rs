@@ -23,7 +23,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     for circ_bytes in CIRCUITS {
         let circ = Circuit::load_bytes(circ_bytes).unwrap();
-        group.bench_function(circ.name(), |b| {
+        group.bench_function(circ.description(), |b| {
             b.iter(|| black_box(Circuit::load_bytes(circ_bytes).unwrap()))
         });
     }

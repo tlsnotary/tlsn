@@ -25,7 +25,7 @@ use mpc_circuits::{
 ///   0. MASKED_I: 32-byte masked HMAC inner hash state
 ///   1. MASKED_O: 32-byte masked HMAC outer hash state
 pub fn c1() -> Arc<Circuit> {
-    let mut builder = CircuitBuilder::new("c1", "0.1.0");
+    let mut builder = CircuitBuilder::new("c1", "", "0.1.0");
 
     let share_a = builder.add_input(
         "PMS_SHARE_A",

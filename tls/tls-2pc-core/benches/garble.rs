@@ -26,7 +26,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     for circ in CIRCUITS {
         let circ = Circuit::load_bytes(circ).unwrap();
-        group.bench_function(circ.name(), |b| {
+        group.bench_function(circ.description(), |b| {
             let mut rng = thread_rng();
             let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
             let (labels, delta) = FullInputLabels::generate_set(&mut rng, &circ, None);

@@ -24,7 +24,7 @@ use mpc_circuits::{
 ///
 ///   0. MASKED_GCTR: 16-byte masked (N_MASK + U_MASK) GCTR
 pub fn c7() -> Arc<Circuit> {
-    let mut builder = CircuitBuilder::new("c7", "0.1.0");
+    let mut builder = CircuitBuilder::new("c7", "", "0.1.0");
 
     let n_cwk = builder.add_input(
         "N_CWK",

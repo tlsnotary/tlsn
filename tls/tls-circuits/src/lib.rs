@@ -43,14 +43,14 @@ mod test_helpers {
             if output.value() != expected {
                 let report = format!(
                     "Circuit {}\n{}{}Expected: {:?}",
-                    circ.name(),
+                    circ.description(),
                     inputs
                         .iter()
                         .enumerate()
                         .map(|(id, input)| format!("Input {}:  {:?}\n", id, input.value()))
                         .collect::<Vec<String>>()
                         .join(""),
-                    format!("Output {}: {:?}\n", output.id(), output.value()),
+                    format!("Output {}: {:?}\n", output.index(), output.value()),
                     expected
                 );
                 panic!("{}", report.to_string());

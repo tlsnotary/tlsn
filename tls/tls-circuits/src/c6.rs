@@ -24,7 +24,7 @@ use mpc_circuits::{
 ///
 ///   0. T_OUT: 16-byte output (plaintext or ciphertext)
 pub fn c6() -> Arc<Circuit> {
-    let mut builder = CircuitBuilder::new("c6", "0.1.0");
+    let mut builder = CircuitBuilder::new("c6", "", "0.1.0");
 
     let n_k = builder.add_input(
         "N_K",

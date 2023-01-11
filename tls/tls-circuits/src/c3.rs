@@ -32,7 +32,7 @@ use mpc_circuits::{
 ///   2. MASKED_CIV: 4-byte masked (N_CIV_MASK + U_CIV_MASK) client IV
 ///   3. MASKED_SIV: 4-byte masked (N_SIV_MASK + U_SIV_MASK) server IV
 pub fn c3() -> Arc<Circuit> {
-    let mut builder = CircuitBuilder::new("c3", "0.1.0");
+    let mut builder = CircuitBuilder::new("c3", "", "0.1.0");
 
     let outer_state = builder.add_input(
         "OUTER_HASH_STATE",
