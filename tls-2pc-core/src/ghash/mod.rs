@@ -33,15 +33,16 @@ pub enum GhashError {
     InvalidMessageLength,
 }
 
-/// Computes missing powers of multiplication shares of the hashkey
+/// Computes missing odd multiplicative shares of the hashkey powers
 ///
-/// Checks if depending on the number of `needed` shares, we need more multiplicative shares and
+/// Checks if depending on the number of `needed` shares, we need more odd multiplicative shares and
 /// computes them. Notice that we only need odd multiplicative shares for the OT, because we can
-/// reconstruct even additive shares from odd additive shares, which we call free squaring.
+/// derive even additive shares from odd additive shares, which we call free squaring.
 ///
 /// * `present_odd_mul_shares` - multiplicative odd shares already present
 /// * `needed` - how many powers we need including odd and even
 fn compute_missing_mul_shares(present_odd_mul_shares: &mut Vec<u128>, needed: usize) {
+    // divide by 2 and round up
     let needed_odd_powers: usize = needed / 2 + (needed & 1);
     let present_odd_len = present_odd_mul_shares.len();
 
@@ -55,15 +56,19 @@ fn compute_missing_mul_shares(present_odd_mul_shares: &mut Vec<u128>, needed: us
     }
 }
 
-/// Computes new even additive shares from odd additive shares
+/// Computes new even (additive) shares from new odd (additive) shares and saves both the new odd shares
+/// and the new even shares.
 ///
 /// This function implements the derivation of even additive shares from odd additive shares,
-/// which we refer to as free squaring. Every additive share, which is an even power of
-/// `H` can be computed without an OT interaction by using `H^n = (H^(n/2) ^ H^(n/2))^2`.
+/// which we refer to as free squaring. Every additive share of an even power of
+/// `H` can be computed without an OT interaction by squaring the corresponding additive share
+/// of an odd power of `H`, e.g. if we have a share of H^3, we can derive the share of H^6 by doing
+/// (H^3)^2
 ///
-/// * `new_add_odd_shares` - odd additive shares we get as a result from doing an OT on odd
+/// * `new_add_odd_shares` - new odd additive shares we got as a result of doing an OT on odd
 ///                          multiplicative shares
-/// * `add_shares`         - all powers of additive shares (even and odd) we already have
+/// * `add_shares`         - all additive shares (even and odd) we already have. This is a mutable
+///                          reference to cached_add_shares in [crate::ghash::state::Intermediate]
 fn compute_new_add_shares(new_add_odd_shares: &[u128], add_shares: &mut Vec<u128>) {
     for (odd_share, current_power) in new_add_odd_shares
         .iter()

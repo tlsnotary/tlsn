@@ -73,9 +73,7 @@ impl GhashCore<Intermediate> {
         self.state.odd_mul_shares[offset..].to_vec()
     }
 
-    /// Adds new additive shares of hashkey powers
-    ///
-    /// Adds new additive hashkey powers by also computing the even ones
+    /// Adds new additive shares of hashkey powers by also computing the even ones
     /// and transforms `self` into a `GhashCore<Finalized>`
     pub fn add_new_add_shares(mut self, new_additive_odd_shares: &[u128]) -> GhashCore<Finalized> {
         compute_new_add_shares(new_additive_odd_shares, &mut self.state.cached_add_shares);

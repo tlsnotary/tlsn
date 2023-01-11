@@ -27,6 +27,11 @@ pub struct Init {
 #[derive(Clone, Debug)]
 pub struct Intermediate {
     pub(super) odd_mul_shares: Vec<u128>,
+    // A vec of all additive shares (even and odd) we already have.
+    // (In order to simplify the code) the n-th index of the vec corresponds to the additive share
+    // of the (n+1)-th power of H, e.g. the share of H^1 is located at the 0-th index of the vec
+    // It always contains an even number of consecutive shares starting from the share of H^1 up to
+    // the share of H^(cached_add_shares.len())
     pub(super) cached_add_shares: Vec<u128>,
 }
 
