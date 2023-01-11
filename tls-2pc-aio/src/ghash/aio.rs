@@ -1,11 +1,14 @@
 use super::{Ghash, GhashIOError};
 use share_conversion_aio::{AdditiveToMultiplicative, MultiplicativeToAdditive};
-use tls_2pc_core::ghash::{Finalized, GhashCore, Init, Intermediate};
+use tls_2pc_core::ghash::{
+    state::{Finalized, Init, Intermediate, State},
+    GhashCore,
+};
 
 /// This is the common instance used by both sender and receiver
 ///
 /// It is an aio wrapper which mostly uses [GhashCore] for computation
-pub struct GhashIO<T, U, V = Init>
+pub struct GhashIO<T, U, V: State = Init>
 where
     T: AdditiveToMultiplicative<FieldElement = u128>,
     U: MultiplicativeToAdditive<FieldElement = u128>,

@@ -1,9 +1,9 @@
 use super::{aio::GhashIO, Ghash, GhashIOError, VerifyGhash};
 use async_trait::async_trait;
 use share_conversion_aio::{gf2_128::SendTape, AdditiveToMultiplicative, MultiplicativeToAdditive};
-use tls_2pc_core::ghash::{Finalized, Init, Intermediate};
+use tls_2pc_core::ghash::state::{Finalized, Init, Intermediate, State};
 
-pub struct GhashSender<T, U, V = Init>(GhashIO<T, U, V>)
+pub struct GhashSender<T, U, V: State = Init>(GhashIO<T, U, V>)
 where
     T: AdditiveToMultiplicative<FieldElement = u128>,
     U: MultiplicativeToAdditive<FieldElement = u128>;
