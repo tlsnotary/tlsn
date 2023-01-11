@@ -23,7 +23,7 @@ impl Labels<Input, state::Full> {
 
         Self {
             group: input,
-            state: state::Full { low, delta },
+            state: state::Full::from_labels(low, delta),
         }
     }
 
@@ -77,7 +77,7 @@ impl SanitizedInputLabels {
         let mut labels: Vec<WireLabel> = gen_labels
             .iter()
             .chain(ev_labels.iter())
-            .map(|labels| labels.clone().inner())
+            .map(|labels| labels.iter().collect::<Vec<WireLabel>>())
             .flatten()
             .collect();
 
@@ -122,12 +122,7 @@ pub(crate) mod unchecked {
         fn from(labels: Labels<Input, state::Active>) -> Self {
             Self {
                 id: labels.id(),
-                labels: labels
-                    .state
-                    .labels
-                    .into_iter()
-                    .map(|label| label.value)
-                    .collect(),
+                labels: labels.iter_blocks().collect(),
             }
         }
     }
@@ -161,7 +156,7 @@ pub(crate) mod unchecked {
 
             Ok(Labels {
                 group: input,
-                state: state::Active { labels },
+                state: state::Active::from_labels(labels),
             })
         }
     }
@@ -286,7 +281,7 @@ mod tests {
         ];
 
         // Somehow manages to get an overlapping label id here
-        input_labels[1].state.labels[0].id = 0;
+        input_labels[1].set(0, WireLabel::new(0, Block::new(0)));
 
         let gen_labels = [input_labels[1].clone()];
         let ev_labels = [input_labels[0].clone()];
@@ -304,7 +299,6 @@ mod tests {
         // Somehow manages to get an extra wire label here which overwrites another label
         input_labels[1]
             .state
-            .labels
             .push(WireLabel::new(0, crate::Block::new(0)));
 
         let gen_labels = [input_labels[1].clone()];
@@ -327,7 +321,7 @@ mod tests {
         ];
 
         // Somehow manages to get an input missing a wire label here
-        input_labels[1].state.labels.pop();
+        input_labels[1].state.pop();
 
         let gen_labels = [input_labels[1].clone()];
         let ev_labels = [input_labels[0].clone()];
@@ -345,7 +339,6 @@ mod tests {
         // Somehow manages to get an extra wire label here
         input_labels[1]
             .state
-            .labels
             .push(WireLabel::new(usize::MAX, crate::Block::new(0)));
 
         let gen_labels = [input_labels[1].clone()];

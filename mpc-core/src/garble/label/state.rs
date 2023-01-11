@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use mpc_circuits::Value;
 
 use crate::garble::LabelError;
@@ -19,27 +21,42 @@ pub trait State: sealed::Sealed {}
 pub struct Full {
     /// Wire labels corresponding to logic low. The high labels are implicit because we can
     /// always derive a high label by doing: low XOR delta.
-    pub(super) low: Vec<WireLabel>,
+    pub(super) low: Arc<Vec<WireLabel>>,
     pub(super) delta: Delta,
 }
 
 impl State for Full {}
 
 impl Full {
+    pub(super) fn from_labels(low: Vec<WireLabel>, delta: Delta) -> Self {
+        Self {
+            low: Arc::new(low),
+            delta,
+        }
+    }
+
     /// Returns active labels corresponding to the `value`
     pub(super) fn select(&self, value: &Value) -> Result<Active, LabelError> {
         if value.len() != self.low.len() {
             return Err(LabelError::InvalidValue(self.low.len(), value.len()));
         }
         Ok(Active {
-            labels: self
-                .low
-                .clone()
-                .into_iter()
-                .zip(value.to_lsb0_bits().into_iter())
-                .map(|(low, level)| if level { low ^ self.delta } else { low })
-                .collect(),
+            labels: Arc::new(
+                self.low
+                    .iter()
+                    .copied()
+                    .zip(value.to_lsb0_bits().into_iter())
+                    .map(|(low, level)| if level { low ^ self.delta } else { low })
+                    .collect(),
+            ),
         })
+    }
+
+    pub(super) fn iter(&self) -> impl Iterator<Item = WireLabelPair> + '_ {
+        self.low
+            .iter()
+            .copied()
+            .map(|low| low.to_pair(self.delta, false))
     }
 
     pub(super) fn to_labels(&self) -> Vec<WireLabelPair> {
@@ -61,19 +78,20 @@ impl Full {
             ));
         }
         Ok(Self {
-            low: active
-                .labels
-                .into_iter()
-                .zip(decoding)
-                .map(|(label, decoding)| {
-                    // If active label is logic high, flip it
-                    if label.permute_bit() ^ decoding {
-                        label ^ delta
-                    } else {
-                        label
-                    }
-                })
-                .collect(),
+            low: Arc::new(
+                active
+                    .iter()
+                    .zip(decoding)
+                    .map(|(label, decoding)| {
+                        // If active label is logic high, flip it
+                        if label.permute_bit() ^ decoding {
+                            label ^ delta
+                        } else {
+                            label
+                        }
+                    })
+                    .collect(),
+            ),
             delta,
         })
     }
@@ -85,24 +103,38 @@ impl Full {
 
     #[cfg(test)]
     pub fn set(&mut self, idx: usize, pair: WireLabelPair) {
-        self.low[idx] = WireLabel::new(pair.id(), pair.low());
+        let mut low = (*self.low).clone();
+        low[idx] = WireLabel::new(pair.id(), pair.low());
+        self.low = Arc::new(low);
     }
 
     #[cfg(test)]
     pub fn flip(&mut self, idx: usize) {
-        self.low[idx] = self.low[idx] ^ self.delta
+        let mut low = (*self.low).clone();
+        low[idx] = low[idx] ^ self.delta;
+        self.low = Arc::new(low);
     }
 }
 
 /// Active wire labels
 #[derive(Debug, Clone, PartialEq)]
 pub struct Active {
-    pub(super) labels: Vec<WireLabel>,
+    pub(super) labels: Arc<Vec<WireLabel>>,
 }
 
 impl State for Active {}
 
 impl Active {
+    pub(super) fn from_labels(labels: Vec<WireLabel>) -> Self {
+        Self {
+            labels: Arc::new(labels),
+        }
+    }
+
+    pub(super) fn iter(&self) -> impl Iterator<Item = WireLabel> + '_ {
+        self.labels.iter().copied()
+    }
+
     pub(super) fn decode(&self, decoding: Vec<bool>) -> Result<Vec<bool>, LabelError> {
         if self.labels.len() != decoding.len() {
             return Err(LabelError::InvalidDecodingLength(
@@ -113,7 +145,7 @@ impl Active {
 
         Ok(decoding
             .into_iter()
-            .zip(&self.labels)
+            .zip(self.labels.iter())
             .map(|(decoding, label)| label.permute_bit() ^ decoding)
             .collect())
     }
@@ -134,6 +166,22 @@ impl Active {
 
     #[cfg(test)]
     pub fn set(&mut self, idx: usize, label: WireLabel) {
-        self.labels[idx] = label;
+        let mut labels = (*self.labels).clone();
+        labels[idx] = label;
+        self.labels = Arc::new(labels);
+    }
+
+    #[cfg(test)]
+    pub fn push(&mut self, label: WireLabel) {
+        let mut labels = (*self.labels).clone();
+        labels.push(label);
+        self.labels = Arc::new(labels);
+    }
+
+    #[cfg(test)]
+    pub fn pop(&mut self) {
+        let mut labels = (*self.labels).clone();
+        labels.pop();
+        self.labels = Arc::new(labels);
     }
 }
