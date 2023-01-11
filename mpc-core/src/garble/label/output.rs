@@ -200,6 +200,8 @@ pub(crate) mod unchecked {
 
     #[cfg(test)]
     mod tests {
+        use std::sync::Arc;
+
         use crate::garble::ActiveOutputLabels;
 
         use super::*;
@@ -208,12 +210,12 @@ pub(crate) mod unchecked {
         use mpc_circuits::{Circuit, ADDER_64};
 
         #[fixture]
-        fn circ() -> Circuit {
+        fn circ() -> Arc<Circuit> {
             Circuit::load_bytes(ADDER_64).unwrap()
         }
 
         #[fixture]
-        fn output(circ: Circuit) -> Output {
+        fn output(circ: Arc<Circuit>) -> Output {
             circ.output(0).unwrap()
         }
 
@@ -297,6 +299,8 @@ pub(crate) mod unchecked {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use crate::garble::{FullOutputLabels, LabelError, WireLabelPair};
 
     use super::*;
@@ -306,12 +310,12 @@ mod tests {
     use rand::thread_rng;
 
     #[fixture]
-    pub fn circ() -> Circuit {
+    pub fn circ() -> Arc<Circuit> {
         Circuit::load_bytes(ADDER_64).unwrap()
     }
 
     #[rstest]
-    fn test_output_label_validation(circ: Circuit) {
+    fn test_output_label_validation(circ: Arc<Circuit>) {
         let circ_out = circ.output(0).unwrap();
         let (labels, delta) = WireLabelPair::generate(&mut thread_rng(), None, 64, 0);
         let output_labels_full =
@@ -332,7 +336,7 @@ mod tests {
     }
 
     #[rstest]
-    fn test_output_label_commitment_validation(circ: Circuit) {
+    fn test_output_label_commitment_validation(circ: Arc<Circuit>) {
         let circ_out = circ.output(0).unwrap();
         let (labels, delta) = WireLabelPair::generate(&mut thread_rng(), None, 64, 0);
         let output_labels_full =

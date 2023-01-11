@@ -261,7 +261,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_dualex() {
-        let circ = Arc::new(Circuit::load_bytes(ADDER_64).unwrap());
+        let circ = Circuit::load_bytes(ADDER_64).unwrap();
         let (mut leader, mut follower) = mock_dualex_pair();
 
         let leader_input = circ.input(0).unwrap().to_value(1u64).unwrap();

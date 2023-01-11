@@ -1013,22 +1013,22 @@ pub(crate) mod unchecked {
         use mpc_circuits::{Circuit, Input, ADDER_64, AES_128_REVERSE};
 
         #[fixture]
-        fn circ() -> Circuit {
+        fn circ() -> Arc<Circuit> {
             Circuit::load_bytes(ADDER_64).unwrap()
         }
 
         #[fixture]
-        fn input(circ: Circuit, #[default(0)] id: usize) -> Input {
+        fn input(circ: Arc<Circuit>, #[default(0)] id: usize) -> Input {
             circ.input(id).unwrap()
         }
 
         #[fixture]
-        fn garbled_circuit(circ: Circuit) -> GarbledCircuit<Full> {
+        fn garbled_circuit(circ: Arc<Circuit>) -> GarbledCircuit<Full> {
             let (input_labels, delta) =
                 FullInputLabels::generate_set(&mut ChaCha12Rng::seed_from_u64(0), &circ, None);
             GarbledCircuit::generate(
                 &Aes128::new_from_slice(&[0; 16]).unwrap(),
-                Arc::new(circ),
+                circ,
                 delta,
                 &input_labels,
             )
@@ -1096,21 +1096,20 @@ pub(crate) mod unchecked {
         #[case(unchecked_garbled_circuit(&[(1, 0)], garbled_circuit(circ())))]
         fn test_unchecked_garbled_circuit(
             #[case] unchecked_garbled_circuit: UncheckedGarbledCircuit,
-            circ: Circuit,
+            circ: Arc<Circuit>,
         ) {
-            GarbledCircuit::from_unchecked(Arc::new(circ), unchecked_garbled_circuit).unwrap();
+            GarbledCircuit::from_unchecked(circ, unchecked_garbled_circuit).unwrap();
         }
 
         #[rstest]
         fn test_unchecked_garbled_circuit_wrong_id(
             mut unchecked_garbled_circuit: UncheckedGarbledCircuit,
-            circ: Circuit,
+            circ: Arc<Circuit>,
         ) {
             unchecked_garbled_circuit.id =
                 Circuit::load_bytes(AES_128_REVERSE).unwrap().id().clone();
-            let err =
-                GarbledCircuit::from_unchecked(Arc::new(circ), unchecked_garbled_circuit.clone())
-                    .unwrap_err();
+            let err = GarbledCircuit::from_unchecked(circ, unchecked_garbled_circuit.clone())
+                .unwrap_err();
 
             assert!(matches!(err, Error::ValidationError(_)));
         }
@@ -1118,9 +1117,9 @@ pub(crate) mod unchecked {
         #[rstest]
         fn test_unchecked_garbled_circuit_wrong_gate_count(
             mut unchecked_garbled_circuit: UncheckedGarbledCircuit,
-            circ: Circuit,
+            circ: Arc<Circuit>,
         ) {
-            let circ = Arc::new(circ);
+            let circ = circ;
             unchecked_garbled_circuit
                 .encrypted_gates
                 .push(Block::new(0));
@@ -1140,9 +1139,9 @@ pub(crate) mod unchecked {
         #[rstest]
         fn test_unchecked_garbled_circuit_wrong_decoding_count(
             mut unchecked_garbled_circuit: UncheckedGarbledCircuit,
-            circ: Circuit,
+            circ: Arc<Circuit>,
         ) {
-            let circ = Arc::new(circ);
+            let circ = circ;
             let dup = unchecked_garbled_circuit.decoding.as_ref().unwrap()[0].clone();
             unchecked_garbled_circuit
                 .decoding
@@ -1167,9 +1166,9 @@ pub(crate) mod unchecked {
         #[rstest]
         fn test_unchecked_garbled_circuit_wrong_commitment_count(
             mut unchecked_garbled_circuit: UncheckedGarbledCircuit,
-            circ: Circuit,
+            circ: Arc<Circuit>,
         ) {
-            let circ = Arc::new(circ);
+            let circ = circ;
             let dup = unchecked_garbled_circuit.commitments.as_ref().unwrap()[0].clone();
             unchecked_garbled_circuit
                 .commitments
@@ -1277,13 +1276,13 @@ pub(crate) mod unchecked {
         }
 
         #[rstest]
-        fn test_unchecked_opening(circ: Circuit, unchecked_opening: UncheckedCircuitOpening) {
+        fn test_unchecked_opening(circ: Arc<Circuit>, unchecked_opening: UncheckedCircuitOpening) {
             CircuitOpening::from_unchecked(&circ, unchecked_opening).unwrap();
         }
 
         #[rstest]
         fn test_unchecked_opening_wrong_decoding_count(
-            circ: Circuit,
+            circ: Arc<Circuit>,
             mut unchecked_opening: UncheckedCircuitOpening,
         ) {
             unchecked_opening.input_decoding.pop();
@@ -1307,7 +1306,7 @@ mod tests {
     fn test_uninitialized_label() {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
         let mut rng = ChaCha12Rng::seed_from_u64(0);
-        let circ = Arc::new(Circuit::load_bytes(AES_128_REVERSE).unwrap());
+        let circ = Circuit::load_bytes(AES_128_REVERSE).unwrap();
 
         let (input_labels, delta) = FullInputLabels::generate_set(&mut rng, &circ, None);
 
@@ -1320,7 +1319,7 @@ mod tests {
     fn test_circuit_validation_pass() {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
         let mut rng = ChaCha12Rng::seed_from_u64(0);
-        let circ = Arc::new(Circuit::load_bytes(AES_128_REVERSE).unwrap());
+        let circ = Circuit::load_bytes(AES_128_REVERSE).unwrap();
 
         let key = circ.input(0).unwrap().to_value(vec![0u8; 16]).unwrap();
         let msg = circ.input(1).unwrap().to_value(vec![0u8; 16]).unwrap();
@@ -1345,7 +1344,7 @@ mod tests {
     fn test_circuit_validation_fail_bad_gate() {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
         let mut rng = ChaCha12Rng::seed_from_u64(0);
-        let circ = Arc::new(Circuit::load_bytes(AES_128_REVERSE).unwrap());
+        let circ = Circuit::load_bytes(AES_128_REVERSE).unwrap();
 
         let key = circ.input(0).unwrap().to_value(vec![0u8; 16]).unwrap();
         let msg = circ.input(1).unwrap().to_value(vec![0u8; 16]).unwrap();
@@ -1380,7 +1379,7 @@ mod tests {
     fn test_circuit_validation_fail_bad_input_label() {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
         let mut rng = ChaCha12Rng::seed_from_u64(0);
-        let circ = Arc::new(Circuit::load_bytes(AES_128_REVERSE).unwrap());
+        let circ = Circuit::load_bytes(AES_128_REVERSE).unwrap();
 
         let key = circ.input(0).unwrap().to_value(vec![0u8; 16]).unwrap();
         let msg = circ.input(1).unwrap().to_value(vec![0u8; 16]).unwrap();
@@ -1417,7 +1416,7 @@ mod tests {
     fn test_circuit_validation_fail_bad_output_decoding() {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
         let mut rng = ChaCha12Rng::seed_from_u64(0);
-        let circ = Arc::new(Circuit::load_bytes(AES_128_REVERSE).unwrap());
+        let circ = Circuit::load_bytes(AES_128_REVERSE).unwrap();
 
         let key = circ.input(0).unwrap().to_value(vec![0u8; 16]).unwrap();
         let msg = circ.input(1).unwrap().to_value(vec![0u8; 16]).unwrap();
@@ -1454,7 +1453,7 @@ mod tests {
     fn test_circuit_validation_fail_bad_output_commitment() {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
         let mut rng = ChaCha12Rng::seed_from_u64(0);
-        let circ = Arc::new(Circuit::load_bytes(AES_128_REVERSE).unwrap());
+        let circ = Circuit::load_bytes(AES_128_REVERSE).unwrap();
 
         let key = circ.input(0).unwrap().to_value(vec![0u8; 16]).unwrap();
         let msg = circ.input(1).unwrap().to_value(vec![0u8; 16]).unwrap();

@@ -28,7 +28,6 @@ mod tests {
     };
     use rand::SeedableRng;
     use rand_chacha::ChaCha12Rng;
-    use std::sync::Arc;
 
     use crate::Block;
     use mpc_circuits::{Circuit, WireGroup, AES_128_REVERSE};
@@ -127,7 +126,7 @@ mod tests {
     fn test_aes_128() {
         let mut rng = ChaCha12Rng::from_entropy();
         let cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
-        let circ = Arc::new(Circuit::load_bytes(AES_128_REVERSE).unwrap());
+        let circ = Circuit::load_bytes(AES_128_REVERSE).unwrap();
 
         let (input_labels, delta) = FullInputLabels::generate_set(&mut rng, &circ, None);
 

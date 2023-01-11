@@ -19,14 +19,13 @@ mod tests {
     use super::*;
     use mpc_circuits::{Circuit, WireGroup, ADDER_64};
     use rand::thread_rng;
-    use std::sync::Arc;
 
     fn evaluated_pair() -> (
         DualExLeader<leader_state::Commit>,
         DualExFollower<follower_state::Reveal>,
     ) {
         let mut rng = thread_rng();
-        let circ = Arc::new(Circuit::load_bytes(ADDER_64).unwrap());
+        let circ = Circuit::load_bytes(ADDER_64).unwrap();
 
         let leader = DualExLeader::new(circ.clone());
         let follower = DualExFollower::new(circ.clone());

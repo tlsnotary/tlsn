@@ -152,12 +152,11 @@ mod tests {
     use super::*;
     use mpc_circuits::{Value, WireGroup, ADDER_64};
     use rand::thread_rng;
-    use std::sync::Arc;
 
     #[test]
     fn test_semi_honest_success() {
         let mut rng = thread_rng();
-        let circ = Arc::new(Circuit::load_bytes(ADDER_64).unwrap());
+        let circ = Circuit::load_bytes(ADDER_64).unwrap();
 
         let leader = SemiHonestLeader::new(circ.clone());
         let follower = SemiHonestFollower::new(circ.clone());
@@ -186,7 +185,7 @@ mod tests {
     #[test]
     fn test_semi_honest_fail_ev_malicious_labels() {
         let mut rng = thread_rng();
-        let circ = Arc::new(Circuit::load_bytes(ADDER_64).unwrap());
+        let circ = Circuit::load_bytes(ADDER_64).unwrap();
 
         let leader = SemiHonestLeader::new(circ.clone());
         let follower = SemiHonestFollower::new(circ.clone());
@@ -218,7 +217,7 @@ mod tests {
     #[test]
     fn test_semi_honest_fail_malicious_commitments() {
         let mut rng = thread_rng();
-        let circ = Arc::new(Circuit::load_bytes(ADDER_64).unwrap());
+        let circ = Circuit::load_bytes(ADDER_64).unwrap();
 
         let leader = SemiHonestLeader::new(circ.clone());
         let follower = SemiHonestFollower::new(circ.clone());

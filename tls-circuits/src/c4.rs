@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use mpc_circuits::{
     builder::{map_le_bytes, CircuitBuilder},
     circuits::nbit_xor,
@@ -25,7 +27,7 @@ use mpc_circuits::{
 ///   0. MASKED_H: 16-byte masked (N_H_MASK + U_H_MASK) H
 ///   1. MASKED_GCTR: 16-byte masked (N_GCTR_MASK + U_GCTR_MASK) GCTR
 ///   2. MASKED_ECTR: 16-byte masked (U_ECTR_MASK) encrypted counter
-pub fn c4() -> Circuit {
+pub fn c4() -> Arc<Circuit> {
     let mut builder = CircuitBuilder::new("c4", "0.1.0");
 
     let n_cwk = builder.add_input(
@@ -93,17 +95,19 @@ pub fn c4() -> Circuit {
     let mut builder = builder.build_inputs();
 
     let aes = Circuit::load_bytes(AES_128_REVERSE).expect("failed to load aes_128_reverse circuit");
+    let xor_128_circ = nbit_xor(128);
+    let xor_32_circ = nbit_xor(32);
 
-    let aes_h = builder.add_circ(aes.clone());
-    let aes_gctr = builder.add_circ(aes.clone());
-    let aes_ectr = builder.add_circ(aes);
-    let cwk = builder.add_circ(nbit_xor(128));
-    let civ = builder.add_circ(nbit_xor(32));
-    let mask_h = builder.add_circ(nbit_xor(128));
-    let mask_gctr = builder.add_circ(nbit_xor(128));
-    let masked_h = builder.add_circ(nbit_xor(128));
-    let masked_gctr = builder.add_circ(nbit_xor(128));
-    let masked_ectr = builder.add_circ(nbit_xor(128));
+    let aes_h = builder.add_circ(&aes);
+    let aes_gctr = builder.add_circ(&aes);
+    let aes_ectr = builder.add_circ(&aes);
+    let cwk = builder.add_circ(&xor_128_circ);
+    let civ = builder.add_circ(&xor_32_circ);
+    let mask_h = builder.add_circ(&xor_128_circ);
+    let mask_gctr = builder.add_circ(&xor_128_circ);
+    let masked_h = builder.add_circ(&xor_128_circ);
+    let masked_gctr = builder.add_circ(&xor_128_circ);
+    let masked_ectr = builder.add_circ(&xor_128_circ);
 
     // cwk
     builder.connect(

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use mpc_circuits::{
     builder::{map_le_bytes, CircuitBuilder},
     circuits::nbit_add_mod,
@@ -7,7 +9,7 @@ use mpc_circuits::{
 /// Combines two PMS shares
 ///
 /// Each share must already be reduced mod P
-pub fn combine_pms_shares() -> Circuit {
+pub fn combine_pms_shares() -> Arc<Circuit> {
     let mut builder = CircuitBuilder::new("combine_pms_shares", "0.1.0");
 
     let a = builder.add_input(
@@ -37,7 +39,7 @@ pub fn combine_pms_shares() -> Circuit {
 
     let mut builder = builder.build_inputs();
 
-    let add_mod = builder.add_circ(nbit_add_mod(256));
+    let add_mod = builder.add_circ(&nbit_add_mod(256));
     let add_mod_a = add_mod.input(0).expect("add mod is missing input 0");
     let add_mod_b = add_mod.input(1).expect("add mod is missing input 1");
     let add_mod_mod = add_mod.input(2).expect("add mod is missing input 2");
