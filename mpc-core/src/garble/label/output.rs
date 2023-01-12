@@ -6,7 +6,7 @@ use crate::{
         label::{state, Labels, WireLabel},
         Error, LabelError,
     },
-    utils::sha256,
+    utils::blake3,
     Block,
 };
 
@@ -51,14 +51,14 @@ impl OutputLabelsCommitment {
         }
     }
 
-    /// We use a truncated SHA256 hash with a public salt to commit to the labels
+    /// We use a truncated Blake3 hash with a public salt to commit to the labels
     /// H(w || output_id || idx)
     fn compute_hash(block: Block, output_id: usize, idx: usize) -> Block {
         let mut m = [0u8; 32];
         m[..16].copy_from_slice(&block.to_be_bytes());
         m[16..24].copy_from_slice(&(output_id as u64).to_be_bytes());
         m[24..].copy_from_slice(&(idx as u64).to_be_bytes());
-        let h = sha256(&m);
+        let h = blake3(&m);
         let mut commitment = [0u8; 16];
         commitment.copy_from_slice(&h[..16]);
         commitment.into()

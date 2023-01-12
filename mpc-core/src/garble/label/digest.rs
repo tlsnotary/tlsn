@@ -1,7 +1,7 @@
 use super::{state, Labels};
 use mpc_circuits::WireGroup;
 
-use crate::utils::sha256;
+use crate::utils::blake3;
 
 /// Digest of active wire labels
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -15,7 +15,7 @@ impl LabelsDigest {
             .map(|labels| labels.state.to_be_bytes())
             .flatten()
             .collect();
-        Self(sha256(&bytes))
+        Self(blake3(&bytes))
     }
 
     /// Returns digest from bytes

@@ -38,7 +38,7 @@ impl SenderState for Initialized {}
 
 pub struct BaseSetup {
     pub(crate) rng: OTRng,
-    // The Receiver's sha256 commitment to their cointoss share
+    // The Receiver's blake3 commitment to their cointoss share
     pub(crate) receiver_cointoss_commit: [u8; 32],
     pub(crate) base_receiver: BaseReceiver,
     pub(crate) base_choices: BaseChoices,

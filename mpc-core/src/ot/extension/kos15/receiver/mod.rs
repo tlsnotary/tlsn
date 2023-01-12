@@ -12,7 +12,7 @@ use crate::{
         ExtReceiverSetup, ExtSenderPayload, ExtSenderReveal,
     },
     ot::{DhOtSender as BaseSender, Kos15Sender},
-    utils::sha256,
+    utils::blake3,
     Block,
 };
 use aes::{Aes128, NewBlockCipher};
@@ -52,7 +52,7 @@ impl Kos15Receiver {
         });
         let message = BaseSenderSetupWrapper {
             setup: base_setup_message,
-            cointoss_commit: sha256(&self.0.cointoss_share),
+            cointoss_commit: blake3(&self.0.cointoss_share),
         };
         Ok((kos_receiver, message))
     }
@@ -277,7 +277,7 @@ impl Kos15Receiver<state::RandSetup> {
         let hash = [reveal.seed.as_slice(), reveal.salt.as_slice()].concat();
 
         if let Some(commitment) = self.0.commitment {
-            if sha256(&hash) != commitment {
+            if blake3(&hash) != commitment {
                 return Err(CommittedOTError::CommitmentCheck);
             }
         } else {

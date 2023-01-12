@@ -23,7 +23,7 @@ matrix-transpose = { path = "../matrix-transpose" }
 tlsn-utils = { path = "../utils" }
 aes = { workspace = true, features = [] }
 cipher.workspace = true
-sha2 = { workspace = true, features = ["compress"] }
+blake3.workspace = true
 rand.workspace = true
 rand_core.workspace = true
 rand_chacha.workspace = true
