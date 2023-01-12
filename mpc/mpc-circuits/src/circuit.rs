@@ -762,7 +762,7 @@ mod tests {
             "test".to_string(),
             "".to_string(),
             ValueType::Bool,
-            vec![3],
+            vec![2],
         )];
 
         let err = Circuit::new("test", "", "", inputs, outputs, gates).unwrap_err();

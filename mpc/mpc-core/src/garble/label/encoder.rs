@@ -110,7 +110,7 @@ mod test {
         let mut enc = ChaChaEncoder::new([0u8; 32], 0);
 
         for input in circ.inputs() {
-            enc.encode(input.id() as u32, input);
+            enc.encode(input.index() as u32, input);
         }
     }
 
