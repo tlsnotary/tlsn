@@ -8,13 +8,13 @@ fn criterion_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("encoder");
 
     let circ = Arc::new(Circuit::load_bytes(AES_128_REVERSE).unwrap());
-    group.bench_function(circ.name(), |b| {
+    group.bench_function(circ.id().clone().to_string(), |b| {
         let mut enc = ChaChaEncoder::new([0u8; 32], 0);
         b.iter(|| {
             black_box(
                 circ.inputs()
                     .iter()
-                    .map(|input| enc.encode(input.id() as u32, input))
+                    .map(|input| enc.encode(input.index() as u32, input))
                     .collect::<Vec<_>>(),
             )
         })

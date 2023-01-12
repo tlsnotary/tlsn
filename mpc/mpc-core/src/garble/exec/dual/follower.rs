@@ -1,8 +1,8 @@
 use crate::garble::{
     circuit::{state as gc_state, GarbledCircuit},
     commitment::{HashCommitment, Opening},
-    label::{ActiveOutputLabels, LabelsDigest},
-    ActiveInputLabels, Delta, Error, FullInputLabels,
+    label::{ActiveInputLabelsSet, ActiveOutputLabels, FullInputLabelsSet, LabelsDigest},
+    Error,
 };
 use mpc_circuits::Circuit;
 
@@ -74,11 +74,10 @@ impl DualExFollower<Generator> {
     /// Garble circuit and send to peer
     pub fn garble(
         self,
-        input_labels: &[FullInputLabels],
-        delta: Delta,
+        input_labels: FullInputLabelsSet,
     ) -> Result<(GarbledCircuit<gc_state::Partial>, DualExFollower<Evaluator>), Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
-        let gc = GarbledCircuit::generate(&cipher, self.state.circ.clone(), delta, input_labels)?;
+        let gc = GarbledCircuit::generate(&cipher, self.state.circ.clone(), input_labels)?;
 
         self.from_full_circuit(gc)
     }
@@ -105,7 +104,7 @@ impl DualExFollower<Evaluator> {
     pub fn evaluate(
         self,
         gc: GarbledCircuit<gc_state::Partial>,
-        input_labels: &[ActiveInputLabels],
+        input_labels: ActiveInputLabelsSet,
     ) -> Result<DualExFollower<Reveal>, Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
         let evaluated_gc = gc.evaluate(&cipher, input_labels)?;

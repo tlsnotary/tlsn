@@ -15,6 +15,7 @@ use mpc_circuits::{Circuit, WireGroup};
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum GarbleMessage {
+    InputLabels(InputLabels),
     GarbledCircuit(GarbledCircuit),
     CircuitOpening(CircuitOpening),
     Output(Output),
@@ -132,14 +133,14 @@ impl From<OutputLabelsDigest> for label::LabelsDigest {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct InputLabels {
-    pub id: usize,
+    pub index: usize,
     pub labels: Vec<Block>,
 }
 
 impl From<label::ActiveInputLabels> for InputLabels {
     fn from(labels: label::ActiveInputLabels) -> Self {
         Self {
-            id: labels.index(),
+            index: labels.index(),
             labels: labels.iter_blocks().collect(),
         }
     }
@@ -148,7 +149,7 @@ impl From<label::ActiveInputLabels> for InputLabels {
 impl From<InputLabels> for UncheckedInputLabels {
     fn from(labels: InputLabels) -> Self {
         Self {
-            id: labels.id,
+            id: labels.index,
             labels: labels.labels,
         }
     }

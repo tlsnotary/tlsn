@@ -38,7 +38,7 @@ pub enum InputError {
     Duplicate,
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, PartialEq)]
 pub enum LabelError {
     #[error("Uninitialized Label, id: {0}")]
     UninitializedLabel(usize),
@@ -58,4 +58,14 @@ pub enum LabelError {
     InvalidDecodingCount(usize, usize),
     #[error("Invalid label commitment for group {0:?}")]
     InvalidLabelCommitment(GroupId),
+    #[error("Labels set must contain at least 1 element")]
+    EmptyLabelsSet,
+    #[error("All elements in a set must correspond to the same circuit")]
+    CircuitMismatch,
+    #[error("A set cannot contain duplicate elements")]
+    DuplicateLabels,
+    #[error("All elements in a set must have the same delta")]
+    DeltaMismatch,
+    #[error("Invalid count in set for {0:?}: expected {1}, got {2}")]
+    InvalidCount(CircuitId, usize, usize),
 }
