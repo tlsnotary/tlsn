@@ -15,7 +15,7 @@ pa = ["tlsn-mpc-core/pa", "p256"]
 [dependencies]
 tlsn-mpc-circuits = { path = "../mpc-circuits" }
 tlsn-mpc-core = { path = "../mpc-core" }
-tlsn-utils-aio = { path = "../utils-aio" }
+tlsn-utils-aio.workspace = true
 async-trait.workspace = true
 prost.workspace = true
 futures.workspace = true
@@ -26,28 +26,15 @@ rand_core.workspace = true
 rand_chacha = { workspace = true, optional = true }
 p256 = { workspace = true, optional = true }
 thiserror.workspace = true
-tracing.workspace = true
-tokio-util = { workspace = true, features = ["codec"] }
 tokio = { workspace = true, features = [
     "net",
     "macros",
     "rt",
     "rt-multi-thread",
 ] }
-mockall = "0.11"
-async-stream = "0.3"
 aes = { workspace = true, optional = true }
 rayon = { workspace = true }
 
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-getrandom = { workspace = true, features = ["js"] }
-wasm-bindgen.workspace = true
-
 [dev-dependencies]
-async-tungstenite = { workspace = true, features = ["tokio-runtime"] }
-ws_stream_tungstenite = { workspace = true, features = ["tokio_io"] }
-yamux.workspace = true
-tracing-subscriber.workspace = true
-clap = { workspace = true, features = ["derive"] }
-tokio-stream.workspace = true
-tlsn-utils-aio = { path = "../utils-aio", features = ["duplex"] }
+mockall.workspace = true
+tlsn-utils-aio = { workspace = true, features = ["duplex"] }

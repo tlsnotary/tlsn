@@ -22,9 +22,11 @@ build-circuits = []
 serde = ["dep:serde"]
 
 [dependencies]
-tlsn-mpc-circuits = { path = "../mpc-circuits" }
-tlsn-mpc-core = { path = "../mpc-core" }
-tlsn-utils = { path = "../utils" }
+tlsn-mpc-circuits.workspace = true
+tlsn-mpc-core.workspace = true
+tlsn-utils.workspace = true
+share-conversion-core.workspace = true
+
 sha2 = { workspace = true, features = ["compress"] }
 digest.workspace = true
 hmac.workspace = true
@@ -33,7 +35,6 @@ rand.workspace = true
 thiserror.workspace = true
 serde = { workspace = true, features = ["derive"], optional = true }
 once_cell.workspace = true
-share-conversion-core = { path = "../share-conversion-core" }
 
 [dev-dependencies]
 criterion.workspace = true
@@ -44,7 +45,7 @@ num = { workspace = true, features = ["rand"] }
 aes = { workspace = true, features = [] }
 
 [build-dependencies]
-tlsn-mpc-circuits = { path = "../mpc-circuits" }
+tlsn-mpc-circuits.workspace = true
 tlsn-tls-circuits = { path = "../tls-circuits" }
 regex.workspace = true
 prost.workspace = true

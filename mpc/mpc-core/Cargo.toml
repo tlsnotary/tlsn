@@ -20,7 +20,7 @@ serde = ["dep:serde"]
 tlsn-mpc-circuits = { path = "../mpc-circuits" }
 clmul = { path = "../clmul" }
 matrix-transpose = { path = "../matrix-transpose" }
-tlsn-utils = { path = "../utils" }
+tlsn-utils.workspace = true
 aes = { workspace = true, features = [] }
 cipher.workspace = true
 blake3.workspace = true
@@ -28,12 +28,10 @@ rand.workspace = true
 rand_core.workspace = true
 rand_chacha.workspace = true
 regex = { workspace = true, optional = true }
-rayon.workspace = true
 curve25519-dalek = { workspace = true, features = ["serde", "rand_core"] }
 serde = { workspace = true, features = ["derive"], optional = true }
 prost = { workspace = true, optional = true }
 thiserror.workspace = true
-anyhow.workspace = true
 derive_builder.workspace = true
 merlin.workspace = true
 

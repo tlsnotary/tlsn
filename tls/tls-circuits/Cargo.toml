@@ -11,7 +11,7 @@ default = ["compile"]
 compile = ["dep:rayon", "dep:prost"]
 
 [dependencies]
-tlsn-mpc-circuits = { path = "../mpc-circuits" }
+tlsn-mpc-circuits.workspace = true
 rayon = { workspace = true, optional = true }
 prost = { workspace = true, optional = true }
 

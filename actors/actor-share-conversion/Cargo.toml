@@ -1,0 +1,25 @@
+[package]
+name = "actor-share-conversion"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+share-conversion-aio = { path = "../../mpc/share-conversion-aio" }
+share-conversion-core = { path = "../../mpc/share-conversion-core" }
+tlsn-mpc-aio = { path = "../../mpc/mpc-aio" }
+tlsn-mpc-core = { path = "../../mpc/mpc-core" }
+tlsn-utils-aio = { path = "../../utils/utils-aio" }
+xtra = { git = "https://github.com/Restioson/xtra", rev = "ca061b4", features = [
+    "macros",
+], default-features = false }
+thiserror = "1"
+
+[dev-dependencies]
+xtra = { git = "https://github.com/Restioson/xtra", rev = "ca061b4", features = [
+    "macros",
+    "tokio",
+], default-features = false }
+tokio = "1.23"
+rand_chacha = "0.3"
+rand = "0.8"
+actor-mux = { path = "../actor-mux" }
