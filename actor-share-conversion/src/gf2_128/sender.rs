@@ -78,7 +78,6 @@ where
         let state = std::mem::replace(&mut self.state, State::Error);
 
         let State::Initialized {id, barrier, mut muxer, sender_factory} = state else {
-            self.state = state;
             return Err(ShareConversionError::Other(String::from("Actor has to be in the Initialized state")));
         };
 
@@ -177,15 +176,19 @@ where
     async fn handle(
         &mut self,
         message: M2AMessage<Vec<u128>>,
-        _ctx: &mut Context<Self>,
+        ctx: &mut Context<Self>,
     ) -> Self::Return {
-        if let State::Setup(ref mut state) = self.state {
-            state.m_to_a(message.0).await
-        } else {
+        let state = std::mem::replace(&mut self.state, State::Error);
+
+        let State::Setup(mut state) = state else {
+            ctx.stop_self();
             return Err(ShareConversionError::Other(String::from(
                 "Actor is not in the Setup state",
             )));
-        }
+        };
+        let out = state.m_to_a(message.0).await;
+        self.state = State::Setup(state);
+        out
     }
 }
 
@@ -205,15 +208,19 @@ where
     async fn handle(
         &mut self,
         message: A2MMessage<Vec<u128>>,
-        _ctx: &mut Context<Self>,
+        ctx: &mut Context<Self>,
     ) -> Self::Return {
-        if let State::Setup(ref mut state) = self.state {
-            state.a_to_m(message.0).await
-        } else {
+        let state = std::mem::replace(&mut self.state, State::Error);
+
+        let State::Setup(mut state) = state else {
+            ctx.stop_self();
             return Err(ShareConversionError::Other(String::from(
                 "Actor is not in the Setup state",
             )));
-        }
+        };
+        let out = state.a_to_m(message.0).await;
+        self.state = State::Setup(state);
+        out
     }
 }
 
@@ -231,6 +238,7 @@ where
     /// This handler is called when the actor receives SendTapeMessage
     async fn handle(&mut self, _message: SendTapeMessage, ctx: &mut Context<Self>) -> Self::Return {
         let state = std::mem::replace(&mut self.state, State::Error);
+        ctx.stop_self();
 
         let State::Setup(state) = state else {
             return Err(ShareConversionError::Other(String::from(
@@ -238,7 +246,6 @@ where
             )));
         };
 
-        ctx.stop_self();
         self.state = State::Complete;
         state.send_tape().await
     }
