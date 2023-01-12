@@ -70,15 +70,17 @@ fn compute_missing_mul_shares(present_odd_mul_shares: &mut Vec<u128>, needed: us
 /// * `add_shares`         - all additive shares (even and odd) we already have. This is a mutable
 ///                          reference to cached_add_shares in [crate::ghash::state::Intermediate]
 fn compute_new_add_shares(new_add_odd_shares: &[u128], add_shares: &mut Vec<u128>) {
-    for (odd_share, current_power) in new_add_odd_shares
+    for (odd_share, current_odd_power) in new_add_odd_shares
         .iter()
-        .zip((add_shares.len()..).step_by(2))
+        .zip((add_shares.len() + 1..).step_by(2))
     {
         // `add_shares` always have an even number of shares so we simply add the next odd share
         add_shares.push(*odd_share);
 
         // now we need to compute the next even share and add it
-        let mut base_share = add_shares[current_power >> 1];
+        // note that the n-th index corresponds to the (n+1)-th power, e.g. add_shares[4]
+        // is the share of H^5
+        let mut base_share = add_shares[current_odd_power / 2];
         base_share = mul(base_share, base_share);
         add_shares.push(base_share);
     }
