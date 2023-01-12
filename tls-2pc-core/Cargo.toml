@@ -33,6 +33,7 @@ rand.workspace = true
 thiserror.workspace = true
 serde = { workspace = true, features = ["derive"], optional = true }
 once_cell.workspace = true
+share-conversion-core = { path = "../share-conversion-core" }
 
 [dev-dependencies]
 criterion.workspace = true

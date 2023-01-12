@@ -1,295 +1,381 @@
-//! ghash implements a protocol of computing the AES-GCM's GHASH function in a
-//! secure two-party computation (2PC) setting using 1-out-of-2 Oblivious
-//! Transfer (OT). The parties start with their secret XOR shares of H (the
-//! GHASH key) and at the end each gets their XOR share of the GHASH output.
-//! The method is decribed here:
-//! (https://tlsnotary.org/how_it_works#section4).
-
-//! As an illustration, let's say that S has his shares H1_s and H2_s and R
-//! has her shares H1_r and H2_r. They need to compute shares of H3.
-//! H3 = (H1_s + H1_r)*(H2_s + H2_r) = H1_s*H2_s + H1_s*H2_r + H1_r*H2_s +
-//! H1_r*H2_r. Term 1 can be computed by S locally and term 4 can be
-//! computed by R locally. Only terms 2 and 3 will be computed using
-//! GHASH 2PC. R will obliviously request values for bits of H1_r and H2_r.
-//! The XOR sum of all values which S will send back plus H1_r*H2_r will
-//! become R's share of H3.
+//! This module implements the AES-GCM's GHASH function in a secure two-party computation (2PC)
+//! setting. The parties start with their secret XOR shares of H (the GHASH key) and at the end
+//! each gets their XOR share of the GHASH output. The method is described here:
+//! <https://tlsnotary.org/how_it_works#section4>.
 //!
-//! When performing block multiplication in 2PC, Master holds the Y value and
-//! Slave holds the X value. The Slave then computes the X table and masks it.
+//! At first we will convert the XOR (additive) share of `H`, into a multiplicative share. This
+//! allows us to compute all the necessary powers of `H^n` locally. Note, that it is only required
+//! to compute the odd multiplicative powers, because of free squaring. Then each of these
+//! multiplicative shares will be converted back into additive shares. The even additive shares can
+//! then locally be built by using the odd ones. This way, we can batch nearly all oblivious
+//! transfers and reduce the round complexity of the protocol.
+//!
+//! On the whole, we need a single additive-to-multiplicative (A2M) and `n/2`, where `n` is the
+//! number of blocks of message, multiplicative-to-additive (M2A) conversions. Finally, having
+//! additive shares of `H^n` for all needed `n`, we can compute an additive share of the GHASH
+//! output.
 
-mod common;
-pub mod errors;
-pub mod master;
-pub mod slave;
-mod utils;
+/// Contains the core logic for ghash
+mod core;
 
-use errors::*;
-use std::collections::BTreeMap;
+/// Contains the different states
+pub mod state;
 
-/// MXTableFull is masked XTable which Slave has at the beginning of OT.
-/// MXTableFull must not be revealed to Master.
-type MXTableFull = Vec<[u128; 2]>;
-/// MXTable is a masked x table which Master will end up having after OT.
-type MXTable = Vec<u128>;
-/// YBits are Master's bits of Y in big-endian. Based on these bits
-/// Master will send MXTable via OT.
-/// The convention for the returned Y bits:
-/// A) powers are in an ascending order: first powers[1], then powers[2] etc.
-/// B) bits of each power are in big-endian.
-type YBits = Vec<bool>;
+pub use crate::ghash::core::GhashCore;
+use share_conversion_core::gf2_128::{compute_product_repeated, mul};
+use thiserror::Error;
 
-pub trait MasterCore {
-    /// Returns choice bits for Oblivious Transfer.
-    /// While is_complete() returns false, next_request() must be called
-    /// followed by process_response().
-    fn next_request(&mut self) -> Result<Vec<bool>, GhashError>;
-
-    /// process_response() will be invoked by the Oblivious Transfer impl. It
-    /// receives masked X tables acc. to our choice bits in next_request().
-    fn process_response(&mut self, response: &Vec<u128>) -> Result<(), GhashError>;
-
-    /// Returns true when the protocol is complete.
-    fn is_complete(&mut self) -> bool;
-
-    /// Returns our GHASH share.
-    fn finalize(&mut self) -> Result<u128, GhashError>;
-
-    /// Returns the amount of Oblivious Transfer instances needed to complete
-    /// the protocol. The purpose is to inform the OT layer.
-    fn calculate_ot_count(&mut self) -> usize;
-
-    /// Exports powers of the GHASH key obtained at the current stage of the
-    /// protocol.
-    fn export_powers(&mut self) -> BTreeMap<u16, u128>;
+#[derive(Debug, Error)]
+pub enum GhashError {
+    #[error("Invalid maximum hashkey power")]
+    ZeroHashkeyPower,
+    #[error("Message too long")]
+    InvalidMessageLength,
 }
 
-pub trait SlaveCore {
-    /// Returns the full masked X table which must NOT be passed to Master. It
-    /// must be consumed by the Oblivious Transfer impl.
-    fn process_request(&mut self) -> Result<Vec<[u128; 2]>, GhashError>;
+/// Computes missing odd multiplicative shares of the hashkey powers
+///
+/// Checks if depending on the number of `needed` shares, we need more odd multiplicative shares and
+/// computes them. Notice that we only need odd multiplicative shares for the OT, because we can
+/// derive even additive shares from odd additive shares, which we call free squaring.
+///
+/// * `present_odd_mul_shares` - multiplicative odd shares already present
+/// * `needed` - how many powers we need including odd and even
+fn compute_missing_mul_shares(present_odd_mul_shares: &mut Vec<u128>, needed: usize) {
+    // divide by 2 and round up
+    let needed_odd_powers: usize = needed / 2 + (needed & 1);
+    let present_odd_len = present_odd_mul_shares.len();
 
-    /// Returns true when the protocol is complete.
-    fn is_complete(&mut self) -> bool;
+    if needed_odd_powers > present_odd_len {
+        let h_squared = mul(present_odd_mul_shares[0], present_odd_mul_shares[0]);
+        compute_product_repeated(
+            present_odd_mul_shares,
+            h_squared,
+            needed_odd_powers - present_odd_len,
+        );
+    }
+}
 
-    /// Returns our GHASH share.
-    fn finalize(&mut self) -> Result<u128, GhashError>;
+/// Computes new even (additive) shares from new odd (additive) shares and saves both the new odd shares
+/// and the new even shares.
+///
+/// This function implements the derivation of even additive shares from odd additive shares,
+/// which we refer to as free squaring. Every additive share of an even power of
+/// `H` can be computed without an OT interaction by squaring the corresponding additive share
+/// of an odd power of `H`, e.g. if we have a share of H^3, we can derive the share of H^6 by doing
+/// (H^3)^2
+///
+/// * `new_add_odd_shares` - new odd additive shares we got as a result of doing an OT on odd
+///                          multiplicative shares
+/// * `add_shares`         - all additive shares (even and odd) we already have. This is a mutable
+///                          reference to cached_add_shares in [crate::ghash::state::Intermediate]
+fn compute_new_add_shares(new_add_odd_shares: &[u128], add_shares: &mut Vec<u128>) {
+    for (odd_share, current_odd_power) in new_add_odd_shares
+        .iter()
+        .zip((add_shares.len() + 1..).step_by(2))
+    {
+        // `add_shares` always have an even number of shares so we simply add the next odd share
+        add_shares.push(*odd_share);
 
-    /// Returns the amount of Oblivious Transfer instances needed to complete
-    /// the protocol. The purpose is to inform the OT layer.
-    fn calculate_ot_count(&mut self) -> usize;
-
-    /// Exports powers of the GHASH key obtained at the current stage of the
-    /// protocol.
-    fn export_powers(&mut self) -> BTreeMap<u16, u128>;
+        // now we need to compute the next even share and add it
+        // note that the n-th index corresponds to the (n+1)-th power, e.g. add_shares[4]
+        // is the share of H^5
+        let mut base_share = add_shares[current_odd_power / 2];
+        base_share = mul(base_share, base_share);
+        add_shares.push(base_share);
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        errors::GhashError, master::GhashMaster, slave::GhashSlave, utils::block_mult, MasterCore,
-        SlaveCore,
-    };
     use ghash_rc::{
         universal_hash::{NewUniversalHash, UniversalHash},
         GHash,
     };
-    use rand::{prelude::ThreadRng, thread_rng, Rng};
-    use std::convert::TryInto;
+    use rand::{Rng, SeedableRng};
+    use rand_chacha::ChaCha12Rng;
+    use share_conversion_core::gf2_128::inverse;
+
+    use super::{
+        compute_missing_mul_shares, compute_new_add_shares, compute_product_repeated, mul,
+        state::{Finalized, Intermediate},
+        GhashCore,
+    };
 
     #[test]
-    // test only round 1
-    fn test_round1() {
-        let block_count = 3;
-        let (h, mut slave, mut master, blocks) = ghash_setup(block_count);
-        run_round(&mut slave, &mut master).unwrap();
-        let ghash = finalize(&mut slave, &mut master);
-        assert_eq!(ghash, rust_crypto_ghash(h, &blocks));
-        assert!(master.is_complete());
-        assert!(slave.is_complete());
+    fn test_ghash_product_sharing() {
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
+
+        // The Ghash key
+        let h: u128 = rng.gen();
+        let message = gen_u128_vec();
+        let message_len = message.len();
+        let number_of_powers_needed: usize = message_len / 2 + (message_len & 1);
+
+        let (sender, receiver) = setup_ghash_to_intermediate_state(h, message_len);
+
+        let mut powers_h = vec![h];
+        compute_product_repeated(&mut powers_h, mul(h, h), number_of_powers_needed);
+
+        // Length check
+        assert_eq!(sender.state().odd_mul_shares.len(), number_of_powers_needed);
+        assert_eq!(
+            receiver.state().odd_mul_shares.len(),
+            number_of_powers_needed
+        );
+
+        // Product check
+        for (k, (sender_share, receiver_share)) in std::iter::zip(
+            sender.state().odd_mul_shares.iter(),
+            receiver.state().odd_mul_shares.iter(),
+        )
+        .enumerate()
+        {
+            assert_eq!(mul(*sender_share, *receiver_share), powers_h[k]);
+        }
     }
 
     #[test]
-    // test state after rounds 1,2 (but before block aggregation)
-    fn test_round12_before_block_aggregation() {
-        let block_count = 30;
-        let (h, mut slave, mut master, _blocks) = ghash_setup(block_count);
-        run_round(&mut slave, &mut master).unwrap();
-        run_round(&mut slave, &mut master).unwrap();
+    fn test_ghash_sum_sharing() {
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
-        let s_powers = slave.export_powers();
-        let r_powers = master.export_powers();
-        let all_s_keys: Vec<u16> = s_powers.keys().cloned().collect();
-        let all_r_keys: Vec<u16> = r_powers.keys().cloned().collect();
-        let expected_keys = vec![1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 20, 24, 28];
-        let exp_powers = compute_expected_powers(h, block_count as u16);
+        // The Ghash key
+        let h: u128 = rng.gen();
+        let message = gen_u128_vec();
+        let message_len = message.len();
 
-        assert_eq!(all_s_keys, expected_keys);
-        assert_eq!(all_r_keys, expected_keys);
-        // compare shares of powers against expected powers
-        for key in expected_keys.iter() {
+        let (sender, receiver) = setup_ghash_to_intermediate_state(h, message_len);
+        let (sender, receiver) = ghash_to_finalized(sender, receiver);
+
+        let mut powers_h = vec![h];
+        compute_product_repeated(&mut powers_h, h, message_len);
+
+        // Length check
+        assert_eq!(
+            sender.state().add_shares.len(),
+            message_len + (message_len & 1)
+        );
+        assert_eq!(
+            receiver.state().add_shares.len(),
+            message_len + (message_len & 1)
+        );
+
+        // Sum check
+        for k in 0..message_len {
             assert_eq!(
-                exp_powers[*key as usize],
-                *s_powers.get(key).unwrap() ^ *r_powers.get(key).unwrap()
+                sender.state().add_shares[k] ^ receiver.state().add_shares[k],
+                powers_h[k]
             );
         }
-        assert!(!master.is_complete());
-        assert!(!slave.is_complete());
     }
 
     #[test]
-    // test rounds 1,2,4
-    fn test_round124() {
-        let block_count = 30;
-        let (h, mut slave, mut master, blocks) = ghash_setup(block_count);
-        run_round(&mut slave, &mut master).unwrap();
-        run_round(&mut slave, &mut master).unwrap();
-        run_round(&mut slave, &mut master).unwrap();
-        let ghash = finalize(&mut slave, &mut master);
-        assert_eq!(ghash, rust_crypto_ghash(h, &blocks));
-        assert!(master.is_complete());
-        assert!(slave.is_complete());
-    }
+    fn test_ghash_output() {
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
-    #[test]
-    // test rounds 1,2,3,4
-    fn test_round1234() {
-        let block_count = 340;
-        let (h, mut slave, mut master, blocks) = ghash_setup(block_count);
-        run_round(&mut slave, &mut master).unwrap();
-        run_round(&mut slave, &mut master).unwrap();
-        run_round(&mut slave, &mut master).unwrap();
-        run_round(&mut slave, &mut master).unwrap();
-        let ghash = finalize(&mut slave, &mut master);
-        assert_eq!(ghash, rust_crypto_ghash(h, &blocks));
-        assert!(master.is_complete());
-        assert!(slave.is_complete());
-    }
-
-    #[test]
-    // test export_powers() after round 1
-    fn test_export_powers() {
-        let block_count = 340;
-        let (h, mut slave, mut master, blocks) = ghash_setup(block_count);
-        run_round(&mut slave, &mut master).unwrap();
-        let powers_s = slave.export_powers();
-        let powers_r = master.export_powers();
-        // we only have 4 consecutive powers 1,2,3,4 after round 1
-        // we compute ghash for only the first 4 blocks
-        let mut ghash_share_s = 0u128;
-        for i in 0..4 {
-            ghash_share_s ^= block_mult(*powers_s.get(&(4 - i)).unwrap(), blocks[i as usize]);
-        }
-        let mut ghash_share_r = 0u128;
-        for i in 0..4 {
-            ghash_share_r ^= block_mult(*powers_r.get(&(4 - i)).unwrap(), blocks[i as usize]);
-        }
-        let ghash = ghash_share_s ^ ghash_share_r;
-        assert_eq!(ghash, rust_crypto_ghash(h, &blocks[0..4].to_vec()));
-        assert!(!master.is_complete());
-        assert!(!slave.is_complete());
-    }
-
-    #[test]
-    // test OT count against hard-coded values and also double-check against
-    // the actual amount of Y bits which the Master requested.
-    fn test_calculate_ot_count() {
-        let block_counts = vec![3, 19, 200, 1026];
-        // expected amount of 2PC block multiplications
-        let expected = vec![2, 8, 44, 96];
-
-        for i in 0..block_counts.len() {
-            let block_count = block_counts[i];
-            let (_, mut slave, mut master, _) = ghash_setup(block_count);
-            let mut ybits_count = 0;
-            while !master.is_complete() {
-                let req = master.next_request().unwrap();
-                ybits_count += req.len();
-                let resp = slave.process_request().unwrap();
-                let masked_xtable = simulate_ot(&req, &resp);
-                master.process_response(&masked_xtable).unwrap();
-            }
-            let ot_count = master.calculate_ot_count();
-            assert!(ot_count == expected[i] * 128);
-            assert!(ot_count == ybits_count);
-        }
-    }
-
-    fn finalize(sender: &mut GhashSlave<ThreadRng>, receiver: &mut GhashMaster) -> u128 {
-        let sender_ghash_share = sender.finalize().unwrap();
-        let receiver_ghash_share = receiver.finalize().unwrap();
-        receiver_ghash_share ^ sender_ghash_share
-    }
-
-    fn ghash_setup(block_count: usize) -> (u128, GhashSlave<ThreadRng>, GhashMaster, Vec<u128>) {
-        let mut rng = thread_rng();
-        // h is ghash key
+        // The Ghash key
         let h: u128 = rng.gen();
-        // h_s is sender's XOR share of h
-        let h_s: u128 = rng.gen();
-        // h_r is receiver's XOR share of h
-        let h_r: u128 = h ^ h_s;
+        let message = gen_u128_vec();
 
-        let blocks: Vec<u128> = random_blocks(block_count);
-        let sender = GhashSlave::new(rng, h_s, blocks.clone()).unwrap();
-        let receiver = GhashMaster::new(h_r, blocks.clone()).unwrap();
-        (h, sender, receiver, blocks)
+        let (sender, receiver) = setup_ghash_to_intermediate_state(h, message.len());
+        let (sender, receiver) = ghash_to_finalized(sender, receiver);
+
+        assert_eq!(
+            sender.ghash_output(&message).unwrap() ^ receiver.ghash_output(&message).unwrap(),
+            ghash_reference_impl(h, message)
+        );
     }
 
-    fn random_blocks(block_count: usize) -> Vec<u128> {
-        let mut rng = thread_rng();
-        let mut blocks: Vec<u128> = Vec::new();
-        for _i in 0..block_count {
-            blocks.push(rng.gen());
+    #[test]
+    fn test_ghash_change_message_short() {
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
+
+        // The Ghash key
+        let h: u128 = rng.gen();
+        let message = gen_u128_vec();
+
+        let (sender, receiver) = setup_ghash_to_intermediate_state(h, message.len());
+        let (sender, receiver) = ghash_to_finalized(sender, receiver);
+
+        let mut message_short: Vec<u128> = vec![0; message.len() / 2];
+        message_short.iter_mut().for_each(|x| *x = rng.gen());
+
+        let (sender, receiver) = (
+            sender.change_max_hashkey(message_short.len()),
+            receiver.change_max_hashkey(message_short.len()),
+        );
+
+        let (sender, receiver) = ghash_to_finalized(sender, receiver);
+
+        assert_eq!(
+            sender.ghash_output(&message_short).unwrap()
+                ^ receiver.ghash_output(&message_short).unwrap(),
+            ghash_reference_impl(h, message_short)
+        );
+    }
+
+    #[test]
+    fn test_ghash_change_message_long() {
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
+
+        // The Ghash key
+        let h: u128 = rng.gen();
+        let message = gen_u128_vec();
+
+        let (sender, receiver) = setup_ghash_to_intermediate_state(h, message.len());
+        let (sender, receiver) = ghash_to_finalized(sender, receiver);
+
+        let mut message_long: Vec<u128> = vec![0; 2 * message.len()];
+        message_long.iter_mut().for_each(|x| *x = rng.gen());
+
+        let (sender, receiver) = (
+            sender.change_max_hashkey(message_long.len()),
+            receiver.change_max_hashkey(message_long.len()),
+        );
+
+        let (sender, receiver) = ghash_to_finalized(sender, receiver);
+
+        assert_eq!(
+            sender.ghash_output(&message_long).unwrap()
+                ^ receiver.ghash_output(&message_long).unwrap(),
+            ghash_reference_impl(h, message_long)
+        );
+    }
+
+    #[test]
+    fn test_compute_missing_mul_shares() {
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
+        let h: u128 = rng.gen();
+        let mut powers: Vec<u128> = vec![h];
+        compute_product_repeated(&mut powers, mul(h, h), rng.gen_range(16..128));
+
+        let powers_len = powers.len();
+        let needed = rng.gen_range(1..256);
+
+        compute_missing_mul_shares(&mut powers, needed);
+
+        // Check length
+        if needed / 2 + (needed & 1) <= powers_len {
+            assert_eq!(powers.len(), powers_len);
+        } else {
+            assert_eq!(powers.len(), needed / 2 + (needed & 1))
         }
-        blocks
+
+        // Check shares
+        let first = *powers.first().unwrap();
+        let factor = mul(first, first);
+
+        let mut expected = first;
+        for share in powers.iter() {
+            assert_eq!(*share, expected);
+            expected = mul(expected, factor);
+        }
     }
 
-    // compute GHASH using RustCrypto's ghash
-    fn rust_crypto_ghash(h: u128, blocks: &Vec<u128>) -> u128 {
+    #[test]
+    fn test_compute_new_add_shares() {
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
+
+        let new_add_odd_shares: Vec<u128> = gen_u128_vec();
+        let mut add_shares: Vec<u128> = gen_u128_vec();
+
+        // We have the invariant that len of add_shares is always even
+        if add_shares.len() & 1 == 1 {
+            add_shares.push(rng.gen());
+        }
+
+        let original_len = add_shares.len();
+
+        compute_new_add_shares(&new_add_odd_shares, &mut add_shares);
+
+        // Check new length
+        assert_eq!(
+            add_shares.len(),
+            original_len + 2 * new_add_odd_shares.len()
+        );
+
+        // Check odd shares
+        for (k, l) in (original_len..add_shares.len())
+            .step_by(2)
+            .zip(0..original_len)
+        {
+            assert_eq!(add_shares[k], new_add_odd_shares[l]);
+        }
+
+        // Check even shares
+        for k in (original_len + 1..add_shares.len()).step_by(2) {
+            assert_eq!(add_shares[k], mul(add_shares[k / 2], add_shares[k / 2]));
+        }
+    }
+
+    fn gen_u128_vec() -> Vec<u128> {
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
+
+        // Sample some message
+        let message_len: usize = rng.gen_range(16..128);
+        let mut message: Vec<u128> = vec![0_u128; message_len];
+        message.iter_mut().for_each(|x| *x = rng.gen());
+        message
+    }
+
+    fn ghash_reference_impl(h: u128, message: Vec<u128>) -> u128 {
         let mut ghash = GHash::new(&h.to_be_bytes().into());
-        for block in blocks.iter() {
-            ghash.update(&block.to_be_bytes().into());
+        for el in message {
+            ghash.update(&el.to_be_bytes().into());
         }
-        let b = ghash.finalize().into_bytes();
-        u128::from_be_bytes(b.as_slice().try_into().unwrap())
+        let ghash_output = ghash.finalize();
+        u128::from_be_bytes(ghash_output.into_bytes().try_into().unwrap())
     }
 
-    // prepare the expected powers of h by recursively multiplying h to
-    // itself
-    fn compute_expected_powers(h: u128, max: u16) -> Vec<u128> {
-        // prepare the expected powers of h by recursively multiplying h to
-        // itself
-        let mut powers: Vec<u128> = vec![0u128; (max + 1) as usize];
-        powers[1] = h;
-        let mut prev_power = h;
-        for i in 2..((max + 1) as usize) {
-            powers[i] = block_mult(prev_power, h);
-            prev_power = powers[i];
-        }
-        powers
+    fn setup_ghash_to_intermediate_state(
+        hashkey: u128,
+        max_hashkey_power: usize,
+    ) -> (GhashCore<Intermediate>, GhashCore<Intermediate>) {
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
+
+        // The additive sharings of the Ghash key to begin with
+        let h1_additive: u128 = rng.gen();
+        let h2_additive: u128 = hashkey ^ h1_additive;
+
+        // Create a multiplicative sharing
+        let h1_multiplicative: u128 = rng.gen();
+        let h2_multiplicative: u128 = mul(hashkey, inverse(h1_multiplicative));
+
+        let sender = GhashCore::new(h1_additive, max_hashkey_power).unwrap();
+        let receiver = GhashCore::new(h2_additive, max_hashkey_power).unwrap();
+
+        let (sender, receiver) = (
+            sender.compute_odd_mul_powers(h1_multiplicative),
+            receiver.compute_odd_mul_powers(h2_multiplicative),
+        );
+
+        (sender, receiver)
     }
 
-    // run_round runs the next round
-    fn run_round(
-        sender: &mut GhashSlave<ThreadRng>,
-        receiver: &mut GhashMaster,
-    ) -> Result<(), GhashError> {
-        let receiver_bits = receiver.next_request()?;
-        let masked_xtable_full = sender.process_request()?;
-        let masked_xtable = simulate_ot(&receiver_bits, &masked_xtable_full);
-        receiver.process_response(&masked_xtable)?;
-        Ok(())
+    fn ghash_to_finalized(
+        sender: GhashCore<Intermediate>,
+        receiver: GhashCore<Intermediate>,
+    ) -> (GhashCore<Finalized>, GhashCore<Finalized>) {
+        let (add_shares_sender, add_shares_receiver) =
+            m2a(&sender.odd_mul_shares(), &receiver.odd_mul_shares());
+        let (sender, receiver) = (
+            sender.add_new_add_shares(&add_shares_sender),
+            receiver.add_new_add_shares(&add_shares_receiver),
+        );
+        (sender, receiver)
     }
 
-    // normally Master will send his bits via OT to get only 1 out of 2 values
-    // for each row of masked xtable. Here we simulate this OT behaviour.
-    fn simulate_ot(receiver_bits: &Vec<bool>, mxtables_full: &Vec<[u128; 2]>) -> Vec<u128> {
-        assert!(receiver_bits.len() == mxtables_full.len());
-        let mut mxtables: Vec<u128> = Vec::new();
-        for i in 0..mxtables_full.len() {
-            let choice = receiver_bits[i] as usize;
-            mxtables.push(mxtables_full[i][choice]);
+    fn m2a(first: &[u128], second: &[u128]) -> (Vec<u128>, Vec<u128>) {
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
+        let mut first_out = vec![];
+        let mut second_out = vec![];
+        for (j, k) in first.iter().zip(second.iter()) {
+            let product = mul(*j, *k);
+            let first_summand: u128 = rng.gen();
+            let second_summand: u128 = product ^ first_summand;
+            first_out.push(first_summand);
+            second_out.push(second_summand);
         }
-        mxtables
+        (first_out, second_out)
     }
 }
