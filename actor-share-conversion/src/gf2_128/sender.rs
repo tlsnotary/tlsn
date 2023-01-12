@@ -1,4 +1,4 @@
-use super::{A2MMessage, M2AMessage, SendTapeMessage};
+use super::{A2MMessage, M2AMessage, SendTapeMessage, Setup};
 use mpc_aio::protocol::ot::{OTFactoryError, ObliviousSend};
 use mpc_core::{ot::config::OTSenderConfig, Block};
 use share_conversion_aio::{
@@ -65,33 +65,6 @@ where
     }
 }
 
-impl<T, OT, U, V, W> Sender<T, OT, U, V, W>
-where
-    T: AsyncFactory<OT, Config = OTSenderConfig, Error = OTFactoryError> + Send,
-    OT: ObliviousSend<[Block; 2]> + Send,
-    U: Gf2_128ShareConvert + Send,
-    V: MuxChannelControl<Gf2ConversionMessage>,
-    W: Recorder<U>,
-{
-    pub async fn setup(&mut self) -> Result<(), ShareConversionError> {
-        // We need to own the state, so we use this only as a temporary modification
-        let state = std::mem::replace(&mut self.state, State::Error);
-
-        let State::Initialized {id, barrier, mut muxer, sender_factory} = state else {
-            return Err(ShareConversionError::Other(String::from("Actor has to be in the Initialized state")));
-        };
-
-        let channel = muxer
-            .get_channel(id.clone())
-            .await
-            .map_err(|err| ShareConversionError::Other(err.to_string()))?;
-        let sender = IOSender::new(sender_factory, id, channel, barrier);
-        self.state = State::Setup(sender);
-
-        Ok(())
-    }
-}
-
 /// The controller to talk to the local conversion sender actor. This is the only way to talk
 /// to the actor.
 pub struct SenderControl<T>(Address<T>);
@@ -105,6 +78,18 @@ impl<T> SenderControl<T> {
 impl<T> Clone for SenderControl<T> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
+    }
+}
+
+impl<T> SenderControl<T>
+where
+    T: Handler<Setup, Return = Result<(), ShareConversionError>>,
+{
+    pub async fn setup(&mut self) -> Result<(), ShareConversionError> {
+        self.0
+            .send(Setup)
+            .await
+            .map_err(|err| ShareConversionError::Other(err.to_string()))?
     }
 }
 
@@ -157,6 +142,37 @@ where
             .send(SendTapeMessage)
             .await
             .map_err(|err| ShareConversionError::Other(err.to_string()))?
+    }
+}
+
+#[async_trait]
+impl<T, OT, U, V, W> Handler<Setup> for Sender<T, OT, U, V, W>
+where
+    T: AsyncFactory<OT, Config = OTSenderConfig, Error = OTFactoryError> + Send + 'static,
+    OT: ObliviousSend<[Block; 2]> + Send + 'static,
+    U: Gf2_128ShareConvert + Send + 'static,
+    V: MuxChannelControl<Gf2ConversionMessage> + Send + 'static,
+    W: Recorder<U> + Send + 'static,
+{
+    type Return = Result<(), ShareConversionError>;
+
+    async fn handle(&mut self, _message: Setup, ctx: &mut Context<Self>) -> Self::Return {
+        // We need to own the state, so we use this only as a temporary modification
+        let state = std::mem::replace(&mut self.state, State::Error);
+
+        let State::Initialized {id, barrier, mut muxer, sender_factory} = state else {
+            ctx.stop_self();
+            return Err(ShareConversionError::Other(String::from("Actor has to be in the Initialized state")));
+        };
+
+        let channel = muxer
+            .get_channel(id.clone())
+            .await
+            .map_err(|err| ShareConversionError::Other(err.to_string()))?;
+        let sender = IOSender::new(sender_factory, id, channel, barrier);
+        self.state = State::Setup(sender);
+
+        Ok(())
     }
 }
 

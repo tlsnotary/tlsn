@@ -1,4 +1,4 @@
-use super::{A2MMessage, M2AMessage, VerifyTapeMessage};
+use super::{A2MMessage, M2AMessage, Setup, VerifyTapeMessage};
 use mpc_aio::protocol::ot::{OTFactoryError, ObliviousReceive};
 use mpc_core::{ot::config::OTReceiverConfig, Block};
 use share_conversion_aio::{
@@ -63,33 +63,6 @@ where
     }
 }
 
-impl<T, OT, U, V, W> Receiver<T, OT, U, V, W>
-where
-    T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
-    OT: ObliviousReceive<bool, Block>,
-    U: Gf2_128ShareConvert,
-    V: MuxChannelControl<Gf2ConversionMessage>,
-    W: Recorder<U>,
-{
-    pub async fn setup(&mut self) -> Result<(), ShareConversionError> {
-        // We need to own the state, so we use this only as a temporary modification
-        let state = std::mem::replace(&mut self.state, State::Error);
-
-        let State::Initialized {id, mut muxer, receiver_factory} = state else {
-            return Err(ShareConversionError::Other(String::from("Actor has to be in the Initialized state")));
-        };
-
-        let channel = muxer
-            .get_channel(id.clone())
-            .await
-            .map_err(|err| ShareConversionError::Other(err.to_string()))?;
-        let receiver = IOReceiver::new(receiver_factory, id, channel);
-        self.state = State::Setup(receiver);
-
-        Ok(())
-    }
-}
-
 /// The controller to talk to the local conversion receiver actor. This is the only way to talk
 /// to the actor.
 pub struct ReceiverControl<T>(Address<T>);
@@ -103,6 +76,18 @@ impl<T> ReceiverControl<T> {
 impl<T> Clone for ReceiverControl<T> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
+    }
+}
+
+impl<T> ReceiverControl<T>
+where
+    T: Handler<Setup, Return = Result<(), ShareConversionError>>,
+{
+    pub async fn setup(&mut self) -> Result<(), ShareConversionError> {
+        self.0
+            .send(Setup)
+            .await
+            .map_err(|err| ShareConversionError::Other(err.to_string()))?
     }
 }
 
@@ -159,9 +144,40 @@ where
 }
 
 #[async_trait]
+impl<T, OT, U, V, W> Handler<Setup> for Receiver<T, OT, U, V, W>
+where
+    T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send + 'static,
+    OT: ObliviousReceive<bool, Block> + Send + 'static,
+    U: Gf2_128ShareConvert + Send + 'static,
+    V: MuxChannelControl<Gf2ConversionMessage> + Send + 'static,
+    W: Recorder<U> + Send + 'static,
+{
+    type Return = Result<(), ShareConversionError>;
+
+    async fn handle(&mut self, _message: Setup, ctx: &mut Context<Self>) -> Self::Return {
+        // We need to own the state, so we use this only as a temporary modification
+        let state = std::mem::replace(&mut self.state, State::Error);
+
+        let State::Initialized {id, mut muxer, receiver_factory} = state else {
+            ctx.stop_self();
+            return Err(ShareConversionError::Other(String::from("Actor has to be in the Initialized state")));
+        };
+
+        let channel = muxer
+            .get_channel(id.clone())
+            .await
+            .map_err(|err| ShareConversionError::Other(err.to_string()))?;
+        let receiver = IOReceiver::new(receiver_factory, id, channel);
+        self.state = State::Setup(receiver);
+
+        Ok(())
+    }
+}
+
+#[async_trait]
 impl<T, OT, U, V, W> Handler<M2AMessage<Vec<u128>>> for Receiver<T, OT, U, V, W>
 where
-    T: AsyncFactory<OT> + Send + 'static,
+    T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send + 'static,
     OT: ObliviousReceive<bool, Block> + Send + 'static,
     U: Gf2_128ShareConvert + Send + 'static,
     V: MuxChannelControl<Gf2ConversionMessage> + Send + 'static,
@@ -193,7 +209,7 @@ where
 #[async_trait]
 impl<T, OT, U, V, W> Handler<A2MMessage<Vec<u128>>> for Receiver<T, OT, U, V, W>
 where
-    T: AsyncFactory<OT> + Send + 'static,
+    T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send + 'static,
     OT: ObliviousReceive<bool, Block> + Send + 'static,
     U: Gf2_128ShareConvert + Send + 'static,
     V: MuxChannelControl<Gf2ConversionMessage> + Send + 'static,

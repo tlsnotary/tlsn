@@ -4,6 +4,7 @@ mod sender;
 pub use receiver::{Receiver as ActorShareConversionReceiver, ReceiverControl};
 pub use sender::{Sender as ActorShareConversionSender, SenderControl};
 
+pub struct Setup;
 pub struct SendTapeMessage;
 pub struct VerifyTapeMessage;
 pub struct M2AMessage<T>(T);
@@ -262,26 +263,26 @@ mod tests {
         let sender_mux = MockClientControl::new(sender_mux_addr);
 
         let ot_factory = Arc::new(Mutex::new(MockOTFactory::<Block>::default()));
-        let mut sender = ActorShareConversionSender::<_, _, T, _, Tape>::new(
+        let sender = ActorShareConversionSender::<_, _, T, _, Tape>::new(
             String::from(""),
             barrier,
             sender_mux,
             Arc::clone(&ot_factory),
         );
-        let mut receiver = ActorShareConversionReceiver::<_, _, T, _, Tape>::new(
+        let receiver = ActorShareConversionReceiver::<_, _, T, _, Tape>::new(
             String::from(""),
             receiver_mux,
             Arc::clone(&ot_factory),
         );
 
-        sender.setup().await.unwrap();
-        receiver.setup().await.unwrap();
-
         let sender_addr = xtra::spawn_tokio(sender, Mailbox::unbounded());
         let receiver_addr = xtra::spawn_tokio(receiver, Mailbox::unbounded());
 
-        let sender_control = SenderControl::new(sender_addr);
-        let receiver_control = ReceiverControl::new(receiver_addr);
+        let mut sender_control = SenderControl::new(sender_addr);
+        let mut receiver_control = ReceiverControl::new(receiver_addr);
+
+        sender_control.setup().await.unwrap();
+        receiver_control.setup().await.unwrap();
 
         (sender_control, receiver_control)
     }
