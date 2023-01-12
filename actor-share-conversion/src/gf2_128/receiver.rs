@@ -177,11 +177,12 @@ where
         message: M2AMessage<Vec<u128>>,
         _ctx: &mut Context<Self>,
     ) -> Self::Return {
-        match self.state {
-            State::Setup(ref mut state) => state.m_to_a(message.0).await,
-            _ => Err(ShareConversionError::Other(String::from(
+        if let State::Setup(ref mut state) = self.state {
+            state.m_to_a(message.0).await
+        } else {
+            return Err(ShareConversionError::Other(String::from(
                 "Actor is not in the Setup state",
-            ))),
+            )));
         }
     }
 }
@@ -204,11 +205,12 @@ where
         message: A2MMessage<Vec<u128>>,
         _ctx: &mut Context<Self>,
     ) -> Self::Return {
-        match self.state {
-            State::Setup(ref mut state) => state.a_to_m(message.0).await,
-            _ => Err(ShareConversionError::Other(String::from(
+        if let State::Setup(ref mut state) = self.state {
+            state.a_to_m(message.0).await
+        } else {
+            return Err(ShareConversionError::Other(String::from(
                 "Actor is not in the Setup state",
-            ))),
+            )));
         }
     }
 }
@@ -230,18 +232,16 @@ where
         _message: VerifyTapeMessage,
         ctx: &mut Context<Self>,
     ) -> Self::Return {
-        let state = std::mem::replace(&mut self.state, State::Complete);
-        match state {
-            State::Setup(setup_state) => {
-                ctx.stop_self();
-                setup_state.verify_tape().await
-            }
-            _ => {
-                self.state = state;
-                return Err(ShareConversionError::Other(String::from(
-                    "Actor is not in the Setup state",
-                )));
-            }
-        }
+        let state = std::mem::replace(&mut self.state, State::Error);
+
+        let State::Setup(state) = state else {
+            return Err(ShareConversionError::Other(String::from(
+                "Actor is not in the Setup state",
+            )));
+        };
+
+        ctx.stop_self();
+        self.state = State::Complete;
+        state.verify_tape().await
     }
 }
