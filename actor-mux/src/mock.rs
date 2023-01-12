@@ -156,6 +156,7 @@ where
     }
 }
 
+/// A controller via which the client can speak to its channel muxer
 #[derive(Clone)]
 pub struct MockClientControl(Address<MockClientChannelMuxer>);
 
@@ -165,6 +166,7 @@ impl MockClientControl {
     }
 }
 
+/// A controller via which the server can speak to its channel muxer
 #[derive(Clone)]
 pub struct MockServerControl(Address<MockServerChannelMuxer>);
 

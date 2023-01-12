@@ -32,7 +32,10 @@ where
     _protocol: PhantomData<U>,
     rng: ChaCha12Rng,
     channel: Gf2ConversionChannel,
+    /// If a non-[Void] recorder was passed in, it will be used to record the "tape", ( see [super::recorder::Tape])
     recorder: V,
+    /// A barrier at which this Sender must wait before revealing the tape to the receiver. Used when
+    /// multiple parallel share conversion protocols need to agree when to reveal their tapes.
     barrier: Option<AdaptiveBarrier>,
     /// keeps track of how many batched share conversions we've made so far
     counter: usize,
@@ -125,11 +128,11 @@ where
 
     async fn a_to_m(
         &mut self,
-        input: &[Self::FieldElement],
+        input: Vec<Self::FieldElement>,
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
         self.recorder.set_seed(self.rng.get_seed());
-        self.recorder.record_for_sender(input);
-        self.convert_from(input).await
+        self.recorder.record_for_sender(&input);
+        self.convert_from(&input).await
     }
 }
 
@@ -144,11 +147,11 @@ where
 
     async fn m_to_a(
         &mut self,
-        input: &[Self::FieldElement],
+        input: Vec<Self::FieldElement>,
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
         self.recorder.set_seed(self.rng.get_seed());
-        self.recorder.record_for_sender(input);
-        self.convert_from(input).await
+        self.recorder.record_for_sender(&input);
+        self.convert_from(&input).await
     }
 }
 

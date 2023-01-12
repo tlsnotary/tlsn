@@ -11,9 +11,10 @@ pub mod gf2_128;
 #[async_trait]
 pub trait AdditiveToMultiplicative {
     type FieldElement: Copy + std::fmt::Debug;
+
     async fn a_to_m(
         &mut self,
-        input: &[Self::FieldElement],
+        input: Vec<Self::FieldElement>,
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError>;
 }
 
@@ -21,9 +22,10 @@ pub trait AdditiveToMultiplicative {
 #[async_trait]
 pub trait MultiplicativeToAdditive {
     type FieldElement: Copy + std::fmt::Debug;
+
     async fn m_to_a(
         &mut self,
-        input: &[Self::FieldElement],
+        input: Vec<Self::FieldElement>,
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError>;
 }
 
@@ -42,4 +44,6 @@ pub enum ShareConversionError {
     SeedConversion,
     #[error("Tape verification failed")]
     VerifyTapeFailed,
+    #[error("Error: {0}")]
+    Other(String),
 }

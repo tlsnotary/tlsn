@@ -30,6 +30,7 @@ where
     id: String,
     _protocol: PhantomData<U>,
     channel: Gf2ConversionChannel,
+    /// If a non-Void recorder was passed in, it will be used to record the "tape", ( see [Recorder::Tape])
     recorder: V,
     /// keeps track of how many batched share conversions we've made so far
     counter: usize,
@@ -108,10 +109,10 @@ where
 
     async fn a_to_m(
         &mut self,
-        input: &[Self::FieldElement],
+        input: Vec<Self::FieldElement>,
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
-        let output = self.convert_from(input).await?;
-        self.recorder.record_for_receiver(input, &output);
+        let output = self.convert_from(&input).await?;
+        self.recorder.record_for_receiver(&input, &output);
         Ok(output)
     }
 }
@@ -127,10 +128,10 @@ where
 
     async fn m_to_a(
         &mut self,
-        input: &[Self::FieldElement],
+        input: Vec<Self::FieldElement>,
     ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
-        let output = self.convert_from(input).await?;
-        self.recorder.record_for_receiver(input, &output);
+        let output = self.convert_from(&input).await?;
+        self.recorder.record_for_receiver(&input, &output);
         Ok(output)
     }
 }

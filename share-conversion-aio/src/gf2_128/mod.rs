@@ -1,7 +1,6 @@
 //! This module implements the IO layer of share-conversion for field elements of
 //! GF(2^128), using oblivious transfer.
 
-use crate::ShareConversionError;
 use async_trait::async_trait;
 use share_conversion_core::gf2_128::{AddShare, Gf2_128ShareConvert, MulShare, OTEnvelope};
 use utils_aio::Channel;
@@ -14,6 +13,8 @@ mod sender;
 pub use msgs::Gf2ConversionMessage;
 pub use receiver::Receiver;
 pub use sender::Sender;
+
+use crate::ShareConversionError;
 
 /// Send a tape used for verification of the conversion
 ///
@@ -41,7 +42,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use super::*;
-    use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive};
+    use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive, ShareConversionError};
     use mpc_aio::protocol::ot::mock::{MockOTFactory, MockOTReceiver, MockOTSender};
     use mpc_core::Block;
     use rand::{Rng, SeedableRng};
@@ -70,9 +71,9 @@ mod tests {
 
         // Spawn tokio tasks and wait for them to finish
         let sender_task =
-            tokio::spawn(async move { sender.a_to_m(&random_numbers_1).await.unwrap() });
+            tokio::spawn(async move { sender.a_to_m(random_numbers_1).await.unwrap() });
         let receiver_task =
-            tokio::spawn(async move { receiver.a_to_m(&random_numbers_2).await.unwrap() });
+            tokio::spawn(async move { receiver.a_to_m(random_numbers_2).await.unwrap() });
 
         let (sender_output, receiver_output) = tokio::join!(sender_task, receiver_task);
         let (sender_output, receiver_output) = (sender_output.unwrap(), receiver_output.unwrap());
@@ -98,9 +99,9 @@ mod tests {
 
         // Spawn tokio tasks and wait for them to finish
         let sender_task =
-            tokio::spawn(async move { sender.m_to_a(&random_numbers_1).await.unwrap() });
+            tokio::spawn(async move { sender.m_to_a(random_numbers_1).await.unwrap() });
         let receiver_task =
-            tokio::spawn(async move { receiver.m_to_a(&random_numbers_2).await.unwrap() });
+            tokio::spawn(async move { receiver.m_to_a(random_numbers_2).await.unwrap() });
 
         let (sender_output, receiver_output) = tokio::join!(sender_task, receiver_task);
         let (sender_output, receiver_output) = (sender_output.unwrap(), receiver_output.unwrap());
@@ -122,11 +123,11 @@ mod tests {
 
         // Spawn tokio tasks and wait for them to finish
         let sender_task = tokio::spawn(async move {
-            let _ = sender.a_to_m(&random_numbers_1).await.unwrap();
+            let _ = sender.a_to_m(random_numbers_1).await.unwrap();
             sender.send_tape().await.unwrap()
         });
         let receiver_task = tokio::spawn(async move {
-            receiver.a_to_m(&random_numbers_2).await.unwrap();
+            receiver.a_to_m(random_numbers_2).await.unwrap();
             receiver.verify_tape().await.unwrap()
         });
 
@@ -148,11 +149,11 @@ mod tests {
 
         // Spawn tokio tasks and wait for them to finish
         let sender_task = tokio::spawn(async move {
-            let _ = sender.m_to_a(&random_numbers_1).await.unwrap();
+            let _ = sender.m_to_a(random_numbers_1).await.unwrap();
             sender.send_tape().await.unwrap()
         });
         let receiver_task = tokio::spawn(async move {
-            receiver.m_to_a(&random_numbers_2).await.unwrap();
+            receiver.m_to_a(random_numbers_2).await.unwrap();
             receiver.verify_tape().await.unwrap()
         });
 
@@ -174,14 +175,14 @@ mod tests {
 
         // Spawn tokio tasks and wait for them to finish
         let sender_task = tokio::spawn(async move {
-            let _ = sender.a_to_m(&random_numbers_1).await.unwrap();
+            let _ = sender.a_to_m(random_numbers_1).await.unwrap();
 
             // Malicious sender now changes his input in the tape before sending it
             *sender.tape_mut().sender_inputs.last_mut().unwrap() += 1;
             sender.send_tape().await.unwrap()
         });
         let receiver_task = tokio::spawn(async move {
-            receiver.a_to_m(&random_numbers_2).await.unwrap();
+            receiver.a_to_m(random_numbers_2).await.unwrap();
             receiver.verify_tape().await.unwrap_err()
         });
 
@@ -206,14 +207,14 @@ mod tests {
 
         // Spawn tokio tasks and wait for them to finish
         let sender_task = tokio::spawn(async move {
-            let _ = sender.m_to_a(&random_numbers_1).await.unwrap();
+            let _ = sender.m_to_a(random_numbers_1).await.unwrap();
 
             // Malicious sender now changes his input in the tape before sending it
             *sender.tape_mut().sender_inputs.last_mut().unwrap() += 1;
             sender.send_tape().await.unwrap()
         });
         let receiver_task = tokio::spawn(async move {
-            receiver.m_to_a(&random_numbers_2).await.unwrap();
+            receiver.m_to_a(random_numbers_2).await.unwrap();
             receiver.verify_tape().await.unwrap_err()
         });
 
