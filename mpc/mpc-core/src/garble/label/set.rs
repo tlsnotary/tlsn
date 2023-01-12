@@ -41,6 +41,12 @@ where
         self.labels
     }
 
+    /// Returns a reference to the labels at that index or `None` if it is not part
+    /// of the set.
+    pub fn get(&self, index: usize) -> Option<&Labels<G, S>> {
+        self.labels.get(index)
+    }
+
     fn generic_checks(labels: &[Labels<G, S>]) -> Result<(), LabelError> {
         // Set must have at least 1 element
         if labels.len() == 0 {
