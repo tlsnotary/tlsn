@@ -67,7 +67,7 @@ pub fn garble<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     let delta = input_labels.delta();
 
     // Insert input labels
-    input_labels.get_labels().iter().for_each(|input_labels| {
+    input_labels.iter().for_each(|input_labels| {
         input_labels
             .iter()
             .for_each(|label| labels[label.id()] = Some(label))

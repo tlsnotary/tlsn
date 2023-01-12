@@ -47,6 +47,11 @@ where
         self.labels.get(index)
     }
 
+    /// Returns an iterator of the labels in the set
+    pub fn iter(&self) -> impl Iterator<Item = &Labels<G, S>> {
+        self.labels.iter()
+    }
+
     fn generic_checks(labels: &[Labels<G, S>]) -> Result<(), LabelError> {
         // Set must have at least 1 element
         if labels.len() == 0 {
