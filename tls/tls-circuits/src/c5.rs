@@ -33,7 +33,7 @@ use mpc_circuits::{
 ///   2. MASKED_ECTR: 16-byte masked (U_ECTR_MASK) encrypted counter
 ///   3. MASKED_VD: 12-byte masked (U_VD_MASK) server verify data
 pub fn c5() -> Arc<Circuit> {
-    let mut builder = CircuitBuilder::new("c5", "0.1.0");
+    let mut builder = CircuitBuilder::new("c5", "", "0.1.0");
 
     let p1_outer_state = builder.add_input(
         "P1_OUTER_STATE",

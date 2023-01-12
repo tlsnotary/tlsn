@@ -28,7 +28,7 @@ impl OutputLabelsCommitment {
         let mut flip = vec![false; labels.len()];
         thread_rng().fill::<[bool]>(&mut flip);
 
-        let output_id = labels.id();
+        let output_id = labels.index();
         let commitments = labels
             .inner()
             .iter()
@@ -72,27 +72,23 @@ impl OutputLabelsCommitment {
         labels: &Labels<Output, state::Active>,
     ) -> Result<(), LabelError> {
         if self.commitments.len() != labels.len() {
-            return Err(LabelError::InvalidLabelCommitment(
-                self.output.name().to_string(),
-            ));
+            return Err(LabelError::InvalidLabelCommitment(self.output.id().clone()));
         }
-        let output_id = labels.id();
+        let output_idx = labels.index();
         let valid = self
             .commitments
             .iter()
             .zip(labels.iter_blocks())
             .enumerate()
             .all(|(i, (pair, label))| {
-                let h = Self::compute_hash(label, output_id, i);
+                let h = Self::compute_hash(label, output_idx, i);
                 h == pair[0] || h == pair[1]
             });
 
         if valid {
             Ok(())
         } else {
-            Err(LabelError::InvalidLabelCommitment(
-                self.output.name().to_string(),
-            ))
+            Err(LabelError::InvalidLabelCommitment(self.output.id().clone()))
         }
     }
 }
@@ -129,7 +125,7 @@ pub(crate) mod unchecked {
     impl From<Labels<Output, state::Active>> for UncheckedOutputLabels {
         fn from(labels: Labels<Output, state::Active>) -> Self {
             Self {
-                id: labels.id(),
+                id: labels.index(),
                 labels: labels.iter_blocks().collect(),
             }
         }
@@ -141,15 +137,15 @@ pub(crate) mod unchecked {
             output: Output,
             unchecked: UncheckedOutputLabels,
         ) -> Result<Self, LabelError> {
-            if unchecked.id != output.id() {
+            if unchecked.id != output.index() {
                 return Err(LabelError::InvalidLabelId(
-                    output.name().to_string(),
-                    output.id(),
+                    output.id().clone(),
+                    output.index(),
                     unchecked.id,
                 ));
             } else if unchecked.labels.len() != output.len() {
                 return Err(LabelError::InvalidLabelCount(
-                    output.name().to_string(),
+                    output.id().clone(),
                     output.len(),
                     unchecked.labels.len(),
                 ));
@@ -177,7 +173,7 @@ pub(crate) mod unchecked {
     impl From<OutputLabelsCommitment> for UncheckedOutputLabelsCommitment {
         fn from(commitment: OutputLabelsCommitment) -> Self {
             Self {
-                id: commitment.output.id(),
+                id: commitment.output.index(),
                 commitments: commitment.commitments.into_iter().flatten().collect(),
             }
         }
@@ -188,7 +184,7 @@ pub(crate) mod unchecked {
             output: Output,
             unchecked: UncheckedOutputLabelsCommitment,
         ) -> Result<Self, Error> {
-            if unchecked.id != output.id() || unchecked.commitments.len() != 2 * output.len() {
+            if unchecked.id != output.index() || unchecked.commitments.len() != 2 * output.len() {
                 return Err(Error::ValidationError(
                     "Invalid output labels commitment".to_string(),
                 ));
@@ -229,7 +225,7 @@ pub(crate) mod unchecked {
         #[fixture]
         fn unchecked_output_labels(output: Output) -> UncheckedOutputLabels {
             UncheckedOutputLabels {
-                id: output.id(),
+                id: output.index(),
                 labels: vec![Block::new(0); output.len()],
             }
         }
@@ -237,7 +233,7 @@ pub(crate) mod unchecked {
         #[fixture]
         fn unchecked_output_labels_commitment(output: Output) -> UncheckedOutputLabelsCommitment {
             UncheckedOutputLabelsCommitment {
-                id: output.id(),
+                id: output.index(),
                 commitments: vec![Block::new(0); 2 * output.len()],
             }
         }

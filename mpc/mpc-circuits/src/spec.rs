@@ -10,8 +10,7 @@ use crate::{
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GroupSpec {
-    id: usize,
-    name: String,
+    id: String,
     desc: String,
     value_type: String,
     wire_count: usize,
@@ -20,8 +19,7 @@ pub struct GroupSpec {
 impl From<&Group> for GroupSpec {
     fn from(group: &Group) -> Self {
         Self {
-            id: group.id(),
-            name: group.name().to_string(),
+            id: group.id().as_ref().clone(),
             desc: group.description().to_string(),
             value_type: match group.value_type() {
                 ValueType::ConstZero => "zero",
@@ -42,7 +40,7 @@ impl From<&Group> for GroupSpec {
 }
 
 impl GroupSpec {
-    fn to_group(self, id_offset: usize) -> Result<UncheckedGroup, Error> {
+    fn to_group(self, index: usize, wire_id_offset: usize) -> Result<UncheckedGroup, Error> {
         let value_type = match self.value_type.to_lowercase().as_str() {
             "const_0" => ValueType::ConstZero,
             "const_1" => ValueType::ConstOne,
@@ -58,11 +56,11 @@ impl GroupSpec {
         };
 
         Ok(UncheckedGroup::new(
+            index,
             self.id,
-            self.name,
             self.desc,
             value_type,
-            (id_offset..id_offset + self.wire_count).collect::<Vec<usize>>(),
+            (wire_id_offset..wire_id_offset + self.wire_count).collect::<Vec<usize>>(),
         ))
     }
 }
@@ -163,7 +161,8 @@ impl GateSpec {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CircuitSpec {
-    name: String,
+    id: String,
+    description: String,
     version: String,
     wires: usize,
     inputs: Vec<GroupSpec>,
@@ -174,7 +173,8 @@ pub struct CircuitSpec {
 impl From<&Circuit> for CircuitSpec {
     fn from(c: &Circuit) -> Self {
         Self {
-            name: c.name.clone(),
+            id: c.id.as_ref().clone(),
+            description: c.description.clone(),
             version: c.version.clone(),
             wires: c.wire_count,
             inputs: c
@@ -204,8 +204,9 @@ impl CircuitSpec {
         let inputs = self
             .inputs
             .into_iter()
-            .map(|group| {
-                let input = group.to_group(input_id_offset)?;
+            .enumerate()
+            .map(|(index, group)| {
+                let input = group.to_group(index, input_id_offset)?;
                 input_id_offset += input.len();
                 Ok(input)
             })
@@ -220,8 +221,9 @@ impl CircuitSpec {
         let outputs = self
             .outputs
             .into_iter()
-            .map(|group| {
-                let output = group.to_group(output_id_offset)?;
+            .enumerate()
+            .map(|(index, group)| {
+                let output = group.to_group(index, output_id_offset)?;
                 output_id_offset += output.len();
                 Ok(output)
             })
@@ -235,7 +237,8 @@ impl CircuitSpec {
             .collect::<Result<Vec<Gate>, Error>>()?;
 
         Ok(Circuit::new(
-            &self.name,
+            &self.id,
+            &self.description,
             &self.version,
             inputs,
             outputs,

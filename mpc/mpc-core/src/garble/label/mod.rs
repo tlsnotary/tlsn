@@ -6,7 +6,7 @@ pub(crate) mod input;
 pub(crate) mod output;
 mod state;
 
-use mpc_circuits::{Circuit, GroupValue, Input, Output, Value, WireGroup};
+use mpc_circuits::{Circuit, GroupId, GroupValue, Input, Output, Value, WireGroup};
 use rand::{CryptoRng, Rng};
 use std::{
     ops::{BitXor, Deref},
@@ -93,7 +93,7 @@ where
     ) -> Result<Self, LabelError> {
         if group.len() != labels.len() {
             return Err(LabelError::InvalidLabelCount(
-                group.name().to_string(),
+                group.id().clone(),
                 group.len(),
                 labels.len(),
             ));
@@ -165,9 +165,7 @@ where
     pub fn validate(&self, labels: &Labels<G, state::Active>) -> Result<(), LabelError> {
         for (pair, label) in self.state.iter().zip(labels.iter()) {
             if !(label.value == pair.low() || label.value == pair.high()) {
-                return Err(LabelError::InauthenticLabels(
-                    labels.group.name().to_string(),
-                ));
+                return Err(LabelError::InauthenticLabels(labels.group.id().clone()));
             }
         }
         Ok(())
@@ -228,7 +226,7 @@ where
     pub fn from_blocks(group: G, blocks: Vec<Block>) -> Result<Self, LabelError> {
         if group.len() != blocks.len() {
             return Err(LabelError::InvalidLabelCount(
-                group.name().to_string(),
+                group.id().clone(),
                 group.len(),
                 blocks.len(),
             ));
@@ -259,10 +257,10 @@ where
 
     /// Decode active labels to values using label decoding information.
     pub fn decode(&self, decoding: LabelsDecodingInfo<G>) -> Result<GroupValue<G>, LabelError> {
-        if self.group.id() != decoding.group.id() {
+        if self.group.index() != decoding.group.index() {
             return Err(LabelError::InvalidDecodingId(
-                self.group.id(),
-                decoding.group.id(),
+                self.group.index(),
+                decoding.group.index(),
             ));
         }
 
@@ -299,12 +297,12 @@ where
         self.group.circuit()
     }
 
-    fn id(&self) -> usize {
-        self.group.id()
+    fn index(&self) -> usize {
+        self.group.index()
     }
 
-    fn name(&self) -> &str {
-        self.group.name()
+    fn id(&self) -> &GroupId {
+        self.group.id()
     }
 
     fn description(&self) -> &str {
@@ -509,7 +507,7 @@ where
 {
     /// Returns label id
     pub fn id(&self) -> usize {
-        self.group.id()
+        self.group.index()
     }
 }
 
@@ -589,7 +587,7 @@ pub(crate) mod unchecked {
     {
         fn from(decoding: LabelsDecodingInfo<G>) -> Self {
             Self {
-                id: decoding.group.id(),
+                id: decoding.group.index(),
                 decoding: decoding.decoding,
             }
         }
@@ -604,8 +602,8 @@ pub(crate) mod unchecked {
             group: G,
             unchecked: UncheckedLabelsDecodingInfo,
         ) -> Result<Self, LabelError> {
-            if group.id() != unchecked.id {
-                return Err(LabelError::InvalidDecodingId(group.id(), unchecked.id));
+            if group.index() != unchecked.id {
+                return Err(LabelError::InvalidDecodingId(group.index(), unchecked.id));
             } else if group.len() != unchecked.decoding.len() {
                 return Err(LabelError::InvalidDecodingCount(
                     group.len(),
@@ -640,7 +638,7 @@ pub(crate) mod unchecked {
         #[fixture]
         fn unchecked_labels_decoding_info(output: Output) -> UncheckedLabelsDecodingInfo {
             UncheckedLabelsDecodingInfo {
-                id: output.id(),
+                id: output.index(),
                 decoding: vec![false; output.len()],
             }
         }

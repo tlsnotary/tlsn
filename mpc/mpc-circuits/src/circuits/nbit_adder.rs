@@ -5,7 +5,7 @@ use crate::{builder::CircuitBuilder, circuit::GateType, Circuit, ValueType};
 use super::half_adder;
 
 fn ripple() -> Arc<Circuit> {
-    let mut builder = CircuitBuilder::new("", "");
+    let mut builder = CircuitBuilder::new("Ripple", "Ripple adder", "");
     let a = builder.add_input("A", "", ValueType::Bool, 1);
     let b = builder.add_input("B", "", ValueType::Bool, 1);
     let c_in = builder.add_input("C_IN", "Carry-in bit", ValueType::Bool, 1);
@@ -55,7 +55,11 @@ fn ripple() -> Arc<Circuit> {
 
 /// Builds an N-bit binary adder
 pub fn nbit_adder(n: usize) -> Arc<Circuit> {
-    let mut builder = CircuitBuilder::new(&format!("{}-bit adder", n), "0.1.0");
+    let mut builder = CircuitBuilder::new(
+        &format!("{n}BitAdder"),
+        &format!("{n}-bit Binary Adder without Carry-out"),
+        "0.1.0",
+    );
 
     let a = builder.add_input("A", &format!("{}-bit number", n), ValueType::Bits, n);
     let b = builder.add_input("B", &format!("{}-bit number", n), ValueType::Bits, n);

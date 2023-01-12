@@ -26,7 +26,7 @@ use mpc_circuits::{
 ///   0. MASKED_I: 32-byte masked HMAC inner hash state
 ///   1. MASKED_O: 32-byte masked HMAC outer hash state
 pub fn c2() -> Arc<Circuit> {
-    let mut builder = CircuitBuilder::new("c2", "0.1.0");
+    let mut builder = CircuitBuilder::new("c2", "", "0.1.0");
 
     let pms_o = builder.add_input("PMS_O_STATE", "32-byte hash state", ValueType::Bytes, 256);
     let p1_inner = builder.add_input("P1_INNER", "32-byte hash state", ValueType::Bytes, 256);

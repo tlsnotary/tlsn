@@ -258,7 +258,8 @@ impl From<&Gate> for GateHandle {
 pub trait BuilderState {}
 
 pub struct Inputs {
-    name: String,
+    id: String,
+    description: String,
     version: String,
     input_wire_id: usize,
     inputs: Vec<InputHandle>,
@@ -266,7 +267,8 @@ pub struct Inputs {
 impl BuilderState for Inputs {}
 
 pub struct Gates {
-    name: String,
+    id: String,
+    description: String,
     version: String,
     inputs: Vec<InputHandle>,
     gate_wire_id: usize,
@@ -275,7 +277,8 @@ pub struct Gates {
 }
 impl BuilderState for Gates {}
 pub struct Outputs {
-    name: String,
+    id: String,
+    description: String,
     version: String,
     inputs: Vec<InputHandle>,
     gates: Vec<GateHandle>,
@@ -298,9 +301,10 @@ pub struct CircuitBuilder<S: BuilderState>(S);
 
 impl CircuitBuilder<Inputs> {
     /// Creates new builder
-    pub fn new(name: &str, version: &str) -> Self {
+    pub fn new(id: &str, description: &str, version: &str) -> Self {
         Self(Inputs {
-            name: name.to_string(),
+            id: id.to_string(),
+            description: description.to_string(),
             version: version.to_string(),
             input_wire_id: 0,
             inputs: vec![],
@@ -310,7 +314,7 @@ impl CircuitBuilder<Inputs> {
     /// Add inputs to circuit
     pub fn add_input(
         &mut self,
-        name: &str,
+        id: &str,
         desc: &str,
         value_type: ValueType,
         wire_count: usize,
@@ -321,7 +325,7 @@ impl CircuitBuilder<Inputs> {
         let input = InputHandle {
             input: UncheckedGroup::new(
                 self.0.inputs.len(),
-                name.to_string(),
+                id.to_string(),
                 desc.to_string(),
                 value_type,
                 wires,
@@ -335,7 +339,8 @@ impl CircuitBuilder<Inputs> {
     /// Sets inputs and moves to next state where gates and subcircuits are added
     pub fn build_inputs(self) -> CircuitBuilder<Gates> {
         CircuitBuilder(Gates {
-            name: self.0.name,
+            id: self.0.id,
+            description: self.0.description,
             version: self.0.version,
             inputs: self.0.inputs,
             gate_wire_id: self.0.input_wire_id,
@@ -437,7 +442,8 @@ impl CircuitBuilder<Gates> {
     // Sets gates and moves to next state where outputs can be added
     pub fn build_gates(self) -> CircuitBuilder<Outputs> {
         CircuitBuilder(Outputs {
-            name: self.0.name,
+            id: self.0.id,
+            description: self.0.description,
             version: self.0.version,
             inputs: self.0.inputs,
             gates: self.0.gates,
@@ -452,7 +458,7 @@ impl CircuitBuilder<Outputs> {
     /// Add outputs to circuit
     pub fn add_output(
         &mut self,
-        name: &str,
+        id: &str,
         desc: &str,
         value_type: ValueType,
         wire_count: usize,
@@ -464,7 +470,7 @@ impl CircuitBuilder<Outputs> {
         let output = OutputHandle {
             output: UncheckedGroup::new(
                 self.0.outputs.len(),
-                name.to_string(),
+                id.to_string(),
                 desc.to_string(),
                 value_type,
                 wires,
@@ -554,7 +560,7 @@ impl CircuitBuilder<Outputs> {
                                     BuilderError::MissingConnection(
                                         format!(
                                             "Output {} was not fully mapped to gates",
-                                            handle.output.id()
+                                            handle.output.index()
                                         )
                                         .to_string(),
                                     ),
@@ -579,7 +585,8 @@ impl CircuitBuilder<Outputs> {
             .collect();
 
         Ok(Circuit::new(
-            &self.0.name,
+            &self.0.id,
+            &self.0.description,
             &self.0.version,
             inputs,
             outputs,
@@ -619,7 +626,7 @@ mod tests {
 
     #[test]
     fn test_adder_64() {
-        let mut builder = CircuitBuilder::new("", "");
+        let mut builder = CircuitBuilder::new("test", "", "");
         let adder_64 = Circuit::load_bytes(ADDER_64).unwrap();
 
         let in_1 = builder.add_input("in_1", "", ValueType::U64, 64);
@@ -665,10 +672,10 @@ mod tests {
 
     #[test]
     fn test_u8_xor() {
-        let mut builder = CircuitBuilder::new("", "");
+        let mut builder = CircuitBuilder::new("test", "", "");
 
-        let in_1 = builder.add_input("0", "", ValueType::U8, 8);
-        let in_2 = builder.add_input("1", "", ValueType::U8, 8);
+        let in_1 = builder.add_input("in_0", "", ValueType::U8, 8);
+        let in_2 = builder.add_input("in_1", "", ValueType::U8, 8);
 
         let mut builder = builder.build_inputs();
 
@@ -681,7 +688,7 @@ mod tests {
 
         let mut builder = builder.build_gates();
 
-        let out = builder.add_output("0", "", ValueType::U8, 8);
+        let out = builder.add_output("out_0", "", ValueType::U8, 8);
 
         gates.iter().enumerate().for_each(|(i, gate)| {
             builder.connect(&[gate.z], &[out[i]]);
@@ -703,10 +710,10 @@ mod tests {
 
     #[test]
     fn test_map_bytes() {
-        let mut builder = CircuitBuilder::new("", "");
+        let mut builder = CircuitBuilder::new("test", "", "");
 
-        let const_zero = builder.add_input("", "", ValueType::ConstZero, 1);
-        let const_one = builder.add_input("", "", ValueType::ConstOne, 1);
+        let const_zero = builder.add_input("const0", "", ValueType::ConstZero, 1);
+        let const_one = builder.add_input("const1", "", ValueType::ConstOne, 1);
 
         let mut builder = builder.build_inputs();
 
@@ -722,7 +729,7 @@ mod tests {
 
         let mut builder = builder.build_gates();
 
-        let out = builder.add_output("", "", ValueType::Bytes, 24);
+        let out = builder.add_output("test", "", ValueType::Bytes, 24);
 
         gates
             .iter()

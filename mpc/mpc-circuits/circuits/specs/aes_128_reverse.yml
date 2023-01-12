@@ -1,20 +1,18 @@
-name: "aes_128_reverse"
+id: "aes_128_reverse"
+description: "AES128 Block Cipher"
 version: "0.1.0"
 wires: 36919
 inputs:
-  - id: 0
-    name: "key"
+  - id: "key"
     desc: "16-byte string, reversed, LSB0 bit-order"
     value_type: bytes
     wire_count: 128
-  - id: 1
-    name: "plaintext"
+  - id: "plaintext"
     desc: "16-byte string, reversed, LSB0 bit-order"
     value_type: bytes
     wire_count: 128
 outputs:
-  - id: 0
-    name: "ciphertext"
+  - id: "ciphertext"
     desc: "16-byte string, reversed, LSB0 bit-order"
     value_type: bytes
     wire_count: 128

@@ -5,7 +5,7 @@ use crate::{builder::CircuitBuilder, circuit::GateType, Circuit, ValueType};
 use super::{full_adder, nbit_inverter};
 
 fn ripple() -> Arc<Circuit> {
-    let mut builder = CircuitBuilder::new("", "");
+    let mut builder = CircuitBuilder::new("RippleSub", "Ripple subtractor", "");
     let a = builder.add_input("A", "", ValueType::Bool, 1);
     let b = builder.add_input("B", "", ValueType::Bool, 1);
     let c_in = builder.add_input("C_IN", "Carry-in bit", ValueType::Bool, 1);
@@ -57,7 +57,11 @@ fn ripple() -> Arc<Circuit> {
 ///
 /// C_OUT = 0 if B > A
 pub fn nbit_subtractor(n: usize) -> Arc<Circuit> {
-    let mut builder = CircuitBuilder::new(&format!("{}-bit subtractor", n), "0.1.0");
+    let mut builder = CircuitBuilder::new(
+        &format!("{n}BitSub"),
+        &format!("{n}-bit Binary Subtractor"),
+        "0.1.0",
+    );
 
     let a = builder.add_input("A", &format!("{}-bit number", n), ValueType::Bits, n);
     let b = builder.add_input("B", &format!("{}-bit number", n), ValueType::Bits, n);

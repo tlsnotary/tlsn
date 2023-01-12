@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{Circuit, Group, ValueType, WireGroup};
+use crate::{Circuit, Group, GroupId, ValueType, WireGroup};
 
 /// Group of wires corresponding to one circuit output (a circuit may have
 /// multiple outputs)
@@ -21,13 +21,13 @@ impl WireGroup for Output {
     }
 
     #[inline]
-    fn id(&self) -> usize {
-        self.0.id()
+    fn index(&self) -> usize {
+        self.0.index()
     }
 
     #[inline]
-    fn name(&self) -> &str {
-        self.0.name()
+    fn id(&self) -> &GroupId {
+        self.0.id()
     }
 
     #[inline]

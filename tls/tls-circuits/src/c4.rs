@@ -28,7 +28,7 @@ use mpc_circuits::{
 ///   1. MASKED_GCTR: 16-byte masked (N_GCTR_MASK + U_GCTR_MASK) GCTR
 ///   2. MASKED_ECTR: 16-byte masked (U_ECTR_MASK) encrypted counter
 pub fn c4() -> Arc<Circuit> {
-    let mut builder = CircuitBuilder::new("c4", "0.1.0");
+    let mut builder = CircuitBuilder::new("c4", "", "0.1.0");
 
     let n_cwk = builder.add_input(
         "N_CWK",

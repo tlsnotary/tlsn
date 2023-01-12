@@ -77,11 +77,17 @@ impl Circuit {
         }
 
         let input_groups = (0..ninputs)
-            .map(|id| {
-                let start_id = input_nwires[..id].iter().sum();
-                let count = input_nwires[id];
+            .map(|index| {
+                let start_id = input_nwires[..index].iter().sum();
+                let count = input_nwires[index];
                 let wires: Vec<usize> = (start_id..start_id + count).collect();
-                UncheckedGroup::new(id, "".to_string(), "".to_string(), ValueType::Bits, wires)
+                UncheckedGroup::new(
+                    index,
+                    format!("input_{index}"),
+                    "".to_string(),
+                    ValueType::Bits,
+                    wires,
+                )
             })
             .collect();
 
@@ -119,12 +125,18 @@ impl Circuit {
         }
 
         let output_groups = (0..noutputs)
-            .map(|id| {
+            .map(|index| {
                 let start_id = (wire_count - output_nwires.iter().sum::<usize>())
-                    + output_nwires[..id].iter().sum::<usize>();
-                let count = output_nwires[id];
+                    + output_nwires[..index].iter().sum::<usize>();
+                let count = output_nwires[index];
                 let wires: Vec<usize> = (start_id..start_id + count).collect();
-                UncheckedGroup::new(id, "".to_string(), "".to_string(), ValueType::Bits, wires)
+                UncheckedGroup::new(
+                    index,
+                    format!("output_{index}"),
+                    "".to_string(),
+                    ValueType::Bits,
+                    wires,
+                )
             })
             .collect();
 
@@ -202,6 +214,7 @@ impl Circuit {
         }
         Ok(Circuit::new(
             name,
+            "",
             version,
             input_groups,
             output_groups,

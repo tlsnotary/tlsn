@@ -4,8 +4,8 @@ use crate::{
 };
 
 use prost::Message;
-use sha2::{Digest, Sha256};
 use std::{collections::HashSet, sync::Arc};
+use utils::iter::DuplicateCheckBy;
 
 #[derive(Debug, Clone, Copy)]
 pub enum GateType {
@@ -148,56 +148,32 @@ impl Gate {
             Gate::Inv { xref, zref, .. } => vec![xref, zref],
         }
     }
-
-    /// Serializes gate wire references to byte array
-    pub(crate) fn to_bytes(&self) -> [u8; 16] {
-        let (id, xref, yref, zref) = match *self {
-            Gate::Xor {
-                id,
-                xref,
-                yref,
-                zref,
-            } => (id as u32, xref as u32, yref as u32, zref as u32),
-            Gate::And {
-                id,
-                xref,
-                yref,
-                zref,
-            } => (id as u32, xref as u32, yref as u32, zref as u32),
-            Gate::Inv { id, xref, zref } => (id as u32, xref as u32, u32::MAX, zref as u32),
-        };
-        let mut bytes = [0u8; 16];
-        bytes[..4].copy_from_slice(&id.to_be_bytes());
-        bytes[4..8].copy_from_slice(&xref.to_be_bytes());
-        bytes[8..12].copy_from_slice(&yref.to_be_bytes());
-        bytes[12..].copy_from_slice(&zref.to_be_bytes());
-        bytes
-    }
 }
 
-/// `CircuitId` is a unique identifier for a `Circuit` based on its gate structure
-#[derive(Debug, Clone, PartialEq)]
-pub struct CircuitId(String);
+/// `CircuitId` is a unique identifier for a `Circuit`
+#[derive(Debug, Clone, PartialEq, Hash)]
+pub struct CircuitId(pub(crate) String);
 
 impl CircuitId {
-    pub(crate) fn new(gates: &[Gate]) -> Self {
-        let mut hasher = Sha256::new();
-        for gate in gates {
-            hasher.update(&gate.to_bytes());
+    pub fn new(id: String) -> Result<Self, CircuitError> {
+        if id.len() == 0 || id.len() > 16 {
+            return Err(CircuitError::InvalidCircuitId(
+                "Circuit id must be 1-16 bytes long".to_string(),
+                id,
+            ));
         }
-        Self(hex::encode(hasher.finalize()))
+        Ok(Self(id))
+    }
+
+    /// Converts CircuitId to string
+    pub fn to_string(self) -> String {
+        self.0
     }
 }
 
 impl AsRef<String> for CircuitId {
     fn as_ref(&self) -> &String {
         &self.0
-    }
-}
-
-impl From<String> for CircuitId {
-    fn from(id: String) -> Self {
-        Self(id)
     }
 }
 
@@ -217,7 +193,7 @@ impl From<String> for CircuitId {
 pub struct Circuit {
     pub(crate) id: CircuitId,
     /// Name of circuit
-    pub(crate) name: String,
+    pub(crate) description: String,
     /// Version of circuit
     pub(crate) version: String,
 
@@ -247,7 +223,6 @@ impl std::fmt::Debug for Circuit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Circuit")
             .field("id", &self.id)
-            .field("name", &self.name)
             .field("version", &self.version)
             .finish()
     }
@@ -273,25 +248,45 @@ impl Circuit {
     ///
     /// [`Gate`] wires can not be connected to themselves, ie the [`Circuit`] must be acyclic.
     pub(crate) fn new(
-        name: &str,
+        id: &str,
+        description: &str,
         version: &str,
         inputs: Vec<UncheckedGroup>,
         outputs: Vec<UncheckedGroup>,
         gates: Vec<Gate>,
     ) -> Result<Arc<Self>, CircuitError> {
+        let id = CircuitId::new(id.to_string())?;
         let (inputs, input_wires) = Self::validate_groups(inputs)?;
         let (outputs, output_wires) = Self::validate_groups(outputs)?;
         let gates = Self::validate_gates(gates, &input_wires, &output_wires)?;
 
+        if inputs
+            .iter()
+            .chain(outputs.iter())
+            .contains_dups_by(|group| group.id())
+        {
+            return Err(CircuitError::InvalidCircuit(
+                "Circuit contains duplicate group ids".to_string(),
+            ));
+        }
+
         let gates = topological_sort(gates);
 
-        Ok(Self::new_unchecked(name, version, inputs, outputs, gates))
+        Ok(Self::new_unchecked(
+            id,
+            description,
+            version,
+            inputs,
+            outputs,
+            gates,
+        ))
     }
 
     /// Creates new circuit without performing any checks on circuit structure. This is only used
     /// to speed up loading of the circuits which were generated and stored locally.
     pub(crate) fn new_unchecked(
-        name: &str,
+        id: CircuitId,
+        description: &str,
         version: &str,
         inputs: Vec<Group>,
         outputs: Vec<Group>,
@@ -323,14 +318,14 @@ impl Circuit {
                 .collect();
 
             Self {
-                id: CircuitId::new(&gates),
-                name: name.to_string(),
+                id,
+                description: description.to_string(),
                 version: version.to_string(),
                 wire_count: info.wire_count,
                 and_count: info.and_count,
                 xor_count: info.xor_count,
-                input_ids: inputs.iter().map(|input| input.id()).collect(),
-                output_ids: outputs.iter().map(|output| output.id()).collect(),
+                input_ids: inputs.iter().map(|input| input.index()).collect(),
+                output_ids: outputs.iter().map(|output| output.index()).collect(),
                 inputs,
                 const_inputs,
                 outputs,
@@ -350,16 +345,16 @@ impl Circuit {
         mut groups: Vec<UncheckedGroup>,
     ) -> Result<(Vec<Group>, Vec<usize>), CircuitError> {
         // Sort groups by id
-        groups.sort_by_key(|group| group.id());
+        groups.sort_by_key(|group| group.index());
 
-        let mut group_ids: Vec<usize> = groups.iter().map(|group| group.id()).collect();
-        let group_count = group_ids.len();
-        group_ids.dedup();
+        let mut group_indices: Vec<usize> = groups.iter().map(|group| group.index()).collect();
+        let group_count = group_indices.len();
+        group_indices.dedup();
 
         // Make sure duplicates groups are not present
-        if group_count != group_ids.len() {
+        if group_count != group_indices.len() {
             return Err(CircuitError::InvalidCircuit(
-                "Duplicate group ids".to_string(),
+                "Duplicate group indices".to_string(),
             ));
         }
 
@@ -515,13 +510,14 @@ impl Circuit {
             .map_err(|_| CircuitError::MappingError)
     }
 
+    /// Returns circuit id
     pub fn id(&self) -> &CircuitId {
         &self.id
     }
 
-    /// Returns circuit name
-    pub fn name(&self) -> &str {
-        &self.name
+    /// Returns circuit description
+    pub fn description(&self) -> &str {
+        &self.description
     }
 
     /// Returns circuit version
@@ -539,7 +535,7 @@ impl Circuit {
         self.inputs
             .get(id)
             .cloned()
-            .ok_or(CircuitError::InputError(id, self.name.clone()))
+            .ok_or(CircuitError::InputError(id, self.description.clone()))
     }
 
     /// Returns reference to all circuit inputs
@@ -572,7 +568,7 @@ impl Circuit {
         self.outputs
             .get(id)
             .cloned()
-            .ok_or(CircuitError::OutputError(id, self.name.clone()))
+            .ok_or(CircuitError::OutputError(id, self.description.clone()))
     }
 
     /// Returns reference to all circuit outputs
@@ -697,7 +693,7 @@ mod tests {
     fn test_all_inputs_must_be_connected() {
         let inputs = vec![UncheckedGroup::new(
             0,
-            "".to_string(),
+            "test".to_string(),
             "".to_string(),
             ValueType::Bool,
             vec![0],
@@ -709,7 +705,7 @@ mod tests {
             zref: 2,
         }];
 
-        let err = Circuit::new("", "", inputs, vec![], gates).unwrap_err();
+        let err = Circuit::new("test", "", "", inputs, vec![], gates).unwrap_err();
 
         assert!(err
             .to_string()
@@ -720,7 +716,7 @@ mod tests {
     fn test_all_outputs_must_be_connected() {
         let inputs = vec![UncheckedGroup::new(
             0,
-            "".to_string(),
+            "test".to_string(),
             "".to_string(),
             ValueType::Bits,
             vec![0, 1],
@@ -733,17 +729,47 @@ mod tests {
         }];
         let outputs = vec![UncheckedGroup::new(
             0,
-            "".to_string(),
+            "test".to_string(),
             "".to_string(),
             ValueType::Bool,
             vec![3],
         )];
 
-        let err = Circuit::new("", "", inputs, outputs, gates).unwrap_err();
+        let err = Circuit::new("test", "", "", inputs, outputs, gates).unwrap_err();
 
         assert!(err
             .to_string()
             .contains("All output wires must be mapped to gate outputs"));
+    }
+
+    #[test]
+    fn test_no_duplicate_group_ids() {
+        let inputs = vec![UncheckedGroup::new(
+            0,
+            "test".to_string(),
+            "".to_string(),
+            ValueType::Bits,
+            vec![0, 1],
+        )];
+        let gates = vec![Gate::Xor {
+            id: 0,
+            xref: 0,
+            yref: 1,
+            zref: 2,
+        }];
+        let outputs = vec![UncheckedGroup::new(
+            0,
+            "test".to_string(),
+            "".to_string(),
+            ValueType::Bool,
+            vec![2],
+        )];
+
+        let err = Circuit::new("test", "", "", inputs, outputs, gates).unwrap_err();
+
+        assert!(err
+            .to_string()
+            .contains("Circuit contains duplicate group ids"));
     }
 
     #[test]

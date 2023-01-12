@@ -86,7 +86,14 @@ mod tests {
             .map(|output| (*output.0).clone())
             .collect();
 
-        let circ = Circuit::new_unchecked(circ.name(), circ.version(), inputs, outputs, gates);
+        let circ = Circuit::new_unchecked(
+            circ.id().clone(),
+            circ.description(),
+            circ.version(),
+            inputs,
+            outputs,
+            gates,
+        );
 
         circ.evaluate(&[
             circ.input(0).unwrap().to_value(0u64).unwrap(),

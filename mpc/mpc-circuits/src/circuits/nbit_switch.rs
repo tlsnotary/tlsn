@@ -10,7 +10,11 @@ use crate::{
 ///
 /// Outputs A if toggle = 0, else B
 pub fn nbit_switch(n: usize) -> Arc<Circuit> {
-    let mut builder = CircuitBuilder::new(&format!("{}-bit switch", n), "0.1.0");
+    let mut builder = CircuitBuilder::new(
+        &format!("{n}BitSwitch"),
+        &format!("{n}-bit Binary Switch"),
+        "0.1.0",
+    );
 
     let a = builder.add_input("A", &format!("{}-bit number", n), ValueType::Bits, n);
     let b = builder.add_input("B", &format!("{}-bit number", n), ValueType::Bits, n);

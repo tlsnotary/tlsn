@@ -10,7 +10,7 @@ use mpc_circuits::{
 ///
 /// Each share must already be reduced mod P
 pub fn combine_pms_shares() -> Arc<Circuit> {
-    let mut builder = CircuitBuilder::new("combine_pms_shares", "0.1.0");
+    let mut builder = CircuitBuilder::new("pms_shares", "", "0.1.0");
 
     let a = builder.add_input(
         "PMS_SHARE_A",

@@ -3,7 +3,7 @@ use std::{
     sync::Arc,
 };
 
-use crate::{group::UncheckedGroup, CircuitError, ValueType, WireGroup};
+use crate::{group::UncheckedGroup, CircuitError, CircuitId, ValueType, WireGroup};
 
 include!(concat!(env!("OUT_DIR"), "/core.circuits.rs"));
 
@@ -11,8 +11,8 @@ impl From<&crate::Group> for Group {
     #[inline]
     fn from(group: &crate::Group) -> Self {
         Self {
-            id: group.id() as u32,
-            name: group.name().to_string(),
+            index: group.index() as u32,
+            id: group.id().as_ref().clone(),
             desc: group.description().to_string(),
             value_type: group.value_type() as i32,
             wires: group.wires().iter().map(|id| *id as u32).collect(),
@@ -25,8 +25,8 @@ impl TryFrom<Group> for UncheckedGroup {
     #[inline]
     fn try_from(group: Group) -> Result<Self, Self::Error> {
         Ok(UncheckedGroup::new(
-            group.id as usize,
-            group.name,
+            group.index as usize,
+            group.id,
             group.desc,
             match group.value_type {
                 0 => ValueType::ConstZero,
@@ -123,7 +123,7 @@ impl From<&crate::Circuit> for Circuit {
         let gates = c.gates().iter().map(|g| Gate::from(g)).collect();
         Self {
             id: c.id.as_ref().to_string(),
-            name: c.name.clone(),
+            description: c.description.clone(),
             version: c.version.clone(),
             wire_count: c.wire_count as u32,
             and_count: c.and_count as u32,
@@ -173,7 +173,12 @@ impl TryFrom<Circuit> for Arc<crate::Circuit> {
             .collect::<Result<Vec<crate::Gate>, _>>()?;
 
         Ok(crate::Circuit::new_unchecked(
-            &c.name, &c.version, inputs, outputs, gates,
+            CircuitId(c.id),
+            &c.description,
+            &c.version,
+            inputs,
+            outputs,
+            gates,
         ))
     }
 }

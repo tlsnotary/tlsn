@@ -1,3 +1,5 @@
+use mpc_circuits::GroupId;
+
 /// Error associated with garbled circuits
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -39,11 +41,11 @@ pub enum LabelError {
     #[error("Uninitialized Label, id: {0}")]
     UninitializedLabel(usize),
     #[error("Labels are not authentic for group {0:?}")]
-    InauthenticLabels(String),
+    InauthenticLabels(GroupId),
     #[error("Invalid label id for group: {0:?}, expected {1} got {2}")]
-    InvalidLabelId(String, usize, usize),
+    InvalidLabelId(GroupId, usize, usize),
     #[error("Invalid number of labels for group {0:?}, expected {1} got {2}")]
-    InvalidLabelCount(String, usize, usize),
+    InvalidLabelCount(GroupId, usize, usize),
     #[error("Invalid value, expected {0} bits got {1}")]
     InvalidValue(usize, usize),
     #[error("Invalid decoding, expected {0} bits got {1}")]
@@ -53,5 +55,5 @@ pub enum LabelError {
     #[error("Incorrect number of decodings, expected {0} got {1}")]
     InvalidDecodingCount(usize, usize),
     #[error("Invalid label commitment for group {0:?}")]
-    InvalidLabelCommitment(String),
+    InvalidLabelCommitment(GroupId),
 }

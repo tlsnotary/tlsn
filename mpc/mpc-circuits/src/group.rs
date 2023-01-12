@@ -2,16 +2,38 @@ use std::sync::{Arc, Weak};
 
 use crate::{Circuit, GroupError, Value, ValueType};
 
+/// A unique identifier for a `Group` belonging to a `Circuit`.
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct GroupId(String);
+
+impl GroupId {
+    pub(crate) fn new(id: String) -> Result<Self, GroupError> {
+        if id.len() == 0 || id.len() > 16 {
+            return Err(GroupError::InvalidId(
+                "Group id must be 1-16 bytes long".to_string(),
+                id,
+            ));
+        }
+        Ok(Self(id))
+    }
+}
+
+impl AsRef<String> for GroupId {
+    fn as_ref(&self) -> &String {
+        &self.0
+    }
+}
+
 pub trait WireGroup
 where
     Self: Sized,
 {
     /// Returns Arc reference to circuit
     fn circuit(&self) -> Arc<Circuit>;
-    /// Returns id of group
-    fn id(&self) -> usize;
-    /// Returns group name
-    fn name(&self) -> &str;
+    /// Returns group id
+    fn id(&self) -> &GroupId;
+    /// Returns index of group
+    fn index(&self) -> usize;
     /// Returns group description
     fn description(&self) -> &str;
     /// Returns group value type
@@ -28,13 +50,13 @@ where
         let value = value.into();
         if self.value_type() != value.value_type() {
             return Err(GroupError::InvalidType(
-                self.name().to_string(),
+                self.id().clone(),
                 self.value_type(),
                 value.value_type(),
             ));
         } else if self.len() != value.len() {
             return Err(GroupError::InvalidLength(
-                self.name().to_string(),
+                self.id().clone(),
                 self.len(),
                 value.len(),
             ));
@@ -47,8 +69,8 @@ where
 pub struct Group {
     // a reference to the circuit which this group belongs to
     circ: Weak<Circuit>,
-    id: usize,
-    name: String,
+    index: usize,
+    id: GroupId,
     desc: String,
     value_type: ValueType,
     // a vec containing ids of the wires
@@ -58,24 +80,26 @@ pub struct Group {
 impl Group {
     pub(crate) fn new(
         circ: Weak<Circuit>,
-        id: usize,
-        name: String,
+        index: usize,
+        id: String,
         desc: String,
         value_type: ValueType,
         mut wires: Vec<usize>,
     ) -> Result<Self, GroupError> {
-        // Check if group is of valid length for this type
+        let id = GroupId::new(id)?;
+
+        // Check if group is valid length for this type
         value_type
             .valid_length(wires.len())
-            .map_err(|e| GroupError::ValueError(name.clone(), e))?;
+            .map_err(|e| GroupError::ValueError(id.clone(), e))?;
 
         // Ensure wire ids are always sorted
         wires.sort();
 
         Ok(Self {
             circ,
+            index,
             id,
-            name: name.to_string(),
             desc: desc.to_string(),
             value_type,
             wires,
@@ -92,8 +116,8 @@ impl Group {
     pub(crate) fn new_unchecked(unchecked: UncheckedGroup) -> Self {
         Self {
             circ: Weak::new(),
-            id: unchecked.id,
-            name: unchecked.name,
+            index: unchecked.index,
+            id: GroupId(unchecked.id),
             desc: unchecked.desc,
             value_type: unchecked.value_type,
             wires: unchecked.wires,
@@ -109,8 +133,8 @@ impl Group {
     pub(crate) fn from_unchecked(unchecked: UncheckedGroup) -> Result<Self, GroupError> {
         Self::new(
             Weak::new(),
+            unchecked.index,
             unchecked.id,
-            unchecked.name,
             unchecked.desc,
             unchecked.value_type,
             unchecked.wires,
@@ -124,7 +148,7 @@ impl Group {
 
 impl PartialEq for Group {
     fn eq(&self, other: &Self) -> bool {
-        self.circuit().id() == other.circuit().id() && self.id == other.id
+        self.circuit().id() == other.circuit().id() && self.index == other.index
     }
 }
 
@@ -134,13 +158,13 @@ impl WireGroup for Group {
     }
 
     #[inline]
-    fn id(&self) -> usize {
-        self.id
+    fn index(&self) -> usize {
+        self.index
     }
 
     #[inline]
-    fn name(&self) -> &str {
-        &self.name
+    fn id(&self) -> &GroupId {
+        &self.id
     }
 
     #[inline]
@@ -201,14 +225,14 @@ where
     pub fn from_bits(group: T, bits: Vec<bool>) -> Result<Self, GroupError> {
         if group.len() != bits.len() {
             return Err(GroupError::InvalidLength(
-                group.name().to_string(),
+                group.id().clone(),
                 group.len(),
                 bits.len(),
             ));
         }
 
         let value = Value::new(group.value_type(), bits)
-            .map_err(|e| GroupError::ValueError(group.name().to_string(), e))?;
+            .map_err(|e| GroupError::ValueError(group.id().clone(), e))?;
 
         Ok(Self { group, value })
     }
@@ -223,13 +247,13 @@ where
     }
 
     #[inline]
-    fn id(&self) -> usize {
-        self.group.id()
+    fn index(&self) -> usize {
+        self.group.index()
     }
 
     #[inline]
-    fn name(&self) -> &str {
-        self.group.name()
+    fn id(&self) -> &GroupId {
+        self.group.id()
     }
 
     #[inline]
@@ -250,8 +274,8 @@ where
 
 #[derive(Debug, Clone)]
 pub(crate) struct UncheckedGroup {
-    id: usize,
-    name: String,
+    index: usize,
+    id: String,
     desc: String,
     value_type: ValueType,
     pub(crate) wires: Vec<usize>,
@@ -259,15 +283,15 @@ pub(crate) struct UncheckedGroup {
 
 impl UncheckedGroup {
     pub(crate) fn new(
-        id: usize,
-        name: String,
+        index: usize,
+        id: String,
         desc: String,
         value_type: ValueType,
         wires: Vec<usize>,
     ) -> Self {
         Self {
+            index,
             id,
-            name,
             desc,
             value_type,
             wires,
@@ -281,13 +305,13 @@ impl WireGroup for UncheckedGroup {
     }
 
     #[inline]
-    fn id(&self) -> usize {
-        self.id
+    fn index(&self) -> usize {
+        self.index
     }
 
     #[inline]
-    fn name(&self) -> &str {
-        &self.name
+    fn id(&self) -> &GroupId {
+        unimplemented!()
     }
 
     #[inline]
@@ -309,8 +333,8 @@ impl WireGroup for UncheckedGroup {
 impl From<Group> for UncheckedGroup {
     fn from(group: Group) -> Self {
         Self {
-            id: group.id,
-            name: group.name,
+            index: group.index,
+            id: group.id.0,
             desc: group.desc,
             value_type: group.value_type,
             wires: group.wires,
