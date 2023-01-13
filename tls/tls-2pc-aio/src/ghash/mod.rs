@@ -20,6 +20,8 @@ pub enum GhashIOError {
     IOError(#[from] std::io::Error),
     #[error("Share conversion error: {0}")]
     ShareConversionError(#[from] ShareConversionError),
+    #[error("Error: {0}")]
+    Other(String),
 }
 
 /// Create a Ghash output for some message
