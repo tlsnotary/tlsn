@@ -14,8 +14,8 @@ where
     U: MultiplicativeToAdditive<FieldElement = u128>,
 {
     core: GhashCore<V>,
-    pub(crate) a2m_converter: T,
-    pub(crate) m2a_converter: U,
+    pub a2m_converter: T,
+    pub m2a_converter: U,
 }
 
 impl<T, U> Ghash<T, U, Init>
@@ -57,12 +57,12 @@ where
         let h_multiplicative = self.a2m_converter.a_to_m(vec![h_additive]).await?;
         let core = self.core.compute_odd_mul_powers(h_multiplicative[0]);
 
-        let io = Ghash {
+        let ghash = Ghash {
             core,
             a2m_converter: self.a2m_converter,
             m2a_converter: self.m2a_converter,
         };
-        io.compute_add_shares().await
+        ghash.compute_add_shares().await
     }
 }
 
@@ -82,12 +82,12 @@ where
         let add_shares = self.m2a_converter.m_to_a(odd_mul_shares).await?;
         let core = self.core.add_new_add_shares(&add_shares);
 
-        let io = Ghash {
+        let ghash = Ghash {
             core,
             a2m_converter: self.a2m_converter,
             m2a_converter: self.m2a_converter,
         };
-        Ok(io)
+        Ok(ghash)
     }
 }
 
@@ -98,14 +98,19 @@ where
 {
     /// Prepare `self` for a different message length
     ///
-    /// We assume here that it is necessary to compute additional share powers. So we go back to
-    /// the intermediate state.
-    pub fn change_message_length(self, new_message_length: usize) -> Ghash<T, U, Intermediate> {
-        Ghash {
+    /// This function is async because if `new_message_length` is greater than
+    /// `self.core.max_message_length`, we need to compute new shares with the other party
+    pub async fn change_message_length(
+        self,
+        new_message_length: usize,
+    ) -> Result<Ghash<T, U, Finalized>, GhashError> {
+        let ghash = Ghash {
             core: self.core.change_max_hashkey(new_message_length),
             a2m_converter: self.a2m_converter,
             m2a_converter: self.m2a_converter,
-        }
+        };
+
+        ghash.compute_add_shares().await
     }
 }
 

@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use share_conversion_aio::ShareConversionError;
 use tls_2pc_core::ghash::GhashError as GhashCoreError;
 
@@ -24,14 +23,6 @@ pub enum GhashError {
 /// The Ghash output is the MAC without the XOR of the GCTR block
 pub trait GenerateGhash {
     fn finalize(&self, message: &[u128]) -> Result<u128, GhashError>;
-}
-
-/// Verify the Ghash computation
-///
-/// This allows to check for malicious actors, deviating from the protocol.
-#[async_trait]
-pub trait VerifyGhash {
-    async fn verify(self) -> Result<(), GhashError>;
 }
 
 #[cfg(test)]
@@ -92,10 +83,6 @@ mod tests {
             sender.change_message_length(long_message_len),
             receiver.change_message_length(long_message_len),
         );
-
-        // Compute more hashkey powers
-        let sender = tokio::spawn(async move { sender.compute_add_shares().await.unwrap() });
-        let receiver = tokio::spawn(async move { receiver.compute_add_shares().await.unwrap() });
 
         let (sender, receiver) = tokio::join!(sender, receiver);
         let (sender, receiver) = (sender.unwrap(), receiver.unwrap());
