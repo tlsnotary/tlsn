@@ -8,6 +8,7 @@ pub trait Recorder<T: ShareConvert<Inner = U>, U: Field>: Default {
     fn set_seed(&mut self, seed: [u8; 32]);
     fn record_for_sender(&mut self, input: &[U]);
     fn record_for_receiver(&mut self, input: &[U], output: &[U]);
+    fn record_ot_outputs(&mut self, ot_outputs: &[U]);
 
     /// Allows to check if the tape is valid
     ///
@@ -24,6 +25,7 @@ pub struct Tape<T: Field> {
     pub(crate) sender_inputs: Vec<T>,
     pub(crate) receiver_inputs: Vec<T>,
     pub(crate) receiver_outputs: Vec<T>,
+    pub(crate) ot_outputs: Vec<T>,
 }
 
 impl<T: Field> Default for Tape<T> {
@@ -32,11 +34,13 @@ impl<T: Field> Default for Tape<T> {
         let sender_inputs = vec![];
         let receiver_inputs = vec![];
         let receiver_outputs = vec![];
+        let ot_outputs = vec![];
         Self {
             seed,
             sender_inputs,
             receiver_inputs,
             receiver_outputs,
+            ot_outputs,
         }
     }
 }
@@ -55,30 +59,40 @@ impl<T: ShareConvert<Inner = U>, U: Field> Recorder<T, U> for Tape<U> {
         self.receiver_outputs.extend_from_slice(output);
     }
 
+    fn record_ot_outputs(&mut self, ot_outputs: &[U]) {
+        self.ot_outputs.extend_from_slice(ot_outputs);
+    }
+
     fn verify(&self) -> Result<(), ShareConversionError> {
         let mut rng = ChaCha12Rng::from_seed(self.seed);
 
-        for ((sender_input, receiver_input), receiver_output) in self
+        for (i, ((sender_input, receiver_input), receiver_output)) in self
             .sender_inputs
             .iter()
             .zip(&self.receiver_inputs)
             .zip(&self.receiver_outputs)
+            .enumerate()
         {
             // We now replay the conversion internally
             let (_, ot_envelope) = T::new(*sender_input).convert(&mut rng)?;
             let choices = T::new(*receiver_input).choices();
 
-            let mut ot_output: Vec<U> = vec![U::zero(); U::BIT_SIZE as usize];
-            for (k, number) in ot_output.iter_mut().enumerate() {
+            let mut ot_outputs: Vec<U> = vec![U::zero(); U::BIT_SIZE as usize];
+            for (k, ot_output) in ot_outputs.iter_mut().enumerate() {
                 *number = if choices[k] {
                     ot_envelope.one_choices()[k]
                 } else {
                     ot_envelope.zero_choices()[k]
                 };
+
+                // Check each individual OT
+                if *ot_output != self.ot_outputs[U::BIT_SIZE as usize * i + k] {
+                    return Err(ShareConversionError::VerifyTapeFailed);
+                }
             }
 
             // Now we check if the outputs match
-            let expected = T::Output::from_sender_values(&ot_output);
+            let expected = T::Output::from_sender_values(&ot_outputs);
             if expected.inner() != *receiver_output {
                 return Err(ShareConversionError::VerifyTapeFailed);
             }
@@ -100,6 +114,8 @@ impl<T: ShareConvert<Inner = U>, U: Field> Recorder<T, U> for Void {
     fn record_for_sender(&mut self, _input: &[U]) {}
 
     fn record_for_receiver(&mut self, _input: &[U], _output: &[U]) {}
+
+    fn record_ot_outputs(&mut self, _ot_outputs: &[U]) {}
 
     // Will not be callable from outside
     fn verify(&self) -> Result<(), ShareConversionError> {
