@@ -155,7 +155,11 @@ impl DualExLeader<Evaluator> {
         }
 
         Ok(LabelsDigest::new(
-            &[expected_labels, evaluated_gc.output_labels().to_vec()].concat(),
+            &[
+                expected_labels,
+                evaluated_gc.output_labels().get_labels().to_vec(),
+            ]
+            .concat(),
         ))
     }
 }

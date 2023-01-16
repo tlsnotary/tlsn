@@ -28,6 +28,8 @@ impl Labels<Input, state::Full> {
 }
 
 pub(crate) mod unchecked {
+    use mpc_circuits::Circuit;
+
     use super::*;
 
     /// Input labels which have not been validated
@@ -50,16 +52,14 @@ pub(crate) mod unchecked {
     impl Labels<Input, state::Active> {
         /// Validates and converts input labels to checked variant
         pub fn from_unchecked(
-            input: Input,
+            circ: &Circuit,
             unchecked: UncheckedInputLabels,
         ) -> Result<Self, LabelError> {
-            if unchecked.id != input.index() {
-                return Err(LabelError::InvalidLabelId(
-                    input.id().clone(),
-                    input.index(),
-                    unchecked.id,
-                ));
-            } else if unchecked.labels.len() != input.len() {
+            let input = circ
+                .input(unchecked.id)
+                .map_err(|_| LabelError::InvalidId(circ.id().clone(), unchecked.id))?;
+
+            if unchecked.labels.len() != input.len() {
                 return Err(LabelError::InvalidLabelCount(
                     input.id().clone(),
                     input.len(),
@@ -111,27 +111,27 @@ pub(crate) mod unchecked {
         }
 
         #[rstest]
-        fn test_input_labels(input: Input, unchecked_input_labels: UncheckedInputLabels) {
-            ActiveInputLabels::from_unchecked(input, unchecked_input_labels).unwrap();
+        fn test_input_labels(circ: Arc<Circuit>, unchecked_input_labels: UncheckedInputLabels) {
+            ActiveInputLabels::from_unchecked(&circ, unchecked_input_labels).unwrap();
         }
 
         #[rstest]
         fn test_input_labels_wrong_id(
-            input: Input,
+            circ: Arc<Circuit>,
             mut unchecked_input_labels: UncheckedInputLabels,
         ) {
-            unchecked_input_labels.id += 1;
-            let err = ActiveInputLabels::from_unchecked(input, unchecked_input_labels).unwrap_err();
-            assert!(matches!(err, LabelError::InvalidLabelId(_, _, _)))
+            unchecked_input_labels.id = 10;
+            let err = ActiveInputLabels::from_unchecked(&circ, unchecked_input_labels).unwrap_err();
+            assert!(matches!(err, LabelError::InvalidId(_, _)))
         }
 
         #[rstest]
         fn test_input_labels_wrong_count(
-            input: Input,
+            circ: Arc<Circuit>,
             mut unchecked_input_labels: UncheckedInputLabels,
         ) {
             unchecked_input_labels.labels.pop();
-            let err = ActiveInputLabels::from_unchecked(input, unchecked_input_labels).unwrap_err();
+            let err = ActiveInputLabels::from_unchecked(&circ, unchecked_input_labels).unwrap_err();
             assert!(matches!(err, LabelError::InvalidLabelCount(_, _, _)))
         }
     }

@@ -44,8 +44,6 @@ pub enum LabelError {
     UninitializedLabel(usize),
     #[error("Labels are not authentic for group {0:?}")]
     InauthenticLabels(GroupId),
-    #[error("Invalid label id for group: {0:?}, expected {1} got {2}")]
-    InvalidLabelId(GroupId, usize, usize),
     #[error("Invalid number of labels for group {0:?}, expected {1} got {2}")]
     InvalidLabelCount(GroupId, usize, usize),
     #[error("Invalid value, expected {0} bits got {1}")]
@@ -68,4 +66,6 @@ pub enum LabelError {
     DeltaMismatch,
     #[error("Invalid count in set for {0:?}: expected {1}, got {2}")]
     InvalidCount(CircuitId, usize, usize),
+    #[error("Invalid id {1}, group not in {0:?}")]
+    InvalidId(CircuitId, usize),
 }

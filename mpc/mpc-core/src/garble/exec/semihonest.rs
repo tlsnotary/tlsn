@@ -134,7 +134,10 @@ impl SemiHonestFollower<Evaluator> {
 impl SemiHonestLeader<Decode> {
     /// Authenticates output wire labels sent by the peer and decodes the output
     pub fn decode(self, unchecked: UncheckedOutput) -> Result<Vec<OutputValue>, Error> {
-        unchecked.decode(&self.state.gc.circ, &self.state.gc.output_labels())
+        unchecked.decode(
+            &self.state.gc.circ,
+            &self.state.gc.output_labels().get_labels(),
+        )
     }
 }
 
