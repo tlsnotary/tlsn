@@ -14,7 +14,11 @@ pub use leader::{state as leader_state, DualExLeader};
 
 #[cfg(test)]
 mod tests {
-    use crate::garble::{commitment::Opening, Error, FullInputLabels, LabelsDigest};
+    use crate::garble::{
+        commitment::Opening,
+        label::{ActiveInputLabelsSet, FullInputLabelsSet},
+        Error, LabelsDigest,
+    };
 
     use super::*;
     use mpc_circuits::{Circuit, WireGroup, ADDER_64};
@@ -33,29 +37,32 @@ mod tests {
         let leader_input = circ.input(0).unwrap().to_value(0u64).unwrap();
         let follower_input = circ.input(1).unwrap().to_value(0u64).unwrap();
 
-        let (leader_labels, leader_delta) = FullInputLabels::generate_set(&mut rng, &circ, None);
-        let (follower_labels, follower_delta) =
-            FullInputLabels::generate_set(&mut rng, &circ, None);
+        let leader_labels = FullInputLabelsSet::generate(&mut rng, &circ, None);
+        let follower_labels = FullInputLabelsSet::generate(&mut rng, &circ, None);
 
-        let (leader_gc, leader) = leader
-            .garble(&[leader_input.clone()], &leader_labels, leader_delta)
-            .unwrap();
+        let (leader_gc, leader) = leader.garble(leader_labels.clone()).unwrap();
 
-        let (follower_gc, follower) = follower
-            .garble(&[follower_input.clone()], &follower_labels, follower_delta)
-            .unwrap();
+        let (follower_gc, follower) = follower.garble(follower_labels.clone()).unwrap();
 
         let leader = leader
             .evaluate(
                 follower_gc,
-                &[follower_labels[0].select(leader_input.value()).unwrap()],
+                ActiveInputLabelsSet::new(vec![
+                    follower_labels[0].select(leader_input.value()).unwrap(),
+                    follower_labels[1].select(follower_input.value()).unwrap(),
+                ])
+                .unwrap(),
             )
             .unwrap();
 
         let follower = follower
             .evaluate(
                 leader_gc,
-                &[leader_labels[1].select(follower_input.value()).unwrap()],
+                ActiveInputLabelsSet::new(vec![
+                    leader_labels[0].select(leader_input.value()).unwrap(),
+                    leader_labels[1].select(follower_input.value()).unwrap(),
+                ])
+                .unwrap(),
             )
             .unwrap();
 

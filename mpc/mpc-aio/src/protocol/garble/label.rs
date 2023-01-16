@@ -85,12 +85,13 @@ mod tests {
     use super::*;
     use crate::protocol::ot::mock::mock_ot_pair;
     use mpc_circuits::{Circuit, ADDER_64};
+    use mpc_core::garble::FullInputLabelsSet;
     use rand::thread_rng;
 
     #[tokio::test]
     async fn test_wire_label_transfer() {
         let circ = Circuit::load_bytes(ADDER_64).unwrap();
-        let (full_labels, _) = FullInputLabels::generate_set(&mut thread_rng(), &circ, None);
+        let full_labels = FullInputLabelsSet::generate(&mut thread_rng(), &circ, None);
 
         let receiver_labels = full_labels[1].clone();
 

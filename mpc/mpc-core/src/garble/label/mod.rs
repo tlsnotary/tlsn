@@ -4,6 +4,7 @@ mod digest;
 mod encoder;
 pub(crate) mod input;
 pub(crate) mod output;
+mod set;
 mod state;
 
 use mpc_circuits::{Circuit, GroupId, GroupValue, Input, Output, Value, WireGroup};
@@ -17,10 +18,10 @@ use crate::{block::Block, garble::LabelError};
 
 pub use digest::LabelsDigest;
 pub use encoder::ChaChaEncoder;
-pub(crate) use input::SanitizedInputLabels;
 pub use output::OutputLabelsCommitment;
+pub use set::LabelsSet;
 
-/// Full input labels of a garbled circuit
+/// Full input labels, ie contains both the low and high labels.
 pub type FullInputLabels = Labels<Input, state::Full>;
 /// Active input labels of a garbled circuit. These are the labels which the evaluator uses
 /// to evaluate the circuit.
@@ -34,6 +35,15 @@ pub type FullOutputLabels = Labels<Output, state::Full>;
 pub type ActiveOutputLabels = Labels<Output, state::Active>;
 /// Output labels decoding information
 pub type OutputLabelsDecodingInfo = LabelsDecodingInfo<Output>;
+
+/// A complete set of full input labels
+pub type FullInputLabelsSet = LabelsSet<Input, state::Full>;
+/// A complete set of full output labels
+pub type FullOutputLabelsSet = LabelsSet<Output, state::Full>;
+/// A complete set of active input labels
+pub type ActiveInputLabelsSet = LabelsSet<Input, state::Active>;
+/// A complete set of active output labels
+pub type ActiveOutputLabelsSet = LabelsSet<Output, state::Active>;
 
 /// Global binary offset used by the Free-XOR technique to create wire label
 /// pairs where W_1 = W_0 ^ Delta.

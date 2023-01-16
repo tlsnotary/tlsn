@@ -15,13 +15,14 @@ pub(crate) mod label;
 pub use circuit::{state as gc_state, CircuitOpening, GarbledCircuit};
 pub use error::{Error, InputError, LabelError};
 pub use label::{
-    ActiveInputLabels, ActiveOutputLabels, ChaChaEncoder, Delta, FullInputLabels, FullOutputLabels,
-    Labels, LabelsDecodingInfo, LabelsDigest, WireLabel, WireLabelPair,
+    ActiveInputLabels, ActiveInputLabelsSet, ActiveOutputLabels, ActiveOutputLabelsSet,
+    ChaChaEncoder, Delta, FullInputLabels, FullInputLabelsSet, FullOutputLabels,
+    FullOutputLabelsSet, Labels, LabelsDecodingInfo, LabelsDigest, WireLabel, WireLabelPair,
 };
 
 #[cfg(test)]
 mod tests {
-    use super::{evaluator as ev, generator as gen, *};
+    use super::{evaluator as ev, generator as gen, label::FullInputLabelsSet, *};
     use aes::{
         cipher::{generic_array::GenericArray, NewBlockCipher},
         Aes128,
@@ -29,7 +30,7 @@ mod tests {
     use rand::SeedableRng;
     use rand_chacha::ChaCha12Rng;
 
-    use crate::Block;
+    use crate::{garble::label::ActiveInputLabelsSet, Block};
     use mpc_circuits::{Circuit, WireGroup, AES_128_REVERSE};
 
     #[test]
@@ -128,21 +129,27 @@ mod tests {
         let cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
         let circ = Circuit::load_bytes(AES_128_REVERSE).unwrap();
 
-        let (input_labels, delta) = FullInputLabels::generate_set(&mut rng, &circ, None);
+        let input_labels = FullInputLabelsSet::generate(&mut rng, &circ, None);
 
         // Generator provides key
         let gen_input = circ.input(0).unwrap().to_value(vec![0x32; 16]).unwrap();
         // Evaluator provides message
         let ev_input = circ.input(1).unwrap().to_value(vec![0x11; 16]).unwrap();
 
-        let gc = GarbledCircuit::generate(&cipher, circ.clone(), delta, &input_labels).unwrap();
+        let gc = GarbledCircuit::generate(&cipher, circ.clone(), input_labels.clone()).unwrap();
 
-        let gc = gc.to_evaluator(&[gen_input.clone()], true, false).unwrap();
+        let gc = gc.to_evaluator(true, false).unwrap();
 
+        let gen_input_labels = input_labels[0].select(gen_input.value()).unwrap();
         // Evaluator typically receives these using OT
-        let ev_input_labels = input_labels[1].select(&ev_input.value()).unwrap();
+        let ev_input_labels = input_labels[1].select(ev_input.value()).unwrap();
 
-        let evaluated_gc = gc.evaluate(&cipher, &[ev_input_labels]).unwrap();
+        let evaluated_gc = gc
+            .evaluate(
+                &cipher,
+                ActiveInputLabelsSet::new(vec![gen_input_labels, ev_input_labels]).unwrap(),
+            )
+            .unwrap();
         let output = evaluated_gc.decode().unwrap();
 
         let expected = circ.evaluate(&[gen_input, ev_input]).unwrap();

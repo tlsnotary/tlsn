@@ -2,7 +2,7 @@ use cipher::{consts::U16, BlockCipher, BlockEncrypt};
 
 use crate::{
     block::{Block, SELECT_MASK},
-    garble::{circuit::EncryptedGate, label::SanitizedInputLabels, Error, LabelError, WireLabel},
+    garble::{circuit::EncryptedGate, label::ActiveInputLabelsSet, Error, LabelError, WireLabel},
 };
 use mpc_circuits::{Circuit, Gate};
 
@@ -41,15 +41,17 @@ pub(crate) fn xor_gate(x: &WireLabel, y: &WireLabel, zref: usize) -> WireLabel {
 pub fn evaluate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     cipher: &C,
     circ: &Circuit,
-    input_labels: SanitizedInputLabels,
+    input_labels: ActiveInputLabelsSet,
     encrypted_gates: &[EncryptedGate],
 ) -> Result<Vec<WireLabel>, Error> {
     let mut labels: Vec<Option<WireLabel>> = vec![None; circ.len()];
 
     // Insert input labels
-    for label in input_labels.inner() {
-        labels[label.id()] = Some(label);
-    }
+    input_labels.iter().for_each(|input_labels| {
+        input_labels
+            .iter()
+            .for_each(|label| labels[label.id()] = Some(label))
+    });
 
     let mut tid = 0;
     let mut gid = 1;

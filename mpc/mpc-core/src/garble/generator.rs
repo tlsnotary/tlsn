@@ -6,6 +6,8 @@ use crate::{
 };
 use mpc_circuits::{Circuit, Gate};
 
+use super::label::FullInputLabelsSet;
+
 /// Computes half-gate garbled AND gate
 #[inline]
 pub(crate) fn and_gate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
@@ -56,17 +58,20 @@ pub(crate) fn xor_gate(
 pub fn garble<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     cipher: &C,
     circ: &Circuit,
-    delta: Delta,
-    input_labels: &[WireLabelPair],
+    input_labels: FullInputLabelsSet,
 ) -> Result<(Vec<WireLabelPair>, Vec<EncryptedGate>), Error> {
     let mut encrypted_gates: Vec<EncryptedGate> = Vec::with_capacity(circ.and_count());
     // Every wire label pair for the circuit
     let mut labels: Vec<Option<WireLabelPair>> = vec![None; circ.len()];
 
+    let delta = input_labels.delta();
+
     // Insert input labels
-    for pair in input_labels {
-        labels[pair.id()] = Some(*pair)
-    }
+    input_labels.iter().for_each(|input_labels| {
+        input_labels
+            .iter()
+            .for_each(|label| labels[label.id()] = Some(label))
+    });
 
     let mut gid = 1;
     for gate in circ.gates() {

@@ -6,7 +6,7 @@ use futures::channel::oneshot;
 
 use mpc_circuits::Circuit;
 use mpc_core::garble::{
-    gc_state, ActiveInputLabels, CircuitOpening, Delta, FullInputLabels, GarbledCircuit,
+    gc_state, ActiveInputLabelsSet, CircuitOpening, FullInputLabelsSet, GarbledCircuit,
 };
 
 use crate::protocol::garble::{Compressor, Evaluator, GCError, Generator, Validator};
@@ -19,15 +19,12 @@ impl Generator for RayonBackend {
     async fn generate(
         &mut self,
         circ: Arc<Circuit>,
-        delta: Delta,
-        input_labels: &[FullInputLabels],
+        input_labels: FullInputLabelsSet,
     ) -> Result<GarbledCircuit<gc_state::Full>, GCError> {
         let (sender, receiver) = oneshot::channel();
-        let input_labels = input_labels.to_vec();
         rayon::spawn(move || {
             let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
-            let gc = GarbledCircuit::generate(&cipher, circ, delta, &input_labels)
-                .map_err(GCError::from);
+            let gc = GarbledCircuit::generate(&cipher, circ, input_labels).map_err(GCError::from);
             _ = sender.send(gc);
         });
         receiver
@@ -41,13 +38,12 @@ impl Evaluator for RayonBackend {
     async fn evaluate(
         &mut self,
         circ: GarbledCircuit<gc_state::Partial>,
-        input_labels: &[ActiveInputLabels],
+        input_labels: ActiveInputLabelsSet,
     ) -> Result<GarbledCircuit<gc_state::Evaluated>, GCError> {
         let (sender, receiver) = oneshot::channel();
-        let input_labels = input_labels.to_vec();
         rayon::spawn(move || {
             let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
-            let ev = circ.evaluate(&cipher, &input_labels).map_err(GCError::from);
+            let ev = circ.evaluate(&cipher, input_labels).map_err(GCError::from);
             _ = sender.send(ev);
         });
         receiver
@@ -108,7 +104,6 @@ impl Compressor for RayonBackend {
 #[cfg(test)]
 mod test {
     use mpc_circuits::ADDER_64;
-    use mpc_core::garble::FullInputLabels;
     use rand::thread_rng;
 
     use super::*;
@@ -116,19 +111,20 @@ mod test {
     #[tokio::test]
     async fn test_rayon_garbler() {
         let circ = Circuit::load_bytes(ADDER_64).unwrap();
-        let (input_labels, delta) = FullInputLabels::generate_set(&mut thread_rng(), &circ, None);
+        let input_labels = FullInputLabelsSet::generate(&mut thread_rng(), &circ, None);
         let gc = RayonBackend
-            .generate(circ.clone(), delta, &input_labels)
+            .generate(circ.clone(), input_labels.clone())
             .await
             .unwrap();
 
-        let input_labels = vec![
+        let input_labels = ActiveInputLabelsSet::new(vec![
             input_labels[0].select(&0u64.into()).unwrap(),
             input_labels[1].select(&0u64.into()).unwrap(),
-        ];
+        ])
+        .unwrap();
 
         let _ = RayonBackend
-            .evaluate(gc.to_evaluator(&[], true, false).unwrap(), &input_labels)
+            .evaluate(gc.to_evaluator(true, false).unwrap(), input_labels)
             .await
             .unwrap();
     }
@@ -136,21 +132,22 @@ mod test {
     #[tokio::test]
     async fn test_validator() {
         let circ = Circuit::load_bytes(ADDER_64).unwrap();
-        let (full_input_labels, delta) =
-            FullInputLabels::generate_set(&mut thread_rng(), &circ, None);
+        let input_labels = FullInputLabelsSet::generate(&mut thread_rng(), &circ, None);
+
         let gc = RayonBackend
-            .generate(circ.clone(), delta, &full_input_labels)
+            .generate(circ.clone(), input_labels.clone())
             .await
             .unwrap();
         let opening = gc.open();
 
-        let input_labels = vec![
-            full_input_labels[0].select(&0u64.into()).unwrap(),
-            full_input_labels[1].select(&0u64.into()).unwrap(),
-        ];
+        let input_labels = ActiveInputLabelsSet::new(vec![
+            input_labels[0].select(&0u64.into()).unwrap(),
+            input_labels[1].select(&0u64.into()).unwrap(),
+        ])
+        .unwrap();
 
         let ev_gc = RayonBackend
-            .evaluate(gc.to_evaluator(&[], true, false).unwrap(), &input_labels)
+            .evaluate(gc.to_evaluator(true, false).unwrap(), input_labels)
             .await
             .unwrap();
 
