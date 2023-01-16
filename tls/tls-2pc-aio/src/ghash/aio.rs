@@ -14,8 +14,8 @@ where
     U: MultiplicativeToAdditive<FieldElement = u128>,
 {
     core: GhashCore<V>,
-    pub a2m_converter: T,
-    pub m2a_converter: U,
+    a2m_converter: T,
+    m2a_converter: U,
 }
 
 impl<T, U> Ghash<T, U, Init>
