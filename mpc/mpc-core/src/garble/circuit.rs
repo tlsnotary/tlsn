@@ -61,9 +61,10 @@ pub mod state {
         pub trait Sealed {}
 
         impl Sealed for Full {}
-        impl Sealed for Summary {}
+        impl Sealed for FullSummary {}
         impl Sealed for Partial {}
         impl Sealed for Evaluated {}
+        impl Sealed for EvaluatedSummary {}
         impl Sealed for Compressed {}
         impl Sealed for Output {}
     }
@@ -82,9 +83,9 @@ pub mod state {
         pub(crate) delta: Delta,
     }
 
-    /// Summary of garbled circuit data, only including input/output labels and decoding info.
+    /// Summary of full garbled circuit data, only including input/output labels and decoding info.
     #[derive(Debug)]
-    pub struct Summary {
+    pub struct FullSummary {
         pub(crate) input_labels: FullInputLabelsSet,
         pub(crate) output_labels: FullOutputLabelsSet,
         /// Output labels decoding sorted ascending by id
@@ -117,6 +118,15 @@ pub mod state {
         pub(crate) commitments: Option<Vec<OutputLabelsCommitment>>,
     }
 
+    /// Summary of evaluated garbled circuit data
+    #[derive(Debug, Clone)]
+    pub struct EvaluatedSummary {
+        pub(crate) input_labels: ActiveInputLabelsSet,
+        pub(crate) output_labels: ActiveOutputLabelsSet,
+        /// Output labels decoding sorted ascending by id
+        pub(crate) decoding: Option<Vec<OutputLabelsDecodingInfo>>,
+    }
+
     /// Evaluated garbled circuit that has been compressed to minimize memory footprint
     #[derive(Debug, Clone)]
     pub struct Compressed {
@@ -143,9 +153,10 @@ pub mod state {
     }
 
     impl State for Full {}
-    impl State for Summary {}
+    impl State for FullSummary {}
     impl State for Partial {}
     impl State for Evaluated {}
+    impl State for EvaluatedSummary {}
     impl State for Compressed {}
     impl State for Output {}
 }
@@ -256,7 +267,7 @@ impl GarbledCircuit<Full> {
     }
 
     /// Summarizes garbled circuit data to reduce memory footprint
-    pub fn summarize(self) -> GarbledCircuit<Summary> {
+    pub fn summarize(self) -> GarbledCircuit<FullSummary> {
         let decoding = self.decoding();
         let input_labels = self.state.input_labels;
         let output_labels = self.state.output_labels;
@@ -264,7 +275,7 @@ impl GarbledCircuit<Full> {
 
         GarbledCircuit {
             circ: self.circ,
-            state: Summary {
+            state: FullSummary {
                 input_labels,
                 output_labels,
                 decoding,
@@ -286,7 +297,7 @@ impl GarbledCircuit<Full> {
     }
 }
 
-impl GarbledCircuit<Summary> {
+impl GarbledCircuit<FullSummary> {
     /// Returns reference to input labels set
     pub fn input_labels(&self) -> &FullInputLabelsSet {
         &self.state.input_labels
@@ -412,6 +423,18 @@ impl GarbledCircuit<Evaluated> {
         }
     }
 
+    /// Returns a summary of the evaluated circuit to reduce memory utilization
+    pub fn summarize(self) -> GarbledCircuit<EvaluatedSummary> {
+        GarbledCircuit {
+            circ: self.circ,
+            state: EvaluatedSummary {
+                input_labels: self.state.input_labels,
+                output_labels: self.state.output_labels,
+                decoding: self.state.decoding,
+            },
+        }
+    }
+
     /// Returns decoded circuit outputs
     pub fn decode(&self) -> Result<Vec<OutputValue>, Error> {
         let decoding = self.state.decoding.as_ref().ok_or(Error::MissingDecoding)?;
@@ -430,6 +453,29 @@ impl GarbledCircuit<Evaluated> {
             self.state.decoding.as_ref().map(Vec::as_slice),
             self.state.commitments.as_ref().map(Vec::as_slice),
         )
+    }
+}
+
+impl GarbledCircuit<EvaluatedSummary> {
+    /// Returns reference to input labels set
+    pub fn input_labels(&self) -> &ActiveInputLabelsSet {
+        &self.state.input_labels
+    }
+
+    /// Returns reference to output labels set
+    pub fn output_labels(&self) -> &ActiveOutputLabelsSet {
+        &self.state.output_labels
+    }
+
+    /// Returns whether or not output decoding info is available
+    pub fn has_decoding(&self) -> bool {
+        self.state.decoding.is_some()
+    }
+
+    /// Returns decoded circuit outputs
+    pub fn decode(&self) -> Result<Vec<OutputValue>, Error> {
+        let decoding = self.state.decoding.as_ref().ok_or(Error::MissingDecoding)?;
+        decode_active_labels(self.output_labels().get_labels(), decoding).map_err(Error::from)
     }
 }
 

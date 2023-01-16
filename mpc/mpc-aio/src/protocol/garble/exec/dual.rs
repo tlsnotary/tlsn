@@ -12,7 +12,7 @@ use crate::protocol::{
     garble::{Evaluator, GCError, GarbleChannel, GarbleMessage, Generator},
     ot::{ObliviousReceive, ObliviousSend},
 };
-use futures::{SinkExt, StreamExt};
+use futures::{future::ready, SinkExt, StreamExt};
 use mpc_circuits::{Circuit, Input, InputValue, OutputValue, WireGroup};
 use mpc_core::garble::{
     exec::dual as core, gc_state, ActiveInputLabels, ActiveInputLabelsSet, FullInputLabels,
@@ -56,8 +56,8 @@ where
     circ: Arc<Circuit>,
     channel: GarbleChannel,
     backend: B,
-    label_sender: LS,
-    label_receiver: LR,
+    label_sender: Option<LS>,
+    label_receiver: Option<LR>,
 }
 
 impl<B, LS, LR> DualExLeader<Initialized, B, LS, LR>
@@ -66,12 +66,13 @@ where
     LS: ObliviousSend<FullInputLabels> + Send,
     LR: ObliviousReceive<InputValue, ActiveInputLabels> + Send,
 {
+    /// Create a new DualExLeader
     pub fn new(
         circ: Arc<Circuit>,
         channel: GarbleChannel,
         backend: B,
-        label_sender: LS,
-        label_receiver: LR,
+        label_sender: Option<LS>,
+        label_receiver: Option<LR>,
     ) -> DualExLeader<Initialized, B, LS, LR> {
         DualExLeader {
             state: Initialized,
@@ -100,8 +101,8 @@ where
     ) -> Result<DualExLeader<LabelSetup, B, LS, LR>, GCError> {
         let (gen_labels, ev_labels) = setup_inputs(
             &mut self.channel,
-            &mut self.label_sender,
-            &mut self.label_receiver,
+            self.label_sender.as_mut(),
+            self.label_receiver.as_mut(),
             gen_labels,
             gen_inputs,
             ot_send_inputs,
@@ -130,9 +131,27 @@ where
     LS: ObliviousSend<FullInputLabels> + Send,
     LR: ObliviousReceive<InputValue, ActiveInputLabels> + Send,
 {
-    pub async fn execute(mut self) -> Result<Vec<OutputValue>, GCError> {
+    /// Execute dual execution protocol
+    ///
+    /// Returns decoded output values
+    pub async fn execute(self) -> Result<Vec<OutputValue>, GCError> {
+        self.execute_skip_decoding()
+            .await?
+            .decode()
+            .map_err(GCError::from)
+    }
+
+    /// Execute dual execution protocol without decoding the output values
+    ///
+    /// This can be used when the labels of the evaluated circuit are needed.
+    ///
+    /// Returns evaluated garbled circuit
+    pub async fn execute_skip_decoding(
+        mut self,
+    ) -> Result<GarbledCircuit<gc_state::EvaluatedSummary>, GCError> {
         let leader = core::DualExLeader::new(self.circ.clone());
 
+        // Generate garbled circuit
         let full_gc = self
             .backend
             .generate(self.circ.clone(), self.state.gen_labels)
@@ -140,10 +159,12 @@ where
 
         let (partial_gc, leader) = leader.from_full_circuit(full_gc)?;
 
+        // Send garbled circuit to follower
         self.channel
             .send(GarbleMessage::GarbledCircuit(partial_gc.into()))
             .await?;
 
+        // Expect garbled circuit from follower
         let msg = expect_msg_or_err!(
             self.channel.next().await,
             GarbleMessage::GarbledCircuit,
@@ -153,30 +174,38 @@ where
         let gc_ev =
             GarbledCircuit::<gc_state::Partial>::from_unchecked(self.circ.clone(), msg.into())?;
 
+        // Evaluate garbled circuit
         let evaluated_gc = self.backend.evaluate(gc_ev, self.state.ev_labels).await?;
 
         let leader = leader.from_evaluated_circuit(evaluated_gc)?;
+
+        // Commit to output labels
         let (commit, leader) = leader.commit();
 
+        // Send commitment
         self.channel
             .send(GarbleMessage::HashCommitment(commit.into()))
             .await?;
 
+        // Expect output labels digest from follower
         let msg = expect_msg_or_err!(
             self.channel.next().await,
             GarbleMessage::OutputLabelsDigest,
             GCError::Unexpected
         )?;
 
+        // Perform equality check
         let follower_check = msg.into();
         let leader = leader.check(follower_check)?;
+
+        // If equality check passes, reveal output digest
         let (opening, gc_evaluated) = leader.reveal();
 
         self.channel
             .send(GarbleMessage::CommitmentOpening(opening.into()))
             .await?;
 
-        Ok(gc_evaluated.decode()?)
+        Ok(gc_evaluated.summarize())
     }
 }
 
@@ -191,8 +220,8 @@ where
     circ: Arc<Circuit>,
     channel: GarbleChannel,
     backend: B,
-    label_sender: LS,
-    label_receiver: LR,
+    label_sender: Option<LS>,
+    label_receiver: Option<LR>,
 }
 
 impl<B, LS, LR> DualExFollower<Initialized, B, LS, LR>
@@ -201,12 +230,13 @@ where
     LS: ObliviousSend<FullInputLabels> + Send,
     LR: ObliviousReceive<InputValue, ActiveInputLabels> + Send,
 {
+    /// Create a new DualExFollower
     pub fn new(
         circ: Arc<Circuit>,
         channel: GarbleChannel,
         backend: B,
-        label_sender: LS,
-        label_receiver: LR,
+        label_sender: Option<LS>,
+        label_receiver: Option<LR>,
     ) -> DualExFollower<Initialized, B, LS, LR> {
         DualExFollower {
             state: Initialized,
@@ -235,8 +265,8 @@ where
     ) -> Result<DualExFollower<LabelSetup, B, LS, LR>, GCError> {
         let (gen_labels, ev_labels) = setup_inputs(
             &mut self.channel,
-            &mut self.label_sender,
-            &mut self.label_receiver,
+            self.label_sender.as_mut(),
+            self.label_receiver.as_mut(),
             gen_labels,
             gen_inputs,
             ot_send_inputs,
@@ -265,9 +295,27 @@ where
     LS: ObliviousSend<FullInputLabels> + Send,
     LR: ObliviousReceive<InputValue, ActiveInputLabels> + Send,
 {
-    pub async fn execute(mut self) -> Result<Vec<OutputValue>, GCError> {
+    /// Execute dual execution protocol
+    ///
+    /// Returns decoded output values
+    pub async fn execute(self) -> Result<Vec<OutputValue>, GCError> {
+        self.execute_skip_decoding()
+            .await?
+            .decode()
+            .map_err(GCError::from)
+    }
+
+    /// Execute dual execution protocol without decoding the output values
+    ///
+    /// This can be used when the labels of the evaluated circuit are needed.
+    ///
+    /// Returns evaluated garbled circuit
+    pub async fn execute_skip_decoding(
+        mut self,
+    ) -> Result<GarbledCircuit<gc_state::EvaluatedSummary>, GCError> {
         let follower = core::DualExFollower::new(self.circ.clone());
 
+        // Generate garbled circuit
         let full_gc = self
             .backend
             .generate(self.circ.clone(), self.state.gen_labels)
@@ -275,10 +323,12 @@ where
 
         let (partial_gc, follower) = follower.from_full_circuit(full_gc)?;
 
+        // Send garbled circuit to leader
         self.channel
             .send(GarbleMessage::GarbledCircuit(partial_gc.into()))
             .await?;
 
+        // Expect garbled circuit from leader
         let msg = expect_msg_or_err!(
             self.channel.next().await,
             GarbleMessage::GarbledCircuit,
@@ -288,10 +338,12 @@ where
         let gc_ev =
             GarbledCircuit::<gc_state::Partial>::from_unchecked(self.circ.clone(), msg.into())?;
 
+        // Evaluate garbled circuit
         let evaluated_gc = self.backend.evaluate(gc_ev, self.state.ev_labels).await?;
 
         let follower = follower.from_evaluated_circuit(evaluated_gc)?;
 
+        // Expect commitment from leader
         let msg = expect_msg_or_err!(
             self.channel.next().await,
             GarbleMessage::HashCommitment,
@@ -299,28 +351,35 @@ where
         )?;
 
         let leader_commit = msg.into();
+
+        // Store commitment and reveal output digest
         let (check, follower) = follower.reveal(leader_commit);
 
         self.channel
             .send(GarbleMessage::OutputLabelsDigest(check.into()))
             .await?;
 
+        // Expect commitment opening from leader
         let msg = expect_msg_or_err!(
             self.channel.next().await,
             GarbleMessage::CommitmentOpening,
             GCError::Unexpected
         )?;
+
         let leader_opening = msg.into();
+
+        // Verify commitment opening
         let gc_evaluated = follower.verify(leader_opening)?;
 
-        Ok(gc_evaluated.decode()?)
+        Ok(gc_evaluated.summarize())
     }
 }
 
+/// Setup input labels by exchanging directly and via oblivious transfer.
 async fn setup_inputs<LS, LR>(
     channel: &mut GarbleChannel,
-    label_sender: &mut LS,
-    label_receiver: &mut LR,
+    label_sender: Option<&mut LS>,
+    label_receiver: Option<&mut LR>,
     gen_labels: FullInputLabelsSet,
     gen_inputs: Vec<InputValue>,
     ot_send_inputs: Vec<Input>,
@@ -333,11 +392,13 @@ where
 {
     let circ = gen_labels.circuit();
 
+    // Collect labels to be sent via OT
     let ot_send_labels = ot_send_inputs
         .iter()
         .map(|input| gen_labels[input.index()].clone())
-        .collect();
+        .collect::<Vec<FullInputLabels>>();
 
+    // Collect active labels to be directly sent
     let direct_send_labels = gen_inputs
         .iter()
         .map(|input| {
@@ -347,7 +408,16 @@ where
         })
         .collect::<Vec<ActiveInputLabels>>();
 
-    let ot_send_fut = label_sender.send(ot_send_labels);
+    // Concurrently execute oblivious transfers and direct label sending
+
+    // If there are no labels to be sent via OT, we can skip the OT protocol
+    let ot_send_fut = match label_sender {
+        Some(label_sender) if ot_send_labels.len() > 0 => label_sender.send(ot_send_labels),
+        None if ot_send_labels.len() > 0 => {
+            return Err(GCError::MissingOTSender);
+        }
+        _ => Box::pin(ready(Ok(()))),
+    };
 
     let direct_send_fut = channel.send(GarbleMessage::InputLabels(
         direct_send_labels
@@ -356,15 +426,25 @@ where
             .collect::<Vec<_>>(),
     ));
 
-    let ot_receive_fut = label_receiver.receive(ot_receive_inputs);
+    // If there are no labels to be received via OT, we can skip the OT protocol
+    let ot_receive_fut = match label_receiver {
+        Some(label_receiver) if ot_receive_inputs.len() > 0 => {
+            label_receiver.receive(ot_receive_inputs)
+        }
+        None if ot_receive_inputs.len() > 0 => {
+            return Err(GCError::MissingOTReceiver);
+        }
+        _ => Box::pin(ready(Ok(vec![]))),
+    };
 
     let (ot_send_result, direct_send_result, ot_receive_result) =
-        futures::join!(ot_send_fut, direct_send_fut, ot_receive_fut,);
+        futures::join!(ot_send_fut, direct_send_fut, ot_receive_fut);
 
     ot_send_result?;
     direct_send_result?;
     let ot_receive_labels = ot_receive_result?;
 
+    // Expect direct labels from peer
     let msg = expect_msg_or_err!(
         channel.next().await,
         GarbleMessage::InputLabels,
@@ -376,6 +456,7 @@ where
         .map(|msg| ActiveInputLabels::from_unchecked(&circ, msg.into()))
         .collect::<Result<Vec<_>, _>>()?;
 
+    // Collect all active labels into a set
     let ev_labels = ActiveInputLabelsSet::new(
         [ot_receive_labels, direct_received_labels, cached_labels].concat(),
     )?;
@@ -412,16 +493,16 @@ mod mock {
             circ.clone(),
             Box::new(leader_channel),
             RayonBackend,
-            leader_sender,
-            leader_receiver,
+            Some(leader_sender),
+            Some(leader_receiver),
         );
 
         let follower = DualExFollower::new(
             circ,
             Box::new(follower_channel),
             RayonBackend,
-            follower_sender,
-            follower_receiver,
+            Some(follower_sender),
+            Some(follower_receiver),
         );
 
         (leader, follower)

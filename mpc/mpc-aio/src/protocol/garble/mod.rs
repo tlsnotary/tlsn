@@ -32,6 +32,10 @@ pub enum GCError {
     Unexpected(GarbleMessage),
     #[error("backend error")]
     BackendError(String),
+    #[error("Configured to send OTs but no OT sender was provided")]
+    MissingOTSender,
+    #[error("Configured to receive OTs but no OT receiver was provided")]
+    MissingOTReceiver,
 }
 
 #[async_trait]

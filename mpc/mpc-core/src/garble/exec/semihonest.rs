@@ -38,7 +38,7 @@ pub mod state {
     }
 
     pub struct Decode {
-        pub(super) gc: GarbledCircuit<gc_state::Summary>,
+        pub(super) gc: GarbledCircuit<gc_state::FullSummary>,
     }
 
     impl State for Generator {}
