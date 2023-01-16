@@ -1,6 +1,7 @@
 //! This module implements the async IO sender
 
 use super::{
+    msgs::Opening,
     recorder::{Recorder, Tape, Void},
     ShareConversionChannel,
 };
@@ -8,8 +9,8 @@ use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive, SendTape, ShareC
 use async_trait::async_trait;
 use futures::SinkExt;
 use mpc_aio::protocol::ot::{config::OTSenderConfig, OTFactoryError, ObliviousSend};
-use mpc_core::ot::config::OTSenderConfigBuilder;
-use rand::SeedableRng;
+use mpc_core::{ot::config::OTSenderConfigBuilder, utils::blake3, Block};
+use rand::{RngCore, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 use share_conversion_core::{
     fields::Field,
@@ -62,6 +63,9 @@ where
         barrier: Option<AdaptiveBarrier>,
     ) -> Self {
         let rng = ChaCha12Rng::from_entropy();
+        let mut recorder = V::default();
+        recorder.set_seed(rng.get_seed());
+
         Self {
             sender_factory,
             _ot: PhantomData,
@@ -69,7 +73,7 @@ where
             _protocol: PhantomData,
             rng,
             channel,
-            recorder: W::default(),
+            recorder,
             barrier,
             counter: 0,
         }
@@ -133,8 +137,8 @@ where
     W: Recorder<AddShare<V>, V> + Send,
     X: Send,
 {
+<<<<<<< HEAD:mpc/share-conversion-aio/src/conversion/sender.rs
     async fn a_to_m(&mut self, input: Vec<V>) -> Result<Vec<V>, ShareConversionError> {
-        self.recorder.set_seed(self.rng.get_seed());
         self.recorder.record_for_sender(&input);
         self.convert_from(&input).await
     }
@@ -149,8 +153,8 @@ where
     W: Recorder<MulShare<V>, V> + Send,
     X: Send,
 {
+<<<<<<< HEAD:mpc/share-conversion-aio/src/conversion/sender.rs
     async fn m_to_a(&mut self, input: Vec<V>) -> Result<Vec<V>, ShareConversionError> {
-        self.recorder.set_seed(self.rng.get_seed());
         self.recorder.record_for_sender(&input);
         self.convert_from(&input).await
     }
@@ -164,17 +168,33 @@ where
     U: ShareConvert<Inner = V> + Send,
     V: Field<BlockEncoding = X>,
 {
+    async fn send_commitment(&mut self) -> Result<(), ShareConversionError> {
+        let mut rng = ChaCha12Rng::from_entropy();
+        let mut salt = [0_u8; 32];
+        rng.fill_bytes(&mut salt);
+
+        self.recorder.salt = salt;
+        let commitment = blake3(&[self.rng.get_seed().as_slice(), salt.as_slice()].concat());
+
+        self.channel
+            .send(Gf2ConversionMessage::Commitment(commitment.into()))
+            .await?;
+        Ok(())
+    }
+
     async fn send_tape(mut self) -> Result<(), ShareConversionError> {
-        let message = SenderRecordings {
-            seed: self.recorder.seed.to_vec(),
-            sender_inputs: self.recorder.sender_inputs,
-        };
+        let opening: Opening = (
+            self.recorder.seed,
+            self.recorder.salt,
+            self.recorder.sender_inputs,
+        )
+            .into();
 
         if let Some(barrier) = self.barrier {
             barrier.wait().await;
         }
         self.channel
-            .send(ShareConversionMessage::SenderRecordings(message))
+            .send(Gf2ConversionMessage::Opening(opening))
             .await?;
         Ok(())
     }

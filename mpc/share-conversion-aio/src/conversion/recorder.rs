@@ -1,4 +1,5 @@
 use crate::ShareConversionError;
+use mpc_core::utils::blake3;
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 use share_conversion_core::{fields::Field, ShareConvert};
@@ -22,25 +23,31 @@ pub trait Recorder<T: ShareConvert<Inner = U>, U: Field>: Default {
 /// who will combine it with her tape to check for any malicious behaviour of the sender.
 pub struct Tape<T: Field> {
     pub(crate) seed: [u8; 32],
+    pub(crate) salt: [u8; 32],
     pub(crate) sender_inputs: Vec<T>,
     pub(crate) receiver_inputs: Vec<T>,
     pub(crate) receiver_outputs: Vec<T>,
     pub(crate) ot_outputs: Vec<T>,
+    pub(crate) commitment: [u8; 32],
 }
 
 impl<T: Field> Default for Tape<T> {
     fn default() -> Self {
         let seed = [0_u8; 32];
+        let salt = [0_u8; 32];
         let sender_inputs = vec![];
         let receiver_inputs = vec![];
         let receiver_outputs = vec![];
         let ot_outputs = vec![];
+        let commitment = [0_u8; 32];
         Self {
             seed,
+            salt,
             sender_inputs,
             receiver_inputs,
             receiver_outputs,
             ot_outputs,
+            commitment,
         }
     }
 }
@@ -64,6 +71,11 @@ impl<T: ShareConvert<Inner = U>, U: Field> Recorder<T, U> for Tape<U> {
     }
 
     fn verify(&self) -> Result<(), ShareConversionError> {
+        // Check commitment
+        if blake3(&[self.seed, self.salt].concat()) != self.commitment {
+            return Err(ShareConversionError::VerifyTapeFailed);
+        }
+
         let mut rng = ChaCha12Rng::from_seed(self.seed);
 
         for (i, ((sender_input, receiver_input), receiver_output)) in self
@@ -79,7 +91,7 @@ impl<T: ShareConvert<Inner = U>, U: Field> Recorder<T, U> for Tape<U> {
 
             let mut ot_outputs: Vec<U> = vec![U::zero(); U::BIT_SIZE as usize];
             for (k, ot_output) in ot_outputs.iter_mut().enumerate() {
-                *number = if choices[k] {
+                *ot_output = if choices[k] {
                     ot_envelope.one_choices()[k]
                 } else {
                     ot_envelope.zero_choices()[k]

@@ -48,8 +48,12 @@ pub enum ShareConversionError {
     IOError(#[from] std::io::Error),
     #[error("ShareConversionCore Error: {0}")]
     ShareConversionCore(#[from] ShareConversionCoreError),
+    #[error("Error during conversion between message and memory types")]
+    MessageConversion,
     #[error("Tape verification failed")]
     VerifyTapeFailed,
+    #[error("Received unexpected message: {0:?}")]
+    Unexpected(Gf2ConversionMessage),
     #[error("Error: {0}")]
     Other(String),
 }
