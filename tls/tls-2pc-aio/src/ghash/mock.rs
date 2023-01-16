@@ -6,11 +6,10 @@ use share_conversion_aio::gf2_128::{
 };
 use share_conversion_core::gf2_128::{AddShare, MulShare};
 
-use super::{GhashReceiver, GhashSender};
+use super::Ghash;
 
-pub type MockGhashSender<T, U> = GhashSender<Gf2Sender<AddShare, T>, Gf2Sender<MulShare, U>>;
-pub type MockGhashReceiver<T, U> =
-    GhashReceiver<Gf2Receiver<AddShare, T>, Gf2Receiver<MulShare, U>>;
+pub type MockGhashSender<T, U> = Ghash<Gf2Sender<AddShare, T>, Gf2Sender<MulShare, U>>;
+pub type MockGhashReceiver<T, U> = Ghash<Gf2Receiver<AddShare, T>, Gf2Receiver<MulShare, U>>;
 
 /// Create a Ghash sender/receiver pair for testing purpose
 pub fn mock_ghash_pair<T: Recorder<AddShare> + Send, U: Recorder<MulShare> + Send>(
@@ -25,8 +24,8 @@ pub fn mock_ghash_pair<T: Recorder<AddShare> + Send, U: Recorder<MulShare> + Sen
     let (sender_m2a, receiver_m2a) = mock_converter_pair::<MulShare, _>();
 
     let (sender, receiver) = (
-        GhashSender::new(h1, message_len, sender_a2m, sender_m2a).unwrap(),
-        GhashReceiver::new(h2, message_len, receiver_a2m, receiver_m2a).unwrap(),
+        Ghash::new(h1, message_len, sender_a2m, sender_m2a).unwrap(),
+        Ghash::new(h2, message_len, receiver_a2m, receiver_m2a).unwrap(),
     );
 
     (sender, receiver)
