@@ -6,17 +6,19 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
+default = ["mock"]
 serde = ["dep:serde"]
+mock = []
 
 [dependencies]
+thiserror.workspace = true
 tlsn-mpc-aio = { path = "../mpc-aio" }
 tlsn-mpc-core = { path = "../mpc-core" }
-share-conversion-core = { path = "../share-conversion-core" }
-tlsn-utils-aio.workspace = true
 async-trait.workspace = true
-thiserror.workspace = true
 rand.workspace = true
 rand_chacha.workspace = true
+share-conversion-core = { path = "../share-conversion-core" }
+tlsn-utils-aio = { path = "../../utils/utils-aio" }
 futures.workspace = true
 serde = { workspace = true, features = ["derive"], optional = true }
 

@@ -31,7 +31,7 @@ impl GhashCore {
         })
     }
 
-    /// Returns the original hashkey
+    /// Returns the original hashkey share
     ///
     /// This is an additive sharing of `H`
     pub fn h_additive(&self) -> u128 {
@@ -106,14 +106,14 @@ impl GhashCore<Finalized> {
     /// Change the maximum hashkey power
     ///
     /// If we want to create a GHASH output for a new message, which is longer than the old one, we need
-    /// to compute the missing powers of `H`.
+    /// to compute the missing shares of the powers of `H`.
     pub fn change_max_hashkey(self, new_highest_hashkey_power: usize) -> GhashCore<Intermediate> {
-        let mut hashkey_powers = self.state.odd_mul_shares;
-        compute_missing_mul_shares(&mut hashkey_powers, new_highest_hashkey_power);
+        let mut present_odd_mul_shares = self.state.odd_mul_shares;
+        compute_missing_mul_shares(&mut present_odd_mul_shares, new_highest_hashkey_power);
 
         GhashCore {
             state: Intermediate {
-                odd_mul_shares: hashkey_powers,
+                odd_mul_shares: present_odd_mul_shares,
                 cached_add_shares: self.state.add_shares,
             },
             max_message_length: new_highest_hashkey_power,
