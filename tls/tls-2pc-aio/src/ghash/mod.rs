@@ -20,7 +20,7 @@ pub enum GhashError {
 
 /// Create a Ghash output for some message
 ///
-/// The Ghash output is the MAC without the XOR of the GCTR block
+/// The Ghash output is the unencrypted GCM MAC (i.e. before the XOR of the GCTR block)
 pub trait GenerateGhash {
     fn finalize(&self, message: &[u128]) -> Result<u128, GhashError>;
 }

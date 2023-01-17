@@ -25,7 +25,7 @@ where
 {
     /// Creates a new instance
     ///
-    /// * `hashkey`             - the key used for Ghash
+    /// * `hashkey`             - the key used for Ghash, abbreviated as "H"
     /// * `max_message_length`  - the maximum message length for which the Ghash output can be
     ///                           computed
     /// * `a2m_converter`       - An instance which allows to convert additive into multiplicative
@@ -46,7 +46,7 @@ where
         })
     }
 
-    /// Setup `self` to be able to generate a Ghash output
+    /// Set up `self` to be able to generate a Ghash output
     ///
     /// This will perform both conversion steps:
     ///     1. Get a multiplicative share of the hashkey
@@ -71,11 +71,10 @@ where
     T: AdditiveToMultiplicative<FieldElement = u128>,
     U: MultiplicativeToAdditive<FieldElement = u128>,
 {
-    /// Computes all the additive share powers
+    /// Computes all the additive shares of the hashkey powers
     ///
-    /// This assumes that we already have a multiplicative share of the hashkey. So it only
-    /// performs the second step. We need this when the message length changes because in this case
-    /// we do not need to perform step 1 again.
+    /// This assumes that we already have a multiplicative share of the hashkey, so we don't need to
+    /// perform the `setup()` step. We need this when the message length changes.
     pub async fn compute_add_shares(mut self) -> Result<Ghash<T, U, Finalized>, GhashError> {
         let odd_mul_shares = self.core.odd_mul_shares();
 
