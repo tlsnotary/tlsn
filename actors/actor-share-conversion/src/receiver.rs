@@ -1,4 +1,4 @@
-use super::{A2MMessage, M2AMessage, SetupMessage, VerifyTapeMessage};
+use super::{A2MMessage, AcceptCommitmentMessage, M2AMessage, SetupMessage, VerifyTapeMessage};
 use mpc_aio::protocol::ot::{OTFactoryError, ObliviousReceive};
 use mpc_core::ot::config::OTReceiverConfig;
 use share_conversion_aio::{
@@ -125,9 +125,18 @@ where
 #[async_trait]
 impl<T> VerifyTape for ReceiverControl<T>
 where
-    T: Handler<VerifyTapeMessage, Return = Result<(), ShareConversionError>>,
+    T: Handler<AcceptCommitmentMessage, Return = Result<(), ShareConversionError>>
+        + Handler<VerifyTapeMessage, Return = Result<(), ShareConversionError>>,
 {
-    /// Sends VerifyTapeMessage to the actor
+    /// Sends AcceptCommitmentMessage to the actor
+    async fn accept_commitment(&mut self) -> Result<(), ShareConversionError> {
+        self.0
+            .send(AcceptCommitmentMessage)
+            .await
+            .map_err(|err| ShareConversionError::Other(err.to_string()))?
+    }
+
+    /// Sends VerifyTape to the actor
     async fn verify_tape(self) -> Result<(), ShareConversionError> {
         self.0
             .send(VerifyTapeMessage)
@@ -238,6 +247,40 @@ where
 }
 
 #[async_trait]
+impl<T, OT, U, V, X, Y> Handler<AcceptCommitmentMessage> for Receiver<T, OT, U, V, X, Y, Tape<Y>>
+where
+    T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send + 'static,
+    OT: ObliviousReceive<bool, X> + Send + 'static,
+    U: ShareConvert<Inner = Y> + Send + 'static,
+    V: MuxChannelControl<ShareConversionMessage<Y>> + Send + 'static,
+    X: Send + 'static,
+    Y: Field<BlockEncoding = X> + Send + 'static,
+    IOReceiver<T, OT, U, Y, X, Tape<Y>>: VerifyTape,
+{
+    type Return = Result<(), ShareConversionError>;
+
+    /// This handler is called when the actor receives AcceptCommitment
+    async fn handle(
+        &mut self,
+        _message: AcceptCommitmentMessage,
+        ctx: &mut Context<Self>,
+    ) -> Self::Return {
+        let state = std::mem::replace(&mut self.state, State::Error);
+
+        let State::Setup(mut state) = state else {
+        ctx.stop_self();
+            return Err(ShareConversionError::Other(String::from(
+                "Actor is not in the Setup state",
+            )));
+        };
+
+        let out = state.accept_commitment().await;
+        self.state = State::Setup(state);
+        out
+    }
+}
+
+#[async_trait]
 impl<T, OT, U, V, X, Y> Handler<VerifyTapeMessage> for Receiver<T, OT, U, V, X, Y, Tape<Y>>
 where
     T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send + 'static,
@@ -250,12 +293,8 @@ where
 {
     type Return = Result<(), ShareConversionError>;
 
-    /// This handler is called when the actor receives VerifyTapeMessage
-    async fn handle(
-        &mut self,
-        _message: VerifyTapeMessage,
-        ctx: &mut Context<Self>,
-    ) -> Self::Return {
+    /// This handler is called when the actor receives VerifyTape
+    async fn handle(&mut self, _message: VerifyTape, ctx: &mut Context<Self>) -> Self::Return {
         let state = std::mem::replace(&mut self.state, State::Error);
         ctx.stop_self();
 

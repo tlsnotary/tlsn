@@ -1,4 +1,4 @@
-use super::{A2MMessage, M2AMessage, SendTapeMessage, SetupMessage};
+use super::{A2MMessage, M2AMessage, SendCommitmentMessage, SendTapeMessage, SetupMessage};
 use mpc_aio::protocol::ot::{OTFactoryError, ObliviousSend};
 use mpc_core::ot::config::OTSenderConfig;
 use share_conversion_aio::{
@@ -128,8 +128,17 @@ where
 #[async_trait]
 impl<T> SendTape for SenderControl<T>
 where
-    T: Handler<SendTapeMessage, Return = Result<(), ShareConversionError>>,
+    T: Handler<SendCommitmentMessage, Return = Result<(), ShareConversionError>>
+        + Handler<SendTapeMessage, Return = Result<(), ShareConversionError>>,
 {
+    /// Sends SendCommitmentMessage to the actor
+    async fn send_commitment(&mut self) -> Result<(), ShareConversionError> {
+        self.0
+            .send(SendCommitmentMessage)
+            .await
+            .map_err(|err| ShareConversionError::Other(err.to_string()))?
+    }
+
     /// Sends SendTapeMessage to the actor
     async fn send_tape(self) -> Result<(), ShareConversionError> {
         self.0
@@ -239,6 +248,39 @@ where
         out
     }
 }
+#[async_trait]
+impl<T, OT, U, V, X, Y> Handler<SendCommitmentMessage> for Sender<T, OT, U, V, X, Y, Tape<Y>>
+where
+    T: AsyncFactory<OT, Config = OTSenderConfig, Error = OTFactoryError> + Send + 'static,
+    OT: ObliviousSend<[X; 2]> + Send + 'static,
+    U: ShareConvert<Inner = Y> + Send + 'static,
+    V: MuxChannelControl<ShareConversionMessage<Y>> + Send + 'static,
+    X: Send + 'static,
+    Y: Field<OTEncoding = X> + Send + 'static,
+    IOSender<T, OT, U, Y, X, Tape<Y>>: SendTape,
+{
+    type Return = Result<(), ShareConversionError>;
+
+    /// This handler is called when the actor receives SendCommitment
+    async fn handle(
+        &mut self,
+        _message: SendCommitmentMessage,
+        ctx: &mut Context<Self>,
+    ) -> Self::Return {
+        let state = std::mem::replace(&mut self.state, State::Error);
+
+        let State::Setup(mut state) = state else {
+            ctx.stop_self();
+            return Err(ShareConversionError::Other(String::from(
+                "Actor is not in the Setup state",
+            )));
+        };
+
+        let out = state.send_commitment().await;
+        self.state = State::Setup(state);
+        out
+    }
+}
 
 #[async_trait]
 impl<T, OT, U, V, X, Y> Handler<SendTapeMessage> for Sender<T, OT, U, V, X, Y, Tape<Y>>
@@ -253,7 +295,7 @@ where
 {
     type Return = Result<(), ShareConversionError>;
 
-    /// This handler is called when the actor receives SendTapeMessage
+    /// This handler is called when the actor receives SendTape
     async fn handle(&mut self, _message: SendTapeMessage, ctx: &mut Context<Self>) -> Self::Return {
         let state = std::mem::replace(&mut self.state, State::Error);
         ctx.stop_self();
