@@ -87,9 +87,9 @@ where
     /// Exchange input labels
     ///
     /// * `gen_labels` - Labels to garble the leader's circuit
-    /// * `gen_inputs` - Inputs to be sent directly to the follower
-    /// * `ot_send_inputs` - Inputs to be sent via OT
-    /// * `ot_receive_inputs` - Inputs to be received via OT
+    /// * `gen_inputs` - Inputs for which the labels are to be sent directly to the follower
+    /// * `ot_send_inputs` - Inputs for which the labels are to be sent via OT
+    /// * `ot_receive_inputs` - Inputs for which the labels are to be received via OT
     /// * `cached_labels` - Cached input labels for the follower's circuit
     pub async fn setup_inputs(
         mut self,
@@ -143,7 +143,8 @@ where
 
     /// Execute dual execution protocol without decoding the output values
     ///
-    /// This can be used when the labels of the evaluated circuit are needed.
+    /// This can be used when the output labels of the evaluated circuit are needed
+    /// instead of the output values
     ///
     /// Returns evaluated garbled circuit
     pub async fn execute_skip_decoding(
@@ -375,7 +376,7 @@ where
     }
 }
 
-/// Setup input labels by exchanging directly and via oblivious transfer.
+/// Set up input labels by exchanging directly and via oblivious transfer.
 async fn setup_inputs<LS, LR>(
     channel: &mut GarbleChannel,
     label_sender: Option<&mut LS>,

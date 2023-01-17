@@ -11,7 +11,8 @@ use super::{
     Delta, FullInputLabels, Labels, LabelsDecodingInfo,
 };
 
-/// A complete set of circuit labels
+/// A complete set of circuit labels. The set is sorted and validated to contain the correct amount
+/// of input labels.
 #[derive(Debug, Clone)]
 pub struct LabelsSet<G, S>
 where

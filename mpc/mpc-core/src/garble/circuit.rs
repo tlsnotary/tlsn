@@ -687,7 +687,8 @@ pub(crate) mod unchecked {
                 )));
             }
 
-            // Make sure the expected numbers of gates are present
+            // Make sure the expected number of gates is present. In half-gates garbling each
+            // AND gate is encrypted into 2 block-sized ciphertexts.
             if unchecked.encrypted_gates.len() != 2 * circ.and_count() {
                 return Err(Error::ValidationError(
                     "Incorrect number of encrypted gates".to_string(),
