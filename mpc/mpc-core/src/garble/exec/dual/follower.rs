@@ -147,7 +147,11 @@ impl DualExFollower<Evaluator> {
         }
 
         Ok(LabelsDigest::new(
-            &[evaluated_gc.output_labels().to_vec(), expected_labels].concat(),
+            &[
+                evaluated_gc.output_labels().get_labels().to_vec(),
+                expected_labels,
+            ]
+            .concat(),
         ))
     }
 }

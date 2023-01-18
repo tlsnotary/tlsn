@@ -8,10 +8,10 @@ use crate::garble::LabelError;
 
 use super::{
     state::{Active, Full, State},
-    Delta, FullInputLabels, Labels,
+    Delta, FullInputLabels, Labels, LabelsDecodingInfo,
 };
 
-/// A complete set of circuit labels
+/// A complete set of circuit labels. All labels are validated.
 #[derive(Debug, Clone)]
 pub struct LabelsSet<G, S>
 where
@@ -52,6 +52,11 @@ where
         self.labels.iter()
     }
 
+    /// Returns the number of labels in the set
+    pub fn len(&self) -> usize {
+        self.labels.len()
+    }
+
     fn generic_checks(labels: &[Labels<G, S>]) -> Result<(), LabelError> {
         // Set must have at least 1 element
         if labels.len() == 0 {
@@ -83,6 +88,29 @@ where
     /// Returns delta for all labels in the set
     pub fn delta(&self) -> Delta {
         self.labels[0].delta()
+    }
+
+    /// Returns full set from active set and decoding information.
+    pub fn from_decoding(
+        active_labels: LabelsSet<G, Active>,
+        delta: Delta,
+        decoding: Vec<LabelsDecodingInfo<G>>,
+    ) -> Result<LabelsSet<G, Full>, LabelError> {
+        if active_labels.len() != decoding.len() {
+            return Err(LabelError::InvalidDecodingCount(
+                active_labels.len(),
+                decoding.len(),
+            ))?;
+        }
+
+        Ok(Self {
+            labels: active_labels
+                .iter()
+                .cloned()
+                .zip(decoding)
+                .map(|(active, decoding)| Labels::<G, Full>::from_decoding(active, delta, decoding))
+                .collect::<Result<Vec<_>, _>>()?,
+        })
     }
 
     fn generic_full_checks(labels: &[Labels<G, Full>]) -> Result<(), LabelError> {

@@ -15,7 +15,7 @@ use mpc_circuits::{Circuit, WireGroup};
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum GarbleMessage {
-    InputLabels(InputLabels),
+    InputLabels(Vec<InputLabels>),
     GarbledCircuit(GarbledCircuit),
     CircuitOpening(CircuitOpening),
     Output(Output),
@@ -353,9 +353,10 @@ impl From<circuit::GarbledCircuit<gc_state::Output>> for Output {
         Self {
             circ_id: gc.circ.id().as_ref().clone(),
             output_labels: gc
-                .output_labels()
+                .state
+                .output_labels
+                .to_inner()
                 .into_iter()
-                .cloned()
                 .map(OutputLabels::from)
                 .collect::<Vec<OutputLabels>>(),
         }

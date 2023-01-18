@@ -61,9 +61,10 @@ pub mod state {
         pub trait Sealed {}
 
         impl Sealed for Full {}
-        impl Sealed for Summary {}
+        impl Sealed for FullSummary {}
         impl Sealed for Partial {}
         impl Sealed for Evaluated {}
+        impl Sealed for EvaluatedSummary {}
         impl Sealed for Compressed {}
         impl Sealed for Output {}
     }
@@ -82,9 +83,9 @@ pub mod state {
         pub(crate) delta: Delta,
     }
 
-    /// Summary of garbled circuit data, only including input/output labels and decoding info.
+    /// Summary of full garbled circuit data, only including input/output labels and decoding info.
     #[derive(Debug)]
-    pub struct Summary {
+    pub struct FullSummary {
         pub(crate) input_labels: FullInputLabelsSet,
         pub(crate) output_labels: FullOutputLabelsSet,
         /// Output labels decoding sorted ascending by id
@@ -117,6 +118,15 @@ pub mod state {
         pub(crate) commitments: Option<Vec<OutputLabelsCommitment>>,
     }
 
+    /// Summary of evaluated garbled circuit data
+    #[derive(Debug, Clone)]
+    pub struct EvaluatedSummary {
+        pub(crate) input_labels: ActiveInputLabelsSet,
+        pub(crate) output_labels: ActiveOutputLabelsSet,
+        /// Output labels decoding sorted ascending by id
+        pub(crate) decoding: Option<Vec<OutputLabelsDecodingInfo>>,
+    }
+
     /// Evaluated garbled circuit that has been compressed to minimize memory footprint
     #[derive(Debug, Clone)]
     pub struct Compressed {
@@ -143,9 +153,10 @@ pub mod state {
     }
 
     impl State for Full {}
-    impl State for Summary {}
+    impl State for FullSummary {}
     impl State for Partial {}
     impl State for Evaluated {}
+    impl State for EvaluatedSummary {}
     impl State for Compressed {}
     impl State for Output {}
 }
@@ -171,6 +182,18 @@ pub struct GarbledCircuit<S: State> {
 pub struct CircuitOpening {
     pub(crate) delta: Delta,
     pub(crate) input_decoding: Vec<InputLabelsDecodingInfo>,
+}
+
+impl CircuitOpening {
+    /// Returns delta
+    pub fn get_delta(&self) -> Delta {
+        self.delta
+    }
+
+    /// Returns reference to input labels decoding info
+    pub fn get_decoding(&self) -> &[InputLabelsDecodingInfo] {
+        &self.input_decoding
+    }
 }
 
 impl GarbledCircuit<Full> {
@@ -214,14 +237,14 @@ impl GarbledCircuit<Full> {
             .collect()
     }
 
-    /// Returns input label pairs for each circuit input
-    pub fn input_labels(&self) -> &[FullInputLabels] {
-        &self.state.input_labels.get_labels()
+    /// Returns reference to input labels set
+    pub fn input_labels(&self) -> &FullInputLabelsSet {
+        &self.state.input_labels
     }
 
-    /// Returns output label pairs for each circuit output
-    pub fn output_labels(&self) -> &[FullOutputLabels] {
-        &self.state.output_labels.get_labels()
+    /// Returns reference to output labels set
+    pub fn output_labels(&self) -> &FullOutputLabelsSet {
+        &self.state.output_labels
     }
 
     /// Returns [`GarbledCircuit<Partial>`] which is safe to send an evaluator
@@ -244,7 +267,7 @@ impl GarbledCircuit<Full> {
     }
 
     /// Summarizes garbled circuit data to reduce memory footprint
-    pub fn summarize(self) -> GarbledCircuit<Summary> {
+    pub fn summarize(self) -> GarbledCircuit<FullSummary> {
         let decoding = self.decoding();
         let input_labels = self.state.input_labels;
         let output_labels = self.state.output_labels;
@@ -252,7 +275,7 @@ impl GarbledCircuit<Full> {
 
         GarbledCircuit {
             circ: self.circ,
-            state: Summary {
+            state: FullSummary {
                 input_labels,
                 output_labels,
                 decoding,
@@ -274,15 +297,15 @@ impl GarbledCircuit<Full> {
     }
 }
 
-impl GarbledCircuit<Summary> {
-    /// Returns all input labels which are the result of garbled circuit generation
-    pub fn input_labels(&self) -> &[FullInputLabels] {
-        &self.state.input_labels.get_labels()
+impl GarbledCircuit<FullSummary> {
+    /// Returns reference to input labels set
+    pub fn input_labels(&self) -> &FullInputLabelsSet {
+        &self.state.input_labels
     }
 
-    /// Returns all output labels which are the result of garbled circuit generation
-    pub fn output_labels(&self) -> &[FullOutputLabels] {
-        &self.state.output_labels.get_labels()
+    /// Returns reference to output labels set
+    pub fn output_labels(&self) -> &FullOutputLabelsSet {
+        &self.state.output_labels
     }
 
     /// Returns output label decoding info if available
@@ -356,13 +379,13 @@ impl GarbledCircuit<Partial> {
 
 impl GarbledCircuit<Evaluated> {
     /// Returns all active inputs labels used to evaluate the circuit
-    pub fn input_labels(&self) -> &[ActiveInputLabels] {
-        &self.state.input_labels.get_labels()
+    pub fn input_labels(&self) -> &ActiveInputLabelsSet {
+        &self.state.input_labels
     }
 
     /// Returns all active output labels which are the result of circuit evaluation
-    pub fn output_labels(&self) -> &[ActiveOutputLabels] {
-        &self.state.output_labels.get_labels()
+    pub fn output_labels(&self) -> &ActiveOutputLabelsSet {
+        &self.state.output_labels
     }
 
     /// Returns whether or not output decoding info is available
@@ -400,10 +423,22 @@ impl GarbledCircuit<Evaluated> {
         }
     }
 
+    /// Returns a summary of the evaluated circuit to reduce memory utilization
+    pub fn summarize(self) -> GarbledCircuit<EvaluatedSummary> {
+        GarbledCircuit {
+            circ: self.circ,
+            state: EvaluatedSummary {
+                input_labels: self.state.input_labels,
+                output_labels: self.state.output_labels,
+                decoding: self.state.decoding,
+            },
+        }
+    }
+
     /// Returns decoded circuit outputs
     pub fn decode(&self) -> Result<Vec<OutputValue>, Error> {
         let decoding = self.state.decoding.as_ref().ok_or(Error::MissingDecoding)?;
-        decode_active_labels(self.output_labels(), decoding).map_err(Error::from)
+        decode_active_labels(self.output_labels().get_labels(), decoding).map_err(Error::from)
     }
 
     /// Validates circuit using [`CircuitOpening`]
@@ -421,15 +456,38 @@ impl GarbledCircuit<Evaluated> {
     }
 }
 
+impl GarbledCircuit<EvaluatedSummary> {
+    /// Returns reference to input labels set
+    pub fn input_labels(&self) -> &ActiveInputLabelsSet {
+        &self.state.input_labels
+    }
+
+    /// Returns reference to output labels set
+    pub fn output_labels(&self) -> &ActiveOutputLabelsSet {
+        &self.state.output_labels
+    }
+
+    /// Returns whether or not output decoding info is available
+    pub fn has_decoding(&self) -> bool {
+        self.state.decoding.is_some()
+    }
+
+    /// Returns decoded circuit outputs
+    pub fn decode(&self) -> Result<Vec<OutputValue>, Error> {
+        let decoding = self.state.decoding.as_ref().ok_or(Error::MissingDecoding)?;
+        decode_active_labels(self.output_labels().get_labels(), decoding).map_err(Error::from)
+    }
+}
+
 impl GarbledCircuit<Compressed> {
     /// Returns all active inputs labels used to evaluate the circuit
-    pub fn input_labels(&self) -> &[ActiveInputLabels] {
-        &self.state.input_labels.get_labels()
+    pub fn input_labels(&self) -> &ActiveInputLabelsSet {
+        &self.state.input_labels
     }
 
     /// Returns all active output labels which are the result of circuit evaluation
-    pub fn output_labels(&self) -> &[ActiveOutputLabels] {
-        &self.state.output_labels.get_labels()
+    pub fn output_labels(&self) -> &ActiveOutputLabelsSet {
+        &self.state.output_labels
     }
 
     /// Returns whether or not output decoding info is available
@@ -451,7 +509,7 @@ impl GarbledCircuit<Compressed> {
     /// Returns decoded circuit outputs
     pub fn decode(&self) -> Result<Vec<OutputValue>, Error> {
         let decoding = self.state.decoding.as_ref().ok_or(Error::MissingDecoding)?;
-        decode_active_labels(self.output_labels(), decoding).map_err(Error::from)
+        decode_active_labels(self.output_labels().get_labels(), decoding).map_err(Error::from)
     }
 
     /// Validates circuit using [`CircuitOpening`]
@@ -471,8 +529,8 @@ impl GarbledCircuit<Compressed> {
 
 impl GarbledCircuit<Output> {
     /// Returns all output labels
-    pub fn output_labels(&self) -> &[ActiveOutputLabels] {
-        &self.state.output_labels.get_labels()
+    pub fn output_labels(&self) -> &ActiveOutputLabelsSet {
+        &self.state.output_labels
     }
 
     /// Returns whether or not output decoding info is available
@@ -488,7 +546,7 @@ impl GarbledCircuit<Output> {
     /// Returns decoded circuit outputs
     pub fn decode(&self) -> Result<Vec<OutputValue>, Error> {
         let decoding = self.state.decoding.as_ref().ok_or(Error::MissingDecoding)?;
-        decode_active_labels(self.output_labels(), decoding).map_err(Error::from)
+        decode_active_labels(self.output_labels().get_labels(), decoding).map_err(Error::from)
     }
 }
 
@@ -629,7 +687,8 @@ pub(crate) mod unchecked {
                 )));
             }
 
-            // Make sure the expected numbers of gates are present
+            // Make sure the expected number of gates is present. In half-gates garbling each
+            // AND gate is encrypted into 2 block-sized ciphertexts.
             if unchecked.encrypted_gates.len() != 2 * circ.and_count() {
                 return Err(Error::ValidationError(
                     "Incorrect number of encrypted gates".to_string(),
@@ -812,8 +871,7 @@ pub(crate) mod unchecked {
             let output_labels = self
                 .output_labels
                 .into_iter()
-                .zip(circ.outputs())
-                .map(|(labels, output)| ActiveOutputLabels::from_unchecked(output.clone(), labels))
+                .map(|labels| ActiveOutputLabels::from_unchecked(&circ, labels))
                 .collect::<Result<Vec<_>, _>>()?;
 
             // Validates that each output label is authentic then decodes them
@@ -938,7 +996,7 @@ pub(crate) mod unchecked {
             #[default(&[(0, 0), (1, 0)])] inputs: &[(usize, u64)],
             garbled_circuit: GarbledCircuit<Full>,
         ) -> UncheckedOutput {
-            let output_labels = garbled_circuit.output_labels().to_vec();
+            let output_labels = garbled_circuit.output_labels().get_labels().to_vec();
             let circ = garbled_circuit.circ;
 
             let input_values: Vec<_> = inputs
@@ -1078,7 +1136,10 @@ pub(crate) mod unchecked {
             garbled_circuit: GarbledCircuit<Full>,
         ) {
             unchecked_garbled_output
-                .decode(&garbled_circuit.circ, &garbled_circuit.output_labels())
+                .decode(
+                    &garbled_circuit.circ,
+                    garbled_circuit.output_labels().get_labels(),
+                )
                 .unwrap();
         }
 
@@ -1093,7 +1154,10 @@ pub(crate) mod unchecked {
                 .clone()
                 .to_string();
             let err = unchecked_garbled_output
-                .decode(&garbled_circuit.circ, &garbled_circuit.output_labels())
+                .decode(
+                    &garbled_circuit.circ,
+                    garbled_circuit.output_labels().get_labels(),
+                )
                 .unwrap_err();
 
             assert!(matches!(err, Error::ValidationError(_)));
@@ -1106,7 +1170,10 @@ pub(crate) mod unchecked {
         ) {
             unchecked_garbled_output.output_labels[0].labels[0] = Block::new(0);
             let err = unchecked_garbled_output
-                .decode(&garbled_circuit.circ, &garbled_circuit.output_labels())
+                .decode(
+                    &garbled_circuit.circ,
+                    garbled_circuit.output_labels().get_labels(),
+                )
                 .unwrap_err();
 
             assert!(matches!(err, Error::LabelError(_)));
@@ -1119,7 +1186,10 @@ pub(crate) mod unchecked {
         ) {
             unchecked_garbled_output.output_labels[0].labels.pop();
             let err = unchecked_garbled_output
-                .decode(&garbled_circuit.circ, &garbled_circuit.output_labels())
+                .decode(
+                    &garbled_circuit.circ,
+                    garbled_circuit.output_labels().get_labels(),
+                )
                 .unwrap_err();
 
             assert!(matches!(err, Error::LabelError(_)));
@@ -1132,7 +1202,10 @@ pub(crate) mod unchecked {
         ) {
             unchecked_garbled_output.output_labels.pop();
             let err = unchecked_garbled_output
-                .decode(&garbled_circuit.circ, &garbled_circuit.output_labels())
+                .decode(
+                    &garbled_circuit.circ,
+                    garbled_circuit.output_labels().get_labels(),
+                )
                 .unwrap_err();
 
             assert!(matches!(err, Error::ValidationError(_)));
@@ -1146,7 +1219,10 @@ pub(crate) mod unchecked {
             let dup = unchecked_garbled_output.output_labels[0].clone();
             unchecked_garbled_output.output_labels.push(dup);
             let err = unchecked_garbled_output
-                .decode(&garbled_circuit.circ, &garbled_circuit.output_labels())
+                .decode(
+                    &garbled_circuit.circ,
+                    garbled_circuit.output_labels().get_labels(),
+                )
                 .unwrap_err();
 
             assert!(matches!(err, Error::ValidationError(_)));

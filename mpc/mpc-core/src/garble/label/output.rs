@@ -112,6 +112,8 @@ impl Labels<Output, state::Active> {
 }
 
 pub(crate) mod unchecked {
+    use mpc_circuits::Circuit;
+
     use super::*;
 
     /// Active output labels which have not been validated
@@ -134,16 +136,14 @@ pub(crate) mod unchecked {
     impl Labels<Output, state::Active> {
         /// Validates and converts output labels to checked variant
         pub fn from_unchecked(
-            output: Output,
+            circ: &Circuit,
             unchecked: UncheckedOutputLabels,
         ) -> Result<Self, LabelError> {
-            if unchecked.id != output.index() {
-                return Err(LabelError::InvalidLabelId(
-                    output.id().clone(),
-                    output.index(),
-                    unchecked.id,
-                ));
-            } else if unchecked.labels.len() != output.len() {
+            let output = circ
+                .output(unchecked.id)
+                .map_err(|_| LabelError::InvalidId(circ.id().clone(), unchecked.id))?;
+
+            if unchecked.labels.len() != output.len() {
                 return Err(LabelError::InvalidLabelCount(
                     output.id().clone(),
                     output.len(),
@@ -239,29 +239,29 @@ pub(crate) mod unchecked {
         }
 
         #[rstest]
-        fn test_output_labels(output: Output, unchecked_output_labels: UncheckedOutputLabels) {
-            ActiveOutputLabels::from_unchecked(output, unchecked_output_labels).unwrap();
+        fn test_output_labels(circ: Arc<Circuit>, unchecked_output_labels: UncheckedOutputLabels) {
+            ActiveOutputLabels::from_unchecked(&circ, unchecked_output_labels).unwrap();
         }
 
         #[rstest]
         fn test_output_labels_wrong_id(
-            output: Output,
+            circ: Arc<Circuit>,
             mut unchecked_output_labels: UncheckedOutputLabels,
         ) {
             unchecked_output_labels.id += 1;
             let err =
-                ActiveOutputLabels::from_unchecked(output, unchecked_output_labels).unwrap_err();
-            assert!(matches!(err, LabelError::InvalidLabelId(_, _, _)))
+                ActiveOutputLabels::from_unchecked(&circ, unchecked_output_labels).unwrap_err();
+            assert!(matches!(err, LabelError::InvalidId(_, _)))
         }
 
         #[rstest]
         fn test_output_labels_wrong_count(
-            output: Output,
+            circ: Arc<Circuit>,
             mut unchecked_output_labels: UncheckedOutputLabels,
         ) {
             unchecked_output_labels.labels.pop();
             let err =
-                ActiveOutputLabels::from_unchecked(output, unchecked_output_labels).unwrap_err();
+                ActiveOutputLabels::from_unchecked(&circ, unchecked_output_labels).unwrap_err();
             assert!(matches!(err, LabelError::InvalidLabelCount(_, _, _)))
         }
 

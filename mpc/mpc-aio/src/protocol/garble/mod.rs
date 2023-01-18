@@ -20,6 +20,8 @@ pub type GarbleChannel = Box<dyn Channel<GarbleMessage, Error = std::io::Error>>
 pub enum GCError {
     #[error("core error")]
     CoreError(#[from] mpc_core::garble::Error),
+    #[error("Label Error: {0:?}")]
+    LabelError(#[from] mpc_core::garble::LabelError),
     #[error("circuit error")]
     CircuitError(#[from] mpc_circuits::CircuitError),
     #[error("io error")]
@@ -30,6 +32,10 @@ pub enum GCError {
     Unexpected(GarbleMessage),
     #[error("backend error")]
     BackendError(String),
+    #[error("Configured to send OTs but no OT sender was provided")]
+    MissingOTSender,
+    #[error("Configured to receive OTs but no OT receiver was provided")]
+    MissingOTReceiver,
 }
 
 #[async_trait]
