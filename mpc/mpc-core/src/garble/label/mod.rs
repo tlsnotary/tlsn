@@ -77,7 +77,7 @@ impl From<[u8; 16]> for Delta {
     }
 }
 
-/// Collection of labels corresponding to a wire group
+/// Collection of validated labels corresponding to a wire group
 ///
 /// This type uses `Arc` references to the underlying data to make it cheap to clone,
 /// and thus more memory efficient when re-using labels between garbled circuit executions.
