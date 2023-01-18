@@ -784,4 +784,188 @@ mod tests {
         let err = gate.validate().unwrap_err();
         assert!(matches!(err, CircuitError::InvalidCircuit(_)));
     }
+
+    #[test]
+    fn test_strange_error() {
+        let inputs = vec![
+            UncheckedGroup::new(
+                0,
+                "test_input_0".to_string(),
+                "".to_string(),
+                ValueType::Bits,
+                vec![0, 1, 3],
+            ),
+            UncheckedGroup::new(
+                1,
+                "test_input_0".to_string(),
+                "".to_string(),
+                ValueType::Bits,
+                vec![7, 8],
+            ),
+        ];
+        let gates = vec![
+            Gate::Xor {
+                id: 0,
+                xref: 0,
+                yref: 0,
+                zref: 2,
+            },
+            Gate::Xor {
+                id: 1,
+                xref: 3,
+                yref: 1,
+                zref: 4,
+            },
+            Gate::Xor {
+                id: 2,
+                xref: 4,
+                yref: 4,
+                zref: 5,
+            },
+            Gate::Xor {
+                id: 3,
+                xref: 5,
+                yref: 4,
+                zref: 6,
+            },
+            Gate::Xor {
+                id: 4,
+                xref: 7,
+                yref: 8,
+                zref: 9,
+            },
+        ];
+        let outputs = vec![UncheckedGroup::new(
+            0,
+            "test".to_string(),
+            "".to_string(),
+            ValueType::Bits,
+            vec![9],
+        )];
+
+        let err = Circuit::new("test", "", "", inputs, outputs, gates).unwrap_err();
+        println!("err {:?}", err.to_string());
+
+        // assert!(err
+        //     .to_string()
+        //     .contains("Circuit contains duplicate group ids"));
+        assert!(false);
+    }
+
+    #[test]
+    fn test_overlapping_input_output() {
+        let inputs = vec![UncheckedGroup::new(
+            0,
+            "test_input_0".to_string(),
+            "".to_string(),
+            ValueType::Bits,
+            vec![0, 1, 3],
+        )];
+        let gates = vec![
+            Gate::Xor {
+                id: 0,
+                xref: 0,
+                yref: 0,
+                zref: 2,
+            },
+            Gate::Xor {
+                id: 1,
+                xref: 3,
+                yref: 1,
+                zref: 4,
+            },
+        ];
+        let outputs = vec![UncheckedGroup::new(
+            0,
+            "test".to_string(),
+            "".to_string(),
+            ValueType::Bits,
+            vec![3, 4],
+        )];
+
+        let err = Circuit::new("test", "", "", inputs, outputs, gates).unwrap_err();
+        println!("err {:?}", err.to_string());
+
+        assert!(err
+            .to_string()
+            .contains("Circuit contains duplicate group ids"));
+    }
+
+    #[test]
+    fn test_put_input_in_output_gate() {
+        let inputs = vec![UncheckedGroup::new(
+            0,
+            "test_input_0".to_string(),
+            "".to_string(),
+            ValueType::Bits,
+            vec![0, 1, 3],
+        )];
+        let gates = vec![
+            Gate::Xor {
+                id: 1,
+                xref: 3,
+                yref: 1,
+                zref: 2,
+            },
+            Gate::Xor {
+                id: 0,
+                xref: 0,
+                yref: 0,
+                zref: 3,
+            },
+        ];
+        let outputs = vec![UncheckedGroup::new(
+            0,
+            "test".to_string(),
+            "".to_string(),
+            ValueType::Bits,
+            vec![2],
+        )];
+
+        let err = Circuit::new("test", "", "", inputs, outputs, gates).unwrap_err();
+        println!("err {:?}", err.to_string());
+
+        assert!(err
+            .to_string()
+            .contains("Circuit contains duplicate group ids"));
+    }
+
+    #[test]
+    fn test_() {
+        let inputs = vec![UncheckedGroup::new(
+            0,
+            "test_input_0".to_string(),
+            "".to_string(),
+            ValueType::Bits,
+            vec![0, 1, 3],
+        )];
+        let gates = vec![
+            Gate::Xor {
+                id: 0,
+                xref: 0,
+                yref: 0,
+                zref: 2,
+            },
+            Gate::Xor {
+                id: 1,
+                xref: 3,
+                yref: 1,
+                zref: 4,
+            },
+        ];
+        let outputs = vec![UncheckedGroup::new(
+            0,
+            "test".to_string(),
+            "".to_string(),
+            ValueType::Bits,
+            vec![4],
+        )];
+
+        let err = Circuit::new("test", "", "", inputs, outputs, gates).unwrap_err();
+        println!("err {:?}", err.to_string());
+
+        assert!(err
+            .to_string()
+            .contains("Circuit contains duplicate group ids"));
+    }
 }
