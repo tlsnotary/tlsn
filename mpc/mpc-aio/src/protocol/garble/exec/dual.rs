@@ -90,7 +90,8 @@ where
     /// * `gen_inputs` - Inputs for which the labels are to be sent directly to the follower
     /// * `ot_send_inputs` - Inputs for which the labels are to be sent via OT
     /// * `ot_receive_inputs` - Inputs for which the labels are to be received via OT
-    /// * `cached_labels` - Cached input labels for the follower's circuit
+    /// * `cached_labels` - Cached input labels for the follower's circuit.
+    ///                     These can be both the leader's and follower's labels.
     pub async fn setup_inputs(
         mut self,
         gen_labels: FullInputLabelsSet,
@@ -99,7 +100,7 @@ where
         ot_receive_inputs: Vec<InputValue>,
         cached_labels: Vec<ActiveInputLabels>,
     ) -> Result<DualExLeader<LabelSetup, B, LS, LR>, GCError> {
-        let (gen_labels, ev_labels) = setup_inputs(
+        let (gen_labels, ev_labels) = setup_inputs_with(
             &mut self.channel,
             self.label_sender.as_mut(),
             self.label_receiver.as_mut(),
@@ -252,10 +253,11 @@ where
     /// Exchange input labels
     ///
     /// * `gen_labels` - Labels to garble the follower's circuit
-    /// * `gen_inputs` - Inputs to be sent directly to the leader
-    /// * `ot_send_inputs` - Inputs to be sent via OT
-    /// * `ot_receive_inputs` - Inputs to be received via OT
-    /// * `cached_labels` - Cached input labels for the leader's circuit
+    /// * `gen_inputs` - Inputs for which the labels are to be sent directly to the leader
+    /// * `ot_send_inputs` - Inputs for which the labels are to be sent via OT
+    /// * `ot_receive_inputs` - Inputs for which the labels are to be received via OT
+    /// * `cached_labels` - Cached input labels for the leader's circuit.
+    ///                     These can be both the leader's and follower's labels.
     pub async fn setup_inputs(
         mut self,
         gen_labels: FullInputLabelsSet,
@@ -264,7 +266,7 @@ where
         ot_receive_inputs: Vec<InputValue>,
         cached_labels: Vec<ActiveInputLabels>,
     ) -> Result<DualExFollower<LabelSetup, B, LS, LR>, GCError> {
-        let (gen_labels, ev_labels) = setup_inputs(
+        let (gen_labels, ev_labels) = setup_inputs_with(
             &mut self.channel,
             self.label_sender.as_mut(),
             self.label_receiver.as_mut(),
@@ -377,7 +379,7 @@ where
 }
 
 /// Set up input labels by exchanging directly and via oblivious transfer.
-async fn setup_inputs<LS, LR>(
+async fn setup_inputs_with<LS, LR>(
     channel: &mut GarbleChannel,
     label_sender: Option<&mut LS>,
     label_receiver: Option<&mut LR>,
