@@ -16,4 +16,7 @@ Cargo.lock
 # macOS puts these everywhere
 .DS_Store
 
+# neovim project specific settings
+.nvimrc
+
 tlsn-mpc-circuits/compiled/*
