@@ -8,12 +8,10 @@ use super::{Delta, FullInputLabels};
 
 /// Encodes wire labels using the ChaCha algorithm and a global offset (delta).
 ///
-/// An encoder instance is configured using a domain id. Domain ids can be used in combination
-/// with stream ids to partition label sets.
+/// Stream ids can be used to partition labels sets.
 #[derive(Debug)]
 pub struct ChaChaEncoder {
     seed: [u8; 32],
-    domain: u32,
     rng: ChaCha20Rng,
     stream_state: HashMap<u64, u128>,
     delta: Delta,
@@ -23,12 +21,7 @@ impl ChaChaEncoder {
     /// Creates a new encoder with the provided seed
     ///
     /// * `seed` - 32-byte seed for ChaChaRng
-    /// * `domain` - Domain id
-    ///
-    /// Domain id must be less than 2^31
-    pub fn new(seed: [u8; 32], domain: u32) -> Self {
-        assert!(domain <= u32::MAX >> 1);
-
+    pub fn new(seed: [u8; 32]) -> Self {
         let mut rng = ChaCha20Rng::from_seed(seed);
 
         // Stream id 0 is reserved to generate delta.
@@ -38,7 +31,6 @@ impl ChaChaEncoder {
 
         Self {
             seed,
-            domain,
             rng,
             stream_state: HashMap::default(),
             delta,
@@ -50,24 +42,37 @@ impl ChaChaEncoder {
         self.seed
     }
 
+    /// Returns encoder's global offset
+    pub fn get_delta(&self) -> Delta {
+        self.delta
+    }
+
     /// Encodes input using the provided stream id
     ///
-    /// * `stream_id` - Stream id which can be used to partition label sets
+    /// * `stream_id` - Stream id, must be less than or equal to (u64::MAX >> 1)
     /// * `input` - Circuit input to encode
-    pub fn encode(&mut self, stream_id: u32, input: &Input) -> FullInputLabels {
+    pub fn encode(&mut self, stream_id: u64, input: &Input) -> FullInputLabels {
         self.set_stream(stream_id);
         FullInputLabels::generate(&mut self.rng, input.clone(), self.delta)
     }
 
+    /// Returns a mutable reference to the encoder's rng
+    ///
+    /// * `stream_id` - Stream id, must be less than or equal to (u64::MAX >> 1)
+    pub fn get_stream(&mut self, stream_id: u64) -> &mut ChaCha20Rng {
+        self.set_stream(stream_id);
+        &mut self.rng
+    }
+
     /// Sets the selected stream id, restoring word position if a stream
     /// has been used before.
-    fn set_stream(&mut self, id: u32) {
-        //           MSB -> LSB
-        //   31 bits   32 bits   1 bit
-        //   [domain]   [id]   [reserved]
+    ///
+    /// * `id` - Stream id, must be less than or equal to (u64::MAX >> 1)
+    fn set_stream(&mut self, id: u64) {
+        assert!(id <= (u64::MAX >> 1));
         // The reserved bit ensures that we never pull from stream 0 which
         // is reserved to generate delta
-        let new_id = ((self.domain as u64) << 33) + ((id as u64) << 1) + 1;
+        let new_id = (id << 1) + 1;
 
         let current_id = self.rng.get_stream();
 
@@ -107,10 +112,10 @@ mod test {
 
     #[rstest]
     fn test_encoder(circ: Arc<Circuit>) {
-        let mut enc = ChaChaEncoder::new([0u8; 32], 0);
+        let mut enc = ChaChaEncoder::new([0u8; 32]);
 
         for input in circ.inputs() {
-            enc.encode(input.index() as u32, input);
+            enc.encode(input.index() as u64, input);
         }
     }
 
@@ -118,7 +123,7 @@ mod test {
     fn test_encoder_no_duplicates(circ: Arc<Circuit>) {
         let input = circ.input(0).unwrap();
 
-        let mut enc = ChaChaEncoder::new([0u8; 32], 0);
+        let mut enc = ChaChaEncoder::new([0u8; 32]);
 
         // Pull from stream 0
         let a = enc.encode(0, &input);

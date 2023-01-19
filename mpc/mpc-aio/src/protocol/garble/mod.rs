@@ -1,4 +1,5 @@
 pub mod backend;
+mod encoder;
 pub mod exec;
 mod label;
 
@@ -15,6 +16,7 @@ use utils_aio::Channel;
 use super::ot::OTError;
 
 pub type GarbleChannel = Box<dyn Channel<GarbleMessage, Error = std::io::Error>>;
+pub use encoder::SharedChaChaEncoder;
 
 #[derive(Debug, thiserror::Error)]
 pub enum GCError {
