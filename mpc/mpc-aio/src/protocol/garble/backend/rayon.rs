@@ -93,7 +93,7 @@ impl Compressor for RayonBackend {
     ) -> Result<GarbledCircuit<gc_state::Compressed>, GCError> {
         let (sender, receiver) = oneshot::channel();
         rayon::spawn(move || {
-            _ = sender.send(Ok(circ.compress()));
+            _ = sender.send(Ok(circ.to_compressed()));
         });
         receiver
             .await

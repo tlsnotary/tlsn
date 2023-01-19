@@ -399,7 +399,7 @@ impl GarbledCircuit<Evaluated> {
     }
 
     /// Returns garbled circuit output
-    pub fn to_output(&self) -> GarbledCircuit<Output> {
+    pub fn get_output(&self) -> GarbledCircuit<Output> {
         GarbledCircuit {
             circ: self.circ.clone(),
             state: Output {
@@ -409,8 +409,19 @@ impl GarbledCircuit<Evaluated> {
         }
     }
 
+    /// Returns garbled circuit output, consumes self
+    pub fn to_output(self) -> GarbledCircuit<Output> {
+        GarbledCircuit {
+            circ: self.circ.clone(),
+            state: Output {
+                output_labels: self.state.output_labels,
+                decoding: self.state.decoding,
+            },
+        }
+    }
+
     /// Returns a compressed evaluated circuit to reduce memory utilization
-    pub fn compress(self) -> GarbledCircuit<Compressed> {
+    pub fn to_compressed(self) -> GarbledCircuit<Compressed> {
         GarbledCircuit {
             circ: self.circ,
             state: Compressed {
@@ -424,7 +435,20 @@ impl GarbledCircuit<Evaluated> {
     }
 
     /// Returns a summary of the evaluated circuit to reduce memory utilization
-    pub fn summarize(self) -> GarbledCircuit<EvaluatedSummary> {
+    pub fn get_summary(&self) -> GarbledCircuit<EvaluatedSummary> {
+        GarbledCircuit {
+            circ: self.circ.clone(),
+            state: EvaluatedSummary {
+                input_labels: self.state.input_labels.clone(),
+                output_labels: self.state.output_labels.clone(),
+                decoding: self.state.decoding.clone(),
+            },
+        }
+    }
+
+    /// Returns a summary of the evaluated circuit to reduce memory utilization,
+    /// consumes self
+    pub fn to_summary(self) -> GarbledCircuit<EvaluatedSummary> {
         GarbledCircuit {
             circ: self.circ,
             state: EvaluatedSummary {
@@ -1282,7 +1306,7 @@ mod tests {
             .unwrap();
 
         ev_gc.validate(opening.clone()).unwrap();
-        ev_gc.compress().validate(opening).unwrap();
+        ev_gc.to_compressed().validate(opening).unwrap();
     }
 
     #[test]
@@ -1316,7 +1340,7 @@ mod tests {
 
         assert!(matches!(err, Error::CorruptedGarbledCircuit));
 
-        let cmp_gc = ev_gc.compress();
+        let cmp_gc = ev_gc.to_compressed();
 
         let err = cmp_gc.validate(opening).unwrap_err();
 
@@ -1354,7 +1378,7 @@ mod tests {
 
         assert!(matches!(err, Error::CorruptedGarbledCircuit));
 
-        let cmp_gc = ev_gc.compress();
+        let cmp_gc = ev_gc.to_compressed();
 
         let err = cmp_gc.validate(opening).unwrap_err();
 
@@ -1396,7 +1420,7 @@ mod tests {
 
         assert!(matches!(err, Error::CorruptedGarbledCircuit));
 
-        let cmp_gc = ev_gc.compress();
+        let cmp_gc = ev_gc.to_compressed();
 
         let err = cmp_gc.validate(opening).unwrap_err();
 
@@ -1439,7 +1463,7 @@ mod tests {
 
         assert!(matches!(err, Error::CorruptedGarbledCircuit));
 
-        let cmp_gc = ev_gc.compress();
+        let cmp_gc = ev_gc.to_compressed();
 
         let err = cmp_gc.validate(opening).unwrap_err();
 
