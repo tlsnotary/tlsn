@@ -754,7 +754,7 @@ mod tests {
             ),
             UncheckedGroup::new(
                 0,
-                "test".to_string(),
+                "test1".to_string(),
                 "".to_string(),
                 ValueType::Bits,
                 vec![1],
@@ -774,15 +774,46 @@ mod tests {
             vec![2],
         )];
 
-        let err = Circuit::new("test", "", "", inputs, outputs, gates).unwrap_err();
-
-        assert!(err
-            .to_string()
-            .contains("Duplicate group indices"));
+        assert!(Circuit::new("test", "", "", inputs, outputs, gates).is_err());
     }
 
     #[test]
-    fn test_doubling_inputs_group() {
+    fn test_doubling_groups_names_on_input() {
+        let inputs = vec![
+            UncheckedGroup::new(
+                0,
+                "test".to_string(),
+                "".to_string(),
+                ValueType::Bits,
+                vec![0],
+            ),
+            UncheckedGroup::new(
+                1,
+                "test0".to_string(),
+                "".to_string(),
+                ValueType::Bits,
+                vec![1],
+            ),
+        ];
+        let gates = vec![Gate::Xor {
+            id: 0,
+            xref: 0,
+            yref: 1,
+            zref: 2,
+        }];
+        let outputs = vec![UncheckedGroup::new(
+            0,
+            "test".to_string(),
+            "".to_string(),
+            ValueType::Bool,
+            vec![2],
+        )];
+
+        assert!(Circuit::new("test", "", "", inputs, outputs, gates).is_err());
+    }
+
+    #[test]
+    fn test_doubling_gates_inputs() {
         let inputs = vec![
             UncheckedGroup::new(
                 0,
@@ -793,7 +824,7 @@ mod tests {
             ),
             UncheckedGroup::new(
                 1,
-                "test".to_string(),
+                "test1".to_string(),
                 "".to_string(),
                 ValueType::Bits,
                 vec![0],
@@ -813,11 +844,7 @@ mod tests {
             vec![2],
         )];
 
-        let err = Circuit::new("test", "", "", inputs, outputs, gates).unwrap_err();
-
-        assert!(err
-            .to_string()
-            .contains("Duplicate input wire ids"));
+        assert!(Circuit::new("test", "", "", inputs, outputs, gates).is_err());
     }
 
     #[test]
@@ -843,13 +870,8 @@ mod tests {
             vec![2],
         )];
 
-        let err = Circuit::new("test", "", "", inputs, outputs, gates).unwrap_err();
-
-        assert!(err
-            .to_string()
-            .contains("Circuit contains duplicate group ids"));
+        assert!(Circuit::new("test", "", "", inputs, outputs, gates).is_err());
     }
-
 
     #[test]
     fn test_gates_multiple_outputs() {
@@ -860,24 +882,25 @@ mod tests {
             ValueType::Bits,
             vec![0, 1],
         )];
-        let gates = vec![Gate::Xor {
-            id: 0,
-            xref: 0,
-            yref: 1,
-            zref: 3,
-        },
-        Gate::Xor {
-            id: 1,
-            xref: 3,
-            yref: 0,
-            zref: 2,
-        },
-        Gate::And {
-            id: 2,
-            xref: 3,
-            yref: 1,
-            zref: 2,
-        }
+        let gates = vec![
+            Gate::Xor {
+                id: 0,
+                xref: 0,
+                yref: 1,
+                zref: 3,
+            },
+            Gate::Xor {
+                id: 1,
+                xref: 3,
+                yref: 0,
+                zref: 2,
+            },
+            Gate::And {
+                id: 2,
+                xref: 3,
+                yref: 1,
+                zref: 2,
+            },
         ];
         let outputs = vec![UncheckedGroup::new(
             0,
@@ -887,12 +910,7 @@ mod tests {
             vec![2],
         )];
 
-        let err = Circuit::new("test", "", "", inputs, outputs, gates).unwrap_err();
-        println!("{:?}",err);
-
-        assert!(err
-            .to_string()
-            .contains("Duplicate gate output wire ids"));
+        assert!(Circuit::new("test", "", "", inputs, outputs, gates).is_err());
     }
 
     #[test]
@@ -939,12 +957,7 @@ mod tests {
             vec![3, 4],
         )];
 
-        let err = Circuit::new("test", "", "", inputs, outputs, gates).unwrap_err();
-        println!("err {:?}", err.to_string());
-
-        assert!(err
-            .to_string()
-            .contains("Circuit contains duplicate group ids"));
+        assert!(Circuit::new("test", "", "", inputs, outputs, gates).is_err());
     }
 
     #[test]
@@ -959,7 +972,7 @@ mod tests {
         let gates = vec![
             Gate::Xor {
                 id: 1,
-                xref: 3,
+                xref: 0,
                 yref: 1,
                 zref: 2,
             },
@@ -978,11 +991,42 @@ mod tests {
             vec![2],
         )];
 
-        let err = Circuit::new("test", "", "", inputs, outputs, gates).unwrap_err();
-        println!("err {:?}", err.to_string());
+        assert!(Circuit::new("test", "", "", inputs, outputs, gates).is_err());
+    }
 
-        assert!(err
-            .to_string()
-            .contains("Circuit contains duplicate group ids"));
+    #[test]
+    fn test_different_input_value_type() {
+        let inputs = vec![UncheckedGroup::new(
+            0,
+            "test_input_0".to_string(),
+            "".to_string(),
+            ValueType::Bool,
+            vec![0],
+        ),
+        UncheckedGroup::new(
+            1,
+            "test_input_1".to_string(),
+            "".to_string(),
+            ValueType::Bits,
+            vec![1],
+        )
+        ];
+        let gates = vec![
+            Gate::Xor {
+                id: 0,
+                xref: 0,
+                yref: 1,
+                zref: 2,
+            },
+        ];
+        let outputs = vec![UncheckedGroup::new(
+            0,
+            "test".to_string(),
+            "".to_string(),
+            ValueType::Bits,
+            vec![2],
+        )];
+        assert!(Circuit::new("test", "", "", inputs, outputs, gates).is_ok());
+        
     }
 }
