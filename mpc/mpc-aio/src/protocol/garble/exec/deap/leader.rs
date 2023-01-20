@@ -201,7 +201,7 @@ where
         // Also compress follower's circuit to reduce memory footprint before validating it in the next phase
         let gc_cmp = self.backend.compress(gc_evaluated).await?;
 
-        // Commit to output of follower's circuit
+        // Commit to equality check value
         let (commit, leader) = leader.from_compressed_circuit(gc_cmp)?.commit();
 
         self.channel

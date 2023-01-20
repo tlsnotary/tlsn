@@ -19,7 +19,6 @@ pub mod state {
         pub trait Sealed {}
         impl Sealed for super::Generator {}
         impl Sealed for super::Evaluator {}
-        impl Sealed for super::Compress {}
         impl Sealed for super::Commit {}
         impl Sealed for super::Decode {}
         impl Sealed for super::Validate {}
@@ -36,12 +35,6 @@ pub mod state {
     #[derive(Debug)]
     pub struct Evaluator {
         pub(super) gc_summary: GarbledCircuit<gc_state::FullSummary>,
-    }
-
-    #[derive(Debug)]
-    pub struct Compress {
-        pub(super) gc_summary: GarbledCircuit<gc_state::FullSummary>,
-        pub(super) check: LabelsDigest,
     }
 
     #[derive(Debug)]
@@ -71,7 +64,6 @@ pub mod state {
 
     impl State for Generator {}
     impl State for Evaluator {}
-    impl State for Compress {}
     impl State for Commit {}
     impl State for Decode {}
     impl State for Validate {}
@@ -114,7 +106,7 @@ impl DEAPLeader<Generator> {
         gc: GarbledCircuit<gc_state::Full>,
     ) -> Result<(GarbledCircuit<gc_state::Partial>, DEAPLeader<Evaluator>), Error> {
         Ok((
-            gc.to_evaluator(SEND_OUTPUT_DECODING, SEND_OUTPUT_COMMITMENTS)?,
+            gc.get_partial(SEND_OUTPUT_DECODING, SEND_OUTPUT_COMMITMENTS)?,
             DEAPLeader {
                 state: Evaluator {
                     gc_summary: gc.summarize(),
@@ -134,7 +126,7 @@ impl DEAPLeader<Evaluator> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
         let evaluated_gc = gc.evaluate(&cipher, input_labels)?;
 
-        self.from_compressed_circuit(evaluated_gc.to_compressed())
+        self.from_compressed_circuit(evaluated_gc.into_compressed())
     }
 
     /// Proceed to next state from externally evaluated and compressed circuit
@@ -182,27 +174,6 @@ impl DEAPLeader<Evaluator> {
             ]
             .concat(),
         ))
-    }
-}
-
-impl DEAPLeader<Compress> {
-    /// Compress [`DEAPFollower`]'s circuit
-    pub fn compress(self, gc_evaluated: GarbledCircuit<gc_state::Evaluated>) -> DEAPLeader<Commit> {
-        self.from_compressed_circuit(gc_evaluated.to_compressed())
-    }
-
-    /// Proceed to next state using compressed garbled circuit
-    pub fn from_compressed_circuit(
-        self,
-        gc_cmp: GarbledCircuit<gc_state::Compressed>,
-    ) -> DEAPLeader<Commit> {
-        DEAPLeader {
-            state: Commit {
-                gc_summary: self.state.gc_summary,
-                gc_cmp,
-                check: self.state.check,
-            },
-        }
     }
 }
 

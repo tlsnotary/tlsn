@@ -207,7 +207,7 @@ where
             .send(GarbleMessage::CommitmentOpening(opening.into()))
             .await?;
 
-        Ok(gc_evaluated.to_summary())
+        Ok(gc_evaluated.into_summary())
     }
 }
 
@@ -374,7 +374,7 @@ where
         // Verify commitment opening
         let gc_evaluated = follower.verify(leader_opening)?;
 
-        Ok(gc_evaluated.to_summary())
+        Ok(gc_evaluated.into_summary())
     }
 }
 

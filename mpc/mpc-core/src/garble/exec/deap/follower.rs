@@ -98,7 +98,7 @@ impl DEAPFollower<Generator> {
         gc: GarbledCircuit<gc_state::Full>,
     ) -> Result<(GarbledCircuit<gc_state::Partial>, DEAPFollower<Evaluator>), Error> {
         Ok((
-            gc.to_evaluator(SEND_OUTPUT_DECODING, SEND_OUTPUT_COMMITMENTS)?,
+            gc.get_partial(SEND_OUTPUT_DECODING, SEND_OUTPUT_COMMITMENTS)?,
             DEAPFollower {
                 state: Evaluator { gc },
             },

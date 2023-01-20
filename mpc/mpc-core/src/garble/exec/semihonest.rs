@@ -98,7 +98,7 @@ impl SemiHonestLeader<Generator> {
         reveal_output: bool,
     ) -> Result<(GarbledCircuit<gc_state::Partial>, SemiHonestLeader<Decode>), Error> {
         Ok((
-            gc.to_evaluator(reveal_output, true)?,
+            gc.get_partial(reveal_output, true)?,
             SemiHonestLeader {
                 state: Decode { gc: gc.summarize() },
             },
