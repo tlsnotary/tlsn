@@ -93,7 +93,7 @@ impl Compressor for RayonBackend {
     ) -> Result<GarbledCircuit<gc_state::Compressed>, GCError> {
         let (sender, receiver) = oneshot::channel();
         rayon::spawn(move || {
-            _ = sender.send(Ok(circ.compress()));
+            _ = sender.send(Ok(circ.into_compressed()));
         });
         receiver
             .await
@@ -124,7 +124,7 @@ mod test {
         .unwrap();
 
         let _ = RayonBackend
-            .evaluate(gc.to_evaluator(true, false).unwrap(), input_labels)
+            .evaluate(gc.get_partial(true, false).unwrap(), input_labels)
             .await
             .unwrap();
     }
@@ -147,7 +147,7 @@ mod test {
         .unwrap();
 
         let ev_gc = RayonBackend
-            .evaluate(gc.to_evaluator(true, false).unwrap(), input_labels)
+            .evaluate(gc.get_partial(true, false).unwrap(), input_labels)
             .await
             .unwrap();
 

@@ -207,7 +207,7 @@ where
             .send(GarbleMessage::CommitmentOpening(opening.into()))
             .await?;
 
-        Ok(gc_evaluated.summarize())
+        Ok(gc_evaluated.into_summary())
     }
 }
 
@@ -374,12 +374,12 @@ where
         // Verify commitment opening
         let gc_evaluated = follower.verify(leader_opening)?;
 
-        Ok(gc_evaluated.summarize())
+        Ok(gc_evaluated.into_summary())
     }
 }
 
 /// Set up input labels by exchanging directly and via oblivious transfer.
-async fn setup_inputs_with<LS, LR>(
+pub async fn setup_inputs_with<LS, LR>(
     channel: &mut GarbleChannel,
     label_sender: Option<&mut LS>,
     label_receiver: Option<&mut LR>,

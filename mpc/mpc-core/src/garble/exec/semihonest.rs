@@ -98,7 +98,7 @@ impl SemiHonestLeader<Generator> {
         reveal_output: bool,
     ) -> Result<(GarbledCircuit<gc_state::Partial>, SemiHonestLeader<Decode>), Error> {
         Ok((
-            gc.to_evaluator(reveal_output, true)?,
+            gc.get_partial(reveal_output, true)?,
             SemiHonestLeader {
                 state: Decode { gc: gc.summarize() },
             },
@@ -172,7 +172,7 @@ mod tests {
 
         let gc_ev = follower.evaluate(gc_partial.into(), active_labels).unwrap();
 
-        let gc_output = gc_ev.to_output();
+        let gc_output = gc_ev.get_output();
 
         let output = leader.decode(gc_output.into()).unwrap();
 
@@ -202,7 +202,7 @@ mod tests {
 
         let gc_ev = follower.evaluate(gc_partial.into(), active_labels).unwrap();
 
-        let mut gc_output = gc_ev.to_output();
+        let mut gc_output = gc_ev.get_output();
 
         // Insert a bogus output label
         gc_output.state.output_labels[0].set(0, WireLabel::new(0, Block::new(0)));

@@ -106,7 +106,7 @@ impl DualExLeader<Generator> {
         gc: GarbledCircuit<gc_state::Full>,
     ) -> Result<(GarbledCircuit<gc_state::Partial>, DualExLeader<Evaluator>), Error> {
         Ok((
-            gc.to_evaluator(true, false)?,
+            gc.get_partial(true, false)?,
             DualExLeader {
                 state: Evaluator {
                     gc,

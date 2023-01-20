@@ -88,7 +88,7 @@ impl DualExFollower<Generator> {
         gc: GarbledCircuit<gc_state::Full>,
     ) -> Result<(GarbledCircuit<gc_state::Partial>, DualExFollower<Evaluator>), Error> {
         Ok((
-            gc.to_evaluator(true, false)?,
+            gc.get_partial(true, false)?,
             DualExFollower {
                 state: Evaluator {
                     gc,

@@ -43,3 +43,7 @@ tlsn-utils-aio = { workspace = true, features = ["duplex"] }
 [[bench]]
 name = "dualex"
 harness = false
+
+[[bench]]
+name = "deap"
+harness = false

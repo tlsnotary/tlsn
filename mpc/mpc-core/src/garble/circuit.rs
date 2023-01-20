@@ -251,7 +251,7 @@ impl GarbledCircuit<Full> {
     ///
     /// `reveal` flag determines whether the output decoding will be included
     /// `commit` flag determines whether commitments to the output labels will be included
-    pub fn to_evaluator(
+    pub fn get_partial(
         &self,
         reveal: bool,
         commit: bool,
@@ -399,7 +399,7 @@ impl GarbledCircuit<Evaluated> {
     }
 
     /// Returns garbled circuit output
-    pub fn to_output(&self) -> GarbledCircuit<Output> {
+    pub fn get_output(&self) -> GarbledCircuit<Output> {
         GarbledCircuit {
             circ: self.circ.clone(),
             state: Output {
@@ -409,8 +409,19 @@ impl GarbledCircuit<Evaluated> {
         }
     }
 
+    /// Returns garbled circuit output, consumes self
+    pub fn into_output(self) -> GarbledCircuit<Output> {
+        GarbledCircuit {
+            circ: self.circ.clone(),
+            state: Output {
+                output_labels: self.state.output_labels,
+                decoding: self.state.decoding,
+            },
+        }
+    }
+
     /// Returns a compressed evaluated circuit to reduce memory utilization
-    pub fn compress(self) -> GarbledCircuit<Compressed> {
+    pub fn into_compressed(self) -> GarbledCircuit<Compressed> {
         GarbledCircuit {
             circ: self.circ,
             state: Compressed {
@@ -424,7 +435,20 @@ impl GarbledCircuit<Evaluated> {
     }
 
     /// Returns a summary of the evaluated circuit to reduce memory utilization
-    pub fn summarize(self) -> GarbledCircuit<EvaluatedSummary> {
+    pub fn get_summary(&self) -> GarbledCircuit<EvaluatedSummary> {
+        GarbledCircuit {
+            circ: self.circ.clone(),
+            state: EvaluatedSummary {
+                input_labels: self.state.input_labels.clone(),
+                output_labels: self.state.output_labels.clone(),
+                decoding: self.state.decoding.clone(),
+            },
+        }
+    }
+
+    /// Returns a summary of the evaluated circuit to reduce memory utilization,
+    /// consumes self
+    pub fn into_summary(self) -> GarbledCircuit<EvaluatedSummary> {
         GarbledCircuit {
             circ: self.circ,
             state: EvaluatedSummary {
@@ -496,7 +520,7 @@ impl GarbledCircuit<Compressed> {
     }
 
     /// Returns garbled circuit output
-    pub fn to_output(&self) -> GarbledCircuit<Output> {
+    pub fn get_output(&self) -> GarbledCircuit<Output> {
         GarbledCircuit {
             circ: self.circ.clone(),
             state: Output {
@@ -988,7 +1012,7 @@ pub(crate) mod unchecked {
         fn unchecked_garbled_circuit(
             garbled_circuit: GarbledCircuit<Full>,
         ) -> UncheckedGarbledCircuit {
-            garbled_circuit.to_evaluator(true, true).unwrap().into()
+            garbled_circuit.get_partial(true, true).unwrap().into()
         }
 
         #[fixture]
@@ -1273,7 +1297,7 @@ mod tests {
         let key_labels = input_labels[0].select(key.value()).unwrap();
         let msg_labels = input_labels[1].select(msg.value()).unwrap();
 
-        let partial_gc = gc.to_evaluator(true, false).unwrap();
+        let partial_gc = gc.get_partial(true, false).unwrap();
         let ev_gc = partial_gc
             .evaluate(
                 &cipher,
@@ -1282,7 +1306,7 @@ mod tests {
             .unwrap();
 
         ev_gc.validate(opening.clone()).unwrap();
-        ev_gc.compress().validate(opening).unwrap();
+        ev_gc.into_compressed().validate(opening).unwrap();
     }
 
     #[test]
@@ -1304,7 +1328,7 @@ mod tests {
         let key_labels = input_labels[0].select(key.value()).unwrap();
         let msg_labels = input_labels[1].select(msg.value()).unwrap();
 
-        let partial_gc = gc.to_evaluator(true, false).unwrap();
+        let partial_gc = gc.get_partial(true, false).unwrap();
         let ev_gc = partial_gc
             .evaluate(
                 &cipher,
@@ -1316,7 +1340,7 @@ mod tests {
 
         assert!(matches!(err, Error::CorruptedGarbledCircuit));
 
-        let cmp_gc = ev_gc.compress();
+        let cmp_gc = ev_gc.into_compressed();
 
         let err = cmp_gc.validate(opening).unwrap_err();
 
@@ -1342,7 +1366,7 @@ mod tests {
         let key_labels = input_labels[0].select(key.value()).unwrap();
         let msg_labels = input_labels[1].select(msg.value()).unwrap();
 
-        let partial_gc = gc.to_evaluator(true, false).unwrap();
+        let partial_gc = gc.get_partial(true, false).unwrap();
         let ev_gc = partial_gc
             .evaluate(
                 &cipher,
@@ -1354,7 +1378,7 @@ mod tests {
 
         assert!(matches!(err, Error::CorruptedGarbledCircuit));
 
-        let cmp_gc = ev_gc.compress();
+        let cmp_gc = ev_gc.into_compressed();
 
         let err = cmp_gc.validate(opening).unwrap_err();
 
@@ -1383,7 +1407,7 @@ mod tests {
         let key_labels = input_labels[0].select(key.value()).unwrap();
         let msg_labels = input_labels[1].select(msg.value()).unwrap();
 
-        let partial_gc = gc.to_evaluator(true, true).unwrap();
+        let partial_gc = gc.get_partial(true, true).unwrap();
 
         let ev_gc = partial_gc
             .evaluate(
@@ -1396,7 +1420,7 @@ mod tests {
 
         assert!(matches!(err, Error::CorruptedGarbledCircuit));
 
-        let cmp_gc = ev_gc.compress();
+        let cmp_gc = ev_gc.into_compressed();
 
         let err = cmp_gc.validate(opening).unwrap_err();
 
@@ -1427,7 +1451,7 @@ mod tests {
         let key_labels = input_labels[0].select(key.value()).unwrap();
         let msg_labels = input_labels[1].select(msg.value()).unwrap();
 
-        let partial_gc = gc.to_evaluator(true, true).unwrap();
+        let partial_gc = gc.get_partial(true, true).unwrap();
         let ev_gc = partial_gc
             .evaluate(
                 &cipher,
@@ -1439,7 +1463,7 @@ mod tests {
 
         assert!(matches!(err, Error::CorruptedGarbledCircuit));
 
-        let cmp_gc = ev_gc.compress();
+        let cmp_gc = ev_gc.into_compressed();
 
         let err = cmp_gc.validate(opening).unwrap_err();
 

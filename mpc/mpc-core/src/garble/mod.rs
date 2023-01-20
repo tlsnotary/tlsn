@@ -138,7 +138,7 @@ mod tests {
 
         let gc = GarbledCircuit::generate(&cipher, circ.clone(), input_labels.clone()).unwrap();
 
-        let gc = gc.to_evaluator(true, false).unwrap();
+        let gc = gc.get_partial(true, false).unwrap();
 
         let gen_input_labels = input_labels[0].select(gen_input.value()).unwrap();
         // Evaluator typically receives these using OT
