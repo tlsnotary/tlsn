@@ -19,4 +19,7 @@ Cargo.lock
 # neovim project specific settings
 .nvimrc
 
+# vscode project specific settings
+.vscode/
+
 tlsn-mpc-circuits/compiled/*
