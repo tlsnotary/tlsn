@@ -96,6 +96,17 @@ where
     state: S,
 }
 
+impl<G, S> Labels<G, S>
+where
+    G: WireGroup,
+    S: state::State,
+{
+    /// Consumes `self` returning labels
+    pub fn into_labels(self) -> S {
+        self.state
+    }
+}
+
 impl<G> Labels<G, state::Full>
 where
     G: WireGroup + Clone,
