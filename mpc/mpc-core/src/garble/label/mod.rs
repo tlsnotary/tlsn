@@ -5,7 +5,7 @@ mod encoder;
 pub(crate) mod input;
 pub(crate) mod output;
 mod set;
-mod state;
+pub mod state;
 
 use mpc_circuits::{Circuit, GroupId, GroupValue, Input, Output, Value, WireGroup};
 use rand::{CryptoRng, Rng};
