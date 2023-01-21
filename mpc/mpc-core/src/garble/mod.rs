@@ -17,7 +17,7 @@ pub use error::{Error, InputError, LabelError};
 pub use label::{
     ActiveInputLabels, ActiveInputLabelsSet, ActiveOutputLabels, ActiveOutputLabelsSet,
     ChaChaEncoder, Delta, FullInputLabels, FullInputLabelsSet, FullOutputLabels,
-    FullOutputLabelsSet, Labels, LabelsDecodingInfo, LabelsDigest, WireLabel, WireLabelPair,
+    FullOutputLabelsSet, Label, LabelPair, Labels, LabelsDecodingInfo, LabelsDigest,
 };
 
 #[cfg(test)]
@@ -40,9 +40,9 @@ mod tests {
 
         let delta = Delta::random(&mut rng);
         let x_0 = Block::random(&mut rng);
-        let x = WireLabelPair::new(x_0, x_0 ^ *delta);
+        let x = LabelPair::new(x_0, x_0 ^ *delta);
         let y_0 = Block::random(&mut rng);
-        let y = WireLabelPair::new(y_0, y_0 ^ *delta);
+        let y = LabelPair::new(y_0, y_0 ^ *delta);
         let gid: usize = 1;
 
         let (z, encrypted_gate) = gen::and_gate(&cipher, &x, &y, delta, gid);
@@ -95,9 +95,9 @@ mod tests {
 
         let delta = Delta::random(&mut rng);
         let x_0 = Block::random(&mut rng);
-        let x = WireLabelPair::new(x_0, x_0 ^ *delta);
+        let x = LabelPair::new(x_0, x_0 ^ *delta);
         let y_0 = Block::random(&mut rng);
-        let y = WireLabelPair::new(y_0, y_0 ^ *delta);
+        let y = LabelPair::new(y_0, y_0 ^ *delta);
 
         let z = gen::xor_gate(&x, &y, delta);
 

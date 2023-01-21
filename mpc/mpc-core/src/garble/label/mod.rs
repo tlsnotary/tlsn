@@ -96,11 +96,7 @@ where
     G: WireGroup + Clone,
 {
     /// Returns Labels type, validating the provided labels using the associated group
-    pub fn from_labels(
-        group: G,
-        delta: Delta,
-        labels: Vec<WireLabelPair>,
-    ) -> Result<Self, LabelError> {
+    pub fn from_labels(group: G, delta: Delta, labels: Vec<LabelPair>) -> Result<Self, LabelError> {
         if group.len() != labels.len() {
             return Err(LabelError::InvalidLabelCount(
                 group.id().clone(),
@@ -109,10 +105,7 @@ where
             ));
         }
 
-        let low = labels
-            .into_iter()
-            .map(|label| WireLabel(label.low()))
-            .collect();
+        let low = labels.into_iter().map(|label| Label(label.low())).collect();
 
         Ok(Self {
             group,
@@ -121,7 +114,7 @@ where
     }
 
     /// Returns iterator to wire labels
-    pub fn iter(&self) -> impl Iterator<Item = WireLabelPair> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = LabelPair> + '_ {
         self.state.iter()
     }
 
@@ -179,7 +172,7 @@ where
     }
 
     /// Returns wire labels
-    pub fn inner(&self) -> Vec<WireLabelPair> {
+    pub fn inner(&self) -> Vec<LabelPair> {
         self.state.to_labels()
     }
 
@@ -195,7 +188,7 @@ where
     /// Returns labels at position idx
     ///
     /// Panics if idx is not in range
-    pub fn get(&self, idx: usize) -> WireLabelPair {
+    pub fn get(&self, idx: usize) -> LabelPair {
         self.state.get(idx)
     }
 
@@ -203,7 +196,7 @@ where
     /// Set the value of labels at position idx
     ///
     /// Panics if idx is not in range
-    pub fn set(&mut self, idx: usize, pair: WireLabelPair) {
+    pub fn set(&mut self, idx: usize, pair: LabelPair) {
         self.state.set(idx, pair);
     }
 
@@ -221,7 +214,7 @@ where
     G: WireGroup + Clone,
 {
     /// Returns Labels type, validating the provided labels using the associated group
-    pub fn from_labels(group: G, labels: Vec<WireLabel>) -> Result<Self, LabelError> {
+    pub fn from_labels(group: G, labels: Vec<Label>) -> Result<Self, LabelError> {
         // We strip the labels down to blocks because the wire ids will be changed
         Self::from_blocks(
             group,
@@ -239,10 +232,7 @@ where
             ));
         }
 
-        let labels = blocks
-            .into_iter()
-            .map(|block| WireLabel::new(block))
-            .collect();
+        let labels = blocks.into_iter().map(|block| Label::new(block)).collect();
 
         Ok(Self {
             group,
@@ -251,7 +241,7 @@ where
     }
 
     /// Returns iterator to wire labels
-    pub fn iter(&self) -> impl Iterator<Item = WireLabel> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = Label> + '_ {
         self.state.iter()
     }
 
@@ -280,7 +270,7 @@ where
     /// Returns label at position idx
     ///
     /// Panics if idx is not in range
-    pub fn get(&self, idx: usize) -> WireLabel {
+    pub fn get(&self, idx: usize) -> Label {
         self.state.get(idx)
     }
 
@@ -288,7 +278,7 @@ where
     /// Set the label at position idx
     ///
     /// Panics if idx is not in range
-    pub fn set(&mut self, idx: usize, label: WireLabel) {
+    pub fn set(&mut self, idx: usize, label: Label) {
         self.state.set(idx, label);
     }
 }
@@ -325,9 +315,9 @@ where
 
 /// Wire label of a garbled circuit
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct WireLabel(Block);
+pub struct Label(Block);
 
-impl BitXor<Delta> for WireLabel {
+impl BitXor<Delta> for Label {
     type Output = Self;
 
     #[inline]
@@ -336,14 +326,14 @@ impl BitXor<Delta> for WireLabel {
     }
 }
 
-impl AsRef<Block> for WireLabel {
+impl AsRef<Block> for Label {
     fn as_ref(&self) -> &Block {
         &self.0
     }
 }
 
-impl WireLabel {
-    /// Creates a new wire label
+impl Label {
+    /// Creates a new label
     #[inline]
     pub fn new(value: Block) -> Self {
         Self(value)
@@ -361,36 +351,36 @@ impl WireLabel {
         self.0
     }
 
-    /// Returns wire label permute bit from permute-and-point technique
+    /// Returns label permute bit from permute-and-point technique
     #[inline]
     pub fn permute_bit(&self) -> bool {
         self.0.lsb() == 1
     }
 
-    /// Creates a new random wire label
+    /// Creates a new random label
     pub fn random<R: Rng + CryptoRng>(rng: &mut R) -> Self {
         Self(Block::random(rng))
     }
 
-    /// Creates wire label pair from delta and corresponding truth value
+    /// Creates label pair from delta and corresponding truth value
     #[inline]
-    pub fn to_pair(self, delta: Delta, level: bool) -> WireLabelPair {
+    pub fn to_pair(self, delta: Delta, level: bool) -> LabelPair {
         let (low, high) = if level {
             (self.0 ^ delta.0, self.0)
         } else {
             (self.0, self.0 ^ delta.0)
         };
 
-        WireLabelPair(low, high)
+        LabelPair(low, high)
     }
 }
 
-/// Pair of garbled circuit wire labels
+/// Pair of garbled circuit labels
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct WireLabelPair(Block, Block);
+pub struct LabelPair(Block, Block);
 
-impl WireLabelPair {
-    /// Creates a new wire label pair
+impl LabelPair {
+    /// Creates a new label pair
     #[inline]
     pub(crate) fn new(low: Block, high: Block) -> Self {
         Self(low, high)
@@ -402,46 +392,46 @@ impl WireLabelPair {
         [self.0, self.1]
     }
 
-    /// Generates pairs of wire labels \[W_0, W_0 ^ delta\]
+    /// Generates pairs of labels \[W_0, W_0 ^ delta\]
     pub fn generate<R: Rng + CryptoRng>(
         rng: &mut R,
         delta: Option<Delta>,
         count: usize,
     ) -> (Vec<Self>, Delta) {
         let delta = delta.unwrap_or_else(|| Delta::random(rng));
-        // Logical low wire labels, [W_0; count]
+        // Logical low labels, [W_0; count]
         let low = Block::random_vec(rng, count);
         (
             low.into_iter()
-                .map(|value| WireLabelPair::new(value, value ^ *delta))
+                .map(|value| LabelPair::new(value, value ^ *delta))
                 .collect(),
             delta,
         )
     }
 
-    /// Returns wire label corresponding to logical low
+    /// Returns label corresponding to logical low
     #[inline]
     pub fn low(&self) -> Block {
         self.0
     }
 
-    /// Returns wire label corresponding to logical high
+    /// Returns label corresponding to logical high
     #[inline]
     pub fn high(&self) -> Block {
         self.1
     }
 
-    /// Returns wire labels corresponding to provided logic level
+    /// Returns label corresponding to provided logic level
     #[inline]
-    pub fn select(&self, level: bool) -> WireLabel {
+    pub fn select(&self, level: bool) -> Label {
         let block = if level { &self.1 } else { &self.0 };
-        WireLabel::new(*block)
+        Label::new(*block)
     }
 
-    /// Returns wire labels corresponding to wire truth values
+    /// Returns labels corresponding to wire truth values
     ///
     /// Panics if wire is not in label collection
-    pub fn choose(labels: &[WireLabelPair], wires: &[usize], values: &[bool]) -> Vec<WireLabel> {
+    pub fn choose(labels: &[LabelPair], wires: &[usize], values: &[bool]) -> Vec<Label> {
         wires
             .iter()
             .zip(values.iter())
@@ -486,7 +476,7 @@ where
 /// Panics if provided an invalid group
 pub(crate) fn extract_active_labels<G: WireGroup + Clone>(
     groups: &[G],
-    labels: &[WireLabel],
+    labels: &[Label],
 ) -> Vec<Labels<G, state::Active>> {
     groups
         .iter()
@@ -510,7 +500,7 @@ pub(crate) fn extract_active_labels<G: WireGroup + Clone>(
 pub(crate) fn extract_full_labels<G: WireGroup + Clone>(
     groups: &[G],
     delta: Delta,
-    labels: &[WireLabelPair],
+    labels: &[LabelPair],
 ) -> Vec<Labels<G, state::Full>> {
     groups
         .iter()

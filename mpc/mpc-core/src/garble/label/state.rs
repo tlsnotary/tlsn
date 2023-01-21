@@ -4,7 +4,7 @@ use mpc_circuits::Value;
 
 use crate::garble::LabelError;
 
-use super::{Delta, WireLabel, WireLabelPair};
+use super::{Delta, Label, LabelPair};
 
 mod sealed {
     pub trait Sealed {}
@@ -21,14 +21,14 @@ pub trait State: sealed::Sealed {}
 pub struct Full {
     /// Wire labels corresponding to logic low. The high labels are implicit because we can
     /// always derive a high label by doing: low XOR delta.
-    pub(super) low: Arc<Vec<WireLabel>>,
+    pub(super) low: Arc<Vec<Label>>,
     pub(super) delta: Delta,
 }
 
 impl State for Full {}
 
 impl Full {
-    pub(super) fn from_labels(low: Vec<WireLabel>, delta: Delta) -> Self {
+    pub(super) fn from_labels(low: Vec<Label>, delta: Delta) -> Self {
         Self {
             low: Arc::new(low),
             delta,
@@ -52,14 +52,14 @@ impl Full {
         })
     }
 
-    pub(super) fn iter(&self) -> impl Iterator<Item = WireLabelPair> + '_ {
+    pub(super) fn iter(&self) -> impl Iterator<Item = LabelPair> + '_ {
         self.low
             .iter()
             .copied()
             .map(|low| low.to_pair(self.delta, false))
     }
 
-    pub(super) fn to_labels(&self) -> Vec<WireLabelPair> {
+    pub(super) fn to_labels(&self) -> Vec<LabelPair> {
         self.low
             .iter()
             .map(|low| low.to_pair(self.delta, false))
@@ -97,14 +97,14 @@ impl Full {
     }
 
     #[cfg(test)]
-    pub fn get(&self, idx: usize) -> WireLabelPair {
+    pub fn get(&self, idx: usize) -> LabelPair {
         self.low[idx].clone().to_pair(self.delta, false)
     }
 
     #[cfg(test)]
-    pub fn set(&mut self, idx: usize, pair: WireLabelPair) {
+    pub fn set(&mut self, idx: usize, pair: LabelPair) {
         let mut low = (*self.low).clone();
-        low[idx] = WireLabel::new(pair.low());
+        low[idx] = Label::new(pair.low());
         self.low = Arc::new(low);
     }
 
@@ -119,19 +119,19 @@ impl Full {
 /// Active wire labels
 #[derive(Debug, Clone, PartialEq)]
 pub struct Active {
-    pub(super) labels: Arc<Vec<WireLabel>>,
+    pub(super) labels: Arc<Vec<Label>>,
 }
 
 impl State for Active {}
 
 impl Active {
-    pub(super) fn from_labels(labels: Vec<WireLabel>) -> Self {
+    pub(super) fn from_labels(labels: Vec<Label>) -> Self {
         Self {
             labels: Arc::new(labels),
         }
     }
 
-    pub(super) fn iter(&self) -> impl Iterator<Item = WireLabel> + '_ {
+    pub(super) fn iter(&self) -> impl Iterator<Item = Label> + '_ {
         self.labels.iter().copied()
     }
 
@@ -160,19 +160,19 @@ impl Active {
     }
 
     #[cfg(test)]
-    pub fn get(&self, idx: usize) -> WireLabel {
+    pub fn get(&self, idx: usize) -> Label {
         self.labels[idx].clone()
     }
 
     #[cfg(test)]
-    pub fn set(&mut self, idx: usize, label: WireLabel) {
+    pub fn set(&mut self, idx: usize, label: Label) {
         let mut labels = (*self.labels).clone();
         labels[idx] = label;
         self.labels = Arc::new(labels);
     }
 
     #[cfg(test)]
-    pub fn push(&mut self, label: WireLabel) {
+    pub fn push(&mut self, label: Label) {
         let mut labels = (*self.labels).clone();
         labels.push(label);
         self.labels = Arc::new(labels);

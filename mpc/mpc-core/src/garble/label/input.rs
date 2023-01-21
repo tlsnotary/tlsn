@@ -4,7 +4,7 @@ use mpc_circuits::{Input, WireGroup};
 
 use crate::{
     garble::{
-        label::{state, Delta, Labels, WireLabel},
+        label::{state, Delta, Label, Labels},
         LabelError,
     },
     Block,
@@ -16,7 +16,7 @@ impl Labels<Input, state::Full> {
         // Logical low wire labels, [W_0; count]
         let low = Block::random_vec(rng, input.len())
             .into_iter()
-            .map(|value| WireLabel::new(value))
+            .map(|value| Label::new(value))
             .collect();
 
         Self {
@@ -69,7 +69,7 @@ pub(crate) mod unchecked {
             let labels = unchecked
                 .labels
                 .into_iter()
-                .map(|label| WireLabel::new(label))
+                .map(|label| Label::new(label))
                 .collect();
 
             Ok(Labels {
