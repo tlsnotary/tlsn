@@ -104,7 +104,7 @@ impl Full {
     #[cfg(test)]
     pub fn set(&mut self, idx: usize, pair: WireLabelPair) {
         let mut low = (*self.low).clone();
-        low[idx] = WireLabel::new(pair.id(), pair.low());
+        low[idx] = WireLabel::new(pair.low());
         self.low = Arc::new(low);
     }
 
@@ -154,7 +154,7 @@ impl Active {
     pub fn to_be_bytes(&self) -> Vec<u8> {
         self.labels
             .iter()
-            .map(|label| label.value.to_be_bytes())
+            .map(|label| label.value().to_be_bytes())
             .flatten()
             .collect()
     }

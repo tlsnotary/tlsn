@@ -4,7 +4,7 @@ use crate::{
     block::{Block, SELECT_MASK},
     garble::{circuit::EncryptedGate, label::ActiveInputLabelsSet, Error, LabelError, WireLabel},
 };
-use mpc_circuits::{Circuit, Gate};
+use mpc_circuits::{Circuit, Gate, WireGroup};
 
 /// Evaluates half-gate garbled AND gate
 #[inline]
@@ -12,7 +12,6 @@ pub(crate) fn and_gate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     cipher: &C,
     x: &WireLabel,
     y: &WireLabel,
-    zref: usize,
     encrypted_gate: &[Block; 2],
     gid: usize,
 ) -> WireLabel {
@@ -28,13 +27,13 @@ pub(crate) fn and_gate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     let w_g = hx ^ (encrypted_gate[0] & SELECT_MASK[s_a]);
     let w_e = hy ^ (SELECT_MASK[s_b] & (encrypted_gate[1] ^ *x.as_ref()));
 
-    WireLabel::new(zref, w_g ^ w_e)
+    WireLabel::new(w_g ^ w_e)
 }
 
 /// Evaluates half-gate garbled XOR gate
 #[inline]
-pub(crate) fn xor_gate(x: &WireLabel, y: &WireLabel, zref: usize) -> WireLabel {
-    WireLabel::new(zref, *x.as_ref() ^ *y.as_ref())
+pub(crate) fn xor_gate(x: &WireLabel, y: &WireLabel) -> WireLabel {
+    WireLabel::new(*x.as_ref() ^ *y.as_ref())
 }
 
 /// Evaluates a garbled circuit using [`SanitizedInputLabels`].
@@ -50,7 +49,8 @@ pub fn evaluate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     input_labels.iter().for_each(|input_labels| {
         input_labels
             .iter()
-            .for_each(|label| labels[label.id()] = Some(label))
+            .zip(input_labels.wires())
+            .for_each(|(label, id)| labels[*id] = Some(label))
     });
 
     let mut tid = 0;
@@ -66,7 +66,7 @@ pub fn evaluate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
             } => {
                 let x = labels[xref].ok_or(LabelError::UninitializedLabel(xref))?;
                 let y = labels[yref].ok_or(LabelError::UninitializedLabel(yref))?;
-                let z = xor_gate(&x, &y, zref);
+                let z = xor_gate(&x, &y);
                 labels[zref] = Some(z);
             }
             Gate::And {
@@ -74,7 +74,7 @@ pub fn evaluate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
             } => {
                 let x = labels[xref].ok_or(LabelError::UninitializedLabel(xref))?;
                 let y = labels[yref].ok_or(LabelError::UninitializedLabel(yref))?;
-                let z = and_gate(cipher, &x, &y, zref, encrypted_gates[tid].as_ref(), gid);
+                let z = and_gate(cipher, &x, &y, encrypted_gates[tid].as_ref(), gid);
                 labels[zref] = Some(z);
                 tid += 1;
                 gid += 2;

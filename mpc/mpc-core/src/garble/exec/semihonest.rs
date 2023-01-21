@@ -205,7 +205,7 @@ mod tests {
         let mut gc_output = gc_ev.get_output();
 
         // Insert a bogus output label
-        gc_output.state.output_labels[0].set(0, WireLabel::new(0, Block::new(0)));
+        gc_output.state.output_labels[0].set(0, WireLabel::new(Block::new(0)));
 
         let error = leader.decode(gc_output.into()).unwrap_err();
 

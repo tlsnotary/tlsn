@@ -111,10 +111,7 @@ where
 
         let low = labels
             .into_iter()
-            .map(|label| WireLabel {
-                id: label.id,
-                value: label.low,
-            })
+            .map(|label| WireLabel(label.low()))
             .collect();
 
         Ok(Self {
@@ -174,7 +171,7 @@ where
     /// Validates whether the provided active labels are authentic
     pub fn validate(&self, labels: &Labels<G, state::Active>) -> Result<(), LabelError> {
         for (pair, label) in self.state.iter().zip(labels.iter()) {
-            if !(label.value == pair.low() || label.value == pair.high()) {
+            if !(label.value() == pair.low() || label.value() == pair.high()) {
                 return Err(LabelError::InauthenticLabels(labels.group.id().clone()));
             }
         }
@@ -242,11 +239,9 @@ where
             ));
         }
 
-        let labels = group
-            .wires()
-            .iter()
-            .zip(blocks)
-            .map(|(id, block)| WireLabel::new(*id, block))
+        let labels = blocks
+            .into_iter()
+            .map(|block| WireLabel::new(block))
             .collect();
 
         Ok(Self {
@@ -330,109 +325,81 @@ where
 
 /// Wire label of a garbled circuit
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct WireLabel {
-    /// Wire id
-    id: usize,
-    /// Wire label which corresponds to the logical level (low/high) of a circuit wire
-    value: Block,
-}
+pub struct WireLabel(Block);
 
 impl BitXor<Delta> for WireLabel {
     type Output = Self;
 
     #[inline]
     fn bitxor(self, rhs: Delta) -> Self::Output {
-        Self {
-            id: self.id,
-            value: self.value ^ rhs.0,
-        }
+        Self(self.0 ^ rhs.0)
     }
 }
 
 impl AsRef<Block> for WireLabel {
     fn as_ref(&self) -> &Block {
-        &self.value
+        &self.0
     }
 }
 
 impl WireLabel {
     /// Creates a new wire label
     #[inline]
-    pub fn new(id: usize, value: Block) -> Self {
-        Self { id, value }
+    pub fn new(value: Block) -> Self {
+        Self(value)
     }
 
     /// Returns inner block
     #[inline]
     pub fn to_inner(self) -> Block {
-        self.value
-    }
-
-    /// Returns wire id of label
-    #[inline]
-    pub fn id(&self) -> usize {
-        self.id
+        self.0
     }
 
     /// Returns value of label
     #[inline]
     pub fn value(&self) -> Block {
-        self.value
+        self.0
     }
 
     /// Returns wire label permute bit from permute-and-point technique
     #[inline]
     pub fn permute_bit(&self) -> bool {
-        self.value.lsb() == 1
+        self.0.lsb() == 1
     }
 
     /// Creates a new random wire label
-    pub fn random<R: Rng + CryptoRng>(id: usize, rng: &mut R) -> Self {
-        Self {
-            id,
-            value: Block::random(rng),
-        }
+    pub fn random<R: Rng + CryptoRng>(rng: &mut R) -> Self {
+        Self(Block::random(rng))
     }
 
     /// Creates wire label pair from delta and corresponding truth value
     #[inline]
     pub fn to_pair(self, delta: Delta, level: bool) -> WireLabelPair {
         let (low, high) = if level {
-            (self.value ^ delta.0, self.value)
+            (self.0 ^ delta.0, self.0)
         } else {
-            (self.value, self.value ^ delta.0)
+            (self.0, self.0 ^ delta.0)
         };
 
-        WireLabelPair {
-            id: self.id,
-            low,
-            high,
-        }
+        WireLabelPair(low, high)
     }
 }
 
 /// Pair of garbled circuit wire labels
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct WireLabelPair {
-    /// Wire id
-    id: usize,
-    /// Wire label which corresponds to logical LOW of a circuit wire
-    low: Block,
-    /// Wire label which corresponds to logical HIGH of a circuit wire
-    high: Block,
-}
+pub struct WireLabelPair(Block, Block);
 
 impl WireLabelPair {
     /// Creates a new wire label pair
     #[inline]
-    pub(crate) fn new(id: usize, low: Block, high: Block) -> Self {
-        Self { id, low, high }
+    pub(crate) fn new(low: Block, high: Block) -> Self {
+        Self(low, high)
     }
 
     /// Returns inner blocks
     #[inline]
     pub fn to_inner(self) -> [Block; 2] {
-        [self.low, self.high]
+        [self.0, self.1]
     }
 
     /// Generates pairs of wire labels \[W_0, W_0 ^ delta\]
@@ -440,43 +407,35 @@ impl WireLabelPair {
         rng: &mut R,
         delta: Option<Delta>,
         count: usize,
-        offset: usize,
     ) -> (Vec<Self>, Delta) {
         let delta = delta.unwrap_or_else(|| Delta::random(rng));
         // Logical low wire labels, [W_0; count]
         let low = Block::random_vec(rng, count);
         (
             low.into_iter()
-                .enumerate()
-                .map(|(id, value)| WireLabelPair::new(id + offset, value, value ^ *delta))
+                .map(|value| WireLabelPair::new(value, value ^ *delta))
                 .collect(),
             delta,
         )
     }
 
-    /// Returns wire id
-    #[inline]
-    pub fn id(&self) -> usize {
-        self.id
-    }
-
     /// Returns wire label corresponding to logical low
     #[inline]
     pub fn low(&self) -> Block {
-        self.low
+        self.0
     }
 
     /// Returns wire label corresponding to logical high
     #[inline]
     pub fn high(&self) -> Block {
-        self.high
+        self.1
     }
 
     /// Returns wire labels corresponding to provided logic level
     #[inline]
     pub fn select(&self, level: bool) -> WireLabel {
-        let block = if level { &self.high } else { &self.low };
-        WireLabel::new(self.id, *block)
+        let block = if level { &self.1 } else { &self.0 };
+        WireLabel::new(*block)
     }
 
     /// Returns wire labels corresponding to wire truth values

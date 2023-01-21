@@ -40,19 +40,18 @@ mod tests {
 
         let delta = Delta::random(&mut rng);
         let x_0 = Block::random(&mut rng);
-        let x = WireLabelPair::new(0, x_0, x_0 ^ *delta);
+        let x = WireLabelPair::new(x_0, x_0 ^ *delta);
         let y_0 = Block::random(&mut rng);
-        let y = WireLabelPair::new(1, y_0, y_0 ^ *delta);
+        let y = WireLabelPair::new(y_0, y_0 ^ *delta);
         let gid: usize = 1;
 
-        let (z, encrypted_gate) = gen::and_gate(&cipher, &x, &y, 2, delta, gid);
+        let (z, encrypted_gate) = gen::and_gate(&cipher, &x, &y, delta, gid);
 
         assert_eq!(
             ev::and_gate(
                 &mut cipher,
                 &x.select(false),
                 &y.select(false),
-                2,
                 encrypted_gate.as_ref(),
                 gid
             ),
@@ -63,7 +62,6 @@ mod tests {
                 &mut cipher,
                 &x.select(false),
                 &y.select(true),
-                2,
                 encrypted_gate.as_ref(),
                 gid
             ),
@@ -74,7 +72,6 @@ mod tests {
                 &mut cipher,
                 &x.select(true),
                 &y.select(false),
-                2,
                 encrypted_gate.as_ref(),
                 gid
             ),
@@ -85,7 +82,6 @@ mod tests {
                 &mut cipher,
                 &x.select(true),
                 &y.select(true),
-                2,
                 encrypted_gate.as_ref(),
                 gid
             ),
@@ -99,26 +95,26 @@ mod tests {
 
         let delta = Delta::random(&mut rng);
         let x_0 = Block::random(&mut rng);
-        let x = WireLabelPair::new(0, x_0, x_0 ^ *delta);
+        let x = WireLabelPair::new(x_0, x_0 ^ *delta);
         let y_0 = Block::random(&mut rng);
-        let y = WireLabelPair::new(1, y_0, y_0 ^ *delta);
+        let y = WireLabelPair::new(y_0, y_0 ^ *delta);
 
-        let z = gen::xor_gate(&x, &y, 2, delta);
+        let z = gen::xor_gate(&x, &y, delta);
 
         assert_eq!(
-            ev::xor_gate(&x.select(false), &y.select(false), 2),
+            ev::xor_gate(&x.select(false), &y.select(false)),
             z.select(false)
         );
         assert_eq!(
-            ev::xor_gate(&x.select(false), &y.select(true), 2),
+            ev::xor_gate(&x.select(false), &y.select(true)),
             z.select(true)
         );
         assert_eq!(
-            ev::xor_gate(&x.select(true), &y.select(false), 2),
+            ev::xor_gate(&x.select(true), &y.select(false)),
             z.select(true),
         );
         assert_eq!(
-            ev::xor_gate(&x.select(true), &y.select(true), 2),
+            ev::xor_gate(&x.select(true), &y.select(true)),
             z.select(false)
         );
     }
