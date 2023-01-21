@@ -5,7 +5,7 @@ mod encoder;
 pub(crate) mod input;
 pub(crate) mod output;
 mod set;
-pub mod state;
+mod state;
 
 use mpc_circuits::{Circuit, GroupId, GroupValue, Input, Output, Value, WireGroup};
 use rand::{CryptoRng, Rng};
@@ -20,6 +20,11 @@ pub use digest::LabelsDigest;
 pub use encoder::ChaChaEncoder;
 pub use output::OutputLabelsCommitment;
 pub use set::LabelsSet;
+
+/// A collection of full labels not associated with a wire group.
+pub type FullLabels = state::Full;
+/// A collection of active labels not associated with a wire group.
+pub type ActiveLabels = state::Active;
 
 /// Full input labels, ie contains both the low and high labels.
 pub type FullInputLabels = Labels<Input, state::Full>;
@@ -110,6 +115,22 @@ where
         Ok(Self {
             group,
             state: state::Full::from_labels(low, delta),
+        })
+    }
+
+    /// Returns Labels type, validating the provided labels using the associated group
+    pub fn from_full_labels(group: G, labels: state::Full) -> Result<Self, LabelError> {
+        if group.len() != labels.len() {
+            return Err(LabelError::InvalidLabelCount(
+                group.id().clone(),
+                group.len(),
+                labels.len(),
+            ));
+        }
+
+        Ok(Self {
+            group,
+            state: labels,
         })
     }
 
@@ -220,6 +241,22 @@ where
             group,
             labels.into_iter().map(|label| label.value()).collect(),
         )
+    }
+
+    /// Returns Labels type, validating the provided labels using the associated group
+    pub fn from_active_labels(group: G, labels: state::Active) -> Result<Self, LabelError> {
+        if group.len() != labels.len() {
+            return Err(LabelError::InvalidLabelCount(
+                group.id().clone(),
+                group.len(),
+                labels.len(),
+            ));
+        }
+
+        Ok(Self {
+            group,
+            state: labels,
+        })
     }
 
     /// Returns Labels type, validating the provided blocks using the associated group

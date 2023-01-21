@@ -35,8 +35,13 @@ impl Full {
         }
     }
 
+    /// Returns number of labels
+    pub fn len(&self) -> usize {
+        self.low.len()
+    }
+
     /// Returns active labels corresponding to the `value`
-    pub(super) fn select(&self, value: &Value) -> Result<Active, LabelError> {
+    pub fn select(&self, value: &Value) -> Result<Active, LabelError> {
         if value.len() != self.low.len() {
             return Err(LabelError::InvalidValue(self.low.len(), value.len()));
         }
@@ -52,14 +57,16 @@ impl Full {
         })
     }
 
-    pub(super) fn iter(&self) -> impl Iterator<Item = LabelPair> + '_ {
+    /// Returns iterator of label pairs
+    pub fn iter(&self) -> impl Iterator<Item = LabelPair> + '_ {
         self.low
             .iter()
             .copied()
             .map(|low| low.to_pair(self.delta, false))
     }
 
-    pub(super) fn to_labels(&self) -> Vec<LabelPair> {
+    /// Returns vector of label pairs
+    pub fn to_labels(&self) -> Vec<LabelPair> {
         self.low
             .iter()
             .map(|low| low.to_pair(self.delta, false))
@@ -131,7 +138,13 @@ impl Active {
         }
     }
 
-    pub(super) fn iter(&self) -> impl Iterator<Item = Label> + '_ {
+    /// Returns number of labels
+    pub fn len(&self) -> usize {
+        self.labels.len()
+    }
+
+    /// Returns iterator of labels
+    pub fn iter(&self) -> impl Iterator<Item = Label> + '_ {
         self.labels.iter().copied()
     }
 
