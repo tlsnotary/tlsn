@@ -1277,7 +1277,7 @@ mod tests {
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
 
-    use crate::garble::WireLabelPair;
+    use crate::garble::LabelPair;
 
     use super::*;
 
@@ -1361,7 +1361,7 @@ mod tests {
         let opening = gc.open();
 
         // set bogus label
-        input_labels[0].set(0, WireLabelPair::new(0, Block::new(0), Block::new(0)));
+        input_labels[0].set(0, LabelPair::new(Block::new(0), Block::new(0)));
 
         let key_labels = input_labels[0].select(key.value()).unwrap();
         let msg_labels = input_labels[1].select(msg.value()).unwrap();
@@ -1443,10 +1443,7 @@ mod tests {
         // set bogus label (the opposite label the evaluator receives)
         // evaluation should pass but the circuit validation should fail because the commitment is bad
         let target_label = input_labels[0].get(0);
-        input_labels[0].set(
-            0,
-            WireLabelPair::new(target_label.id(), target_label.low(), Block::new(0)),
-        );
+        input_labels[0].set(0, LabelPair::new(target_label.low(), Block::new(0)));
 
         let key_labels = input_labels[0].select(key.value()).unwrap();
         let msg_labels = input_labels[1].select(msg.value()).unwrap();

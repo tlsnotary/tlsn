@@ -3,7 +3,7 @@ use rand::{thread_rng, Rng};
 
 use crate::{
     garble::{
-        label::{state, Labels, WireLabel},
+        label::{state, Label, Labels},
         Error, LabelError,
     },
     utils::blake3,
@@ -154,8 +154,7 @@ pub(crate) mod unchecked {
             let labels = unchecked
                 .labels
                 .into_iter()
-                .zip(output.wires())
-                .map(|(label, id)| WireLabel::new(*id, label))
+                .map(|value| Label::new(value))
                 .collect();
 
             Ok(Self::from_labels(output, labels)?)
@@ -304,7 +303,7 @@ pub(crate) mod unchecked {
 mod tests {
     use std::sync::Arc;
 
-    use crate::garble::{FullOutputLabels, LabelError, WireLabelPair};
+    use crate::garble::{FullOutputLabels, LabelError, LabelPair};
 
     use super::*;
     use rstest::*;
@@ -320,7 +319,7 @@ mod tests {
     #[rstest]
     fn test_output_label_validation(circ: Arc<Circuit>) {
         let circ_out = circ.output(0).unwrap();
-        let (labels, delta) = WireLabelPair::generate(&mut thread_rng(), None, 64, 0);
+        let (labels, delta) = LabelPair::generate(&mut thread_rng(), None, 64);
         let output_labels_full =
             FullOutputLabels::from_labels(circ_out.clone(), delta, labels).unwrap();
 
@@ -331,7 +330,7 @@ mod tests {
             .expect("output labels should be valid");
 
         // insert bogus label
-        output_labels.state.set(0, WireLabel::new(0, Block::new(0)));
+        output_labels.state.set(0, Label::new(Block::new(0)));
 
         let error = output_labels_full.validate(&output_labels).unwrap_err();
 
@@ -341,7 +340,7 @@ mod tests {
     #[rstest]
     fn test_output_label_commitment_validation(circ: Arc<Circuit>) {
         let circ_out = circ.output(0).unwrap();
-        let (labels, delta) = WireLabelPair::generate(&mut thread_rng(), None, 64, 0);
+        let (labels, delta) = LabelPair::generate(&mut thread_rng(), None, 64);
         let output_labels_full =
             FullOutputLabels::from_labels(circ_out.clone(), delta, labels).unwrap();
         let mut commitments = OutputLabelsCommitment::new(&output_labels_full);
@@ -365,7 +364,7 @@ mod tests {
         let input = circ.input(0).unwrap();
         let output = circ.output(0).unwrap();
 
-        let (labels, delta) = WireLabelPair::generate(&mut thread_rng(), None, 64, 0);
+        let (labels, delta) = LabelPair::generate(&mut thread_rng(), None, 64);
         let output_labels = FullOutputLabels::from_labels(output, delta, labels)
             .unwrap()
             .select(&1u64.into())
@@ -381,7 +380,7 @@ mod tests {
         let input = circ_2.input(0).unwrap();
         let output = circ.output(0).unwrap();
 
-        let (labels, delta) = WireLabelPair::generate(&mut thread_rng(), None, 64, 0);
+        let (labels, delta) = LabelPair::generate(&mut thread_rng(), None, 64);
         let output_labels = FullOutputLabels::from_labels(output, delta, labels)
             .unwrap()
             .select(&1u64.into())
