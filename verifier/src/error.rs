@@ -2,28 +2,36 @@
 pub enum Error {
     #[error("Can't verify the document because either signature or pubkey were not provided")]
     NoPubkeyOrSignature,
+    #[error("The document is expected to contain a signature")]
+    SignatureExpected,
+    #[error("The document is NOT expected to contain a signature")]
+    SignatureNotExpected,
     #[error("x509-parser error: {0}")]
     X509ParserError(String),
     #[error("webpki error: {0}")]
     WebpkiError(String),
-    #[error("unspecified error")]
-    VerificationError,
-    #[error("the certificate chain was empty")]
+    #[error("Certificate chain was empty")]
     EmptyCertificateChain,
-    #[error("the end entity must not be a certificate authority")]
+    #[error("End entity must not be a certificate authority")]
     EndEntityIsCA,
-    #[error("the key exchange was signed using an unknown curve")]
+    #[error("Key exchange data was signed using an unknown curve")]
     UnknownCurveInKeyExchange,
-    #[error("the key exchange was signed using an unknown algorithm")]
+    #[error("Key exchange data was signed using an unknown algorithm")]
     UnknownSigningAlgorithmInKeyExchange,
     #[error("Commitment verification failed")]
     CommitmentVerificationFailed,
-    #[error("error while performing sanity check")]
-    SanityCheckError,
+    #[error("Error while performing validation check in: {0}")]
+    SanityCheckError(String),
     #[error("Failed to verify a Merkle proof")]
     MerkleProofVerificationFailed,
     #[error("Overlapping openings don't match")]
     OverlappingOpeningsDontMatch,
-    #[error("internal error occured")]
+    #[error("Failed while checking committed TLS")]
+    CommittedTLSCheckFailed,
+    #[error("An internal error occured")]
     InternalError,
+    #[error("An internal error during serialization or deserialization")]
+    SerializationError,
+    #[error("Error during signature verification")]
+    SignatureVerificationError,
 }
