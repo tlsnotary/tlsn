@@ -5,9 +5,7 @@ use async_trait::async_trait;
 use futures::channel::oneshot;
 
 use mpc_circuits::Circuit;
-use mpc_core::garble::{
-    gc_state, ActiveInputLabelsSet, CircuitOpening, FullInputLabelsSet, GarbledCircuit,
-};
+use mpc_core::garble::{gc_state, ActiveInputSet, CircuitOpening, FullInputSet, GarbledCircuit};
 
 use crate::protocol::garble::{Compressor, Evaluator, GCError, Generator, Validator};
 
@@ -19,7 +17,7 @@ impl Generator for RayonBackend {
     async fn generate(
         &mut self,
         circ: Arc<Circuit>,
-        input_labels: FullInputLabelsSet,
+        input_labels: FullInputSet,
     ) -> Result<GarbledCircuit<gc_state::Full>, GCError> {
         let (sender, receiver) = oneshot::channel();
         rayon::spawn(move || {
@@ -38,7 +36,7 @@ impl Evaluator for RayonBackend {
     async fn evaluate(
         &mut self,
         circ: GarbledCircuit<gc_state::Partial>,
-        input_labels: ActiveInputLabelsSet,
+        input_labels: ActiveInputSet,
     ) -> Result<GarbledCircuit<gc_state::Evaluated>, GCError> {
         let (sender, receiver) = oneshot::channel();
         rayon::spawn(move || {
@@ -111,13 +109,13 @@ mod test {
     #[tokio::test]
     async fn test_rayon_garbler() {
         let circ = Circuit::load_bytes(ADDER_64).unwrap();
-        let input_labels = FullInputLabelsSet::generate(&mut thread_rng(), &circ, None);
+        let input_labels = FullInputSet::generate(&mut thread_rng(), &circ, None);
         let gc = RayonBackend
             .generate(circ.clone(), input_labels.clone())
             .await
             .unwrap();
 
-        let input_labels = ActiveInputLabelsSet::new(vec![
+        let input_labels = ActiveInputSet::new(vec![
             input_labels[0].select(&0u64.into()).unwrap(),
             input_labels[1].select(&0u64.into()).unwrap(),
         ])
@@ -132,7 +130,7 @@ mod test {
     #[tokio::test]
     async fn test_validator() {
         let circ = Circuit::load_bytes(ADDER_64).unwrap();
-        let input_labels = FullInputLabelsSet::generate(&mut thread_rng(), &circ, None);
+        let input_labels = FullInputSet::generate(&mut thread_rng(), &circ, None);
 
         let gc = RayonBackend
             .generate(circ.clone(), input_labels.clone())
@@ -140,7 +138,7 @@ mod test {
             .unwrap();
         let opening = gc.open();
 
-        let input_labels = ActiveInputLabelsSet::new(vec![
+        let input_labels = ActiveInputSet::new(vec![
             input_labels[0].select(&0u64.into()).unwrap(),
             input_labels[1].select(&0u64.into()).unwrap(),
         ])

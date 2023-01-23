@@ -15,8 +15,8 @@ use crate::protocol::{
 use futures::{future::ready, SinkExt, StreamExt};
 use mpc_circuits::{Circuit, Input, InputValue, OutputValue, WireGroup};
 use mpc_core::garble::{
-    exec::dual as core, gc_state, ActiveInputLabels, ActiveInputLabelsSet, FullInputLabels,
-    FullInputLabelsSet, GarbledCircuit,
+    exec::dual as core, gc_state, ActiveEncodedInput, ActiveInputSet, FullEncodedInput,
+    FullInputSet, GarbledCircuit,
 };
 use utils_aio::expect_msg_or_err;
 
@@ -35,8 +35,8 @@ mod state {
     pub struct Initialized;
 
     pub struct LabelSetup {
-        pub(crate) gen_labels: FullInputLabelsSet,
-        pub(crate) ev_labels: ActiveInputLabelsSet,
+        pub(crate) gen_labels: FullInputSet,
+        pub(crate) ev_labels: ActiveInputSet,
     }
 
     impl State for Initialized {}
@@ -49,8 +49,8 @@ pub struct DualExLeader<S, B, LS, LR>
 where
     S: State,
     B: Generator + Evaluator,
-    LS: ObliviousSend<FullInputLabels>,
-    LR: ObliviousReceive<InputValue, ActiveInputLabels>,
+    LS: ObliviousSend<FullEncodedInput>,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput>,
 {
     state: S,
     circ: Arc<Circuit>,
@@ -63,8 +63,8 @@ where
 impl<B, LS, LR> DualExLeader<Initialized, B, LS, LR>
 where
     B: Generator + Evaluator + Send,
-    LS: ObliviousSend<FullInputLabels> + Send,
-    LR: ObliviousReceive<InputValue, ActiveInputLabels> + Send,
+    LS: ObliviousSend<FullEncodedInput> + Send,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + Send,
 {
     /// Create a new DualExLeader
     pub fn new(
@@ -94,11 +94,11 @@ where
     ///                     These can be both the leader's and follower's labels.
     pub async fn setup_inputs(
         mut self,
-        gen_labels: FullInputLabelsSet,
+        gen_labels: FullInputSet,
         gen_inputs: Vec<InputValue>,
         ot_send_inputs: Vec<Input>,
         ot_receive_inputs: Vec<InputValue>,
-        cached_labels: Vec<ActiveInputLabels>,
+        cached_labels: Vec<ActiveEncodedInput>,
     ) -> Result<DualExLeader<LabelSetup, B, LS, LR>, GCError> {
         let (gen_labels, ev_labels) = setup_inputs_with(
             &mut self.channel,
@@ -129,8 +129,8 @@ where
 impl<B, LS, LR> DualExLeader<LabelSetup, B, LS, LR>
 where
     B: Generator + Evaluator + Send,
-    LS: ObliviousSend<FullInputLabels> + Send,
-    LR: ObliviousReceive<InputValue, ActiveInputLabels> + Send,
+    LS: ObliviousSend<FullEncodedInput> + Send,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + Send,
 {
     /// Execute dual execution protocol
     ///
@@ -215,8 +215,8 @@ pub struct DualExFollower<S, B, LS, LR>
 where
     S: State,
     B: Generator + Evaluator,
-    LS: ObliviousSend<FullInputLabels>,
-    LR: ObliviousReceive<InputValue, ActiveInputLabels>,
+    LS: ObliviousSend<FullEncodedInput>,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput>,
 {
     state: S,
     circ: Arc<Circuit>,
@@ -229,8 +229,8 @@ where
 impl<B, LS, LR> DualExFollower<Initialized, B, LS, LR>
 where
     B: Generator + Evaluator + Send,
-    LS: ObliviousSend<FullInputLabels> + Send,
-    LR: ObliviousReceive<InputValue, ActiveInputLabels> + Send,
+    LS: ObliviousSend<FullEncodedInput> + Send,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + Send,
 {
     /// Create a new DualExFollower
     pub fn new(
@@ -260,11 +260,11 @@ where
     ///                     These can be both the leader's and follower's labels.
     pub async fn setup_inputs(
         mut self,
-        gen_labels: FullInputLabelsSet,
+        gen_labels: FullInputSet,
         gen_inputs: Vec<InputValue>,
         ot_send_inputs: Vec<Input>,
         ot_receive_inputs: Vec<InputValue>,
-        cached_labels: Vec<ActiveInputLabels>,
+        cached_labels: Vec<ActiveEncodedInput>,
     ) -> Result<DualExFollower<LabelSetup, B, LS, LR>, GCError> {
         let (gen_labels, ev_labels) = setup_inputs_with(
             &mut self.channel,
@@ -295,8 +295,8 @@ where
 impl<B, LS, LR> DualExFollower<LabelSetup, B, LS, LR>
 where
     B: Generator + Evaluator + Send,
-    LS: ObliviousSend<FullInputLabels> + Send,
-    LR: ObliviousReceive<InputValue, ActiveInputLabels> + Send,
+    LS: ObliviousSend<FullEncodedInput> + Send,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + Send,
 {
     /// Execute dual execution protocol
     ///
@@ -383,15 +383,15 @@ pub async fn setup_inputs_with<LS, LR>(
     channel: &mut GarbleChannel,
     label_sender: Option<&mut LS>,
     label_receiver: Option<&mut LR>,
-    gen_labels: FullInputLabelsSet,
+    gen_labels: FullInputSet,
     gen_inputs: Vec<InputValue>,
     ot_send_inputs: Vec<Input>,
     ot_receive_inputs: Vec<InputValue>,
-    cached_labels: Vec<ActiveInputLabels>,
-) -> Result<(FullInputLabelsSet, ActiveInputLabelsSet), GCError>
+    cached_labels: Vec<ActiveEncodedInput>,
+) -> Result<(FullInputSet, ActiveInputSet), GCError>
 where
-    LS: ObliviousSend<FullInputLabels> + Send,
-    LR: ObliviousReceive<InputValue, ActiveInputLabels> + Send,
+    LS: ObliviousSend<FullEncodedInput> + Send,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + Send,
 {
     let circ = gen_labels.circuit();
 
@@ -399,7 +399,7 @@ where
     let ot_send_labels = ot_send_inputs
         .iter()
         .map(|input| gen_labels[input.index()].clone())
-        .collect::<Vec<FullInputLabels>>();
+        .collect::<Vec<FullEncodedInput>>();
 
     // Collect active labels to be directly sent
     let direct_send_labels = gen_inputs
@@ -409,7 +409,7 @@ where
                 .select(input.value())
                 .expect("Input value should be valid")
         })
-        .collect::<Vec<ActiveInputLabels>>();
+        .collect::<Vec<ActiveEncodedInput>>();
 
     // Concurrently execute oblivious transfers and direct label sending
 
@@ -456,13 +456,12 @@ where
 
     let direct_received_labels = msg
         .into_iter()
-        .map(|msg| ActiveInputLabels::from_unchecked(&circ, msg.into()))
+        .map(|msg| ActiveEncodedInput::from_unchecked(&circ, msg.into()))
         .collect::<Result<Vec<_>, _>>()?;
 
     // Collect all active labels into a set
-    let ev_labels = ActiveInputLabelsSet::new(
-        [ot_receive_labels, direct_received_labels, cached_labels].concat(),
-    )?;
+    let ev_labels =
+        ActiveInputSet::new([ot_receive_labels, direct_received_labels, cached_labels].concat())?;
 
     Ok((gen_labels, ev_labels))
 }
@@ -531,8 +530,8 @@ mod tests {
         let leader_input = circ.input(0).unwrap().to_value(1u64).unwrap();
         let follower_input = circ.input(1).unwrap().to_value(2u64).unwrap();
 
-        let leader_labels = FullInputLabelsSet::generate(&mut rng, &circ, None);
-        let follower_labels = FullInputLabelsSet::generate(&mut rng, &circ, None);
+        let leader_labels = FullInputSet::generate(&mut rng, &circ, None);
+        let follower_labels = FullInputSet::generate(&mut rng, &circ, None);
 
         let leader_task = {
             let leader_input = leader_input.clone();

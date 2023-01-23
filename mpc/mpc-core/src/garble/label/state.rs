@@ -9,8 +9,8 @@ use super::{Delta, Label, LabelPair};
 mod sealed {
     pub trait Sealed {}
 
-    impl Sealed for super::Full {}
-    impl Sealed for super::Active {}
+    impl Sealed for super::FullLabels {}
+    impl Sealed for super::ActiveLabels {}
 }
 
 /// Marker trait for label state
@@ -18,16 +18,16 @@ pub trait State: sealed::Sealed {}
 
 /// Full wire labels
 #[derive(Debug, Clone, PartialEq)]
-pub struct Full {
+pub struct FullLabels {
     /// Wire labels corresponding to logic low. The high labels are implicit because we can
     /// always derive a high label by doing: low XOR delta.
     pub(super) low: Arc<Vec<Label>>,
     pub(super) delta: Delta,
 }
 
-impl State for Full {}
+impl State for FullLabels {}
 
-impl Full {
+impl FullLabels {
     pub(super) fn from_labels(low: Vec<Label>, delta: Delta) -> Self {
         Self {
             low: Arc::new(low),
@@ -41,11 +41,11 @@ impl Full {
     }
 
     /// Returns active labels corresponding to the `value`
-    pub fn select(&self, value: &Value) -> Result<Active, LabelError> {
+    pub fn select(&self, value: &Value) -> Result<ActiveLabels, LabelError> {
         if value.len() != self.low.len() {
             return Err(LabelError::InvalidValue(self.low.len(), value.len()));
         }
-        Ok(Active {
+        Ok(ActiveLabels {
             labels: Arc::new(
                 self.low
                     .iter()
@@ -74,7 +74,7 @@ impl Full {
     }
 
     pub(super) fn from_decoding(
-        active: Active,
+        active: ActiveLabels,
         delta: Delta,
         decoding: Vec<bool>,
     ) -> Result<Self, LabelError> {
@@ -125,13 +125,13 @@ impl Full {
 
 /// Active wire labels
 #[derive(Debug, Clone, PartialEq)]
-pub struct Active {
+pub struct ActiveLabels {
     pub(super) labels: Arc<Vec<Label>>,
 }
 
-impl State for Active {}
+impl State for ActiveLabels {}
 
-impl Active {
+impl ActiveLabels {
     pub(super) fn from_labels(labels: Vec<Label>) -> Self {
         Self {
             labels: Arc::new(labels),

@@ -7,8 +7,8 @@ use crate::protocol::{
 use futures::{future::ready, SinkExt, StreamExt};
 use mpc_circuits::{Circuit, Input, InputValue, OutputValue, WireGroup};
 use mpc_core::garble::{
-    exec::deap as core, gc_state, ActiveInputLabels, ActiveInputLabelsSet, FullInputLabels,
-    FullInputLabelsSet, GarbledCircuit,
+    exec::deap as core, gc_state, ActiveEncodedInput, ActiveInputSet, FullEncodedInput,
+    FullInputSet, GarbledCircuit,
 };
 use utils_aio::expect_msg_or_err;
 
@@ -30,8 +30,8 @@ pub mod state {
     pub struct Initialized;
 
     pub struct LabelSetup {
-        pub(crate) gen_labels: FullInputLabelsSet,
-        pub(crate) ev_labels: ActiveInputLabelsSet,
+        pub(crate) gen_labels: FullInputSet,
+        pub(crate) ev_labels: ActiveInputSet,
         pub(crate) input_state: InputState,
     }
 
@@ -55,8 +55,8 @@ pub struct DEAPLeader<S, B, LS, LR>
 where
     S: State,
     B: Generator + Evaluator,
-    LS: ObliviousSend<FullInputLabels>,
-    LR: ObliviousReceive<InputValue, ActiveInputLabels> + ObliviousVerify<FullInputLabels>,
+    LS: ObliviousSend<FullEncodedInput>,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + ObliviousVerify<FullEncodedInput>,
 {
     state: S,
     circ: Arc<Circuit>,
@@ -69,8 +69,8 @@ where
 impl<B, LS, LR> DEAPLeader<Initialized, B, LS, LR>
 where
     B: Generator + Evaluator + Compressor + Validator + Send,
-    LS: ObliviousSend<FullInputLabels> + Send,
-    LR: ObliviousReceive<InputValue, ActiveInputLabels> + ObliviousVerify<FullInputLabels> + Send,
+    LS: ObliviousSend<FullEncodedInput> + Send,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + ObliviousVerify<FullEncodedInput> + Send,
 {
     pub fn new(
         circ: Arc<Circuit>,
@@ -99,11 +99,11 @@ where
     ///                     These can be both the leader's and follower's labels.
     pub async fn setup_inputs(
         mut self,
-        gen_labels: FullInputLabelsSet,
+        gen_labels: FullInputSet,
         gen_inputs: Vec<InputValue>,
         ot_send_inputs: Vec<Input>,
         ot_receive_inputs: Vec<InputValue>,
-        cached_labels: Vec<ActiveInputLabels>,
+        cached_labels: Vec<ActiveEncodedInput>,
     ) -> Result<DEAPLeader<LabelSetup, B, LS, LR>, GCError> {
         let (gen_labels, ev_labels) = setup_inputs_with(
             &mut self.channel,
@@ -140,8 +140,8 @@ where
 impl<B, LS, LR> DEAPLeader<LabelSetup, B, LS, LR>
 where
     B: Generator + Evaluator + Compressor + Validator + Send,
-    LS: ObliviousSend<FullInputLabels> + Send,
-    LR: ObliviousReceive<InputValue, ActiveInputLabels> + ObliviousVerify<FullInputLabels> + Send,
+    LS: ObliviousSend<FullEncodedInput> + Send,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + ObliviousVerify<FullEncodedInput> + Send,
 {
     /// Execute first phase of the protocol, returning the authenticated output.
     pub async fn execute(
@@ -239,8 +239,8 @@ where
 impl<B, LS, LR> DEAPLeader<Executed, B, LS, LR>
 where
     B: Generator + Evaluator + Compressor + Validator + Send,
-    LS: ObliviousSend<FullInputLabels> + Send,
-    LR: ObliviousReceive<InputValue, ActiveInputLabels> + ObliviousVerify<FullInputLabels> + Send,
+    LS: ObliviousSend<FullEncodedInput> + Send,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + ObliviousVerify<FullEncodedInput> + Send,
 {
     /// Execute the final phase of the protocol. This proves the authenticity of the circuit output
     /// to the follower without leaking any information about leader's inputs.
@@ -258,7 +258,7 @@ where
         let (opening, gc_cmp, leader) = leader.validate_external(msg.into())?;
 
         // Reconstruct full input labels from opening
-        let input_labels = FullInputLabelsSet::from_decoding(
+        let input_labels = FullInputSet::from_decoding(
             gc_cmp.input_labels().clone(),
             opening.get_delta(),
             opening.get_decoding().to_vec(),

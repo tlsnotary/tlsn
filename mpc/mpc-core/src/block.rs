@@ -10,12 +10,12 @@ use std::convert::{From, TryInto};
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Block(u128);
 
-pub const BLOCK_LEN: usize = 16;
-pub const BLOCK_ZERO: Block = Block(0);
-pub const BLOCK_ONES: Block = Block(u128::MAX);
-pub const SELECT_MASK: [Block; 2] = [BLOCK_ZERO, BLOCK_ONES];
-
 impl Block {
+    pub const LEN: usize = 16;
+    pub const ZERO: Self = Self(0);
+    pub const ONES: Self = Self(u128::MAX);
+    pub const SELECT_MASK: [Self; 2] = [Self::ZERO, Self::ONES];
+
     #[inline]
     pub fn new(b: u128) -> Self {
         Self(b)
@@ -27,13 +27,15 @@ impl Block {
     }
 
     #[inline]
-    pub fn random<R: Rng + CryptoRng>(rng: &mut R) -> Self {
+    pub fn random<R: Rng + CryptoRng + ?Sized>(rng: &mut R) -> Self {
         Self::new(rng.gen())
     }
 
     #[inline]
-    pub fn random_vec<R: Rng + CryptoRng>(rng: &mut R, n: usize) -> Vec<Self> {
-        (0..n).map(|_| Self::random(rng)).collect()
+    pub fn random_vec<R: Rng + CryptoRng + ?Sized>(rng: &mut R, n: usize) -> Vec<Self> {
+        let mut blocks = vec![0u128; n];
+        rng.fill(blocks.as_mut_slice());
+        blocks.into_iter().map(Self::new).collect()
     }
 
     #[inline]

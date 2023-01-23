@@ -7,8 +7,8 @@ use crate::protocol::{
 use futures::{SinkExt, StreamExt};
 use mpc_circuits::{Circuit, Input, InputValue, OutputValue};
 use mpc_core::garble::{
-    exec::deap as core, gc_state, ActiveInputLabels, ActiveInputLabelsSet, FullInputLabels,
-    FullInputLabelsSet, GarbledCircuit,
+    exec::deap as core, gc_state, ActiveEncodedInput, ActiveInputSet, FullEncodedInput,
+    FullInputSet, GarbledCircuit,
 };
 use utils_aio::expect_msg_or_err;
 
@@ -30,8 +30,8 @@ pub mod state {
     pub struct Initialized;
 
     pub struct LabelSetup {
-        pub(crate) gen_labels: FullInputLabelsSet,
-        pub(crate) ev_labels: ActiveInputLabelsSet,
+        pub(crate) gen_labels: FullInputSet,
+        pub(crate) ev_labels: ActiveInputSet,
     }
 
     pub struct Executed {
@@ -49,8 +49,8 @@ pub struct DEAPFollower<S, B, LS, LR>
 where
     S: State,
     B: Generator + Evaluator,
-    LS: ObliviousSend<FullInputLabels> + ObliviousReveal,
-    LR: ObliviousReceive<InputValue, ActiveInputLabels>,
+    LS: ObliviousSend<FullEncodedInput> + ObliviousReveal,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput>,
 {
     state: S,
     circ: Arc<Circuit>,
@@ -63,8 +63,8 @@ where
 impl<B, LS, LR> DEAPFollower<Initialized, B, LS, LR>
 where
     B: Generator + Evaluator + Send,
-    LS: ObliviousSend<FullInputLabels> + ObliviousReveal + Send,
-    LR: ObliviousReceive<InputValue, ActiveInputLabels> + Send,
+    LS: ObliviousSend<FullEncodedInput> + ObliviousReveal + Send,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + Send,
 {
     pub fn new(
         circ: Arc<Circuit>,
@@ -93,11 +93,11 @@ where
     ///                     These can be both the leader's and follower's labels.
     pub async fn setup_inputs(
         mut self,
-        gen_labels: FullInputLabelsSet,
+        gen_labels: FullInputSet,
         gen_inputs: Vec<InputValue>,
         ot_send_inputs: Vec<Input>,
         ot_receive_inputs: Vec<InputValue>,
-        cached_labels: Vec<ActiveInputLabels>,
+        cached_labels: Vec<ActiveEncodedInput>,
     ) -> Result<DEAPFollower<LabelSetup, B, LS, LR>, GCError> {
         let (gen_labels, ev_labels) = setup_inputs_with(
             &mut self.channel,
@@ -128,8 +128,8 @@ where
 impl<B, LS, LR> DEAPFollower<LabelSetup, B, LS, LR>
 where
     B: Generator + Evaluator + Send,
-    LS: ObliviousSend<FullInputLabels> + ObliviousReveal + Send,
-    LR: ObliviousReceive<InputValue, ActiveInputLabels> + Send,
+    LS: ObliviousSend<FullEncodedInput> + ObliviousReveal + Send,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + Send,
 {
     /// Execute first phase of the protocol, returning the _purported_ circuit output.
     ///
@@ -227,8 +227,8 @@ where
 impl<B, LS, LR> DEAPFollower<Executed, B, LS, LR>
 where
     B: Generator + Evaluator + Send,
-    LS: ObliviousSend<FullInputLabels> + ObliviousReveal + Send,
-    LR: ObliviousReceive<InputValue, ActiveInputLabels> + Send,
+    LS: ObliviousSend<FullEncodedInput> + ObliviousReveal + Send,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + Send,
 {
     /// Execute the final phase of the protocol. This verifies the authenticity of the circuit output
     /// from the prior phase.

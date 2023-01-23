@@ -1,7 +1,7 @@
 use crate::garble::{
     commitment::{HashCommitment, Opening},
-    gc_state, ActiveInputLabelsSet, CircuitOpening, Error, FullInputLabelsSet, GarbledCircuit,
-    LabelError, LabelsDigest,
+    gc_state, ActiveInputSet, CircuitOpening, EncodingError, Error, FullInputSet, GarbledCircuit,
+    LabelsDigest,
 };
 use mpc_circuits::{Circuit, OutputValue};
 
@@ -84,7 +84,7 @@ impl DEAPFollower<Generator> {
     /// Garble circuit and send to peer
     pub fn garble(
         self,
-        input_labels: FullInputLabelsSet,
+        input_labels: FullInputSet,
     ) -> Result<(GarbledCircuit<gc_state::Partial>, DEAPFollower<Evaluator>), Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
         let gc = GarbledCircuit::generate(&cipher, self.state.circ.clone(), input_labels)?;
@@ -111,7 +111,7 @@ impl DEAPFollower<Evaluator> {
     pub fn evaluate(
         self,
         gc: GarbledCircuit<gc_state::Partial>,
-        input_labels: ActiveInputLabelsSet,
+        input_labels: ActiveInputSet,
     ) -> Result<(Vec<OutputValue>, DEAPFollower<Reveal>), Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
         let gc_evaluated = gc.evaluate(&cipher, input_labels)?;
@@ -158,18 +158,21 @@ impl DEAPFollower<Evaluator> {
             .iter()
             .zip(output.iter())
             .map(|(labels, value)| labels.select(value.value()))
-            .collect::<Result<Vec<_>, LabelError>>()?;
+            .collect::<Result<Vec<_>, EncodingError>>()?;
 
-        Ok((
-            output,
-            LabelsDigest::new(
-                &[
-                    gc_evaluated.output_labels().get_labels().to_vec(),
-                    expected_labels,
-                ]
-                .concat(),
-            ),
-        ))
+        let equality_check_labels = gc_evaluated
+            .output_labels()
+            .iter()
+            .cloned()
+            .map(|labels| labels.into_labels())
+            .chain(
+                expected_labels
+                    .into_iter()
+                    .map(|labels| labels.into_labels()),
+            )
+            .flatten();
+
+        Ok((output, LabelsDigest::new(equality_check_labels)))
     }
 }
 

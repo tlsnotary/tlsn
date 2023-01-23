@@ -1,8 +1,8 @@
 use crate::garble::{
     circuit::unchecked::{UncheckedCircuitOpening, UncheckedOutput},
     commitment::{HashCommitment, Opening},
-    gc_state, ActiveInputLabelsSet, CircuitOpening, Error, FullInputLabelsSet, GarbledCircuit,
-    LabelError, LabelsDigest,
+    gc_state, ActiveInputSet, CircuitOpening, EncodingError, Error, FullInputSet, GarbledCircuit,
+    LabelsDigest,
 };
 use mpc_circuits::{Circuit, OutputValue};
 
@@ -92,7 +92,7 @@ impl DEAPLeader<Generator> {
     /// Garble circuit and send to peer
     pub fn garble(
         self,
-        input_labels: FullInputLabelsSet,
+        input_labels: FullInputSet,
     ) -> Result<(GarbledCircuit<gc_state::Partial>, DEAPLeader<Evaluator>), Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
         let gc = GarbledCircuit::generate(&cipher, self.state.circ.clone(), input_labels)?;
@@ -121,7 +121,7 @@ impl DEAPLeader<Evaluator> {
     pub fn evaluate(
         self,
         gc: GarbledCircuit<gc_state::Partial>,
-        input_labels: ActiveInputLabelsSet,
+        input_labels: ActiveInputSet,
     ) -> Result<DEAPLeader<Commit>, Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
         let evaluated_gc = gc.evaluate(&cipher, input_labels)?;
@@ -165,15 +165,21 @@ impl DEAPLeader<Evaluator> {
             .iter()
             .zip(output.iter())
             .map(|(labels, value)| labels.select(value.value()))
-            .collect::<Result<Vec<_>, LabelError>>()?;
+            .collect::<Result<Vec<_>, EncodingError>>()?;
 
-        Ok(LabelsDigest::new(
-            &[
-                expected_labels,
-                gc_cmp.output_labels().get_labels().to_vec(),
-            ]
-            .concat(),
-        ))
+        let equality_check_labels = expected_labels
+            .into_iter()
+            .map(|labels| labels.into_labels())
+            .chain(
+                gc_cmp
+                    .output_labels()
+                    .iter()
+                    .cloned()
+                    .map(|labels| labels.into_labels()),
+            )
+            .flatten();
+
+        Ok(LabelsDigest::new(equality_check_labels))
     }
 }
 
@@ -203,7 +209,7 @@ impl DEAPLeader<Decode> {
     ) -> Result<(Vec<OutputValue>, DEAPLeader<Validate>), Error> {
         let output = unchecked_output.decode(
             &self.state.gc_summary.circ,
-            self.state.gc_summary.output_labels().get_labels(),
+            self.state.gc_summary.output_labels().get_groups(),
         )?;
 
         Ok((

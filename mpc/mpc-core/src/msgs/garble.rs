@@ -6,7 +6,7 @@ use crate::{
         self,
         circuit::{self, unchecked as unchecked_circuit, unchecked::UncheckedCircuitOpening},
         commitment, gc_state, label,
-        label::{input::unchecked::*, output::unchecked::*, unchecked::*},
+        label::{encoded::unchecked::*, input::unchecked::*, output::unchecked::*},
     },
     Block,
 };
@@ -137,8 +137,8 @@ pub struct InputLabels {
     pub labels: Vec<Block>,
 }
 
-impl From<label::ActiveInputLabels> for InputLabels {
-    fn from(labels: label::ActiveInputLabels) -> Self {
+impl From<label::ActiveEncodedInput> for InputLabels {
+    fn from(labels: label::ActiveEncodedInput) -> Self {
         Self {
             index: labels.index(),
             labels: labels.iter_blocks().collect(),
@@ -162,8 +162,8 @@ pub struct OutputLabels {
     pub labels: Vec<Block>,
 }
 
-impl From<label::ActiveOutputLabels> for OutputLabels {
-    fn from(labels: label::ActiveOutputLabels) -> Self {
+impl From<label::ActiveEncodedOutput> for OutputLabels {
+    fn from(labels: label::ActiveEncodedOutput) -> Self {
         Self {
             id: labels.index(),
             labels: labels.iter_blocks().collect(),
@@ -187,8 +187,8 @@ pub struct InputDecodingInfo {
     pub decoding: Vec<bool>,
 }
 
-impl From<label::InputLabelsDecodingInfo> for InputDecodingInfo {
-    fn from(decoding: label::InputLabelsDecodingInfo) -> Self {
+impl From<label::InputDecodingInfo> for InputDecodingInfo {
+    fn from(decoding: label::InputDecodingInfo) -> Self {
         Self {
             id: decoding.id(),
             decoding: decoding.decoding,
@@ -212,8 +212,8 @@ pub struct OutputDecodingInfo {
     pub decoding: Vec<bool>,
 }
 
-impl From<label::OutputLabelsDecodingInfo> for OutputDecodingInfo {
-    fn from(decoding: label::OutputLabelsDecodingInfo) -> Self {
+impl From<label::OutputDecodingInfo> for OutputDecodingInfo {
+    fn from(decoding: label::OutputDecodingInfo) -> Self {
         Self {
             id: decoding.id(),
             decoding: decoding.decoding,
@@ -264,7 +264,7 @@ impl label::OutputLabelsCommitment {
     ) -> Result<Self, crate::garble::Error> {
         let output = circ.output(commitment.id)?;
         if commitment.commitments.len() != output.len() * 2 {
-            return Err(crate::garble::LabelError::InvalidLabelCommitment(
+            return Err(crate::garble::EncodingError::InvalidLabelCommitment(
                 output.id().clone(),
             ))?;
         }

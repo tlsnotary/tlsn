@@ -62,7 +62,7 @@ pub use mock::mock_deap_pair;
 mod tests {
     use super::*;
     use mpc_circuits::{Circuit, WireGroup, ADDER_64};
-    use mpc_core::garble::FullInputLabelsSet;
+    use mpc_core::garble::FullInputSet;
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
 
@@ -75,8 +75,8 @@ mod tests {
         let leader_input = circ.input(0).unwrap().to_value(1u64).unwrap();
         let follower_input = circ.input(1).unwrap().to_value(2u64).unwrap();
 
-        let leader_labels = FullInputLabelsSet::generate(&mut rng, &circ, None);
-        let follower_labels = FullInputLabelsSet::generate(&mut rng, &circ, None);
+        let leader_labels = FullInputSet::generate(&mut rng, &circ, None);
+        let follower_labels = FullInputSet::generate(&mut rng, &circ, None);
 
         let leader_task = {
             let leader_input = leader_input.clone();

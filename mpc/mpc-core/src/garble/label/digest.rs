@@ -1,5 +1,4 @@
-use super::{state, Labels};
-use mpc_circuits::WireGroup;
+use super::Label;
 
 use crate::utils::blake3;
 
@@ -9,10 +8,13 @@ pub struct LabelsDigest(pub(crate) [u8; 32]);
 
 impl LabelsDigest {
     /// Creates new labels digest
-    pub fn new<G: WireGroup>(labels: &[Labels<G, state::Active>]) -> Self {
+    pub fn new<I>(labels: I) -> Self
+    where
+        I: IntoIterator<Item = Label>,
+    {
         let bytes: Vec<u8> = labels
-            .iter()
-            .map(|labels| labels.state.to_be_bytes())
+            .into_iter()
+            .map(|label| label.into_inner().to_be_bytes())
             .flatten()
             .collect();
         Self(blake3(&bytes))
