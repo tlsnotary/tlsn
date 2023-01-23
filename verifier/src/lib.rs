@@ -10,27 +10,27 @@ mod verifier_doc;
 mod webpki_utils;
 
 use crate::signed::Signed;
-use blake3::Hasher;
 use error::Error;
 use pubkey::PubKey;
+use utils::blake3;
 use verifier_doc::{VerifierDoc, VerifierDocUnchecked};
 
 type HashCommitment = [u8; 32];
 
-struct VerifierCore {
-    /// notarization doc which needs to be verified
+/// Verifier of the notarization document
+///
+/// Once the verification succeeds, an application level (e.g. HTTP, JSON) parser can
+/// parse `commitment_openings` in [VerifierDoc]
+struct Verifier {
+    /// A validated notarization document which needs to be verified
     doc: VerifierDoc,
-    /// trusted notary's pubkey. If this Verifier is also the Notary then no pubkey needs
-    /// to be provided, the signature on the [crate::main_doc::MainDoc] will not be checked.
+    /// A trusted Notary's pubkey (if this Verifier acted as the Notary then no pubkey needs
+    /// to be provided)
     trusted_pubkey: Option<PubKey>,
 }
 
-/// Verifies the core aspects of the notarization session: the Notary signature, the TLS
-/// authenticity and the correctness of commitments and zk proofs.
-///
-/// After the verification completes, the application level (e.g. HTTP) parser can start
-/// parsing the openings in [VerifierDoc::commitment_openings]
-impl VerifierCore {
+impl Verifier {
+    /// Validates the notarization document and creates a new Verifier
     pub fn new(
         doc_unchecked: VerifierDocUnchecked,
         trusted_pubkey: Option<PubKey>,
@@ -42,63 +42,53 @@ impl VerifierCore {
         })
     }
 
-    /// verifies that the session in the VerifierDoc came from the server with the dns_name
+    /// Verifies that the notarization document resulted from notarizing data from a TLS server with the
+    /// DNS name `dns_name`. `dns_name` must be exactly as it appears in the server's TLS certificate.
+    /// Also verifies the Notary's signature (if any).
     ///
-    /// Note that the checks below are not sufficient to establish data provenance.
-    /// There also must be a check done on the HTTP level against the domain fronting
-    /// attack.
+    /// IMPORTANT:
+    /// if the notarized application data is HTTP, the checks below will not be sufficient. You must also
+    /// check on the HTTP parser's level against domain fronting.
+    ///
     pub fn verify(&self, dns_name: String) -> Result<(), Error> {
-        // verify the Notary signature, if any
-        match (&self.doc.signature, &self.trusted_pubkey) {
+        // verify Notary's signature, if any
+        match (self.doc.signature(), &self.trusted_pubkey) {
             (Some(sig), Some(pubkey)) => {
-                self.verify_doc_signature(pubkey, sig, &self.signed_data())?;
+                self.verify_doc_signature(pubkey, sig)?;
             }
             // no pubkey and no signature, do nothing
             (None, None) => (),
-            // either pubkey or sig is missing
+            // either pubkey or signature is missing
             _ => {
                 return Err(Error::NoPubkeyOrSignature);
             }
         }
 
-        // verify all other aspects of notarization
+        // verify the document
         self.doc.verify(dns_name)?;
 
         Ok(())
     }
 
-    // verify Notary's sig on the notarization doc
-    fn verify_doc_signature(
-        &self,
-        pubkey: &PubKey,
-        sig: &[u8],
-        msg: &Signed,
-    ) -> Result<bool, Error> {
-        let serialized = bincode::serialize(&msg).unwrap();
-        Ok(pubkey.verify_signature(&serialized, sig))
+    /// Verifies Notary's signature on that part of the document which was signed
+    fn verify_doc_signature(&self, pubkey: &PubKey, sig: &[u8]) -> Result<(), Error> {
+        let msg = self.signed_data().serialize()?;
+        pubkey.verify_signature(&msg, sig)
     }
 
-    // extracts the necessary data from the VerifierDoc into a Signed
-    // struct and returns it
+    /// Extracts the necessary fields from the [VerifierDoc] into a [Signed]
+    /// struct and returns it
     fn signed_data(&self) -> Signed {
-        //let doc = &self.doc.clone();
         (&self.doc).into()
     }
 }
 
-/// A PRG seeds from which to generate Notary's circuits' input labels for one
-/// direction. We will use 2 separate seeds: one to generate the labels for all
-/// plaintext which was sent and another seed to generate the labels for all plaintext
-/// which was received
+/// A PRG seeds from which to generate garbled circuit active labels, see
+/// [crate::commitment::CommitmentType::labels_blake3]
 type LabelSeed = [u8; 32];
 
-pub fn blake3(data: &[u8]) -> [u8; 32] {
-    let mut hasher = Hasher::new();
-    hasher.update(data);
-    hasher.finalize().into()
-}
-
 #[test]
+// Create a document and verify it
 fn e2e_test() {
     use crate::{
         commitment::{Commitment, CommitmentOpening, CommitmentType, Direction, Range},
@@ -147,7 +137,7 @@ fn e2e_test() {
     // Using the above data, the User computes [CommittedTLS] and sends a commitment to the Notary
 
     let committed_tls = CommittedTLS::new(cert_chain, params, cr, sr);
-    let commitment_to_tls = blake3(&bincode::serialize(&committed_tls).unwrap());
+    let commitment_to_tls = blake3(&committed_tls.serialize().unwrap());
 
     // ---------- After the notar. session is over:
 
@@ -156,7 +146,7 @@ fn e2e_test() {
 
     let plaintext = b"This data will be notarized";
     let ranges = vec![Range::new(2, 8)];
-    let salt: [u8; 32] = rng.gen(); //TODO change to random salt
+    let salt: [u8; 32] = rng.gen();
 
     // Note that the User will NOT be actually calling compute_label_commitment(). He doesn't
     // have label_seed at this point of the protocol. Instead, the User will
@@ -165,7 +155,7 @@ fn e2e_test() {
     //
     let label_seed = rng.gen();
     let hash_commitment =
-        utils::compute_label_commitment(plaintext, &label_seed, &ranges, salt.to_vec()).unwrap();
+        utils::compute_label_commitment(plaintext, &ranges, &label_seed, &salt.to_vec()).unwrap();
 
     let comm = Commitment::new(
         0,
@@ -220,16 +210,16 @@ fn e2e_test() {
         vec![open],
     );
 
-    // The User converts the doc into an unchecked Type and passes it to the Verifier
+    // The User converts the doc into an unchecked type and passes it to the Verifier
     let doc_unchecked: VerifierDocUnchecked = doc.into();
 
     // The Verifier verifies the doc:
 
     // Initially the Verifier may store the Notary's pubkey as bytes. Converts it into
     // PubKey type
-    let trusted_pubkey = PubKey::from_bytes(KeyType::P256, pubkey_bytes);
+    let trusted_pubkey = PubKey::from_bytes(KeyType::P256, pubkey_bytes).unwrap();
 
-    let verifier = VerifierCore::new(doc_unchecked, Some(trusted_pubkey)).unwrap();
+    let verifier = Verifier::new(doc_unchecked, Some(trusted_pubkey)).unwrap();
 
     verifier.verify("tlsnotary.org".to_string()).unwrap();
 }

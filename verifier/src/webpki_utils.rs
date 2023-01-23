@@ -1,7 +1,10 @@
-use super::tls_doc::{
-    CertDER, EphemeralECPubkey, EphemeralECPubkeyType, SigKEParamsAlg, SignatureKeyExchangeParams,
+use super::{
+    tls_doc::{
+        CertDER, EphemeralECPubkey, EphemeralECPubkeyType, SigKEParamsAlg,
+        SignatureKeyExchangeParams,
+    },
+    Error,
 };
-use crate::Error;
 use x509_parser::{certificate, prelude::FromDer};
 
 type SignatureAlgorithms = &'static [&'static webpki::SignatureAlgorithm];
@@ -23,13 +26,13 @@ static SUPPORTED_SIG_ALGS: SignatureAlgorithms = &[
     &webpki::RSA_PKCS1_3072_8192_SHA384,
 ];
 
-/// Verifier that the x509 certificate `chain` was valid at the given `time`.
+/// Verifies that the x509 certificate `chain` was valid at the given `time`.
 /// The end entity certificate must be the last in the `chain`.
 pub fn verify_cert_chain(chain: &[CertDER], time: u64) -> Result<(), Error> {
     let time = webpki::Time::from_seconds_since_unix_epoch(time);
     let anchor = &webpki_roots::TLS_SERVER_ROOTS;
 
-    let last_cert_der = extract_leaf_cert(chain)?;
+    let last_cert_der = extract_end_entity_cert(chain)?;
 
     // Parse the DER into x509. Since webpki doesn't expose the parser,
     // we use x509-parser instead
@@ -59,11 +62,13 @@ pub fn verify_cert_chain(chain: &[CertDER], time: u64) -> Result<(), Error> {
 }
 
 /// Verifies the signature over the TLS key exchange parameters
+///
+/// * cert  - Certificate which signed the key exchange parameters
+/// * sig_ke_params - Signature over the parameters
+/// * ephem_pubkey, client_random, server_random - Parameters which were signed
 pub fn verify_sig_ke_params(
-    // certificate which signed the key exchange parameters
     cert: &CertDER,
     sig_ke_params: &SignatureKeyExchangeParams,
-    // the following three are the parameters that were signed
     ephem_pubkey: &EphemeralECPubkey,
     client_random: &[u8],
     server_random: &[u8],
@@ -72,42 +77,45 @@ pub fn verify_sig_ke_params(
         .map_err(|e| Error::WebpkiError(e.to_string()))?;
 
     // curve constant from the TLS spec
-    let curve_const = match &ephem_pubkey.typ {
+    let curve_const = match &ephem_pubkey.typ() {
         EphemeralECPubkeyType::P256 => [0x00, 0x17],
         _ => return Err(Error::UnknownCurveInKeyExchange),
     };
+
+    // type of the public key from the TLS spec: 0x03 = "named_curve"
+    let pubkey_type = [0x03];
 
     // message that was signed
     let msg = [
         client_random,
         server_random,
-        &[0x03], // type of the public key 0x03 = named_curve
+        &pubkey_type,
         &curve_const,
-        &[ephem_pubkey.pubkey.len() as u8], // pubkey length
-        &ephem_pubkey.pubkey,               // pubkey
+        &[ephem_pubkey.pubkey().len() as u8], // pubkey length
+        ephem_pubkey.pubkey(),                // pubkey
     ]
     .concat();
 
-    // we can't use [webpki::SignatureAlgorithm] in [SignatureKeyExchangeParams::alg]
-    // because it is not Clone. Instead we match:
-    let sigalg = match &sig_ke_params.alg {
+    // we don't use [webpki::SignatureAlgorithm] in [SignatureKeyExchangeParams::alg]
+    // because it requires a custom serializer. Instead we match:
+    let sigalg = match &sig_ke_params.alg() {
         SigKEParamsAlg::RSA_PKCS1_2048_8192_SHA256 => &webpki::RSA_PKCS1_2048_8192_SHA256,
         SigKEParamsAlg::ECDSA_P256_SHA256 => &webpki::ECDSA_P256_SHA256,
         _ => return Err(Error::UnknownSigningAlgorithmInKeyExchange),
     };
 
-    cert.verify_signature(sigalg, &msg, &sig_ke_params.sig)
+    cert.verify_signature(sigalg, &msg, sig_ke_params.sig())
         .map_err(|e| Error::WebpkiError(e.to_string()))?;
 
     Ok(())
 }
 
-// check that the hostname is present in the cert
-pub fn check_hostname_present_in_cert(cert: &CertDER, hostname: String) -> Result<(), Error> {
+/// Checks that the DNS name is present in the certificate
+pub fn check_dns_name_present_in_cert(cert: &CertDER, dns_name: String) -> Result<(), Error> {
     let cert = webpki::EndEntityCert::try_from(cert.as_slice())
         .map_err(|e| Error::WebpkiError(e.to_string()))?;
 
-    let dns_name = webpki::DnsNameRef::try_from_ascii_str(hostname.as_str())
+    let dns_name = webpki::DnsNameRef::try_from_ascii_str(dns_name.as_str())
         .map_err(|e| Error::WebpkiError(e.to_string()))?;
 
     cert.verify_is_valid_for_dns_name(dns_name)
@@ -116,8 +124,8 @@ pub fn check_hostname_present_in_cert(cert: &CertDER, hostname: String) -> Resul
     Ok(())
 }
 
-/// Returns the leaf certificate from the chain (the last one)
-pub fn extract_leaf_cert(chain: &[CertDER]) -> Result<CertDER, Error> {
+/// Returns the end-entity certificate from the chain (the last one)
+pub fn extract_end_entity_cert(chain: &[CertDER]) -> Result<CertDER, Error> {
     match chain.last() {
         None => Err(Error::EmptyCertificateChain),
         Some(last) => Ok(last.clone()),
@@ -226,15 +234,12 @@ mod test {
         let pubkey: &[u8] = &to_hex(RSA_EPHEM_PUBKEY);
         let sig: &[u8] = &to_hex(RSA_SIG);
 
-        let sig = SignatureKeyExchangeParams {
-            alg: SigKEParamsAlg::RSA_PKCS1_2048_8192_SHA256,
-            sig: sig.to_vec(),
-        };
+        let sig = SignatureKeyExchangeParams::new(
+            SigKEParamsAlg::RSA_PKCS1_2048_8192_SHA256,
+            sig.to_vec(),
+        );
 
-        let pubkey = EphemeralECPubkey {
-            pubkey: pubkey.to_vec(),
-            typ: EphemeralECPubkeyType::P256,
-        };
+        let pubkey = EphemeralECPubkey::new(EphemeralECPubkeyType::P256, pubkey.to_vec());
 
         assert!(verify_sig_ke_params(&RSA_CERT.to_vec(), &sig, &pubkey, cr, sr).is_ok());
     }
@@ -247,15 +252,9 @@ mod test {
         let pubkey: &[u8] = &to_hex(ECDSA_EPHEM_PUBKEY);
         let sig: &[u8] = &to_hex(ECDSA_SIG);
 
-        let sig = SignatureKeyExchangeParams {
-            alg: SigKEParamsAlg::ECDSA_P256_SHA256,
-            sig: sig.to_vec(),
-        };
+        let sig = SignatureKeyExchangeParams::new(SigKEParamsAlg::ECDSA_P256_SHA256, sig.to_vec());
 
-        let pubkey = EphemeralECPubkey {
-            pubkey: pubkey.to_vec(),
-            typ: EphemeralECPubkeyType::P256,
-        };
+        let pubkey = EphemeralECPubkey::new(EphemeralECPubkeyType::P256, pubkey.to_vec());
 
         assert!(verify_sig_ke_params(&ECDSA_CERT.to_vec(), &sig, &pubkey, cr, sr).is_ok());
     }
@@ -268,15 +267,12 @@ mod test {
         let pubkey: &[u8] = &to_hex(RSA_EPHEM_PUBKEY);
         let sig: &[u8] = &to_hex(RSA_SIG);
 
-        let sig = SignatureKeyExchangeParams {
-            alg: SigKEParamsAlg::RSA_PKCS1_2048_8192_SHA256,
-            sig: sig.to_vec(),
-        };
+        let sig = SignatureKeyExchangeParams::new(
+            SigKEParamsAlg::RSA_PKCS1_2048_8192_SHA256,
+            sig.to_vec(),
+        );
 
-        let pubkey = EphemeralECPubkey {
-            pubkey: pubkey.to_vec(),
-            typ: EphemeralECPubkeyType::P256,
-        };
+        let pubkey = EphemeralECPubkey::new(EphemeralECPubkeyType::P256, pubkey.to_vec());
 
         let mut cr = cr.to_vec();
         // corrupt the last byte of client random
@@ -306,15 +302,12 @@ mod test {
         let (corrupted, _) = last.overflowing_add(1);
         sig.push(corrupted);
 
-        let sig = SignatureKeyExchangeParams {
-            alg: SigKEParamsAlg::ECDSA_P256_SHA256,
-            sig: sig.to_vec(),
-        };
+        let sig = SignatureKeyExchangeParams::new(
+            SigKEParamsAlg::RSA_PKCS1_2048_8192_SHA256,
+            sig.to_vec(),
+        );
 
-        let pubkey = EphemeralECPubkey {
-            pubkey: pubkey.to_vec(),
-            typ: EphemeralECPubkeyType::P256,
-        };
+        let pubkey = EphemeralECPubkey::new(EphemeralECPubkeyType::P256, pubkey.to_vec());
 
         let err = verify_sig_ke_params(&ECDSA_CERT.to_vec(), &sig, &pubkey, cr, sr);
         assert_eq!(
@@ -327,14 +320,14 @@ mod test {
     #[test]
     fn test_check_hostname_present_in_cert() {
         let host = String::from("tlsnotary.org");
-        assert!(check_hostname_present_in_cert(&EE.to_vec(), host).is_ok());
+        assert!(check_dns_name_present_in_cert(&EE.to_vec(), host).is_ok());
     }
 
     // Expect to fail because the host name is not in the cert
     #[test]
     fn test_check_hostname_present_in_cert_bad_host() {
         let host = String::from("tlsnotary");
-        let err = check_hostname_present_in_cert(&EE.to_vec(), host);
+        let err = check_dns_name_present_in_cert(&EE.to_vec(), host);
         let _str = String::from("CertNotValidForName");
         assert_eq!(
             err.unwrap_err(),
@@ -346,7 +339,7 @@ mod test {
     #[test]
     fn test_check_hostname_present_in_cert_invalid_dns_name() {
         let host = String::from("tlsnotary.org%");
-        let err = check_hostname_present_in_cert(&EE.to_vec(), host);
+        let err = check_dns_name_present_in_cert(&EE.to_vec(), host);
         assert_eq!(
             err.unwrap_err(),
             Error::WebpkiError("InvalidDnsNameError".to_string())

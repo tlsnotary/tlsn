@@ -1,13 +1,14 @@
-use crate::{tls_doc::EphemeralECPubkey, HashCommitment, LabelSeed, VerifierDoc};
+use super::{tls_doc::EphemeralECPubkey, Error, HashCommitment, LabelSeed, VerifierDoc};
 use serde::Serialize;
 
 #[derive(Clone, Serialize)]
-// TLS-related struct which is signed by Notary
+// TLS-related data which is signed by Notary
 pub struct SignedTLS {
     // notarization time against which the TLS Certificate validity is checked
-    pub time: u64,
-    pub ephemeralECPubkey: EphemeralECPubkey,
-    /// User's commitment to [crate::tls_doc::CommittedTLS]
+    time: u64,
+    // ephemeral pubkey for ECDH key exchange
+    ephemeralECPubkey: EphemeralECPubkey,
+    /// User's commitment to [super::tls_doc::CommittedTLS]
     pub commitment_to_TLS: HashCommitment,
 }
 
@@ -23,16 +24,25 @@ impl SignedTLS {
             commitment_to_TLS,
         }
     }
+
+    pub fn time(&self) -> u64 {
+        self.time
+    }
+
+    pub fn ephemeralECPubkey(&self) -> &EphemeralECPubkey {
+        &self.ephemeralECPubkey
+    }
 }
 
-/// All the data which the Notary signed
+/// All the data which the Notary signs
 #[derive(Clone, Serialize)]
 pub struct Signed {
-    tls: SignedTLS,
-    /// see comments in [crate::VerifierDoc] about the fields below
+    pub tls: SignedTLS,
+    // see comments in [crate::VerifierDoc] for details about the fields below
+    /// PRG seed from which garbled circuit labels are generated
     pub label_seed: LabelSeed,
     /// Merkle root of all the commitments
-    merkle_root: [u8; 32],
+    pub merkle_root: [u8; 32],
 }
 
 impl Signed {
@@ -44,6 +54,10 @@ impl Signed {
             merkle_root,
         }
     }
+
+    pub fn serialize(self) -> Result<Vec<u8>, Error> {
+        bincode::serialize(&self).map_err(|_| Error::SerializationError)
+    }
 }
 
 /// Extracts relevant fields from the VerifierDoc. Those are the fields
@@ -51,9 +65,9 @@ impl Signed {
 impl std::convert::From<&VerifierDoc> for Signed {
     fn from(doc: &VerifierDoc) -> Self {
         Signed::new(
-            doc.tls_doc.signed_tls.clone(),
-            doc.label_seed.clone(),
-            doc.merkle_root.clone(),
+            doc.tls_doc().signed_tls().clone(),
+            *doc.label_seed(),
+            *doc.merkle_root(),
         )
     }
 }
