@@ -21,14 +21,12 @@ mod core;
 /// Contains the different states
 pub mod state;
 
-pub use crate::ghash::core::GhashCore;
+pub use self::core::GhashCore;
 use share_conversion_core::gf2_128::{compute_product_repeated, mul};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum GhashError {
-    #[error("Invalid maximum hashkey power")]
-    ZeroHashkeyPower,
     #[error("Message too long")]
     InvalidMessageLength,
 }
@@ -181,7 +179,7 @@ mod tests {
         let (sender, receiver) = ghash_to_finalized(sender, receiver);
 
         assert_eq!(
-            sender.ghash_output(&message).unwrap() ^ receiver.ghash_output(&message).unwrap(),
+            sender.finalize(&message).unwrap() ^ receiver.finalize(&message).unwrap(),
             ghash_reference_impl(h, message)
         );
     }
@@ -208,8 +206,7 @@ mod tests {
         let (sender, receiver) = ghash_to_finalized(sender, receiver);
 
         assert_eq!(
-            sender.ghash_output(&message_short).unwrap()
-                ^ receiver.ghash_output(&message_short).unwrap(),
+            sender.finalize(&message_short).unwrap() ^ receiver.finalize(&message_short).unwrap(),
             ghash_reference_impl(h, message_short)
         );
     }
@@ -236,8 +233,7 @@ mod tests {
         let (sender, receiver) = ghash_to_finalized(sender, receiver);
 
         assert_eq!(
-            sender.ghash_output(&message_long).unwrap()
-                ^ receiver.ghash_output(&message_long).unwrap(),
+            sender.finalize(&message_long).unwrap() ^ receiver.finalize(&message_long).unwrap(),
             ghash_reference_impl(h, message_long)
         );
     }
@@ -333,16 +329,12 @@ mod tests {
     ) -> (GhashCore<Intermediate>, GhashCore<Intermediate>) {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
-        // The additive sharings of the Ghash key to begin with
-        let h1_additive: u128 = rng.gen();
-        let h2_additive: u128 = hashkey ^ h1_additive;
-
         // Create a multiplicative sharing
         let h1_multiplicative: u128 = rng.gen();
         let h2_multiplicative: u128 = mul(hashkey, inverse(h1_multiplicative));
 
-        let sender = GhashCore::new(h1_additive, max_hashkey_power).unwrap();
-        let receiver = GhashCore::new(h2_additive, max_hashkey_power).unwrap();
+        let sender = GhashCore::new(max_hashkey_power);
+        let receiver = GhashCore::new(max_hashkey_power);
 
         let (sender, receiver) = (
             sender.compute_odd_mul_powers(h1_multiplicative),

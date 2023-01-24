@@ -1,5 +1,3 @@
-#[cfg(feature = "ghash")]
-pub mod ghash;
 pub mod msgs;
 #[cfg(feature = "prf")]
 pub mod prf;
