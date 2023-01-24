@@ -63,7 +63,7 @@ pub trait Encoder: Send + Sync {
     fn get_stream(&mut self, stream_id: u32) -> &mut dyn EncoderRng;
 }
 
-/// Encodes wire labels using the ChaCha algorithm.
+/// Encodes wires into labels using the ChaCha algorithm.
 #[derive(Debug)]
 pub struct ChaChaEncoder {
     seed: [u8; 32],
