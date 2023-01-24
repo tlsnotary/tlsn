@@ -19,7 +19,7 @@ use crate::{block::Block, garble::EncodingError};
 
 pub use digest::LabelsDigest;
 pub use encoded::{Encoded, GroupDecodingInfo};
-pub use encoder::ChaChaEncoder;
+pub use encoder::{ChaChaEncoder, Encoder, EncoderRng};
 pub use output::OutputLabelsCommitment;
 pub use set::EncodedSet;
 

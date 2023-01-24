@@ -16,9 +16,9 @@ pub use circuit::{state as gc_state, CircuitOpening, GarbledCircuit};
 pub use error::{EncodingError, Error, InputError};
 pub use label::{
     state as label_state, ActiveEncodedInput, ActiveEncodedOutput, ActiveInputSet, ActiveLabels,
-    ActiveOutputSet, ChaChaEncoder, Delta, Encoded, EncodedSet, FullEncodedInput,
-    FullEncodedOutput, FullInputSet, FullLabels, FullOutputSet, GroupDecodingInfo, Label,
-    LabelPair, Labels, LabelsDigest,
+    ActiveOutputSet, ChaChaEncoder, Delta, Encoded, EncodedSet, Encoder, EncoderRng,
+    FullEncodedInput, FullEncodedOutput, FullInputSet, FullLabels, FullOutputSet,
+    GroupDecodingInfo, Label, LabelPair, Labels, LabelsDigest,
 };
 
 #[cfg(test)]
