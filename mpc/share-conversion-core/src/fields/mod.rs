@@ -9,8 +9,16 @@ use std::{
 pub trait Field:
     Add<Output = Self> + Mul<Output = Self> + Copy + Clone + Debug + 'static + Send + Sync
 {
-    const BIT_SIZE: usize;
+    const BIT_SIZE: u32;
     fn inverse(self) -> Self;
+}
+
+impl<T: ark_ff::PrimeField> Field for T {
+    const BIT_SIZE: u32 = <T as ark_ff::PrimeField>::MODULUS_BIT_SIZE;
+
+    fn inverse(self) -> Self {
+        <Self as ark_ff::Field>::inverse(&self).expect("Unable to invert field element")
+    }
 }
 
 /// Iteratively multiplies some field element with another field element
