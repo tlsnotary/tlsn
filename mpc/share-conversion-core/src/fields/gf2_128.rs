@@ -135,6 +135,15 @@ mod tests {
     }
 
     #[test]
+    fn test_inverse() {
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
+        let a: Gf2_128 = rng.gen();
+
+        assert_eq!(a * a.inverse(), Gf2_128::one());
+        assert_eq!(Gf2_128::one().inverse(), Gf2_128::one());
+    }
+
+    #[test]
     fn test_gf2_128_compute_product_repeated() {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
         let a: Gf2_128 = rng.gen();

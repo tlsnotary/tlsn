@@ -96,6 +96,15 @@ mod tests {
     }
 
     #[test]
+    fn test_inverse() {
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
+        let a: P256 = rng.gen();
+
+        assert_eq!(a * a.inverse(), P256::one());
+        assert_eq!(P256::one().inverse(), P256::one());
+    }
+
+    #[test]
     fn test_p256_compute_product_repeated() {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
         let a: P256 = rng.gen();
