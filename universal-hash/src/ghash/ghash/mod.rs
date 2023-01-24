@@ -59,8 +59,7 @@ where
 
     /// Computes all the additive shares of the hashkey powers
     ///
-    /// This assumes that we already have a multiplicative share of the hashkey, so we don't need to
-    /// perform the `setup()` step. We need this when the message length changes.
+    /// We need this when the max block count changes.
     async fn compute_add_shares(
         &mut self,
         core: GhashCore<Intermediate>,
