@@ -28,28 +28,29 @@ pub type FullLabels = Labels<Full>;
 /// A collection of active labels not associated with a wire group.
 pub type ActiveLabels = Labels<Active>;
 
-/// Full input labels, ie contains both the low and high labels.
+/// Full input labels, ie contains both the low and high labels, corresponding to a
+/// garbled circuit input.
 pub type FullEncodedInput = Encoded<Input, Full>;
-/// Active encoded input of a garbled circuit. These are the labels which the evaluator uses
-/// to evaluate the circuit.
+/// Active input labels corresponding to a garbled circuit input. These are the labels
+/// which the evaluator uses to evaluate a garbled circuit.
 pub type ActiveEncodedInput = Encoded<Input, Active>;
 /// Input decoding information.
 pub type InputDecodingInfo = GroupDecodingInfo<Input>;
-/// Full encoded output of a garbled circuit.
+/// Full output labels corresponding to a garbled circuit output.
 pub type FullEncodedOutput = Encoded<Output, Full>;
-/// Active encoded output of a garbled circuit. These are the labels which the evaluator derives
-/// as a result of the circuit evaluation.
+/// Active output labels corresponding to a garbled circuit output. These are the labels
+/// which the evaluator derives as a result of the circuit evaluation.
 pub type ActiveEncodedOutput = Encoded<Output, Active>;
 /// Output decoding information.
 pub type OutputDecodingInfo = GroupDecodingInfo<Output>;
 
-/// A complete set of full encoded inputs
+/// A complete set of full input labels for the inputs of a garbled circuit.
 pub type FullInputSet = EncodedSet<Input, Full>;
-/// A complete set of full encoded outputs
+/// A complete set of full output labels for the outputs of a garbled circuit.
 pub type FullOutputSet = EncodedSet<Output, Full>;
-/// A complete set of active encoded inputs
+/// A complete set of active input labels for the inputs of a garbled circuit.
 pub type ActiveInputSet = EncodedSet<Input, Active>;
-/// A complete set of active encoded outputs
+/// A complete set of active output labels for the outputs of a garbled circuit.
 pub type ActiveOutputSet = EncodedSet<Output, Active>;
 
 /// Global binary offset used by the Free-XOR technique to create wire label
