@@ -11,9 +11,7 @@ thiserror.workspace = true
 rand.workspace = true
 ark-ff.workspace = true
 ark-secp256r1.workspace = true
-ark-serialize.workspace = true
 num-bigint.workspace = true
-zeroize.workspace = true
 
 [dev-dependencies]
 rand_chacha.workspace = true
