@@ -3,8 +3,8 @@ use rand::{thread_rng, Rng};
 
 use crate::{
     garble::{
-        label::{state, Label, Labels},
-        Error, LabelError,
+        label::{state, Encoded, Labels},
+        EncodingError, Error,
     },
     utils::blake3,
     Block,
@@ -22,7 +22,7 @@ pub struct OutputLabelsCommitment {
 
 impl OutputLabelsCommitment {
     /// Creates new commitments to output labels
-    pub(crate) fn new(labels: &Labels<Output, state::Full>) -> Self {
+    pub(crate) fn new(labels: &Encoded<Output, state::Full>) -> Self {
         // randomly shuffle the two labels inside each pair in order to prevent
         // the evaluator from decoding their active output labels
         let mut flip = vec![false; labels.len()];
@@ -30,13 +30,12 @@ impl OutputLabelsCommitment {
 
         let output_id = labels.index();
         let commitments = labels
-            .inner()
             .iter()
             .zip(&flip)
             .enumerate()
             .map(|(i, (pair, flip))| {
-                let low = Self::compute_hash(pair.low(), output_id, i);
-                let high = Self::compute_hash(pair.high(), output_id, i);
+                let low = Self::compute_hash(pair.low().into_inner(), output_id, i);
+                let high = Self::compute_hash(pair.high().into_inner(), output_id, i);
                 if *flip {
                     [low, high]
                 } else {
@@ -69,10 +68,12 @@ impl OutputLabelsCommitment {
     /// If this function returns an error the generator may be malicious
     pub(crate) fn validate(
         &self,
-        labels: &Labels<Output, state::Active>,
-    ) -> Result<(), LabelError> {
+        labels: &Encoded<Output, state::Active>,
+    ) -> Result<(), EncodingError> {
         if self.commitments.len() != labels.len() {
-            return Err(LabelError::InvalidLabelCommitment(self.output.id().clone()));
+            return Err(EncodingError::InvalidLabelCommitment(
+                self.output.id().clone(),
+            ));
         }
         let output_idx = labels.index();
         let valid = self
@@ -88,26 +89,28 @@ impl OutputLabelsCommitment {
         if valid {
             Ok(())
         } else {
-            Err(LabelError::InvalidLabelCommitment(self.output.id().clone()))
+            Err(EncodingError::InvalidLabelCommitment(
+                self.output.id().clone(),
+            ))
         }
     }
 }
 
-impl Labels<Output, state::Full> {
+impl Encoded<Output, state::Full> {
     /// Creates commitment to output labels
     pub fn commit(&self) -> OutputLabelsCommitment {
         OutputLabelsCommitment::new(self)
     }
 }
 
-impl Labels<Output, state::Active> {
+impl Encoded<Output, state::Active> {
     /// Converts active output labels to input labels.
     ///
     /// This can be used to chain garbled circuits together
     ///
     /// **Note:** This operation clones the underlying label data
-    pub fn to_input(self, input: Input) -> Result<Labels<Input, state::Active>, LabelError> {
-        Labels::<Input, state::Active>::from_labels(input, self.iter().collect())
+    pub fn to_input(self, input: Input) -> Result<Encoded<Input, state::Active>, EncodingError> {
+        Encoded::<Input, state::Active>::from_labels(input, self.labels)
     }
 }
 
@@ -124,8 +127,8 @@ pub(crate) mod unchecked {
     }
 
     #[cfg(test)]
-    impl From<Labels<Output, state::Active>> for UncheckedOutputLabels {
-        fn from(labels: Labels<Output, state::Active>) -> Self {
+    impl From<Encoded<Output, state::Active>> for UncheckedOutputLabels {
+        fn from(labels: Encoded<Output, state::Active>) -> Self {
             Self {
                 id: labels.index(),
                 labels: labels.iter_blocks().collect(),
@@ -133,31 +136,20 @@ pub(crate) mod unchecked {
         }
     }
 
-    impl Labels<Output, state::Active> {
+    impl Encoded<Output, state::Active> {
         /// Validates and converts output labels to checked variant
         pub fn from_unchecked(
             circ: &Circuit,
             unchecked: UncheckedOutputLabels,
-        ) -> Result<Self, LabelError> {
+        ) -> Result<Self, EncodingError> {
             let output = circ
                 .output(unchecked.id)
-                .map_err(|_| LabelError::InvalidId(circ.id().clone(), unchecked.id))?;
+                .map_err(|_| EncodingError::InvalidId(circ.id().clone(), unchecked.id))?;
 
-            if unchecked.labels.len() != output.len() {
-                return Err(LabelError::InvalidLabelCount(
-                    output.id().clone(),
-                    output.len(),
-                    unchecked.labels.len(),
-                ));
-            }
-
-            let labels = unchecked
-                .labels
-                .into_iter()
-                .map(|value| Label::new(value))
-                .collect();
-
-            Ok(Self::from_labels(output, labels)?)
+            Ok(Self::from_labels(
+                output,
+                Labels::<state::Active>::from_blocks(unchecked.labels),
+            )?)
         }
     }
 
@@ -204,7 +196,7 @@ pub(crate) mod unchecked {
     mod tests {
         use std::sync::Arc;
 
-        use crate::garble::ActiveOutputLabels;
+        use crate::garble::ActiveEncodedOutput;
 
         use super::*;
         use rstest::*;
@@ -239,7 +231,7 @@ pub(crate) mod unchecked {
 
         #[rstest]
         fn test_output_labels(circ: Arc<Circuit>, unchecked_output_labels: UncheckedOutputLabels) {
-            ActiveOutputLabels::from_unchecked(&circ, unchecked_output_labels).unwrap();
+            ActiveEncodedOutput::from_unchecked(&circ, unchecked_output_labels).unwrap();
         }
 
         #[rstest]
@@ -249,8 +241,8 @@ pub(crate) mod unchecked {
         ) {
             unchecked_output_labels.id += 1;
             let err =
-                ActiveOutputLabels::from_unchecked(&circ, unchecked_output_labels).unwrap_err();
-            assert!(matches!(err, LabelError::InvalidId(_, _)))
+                ActiveEncodedOutput::from_unchecked(&circ, unchecked_output_labels).unwrap_err();
+            assert!(matches!(err, EncodingError::InvalidId(_, _)))
         }
 
         #[rstest]
@@ -260,8 +252,8 @@ pub(crate) mod unchecked {
         ) {
             unchecked_output_labels.labels.pop();
             let err =
-                ActiveOutputLabels::from_unchecked(&circ, unchecked_output_labels).unwrap_err();
-            assert!(matches!(err, LabelError::InvalidLabelCount(_, _, _)))
+                ActiveEncodedOutput::from_unchecked(&circ, unchecked_output_labels).unwrap_err();
+            assert!(matches!(err, EncodingError::InvalidLabelCount(_, _, _)))
         }
 
         #[rstest]
@@ -303,7 +295,7 @@ pub(crate) mod unchecked {
 mod tests {
     use std::sync::Arc;
 
-    use crate::garble::{FullOutputLabels, LabelError, LabelPair};
+    use crate::garble::{EncodingError, FullEncodedOutput, Label};
 
     use super::*;
     use rstest::*;
@@ -319,9 +311,8 @@ mod tests {
     #[rstest]
     fn test_output_label_validation(circ: Arc<Circuit>) {
         let circ_out = circ.output(0).unwrap();
-        let (labels, delta) = LabelPair::generate(&mut thread_rng(), None, 64);
-        let output_labels_full =
-            FullOutputLabels::from_labels(circ_out.clone(), delta, labels).unwrap();
+        let labels = Labels::<state::Full>::generate(&mut thread_rng(), 64, None);
+        let output_labels_full = FullEncodedOutput::from_labels(circ_out.clone(), labels).unwrap();
 
         let mut output_labels = output_labels_full.select(&1u64.into()).unwrap();
 
@@ -330,19 +321,18 @@ mod tests {
             .expect("output labels should be valid");
 
         // insert bogus label
-        output_labels.state.set(0, Label::new(Block::new(0)));
+        output_labels.labels.set(0, Label::new(Block::new(0)));
 
         let error = output_labels_full.validate(&output_labels).unwrap_err();
 
-        assert!(matches!(error, LabelError::InauthenticLabels(_)));
+        assert!(matches!(error, EncodingError::InauthenticLabels(_)));
     }
 
     #[rstest]
     fn test_output_label_commitment_validation(circ: Arc<Circuit>) {
         let circ_out = circ.output(0).unwrap();
-        let (labels, delta) = LabelPair::generate(&mut thread_rng(), None, 64);
-        let output_labels_full =
-            FullOutputLabels::from_labels(circ_out.clone(), delta, labels).unwrap();
+        let labels = Labels::<state::Full>::generate(&mut thread_rng(), 64, None);
+        let output_labels_full = FullEncodedOutput::from_labels(circ_out.clone(), labels).unwrap();
         let mut commitments = OutputLabelsCommitment::new(&output_labels_full);
 
         let output_labels = output_labels_full.select(&1u64.into()).unwrap();
@@ -356,7 +346,7 @@ mod tests {
 
         let error = commitments.validate(&output_labels).unwrap_err();
 
-        assert!(matches!(error, LabelError::InvalidLabelCommitment(_)));
+        assert!(matches!(error, EncodingError::InvalidLabelCommitment(_)));
     }
 
     #[rstest]
@@ -364,8 +354,8 @@ mod tests {
         let input = circ.input(0).unwrap();
         let output = circ.output(0).unwrap();
 
-        let (labels, delta) = LabelPair::generate(&mut thread_rng(), None, 64);
-        let output_labels = FullOutputLabels::from_labels(output, delta, labels)
+        let labels = Labels::<state::Full>::generate(&mut thread_rng(), 64, None);
+        let output_labels = FullEncodedOutput::from_labels(output.clone(), labels)
             .unwrap()
             .select(&1u64.into())
             .unwrap();
@@ -380,14 +370,14 @@ mod tests {
         let input = circ_2.input(0).unwrap();
         let output = circ.output(0).unwrap();
 
-        let (labels, delta) = LabelPair::generate(&mut thread_rng(), None, 64);
-        let output_labels = FullOutputLabels::from_labels(output, delta, labels)
+        let labels = Labels::<state::Full>::generate(&mut thread_rng(), 64, None);
+        let output_labels = FullEncodedOutput::from_labels(output.clone(), labels)
             .unwrap()
             .select(&1u64.into())
             .unwrap();
 
         let err = output_labels.to_input(input).unwrap_err();
 
-        assert!(matches!(err, LabelError::InvalidLabelCount(_, _, _)));
+        assert!(matches!(err, EncodingError::InvalidLabelCount(_, _, _)));
     }
 }

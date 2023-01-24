@@ -4,138 +4,137 @@ use mpc_circuits::{Circuit, Input, Output, WireGroup};
 use rand::{CryptoRng, Rng};
 use utils::iter::DuplicateCheckBy;
 
-use crate::garble::LabelError;
+use crate::garble::EncodingError;
 
-use super::{
-    state::{Active, Full, State},
-    Delta, FullInputLabels, Labels, LabelsDecodingInfo,
-};
+use super::{state, Delta, Encoded, FullEncodedInput, GroupDecodingInfo};
 
-/// A complete set of circuit labels. All labels are validated.
+/// A complete set of encoded wire groups. All labels are validated.
 #[derive(Debug, Clone)]
-pub struct LabelsSet<G, S>
+pub struct EncodedSet<G, S>
 where
     G: WireGroup + Clone,
-    S: State,
+    S: state::LabelState,
 {
-    labels: Vec<Labels<G, S>>,
+    groups: Vec<Encoded<G, S>>,
 }
 
-impl<G, S> LabelsSet<G, S>
+impl<G, S> EncodedSet<G, S>
 where
     G: WireGroup + Clone,
-    S: State,
+    S: state::LabelState,
 {
     /// Returns the circuit the set belongs to
     pub fn circuit(&self) -> Arc<Circuit> {
-        self.labels[0].circuit()
+        self.groups[0].circuit()
     }
 
     /// Returns a reference to the labels in the set
-    pub fn get_labels(&self) -> &[Labels<G, S>] {
-        &self.labels
+    pub fn get_groups(&self) -> &[Encoded<G, S>] {
+        &self.groups
     }
 
     /// Consumes set, returning all labels in the set
-    pub fn to_inner(self) -> Vec<Labels<G, S>> {
-        self.labels
+    pub fn to_inner(self) -> Vec<Encoded<G, S>> {
+        self.groups
     }
 
     /// Returns a reference to the labels at that index or `None` if it is not part
     /// of the set.
-    pub fn get(&self, index: usize) -> Option<&Labels<G, S>> {
-        self.labels.get(index)
+    pub fn get(&self, index: usize) -> Option<&Encoded<G, S>> {
+        self.groups.get(index)
     }
 
     /// Returns an iterator of the labels in the set
-    pub fn iter(&self) -> impl Iterator<Item = &Labels<G, S>> {
-        self.labels.iter()
+    pub fn iter(&self) -> impl Iterator<Item = &Encoded<G, S>> {
+        self.groups.iter()
     }
 
     /// Returns the number of labels in the set
     pub fn len(&self) -> usize {
-        self.labels.len()
+        self.groups.len()
     }
 
-    fn generic_checks(labels: &[Labels<G, S>]) -> Result<(), LabelError> {
+    fn generic_checks(groups: &[Encoded<G, S>]) -> Result<(), EncodingError> {
         // Set must have at least 1 element
-        if labels.len() == 0 {
-            return Err(LabelError::EmptyLabelsSet);
+        if groups.len() == 0 {
+            return Err(EncodingError::EmptyEncodedSet);
         }
 
         // Set must not contain duplicate elements
-        if labels.iter().contains_dups_by(|labels| labels.id()) {
-            return Err(LabelError::DuplicateLabels);
+        if groups.iter().contains_dups_by(|group| group.id()) {
+            return Err(EncodingError::DuplicateGroups);
         }
 
         // All labels must belong to the same circuit
-        let circ = labels[0].circuit();
-        if labels[1..]
+        let circ = groups[0].circuit();
+        if groups[1..]
             .iter()
-            .any(|labels| labels.circuit().id() != circ.id())
+            .any(|group| group.circuit().id() != circ.id())
         {
-            return Err(LabelError::CircuitMismatch);
+            return Err(EncodingError::CircuitMismatch);
         }
 
         Ok(())
     }
 }
 
-impl<G> LabelsSet<G, Full>
+impl<G> EncodedSet<G, state::Full>
 where
     G: WireGroup + Clone,
 {
     /// Returns delta for all labels in the set
     pub fn delta(&self) -> Delta {
-        self.labels[0].delta()
+        self.groups[0].delta()
     }
 
     /// Returns full set from active set and decoding information.
     pub fn from_decoding(
-        active_labels: LabelsSet<G, Active>,
+        active: EncodedSet<G, state::Active>,
         delta: Delta,
-        decoding: Vec<LabelsDecodingInfo<G>>,
-    ) -> Result<LabelsSet<G, Full>, LabelError> {
-        if active_labels.len() != decoding.len() {
-            return Err(LabelError::InvalidDecodingCount(
-                active_labels.len(),
+        decoding: Vec<GroupDecodingInfo<G>>,
+    ) -> Result<EncodedSet<G, state::Full>, EncodingError> {
+        if active.len() != decoding.len() {
+            return Err(EncodingError::InvalidDecodingCount(
+                active.len(),
                 decoding.len(),
             ))?;
         }
 
         Ok(Self {
-            labels: active_labels
+            groups: active
                 .iter()
                 .cloned()
                 .zip(decoding)
-                .map(|(active, decoding)| Labels::<G, Full>::from_decoding(active, delta, decoding))
+                .map(|(active, decoding)| {
+                    Encoded::<G, state::Full>::from_decoding(active, delta, decoding)
+                })
                 .collect::<Result<Vec<_>, _>>()?,
         })
     }
 
-    fn generic_full_checks(labels: &[Labels<G, Full>]) -> Result<(), LabelError> {
-        // All labels must have the same delta
-        let delta = labels[0].delta();
-        if labels[1..].iter().any(|labels| labels.delta() != delta) {
-            return Err(LabelError::DeltaMismatch);
+    fn generic_full_checks(groups: &[Encoded<G, state::Full>]) -> Result<(), EncodingError> {
+        // All groups must have the same delta
+        let delta = groups[0].delta();
+        if groups[1..].iter().any(|group| group.delta() != delta) {
+            return Err(EncodingError::DeltaMismatch);
         }
 
         Ok(())
     }
 }
 
-impl<S> LabelsSet<Input, S>
+impl<S> EncodedSet<Input, S>
 where
-    S: State,
+    S: state::LabelState,
 {
-    fn generic_input_checks(labels: &[Labels<Input, S>]) -> Result<(), LabelError> {
+    fn generic_input_checks(groups: &[Encoded<Input, S>]) -> Result<(), EncodingError> {
         // All inputs must be present
-        let circ = labels[0].circuit();
-        if labels.len() != circ.input_count() {
-            return Err(LabelError::InvalidCount(
+        let circ = groups[0].circuit();
+        if groups.len() != circ.input_count() {
+            return Err(EncodingError::InvalidCount(
                 circ.id().clone(),
                 circ.input_count(),
-                labels.len(),
+                groups.len(),
             ));
         }
 
@@ -143,18 +142,18 @@ where
     }
 }
 
-impl<S> LabelsSet<Output, S>
+impl<S> EncodedSet<Output, S>
 where
-    S: State,
+    S: state::LabelState,
 {
-    fn generic_output_checks(labels: &[Labels<Output, S>]) -> Result<(), LabelError> {
+    fn generic_output_checks(groups: &[Encoded<Output, S>]) -> Result<(), EncodingError> {
         // All outputs must be present
-        let circ = labels[0].circuit();
-        if labels.len() != circ.output_count() {
-            return Err(LabelError::InvalidCount(
+        let circ = groups[0].circuit();
+        if groups.len() != circ.output_count() {
+            return Err(EncodingError::InvalidCount(
                 circ.id().clone(),
                 circ.output_count(),
-                labels.len(),
+                groups.len(),
             ));
         }
 
@@ -162,16 +161,16 @@ where
     }
 }
 
-impl LabelsSet<Input, Full> {
-    /// Returns new label set after performing a series of validations
-    pub fn new(mut labels: Vec<Labels<Input, Full>>) -> Result<Self, LabelError> {
-        labels.sort_by_key(|labels| labels.index());
+impl EncodedSet<Input, state::Full> {
+    /// Returns new set after performing a series of validations
+    pub fn new(mut groups: Vec<Encoded<Input, state::Full>>) -> Result<Self, EncodingError> {
+        groups.sort_by_key(|group| group.index());
 
-        Self::generic_checks(&labels)?;
-        Self::generic_full_checks(&labels)?;
-        Self::generic_input_checks(&labels)?;
+        Self::generic_checks(&groups)?;
+        Self::generic_full_checks(&groups)?;
+        Self::generic_input_checks(&groups)?;
 
-        Ok(Self { labels })
+        Ok(Self { groups })
     }
 
     /// Generates a full set of input wire labels for a circuit using the provided RNG.
@@ -179,61 +178,61 @@ impl LabelsSet<Input, Full> {
         let delta = delta.unwrap_or_else(|| Delta::random(rng));
 
         Self {
-            labels: circ
+            groups: circ
                 .inputs()
                 .iter()
-                .map(|input| FullInputLabels::generate(rng, input.clone(), delta))
+                .map(|input| FullEncodedInput::generate(rng, input.clone(), delta))
                 .collect(),
         }
     }
 }
 
-impl LabelsSet<Input, Active> {
-    /// Returns new label set after performing a series of validations
-    pub fn new(mut labels: Vec<Labels<Input, Active>>) -> Result<Self, LabelError> {
-        labels.sort_by_key(|labels| labels.index());
+impl EncodedSet<Input, state::Active> {
+    /// Returns new set after performing a series of validations
+    pub fn new(mut groups: Vec<Encoded<Input, state::Active>>) -> Result<Self, EncodingError> {
+        groups.sort_by_key(|group| group.index());
 
-        Self::generic_checks(&labels)?;
-        Self::generic_input_checks(&labels)?;
+        Self::generic_checks(&groups)?;
+        Self::generic_input_checks(&groups)?;
 
-        Ok(Self { labels })
+        Ok(Self { groups })
     }
 }
 
-impl LabelsSet<Output, Full> {
-    /// Returns new label set after performing a series of validations
-    pub fn new(mut labels: Vec<Labels<Output, Full>>) -> Result<Self, LabelError> {
-        labels.sort_by_key(|labels| labels.index());
+impl EncodedSet<Output, state::Full> {
+    /// Returns new set after performing a series of validations
+    pub fn new(mut groups: Vec<Encoded<Output, state::Full>>) -> Result<Self, EncodingError> {
+        groups.sort_by_key(|group| group.index());
 
-        Self::generic_checks(&labels)?;
-        Self::generic_full_checks(&labels)?;
-        Self::generic_output_checks(&labels)?;
+        Self::generic_checks(&groups)?;
+        Self::generic_full_checks(&groups)?;
+        Self::generic_output_checks(&groups)?;
 
-        Ok(Self { labels })
+        Ok(Self { groups })
     }
 }
 
-impl LabelsSet<Output, Active> {
-    /// Returns new label set after performing a series of validations
-    pub fn new(mut labels: Vec<Labels<Output, Active>>) -> Result<Self, LabelError> {
-        labels.sort_by_key(|labels| labels.index());
+impl EncodedSet<Output, state::Active> {
+    /// Returns new set after performing a series of validations
+    pub fn new(mut groups: Vec<Encoded<Output, state::Active>>) -> Result<Self, EncodingError> {
+        groups.sort_by_key(|group| group.index());
 
-        Self::generic_checks(&labels)?;
-        Self::generic_output_checks(&labels)?;
+        Self::generic_checks(&groups)?;
+        Self::generic_output_checks(&groups)?;
 
-        Ok(Self { labels })
+        Ok(Self { groups })
     }
 }
 
-impl<G, S> Index<usize> for LabelsSet<G, S>
+impl<G, S> Index<usize> for EncodedSet<G, S>
 where
     G: WireGroup + Clone,
-    S: State,
+    S: state::LabelState,
 {
-    type Output = Labels<G, S>;
+    type Output = Encoded<G, S>;
 
     fn index(&self, index: usize) -> &Self::Output {
-        &self.labels[index]
+        &self.groups[index]
     }
 }
 
@@ -263,63 +262,63 @@ mod tests {
     }
 
     #[rstest]
-    #[case(vec![], LabelError::EmptyLabelsSet)]
-    #[case(vec![(0, Value::from(0u64))], LabelError::InvalidCount(circ_id(), 2, 1))]
-    #[case(vec![(0, Value::from(0u64)), (1, Value::from(0u64)), (1, Value::from(0u64))], LabelError::DuplicateLabels)]
-    fn test_labels_set_empty(
+    #[case(vec![], EncodingError::EmptyEncodedSet)]
+    #[case(vec![(0, Value::from(0u64))], EncodingError::InvalidCount(circ_id(), 2, 1))]
+    #[case(vec![(0, Value::from(0u64)), (1, Value::from(0u64)), (1, Value::from(0u64))], EncodingError::DuplicateGroups)]
+    fn test_set_empty(
         circ: Arc<Circuit>,
         mut rng: ChaCha12Rng,
         #[case] values: Vec<(usize, Value)>,
-        #[case] expected_err: LabelError,
+        #[case] expected_err: EncodingError,
     ) {
-        let labels = LabelsSet::generate(&mut rng, &circ, None);
-        let active_labels = values
+        let set = EncodedSet::generate(&mut rng, &circ, None);
+        let active_groups = values
             .into_iter()
-            .map(|(id, value)| labels[id].select(&value).unwrap())
+            .map(|(id, value)| set[id].select(&value).unwrap())
             .collect();
 
-        let err = LabelsSet::<Input, Active>::new(active_labels).unwrap_err();
+        let err = EncodedSet::<Input, state::Active>::new(active_groups).unwrap_err();
 
         assert_eq!(err, expected_err);
     }
 
     #[rstest]
-    fn test_labels_set_delta_mismatch(circ: Arc<Circuit>, mut rng: ChaCha12Rng) {
-        let labels = LabelsSet::generate(&mut rng, &circ, None);
-        let labels_2 = LabelsSet::generate(&mut rng, &circ, None);
+    fn test_set_delta_mismatch(circ: Arc<Circuit>, mut rng: ChaCha12Rng) {
+        let set = EncodedSet::generate(&mut rng, &circ, None);
+        let set_2 = EncodedSet::generate(&mut rng, &circ, None);
 
-        let err = LabelsSet::<Input, Full>::new(vec![labels[0].clone(), labels_2[1].clone()])
+        let err = EncodedSet::<Input, state::Full>::new(vec![set[0].clone(), set_2[1].clone()])
             .unwrap_err();
 
-        assert_eq!(err, LabelError::DeltaMismatch)
+        assert_eq!(err, EncodingError::DeltaMismatch)
     }
 
     #[rstest]
-    fn test_labels_set_circuit_mismatch(circ: Arc<Circuit>, mut rng: ChaCha12Rng) {
-        let labels = LabelsSet::generate(&mut rng, &circ, None);
+    fn test_set_circuit_mismatch(circ: Arc<Circuit>, mut rng: ChaCha12Rng) {
+        let set = EncodedSet::generate(&mut rng, &circ, None);
 
         let circ_2 = Circuit::load_bytes(AES_128_REVERSE).unwrap();
-        let labels_2 = LabelsSet::generate(&mut rng, &circ_2, None);
+        let set_2 = EncodedSet::generate(&mut rng, &circ_2, None);
 
-        let err = LabelsSet::<Input, Active>::new(vec![
-            labels[0].clone().select(&Value::from(0u64)).unwrap(),
-            labels_2[1]
+        let err = EncodedSet::<Input, state::Active>::new(vec![
+            set[0].clone().select(&Value::from(0u64)).unwrap(),
+            set_2[1]
                 .clone()
                 .select(&Value::from(vec![0u8; 16]))
                 .unwrap(),
         ])
         .unwrap_err();
 
-        assert_eq!(err, LabelError::CircuitMismatch)
+        assert_eq!(err, EncodingError::CircuitMismatch)
     }
 
-    impl<G, S> IndexMut<usize> for LabelsSet<G, S>
+    impl<G, S> IndexMut<usize> for EncodedSet<G, S>
     where
         G: WireGroup + Clone,
-        S: State,
+        S: state::LabelState,
     {
         fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-            &mut self.labels[index]
+            &mut self.groups[index]
         }
     }
 }

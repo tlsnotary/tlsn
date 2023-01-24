@@ -9,7 +9,7 @@ use crate::garble::{
         unchecked::{UncheckedGarbledCircuit, UncheckedOutput},
         GarbledCircuit,
     },
-    label::{ActiveInputLabelsSet, FullInputLabelsSet},
+    label::{ActiveInputSet, FullInputSet},
     Error,
 };
 use mpc_circuits::{Circuit, OutputValue};
@@ -82,7 +82,7 @@ impl SemiHonestLeader<Generator> {
     /// Garble circuit and send to peer
     pub fn garble(
         self,
-        input_labels: FullInputLabelsSet,
+        input_labels: FullInputSet,
         reveal_output: bool,
     ) -> Result<(GarbledCircuit<gc_state::Partial>, SemiHonestLeader<Decode>), Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
@@ -111,7 +111,7 @@ impl SemiHonestFollower<Evaluator> {
     pub fn evaluate(
         self,
         unchecked_gc: UncheckedGarbledCircuit,
-        input_labels: ActiveInputLabelsSet,
+        input_labels: ActiveInputSet,
     ) -> Result<GarbledCircuit<gc_state::Evaluated>, Error> {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
         let gc = GarbledCircuit::<gc_state::Partial>::from_unchecked(
@@ -136,7 +136,7 @@ impl SemiHonestLeader<Decode> {
     pub fn decode(self, unchecked: UncheckedOutput) -> Result<Vec<OutputValue>, Error> {
         unchecked.decode(
             &self.state.gc.circ,
-            &self.state.gc.output_labels().get_labels(),
+            &self.state.gc.output_labels().get_groups(),
         )
     }
 }
@@ -160,15 +160,14 @@ mod tests {
         let leader_input = circ.input(0).unwrap().to_value(0u64).unwrap();
         let follower_input = circ.input(1).unwrap().to_value(1u64).unwrap();
 
-        let input_labels = FullInputLabelsSet::generate(&mut rng, &circ, None);
+        let input_labels = FullInputSet::generate(&mut rng, &circ, None);
 
         let (gc_partial, leader) = leader.garble(input_labels.clone(), true).unwrap();
 
         let leader_labels = input_labels[0].select(leader_input.value()).unwrap();
         let follower_labels = input_labels[1].select(follower_input.value()).unwrap();
 
-        let active_labels =
-            ActiveInputLabelsSet::new(vec![leader_labels, follower_labels]).unwrap();
+        let active_labels = ActiveInputSet::new(vec![leader_labels, follower_labels]).unwrap();
 
         let gc_ev = follower.evaluate(gc_partial.into(), active_labels).unwrap();
 
@@ -190,15 +189,14 @@ mod tests {
         let leader_input = circ.input(0).unwrap().to_value(0u64).unwrap();
         let follower_input = circ.input(1).unwrap().to_value(1u64).unwrap();
 
-        let input_labels = FullInputLabelsSet::generate(&mut rng, &circ, None);
+        let input_labels = FullInputSet::generate(&mut rng, &circ, None);
 
         let (gc_partial, leader) = leader.garble(input_labels.clone(), true).unwrap();
 
         let leader_labels = input_labels[0].select(leader_input.value()).unwrap();
         let follower_labels = input_labels[1].select(follower_input.value()).unwrap();
 
-        let active_labels =
-            ActiveInputLabelsSet::new(vec![leader_labels, follower_labels]).unwrap();
+        let active_labels = ActiveInputSet::new(vec![leader_labels, follower_labels]).unwrap();
 
         let gc_ev = follower.evaluate(gc_partial.into(), active_labels).unwrap();
 
@@ -223,7 +221,7 @@ mod tests {
         let leader_input = circ.input(0).unwrap().to_value(0u64).unwrap();
         let follower_input = circ.input(1).unwrap().to_value(1u64).unwrap();
 
-        let input_labels = FullInputLabelsSet::generate(&mut rng, &circ, None);
+        let input_labels = FullInputSet::generate(&mut rng, &circ, None);
 
         let (mut gc_partial, _) = leader.garble(input_labels.clone(), true).unwrap();
 
@@ -234,8 +232,7 @@ mod tests {
         let leader_labels = input_labels[0].select(leader_input.value()).unwrap();
         let follower_labels = input_labels[1].select(follower_input.value()).unwrap();
 
-        let active_labels =
-            ActiveInputLabelsSet::new(vec![leader_labels, follower_labels]).unwrap();
+        let active_labels = ActiveInputSet::new(vec![leader_labels, follower_labels]).unwrap();
 
         let error = follower
             .evaluate(gc_partial.into(), active_labels)

@@ -8,12 +8,12 @@ use crate::{
         evaluator::evaluate,
         generator::garble,
         label::{
-            decode_active_labels, extract_active_labels, extract_full_labels, ActiveInputLabels,
-            ActiveInputLabelsSet, ActiveOutputLabels, ActiveOutputLabelsSet, FullInputLabels,
-            FullOutputLabels, FullOutputLabelsSet, InputLabelsDecodingInfo, OutputLabelsCommitment,
-            OutputLabelsDecodingInfo,
+            encoded::{decode_active_labels, extract_active_labels, extract_full_labels},
+            ActiveEncodedInput, ActiveEncodedOutput, ActiveInputSet, ActiveOutputSet,
+            FullEncodedInput, FullEncodedOutput, FullOutputSet, InputDecodingInfo,
+            OutputDecodingInfo, OutputLabelsCommitment,
         },
-        Delta, Error, LabelError,
+        Delta, EncodingError, Error,
     },
     utils::blake3,
 };
@@ -75,8 +75,8 @@ pub mod state {
     /// Full garbled circuit data. This includes all wire label pairs, encrypted gates and delta.
     #[derive(Debug)]
     pub struct Full {
-        pub(crate) input_labels: FullInputLabelsSet,
-        pub(crate) output_labels: FullOutputLabelsSet,
+        pub(crate) input_labels: FullInputSet,
+        pub(crate) output_labels: FullOutputSet,
         /// Encrypted gates sorted ascending by id
         pub(crate) encrypted_gates: Vec<EncryptedGate>,
         #[allow(dead_code)]
@@ -86,10 +86,10 @@ pub mod state {
     /// Summary of full garbled circuit data, only including input/output labels and decoding info.
     #[derive(Debug)]
     pub struct FullSummary {
-        pub(crate) input_labels: FullInputLabelsSet,
-        pub(crate) output_labels: FullOutputLabelsSet,
+        pub(crate) input_labels: FullInputSet,
+        pub(crate) output_labels: FullOutputSet,
         /// Output labels decoding sorted ascending by id
-        pub(crate) decoding: Vec<OutputLabelsDecodingInfo>,
+        pub(crate) decoding: Vec<OutputDecodingInfo>,
         pub(crate) delta: Delta,
     }
 
@@ -100,7 +100,7 @@ pub mod state {
         /// Encrypted gates sorted ascending by id
         pub(crate) encrypted_gates: Vec<EncryptedGate>,
         /// Output labels decoding sorted ascending by id
-        pub(crate) decoding: Option<Vec<OutputLabelsDecodingInfo>>,
+        pub(crate) decoding: Option<Vec<OutputDecodingInfo>>,
         /// Output label commitments sorted ascending by id
         pub(crate) commitments: Option<Vec<OutputLabelsCommitment>>,
     }
@@ -108,12 +108,12 @@ pub mod state {
     /// Evaluated garbled circuit data
     #[derive(Debug, Clone)]
     pub struct Evaluated {
-        pub(crate) input_labels: ActiveInputLabelsSet,
-        pub(crate) output_labels: ActiveOutputLabelsSet,
+        pub(crate) input_labels: ActiveInputSet,
+        pub(crate) output_labels: ActiveOutputSet,
         /// Encrypted gates sorted ascending by id
         pub(crate) encrypted_gates: Vec<EncryptedGate>,
         /// Output labels decoding sorted ascending by id
-        pub(crate) decoding: Option<Vec<OutputLabelsDecodingInfo>>,
+        pub(crate) decoding: Option<Vec<OutputDecodingInfo>>,
         /// Output label commitments sorted ascending by id
         pub(crate) commitments: Option<Vec<OutputLabelsCommitment>>,
     }
@@ -121,17 +121,17 @@ pub mod state {
     /// Summary of evaluated garbled circuit data
     #[derive(Debug, Clone)]
     pub struct EvaluatedSummary {
-        pub(crate) input_labels: ActiveInputLabelsSet,
-        pub(crate) output_labels: ActiveOutputLabelsSet,
+        pub(crate) input_labels: ActiveInputSet,
+        pub(crate) output_labels: ActiveOutputSet,
         /// Output labels decoding sorted ascending by id
-        pub(crate) decoding: Option<Vec<OutputLabelsDecodingInfo>>,
+        pub(crate) decoding: Option<Vec<OutputDecodingInfo>>,
     }
 
     /// Evaluated garbled circuit that has been compressed to minimize memory footprint
     #[derive(Debug, Clone)]
     pub struct Compressed {
-        pub(crate) input_labels: ActiveInputLabelsSet,
-        pub(crate) output_labels: ActiveOutputLabelsSet,
+        pub(crate) input_labels: ActiveInputSet,
+        pub(crate) output_labels: ActiveOutputSet,
         /// Input labels plus the encrypted gates is what constitutes a garbled circuit (GC).
         /// In scenarios where we expect the generator to prove their honest GC generation,
         /// even after performing the evaluation, we want the evaluator to keep the GC around
@@ -139,7 +139,7 @@ pub mod state {
         /// footprint, we keep a hash digest of the encrypted gates.
         pub(crate) gates_digest: Vec<u8>,
         /// Output labels decoding sorted ascending by id
-        pub(crate) decoding: Option<Vec<OutputLabelsDecodingInfo>>,
+        pub(crate) decoding: Option<Vec<OutputDecodingInfo>>,
         /// Output label commitments sorted ascending by id
         pub(crate) commitments: Option<Vec<OutputLabelsCommitment>>,
     }
@@ -147,9 +147,9 @@ pub mod state {
     /// Evaluated garbled circuit output data
     #[derive(Debug)]
     pub struct Output {
-        pub(crate) output_labels: ActiveOutputLabelsSet,
+        pub(crate) output_labels: ActiveOutputSet,
         /// Output labels decoding sorted ascending by id
-        pub(crate) decoding: Option<Vec<OutputLabelsDecodingInfo>>,
+        pub(crate) decoding: Option<Vec<OutputDecodingInfo>>,
     }
 
     impl State for Full {}
@@ -163,7 +163,7 @@ pub mod state {
 
 use state::*;
 
-use super::label::FullInputLabelsSet;
+use super::label::FullInputSet;
 
 /// Primary data structure for a garbled circuit with typed states found in [`state`]
 #[derive(Debug, Clone)]
@@ -181,7 +181,7 @@ pub struct GarbledCircuit<S: State> {
 #[derive(Debug, Clone)]
 pub struct CircuitOpening {
     pub(crate) delta: Delta,
-    pub(crate) input_decoding: Vec<InputLabelsDecodingInfo>,
+    pub(crate) input_decoding: Vec<InputDecodingInfo>,
 }
 
 impl CircuitOpening {
@@ -191,7 +191,7 @@ impl CircuitOpening {
     }
 
     /// Returns reference to input labels decoding info
-    pub fn get_decoding(&self) -> &[InputLabelsDecodingInfo] {
+    pub fn get_decoding(&self) -> &[InputDecodingInfo] {
         &self.input_decoding
     }
 }
@@ -201,7 +201,7 @@ impl GarbledCircuit<Full> {
     pub fn generate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
         cipher: &C,
         circ: Arc<Circuit>,
-        input_labels: FullInputLabelsSet,
+        input_labels: FullInputSet,
     ) -> Result<Self, Error> {
         let (labels, encrypted_gates) = garble(cipher, &circ, input_labels.clone())?;
 
@@ -213,7 +213,7 @@ impl GarbledCircuit<Full> {
             circ,
             state: Full {
                 input_labels,
-                output_labels: FullOutputLabelsSet::new(output_labels)?,
+                output_labels: FullOutputSet::new(output_labels)?,
                 encrypted_gates,
                 delta,
             },
@@ -221,10 +221,10 @@ impl GarbledCircuit<Full> {
     }
 
     /// Returns output label decoding info
-    pub(crate) fn decoding(&self) -> Vec<OutputLabelsDecodingInfo> {
+    pub(crate) fn decoding(&self) -> Vec<OutputDecodingInfo> {
         self.output_labels()
             .iter()
-            .map(|labels| labels.decoding())
+            .map(|labels| labels.get_decoding())
             .collect()
     }
 
@@ -238,12 +238,12 @@ impl GarbledCircuit<Full> {
     }
 
     /// Returns reference to input labels set
-    pub fn input_labels(&self) -> &FullInputLabelsSet {
+    pub fn input_labels(&self) -> &FullInputSet {
         &self.state.input_labels
     }
 
     /// Returns reference to output labels set
-    pub fn output_labels(&self) -> &FullOutputLabelsSet {
+    pub fn output_labels(&self) -> &FullOutputSet {
         &self.state.output_labels
     }
 
@@ -291,7 +291,7 @@ impl GarbledCircuit<Full> {
             input_decoding: self
                 .input_labels()
                 .iter()
-                .map(|labels| labels.decoding())
+                .map(|labels| labels.get_decoding())
                 .collect(),
         }
     }
@@ -299,17 +299,17 @@ impl GarbledCircuit<Full> {
 
 impl GarbledCircuit<FullSummary> {
     /// Returns reference to input labels set
-    pub fn input_labels(&self) -> &FullInputLabelsSet {
+    pub fn input_labels(&self) -> &FullInputSet {
         &self.state.input_labels
     }
 
     /// Returns reference to output labels set
-    pub fn output_labels(&self) -> &FullOutputLabelsSet {
+    pub fn output_labels(&self) -> &FullOutputSet {
         &self.state.output_labels
     }
 
     /// Returns output label decoding info if available
-    pub fn decoding(&self) -> &[OutputLabelsDecodingInfo] {
+    pub fn decoding(&self) -> &[OutputDecodingInfo] {
         &self.state.decoding
     }
 
@@ -320,9 +320,9 @@ impl GarbledCircuit<FullSummary> {
             input_decoding: self
                 .state
                 .input_labels
-                .get_labels()
+                .get_groups()
                 .iter()
-                .map(|labels| labels.decoding())
+                .map(|labels| labels.get_decoding())
                 .collect(),
         }
     }
@@ -344,7 +344,7 @@ impl GarbledCircuit<Partial> {
     pub fn evaluate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
         self,
         cipher: &C,
-        input_labels: ActiveInputLabelsSet,
+        input_labels: ActiveInputSet,
     ) -> Result<GarbledCircuit<Evaluated>, Error> {
         let labels = evaluate(
             cipher,
@@ -361,7 +361,7 @@ impl GarbledCircuit<Partial> {
                 .iter()
                 .zip(&output_labels)
                 .map(|(commitment, labels)| commitment.validate(&labels))
-                .collect::<Result<(), LabelError>>()?;
+                .collect::<Result<(), EncodingError>>()?;
         }
 
         Ok(GarbledCircuit {
@@ -369,7 +369,7 @@ impl GarbledCircuit<Partial> {
             state: Evaluated {
                 input_labels,
                 encrypted_gates: self.state.encrypted_gates,
-                output_labels: ActiveOutputLabelsSet::new(output_labels)?,
+                output_labels: ActiveOutputSet::new(output_labels)?,
                 decoding: self.state.decoding,
                 commitments: self.state.commitments,
             },
@@ -379,12 +379,12 @@ impl GarbledCircuit<Partial> {
 
 impl GarbledCircuit<Evaluated> {
     /// Returns all active inputs labels used to evaluate the circuit
-    pub fn input_labels(&self) -> &ActiveInputLabelsSet {
+    pub fn input_labels(&self) -> &ActiveInputSet {
         &self.state.input_labels
     }
 
     /// Returns all active output labels which are the result of circuit evaluation
-    pub fn output_labels(&self) -> &ActiveOutputLabelsSet {
+    pub fn output_labels(&self) -> &ActiveOutputSet {
         &self.state.output_labels
     }
 
@@ -462,7 +462,7 @@ impl GarbledCircuit<Evaluated> {
     /// Returns decoded circuit outputs
     pub fn decode(&self) -> Result<Vec<OutputValue>, Error> {
         let decoding = self.state.decoding.as_ref().ok_or(Error::MissingDecoding)?;
-        decode_active_labels(self.output_labels().get_labels(), decoding).map_err(Error::from)
+        decode_active_labels(self.output_labels().get_groups(), decoding).map_err(Error::from)
     }
 
     /// Validates circuit using [`CircuitOpening`]
@@ -471,7 +471,7 @@ impl GarbledCircuit<Evaluated> {
             &Aes128::new_from_slice(&[0; 16]).unwrap(),
             &self.circ,
             opening,
-            &self.state.input_labels.get_labels(),
+            &self.state.input_labels.get_groups(),
             Some(self.state.encrypted_gates.as_slice()),
             None,
             self.state.decoding.as_ref().map(Vec::as_slice),
@@ -482,12 +482,12 @@ impl GarbledCircuit<Evaluated> {
 
 impl GarbledCircuit<EvaluatedSummary> {
     /// Returns reference to input labels set
-    pub fn input_labels(&self) -> &ActiveInputLabelsSet {
+    pub fn input_labels(&self) -> &ActiveInputSet {
         &self.state.input_labels
     }
 
     /// Returns reference to output labels set
-    pub fn output_labels(&self) -> &ActiveOutputLabelsSet {
+    pub fn output_labels(&self) -> &ActiveOutputSet {
         &self.state.output_labels
     }
 
@@ -499,18 +499,18 @@ impl GarbledCircuit<EvaluatedSummary> {
     /// Returns decoded circuit outputs
     pub fn decode(&self) -> Result<Vec<OutputValue>, Error> {
         let decoding = self.state.decoding.as_ref().ok_or(Error::MissingDecoding)?;
-        decode_active_labels(self.output_labels().get_labels(), decoding).map_err(Error::from)
+        decode_active_labels(self.output_labels().get_groups(), decoding).map_err(Error::from)
     }
 }
 
 impl GarbledCircuit<Compressed> {
     /// Returns all active inputs labels used to evaluate the circuit
-    pub fn input_labels(&self) -> &ActiveInputLabelsSet {
+    pub fn input_labels(&self) -> &ActiveInputSet {
         &self.state.input_labels
     }
 
     /// Returns all active output labels which are the result of circuit evaluation
-    pub fn output_labels(&self) -> &ActiveOutputLabelsSet {
+    pub fn output_labels(&self) -> &ActiveOutputSet {
         &self.state.output_labels
     }
 
@@ -533,7 +533,7 @@ impl GarbledCircuit<Compressed> {
     /// Returns decoded circuit outputs
     pub fn decode(&self) -> Result<Vec<OutputValue>, Error> {
         let decoding = self.state.decoding.as_ref().ok_or(Error::MissingDecoding)?;
-        decode_active_labels(self.output_labels().get_labels(), decoding).map_err(Error::from)
+        decode_active_labels(self.output_labels().get_groups(), decoding).map_err(Error::from)
     }
 
     /// Validates circuit using [`CircuitOpening`]
@@ -542,7 +542,7 @@ impl GarbledCircuit<Compressed> {
             &Aes128::new_from_slice(&[0; 16]).unwrap(),
             &self.circ,
             opening,
-            &self.state.input_labels.get_labels(),
+            &self.state.input_labels.get_groups(),
             None,
             Some(self.state.gates_digest.clone()),
             self.state.decoding.as_ref().map(Vec::as_slice),
@@ -553,7 +553,7 @@ impl GarbledCircuit<Compressed> {
 
 impl GarbledCircuit<Output> {
     /// Returns all output labels
-    pub fn output_labels(&self) -> &ActiveOutputLabelsSet {
+    pub fn output_labels(&self) -> &ActiveOutputSet {
         &self.state.output_labels
     }
 
@@ -563,14 +563,14 @@ impl GarbledCircuit<Output> {
     }
 
     /// Returns output label decoding info if available
-    pub fn decoding(&self) -> Option<Vec<OutputLabelsDecodingInfo>> {
+    pub fn decoding(&self) -> Option<Vec<OutputDecodingInfo>> {
         self.state.decoding.clone()
     }
 
     /// Returns decoded circuit outputs
     pub fn decode(&self) -> Result<Vec<OutputValue>, Error> {
         let decoding = self.state.decoding.as_ref().ok_or(Error::MissingDecoding)?;
-        decode_active_labels(self.output_labels().get_labels(), decoding).map_err(Error::from)
+        decode_active_labels(self.output_labels().get_groups(), decoding).map_err(Error::from)
     }
 }
 
@@ -578,10 +578,10 @@ fn validate_circuit<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     cipher: &C,
     circ: &Circuit,
     opening: CircuitOpening,
-    input_labels: &[ActiveInputLabels],
+    input_labels: &[ActiveEncodedInput],
     encrypted_gates: Option<&[EncryptedGate]>,
     digest: Option<Vec<u8>>,
-    output_decoding: Option<&[OutputLabelsDecodingInfo]>,
+    output_decoding: Option<&[OutputDecodingInfo]>,
     output_commitments: Option<&[OutputLabelsCommitment]>,
 ) -> Result<(), Error> {
     let CircuitOpening {
@@ -593,10 +593,10 @@ fn validate_circuit<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     let full_input_labels = input_labels
         .iter()
         .zip(input_decoding)
-        .map(|(labels, decoding)| FullInputLabels::from_decoding(labels.clone(), delta, decoding))
-        .collect::<Result<Vec<_>, LabelError>>()?;
+        .map(|(labels, decoding)| FullEncodedInput::from_decoding(labels.clone(), delta, decoding))
+        .collect::<Result<Vec<_>, EncodingError>>()?;
 
-    let full_input_labels = FullInputLabelsSet::new(full_input_labels)?;
+    let full_input_labels = FullInputSet::new(full_input_labels)?;
 
     let digest = if let Some(encrypted_gates) = encrypted_gates {
         // If gates are passed in, hash them
@@ -625,10 +625,10 @@ fn validate_circuit<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
 
     // Check output decoding info if it was sent
     if let Some(output_decoding) = output_decoding {
-        let expected_output_decoding: Vec<OutputLabelsDecodingInfo> =
+        let expected_output_decoding: Vec<OutputDecodingInfo> =
             extract_full_labels(circ.outputs(), delta, &labels)
                 .into_iter()
-                .map(|labels| labels.decoding())
+                .map(|labels| labels.get_decoding())
                 .collect();
 
         if &expected_output_decoding != output_decoding {
@@ -657,7 +657,7 @@ pub(crate) mod unchecked {
 
     use super::*;
 
-    use crate::garble::label::{output::unchecked::*, unchecked::*};
+    use crate::garble::label::{encoded::unchecked::*, output::unchecked::*};
 
     /// Partial garbled circuit which has not been validated against a circuit spec
     #[derive(Debug, Clone)]
@@ -764,9 +764,9 @@ pub(crate) mod unchecked {
                             .into_iter()
                             .zip(circ.outputs())
                             .map(|(unchecked, output)| {
-                                OutputLabelsDecodingInfo::from_unchecked(output.clone(), unchecked)
+                                OutputDecodingInfo::from_unchecked(output.clone(), unchecked)
                             })
-                            .collect::<Result<Vec<_>, LabelError>>()
+                            .collect::<Result<Vec<_>, EncodingError>>()
                             .map_err(Error::from)?,
                     )
                 }
@@ -857,7 +857,7 @@ pub(crate) mod unchecked {
         pub fn decode(
             mut self,
             circ: &Circuit,
-            full_output_labels: &[FullOutputLabels],
+            full_output_labels: &[FullEncodedOutput],
         ) -> Result<Vec<OutputValue>, Error> {
             let circ_id = CircuitId::new(self.circ_id)?;
             // Validate circuit id
@@ -895,7 +895,7 @@ pub(crate) mod unchecked {
             let output_labels = self
                 .output_labels
                 .into_iter()
-                .map(|labels| ActiveOutputLabels::from_unchecked(&circ, labels))
+                .map(|labels| ActiveEncodedOutput::from_unchecked(&circ, labels))
                 .collect::<Result<Vec<_>, _>>()?;
 
             // Validates that each output label is authentic then decodes them
@@ -904,9 +904,9 @@ pub(crate) mod unchecked {
                 .zip(&output_labels)
                 .map(|(full, ev)| {
                     full.validate(ev)?;
-                    ev.decode(full.decoding().clone())
+                    ev.decode(full.get_decoding().clone())
                 })
-                .collect::<Result<Vec<_>, LabelError>>()
+                .collect::<Result<Vec<_>, EncodingError>>()
                 .map_err(Error::from)
         }
     }
@@ -965,9 +965,9 @@ pub(crate) mod unchecked {
                 .into_iter()
                 .zip(circ.inputs())
                 .map(|(unchecked, input)| {
-                    InputLabelsDecodingInfo::from_unchecked(input.clone(), unchecked)
+                    InputDecodingInfo::from_unchecked(input.clone(), unchecked)
                 })
-                .collect::<Result<Vec<_>, LabelError>>()?;
+                .collect::<Result<Vec<_>, EncodingError>>()?;
 
             Ok(CircuitOpening {
                 delta,
@@ -999,7 +999,7 @@ pub(crate) mod unchecked {
         #[fixture]
         fn garbled_circuit(circ: Arc<Circuit>) -> GarbledCircuit<Full> {
             let input_labels =
-                FullInputLabelsSet::generate(&mut ChaCha12Rng::seed_from_u64(0), &circ, None);
+                FullInputSet::generate(&mut ChaCha12Rng::seed_from_u64(0), &circ, None);
             GarbledCircuit::generate(
                 &Aes128::new_from_slice(&[0; 16]).unwrap(),
                 circ,
@@ -1020,7 +1020,7 @@ pub(crate) mod unchecked {
             #[default(&[(0, 0), (1, 0)])] inputs: &[(usize, u64)],
             garbled_circuit: GarbledCircuit<Full>,
         ) -> UncheckedOutput {
-            let output_labels = garbled_circuit.output_labels().get_labels().to_vec();
+            let output_labels = garbled_circuit.output_labels().get_groups().to_vec();
             let circ = garbled_circuit.circ;
 
             let input_values: Vec<_> = inputs
@@ -1162,7 +1162,7 @@ pub(crate) mod unchecked {
             unchecked_garbled_output
                 .decode(
                     &garbled_circuit.circ,
-                    garbled_circuit.output_labels().get_labels(),
+                    garbled_circuit.output_labels().get_groups(),
                 )
                 .unwrap();
         }
@@ -1180,7 +1180,7 @@ pub(crate) mod unchecked {
             let err = unchecked_garbled_output
                 .decode(
                     &garbled_circuit.circ,
-                    garbled_circuit.output_labels().get_labels(),
+                    garbled_circuit.output_labels().get_groups(),
                 )
                 .unwrap_err();
 
@@ -1196,7 +1196,7 @@ pub(crate) mod unchecked {
             let err = unchecked_garbled_output
                 .decode(
                     &garbled_circuit.circ,
-                    garbled_circuit.output_labels().get_labels(),
+                    garbled_circuit.output_labels().get_groups(),
                 )
                 .unwrap_err();
 
@@ -1212,7 +1212,7 @@ pub(crate) mod unchecked {
             let err = unchecked_garbled_output
                 .decode(
                     &garbled_circuit.circ,
-                    garbled_circuit.output_labels().get_labels(),
+                    garbled_circuit.output_labels().get_groups(),
                 )
                 .unwrap_err();
 
@@ -1228,7 +1228,7 @@ pub(crate) mod unchecked {
             let err = unchecked_garbled_output
                 .decode(
                     &garbled_circuit.circ,
-                    garbled_circuit.output_labels().get_labels(),
+                    garbled_circuit.output_labels().get_groups(),
                 )
                 .unwrap_err();
 
@@ -1245,7 +1245,7 @@ pub(crate) mod unchecked {
             let err = unchecked_garbled_output
                 .decode(
                     &garbled_circuit.circ,
-                    garbled_circuit.output_labels().get_labels(),
+                    garbled_circuit.output_labels().get_groups(),
                 )
                 .unwrap_err();
 
@@ -1277,7 +1277,7 @@ mod tests {
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
 
-    use crate::garble::LabelPair;
+    use crate::garble::{Label, LabelPair};
 
     use super::*;
 
@@ -1289,7 +1289,7 @@ mod tests {
 
         let key = circ.input(0).unwrap().to_value(vec![0u8; 16]).unwrap();
         let msg = circ.input(1).unwrap().to_value(vec![0u8; 16]).unwrap();
-        let input_labels = FullInputLabelsSet::generate(&mut rng, &circ, None);
+        let input_labels = FullInputSet::generate(&mut rng, &circ, None);
 
         let gc = GarbledCircuit::generate(&cipher, circ.clone(), input_labels.clone()).unwrap();
         let opening = gc.open();
@@ -1301,7 +1301,7 @@ mod tests {
         let ev_gc = partial_gc
             .evaluate(
                 &cipher,
-                ActiveInputLabelsSet::new(vec![key_labels, msg_labels]).unwrap(),
+                ActiveInputSet::new(vec![key_labels, msg_labels]).unwrap(),
             )
             .unwrap();
 
@@ -1317,7 +1317,7 @@ mod tests {
 
         let key = circ.input(0).unwrap().to_value(vec![0u8; 16]).unwrap();
         let msg = circ.input(1).unwrap().to_value(vec![0u8; 16]).unwrap();
-        let input_labels = FullInputLabelsSet::generate(&mut rng, &circ, None);
+        let input_labels = FullInputSet::generate(&mut rng, &circ, None);
 
         let mut gc = GarbledCircuit::generate(&cipher, circ.clone(), input_labels.clone()).unwrap();
         let opening = gc.open();
@@ -1332,7 +1332,7 @@ mod tests {
         let ev_gc = partial_gc
             .evaluate(
                 &cipher,
-                ActiveInputLabelsSet::new(vec![key_labels, msg_labels]).unwrap(),
+                ActiveInputSet::new(vec![key_labels, msg_labels]).unwrap(),
             )
             .unwrap();
 
@@ -1355,13 +1355,16 @@ mod tests {
 
         let key = circ.input(0).unwrap().to_value(vec![0u8; 16]).unwrap();
         let msg = circ.input(1).unwrap().to_value(vec![0u8; 16]).unwrap();
-        let mut input_labels = FullInputLabelsSet::generate(&mut rng, &circ, None);
+        let mut input_labels = FullInputSet::generate(&mut rng, &circ, None);
 
         let gc = GarbledCircuit::generate(&cipher, circ.clone(), input_labels.clone()).unwrap();
         let opening = gc.open();
 
         // set bogus label
-        input_labels[0].set(0, LabelPair::new(Block::new(0), Block::new(0)));
+        input_labels[0].set(
+            0,
+            LabelPair::new(Label::new(Block::new(0)), Label::new(Block::new(0))),
+        );
 
         let key_labels = input_labels[0].select(key.value()).unwrap();
         let msg_labels = input_labels[1].select(msg.value()).unwrap();
@@ -1370,7 +1373,7 @@ mod tests {
         let ev_gc = partial_gc
             .evaluate(
                 &cipher,
-                ActiveInputLabelsSet::new(vec![key_labels, msg_labels]).unwrap(),
+                ActiveInputSet::new(vec![key_labels, msg_labels]).unwrap(),
             )
             .unwrap();
 
@@ -1395,7 +1398,7 @@ mod tests {
 
         let key = circ.input(0).unwrap().to_value(vec![0u8; 16]).unwrap();
         let msg = circ.input(1).unwrap().to_value(vec![0u8; 16]).unwrap();
-        let input_labels = FullInputLabelsSet::generate(&mut rng, &circ, None);
+        let input_labels = FullInputSet::generate(&mut rng, &circ, None);
 
         let mut gc = GarbledCircuit::generate(&cipher, circ.clone(), input_labels.clone()).unwrap();
         let opening = gc.open();
@@ -1412,7 +1415,7 @@ mod tests {
         let ev_gc = partial_gc
             .evaluate(
                 &cipher,
-                ActiveInputLabelsSet::new(vec![key_labels, msg_labels]).unwrap(),
+                ActiveInputSet::new(vec![key_labels, msg_labels]).unwrap(),
             )
             .unwrap();
 
@@ -1435,7 +1438,7 @@ mod tests {
 
         let key = circ.input(0).unwrap().to_value(vec![0u8; 16]).unwrap();
         let msg = circ.input(1).unwrap().to_value(vec![0u8; 16]).unwrap();
-        let mut input_labels = FullInputLabelsSet::generate(&mut rng, &circ, None);
+        let mut input_labels = FullInputSet::generate(&mut rng, &circ, None);
 
         let gc = GarbledCircuit::generate(&cipher, circ.clone(), input_labels.clone()).unwrap();
         let opening = gc.open();
@@ -1443,7 +1446,10 @@ mod tests {
         // set bogus label (the opposite label the evaluator receives)
         // evaluation should pass but the circuit validation should fail because the commitment is bad
         let target_label = input_labels[0].get(0);
-        input_labels[0].set(0, LabelPair::new(target_label.low(), Block::new(0)));
+        input_labels[0].set(
+            0,
+            LabelPair::new(target_label.low(), Label::new(Block::new(0))),
+        );
 
         let key_labels = input_labels[0].select(key.value()).unwrap();
         let msg_labels = input_labels[1].select(msg.value()).unwrap();
@@ -1452,7 +1458,7 @@ mod tests {
         let ev_gc = partial_gc
             .evaluate(
                 &cipher,
-                ActiveInputLabelsSet::new(vec![key_labels, msg_labels]).unwrap(),
+                ActiveInputSet::new(vec![key_labels, msg_labels]).unwrap(),
             )
             .unwrap();
 

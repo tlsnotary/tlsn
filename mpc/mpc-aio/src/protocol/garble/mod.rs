@@ -7,7 +7,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use mpc_circuits::Circuit;
 use mpc_core::{
-    garble::{gc_state, ActiveInputLabelsSet, CircuitOpening, FullInputLabelsSet, GarbledCircuit},
+    garble::{gc_state, ActiveInputSet, CircuitOpening, FullInputSet, GarbledCircuit},
     msgs::garble::GarbleMessage,
 };
 use utils_aio::Channel;
@@ -21,7 +21,7 @@ pub enum GCError {
     #[error("core error")]
     CoreError(#[from] mpc_core::garble::Error),
     #[error("Label Error: {0:?}")]
-    LabelError(#[from] mpc_core::garble::LabelError),
+    LabelError(#[from] mpc_core::garble::EncodingError),
     #[error("circuit error")]
     CircuitError(#[from] mpc_circuits::CircuitError),
     #[error("io error")]
@@ -44,7 +44,7 @@ pub trait Generator {
     async fn generate(
         &mut self,
         circ: Arc<Circuit>,
-        input_labels: FullInputLabelsSet,
+        input_labels: FullInputSet,
     ) -> Result<GarbledCircuit<gc_state::Full>, GCError>;
 }
 
@@ -54,7 +54,7 @@ pub trait Evaluator {
     async fn evaluate(
         &mut self,
         circ: GarbledCircuit<gc_state::Partial>,
-        input_labels: ActiveInputLabelsSet,
+        input_labels: ActiveInputSet,
     ) -> Result<GarbledCircuit<gc_state::Evaluated>, GCError>;
 }
 

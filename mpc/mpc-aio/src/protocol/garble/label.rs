@@ -2,7 +2,7 @@ use crate::protocol::ot::{OTError, ObliviousReceive, ObliviousSend, ObliviousVer
 use async_trait::async_trait;
 use mpc_circuits::{InputValue, WireGroup};
 use mpc_core::{
-    garble::{ActiveInputLabels, FullInputLabels},
+    garble::{ActiveEncodedInput, ActiveLabels, FullEncodedInput},
     Block,
 };
 
@@ -13,19 +13,19 @@ pub enum WireLabelError {
     #[error("core error")]
     CoreError(#[from] mpc_core::garble::Error),
     #[error("Core label error: {0:?}")]
-    CoreLabelError(#[from] mpc_core::garble::LabelError),
+    CoreLabelError(#[from] mpc_core::garble::EncodingError),
 }
 
 #[async_trait]
-impl<T> ObliviousSend<FullInputLabels> for T
+impl<T> ObliviousSend<FullEncodedInput> for T
 where
     T: Send + ObliviousSend<[Block; 2]>,
 {
-    async fn send(&mut self, inputs: Vec<FullInputLabels>) -> Result<(), OTError> {
+    async fn send(&mut self, inputs: Vec<FullEncodedInput>) -> Result<(), OTError> {
         self.send(
             inputs
                 .into_iter()
-                .map(|labels| labels.blocks())
+                .map(|labels| labels.iter_blocks().collect::<Vec<[Block; 2]>>())
                 .flatten()
                 .collect::<Vec<[Block; 2]>>(),
         )
@@ -34,14 +34,14 @@ where
 }
 
 #[async_trait]
-impl<T> ObliviousReceive<InputValue, ActiveInputLabels> for T
+impl<T> ObliviousReceive<InputValue, ActiveEncodedInput> for T
 where
     T: Send + ObliviousReceive<bool, Block>,
 {
     async fn receive(
         &mut self,
         choices: Vec<InputValue>,
-    ) -> Result<Vec<ActiveInputLabels>, OTError> {
+    ) -> Result<Vec<ActiveEncodedInput>, OTError> {
         let choice_bits = choices
             .iter()
             .map(|value| value.value().to_lsb0_bits())
@@ -53,26 +53,24 @@ where
         Ok(choices
             .into_iter()
             .map(|value| {
-                ActiveInputLabels::from_blocks(
-                    value.group().clone(),
-                    blocks.drain(..value.len()).collect(),
-                )
-                .expect("Input labels should be valid")
+                let labels = ActiveLabels::from_blocks(blocks.drain(..value.len()).collect());
+                ActiveEncodedInput::from_active_labels(value.group().clone(), labels)
+                    .expect("Input labels should be valid")
             })
             .collect())
     }
 }
 
 #[async_trait]
-impl<T> ObliviousVerify<FullInputLabels> for T
+impl<T> ObliviousVerify<FullEncodedInput> for T
 where
     T: Send + ObliviousVerify<[Block; 2]>,
 {
-    async fn verify(self, input: Vec<FullInputLabels>) -> Result<(), OTError> {
+    async fn verify(self, input: Vec<FullEncodedInput>) -> Result<(), OTError> {
         self.verify(
             input
                 .into_iter()
-                .map(|labels| labels.blocks())
+                .map(|labels| labels.iter_blocks().collect::<Vec<[Block; 2]>>())
                 .flatten()
                 .collect(),
         )
@@ -85,13 +83,13 @@ mod tests {
     use super::*;
     use crate::protocol::ot::mock::mock_ot_pair;
     use mpc_circuits::{Circuit, ADDER_64};
-    use mpc_core::garble::FullInputLabelsSet;
+    use mpc_core::garble::FullInputSet;
     use rand::thread_rng;
 
     #[tokio::test]
     async fn test_wire_label_transfer() {
         let circ = Circuit::load_bytes(ADDER_64).unwrap();
-        let full_labels = FullInputLabelsSet::generate(&mut thread_rng(), &circ, None);
+        let full_labels = FullInputSet::generate(&mut thread_rng(), &circ, None);
 
         let receiver_labels = full_labels[1].clone();
 

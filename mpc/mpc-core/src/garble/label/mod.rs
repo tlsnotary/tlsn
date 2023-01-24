@@ -1,54 +1,57 @@
-//! Collection of labels corresponding to a wire group.
+//! Types associated with wire labels
 
 mod digest;
+pub(crate) mod encoded;
 mod encoder;
 pub(crate) mod input;
 pub(crate) mod output;
 mod set;
-mod state;
 
-use mpc_circuits::{Circuit, GroupId, GroupValue, Input, Output, Value, WireGroup};
-use rand::{CryptoRng, Rng};
 use std::{
-    ops::{BitXor, Deref},
+    ops::{BitAnd, BitXor, Deref},
     sync::Arc,
 };
 
-use crate::{block::Block, garble::LabelError};
+use mpc_circuits::{Input, Output, Value};
+use rand::{CryptoRng, Rng};
+
+use crate::{block::Block, garble::EncodingError};
 
 pub use digest::LabelsDigest;
+pub use encoded::{Encoded, GroupDecodingInfo};
 pub use encoder::ChaChaEncoder;
 pub use output::OutputLabelsCommitment;
-pub use set::LabelsSet;
+pub use set::EncodedSet;
 
 /// A collection of full labels not associated with a wire group.
-pub type FullLabels = state::Full;
+pub type FullLabels = Labels<Full>;
 /// A collection of active labels not associated with a wire group.
-pub type ActiveLabels = state::Active;
+pub type ActiveLabels = Labels<Active>;
 
-/// Full input labels, ie contains both the low and high labels.
-pub type FullInputLabels = Labels<Input, state::Full>;
-/// Active input labels of a garbled circuit. These are the labels which the evaluator uses
-/// to evaluate the circuit.
-pub type ActiveInputLabels = Labels<Input, state::Active>;
-/// Input labels decoding information
-pub type InputLabelsDecodingInfo = LabelsDecodingInfo<Input>;
-/// Full output labels of a garbled circuit
-pub type FullOutputLabels = Labels<Output, state::Full>;
-/// Active output labels of a garbled circuit. These are the labels which the evaluator derives
-/// as a result of the circuit evaluation.
-pub type ActiveOutputLabels = Labels<Output, state::Active>;
-/// Output labels decoding information
-pub type OutputLabelsDecodingInfo = LabelsDecodingInfo<Output>;
+/// Full input labels, ie contains both the low and high labels, corresponding to a
+/// garbled circuit input.
+pub type FullEncodedInput = Encoded<Input, Full>;
+/// Active input labels corresponding to a garbled circuit input. These are the labels
+/// which the evaluator uses to evaluate a garbled circuit.
+pub type ActiveEncodedInput = Encoded<Input, Active>;
+/// Input decoding information.
+pub type InputDecodingInfo = GroupDecodingInfo<Input>;
+/// Full output labels corresponding to a garbled circuit output.
+pub type FullEncodedOutput = Encoded<Output, Full>;
+/// Active output labels corresponding to a garbled circuit output. These are the labels
+/// which the evaluator derives as a result of the circuit evaluation.
+pub type ActiveEncodedOutput = Encoded<Output, Active>;
+/// Output decoding information.
+pub type OutputDecodingInfo = GroupDecodingInfo<Output>;
 
-/// A complete set of full input labels
-pub type FullInputLabelsSet = LabelsSet<Input, state::Full>;
-/// A complete set of full output labels
-pub type FullOutputLabelsSet = LabelsSet<Output, state::Full>;
-/// A complete set of active input labels
-pub type ActiveInputLabelsSet = LabelsSet<Input, state::Active>;
-/// A complete set of active output labels
-pub type ActiveOutputLabelsSet = LabelsSet<Output, state::Active>;
+/// A complete set of full input labels for the inputs of a garbled circuit.
+pub type FullInputSet = EncodedSet<Input, Full>;
+/// A complete set of full output labels for the outputs of a garbled circuit.
+pub type FullOutputSet = EncodedSet<Output, Full>;
+/// A complete set of active input labels for the inputs of a garbled circuit.
+pub type ActiveInputSet = EncodedSet<Input, Active>;
+/// A complete set of active output labels for the outputs of a garbled circuit.
+pub type ActiveOutputSet = EncodedSet<Output, Active>;
 
 /// Global binary offset used by the Free-XOR technique to create wire label
 /// pairs where W_1 = W_0 ^ Delta.
@@ -60,10 +63,16 @@ pub struct Delta(Block);
 
 impl Delta {
     /// Creates new random Delta
-    pub(crate) fn random<R: Rng + CryptoRng>(rng: &mut R) -> Self {
+    pub(crate) fn random<R: Rng + CryptoRng + ?Sized>(rng: &mut R) -> Self {
         let mut block = Block::random(rng);
         block.set_lsb();
         Self(block)
+    }
+
+    /// Returns the inner block
+    #[inline]
+    pub(crate) fn into_inner(self) -> Block {
+        self.0
     }
 }
 
@@ -82,288 +91,284 @@ impl From<[u8; 16]> for Delta {
     }
 }
 
-/// Collection of validated labels corresponding to a wire group
+pub mod state {
+    use super::Delta;
+
+    mod sealed {
+        pub trait Sealed {}
+
+        impl Sealed for super::Full {}
+        impl Sealed for super::Active {}
+    }
+
+    /// Marker trait for label state
+    pub trait LabelState: sealed::Sealed {}
+
+    /// Full label state, ie contains both the low and high labels.
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    pub struct Full {
+        pub(super) delta: Delta,
+    }
+
+    impl LabelState for Full {}
+
+    /// Active label state
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    pub struct Active;
+
+    impl LabelState for Active {}
+}
+
+use state::*;
+
+/// A collection of labels, unassociated with a wire group.
 ///
-/// This type uses `Arc` references to the underlying data to make it cheap to clone,
+/// This type uses an `Arc` reference to the underlying data to make it cheap to clone,
 /// and thus more memory efficient when re-using labels between garbled circuit executions.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Labels<G, S>
-where
-    G: WireGroup,
-    S: state::State,
-{
-    group: G,
+pub struct Labels<S: LabelState> {
     state: S,
+    labels: Arc<Vec<Label>>,
 }
 
-impl<G, S> Labels<G, S>
+impl<S> Labels<S>
 where
-    G: WireGroup,
-    S: state::State,
+    S: LabelState,
 {
-    /// Consumes `self` returning labels
-    pub fn into_labels(self) -> S {
-        self.state
+    /// Returns number of labels
+    pub fn len(&self) -> usize {
+        self.labels.len()
     }
 }
 
-impl<G> Labels<G, state::Full>
-where
-    G: WireGroup + Clone,
-{
-    /// Returns Labels type, validating the provided labels using the associated group
-    pub fn from_labels(group: G, delta: Delta, labels: Vec<LabelPair>) -> Result<Self, LabelError> {
-        if group.len() != labels.len() {
-            return Err(LabelError::InvalidLabelCount(
-                group.id().clone(),
-                group.len(),
-                labels.len(),
-            ));
+impl Labels<Full> {
+    /// Creates new full labels from the provided low labels and delta
+    ///
+    /// * `low` - Labels corresponding to the logical low
+    /// * `delta` - Global binary offset
+    pub fn new_full(low: Vec<Label>, delta: Delta) -> Self {
+        Self {
+            state: Full { delta },
+            labels: Arc::new(low),
         }
-
-        let low = labels.into_iter().map(|label| Label(label.low())).collect();
-
-        Ok(Self {
-            group,
-            state: state::Full::from_labels(low, delta),
-        })
     }
 
-    /// Returns Labels type, validating the provided labels using the associated group
-    pub fn from_full_labels(group: G, labels: state::Full) -> Result<Self, LabelError> {
-        if group.len() != labels.len() {
-            return Err(LabelError::InvalidLabelCount(
-                group.id().clone(),
-                group.len(),
-                labels.len(),
-            ));
+    /// Creates new full labels from the provided blocks and delta
+    ///
+    /// * `blocks` - Blocks corresponding to the logical low
+    /// * `delta` - Global binary offset
+    pub fn from_blocks(blocks: Vec<Block>, delta: Delta) -> Self {
+        Self {
+            state: Full { delta },
+            labels: Arc::new(blocks.into_iter().map(|block| Label(block)).collect()),
         }
-
-        Ok(Self {
-            group,
-            state: labels,
-        })
     }
 
-    /// Returns iterator to wire labels
+    /// Returns iterator of label pairs
     pub fn iter(&self) -> impl Iterator<Item = LabelPair> + '_ {
-        self.state.iter()
+        self.labels
+            .iter()
+            .copied()
+            .map(|low| low.to_pair(self.state.delta, false))
     }
 
-    /// Returns iterator to wire labels as blocks
-    pub fn iter_blocks(&self) -> impl Iterator<Item = [Block; 2]> + '_ {
-        self.iter().map(|label| [label.low(), label.high()])
-    }
-
-    /// Returns delta offset
-    pub fn delta(&self) -> Delta {
+    /// Returns delta
+    pub fn get_delta(&self) -> Delta {
         self.state.delta
     }
 
-    /// Returns label decoding
-    pub fn decoding(&self) -> LabelsDecodingInfo<G> {
-        LabelsDecodingInfo {
-            group: self.group.clone(),
-            decoding: self
-                .state
-                .low
-                .iter()
-                .map(|label| label.permute_bit())
-                .collect(),
-        }
+    /// Returns label decoding information
+    pub fn get_decoding(&self) -> Vec<bool> {
+        self.labels.iter().map(|low| low.permute_bit()).collect()
     }
 
-    /// Returns full labels from decoding information
-    pub fn from_decoding(
-        active_labels: Labels<G, state::Active>,
-        delta: Delta,
-        decoding: LabelsDecodingInfo<G>,
-    ) -> Result<Self, LabelError> {
-        Ok(Self {
-            group: active_labels.group,
-            state: state::Full::from_decoding(active_labels.state, delta, decoding.decoding)?,
-        })
-    }
+    /// Generates labels using the provided RNG.
+    pub fn generate<R: Rng + CryptoRng + ?Sized>(
+        rng: &mut R,
+        count: usize,
+        delta: Option<Delta>,
+    ) -> Self {
+        let delta = delta.unwrap_or_else(|| Delta::random(rng));
 
-    /// Returns active labels corresponding to a [`Value`]
-    pub fn select(&self, value: &Value) -> Result<Labels<G, state::Active>, LabelError> {
-        Ok(Labels {
-            group: self.group.clone(),
-            state: self.state.select(value)?,
-        })
-    }
-
-    /// Validates whether the provided active labels are authentic
-    pub fn validate(&self, labels: &Labels<G, state::Active>) -> Result<(), LabelError> {
-        for (pair, label) in self.state.iter().zip(labels.iter()) {
-            if !(label.value() == pair.low() || label.value() == pair.high()) {
-                return Err(LabelError::InauthenticLabels(labels.group.id().clone()));
-            }
-        }
-        Ok(())
-    }
-
-    /// Returns wire labels
-    pub fn inner(&self) -> Vec<LabelPair> {
-        self.state.to_labels()
-    }
-
-    /// Returns labels as blocks
-    pub fn blocks(&self) -> Vec<[Block; 2]> {
-        self.inner()
+        // Logical low wire labels, [W_0; count]
+        let low = Block::random_vec(rng, count)
             .into_iter()
-            .map(|label| [label.low(), label.high()])
-            .collect()
+            .map(|value| Label::new(value))
+            .collect();
+
+        Self {
+            state: Full { delta },
+            labels: Arc::new(low),
+        }
+    }
+
+    /// Returns active labels corresponding to the `value`
+    pub fn select(&self, value: &Value) -> Result<ActiveLabels, EncodingError> {
+        if value.len() != self.labels.len() {
+            return Err(EncodingError::InvalidValue(self.len(), value.len()));
+        }
+
+        let active_labels = self
+            .labels
+            .iter()
+            .copied()
+            .zip(value.to_lsb0_bits().into_iter())
+            .map(|(low, level)| if level { low ^ self.get_delta() } else { low })
+            .collect::<Vec<_>>();
+
+        Ok(Labels {
+            state: Active,
+            labels: Arc::new(active_labels),
+        })
+    }
+
+    pub(crate) fn from_decoding(
+        active: Labels<Active>,
+        delta: Delta,
+        decoding: Vec<bool>,
+    ) -> Result<Self, EncodingError> {
+        if active.labels.len() != decoding.len() {
+            return Err(EncodingError::InvalidDecodingLength(
+                active.labels.len(),
+                decoding.len(),
+            ));
+        }
+
+        Ok(Self {
+            state: Full { delta },
+            labels: Arc::new(
+                active
+                    .iter()
+                    .zip(decoding)
+                    .map(|(label, decoding)| {
+                        // If active label is logic high, flip it
+                        if label.permute_bit() ^ decoding {
+                            label ^ delta
+                        } else {
+                            label
+                        }
+                    })
+                    .collect(),
+            ),
+        })
     }
 
     #[cfg(test)]
-    /// Returns labels at position idx
-    ///
-    /// Panics if idx is not in range
     pub fn get(&self, idx: usize) -> LabelPair {
-        self.state.get(idx)
+        self.labels[idx].to_pair(self.state.delta, false)
     }
 
     #[cfg(test)]
-    /// Set the value of labels at position idx
-    ///
-    /// Panics if idx is not in range
     pub fn set(&mut self, idx: usize, pair: LabelPair) {
-        self.state.set(idx, pair);
+        let mut labels = (*self.labels).clone();
+        labels[idx] = pair.low();
+        self.labels = Arc::new(labels);
     }
 
     #[cfg(test)]
-    /// Flip a label at position idx
-    ///
-    /// Panics if idx is not in range
     pub fn flip(&mut self, idx: usize) {
-        self.state.flip(idx);
+        let mut labels = (*self.labels).clone();
+        labels[idx] = labels[idx] ^ self.get_delta();
+        self.labels = Arc::new(labels);
     }
 }
 
-impl<G> Labels<G, state::Active>
-where
-    G: WireGroup + Clone,
-{
-    /// Returns Labels type, validating the provided labels using the associated group
-    pub fn from_labels(group: G, labels: Vec<Label>) -> Result<Self, LabelError> {
-        // We strip the labels down to blocks because the wire ids will be changed
-        Self::from_blocks(
-            group,
-            labels.into_iter().map(|label| label.value()).collect(),
-        )
+impl Labels<Active> {
+    /// Creates new active labels from the provided labels
+    ///
+    /// * `active` - Labels corresponding to the an active value
+    pub fn new_active(active: Vec<Label>) -> Labels<Active> {
+        Self {
+            state: Active,
+            labels: Arc::new(active),
+        }
     }
 
-    /// Returns Labels type, validating the provided labels using the associated group
-    pub fn from_active_labels(group: G, labels: state::Active) -> Result<Self, LabelError> {
-        if group.len() != labels.len() {
-            return Err(LabelError::InvalidLabelCount(
-                group.id().clone(),
-                group.len(),
-                labels.len(),
-            ));
+    /// Creates new active labels from the provided blocks
+    ///
+    /// * `blocks` - Blocks corresponding to the logical low
+    pub fn from_blocks(blocks: Vec<Block>) -> Self {
+        Self {
+            state: Active,
+            labels: Arc::new(blocks.into_iter().map(|block| Label(block)).collect()),
         }
-
-        Ok(Self {
-            group,
-            state: labels,
-        })
-    }
-
-    /// Returns Labels type, validating the provided blocks using the associated group
-    pub fn from_blocks(group: G, blocks: Vec<Block>) -> Result<Self, LabelError> {
-        if group.len() != blocks.len() {
-            return Err(LabelError::InvalidLabelCount(
-                group.id().clone(),
-                group.len(),
-                blocks.len(),
-            ));
-        }
-
-        let labels = blocks.into_iter().map(|block| Label::new(block)).collect();
-
-        Ok(Self {
-            group,
-            state: state::Active::from_labels(labels),
-        })
     }
 
     /// Returns iterator to wire labels
     pub fn iter(&self) -> impl Iterator<Item = Label> + '_ {
-        self.state.iter()
+        self.labels.iter().copied()
     }
 
     /// Returns iterator to wire labels as blocks
     pub fn iter_blocks(&self) -> impl Iterator<Item = Block> + '_ {
-        self.iter().map(|label| label.value())
+        self.iter().map(|label| label.into_inner())
     }
 
-    /// Decode active labels to values using label decoding information.
-    pub fn decode(&self, decoding: LabelsDecodingInfo<G>) -> Result<GroupValue<G>, LabelError> {
-        if self.group.index() != decoding.group.index() {
-            return Err(LabelError::InvalidDecodingId(
-                self.group.index(),
-                decoding.group.index(),
+    /// Decodes active labels using decoding information
+    pub fn decode(&self, decoding: Vec<bool>) -> Result<Vec<bool>, EncodingError> {
+        if self.len() != decoding.len() {
+            return Err(EncodingError::InvalidDecodingLength(
+                self.len(),
+                decoding.len(),
             ));
         }
 
-        // `bits` are guaranteed to have the correct number of bits for this group
-        let bits = self.state.decode(decoding.decoding)?;
-
-        Ok(GroupValue::from_bits(self.group.clone(), bits)
-            .expect("Value should have correct bit count"))
+        Ok(decoding
+            .into_iter()
+            .zip(self.labels.iter())
+            .map(|(decoding, label)| label.permute_bit() ^ decoding)
+            .collect())
     }
 
-    #[cfg(test)]
     /// Returns label at position idx
     ///
     /// Panics if idx is not in range
+    #[cfg(test)]
     pub fn get(&self, idx: usize) -> Label {
-        self.state.get(idx)
+        self.labels[idx].clone()
     }
 
-    #[cfg(test)]
     /// Set the label at position idx
     ///
     /// Panics if idx is not in range
+    #[cfg(test)]
     pub fn set(&mut self, idx: usize, label: Label) {
-        self.state.set(idx, label);
+        let mut labels = (*self.labels).clone();
+        labels[idx] = label;
+        self.labels = Arc::new(labels);
     }
 }
 
-impl<G, S> WireGroup for Labels<G, S>
-where
-    G: WireGroup,
-    S: state::State,
-{
-    fn circuit(&self) -> Arc<Circuit> {
-        self.group.circuit()
-    }
+impl IntoIterator for Labels<Active> {
+    type Item = Label;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
 
-    fn index(&self) -> usize {
-        self.group.index()
-    }
-
-    fn id(&self) -> &GroupId {
-        self.group.id()
-    }
-
-    fn description(&self) -> &str {
-        self.group.description()
-    }
-
-    fn value_type(&self) -> mpc_circuits::ValueType {
-        self.group.value_type()
-    }
-
-    fn wires(&self) -> &[usize] {
-        self.group.wires()
+    fn into_iter(self) -> Self::IntoIter {
+        (*self.labels).clone().into_iter()
     }
 }
 
 /// Wire label of a garbled circuit
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Label(Block);
+
+impl BitXor<Label> for Label {
+    type Output = Self;
+
+    #[inline]
+    fn bitxor(self, rhs: Label) -> Self::Output {
+        Self(self.0 ^ rhs.0)
+    }
+}
+
+impl BitAnd<Label> for Label {
+    type Output = Self;
+
+    #[inline]
+    fn bitand(self, rhs: Label) -> Self::Output {
+        Self(self.0 & rhs.0)
+    }
+}
 
 impl BitXor<Delta> for Label {
     type Output = Self;
@@ -374,13 +379,30 @@ impl BitXor<Delta> for Label {
     }
 }
 
+impl BitAnd<Delta> for Label {
+    type Output = Self;
+
+    #[inline]
+    fn bitand(self, rhs: Delta) -> Self::Output {
+        Self(self.0 & rhs.0)
+    }
+}
+
 impl AsRef<Block> for Label {
     fn as_ref(&self) -> &Block {
         &self.0
     }
 }
 
+impl From<Block> for Label {
+    fn from(block: Block) -> Self {
+        Self(block)
+    }
+}
+
 impl Label {
+    pub const LEN: usize = Block::LEN;
+
     /// Creates a new label
     #[inline]
     pub fn new(value: Block) -> Self {
@@ -389,13 +411,7 @@ impl Label {
 
     /// Returns inner block
     #[inline]
-    pub fn to_inner(self) -> Block {
-        self.0
-    }
-
-    /// Returns value of label
-    #[inline]
-    pub fn value(&self) -> Block {
+    pub fn into_inner(self) -> Block {
         self.0
     }
 
@@ -406,7 +422,8 @@ impl Label {
     }
 
     /// Creates a new random label
-    pub fn random<R: Rng + CryptoRng>(rng: &mut R) -> Self {
+    #[inline]
+    pub fn random<R: Rng + CryptoRng + ?Sized>(rng: &mut R) -> Self {
         Self(Block::random(rng))
     }
 
@@ -414,9 +431,9 @@ impl Label {
     #[inline]
     pub fn to_pair(self, delta: Delta, level: bool) -> LabelPair {
         let (low, high) = if level {
-            (self.0 ^ delta.0, self.0)
+            (self ^ delta, self)
         } else {
-            (self.0, self.0 ^ delta.0)
+            (self, self ^ delta)
         };
 
         LabelPair(low, high)
@@ -425,55 +442,41 @@ impl Label {
 
 /// Pair of garbled circuit labels
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct LabelPair(Block, Block);
+pub struct LabelPair(Label, Label);
 
 impl LabelPair {
     /// Creates a new label pair
     #[inline]
-    pub(crate) fn new(low: Block, high: Block) -> Self {
+    pub(crate) fn new(low: Label, high: Label) -> Self {
         Self(low, high)
     }
 
-    /// Returns inner blocks
+    /// Returns both labels
     #[inline]
-    pub fn to_inner(self) -> [Block; 2] {
+    pub fn to_inner(self) -> [Label; 2] {
         [self.0, self.1]
-    }
-
-    /// Generates pairs of labels \[W_0, W_0 ^ delta\]
-    pub fn generate<R: Rng + CryptoRng>(
-        rng: &mut R,
-        delta: Option<Delta>,
-        count: usize,
-    ) -> (Vec<Self>, Delta) {
-        let delta = delta.unwrap_or_else(|| Delta::random(rng));
-        // Logical low labels, [W_0; count]
-        let low = Block::random_vec(rng, count);
-        (
-            low.into_iter()
-                .map(|value| LabelPair::new(value, value ^ *delta))
-                .collect(),
-            delta,
-        )
     }
 
     /// Returns label corresponding to logical low
     #[inline]
-    pub fn low(&self) -> Block {
+    pub fn low(&self) -> Label {
         self.0
     }
 
     /// Returns label corresponding to logical high
     #[inline]
-    pub fn high(&self) -> Block {
+    pub fn high(&self) -> Label {
         self.1
     }
 
     /// Returns label corresponding to provided logic level
     #[inline]
     pub fn select(&self, level: bool) -> Label {
-        let block = if level { &self.1 } else { &self.0 };
-        Label::new(*block)
+        if level {
+            self.1
+        } else {
+            self.0
+        }
     }
 
     /// Returns labels corresponding to wire truth values
@@ -485,199 +488,5 @@ impl LabelPair {
             .zip(values.iter())
             .map(|(id, value)| labels[*id].select(*value))
             .collect()
-    }
-}
-
-/// Decoding info for garbled circuit wire labels.
-///
-/// W_1 = W_0 ^ Delta where LSB(Delta) = 1
-///
-/// thus LSB(W_1) = LSB(W_0) ^ LSB(Delta) = LSB(W_0) ^ 1
-///
-/// To determine the truth value of a wire label W, we simply compute:
-///
-/// Decode(W) = LSB(W) ^ DecodingInfo(W)
-///
-/// where DecodingInfo(W) = LSB(W_0).
-#[derive(Debug, Clone, PartialEq)]
-pub struct LabelsDecodingInfo<G>
-where
-    G: WireGroup,
-{
-    group: G,
-    pub(crate) decoding: Vec<bool>,
-}
-
-impl<G> LabelsDecodingInfo<G>
-where
-    G: WireGroup,
-{
-    /// Returns label id
-    pub fn id(&self) -> usize {
-        self.group.index()
-    }
-}
-
-/// Extracts active labels from a (sorted) slice containing all active labels
-/// for a garbled circuit
-///
-/// Panics if provided an invalid group
-pub(crate) fn extract_active_labels<G: WireGroup + Clone>(
-    groups: &[G],
-    labels: &[Label],
-) -> Vec<Labels<G, state::Active>> {
-    groups
-        .iter()
-        .map(|group| {
-            let labels = group
-                .wires()
-                .iter()
-                .copied()
-                .map(|wire_id| labels[wire_id])
-                .collect();
-            Labels::<G, state::Active>::from_labels(group.clone(), labels)
-                .expect("Labels should be valid")
-        })
-        .collect()
-}
-
-/// Extracts full labels from a (sorted) slice containing all full labels
-/// for a garbled circuit
-///
-/// Panics if provided an invalid group
-pub(crate) fn extract_full_labels<G: WireGroup + Clone>(
-    groups: &[G],
-    delta: Delta,
-    labels: &[LabelPair],
-) -> Vec<Labels<G, state::Full>> {
-    groups
-        .iter()
-        .map(|group| {
-            let labels = group
-                .wires()
-                .iter()
-                .copied()
-                .map(|wire_id| labels[wire_id])
-                .collect();
-            Labels::<G, state::Full>::from_labels(group.clone(), delta, labels)
-                .expect("Labels should be valid")
-        })
-        .collect()
-}
-
-/// Decodes set of active wire labels
-pub(crate) fn decode_active_labels<G: WireGroup + Clone>(
-    labels: &[Labels<G, state::Active>],
-    decoding: &[LabelsDecodingInfo<G>],
-) -> Result<Vec<GroupValue<G>>, LabelError> {
-    labels
-        .iter()
-        .zip(decoding.to_vec())
-        .map(|(labels, decoding)| labels.decode(decoding))
-        .collect::<Result<Vec<_>, LabelError>>()
-}
-
-pub(crate) mod unchecked {
-    use super::*;
-    use mpc_circuits::WireGroup;
-
-    #[derive(Debug, Clone)]
-    pub struct UncheckedLabelsDecodingInfo {
-        pub(crate) id: usize,
-        pub(crate) decoding: Vec<bool>,
-    }
-
-    #[cfg(test)]
-    impl<G> From<LabelsDecodingInfo<G>> for UncheckedLabelsDecodingInfo
-    where
-        G: WireGroup,
-    {
-        fn from(decoding: LabelsDecodingInfo<G>) -> Self {
-            Self {
-                id: decoding.group.index(),
-                decoding: decoding.decoding,
-            }
-        }
-    }
-
-    impl<G> LabelsDecodingInfo<G>
-    where
-        G: WireGroup,
-    {
-        /// Validates and converts to checked variant
-        pub fn from_unchecked(
-            group: G,
-            unchecked: UncheckedLabelsDecodingInfo,
-        ) -> Result<Self, LabelError> {
-            if group.index() != unchecked.id {
-                return Err(LabelError::InvalidDecodingId(group.index(), unchecked.id));
-            } else if group.len() != unchecked.decoding.len() {
-                return Err(LabelError::InvalidDecodingCount(
-                    group.len(),
-                    unchecked.decoding.len(),
-                ));
-            }
-
-            Ok(Self {
-                group,
-                decoding: unchecked.decoding,
-            })
-        }
-    }
-
-    #[cfg(test)]
-    mod test {
-        use super::*;
-        use rstest::*;
-
-        use mpc_circuits::{Circuit, ADDER_64};
-
-        #[fixture]
-        fn circ() -> Arc<Circuit> {
-            Circuit::load_bytes(ADDER_64).unwrap()
-        }
-
-        #[fixture]
-        fn output(circ: Arc<Circuit>) -> Output {
-            circ.output(0).unwrap()
-        }
-
-        #[fixture]
-        fn unchecked_labels_decoding_info(output: Output) -> UncheckedLabelsDecodingInfo {
-            UncheckedLabelsDecodingInfo {
-                id: output.index(),
-                decoding: vec![false; output.len()],
-            }
-        }
-
-        #[rstest]
-        fn test_labels_decoding_info(
-            output: Output,
-            unchecked_labels_decoding_info: UncheckedLabelsDecodingInfo,
-        ) {
-            LabelsDecodingInfo::from_unchecked(output, unchecked_labels_decoding_info).unwrap();
-        }
-
-        #[rstest]
-        fn test_output_labels_decoding_info_wrong_id(
-            output: Output,
-            mut unchecked_labels_decoding_info: UncheckedLabelsDecodingInfo,
-        ) {
-            unchecked_labels_decoding_info.id += 1;
-            let err = LabelsDecodingInfo::from_unchecked(output, unchecked_labels_decoding_info)
-                .unwrap_err();
-            assert!(matches!(err, LabelError::InvalidDecodingId(_, _)))
-        }
-
-        #[rstest]
-        fn test_output_labels_decoding_info_wrong_count(
-            output: Output,
-            mut unchecked_labels_decoding_info: UncheckedLabelsDecodingInfo,
-        ) {
-            unchecked_labels_decoding_info.decoding.pop();
-            let err = LabelsDecodingInfo::from_unchecked(output, unchecked_labels_decoding_info)
-                .unwrap_err();
-            assert!(matches!(err, LabelError::InvalidDecodingCount(_, _)))
-        }
     }
 }

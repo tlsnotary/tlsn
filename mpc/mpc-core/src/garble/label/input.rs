@@ -4,24 +4,20 @@ use mpc_circuits::{Input, WireGroup};
 
 use crate::{
     garble::{
-        label::{state, Delta, Label, Labels},
-        LabelError,
+        label::{state, Delta, Encoded, Labels},
+        EncodingError,
     },
     Block,
 };
 
-impl Labels<Input, state::Full> {
+impl Encoded<Input, state::Full> {
     /// Generates wire labels for an input group using the provided RNG.
-    pub fn generate<R: Rng + CryptoRng>(rng: &mut R, input: Input, delta: Delta) -> Self {
-        // Logical low wire labels, [W_0; count]
-        let low = Block::random_vec(rng, input.len())
-            .into_iter()
-            .map(|value| Label::new(value))
-            .collect();
+    pub fn generate<R: Rng + CryptoRng + ?Sized>(rng: &mut R, input: Input, delta: Delta) -> Self {
+        let labels = Labels::generate(rng, input.len(), Some(delta));
 
         Self {
             group: input,
-            state: state::Full::from_labels(low, delta),
+            labels,
         }
     }
 }
@@ -39,8 +35,8 @@ pub(crate) mod unchecked {
     }
 
     #[cfg(test)]
-    impl From<Labels<Input, state::Active>> for UncheckedInputLabels {
-        fn from(labels: Labels<Input, state::Active>) -> Self {
+    impl From<Encoded<Input, state::Active>> for UncheckedInputLabels {
+        fn from(labels: Encoded<Input, state::Active>) -> Self {
             Self {
                 id: labels.index(),
                 labels: labels.iter_blocks().collect(),
@@ -48,33 +44,27 @@ pub(crate) mod unchecked {
         }
     }
 
-    impl Labels<Input, state::Active> {
+    impl Encoded<Input, state::Active> {
         /// Validates and converts input labels to checked variant
         pub fn from_unchecked(
             circ: &Circuit,
             unchecked: UncheckedInputLabels,
-        ) -> Result<Self, LabelError> {
+        ) -> Result<Self, EncodingError> {
             let input = circ
                 .input(unchecked.id)
-                .map_err(|_| LabelError::InvalidId(circ.id().clone(), unchecked.id))?;
+                .map_err(|_| EncodingError::InvalidId(circ.id().clone(), unchecked.id))?;
 
             if unchecked.labels.len() != input.len() {
-                return Err(LabelError::InvalidLabelCount(
+                return Err(EncodingError::InvalidLabelCount(
                     input.id().clone(),
                     input.len(),
                     unchecked.labels.len(),
                 ));
             }
 
-            let labels = unchecked
-                .labels
-                .into_iter()
-                .map(|label| Label::new(label))
-                .collect();
-
-            Ok(Labels {
+            Ok(Encoded {
                 group: input,
-                state: state::Active::from_labels(labels),
+                labels: Labels::<state::Active>::from_blocks(unchecked.labels),
             })
         }
     }
@@ -83,7 +73,7 @@ pub(crate) mod unchecked {
     mod tests {
         use std::sync::Arc;
 
-        use crate::garble::ActiveInputLabels;
+        use crate::garble::ActiveEncodedInput;
 
         use super::*;
         use rstest::*;
@@ -110,7 +100,7 @@ pub(crate) mod unchecked {
 
         #[rstest]
         fn test_input_labels(circ: Arc<Circuit>, unchecked_input_labels: UncheckedInputLabels) {
-            ActiveInputLabels::from_unchecked(&circ, unchecked_input_labels).unwrap();
+            ActiveEncodedInput::from_unchecked(&circ, unchecked_input_labels).unwrap();
         }
 
         #[rstest]
@@ -119,8 +109,9 @@ pub(crate) mod unchecked {
             mut unchecked_input_labels: UncheckedInputLabels,
         ) {
             unchecked_input_labels.id = 10;
-            let err = ActiveInputLabels::from_unchecked(&circ, unchecked_input_labels).unwrap_err();
-            assert!(matches!(err, LabelError::InvalidId(_, _)))
+            let err =
+                ActiveEncodedInput::from_unchecked(&circ, unchecked_input_labels).unwrap_err();
+            assert!(matches!(err, EncodingError::InvalidId(_, _)))
         }
 
         #[rstest]
@@ -129,8 +120,9 @@ pub(crate) mod unchecked {
             mut unchecked_input_labels: UncheckedInputLabels,
         ) {
             unchecked_input_labels.labels.pop();
-            let err = ActiveInputLabels::from_unchecked(&circ, unchecked_input_labels).unwrap_err();
-            assert!(matches!(err, LabelError::InvalidLabelCount(_, _, _)))
+            let err =
+                ActiveEncodedInput::from_unchecked(&circ, unchecked_input_labels).unwrap_err();
+            assert!(matches!(err, EncodingError::InvalidLabelCount(_, _, _)))
         }
     }
 }
@@ -139,7 +131,7 @@ pub(crate) mod unchecked {
 mod tests {
     use std::sync::Arc;
 
-    use crate::garble::label::FullInputLabels;
+    use crate::garble::label::FullEncodedInput;
 
     use super::*;
     use rstest::*;
@@ -154,13 +146,13 @@ mod tests {
 
     #[rstest]
     fn test_input_label_reconstruction(circ: Arc<Circuit>) {
-        let full_labels = FullInputLabels::generate(
+        let full_labels = FullEncodedInput::generate(
             &mut thread_rng(),
             circ.input(0).unwrap(),
             Delta::random(&mut thread_rng()),
         );
 
-        let decoding = full_labels.decoding();
+        let decoding = full_labels.get_decoding();
 
         // select wire labels for value
         let value = circ.input(0).unwrap().to_value(42069u64).unwrap();
@@ -168,7 +160,7 @@ mod tests {
 
         // using delta and value, reconstruct full wire label pairs
         let reconstructed_labels =
-            Labels::from_decoding(labels, full_labels.delta(), decoding).unwrap();
+            Encoded::from_decoding(labels, full_labels.delta(), decoding).unwrap();
 
         assert_eq!(reconstructed_labels, full_labels);
     }

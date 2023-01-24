@@ -1,7 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use mpc_aio::protocol::garble::exec::dual::mock_dualex_pair;
 use mpc_circuits::{Circuit, WireGroup, AES_128_REVERSE};
-use mpc_core::garble::FullInputLabelsSet;
+use mpc_core::garble::FullInputSet;
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 use std::sync::Arc;
@@ -13,8 +13,8 @@ async fn bench_dualex(circ: Arc<Circuit>) {
     let leader_input = circ.input(0).unwrap().to_value(vec![0u8; 16]).unwrap();
     let follower_input = circ.input(1).unwrap().to_value(vec![0u8; 16]).unwrap();
 
-    let leader_labels = FullInputLabelsSet::generate(&mut rng, &circ, None);
-    let follower_labels = FullInputLabelsSet::generate(&mut rng, &circ, None);
+    let leader_labels = FullInputSet::generate(&mut rng, &circ, None);
+    let follower_labels = FullInputSet::generate(&mut rng, &circ, None);
 
     let leader_task = {
         let leader_input = leader_input.clone();

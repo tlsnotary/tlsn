@@ -1,7 +1,7 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use mpc_core::{
-    block::BLOCK_ONES,
     ot::{DhOtReceiver, DhOtSender, Kos15Receiver, Kos15Sender},
+    Block,
 };
 use rand::{RngCore, SeedableRng};
 use rand_chacha::ChaCha12Rng;
@@ -11,7 +11,7 @@ fn base_ot(c: &mut Criterion) {
     let mut group = c.benchmark_group("base_ot");
     for n in [256, 1024, 4096] {
         group.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, &n| {
-            let msgs = vec![[BLOCK_ONES; 2]; n];
+            let msgs = vec![[Block::ONES; 2]; n];
             let mut rng = ChaCha12Rng::from_entropy();
             let mut choice = vec![0u8; n / 8];
             rng.fill_bytes(&mut choice);
@@ -34,7 +34,7 @@ fn ext_ot(c: &mut Criterion) {
     let mut group = c.benchmark_group("ext_ot");
     for n in [256, 1024, 4096, 12288, 40960] {
         group.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, &n| {
-            let msgs = vec![[BLOCK_ONES; 2]; n];
+            let msgs = vec![[Block::ONES; 2]; n];
             let mut rng = ChaCha12Rng::from_entropy();
             let mut choice = vec![0u8; n / 8];
             rng.fill_bytes(&mut choice);

@@ -4,7 +4,7 @@ use mpc_circuits::Input;
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 
-use super::{Delta, FullInputLabels};
+use super::{Delta, FullEncodedInput};
 
 /// Encodes wire labels using the ChaCha algorithm and a global offset (delta).
 ///
@@ -54,9 +54,9 @@ impl ChaChaEncoder {
     ///
     /// * `stream_id` - Stream id which can be used to partition label sets
     /// * `input` - Circuit input to encode
-    pub fn encode(&mut self, stream_id: u32, input: &Input) -> FullInputLabels {
+    pub fn encode(&mut self, stream_id: u32, input: &Input) -> FullEncodedInput {
         self.set_stream(stream_id);
-        FullInputLabels::generate(&mut self.rng, input.clone(), self.delta)
+        FullEncodedInput::generate(&mut self.rng, input.clone(), self.delta)
     }
 
     /// Sets the selected stream id, restoring word position if a stream
