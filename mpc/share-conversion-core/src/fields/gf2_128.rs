@@ -1,6 +1,8 @@
+//! This module implements the extension field GF(2^128)
+
 use super::Field;
 use rand::{distributions::Standard, prelude::Distribution};
-use std::ops::{Add, Mul, Sub};
+use std::ops::{Add, Mul, Shr, Sub};
 
 #[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
 pub struct Gf2_128(pub(crate) u128);
@@ -8,14 +10,6 @@ pub struct Gf2_128(pub(crate) u128);
 impl Gf2_128 {
     pub fn new(input: u128) -> Self {
         Gf2_128::from(input)
-    }
-
-    pub fn zero() -> Self {
-        Self(0)
-    }
-
-    pub fn one() -> Self {
-        Self(1 << 127)
     }
 }
 
@@ -33,6 +27,18 @@ impl Distribution<Gf2_128> for Standard {
 
 impl Field for Gf2_128 {
     const BIT_SIZE: u32 = 128;
+
+    fn zero() -> Self {
+        Self(0)
+    }
+
+    fn one() -> Self {
+        Self(1 << 127)
+    }
+
+    fn get_bit(&self, n: usize) -> bool {
+        (self.0 >> n) & 1 == 1
+    }
 
     /// Galois field inversion of 128-bit block
     fn inverse(mut self) -> Self {
@@ -82,6 +88,15 @@ impl Mul for Gf2_128 {
             x = (x >> 1) ^ ((x & 1) * R);
         }
         self.0 = result;
+        self
+    }
+}
+
+impl Shr<usize> for Gf2_128 {
+    type Output = Self;
+
+    fn shr(self, rhs: usize) -> Self::Output {
+        self.0 = self.0 >> rhs;
         self
     }
 }
