@@ -3,18 +3,51 @@ pub mod p256;
 
 use std::{
     fmt::Debug,
-    ops::{Add, Mul, Shr},
+    ops::{Add, BitXor, Mul, Neg, Shl, Shr},
 };
 
+use rand::{distributions::Standard, prelude::Distribution, Rng};
+
 pub trait Field:
-    Add<Output = Self> + Mul<Output = Self> + Shr<usize> + Copy + Clone + Debug + 'static + Send + Sync
+    Add<Output = Self>
+    + Mul<Output = Self>
+    + Neg<Output = Self>
+    + Shr<u32, Output = Self>
+    + Shl<u32, Output = Self>
+    + Copy
+    + Clone
+    + Debug
+    + 'static
+    + Send
+    + Sync
+    + UniformRand
+    + PartialOrd
+    + Ord
+    + PartialEq
+    + Eq
+    + BitXor<Self, Output = Self>
 {
-    const BIT_SIZE: u32;
+    const BIT_SIZE: usize;
 
     fn zero() -> Self;
     fn one() -> Self;
     fn get_bit(&self, n: usize) -> bool;
     fn inverse(self) -> Self;
+    fn from_bits_be(bits: &[bool]) -> Self;
+}
+
+pub trait UniformRand: Sized {
+    fn rand<R: Rng + ?Sized>(rng: &mut R) -> Self;
+}
+
+impl<T> UniformRand for T
+where
+    Standard: Distribution<T>,
+{
+    #[inline]
+    fn rand<R: Rng + ?Sized>(rng: &mut R) -> Self {
+        rng.sample(Standard)
+    }
 }
 
 /// Iteratively multiplies some field element with another field element

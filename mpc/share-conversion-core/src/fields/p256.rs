@@ -1,11 +1,11 @@
 //! This module implements the prime field of P256
 
 use super::Field;
-use ark_ff::{BigInteger, Field as ArkField, One, Zero};
+use ark_ff::{BigInt, BigInteger, Field as ArkField, One, Zero};
 use ark_secp256r1::fq::Fq;
 use num_bigint::{BigUint, ToBigUint};
 use rand::{distributions::Standard, prelude::Distribution};
-use std::ops::{Add, Mul, Shl, Shr, Sub};
+use std::ops::{Add, BitXor, Mul, Neg, Shl, Shr, Sub};
 
 #[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
 pub struct P256(pub(crate) Fq);
@@ -62,30 +62,50 @@ impl Mul for P256 {
     }
 }
 
-impl Shr<usize> for P256 {
+impl Neg for P256 {
     type Output = Self;
 
-    fn shr(self, rhs: usize) -> Self::Output {
+    fn neg(mut self) -> Self::Output {
+        self.0 = -self.0;
+        self
+    }
+}
+
+impl Shr<u32> for P256 {
+    type Output = Self;
+
+    fn shr(mut self, rhs: u32) -> Self::Output {
         for _ in 0..rhs {
-            self.0 .0.divn(2.pow(rhs));
+            self.0 .0.divn(rhs);
         }
         self
     }
 }
 
-impl Shl<usize> for P256 {
+impl Shl<u32> for P256 {
     type Output = Self;
 
-    fn shl(self, rhs: usize) -> Self::Output {
+    fn shl(mut self, rhs: u32) -> Self::Output {
         for _ in 0..rhs {
-            self.0 .0.muln(2.pow(rhs));
+            self.0 .0.muln(rhs);
+        }
+        self
+    }
+}
+
+impl BitXor<Self> for P256 {
+    type Output = Self;
+
+    fn bitxor(mut self, rhs: Self) -> Self::Output {
+        for (a, b) in self.0 .0 .0.iter_mut().zip(rhs.0 .0 .0) {
+            *a = *a ^ b
         }
         self
     }
 }
 
 impl Field for P256 {
-    const BIT_SIZE: u32 = 256;
+    const BIT_SIZE: usize = 256;
 
     fn zero() -> Self {
         P256(<Fq as Zero>::zero())
@@ -102,6 +122,10 @@ impl Field for P256 {
     fn inverse(mut self) -> Self {
         self.0 = ArkField::inverse(&self.0).expect("Unable to invert field element");
         self
+    }
+
+    fn from_bits_be(bits: &[bool]) -> Self {
+        P256(BigInt::from_bits_be(bits).into())
     }
 }
 

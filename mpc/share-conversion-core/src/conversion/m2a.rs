@@ -17,32 +17,31 @@ impl<T: Field> MulShare<T> {
     pub fn convert_to_additive<R: Rng + CryptoRng>(
         &self,
         rng: &mut R,
-    ) -> Result<(AddShare, OTEnvelope<T>), ShareConversionCoreError> {
-        let mut masks: Vec<T> = vec![T::zero(), T::BIT_SIZE];
-        rng.fill(&mut masks);
+    ) -> Result<(AddShare<T>, OTEnvelope<T>), ShareConversionCoreError> {
+        let masks: Vec<T> = vec![T::rand(rng); T::BIT_SIZE as usize];
 
         let t0: Vec<T> = masks.clone();
 
-        let mut t1 = vec![T::zero(), T::BIT_SIZE];
+        let mut t1 = vec![T::zero(); T::BIT_SIZE as usize];
         for (k, el) in t1.iter_mut().enumerate() {
-            *el = (*el * (T::one() << k)) ^ masks[k]
+            *el = (*el * (T::one() << k as u32)) ^ masks[k]
         }
 
-        let add_share = AddShare::new(-t0.into_iter().fold(T::zero(), |acc, i| acc + i));
+        let add_share = AddShare::new(-t0.iter().fold(T::zero(), |acc, i| acc + *i));
         Ok((add_share, OTEnvelope::new(t0, t1)?))
     }
 }
 
 impl<T: Field> Gf2_128ShareConvert for MulShare<T> {
     type Inner = T;
-    type Output = AddShare;
+    type Output = AddShare<T>;
 
-    fn new(share: u128) -> Self {
+    fn new(share: Self::Inner) -> Self {
         Self(share)
     }
 
     #[inline]
-    fn inner(&self) -> u128 {
+    fn inner(&self) -> Self::Inner {
         self.0
     }
 
