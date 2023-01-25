@@ -1,14 +1,14 @@
 //! This module implements the M2A algorithm.
 
 use super::{a2m::AddShare, Gf2_128ShareConvert, OTEnvelope};
-use crate::{gf2_128::mul, ShareConversionCoreError};
+use crate::{fields::Field, ShareConversionCoreError};
 use rand::{CryptoRng, Rng};
 
 /// A multiplicative share of `A = a * b`
 #[derive(Clone, Copy, Debug)]
-pub struct MulShare(u128);
+pub struct MulShare<T>(T);
 
-impl MulShare {
+impl<T: Field> MulShare<T> {
     /// Turn into an additive share and get values for OT
     ///
     /// This function returns
@@ -17,18 +17,24 @@ impl MulShare {
     pub fn convert_to_additive<R: Rng + CryptoRng>(
         &self,
         rng: &mut R,
-    ) -> Result<(AddShare, OTEnvelope), ShareConversionCoreError> {
-        let masks: [u128; 128] = std::array::from_fn(|_| rng.gen());
+    ) -> Result<(AddShare, OTEnvelope<T>), ShareConversionCoreError> {
+        let mut masks: Vec<T> = vec![T::zero(), T::BIT_SIZE];
+        rng.fill(&mut masks);
 
-        let t0: [u128; 128] = std::array::from_fn(|i| masks[i]);
-        let t1: [u128; 128] = std::array::from_fn(|i| mul(self.inner(), 1 << i) ^ masks[i]);
+        let t0: Vec<T> = masks.clone();
 
-        let add_share = AddShare::new(t0.into_iter().fold(0, |acc, i| acc ^ i));
-        Ok((add_share, OTEnvelope::new(t0.to_vec(), t1.to_vec())?))
+        let mut t1 = vec![T::zero(), T::BIT_SIZE];
+        for (k, el) in t1.iter_mut().enumerate() {
+            *el = (*el * (T::one() << k)) ^ masks[k]
+        }
+
+        let add_share = AddShare::new(-t0.into_iter().fold(T::zero(), |acc, i| acc + i));
+        Ok((add_share, OTEnvelope::new(t0, t1)?))
     }
 }
 
-impl Gf2_128ShareConvert for MulShare {
+impl<T: Field> Gf2_128ShareConvert for MulShare<T> {
+    type Inner = T;
     type Output = AddShare;
 
     fn new(share: u128) -> Self {
@@ -43,7 +49,7 @@ impl Gf2_128ShareConvert for MulShare {
     fn convert<R: Rng + CryptoRng>(
         &self,
         rng: &mut R,
-    ) -> Result<(Self::Output, OTEnvelope), ShareConversionCoreError> {
+    ) -> Result<(Self::Output, OTEnvelope<T>), ShareConversionCoreError> {
         self.convert_to_additive(rng)
     }
 }

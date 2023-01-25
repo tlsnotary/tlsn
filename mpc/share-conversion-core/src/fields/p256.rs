@@ -5,7 +5,7 @@ use ark_ff::{BigInteger, Field as ArkField, One, Zero};
 use ark_secp256r1::fq::Fq;
 use num_bigint::{BigUint, ToBigUint};
 use rand::{distributions::Standard, prelude::Distribution};
-use std::ops::{Add, Mul, Shr, Sub};
+use std::ops::{Add, Mul, Shl, Shr, Sub};
 
 #[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
 pub struct P256(pub(crate) Fq);
@@ -15,19 +15,17 @@ impl P256 {
         let input = input.to_biguint().expect("Unable to create field element");
         P256::from(input)
     }
-
-    pub fn zero() -> Self {
-        P256(Fq::zero())
-    }
-
-    pub fn one() -> Self {
-        P256(Fq::one())
-    }
 }
 
 impl From<BigUint> for P256 {
     fn from(value: BigUint) -> Self {
         P256(Fq::from(value))
+    }
+}
+
+impl From<P256> for Vec<u8> {
+    fn from(value: P256) -> Self {
+        value.0 .0.to_bytes_be()
     }
 }
 
@@ -69,7 +67,18 @@ impl Shr<usize> for P256 {
 
     fn shr(self, rhs: usize) -> Self::Output {
         for _ in 0..rhs {
-            self.0 .0 = self.0 .0.divide_by_2_round_down();
+            self.0 .0.divn(2.pow(rhs));
+        }
+        self
+    }
+}
+
+impl Shl<usize> for P256 {
+    type Output = Self;
+
+    fn shl(self, rhs: usize) -> Self::Output {
+        for _ in 0..rhs {
+            self.0 .0.muln(2.pow(rhs));
         }
         self
     }
