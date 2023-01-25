@@ -2,7 +2,7 @@
 
 use super::Field;
 use rand::{distributions::Standard, prelude::Distribution};
-use std::ops::{Add, Mul, Shr, Sub};
+use std::ops::{Add, Mul, Shl, Shr, Sub};
 
 #[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
 pub struct Gf2_128(pub(crate) u128);
@@ -16,6 +16,12 @@ impl Gf2_128 {
 impl From<u128> for Gf2_128 {
     fn from(value: u128) -> Self {
         Self(value.reverse_bits())
+    }
+}
+
+impl From<Gf2_128> for u128 {
+    fn from(value: Gf2_128) -> Self {
+        value.0.reverse_bits()
     }
 }
 
@@ -97,6 +103,15 @@ impl Shr<usize> for Gf2_128 {
 
     fn shr(self, rhs: usize) -> Self::Output {
         self.0 = self.0 >> rhs;
+        self
+    }
+}
+
+impl Shl<usize> for Gf2_128 {
+    type Output = Self;
+
+    fn shl(self, rhs: usize) -> Self::Output {
+        self.0 = self.0 << rhs;
         self
     }
 }

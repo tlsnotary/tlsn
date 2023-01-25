@@ -3,11 +3,11 @@
 //! * M2A: Implementation of chapter 4.1 in <https://link.springer.com/content/pdf/10.1007/3-540-48405-1_8.pdf>
 //! * A2M: Adaptation of chapter 4 in <https://www.cs.umd.edu/~fenghao/paper/modexp.pdf>
 
-//mod a2m;
-//mod m2a;
+mod a2m;
+mod m2a;
 
 //pub use a2m::AddShare;
-//pub use m2a::MulShare;
+pub use m2a::MulShare;
 use mpc_core::Block;
 use rand::{CryptoRng, Rng};
 
@@ -101,11 +101,29 @@ impl<T: Field> OTEnvelope<T> {
     }
 }
 
-impl From<OTEnvelope> for Vec<[Block; 2]> {
-    fn from(value: OTEnvelope) -> Self {
+impl<T> From<OTEnvelope<T>> for Vec<[Block; 2]>
+where
+    T: Field,
+    u128: From<T>,
+{
+    fn from(value: OTEnvelope<T>) -> Self {
         let mut out = Vec::with_capacity(value.0.len());
         for (zero, one) in value.0.iter().zip(value.1.iter()) {
-            out.push([Block::new(*zero), Block::new(*one)])
+            out.push([Block::new(u128::from(*zero)), Block::new(u128::from(*one))])
+        }
+        out
+    }
+}
+
+impl<T> From<OTEnvelope<T>> for Vec<[Vec<u8>; 2]>
+where
+    T: Field,
+    Vec<u8>: From<T>,
+{
+    fn from(value: OTEnvelope<T>) -> Self {
+        let mut out = Vec::with_capacity(value.0.len());
+        for (zero, one) in value.0.iter().zip(value.1.iter()) {
+            out.push([Vec::<u8>::from(*zero), Vec::<u8>::from(*one)])
         }
         out
     }
