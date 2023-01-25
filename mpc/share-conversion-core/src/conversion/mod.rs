@@ -1,18 +1,17 @@
-//! This module implements the M2A and A2M conversion algorithms for field elements of GF(2^128), using
-//! oblivious transfer.
+//! This module implements the M2A and A2M conversion algorithms using oblivious transfer.
 //!
 //! * M2A: Implementation of chapter 4.1 in <https://link.springer.com/content/pdf/10.1007/3-540-48405-1_8.pdf>
 //! * A2M: Adaptation of chapter 4 in <https://www.cs.umd.edu/~fenghao/paper/modexp.pdf>
 
-mod a2m;
-mod m2a;
+//mod a2m;
+//mod m2a;
 
-pub use a2m::AddShare;
-pub use m2a::MulShare;
+//pub use a2m::AddShare;
+//pub use m2a::MulShare;
 use mpc_core::Block;
 use rand::{CryptoRng, Rng};
 
-use crate::ShareConversionCoreError;
+use crate::{fields::Field, ShareConversionCoreError};
 
 /// A trait for converting field elements
 ///
@@ -22,29 +21,31 @@ pub trait Gf2_128ShareConvert: Copy
 where
     Self: Sized,
 {
-    type Output: Gf2_128ShareConvert;
+    type Inner: Field;
+    type Output: Gf2_128ShareConvert<Inner = Self::Inner>;
 
     /// Create a new instance
-    fn new(share: u128) -> Self;
+    fn new(share: Self::Inner) -> Self;
 
     /// Converts '&self' into choices needed for the receiver input to an oblivious transfer.
     /// The choices are in the "least-bit-first" order.
     fn choices(&self) -> Vec<bool> {
-        let mut out: Vec<bool> = Vec::with_capacity(128);
-        for k in 0..128 {
-            out.push(((self.inner() >> k) & 1) == 1);
+        let len: usize = Self::Inner::BIT_SIZE as usize;
+        let mut out: Vec<bool> = Vec::with_capacity(len);
+        for k in 0..len {
+            out.push(self.inner().get_bit(k));
         }
         out
     }
 
     /// Return the inner value
-    fn inner(&self) -> u128;
+    fn inner(&self) -> Self::Inner;
 
     /// Create a share of type `Self::Output` from the result of an oblivious transfer (OT)
     ///
     /// The `values` needs to be built from the output of an OT
-    fn from_sender_values(values: &[u128]) -> Self::Output {
-        Self::Output::new(values.iter().fold(0, |acc, i| acc ^ i))
+    fn from_sender_values(values: &[Self::Inner]) -> Self::Output {
+        Self::Output::new(values.iter().fold(Self::Inner::zero(), |acc, i| acc + *i))
     }
 
     /// Prepares a share for conversion in an OT
@@ -53,20 +54,20 @@ where
     fn convert<R: Rng + CryptoRng>(
         &self,
         rng: &mut R,
-    ) -> Result<(Self::Output, OTEnvelope), ShareConversionCoreError>;
+    ) -> Result<(Self::Output, OTEnvelope<Self::Inner>), ShareConversionCoreError>;
 }
 
 /// Batched values for several oblivious transfers
 ///
 /// The inner vectors `.0` and `.1` belong to the corresponding receiver's choice bit
 #[derive(Clone, Debug, Default)]
-pub struct OTEnvelope(Vec<u128>, Vec<u128>);
+pub struct OTEnvelope<T>(Vec<T>, Vec<T>);
 
-impl OTEnvelope {
+impl<T: Field> OTEnvelope<T> {
     /// Create a new `OTEnvelope`
     ///
     /// Checks that both choice vecs have equal length
-    pub fn new(zero: Vec<u128>, one: Vec<u128>) -> Result<Self, ShareConversionCoreError> {
+    pub fn new(zero: Vec<T>, one: Vec<T>) -> Result<Self, ShareConversionCoreError> {
         if zero.len() != one.len() {
             return Err(ShareConversionCoreError::OTEnvelopeUnequalLength);
         }
@@ -74,17 +75,17 @@ impl OTEnvelope {
     }
 
     /// Returns a slice for the `zero` choices
-    pub fn zero_choices(&self) -> &[u128] {
+    pub fn zero_choices(&self) -> &[T] {
         &self.0
     }
 
     /// Returns a slice for the `one` choices
-    pub fn one_choices(&self) -> &[u128] {
+    pub fn one_choices(&self) -> &[T] {
         &self.1
     }
 
     /// Allows to aggregate envelopes
-    pub fn extend(&mut self, other: OTEnvelope) {
+    pub fn extend(&mut self, other: OTEnvelope<T>) {
         self.0.extend_from_slice(&other.0);
         self.1.extend_from_slice(&other.1);
     }

@@ -3,22 +3,18 @@ pub mod p256;
 
 use std::{
     fmt::Debug,
-    ops::{Add, Mul},
+    ops::{Add, Mul, Shr},
 };
 
 pub trait Field:
-    Add<Output = Self> + Mul<Output = Self> + Copy + Clone + Debug + 'static + Send + Sync
+    Add<Output = Self> + Mul<Output = Self> + Shr<usize> + Copy + Clone + Debug + 'static + Send + Sync
 {
     const BIT_SIZE: u32;
+
+    fn zero() -> Self;
+    fn one() -> Self;
+    fn get_bit(&self, n: usize) -> bool;
     fn inverse(self) -> Self;
-}
-
-impl<T: ark_ff::PrimeField> Field for T {
-    const BIT_SIZE: u32 = <T as ark_ff::PrimeField>::MODULUS_BIT_SIZE;
-
-    fn inverse(self) -> Self {
-        <Self as ark_ff::Field>::inverse(&self).expect("Unable to invert field element")
-    }
 }
 
 /// Iteratively multiplies some field element with another field element

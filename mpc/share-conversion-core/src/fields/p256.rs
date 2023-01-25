@@ -1,9 +1,11 @@
+//! This module implements the prime field of P256
+
 use super::Field;
-use ark_ff::{Field as ArkField, One, Zero};
+use ark_ff::{BigInteger, Field as ArkField, One, Zero};
 use ark_secp256r1::fq::Fq;
 use num_bigint::{BigUint, ToBigUint};
 use rand::{distributions::Standard, prelude::Distribution};
-use std::ops::{Add, Mul, Sub};
+use std::ops::{Add, Mul, Shr, Sub};
 
 #[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
 pub struct P256(pub(crate) Fq);
@@ -62,8 +64,31 @@ impl Mul for P256 {
     }
 }
 
+impl Shr<usize> for P256 {
+    type Output = Self;
+
+    fn shr(self, rhs: usize) -> Self::Output {
+        for _ in 0..rhs {
+            self.0 .0 = self.0 .0.divide_by_2_round_down();
+        }
+        self
+    }
+}
+
 impl Field for P256 {
     const BIT_SIZE: u32 = 256;
+
+    fn zero() -> Self {
+        P256(<Fq as Zero>::zero())
+    }
+
+    fn one() -> Self {
+        P256(<Fq as One>::one())
+    }
+
+    fn get_bit(&self, n: usize) -> bool {
+        self.0 .0.get_bit(n)
+    }
 
     fn inverse(mut self) -> Self {
         self.0 = ArkField::inverse(&self.0).expect("Unable to invert field element");
