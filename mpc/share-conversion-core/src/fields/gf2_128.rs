@@ -2,7 +2,7 @@
 
 use super::Field;
 use rand::{distributions::Standard, prelude::Distribution};
-use std::ops::{Add, Mul, Shl, Shr, Sub};
+use std::ops::{Add, BitXor, Mul, Neg, Shl, Shr, Sub};
 
 #[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
 pub struct Gf2_128(pub(crate) u128);
@@ -32,7 +32,7 @@ impl Distribution<Gf2_128> for Standard {
 }
 
 impl Field for Gf2_128 {
-    const BIT_SIZE: u32 = 128;
+    const BIT_SIZE: usize = 128;
 
     fn zero() -> Self {
         Self(0)
@@ -56,6 +56,13 @@ impl Field for Gf2_128 {
             out = out * self;
         }
         out
+    }
+
+    fn from_bits_be(bits: &[bool]) -> Self {
+        Self::new(
+            bits.iter()
+                .fold(0, |result, bit| (result << 1) ^ *bit as u128),
+        )
     }
 }
 
@@ -98,20 +105,37 @@ impl Mul for Gf2_128 {
     }
 }
 
-impl Shr<usize> for Gf2_128 {
+impl Neg for Gf2_128 {
     type Output = Self;
 
-    fn shr(self, rhs: usize) -> Self::Output {
+    fn neg(self) -> Self::Output {
+        self
+    }
+}
+
+impl Shr<u32> for Gf2_128 {
+    type Output = Self;
+
+    fn shr(mut self, rhs: u32) -> Self::Output {
         self.0 = self.0 >> rhs;
         self
     }
 }
 
-impl Shl<usize> for Gf2_128 {
+impl Shl<u32> for Gf2_128 {
     type Output = Self;
 
-    fn shl(self, rhs: usize) -> Self::Output {
+    fn shl(mut self, rhs: u32) -> Self::Output {
         self.0 = self.0 << rhs;
+        self
+    }
+}
+
+impl BitXor<Self> for Gf2_128 {
+    type Output = Self;
+
+    fn bitxor(mut self, rhs: Self) -> Self::Output {
+        self.0 = self.0 ^ rhs.0;
         self
     }
 }
