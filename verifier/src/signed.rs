@@ -7,21 +7,21 @@ pub struct SignedTLS {
     // notarization time against which the TLS Certificate validity is checked
     time: u64,
     // ephemeral pubkey for ECDH key exchange
-    ephemeralECPubkey: EphemeralECPubkey,
+    ephemeral_ec_pubkey: EphemeralECPubkey,
     /// User's commitment to [super::tls_doc::CommittedTLS]
-    pub commitment_to_TLS: HashCommitment,
+    commitment_to_tls: HashCommitment,
 }
 
 impl SignedTLS {
     pub fn new(
         time: u64,
-        ephemeralECPubkey: EphemeralECPubkey,
-        commitment_to_TLS: HashCommitment,
+        ephemeral_ec_pubkey: EphemeralECPubkey,
+        commitment_to_tls: HashCommitment,
     ) -> Self {
         Self {
             time,
-            ephemeralECPubkey,
-            commitment_to_TLS,
+            ephemeral_ec_pubkey,
+            commitment_to_tls,
         }
     }
 
@@ -29,34 +29,62 @@ impl SignedTLS {
         self.time
     }
 
-    pub fn ephemeralECPubkey(&self) -> &EphemeralECPubkey {
-        &self.ephemeralECPubkey
+    pub fn ephemeral_ec_pubkey(&self) -> &EphemeralECPubkey {
+        &self.ephemeral_ec_pubkey
+    }
+
+    pub fn commitment_to_tls(&self) -> &HashCommitment {
+        &self.commitment_to_tls
     }
 }
 
 /// All the data which the Notary signs
 #[derive(Clone, Serialize)]
 pub struct Signed {
-    pub tls: SignedTLS,
+    tls: SignedTLS,
     // see comments in [crate::VerifierDoc] for details about the fields below
     /// PRG seed from which garbled circuit labels are generated
-    pub label_seed: LabelSeed,
+    label_seed: LabelSeed,
     /// Merkle root of all the commitments
-    pub merkle_root: [u8; 32],
+    merkle_root: [u8; 32],
+    /// Size of the cipher's block in bytes (16 for AES, 64 for ChaCha)
+    cipher_block_size: usize,
 }
 
 impl Signed {
     /// Creates a new struct to be signed by the Notary
-    pub fn new(tls: SignedTLS, label_seed: LabelSeed, merkle_root: [u8; 32]) -> Self {
+    pub fn new(
+        tls: SignedTLS,
+        label_seed: LabelSeed,
+        merkle_root: [u8; 32],
+        cipher_block_size: usize,
+    ) -> Self {
         Self {
             tls,
             label_seed,
             merkle_root,
+            cipher_block_size,
         }
     }
 
     pub fn serialize(self) -> Result<Vec<u8>, Error> {
         bincode::serialize(&self).map_err(|_| Error::SerializationError)
+    }
+
+    pub fn tls(&self) -> &SignedTLS {
+        &self.tls
+    }
+
+    pub fn label_seed(&self) -> &LabelSeed {
+        &self.label_seed
+    }
+
+    pub fn merkle_root(&self) -> &[u8; 32] {
+        &self.merkle_root
+    }
+
+    pub fn cipher_block_size(&self) -> usize {
+        self.cipher_block_size
     }
 }
 
@@ -68,6 +96,7 @@ impl std::convert::From<&VerifierDoc> for Signed {
             doc.tls_doc().signed_tls().clone(),
             *doc.label_seed(),
             *doc.merkle_root(),
+            doc.cipher_block_size(),
         )
     }
 }
