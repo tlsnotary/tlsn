@@ -26,7 +26,9 @@ impl<T: Field> AddShare<T> {
                 break r;
             }
         };
-        let mut masks: Vec<T> = vec![T::rand(rng); T::BIT_SIZE];
+        let mut masks: Vec<T> = vec![T::zero(); T::BIT_SIZE];
+        masks.iter_mut().for_each(|x| *x = T::rand(rng));
+
         // set the last mask such that the sum of all 128 masks equals 0
         masks[T::BIT_SIZE - 1] = masks
             .iter()

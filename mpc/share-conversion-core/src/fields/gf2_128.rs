@@ -15,13 +15,13 @@ impl Gf2_128 {
 
 impl From<u128> for Gf2_128 {
     fn from(value: u128) -> Self {
-        Self(value.reverse_bits())
+        Self(value)
     }
 }
 
 impl From<Gf2_128> for u128 {
     fn from(value: Gf2_128) -> Self {
-        value.0.reverse_bits()
+        value.0
     }
 }
 
@@ -35,9 +35,8 @@ impl Add for Gf2_128 {
     type Output = Self;
 
     #[allow(clippy::suspicious_arithmetic_impl)]
-    fn add(mut self, rhs: Self) -> Self::Output {
-        self.0 ^= rhs.0;
-        self
+    fn add(self, rhs: Self) -> Self::Output {
+        Self(self.0 ^ rhs.0)
     }
 }
 
@@ -45,9 +44,8 @@ impl Sub for Gf2_128 {
     type Output = Self;
 
     #[allow(clippy::suspicious_arithmetic_impl)]
-    fn sub(mut self, rhs: Self) -> Self::Output {
-        self.0 ^= rhs.0;
-        self
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self(self.0 ^ rhs.0)
     }
 }
 
@@ -55,7 +53,7 @@ impl Mul for Gf2_128 {
     type Output = Self;
 
     /// Galois field multiplication of two 128-bit blocks reduced by the GCM polynomial
-    fn mul(mut self, rhs: Self) -> Self::Output {
+    fn mul(self, rhs: Self) -> Self::Output {
         /// R is the GCM polynomial in little-endian. In hex: "E1000000000000000000000000000000"
         const R: u128 = 299076299051606071403356588563077529600;
 
@@ -67,8 +65,7 @@ impl Mul for Gf2_128 {
             result ^= x * ((y >> i) & 1);
             x = (x >> 1) ^ ((x & 1) * R);
         }
-        self.0 = result;
-        self
+        Self(result)
     }
 }
 
@@ -83,27 +80,24 @@ impl Neg for Gf2_128 {
 impl Shr<u32> for Gf2_128 {
     type Output = Self;
 
-    fn shr(mut self, rhs: u32) -> Self::Output {
-        self.0 >>= rhs;
-        self
+    fn shr(self, rhs: u32) -> Self::Output {
+        Self(self.0 >> rhs)
     }
 }
 
 impl Shl<u32> for Gf2_128 {
     type Output = Self;
 
-    fn shl(mut self, rhs: u32) -> Self::Output {
-        self.0 <<= rhs;
-        self
+    fn shl(self, rhs: u32) -> Self::Output {
+        Self(self.0 << rhs)
     }
 }
 
 impl BitXor<Self> for Gf2_128 {
     type Output = Self;
 
-    fn bitxor(mut self, rhs: Self) -> Self::Output {
-        self.0 ^= rhs.0;
-        self
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        Self(self.0 ^ rhs.0)
     }
 }
 
@@ -115,7 +109,7 @@ impl Field for Gf2_128 {
     }
 
     fn one() -> Self {
-        Self(1 << 127)
+        Self(1)
     }
 
     fn get_bit(&self, n: usize) -> bool {
@@ -123,13 +117,14 @@ impl Field for Gf2_128 {
     }
 
     /// Galois field inversion of 128-bit block
-    fn inverse(mut self) -> Self {
+    fn inverse(self) -> Self {
+        let mut a = self;
         let one = Self::one();
         let mut out = one;
 
         for _ in 0..127 {
-            self = self * self;
-            out = out * self;
+            a = a * a;
+            out = out * a;
         }
         out
     }
@@ -182,9 +177,7 @@ mod tests {
 
         assert_eq!(
             a * b,
-            u128::from_be_bytes(expected.into_bytes().try_into().unwrap())
-                .reverse_bits()
-                .into()
+            u128::from_be_bytes(expected.into_bytes().try_into().unwrap()).into()
         );
     }
 }
