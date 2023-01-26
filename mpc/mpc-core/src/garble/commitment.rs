@@ -46,7 +46,7 @@ pub struct Opening {
 }
 
 impl Opening {
-    /// Creates a new commitment opening
+    /// Creates a new opening for a keyed hash commitment
     pub fn new(message: &[u8]) -> Self {
         Self {
             key: CommitmentKey::random(),

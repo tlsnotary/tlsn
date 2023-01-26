@@ -214,6 +214,9 @@ where
 }
 
 /// Decoding info for garbled circuit wire labels.
+/// (Not to be confused with wire ENcoding. A label is an ENcoding of a wire value (0 or 1). Thanks to
+/// the point-and-permute technique, a label can be DEcoded back into a wire value just by comparing
+/// its pointer bit (LSB) to the decoding info as explained below)
 ///
 /// W_1 = W_0 ^ Delta where LSB(Delta) = 1
 ///
