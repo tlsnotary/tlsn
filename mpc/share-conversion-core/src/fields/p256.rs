@@ -38,69 +38,68 @@ impl Distribution<P256> for Standard {
 impl Add for P256 {
     type Output = Self;
 
-    fn add(mut self, rhs: Self) -> Self::Output {
-        self.0 += rhs.0;
-        self
+    fn add(self, rhs: Self) -> Self::Output {
+        Self(self.0 + rhs.0)
     }
 }
 
 impl Sub for P256 {
     type Output = Self;
 
-    fn sub(mut self, rhs: Self) -> Self::Output {
-        self.0 -= rhs.0;
-        self
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self(self.0 - rhs.0)
     }
 }
 
 impl Mul for P256 {
     type Output = Self;
 
-    fn mul(mut self, rhs: Self) -> Self::Output {
-        self.0 *= rhs.0;
-        self
+    fn mul(self, rhs: Self) -> Self::Output {
+        Self(self.0 * rhs.0)
     }
 }
 
 impl Neg for P256 {
     type Output = Self;
 
-    fn neg(mut self) -> Self::Output {
-        self.0 = -self.0;
-        self
+    fn neg(self) -> Self::Output {
+        Self(-self.0)
     }
 }
 
 impl Shr<u32> for P256 {
     type Output = Self;
 
-    fn shr(mut self, rhs: u32) -> Self::Output {
+    fn shr(self, rhs: u32) -> Self::Output {
+        let mut a = self.clone();
         for _ in 0..rhs {
-            self.0 .0.divn(rhs);
+            a.0 .0.divn(rhs);
         }
-        self
+        a
     }
 }
 
 impl Shl<u32> for P256 {
     type Output = Self;
 
-    fn shl(mut self, rhs: u32) -> Self::Output {
+    fn shl(self, rhs: u32) -> Self::Output {
+        let mut a = self.clone();
         for _ in 0..rhs {
-            self.0 .0.muln(rhs);
+            a.0 .0.muln(rhs);
         }
-        self
+        a
     }
 }
 
 impl BitXor<Self> for P256 {
     type Output = Self;
 
-    fn bitxor(mut self, rhs: Self) -> Self::Output {
-        for (a, b) in self.0 .0 .0.iter_mut().zip(rhs.0 .0 .0) {
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        let mut c = self.clone();
+        for (a, b) in c.0 .0 .0.iter_mut().zip(rhs.0 .0 .0) {
             *a ^= b
         }
-        self
+        c
     }
 }
 
@@ -119,9 +118,8 @@ impl Field for P256 {
         self.0 .0.get_bit(n)
     }
 
-    fn inverse(mut self) -> Self {
-        self.0 = ArkField::inverse(&self.0).expect("Unable to invert field element");
-        self
+    fn inverse(self) -> Self {
+        P256(ArkField::inverse(&self.0).expect("Unable to invert field element"))
     }
 
     fn from_bits_be(bits: &[bool]) -> Self {

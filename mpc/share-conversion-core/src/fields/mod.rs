@@ -84,7 +84,7 @@ mod tests {
         assert_eq!(a * zero, zero);
         assert_eq!(a * one, a);
         assert_eq!(a * a.inverse(), one);
-        assert_eq!(one.inverse(), T::one());
+        assert_eq!(one.inverse(), one);
         assert_eq!(a + -a, zero);
     }
 
