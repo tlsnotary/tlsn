@@ -7,9 +7,8 @@ edition = "2021"
 name = "tls_2pc_core"
 
 [features]
-default = ["prf", "ghash", "circuits"]
+default = ["prf", "circuits"]
 prf = []
-ghash = []
 circuits = ["c1", "c2", "c3", "c4", "c5", "c6", "c7"]
 c1 = []
 c2 = []
@@ -38,7 +37,6 @@ once_cell.workspace = true
 
 [dev-dependencies]
 criterion.workspace = true
-ghash_rc.workspace = true
 rand_chacha.workspace = true
 hex.workspace = true
 num = { workspace = true, features = ["rand"] }

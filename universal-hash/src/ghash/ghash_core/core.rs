@@ -11,48 +11,38 @@ pub struct GhashCore<T: State = Init> {
     /// Inner state
     state: T,
     /// Maximum number of message blocks we want to authenticate
-    max_message_length: usize,
+    max_block_count: usize,
 }
 
 impl GhashCore {
     /// Create a new `GhashCore`
     ///
-    /// * `hashkey` - This is an additive sharing of `H`, which is the AES-encrypted 0 block
-    /// * `max_message_length` - Determines the maximum number of 128-bit message blocks we want to
-    ///                          authenticate
-    pub fn new(hashkey: u128, max_message_length: usize) -> Result<Self, GhashError> {
-        if max_message_length == 0 {
-            return Err(GhashError::ZeroHashkeyPower);
+    /// * `max_block_count` - Determines the maximum number of 128-bit message blocks we want to
+    ///                          authenticate. Panics if `max_block_count` is 0.
+    pub fn new(max_block_count: usize) -> Self {
+        assert!(max_block_count > 0);
+
+        Self {
+            state: Init,
+            max_block_count,
         }
-
-        Ok(Self {
-            state: Init { add_share: hashkey },
-            max_message_length,
-        })
-    }
-
-    /// Returns the original hashkey share
-    ///
-    /// This is an additive sharing of `H`
-    pub fn h_additive(&self) -> u128 {
-        self.state.add_share
     }
 
     /// Transform `self` into a `GhashCore<Intermediate>`, holding multiplicative shares of
     /// powers of `H`
     ///
-    /// Converts `H` into `H`, `H^3`, `H^5`, ... depending on `self.max_message_length`
+    /// Converts `H` into `H`, `H^3`, `H^5`, ... depending on `self.max_block_count`
     pub fn compute_odd_mul_powers(self, mul_share: u128) -> GhashCore<Intermediate> {
         let mut hashkey_powers = vec![mul_share];
 
-        compute_missing_mul_shares(&mut hashkey_powers, self.max_message_length);
+        compute_missing_mul_shares(&mut hashkey_powers, self.max_block_count);
 
         GhashCore {
             state: Intermediate {
                 odd_mul_shares: hashkey_powers,
                 cached_add_shares: vec![],
             },
-            max_message_length: self.max_message_length,
+            max_block_count: self.max_block_count,
         }
     }
 }
@@ -83,17 +73,22 @@ impl GhashCore<Intermediate> {
                 add_shares: self.state.cached_add_shares,
                 odd_mul_shares: self.state.odd_mul_shares,
             },
-            max_message_length: self.max_message_length,
+            max_block_count: self.max_block_count,
         }
     }
 }
 
 impl GhashCore<Finalized> {
+    /// Returns the currently configured maximum message length
+    pub fn get_max_blocks(&self) -> usize {
+        self.max_block_count
+    }
+
     /// Generate the GHASH output
     ///
     /// Computes the 2PC additive share of the GHASH output
-    pub fn ghash_output(&self, message: &[u128]) -> Result<u128, GhashError> {
-        if message.len() > self.max_message_length {
+    pub fn finalize(&self, message: &[u128]) -> Result<u128, GhashError> {
+        if message.len() > self.max_block_count {
             return Err(GhashError::InvalidMessageLength);
         }
         let offset = self.state.add_shares.len() - message.len();
@@ -116,7 +111,7 @@ impl GhashCore<Finalized> {
                 odd_mul_shares: present_odd_mul_shares,
                 cached_add_shares: self.state.add_shares,
             },
-            max_message_length: new_highest_hashkey_power,
+            max_block_count: new_highest_hashkey_power,
         }
     }
 }
