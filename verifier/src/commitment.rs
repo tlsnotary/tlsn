@@ -1,4 +1,4 @@
-use super::{error::Error, utils::compute_label_commitment, LabelSeed};
+use super::{error::Error, utils::compute_label_commitment, HashCommitment, LabelSeed};
 use serde::Serialize;
 use std::any::Any;
 
@@ -11,7 +11,7 @@ pub struct Commitment {
     // The index of this commitment in the Merkle tree of commitments
     merkle_tree_index: usize,
     // The actual commitment
-    commitment: [u8; 32],
+    commitment: HashCommitment,
     // The absolute byte ranges within the notarized data. The committed data
     // is located in those ranges.
     ranges: Vec<Range>,
@@ -22,7 +22,7 @@ impl Commitment {
         id: usize,
         typ: CommitmentType,
         direction: Direction,
-        commitment: [u8; 32],
+        commitment: HashCommitment,
         ranges: Vec<Range>,
         merkle_tree_index: usize,
     ) -> Self {
@@ -45,12 +45,19 @@ impl Commitment {
     ) -> Result<(), Error> {
         let expected = match self.typ {
             CommitmentType::labels_blake3 => {
-                let seed = match extra_data.downcast::<LabelSeed>() {
-                    Ok(seed) => *seed,
-                    Err(_) => return Err(Error::InternalError),
-                };
+                let (seed, cipher_block_size) =
+                    match extra_data.downcast::<LabelSeedAndCipherBlockSize>() {
+                        Ok(extra_data) => (extra_data.label_seed, extra_data.cipher_block_size),
+                        Err(_) => return Err(Error::InternalError),
+                    };
 
-                compute_label_commitment(&opening.opening, &self.ranges, &seed, opening.salt())?
+                compute_label_commitment(
+                    &opening.opening,
+                    &self.ranges,
+                    &seed,
+                    opening.salt(),
+                    cipher_block_size,
+                )?
             }
             _ => return Err(Error::InternalError),
         };
@@ -129,7 +136,7 @@ pub enum Direction {
     Response,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Debug)]
 /// A half-open range [start, end). Range bounds are ascending i.e. start < end
 pub struct Range {
     start: usize,
@@ -147,5 +154,20 @@ impl Range {
 
     pub fn end(&self) -> usize {
         self.end
+    }
+}
+
+pub struct LabelSeedAndCipherBlockSize {
+    label_seed: LabelSeed,
+    cipher_block_size: usize,
+}
+
+/// Extra data for [CommitmentType::labels_blake3] commitments
+impl LabelSeedAndCipherBlockSize {
+    pub fn new(label_seed: LabelSeed, cipher_block_size: usize) -> Self {
+        Self {
+            label_seed,
+            cipher_block_size,
+        }
     }
 }

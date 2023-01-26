@@ -34,13 +34,13 @@ impl TLSDoc {
 
         let ee_cert = webpki_utils::extract_end_entity_cert(&self.committed_tls.tls_cert_chain)?;
 
-        self.verify_tls_commitment(&self.committed_tls, &self.signed_tls.commitment_to_TLS)?;
+        self.verify_tls_commitment(&self.committed_tls, self.signed_tls.commitment_to_tls())?;
 
         //check that TLS key exchange parameters were signed by the end-entity cert
         webpki_utils::verify_sig_ke_params(
             &ee_cert,
             &self.committed_tls.sig_ke_params,
-            self.signed_tls.ephemeralECPubkey(),
+            self.signed_tls.ephemeral_ec_pubkey(),
             &self.committed_tls.client_random,
             &self.committed_tls.server_random,
         )?;

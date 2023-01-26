@@ -1,3 +1,5 @@
+use crate::commitment::LabelSeedAndCipherBlockSize;
+
 use super::{
     checks,
     commitment::{Commitment, CommitmentOpening, CommitmentType},
@@ -29,6 +31,9 @@ pub struct VerifierDoc {
     /// to the User.
     merkle_root: [u8; 32],
 
+    /// Size of the cipher's block in bytes (16 for AES, 64 for ChaCha)
+    cipher_block_size: usize,
+
     /// The total leaf count in the Merkle tree of commitments. Provided by the User to the Verifier
     /// to enable merkle proof verification.
     merkle_tree_leaf_count: usize,
@@ -54,6 +59,7 @@ impl VerifierDoc {
         signature: Option<Vec<u8>>,
         label_seed: LabelSeed,
         merkle_root: [u8; 32],
+        cipher_block_size: usize,
         merkle_tree_leaf_count: usize,
         merkle_multi_proof: MerkleProof<algorithms::Sha256>,
         commitments: Vec<Commitment>,
@@ -65,6 +71,7 @@ impl VerifierDoc {
             signature,
             label_seed,
             merkle_root,
+            cipher_block_size,
             merkle_tree_leaf_count,
             merkle_multi_proof,
             commitments,
@@ -91,6 +98,7 @@ impl VerifierDoc {
             signature: unchecked.signature,
             label_seed: unchecked.label_seed,
             merkle_root: unchecked.merkle_root,
+            cipher_block_size: unchecked.cipher_block_size,
             merkle_tree_leaf_count: unchecked.merkle_tree_leaf_count,
             merkle_multi_proof: unchecked.merkle_multi_proof,
             commitments: unchecked.commitments,
@@ -118,9 +126,13 @@ impl VerifierDoc {
 
         // insert our `signed_data` which we know is correct
 
-        let tls_doc = TLSDoc::new(signed_data.tls, unchecked.tls_doc.committed_tls().clone());
-        let label_seed = signed_data.label_seed;
-        let merkle_root = signed_data.merkle_root;
+        let tls_doc = TLSDoc::new(
+            signed_data.tls().clone(),
+            unchecked.tls_doc.committed_tls().clone(),
+        );
+        let label_seed = *signed_data.label_seed();
+        let merkle_root = *signed_data.merkle_root();
+        let cipher_block_size = signed_data.cipher_block_size();
 
         Ok(Self {
             version: unchecked.version,
@@ -128,6 +140,7 @@ impl VerifierDoc {
             signature: unchecked.signature,
             label_seed,
             merkle_root,
+            cipher_block_size,
             merkle_tree_leaf_count: unchecked.merkle_tree_leaf_count,
             merkle_multi_proof: unchecked.merkle_multi_proof,
             commitments: unchecked.commitments,
@@ -183,9 +196,9 @@ impl VerifierDoc {
         Ok(())
     }
 
-    /// Verifies each garbled circuit labels commitment against its opening
+    /// Verifies each garbled circuit label commitment against its opening
     fn verify_label_commitments(&self) -> Result<(), Error> {
-        // collect only labels commitments
+        // collect only label commitments
         let label_commitments: Vec<&Commitment> = self
             .commitments
             .iter()
@@ -211,7 +224,9 @@ impl VerifierDoc {
 
         // verify each (opening, commitment) pair
         for (o, c) in openings.iter().zip(label_commitments) {
-            c.verify(o, Box::new(self.label_seed) as Box<dyn Any>)?;
+            let extra_data =
+                LabelSeedAndCipherBlockSize::new(self.label_seed, self.cipher_block_size);
+            c.verify(o, Box::new(extra_data) as Box<dyn Any>)?;
         }
 
         Ok(())
@@ -229,8 +244,20 @@ impl VerifierDoc {
         &self.merkle_root
     }
 
+    pub fn cipher_block_size(&self) -> usize {
+        self.cipher_block_size
+    }
+
     pub fn tls_doc(&self) -> &TLSDoc {
         &self.tls_doc
+    }
+
+    pub fn commitments(&self) -> &Vec<Commitment> {
+        &self.commitments
+    }
+
+    pub fn commitment_openings(&self) -> &Vec<CommitmentOpening> {
+        &self.commitment_openings
     }
 }
 
@@ -243,6 +270,7 @@ pub struct VerifierDocUnchecked {
     signature: Option<Vec<u8>>,
     label_seed: LabelSeed,
     merkle_root: [u8; 32],
+    cipher_block_size: usize,
     merkle_tree_leaf_count: usize,
     merkle_multi_proof: MerkleProof<algorithms::Sha256>,
     commitments: Vec<Commitment>,
@@ -268,6 +296,7 @@ impl std::convert::From<VerifierDoc> for VerifierDocUnchecked {
             signature: doc.signature,
             label_seed: doc.label_seed,
             merkle_root: doc.merkle_root,
+            cipher_block_size: doc.cipher_block_size,
             merkle_tree_leaf_count: doc.merkle_tree_leaf_count,
             merkle_multi_proof: doc.merkle_multi_proof,
             commitments: doc.commitments,

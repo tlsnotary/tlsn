@@ -1,96 +1,102 @@
-use std::collections::HashMap;
-
-use rand::{Rng, SeedableRng};
+//! Adapted from tlsn/mpc/mpc-core, except [encode() in](ChaChaEncoder) was modified to encode 1 bit
+//! at a time
+use super::LabelSeed;
+use rand::{CryptoRng, Rng, SeedableRng};
 use rand_chacha::ChaCha20Rng;
+use std::ops::BitXor;
 
-/// Encodes wire labels using the ChaCha algorithm and a global offset (delta).
+const DELTA_STREAM_ID: u64 = u64::MAX;
+const PLAINTEXT_STREAM_ID: u64 = 1;
+
+#[derive(Clone, Copy)]
+pub struct Block(u128);
+
+impl Block {
+    #[inline]
+    pub fn new(b: u128) -> Self {
+        Self(b)
+    }
+
+    #[inline]
+    pub fn random<R: Rng + CryptoRng + ?Sized>(rng: &mut R) -> Self {
+        Self::new(rng.gen())
+    }
+
+    #[inline]
+    pub fn set_lsb(&mut self) {
+        self.0 |= 1;
+    }
+
+    #[inline]
+    pub fn inner(&self) -> u128 {
+        self.0
+    }
+}
+
+impl BitXor for Block {
+    type Output = Self;
+
+    #[inline]
+    fn bitxor(self, other: Self) -> Self::Output {
+        Self(self.0 ^ other.0)
+    }
+}
+
+/// Global binary offset used by the Free-XOR technique to create wire label
+/// pairs where W_1 = W_0 ^ Delta.
 ///
-/// An encoder instance is configured using a domain id. Domain ids can be used in combination
-/// with stream ids to partition label sets.
-#[derive(Debug)]
+/// In accordance with the (p&p) permute-and-point technique, the LSB of delta is set to 1 so
+/// the permute bit LSB(W_1) = LSB(W_0) ^ 1
+#[derive(Clone, Copy)]
+pub struct Delta(Block);
+
+impl Delta {
+    /// Creates new random Delta
+    pub(crate) fn random<R: Rng + CryptoRng + ?Sized>(rng: &mut R) -> Self {
+        let mut block = Block::random(rng);
+        block.set_lsb();
+        Self(block)
+    }
+
+    /// Returns the inner block
+    #[inline]
+    pub(crate) fn into_inner(self) -> Block {
+        self.0
+    }
+}
+
+/// Encodes wires into labels using the ChaCha algorithm.
 pub struct ChaChaEncoder {
-    seed: [u8; 32],
-    domain: u32,
     rng: ChaCha20Rng,
-    stream_state: HashMap<u64, u128>,
-    delta: u128,
+    delta: Delta,
 }
 
 impl ChaChaEncoder {
     /// Creates a new encoder with the provided seed
     ///
     /// * `seed` - 32-byte seed for ChaChaRng
-    /// * `domain` - Domain id
-    ///
-    /// Domain id must be less than 2^31
-    pub fn new(seed: [u8; 32], domain: u32) -> Self {
-        assert!(domain <= u32::MAX >> 1);
-
+    pub fn new(seed: LabelSeed) -> Self {
         let mut rng = ChaCha20Rng::from_seed(seed);
 
-        // Stream id 0 is reserved to generate delta.
+        // Stream id u64::MAX is reserved to generate delta.
         // This way there is only ever 1 delta per seed
-        rng.set_stream(0);
-        let delta: u128 = rng.gen();
+        rng.set_stream(DELTA_STREAM_ID);
+        let delta = Delta::random(&mut rng);
 
-        Self {
-            seed,
-            domain,
-            rng,
-            stream_state: HashMap::default(),
-            delta,
-        }
+        Self { rng, delta }
     }
 
-    /// Returns encoder's rng seed
-    pub fn get_seed(&self) -> [u8; 32] {
-        self.seed
-    }
-
-    /// Returns next 8 label pairs
+    /// Encodes one bit of plaintext into two labels
     ///
-    /// * `stream_id` - Stream id which can be used to partition label sets
-    /// * `input` - Circuit input to encode
-    pub fn labels_for_next_byte(&mut self, stream_id: u32) -> Vec<[u128; 2]> {
-        self.set_stream(stream_id);
-        (0..8)
-            .map(|_| {
-                //test
-                let zero_label: u128 = self.rng.gen();
-                let one_label = zero_label ^ self.delta;
-                [zero_label, one_label]
-            })
-            .collect()
-    }
+    /// * `pos` - The position of a bit which needs to be encoded
+    pub fn encode(&mut self, pos: usize) -> [Block; 2] {
+        self.rng.set_stream(PLAINTEXT_STREAM_ID);
 
-    /// Sets the selected stream id, restoring word position if a stream
-    /// has been used before.
-    fn set_stream(&mut self, id: u32) {
-        //           MSB -> LSB
-        //   31 bits   32 bits   1 bit
-        //   [domain]   [id]   [reserved]
-        // The reserved bit ensures that we never pull from stream 0 which
-        // is reserved to generate delta
-        let new_id = ((self.domain as u64) << 33) + ((id as u64) << 1) + 1;
+        // jump to the multiple-of-128 bit offset (128 bits is the size of one label)
+        self.rng.set_word_pos((pos as u128) * 4);
 
-        let current_id = self.rng.get_stream();
+        let zero_label = Block::random(&mut self.rng);
 
-        // noop if stream already set
-        if new_id == current_id {
-            return;
-        }
-
-        // Store word position for current stream
-        self.stream_state
-            .insert(current_id, self.rng.get_word_pos());
-
-        // Update stream id
-        self.rng.set_stream(new_id);
-
-        // Get word position if stored, otherwise default to 0
-        let word_pos = self.stream_state.get(&new_id).copied().unwrap_or(0);
-
-        // Update word position
-        self.rng.set_word_pos(word_pos);
+        [zero_label, zero_label ^ self.delta.into_inner()]
     }
 }
