@@ -66,3 +66,39 @@ pub fn compute_product_repeated<T: Field>(powers: &mut Vec<T>, factor: T, count:
         powers.push(factor * last_power);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{compute_product_repeated, Field};
+    use rand::SeedableRng;
+    use rand_chacha::ChaCha12Rng;
+
+    pub fn test_field_basic<T: Field>() {
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
+        let a = T::rand(&mut rng);
+
+        let zero = T::zero();
+        let one = T::one();
+
+        assert_eq!(a + zero, a);
+        assert_eq!(a * zero, zero);
+        assert_eq!(a * one, a);
+        assert_eq!(a * a.inverse(), one);
+        assert_eq!(one.inverse(), T::one());
+        assert_eq!(a + -a, zero);
+    }
+
+    pub fn test_field_compute_product_repeated<T: Field>() {
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
+        let a = T::rand(&mut rng);
+
+        let mut powers = vec![a];
+        let factor = a * a;
+
+        compute_product_repeated(&mut powers, factor, 2);
+
+        assert_eq!(powers[0], a);
+        assert_eq!(powers[1], powers[0] * factor);
+        assert_eq!(powers[2], powers[1] * factor);
+    }
+}

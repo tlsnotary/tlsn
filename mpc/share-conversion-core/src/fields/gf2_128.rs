@@ -31,44 +31,10 @@ impl Distribution<Gf2_128> for Standard {
     }
 }
 
-impl Field for Gf2_128 {
-    const BIT_SIZE: usize = 128;
-
-    fn zero() -> Self {
-        Self(0)
-    }
-
-    fn one() -> Self {
-        Self(1 << 127)
-    }
-
-    fn get_bit(&self, n: usize) -> bool {
-        (self.0 >> n) & 1 == 1
-    }
-
-    /// Galois field inversion of 128-bit block
-    fn inverse(mut self) -> Self {
-        let one = Self::one();
-        let mut out = one;
-
-        for _ in 0..127 {
-            self = self * self;
-            out = out * self;
-        }
-        out
-    }
-
-    fn from_bits_be(bits: &[bool]) -> Self {
-        Self::new(
-            bits.iter()
-                .fold(0, |result, bit| (result << 1) ^ *bit as u128),
-        )
-    }
-}
-
 impl Add for Gf2_128 {
     type Output = Self;
 
+    #[allow(clippy::suspicious_arithmetic_impl)]
     fn add(mut self, rhs: Self) -> Self::Output {
         self.0 ^= rhs.0;
         self
@@ -78,6 +44,7 @@ impl Add for Gf2_128 {
 impl Sub for Gf2_128 {
     type Output = Self;
 
+    #[allow(clippy::suspicious_arithmetic_impl)]
     fn sub(mut self, rhs: Self) -> Self::Output {
         self.0 ^= rhs.0;
         self
@@ -117,7 +84,7 @@ impl Shr<u32> for Gf2_128 {
     type Output = Self;
 
     fn shr(mut self, rhs: u32) -> Self::Output {
-        self.0 = self.0 >> rhs;
+        self.0 >>= rhs;
         self
     }
 }
@@ -126,7 +93,7 @@ impl Shl<u32> for Gf2_128 {
     type Output = Self;
 
     fn shl(mut self, rhs: u32) -> Self::Output {
-        self.0 = self.0 << rhs;
+        self.0 <<= rhs;
         self
     }
 }
@@ -135,45 +102,78 @@ impl BitXor<Self> for Gf2_128 {
     type Output = Self;
 
     fn bitxor(mut self, rhs: Self) -> Self::Output {
-        self.0 = self.0 ^ rhs.0;
+        self.0 ^= rhs.0;
         self
+    }
+}
+
+impl Field for Gf2_128 {
+    const BIT_SIZE: usize = 128;
+
+    fn zero() -> Self {
+        Self(0)
+    }
+
+    fn one() -> Self {
+        Self(1 << 127)
+    }
+
+    fn get_bit(&self, n: usize) -> bool {
+        (self.0 >> n) & 1 == 1
+    }
+
+    /// Galois field inversion of 128-bit block
+    fn inverse(mut self) -> Self {
+        let one = Self::one();
+        let mut out = one;
+
+        for _ in 0..127 {
+            self = self * self;
+            out = out * self;
+        }
+        out
+    }
+
+    fn from_bits_be(bits: &[bool]) -> Self {
+        Self::new(
+            bits.iter()
+                .fold(0, |result, bit| (result << 1) ^ *bit as u128),
+        )
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::fields::{compute_product_repeated, Field};
-
     use super::Gf2_128;
+    use crate::fields::{
+        tests::{test_field_basic, test_field_compute_product_repeated},
+        Field, UniformRand,
+    };
     use ghash_rc::{
         universal_hash::{NewUniversalHash, UniversalHash},
         GHash,
     };
-    use rand::{Rng, SeedableRng};
+    use rand::SeedableRng;
     use rand_chacha::ChaCha12Rng;
 
     #[test]
     fn test_gf2_128_basic() {
-        let mut rng = ChaCha12Rng::from_seed([0; 32]);
-        let a: Gf2_128 = rng.gen();
+        test_field_basic::<Gf2_128>();
+        assert_eq!(Gf2_128::new(0), Gf2_128::zero());
+        assert_eq!(Gf2_128::new(1), Gf2_128::one());
+    }
 
-        let zero = Gf2_128::zero();
-        let one = Gf2_128::one();
-
-        assert_eq!(a + zero, a);
-        assert_eq!(a * zero, zero);
-        assert_eq!(a * one, a);
-        assert_eq!(a * a.inverse(), one);
-        assert_eq!(a - a, zero);
-        assert_eq!(Gf2_128::new(1), Gf2_128::one())
+    #[test]
+    fn test_gf2_128_compute_product_repeated() {
+        test_field_compute_product_repeated::<Gf2_128>();
     }
 
     #[test]
     // Test multiplication against RustCrypto
-    fn test_gf2_128_mul() {
+    fn test_gf2_128_against_ghash_impl() {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
-        let a: Gf2_128 = rng.gen();
-        let b: Gf2_128 = rng.gen();
+        let a: Gf2_128 = Gf2_128::rand(&mut rng);
+        let b: Gf2_128 = Gf2_128::rand(&mut rng);
 
         let mut g = GHash::new(&a.0.to_be_bytes().into());
         g.update(&b.0.to_be_bytes().into());
@@ -186,29 +186,5 @@ mod tests {
                 .reverse_bits()
                 .into()
         );
-    }
-
-    #[test]
-    fn test_inverse() {
-        let mut rng = ChaCha12Rng::from_seed([0; 32]);
-        let a: Gf2_128 = rng.gen();
-
-        assert_eq!(a * a.inverse(), Gf2_128::one());
-        assert_eq!(Gf2_128::one().inverse(), Gf2_128::one());
-    }
-
-    #[test]
-    fn test_gf2_128_compute_product_repeated() {
-        let mut rng = ChaCha12Rng::from_seed([0; 32]);
-        let a: Gf2_128 = rng.gen();
-
-        let mut powers = vec![a];
-        let factor = a * a;
-
-        compute_product_repeated(&mut powers, factor, 2);
-
-        assert_eq!(powers[0], a);
-        assert_eq!(powers[1], powers[0] * factor);
-        assert_eq!(powers[2], powers[1] * factor);
     }
 }

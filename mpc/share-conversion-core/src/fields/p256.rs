@@ -98,7 +98,7 @@ impl BitXor<Self> for P256 {
 
     fn bitxor(mut self, rhs: Self) -> Self::Output {
         for (a, b) in self.0 .0 .0.iter_mut().zip(rhs.0 .0 .0) {
-            *a = *a ^ b
+            *a ^= b
         }
         self
     }
@@ -131,49 +131,21 @@ impl Field for P256 {
 
 #[cfg(test)]
 mod tests {
-    use crate::fields::{compute_product_repeated, Field};
-
     use super::P256;
-    use rand::{Rng, SeedableRng};
-    use rand_chacha::ChaCha12Rng;
+    use crate::fields::{
+        tests::{test_field_basic, test_field_compute_product_repeated},
+        Field,
+    };
 
     #[test]
     fn test_p256_basic() {
-        let mut rng = ChaCha12Rng::from_seed([0; 32]);
-        let a: P256 = rng.gen();
-
-        let zero = P256::zero();
-        let one = P256::one();
-
-        assert_eq!(a + zero, a);
-        assert_eq!(a * zero, zero);
-        assert_eq!(a * one, a);
-        assert_eq!(a * a.inverse(), one);
-        assert_eq!(a - a, zero);
-        assert_eq!(P256::new(1), P256::one())
-    }
-
-    #[test]
-    fn test_inverse() {
-        let mut rng = ChaCha12Rng::from_seed([0; 32]);
-        let a: P256 = rng.gen();
-
-        assert_eq!(a * a.inverse(), P256::one());
-        assert_eq!(P256::one().inverse(), P256::one());
+        test_field_basic::<P256>();
+        assert_eq!(P256::new(0), P256::zero());
+        assert_eq!(P256::new(1), P256::one());
     }
 
     #[test]
     fn test_p256_compute_product_repeated() {
-        let mut rng = ChaCha12Rng::from_seed([0; 32]);
-        let a: P256 = rng.gen();
-
-        let mut powers = vec![a];
-        let factor = a * a;
-
-        compute_product_repeated(&mut powers, factor, 2);
-
-        assert_eq!(powers[0], a);
-        assert_eq!(powers[1], powers[0] * factor);
-        assert_eq!(powers[2], powers[1] * factor);
+        test_field_compute_product_repeated::<P256>();
     }
 }

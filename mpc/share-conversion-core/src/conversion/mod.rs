@@ -22,7 +22,7 @@ where
     Self: Sized,
 {
     type Inner: Field;
-    type Output: Gf2_128ShareConvert<Inner = Self::Inner>;
+    type Output: Gf2_128ShareConvert<Inner = Self::Inner, Output = Self>;
 
     /// Create a new instance
     fn new(share: Self::Inner) -> Self;
@@ -30,7 +30,7 @@ where
     /// Converts '&self' into choices needed for the receiver input to an oblivious transfer.
     /// The choices are in the "least-bit-first" order.
     fn choices(&self) -> Vec<bool> {
-        let len: usize = Self::Inner::BIT_SIZE as usize;
+        let len: usize = Self::Inner::BIT_SIZE;
         let mut out: Vec<bool> = Vec::with_capacity(len);
         for k in 0..len {
             out.push(self.inner().get_bit(k));
@@ -131,46 +131,60 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::fields::{gf2_128::Gf2_128, p256::P256};
+
     use super::*;
-    use crate::gf2_128::mul;
     use a2m::AddShare;
     use m2a::MulShare;
-    use rand::{Rng, SeedableRng};
+    use rand::SeedableRng;
     use rand_chacha::ChaCha12Rng;
 
     #[test]
-    fn test_m2a() {
-        let mut rng = ChaCha12Rng::from_seed([0; 32]);
-        let a: MulShare = MulShare::new(rng.gen());
-        let b: MulShare = MulShare::new(rng.gen());
-
-        let (x, sharings) = a.convert_to_additive(&mut rng).unwrap();
-
-        let choice = mock_ot(sharings, b.inner());
-        let y = AddShare::from_sender_values(&choice);
-
-        assert_eq!(mul(a.inner(), b.inner()), x.inner() ^ y.inner());
+    fn test_m2a_gf2_128() {
+        let (a, b, x, y) = generic_convert::<MulShare<Gf2_128>, Gf2_128>();
+        assert_eq!(a * b, x ^ y);
     }
 
     #[test]
-    fn test_a2m() {
-        let mut rng = ChaCha12Rng::from_seed([0; 32]);
-        let x: AddShare = AddShare::new(rng.gen());
-        let y: AddShare = AddShare::new(rng.gen());
-
-        let (a, sharings) = x.convert_to_multiplicative(&mut rng).unwrap();
-
-        let choice = mock_ot(sharings, y.inner());
-        let b = MulShare::from_sender_values(&choice);
-
-        assert_eq!(x.inner() ^ y.inner(), mul(a.inner(), b.inner()));
+    fn test_m2a_p256() {
+        let (a, b, x, y) = generic_convert::<MulShare<P256>, P256>();
+        assert_eq!(a * b, x ^ y);
     }
 
-    fn mock_ot(envelopes: OTEnvelope, choices: u128) -> Vec<u128> {
-        let mut out: Vec<u128> = vec![0; 128];
+    #[test]
+    fn test_a2m_gf2_128() {
+        let (x, y, a, b) = generic_convert::<AddShare<Gf2_128>, Gf2_128>();
+        assert_eq!(x ^ y, a * b,);
+    }
+
+    #[test]
+    fn test_a2m_p256() {
+        let (x, y, a, b) = generic_convert::<AddShare<P256>, P256>();
+        assert_eq!(x ^ y, a * b);
+    }
+
+    fn generic_convert<T: Gf2_128ShareConvert<Inner = U>, U: Field>() -> (
+        T::Inner,
+        T::Inner,
+        <T::Output as Gf2_128ShareConvert>::Inner,
+        <T::Output as Gf2_128ShareConvert>::Inner,
+    ) {
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
+        let a: T = T::new(U::rand(&mut rng));
+        let b: T = T::new(U::rand(&mut rng));
+
+        let (c, sharings) = a.convert(&mut rng).unwrap();
+
+        let choice = mock_ot(sharings, b.inner());
+        let d = T::from_sender_values(&choice);
+        (a.inner(), b.inner(), c.inner(), d.inner())
+    }
+
+    fn mock_ot<T: Field>(envelopes: OTEnvelope<T>, choices: T) -> Vec<T> {
+        let mut out: Vec<T> = vec![T::zero(); T::BIT_SIZE];
         for (k, number) in out.iter_mut().enumerate() {
-            let bit = (choices >> k) & 1;
-            *number = (bit * envelopes.1[k]) ^ ((bit ^ 1) * envelopes.0[k]);
+            let bit = choices.get_bit(k);
+            *number = if bit { envelopes.1[k] } else { envelopes.0[k] }
         }
         out
     }
