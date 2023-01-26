@@ -60,7 +60,7 @@ impl Opening {
     }
 
     /// Verifies this opening corresponds to a given message.
-    pub fn verify(&self, message: &[u8]) -> Result<(), CommitmentError> {
+    pub fn verify_message(&self, message: &[u8]) -> Result<(), CommitmentError> {
         if self.message != message {
             return Err(CommitmentError::InvalidMessage);
         }

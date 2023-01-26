@@ -51,31 +51,31 @@ pub mod state {
 
 use state::*;
 
-pub struct Prover<S, B, LS>
+pub struct Prover<S, B, LR>
 where
     S: State,
     B: Evaluator + Compressor + Validator,
-    LS: ObliviousReceive<InputValue, ActiveEncodedInput>,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput>,
 {
     state: S,
     circ: Arc<Circuit>,
     channel: GarbleChannel,
     backend: B,
-    label_receiver: Option<LS>,
+    label_receiver: Option<LR>,
 }
 
-impl<B, LS> Prover<Initialized, B, LS>
+impl<B, LR> Prover<Initialized, B, LR>
 where
     B: Evaluator + Compressor + Validator + Send,
-    LS: ObliviousReceive<InputValue, ActiveEncodedInput> + Send,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + Send,
 {
     /// Create a new prover.
     pub fn new(
         circ: Arc<Circuit>,
         channel: GarbleChannel,
         backend: B,
-        label_receiver: Option<LS>,
-    ) -> Prover<Initialized, B, LS> {
+        label_receiver: Option<LR>,
+    ) -> Prover<Initialized, B, LR> {
         Self {
             state: Initialized,
             circ,
@@ -93,7 +93,7 @@ where
         mut self,
         ot_receive_inputs: Vec<InputValue>,
         cached_labels: Vec<ActiveEncodedInput>,
-    ) -> Result<Prover<LabelSetup, B, LS>, GCError> {
+    ) -> Result<Prover<LabelSetup, B, LR>, GCError> {
         // If there are no labels to be received via OT, we can skip the OT protocol
         let ot_receive_fut = match self.label_receiver {
             Some(ref mut label_receiver) if ot_receive_inputs.len() > 0 => {
@@ -146,13 +146,13 @@ where
     }
 }
 
-impl<B, LS> Prover<LabelSetup, B, LS>
+impl<B, LR> Prover<LabelSetup, B, LR>
 where
     B: Evaluator + Compressor + Validator + Send,
-    LS: ObliviousReceive<InputValue, ActiveEncodedInput> + Send,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + Send,
 {
     /// Evaluate the garbled circuit and commit to the output
-    pub async fn evaluate(mut self) -> Result<Prover<Validate, B, LS>, GCError> {
+    pub async fn evaluate(mut self) -> Result<Prover<Validate, B, LR>, GCError> {
         let prover = zk_core::Prover::new(self.circ.clone());
 
         // Expect garbled circuit from Verifier
@@ -189,15 +189,15 @@ where
     }
 }
 
-impl<B, LS> Prover<Validate, B, LS>
+impl<B, LR> Prover<Validate, B, LR>
 where
     B: Evaluator + Compressor + Validator + Send,
-    LS: ObliviousReceive<InputValue, ActiveEncodedInput> + ObliviousVerify<FullEncodedInput> + Send,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + ObliviousVerify<FullEncodedInput> + Send,
 {
     /// Execute the final phase of the protocol. This proves the authenticity of the circuit output
     /// to the Verifier without leaking any information about the Prover's inputs.
     pub async fn prove(mut self) -> Result<(), GCError> {
-        // Receive circuit opening to follower's circuit
+        // Receive circuit opening to verifier's circuit
         let msg = expect_msg_or_err!(
             self.channel.next().await,
             GarbleMessage::CircuitOpening,
@@ -248,7 +248,7 @@ where
         _ = gc_validate_result?;
         _ = labels_validate_result?;
 
-        // Reveal output to follower
+        // Reveal output to verifier
         let (commit_opening, output) = prover.reveal();
 
         self.channel

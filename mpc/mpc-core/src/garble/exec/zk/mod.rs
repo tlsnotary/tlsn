@@ -1,3 +1,14 @@
+//! An implementation of malicious-secure zero-knowledge proofs using Garbled Circuits.
+//!
+//! This protocol allows a Prover to prove in zero-knowledge the output of a circuit to a Verifier
+//! without leaking any information about their private inputs. The Verifier can also provide
+//! private inputs which are revealed after the Prover commits to the output of the circuit.
+//!
+//! ** Warning **
+//!
+//! This protocol requires the use of committed OT, which is not enforced by the type system in this
+//! core crate.
+
 mod prover;
 mod verifier;
 

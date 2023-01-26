@@ -33,12 +33,14 @@ pub mod state {
     #[derive(Debug)]
     pub struct Open {
         pub(super) gc: GarbledCircuit<gc_state::FullSummary>,
+        /// Prover's commitment to the output
         pub(super) commitment: HashCommitment,
     }
 
     #[derive(Debug)]
     pub struct Verify {
         pub(super) gc: GarbledCircuit<gc_state::FullSummary>,
+        /// Prover's commitment to the output
         pub(super) commitment: HashCommitment,
     }
 
@@ -153,10 +155,11 @@ impl Verifier<Verify> {
                 .flatten(),
         );
 
-        // Verify commitment
+        // Opening corresponds to the output commitment the Prover sent earlier
         self.state.commitment.verify(&commit_opening)?;
-        // Verify commitment message
-        commit_opening.verify(&output_digest.0)?;
+
+        // Verify the commitment corresponds to the output we received
+        commit_opening.verify_message(&output_digest.0)?;
 
         Ok(output)
     }

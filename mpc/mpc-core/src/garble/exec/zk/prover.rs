@@ -37,12 +37,14 @@ pub mod state {
     #[derive(Debug)]
     pub struct Validate {
         pub(super) gc: GarbledCircuit<gc_state::Compressed>,
+        /// Opening to the output commitment
         pub(super) commit_opening: Opening,
     }
 
     #[derive(Debug)]
     pub struct Reveal {
         pub(super) gc: GarbledCircuit<gc_state::Output>,
+        /// Opening to the output commitment
         pub(super) commit_opening: Opening,
     }
 

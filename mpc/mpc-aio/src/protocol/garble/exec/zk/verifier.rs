@@ -157,7 +157,7 @@ where
             .send(GarbleMessage::GarbledCircuit(partial_gc.into()))
             .await?;
 
-        // Expect commitment from leader
+        // Expect commitment from prover
         let msg = expect_msg_or_err!(
             self.channel.next().await,
             GarbleMessage::HashCommitment,
@@ -196,7 +196,7 @@ where
             .await?;
 
         // Receive opening to output commitment
-        let commitment_msg = expect_msg_or_err!(
+        let commit_opening_msg = expect_msg_or_err!(
             self.channel.next().await,
             GarbleMessage::CommitmentOpening,
             GCError::Unexpected
@@ -211,7 +211,7 @@ where
 
         // Verify commitment and output to our circuit
         verifier
-            .verify(commitment_msg.into(), output_msg.into())
+            .verify(commit_opening_msg.into(), output_msg.into())
             .map_err(GCError::from)
     }
 }
