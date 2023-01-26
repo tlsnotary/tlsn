@@ -11,6 +11,11 @@ impl Gf2_128 {
     pub fn new(input: u128) -> Self {
         Gf2_128::from(input)
     }
+
+    #[cfg(test)]
+    fn reverse_bits(self) -> Self {
+        Self(self.0.reverse_bits())
+    }
 }
 
 impl From<u128> for Gf2_128 {
@@ -54,16 +59,16 @@ impl Mul for Gf2_128 {
 
     /// Galois field multiplication of two 128-bit blocks reduced by the GCM polynomial
     fn mul(self, rhs: Self) -> Self::Output {
-        /// R is the GCM polynomial in little-endian. In hex: "E1000000000000000000000000000000"
-        const R: u128 = 299076299051606071403356588563077529600;
+        /// R is the GCM polynomial in big-endian. In hex: "000000000000000000000000000000E1"
+        const R: u128 = 135;
 
         let mut x = self.0;
         let y = rhs.0;
 
         let mut result: u128 = 0;
-        for i in (0..128).rev() {
+        for i in 0..128 {
             result ^= x * ((y >> i) & 1);
-            x = (x >> 1) ^ ((x & 1) * R);
+            x = (x << 1) ^ (((x >> 127) & 1) * R);
         }
         Self(result)
     }
@@ -164,6 +169,20 @@ mod tests {
     }
 
     #[test]
+    fn test_gf2_128_mul() {
+        // Naive mutltiplication is the same here
+        let a = Gf2_128::new(3);
+        let b = Gf2_128::new(5);
+
+        // Here we cannot calculate naively
+        let c = Gf2_128::new(3);
+        let d = Gf2_128::new(7);
+
+        assert_eq!(a * b, Gf2_128::new(15));
+        assert_eq!(c * d, Gf2_128::new(9));
+    }
+
+    #[test]
     // Test multiplication against RustCrypto
     fn test_gf2_128_against_ghash_impl() {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
@@ -172,12 +191,10 @@ mod tests {
 
         let mut g = GHash::new(&a.0.to_be_bytes().into());
         g.update(&b.0.to_be_bytes().into());
-        // Ghash will internally multiply a and b
-        let expected = g.finalize();
 
-        assert_eq!(
-            a * b,
-            u128::from_be_bytes(expected.into_bytes().try_into().unwrap()).into()
-        );
+        // Ghash will internally multiply a and b
+        let expected = u128::from_be_bytes(g.finalize().into_bytes().into());
+        let output = (a.reverse_bits() * b.reverse_bits()).0.reverse_bits();
+        assert_eq!(expected, output);
     }
 }
