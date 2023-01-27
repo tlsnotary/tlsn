@@ -5,7 +5,7 @@ use ark_ff::{BigInt, BigInteger, Field as ArkField, One, Zero};
 use ark_secp256r1::fq::Fq;
 use num_bigint::{BigUint, ToBigUint};
 use rand::{distributions::Standard, prelude::Distribution};
-use std::ops::{Add, Mul, Neg, Sub};
+use std::ops::{Add, Mul, Neg};
 
 #[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
 pub struct P256(pub(crate) Fq);
@@ -40,14 +40,6 @@ impl Add for P256 {
 
     fn add(self, rhs: Self) -> Self::Output {
         Self(self.0 + rhs.0)
-    }
-}
-
-impl Sub for P256 {
-    type Output = Self;
-
-    fn sub(self, rhs: Self) -> Self::Output {
-        Self(self.0 - rhs.0)
     }
 }
 
@@ -91,7 +83,7 @@ impl Field for P256 {
     }
 
     fn get_bit_be(&self, n: u32) -> bool {
-        self.0 .0.get_bit(n as usize)
+        self.0 .0.get_bit(Self::BIT_SIZE as usize - n as usize - 1)
     }
 
     fn inverse(self) -> Self {
@@ -107,7 +99,7 @@ impl Field for P256 {
 mod tests {
     use super::P256;
     use crate::fields::{
-        tests::{test_field_basic, test_field_compute_product_repeated},
+        tests::{test_field_basic, test_field_bit_ops, test_field_compute_product_repeated},
         Field,
     };
 
@@ -121,5 +113,10 @@ mod tests {
     #[test]
     fn test_p256_compute_product_repeated() {
         test_field_compute_product_repeated::<P256>();
+    }
+
+    #[test]
+    fn test_p256_bit_ops() {
+        test_field_bit_ops::<P256>();
     }
 }

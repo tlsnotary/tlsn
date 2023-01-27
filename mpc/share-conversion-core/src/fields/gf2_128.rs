@@ -2,7 +2,7 @@
 
 use super::Field;
 use rand::{distributions::Standard, prelude::Distribution};
-use std::ops::{Add, Mul, Neg, Sub};
+use std::ops::{Add, Mul, Neg};
 
 #[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
 pub struct Gf2_128(pub(crate) u128);
@@ -41,15 +41,6 @@ impl Add for Gf2_128 {
 
     #[allow(clippy::suspicious_arithmetic_impl)]
     fn add(self, rhs: Self) -> Self::Output {
-        Self(self.0 ^ rhs.0)
-    }
-}
-
-impl Sub for Gf2_128 {
-    type Output = Self;
-
-    #[allow(clippy::suspicious_arithmetic_impl)]
-    fn sub(self, rhs: Self) -> Self::Output {
         Self(self.0 ^ rhs.0)
     }
 }
@@ -135,7 +126,7 @@ impl Field for Gf2_128 {
 mod tests {
     use super::Gf2_128;
     use crate::fields::{
-        tests::{test_field_basic, test_field_compute_product_repeated},
+        tests::{test_field_basic, test_field_bit_ops, test_field_compute_product_repeated},
         Field, UniformRand,
     };
     use ghash_rc::{
@@ -155,6 +146,11 @@ mod tests {
     #[test]
     fn test_gf2_128_compute_product_repeated() {
         test_field_compute_product_repeated::<Gf2_128>();
+    }
+
+    #[test]
+    fn test_gf2_128_bit_ops() {
+        test_field_bit_ops::<Gf2_128>();
     }
 
     #[test]
