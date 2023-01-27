@@ -25,7 +25,7 @@ impl<T: Field> MulShare<T> {
 
         let mut t1 = vec![T::zero(); T::BIT_SIZE];
         for (k, t) in t1.iter_mut().enumerate() {
-            *t = (self.inner() * (T::one() << k as u32)) ^ masks[k]
+            *t = (self.inner() * (T::one() << (T::BIT_SIZE - k - 1) as u32)) ^ masks[k]
         }
 
         let add_share = AddShare::new(-t0.iter().fold(T::zero(), |acc, i| acc + *i));

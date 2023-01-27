@@ -31,7 +31,7 @@ pub trait Field:
 
     fn zero() -> Self;
     fn one() -> Self;
-    fn get_bit(&self, n: usize) -> bool;
+    fn get_bit_be(&self, n: usize) -> bool;
     fn inverse(self) -> Self;
     fn from_bits_be(bits: &[bool]) -> Self;
 }

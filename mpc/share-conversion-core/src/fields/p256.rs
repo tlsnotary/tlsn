@@ -114,7 +114,7 @@ impl Field for P256 {
         P256(<Fq as One>::one())
     }
 
-    fn get_bit(&self, n: usize) -> bool {
+    fn get_bit_be(&self, n: usize) -> bool {
         self.0 .0.get_bit(n)
     }
 

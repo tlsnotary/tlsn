@@ -40,14 +40,11 @@ impl<T: Field> AddShare<T> {
         // decompose the share into a sum of components, e.g. if the share is 10110, we decompose it into
         // 0 + 10 + 100 + 0000 + 10000
         let components: Vec<T> = (0..T::BIT_SIZE)
-            .enumerate()
-            .map(|(k, i)| {
+            .map(|k| {
                 // `self.inner() & (1 << i)` first extracts a bit of `self.inner()` in position `i` (counting from
                 // the right) and then left-shifts that bit by `i`
                 let mut bits = vec![false; T::BIT_SIZE];
-                if self.inner().get_bit(i) {
-                    bits[k] = true;
-                }
+                bits[k] = self.inner().get_bit_be(k);
                 T::from_bits_be(&bits)
             })
             .collect();
@@ -64,7 +61,7 @@ impl<T: Field> AddShare<T> {
             .zip(masks.iter())
             .enumerate()
         {
-            *b = ((*c ^ (T::one() << k as u32)) * random) ^ *m;
+            *b = ((*c ^ (T::one() << (T::BIT_SIZE - k - 1) as u32)) * random) ^ *m;
         }
 
         Ok((mul_share, OTEnvelope::new(b0, b1)?))

@@ -117,8 +117,8 @@ impl Field for Gf2_128 {
         Self(1)
     }
 
-    fn get_bit(&self, n: usize) -> bool {
-        (self.0 >> n) & 1 == 1
+    fn get_bit_be(&self, n: usize) -> bool {
+        (self.0 >> (Self::BIT_SIZE - n - 1)) & 1 == 1
     }
 
     /// Galois field inversion of 128-bit block
@@ -137,7 +137,7 @@ impl Field for Gf2_128 {
     fn from_bits_be(bits: &[bool]) -> Self {
         Self::new(
             bits.iter()
-                .fold(0, |result, bit| (result << 1) ^ *bit as u128),
+                .fold(0, |result, bit| (result << 1) | *bit as u128),
         )
     }
 }

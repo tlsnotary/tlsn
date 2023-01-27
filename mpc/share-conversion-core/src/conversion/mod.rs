@@ -33,7 +33,7 @@ where
         let len: usize = Self::Inner::BIT_SIZE;
         let mut out: Vec<bool> = Vec::with_capacity(len);
         for k in 0..len {
-            out.push(self.inner().get_bit(k));
+            out.push(self.inner().get_bit_be(k));
         }
         out
     }
@@ -142,25 +142,25 @@ mod tests {
     #[test]
     fn test_m2a_gf2_128() {
         let (a, b, x, y) = generic_convert::<MulShare<Gf2_128>, Gf2_128>();
-        assert_eq!(a * b, x ^ y);
+        assert_eq!(a * b, x + y);
     }
 
     #[test]
     fn test_m2a_p256() {
         let (a, b, x, y) = generic_convert::<MulShare<P256>, P256>();
-        assert_eq!(a * b, x ^ y);
+        assert_eq!(a * b, x + y);
     }
 
     #[test]
     fn test_a2m_gf2_128() {
         let (x, y, a, b) = generic_convert::<AddShare<Gf2_128>, Gf2_128>();
-        assert_eq!(x ^ y, a * b,);
+        assert_eq!(x + y, a * b,);
     }
 
     #[test]
     fn test_a2m_p256() {
         let (x, y, a, b) = generic_convert::<AddShare<P256>, P256>();
-        assert_eq!(x ^ y, a * b);
+        assert_eq!(x + y, a * b);
     }
 
     fn generic_convert<T: Gf2_128ShareConvert<Inner = U>, U: Field>() -> (
@@ -183,7 +183,7 @@ mod tests {
     fn mock_ot<T: Field>(envelopes: OTEnvelope<T>, choices: T) -> Vec<T> {
         let mut out: Vec<T> = vec![T::zero(); T::BIT_SIZE];
         for (k, number) in out.iter_mut().enumerate() {
-            let bit = choices.get_bit(k);
+            let bit = choices.get_bit_be(k);
             *number = if bit { envelopes.1[k] } else { envelopes.0[k] }
         }
         out
