@@ -251,7 +251,7 @@ pub mod tests {
         let receiver = receiver
             .receive(add_ciphers)
             .expect_err("Sending more OTs should be state error");
-        assert_eq!(receiver, ExtReceiverCoreError::NotDerandomized);
+        assert_eq!(receiver, ExtReceiverCoreError::CiphertextCountWrong);
 
         let expected: Vec<Block> = inputs
             .iter()
