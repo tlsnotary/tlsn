@@ -10,9 +10,10 @@ async fn bench_dualex(circ: Arc<Circuit>) {
     let mut rng = ChaCha12Rng::seed_from_u64(0);
     let config = DualExConfigBuilder::default()
         .id("bench".to_string())
+        .circ(circ.clone())
         .build()
         .unwrap();
-    let (leader, follower) = mock_dualex_pair(config, circ.clone());
+    let (leader, follower) = mock_dualex_pair(config);
 
     let leader_input = circ.input(0).unwrap().to_value(vec![0u8; 16]).unwrap();
     let follower_input = circ.input(1).unwrap().to_value(vec![0u8; 16]).unwrap();

@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, sync::Arc};
+use std::marker::PhantomData;
 
 use super::{setup_inputs_with, state::*, DEExecute, DESummary};
 
@@ -8,7 +8,7 @@ use crate::protocol::{
 };
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
-use mpc_circuits::{Circuit, Input, InputValue, OutputValue};
+use mpc_circuits::{Input, InputValue, OutputValue};
 use mpc_core::{
     garble::{
         exec::dual::{self as core, DualExConfig},
@@ -25,7 +25,6 @@ where
 {
     config: DualExConfig,
     state: S,
-    circ: Arc<Circuit>,
     channel: GarbleChannel,
     backend: B,
     label_sender_factory: LSF,
@@ -46,7 +45,6 @@ where
     /// Create a new DualExLeader
     pub fn new(
         config: DualExConfig,
-        circ: Arc<Circuit>,
         channel: GarbleChannel,
         backend: B,
         label_sender_factory: LSF,
@@ -55,7 +53,6 @@ where
         DualExLeader {
             config,
             state: Initialized,
-            circ,
             channel,
             backend,
             label_sender_factory,
@@ -104,7 +101,6 @@ where
                 gen_labels,
                 ev_labels,
             },
-            circ: self.circ,
             channel: self.channel,
             backend: self.backend,
             label_sender_factory: self.label_sender_factory,
@@ -137,12 +133,12 @@ where
     ///
     /// Returns evaluated garbled circuit
     pub async fn execute_skip_decoding(mut self) -> Result<DESummary, GCError> {
-        let leader = core::DualExLeader::new(self.circ.clone());
+        let leader = core::DualExLeader::new(self.config.circ());
 
         // Generate garbled circuit
         let full_gc = self
             .backend
-            .generate(self.circ.clone(), self.state.gen_labels)
+            .generate(self.config.circ(), self.state.gen_labels)
             .await?;
 
         let full_summary = full_gc.get_summary();
@@ -161,7 +157,7 @@ where
         )?;
 
         let gc_ev =
-            GarbledCircuit::<gc_state::Partial>::from_unchecked(self.circ.clone(), msg.into())?;
+            GarbledCircuit::<gc_state::Partial>::from_unchecked(self.config.circ(), msg.into())?;
 
         // Evaluate garbled circuit
         let evaluated_gc = self.backend.evaluate(gc_ev, self.state.ev_labels).await?;
@@ -214,7 +210,7 @@ where
         // Generate garbled circuit
         let full_gc = self
             .backend
-            .generate(self.circ.clone(), self.state.gen_labels)
+            .generate(self.config.circ(), self.state.gen_labels)
             .await?;
 
         let full_summary = full_gc.get_summary();
@@ -235,7 +231,7 @@ where
         )?;
 
         let gc_ev =
-            GarbledCircuit::<gc_state::Partial>::from_unchecked(self.circ.clone(), msg.into())?;
+            GarbledCircuit::<gc_state::Partial>::from_unchecked(self.config.circ(), msg.into())?;
 
         if !gc_ev.has_output_commitments() {
             return Err(GCError::CoreError(CoreError::PeerError(
