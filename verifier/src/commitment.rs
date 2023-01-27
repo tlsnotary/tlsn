@@ -138,7 +138,7 @@ pub struct Range {
 
 impl Range {
     pub fn new(start: usize, end: usize) -> Result<Self, Error> {
-        if start <= end {
+        if start >= end {
             return Err(Error::RangeInvalid);
         }
         Ok(Self { start, end })
