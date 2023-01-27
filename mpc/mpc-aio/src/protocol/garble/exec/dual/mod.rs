@@ -200,7 +200,7 @@ where
 
 #[cfg(feature = "mock")]
 pub mod mock {
-    use super::*;
+    use super::{state::Initialized, *};
     use crate::protocol::{
         garble::backend::RayonBackend,
         ot::mock::{MockOTFactory, MockOTReceiver, MockOTSender},
@@ -208,8 +208,8 @@ pub mod mock {
     use mpc_core::Block;
     use utils_aio::duplex::DuplexChannel;
 
-    pub type MockDualExLeader<S> = DualExLeader<
-        S,
+    pub type MockDualExLeader = DualExLeader<
+        Initialized,
         RayonBackend,
         MockOTFactory<Block>,
         MockOTFactory<Block>,
@@ -217,8 +217,8 @@ pub mod mock {
         MockOTReceiver<Block>,
     >;
 
-    pub type MockDualExFollower<S> = DualExFollower<
-        S,
+    pub type MockDualExFollower = DualExFollower<
+        Initialized,
         RayonBackend,
         MockOTFactory<Block>,
         MockOTFactory<Block>,
@@ -226,12 +226,7 @@ pub mod mock {
         MockOTReceiver<Block>,
     >;
 
-    pub fn mock_dualex_pair(
-        config: DualExConfig,
-    ) -> (
-        MockDualExLeader<state::Initialized>,
-        MockDualExFollower<state::Initialized>,
-    ) {
+    pub fn mock_dualex_pair(config: DualExConfig) -> (MockDualExLeader, MockDualExFollower) {
         let (leader_channel, follower_channel) = DuplexChannel::<GarbleMessage>::new();
         let ot_factory = MockOTFactory::new();
 
