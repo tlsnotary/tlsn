@@ -99,4 +99,13 @@ mod tests {
         assert_eq!(powers[1], powers[0] * factor);
         assert_eq!(powers[2], powers[1] * factor);
     }
+
+    pub fn test_field_bit_ops<T: Field>() {
+        let mut a = vec![false; T::BIT_SIZE as usize];
+        a[T::BIT_SIZE as usize - 1] = true;
+
+        let out = T::from_bits_be(&a);
+        assert_eq!(out, T::one());
+        assert_eq!(out.get_bit_be(T::BIT_SIZE - 1), true);
+    }
 }
