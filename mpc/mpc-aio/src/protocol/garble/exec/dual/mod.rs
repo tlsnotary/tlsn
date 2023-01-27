@@ -15,22 +15,85 @@ pub use leader::DualExLeader;
 
 use std::sync::Arc;
 
+use async_trait::async_trait;
+
 use crate::protocol::{
     garble::{GCError, GarbleChannel, GarbleMessage},
     ot::{OTFactoryError, ObliviousReceive, ObliviousSend},
 };
 use futures::{SinkExt, StreamExt};
-use mpc_circuits::{Circuit, Input, InputValue, WireGroup};
+use mpc_circuits::{Circuit, Input, InputValue, OutputValue, WireGroup};
 use mpc_core::{
     garble::{
-        exec::dual::DualExConfig, ActiveEncodedInput, ActiveInputSet, FullEncodedInput,
-        FullInputSet,
+        exec::dual::DualExConfig, gc_state, ActiveEncodedInput, ActiveInputSet, FullEncodedInput,
+        FullInputSet, GarbledCircuit,
     },
     ot::config::{
         OTReceiverConfig, OTReceiverConfigBuilder, OTSenderConfig, OTSenderConfigBuilder,
     },
 };
 use utils_aio::{expect_msg_or_err, factory::AsyncFactory};
+
+#[async_trait]
+pub trait DEExecute: Sized + Send {
+    /// Execute dual execution protocol
+    ///
+    /// Returns decoded output values
+    async fn execute(
+        self,
+        gen_labels: FullInputSet,
+        gen_inputs: Vec<InputValue>,
+        ot_send_inputs: Vec<Input>,
+        ot_receive_inputs: Vec<InputValue>,
+        cached_labels: Vec<ActiveEncodedInput>,
+    ) -> Result<Vec<OutputValue>, GCError> {
+        self.execute_skip_decoding(
+            gen_labels,
+            gen_inputs,
+            ot_send_inputs,
+            ot_receive_inputs,
+            cached_labels,
+        )
+        .await?
+        .decode()
+        .map_err(GCError::from)
+    }
+
+    /// Execute dual execution protocol without decoding the output values
+    ///
+    /// This can be used when the output labels of the evaluated circuit are needed
+    /// instead of the output values
+    ///
+    /// Returns evaluated garbled circuit
+    async fn execute_skip_decoding(
+        mut self,
+        gen_labels: FullInputSet,
+        gen_inputs: Vec<InputValue>,
+        ot_send_inputs: Vec<Input>,
+        ot_receive_inputs: Vec<InputValue>,
+        cached_labels: Vec<ActiveEncodedInput>,
+    ) -> Result<GarbledCircuit<gc_state::EvaluatedSummary>, GCError>;
+
+    /// Execute dual execution protocol without the equality check
+    ///
+    /// This can be used when chaining multiple circuits together. Neither party
+    /// reveals the output label decoding information.
+    ///
+    /// ** Warning **
+    ///
+    /// Do not use this method unless you know what you're doing! The output labels returned
+    /// by this method can _not_ be considered correct without the equality check.
+    ///
+    /// Returns evaluated garbled circuit
+    async fn execute_skip_equality_check(
+        mut self,
+        gen_labels: FullInputSet,
+        gen_inputs: Vec<InputValue>,
+        ot_send_inputs: Vec<Input>,
+        ot_receive_inputs: Vec<InputValue>,
+        cached_labels: Vec<ActiveEncodedInput>,
+    ) -> Result<GarbledCircuit<gc_state::EvaluatedSummary>, GCError>;
+}
 
 /// Set up input labels by exchanging directly and via oblivious transfer.
 pub async fn setup_inputs_with<LSF, LRF, LS, LR>(

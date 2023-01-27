@@ -1,11 +1,12 @@
 use std::{marker::PhantomData, sync::Arc};
 
-use super::{setup_inputs_with, state::*};
+use super::{setup_inputs_with, state::*, DEExecute};
 
 use crate::protocol::{
     garble::{Evaluator, GCError, GarbleChannel, GarbleMessage, Generator},
     ot::{OTFactoryError, ObliviousReceive, ObliviousSend},
 };
+use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use mpc_circuits::{Circuit, Input, InputValue, OutputValue};
 use mpc_core::{
@@ -245,5 +246,55 @@ where
         let evaluated_gc = self.backend.evaluate(gc_ev, self.state.ev_labels).await?;
 
         Ok(evaluated_gc.into_summary())
+    }
+}
+
+#[async_trait]
+impl<B, LSF, LRF, LS, LR> DEExecute for DualExFollower<Initialized, B, LSF, LRF, LS, LR>
+where
+    B: Generator + Evaluator + Send,
+    LSF: AsyncFactory<LS, Config = OTSenderConfig, Error = OTFactoryError> + Send,
+    LRF: AsyncFactory<LR, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
+    LS: ObliviousSend<FullEncodedInput> + Send,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + Send,
+{
+    async fn execute_skip_decoding(
+        mut self,
+        gen_labels: FullInputSet,
+        gen_inputs: Vec<InputValue>,
+        ot_send_inputs: Vec<Input>,
+        ot_receive_inputs: Vec<InputValue>,
+        cached_labels: Vec<ActiveEncodedInput>,
+    ) -> Result<GarbledCircuit<gc_state::EvaluatedSummary>, GCError> {
+        self.setup_inputs(
+            gen_labels,
+            gen_inputs,
+            ot_send_inputs,
+            ot_receive_inputs,
+            cached_labels,
+        )
+        .await?
+        .execute_skip_decoding()
+        .await
+    }
+
+    async fn execute_skip_equality_check(
+        mut self,
+        gen_labels: FullInputSet,
+        gen_inputs: Vec<InputValue>,
+        ot_send_inputs: Vec<Input>,
+        ot_receive_inputs: Vec<InputValue>,
+        cached_labels: Vec<ActiveEncodedInput>,
+    ) -> Result<GarbledCircuit<gc_state::EvaluatedSummary>, GCError> {
+        self.setup_inputs(
+            gen_labels,
+            gen_inputs,
+            ot_send_inputs,
+            ot_receive_inputs,
+            cached_labels,
+        )
+        .await?
+        .execute_skip_equality_check()
+        .await
     }
 }
