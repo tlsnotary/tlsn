@@ -19,6 +19,7 @@ type HashCommitment = [u8; 32];
 /// A PRG seeds from which to generate garbled circuit active labels, see
 /// [crate::commitment::CommitmentType::labels_blake3]
 type LabelSeed = [u8; 32];
+
 /// Verifier of the notarization document
 ///
 /// Once the verification succeeds, an application level (e.g. HTTP, JSON) parser can
@@ -107,10 +108,6 @@ fn e2e_test() {
 
     let mut rng = rand::thread_rng();
 
-    // The size in bytes of one block of the cipher that was computed inside the garbled circuit
-    // (16 for AES, 64 for ChaCha)
-    let cipher_block_size = 16;
-
     let plaintext = b"This important data will be notarized";
 
     // -------- After the webserver sends the Server Key Exchange message (during the TLS handshake),
@@ -159,16 +156,8 @@ fn e2e_test() {
 
     // -------- The User retrieves her active labels using Oblivious Transfer (simulated below):
 
-    // convert plaintext into bits by splitting up the plaintext into 16-byte AES blocks, then
-    // making each block's bit ordering lsb0
-    let bits: Vec<bool> = plaintext
-        .chunks(cipher_block_size)
-        .flat_map(|chunk| {
-            let mut bits = u8vec_to_boolvec(chunk);
-            bits.reverse();
-            bits
-        })
-        .collect();
+    // convert plaintext into lsb0 bits
+    let bits = u8vec_to_boolvec(plaintext);
 
     let all_active_labels: Vec<Block> = full_labels
         .iter()
@@ -197,19 +186,12 @@ fn e2e_test() {
     // hash all the active labels in the commitment's ranges
     let mut hasher = Hasher::new();
 
-    // due to lsb0 ordering of labels, we need to split up each range into individual ranges covering
-    // each block and then flip each individual range
     for r in &ranges {
-        let block_ranges = utils::split_into_block_ranges(r, cipher_block_size);
-        for br in &block_ranges {
-            let flipped_range = utils::flip_range(br, cipher_block_size);
-            for label in
-                all_active_labels[flipped_range.start() * 8..flipped_range.end() * 8].iter()
-            {
-                hasher.update(&label.inner().to_be_bytes());
-            }
+        for label in all_active_labels[r.start() * 8..r.end() * 8].iter() {
+            hasher.update(&label.inner().to_be_bytes());
         }
     }
+
     // add salt
     hasher.update(&salt);
     let hash_commitment: HashCommitment = hasher.finalize().into();
@@ -237,12 +219,7 @@ fn e2e_test() {
 
     // (note that ephemeralECPubkey is known both to the User and the Notary)
     let signed_tls = SignedTLS::new(TIME, ephemeral_pubkey, commitment_to_tls);
-    let signed = Signed::new(
-        signed_tls.clone(),
-        label_seed,
-        merkle_root,
-        cipher_block_size,
-    );
+    let signed = Signed::new(signed_tls.clone(), label_seed, merkle_root);
 
     let signature = signing_key.sign(&bincode::serialize(&signed).unwrap());
     let sig_der = signature.to_der();
@@ -267,7 +244,6 @@ fn e2e_test() {
         Some(signature.to_vec()),
         label_seed,
         merkle_root,
-        cipher_block_size,
         1,
         proof,
         vec![comm],

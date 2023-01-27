@@ -45,19 +45,12 @@ impl Commitment {
     ) -> Result<(), Error> {
         let expected = match self.typ {
             CommitmentType::labels_blake3 => {
-                let (seed, cipher_block_size) =
-                    match extra_data.downcast::<LabelSeedAndCipherBlockSize>() {
-                        Ok(extra_data) => (extra_data.label_seed, extra_data.cipher_block_size),
-                        Err(_) => return Err(Error::InternalError),
-                    };
+                let seed = match extra_data.downcast::<LabelSeed>() {
+                    Ok(seed) => seed,
+                    Err(_) => return Err(Error::InternalError),
+                };
 
-                compute_label_commitment(
-                    &opening.opening,
-                    &self.ranges,
-                    &seed,
-                    opening.salt(),
-                    cipher_block_size,
-                )?
+                compute_label_commitment(&opening.opening, &self.ranges, &seed, opening.salt())?
             }
             _ => return Err(Error::InternalError),
         };
@@ -154,20 +147,5 @@ impl Range {
 
     pub fn end(&self) -> usize {
         self.end
-    }
-}
-
-pub struct LabelSeedAndCipherBlockSize {
-    label_seed: LabelSeed,
-    cipher_block_size: usize,
-}
-
-/// Extra data for [CommitmentType::labels_blake3] commitments
-impl LabelSeedAndCipherBlockSize {
-    pub fn new(label_seed: LabelSeed, cipher_block_size: usize) -> Self {
-        Self {
-            label_seed,
-            cipher_block_size,
-        }
     }
 }

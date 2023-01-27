@@ -47,23 +47,15 @@ pub struct Signed {
     label_seed: LabelSeed,
     /// Merkle root of all the commitments
     merkle_root: [u8; 32],
-    /// Size of the cipher's block in bytes (16 for AES, 64 for ChaCha)
-    cipher_block_size: usize,
 }
 
 impl Signed {
     /// Creates a new struct to be signed by the Notary
-    pub fn new(
-        tls: SignedTLS,
-        label_seed: LabelSeed,
-        merkle_root: [u8; 32],
-        cipher_block_size: usize,
-    ) -> Self {
+    pub fn new(tls: SignedTLS, label_seed: LabelSeed, merkle_root: [u8; 32]) -> Self {
         Self {
             tls,
             label_seed,
             merkle_root,
-            cipher_block_size,
         }
     }
 
@@ -82,10 +74,6 @@ impl Signed {
     pub fn merkle_root(&self) -> &[u8; 32] {
         &self.merkle_root
     }
-
-    pub fn cipher_block_size(&self) -> usize {
-        self.cipher_block_size
-    }
 }
 
 /// Extracts relevant fields from the VerifierDoc. Those are the fields
@@ -96,7 +84,6 @@ impl std::convert::From<&VerifierDoc> for Signed {
             doc.tls_doc().signed_tls().clone(),
             *doc.label_seed(),
             *doc.merkle_root(),
-            doc.cipher_block_size(),
         )
     }
 }
