@@ -15,8 +15,8 @@ use crate::protocol::garble::GCError;
 pub(crate) use super::dual::setup_inputs_with;
 
 #[async_trait]
-pub trait DEAPExecute: Sized + Send {
-    type NextState: DEAPVerify + Sized + Send;
+pub trait DEAPExecute: Send {
+    type NextState: DEAPVerify;
 
     /// Execute first phase of DEAP protocol
     ///
@@ -28,19 +28,7 @@ pub trait DEAPExecute: Sized + Send {
         ot_send_inputs: Vec<Input>,
         ot_receive_inputs: Vec<InputValue>,
         cached_labels: Vec<ActiveEncodedInput>,
-    ) -> Result<(Vec<OutputValue>, Self::NextState), GCError> {
-        // Discard summary
-        let (output, _, next_state) = self
-            .execute_and_summarize(
-                gen_labels,
-                gen_inputs,
-                ot_send_inputs,
-                ot_receive_inputs,
-                cached_labels,
-            )
-            .await?;
-        Ok((output, next_state))
-    }
+    ) -> Result<(Vec<OutputValue>, Self::NextState), GCError>;
 
     /// Execute first phase of the DEAP protocol, returning the output
     /// and a summary of the evaluated garbled circuit.
@@ -71,7 +59,7 @@ pub trait DEAPExecute: Sized + Send {
 /// Calling this function on [`DEAPFollower`] reveals all of the follower's private inputs to the leader!
 /// Care must be taken to ensure that this is synchronized properly with any other uses of these inputs.
 #[async_trait]
-pub trait DEAPVerify: Sized + Send {
+pub trait DEAPVerify: Send {
     /// Execute the final phase of the protocol. This proves the authenticity of the circuit output
     /// to the follower without leaking any information about leader's inputs.
     async fn verify(self) -> Result<(), GCError>;

@@ -35,7 +35,7 @@ use mpc_core::{
 use utils_aio::{expect_msg_or_err, factory::AsyncFactory};
 
 #[async_trait]
-pub trait DEExecute: Sized + Send {
+pub trait DEExecute: Send {
     /// Execute dual execution protocol
     ///
     /// Returns decoded output values
@@ -46,18 +46,7 @@ pub trait DEExecute: Sized + Send {
         ot_send_inputs: Vec<Input>,
         ot_receive_inputs: Vec<InputValue>,
         cached_labels: Vec<ActiveEncodedInput>,
-    ) -> Result<Vec<OutputValue>, GCError> {
-        self.execute_skip_decoding(
-            gen_labels,
-            gen_inputs,
-            ot_send_inputs,
-            ot_receive_inputs,
-            cached_labels,
-        )
-        .await?
-        .decode()
-        .map_err(GCError::from)
-    }
+    ) -> Result<Vec<OutputValue>, GCError>;
 
     /// Execute dual execution protocol without decoding the output values
     ///

@@ -279,10 +279,26 @@ where
 {
     type NextState = DEAPLeader<Executed<LR>, B, LSF, LRF, LS, LR>;
 
-    /// Execute first phase of the DEAP protocol, returning the output
-    /// and a summary of the evaluated garbled circuit.
-    ///
-    /// This can be used when the labels of the evaluated circuit are needed.
+    async fn execute(
+        self,
+        gen_labels: FullInputSet,
+        gen_inputs: Vec<InputValue>,
+        ot_send_inputs: Vec<Input>,
+        ot_receive_inputs: Vec<InputValue>,
+        cached_labels: Vec<ActiveEncodedInput>,
+    ) -> Result<(Vec<OutputValue>, Self::NextState), GCError> {
+        self.setup_inputs(
+            gen_labels,
+            gen_inputs,
+            ot_send_inputs,
+            ot_receive_inputs,
+            cached_labels,
+        )
+        .await?
+        .execute()
+        .await
+    }
+
     async fn execute_and_summarize(
         self,
         gen_labels: FullInputSet,

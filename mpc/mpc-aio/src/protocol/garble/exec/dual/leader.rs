@@ -257,6 +257,26 @@ where
     LS: ObliviousSend<FullEncodedInput> + Send,
     LR: ObliviousReceive<InputValue, ActiveEncodedInput> + Send,
 {
+    async fn execute(
+        self,
+        gen_labels: FullInputSet,
+        gen_inputs: Vec<InputValue>,
+        ot_send_inputs: Vec<Input>,
+        ot_receive_inputs: Vec<InputValue>,
+        cached_labels: Vec<ActiveEncodedInput>,
+    ) -> Result<Vec<OutputValue>, GCError> {
+        self.setup_inputs(
+            gen_labels,
+            gen_inputs,
+            ot_send_inputs,
+            ot_receive_inputs,
+            cached_labels,
+        )
+        .await?
+        .execute()
+        .await
+    }
+
     async fn execute_skip_decoding(
         mut self,
         gen_labels: FullInputSet,
