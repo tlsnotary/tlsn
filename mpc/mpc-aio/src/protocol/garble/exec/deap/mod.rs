@@ -70,7 +70,7 @@ pub trait DEAPVerify: Send {
 }
 
 #[cfg(feature = "mock")]
-mod mock {
+pub mod mock {
     use super::*;
     use crate::protocol::{
         garble::backend::RayonBackend,
@@ -125,12 +125,10 @@ mod mock {
     }
 }
 
-#[cfg(feature = "mock")]
-pub use mock::mock_deap_pair;
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mock::*;
     use mpc_circuits::{Circuit, WireGroup, ADDER_64};
     use mpc_core::garble::{exec::deap::DEAPConfigBuilder, FullInputSet};
     use rand_chacha::ChaCha12Rng;

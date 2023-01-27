@@ -199,7 +199,7 @@ where
 }
 
 #[cfg(feature = "mock")]
-mod mock {
+pub mod mock {
     use super::*;
     use crate::protocol::{
         garble::backend::RayonBackend,
@@ -216,6 +216,7 @@ mod mock {
         MockOTSender<Block>,
         MockOTReceiver<Block>,
     >;
+
     pub type MockDualExFollower<S> = DualExFollower<
         S,
         RayonBackend,
@@ -254,12 +255,10 @@ mod mock {
     }
 }
 
-#[cfg(feature = "mock")]
-pub use mock::mock_dualex_pair;
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mock::*;
     use mpc_circuits::{Circuit, ADDER_64};
     use mpc_core::garble::exec::dual::DualExConfigBuilder;
     use rand::SeedableRng;

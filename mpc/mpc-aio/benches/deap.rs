@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use mpc_aio::protocol::garble::exec::deap::mock_deap_pair;
+use mpc_aio::protocol::garble::exec::deap::mock::mock_deap_pair;
 use mpc_circuits::{Circuit, WireGroup, AES_128_REVERSE};
 use mpc_core::garble::{exec::deap::DEAPConfigBuilder, FullInputSet};
 use rand::SeedableRng;

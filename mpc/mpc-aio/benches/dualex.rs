@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use mpc_aio::protocol::garble::exec::dual::mock_dualex_pair;
+use mpc_aio::protocol::garble::exec::dual::mock::mock_dualex_pair;
 use mpc_circuits::{Circuit, WireGroup, AES_128_REVERSE};
 use mpc_core::garble::{exec::dual::DualExConfigBuilder, FullInputSet};
 use rand::SeedableRng;
