@@ -4,6 +4,7 @@ use crate::protocol::{
     garble::{Compressor, Evaluator, GCError, GarbleChannel, GarbleMessage, Generator, Validator},
     ot::{OTFactoryError, ObliviousReceive, ObliviousSend, ObliviousVerify},
 };
+use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use mpc_circuits::{Circuit, Input, InputValue, OutputValue, WireGroup};
 use mpc_core::{
@@ -16,7 +17,7 @@ use mpc_core::{
 };
 use utils_aio::{expect_msg_or_err, factory::AsyncFactory};
 
-use super::setup_inputs_with;
+use super::{setup_inputs_with, DEAPExecute, DEAPVerify};
 
 pub mod state {
     use super::*;
@@ -267,6 +268,49 @@ where
     }
 }
 
+#[async_trait]
+impl<B, LSF, LRF, LS, LR> DEAPExecute for DEAPLeader<Initialized, B, LSF, LRF, LS, LR>
+where
+    B: Generator + Evaluator + Compressor + Validator + Send,
+    LSF: AsyncFactory<LS, Config = OTSenderConfig, Error = OTFactoryError> + Send,
+    LRF: AsyncFactory<LR, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
+    LS: ObliviousSend<FullEncodedInput> + Send,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + ObliviousVerify<FullEncodedInput> + Send,
+{
+    type NextState = DEAPLeader<Executed<LR>, B, LSF, LRF, LS, LR>;
+
+    /// Execute first phase of the DEAP protocol, returning the output
+    /// and a summary of the evaluated garbled circuit.
+    ///
+    /// This can be used when the labels of the evaluated circuit are needed.
+    async fn execute_and_summarize(
+        self,
+        gen_labels: FullInputSet,
+        gen_inputs: Vec<InputValue>,
+        ot_send_inputs: Vec<Input>,
+        ot_receive_inputs: Vec<InputValue>,
+        cached_labels: Vec<ActiveEncodedInput>,
+    ) -> Result<
+        (
+            Vec<OutputValue>,
+            GarbledCircuit<gc_state::EvaluatedSummary>,
+            Self::NextState,
+        ),
+        GCError,
+    > {
+        self.setup_inputs(
+            gen_labels,
+            gen_inputs,
+            ot_send_inputs,
+            ot_receive_inputs,
+            cached_labels,
+        )
+        .await?
+        .execute_and_summarize()
+        .await
+    }
+}
+
 impl<B, LSF, LRF, LS, LR> DEAPLeader<Executed<LR>, B, LSF, LRF, LS, LR>
 where
     B: Generator + Evaluator + Compressor + Validator + Send,
@@ -342,5 +386,19 @@ where
             .await?;
 
         Ok(())
+    }
+}
+
+#[async_trait]
+impl<B, LSF, LRF, LS, LR> DEAPVerify for DEAPLeader<Executed<LR>, B, LSF, LRF, LS, LR>
+where
+    B: Generator + Evaluator + Compressor + Validator + Send,
+    LSF: Send,
+    LRF: Send,
+    LS: ObliviousSend<FullEncodedInput> + Send,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + ObliviousVerify<FullEncodedInput> + Send,
+{
+    async fn verify(self) -> Result<(), GCError> {
+        self.verify().await
     }
 }
