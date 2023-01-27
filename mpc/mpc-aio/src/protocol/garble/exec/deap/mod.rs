@@ -79,16 +79,16 @@ pub mod mock {
     use mpc_core::{garble::exec::deap::DEAPConfig, msgs::garble::GarbleMessage, Block};
     use utils_aio::duplex::DuplexChannel;
 
-    pub type MockDEAPLeader<S> = DEAPLeader<
-        S,
+    pub type MockDEAPLeader = DEAPLeader<
+        leader_state::Initialized,
         RayonBackend,
         MockOTFactory<Block>,
         MockOTFactory<Block>,
         MockOTSender<Block>,
         MockOTReceiver<Block>,
     >;
-    pub type MockDEAPFollower<S> = DEAPFollower<
-        S,
+    pub type MockDEAPFollower = DEAPFollower<
+        follower_state::Initialized,
         RayonBackend,
         MockOTFactory<Block>,
         MockOTFactory<Block>,
@@ -96,12 +96,7 @@ pub mod mock {
         MockOTReceiver<Block>,
     >;
 
-    pub fn mock_deap_pair(
-        config: DEAPConfig,
-    ) -> (
-        MockDEAPLeader<leader_state::Initialized>,
-        MockDEAPFollower<follower_state::Initialized>,
-    ) {
+    pub fn mock_deap_pair(config: DEAPConfig) -> (MockDEAPLeader, MockDEAPFollower) {
         let (leader_channel, follower_channel) = DuplexChannel::<GarbleMessage>::new();
         let ot_factory = MockOTFactory::new();
 
