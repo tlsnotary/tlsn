@@ -3,7 +3,7 @@ pub mod p256;
 
 use std::{
     fmt::Debug,
-    ops::{Add, BitXor, Mul, Neg, Shl, Shr},
+    ops::{Add, Mul, Neg},
 };
 
 use rand::{distributions::Standard, prelude::Distribution, Rng};
@@ -12,8 +12,6 @@ pub trait Field:
     Add<Output = Self>
     + Mul<Output = Self>
     + Neg<Output = Self>
-    + Shr<u32, Output = Self>
-    + Shl<u32, Output = Self>
     + Copy
     + Clone
     + Debug
@@ -25,13 +23,13 @@ pub trait Field:
     + Ord
     + PartialEq
     + Eq
-    + BitXor<Self, Output = Self>
 {
-    const BIT_SIZE: usize;
+    const BIT_SIZE: u32;
 
     fn zero() -> Self;
     fn one() -> Self;
-    fn get_bit_be(&self, n: usize) -> bool;
+    fn two_pow(rhs: u32) -> Self;
+    fn get_bit_be(&self, n: u32) -> bool;
     fn inverse(self) -> Self;
     fn from_bits_be(bits: &[bool]) -> Self;
 }

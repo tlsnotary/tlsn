@@ -18,14 +18,14 @@ impl<T: Field> MulShare<T> {
         &self,
         rng: &mut R,
     ) -> Result<(AddShare<T>, OTEnvelope<T>), ShareConversionCoreError> {
-        let mut masks: Vec<T> = vec![T::zero(); T::BIT_SIZE];
+        let mut masks: Vec<T> = vec![T::zero(); T::BIT_SIZE as usize];
         masks.iter_mut().for_each(|x| *x = T::rand(rng));
 
         let t0: Vec<T> = masks.clone();
 
-        let mut t1 = vec![T::zero(); T::BIT_SIZE];
+        let mut t1 = vec![T::zero(); T::BIT_SIZE as usize];
         for (k, t) in t1.iter_mut().enumerate() {
-            *t = (self.inner() * (T::one() << (T::BIT_SIZE - k - 1) as u32)) ^ masks[k]
+            *t = (self.inner() * T::two_pow(T::BIT_SIZE - k as u32 - 1)) + masks[k]
         }
 
         let add_share = AddShare::new(-t0.iter().fold(T::zero(), |acc, i| acc + *i));

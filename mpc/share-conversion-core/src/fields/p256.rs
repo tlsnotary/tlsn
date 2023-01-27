@@ -5,7 +5,7 @@ use ark_ff::{BigInt, BigInteger, Field as ArkField, One, Zero};
 use ark_secp256r1::fq::Fq;
 use num_bigint::{BigUint, ToBigUint};
 use rand::{distributions::Standard, prelude::Distribution};
-use std::ops::{Add, BitXor, Mul, Neg, Shl, Shr, Sub};
+use std::ops::{Add, Mul, Neg, Sub};
 
 #[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
 pub struct P256(pub(crate) Fq);
@@ -67,44 +67,8 @@ impl Neg for P256 {
     }
 }
 
-impl Shr<u32> for P256 {
-    type Output = Self;
-
-    fn shr(self, rhs: u32) -> Self::Output {
-        let mut a = self.clone();
-        for _ in 0..rhs {
-            a.0 .0.divn(rhs);
-        }
-        a
-    }
-}
-
-impl Shl<u32> for P256 {
-    type Output = Self;
-
-    fn shl(self, rhs: u32) -> Self::Output {
-        let mut a = self.clone();
-        for _ in 0..rhs {
-            a.0 .0.muln(rhs);
-        }
-        a
-    }
-}
-
-impl BitXor<Self> for P256 {
-    type Output = Self;
-
-    fn bitxor(self, rhs: Self) -> Self::Output {
-        let mut c = self.clone();
-        for (a, b) in c.0 .0 .0.iter_mut().zip(rhs.0 .0 .0) {
-            *a ^= b
-        }
-        c
-    }
-}
-
 impl Field for P256 {
-    const BIT_SIZE: usize = 256;
+    const BIT_SIZE: u32 = 256;
 
     fn zero() -> Self {
         P256(<Fq as Zero>::zero())
@@ -114,8 +78,20 @@ impl Field for P256 {
         P256(<Fq as One>::one())
     }
 
-    fn get_bit_be(&self, n: usize) -> bool {
-        self.0 .0.get_bit(n)
+    fn two_pow(rhs: u32) -> Self {
+        if rhs == 0 {
+            return Self::one();
+        }
+
+        let mut out = Self::new(2);
+        for _ in 1..rhs {
+            out = out * Self::new(2);
+        }
+        out
+    }
+
+    fn get_bit_be(&self, n: u32) -> bool {
+        self.0 .0.get_bit(n as usize)
     }
 
     fn inverse(self) -> Self {

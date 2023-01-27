@@ -30,10 +30,10 @@ where
     /// Converts '&self' into choices needed for the receiver input to an oblivious transfer.
     /// The choices are in the "least-bit-first" order.
     fn choices(&self) -> Vec<bool> {
-        let len: usize = Self::Inner::BIT_SIZE;
+        let len: usize = Self::Inner::BIT_SIZE as usize;
         let mut out: Vec<bool> = Vec::with_capacity(len);
         for k in 0..len {
-            out.push(self.inner().get_bit_be(k));
+            out.push(self.inner().get_bit_be(k as u32));
         }
         out
     }
@@ -181,9 +181,9 @@ mod tests {
     }
 
     fn mock_ot<T: Field>(envelopes: OTEnvelope<T>, choices: T) -> Vec<T> {
-        let mut out: Vec<T> = vec![T::zero(); T::BIT_SIZE];
+        let mut out: Vec<T> = vec![T::zero(); T::BIT_SIZE as usize];
         for (k, number) in out.iter_mut().enumerate() {
-            let bit = choices.get_bit_be(k);
+            let bit = choices.get_bit_be(k as u32);
             *number = if bit { envelopes.1[k] } else { envelopes.0[k] }
         }
         out
