@@ -193,7 +193,7 @@ fn check_overlapping_openings(unchecked: &VerifierDocUnchecked) -> Result<(), Er
                 let mut overlap_was_found = false;
 
                 for haystack_range in haystack_c.ranges() {
-                    match overlapping_range(needle_range, haystack_range) {
+                    match overlapping_range(needle_range, haystack_range)? {
                         Some(ov_range) => {
                             // the bytesize of the overlap
                             let overlap_size = ov_range.end() - ov_range.start();
@@ -246,13 +246,14 @@ fn check_overlapping_openings(unchecked: &VerifierDocUnchecked) -> Result<(), Er
 }
 
 /// If two [Range]s overlap, returns the range containing the overlap
-fn overlapping_range(a: &Range, b: &Range) -> Option<Range> {
+fn overlapping_range(a: &Range, b: &Range) -> Result<Option<Range>, Error> {
     // find purported overlap's start and end
     let ov_start = std::cmp::max(a.start(), b.start());
     let ov_end = std::cmp::min(a.end(), b.end());
     if (ov_end - ov_start) < 1 {
-        None
+        Ok(None)
     } else {
-        Some(Range::new(ov_start, ov_end))
+        let range = Range::new(ov_start, ov_end)?;
+        Ok(Some(range))
     }
 }

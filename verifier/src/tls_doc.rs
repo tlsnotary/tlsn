@@ -87,7 +87,7 @@ pub type CertDER = Vec<u8>;
 #[derive(Serialize, Clone)]
 pub struct CommittedTLS {
     tls_cert_chain: Vec<CertDER>,
-    sig_ke_params: SignatureKeyExchangeParams,
+    sig_ke_params: ServerSignature,
     client_random: Vec<u8>,
     server_random: Vec<u8>,
 }
@@ -95,7 +95,7 @@ pub struct CommittedTLS {
 impl CommittedTLS {
     pub fn new(
         tls_cert_chain: Vec<CertDER>,
-        sig_ke_params: SignatureKeyExchangeParams,
+        sig_ke_params: ServerSignature,
         client_random: Vec<u8>,
         server_random: Vec<u8>,
     ) -> Self {
@@ -141,24 +141,24 @@ impl EphemeralECPubkey {
 
 /// Algorithms that can be used for signing the TLS key exchange parameters
 #[derive(Clone, Serialize)]
-pub enum SigKEParamsAlg {
+pub enum KEParamsSigAlg {
     RSA_PKCS1_2048_8192_SHA256,
     ECDSA_P256_SHA256,
 }
 
-/// A signature over the TLS key exchange params
+/// A server's signature over the TLS key exchange parameters
 #[derive(Serialize, Clone)]
-pub struct SignatureKeyExchangeParams {
-    alg: SigKEParamsAlg,
+pub struct ServerSignature {
+    alg: KEParamsSigAlg,
     sig: Vec<u8>,
 }
 
-impl SignatureKeyExchangeParams {
-    pub fn new(alg: SigKEParamsAlg, sig: Vec<u8>) -> Self {
+impl ServerSignature {
+    pub fn new(alg: KEParamsSigAlg, sig: Vec<u8>) -> Self {
         Self { alg, sig }
     }
 
-    pub fn alg(&self) -> &SigKEParamsAlg {
+    pub fn alg(&self) -> &KEParamsSigAlg {
         &self.alg
     }
 

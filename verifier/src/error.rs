@@ -34,4 +34,6 @@ pub enum Error {
     SerializationError,
     #[error("Error during signature verification")]
     SignatureVerificationError,
+    #[error("Attempted to create an invalid range")]
+    RangeInvalid,
 }

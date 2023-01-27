@@ -24,7 +24,7 @@ type LabelSeed = [u8; 32];
 ///
 /// Once the verification succeeds, an application level (e.g. HTTP, JSON) parser can
 /// parse `commitment_openings` in `doc`
-struct Verifier {
+pub struct Verifier {
     /// A validated notarization document which needs to be verified
     doc: VerifierDoc,
     /// A trusted Notary's pubkey (if this Verifier acted as the Notary then no pubkey needs
@@ -94,8 +94,8 @@ fn e2e_test() {
         label_encoder::{Block, ChaChaEncoder},
         signed::SignedTLS,
         tls_doc::{
-            CommittedTLS, EphemeralECPubkey, EphemeralECPubkeyType, SigKEParamsAlg,
-            SignatureKeyExchangeParams, TLSDoc,
+            CommittedTLS, EphemeralECPubkey, EphemeralECPubkeyType, KEParamsSigAlg,
+            ServerSignature, TLSDoc,
         },
         utils::{blake3, bytes_in_ranges, u8vec_to_boolvec},
         Signed,
@@ -133,14 +133,14 @@ fn e2e_test() {
     let ephemeral_pubkey = hex::decode("04521e456448e6156026bb1392e0a689c051a84d67d353ab755fce68a2e9fba68d09393fa6485db84517e16d9855ce5ba3ec2293f2e511d1e315570531722e9788").unwrap();
     let sig = hex::decode("337aa65793562550f6de0a9c792b5f531a96bb78f65a2063f710bfb99e11c791e13d35c798b50eea1351c14efc526009c7836e888206cebde7135130a1fbc049d42e1d1ed05c10f0d108b9540f049ac24fe1076d391b9da3d4e60b5cb8f341bda993f6002873847be744c1955ff575b2d833694fb8a432898c5ac55752e2bddcee4c07371335e1a6581694df43c6eb0ce8da4cdd497c205607b573f9c5d17c951e0a71fbf967c4bff53fc37c597b2f5656478fefb780e8f37bd8409985dd980eda4f254c7dce76dc69e66ed27c0f2c93b53a6dfd7b27359e1589a30d483725e92305766c62d6cad2c0142d3a3c4a2272e6d81eda2886ef12028167f83b3c33ea").unwrap();
 
-    let params = SignatureKeyExchangeParams::new(SigKEParamsAlg::RSA_PKCS1_2048_8192_SHA256, sig);
+    let server_sig = ServerSignature::new(KEParamsSigAlg::RSA_PKCS1_2048_8192_SHA256, sig);
 
     let ephemeral_pubkey = EphemeralECPubkey::new(EphemeralECPubkeyType::P256, ephemeral_pubkey);
 
     // -------- Using the above data, the User computes [CommittedTLS] and sends a commitment to
     //          the Notary
 
-    let committed_tls = CommittedTLS::new(cert_chain, params, client_random, server_random);
+    let committed_tls = CommittedTLS::new(cert_chain, server_sig, client_random, server_random);
     let commitment_to_tls = blake3(&committed_tls.serialize().unwrap());
 
     // -------- The Notary generates garbled circuit's labels from a PRG seed. One pair of labels
@@ -179,7 +179,7 @@ fn e2e_test() {
 
     // Here we'll have 1 (salted) commitment which has 1 range
 
-    let ranges = vec![Range::new(5, 19)];
+    let ranges = vec![Range::new(5, 19).unwrap()];
 
     let salt: [u8; 32] = rng.gen();
 
@@ -199,7 +199,7 @@ fn e2e_test() {
     let comm = Commitment::new(
         0,
         CommitmentType::labels_blake3,
-        Direction::Request,
+        Direction::Sent,
         hash_commitment,
         ranges.clone(),
         0,

@@ -121,12 +121,12 @@ impl CommitmentOpening {
 }
 
 #[derive(Serialize, Clone, PartialEq)]
-// A TLS transcript consists of a stream of bytes which were sent to the server (Request)
-// and a stream of bytes which were received from the server (Response). The User creates
+// A TLS transcript consists of a stream of bytes which were `Sent` to the server
+// and a stream of bytes which were `Received` from the server . The User creates
 // separate commitments to bytes in each direction.
 pub enum Direction {
-    Request,
-    Response,
+    Sent,
+    Received,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -137,8 +137,11 @@ pub struct Range {
 }
 
 impl Range {
-    pub fn new(start: usize, end: usize) -> Self {
-        Self { start, end }
+    pub fn new(start: usize, end: usize) -> Result<Self, Error> {
+        if start <= end {
+            return Err(Error::RangeInvalid);
+        }
+        Ok(Self { start, end })
     }
 
     pub fn start(&self) -> usize {

@@ -1,8 +1,5 @@
 use super::{
-    tls_doc::{
-        CertDER, EphemeralECPubkey, EphemeralECPubkeyType, SigKEParamsAlg,
-        SignatureKeyExchangeParams,
-    },
+    tls_doc::{CertDER, EphemeralECPubkey, EphemeralECPubkeyType, KEParamsSigAlg, ServerSignature},
     Error,
 };
 use x509_parser::{certificate, prelude::FromDer};
@@ -68,7 +65,7 @@ pub fn verify_cert_chain(chain: &[CertDER], time: u64) -> Result<(), Error> {
 /// * ephem_pubkey, client_random, server_random - Parameters which were signed
 pub fn verify_sig_ke_params(
     cert: &CertDER,
-    sig_ke_params: &SignatureKeyExchangeParams,
+    sig_ke_params: &ServerSignature,
     ephem_pubkey: &EphemeralECPubkey,
     client_random: &[u8],
     server_random: &[u8],
@@ -99,8 +96,8 @@ pub fn verify_sig_ke_params(
     // we don't use [webpki::SignatureAlgorithm] in [SignatureKeyExchangeParams::alg]
     // because it requires a custom serializer. Instead we match:
     let sigalg = match &sig_ke_params.alg() {
-        SigKEParamsAlg::RSA_PKCS1_2048_8192_SHA256 => &webpki::RSA_PKCS1_2048_8192_SHA256,
-        SigKEParamsAlg::ECDSA_P256_SHA256 => &webpki::ECDSA_P256_SHA256,
+        KEParamsSigAlg::RSA_PKCS1_2048_8192_SHA256 => &webpki::RSA_PKCS1_2048_8192_SHA256,
+        KEParamsSigAlg::ECDSA_P256_SHA256 => &webpki::ECDSA_P256_SHA256,
         _ => return Err(Error::UnknownSigningAlgorithmInKeyExchange),
     };
 
@@ -234,10 +231,7 @@ mod test {
         let pubkey: &[u8] = &to_hex(RSA_EPHEM_PUBKEY);
         let sig: &[u8] = &to_hex(RSA_SIG);
 
-        let sig = SignatureKeyExchangeParams::new(
-            SigKEParamsAlg::RSA_PKCS1_2048_8192_SHA256,
-            sig.to_vec(),
-        );
+        let sig = ServerSignature::new(KEParamsSigAlg::RSA_PKCS1_2048_8192_SHA256, sig.to_vec());
 
         let pubkey = EphemeralECPubkey::new(EphemeralECPubkeyType::P256, pubkey.to_vec());
 
@@ -252,7 +246,7 @@ mod test {
         let pubkey: &[u8] = &to_hex(ECDSA_EPHEM_PUBKEY);
         let sig: &[u8] = &to_hex(ECDSA_SIG);
 
-        let sig = SignatureKeyExchangeParams::new(SigKEParamsAlg::ECDSA_P256_SHA256, sig.to_vec());
+        let sig = ServerSignature::new(KEParamsSigAlg::ECDSA_P256_SHA256, sig.to_vec());
 
         let pubkey = EphemeralECPubkey::new(EphemeralECPubkeyType::P256, pubkey.to_vec());
 
@@ -267,10 +261,7 @@ mod test {
         let pubkey: &[u8] = &to_hex(RSA_EPHEM_PUBKEY);
         let sig: &[u8] = &to_hex(RSA_SIG);
 
-        let sig = SignatureKeyExchangeParams::new(
-            SigKEParamsAlg::RSA_PKCS1_2048_8192_SHA256,
-            sig.to_vec(),
-        );
+        let sig = ServerSignature::new(KEParamsSigAlg::RSA_PKCS1_2048_8192_SHA256, sig.to_vec());
 
         let pubkey = EphemeralECPubkey::new(EphemeralECPubkeyType::P256, pubkey.to_vec());
 
@@ -302,10 +293,7 @@ mod test {
         let (corrupted, _) = last.overflowing_add(1);
         sig.push(corrupted);
 
-        let sig = SignatureKeyExchangeParams::new(
-            SigKEParamsAlg::RSA_PKCS1_2048_8192_SHA256,
-            sig.to_vec(),
-        );
+        let sig = ServerSignature::new(KEParamsSigAlg::RSA_PKCS1_2048_8192_SHA256, sig.to_vec());
 
         let pubkey = EphemeralECPubkey::new(EphemeralECPubkeyType::P256, pubkey.to_vec());
 
