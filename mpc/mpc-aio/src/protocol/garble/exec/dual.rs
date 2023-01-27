@@ -15,8 +15,8 @@ use crate::protocol::{
 use futures::{future::ready, SinkExt, StreamExt};
 use mpc_circuits::{Circuit, Input, InputValue, OutputValue, WireGroup};
 use mpc_core::garble::{
-    exec::dual as core, gc_state, ActiveEncodedInput, ActiveInputSet, FullEncodedInput,
-    FullInputSet, GarbledCircuit,
+    exec::dual as core, gc_state, ActiveEncodedInput, ActiveInputSet, Error as CoreError,
+    FullEncodedInput, FullInputSet, GarbledCircuit,
 };
 use utils_aio::expect_msg_or_err;
 
@@ -209,6 +209,56 @@ where
 
         Ok(gc_evaluated.into_summary())
     }
+
+    /// Execute dual execution protocol without the equality check
+    ///
+    /// This can be used when chaining multiple circuits together. Neither party
+    /// reveals the output label decoding information.
+    ///
+    /// ** Warning **
+    ///
+    /// Do not use this method unless you know what you're doing! The output labels returned
+    /// by this method can _not_ be considered correct without the equality check.
+    ///
+    /// Returns evaluated garbled circuit
+    pub async fn execute_skip_equality_check(
+        mut self,
+    ) -> Result<GarbledCircuit<gc_state::EvaluatedSummary>, GCError> {
+        // Generate garbled circuit
+        let full_gc = self
+            .backend
+            .generate(self.circ.clone(), self.state.gen_labels)
+            .await?;
+
+        // Do not reveal output decoding, send output labels commitment
+        let partial_gc = full_gc.get_partial(false, true)?;
+
+        // Send garbled circuit to follower
+        self.channel
+            .send(GarbleMessage::GarbledCircuit(partial_gc.into()))
+            .await?;
+
+        // Expect garbled circuit from follower
+        let msg = expect_msg_or_err!(
+            self.channel.next().await,
+            GarbleMessage::GarbledCircuit,
+            GCError::Unexpected
+        )?;
+
+        let gc_ev =
+            GarbledCircuit::<gc_state::Partial>::from_unchecked(self.circ.clone(), msg.into())?;
+
+        if !gc_ev.has_output_commitments() {
+            return Err(GCError::CoreError(CoreError::PeerError(
+                "Peer did not send output labels commitment".to_string(),
+            )));
+        }
+
+        // Evaluate garbled circuit
+        let evaluated_gc = self.backend.evaluate(gc_ev, self.state.ev_labels).await?;
+
+        Ok(evaluated_gc.into_summary())
+    }
 }
 
 pub struct DualExFollower<S, B, LS, LR>
@@ -375,6 +425,56 @@ where
         let gc_evaluated = follower.verify(leader_opening)?;
 
         Ok(gc_evaluated.into_summary())
+    }
+
+    /// Execute dual execution protocol without the equality check
+    ///
+    /// This can be used when chaining multiple circuits together. Neither party
+    /// reveals the output label decoding information.
+    ///
+    /// ** Warning **
+    ///
+    /// Do not use this method unless you know what you're doing! The output labels returned
+    /// by this method can _not_ be considered correct without the equality check.
+    ///
+    /// Returns evaluated garbled circuit
+    pub async fn execute_skip_equality_check(
+        mut self,
+    ) -> Result<GarbledCircuit<gc_state::EvaluatedSummary>, GCError> {
+        // Generate garbled circuit
+        let full_gc = self
+            .backend
+            .generate(self.circ.clone(), self.state.gen_labels)
+            .await?;
+
+        // Do not reveal output decoding, send output labels commitment
+        let partial_gc = full_gc.get_partial(false, true)?;
+
+        // Send garbled circuit to leader
+        self.channel
+            .send(GarbleMessage::GarbledCircuit(partial_gc.into()))
+            .await?;
+
+        // Expect garbled circuit from leader
+        let msg = expect_msg_or_err!(
+            self.channel.next().await,
+            GarbleMessage::GarbledCircuit,
+            GCError::Unexpected
+        )?;
+
+        let gc_ev =
+            GarbledCircuit::<gc_state::Partial>::from_unchecked(self.circ.clone(), msg.into())?;
+
+        if !gc_ev.has_output_commitments() {
+            return Err(GCError::CoreError(CoreError::PeerError(
+                "Peer did not send output labels commitment".to_string(),
+            )));
+        }
+
+        // Evaluate garbled circuit
+        let evaluated_gc = self.backend.evaluate(gc_ev, self.state.ev_labels).await?;
+
+        Ok(evaluated_gc.into_summary())
     }
 }
 
