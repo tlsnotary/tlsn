@@ -2,7 +2,7 @@
 
 use super::Field;
 use rand::{distributions::Standard, prelude::Distribution};
-use std::ops::{Add, BitXor, Mul, Neg, Shl, Shr, Sub};
+use std::ops::{Add, Mul, Neg, Sub};
 
 #[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
 pub struct Gf2_128(pub(crate) u128);
@@ -82,42 +82,30 @@ impl Neg for Gf2_128 {
     }
 }
 
-impl Shr<u32> for Gf2_128 {
-    type Output = Self;
-
-    fn shr(self, rhs: u32) -> Self::Output {
-        Self(self.0 >> rhs)
-    }
-}
-
-impl Shl<u32> for Gf2_128 {
-    type Output = Self;
-
-    fn shl(self, rhs: u32) -> Self::Output {
-        Self(self.0 << rhs)
-    }
-}
-
-impl BitXor<Self> for Gf2_128 {
-    type Output = Self;
-
-    fn bitxor(self, rhs: Self) -> Self::Output {
-        Self(self.0 ^ rhs.0)
-    }
-}
-
 impl Field for Gf2_128 {
-    const BIT_SIZE: usize = 128;
+    const BIT_SIZE: u32 = 128;
 
     fn zero() -> Self {
-        Self(0)
+        Self::new(0)
     }
 
     fn one() -> Self {
-        Self(1)
+        Self::new(1)
     }
 
-    fn get_bit_be(&self, n: usize) -> bool {
+    fn two_pow(rhs: u32) -> Self {
+        if rhs == 0 {
+            return Self::one();
+        }
+
+        let mut out = Self::new(2);
+        for _ in 1..rhs {
+            out = out * Self::new(2);
+        }
+        out
+    }
+
+    fn get_bit_be(&self, n: u32) -> bool {
         (self.0 >> (Self::BIT_SIZE - n - 1)) & 1 == 1
     }
 
@@ -135,10 +123,11 @@ impl Field for Gf2_128 {
     }
 
     fn from_bits_be(bits: &[bool]) -> Self {
-        Self::new(
-            bits.iter()
-                .fold(0, |result, bit| (result << 1) | *bit as u128),
-        )
+        let mut out = Self::zero();
+        for k in 0..Self::BIT_SIZE {
+            out.0 |= (bits[k as usize] as u128) << (Self::BIT_SIZE - k - 1)
+        }
+        out
     }
 }
 

@@ -26,14 +26,14 @@ impl<T: Field> AddShare<T> {
                 break r;
             }
         };
-        let mut masks: Vec<T> = vec![T::zero(); T::BIT_SIZE];
+        let mut masks: Vec<T> = vec![T::zero(); T::BIT_SIZE as usize];
         masks.iter_mut().for_each(|x| *x = T::rand(rng));
 
         // set the last mask such that the sum of all 128 masks equals 0
-        masks[T::BIT_SIZE - 1] = masks
+        masks[T::BIT_SIZE as usize - 1] = -masks
             .iter()
-            .take(T::BIT_SIZE - 1)
-            .fold(T::zero(), |acc, i| acc ^ *i);
+            .take(T::BIT_SIZE as usize - 1)
+            .fold(T::zero(), |acc, i| acc + *i);
 
         let mul_share = MulShare::new(random.inverse());
 
@@ -43,25 +43,25 @@ impl<T: Field> AddShare<T> {
             .map(|k| {
                 // `self.inner() & (1 << i)` first extracts a bit of `self.inner()` in position `i` (counting from
                 // the right) and then left-shifts that bit by `i`
-                let mut bits = vec![false; T::BIT_SIZE];
-                bits[k] = self.inner().get_bit_be(k);
+                let mut bits = vec![false; T::BIT_SIZE as usize];
+                bits[k as usize] = self.inner().get_bit_be(k);
                 T::from_bits_be(&bits)
             })
             .collect();
 
-        let mut b0 = vec![T::zero(); T::BIT_SIZE];
+        let mut b0 = vec![T::zero(); T::BIT_SIZE as usize];
         for ((b, c), m) in b0.iter_mut().zip(components.iter()).zip(masks.iter()) {
-            *b = (*c * random) ^ *m;
+            *b = (*c * random) + *m;
         }
 
-        let mut b1 = vec![T::zero(); T::BIT_SIZE];
+        let mut b1 = vec![T::zero(); T::BIT_SIZE as usize];
         for (k, ((b, c), m)) in b1
             .iter_mut()
             .zip(components.iter())
             .zip(masks.iter())
             .enumerate()
         {
-            *b = ((*c ^ (T::one() << (T::BIT_SIZE - k - 1) as u32)) * random) ^ *m;
+            *b = ((*c + T::two_pow(T::BIT_SIZE - k as u32 - 1)) * random) + *m;
         }
 
         Ok((mul_share, OTEnvelope::new(b0, b1)?))
