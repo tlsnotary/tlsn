@@ -213,7 +213,7 @@ where
     /// Execute dual execution protocol without the equality check
     ///
     /// This can be used when chaining multiple circuits together. Neither party
-    /// reveals the output label decoding.
+    /// reveals the output label decoding information.
     ///
     /// ** Warning **
     ///
@@ -430,7 +430,7 @@ where
     /// Execute dual execution protocol without the equality check
     ///
     /// This can be used when chaining multiple circuits together. Neither party
-    /// reveals the output label decoding.
+    /// reveals the output label decoding information.
     ///
     /// ** Warning **
     ///
