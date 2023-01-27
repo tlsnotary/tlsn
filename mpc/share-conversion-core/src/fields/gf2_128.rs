@@ -9,24 +9,12 @@ pub struct Gf2_128(pub(crate) u128);
 
 impl Gf2_128 {
     pub fn new(input: u128) -> Self {
-        Gf2_128::from(input)
+        Gf2_128(input)
     }
 
     #[cfg(test)]
     fn reverse_bits(self) -> Self {
         Self(self.0.reverse_bits())
-    }
-}
-
-impl From<u128> for Gf2_128 {
-    fn from(value: u128) -> Self {
-        Self(value)
-    }
-}
-
-impl From<Gf2_128> for u128 {
-    fn from(value: Gf2_128) -> Self {
-        value.0
     }
 }
 

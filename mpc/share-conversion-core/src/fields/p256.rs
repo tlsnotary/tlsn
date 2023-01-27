@@ -3,7 +3,7 @@
 use super::Field;
 use ark_ff::{BigInt, BigInteger, Field as ArkField, One, Zero};
 use ark_secp256r1::fq::Fq;
-use num_bigint::{BigUint, ToBigUint};
+use num_bigint::ToBigUint;
 use rand::{distributions::Standard, prelude::Distribution};
 use std::ops::{Add, Mul, Neg};
 
@@ -13,19 +13,7 @@ pub struct P256(pub(crate) Fq);
 impl P256 {
     pub fn new(input: impl ToBigUint) -> Self {
         let input = input.to_biguint().expect("Unable to create field element");
-        P256::from(input)
-    }
-}
-
-impl From<BigUint> for P256 {
-    fn from(value: BigUint) -> Self {
-        P256(Fq::from(value))
-    }
-}
-
-impl From<P256> for Vec<u8> {
-    fn from(value: P256) -> Self {
-        value.0 .0.to_bytes_be()
+        P256(Fq::from(input))
     }
 }
 
