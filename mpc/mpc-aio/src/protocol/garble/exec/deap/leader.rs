@@ -420,4 +420,8 @@ where
     async fn verify(self) -> Result<(), GCError> {
         self.verify().await
     }
+
+    async fn verify_boxed(self: Box<Self>) -> Result<(), GCError> {
+        self.verify().await
+    }
 }

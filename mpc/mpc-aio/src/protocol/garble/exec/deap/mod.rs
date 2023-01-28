@@ -63,6 +63,10 @@ pub trait DEAPVerify: Send {
     /// Execute the final phase of the protocol. This proves the authenticity of the circuit output
     /// to the follower without leaking any information about leader's inputs.
     async fn verify(self) -> Result<(), GCError>;
+
+    /// Execute the final phase of the protocol. This proves the authenticity of the circuit output
+    /// to the follower without leaking any information about leader's inputs.
+    async fn verify_boxed(self: Box<Self>) -> Result<(), GCError>;
 }
 
 #[cfg(feature = "mock")]
