@@ -20,5 +20,8 @@ generic-array.workspace = true
 num-bigint = { workspace = true, features = ["rand"] }
 num-traits.workspace = true
 rand.workspace = true
+rand_chacha.workspace = true
 sha2 = { workspace = true, features = ["compress"] }
 aes.workspace = true
+ctr = "0.8"
+cipher = "0.3"

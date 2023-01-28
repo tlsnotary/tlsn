@@ -9,7 +9,19 @@ name = "tls_2pc_core"
 [features]
 default = ["prf", "circuits"]
 prf = []
-circuits = ["c1", "c2", "c3", "c4", "c5", "c6", "c7"]
+circuits = [
+    "c1",
+    "c2",
+    "c3",
+    "c4",
+    "c5",
+    "c6",
+    "c7",
+    "aes",
+    "aes_masked",
+    "aes_ctr",
+    "aes_ctr_masked",
+]
 c1 = []
 c2 = []
 c3 = []
@@ -17,6 +29,10 @@ c4 = []
 c5 = []
 c6 = []
 c7 = []
+aes = []
+aes_masked = []
+aes_ctr_masked = []
+aes_ctr = []
 build-circuits = []
 serde = ["dep:serde"]
 

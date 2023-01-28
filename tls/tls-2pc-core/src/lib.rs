@@ -21,6 +21,14 @@ pub static CIRCUIT_5_BYTES: &[u8] = std::include_bytes!("../circuits/bin/c5.bin"
 pub static CIRCUIT_6_BYTES: &[u8] = std::include_bytes!("../circuits/bin/c6.bin");
 #[cfg(feature = "c7")]
 pub static CIRCUIT_7_BYTES: &[u8] = std::include_bytes!("../circuits/bin/c7.bin");
+#[cfg(feature = "aes")]
+pub static AES_BYTES: &[u8] = mpc_circuits::AES_128_REVERSE;
+#[cfg(feature = "aes_masked")]
+pub static AES_MASKED_BYTES: &[u8] = std::include_bytes!("../circuits/bin/aes_masked.bin");
+#[cfg(feature = "aes_ctr")]
+pub static AES_CTR_BYTES: &[u8] = std::include_bytes!("../circuits/bin/aes_ctr.bin");
+#[cfg(feature = "aes_ctr_masked")]
+pub static AES_CTR_MASKED_BYTES: &[u8] = std::include_bytes!("../circuits/bin/aes_ctr_masked.bin");
 
 #[cfg(feature = "c1")]
 pub static CIRCUIT_1: Lazy<Arc<Circuit>> =
@@ -43,6 +51,16 @@ pub static CIRCUIT_6: Lazy<Arc<Circuit>> =
 #[cfg(feature = "c7")]
 pub static CIRCUIT_7: Lazy<Arc<Circuit>> =
     Lazy::new(|| Circuit::load_bytes(CIRCUIT_7_BYTES).unwrap());
+#[cfg(feature = "aes")]
+pub static AES: Lazy<Arc<Circuit>> = Lazy::new(|| Circuit::load_bytes(AES_BYTES).unwrap());
+#[cfg(feature = "aes_masked")]
+pub static AES_MASKED: Lazy<Arc<Circuit>> =
+    Lazy::new(|| Circuit::load_bytes(AES_MASKED_BYTES).unwrap());
+#[cfg(feature = "aes_ctr")]
+pub static AES_CTR: Lazy<Arc<Circuit>> = Lazy::new(|| Circuit::load_bytes(AES_CTR_BYTES).unwrap());
+#[cfg(feature = "aes_ctr_masked")]
+pub static AES_CTR_MASKED: Lazy<Arc<Circuit>> =
+    Lazy::new(|| Circuit::load_bytes(AES_CTR_MASKED_BYTES).unwrap());
 
 pub struct SessionKeyShares {
     cwk: [u8; 16],

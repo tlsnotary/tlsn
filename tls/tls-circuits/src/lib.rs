@@ -1,3 +1,6 @@
+mod aes_ctr;
+mod aes_ctr_masked;
+mod aes_masked;
 mod c1;
 mod c2;
 mod c3;
@@ -7,6 +10,9 @@ mod c6;
 mod c7;
 mod combine_pms_shares;
 
+pub use aes_ctr::aes_ctr;
+pub use aes_ctr_masked::aes_ctr_masked;
+pub use aes_masked::aes_masked;
 pub use c1::c1;
 pub use c2::c2;
 pub use c3::c3;

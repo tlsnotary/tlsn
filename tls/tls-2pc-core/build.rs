@@ -2,7 +2,7 @@ use mpc_circuits::{proto, Circuit};
 use prost::Message;
 use rayon::prelude::*;
 use std::{env, fs, io, path::Path, sync::Arc};
-use tls_circuits::{c1, c2, c3, c4, c5, c6, c7};
+use tls_circuits::{aes_ctr, aes_ctr_masked, aes_masked, c1, c2, c3, c4, c5, c6, c7};
 
 type CircuitBuilderMap = [(&'static str, fn() -> Arc<Circuit>)];
 
@@ -14,6 +14,9 @@ static CIRCUITS: &CircuitBuilderMap = &[
     ("c5", c5),
     ("c6", c6),
     ("c7", c7),
+    ("aes_masked", aes_masked),
+    ("aes_ctr", aes_ctr),
+    ("aes_ctr_masked", aes_ctr_masked),
 ];
 
 fn build_circuit<F>(name: &str, f: F) -> io::Result<()>
