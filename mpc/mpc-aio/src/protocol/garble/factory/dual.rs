@@ -28,9 +28,28 @@ pub struct DualExFactory<M, B, LSF, LRF, LS, LR> {
     _label_receiver: PhantomData<LR>,
 }
 
+impl<M, B, LSF, LRF, LS, LR> Clone for DualExFactory<M, B, LSF, LRF, LS, LR>
+where
+    M: MuxChannelControl<GarbleMessage> + Clone + Send,
+    B: Generator + Evaluator + Clone + Send,
+    LSF: AsyncFactory<LS, Config = OTSenderConfig, Error = OTFactoryError> + Clone + Send,
+    LRF: AsyncFactory<LR, Config = OTReceiverConfig, Error = OTFactoryError> + Clone + Send,
+{
+    fn clone(&self) -> Self {
+        DualExFactory {
+            mux_control: self.mux_control.clone(),
+            backend: self.backend.clone(),
+            label_sender_factory: self.label_sender_factory.clone(),
+            label_receiver_factory: self.label_receiver_factory.clone(),
+            _label_sender: PhantomData,
+            _label_receiver: PhantomData,
+        }
+    }
+}
+
 impl<M, B, LSF, LRF, LS, LR> DualExFactory<M, B, LSF, LRF, LS, LR>
 where
-    M: MuxChannelControl<GarbleMessage> + Send,
+    M: MuxChannelControl<GarbleMessage> + Clone + Send,
     B: Generator + Evaluator + Clone + Send,
     LSF: AsyncFactory<LS, Config = OTSenderConfig, Error = OTFactoryError> + Clone + Send,
     LRF: AsyncFactory<LR, Config = OTReceiverConfig, Error = OTFactoryError> + Clone + Send,
