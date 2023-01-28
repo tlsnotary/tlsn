@@ -233,7 +233,7 @@ pub mod mock {
         MockOTReceiver<Block>,
     >;
 
-    pub fn create_mock_dualex_factory_pair() -> (MockDEAPLeaderFactory, MockDEAPFollowerFactory) {
+    pub fn create_mock_deap_factory_pair() -> (MockDEAPLeaderFactory, MockDEAPFollowerFactory) {
         let mux_factory = MockMuxChannelFactory::new();
         let ot_factory = MockOTFactory::new();
 
