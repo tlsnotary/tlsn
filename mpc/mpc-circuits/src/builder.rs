@@ -495,8 +495,54 @@ impl CircuitBuilder<Outputs> {
         }
     }
 
+    /// Fully builds the circuit, skipping checks and topological sort
+    pub fn build_circuit_unchecked(self) -> Result<Arc<Circuit>, BuilderError> {
+        let id = self.0.id.clone();
+        let description = self.0.description.clone();
+        let version = self.0.version.clone();
+
+        let (inputs, gates, outputs) = self.compile()?;
+        let inputs = inputs
+            .into_iter()
+            .map(|input| crate::Group::new_unchecked(input))
+            .collect::<Vec<crate::Group>>();
+        let outputs = outputs
+            .into_iter()
+            .map(|output| crate::Group::new_unchecked(output))
+            .collect::<Vec<crate::Group>>();
+
+        Ok(Circuit::new_unchecked(
+            crate::CircuitId(id),
+            &description,
+            &version,
+            inputs.into(),
+            outputs,
+            gates,
+        ))
+    }
+
     /// Fully builds circuit
-    pub fn build_circuit(mut self) -> Result<Arc<Circuit>, BuilderError> {
+    pub fn build_circuit(self) -> Result<Arc<Circuit>, BuilderError> {
+        let id = self.0.id.clone();
+        let description = self.0.description.clone();
+        let version = self.0.version.clone();
+
+        let (inputs, gates, outputs) = self.compile()?;
+
+        Ok(Circuit::new(
+            &id,
+            &description,
+            &version,
+            inputs,
+            outputs,
+            gates,
+        )?)
+    }
+
+    /// Compiles circuit, returning tuple of (Inputs, Gates, Outputs)
+    fn compile(
+        mut self,
+    ) -> Result<(Vec<UncheckedGroup>, Vec<Gate>, Vec<UncheckedGroup>), BuilderError> {
         // Connect all gate wires and create id set
         let mut id_set: BTreeSet<usize> = BTreeSet::new();
         self.0.gates.iter_mut().for_each(|gate| {
@@ -584,14 +630,7 @@ impl CircuitBuilder<Outputs> {
             .map(|(id, handle)| handle.to_gate(id))
             .collect();
 
-        Ok(Circuit::new(
-            &self.0.id,
-            &self.0.description,
-            &self.0.version,
-            inputs,
-            outputs,
-            gates,
-        )?)
+        Ok((inputs, gates, outputs))
     }
 }
 
