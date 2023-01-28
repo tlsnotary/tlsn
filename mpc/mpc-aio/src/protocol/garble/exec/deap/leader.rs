@@ -271,11 +271,14 @@ where
 #[async_trait]
 impl<B, LSF, LRF, LS, LR> DEAPExecute for DEAPLeader<Initialized, B, LSF, LRF, LS, LR>
 where
-    B: Generator + Evaluator + Compressor + Validator + Send,
-    LSF: AsyncFactory<LS, Config = OTSenderConfig, Error = OTFactoryError> + Send,
-    LRF: AsyncFactory<LR, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
-    LS: ObliviousSend<FullEncodedInput> + Send,
-    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + ObliviousVerify<FullEncodedInput> + Send,
+    B: Generator + Evaluator + Compressor + Validator + Send + 'static,
+    LSF: AsyncFactory<LS, Config = OTSenderConfig, Error = OTFactoryError> + Send + 'static,
+    LRF: AsyncFactory<LR, Config = OTReceiverConfig, Error = OTFactoryError> + Send + 'static,
+    LS: ObliviousSend<FullEncodedInput> + Send + 'static,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput>
+        + ObliviousVerify<FullEncodedInput>
+        + Send
+        + 'static,
 {
     type NextState = DEAPLeader<Executed<LR>, B, LSF, LRF, LS, LR>;
 

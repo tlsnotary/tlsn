@@ -16,7 +16,7 @@ pub(crate) use super::dual::setup_inputs_with;
 
 #[async_trait]
 pub trait DEAPExecute: Send {
-    type NextState: DEAPVerify;
+    type NextState: DEAPVerify + 'static;
 
     /// Execute first phase of DEAP protocol
     ///

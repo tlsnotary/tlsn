@@ -264,11 +264,11 @@ where
 #[async_trait]
 impl<B, LSF, LRF, LS, LR> DEAPExecute for DEAPFollower<Initialized, B, LSF, LRF, LS, LR>
 where
-    B: Generator + Evaluator + Send,
-    LSF: AsyncFactory<LS, Config = OTSenderConfig, Error = OTFactoryError> + Send,
-    LRF: AsyncFactory<LR, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
-    LS: ObliviousSend<FullEncodedInput> + ObliviousReveal + Send,
-    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + Send,
+    B: Generator + Evaluator + Send + 'static,
+    LSF: AsyncFactory<LS, Config = OTSenderConfig, Error = OTFactoryError> + Send + 'static,
+    LRF: AsyncFactory<LR, Config = OTReceiverConfig, Error = OTFactoryError> + Send + 'static,
+    LS: ObliviousSend<FullEncodedInput> + ObliviousReveal + Send + 'static,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + Send + 'static,
 {
     type NextState = DEAPFollower<Executed<LS>, B, LSF, LRF, LS, LR>;
 
