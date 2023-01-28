@@ -1,6 +1,6 @@
 use std::{marker::PhantomData, sync::Arc};
 
-use super::{setup_inputs_with, state::*, DEExecute};
+use super::{setup_inputs_with, state::*, DEExecute, DESummary};
 
 use crate::protocol::{
     garble::{Evaluator, GCError, GarbleChannel, GarbleMessage, Generator},
@@ -125,6 +125,7 @@ where
     pub async fn execute(self) -> Result<Vec<OutputValue>, GCError> {
         self.execute_skip_decoding()
             .await?
+            .get_evaluator_summary()
             .decode()
             .map_err(GCError::from)
     }
@@ -135,9 +136,7 @@ where
     /// instead of the output values
     ///
     /// Returns evaluated garbled circuit
-    pub async fn execute_skip_decoding(
-        mut self,
-    ) -> Result<GarbledCircuit<gc_state::EvaluatedSummary>, GCError> {
+    pub async fn execute_skip_decoding(mut self) -> Result<DESummary, GCError> {
         let leader = core::DualExLeader::new(self.circ.clone());
 
         // Generate garbled circuit
@@ -146,6 +145,7 @@ where
             .generate(self.circ.clone(), self.state.gen_labels)
             .await?;
 
+        let full_summary = full_gc.get_summary();
         let (partial_gc, leader) = leader.from_full_circuit(full_gc)?;
 
         // Send garbled circuit to follower
@@ -194,7 +194,9 @@ where
             .send(GarbleMessage::CommitmentOpening(opening.into()))
             .await?;
 
-        Ok(gc_evaluated.into_summary())
+        let summary = DESummary::new(full_summary, gc_evaluated.into_summary());
+
+        Ok(summary)
     }
 
     /// Execute dual execution protocol without the equality check
@@ -208,14 +210,14 @@ where
     /// by this method can _not_ be considered correct without the equality check.
     ///
     /// Returns evaluated garbled circuit
-    pub async fn execute_skip_equality_check(
-        mut self,
-    ) -> Result<GarbledCircuit<gc_state::EvaluatedSummary>, GCError> {
+    pub async fn execute_skip_equality_check(mut self) -> Result<DESummary, GCError> {
         // Generate garbled circuit
         let full_gc = self
             .backend
             .generate(self.circ.clone(), self.state.gen_labels)
             .await?;
+
+        let full_summary = full_gc.get_summary();
 
         // Do not reveal output decoding, send output labels commitment
         let partial_gc = full_gc.get_partial(false, true)?;
@@ -244,7 +246,9 @@ where
         // Evaluate garbled circuit
         let evaluated_gc = self.backend.evaluate(gc_ev, self.state.ev_labels).await?;
 
-        Ok(evaluated_gc.into_summary())
+        let summary = DESummary::new(full_summary, evaluated_gc.into_summary());
+
+        Ok(summary)
     }
 }
 
@@ -284,7 +288,7 @@ where
         ot_send_inputs: Vec<Input>,
         ot_receive_inputs: Vec<InputValue>,
         cached_labels: Vec<ActiveEncodedInput>,
-    ) -> Result<GarbledCircuit<gc_state::EvaluatedSummary>, GCError> {
+    ) -> Result<DESummary, GCError> {
         self.setup_inputs(
             gen_labels,
             gen_inputs,
@@ -304,7 +308,7 @@ where
         ot_send_inputs: Vec<Input>,
         ot_receive_inputs: Vec<InputValue>,
         cached_labels: Vec<ActiveEncodedInput>,
-    ) -> Result<GarbledCircuit<gc_state::EvaluatedSummary>, GCError> {
+    ) -> Result<DESummary, GCError> {
         self.setup_inputs(
             gen_labels,
             gen_inputs,

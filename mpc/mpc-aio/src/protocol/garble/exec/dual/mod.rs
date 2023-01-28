@@ -25,8 +25,8 @@ use futures::{SinkExt, StreamExt};
 use mpc_circuits::{Circuit, Input, InputValue, OutputValue, WireGroup};
 use mpc_core::{
     garble::{
-        exec::dual::DualExConfig, gc_state, ActiveEncodedInput, ActiveInputSet, FullEncodedInput,
-        FullInputSet, GarbledCircuit,
+        exec::dual::{DESummary, DualExConfig},
+        ActiveEncodedInput, ActiveInputSet, FullEncodedInput, FullInputSet,
     },
     ot::config::{
         OTReceiverConfig, OTReceiverConfigBuilder, OTSenderConfig, OTSenderConfigBuilder,
@@ -53,7 +53,7 @@ pub trait DEExecute: Send {
     /// This can be used when the output labels of the evaluated circuit are needed
     /// instead of the output values
     ///
-    /// Returns evaluated garbled circuit
+    /// Returns a summary of the garbled circuits used in the protocol
     async fn execute_skip_decoding(
         mut self,
         gen_labels: FullInputSet,
@@ -61,7 +61,7 @@ pub trait DEExecute: Send {
         ot_send_inputs: Vec<Input>,
         ot_receive_inputs: Vec<InputValue>,
         cached_labels: Vec<ActiveEncodedInput>,
-    ) -> Result<GarbledCircuit<gc_state::EvaluatedSummary>, GCError>;
+    ) -> Result<DESummary, GCError>;
 
     /// Execute dual execution protocol without the equality check
     ///
@@ -73,7 +73,7 @@ pub trait DEExecute: Send {
     /// Do not use this method unless you know what you're doing! The output labels returned
     /// by this method can _not_ be considered correct without the equality check.
     ///
-    /// Returns evaluated garbled circuit
+    /// Returns a summary of the garbled circuits used in the protocol
     async fn execute_skip_equality_check(
         mut self,
         gen_labels: FullInputSet,
@@ -81,7 +81,7 @@ pub trait DEExecute: Send {
         ot_send_inputs: Vec<Input>,
         ot_receive_inputs: Vec<InputValue>,
         cached_labels: Vec<ActiveEncodedInput>,
-    ) -> Result<GarbledCircuit<gc_state::EvaluatedSummary>, GCError>;
+    ) -> Result<DESummary, GCError>;
 }
 
 /// Set up input labels by exchanging directly and via oblivious transfer.

@@ -14,6 +14,38 @@ pub use config::{DualExConfig, DualExConfigBuilder, DualExConfigBuilderError};
 pub use follower::{state as follower_state, DualExFollower};
 pub use leader::{state as leader_state, DualExLeader};
 
+use crate::garble::{gc_state, GarbledCircuit};
+
+#[derive(Debug, Clone)]
+pub struct DESummary {
+    generated: GarbledCircuit<gc_state::FullSummary>,
+    evaluated: GarbledCircuit<gc_state::EvaluatedSummary>,
+}
+
+impl DESummary {
+    /// Create a new [`DESummary`] from the generated and evaluated garbled circuits
+    /// of the dual execution protocol
+    pub fn new(
+        generated: GarbledCircuit<gc_state::FullSummary>,
+        evaluated: GarbledCircuit<gc_state::EvaluatedSummary>,
+    ) -> Self {
+        Self {
+            generated,
+            evaluated,
+        }
+    }
+
+    /// Get the full garbled circuit summary
+    pub fn get_generator_summary(&self) -> &GarbledCircuit<gc_state::FullSummary> {
+        &self.generated
+    }
+
+    /// Get the evaluated garbled circuit summary
+    pub fn get_evaluator_summary(&self) -> &GarbledCircuit<gc_state::EvaluatedSummary> {
+        &self.evaluated
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::garble::{

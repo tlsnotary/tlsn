@@ -84,7 +84,7 @@ pub mod state {
     }
 
     /// Summary of full garbled circuit data, only including input/output labels and decoding info.
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct FullSummary {
         pub(crate) input_labels: FullInputSet,
         pub(crate) output_labels: FullOutputSet,
@@ -273,7 +273,25 @@ impl GarbledCircuit<Full> {
     }
 
     /// Summarizes garbled circuit data to reduce memory footprint
-    pub fn summarize(self) -> GarbledCircuit<FullSummary> {
+    pub fn get_summary(&self) -> GarbledCircuit<FullSummary> {
+        let decoding = self.decoding();
+        let input_labels = self.state.input_labels.clone();
+        let output_labels = self.state.output_labels.clone();
+        let delta = self.state.delta;
+
+        GarbledCircuit {
+            circ: self.circ.clone(),
+            state: FullSummary {
+                input_labels,
+                output_labels,
+                decoding,
+                delta,
+            },
+        }
+    }
+
+    /// Summarizes garbled circuit data to reduce memory footprint
+    pub fn into_summary(self) -> GarbledCircuit<FullSummary> {
         let decoding = self.decoding();
         let input_labels = self.state.input_labels;
         let output_labels = self.state.output_labels;
