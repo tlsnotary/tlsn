@@ -1,8 +1,8 @@
 //! This module implements the prime field of P256
 
 use super::Field;
-use ark_ff::{BigInt, BigInteger, Field as ArkField, One, Zero};
-use ark_secp256r1::fq::Fq;
+use ark_ff::{BigInt, BigInteger, Field as ArkField, FpConfig, MontBackend, One, Zero};
+use ark_secp256r1::{fq::Fq, FqConfig};
 use num_bigint::ToBigUint;
 use rand::{distributions::Standard, prelude::Distribution};
 use std::ops::{Add, Mul, Neg};
@@ -71,7 +71,8 @@ impl Field for P256 {
     }
 
     fn get_bit_be(&self, n: u32) -> bool {
-        self.0 .0.get_bit(Self::BIT_SIZE as usize - n as usize - 1)
+        MontBackend::<FqConfig, 4>::into_bigint(self.0)
+            .get_bit(Self::BIT_SIZE as usize - n as usize - 1)
     }
 
     fn inverse(self) -> Self {
