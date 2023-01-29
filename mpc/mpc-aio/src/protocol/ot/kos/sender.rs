@@ -174,6 +174,27 @@ impl<const N: usize> ObliviousSend<[[Block; N]; 2]> for Kos15IOSender<s_state::R
 }
 
 #[async_trait]
+impl ObliviousSend<[Vec<u8>; 2]> for Kos15IOSender<s_state::RandSetup> {
+    async fn send(&mut self, inputs: Vec<[Vec<u8>; 2]>) -> Result<(), OTError> {
+        let mut rng = ChaCha12Rng::from_entropy();
+
+        // Send keys
+        let mut keys: Vec<[Block; 2]> = Vec::with_capacity(inputs.len());
+        let mut encrypted_inputs: Vec<[Vec<u8>; 2]> = Vec::with_capacity(inputs.len());
+
+        for k in 0..inputs.len() {
+            let (key1, key2) = (Block::random(&mut rng), Block::random(&mut rng));
+            keys.push([key1, key2]);
+        }
+        ObliviousSend::<[Block; 2]>::send(self, keys).await?;
+
+        //Encrypt and send inputs
+
+        Ok(())
+    }
+}
+
+#[async_trait]
 impl ObliviousCommit for Kos15IOSender<s_state::Initialized> {
     async fn commit(&mut self) -> Result<(), OTError> {
         let message = self.inner.commit_to_seed();
