@@ -79,9 +79,9 @@ impl DhOtReceiver {
                 let b = Scalar::random(rng);
                 // blinded_choice is B in [ref1]
                 let blinded_choice = if *c {
-                    public_key + &b * &RISTRETTO_BASEPOINT_TABLE
+                    public_key + &b * &*RISTRETTO_BASEPOINT_TABLE
                 } else {
-                    &b * &RISTRETTO_BASEPOINT_TABLE
+                    &b * &*RISTRETTO_BASEPOINT_TABLE
                 };
 
                 // Witness the blinded choice in the transcript
