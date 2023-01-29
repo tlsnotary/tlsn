@@ -1,18 +1,20 @@
 use crate::ShareConversionError;
+use share_conversion_core::fields::Field;
 use utils_aio::Channel;
 
 /// A channel used for messaging of conversion protocols
-pub type ShareConversionChannel = Box<dyn Channel<ShareConversionMessage, Error = std::io::Error>>;
+pub type ShareConversionChannel<T> =
+    Box<dyn Channel<ShareConversionMessage<T>, Error = std::io::Error>>;
 
 /// The messages exchanged between sender and receiver
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct ShareConversionMessage {
+pub struct ShareConversionMessage<T: Field> {
     seed: Vec<u8>,
-    sender_tape: Vec<u128>,
+    sender_tape: Vec<T>,
 }
 
-impl From<([u8; 32], Vec<u128>)> for ShareConversionMessage {
-    fn from(value: ([u8; 32], Vec<u128>)) -> Self {
+impl<T: Field> From<([u8; 32], Vec<T>)> for ShareConversionMessage<T> {
+    fn from(value: ([u8; 32], Vec<T>)) -> Self {
         Self {
             seed: value.0.to_vec(),
             sender_tape: value.1.to_vec(),
@@ -20,10 +22,10 @@ impl From<([u8; 32], Vec<u128>)> for ShareConversionMessage {
     }
 }
 
-impl TryFrom<ShareConversionMessage> for ([u8; 32], Vec<u128>) {
+impl<T: Field> TryFrom<ShareConversionMessage<T>> for ([u8; 32], Vec<T>) {
     type Error = ShareConversionError;
 
-    fn try_from(value: ShareConversionMessage) -> Result<Self, Self::Error> {
+    fn try_from(value: ShareConversionMessage<T>) -> Result<Self, Self::Error> {
         let seed: [u8; 32] = value
             .seed
             .try_into()

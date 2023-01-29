@@ -71,7 +71,7 @@ where
 /// Batched values for several oblivious transfers
 ///
 /// The inner vectors `.0` and `.1` belong to the corresponding receiver's choice bit
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct OTEnvelope<T>(Vec<T>, Vec<T>);
 
 impl<T: Field> OTEnvelope<T> {
@@ -112,6 +112,12 @@ impl<T: Field> OTEnvelope<T> {
     }
 }
 
+impl<T> Default for OTEnvelope<T> {
+    fn default() -> Self {
+        Self(vec![], vec![])
+    }
+}
+
 impl<T> From<OTEnvelope<T>> for Vec<[Block; 2]>
 where
     T: Field,
@@ -144,6 +150,8 @@ where
 pub enum ShareConversionCoreError {
     #[error("Cannot build OTEnvelope from vecs with unequal length")]
     OTEnvelopeUnequalLength,
+    #[error("Cannot deserialize bytes into field element")]
+    DeserializeFieldElement,
 }
 
 #[cfg(test)]

@@ -1,9 +1,11 @@
 //! This module implements the prime field of P256
 
+use crate::ShareConversionCoreError;
+
 use super::Field;
 use ark_ff::{BigInt, BigInteger, Field as ArkField, FpConfig, MontBackend, One, Zero};
 use ark_secp256r1::{fq::Fq, FqConfig};
-use num_bigint::ToBigUint;
+use num_bigint::{BigUint, ToBigUint};
 use rand::{distributions::Standard, prelude::Distribution};
 use std::ops::{Add, Mul, Neg};
 
@@ -14,6 +16,24 @@ impl P256 {
     pub fn new(input: impl ToBigUint) -> Self {
         let input = input.to_biguint().expect("Unable to create field element");
         P256(Fq::from(input))
+    }
+}
+
+impl From<P256> for Vec<u8> {
+    fn from(value: P256) -> Self {
+        let value = MontBackend::<FqConfig, 4>::into_bigint(value.0);
+        value.to_bytes_be()
+    }
+}
+
+impl TryFrom<Vec<u8>> for P256 {
+    type Error = ShareConversionCoreError;
+
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        let bytes: [u8; 32] = value
+            .try_into()
+            .map_err(|_| ShareConversionCoreError::DeserializeFieldElement)?;
+        Ok(P256::new(BigUint::from_bytes_be(&bytes)))
     }
 }
 

@@ -1,5 +1,7 @@
 //! This module implements the extension field GF(2^128)
 
+use crate::ShareConversionCoreError;
+
 use super::Field;
 use rand::{distributions::Standard, prelude::Distribution};
 use std::ops::{Add, Mul, Neg};
@@ -15,6 +17,23 @@ impl Gf2_128 {
     #[cfg(test)]
     fn reverse_bits(self) -> Self {
         Self(self.0.reverse_bits())
+    }
+}
+
+impl From<Gf2_128> for Vec<u8> {
+    fn from(value: Gf2_128) -> Self {
+        value.0.to_be_bytes().to_vec()
+    }
+}
+
+impl TryFrom<Vec<u8>> for Gf2_128 {
+    type Error = ShareConversionCoreError;
+
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        let bytes: [u8; 16] = value
+            .try_into()
+            .map_err(|_| ShareConversionCoreError::DeserializeFieldElement)?;
+        Ok(Self(u128::from_be_bytes(bytes)))
     }
 }
 
