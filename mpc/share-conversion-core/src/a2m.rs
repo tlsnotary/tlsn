@@ -1,6 +1,6 @@
 //! This module implements the A2M algorithm.
 
-use super::{Gf2_128ShareConvert, MulShare, OTEnvelope};
+use super::{MulShare, OTEnvelope, ShareConvert};
 use crate::{fields::Field, ShareConversionCoreError};
 use rand::{CryptoRng, Rng};
 
@@ -68,7 +68,7 @@ impl<T: Field> AddShare<T> {
     }
 }
 
-impl<T: Field> Gf2_128ShareConvert for AddShare<T> {
+impl<T: Field> ShareConvert for AddShare<T> {
     type Inner = T;
     type Output = MulShare<T>;
 

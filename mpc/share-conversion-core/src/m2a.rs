@@ -1,6 +1,6 @@
 //! This module implements the M2A algorithm.
 
-use super::{a2m::AddShare, Gf2_128ShareConvert, OTEnvelope};
+use super::{a2m::AddShare, OTEnvelope, ShareConvert};
 use crate::{fields::Field, ShareConversionCoreError};
 use rand::{CryptoRng, Rng};
 
@@ -33,7 +33,7 @@ impl<T: Field> MulShare<T> {
     }
 }
 
-impl<T: Field> Gf2_128ShareConvert for MulShare<T> {
+impl<T: Field> ShareConvert for MulShare<T> {
     type Inner = T;
     type Output = AddShare<T>;
 

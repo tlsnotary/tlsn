@@ -1,56 +1,27 @@
 //! This module implements the IO layer of share-conversion for field elements of
 //! GF(2^128), using oblivious transfer.
 
-use async_trait::async_trait;
-use share_conversion_core::gf2_128::{AddShare, Gf2_128ShareConvert, MulShare, OTEnvelope};
-use utils_aio::Channel;
-
+#[cfg(feature = "mock")]
+pub mod mock;
 mod msgs;
 mod receiver;
 pub mod recorder;
 mod sender;
 
-#[cfg(feature = "mock")]
-pub mod mock;
-
-pub use msgs::Gf2ConversionMessage;
+pub use msgs::{ShareConversionChannel, ShareConversionMessage};
 pub use receiver::Receiver;
 pub use sender::Sender;
 
-use crate::ShareConversionError;
-
-/// Send a tape used for verification of the conversion
-///
-/// Implementers record their inputs used during conversion and can send them to the other
-/// party. This will allow the other party to compute all outputs of the sender.
-#[async_trait]
-pub trait SendTape {
-    async fn send_tape(self) -> Result<(), ShareConversionError>;
-}
-
-/// Verify the recorded inputs of the other party
-///
-/// Will check if the conversion worked correctly. This allows to catch a malicious party but
-/// requires the malicious party to open and send all their inputs of the conversion before.
-#[async_trait]
-pub trait VerifyTape {
-    async fn verify_tape(self) -> Result<(), ShareConversionError>;
-}
-
-/// A channel used for messaging of conversion protocols
-pub type Gf2ConversionChannel = Box<dyn Channel<Gf2ConversionMessage, Error = std::io::Error>>;
-
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::recorder::{Tape, Void};
     use crate::{
-        gf2_128::mock::mock_converter_pair, AdditiveToMultiplicative, MultiplicativeToAdditive,
+        conversion::mock::mock_converter_pair, AdditiveToMultiplicative, MultiplicativeToAdditive,
         ShareConversionError,
     };
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
-    use recorder::{Tape, Void};
-    use share_conversion_core::gf2_128::mul;
+    use share_conversion_core::{AddShare, MulShare};
 
     #[tokio::test]
     async fn test_aio_a2m() {
