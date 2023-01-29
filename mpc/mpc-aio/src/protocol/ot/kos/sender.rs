@@ -10,6 +10,8 @@ use mpc_core::{
     },
     Block,
 };
+use rand::{Rng, SeedableRng};
+use rand_chacha::ChaCha12Rng;
 use utils_aio::{adaptive_barrier::AdaptiveBarrier, expect_msg_or_err};
 
 pub struct Kos15IOSender<T: SenderState> {
@@ -116,6 +118,27 @@ impl ObliviousSend<[Block; 2]> for Kos15IOSender<s_state::RandSetup> {
         self.channel
             .send(OTMessage::ExtSenderPayload(message))
             .await?;
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl ObliviousSend<[Vec<u8>; 2]> for Kos15IOSender<s_state::RandSetup> {
+    async fn send(&mut self, inputs: Vec<[Vec<u8>; 2]>) -> Result<(), OTError> {
+        let mut rng = ChaCha12Rng::from_entropy();
+
+        // Send keys
+        let mut keys: Vec<[Block; 2]> = Vec::with_capacity(inputs.len());
+        let mut encrypted_inputs: Vec<[Vec<u8>; 2]> = Vec::with_capacity(inputs.len());
+
+        for k in 0..inputs.len() {
+            let (key1, key2) = (Block::random(&mut rng), Block::random(&mut rng));
+            keys.push([key1, key2]);
+        }
+        ObliviousSend::<[Block; 2]>::send(self, keys).await?;
+
+        //Encrypt and send inputs
+
         Ok(())
     }
 }
