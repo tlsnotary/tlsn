@@ -18,11 +18,13 @@ use utils_aio::{adaptive_barrier::AdaptiveBarrier, factory::AsyncFactory};
 /// The sender for the conversion
 ///
 /// Will be the OT sender
-pub struct Sender<T, OT, U, V = Void>
+pub struct Sender<T, OT, U, V, W = Void>
 where
     T: AsyncFactory<OT>,
     OT: ObliviousSend<[Block; 2]>,
-    U: ShareConvert,
+    U: ShareConvert<Inner = V>,
+    V: Field,
+    W: Recorder<U, V>,
 {
     /// Provides initialized OTs for the OT sender
     sender_factory: T,
@@ -30,9 +32,9 @@ where
     id: String,
     _protocol: PhantomData<U>,
     rng: ChaCha12Rng,
-    channel: ShareConversionChannel,
+    channel: ShareConversionChannel<V>,
     /// If a non-[Void] recorder was passed in, it will be used to record the "tape", ( see [super::recorder::Tape])
-    recorder: V,
+    recorder: W,
     /// A barrier at which this Sender must wait before revealing the tape to the receiver. Used when
     /// multiple parallel share conversion protocols need to agree when to reveal their tapes.
     barrier: Option<AdaptiveBarrier>,
@@ -40,18 +42,19 @@ where
     counter: usize,
 }
 
-impl<T, OT, U, V> Sender<T, OT, U, V>
+impl<T, OT, U, V, W> Sender<T, OT, U, V, W>
 where
     T: AsyncFactory<OT, Config = OTSenderConfig, Error = OTFactoryError> + Send,
     OT: ObliviousSend<[Block; 2]>,
-    U: ShareConvert,
-    V: Default,
+    U: ShareConvert<Inner = V>,
+    V: Field,
+    W: Recorder<U, V>,
 {
     /// Create a new sender
     pub fn new(
         sender_factory: T,
         id: String,
-        channel: ShareConversionChannel,
+        channel: ShareConversionChannel<V>,
         barrier: Option<AdaptiveBarrier>,
     ) -> Self {
         let rng = ChaCha12Rng::from_entropy();
@@ -62,14 +65,14 @@ where
             _protocol: PhantomData,
             rng,
             channel,
-            recorder: V::default(),
+            recorder: W::default(),
             barrier,
             counter: 0,
         }
     }
 
     /// Converts a batch of shares using oblivious transfer
-    async fn convert_from(&mut self, shares: &[u128]) -> Result<Vec<u128>, ShareConversionError> {
+    async fn convert_from(&mut self, shares: &[V]) -> Result<Vec<V>, ShareConversionError> {
         let mut local_shares = Vec::with_capacity(shares.len());
 
         if shares.is_empty() {
@@ -105,11 +108,11 @@ where
 
 // Used for unit testing
 #[cfg(test)]
-impl<T, OT, U, V> Sender<T, OT, U, Tape<V>>
+impl<T, OT, U, V> Sender<T, OT, U, V, Tape<V>>
 where
     T: AsyncFactory<OT> + Send,
     OT: ObliviousSend<[Block; 2]>,
-    U: ShareConvert,
+    U: ShareConvert<Inner = V>,
     V: Field,
 {
     pub fn tape_mut(&mut self) -> &mut Tape<V> {
@@ -118,12 +121,12 @@ where
 }
 
 #[async_trait]
-impl<T, OT, U, V> AdditiveToMultiplicative<V> for Sender<T, OT, AddShare<V>, U>
+impl<T, OT, V, W> AdditiveToMultiplicative<V> for Sender<T, OT, AddShare<V>, V, W>
 where
     T: AsyncFactory<OT, Config = OTSenderConfig, Error = OTFactoryError> + Send,
     OT: ObliviousSend<[Block; 2]> + Send,
-    U: Recorder<AddShare<V>, V> + Send,
     V: Field,
+    W: Recorder<AddShare<V>, V> + Send,
 {
     async fn a_to_m(&mut self, input: Vec<V>) -> Result<Vec<V>, ShareConversionError> {
         self.recorder.set_seed(self.rng.get_seed());
@@ -133,12 +136,12 @@ where
 }
 
 #[async_trait]
-impl<T, OT, U, V> MultiplicativeToAdditive<V> for Sender<T, OT, MulShare<V>, U>
+impl<T, OT, V, W> MultiplicativeToAdditive<V> for Sender<T, OT, MulShare<V>, V, W>
 where
     T: AsyncFactory<OT, Config = OTSenderConfig, Error = OTFactoryError> + Send,
     OT: ObliviousSend<[Block; 2]> + Send,
-    U: Recorder<MulShare<V>, V> + Send,
     V: Field,
+    W: Recorder<MulShare<V>, V> + Send,
 {
     async fn m_to_a(&mut self, input: Vec<V>) -> Result<Vec<V>, ShareConversionError> {
         self.recorder.set_seed(self.rng.get_seed());
@@ -148,7 +151,7 @@ where
 }
 
 #[async_trait]
-impl<T, OT, U, V> SendTape for Sender<T, OT, U, Tape<V>>
+impl<T, OT, U, V> SendTape for Sender<T, OT, U, V, Tape<V>>
 where
     T: AsyncFactory<OT> + Send,
     OT: ObliviousSend<[Block; 2]> + Send,

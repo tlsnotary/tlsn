@@ -19,54 +19,58 @@ use utils_aio::factory::AsyncFactory;
 /// The receiver for the conversion
 ///
 /// Will be the OT receiver
-pub struct Receiver<T, OT, U, V = Void>
+pub struct Receiver<T, OT, U, V, W = Void>
 where
     T: AsyncFactory<OT>,
-    U: ShareConvert,
+    OT: ObliviousReceive<bool, Block>,
+    U: ShareConvert<Inner = V>,
+    V: Field,
+    W: Recorder<U, V>,
 {
     /// Provides initialized OTs for the OT receiver
     receiver_factory: T,
     _ot: PhantomData<OT>,
     id: String,
     _protocol: PhantomData<U>,
-    channel: ShareConversionChannel,
+    channel: ShareConversionChannel<V>,
     /// If a non-Void recorder was passed in, it will be used to record the "tape", ( see [Recorder::Tape])
-    recorder: V,
+    recorder: W,
     /// keeps track of how many batched share conversions we've made so far
     counter: usize,
 }
 
-impl<T, OT, U, V> Receiver<T, OT, U, V>
+impl<T, OT, U, V, W> Receiver<T, OT, U, V, W>
 where
     T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
     OT: ObliviousReceive<bool, Block>,
-    U: ShareConvert,
-    V: Default,
+    U: ShareConvert<Inner = V>,
+    V: Field,
+    W: Recorder<U, V>,
 {
     /// Create a new receiver
-    pub fn new(receiver_factory: T, id: String, channel: ShareConversionChannel) -> Self {
+    pub fn new(receiver_factory: T, id: String, channel: ShareConversionChannel<V>) -> Self {
         Self {
             receiver_factory,
             _ot: PhantomData,
             id,
             _protocol: PhantomData,
             channel,
-            recorder: V::default(),
+            recorder: W::default(),
             counter: 0,
         }
     }
 
     /// Converts a batch of shares using oblivious transfer
-    async fn convert_from(&mut self, shares: &[u128]) -> Result<Vec<u128>, ShareConversionError> {
+    async fn convert_from(&mut self, shares: &[V]) -> Result<Vec<V>, ShareConversionError> {
         if shares.is_empty() {
             return Ok(vec![]);
         }
-        let ot_number = shares.len() * 128;
+        let ot_number = shares.len() * V::BIT_SIZE as usize;
 
         // Get choices for OT from shares
         let mut choices: Vec<bool> = Vec::with_capacity(ot_number);
         shares.iter().for_each(|x| {
-            let share = V::new(*x).choices();
+            let share = U::new(*x).choices();
             choices.extend_from_slice(&share);
         });
 
@@ -87,10 +91,9 @@ where
 
         // Aggregate chunks of OTs to get back u128 values
         let converted_shares = ot_output
-            .chunks(128)
+            .chunks(V::BIT_SIZE as usize)
             .map(|chunk| {
-                V::from_sender_values(&chunk.iter().map(|x| x.inner()).collect::<Vec<u128>>())
-                    .inner()
+                U::from_sender_values(&chunk.iter().map(|x| x.inner()).collect::<Vec<V>>()).inner()
             })
             .collect();
 
@@ -99,12 +102,12 @@ where
 }
 
 #[async_trait]
-impl<T, OT, U, V> AdditiveToMultiplicative<V> for Receiver<T, OT, AddShare<V>, U>
+impl<T, OT, V, W> AdditiveToMultiplicative<V> for Receiver<T, OT, AddShare<V>, V, W>
 where
     T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
     OT: ObliviousReceive<bool, Block> + Send,
-    U: Recorder<AddShare<V>, V> + Send,
     V: Field,
+    W: Recorder<AddShare<V>, V> + Send,
 {
     async fn a_to_m(&mut self, input: Vec<V>) -> Result<Vec<V>, ShareConversionError> {
         let output = self.convert_from(&input).await?;
@@ -114,12 +117,12 @@ where
 }
 
 #[async_trait]
-impl<T, OT, U, V> MultiplicativeToAdditive<V> for Receiver<T, OT, MulShare<V>, U>
+impl<T, OT, V, W> MultiplicativeToAdditive<V> for Receiver<T, OT, MulShare<V>, V, W>
 where
     T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
     OT: ObliviousReceive<bool, Block> + Send,
-    U: Recorder<MulShare<V>, V> + Send,
     V: Field,
+    W: Recorder<MulShare<V>, V> + Send,
 {
     async fn m_to_a(&mut self, input: Vec<V>) -> Result<Vec<V>, ShareConversionError> {
         let output = self.convert_from(&input).await?;
@@ -129,11 +132,11 @@ where
 }
 
 #[async_trait]
-impl<T, OT, U, V> VerifyTape for Receiver<T, OT, U, Tape<V>>
+impl<T, OT, U, V> VerifyTape for Receiver<T, OT, U, V, Tape<V>>
 where
     T: AsyncFactory<OT> + Send,
     OT: ObliviousReceive<bool, Block> + Send,
-    U: ShareConvert + Send,
+    U: ShareConvert<Inner = V> + Send,
     V: Field,
 {
     async fn verify_tape(mut self) -> Result<(), ShareConversionError> {
@@ -142,9 +145,9 @@ where
             "stream closed unexpectedly",
         ))?;
 
-        let (seed, sender_tape): ([u8; 32], Vec<u128>) = message.try_into()?;
-        <Tape as Recorder<U>>::set_seed(&mut self.recorder, seed);
-        <Tape as Recorder<U>>::record_for_sender(&mut self.recorder, &sender_tape);
-        <Tape as Recorder<U>>::verify(&self.recorder)
+        let (seed, sender_tape): ([u8; 32], Vec<V>) = message.try_into()?;
+        <Tape<V> as Recorder<U, V>>::set_seed(&mut self.recorder, seed);
+        <Tape<V> as Recorder<U, V>>::record_for_sender(&mut self.recorder, &sender_tape);
+        <Tape<V> as Recorder<U, V>>::verify(&self.recorder)
     }
 }
