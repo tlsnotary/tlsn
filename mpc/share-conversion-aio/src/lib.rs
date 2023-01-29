@@ -2,31 +2,39 @@
 
 use async_trait::async_trait;
 use mpc_aio::protocol::ot::{OTError, OTFactoryError};
-use share_conversion_core::ShareConversionCoreError;
+use share_conversion_core::{fields::Field, ShareConversionCoreError};
 use thiserror::Error;
 
-pub mod gf2_128;
+pub mod conversion;
 
 /// Allows to convert additive shares of type `FieldElement` into multiplicative ones
 #[async_trait]
-pub trait AdditiveToMultiplicative {
-    type FieldElement: Copy + std::fmt::Debug;
-
-    async fn a_to_m(
-        &mut self,
-        input: Vec<Self::FieldElement>,
-    ) -> Result<Vec<Self::FieldElement>, ShareConversionError>;
+pub trait AdditiveToMultiplicative<T: Field> {
+    async fn a_to_m(&mut self, input: Vec<T>) -> Result<Vec<T>, ShareConversionError>;
 }
 
 /// Allows to convert multiplicative shares of type `FieldElement` into additive ones
 #[async_trait]
-pub trait MultiplicativeToAdditive {
-    type FieldElement: Copy + std::fmt::Debug;
+pub trait MultiplicativeToAdditive<T: Field> {
+    async fn m_to_a(&mut self, input: Vec<T>) -> Result<Vec<T>, ShareConversionError>;
+}
 
-    async fn m_to_a(
-        &mut self,
-        input: Vec<Self::FieldElement>,
-    ) -> Result<Vec<Self::FieldElement>, ShareConversionError>;
+/// Send a tape used for verification of the conversion
+///
+/// Implementers record their inputs used during conversion and can send them to the other
+/// party. This will allow the other party to compute all outputs of the sender.
+#[async_trait]
+pub trait SendTape {
+    async fn send_tape(self) -> Result<(), ShareConversionError>;
+}
+
+/// Verify the recorded inputs of the other party
+///
+/// Will check if the conversion worked correctly. This allows to catch a malicious party but
+/// requires the malicious party to open and send all their inputs of the conversion before.
+#[async_trait]
+pub trait VerifyTape {
+    async fn verify_tape(self) -> Result<(), ShareConversionError>;
 }
 
 /// An error for what can go wrong during conversion

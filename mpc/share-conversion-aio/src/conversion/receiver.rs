@@ -1,12 +1,10 @@
 //! This module implements the async IO receiver
 
-use std::marker::PhantomData;
-
 use super::{
     recorder::{Recorder, Tape, Void},
-    AddShare, Gf2ConversionChannel, Gf2_128ShareConvert, MulShare, VerifyTape,
+    ShareConversionChannel,
 };
-use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive, ShareConversionError};
+use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive, ShareConversionError, VerifyTape};
 use async_trait::async_trait;
 use futures::StreamExt;
 use mpc_aio::protocol::ot::{
@@ -14,6 +12,8 @@ use mpc_aio::protocol::ot::{
     OTFactoryError, ObliviousReceive,
 };
 use mpc_core::Block;
+use share_conversion_core::{fields::Field, AddShare, MulShare, ShareConvert};
+use std::marker::PhantomData;
 use utils_aio::factory::AsyncFactory;
 
 /// The receiver for the conversion
@@ -22,36 +22,36 @@ use utils_aio::factory::AsyncFactory;
 pub struct Receiver<T, OT, U, V = Void>
 where
     T: AsyncFactory<OT>,
-    U: Gf2_128ShareConvert,
+    U: ShareConvert,
 {
     /// Provides initialized OTs for the OT receiver
     receiver_factory: T,
     _ot: PhantomData<OT>,
     id: String,
     _protocol: PhantomData<U>,
-    channel: Gf2ConversionChannel,
+    channel: ShareConversionChannel,
     /// If a non-Void recorder was passed in, it will be used to record the "tape", ( see [Recorder::Tape])
     recorder: V,
     /// keeps track of how many batched share conversions we've made so far
     counter: usize,
 }
 
-impl<T, OT, V, W> Receiver<T, OT, V, W>
+impl<T, OT, U, V> Receiver<T, OT, U, V>
 where
     T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
     OT: ObliviousReceive<bool, Block>,
-    V: Gf2_128ShareConvert,
-    W: Recorder<V>,
+    U: ShareConvert,
+    V: Default,
 {
     /// Create a new receiver
-    pub fn new(receiver_factory: T, id: String, channel: Gf2ConversionChannel) -> Self {
+    pub fn new(receiver_factory: T, id: String, channel: ShareConversionChannel) -> Self {
         Self {
             receiver_factory,
             _ot: PhantomData,
             id,
             _protocol: PhantomData,
             channel,
-            recorder: W::default(),
+            recorder: V::default(),
             counter: 0,
         }
     }
@@ -99,18 +99,14 @@ where
 }
 
 #[async_trait]
-impl<T, OT, V> AdditiveToMultiplicative for Receiver<T, OT, AddShare, V>
+impl<T, OT, U, V> AdditiveToMultiplicative<V> for Receiver<T, OT, AddShare<V>, U>
 where
     T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
     OT: ObliviousReceive<bool, Block> + Send,
-    V: Recorder<AddShare> + Send,
+    U: Recorder<AddShare<V>, V> + Send,
+    V: Field,
 {
-    type FieldElement = u128;
-
-    async fn a_to_m(
-        &mut self,
-        input: Vec<Self::FieldElement>,
-    ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
+    async fn a_to_m(&mut self, input: Vec<V>) -> Result<Vec<V>, ShareConversionError> {
         let output = self.convert_from(&input).await?;
         self.recorder.record_for_receiver(&input, &output);
         Ok(output)
@@ -118,18 +114,14 @@ where
 }
 
 #[async_trait]
-impl<T, OT, V> MultiplicativeToAdditive for Receiver<T, OT, MulShare, V>
+impl<T, OT, U, V> MultiplicativeToAdditive<V> for Receiver<T, OT, MulShare<V>, U>
 where
     T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
     OT: ObliviousReceive<bool, Block> + Send,
-    V: Recorder<MulShare> + Send,
+    U: Recorder<MulShare<V>, V> + Send,
+    V: Field,
 {
-    type FieldElement = u128;
-
-    async fn m_to_a(
-        &mut self,
-        input: Vec<Self::FieldElement>,
-    ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
+    async fn m_to_a(&mut self, input: Vec<V>) -> Result<Vec<V>, ShareConversionError> {
         let output = self.convert_from(&input).await?;
         self.recorder.record_for_receiver(&input, &output);
         Ok(output)
@@ -137,11 +129,12 @@ where
 }
 
 #[async_trait]
-impl<T, OT, U> VerifyTape for Receiver<T, OT, U, Tape>
+impl<T, OT, U, V> VerifyTape for Receiver<T, OT, U, Tape<V>>
 where
     T: AsyncFactory<OT> + Send,
     OT: ObliviousReceive<bool, Block> + Send,
-    U: Gf2_128ShareConvert + Send,
+    U: ShareConvert + Send,
+    V: Field,
 {
     async fn verify_tape(mut self) -> Result<(), ShareConversionError> {
         let message = self.channel.next().await.ok_or(std::io::Error::new(
