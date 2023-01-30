@@ -1,0 +1,24 @@
+[package]
+name = "tlsn-key-exchange"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "key_exchange"
+
+[dependencies]
+tlsn-mpc-core = { path = "../mpc/mpc-core" }
+tlsn-tls-core = { path = "../tls/tls-core" }
+
+p256 = { version = "0.12", features = ["arithmetic"] }
+
+async-trait = "0.1"
+futures = "0.3"
+
+thiserror = "1"
+
+rand = "0.8"
+
+[dev-dependencies]
+rand_chacha = "0.3"
+tokio = { version = "1.23", features = ["macros", "rt", "rt-multi-thread"] }
