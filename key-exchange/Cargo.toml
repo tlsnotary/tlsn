@@ -6,9 +6,14 @@ edition = "2021"
 [lib]
 name = "key_exchange"
 
+[features]
+default = []
+serde = ["dep:serde"]
+
 [dependencies]
 tlsn-mpc-core = { path = "../mpc/mpc-core" }
 tlsn-tls-core = { path = "../tls/tls-core" }
+tlsn-utils-aio = { path = "../utils/utils-aio" }
 
 p256 = { version = "0.12", features = ["arithmetic"] }
 
@@ -18,6 +23,8 @@ futures = "0.3"
 thiserror = "1"
 
 rand = "0.8"
+
+serde = { version = "1", optional = true }
 
 [dev-dependencies]
 rand_chacha = "0.3"
