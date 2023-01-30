@@ -20,7 +20,7 @@ mod tests {
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
     use share_conversion_aio::{
-        gf2_128::{recorder::Tape, SendTape, VerifyTape},
+        recorder::{SendTape, Tape, VerifyTape},
         AdditiveToMultiplicative, MultiplicativeToAdditive,
     };
     use share_conversion_core::gf2_128::{mul, AddShare, Gf2_128ShareConvert, MulShare};
