@@ -12,13 +12,15 @@ pub fn mock_converter_pair<
     V: Field<OTEncoding = X>,
     X: Send + 'static,
     W: Recorder<U, V>,
->() -> (MockSender<U, V, X, W>, MockReceiver<U, V, X, W>) {
+>() -> (MockSender<U, V, X, W>, MockReceiver<U, V, X, W>)
+where
+    MockOTFactory<X>: Clone,
+{
     let (c1, c2): (ShareConversionChannel<V>, ShareConversionChannel<V>) = DuplexChannel::new();
     let ot_factory = MockOTFactory::new();
-    let ot_factory2 = MockOTFactory::new();
 
-    let sender = MockSender::new(ot_factory, String::from(""), Box::new(c1), None);
-    let receiver = MockReceiver::new(ot_factory2, String::from(""), Box::new(c2));
+    let sender = MockSender::new(ot_factory.clone(), String::from(""), Box::new(c1), None);
+    let receiver = MockReceiver::new(ot_factory, String::from(""), Box::new(c2));
 
     (sender, receiver)
 }
