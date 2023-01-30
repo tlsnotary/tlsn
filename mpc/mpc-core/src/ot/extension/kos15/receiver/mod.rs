@@ -136,10 +136,10 @@ impl Kos15Receiver<state::BaseSend> {
         mut self,
         count: usize,
     ) -> Result<(Kos15Receiver<state::RandSetup>, ExtReceiverSetup), ExtReceiverCoreError> {
-        let mut choices = vec![false; count];
-        self.0.rng.fill::<[bool]>(&mut choices);
+        let mut rand_choices = vec![false; count];
+        self.0.rng.fill::<[bool]>(&mut rand_choices);
         let (table, choices, message) = extension_setup_from(
-            &choices,
+            &rand_choices,
             &mut self.0.rng,
             &mut self.0.rngs,
             &self.0.cointoss_random,
@@ -148,7 +148,7 @@ impl Kos15Receiver<state::BaseSend> {
         let receiver = Kos15Receiver(state::RandSetup {
             rng: self.0.rng,
             table,
-            choices,
+            rand_choices,
             derandomized: Vec::new(),
             sender_output_tape: Vec::new(),
             choices_tape: Vec::new(),
@@ -196,20 +196,20 @@ impl Kos15Receiver<state::RandSetup> {
     /// By so signalling, the Receiver is "derandomizing" the Oblivious Transfer.
     pub fn derandomize(
         &mut self,
-        derand_choices: &[bool],
+        choices: &[bool],
     ) -> Result<ExtDerandomize, ExtReceiverCoreError> {
-        if derand_choices.len() > self.0.choices.len() {
+        if choices.len() > self.0.rand_choices.len() {
             return Err(ExtReceiverCoreError::InvalidChoiceLength);
         }
 
-        let random_choices: Vec<bool> = self.0.choices.drain(..derand_choices.len()).collect();
+        let random_choices: Vec<bool> = self.0.rand_choices.drain(..choices.len()).collect();
         let flip: Vec<bool> = random_choices
             .iter()
-            .zip(derand_choices)
+            .zip(choices)
             .map(|(a, b)| a ^ b)
             .collect();
 
-        self.0.derandomized.extend_from_slice(derand_choices);
+        self.0.derandomized.extend_from_slice(choices);
         Ok(ExtDerandomize { flip })
     }
 
@@ -219,8 +219,8 @@ impl Kos15Receiver<state::RandSetup> {
         &mut self,
         payload: ExtSenderPayload,
     ) -> Result<Vec<Block>, ExtReceiverCoreError> {
-        if payload.ciphertexts.len() > self.0.derandomized.len() {
-            return Err(ExtReceiverCoreError::NotDerandomized);
+        if payload.ciphertexts.len() != self.0.derandomized.len() {
+            return Err(ExtReceiverCoreError::CiphertextCountWrong);
         }
 
         let (output, choices) =
@@ -233,12 +233,12 @@ impl Kos15Receiver<state::RandSetup> {
     }
 
     pub fn is_complete(&self) -> bool {
-        self.0.derandomized.is_empty() && self.0.choices.is_empty()
+        self.0.derandomized.is_empty() && self.0.rand_choices.is_empty()
     }
 
     /// Returns the number of remaining OTs which have not been consumed yet
     pub fn remaining(&self) -> usize {
-        self.0.choices.len()
+        self.0.rand_choices.len()
     }
 
     pub fn split(&mut self, split_at: usize) -> Result<Self, ExtReceiverCoreError> {
@@ -249,7 +249,7 @@ impl Kos15Receiver<state::RandSetup> {
         Ok(Kos15Receiver(state::RandSetup {
             rng: self.0.rng.clone(),
             table: self.0.table.split_off_rows(split_at)?,
-            choices: self.0.choices.split_off(split_at),
+            rand_choices: self.0.rand_choices.split_off(split_at),
             derandomized: Vec::new(),
             sender_output_tape: Vec::new(),
             choices_tape: Vec::new(),

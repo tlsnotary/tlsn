@@ -44,7 +44,10 @@ impl ReceiverState for Setup {}
 pub struct RandSetup {
     pub(crate) rng: ChaCha12Rng,
     pub(crate) table: KosMatrix,
-    pub(crate) choices: Vec<bool>,
+    /// Random choice bits are the result of the Random OT setup
+    pub(crate) rand_choices: Vec<bool>,
+    /// A buffer of choice bits for which derandomization request has already been sent to the OT
+    /// Sender but the corresponding encrypted OT messages have not yet been received
     pub(crate) derandomized: Vec<bool>,
     // Records the received, encrypted blocks, sent by the sender for later use in committed OT
     pub(crate) sender_output_tape: Vec<[Block; 2]>,
