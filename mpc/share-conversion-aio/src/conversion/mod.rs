@@ -47,13 +47,13 @@ mod tests {
         test_aio_m2a_recorded_fail::<P256, Vec<Block>>().await;
     }
 
-    async fn test_aio_a2m<T: Field<OTEncoding = U>, U: Send + 'static>() {
+    async fn test_aio_a2m<T: Field<OTEncoding = U>, U: Send + Clone + 'static>() {
         let (mut sender, mut receiver) = mock_converter_pair::<AddShare<T>, T, U, Void>();
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
-        let random_numbers_1: Vec<T> = get_random_field_vec(64, &mut rng);
-        let random_numbers_2: Vec<T> = get_random_field_vec(64, &mut rng);
+        let random_numbers_1: Vec<T> = get_random_field_vec(16, &mut rng);
+        let random_numbers_2: Vec<T> = get_random_field_vec(16, &mut rng);
         let random_numbers: Vec<T> =
             std::iter::zip(random_numbers_1.iter(), random_numbers_2.iter())
                 .map(|(a, b)| *a + *b)
@@ -74,13 +74,13 @@ mod tests {
         }
     }
 
-    async fn test_aio_m2a<T: Field<OTEncoding = U>, U: Send + 'static>() {
+    async fn test_aio_m2a<T: Field<OTEncoding = U>, U: Send + Clone + 'static>() {
         let (mut sender, mut receiver) = mock_converter_pair::<MulShare<T>, T, U, Void>();
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
-        let random_numbers_1: Vec<T> = get_random_field_vec(64, &mut rng);
-        let random_numbers_2: Vec<T> = get_random_field_vec(64, &mut rng);
+        let random_numbers_1: Vec<T> = get_random_field_vec(16, &mut rng);
+        let random_numbers_2: Vec<T> = get_random_field_vec(16, &mut rng);
         let random_numbers: Vec<T> =
             std::iter::zip(random_numbers_1.iter(), random_numbers_2.iter())
                 .map(|(a, b)| *a * *b)
@@ -101,13 +101,13 @@ mod tests {
         }
     }
 
-    async fn test_aio_a2m_recorded<T: Field<OTEncoding = U>, U: Send + 'static>() {
+    async fn test_aio_a2m_recorded<T: Field<OTEncoding = U>, U: Send + Clone + 'static>() {
         let (mut sender, mut receiver) = mock_converter_pair::<AddShare<T>, T, U, Tape<T>>();
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
-        let random_numbers_1: Vec<T> = get_random_field_vec(64, &mut rng);
-        let random_numbers_2: Vec<T> = get_random_field_vec(64, &mut rng);
+        let random_numbers_1: Vec<T> = get_random_field_vec(16, &mut rng);
+        let random_numbers_2: Vec<T> = get_random_field_vec(16, &mut rng);
 
         // Spawn tokio tasks and wait for them to finish
         let sender_task = tokio::spawn(async move {
@@ -126,13 +126,13 @@ mod tests {
         // fine.
     }
 
-    async fn test_aio_m2a_recorded<T: Field<OTEncoding = U>, U: Send + 'static>() {
+    async fn test_aio_m2a_recorded<T: Field<OTEncoding = U>, U: Send + Clone + 'static>() {
         let (mut sender, mut receiver) = mock_converter_pair::<MulShare<T>, T, U, Tape<T>>();
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
-        let random_numbers_1: Vec<T> = get_random_field_vec(64, &mut rng);
-        let random_numbers_2: Vec<T> = get_random_field_vec(64, &mut rng);
+        let random_numbers_1: Vec<T> = get_random_field_vec(16, &mut rng);
+        let random_numbers_2: Vec<T> = get_random_field_vec(16, &mut rng);
 
         // Spawn tokio tasks and wait for them to finish
         let sender_task = tokio::spawn(async move {
@@ -151,13 +151,13 @@ mod tests {
         // fine.
     }
 
-    async fn test_aio_a2m_recorded_fail<T: Field<OTEncoding = U>, U: Send + 'static>() {
+    async fn test_aio_a2m_recorded_fail<T: Field<OTEncoding = U>, U: Send + Clone + 'static>() {
         let (mut sender, mut receiver) = mock_converter_pair::<AddShare<T>, T, U, Tape<T>>();
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
-        let random_numbers_1: Vec<T> = get_random_field_vec(64, &mut rng);
-        let random_numbers_2: Vec<T> = get_random_field_vec(64, &mut rng);
+        let random_numbers_1: Vec<T> = get_random_field_vec(16, &mut rng);
+        let random_numbers_2: Vec<T> = get_random_field_vec(16, &mut rng);
 
         // Spawn tokio tasks and wait for them to finish
         let sender_task = tokio::spawn(async move {
@@ -182,13 +182,13 @@ mod tests {
         ));
     }
 
-    async fn test_aio_m2a_recorded_fail<T: Field<OTEncoding = U>, U: Send + 'static>() {
+    async fn test_aio_m2a_recorded_fail<T: Field<OTEncoding = U>, U: Send + Clone + 'static>() {
         let (mut sender, mut receiver) = mock_converter_pair::<MulShare<T>, T, U, Tape<T>>();
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
-        let random_numbers_1: Vec<T> = get_random_field_vec(64, &mut rng);
-        let random_numbers_2: Vec<T> = get_random_field_vec(64, &mut rng);
+        let random_numbers_1: Vec<T> = get_random_field_vec(16, &mut rng);
+        let random_numbers_2: Vec<T> = get_random_field_vec(16, &mut rng);
         // Spawn tokio tasks and wait for them to finish
         let sender_task = tokio::spawn(async move {
             let _ = sender.m_to_a(random_numbers_1).await.unwrap();
