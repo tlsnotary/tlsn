@@ -177,7 +177,7 @@ pub struct GarbledCircuit<S: State> {
 /// "opens" the GC.
 /// We rely on the property of the "half-gates" garbling scheme that given the input
 /// label pairs and the delta, a GC will always be generated deterministically.
-/// We assume that the evaluator is already in posession of all active input labels.
+/// We assume that the evaluator is already in possession of all active input labels.
 ///
 /// Note that instead of `input_decoding`, the circuit generator could just provide
 /// his actual input to the circuit. But this would have a slightly larger cost when
