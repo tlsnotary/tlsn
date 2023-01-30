@@ -1,8 +1,8 @@
 /// Methods performing various validation checks on the [crate::verifier_doc::VerifierDocUnchecked]
-use super::verifier_doc::VerifierDocUnchecked;
+use super::doc::UncheckedDoc;
 use super::{commitment::Range, Error};
 
-pub fn perform_checks(unchecked: &VerifierDocUnchecked) -> Result<(), Error> {
+pub fn perform_checks(unchecked: &UncheckedDoc) -> Result<(), Error> {
     // Performs the following validation checks:
     //
     // - at least one commitment is present
@@ -35,7 +35,7 @@ pub fn perform_checks(unchecked: &VerifierDocUnchecked) -> Result<(), Error> {
 }
 
 /// Condition checked: at least one commitment is present
-fn check_at_least_one_commitment_present(unchecked: &VerifierDocUnchecked) -> Result<(), Error> {
+fn check_at_least_one_commitment_present(unchecked: &UncheckedDoc) -> Result<(), Error> {
     if unchecked.commitments().is_empty() {
         return Err(Error::SanityCheckError(
             "check_at_least_one_commitment_present".to_string(),
@@ -45,7 +45,7 @@ fn check_at_least_one_commitment_present(unchecked: &VerifierDocUnchecked) -> Re
 }
 
 /// Condition checked: commitments and openings have their ids incremental and ascending
-fn check_commitment_and_opening_ids(unchecked: &VerifierDocUnchecked) -> Result<(), Error> {
+fn check_commitment_and_opening_ids(unchecked: &UncheckedDoc) -> Result<(), Error> {
     for i in 0..unchecked.commitments().len() {
         if !(unchecked.commitments()[i].id() == i && unchecked.commitment_openings()[i].id() == i) {
             return Err(Error::SanityCheckError(
@@ -57,7 +57,7 @@ fn check_commitment_and_opening_ids(unchecked: &VerifierDocUnchecked) -> Result<
 }
 
 /// Condition checked: commitment count equals opening count
-fn check_commitment_and_opening_count_equal(unchecked: &VerifierDocUnchecked) -> Result<(), Error> {
+fn check_commitment_and_opening_count_equal(unchecked: &UncheckedDoc) -> Result<(), Error> {
     if unchecked.commitments().len() != unchecked.commitment_openings().len() {
         return Err(Error::SanityCheckError(
             "check_commitment_and_opening_count_equal".to_string(),
@@ -67,7 +67,7 @@ fn check_commitment_and_opening_count_equal(unchecked: &VerifierDocUnchecked) ->
 }
 
 /// Condition checked: ranges inside one commitment are non-empty, valid, ascending, non-overlapping, non-overflowing
-fn check_ranges_inside_each_commitment(unchecked: &VerifierDocUnchecked) -> Result<(), Error> {
+fn check_ranges_inside_each_commitment(unchecked: &UncheckedDoc) -> Result<(), Error> {
     for c in unchecked.commitments() {
         let len = c.ranges().len();
         // at least one range is expected
@@ -110,7 +110,7 @@ fn check_ranges_inside_each_commitment(unchecked: &VerifierDocUnchecked) -> Resu
 /// corresponding commitment
 /// Condition checked: the total amount of committed data is less than 1GB to prevent DoS
 /// (this will cause the verifier to hash up to a max of 1GB * 128 = 128GB of labels)
-fn check_commitment_sizes(unchecked: &VerifierDocUnchecked) -> Result<(), Error> {
+fn check_commitment_sizes(unchecked: &UncheckedDoc) -> Result<(), Error> {
     let mut total_committed = 0usize;
 
     for i in 0..unchecked.commitment_openings().len() {
@@ -137,7 +137,7 @@ fn check_commitment_sizes(unchecked: &VerifierDocUnchecked) -> Result<(), Error>
 /// Condition checked: the amount of commitments is less that 1000
 /// (searching for overlapping commitments in the naive way which we implemeted has quadratic cost,
 /// hence this number shouldn't be too high to prevent DoS)
-fn check_commitment_count(unchecked: &VerifierDocUnchecked) -> Result<(), Error> {
+fn check_commitment_count(unchecked: &UncheckedDoc) -> Result<(), Error> {
     if unchecked.commitments().len() >= 1000 {
         return Err(Error::SanityCheckError(
             "check_commitment_count".to_string(),
@@ -147,7 +147,7 @@ fn check_commitment_count(unchecked: &VerifierDocUnchecked) -> Result<(), Error>
 }
 
 /// Condition checked: each Merkle tree index is both unique and also ascending between commitments
-fn check_merkle_tree_indices(unchecked: &VerifierDocUnchecked) -> Result<(), Error> {
+fn check_merkle_tree_indices(unchecked: &UncheckedDoc) -> Result<(), Error> {
     let indices: Vec<usize> = unchecked
         .commitments()
         .iter()
@@ -166,7 +166,7 @@ fn check_merkle_tree_indices(unchecked: &VerifierDocUnchecked) -> Result<(), Err
 /// Makes sure that if two or more commitments contain overlapping ranges, the openings
 /// corresponding to those ranges match exactly. Otherwise, if the openings don't match,
 /// returns an error.
-fn check_overlapping_openings(unchecked: &VerifierDocUnchecked) -> Result<(), Error> {
+fn check_overlapping_openings(unchecked: &UncheckedDoc) -> Result<(), Error> {
     // Note: using an existing lib to find multi-range overlap would incur the need to audit
     // that lib for correctness. Instead, since checking two range overlap is cheap, we are using
     // a naive way where we compare each range to all other ranges.

@@ -1,4 +1,4 @@
-use super::{tls_doc::EphemeralECPubkey, Error, HashCommitment, LabelSeed, VerifierDoc};
+use super::{tls_doc::EphemeralECPubkey, Error, HashCommitment, LabelSeed, ValidatedDoc};
 use serde::Serialize;
 
 #[derive(Clone, Serialize)]
@@ -42,7 +42,7 @@ impl SignedTLS {
 #[derive(Clone, Serialize)]
 pub struct Signed {
     tls: SignedTLS,
-    // see comments in [crate::VerifierDoc] for details about the fields below
+    // see comments in [crate::doc::VerifiedDoc] for details about the fields below
     /// PRG seed from which garbled circuit labels are generated
     label_seed: LabelSeed,
     /// Merkle root of all the commitments
@@ -78,8 +78,8 @@ impl Signed {
 
 /// Extracts relevant fields from the VerifierDoc. Those are the fields
 /// which the Notary signs
-impl std::convert::From<&VerifierDoc> for Signed {
-    fn from(doc: &VerifierDoc) -> Self {
+impl std::convert::From<&ValidatedDoc> for Signed {
+    fn from(doc: &ValidatedDoc) -> Self {
         Signed::new(
             doc.tls_doc().signed_tls().clone(),
             *doc.label_seed(),

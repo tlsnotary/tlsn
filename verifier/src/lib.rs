@@ -1,18 +1,18 @@
 mod checks;
 mod commitment;
+mod doc;
 mod error;
 mod label_encoder;
 mod pubkey;
 mod signed;
 mod tls_doc;
 mod utils;
-mod verifier_doc;
 mod webpki_utils;
 
-use crate::signed::Signed;
+use crate::{doc::ValidatedDoc, signed::Signed};
+use doc::{UncheckedDoc, VerifiedDoc};
 use error::Error;
 use pubkey::PubKey;
-use verifier_doc::{VerifierDoc, VerifierDocUnchecked};
 
 type HashCommitment = [u8; 32];
 
@@ -24,40 +24,38 @@ type LabelSeed = [u8; 32];
 ///
 /// Once the verification succeeds, an application level (e.g. HTTP, JSON) parser can
 /// parse `commitment_openings` in `doc`
-pub struct Verifier {
-    /// A validated notarization document which needs to be verified
-    doc: VerifierDoc,
-    /// A trusted Notary's pubkey (if this Verifier acted as the Notary then no pubkey needs
-    /// to be provided)
-    trusted_pubkey: Option<PubKey>,
-}
+pub struct Verifier {}
 
 impl Verifier {
-    /// Validates the notarization document and creates a new Verifier
-    pub fn new(
-        doc_unchecked: VerifierDocUnchecked,
-        trusted_pubkey: Option<PubKey>,
-    ) -> Result<Self, Error> {
-        let doc = VerifierDoc::from_unchecked(doc_unchecked)?;
-        Ok(Self {
-            doc,
-            trusted_pubkey,
-        })
+    /// Creates a new Verifier
+    pub fn new() -> Self {
+        Self {}
     }
 
     /// Verifies that the notarization document resulted from notarizing data from a TLS server with the
-    /// DNS name `dns_name`. `dns_name` must be exactly as it appears in the server's TLS certificate.
-    /// Also verifies the Notary's signature (if any).
+    /// DNS name `dns_name`. Also verifies the Notary's signature (if any).
     ///
     /// IMPORTANT:
     /// if the notarized application data is HTTP, the checks below will not be sufficient. You must also
     /// check on the HTTP parser's level against domain fronting.
     ///
-    pub fn verify(&self, dns_name: String) -> Result<(), Error> {
+    /// * unchecked_doc - The notarization document to be validated and verified
+    /// * trusted_pubkey - A trusted Notary's pubkey (if this Verifier acted as the Notary then no
+    ///                    pubkey needs to be provided)
+    /// * dns_name - A DNS name. Must be exactly as it appears in the server's TLS certificate.
+    pub fn verify(
+        &self,
+        unchecked_doc: UncheckedDoc,
+        trusted_pubkey: Option<PubKey>,
+        dns_name: String,
+    ) -> Result<VerifiedDoc, Error> {
+        // validate the document
+        let doc = ValidatedDoc::from_unchecked(unchecked_doc)?;
+
         // verify Notary's signature, if any
-        match (self.doc.signature(), &self.trusted_pubkey) {
+        match (doc.signature(), &trusted_pubkey) {
             (Some(sig), Some(pubkey)) => {
-                self.verify_doc_signature(pubkey, sig)?;
+                self.verify_doc_signature(pubkey, sig, self.signed_data(&doc))?;
             }
             // no pubkey and no signature, do nothing
             (None, None) => (),
@@ -68,21 +66,21 @@ impl Verifier {
         }
 
         // verify the document
-        self.doc.verify(dns_name)?;
+        doc.verify(dns_name)?;
 
-        Ok(())
+        Ok(VerifiedDoc::from_validated(doc))
     }
 
     /// Verifies Notary's signature on that part of the document which was signed
-    fn verify_doc_signature(&self, pubkey: &PubKey, sig: &[u8]) -> Result<(), Error> {
-        let msg = self.signed_data().serialize()?;
+    fn verify_doc_signature(&self, pubkey: &PubKey, sig: &[u8], msg: Signed) -> Result<(), Error> {
+        let msg = msg.serialize()?;
         pubkey.verify_signature(&msg, sig)
     }
 
-    /// Extracts the necessary fields from the [VerifierDoc] into a [Signed]
+    /// Extracts the necessary fields from the [VerifiedDoc] into a [Signed]
     /// struct and returns it
-    fn signed_data(&self) -> Signed {
-        (&self.doc).into()
+    fn signed_data(&self, doc: &ValidatedDoc) -> Signed {
+        doc.into()
     }
 }
 
@@ -238,7 +236,7 @@ fn e2e_test() {
     let indices_to_prove = vec![0];
     let proof = merkle_tree.proof(&indices_to_prove);
 
-    let doc = VerifierDoc::new(
+    let unchecked_doc = UncheckedDoc::new(
         1,
         tls_doc,
         Some(signature.to_vec()),
@@ -250,24 +248,27 @@ fn e2e_test() {
         vec![open],
     );
 
-    // -------- The User converts the doc into an unchecked type and passes it to the Verifier
-    let doc_unchecked: VerifierDocUnchecked = doc.into();
-
     // -------- The Verifier verifies the doc:
 
     // Initially the Verifier may store the Notary's pubkey as bytes. Converts it into
     // PubKey type
     let trusted_pubkey = PubKey::from_bytes(KeyType::P256, pubkey_bytes).unwrap();
 
-    let verifier = Verifier::new(doc_unchecked, Some(trusted_pubkey)).unwrap();
+    let verifier = Verifier::new();
 
-    verifier.verify("tlsnotary.org".to_string()).unwrap();
+    let verified_doc = verifier
+        .verify(
+            unchecked_doc,
+            Some(trusted_pubkey),
+            "tlsnotary.org".to_string(),
+        )
+        .unwrap();
 
     // -------- The Verifier proceeds to put each verified commitment opening through an application
     //          level (e.g. http) parser
 
     assert_eq!(
-        String::from_utf8(verifier.doc.commitment_openings()[0].opening().clone()).unwrap(),
+        String::from_utf8(verified_doc.commitment_openings()[0].opening().clone()).unwrap(),
         "important data".to_string()
     );
 }

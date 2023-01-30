@@ -10,8 +10,8 @@ use serde::{ser::Serializer, Serialize};
 use std::{any::Any, collections::HashMap};
 
 #[derive(Serialize)]
-/// A validated notarization document received from the User
-pub struct VerifierDoc {
+/// A validated and verified notarization document
+pub struct VerifiedDoc {
     version: u8,
     tls_doc: TLSDoc,
     /// Notary's signature over the [Signed] portion of this doc
@@ -44,10 +44,48 @@ pub struct VerifierDoc {
     commitment_openings: Vec<CommitmentOpening>,
 }
 
-impl VerifierDoc {
-    /// Creates a new document. This method is called only by the User.
-    /// [VerifierDoc] is never passed directly to the Verifier. Instead, the User must convert
-    /// it into [VerifierDocUnchecked]
+impl VerifiedDoc {
+    /// Creates a new [VerifiedDoc] from [ValidatedDoc]
+    pub(crate) fn from_validated(validated: ValidatedDoc) -> Self {
+        Self {
+            version: validated.version,
+            tls_doc: validated.tls_doc,
+            signature: validated.signature,
+            label_seed: validated.label_seed,
+            merkle_root: validated.merkle_root,
+            merkle_tree_leaf_count: validated.merkle_tree_leaf_count,
+            merkle_multi_proof: validated.merkle_multi_proof,
+            commitments: validated.commitments,
+            commitment_openings: validated.commitment_openings,
+        }
+    }
+
+    pub fn commitments(&self) -> &Vec<Commitment> {
+        &self.commitments
+    }
+
+    pub fn commitment_openings(&self) -> &Vec<CommitmentOpening> {
+        &self.commitment_openings
+    }
+}
+
+/// Notarization document in its unchecked form. This is the form in which the document is received
+/// by the Verifier from the User.
+pub struct UncheckedDoc {
+    /// All fields are exactly as in [VerifiedDoc]
+    version: u8,
+    tls_doc: TLSDoc,
+    signature: Option<Vec<u8>>,
+    label_seed: LabelSeed,
+    merkle_root: [u8; 32],
+    merkle_tree_leaf_count: usize,
+    merkle_multi_proof: MerkleProof<algorithms::Sha256>,
+    commitments: Vec<Commitment>,
+    commitment_openings: Vec<CommitmentOpening>,
+}
+
+impl UncheckedDoc {
+    /// Creates a new unchecked document. This method is called only by the User.
     pub fn new(
         version: u8,
         tls_doc: TLSDoc,
@@ -72,13 +110,36 @@ impl VerifierDoc {
         }
     }
 
-    /// Returns a new [VerifierDoc] after performing all validation checks. This is the only way
-    /// for the Verifier (who was NOT acting as the Notary) to derive [VerifierDoc].
-    pub fn from_unchecked(unchecked: VerifierDocUnchecked) -> Result<Self, Error> {
+    pub fn commitments(&self) -> &Vec<Commitment> {
+        &self.commitments
+    }
+
+    pub fn commitment_openings(&self) -> &Vec<CommitmentOpening> {
+        &self.commitment_openings
+    }
+}
+
+// Notarization document in its validated form (not yet verified)
+pub(crate) struct ValidatedDoc {
+    /// All fields are exactly as in [VerifiedDoc]
+    version: u8,
+    tls_doc: TLSDoc,
+    signature: Option<Vec<u8>>,
+    label_seed: LabelSeed,
+    merkle_root: [u8; 32],
+    merkle_tree_leaf_count: usize,
+    merkle_multi_proof: MerkleProof<algorithms::Sha256>,
+    commitments: Vec<Commitment>,
+    commitment_openings: Vec<CommitmentOpening>,
+}
+
+impl ValidatedDoc {
+    /// Returns a new [ValidatedDoc] after performing all validation checks
+    pub(crate) fn from_unchecked(unchecked: UncheckedDoc) -> Result<Self, Error> {
         checks::perform_checks(&unchecked)?;
 
         // Make sure the Notary's signature is present.
-        // (If the Verifier IS also the Notary then the signature is NOT needed. `VerifierDoc`
+        // (If the Verifier IS also the Notary then the signature is NOT needed. `VerifiedDoc`
         // should be created with `from_unchecked_with_signed_data()` instead.)
 
         if unchecked.signature.is_none() {
@@ -98,18 +159,17 @@ impl VerifierDoc {
         })
     }
 
-    /// Returns a new VerifierDoc after performing all validation checks and adding the signed data.
-    /// This is the only way for the Verifier who acted as the Notary to derive [VerifierDoc].
+    /// Returns a new [ValidatedDoc] after performing all validation checks and adding the signed data.
     /// `signed_data` (despite its name) is not actually signed because it was generated locally by
     /// the calling Verifier.
-    pub fn from_unchecked_with_signed_data(
-        unchecked: VerifierDocUnchecked,
+    pub(crate) fn from_unchecked_with_signed_data(
+        unchecked: UncheckedDoc,
         signed_data: Signed,
     ) -> Result<Self, Error> {
         checks::perform_checks(&unchecked)?;
 
         // Make sure the Notary's signature is NOT present.
-        // (If the Verifier is NOT the Notary then the Notary's signature IS needed. `VerifierDoc`
+        // (If the Verifier is NOT the Notary then the Notary's signature IS needed. `ValidatedDoc`
         // should be created with `from_unchecked()` instead.)
 
         if unchecked.signature.is_some() {
@@ -142,7 +202,7 @@ impl VerifierDoc {
     /// - the TLS document
     /// - the inclusion of commitments in the Merkle tree
     /// - each commitment
-    pub fn verify(&self, dns_name: String) -> Result<(), Error> {
+    pub(crate) fn verify(&self, dns_name: String) -> Result<(), Error> {
         self.tls_doc.verify(dns_name)?;
 
         self.verify_merkle_proofs()?;
@@ -234,56 +294,6 @@ impl VerifierDoc {
 
     pub fn tls_doc(&self) -> &TLSDoc {
         &self.tls_doc
-    }
-
-    pub fn commitments(&self) -> &Vec<Commitment> {
-        &self.commitments
-    }
-
-    pub fn commitment_openings(&self) -> &Vec<CommitmentOpening> {
-        &self.commitment_openings
-    }
-}
-
-/// This is the [VerifierDoc] in its unchecked form. This is the form in which the doc is received
-/// by the Verifier from the User.
-pub struct VerifierDocUnchecked {
-    /// All fields are exactly as in [VerifierDoc]
-    version: u8,
-    tls_doc: TLSDoc,
-    signature: Option<Vec<u8>>,
-    label_seed: LabelSeed,
-    merkle_root: [u8; 32],
-    merkle_tree_leaf_count: usize,
-    merkle_multi_proof: MerkleProof<algorithms::Sha256>,
-    commitments: Vec<Commitment>,
-    commitment_openings: Vec<CommitmentOpening>,
-}
-
-impl VerifierDocUnchecked {
-    pub fn commitments(&self) -> &Vec<Commitment> {
-        &self.commitments
-    }
-
-    pub fn commitment_openings(&self) -> &Vec<CommitmentOpening> {
-        &self.commitment_openings
-    }
-}
-
-/// Converts VerifierDoc into an unchecked type with will be passed to the Verifier
-impl std::convert::From<VerifierDoc> for VerifierDocUnchecked {
-    fn from(doc: VerifierDoc) -> Self {
-        Self {
-            version: doc.version,
-            tls_doc: doc.tls_doc,
-            signature: doc.signature,
-            label_seed: doc.label_seed,
-            merkle_root: doc.merkle_root,
-            merkle_tree_leaf_count: doc.merkle_tree_leaf_count,
-            merkle_multi_proof: doc.merkle_multi_proof,
-            commitments: doc.commitments,
-            commitment_openings: doc.commitment_openings,
-        }
     }
 }
 
