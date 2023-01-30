@@ -21,7 +21,6 @@ mod m2a;
 pub use a2m::AddShare;
 use fields::Field;
 pub use m2a::MulShare;
-use mpc_core::Block;
 use rand::{CryptoRng, Rng};
 
 /// A trait for converting field elements

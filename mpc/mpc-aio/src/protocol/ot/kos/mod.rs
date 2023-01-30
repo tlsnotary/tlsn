@@ -33,7 +33,7 @@ mod tests {
             let mut sender = sender.rand_setup(ITERATIONS).await.unwrap();
             sender.send(blocks).await.unwrap();
         });
-        let receive = tokio::spawn(async move {
+        let receive: tokio::task::JoinHandle<Vec<Block>> = tokio::spawn(async move {
             let mut receiver = receiver.rand_setup(ITERATIONS).await.unwrap();
             receiver.receive(choices).await.unwrap()
         });
@@ -70,7 +70,7 @@ mod tests {
         let receive = tokio::spawn(async move {
             receiver.accept_commit().await.unwrap();
             let mut receiver = receiver.rand_setup(ITERATIONS).await.unwrap();
-            let ot_output = receiver.receive(choices).await.unwrap();
+            let ot_output: Vec<Block> = receiver.receive(choices).await.unwrap();
             let verification = receiver.verify(blocks).await;
             (ot_output, verification)
         });

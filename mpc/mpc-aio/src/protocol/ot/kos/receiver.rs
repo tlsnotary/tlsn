@@ -1,9 +1,14 @@
 use super::{OTChannel, ObliviousReceive};
 use crate::protocol::ot::{OTError, ObliviousAcceptCommit, ObliviousVerify};
+use aes::{
+    cipher::{generic_array::GenericArray, NewBlockCipher},
+    Aes128, BlockDecrypt,
+};
 use async_trait::async_trait;
+use cipher::consts::U16;
 use futures::{SinkExt, StreamExt};
 use mpc_core::{
-    msgs::ot::OTMessage,
+    msgs::ot::{ExtEncryptedData, OTMessage},
     ot::{
         extension::{r_state, Kos15Receiver},
         r_state::ReceiverState,
@@ -106,6 +111,47 @@ impl ObliviousReceive<bool, Block> for Kos15IOReceiver<r_state::RandSetup> {
             OTError::Unexpected
         )?;
         let out = self.inner.receive(message)?;
+        Ok(out)
+    }
+}
+
+#[async_trait]
+impl ObliviousReceive<bool, Vec<Block>> for Kos15IOReceiver<r_state::RandSetup> {
+    async fn receive(&mut self, choices: Vec<bool>) -> Result<Vec<Vec<Block>>, OTError> {
+        // Get keys from OT
+        let keys = ObliviousReceive::<bool, Block>::receive(self, choices.clone()).await?;
+
+        // Get ciphertexts
+        let ExtEncryptedData { mut ciphertexts } = expect_msg_or_err!(
+            self.channel.next().await,
+            OTMessage::ExtEncryptedData,
+            OTError::Unexpected
+        )?;
+
+        //Decrypt ciphertexts with keys
+        let mut out: Vec<Vec<Block>> = Vec::with_capacity(choices.len());
+        for k in 0..choices.len() {
+            let mut blocks: Vec<GenericArray<u8, U16>> = ciphertexts[k][choices[k] as usize]
+                .iter_mut()
+                .map(|block| GenericArray::clone_from_slice(&block.inner().to_be_bytes()))
+                .collect();
+
+            let cipher = Aes128::new(&keys[k].inner().to_be_bytes().into());
+            cipher.decrypt_blocks(&mut blocks);
+
+            out.push(
+                blocks
+                    .iter()
+                    .map(|gen_arr| {
+                        let arr: [u8; 16] = gen_arr
+                            .as_slice()
+                            .try_into()
+                            .expect("Expected array to have length 16");
+                        Block::from(arr)
+                    })
+                    .collect(),
+            )
+        }
         Ok(out)
     }
 }
