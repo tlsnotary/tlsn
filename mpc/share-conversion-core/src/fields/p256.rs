@@ -1,10 +1,9 @@
 //! This module implements the prime field of P256
 
-use crate::ShareConversionCoreError;
-
 use super::Field;
 use ark_ff::{BigInt, BigInteger, Field as ArkField, FpConfig, MontBackend, One, Zero};
 use ark_secp256r1::{fq::Fq, FqConfig};
+use mpc_core::Block;
 use num_bigint::{BigUint, ToBigUint};
 use rand::{distributions::Standard, prelude::Distribution};
 use std::ops::{Add, Mul, Neg};
@@ -19,21 +18,24 @@ impl P256 {
     }
 }
 
-impl From<P256> for Vec<u8> {
+impl From<P256> for Vec<Block> {
     fn from(value: P256) -> Self {
-        let value = MontBackend::<FqConfig, 4>::into_bigint(value.0);
-        value.to_bytes_be()
+        let bytes = MontBackend::<FqConfig, 4>::into_bigint(value.0);
+        let first = ((bytes.0[3] as u128) << 64) | bytes.0[2] as u128;
+        let second = ((bytes.0[1] as u128) << 64) | bytes.0[0] as u128;
+        vec![Block::new(first), Block::new(second)]
     }
 }
 
-impl TryFrom<Vec<u8>> for P256 {
-    type Error = ShareConversionCoreError;
+impl From<Vec<Block>> for P256 {
+    fn from(value: Vec<Block>) -> Self {
+        let first = value[0].inner();
+        let second = value[1].inner();
 
-    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        let bytes: [u8; 32] = value
-            .try_into()
-            .map_err(|_| ShareConversionCoreError::DeserializeFieldElement)?;
-        Ok(P256::new(BigUint::from_bytes_be(&bytes)))
+        let mut bytes: Vec<u8> = first.to_be_bytes().to_vec();
+        bytes.extend_from_slice(&second.to_be_bytes());
+
+        P256::new(BigUint::from_bytes_be(&bytes))
     }
 }
 
@@ -106,9 +108,14 @@ impl Field for P256 {
 
 #[cfg(test)]
 mod tests {
+    use mpc_core::Block;
+
     use super::P256;
     use crate::fields::{
-        tests::{test_field_basic, test_field_bit_ops, test_field_compute_product_repeated},
+        tests::{
+            test_field_basic, test_field_bit_ops, test_field_block_conversion,
+            test_field_compute_product_repeated,
+        },
         Field,
     };
 
@@ -127,5 +134,10 @@ mod tests {
     #[test]
     fn test_p256_bit_ops() {
         test_field_bit_ops::<P256>();
+    }
+
+    #[test]
+    fn test_p256_block_conversion() {
+        test_field_block_conversion::<P256, Vec<Block>>();
     }
 }

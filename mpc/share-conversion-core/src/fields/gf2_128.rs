@@ -1,8 +1,7 @@
 //! This module implements the extension field GF(2^128)
 
-use crate::ShareConversionCoreError;
-
 use super::Field;
+use mpc_core::Block;
 use rand::{distributions::Standard, prelude::Distribution};
 use std::ops::{Add, Mul, Neg};
 
@@ -20,20 +19,15 @@ impl Gf2_128 {
     }
 }
 
-impl From<Gf2_128> for Vec<u8> {
+impl From<Gf2_128> for Block {
     fn from(value: Gf2_128) -> Self {
-        value.0.to_be_bytes().to_vec()
+        Block::new(value.0)
     }
 }
 
-impl TryFrom<Vec<u8>> for Gf2_128 {
-    type Error = ShareConversionCoreError;
-
-    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        let bytes: [u8; 16] = value
-            .try_into()
-            .map_err(|_| ShareConversionCoreError::DeserializeFieldElement)?;
-        Ok(Self(u128::from_be_bytes(bytes)))
+impl From<Block> for Gf2_128 {
+    fn from(value: Block) -> Self {
+        Gf2_128::new(value.inner())
     }
 }
 
@@ -133,13 +127,17 @@ impl Field for Gf2_128 {
 mod tests {
     use super::Gf2_128;
     use crate::fields::{
-        tests::{test_field_basic, test_field_bit_ops, test_field_compute_product_repeated},
+        tests::{
+            test_field_basic, test_field_bit_ops, test_field_block_conversion,
+            test_field_compute_product_repeated,
+        },
         Field, UniformRand,
     };
     use ghash_rc::{
         universal_hash::{NewUniversalHash, UniversalHash},
         GHash,
     };
+    use mpc_core::Block;
     use rand::SeedableRng;
     use rand_chacha::ChaCha12Rng;
 
@@ -188,5 +186,10 @@ mod tests {
         let expected = u128::from_be_bytes(g.finalize().into_bytes().into());
         let output = (a.reverse_bits() * b.reverse_bits()).0.reverse_bits();
         assert_eq!(expected, output);
+    }
+
+    #[test]
+    fn test_gf2_128_block_conversion() {
+        test_field_block_conversion::<Gf2_128, Block>();
     }
 }
