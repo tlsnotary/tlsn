@@ -1,5 +1,7 @@
 use mpc_circuits::{CircuitId, GroupId};
 
+use super::commitment::CommitmentError;
+
 /// Error associated with garbled circuits
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -15,6 +17,8 @@ pub enum Error {
     ValidationError(String),
     #[error("Invalid opening")]
     InvalidOpening,
+    #[error("Commitment error: {0}")]
+    CommitmentError(#[from] CommitmentError),
     #[error("Circuit error: {0:?}")]
     CircuitError(#[from] mpc_circuits::CircuitError),
     #[error("General error: {0}")]

@@ -9,6 +9,8 @@ use crate::utils::blake3;
 pub enum CommitmentError {
     #[error("invalid commitment opening")]
     InvalidOpening,
+    #[error("Message does not match commitment")]
+    InvalidMessage,
 }
 
 /// A commitment of the form H(key || message) using Blake3
@@ -44,7 +46,7 @@ pub struct Opening {
 }
 
 impl Opening {
-    /// Creates a new commitment opening
+    /// Creates a new opening for a keyed hash commitment
     pub fn new(message: &[u8]) -> Self {
         Self {
             key: CommitmentKey::random(),
@@ -55,6 +57,14 @@ impl Opening {
     /// Returns message
     pub fn message(&self) -> &[u8] {
         &self.message
+    }
+
+    /// Verifies this opening corresponds to a given message.
+    pub fn verify_message(&self, message: &[u8]) -> Result<(), CommitmentError> {
+        if self.message != message {
+            return Err(CommitmentError::InvalidMessage);
+        }
+        Ok(())
     }
 
     /// Creates a new commitment to this opening
