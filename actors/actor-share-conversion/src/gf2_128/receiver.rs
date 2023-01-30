@@ -2,13 +2,13 @@ use super::{A2MMessage, M2AMessage, Setup, VerifyTapeMessage};
 use mpc_aio::protocol::ot::{OTFactoryError, ObliviousReceive};
 use mpc_core::{ot::config::OTReceiverConfig, Block};
 use share_conversion_aio::{
-    gf2_128::{
+    conversion::{
         recorder::{Recorder, Tape, Void},
-        Gf2ConversionMessage, Receiver as IOReceiver, VerifyTape,
+        Receiver as IOReceiver, ShareConversionMessage,
     },
-    AdditiveToMultiplicative, MultiplicativeToAdditive, ShareConversionError,
+    AdditiveToMultiplicative, MultiplicativeToAdditive, ShareConversionError, VerifyTape,
 };
-use share_conversion_core::gf2_128::Gf2_128ShareConvert;
+use share_conversion_core::ShareConvert;
 use utils_aio::{factory::AsyncFactory, mux::MuxChannelControl};
 use xtra::prelude::*;
 
@@ -16,8 +16,8 @@ enum State<T, OT, U, V, W>
 where
     T: AsyncFactory<OT>,
     OT: ObliviousReceive<bool, Block>,
-    U: Gf2_128ShareConvert,
-    V: MuxChannelControl<Gf2ConversionMessage>,
+    U: ShareConvert,
+    V: MuxChannelControl<ShareConversionMessage>,
     W: Recorder<U>,
 {
     Initialized {

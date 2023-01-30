@@ -2,22 +2,24 @@ use super::{A2MMessage, M2AMessage, SendTapeMessage, Setup};
 use mpc_aio::protocol::ot::{OTFactoryError, ObliviousSend};
 use mpc_core::{ot::config::OTSenderConfig, Block};
 use share_conversion_aio::{
-    gf2_128::{
+    conversion::{
         recorder::{Recorder, Tape, Void},
-        Gf2ConversionMessage, SendTape, Sender as IOSender,
+        Sender as IOSender, ShareConversionMessage,
     },
-    AdditiveToMultiplicative, MultiplicativeToAdditive, ShareConversionError,
+    AdditiveToMultiplicative, MultiplicativeToAdditive, SendTape, ShareConversionError,
 };
-use share_conversion_core::gf2_128::Gf2_128ShareConvert;
+use share_conversion_core::{fields::Field, ShareConvert};
 use utils_aio::{adaptive_barrier::AdaptiveBarrier, factory::AsyncFactory, mux::MuxChannelControl};
 use xtra::prelude::*;
 
 enum State<
     T: AsyncFactory<OT>,
-    OT: ObliviousSend<[Block; 2]>,
-    U: Gf2_128ShareConvert,
-    V: MuxChannelControl<Gf2ConversionMessage>,
-    W: Recorder<U>,
+    OT: ObliviousSend<[Y; 2]>,
+    U: ShareConvert,
+    V: MuxChannelControl<ShareConversionMessage<X>>,
+    W: Recorder<U, X>,
+    X: Field<OTEncoding = Y>,
+    Y,
 > {
     Initialized {
         id: String,
@@ -28,29 +30,29 @@ enum State<
         /// see `sender_factory` in [share_conversion_aio::gf2_128::Sender]
         sender_factory: T,
     },
-    Setup(IOSender<T, OT, U, W>),
+    Setup(IOSender<T, OT, U, X, W>),
     Complete,
     Error,
 }
 
 #[derive(xtra::Actor)]
-pub struct Sender<T, OT, U, V, W = Void>
+pub struct Sender<T, OT, U, V, X, W = Void>
 where
     T: AsyncFactory<OT>,
     OT: ObliviousSend<[Block; 2]>,
-    U: Gf2_128ShareConvert,
-    V: MuxChannelControl<Gf2ConversionMessage>,
+    U: ShareConvert,
+    V: MuxChannelControl<ShareConversionMessage>,
     W: Recorder<U>,
 {
-    state: State<T, OT, U, V, W>,
+    state: State<T, OT, U, V, W, X, Y>,
 }
 
 impl<T, OT, U, V, W> Sender<T, OT, U, V, W>
 where
     T: AsyncFactory<OT>,
     OT: ObliviousSend<[Block; 2]>,
-    U: Gf2_128ShareConvert,
-    V: MuxChannelControl<Gf2ConversionMessage>,
+    U: ShareConvert,
+    V: MuxChannelControl<ShareConversionMessage>,
     W: Recorder<U>,
 {
     pub fn new(id: String, barrier: Option<AdaptiveBarrier>, muxer: V, sender_factory: T) -> Self {
@@ -94,17 +96,12 @@ where
 }
 
 #[async_trait]
-impl<T> MultiplicativeToAdditive for SenderControl<T>
+impl<T, U: Field> MultiplicativeToAdditive<U> for SenderControl<T>
 where
     T: Handler<M2AMessage<Vec<u128>>, Return = Result<Vec<u128>, ShareConversionError>>,
 {
-    type FieldElement = u128;
-
     /// Sends M2AMessage to the actor
-    async fn m_to_a(
-        &mut self,
-        input: Vec<Self::FieldElement>,
-    ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
+    async fn m_to_a(&mut self, input: Vec<U>) -> Result<Vec<U>, ShareConversionError> {
         self.0
             .send(M2AMessage(input))
             .await
@@ -113,17 +110,12 @@ where
 }
 
 #[async_trait]
-impl<T> AdditiveToMultiplicative for SenderControl<T>
+impl<T, U: Field> AdditiveToMultiplicative<U> for SenderControl<T>
 where
     T: Handler<A2MMessage<Vec<u128>>, Return = Result<Vec<u128>, ShareConversionError>>,
 {
-    type FieldElement = u128;
-
     /// Sends A2MMessage to the actor
-    async fn a_to_m(
-        &mut self,
-        input: Vec<Self::FieldElement>,
-    ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
+    async fn a_to_m(&mut self, input: Vec<U>) -> Result<Vec<U>, ShareConversionError> {
         self.0
             .send(A2MMessage(input))
             .await
@@ -150,8 +142,8 @@ impl<T, OT, U, V, W> Handler<Setup> for Sender<T, OT, U, V, W>
 where
     T: AsyncFactory<OT, Config = OTSenderConfig, Error = OTFactoryError> + Send + 'static,
     OT: ObliviousSend<[Block; 2]> + Send + 'static,
-    U: Gf2_128ShareConvert + Send + 'static,
-    V: MuxChannelControl<Gf2ConversionMessage> + Send + 'static,
+    U: ShareConvert + Send + 'static,
+    V: MuxChannelControl<ShareConversionMessage> + Send + 'static,
     W: Recorder<U> + Send + 'static,
 {
     type Return = Result<(), ShareConversionError>;
@@ -181,8 +173,8 @@ impl<T, OT, U, V, W> Handler<M2AMessage<Vec<u128>>> for Sender<T, OT, U, V, W>
 where
     T: AsyncFactory<OT, Config = OTSenderConfig, Error = OTFactoryError> + Send + 'static,
     OT: ObliviousSend<[Block; 2]> + Send + 'static,
-    U: Gf2_128ShareConvert + Send + 'static,
-    V: MuxChannelControl<Gf2ConversionMessage> + Send + 'static,
+    U: ShareConvert + Send + 'static,
+    V: MuxChannelControl<ShareConversionMessage> + Send + 'static,
     W: Recorder<U> + Send + 'static,
     IOSender<T, OT, U, W>: MultiplicativeToAdditive<FieldElement = u128>,
 {
@@ -213,8 +205,8 @@ impl<T, OT, U, V, W> Handler<A2MMessage<Vec<u128>>> for Sender<T, OT, U, V, W>
 where
     T: AsyncFactory<OT, Config = OTSenderConfig, Error = OTFactoryError> + Send + 'static,
     OT: ObliviousSend<[Block; 2]> + Send + 'static,
-    U: Gf2_128ShareConvert + Send + 'static,
-    V: MuxChannelControl<Gf2ConversionMessage> + Send + 'static,
+    U: ShareConvert + Send + 'static,
+    V: MuxChannelControl<ShareConversionMessage> + Send + 'static,
     W: Recorder<U> + Send + 'static,
     IOSender<T, OT, U, W>: AdditiveToMultiplicative<FieldElement = u128>,
 {
@@ -245,8 +237,8 @@ impl<T, OT, U, V> Handler<SendTapeMessage> for Sender<T, OT, U, V, Tape>
 where
     T: AsyncFactory<OT, Config = OTSenderConfig, Error = OTFactoryError> + Send + 'static,
     OT: ObliviousSend<[Block; 2]> + Send + 'static,
-    V: MuxChannelControl<Gf2ConversionMessage> + Send + 'static,
-    U: Gf2_128ShareConvert + Send + 'static,
+    V: MuxChannelControl<ShareConversionMessage> + Send + 'static,
+    U: ShareConvert + Send + 'static,
     IOSender<T, OT, U, Tape>: SendTape,
 {
     type Return = Result<(), ShareConversionError>;
