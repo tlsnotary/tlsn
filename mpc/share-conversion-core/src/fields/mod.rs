@@ -22,8 +22,10 @@ pub trait Field:
     + Ord
     + PartialEq
     + Eq
+    + Into<Self::OTEncoding>
 {
     const BIT_SIZE: u32;
+    type OTEncoding;
 
     fn zero() -> Self;
     fn one() -> Self;

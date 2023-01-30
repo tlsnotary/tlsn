@@ -120,7 +120,7 @@ pub struct ExtSenderReveal {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ExtEncryptedData {
-    pub bytes: Vec<u8>,
+    pub ciphertexts: Vec<[Vec<Block>; 2]>,
 }
 
 #[derive(Debug, Clone)]
