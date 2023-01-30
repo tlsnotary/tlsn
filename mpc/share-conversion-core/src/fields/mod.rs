@@ -1,12 +1,11 @@
 pub mod gf2_128;
 pub mod p256;
 
+use rand::{distributions::Standard, prelude::Distribution, Rng};
 use std::{
     fmt::Debug,
     ops::{Add, Mul, Neg},
 };
-
-use rand::{distributions::Standard, prelude::Distribution, Rng};
 
 pub trait Field:
     Add<Output = Self>
@@ -107,5 +106,12 @@ mod tests {
         let out = T::from_bits_be(&a);
         assert_eq!(out, T::one());
         assert_eq!(out.get_bit_be(T::BIT_SIZE - 1), true);
+    }
+
+    pub fn test_field_block_conversion<T: Field + From<U>, U: From<T>>() {
+        let mut rng = ChaCha12Rng::from_seed([0_u8; 32]);
+        let a = T::rand(&mut rng);
+        let a_converted: U = a.into();
+        assert_eq!(a, a_converted.into())
     }
 }
