@@ -8,7 +8,7 @@ use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive, SendTape, ShareC
 use async_trait::async_trait;
 use futures::SinkExt;
 use mpc_aio::protocol::ot::{config::OTSenderConfig, OTFactoryError, ObliviousSend};
-use mpc_core::{ot::config::OTSenderConfigBuilder, Block};
+use mpc_core::ot::config::OTSenderConfigBuilder;
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 use share_conversion_core::{fields::Field, AddShare, MulShare, OTEnvelope, ShareConvert};
@@ -18,12 +18,12 @@ use utils_aio::{adaptive_barrier::AdaptiveBarrier, factory::AsyncFactory};
 /// The sender for the conversion
 ///
 /// Will be the OT sender
-pub struct Sender<T, OT, U, V, W = Void>
+pub struct Sender<T, OT, U, V, X, W = Void>
 where
     T: AsyncFactory<OT>,
-    OT: ObliviousSend<[Block; 2]>,
+    OT: ObliviousSend<[X; 2]>,
     U: ShareConvert<Inner = V>,
-    V: Field,
+    V: Field<OTEncoding = X>,
     W: Recorder<U, V>,
 {
     /// Provides initialized OTs for the OT sender
@@ -42,12 +42,12 @@ where
     counter: usize,
 }
 
-impl<T, OT, U, V, W> Sender<T, OT, U, V, W>
+impl<T, OT, U, V, X, W> Sender<T, OT, U, V, X, W>
 where
     T: AsyncFactory<OT, Config = OTSenderConfig, Error = OTFactoryError> + Send,
-    OT: ObliviousSend<[Block; 2]>,
+    OT: ObliviousSend<[X; 2]>,
     U: ShareConvert<Inner = V>,
-    V: Field,
+    V: Field<OTEncoding = X>,
     W: Recorder<U, V>,
 {
     /// Create a new sender
@@ -108,12 +108,12 @@ where
 
 // Used for unit testing
 #[cfg(test)]
-impl<T, OT, U, V> Sender<T, OT, U, V, Tape<V>>
+impl<T, OT, U, X, V> Sender<T, OT, U, V, X, Tape<V>>
 where
     T: AsyncFactory<OT> + Send,
-    OT: ObliviousSend<[Block; 2]>,
+    OT: ObliviousSend<[X; 2]>,
     U: ShareConvert<Inner = V>,
-    V: Field,
+    V: Field<OTEncoding = X>,
 {
     pub fn tape_mut(&mut self) -> &mut Tape<V> {
         &mut self.recorder
@@ -121,12 +121,13 @@ where
 }
 
 #[async_trait]
-impl<T, OT, V, W> AdditiveToMultiplicative<V> for Sender<T, OT, AddShare<V>, V, W>
+impl<T, OT, V, X, W> AdditiveToMultiplicative<V> for Sender<T, OT, AddShare<V>, V, X, W>
 where
     T: AsyncFactory<OT, Config = OTSenderConfig, Error = OTFactoryError> + Send,
-    OT: ObliviousSend<[Block; 2]> + Send,
-    V: Field,
+    OT: ObliviousSend<[X; 2]> + Send,
+    V: Field<OTEncoding = X>,
     W: Recorder<AddShare<V>, V> + Send,
+    X: Send,
 {
     async fn a_to_m(&mut self, input: Vec<V>) -> Result<Vec<V>, ShareConversionError> {
         self.recorder.set_seed(self.rng.get_seed());
@@ -136,12 +137,13 @@ where
 }
 
 #[async_trait]
-impl<T, OT, V, W> MultiplicativeToAdditive<V> for Sender<T, OT, MulShare<V>, V, W>
+impl<T, OT, V, X, W> MultiplicativeToAdditive<V> for Sender<T, OT, MulShare<V>, V, X, W>
 where
     T: AsyncFactory<OT, Config = OTSenderConfig, Error = OTFactoryError> + Send,
-    OT: ObliviousSend<[Block; 2]> + Send,
-    V: Field,
+    OT: ObliviousSend<[X; 2]> + Send,
+    V: Field<OTEncoding = X>,
     W: Recorder<MulShare<V>, V> + Send,
+    X: Send,
 {
     async fn m_to_a(&mut self, input: Vec<V>) -> Result<Vec<V>, ShareConversionError> {
         self.recorder.set_seed(self.rng.get_seed());
@@ -151,12 +153,12 @@ where
 }
 
 #[async_trait]
-impl<T, OT, U, V> SendTape for Sender<T, OT, U, V, Tape<V>>
+impl<T, OT, U, V, X> SendTape for Sender<T, OT, U, V, X, Tape<V>>
 where
     T: AsyncFactory<OT> + Send,
-    OT: ObliviousSend<[Block; 2]> + Send,
+    OT: ObliviousSend<[X; 2]> + Send,
     U: ShareConvert<Inner = V> + Send,
-    V: Field,
+    V: Field<OTEncoding = X>,
 {
     async fn send_tape(mut self) -> Result<(), ShareConversionError> {
         let message = (self.recorder.seed, self.recorder.sender_inputs).into();

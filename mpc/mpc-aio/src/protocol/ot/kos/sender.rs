@@ -2,6 +2,7 @@ use super::{OTChannel, ObliviousSend};
 use crate::protocol::ot::{OTError, ObliviousCommit, ObliviousReveal};
 use aes::{cipher::NewBlockCipher, Aes128, BlockEncrypt};
 use async_trait::async_trait;
+use cipher::consts::U16;
 use futures::{SinkExt, StreamExt};
 use mpc_core::{
     msgs::ot::{ExtSenderEncryptedPayload, OTMessage},
@@ -174,21 +175,78 @@ impl<const N: usize> ObliviousSend<[[Block; N]; 2]> for Kos15IOSender<s_state::R
 }
 
 #[async_trait]
-impl ObliviousSend<[Vec<u8>; 2]> for Kos15IOSender<s_state::RandSetup> {
-    async fn send(&mut self, inputs: Vec<[Vec<u8>; 2]>) -> Result<(), OTError> {
+impl ObliviousSend<[Vec<Block>; 2]> for Kos15IOSender<s_state::RandSetup> {
+    async fn send(&mut self, inputs: Vec<[Vec<Block>; 2]>) -> Result<(), OTError> {
         let mut rng = ChaCha12Rng::from_entropy();
 
-        // Send keys
+        // Prepare vector for keys and convert inputs
         let mut keys: Vec<[Block; 2]> = Vec::with_capacity(inputs.len());
-        let mut encrypted_inputs: Vec<[Vec<u8>; 2]> = Vec::with_capacity(inputs.len());
+        let mut inputs: Vec<[Vec<GenericArray<u8, U16>>; 2]> = inputs
+            .iter()
+            .map(|blocks| {
+                [
+                    blocks[0]
+                        .iter()
+                        .map(|block| GenericArray::clone_from_slice(&block.inner().to_be_bytes()))
+                        .collect(),
+                    blocks[1]
+                        .iter()
+                        .map(|block| GenericArray::clone_from_slice(&block.inner().to_be_bytes()))
+                        .collect(),
+                ]
+            })
+            .collect();
 
+        // Encrypt and collect keys
         for k in 0..inputs.len() {
             let (key1, key2) = (Block::random(&mut rng), Block::random(&mut rng));
+            let (cipher1, cipher2) = (
+                Aes128::new(&key1.inner().to_be_bytes().into()),
+                Aes128::new(&key2.inner().to_be_bytes().into()),
+            );
+            cipher1.encrypt_blocks(&mut inputs[k][0]);
+            cipher2.encrypt_blocks(&mut inputs[k][1]);
             keys.push([key1, key2]);
         }
+
+        // Send keys in OT
         ObliviousSend::<[Block; 2]>::send(self, keys).await?;
 
-        //Encrypt and send inputs
+        // Convert back to blocks
+        let ciphertexts: Vec<[Vec<Block>; 2]> = inputs
+            .iter()
+            .map(|blocks| {
+                [
+                    blocks[0]
+                        .iter()
+                        .map(|gen_arr| {
+                            let arr: [u8; 16] = gen_arr
+                                .as_slice()
+                                .try_into()
+                                .expect("Expected array to have length 16");
+                            Block::from(arr)
+                        })
+                        .collect(),
+                    blocks[1]
+                        .iter()
+                        .map(|gen_arr| {
+                            let arr: [u8; 16] = gen_arr
+                                .as_slice()
+                                .try_into()
+                                .expect("Expected array to have length 16");
+                            Block::from(arr)
+                        })
+                        .collect(),
+                ]
+            })
+            .collect();
+
+        // Send ciphertexts now
+        self.channel
+            .send(OTMessage::ExtEncryptedData(ExtEncryptedData {
+                ciphertexts,
+            }))
+            .await?;
 
         Ok(())
     }
