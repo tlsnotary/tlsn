@@ -11,7 +11,6 @@ use mpc_aio::protocol::ot::{
     config::{OTReceiverConfig, OTReceiverConfigBuilder},
     OTFactoryError, ObliviousReceive,
 };
-use mpc_core::Block;
 use share_conversion_core::{fields::Field, AddShare, MulShare, ShareConvert};
 use std::marker::PhantomData;
 use utils_aio::factory::AsyncFactory;
@@ -19,12 +18,12 @@ use utils_aio::factory::AsyncFactory;
 /// The receiver for the conversion
 ///
 /// Will be the OT receiver
-pub struct Receiver<T, OT, U, V, W = Void>
+pub struct Receiver<T, OT, U, V, X, W = Void>
 where
     T: AsyncFactory<OT>,
-    OT: ObliviousReceive<bool, Block>,
+    OT: ObliviousReceive<bool, X>,
     U: ShareConvert<Inner = V>,
-    V: Field,
+    V: Field<OTEncoding = X>,
     W: Recorder<U, V>,
 {
     /// Provides initialized OTs for the OT receiver
@@ -39,12 +38,12 @@ where
     counter: usize,
 }
 
-impl<T, OT, U, V, W> Receiver<T, OT, U, V, W>
+impl<T, OT, U, V, X, W> Receiver<T, OT, U, V, X, W>
 where
     T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
-    OT: ObliviousReceive<bool, Block>,
+    OT: ObliviousReceive<bool, X>,
     U: ShareConvert<Inner = V>,
-    V: Field,
+    V: Field<OTEncoding = X>,
     W: Recorder<U, V>,
 {
     /// Create a new receiver
@@ -90,11 +89,13 @@ where
         let ot_output = ot_receiver.receive(choices).await?;
 
         // Aggregate chunks of OTs to get back u128 values
-        let converted_shares = ot_output
+        let field_elements: Vec<V> = ot_output
+            .into_iter()
+            .map(|ot_out| Into::into(ot_out))
+            .collect();
+        let converted_shares: Vec<V> = field_elements
             .chunks(V::BIT_SIZE as usize)
-            .map(|chunk| {
-                U::from_sender_values(&chunk.iter().map(|x| x.inner()).collect::<Vec<V>>()).inner()
-            })
+            .map(|elements| U::from_sender_values(elements).inner())
             .collect();
 
         Ok(converted_shares)
@@ -102,11 +103,11 @@ where
 }
 
 #[async_trait]
-impl<T, OT, V, W> AdditiveToMultiplicative<V> for Receiver<T, OT, AddShare<V>, V, W>
+impl<T, OT, V, X, W> AdditiveToMultiplicative<V> for Receiver<T, OT, AddShare<V>, V, X, W>
 where
     T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
-    OT: ObliviousReceive<bool, Block> + Send,
-    V: Field,
+    OT: ObliviousReceive<bool, X> + Send,
+    V: Field<OTEncoding = X>,
     W: Recorder<AddShare<V>, V> + Send,
 {
     async fn a_to_m(&mut self, input: Vec<V>) -> Result<Vec<V>, ShareConversionError> {
@@ -117,11 +118,11 @@ where
 }
 
 #[async_trait]
-impl<T, OT, V, W> MultiplicativeToAdditive<V> for Receiver<T, OT, MulShare<V>, V, W>
+impl<T, OT, V, X, W> MultiplicativeToAdditive<V> for Receiver<T, OT, MulShare<V>, V, X, W>
 where
     T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
-    OT: ObliviousReceive<bool, Block> + Send,
-    V: Field,
+    OT: ObliviousReceive<bool, X> + Send,
+    V: Field<OTEncoding = X>,
     W: Recorder<MulShare<V>, V> + Send,
 {
     async fn m_to_a(&mut self, input: Vec<V>) -> Result<Vec<V>, ShareConversionError> {
@@ -132,12 +133,12 @@ where
 }
 
 #[async_trait]
-impl<T, OT, U, V> VerifyTape for Receiver<T, OT, U, V, Tape<V>>
+impl<T, OT, U, V, X> VerifyTape for Receiver<T, OT, U, V, X, Tape<V>>
 where
     T: AsyncFactory<OT> + Send,
-    OT: ObliviousReceive<bool, Block> + Send,
+    OT: ObliviousReceive<bool, X> + Send,
     U: ShareConvert<Inner = V> + Send,
-    V: Field,
+    V: Field<OTEncoding = X>,
 {
     async fn verify_tape(mut self) -> Result<(), ShareConversionError> {
         let message = self.channel.next().await.ok_or(std::io::Error::new(

@@ -23,6 +23,7 @@ pub trait Field:
     + PartialEq
     + Eq
     + Into<Self::OTEncoding>
+    + From<Self::OTEncoding>
 {
     const BIT_SIZE: u32;
     type OTEncoding;
@@ -110,7 +111,7 @@ mod tests {
         assert_eq!(out.get_bit_be(T::BIT_SIZE - 1), true);
     }
 
-    pub fn test_field_block_conversion<T: Field + From<U>, U: From<T>>() {
+    pub fn test_field_block_conversion<T: Field<OTEncoding = U>, U>() {
         let mut rng = ChaCha12Rng::from_seed([0_u8; 32]);
         let a = T::rand(&mut rng);
         let a_converted: U = a.into();
