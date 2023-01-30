@@ -1,5 +1,5 @@
 use super::{
-    commitment::{Direction, Range},
+    commitment::{CommitmentOpening, Direction, Range},
     doc::VerifiedDoc,
 };
 
@@ -30,6 +30,9 @@ impl VerifiedTranscript {
             .iter()
             .flat_map(|opening| {
                 // commitment corresponding to the `opening`
+                let opening = match opening {
+                    CommitmentOpening::LabelsBlake3(opening) => opening,
+                };
                 let commitment = &verified_doc.commitments()[opening.id() as usize];
 
                 // cloning because we will be draining the bytes of the `opening`

@@ -114,6 +114,10 @@ impl UncheckedDoc {
         }
     }
 
+    pub fn label_seed(&self) -> &LabelSeed {
+        &self.label_seed
+    }
+
     pub fn commitments(&self) -> &Vec<Commitment> {
         &self.commitments
     }
@@ -262,7 +266,10 @@ impl ValidatedDoc {
         // map each opening to its id
         let mut openings_ids: HashMap<usize, &CommitmentOpening> = HashMap::new();
         for o in &self.commitment_openings {
-            openings_ids.insert(o.id() as usize, o);
+            let opening = match o {
+                CommitmentOpening::LabelsBlake3(opening) => opening,
+            };
+            openings_ids.insert(opening.id() as usize, o);
         }
 
         // collect only openings corresponding to label commitments
@@ -278,7 +285,7 @@ impl ValidatedDoc {
 
         // verify each (opening, commitment) pair
         for (o, c) in openings.iter().zip(label_commitments) {
-            c.verify(o, Box::new(self.label_seed) as Box<dyn Any>)?;
+            c.verify(o)?;
         }
 
         Ok(())

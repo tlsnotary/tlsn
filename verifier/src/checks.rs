@@ -1,6 +1,10 @@
-/// Methods performing various validation checks on the [crate::verifier_doc::VerifierDocUnchecked]
-use super::doc::UncheckedDoc;
-use super::{commitment::Range, Error};
+//! Methods performing various validation checks on the [super::doc::UncheckedDoc]
+
+use super::{
+    commitment::{CommitmentOpening, CommitmentType, Range},
+    doc::UncheckedDoc,
+    Error,
+};
 
 pub fn perform_checks(unchecked: &UncheckedDoc) -> Result<(), Error> {
     // Performs the following validation checks:
@@ -8,11 +12,12 @@ pub fn perform_checks(unchecked: &UncheckedDoc) -> Result<(), Error> {
     // - at least one commitment is present
     check_at_least_one_commitment_present(unchecked)?;
 
-    // - commitments and openings have their ids incremental and ascending
-    check_commitment_and_opening_ids(unchecked)?;
-
     // - commitment count equals opening count
     check_commitment_and_opening_count_equal(unchecked)?;
+
+    // - each [commitment, opening] pair has their id incremental and ascending. The types of commitment
+    //   and opening match.
+    check_commitment_and_opening_pairs(unchecked)?;
 
     // - ranges inside one commitment are non-empty, valid, ascending, non-overlapping, non-overflowing
     check_ranges_inside_each_commitment(unchecked)?;
@@ -31,6 +36,10 @@ pub fn perform_checks(unchecked: &UncheckedDoc) -> Result<(), Error> {
     // - each [merkle_tree_index] is both unique and also ascending between commitments
     check_merkle_tree_indices(unchecked)?;
 
+    // - openings of LabelsBlake3 type must have their label seed match the label seed which the
+    //   Notary signed
+    check_labels_opening(unchecked)?;
+
     Ok(())
 }
 
@@ -44,17 +53,40 @@ fn check_at_least_one_commitment_present(unchecked: &UncheckedDoc) -> Result<(),
     Ok(())
 }
 
-/// Condition checked: commitments and openings have their ids incremental and ascending
-fn check_commitment_and_opening_ids(unchecked: &UncheckedDoc) -> Result<(), Error> {
-    for i in 0..unchecked.commitments().len() {
-        if !(unchecked.commitments()[i].id() == (i as u32)
-            && unchecked.commitment_openings()[i].id() == (i as u32))
-        {
+/// Condition checked: each [commitment, opening] pair has their id incremental and ascending. The types
+/// of commitment and opening match.
+fn check_commitment_and_opening_pairs(unchecked: &UncheckedDoc) -> Result<(), Error> {
+    // ids start from 0 an increment
+    // (note that we already checked that commitment vec and opening vec have the same length)
+    for i in 0..unchecked.commitment_openings().len() {
+        let commitment = &unchecked.commitments()[i];
+        let opening = &unchecked.commitment_openings()[i];
+
+        // extract the opening variant
+        let opening_variant = match opening {
+            CommitmentOpening::LabelsBlake3(ref opening) => opening,
+            // match any future types of opening here
+        };
+
+        // ids must match
+        if !(commitment.id() == (i as u32) && opening_variant.id() == (i as u32)) {
             return Err(Error::SanityCheckError(
                 "check_commitment_and_opening_ids".to_string(),
             ));
         }
+
+        // types must match
+        if commitment.typ() == &CommitmentType::labels_blake3 {
+            if let CommitmentOpening::LabelsBlake3(_) = opening {
+            } else {
+                // some other future type of opening
+                return Err(Error::SanityCheckError(
+                    "check_commitment_and_opening_ids".to_string(),
+                ));
+            }
+        }
     }
+
     Ok(())
 }
 
@@ -109,7 +141,10 @@ fn check_commitment_sizes(unchecked: &UncheckedDoc) -> Result<(), Error> {
     let mut total_committed = 0u64;
 
     for i in 0..unchecked.commitment_openings().len() {
-        let expected = unchecked.commitment_openings()[i].opening().len() as u64;
+        let opening = match unchecked.commitment_openings()[i] {
+            CommitmentOpening::LabelsBlake3(ref opening) => opening,
+        };
+        let expected = opening.opening().len() as u64;
         let mut total_in_ranges = 0u64;
         for r in unchecked.commitments()[i].ranges() {
             total_in_ranges += (r.end() - r.start()) as u64;
@@ -206,9 +241,16 @@ fn check_overlapping_openings(unchecked: &UncheckedDoc) -> Result<(), Error> {
                             let haystack_o =
                                 &unchecked.commitment_openings()[haystack_c.id() as usize];
 
-                            if needle_o.opening()[needle_ov_start as usize
+                            let needle_o_bytes = match needle_o {
+                                CommitmentOpening::LabelsBlake3(opening) => opening.opening(),
+                            };
+                            let haystack_o_bytes = match haystack_o {
+                                CommitmentOpening::LabelsBlake3(opening) => opening.opening(),
+                            };
+
+                            if needle_o_bytes[needle_ov_start as usize
                                 ..(needle_ov_start + overlap_size) as usize]
-                                != haystack_o.opening()[haystack_ov_start as usize
+                                != haystack_o_bytes[haystack_ov_start as usize
                                     ..(haystack_ov_start + overlap_size) as usize]
                             {
                                 return Err(Error::OverlappingOpeningsDontMatch);
@@ -235,6 +277,22 @@ fn check_overlapping_openings(unchecked: &UncheckedDoc) -> Result<(), Error> {
             }
             // advance the offset to the beginning of the next range
             needle_offset += needle_range.end() - needle_range.start();
+        }
+    }
+
+    Ok(())
+}
+
+/// Condition checked: openings of LabelsBlake3Opening type must have their label seed match the
+/// label seed which the Notary signed
+fn check_labels_opening(unchecked: &UncheckedDoc) -> Result<(), Error> {
+    for i in 0..unchecked.commitment_openings().len() {
+        let opening = &unchecked.commitment_openings()[i];
+
+        if let CommitmentOpening::LabelsBlake3(opening) = opening {
+            if opening.label_seed() != unchecked.label_seed() {
+                return Err(Error::SanityCheckError("check_labels_opening".to_string()));
+            }
         }
     }
 

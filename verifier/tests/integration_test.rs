@@ -6,7 +6,9 @@ use rand::Rng;
 use rs_merkle::{algorithms::Sha256, MerkleTree};
 use tls_circuits::c6;
 use verifier::{
-    commitment::{Commitment, CommitmentOpening, CommitmentType, Direction, Range},
+    commitment::{
+        Commitment, CommitmentOpening, CommitmentType, Direction, LabelsBlake3Opening, Range,
+    },
     doc::UncheckedDoc,
     pubkey::{KeyType, PubKey},
     signed::{Signed, SignedHandshake},
@@ -141,7 +143,12 @@ fn e2e_test() {
 
     // prepares openings and merkle proofs for those openings
     let opening_bytes = bytes_in_ranges(plaintext, &ranges);
-    let open = CommitmentOpening::new(0, opening_bytes, salt.to_vec());
+    let open = CommitmentOpening::LabelsBlake3(LabelsBlake3Opening::new(
+        0,
+        opening_bytes,
+        salt.to_vec(),
+        label_seed,
+    ));
 
     let indices_to_prove = vec![0];
     let proof = merkle_tree.proof(&indices_to_prove);
