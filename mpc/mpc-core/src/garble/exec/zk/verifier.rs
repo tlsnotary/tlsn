@@ -91,7 +91,9 @@ impl Verifier<Generator> {
             gc.get_partial(true, false)?,
             Verifier {
                 circ: self.circ,
-                state: StoreCommit { gc: gc.summarize() },
+                state: StoreCommit {
+                    gc: gc.into_summary(),
+                },
             },
         ))
     }
