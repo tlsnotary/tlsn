@@ -125,7 +125,7 @@ where
             gen_labels,
             gen_inputs,
             ot_send_inputs,
-            ot_receive_inputs.clone(),
+            ot_receive_inputs,
             cached_labels,
         )
         .await?;
