@@ -1,16 +1,20 @@
-use std::sync::Arc;
+use std::{marker::PhantomData, sync::Arc};
 
 use crate::protocol::{
     garble::{Compressor, Evaluator, GCError, GarbleChannel, GarbleMessage, Generator, Validator},
-    ot::{ObliviousReceive, ObliviousSend, ObliviousVerify},
+    ot::{OTFactoryError, ObliviousReceive, ObliviousSend, ObliviousVerify},
 };
-use futures::{future::ready, SinkExt, StreamExt};
+use futures::{SinkExt, StreamExt};
 use mpc_circuits::{Circuit, Input, InputValue, OutputValue, WireGroup};
-use mpc_core::garble::{
-    exec::deap as core, gc_state, ActiveEncodedInput, ActiveInputSet, FullEncodedInput,
-    FullInputSet, GarbledCircuit,
+use mpc_core::{
+    garble::{
+        exec::deap::{self as core, DEAPConfig},
+        gc_state, ActiveEncodedInput, ActiveInputSet, FullEncodedInput, FullInputSet,
+        GarbledCircuit,
+    },
+    ot::config::{OTReceiverConfig, OTSenderConfig},
 };
-use utils_aio::expect_msg_or_err;
+use utils_aio::{expect_msg_or_err, factory::AsyncFactory};
 
 use super::setup_inputs_with;
 
@@ -21,28 +25,30 @@ pub mod state {
         pub trait Sealed {}
 
         impl Sealed for super::Initialized {}
-        impl Sealed for super::LabelSetup {}
-        impl Sealed for super::Executed {}
+        impl<LR> Sealed for super::LabelSetup<LR> {}
+        impl<LR> Sealed for super::Executed<LR> {}
     }
 
     pub trait State: sealed::Sealed {}
 
     pub struct Initialized;
 
-    pub struct LabelSetup {
+    pub struct LabelSetup<LR> {
         pub(crate) gen_labels: FullInputSet,
         pub(crate) ev_labels: ActiveInputSet,
         pub(crate) input_state: InputState,
+        pub(crate) label_receiver: Option<LR>,
     }
 
-    pub struct Executed {
+    pub struct Executed<LR> {
         pub(super) core: core::DEAPLeader<core::leader_state::Validate>,
         pub(crate) input_state: InputState,
+        pub(crate) label_receiver: Option<LR>,
     }
 
     impl State for Initialized {}
-    impl State for LabelSetup {}
-    impl State for Executed {}
+    impl<LR> State for LabelSetup<LR> {}
+    impl<LR> State for Executed<LR> {}
 
     pub(crate) struct InputState {
         pub(crate) ot_receive_inputs: Vec<Input>,
@@ -51,41 +57,48 @@ pub mod state {
 
 use state::*;
 
-pub struct DEAPLeader<S, B, LS, LR>
+pub struct DEAPLeader<S, B, LSF, LRF, LS, LR>
 where
     S: State,
-    B: Generator + Evaluator,
-    LS: ObliviousSend<FullEncodedInput>,
-    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + ObliviousVerify<FullEncodedInput>,
 {
+    config: DEAPConfig,
     state: S,
     circ: Arc<Circuit>,
     channel: GarbleChannel,
     backend: B,
-    label_sender: Option<LS>,
-    label_receiver: Option<LR>,
+    label_sender_factory: LSF,
+    label_receiver_factory: LRF,
+
+    _label_sender: PhantomData<LS>,
+    _label_receiver: PhantomData<LR>,
 }
 
-impl<B, LS, LR> DEAPLeader<Initialized, B, LS, LR>
+impl<B, LSF, LRF, LS, LR> DEAPLeader<Initialized, B, LSF, LRF, LS, LR>
 where
     B: Generator + Evaluator + Compressor + Validator + Send,
+    LSF: AsyncFactory<LS, Config = OTSenderConfig, Error = OTFactoryError> + Send,
+    LRF: AsyncFactory<LR, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
     LS: ObliviousSend<FullEncodedInput> + Send,
     LR: ObliviousReceive<InputValue, ActiveEncodedInput> + ObliviousVerify<FullEncodedInput> + Send,
 {
     pub fn new(
+        config: DEAPConfig,
         circ: Arc<Circuit>,
         channel: GarbleChannel,
         backend: B,
-        label_sender: Option<LS>,
-        label_receiver: Option<LR>,
-    ) -> DEAPLeader<Initialized, B, LS, LR> {
+        label_sender_factory: LSF,
+        label_receiver_factory: LRF,
+    ) -> DEAPLeader<Initialized, B, LSF, LRF, LS, LR> {
         DEAPLeader {
+            config,
             state: Initialized,
             circ,
             channel,
             backend,
-            label_sender,
-            label_receiver,
+            label_sender_factory,
+            label_receiver_factory,
+            _label_sender: PhantomData,
+            _label_receiver: PhantomData,
         }
     }
 
@@ -104,11 +117,16 @@ where
         ot_send_inputs: Vec<Input>,
         ot_receive_inputs: Vec<InputValue>,
         cached_labels: Vec<ActiveEncodedInput>,
-    ) -> Result<DEAPLeader<LabelSetup, B, LS, LR>, GCError> {
-        let (gen_labels, ev_labels) = setup_inputs_with(
+    ) -> Result<DEAPLeader<LabelSetup<LR>, B, LSF, LRF, LS, LR>, GCError> {
+        let label_sender_id = format!("{}/ot/0", self.config.id());
+        let label_receiver_id = format!("{}/ot/1", self.config.id());
+
+        let ((gen_labels, ev_labels), (_, label_receiver)) = setup_inputs_with(
+            label_sender_id,
+            label_receiver_id,
             &mut self.channel,
-            self.label_sender.as_mut(),
-            self.label_receiver.as_mut(),
+            &mut self.label_sender_factory,
+            &mut self.label_receiver_factory,
             gen_labels,
             gen_inputs,
             ot_send_inputs,
@@ -118,6 +136,7 @@ where
         .await?;
 
         Ok(DEAPLeader {
+            config: self.config,
             state: LabelSetup {
                 gen_labels,
                 ev_labels,
@@ -127,26 +146,34 @@ where
                         .map(|v| v.group().clone())
                         .collect(),
                 },
+                label_receiver,
             },
             circ: self.circ,
             channel: self.channel,
             backend: self.backend,
-            label_sender: self.label_sender,
-            label_receiver: self.label_receiver,
+            label_sender_factory: self.label_sender_factory,
+            label_receiver_factory: self.label_receiver_factory,
+            _label_sender: PhantomData,
+            _label_receiver: PhantomData,
         })
     }
 }
 
-impl<B, LS, LR> DEAPLeader<LabelSetup, B, LS, LR>
+impl<B, LSF, LRF, LS, LR> DEAPLeader<LabelSetup<LR>, B, LSF, LRF, LS, LR>
 where
     B: Generator + Evaluator + Compressor + Validator + Send,
-    LS: ObliviousSend<FullEncodedInput> + Send,
     LR: ObliviousReceive<InputValue, ActiveEncodedInput> + ObliviousVerify<FullEncodedInput> + Send,
 {
     /// Execute first phase of the protocol, returning the authenticated output.
     pub async fn execute(
         self,
-    ) -> Result<(Vec<OutputValue>, DEAPLeader<Executed, B, LS, LR>), GCError> {
+    ) -> Result<
+        (
+            Vec<OutputValue>,
+            DEAPLeader<Executed<LR>, B, LSF, LRF, LS, LR>,
+        ),
+        GCError,
+    > {
         // Discard summary
         let (output, _, leader) = self.execute_and_summarize().await?;
         Ok((output, leader))
@@ -162,7 +189,7 @@ where
         (
             Vec<OutputValue>,
             GarbledCircuit<gc_state::EvaluatedSummary>,
-            DEAPLeader<Executed, B, LS, LR>,
+            DEAPLeader<Executed<LR>, B, LSF, LRF, LS, LR>,
         ),
         GCError,
     > {
@@ -222,21 +249,25 @@ where
             output,
             gc_evaluated_summary,
             DEAPLeader {
+                config: self.config,
                 state: Executed {
                     core: leader,
                     input_state: self.state.input_state,
+                    label_receiver: self.state.label_receiver,
                 },
                 circ: self.circ,
                 channel: self.channel,
                 backend: self.backend,
-                label_sender: self.label_sender,
-                label_receiver: self.label_receiver,
+                label_sender_factory: self.label_sender_factory,
+                label_receiver_factory: self.label_receiver_factory,
+                _label_sender: PhantomData,
+                _label_receiver: PhantomData,
             },
         ))
     }
 }
 
-impl<B, LS, LR> DEAPLeader<Executed, B, LS, LR>
+impl<B, LSF, LRF, LS, LR> DEAPLeader<Executed<LR>, B, LSF, LRF, LS, LR>
 where
     B: Generator + Evaluator + Compressor + Validator + Send,
     LS: ObliviousSend<FullEncodedInput> + Send,
@@ -268,27 +299,32 @@ where
         let gc_validate_fut = self.backend.validate_compressed(gc_cmp, opening);
 
         // If we did not receive any inputs via OT, we can skip the OT validation
-        let labels_validate_fut = if self.state.input_state.ot_receive_inputs.is_empty() {
-            Box::pin(ready(Ok(())))
-        } else {
-            let Some(label_receiver) = self.label_receiver.take() else {
-                return Err(GCError::MissingOTReceiver);
-            };
+        let labels_validate_fut = async move {
+            if self.state.input_state.ot_receive_inputs.is_empty() {
+                Ok(())
+            } else {
+                let Some(label_receiver) = self.state.label_receiver.take() else {
+                    return Err(GCError::MissingOTReceiver);
+                };
 
-            let ot_received = self
-                .state
-                .input_state
-                .ot_receive_inputs
-                .iter()
-                .map(|input| {
-                    input_labels
-                        .get(input.index())
-                        .expect("Input id should be valid")
-                })
-                .cloned()
-                .collect::<Vec<_>>();
+                let ot_received = self
+                    .state
+                    .input_state
+                    .ot_receive_inputs
+                    .iter()
+                    .map(|input| {
+                        input_labels
+                            .get(input.index())
+                            .expect("Input id should be valid")
+                    })
+                    .cloned()
+                    .collect::<Vec<_>>();
 
-            label_receiver.verify(ot_received)
+                label_receiver
+                    .verify(ot_received)
+                    .await
+                    .map_err(GCError::from)
+            }
         };
 
         let (gc_validate_result, labels_validate_result) =

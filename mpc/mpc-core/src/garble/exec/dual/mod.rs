@@ -6,9 +6,11 @@
 //! malicious. Such leakage, however, will be detected by the [`DualExFollower`] during the
 //! equality check.
 
+mod config;
 mod follower;
 mod leader;
 
+pub use config::{DualExConfig, DualExConfigBuilder, DualExConfigBuilderError};
 pub use follower::{state as follower_state, DualExFollower};
 pub use leader::{state as leader_state, DualExLeader};
 

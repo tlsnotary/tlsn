@@ -1,14 +1,18 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use mpc_aio::protocol::garble::exec::deap::mock_deap_pair;
 use mpc_circuits::{Circuit, WireGroup, AES_128_REVERSE};
-use mpc_core::garble::FullInputSet;
+use mpc_core::garble::{exec::deap::DEAPConfigBuilder, FullInputSet};
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 use std::sync::Arc;
 
 async fn bench_deap(circ: Arc<Circuit>) {
     let mut rng = ChaCha12Rng::seed_from_u64(0);
-    let (leader, follower) = mock_deap_pair(circ.clone());
+    let config = DEAPConfigBuilder::default()
+        .id("bench".to_string())
+        .build()
+        .unwrap();
+    let (leader, follower) = mock_deap_pair(config, circ.clone());
 
     let leader_input = circ.input(0).unwrap().to_value(vec![0u8; 16]).unwrap();
     let follower_input = circ.input(1).unwrap().to_value(vec![0u8; 16]).unwrap();

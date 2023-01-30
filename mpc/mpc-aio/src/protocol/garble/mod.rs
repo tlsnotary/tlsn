@@ -28,6 +28,8 @@ pub enum GCError {
     IOError(#[from] std::io::Error),
     #[error("ot error")]
     OTError(#[from] OTError),
+    #[error("OTFactoryError: {0:?}")]
+    OTFactoryError(#[from] crate::protocol::ot::OTFactoryError),
     #[error("Received unexpected message: {0:?}")]
     Unexpected(GarbleMessage),
     #[error("backend error")]

@@ -1,16 +1,20 @@
-use std::sync::Arc;
+use std::{marker::PhantomData, sync::Arc};
 
 use crate::protocol::{
     garble::{Evaluator, GCError, GarbleChannel, GarbleMessage, Generator},
-    ot::{ObliviousReceive, ObliviousReveal, ObliviousSend},
+    ot::{OTFactoryError, ObliviousReceive, ObliviousReveal, ObliviousSend},
 };
 use futures::{SinkExt, StreamExt};
 use mpc_circuits::{Circuit, Input, InputValue, OutputValue};
-use mpc_core::garble::{
-    exec::deap as core, gc_state, ActiveEncodedInput, ActiveInputSet, FullEncodedInput,
-    FullInputSet, GarbledCircuit,
+use mpc_core::{
+    garble::{
+        exec::deap::{self as core, DEAPConfig},
+        gc_state, ActiveEncodedInput, ActiveInputSet, FullEncodedInput, FullInputSet,
+        GarbledCircuit,
+    },
+    ot::config::{OTReceiverConfig, OTSenderConfig},
 };
-use utils_aio::expect_msg_or_err;
+use utils_aio::{expect_msg_or_err, factory::AsyncFactory};
 
 use super::setup_inputs_with;
 
@@ -21,65 +25,75 @@ pub mod state {
         pub trait Sealed {}
 
         impl Sealed for super::Initialized {}
-        impl Sealed for super::LabelSetup {}
-        impl Sealed for super::Executed {}
+        impl<LS> Sealed for super::LabelSetup<LS> {}
+        impl<LS> Sealed for super::Executed<LS> {}
     }
 
     pub trait State: sealed::Sealed {}
 
     pub struct Initialized;
 
-    pub struct LabelSetup {
+    pub struct LabelSetup<LS> {
         pub(crate) gen_labels: FullInputSet,
         pub(crate) ev_labels: ActiveInputSet,
+        pub(crate) label_sender: Option<LS>,
     }
 
-    pub struct Executed {
+    pub struct Executed<LS> {
         pub(super) core: core::DEAPFollower<core::follower_state::Open>,
+        pub(crate) label_sender: Option<LS>,
     }
 
     impl State for Initialized {}
-    impl State for LabelSetup {}
-    impl State for Executed {}
+    impl<LS> State for LabelSetup<LS> {}
+    impl<LS> State for Executed<LS> {}
 }
 
 use state::*;
 
-pub struct DEAPFollower<S, B, LS, LR>
+pub struct DEAPFollower<S, B, LSF, LRF, LS, LR>
 where
     S: State,
-    B: Generator + Evaluator,
-    LS: ObliviousSend<FullEncodedInput> + ObliviousReveal,
-    LR: ObliviousReceive<InputValue, ActiveEncodedInput>,
 {
+    config: DEAPConfig,
     state: S,
     circ: Arc<Circuit>,
     channel: GarbleChannel,
     backend: B,
-    label_sender: Option<LS>,
-    label_receiver: Option<LR>,
+    label_sender_factory: LSF,
+    label_receiver_factory: LRF,
+
+    _label_sender: PhantomData<LS>,
+    _label_receiver: PhantomData<LR>,
 }
 
-impl<B, LS, LR> DEAPFollower<Initialized, B, LS, LR>
+impl<B, LSF, LRF, LS, LR> DEAPFollower<Initialized, B, LSF, LRF, LS, LR>
 where
     B: Generator + Evaluator + Send,
+    LSF: AsyncFactory<LS, Config = OTSenderConfig, Error = OTFactoryError> + Send,
+    LRF: AsyncFactory<LR, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
     LS: ObliviousSend<FullEncodedInput> + ObliviousReveal + Send,
     LR: ObliviousReceive<InputValue, ActiveEncodedInput> + Send,
 {
     pub fn new(
+        config: DEAPConfig,
         circ: Arc<Circuit>,
         channel: GarbleChannel,
         backend: B,
-        label_sender: Option<LS>,
-        label_receiver: Option<LR>,
+        label_sender_factory: LSF,
+        label_receiver_factory: LRF,
     ) -> Self {
         DEAPFollower {
+            config,
             state: Initialized,
             circ,
             channel,
             backend,
-            label_sender,
-            label_receiver,
+            label_sender_factory,
+            label_receiver_factory,
+
+            _label_sender: PhantomData,
+            _label_receiver: PhantomData,
         }
     }
 
@@ -98,11 +112,16 @@ where
         ot_send_inputs: Vec<Input>,
         ot_receive_inputs: Vec<InputValue>,
         cached_labels: Vec<ActiveEncodedInput>,
-    ) -> Result<DEAPFollower<LabelSetup, B, LS, LR>, GCError> {
-        let (gen_labels, ev_labels) = setup_inputs_with(
+    ) -> Result<DEAPFollower<LabelSetup<LS>, B, LSF, LRF, LS, LR>, GCError> {
+        let label_sender_id = format!("{}/ot/1", self.config.id());
+        let label_receiver_id = format!("{}/ot/0", self.config.id());
+
+        let ((gen_labels, ev_labels), (label_sender, _)) = setup_inputs_with(
+            label_sender_id,
+            label_receiver_id,
             &mut self.channel,
-            self.label_sender.as_mut(),
-            self.label_receiver.as_mut(),
+            &mut self.label_sender_factory,
+            &mut self.label_receiver_factory,
             gen_labels,
             gen_inputs,
             ot_send_inputs,
@@ -112,24 +131,28 @@ where
         .await?;
 
         Ok(DEAPFollower {
+            config: self.config,
             state: LabelSetup {
                 gen_labels,
                 ev_labels,
+                label_sender,
             },
             circ: self.circ,
             channel: self.channel,
             backend: self.backend,
-            label_sender: self.label_sender,
-            label_receiver: self.label_receiver,
+            label_sender_factory: self.label_sender_factory,
+            label_receiver_factory: self.label_receiver_factory,
+
+            _label_sender: PhantomData,
+            _label_receiver: PhantomData,
         })
     }
 }
 
-impl<B, LS, LR> DEAPFollower<LabelSetup, B, LS, LR>
+impl<B, LSF, LRF, LS, LR> DEAPFollower<LabelSetup<LS>, B, LSF, LRF, LS, LR>
 where
     B: Generator + Evaluator + Send,
     LS: ObliviousSend<FullEncodedInput> + ObliviousReveal + Send,
-    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + Send,
 {
     /// Execute first phase of the protocol, returning the _purported_ circuit output.
     ///
@@ -137,7 +160,13 @@ where
     /// validated in the next phase.
     pub async fn execute(
         self,
-    ) -> Result<(Vec<OutputValue>, DEAPFollower<Executed, B, LS, LR>), GCError> {
+    ) -> Result<
+        (
+            Vec<OutputValue>,
+            DEAPFollower<Executed<LS>, B, LSF, LRF, LS, LR>,
+        ),
+        GCError,
+    > {
         // Discard the summary
         let (output, _, follower) = self.execute_and_summarize().await?;
         Ok((output, follower))
@@ -154,7 +183,7 @@ where
         (
             Vec<OutputValue>,
             GarbledCircuit<gc_state::EvaluatedSummary>,
-            DEAPFollower<Executed, B, LS, LR>,
+            DEAPFollower<Executed<LS>, B, LSF, LRF, LS, LR>,
         ),
         GCError,
     > {
@@ -213,18 +242,25 @@ where
             purported_output,
             evaluated_summary,
             DEAPFollower {
-                state: Executed { core: follower },
+                config: self.config,
+                state: Executed {
+                    core: follower,
+                    label_sender: self.state.label_sender,
+                },
                 circ: self.circ,
                 channel: self.channel,
                 backend: self.backend,
-                label_sender: self.label_sender,
-                label_receiver: self.label_receiver,
+                label_sender_factory: self.label_sender_factory,
+                label_receiver_factory: self.label_receiver_factory,
+
+                _label_sender: PhantomData,
+                _label_receiver: PhantomData,
             },
         ))
     }
 }
 
-impl<B, LS, LR> DEAPFollower<Executed, B, LS, LR>
+impl<B, LSF, LRF, LS, LR> DEAPFollower<Executed<LS>, B, LSF, LRF, LS, LR>
 where
     B: Generator + Evaluator + Send,
     LS: ObliviousSend<FullEncodedInput> + ObliviousReveal + Send,
@@ -248,7 +284,7 @@ where
             .await?;
 
         // Open our OTs to leader
-        if let Some(label_sender) = self.label_sender.take() {
+        if let Some(label_sender) = self.state.label_sender.take() {
             label_sender.reveal().await?;
         }
 
