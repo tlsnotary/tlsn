@@ -1,5 +1,7 @@
+use share_conversion_core::fields::{gf2_128::Gf2_128, Field};
+
 use super::{
-    compute_missing_mul_shares, compute_new_add_shares, mul,
+    compute_missing_mul_shares, compute_new_add_shares,
     state::{Finalized, Init, Intermediate, State},
     GhashError,
 };
@@ -32,7 +34,7 @@ impl GhashCore {
     /// powers of `H`
     ///
     /// Converts `H` into `H`, `H^3`, `H^5`, ... depending on `self.max_block_count`
-    pub fn compute_odd_mul_powers(self, mul_share: u128) -> GhashCore<Intermediate> {
+    pub fn compute_odd_mul_powers(self, mul_share: Gf2_128) -> GhashCore<Intermediate> {
         let mut hashkey_powers = vec![mul_share];
 
         compute_missing_mul_shares(&mut hashkey_powers, self.max_block_count);
@@ -53,7 +55,7 @@ impl GhashCore<Intermediate> {
     /// Takes into account cached additive shares, so that
     /// multiplicative ones for which already an additive one
     /// exists, are not returned.
-    pub fn odd_mul_shares(&self) -> Vec<u128> {
+    pub fn odd_mul_shares(&self) -> Vec<Gf2_128> {
         // If we already have some cached additive sharings, we do not need to compute new powers.
         // So we compute an offset to ignore them. We divide by 2 because
         // `self.state.cached_add_shares` contain even and odd powers, while
@@ -65,7 +67,10 @@ impl GhashCore<Intermediate> {
 
     /// Adds new additive shares of hashkey powers by also computing the even ones
     /// and transforms `self` into a `GhashCore<Finalized>`
-    pub fn add_new_add_shares(mut self, new_additive_odd_shares: &[u128]) -> GhashCore<Finalized> {
+    pub fn add_new_add_shares(
+        mut self,
+        new_additive_odd_shares: &[Gf2_128],
+    ) -> GhashCore<Finalized> {
         compute_new_add_shares(new_additive_odd_shares, &mut self.state.cached_add_shares);
 
         GhashCore {
@@ -87,7 +92,7 @@ impl GhashCore<Finalized> {
     /// Generate the GHASH output
     ///
     /// Computes the 2PC additive share of the GHASH output
-    pub fn finalize(&self, message: &[u128]) -> Result<u128, GhashError> {
+    pub fn finalize(&self, message: &[Gf2_128]) -> Result<Gf2_128, GhashError> {
         if message.len() > self.max_block_count {
             return Err(GhashError::InvalidMessageLength);
         }
@@ -95,7 +100,7 @@ impl GhashCore<Finalized> {
         Ok(message
             .iter()
             .zip(self.state.add_shares.iter().rev().skip(offset))
-            .fold(0, |acc, (block, share)| acc ^ mul(*block, *share)))
+            .fold(Gf2_128::zero(), |acc, (block, share)| acc + *block * *share))
     }
 
     /// Change the maximum hashkey power

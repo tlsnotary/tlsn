@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use share_conversion_core::fields::gf2_128::Gf2_128;
 
 use crate::{
     ghash::ghash_core::{
@@ -26,8 +27,8 @@ enum State {
 /// It is an aio wrapper which mostly uses [GhashCore] for computation
 pub struct Ghash<T, U>
 where
-    T: AdditiveToMultiplicative<FieldElement = u128>,
-    U: MultiplicativeToAdditive<FieldElement = u128>,
+    T: AdditiveToMultiplicative<Gf2_128>,
+    U: MultiplicativeToAdditive<Gf2_128>,
 {
     state: State,
     config: GhashConfig,
@@ -38,8 +39,8 @@ where
 
 impl<T, U> Ghash<T, U>
 where
-    T: AdditiveToMultiplicative<FieldElement = u128>,
-    U: MultiplicativeToAdditive<FieldElement = u128>,
+    T: AdditiveToMultiplicative<Gf2_128>,
+    U: MultiplicativeToAdditive<Gf2_128>,
 {
     /// Creates a new instance
     ///
@@ -76,8 +77,8 @@ where
 #[async_trait]
 impl<T, U> UniversalHash for Ghash<T, U>
 where
-    T: AdditiveToMultiplicative<FieldElement = u128> + Send,
-    U: MultiplicativeToAdditive<FieldElement = u128> + Send,
+    T: AdditiveToMultiplicative<Gf2_128> + Send,
+    U: MultiplicativeToAdditive<Gf2_128> + Send,
 {
     const KEY_SIZE: usize = 16;
     const BLOCK_SIZE: usize = 16;
@@ -96,7 +97,7 @@ where
         let mut h_additive = [0u8; 16];
         h_additive.copy_from_slice(key.as_slice());
 
-        let h_additive = u128::from_be_bytes(h_additive);
+        let h_additive = Gf2_128::new(u128::from_be_bytes(h_additive).reverse_bits());
         let h_multiplicative = self.a2m_converter.a_to_m(vec![h_additive]).await?;
 
         let core = GhashCore::new(self.config.initial_block_count);
@@ -142,9 +143,9 @@ where
             .map(|chunk| {
                 let mut block = [0u8; 16];
                 block.copy_from_slice(chunk);
-                u128::from_be_bytes(block)
+                Gf2_128::new(u128::from_be_bytes(block).reverse_bits())
             })
-            .collect::<Vec<u128>>();
+            .collect::<Vec<Gf2_128>>();
 
         let tag = core
             .finalize(&blocks)
@@ -153,7 +154,7 @@ where
         // Reinsert state
         self.state = State::Ready { core };
 
-        Ok(tag.to_be_bytes().to_vec())
+        Ok(tag.into_inner().reverse_bits().to_be_bytes().to_vec())
     }
 }
 
@@ -166,7 +167,7 @@ mod tests {
     };
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
-    use share_conversion_aio::gf2_128::recorder::Void;
+    use share_conversion_aio::conversion::recorder::Void;
 
     #[tokio::test]
     async fn test_ghash_output() {

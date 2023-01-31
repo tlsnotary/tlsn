@@ -22,7 +22,7 @@ mod core;
 pub mod state;
 
 pub use self::core::GhashCore;
-use share_conversion_core::gf2_128::{compute_product_repeated, mul};
+use share_conversion_core::fields::{compute_product_repeated, gf2_128::Gf2_128};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -39,13 +39,13 @@ pub enum GhashError {
 ///
 /// * `present_odd_mul_shares` - multiplicative odd shares already present
 /// * `needed` - how many powers we need including odd and even
-fn compute_missing_mul_shares(present_odd_mul_shares: &mut Vec<u128>, needed: usize) {
+fn compute_missing_mul_shares(present_odd_mul_shares: &mut Vec<Gf2_128>, needed: usize) {
     // divide by 2 and round up
     let needed_odd_powers: usize = needed / 2 + (needed & 1);
     let present_odd_len = present_odd_mul_shares.len();
 
     if needed_odd_powers > present_odd_len {
-        let h_squared = mul(present_odd_mul_shares[0], present_odd_mul_shares[0]);
+        let h_squared = present_odd_mul_shares[0] * present_odd_mul_shares[0];
         compute_product_repeated(
             present_odd_mul_shares,
             h_squared,
@@ -67,7 +67,7 @@ fn compute_missing_mul_shares(present_odd_mul_shares: &mut Vec<u128>, needed: us
 ///                          multiplicative shares
 /// * `add_shares`         - all additive shares (even and odd) we already have. This is a mutable
 ///                          reference to cached_add_shares in [crate::ghash::state::Intermediate]
-fn compute_new_add_shares(new_add_odd_shares: &[u128], add_shares: &mut Vec<u128>) {
+fn compute_new_add_shares(new_add_odd_shares: &[Gf2_128], add_shares: &mut Vec<Gf2_128>) {
     for (odd_share, current_odd_power) in new_add_odd_shares
         .iter()
         .zip((add_shares.len() + 1..).step_by(2))
@@ -79,7 +79,7 @@ fn compute_new_add_shares(new_add_odd_shares: &[u128], add_shares: &mut Vec<u128
         // note that the n-th index corresponds to the (n+1)-th power, e.g. add_shares[4]
         // is the share of H^5
         let mut base_share = add_shares[current_odd_power / 2];
-        base_share = mul(base_share, base_share);
+        base_share = base_share * base_share;
         add_shares.push(base_share);
     }
 }
@@ -92,10 +92,10 @@ mod tests {
     };
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
-    use share_conversion_core::gf2_128::inverse;
+    use share_conversion_core::fields::{gf2_128::Gf2_128, Field};
 
     use super::{
-        compute_missing_mul_shares, compute_new_add_shares, compute_product_repeated, mul,
+        compute_missing_mul_shares, compute_new_add_shares, compute_product_repeated,
         state::{Finalized, Intermediate},
         GhashCore,
     };
@@ -105,15 +105,15 @@ mod tests {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // The Ghash key
-        let h: u128 = rng.gen();
-        let message = gen_u128_vec();
+        let h: Gf2_128 = rng.gen();
+        let message = gen_gf2_128_vec();
         let message_len = message.len();
         let number_of_powers_needed: usize = message_len / 2 + (message_len & 1);
 
         let (sender, receiver) = setup_ghash_to_intermediate_state(h, message_len);
 
         let mut powers_h = vec![h];
-        compute_product_repeated(&mut powers_h, mul(h, h), number_of_powers_needed);
+        compute_product_repeated(&mut powers_h, h * h, number_of_powers_needed);
 
         // Length check
         assert_eq!(sender.state().odd_mul_shares.len(), number_of_powers_needed);
@@ -129,7 +129,7 @@ mod tests {
         )
         .enumerate()
         {
-            assert_eq!(mul(*sender_share, *receiver_share), powers_h[k]);
+            assert_eq!(*sender_share * *receiver_share, powers_h[k]);
         }
     }
 
@@ -138,8 +138,8 @@ mod tests {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // The Ghash key
-        let h: u128 = rng.gen();
-        let message = gen_u128_vec();
+        let h: Gf2_128 = rng.gen();
+        let message = gen_gf2_128_vec();
         let message_len = message.len();
 
         let (sender, receiver) = setup_ghash_to_intermediate_state(h, message_len);
@@ -161,7 +161,7 @@ mod tests {
         // Sum check
         for k in 0..message_len {
             assert_eq!(
-                sender.state().add_shares[k] ^ receiver.state().add_shares[k],
+                sender.state().add_shares[k] + receiver.state().add_shares[k],
                 powers_h[k]
             );
         }
@@ -172,15 +172,24 @@ mod tests {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // The Ghash key
-        let h: u128 = rng.gen();
-        let message = gen_u128_vec();
+        let h: Gf2_128 = rng.gen();
+        let message = gen_gf2_128_vec();
 
         let (sender, receiver) = setup_ghash_to_intermediate_state(h, message.len());
         let (sender, receiver) = ghash_to_finalized(sender, receiver);
 
+        let output = sender.finalize(&message).unwrap() + receiver.finalize(&message).unwrap();
+
         assert_eq!(
-            sender.finalize(&message).unwrap() ^ receiver.finalize(&message).unwrap(),
-            ghash_reference_impl(h, message)
+            output.into_inner(),
+            ghash_reference_impl(
+                h.into_inner().reverse_bits(),
+                message
+                    .iter()
+                    .map(|x| x.into_inner().reverse_bits())
+                    .collect()
+            )
+            .reverse_bits()
         );
     }
 
@@ -189,13 +198,13 @@ mod tests {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // The Ghash key
-        let h: u128 = rng.gen();
-        let message = gen_u128_vec();
+        let h: Gf2_128 = rng.gen();
+        let message = gen_gf2_128_vec();
 
         let (sender, receiver) = setup_ghash_to_intermediate_state(h, message.len());
         let (sender, receiver) = ghash_to_finalized(sender, receiver);
 
-        let mut message_short: Vec<u128> = vec![0; message.len() / 2];
+        let mut message_short: Vec<Gf2_128> = vec![Gf2_128::zero(); message.len() / 2];
         message_short.iter_mut().for_each(|x| *x = rng.gen());
 
         let (sender, receiver) = (
@@ -205,9 +214,19 @@ mod tests {
 
         let (sender, receiver) = ghash_to_finalized(sender, receiver);
 
+        let output =
+            sender.finalize(&message_short).unwrap() + receiver.finalize(&message_short).unwrap();
+
         assert_eq!(
-            sender.finalize(&message_short).unwrap() ^ receiver.finalize(&message_short).unwrap(),
-            ghash_reference_impl(h, message_short)
+            output.into_inner(),
+            ghash_reference_impl(
+                h.into_inner().reverse_bits(),
+                message_short
+                    .iter()
+                    .map(|x| x.into_inner().reverse_bits())
+                    .collect()
+            )
+            .reverse_bits()
         );
     }
 
@@ -216,13 +235,13 @@ mod tests {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // The Ghash key
-        let h: u128 = rng.gen();
-        let message = gen_u128_vec();
+        let h: Gf2_128 = rng.gen();
+        let message = gen_gf2_128_vec();
 
         let (sender, receiver) = setup_ghash_to_intermediate_state(h, message.len());
         let (sender, receiver) = ghash_to_finalized(sender, receiver);
 
-        let mut message_long: Vec<u128> = vec![0; 2 * message.len()];
+        let mut message_long: Vec<Gf2_128> = vec![Gf2_128::zero(); 2 * message.len()];
         message_long.iter_mut().for_each(|x| *x = rng.gen());
 
         let (sender, receiver) = (
@@ -231,19 +250,28 @@ mod tests {
         );
 
         let (sender, receiver) = ghash_to_finalized(sender, receiver);
+        let output =
+            sender.finalize(&message_long).unwrap() + receiver.finalize(&message_long).unwrap();
 
         assert_eq!(
-            sender.finalize(&message_long).unwrap() ^ receiver.finalize(&message_long).unwrap(),
-            ghash_reference_impl(h, message_long)
+            output.into_inner(),
+            ghash_reference_impl(
+                h.into_inner().reverse_bits(),
+                message_long
+                    .iter()
+                    .map(|x| x.into_inner().reverse_bits())
+                    .collect()
+            )
+            .reverse_bits()
         );
     }
 
     #[test]
     fn test_compute_missing_mul_shares() {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
-        let h: u128 = rng.gen();
-        let mut powers: Vec<u128> = vec![h];
-        compute_product_repeated(&mut powers, mul(h, h), rng.gen_range(16..128));
+        let h: Gf2_128 = rng.gen();
+        let mut powers: Vec<Gf2_128> = vec![h];
+        compute_product_repeated(&mut powers, h * h, rng.gen_range(16..128));
 
         let powers_len = powers.len();
         let needed = rng.gen_range(1..256);
@@ -259,12 +287,12 @@ mod tests {
 
         // Check shares
         let first = *powers.first().unwrap();
-        let factor = mul(first, first);
+        let factor = first * first;
 
         let mut expected = first;
         for share in powers.iter() {
             assert_eq!(*share, expected);
-            expected = mul(expected, factor);
+            expected = expected * factor;
         }
     }
 
@@ -272,8 +300,8 @@ mod tests {
     fn test_compute_new_add_shares() {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
-        let new_add_odd_shares: Vec<u128> = gen_u128_vec();
-        let mut add_shares: Vec<u128> = gen_u128_vec();
+        let new_add_odd_shares: Vec<Gf2_128> = gen_gf2_128_vec();
+        let mut add_shares: Vec<Gf2_128> = gen_gf2_128_vec();
 
         // We have the invariant that len of add_shares is always even
         if add_shares.len() & 1 == 1 {
@@ -300,16 +328,16 @@ mod tests {
 
         // Check even shares
         for k in (original_len + 1..add_shares.len()).step_by(2) {
-            assert_eq!(add_shares[k], mul(add_shares[k / 2], add_shares[k / 2]));
+            assert_eq!(add_shares[k], add_shares[k / 2] * add_shares[k / 2]);
         }
     }
 
-    fn gen_u128_vec() -> Vec<u128> {
+    fn gen_gf2_128_vec() -> Vec<Gf2_128> {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Sample some message
         let message_len: usize = rng.gen_range(16..128);
-        let mut message: Vec<u128> = vec![0_u128; message_len];
+        let mut message: Vec<Gf2_128> = vec![Gf2_128::zero(); message_len];
         message.iter_mut().for_each(|x| *x = rng.gen());
         message
     }
@@ -324,14 +352,14 @@ mod tests {
     }
 
     fn setup_ghash_to_intermediate_state(
-        hashkey: u128,
+        hashkey: Gf2_128,
         max_hashkey_power: usize,
     ) -> (GhashCore<Intermediate>, GhashCore<Intermediate>) {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create a multiplicative sharing
-        let h1_multiplicative: u128 = rng.gen();
-        let h2_multiplicative: u128 = mul(hashkey, inverse(h1_multiplicative));
+        let h1_multiplicative: Gf2_128 = rng.gen();
+        let h2_multiplicative: Gf2_128 = hashkey * h1_multiplicative.inverse();
 
         let sender = GhashCore::new(max_hashkey_power);
         let receiver = GhashCore::new(max_hashkey_power);
@@ -357,14 +385,14 @@ mod tests {
         (sender, receiver)
     }
 
-    fn m2a(first: &[u128], second: &[u128]) -> (Vec<u128>, Vec<u128>) {
+    fn m2a(first: &[Gf2_128], second: &[Gf2_128]) -> (Vec<Gf2_128>, Vec<Gf2_128>) {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
         let mut first_out = vec![];
         let mut second_out = vec![];
         for (j, k) in first.iter().zip(second.iter()) {
-            let product = mul(*j, *k);
-            let first_summand: u128 = rng.gen();
-            let second_summand: u128 = product ^ first_summand;
+            let product = *j * *k;
+            let first_summand: Gf2_128 = rng.gen();
+            let second_summand: Gf2_128 = product + first_summand;
             first_out.push(first_summand);
             second_out.push(second_summand);
         }
