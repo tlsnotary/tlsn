@@ -1,3 +1,5 @@
+use share_conversion_core::fields::gf2_128::Gf2_128;
+
 mod sealed {
     pub trait Sealed {}
 
@@ -24,13 +26,13 @@ pub struct Init;
 /// needed powers have been computed
 #[derive(Clone, Debug)]
 pub struct Intermediate {
-    pub(super) odd_mul_shares: Vec<u128>,
+    pub(super) odd_mul_shares: Vec<Gf2_128>,
     // A vec of all additive shares (even and odd) we already have.
     // (In order to simplify the code) the n-th index of the vec corresponds to the additive share
     // of the (n+1)-th power of H, e.g. the share of H^1 is located at the 0-th index of the vec
     // It always contains an even number of consecutive shares starting from the share of H^1 up to
     // the share of H^(cached_add_shares.len())
-    pub(super) cached_add_shares: Vec<u128>,
+    pub(super) cached_add_shares: Vec<Gf2_128>,
 }
 
 /// Final state for Ghash protocol
@@ -39,6 +41,6 @@ pub struct Intermediate {
 /// additive shares of all the powers of `H`
 #[derive(Clone, Debug)]
 pub struct Finalized {
-    pub(super) odd_mul_shares: Vec<u128>,
-    pub(super) add_shares: Vec<u128>,
+    pub(super) odd_mul_shares: Vec<Gf2_128>,
+    pub(super) add_shares: Vec<Gf2_128>,
 }
