@@ -100,7 +100,9 @@ impl SemiHonestLeader<Generator> {
         Ok((
             gc.get_partial(reveal_output, true)?,
             SemiHonestLeader {
-                state: Decode { gc: gc.summarize() },
+                state: Decode {
+                    gc: gc.into_summary(),
+                },
             },
         ))
     }

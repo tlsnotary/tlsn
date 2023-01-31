@@ -4,6 +4,7 @@ use crate::protocol::{
     garble::{Evaluator, GCError, GarbleChannel, GarbleMessage, Generator},
     ot::{OTFactoryError, ObliviousReceive, ObliviousReveal, ObliviousSend},
 };
+use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use mpc_circuits::{Circuit, Input, InputValue, OutputValue};
 use mpc_core::{
@@ -16,7 +17,7 @@ use mpc_core::{
 };
 use utils_aio::{expect_msg_or_err, factory::AsyncFactory};
 
-use super::setup_inputs_with;
+use super::{setup_inputs_with, DEAPExecute, DEAPVerify};
 
 pub mod state {
     use super::*;
@@ -260,6 +261,65 @@ where
     }
 }
 
+#[async_trait]
+impl<B, LSF, LRF, LS, LR> DEAPExecute for DEAPFollower<Initialized, B, LSF, LRF, LS, LR>
+where
+    B: Generator + Evaluator + Send + 'static,
+    LSF: AsyncFactory<LS, Config = OTSenderConfig, Error = OTFactoryError> + Send + 'static,
+    LRF: AsyncFactory<LR, Config = OTReceiverConfig, Error = OTFactoryError> + Send + 'static,
+    LS: ObliviousSend<FullEncodedInput> + ObliviousReveal + Send + 'static,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + Send + 'static,
+{
+    type NextState = DEAPFollower<Executed<LS>, B, LSF, LRF, LS, LR>;
+
+    async fn execute(
+        self,
+        gen_labels: FullInputSet,
+        gen_inputs: Vec<InputValue>,
+        ot_send_inputs: Vec<Input>,
+        ot_receive_inputs: Vec<InputValue>,
+        cached_labels: Vec<ActiveEncodedInput>,
+    ) -> Result<(Vec<OutputValue>, Self::NextState), GCError> {
+        self.setup_inputs(
+            gen_labels,
+            gen_inputs,
+            ot_send_inputs,
+            ot_receive_inputs,
+            cached_labels,
+        )
+        .await?
+        .execute()
+        .await
+    }
+
+    async fn execute_and_summarize(
+        self,
+        gen_labels: FullInputSet,
+        gen_inputs: Vec<InputValue>,
+        ot_send_inputs: Vec<Input>,
+        ot_receive_inputs: Vec<InputValue>,
+        cached_labels: Vec<ActiveEncodedInput>,
+    ) -> Result<
+        (
+            Vec<OutputValue>,
+            GarbledCircuit<gc_state::EvaluatedSummary>,
+            Self::NextState,
+        ),
+        GCError,
+    > {
+        self.setup_inputs(
+            gen_labels,
+            gen_inputs,
+            ot_send_inputs,
+            ot_receive_inputs,
+            cached_labels,
+        )
+        .await?
+        .execute_and_summarize()
+        .await
+    }
+}
+
 impl<B, LSF, LRF, LS, LR> DEAPFollower<Executed<LS>, B, LSF, LRF, LS, LR>
 where
     B: Generator + Evaluator + Send,
@@ -297,5 +357,23 @@ where
 
         // Verify commitment and output to our circuit
         follower.verify(msg.into()).map_err(GCError::from)
+    }
+}
+
+#[async_trait]
+impl<B, LSF, LRF, LS, LR> DEAPVerify for DEAPFollower<Executed<LS>, B, LSF, LRF, LS, LR>
+where
+    B: Generator + Evaluator + Send,
+    LSF: Send,
+    LRF: Send,
+    LS: ObliviousSend<FullEncodedInput> + ObliviousReveal + Send,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + Send,
+{
+    async fn verify(self) -> Result<(), GCError> {
+        self.verify().await
+    }
+
+    async fn verify_boxed(self: Box<Self>) -> Result<(), GCError> {
+        self.verify().await
     }
 }

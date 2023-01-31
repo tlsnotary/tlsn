@@ -109,7 +109,7 @@ impl DEAPLeader<Generator> {
             gc.get_partial(SEND_OUTPUT_DECODING, SEND_OUTPUT_COMMITMENTS)?,
             DEAPLeader {
                 state: Evaluator {
-                    gc_summary: gc.summarize(),
+                    gc_summary: gc.into_summary(),
                 },
             },
         ))

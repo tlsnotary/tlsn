@@ -4,8 +4,70 @@ mod leader;
 pub use follower::{state as follower_state, DEAPFollower};
 pub use leader::{state as leader_state, DEAPLeader};
 
+use async_trait::async_trait;
+
+use mpc_circuits::{Input, InputValue, OutputValue};
+use mpc_core::garble::{gc_state, ActiveEncodedInput, FullInputSet, GarbledCircuit};
+
+use crate::protocol::garble::GCError;
+
 // Use same setup procedure as standard dualex
 pub(crate) use super::dual::setup_inputs_with;
+
+#[async_trait]
+pub trait DEAPExecute: Send {
+    type NextState: DEAPVerify + 'static;
+
+    /// Execute first phase of DEAP protocol
+    ///
+    /// Returns decoded output values
+    async fn execute(
+        self,
+        gen_labels: FullInputSet,
+        gen_inputs: Vec<InputValue>,
+        ot_send_inputs: Vec<Input>,
+        ot_receive_inputs: Vec<InputValue>,
+        cached_labels: Vec<ActiveEncodedInput>,
+    ) -> Result<(Vec<OutputValue>, Self::NextState), GCError>;
+
+    /// Execute first phase of the DEAP protocol, returning the output
+    /// and a summary of the evaluated garbled circuit.
+    ///
+    /// This can be used when the labels of the evaluated circuit are needed.
+    async fn execute_and_summarize(
+        self,
+        gen_labels: FullInputSet,
+        gen_inputs: Vec<InputValue>,
+        ot_send_inputs: Vec<Input>,
+        ot_receive_inputs: Vec<InputValue>,
+        cached_labels: Vec<ActiveEncodedInput>,
+    ) -> Result<
+        (
+            Vec<OutputValue>,
+            GarbledCircuit<gc_state::EvaluatedSummary>,
+            Self::NextState,
+        ),
+        GCError,
+    >;
+}
+
+/// Execute the final phase of the protocol. This proves the authenticity of the circuit output
+/// to both parties.
+///
+/// **CAUTION**
+///
+/// Calling this function on [`DEAPFollower`] reveals all of the follower's private inputs to the leader!
+/// Care must be taken to ensure that this is synchronized properly with any other uses of these inputs.
+#[async_trait]
+pub trait DEAPVerify: Send {
+    /// Execute the final phase of the protocol. This proves the authenticity of the circuit output
+    /// to the follower without leaking any information about leader's inputs.
+    async fn verify(self) -> Result<(), GCError>;
+
+    /// Execute the final phase of the protocol. This proves the authenticity of the circuit output
+    /// to the follower without leaking any information about leader's inputs.
+    async fn verify_boxed(self: Box<Self>) -> Result<(), GCError>;
+}
 
 #[cfg(feature = "mock")]
 mod mock {
