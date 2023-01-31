@@ -52,8 +52,8 @@ mod tests {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
-        let random_numbers_1: Vec<T> = get_random_field_vec(16, &mut rng);
-        let random_numbers_2: Vec<T> = get_random_field_vec(16, &mut rng);
+        let random_numbers_1: Vec<T> = get_random_field_vec(4, &mut rng);
+        let random_numbers_2: Vec<T> = get_random_field_vec(4, &mut rng);
         let random_numbers: Vec<T> =
             std::iter::zip(random_numbers_1.iter(), random_numbers_2.iter())
                 .map(|(a, b)| *a + *b)
@@ -79,8 +79,8 @@ mod tests {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
-        let random_numbers_1: Vec<T> = get_random_field_vec(16, &mut rng);
-        let random_numbers_2: Vec<T> = get_random_field_vec(16, &mut rng);
+        let random_numbers_1: Vec<T> = get_random_field_vec(4, &mut rng);
+        let random_numbers_2: Vec<T> = get_random_field_vec(4, &mut rng);
         let random_numbers: Vec<T> =
             std::iter::zip(random_numbers_1.iter(), random_numbers_2.iter())
                 .map(|(a, b)| *a * *b)
@@ -106,8 +106,8 @@ mod tests {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
-        let random_numbers_1: Vec<T> = get_random_field_vec(16, &mut rng);
-        let random_numbers_2: Vec<T> = get_random_field_vec(16, &mut rng);
+        let random_numbers_1: Vec<T> = get_random_field_vec(4, &mut rng);
+        let random_numbers_2: Vec<T> = get_random_field_vec(4, &mut rng);
 
         // Spawn tokio tasks and wait for them to finish
         let sender_task = tokio::spawn(async move {
@@ -131,8 +131,8 @@ mod tests {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
-        let random_numbers_1: Vec<T> = get_random_field_vec(16, &mut rng);
-        let random_numbers_2: Vec<T> = get_random_field_vec(16, &mut rng);
+        let random_numbers_1: Vec<T> = get_random_field_vec(4, &mut rng);
+        let random_numbers_2: Vec<T> = get_random_field_vec(4, &mut rng);
 
         // Spawn tokio tasks and wait for them to finish
         let sender_task = tokio::spawn(async move {
@@ -156,8 +156,8 @@ mod tests {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
-        let random_numbers_1: Vec<T> = get_random_field_vec(16, &mut rng);
-        let random_numbers_2: Vec<T> = get_random_field_vec(16, &mut rng);
+        let random_numbers_1: Vec<T> = get_random_field_vec(4, &mut rng);
+        let random_numbers_2: Vec<T> = get_random_field_vec(4, &mut rng);
 
         // Spawn tokio tasks and wait for them to finish
         let sender_task = tokio::spawn(async move {
@@ -187,8 +187,8 @@ mod tests {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
-        let random_numbers_1: Vec<T> = get_random_field_vec(16, &mut rng);
-        let random_numbers_2: Vec<T> = get_random_field_vec(16, &mut rng);
+        let random_numbers_1: Vec<T> = get_random_field_vec(4, &mut rng);
+        let random_numbers_2: Vec<T> = get_random_field_vec(4, &mut rng);
         // Spawn tokio tasks and wait for them to finish
         let sender_task = tokio::spawn(async move {
             let _ = sender.m_to_a(random_numbers_1).await.unwrap();

@@ -17,13 +17,16 @@ mod tests {
     };
     use mpc_aio::protocol::ot::mock::{MockOTFactory, MockOTReceiver, MockOTSender};
     use mpc_core::Block;
-    use rand::{Rng, SeedableRng};
+    use rand::SeedableRng;
     use rand_chacha::ChaCha12Rng;
     use share_conversion_aio::{
-        recorder::{SendTape, Tape, VerifyTape},
-        AdditiveToMultiplicative, MultiplicativeToAdditive,
+        conversion::recorder::Tape, AdditiveToMultiplicative, MultiplicativeToAdditive, SendTape,
+        VerifyTape,
     };
-    use share_conversion_core::gf2_128::{mul, AddShare, Gf2_128ShareConvert, MulShare};
+    use share_conversion_core::{
+        fields::{gf2_128::Gf2_128, Field, UniformRand},
+        AddShare, MulShare, ShareConvert,
+    };
     use utils_aio::adaptive_barrier::AdaptiveBarrier;
     use xtra::prelude::*;
 
@@ -33,16 +36,16 @@ mod tests {
     async fn test_actor_share_conversion_a2m() {
         // Create some random numbers
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
-        let random_numbers_1: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
-        let random_numbers_2: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
-        let random_numbers: Vec<u128> =
+        let random_numbers_1: Vec<Gf2_128> = get_random_gf2_128_vec(128, &mut rng);
+        let random_numbers_2: Vec<Gf2_128> = get_random_gf2_128_vec(128, &mut rng);
+        let random_numbers: Vec<Gf2_128> =
             std::iter::zip(random_numbers_1.iter(), random_numbers_2.iter())
-                .map(|(a, b)| a ^ b)
+                .map(|(a, b)| *a + *b)
                 .collect();
 
         // Create conversion controls
         let (mut sender_control, mut receiver_control) =
-            create_conversion_controls::<AddShare>(None).await;
+            create_conversion_controls::<AddShare<Gf2_128>>(None).await;
 
         let sender_task =
             tokio::spawn(async move { sender_control.a_to_m(random_numbers_1).await.unwrap() });
@@ -54,7 +57,7 @@ mod tests {
 
         // Check result
         for (k, (a, b)) in std::iter::zip(sender_output, receiver_output).enumerate() {
-            assert_eq!(mul(a, b), random_numbers[k]);
+            assert_eq!(a * b, random_numbers[k]);
         }
     }
 
@@ -62,16 +65,16 @@ mod tests {
     async fn test_actor_share_conversion_m2a() {
         // Create some random numbers
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
-        let random_numbers_1: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
-        let random_numbers_2: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
-        let random_numbers: Vec<u128> =
+        let random_numbers_1: Vec<Gf2_128> = get_random_gf2_128_vec(128, &mut rng);
+        let random_numbers_2: Vec<Gf2_128> = get_random_gf2_128_vec(128, &mut rng);
+        let random_numbers: Vec<Gf2_128> =
             std::iter::zip(random_numbers_1.iter(), random_numbers_2.iter())
-                .map(|(a, b)| mul(*a, *b))
+                .map(|(a, b)| *a * *b)
                 .collect();
 
         // Create conversion controls
         let (mut sender_control, mut receiver_control) =
-            create_conversion_controls::<MulShare>(None).await;
+            create_conversion_controls::<MulShare<Gf2_128>>(None).await;
 
         let sender_task =
             tokio::spawn(async move { sender_control.m_to_a(random_numbers_1).await.unwrap() });
@@ -83,7 +86,7 @@ mod tests {
 
         // Check result
         for (k, (a, b)) in std::iter::zip(sender_output, receiver_output).enumerate() {
-            assert_eq!(a ^ b, random_numbers[k]);
+            assert_eq!(a + b, random_numbers[k]);
         }
     }
 
@@ -91,28 +94,28 @@ mod tests {
     async fn test_actor_share_conversion_multiple_executions() {
         // Create some random numbers
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
-        let random_numbers_round_1_1: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
-        let random_numbers_round_1_2: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
-        let random_numbers_round_2_1: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
-        let random_numbers_round_2_2: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
+        let random_numbers_round_1_1: Vec<Gf2_128> = get_random_gf2_128_vec(128, &mut rng);
+        let random_numbers_round_1_2: Vec<Gf2_128> = get_random_gf2_128_vec(128, &mut rng);
+        let random_numbers_round_2_1: Vec<Gf2_128> = get_random_gf2_128_vec(128, &mut rng);
+        let random_numbers_round_2_2: Vec<Gf2_128> = get_random_gf2_128_vec(128, &mut rng);
 
-        let random_numbers_round_1: Vec<u128> = std::iter::zip(
+        let random_numbers_round_1: Vec<Gf2_128> = std::iter::zip(
             random_numbers_round_1_1.iter(),
             random_numbers_round_1_2.iter(),
         )
-        .map(|(a, b)| mul(*a, *b))
+        .map(|(a, b)| *a * *b)
         .collect();
 
-        let random_numbers_round_2: Vec<u128> = std::iter::zip(
+        let random_numbers_round_2: Vec<Gf2_128> = std::iter::zip(
             random_numbers_round_2_1.iter(),
             random_numbers_round_2_2.iter(),
         )
-        .map(|(a, b)| mul(*a, *b))
+        .map(|(a, b)| *a * *b)
         .collect();
 
         // Create conversion controls
         let (mut sender_control, mut receiver_control) =
-            create_conversion_controls::<MulShare>(None).await;
+            create_conversion_controls::<MulShare<Gf2_128>>(None).await;
         let (mut sender_control2, mut receiver_control2) =
             (sender_control.clone(), receiver_control.clone());
 
@@ -135,7 +138,7 @@ mod tests {
 
         // Check result
         for (k, (a, b)) in std::iter::zip(sender_output, receiver_output).enumerate() {
-            assert_eq!(a ^ b, random_numbers_round_1[k]);
+            assert_eq!(a + b, random_numbers_round_1[k]);
         }
 
         // Second round
@@ -157,7 +160,7 @@ mod tests {
 
         // Check result
         for (k, (a, b)) in std::iter::zip(sender_output, receiver_output).enumerate() {
-            assert_eq!(a ^ b, random_numbers_round_2[k]);
+            assert_eq!(a + b, random_numbers_round_2[k]);
         }
     }
 
@@ -165,12 +168,12 @@ mod tests {
     async fn test_actor_share_conversion_recorded() {
         // Create some random numbers
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
-        let random_numbers_1: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
-        let random_numbers_2: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
+        let random_numbers_1: Vec<Gf2_128> = get_random_gf2_128_vec(128, &mut rng);
+        let random_numbers_2: Vec<Gf2_128> = get_random_gf2_128_vec(128, &mut rng);
 
         // Create conversion controls
         let (mut sender_control, mut receiver_control) =
-            create_conversion_controls::<AddShare>(None).await;
+            create_conversion_controls::<AddShare<Gf2_128>>(None).await;
 
         let sender_task = tokio::spawn(async move {
             let _ = sender_control.a_to_m(random_numbers_1).await.unwrap();
@@ -193,8 +196,8 @@ mod tests {
     async fn test_actor_share_conversion_with_barrier() {
         // Create some random numbers
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
-        let random_numbers_1: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
-        let random_numbers_2: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
+        let random_numbers_1: Vec<Gf2_128> = get_random_gf2_128_vec(128, &mut rng);
+        let random_numbers_2: Vec<Gf2_128> = get_random_gf2_128_vec(128, &mut rng);
 
         // Create a barrier
         let barrier = AdaptiveBarrier::new();
@@ -203,7 +206,7 @@ mod tests {
 
         // Create conversion controls
         let (mut sender_control, mut receiver_control) =
-            create_conversion_controls::<AddShare>(Some(barrier)).await;
+            create_conversion_controls::<AddShare<Gf2_128>>(Some(barrier)).await;
 
         let _sender_task = tokio::spawn(async move {
             let _ = sender_control.a_to_m(random_numbers_1).await.unwrap();
@@ -227,7 +230,7 @@ mod tests {
         assert!(print_type_of(&result.err().unwrap()) == "tokio::time::error::Elapsed".to_string());
     }
 
-    async fn create_conversion_controls<T: Gf2_128ShareConvert + Send + 'static>(
+    async fn create_conversion_controls<T: ShareConvert<Inner = Gf2_128> + Send + 'static>(
         barrier: Option<AdaptiveBarrier>,
     ) -> (
         SenderControl<
@@ -236,7 +239,9 @@ mod tests {
                 MockOTSender<Block>,
                 T,
                 MockClientControl,
-                Tape,
+                Block,
+                Gf2_128,
+                Tape<Gf2_128>,
             >,
         >,
         ReceiverControl<
@@ -245,7 +250,9 @@ mod tests {
                 MockOTReceiver<Block>,
                 T,
                 MockServerControl,
-                Tape,
+                Block,
+                Gf2_128,
+                Tape<Gf2_128>,
             >,
         >,
     ) {
@@ -262,13 +269,13 @@ mod tests {
         let sender_mux = MockClientControl::new(sender_mux_addr);
 
         let ot_factory = MockOTFactory::new();
-        let sender = ActorShareConversionSender::<_, _, T, _, Tape>::new(
+        let sender = ActorShareConversionSender::<_, _, T, _, _, Gf2_128, _>::new(
             String::from(""),
             barrier,
             sender_mux,
             ot_factory.clone(),
         );
-        let receiver = ActorShareConversionReceiver::<_, _, T, _, Tape>::new(
+        let receiver = ActorShareConversionReceiver::<_, _, T, _, _, Gf2_128, _>::new(
             String::from(""),
             receiver_mux,
             ot_factory,
@@ -286,7 +293,7 @@ mod tests {
         (sender_control, receiver_control)
     }
 
-    fn get_random_gf2_128_vec(len: usize, rng: &mut ChaCha12Rng) -> Vec<u128> {
-        (0..len).map(|_| rng.gen::<u128>()).collect()
+    fn get_random_gf2_128_vec(len: usize, rng: &mut ChaCha12Rng) -> Vec<Gf2_128> {
+        (0..len).map(|_| Gf2_128::rand(rng)).collect()
     }
 }
