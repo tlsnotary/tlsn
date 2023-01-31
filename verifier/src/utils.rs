@@ -62,18 +62,6 @@ pub(crate) fn blake3(data: &[u8]) -> [u8; 32] {
     hasher.finalize().into()
 }
 
-/// Returns a substring of the original `bytestring` containing only the bytes in `ranges`.
-/// This method is only called with validated `ranges` which do not exceed the size of the
-/// `bytestring`.
-#[cfg(test)]
-pub(crate) fn bytes_in_ranges(bytestring: &[u8], ranges: &[Range]) -> Vec<u8> {
-    let mut substring: Vec<u8> = Vec::new();
-    for r in ranges {
-        substring.append(&mut bytestring[r.start()..r.end()].to_vec())
-    }
-    substring
-}
-
 #[cfg(test)]
 mod test {
     use super::*;

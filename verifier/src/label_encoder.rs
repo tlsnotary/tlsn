@@ -6,7 +6,8 @@ use rand_chacha::ChaCha20Rng;
 use std::ops::BitXor;
 
 const DELTA_STREAM_ID: u64 = u64::MAX;
-const PLAINTEXT_STREAM_ID: u64 = 1;
+/// PLAINTEXT_STREAM_ID must match the id of the plaintext input in tls/tls-circuits/src/c6.rs
+const PLAINTEXT_STREAM_ID: u64 = 4;
 
 #[derive(Clone, Copy)]
 pub struct Block(u128);
