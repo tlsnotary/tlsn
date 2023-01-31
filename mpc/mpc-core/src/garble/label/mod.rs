@@ -273,6 +273,75 @@ impl Labels<Full> {
     }
 }
 
+impl BitXor<Labels<Full>> for Labels<Full> {
+    type Output = Labels<Full>;
+
+    fn bitxor(self, rhs: Labels<Full>) -> Self::Output {
+        debug_assert_eq!(self.labels.len(), rhs.labels.len());
+        debug_assert_eq!(self.state.delta, rhs.state.delta);
+
+        let labels = self
+            .labels
+            .iter()
+            .zip(rhs.labels.iter())
+            .map(|(l, r)| l ^ r)
+            .collect::<Vec<_>>();
+
+        Self {
+            state: Full {
+                delta: self.state.delta,
+            },
+            labels: Arc::new(labels),
+        }
+    }
+}
+
+impl BitXor<&Labels<Full>> for Labels<Full> {
+    type Output = Labels<Full>;
+
+    fn bitxor(self, rhs: &Labels<Full>) -> Self::Output {
+        debug_assert_eq!(self.labels.len(), rhs.labels.len());
+        debug_assert_eq!(self.state.delta, rhs.state.delta);
+
+        let labels = self
+            .labels
+            .iter()
+            .zip(rhs.labels.iter())
+            .map(|(l, r)| l ^ r)
+            .collect::<Vec<_>>();
+
+        Self {
+            state: Full {
+                delta: self.state.delta,
+            },
+            labels: Arc::new(labels),
+        }
+    }
+}
+
+impl BitXor<&Labels<Full>> for &Labels<Full> {
+    type Output = Labels<Full>;
+
+    fn bitxor(self, rhs: &Labels<Full>) -> Self::Output {
+        debug_assert_eq!(self.labels.len(), rhs.labels.len());
+        debug_assert_eq!(self.state.delta, rhs.state.delta);
+
+        let labels = self
+            .labels
+            .iter()
+            .zip(rhs.labels.iter())
+            .map(|(l, r)| l ^ r)
+            .collect::<Vec<_>>();
+
+        Labels {
+            state: Full {
+                delta: self.state.delta,
+            },
+            labels: Arc::new(labels),
+        }
+    }
+}
+
 impl Labels<Active> {
     /// Creates new active labels from the provided labels
     ///
@@ -339,6 +408,66 @@ impl Labels<Active> {
     }
 }
 
+impl BitXor<Labels<Active>> for Labels<Active> {
+    type Output = Labels<Active>;
+
+    fn bitxor(self, rhs: Labels<Active>) -> Self::Output {
+        debug_assert_eq!(self.labels.len(), rhs.labels.len());
+
+        let labels = self
+            .labels
+            .iter()
+            .zip(rhs.labels.iter())
+            .map(|(l, r)| l ^ r)
+            .collect::<Vec<_>>();
+
+        Labels {
+            state: Active,
+            labels: Arc::new(labels),
+        }
+    }
+}
+
+impl BitXor<&Labels<Active>> for Labels<Active> {
+    type Output = Labels<Active>;
+
+    fn bitxor(self, rhs: &Labels<Active>) -> Self::Output {
+        debug_assert_eq!(self.labels.len(), rhs.labels.len());
+
+        let labels = self
+            .labels
+            .iter()
+            .zip(rhs.labels.iter())
+            .map(|(l, r)| l ^ r)
+            .collect::<Vec<_>>();
+
+        Labels {
+            state: Active,
+            labels: Arc::new(labels),
+        }
+    }
+}
+
+impl BitXor<&Labels<Active>> for &Labels<Active> {
+    type Output = Labels<Active>;
+
+    fn bitxor(self, rhs: &Labels<Active>) -> Self::Output {
+        debug_assert_eq!(self.labels.len(), rhs.labels.len());
+
+        let labels = self
+            .labels
+            .iter()
+            .zip(rhs.labels.iter())
+            .map(|(l, r)| l ^ r)
+            .collect::<Vec<_>>();
+
+        Labels {
+            state: Active,
+            labels: Arc::new(labels),
+        }
+    }
+}
+
 impl IntoIterator for Labels<Active> {
     type Item = Label;
     type IntoIter = std::vec::IntoIter<Self::Item>;
@@ -357,7 +486,25 @@ impl BitXor<Label> for Label {
 
     #[inline]
     fn bitxor(self, rhs: Label) -> Self::Output {
-        Self(self.0 ^ rhs.0)
+        Label(self.0 ^ rhs.0)
+    }
+}
+
+impl BitXor<&Label> for Label {
+    type Output = Label;
+
+    #[inline]
+    fn bitxor(self, rhs: &Label) -> Self::Output {
+        Label(self.0 ^ rhs.0)
+    }
+}
+
+impl BitXor<&Label> for &Label {
+    type Output = Label;
+
+    #[inline]
+    fn bitxor(self, rhs: &Label) -> Self::Output {
+        Label(self.0 ^ rhs.0)
     }
 }
 
@@ -488,5 +635,29 @@ impl LabelPair {
             .zip(values.iter())
             .map(|(id, value)| labels[*id].select(*value))
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use rand::SeedableRng;
+    use rand_chacha::ChaCha12Rng;
+
+    #[test]
+    fn test_free_xor_label() {
+        let mut rng = ChaCha12Rng::seed_from_u64(0);
+        let delta = Delta::random(&mut rng);
+        let a = Labels::<Full>::generate(&mut rng, 8, Some(delta));
+        let b = Labels::<Full>::generate(&mut rng, 8, Some(delta));
+        let c = &a ^ &b;
+
+        let a_active = a.select(&1u8.into()).unwrap();
+        let b_active = b.select(&2u8.into()).unwrap();
+
+        let c_active = a_active ^ b_active;
+
+        assert_eq!(c_active, c.select(&3u8.into()).unwrap());
     }
 }
