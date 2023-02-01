@@ -293,7 +293,7 @@ mod test {
         let (corrupted, _) = last.overflowing_add(1);
         sig.push(corrupted);
 
-        let sig = ServerSignature::new(KEParamsSigAlg::RSA_PKCS1_2048_8192_SHA256, sig.to_vec());
+        let sig = ServerSignature::new(KEParamsSigAlg::ECDSA_P256_SHA256, sig.to_vec());
 
         let pubkey = EphemeralECPubkey::new(EphemeralECPubkeyType::P256, pubkey.to_vec());
 
