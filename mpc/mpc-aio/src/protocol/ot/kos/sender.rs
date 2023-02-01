@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use cipher::consts::U16;
 use futures::{SinkExt, StreamExt};
 use mpc_core::{
-    msgs::ot::{ExtEncryptedData, OTMessage},
+    msgs::ot::{ExtSenderEncryptedPayload, OTMessage},
     ot::{
         extension::{s_state, Kos15Sender},
         s_state::SenderState,
@@ -16,7 +16,7 @@ use mpc_core::{
     Block,
 };
 use rand::SeedableRng;
-use rand_chacha::ChaCha12Rng;
+use rand_chacha::ChaCha20Rng;
 use utils_aio::{adaptive_barrier::AdaptiveBarrier, expect_msg_or_err};
 
 pub struct Kos15IOSender<T: SenderState> {
@@ -127,12 +127,15 @@ impl ObliviousSend<[Block; 2]> for Kos15IOSender<s_state::RandSetup> {
     }
 }
 
+// The idea is to send AES encryption keys in the OT, which can then later be used by the receiver
+// to decrypt arbitrary long messages, which are sent shortly after the OT. This way we extend our
+// OT from 128-bit maximum message length to an unlimited message length
 #[async_trait]
 impl ObliviousSend<[Vec<Block>; 2]> for Kos15IOSender<s_state::RandSetup> {
     async fn send(&mut self, inputs: Vec<[Vec<Block>; 2]>) -> Result<(), OTError> {
-        let mut rng = ChaCha12Rng::from_entropy();
+        let mut rng = ChaCha20Rng::from_entropy();
 
-        // Prepare vector for keys and convert inputs
+        // Prepare keys and convert inputs
         let mut keys: Vec<[Block; 2]> = Vec::with_capacity(inputs.len());
         let mut inputs: Vec<[Vec<GenericArray<u8, U16>>; 2]> = inputs
             .iter()
@@ -150,7 +153,7 @@ impl ObliviousSend<[Vec<Block>; 2]> for Kos15IOSender<s_state::RandSetup> {
             })
             .collect();
 
-        // Encrypt and collect keys
+        // Encrypt inputs and collect keys
         for k in 0..inputs.len() {
             let (key1, key2) = (Block::random(&mut rng), Block::random(&mut rng));
             let (cipher1, cipher2) = (
@@ -165,7 +168,7 @@ impl ObliviousSend<[Vec<Block>; 2]> for Kos15IOSender<s_state::RandSetup> {
         // Send keys in OT
         ObliviousSend::<[Block; 2]>::send(self, keys).await?;
 
-        // Convert back to blocks
+        // Convert input back to blocks
         let ciphertexts: Vec<[Vec<Block>; 2]> = inputs
             .iter()
             .map(|blocks| {
@@ -196,9 +199,9 @@ impl ObliviousSend<[Vec<Block>; 2]> for Kos15IOSender<s_state::RandSetup> {
 
         // Send ciphertexts now
         self.channel
-            .send(OTMessage::ExtEncryptedData(ExtEncryptedData {
-                ciphertexts,
-            }))
+            .send(OTMessage::ExtSenderEncryptedPayload(
+                ExtSenderEncryptedPayload { ciphertexts },
+            ))
             .await?;
 
         Ok(())

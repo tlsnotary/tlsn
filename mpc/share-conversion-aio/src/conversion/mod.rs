@@ -1,6 +1,3 @@
-//! This module implements the IO layer of share-conversion for field elements of
-//! GF(2^128), using oblivious transfer.
-
 #[cfg(feature = "mock")]
 pub mod mock;
 mod msgs;
@@ -28,22 +25,62 @@ mod tests {
     };
 
     #[tokio::test]
-    async fn test_share_conversion_aio_gf2_128() {
+    async fn test_share_conversion_aio_gf2_128_a2m() {
         test_aio_a2m::<Gf2_128, Block>().await;
+    }
+
+    #[tokio::test]
+    async fn test_share_conversion_aio_gf2_128_m2a() {
         test_aio_m2a::<Gf2_128, Block>().await;
+    }
+
+    #[tokio::test]
+    async fn test_share_conversion_aio_gf2_128_a2m_recorded() {
         test_aio_a2m_recorded::<Gf2_128, Block>().await;
+    }
+
+    #[tokio::test]
+    async fn test_share_conversion_aio_gf2_128_m2a_recorded() {
         test_aio_m2a_recorded::<Gf2_128, Block>().await;
+    }
+
+    #[tokio::test]
+    async fn test_share_conversion_aio_gf2_128_a2m_recorded_fail() {
         test_aio_a2m_recorded_fail::<Gf2_128, Block>().await;
+    }
+
+    #[tokio::test]
+    async fn test_share_conversion_aio_gf2_128_m2a_recorded_fail() {
         test_aio_m2a_recorded_fail::<Gf2_128, Block>().await;
     }
 
     #[tokio::test]
-    async fn test_share_conversion_aio_p256() {
+    async fn test_share_conversion_aio_p256_a2m() {
         test_aio_a2m::<P256, Vec<Block>>().await;
+    }
+
+    #[tokio::test]
+    async fn test_share_conversion_aio_p256_m2a() {
         test_aio_m2a::<P256, Vec<Block>>().await;
+    }
+
+    #[tokio::test]
+    async fn test_share_conversion_aio_p256_a2m_recorded() {
         test_aio_a2m_recorded::<P256, Vec<Block>>().await;
+    }
+
+    #[tokio::test]
+    async fn test_share_conversion_aio_p256_m2a_recorded() {
         test_aio_m2a_recorded::<P256, Vec<Block>>().await;
+    }
+
+    #[tokio::test]
+    async fn test_share_conversion_aio_p256_a2m_recorded_fail() {
         test_aio_a2m_recorded_fail::<P256, Vec<Block>>().await;
+    }
+
+    #[tokio::test]
+    async fn test_share_conversion_aio_p256_m2a_recorded_fail() {
         test_aio_m2a_recorded_fail::<P256, Vec<Block>>().await;
     }
 
@@ -52,8 +89,8 @@ mod tests {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
-        let random_numbers_1: Vec<T> = get_random_field_vec(4, &mut rng);
-        let random_numbers_2: Vec<T> = get_random_field_vec(4, &mut rng);
+        let random_numbers_1: Vec<T> = get_random_field_vec(16, &mut rng);
+        let random_numbers_2: Vec<T> = get_random_field_vec(16, &mut rng);
         let random_numbers: Vec<T> =
             std::iter::zip(random_numbers_1.iter(), random_numbers_2.iter())
                 .map(|(a, b)| *a + *b)
@@ -79,8 +116,8 @@ mod tests {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
-        let random_numbers_1: Vec<T> = get_random_field_vec(4, &mut rng);
-        let random_numbers_2: Vec<T> = get_random_field_vec(4, &mut rng);
+        let random_numbers_1: Vec<T> = get_random_field_vec(16, &mut rng);
+        let random_numbers_2: Vec<T> = get_random_field_vec(16, &mut rng);
         let random_numbers: Vec<T> =
             std::iter::zip(random_numbers_1.iter(), random_numbers_2.iter())
                 .map(|(a, b)| *a * *b)
@@ -106,8 +143,8 @@ mod tests {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
-        let random_numbers_1: Vec<T> = get_random_field_vec(4, &mut rng);
-        let random_numbers_2: Vec<T> = get_random_field_vec(4, &mut rng);
+        let random_numbers_1: Vec<T> = get_random_field_vec(16, &mut rng);
+        let random_numbers_2: Vec<T> = get_random_field_vec(16, &mut rng);
 
         // Spawn tokio tasks and wait for them to finish
         let sender_task = tokio::spawn(async move {
@@ -131,8 +168,8 @@ mod tests {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
-        let random_numbers_1: Vec<T> = get_random_field_vec(4, &mut rng);
-        let random_numbers_2: Vec<T> = get_random_field_vec(4, &mut rng);
+        let random_numbers_1: Vec<T> = get_random_field_vec(16, &mut rng);
+        let random_numbers_2: Vec<T> = get_random_field_vec(16, &mut rng);
 
         // Spawn tokio tasks and wait for them to finish
         let sender_task = tokio::spawn(async move {
@@ -156,8 +193,8 @@ mod tests {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
-        let random_numbers_1: Vec<T> = get_random_field_vec(4, &mut rng);
-        let random_numbers_2: Vec<T> = get_random_field_vec(4, &mut rng);
+        let random_numbers_1: Vec<T> = get_random_field_vec(16, &mut rng);
+        let random_numbers_2: Vec<T> = get_random_field_vec(16, &mut rng);
 
         // Spawn tokio tasks and wait for them to finish
         let sender_task = tokio::spawn(async move {
@@ -187,8 +224,8 @@ mod tests {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
-        let random_numbers_1: Vec<T> = get_random_field_vec(4, &mut rng);
-        let random_numbers_2: Vec<T> = get_random_field_vec(4, &mut rng);
+        let random_numbers_1: Vec<T> = get_random_field_vec(16, &mut rng);
+        let random_numbers_2: Vec<T> = get_random_field_vec(16, &mut rng);
         // Spawn tokio tasks and wait for them to finish
         let sender_task = tokio::spawn(async move {
             let _ = sender.m_to_a(random_numbers_1).await.unwrap();

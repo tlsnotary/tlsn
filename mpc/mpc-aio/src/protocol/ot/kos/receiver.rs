@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use cipher::consts::U16;
 use futures::{SinkExt, StreamExt};
 use mpc_core::{
-    msgs::ot::{ExtEncryptedData, OTMessage},
+    msgs::ot::{ExtSenderEncryptedPayload, OTMessage},
     ot::{
         extension::{r_state, Kos15Receiver},
         r_state::ReceiverState,
@@ -115,21 +115,24 @@ impl ObliviousReceive<bool, Block> for Kos15IOReceiver<r_state::RandSetup> {
     }
 }
 
+// The idea is to send AES encryption keys in the OT, which can then later be used by the receiver
+// to decrypt arbitrary long messages, which are sent shortly after the OT. This way we extend our
+// OT from 128-bit maximum message length to an unlimited message length
 #[async_trait]
 impl ObliviousReceive<bool, Vec<Block>> for Kos15IOReceiver<r_state::RandSetup> {
     async fn receive(&mut self, choices: Vec<bool>) -> Result<Vec<Vec<Block>>, OTError> {
-        // Get keys from OT
+        // Receive AES encryption keys from OT
         let keys = ObliviousReceive::<bool, Block>::receive(self, choices.clone()).await?;
 
-        // Get ciphertexts
-        let ExtEncryptedData { mut ciphertexts } = expect_msg_or_err!(
+        // Receive ciphertexts
+        let ExtSenderEncryptedPayload { mut ciphertexts } = expect_msg_or_err!(
             self.channel.next().await,
-            OTMessage::ExtEncryptedData,
+            OTMessage::ExtSenderEncryptedPayload,
             OTError::Unexpected
         )?;
 
-        //Decrypt ciphertexts with keys
-        let mut out: Vec<Vec<Block>> = Vec::with_capacity(choices.len());
+        // Decrypt ciphertexts with keys
+        let mut plaintext: Vec<Vec<Block>> = Vec::with_capacity(choices.len());
         for k in 0..choices.len() {
             let mut blocks: Vec<GenericArray<u8, U16>> = ciphertexts[k][choices[k] as usize]
                 .iter_mut()
@@ -139,7 +142,7 @@ impl ObliviousReceive<bool, Vec<Block>> for Kos15IOReceiver<r_state::RandSetup> 
             let cipher = Aes128::new(&keys[k].inner().to_be_bytes().into());
             cipher.decrypt_blocks(&mut blocks);
 
-            out.push(
+            plaintext.push(
                 blocks
                     .iter()
                     .map(|gen_arr| {
@@ -152,7 +155,7 @@ impl ObliviousReceive<bool, Vec<Block>> for Kos15IOReceiver<r_state::RandSetup> 
                     .collect(),
             )
         }
-        Ok(out)
+        Ok(plaintext)
     }
 }
 

@@ -7,6 +7,7 @@ use std::{
     ops::{Add, Mul, Neg},
 };
 
+// A trait for finite fields
 pub trait Field:
     Add<Output = Self>
     + Mul<Output = Self>
@@ -28,15 +29,31 @@ pub trait Field:
     const BIT_SIZE: u32;
     type OTEncoding;
 
+    // Return the additive neutral element
     fn zero() -> Self;
+
+    // Return the multiplicative neutral element
     fn one() -> Self;
+
+    // Return 2^rhs
     fn two_pow(rhs: u32) -> Self;
+
+    // Return the n-th bit big-endian
     fn get_bit_be(&self, n: u32) -> bool;
+
+    // Return the multiplicative inverse
     fn inverse(self) -> Self;
+
+    // Create a field element from bits in big-endian
     fn from_bits_be(bits: &[bool]) -> Self;
 }
 
+// A trait for sampling random elements of the field
+//
+// This is helpful, because we do not need to import other traits since this is a supertrait of
+// field (which is not possible with `Standard` and `Distribution`)
 pub trait UniformRand: Sized {
+    // Return a random field element
     fn rand<R: Rng + ?Sized>(rng: &mut R) -> Self;
 }
 

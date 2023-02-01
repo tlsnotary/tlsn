@@ -35,14 +35,15 @@ impl<T: Field> AddShare<T> {
             .take(T::BIT_SIZE as usize - 1)
             .fold(T::zero(), |acc, i| acc + *i);
 
+        // the inverse of the random share will be the multiplicative share for the sender
         let mul_share = MulShare::new(random.inverse());
 
         // decompose the share into a sum of components, e.g. if the share is 10110, we decompose it into
         // 0 + 10 + 100 + 0000 + 10000
         let components: Vec<T> = (0..T::BIT_SIZE)
             .map(|k| {
-                // `self.inner() & (1 << i)` first extracts a bit of `self.inner()` in position `i` (counting from
-                // the right) and then left-shifts that bit by `i`
+                // we extract a bit of `self.inner()` in position `i` (counting from the left) and
+                // then left-shift that bit by `i`;
                 let mut bits = vec![false; T::BIT_SIZE as usize];
                 bits[k as usize] = self.inner().get_bit_be(k);
                 T::from_bits_be(&bits)

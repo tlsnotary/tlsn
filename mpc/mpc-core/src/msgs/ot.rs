@@ -25,7 +25,7 @@ pub enum OTMessage {
     ExtSenderPayload(ExtSenderPayload),
     ExtSenderCommit(ExtSenderCommit),
     ExtSenderReveal(ExtSenderReveal),
-    ExtEncryptedData(ExtEncryptedData),
+    ExtSenderEncryptedPayload(ExtSenderEncryptedPayload),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -115,11 +115,11 @@ pub struct ExtSenderReveal {
 
 /// We use this message, when we want to send data which is longer than 128 bits
 ///
-/// In this case we send an AES-128 bits key in the regular OT message and afterwards
-/// we just send a byte stream which has been encrypted by the key
+/// This is an encrypted payload which can be decrypted by the receiver with keys
+/// he receives during the OT
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct ExtEncryptedData {
+pub struct ExtSenderEncryptedPayload {
     pub ciphertexts: Vec<[Vec<Block>; 2]>,
 }
 
