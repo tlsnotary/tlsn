@@ -39,10 +39,10 @@ impl SignedHandshake {
 }
 
 /// All the data which the Notary signs
+/// (see comments to fields with the same name in [crate::doc::VerifiedDoc] for details)
 #[derive(Clone, Serialize)]
 pub struct Signed {
     tls: SignedHandshake,
-    // see comments in [crate::doc::VerifiedDoc] for details about the fields below
     /// PRG seed from which garbled circuit labels are generated
     label_seed: LabelSeed,
     /// Merkle root of all the commitments

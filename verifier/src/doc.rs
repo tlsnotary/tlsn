@@ -119,7 +119,7 @@ impl UncheckedDoc {
     }
 }
 
-// Notarization document in its validated form (not yet verified)
+/// Notarization document in its validated form (not yet verified)
 pub(crate) struct ValidatedDoc {
     /// All fields are exactly as in [VerifiedDoc]
     version: u8,
