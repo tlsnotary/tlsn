@@ -183,13 +183,9 @@ mod tests {
         assert_eq!(
             output.into_inner(),
             ghash_reference_impl(
-                h.into_inner().reverse_bits(),
-                message
-                    .iter()
-                    .map(|x| x.into_inner().reverse_bits())
-                    .collect()
+                h.into_inner(),
+                message.iter().map(|x| x.into_inner()).collect()
             )
-            .reverse_bits()
         );
     }
 
@@ -220,13 +216,9 @@ mod tests {
         assert_eq!(
             output.into_inner(),
             ghash_reference_impl(
-                h.into_inner().reverse_bits(),
-                message_short
-                    .iter()
-                    .map(|x| x.into_inner().reverse_bits())
-                    .collect()
+                h.into_inner(),
+                message_short.iter().map(|x| x.into_inner()).collect()
             )
-            .reverse_bits()
         );
     }
 
@@ -256,13 +248,9 @@ mod tests {
         assert_eq!(
             output.into_inner(),
             ghash_reference_impl(
-                h.into_inner().reverse_bits(),
-                message_long
-                    .iter()
-                    .map(|x| x.into_inner().reverse_bits())
-                    .collect()
+                h.into_inner(),
+                message_long.iter().map(|x| x.into_inner()).collect()
             )
-            .reverse_bits()
         );
     }
 
@@ -343,12 +331,12 @@ mod tests {
     }
 
     fn ghash_reference_impl(h: u128, message: Vec<u128>) -> u128 {
-        let mut ghash = GHash::new(&h.to_be_bytes().into());
+        let mut ghash = GHash::new(&h.reverse_bits().to_be_bytes().into());
         for el in message {
-            ghash.update(&el.to_be_bytes().into());
+            ghash.update(&el.reverse_bits().to_be_bytes().into());
         }
         let ghash_output = ghash.finalize();
-        u128::from_be_bytes(ghash_output.into_bytes().try_into().unwrap())
+        u128::from_be_bytes(ghash_output.into_bytes().try_into().unwrap()).reverse_bits()
     }
 
     fn setup_ghash_to_intermediate_state(

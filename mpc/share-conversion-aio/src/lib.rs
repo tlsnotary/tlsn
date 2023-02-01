@@ -7,13 +7,13 @@ use thiserror::Error;
 
 pub mod conversion;
 
-/// Allows to convert additive shares of type `FieldElement` into multiplicative ones
+/// Allows to convert additive shares into multiplicative ones
 #[async_trait]
 pub trait AdditiveToMultiplicative<T: Field> {
     async fn a_to_m(&mut self, input: Vec<T>) -> Result<Vec<T>, ShareConversionError>;
 }
 
-/// Allows to convert multiplicative shares of type `FieldElement` into additive ones
+/// Allows to convert multiplicative shares  into additive ones
 #[async_trait]
 pub trait MultiplicativeToAdditive<T: Field> {
     async fn m_to_a(&mut self, input: Vec<T>) -> Result<Vec<T>, ShareConversionError>;

@@ -33,8 +33,6 @@ ghash_rc = { package = "ghash", version = "0.4" }
 ark-ff = "0.4"
 ark-secp256r1 = "0.4"
 num-bigint = "0.4"
-zeroize = "1"
-ark-serialize = "0.4"
 
 # async
 async-trait = "0.1"

@@ -24,7 +24,7 @@ mod tests {
         VerifyTape,
     };
     use share_conversion_core::{
-        fields::{gf2_128::Gf2_128, Field, UniformRand},
+        fields::{gf2_128::Gf2_128, UniformRand},
         AddShare, MulShare, ShareConvert,
     };
     use utils_aio::adaptive_barrier::AdaptiveBarrier;

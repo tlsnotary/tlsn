@@ -16,11 +16,6 @@ impl Gf2_128 {
     pub fn into_inner(self) -> u128 {
         self.0
     }
-
-    #[cfg(test)]
-    fn reverse_bits(self) -> Self {
-        Self(self.0.reverse_bits())
-    }
 }
 
 impl From<Gf2_128> for Block {
@@ -184,12 +179,12 @@ mod tests {
         let a: Gf2_128 = Gf2_128::rand(&mut rng);
         let b: Gf2_128 = Gf2_128::rand(&mut rng);
 
-        let mut g = GHash::new(&a.0.to_be_bytes().into());
-        g.update(&b.0.to_be_bytes().into());
+        let mut g = GHash::new(&a.0.reverse_bits().to_be_bytes().into());
+        g.update(&b.0.reverse_bits().to_be_bytes().into());
 
         // Ghash will internally multiply a and b
-        let expected = u128::from_be_bytes(g.finalize().into_bytes().into());
-        let output = (a.reverse_bits() * b.reverse_bits()).0.reverse_bits();
+        let expected = u128::from_be_bytes(g.finalize().into_bytes().into()).reverse_bits();
+        let output = (a * b).0;
         assert_eq!(expected, output);
     }
 
