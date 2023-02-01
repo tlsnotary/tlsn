@@ -1,22 +1,16 @@
 [package]
-name = "tlsn-key-exchange"
+name = "tlsn-point-addition"
 version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "key_exchange"
-
-[features]
-default = []
-serde = ["dep:serde"]
+name = "point_addition"
 
 [dependencies]
 tlsn-mpc-core = { path = "../mpc/mpc-core" }
-tlsn-tls-core = { path = "../tls/tls-core" }
 tlsn-utils-aio = { path = "../utils/utils-aio" }
-tlsn-point-addition = { path = "../point-addition" }
 
-p256 = { version = "0.12" }
+p256 = { version = "0.12", features = ["arithmetic"] }
 
 async-trait = "0.1"
 futures = "0.3"

@@ -1,15 +1,17 @@
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
-use p256::{elliptic_curve::PrimeField, ProjectivePoint, Scalar, SecretKey};
+use p256::{ProjectivePoint, SecretKey};
+use point_addition::XCoordinateLabels;
 use utils_aio::expect_msg_or_err;
 
 use crate::{
-    KeyExchange, KeyExchangeChannel, KeyExchangeError, KeyExchangeMessage, PointAddition, PublicKey,
+    KeyExchange, KeyExchangeChannel, KeyExchangeError, KeyExchangeMessage, PmsShareLabels,
+    PointAddition, PublicKey,
 };
 
 pub struct KeyExchangeLeader<P>
 where
-    P: PointAddition<Point = ProjectivePoint, XCoordinate = Scalar>,
+    P: PointAddition<Point = ProjectivePoint, XCoordinate = XCoordinateLabels>,
 {
     channel: KeyExchangeChannel,
 
@@ -22,7 +24,7 @@ where
 
 impl<P> KeyExchangeLeader<P>
 where
-    P: PointAddition<Point = ProjectivePoint, XCoordinate = Scalar>,
+    P: PointAddition<Point = ProjectivePoint, XCoordinate = XCoordinateLabels>,
 {
     /// Creates new KeyExchangeLeader.
     pub fn new(channel: KeyExchangeChannel, point_addition: P) -> Self {
@@ -41,7 +43,7 @@ where
 #[async_trait]
 impl<P> KeyExchange for KeyExchangeLeader<P>
 where
-    P: PointAddition<Point = ProjectivePoint, XCoordinate = Scalar> + Send,
+    P: PointAddition<Point = ProjectivePoint, XCoordinate = XCoordinateLabels> + Send,
 {
     async fn get_client_key_share(&mut self) -> Result<PublicKey, KeyExchangeError> {
         let msg = expect_msg_or_err!(
@@ -69,7 +71,7 @@ where
         Ok(())
     }
 
-    async fn get_pms_share(&mut self) -> Result<Vec<u8>, KeyExchangeError> {
+    async fn compute_pms_share(&mut self) -> Result<PmsShareLabels, KeyExchangeError> {
         let server_key = self
             .server_key_share
             .clone()
@@ -79,8 +81,11 @@ where
 
         let leader_point = &server_key.to_projective() * &self.leader_secret.to_nonzero_scalar();
 
-        let pms_share = self.point_addition.share_x_coordinate(leader_point).await?;
+        let pms_share = self
+            .point_addition
+            .compute_x_coordinate_share(leader_point)
+            .await?;
 
-        Ok(pms_share.to_repr().to_vec())
+        Ok(pms_share.into())
     }
 }

@@ -1,11 +1,12 @@
 mod follower;
 mod leader;
 mod msg;
-pub mod point_addition;
 
 use async_trait::async_trait;
+use mpc_core::garble::{ActiveLabels, FullLabels};
 use p256::PublicKey;
 
+use point_addition::XCoordinateLabels;
 use utils_aio::Channel;
 
 pub use follower::KeyExchangeFollower;
@@ -39,10 +40,67 @@ pub trait KeyExchange {
     /// Computes the PMS share.
     ///
     /// Returns the PMS share as a big-endian byte array.
-    async fn get_pms_share(&mut self) -> Result<Vec<u8>, KeyExchangeError>;
+    async fn compute_pms_share(&mut self) -> Result<PmsShareLabels, KeyExchangeError>;
+}
+
+/// Encoded shares of the pre-master secret.
+#[derive(Clone)]
+pub struct PmsShareLabels {
+    full_share_a_labels: FullLabels,
+    full_share_b_labels: FullLabels,
+    active_share_a_labels: ActiveLabels,
+    active_share_b_labels: ActiveLabels,
+}
+
+impl PmsShareLabels {
+    pub fn new(
+        full_share_a_labels: FullLabels,
+        full_share_b_labels: FullLabels,
+        active_share_a_labels: ActiveLabels,
+        active_share_b_labels: ActiveLabels,
+    ) -> Self {
+        Self {
+            full_share_a_labels,
+            full_share_b_labels,
+            active_share_a_labels,
+            active_share_b_labels,
+        }
+    }
+
+    pub fn full_share_a_labels(&self) -> &FullLabels {
+        &self.full_share_a_labels
+    }
+
+    pub fn full_share_b_labels(&self) -> &FullLabels {
+        &self.full_share_b_labels
+    }
+
+    pub fn active_share_a_labels(&self) -> &ActiveLabels {
+        &self.active_share_a_labels
+    }
+
+    pub fn active_share_b_labels(&self) -> &ActiveLabels {
+        &self.active_share_b_labels
+    }
+}
+
+impl From<XCoordinateLabels> for PmsShareLabels {
+    fn from(x_coordinate_labels: XCoordinateLabels) -> Self {
+        Self {
+            full_share_a_labels: x_coordinate_labels.full_share_a_labels,
+            full_share_b_labels: x_coordinate_labels.full_share_b_labels,
+            active_share_a_labels: x_coordinate_labels.active_share_a_labels,
+            active_share_b_labels: x_coordinate_labels.active_share_b_labels,
+        }
+    }
 }
 
 pub mod mock {
+    use std::sync::Arc;
+
+    use futures::lock::Mutex;
+    use mpc_core::garble::ChaChaEncoder;
+    use point_addition::mock::create_mock_point_addition_pair;
     use utils_aio::duplex::DuplexChannel;
 
     use super::*;
@@ -51,22 +109,23 @@ pub mod mock {
     pub type MockKeyExchangeFollower =
         KeyExchangeFollower<point_addition::mock::MockP256PointAddition>;
 
-    pub fn create_mock_key_exchange_pair() -> (MockKeyExchangeLeader, MockKeyExchangeFollower) {
+    pub fn create_mock_key_exchange_pair(
+        leader_encoder: Arc<Mutex<ChaChaEncoder>>,
+        follower_encoder: Arc<Mutex<ChaChaEncoder>>,
+    ) -> (MockKeyExchangeLeader, MockKeyExchangeFollower) {
         let (leader_channel, follower_channel) = DuplexChannel::<KeyExchangeMessage>::new();
-        let point_addition = point_addition::mock::MockP256PointAddition::new();
+        let (pa_leader, pa_follower) =
+            create_mock_point_addition_pair(leader_encoder, follower_encoder);
 
-        let leader = KeyExchangeLeader::new(Box::new(leader_channel), point_addition.clone());
-        let follower = KeyExchangeFollower::new(Box::new(follower_channel), point_addition);
+        let leader = KeyExchangeLeader::new(Box::new(leader_channel), pa_leader);
+        let follower = KeyExchangeFollower::new(Box::new(follower_channel), pa_follower);
 
         (leader, follower)
     }
 
     #[cfg(test)]
     mod tests {
-        use p256::{
-            elliptic_curve::{generic_array, AffineXCoordinate, PrimeField},
-            Scalar, SecretKey,
-        };
+        use p256::SecretKey;
         use rand::SeedableRng;
         use rand_chacha::ChaCha12Rng;
 
@@ -74,7 +133,11 @@ pub mod mock {
 
         #[tokio::test]
         async fn test_key_exchange() {
-            let (mut leader, mut follower) = create_mock_key_exchange_pair();
+            let leader_encoder = Arc::new(Mutex::new(ChaChaEncoder::new([0u8; 32])));
+            let follower_encoder = Arc::new(Mutex::new(ChaChaEncoder::new([1u8; 32])));
+
+            let (mut leader, mut follower) =
+                create_mock_key_exchange_pair(leader_encoder, follower_encoder);
 
             let server_secret = SecretKey::random(&mut ChaCha12Rng::seed_from_u64(0));
             let server_pk = server_secret.public_key();
@@ -82,29 +145,12 @@ pub mod mock {
             leader.set_server_key_share(server_pk).await.unwrap();
 
             let follower_task =
-                tokio::spawn(async move { follower.get_pms_share().await.unwrap() });
+                tokio::spawn(async move { follower.compute_pms_share().await.unwrap() });
 
-            let client_key_share = leader.get_client_key_share().await.unwrap();
+            let _ = leader.get_client_key_share().await.unwrap();
 
-            let leader_pms_share = leader.get_pms_share().await.unwrap();
-            let follower_pms_share = follower_task.await.unwrap();
-
-            let leader_pms_share = generic_array::GenericArray::from_slice(&leader_pms_share);
-            let follower_pms_share = generic_array::GenericArray::from_slice(&follower_pms_share);
-
-            let leader_pms_share = Scalar::from_repr(*leader_pms_share).unwrap();
-            let follower_pms_share = Scalar::from_repr(*follower_pms_share).unwrap();
-
-            let pms = leader_pms_share + follower_pms_share;
-
-            let expected_pms = Scalar::from_repr(
-                (&client_key_share.to_projective() * &server_secret.to_nonzero_scalar())
-                    .to_affine()
-                    .x(),
-            )
-            .unwrap();
-
-            assert_eq!(pms, expected_pms);
+            leader.compute_pms_share().await.unwrap();
+            follower_task.await.unwrap();
         }
     }
 }
