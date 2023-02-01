@@ -14,7 +14,7 @@ use verifier::{
         EphemeralECPubkey, EphemeralECPubkeyType, HandshakeData, KEParamsSigAlg, ServerSignature,
         TLSHandshake,
     },
-    HashCommitment, LabelSeed, Verifier,
+    HashCommitment, LabelSeed, TranscriptVerifier,
 };
 
 // End-to-end test. Create a notarization document and verify it.
@@ -164,7 +164,7 @@ fn e2e_test() {
     // PubKey type
     let trusted_pubkey = PubKey::from_bytes(KeyType::P256, pubkey_bytes).unwrap();
 
-    let verifier = Verifier::new();
+    let verifier = TranscriptVerifier::new();
 
     let verified_transcript = verifier
         .verify(

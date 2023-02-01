@@ -21,14 +21,15 @@ pub type HashCommitment = [u8; 32];
 /// [crate::commitment::CommitmentType::labels_blake3]
 pub type LabelSeed = [u8; 32];
 
-/// Verifier of the notarization document
+/// Verifier of the notarization document. The document contains commitments to the TLS
+/// transcript.
 ///
 /// Once the verification succeeds, an application level (e.g. HTTP, JSON) parser can
-/// parse `commitment_openings` in `doc`
-pub struct Verifier {}
+/// parse the resulting transcript [crate::verified_transcript::VerifiedTranscript]
+pub struct TranscriptVerifier {}
 
-impl Verifier {
-    /// Creates a new Verifier
+impl TranscriptVerifier {
+    /// Creates a new TranscriptVerifier
     pub fn new() -> Self {
         Self {}
     }
@@ -82,7 +83,7 @@ impl Verifier {
         pubkey.verify_signature(&msg, sig)
     }
 
-    /// Extracts the necessary fields from the [VerifiedDoc] into a [Signed]
+    /// Extracts the necessary fields from the [ValidatedDoc] into a [Signed]
     /// struct and returns it
     fn signed_data(&self, doc: &ValidatedDoc) -> Signed {
         doc.into()
