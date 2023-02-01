@@ -5,6 +5,7 @@ use std::any::Any;
 /// A User's commitment to a portion of the notarized data
 #[derive(Serialize)]
 pub struct Commitment {
+    /// This commitment's index in `commitments` of [super::UncheckedDoc]
     id: u32,
     typ: CommitmentType,
     direction: Direction,
@@ -94,7 +95,8 @@ pub enum CommitmentType {
 /// Commitment opening contains the committed value
 #[derive(Serialize)]
 pub struct CommitmentOpening {
-    /// the id of the [Commitment] corresponding to this opening
+    /// This commitment opening's index in `commitment_openings` of [super::doc::UncheckedDoc].
+    /// The [Commitment] corresponding to this opening has the same id.
     id: u32,
     // the actual opening of the commitment
     opening: Vec<u8>,

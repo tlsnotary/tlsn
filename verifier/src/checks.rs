@@ -202,7 +202,6 @@ fn check_overlapping_openings(unchecked: &UncheckedDoc) -> Result<(), Error> {
                                 haystack_offset + (ov_range.start() - haystack_range.start());
 
                             // get the openings which overlapped
-                            // TODO: will later add a method get_opening_by_id()
                             let needle_o = &unchecked.commitment_openings()[needle_c.id() as usize];
                             let haystack_o =
                                 &unchecked.commitment_openings()[haystack_c.id() as usize];
