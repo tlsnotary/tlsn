@@ -996,29 +996,28 @@ mod tests {
 
     #[test]
     fn test_different_input_value_type() {
-        let inputs = vec![UncheckedGroup::new(
-            0,
-            "test_input_0".to_string(),
-            "".to_string(),
-            ValueType::Bool,
-            vec![0],
-        ),
-        UncheckedGroup::new(
-            1,
-            "test_input_1".to_string(),
-            "".to_string(),
-            ValueType::Bits,
-            vec![1],
-        )
+        let inputs = vec![
+            UncheckedGroup::new(
+                0,
+                "test_input_0".to_string(),
+                "".to_string(),
+                ValueType::Bool,
+                vec![0],
+            ),
+            UncheckedGroup::new(
+                1,
+                "test_input_1".to_string(),
+                "".to_string(),
+                ValueType::Bits,
+                vec![1],
+            ),
         ];
-        let gates = vec![
-            Gate::Xor {
-                id: 0,
-                xref: 0,
-                yref: 1,
-                zref: 2,
-            },
-        ];
+        let gates = vec![Gate::Xor {
+            id: 0,
+            xref: 0,
+            yref: 1,
+            zref: 2,
+        }];
         let outputs = vec![UncheckedGroup::new(
             0,
             "test".to_string(),
@@ -1027,6 +1026,5 @@ mod tests {
             vec![2],
         )];
         assert!(Circuit::new("test", "", "", inputs, outputs, gates).is_ok());
-        
     }
 }
