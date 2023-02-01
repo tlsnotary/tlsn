@@ -57,7 +57,7 @@ impl DhOtSender {
         // Randomly sample a private key
         let private_key = Scalar::random(rng);
         // Compute the pubkey A = aG where G is a generator
-        let public_key = &private_key * &RISTRETTO_BASEPOINT_TABLE;
+        let public_key = &private_key * &*RISTRETTO_BASEPOINT_TABLE;
 
         // Update the state
         self.private_key = Some(private_key);

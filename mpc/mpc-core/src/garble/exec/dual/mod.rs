@@ -6,17 +6,51 @@
 //! malicious. Such leakage, however, will be detected by the [`DualExFollower`] during the
 //! equality check.
 
+mod config;
 mod follower;
 mod leader;
 
+pub use config::{DualExConfig, DualExConfigBuilder, DualExConfigBuilderError};
 pub use follower::{state as follower_state, DualExFollower};
 pub use leader::{state as leader_state, DualExLeader};
+
+use crate::garble::{gc_state, GarbledCircuit};
+
+#[derive(Debug, Clone)]
+pub struct DESummary {
+    generated: GarbledCircuit<gc_state::FullSummary>,
+    evaluated: GarbledCircuit<gc_state::EvaluatedSummary>,
+}
+
+impl DESummary {
+    /// Create a new [`DESummary`] from the generated and evaluated garbled circuits
+    /// of the dual execution protocol
+    pub fn new(
+        generated: GarbledCircuit<gc_state::FullSummary>,
+        evaluated: GarbledCircuit<gc_state::EvaluatedSummary>,
+    ) -> Self {
+        Self {
+            generated,
+            evaluated,
+        }
+    }
+
+    /// Get the full garbled circuit summary
+    pub fn get_generator_summary(&self) -> &GarbledCircuit<gc_state::FullSummary> {
+        &self.generated
+    }
+
+    /// Get the evaluated garbled circuit summary
+    pub fn get_evaluator_summary(&self) -> &GarbledCircuit<gc_state::EvaluatedSummary> {
+        &self.evaluated
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use crate::garble::{
         commitment::Opening,
-        label::{ActiveInputLabelsSet, FullInputLabelsSet},
+        label::{ActiveInputSet, FullInputSet},
         Error, LabelsDigest,
     };
 
@@ -37,8 +71,8 @@ mod tests {
         let leader_input = circ.input(0).unwrap().to_value(0u64).unwrap();
         let follower_input = circ.input(1).unwrap().to_value(0u64).unwrap();
 
-        let leader_labels = FullInputLabelsSet::generate(&mut rng, &circ, None);
-        let follower_labels = FullInputLabelsSet::generate(&mut rng, &circ, None);
+        let leader_labels = FullInputSet::generate(&mut rng, &circ, None);
+        let follower_labels = FullInputSet::generate(&mut rng, &circ, None);
 
         let (leader_gc, leader) = leader.garble(leader_labels.clone()).unwrap();
 
@@ -47,7 +81,7 @@ mod tests {
         let leader = leader
             .evaluate(
                 follower_gc,
-                ActiveInputLabelsSet::new(vec![
+                ActiveInputSet::new(vec![
                     follower_labels[0].select(leader_input.value()).unwrap(),
                     follower_labels[1].select(follower_input.value()).unwrap(),
                 ])
@@ -58,7 +92,7 @@ mod tests {
         let follower = follower
             .evaluate(
                 leader_gc,
-                ActiveInputLabelsSet::new(vec![
+                ActiveInputSet::new(vec![
                     leader_labels[0].select(leader_input.value()).unwrap(),
                     leader_labels[1].select(follower_input.value()).unwrap(),
                 ])

@@ -16,9 +16,7 @@ impl State for Finalized {}
 ///
 /// This is before any OT has taken place
 #[derive(Clone, Debug)]
-pub struct Init {
-    pub(super) add_share: u128,
-}
+pub struct Init;
 
 /// Intermediate state for Ghash protocol
 ///

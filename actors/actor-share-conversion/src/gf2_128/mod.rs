@@ -24,7 +24,6 @@ mod tests {
         AdditiveToMultiplicative, MultiplicativeToAdditive,
     };
     use share_conversion_core::gf2_128::{mul, AddShare, Gf2_128ShareConvert, MulShare};
-    use std::sync::{Arc, Mutex};
     use utils_aio::adaptive_barrier::AdaptiveBarrier;
     use xtra::prelude::*;
 
@@ -233,7 +232,7 @@ mod tests {
     ) -> (
         SenderControl<
             ActorShareConversionSender<
-                Arc<Mutex<MockOTFactory<Block>>>,
+                MockOTFactory<Block>,
                 MockOTSender<Block>,
                 T,
                 MockClientControl,
@@ -242,7 +241,7 @@ mod tests {
         >,
         ReceiverControl<
             ActorShareConversionReceiver<
-                Arc<Mutex<MockOTFactory<Block>>>,
+                MockOTFactory<Block>,
                 MockOTReceiver<Block>,
                 T,
                 MockServerControl,
@@ -262,17 +261,17 @@ mod tests {
         );
         let sender_mux = MockClientControl::new(sender_mux_addr);
 
-        let ot_factory = Arc::new(Mutex::new(MockOTFactory::<Block>::default()));
+        let ot_factory = MockOTFactory::new();
         let sender = ActorShareConversionSender::<_, _, T, _, Tape>::new(
             String::from(""),
             barrier,
             sender_mux,
-            Arc::clone(&ot_factory),
+            ot_factory.clone(),
         );
         let receiver = ActorShareConversionReceiver::<_, _, T, _, Tape>::new(
             String::from(""),
             receiver_mux,
-            Arc::clone(&ot_factory),
+            ot_factory,
         );
 
         let sender_addr = xtra::spawn_tokio(sender, Mailbox::unbounded());

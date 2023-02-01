@@ -7,7 +7,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use mpc_circuits::Circuit;
 use mpc_core::{
-    garble::{gc_state, ActiveInputLabelsSet, CircuitOpening, FullInputLabelsSet, GarbledCircuit},
+    garble::{gc_state, ActiveInputSet, CircuitOpening, FullInputSet, GarbledCircuit},
     msgs::garble::GarbleMessage,
 };
 use utils_aio::Channel;
@@ -20,16 +20,24 @@ pub type GarbleChannel = Box<dyn Channel<GarbleMessage, Error = std::io::Error>>
 pub enum GCError {
     #[error("core error")]
     CoreError(#[from] mpc_core::garble::Error),
+    #[error("Label Error: {0:?}")]
+    LabelError(#[from] mpc_core::garble::EncodingError),
     #[error("circuit error")]
     CircuitError(#[from] mpc_circuits::CircuitError),
     #[error("io error")]
     IOError(#[from] std::io::Error),
     #[error("ot error")]
     OTError(#[from] OTError),
+    #[error("OTFactoryError: {0:?}")]
+    OTFactoryError(#[from] crate::protocol::ot::OTFactoryError),
     #[error("Received unexpected message: {0:?}")]
     Unexpected(GarbleMessage),
     #[error("backend error")]
     BackendError(String),
+    #[error("Configured to send OTs but no OT sender was provided")]
+    MissingOTSender,
+    #[error("Configured to receive OTs but no OT receiver was provided")]
+    MissingOTReceiver,
 }
 
 #[async_trait]
@@ -38,7 +46,7 @@ pub trait Generator {
     async fn generate(
         &mut self,
         circ: Arc<Circuit>,
-        input_labels: FullInputLabelsSet,
+        input_labels: FullInputSet,
     ) -> Result<GarbledCircuit<gc_state::Full>, GCError>;
 }
 
@@ -48,7 +56,7 @@ pub trait Evaluator {
     async fn evaluate(
         &mut self,
         circ: GarbledCircuit<gc_state::Partial>,
-        input_labels: ActiveInputLabelsSet,
+        input_labels: ActiveInputSet,
     ) -> Result<GarbledCircuit<gc_state::Evaluated>, GCError>;
 }
 

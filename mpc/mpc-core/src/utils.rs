@@ -9,7 +9,12 @@ pub fn parse_ristretto_key(b: Vec<u8>) -> Result<RistrettoPoint, std::io::Error>
             format!("Invalid RistrettoPoint, should be length 32: {:?}", b),
         ));
     }
-    let c_point = CompressedRistretto::from_slice(b.as_slice());
+    let c_point = CompressedRistretto::from_slice(b.as_slice()).map_err(|e| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("Invalid RistrettoPoint: {:?}", e),
+        )
+    })?;
     if let Some(point) = c_point.decompress() {
         Ok(point)
     } else {

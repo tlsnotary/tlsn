@@ -8,9 +8,9 @@ pub enum ExtReceiverCoreError {
     /// Error originating from Base OT
     #[error("OT failed due to error in Base OT")]
     BaseError(#[from] crate::ot::base::SenderCoreError),
-    /// Choice bits not derandomized
-    #[error("Payload contains more encrypted values than derandomized choice bits")]
-    NotDerandomized,
+    /// Sender sent an incorrect count of encrypted OT messages
+    #[error("The count of encrypted values and choice bits must match")]
+    CiphertextCountWrong,
     #[error("Tried to derandomize more OTs than setup")]
     InvalidChoiceLength,
     #[error("Received payload of unexpected size")]

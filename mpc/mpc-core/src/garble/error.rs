@@ -1,12 +1,14 @@
 use mpc_circuits::{CircuitId, GroupId};
 
+use super::commitment::CommitmentError;
+
 /// Error associated with garbled circuits
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("Invalid input: {0:?}")]
     InvalidInput(#[from] InputError),
     #[error("Label Error: {0:?}")]
-    LabelError(#[from] LabelError),
+    LabelError(#[from] EncodingError),
     #[error("Missing label decoding info")]
     MissingDecoding,
     #[error("Detected corrupted garbled circuit")]
@@ -15,6 +17,8 @@ pub enum Error {
     ValidationError(String),
     #[error("Invalid opening")]
     InvalidOpening,
+    #[error("Commitment error: {0}")]
+    CommitmentError(#[from] CommitmentError),
     #[error("Circuit error: {0:?}")]
     CircuitError(#[from] mpc_circuits::CircuitError),
     #[error("General error: {0}")]
@@ -39,13 +43,11 @@ pub enum InputError {
 }
 
 #[derive(Debug, thiserror::Error, PartialEq)]
-pub enum LabelError {
+pub enum EncodingError {
     #[error("Uninitialized Label, id: {0}")]
     UninitializedLabel(usize),
     #[error("Labels are not authentic for group {0:?}")]
     InauthenticLabels(GroupId),
-    #[error("Invalid label id for group: {0:?}, expected {1} got {2}")]
-    InvalidLabelId(GroupId, usize, usize),
     #[error("Invalid number of labels for group {0:?}, expected {1} got {2}")]
     InvalidLabelCount(GroupId, usize, usize),
     #[error("Invalid value, expected {0} bits got {1}")]
@@ -58,14 +60,16 @@ pub enum LabelError {
     InvalidDecodingCount(usize, usize),
     #[error("Invalid label commitment for group {0:?}")]
     InvalidLabelCommitment(GroupId),
-    #[error("Labels set must contain at least 1 element")]
-    EmptyLabelsSet,
+    #[error("Encoded set must contain at least 1 element")]
+    EmptyEncodedSet,
     #[error("All elements in a set must correspond to the same circuit")]
     CircuitMismatch,
-    #[error("A set cannot contain duplicate elements")]
-    DuplicateLabels,
+    #[error("A set cannot contain duplicate groups")]
+    DuplicateGroups,
     #[error("All elements in a set must have the same delta")]
     DeltaMismatch,
     #[error("Invalid count in set for {0:?}: expected {1}, got {2}")]
     InvalidCount(CircuitId, usize, usize),
+    #[error("Invalid id {1}, group not in {0:?}")]
+    InvalidId(CircuitId, usize),
 }

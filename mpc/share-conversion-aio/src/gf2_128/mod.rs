@@ -10,6 +10,9 @@ mod receiver;
 pub mod recorder;
 mod sender;
 
+#[cfg(feature = "mock")]
+pub mod mock;
+
 pub use msgs::Gf2ConversionMessage;
 pub use receiver::Receiver;
 pub use sender::Sender;
@@ -39,22 +42,15 @@ pub type Gf2ConversionChannel = Box<dyn Channel<Gf2ConversionMessage, Error = st
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, Mutex};
-
     use super::*;
-    use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive, ShareConversionError};
-    use mpc_aio::protocol::ot::mock::{MockOTFactory, MockOTReceiver, MockOTSender};
-    use mpc_core::Block;
+    use crate::{
+        gf2_128::mock::mock_converter_pair, AdditiveToMultiplicative, MultiplicativeToAdditive,
+        ShareConversionError,
+    };
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
-    use recorder::{Recorder, Tape, Void};
+    use recorder::{Tape, Void};
     use share_conversion_core::gf2_128::mul;
-    use utils_aio::duplex::DuplexChannel;
-
-    type Gf2ConversionChannel = DuplexChannel<Gf2ConversionMessage>;
-    type Gf2Sender<U, V> = Sender<Arc<Mutex<MockOTFactory<Block>>>, MockOTSender<Block>, U, V>;
-    type Gf2Receiver<U, V> =
-        Receiver<Arc<Mutex<MockOTFactory<Block>>>, MockOTReceiver<Block>, U, V>;
 
     #[tokio::test]
     async fn test_aio_a2m() {
@@ -226,22 +222,6 @@ mod tests {
             receiver_output,
             ShareConversionError::VerifyTapeFailed
         ));
-    }
-
-    fn mock_converter_pair<U: Gf2_128ShareConvert, V: Recorder<U>>(
-    ) -> (Gf2Sender<U, V>, Gf2Receiver<U, V>) {
-        let (c1, c2): (Gf2ConversionChannel, Gf2ConversionChannel) = DuplexChannel::new();
-        let ot_factory = Arc::new(Mutex::new(MockOTFactory::<Block>::default()));
-
-        let sender = Sender::new(
-            Arc::clone(&ot_factory),
-            String::from(""),
-            Box::new(c1),
-            None,
-        );
-        let receiver = Receiver::new(Arc::clone(&ot_factory), String::from(""), Box::new(c2));
-
-        (sender, receiver)
     }
 
     fn get_random_gf2_128_vec(len: usize, rng: &mut ChaCha12Rng) -> Vec<u128> {
