@@ -10,7 +10,7 @@ pub enum KeyType {
     P256,
 }
 
-// A public key used by the Notary to sign the notarization session
+/// A public key used by the Notary to sign the notarization session
 pub enum PubKey {
     P256(p256::ecdsa::VerifyingKey),
 }

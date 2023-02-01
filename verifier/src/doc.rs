@@ -60,6 +60,10 @@ impl VerifiedDoc {
         }
     }
 
+    pub fn tls_handshake(&self) -> &TLSHandshake {
+        &self.tls_handshake
+    }
+
     pub fn commitments(&self) -> &Vec<Commitment> {
         &self.commitments
     }
@@ -202,7 +206,7 @@ impl ValidatedDoc {
     /// - the TLS document
     /// - the inclusion of commitments in the Merkle tree
     /// - each commitment
-    pub(crate) fn verify(&self, dns_name: String) -> Result<(), Error> {
+    pub(crate) fn verify(&self, dns_name: &str) -> Result<(), Error> {
         self.tls_handshake.verify(dns_name)?;
 
         self.verify_merkle_proofs()?;

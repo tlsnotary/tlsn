@@ -9,12 +9,12 @@ pub struct Commitment {
     id: u32,
     typ: CommitmentType,
     direction: Direction,
-    // The index of this commitment in the Merkle tree of commitments
+    /// The index of this commitment in the Merkle tree of commitments
     merkle_tree_index: u32,
-    // The actual commitment
+    /// The actual commitment
     commitment: HashCommitment,
-    // The absolute byte ranges within the notarized data. The committed data
-    // is located in those ranges.
+    /// The absolute byte ranges within the notarized data. The committed data
+    /// is located in those ranges.
     ranges: Vec<Range>,
 }
 
@@ -71,6 +71,10 @@ impl Commitment {
         &self.typ
     }
 
+    pub fn direction(&self) -> &Direction {
+        &self.direction
+    }
+
     pub fn merkle_tree_index(&self) -> u32 {
         self.merkle_tree_index
     }
@@ -98,9 +102,9 @@ pub struct CommitmentOpening {
     /// This commitment opening's index in `commitment_openings` of [super::doc::UncheckedDoc].
     /// The [Commitment] corresponding to this opening has the same id.
     id: u32,
-    // the actual opening of the commitment
+    /// The actual opening of the commitment
     opening: Vec<u8>,
-    // all our commitments are `salt`ed by appending 16 random bytes
+    /// All our commitments are `salt`ed by appending 16 random bytes
     salt: Vec<u8>,
 }
 
@@ -123,9 +127,9 @@ impl CommitmentOpening {
 }
 
 #[derive(Serialize, Clone, PartialEq)]
-// A TLS transcript consists of a stream of bytes which were `Sent` to the server
-// and a stream of bytes which were `Received` from the server . The User creates
-// separate commitments to bytes in each direction.
+/// A TLS transcript consists of a stream of bytes which were `Sent` to the server
+/// and a stream of bytes which were `Received` from the server . The User creates
+/// separate commitments to bytes in each direction.
 pub enum Direction {
     Sent,
     Received,

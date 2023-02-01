@@ -166,7 +166,7 @@ fn e2e_test() {
 
     let verifier = Verifier::new();
 
-    let verified_doc = verifier
+    let verified_transcript = verifier
         .verify(
             unchecked_doc,
             Some(trusted_pubkey),
@@ -174,11 +174,11 @@ fn e2e_test() {
         )
         .unwrap();
 
-    // -------- The Verifier proceeds to put each verified commitment opening through an application
+    // -------- The verifier proceeds to put the verified transcript through an application
     //          level (e.g. http) parser
 
     assert_eq!(
-        String::from_utf8(verified_doc.commitment_openings()[0].opening().clone()).unwrap(),
+        String::from_utf8(verified_transcript.data()[0].data().clone()).unwrap(),
         "important data".to_string()
     );
 }

@@ -23,7 +23,7 @@ impl TLSHandshake {
     /// - key exchange parameters were signed by the end entity certificate
     /// - commitment to misc TLS data is correct
     ///
-    pub fn verify(&self, dns_name: String) -> Result<(), Error> {
+    pub fn verify(&self, dns_name: &str) -> Result<(), Error> {
         // Verify TLS certificate chain against local root certs. Some certs in the chain may
         // have expired at the time of this verification. We verify their validity at the time
         // of notarization.

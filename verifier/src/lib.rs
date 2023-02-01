@@ -7,9 +7,10 @@ pub mod pubkey;
 pub mod signed;
 pub mod tls_handshake;
 mod utils;
+pub mod verified_transcript;
 mod webpki_utils;
 
-use crate::{doc::ValidatedDoc, signed::Signed};
+use crate::{doc::ValidatedDoc, signed::Signed, verified_transcript::VerifiedTranscript};
 use doc::{UncheckedDoc, VerifiedDoc};
 use error::Error;
 use pubkey::PubKey;
@@ -48,7 +49,7 @@ impl Verifier {
         unchecked_doc: UncheckedDoc,
         trusted_pubkey: Option<PubKey>,
         dns_name: String,
-    ) -> Result<VerifiedDoc, Error> {
+    ) -> Result<VerifiedTranscript, Error> {
         // validate the document
         let doc = ValidatedDoc::from_unchecked(unchecked_doc)?;
 
@@ -66,9 +67,13 @@ impl Verifier {
         }
 
         // verify the document
-        doc.verify(dns_name)?;
+        doc.verify(&dns_name)?;
 
-        Ok(VerifiedDoc::from_validated(doc))
+        let verified_doc = VerifiedDoc::from_validated(doc);
+
+        let verified_transcript = VerifiedTranscript::from_verified_doc(verified_doc, dns_name);
+
+        Ok(verified_transcript)
     }
 
     /// Verifies Notary's signature on that part of the document which was signed

@@ -110,11 +110,11 @@ pub fn verify_sig_ke_params(
 }
 
 /// Checks that the DNS name is present in the certificate
-pub fn check_dns_name_present_in_cert(cert: &CertDER, dns_name: String) -> Result<(), Error> {
+pub fn check_dns_name_present_in_cert(cert: &CertDER, dns_name: &str) -> Result<(), Error> {
     let cert = webpki::EndEntityCert::try_from(cert.as_slice())
         .map_err(|e| Error::WebpkiError(e.to_string()))?;
 
-    let dns_name = webpki::DnsNameRef::try_from_ascii_str(dns_name.as_str())
+    let dns_name = webpki::DnsNameRef::try_from_ascii_str(dns_name)
         .map_err(|e| Error::WebpkiError(e.to_string()))?;
 
     cert.verify_is_valid_for_dns_name(dns_name)
@@ -310,14 +310,14 @@ mod test {
     #[test]
     fn test_check_hostname_present_in_cert() {
         let host = String::from("tlsnotary.org");
-        assert!(check_dns_name_present_in_cert(&EE.to_vec(), host).is_ok());
+        assert!(check_dns_name_present_in_cert(&EE.to_vec(), &host).is_ok());
     }
 
     // Expect to fail because the host name is not in the cert
     #[test]
     fn test_check_hostname_present_in_cert_bad_host() {
         let host = String::from("tlsnotary");
-        let err = check_dns_name_present_in_cert(&EE.to_vec(), host);
+        let err = check_dns_name_present_in_cert(&EE.to_vec(), &host);
         let _str = String::from("CertNotValidForName");
         assert_eq!(
             err.unwrap_err(),
@@ -329,7 +329,7 @@ mod test {
     #[test]
     fn test_check_hostname_present_in_cert_invalid_dns_name() {
         let host = String::from("tlsnotary.org%");
-        let err = check_dns_name_present_in_cert(&EE.to_vec(), host);
+        let err = check_dns_name_present_in_cert(&EE.to_vec(), &host);
         assert_eq!(
             err.unwrap_err(),
             Error::WebpkiError("InvalidDnsNameError".to_string())
