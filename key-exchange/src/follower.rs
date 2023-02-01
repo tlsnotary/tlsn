@@ -1,15 +1,17 @@
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
-use p256::{elliptic_curve::PrimeField, ProjectivePoint, Scalar, SecretKey};
+use p256::{ProjectivePoint, SecretKey};
+use point_addition::XCoordinateLabels;
 use utils_aio::expect_msg_or_err;
 
 use crate::{
-    KeyExchange, KeyExchangeChannel, KeyExchangeError, KeyExchangeMessage, PointAddition, PublicKey,
+    KeyExchange, KeyExchangeChannel, KeyExchangeError, KeyExchangeMessage, PmsShareLabels,
+    PointAddition, PublicKey,
 };
 
 pub struct KeyExchangeFollower<P>
 where
-    P: PointAddition<Point = ProjectivePoint, XCoordinate = Scalar>,
+    P: PointAddition<Point = ProjectivePoint, XCoordinate = XCoordinateLabels>,
 {
     channel: KeyExchangeChannel,
 
@@ -22,7 +24,7 @@ where
 
 impl<P> KeyExchangeFollower<P>
 where
-    P: PointAddition<Point = ProjectivePoint, XCoordinate = Scalar>,
+    P: PointAddition<Point = ProjectivePoint, XCoordinate = XCoordinateLabels>,
 {
     /// Creates new KeyExchangeFollower.
     pub fn new(channel: KeyExchangeChannel, point_addition: P) -> Self {
@@ -41,7 +43,7 @@ where
 #[async_trait]
 impl<P> KeyExchange for KeyExchangeFollower<P>
 where
-    P: PointAddition<Point = ProjectivePoint, XCoordinate = Scalar> + Send,
+    P: PointAddition<Point = ProjectivePoint, XCoordinate = XCoordinateLabels> + Send,
 {
     async fn get_client_key_share(&mut self) -> Result<PublicKey, KeyExchangeError> {
         Err(KeyExchangeError::KeyError(
@@ -55,7 +57,7 @@ where
         ))
     }
 
-    async fn get_pms_share(&mut self) -> Result<Vec<u8>, KeyExchangeError> {
+    async fn compute_pms_share(&mut self) -> Result<PmsShareLabels, KeyExchangeError> {
         // Send public key share to the leader.
         self.channel
             .send(KeyExchangeMessage::PublicKey(
@@ -72,14 +74,16 @@ where
 
         let server_key: PublicKey = msg.try_into()?;
 
+        self.server_key_share = Some(server_key);
+
         let follower_point =
             &server_key.to_projective() * &self.follower_secret.to_nonzero_scalar();
 
         let pms_share = self
             .point_addition
-            .share_x_coordinate(follower_point)
+            .compute_x_coordinate_share(follower_point)
             .await?;
 
-        Ok(pms_share.to_repr().to_vec())
+        Ok(pms_share.into())
     }
 }

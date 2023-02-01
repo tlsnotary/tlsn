@@ -14,8 +14,9 @@ serde = ["dep:serde"]
 tlsn-mpc-core = { path = "../mpc/mpc-core" }
 tlsn-tls-core = { path = "../tls/tls-core" }
 tlsn-utils-aio = { path = "../utils/utils-aio" }
+tlsn-point-addition = { path = "../point-addition" }
 
-p256 = { version = "0.12", features = ["arithmetic"] }
+p256 = { version = "0.12" }
 
 async-trait = "0.1"
 futures = "0.3"
