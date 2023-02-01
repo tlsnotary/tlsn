@@ -1,5 +1,7 @@
 use super::{
-    tls_doc::{CertDER, EphemeralECPubkey, EphemeralECPubkeyType, KEParamsSigAlg, ServerSignature},
+    tls_handshake::{
+        CertDER, EphemeralECPubkey, EphemeralECPubkeyType, KEParamsSigAlg, ServerSignature,
+    },
     Error,
 };
 use x509_parser::{certificate, prelude::FromDer};
@@ -131,7 +133,7 @@ pub fn extract_end_entity_cert(chain: &[CertDER]) -> Result<CertDER, Error> {
 
 #[cfg(test)]
 mod test {
-    use crate::tls_doc::*;
+    use crate::tls_handshake::*;
 
     use super::*;
 

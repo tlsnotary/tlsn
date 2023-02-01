@@ -1,18 +1,18 @@
-use super::{signed::SignedTLS, utils::blake3, webpki_utils, Error};
+use super::{signed::SignedHandshake, utils::blake3, webpki_utils, Error, HashCommitment};
 use serde::Serialize;
 
-/// The document containing all the info needed to verify the authenticity of the TLS session.
+/// TLSHandshake contains all the info needed to verify the authenticity of the TLS handshake
 #[derive(Serialize)]
-pub struct TLSDoc {
-    signed_tls: SignedTLS,
-    committed_tls: CommittedTLS,
+pub struct TLSHandshake {
+    signed_handshake: SignedHandshake,
+    handshake_data: HandshakeData,
 }
 
-impl TLSDoc {
-    pub fn new(signed_tls: SignedTLS, committed_tls: CommittedTLS) -> Self {
+impl TLSHandshake {
+    pub fn new(signed_handshake: SignedHandshake, handshake_data: HandshakeData) -> Self {
         Self {
-            signed_tls,
-            committed_tls,
+            signed_handshake,
+            handshake_data,
         }
     }
 
@@ -28,21 +28,24 @@ impl TLSDoc {
         // have expired at the time of this verification. We verify their validity at the time
         // of notarization.
         webpki_utils::verify_cert_chain(
-            &self.committed_tls.tls_cert_chain,
-            self.signed_tls.time(),
+            &self.handshake_data.tls_cert_chain,
+            self.signed_handshake.time(),
         )?;
 
-        let ee_cert = webpki_utils::extract_end_entity_cert(&self.committed_tls.tls_cert_chain)?;
+        let ee_cert = webpki_utils::extract_end_entity_cert(&self.handshake_data.tls_cert_chain)?;
 
-        self.verify_tls_commitment(&self.committed_tls, self.signed_tls.commitment_to_tls())?;
+        self.verify_tls_commitment(
+            &self.handshake_data,
+            self.signed_handshake.handshake_commitment(),
+        )?;
 
         //check that TLS key exchange parameters were signed by the end-entity cert
         webpki_utils::verify_sig_ke_params(
             &ee_cert,
-            &self.committed_tls.sig_ke_params,
-            self.signed_tls.ephemeral_ec_pubkey(),
-            &self.committed_tls.client_random,
-            &self.committed_tls.server_random,
+            &self.handshake_data.sig_ke_params,
+            self.signed_handshake.ephemeral_ec_pubkey(),
+            &self.handshake_data.client_random,
+            &self.handshake_data.server_random,
         )?;
 
         webpki_utils::check_dns_name_present_in_cert(&ee_cert, dns_name)?;
@@ -50,31 +53,31 @@ impl TLSDoc {
         Ok(())
     }
 
-    /// Verifies the commitment to misc TLS data
+    /// Verifies the commitment to misc TLS handshake data
     fn verify_tls_commitment(
         &self,
-        committed_tls: &CommittedTLS,
-        commitment: &[u8; 32],
+        handshake_data: &HandshakeData,
+        commitment: &HashCommitment,
     ) -> Result<(), Error> {
-        if blake3(&committed_tls.serialize()?) != *commitment {
+        if blake3(&handshake_data.serialize()?) != *commitment {
             return Err(Error::CommittedTLSCheckFailed);
         }
         Ok(())
     }
 
-    pub fn signed_tls(&self) -> &SignedTLS {
-        &self.signed_tls
+    pub fn signed_handshake(&self) -> &SignedHandshake {
+        &self.signed_handshake
     }
 
-    pub fn committed_tls(&self) -> &CommittedTLS {
-        &self.committed_tls
+    pub fn handshake_data(&self) -> &HandshakeData {
+        &self.handshake_data
     }
 }
 
 /// an x509 certificate in DER format
 pub type CertDER = Vec<u8>;
 
-/// Misc TLS data which the User committed to before the User and the Notary engaged in 2PC
+/// Misc TLS handshake data which the User committed to before the User and the Notary engaged in 2PC
 /// to compute the TLS session keys
 ///
 /// The User should not reveal `tls_cert_chain` because the Notary would learn the webserver name
@@ -85,14 +88,14 @@ pub type CertDER = Vec<u8>;
 /// Note that there is no need to commit to the ephemeral key because it will be signed explicitely
 /// by the Notary
 #[derive(Serialize, Clone)]
-pub struct CommittedTLS {
+pub struct HandshakeData {
     tls_cert_chain: Vec<CertDER>,
     sig_ke_params: ServerSignature,
     client_random: Vec<u8>,
     server_random: Vec<u8>,
 }
 
-impl CommittedTLS {
+impl HandshakeData {
     pub fn new(
         tls_cert_chain: Vec<CertDER>,
         sig_ke_params: ServerSignature,

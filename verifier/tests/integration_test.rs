@@ -9,10 +9,10 @@ use verifier::{
     commitment::{Commitment, CommitmentOpening, CommitmentType, Direction, Range},
     doc::UncheckedDoc,
     pubkey::{KeyType, PubKey},
-    signed::{Signed, SignedTLS},
-    tls_doc::{
-        CommittedTLS, EphemeralECPubkey, EphemeralECPubkeyType, KEParamsSigAlg, ServerSignature,
-        TLSDoc,
+    signed::{Signed, SignedHandshake},
+    tls_handshake::{
+        EphemeralECPubkey, EphemeralECPubkeyType, HandshakeData, KEParamsSigAlg, ServerSignature,
+        TLSHandshake,
     },
     HashCommitment, LabelSeed, Verifier,
 };
@@ -52,11 +52,11 @@ fn e2e_test() {
 
     let ephemeral_pubkey = EphemeralECPubkey::new(EphemeralECPubkeyType::P256, ephemeral_pubkey);
 
-    // -------- Using the above data, the User computes [CommittedTLS] and sends a commitment to
+    // -------- Using the above data, the User computes [HandshakeData] and sends a commitment to
     //          the Notary
 
-    let committed_tls = CommittedTLS::new(cert_chain, server_sig, client_random, server_random);
-    let commitment_to_tls = blake3(&committed_tls.serialize().unwrap());
+    let handshake_data = HandshakeData::new(cert_chain, server_sig, client_random, server_random);
+    let handshake_commitment = blake3(&handshake_data.serialize().unwrap());
 
     // -------- The Notary generates garbled circuit's labels from a PRG seed
     let label_seed: LabelSeed = rng.gen();
@@ -125,9 +125,9 @@ fn e2e_test() {
     let encoded = verifying_key.to_encoded_point(true);
     let pubkey_bytes = encoded.as_bytes();
 
-    // (note that ephemeralECPubkey is known both to the User and the Notary)
-    let signed_tls = SignedTLS::new(TIME, ephemeral_pubkey, commitment_to_tls);
-    let signed = Signed::new(signed_tls.clone(), label_seed, merkle_root);
+    // (note that `ephemeral_pubkey` is known both to the User and the Notary)
+    let signed_handshake = SignedHandshake::new(TIME, ephemeral_pubkey, handshake_commitment);
+    let signed = Signed::new(signed_handshake.clone(), label_seed, merkle_root);
 
     let signature = signing_key.sign(&bincode::serialize(&signed).unwrap());
     let sig_der = signature.to_der();
@@ -136,8 +136,8 @@ fn e2e_test() {
     // -------- the Notary reveals `label_seed` and also sends the `signature` and `time`.
 
     // -------- After that the User creates a doc for the Verifier:
-    //          (The User creates `signed_tls` just like the Notary did above)
-    let tls_doc = TLSDoc::new(signed_tls, committed_tls);
+    //          (The User creates `signed_handshake` just like the Notary did above)
+    let tls_handshake = TLSHandshake::new(signed_handshake, handshake_data);
 
     // prepares openings and merkle proofs for those openings
     let opening_bytes = bytes_in_ranges(plaintext, &ranges);
@@ -148,7 +148,7 @@ fn e2e_test() {
 
     let unchecked_doc = UncheckedDoc::new(
         1,
-        tls_doc,
+        tls_handshake,
         Some(signature.to_vec()),
         label_seed,
         merkle_root,

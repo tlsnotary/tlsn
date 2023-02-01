@@ -5,7 +5,7 @@ mod error;
 mod label_encoder;
 pub mod pubkey;
 pub mod signed;
-pub mod tls_doc;
+pub mod tls_handshake;
 mod utils;
 mod webpki_utils;
 

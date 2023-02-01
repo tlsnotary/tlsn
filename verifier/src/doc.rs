@@ -2,7 +2,7 @@ use super::{
     checks,
     commitment::{Commitment, CommitmentOpening, CommitmentType},
     error::Error,
-    tls_doc::TLSDoc,
+    tls_handshake::TLSHandshake,
     LabelSeed, Signed,
 };
 use rs_merkle::{algorithms, proof_serializers, MerkleProof};
@@ -13,7 +13,7 @@ use std::{any::Any, collections::HashMap};
 /// A validated and verified notarization document
 pub struct VerifiedDoc {
     version: u8,
-    tls_doc: TLSDoc,
+    tls_handshake: TLSHandshake,
     /// Notary's signature over the [Signed] portion of this doc
     signature: Option<Vec<u8>>,
 
@@ -49,7 +49,7 @@ impl VerifiedDoc {
     pub(crate) fn from_validated(validated: ValidatedDoc) -> Self {
         Self {
             version: validated.version,
-            tls_doc: validated.tls_doc,
+            tls_handshake: validated.tls_handshake,
             signature: validated.signature,
             label_seed: validated.label_seed,
             merkle_root: validated.merkle_root,
@@ -74,7 +74,7 @@ impl VerifiedDoc {
 pub struct UncheckedDoc {
     /// All fields are exactly as in [VerifiedDoc]
     version: u8,
-    tls_doc: TLSDoc,
+    tls_handshake: TLSHandshake,
     signature: Option<Vec<u8>>,
     label_seed: LabelSeed,
     merkle_root: [u8; 32],
@@ -88,7 +88,7 @@ impl UncheckedDoc {
     /// Creates a new unchecked document. This method is called only by the User.
     pub fn new(
         version: u8,
-        tls_doc: TLSDoc,
+        tls_handshake: TLSHandshake,
         signature: Option<Vec<u8>>,
         label_seed: LabelSeed,
         merkle_root: [u8; 32],
@@ -99,7 +99,7 @@ impl UncheckedDoc {
     ) -> Self {
         Self {
             version,
-            tls_doc,
+            tls_handshake,
             signature,
             label_seed,
             merkle_root,
@@ -123,7 +123,7 @@ impl UncheckedDoc {
 pub(crate) struct ValidatedDoc {
     /// All fields are exactly as in [VerifiedDoc]
     version: u8,
-    tls_doc: TLSDoc,
+    tls_handshake: TLSHandshake,
     signature: Option<Vec<u8>>,
     label_seed: LabelSeed,
     merkle_root: [u8; 32],
@@ -148,7 +148,7 @@ impl ValidatedDoc {
 
         Ok(Self {
             version: unchecked.version,
-            tls_doc: unchecked.tls_doc,
+            tls_handshake: unchecked.tls_handshake,
             signature: unchecked.signature,
             label_seed: unchecked.label_seed,
             merkle_root: unchecked.merkle_root,
@@ -178,16 +178,16 @@ impl ValidatedDoc {
 
         // insert our `signed_data` which we know is correct
 
-        let tls_doc = TLSDoc::new(
+        let tls_handshake = TLSHandshake::new(
             signed_data.tls().clone(),
-            unchecked.tls_doc.committed_tls().clone(),
+            unchecked.tls_handshake.handshake_data().clone(),
         );
         let label_seed = *signed_data.label_seed();
         let merkle_root = *signed_data.merkle_root();
 
         Ok(Self {
             version: unchecked.version,
-            tls_doc,
+            tls_handshake,
             signature: unchecked.signature,
             label_seed,
             merkle_root,
@@ -203,7 +203,7 @@ impl ValidatedDoc {
     /// - the inclusion of commitments in the Merkle tree
     /// - each commitment
     pub(crate) fn verify(&self, dns_name: String) -> Result<(), Error> {
-        self.tls_doc.verify(dns_name)?;
+        self.tls_handshake.verify(dns_name)?;
 
         self.verify_merkle_proofs()?;
 
@@ -292,8 +292,8 @@ impl ValidatedDoc {
         &self.merkle_root
     }
 
-    pub fn tls_doc(&self) -> &TLSDoc {
-        &self.tls_doc
+    pub fn tls_handshake(&self) -> &TLSHandshake {
+        &self.tls_handshake
     }
 }
 

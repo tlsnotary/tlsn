@@ -1,27 +1,27 @@
-use super::{tls_doc::EphemeralECPubkey, Error, HashCommitment, LabelSeed, ValidatedDoc};
+use super::{tls_handshake::EphemeralECPubkey, Error, HashCommitment, LabelSeed, ValidatedDoc};
 use serde::Serialize;
 
 #[derive(Clone, Serialize)]
-// TLS-related data which is signed by Notary
-pub struct SignedTLS {
-    // notarization time against which the TLS Certificate validity is checked
+/// TLS handshake-related data which is signed by Notary
+pub struct SignedHandshake {
+    /// notarization time against which the TLS Certificate validity is checked
     time: u64,
-    // ephemeral pubkey for ECDH key exchange
+    /// ephemeral pubkey for ECDH key exchange
     ephemeral_ec_pubkey: EphemeralECPubkey,
-    /// User's commitment to [super::tls_doc::CommittedTLS]
-    commitment_to_tls: HashCommitment,
+    /// User's commitment to [super::tls_doc::HandshakeData]
+    handshake_commitment: HashCommitment,
 }
 
-impl SignedTLS {
+impl SignedHandshake {
     pub fn new(
         time: u64,
         ephemeral_ec_pubkey: EphemeralECPubkey,
-        commitment_to_tls: HashCommitment,
+        handshake_commitment: HashCommitment,
     ) -> Self {
         Self {
             time,
             ephemeral_ec_pubkey,
-            commitment_to_tls,
+            handshake_commitment,
         }
     }
 
@@ -33,15 +33,15 @@ impl SignedTLS {
         &self.ephemeral_ec_pubkey
     }
 
-    pub fn commitment_to_tls(&self) -> &HashCommitment {
-        &self.commitment_to_tls
+    pub fn handshake_commitment(&self) -> &HashCommitment {
+        &self.handshake_commitment
     }
 }
 
 /// All the data which the Notary signs
 #[derive(Clone, Serialize)]
 pub struct Signed {
-    tls: SignedTLS,
+    tls: SignedHandshake,
     // see comments in [crate::doc::VerifiedDoc] for details about the fields below
     /// PRG seed from which garbled circuit labels are generated
     label_seed: LabelSeed,
@@ -51,7 +51,7 @@ pub struct Signed {
 
 impl Signed {
     /// Creates a new struct to be signed by the Notary
-    pub fn new(tls: SignedTLS, label_seed: LabelSeed, merkle_root: [u8; 32]) -> Self {
+    pub fn new(tls: SignedHandshake, label_seed: LabelSeed, merkle_root: [u8; 32]) -> Self {
         Self {
             tls,
             label_seed,
@@ -63,7 +63,7 @@ impl Signed {
         bincode::serialize(&self).map_err(|_| Error::SerializationError)
     }
 
-    pub fn tls(&self) -> &SignedTLS {
+    pub fn tls(&self) -> &SignedHandshake {
         &self.tls
     }
 
@@ -81,7 +81,7 @@ impl Signed {
 impl std::convert::From<&ValidatedDoc> for Signed {
     fn from(doc: &ValidatedDoc) -> Self {
         Signed::new(
-            doc.tls_doc().signed_tls().clone(),
+            doc.tls_handshake().signed_handshake().clone(),
             *doc.label_seed(),
             *doc.merkle_root(),
         )
