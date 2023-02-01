@@ -17,8 +17,8 @@ pub(crate) fn compute_label_commitment(
 
     let mut hasher = Hasher::new();
     for r in ranges {
-        let range_size = r.end() - r.start();
-        let bytes_in_range: Vec<u8> = bytestring.drain(0..range_size).collect();
+        let range_size = (r.end() - r.start()) as u64;
+        let bytes_in_range: Vec<u8> = bytestring.drain(0..range_size as usize).collect();
 
         // convert bytes in the range into bits in lsb0 order
         let bits = u8vec_to_boolvec(&bytes_in_range);
@@ -26,7 +26,7 @@ pub(crate) fn compute_label_commitment(
 
         // derive as many label pairs as there are bits in the range
         for i in r.start() * 8..r.end() * 8 {
-            let label_pair = enc.encode(i);
+            let label_pair = enc.encode(i as usize);
             let bit = match bits_iter.next() {
                 Some(bit) => bit,
                 // should never happen since this method is only called with ranges validated

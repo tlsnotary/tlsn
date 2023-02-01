@@ -31,7 +31,7 @@ pub struct VerifiedDoc {
 
     /// The total leaf count in the Merkle tree of commitments. Provided by the User to the Verifier
     /// to enable merkle proof verification.
-    merkle_tree_leaf_count: usize,
+    merkle_tree_leaf_count: u32,
 
     /// A proof that all [commitments] are the leaves of the Merkle tree
     #[serde(serialize_with = "merkle_proof_serialize")]
@@ -78,7 +78,7 @@ pub struct UncheckedDoc {
     signature: Option<Vec<u8>>,
     label_seed: LabelSeed,
     merkle_root: [u8; 32],
-    merkle_tree_leaf_count: usize,
+    merkle_tree_leaf_count: u32,
     merkle_multi_proof: MerkleProof<algorithms::Sha256>,
     commitments: Vec<Commitment>,
     commitment_openings: Vec<CommitmentOpening>,
@@ -92,7 +92,7 @@ impl UncheckedDoc {
         signature: Option<Vec<u8>>,
         label_seed: LabelSeed,
         merkle_root: [u8; 32],
-        merkle_tree_leaf_count: usize,
+        merkle_tree_leaf_count: u32,
         merkle_multi_proof: MerkleProof<algorithms::Sha256>,
         commitments: Vec<Commitment>,
         commitment_openings: Vec<CommitmentOpening>,
@@ -127,7 +127,7 @@ pub(crate) struct ValidatedDoc {
     signature: Option<Vec<u8>>,
     label_seed: LabelSeed,
     merkle_root: [u8; 32],
-    merkle_tree_leaf_count: usize,
+    merkle_tree_leaf_count: u32,
     merkle_multi_proof: MerkleProof<algorithms::Sha256>,
     commitments: Vec<Commitment>,
     commitment_openings: Vec<CommitmentOpening>,
@@ -221,7 +221,7 @@ impl ValidatedDoc {
         let (leaf_indices, leaf_hashes): (Vec<usize>, Vec<[u8; 32]>) = self
             .commitments
             .iter()
-            .map(|c| (c.merkle_tree_index(), c.commitment()))
+            .map(|c| (c.merkle_tree_index() as usize, c.commitment()))
             .unzip();
 
         // verify the inclusion of multiple leaves
@@ -229,7 +229,7 @@ impl ValidatedDoc {
             self.merkle_root,
             &leaf_indices,
             &leaf_hashes,
-            self.merkle_tree_leaf_count,
+            self.merkle_tree_leaf_count as usize,
         ) {
             return Err(Error::MerkleProofVerificationFailed);
         }
@@ -258,13 +258,13 @@ impl ValidatedDoc {
         // map each opening to its id
         let mut openings_ids: HashMap<usize, &CommitmentOpening> = HashMap::new();
         for o in &self.commitment_openings {
-            openings_ids.insert(o.id(), o);
+            openings_ids.insert(o.id() as usize, o);
         }
 
         // collect only openings corresponding to label commitments
         let mut openings: Vec<&CommitmentOpening> = Vec::with_capacity(label_commitments.len());
         for c in &label_commitments {
-            match openings_ids.get(&c.id()) {
+            match openings_ids.get(&(c.id() as usize)) {
                 Some(opening) => openings.push(opening),
                 // should never happen since we already checked that each opening has a
                 // corresponding commitment in [super::checks::check_commitment_and_opening_ids()]

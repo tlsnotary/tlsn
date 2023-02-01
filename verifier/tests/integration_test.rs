@@ -95,7 +95,7 @@ fn e2e_test() {
     let mut hasher = Hasher::new();
 
     for r in &ranges {
-        for label in active_labels[r.start() * 8..r.end() * 8].iter() {
+        for label in active_labels[(r.start() * 8) as usize..(r.end() * 8) as usize].iter() {
             hasher.update(&label.into_inner().to_be_bytes());
         }
     }
@@ -189,7 +189,7 @@ fn e2e_test() {
 fn bytes_in_ranges(bytestring: &[u8], ranges: &[Range]) -> Vec<u8> {
     let mut substring: Vec<u8> = Vec::new();
     for r in ranges {
-        substring.append(&mut bytestring[r.start()..r.end()].to_vec())
+        substring.append(&mut bytestring[r.start() as usize..r.end() as usize].to_vec())
     }
     substring
 }

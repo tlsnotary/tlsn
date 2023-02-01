@@ -47,7 +47,9 @@ fn check_at_least_one_commitment_present(unchecked: &UncheckedDoc) -> Result<(),
 /// Condition checked: commitments and openings have their ids incremental and ascending
 fn check_commitment_and_opening_ids(unchecked: &UncheckedDoc) -> Result<(), Error> {
     for i in 0..unchecked.commitments().len() {
-        if !(unchecked.commitments()[i].id() == i && unchecked.commitment_openings()[i].id() == i) {
+        if !(unchecked.commitments()[i].id() == (i as u32)
+            && unchecked.commitment_openings()[i].id() == (i as u32))
+        {
             return Err(Error::SanityCheckError(
                 "check_commitment_and_opening_ids".to_string(),
             ));
@@ -66,7 +68,7 @@ fn check_commitment_and_opening_count_equal(unchecked: &UncheckedDoc) -> Result<
     Ok(())
 }
 
-/// Condition checked: ranges inside one commitment are non-empty, valid, ascending, non-overlapping, non-overflowing
+/// Condition checked: ranges inside one commitment are non-empty, valid, ascending, non-overlapping
 fn check_ranges_inside_each_commitment(unchecked: &UncheckedDoc) -> Result<(), Error> {
     for c in unchecked.commitments() {
         let len = c.ranges().len();
@@ -94,13 +96,6 @@ fn check_ranges_inside_each_commitment(unchecked: &UncheckedDoc) -> Result<(), E
                 ));
             }
         }
-
-        // range bound must not be larger than u32
-        if c.ranges()[len - 1].end() > (u32::MAX as usize) {
-            return Err(Error::SanityCheckError(
-                "check_ranges_inside_each_commitment".to_string(),
-            ));
-        }
     }
 
     Ok(())
@@ -111,13 +106,13 @@ fn check_ranges_inside_each_commitment(unchecked: &UncheckedDoc) -> Result<(), E
 /// Condition checked: the total amount of committed data is less than 1GB to prevent DoS
 /// (this will cause the verifier to hash up to a max of 1GB * 128 = 128GB of labels)
 fn check_commitment_sizes(unchecked: &UncheckedDoc) -> Result<(), Error> {
-    let mut total_committed = 0usize;
+    let mut total_committed = 0u64;
 
     for i in 0..unchecked.commitment_openings().len() {
-        let expected = unchecked.commitment_openings()[i].opening().len();
-        let mut total_in_ranges = 0usize;
+        let expected = unchecked.commitment_openings()[i].opening().len() as u64;
+        let mut total_in_ranges = 0u64;
         for r in unchecked.commitments()[i].ranges() {
-            total_in_ranges += r.end() - r.start();
+            total_in_ranges += (r.end() - r.start()) as u64;
         }
         if expected != total_in_ranges {
             return Err(Error::SanityCheckError(
@@ -148,7 +143,7 @@ fn check_commitment_count(unchecked: &UncheckedDoc) -> Result<(), Error> {
 
 /// Condition checked: each Merkle tree index is both unique and also ascending between commitments
 fn check_merkle_tree_indices(unchecked: &UncheckedDoc) -> Result<(), Error> {
-    let indices: Vec<usize> = unchecked
+    let indices: Vec<u32> = unchecked
         .commitments()
         .iter()
         .map(|c| c.merkle_tree_index())
@@ -177,8 +172,8 @@ fn check_overlapping_openings(unchecked: &UncheckedDoc) -> Result<(), Error> {
         // looking for (and to indicate the associates offsets, commitments and openings).
         // Likewise the prefix "haystack" indicates _where_ we are searching.
 
-        // byte offset in the opening. always positioned at the beginning of the range
-        let mut needle_offset = 0usize;
+        // byte offset in the opening; always positioned at the beginning of the range
+        let mut needle_offset = 0u32;
 
         for needle_range in needle_c.ranges() {
             for haystack_c in unchecked.commitments().iter() {
@@ -187,8 +182,8 @@ fn check_overlapping_openings(unchecked: &UncheckedDoc) -> Result<(), Error> {
                     continue;
                 }
 
-                // byte offset in the opening. always positioned at the beginning of the range
-                let mut haystack_offset = 0usize;
+                // byte offset in the opening; always positioned at the beginning of the range
+                let mut haystack_offset = 0u32;
                 // will be set to true when overlap is found
                 let mut overlap_was_found = false;
 
@@ -208,12 +203,14 @@ fn check_overlapping_openings(unchecked: &UncheckedDoc) -> Result<(), Error> {
 
                             // get the openings which overlapped
                             // TODO: will later add a method get_opening_by_id()
-                            let needle_o = &unchecked.commitment_openings()[needle_c.id()];
-                            let haystack_o = &unchecked.commitment_openings()[haystack_c.id()];
+                            let needle_o = &unchecked.commitment_openings()[needle_c.id() as usize];
+                            let haystack_o =
+                                &unchecked.commitment_openings()[haystack_c.id() as usize];
 
-                            if needle_o.opening()[needle_ov_start..needle_ov_start + overlap_size]
-                                != haystack_o.opening()
-                                    [haystack_ov_start..haystack_ov_start + overlap_size]
+                            if needle_o.opening()[needle_ov_start as usize
+                                ..(needle_ov_start + overlap_size) as usize]
+                                != haystack_o.opening()[haystack_ov_start as usize
+                                    ..(haystack_ov_start + overlap_size) as usize]
                             {
                                 return Err(Error::OverlappingOpeningsDontMatch);
                             }

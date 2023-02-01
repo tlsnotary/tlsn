@@ -5,11 +5,11 @@ use std::any::Any;
 /// A User's commitment to a portion of the notarized data
 #[derive(Serialize)]
 pub struct Commitment {
-    id: usize,
+    id: u32,
     typ: CommitmentType,
     direction: Direction,
     // The index of this commitment in the Merkle tree of commitments
-    merkle_tree_index: usize,
+    merkle_tree_index: u32,
     // The actual commitment
     commitment: HashCommitment,
     // The absolute byte ranges within the notarized data. The committed data
@@ -19,12 +19,12 @@ pub struct Commitment {
 
 impl Commitment {
     pub fn new(
-        id: usize,
+        id: u32,
         typ: CommitmentType,
         direction: Direction,
         commitment: HashCommitment,
         ranges: Vec<Range>,
-        merkle_tree_index: usize,
+        merkle_tree_index: u32,
     ) -> Self {
         Self {
             id,
@@ -62,7 +62,7 @@ impl Commitment {
         Ok(())
     }
 
-    pub fn id(&self) -> usize {
+    pub fn id(&self) -> u32 {
         self.id
     }
 
@@ -70,7 +70,7 @@ impl Commitment {
         &self.typ
     }
 
-    pub fn merkle_tree_index(&self) -> usize {
+    pub fn merkle_tree_index(&self) -> u32 {
         self.merkle_tree_index
     }
 
@@ -95,7 +95,7 @@ pub enum CommitmentType {
 #[derive(Serialize)]
 pub struct CommitmentOpening {
     /// the id of the [Commitment] corresponding to this opening
-    id: usize,
+    id: u32,
     // the actual opening of the commitment
     opening: Vec<u8>,
     // all our commitments are `salt`ed by appending 16 random bytes
@@ -103,11 +103,11 @@ pub struct CommitmentOpening {
 }
 
 impl CommitmentOpening {
-    pub fn new(id: usize, opening: Vec<u8>, salt: Vec<u8>) -> Self {
+    pub fn new(id: u32, opening: Vec<u8>, salt: Vec<u8>) -> Self {
         Self { id, opening, salt }
     }
 
-    pub fn id(&self) -> usize {
+    pub fn id(&self) -> u32 {
         self.id
     }
 
@@ -132,23 +132,23 @@ pub enum Direction {
 #[derive(Serialize, Clone, Debug)]
 /// A half-open range [start, end). Range bounds are ascending i.e. start < end
 pub struct Range {
-    start: usize,
-    end: usize,
+    start: u32,
+    end: u32,
 }
 
 impl Range {
-    pub fn new(start: usize, end: usize) -> Result<Self, Error> {
+    pub fn new(start: u32, end: u32) -> Result<Self, Error> {
         if start >= end {
             return Err(Error::RangeInvalid);
         }
         Ok(Self { start, end })
     }
 
-    pub fn start(&self) -> usize {
+    pub fn start(&self) -> u32 {
         self.start
     }
 
-    pub fn end(&self) -> usize {
+    pub fn end(&self) -> u32 {
         self.end
     }
 }
