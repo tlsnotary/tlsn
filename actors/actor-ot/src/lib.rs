@@ -197,7 +197,11 @@ mod test {
 
         let send = async { sender.send(data).await.unwrap() };
 
-        let receive = async { receiver.receive(choices).await.unwrap() };
+        let receive = async {
+            ObliviousReceive::<bool, Block>::receive(&mut receiver, choices)
+                .await
+                .unwrap()
+        };
 
         let (_, received) = futures::join!(send, receive);
 
@@ -310,8 +314,10 @@ mod test {
                     let messages = vec![[Block::new(420), Block::new(69)]; split_size];
                     let choices = vec![false; split_size];
 
-                    let (send, receive) =
-                        tokio::join!(sender.send(messages.clone()), receiver.receive(choices));
+                    let (send, receive) = tokio::join!(
+                        sender.send(messages.clone()),
+                        ObliviousReceive::<bool, Block>::receive(&mut receiver, choices)
+                    );
                     send.unwrap();
                     _ = receive.unwrap();
 
