@@ -70,28 +70,25 @@ pub trait DEAPVerify: Send {
 }
 
 #[cfg(feature = "mock")]
-mod mock {
-    use std::sync::Arc;
-
+pub mod mock {
     use super::*;
     use crate::protocol::{
         garble::backend::RayonBackend,
         ot::mock::{MockOTFactory, MockOTReceiver, MockOTSender},
     };
-    use mpc_circuits::Circuit;
     use mpc_core::{garble::exec::deap::DEAPConfig, msgs::garble::GarbleMessage, Block};
     use utils_aio::duplex::DuplexChannel;
 
-    pub type MockDEAPLeader<S> = DEAPLeader<
-        S,
+    pub type MockDEAPLeader = DEAPLeader<
+        leader_state::Initialized,
         RayonBackend,
         MockOTFactory<Block>,
         MockOTFactory<Block>,
         MockOTSender<Block>,
         MockOTReceiver<Block>,
     >;
-    pub type MockDEAPFollower<S> = DEAPFollower<
-        S,
+    pub type MockDEAPFollower = DEAPFollower<
+        follower_state::Initialized,
         RayonBackend,
         MockOTFactory<Block>,
         MockOTFactory<Block>,
@@ -99,19 +96,12 @@ mod mock {
         MockOTReceiver<Block>,
     >;
 
-    pub fn mock_deap_pair(
-        config: DEAPConfig,
-        circ: Arc<Circuit>,
-    ) -> (
-        MockDEAPLeader<leader_state::Initialized>,
-        MockDEAPFollower<follower_state::Initialized>,
-    ) {
+    pub fn mock_deap_pair(config: DEAPConfig) -> (MockDEAPLeader, MockDEAPFollower) {
         let (leader_channel, follower_channel) = DuplexChannel::<GarbleMessage>::new();
         let ot_factory = MockOTFactory::new();
 
         let leader = DEAPLeader::new(
             config.clone(),
-            circ.clone(),
             Box::new(leader_channel),
             RayonBackend,
             ot_factory.clone(),
@@ -120,7 +110,6 @@ mod mock {
 
         let follower = DEAPFollower::new(
             config,
-            circ,
             Box::new(follower_channel),
             RayonBackend,
             ot_factory.clone(),
@@ -131,12 +120,10 @@ mod mock {
     }
 }
 
-#[cfg(feature = "mock")]
-pub use mock::mock_deap_pair;
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mock::*;
     use mpc_circuits::{Circuit, WireGroup, ADDER_64};
     use mpc_core::garble::{exec::deap::DEAPConfigBuilder, FullInputSet};
     use rand_chacha::ChaCha12Rng;
@@ -144,13 +131,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_deap() {
-        let config = DEAPConfigBuilder::default()
-            .id("test".to_string())
-            .build()
-            .unwrap();
         let mut rng = ChaCha12Rng::seed_from_u64(0);
         let circ = Circuit::load_bytes(ADDER_64).unwrap();
-        let (leader, follower) = mock_deap_pair(config, circ.clone());
+
+        let config = DEAPConfigBuilder::default()
+            .id("test".to_string())
+            .circ(circ.clone())
+            .build()
+            .unwrap();
+        let (leader, follower) = mock_deap_pair(config);
 
         let leader_input = circ.input(0).unwrap().to_value(1u64).unwrap();
         let follower_input = circ.input(1).unwrap().to_value(2u64).unwrap();

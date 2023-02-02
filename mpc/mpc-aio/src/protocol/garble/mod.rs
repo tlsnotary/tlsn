@@ -1,5 +1,6 @@
 pub mod backend;
 pub mod exec;
+pub mod factory;
 mod label;
 
 use std::sync::Arc;

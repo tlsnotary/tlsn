@@ -10,6 +10,7 @@ use mpc_core::garble::{gc_state, ActiveInputSet, CircuitOpening, FullInputSet, G
 use crate::protocol::garble::{Compressor, Evaluator, GCError, Generator, Validator};
 
 /// Garbler backend using Rayon to garble and evaluate circuits asynchronously and in parallel
+#[derive(Clone)]
 pub struct RayonBackend;
 
 #[async_trait]

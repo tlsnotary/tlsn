@@ -13,8 +13,6 @@ pub mod state;
 pub use follower::DualExFollower;
 pub use leader::DualExLeader;
 
-use std::sync::Arc;
-
 use async_trait::async_trait;
 
 use crate::protocol::{
@@ -22,7 +20,7 @@ use crate::protocol::{
     ot::{OTFactoryError, ObliviousReceive, ObliviousSend},
 };
 use futures::{SinkExt, StreamExt};
-use mpc_circuits::{Circuit, Input, InputValue, OutputValue, WireGroup};
+use mpc_circuits::{Input, InputValue, OutputValue, WireGroup};
 use mpc_core::{
     garble::{
         exec::dual::{DESummary, DualExConfig},
@@ -201,8 +199,8 @@ where
 }
 
 #[cfg(feature = "mock")]
-mod mock {
-    use super::*;
+pub mod mock {
+    use super::{state::Initialized, *};
     use crate::protocol::{
         garble::backend::RayonBackend,
         ot::mock::{MockOTFactory, MockOTReceiver, MockOTSender},
@@ -210,16 +208,8 @@ mod mock {
     use mpc_core::Block;
     use utils_aio::duplex::DuplexChannel;
 
-    pub type MockDualExLeader<S> = DualExLeader<
-        S,
-        RayonBackend,
-        MockOTFactory<Block>,
-        MockOTFactory<Block>,
-        MockOTSender<Block>,
-        MockOTReceiver<Block>,
-    >;
-    pub type MockDualExFollower<S> = DualExFollower<
-        S,
+    pub type MockDualExLeader = DualExLeader<
+        Initialized,
         RayonBackend,
         MockOTFactory<Block>,
         MockOTFactory<Block>,
@@ -227,19 +217,21 @@ mod mock {
         MockOTReceiver<Block>,
     >;
 
-    pub fn mock_dualex_pair(
-        config: DualExConfig,
-        circ: Arc<Circuit>,
-    ) -> (
-        MockDualExLeader<state::Initialized>,
-        MockDualExFollower<state::Initialized>,
-    ) {
+    pub type MockDualExFollower = DualExFollower<
+        Initialized,
+        RayonBackend,
+        MockOTFactory<Block>,
+        MockOTFactory<Block>,
+        MockOTSender<Block>,
+        MockOTReceiver<Block>,
+    >;
+
+    pub fn mock_dualex_pair(config: DualExConfig) -> (MockDualExLeader, MockDualExFollower) {
         let (leader_channel, follower_channel) = DuplexChannel::<GarbleMessage>::new();
         let ot_factory = MockOTFactory::new();
 
         let leader = DualExLeader::new(
             config.clone(),
-            circ.clone(),
             Box::new(leader_channel),
             RayonBackend,
             ot_factory.clone(),
@@ -248,7 +240,6 @@ mod mock {
 
         let follower = DualExFollower::new(
             config,
-            circ,
             Box::new(follower_channel),
             RayonBackend,
             ot_factory.clone(),
@@ -259,13 +250,11 @@ mod mock {
     }
 }
 
-#[cfg(feature = "mock")]
-pub use mock::mock_dualex_pair;
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mpc_circuits::ADDER_64;
+    use mock::*;
+    use mpc_circuits::{Circuit, ADDER_64};
     use mpc_core::garble::exec::dual::DualExConfigBuilder;
     use rand::SeedableRng;
     use rand_chacha::ChaCha12Rng;
@@ -276,9 +265,10 @@ mod tests {
         let circ = Circuit::load_bytes(ADDER_64).unwrap();
         let config = DualExConfigBuilder::default()
             .id("test".to_string())
+            .circ(circ.clone())
             .build()
             .unwrap();
-        let (leader, follower) = mock_dualex_pair(config, circ.clone());
+        let (leader, follower) = mock_dualex_pair(config);
 
         let leader_input = circ.input(0).unwrap().to_value(1u64).unwrap();
         let follower_input = circ.input(1).unwrap().to_value(2u64).unwrap();

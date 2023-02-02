@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, sync::Arc};
+use std::marker::PhantomData;
 
 use crate::protocol::{
     garble::{Evaluator, GCError, GarbleChannel, GarbleMessage, Generator},
@@ -6,7 +6,7 @@ use crate::protocol::{
 };
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
-use mpc_circuits::{Circuit, Input, InputValue, OutputValue};
+use mpc_circuits::{Input, InputValue, OutputValue};
 use mpc_core::{
     garble::{
         exec::deap::{self as core, DEAPConfig},
@@ -58,7 +58,6 @@ where
 {
     config: DEAPConfig,
     state: S,
-    circ: Arc<Circuit>,
     channel: GarbleChannel,
     backend: B,
     label_sender_factory: LSF,
@@ -78,7 +77,6 @@ where
 {
     pub fn new(
         config: DEAPConfig,
-        circ: Arc<Circuit>,
         channel: GarbleChannel,
         backend: B,
         label_sender_factory: LSF,
@@ -87,7 +85,6 @@ where
         DEAPFollower {
             config,
             state: Initialized,
-            circ,
             channel,
             backend,
             label_sender_factory,
@@ -138,7 +135,6 @@ where
                 ev_labels,
                 label_sender,
             },
-            circ: self.circ,
             channel: self.channel,
             backend: self.backend,
             label_sender_factory: self.label_sender_factory,
@@ -188,12 +184,12 @@ where
         ),
         GCError,
     > {
-        let follower = core::DEAPFollower::new(self.circ.clone());
+        let follower = core::DEAPFollower::new(self.config.circ());
 
         // Garble circuit
         let full_gc = self
             .backend
-            .generate(self.circ.clone(), self.state.gen_labels)
+            .generate(self.config.circ(), self.state.gen_labels)
             .await?;
 
         let (partial_gc, follower) = follower.from_full_circuit(full_gc)?;
@@ -212,7 +208,7 @@ where
 
         // Check their gc against circuit spec
         let gc_ev =
-            GarbledCircuit::<gc_state::Partial>::from_unchecked(self.circ.clone(), msg.into())?;
+            GarbledCircuit::<gc_state::Partial>::from_unchecked(self.config.circ(), msg.into())?;
 
         // Evaluate leader's garbled circuit
         let evaluated_gc = self.backend.evaluate(gc_ev, self.state.ev_labels).await?;
@@ -248,7 +244,7 @@ where
                     core: follower,
                     label_sender: self.state.label_sender,
                 },
-                circ: self.circ,
+
                 channel: self.channel,
                 backend: self.backend,
                 label_sender_factory: self.label_sender_factory,
