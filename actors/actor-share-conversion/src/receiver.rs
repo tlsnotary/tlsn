@@ -294,7 +294,11 @@ where
     type Return = Result<(), ShareConversionError>;
 
     /// This handler is called when the actor receives VerifyTape
-    async fn handle(&mut self, _message: VerifyTape, ctx: &mut Context<Self>) -> Self::Return {
+    async fn handle(
+        &mut self,
+        _message: VerifyTapeMessage,
+        ctx: &mut Context<Self>,
+    ) -> Self::Return {
         let state = std::mem::replace(&mut self.state, State::Error);
         ctx.stop_self();
 
