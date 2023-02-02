@@ -743,6 +743,111 @@ mod tests {
     }
 
     #[test]
+    fn test_doubling_groups_on_input() {
+        let inputs = vec![
+            UncheckedGroup::new(
+                0,
+                "test".to_string(),
+                "".to_string(),
+                ValueType::Bits,
+                vec![0],
+            ),
+            UncheckedGroup::new(
+                0,
+                "test1".to_string(),
+                "".to_string(),
+                ValueType::Bits,
+                vec![1],
+            ),
+        ];
+        let gates = vec![Gate::Xor {
+            id: 0,
+            xref: 0,
+            yref: 1,
+            zref: 2,
+        }];
+        let outputs = vec![UncheckedGroup::new(
+            0,
+            "test".to_string(),
+            "".to_string(),
+            ValueType::Bool,
+            vec![2],
+        )];
+
+        assert!(Circuit::new("test", "", "", inputs, outputs, gates).is_err());
+    }
+
+    #[test]
+    fn test_doubling_groups_names_on_input() {
+        let inputs = vec![
+            UncheckedGroup::new(
+                0,
+                "test".to_string(),
+                "".to_string(),
+                ValueType::Bits,
+                vec![0],
+            ),
+            UncheckedGroup::new(
+                1,
+                "test0".to_string(),
+                "".to_string(),
+                ValueType::Bits,
+                vec![1],
+            ),
+        ];
+        let gates = vec![Gate::Xor {
+            id: 0,
+            xref: 0,
+            yref: 1,
+            zref: 2,
+        }];
+        let outputs = vec![UncheckedGroup::new(
+            0,
+            "test".to_string(),
+            "".to_string(),
+            ValueType::Bool,
+            vec![2],
+        )];
+
+        assert!(Circuit::new("test", "", "", inputs, outputs, gates).is_err());
+    }
+
+    #[test]
+    fn test_doubling_gates_inputs() {
+        let inputs = vec![
+            UncheckedGroup::new(
+                0,
+                "test".to_string(),
+                "".to_string(),
+                ValueType::Bits,
+                vec![0, 1],
+            ),
+            UncheckedGroup::new(
+                1,
+                "test1".to_string(),
+                "".to_string(),
+                ValueType::Bits,
+                vec![0],
+            ),
+        ];
+        let gates = vec![Gate::Xor {
+            id: 0,
+            xref: 0,
+            yref: 1,
+            zref: 2,
+        }];
+        let outputs = vec![UncheckedGroup::new(
+            0,
+            "test".to_string(),
+            "".to_string(),
+            ValueType::Bool,
+            vec![2],
+        )];
+
+        assert!(Circuit::new("test", "", "", inputs, outputs, gates).is_err());
+    }
+
+    #[test]
     fn test_no_duplicate_group_ids() {
         let inputs = vec![UncheckedGroup::new(
             0,
@@ -765,11 +870,47 @@ mod tests {
             vec![2],
         )];
 
-        let err = Circuit::new("test", "", "", inputs, outputs, gates).unwrap_err();
+        assert!(Circuit::new("test", "", "", inputs, outputs, gates).is_err());
+    }
 
-        assert!(err
-            .to_string()
-            .contains("Circuit contains duplicate group ids"));
+    #[test]
+    fn test_gates_multiple_outputs() {
+        let inputs = vec![UncheckedGroup::new(
+            0,
+            "test".to_string(),
+            "".to_string(),
+            ValueType::Bits,
+            vec![0, 1],
+        )];
+        let gates = vec![
+            Gate::Xor {
+                id: 0,
+                xref: 0,
+                yref: 1,
+                zref: 3,
+            },
+            Gate::Xor {
+                id: 1,
+                xref: 3,
+                yref: 0,
+                zref: 2,
+            },
+            Gate::And {
+                id: 2,
+                xref: 3,
+                yref: 1,
+                zref: 2,
+            },
+        ];
+        let outputs = vec![UncheckedGroup::new(
+            0,
+            "test".to_string(),
+            "".to_string(),
+            ValueType::Bool,
+            vec![2],
+        )];
+
+        assert!(Circuit::new("test", "", "", inputs, outputs, gates).is_err());
     }
 
     #[test]
@@ -783,5 +924,107 @@ mod tests {
         };
         let err = gate.validate().unwrap_err();
         assert!(matches!(err, CircuitError::InvalidCircuit(_)));
+    }
+
+    #[test]
+    fn test_overlapping_input_output() {
+        let inputs = vec![UncheckedGroup::new(
+            0,
+            "test_input_0".to_string(),
+            "".to_string(),
+            ValueType::Bits,
+            vec![0, 1, 3],
+        )];
+        let gates = vec![
+            Gate::Xor {
+                id: 0,
+                xref: 0,
+                yref: 0,
+                zref: 2,
+            },
+            Gate::Xor {
+                id: 1,
+                xref: 3,
+                yref: 1,
+                zref: 4,
+            },
+        ];
+        let outputs = vec![UncheckedGroup::new(
+            0,
+            "test".to_string(),
+            "".to_string(),
+            ValueType::Bits,
+            vec![3, 4],
+        )];
+
+        assert!(Circuit::new("test", "", "", inputs, outputs, gates).is_err());
+    }
+
+    #[test]
+    fn test_put_input_in_output_gate() {
+        let inputs = vec![UncheckedGroup::new(
+            0,
+            "test_input_0".to_string(),
+            "".to_string(),
+            ValueType::Bits,
+            vec![0, 1, 3],
+        )];
+        let gates = vec![
+            Gate::Xor {
+                id: 1,
+                xref: 0,
+                yref: 1,
+                zref: 2,
+            },
+            Gate::Xor {
+                id: 0,
+                xref: 0,
+                yref: 0,
+                zref: 3,
+            },
+        ];
+        let outputs = vec![UncheckedGroup::new(
+            0,
+            "test".to_string(),
+            "".to_string(),
+            ValueType::Bits,
+            vec![2],
+        )];
+
+        assert!(Circuit::new("test", "", "", inputs, outputs, gates).is_err());
+    }
+
+    #[test]
+    fn test_different_input_value_type() {
+        let inputs = vec![
+            UncheckedGroup::new(
+                0,
+                "test_input_0".to_string(),
+                "".to_string(),
+                ValueType::Bool,
+                vec![0],
+            ),
+            UncheckedGroup::new(
+                1,
+                "test_input_1".to_string(),
+                "".to_string(),
+                ValueType::Bits,
+                vec![1],
+            ),
+        ];
+        let gates = vec![Gate::Xor {
+            id: 0,
+            xref: 0,
+            yref: 1,
+            zref: 2,
+        }];
+        let outputs = vec![UncheckedGroup::new(
+            0,
+            "test".to_string(),
+            "".to_string(),
+            ValueType::Bits,
+            vec![2],
+        )];
+        assert!(Circuit::new("test", "", "", inputs, outputs, gates).is_ok());
     }
 }
