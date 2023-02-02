@@ -3,13 +3,13 @@
 use super::{
     msgs::Opening,
     recorder::{Recorder, Tape, Void},
-    ShareConversionChannel,
+    ShareConversionChannel, ShareConversionMessage,
 };
 use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive, SendTape, ShareConversionError};
 use async_trait::async_trait;
 use futures::SinkExt;
 use mpc_aio::protocol::ot::{config::OTSenderConfig, OTFactoryError, ObliviousSend};
-use mpc_core::{ot::config::OTSenderConfigBuilder, utils::blake3, Block};
+use mpc_core::{ot::config::OTSenderConfigBuilder, utils::blake3};
 use rand::{RngCore, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 use share_conversion_core::{
@@ -63,7 +63,7 @@ where
         barrier: Option<AdaptiveBarrier>,
     ) -> Self {
         let rng = ChaCha12Rng::from_entropy();
-        let mut recorder = V::default();
+        let mut recorder = W::default();
         recorder.set_seed(rng.get_seed());
 
         Self {
@@ -137,7 +137,6 @@ where
     W: Recorder<AddShare<V>, V> + Send,
     X: Send,
 {
-<<<<<<< HEAD:mpc/share-conversion-aio/src/conversion/sender.rs
     async fn a_to_m(&mut self, input: Vec<V>) -> Result<Vec<V>, ShareConversionError> {
         self.recorder.record_for_sender(&input);
         self.convert_from(&input).await
@@ -153,7 +152,6 @@ where
     W: Recorder<MulShare<V>, V> + Send,
     X: Send,
 {
-<<<<<<< HEAD:mpc/share-conversion-aio/src/conversion/sender.rs
     async fn m_to_a(&mut self, input: Vec<V>) -> Result<Vec<V>, ShareConversionError> {
         self.recorder.record_for_sender(&input);
         self.convert_from(&input).await
@@ -177,13 +175,13 @@ where
         let commitment = blake3(&[self.rng.get_seed().as_slice(), salt.as_slice()].concat());
 
         self.channel
-            .send(Gf2ConversionMessage::Commitment(commitment.into()))
+            .send(ShareConversionMessage::Commitment(commitment.into()))
             .await?;
         Ok(())
     }
 
     async fn send_tape(mut self) -> Result<(), ShareConversionError> {
-        let opening: Opening = (
+        let opening: Opening<V> = (
             self.recorder.seed,
             self.recorder.salt,
             self.recorder.sender_inputs,
@@ -194,7 +192,7 @@ where
             barrier.wait().await;
         }
         self.channel
-            .send(Gf2ConversionMessage::Opening(opening))
+            .send(ShareConversionMessage::Opening(opening))
             .await?;
         Ok(())
     }

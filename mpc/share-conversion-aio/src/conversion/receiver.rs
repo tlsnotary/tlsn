@@ -2,7 +2,7 @@
 
 use super::{
     recorder::{Recorder, Tape, Void},
-    ShareConversionChannel,
+    ShareConversionChannel, ShareConversionMessage,
 };
 use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive, ShareConversionError, VerifyTape};
 use async_trait::async_trait;
@@ -97,6 +97,7 @@ where
             .into_iter()
             .map(|ot_out| Into::into(ot_out))
             .collect();
+        self.recorder.record_ot_outputs(&field_elements);
 
         // Aggregate field elements representing a single field element to get the final output for
         // the receiver
@@ -147,23 +148,34 @@ where
     U: ShareConvert<Inner = V> + Send,
     V: Field<BlockEncoding = X>,
 {
+    async fn accept_commitment(&mut self) -> Result<(), ShareConversionError> {
+        let commitment = match self.channel.next().await {
+            Some(ShareConversionMessage::Commitment(commitment)) => Ok(commitment),
+            Some(_) => Err(ShareConversionError::UnexpectedMessage),
+            None => Err(From::from(std::io::Error::new(
+                std::io::ErrorKind::ConnectionAborted,
+                "stream closed unexpectedly",
+            ))),
+        }?;
+
+        self.recorder.commitment = commitment.try_into()?;
+        Ok(())
+    }
+
     async fn verify_tape(mut self) -> Result<(), ShareConversionError> {
-        let message = self.channel.next().await.ok_or(std::io::Error::new(
-            std::io::ErrorKind::ConnectionAborted,
-            "stream closed unexpectedly",
-        ))?;
+        let opening: Opening<V> = match self.channel.next().await {
+            Some(ShareConversionMessage::Opening(opening)) => Ok(opening),
+            Some(_) => Err(ShareConversionError::UnexpectedMessage),
+            None => Err(From::from(std::io::Error::new(
+                std::io::ErrorKind::ConnectionAborted,
+                "stream closed unexpectedly",
+            ))),
+        }?;
 
-        let ShareConversionMessage::SenderRecordings(SenderRecordings {
-            seed,
-            sender_inputs,
-        }) = message;
-
-        <Tape<V> as Recorder<U, V>>::set_seed(
-            &mut self.recorder,
-            seed.try_into()
-                .expect("Seed does not fit into 32 byte array"),
-        );
-        <Tape<V> as Recorder<U, V>>::record_for_sender(&mut self.recorder, &sender_inputs);
+        let (seed, salt, sender_tape): ([u8; 32], [u8; 32], Vec<V>) = opening.try_into()?;
+        self.recorder.salt = salt;
+        <Tape<V> as Recorder<U, V>>::set_seed(&mut self.recorder, seed);
+        <Tape<V> as Recorder<U, V>>::record_for_sender(&mut self.recorder, &sender_tape);
         <Tape<V> as Recorder<U, V>>::verify(&self.recorder)
     }
 }

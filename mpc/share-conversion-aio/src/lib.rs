@@ -19,12 +19,15 @@ pub trait MultiplicativeToAdditive<T: Field> {
     async fn m_to_a(&mut self, input: Vec<T>) -> Result<Vec<T>, ShareConversionError>;
 }
 
-/// Send a tape used for verification of the conversion
+/// Commit to rng seed and send a tape used for verification of the conversion
 ///
 /// Senders record their inputs used during conversion and can send them to the receiver
 /// afterwards. This will allow the receiver to use [VerifyTape].
 #[async_trait]
 pub trait SendTape {
+    /// Commit to rng seed
+    async fn send_commitment(&mut self) -> Result<(), ShareConversionError>;
+    /// Send recording
     async fn send_tape(self) -> Result<(), ShareConversionError>;
 }
 
@@ -34,6 +37,9 @@ pub trait SendTape {
 /// requires that he/she makes use of [SendTape].
 #[async_trait]
 pub trait VerifyTape {
+    /// Store commitment from sender
+    async fn accept_commitment(&mut self) -> Result<(), ShareConversionError>;
+    /// Replay protcol with sender input
     async fn verify_tape(self) -> Result<(), ShareConversionError>;
 }
 
@@ -52,8 +58,8 @@ pub enum ShareConversionError {
     MessageConversion,
     #[error("Tape verification failed")]
     VerifyTapeFailed,
-    #[error("Received unexpected message: {0:?}")]
-    Unexpected(Gf2ConversionMessage),
+    #[error("Received unexpected message")]
+    UnexpectedMessage,
     #[error("Error: {0}")]
     Other(String),
 }
