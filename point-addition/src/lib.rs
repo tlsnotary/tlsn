@@ -1,12 +1,18 @@
 use async_trait::async_trait;
 use mpc_core::garble::{ActiveLabels, FullLabels};
+use share_conversion_aio::ShareConversionError;
 
 mod conversion;
 #[cfg(feature = "mock")]
 pub mod mock;
 
+pub use conversion::Converter;
+
 #[derive(Debug, thiserror::Error)]
-pub enum PointAdditionError {}
+pub enum PointAdditionError {
+    #[error("ShareConversionError: {0}")]
+    ShareConversion(#[from] ShareConversionError),
+}
 
 /// This trait is for securely secret-sharing the addition of two elliptic curve points.
 /// Let `P + Q = O = (x, y)`. Each party receives additive shares of the x-coordinate.

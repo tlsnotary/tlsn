@@ -14,6 +14,7 @@ mock = []
 tlsn-mpc-core = { path = "../mpc/mpc-core" }
 tlsn-utils-aio = { path = "../utils/utils-aio" }
 share-conversion-aio = { path = "../mpc/share-conversion-aio"}
+share-conversion-core = { path = "../mpc/share-conversion-core"}
 
 p256 = { version = "0.12", features = ["arithmetic"] }
 
