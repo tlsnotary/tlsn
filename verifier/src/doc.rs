@@ -3,11 +3,11 @@ use super::{
     commitment::{Commitment, CommitmentOpening, CommitmentType},
     error::Error,
     tls_handshake::TLSHandshake,
-    LabelSeed, Signed,
+    LabelSeed, PubKey, Signed,
 };
 use rs_merkle::{algorithms, proof_serializers, MerkleProof};
 use serde::{ser::Serializer, Serialize};
-use std::{any::Any, collections::HashMap};
+use std::collections::HashMap;
 
 #[derive(Serialize)]
 /// A validated and verified notarization document
@@ -46,18 +46,38 @@ pub struct VerifiedDoc {
 
 impl VerifiedDoc {
     /// Creates a new [VerifiedDoc] from [ValidatedDoc]
-    pub(crate) fn from_validated(validated: ValidatedDoc) -> Self {
-        Self {
-            version: validated.version,
-            tls_handshake: validated.tls_handshake,
-            signature: validated.signature,
-            label_seed: validated.label_seed,
-            merkle_root: validated.merkle_root,
-            merkle_tree_leaf_count: validated.merkle_tree_leaf_count,
-            merkle_multi_proof: validated.merkle_multi_proof,
-            commitments: validated.commitments,
-            commitment_openings: validated.commitment_openings,
+    pub(crate) fn from_validated(
+        validated_doc: ValidatedDoc,
+        dns_name: &str,
+        trusted_pubkey: Option<PubKey>,
+    ) -> Result<Self, Error> {
+        // verify Notary's signature, if any
+        match (validated_doc.signature(), &trusted_pubkey) {
+            (Some(sig), Some(pubkey)) => {
+                verify_doc_signature(pubkey, sig, signed_data(&validated_doc))?;
+            }
+            // no pubkey and no signature (this Verifier was also the Notary), do not verify
+            (None, None) => {}
+            // either pubkey or signature is missing
+            _ => {
+                return Err(Error::NoPubkeyOrSignature);
+            }
         }
+
+        // verify the document
+        validated_doc.verify(dns_name)?;
+
+        Ok(Self {
+            version: validated_doc.version,
+            tls_handshake: validated_doc.tls_handshake,
+            signature: validated_doc.signature,
+            label_seed: validated_doc.label_seed,
+            merkle_root: validated_doc.merkle_root,
+            merkle_tree_leaf_count: validated_doc.merkle_tree_leaf_count,
+            merkle_multi_proof: validated_doc.merkle_multi_proof,
+            commitments: validated_doc.commitments,
+            commitment_openings: validated_doc.commitment_openings,
+        })
     }
 
     pub fn tls_handshake(&self) -> &TLSHandshake {
@@ -71,6 +91,18 @@ impl VerifiedDoc {
     pub fn commitment_openings(&self) -> &Vec<CommitmentOpening> {
         &self.commitment_openings
     }
+}
+
+/// Verifies Notary's signature on that part of the document which was signed
+pub(crate) fn verify_doc_signature(pubkey: &PubKey, sig: &[u8], msg: Signed) -> Result<(), Error> {
+    let msg = msg.serialize()?;
+    pubkey.verify_signature(&msg, sig)
+}
+
+/// Extracts the necessary fields from the [ValidatedDoc] into a [Signed]
+/// struct and returns it
+pub(crate) fn signed_data(doc: &ValidatedDoc) -> Signed {
+    doc.into()
 }
 
 /// Notarization document in its unchecked form. This is the form in which the document is received
@@ -147,7 +179,7 @@ impl ValidatedDoc {
         checks::perform_checks(&unchecked)?;
 
         // Make sure the Notary's signature is present.
-        // (If the Verifier IS also the Notary then the signature is NOT needed. `VerifiedDoc`
+        // (If the Verifier IS also the Notary then the signature is NOT needed. `ValidatedDoc`
         // should be created with `from_unchecked_with_signed_data()` instead.)
 
         if unchecked.signature.is_none() {
@@ -168,8 +200,8 @@ impl ValidatedDoc {
     }
 
     /// Returns a new [ValidatedDoc] after performing all validation checks and adding the signed data.
-    /// `signed_data` (despite its name) is not actually signed because it was generated locally by
-    /// the calling Verifier.
+    /// `signed_data` (despite its name) is not actually signed because it was created locally by
+    /// the calling Verifier who had acted as the Notary during notarization.
     pub(crate) fn from_unchecked_with_signed_data(
         unchecked: UncheckedDoc,
         signed_data: Signed,
@@ -184,7 +216,7 @@ impl ValidatedDoc {
             return Err(Error::SignatureNotExpected);
         }
 
-        // insert our `signed_data` which we know is correct
+        // insert `signed_data` which we had created locally
 
         let tls_handshake = TLSHandshake::new(
             signed_data.tls().clone(),

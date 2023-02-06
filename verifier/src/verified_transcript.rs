@@ -9,7 +9,7 @@ pub struct VerifiedTranscript {
     date: u64,
     /// The DNS name of the server with whom the TLS session was notarized
     dns_name: String,
-    /// The data which was notarized. It contains the decrypted application data without any TLS
+    /// The data which was notarized. It contains decrypted application data without any TLS
     /// record metadata.
     data: Vec<TranscriptSlice>,
 }
@@ -24,7 +24,7 @@ impl VerifiedTranscript {
     }
 
     /// Creates a [VerifiedTranscript] by extracting relevant fields from a [VerifiedDoc]
-    pub(crate) fn from_verified_doc(verified_doc: VerifiedDoc, dns_name: String) -> Self {
+    pub(crate) fn from_verified_doc(verified_doc: VerifiedDoc, dns_name: &str) -> Self {
         let transcript_slices: Vec<TranscriptSlice> = verified_doc
             .commitment_openings()
             .iter()
@@ -60,7 +60,7 @@ impl VerifiedTranscript {
 
         VerifiedTranscript::new(
             verified_doc.tls_handshake().signed_handshake().time(),
-            dns_name,
+            dns_name.to_string(),
             transcript_slices,
         )
     }
@@ -80,8 +80,11 @@ impl VerifiedTranscript {
 
 /// Authenticated slice of data
 pub struct TranscriptSlice {
+    /// A byte range of this slice
     range: Range,
+    /// A slice covers a byte range in one direction
     direction: Direction,
+    /// The actual byte content of the slice
     data: Vec<u8>,
 }
 

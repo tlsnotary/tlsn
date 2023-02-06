@@ -174,11 +174,7 @@ fn e2e_test() {
     let verifier = TranscriptVerifier::new();
 
     let verified_transcript = verifier
-        .verify(
-            unchecked_doc,
-            Some(trusted_pubkey),
-            "tlsnotary.org".to_string(),
-        )
+        .verify(unchecked_doc, "tlsnotary.org", Some(trusted_pubkey), None)
         .unwrap();
 
     // -------- The verifier proceeds to put the verified transcript through an application
