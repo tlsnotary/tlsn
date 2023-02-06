@@ -1,9 +1,14 @@
 use super::{OTChannel, ObliviousReceive};
 use crate::protocol::ot::{OTError, ObliviousAcceptCommit, ObliviousVerify};
+use aes::{
+    cipher::{generic_array::GenericArray, NewBlockCipher},
+    Aes128, BlockDecrypt,
+};
 use async_trait::async_trait;
+use cipher::consts::U16;
 use futures::{SinkExt, StreamExt};
 use mpc_core::{
-    msgs::ot::OTMessage,
+    msgs::ot::{ExtSenderEncryptedPayload, OTMessage},
     ot::{
         extension::{r_state, Kos15Receiver},
         r_state::ReceiverState,
@@ -107,6 +112,51 @@ impl ObliviousReceive<bool, Block> for Kos15IOReceiver<r_state::RandSetup> {
         )?;
         let out = self.inner.receive(message)?;
         Ok(out)
+    }
+}
+
+// The idea for obliviously receiving a vec of Blocks is for the sender to send an AES encryption key
+// using OT, which can then later be used by the receiver to decrypt an arbitrary long message, which
+// is sent shortly after the OT. This way we extend our OT from 128-bit maximum message length to an
+// unlimited message length.
+#[async_trait]
+impl ObliviousReceive<bool, Vec<Block>> for Kos15IOReceiver<r_state::RandSetup> {
+    async fn receive(&mut self, choices: Vec<bool>) -> Result<Vec<Vec<Block>>, OTError> {
+        // Receive AES encryption keys from OT
+        let keys = ObliviousReceive::<bool, Block>::receive(self, choices.clone()).await?;
+
+        // Receive a pair of ciphertexts for each choice bit
+        let ExtSenderEncryptedPayload { mut ciphertexts } = expect_msg_or_err!(
+            self.channel.next().await,
+            OTMessage::ExtSenderEncryptedPayload,
+            OTError::Unexpected
+        )?;
+
+        // Decrypt one of the ciphertexts from each pair with a corresponding key
+        let mut plaintext: Vec<Vec<Block>> = Vec::with_capacity(choices.len());
+        for k in 0..choices.len() {
+            let mut blocks: Vec<GenericArray<u8, U16>> = ciphertexts[k][choices[k] as usize]
+                .iter_mut()
+                .map(|block| GenericArray::clone_from_slice(&block.inner().to_be_bytes()))
+                .collect();
+
+            let cipher = Aes128::new(&keys[k].inner().to_be_bytes().into());
+            cipher.decrypt_blocks(&mut blocks);
+
+            plaintext.push(
+                blocks
+                    .iter()
+                    .map(|gen_arr| {
+                        let arr: [u8; 16] = gen_arr
+                            .as_slice()
+                            .try_into()
+                            .expect("Expected array to have length 16");
+                        Block::from(arr)
+                    })
+                    .collect(),
+            )
+        }
+        Ok(plaintext)
     }
 }
 

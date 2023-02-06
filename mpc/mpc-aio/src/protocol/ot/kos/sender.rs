@@ -1,15 +1,22 @@
 use super::{OTChannel, ObliviousSend};
 use crate::protocol::ot::{OTError, ObliviousCommit, ObliviousReveal};
+use aes::{
+    cipher::{generic_array::GenericArray, NewBlockCipher},
+    Aes128, BlockEncrypt,
+};
 use async_trait::async_trait;
+use cipher::consts::U16;
 use futures::{SinkExt, StreamExt};
 use mpc_core::{
-    msgs::ot::OTMessage,
+    msgs::ot::{ExtSenderEncryptedPayload, OTMessage},
     ot::{
         extension::{s_state, Kos15Sender},
         s_state::SenderState,
     },
     Block,
 };
+use rand::SeedableRng;
+use rand_chacha::ChaCha20Rng;
 use utils_aio::{adaptive_barrier::AdaptiveBarrier, expect_msg_or_err};
 
 pub struct Kos15IOSender<T: SenderState> {
@@ -116,6 +123,88 @@ impl ObliviousSend<[Block; 2]> for Kos15IOSender<s_state::RandSetup> {
         self.channel
             .send(OTMessage::ExtSenderPayload(message))
             .await?;
+        Ok(())
+    }
+}
+
+// The idea for obliviously receiving a vec of Blocks is for the sender to send an AES encryption key
+// using OT, which can then later be used by the receiver to decrypt an arbitrary long message, which
+// is sent shortly after the OT. This way we extend our OT from 128-bit maximum message length to an
+// unlimited message length.
+#[async_trait]
+impl ObliviousSend<[Vec<Block>; 2]> for Kos15IOSender<s_state::RandSetup> {
+    async fn send(&mut self, inputs: Vec<[Vec<Block>; 2]>) -> Result<(), OTError> {
+        let mut rng = ChaCha20Rng::from_entropy();
+
+        // Prepare keys and convert inputs
+        let mut keys: Vec<[Block; 2]> = Vec::with_capacity(inputs.len());
+        let mut inputs: Vec<[Vec<GenericArray<u8, U16>>; 2]> = inputs
+            .iter()
+            .map(|blocks| {
+                [
+                    blocks[0]
+                        .iter()
+                        .map(|block| GenericArray::clone_from_slice(&block.inner().to_be_bytes()))
+                        .collect(),
+                    blocks[1]
+                        .iter()
+                        .map(|block| GenericArray::clone_from_slice(&block.inner().to_be_bytes()))
+                        .collect(),
+                ]
+            })
+            .collect();
+
+        // Encrypt inputs and collect keys
+        for k in 0..inputs.len() {
+            let (key1, key2) = (Block::random(&mut rng), Block::random(&mut rng));
+            let (cipher1, cipher2) = (
+                Aes128::new(&key1.inner().to_be_bytes().into()),
+                Aes128::new(&key2.inner().to_be_bytes().into()),
+            );
+            cipher1.encrypt_blocks(&mut inputs[k][0]);
+            cipher2.encrypt_blocks(&mut inputs[k][1]);
+            keys.push([key1, key2]);
+        }
+
+        // Send keys using OT
+        ObliviousSend::<[Block; 2]>::send(self, keys).await?;
+
+        // Convert inputs back to blocks
+        let ciphertexts: Vec<[Vec<Block>; 2]> = inputs
+            .iter()
+            .map(|blocks| {
+                [
+                    blocks[0]
+                        .iter()
+                        .map(|gen_arr| {
+                            let arr: [u8; 16] = gen_arr
+                                .as_slice()
+                                .try_into()
+                                .expect("Expected array to have length 16");
+                            Block::from(arr)
+                        })
+                        .collect(),
+                    blocks[1]
+                        .iter()
+                        .map(|gen_arr| {
+                            let arr: [u8; 16] = gen_arr
+                                .as_slice()
+                                .try_into()
+                                .expect("Expected array to have length 16");
+                            Block::from(arr)
+                        })
+                        .collect(),
+                ]
+            })
+            .collect();
+
+        // Send ciphertexts now
+        self.channel
+            .send(OTMessage::ExtSenderEncryptedPayload(
+                ExtSenderEncryptedPayload { ciphertexts },
+            ))
+            .await?;
+
         Ok(())
     }
 }
