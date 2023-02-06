@@ -30,6 +30,7 @@ impl PubKey {
                 };
                 Ok(PubKey::P256(vk))
             }
+            #[allow(unreachable_patterns)]
             _ => Err(Error::InternalError),
         }
     }
@@ -44,9 +45,10 @@ impl PubKey {
                 };
                 match key.verify(msg, &signature) {
                     Ok(_) => Ok(()),
-                    Err(_) => return Err(Error::SignatureVerificationError),
+                    Err(_) => Err(Error::SignatureVerificationError),
                 }
             }
+            #[allow(unreachable_patterns)]
             _ => Err(Error::InternalError),
         }
     }

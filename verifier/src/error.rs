@@ -36,4 +36,6 @@ pub enum Error {
     SignatureVerificationError,
     #[error("Attempted to create an invalid range")]
     RangeInvalid,
+    #[error("Not implemented")]
+    NotImplemented,
 }

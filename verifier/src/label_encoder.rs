@@ -94,6 +94,7 @@ impl ChaChaEncoder {
         self.rng.set_stream(PLAINTEXT_STREAM_ID);
 
         // jump to the multiple-of-128 bit offset (128 bits is the size of one label)
+        // (the argument to `set_word_pos()` is a 32-bit word)
         self.rng.set_word_pos((pos as u128) * 4);
 
         let zero_label = Block::random(&mut self.rng);

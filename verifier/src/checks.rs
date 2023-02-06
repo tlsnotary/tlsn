@@ -1,7 +1,7 @@
 //! Methods performing various validation checks on the [super::doc::UncheckedDoc]
 
 use super::{
-    commitment::{CommitmentOpening, CommitmentType, Range},
+    commitment::{CommitmentOpening, CommitmentType, TranscriptRange},
     doc::UncheckedDoc,
     Error,
 };
@@ -66,6 +66,8 @@ fn check_commitment_and_opening_pairs(unchecked: &UncheckedDoc) -> Result<(), Er
         let opening_variant = match opening {
             CommitmentOpening::LabelsBlake3(ref opening) => opening,
             // match any future types of opening here
+            #[allow(unreachable_patterns)]
+            _ => return Err(Error::NotImplemented),
         };
 
         // ids must match
@@ -76,14 +78,12 @@ fn check_commitment_and_opening_pairs(unchecked: &UncheckedDoc) -> Result<(), Er
         }
 
         // types must match
-        if commitment.typ() == &CommitmentType::labels_blake3 {
-            if let CommitmentOpening::LabelsBlake3(_) = opening {
-            } else {
-                // some other future type of opening
-                return Err(Error::SanityCheckError(
-                    "check_commitment_and_opening_ids".to_string(),
-                ));
-            }
+        if matches!(commitment.typ(), &CommitmentType::labels_blake3)
+            && !matches!(opening, CommitmentOpening::LabelsBlake3(_))
+        {
+            return Err(Error::SanityCheckError(
+                "check_commitment_and_opening_ids".to_string(),
+            ));
         }
     }
 
@@ -143,6 +143,9 @@ fn check_commitment_sizes(unchecked: &UncheckedDoc) -> Result<(), Error> {
     for i in 0..unchecked.commitment_openings().len() {
         let opening = match unchecked.commitment_openings()[i] {
             CommitmentOpening::LabelsBlake3(ref opening) => opening,
+            // match any future types of opening here
+            #[allow(unreachable_patterns)]
+            _ => return Err(Error::NotImplemented),
         };
         let expected = opening.opening().len() as u64;
         let mut total_in_ranges = 0u64;
@@ -164,8 +167,8 @@ fn check_commitment_sizes(unchecked: &UncheckedDoc) -> Result<(), Error> {
     Ok(())
 }
 
-/// Condition checked: the amount of commitments is less that 1000
-/// (searching for overlapping commitments in the naive way which we implemeted has quadratic cost,
+/// Condition checked: the amount of commitments is less than 1000
+/// (searching for overlapping commitments in the naive way which we implemented has quadratic cost,
 /// hence this number shouldn't be too high to prevent DoS)
 fn check_commitment_count(unchecked: &UncheckedDoc) -> Result<(), Error> {
     if unchecked.commitments().len() >= 1000 {
@@ -289,6 +292,7 @@ fn check_labels_opening(unchecked: &UncheckedDoc) -> Result<(), Error> {
     for i in 0..unchecked.commitment_openings().len() {
         let opening = &unchecked.commitment_openings()[i];
 
+        #[allow(irrefutable_let_patterns)]
         if let CommitmentOpening::LabelsBlake3(opening) = opening {
             if opening.label_seed() != unchecked.label_seed() {
                 return Err(Error::SanityCheckError("check_labels_opening".to_string()));
@@ -299,15 +303,18 @@ fn check_labels_opening(unchecked: &UncheckedDoc) -> Result<(), Error> {
     Ok(())
 }
 
-/// If two [Range]s overlap, returns the range containing the overlap
-fn overlapping_range(a: &Range, b: &Range) -> Result<Option<Range>, Error> {
+/// If two ranges overlap, returns a new range containing the overlap
+fn overlapping_range(
+    a: &TranscriptRange,
+    b: &TranscriptRange,
+) -> Result<Option<TranscriptRange>, Error> {
     // find purported overlap's start and end
     let ov_start = std::cmp::max(a.start(), b.start());
     let ov_end = std::cmp::min(a.end(), b.end());
     if (ov_end - ov_start) < 1 {
         Ok(None)
     } else {
-        let range = Range::new(ov_start, ov_end)?;
+        let range = TranscriptRange::new(ov_start, ov_end)?;
         Ok(Some(range))
     }
 }

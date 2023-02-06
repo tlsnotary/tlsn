@@ -1,4 +1,6 @@
-use super::{commitment::Range, label_encoder::ChaChaEncoder, Error, HashCommitment, LabelSeed};
+use super::{
+    commitment::TranscriptRange, label_encoder::ChaChaEncoder, Error, HashCommitment, LabelSeed,
+};
 use blake3::Hasher;
 
 /// Given a `substring` and its byte `ranges` within a larger string, computes a (`salt`ed) commitment
@@ -6,7 +8,7 @@ use blake3::Hasher;
 /// `ranges` are ordered ascendingly relative to each other.
 pub(crate) fn compute_label_commitment(
     substring: &[u8],
-    ranges: &[Range],
+    ranges: &[TranscriptRange],
     seed: &LabelSeed,
     salt: &[u8],
 ) -> Result<HashCommitment, Error> {

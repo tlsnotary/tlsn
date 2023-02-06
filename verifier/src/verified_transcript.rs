@@ -1,5 +1,5 @@
 use super::{
-    commitment::{CommitmentOpening, Direction, Range},
+    commitment::{CommitmentOpening, Direction, TranscriptRange},
     doc::VerifiedDoc,
 };
 
@@ -30,9 +30,7 @@ impl VerifiedTranscript {
             .iter()
             .flat_map(|opening| {
                 // commitment corresponding to the `opening`
-                let opening = match opening {
-                    CommitmentOpening::LabelsBlake3(opening) => opening,
-                };
+                let CommitmentOpening::LabelsBlake3(opening) = opening;
                 let commitment = &verified_doc.commitments()[opening.id() as usize];
 
                 // cloning because we will be draining the bytes of the `opening`
@@ -81,7 +79,7 @@ impl VerifiedTranscript {
 /// Authenticated slice of data
 pub struct TranscriptSlice {
     /// A byte range of this slice
-    range: Range,
+    range: TranscriptRange,
     /// A slice covers a byte range in one direction
     direction: Direction,
     /// The actual byte content of the slice
@@ -89,7 +87,7 @@ pub struct TranscriptSlice {
 }
 
 impl TranscriptSlice {
-    pub(crate) fn new(range: Range, direction: Direction, data: Vec<u8>) -> Self {
+    pub(crate) fn new(range: TranscriptRange, direction: Direction, data: Vec<u8>) -> Self {
         Self {
             range,
             direction,
@@ -97,7 +95,7 @@ impl TranscriptSlice {
         }
     }
 
-    pub fn range(&self) -> &Range {
+    pub fn range(&self) -> &TranscriptRange {
         &self.range
     }
 

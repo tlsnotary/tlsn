@@ -14,7 +14,7 @@ pub struct Commitment {
     commitment: HashCommitment,
     /// The absolute byte ranges within the notarized data. The committed data
     /// is located in those ranges.
-    ranges: Vec<Range>,
+    ranges: Vec<TranscriptRange>,
 }
 
 impl Commitment {
@@ -23,7 +23,7 @@ impl Commitment {
         typ: CommitmentType,
         direction: Direction,
         commitment: HashCommitment,
-        ranges: Vec<Range>,
+        ranges: Vec<TranscriptRange>,
         merkle_tree_index: u32,
     ) -> Self {
         Self {
@@ -42,18 +42,20 @@ impl Commitment {
         let expected = match self.typ {
             CommitmentType::labels_blake3 => {
                 let opening = match opening {
-                    CommitmentOpening::LabelsBlake3(LabelsBlake3Opening) => LabelsBlake3Opening,
+                    CommitmentOpening::LabelsBlake3(opening) => opening,
                     // will never happen since we checked that commitment and opening types match
+                    #[allow(unreachable_patterns)]
                     _ => return Err(Error::InternalError),
                 };
 
                 compute_label_commitment(
-                    &opening.opening(),
+                    opening.opening(),
                     &self.ranges,
-                    &opening.label_seed(),
+                    opening.label_seed(),
                     opening.salt(),
                 )?
             }
+            #[allow(unreachable_patterns)]
             _ => return Err(Error::InternalError),
         };
 
@@ -84,12 +86,13 @@ impl Commitment {
         self.commitment
     }
 
-    pub fn ranges(&self) -> &Vec<Range> {
+    pub fn ranges(&self) -> &Vec<TranscriptRange> {
         &self.ranges
     }
 }
 
 #[derive(Clone, PartialEq, Serialize)]
+#[allow(non_camel_case_types)]
 pub enum CommitmentType {
     // A blake3 digest of the garbled circuit's active labels. The labels are generated from a PRG seed.
     // For more details on the protocol used to generate this commitment, see
@@ -156,12 +159,12 @@ pub enum Direction {
 
 #[derive(Serialize, Clone, Debug)]
 /// A half-open range [start, end). Range bounds are ascending i.e. start < end
-pub struct Range {
+pub struct TranscriptRange {
     start: u32,
     end: u32,
 }
 
-impl Range {
+impl TranscriptRange {
     pub fn new(start: u32, end: u32) -> Result<Self, Error> {
         if start >= end {
             return Err(Error::RangeInvalid);

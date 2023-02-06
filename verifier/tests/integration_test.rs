@@ -7,7 +7,8 @@ use rs_merkle::{algorithms::Sha256, MerkleTree};
 use tls_circuits::c6;
 use verifier::{
     commitment::{
-        Commitment, CommitmentOpening, CommitmentType, Direction, LabelsBlake3Opening, Range,
+        Commitment, CommitmentOpening, CommitmentType, Direction, LabelsBlake3Opening,
+        TranscriptRange,
     },
     doc::UncheckedDoc,
     pubkey::{KeyType, PubKey},
@@ -89,7 +90,7 @@ fn e2e_test() {
 
     // Here we'll have 1 (salted) commitment which has 1 range
 
-    let ranges = vec![Range::new(5, 19).unwrap()];
+    let ranges = vec![TranscriptRange::new(5, 19).unwrap()];
 
     let salt: [u8; 32] = rng.gen();
 
@@ -189,7 +190,7 @@ fn e2e_test() {
 /// Returns a substring of the original `bytestring` containing only the bytes in `ranges`.
 /// This method is only called with validated `ranges` which do not exceed the size of the
 /// `bytestring`.
-fn bytes_in_ranges(bytestring: &[u8], ranges: &[Range]) -> Vec<u8> {
+fn bytes_in_ranges(bytestring: &[u8], ranges: &[TranscriptRange]) -> Vec<u8> {
     let mut substring: Vec<u8> = Vec::new();
     for r in ranges {
         substring.append(&mut bytestring[r.start() as usize..r.end() as usize].to_vec())

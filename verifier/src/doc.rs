@@ -300,6 +300,9 @@ impl ValidatedDoc {
         for o in &self.commitment_openings {
             let opening = match o {
                 CommitmentOpening::LabelsBlake3(opening) => opening,
+                // match any future types of opening here
+                #[allow(unreachable_patterns)]
+                _ => return Err(Error::NotImplemented),
             };
             openings_ids.insert(opening.id() as usize, o);
         }

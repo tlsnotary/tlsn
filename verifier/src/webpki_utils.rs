@@ -78,6 +78,7 @@ pub fn verify_sig_ke_params(
     // curve constant from the TLS spec
     let curve_const = match &ephem_pubkey.typ() {
         EphemeralECPubkeyType::P256 => [0x00, 0x17],
+        #[allow(unreachable_patterns)]
         _ => return Err(Error::UnknownCurveInKeyExchange),
     };
 
@@ -100,6 +101,7 @@ pub fn verify_sig_ke_params(
     let sigalg = match &sig_ke_params.alg() {
         KEParamsSigAlg::RSA_PKCS1_2048_8192_SHA256 => &webpki::RSA_PKCS1_2048_8192_SHA256,
         KEParamsSigAlg::ECDSA_P256_SHA256 => &webpki::ECDSA_P256_SHA256,
+        #[allow(unreachable_patterns)]
         _ => return Err(Error::UnknownSigningAlgorithmInKeyExchange),
     };
 

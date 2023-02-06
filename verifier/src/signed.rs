@@ -76,8 +76,8 @@ impl Signed {
     }
 }
 
-/// Extracts relevant fields from the VerifierDoc. Those are the fields
-/// which the Notary signs
+/// Extracts relevant fields from [ValidatedDoc]. Those are the fields
+/// which the Notary signs.
 impl std::convert::From<&ValidatedDoc> for Signed {
     fn from(doc: &ValidatedDoc) -> Self {
         Signed::new(

@@ -144,6 +144,7 @@ impl EphemeralECPubkey {
 
 /// Algorithms that can be used for signing the TLS key exchange parameters
 #[derive(Clone, Serialize)]
+#[allow(non_camel_case_types)]
 pub enum KEParamsSigAlg {
     RSA_PKCS1_2048_8192_SHA256,
     ECDSA_P256_SHA256,
