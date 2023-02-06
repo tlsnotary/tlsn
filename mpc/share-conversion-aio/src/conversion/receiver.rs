@@ -88,11 +88,14 @@ where
         self.counter += 1;
         let ot_output = ot_receiver.receive(choices).await?;
 
-        // Aggregate chunks of OTs to get back u128 values
+        // Aggregate OTs to get back field elements from [Field::OTEncoding]
         let field_elements: Vec<V> = ot_output
             .into_iter()
             .map(|ot_out| Into::into(ot_out))
             .collect();
+
+        // Aggregate field elements representing a single field element to get the final output for
+        // the receiver
         let converted_shares: Vec<V> = field_elements
             .chunks(V::BIT_SIZE as usize)
             .map(|elements| U::from_sender_values(elements).inner())

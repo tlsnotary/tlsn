@@ -180,8 +180,6 @@ impl<const N: usize> ObliviousReceive<bool, [Block; N]> for Kos15IOReceiver<r_st
     }
 }
 
-}
-
 #[async_trait]
 impl ObliviousAcceptCommit for Kos15IOReceiver<r_state::Initialized> {
     async fn accept_commit(&mut self) -> Result<(), OTError> {

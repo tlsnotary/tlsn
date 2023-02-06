@@ -38,7 +38,7 @@ where
     fn new(share: Self::Inner) -> Self;
 
     /// Converts '&self' into choices needed for the receiver input to an oblivious transfer.
-    /// The choices are in the "least-bit-first" order.
+    /// The choices are in the MSB0 order.
     fn choices(&self) -> Vec<bool> {
         let len: usize = Self::Inner::BIT_SIZE as usize;
         let mut out: Vec<bool> = Vec::with_capacity(len);

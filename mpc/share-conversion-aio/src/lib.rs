@@ -21,17 +21,17 @@ pub trait MultiplicativeToAdditive<T: Field> {
 
 /// Send a tape used for verification of the conversion
 ///
-/// Implementers record their inputs used during conversion and can send them to the other
-/// party. This will allow the other party to compute all outputs of the sender.
+/// Senders record their inputs used during conversion and can send them to the receiver
+/// afterwards. This will allow the receiver to use [VerifyTape].
 #[async_trait]
 pub trait SendTape {
     async fn send_tape(self) -> Result<(), ShareConversionError>;
 }
 
-/// Verify the recorded inputs of the other party
+/// Verify the recorded inputs of the sender
 ///
-/// Will check if the conversion worked correctly. This allows to catch a malicious party but
-/// requires the malicious party to open and send all their inputs of the conversion before.
+/// Will check if the conversion worked correctly. This allows to catch a malicious sender but
+/// requires that he/she makes use of [SendTape].
 #[async_trait]
 pub trait VerifyTape {
     async fn verify_tape(self) -> Result<(), ShareConversionError>;

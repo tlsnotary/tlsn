@@ -50,7 +50,8 @@ impl Mul for Gf2_128 {
 
     /// Galois field multiplication of two 128-bit blocks reduced by the GCM polynomial
     fn mul(self, rhs: Self) -> Self::Output {
-        /// R is the GCM polynomial in big-endian. In hex: "000000000000000000000000000000E1"
+        /// R is the GCM "special element" (see section 2.5 of "The Galois/Counter Mode of Operation (GCM)")
+        /// in big-endian. In hex: "000000000000000000000000000000E1"
         const R: u128 = 135;
 
         let mut x = self.0;
@@ -160,7 +161,7 @@ mod tests {
 
     #[test]
     fn test_gf2_128_mul() {
-        // Naive mutltiplication is the same here
+        // Naive multiplication is the same here
         let a = Gf2_128::new(3);
         let b = Gf2_128::new(5);
 

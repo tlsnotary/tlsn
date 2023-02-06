@@ -24,7 +24,7 @@ impl<T: Field> MulShare<T> {
 
         let t0: Vec<T> = masks.clone();
 
-        // we multiply `self.inner()` with 2^i and add a mask
+        // we multiply `self.inner()` with 2^(T::BIT_SIZE - k -1) and add a mask
         let mut t1 = vec![T::zero(); T::BIT_SIZE as usize];
         for (k, t) in t1.iter_mut().enumerate() {
             *t = (self.inner() * T::two_pow(T::BIT_SIZE - k as u32 - 1)) + masks[k]

@@ -2,7 +2,7 @@ use crate::ShareConversionError;
 use share_conversion_core::fields::Field;
 use utils_aio::Channel;
 
-/// A channel used for messaging of conversion protocols
+/// A channel used by conversion protocols for messaging
 pub type ShareConversionChannel<T> =
     Box<dyn Channel<ShareConversionMessage<T>, Error = std::io::Error>>;
 

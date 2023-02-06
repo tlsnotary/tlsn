@@ -42,8 +42,8 @@ impl<T: Field> AddShare<T> {
         // 0 + 10 + 100 + 0000 + 10000
         let components: Vec<T> = (0..T::BIT_SIZE)
             .map(|k| {
-                // we extract a bit of `self.inner()` in position `i` (counting from the left) and
-                // then left-shift that bit by `i`;
+                // we extract a bit of `self.inner()` in position `k` (counting from the left) and
+                // then left-shift that bit by `k`;
                 let mut bits = vec![false; T::BIT_SIZE as usize];
                 bits[k as usize] = self.inner().get_bit_be(k);
                 T::from_bits_be(&bits)
