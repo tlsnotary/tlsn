@@ -127,17 +127,13 @@ impl Field for Gf2_128 {
 mod tests {
     use super::Gf2_128;
     use crate::fields::{
-        tests::{
-            test_field_basic, test_field_bit_ops, test_field_block_conversion,
-            test_field_compute_product_repeated,
-        },
+        tests::{test_field_basic, test_field_bit_ops, test_field_compute_product_repeated},
         Field, UniformRand,
     };
     use ghash_rc::{
         universal_hash::{NewUniversalHash, UniversalHash},
         GHash,
     };
-    use mpc_core::Block;
     use rand::SeedableRng;
     use rand_chacha::ChaCha12Rng;
 
@@ -186,10 +182,5 @@ mod tests {
         let expected = u128::from_be_bytes(g.finalize().into_bytes().into()).reverse_bits();
         let output = (a * b).0;
         assert_eq!(expected, output);
-    }
-
-    #[test]
-    fn test_gf2_128_block_conversion() {
-        test_field_block_conversion::<Gf2_128, Block>();
     }
 }

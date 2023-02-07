@@ -108,14 +108,9 @@ impl Field for P256 {
 
 #[cfg(test)]
 mod tests {
-    use mpc_core::Block;
-
     use super::P256;
     use crate::fields::{
-        tests::{
-            test_field_basic, test_field_bit_ops, test_field_block_conversion,
-            test_field_compute_product_repeated,
-        },
+        tests::{test_field_basic, test_field_bit_ops, test_field_compute_product_repeated},
         Field,
     };
 
@@ -134,10 +129,5 @@ mod tests {
     #[test]
     fn test_p256_bit_ops() {
         test_field_bit_ops::<P256>();
-    }
-
-    #[test]
-    fn test_p256_block_conversion() {
-        test_field_block_conversion::<P256, Vec<Block>>();
     }
 }

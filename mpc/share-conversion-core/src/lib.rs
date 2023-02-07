@@ -17,6 +17,7 @@
 mod a2m;
 pub mod fields;
 mod m2a;
+pub mod msgs;
 
 pub use a2m::AddShare;
 use fields::Field;
@@ -114,19 +115,6 @@ impl<T: Field> OTEnvelope<T> {
 impl<T> Default for OTEnvelope<T> {
     fn default() -> Self {
         Self(vec![], vec![])
-    }
-}
-
-impl<T> From<OTEnvelope<T>> for Vec<[T::OTEncoding; 2]>
-where
-    T: Field,
-{
-    fn from(value: OTEnvelope<T>) -> Self {
-        let mut out = Vec::with_capacity(value.0.len());
-        for (zero, one) in value.0.iter().zip(value.1.iter()) {
-            out.push([Into::into(*zero), Into::into(*one)])
-        }
-        out
     }
 }
 
