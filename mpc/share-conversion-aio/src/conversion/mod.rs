@@ -1,13 +1,17 @@
 #[cfg(feature = "mock")]
 pub mod mock;
-mod msgs;
 mod receiver;
 pub mod recorder;
 mod sender;
 
-pub use msgs::{ShareConversionChannel, ShareConversionMessage};
 pub use receiver::Receiver;
 pub use sender::Sender;
+pub use share_conversion_core::msgs::ShareConversionMessage;
+use utils_aio::Channel;
+
+/// A channel used by conversion protocols for messaging
+pub type ShareConversionChannel<T> =
+    Box<dyn Channel<ShareConversionMessage<T>, Error = std::io::Error>>;
 
 #[cfg(test)]
 mod tests {

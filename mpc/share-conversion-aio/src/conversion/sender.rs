@@ -11,7 +11,9 @@ use mpc_aio::protocol::ot::{config::OTSenderConfig, OTFactoryError, ObliviousSen
 use mpc_core::ot::config::OTSenderConfigBuilder;
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
-use share_conversion_core::{fields::Field, AddShare, MulShare, OTEnvelope, ShareConvert};
+use share_conversion_core::{
+    fields::Field, msgs::SenderRecordings, AddShare, MulShare, OTEnvelope, ShareConvert,
+};
 use std::marker::PhantomData;
 use utils_aio::{adaptive_barrier::AdaptiveBarrier, factory::AsyncFactory};
 
@@ -161,7 +163,11 @@ where
     V: Field<OTEncoding = X>,
 {
     async fn send_tape(mut self) -> Result<(), ShareConversionError> {
-        let message = (self.recorder.seed, self.recorder.sender_inputs).into();
+        let message = SenderRecordings {
+            seed: self.recorder.seed.to_vec(),
+            sender_inputs: self.sender_inputs,
+        }
+        .into();
 
         if let Some(barrier) = self.barrier {
             barrier.wait().await;

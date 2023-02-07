@@ -11,7 +11,9 @@ use mpc_aio::protocol::ot::{
     config::{OTReceiverConfig, OTReceiverConfigBuilder},
     OTFactoryError, ObliviousReceive,
 };
-use share_conversion_core::{fields::Field, AddShare, MulShare, ShareConvert};
+use share_conversion_core::{
+    fields::Field, msgs::SenderRecordings, AddShare, MulShare, ShareConvert,
+};
 use std::marker::PhantomData;
 use utils_aio::factory::AsyncFactory;
 
@@ -149,9 +151,16 @@ where
             "stream closed unexpectedly",
         ))?;
 
-        let (seed, sender_tape): ([u8; 32], Vec<V>) = message.try_into()?;
-        <Tape<V> as Recorder<U, V>>::set_seed(&mut self.recorder, seed);
-        <Tape<V> as Recorder<U, V>>::record_for_sender(&mut self.recorder, &sender_tape);
+        let SenderRecordings {
+            seed,
+            sender_inputs,
+        } = message.into();
+        <Tape<V> as Recorder<U, V>>::set_seed(
+            &mut self.recorder,
+            seed.try_into()
+                .expect("Seed does not fit into 32 byte array"),
+        );
+        <Tape<V> as Recorder<U, V>>::record_for_sender(&mut self.recorder, &sender_inputs);
         <Tape<V> as Recorder<U, V>>::verify(&self.recorder)
     }
 }

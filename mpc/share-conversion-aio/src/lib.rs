@@ -48,8 +48,6 @@ pub enum ShareConversionError {
     IOError(#[from] std::io::Error),
     #[error("ShareConversionCore Error: {0}")]
     ShareConversionCore(#[from] ShareConversionCoreError),
-    #[error("Malformed seed")]
-    SeedConversion,
     #[error("Tape verification failed")]
     VerifyTapeFailed,
     #[error("Error: {0}")]
