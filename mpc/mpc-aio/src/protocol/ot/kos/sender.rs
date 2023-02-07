@@ -2,7 +2,6 @@ use super::{OTChannel, ObliviousSend};
 use crate::protocol::ot::{OTError, ObliviousCommit, ObliviousReveal};
 use aes::{cipher::NewBlockCipher, Aes128, BlockEncrypt};
 use async_trait::async_trait;
-use cipher::consts::U16;
 use futures::{SinkExt, StreamExt};
 use mpc_core::{
     msgs::ot::{ExtSenderEncryptedPayload, OTMessage},
