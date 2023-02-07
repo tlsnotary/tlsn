@@ -1,6 +1,6 @@
 use super::{OTChannel, ObliviousReceive};
 use crate::protocol::ot::{OTError, ObliviousAcceptCommit, ObliviousVerify};
-use aes::{cipher::NewBlockCipher, Aes128};
+use aes::{cipher::NewBlockCipher, Aes128, BlockDecrypt};
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use mpc_core::{
@@ -148,7 +148,7 @@ impl<const N: usize> ObliviousReceive<bool, [Block; N]> for Kos15IOReceiver<r_st
 
             // The ciphertexts are sent flattened as [msg_0, msg_1]
             // We select the correct slice based on the choice bit
-            let msg = if choice {
+            let msg_slice = if choice {
                 // msg_1
                 &msgs[N * Block::LEN..2 * N * Block::LEN]
             } else {
@@ -156,16 +156,23 @@ impl<const N: usize> ObliviousReceive<bool, [Block; N]> for Kos15IOReceiver<r_st
                 &msgs[0..N * Block::LEN]
             };
 
-            // Convert to blocks and decrypt
-            let mut blocks: [Block; N] = [Block::default(); N];
-            for (i, block) in msg.chunks_exact(Block::LEN).enumerate() {
-                let block: [u8; Block::LEN] = block
+            // Convert the slice into an array of [u8; Block::LEN]
+            let msg: [[u8; Block::LEN]; N] = std::array::from_fn(|i| {
+                msg_slice[i * Block::LEN..(i + 1) * Block::LEN]
                     .try_into()
-                    .expect(&format!("Expected array to have length {}", Block::LEN));
-                blocks[i] = Block::from(block).decrypt(&cipher);
-            }
+                    .expect(&format!("Expected array to have length {}", Block::LEN))
+            });
 
-            plaintext.push(blocks);
+            // Convert the array of [u8; Block::LEN] into an array of generic_array
+            let mut msg: [_; N] = std::array::from_fn(|i| msg[i].into());
+
+            // Decrypt
+            cipher.decrypt_blocks(&mut msg);
+
+            // Convert the array of generic_array into an array of blocks
+            let msg: [Block; N] = std::array::from_fn(|i| msg[i].into());
+
+            plaintext.push(msg);
         }
 
         Ok(plaintext)

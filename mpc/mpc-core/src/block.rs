@@ -142,6 +142,20 @@ impl From<[u8; 16]> for Block {
     }
 }
 
+impl From<Block> for GenericArray<u8, U16> {
+    #[inline]
+    fn from(b: Block) -> Self {
+        b.to_be_bytes().into()
+    }
+}
+
+impl From<GenericArray<u8, U16>> for Block {
+    #[inline]
+    fn from(b: GenericArray<u8, U16>) -> Self {
+        Block::new(u128::from_be_bytes(b.into()))
+    }
+}
+
 impl From<Block> for [u8; 16] {
     #[inline]
     fn from(b: Block) -> Self {

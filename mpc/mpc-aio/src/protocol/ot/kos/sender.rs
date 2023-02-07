@@ -1,6 +1,6 @@
 use super::{OTChannel, ObliviousSend};
 use crate::protocol::ot::{OTError, ObliviousCommit, ObliviousReveal};
-use aes::{cipher::NewBlockCipher, Aes128};
+use aes::{cipher::NewBlockCipher, Aes128, BlockEncrypt};
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use mpc_core::{
@@ -146,13 +146,15 @@ impl<const N: usize> ObliviousSend<[[Block; N]; 2]> for Kos15IOSender<s_state::R
                 Aes128::new(&key_0.to_be_bytes().into()),
                 Aes128::new(&key_1.to_be_bytes().into()),
             );
+
+            let mut msg_0: [_; N] = std::array::from_fn(|i| msg_0[i].into());
+            let mut msg_1: [_; N] = std::array::from_fn(|i| msg_1[i].into());
+
             // Encrypt the message blocks and push into buffer
-            for block in msg_0 {
-                buffer.extend(&block.encrypt(&cipher_0).to_be_bytes());
-            }
-            for block in msg_1 {
-                buffer.extend(&block.encrypt(&cipher_1).to_be_bytes());
-            }
+            cipher_0.encrypt_blocks(&mut msg_0);
+            cipher_1.encrypt_blocks(&mut msg_1);
+
+            buffer.extend(msg_0.iter().chain(msg_1.iter()).flatten());
         }
 
         // Send keys using OT
