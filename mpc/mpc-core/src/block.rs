@@ -1,3 +1,4 @@
+use aes::BlockDecrypt;
 use cipher::{consts::U16, generic_array::GenericArray, BlockCipher, BlockEncrypt};
 use core::ops::{BitAnd, BitXor};
 use rand::{CryptoRng, Rng};
@@ -76,6 +77,20 @@ impl Block {
     }
 
     #[inline]
+    pub fn encrypt<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(&self, cipher: &C) -> Self {
+        let mut b = self.to_be_bytes().into();
+        cipher.encrypt_block(&mut b);
+        Self::new(u128::from_be_bytes(b.into()))
+    }
+
+    #[inline]
+    pub fn decrypt<C: BlockCipher<BlockSize = U16> + BlockDecrypt>(&self, cipher: &C) -> Self {
+        let mut b = self.to_be_bytes().into();
+        cipher.decrypt_block(&mut b);
+        Self::new(u128::from_be_bytes(b.into()))
+    }
+
+    #[inline]
     pub fn zero() -> Self {
         Self(0)
     }
@@ -124,6 +139,27 @@ impl From<[u8; 16]> for Block {
     #[inline]
     fn from(b: [u8; 16]) -> Self {
         Block::new(u128::from_be_bytes(b))
+    }
+}
+
+impl From<Block> for GenericArray<u8, U16> {
+    #[inline]
+    fn from(b: Block) -> Self {
+        b.to_be_bytes().into()
+    }
+}
+
+impl From<GenericArray<u8, U16>> for Block {
+    #[inline]
+    fn from(b: GenericArray<u8, U16>) -> Self {
+        Block::new(u128::from_be_bytes(b.into()))
+    }
+}
+
+impl From<Block> for [u8; 16] {
+    #[inline]
+    fn from(b: Block) -> Self {
+        b.to_be_bytes()
     }
 }
 

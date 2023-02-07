@@ -1,11 +1,7 @@
 use super::{OTChannel, ObliviousReceive};
 use crate::protocol::ot::{OTError, ObliviousAcceptCommit, ObliviousVerify};
-use aes::{
-    cipher::{generic_array::GenericArray, NewBlockCipher},
-    Aes128, BlockDecrypt,
-};
+use aes::{cipher::NewBlockCipher, Aes128, BlockDecrypt};
 use async_trait::async_trait;
-use cipher::consts::U16;
 use futures::{SinkExt, StreamExt};
 use mpc_core::{
     msgs::ot::{ExtSenderEncryptedPayload, OTMessage},
@@ -120,42 +116,65 @@ impl ObliviousReceive<bool, Block> for Kos15IOReceiver<r_state::RandSetup> {
 // is sent shortly after the OT. This way we extend our OT from 128-bit maximum message length to an
 // unlimited message length.
 #[async_trait]
-impl ObliviousReceive<bool, Vec<Block>> for Kos15IOReceiver<r_state::RandSetup> {
-    async fn receive(&mut self, choices: Vec<bool>) -> Result<Vec<Vec<Block>>, OTError> {
+impl<const N: usize> ObliviousReceive<bool, [Block; N]> for Kos15IOReceiver<r_state::RandSetup> {
+    async fn receive(&mut self, choices: Vec<bool>) -> Result<Vec<[Block; N]>, OTError> {
         // Receive AES encryption keys from OT
         let keys = ObliviousReceive::<bool, Block>::receive(self, choices.clone()).await?;
 
-        // Receive a pair of ciphertexts for each choice bit
-        let ExtSenderEncryptedPayload { mut ciphertexts } = expect_msg_or_err!(
+        // Expect the sender to send the encrypted messages
+        let ExtSenderEncryptedPayload { ciphertexts } = expect_msg_or_err!(
             self.channel.next().await,
             OTMessage::ExtSenderEncryptedPayload,
             OTError::Unexpected
         )?;
 
-        // Decrypt one of the ciphertexts from each pair with a corresponding key
-        let mut plaintext: Vec<Vec<Block>> = Vec::with_capacity(choices.len());
-        for k in 0..choices.len() {
-            let mut blocks: Vec<GenericArray<u8, U16>> = ciphertexts[k][choices[k] as usize]
-                .iter_mut()
-                .map(|block| GenericArray::clone_from_slice(&block.inner().to_be_bytes()))
-                .collect();
-
-            let cipher = Aes128::new(&keys[k].inner().to_be_bytes().into());
-            cipher.decrypt_blocks(&mut blocks);
-
-            plaintext.push(
-                blocks
-                    .iter()
-                    .map(|gen_arr| {
-                        let arr: [u8; 16] = gen_arr
-                            .as_slice()
-                            .try_into()
-                            .expect("Expected array to have length 16");
-                        Block::from(arr)
-                    })
-                    .collect(),
-            )
+        // Check that the Sender sent the correct number of ciphertexts
+        let expected_len = choices.len() * 2 * N * Block::LEN;
+        if ciphertexts.len() != expected_len {
+            return Err(OTError::InvalidCiphertextLength(
+                expected_len,
+                ciphertexts.len(),
+            ));
         }
+
+        // Decrypt one of the ciphertexts from each pair with a corresponding key
+        let mut plaintext: Vec<[Block; N]> = Vec::with_capacity(choices.len());
+        for ((key, choice), msgs) in keys
+            .iter()
+            .zip(choices.into_iter())
+            .zip(ciphertexts.chunks_exact(2 * N * Block::LEN))
+        {
+            let cipher = Aes128::new(&key.to_be_bytes().into());
+
+            // The ciphertexts are sent flattened as [msg_0, msg_1]
+            // We select the correct slice based on the choice bit
+            let msg_slice = if choice {
+                // msg_1
+                &msgs[N * Block::LEN..2 * N * Block::LEN]
+            } else {
+                // msg_0
+                &msgs[0..N * Block::LEN]
+            };
+
+            // Convert the slice into an array of [u8; Block::LEN]
+            let msg: [[u8; Block::LEN]; N] = std::array::from_fn(|i| {
+                msg_slice[i * Block::LEN..(i + 1) * Block::LEN]
+                    .try_into()
+                    .expect(&format!("Expected array to have length {}", Block::LEN))
+            });
+
+            // Convert the array of [u8; Block::LEN] into an array of generic_array
+            let mut msg: [_; N] = std::array::from_fn(|i| msg[i].into());
+
+            // Decrypt
+            cipher.decrypt_blocks(&mut msg);
+
+            // Convert the array of generic_array into an array of blocks
+            let msg: [Block; N] = std::array::from_fn(|i| msg[i].into());
+
+            plaintext.push(msg);
+        }
+
         Ok(plaintext)
     }
 }
