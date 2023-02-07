@@ -27,7 +27,6 @@ pub trait Field:
     + From<Self::OTEncoding>
 {
     const BIT_SIZE: u32;
-    type OTEncoding;
 
     // Return the additive neutral element
     fn zero() -> Self;

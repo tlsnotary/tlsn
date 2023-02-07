@@ -7,10 +7,11 @@ pub type ShareConversionChannel<T> =
     Box<dyn Channel<ShareConversionMessage<T>, Error = std::io::Error>>;
 
 /// The messages exchanged between sender and receiver
+#[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ShareConversionMessage<T: Field> {
-    seed: Vec<u8>,
-    sender_tape: Vec<T>,
+    pub seed: Vec<u8>,
+    pub sender_tape: Vec<T>,
 }
 
 impl<T: Field> From<([u8; 32], Vec<T>)> for ShareConversionMessage<T> {
