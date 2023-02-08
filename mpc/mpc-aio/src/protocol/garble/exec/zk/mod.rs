@@ -10,6 +10,32 @@ mod verifier;
 pub use prover::{state as prover_state, Prover};
 pub use verifier::{state as verifier_state, Verifier};
 
+use async_trait::async_trait;
+
+use mpc_circuits::{Input, InputValue, OutputValue};
+use mpc_core::garble::{ActiveEncodedInput, FullInputSet};
+
+use crate::protocol::garble::GCError;
+
+#[async_trait]
+pub trait Prove {
+    async fn prove(
+        self,
+        inputs: Vec<InputValue>,
+        cached_labels: Vec<ActiveEncodedInput>,
+    ) -> Result<(), GCError>;
+}
+
+#[async_trait]
+pub trait Verify {
+    async fn verify(
+        self,
+        gen_labels: FullInputSet,
+        inputs: Vec<InputValue>,
+        ot_send_inputs: Vec<Input>,
+    ) -> Result<Vec<OutputValue>, GCError>;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
