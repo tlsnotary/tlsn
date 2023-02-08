@@ -76,7 +76,7 @@ impl Neg for Gf2_128 {
 
 impl Field for Gf2_128 {
     const BIT_SIZE: u32 = 128;
-    type OTEncoding = Block;
+    type BlockEncoding = Block;
 
     fn zero() -> Self {
         Self::new(0)

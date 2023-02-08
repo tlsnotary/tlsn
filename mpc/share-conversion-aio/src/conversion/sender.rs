@@ -27,7 +27,7 @@ where
     T: AsyncFactory<OT>,
     OT: ObliviousSend<[X; 2]>,
     U: ShareConvert<Inner = V>,
-    V: Field<OTEncoding = X>,
+    V: Field<BlockEncoding = X>,
     W: Recorder<U, V>,
 {
     /// Provides initialized OTs for the OT sender
@@ -51,7 +51,7 @@ where
     T: AsyncFactory<OT, Config = OTSenderConfig, Error = OTFactoryError> + Send,
     OT: ObliviousSend<[X; 2]>,
     U: ShareConvert<Inner = V>,
-    V: Field<OTEncoding = X>,
+    V: Field<BlockEncoding = X>,
     W: Recorder<U, V>,
 {
     /// Create a new sender
@@ -117,7 +117,7 @@ where
     T: AsyncFactory<OT> + Send,
     OT: ObliviousSend<[X; 2]>,
     U: ShareConvert<Inner = V>,
-    V: Field<OTEncoding = X>,
+    V: Field<BlockEncoding = X>,
 {
     pub fn tape_mut(&mut self) -> &mut Tape<V> {
         &mut self.recorder
@@ -129,7 +129,7 @@ impl<T, OT, V, X, W> AdditiveToMultiplicative<V> for Sender<T, OT, AddShare<V>, 
 where
     T: AsyncFactory<OT, Config = OTSenderConfig, Error = OTFactoryError> + Send,
     OT: ObliviousSend<[X; 2]> + Send,
-    V: Field<OTEncoding = X>,
+    V: Field<BlockEncoding = X>,
     W: Recorder<AddShare<V>, V> + Send,
     X: Send,
 {
@@ -145,7 +145,7 @@ impl<T, OT, V, X, W> MultiplicativeToAdditive<V> for Sender<T, OT, MulShare<V>, 
 where
     T: AsyncFactory<OT, Config = OTSenderConfig, Error = OTFactoryError> + Send,
     OT: ObliviousSend<[X; 2]> + Send,
-    V: Field<OTEncoding = X>,
+    V: Field<BlockEncoding = X>,
     W: Recorder<MulShare<V>, V> + Send,
     X: Send,
 {
@@ -162,7 +162,7 @@ where
     T: AsyncFactory<OT> + Send,
     OT: ObliviousSend<[X; 2]> + Send,
     U: ShareConvert<Inner = V> + Send,
-    V: Field<OTEncoding = X>,
+    V: Field<BlockEncoding = X>,
 {
     async fn send_tape(mut self) -> Result<(), ShareConversionError> {
         let message = SenderRecordings {

@@ -23,11 +23,11 @@ pub trait Field:
     + Ord
     + PartialEq
     + Eq
-    + From<Self::OTEncoding>
-    + Into<Self::OTEncoding>
+    + From<Self::BlockEncoding>
+    + Into<Self::BlockEncoding>
 {
     const BIT_SIZE: u32;
-    type OTEncoding;
+    type BlockEncoding;
 
     // Return the additive neutral element
     fn zero() -> Self;

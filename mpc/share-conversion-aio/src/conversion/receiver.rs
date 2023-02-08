@@ -27,7 +27,7 @@ where
     T: AsyncFactory<OT>,
     OT: ObliviousReceive<bool, X>,
     U: ShareConvert<Inner = V>,
-    V: Field<OTEncoding = X>,
+    V: Field<BlockEncoding = X>,
     W: Recorder<U, V>,
 {
     /// Provides initialized OTs for the OT receiver
@@ -47,7 +47,7 @@ where
     T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
     OT: ObliviousReceive<bool, X>,
     U: ShareConvert<Inner = V>,
-    V: Field<OTEncoding = X>,
+    V: Field<BlockEncoding = X>,
     W: Recorder<U, V>,
 {
     /// Create a new receiver
@@ -114,7 +114,7 @@ impl<T, OT, V, X, W> AdditiveToMultiplicative<V> for Receiver<T, OT, AddShare<V>
 where
     T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
     OT: ObliviousReceive<bool, X> + Send,
-    V: Field<OTEncoding = X>,
+    V: Field<BlockEncoding = X>,
     W: Recorder<AddShare<V>, V> + Send,
 {
     async fn a_to_m(&mut self, input: Vec<V>) -> Result<Vec<V>, ShareConversionError> {
@@ -129,7 +129,7 @@ impl<T, OT, V, X, W> MultiplicativeToAdditive<V> for Receiver<T, OT, MulShare<V>
 where
     T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
     OT: ObliviousReceive<bool, X> + Send,
-    V: Field<OTEncoding = X>,
+    V: Field<BlockEncoding = X>,
     W: Recorder<MulShare<V>, V> + Send,
 {
     async fn m_to_a(&mut self, input: Vec<V>) -> Result<Vec<V>, ShareConversionError> {
@@ -145,7 +145,7 @@ where
     T: AsyncFactory<OT> + Send,
     OT: ObliviousReceive<bool, X> + Send,
     U: ShareConvert<Inner = V> + Send,
-    V: Field<OTEncoding = X>,
+    V: Field<BlockEncoding = X>,
 {
     async fn verify_tape(mut self) -> Result<(), ShareConversionError> {
         let message = self.channel.next().await.ok_or(std::io::Error::new(

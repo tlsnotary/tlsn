@@ -118,7 +118,7 @@ impl<T> Default for OTEnvelope<T> {
     }
 }
 
-impl<T> From<OTEnvelope<T>> for Vec<[T::OTEncoding; 2]>
+impl<T> From<OTEnvelope<T>> for Vec<[T::BlockEncoding; 2]>
 where
     T: Field,
 {

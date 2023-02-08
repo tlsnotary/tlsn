@@ -88,7 +88,7 @@ mod tests {
         test_m2a_recorded_fail::<P256, [Block; 2]>().await;
     }
 
-    async fn test_a2m<T: Field<OTEncoding = U>, U: Send + Clone + 'static>() {
+    async fn test_a2m<T: Field<BlockEncoding = U>, U: Send + Clone + 'static>() {
         let (mut sender, mut receiver) = mock_converter_pair::<AddShare<T>, T, U, Void>();
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
@@ -115,7 +115,7 @@ mod tests {
         }
     }
 
-    async fn test_m2a<T: Field<OTEncoding = U>, U: Send + Clone + 'static>() {
+    async fn test_m2a<T: Field<BlockEncoding = U>, U: Send + Clone + 'static>() {
         let (mut sender, mut receiver) = mock_converter_pair::<MulShare<T>, T, U, Void>();
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
@@ -142,7 +142,7 @@ mod tests {
         }
     }
 
-    async fn test_a2m_recorded<T: Field<OTEncoding = U>, U: Send + Clone + 'static>() {
+    async fn test_a2m_recorded<T: Field<BlockEncoding = U>, U: Send + Clone + 'static>() {
         let (mut sender, mut receiver) = mock_converter_pair::<AddShare<T>, T, U, Tape<T>>();
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
@@ -167,7 +167,7 @@ mod tests {
         // fine.
     }
 
-    async fn test_m2a_recorded<T: Field<OTEncoding = U>, U: Send + Clone + 'static>() {
+    async fn test_m2a_recorded<T: Field<BlockEncoding = U>, U: Send + Clone + 'static>() {
         let (mut sender, mut receiver) = mock_converter_pair::<MulShare<T>, T, U, Tape<T>>();
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
@@ -192,7 +192,7 @@ mod tests {
         // fine.
     }
 
-    async fn test_a2m_recorded_fail<T: Field<OTEncoding = U>, U: Send + Clone + 'static>() {
+    async fn test_a2m_recorded_fail<T: Field<BlockEncoding = U>, U: Send + Clone + 'static>() {
         let (mut sender, mut receiver) = mock_converter_pair::<AddShare<T>, T, U, Tape<T>>();
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
@@ -223,7 +223,7 @@ mod tests {
         ));
     }
 
-    async fn test_m2a_recorded_fail<T: Field<OTEncoding = U>, U: Send + Clone + 'static>() {
+    async fn test_m2a_recorded_fail<T: Field<BlockEncoding = U>, U: Send + Clone + 'static>() {
         let (mut sender, mut receiver) = mock_converter_pair::<MulShare<T>, T, U, Tape<T>>();
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 

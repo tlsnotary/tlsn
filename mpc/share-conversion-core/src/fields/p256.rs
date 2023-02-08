@@ -75,7 +75,7 @@ impl Neg for P256 {
 
 impl Field for P256 {
     const BIT_SIZE: u32 = 256;
-    type OTEncoding = [Block; 2];
+    type BlockEncoding = [Block; 2];
 
     fn zero() -> Self {
         P256(<Fq as Zero>::zero())

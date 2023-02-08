@@ -9,7 +9,7 @@ pub type MockReceiver<U, V, X, W> = Receiver<MockOTFactory<X>, MockOTReceiver<X>
 
 pub fn mock_converter_pair<
     U: ShareConvert<Inner = V>,
-    V: Field<OTEncoding = X>,
+    V: Field<BlockEncoding = X>,
     X: Send + 'static,
     W: Recorder<U, V>,
 >() -> (MockSender<U, V, X, W>, MockReceiver<U, V, X, W>)
