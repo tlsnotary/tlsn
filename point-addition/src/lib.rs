@@ -12,6 +12,8 @@ pub use conversion::Converter;
 pub enum PointAdditionError {
     #[error("ShareConversionError: {0}")]
     ShareConversion(#[from] ShareConversionError),
+    #[error("Unable to get coordinates from elliptic curve point")]
+    Coordinates,
 }
 
 /// This trait is for securely secret-sharing the addition of two elliptic curve points.

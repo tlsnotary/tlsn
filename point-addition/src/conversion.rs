@@ -3,12 +3,10 @@
 
 use super::{PointAddition, PointAdditionError};
 use async_trait::async_trait;
-use p256::{
-    elliptic_curve::{AffinePoint, AffineXCoordinate},
-    NistP256,
-};
+use mpc_core::Block;
+use p256::EncodedPoint;
 use share_conversion_aio::{AdditiveToMultiplicative, MultiplicativeToAdditive};
-use share_conversion_core::fields::Field;
+use share_conversion_core::fields::{p256::P256, Field};
 
 /// The instance used for converting the curve points
 pub struct Converter<T, U, V>
@@ -64,19 +62,46 @@ where
 }
 
 #[async_trait]
-impl<T, U, V> PointAddition for Converter<T, U, V>
+impl<T, U> PointAddition for Converter<T, U, P256>
 where
-    T: AdditiveToMultiplicative<V> + Send,
-    U: MultiplicativeToAdditive<V> + Send,
-    V: Field,
+    T: AdditiveToMultiplicative<P256> + Send,
+    U: MultiplicativeToAdditive<P256> + Send,
 {
-    type Point = AffinePoint<NistP256>;
-    type XCoordinate = V;
+    type Point = EncodedPoint;
+    type XCoordinate = P256;
 
     async fn compute_x_coordinate_share(
         &mut self,
         point: Self::Point,
     ) -> Result<Self::XCoordinate, PointAdditionError> {
-        let (x, y) = (point.x(), point.y());
+        let x = point.x().ok_or(PointAdditionError::Coordinates)?;
+        let y = point.y().ok_or(PointAdditionError::Coordinates)?;
+
+        let x1 = <Block as From<[u8; 16]>>::from(
+            x.as_slice()[..16]
+                .try_into()
+                .map_err(|_| PointAdditionError::Coordinates)?,
+        );
+        let x2 = <Block as From<[u8; 16]>>::from(
+            x.as_slice()[16..]
+                .try_into()
+                .map_err(|_| PointAdditionError::Coordinates)?,
+        );
+
+        let y1 = <Block as From<[u8; 16]>>::from(
+            y.as_slice()[..16]
+                .try_into()
+                .map_err(|_| PointAdditionError::Coordinates)?,
+        );
+        let y2 = <Block as From<[u8; 16]>>::from(
+            y.as_slice()[16..]
+                .try_into()
+                .map_err(|_| PointAdditionError::Coordinates)?,
+        );
+
+        let x = P256::from([x1, x2]);
+        let y = P256::from([y1, y2]);
+
+        self.convert([x, y]).await
     }
 }
