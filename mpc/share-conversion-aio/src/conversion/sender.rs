@@ -165,7 +165,7 @@ where
     async fn send_tape(mut self) -> Result<(), ShareConversionError> {
         let message = SenderRecordings {
             seed: self.recorder.seed.to_vec(),
-            sender_inputs: self.sender_inputs,
+            sender_inputs: self.recorder.sender_inputs,
         }
         .into();
 

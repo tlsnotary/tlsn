@@ -4,7 +4,7 @@ use super::Field;
 use ark_ff::{BigInt, BigInteger, Field as ArkField, FpConfig, MontBackend, One, Zero};
 use ark_secp256r1::{fq::Fq, FqConfig};
 use mpc_core::Block;
-use num_bigint::{BigUint, ToBigUint};
+use num_bigint::ToBigUint;
 use rand::{distributions::Standard, prelude::Distribution};
 use std::ops::{Add, Mul, Neg};
 
@@ -18,24 +18,28 @@ impl P256 {
     }
 }
 
-impl From<P256> for Vec<Block> {
+impl From<P256> for [Block; 2] {
     fn from(value: P256) -> Self {
         let bytes = MontBackend::<FqConfig, 4>::into_bigint(value.0);
         let first = ((bytes.0[3] as u128) << 64) | bytes.0[2] as u128;
         let second = ((bytes.0[1] as u128) << 64) | bytes.0[0] as u128;
-        vec![Block::new(first), Block::new(second)]
+        [Block::new(first), Block::new(second)]
     }
 }
 
-impl From<Vec<Block>> for P256 {
-    fn from(value: Vec<Block>) -> Self {
-        let first = value[0].inner();
-        let second = value[1].inner();
+impl From<[Block; 2]> for P256 {
+    fn from(value: [Block; 2]) -> Self {
+        let first = (value[0].inner() >> 64) as u64;
+        let second = value[0].inner() as u64;
+        let third = (value[1].inner() >> 64) as u64;
+        let fourth = value[1].inner() as u64;
 
-        let mut bytes: Vec<u8> = first.to_be_bytes().to_vec();
-        bytes.extend_from_slice(&second.to_be_bytes());
+        let big_int = BigInt::new([fourth, third, second, first]);
 
-        P256::new(BigUint::from_bytes_be(&bytes))
+        P256(
+            MontBackend::<FqConfig, 4>::from_bigint(big_int)
+                .expect("Unable to create field element"),
+        )
     }
 }
 
@@ -71,6 +75,7 @@ impl Neg for P256 {
 
 impl Field for P256 {
     const BIT_SIZE: u32 = 256;
+    type OTEncoding = [Block; 2];
 
     fn zero() -> Self {
         P256(<Fq as Zero>::zero())

@@ -118,6 +118,19 @@ impl<T> Default for OTEnvelope<T> {
     }
 }
 
+impl<T> From<OTEnvelope<T>> for Vec<[T::OTEncoding; 2]>
+where
+    T: Field,
+{
+    fn from(value: OTEnvelope<T>) -> Self {
+        let mut out = Vec::with_capacity(value.0.len());
+        for (zero, one) in value.0.iter().zip(value.1.iter()) {
+            out.push([Into::into(*zero), Into::into(*one)])
+        }
+        out
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ShareConversionCoreError {
     #[error("Cannot build OTEnvelope from vecs with unequal length")]

@@ -60,32 +60,32 @@ mod tests {
 
     #[tokio::test]
     async fn test_share_conversion_aio_p256_a2m() {
-        test_a2m::<P256, Vec<Block>>().await;
+        test_a2m::<P256, [Block; 2]>().await;
     }
 
     #[tokio::test]
     async fn test_share_conversion_aio_p256_m2a() {
-        test_m2a::<P256, Vec<Block>>().await;
+        test_m2a::<P256, [Block; 2]>().await;
     }
 
     #[tokio::test]
     async fn test_share_conversion_aio_p256_a2m_recorded() {
-        test_a2m_recorded::<P256, Vec<Block>>().await;
+        test_a2m_recorded::<P256, [Block; 2]>().await;
     }
 
     #[tokio::test]
     async fn test_share_conversion_aio_p256_m2a_recorded() {
-        test_m2a_recorded::<P256, Vec<Block>>().await;
+        test_m2a_recorded::<P256, [Block; 2]>().await;
     }
 
     #[tokio::test]
     async fn test_share_conversion_aio_p256_a2m_recorded_fail() {
-        test_a2m_recorded_fail::<P256, Vec<Block>>().await;
+        test_a2m_recorded_fail::<P256, [Block; 2]>().await;
     }
 
     #[tokio::test]
     async fn test_share_conversion_aio_p256_m2a_recorded_fail() {
-        test_m2a_recorded_fail::<P256, Vec<Block>>().await;
+        test_m2a_recorded_fail::<P256, [Block; 2]>().await;
     }
 
     async fn test_a2m<T: Field<OTEncoding = U>, U: Send + Clone + 'static>() {
