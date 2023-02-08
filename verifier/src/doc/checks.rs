@@ -1,52 +1,15 @@
-//! Methods performing various validation checks on the [super::doc::UncheckedDoc]
+//! Methods performing various validation checks on the [crate::doc::unchecked::UncheckedDoc]
 
-use super::{
+use crate::{
     commitment::{CommitmentOpening, CommitmentType, TranscriptRange},
-    doc::UncheckedDoc,
+    doc::unchecked::UncheckedDoc,
     Error,
 };
 
-pub fn perform_checks(unchecked: &UncheckedDoc) -> Result<(), Error> {
-    // Performs the following validation checks:
-    //
-    // - at least one commitment is present
-    check_at_least_one_commitment_present(unchecked)?;
-
-    // - commitment count equals opening count
-    check_commitment_and_opening_count_equal(unchecked)?;
-
-    // - each [commitment, opening] pair has their id incremental and ascending. The types of commitment
-    //   and opening match.
-    check_commitment_and_opening_pairs(unchecked)?;
-
-    // - ranges inside one commitment are non-empty, valid, ascending, non-overlapping, non-overflowing
-    check_ranges_inside_each_commitment(unchecked)?;
-
-    // - the length of each opening equals the amount of committed data in the ranges of the
-    //   corresponding commitment
-    // - the total amount of committed data is less than 1GB to prevent DoS
-    check_commitment_sizes(unchecked)?;
-
-    // - the amount of commitments is less that 1000
-    check_commitment_count(unchecked)?;
-
-    // - overlapping openings must match exactly
-    check_overlapping_openings(unchecked)?;
-
-    // - each [merkle_tree_index] is both unique and also ascending between commitments
-    check_merkle_tree_indices(unchecked)?;
-
-    // - openings of LabelsBlake3 type must have their label seed match the label seed which the
-    //   Notary signed
-    check_labels_opening(unchecked)?;
-
-    Ok(())
-}
-
 /// Condition checked: at least one commitment is present
-fn check_at_least_one_commitment_present(unchecked: &UncheckedDoc) -> Result<(), Error> {
+pub(super) fn check_at_least_one_commitment_present(unchecked: &UncheckedDoc) -> Result<(), Error> {
     if unchecked.commitments().is_empty() {
-        return Err(Error::SanityCheckError(
+        return Err(Error::ValidationCheckError(
             "check_at_least_one_commitment_present".to_string(),
         ));
     }
@@ -55,25 +18,24 @@ fn check_at_least_one_commitment_present(unchecked: &UncheckedDoc) -> Result<(),
 
 /// Condition checked: each [commitment, opening] pair has their id incremental and ascending. The types
 /// of commitment and opening match.
-fn check_commitment_and_opening_pairs(unchecked: &UncheckedDoc) -> Result<(), Error> {
+pub(super) fn check_commitment_and_opening_pairs(unchecked: &UncheckedDoc) -> Result<(), Error> {
     // ids start from 0 an increment
     // (note that we already checked that commitment vec and opening vec have the same length)
     for i in 0..unchecked.commitment_openings().len() {
         let commitment = &unchecked.commitments()[i];
         let opening = &unchecked.commitment_openings()[i];
 
-        // extract the opening variant
-        let opening_variant = match opening {
-            CommitmentOpening::LabelsBlake3(ref opening) => opening,
-            // match any future types of opening here
-            #[allow(unreachable_patterns)]
-            _ => return Err(Error::NotImplemented),
+        // extract the opening variant's id
+        let opening_id = match opening {
+            CommitmentOpening::LabelsBlake3(ref opening) => opening.id(),
+            #[cfg(test)]
+            CommitmentOpening::SomeFutureVariant(ref opening) => opening.id(),
         };
 
         // ids must match
-        if !(commitment.id() == (i as u32) && opening_variant.id() == (i as u32)) {
-            return Err(Error::SanityCheckError(
-                "check_commitment_and_opening_ids".to_string(),
+        if !(commitment.id() == (i as u32) && opening_id == (i as u32)) {
+            return Err(Error::ValidationCheckError(
+                "check_commitment_and_opening_pairs".to_string(),
             ));
         }
 
@@ -81,8 +43,8 @@ fn check_commitment_and_opening_pairs(unchecked: &UncheckedDoc) -> Result<(), Er
         if matches!(commitment.typ(), &CommitmentType::labels_blake3)
             && !matches!(opening, CommitmentOpening::LabelsBlake3(_))
         {
-            return Err(Error::SanityCheckError(
-                "check_commitment_and_opening_ids".to_string(),
+            return Err(Error::ValidationCheckError(
+                "check_commitment_and_opening_pairs".to_string(),
             ));
         }
     }
@@ -91,9 +53,11 @@ fn check_commitment_and_opening_pairs(unchecked: &UncheckedDoc) -> Result<(), Er
 }
 
 /// Condition checked: commitment count equals opening count
-fn check_commitment_and_opening_count_equal(unchecked: &UncheckedDoc) -> Result<(), Error> {
+pub(super) fn check_commitment_and_opening_count_equal(
+    unchecked: &UncheckedDoc,
+) -> Result<(), Error> {
     if unchecked.commitments().len() != unchecked.commitment_openings().len() {
-        return Err(Error::SanityCheckError(
+        return Err(Error::ValidationCheckError(
             "check_commitment_and_opening_count_equal".to_string(),
         ));
     }
@@ -101,12 +65,12 @@ fn check_commitment_and_opening_count_equal(unchecked: &UncheckedDoc) -> Result<
 }
 
 /// Condition checked: ranges inside one commitment are non-empty, valid, ascending, non-overlapping
-fn check_ranges_inside_each_commitment(unchecked: &UncheckedDoc) -> Result<(), Error> {
+pub(super) fn check_ranges_inside_each_commitment(unchecked: &UncheckedDoc) -> Result<(), Error> {
     for c in unchecked.commitments() {
         let len = c.ranges().len();
         // at least one range is expected
         if len == 0 {
-            return Err(Error::SanityCheckError(
+            return Err(Error::ValidationCheckError(
                 "check_ranges_inside_each_commitment".to_string(),
             ));
         }
@@ -114,7 +78,7 @@ fn check_ranges_inside_each_commitment(unchecked: &UncheckedDoc) -> Result<(), E
         for r in c.ranges() {
             // ranges must be valid
             if r.end() <= r.start() {
-                return Err(Error::SanityCheckError(
+                return Err(Error::ValidationCheckError(
                     "check_ranges_inside_each_commitment".to_string(),
                 ));
             }
@@ -123,7 +87,7 @@ fn check_ranges_inside_each_commitment(unchecked: &UncheckedDoc) -> Result<(), E
         // ranges must not overlap and must be ascending relative to each other
         for pair in c.ranges().windows(2) {
             if pair[1].start() < pair[0].end() {
-                return Err(Error::SanityCheckError(
+                return Err(Error::ValidationCheckError(
                     "check_ranges_inside_each_commitment".to_string(),
                 ));
             }
@@ -133,33 +97,41 @@ fn check_ranges_inside_each_commitment(unchecked: &UncheckedDoc) -> Result<(), E
     Ok(())
 }
 
+/// Condition checked: the total amount of committed data is less than [super::MAX_TOTAL_COMMITTED_DATA]
+pub(super) fn check_max_total_committed_data(unchecked: &UncheckedDoc) -> Result<(), Error> {
+    // Make sure the grand total in all commitments' ranges is not too large
+    let mut total_committed = 0u64;
+    for commitment in unchecked.commitments() {
+        for r in commitment.ranges() {
+            total_committed += (r.end() - r.start()) as u64;
+            if total_committed > super::MAX_TOTAL_COMMITTED_DATA {
+                return Err(Error::ValidationCheckError(
+                    "check_max_total_committed_data".to_string(),
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Condition checked: the length of each opening equals the amount of committed data in the ranges of the
 /// corresponding commitment
-/// Condition checked: the total amount of committed data is less than 1GB to prevent DoS
-/// (this will cause the verifier to hash up to a max of 1GB * 128 = 128GB of labels)
-fn check_commitment_sizes(unchecked: &UncheckedDoc) -> Result<(), Error> {
-    let mut total_committed = 0u64;
-
-    for i in 0..unchecked.commitment_openings().len() {
-        let opening = match unchecked.commitment_openings()[i] {
-            CommitmentOpening::LabelsBlake3(ref opening) => opening,
-            // match any future types of opening here
-            #[allow(unreachable_patterns)]
-            _ => return Err(Error::NotImplemented),
+pub(super) fn check_commitment_sizes(unchecked: &UncheckedDoc) -> Result<(), Error> {
+    // Make sure each opening's size matches the committed size
+    for opening in unchecked.commitment_openings() {
+        let (opening_id, opening_bytes) = match opening {
+            CommitmentOpening::LabelsBlake3(ref opening) => (opening.id(), opening.opening()),
+            #[cfg(test)]
+            CommitmentOpening::SomeFutureVariant(ref opening) => (opening.id(), opening.opening()),
         };
-        let expected = opening.opening().len() as u64;
+
+        // total committed bytes in all ranges of the commitment corresponding to the opening
         let mut total_in_ranges = 0u64;
-        for r in unchecked.commitments()[i].ranges() {
+        for r in unchecked.commitments()[opening_id as usize].ranges() {
             total_in_ranges += (r.end() - r.start()) as u64;
         }
-        if expected != total_in_ranges {
-            return Err(Error::SanityCheckError(
-                "check_commitment_sizes".to_string(),
-            ));
-        }
-        total_committed += total_in_ranges;
-        if total_committed > 1000000000 {
-            return Err(Error::SanityCheckError(
+        if opening_bytes.len() as u64 != total_in_ranges {
+            return Err(Error::ValidationCheckError(
                 "check_commitment_sizes".to_string(),
             ));
         }
@@ -167,12 +139,10 @@ fn check_commitment_sizes(unchecked: &UncheckedDoc) -> Result<(), Error> {
     Ok(())
 }
 
-/// Condition checked: the amount of commitments is less than 1000
-/// (searching for overlapping commitments in the naive way which we implemented has quadratic cost,
-/// hence this number shouldn't be too high to prevent DoS)
-fn check_commitment_count(unchecked: &UncheckedDoc) -> Result<(), Error> {
+/// Condition checked: the amount of commitments is less than [super::MAX_COMMITMENT_COUNT]
+pub(super) fn check_commitment_count(unchecked: &UncheckedDoc) -> Result<(), Error> {
     if unchecked.commitments().len() >= 1000 {
-        return Err(Error::SanityCheckError(
+        return Err(Error::ValidationCheckError(
             "check_commitment_count".to_string(),
         ));
     }
@@ -180,7 +150,7 @@ fn check_commitment_count(unchecked: &UncheckedDoc) -> Result<(), Error> {
 }
 
 /// Condition checked: each Merkle tree index is both unique and also ascending between commitments
-fn check_merkle_tree_indices(unchecked: &UncheckedDoc) -> Result<(), Error> {
+pub(super) fn check_merkle_tree_indices(unchecked: &UncheckedDoc) -> Result<(), Error> {
     let indices: Vec<u32> = unchecked
         .commitments()
         .iter()
@@ -188,7 +158,7 @@ fn check_merkle_tree_indices(unchecked: &UncheckedDoc) -> Result<(), Error> {
         .collect();
     for pair in indices.windows(2) {
         if pair[0] >= pair[1] {
-            return Err(Error::SanityCheckError(
+            return Err(Error::ValidationCheckError(
                 "check_merkle_tree_indices".to_string(),
             ));
         }
@@ -199,7 +169,7 @@ fn check_merkle_tree_indices(unchecked: &UncheckedDoc) -> Result<(), Error> {
 /// Makes sure that if two or more commitments contain overlapping ranges, the openings
 /// corresponding to those ranges match exactly. Otherwise, if the openings don't match,
 /// returns an error.
-fn check_overlapping_openings(unchecked: &UncheckedDoc) -> Result<(), Error> {
+pub(super) fn check_overlapping_openings(unchecked: &UncheckedDoc) -> Result<(), Error> {
     // Note: using an existing lib to find multi-range overlap would incur the need to audit
     // that lib for correctness. Instead, since checking two range overlap is cheap, we are using
     // a naive way where we compare each range to all other ranges.
@@ -246,9 +216,17 @@ fn check_overlapping_openings(unchecked: &UncheckedDoc) -> Result<(), Error> {
 
                             let needle_o_bytes = match needle_o {
                                 CommitmentOpening::LabelsBlake3(opening) => opening.opening(),
+                                #[cfg(test)]
+                                CommitmentOpening::SomeFutureVariant(ref opening) => {
+                                    opening.opening()
+                                }
                             };
                             let haystack_o_bytes = match haystack_o {
                                 CommitmentOpening::LabelsBlake3(opening) => opening.opening(),
+                                #[cfg(test)]
+                                CommitmentOpening::SomeFutureVariant(ref opening) => {
+                                    opening.opening()
+                                }
                             };
 
                             if needle_o_bytes[needle_ov_start as usize
@@ -288,14 +266,14 @@ fn check_overlapping_openings(unchecked: &UncheckedDoc) -> Result<(), Error> {
 
 /// Condition checked: openings of LabelsBlake3Opening type must have their label seed match the
 /// label seed which the Notary signed
-fn check_labels_opening(unchecked: &UncheckedDoc) -> Result<(), Error> {
-    for i in 0..unchecked.commitment_openings().len() {
-        let opening = &unchecked.commitment_openings()[i];
-
+pub(super) fn check_labels_opening(unchecked: &UncheckedDoc) -> Result<(), Error> {
+    for opening in unchecked.commitment_openings() {
         #[allow(irrefutable_let_patterns)]
         if let CommitmentOpening::LabelsBlake3(opening) = opening {
             if opening.label_seed() != unchecked.label_seed() {
-                return Err(Error::SanityCheckError("check_labels_opening".to_string()));
+                return Err(Error::ValidationCheckError(
+                    "check_labels_opening".to_string(),
+                ));
             }
         }
     }
@@ -311,10 +289,19 @@ fn overlapping_range(
     // find purported overlap's start and end
     let ov_start = std::cmp::max(a.start(), b.start());
     let ov_end = std::cmp::min(a.end(), b.end());
-    if (ov_end - ov_start) < 1 {
+    // prevent overflow panic by casting into i64
+    if (ov_end as i64 - ov_start as i64) < 1 {
         Ok(None)
     } else {
         let range = TranscriptRange::new(ov_start, ov_end)?;
         Ok(Some(range))
     }
+}
+
+#[cfg(test)]
+mod test {
+
+    // TODO test
+    // overlapping_range
+    // check_overlapping_openings
 }

@@ -10,7 +10,8 @@ use verifier::{
         Commitment, CommitmentOpening, CommitmentType, Direction, LabelsBlake3Opening,
         TranscriptRange,
     },
-    doc::UncheckedDoc,
+    doc::unchecked::UncheckedDoc,
+    merkle::MerkleProof,
     pubkey::{KeyType, PubKey},
     signed::{Signed, SignedHandshake},
     tls_handshake::{
@@ -152,7 +153,7 @@ fn e2e_test() {
     ));
 
     let indices_to_prove = vec![0];
-    let proof = merkle_tree.proof(&indices_to_prove);
+    let proof = MerkleProof(merkle_tree.proof(&indices_to_prove));
 
     let unchecked_doc = UncheckedDoc::new(
         1,

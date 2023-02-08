@@ -1,7 +1,7 @@
 use super::{tls_handshake::EphemeralECPubkey, Error, HashCommitment, LabelSeed, ValidatedDoc};
 use serde::Serialize;
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Default)]
 /// TLS handshake-related data which is signed by Notary
 pub struct SignedHandshake {
     /// notarization time against which the TLS Certificate validity is checked

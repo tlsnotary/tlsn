@@ -21,7 +21,7 @@ pub enum Error {
     #[error("Commitment verification failed")]
     CommitmentVerificationFailed,
     #[error("Error while performing validation check in: {0}")]
-    SanityCheckError(String),
+    ValidationCheckError(String),
     #[error("Failed to verify a Merkle proof")]
     MerkleProofVerificationFailed,
     #[error("Overlapping openings don't match")]
@@ -36,6 +36,4 @@ pub enum Error {
     SignatureVerificationError,
     #[error("Attempted to create an invalid range")]
     RangeInvalid,
-    #[error("Not implemented")]
-    NotImplemented,
 }

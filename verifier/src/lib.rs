@@ -1,8 +1,8 @@
-mod checks;
 pub mod commitment;
 pub mod doc;
 mod error;
 mod label_encoder;
+pub mod merkle;
 pub mod pubkey;
 pub mod signed;
 pub mod tls_handshake;
@@ -10,8 +10,10 @@ mod utils;
 pub mod verified_transcript;
 mod webpki_utils;
 
-use crate::{doc::ValidatedDoc, signed::Signed, verified_transcript::VerifiedTranscript};
-use doc::{UncheckedDoc, VerifiedDoc};
+use crate::{
+    doc::validated::ValidatedDoc, signed::Signed, verified_transcript::VerifiedTranscript,
+};
+use doc::{unchecked::UncheckedDoc, verified::VerifiedDoc};
 use error::Error;
 use pubkey::PubKey;
 
@@ -63,8 +65,13 @@ impl TranscriptVerifier {
         let verified_doc = VerifiedDoc::from_validated(validated_doc, dns_name, trusted_pubkey)?;
 
         // extract the verified transcript
-        let verified_transcript = VerifiedTranscript::from_verified_doc(verified_doc, dns_name);
+        let verified_transcript = VerifiedTranscript::from_verified_doc(verified_doc, dns_name)?;
 
         Ok(verified_transcript)
     }
+}
+
+#[cfg(test)]
+mod test {
+    // TODO test all validation and verification errors
 }

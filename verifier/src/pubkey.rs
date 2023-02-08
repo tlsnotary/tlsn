@@ -53,3 +53,8 @@ impl PubKey {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    // TODO test sig verification success and failure
+}

@@ -2,7 +2,7 @@ use super::{signed::SignedHandshake, utils::blake3, webpki_utils, Error, HashCom
 use serde::Serialize;
 
 /// TLSHandshake contains all the info needed to verify the authenticity of the TLS handshake
-#[derive(Serialize)]
+#[derive(Serialize, Default, Clone)]
 pub struct TLSHandshake {
     signed_handshake: SignedHandshake,
     handshake_data: HandshakeData,
@@ -87,7 +87,7 @@ pub type CertDER = Vec<u8>;
 //
 /// Note that there is no need to commit to the ephemeral key because it will be signed explicitely
 /// by the Notary
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Default)]
 pub struct HandshakeData {
     tls_cert_chain: Vec<CertDER>,
     sig_ke_params: ServerSignature,
@@ -116,13 +116,14 @@ impl HandshakeData {
 }
 
 /// Types of the ephemeral EC pubkey currently supported by TLSNotary
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Default)]
 pub enum EphemeralECPubkeyType {
+    #[default]
     P256,
 }
 
 /// The ephemeral EC public key (part of the TLS key exchange parameters)
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Default)]
 pub struct EphemeralECPubkey {
     typ: EphemeralECPubkeyType,
     pubkey: Vec<u8>,
@@ -143,15 +144,15 @@ impl EphemeralECPubkey {
 }
 
 /// Algorithms that can be used for signing the TLS key exchange parameters
-#[derive(Clone, Serialize)]
-#[allow(non_camel_case_types)]
+#[derive(Clone, Serialize, Default)]
 pub enum KEParamsSigAlg {
+    #[default]
     RSA_PKCS1_2048_8192_SHA256,
     ECDSA_P256_SHA256,
 }
 
 /// A server's signature over the TLS key exchange parameters
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Default)]
 pub struct ServerSignature {
     alg: KEParamsSigAlg,
     sig: Vec<u8>,

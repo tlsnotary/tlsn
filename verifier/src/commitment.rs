@@ -2,7 +2,7 @@ use super::{error::Error, utils::compute_label_commitment, HashCommitment, Label
 use serde::Serialize;
 
 /// A validated User's commitment to a portion of the notarized data
-#[derive(Serialize)]
+#[derive(Serialize, Clone, Default)]
 pub struct Commitment {
     /// This commitment's index in `commitments` of [super::UncheckedDoc]
     id: u32,
@@ -36,8 +36,7 @@ impl Commitment {
         }
     }
 
-    /// Verifies this commitment against the opening. `extra_data` holds extra data specific
-    /// to the commitment type.
+    /// Verifies this commitment against the opening
     pub fn verify(&self, opening: &CommitmentOpening) -> Result<(), Error> {
         let expected = match self.typ {
             CommitmentType::labels_blake3 => {
@@ -89,25 +88,50 @@ impl Commitment {
     pub fn ranges(&self) -> &Vec<TranscriptRange> {
         &self.ranges
     }
+
+    #[cfg(test)]
+    pub fn set_id(&mut self, id: u32) {
+        self.id = id;
+    }
+
+    #[cfg(test)]
+    pub fn set_typ(&mut self, typ: CommitmentType) {
+        self.typ = typ;
+    }
+
+    #[cfg(test)]
+    pub fn set_ranges(&mut self, ranges: Vec<TranscriptRange>) {
+        self.ranges = ranges;
+    }
+
+    #[cfg(test)]
+    pub fn set_merkle_tree_index(&mut self, merkle_tree_index: u32) {
+        self.merkle_tree_index = merkle_tree_index;
+    }
 }
 
-#[derive(Clone, PartialEq, Serialize)]
+#[derive(Clone, PartialEq, Serialize, Default)]
 #[allow(non_camel_case_types)]
 pub enum CommitmentType {
+    #[default]
     // A blake3 digest of the garbled circuit's active labels. The labels are generated from a PRG seed.
     // For more details on the protocol used to generate this commitment, see
     // https://github.com/tlsnotary/docs-mdbook/blob/main/src/protocol/notarization/public_data_commitment.md
     labels_blake3,
+    #[cfg(test)]
+    some_future_commitment_type,
 }
 
 /// Various supported types of commitment opening
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub enum CommitmentOpening {
     LabelsBlake3(LabelsBlake3Opening),
+    #[cfg(test)]
+    SomeFutureVariant(SomeFutureVariantOpening),
 }
 
 /// A validated opening for the commitment type [CommitmentType::labels_blake3]
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct LabelsBlake3Opening {
     /// This commitment opening's index in `commitment_openings` of [super::doc::UncheckedDoc].
     /// The [Commitment] corresponding to this opening has the same id.
@@ -146,13 +170,28 @@ impl LabelsBlake3Opening {
     pub fn label_seed(&self) -> &LabelSeed {
         &self.label_seed
     }
+
+    #[cfg(test)]
+    pub fn set_id(&mut self, id: u32) {
+        self.id = id;
+    }
+
+    pub fn set_opening(&mut self, opening: Vec<u8>) {
+        self.opening = opening;
+    }
+
+    #[cfg(test)]
+    pub fn set_label_seed(&mut self, label_seed: LabelSeed) {
+        self.label_seed = label_seed;
+    }
 }
 
-#[derive(Serialize, Clone, PartialEq)]
+#[derive(Serialize, Clone, PartialEq, Default)]
 /// A TLS transcript consists of a stream of bytes which were `Sent` to the server
 /// and a stream of bytes which were `Received` from the server . The User creates
 /// separate commitments to bytes in each direction.
 pub enum Direction {
+    #[default]
     Sent,
     Received,
 }
@@ -166,6 +205,7 @@ pub struct TranscriptRange {
 
 impl TranscriptRange {
     pub fn new(start: u32, end: u32) -> Result<Self, Error> {
+        // empty ranges are not allowed
         if start >= end {
             return Err(Error::RangeInvalid);
         }
@@ -178,5 +218,49 @@ impl TranscriptRange {
 
     pub fn end(&self) -> u32 {
         self.end
+    }
+
+    #[cfg(test)]
+    pub fn len(&self) -> u32 {
+        self.end - self.start
+    }
+
+    #[cfg(test)]
+    pub fn new_unchecked(start: u32, end: u32) -> Self {
+        Self { start, end }
+    }
+}
+
+#[cfg(test)]
+#[derive(Serialize, Clone, Default)]
+pub struct SomeFutureVariantOpening {
+    id: u32,
+    opening: Vec<u8>,
+    salt: Vec<u8>,
+}
+
+#[cfg(test)]
+impl SomeFutureVariantOpening {
+    pub fn new(id: u32, opening: Vec<u8>, salt: Vec<u8>) -> Self {
+        Self { id, opening, salt }
+    }
+
+    pub fn id(&self) -> u32 {
+        self.id
+    }
+    pub fn opening(&self) -> &Vec<u8> {
+        &self.opening
+    }
+
+    pub fn salt(&self) -> &Vec<u8> {
+        &self.salt
+    }
+
+    pub fn set_id(&mut self, id: u32) {
+        self.id = id;
+    }
+
+    pub fn set_opening(&mut self, opening: Vec<u8>) {
+        self.opening = opening;
     }
 }

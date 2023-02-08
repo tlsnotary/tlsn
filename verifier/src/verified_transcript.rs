@@ -1,6 +1,7 @@
 use super::{
     commitment::{CommitmentOpening, Direction, TranscriptRange},
-    doc::VerifiedDoc,
+    doc::verified::VerifiedDoc,
+    Error,
 };
 
 /// A notarized TLS transcript which successfully passed verification
@@ -24,17 +25,28 @@ impl VerifiedTranscript {
     }
 
     /// Creates a [VerifiedTranscript] by extracting relevant fields from a [VerifiedDoc]
-    pub(crate) fn from_verified_doc(verified_doc: VerifiedDoc, dns_name: &str) -> Self {
+    pub(crate) fn from_verified_doc(
+        verified_doc: VerifiedDoc,
+        dns_name: &str,
+    ) -> Result<Self, Error> {
         let transcript_slices: Vec<TranscriptSlice> = verified_doc
             .commitment_openings()
             .iter()
-            .flat_map(|opening| {
+            .map(|opening| {
+                // extract enum variant's id and opening bytes
+                let (opening_id, opening_bytes) = match opening {
+                    CommitmentOpening::LabelsBlake3(opening) => (opening.id(), opening.opening()),
+                    #[cfg(test)]
+                    CommitmentOpening::SomeFutureVariant(ref opening) => {
+                        (opening.id(), opening.opening())
+                    }
+                };
+
                 // commitment corresponding to the `opening`
-                let CommitmentOpening::LabelsBlake3(opening) = opening;
-                let commitment = &verified_doc.commitments()[opening.id() as usize];
+                let commitment = &verified_doc.commitments()[opening_id as usize];
 
                 // cloning because we will be draining the bytes of the `opening`
-                let mut opening = opening.opening().clone();
+                let mut opening = opening_bytes.clone();
 
                 // turn each commitment range into a separate [TranscriptSlice]
                 // (note that all commitments are validated and properly sorted)
@@ -52,15 +64,18 @@ impl VerifiedTranscript {
                     })
                     .collect();
 
-                slices
+                Ok(slices)
             })
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .flatten()
             .collect();
 
-        VerifiedTranscript::new(
+        Ok(VerifiedTranscript::new(
             verified_doc.tls_handshake().signed_handshake().time(),
             dns_name.to_string(),
             transcript_slices,
-        )
+        ))
     }
 
     pub fn date(&self) -> u64 {
@@ -106,4 +121,9 @@ impl TranscriptSlice {
     pub fn data(&self) -> &Vec<u8> {
         &self.data
     }
+}
+
+#[cfg(test)]
+mod test {
+    // TODO test that from_verified_doc produces correct transcript slices
 }

@@ -25,3 +25,5 @@ tlsn-mpc-core = { path = "../mpc/mpc-core" }
 tlsn-mpc-circuits = { path = "../mpc/mpc-circuits" }
 tlsn-tls-circuits = { path = "../tls/tls-circuits" }
 hex = "0.4"
+rstest = "0.12"
+
