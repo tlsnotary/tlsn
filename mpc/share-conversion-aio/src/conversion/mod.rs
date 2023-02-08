@@ -29,62 +29,62 @@ mod tests {
     };
 
     #[tokio::test]
-    async fn test_share_conversion_aio_gf2_128_a2m() {
+    async fn test_share_conversion_gf2_128_a2m() {
         test_a2m::<Gf2_128, Block>().await;
     }
 
     #[tokio::test]
-    async fn test_share_conversion_aio_gf2_128_m2a() {
+    async fn test_share_conversion_gf2_128_m2a() {
         test_m2a::<Gf2_128, Block>().await;
     }
 
     #[tokio::test]
-    async fn test_share_conversion_aio_gf2_128_a2m_recorded() {
+    async fn test_share_conversion_gf2_128_a2m_recorded() {
         test_a2m_recorded::<Gf2_128, Block>().await;
     }
 
     #[tokio::test]
-    async fn test_share_conversion_aio_gf2_128_m2a_recorded() {
+    async fn test_share_conversion_gf2_128_m2a_recorded() {
         test_m2a_recorded::<Gf2_128, Block>().await;
     }
 
     #[tokio::test]
-    async fn test_share_conversion_aio_gf2_128_a2m_recorded_fail() {
+    async fn test_share_conversion_gf2_128_a2m_recorded_fail() {
         test_a2m_recorded_fail::<Gf2_128, Block>().await;
     }
 
     #[tokio::test]
-    async fn test_share_conversion_aio_gf2_128_m2a_recorded_fail() {
+    async fn test_share_conversion_gf2_128_m2a_recorded_fail() {
         test_m2a_recorded_fail::<Gf2_128, Block>().await;
     }
 
     #[tokio::test]
-    async fn test_share_conversion_aio_p256_a2m() {
+    async fn test_share_conversion_p256_a2m() {
         test_a2m::<P256, [Block; 2]>().await;
     }
 
     #[tokio::test]
-    async fn test_share_conversion_aio_p256_m2a() {
+    async fn test_share_conversion_p256_m2a() {
         test_m2a::<P256, [Block; 2]>().await;
     }
 
     #[tokio::test]
-    async fn test_share_conversion_aio_p256_a2m_recorded() {
+    async fn test_share_conversion_p256_a2m_recorded() {
         test_a2m_recorded::<P256, [Block; 2]>().await;
     }
 
     #[tokio::test]
-    async fn test_share_conversion_aio_p256_m2a_recorded() {
+    async fn test_share_conversion_p256_m2a_recorded() {
         test_m2a_recorded::<P256, [Block; 2]>().await;
     }
 
     #[tokio::test]
-    async fn test_share_conversion_aio_p256_a2m_recorded_fail() {
+    async fn test_share_conversion_p256_a2m_recorded_fail() {
         test_a2m_recorded_fail::<P256, [Block; 2]>().await;
     }
 
     #[tokio::test]
-    async fn test_share_conversion_aio_p256_m2a_recorded_fail() {
+    async fn test_share_conversion_p256_m2a_recorded_fail() {
         test_m2a_recorded_fail::<P256, [Block; 2]>().await;
     }
 

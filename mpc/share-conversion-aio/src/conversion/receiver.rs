@@ -12,7 +12,9 @@ use mpc_aio::protocol::ot::{
     OTFactoryError, ObliviousReceive,
 };
 use share_conversion_core::{
-    fields::Field, msgs::SenderRecordings, AddShare, MulShare, ShareConvert,
+    fields::Field,
+    msgs::{SenderRecordings, ShareConversionMessage},
+    AddShare, MulShare, ShareConvert,
 };
 use std::marker::PhantomData;
 use utils_aio::factory::AsyncFactory;
@@ -151,10 +153,11 @@ where
             "stream closed unexpectedly",
         ))?;
 
-        let SenderRecordings {
+        let ShareConversionMessage::SenderRecordings(SenderRecordings {
             seed,
             sender_inputs,
-        } = message.into();
+        }) = message;
+
         <Tape<V> as Recorder<U, V>>::set_seed(
             &mut self.recorder,
             seed.try_into()

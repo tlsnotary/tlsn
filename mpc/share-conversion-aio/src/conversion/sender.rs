@@ -12,7 +12,9 @@ use mpc_core::ot::config::OTSenderConfigBuilder;
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 use share_conversion_core::{
-    fields::Field, msgs::SenderRecordings, AddShare, MulShare, OTEnvelope, ShareConvert,
+    fields::Field,
+    msgs::{SenderRecordings, ShareConversionMessage},
+    AddShare, MulShare, OTEnvelope, ShareConvert,
 };
 use std::marker::PhantomData;
 use utils_aio::{adaptive_barrier::AdaptiveBarrier, factory::AsyncFactory};
@@ -166,13 +168,14 @@ where
         let message = SenderRecordings {
             seed: self.recorder.seed.to_vec(),
             sender_inputs: self.recorder.sender_inputs,
-        }
-        .into();
+        };
 
         if let Some(barrier) = self.barrier {
             barrier.wait().await;
         }
-        self.channel.send(message).await?;
+        self.channel
+            .send(ShareConversionMessage::SenderRecordings(message))
+            .await?;
         Ok(())
     }
 }
