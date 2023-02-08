@@ -10,6 +10,50 @@ mod verifier;
 pub use prover::{state as prover_state, Prover};
 pub use verifier::{state as verifier_state, Verifier};
 
+use async_trait::async_trait;
+
+use mpc_circuits::{Input, InputValue, OutputValue};
+use mpc_core::garble::{ActiveEncodedInput, FullInputSet};
+
+use crate::protocol::garble::GCError;
+
+/// This trait faciliates proving the output of a circuit in
+/// zero-knowledge.
+#[async_trait]
+pub trait Prove {
+    /// Proves the output of a circuit to a Verifier.
+    ///
+    /// * `inputs` - The Prover's private inputs to the circuit.
+    /// * `cached_labels` - Cached labels for the circuit's inputs.
+    async fn prove(
+        self,
+        inputs: Vec<InputValue>,
+        cached_labels: Vec<ActiveEncodedInput>,
+    ) -> Result<(), GCError>;
+}
+
+/// This trait faciliates verifying the output of a circuit in
+/// zero-knowledge.
+#[async_trait]
+pub trait Verify {
+    /// Verifies the authenticity of a circuit output evaluated by a Prover.
+    ///
+    /// **CAUTION**
+    ///
+    /// Calling this function will typically reveal all of the Verifier's private inputs to the Prover!
+    /// Care must be taken to ensure that this is synchronized properly with any other uses of these inputs.
+    ///
+    /// * `gen_labels` - The labels used to garble the circuit.
+    /// * `inputs` - The Verifier's private inputs to the circuit.
+    /// * `ot_send_inputs` - The inputs which are to be sent to the Prover via OT.
+    async fn verify(
+        self,
+        gen_labels: FullInputSet,
+        inputs: Vec<InputValue>,
+        ot_send_inputs: Vec<Input>,
+    ) -> Result<Vec<OutputValue>, GCError>;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

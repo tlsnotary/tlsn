@@ -4,6 +4,7 @@ use crate::protocol::{
     garble::{GCError, GarbleChannel, GarbleMessage, Generator},
     ot::ObliviousSend,
 };
+use async_trait::async_trait;
 use futures::{future::ready, SinkExt, StreamExt};
 use mpc_circuits::{Circuit, Input, InputValue, OutputValue, WireGroup};
 use mpc_core::garble::{exec::zk as zk_core, ActiveEncodedInput, FullEncodedInput, FullInputSet};
@@ -213,5 +214,26 @@ where
         verifier
             .verify(commit_opening_msg.into(), output_msg.into())
             .map_err(GCError::from)
+    }
+}
+
+#[async_trait]
+impl<B, LS> super::Verify for Verifier<Initialized, B, LS>
+where
+    B: Generator + Send,
+    LS: ObliviousSend<FullEncodedInput> + Send,
+{
+    async fn verify(
+        self,
+        gen_labels: FullInputSet,
+        inputs: Vec<InputValue>,
+        ot_send_inputs: Vec<Input>,
+    ) -> Result<Vec<OutputValue>, GCError> {
+        self.setup_inputs(gen_labels, inputs, ot_send_inputs)
+            .await?
+            .garble()
+            .await?
+            .verify()
+            .await
     }
 }

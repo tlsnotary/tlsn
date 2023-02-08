@@ -4,6 +4,7 @@ use crate::protocol::{
     garble::{Compressor, Evaluator, GCError, GarbleChannel, GarbleMessage, Validator},
     ot::{ObliviousReceive, ObliviousVerify},
 };
+use async_trait::async_trait;
 use futures::{future::ready, SinkExt, StreamExt};
 use mpc_circuits::{Circuit, InputValue, WireGroup};
 use mpc_core::garble::{
@@ -260,5 +261,25 @@ where
             .await?;
 
         Ok(())
+    }
+}
+
+#[async_trait]
+impl<B, LR> super::Prove for Prover<Initialized, B, LR>
+where
+    B: Evaluator + Compressor + Validator + Send,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + ObliviousVerify<FullEncodedInput> + Send,
+{
+    async fn prove(
+        self,
+        inputs: Vec<InputValue>,
+        cached_labels: Vec<ActiveEncodedInput>,
+    ) -> Result<(), GCError> {
+        self.setup_inputs(inputs, cached_labels)
+            .await?
+            .evaluate()
+            .await?
+            .prove()
+            .await
     }
 }
