@@ -47,24 +47,17 @@ where
     ///
     /// This will convert an elliptic curve point addition to an additive sharing in the underlying
     /// field of the x-coordinate of that point
-    async fn convert(&mut self, point: [V; 2]) -> Result<V, PointAdditionError> {
-        let point_neg = if self.negate {
-            [-point[0], -point[1]]
-        } else {
-            point
-        };
+    async fn convert(&mut self, [x, y]: [V; 2]) -> Result<V, PointAdditionError> {
+        let [x_n, y_n] = if self.negate { [-x, -y] } else { [x, y] };
 
-        let x = point_neg[0];
-        let y = point_neg[1];
-
-        let a = self.a2m_converter.a_to_m(vec![y]).await?[0];
-        let b = self.a2m_converter.a_to_m(vec![x]).await?[0];
+        let a = self.a2m_converter.a_to_m(vec![y_n]).await?[0];
+        let b = self.a2m_converter.a_to_m(vec![x_n]).await?[0];
 
         let c = a * b.inverse();
         let c = c * c;
 
         let d = self.m2a_converter.m_to_a(vec![c]).await?[0];
-        let x_r = d + -point[0];
+        let x_r = d + -x;
 
         Ok(x_r)
     }
