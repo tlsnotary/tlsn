@@ -32,6 +32,8 @@ pub enum OTError {
     CommittedOT(#[from] CommittedOTError),
     #[error("Received unexpected message: {0:?}")]
     Unexpected(OTMessage),
+    #[error("Received ciphertext with wrong length: expected {0}, got {1}")]
+    InvalidCiphertextLength(usize, usize),
 }
 
 #[derive(Debug, thiserror::Error)]

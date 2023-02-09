@@ -1,15 +1,18 @@
 use super::{OTChannel, ObliviousSend};
 use crate::protocol::ot::{OTError, ObliviousCommit, ObliviousReveal};
+use aes::{cipher::NewBlockCipher, Aes128, BlockEncrypt};
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use mpc_core::{
-    msgs::ot::OTMessage,
+    msgs::ot::{ExtSenderEncryptedPayload, OTMessage},
     ot::{
         extension::{s_state, Kos15Sender},
         s_state::SenderState,
     },
     Block,
 };
+use rand::SeedableRng;
+use rand_chacha::ChaCha20Rng;
 use utils_aio::{adaptive_barrier::AdaptiveBarrier, expect_msg_or_err};
 
 pub struct Kos15IOSender<T: SenderState> {
@@ -116,6 +119,56 @@ impl ObliviousSend<[Block; 2]> for Kos15IOSender<s_state::RandSetup> {
         self.channel
             .send(OTMessage::ExtSenderPayload(message))
             .await?;
+        Ok(())
+    }
+}
+
+// The idea for obliviously receiving a vec of Blocks is for the sender to send an AES encryption key
+// using OT, which can then later be used by the receiver to decrypt an arbitrary long message, which
+// is sent shortly after the OT. This way we extend our OT from 128-bit maximum message length to an
+// unlimited message length.
+#[async_trait]
+impl<const N: usize> ObliviousSend<[[Block; N]; 2]> for Kos15IOSender<s_state::RandSetup> {
+    async fn send(&mut self, inputs: Vec<[[Block; N]; 2]>) -> Result<(), OTError> {
+        let mut rng = ChaCha20Rng::from_entropy();
+
+        // Prepare keys and convert inputs
+        let keys: Vec<[Block; 2]> = (0..inputs.len())
+            .map(|_| [Block::random(&mut rng), Block::random(&mut rng)])
+            .collect();
+
+        // Zip the keys and inputs together and encrypt
+        // We pack the buffer with the message ciphertexts in order
+        let mut buffer: Vec<u8> = Vec::with_capacity(inputs.len() * 2 * N * Block::LEN);
+        for ([key_0, key_1], [msg_0, msg_1]) in keys.iter().zip(inputs) {
+            // Initialize ciphers with corresponding keys
+            let (cipher_0, cipher_1) = (
+                Aes128::new(&key_0.to_be_bytes().into()),
+                Aes128::new(&key_1.to_be_bytes().into()),
+            );
+
+            let mut msg_0: [_; N] = std::array::from_fn(|i| msg_0[i].into());
+            let mut msg_1: [_; N] = std::array::from_fn(|i| msg_1[i].into());
+
+            // Encrypt the message blocks and push into buffer
+            cipher_0.encrypt_blocks(&mut msg_0);
+            cipher_1.encrypt_blocks(&mut msg_1);
+
+            buffer.extend(msg_0.iter().chain(msg_1.iter()).flatten());
+        }
+
+        // Send keys using OT
+        ObliviousSend::<[Block; 2]>::send(self, keys).await?;
+
+        // Send ciphertexts
+        self.channel
+            .send(OTMessage::ExtSenderEncryptedPayload(
+                ExtSenderEncryptedPayload {
+                    ciphertexts: buffer,
+                },
+            ))
+            .await?;
+
         Ok(())
     }
 }
