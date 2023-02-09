@@ -46,13 +46,18 @@ where
     /// This will convert an elliptic curve point addition to an additive sharing in the underlying
     /// field of the x-coordinate of that point
     async fn convert(&mut self, [x, y]: [V; 2]) -> Result<V, PointAdditionError> {
-        convert_p256(
-            &mut self.a2m_converter,
-            &mut self.m2a_converter,
-            self.negate,
-            [x, y],
-        )
-        .await
+        let [x_n, y_n] = if self.negate { [-x, -y] } else { [x, y] };
+
+        let a = self.a2m_converter.a_to_m(vec![y_n]).await?[0];
+        let b = self.a2m_converter.a_to_m(vec![x_n]).await?[0];
+
+        let c = a * b.inverse();
+        let c = c * c;
+
+        let d = self.m2a_converter.m_to_a(vec![c]).await?[0];
+        let x_r = d + -x;
+
+        Ok(x_r)
     }
 }
 
@@ -74,31 +79,7 @@ where
     }
 }
 
-pub(crate) async fn convert_p256<
-    T: AdditiveToMultiplicative<V>,
-    U: MultiplicativeToAdditive<V>,
-    V: Field,
->(
-    a2m: &mut T,
-    m2a: &mut U,
-    negate: bool,
-    [x, y]: [V; 2],
-) -> Result<V, PointAdditionError> {
-    let [x_n, y_n] = if negate { [-x, -y] } else { [x, y] };
-
-    let a = a2m.a_to_m(vec![y_n]).await?[0];
-    let b = a2m.a_to_m(vec![x_n]).await?[0];
-
-    let c = a * b.inverse();
-    let c = c * c;
-
-    let d = m2a.m_to_a(vec![c]).await?[0];
-    let x_r = d + -x;
-
-    Ok(x_r)
-}
-
-pub(crate) fn point_to_p256(point: EncodedPoint) -> Result<[P256; 2], PointAdditionError> {
+fn point_to_p256(point: EncodedPoint) -> Result<[P256; 2], PointAdditionError> {
     let x = point.x().ok_or(PointAdditionError::Coordinates)?;
     let y = point.y().ok_or(PointAdditionError::Coordinates)?;
 
