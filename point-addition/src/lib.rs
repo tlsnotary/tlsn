@@ -59,10 +59,10 @@ mod tests {
 
         let (mut c1, mut c2) = create_mock_point_converter_pair();
 
-        let c1_task = tokio::spawn(async move { c1.compute_x_coordinate_share(p1).await.unwrap() });
-        let c2_task = tokio::spawn(async move { c2.compute_x_coordinate_share(p2).await.unwrap() });
+        let c1_fut = c1.compute_x_coordinate_share(p1);
+        let c2_fut = c2.compute_x_coordinate_share(p2);
 
-        let (c1_output, c2_output) = tokio::join!(c1_task, c2_task);
+        let (c1_output, c2_output) = tokio::join!(c1_fut, c2_fut);
         let (c1_output, c2_output) = (c1_output.unwrap(), c2_output.unwrap());
 
         assert_eq!(point_to_p256(p).unwrap()[0], c1_output + c2_output);
