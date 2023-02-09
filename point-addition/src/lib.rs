@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use mpc_core::garble::{ActiveLabels, FullLabels};
 use share_conversion_aio::ShareConversionError;
 
 mod conversion;
@@ -29,45 +28,4 @@ pub trait PointAddition {
         &mut self,
         point: Self::Point,
     ) -> Result<Self::XCoordinate, PointAdditionError>;
-}
-
-/// Encoded shares of the x-coordinate of the shared point.
-#[derive(Debug, Clone)]
-pub struct XCoordinateLabels {
-    pub full_share_a_labels: FullLabels,
-    pub full_share_b_labels: FullLabels,
-    pub active_share_a_labels: ActiveLabels,
-    pub active_share_b_labels: ActiveLabels,
-}
-
-impl XCoordinateLabels {
-    pub fn new(
-        full_share_a_labels: FullLabels,
-        full_share_b_labels: FullLabels,
-        active_share_a_labels: ActiveLabels,
-        active_share_b_labels: ActiveLabels,
-    ) -> Self {
-        Self {
-            full_share_a_labels,
-            full_share_b_labels,
-            active_share_a_labels,
-            active_share_b_labels,
-        }
-    }
-
-    pub fn full_share_a_labels(&self) -> &FullLabels {
-        &self.full_share_a_labels
-    }
-
-    pub fn full_share_b_labels(&self) -> &FullLabels {
-        &self.full_share_b_labels
-    }
-
-    pub fn active_share_a_labels(&self) -> &ActiveLabels {
-        &self.active_share_a_labels
-    }
-
-    pub fn active_share_b_labels(&self) -> &ActiveLabels {
-        &self.active_share_b_labels
-    }
 }

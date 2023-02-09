@@ -1,45 +1,73 @@
 use super::{PointAddition, PointAdditionError};
+use crate::conversion::{convert_p256, point_to_p256};
 use async_trait::async_trait;
+use mpc_core::Block;
 use p256::EncodedPoint;
-use rand::SeedableRng;
-use rand_chacha::ChaCha12Rng;
-use share_conversion_core::fields::{p256::P256, Field, UniformRand};
-use std::sync::{Arc, Mutex};
+use share_conversion_aio::conversion::{
+    mock::{mock_converter_pair, MockReceiver, MockSender},
+    recorder::Void,
+};
+use share_conversion_core::{fields::p256::P256, AddShare, MulShare};
 
-#[derive(Debug, Clone)]
-pub struct MockConverter {
-    sharing: Arc<Mutex<Option<P256>>>,
-    rng: ChaCha12Rng,
+pub fn create_mock_point_converter_pair() -> (MockPointConversionSender, MockPointConversionReceiver)
+{
+    let (sender_a2m, receiver_a2m) =
+        mock_converter_pair::<AddShare<P256>, P256, [Block; 2], Void>();
+    let (sender_m2a, receiver_m2a) =
+        mock_converter_pair::<MulShare<P256>, P256, [Block; 2], Void>();
+
+    let sender = MockPointConversionSender {
+        a2m_converter: sender_a2m,
+        m2a_converter: sender_m2a,
+        negate: true,
+    };
+    let receiver = MockPointConversionReceiver {
+        a2m_converter: receiver_a2m,
+        m2a_converter: receiver_m2a,
+        negate: false,
+    };
+
+    (sender, receiver)
 }
 
-impl MockConverter {
-    pub fn new() -> Self {
-        let rng = ChaCha12Rng::from_entropy();
-        Self {
-            sharing: Arc::new(Mutex::new(None)),
-            rng,
-        }
+pub struct MockPointConversionSender {
+    a2m_converter: MockSender<AddShare<P256>, P256, [Block; 2], Void>,
+    m2a_converter: MockSender<MulShare<P256>, P256, [Block; 2], Void>,
+    negate: bool,
+}
+
+impl MockPointConversionSender {
+    async fn convert(&mut self, [x, y]: [P256; 2]) -> Result<P256, PointAdditionError> {
+        convert_p256(
+            &mut self.a2m_converter,
+            &mut self.m2a_converter,
+            self.negate,
+            [x, y],
+        )
+        .await
     }
+}
 
-    pub fn convert(&mut self, [x, y]: [P256; 2]) -> P256 {}
+pub struct MockPointConversionReceiver {
+    a2m_converter: MockReceiver<AddShare<P256>, P256, [Block; 2], Void>,
+    m2a_converter: MockReceiver<MulShare<P256>, P256, [Block; 2], Void>,
+    negate: bool,
+}
 
-    fn a_to_m(&mut self, x: P256, y: P256) -> (P256, P256) {
-        let sum = x + y;
-        let a = P256::rand(&mut self.rng);
-        let b = sum * a.inverse();
-        (a, b)
-    }
-
-    fn m_to_a(&mut self, a: P256, b: P256) -> (P256, P256) {
-        let product = a * b;
-        let x = P256::rand(&mut self.rng);
-        let y = product + -x;
-        (x, y)
+impl MockPointConversionReceiver {
+    async fn convert(&mut self, [x, y]: [P256; 2]) -> Result<P256, PointAdditionError> {
+        convert_p256(
+            &mut self.a2m_converter,
+            &mut self.m2a_converter,
+            self.negate,
+            [x, y],
+        )
+        .await
     }
 }
 
 #[async_trait]
-impl PointAddition for MockConverter {
+impl PointAddition for MockPointConversionSender {
     type Point = EncodedPoint;
     type XCoordinate = P256;
 
@@ -47,18 +75,21 @@ impl PointAddition for MockConverter {
         &mut self,
         point: Self::Point,
     ) -> Result<Self::XCoordinate, PointAdditionError> {
-        {
-            let sharing = *self.sharing.lock().unwrap();
-            if let Some(sharing) = sharing {
-                return Ok(sharing);
-            }
-        }
+        let [x, y] = point_to_p256(point)?;
+        self.convert([x, y]).await
+    }
+}
 
-        let mut rng = ChaCha12Rng::from_entropy();
-        let point = point.to_bytes();
-        let sharing = P256::rand(&mut rng);
-        P256::new(point.into());
+#[async_trait]
+impl PointAddition for MockPointConversionReceiver {
+    type Point = EncodedPoint;
+    type XCoordinate = P256;
 
-        todo!()
+    async fn compute_x_coordinate_share(
+        &mut self,
+        point: Self::Point,
+    ) -> Result<Self::XCoordinate, PointAdditionError> {
+        let [x, y] = point_to_p256(point)?;
+        self.convert([x, y]).await
     }
 }
