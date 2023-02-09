@@ -35,18 +35,27 @@ mod tests {
     use crate::{conversion::point_to_p256, PointAddition};
 
     use super::mock::create_mock_point_converter_pair;
-    use p256::EncodedPoint;
+    use p256::{
+        elliptic_curve::{
+            ops::Reduce,
+            sec1::{FromEncodedPoint, ToEncodedPoint},
+        },
+        EncodedPoint, NonZeroScalar, ProjectivePoint, PublicKey,
+    };
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
 
     #[tokio::test]
     async fn test_point_conversion() {
         let mut rng = ChaCha12Rng::from_seed([0_u8; 32]);
+
         let p1: [u8; 32] = rng.gen();
         let p2: [u8; 32] = rng.gen();
-        let p1 = EncodedPoint::from_bytes(p1).unwrap();
-        let p2 = EncodedPoint::from_bytes(p2).unwrap();
-        let p = EncodedPoint::from_bytes(p2).unwrap();
+
+        let p1 = curve_point_from_bytes(p1);
+        let p2 = curve_point_from_bytes(p2);
+
+        let p = add_curve_points(&p1, &p2);
 
         let (mut c1, mut c2) = create_mock_point_converter_pair();
 
@@ -57,5 +66,18 @@ mod tests {
         let (c1_output, c2_output) = (c1_output.unwrap(), c2_output.unwrap());
 
         assert_eq!(point_to_p256(p).unwrap()[0], c1_output + c2_output);
+    }
+
+    fn curve_point_from_bytes(bytes: [u8; 32]) -> EncodedPoint {
+        let scalar = NonZeroScalar::from_be_bytes_reduced(bytes.into());
+        let pk = PublicKey::from_secret_scalar(&scalar);
+        pk.to_encoded_point(false)
+    }
+
+    fn add_curve_points(p1: &EncodedPoint, p2: &EncodedPoint) -> EncodedPoint {
+        let p1 = ProjectivePoint::from_encoded_point(p1).unwrap();
+        let p2 = ProjectivePoint::from_encoded_point(p2).unwrap();
+        let p = p1 + p2;
+        p.to_encoded_point(false)
     }
 }
