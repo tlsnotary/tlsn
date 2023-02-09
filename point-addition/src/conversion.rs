@@ -79,7 +79,7 @@ where
     }
 }
 
-fn point_to_p256(point: EncodedPoint) -> Result<[P256; 2], PointAdditionError> {
+pub(crate) fn point_to_p256(point: EncodedPoint) -> Result<[P256; 2], PointAdditionError> {
     let x = point.x().ok_or(PointAdditionError::Coordinates)?;
     let y = point.y().ok_or(PointAdditionError::Coordinates)?;
 
