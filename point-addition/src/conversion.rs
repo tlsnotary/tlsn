@@ -3,7 +3,6 @@
 
 use super::{PointAddition, PointAdditionError};
 use async_trait::async_trait;
-use mpc_core::Block;
 use p256::EncodedPoint;
 use share_conversion_aio::{AdditiveToMultiplicative, MultiplicativeToAdditive};
 use share_conversion_core::fields::{p256::P256, Field};
@@ -80,33 +79,11 @@ where
 }
 
 pub(crate) fn point_to_p256(point: EncodedPoint) -> Result<[P256; 2], PointAdditionError> {
-    let x = point.x().ok_or(PointAdditionError::Coordinates)?;
-    let y = point.y().ok_or(PointAdditionError::Coordinates)?;
+    let x: [u8; 32] = (*point.x().ok_or(PointAdditionError::Coordinates)?).into();
+    let y: [u8; 32] = (*point.y().ok_or(PointAdditionError::Coordinates)?).into();
 
-    let x1 = <Block as From<[u8; 16]>>::from(
-        x.as_slice()[..16]
-            .try_into()
-            .map_err(|_| PointAdditionError::Coordinates)?,
-    );
-    let x2 = <Block as From<[u8; 16]>>::from(
-        x.as_slice()[16..]
-            .try_into()
-            .map_err(|_| PointAdditionError::Coordinates)?,
-    );
-
-    let y1 = <Block as From<[u8; 16]>>::from(
-        y.as_slice()[..16]
-            .try_into()
-            .map_err(|_| PointAdditionError::Coordinates)?,
-    );
-    let y2 = <Block as From<[u8; 16]>>::from(
-        y.as_slice()[16..]
-            .try_into()
-            .map_err(|_| PointAdditionError::Coordinates)?,
-    );
-
-    let x = P256::from([x1, x2]);
-    let y = P256::from([y1, y2]);
+    let x = P256::from(x);
+    let y = P256::from(y);
 
     Ok([x, y])
 }

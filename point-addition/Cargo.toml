@@ -8,10 +8,10 @@ name = "point_addition"
 
 [features]
 default = ["mock"]
-mock = []
+mock = ["dep:tlsn-mpc-core"]
 
 [dependencies]
-tlsn-mpc-core = { path = "../mpc/mpc-core" }
+tlsn-mpc-core = { path = "../mpc/mpc-core", optional = true }
 share-conversion-aio = { path = "../mpc/share-conversion-aio"}
 share-conversion-core = { path = "../mpc/share-conversion-core"}
 p256 = { version = "0.12", features = ["arithmetic"] }
