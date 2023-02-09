@@ -92,7 +92,7 @@ where
         self.counter += 1;
         let ot_output = ot_receiver.receive(choices).await?;
 
-        // Aggregate OTs to get back field elements from [Field::OTEncoding]
+        // Aggregate OTs to get back field elements from [Field::BlockEncoding]
         let field_elements: Vec<V> = ot_output
             .into_iter()
             .map(|ot_out| Into::into(ot_out))
