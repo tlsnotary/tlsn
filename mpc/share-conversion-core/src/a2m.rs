@@ -45,8 +45,8 @@ impl<T: Field> AddShare<T> {
                 // we extract a bit of `self.inner()` in position `k` (counting from the left) and
                 // then left-shift that bit by `k`;
                 let mut bits = vec![false; T::BIT_SIZE as usize];
-                bits[k as usize] = self.inner().get_bit_msb0(k);
-                T::from_bits_msb0(&bits)
+                bits[k as usize] = self.inner().get_bit_be(k);
+                T::from_bits_be(&bits)
             })
             .collect();
 
