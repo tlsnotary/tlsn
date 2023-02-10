@@ -1,68 +1,103 @@
-//! This module implements the IO layer of share-conversion for field elements of
-//! GF(2^128), using oblivious transfer.
-
-use async_trait::async_trait;
-use share_conversion_core::gf2_128::{AddShare, Gf2_128ShareConvert, MulShare, OTEnvelope};
-use utils_aio::Channel;
-
-mod msgs;
+#[cfg(feature = "mock")]
+pub mod mock;
 mod receiver;
 pub mod recorder;
 mod sender;
 
-#[cfg(feature = "mock")]
-pub mod mock;
-
-pub use msgs::Gf2ConversionMessage;
 pub use receiver::Receiver;
 pub use sender::Sender;
+pub use share_conversion_core::msgs::ShareConversionMessage;
+use utils_aio::Channel;
 
-use crate::ShareConversionError;
-
-/// Send a tape used for verification of the conversion
-///
-/// Implementers record their inputs used during conversion and can send them to the other
-/// party. This will allow the other party to compute all outputs of the sender.
-#[async_trait]
-pub trait SendTape {
-    async fn send_tape(self) -> Result<(), ShareConversionError>;
-}
-
-/// Verify the recorded inputs of the other party
-///
-/// Will check if the conversion worked correctly. This allows to catch a malicious party but
-/// requires the malicious party to open and send all their inputs of the conversion before.
-#[async_trait]
-pub trait VerifyTape {
-    async fn verify_tape(self) -> Result<(), ShareConversionError>;
-}
-
-/// A channel used for messaging of conversion protocols
-pub type Gf2ConversionChannel = Box<dyn Channel<Gf2ConversionMessage, Error = std::io::Error>>;
+/// A channel used by conversion protocols for messaging
+pub type ShareConversionChannel<T> =
+    Box<dyn Channel<ShareConversionMessage<T>, Error = std::io::Error>>;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::recorder::{Tape, Void};
     use crate::{
-        gf2_128::mock::mock_converter_pair, AdditiveToMultiplicative, MultiplicativeToAdditive,
-        ShareConversionError,
+        conversion::mock::mock_converter_pair, AdditiveToMultiplicative, MultiplicativeToAdditive,
+        SendTape, ShareConversionError, VerifyTape,
     };
-    use rand::{Rng, SeedableRng};
+    use mpc_core::Block;
+    use rand::SeedableRng;
     use rand_chacha::ChaCha12Rng;
-    use recorder::{Tape, Void};
-    use share_conversion_core::gf2_128::mul;
+    use share_conversion_core::{
+        fields::{gf2_128::Gf2_128, p256::P256, Field},
+        AddShare, MulShare,
+    };
 
     #[tokio::test]
-    async fn test_aio_a2m() {
-        let (mut sender, mut receiver) = mock_converter_pair::<AddShare, Void>();
+    async fn test_share_conversion_gf2_128_a2m() {
+        test_a2m::<Gf2_128, Block>().await;
+    }
+
+    #[tokio::test]
+    async fn test_share_conversion_gf2_128_m2a() {
+        test_m2a::<Gf2_128, Block>().await;
+    }
+
+    #[tokio::test]
+    async fn test_share_conversion_gf2_128_a2m_recorded() {
+        test_a2m_recorded::<Gf2_128, Block>().await;
+    }
+
+    #[tokio::test]
+    async fn test_share_conversion_gf2_128_m2a_recorded() {
+        test_m2a_recorded::<Gf2_128, Block>().await;
+    }
+
+    #[tokio::test]
+    async fn test_share_conversion_gf2_128_a2m_recorded_fail() {
+        test_a2m_recorded_fail::<Gf2_128, Block>().await;
+    }
+
+    #[tokio::test]
+    async fn test_share_conversion_gf2_128_m2a_recorded_fail() {
+        test_m2a_recorded_fail::<Gf2_128, Block>().await;
+    }
+
+    #[tokio::test]
+    async fn test_share_conversion_p256_a2m() {
+        test_a2m::<P256, [Block; 2]>().await;
+    }
+
+    #[tokio::test]
+    async fn test_share_conversion_p256_m2a() {
+        test_m2a::<P256, [Block; 2]>().await;
+    }
+
+    #[tokio::test]
+    async fn test_share_conversion_p256_a2m_recorded() {
+        test_a2m_recorded::<P256, [Block; 2]>().await;
+    }
+
+    #[tokio::test]
+    async fn test_share_conversion_p256_m2a_recorded() {
+        test_m2a_recorded::<P256, [Block; 2]>().await;
+    }
+
+    #[tokio::test]
+    async fn test_share_conversion_p256_a2m_recorded_fail() {
+        test_a2m_recorded_fail::<P256, [Block; 2]>().await;
+    }
+
+    #[tokio::test]
+    async fn test_share_conversion_p256_m2a_recorded_fail() {
+        test_m2a_recorded_fail::<P256, [Block; 2]>().await;
+    }
+
+    async fn test_a2m<T: Field<BlockEncoding = U>, U: Send + Clone + 'static>() {
+        let (mut sender, mut receiver) = mock_converter_pair::<AddShare<T>, T, U, Void>();
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
-        let random_numbers_1: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
-        let random_numbers_2: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
-        let random_numbers: Vec<u128> =
+        let random_numbers_1: Vec<T> = get_random_field_vec(16, &mut rng);
+        let random_numbers_2: Vec<T> = get_random_field_vec(16, &mut rng);
+        let random_numbers: Vec<T> =
             std::iter::zip(random_numbers_1.iter(), random_numbers_2.iter())
-                .map(|(a, b)| a ^ b)
+                .map(|(a, b)| *a + *b)
                 .collect();
 
         // Spawn tokio tasks and wait for them to finish
@@ -76,21 +111,20 @@ mod tests {
 
         // Check result
         for (k, (a, b)) in std::iter::zip(sender_output, receiver_output).enumerate() {
-            assert_eq!(mul(a, b), random_numbers[k]);
+            assert_eq!(a * b, random_numbers[k]);
         }
     }
 
-    #[tokio::test]
-    async fn test_aio_m2a() {
-        let (mut sender, mut receiver) = mock_converter_pair::<MulShare, Void>();
+    async fn test_m2a<T: Field<BlockEncoding = U>, U: Send + Clone + 'static>() {
+        let (mut sender, mut receiver) = mock_converter_pair::<MulShare<T>, T, U, Void>();
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
-        let random_numbers_1: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
-        let random_numbers_2: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
-        let random_numbers: Vec<u128> =
+        let random_numbers_1: Vec<T> = get_random_field_vec(16, &mut rng);
+        let random_numbers_2: Vec<T> = get_random_field_vec(16, &mut rng);
+        let random_numbers: Vec<T> =
             std::iter::zip(random_numbers_1.iter(), random_numbers_2.iter())
-                .map(|(a, b)| mul(*a, *b))
+                .map(|(a, b)| *a * *b)
                 .collect();
 
         // Spawn tokio tasks and wait for them to finish
@@ -104,18 +138,17 @@ mod tests {
 
         // Check result
         for (k, (a, b)) in std::iter::zip(sender_output, receiver_output).enumerate() {
-            assert_eq!(a ^ b, random_numbers[k]);
+            assert_eq!(a + b, random_numbers[k]);
         }
     }
 
-    #[tokio::test]
-    async fn test_aio_a2m_recorded() {
-        let (mut sender, mut receiver) = mock_converter_pair::<AddShare, Tape>();
+    async fn test_a2m_recorded<T: Field<BlockEncoding = U>, U: Send + Clone + 'static>() {
+        let (mut sender, mut receiver) = mock_converter_pair::<AddShare<T>, T, U, Tape<T>>();
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
-        let random_numbers_1: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
-        let random_numbers_2: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
+        let random_numbers_1: Vec<T> = get_random_field_vec(16, &mut rng);
+        let random_numbers_2: Vec<T> = get_random_field_vec(16, &mut rng);
 
         // Spawn tokio tasks and wait for them to finish
         let sender_task = tokio::spawn(async move {
@@ -134,14 +167,13 @@ mod tests {
         // fine.
     }
 
-    #[tokio::test]
-    async fn test_aio_m2a_recorded() {
-        let (mut sender, mut receiver) = mock_converter_pair::<MulShare, Tape>();
+    async fn test_m2a_recorded<T: Field<BlockEncoding = U>, U: Send + Clone + 'static>() {
+        let (mut sender, mut receiver) = mock_converter_pair::<MulShare<T>, T, U, Tape<T>>();
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
-        let random_numbers_1: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
-        let random_numbers_2: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
+        let random_numbers_1: Vec<T> = get_random_field_vec(16, &mut rng);
+        let random_numbers_2: Vec<T> = get_random_field_vec(16, &mut rng);
 
         // Spawn tokio tasks and wait for them to finish
         let sender_task = tokio::spawn(async move {
@@ -160,21 +192,20 @@ mod tests {
         // fine.
     }
 
-    #[tokio::test]
-    async fn test_aio_a2m_recorded_fail() {
-        let (mut sender, mut receiver) = mock_converter_pair::<AddShare, Tape>();
+    async fn test_a2m_recorded_fail<T: Field<BlockEncoding = U>, U: Send + Clone + 'static>() {
+        let (mut sender, mut receiver) = mock_converter_pair::<AddShare<T>, T, U, Tape<T>>();
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
-        let random_numbers_1: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
-        let random_numbers_2: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
+        let random_numbers_1: Vec<T> = get_random_field_vec(16, &mut rng);
+        let random_numbers_2: Vec<T> = get_random_field_vec(16, &mut rng);
 
         // Spawn tokio tasks and wait for them to finish
         let sender_task = tokio::spawn(async move {
             let _ = sender.a_to_m(random_numbers_1).await.unwrap();
 
             // Malicious sender now changes his input in the tape before sending it
-            *sender.tape_mut().sender_inputs.last_mut().unwrap() += 1;
+            *sender.tape_mut().sender_inputs.last_mut().unwrap() = T::one();
             sender.send_tape().await.unwrap()
         });
         let receiver_task = tokio::spawn(async move {
@@ -192,21 +223,19 @@ mod tests {
         ));
     }
 
-    #[tokio::test]
-    async fn test_aio_m2a_recorded_fail() {
-        let (mut sender, mut receiver) = mock_converter_pair::<MulShare, Tape>();
+    async fn test_m2a_recorded_fail<T: Field<BlockEncoding = U>, U: Send + Clone + 'static>() {
+        let (mut sender, mut receiver) = mock_converter_pair::<MulShare<T>, T, U, Tape<T>>();
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
-        let random_numbers_1: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
-        let random_numbers_2: Vec<u128> = get_random_gf2_128_vec(128, &mut rng);
-
+        let random_numbers_1: Vec<T> = get_random_field_vec(16, &mut rng);
+        let random_numbers_2: Vec<T> = get_random_field_vec(16, &mut rng);
         // Spawn tokio tasks and wait for them to finish
         let sender_task = tokio::spawn(async move {
             let _ = sender.m_to_a(random_numbers_1).await.unwrap();
 
             // Malicious sender now changes his input in the tape before sending it
-            *sender.tape_mut().sender_inputs.last_mut().unwrap() += 1;
+            *sender.tape_mut().sender_inputs.last_mut().unwrap() = T::one();
             sender.send_tape().await.unwrap()
         });
         let receiver_task = tokio::spawn(async move {
@@ -224,7 +253,7 @@ mod tests {
         ));
     }
 
-    fn get_random_gf2_128_vec(len: usize, rng: &mut ChaCha12Rng) -> Vec<u128> {
-        (0..len).map(|_| rng.gen::<u128>()).collect()
+    fn get_random_field_vec<T: Field>(len: usize, rng: &mut ChaCha12Rng) -> Vec<T> {
+        (0..len).map(|_| T::rand(rng)).collect()
     }
 }

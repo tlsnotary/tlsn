@@ -9,6 +9,9 @@ edition = "2021"
 tlsn-mpc-core = { path = "../mpc-core" }
 thiserror.workspace = true
 rand.workspace = true
+ark-ff.workspace = true
+ark-secp256r1.workspace = true
+num-bigint.workspace = true
 
 [dev-dependencies]
 rand_chacha.workspace = true

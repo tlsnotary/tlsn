@@ -1,29 +1,34 @@
 //! This module implements the async IO sender
 
-use std::marker::PhantomData;
-
 use super::{
     recorder::{Recorder, Tape, Void},
-    AddShare, Gf2ConversionChannel, Gf2_128ShareConvert, MulShare, OTEnvelope, SendTape,
+    ShareConversionChannel,
 };
-use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive, ShareConversionError};
+use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive, SendTape, ShareConversionError};
 use async_trait::async_trait;
 use futures::SinkExt;
 use mpc_aio::protocol::ot::{config::OTSenderConfig, OTFactoryError, ObliviousSend};
-use mpc_core::{ot::config::OTSenderConfigBuilder, Block};
+use mpc_core::ot::config::OTSenderConfigBuilder;
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
+use share_conversion_core::{
+    fields::Field,
+    msgs::{SenderRecordings, ShareConversionMessage},
+    AddShare, MulShare, OTEnvelope, ShareConvert,
+};
+use std::marker::PhantomData;
 use utils_aio::{adaptive_barrier::AdaptiveBarrier, factory::AsyncFactory};
 
 /// The sender for the conversion
 ///
 /// Will be the OT sender
-pub struct Sender<T, OT, U, V = Void>
+pub struct Sender<T, OT, U, V, X, W = Void>
 where
     T: AsyncFactory<OT>,
-    OT: ObliviousSend<[Block; 2]>,
-    U: Gf2_128ShareConvert,
-    V: Recorder<U>,
+    OT: ObliviousSend<[X; 2]>,
+    U: ShareConvert<Inner = V>,
+    V: Field<BlockEncoding = X>,
+    W: Recorder<U, V>,
 {
     /// Provides initialized OTs for the OT sender
     sender_factory: T,
@@ -31,9 +36,9 @@ where
     id: String,
     _protocol: PhantomData<U>,
     rng: ChaCha12Rng,
-    channel: Gf2ConversionChannel,
+    channel: ShareConversionChannel<V>,
     /// If a non-[Void] recorder was passed in, it will be used to record the "tape", ( see [super::recorder::Tape])
-    recorder: V,
+    recorder: W,
     /// A barrier at which this Sender must wait before revealing the tape to the receiver. Used when
     /// multiple parallel share conversion protocols need to agree when to reveal their tapes.
     barrier: Option<AdaptiveBarrier>,
@@ -41,18 +46,19 @@ where
     counter: usize,
 }
 
-impl<T, OT, U, V> Sender<T, OT, U, V>
+impl<T, OT, U, V, X, W> Sender<T, OT, U, V, X, W>
 where
     T: AsyncFactory<OT, Config = OTSenderConfig, Error = OTFactoryError> + Send,
-    OT: ObliviousSend<[Block; 2]>,
-    U: Gf2_128ShareConvert,
-    V: Recorder<U>,
+    OT: ObliviousSend<[X; 2]>,
+    U: ShareConvert<Inner = V>,
+    V: Field<BlockEncoding = X>,
+    W: Recorder<U, V>,
 {
     /// Create a new sender
     pub fn new(
         sender_factory: T,
         id: String,
-        channel: Gf2ConversionChannel,
+        channel: ShareConversionChannel<V>,
         barrier: Option<AdaptiveBarrier>,
     ) -> Self {
         let rng = ChaCha12Rng::from_entropy();
@@ -63,14 +69,14 @@ where
             _protocol: PhantomData,
             rng,
             channel,
-            recorder: V::default(),
+            recorder: W::default(),
             barrier,
             counter: 0,
         }
     }
 
     /// Converts a batch of shares using oblivious transfer
-    async fn convert_from(&mut self, shares: &[u128]) -> Result<Vec<u128>, ShareConversionError> {
+    async fn convert_from(&mut self, shares: &[V]) -> Result<Vec<V>, ShareConversionError> {
         let mut local_shares = Vec::with_capacity(shares.len());
 
         if shares.is_empty() {
@@ -106,30 +112,28 @@ where
 
 // Used for unit testing
 #[cfg(test)]
-impl<T, OT, U> Sender<T, OT, U, Tape>
+impl<T, OT, U, X, V> Sender<T, OT, U, V, X, Tape<V>>
 where
     T: AsyncFactory<OT> + Send,
-    OT: ObliviousSend<[Block; 2]>,
-    U: Gf2_128ShareConvert,
+    OT: ObliviousSend<[X; 2]>,
+    U: ShareConvert<Inner = V>,
+    V: Field<BlockEncoding = X>,
 {
-    pub fn tape_mut(&mut self) -> &mut Tape {
+    pub fn tape_mut(&mut self) -> &mut Tape<V> {
         &mut self.recorder
     }
 }
 
 #[async_trait]
-impl<T, OT, V> AdditiveToMultiplicative for Sender<T, OT, AddShare, V>
+impl<T, OT, V, X, W> AdditiveToMultiplicative<V> for Sender<T, OT, AddShare<V>, V, X, W>
 where
     T: AsyncFactory<OT, Config = OTSenderConfig, Error = OTFactoryError> + Send,
-    OT: ObliviousSend<[Block; 2]> + Send,
-    V: Recorder<AddShare> + Send,
+    OT: ObliviousSend<[X; 2]> + Send,
+    V: Field<BlockEncoding = X>,
+    W: Recorder<AddShare<V>, V> + Send,
+    X: Send,
 {
-    type FieldElement = u128;
-
-    async fn a_to_m(
-        &mut self,
-        input: Vec<Self::FieldElement>,
-    ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
+    async fn a_to_m(&mut self, input: Vec<V>) -> Result<Vec<V>, ShareConversionError> {
         self.recorder.set_seed(self.rng.get_seed());
         self.recorder.record_for_sender(&input);
         self.convert_from(&input).await
@@ -137,18 +141,15 @@ where
 }
 
 #[async_trait]
-impl<T, OT, V> MultiplicativeToAdditive for Sender<T, OT, MulShare, V>
+impl<T, OT, V, X, W> MultiplicativeToAdditive<V> for Sender<T, OT, MulShare<V>, V, X, W>
 where
     T: AsyncFactory<OT, Config = OTSenderConfig, Error = OTFactoryError> + Send,
-    OT: ObliviousSend<[Block; 2]> + Send,
-    V: Recorder<MulShare> + Send,
+    OT: ObliviousSend<[X; 2]> + Send,
+    V: Field<BlockEncoding = X>,
+    W: Recorder<MulShare<V>, V> + Send,
+    X: Send,
 {
-    type FieldElement = u128;
-
-    async fn m_to_a(
-        &mut self,
-        input: Vec<Self::FieldElement>,
-    ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
+    async fn m_to_a(&mut self, input: Vec<V>) -> Result<Vec<V>, ShareConversionError> {
         self.recorder.set_seed(self.rng.get_seed());
         self.recorder.record_for_sender(&input);
         self.convert_from(&input).await
@@ -156,19 +157,25 @@ where
 }
 
 #[async_trait]
-impl<T, OT, U> SendTape for Sender<T, OT, U, Tape>
+impl<T, OT, U, V, X> SendTape for Sender<T, OT, U, V, X, Tape<V>>
 where
     T: AsyncFactory<OT> + Send,
-    OT: ObliviousSend<[Block; 2]> + Send,
-    U: Gf2_128ShareConvert + Send,
+    OT: ObliviousSend<[X; 2]> + Send,
+    U: ShareConvert<Inner = V> + Send,
+    V: Field<BlockEncoding = X>,
 {
     async fn send_tape(mut self) -> Result<(), ShareConversionError> {
-        let message = (self.recorder.seed, self.recorder.sender_inputs).into();
+        let message = SenderRecordings {
+            seed: self.recorder.seed.to_vec(),
+            sender_inputs: self.recorder.sender_inputs,
+        };
 
         if let Some(barrier) = self.barrier {
             barrier.wait().await;
         }
-        self.channel.send(message).await?;
+        self.channel
+            .send(ShareConversionMessage::SenderRecordings(message))
+            .await?;
         Ok(())
     }
 }

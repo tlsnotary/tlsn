@@ -1,56 +1,59 @@
-use super::{A2MMessage, M2AMessage, Setup, VerifyTapeMessage};
+use super::{A2MMessage, M2AMessage, SetupMessage, VerifyTapeMessage};
 use mpc_aio::protocol::ot::{OTFactoryError, ObliviousReceive};
-use mpc_core::{ot::config::OTReceiverConfig, Block};
+use mpc_core::ot::config::OTReceiverConfig;
 use share_conversion_aio::{
-    gf2_128::{
+    conversion::{
         recorder::{Recorder, Tape, Void},
-        Gf2ConversionMessage, Receiver as IOReceiver, VerifyTape,
+        Receiver as IOReceiver, ShareConversionMessage,
     },
-    AdditiveToMultiplicative, MultiplicativeToAdditive, ShareConversionError,
+    AdditiveToMultiplicative, MultiplicativeToAdditive, ShareConversionError, VerifyTape,
 };
-use share_conversion_core::gf2_128::Gf2_128ShareConvert;
+use share_conversion_core::{fields::Field, ShareConvert};
 use utils_aio::{factory::AsyncFactory, mux::MuxChannelControl};
 use xtra::prelude::*;
 
-enum State<T, OT, U, V, W>
-where
-    T: AsyncFactory<OT>,
-    OT: ObliviousReceive<bool, Block>,
-    U: Gf2_128ShareConvert,
-    V: MuxChannelControl<Gf2ConversionMessage>,
-    W: Recorder<U>,
-{
+enum State<
+    T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError>,
+    OT: ObliviousReceive<bool, X>,
+    U: ShareConvert<Inner = Y>,
+    V: MuxChannelControl<ShareConversionMessage<Y>>,
+    W: Recorder<U, Y>,
+    Y: Field<BlockEncoding = X>,
+    X,
+> {
     Initialized {
         id: String,
         /// a local muxer which provides a channel to the remote conversion sender
         muxer: V,
-        /// see `receiver_factory` in [share_conversion_aio::gf2_128::Receiver]
+        /// see `receiver_factory` in [share_conversion_aio::conversion::Receiver]
         receiver_factory: T,
     },
-    Setup(IOReceiver<T, OT, U, W>),
+    Setup(IOReceiver<T, OT, U, Y, X, W>),
     Complete,
     Error,
 }
 
 #[derive(xtra::Actor)]
-pub struct Receiver<T, OT, U, V, W = Void>
+pub struct Receiver<T, OT, U, V, X, Y, W = Void>
 where
-    T: AsyncFactory<OT>,
-    OT: ObliviousReceive<bool, Block>,
-    U: Gf2_128ShareConvert,
-    V: MuxChannelControl<Gf2ConversionMessage>,
-    W: Recorder<U>,
+    T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError>,
+    OT: ObliviousReceive<bool, X>,
+    U: ShareConvert<Inner = Y>,
+    V: MuxChannelControl<ShareConversionMessage<Y>>,
+    W: Recorder<U, Y>,
+    Y: Field<BlockEncoding = X>,
 {
-    state: State<T, OT, U, V, W>,
+    state: State<T, OT, U, V, W, Y, X>,
 }
 
-impl<T, OT, U, V, W> Receiver<T, OT, U, V, W>
+impl<T, OT, U, V, X, Y, W> Receiver<T, OT, U, V, X, Y, W>
 where
-    T: AsyncFactory<OT>,
-    OT: ObliviousReceive<bool, Block>,
-    U: Gf2_128ShareConvert,
-    V: MuxChannelControl<Gf2ConversionMessage>,
-    W: Recorder<U>,
+    T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError>,
+    OT: ObliviousReceive<bool, X>,
+    U: ShareConvert<Inner = Y>,
+    V: MuxChannelControl<ShareConversionMessage<Y>>,
+    W: Recorder<U, Y>,
+    Y: Field<BlockEncoding = X>,
 {
     pub fn new(id: String, muxer: V, receiver_factory: T) -> Self {
         Self {
@@ -81,28 +84,23 @@ impl<T> Clone for ReceiverControl<T> {
 
 impl<T> ReceiverControl<T>
 where
-    T: Handler<Setup, Return = Result<(), ShareConversionError>>,
+    T: Handler<SetupMessage, Return = Result<(), ShareConversionError>>,
 {
     pub async fn setup(&mut self) -> Result<(), ShareConversionError> {
         self.0
-            .send(Setup)
+            .send(SetupMessage)
             .await
             .map_err(|err| ShareConversionError::Other(err.to_string()))?
     }
 }
 
 #[async_trait]
-impl<T> MultiplicativeToAdditive for ReceiverControl<T>
+impl<T, U: Field> MultiplicativeToAdditive<U> for ReceiverControl<T>
 where
-    T: Handler<M2AMessage<Vec<u128>>, Return = Result<Vec<u128>, ShareConversionError>>,
+    T: Handler<M2AMessage<Vec<U>>, Return = Result<Vec<U>, ShareConversionError>>,
 {
-    type FieldElement = u128;
-
     /// Sends M2AMessage to the actor
-    async fn m_to_a(
-        &mut self,
-        input: Vec<Self::FieldElement>,
-    ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
+    async fn m_to_a(&mut self, input: Vec<U>) -> Result<Vec<U>, ShareConversionError> {
         self.0
             .send(M2AMessage(input))
             .await
@@ -111,17 +109,12 @@ where
 }
 
 #[async_trait]
-impl<T> AdditiveToMultiplicative for ReceiverControl<T>
+impl<T, U: Field> AdditiveToMultiplicative<U> for ReceiverControl<T>
 where
-    T: Handler<A2MMessage<Vec<u128>>, Return = Result<Vec<u128>, ShareConversionError>>,
+    T: Handler<A2MMessage<Vec<U>>, Return = Result<Vec<U>, ShareConversionError>>,
 {
-    type FieldElement = u128;
-
     /// Sends A2MMessage to the actor
-    async fn a_to_m(
-        &mut self,
-        input: Vec<Self::FieldElement>,
-    ) -> Result<Vec<Self::FieldElement>, ShareConversionError> {
+    async fn a_to_m(&mut self, input: Vec<U>) -> Result<Vec<U>, ShareConversionError> {
         self.0
             .send(A2MMessage(input))
             .await
@@ -144,17 +137,19 @@ where
 }
 
 #[async_trait]
-impl<T, OT, U, V, W> Handler<Setup> for Receiver<T, OT, U, V, W>
+impl<T, OT, U, V, X, Y, W> Handler<SetupMessage> for Receiver<T, OT, U, V, X, Y, W>
 where
     T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send + 'static,
-    OT: ObliviousReceive<bool, Block> + Send + 'static,
-    U: Gf2_128ShareConvert + Send + 'static,
-    V: MuxChannelControl<Gf2ConversionMessage> + Send + 'static,
-    W: Recorder<U> + Send + 'static,
+    OT: ObliviousReceive<bool, X> + Send + 'static,
+    U: ShareConvert<Inner = Y> + Send + 'static,
+    V: MuxChannelControl<ShareConversionMessage<Y>> + Send + 'static,
+    W: Recorder<U, Y> + Send + 'static,
+    X: Send + 'static,
+    Y: Field<BlockEncoding = X> + Send + 'static,
 {
     type Return = Result<(), ShareConversionError>;
 
-    async fn handle(&mut self, _message: Setup, ctx: &mut Context<Self>) -> Self::Return {
+    async fn handle(&mut self, _message: SetupMessage, ctx: &mut Context<Self>) -> Self::Return {
         // We need to own the state, so we use this only as a temporary modification
         let state = std::mem::replace(&mut self.state, State::Error);
 
@@ -175,21 +170,23 @@ where
 }
 
 #[async_trait]
-impl<T, OT, U, V, W> Handler<M2AMessage<Vec<u128>>> for Receiver<T, OT, U, V, W>
+impl<T, OT, U, V, X, Y, W> Handler<M2AMessage<Vec<Y>>> for Receiver<T, OT, U, V, X, Y, W>
 where
     T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send + 'static,
-    OT: ObliviousReceive<bool, Block> + Send + 'static,
-    U: Gf2_128ShareConvert + Send + 'static,
-    V: MuxChannelControl<Gf2ConversionMessage> + Send + 'static,
-    W: Recorder<U> + Send + 'static,
-    IOReceiver<T, OT, U, W>: MultiplicativeToAdditive<FieldElement = u128>,
+    OT: ObliviousReceive<bool, X> + Send + 'static,
+    U: ShareConvert<Inner = Y> + Send + 'static,
+    V: MuxChannelControl<ShareConversionMessage<Y>> + Send + 'static,
+    W: Recorder<U, Y> + Send + 'static,
+    X: Send + 'static,
+    Y: Field<BlockEncoding = X> + Send + 'static,
+    IOReceiver<T, OT, U, Y, X, W>: MultiplicativeToAdditive<Y>,
 {
-    type Return = Result<Vec<u128>, ShareConversionError>;
+    type Return = Result<Vec<Y>, ShareConversionError>;
 
     /// This handler is called when the actor receives M2AMessage
     async fn handle(
         &mut self,
-        message: M2AMessage<Vec<u128>>,
+        message: M2AMessage<Vec<Y>>,
         ctx: &mut Context<Self>,
     ) -> Self::Return {
         let state = std::mem::replace(&mut self.state, State::Error);
@@ -207,21 +204,23 @@ where
 }
 
 #[async_trait]
-impl<T, OT, U, V, W> Handler<A2MMessage<Vec<u128>>> for Receiver<T, OT, U, V, W>
+impl<T, OT, U, V, X, Y, W> Handler<A2MMessage<Vec<Y>>> for Receiver<T, OT, U, V, X, Y, W>
 where
     T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send + 'static,
-    OT: ObliviousReceive<bool, Block> + Send + 'static,
-    U: Gf2_128ShareConvert + Send + 'static,
-    V: MuxChannelControl<Gf2ConversionMessage> + Send + 'static,
-    W: Recorder<U> + Send + 'static,
-    IOReceiver<T, OT, U, W>: AdditiveToMultiplicative<FieldElement = u128>,
+    OT: ObliviousReceive<bool, X> + Send + 'static,
+    U: ShareConvert<Inner = Y> + Send + 'static,
+    V: MuxChannelControl<ShareConversionMessage<Y>> + Send + 'static,
+    W: Recorder<U, Y> + Send + 'static,
+    X: Send + 'static,
+    Y: Field<BlockEncoding = X> + Send + 'static,
+    IOReceiver<T, OT, U, Y, X, W>: AdditiveToMultiplicative<Y>,
 {
-    type Return = Result<Vec<u128>, ShareConversionError>;
+    type Return = Result<Vec<Y>, ShareConversionError>;
 
     /// This handler is called when the actor receives A2MMessage
     async fn handle(
         &mut self,
-        message: A2MMessage<Vec<u128>>,
+        message: A2MMessage<Vec<Y>>,
         ctx: &mut Context<Self>,
     ) -> Self::Return {
         let state = std::mem::replace(&mut self.state, State::Error);
@@ -239,13 +238,15 @@ where
 }
 
 #[async_trait]
-impl<T, OT, U, V> Handler<VerifyTapeMessage> for Receiver<T, OT, U, V, Tape>
+impl<T, OT, U, V, X, Y> Handler<VerifyTapeMessage> for Receiver<T, OT, U, V, X, Y, Tape<Y>>
 where
-    T: AsyncFactory<OT> + Send + 'static,
-    OT: ObliviousReceive<bool, Block> + Send + 'static,
-    U: Gf2_128ShareConvert + Send + 'static,
-    V: MuxChannelControl<Gf2ConversionMessage> + Send + 'static,
-    IOReceiver<T, OT, U, Tape>: VerifyTape,
+    T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send + 'static,
+    OT: ObliviousReceive<bool, X> + Send + 'static,
+    U: ShareConvert<Inner = Y> + Send + 'static,
+    V: MuxChannelControl<ShareConversionMessage<Y>> + Send + 'static,
+    X: Send + 'static,
+    Y: Field<BlockEncoding = X> + Send + 'static,
+    IOReceiver<T, OT, U, Y, X, Tape<Y>>: VerifyTape,
 {
     type Return = Result<(), ShareConversionError>;
 
