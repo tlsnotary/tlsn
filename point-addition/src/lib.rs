@@ -32,9 +32,9 @@ pub trait PointAddition {
 
 #[cfg(test)]
 mod tests {
-    use crate::{conversion::point_to_p256, PointAddition};
-
     use super::mock::create_mock_point_converter_pair;
+    use crate::{conversion::point_to_p256, PointAddition};
+    use mpc_core::Block;
     use p256::{
         elliptic_curve::{
             ops::Reduce,
@@ -44,6 +44,7 @@ mod tests {
     };
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
+    use share_conversion_core::fields::p256::P256;
 
     #[tokio::test]
     async fn test_point_conversion() {
@@ -52,8 +53,8 @@ mod tests {
         let p1: [u8; 32] = rng.gen();
         let p2: [u8; 32] = rng.gen();
 
-        let p1 = curve_point_from_bytes(p1);
-        let p2 = curve_point_from_bytes(p2);
+        let p1 = curve_point_from_be_bytes(p1);
+        let p2 = curve_point_from_be_bytes(p2);
 
         let p = add_curve_points(&p1, &p2);
 
@@ -68,7 +69,33 @@ mod tests {
         assert_eq!(point_to_p256(p).unwrap()[0], c1_output + c2_output);
     }
 
-    fn curve_point_from_bytes(bytes: [u8; 32]) -> EncodedPoint {
+    #[test]
+    fn test_point_to_p256() {
+        let mut rng = ChaCha12Rng::from_seed([0_u8; 32]);
+
+        let p_expected: [u8; 32] = rng.gen();
+        let p_expected = curve_point_from_be_bytes(p_expected);
+
+        let p256: [P256; 2] = point_to_p256(p_expected).unwrap();
+
+        let x: [Block; 2] = p256[0].into();
+        let y: [Block; 2] = p256[1].into();
+
+        let x1 = x[0].to_be_bytes();
+        let x2 = x[1].to_be_bytes();
+
+        let y1 = y[0].to_be_bytes();
+        let y2 = y[1].to_be_bytes();
+
+        let x: [u8; 32] = [x1, x2].concat().try_into().unwrap();
+        let y: [u8; 32] = [y1, y2].concat().try_into().unwrap();
+
+        let p = EncodedPoint::from_affine_coordinates(&x.into(), &y.into(), false);
+
+        assert_eq!(p_expected, p);
+    }
+
+    fn curve_point_from_be_bytes(bytes: [u8; 32]) -> EncodedPoint {
         let scalar = NonZeroScalar::from_be_bytes_reduced(bytes.into());
         let pk = PublicKey::from_secret_scalar(&scalar);
         pk.to_encoded_point(false)
