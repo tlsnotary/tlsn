@@ -8,6 +8,9 @@ use num_bigint::ToBigUint;
 use rand::{distributions::Standard, prelude::Distribution};
 use std::ops::{Add, Mul, Neg};
 
+/// A type for holding field elements of P256
+///
+/// Uses internally an MSB0 encoding
 #[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
 pub struct P256(pub(crate) Fq);
 
@@ -97,7 +100,7 @@ impl Field for P256 {
         out
     }
 
-    fn get_bit_be(&self, n: u32) -> bool {
+    fn get_bit_msb0(&self, n: u32) -> bool {
         MontBackend::<FqConfig, 4>::into_bigint(self.0)
             .get_bit(Self::BIT_SIZE as usize - n as usize - 1)
     }
@@ -106,7 +109,7 @@ impl Field for P256 {
         P256(ArkField::inverse(&self.0).expect("Unable to invert field element"))
     }
 
-    fn from_bits_be(bits: &[bool]) -> Self {
+    fn from_bits_msb0(bits: &[bool]) -> Self {
         P256(BigInt::from_bits_be(bits).into())
     }
 }

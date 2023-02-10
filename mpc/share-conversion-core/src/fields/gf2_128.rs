@@ -5,6 +5,9 @@ use mpc_core::Block;
 use rand::{distributions::Standard, prelude::Distribution};
 use std::ops::{Add, Mul, Neg};
 
+/// A type for holding field elements of Gf(2^128)
+///
+/// Uses internally an  LSB0 encoding
 #[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
 pub struct Gf2_128(pub(crate) u128);
 
@@ -51,18 +54,18 @@ impl Mul for Gf2_128 {
     /// Galois field multiplication of two 128-bit blocks reduced by the GCM polynomial
     fn mul(self, rhs: Self) -> Self::Output {
         /// R is the GCM "special element" (see section 2.5 of "The Galois/Counter Mode of Operation (GCM)")
-        /// in big-endian. In hex: "000000000000000000000000000000E1"
-        const R: u128 = 135;
+        /// in little-endian. In hex: "E1000000000000000000000000000000"
+        const R: u128 = 299076299051606071403356588563077529600;
 
         let mut x = self.0;
         let y = rhs.0;
 
-        let mut result: u128 = 0;
-        for i in 0..128 {
+        let mut result = 0_u128;
+        for i in (0..128).rev() {
             result ^= x * ((y >> i) & 1);
-            x = (x << 1) ^ (((x >> 127) & 1) * R);
+            x = (x >> 1) ^ ((x & 1) * R);
         }
-        Self(result)
+        Gf2_128::new(result)
     }
 }
 
@@ -83,7 +86,7 @@ impl Field for Gf2_128 {
     }
 
     fn one() -> Self {
-        Self::new(1)
+        Self::new(1 << 127)
     }
 
     fn two_pow(rhs: u32) -> Self {
@@ -91,15 +94,15 @@ impl Field for Gf2_128 {
             return Self::one();
         }
 
-        let mut out = Self::new(2);
+        let mut out = Self::new(1 << 126);
         for _ in 1..rhs {
-            out = out * Self::new(2);
+            out = out * Self::new(1 << 126);
         }
         out
     }
 
-    fn get_bit_be(&self, n: u32) -> bool {
-        (self.0 >> (Self::BIT_SIZE - n - 1)) & 1 == 1
+    fn get_bit_msb0(&self, n: u32) -> bool {
+        (self.0 >> n) & 1 == 1
     }
 
     /// Galois field inversion of 128-bit block
@@ -115,10 +118,10 @@ impl Field for Gf2_128 {
         out
     }
 
-    fn from_bits_be(bits: &[bool]) -> Self {
+    fn from_bits_msb0(bits: &[bool]) -> Self {
         let mut out = Self::zero();
-        for k in 0..Self::BIT_SIZE {
-            out.0 |= (bits[k as usize] as u128) << (Self::BIT_SIZE - k - 1)
+        for k in 0..bits.len() {
+            out.0 |= (bits[k as usize] as u128) << k
         }
         out
     }
@@ -142,7 +145,7 @@ mod tests {
     fn test_gf2_128_basic() {
         test_field_basic::<Gf2_128>();
         assert_eq!(Gf2_128::new(0), Gf2_128::zero());
-        assert_eq!(Gf2_128::new(1), Gf2_128::one());
+        assert_eq!(Gf2_128::new(1 << 127), Gf2_128::one());
     }
 
     #[test]
@@ -157,16 +160,18 @@ mod tests {
 
     #[test]
     fn test_gf2_128_mul() {
+        // We reverse bits here, because we use an LSB0 encoding
+
         // Naive multiplication is the same here
-        let a = Gf2_128::new(3);
-        let b = Gf2_128::new(5);
+        let a = Gf2_128::new(3_u128.reverse_bits());
+        let b = Gf2_128::new(5_u128.reverse_bits());
 
         // Here we cannot calculate naively
-        let c = Gf2_128::new(3);
-        let d = Gf2_128::new(7);
+        let c = Gf2_128::new(3_u128.reverse_bits());
+        let d = Gf2_128::new(7_u128.reverse_bits());
 
-        assert_eq!(a * b, Gf2_128::new(15));
-        assert_eq!(c * d, Gf2_128::new(9));
+        assert_eq!(a * b, Gf2_128::new(15_u128.reverse_bits()));
+        assert_eq!(c * d, Gf2_128::new(9_u128.reverse_bits()));
     }
 
     #[test]
@@ -176,11 +181,11 @@ mod tests {
         let a: Gf2_128 = Gf2_128::rand(&mut rng);
         let b: Gf2_128 = Gf2_128::rand(&mut rng);
 
-        let mut g = GHash::new(&a.0.reverse_bits().to_be_bytes().into());
-        g.update(&b.0.reverse_bits().to_be_bytes().into());
+        let mut g = GHash::new(&a.0.to_be_bytes().into());
+        g.update(&b.0.to_be_bytes().into());
 
         // Ghash will internally multiply a and b
-        let expected = u128::from_be_bytes(g.finalize().into_bytes().into()).reverse_bits();
+        let expected = u128::from_be_bytes(g.finalize().into_bytes().into());
         let output = (a * b).0;
         assert_eq!(expected, output);
     }

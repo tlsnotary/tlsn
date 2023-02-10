@@ -44,7 +44,10 @@ where
         let len: usize = Self::Inner::BIT_SIZE as usize;
         let mut out: Vec<bool> = Vec::with_capacity(len);
         for k in 0..len {
-            out.push(self.inner().get_bit_be(k as u32));
+            out.push(
+                self.inner()
+                    .get_bit_msb0(Self::Inner::BIT_SIZE - k as u32 - 1),
+            );
         }
         out
     }
@@ -185,16 +188,23 @@ mod tests {
 
         let (c, sharings) = a.convert(&mut rng).unwrap();
 
-        let choice = mock_ot(sharings, b.inner());
-        let d = T::from_sender_values(&choice);
+        let choices = mock_ot(sharings, b);
+        let d = T::from_sender_values(&choices);
         (a.inner(), b.inner(), c.inner(), d.inner())
     }
 
-    fn mock_ot<T: Field>(envelopes: OTEnvelope<T>, choices: T) -> Vec<T> {
+    fn mock_ot<T: Field, U: ShareConvert<Inner = T>>(
+        envelopes: OTEnvelope<T>,
+        receiver_share: U,
+    ) -> Vec<T> {
         let mut out: Vec<T> = vec![T::zero(); T::BIT_SIZE as usize];
-        for (k, number) in out.iter_mut().enumerate() {
-            let bit = choices.get_bit_be(k as u32);
-            *number = if bit { envelopes.1[k] } else { envelopes.0[k] }
+        let choices = receiver_share.choices();
+        for (k, (number, choice)) in out.iter_mut().zip(choices).enumerate() {
+            *number = if choice {
+                envelopes.1[k]
+            } else {
+                envelopes.0[k]
+            }
         }
         out
     }

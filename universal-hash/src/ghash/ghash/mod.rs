@@ -97,10 +97,7 @@ where
         let mut h_additive = [0u8; 16];
         h_additive.copy_from_slice(key.as_slice());
 
-        // We need to reverse the bits for every input and also for the final output.
-        // This is because we use a big-endian representation for Gf2_128, but ghash
-        // uses a little-endian representation.
-        let h_additive = Gf2_128::new(u128::from_be_bytes(h_additive).reverse_bits());
+        let h_additive = Gf2_128::new(u128::from_be_bytes(h_additive));
         let h_multiplicative = self.a2m_converter.a_to_m(vec![h_additive]).await?;
 
         let core = GhashCore::new(self.config.initial_block_count);
@@ -140,13 +137,13 @@ where
         // Pad input to a multiple of 16 bytes
         input.resize(block_count * 16, 0);
 
-        // Convert input to blocks and reverse bits
+        // Convert input to blocks
         let blocks = input
             .chunks_exact(16)
             .map(|chunk| {
                 let mut block = [0u8; 16];
                 block.copy_from_slice(chunk);
-                Gf2_128::new(u128::from_be_bytes(block).reverse_bits())
+                Gf2_128::new(u128::from_be_bytes(block))
             })
             .collect::<Vec<Gf2_128>>();
 
@@ -157,8 +154,7 @@ where
         // Reinsert state
         self.state = State::Ready { core };
 
-        // Reverse bits of output and convert to big endian bytes
-        Ok(tag.into_inner().reverse_bits().to_be_bytes().to_vec())
+        Ok(tag.into_inner().to_be_bytes().to_vec())
     }
 }
 

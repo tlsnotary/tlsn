@@ -331,12 +331,12 @@ mod tests {
     }
 
     fn ghash_reference_impl(h: u128, message: Vec<u128>) -> u128 {
-        let mut ghash = GHash::new(&h.reverse_bits().to_be_bytes().into());
+        let mut ghash = GHash::new(&h.to_be_bytes().into());
         for el in message {
-            ghash.update(&el.reverse_bits().to_be_bytes().into());
+            ghash.update(&el.to_be_bytes().into());
         }
         let ghash_output = ghash.finalize();
-        u128::from_be_bytes(ghash_output.into_bytes().try_into().unwrap()).reverse_bits()
+        u128::from_be_bytes(ghash_output.into_bytes().try_into().unwrap())
     }
 
     fn setup_ghash_to_intermediate_state(

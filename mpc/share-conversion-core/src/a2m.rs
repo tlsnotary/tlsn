@@ -45,8 +45,8 @@ impl<T: Field> AddShare<T> {
                 // we extract a bit of `self.inner()` in position `k` (counting from the left) and
                 // then left-shift that bit by `k`;
                 let mut bits = vec![false; T::BIT_SIZE as usize];
-                bits[k as usize] = self.inner().get_bit_be(k);
-                T::from_bits_be(&bits)
+                bits[k as usize] = self.inner().get_bit_msb0(k);
+                T::from_bits_msb0(&bits)
             })
             .collect();
 
@@ -62,7 +62,7 @@ impl<T: Field> AddShare<T> {
             .zip(masks.iter())
             .enumerate()
         {
-            *b = ((*c + T::two_pow(T::BIT_SIZE - k as u32 - 1)) * random) + *m;
+            *b = ((*c + T::two_pow(k as u32)) * random) + *m;
         }
 
         Ok((mul_share, OTEnvelope::new(b0, b1)?))

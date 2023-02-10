@@ -35,17 +35,17 @@ pub trait Field:
     // Return the multiplicative neutral element
     fn one() -> Self;
 
-    // Return 2^rhs
+    // Left-shift by `rhs` bits
     fn two_pow(rhs: u32) -> Self;
 
-    // Return the n-th bit big-endian
-    fn get_bit_be(&self, n: u32) -> bool;
+    // Return the n-th bit, where n=0 returns the most-significant bit
+    fn get_bit_msb0(&self, n: u32) -> bool;
 
     // Return the multiplicative inverse
     fn inverse(self) -> Self;
 
-    // Create a field element from bits in big-endian
-    fn from_bits_be(bits: &[bool]) -> Self;
+    // Create a field element from bits, where first bit is the most-significant bit
+    fn from_bits_msb0(bits: &[bool]) -> Self;
 }
 
 // A trait for sampling random elements of the field
@@ -123,8 +123,8 @@ mod tests {
         let mut a = vec![false; T::BIT_SIZE as usize];
         a[T::BIT_SIZE as usize - 1] = true;
 
-        let out = T::from_bits_be(&a);
+        let out = T::from_bits_msb0(&a);
         assert_eq!(out, T::one());
-        assert_eq!(out.get_bit_be(T::BIT_SIZE - 1), true);
+        assert_eq!(out.get_bit_msb0(T::BIT_SIZE - 1), true);
     }
 }
