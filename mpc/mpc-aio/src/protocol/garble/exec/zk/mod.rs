@@ -17,7 +17,7 @@ use mpc_core::garble::{ActiveEncodedInput, FullInputSet};
 
 use crate::protocol::garble::GCError;
 
-/// This trait faciliates proving the output of a circuit in
+/// This trait facilitates proving the output of a circuit in
 /// zero-knowledge.
 #[async_trait]
 pub trait Prove {
@@ -32,7 +32,7 @@ pub trait Prove {
     ) -> Result<(), GCError>;
 }
 
-/// This trait faciliates verifying the output of a circuit in
+/// This trait facilitates verifying the output of a circuit in
 /// zero-knowledge.
 #[async_trait]
 pub trait Verify {
@@ -46,12 +46,64 @@ pub trait Verify {
     /// * `gen_labels` - The labels used to garble the circuit.
     /// * `inputs` - The Verifier's private inputs to the circuit.
     /// * `ot_send_inputs` - The inputs which are to be sent to the Prover via OT.
+    /// * `expected_output` - The expected output of the circuit.
     async fn verify(
         self,
         gen_labels: FullInputSet,
         inputs: Vec<InputValue>,
         ot_send_inputs: Vec<Input>,
-    ) -> Result<Vec<OutputValue>, GCError>;
+        expected_output: Vec<OutputValue>,
+    ) -> Result<(), GCError>;
+}
+
+#[cfg(feature = "mock")]
+pub mod mock {
+    use mpc_core::{
+        garble::exec::zk::{ProverConfig, VerifierConfig},
+        Block,
+    };
+    use utils_aio::duplex::DuplexChannel;
+
+    use crate::protocol::{
+        garble::backend::RayonBackend,
+        ot::mock::{MockOTFactory, MockOTReceiver, MockOTSender},
+    };
+
+    use super::*;
+
+    pub type MockProver = Prover<
+        prover_state::Initialized,
+        RayonBackend,
+        MockOTFactory<Block>,
+        MockOTReceiver<Block>,
+    >;
+    pub type MockVerifier = Verifier<
+        verifier_state::Initialized,
+        RayonBackend,
+        MockOTFactory<Block>,
+        MockOTSender<Block>,
+    >;
+
+    pub fn create_mock_zk_pair(
+        prover_config: ProverConfig,
+        verifier_config: VerifierConfig,
+    ) -> (MockProver, MockVerifier) {
+        let (prover_channel, verifier_channel) = DuplexChannel::new();
+        let ot_factory = MockOTFactory::<Block>::new();
+        let prover = Prover::new(
+            prover_config,
+            Box::new(prover_channel),
+            RayonBackend,
+            ot_factory.clone(),
+        );
+        let verifier = Verifier::new(
+            verifier_config,
+            Box::new(verifier_channel),
+            RayonBackend,
+            ot_factory,
+        );
+        (prover, verifier)
+    }
 }
 
 #[cfg(test)]
@@ -64,10 +116,11 @@ mod tests {
     use rand::SeedableRng;
     use rand_chacha::ChaCha12Rng;
 
-    use crate::protocol::{garble::backend::RayonBackend, ot::mock::mock_ot_pair};
-    use mpc_circuits::{Circuit, Value, WireGroup, ADDER_64};
-    use mpc_core::{garble::FullInputSet, msgs::garble::GarbleMessage};
-    use utils_aio::duplex::DuplexChannel;
+    use mpc_circuits::{Circuit, WireGroup, ADDER_64};
+    use mpc_core::garble::{
+        exec::zk::{ProverConfigBuilder, VerifierConfigBuilder},
+        FullInputSet,
+    };
 
     #[fixture]
     fn circ() -> Arc<Circuit> {
@@ -78,22 +131,20 @@ mod tests {
     #[tokio::test]
     async fn test_zk_both_inputs(circ: Arc<Circuit>) {
         let mut rng = ChaCha12Rng::seed_from_u64(0);
-        let (prover_channel, verifier_channel) = DuplexChannel::<GarbleMessage>::new();
-        let (ot_sender, ot_receiver) = mock_ot_pair();
 
-        let verifier = Verifier::new(
-            circ.clone(),
-            Box::new(verifier_channel),
-            RayonBackend,
-            Some(ot_sender),
-        );
+        let prover_config = ProverConfigBuilder::default()
+            .id("test".to_string())
+            .circ(circ.clone())
+            .build()
+            .unwrap();
 
-        let prover = Prover::new(
-            circ.clone(),
-            Box::new(prover_channel),
-            RayonBackend,
-            Some(ot_receiver),
-        );
+        let verifier_config = VerifierConfigBuilder::default()
+            .id("test".to_string())
+            .circ(circ.clone())
+            .build()
+            .unwrap();
+
+        let (prover, verifier) = mock::create_mock_zk_pair(prover_config, verifier_config);
 
         let full_input_set = FullInputSet::generate(&mut rng, &circ, None);
 
@@ -101,13 +152,7 @@ mod tests {
             let circ = circ.clone();
             async move {
                 prover
-                    .setup_inputs(vec![circ.input(0).unwrap().to_value(1u64).unwrap()], vec![])
-                    .await
-                    .unwrap()
-                    .evaluate()
-                    .await
-                    .unwrap()
-                    .prove()
+                    .prove(vec![circ.input(0).unwrap().to_value(1u64).unwrap()], vec![])
                     .await
                     .unwrap();
             }
@@ -115,46 +160,37 @@ mod tests {
 
         let verifier_fut = async move {
             verifier
-                .setup_inputs(
+                .verify(
                     full_input_set,
                     vec![circ.input(1).unwrap().to_value(1u64).unwrap()],
                     vec![circ.input(0).unwrap()],
+                    vec![circ.output(0).unwrap().to_value(2u64).unwrap()],
                 )
-                .await
-                .unwrap()
-                .garble()
-                .await
-                .unwrap()
-                .verify()
                 .await
                 .unwrap()
         };
 
-        let (_, output) = futures::join!(prover_fut, verifier_fut);
-
-        assert_eq!(output[0].value(), &Value::U64(2));
+        futures::join!(prover_fut, verifier_fut);
     }
 
     #[rstest]
     #[tokio::test]
     async fn test_zk_prover_inputs(circ: Arc<Circuit>) {
         let mut rng = ChaCha12Rng::seed_from_u64(0);
-        let (prover_channel, verifier_channel) = DuplexChannel::<GarbleMessage>::new();
-        let (ot_sender, ot_receiver) = mock_ot_pair();
 
-        let verifier = Verifier::new(
-            circ.clone(),
-            Box::new(verifier_channel),
-            RayonBackend,
-            Some(ot_sender),
-        );
+        let prover_config = ProverConfigBuilder::default()
+            .id("test".to_string())
+            .circ(circ.clone())
+            .build()
+            .unwrap();
 
-        let prover = Prover::new(
-            circ.clone(),
-            Box::new(prover_channel),
-            RayonBackend,
-            Some(ot_receiver),
-        );
+        let verifier_config = VerifierConfigBuilder::default()
+            .id("test".to_string())
+            .circ(circ.clone())
+            .build()
+            .unwrap();
+
+        let (prover, verifier) = mock::create_mock_zk_pair(prover_config, verifier_config);
 
         let full_input_set = FullInputSet::generate(&mut rng, &circ, None);
 
@@ -162,7 +198,7 @@ mod tests {
             let circ = circ.clone();
             async move {
                 prover
-                    .setup_inputs(
+                    .prove(
                         vec![
                             circ.input(0).unwrap().to_value(1u64).unwrap(),
                             circ.input(1).unwrap().to_value(1u64).unwrap(),
@@ -171,10 +207,50 @@ mod tests {
                     )
                     .await
                     .unwrap()
-                    .evaluate()
-                    .await
-                    .unwrap()
-                    .prove()
+            }
+        };
+
+        let verifier_fut = async move {
+            verifier
+                .verify(
+                    full_input_set,
+                    vec![],
+                    vec![circ.input(0).unwrap(), circ.input(1).unwrap()],
+                    vec![circ.output(0).unwrap().to_value(2u64).unwrap()],
+                )
+                .await
+                .unwrap()
+        };
+
+        futures::join!(prover_fut, verifier_fut);
+    }
+
+    #[rstest]
+    #[tokio::test]
+    async fn test_zk_proof_error(circ: Arc<Circuit>) {
+        let mut rng = ChaCha12Rng::seed_from_u64(0);
+
+        let prover_config = ProverConfigBuilder::default()
+            .id("test".to_string())
+            .circ(circ.clone())
+            .build()
+            .unwrap();
+
+        let verifier_config = VerifierConfigBuilder::default()
+            .id("test".to_string())
+            .circ(circ.clone())
+            .build()
+            .unwrap();
+
+        let (prover, verifier) = mock::create_mock_zk_pair(prover_config, verifier_config);
+
+        let full_input_set = FullInputSet::generate(&mut rng, &circ, None);
+
+        let prover_fut = {
+            let circ = circ.clone();
+            async move {
+                prover
+                    .prove(vec![circ.input(0).unwrap().to_value(1u64).unwrap()], vec![])
                     .await
                     .unwrap();
             }
@@ -182,23 +258,19 @@ mod tests {
 
         let verifier_fut = async move {
             verifier
-                .setup_inputs(
+                .verify(
                     full_input_set,
-                    vec![],
-                    vec![circ.input(0).unwrap(), circ.input(1).unwrap()],
+                    vec![circ.input(1).unwrap().to_value(1u64).unwrap()],
+                    vec![circ.input(0).unwrap()],
+                    // expect a different output
+                    vec![circ.output(0).unwrap().to_value(3u64).unwrap()],
                 )
                 .await
-                .unwrap()
-                .garble()
-                .await
-                .unwrap()
-                .verify()
-                .await
-                .unwrap()
+                .unwrap_err()
         };
 
-        let (_, output) = futures::join!(prover_fut, verifier_fut);
+        let (_, err) = futures::join!(prover_fut, verifier_fut);
 
-        assert_eq!(output[0].value(), &Value::U64(2));
+        assert!(matches!(err, GCError::ProofError(_)));
     }
 }

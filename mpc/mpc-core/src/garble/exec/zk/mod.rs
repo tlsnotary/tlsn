@@ -9,9 +9,14 @@
 //! This protocol requires the use of committed OT, which is not enforced by the type system in this
 //! core crate.
 
+mod config;
 mod prover;
 mod verifier;
 
+pub use config::{
+    ProverConfig, ProverConfigBuilder, ProverConfigBuilderError, VerifierConfig,
+    VerifierConfigBuilder, VerifierConfigBuilderError,
+};
 pub use prover::{state as prover_state, Prover};
 pub use verifier::{state as verifier_state, Verifier};
 
