@@ -39,7 +39,9 @@ where
     fn new(share: Self::Inner) -> Self;
 
     /// Converts '&self' into choices needed for the receiver input to an oblivious transfer.
-    /// The choices are in the MSB0 order.
+    ///
+    /// We need to start with the smallest bit here, because we need to follow the decomposition we
+    /// chose in the [a2m] and [m2a] modules.
     fn choices(&self) -> Vec<bool> {
         let len: usize = Self::Inner::BIT_SIZE as usize;
         let mut out: Vec<bool> = Vec::with_capacity(len);
