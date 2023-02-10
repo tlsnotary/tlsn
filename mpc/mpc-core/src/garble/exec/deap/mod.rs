@@ -1,8 +1,6 @@
-mod config;
 mod follower;
 mod leader;
 
-pub use config::{DEAPConfig, DEAPConfigBuilder, DEAPConfigBuilderError};
 pub use follower::{state as follower_state, DEAPFollower};
 pub use leader::{state as leader_state, DEAPLeader};
 

@@ -1,73 +1,13 @@
+mod deferred;
 mod follower;
 mod leader;
 
+pub use deferred::{DeferredDEAPFollower, DeferredDEAPLeader};
 pub use follower::{state as follower_state, DEAPFollower};
 pub use leader::{state as leader_state, DEAPLeader};
 
-use async_trait::async_trait;
-
-use mpc_circuits::{Input, InputValue, OutputValue};
-use mpc_core::garble::{gc_state, ActiveEncodedInput, FullInputSet, GarbledCircuit};
-
-use crate::protocol::garble::GCError;
-
 // Use same setup procedure as standard dualex
 pub(crate) use super::dual::setup_inputs_with;
-
-#[async_trait]
-pub trait DEAPExecute: Send {
-    type NextState: DEAPVerify + 'static;
-
-    /// Execute first phase of DEAP protocol
-    ///
-    /// Returns decoded output values
-    async fn execute(
-        self,
-        gen_labels: FullInputSet,
-        gen_inputs: Vec<InputValue>,
-        ot_send_inputs: Vec<Input>,
-        ot_receive_inputs: Vec<InputValue>,
-        cached_labels: Vec<ActiveEncodedInput>,
-    ) -> Result<(Vec<OutputValue>, Self::NextState), GCError>;
-
-    /// Execute first phase of the DEAP protocol, returning the output
-    /// and a summary of the evaluated garbled circuit.
-    ///
-    /// This can be used when the labels of the evaluated circuit are needed.
-    async fn execute_and_summarize(
-        self,
-        gen_labels: FullInputSet,
-        gen_inputs: Vec<InputValue>,
-        ot_send_inputs: Vec<Input>,
-        ot_receive_inputs: Vec<InputValue>,
-        cached_labels: Vec<ActiveEncodedInput>,
-    ) -> Result<
-        (
-            Vec<OutputValue>,
-            GarbledCircuit<gc_state::EvaluatedSummary>,
-            Self::NextState,
-        ),
-        GCError,
-    >;
-}
-
-/// Execute the final phase of the protocol. This proves the authenticity of the circuit output
-/// to both parties.
-///
-/// **CAUTION**
-///
-/// Calling this function on [`DEAPFollower`] reveals all of the follower's private inputs to the leader!
-/// Care must be taken to ensure that this is synchronized properly with any other uses of these inputs.
-#[async_trait]
-pub trait DEAPVerify: Send {
-    /// Execute the final phase of the protocol. This proves the authenticity of the circuit output
-    /// to the follower without leaking any information about leader's inputs.
-    async fn verify(self) -> Result<(), GCError>;
-
-    /// Execute the final phase of the protocol. This proves the authenticity of the circuit output
-    /// to the follower without leaking any information about leader's inputs.
-    async fn verify_boxed(self: Box<Self>) -> Result<(), GCError>;
-}
 
 #[cfg(feature = "mock")]
 pub mod mock {
@@ -76,7 +16,7 @@ pub mod mock {
         garble::backend::RayonBackend,
         ot::mock::{MockOTFactory, MockOTReceiver, MockOTSender},
     };
-    use mpc_core::{garble::exec::deap::DEAPConfig, msgs::garble::GarbleMessage, Block};
+    use mpc_core::{garble::exec::dual::DualExConfig, msgs::garble::GarbleMessage, Block};
     use utils_aio::duplex::DuplexChannel;
 
     pub type MockDEAPLeader = DEAPLeader<
@@ -96,7 +36,7 @@ pub mod mock {
         MockOTReceiver<Block>,
     >;
 
-    pub fn mock_deap_pair(config: DEAPConfig) -> (MockDEAPLeader, MockDEAPFollower) {
+    pub fn mock_deap_pair(config: DualExConfig) -> (MockDEAPLeader, MockDEAPFollower) {
         let (leader_channel, follower_channel) = DuplexChannel::<GarbleMessage>::new();
         let ot_factory = MockOTFactory::new();
 
@@ -122,10 +62,12 @@ pub mod mock {
 
 #[cfg(test)]
 mod tests {
+    use crate::protocol::garble::exec::dual::DEExecute;
+
     use super::*;
     use mock::*;
     use mpc_circuits::{Circuit, WireGroup, ADDER_64};
-    use mpc_core::garble::{exec::deap::DEAPConfigBuilder, FullInputSet};
+    use mpc_core::garble::{exec::dual::DualExConfigBuilder, FullInputSet};
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
 
@@ -134,7 +76,7 @@ mod tests {
         let mut rng = ChaCha12Rng::seed_from_u64(0);
         let circ = Circuit::load_bytes(ADDER_64).unwrap();
 
-        let config = DEAPConfigBuilder::default()
+        let config = DualExConfigBuilder::default()
             .id("test".to_string())
             .circ(circ.clone())
             .build()
@@ -151,8 +93,8 @@ mod tests {
             let leader_input = leader_input.clone();
             let follower_input = follower_input.clone();
             tokio::spawn(async move {
-                let (output, leader) = leader
-                    .setup_inputs(
+                leader
+                    .execute(
                         leader_labels,
                         vec![leader_input.clone()],
                         vec![follower_input.group().clone()],
@@ -161,17 +103,12 @@ mod tests {
                     )
                     .await
                     .unwrap()
-                    .execute()
-                    .await
-                    .unwrap();
-                leader.verify().await.unwrap();
-                output
             })
         };
 
         let follower_task = tokio::spawn(async move {
-            let (output, follower) = follower
-                .setup_inputs(
+            follower
+                .execute(
                     follower_labels,
                     vec![follower_input.clone()],
                     vec![leader_input.group().clone()],
@@ -180,11 +117,6 @@ mod tests {
                 )
                 .await
                 .unwrap()
-                .execute()
-                .await
-                .unwrap();
-            follower.verify().await.unwrap();
-            output
         });
 
         let (leader_out, follower_out) = tokio::join!(leader_task, follower_task);

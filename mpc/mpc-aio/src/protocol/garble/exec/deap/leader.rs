@@ -1,15 +1,22 @@
 use std::marker::PhantomData;
 
-use crate::protocol::{
-    garble::{Compressor, Evaluator, GCError, GarbleChannel, GarbleMessage, Generator, Validator},
-    ot::{OTFactoryError, ObliviousReceive, ObliviousSend, ObliviousVerify},
-};
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
+
+use crate::protocol::{
+    garble::{
+        exec::dual::DEExecute, Compressor, Evaluator, GCError, GarbleChannel, GarbleMessage,
+        Generator, Validator,
+    },
+    ot::{OTFactoryError, ObliviousReceive, ObliviousSend, ObliviousVerify},
+};
 use mpc_circuits::{Input, InputValue, OutputValue, WireGroup};
 use mpc_core::{
     garble::{
-        exec::deap::{self as core, DEAPConfig},
+        exec::{
+            deap as core,
+            dual::{DESummary, DualExConfig},
+        },
         gc_state, ActiveEncodedInput, ActiveInputSet, FullEncodedInput, FullInputSet,
         GarbledCircuit,
     },
@@ -17,7 +24,7 @@ use mpc_core::{
 };
 use utils_aio::{expect_msg_or_err, factory::AsyncFactory};
 
-use super::{setup_inputs_with, DEAPExecute, DEAPVerify};
+use super::setup_inputs_with;
 
 pub mod state {
     use super::*;
@@ -28,6 +35,7 @@ pub mod state {
         impl Sealed for super::Initialized {}
         impl<LR> Sealed for super::LabelSetup<LR> {}
         impl<LR> Sealed for super::Executed<LR> {}
+        impl<LR> Sealed for super::EqualityCheck<LR> {}
     }
 
     pub trait State: sealed::Sealed {}
@@ -42,7 +50,13 @@ pub mod state {
     }
 
     pub struct Executed<LR> {
-        pub(super) core: core::DEAPLeader<core::leader_state::Validate>,
+        pub(crate) core: core::DEAPLeader<core::leader_state::Commit>,
+        pub(crate) input_state: InputState,
+        pub(crate) label_receiver: Option<LR>,
+    }
+
+    pub struct EqualityCheck<LR> {
+        pub(crate) core: core::DEAPLeader<core::leader_state::Validate>,
         pub(crate) input_state: InputState,
         pub(crate) label_receiver: Option<LR>,
     }
@@ -50,6 +64,7 @@ pub mod state {
     impl State for Initialized {}
     impl<LR> State for LabelSetup<LR> {}
     impl<LR> State for Executed<LR> {}
+    impl<LR> State for EqualityCheck<LR> {}
 
     pub(crate) struct InputState {
         pub(crate) ot_receive_inputs: Vec<Input>,
@@ -62,7 +77,7 @@ pub struct DEAPLeader<S, B, LSF, LRF, LS, LR>
 where
     S: State,
 {
-    config: DEAPConfig,
+    config: DualExConfig,
     state: S,
     channel: GarbleChannel,
     backend: B,
@@ -82,7 +97,7 @@ where
     LR: ObliviousReceive<InputValue, ActiveEncodedInput> + ObliviousVerify<FullEncodedInput> + Send,
 {
     pub fn new(
-        config: DEAPConfig,
+        config: DualExConfig,
         channel: GarbleChannel,
         backend: B,
         label_sender_factory: LSF,
@@ -161,35 +176,12 @@ where
     B: Generator + Evaluator + Compressor + Validator + Send,
     LR: ObliviousReceive<InputValue, ActiveEncodedInput> + ObliviousVerify<FullEncodedInput> + Send,
 {
-    /// Execute first phase of the protocol, returning the authenticated output.
-    pub async fn execute(
-        self,
-    ) -> Result<
-        (
-            Vec<OutputValue>,
-            DEAPLeader<Executed<LR>, B, LSF, LRF, LS, LR>,
-        ),
-        GCError,
-    > {
-        // Discard summary
-        let (output, _, leader) = self.execute_and_summarize().await?;
-        Ok((output, leader))
-    }
-
-    /// Execute first phase of the protocol, returning the authenticated output
-    /// and a summary of the follower's garbled circuit.
+    /// Executes both garbled circuits, stopping prior to the equality check.
     ///
-    /// This can be used when the labels of the evaluated circuit are needed.
-    pub async fn execute_and_summarize(
+    /// Returns a summary of the exection.
+    pub async fn execute_until_equality_check(
         mut self,
-    ) -> Result<
-        (
-            Vec<OutputValue>,
-            GarbledCircuit<gc_state::EvaluatedSummary>,
-            DEAPLeader<Executed<LR>, B, LSF, LRF, LS, LR>,
-        ),
-        GCError,
-    > {
+    ) -> Result<(DESummary, DEAPLeader<Executed<LR>, B, LSF, LRF, LS, LR>), GCError> {
         let leader = core::DEAPLeader::new(self.config.circ());
 
         // Garble circuit
@@ -197,6 +189,8 @@ where
             .backend
             .generate(self.config.circ(), self.state.gen_labels)
             .await?;
+
+        let full_gc_summary = full_gc.get_summary();
 
         let (partial_gc, leader) = leader.from_full_circuit(full_gc)?;
 
@@ -225,26 +219,12 @@ where
         // Also compress follower's circuit to reduce memory footprint before validating it in the next phase
         let gc_cmp = self.backend.compress(gc_evaluated).await?;
 
-        // Commit to equality check value
-        let (commit, leader) = leader.from_compressed_circuit(gc_cmp)?.commit();
+        let leader = leader.from_compressed_circuit(gc_cmp)?;
 
-        self.channel
-            .send(GarbleMessage::HashCommitment(commit.into()))
-            .await?;
-
-        // Receive output to our garbled circuit
-        let msg = expect_msg_or_err!(
-            self.channel.next().await,
-            GarbleMessage::Output,
-            GCError::Unexpected
-        )?;
-
-        // Validate output and decode
-        let (output, leader) = leader.decode(msg.into())?;
+        let summary = DESummary::new(full_gc_summary, gc_evaluated_summary);
 
         Ok((
-            output,
-            gc_evaluated_summary,
+            summary,
             DEAPLeader {
                 config: self.config,
                 state: Executed {
@@ -263,69 +243,63 @@ where
     }
 }
 
-#[async_trait]
-impl<B, LSF, LRF, LS, LR> DEAPExecute for DEAPLeader<Initialized, B, LSF, LRF, LS, LR>
+impl<B, LSF, LRF, LS, LR> DEAPLeader<Executed<LR>, B, LSF, LRF, LS, LR>
 where
-    B: Generator + Evaluator + Compressor + Validator + Send + 'static,
-    LSF: AsyncFactory<LS, Config = OTSenderConfig, Error = OTFactoryError> + Send + 'static,
-    LRF: AsyncFactory<LR, Config = OTReceiverConfig, Error = OTFactoryError> + Send + 'static,
-    LS: ObliviousSend<FullEncodedInput> + Send + 'static,
-    LR: ObliviousReceive<InputValue, ActiveEncodedInput>
-        + ObliviousVerify<FullEncodedInput>
-        + Send
-        + 'static,
+    B: Generator + Evaluator + Compressor + Validator + Send,
+    LS: ObliviousSend<FullEncodedInput> + Send,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + ObliviousVerify<FullEncodedInput> + Send,
 {
-    type NextState = DEAPLeader<Executed<LR>, B, LSF, LRF, LS, LR>;
-
-    async fn execute(
-        self,
-        gen_labels: FullInputSet,
-        gen_inputs: Vec<InputValue>,
-        ot_send_inputs: Vec<Input>,
-        ot_receive_inputs: Vec<InputValue>,
-        cached_labels: Vec<ActiveEncodedInput>,
-    ) -> Result<(Vec<OutputValue>, Self::NextState), GCError> {
-        self.setup_inputs(
-            gen_labels,
-            gen_inputs,
-            ot_send_inputs,
-            ot_receive_inputs,
-            cached_labels,
-        )
-        .await?
-        .execute()
-        .await
-    }
-
-    async fn execute_and_summarize(
-        self,
-        gen_labels: FullInputSet,
-        gen_inputs: Vec<InputValue>,
-        ot_send_inputs: Vec<Input>,
-        ot_receive_inputs: Vec<InputValue>,
-        cached_labels: Vec<ActiveEncodedInput>,
+    /// Start the equality check phase of the protocol, committing to the output and
+    /// receiving the authentic output from the follower.
+    ///
+    /// Returns the authentic output of the circuit
+    pub async fn start_equality_check(
+        mut self,
     ) -> Result<
         (
             Vec<OutputValue>,
-            GarbledCircuit<gc_state::EvaluatedSummary>,
-            Self::NextState,
+            DEAPLeader<EqualityCheck<LR>, B, LSF, LRF, LS, LR>,
         ),
         GCError,
     > {
-        self.setup_inputs(
-            gen_labels,
-            gen_inputs,
-            ot_send_inputs,
-            ot_receive_inputs,
-            cached_labels,
-        )
-        .await?
-        .execute_and_summarize()
-        .await
+        // Commit to equality check value
+        let (commit, leader) = self.state.core.commit();
+
+        self.channel
+            .send(GarbleMessage::HashCommitment(commit.into()))
+            .await?;
+
+        // Receive output to our garbled circuit
+        let msg = expect_msg_or_err!(
+            self.channel.next().await,
+            GarbleMessage::Output,
+            GCError::Unexpected
+        )?;
+
+        // Validate output and decode
+        let (output, leader) = leader.decode(msg.into())?;
+
+        Ok((
+            output,
+            DEAPLeader {
+                config: self.config,
+                state: EqualityCheck {
+                    core: leader,
+                    input_state: self.state.input_state,
+                    label_receiver: self.state.label_receiver,
+                },
+                channel: self.channel,
+                backend: self.backend,
+                label_sender_factory: self.label_sender_factory,
+                label_receiver_factory: self.label_receiver_factory,
+                _label_sender: PhantomData,
+                _label_receiver: PhantomData,
+            },
+        ))
     }
 }
 
-impl<B, LSF, LRF, LS, LR> DEAPLeader<Executed<LR>, B, LSF, LRF, LS, LR>
+impl<B, LSF, LRF, LS, LR> DEAPLeader<EqualityCheck<LR>, B, LSF, LRF, LS, LR>
 where
     B: Generator + Evaluator + Compressor + Validator + Send,
     LS: ObliviousSend<FullEncodedInput> + Send,
@@ -333,7 +307,7 @@ where
 {
     /// Execute the final phase of the protocol. This proves the authenticity of the circuit output
     /// to the follower without leaking any information about leader's inputs.
-    pub async fn verify(mut self) -> Result<(), GCError> {
+    pub async fn finalize_equality_check(mut self) -> Result<(), GCError> {
         let leader = self.state.core;
 
         // Receive circuit opening to follower's circuit
@@ -404,19 +378,81 @@ where
 }
 
 #[async_trait]
-impl<B, LSF, LRF, LS, LR> DEAPVerify for DEAPLeader<Executed<LR>, B, LSF, LRF, LS, LR>
+impl<B, LSF, LRF, LS, LR> DEExecute for DEAPLeader<Initialized, B, LSF, LRF, LS, LR>
 where
     B: Generator + Evaluator + Compressor + Validator + Send,
-    LSF: Send,
-    LRF: Send,
+    LSF: AsyncFactory<LS, Config = OTSenderConfig, Error = OTFactoryError> + Send,
+    LRF: AsyncFactory<LR, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
     LS: ObliviousSend<FullEncodedInput> + Send,
     LR: ObliviousReceive<InputValue, ActiveEncodedInput> + ObliviousVerify<FullEncodedInput> + Send,
 {
-    async fn verify(self) -> Result<(), GCError> {
-        self.verify().await
+    async fn execute(
+        self,
+        gen_labels: FullInputSet,
+        gen_inputs: Vec<InputValue>,
+        ot_send_inputs: Vec<Input>,
+        ot_receive_inputs: Vec<InputValue>,
+        cached_labels: Vec<ActiveEncodedInput>,
+    ) -> Result<Vec<OutputValue>, GCError> {
+        let (outputs, _) = self
+            .execute_and_summarize(
+                gen_labels,
+                gen_inputs,
+                ot_send_inputs,
+                ot_receive_inputs,
+                cached_labels,
+            )
+            .await?;
+
+        Ok(outputs)
     }
 
-    async fn verify_boxed(self: Box<Self>) -> Result<(), GCError> {
-        self.verify().await
+    async fn execute_and_summarize(
+        mut self,
+        gen_labels: FullInputSet,
+        gen_inputs: Vec<InputValue>,
+        ot_send_inputs: Vec<Input>,
+        ot_receive_inputs: Vec<InputValue>,
+        cached_labels: Vec<ActiveEncodedInput>,
+    ) -> Result<(Vec<OutputValue>, DESummary), GCError> {
+        let (summary, follower) = self
+            .setup_inputs(
+                gen_labels,
+                gen_inputs,
+                ot_send_inputs,
+                ot_receive_inputs,
+                cached_labels,
+            )
+            .await?
+            .execute_until_equality_check()
+            .await?;
+
+        let (output, follower) = follower.start_equality_check().await?;
+        follower.finalize_equality_check().await?;
+
+        Ok((output, summary))
+    }
+
+    async fn execute_skip_equality_check(
+        mut self,
+        gen_labels: FullInputSet,
+        gen_inputs: Vec<InputValue>,
+        ot_send_inputs: Vec<Input>,
+        ot_receive_inputs: Vec<InputValue>,
+        cached_labels: Vec<ActiveEncodedInput>,
+    ) -> Result<DESummary, GCError> {
+        let (summary, _) = self
+            .setup_inputs(
+                gen_labels,
+                gen_inputs,
+                ot_send_inputs,
+                ot_receive_inputs,
+                cached_labels,
+            )
+            .await?
+            .execute_until_equality_check()
+            .await?;
+
+        Ok(summary)
     }
 }

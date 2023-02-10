@@ -33,7 +33,7 @@ use mpc_core::{
 use utils_aio::{expect_msg_or_err, factory::AsyncFactory};
 
 #[async_trait]
-pub trait DEExecute: Send {
+pub trait DEExecute {
     /// Execute dual execution protocol
     ///
     /// Returns decoded output values
@@ -46,20 +46,17 @@ pub trait DEExecute: Send {
         cached_labels: Vec<ActiveEncodedInput>,
     ) -> Result<Vec<OutputValue>, GCError>;
 
-    /// Execute dual execution protocol without decoding the output values
+    /// Execute dual execution protocol
     ///
-    /// This can be used when the output labels of the evaluated circuit are needed
-    /// instead of the output values
-    ///
-    /// Returns a summary of the garbled circuits used in the protocol
-    async fn execute_skip_decoding(
+    /// Returns the output values and a summary of the execution.
+    async fn execute_and_summarize(
         mut self,
         gen_labels: FullInputSet,
         gen_inputs: Vec<InputValue>,
         ot_send_inputs: Vec<Input>,
         ot_receive_inputs: Vec<InputValue>,
         cached_labels: Vec<ActiveEncodedInput>,
-    ) -> Result<DESummary, GCError>;
+    ) -> Result<(Vec<OutputValue>, DESummary), GCError>;
 
     /// Execute dual execution protocol without the equality check
     ///
@@ -71,7 +68,7 @@ pub trait DEExecute: Send {
     /// Do not use this method unless you know what you're doing! The output labels returned
     /// by this method can _not_ be considered correct without the equality check.
     ///
-    /// Returns a summary of the garbled circuits used in the protocol
+    /// Returns a summary of the execution.
     async fn execute_skip_equality_check(
         mut self,
         gen_labels: FullInputSet,

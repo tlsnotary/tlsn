@@ -119,11 +119,9 @@ where
     ///
     /// Returns decoded output values
     pub async fn execute(self) -> Result<Vec<OutputValue>, GCError> {
-        self.execute_skip_decoding()
-            .await?
-            .get_evaluator_summary()
-            .decode()
-            .map_err(GCError::from)
+        let (outputs, _) = self.execute_and_summarize().await?;
+
+        Ok(outputs)
     }
 
     /// Execute dual execution protocol without decoding the output values
@@ -132,7 +130,7 @@ where
     /// instead of the output values
     ///
     /// Returns evaluated garbled circuit
-    pub async fn execute_skip_decoding(mut self) -> Result<DESummary, GCError> {
+    pub async fn execute_and_summarize(mut self) -> Result<(Vec<OutputValue>, DESummary), GCError> {
         let leader = core::DualExLeader::new(self.config.circ());
 
         // Generate garbled circuit
@@ -141,7 +139,7 @@ where
             .generate(self.config.circ(), self.state.gen_labels)
             .await?;
 
-        let full_summary = full_gc.get_summary();
+        let generator_summary = full_gc.get_summary();
         let (partial_gc, leader) = leader.from_full_circuit(full_gc)?;
 
         // Send garbled circuit to follower
@@ -190,9 +188,12 @@ where
             .send(GarbleMessage::CommitmentOpening(opening.into()))
             .await?;
 
-        let summary = DESummary::new(full_summary, gc_evaluated.into_summary());
+        let evaluator_summary = gc_evaluated.into_summary();
+        let outputs = evaluator_summary.decode()?;
 
-        Ok(summary)
+        let execution_summary = DESummary::new(generator_summary, evaluator_summary);
+
+        Ok((outputs, execution_summary))
     }
 
     /// Execute dual execution protocol without the equality check
@@ -213,7 +214,7 @@ where
             .generate(self.config.circ(), self.state.gen_labels)
             .await?;
 
-        let full_summary = full_gc.get_summary();
+        let generator_summary = full_gc.get_summary();
 
         // Do not reveal output decoding, send output labels commitment
         let partial_gc = full_gc.get_partial(false, true)?;
@@ -242,7 +243,7 @@ where
         // Evaluate garbled circuit
         let evaluated_gc = self.backend.evaluate(gc_ev, self.state.ev_labels).await?;
 
-        let summary = DESummary::new(full_summary, evaluated_gc.into_summary());
+        let summary = DESummary::new(generator_summary, evaluated_gc.into_summary());
 
         Ok(summary)
     }
@@ -277,14 +278,14 @@ where
         .await
     }
 
-    async fn execute_skip_decoding(
+    async fn execute_and_summarize(
         mut self,
         gen_labels: FullInputSet,
         gen_inputs: Vec<InputValue>,
         ot_send_inputs: Vec<Input>,
         ot_receive_inputs: Vec<InputValue>,
         cached_labels: Vec<ActiveEncodedInput>,
-    ) -> Result<DESummary, GCError> {
+    ) -> Result<(Vec<OutputValue>, DESummary), GCError> {
         self.setup_inputs(
             gen_labels,
             gen_inputs,
@@ -293,7 +294,7 @@ where
             cached_labels,
         )
         .await?
-        .execute_skip_decoding()
+        .execute_and_summarize()
         .await
     }
 
