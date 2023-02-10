@@ -121,10 +121,18 @@ mod tests {
 
     pub fn test_field_bit_ops<T: Field>() {
         let mut a = vec![false; T::BIT_SIZE as usize];
-        a[T::BIT_SIZE as usize - 1] = true;
+        let mut b = vec![false; T::BIT_SIZE as usize];
 
-        let out = T::from_bits_msb0(&a);
-        assert_eq!(out, T::one());
-        assert_eq!(out.get_bit_msb0(T::BIT_SIZE - 1), true);
+        a[T::BIT_SIZE as usize - 1] = true;
+        b[0] = true;
+
+        let a = T::from_bits_msb0(&a);
+        let b = T::from_bits_msb0(&b);
+
+        assert_eq!(a, T::one());
+        assert_eq!(a.get_bit_msb0(T::BIT_SIZE - 1), true);
+
+        assert_eq!(b, T::one() * T::two_pow(T::BIT_SIZE - 1));
+        assert_eq!(b.get_bit_msb0(0), true);
     }
 }
