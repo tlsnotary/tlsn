@@ -1,14 +1,14 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use mpc_aio::protocol::garble::exec::deap::mock::mock_deap_pair;
+use mpc_aio::protocol::garble::exec::{deap::mock::mock_deap_pair, dual::DEExecute};
 use mpc_circuits::{Circuit, WireGroup, AES_128_REVERSE};
-use mpc_core::garble::{exec::deap::DEAPConfigBuilder, FullInputSet};
+use mpc_core::garble::{exec::dual::DualExConfigBuilder, FullInputSet};
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 use std::sync::Arc;
 
 async fn bench_deap(circ: Arc<Circuit>) {
     let mut rng = ChaCha12Rng::seed_from_u64(0);
-    let config = DEAPConfigBuilder::default()
+    let config = DualExConfigBuilder::default()
         .id("bench".to_string())
         .circ(circ.clone())
         .build()
@@ -25,8 +25,8 @@ async fn bench_deap(circ: Arc<Circuit>) {
         let leader_input = leader_input.clone();
         let follower_input = follower_input.clone();
         tokio::spawn(async move {
-            let (output, leader) = leader
-                .setup_inputs(
+            leader
+                .execute(
                     leader_labels,
                     vec![leader_input.clone()],
                     vec![follower_input.group().clone()],
@@ -35,17 +35,12 @@ async fn bench_deap(circ: Arc<Circuit>) {
                 )
                 .await
                 .unwrap()
-                .execute()
-                .await
-                .unwrap();
-            leader.verify().await.unwrap();
-            output
         })
     };
 
     let follower_task = tokio::spawn(async move {
-        let (output, follower) = follower
-            .setup_inputs(
+        follower
+            .execute(
                 follower_labels,
                 vec![follower_input.clone()],
                 vec![leader_input.group().clone()],
@@ -54,11 +49,6 @@ async fn bench_deap(circ: Arc<Circuit>) {
             )
             .await
             .unwrap()
-            .execute()
-            .await
-            .unwrap();
-        follower.verify().await.unwrap();
-        output
     });
 
     _ = tokio::join!(leader_task, follower_task);

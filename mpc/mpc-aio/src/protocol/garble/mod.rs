@@ -13,8 +13,6 @@ use mpc_core::{
 };
 use utils_aio::Channel;
 
-use super::ot::OTError;
-
 pub type GarbleChannel = Box<dyn Channel<GarbleMessage, Error = std::io::Error>>;
 
 #[derive(Debug, thiserror::Error)]
@@ -28,7 +26,7 @@ pub enum GCError {
     #[error("io error")]
     IOError(#[from] std::io::Error),
     #[error("ot error")]
-    OTError(#[from] OTError),
+    OTError(#[from] crate::protocol::ot::OTError),
     #[error("OTFactoryError: {0:?}")]
     OTFactoryError(#[from] crate::protocol::ot::OTFactoryError),
     #[error("Received unexpected message: {0:?}")]
@@ -39,6 +37,8 @@ pub enum GCError {
     MissingOTSender,
     #[error("Configured to receive OTs but no OT receiver was provided")]
     MissingOTReceiver,
+    #[error("Deferral Error: {0}")]
+    DeferralError(String),
 }
 
 #[async_trait]

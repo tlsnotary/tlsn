@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use async_trait::async_trait;
 use mpc_circuits::InputValue;
 use mpc_core::{
-    garble::{exec::deap::DEAPConfig, ActiveEncodedInput, FullEncodedInput},
+    garble::{exec::dual::DualExConfig, ActiveEncodedInput, FullEncodedInput},
     msgs::garble::GarbleMessage,
     ot::config::{OTReceiverConfig, OTSenderConfig},
 };
@@ -86,7 +86,7 @@ where
     LS: ObliviousSend<FullEncodedInput> + Send,
     LR: ObliviousReceive<InputValue, ActiveEncodedInput> + ObliviousVerify<FullEncodedInput> + Send,
 {
-    type Config = DEAPConfig;
+    type Config = DualExConfig;
     type Error = GCFactoryError;
 
     async fn create(
@@ -178,7 +178,7 @@ where
     LS: ObliviousSend<FullEncodedInput> + ObliviousReveal + Send,
     LR: ObliviousReceive<InputValue, ActiveEncodedInput> + Send,
 {
-    type Config = DEAPConfig;
+    type Config = DualExConfig;
     type Error = GCFactoryError;
 
     async fn create(
