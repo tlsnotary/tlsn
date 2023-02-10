@@ -4,9 +4,11 @@
 //! without leaking any information about their private inputs. The Verifier can also provide
 //! private inputs which are revealed after the Prover commits to the output of the circuit.
 
+mod deferred;
 mod prover;
 mod verifier;
 
+pub use deferred::{DeferredProver, DeferredVerifier};
 pub use prover::{state as prover_state, Prover};
 pub use verifier::{state as verifier_state, Verifier};
 
