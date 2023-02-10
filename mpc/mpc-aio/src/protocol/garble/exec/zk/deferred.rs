@@ -7,7 +7,10 @@ use futures::{sink::Sink, SinkExt};
 
 use mpc_circuits::{Input, InputValue, OutputValue};
 use mpc_core::{
-    garble::{ActiveEncodedInput, FullEncodedInput, FullInputSet},
+    garble::{
+        exec::zk::{ProverSummary, VerifierSummary},
+        ActiveEncodedInput, FullEncodedInput, FullInputSet,
+    },
     ot::config::{OTReceiverConfig, OTSenderConfig},
 };
 use utils_aio::factory::AsyncFactory;
@@ -59,7 +62,17 @@ where
         inputs: Vec<InputValue>,
         cached_labels: Vec<ActiveEncodedInput>,
     ) -> Result<(), GCError> {
-        let prover = self
+        _ = self.prove_and_summarize(inputs, cached_labels).await?;
+
+        Ok(())
+    }
+
+    async fn prove_and_summarize(
+        mut self,
+        inputs: Vec<InputValue>,
+        cached_labels: Vec<ActiveEncodedInput>,
+    ) -> Result<ProverSummary, GCError> {
+        let (summary, prover) = self
             .prover
             .setup_inputs(inputs, cached_labels)
             .await?
@@ -71,7 +84,7 @@ where
             .await
             .map_err(|e| GCError::DeferralError(e.to_string()))?;
 
-        Ok(())
+        Ok(summary)
     }
 }
 
@@ -116,7 +129,21 @@ where
         ot_send_inputs: Vec<Input>,
         expected_output: Vec<OutputValue>,
     ) -> Result<(), GCError> {
-        let verifier = self
+        _ = self
+            .verify_and_summarize(gen_labels, inputs, ot_send_inputs, expected_output)
+            .await?;
+
+        Ok(())
+    }
+
+    async fn verify_and_summarize(
+        mut self,
+        gen_labels: FullInputSet,
+        inputs: Vec<InputValue>,
+        ot_send_inputs: Vec<Input>,
+        expected_output: Vec<OutputValue>,
+    ) -> Result<VerifierSummary, GCError> {
+        let (summary, verifier) = self
             .verifier
             .setup_inputs(gen_labels, inputs, ot_send_inputs, expected_output)
             .await?
@@ -128,7 +155,7 @@ where
             .await
             .map_err(|e| GCError::DeferralError(e.to_string()))?;
 
-        Ok(())
+        Ok(summary)
     }
 }
 

@@ -7,7 +7,7 @@ use futures::{SinkExt, StreamExt};
 use mpc_circuits::{Input, InputValue, OutputValue, WireGroup};
 use mpc_core::{
     garble::{
-        exec::zk::{self as zk_core, VerifierConfig},
+        exec::zk::{self as zk_core, VerifierConfig, VerifierSummary},
         ActiveEncodedInput, FullEncodedInput, FullInputSet,
     },
     ot::config::{OTSenderConfig, OTSenderConfigBuilder},
@@ -173,7 +173,9 @@ where
     LS: ObliviousSend<FullEncodedInput> + ObliviousReveal + Send,
 {
     /// Generate the garbled circuit and send it to the Prover, wait to receive output commitment.
-    pub async fn garble(mut self) -> Result<Verifier<Verify, B, LSF, LS>, GCError> {
+    pub async fn garble(
+        mut self,
+    ) -> Result<(VerifierSummary, Verifier<Verify, B, LSF, LS>), GCError> {
         let verifier = zk_core::Verifier::new(self.config.circ());
 
         // Generate garbled circuit
@@ -181,6 +183,8 @@ where
             .backend
             .generate(self.config.circ(), self.state.labels)
             .await?;
+
+        let generator_summary = full_gc.get_summary();
 
         let (partial_gc, verifier) = verifier.from_full_circuit(full_gc)?;
 
@@ -198,17 +202,22 @@ where
 
         let verifier = verifier.store_commit(msg.into());
 
-        Ok(Verifier {
-            config: self.config,
-            state: Verify {
-                verifier,
-                expected_output: self.state.expected_output,
+        let summary = VerifierSummary::new(generator_summary);
+
+        Ok((
+            summary,
+            Verifier {
+                config: self.config,
+                state: Verify {
+                    verifier,
+                    expected_output: self.state.expected_output,
+                },
+                channel: self.channel,
+                backend: self.backend,
+                label_sender_factory: self.label_sender_factory,
+                label_sender: self.label_sender,
             },
-            channel: self.channel,
-            backend: self.backend,
-            label_sender_factory: self.label_sender_factory,
-            label_sender: self.label_sender,
-        })
+        ))
     }
 }
 
@@ -282,11 +291,28 @@ where
         ot_send_inputs: Vec<Input>,
         expected_output: Vec<OutputValue>,
     ) -> Result<(), GCError> {
-        self.setup_inputs(gen_labels, inputs, ot_send_inputs, expected_output)
+        _ = self
+            .verify_and_summarize(gen_labels, inputs, ot_send_inputs, expected_output)
+            .await?;
+
+        Ok(())
+    }
+
+    async fn verify_and_summarize(
+        self,
+        gen_labels: FullInputSet,
+        inputs: Vec<InputValue>,
+        ot_send_inputs: Vec<Input>,
+        expected_output: Vec<OutputValue>,
+    ) -> Result<VerifierSummary, GCError> {
+        let (summary, verifier) = self
+            .setup_inputs(gen_labels, inputs, ot_send_inputs, expected_output)
             .await?
             .garble()
-            .await?
-            .verify()
-            .await
+            .await?;
+
+        verifier.verify().await?;
+
+        Ok(summary)
     }
 }

@@ -7,7 +7,7 @@ use futures::{SinkExt, StreamExt};
 use mpc_circuits::{InputValue, WireGroup};
 use mpc_core::{
     garble::{
-        exec::zk::{self as zk_core, ProverConfig},
+        exec::zk::{self as zk_core, ProverConfig, ProverSummary},
         gc_state, ActiveEncodedInput, ActiveInputSet, FullEncodedInput, FullInputSet,
         GarbledCircuit,
     },
@@ -176,7 +176,9 @@ where
     LR: ObliviousReceive<InputValue, ActiveEncodedInput> + ObliviousVerify<FullEncodedInput> + Send,
 {
     /// Evaluate the garbled circuit and commit to the output
-    pub async fn evaluate(mut self) -> Result<Prover<Validate, B, LRF, LR>, GCError> {
+    pub async fn evaluate(
+        mut self,
+    ) -> Result<(ProverSummary, Prover<Validate, B, LRF, LR>), GCError> {
         let prover = zk_core::Prover::new(self.config.circ());
 
         // Expect garbled circuit from Verifier
@@ -191,6 +193,9 @@ where
 
         // Evaluate garbled circuit
         let evaluated_gc = self.backend.evaluate(gc_ev, self.state.labels).await?;
+
+        let evaluator_summary = evaluated_gc.get_summary();
+
         let compressed_gc = self.backend.compress(evaluated_gc).await?;
 
         let (commitment, prover) = prover.from_compressed_circuit(compressed_gc).commit();
@@ -200,17 +205,22 @@ where
             .send(GarbleMessage::HashCommitment(commitment.into()))
             .await?;
 
-        Ok(Prover {
-            config: self.config,
-            state: Validate {
-                prover,
-                input_state: self.state.input_state,
+        let summary = ProverSummary::new(evaluator_summary);
+
+        Ok((
+            summary,
+            Prover {
+                config: self.config,
+                state: Validate {
+                    prover,
+                    input_state: self.state.input_state,
+                },
+                channel: self.channel,
+                backend: self.backend,
+                label_receiver_factory: self.label_receiver_factory,
+                label_receiver: self.label_receiver,
             },
-            channel: self.channel,
-            backend: self.backend,
-            label_receiver_factory: self.label_receiver_factory,
-            label_receiver: self.label_receiver,
-        })
+        ))
     }
 }
 
@@ -306,11 +316,24 @@ where
         inputs: Vec<InputValue>,
         cached_labels: Vec<ActiveEncodedInput>,
     ) -> Result<(), GCError> {
-        self.setup_inputs(inputs, cached_labels)
+        _ = self.prove_and_summarize(inputs, cached_labels).await?;
+
+        Ok(())
+    }
+
+    async fn prove_and_summarize(
+        self,
+        inputs: Vec<InputValue>,
+        cached_labels: Vec<ActiveEncodedInput>,
+    ) -> Result<ProverSummary, GCError> {
+        let (summary, prover) = self
+            .setup_inputs(inputs, cached_labels)
             .await?
             .evaluate()
-            .await?
-            .prove()
-            .await
+            .await?;
+
+        prover.prove().await?;
+
+        Ok(summary)
     }
 }

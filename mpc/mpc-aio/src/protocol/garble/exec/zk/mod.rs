@@ -15,7 +15,10 @@ pub use verifier::{state as verifier_state, Verifier};
 use async_trait::async_trait;
 
 use mpc_circuits::{Input, InputValue, OutputValue};
-use mpc_core::garble::{ActiveEncodedInput, FullInputSet};
+use mpc_core::garble::{
+    exec::zk::{ProverSummary, VerifierSummary},
+    ActiveEncodedInput, FullInputSet,
+};
 
 use crate::protocol::garble::GCError;
 
@@ -32,6 +35,17 @@ pub trait Prove {
         inputs: Vec<InputValue>,
         cached_labels: Vec<ActiveEncodedInput>,
     ) -> Result<(), GCError>;
+
+    /// Proves the output of a circuit to a Verifier, returning
+    /// a summary of the proof.
+    ///
+    /// * `inputs` - The Prover's private inputs to the circuit.
+    /// * `cached_labels` - Cached labels for the circuit's inputs.
+    async fn prove_and_summarize(
+        self,
+        inputs: Vec<InputValue>,
+        cached_labels: Vec<ActiveEncodedInput>,
+    ) -> Result<ProverSummary, GCError>;
 }
 
 /// This trait facilitates verifying the output of a circuit in
@@ -56,6 +70,26 @@ pub trait Verify {
         ot_send_inputs: Vec<Input>,
         expected_output: Vec<OutputValue>,
     ) -> Result<(), GCError>;
+
+    /// Verifies the authenticity of a circuit output evaluated by a Prover, returning
+    /// a summary of the proof.
+    ///
+    /// **CAUTION**
+    ///
+    /// Calling this function will typically reveal all of the Verifier's private inputs to the Prover!
+    /// Care must be taken to ensure that this is synchronized properly with any other uses of these inputs.
+    ///
+    /// * `gen_labels` - The labels used to garble the circuit.
+    /// * `inputs` - The Verifier's private inputs to the circuit.
+    /// * `ot_send_inputs` - The inputs which are to be sent to the Prover via OT.
+    /// * `expected_output` - The expected output of the circuit.
+    async fn verify_and_summarize(
+        self,
+        gen_labels: FullInputSet,
+        inputs: Vec<InputValue>,
+        ot_send_inputs: Vec<Input>,
+        expected_output: Vec<OutputValue>,
+    ) -> Result<VerifierSummary, GCError>;
 }
 
 #[cfg(feature = "mock")]
