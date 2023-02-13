@@ -1,4 +1,4 @@
-use super::{
+use crate::{
     commitment::TranscriptRange, label_encoder::ChaChaEncoder, Error, HashCommitment, LabelSeed,
 };
 use blake3::Hasher;

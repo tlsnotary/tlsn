@@ -168,20 +168,20 @@ mod test {
 
     #[test]
     /// Expect to succeed when CA is explicitely provided
-    fn test_verify_cert_chain_ca_explicit() {
+    fn test_verify_cert_chain_success_ca_explicit() {
         assert!(verify_cert_chain(&[CA.to_vec(), INTER.to_vec(), EE.to_vec()], TIME).is_ok());
     }
 
     #[test]
     /// Expect to succeed when CA is NOT explicitely provided. webpki will look
     /// it up among the trusted root certs.
-    fn test_verify_cert_chain_ca_implicit() {
+    fn test_verify_cert_chain_sucess_ca_implicit() {
         assert!(verify_cert_chain(&[INTER.to_vec(), EE.to_vec()], TIME).is_ok());
     }
 
     #[test]
     // Expect to fail since the end entity cert was not valid at the time
-    fn test_verify_cert_chain_bad_time() {
+    fn test_verify_cert_chain_fail_bad_time() {
         let err = verify_cert_chain(&[CA.to_vec(), INTER.to_vec(), EE.to_vec()], BADTIME);
         assert_eq!(
             err.unwrap_err(),
@@ -191,14 +191,14 @@ mod test {
 
     #[test]
     // Expect to fail when no end entity cert provided
-    fn test_verify_cert_chain_no_leaf_cert() {
+    fn test_verify_cert_chain_fail_no_leaf_cert() {
         let err = verify_cert_chain(&[CA.to_vec(), INTER.to_vec()], TIME);
         assert_eq!(err.unwrap_err(), Error::EndEntityIsCA);
     }
 
     #[test]
     // Expect to fail when no intermediate cert provided
-    fn test_verify_cert_chain_no_interm_cert() {
+    fn test_verify_cert_chain_fail_no_interm_cert() {
         let err = verify_cert_chain(&[CA.to_vec(), EE.to_vec()], TIME);
         assert_eq!(
             err.unwrap_err(),
@@ -209,7 +209,7 @@ mod test {
     #[test]
     // Expect to fail when unknown root cert was provided, even though the cert chain
     // is valid
-    fn test_verify_cert_chain_unknown_root() {
+    fn test_verify_cert_chain_fail_unknown_root() {
         // locally generated valid chain with an unknown CA:
         let ee: &[u8] = include_bytes!("testdata/unknown/ee.der");
         let ca: &[u8] = include_bytes!("testdata/unknown/ca.der");
@@ -229,7 +229,7 @@ mod test {
 
     // Expect to succeed when key exchange params signed correctly with an RSA cert
     #[test]
-    fn test_verify_sig_ke_params_rsa() {
+    fn test_verify_sig_ke_params_success_rsa() {
         let cr: &[u8] = &to_hex(RSA_CR);
         let sr: &[u8] = &to_hex(RSA_SR);
         let pubkey: &[u8] = &to_hex(RSA_EPHEM_PUBKEY);
@@ -244,7 +244,7 @@ mod test {
 
     // Expect to succeed when key exchange params signed correctly with an ECDSA cert
     #[test]
-    fn test_verify_sig_ke_params_ecdsa() {
+    fn test_verify_sig_ke_params_success_ecdsa() {
         let cr: &[u8] = &to_hex(ECDSA_CR);
         let sr: &[u8] = &to_hex(ECDSA_SR);
         let pubkey: &[u8] = &to_hex(ECDSA_EPHEM_PUBKEY);
@@ -259,7 +259,7 @@ mod test {
 
     // Expect RSA sig verification to fail because client_random is wrong
     #[test]
-    fn test_verify_sig_ke_params_rsa_bad_client_random() {
+    fn test_verify_sig_ke_params_fail_rsa_bad_client_random() {
         let cr: &[u8] = &to_hex(RSA_CR);
         let sr: &[u8] = &to_hex(RSA_SR);
         let pubkey: &[u8] = &to_hex(RSA_EPHEM_PUBKEY);
@@ -285,7 +285,7 @@ mod test {
 
     // Expect ECDSA sig verification to fail because the sig is wrong
     #[test]
-    fn test_verify_sig_ke_params_ecdsa_bad_sig() {
+    fn test_verify_sig_ke_params_fail_ecdsa_bad_sig() {
         let cr: &[u8] = &to_hex(ECDSA_CR);
         let sr: &[u8] = &to_hex(ECDSA_SR);
         let pubkey: &[u8] = &to_hex(ECDSA_EPHEM_PUBKEY);
@@ -310,14 +310,14 @@ mod test {
 
     // Expect to succeed
     #[test]
-    fn test_check_hostname_present_in_cert() {
+    fn test_check_dns_name_present_in_cert_success() {
         let host = String::from("tlsnotary.org");
         assert!(check_dns_name_present_in_cert(&EE.to_vec(), &host).is_ok());
     }
 
     // Expect to fail because the host name is not in the cert
     #[test]
-    fn test_check_hostname_present_in_cert_bad_host() {
+    fn test_check_dns_name_present_in_cert_fail_bad_host() {
         let host = String::from("tlsnotary");
         let err = check_dns_name_present_in_cert(&EE.to_vec(), &host);
         let _str = String::from("CertNotValidForName");
@@ -329,7 +329,7 @@ mod test {
 
     // Expect to fail because the host name is not a valid DNS name
     #[test]
-    fn test_check_hostname_present_in_cert_invalid_dns_name() {
+    fn test_check_dns_name_present_in_cert_fail_invalid_dns_name() {
         let host = String::from("tlsnotary.org%");
         let err = check_dns_name_present_in_cert(&EE.to_vec(), &host);
         assert_eq!(

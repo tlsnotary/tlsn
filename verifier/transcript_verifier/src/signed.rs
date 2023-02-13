@@ -36,6 +36,11 @@ impl SignedHandshake {
     pub fn handshake_commitment(&self) -> &HashCommitment {
         &self.handshake_commitment
     }
+
+    #[cfg(test)]
+    pub fn set_handshake_commitment(&mut self, handshake_commitment: HashCommitment) {
+        self.handshake_commitment = handshake_commitment;
+    }
 }
 
 /// All the data which the Notary signs

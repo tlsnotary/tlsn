@@ -1,13 +1,12 @@
 use super::checks;
 use crate::{
-    commitment::{Commitment, CommitmentOpening, CommitmentType},
+    commitment::{Commitment, CommitmentOpening},
     error::Error,
     merkle::MerkleProof,
     tls_handshake::TLSHandshake,
-    LabelSeed, PubKey, Signed,
+    LabelSeed,
 };
-use serde::{ser::Serializer, Serialize};
-use std::collections::HashMap;
+use serde::Serialize;
 
 /// Notarization document in its unchecked form. This is the form in which the document is received
 /// by the Verifier from the User.
@@ -136,6 +135,16 @@ impl UncheckedDoc {
     pub fn set_commitment_openings(&mut self, commitment_openings: Vec<CommitmentOpening>) {
         self.commitment_openings = commitment_openings;
     }
+
+    #[cfg(test)]
+    pub fn set_signature(&mut self, signature: Option<Vec<u8>>) {
+        self.signature = signature;
+    }
+
+    #[cfg(test)]
+    pub fn set_merkle_root(&mut self, merkle_root: [u8; 32]) {
+        self.merkle_root = merkle_root;
+    }
 }
 
 #[cfg(test)]
@@ -143,182 +152,134 @@ pub mod test {
     use super::*;
     use crate::{
         commitment::{SomeFutureVariantOpening, TranscriptRange},
-        doc::{
-            test::unchecked_doc, unchecked::UncheckedDoc, MAX_COMMITMENT_COUNT,
-            MAX_TOTAL_COMMITTED_DATA,
-        },
+        doc::{unchecked::UncheckedDoc, MAX_COMMITMENT_COUNT, MAX_TOTAL_COMMITTED_DATA},
+        test::{default_unchecked_doc, unchecked_doc},
+        Signed,
     };
     use rstest::{fixture, rstest};
 
     #[fixture]
-    // Returns a valid document which passes validation
-    fn unchecked_doc_valid() -> UncheckedDoc {
-        // label_seed and hash_commitment can be any values, it doesn't matter during validation,
-        // it matters only during verification
-        let label_seed = [0u8; 32];
-        let hash_commitment = [[0u8; 32], [0u8; 32]];
+    // Returns an unchecked document which passes validation and the document's signed portion
+    pub fn unchecked_doc_valid_and_signed() -> (UncheckedDoc, Signed) {
+        let (doc, _, signed) = default_unchecked_doc();
+        (doc, signed)
+    }
 
-        // create non-overlapping commitments
-        let comm1_ranges = [
-            TranscriptRange::new(5, 15).unwrap(),
-            TranscriptRange::new(20, 22).unwrap(),
-        ];
-        let comm2_ranges = [
-            TranscriptRange::new(0, 2).unwrap(),
-            TranscriptRange::new(15, 20).unwrap(),
-        ];
-        unchecked_doc(label_seed, hash_commitment, [comm1_ranges, comm2_ranges])
+    #[fixture]
+    // Returns an unchecked document which passes validation
+    pub fn unchecked_doc_valid() -> UncheckedDoc {
+        let (doc, _) = unchecked_doc_valid_and_signed();
+        doc
     }
 
     #[fixture]
     // Returns a set of valid documents which pass validation. Each document contains overlapping
     // commitments. Each document's commitments overlap in a unique way.
     fn unchecked_docs_valid_overlap() -> Vec<UncheckedDoc> {
-        // label_seed and hash_commitment can be any values, it doesn't matter during validation,
-        // it matters only during verification
-        let label_seed = [0u8; 32];
-        let hash_commitment = [[0u8; 32], [0u8; 32]];
-
         let mut docs = Vec::new();
 
         // overlap on the left of one of the ranges of comm2
-        let comm1_ranges = [
+        let comm1_ranges = vec![
             TranscriptRange::new(5, 15).unwrap(),
             TranscriptRange::new(20, 22).unwrap(),
         ];
-        let comm2_ranges = [
+        let comm2_ranges = vec![
             TranscriptRange::new(14, 18).unwrap(),
             TranscriptRange::new(23, 24).unwrap(),
         ];
-        docs.push(unchecked_doc(
-            label_seed,
-            hash_commitment,
-            [comm1_ranges, comm2_ranges],
-        ));
+        docs.push(unchecked_doc(vec![comm1_ranges, comm2_ranges]).0);
 
         // overlap on the right of one of the ranges of comm2
-        let comm1_ranges = [
+        let comm1_ranges = vec![
             TranscriptRange::new(5, 15).unwrap(),
             TranscriptRange::new(20, 22).unwrap(),
         ];
-        let comm2_ranges = [
+        let comm2_ranges = vec![
             TranscriptRange::new(0, 8).unwrap(),
             TranscriptRange::new(23, 24).unwrap(),
         ];
-        docs.push(unchecked_doc(
-            label_seed,
-            hash_commitment,
-            [comm1_ranges, comm2_ranges],
-        ));
+        docs.push(unchecked_doc(vec![comm1_ranges, comm2_ranges]).0);
 
         // one of the ranges of comm2 is fully enveloped by one of the range of comm1
-        let comm1_ranges = [
+        let comm1_ranges = vec![
             TranscriptRange::new(5, 15).unwrap(),
             TranscriptRange::new(20, 22).unwrap(),
         ];
-        let comm2_ranges = [
+        let comm2_ranges = vec![
             TranscriptRange::new(6, 10).unwrap(),
             TranscriptRange::new(23, 24).unwrap(),
         ];
-        docs.push(unchecked_doc(
-            label_seed,
-            hash_commitment,
-            [comm1_ranges, comm2_ranges],
-        ));
+        docs.push(unchecked_doc(vec![comm1_ranges, comm2_ranges]).0);
 
         // one of the ranges of comm2 is fully enveloped by one of the range of comm1
         // and the ranges' start bounds match
-        let comm1_ranges = [
+        let comm1_ranges = vec![
             TranscriptRange::new(5, 15).unwrap(),
             TranscriptRange::new(20, 22).unwrap(),
         ];
-        let comm2_ranges = [
+        let comm2_ranges = vec![
             TranscriptRange::new(5, 10).unwrap(),
             TranscriptRange::new(23, 24).unwrap(),
         ];
-        docs.push(unchecked_doc(
-            label_seed,
-            hash_commitment,
-            [comm1_ranges, comm2_ranges],
-        ));
+        docs.push(unchecked_doc(vec![comm1_ranges, comm2_ranges]).0);
 
         // one of the ranges of comm2 is fully enveloped by one of the range of comm1
         // and the ranges' end bounds match
-        let comm1_ranges = [
+        let comm1_ranges = vec![
             TranscriptRange::new(5, 15).unwrap(),
             TranscriptRange::new(20, 22).unwrap(),
         ];
-        let comm2_ranges = [
+        let comm2_ranges = vec![
             TranscriptRange::new(6, 15).unwrap(),
             TranscriptRange::new(23, 24).unwrap(),
         ];
-        docs.push(unchecked_doc(
-            label_seed,
-            hash_commitment,
-            [comm1_ranges, comm2_ranges],
-        ));
+        docs.push(unchecked_doc(vec![comm1_ranges, comm2_ranges]).0);
 
         // one of the ranges of comm2 fully envelops one of the range of comm1
-        let comm1_ranges = [
+        let comm1_ranges = vec![
             TranscriptRange::new(5, 15).unwrap(),
             TranscriptRange::new(20, 22).unwrap(),
         ];
-        let comm2_ranges = [
+        let comm2_ranges = vec![
             TranscriptRange::new(3, 17).unwrap(),
             TranscriptRange::new(23, 24).unwrap(),
         ];
-        docs.push(unchecked_doc(
-            label_seed,
-            hash_commitment,
-            [comm1_ranges, comm2_ranges],
-        ));
+        docs.push(unchecked_doc(vec![comm1_ranges, comm2_ranges]).0);
 
         // one of the ranges of comm2 fully envelops one of the range of comm1
         // and the ranges' start bounds match
-        let comm1_ranges = [
+        let comm1_ranges = vec![
             TranscriptRange::new(5, 15).unwrap(),
             TranscriptRange::new(20, 22).unwrap(),
         ];
-        let comm2_ranges = [
+        let comm2_ranges = vec![
             TranscriptRange::new(5, 17).unwrap(),
             TranscriptRange::new(23, 24).unwrap(),
         ];
-        docs.push(unchecked_doc(
-            label_seed,
-            hash_commitment,
-            [comm1_ranges, comm2_ranges],
-        ));
+        docs.push(unchecked_doc(vec![comm1_ranges, comm2_ranges]).0);
 
         // one of the ranges of comm2 fully envelops one of the range of comm1
         // and the ranges' end bounds match
-        let comm1_ranges = [
+        let comm1_ranges = vec![
             TranscriptRange::new(5, 15).unwrap(),
             TranscriptRange::new(20, 22).unwrap(),
         ];
-        let comm2_ranges = [
+        let comm2_ranges = vec![
             TranscriptRange::new(3, 15).unwrap(),
             TranscriptRange::new(23, 24).unwrap(),
         ];
-        docs.push(unchecked_doc(
-            label_seed,
-            hash_commitment,
-            [comm1_ranges, comm2_ranges],
-        ));
+        docs.push(unchecked_doc(vec![comm1_ranges, comm2_ranges]).0);
 
         // a range from comm1 matches exactly a range from comm2
-        let comm1_ranges = [
+        let comm1_ranges = vec![
             TranscriptRange::new(5, 15).unwrap(),
             TranscriptRange::new(20, 22).unwrap(),
         ];
-        let comm2_ranges = [
+        let comm2_ranges = vec![
             TranscriptRange::new(5, 15).unwrap(),
             TranscriptRange::new(23, 24).unwrap(),
         ];
-        docs.push(unchecked_doc(
-            label_seed,
-            hash_commitment,
-            [comm1_ranges, comm2_ranges],
-        ));
+        docs.push(unchecked_doc(vec![comm1_ranges, comm2_ranges]).0);
 
         docs
     }
@@ -467,7 +428,7 @@ pub mod test {
 
         // ---------------Modify opening type so that it doesn't match the commitment type
 
-        let mut doc4 = unchecked_doc_valid.clone();
+        let mut doc4 = unchecked_doc_valid;
 
         let original_openings = doc4.commitment_openings().to_vec();
 
@@ -484,7 +445,7 @@ pub mod test {
 
     #[rstest]
     // Expect validation to fail on check_ranges_inside_each_commitment()
-    fn validate_fail_on_check_ranges_inside_each_commitment(mut unchecked_doc_valid: UncheckedDoc) {
+    fn validate_fail_on_check_ranges_inside_each_commitment(unchecked_doc_valid: UncheckedDoc) {
         //-------------- Change ranges to be empty
         let mut doc1 = unchecked_doc_valid.clone();
 
@@ -530,7 +491,7 @@ pub mod test {
         );
 
         //-------------- Change ranges to not be ascending relative to each other
-        let mut doc4 = unchecked_doc_valid.clone();
+        let mut doc4 = unchecked_doc_valid;
 
         let mut new_commitments = doc4.commitments().to_vec();
 
@@ -551,10 +512,10 @@ pub mod test {
     // Expect validation to fail on check_max_total_committed_data()
     fn validate_fail_on_check_max_total_committed_data(unchecked_doc_valid: UncheckedDoc) {
         //-------------- Change total committed data to be > super::MAX_TOTAL_COMMITMENT_SIZE
-        let mut doc1 = unchecked_doc_valid.clone();
+        let mut doc1 = unchecked_doc_valid;
 
         let mut new_commitments = doc1.commitments().to_vec();
-        let mut new_ranges = vec![
+        let new_ranges = vec![
             TranscriptRange::new(0, MAX_TOTAL_COMMITTED_DATA as u32).unwrap(),
             TranscriptRange::new(
                 MAX_TOTAL_COMMITTED_DATA as u32,
@@ -577,7 +538,7 @@ pub mod test {
     fn validate_fail_on_check_commitment_sizes(unchecked_doc_valid: UncheckedDoc) {
         //-------------- Change commitment range sizes to not correspond to the opening size
 
-        let mut doc1 = unchecked_doc_valid.clone();
+        let mut doc1 = unchecked_doc_valid;
 
         let mut new_commitments = doc1.commitments().to_vec();
         let mut new_ranges = new_commitments[0].ranges().clone();
@@ -598,7 +559,7 @@ pub mod test {
     fn validate_fail_on_check_commitment_count(unchecked_doc_valid: UncheckedDoc) {
         //-------------- Change commitment count to be too high
 
-        let mut doc1 = unchecked_doc_valid.clone();
+        let mut doc1 = unchecked_doc_valid;
 
         let original_commitments = doc1.commitments().to_vec();
 
@@ -706,6 +667,18 @@ pub mod test {
             doc2.validate().err().unwrap()
                 == Error::ValidationCheckError("check_merkle_tree_indices".to_string())
         );
+
+        //-------------- Set index to be larger than the index of the last leaf in the tree
+        let mut doc3 = unchecked_doc_valid;
+
+        let mut commitments = doc3.commitments().to_vec();
+        commitments[0].set_merkle_tree_index(doc3.merkle_tree_leaf_count());
+
+        doc3.set_commitments(commitments);
+        assert!(
+            doc3.validate().err().unwrap()
+                == Error::ValidationCheckError("check_merkle_tree_indices".to_string())
+        );
     }
 
     #[rstest]
@@ -714,14 +687,14 @@ pub mod test {
         //-------------- Modify label_seed in the opening so that it doesn't match
         //              label_seed of the document
 
-        let mut doc1 = unchecked_doc_valid.clone();
+        let mut doc1 = unchecked_doc_valid;
 
         let openings = doc1.commitment_openings();
 
         let new_opening1 = match openings[0] {
             CommitmentOpening::LabelsBlake3(ref opening) => {
                 let mut new_opening = opening.clone();
-                let mut seed = opening.label_seed().clone();
+                let mut seed = *opening.label_seed();
                 // modify the seed's byte
                 seed[0] = seed[0].checked_add(1).unwrap_or(0);
                 new_opening.set_label_seed(seed);

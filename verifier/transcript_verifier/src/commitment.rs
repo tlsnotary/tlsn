@@ -108,6 +108,11 @@ impl Commitment {
     pub fn set_merkle_tree_index(&mut self, merkle_tree_index: u32) {
         self.merkle_tree_index = merkle_tree_index;
     }
+
+    #[cfg(test)]
+    pub fn set_commitment(&mut self, commitment: [u8; 32]) {
+        self.commitment = commitment;
+    }
 }
 
 #[derive(Clone, PartialEq, Serialize, Default)]
@@ -183,6 +188,11 @@ impl LabelsBlake3Opening {
     #[cfg(test)]
     pub fn set_label_seed(&mut self, label_seed: LabelSeed) {
         self.label_seed = label_seed;
+    }
+
+    #[cfg(test)]
+    pub fn set_salt(&mut self, salt: Vec<u8>) {
+        self.salt = salt;
     }
 }
 
@@ -262,5 +272,97 @@ impl SomeFutureVariantOpening {
 
     pub fn set_opening(&mut self, opening: Vec<u8>) {
         self.opening = opening;
+    }
+}
+
+#[cfg(test)]
+pub mod test {
+    use super::*;
+    use crate::{commitment::TranscriptRange, doc::validated::test::validated_doc};
+    use rstest::{fixture, rstest};
+
+    #[fixture]
+    // Returns a correct label commitment / opening pair
+    fn get_pair() -> (Commitment, CommitmentOpening) {
+        let doc = validated_doc();
+        (
+            doc.commitments()[0].clone(),
+            doc.commitment_openings()[0].clone(),
+        )
+    }
+
+    #[rstest]
+    // Expect verify() to succeed
+    fn verify_success(get_pair: (Commitment, CommitmentOpening)) {
+        let (commitment, opening) = get_pair;
+        assert!(commitment.verify(&opening).is_ok())
+    }
+
+    #[rstest]
+    // Expect verify() to fail because an opening byte is incorrect
+    fn verify_fail_wrong_opening(get_pair: (Commitment, CommitmentOpening)) {
+        let (commitment, opening) = get_pair;
+        let mut opening = match opening {
+            CommitmentOpening::LabelsBlake3(opening) => opening,
+            _ => panic!(),
+        };
+        let mut old_bytes = opening.opening().clone();
+        // corrupt one byte
+        old_bytes[0] = old_bytes[0].checked_add(1).unwrap_or(0);
+        opening.set_opening(old_bytes);
+
+        let opening = CommitmentOpening::LabelsBlake3(opening);
+
+        assert!(commitment.verify(&opening).err().unwrap() == Error::CommitmentVerificationFailed)
+    }
+
+    #[rstest]
+    // Expect verify() to fail because commitment range is incorrect
+    fn verify_fail_wrong_range(get_pair: (Commitment, CommitmentOpening)) {
+        let (mut commitment, opening) = get_pair;
+
+        let mut ranges = commitment.ranges().clone();
+        ranges[0] = TranscriptRange::new(ranges[0].start() + 1, ranges[0].end() + 1).unwrap();
+        commitment.set_ranges(ranges);
+
+        assert!(commitment.verify(&opening).err().unwrap() == Error::CommitmentVerificationFailed)
+    }
+
+    #[rstest]
+    // Expect verify() to fail because label_seed is incorrect
+    fn verify_fail_wrong_seed(get_pair: (Commitment, CommitmentOpening)) {
+        let (commitment, opening) = get_pair;
+
+        let mut opening = match opening {
+            CommitmentOpening::LabelsBlake3(opening) => opening,
+            _ => panic!(),
+        };
+        let mut seed = *opening.label_seed();
+        // corrupt one byte
+        seed[0] = seed[0].checked_add(1).unwrap_or(0);
+        opening.set_label_seed(seed);
+
+        let opening = CommitmentOpening::LabelsBlake3(opening);
+
+        assert!(commitment.verify(&opening).err().unwrap() == Error::CommitmentVerificationFailed)
+    }
+
+    #[rstest]
+    // Expect verify() to fail because salt is incorrect
+    fn verify_fail_wrong_salt(get_pair: (Commitment, CommitmentOpening)) {
+        let (commitment, opening) = get_pair;
+
+        let mut opening = match opening {
+            CommitmentOpening::LabelsBlake3(opening) => opening,
+            _ => panic!(),
+        };
+        let mut salt = opening.salt().clone();
+        // corrupt one byte
+        salt[0] = salt[0].checked_add(1).unwrap_or(0);
+        opening.set_salt(salt);
+
+        let opening = CommitmentOpening::LabelsBlake3(opening);
+
+        assert!(commitment.verify(&opening).err().unwrap() == Error::CommitmentVerificationFailed)
     }
 }

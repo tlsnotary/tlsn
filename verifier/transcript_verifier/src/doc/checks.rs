@@ -141,7 +141,7 @@ pub(super) fn check_commitment_sizes(unchecked: &UncheckedDoc) -> Result<(), Err
 
 /// Condition checked: the amount of commitments is less than [super::MAX_COMMITMENT_COUNT]
 pub(super) fn check_commitment_count(unchecked: &UncheckedDoc) -> Result<(), Error> {
-    if unchecked.commitments().len() >= 1000 {
+    if unchecked.commitments().len() >= super::MAX_COMMITMENT_COUNT as usize {
         return Err(Error::ValidationCheckError(
             "check_commitment_count".to_string(),
         ));
@@ -149,7 +149,8 @@ pub(super) fn check_commitment_count(unchecked: &UncheckedDoc) -> Result<(), Err
     Ok(())
 }
 
-/// Condition checked: each Merkle tree index is both unique and also ascending between commitments
+/// Condition checked: each Merkle tree index is both unique and also ascending between commitments.
+/// Index must not be higher than the index of the last leaf of the tree.
 pub(super) fn check_merkle_tree_indices(unchecked: &UncheckedDoc) -> Result<(), Error> {
     let indices: Vec<u32> = unchecked
         .commitments()
@@ -158,6 +159,14 @@ pub(super) fn check_merkle_tree_indices(unchecked: &UncheckedDoc) -> Result<(), 
         .collect();
     for pair in indices.windows(2) {
         if pair[0] >= pair[1] {
+            return Err(Error::ValidationCheckError(
+                "check_merkle_tree_indices".to_string(),
+            ));
+        }
+    }
+
+    for idx in indices {
+        if idx >= unchecked.merkle_tree_leaf_count() {
             return Err(Error::ValidationCheckError(
                 "check_merkle_tree_indices".to_string(),
             ));
@@ -296,12 +305,4 @@ fn overlapping_range(
         let range = TranscriptRange::new(ov_start, ov_end)?;
         Ok(Some(range))
     }
-}
-
-#[cfg(test)]
-mod test {
-
-    // TODO test
-    // overlapping_range
-    // check_overlapping_openings
 }

@@ -113,6 +113,10 @@ impl HandshakeData {
     pub fn serialize(&self) -> Result<Vec<u8>, Error> {
         bincode::serialize(&self).map_err(|_| Error::SerializationError)
     }
+
+    pub fn tls_cert_chain(&self) -> &Vec<CertDER> {
+        &self.tls_cert_chain
+    }
 }
 
 /// Types of the ephemeral EC pubkey currently supported by TLSNotary
@@ -145,6 +149,7 @@ impl EphemeralECPubkey {
 
 /// Algorithms that can be used for signing the TLS key exchange parameters
 #[derive(Clone, Serialize, Default)]
+#[allow(non_camel_case_types)]
 pub enum KEParamsSigAlg {
     #[default]
     RSA_PKCS1_2048_8192_SHA256,
@@ -169,5 +174,44 @@ impl ServerSignature {
 
     pub fn sig(&self) -> &Vec<u8> {
         &self.sig
+    }
+}
+
+#[cfg(test)]
+pub mod test {
+    use super::*;
+    use crate::doc::validated::test::validated_doc;
+    use rstest::{fixture, rstest};
+
+    #[fixture]
+    // Returns a correct TLSHandshake struct
+    fn tls_handshake() -> TLSHandshake {
+        let doc = validated_doc();
+        doc.tls_handshake().clone()
+    }
+
+    #[rstest]
+    // Expect verify() to succeed
+    fn verify_success(tls_handshake: TLSHandshake) {
+        assert!(tls_handshake.verify("tlsnotary.org").is_ok())
+    }
+
+    #[rstest]
+    // Expect verify() to fail since DNS name is wrong
+    fn verify_fail_wrong_dns_name(tls_handshake: TLSHandshake) {
+        assert!(tls_handshake.verify("tlsnotary2.org").is_err())
+    }
+
+    #[rstest]
+    // Expect verify_tls_commitment() to fail since the commitment is wrong
+    fn verify_fail_wrong_commitment(mut tls_handshake: TLSHandshake) {
+        let mut commitment = *tls_handshake.signed_handshake.handshake_commitment();
+        // corrupt a byte of the commitment
+        commitment[0] = commitment[0].checked_add(1).unwrap_or(0);
+        tls_handshake
+            .signed_handshake
+            .set_handshake_commitment(commitment);
+
+        assert!(tls_handshake.verify("tlsnotary.org").is_err())
     }
 }
