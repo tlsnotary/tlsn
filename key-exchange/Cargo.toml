@@ -11,13 +11,15 @@ default = []
 serde = ["dep:serde"]
 
 [dependencies]
+tlsn-mpc-aio = { path = "../mpc/mpc-aio" }
 tlsn-utils-aio = { path = "../utils/utils-aio" }
 share-conversion-core = { path = "../mpc/share-conversion-core" }
 tlsn-point-addition = { path = "../point-addition" }
-p256 = "0.12"
+p256 = {version = "0.12", features = ["ecdh"]}
 async-trait = "0.1"
 thiserror = "1"
 serde = { version = "1", optional = true }
+futures = "0.3"
 
 [dev-dependencies]
 tokio = { version = "1.23", features = ["macros", "rt", "rt-multi-thread"] }

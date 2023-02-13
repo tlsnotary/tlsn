@@ -5,24 +5,42 @@ mod msg;
 use async_trait::async_trait;
 pub use leader::KeyExchangeLeader;
 pub use msg::KeyExchangeMessage;
-use p256::PublicKey;
+use p256::{PublicKey, SecretKey};
 use utils_aio::Channel;
 
 pub type KeyExchangeChannel = Box<dyn Channel<KeyExchangeMessage, Error = std::io::Error> + Send>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum KeyExchangeError {
+    #[error("Unable to compute public key: {0}")]
+    PublicKey(#[from] p256::elliptic_curve::Error),
+    #[error("Server Key not set")]
+    NoServerKey,
+    #[error("Private key not set")]
+    NoPrivateKey,
     #[error("IOError: {0}")]
     IOError(#[from] std::io::Error),
     #[error("UnexpectedMessage: {0:?}")]
-    UnexpectedMessage(KeyExchangeMessage),
+    Unexpected(KeyExchangeMessage),
     #[error("PointAdditionError: {0}")]
     PointAdditionError(#[from] point_addition::PointAdditionError),
 }
 
 #[async_trait]
-pub trait KeyExchange<T> {
-    async fn exchange_keys(&mut self, private_key: T) -> Result<(), KeyExchangeError>;
+pub trait KeyExchangeLead {
+    async fn send_client_key(
+        &mut self,
+        leader_private_key: SecretKey,
+    ) -> Result<PublicKey, KeyExchangeError>;
+    async fn set_server_key(&mut self, server_key: PublicKey) -> Result<(), KeyExchangeError>;
+    async fn compute_pms_share(&mut self) -> Result<(), KeyExchangeError>;
+    async fn compute_pms_labels(&mut self) -> Result<PMSLabels, KeyExchangeError>;
+}
+
+#[async_trait]
+pub trait KeyExchangeFollow<T> {
+    async fn send_public_key(&mut self, private_key: SecretKey) -> Result<(), KeyExchangeError>;
+    async fn receive_server_key(&mut self, public_key: PublicKey);
     async fn compute_pms_share(&mut self) -> Result<(), KeyExchangeError>;
     async fn compute_pms_labels(&mut self) -> Result<PMSLabels, KeyExchangeError>;
 }
