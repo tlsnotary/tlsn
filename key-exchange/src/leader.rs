@@ -1,91 +1,47 @@
+use super::PMSLabels;
 use async_trait::async_trait;
-use futures::{SinkExt, StreamExt};
-use p256::{ProjectivePoint, SecretKey};
-use point_addition::XCoordinateLabels;
-use utils_aio::expect_msg_or_err;
+use p256::{EncodedPoint, SecretKey};
+use point_addition::PointAddition;
+use share_conversion_core::fields::p256::P256;
 
-use crate::{
-    KeyExchange, KeyExchangeChannel, KeyExchangeError, KeyExchangeMessage, PmsShareLabels,
-    PointAddition, PublicKey,
-};
+use crate::{KeyExchange, KeyExchangeChannel, KeyExchangeError, KeyExchangeMessage, PublicKey};
 
 pub struct KeyExchangeLeader<P>
 where
-    P: PointAddition<Point = ProjectivePoint, XCoordinate = XCoordinateLabels>,
+    P: PointAddition,
 {
     channel: KeyExchangeChannel,
-
     point_addition: P,
-
-    leader_secret: SecretKey,
-    leader_key_share: p256::PublicKey,
+    private_key: SecretKey,
     server_key_share: Option<PublicKey>,
 }
 
 impl<P> KeyExchangeLeader<P>
 where
-    P: PointAddition<Point = ProjectivePoint, XCoordinate = XCoordinateLabels>,
+    P: PointAddition,
 {
     /// Creates new KeyExchangeLeader.
-    pub fn new(channel: KeyExchangeChannel, point_addition: P) -> Self {
-        let leader_secret = SecretKey::random(&mut rand::thread_rng());
-        let leader_key_share = leader_secret.public_key();
+    pub fn new(channel: KeyExchangeChannel, point_addition: P, private_key: SecretKey) -> Self {
         Self {
             channel,
             point_addition,
-            leader_secret,
-            leader_key_share,
+            private_key,
             server_key_share: None,
         }
     }
 }
 
 #[async_trait]
-impl<P> KeyExchange for KeyExchangeLeader<P>
-where
-    P: PointAddition<Point = ProjectivePoint, XCoordinate = XCoordinateLabels> + Send,
+impl<P: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send> KeyExchange<SecretKey>
+    for KeyExchangeLeader<P>
 {
-    async fn get_client_key_share(&mut self) -> Result<PublicKey, KeyExchangeError> {
-        let msg = expect_msg_or_err!(
-            self.channel.next().await,
-            KeyExchangeMessage::PublicKey,
-            KeyExchangeError::UnexpectedMessage
-        )?;
-
-        let follower_key: PublicKey = msg.try_into()?;
-
-        let shared_key = self.leader_key_share.to_projective() + follower_key.to_projective();
-        let client_key_share = PublicKey::from_affine(shared_key.to_affine())
-            .map_err(|e| KeyExchangeError::KeyError(e.to_string()))?;
-
-        Ok(client_key_share)
+    async fn exchange_keys(&mut self, private_key: SecretKey) -> Result<(), KeyExchangeError> {
+        todo!()
     }
-
-    async fn set_server_key_share(&mut self, key: PublicKey) -> Result<(), KeyExchangeError> {
-        self.server_key_share = Some(key.clone());
-
-        self.channel
-            .send(KeyExchangeMessage::PublicKey(key.into()))
-            .await?;
-
-        Ok(())
+    async fn compute_pms_share(&mut self) -> Result<(), KeyExchangeError> {
+        todo!()
     }
-
-    async fn compute_pms_share(&mut self) -> Result<PmsShareLabels, KeyExchangeError> {
-        let server_key = self
-            .server_key_share
-            .clone()
-            .ok_or(KeyExchangeError::KeyError(
-                "Server key share not set".to_string(),
-            ))?;
-
-        let leader_point = &server_key.to_projective() * &self.leader_secret.to_nonzero_scalar();
-
-        let pms_share = self
-            .point_addition
-            .compute_x_coordinate_share(leader_point)
-            .await?;
-
-        Ok(pms_share.into())
+    async fn compute_pms_labels(&mut self) -> Result<PMSLabels, KeyExchangeError> {
+        todo!()
     }
 }
