@@ -6,9 +6,10 @@ use crate::{
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use mpc_aio::protocol::garble::exec::dual::DEExecute;
-use p256::{ecdh::SharedSecret, AffinePoint, EncodedPoint, FieldBytes, NonZeroScalar, SecretKey};
+use p256::{EncodedPoint, SecretKey};
 use point_addition::PointAddition;
 use share_conversion_core::fields::p256::P256;
+use std::borrow::Borrow;
 use utils_aio::expect_msg_or_err;
 
 pub struct KeyExchangeLeader<P, D>
@@ -84,21 +85,26 @@ impl<P: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send, D: DEExe
         let server_key = self.server_key.ok_or(KeyExchangeError::NoServerKey)?;
         let leader_private_key = self
             .leader_private_key
+            .take()
             .ok_or(KeyExchangeError::NoServerKey)?;
 
-        let shared_secret = p256::ecdh::diffie_hellman(
-            NonZeroScalar::from(leader_private_key),
-            server_key.as_affine(),
-        );
-        let secret_bytes = shared_secret.raw_secret_bytes();
+        // We need to mimic the ecdh::p256::diffie-hellman function without the `SharedSecret`
+        // wrapper, because this makes it harder to get the result as an EC curve point.
+        let shared_secret = {
+            let public_projective = server_key.to_projective();
+            (public_projective * leader_private_key.to_nonzero_scalar().borrow().as_ref())
+                .to_affine()
+        };
+
+        let encoded_point = EncodedPoint::from(PublicKey::from_affine(shared_secret)?);
 
         let pms1 = self
             .point_addition_sender
-            .compute_x_coordinate_share(shared_secret)
+            .compute_x_coordinate_share(encoded_point)
             .await?;
         let pms2 = self
             .point_addition_receiver
-            .compute_x_coordinate_share(shared_secret)
+            .compute_x_coordinate_share(encoded_point)
             .await?;
 
         self.pms_shares = Some([pms1, pms2]);
