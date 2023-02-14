@@ -31,7 +31,7 @@ where
     P: PointAddition,
     D: DEExecute,
 {
-    /// Creates new KeyExchangeLeader.
+    /// Creates new KeyExchangeLeader
     pub fn new(
         channel: KeyExchangeChannel,
         point_addition_sender: P,
