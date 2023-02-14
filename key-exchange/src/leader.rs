@@ -98,14 +98,12 @@ impl<P: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send, D: DEExe
 
         let encoded_point = EncodedPoint::from(PublicKey::from_affine(shared_secret)?);
 
-        let pms1 = self
-            .point_addition_sender
-            .compute_x_coordinate_share(encoded_point)
-            .await?;
-        let pms2 = self
-            .point_addition_receiver
-            .compute_x_coordinate_share(encoded_point)
-            .await?;
+        let (pms1, pms2) = futures::try_join!(
+            self.point_addition_sender
+                .compute_x_coordinate_share(encoded_point),
+            self.point_addition_receiver
+                .compute_x_coordinate_share(encoded_point)
+        )?;
 
         self.pms_shares = Some([pms1, pms2]);
         Ok(())
