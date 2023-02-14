@@ -114,7 +114,7 @@ pub mod test {
 
     #[fixture]
     // Returns a signed validated document and the pubkey used to sign it
-    fn signed_validated_doc_and_pubkey() -> (ValidatedDoc, PubKey) {
+    pub(crate) fn signed_validated_doc_and_pubkey() -> (ValidatedDoc, PubKey) {
         // create 2 arbitrary commitments
         let comm1_ranges = vec![
             TranscriptRange::new(5, 15).unwrap(),

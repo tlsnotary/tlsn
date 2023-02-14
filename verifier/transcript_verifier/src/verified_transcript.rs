@@ -1,10 +1,10 @@
 use super::{
     commitment::{CommitmentOpening, Direction, TranscriptRange},
     doc::verified::VerifiedDoc,
-    Error,
 };
 
 /// A notarized TLS transcript which successfully passed verification
+#[derive(PartialEq, Debug)]
 pub struct VerifiedTranscript {
     /// The time of notarization
     date: u64,
@@ -25,10 +25,7 @@ impl VerifiedTranscript {
     }
 
     /// Creates a [VerifiedTranscript] by extracting relevant fields from a [VerifiedDoc]
-    pub(crate) fn from_verified_doc(
-        verified_doc: VerifiedDoc,
-        dns_name: &str,
-    ) -> Result<Self, Error> {
+    pub(crate) fn from_verified_doc(verified_doc: VerifiedDoc, dns_name: &str) -> Self {
         let transcript_slices: Vec<TranscriptSlice> = verified_doc
             .commitment_openings()
             .iter()
@@ -64,18 +61,18 @@ impl VerifiedTranscript {
                     })
                     .collect();
 
-                Ok(slices)
+                slices
             })
-            .collect::<Result<Vec<_>, _>>()?
+            .collect::<Vec<_>>()
             .into_iter()
             .flatten()
             .collect();
 
-        Ok(VerifiedTranscript::new(
+        VerifiedTranscript::new(
             verified_doc.tls_handshake().signed_handshake().time(),
             dns_name.to_string(),
             transcript_slices,
-        ))
+        )
     }
 
     pub fn date(&self) -> u64 {
@@ -92,6 +89,7 @@ impl VerifiedTranscript {
 }
 
 /// Authenticated slice of data
+#[derive(PartialEq, Debug)]
 pub struct TranscriptSlice {
     /// A byte range of this slice
     range: TranscriptRange,
@@ -125,5 +123,54 @@ impl TranscriptSlice {
 
 #[cfg(test)]
 mod test {
-    // TODO test that from_verified_doc produces correct transcript slices
+    use super::*;
+    use crate::{
+        doc::verified::test::signed_validated_doc_and_pubkey,
+        test::{bytes_in_ranges, default_ranges, DEFAULT_PLAINTEXT},
+    };
+    use rstest::{fixture, rstest};
+
+    #[fixture]
+    // Returns a verified doc
+    fn verified_doc() -> VerifiedDoc {
+        let (validated_doc, pubkey) = signed_validated_doc_and_pubkey();
+        VerifiedDoc::from_validated(validated_doc, "tlsnotary.org", Some(pubkey)).unwrap()
+    }
+
+    #[rstest]
+    // Expects from_verified_doc() to return the expected value
+    fn test_from_verified_doc_success(verified_doc: VerifiedDoc) {
+        let transcript = VerifiedTranscript::from_verified_doc(verified_doc, "tlsnotary.org");
+
+        let ranges = default_ranges();
+
+        let expected = VerifiedTranscript::new(
+            crate::test::TIME,
+            "tlsnotary.org".to_string(),
+            vec![
+                TranscriptSlice::new(
+                    ranges[0].clone(),
+                    Direction::Sent,
+                    bytes_in_ranges(&DEFAULT_PLAINTEXT, &[ranges[0].clone()]),
+                ),
+                TranscriptSlice::new(
+                    ranges[1].clone(),
+                    Direction::Sent,
+                    bytes_in_ranges(&DEFAULT_PLAINTEXT, &[ranges[1].clone()]),
+                ),
+                TranscriptSlice::new(
+                    ranges[2].clone(),
+                    Direction::Received,
+                    bytes_in_ranges(&DEFAULT_PLAINTEXT, &[ranges[2].clone()]),
+                ),
+                TranscriptSlice::new(
+                    ranges[3].clone(),
+                    Direction::Received,
+                    bytes_in_ranges(&DEFAULT_PLAINTEXT, &[ranges[3].clone()]),
+                ),
+            ],
+        );
+
+        assert_eq!(expected, transcript);
+    }
 }

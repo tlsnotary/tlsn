@@ -65,7 +65,7 @@ impl TranscriptVerifier {
         let verified_doc = VerifiedDoc::from_validated(validated_doc, dns_name, trusted_pubkey)?;
 
         // extract the verified transcript
-        let verified_transcript = VerifiedTranscript::from_verified_doc(verified_doc, dns_name)?;
+        let verified_transcript = VerifiedTranscript::from_verified_doc(verified_doc, dns_name);
 
         Ok(verified_transcript)
     }
@@ -99,17 +99,28 @@ mod test {
     // the leaves of the tree with indices [1..8] will have a dummy value
     pub const DUMMY_HASH: [u8; 32] = [0u8; 32];
 
+    // unix time when the cert chain was valid
+    pub const TIME: u64 = 1671637529;
+
+    // plaintext padded to a multiple of 16 bytes
+    pub const DEFAULT_PLAINTEXT: [u8; 48] = *b"This important data will be notarized...........";
+
+    /// Returns default ranges which are used to construct the default document
+    pub fn default_ranges() -> Vec<TranscriptRange> {
+        vec![
+            TranscriptRange::new(5, 15).unwrap(),
+            TranscriptRange::new(20, 22).unwrap(),
+            TranscriptRange::new(0, 2).unwrap(),
+            TranscriptRange::new(15, 20).unwrap(),
+        ]
+    }
+
     /// Constructs a default signed unchecked document with the provided commitments. Returns the doc, the pubkey
     /// used to sign it, and the Signed portion of the doc.
     pub fn default_unchecked_doc() -> (UncheckedDoc, Vec<u8>, Signed) {
-        let comm1_ranges = vec![
-            TranscriptRange::new(5, 15).unwrap(),
-            TranscriptRange::new(20, 22).unwrap(),
-        ];
-        let comm2_ranges = vec![
-            TranscriptRange::new(0, 2).unwrap(),
-            TranscriptRange::new(15, 20).unwrap(),
-        ];
+        let ranges = default_ranges();
+        let comm1_ranges = vec![ranges[0].clone(), ranges[1].clone()];
+        let comm2_ranges = vec![ranges[2].clone(), ranges[3].clone()];
         unchecked_doc(vec![comm1_ranges, comm2_ranges])
     }
 
@@ -124,9 +135,6 @@ mod test {
         }
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
-        // plaintext padded to a multiple of 16 bytes
-        let plaintext = b"This important data will be notarized...........";
-
         // -------- After the webserver sends the Server Key Exchange message (during the TLS handshake),
         //          the tls-client module provides the following TLS data:
 
@@ -137,8 +145,6 @@ mod test {
         // certificate authority cert
         static CA: &[u8] = include_bytes!("testdata/tlsnotary.org/ca.der");
         let cert_chain = vec![CA.to_vec(), INTER.to_vec(), EE.to_vec()];
-        // unix time when the cert chain was valid
-        static TIME: u64 = 1671637529;
 
         // data taken from an actual network trace captured with `tcpdump host tlsnotary.org -w out.pcap`
         // (see testdata/key_exchange/README for details)
@@ -177,7 +183,7 @@ mod test {
         let input = c6().input(4).unwrap();
 
         // since `input` is a 16-byte value, encode one 16-byte chunk at a time
-        let active_labels: Vec<Label> = plaintext
+        let active_labels: Vec<Label> = DEFAULT_PLAINTEXT
             .chunks(16)
             .flat_map(|chunk| {
                 let full_labels = enc.encode(4, &input, false);
@@ -268,7 +274,7 @@ mod test {
         let tls_handshake = TLSHandshake::new(signed_handshake, handshake_data);
 
         // prepares openings and merkle proofs for those openings
-        let opening1_bytes = bytes_in_ranges(plaintext, commitment_ranges[0].as_ref());
+        let opening1_bytes = bytes_in_ranges(&DEFAULT_PLAINTEXT, commitment_ranges[0].as_ref());
         let open1 = CommitmentOpening::LabelsBlake3(LabelsBlake3Opening::new(
             0,
             opening1_bytes,
@@ -276,7 +282,7 @@ mod test {
             label_seed,
         ));
 
-        let opening2_bytes = bytes_in_ranges(plaintext, commitment_ranges[1].as_ref());
+        let opening2_bytes = bytes_in_ranges(&DEFAULT_PLAINTEXT, commitment_ranges[1].as_ref());
         let open2 = CommitmentOpening::SomeFutureVariant(SomeFutureVariantOpening::new(
             1,
             opening2_bytes,
@@ -309,7 +315,7 @@ mod test {
     /// Returns a substring of the original `bytestring` containing only the bytes in `ranges`.
     /// This method is only called with validated `ranges` which do not exceed the size of the
     /// `bytestring`.
-    fn bytes_in_ranges(bytestring: &[u8], ranges: &[TranscriptRange]) -> Vec<u8> {
+    pub(crate) fn bytes_in_ranges(bytestring: &[u8], ranges: &[TranscriptRange]) -> Vec<u8> {
         let mut substring: Vec<u8> = Vec::new();
         for r in ranges {
             substring.append(&mut bytestring[r.start() as usize..r.end() as usize].to_vec())

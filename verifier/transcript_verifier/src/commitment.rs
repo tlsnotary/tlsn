@@ -196,7 +196,7 @@ impl LabelsBlake3Opening {
     }
 }
 
-#[derive(Serialize, Clone, PartialEq, Default)]
+#[derive(Serialize, Clone, PartialEq, Default, Debug)]
 /// A TLS transcript consists of a stream of bytes which were `Sent` to the server
 /// and a stream of bytes which were `Received` from the server . The User creates
 /// separate commitments to bytes in each direction.
@@ -206,7 +206,7 @@ pub enum Direction {
     Received,
 }
 
-#[derive(Serialize, Clone, Debug)]
+#[derive(Serialize, Clone, Debug, PartialEq)]
 /// A half-open range [start, end). Range bounds are ascending i.e. start < end
 pub struct TranscriptRange {
     start: u32,
