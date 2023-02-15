@@ -1,17 +1,19 @@
-use std::sync::Arc;
-
 use crate::protocol::{
     garble::{Compressor, Evaluator, GCError, GarbleChannel, GarbleMessage, Validator},
-    ot::{ObliviousReceive, ObliviousVerify},
+    ot::{OTFactoryError, ObliviousReceive, ObliviousVerify},
 };
 use async_trait::async_trait;
-use futures::{future::ready, SinkExt, StreamExt};
-use mpc_circuits::{Circuit, InputValue, WireGroup};
-use mpc_core::garble::{
-    exec::zk as zk_core, gc_state, ActiveEncodedInput, ActiveInputSet, FullEncodedInput,
-    FullInputSet, GarbledCircuit,
+use futures::{SinkExt, StreamExt};
+use mpc_circuits::{InputValue, WireGroup};
+use mpc_core::{
+    garble::{
+        exec::zk::{self as zk_core, ProverConfig, ProverSummary},
+        gc_state, ActiveEncodedInput, ActiveInputSet, FullEncodedInput, FullInputSet,
+        GarbledCircuit,
+    },
+    ot::config::{OTReceiverConfig, OTReceiverConfigBuilder},
 };
-use utils_aio::expect_msg_or_err;
+use utils_aio::{expect_msg_or_err, factory::AsyncFactory};
 
 pub mod state {
     use mpc_circuits::Input;
@@ -52,37 +54,41 @@ pub mod state {
 
 use state::*;
 
-pub struct Prover<S, B, LR>
+pub struct Prover<S, B, LRF, LR>
 where
     S: State,
     B: Evaluator + Compressor + Validator,
-    LR: ObliviousReceive<InputValue, ActiveEncodedInput>,
+    LRF: AsyncFactory<LR, Config = OTReceiverConfig, Error = OTFactoryError>,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + ObliviousVerify<FullEncodedInput>,
 {
+    config: ProverConfig,
     state: S,
-    circ: Arc<Circuit>,
     channel: GarbleChannel,
     backend: B,
+    label_receiver_factory: LRF,
     label_receiver: Option<LR>,
 }
 
-impl<B, LR> Prover<Initialized, B, LR>
+impl<B, LRF, LR> Prover<Initialized, B, LRF, LR>
 where
     B: Evaluator + Compressor + Validator + Send,
-    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + Send,
+    LRF: AsyncFactory<LR, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + ObliviousVerify<FullEncodedInput> + Send,
 {
     /// Create a new prover.
     pub fn new(
-        circ: Arc<Circuit>,
+        config: ProverConfig,
         channel: GarbleChannel,
         backend: B,
-        label_receiver: Option<LR>,
-    ) -> Prover<Initialized, B, LR> {
+        label_receiver_factory: LRF,
+    ) -> Prover<Initialized, B, LRF, LR> {
         Self {
+            config,
             state: Initialized,
-            circ,
             channel,
             backend,
-            label_receiver,
+            label_receiver_factory,
+            label_receiver: None,
         }
     }
 
@@ -94,16 +100,31 @@ where
         mut self,
         ot_receive_inputs: Vec<InputValue>,
         cached_labels: Vec<ActiveEncodedInput>,
-    ) -> Result<Prover<LabelSetup, B, LR>, GCError> {
+    ) -> Result<Prover<LabelSetup, B, LRF, LR>, GCError> {
+        let label_receiver_id = format!("{}/ot", self.config.id());
+        let circ = self.config.circ();
+
         // If there are no labels to be received via OT, we can skip the OT protocol
-        let ot_receive_fut = match self.label_receiver {
-            Some(ref mut label_receiver) if ot_receive_inputs.len() > 0 => {
-                label_receiver.receive(ot_receive_inputs.clone())
+        let ot_receive_fut = async {
+            if ot_receive_inputs.len() > 0 {
+                let count = ot_receive_inputs.iter().map(|input| input.len()).sum();
+
+                let receiver_config = OTReceiverConfigBuilder::default()
+                    .count(count)
+                    .build()
+                    .expect("OTReceiverConfig should be valid");
+
+                let mut label_receiver = self
+                    .label_receiver_factory
+                    .create(label_receiver_id, receiver_config)
+                    .await?;
+
+                let ot_receive_labels = label_receiver.receive(ot_receive_inputs.clone()).await?;
+
+                Result::<_, GCError>::Ok((ot_receive_labels, Some(label_receiver)))
+            } else {
+                Result::<_, GCError>::Ok((vec![], None))
             }
-            None if ot_receive_inputs.len() > 0 => {
-                return Err(GCError::MissingOTReceiver);
-            }
-            _ => Box::pin(ready(Ok(vec![]))),
         };
 
         let direct_receive_fut = self.channel.next();
@@ -111,7 +132,7 @@ where
         let (ot_receive_result, direct_receive_result) =
             futures::future::join(ot_receive_fut, direct_receive_fut).await;
 
-        let ot_receive_labels = ot_receive_result?;
+        let (ot_receive_labels, label_receiver) = ot_receive_result?;
 
         let msg = expect_msg_or_err!(
             direct_receive_result,
@@ -121,7 +142,7 @@ where
 
         let direct_received_labels = msg
             .into_iter()
-            .map(|msg| ActiveEncodedInput::from_unchecked(&self.circ, msg.into()))
+            .map(|msg| ActiveEncodedInput::from_unchecked(&circ, msg.into()))
             .collect::<Result<Vec<_>, _>>()?;
 
         // Collect all active labels into a set
@@ -130,6 +151,7 @@ where
         )?;
 
         Ok(Prover {
+            config: self.config,
             state: LabelSetup {
                 labels,
                 input_state: InputState {
@@ -139,22 +161,25 @@ where
                         .collect(),
                 },
             },
-            circ: self.circ,
             channel: self.channel,
             backend: self.backend,
-            label_receiver: self.label_receiver,
+            label_receiver_factory: self.label_receiver_factory,
+            label_receiver,
         })
     }
 }
 
-impl<B, LR> Prover<LabelSetup, B, LR>
+impl<B, LRF, LR> Prover<LabelSetup, B, LRF, LR>
 where
     B: Evaluator + Compressor + Validator + Send,
-    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + Send,
+    LRF: AsyncFactory<LR, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + ObliviousVerify<FullEncodedInput> + Send,
 {
     /// Evaluate the garbled circuit and commit to the output
-    pub async fn evaluate(mut self) -> Result<Prover<Validate, B, LR>, GCError> {
-        let prover = zk_core::Prover::new(self.circ.clone());
+    pub async fn evaluate(
+        mut self,
+    ) -> Result<(ProverSummary, Prover<Validate, B, LRF, LR>), GCError> {
+        let prover = zk_core::Prover::new(self.config.circ());
 
         // Expect garbled circuit from Verifier
         let msg = expect_msg_or_err!(
@@ -164,10 +189,13 @@ where
         )?;
 
         let gc_ev =
-            GarbledCircuit::<gc_state::Partial>::from_unchecked(self.circ.clone(), msg.into())?;
+            GarbledCircuit::<gc_state::Partial>::from_unchecked(self.config.circ(), msg.into())?;
 
         // Evaluate garbled circuit
         let evaluated_gc = self.backend.evaluate(gc_ev, self.state.labels).await?;
+
+        let evaluator_summary = evaluated_gc.get_summary();
+
         let compressed_gc = self.backend.compress(evaluated_gc).await?;
 
         let (commitment, prover) = prover.from_compressed_circuit(compressed_gc).commit();
@@ -177,22 +205,29 @@ where
             .send(GarbleMessage::HashCommitment(commitment.into()))
             .await?;
 
-        Ok(Prover {
-            state: Validate {
-                prover,
-                input_state: self.state.input_state,
+        let summary = ProverSummary::new(evaluator_summary);
+
+        Ok((
+            summary,
+            Prover {
+                config: self.config,
+                state: Validate {
+                    prover,
+                    input_state: self.state.input_state,
+                },
+                channel: self.channel,
+                backend: self.backend,
+                label_receiver_factory: self.label_receiver_factory,
+                label_receiver: self.label_receiver,
             },
-            circ: self.circ,
-            channel: self.channel,
-            backend: self.backend,
-            label_receiver: self.label_receiver,
-        })
+        ))
     }
 }
 
-impl<B, LR> Prover<Validate, B, LR>
+impl<B, LRF, LR> Prover<Validate, B, LRF, LR>
 where
     B: Evaluator + Compressor + Validator + Send,
+    LRF: AsyncFactory<LR, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
     LR: ObliviousReceive<InputValue, ActiveEncodedInput> + ObliviousVerify<FullEncodedInput> + Send,
 {
     /// Execute the final phase of the protocol. This proves the authenticity of the circuit output
@@ -219,27 +254,32 @@ where
         let gc_validate_fut = self.backend.validate_compressed(gc_cmp, opening);
 
         // If we did not receive any inputs via OT, we can skip the OT validation
-        let labels_validate_fut = if self.state.input_state.ot_receive_inputs.is_empty() {
-            Box::pin(ready(Ok(())))
-        } else {
-            let Some(label_receiver) = self.label_receiver.take() else {
-                return Err(GCError::MissingOTReceiver);
-            };
+        let labels_validate_fut = async move {
+            if self.state.input_state.ot_receive_inputs.is_empty() {
+                Ok(())
+            } else {
+                let Some(label_receiver) = self.label_receiver.take() else {
+                    return Err(GCError::MissingOTReceiver);
+                };
 
-            let ot_received = self
-                .state
-                .input_state
-                .ot_receive_inputs
-                .iter()
-                .map(|input| {
-                    input_labels
-                        .get(input.index())
-                        .expect("Input id should be valid")
-                })
-                .cloned()
-                .collect::<Vec<_>>();
+                let ot_received = self
+                    .state
+                    .input_state
+                    .ot_receive_inputs
+                    .iter()
+                    .map(|input| {
+                        input_labels
+                            .get(input.index())
+                            .expect("Input id should be valid")
+                    })
+                    .cloned()
+                    .collect::<Vec<_>>();
 
-            label_receiver.verify(ot_received)
+                label_receiver
+                    .verify(ot_received)
+                    .await
+                    .map_err(GCError::from)
+            }
         };
 
         let (gc_validate_result, labels_validate_result) =
@@ -265,9 +305,10 @@ where
 }
 
 #[async_trait]
-impl<B, LR> super::Prove for Prover<Initialized, B, LR>
+impl<B, LRF, LR> super::Prove for Prover<Initialized, B, LRF, LR>
 where
     B: Evaluator + Compressor + Validator + Send,
+    LRF: AsyncFactory<LR, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
     LR: ObliviousReceive<InputValue, ActiveEncodedInput> + ObliviousVerify<FullEncodedInput> + Send,
 {
     async fn prove(
@@ -275,11 +316,24 @@ where
         inputs: Vec<InputValue>,
         cached_labels: Vec<ActiveEncodedInput>,
     ) -> Result<(), GCError> {
-        self.setup_inputs(inputs, cached_labels)
+        _ = self.prove_and_summarize(inputs, cached_labels).await?;
+
+        Ok(())
+    }
+
+    async fn prove_and_summarize(
+        self,
+        inputs: Vec<InputValue>,
+        cached_labels: Vec<ActiveEncodedInput>,
+    ) -> Result<ProverSummary, GCError> {
+        let (summary, prover) = self
+            .setup_inputs(inputs, cached_labels)
             .await?
             .evaluate()
-            .await?
-            .prove()
-            .await
+            .await?;
+
+        prover.prove().await?;
+
+        Ok(summary)
     }
 }

@@ -39,6 +39,8 @@ pub enum GCError {
     MissingOTReceiver,
     #[error("Deferral Error: {0}")]
     DeferralError(String),
+    #[error("Proof Error: {0}")]
+    ProofError(String),
 }
 
 #[async_trait]

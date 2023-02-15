@@ -9,11 +9,48 @@
 //! This protocol requires the use of committed OT, which is not enforced by the type system in this
 //! core crate.
 
+mod config;
 mod prover;
 mod verifier;
 
+pub use config::{
+    ProverConfig, ProverConfigBuilder, ProverConfigBuilderError, VerifierConfig,
+    VerifierConfigBuilder, VerifierConfigBuilderError,
+};
 pub use prover::{state as prover_state, Prover};
 pub use verifier::{state as verifier_state, Verifier};
+
+use crate::garble::{gc_state, GarbledCircuit};
+
+#[derive(Debug, Clone)]
+pub struct ProverSummary {
+    evaluated: GarbledCircuit<gc_state::EvaluatedSummary>,
+}
+
+impl ProverSummary {
+    pub fn new(evaluated: GarbledCircuit<gc_state::EvaluatedSummary>) -> Self {
+        Self { evaluated }
+    }
+
+    pub fn get_evaluator_summary(&self) -> &GarbledCircuit<gc_state::EvaluatedSummary> {
+        &self.evaluated
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct VerifierSummary {
+    generated: GarbledCircuit<gc_state::FullSummary>,
+}
+
+impl VerifierSummary {
+    pub fn new(generated: GarbledCircuit<gc_state::FullSummary>) -> Self {
+        Self { generated }
+    }
+
+    pub fn get_generator_summary(&self) -> &GarbledCircuit<gc_state::FullSummary> {
+        &self.generated
+    }
+}
 
 #[cfg(test)]
 mod tests {
