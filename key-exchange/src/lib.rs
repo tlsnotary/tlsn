@@ -1,8 +1,10 @@
 mod follower;
 mod leader;
 mod msg;
+mod state;
 
 use async_trait::async_trait;
+use mpc_aio::protocol::ot::OTFactoryError;
 pub use msg::KeyExchangeMessage;
 use p256::{PublicKey, SecretKey};
 use utils_aio::Channel;
@@ -20,6 +22,8 @@ pub enum KeyExchangeError {
     NoServerKey,
     #[error("Private key not set")]
     NoPrivateKey,
+    #[error("OT Factory Error: {0}")]
+    OTFactoryError(#[from] OTFactoryError),
     #[error("IOError: {0}")]
     IOError(#[from] std::io::Error),
     #[error("UnexpectedMessage: {0:?}")]
@@ -35,8 +39,6 @@ pub trait KeyExchangeLead {
         leader_private_key: SecretKey,
     ) -> Result<PublicKey, KeyExchangeError>;
     async fn set_server_key(&mut self, server_key: PublicKey) -> Result<(), KeyExchangeError>;
-    async fn compute_pms_share(&mut self) -> Result<(), KeyExchangeError>;
-    async fn compute_pms_labels(&mut self) -> Result<PMSLabels, KeyExchangeError>;
 }
 
 #[async_trait]
@@ -46,6 +48,10 @@ pub trait KeyExchangeFollow {
         follower_private_key: SecretKey,
     ) -> Result<(), KeyExchangeError>;
     async fn receive_server_key(&mut self) -> Result<(), KeyExchangeError>;
+}
+
+#[async_trait]
+pub trait ComputePMS {
     async fn compute_pms_share(&mut self) -> Result<(), KeyExchangeError>;
     async fn compute_pms_labels(&mut self) -> Result<PMSLabels, KeyExchangeError>;
 }
