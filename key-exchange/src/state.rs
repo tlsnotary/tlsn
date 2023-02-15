@@ -16,7 +16,7 @@ pub struct KeyExchangeSetup<P, A, D> {
     pub(crate) dual_ex_factory: A,
     pub(crate) private_key: Option<SecretKey>,
     pub(crate) server_key: Option<PublicKey>,
-    _phantom_data: std::marker::PhantomData<D>,
+    pub(crate) _phantom_data: std::marker::PhantomData<D>,
 }
 
 pub struct PMSComputationSetup<P, D> {

@@ -1,5 +1,4 @@
-mod follower;
-mod leader;
+mod exchange;
 mod msg;
 mod state;
 
@@ -9,8 +8,7 @@ pub use msg::KeyExchangeMessage;
 use p256::{PublicKey, SecretKey};
 use utils_aio::Channel;
 
-pub use follower::KeyExchangeFollower;
-pub use leader::KeyExchangeLeader;
+pub use exchange::KeyExchangeCore;
 
 pub type KeyExchangeChannel = Box<dyn Channel<KeyExchangeMessage, Error = std::io::Error> + Send>;
 

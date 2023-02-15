@@ -1,26 +1,36 @@
 use super::{state::KeyExchangeSetup, PMSLabels};
 use crate::{
-    msg::ServerPublicKey,
+    msg::{NotaryPublicKey, ServerPublicKey},
     state::{PMSComputationSetup, State},
-    ComputePMS, KeyExchangeChannel, KeyExchangeError, KeyExchangeLead, KeyExchangeMessage,
-    PublicKey,
+    ComputePMS, KeyExchangeChannel, KeyExchangeError, KeyExchangeFollow, KeyExchangeLead,
+    KeyExchangeMessage, PublicKey,
 };
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
-use mpc_aio::protocol::{garble::exec::dual::DEExecute, ot::OTFactoryError};
-use mpc_core::garble::exec::dual::DualExConfig;
+use mpc_aio::protocol::{
+    garble::{
+        exec::dual::{state::Initialized, DEExecute, DualExFollower, DualExLeader},
+        Evaluator, Generator,
+    },
+    ot::{OTFactoryError, ObliviousReceive, ObliviousSend},
+};
+use mpc_circuits::InputValue;
+use mpc_core::{
+    garble::{exec::dual::DualExConfig, ActiveEncodedInput, FullEncodedInput},
+    ot::config::{OTReceiverConfig, OTSenderConfig},
+};
 use p256::{EncodedPoint, SecretKey};
 use point_addition::PointAddition;
 use share_conversion_core::fields::p256::P256;
 use std::borrow::Borrow;
 use utils_aio::{expect_msg_or_err, factory::AsyncFactory};
 
-pub struct KeyExchangeLeader<S: State + Send> {
+pub struct KeyExchangeCore<S: State + Send> {
     channel: KeyExchangeChannel,
     state: S,
 }
 
-impl<P, A, D> KeyExchangeLeader<KeyExchangeSetup<P, A, D>>
+impl<P, A, D> KeyExchangeCore<KeyExchangeSetup<P, A, D>>
 where
     P: PointAddition + Send,
     A: AsyncFactory<D, Config = DualExConfig, Error = OTFactoryError> + Send,
@@ -51,9 +61,9 @@ where
         mut self,
         id: String,
         config: A::Config,
-    ) -> Result<KeyExchangeLeader<PMSComputationSetup<P, D>>, KeyExchangeError> {
+    ) -> Result<KeyExchangeCore<PMSComputationSetup<P, D>>, KeyExchangeError> {
         let dual_ex = self.state.dual_ex_factory.create(id, config).await?;
-        Ok(KeyExchangeLeader {
+        Ok(KeyExchangeCore {
             channel: self.channel,
             state: PMSComputationSetup {
                 point_addition_sender: self.state.point_addition_sender,
@@ -71,11 +81,20 @@ where
 }
 
 #[async_trait]
-impl<P, A, D> KeyExchangeLead for KeyExchangeLeader<KeyExchangeSetup<P, A, D>>
+impl<P, A, B, LSF, LRF, LS, LR> KeyExchangeLead
+    for KeyExchangeCore<KeyExchangeSetup<P, A, DualExLeader<Initialized, B, LSF, LRF, LS, LR>>>
 where
     P: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send,
-    A: AsyncFactory<D, Config = DualExConfig, Error = OTFactoryError> + Send,
-    D: DEExecute + Send,
+    A: AsyncFactory<
+            DualExLeader<Initialized, B, LSF, LRF, LS, LR>,
+            Config = DualExConfig,
+            Error = OTFactoryError,
+        > + Send,
+    B: Generator + Evaluator + Send,
+    LSF: AsyncFactory<LS, Config = OTSenderConfig, Error = OTFactoryError> + Send,
+    LRF: AsyncFactory<LR, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
+    LS: ObliviousSend<FullEncodedInput> + Send,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + Send,
 {
     async fn send_client_key(
         &mut self,
@@ -106,14 +125,56 @@ where
 }
 
 #[async_trait]
-impl<P, D> ComputePMS for KeyExchangeLeader<PMSComputationSetup<P, D>>
+impl<P, A, B, LSF, LRF, LS, LR> KeyExchangeFollow
+    for KeyExchangeCore<KeyExchangeSetup<P, A, DualExFollower<Initialized, B, LSF, LRF, LS, LR>>>
+where
+    P: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send,
+    A: AsyncFactory<
+            DualExFollower<Initialized, B, LSF, LRF, LS, LR>,
+            Config = DualExConfig,
+            Error = OTFactoryError,
+        > + Send,
+    B: Generator + Evaluator + Send,
+    LSF: AsyncFactory<LS, Config = OTSenderConfig, Error = OTFactoryError> + Send,
+    LRF: AsyncFactory<LR, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
+    LS: ObliviousSend<FullEncodedInput> + Send,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + Send,
+{
+    async fn send_public_key(
+        &mut self,
+        follower_private_key: SecretKey,
+    ) -> Result<(), KeyExchangeError> {
+        let public_key = follower_private_key.public_key();
+        let message = KeyExchangeMessage::NotaryPublicKey(NotaryPublicKey {
+            notary_key: public_key,
+        });
+
+        self.channel.send(message).await?;
+        self.state.private_key = Some(follower_private_key);
+        Ok(())
+    }
+
+    async fn receive_server_key(&mut self) -> Result<(), KeyExchangeError> {
+        let message = expect_msg_or_err!(
+            self.channel.next().await,
+            KeyExchangeMessage::ServerPublicKey,
+            KeyExchangeError::Unexpected
+        )?;
+
+        self.state.server_key = Some(message.server_key);
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl<P, D> ComputePMS for KeyExchangeCore<PMSComputationSetup<P, D>>
 where
     P: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send,
     D: DEExecute + Send,
 {
     async fn compute_pms_share(&mut self) -> Result<(), KeyExchangeError> {
-        let server_key = self.state.server_key;
-        let leader_private_key = self.state.private_key;
+        let server_key = &self.state.server_key;
+        let leader_private_key = &self.state.private_key;
 
         // We need to mimic the ecdh::p256::diffie-hellman function without the `SharedSecret`
         // wrapper, because this makes it harder to get the result as an EC curve point.
