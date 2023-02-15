@@ -36,7 +36,7 @@ where
     A: AsyncFactory<D, Config = DualExConfig, Error = OTFactoryError> + Send,
     D: DEExecute + Send,
 {
-    /// Creates new KeyExchangeLeader
+    /// Creates a new KeyExchangeCore
     pub fn new(
         channel: KeyExchangeChannel,
         point_addition_sender: P,
@@ -56,7 +56,7 @@ where
         }
     }
 
-    /// Setup KeyExchangeLeader for PMS computation
+    /// Setup KeyExchangeCore for PMS computation
     pub async fn setup_pms_computation(
         mut self,
         id: String,
@@ -174,14 +174,13 @@ where
 {
     async fn compute_pms_share(&mut self) -> Result<(), KeyExchangeError> {
         let server_key = &self.state.server_key;
-        let leader_private_key = &self.state.private_key;
+        let private_key = &self.state.private_key;
 
         // We need to mimic the ecdh::p256::diffie-hellman function without the `SharedSecret`
         // wrapper, because this makes it harder to get the result as an EC curve point.
         let shared_secret = {
             let public_projective = server_key.to_projective();
-            (public_projective * leader_private_key.to_nonzero_scalar().borrow().as_ref())
-                .to_affine()
+            (public_projective * private_key.to_nonzero_scalar().borrow().as_ref()).to_affine()
         };
 
         let encoded_point = EncodedPoint::from(PublicKey::from_affine(shared_secret)?);
