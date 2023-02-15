@@ -3,6 +3,17 @@
 //! This protocol allows a Prover to prove in zero-knowledge the output of a circuit to a Verifier
 //! without leaking any information about their private inputs. The Verifier can also provide
 //! private inputs which are revealed after the Prover commits to the output of the circuit.
+//!
+//! # Overview
+//!
+//! The protocol is based on the [JKO13](https://eprint.iacr.org/2013/073.pdf) and it goes as follows:
+//!
+//! 1. The Verifier acts as the garbled circuit Generator, sending it to the Prover.
+//! 2. The Prover evaluates the garbled circuit and commits to the output.
+//! 3. The Verifier opens the garbled circuit to the Prover, revealing all of their private inputs.
+//! 4. The Prover verifies the authenticity of the garbled circuit and oblivious transfers.
+//! 5. If the garbled circuit is authentic, the Prover opens the output commitment to the Verifier.
+//! 6. The Verifier verifies the output and output commitment.
 
 mod deferred;
 mod prover;
@@ -56,7 +67,7 @@ pub trait Verify {
     ///
     /// **CAUTION**
     ///
-    /// Calling this function will typically reveal all of the Verifier's private inputs to the Prover!
+    /// Calling this function will reveal all of the Verifier's private inputs to the Prover!
     /// Care must be taken to ensure that this is synchronized properly with any other uses of these inputs.
     ///
     /// * `gen_labels` - The labels used to garble the circuit.
@@ -76,7 +87,7 @@ pub trait Verify {
     ///
     /// **CAUTION**
     ///
-    /// Calling this function will typically reveal all of the Verifier's private inputs to the Prover!
+    /// Calling this function will reveal all of the Verifier's private inputs to the Prover!
     /// Care must be taken to ensure that this is synchronized properly with any other uses of these inputs.
     ///
     /// * `gen_labels` - The labels used to garble the circuit.

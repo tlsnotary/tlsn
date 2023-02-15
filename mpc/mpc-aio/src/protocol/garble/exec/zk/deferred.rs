@@ -1,6 +1,11 @@
 //! This module contains `DeferredProver` and `DeferredVerifier` which are used to defer finalization of the proof
 //! to another context via channels. This is useful when multiple proofs are required which use the same private inputs
-//! from the Verifier. These types still ensure that the Verifier is committed to their inputs prior to deferral.
+//! from the Verifier. These types still ensure that the Prover is committed to the circuit output prior to deferral.
+//!
+//! ** CAUTION **
+//!
+//! Caution must be exercised when using these types! Users must understand the consequences of deferring the proof
+//! verification when composed with other protocols.
 
 use async_trait::async_trait;
 use futures::{sink::Sink, SinkExt};
