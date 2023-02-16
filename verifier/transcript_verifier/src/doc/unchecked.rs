@@ -542,8 +542,8 @@ pub mod test {
 
         let mut new_commitments = doc1.commitments().to_vec();
         let mut new_ranges = new_commitments[0].ranges().clone();
-        new_ranges[0] =
-            TranscriptRange::new(new_ranges[0].start(), new_ranges[0].end() + 1).unwrap();
+        new_ranges[1] =
+            TranscriptRange::new(new_ranges[1].start(), new_ranges[1].end() + 1).unwrap();
 
         new_commitments[0].set_ranges(new_ranges);
 

@@ -13,7 +13,7 @@ pub struct Commitment {
     /// The actual commitment
     commitment: HashCommitment,
     /// The absolute byte ranges within the notarized data. The committed data
-    /// is located in those ranges.
+    /// is located in those ranges. Ranges do not overlap.
     ranges: Vec<TranscriptRange>,
 }
 
@@ -207,7 +207,7 @@ pub enum Direction {
 }
 
 #[derive(Serialize, Clone, Debug, PartialEq)]
-/// A half-open range [start, end). Range bounds are ascending i.e. start < end
+/// A non-empty half-open range [start, end). Range bounds are ascending i.e. start < end
 pub struct TranscriptRange {
     start: u32,
     end: u32,

@@ -106,25 +106,15 @@ pub(crate) fn signed_data(doc: &ValidatedDoc) -> Signed {
 pub mod test {
     use super::*;
     use crate::{
-        commitment::TranscriptRange,
         pubkey::{KeyType, PubKey},
-        test::unchecked_doc,
+        test::default_unchecked_doc,
     };
     use rstest::{fixture, rstest};
 
     #[fixture]
     // Returns a signed validated document and the pubkey used to sign it
     pub(crate) fn signed_validated_doc_and_pubkey() -> (ValidatedDoc, PubKey) {
-        // create 2 arbitrary commitments
-        let comm1_ranges = vec![
-            TranscriptRange::new(5, 15).unwrap(),
-            TranscriptRange::new(20, 22).unwrap(),
-        ];
-        let comm2_ranges = vec![
-            TranscriptRange::new(0, 2).unwrap(),
-            TranscriptRange::new(15, 20).unwrap(),
-        ];
-        let (doc, pubkey_bytes, _) = unchecked_doc(vec![comm1_ranges, comm2_ranges]);
+        let (doc, pubkey_bytes, _) = default_unchecked_doc();
         // Initially the Verifier may store the Notary's pubkey as bytes. Converts it into
         // PubKey type
         let trusted_pubkey = PubKey::from_bytes(KeyType::P256, &pubkey_bytes).unwrap();

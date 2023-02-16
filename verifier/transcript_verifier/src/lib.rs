@@ -108,8 +108,10 @@ mod test {
     /// Returns default ranges which are used to construct the default document
     pub fn default_ranges() -> Vec<TranscriptRange> {
         vec![
-            TranscriptRange::new(5, 15).unwrap(),
+            // sent data commitment's ranges
+            TranscriptRange::new(5, 20).unwrap(),
             TranscriptRange::new(20, 22).unwrap(),
+            // received data commitment's ranges
             TranscriptRange::new(0, 2).unwrap(),
             TranscriptRange::new(15, 20).unwrap(),
         ]

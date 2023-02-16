@@ -1,8 +1,9 @@
 //! Methods performing various validation checks on the [crate::doc::unchecked::UncheckedDoc]
 
 use crate::{
-    commitment::{CommitmentOpening, CommitmentType, TranscriptRange},
+    commitment::{CommitmentOpening, CommitmentType},
     doc::unchecked::UncheckedDoc,
+    utils::overlapping_range,
     Error,
 };
 
@@ -205,7 +206,7 @@ pub(super) fn check_overlapping_openings(unchecked: &UncheckedDoc) -> Result<(),
                 let mut overlap_was_found = false;
 
                 for haystack_range in haystack_c.ranges() {
-                    match overlapping_range(needle_range, haystack_range)? {
+                    match overlapping_range(needle_range, haystack_range) {
                         Some(ov_range) => {
                             // the bytesize of the overlap
                             let overlap_size = ov_range.end() - ov_range.start();
@@ -288,21 +289,4 @@ pub(super) fn check_labels_opening(unchecked: &UncheckedDoc) -> Result<(), Error
     }
 
     Ok(())
-}
-
-/// If two ranges overlap, returns a new range containing the overlap
-fn overlapping_range(
-    a: &TranscriptRange,
-    b: &TranscriptRange,
-) -> Result<Option<TranscriptRange>, Error> {
-    // find purported overlap's start and end
-    let ov_start = std::cmp::max(a.start(), b.start());
-    let ov_end = std::cmp::min(a.end(), b.end());
-    // prevent overflow panic by casting into i64
-    if (ov_end as i64 - ov_start as i64) < 1 {
-        Ok(None)
-    } else {
-        let range = TranscriptRange::new(ov_start, ov_end)?;
-        Ok(Some(range))
-    }
 }
