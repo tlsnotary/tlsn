@@ -14,7 +14,10 @@ use mpc_aio::protocol::{
     },
     ot::{OTFactoryError, ObliviousReceive, ObliviousSend},
 };
-use mpc_circuits::{circuits::nbit_subtractor, InputValue, Value, WireGroup};
+use mpc_circuits::{
+    circuits::{nbit_add_mod, nbit_subtractor},
+    InputValue, Value, WireGroup,
+};
 use mpc_core::{
     garble::{
         exec::dual::{DualExConfig, DualExConfigBuilder},
@@ -67,6 +70,10 @@ where
         id: String,
     ) -> Result<KeyExchangeCore<PMSComputationSetup<P, D>>, KeyExchangeError> {
         let mut config_builder = DualExConfigBuilder::default();
+
+        let circ1 = nbit_add_mod(256);
+        let circ2 = nbit_subtractor(256);
+        circ1.conn
 
         // Setup config for circuit
         config_builder.id(id.clone());
@@ -264,3 +271,26 @@ where
         todo!()
     }
 }
+
+// This is the number of elements in P256 in msb0 order
+// In hex this is FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF
+const P256_SCALAR_SIZE: [bool; 256] = [
+    true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
+    true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
+    false, false, false, false, false, false, false, false, false, false, false, false, false,
+    false, false, false, false, false, false, false, false, false, false, false, false, false,
+    false, false, false, false, false, true, false, false, false, false, false, false, false,
+    false, false, false, false, false, false, false, false, false, false, false, false, false,
+    false, false, false, false, false, false, false, false, false, false, false, false, false,
+    false, false, false, false, false, false, false, false, false, false, false, false, false,
+    false, false, false, false, false, false, false, false, false, false, false, false, false,
+    false, false, false, false, false, false, false, false, false, false, false, false, false,
+    false, false, false, false, false, false, false, false, false, false, false, false, false,
+    false, false, false, false, false, false, false, false, false, false, false, true, true, true,
+    true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
+    true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
+    true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
+    true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
+    true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
+    true, true, true, true, true, true, true, true, true, true, true, true, true,
+];
