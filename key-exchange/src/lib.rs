@@ -20,6 +20,8 @@ pub enum KeyExchangeError {
     NoServerKey,
     #[error("Private key not set")]
     NoPrivateKey,
+    #[error("PMSShares are not set")]
+    NoPMSShares,
     #[error("OT Factory Error: {0}")]
     OTFactoryError(#[from] OTFactoryError),
     #[error("IOError: {0}")]

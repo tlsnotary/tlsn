@@ -14,7 +14,7 @@ use mpc_aio::protocol::{
     },
     ot::{OTFactoryError, ObliviousReceive, ObliviousSend},
 };
-use mpc_circuits::{Circuit, InputValue};
+use mpc_circuits::{circuits::nbit_subtractor, InputValue};
 use mpc_core::{
     garble::{
         exec::dual::{DualExConfig, DualExConfigBuilder},
@@ -24,8 +24,8 @@ use mpc_core::{
 };
 use p256::{EncodedPoint, SecretKey};
 use point_addition::PointAddition;
-use share_conversion_core::fields::p256::P256;
-use std::{borrow::Borrow, sync::Arc};
+use share_conversion_core::fields::{p256::P256, Field};
+use std::borrow::Borrow;
 use utils_aio::{expect_msg_or_err, factory::AsyncFactory};
 
 pub struct KeyExchangeCore<S: State + Send> {
@@ -66,8 +66,11 @@ where
     ) -> Result<KeyExchangeCore<PMSComputationSetup<P, D>>, KeyExchangeError> {
         let mut config_builder = DualExConfigBuilder::default();
 
+        // Setup config for circuit
         config_builder.id(id.clone());
-        config_builder.circ(Arc::new(create_pms_check_circuit()));
+        config_builder.circ(nbit_subtractor(
+            <P::XCoordinate as Field>::BIT_SIZE as usize,
+        ));
         let config = config_builder.build().unwrap();
 
         let dual_ex = self.state.dual_ex_factory.create(id, config).await?;
@@ -210,11 +213,11 @@ where
     }
 
     async fn compute_pms_labels(&mut self) -> Result<PMSLabels, KeyExchangeError> {
+        let [pms_share1, pms_share2] =
+            self.state.pms_shares.ok_or(KeyExchangeError::NoPMSShares)?;
+        let circ_input = pms_share1 + -pms_share2;
+
         //self.state.dual_ex.execute().await?;
         todo!()
     }
-}
-
-fn create_pms_check_circuit() -> Circuit {
-    todo!()
 }
