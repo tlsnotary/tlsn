@@ -1,3 +1,6 @@
+use std::sync::Arc;
+
+use mpc_circuits::Circuit;
 use p256::{PublicKey, SecretKey};
 use share_conversion_core::fields::p256::P256;
 
@@ -26,6 +29,7 @@ pub struct PMSComputationSetup<P, D> {
     pub(crate) server_key: PublicKey,
     pub(crate) pms_shares: Option<[P256; 2]>,
     pub(crate) dual_ex: D,
+    pub(crate) circuit: Arc<Circuit>,
 }
 
 impl<P, A, D> State for KeyExchangeSetup<P, A, D> {}

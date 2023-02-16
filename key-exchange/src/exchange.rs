@@ -14,18 +14,20 @@ use mpc_aio::protocol::{
     },
     ot::{OTFactoryError, ObliviousReceive, ObliviousSend},
 };
-use mpc_circuits::{circuits::nbit_subtractor, InputValue};
+use mpc_circuits::{circuits::nbit_subtractor, InputValue, Value, WireGroup};
 use mpc_core::{
     garble::{
         exec::dual::{DualExConfig, DualExConfigBuilder},
-        ActiveEncodedInput, FullEncodedInput,
+        ActiveEncodedInput, FullEncodedInput, FullInputSet,
     },
     ot::config::{OTReceiverConfig, OTSenderConfig},
 };
 use p256::{EncodedPoint, SecretKey};
 use point_addition::PointAddition;
+use rand_chacha::ChaCha20Rng;
+use rand_core::SeedableRng;
 use share_conversion_core::fields::{p256::P256, Field};
-use std::borrow::Borrow;
+use std::{borrow::Borrow, sync::Arc};
 use utils_aio::{expect_msg_or_err, factory::AsyncFactory};
 
 pub struct KeyExchangeCore<S: State + Send> {
@@ -71,7 +73,9 @@ where
         config_builder.circ(nbit_subtractor(
             <P::XCoordinate as Field>::BIT_SIZE as usize,
         ));
+
         let config = config_builder.build().unwrap();
+        let circuit = Arc::clone(&config.circ());
 
         let dual_ex = self.state.dual_ex_factory.create(id, config).await?;
         let private_key = self
@@ -89,6 +93,7 @@ where
                 server_key,
                 pms_shares: None,
                 dual_ex,
+                circuit,
             },
         })
     }
@@ -181,10 +186,15 @@ where
 }
 
 #[async_trait]
-impl<P, D> ComputePMS for KeyExchangeCore<PMSComputationSetup<P, D>>
+impl<P, B, LSF, LRF, LS, LR> ComputePMS
+    for KeyExchangeCore<PMSComputationSetup<P, DualExLeader<Initialized, B, LSF, LRF, LS, LR>>>
 where
     P: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send,
-    D: DEExecute + Send,
+    B: Generator + Evaluator + Send,
+    LSF: AsyncFactory<LS, Config = OTSenderConfig, Error = OTFactoryError> + Send,
+    LRF: AsyncFactory<LR, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
+    LS: ObliviousSend<FullEncodedInput> + Send,
+    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + Send,
 {
     async fn compute_pms_share(&mut self) -> Result<(), KeyExchangeError> {
         let server_key = &self.state.server_key;
@@ -212,12 +222,45 @@ where
         Ok(())
     }
 
-    async fn compute_pms_labels(&mut self) -> Result<PMSLabels, KeyExchangeError> {
+    async fn compute_pms_labels(mut self) -> Result<PMSLabels, KeyExchangeError> {
+        let mut rng = ChaCha20Rng::from_entropy();
+        // Compute circuit input
         let [pms_share1, pms_share2] =
             self.state.pms_shares.ok_or(KeyExchangeError::NoPMSShares)?;
-        let circ_input = pms_share1 + -pms_share2;
+        let circ_input: Vec<bool> = (pms_share1 + -pms_share2).to_bits_msb0();
 
-        //self.state.dual_ex.execute().await?;
+        // Garble input
+        let leader_input = self
+            .state
+            .circuit
+            .input(0)
+            .unwrap()
+            .to_value(circ_input)
+            .unwrap();
+        let follower_input = self.state.circuit.input(1).unwrap();
+        let leader_labels = FullInputSet::generate(&mut rng, &self.state.circuit, None);
+
+        let summary = self
+            .state
+            .dual_ex
+            .setup_inputs(
+                leader_labels,
+                vec![leader_input.clone()],
+                vec![follower_input],
+                vec![leader_input.clone()],
+                vec![],
+            )
+            .await?
+            .execute_skip_equality_check()
+            .await?;
+
+        let decoded = summary.get_evaluator_summary().decode()?;
+        let (Value::Bits(sub_output), Value::Bool(carry)) = (decoded[0].value(), decoded[1].value()) else {
+            panic!("Unexpected output type");
+        };
+        if *sub_output != vec![false; 256] || *carry {
+            return Err(KeyExchangeError::CheckFailed);
+        }
         todo!()
     }
 }

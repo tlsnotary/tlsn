@@ -3,7 +3,8 @@ mod msg;
 mod state;
 
 use async_trait::async_trait;
-use mpc_aio::protocol::ot::OTFactoryError;
+use mpc_aio::protocol::{garble::GCError, ot::OTFactoryError};
+use mpc_core::garble::{ActiveLabels, Error, FullLabels};
 pub use msg::KeyExchangeMessage;
 use p256::{PublicKey, SecretKey};
 use utils_aio::Channel;
@@ -22,6 +23,12 @@ pub enum KeyExchangeError {
     NoPrivateKey,
     #[error("PMSShares are not set")]
     NoPMSShares,
+    #[error("PMS equality check failed")]
+    CheckFailed,
+    #[error("Garbled Circuit Error: {0}")]
+    GCError(#[from] GCError),
+    #[error("Error during decoding of output: {0}")]
+    Decoding(#[from] Error),
     #[error("OT Factory Error: {0}")]
     OTFactoryError(#[from] OTFactoryError),
     #[error("IOError: {0}")]
@@ -53,7 +60,10 @@ pub trait KeyExchangeFollow {
 #[async_trait]
 pub trait ComputePMS {
     async fn compute_pms_share(&mut self) -> Result<(), KeyExchangeError>;
-    async fn compute_pms_labels(&mut self) -> Result<PMSLabels, KeyExchangeError>;
+    async fn compute_pms_labels(self) -> Result<PMSLabels, KeyExchangeError>;
 }
 
-pub struct PMSLabels {}
+pub struct PMSLabels {
+    full_labels: FullLabels,
+    active_labels: ActiveLabels,
+}
