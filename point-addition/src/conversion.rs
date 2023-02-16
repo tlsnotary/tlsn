@@ -47,8 +47,10 @@ where
     async fn convert(&mut self, [x, y]: [V; 2]) -> Result<V, PointAdditionError> {
         let [x_n, y_n] = if self.negate { [-x, -y] } else { [x, y] };
 
-        let a = self.a2m_converter.a_to_m(vec![y_n]).await?[0];
-        let b = self.a2m_converter.a_to_m(vec![x_n]).await?[0];
+        let a2m_output = self.a2m_converter.a_to_m(vec![y_n, x_n]).await?;
+
+        let a = a2m_output[0];
+        let b = a2m_output[1];
 
         let c = a * b.inverse();
         let c = c * c;

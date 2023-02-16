@@ -1,11 +1,11 @@
 use async_trait::async_trait;
+pub use conversion::Converter;
 use share_conversion_aio::ShareConversionError;
+use share_conversion_core::fields::Field;
 
 mod conversion;
 #[cfg(feature = "mock")]
 pub mod mock;
-
-pub use conversion::Converter;
 
 #[derive(Debug, thiserror::Error)]
 pub enum PointAdditionError {
@@ -20,7 +20,7 @@ pub enum PointAdditionError {
 #[async_trait]
 pub trait PointAddition {
     type Point;
-    type XCoordinate;
+    type XCoordinate: Field;
 
     /// Adds two elliptic curve points in 2PC, returning respective secret shares
     /// of the resulting x-coordinate to both parties.
