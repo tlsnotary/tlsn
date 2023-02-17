@@ -73,7 +73,6 @@ where
 
         let circ1 = nbit_add_mod(256);
         let circ2 = nbit_subtractor(256);
-        circ1.conn
 
         // Setup config for circuit
         config_builder.id(id.clone());
@@ -193,15 +192,10 @@ where
 }
 
 #[async_trait]
-impl<P, B, LSF, LRF, LS, LR> ComputePMS
-    for KeyExchangeCore<PMSComputationSetup<P, DualExLeader<Initialized, B, LSF, LRF, LS, LR>>>
+impl<P, D> ComputePMS for KeyExchangeCore<PMSComputationSetup<P, D>>
 where
     P: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send,
-    B: Generator + Evaluator + Send,
-    LSF: AsyncFactory<LS, Config = OTSenderConfig, Error = OTFactoryError> + Send,
-    LRF: AsyncFactory<LR, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
-    LS: ObliviousSend<FullEncodedInput> + Send,
-    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + Send,
+    D: DEExecute + Send,
 {
     async fn compute_pms_share(&mut self) -> Result<(), KeyExchangeError> {
         let server_key = &self.state.server_key;
@@ -234,63 +228,42 @@ where
         // Compute circuit input
         let [pms_share1, pms_share2] =
             self.state.pms_shares.ok_or(KeyExchangeError::NoPMSShares)?;
-        let circ_input: Vec<bool> = (pms_share1 + -pms_share2).to_bits_msb0();
-
-        // Garble input
-        let leader_input = self
-            .state
-            .circuit
-            .input(0)
-            .unwrap()
-            .to_value(circ_input)
-            .unwrap();
-        let follower_input = self.state.circuit.input(1).unwrap();
-        let leader_labels = FullInputSet::generate(&mut rng, &self.state.circuit, None);
-
-        let summary = self
-            .state
-            .dual_ex
-            .setup_inputs(
-                leader_labels,
-                vec![leader_input.clone()],
-                vec![follower_input],
-                vec![leader_input.clone()],
-                vec![],
-            )
-            .await?
-            .execute_skip_equality_check()
-            .await?;
-
-        let decoded = summary.get_evaluator_summary().decode()?;
-        let (Value::Bits(sub_output), Value::Bool(carry)) = (decoded[0].value(), decoded[1].value()) else {
-            panic!("Unexpected output type");
-        };
-        if *sub_output != vec![false; 256] || *carry {
-            return Err(KeyExchangeError::CheckFailed);
-        }
         todo!()
     }
 }
 
-// This is the number of elements in P256 in msb0 order
-// In hex this is FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF
-const P256_SCALAR_SIZE: [bool; 256] = [
-    true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
-    true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
-    false, false, false, false, false, false, false, false, false, false, false, false, false,
-    false, false, false, false, false, false, false, false, false, false, false, false, false,
-    false, false, false, false, false, true, false, false, false, false, false, false, false,
-    false, false, false, false, false, false, false, false, false, false, false, false, false,
-    false, false, false, false, false, false, false, false, false, false, false, false, false,
-    false, false, false, false, false, false, false, false, false, false, false, false, false,
-    false, false, false, false, false, false, false, false, false, false, false, false, false,
-    false, false, false, false, false, false, false, false, false, false, false, false, false,
-    false, false, false, false, false, false, false, false, false, false, false, false, false,
-    false, false, false, false, false, false, false, false, false, false, false, true, true, true,
-    true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
-    true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
-    true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
-    true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
-    true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
-    true, true, true, true, true, true, true, true, true, true, true, true, true,
-];
+//        // Garble input
+//        let leader_input = self
+//            .state
+//            .circuit
+//            .input(0)
+//            .unwrap()
+//            .to_value(circ_input)
+//            .unwrap();
+//        let follower_input = self.state.circuit.input(1).unwrap();
+//        let leader_labels = FullInputSet::generate(&mut rng, &self.state.circuit, None);
+//
+//        let summary = self
+//            .state
+//            .dual_ex
+//            .setup_inputs(
+//                leader_labels,
+//                vec![leader_input.clone()],
+//                vec![follower_input],
+//                vec![leader_input.clone()],
+//                vec![],
+//            )
+//            .await?
+//            .execute_skip_equality_check()
+//            .await?;
+//
+//        let decoded = summary.get_evaluator_summary().decode()?;
+//        let (Value::Bits(sub_output), Value::Bool(carry)) = (decoded[0].value(), decoded[1].value()) else {
+//            panic!("Unexpected output type");
+//        };
+//        if *sub_output != vec![false; 256] || *carry {
+//            return Err(KeyExchangeError::CheckFailed);
+//        }
+//        todo!()
+//    }
+//}
