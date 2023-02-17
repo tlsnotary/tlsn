@@ -14,11 +14,13 @@ use mpc_aio::protocol::{
     },
     ot::{OTFactoryError, ObliviousReceive, ObliviousSend},
 };
-use mpc_circuits::{builder::CircuitBuilder, Circuit, InputValue, ValueType, WireGroup};
+use mpc_circuits::{
+    builder::CircuitBuilder, circuits::nbit_xor, Circuit, Input, InputValue, ValueType, WireGroup,
+};
 use mpc_core::{
     garble::{
         exec::dual::{DualExConfig, DualExConfigBuilder},
-        ActiveEncodedInput, FullEncodedInput, FullInputSet,
+        ActiveEncodedInput, Encoded, FullEncodedInput, FullInputSet, Labels,
     },
     ot::config::{OTReceiverConfig, OTSenderConfig},
 };
@@ -67,16 +69,32 @@ where
         mut self,
         id: String,
     ) -> Result<KeyExchangeCore<PMSComputationSetup<P, D>>, KeyExchangeError> {
-        let mut config_builder = DualExConfigBuilder::default();
+        let mut config_builder_pms = DualExConfigBuilder::default();
+        let mut config_builder_xor = DualExConfigBuilder::default();
 
-        let circuit = build_double_combine_pms_circuit();
-        config_builder.circ(circuit);
-        config_builder.id(id.clone());
+        let circuit_pms = build_double_combine_pms_circuit();
+        let circuit_xor = nbit_xor(256);
 
-        let config = config_builder.build().unwrap();
-        let circuit = Arc::clone(&config.circ());
+        config_builder_pms.circ(Arc::clone(&circuit_pms));
+        config_builder_pms.id(id.clone());
 
-        let dual_ex = self.state.dual_ex_factory.create(id, config).await?;
+        config_builder_xor.circ(Arc::clone(&circuit_xor));
+        config_builder_xor.id(id.clone());
+
+        let config_pms = config_builder_pms.build().unwrap();
+        let config_xor = config_builder_pms.build().unwrap();
+
+        let dual_ex_pms = self
+            .state
+            .dual_ex_factory
+            .create(format!("{}/pms", id), config_pms)
+            .await?;
+        let dual_ex_xor = self
+            .state
+            .dual_ex_factory
+            .create(format!("{}/pms", id), config_xor)
+            .await?;
+
         let private_key = self
             .state
             .private_key
@@ -91,8 +109,10 @@ where
                 private_key,
                 server_key,
                 pms_shares: None,
-                dual_ex,
-                circuit,
+                dual_ex_pms,
+                dual_ex_xor,
+                circuit_pms,
+                circuit_xor,
             },
         })
     }
@@ -224,7 +244,7 @@ where
         let mut rng = ChaCha20Rng::from_entropy();
         let leader_input1 = self
             .state
-            .circuit
+            .circuit_pms
             .input(0)
             .unwrap()
             .to_value(pms_share1.to_le_bytes())
@@ -232,20 +252,20 @@ where
 
         let leader_input2 = self
             .state
-            .circuit
-            .input(0)
+            .circuit_pms
+            .input(1)
             .unwrap()
             .to_value(pms_share2.to_le_bytes())
             .unwrap();
 
-        let follower_input1 = self.state.circuit.input(1).unwrap();
-        let follower_input2 = self.state.circuit.input(1).unwrap();
+        let follower_input1 = self.state.circuit_pms.input(1).unwrap();
+        let follower_input2 = self.state.circuit_pms.input(1).unwrap();
 
-        let leader_labels = FullInputSet::generate(&mut rng, &self.state.circuit, None);
+        let leader_labels = FullInputSet::generate(&mut rng, &self.state.circuit_pms, None);
 
         let summary = self
             .state
-            .dual_ex
+            .dual_ex_pms
             .execute_skip_equality_check(
                 leader_labels,
                 vec![leader_input1.clone(), leader_input2.clone()],
@@ -256,6 +276,28 @@ where
             .await?;
 
         let output_labels = summary.get_evaluator_summary().output_labels();
+        let output_labels = Labels::ne
+            noutput_labels
+            .iter()
+            .map(|l| l.into_labels())
+            .collect::<Vec<_>>()
+            .to;
+
+        let input_labels = ActiveEncodedInput::from_active_labels(group, output_labels);
+
+        let leader_labels = FullInputSet::generate(&mut rng, &self.state.circuit_xor, None);
+
+        let output = self
+            .state
+            .dual_ex_xor
+            .execute(
+                leader_labels,
+                vec![],
+                vec![],
+                vec![],
+                output_labels.iter().collect(),
+            )
+            .await?;
     }
 }
 

@@ -28,8 +28,10 @@ pub struct PMSComputationSetup<P, D> {
     pub(crate) private_key: SecretKey,
     pub(crate) server_key: PublicKey,
     pub(crate) pms_shares: Option<[P256; 2]>,
-    pub(crate) dual_ex: D,
-    pub(crate) circuit: Arc<Circuit>,
+    pub(crate) dual_ex_pms: D,
+    pub(crate) dual_ex_xor: D,
+    pub(crate) circuit_pms: Arc<Circuit>,
+    pub(crate) circuit_xor: Arc<Circuit>,
 }
 
 impl<P, A, D> State for KeyExchangeSetup<P, A, D> {}
