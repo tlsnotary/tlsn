@@ -14,10 +14,7 @@ use mpc_aio::protocol::{
     },
     ot::{OTFactoryError, ObliviousReceive, ObliviousSend},
 };
-use mpc_circuits::{
-    circuits::{nbit_add_mod, nbit_subtractor},
-    InputValue, Value, WireGroup,
-};
+use mpc_circuits::{builder::CircuitBuilder, Circuit, InputValue, ValueType, WireGroup};
 use mpc_core::{
     garble::{
         exec::dual::{DualExConfig, DualExConfigBuilder},
@@ -31,6 +28,7 @@ use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
 use share_conversion_core::fields::{p256::P256, Field};
 use std::{borrow::Borrow, sync::Arc};
+use tls_circuits::combine_pms_shares;
 use utils_aio::{expect_msg_or_err, factory::AsyncFactory};
 
 pub struct KeyExchangeCore<S: State + Send> {
@@ -71,14 +69,9 @@ where
     ) -> Result<KeyExchangeCore<PMSComputationSetup<P, D>>, KeyExchangeError> {
         let mut config_builder = DualExConfigBuilder::default();
 
-        let circ1 = nbit_add_mod(256);
-        let circ2 = nbit_subtractor(256);
-
-        // Setup config for circuit
+        let circuit = build_double_combine_pms_circuit();
+        config_builder.circ(circuit);
         config_builder.id(id.clone());
-        config_builder.circ(nbit_subtractor(
-            <P::XCoordinate as Field>::BIT_SIZE as usize,
-        ));
 
         let config = config_builder.build().unwrap();
         let circuit = Arc::clone(&config.circ());
@@ -224,12 +217,103 @@ where
     }
 
     async fn compute_pms_labels(mut self) -> Result<PMSLabels, KeyExchangeError> {
-        let mut rng = ChaCha20Rng::from_entropy();
         // Compute circuit input
         let [pms_share1, pms_share2] =
             self.state.pms_shares.ok_or(KeyExchangeError::NoPMSShares)?;
-        todo!()
+
+        let mut rng = ChaCha20Rng::from_entropy();
+        let leader_input1 = self
+            .state
+            .circuit
+            .input(0)
+            .unwrap()
+            .to_value(pms_share1.to_le_bytes())
+            .unwrap();
+
+        let leader_input2 = self
+            .state
+            .circuit
+            .input(0)
+            .unwrap()
+            .to_value(pms_share2.to_le_bytes())
+            .unwrap();
+
+        let follower_input1 = self.state.circuit.input(1).unwrap();
+        let follower_input2 = self.state.circuit.input(1).unwrap();
+
+        let leader_labels = FullInputSet::generate(&mut rng, &self.state.circuit, None);
+
+        let summary = self
+            .state
+            .dual_ex
+            .execute_skip_equality_check(
+                leader_labels,
+                vec![leader_input1.clone(), leader_input2.clone()],
+                vec![follower_input1.clone(), follower_input2.clone()],
+                vec![leader_input1.clone(), leader_input2.clone()],
+                vec![],
+            )
+            .await?;
+
+        let output_labels = summary.get_evaluator_summary().output_labels();
     }
+}
+
+fn build_double_combine_pms_circuit() -> Arc<Circuit> {
+    let mut builder = CircuitBuilder::new("pms_shares_double", "", "0.1.0");
+
+    let a = builder.add_input(
+        "PMS_SHARE_A",
+        "256-bit PMS Additive Share",
+        ValueType::Bytes,
+        256,
+    );
+    let b = builder.add_input(
+        "PMS_SHARE_B",
+        "256-bit PMS Additive Share",
+        ValueType::Bytes,
+        256,
+    );
+    let c = builder.add_input(
+        "PMS_SHARE_C",
+        "256-bit PMS Additive Share",
+        ValueType::Bytes,
+        256,
+    );
+    let d = builder.add_input(
+        "PMS_SHARE_C",
+        "256-bit PMS Additive Share",
+        ValueType::Bytes,
+        256,
+    );
+
+    let mut builder = builder.build_inputs();
+    let handle1 = builder.add_circ(&combine_pms_shares());
+    let handle2 = builder.add_circ(&combine_pms_shares());
+
+    let a_input = handle1.input(0).unwrap();
+    let b_input = handle1.input(1).unwrap();
+
+    let c_input = handle2.input(0).unwrap();
+    let d_input = handle2.input(1).unwrap();
+
+    builder.connect(&a[..], &a_input[..]);
+    builder.connect(&b[..], &b_input[..]);
+    builder.connect(&c[..], &c_input[..]);
+    builder.connect(&d[..], &d_input[..]);
+
+    let pms1_out = handle1.output(0).expect("add mod is missing output 0");
+    let pms2_out = handle2.output(0).expect("add mod is missing output 0");
+
+    let mut builder = builder.build_gates();
+
+    let pms1 = builder.add_output("PMS1", "Pre-master Secret", ValueType::Bytes, 256);
+    let pms2 = builder.add_output("PMS2", "Pre-master Secret", ValueType::Bytes, 256);
+
+    builder.connect(&pms1_out[..], &pms1[..]);
+    builder.connect(&pms2_out[..], &pms2[..]);
+
+    builder.build_circuit().unwrap()
 }
 
 //        // Garble input

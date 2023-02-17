@@ -120,6 +120,10 @@ impl Field for P256 {
     fn from_bits_msb0(bits: &[bool]) -> Self {
         P256(BigInt::from_bits_be(bits).into())
     }
+
+    fn to_le_bytes(&self) -> Vec<u8> {
+        BigInt::to_bytes_le(&MontBackend::<FqConfig, 4>::into_bigint(self.0))
+    }
 }
 
 #[cfg(test)]

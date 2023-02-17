@@ -14,6 +14,7 @@ serde = ["dep:serde"]
 tlsn-mpc-aio = { path = "../mpc/mpc-aio" }
 tlsn-mpc-core = { path = "../mpc/mpc-core" }
 tlsn-mpc-circuits = { path = "../mpc/mpc-circuits" }
+tlsn-tls-circuits = { path = "../tls/tls-circuits" }
 tlsn-utils-aio = { path = "../utils/utils-aio" }
 share-conversion-core = { path = "../mpc/share-conversion-core" }
 tlsn-point-addition = { path = "../point-addition" }
