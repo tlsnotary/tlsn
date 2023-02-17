@@ -1,5 +1,9 @@
-//! This module implements the conversion from the sum of two elliptic curve points to the sum of
-//! two field elements of the field underlying the elliptic curve
+//! This module implements a secure two-party computation protocol for adding two private EC points
+//! and secret-sharing the resulting x coordinate (the shares are field elements of the field
+//! underlying the elliptic curve).
+//! This protocol has semi-honest security.
+//!
+//! The protocol is described in <https://docs.tlsnotary.org/protocol/notarization/key_exchange.html>
 
 use super::{PointAddition, PointAdditionError};
 use async_trait::async_trait;
@@ -7,7 +11,7 @@ use p256::EncodedPoint;
 use share_conversion_aio::{AdditiveToMultiplicative, MultiplicativeToAdditive};
 use share_conversion_core::fields::{p256::P256, Field};
 
-/// The instance used for converting the curve points
+/// The instance used for adding the curve points
 pub struct Converter<T, U, V>
 where
     T: AdditiveToMultiplicative<V>,
@@ -42,8 +46,10 @@ where
 
     /// Perform the conversion of P = A + B => P_x = a + b
     ///
-    /// This will convert an elliptic curve point addition to an additive sharing in the underlying
-    /// field of the x-coordinate of that point
+    /// Since we are only interested in the x-coordinate of P (for the PMS) and because elliptic
+    /// curve point addition is an expensive operation in 2PC, we secretly share the x-coordinate
+    /// of P as a simple addition of field elements between the two parties. So we go from an EC
+    /// point addition to an addition of field elements for the x-coordinate.
     async fn convert(&mut self, [x, y]: [V; 2]) -> Result<V, PointAdditionError> {
         let [x_n, y_n] = if self.negate { [-x, -y] } else { [x, y] };
 
