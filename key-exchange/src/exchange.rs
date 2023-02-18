@@ -11,6 +11,7 @@ use futures::{SinkExt, StreamExt};
 use mpc_aio::protocol::{
     garble::{
         exec::dual::{state::Initialized, DEExecute, DualExFollower, DualExLeader},
+        factory::GCFactoryError,
         Evaluator, Generator,
     },
     ot::{OTFactoryError, ObliviousReceive, ObliviousSend},
@@ -38,17 +39,18 @@ pub struct KeyExchangeCore<S: State + Send> {
     state: S,
 }
 
-impl<P, A, D> KeyExchangeCore<KeyExchangeSetup<P, A, D>>
+impl<PS, PR, A, D> KeyExchangeCore<KeyExchangeSetup<PS, PR, A, D>>
 where
-    P: PointAddition + Send,
-    A: AsyncFactory<D, Config = DualExConfig, Error = OTFactoryError> + Send,
+    PS: PointAddition + Send,
+    PR: PointAddition + Send,
+    A: AsyncFactory<D, Config = DualExConfig, Error = GCFactoryError> + Send,
     D: DEExecute + Send,
 {
     /// Creates a new KeyExchangeCore
     pub fn new(
         channel: KeyExchangeChannel,
-        point_addition_sender: P,
-        point_addition_receiver: P,
+        point_addition_sender: PS,
+        point_addition_receiver: PR,
         dual_ex_factory: A,
     ) -> Self {
         Self {
@@ -68,7 +70,7 @@ where
     pub async fn setup_pms_computation(
         mut self,
         id: String,
-    ) -> Result<KeyExchangeCore<PMSComputationSetup<P, D>>, KeyExchangeError> {
+    ) -> Result<KeyExchangeCore<PMSComputationSetup<PS, PR, D>>, KeyExchangeError> {
         let mut config_builder_pms = DualExConfigBuilder::default();
         let mut config_builder_xor = DualExConfigBuilder::default();
 
@@ -119,14 +121,15 @@ where
 }
 
 #[async_trait]
-impl<P, A, B, LSF, LRF, LS, LR> KeyExchangeLead
-    for KeyExchangeCore<KeyExchangeSetup<P, A, DualExLeader<Initialized, B, LSF, LRF, LS, LR>>>
+impl<PS, PR, A, B, LSF, LRF, LS, LR> KeyExchangeLead
+    for KeyExchangeCore<KeyExchangeSetup<PS, PR, A, DualExLeader<Initialized, B, LSF, LRF, LS, LR>>>
 where
-    P: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send,
+    PS: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send,
+    PR: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send,
     A: AsyncFactory<
             DualExLeader<Initialized, B, LSF, LRF, LS, LR>,
             Config = DualExConfig,
-            Error = OTFactoryError,
+            Error = GCFactoryError,
         > + Send,
     B: Generator + Evaluator + Send,
     LSF: AsyncFactory<LS, Config = OTSenderConfig, Error = OTFactoryError> + Send,
@@ -163,14 +166,17 @@ where
 }
 
 #[async_trait]
-impl<P, A, B, LSF, LRF, LS, LR> KeyExchangeFollow
-    for KeyExchangeCore<KeyExchangeSetup<P, A, DualExFollower<Initialized, B, LSF, LRF, LS, LR>>>
+impl<PS, PR, A, B, LSF, LRF, LS, LR> KeyExchangeFollow
+    for KeyExchangeCore<
+        KeyExchangeSetup<PS, PR, A, DualExFollower<Initialized, B, LSF, LRF, LS, LR>>,
+    >
 where
-    P: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send,
+    PS: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send,
+    PR: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send,
     A: AsyncFactory<
             DualExFollower<Initialized, B, LSF, LRF, LS, LR>,
             Config = DualExConfig,
-            Error = OTFactoryError,
+            Error = GCFactoryError,
         > + Send,
     B: Generator + Evaluator + Send,
     LSF: AsyncFactory<LS, Config = OTSenderConfig, Error = OTFactoryError> + Send,
@@ -205,9 +211,10 @@ where
 }
 
 #[async_trait]
-impl<P, D> ComputePMS for KeyExchangeCore<PMSComputationSetup<P, D>>
+impl<PS, PR, D> ComputePMS for KeyExchangeCore<PMSComputationSetup<PS, PR, D>>
 where
-    P: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send,
+    PS: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send,
+    PR: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send,
     D: DEExecute + Send,
 {
     async fn compute_pms_share(&mut self) -> Result<(), KeyExchangeError> {
@@ -330,5 +337,14 @@ where
             active_labels,
             full_labels,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    #[tokio::test]
+    async fn test_kex_exchange() {
+        todo!()
     }
 }

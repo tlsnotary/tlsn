@@ -7,7 +7,8 @@ edition = "2021"
 name = "key_exchange"
 
 [features]
-default = []
+default = ["mock"]
+mock = []
 serde = ["dep:serde"]
 
 [dependencies]

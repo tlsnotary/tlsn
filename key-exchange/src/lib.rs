@@ -1,10 +1,12 @@
 mod circuit;
 mod exchange;
-mod msg;
-mod state;
+#[cfg(feature = "mock")]
+pub mod mock;
+pub mod msg;
+pub mod state;
 
 use async_trait::async_trait;
-use mpc_aio::protocol::{garble::GCError, ot::OTFactoryError};
+use mpc_aio::protocol::garble::{factory::GCFactoryError, GCError};
 use mpc_circuits::{CircuitError, GroupError};
 use mpc_core::garble::{
     exec::dual::DualExConfigBuilderError, ActiveLabels, EncodingError, Error, FullLabels,
@@ -43,8 +45,8 @@ pub enum KeyExchangeError {
     Decoding(#[from] Error),
     #[error("Unexepcted output value from circuit")]
     UnexpectedOutputValue,
-    #[error("OT Factory Error: {0}")]
-    OTFactoryError(#[from] OTFactoryError),
+    #[error("GC Factory Error: {0}")]
+    GCFactoryError(#[from] GCFactoryError),
     #[error("IOError: {0}")]
     IOError(#[from] std::io::Error),
     #[error("UnexpectedMessage: {0:?}")]
