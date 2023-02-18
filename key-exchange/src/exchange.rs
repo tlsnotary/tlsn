@@ -1,6 +1,6 @@
 use super::state::KeyExchangeSetup;
 use crate::{
-    circuit::build_double_combine_pms_circuit,
+    circuit::{build_double_combine_pms_circuit, build_nbit_xor_bytes_32},
     msg::{NotaryPublicKey, ServerPublicKey},
     state::{PMSComputationSetup, State},
     ComputePMS, KeyExchangeChannel, KeyExchangeError, KeyExchangeFollow, KeyExchangeLead,
@@ -15,7 +15,7 @@ use mpc_aio::protocol::{
     },
     ot::{OTFactoryError, ObliviousReceive, ObliviousSend},
 };
-use mpc_circuits::{circuits::nbit_xor, Input, InputValue, Value, WireGroup};
+use mpc_circuits::{Input, InputValue, Value, WireGroup};
 use mpc_core::{
     garble::{
         exec::dual::{DualExConfig, DualExConfigBuilder},
@@ -73,7 +73,7 @@ where
         let mut config_builder_xor = DualExConfigBuilder::default();
 
         let circuit_pms = build_double_combine_pms_circuit();
-        let circuit_xor = nbit_xor(256);
+        let circuit_xor = build_nbit_xor_bytes_32();
 
         config_builder_pms.circ(Arc::clone(&circuit_pms));
         config_builder_pms.id(id.clone());
@@ -322,16 +322,14 @@ where
             .to_inner()
             .into_iter()
             .map(|x| x.into_labels())
-            .collect::<Vec<Labels<Active>>>()
-            .to_vec();
+            .collect::<Vec<Labels<Active>>>();
 
         let full_labels = full_output_labels
             .clone()
             .to_inner()
             .into_iter()
             .map(|x| x.into_labels())
-            .collect::<Vec<Labels<Full>>>()
-            .to_vec();
+            .collect::<Vec<Labels<Full>>>();
 
         Ok(PMSLabels {
             active_labels,
