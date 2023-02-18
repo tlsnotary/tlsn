@@ -1,9 +1,10 @@
-use super::{state::KeyExchangeSetup, PMSLabels};
+use super::state::KeyExchangeSetup;
 use crate::{
+    circuit::build_double_combine_pms_circuit,
     msg::{NotaryPublicKey, ServerPublicKey},
     state::{PMSComputationSetup, State},
     ComputePMS, KeyExchangeChannel, KeyExchangeError, KeyExchangeFollow, KeyExchangeLead,
-    KeyExchangeMessage, PublicKey,
+    KeyExchangeMessage, PMSLabels, PublicKey,
 };
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
@@ -14,13 +15,13 @@ use mpc_aio::protocol::{
     },
     ot::{OTFactoryError, ObliviousReceive, ObliviousSend},
 };
-use mpc_circuits::{
-    builder::CircuitBuilder, circuits::nbit_xor, Circuit, Input, InputValue, ValueType, WireGroup,
-};
+use mpc_circuits::{circuits::nbit_xor, Input, InputValue, Value, WireGroup};
 use mpc_core::{
     garble::{
         exec::dual::{DualExConfig, DualExConfigBuilder},
-        ActiveEncodedInput, Encoded, FullEncodedInput, FullInputSet, Labels,
+        label_state::{Active, Full},
+        ActiveEncodedInput, Encoded, EncodedSet, EncodingError, FullEncodedInput, FullInputSet,
+        Labels,
     },
     ot::config::{OTReceiverConfig, OTSenderConfig},
 };
@@ -30,7 +31,6 @@ use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
 use share_conversion_core::fields::{p256::P256, Field};
 use std::{borrow::Borrow, sync::Arc};
-use tls_circuits::combine_pms_shares;
 use utils_aio::{expect_msg_or_err, factory::AsyncFactory};
 
 pub struct KeyExchangeCore<S: State + Send> {
@@ -242,6 +242,7 @@ where
             self.state.pms_shares.ok_or(KeyExchangeError::NoPMSShares)?;
 
         let mut rng = ChaCha20Rng::from_entropy();
+
         let leader_input1 = self
             .state
             .circuit_pms
@@ -249,17 +250,16 @@ where
             .unwrap()
             .to_value(pms_share1.to_le_bytes())
             .unwrap();
+        let follower_input1 = self.state.circuit_pms.input(1).unwrap();
 
         let leader_input2 = self
             .state
             .circuit_pms
-            .input(1)
+            .input(2)
             .unwrap()
             .to_value(pms_share2.to_le_bytes())
             .unwrap();
-
-        let follower_input1 = self.state.circuit_pms.input(1).unwrap();
-        let follower_input2 = self.state.circuit_pms.input(1).unwrap();
+        let follower_input2 = self.state.circuit_pms.input(3).unwrap();
 
         let leader_labels = FullInputSet::generate(&mut rng, &self.state.circuit_pms, None);
 
@@ -275,121 +275,67 @@ where
             )
             .await?;
 
-        let output_labels = summary.get_evaluator_summary().output_labels();
-        let output_labels = Labels::ne
-            noutput_labels
-            .iter()
-            .map(|l| l.into_labels())
-            .collect::<Vec<_>>()
-            .to;
+        let active_output_labels = summary.get_evaluator_summary().output_labels();
+        let full_output_labels = summary.get_generator_summary().output_labels();
 
-        let input_labels = ActiveEncodedInput::from_active_labels(group, output_labels);
+        let active_encoded_input = active_output_labels
+            .clone()
+            .to_inner()
+            .into_iter()
+            .enumerate()
+            .map(|(k, x)| x.to_input(self.state.circuit_xor.input(k).unwrap()))
+            .collect::<Result<Vec<Encoded<Input, Active>>, EncodingError>>()
+            .unwrap();
 
-        let leader_labels = FullInputSet::generate(&mut rng, &self.state.circuit_xor, None);
+        let full_encoded_input = full_output_labels
+            .clone()
+            .to_inner()
+            .into_iter()
+            .enumerate()
+            .map(|(k, x)| x.to_input(self.state.circuit_xor.input(k).unwrap()))
+            .collect::<Result<Vec<Encoded<Input, Full>>, EncodingError>>()
+            .unwrap();
+        let full_encoded_input = EncodedSet::<Input, Full>::new(full_encoded_input).unwrap();
 
         let output = self
             .state
             .dual_ex_xor
             .execute(
-                leader_labels,
+                full_encoded_input,
                 vec![],
                 vec![],
                 vec![],
-                output_labels.iter().collect(),
+                active_encoded_input,
             )
             .await?;
+
+        let (Value::Bytes(sub_output), Value::Bool(carry)) = (output[0].value(), output[1].value()) else {
+            panic!("Unexpected output type");
+        };
+
+        if *sub_output != vec![0_u8; 32] || *carry {
+            return Err(KeyExchangeError::CheckFailed);
+        }
+
+        let active_labels = active_output_labels
+            .clone()
+            .to_inner()
+            .into_iter()
+            .map(|x| x.into_labels())
+            .collect::<Vec<Labels<Active>>>()
+            .to_vec();
+
+        let full_labels = full_output_labels
+            .clone()
+            .to_inner()
+            .into_iter()
+            .map(|x| x.into_labels())
+            .collect::<Vec<Labels<Full>>>()
+            .to_vec();
+
+        Ok(PMSLabels {
+            active_labels,
+            full_labels,
+        })
     }
 }
-
-fn build_double_combine_pms_circuit() -> Arc<Circuit> {
-    let mut builder = CircuitBuilder::new("pms_shares_double", "", "0.1.0");
-
-    let a = builder.add_input(
-        "PMS_SHARE_A",
-        "256-bit PMS Additive Share",
-        ValueType::Bytes,
-        256,
-    );
-    let b = builder.add_input(
-        "PMS_SHARE_B",
-        "256-bit PMS Additive Share",
-        ValueType::Bytes,
-        256,
-    );
-    let c = builder.add_input(
-        "PMS_SHARE_C",
-        "256-bit PMS Additive Share",
-        ValueType::Bytes,
-        256,
-    );
-    let d = builder.add_input(
-        "PMS_SHARE_C",
-        "256-bit PMS Additive Share",
-        ValueType::Bytes,
-        256,
-    );
-
-    let mut builder = builder.build_inputs();
-    let handle1 = builder.add_circ(&combine_pms_shares());
-    let handle2 = builder.add_circ(&combine_pms_shares());
-
-    let a_input = handle1.input(0).unwrap();
-    let b_input = handle1.input(1).unwrap();
-
-    let c_input = handle2.input(0).unwrap();
-    let d_input = handle2.input(1).unwrap();
-
-    builder.connect(&a[..], &a_input[..]);
-    builder.connect(&b[..], &b_input[..]);
-    builder.connect(&c[..], &c_input[..]);
-    builder.connect(&d[..], &d_input[..]);
-
-    let pms1_out = handle1.output(0).expect("add mod is missing output 0");
-    let pms2_out = handle2.output(0).expect("add mod is missing output 0");
-
-    let mut builder = builder.build_gates();
-
-    let pms1 = builder.add_output("PMS1", "Pre-master Secret", ValueType::Bytes, 256);
-    let pms2 = builder.add_output("PMS2", "Pre-master Secret", ValueType::Bytes, 256);
-
-    builder.connect(&pms1_out[..], &pms1[..]);
-    builder.connect(&pms2_out[..], &pms2[..]);
-
-    builder.build_circuit().unwrap()
-}
-
-//        // Garble input
-//        let leader_input = self
-//            .state
-//            .circuit
-//            .input(0)
-//            .unwrap()
-//            .to_value(circ_input)
-//            .unwrap();
-//        let follower_input = self.state.circuit.input(1).unwrap();
-//        let leader_labels = FullInputSet::generate(&mut rng, &self.state.circuit, None);
-//
-//        let summary = self
-//            .state
-//            .dual_ex
-//            .setup_inputs(
-//                leader_labels,
-//                vec![leader_input.clone()],
-//                vec![follower_input],
-//                vec![leader_input.clone()],
-//                vec![],
-//            )
-//            .await?
-//            .execute_skip_equality_check()
-//            .await?;
-//
-//        let decoded = summary.get_evaluator_summary().decode()?;
-//        let (Value::Bits(sub_output), Value::Bool(carry)) = (decoded[0].value(), decoded[1].value()) else {
-//            panic!("Unexpected output type");
-//        };
-//        if *sub_output != vec![false; 256] || *carry {
-//            return Err(KeyExchangeError::CheckFailed);
-//        }
-//        todo!()
-//    }
-//}

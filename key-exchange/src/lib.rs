@@ -1,3 +1,4 @@
+mod circuit;
 mod exchange;
 mod msg;
 mod state;
@@ -64,6 +65,6 @@ pub trait ComputePMS {
 }
 
 pub struct PMSLabels {
-    full_labels: FullLabels,
-    active_labels: ActiveLabels,
+    pub active_labels: Vec<ActiveLabels>,
+    pub full_labels: Vec<FullLabels>,
 }
