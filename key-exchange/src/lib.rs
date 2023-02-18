@@ -5,7 +5,10 @@ mod state;
 
 use async_trait::async_trait;
 use mpc_aio::protocol::{garble::GCError, ot::OTFactoryError};
-use mpc_core::garble::{ActiveLabels, Error, FullLabels};
+use mpc_circuits::{CircuitError, GroupError};
+use mpc_core::garble::{
+    exec::dual::DualExConfigBuilderError, ActiveLabels, EncodingError, Error, FullLabels,
+};
 pub use msg::KeyExchangeMessage;
 use p256::{PublicKey, SecretKey};
 use utils_aio::Channel;
@@ -26,10 +29,20 @@ pub enum KeyExchangeError {
     NoPMSShares,
     #[error("PMS equality check failed")]
     CheckFailed,
+    #[error("Encoding Error: {0}")]
+    Encoding(#[from] EncodingError),
+    #[error("Circuit Error: {0}")]
+    Circuit(#[from] CircuitError),
+    #[error("Group Error: {0}")]
+    Group(#[from] GroupError),
     #[error("Garbled Circuit Error: {0}")]
     GCError(#[from] GCError),
+    #[error("DualExConigBuilder Error: {0}")]
+    DualExConfig(#[from] DualExConfigBuilderError),
     #[error("Error during decoding of output: {0}")]
     Decoding(#[from] Error),
+    #[error("Unexepcted output value from circuit")]
+    UnexpectedOutputValue,
     #[error("OT Factory Error: {0}")]
     OTFactoryError(#[from] OTFactoryError),
     #[error("IOError: {0}")]

@@ -81,8 +81,8 @@ where
         config_builder_xor.circ(Arc::clone(&circuit_xor));
         config_builder_xor.id(id.clone());
 
-        let config_pms = config_builder_pms.build().unwrap();
-        let config_xor = config_builder_pms.build().unwrap();
+        let config_pms = config_builder_pms.build()?;
+        let config_xor = config_builder_pms.build()?;
 
         let dual_ex_pms = self
             .state
@@ -92,7 +92,7 @@ where
         let dual_ex_xor = self
             .state
             .dual_ex_factory
-            .create(format!("{}/pms", id), config_xor)
+            .create(format!("{}/xor", id), config_xor)
             .await?;
 
         let private_key = self
@@ -246,20 +246,16 @@ where
         let leader_input1 = self
             .state
             .circuit_pms
-            .input(0)
-            .unwrap()
-            .to_value(pms_share1.to_le_bytes())
-            .unwrap();
-        let follower_input1 = self.state.circuit_pms.input(1).unwrap();
+            .input(0)?
+            .to_value(pms_share1.to_le_bytes())?;
+        let follower_input1 = self.state.circuit_pms.input(1)?;
 
         let leader_input2 = self
             .state
             .circuit_pms
-            .input(2)
-            .unwrap()
-            .to_value(pms_share2.to_le_bytes())
-            .unwrap();
-        let follower_input2 = self.state.circuit_pms.input(3).unwrap();
+            .input(2)?
+            .to_value(pms_share2.to_le_bytes())?;
+        let follower_input2 = self.state.circuit_pms.input(3)?;
 
         let leader_labels = FullInputSet::generate(&mut rng, &self.state.circuit_pms, None);
 
@@ -284,8 +280,7 @@ where
             .into_iter()
             .enumerate()
             .map(|(k, x)| x.to_input(self.state.circuit_xor.input(k).unwrap()))
-            .collect::<Result<Vec<Encoded<Input, Active>>, EncodingError>>()
-            .unwrap();
+            .collect::<Result<Vec<Encoded<Input, Active>>, EncodingError>>()?;
 
         let full_encoded_input = full_output_labels
             .clone()
@@ -293,9 +288,9 @@ where
             .into_iter()
             .enumerate()
             .map(|(k, x)| x.to_input(self.state.circuit_xor.input(k).unwrap()))
-            .collect::<Result<Vec<Encoded<Input, Full>>, EncodingError>>()
-            .unwrap();
-        let full_encoded_input = EncodedSet::<Input, Full>::new(full_encoded_input).unwrap();
+            .collect::<Result<Vec<Encoded<Input, Full>>, EncodingError>>()?;
+
+        let full_encoded_input = EncodedSet::<Input, Full>::new(full_encoded_input)?;
 
         let output = self
             .state
@@ -309,11 +304,11 @@ where
             )
             .await?;
 
-        let (Value::Bytes(sub_output), Value::Bool(carry)) = (output[0].value(), output[1].value()) else {
-            panic!("Unexpected output type");
+        let Value::Bytes(xor_output) = output[0].value() else {
+            return Err(KeyExchangeError::UnexpectedOutputValue);
         };
 
-        if *sub_output != vec![0_u8; 32] || *carry {
+        if *xor_output != vec![0_u8; 32] {
             return Err(KeyExchangeError::CheckFailed);
         }
 
