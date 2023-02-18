@@ -1,4 +1,4 @@
-use super::Converter;
+use super::{Converter, Role};
 use mpc_core::Block;
 use share_conversion_aio::conversion::{
     mock::{mock_converter_pair, MockReceiver, MockSender},
@@ -25,8 +25,8 @@ pub fn create_mock_point_converter_pair() -> (MockPointConversionSender, MockPoi
     let (sender_m2a, receiver_m2a) =
         mock_converter_pair::<MulShare<P256>, P256, [Block; 2], Void>();
 
-    let sender = MockPointConversionSender::new(sender_a2m, sender_m2a, true);
-    let receiver = MockPointConversionReceiver::new(receiver_a2m, receiver_m2a, false);
+    let sender = MockPointConversionSender::new(sender_a2m, sender_m2a, Role::Leader);
+    let receiver = MockPointConversionReceiver::new(receiver_a2m, receiver_m2a, Role::Follower);
 
     (sender, receiver)
 }

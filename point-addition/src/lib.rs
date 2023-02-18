@@ -1,11 +1,12 @@
 use async_trait::async_trait;
-pub use conversion::Converter;
 use share_conversion_aio::ShareConversionError;
 use share_conversion_core::fields::Field;
 
 mod conversion;
 #[cfg(feature = "mock")]
 pub mod mock;
+
+pub use conversion::{Converter, Role};
 
 #[derive(Debug, thiserror::Error)]
 pub enum PointAdditionError {

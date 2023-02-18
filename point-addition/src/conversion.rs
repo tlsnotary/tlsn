@@ -22,10 +22,28 @@ where
     a2m_converter: T,
     /// Performs conversion of multiplication to addition
     m2a_converter: U,
-    /// A flag which is used to indicate the party, which has to do an inversion operation
-    negate: bool,
+    /// Indicates which role this converter instance will fulfill
+    role: Role,
     /// PhantomData used for the underlying elliptic curve field
     _field: std::marker::PhantomData<V>,
+}
+
+/// The role: either Leader or Follower
+///
+/// Follower needs to perform an inversion operation on the point during point addition
+#[derive(Debug, Clone, Copy)]
+pub enum Role {
+    Leader,
+    Follower,
+}
+
+impl Role {
+    fn adapt_point<V: Field>(&self, [x, y]: [V; 2]) -> [V; 2] {
+        match self {
+            Role::Leader => [x, y],
+            Role::Follower => [-x, -y],
+        }
+    }
 }
 
 impl<T, U, V> Converter<T, U, V>
@@ -35,11 +53,11 @@ where
     V: Field,
 {
     /// Create a new [Converter] instance
-    pub fn new(a2m_converter: T, m2a_converter: U, negate: bool) -> Self {
+    pub fn new(a2m_converter: T, m2a_converter: U, role: Role) -> Self {
         Self {
             a2m_converter,
             m2a_converter,
-            negate,
+            role,
             _field: std::marker::PhantomData,
         }
     }
@@ -51,7 +69,7 @@ where
     /// of P as a simple addition of field elements between the two parties. So we go from an EC
     /// point addition to an addition of field elements for the x-coordinate.
     async fn convert(&mut self, [x, y]: [V; 2]) -> Result<V, PointAdditionError> {
-        let [x_n, y_n] = if self.negate { [-x, -y] } else { [x, y] };
+        let [x_n, y_n] = self.role.adapt_point([x, y]);
 
         let a2m_output = self.a2m_converter.a_to_m(vec![y_n, x_n]).await?;
 
