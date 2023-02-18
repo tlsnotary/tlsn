@@ -3,7 +3,7 @@ use std::sync::Arc;
 use tls_circuits::combine_pms_shares;
 
 pub fn build_double_combine_pms_circuit() -> Arc<Circuit> {
-    let mut builder = CircuitBuilder::new("pms_shares_double", "", "0.1.0");
+    let mut builder = CircuitBuilder::new("pms_shares_2x", "", "0.1.0");
 
     let a = builder.add_input(
         "PMS_SHARE_A",

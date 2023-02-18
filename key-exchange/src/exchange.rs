@@ -342,9 +342,117 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::borrow::Borrow;
+
+    use p256::{
+        elliptic_curve::AffinePoint, pkcs8::EncodePublicKey, NonZeroScalar, PublicKey, SecretKey,
+    };
+    use rand_chacha::ChaCha20Rng;
+    use rand_core::SeedableRng;
+    use share_conversion_core::fields::Field;
+
+    use super::{KeyExchangeFollow, KeyExchangeLead};
+    use crate::{
+        mock::{create_mock_key_exchange_pair, MockKeyExchangeFollower, MockKeyExchangeLeader},
+        ComputePMS,
+    };
 
     #[tokio::test]
-    async fn test_kex_exchange() {
-        todo!()
+    async fn test_key_exchange() {
+        let mut rng = ChaCha20Rng::from_seed([0_u8; 32]);
+
+        let leader_private_key = SecretKey::random(&mut rng);
+        let follower_private_key = SecretKey::random(&mut rng);
+        let server_public_key = PublicKey::from_secret_scalar(&NonZeroScalar::random(&mut rng));
+
+        let (leader, follower, client_public_key) = perform_key_exchange(
+            leader_private_key.clone(),
+            follower_private_key.clone(),
+            server_public_key,
+        )
+        .await;
+
+        let expected_client_public_key = PublicKey::from_affine(
+            (leader_private_key.public_key().to_projective()
+                + follower_private_key.public_key().to_projective())
+            .to_affine(),
+        )
+        .unwrap();
+
+        assert_eq!(leader.state.private_key.unwrap(), leader_private_key);
+        assert_eq!(follower.state.private_key.unwrap(), follower_private_key);
+
+        assert_eq!(leader.state.server_key.unwrap(), server_public_key);
+        assert_eq!(follower.state.server_key.unwrap(), server_public_key);
+
+        assert_eq!(client_public_key, expected_client_public_key);
+    }
+
+    #[tokio::test]
+    async fn test_compute_pms_share() {
+        let mut rng = ChaCha20Rng::from_seed([0_u8; 32]);
+
+        let leader_private_key = SecretKey::random(&mut rng);
+        let follower_private_key = SecretKey::random(&mut rng);
+        let server_private_key = NonZeroScalar::random(&mut rng);
+        let server_public_key = PublicKey::from_secret_scalar(&server_private_key);
+
+        let (leader, follower, client_public_key) = perform_key_exchange(
+            leader_private_key.clone(),
+            follower_private_key.clone(),
+            server_public_key,
+        )
+        .await;
+
+        let mut leader = leader
+            .setup_pms_computation(String::from(""))
+            .await
+            .unwrap();
+        let mut follower = follower
+            .setup_pms_computation(String::from(""))
+            .await
+            .unwrap();
+
+        let _ = tokio::try_join!(leader.compute_pms_share(), follower.compute_pms_share()).unwrap();
+
+        let [l_pms1, l_pms2] = leader.state.pms_shares.unwrap();
+        let [f_pms1, f_pms2] = follower.state.pms_shares.unwrap();
+
+        let expected_ecdh_x =
+            p256::ecdh::diffie_hellman(server_private_key, client_public_key.as_affine());
+
+        assert_eq!(
+            expected_ecdh_x.raw_secret_bytes().to_vec(),
+            (l_pms1 + f_pms1).to_le_bytes()
+        );
+        assert_eq!(
+            expected_ecdh_x.raw_secret_bytes().to_vec(),
+            (l_pms2 + f_pms2).to_le_bytes()
+        );
+        assert_eq!(l_pms1 + f_pms1, l_pms2 + f_pms2);
+        assert_ne!(l_pms1, f_pms1);
+        assert_ne!(l_pms2, f_pms2);
+        assert_ne!(l_pms1, l_pms2);
+        assert_ne!(f_pms1, f_pms2);
+    }
+
+    async fn perform_key_exchange(
+        leader_private_key: SecretKey,
+        follower_private_key: SecretKey,
+        server_public_key: PublicKey,
+    ) -> (MockKeyExchangeLeader, MockKeyExchangeFollower, PublicKey) {
+        let (mut leader, mut follower) = create_mock_key_exchange_pair();
+
+        let leader_fut = leader.send_client_key(leader_private_key.clone());
+        let follower_fut = follower.send_public_key(follower_private_key.clone());
+
+        let (client_public_key, _) = tokio::try_join!(leader_fut, follower_fut).unwrap();
+
+        let leader_fut = leader.set_server_key(server_public_key);
+        let follower_fut = follower.receive_server_key();
+
+        let (_, _) = tokio::try_join!(leader_fut, follower_fut).unwrap();
+
+        (leader, follower, client_public_key)
     }
 }
