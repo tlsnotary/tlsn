@@ -137,9 +137,9 @@ mod tests {
     use super::*;
     use crate::{circuits::test_circ, Value};
 
-    /// Converts u64 to MSB0 order boolvec
+    /// Converts u64 to Lsb0 order boolvec
     fn u64(v: u64) -> Vec<bool> {
-        (0..64).rev().map(|i| (v >> i & 1) == 1).collect()
+        (0..64).map(|i| (v >> i & 1) == 1).collect()
     }
 
     #[test]

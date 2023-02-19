@@ -125,9 +125,9 @@ mod tests {
     use super::*;
     use crate::{circuits::test_circ, Value};
 
-    /// Converts u64 to Msb0 order boolvec
+    /// Converts u64 to Lsb0 order boolvec
     fn u64(v: u64) -> Vec<bool> {
-        (0..64).rev().map(|i| (v >> i & 1) == 1).collect()
+        (0..64).map(|i| (v >> i & 1) == 1).collect()
     }
 
     #[test]
@@ -185,45 +185,45 @@ mod tests {
         test_circ(&circ, &[Value::Bits(a), Value::Bits(b)], &[Value::Bits(c)]);
 
         let mut a = vec![false; 256];
-        a[255] = true;
+        a[0] = true;
         let b = vec![false; 256];
         let mut c = vec![false; 256];
-        c[255] = true;
+        c[0] = true;
         test_circ(&circ, &[Value::Bits(a), Value::Bits(b)], &[Value::Bits(c)]);
 
         let a = vec![false; 256];
         let mut b = vec![false; 256];
-        b[255] = true;
+        b[0] = true;
         let mut c = vec![false; 256];
-        c[255] = true;
+        c[0] = true;
         test_circ(&circ, &[Value::Bits(a), Value::Bits(b)], &[Value::Bits(c)]);
 
         let mut a = vec![false; 256];
-        a[254] = true;
+        a[1] = true;
         let b = vec![false; 256];
         let mut c = vec![false; 256];
-        c[254] = true;
+        c[1] = true;
         test_circ(&circ, &[Value::Bits(a), Value::Bits(b)], &[Value::Bits(c)]);
 
         let mut a = vec![false; 256];
-        a[255] = true;
+        a[0] = true;
         let mut b = vec![false; 256];
-        b[255] = true;
+        b[0] = true;
         let mut c = vec![false; 256];
-        c[254] = true;
+        c[1] = true;
         test_circ(&circ, &[Value::Bits(a), Value::Bits(b)], &[Value::Bits(c)]);
 
         // bit overflow
         let a = vec![true; 256];
         let b = vec![true; 256];
         let mut c = vec![true; 256];
-        c[255] = false;
+        c[0] = false;
         test_circ(&circ, &[Value::Bits(a), Value::Bits(b)], &[Value::Bits(c)]);
 
         // bit overflow
         let a = vec![true; 256];
         let mut b = vec![false; 256];
-        b[255] = true;
+        b[0] = true;
         let c = vec![false; 256];
         test_circ(&circ, &[Value::Bits(a), Value::Bits(b)], &[Value::Bits(c)]);
     }
