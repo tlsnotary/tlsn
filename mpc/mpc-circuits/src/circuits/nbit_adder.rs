@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
-use crate::{builder::CircuitBuilder, circuit::GateType, Circuit, ValueType};
+use crate::{builder::CircuitBuilder, circuit::GateType, value::BitOrder, Circuit, ValueType};
 
 use super::half_adder;
 
 fn ripple() -> Arc<Circuit> {
-    let mut builder = CircuitBuilder::new("Ripple", "Ripple adder", "");
+    let mut builder = CircuitBuilder::new("Ripple", "Ripple adder", "", BitOrder::Lsb0);
     let a = builder.add_input("A", "", ValueType::Bool, 1);
     let b = builder.add_input("B", "", ValueType::Bool, 1);
     let c_in = builder.add_input("C_IN", "Carry-in bit", ValueType::Bool, 1);
@@ -59,6 +59,7 @@ pub fn nbit_adder(n: usize) -> Arc<Circuit> {
         &format!("{n}BitAdder"),
         &format!("{n}-bit Binary Adder without Carry-out"),
         "0.1.0",
+        BitOrder::Lsb0,
     );
 
     let a = builder.add_input("A", &format!("{}-bit number", n), ValueType::Bits, n);
@@ -124,9 +125,9 @@ mod tests {
     use super::*;
     use crate::{circuits::test_circ, Value};
 
-    /// Converts u64 to LSB0 order boolvec
+    /// Converts u64 to Msb0 order boolvec
     fn u64(v: u64) -> Vec<bool> {
-        (0..64).map(|i| (v >> i & 1) == 1).collect()
+        (0..64).rev().map(|i| (v >> i & 1) == 1).collect()
     }
 
     #[test]
@@ -184,45 +185,45 @@ mod tests {
         test_circ(&circ, &[Value::Bits(a), Value::Bits(b)], &[Value::Bits(c)]);
 
         let mut a = vec![false; 256];
-        a[0] = true;
+        a[255] = true;
         let b = vec![false; 256];
         let mut c = vec![false; 256];
-        c[0] = true;
+        c[255] = true;
         test_circ(&circ, &[Value::Bits(a), Value::Bits(b)], &[Value::Bits(c)]);
 
         let a = vec![false; 256];
         let mut b = vec![false; 256];
-        b[0] = true;
+        b[255] = true;
         let mut c = vec![false; 256];
-        c[0] = true;
+        c[255] = true;
         test_circ(&circ, &[Value::Bits(a), Value::Bits(b)], &[Value::Bits(c)]);
 
         let mut a = vec![false; 256];
-        a[1] = true;
+        a[254] = true;
         let b = vec![false; 256];
         let mut c = vec![false; 256];
-        c[1] = true;
+        c[254] = true;
         test_circ(&circ, &[Value::Bits(a), Value::Bits(b)], &[Value::Bits(c)]);
 
         let mut a = vec![false; 256];
-        a[0] = true;
+        a[255] = true;
         let mut b = vec![false; 256];
-        b[0] = true;
+        b[255] = true;
         let mut c = vec![false; 256];
-        c[1] = true;
+        c[254] = true;
         test_circ(&circ, &[Value::Bits(a), Value::Bits(b)], &[Value::Bits(c)]);
 
         // bit overflow
         let a = vec![true; 256];
         let b = vec![true; 256];
         let mut c = vec![true; 256];
-        c[0] = false;
+        c[255] = false;
         test_circ(&circ, &[Value::Bits(a), Value::Bits(b)], &[Value::Bits(c)]);
 
         // bit overflow
         let a = vec![true; 256];
         let mut b = vec![false; 256];
-        b[0] = true;
+        b[255] = true;
         let c = vec![false; 256];
         test_circ(&circ, &[Value::Bits(a), Value::Bits(b)], &[Value::Bits(c)]);
     }

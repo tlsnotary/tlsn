@@ -17,7 +17,7 @@ pub use group::{Group, GroupId, GroupValue, WireGroup};
 pub use input::Input;
 pub use output::Output;
 pub use spec::CircuitSpec;
-pub use value::{Value, ValueType};
+pub use value::{BitOrder, Value, ValueType};
 
 /// Group of wires corresponding to a circuit input
 pub type InputValue = GroupValue<Input>;

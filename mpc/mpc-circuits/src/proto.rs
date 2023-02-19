@@ -3,7 +3,9 @@ use std::{
     sync::Arc,
 };
 
-use crate::{group::UncheckedGroup, CircuitError, CircuitId, ValueType, WireGroup};
+use crate::{
+    group::UncheckedGroup, value::BitOrder, CircuitError, CircuitId, ValueType, WireGroup,
+};
 
 include!(concat!(env!("OUT_DIR"), "/core.circuits.rs"));
 
@@ -125,6 +127,7 @@ impl From<&crate::Circuit> for Circuit {
             id: c.id.as_ref().to_string(),
             description: c.description.clone(),
             version: c.version.clone(),
+            bit_order: c.bit_order.to_string(),
             wire_count: c.wire_count as u32,
             and_count: c.and_count as u32,
             xor_count: c.xor_count as u32,
@@ -172,10 +175,13 @@ impl TryFrom<Circuit> for Arc<crate::Circuit> {
             .map(|gate| crate::Gate::try_from(gate))
             .collect::<Result<Vec<crate::Gate>, _>>()?;
 
+        let bit_order = BitOrder::from_str(&c.bit_order).map_err(|_| CircuitError::MappingError)?;
+
         Ok(crate::Circuit::new_unchecked(
             CircuitId(c.id),
             &c.description,
             &c.version,
+            bit_order,
             inputs,
             outputs,
             gates,

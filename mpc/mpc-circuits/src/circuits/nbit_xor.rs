@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{
     builder::{CircuitBuilder, Feed, WireHandle},
     circuit::GateType,
-    Circuit, ValueType,
+    BitOrder, Circuit, ValueType,
 };
 
 /// Builds a circuit which computes XOR of two n-bit inputs
@@ -12,6 +12,7 @@ pub fn nbit_xor(n: usize) -> Arc<Circuit> {
         &format!("{n}BitXor"),
         &format!("{n}-bit Binary XOR"),
         "0.1.0",
+        BitOrder::Lsb0,
     );
 
     let a = builder.add_input("A", &format!("{}-bit input", n), ValueType::Bits, n);

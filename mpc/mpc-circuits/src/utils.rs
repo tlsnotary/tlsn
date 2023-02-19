@@ -90,6 +90,7 @@ mod tests {
             circ.id().clone(),
             circ.description(),
             circ.version(),
+            circ.bit_order(),
             inputs,
             outputs,
             gates,

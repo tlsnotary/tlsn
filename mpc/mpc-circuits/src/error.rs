@@ -64,6 +64,8 @@ pub enum SpecError {
     InvalidGroup(GroupSpec),
     #[error("Invalid gate spec")]
     InvalidGate(GateSpec),
+    #[error("Invalid bit order: {0:?}, must be either 'Msb0' or 'Lsb0'")]
+    InvalidBitOrder(String),
 }
 
 #[derive(Debug, thiserror::Error)]

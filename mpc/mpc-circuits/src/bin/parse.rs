@@ -1,7 +1,7 @@
 // Parses Bristol-fashion circuit and saves it in yaml format
 
 use clap::Parser;
-use mpc_circuits::{Circuit, CircuitSpec};
+use mpc_circuits::{BitOrder, Circuit, CircuitSpec};
 use regex::Regex;
 use serde_yaml::to_string;
 use std::fs::{create_dir, read_dir, write};
@@ -27,7 +27,7 @@ fn main() {
     let name_pattern = Regex::new(r"(\w+)\.txt").unwrap();
     if let Some(cap) = name_pattern.captures(path) {
         let name = cap.get(1).unwrap().as_str();
-        let circ = Circuit::parse(path, name, "").expect("Failed to parse");
+        let circ = Circuit::parse(path, name, "", BitOrder::Lsb0).expect("Failed to parse");
         let circ = CircuitSpec::from(circ.as_ref());
         write(
             format!("{}/{}.yml", args.o.as_str(), name),
