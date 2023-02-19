@@ -38,6 +38,10 @@ where
     fn description(&self) -> &str;
     /// Returns group value type
     fn value_type(&self) -> ValueType;
+    /// Returns bit order of group
+    fn bit_order(&self) -> BitOrder {
+        self.circuit().bit_order()
+    }
     /// Returns group wire ids
     fn wires(&self) -> &[usize];
     /// Returns number of wires
