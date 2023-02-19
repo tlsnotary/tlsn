@@ -677,7 +677,7 @@ impl Circuit {
             for id in output.wires() {
                 bits.push(wires[*id].ok_or(CircuitError::UninitializedWire(*id))?);
             }
-            let value = Value::new(output.value_type(), bits)?;
+            let value = Value::new_from_msb0(output.value_type(), bits)?;
             outputs.push(output.clone().to_value(value)?);
         }
 
