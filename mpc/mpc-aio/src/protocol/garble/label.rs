@@ -44,7 +44,7 @@ where
     ) -> Result<Vec<ActiveEncodedInput>, OTError> {
         let choice_bits = choices
             .iter()
-            .map(|value| value.value().to_lsb0_bits())
+            .map(|value| value.value().to_bits(value.bit_order()))
             .flatten()
             .collect::<Vec<bool>>();
 
