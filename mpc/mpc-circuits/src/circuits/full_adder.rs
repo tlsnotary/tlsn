@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
-use crate::{builder::CircuitBuilder, circuit::GateType, Circuit, ValueType};
+use crate::{builder::CircuitBuilder, circuit::GateType, BitOrder, Circuit, ValueType};
 
 use super::half_adder;
 
 /// Builds a full adder circuit
 pub fn full_adder() -> Arc<Circuit> {
-    let mut builder = CircuitBuilder::new("FullAdder", "Binary full-adder", "0.1.0");
+    let mut builder =
+        CircuitBuilder::new("FullAdder", "Binary full-adder", "0.1.0", BitOrder::Lsb0);
 
     let a = builder.add_input("A", "1 bit", ValueType::Bool, 1);
     let b = builder.add_input("B", "1 bit", ValueType::Bool, 1);

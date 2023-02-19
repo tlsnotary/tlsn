@@ -1,6 +1,7 @@
 id: "adder64"
 description: "Adds two unsigned 64-bit integers"
 version: "0.1.0"
+bit_order: "Lsb0"
 wires: 504
 inputs:
   - id: "x"

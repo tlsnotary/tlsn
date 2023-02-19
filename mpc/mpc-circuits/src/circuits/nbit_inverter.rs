@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{
     builder::{CircuitBuilder, GateHandle},
     circuit::GateType,
-    Circuit, ValueType,
+    BitOrder, Circuit, ValueType,
 };
 
 /// Builds an nbit inverter
@@ -12,6 +12,7 @@ pub fn nbit_inverter(n: usize) -> Arc<Circuit> {
         &format!("{n}BitInverter"),
         &format!("{n}-bit Binary Inverter"),
         "0.1.0",
+        BitOrder::Lsb0,
     );
 
     let in_0 = builder.add_input("IN", &format!("{}-bit number", n), ValueType::Bits, n);

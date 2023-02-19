@@ -1,6 +1,7 @@
 id: "sha256"
 description: "SHA-256 Hash Algorithm"
 version: "0.1.0"
+bit_order: "Lsb0"
 wires: 135841
 inputs:
 - id: "msg"

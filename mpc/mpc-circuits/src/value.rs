@@ -2,12 +2,40 @@ use utils::bits::{BitsToBytes, BitsToUint, BytesToBits};
 
 use crate::error::ValueError as Error;
 
+/// The bit order of a string of bits
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum BitOrder {
+    /// Most significant bit first
+    Msb0,
+    /// Least significant bit first
+    Lsb0,
+}
+
+impl BitOrder {
+    pub fn from_str(s: &str) -> Result<Self, String> {
+        match s.to_lowercase().as_str() {
+            "msb0" => Ok(Self::Msb0),
+            "lsb0" => Ok(Self::Lsb0),
+            _ => Err(s.to_string()),
+        }
+    }
+}
+
+impl ToString for BitOrder {
+    fn to_string(&self) -> String {
+        match self {
+            BitOrder::Msb0 => "Msb0".to_string(),
+            BitOrder::Lsb0 => "Lsb0".to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     ConstZero,
     ConstOne,
     Bool(bool),
-    /// Bits in MSB0-order
+    /// Bits are stored in MSB0-order
     Bits(Vec<bool>),
     Bytes(Vec<u8>),
     U8(u8),
@@ -18,8 +46,15 @@ pub enum Value {
 }
 
 impl Value {
+    pub fn new(typ: ValueType, bits: Vec<bool>, order: BitOrder) -> Result<Self, Error> {
+        match order {
+            BitOrder::Msb0 => Self::new_from_msb0(typ, bits),
+            BitOrder::Lsb0 => Self::new_from_lsb0(typ, bits),
+        }
+    }
+
     /// Creates value from LSB0 bit vec
-    pub fn new_from_lsb0(typ: ValueType, mut bits: Vec<bool>) -> Result<Self, Error> {
+    fn new_from_lsb0(typ: ValueType, mut bits: Vec<bool>) -> Result<Self, Error> {
         match typ {
             ValueType::Bytes => {
                 // Preserve byte-order, but reverse bits in each byte
@@ -31,7 +66,7 @@ impl Value {
     }
 
     /// Creates value from MSB0 bit vec
-    pub fn new_from_msb0(typ: ValueType, bits: Vec<bool>) -> Result<Self, Error> {
+    fn new_from_msb0(typ: ValueType, bits: Vec<bool>) -> Result<Self, Error> {
         let value = match typ {
             ValueType::ConstZero if bits.len() == 0 => Value::ConstZero,
             ValueType::ConstOne if bits.len() == 0 => Value::ConstOne,
@@ -84,8 +119,16 @@ impl Value {
         }
     }
 
+    /// Returns value encoded as bit vector in given order
+    pub fn to_bits(&self, order: BitOrder) -> Vec<bool> {
+        match order {
+            BitOrder::Msb0 => self.to_msb0_bits(),
+            BitOrder::Lsb0 => self.to_lsb0_bits(),
+        }
+    }
+
     /// Converts value to bit vector in LSB0 order
-    pub fn to_lsb0_bits(&self) -> Vec<bool> {
+    fn to_lsb0_bits(&self) -> Vec<bool> {
         let mut bits = self.to_msb0_bits();
         match self.value_type() {
             ValueType::Bytes => {
@@ -98,7 +141,7 @@ impl Value {
     }
 
     /// Converts value to bit vector in MSB0 order
-    pub fn to_msb0_bits(&self) -> Vec<bool> {
+    fn to_msb0_bits(&self) -> Vec<bool> {
         match self {
             Value::ConstZero => vec![false],
             Value::ConstOne => vec![true],

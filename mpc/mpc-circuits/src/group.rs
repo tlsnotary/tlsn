@@ -1,6 +1,6 @@
 use std::sync::{Arc, Weak};
 
-use crate::{Circuit, GroupError, Value, ValueType};
+use crate::{value::BitOrder, Circuit, GroupError, Value, ValueType};
 
 /// A unique identifier for a `Group` belonging to a `Circuit`.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -211,18 +211,18 @@ where
 
     /// Returns wire ids and values
     #[inline]
-    pub fn wire_values(&self) -> Vec<(usize, bool)> {
+    pub fn wire_values(&self, order: BitOrder) -> Vec<(usize, bool)> {
         self.group
             .wires()
             .iter()
             .copied()
-            .zip(self.value.to_lsb0_bits().into_iter())
+            .zip(self.value.to_bits(order).into_iter())
             .collect()
     }
 
     /// Creates group value from LSB0 bit string
     #[inline]
-    pub fn from_bits(group: T, bits: Vec<bool>) -> Result<Self, GroupError> {
+    pub fn from_bits(group: T, bits: Vec<bool>, order: BitOrder) -> Result<Self, GroupError> {
         if group.len() != bits.len() {
             return Err(GroupError::InvalidLength(
                 group.id().clone(),
@@ -231,7 +231,7 @@ where
             ));
         }
 
-        let value = Value::new_from_msb0(group.value_type(), bits)
+        let value = Value::new(group.value_type(), bits, order)
             .map_err(|e| GroupError::ValueError(group.id().clone(), e))?;
 
         Ok(Self { group, value })

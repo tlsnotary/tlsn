@@ -1,6 +1,7 @@
 id: "aes_128_reverse"
 description: "AES128 Block Cipher"
 version: "0.1.0"
+bit_order: "Lsb0"
 wires: 36919
 inputs:
   - id: "key"
