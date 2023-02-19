@@ -33,7 +33,6 @@ pub enum Value {
     ConstZero,
     ConstOne,
     Bool(bool),
-    /// Bits are stored in MSB0-order
     Bits(Vec<bool>),
     Bytes(Vec<u8>),
     U8(u8),
@@ -58,6 +57,8 @@ impl Value {
                 // Preserve byte-order, but reverse bits in each byte
                 bits.chunks_exact_mut(8).for_each(|byte| byte.reverse());
             }
+            // Preserve bit-order
+            ValueType::Bits => {}
             _ => bits.reverse(),
         }
         Self::new_from_msb0(typ, bits)
@@ -167,6 +168,8 @@ impl Value {
                 // Preserve byte-order, but reverse bits in each byte
                 bits.chunks_exact_mut(8).for_each(|byte| byte.reverse());
             }
+            // Preserve bit-order
+            ValueType::Bits => {}
             _ => bits.reverse(),
         }
         bits

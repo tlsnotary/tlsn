@@ -77,9 +77,9 @@ mod tests {
     use super::*;
     use crate::{circuits::test_circ, Value};
 
-    // convert u8 to a vector of bits in MSB0 order
+    // convert u8 to a vector of bits in Lsb0 order
     fn u8(v: u8) -> Vec<bool> {
-        (0..8).rev().map(|n| (v >> n & 1) == 1).collect()
+        (0..8).map(|n| (v >> n & 1) == 1).collect()
     }
 
     #[test]
