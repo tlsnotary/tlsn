@@ -231,7 +231,7 @@ where
             ));
         }
 
-        let value = Value::new(group.value_type(), bits)
+        let value = Value::new_from_msb0(group.value_type(), bits)
             .map_err(|e| GroupError::ValueError(group.id().clone(), e))?;
 
         Ok(Self { group, value })
