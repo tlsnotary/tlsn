@@ -1,18 +1,11 @@
-use super::checks;
-use crate::{
-    commitment::{Commitment, CommitmentOpening},
-    error::Error,
-    merkle::MerkleProof,
-    tls_handshake::TLSHandshake,
-    LabelSeed,
-};
+use crate::{commitment::Commitment, doc::checks, error::Error, tls_handshake::TLSHandshake};
 use serde::Serialize;
+use transcript_core::{commitment::CommitmentOpening, merkle::MerkleProof, LabelSeed};
 
-/// Notarization document in its unchecked form. This is the form in which the document is received
-/// by the Verifier from the User.
+/// Notarization document in its unchecked form
 #[derive(Serialize, Clone)]
 pub struct UncheckedDoc {
-    /// All fields are exactly as in [VerifiedDoc]
+    /// All fields are exactly as in [crate::doc::verified::VerifiedDoc]
     version: u8,
     tls_handshake: TLSHandshake,
     signature: Option<Vec<u8>>,
@@ -25,32 +18,7 @@ pub struct UncheckedDoc {
 }
 
 impl UncheckedDoc {
-    /// Creates a new unchecked document. This method is called only by the User.
-    pub fn new(
-        version: u8,
-        tls_handshake: TLSHandshake,
-        signature: Option<Vec<u8>>,
-        label_seed: LabelSeed,
-        merkle_root: [u8; 32],
-        merkle_tree_leaf_count: u32,
-        merkle_multi_proof: MerkleProof,
-        commitments: Vec<Commitment>,
-        commitment_openings: Vec<CommitmentOpening>,
-    ) -> Self {
-        Self {
-            version,
-            tls_handshake,
-            signature,
-            label_seed,
-            merkle_root,
-            merkle_tree_leaf_count,
-            merkle_multi_proof,
-            commitments,
-            commitment_openings,
-        }
-    }
-
-    /// Validate the unchecked document
+    /// Validates the unchecked document
     pub fn validate(&self) -> Result<(), Error> {
         // Performs the following validation checks:
         //
@@ -147,16 +115,44 @@ impl UncheckedDoc {
     }
 }
 
+/// Converts the user's [transcript_core::document::Document] type into a document with types which
+/// can be validated and verified
+impl std::convert::From<transcript_core::document::Document> for UncheckedDoc {
+    fn from(d: transcript_core::document::Document) -> Self {
+        // convert each user's commitment into a type which can be verifier
+        let commitments: Vec<Commitment> = d
+            .commitments()
+            .clone()
+            .into_iter()
+            .map(Commitment::from)
+            .collect();
+
+        UncheckedDoc {
+            version: d.version(),
+            tls_handshake: d.tls_handshake().clone().into(),
+            signature: d.signature().clone(),
+            label_seed: *d.label_seed(),
+            merkle_root: *d.merkle_root(),
+            merkle_tree_leaf_count: d.merkle_tree_leaf_count(),
+            merkle_multi_proof: d.merkle_multi_proof().clone(),
+            commitments,
+            commitment_openings: d.commitment_openings().clone(),
+        }
+    }
+}
+
 #[cfg(test)]
 pub mod test {
     use super::*;
     use crate::{
-        commitment::{SomeFutureVariantOpening, TranscriptRange},
         doc::{unchecked::UncheckedDoc, MAX_COMMITMENT_COUNT, MAX_TOTAL_COMMITTED_DATA},
         test::{default_unchecked_doc, unchecked_doc},
-        Signed,
     };
     use rstest::{fixture, rstest};
+    use transcript_core::{
+        commitment::{LabelsBlake3Opening, TranscriptRange},
+        signed::Signed,
+    };
 
     #[fixture]
     // Returns an unchecked document which passes validation and the document's signed portion
@@ -372,11 +368,6 @@ pub mod test {
                     new_opening.set_id(idx as u32 + 1);
                     CommitmentOpening::LabelsBlake3(new_opening)
                 }
-                CommitmentOpening::SomeFutureVariant(ref opening) => {
-                    let mut new_opening = opening.clone();
-                    new_opening.set_id(idx as u32 + 1);
-                    CommitmentOpening::SomeFutureVariant(new_opening)
-                }
             })
             .collect();
         doc1.set_commitment_openings(new_openings);
@@ -398,12 +389,11 @@ pub mod test {
         // change 2nd opening id
         let original_openings = doc2.commitment_openings().to_vec();
         let new_opening = match original_openings[1] {
-            CommitmentOpening::SomeFutureVariant(ref opening) => {
+            CommitmentOpening::LabelsBlake3(ref opening) => {
                 let mut new_opening = opening.clone();
                 new_opening.set_id(2);
-                CommitmentOpening::SomeFutureVariant(new_opening)
+                CommitmentOpening::LabelsBlake3(new_opening)
             }
-            _ => panic!(),
         };
 
         doc2.set_commitment_openings(vec![original_openings[0].clone(), new_opening]);
@@ -415,7 +405,7 @@ pub mod test {
 
         // --------------- Modify commitment id so that commitment-opening pair ids don't match
 
-        let mut doc3 = unchecked_doc_valid.clone();
+        let mut doc3 = unchecked_doc_valid;
         // change 2nd commitment id
         let mut commitments = doc3.commitments().to_vec();
         commitments[1].set_id(2);
@@ -425,7 +415,12 @@ pub mod test {
             doc3.validate().err().unwrap()
                 == Error::ValidationCheckError("check_commitment_and_opening_pairs".to_string())
         );
+    }
 
+    #[ignore = "second opening type not yet implemented"]
+    #[rstest]
+    // Expect validation to fail on check_commitment_and_opening_pairs()
+    fn validate_fail_on_check_commitment_and_opening_pairs2(unchecked_doc_valid: UncheckedDoc) {
         // ---------------Modify opening type so that it doesn't match the commitment type
 
         let mut doc4 = unchecked_doc_valid;
@@ -433,7 +428,9 @@ pub mod test {
         let original_openings = doc4.commitment_openings().to_vec();
 
         // change 1st opening type
-        let new_opening = CommitmentOpening::SomeFutureVariant(SomeFutureVariantOpening::default());
+
+        // When a second opening type is implemented, use it here
+        let new_opening = CommitmentOpening::LabelsBlake3(LabelsBlake3Opening::default());
 
         doc4.set_commitment_openings(vec![new_opening, original_openings[1].clone()]);
 
@@ -511,7 +508,7 @@ pub mod test {
     #[rstest]
     // Expect validation to fail on check_max_total_committed_data()
     fn validate_fail_on_check_max_total_committed_data(unchecked_doc_valid: UncheckedDoc) {
-        //-------------- Change total committed data to be > super::MAX_TOTAL_COMMITMENT_SIZE
+        //-------------- Change total committed data to be > MAX_TOTAL_COMMITMENT_SIZE
         let mut doc1 = unchecked_doc_valid;
 
         let mut new_commitments = doc1.commitments().to_vec();
@@ -583,7 +580,6 @@ pub mod test {
                     new_opening.set_id(i as u32);
                     CommitmentOpening::LabelsBlake3(new_opening)
                 }
-                _ => panic!(),
             })
             .collect();
 
@@ -614,17 +610,15 @@ pub mod test {
                     new_opening.set_opening(vec![b'a'; opening.opening().len()]);
                     CommitmentOpening::LabelsBlake3(new_opening)
                 }
-                _ => panic!(),
             };
 
             let new_opening2 = match openings[1] {
-                CommitmentOpening::SomeFutureVariant(ref opening) => {
+                CommitmentOpening::LabelsBlake3(ref opening) => {
                     let mut new_opening = opening.clone();
                     // set new opening bytes
                     new_opening.set_opening(vec![b'b'; opening.opening().len()]);
-                    CommitmentOpening::SomeFutureVariant(new_opening)
+                    CommitmentOpening::LabelsBlake3(new_opening)
                 }
-                _ => panic!(),
             };
 
             doc.set_commitment_openings(vec![new_opening1, new_opening2]);
@@ -700,7 +694,6 @@ pub mod test {
                 new_opening.set_label_seed(seed);
                 CommitmentOpening::LabelsBlake3(new_opening)
             }
-            _ => panic!(),
         };
 
         doc1.set_commitment_openings(vec![new_opening1, openings[1].clone()]);

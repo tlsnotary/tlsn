@@ -1,11 +1,10 @@
 use crate::{
-    commitment::{Commitment, CommitmentOpening},
-    error::Error,
-    merkle::MerkleProof,
-    tls_handshake::TLSHandshake,
-    LabelSeed, PubKey, Signed, ValidatedDoc,
+    commitment::Commitment, doc::validated::ValidatedDoc, error::Error, tls_handshake::TLSHandshake,
 };
 use serde::Serialize;
+use transcript_core::{
+    commitment::CommitmentOpening, merkle::MerkleProof, pubkey::PubKey, signed::Signed, LabelSeed,
+};
 
 #[derive(Serialize)]
 /// A validated and verified notarization document
@@ -16,7 +15,7 @@ pub struct VerifiedDoc {
     signature: Option<Vec<u8>>,
 
     /// A PRG seeds from which to generate garbled circuit active labels, see
-    /// [crate::commitment::CommitmentType::labels_blake3]
+    /// [transcript_core::commitment::CommitmentType::labels_blake3]
     label_seed: LabelSeed,
 
     /// The root of the Merkle tree of all the commitments. The User must prove that each one of the
@@ -92,8 +91,10 @@ impl VerifiedDoc {
 
 /// Verifies Notary's signature on that part of the document which was signed
 pub(crate) fn verify_doc_signature(pubkey: &PubKey, sig: &[u8], msg: Signed) -> Result<(), Error> {
-    let msg = msg.serialize()?;
-    pubkey.verify_signature(&msg, sig)
+    let msg = msg.serialize().map_err(Error::from)?;
+    pubkey.verify_signature(&msg, sig)?;
+
+    Ok(())
 }
 
 /// Extracts the necessary fields from the [ValidatedDoc] into a [Signed]
@@ -105,11 +106,9 @@ pub(crate) fn signed_data(doc: &ValidatedDoc) -> Signed {
 #[cfg(test)]
 pub mod test {
     use super::*;
-    use crate::{
-        pubkey::{KeyType, PubKey},
-        test::default_unchecked_doc,
-    };
+    use crate::test::default_unchecked_doc;
     use rstest::{fixture, rstest};
+    use transcript_core::pubkey::{KeyType, PubKey};
 
     #[fixture]
     // Returns a signed validated document and the pubkey used to sign it

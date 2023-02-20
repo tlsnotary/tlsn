@@ -1,4 +1,4 @@
-use super::{tls_handshake::EphemeralECPubkey, Error, HashCommitment, LabelSeed, ValidatedDoc};
+use crate::{error::Error, tls_handshake::EphemeralECPubkey, HashCommitment, LabelSeed};
 use serde::Serialize;
 
 #[derive(Clone, Serialize, Default)]
@@ -8,7 +8,7 @@ pub struct SignedHandshake {
     time: u64,
     /// ephemeral pubkey for ECDH key exchange
     ephemeral_ec_pubkey: EphemeralECPubkey,
-    /// User's commitment to [super::tls_doc::HandshakeData]
+    /// User's commitment to [crate::tls_handshake::HandshakeData]
     handshake_commitment: HashCommitment,
 }
 
@@ -37,14 +37,14 @@ impl SignedHandshake {
         &self.handshake_commitment
     }
 
-    #[cfg(test)]
+    #[cfg(any(feature = "expose_setters_for_testing", test))]
     pub fn set_handshake_commitment(&mut self, handshake_commitment: HashCommitment) {
         self.handshake_commitment = handshake_commitment;
     }
 }
 
 /// All the data which the Notary signs
-/// (see comments to fields with the same name in [crate::doc::VerifiedDoc] for details)
+/// (see also comments to the fields with the same name in [crate::document::Document])
 #[derive(Clone, Serialize)]
 pub struct Signed {
     tls: SignedHandshake,
@@ -78,17 +78,5 @@ impl Signed {
 
     pub fn merkle_root(&self) -> &[u8; 32] {
         &self.merkle_root
-    }
-}
-
-/// Extracts relevant fields from [ValidatedDoc]. Those are the fields
-/// which the Notary signs.
-impl std::convert::From<&ValidatedDoc> for Signed {
-    fn from(doc: &ValidatedDoc) -> Self {
-        Signed::new(
-            doc.tls_handshake().signed_handshake().clone(),
-            *doc.label_seed(),
-            *doc.merkle_root(),
-        )
     }
 }

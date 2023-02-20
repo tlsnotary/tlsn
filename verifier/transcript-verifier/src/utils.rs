@@ -1,8 +1,6 @@
-use crate::{
-    commitment::TranscriptRange, label_encoder::ChaChaEncoder,
-    verified_transcript::TranscriptSlice, Error, HashCommitment, LabelSeed,
-};
+use crate::{error::Error, label_encoder::ChaChaEncoder, verified_transcript::TranscriptSlice};
 use blake3::Hasher;
+use transcript_core::{commitment::TranscriptRange, HashCommitment, LabelSeed};
 
 /// Given a `substring` and its byte `ranges` within a larger string, computes a (`salt`ed) commitment
 /// to the garbled circuit labels. The labels are derived from a PRG `seed`.

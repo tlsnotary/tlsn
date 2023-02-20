@@ -1,27 +1,18 @@
-pub mod commitment;
-pub mod doc;
+mod commitment;
+mod doc;
 mod error;
 mod label_encoder;
-pub mod merkle;
-pub mod pubkey;
-pub mod signed;
-pub mod tls_handshake;
+mod tls_handshake;
 mod utils;
 pub mod verified_transcript;
 mod webpki_utils;
 
 use crate::{
-    doc::validated::ValidatedDoc, signed::Signed, verified_transcript::VerifiedTranscript,
+    doc::{unchecked::UncheckedDoc, validated::ValidatedDoc, verified::VerifiedDoc},
+    error::Error,
+    verified_transcript::VerifiedTranscript,
 };
-use doc::{unchecked::UncheckedDoc, verified::VerifiedDoc};
-use error::Error;
-use pubkey::PubKey;
-
-pub type HashCommitment = [u8; 32];
-
-/// A PRG seeds from which to generate garbled circuit active labels, see
-/// [crate::commitment::CommitmentType::labels_blake3]
-pub type LabelSeed = [u8; 32];
+use transcript_core::{document::Document, pubkey::PubKey, signed::Signed};
 
 /// Verifier of the notarization document. The document contains commitments to the TLS
 /// transcript.
@@ -43,18 +34,22 @@ impl TranscriptVerifier {
     /// if the notarized application data type is HTTP, the checks below will not be sufficient. You must
     /// also check on the HTTP parser's level against domain fronting.
     ///
-    /// * unchecked_doc - The notarization document to be validated and verified
+    /// * document - The notarization document to be validated and verified
     /// * dns_name - A DNS name. Must be exactly as it appears in the server's TLS certificate.
     /// * signed - If this Verifier acted as the Notary, he provides his [Signed] struct
     /// * trusted_pubkey - A trusted Notary's pubkey (if this Verifier acted as the Notary then no
     ///                    pubkey needs to be provided)
     pub fn verify(
         &self,
-        unchecked_doc: UncheckedDoc,
+        document: Document,
         dns_name: &str,
         trusted_pubkey: Option<PubKey>,
         signed: Option<Signed>,
     ) -> Result<VerifiedTranscript, Error> {
+        // convert the user's document into a document with types which can be validated
+        // and verified
+        let unchecked_doc = UncheckedDoc::from(document);
+
         // validate the document
         let validated_doc = match signed {
             None => ValidatedDoc::from_unchecked(unchecked_doc)?,
@@ -73,12 +68,13 @@ impl TranscriptVerifier {
 
 #[cfg(test)]
 mod test {
-    use crate::{
+    use crate::doc::unchecked::UncheckedDoc;
+    use blake3::Hasher;
+    use transcript_core::{
         commitment::{
-            Commitment, CommitmentOpening, CommitmentType, Direction, LabelsBlake3Opening,
-            SomeFutureVariantOpening, TranscriptRange,
+            CommitmentOpening, CommitmentType, Direction, LabelsBlake3Opening, TranscriptRange,
         },
-        doc::unchecked::UncheckedDoc,
+        document::Document,
         merkle::MerkleProof,
         signed::{Signed, SignedHandshake},
         tls_handshake::{
@@ -87,7 +83,7 @@ mod test {
         },
         HashCommitment, LabelSeed,
     };
-    use blake3::Hasher;
+
     use mpc_circuits::Value;
     use mpc_core::garble::{ChaChaEncoder, Encoder, Label};
     use p256::ecdsa::{signature::Signer, SigningKey, VerifyingKey};
@@ -175,7 +171,7 @@ mod test {
         // -------- The Notary generates garbled circuit's labels from a PRG seed (label_seed which
         //          was passed in).
 
-        // ---------- After the notar. session is over and Notary revealed his label_seed: --------
+        // ---------- After the notarization session is over and after the Notary revealed his label_seed:
 
         let label_seed: LabelSeed = rng.gen();
         let mut enc = ChaChaEncoder::new(label_seed);
@@ -223,7 +219,7 @@ mod test {
             hash_commitments.push(hasher.finalize().into());
         }
 
-        let comm1 = Commitment::new(
+        let comm1 = transcript_core::commitment::Commitment::new(
             0,
             CommitmentType::labels_blake3,
             Direction::Sent,
@@ -232,9 +228,9 @@ mod test {
             0,
         );
 
-        let comm2 = Commitment::new(
+        let comm2 = transcript_core::commitment::Commitment::new(
             1,
-            CommitmentType::some_future_commitment_type,
+            CommitmentType::labels_blake3,
             Direction::Received,
             hash_commitments[1],
             commitment_ranges[1].clone(),
@@ -285,10 +281,11 @@ mod test {
         ));
 
         let opening2_bytes = bytes_in_ranges(&DEFAULT_PLAINTEXT, commitment_ranges[1].as_ref());
-        let open2 = CommitmentOpening::SomeFutureVariant(SomeFutureVariantOpening::new(
+        let open2 = CommitmentOpening::LabelsBlake3(LabelsBlake3Opening::new(
             1,
             opening2_bytes,
             salt.to_vec(),
+            label_seed,
         ));
 
         let indices_to_prove = [
@@ -297,21 +294,19 @@ mod test {
         ];
         let proof = MerkleProof(merkle_tree.proof(&indices_to_prove));
 
-        (
-            UncheckedDoc::new(
-                1,
-                tls_handshake,
-                Some(signature.to_vec()),
-                label_seed,
-                merkle_root,
-                10,
-                proof,
-                vec![comm1, comm2],
-                vec![open1, open2],
-            ),
-            pubkey_bytes.to_vec(),
-            signed,
-        )
+        let doc = Document::new(
+            1,
+            tls_handshake,
+            Some(signature.to_vec()),
+            label_seed,
+            merkle_root,
+            10,
+            proof,
+            vec![comm1, comm2],
+            vec![open1, open2],
+        );
+
+        (doc.into(), pubkey_bytes.to_vec(), signed)
     }
 
     /// Returns a substring of the original `bytestring` containing only the bytes in `ranges`.

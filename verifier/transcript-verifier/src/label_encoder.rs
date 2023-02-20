@@ -1,9 +1,9 @@
 //! Adapted from tlsn/mpc/mpc-core, except [encode() in](ChaChaEncoder) was modified to encode 1 bit
 //! at a time
-use super::LabelSeed;
 use rand::{CryptoRng, Rng, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 use std::ops::BitXor;
+use transcript_core::LabelSeed;
 
 const DELTA_STREAM_ID: u64 = u64::MAX;
 /// PLAINTEXT_STREAM_ID must match the id of the plaintext input in tls/tls-circuits/src/c6.rs

@@ -37,3 +37,16 @@ pub enum Error {
     #[error("Attempted to create an invalid range")]
     RangeInvalid,
 }
+
+use transcript_core::error::Error as CoreError;
+
+impl std::convert::From<CoreError> for Error {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::InternalError => Error::InternalError,
+            CoreError::RangeInvalid => Error::RangeInvalid,
+            CoreError::SerializationError => Error::SerializationError,
+            CoreError::SignatureVerificationError => Error::SignatureVerificationError,
+        }
+    }
+}

@@ -1,8 +1,6 @@
-use super::{
-    tls_handshake::{
-        CertDER, EphemeralECPubkey, EphemeralECPubkeyType, KEParamsSigAlg, ServerSignature,
-    },
-    Error,
+use crate::error::Error;
+use transcript_core::tls_handshake::{
+    CertDER, EphemeralECPubkey, EphemeralECPubkeyType, KEParamsSigAlg, ServerSignature,
 };
 use x509_parser::{certificate, prelude::FromDer};
 
@@ -135,8 +133,6 @@ pub fn extract_end_entity_cert(chain: &[CertDER]) -> Result<CertDER, Error> {
 
 #[cfg(test)]
 mod test {
-    use crate::tls_handshake::*;
-
     use super::*;
 
     /// end entity cert

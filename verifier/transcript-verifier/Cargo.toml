@@ -1,11 +1,11 @@
 [package]
-name = "transcript_verifier"
+name = "transcript-verifier"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+resolver = "2"
 
 [dependencies]
+transcript-core = { path = "../../transcript-core"}
 blake3 = "1.3.3"
 p256 = { version = "0.10", features = ["ecdsa"]}
 webpki = { version = "0.22.0", features = ["alloc"]}
@@ -20,6 +20,7 @@ serde = { version = "1.0", features = ["derive"] }
 bincode = "1.3.3"
 
 [dev-dependencies]
+transcript-core = { path = "../../transcript-core", features = ["expose_setters_for_testing"] }
 tlsn-mpc-core = { path = "../../mpc/mpc-core" }
 tlsn-mpc-circuits = { path = "../../mpc/mpc-circuits" }
 tlsn-tls-circuits = { path = "../../tls/tls-circuits" }

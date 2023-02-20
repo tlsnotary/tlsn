@@ -1,16 +1,17 @@
 use crate::{
-    commitment::{Commitment, CommitmentOpening, CommitmentType},
-    doc::unchecked::UncheckedDoc,
-    error::Error,
-    merkle::MerkleProof,
-    tls_handshake::TLSHandshake,
-    LabelSeed, Signed,
+    commitment::Commitment, doc::unchecked::UncheckedDoc, error::Error, tls_handshake::TLSHandshake,
 };
 use std::collections::HashMap;
+use transcript_core::{
+    commitment::{CommitmentOpening, CommitmentType},
+    merkle::MerkleProof,
+    signed::Signed,
+    LabelSeed,
+};
 
 /// Notarization document in its validated form (not yet verified)
 pub(crate) struct ValidatedDoc {
-    /// All fields are exactly as in [VerifiedDoc]
+    /// All fields are exactly as in [crate::doc::verified::VerifiedDoc]
     version: u8,
     tls_handshake: TLSHandshake,
     signature: Option<Vec<u8>>,
@@ -103,8 +104,8 @@ impl ValidatedDoc {
 
     /// Verifies that each commitment is present in the Merkle tree.
     ///
-    /// Note that we already checked in [checks::check_merkle_tree_indices] that indices are
-    /// unique and ascending
+    /// Note that we already checked in [crate::doc::checks::check_merkle_tree_indices] that indices
+    /// are unique and ascending
     fn verify_merkle_proofs(&self) -> Result<(), Error> {
         // collect all merkle tree leaf indices and corresponding hashes
         let (leaf_indices, leaf_hashes): (Vec<usize>, Vec<[u8; 32]>) = self
@@ -142,8 +143,6 @@ impl ValidatedDoc {
         for o in &self.commitment_openings {
             let opening_id = match o {
                 CommitmentOpening::LabelsBlake3(opening) => opening.id(),
-                #[cfg(test)]
-                CommitmentOpening::SomeFutureVariant(ref opening) => opening.id(),
             };
             openings_ids.insert(opening_id as usize, o);
         }
@@ -225,6 +224,18 @@ impl ValidatedDoc {
     #[cfg(test)]
     pub fn set_signature(&mut self, signature: Option<Vec<u8>>) {
         self.signature = signature;
+    }
+}
+
+/// Extracts relevant fields from [ValidatedDoc]. Those are the fields
+/// which the Notary signs.
+impl std::convert::From<&ValidatedDoc> for Signed {
+    fn from(doc: &ValidatedDoc) -> Self {
+        Signed::new(
+            doc.tls_handshake().signed_handshake().clone(),
+            *doc.label_seed(),
+            *doc.merkle_root(),
+        )
     }
 }
 
@@ -400,8 +411,10 @@ pub mod test {
         );
     }
 
-    // TODO: Disabled for now due to a bug in merkle_rs which causes a panic
-    // #[rstest]
+    // Ignored for now due to a panic in rs_merkle
+    // https://github.com/antouhou/rs-merkle/issues/20
+    #[ignore = "waiting for a panic in rs_merkle to be fixed"]
+    #[rstest]
     // Expect verify_merkle_proofs() to fail since a wrong count of leaves in the tree is
     // provided
     fn verify_merkle_proofs_fail_wrong_leaf_count(mut validated_doc: ValidatedDoc) {

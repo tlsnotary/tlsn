@@ -1,8 +1,5 @@
-use crate::{
-    commitment::{Commitment, CommitmentOpening, Direction, TranscriptRange},
-    doc::verified::VerifiedDoc,
-    utils::merge_sorted_slices,
-};
+use crate::{commitment::Commitment, doc::verified::VerifiedDoc, utils::merge_sorted_slices};
+use transcript_core::commitment::{CommitmentOpening, Direction, TranscriptRange};
 
 /// A notarized TLS transcript which successfully passed verification
 #[derive(PartialEq, Debug)]
@@ -92,10 +89,6 @@ fn extract_commitment_opening_pairs(verified_doc: VerifiedDoc) -> Vec<(Commitmen
             // extract enum variant's id and opening bytes
             let (opening_id, opening_bytes) = match opening {
                 CommitmentOpening::LabelsBlake3(opening) => (opening.id(), opening.opening()),
-                #[cfg(test)]
-                CommitmentOpening::SomeFutureVariant(ref opening) => {
-                    (opening.id(), opening.opening())
-                }
             };
 
             // commitment corresponding to the `opening`
@@ -177,7 +170,7 @@ mod test {
             "tlsnotary.org".to_string(),
             vec![TranscriptSlice::new(
                 merged_range.clone(),
-                bytes_in_ranges(&DEFAULT_PLAINTEXT, &[merged_range.clone()]),
+                bytes_in_ranges(&DEFAULT_PLAINTEXT, &[merged_range]),
             )],
             vec![
                 TranscriptSlice::new(

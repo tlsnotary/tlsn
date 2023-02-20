@@ -4,7 +4,7 @@ use p256::{
     EncodedPoint,
 };
 
-use super::Error;
+use crate::error::Error;
 
 pub enum KeyType {
     P256,

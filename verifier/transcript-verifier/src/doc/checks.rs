@@ -1,11 +1,7 @@
 //! Methods performing various validation checks on the [crate::doc::unchecked::UncheckedDoc]
 
-use crate::{
-    commitment::{CommitmentOpening, CommitmentType},
-    doc::unchecked::UncheckedDoc,
-    utils::overlapping_range,
-    Error,
-};
+use crate::{doc::unchecked::UncheckedDoc, error::Error, utils::overlapping_range};
+use transcript_core::commitment::{CommitmentOpening, CommitmentType};
 
 /// Condition checked: at least one commitment is present
 pub(super) fn check_at_least_one_commitment_present(unchecked: &UncheckedDoc) -> Result<(), Error> {
@@ -29,8 +25,6 @@ pub(super) fn check_commitment_and_opening_pairs(unchecked: &UncheckedDoc) -> Re
         // extract the opening variant's id
         let opening_id = match opening {
             CommitmentOpening::LabelsBlake3(ref opening) => opening.id(),
-            #[cfg(test)]
-            CommitmentOpening::SomeFutureVariant(ref opening) => opening.id(),
         };
 
         // ids must match
@@ -122,8 +116,6 @@ pub(super) fn check_commitment_sizes(unchecked: &UncheckedDoc) -> Result<(), Err
     for opening in unchecked.commitment_openings() {
         let (opening_id, opening_bytes) = match opening {
             CommitmentOpening::LabelsBlake3(ref opening) => (opening.id(), opening.opening()),
-            #[cfg(test)]
-            CommitmentOpening::SomeFutureVariant(ref opening) => (opening.id(), opening.opening()),
         };
 
         // total committed bytes in all ranges of the commitment corresponding to the opening
@@ -181,7 +173,7 @@ pub(super) fn check_merkle_tree_indices(unchecked: &UncheckedDoc) -> Result<(), 
 /// returns an error.
 pub(super) fn check_overlapping_openings(unchecked: &UncheckedDoc) -> Result<(), Error> {
     // Note: using an existing lib to find multi-range overlap would incur the need to audit
-    // that lib for correctness. Instead, since checking two range overlap is cheap, we are using
+    // that lib for correctness. Instead, since checking for overlap of two ranges is cheap, we use
     // a naive way where we compare each range to all other ranges.
     // This naive way will have redundancy in computation but it will be easy to audit.
 
@@ -226,17 +218,9 @@ pub(super) fn check_overlapping_openings(unchecked: &UncheckedDoc) -> Result<(),
 
                             let needle_o_bytes = match needle_o {
                                 CommitmentOpening::LabelsBlake3(opening) => opening.opening(),
-                                #[cfg(test)]
-                                CommitmentOpening::SomeFutureVariant(ref opening) => {
-                                    opening.opening()
-                                }
                             };
                             let haystack_o_bytes = match haystack_o {
                                 CommitmentOpening::LabelsBlake3(opening) => opening.opening(),
-                                #[cfg(test)]
-                                CommitmentOpening::SomeFutureVariant(ref opening) => {
-                                    opening.opening()
-                                }
                             };
 
                             if needle_o_bytes[needle_ov_start as usize
