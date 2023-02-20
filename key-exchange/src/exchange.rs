@@ -78,13 +78,13 @@ where
         let circuit_xor = build_nbit_xor_bytes_32();
 
         config_builder_pms.circ(Arc::clone(&circuit_pms));
-        config_builder_pms.id(id.clone());
+        config_builder_pms.id(format!("{}/pms", id));
 
         config_builder_xor.circ(Arc::clone(&circuit_xor));
-        config_builder_xor.id(id.clone());
+        config_builder_xor.id(format!("{}/xor", id));
 
         let config_pms = config_builder_pms.build()?;
-        let config_xor = config_builder_pms.build()?;
+        let config_xor = config_builder_xor.build()?;
 
         let dual_ex_pms = self
             .state
