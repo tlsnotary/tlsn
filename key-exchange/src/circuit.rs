@@ -30,14 +30,27 @@ pub fn build_double_combine_pms_circuit() -> Arc<Circuit> {
         256,
     );
 
-    let const_zero = builder.add_input(
-        "const_zero",
+    let const_zero1 = builder.add_input(
+        "const_zero_1",
         "input that is always 0",
         ValueType::ConstZero,
         1,
     );
-    let const_one = builder.add_input(
-        "const_one",
+    let const_one1 = builder.add_input(
+        "const_one_1",
+        "input that is always 1",
+        ValueType::ConstOne,
+        1,
+    );
+
+    let const_zero2 = builder.add_input(
+        "const_zero_2",
+        "input that is always 0",
+        ValueType::ConstZero,
+        1,
+    );
+    let const_one2 = builder.add_input(
+        "const_one_2",
         "input that is always 1",
         ValueType::ConstOne,
         1,
@@ -59,13 +72,13 @@ pub fn build_double_combine_pms_circuit() -> Arc<Circuit> {
 
     builder.connect(&a[..], &a_input[..]);
     builder.connect(&b[..], &b_input[..]);
-    builder.connect(&const_zero[..], &c_input[..]);
-    builder.connect(&const_one[..], &d_input[..]);
+    builder.connect(&const_zero1[..], &c_input[..]);
+    builder.connect(&const_one1[..], &d_input[..]);
 
     builder.connect(&c[..], &e_input[..]);
     builder.connect(&d[..], &f_input[..]);
-    builder.connect(&const_zero[..], &g_input[..]);
-    builder.connect(&const_one[..], &h_input[..]);
+    builder.connect(&const_zero2[..], &g_input[..]);
+    builder.connect(&const_one2[..], &h_input[..]);
 
     let pms1_out = handle1.output(0).expect("add mod is missing output 0");
     let pms2_out = handle2.output(0).expect("add mod is missing output 0");

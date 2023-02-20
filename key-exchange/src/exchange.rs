@@ -427,7 +427,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn compute_pms_labels() {
+    async fn test_compute_pms_labels() {
         let mut rng = ChaCha20Rng::from_seed([0_u8; 32]);
 
         let leader_private_key = SecretKey::random(&mut rng);
