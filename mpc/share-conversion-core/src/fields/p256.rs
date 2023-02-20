@@ -46,6 +46,14 @@ impl From<[Block; 2]> for P256 {
     }
 }
 
+impl From<[u8; 32]> for P256 {
+    fn from(value: [u8; 32]) -> Self {
+        let first = u128::from_be_bytes(value[..16].try_into().unwrap());
+        let second = u128::from_be_bytes(value[16..].try_into().unwrap());
+        P256::from([Block::new(first), Block::new(second)])
+    }
+}
+
 impl Distribution<P256> for Standard {
     fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> P256 {
         P256(self.sample(rng))
