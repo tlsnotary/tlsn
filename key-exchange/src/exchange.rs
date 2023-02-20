@@ -342,18 +342,17 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::borrow::Borrow;
-
-    use p256::{
-        elliptic_curve::AffinePoint, pkcs8::EncodePublicKey, NonZeroScalar, PublicKey, SecretKey,
-    };
+    use p256::{NonZeroScalar, PublicKey, SecretKey};
     use rand_chacha::ChaCha20Rng;
     use rand_core::SeedableRng;
     use share_conversion_core::fields::Field;
 
     use super::{KeyExchangeFollow, KeyExchangeLead};
     use crate::{
-        mock::{create_mock_key_exchange_pair, MockKeyExchangeFollower, MockKeyExchangeLeader},
+        mock::{
+            create_mock_key_exchange_pair, MockKeyExchangeFollower,
+            MockKeyExchangeFollowerPMSSetup, MockKeyExchangeLeader, MockKeyExchangeLeaderPMSSetup,
+        },
         ComputePMS,
     };
 
@@ -404,16 +403,7 @@ mod tests {
         )
         .await;
 
-        let mut leader = leader
-            .setup_pms_computation(String::from(""))
-            .await
-            .unwrap();
-        let mut follower = follower
-            .setup_pms_computation(String::from(""))
-            .await
-            .unwrap();
-
-        let _ = tokio::try_join!(leader.compute_pms_share(), follower.compute_pms_share()).unwrap();
+        let (leader, follower) = setup_and_compute_pms_share(leader, follower).await;
 
         let [l_pms1, l_pms2] = leader.state.pms_shares.unwrap();
         let [f_pms1, f_pms2] = follower.state.pms_shares.unwrap();
@@ -423,17 +413,38 @@ mod tests {
 
         assert_eq!(
             expected_ecdh_x.raw_secret_bytes().to_vec(),
-            (l_pms1 + f_pms1).to_le_bytes()
+            (l_pms1 + f_pms1).to_be_bytes()
         );
         assert_eq!(
             expected_ecdh_x.raw_secret_bytes().to_vec(),
-            (l_pms2 + f_pms2).to_le_bytes()
+            (l_pms2 + f_pms2).to_be_bytes()
         );
         assert_eq!(l_pms1 + f_pms1, l_pms2 + f_pms2);
         assert_ne!(l_pms1, f_pms1);
         assert_ne!(l_pms2, f_pms2);
         assert_ne!(l_pms1, l_pms2);
         assert_ne!(f_pms1, f_pms2);
+    }
+
+    #[tokio::test]
+    async fn compute_pms_labels() {
+        let mut rng = ChaCha20Rng::from_seed([0_u8; 32]);
+
+        let leader_private_key = SecretKey::random(&mut rng);
+        let follower_private_key = SecretKey::random(&mut rng);
+        let server_private_key = NonZeroScalar::random(&mut rng);
+        let server_public_key = PublicKey::from_secret_scalar(&server_private_key);
+
+        let (leader, follower, client_public_key) = perform_key_exchange(
+            leader_private_key.clone(),
+            follower_private_key.clone(),
+            server_public_key,
+        )
+        .await;
+
+        let (leader, follower) = setup_and_compute_pms_share(leader, follower).await;
+        let (pms_labels1, pms_labels2) =
+            tokio::try_join!(leader.compute_pms_labels(), follower.compute_pms_labels()).unwrap();
     }
 
     async fn perform_key_exchange(
@@ -454,5 +465,26 @@ mod tests {
         let (_, _) = tokio::try_join!(leader_fut, follower_fut).unwrap();
 
         (leader, follower, client_public_key)
+    }
+
+    async fn setup_and_compute_pms_share(
+        leader: MockKeyExchangeLeader,
+        follower: MockKeyExchangeFollower,
+    ) -> (
+        MockKeyExchangeLeaderPMSSetup,
+        MockKeyExchangeFollowerPMSSetup,
+    ) {
+        let mut leader = leader
+            .setup_pms_computation(String::from(""))
+            .await
+            .unwrap();
+        let mut follower = follower
+            .setup_pms_computation(String::from(""))
+            .await
+            .unwrap();
+
+        let _ = tokio::try_join!(leader.compute_pms_share(), follower.compute_pms_share()).unwrap();
+
+        (leader, follower)
     }
 }

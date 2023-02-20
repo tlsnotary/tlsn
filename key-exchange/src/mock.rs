@@ -12,7 +12,10 @@ use point_addition::mock::{
 };
 use utils_aio::duplex::DuplexChannel;
 
-use crate::{state::KeyExchangeSetup, KeyExchangeMessage};
+use crate::{
+    state::{KeyExchangeSetup, PMSComputationSetup},
+    KeyExchangeMessage,
+};
 
 use super::KeyExchangeCore;
 
@@ -32,11 +35,41 @@ pub type MockKeyExchangeLeader = KeyExchangeCore<
     >,
 >;
 
+pub type MockKeyExchangeLeaderPMSSetup = KeyExchangeCore<
+    PMSComputationSetup<
+        MockPointConversionSender,
+        MockPointConversionReceiver,
+        DualExLeader<
+            Initialized,
+            RayonBackend,
+            MockOTFactory<Block>,
+            MockOTFactory<Block>,
+            MockOTSender<Block>,
+            MockOTReceiver<Block>,
+        >,
+    >,
+>;
+
 pub type MockKeyExchangeFollower = KeyExchangeCore<
     KeyExchangeSetup<
         MockPointConversionReceiver,
         MockPointConversionSender,
         MockDualExFactory,
+        DualExFollower<
+            Initialized,
+            RayonBackend,
+            MockOTFactory<Block>,
+            MockOTFactory<Block>,
+            MockOTSender<Block>,
+            MockOTReceiver<Block>,
+        >,
+    >,
+>;
+
+pub type MockKeyExchangeFollowerPMSSetup = KeyExchangeCore<
+    PMSComputationSetup<
+        MockPointConversionReceiver,
+        MockPointConversionSender,
         DualExFollower<
             Initialized,
             RayonBackend,

@@ -24,10 +24,23 @@ pub fn build_double_combine_pms_circuit() -> Arc<Circuit> {
         256,
     );
     let d = builder.add_input(
-        "PMS_SHARE_C",
+        "PMS_SHARE_D",
         "256-bit PMS Additive Share",
         ValueType::Bytes,
         256,
+    );
+
+    let const_zero = builder.add_input(
+        "const_zero",
+        "input that is always 0",
+        ValueType::ConstZero,
+        1,
+    );
+    let const_one = builder.add_input(
+        "const_one",
+        "input that is always 1",
+        ValueType::ConstOne,
+        1,
     );
 
     let mut builder = builder.build_inputs();
@@ -36,14 +49,23 @@ pub fn build_double_combine_pms_circuit() -> Arc<Circuit> {
 
     let a_input = handle1.input(0).unwrap();
     let b_input = handle1.input(1).unwrap();
+    let c_input = handle1.input(2).unwrap();
+    let d_input = handle1.input(3).unwrap();
 
-    let c_input = handle2.input(0).unwrap();
-    let d_input = handle2.input(1).unwrap();
+    let e_input = handle2.input(0).unwrap();
+    let f_input = handle2.input(1).unwrap();
+    let g_input = handle2.input(2).unwrap();
+    let h_input = handle2.input(3).unwrap();
 
     builder.connect(&a[..], &a_input[..]);
     builder.connect(&b[..], &b_input[..]);
-    builder.connect(&c[..], &c_input[..]);
-    builder.connect(&d[..], &d_input[..]);
+    builder.connect(&const_zero[..], &c_input[..]);
+    builder.connect(&const_one[..], &d_input[..]);
+
+    builder.connect(&c[..], &e_input[..]);
+    builder.connect(&d[..], &f_input[..]);
+    builder.connect(&const_zero[..], &g_input[..]);
+    builder.connect(&const_one[..], &h_input[..]);
 
     let pms1_out = handle1.output(0).expect("add mod is missing output 0");
     let pms2_out = handle2.output(0).expect("add mod is missing output 0");

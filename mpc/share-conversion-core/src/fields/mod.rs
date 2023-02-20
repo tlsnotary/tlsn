@@ -58,6 +58,9 @@ pub trait Field:
 
     // Return field element as little-endian bytes
     fn to_le_bytes(&self) -> Vec<u8>;
+
+    // Return field element as little-endian bytes
+    fn to_be_bytes(&self) -> Vec<u8>;
 }
 
 // A trait for sampling random elements of the field

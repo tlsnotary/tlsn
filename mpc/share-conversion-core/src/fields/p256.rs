@@ -124,6 +124,10 @@ impl Field for P256 {
     fn to_le_bytes(&self) -> Vec<u8> {
         BigInt::to_bytes_le(&MontBackend::<FqConfig, 4>::into_bigint(self.0))
     }
+
+    fn to_be_bytes(&self) -> Vec<u8> {
+        BigInt::to_bytes_be(&MontBackend::<FqConfig, 4>::into_bigint(self.0))
+    }
 }
 
 #[cfg(test)]
