@@ -249,7 +249,7 @@ mod tests {
 
     use futures::{channel::mpsc::channel, StreamExt};
 
-    use mpc_circuits::{Circuit, WireGroup, ADDER_64};
+    use mpc_circuits::{WireGroup, ADDER_64};
     use mpc_core::garble::exec::dual::DualExConfigBuilder;
 
     use rand::SeedableRng;
@@ -260,7 +260,7 @@ mod tests {
     #[tokio::test]
     async fn test_deferred_deap() {
         let mut rng = ChaCha12Rng::seed_from_u64(0);
-        let circ = Circuit::load_bytes(ADDER_64).unwrap();
+        let circ = ADDER_64.clone();
 
         let (leader_sender, mut leader_receiver) = channel(1);
         let (follower_sender, mut follower_receiver) = channel(1);

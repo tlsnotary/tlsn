@@ -1008,11 +1008,11 @@ pub(crate) mod unchecked {
         use rand_core::SeedableRng;
         use rstest::*;
 
-        use mpc_circuits::{Circuit, Input, WireGroup, ADDER_64, AES_128_REVERSE};
+        use mpc_circuits::{Circuit, Input, WireGroup, ADDER_64, AES_128};
 
         #[fixture]
         fn circ() -> Arc<Circuit> {
-            Circuit::load_bytes(ADDER_64).unwrap()
+            ADDER_64.clone()
         }
 
         #[fixture]
@@ -1083,11 +1083,7 @@ pub(crate) mod unchecked {
             mut unchecked_garbled_circuit: UncheckedGarbledCircuit,
             circ: Arc<Circuit>,
         ) {
-            unchecked_garbled_circuit.id = Circuit::load_bytes(AES_128_REVERSE)
-                .unwrap()
-                .id()
-                .clone()
-                .to_string();
+            unchecked_garbled_circuit.id = AES_128.clone().id().clone().to_string();
             let err = GarbledCircuit::from_unchecked(circ, unchecked_garbled_circuit.clone())
                 .unwrap_err();
 
@@ -1196,11 +1192,7 @@ pub(crate) mod unchecked {
             mut unchecked_garbled_output: UncheckedOutput,
             garbled_circuit: GarbledCircuit<Full>,
         ) {
-            unchecked_garbled_output.circ_id = Circuit::load_bytes(AES_128_REVERSE)
-                .unwrap()
-                .id()
-                .clone()
-                .to_string();
+            unchecked_garbled_output.circ_id = AES_128.clone().id().clone().to_string();
             let err = unchecked_garbled_output
                 .decode(
                     &garbled_circuit.circ,
@@ -1297,7 +1289,7 @@ pub(crate) mod unchecked {
 #[cfg(test)]
 mod tests {
     use aes::{Aes128, NewBlockCipher};
-    use mpc_circuits::{WireGroup, AES_128_REVERSE};
+    use mpc_circuits::{WireGroup, AES_128};
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
 
@@ -1309,7 +1301,7 @@ mod tests {
     fn test_circuit_validation_pass() {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
         let mut rng = ChaCha12Rng::seed_from_u64(0);
-        let circ = Circuit::load_bytes(AES_128_REVERSE).unwrap();
+        let circ = AES_128.clone();
 
         let key = circ.input(0).unwrap().to_value(vec![0u8; 16]).unwrap();
         let msg = circ.input(1).unwrap().to_value(vec![0u8; 16]).unwrap();
@@ -1337,7 +1329,7 @@ mod tests {
     fn test_circuit_validation_fail_bad_gate() {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
         let mut rng = ChaCha12Rng::seed_from_u64(0);
-        let circ = Circuit::load_bytes(AES_128_REVERSE).unwrap();
+        let circ = AES_128.clone();
 
         let key = circ.input(0).unwrap().to_value(vec![0u8; 16]).unwrap();
         let msg = circ.input(1).unwrap().to_value(vec![0u8; 16]).unwrap();
@@ -1375,7 +1367,7 @@ mod tests {
     fn test_circuit_validation_fail_bad_input_label() {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
         let mut rng = ChaCha12Rng::seed_from_u64(0);
-        let circ = Circuit::load_bytes(AES_128_REVERSE).unwrap();
+        let circ = AES_128.clone();
 
         let key = circ.input(0).unwrap().to_value(vec![0u8; 16]).unwrap();
         let msg = circ.input(1).unwrap().to_value(vec![0u8; 16]).unwrap();
@@ -1418,7 +1410,7 @@ mod tests {
     fn test_circuit_validation_fail_bad_output_decoding() {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
         let mut rng = ChaCha12Rng::seed_from_u64(0);
-        let circ = Circuit::load_bytes(AES_128_REVERSE).unwrap();
+        let circ = AES_128.clone();
 
         let key = circ.input(0).unwrap().to_value(vec![0u8; 16]).unwrap();
         let msg = circ.input(1).unwrap().to_value(vec![0u8; 16]).unwrap();
@@ -1458,7 +1450,7 @@ mod tests {
     fn test_circuit_validation_fail_bad_output_commitment() {
         let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
         let mut rng = ChaCha12Rng::seed_from_u64(0);
-        let circ = Circuit::load_bytes(AES_128_REVERSE).unwrap();
+        let circ = AES_128.clone();
 
         let key = circ.input(0).unwrap().to_value(vec![0u8; 16]).unwrap();
         let msg = circ.input(1).unwrap().to_value(vec![0u8; 16]).unwrap();

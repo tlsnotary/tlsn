@@ -66,7 +66,7 @@ mod tests {
 
     use super::*;
     use mock::*;
-    use mpc_circuits::{Circuit, WireGroup, ADDER_64};
+    use mpc_circuits::{WireGroup, ADDER_64};
     use mpc_core::garble::{exec::dual::DualExConfigBuilder, FullInputSet};
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
@@ -74,7 +74,7 @@ mod tests {
     #[tokio::test]
     async fn test_deap() {
         let mut rng = ChaCha12Rng::seed_from_u64(0);
-        let circ = Circuit::load_bytes(ADDER_64).unwrap();
+        let circ = ADDER_64.clone();
 
         let config = DualExConfigBuilder::default()
             .id("test".to_string())

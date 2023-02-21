@@ -67,7 +67,7 @@ mod tests {
 
     #[fixture]
     fn circ() -> Arc<Circuit> {
-        Circuit::load_bytes(ADDER_64).unwrap()
+        ADDER_64.clone()
     }
 
     #[rstest]

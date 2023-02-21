@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use mpc_aio::protocol::garble::exec::{deap::mock::mock_deap_pair, dual::DEExecute};
-use mpc_circuits::{Circuit, WireGroup, AES_128_REVERSE};
+use mpc_circuits::{Circuit, WireGroup, AES_128};
 use mpc_core::garble::{exec::dual::DualExConfigBuilder, FullInputSet};
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
@@ -57,7 +57,7 @@ async fn bench_deap(circ: Arc<Circuit>) {
 fn criterion_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("deap");
 
-    let circ = Circuit::load_bytes(AES_128_REVERSE).unwrap();
+    let circ = AES_128.clone();
     group.bench_function(circ.id().clone().to_string(), |b| {
         b.to_async(tokio::runtime::Runtime::new().unwrap())
             .iter(|| async { black_box(bench_deap(circ.clone()).await) })

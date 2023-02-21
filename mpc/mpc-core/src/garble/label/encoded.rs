@@ -367,7 +367,7 @@ pub(crate) mod unchecked {
 
         #[fixture]
         fn circ() -> Arc<Circuit> {
-            Circuit::load_bytes(ADDER_64).unwrap()
+            ADDER_64.clone()
         }
 
         #[fixture]

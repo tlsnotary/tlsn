@@ -55,7 +55,7 @@ mod tests {
     };
 
     use super::*;
-    use mpc_circuits::{Circuit, WireGroup, ADDER_64};
+    use mpc_circuits::{WireGroup, ADDER_64};
     use rand::thread_rng;
 
     fn evaluated_pair() -> (
@@ -63,7 +63,7 @@ mod tests {
         DualExFollower<follower_state::Reveal>,
     ) {
         let mut rng = thread_rng();
-        let circ = Circuit::load_bytes(ADDER_64).unwrap();
+        let circ = ADDER_64.clone();
 
         let leader = DualExLeader::new(circ.clone());
         let follower = DualExFollower::new(circ.clone());

@@ -154,7 +154,7 @@ mod tests {
     #[test]
     fn test_semi_honest_success() {
         let mut rng = thread_rng();
-        let circ = Circuit::load_bytes(ADDER_64).unwrap();
+        let circ = ADDER_64.clone();
 
         let leader = SemiHonestLeader::new(circ.clone());
         let follower = SemiHonestFollower::new(circ.clone());
@@ -183,7 +183,7 @@ mod tests {
     #[test]
     fn test_semi_honest_fail_ev_malicious_labels() {
         let mut rng = thread_rng();
-        let circ = Circuit::load_bytes(ADDER_64).unwrap();
+        let circ = ADDER_64.clone();
 
         let leader = SemiHonestLeader::new(circ.clone());
         let follower = SemiHonestFollower::new(circ.clone());
@@ -215,7 +215,7 @@ mod tests {
     #[test]
     fn test_semi_honest_fail_malicious_commitments() {
         let mut rng = thread_rng();
-        let circ = Circuit::load_bytes(ADDER_64).unwrap();
+        let circ = ADDER_64.clone();
 
         let leader = SemiHonestLeader::new(circ.clone());
         let follower = SemiHonestFollower::new(circ.clone());
