@@ -71,7 +71,7 @@ mod tests {
 
     #[test]
     fn test_topological_sort() {
-        let circ = Circuit::load_bytes(ADDER_64).unwrap();
+        let circ = ADDER_64.clone();
 
         let mut gates = circ.gates.clone();
         // Randomly shuffle gates
