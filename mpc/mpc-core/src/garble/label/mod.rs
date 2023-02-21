@@ -56,8 +56,8 @@ pub type ActiveOutputSet = EncodedSet<Output, Active>;
 /// Global binary offset used by the Free-XOR technique to create wire label
 /// pairs where W_1 = W_0 ^ Delta.
 ///
-/// In accordance with the (p&p) permute-and-point technique, the LSB of delta is set to 1 so
-/// the permute bit LSB(W_1) = LSB(W_0) ^ 1
+/// In accordance with the (p&p) Point-and-Permute technique, the LSB of Delta is set to 1, so that
+/// the pointer bit LSB(W_1) = LSB(W_0) ^ 1
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Delta(Block);
 
@@ -179,7 +179,7 @@ impl Labels<Full> {
 
     /// Returns label decoding information
     pub fn get_decoding(&self) -> Vec<bool> {
-        self.labels.iter().map(|low| low.permute_bit()).collect()
+        self.labels.iter().map(|low| low.pointer_bit()).collect()
     }
 
     /// Generates labels using the provided RNG.
@@ -241,11 +241,13 @@ impl Labels<Full> {
                     .iter()
                     .zip(decoding)
                     .map(|(label, decoding)| {
-                        // If active label is logic high, flip it
-                        if label.permute_bit() ^ decoding {
-                            label ^ delta
-                        } else {
+                        // We need to collect only the low labels
+                        if label.pointer_bit() == decoding {
+                            // `label` is a low label
                             label
+                        } else {
+                            // `label` is a high label, convert it to a low label
+                            label ^ delta
                         }
                     })
                     .collect(),
@@ -385,7 +387,15 @@ impl Labels<Active> {
         Ok(decoding
             .into_iter()
             .zip(self.labels.iter())
-            .map(|(decoding, label)| label.permute_bit() ^ decoding)
+            .map(|(decoding, label)| {
+                if label.pointer_bit() == decoding {
+                    // `label` is a low label
+                    false
+                } else {
+                    // `label` is a high label
+                    true
+                }
+            })
             .collect())
     }
 
@@ -562,9 +572,9 @@ impl Label {
         self.0
     }
 
-    /// Returns label permute bit from permute-and-point technique
+    /// Returns label pointer bit from the Point-and-Permute technique
     #[inline]
-    pub fn permute_bit(&self) -> bool {
+    pub fn pointer_bit(&self) -> bool {
         self.0.lsb() == 1
     }
 
