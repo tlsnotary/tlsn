@@ -170,7 +170,7 @@ mod tests {
 
     use futures::{channel::mpsc::channel, StreamExt};
 
-    use mpc_circuits::{Circuit, WireGroup, ADDER_64};
+    use mpc_circuits::{WireGroup, ADDER_64};
     use mpc_core::garble::exec::zk::{ProverConfigBuilder, VerifierConfigBuilder};
     use rand::SeedableRng;
     use rand_chacha::ChaCha12Rng;
@@ -180,7 +180,7 @@ mod tests {
     #[tokio::test]
     async fn test_deferred_zk() {
         let mut rng = ChaCha12Rng::seed_from_u64(0);
-        let circ = Circuit::load_bytes(ADDER_64).unwrap();
+        let circ = ADDER_64.clone();
 
         let prover_config = ProverConfigBuilder::default()
             .id("test".to_string())

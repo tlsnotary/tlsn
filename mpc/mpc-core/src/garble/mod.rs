@@ -32,7 +32,7 @@ mod tests {
     use rand_chacha::ChaCha12Rng;
 
     use crate::garble::label::ActiveInputSet;
-    use mpc_circuits::{Circuit, WireGroup, AES_128_REVERSE};
+    use mpc_circuits::{WireGroup, AES_128};
 
     #[test]
     fn test_and_gate() {
@@ -124,7 +124,7 @@ mod tests {
     fn test_aes_128() {
         let mut rng = ChaCha12Rng::from_entropy();
         let cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
-        let circ = Circuit::load_bytes(AES_128_REVERSE).unwrap();
+        let circ = AES_128.clone();
 
         let input_labels = FullInputSet::generate(&mut rng, &circ, None);
 

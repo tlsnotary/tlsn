@@ -109,7 +109,7 @@ mod test {
 
     #[tokio::test]
     async fn test_rayon_garbler() {
-        let circ = Circuit::load_bytes(ADDER_64).unwrap();
+        let circ = ADDER_64.clone();
         let input_labels = FullInputSet::generate(&mut thread_rng(), &circ, None);
         let gc = RayonBackend
             .generate(circ.clone(), input_labels.clone())
@@ -130,7 +130,7 @@ mod test {
 
     #[tokio::test]
     async fn test_validator() {
-        let circ = Circuit::load_bytes(ADDER_64).unwrap();
+        let circ = ADDER_64.clone();
         let input_labels = FullInputSet::generate(&mut thread_rng(), &circ, None);
 
         let gc = RayonBackend

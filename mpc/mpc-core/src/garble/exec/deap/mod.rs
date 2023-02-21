@@ -63,7 +63,7 @@ mod tests {
 
     #[test]
     fn test_success() {
-        let circ = Circuit::load_bytes(ADDER_64).unwrap();
+        let circ = ADDER_64.clone();
         let (purported_output, leader, follower) = evaluated_pair(circ.clone());
 
         let (leader_commit, leader) = leader.commit();
@@ -83,7 +83,7 @@ mod tests {
 
     #[test]
     fn test_leader_fail_reveal() {
-        let circ = Circuit::load_bytes(ADDER_64).unwrap();
+        let circ = ADDER_64.clone();
         let (_, leader, follower) = evaluated_pair(circ.clone());
 
         let (leader_commit, leader) = leader.commit();
@@ -104,7 +104,7 @@ mod tests {
 
     #[test]
     fn test_leader_fail_commit() {
-        let circ = Circuit::load_bytes(ADDER_64).unwrap();
+        let circ = ADDER_64.clone();
         let (_, leader, follower) = evaluated_pair(circ.clone());
 
         let (_, leader) = leader.commit();
@@ -127,7 +127,7 @@ mod tests {
 
     #[test]
     fn test_follower_fail_open_bad_delta() {
-        let circ = Circuit::load_bytes(ADDER_64).unwrap();
+        let circ = ADDER_64.clone();
         let (_, leader, follower) = evaluated_pair(circ.clone());
 
         let (leader_commit, leader) = leader.commit();
@@ -146,7 +146,7 @@ mod tests {
 
     #[test]
     fn test_follower_fail_open_bad_decoding() {
-        let circ = Circuit::load_bytes(ADDER_64).unwrap();
+        let circ = ADDER_64.clone();
         let (_, leader, follower) = evaluated_pair(circ.clone());
 
         let (leader_commit, leader) = leader.commit();
