@@ -52,6 +52,7 @@ where
         point_addition_sender: PS,
         point_addition_receiver: PR,
         dual_ex_factory: A,
+        role: Role,
     ) -> Self {
         Self {
             channel,
@@ -62,6 +63,7 @@ where
                 private_key: None,
                 server_key: None,
                 _phantom_data: std::marker::PhantomData,
+                role,
             },
         }
     }
@@ -115,6 +117,7 @@ where
                 dual_ex_xor,
                 circuit_pms,
                 circuit_xor,
+                role: self.state.role,
             },
         })
     }
@@ -247,22 +250,36 @@ where
         // Compute circuit input
         let [pms_share1, pms_share2] =
             self.state.pms_shares.ok_or(KeyExchangeError::NoPMSShares)?;
+        let input_gates = self.state.role.input_gates();
 
         let mut rng = ChaCha20Rng::from_entropy();
 
-        let leader_input1 = self
+        let input0 = self
             .state
             .circuit_pms
-            .input(0)?
+            .input(input_gates[0])?
             .to_value(pms_share1.to_le_bytes())?;
-        let follower_input1 = self.state.circuit_pms.input(1)?;
 
-        let leader_input2 = self
+        let input1 = self
             .state
             .circuit_pms
-            .input(2)?
+            .input(input_gates[1])?
             .to_value(pms_share2.to_le_bytes())?;
-        let follower_input2 = self.state.circuit_pms.input(3)?;
+        let input2 = self.state.circuit_pms.input(input_gates[2])?;
+        let input3 = self.state.circuit_pms.input(input_gates[3])?;
+
+        let const_input0 = self
+            .state
+            .circuit_pms
+            .input(4)?
+            .to_value(Value::ConstZero)?;
+        let const_input1 = self.state.circuit_pms.input(5)?.to_value(Value::ConstOne)?;
+        let const_input2 = self
+            .state
+            .circuit_pms
+            .input(6)?
+            .to_value(Value::ConstZero)?;
+        let const_input3 = self.state.circuit_pms.input(7)?.to_value(Value::ConstOne)?;
 
         let leader_labels = FullInputSet::generate(&mut rng, &self.state.circuit_pms, None);
 
@@ -271,9 +288,16 @@ where
             .dual_ex_pms
             .execute_skip_equality_check(
                 leader_labels,
-                vec![leader_input1.clone(), leader_input2.clone()],
-                vec![follower_input1.clone(), follower_input2.clone()],
-                vec![leader_input1.clone(), leader_input2.clone()],
+                vec![
+                    input0.clone(),
+                    input1.clone(),
+                    const_input0,
+                    const_input1,
+                    const_input2,
+                    const_input3,
+                ],
+                vec![input2, input3],
+                vec![input0, input1],
                 vec![],
             )
             .await?;
@@ -345,7 +369,7 @@ mod tests {
     use p256::{NonZeroScalar, PublicKey, SecretKey};
     use rand_chacha::ChaCha20Rng;
     use rand_core::SeedableRng;
-    use share_conversion_core::fields::Field;
+    use share_conversion_core::fields::{p256::P256, Field};
 
     use super::{KeyExchangeFollow, KeyExchangeLead};
     use crate::{
@@ -353,7 +377,7 @@ mod tests {
             create_mock_key_exchange_pair, MockKeyExchangeFollower,
             MockKeyExchangeFollowerPMSSetup, MockKeyExchangeLeader, MockKeyExchangeLeaderPMSSetup,
         },
-        ComputePMS,
+        ComputePMS, KeyExchangeError,
     };
 
     #[tokio::test]
@@ -435,7 +459,7 @@ mod tests {
         let server_private_key = NonZeroScalar::random(&mut rng);
         let server_public_key = PublicKey::from_secret_scalar(&server_private_key);
 
-        let (leader, follower, client_public_key) = perform_key_exchange(
+        let (leader, follower, _client_public_key) = perform_key_exchange(
             leader_private_key.clone(),
             follower_private_key.clone(),
             server_public_key,
@@ -443,8 +467,36 @@ mod tests {
         .await;
 
         let (leader, follower) = setup_and_compute_pms_share(leader, follower).await;
-        let (pms_labels1, pms_labels2) =
+        let (_pms_labels1, _pms_labels2) =
             tokio::try_join!(leader.compute_pms_labels(), follower.compute_pms_labels()).unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_compute_pms_labels_fail() {
+        let mut rng = ChaCha20Rng::from_seed([0_u8; 32]);
+
+        let leader_private_key = SecretKey::random(&mut rng);
+        let follower_private_key = SecretKey::random(&mut rng);
+        let server_private_key = NonZeroScalar::random(&mut rng);
+        let server_public_key = PublicKey::from_secret_scalar(&server_private_key);
+
+        let (leader, follower, _client_public_key) = perform_key_exchange(
+            leader_private_key.clone(),
+            follower_private_key.clone(),
+            server_public_key,
+        )
+        .await;
+
+        let (mut leader, follower) = setup_and_compute_pms_share(leader, follower).await;
+
+        // Mutate one share so that check should fail
+        if let Some(ref mut shares) = leader.state.pms_shares {
+            shares[0] = shares[0] + P256::one();
+        }
+        let err = tokio::try_join!(leader.compute_pms_labels(), follower.compute_pms_labels())
+            .unwrap_err();
+
+        assert!(matches!(err, KeyExchangeError::CheckFailed));
     }
 
     async fn perform_key_exchange(
@@ -486,5 +538,20 @@ mod tests {
         let _ = tokio::try_join!(leader.compute_pms_share(), follower.compute_pms_share()).unwrap();
 
         (leader, follower)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum Role {
+    Leader,
+    Follower,
+}
+
+impl Role {
+    fn input_gates(&self) -> [usize; 4] {
+        match self {
+            Role::Leader => [0, 2, 1, 3],
+            Role::Follower => [1, 3, 0, 2],
+        }
     }
 }

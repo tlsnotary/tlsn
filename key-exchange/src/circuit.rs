@@ -57,8 +57,9 @@ pub fn build_double_combine_pms_circuit() -> Arc<Circuit> {
     );
 
     let mut builder = builder.build_inputs();
-    let handle1 = builder.add_circ(&combine_pms_shares());
-    let handle2 = builder.add_circ(&combine_pms_shares());
+    let pms_circuit = combine_pms_shares();
+    let handle1 = builder.add_circ(&Arc::clone(&pms_circuit));
+    let handle2 = builder.add_circ(&pms_circuit);
 
     let a_input = handle1.input(0).unwrap();
     let b_input = handle1.input(1).unwrap();
@@ -80,8 +81,8 @@ pub fn build_double_combine_pms_circuit() -> Arc<Circuit> {
     builder.connect(&const_zero2[..], &g_input[..]);
     builder.connect(&const_one2[..], &h_input[..]);
 
-    let pms1_out = handle1.output(0).expect("add mod is missing output 0");
-    let pms2_out = handle2.output(0).expect("add mod is missing output 0");
+    let pms1_out = handle1.output(0).unwrap();
+    let pms2_out = handle2.output(0).unwrap();
 
     let mut builder = builder.build_gates();
 

@@ -79,6 +79,7 @@ pub trait ComputePMS {
     async fn compute_pms_labels(self) -> Result<PMSLabels, KeyExchangeError>;
 }
 
+#[derive(Debug, Clone)]
 pub struct PMSLabels {
     pub active_labels: Vec<ActiveLabels>,
     pub full_labels: Vec<FullLabels>,

@@ -13,6 +13,7 @@ use point_addition::mock::{
 use utils_aio::duplex::DuplexChannel;
 
 use crate::{
+    exchange::Role,
     state::{KeyExchangeSetup, PMSComputationSetup},
     KeyExchangeMessage,
 };
@@ -94,6 +95,7 @@ pub fn create_mock_key_exchange_pair() -> (MockKeyExchangeLeader, MockKeyExchang
         pa_leader1,
         pa_follower2,
         dual_ex_factory.clone(),
+        Role::Leader,
     );
 
     let follower = KeyExchangeCore::new(
@@ -101,6 +103,7 @@ pub fn create_mock_key_exchange_pair() -> (MockKeyExchangeLeader, MockKeyExchang
         pa_follower1,
         pa_leader2,
         dual_ex_factory,
+        Role::Follower,
     );
 
     (leader, follower)
