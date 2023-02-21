@@ -236,7 +236,7 @@ mod tests {
     #[test]
     fn test_parse_adder64() {
         let circ = Circuit::parse(
-            "circuits/bristol/adder64.txt",
+            "circuits/bristol/adder64_reverse.txt",
             "adder64",
             "",
             BitOrder::Lsb0,

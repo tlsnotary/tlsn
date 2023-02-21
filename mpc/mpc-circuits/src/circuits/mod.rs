@@ -16,10 +16,10 @@ pub use nbit_subtractor::nbit_subtractor;
 pub use nbit_switch::nbit_switch;
 pub use nbit_xor::nbit_xor;
 
-use crate::WireGroup;
+use crate::{Circuit, InputValue, Value, WireGroup};
 
-pub fn test_circ(circ: &crate::Circuit, inputs: &[crate::Value], expected: &[crate::Value]) {
-    let inputs: Vec<crate::InputValue> = inputs
+pub fn test_circ(circ: &Circuit, inputs: &[Value], expected: &[Value]) {
+    let inputs: Vec<InputValue> = inputs
         .iter()
         .zip(circ.inputs.iter())
         .map(|(value, input)| input.clone().to_value(value.clone()).unwrap())

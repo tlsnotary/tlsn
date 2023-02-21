@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     marker::PhantomData,
     sync::Arc,
 };
@@ -504,6 +504,32 @@ impl CircuitBuilder<Outputs> {
 
     /// Fully builds circuit
     pub fn build_circuit(mut self) -> Result<Arc<Circuit>, BuilderError> {
+        let output_wire_ids = self
+            .0
+            .outputs
+            .iter()
+            .map(|output| output.output.wires.clone())
+            .flatten()
+            .collect::<HashSet<usize>>();
+
+        let mut output_wire_connections: HashMap<usize, usize> = HashMap::default();
+        for (sink, feed) in self
+            .0
+            .conns
+            .iter()
+            .filter(|(sink, _)| output_wire_ids.contains(sink))
+        {
+            output_wire_connections.insert(*feed, *sink);
+        }
+
+        // Preserve output wire ids by replacing gate wire
+        // ids if they are connected to an output wire
+        for (_, feed) in self.0.conns.iter_mut() {
+            if let Some(new_id) = output_wire_connections.get(feed) {
+                *feed = *new_id;
+            }
+        }
+
         // Connect all gate wires and create id set
         let mut id_set: BTreeSet<usize> = BTreeSet::new();
         self.0.gates.iter_mut().for_each(|gate| {
@@ -515,6 +541,9 @@ impl CircuitBuilder<Outputs> {
                     y.id = *new_id;
                 }
                 id_set.insert(y.id);
+            }
+            if let Some(new_id) = output_wire_connections.get(&gate.z.id) {
+                gate.z.id = *new_id;
             }
             id_set.insert(gate.x.id);
             id_set.insert(gate.z.id);
@@ -643,12 +672,12 @@ pub fn map_bytes(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Value, ADDER_64};
+    use crate::{Value, ADDER_64_BYTES};
 
     #[test]
     fn test_adder_64() {
         let mut builder = CircuitBuilder::new("test", "", "", BitOrder::Lsb0);
-        let adder_64 = Circuit::load_bytes(ADDER_64).unwrap();
+        let adder_64 = Circuit::load_bytes(ADDER_64_BYTES).unwrap();
 
         let in_1 = builder.add_input("in_1", "", ValueType::U64, 64);
         let in_2 = builder.add_input("in_2", "", ValueType::U64, 64);

@@ -57,7 +57,7 @@ impl Value {
         match typ {
             ValueType::Bytes => {
                 // Preserve byte-order, but reverse bits in each byte
-                bits.chunks_exact_mut(8).for_each(|byte| byte.reverse());
+                bits.chunks_mut(8).for_each(|byte| byte.reverse());
             }
             // Preserve bit-order
             ValueType::Bits => {}
@@ -134,7 +134,7 @@ impl Value {
         match self.value_type() {
             ValueType::Bytes => {
                 // Preserve byte-order, but reverse bits in each byte
-                bits.chunks_exact_mut(8).for_each(|byte| byte.reverse());
+                bits.chunks_mut(8).for_each(|byte| byte.reverse());
             }
             // Preserve bit-order
             ValueType::Bits => {}
