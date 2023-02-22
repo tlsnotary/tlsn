@@ -1,3 +1,11 @@
+//! # The Key Exchange Protocol
+//!
+//! This crate implements the key exchange protocol of TLSNotary. The key exchange protocol allows
+//! the user and the notary to negotiate a shared secret with the server so that the user as well
+//! as the notary end up with an additive share of the Pre-Master-Secret (PMS). A detailed
+//! description of this protocol can be found in our documentation
+//! <https://docs.tlsnotary.org/protocol/notarization/key_exchange.html>.
+
 mod circuit;
 mod exchange;
 #[cfg(feature = "mock")]
@@ -17,8 +25,10 @@ use utils_aio::Channel;
 
 pub use exchange::KeyExchangeCore;
 
+/// A channel for exchanging key exchange messages
 pub type KeyExchangeChannel = Box<dyn Channel<KeyExchangeMessage, Error = std::io::Error> + Send>;
 
+/// An error that can occur during the key exchange protocol
 #[derive(Debug, thiserror::Error)]
 pub enum KeyExchangeError {
     #[error("Unable to compute public key: {0}")]
@@ -55,30 +65,53 @@ pub enum KeyExchangeError {
     PointAdditionError(#[from] point_addition::PointAdditionError),
 }
 
+/// A trait for the leader of the key exchange protocol
 #[async_trait]
 pub trait KeyExchangeLead {
-    async fn send_client_key(
+    /// Compute the client's public key
+    ///
+    /// The client's public key in this context is the combined public key (EC point addition) of
+    /// the user's and the notary's public keys.
+    async fn compute_client_key(
         &mut self,
         leader_private_key: SecretKey,
     ) -> Result<PublicKey, KeyExchangeError>;
+
+    /// Set the server's public key
     async fn set_server_key(&mut self, server_key: PublicKey) -> Result<(), KeyExchangeError>;
 }
 
+/// A trait for the follower of the key exchange protocol
 #[async_trait]
 pub trait KeyExchangeFollow {
+    /// Send the follower's public key to the key exchange leader
     async fn send_public_key(
         &mut self,
         follower_private_key: SecretKey,
     ) -> Result<(), KeyExchangeError>;
+
+    /// Receive the server's public key from the key exchange leader
     async fn receive_server_key(&mut self) -> Result<(), KeyExchangeError>;
 }
 
+/// This trait provides the functionality for computing the Pre-Master-Secret (PMS) shares and labels
 #[async_trait]
 pub trait ComputePMS {
-    async fn compute_pms_share(&mut self) -> Result<(), KeyExchangeError>;
+    /// Compute PMS shares
+    ///
+    /// PMS shares are an additive sharing of the x-coordinate of the curve point resulting from an
+    /// ECDH handshake between server and client
+    async fn compute_pms_shares(&mut self) -> Result<(), KeyExchangeError>;
+
+    /// Compute PMS labels
+    ///
+    /// The returned labels are used as cached inputs for another circuit
     async fn compute_pms_labels(self) -> Result<PMSLabels, KeyExchangeError>;
 }
 
+/// A wrapper struct for the PMS labels
+///
+/// PMS labels are encrypted circuit inputs for computing the master secrets
 #[derive(Debug, Clone)]
 pub struct PMSLabels {
     pub active_labels: Vec<ActiveLabels>,

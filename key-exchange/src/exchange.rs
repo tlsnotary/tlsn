@@ -1,8 +1,9 @@
-use super::state::KeyExchangeSetup;
-use crate::{
+//! This module implements the key exchange logic
+
+use super::{
     circuit::{build_double_combine_pms_circuit, build_nbit_xor_bytes_32},
     msg::{NotaryPublicKey, ServerPublicKey},
-    state::{PMSComputationSetup, State},
+    state::{KeyExchangeSetup, PMSComputationSetup, State},
     ComputePMS, KeyExchangeChannel, KeyExchangeError, KeyExchangeFollow, KeyExchangeLead,
     KeyExchangeMessage, PMSLabels, PublicKey,
 };
@@ -34,6 +35,9 @@ use share_conversion_core::fields::{p256::P256, Field};
 use std::{borrow::Borrow, sync::Arc};
 use utils_aio::{expect_msg_or_err, factory::AsyncFactory};
 
+/// The instance for performing the key exchange protocol
+///
+/// Can be either a leader or a follower depending on the role
 pub struct KeyExchangeCore<S: State + Send> {
     channel: KeyExchangeChannel,
     state: S,
@@ -46,7 +50,13 @@ where
     A: AsyncFactory<D, Config = DualExConfig, Error = GCFactoryError> + Send,
     D: DEExecute + Send,
 {
-    /// Creates a new KeyExchangeCore
+    /// Creates a new [KeyExchangeCore]
+    ///
+    /// * `channel`                 - The channel for sending messages between leader and follower
+    /// * `point_addition_sender`   - The point addition sender instance used during key exchange
+    /// * `point_addition_receiver` - The point addition receiver instance used during key exchange
+    /// * `dual_ex_factory`         - The garbled circuit dual execution factory for creating dual execution instances
+    /// * `role`                    - The role of this instance during key exchange, either leader or follower
     pub fn new(
         channel: KeyExchangeChannel,
         point_addition_sender: PS,
@@ -68,11 +78,17 @@ where
         }
     }
 
-    /// Setup KeyExchangeCore for PMS computation
+    /// Set up [KeyExchangeCore] for computation of PMS shares and labels
+    ///
+    /// This method will do the necessary preparation to allow leader and follower to compute the
+    /// PMS shares and labels. It is necessary that the key exchange has taken place before.
+    ///
+    /// * `id` - The id used for the dual execution instances
     pub async fn setup_pms_computation(
         mut self,
         id: String,
     ) -> Result<KeyExchangeCore<PMSComputationSetup<PS, PR, D>>, KeyExchangeError> {
+        // Set up dual execution instances and circuits
         let mut config_builder_pms = DualExConfigBuilder::default();
         let mut config_builder_xor = DualExConfigBuilder::default();
 
@@ -99,12 +115,14 @@ where
             .create(format!("{}/xor", id), config_xor)
             .await?;
 
+        // Check that the key exchange has taken place
         let private_key = self
             .state
             .private_key
             .ok_or(KeyExchangeError::NoPrivateKey)?;
         let server_key = self.state.server_key.ok_or(KeyExchangeError::NoServerKey)?;
 
+        // Return the new instance prepared for PMS computation
         Ok(KeyExchangeCore {
             channel: self.channel,
             state: PMSComputationSetup {
@@ -140,16 +158,18 @@ where
     LS: ObliviousSend<FullEncodedInput> + Send,
     LR: ObliviousReceive<InputValue, ActiveEncodedInput> + Send,
 {
-    async fn send_client_key(
+    async fn compute_client_key(
         &mut self,
         leader_private_key: SecretKey,
     ) -> Result<PublicKey, KeyExchangeError> {
+        // Receive public key from follower
         let message = expect_msg_or_err!(
             self.channel.next().await,
             KeyExchangeMessage::NotaryPublicKey,
             KeyExchangeError::Unexpected
         )?;
 
+        // Combine public keys
         let public_key = leader_private_key.public_key();
         let client_public_key = PublicKey::from_affine(
             (public_key.to_projective() + message.notary_key.to_projective()).to_affine(),
@@ -160,6 +180,7 @@ where
     }
 
     async fn set_server_key(&mut self, server_key: PublicKey) -> Result<(), KeyExchangeError> {
+        // Send server's public key to follower
         let message = KeyExchangeMessage::ServerPublicKey(ServerPublicKey { server_key });
         self.channel.send(message).await?;
 
@@ -191,17 +212,19 @@ where
         &mut self,
         follower_private_key: SecretKey,
     ) -> Result<(), KeyExchangeError> {
+        // Send public key to leader
         let public_key = follower_private_key.public_key();
         let message = KeyExchangeMessage::NotaryPublicKey(NotaryPublicKey {
             notary_key: public_key,
         });
-
         self.channel.send(message).await?;
+
         self.state.private_key = Some(follower_private_key);
         Ok(())
     }
 
     async fn receive_server_key(&mut self) -> Result<(), KeyExchangeError> {
+        // Receive server's public key from leader
         let message = expect_msg_or_err!(
             self.channel.next().await,
             KeyExchangeMessage::ServerPublicKey,
@@ -220,11 +243,13 @@ where
     PR: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send,
     D: DEExecute + Send,
 {
-    async fn compute_pms_share(&mut self) -> Result<(), KeyExchangeError> {
+    async fn compute_pms_shares(&mut self) -> Result<(), KeyExchangeError> {
         let server_key = &self.state.server_key;
         let private_key = &self.state.private_key;
 
-        // We need to mimic the ecdh::p256::diffie-hellman function without the `SharedSecret`
+        // Compute the leader's/follower's share of the pre-master secret
+        //
+        // We need to mimic the [ecdh::p256::diffie-hellman] function without the `SharedSecret`
         // wrapper, because this makes it harder to get the result as an EC curve point.
         let shared_secret = {
             let public_projective = server_key.to_projective();
@@ -232,7 +257,6 @@ where
         };
 
         let encoded_point = EncodedPoint::from(PublicKey::from_affine(shared_secret)?);
-
         let (pms1, pms2) = futures::try_join!(
             self.state
                 .point_addition_sender
@@ -247,13 +271,16 @@ where
     }
 
     async fn compute_pms_labels(mut self) -> Result<PMSLabels, KeyExchangeError> {
-        // Compute circuit input
+        // PMS shares have to be already computed in order to continue
         let [pms_share1, pms_share2] =
             self.state.pms_shares.ok_or(KeyExchangeError::NoPMSShares)?;
+
+        // Get the input gates in the correct order according to the role
         let input_gates = self.state.role.input_gates();
 
         let mut rng = ChaCha20Rng::from_entropy();
 
+        // Prepare circuit inputs
         let input0 = self
             .state
             .circuit_pms
@@ -281,13 +308,21 @@ where
             .to_value(Value::ConstZero)?;
         let const_input3 = self.state.circuit_pms.input(7)?.to_value(Value::ConstOne)?;
 
-        let leader_labels = FullInputSet::generate(&mut rng, &self.state.circuit_pms, None);
+        // Generate the full labels for the circuit
+        let full_labels = FullInputSet::generate(&mut rng, &self.state.circuit_pms, None);
 
+        // Execute the pms circuit in dual execution, but without performing the equality check
+        //
+        // This will give us the labels without output decoding information, which we want to
+        // return in the end, so that they can be reused for the computation of the master secret.
+        //
+        // The output of this circuit is (A + B, C + D) = (PMS1, PMS2), but we only receive the
+        // labels for this.
         let summary = self
             .state
             .dual_ex_pms
             .execute_skip_equality_check(
-                leader_labels,
+                full_labels,
                 vec![
                     input0.clone(),
                     input1.clone(),
@@ -302,20 +337,28 @@ where
             )
             .await?;
 
-        let active_output_labels = summary.get_evaluator_summary().output_labels();
-        let full_output_labels = summary.get_generator_summary().output_labels();
-
-        let active_encoded_input = active_output_labels
+        // The active and full output from the circuit execution
+        let active_output = summary
+            .get_evaluator_summary()
+            .output_labels()
             .clone()
-            .to_inner()
+            .to_inner();
+        let full_output = summary
+            .get_generator_summary()
+            .output_labels()
+            .clone()
+            .to_inner();
+
+        // We need to apply some transformations, so that this can be used as input for the XOR circuit
+        let active_encoded_input = active_output
+            .clone()
             .into_iter()
             .enumerate()
             .map(|(k, x)| x.to_input(self.state.circuit_xor.input(k).unwrap()))
             .collect::<Result<Vec<Encoded<Input, Active>>, EncodingError>>()?;
 
-        let full_encoded_input = full_output_labels
+        let full_encoded_input = full_output
             .clone()
-            .to_inner()
             .into_iter()
             .enumerate()
             .map(|(k, x)| x.to_input(self.state.circuit_xor.input(k).unwrap()))
@@ -323,6 +366,11 @@ where
 
         let full_encoded_input = EncodedSet::<Input, Full>::new(full_encoded_input)?;
 
+        // Now we use the output of the first circuit (PMS1, PMS2) as cached inputs for the XOR
+        // circuit and execute it in full dual execution.
+        //
+        // This circuit returns PMS1 ^ PMS2, which we expect to be equal to 0, if both parties have
+        // been honest.
         let output = self
             .state
             .dual_ex_xor
@@ -339,20 +387,18 @@ where
             return Err(KeyExchangeError::UnexpectedOutputValue);
         };
 
+        // Check that the output of the XOR circuit is equal to 0, i.e. PMS1 == PMS2
         if *xor_output != vec![0_u8; 32] {
             return Err(KeyExchangeError::CheckFailed);
         }
 
-        let active_labels = active_output_labels
-            .clone()
-            .to_inner()
+        // Turn output into labels and return them
+        let active_labels = active_output
             .into_iter()
             .map(|x| x.into_labels())
             .collect::<Vec<Labels<Active>>>();
 
-        let full_labels = full_output_labels
-            .clone()
-            .to_inner()
+        let full_labels = full_output
             .into_iter()
             .map(|x| x.into_labels())
             .collect::<Vec<Labels<Full>>>();
@@ -361,6 +407,22 @@ where
             active_labels,
             full_labels,
         })
+    }
+}
+
+/// This struct determines the role during the key exchange protocol
+#[derive(Debug, Clone, Copy)]
+pub enum Role {
+    Leader,
+    Follower,
+}
+
+impl Role {
+    fn input_gates(&self) -> [usize; 4] {
+        match self {
+            Role::Leader => [0, 2, 1, 3],
+            Role::Follower => [1, 3, 0, 2],
+        }
     }
 }
 
@@ -506,7 +568,7 @@ mod tests {
     ) -> (MockKeyExchangeLeader, MockKeyExchangeFollower, PublicKey) {
         let (mut leader, mut follower) = create_mock_key_exchange_pair();
 
-        let leader_fut = leader.send_client_key(leader_private_key.clone());
+        let leader_fut = leader.compute_client_key(leader_private_key.clone());
         let follower_fut = follower.send_public_key(follower_private_key.clone());
 
         let (client_public_key, _) = tokio::try_join!(leader_fut, follower_fut).unwrap();
@@ -535,23 +597,9 @@ mod tests {
             .await
             .unwrap();
 
-        let _ = tokio::try_join!(leader.compute_pms_share(), follower.compute_pms_share()).unwrap();
+        let _ =
+            tokio::try_join!(leader.compute_pms_shares(), follower.compute_pms_shares()).unwrap();
 
         (leader, follower)
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum Role {
-    Leader,
-    Follower,
-}
-
-impl Role {
-    fn input_gates(&self) -> [usize; 4] {
-        match self {
-            Role::Leader => [0, 2, 1, 3],
-            Role::Follower => [1, 3, 0, 2],
-        }
     }
 }

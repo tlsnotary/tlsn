@@ -1,8 +1,13 @@
+//! This module provides the circuits used in the key exchange protocol
+
 use mpc_circuits::{builder::CircuitBuilder, circuits::nbit_xor, Circuit, ValueType};
 use std::sync::Arc;
 use tls_circuits::combine_pms_shares;
 
-pub fn build_double_combine_pms_circuit() -> Arc<Circuit> {
+/// Creates a circuit which performs P256 field additions of two points, twice
+///
+/// Input to circuit is (A, B, C, D) and circuit returns (A + B, C + D)
+pub(crate) fn build_double_combine_pms_circuit() -> Arc<Circuit> {
     let mut builder = CircuitBuilder::new("pms_shares_2x", "", "0.1.0");
 
     let a = builder.add_input(
@@ -95,7 +100,8 @@ pub fn build_double_combine_pms_circuit() -> Arc<Circuit> {
     builder.build_circuit().unwrap()
 }
 
-pub fn build_nbit_xor_bytes_32() -> Arc<Circuit> {
+/// Creates a circuit which returns XOR of two 32-byte inputs
+pub(crate) fn build_nbit_xor_bytes_32() -> Arc<Circuit> {
     let mut builder = CircuitBuilder::new("nbit_xor_bytes", "", "0.1.0");
 
     let a = builder.add_input("PMS_1", "256-bit PMS", ValueType::Bytes, 256);
