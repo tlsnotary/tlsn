@@ -1,7 +1,10 @@
 [package]
-name = "block-cipher"
+name = "tlsn-block-cipher"
 version = "0.1.0"
 edition = "2021"
+
+[lib]
+name = "block_cipher"
 
 [features]
 default = ["mock"]
