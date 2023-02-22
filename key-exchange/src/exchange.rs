@@ -2,7 +2,6 @@
 
 use super::{
     circuit::{build_double_combine_pms_circuit, build_nbit_xor_bytes_32},
-    msg::{NotaryPublicKey, ServerPublicKey},
     state::{KeyExchangeSetup, PMSComputationSetup, State},
     ComputePMS, KeyExchangeChannel, KeyExchangeError, KeyExchangeFollow, KeyExchangeLead,
     KeyExchangeMessage, PMSLabels, PublicKey,
@@ -168,11 +167,12 @@ where
             KeyExchangeMessage::NotaryPublicKey,
             KeyExchangeError::Unexpected
         )?;
+        let notary_key: PublicKey = message.try_into()?;
 
         // Combine public keys
         let public_key = leader_private_key.public_key();
         let client_public_key = PublicKey::from_affine(
-            (public_key.to_projective() + message.notary_key.to_projective()).to_affine(),
+            (public_key.to_projective() + notary_key.to_projective()).to_affine(),
         )?;
 
         self.state.private_key = Some(leader_private_key);
@@ -181,7 +181,7 @@ where
 
     async fn set_server_key(&mut self, server_key: PublicKey) -> Result<(), KeyExchangeError> {
         // Send server's public key to follower
-        let message = KeyExchangeMessage::ServerPublicKey(ServerPublicKey { server_key });
+        let message = KeyExchangeMessage::ServerPublicKey(server_key.into());
         self.channel.send(message).await?;
 
         self.state.server_key = Some(server_key);
@@ -214,9 +214,7 @@ where
     ) -> Result<(), KeyExchangeError> {
         // Send public key to leader
         let public_key = follower_private_key.public_key();
-        let message = KeyExchangeMessage::NotaryPublicKey(NotaryPublicKey {
-            notary_key: public_key,
-        });
+        let message = KeyExchangeMessage::NotaryPublicKey(public_key.into());
         self.channel.send(message).await?;
 
         self.state.private_key = Some(follower_private_key);
@@ -230,8 +228,9 @@ where
             KeyExchangeMessage::ServerPublicKey,
             KeyExchangeError::Unexpected
         )?;
+        let server_key = message.try_into()?;
 
-        self.state.server_key = Some(message.server_key);
+        self.state.server_key = Some(server_key);
         Ok(())
     }
 }
