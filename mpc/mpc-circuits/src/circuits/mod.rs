@@ -6,6 +6,7 @@ mod nbit_inverter;
 mod nbit_subtractor;
 mod nbit_switch;
 mod nbit_xor;
+mod nbyte_xor;
 
 pub use full_adder::full_adder;
 pub use half_adder::half_adder;
@@ -15,6 +16,7 @@ pub use nbit_inverter::nbit_inverter;
 pub use nbit_subtractor::nbit_subtractor;
 pub use nbit_switch::nbit_switch;
 pub use nbit_xor::nbit_xor;
+pub use nbyte_xor::nbyte_xor;
 
 use crate::{Circuit, InputValue, Value, WireGroup};
 

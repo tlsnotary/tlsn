@@ -1,0 +1,19 @@
+[package]
+name = "tlsn-cipher-circuits"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "cipher_circuits"
+
+[dependencies]
+tlsn-mpc-circuits.workspace = true
+once_cell.workspace = true
+
+[dev-dependencies]
+generic-array.workspace = true
+rand.workspace = true
+rand_chacha.workspace = true
+aes = "0.7"
+ctr = "0.8"
+cipher = "0.3"

@@ -153,6 +153,15 @@ impl Labels<Full> {
         }
     }
 
+    /// Creates new full labels from the provided label pairs
+    pub fn new_from_pairs(pairs: Vec<LabelPair>) -> Self {
+        let delta = pairs[0].delta();
+        Self {
+            state: Full { delta },
+            labels: Arc::new(pairs.into_iter().map(|pair| pair.low()).collect()),
+        }
+    }
+
     /// Creates new full labels from the provided blocks and delta
     ///
     /// * `blocks` - Blocks corresponding to the logical low
@@ -610,6 +619,12 @@ impl LabelPair {
     #[inline]
     pub(crate) fn new(low: Label, high: Label) -> Self {
         Self(low, high)
+    }
+
+    /// Returns delta
+    #[inline]
+    pub fn delta(&self) -> Delta {
+        Delta((self.0 ^ self.1).0)
     }
 
     /// Returns both labels
