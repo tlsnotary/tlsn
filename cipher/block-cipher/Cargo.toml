@@ -1,0 +1,37 @@
+[package]
+name = "block-cipher"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = ["mock"]
+mock = []
+
+[dependencies]
+tlsn-cipher-circuits = { path = "../cipher-circuits" }
+tlsn-mpc-circuits.workspace = true
+tlsn-mpc-core.workspace = true
+tlsn-mpc-aio.workspace = true
+tlsn-utils.workspace = true
+tlsn-utils-aio.workspace = true
+
+async-trait.workspace = true
+tokio = { workspace = true, default-features = false, features = ["sync"] }
+futures.workspace = true
+rand.workspace = true
+thiserror.workspace = true
+derive_builder.workspace = true
+
+[dev-dependencies]
+aes.workspace = true
+ctr.workspace = true
+cipher.workspace = true
+rand_chacha.workspace = true
+tokio = { workspace = true, features = [
+    "macros",
+    "io-util",
+    "rt",
+    "rt-multi-thread",
+] }
+rstest = { workspace = true, features = ["async-timeout"] }
+criterion = { workspace = true, features = ["async_tokio"] }
