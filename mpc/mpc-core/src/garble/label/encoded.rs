@@ -215,18 +215,26 @@ where
 
 /// Decoding info for garbled circuit wire labels.
 /// (Not to be confused with wire ENcoding. A label is an ENcoding of a wire value (0 or 1). Thanks to
-/// the point-and-permute technique, a label can be DEcoded back into a wire value just by comparing
+/// the Point-and-Permute technique, a label can be DEcoded back into a wire value just by comparing
 /// its pointer bit (LSB) to the decoding info as explained below)
 ///
-/// W_1 = W_0 ^ Delta where LSB(Delta) = 1
+/// `w`   - circuit's wire
+/// `W`   - active wire label
+/// `W_0` - low wire label (it encodes the wire value 0)
+/// `W_1` - high wire label (it encodes the wire value 1)
 ///
-/// thus LSB(W_1) = LSB(W_0) ^ LSB(Delta) = LSB(W_0) ^ 1
+/// According to the Point-and-Permute technique:
+///     
+/// ---- W_1 = W_0 ^ Delta where LSB(Delta) = 1
 ///
-/// To determine the truth value of a wire label W, we simply compute:
+/// ---- thus LSB(W_1) = LSB(W_0) ^ LSB(Delta) = LSB(W_0) ^ 1
 ///
-/// Decode(W) = LSB(W) ^ DecodingInfo(W)
+/// We set DecodingInfo(w) to LSB(W_0).
 ///
-/// where DecodingInfo(W) = LSB(W_0).
+/// The truth value of an active wire label W is computed:
+///
+/// `let truth_value = if LSB(W) == DecodingInfo(w) {0} else {1}`
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct GroupDecodingInfo<G>
 where
