@@ -21,7 +21,9 @@ pub use crate::{
         BlockCipherShareCircuit,
     },
 };
-pub use config::{BlockCipherConfig, BlockCipherConfigBuilder, BlockCipherConfigBuilderError};
+pub use config::{
+    BlockCipherConfig, BlockCipherConfigBuilder, BlockCipherConfigBuilderError, Role,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum BlockCipherError {
