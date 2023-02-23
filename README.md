@@ -19,23 +19,22 @@ at your option.
 ## Useful Links
 - website: <https://tlsnotary.org/>
 - rust codebase: <https://github.com/tlsnotary/tlsn>
-- documentation: <https://docs.tlsnotary.org/protocol/notarization/index.html> (under development)
+- documentation: <https://docs.tlsnotary.org/> (under development)
 
 ## Overview
 - **mpc**: Home of multi-party computation libraries
     - oblivious transfer: Core building block used a lot in our codebase.
     - garbling: We use several variants of garbled circuit executions in our codebase
       (DEAP, Dual-Ex, ZK)
-    - circuits: code to build circuits, which can be used in a garbling scheme.
-      Also contains some hard-coded circuits.
-    - share-conversion: Allows to convert different sharing schemes of field elements
-      into each other using oblivious transfer.
+    - circuits: code to build circuits, with some basic circuit components
+      available. 
+    - share-conversion: supports converting between additive and multiplicative
+      shares for performing finite-field arithmetic in 2PC.
 - **tls**: Home of the TLS logic of our protocol like handshake en-/decryption, ghash, **currently outdated**
 - **utils**: Utility functions which are frequently used everywhere
 - **actors**: Provides actors, which implement protocol-specific functionality using
   the actor pattern. They usually wrap an aio module
-- **universal-hash**: Implements ghash, which is used AES-GCM. Will probably also
-  implement Poly-1305 at some later point.
+- **universal-hash**: Implements ghash, which is used AES-GCM. Poly-1305 coming soon.
 - **point-addition**: Used in key-exchange and allows to compute a two party sharing of
   an EC curve point
 
@@ -45,6 +44,7 @@ at your option.
   crate/module implements the network IO and wraps a core crate/module which
   provides the protocol implementation. This is a frequent pattern you will
   encounter in the codebase.
-- when a sub-protocol is used in many places (like e.g. Oblivious Transfer) we
-  usually have an actor to simplify passing around instances of this sub-protocol
+- some protocols are implemented using the actor pattern to facilitate
+  asynchronous message processing with shared state.
+
 
