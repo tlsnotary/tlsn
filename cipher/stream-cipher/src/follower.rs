@@ -6,7 +6,7 @@ use mpc_circuits::{circuits::nbyte_xor, BitOrder, WireGroup};
 
 use crate::{
     cipher::{CtrCircuit, CtrCircuitSuite, CtrShareCircuit},
-    config::{CounterModeConfigBuilder, StreamCipherConfig, StreamConfig},
+    config::{CounterModeConfigBuilder, StreamCipherConfig},
     counter_block::KeyBlockLabels,
     counter_mode::CtrMode,
     msg::{PlaintextLabels, StreamCipherMessage},
@@ -346,15 +346,12 @@ where
         plaintext: Vec<u8>,
         record: bool,
     ) -> Result<Vec<u8>, StreamCipherError> {
-        let config = StreamConfig::Public {
-            text: plaintext.clone(),
-        };
-
+        let len = plaintext.len();
         let labels = self.build_ctr_labels(plaintext.len(), record).await?;
 
         let (ciphertext, _) = self
             .ctr_mode
-            .apply_key_stream(config, explicit_nonce, labels)
+            .apply_key_stream(explicit_nonce, Some(plaintext), len, labels, false)
             .await?;
 
         Ok(ciphertext)
@@ -366,13 +363,11 @@ where
         len: usize,
         record: bool,
     ) -> Result<Vec<u8>, StreamCipherError> {
-        let config = StreamConfig::Blind { len };
-
         let labels = self.build_ctr_labels(len, record).await?;
 
         let (ciphertext, _) = self
             .ctr_mode
-            .apply_key_stream(config, explicit_nonce, labels)
+            .apply_key_stream(explicit_nonce, None, len, labels, true)
             .await?;
 
         Ok(ciphertext)
@@ -384,15 +379,12 @@ where
         ciphertext: Vec<u8>,
         record: bool,
     ) -> Result<Vec<u8>, StreamCipherError> {
-        let config = StreamConfig::Public {
-            text: ciphertext.clone(),
-        };
-
+        let len = ciphertext.len();
         let labels = self.build_ctr_labels(ciphertext.len(), false).await?;
 
         let (plaintext, _) = self
             .ctr_mode
-            .apply_key_stream(config, explicit_nonce, labels)
+            .apply_key_stream(explicit_nonce, Some(ciphertext.clone()), len, labels, false)
             .await?;
 
         if record {
@@ -422,14 +414,11 @@ where
         record: bool,
     ) -> Result<(), StreamCipherError> {
         let len = ciphertext.len();
-
-        let config = StreamConfig::Blind { len };
-
         let labels = self.build_ctr_labels(ciphertext.len(), false).await?;
 
         let (_, summaries) = self
             .ctr_mode
-            .apply_key_stream(config, explicit_nonce, labels)
+            .apply_key_stream(explicit_nonce, None, len, labels, true)
             .await?;
 
         if record {

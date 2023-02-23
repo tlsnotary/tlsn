@@ -5,7 +5,6 @@ use rand::RngCore;
 
 use crate::{
     cipher::{CtrCircuit, CtrShareCircuit},
-    config::ApplyKeyBlockConfig,
     Role, StreamCipherError,
 };
 
@@ -17,11 +16,12 @@ pub struct KeyBlockLabels {
 }
 
 pub(crate) async fn apply_key_block<C: CtrCircuit, DE: DEExecute>(
-    config: ApplyKeyBlockConfig,
     de: DE,
     labels: KeyBlockLabels,
+    text: Option<Vec<u8>>,
     explicit_nonce: Vec<u8>,
     ctr: u32,
+    private: bool,
 ) -> Result<(Vec<u8>, DESummary), StreamCipherError> {
     let cipher = C::default();
 
@@ -40,12 +40,7 @@ pub(crate) async fn apply_key_block<C: CtrCircuit, DE: DEExecute>(
         .to_value(ctr)
         .expect("Counter size should match cipher");
 
-    let mut text = config.get_input_text();
-
-    let (gen_inputs, ot_send_inputs, ot_receive_inputs) = if let Some(text) = text.as_mut() {
-        // Pad the text to the block size
-        text.resize(C::BLOCK_SIZE, 0);
-
+    let (gen_inputs, ot_send_inputs, ot_receive_inputs) = if let Some(text) = text {
         let input_text = cipher
             .input_text()
             .to_value(text.clone())
@@ -57,11 +52,7 @@ pub(crate) async fn apply_key_block<C: CtrCircuit, DE: DEExecute>(
         let ot_send_inputs = vec![];
         // If we have the input text and it is private, we must receive the labels
         // for it via OT
-        let ot_receive_inputs = if config.is_private() {
-            vec![input_text]
-        } else {
-            vec![]
-        };
+        let ot_receive_inputs = if private { vec![input_text] } else { vec![] };
 
         (gen_inputs, ot_send_inputs, ot_receive_inputs)
     } else {
@@ -87,12 +78,9 @@ pub(crate) async fn apply_key_block<C: CtrCircuit, DE: DEExecute>(
         )
         .await?;
 
-    let Value::Bytes(mut output_text) = outputs[0].value().clone() else {
+    let Value::Bytes(output_text) = outputs[0].value().clone() else {
         panic!("Output 0 should be text bytes");
     };
-
-    // Strip any padding
-    output_text.truncate(config.len());
 
     Ok((output_text, summary))
 }

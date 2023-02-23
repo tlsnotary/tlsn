@@ -7,7 +7,7 @@ use rand::RngCore;
 
 use crate::{
     cipher::{CtrCircuit, CtrCircuitSuite, CtrShareCircuit},
-    config::{CounterModeConfigBuilder, StreamCipherConfig, StreamConfig},
+    config::{CounterModeConfigBuilder, StreamCipherConfig},
     counter_block::KeyBlockLabels,
     counter_mode::CtrMode,
     msg::{PlaintextLabels, StreamCipherMessage},
@@ -291,6 +291,42 @@ where
 
         Ok(gen_labels)
     }
+
+    async fn encrypt(
+        &mut self,
+        explicit_nonce: Vec<u8>,
+        plaintext: Vec<u8>,
+        record: bool,
+        private: bool,
+    ) -> Result<Vec<u8>, StreamCipherError> {
+        let len = plaintext.len();
+        let labels = self.build_ctr_labels(len).await?;
+
+        let (ciphertext, summaries) = self
+            .ctr_mode
+            .apply_key_stream(
+                explicit_nonce.clone(),
+                Some(plaintext.clone()),
+                len,
+                labels,
+                private,
+            )
+            .await?;
+
+        if record {
+            let plaintext_labels = extract_plaintext_labels::<C>(len, summaries);
+
+            self.write_to_transcript(
+                explicit_nonce,
+                plaintext,
+                plaintext_labels.into_iter().collect(),
+                ciphertext.clone(),
+            )
+            .await?;
+        }
+
+        Ok(ciphertext)
+    }
 }
 
 #[async_trait]
@@ -320,30 +356,7 @@ where
         plaintext: Vec<u8>,
         record: bool,
     ) -> Result<Vec<u8>, StreamCipherError> {
-        let config = StreamConfig::Public {
-            text: plaintext.clone(),
-        };
-
-        let labels = self.build_ctr_labels(plaintext.len()).await?;
-
-        let (ciphertext, summaries) = self
-            .ctr_mode
-            .apply_key_stream(config, explicit_nonce.clone(), labels)
-            .await?;
-
-        if record {
-            let plaintext_labels = extract_plaintext_labels::<C>(plaintext.len(), summaries);
-
-            self.write_to_transcript(
-                explicit_nonce,
-                plaintext,
-                plaintext_labels.into_iter().collect(),
-                ciphertext.clone(),
-            )
-            .await?;
-        }
-
-        Ok(ciphertext)
+        self.encrypt(explicit_nonce, plaintext, record, false).await
     }
 
     async fn encrypt_private(
@@ -352,30 +365,7 @@ where
         plaintext: Vec<u8>,
         record: bool,
     ) -> Result<Vec<u8>, StreamCipherError> {
-        let config = StreamConfig::Private {
-            text: plaintext.clone(),
-        };
-
-        let labels = self.build_ctr_labels(plaintext.len()).await?;
-
-        let (ciphertext, summaries) = self
-            .ctr_mode
-            .apply_key_stream(config, explicit_nonce.clone(), labels)
-            .await?;
-
-        if record {
-            let plaintext_labels = extract_plaintext_labels::<C>(plaintext.len(), summaries);
-
-            self.write_to_transcript(
-                explicit_nonce,
-                plaintext,
-                plaintext_labels.into_iter().collect(),
-                ciphertext.clone(),
-            )
-            .await?;
-        }
-
-        Ok(ciphertext)
+        self.encrypt(explicit_nonce, plaintext, record, true).await
     }
 
     async fn decrypt(
@@ -384,15 +374,18 @@ where
         ciphertext: Vec<u8>,
         record: bool,
     ) -> Result<Vec<u8>, StreamCipherError> {
-        let config = StreamConfig::Public {
-            text: ciphertext.clone(),
-        };
-
+        let len = ciphertext.len();
         let labels = self.build_ctr_labels(ciphertext.len()).await?;
 
         let (plaintext, _) = self
             .ctr_mode
-            .apply_key_stream(config, explicit_nonce.clone(), labels)
+            .apply_key_stream(
+                explicit_nonce.clone(),
+                Some(ciphertext.clone()),
+                len,
+                labels,
+                false,
+            )
             .await?;
 
         if record {
@@ -432,19 +425,22 @@ where
         ciphertext: Vec<u8>,
         record: bool,
     ) -> Result<Vec<u8>, StreamCipherError> {
+        let len = ciphertext.len();
         // Generate a random mask to hide the key stream
         let mut stream_mask = vec![0u8; ciphertext.len()];
         rand::thread_rng().fill_bytes(&mut stream_mask);
-
-        let config = StreamConfig::Private {
-            text: stream_mask.clone(),
-        };
 
         let labels = self.build_ctr_labels(ciphertext.len()).await?;
 
         let (masked_stream, summaries) = self
             .ctr_mode
-            .apply_key_stream(config, explicit_nonce.clone(), labels)
+            .apply_key_stream(
+                explicit_nonce.clone(),
+                Some(stream_mask.clone()),
+                len,
+                labels,
+                true,
+            )
             .await?;
 
         // Remove the mask and decrypt ciphertext
