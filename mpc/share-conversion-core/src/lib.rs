@@ -142,6 +142,8 @@ pub enum ShareConversionCoreError {
     OTEnvelopeUnequalLength,
     #[error("Cannot deserialize bytes into field element")]
     DeserializeFieldElement,
+    #[error("Unable to convert message type to memory type")]
+    MessageConversion,
 }
 
 #[cfg(test)]

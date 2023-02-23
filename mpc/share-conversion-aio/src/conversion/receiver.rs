@@ -2,7 +2,7 @@
 
 use super::{
     recorder::{Recorder, Tape, Void},
-    ShareConversionChannel, ShareConversionMessage,
+    ShareConversionChannel,
 };
 use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive, ShareConversionError, VerifyTape};
 use async_trait::async_trait;
@@ -13,7 +13,7 @@ use mpc_aio::protocol::ot::{
 };
 use share_conversion_core::{
     fields::Field,
-    msgs::{SenderRecordings, ShareConversionMessage},
+    msgs::{Opening, ShareConversionMessage},
     AddShare, MulShare, ShareConvert,
 };
 use std::marker::PhantomData;

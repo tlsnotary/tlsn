@@ -1,9 +1,8 @@
 //! This module implements the async IO sender
 
 use super::{
-    msgs::Opening,
     recorder::{Recorder, Tape, Void},
-    ShareConversionChannel, ShareConversionMessage,
+    ShareConversionChannel,
 };
 use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive, SendTape, ShareConversionError};
 use async_trait::async_trait;
@@ -14,7 +13,7 @@ use rand::{RngCore, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 use share_conversion_core::{
     fields::Field,
-    msgs::{SenderRecordings, ShareConversionMessage},
+    msgs::{Opening, ShareConversionMessage},
     AddShare, MulShare, OTEnvelope, ShareConvert,
 };
 use std::marker::PhantomData;
