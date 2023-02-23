@@ -86,6 +86,7 @@ impl<T> ReceiverControl<T>
 where
     T: Handler<SetupMessage, Return = Result<(), ShareConversionError>>,
 {
+    /// Sends [SetupMessage] to the actor
     pub async fn setup(&mut self) -> Result<(), ShareConversionError> {
         self.0
             .send(SetupMessage)
@@ -99,7 +100,7 @@ impl<T, U: Field> MultiplicativeToAdditive<U> for ReceiverControl<T>
 where
     T: Handler<M2AMessage<Vec<U>>, Return = Result<Vec<U>, ShareConversionError>>,
 {
-    /// Sends M2AMessage to the actor
+    /// Sends [M2AMessage] to the actor
     async fn m_to_a(&mut self, input: Vec<U>) -> Result<Vec<U>, ShareConversionError> {
         self.0
             .send(M2AMessage(input))
@@ -113,7 +114,7 @@ impl<T, U: Field> AdditiveToMultiplicative<U> for ReceiverControl<T>
 where
     T: Handler<A2MMessage<Vec<U>>, Return = Result<Vec<U>, ShareConversionError>>,
 {
-    /// Sends A2MMessage to the actor
+    /// Sends [A2MMessage] to the actor
     async fn a_to_m(&mut self, input: Vec<U>) -> Result<Vec<U>, ShareConversionError> {
         self.0
             .send(A2MMessage(input))
@@ -128,7 +129,7 @@ where
     T: Handler<AcceptCommitmentMessage, Return = Result<(), ShareConversionError>>
         + Handler<VerifyTapeMessage, Return = Result<(), ShareConversionError>>,
 {
-    /// Sends AcceptCommitmentMessage to the actor
+    /// Sends [AcceptCommitmentMessage] to the actor
     async fn accept_commitment(&mut self) -> Result<(), ShareConversionError> {
         self.0
             .send(AcceptCommitmentMessage)
@@ -136,7 +137,7 @@ where
             .map_err(|err| ShareConversionError::Other(err.to_string()))?
     }
 
-    /// Sends VerifyTape to the actor
+    /// Sends [VerifyTapeMessage] to the actor
     async fn verify_tape(self) -> Result<(), ShareConversionError> {
         self.0
             .send(VerifyTapeMessage)
@@ -158,6 +159,7 @@ where
 {
     type Return = Result<(), ShareConversionError>;
 
+    /// This handler is called when the actor receives [SetupMessage]
     async fn handle(&mut self, _message: SetupMessage, ctx: &mut Context<Self>) -> Self::Return {
         // We need to own the state, so we use this only as a temporary modification
         let state = std::mem::replace(&mut self.state, State::Error);
@@ -192,7 +194,7 @@ where
 {
     type Return = Result<Vec<Y>, ShareConversionError>;
 
-    /// This handler is called when the actor receives M2AMessage
+    /// This handler is called when the actor receives [M2AMessage]
     async fn handle(
         &mut self,
         message: M2AMessage<Vec<Y>>,
@@ -226,7 +228,7 @@ where
 {
     type Return = Result<Vec<Y>, ShareConversionError>;
 
-    /// This handler is called when the actor receives A2MMessage
+    /// This handler is called when the actor receives [A2MMessage]
     async fn handle(
         &mut self,
         message: A2MMessage<Vec<Y>>,
@@ -259,7 +261,7 @@ where
 {
     type Return = Result<(), ShareConversionError>;
 
-    /// This handler is called when the actor receives AcceptCommitment
+    /// This handler is called when the actor receives [AcceptCommitmentMessage]
     async fn handle(
         &mut self,
         _message: AcceptCommitmentMessage,
@@ -293,7 +295,7 @@ where
 {
     type Return = Result<(), ShareConversionError>;
 
-    /// This handler is called when the actor receives VerifyTape
+    /// This handler is called when the actor receives [VerifyTapeMessage]
     async fn handle(
         &mut self,
         _message: VerifyTapeMessage,

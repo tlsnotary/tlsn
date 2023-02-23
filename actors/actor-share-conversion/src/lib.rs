@@ -9,6 +9,8 @@ pub struct SendTapeMessage;
 pub struct VerifyTapeMessage;
 pub struct M2AMessage<T>(T);
 pub struct A2MMessage<T>(T);
+pub struct SendCommitmentMessage;
+pub struct AcceptCommitmentMessage;
 
 #[cfg(test)]
 mod tests {
@@ -176,11 +178,13 @@ mod tests {
             create_conversion_controls::<AddShare<Gf2_128>>(None).await;
 
         let sender_task = tokio::spawn(async move {
+            sender_control.send_commitment().await.unwrap();
             let _ = sender_control.a_to_m(random_numbers_1).await.unwrap();
             sender_control.send_tape().await.unwrap()
         });
         let receiver_task = tokio::spawn(async move {
-            receiver_control.a_to_m(random_numbers_2).await.unwrap();
+            receiver_control.accept_commitment().await.unwrap();
+            let _ = receiver_control.a_to_m(random_numbers_2).await.unwrap();
             receiver_control.verify_tape().await.unwrap()
         });
 
