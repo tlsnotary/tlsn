@@ -1,6 +1,7 @@
 //! This module provides mock types for key exchange leader and follower and a function to create
 //! such a pair
 
+use super::{KeyExchangeCore, KeyExchangeMessage};
 use mpc_aio::protocol::{
     garble::{
         backend::RayonBackend,
@@ -15,73 +16,31 @@ use point_addition::mock::{
 };
 use utils_aio::duplex::DuplexChannel;
 
-use crate::{
-    exchange::Role,
-    state::{KeyExchangeSetup, PMSComputationSetup},
-    KeyExchangeMessage,
-};
-
-use super::KeyExchangeCore;
-
 pub type MockKeyExchangeLeader = KeyExchangeCore<
-    KeyExchangeSetup<
-        MockPointConversionSender,
-        MockPointConversionReceiver,
-        MockDualExFactory,
-        DualExLeader<
-            Initialized,
-            RayonBackend,
-            MockOTFactory<Block>,
-            MockOTFactory<Block>,
-            MockOTSender<Block>,
-            MockOTReceiver<Block>,
-        >,
-    >,
->;
-
-pub type MockKeyExchangeLeaderPMSSetup = KeyExchangeCore<
-    PMSComputationSetup<
-        MockPointConversionSender,
-        MockPointConversionReceiver,
-        DualExLeader<
-            Initialized,
-            RayonBackend,
-            MockOTFactory<Block>,
-            MockOTFactory<Block>,
-            MockOTSender<Block>,
-            MockOTReceiver<Block>,
-        >,
+    MockPointConversionSender,
+    MockPointConversionReceiver,
+    MockDualExFactory,
+    DualExLeader<
+        Initialized,
+        RayonBackend,
+        MockOTFactory<Block>,
+        MockOTFactory<Block>,
+        MockOTSender<Block>,
+        MockOTReceiver<Block>,
     >,
 >;
 
 pub type MockKeyExchangeFollower = KeyExchangeCore<
-    KeyExchangeSetup<
-        MockPointConversionReceiver,
-        MockPointConversionSender,
-        MockDualExFactory,
-        DualExFollower<
-            Initialized,
-            RayonBackend,
-            MockOTFactory<Block>,
-            MockOTFactory<Block>,
-            MockOTSender<Block>,
-            MockOTReceiver<Block>,
-        >,
-    >,
->;
-
-pub type MockKeyExchangeFollowerPMSSetup = KeyExchangeCore<
-    PMSComputationSetup<
-        MockPointConversionReceiver,
-        MockPointConversionSender,
-        DualExFollower<
-            Initialized,
-            RayonBackend,
-            MockOTFactory<Block>,
-            MockOTFactory<Block>,
-            MockOTSender<Block>,
-            MockOTReceiver<Block>,
-        >,
+    MockPointConversionReceiver,
+    MockPointConversionSender,
+    MockDualExFactory,
+    DualExFollower<
+        Initialized,
+        RayonBackend,
+        MockOTFactory<Block>,
+        MockOTFactory<Block>,
+        MockOTSender<Block>,
+        MockOTReceiver<Block>,
     >,
 >;
 
@@ -99,7 +58,6 @@ pub fn create_mock_key_exchange_pair() -> (MockKeyExchangeLeader, MockKeyExchang
         pa_leader1,
         pa_follower2,
         dual_ex_factory.clone(),
-        Role::Leader,
     );
 
     let follower = KeyExchangeCore::new(
@@ -107,7 +65,6 @@ pub fn create_mock_key_exchange_pair() -> (MockKeyExchangeLeader, MockKeyExchang
         pa_follower1,
         pa_leader2,
         dual_ex_factory,
-        Role::Follower,
     );
 
     (leader, follower)

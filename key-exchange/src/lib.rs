@@ -14,7 +14,6 @@ mod exchange;
 #[cfg(feature = "mock")]
 pub mod mock;
 pub mod msg;
-pub mod state;
 
 use async_trait::async_trait;
 use mpc_aio::protocol::garble::{factory::GCFactoryError, GCError};
@@ -82,6 +81,17 @@ pub trait KeyExchangeLead {
 
     /// Set the server's public key
     async fn set_server_key(&mut self, server_key: PublicKey) -> Result<(), KeyExchangeError>;
+
+    /// Compute PMS shares
+    ///
+    /// PMS shares are an additive sharing of the x-coordinate of the curve point resulting from an
+    /// ECDH handshake between server and client
+    async fn compute_pms_shares(&mut self) -> Result<(), KeyExchangeError>;
+
+    /// Compute PMS labels
+    ///
+    /// The returned labels are used as cached inputs for another circuit
+    async fn compute_pms_labels(&mut self, id: String) -> Result<PMSLabels, KeyExchangeError>;
 }
 
 /// A trait for the follower of the key exchange protocol
@@ -95,11 +105,7 @@ pub trait KeyExchangeFollow {
 
     /// Receive the server's public key from the key exchange leader
     async fn receive_server_key(&mut self) -> Result<(), KeyExchangeError>;
-}
 
-/// This trait provides the functionality for computing the Pre-Master-Secret (PMS) shares and labels
-#[async_trait]
-pub trait ComputePMS {
     /// Compute PMS shares
     ///
     /// PMS shares are an additive sharing of the x-coordinate of the curve point resulting from an
@@ -109,7 +115,7 @@ pub trait ComputePMS {
     /// Compute PMS labels
     ///
     /// The returned labels are used as cached inputs for another circuit
-    async fn compute_pms_labels(self) -> Result<PMSLabels, KeyExchangeError>;
+    async fn compute_pms_labels(&mut self, id: String) -> Result<PMSLabels, KeyExchangeError>;
 }
 
 /// A wrapper struct for the PMS labels
