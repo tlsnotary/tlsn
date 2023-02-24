@@ -99,7 +99,7 @@ where
     /// Compute the additive shares of the pre-master secret, twice
     async fn compute_pms_shares_for(&mut self) -> Result<(), KeyExchangeError> {
         let server_key = &self.server_key.ok_or(KeyExchangeError::NoServerKey)?;
-        let private_key = &self
+        let private_key = self
             .private_key
             .as_ref()
             .ok_or(KeyExchangeError::NoPrivateKey)?;
