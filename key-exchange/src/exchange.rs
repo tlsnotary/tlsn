@@ -1,7 +1,7 @@
 //! This module implements the key exchange logic
 
 use super::{
-    circuit::{build_double_combine_pms_circuit, build_nbit_xor_bytes_32},
+    circuit::{COMBINE_PMS, XOR_BYTES_32},
     state::{KeyExchangeSetup, PMSComputationSetup, State},
     ComputePMS, KeyExchangeChannel, KeyExchangeError, KeyExchangeFollow, KeyExchangeLead,
     KeyExchangeMessage, PMSLabels, PublicKey,
@@ -91,13 +91,10 @@ where
         let mut config_builder_pms = DualExConfigBuilder::default();
         let mut config_builder_xor = DualExConfigBuilder::default();
 
-        let circuit_pms = build_double_combine_pms_circuit();
-        let circuit_xor = build_nbit_xor_bytes_32();
-
-        config_builder_pms.circ(Arc::clone(&circuit_pms));
+        config_builder_pms.circ(Arc::clone(&COMBINE_PMS));
         config_builder_pms.id(format!("{}/pms", id));
 
-        config_builder_xor.circ(Arc::clone(&circuit_xor));
+        config_builder_xor.circ(Arc::clone(&XOR_BYTES_32));
         config_builder_xor.id(format!("{}/xor", id));
 
         let config_pms = config_builder_pms.build()?;
@@ -132,8 +129,8 @@ where
                 pms_shares: None,
                 dual_ex_pms,
                 dual_ex_xor,
-                circuit_pms,
-                circuit_xor,
+                circuit_pms: Arc::clone(&COMBINE_PMS),
+                circuit_xor: Arc::clone(&XOR_BYTES_32),
                 role: self.state.role,
             },
         })
@@ -167,12 +164,12 @@ where
             KeyExchangeMessage::NotaryPublicKey,
             KeyExchangeError::Unexpected
         )?;
-        let notary_key: PublicKey = message.try_into()?;
+        let follower_public_key: PublicKey = message.try_into()?;
 
         // Combine public keys
-        let public_key = leader_private_key.public_key();
+        let leader_public_key = leader_private_key.public_key();
         let client_public_key = PublicKey::from_affine(
-            (public_key.to_projective() + notary_key.to_projective()).to_affine(),
+            (leader_public_key.to_projective() + follower_public_key.to_projective()).to_affine(),
         )?;
 
         self.state.private_key = Some(leader_private_key);
@@ -300,12 +297,6 @@ where
             .input(4)?
             .to_value(Value::ConstZero)?;
         let const_input1 = self.state.circuit_pms.input(5)?.to_value(Value::ConstOne)?;
-        let const_input2 = self
-            .state
-            .circuit_pms
-            .input(6)?
-            .to_value(Value::ConstZero)?;
-        let const_input3 = self.state.circuit_pms.input(7)?.to_value(Value::ConstOne)?;
 
         // Generate the full labels for the circuit
         let full_labels = FullInputSet::generate(&mut rng, &self.state.circuit_pms, None);
@@ -322,14 +313,7 @@ where
             .dual_ex_pms
             .execute_skip_equality_check(
                 full_labels,
-                vec![
-                    input0.clone(),
-                    input1.clone(),
-                    const_input0,
-                    const_input1,
-                    const_input2,
-                    const_input3,
-                ],
+                vec![input0.clone(), input1.clone(), const_input0, const_input1],
                 vec![input2, input3],
                 vec![input0, input1],
                 vec![],

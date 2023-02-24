@@ -1,9 +1,12 @@
 //! # The Key Exchange Protocol
 //!
-//! This crate implements the key exchange protocol of TLSNotary. The key exchange protocol allows
-//! the user and the notary to negotiate a shared secret with the server so that the user as well
-//! as the notary end up with an additive share of the Pre-Master-Secret (PMS). A detailed
-//! description of this protocol can be found in our documentation
+//! This crate implements a key exchange protocol with 3 parties, namely server, leader and
+//! follower. The goal is to end up with a shared secret (ECDH) between the server and the client.
+//! The client in this context is leader and follower combined, which means that each of them will
+//! end up with a share of the shared secret. The leader will do all the necessary communication
+//! with the server alone and forward all messages from and to the follower.
+//!
+//! A detailed description of this protocol can be found in our documentation
 //! <https://docs.tlsnotary.org/protocol/notarization/key_exchange.html>.
 
 mod circuit;
