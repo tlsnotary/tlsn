@@ -47,7 +47,7 @@ pub struct KeyExchangeCore<PS, PR, A, D> {
     /// A factory used to instantiate a leader or follower of the garbled circuit dual execution
     /// protocol
     dual_ex_factory: A,
-    /// The private key of the user or notary
+    /// The private key of the party behind this instance, either follower or leader
     private_key: Option<SecretKey>,
     /// The public key of the server
     server_key: Option<PublicKey>,
@@ -297,7 +297,7 @@ where
         // Receive public key from follower
         let message = expect_msg_or_err!(
             self.channel.next().await,
-            KeyExchangeMessage::NotaryPublicKey,
+            KeyExchangeMessage::FollowerPublicKey,
             KeyExchangeError::Unexpected
         )?;
         let follower_public_key: PublicKey = message.try_into()?;
@@ -353,7 +353,7 @@ where
     ) -> Result<(), KeyExchangeError> {
         // Send public key to leader
         let public_key = follower_private_key.public_key();
-        let message = KeyExchangeMessage::NotaryPublicKey(public_key.into());
+        let message = KeyExchangeMessage::FollowerPublicKey(public_key.into());
         self.channel.send(message).await?;
 
         self.private_key = Some(follower_private_key);

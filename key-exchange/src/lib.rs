@@ -73,7 +73,7 @@ pub trait KeyExchangeLead {
     /// Compute the client's public key
     ///
     /// The client's public key in this context is the combined public key (EC point addition) of
-    /// the user's and the notary's public keys.
+    /// the leader's public key and the follower's public key.
     async fn compute_client_key(
         &mut self,
         leader_private_key: SecretKey,

@@ -7,7 +7,7 @@ use p256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey as P256PublicKey};
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum KeyExchangeMessage {
-    NotaryPublicKey(PublicKey),
+    FollowerPublicKey(PublicKey),
     ServerPublicKey(PublicKey),
 }
 
