@@ -75,7 +75,12 @@ where
         let mut byte = 0u8;
         for idx in 0u8..8 {
             let Some(bit) = self.bit_iter.next() else {
-                return None;
+                if idx == 0 {
+                    // We've reached the end of the bit iterator
+                    return None;
+                } else {
+                    panic!("bit iterator yielded less than a byte")
+                }
             };
             byte ^= (bit as u8) << idx;
         }
@@ -94,7 +99,12 @@ where
         let mut byte = 0u8;
         for idx in 0u8..8 {
             let Some(bit) = self.bit_iter.next() else {
-                return None;
+                if idx == 0 {
+                    // We've reached the end of the bit iterator
+                    return None;
+                } else {
+                    panic!("bit iterator yielded less than a byte")
+                }
             };
             byte ^= (bit as u8) << (7 - idx);
         }
@@ -109,15 +119,23 @@ where
     Self: IntoIterator<Item = bool>,
 {
     /// Converts an iterator of LSB0 bits into an iterator of bytes.
+    ///
+    /// Panics if number of bits is not a multiple of 8.
     fn lsb0_into_bytes_iter(self) -> ByteIterator<<Self as IntoIterator>::IntoIter, Lsb0>;
 
     /// Converts an iterator of LSB0 bits into a byte vector.
+    ///
+    /// Panics if number of bits is not a multiple of 8.
     fn lsb0_into_bytes(self) -> Vec<u8>;
 
     /// Converts an iterator of MSB0 bits into an iterator of bytes.
+    ///
+    /// Panics if number of bits is not a multiple of 8.
     fn msb0_into_bytes_iter(self) -> ByteIterator<<Self as IntoIterator>::IntoIter, Msb0>;
 
     /// Converts an iterator of LMSB0 bits into a byte vector.
+    ///
+    /// Panics if number of bits is not a multiple of 8.
     fn msb0_into_bytes(self) -> Vec<u8>;
 }
 
@@ -292,7 +310,9 @@ mod test {
     #[case::single_byte_0("00000000", vec![0u8])]
     #[case::single_byte_255("11111111", vec![255u8])]
     #[case::multi_byte("0000000010000000", vec![0u8, 1u8])]
+    #[should_panic]
     #[case::missing_bit("0000000", vec![])]
+    #[should_panic]
     #[case::extra_bit("000000000", vec![0u8])]
     fn test_lsb0_to_bytes(#[case] bits: &str, #[case] expected: Vec<u8>) {
         let bytes: Vec<u8> = bits.to_bool_iter().lsb0_into_bytes();
@@ -305,7 +325,9 @@ mod test {
     #[case::single_byte_0("00000000", vec![0u8])]
     #[case::single_byte_255("11111111", vec![255u8])]
     #[case::multi_byte("0000000000000001", vec![0u8, 1u8])]
+    #[should_panic]
     #[case::missing_bit("0000000", vec![])]
+    #[should_panic]
     #[case::extra_bit("000000000", vec![0u8])]
     fn test_msb0_to_bytes(#[case] bits: &str, #[case] expected: Vec<u8>) {
         let bytes: Vec<u8> = bits.to_bool_iter().msb0_into_bytes();
