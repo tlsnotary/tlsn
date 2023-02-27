@@ -21,7 +21,6 @@ use mpc_core::{
         exec::dual::{DualExConfig, DualExConfigBuilder},
         label_state::{Active, Full},
         ActiveEncodedInput, Encoded, EncodedSet, EncodingError, FullEncodedInput, FullInputSet,
-        Labels,
     },
     ot::config::{OTReceiverConfig, OTSenderConfig},
 };
@@ -53,6 +52,8 @@ pub struct KeyExchangeCore<PS, PR, A, D> {
     server_key: Option<PublicKey>,
     /// Two different additive shares of the pre-master secret
     pms_shares: Option<[P256; 2]>,
+    /// The config used for the key exchange protocol
+    config: KeyExchangeConfig,
     /// PhantomData needed for return type of `dual_ex_factory`
     _phantom_data: std::marker::PhantomData<D>,
 }
@@ -70,11 +71,13 @@ where
     /// * `point_addition_sender`   - The point addition sender instance used during key exchange
     /// * `point_addition_receiver` - The point addition receiver instance used during key exchange
     /// * `dual_ex_factory`         - The garbled circuit dual execution factory for creating dual execution instances
+    /// * `config`                  - The config used for the key exchange protocol
     pub fn new(
         channel: KeyExchangeChannel,
         point_addition_sender: PS,
         point_addition_receiver: PR,
         dual_ex_factory: A,
+        config: KeyExchangeConfig,
     ) -> Self {
         Self {
             channel,
@@ -84,6 +87,7 @@ where
             private_key: None,
             server_key: None,
             pms_shares: None,
+            config,
             _phantom_data: std::marker::PhantomData,
         }
     }
@@ -126,26 +130,27 @@ where
     }
 
     /// Compute the PMS labels needed to compute the master secret
-    async fn compute_pms_labels_for(
-        &mut self,
-        id: String,
-        input_gates_order: [usize; 4],
-    ) -> Result<PMSLabels, KeyExchangeError> {
+    ///
+    /// * `role` - The role of this party in the protocol
+    async fn compute_pms_labels_for(&mut self, role: Role) -> Result<PMSLabels, KeyExchangeError> {
         let mut rng = ChaCha20Rng::from_entropy();
 
         // PMS shares have to be already computed in order to continue
         let [pms_share1, pms_share2] = self.pms_shares.ok_or(KeyExchangeError::NoPMSShares)?;
+
+        // Get the correct order for the input gates, depending on the role
+        let input_gates_order = role.input_gates_order();
 
         // Set up dual execution instance and circuit for the PMS circuit
         let dual_ex_pms = {
             let mut config_builder_pms = DualExConfigBuilder::default();
 
             config_builder_pms.circ(Arc::clone(&COMBINE_PMS));
-            config_builder_pms.id(format!("{}/pms", id));
+            config_builder_pms.id(format!("{}/pms", self.config.id));
             let config_pms = config_builder_pms.build()?;
 
             self.dual_ex_factory
-                .create(format!("{}/pms", id), config_pms)
+                .create(format!("{}/pms", self.config.id), config_pms)
                 .await?
         };
 
@@ -184,12 +189,12 @@ where
             .await?;
 
         // The active and full output from the circuit execution
-        let mut active_output = summary
+        let active_output = summary
             .get_evaluator_summary()
             .output_labels()
             .clone()
             .to_inner();
-        let mut full_output = summary
+        let full_output = summary
             .get_generator_summary()
             .output_labels()
             .clone()
@@ -223,11 +228,11 @@ where
             let mut config_builder_xor = DualExConfigBuilder::default();
 
             config_builder_xor.circ(Arc::clone(&XOR_BYTES_32));
-            config_builder_xor.id(format!("{}/xor", id));
+            config_builder_xor.id(format!("{}/xor", self.config.id));
             let config_xor = config_builder_xor.build()?;
 
             self.dual_ex_factory
-                .create(format!("{}/xor", id), config_xor)
+                .create(format!("{}/xor", self.config.id), config_xor)
                 .await?
         };
 
@@ -254,17 +259,18 @@ where
         // Turn output into labels and return them
         // We only need half the labels because we only need one of the two PMS values (which we
         // know are equal to each other)
+        // Since, there are only 2 output labels, we can just take the first one
         let active_labels = active_output
-            .split_off(active_output.len() / 2)
             .into_iter()
-            .map(|x| x.into_labels())
-            .collect::<Vec<Labels<Active>>>();
+            .next()
+            .expect("Should be able to return first group of output labels for this circuit")
+            .into_labels();
 
         let full_labels = full_output
-            .split_off(full_output.len() / 2)
             .into_iter()
-            .map(|x| x.into_labels())
-            .collect::<Vec<Labels<Full>>>();
+            .next()
+            .expect("Should be able to return first group of output labels for this circuit")
+            .into_labels();
 
         Ok(PMSLabels {
             active_labels,
@@ -325,8 +331,8 @@ where
         self.compute_pms_shares_for().await
     }
 
-    async fn compute_pms_labels(&mut self, id: String) -> Result<PMSLabels, KeyExchangeError> {
-        self.compute_pms_labels_for(id, [0, 2, 1, 3]).await
+    async fn compute_pms_labels(&mut self) -> Result<PMSLabels, KeyExchangeError> {
+        self.compute_pms_labels_for(Role::Leader).await
     }
 }
 
@@ -377,8 +383,43 @@ where
         self.compute_pms_shares_for().await
     }
 
-    async fn compute_pms_labels(&mut self, id: String) -> Result<PMSLabels, KeyExchangeError> {
-        self.compute_pms_labels_for(id, [1, 3, 0, 2]).await
+    async fn compute_pms_labels(&mut self) -> Result<PMSLabels, KeyExchangeError> {
+        self.compute_pms_labels_for(Role::Follower).await
+    }
+}
+
+/// A config used in the key exchange protocol
+#[derive(Debug, Clone)]
+pub struct KeyExchangeConfig {
+    id: String,
+}
+
+impl KeyExchangeConfig {
+    /// Create a new config
+    pub fn new(id: String) -> Self {
+        Self { id }
+    }
+
+    /// Get the id of this instance
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+}
+
+/// The role of the instance, either `Leader` or `Follower`
+#[derive(Clone, Copy, Debug)]
+pub enum Role {
+    Leader,
+    Follower,
+}
+
+impl Role {
+    /// Get the correct order of input gate for this role
+    const fn input_gates_order(&self) -> [usize; 4] {
+        match self {
+            Role::Leader => [0, 2, 1, 3],
+            Role::Follower => [1, 3, 0, 2],
+        }
     }
 }
 
@@ -483,11 +524,8 @@ mod tests {
 
         tokio::try_join!(leader.compute_pms_shares(), follower.compute_pms_shares()).unwrap();
 
-        let (_pms_labels1, _pms_labels2) = tokio::try_join!(
-            leader.compute_pms_labels(String::from("")),
-            follower.compute_pms_labels(String::from(""))
-        )
-        .unwrap();
+        let (_pms_labels1, _pms_labels2) =
+            tokio::try_join!(leader.compute_pms_labels(), follower.compute_pms_labels()).unwrap();
     }
 
     #[tokio::test]
@@ -512,11 +550,8 @@ mod tests {
         if let Some(ref mut shares) = leader.pms_shares {
             shares[0] = shares[0] + P256::one();
         }
-        let err = tokio::try_join!(
-            leader.compute_pms_labels(String::from("")),
-            follower.compute_pms_labels(String::from(""))
-        )
-        .unwrap_err();
+        let err = tokio::try_join!(leader.compute_pms_labels(), follower.compute_pms_labels())
+            .unwrap_err();
 
         assert!(matches!(err, KeyExchangeError::CheckFailed));
     }

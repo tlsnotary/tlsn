@@ -1,6 +1,8 @@
 //! This module provides mock types for key exchange leader and follower and a function to create
 //! such a pair
 
+use crate::exchange::KeyExchangeConfig;
+
 use super::{KeyExchangeCore, KeyExchangeMessage};
 use mpc_aio::protocol::{
     garble::{
@@ -58,6 +60,7 @@ pub fn create_mock_key_exchange_pair() -> (MockKeyExchangeLeader, MockKeyExchang
         pa_leader1,
         pa_follower2,
         dual_ex_factory.clone(),
+        KeyExchangeConfig::new(String::from("")),
     );
 
     let follower = KeyExchangeCore::new(
@@ -65,6 +68,7 @@ pub fn create_mock_key_exchange_pair() -> (MockKeyExchangeLeader, MockKeyExchang
         pa_follower1,
         pa_leader2,
         dual_ex_factory,
+        KeyExchangeConfig::new(String::from("")),
     );
 
     (leader, follower)

@@ -91,7 +91,7 @@ pub trait KeyExchangeLead {
     /// Compute PMS labels
     ///
     /// The returned labels are used as cached inputs for another circuit
-    async fn compute_pms_labels(&mut self, id: String) -> Result<PMSLabels, KeyExchangeError>;
+    async fn compute_pms_labels(&mut self) -> Result<PMSLabels, KeyExchangeError>;
 }
 
 /// A trait for the follower of the key exchange protocol
@@ -115,7 +115,7 @@ pub trait KeyExchangeFollow {
     /// Compute PMS labels
     ///
     /// The returned labels are used as cached inputs for another circuit
-    async fn compute_pms_labels(&mut self, id: String) -> Result<PMSLabels, KeyExchangeError>;
+    async fn compute_pms_labels(&mut self) -> Result<PMSLabels, KeyExchangeError>;
 }
 
 /// A wrapper struct for the PMS labels
@@ -123,6 +123,6 @@ pub trait KeyExchangeFollow {
 /// PMS labels are encrypted circuit inputs for computing the master secrets
 #[derive(Debug, Clone)]
 pub struct PMSLabels {
-    pub active_labels: Vec<ActiveLabels>,
-    pub full_labels: Vec<FullLabels>,
+    pub active_labels: ActiveLabels,
+    pub full_labels: FullLabels,
 }
