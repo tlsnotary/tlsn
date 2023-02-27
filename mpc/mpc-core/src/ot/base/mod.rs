@@ -49,7 +49,7 @@ pub mod tests {
         pub fn choice() -> Vec<bool> {
             let mut choice = vec![0u8; 16];
             thread_rng().fill_bytes(&mut choice);
-            choice.into_iter().bytes_into_msb0().collect()
+            choice.into_iter().into_msb0()
         }
 
         #[fixture]

@@ -116,11 +116,7 @@ pub fn kos15_check_sender(
     }
 
     let mut delta = [0u8; ROW_LENGTH_TR];
-    let choice_bytes = base_choices
-        .into_iter()
-        .copied()
-        .msb0_into_bytes()
-        .collect::<Vec<_>>();
+    let choice_bytes = base_choices.into_iter().copied().msb0_into_bytes();
     delta.copy_from_slice(&choice_bytes);
     let delta = Clmul::new(&delta);
 
@@ -162,7 +158,6 @@ pub fn encrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
         .into_iter()
         .copied()
         .msb0_into_bytes()
-        .collect::<Vec<_>>()
         .try_into()
         .unwrap();
     let delta = Block::from(base_choice);

@@ -106,31 +106,45 @@ where
 /// Helper trait used for converting bool iterators into byte iterators.
 pub trait BitsToBytes
 where
-    Self: Iterator<Item = bool>,
+    Self: IntoIterator<Item = bool>,
 {
     /// Converts an iterator of LSB0 bits into an iterator of bytes.
-    fn lsb0_into_bytes(self) -> ByteIterator<Self, Lsb0>;
+    fn lsb0_into_bytes_iter(self) -> ByteIterator<<Self as IntoIterator>::IntoIter, Lsb0>;
+
+    /// Converts an iterator of LSB0 bits into a byte vector.
+    fn lsb0_into_bytes(self) -> Vec<u8>;
 
     /// Converts an iterator of MSB0 bits into an iterator of bytes.
-    fn msb0_into_bytes(self) -> ByteIterator<Self, Msb0>;
+    fn msb0_into_bytes_iter(self) -> ByteIterator<<Self as IntoIterator>::IntoIter, Msb0>;
+
+    /// Converts an iterator of LMSB0 bits into a byte vector.
+    fn msb0_into_bytes(self) -> Vec<u8>;
 }
 
 impl<I> BitsToBytes for I
 where
-    I: Iterator<Item = bool>,
+    I: IntoIterator<Item = bool>,
 {
-    fn lsb0_into_bytes(self) -> ByteIterator<Self, Lsb0> {
+    fn lsb0_into_bytes_iter(self) -> ByteIterator<<Self as IntoIterator>::IntoIter, Lsb0> {
         ByteIterator {
             bit_order: PhantomData::<Lsb0>,
-            bit_iter: self,
+            bit_iter: self.into_iter(),
         }
     }
 
-    fn msb0_into_bytes(self) -> ByteIterator<Self, Msb0> {
+    fn lsb0_into_bytes(self) -> Vec<u8> {
+        self.lsb0_into_bytes_iter().collect()
+    }
+
+    fn msb0_into_bytes_iter(self) -> ByteIterator<<Self as IntoIterator>::IntoIter, Msb0> {
         ByteIterator {
             bit_order: PhantomData::<Msb0>,
-            bit_iter: self,
+            bit_iter: self.into_iter(),
         }
+    }
+
+    fn msb0_into_bytes(self) -> Vec<u8> {
+        self.msb0_into_bytes_iter().collect()
     }
 }
 
@@ -205,37 +219,53 @@ where
 /// Helper trait for converting an iterator of bytes to an iterator of bits
 pub trait BytesToBits
 where
-    Self: Iterator<Item = u8>,
+    Self: IntoIterator<Item = u8>,
 {
     /// Converts an iterator of bytes into an iterator of LSB0 bits.
-    fn into_lsb0_iter(self) -> BitIterator<Self, Lsb0>;
+    fn into_lsb0_iter(self) -> BitIterator<<Self as IntoIterator>::IntoIter, Lsb0>;
+
+    /// Converts an iterator of bytes into an LSB0 bit vector.
+    fn into_lsb0(self) -> Vec<bool>;
 
     /// Converts an iterator of bytes into an iterator of MSB0 bits.
-    fn into_msb0_iter(self) -> BitIterator<Self, Msb0>;
+    fn into_msb0_iter(self) -> BitIterator<<Self as IntoIterator>::IntoIter, Msb0>;
+
+    /// Converts an iterator of bytes into an MSB0 bit vector.
+    fn into_msb0(self) -> Vec<bool>;
 }
 
 impl<T> BytesToBits for T
 where
-    T: Iterator<Item = u8>,
+    T: IntoIterator<Item = u8>,
 {
-    fn into_lsb0_iter(mut self) -> BitIterator<Self, Lsb0> {
-        let byte = self.next();
+    fn into_lsb0_iter(self) -> BitIterator<<Self as IntoIterator>::IntoIter, Lsb0> {
+        let mut byte_iter = self.into_iter();
+        let byte = byte_iter.next();
         BitIterator {
             bit_order: PhantomData::<Lsb0>,
             bit_idx: 0,
             byte,
-            byte_iter: self,
+            byte_iter,
         }
     }
 
-    fn into_msb0_iter(mut self) -> BitIterator<Self, Msb0> {
-        let byte = self.next();
+    fn into_lsb0(self) -> Vec<bool> {
+        self.into_lsb0_iter().collect()
+    }
+
+    fn into_msb0_iter(self) -> BitIterator<<Self as IntoIterator>::IntoIter, Msb0> {
+        let mut byte_iter = self.into_iter();
+        let byte = byte_iter.next();
         BitIterator {
             bit_order: PhantomData::<Msb0>,
             bit_idx: 0,
             byte,
-            byte_iter: self,
+            byte_iter,
         }
+    }
+
+    fn into_msb0(self) -> Vec<bool> {
+        self.into_msb0_iter().collect()
     }
 }
 
@@ -265,7 +295,7 @@ mod test {
     #[case::missing_bit("0000000", vec![])]
     #[case::extra_bit("000000000", vec![0u8])]
     fn test_lsb0_to_bytes(#[case] bits: &str, #[case] expected: Vec<u8>) {
-        let bytes: Vec<u8> = bits.to_bool_iter().lsb0_into_bytes().collect();
+        let bytes: Vec<u8> = bits.to_bool_iter().lsb0_into_bytes();
 
         assert_eq!(bytes, expected);
     }
@@ -278,7 +308,7 @@ mod test {
     #[case::missing_bit("0000000", vec![])]
     #[case::extra_bit("000000000", vec![0u8])]
     fn test_msb0_to_bytes(#[case] bits: &str, #[case] expected: Vec<u8>) {
-        let bytes: Vec<u8> = bits.to_bool_iter().msb0_into_bytes().collect();
+        let bytes: Vec<u8> = bits.to_bool_iter().msb0_into_bytes();
 
         assert_eq!(bytes, expected);
     }
@@ -292,7 +322,7 @@ mod test {
     fn test_bytes_to_lsb0(#[case] bytes: Vec<u8>, #[case] expected: &str) {
         let expected = expected.to_bool_vec();
 
-        let bits: Vec<bool> = bytes.into_iter().into_lsb0_iter().collect();
+        let bits: Vec<bool> = bytes.into_lsb0();
 
         assert_eq!(bits, expected);
     }
@@ -306,7 +336,7 @@ mod test {
     fn test_bytes_to_msb0(#[case] bytes: Vec<u8>, #[case] expected: &str) {
         let expected = expected.to_bool_vec();
 
-        let bits: Vec<bool> = bytes.into_iter().into_msb0_iter().collect();
+        let bits: Vec<bool> = bytes.into_msb0();
 
         assert_eq!(bits, expected);
     }
