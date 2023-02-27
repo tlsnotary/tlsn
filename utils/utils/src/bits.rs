@@ -30,9 +30,13 @@ impl<'a> Iterator for BitStringIterator<'a> {
 /// Helper trait for converting bit strings to bool iterators.
 pub trait BitStringToBoolVec<'a> {
     /// Converts a bit string to an iterator of bools.
+    ///
+    /// Panics if the string contains characters other than '0' or '1'.
     fn to_bool_iter(&'a self) -> BitStringIterator<'a>;
 
     /// Converts a bit string to a bool vec.
+    ///
+    /// Panics if the string contains characters other than '0' or '1'.
     fn to_bool_vec(&'a self) -> Vec<bool> {
         self.to_bool_iter().collect()
     }
@@ -204,17 +208,17 @@ where
     Self: Iterator<Item = u8>,
 {
     /// Converts an iterator of bytes into an iterator of LSB0 bits.
-    fn bytes_into_lsb0(self) -> BitIterator<Self, Lsb0>;
+    fn into_lsb0_iter(self) -> BitIterator<Self, Lsb0>;
 
     /// Converts an iterator of bytes into an iterator of MSB0 bits.
-    fn bytes_into_msb0(self) -> BitIterator<Self, Msb0>;
+    fn into_msb0_iter(self) -> BitIterator<Self, Msb0>;
 }
 
 impl<T> BytesToBits for T
 where
     T: Iterator<Item = u8>,
 {
-    fn bytes_into_lsb0(mut self) -> BitIterator<Self, Lsb0> {
+    fn into_lsb0_iter(mut self) -> BitIterator<Self, Lsb0> {
         let byte = self.next();
         BitIterator {
             bit_order: PhantomData::<Lsb0>,
@@ -224,7 +228,7 @@ where
         }
     }
 
-    fn bytes_into_msb0(mut self) -> BitIterator<Self, Msb0> {
+    fn into_msb0_iter(mut self) -> BitIterator<Self, Msb0> {
         let byte = self.next();
         BitIterator {
             bit_order: PhantomData::<Msb0>,
@@ -288,7 +292,7 @@ mod test {
     fn test_bytes_to_lsb0(#[case] bytes: Vec<u8>, #[case] expected: &str) {
         let expected = expected.to_bool_vec();
 
-        let bits: Vec<bool> = bytes.into_iter().bytes_into_lsb0().collect();
+        let bits: Vec<bool> = bytes.into_iter().into_lsb0_iter().collect();
 
         assert_eq!(bits, expected);
     }
@@ -302,7 +306,7 @@ mod test {
     fn test_bytes_to_msb0(#[case] bytes: Vec<u8>, #[case] expected: &str) {
         let expected = expected.to_bool_vec();
 
-        let bits: Vec<bool> = bytes.into_iter().bytes_into_msb0().collect();
+        let bits: Vec<bool> = bytes.into_iter().into_msb0_iter().collect();
 
         assert_eq!(bits, expected);
     }
