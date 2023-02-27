@@ -9,4 +9,5 @@ name = "utils"
 [dependencies]
 
 [dev-dependencies]
+rstest = "0.12"
 rand = { workspace = true }
