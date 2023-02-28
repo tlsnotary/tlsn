@@ -139,9 +139,6 @@ where
         // PMS shares have to be already computed in order to continue
         let [pms_share1, pms_share2] = self.pms_shares.ok_or(KeyExchangeError::NoPMSShares)?;
 
-        // Get the correct order for the input gates, depending on the role
-        let input_gates_order = role.input_gates_order();
-
         // Set up dual execution instance and circuit for the PMS circuit
         let dual_ex_pms = {
             let mut config_builder_pms = DualExConfigBuilder::default();
@@ -157,14 +154,13 @@ where
 
         // Prepare circuit inputs
         let input0 = COMBINE_PMS
-            .input(input_gates_order[0])?
+            .input(role.first_input())?
             .to_value(pms_share1.to_le_bytes())?;
-
         let input1 = COMBINE_PMS
-            .input(input_gates_order[1])?
+            .input(role.second_input())?
             .to_value(pms_share2.to_le_bytes())?;
-        let input2 = COMBINE_PMS.input(input_gates_order[2])?;
-        let input3 = COMBINE_PMS.input(input_gates_order[3])?;
+        let input2 = COMBINE_PMS.input(role.third_input())?;
+        let input3 = COMBINE_PMS.input(role.fourth_input())?;
 
         let const_input0 = COMBINE_PMS.input(4)?.to_value(Value::ConstZero)?;
         let const_input1 = COMBINE_PMS.input(5)?.to_value(Value::ConstOne)?;
@@ -415,11 +411,35 @@ pub enum Role {
 }
 
 impl Role {
-    /// Get the correct order of input gate for this role
-    const fn input_gates_order(&self) -> [usize; 4] {
+    /// Get the correct input number for the first input
+    const fn first_input(&self) -> usize {
         match self {
-            Role::Leader => [0, 2, 1, 3],
-            Role::Follower => [1, 3, 0, 2],
+            Role::Leader => 0,
+            Role::Follower => 1,
+        }
+    }
+
+    /// Get the correct input number for the second input
+    const fn second_input(&self) -> usize {
+        match self {
+            Role::Leader => 2,
+            Role::Follower => 3,
+        }
+    }
+
+    /// Get the correct input number for the third input
+    const fn third_input(&self) -> usize {
+        match self {
+            Role::Leader => 1,
+            Role::Follower => 0,
+        }
+    }
+
+    /// Get the correct input number for the fourth input
+    const fn fourth_input(&self) -> usize {
+        match self {
+            Role::Leader => 3,
+            Role::Follower => 2,
         }
     }
 }
