@@ -23,7 +23,7 @@ impl<'a> Iterator for BitStringIterator<'a> {
             }
         };
 
-        return Some(bit);
+        Some(bit)
     }
 }
 
@@ -133,7 +133,7 @@ where
     /// Panics if number of bits is not a multiple of 8.
     fn msb0_into_bytes_iter(self) -> ByteIterator<<Self as IntoIterator>::IntoIter, Msb0>;
 
-    /// Converts an iterator of LMSB0 bits into a byte vector.
+    /// Converts an iterator of MSB0 bits into a byte vector.
     ///
     /// Panics if number of bits is not a multiple of 8.
     fn msb0_into_bytes(self) -> Vec<u8>;
@@ -183,25 +183,21 @@ where
     type Item = bool;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(byte) = self.byte.take() {
-            let bit = (byte >> self.bit_idx) & 1 == 1;
-            self.bit_idx += 1;
-
-            // If we've read out alls the bits for the current byte,
-            // pull out the next one.
-            if self.bit_idx > 7 {
-                if let Some(new_byte) = self.byte_iter.next() {
-                    self.byte = Some(new_byte);
-                    self.bit_idx = 0;
-                }
-            } else {
-                self.byte = Some(byte);
-            }
-
-            return Some(bit);
-        } else {
-            return None;
+        if self.bit_idx == 0 {
+            self.byte = self.byte_iter.next();
         }
+
+        let byte = self.byte?;
+
+        let bit = (byte >> self.bit_idx) & 1 == 1;
+
+        self.bit_idx += 1;
+
+        if self.bit_idx == 8 {
+            self.bit_idx = 0;
+        }
+
+        Some(bit)
     }
 }
 
@@ -212,25 +208,21 @@ where
     type Item = bool;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(byte) = self.byte.take() {
-            let bit = (byte >> 7 - self.bit_idx) & 1 == 1;
-            self.bit_idx += 1;
-
-            // If we've read out alls the bits for the current byte,
-            // pull out the next one.
-            if self.bit_idx > 7 {
-                if let Some(new_byte) = self.byte_iter.next() {
-                    self.byte = Some(new_byte);
-                    self.bit_idx = 0;
-                }
-            } else {
-                self.byte = Some(byte);
-            }
-
-            return Some(bit);
-        } else {
-            return None;
+        if self.bit_idx == 0 {
+            self.byte = self.byte_iter.next();
         }
+
+        let byte = self.byte?;
+
+        let bit = (byte >> (7 - self.bit_idx)) & 1 == 1;
+
+        self.bit_idx += 1;
+
+        if self.bit_idx == 8 {
+            self.bit_idx = 0;
+        }
+
+        Some(bit)
     }
 }
 
@@ -257,13 +249,11 @@ where
     T: IntoIterator<Item = u8>,
 {
     fn into_lsb0_iter(self) -> BitIterator<<Self as IntoIterator>::IntoIter, Lsb0> {
-        let mut byte_iter = self.into_iter();
-        let byte = byte_iter.next();
         BitIterator {
             bit_order: PhantomData::<Lsb0>,
             bit_idx: 0,
-            byte,
-            byte_iter,
+            byte: None,
+            byte_iter: self.into_iter(),
         }
     }
 
@@ -272,13 +262,11 @@ where
     }
 
     fn into_msb0_iter(self) -> BitIterator<<Self as IntoIterator>::IntoIter, Msb0> {
-        let mut byte_iter = self.into_iter();
-        let byte = byte_iter.next();
         BitIterator {
             bit_order: PhantomData::<Msb0>,
             bit_idx: 0,
-            byte,
-            byte_iter,
+            byte: None,
+            byte_iter: self.into_iter(),
         }
     }
 
