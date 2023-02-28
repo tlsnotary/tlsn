@@ -6,6 +6,7 @@ use super::{
     PMSLabels, PublicKey,
 };
 use async_trait::async_trait;
+use derive_builder::Builder;
 use futures::{SinkExt, StreamExt};
 use mpc_aio::protocol::{
     garble::{
@@ -389,7 +390,7 @@ where
 }
 
 /// A config used in the key exchange protocol
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Builder)]
 pub struct KeyExchangeConfig {
     id: String,
 }
