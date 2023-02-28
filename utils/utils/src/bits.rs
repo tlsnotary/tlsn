@@ -335,161 +335,161 @@ where
     fn lsb0_into_u8(self) -> u8 {
         let mut iter = self.into_iter();
 
-        let mut byte = 0u8;
+        let mut value = 0u8;
 
         for i in 0..8 {
             let Some(bit) = iter.next() else {
                 panic!("Not enough bits to convert to u8");
             };
 
-            byte |= (bit as u8) << i;
+            value |= (bit as u8) << i;
         }
 
-        byte
+        value
     }
 
     fn lsb0_into_u16(self) -> u16 {
         let mut iter = self.into_iter();
 
-        let mut byte = 0u16;
+        let mut value = 0u16;
 
         for i in 0..16 {
             let Some(bit) = iter.next() else {
                 panic!("Not enough bits to convert to u16");
             };
 
-            byte |= (bit as u16) << i;
+            value |= (bit as u16) << i;
         }
 
-        byte
+        value
     }
 
     fn lsb0_into_u32(self) -> u32 {
         let mut iter = self.into_iter();
 
-        let mut byte = 0u32;
+        let mut value = 0u32;
 
         for i in 0..32 {
             let Some(bit) = iter.next() else {
                 panic!("Not enough bits to convert to u32");
             };
 
-            byte |= (bit as u32) << i;
+            value |= (bit as u32) << i;
         }
 
-        byte
+        value
     }
 
     fn lsb0_into_u64(self) -> u64 {
         let mut iter = self.into_iter();
 
-        let mut byte = 0u64;
+        let mut value = 0u64;
 
         for i in 0..64 {
             let Some(bit) = iter.next() else {
                 panic!("Not enough bits to convert to u64");
             };
 
-            byte |= (bit as u64) << i;
+            value |= (bit as u64) << i;
         }
 
-        byte
+        value
     }
 
     fn lsb0_into_u128(self) -> u128 {
         let mut iter = self.into_iter();
 
-        let mut byte = 0u128;
+        let mut value = 0u128;
 
         for i in 0..128 {
             let Some(bit) = iter.next() else {
                 panic!("Not enough bits to convert to u128");
             };
 
-            byte |= (bit as u128) << i;
+            value |= (bit as u128) << i;
         }
 
-        byte
+        value
     }
 
     fn msb0_into_u8(self) -> u8 {
         let mut iter = self.into_iter();
 
-        let mut byte = 0u8;
+        let mut value = 0u8;
 
         for i in 0..8 {
             let Some(bit) = iter.next() else {
                 panic!("Not enough bits to convert to u8");
             };
 
-            byte |= (bit as u8) << (7 - i);
+            value |= (bit as u8) << (7 - i);
         }
 
-        byte
+        value
     }
 
     fn msb0_into_u16(self) -> u16 {
         let mut iter = self.into_iter();
 
-        let mut byte = 0u16;
+        let mut value = 0u16;
 
         for i in 0..16 {
             let Some(bit) = iter.next() else {
                 panic!("Not enough bits to convert to u16");
             };
 
-            byte |= (bit as u16) << (15 - i);
+            value |= (bit as u16) << (15 - i);
         }
 
-        byte
+        value
     }
 
     fn msb0_into_u32(self) -> u32 {
         let mut iter = self.into_iter();
 
-        let mut byte = 0u32;
+        let mut value = 0u32;
 
         for i in 0..32 {
             let Some(bit) = iter.next() else {
                 panic!("Not enough bits to convert to u32");
             };
 
-            byte |= (bit as u32) << (31 - i);
+            value |= (bit as u32) << (31 - i);
         }
 
-        byte
+        value
     }
 
     fn msb0_into_u64(self) -> u64 {
         let mut iter = self.into_iter();
 
-        let mut byte = 0u64;
+        let mut value = 0u64;
 
         for i in 0..64 {
             let Some(bit) = iter.next() else {
                 panic!("Not enough bits to convert to u64");
             };
 
-            byte |= (bit as u64) << (63 - i);
+            value |= (bit as u64) << (63 - i);
         }
 
-        byte
+        value
     }
 
     fn msb0_into_u128(self) -> u128 {
         let mut iter = self.into_iter();
 
-        let mut byte = 0u128;
+        let mut value = 0u128;
 
         for i in 0..128 {
             let Some(bit) = iter.next() else {
                 panic!("Not enough bits to convert to u128");
             };
 
-            byte |= (bit as u128) << (127 - i);
+            value |= (bit as u128) << (127 - i);
         }
 
-        byte
+        value
     }
 }
 
