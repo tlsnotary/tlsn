@@ -275,6 +275,224 @@ where
     }
 }
 
+/// Helper trait for converting an iterator of bits to an unsigned integer.
+pub trait BitsToUint {
+    /// Converts an iterator of LSB0 bits into a u8.
+    ///
+    /// Panics if number of bits is not 8.
+    fn lsb0_into_u8(self) -> u8;
+
+    /// Converts an iterator of LSB0 bits into a u16.
+    ///
+    /// Panics if number of bits is not 16.
+    fn lsb0_into_u16(self) -> u16;
+
+    /// Converts an iterator of LSB0 bits into a u32.
+    ///
+    /// Panics if number of bits is not 32.
+    fn lsb0_into_u32(self) -> u32;
+
+    /// Converts an iterator of LSB0 bits into a u64.
+    ///
+    /// Panics if number of bits is not 64.
+    fn lsb0_into_u64(self) -> u64;
+
+    /// Converts an iterator of LSB0 bits into a u128.
+    ///
+    /// Panics if number of bits is not 128.
+    fn lsb0_into_u128(self) -> u128;
+
+    /// Converts an iterator of MSB0 bits into a u8.
+    ///
+    /// Panics if number of bits is not 8.
+    fn msb0_into_u8(self) -> u8;
+
+    /// Converts an iterator of MSB0 bits into a u16.
+    ///
+    /// Panics if number of bits is not 16.
+    fn msb0_into_u16(self) -> u16;
+
+    /// Converts an iterator of MSB0 bits into a u32.
+    ///
+    /// Panics if number of bits is not 32.
+    fn msb0_into_u32(self) -> u32;
+
+    /// Converts an iterator of MSB0 bits into a u64.
+    ///
+    /// Panics if number of bits is not 64.
+    fn msb0_into_u64(self) -> u64;
+
+    /// Converts an iterator of MSB0 bits into a u128.
+    ///
+    /// Panics if number of bits is not 128.
+    fn msb0_into_u128(self) -> u128;
+}
+
+impl<T> BitsToUint for T
+where
+    T: IntoIterator<Item = bool>,
+{
+    fn lsb0_into_u8(self) -> u8 {
+        let mut iter = self.into_iter();
+
+        let mut byte = 0u8;
+
+        for i in 0..8 {
+            let Some(bit) = iter.next() else {
+                panic!("Not enough bits to convert to u8");
+            };
+
+            byte |= (bit as u8) << i;
+        }
+
+        byte
+    }
+
+    fn lsb0_into_u16(self) -> u16 {
+        let mut iter = self.into_iter();
+
+        let mut byte = 0u16;
+
+        for i in 0..16 {
+            let Some(bit) = iter.next() else {
+                panic!("Not enough bits to convert to u16");
+            };
+
+            byte |= (bit as u16) << i;
+        }
+
+        byte
+    }
+
+    fn lsb0_into_u32(self) -> u32 {
+        let mut iter = self.into_iter();
+
+        let mut byte = 0u32;
+
+        for i in 0..32 {
+            let Some(bit) = iter.next() else {
+                panic!("Not enough bits to convert to u32");
+            };
+
+            byte |= (bit as u32) << i;
+        }
+
+        byte
+    }
+
+    fn lsb0_into_u64(self) -> u64 {
+        let mut iter = self.into_iter();
+
+        let mut byte = 0u64;
+
+        for i in 0..64 {
+            let Some(bit) = iter.next() else {
+                panic!("Not enough bits to convert to u64");
+            };
+
+            byte |= (bit as u64) << i;
+        }
+
+        byte
+    }
+
+    fn lsb0_into_u128(self) -> u128 {
+        let mut iter = self.into_iter();
+
+        let mut byte = 0u128;
+
+        for i in 0..128 {
+            let Some(bit) = iter.next() else {
+                panic!("Not enough bits to convert to u128");
+            };
+
+            byte |= (bit as u128) << i;
+        }
+
+        byte
+    }
+
+    fn msb0_into_u8(self) -> u8 {
+        let mut iter = self.into_iter();
+
+        let mut byte = 0u8;
+
+        for i in 0..8 {
+            let Some(bit) = iter.next() else {
+                panic!("Not enough bits to convert to u8");
+            };
+
+            byte |= (bit as u8) << (7 - i);
+        }
+
+        byte
+    }
+
+    fn msb0_into_u16(self) -> u16 {
+        let mut iter = self.into_iter();
+
+        let mut byte = 0u16;
+
+        for i in 0..16 {
+            let Some(bit) = iter.next() else {
+                panic!("Not enough bits to convert to u16");
+            };
+
+            byte |= (bit as u16) << (15 - i);
+        }
+
+        byte
+    }
+
+    fn msb0_into_u32(self) -> u32 {
+        let mut iter = self.into_iter();
+
+        let mut byte = 0u32;
+
+        for i in 0..32 {
+            let Some(bit) = iter.next() else {
+                panic!("Not enough bits to convert to u32");
+            };
+
+            byte |= (bit as u32) << (31 - i);
+        }
+
+        byte
+    }
+
+    fn msb0_into_u64(self) -> u64 {
+        let mut iter = self.into_iter();
+
+        let mut byte = 0u64;
+
+        for i in 0..64 {
+            let Some(bit) = iter.next() else {
+                panic!("Not enough bits to convert to u64");
+            };
+
+            byte |= (bit as u64) << (63 - i);
+        }
+
+        byte
+    }
+
+    fn msb0_into_u128(self) -> u128 {
+        let mut iter = self.into_iter();
+
+        let mut byte = 0u128;
+
+        for i in 0..128 {
+            let Some(bit) = iter.next() else {
+                panic!("Not enough bits to convert to u128");
+            };
+
+            byte |= (bit as u128) << (127 - i);
+        }
+
+        byte
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -349,5 +567,75 @@ mod test {
         let bits: Vec<bool> = bytes.into_msb0();
 
         assert_eq!(bits, expected);
+    }
+
+    #[rstest]
+    #[case(format!("{:08b}", 0u8), 0u8)]
+    #[case(format!("{:08b}", 1u8), 1u8)]
+    #[case(format!("{:08b}", u8::MAX), u8::MAX)]
+    fn test_lsb0_to_u8(#[case] bits: impl AsRef<str>, #[case] expected: u8) {
+        let msb_value = bits.to_bool_iter().msb0_into_u8();
+
+        let lsb_bits = bits.as_ref().chars().rev().collect::<String>();
+        let lsb_value = lsb_bits.to_bool_iter().lsb0_into_u8();
+
+        assert_eq!(msb_value, expected);
+        assert_eq!(lsb_value, expected);
+    }
+
+    #[rstest]
+    #[case(format!("{:016b}", 0u16), 0u16)]
+    #[case(format!("{:016b}", 1u16), 1u16)]
+    #[case(format!("{:016b}", u16::MAX), u16::MAX)]
+    fn test_lsb0_to_u16(#[case] bits: impl AsRef<str>, #[case] expected: u16) {
+        let msb_value = bits.to_bool_iter().msb0_into_u16();
+
+        let lsb_bits = bits.as_ref().chars().rev().collect::<String>();
+        let lsb_value = lsb_bits.to_bool_iter().lsb0_into_u16();
+
+        assert_eq!(msb_value, expected);
+        assert_eq!(lsb_value, expected);
+    }
+
+    #[rstest]
+    #[case(format!("{:032b}", 0u32), 0u32)]
+    #[case(format!("{:032b}", 1u32), 1u32)]
+    #[case(format!("{:032b}", u32::MAX), u32::MAX)]
+    fn test_lsb0_to_u32(#[case] bits: impl AsRef<str>, #[case] expected: u32) {
+        let msb_value = bits.to_bool_iter().msb0_into_u32();
+
+        let lsb_bits = bits.as_ref().chars().rev().collect::<String>();
+        let lsb_value = lsb_bits.to_bool_iter().lsb0_into_u32();
+
+        assert_eq!(msb_value, expected);
+        assert_eq!(lsb_value, expected);
+    }
+
+    #[rstest]
+    #[case(format!("{:064b}", 0u64), 0u64)]
+    #[case(format!("{:064b}", 1u64), 1u64)]
+    #[case(format!("{:064b}", u64::MAX), u64::MAX)]
+    fn test_lsb0_to_u64(#[case] bits: impl AsRef<str>, #[case] expected: u64) {
+        let msb_value = bits.to_bool_iter().msb0_into_u64();
+
+        let lsb_bits = bits.as_ref().chars().rev().collect::<String>();
+        let lsb_value = lsb_bits.to_bool_iter().lsb0_into_u64();
+
+        assert_eq!(msb_value, expected);
+        assert_eq!(lsb_value, expected);
+    }
+
+    #[rstest]
+    #[case(format!("{:0128b}", 0u128), 0u128)]
+    #[case(format!("{:0128b}", 1u128), 1u128)]
+    #[case(format!("{:0128b}", u128::MAX), u128::MAX)]
+    fn test_lsb0_to_u128(#[case] bits: impl AsRef<str>, #[case] expected: u128) {
+        let msb_value = bits.to_bool_iter().msb0_into_u128();
+
+        let lsb_bits = bits.as_ref().chars().rev().collect::<String>();
+        let lsb_value = lsb_bits.to_bool_iter().lsb0_into_u128();
+
+        assert_eq!(msb_value, expected);
+        assert_eq!(lsb_value, expected);
     }
 }
