@@ -47,6 +47,26 @@ pub struct BlockCipherLabels {
     pub key_active: ActiveLabels,
 }
 
+impl BlockCipherLabels {
+    /// Creates a new set of block cipher labels.
+    pub fn new(key_full: FullLabels, key_active: ActiveLabels) -> Self {
+        Self {
+            key_full,
+            key_active,
+        }
+    }
+
+    /// Returns the full labels for the key input
+    pub fn get_key_full(&self) -> &FullLabels {
+        &self.key_full
+    }
+
+    /// Returns the active labels for the key input
+    pub fn get_key_active(&self) -> &ActiveLabels {
+        &self.key_active
+    }
+}
+
 #[async_trait]
 pub trait BlockCipher<Cipher>
 where
