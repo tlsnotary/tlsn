@@ -1,29 +1,22 @@
 //! This module implements the key exchange logic
 
+use crate::role::{Follower, Leader};
+
 use super::{
     circuit::{COMBINE_PMS, XOR_BYTES_32},
+    role::Role,
     KeyExchangeChannel, KeyExchangeError, KeyExchangeFollow, KeyExchangeLead, KeyExchangeMessage,
     PMSLabels, PublicKey,
 };
 use async_trait::async_trait;
 use derive_builder::Builder;
 use futures::{SinkExt, StreamExt};
-use mpc_aio::protocol::{
-    garble::{
-        exec::dual::{state::Initialized, DEExecute, DualExFollower, DualExLeader},
-        factory::GCFactoryError,
-        Evaluator, Generator,
-    },
-    ot::{OTFactoryError, ObliviousReceive, ObliviousSend},
-};
-use mpc_circuits::{Input, InputValue, Value, WireGroup};
-use mpc_core::{
-    garble::{
-        exec::dual::{DualExConfig, DualExConfigBuilder},
-        label_state::{Active, Full},
-        ActiveEncodedInput, Encoded, EncodedSet, EncodingError, FullEncodedInput, FullInputSet,
-    },
-    ot::config::{OTReceiverConfig, OTSenderConfig},
+use mpc_aio::protocol::garble::{exec::dual::DEExecute, factory::GCFactoryError};
+use mpc_circuits::{Input, Value, WireGroup};
+use mpc_core::garble::{
+    exec::dual::{DualExConfig, DualExConfigBuilder},
+    label_state::{Active, Full},
+    Encoded, EncodedSet, EncodingError, FullInputSet,
 };
 use p256::{EncodedPoint, SecretKey};
 use point_addition::PointAddition;
@@ -35,9 +28,8 @@ use utils_aio::{expect_msg_or_err, factory::AsyncFactory};
 
 /// The instance for performing the key exchange protocol
 ///
-/// Can be either a leader or a follower depending on the instance of `D`, which is the return type
-/// of `A`
-pub struct KeyExchangeCore<PS, PR, A, D> {
+/// Can be either a leader or a follower depending on the `role` field in [KeyExchangeConfig]
+pub struct KeyExchangeCore<PS, PR, A, D, R> {
     /// A channel for exchanging messages between leader and follower
     channel: KeyExchangeChannel,
     /// The sender instance for performing point addition
@@ -54,17 +46,18 @@ pub struct KeyExchangeCore<PS, PR, A, D> {
     /// Two different additive shares of the pre-master secret
     pms_shares: Option<[P256; 2]>,
     /// The config used for the key exchange protocol
-    config: KeyExchangeConfig,
+    config: KeyExchangeConfig<R>,
     /// PhantomData needed for return type of `dual_ex_factory`
     _phantom_data: std::marker::PhantomData<D>,
 }
 
-impl<PS, PR, A, D> KeyExchangeCore<PS, PR, A, D>
+impl<PS, PR, A, D, R> KeyExchangeCore<PS, PR, A, D, R>
 where
     PS: PointAddition + Send,
     PR: PointAddition + Send,
     A: AsyncFactory<D, Config = DualExConfig, Error = GCFactoryError> + Send,
     D: DEExecute + Send,
+    R: Role + Send,
 {
     /// Creates a new [KeyExchangeCore]
     ///
@@ -78,7 +71,7 @@ where
         point_addition_sender: PS,
         point_addition_receiver: PR,
         dual_ex_factory: A,
-        config: KeyExchangeConfig,
+        config: KeyExchangeConfig<R>,
     ) -> Self {
         Self {
             channel,
@@ -94,12 +87,13 @@ where
     }
 }
 
-impl<PS, PR, A, D> KeyExchangeCore<PS, PR, A, D>
+impl<PS, PR, A, D, R> KeyExchangeCore<PS, PR, A, D, R>
 where
     PS: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send,
     PR: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send,
     A: AsyncFactory<D, Config = DualExConfig, Error = GCFactoryError> + Send,
     D: DEExecute + Send,
+    R: Role + Send,
 {
     /// Compute the additive shares of the pre-master secret, twice
     async fn compute_pms_shares_for(&mut self) -> Result<(), KeyExchangeError> {
@@ -133,7 +127,7 @@ where
     /// Compute the PMS labels needed to compute the master secret
     ///
     /// * `role` - The role of this party in the protocol
-    async fn compute_pms_labels_for(&mut self, role: Role) -> Result<PMSLabels, KeyExchangeError> {
+    async fn compute_pms_labels_for(&mut self) -> Result<PMSLabels, KeyExchangeError> {
         let mut rng = ChaCha20Rng::from_entropy();
 
         // PMS shares have to be already computed in order to continue
@@ -154,13 +148,13 @@ where
 
         // Prepare circuit inputs
         let input0 = COMBINE_PMS
-            .input(role.first_input())?
+            .input(self.config.role.first_input())?
             .to_value(pms_share1.to_le_bytes())?;
         let input1 = COMBINE_PMS
-            .input(role.second_input())?
+            .input(self.config.role.second_input())?
             .to_value(pms_share2.to_le_bytes())?;
-        let input2 = COMBINE_PMS.input(role.third_input())?;
-        let input3 = COMBINE_PMS.input(role.fourth_input())?;
+        let input2 = COMBINE_PMS.input(self.config.role.third_input())?;
+        let input3 = COMBINE_PMS.input(self.config.role.fourth_input())?;
 
         let const_input0 = COMBINE_PMS.input(4)?.to_value(Value::ConstZero)?;
         let const_input1 = COMBINE_PMS.input(5)?.to_value(Value::ConstOne)?;
@@ -277,21 +271,12 @@ where
 }
 
 #[async_trait]
-impl<PS, PR, A, B, LSF, LRF, LS, LR> KeyExchangeLead
-    for KeyExchangeCore<PS, PR, A, DualExLeader<Initialized, B, LSF, LRF, LS, LR>>
+impl<PS, PR, A, D> KeyExchangeLead for KeyExchangeCore<PS, PR, A, D, Leader>
 where
     PS: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send,
     PR: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send,
-    A: AsyncFactory<
-            DualExLeader<Initialized, B, LSF, LRF, LS, LR>,
-            Config = DualExConfig,
-            Error = GCFactoryError,
-        > + Send,
-    B: Generator + Evaluator + Send,
-    LSF: AsyncFactory<LS, Config = OTSenderConfig, Error = OTFactoryError> + Send,
-    LRF: AsyncFactory<LR, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
-    LS: ObliviousSend<FullEncodedInput> + Send,
-    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + Send,
+    A: AsyncFactory<D, Config = DualExConfig, Error = GCFactoryError> + Send,
+    D: DEExecute + Send,
 {
     async fn compute_client_key(
         &mut self,
@@ -329,26 +314,17 @@ where
     }
 
     async fn compute_pms_labels(&mut self) -> Result<PMSLabels, KeyExchangeError> {
-        self.compute_pms_labels_for(Role::Leader).await
+        self.compute_pms_labels_for().await
     }
 }
 
 #[async_trait]
-impl<PS, PR, A, B, LSF, LRF, LS, LR> KeyExchangeFollow
-    for KeyExchangeCore<PS, PR, A, DualExFollower<Initialized, B, LSF, LRF, LS, LR>>
+impl<PS, PR, A, D> KeyExchangeFollow for KeyExchangeCore<PS, PR, A, D, Follower>
 where
     PS: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send,
     PR: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send,
-    A: AsyncFactory<
-            DualExFollower<Initialized, B, LSF, LRF, LS, LR>,
-            Config = DualExConfig,
-            Error = GCFactoryError,
-        > + Send,
-    B: Generator + Evaluator + Send,
-    LSF: AsyncFactory<LS, Config = OTSenderConfig, Error = OTFactoryError> + Send,
-    LRF: AsyncFactory<LR, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
-    LS: ObliviousSend<FullEncodedInput> + Send,
-    LR: ObliviousReceive<InputValue, ActiveEncodedInput> + Send,
+    A: AsyncFactory<D, Config = DualExConfig, Error = GCFactoryError> + Send,
+    D: DEExecute + Send,
 {
     async fn send_public_key(
         &mut self,
@@ -381,66 +357,31 @@ where
     }
 
     async fn compute_pms_labels(&mut self) -> Result<PMSLabels, KeyExchangeError> {
-        self.compute_pms_labels_for(Role::Follower).await
+        self.compute_pms_labels_for().await
     }
 }
 
 /// A config used in the key exchange protocol
 #[derive(Debug, Clone, Builder)]
-pub struct KeyExchangeConfig {
+pub struct KeyExchangeConfig<R> {
     id: String,
+    role: R,
 }
 
-impl KeyExchangeConfig {
+impl<R: Role> KeyExchangeConfig<R> {
     /// Create a new config
-    pub fn new(id: String) -> Self {
-        Self { id }
+    pub fn new(id: String, role: R) -> Self {
+        Self { id, role }
     }
 
     /// Get the id of this instance
     pub fn id(&self) -> &str {
         &self.id
     }
-}
 
-/// The role of the instance, either `Leader` or `Follower`
-#[derive(Clone, Copy, Debug)]
-pub enum Role {
-    Leader,
-    Follower,
-}
-
-impl Role {
-    /// Get the correct input number for the first input
-    const fn first_input(&self) -> usize {
-        match self {
-            Role::Leader => 0,
-            Role::Follower => 1,
-        }
-    }
-
-    /// Get the correct input number for the second input
-    const fn second_input(&self) -> usize {
-        match self {
-            Role::Leader => 2,
-            Role::Follower => 3,
-        }
-    }
-
-    /// Get the correct input number for the third input
-    const fn third_input(&self) -> usize {
-        match self {
-            Role::Leader => 1,
-            Role::Follower => 0,
-        }
-    }
-
-    /// Get the correct input number for the fourth input
-    const fn fourth_input(&self) -> usize {
-        match self {
-            Role::Leader => 3,
-            Role::Follower => 2,
-        }
+    /// Get the role of this instance
+    pub fn role(&self) -> &R {
+        &self.role
     }
 }
 

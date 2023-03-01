@@ -14,6 +14,7 @@ mod exchange;
 #[cfg(feature = "mock")]
 pub mod mock;
 pub mod msg;
+mod role;
 
 use async_trait::async_trait;
 use mpc_aio::protocol::garble::{factory::GCFactoryError, GCError};
