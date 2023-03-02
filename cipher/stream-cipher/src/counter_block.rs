@@ -15,6 +15,26 @@ pub struct KeyBlockLabels {
     pub(crate) active_iv_labels: ActiveEncodedInput,
 }
 
+/// Applies a key block to a block of text.
+/// 
+/// * `de` - The dual execution instance to use
+/// * `labels` - The input labels for the key block circuit
+/// * `text` - The input text to apply the key block to.
+/// * `explicit_nonce` - The explicit nonce to use for the key block
+/// * `ctr` - The counter value to use for the key block
+/// * `private` - Whether the input text is private.
+/// 
+/// # Privacy Modes
+/// 
+/// If the `text` is `None`, then the input text is private and provided by the
+/// other party (blind mode). The input labels for it will be sent via OT.
+/// 
+/// If the `text` is `Some` and `private` is `true`, then the input text is private
+/// and provided by us. The input labels for it will be received via OT.
+/// 
+/// If the `text` is `Some` and `private` is `false`, then the input text is public
+/// and is provided by both parties. In which case, no OT is required and the execution
+/// will fail if the input text does not match.
 pub(crate) async fn apply_key_block<C: CtrCircuit, DE: DEExecute>(
     de: DE,
     labels: KeyBlockLabels,
@@ -85,6 +105,28 @@ pub(crate) async fn apply_key_block<C: CtrCircuit, DE: DEExecute>(
     Ok((output_text, summary))
 }
 
+/// Shares a key block between two parties.
+/// 
+/// * `role` - The role of the current party
+/// * `de` - The dual execution instance to use
+/// * `labels` - The input labels for the key block circuit
+/// * `explicit_nonce` - The explicit nonce to use for the key block
+/// * `ctr` - The counter value to use for the key block
+/// 
+/// # Shares
+/// 
+/// The key block is shared between the two parties, where each party generates
+/// a random mask which is applied to the key block.
+/// 
+/// The Leader removes their mask from the resulting masked key block, so they hold:
+/// 
+/// Leader share: KEY_BLOCK ⊕ FOLLOWER_MASK
+/// 
+/// The Follower simply uses their mask as their share of the key block:
+/// 
+/// Follower share: FOLLOWER_MASK
+/// 
+/// Now both parties hold additive shares of the key block.
 pub(crate) async fn share_key_block<C: CtrShareCircuit, DE: DEExecute>(
     role: Role,
     de: DE,
@@ -155,8 +197,8 @@ pub(crate) async fn share_key_block<C: CtrShareCircuit, DE: DEExecute>(
         panic!("Output 0 should be bytes");
     };
 
-    // Leader share: KEY_BLOCK + MASK_1
-    // Follower share: MASK_1
+    // Leader share: KEY_BLOCK ⊕ FOLLOWER_MASK
+    // Follower share: FOLLOWER_MASK
     let share = match role {
         Role::Leader => masked_key_block
             .into_iter()
