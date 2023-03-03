@@ -3,13 +3,13 @@
 /// A trait which depending on the Role allows to get the correct input numbers for the circuit
 pub trait Role: sealed::Sealed {
     /// Get the correct input number for the first input
-    fn first_input(&self) -> usize;
+    fn input_0(&self) -> usize;
     /// Get the correct input number for the second input
-    fn second_input(&self) -> usize;
+    fn input_1(&self) -> usize;
     /// Get the correct input number for the third input
-    fn third_input(&self) -> usize;
+    fn input_2(&self) -> usize;
     /// Get the correct input number for the fourth input
-    fn fourth_input(&self) -> usize;
+    fn input_3(&self) -> usize;
 }
 
 /// A struct which implements the `Role` trait for the leader
@@ -17,19 +17,23 @@ pub trait Role: sealed::Sealed {
 pub struct Leader;
 
 impl Role for Leader {
-    fn first_input(&self) -> usize {
+    /// This corresponds to PMS share A
+    fn input_0(&self) -> usize {
         0
     }
 
-    fn second_input(&self) -> usize {
+    /// This corresponds to PMS share C
+    fn input_1(&self) -> usize {
         2
     }
 
-    fn third_input(&self) -> usize {
+    /// This corresponds to PMS share B
+    fn input_2(&self) -> usize {
         1
     }
 
-    fn fourth_input(&self) -> usize {
+    /// This corresponds to PMS share D
+    fn input_3(&self) -> usize {
         3
     }
 }
@@ -39,19 +43,23 @@ impl Role for Leader {
 pub struct Follower;
 
 impl Role for Follower {
-    fn first_input(&self) -> usize {
+    /// This corresponds to PMS share B
+    fn input_0(&self) -> usize {
         1
     }
 
-    fn second_input(&self) -> usize {
+    /// This corresponds to PMS share D
+    fn input_1(&self) -> usize {
         3
     }
 
-    fn third_input(&self) -> usize {
+    /// This corresponds to PMS share A
+    fn input_2(&self) -> usize {
         0
     }
 
-    fn fourth_input(&self) -> usize {
+    /// This corresponds to PMS share C
+    fn input_3(&self) -> usize {
         2
     }
 }

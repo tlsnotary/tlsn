@@ -2,10 +2,11 @@
 //! such a pair
 
 use super::{
-    exchange::KeyExchangeConfig,
+    config::KeyExchangeConfigBuilder,
     role::{Follower, Leader},
     KeyExchangeCore, KeyExchangeMessage,
 };
+use futures::lock::Mutex;
 use mpc_aio::protocol::{
     garble::{
         backend::RayonBackend,
@@ -14,10 +15,11 @@ use mpc_aio::protocol::{
     },
     ot::mock::{MockOTFactory, MockOTReceiver, MockOTSender},
 };
-use mpc_core::Block;
+use mpc_core::{garble::ChaChaEncoder, Block};
 use point_addition::mock::{
     create_mock_point_converter_pair, MockPointConversionReceiver, MockPointConversionSender,
 };
+use std::sync::Arc;
 use utils_aio::duplex::DuplexChannel;
 
 pub type MockKeyExchangeLeader = KeyExchangeCore<
@@ -58,22 +60,35 @@ pub fn create_mock_key_exchange_pair() -> (MockKeyExchangeLeader, MockKeyExchang
     let dual_ex_factory = create_mock_dualex_factory();
 
     let (leader_channel, follower_channel) = DuplexChannel::<KeyExchangeMessage>::new();
+    let key_exchange_config_leader = KeyExchangeConfigBuilder::default()
+        .id(String::from(""))
+        .role(Leader)
+        .build()
+        .unwrap();
 
-    let leader = KeyExchangeCore::new(
+    let key_exchange_config_follower = KeyExchangeConfigBuilder::default()
+        .id(String::from(""))
+        .role(Follower)
+        .build()
+        .unwrap();
+
+    let mut leader = KeyExchangeCore::new(
         Box::new(leader_channel),
         pa_leader1,
         pa_follower2,
         dual_ex_factory.clone(),
-        KeyExchangeConfig::new(String::from(""), Leader),
+        key_exchange_config_leader,
     );
+    leader.set_encoder(Arc::new(Mutex::new(ChaChaEncoder::new([0; 32]))));
 
-    let follower = KeyExchangeCore::new(
+    let mut follower = KeyExchangeCore::new(
         Box::new(follower_channel),
         pa_follower1,
         pa_leader2,
         dual_ex_factory,
-        KeyExchangeConfig::new(String::from(""), Follower),
+        key_exchange_config_follower,
     );
+    follower.set_encoder(Arc::new(Mutex::new(ChaChaEncoder::new([0; 32]))));
 
     (leader, follower)
 }

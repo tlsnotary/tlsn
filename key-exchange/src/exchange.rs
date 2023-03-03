@@ -1,27 +1,23 @@
 //! This module implements the key exchange logic
 
-use crate::role::{Follower, Leader};
-
 use super::{
     circuit::{COMBINE_PMS, XOR_BYTES_32},
-    role::Role,
+    config::KeyExchangeConfig,
+    role::{Follower, Leader, Role},
     KeyExchangeChannel, KeyExchangeError, KeyExchangeFollow, KeyExchangeLead, KeyExchangeMessage,
     PMSLabels, PublicKey,
 };
 use async_trait::async_trait;
-use derive_builder::Builder;
-use futures::{SinkExt, StreamExt};
+use futures::{lock::Mutex, SinkExt, StreamExt};
 use mpc_aio::protocol::garble::{exec::dual::DEExecute, factory::GCFactoryError};
 use mpc_circuits::{Input, Value, WireGroup};
 use mpc_core::garble::{
     exec::dual::{DualExConfig, DualExConfigBuilder},
     label_state::{Active, Full},
-    Encoded, EncodedSet, EncodingError, FullInputSet,
+    ChaChaEncoder, Encoded, EncodedSet, Encoder, EncodingError, FullInputSet,
 };
 use p256::{EncodedPoint, SecretKey};
 use point_addition::PointAddition;
-use rand_chacha::ChaCha20Rng;
-use rand_core::SeedableRng;
 use share_conversion_core::fields::{p256::P256, Field};
 use std::{borrow::Borrow, sync::Arc};
 use utils_aio::{expect_msg_or_err, factory::AsyncFactory};
@@ -47,6 +43,8 @@ pub struct KeyExchangeCore<PS, PR, A, D, R> {
     pms_shares: Option<[P256; 2]>,
     /// The config used for the key exchange protocol
     config: KeyExchangeConfig<R>,
+    /// An encoder to generate labels
+    encoder: Option<Arc<Mutex<ChaChaEncoder>>>,
     /// PhantomData needed for return type of `dual_ex_factory`
     _phantom_data: std::marker::PhantomData<D>,
 }
@@ -82,8 +80,14 @@ where
             server_key: None,
             pms_shares: None,
             config,
+            encoder: None,
             _phantom_data: std::marker::PhantomData,
         }
+    }
+
+    /// Sets the encoder for generating labels
+    pub fn set_encoder(&mut self, encoder: Arc<Mutex<ChaChaEncoder>>) {
+        self.encoder = Some(encoder);
     }
 }
 
@@ -128,8 +132,6 @@ where
     ///
     /// * `role` - The role of this party in the protocol
     async fn compute_pms_labels_for(&mut self) -> Result<PMSLabels, KeyExchangeError> {
-        let mut rng = ChaCha20Rng::from_entropy();
-
         // PMS shares have to be already computed in order to continue
         let [pms_share1, pms_share2] = self.pms_shares.ok_or(KeyExchangeError::NoPMSShares)?;
 
@@ -148,19 +150,33 @@ where
 
         // Prepare circuit inputs
         let input0 = COMBINE_PMS
-            .input(self.config.role.first_input())?
+            .input(self.config.role.input_0())?
             .to_value(pms_share1.to_le_bytes())?;
         let input1 = COMBINE_PMS
-            .input(self.config.role.second_input())?
+            .input(self.config.role.input_1())?
             .to_value(pms_share2.to_le_bytes())?;
-        let input2 = COMBINE_PMS.input(self.config.role.third_input())?;
-        let input3 = COMBINE_PMS.input(self.config.role.fourth_input())?;
+        let input2 = COMBINE_PMS.input(self.config.role.input_2())?;
+        let input3 = COMBINE_PMS.input(self.config.role.input_3())?;
 
         let const_input0 = COMBINE_PMS.input(4)?.to_value(Value::ConstZero)?;
         let const_input1 = COMBINE_PMS.input(5)?.to_value(Value::ConstOne)?;
 
         // Generate the full labels for the circuit
-        let full_labels = FullInputSet::generate(&mut rng, &COMBINE_PMS, None);
+        let mut encoder = self
+            .encoder
+            .as_mut()
+            .ok_or(KeyExchangeError::NoEncoder)?
+            .lock()
+            .await;
+
+        let full_labels = &COMBINE_PMS
+            .inputs()
+            .iter()
+            .map(|input| encoder.encode(self.config.encoder_default_stream_id, input, false))
+            .collect::<Vec<Encoded<Input, Full>>>();
+        let full_input_set =
+            FullInputSet::new(full_labels.to_vec()).expect("Labels should be valid");
+        drop(encoder);
 
         // Execute the pms circuit in dual execution, but without performing the equality check
         //
@@ -171,7 +187,7 @@ where
         // labels for this.
         let summary = dual_ex_pms
             .execute_skip_equality_check(
-                full_labels,
+                full_input_set,
                 vec![input0.clone(), input1.clone(), const_input0, const_input1],
                 vec![input2, input3],
                 vec![input0, input1],
@@ -239,7 +255,7 @@ where
             .await?;
 
         let Value::Bytes(xor_output) = output[0].value() else {
-            return Err(KeyExchangeError::UnexpectedOutputValue);
+            panic!("Should be able to return output value for this circuit");
         };
 
         // Check that the output of the XOR circuit is equal to 0, i.e. PMS1 == PMS2
@@ -251,17 +267,8 @@ where
         // We only need half the labels because we only need one of the two PMS values (which we
         // know are equal to each other)
         // Since, there are only 2 output labels, we can just take the first one
-        let active_labels = active_output
-            .into_iter()
-            .next()
-            .expect("Should be able to return first group of output labels for this circuit")
-            .into_labels();
-
-        let full_labels = full_output
-            .into_iter()
-            .next()
-            .expect("Should be able to return first group of output labels for this circuit")
-            .into_labels();
+        let active_labels = active_output[0].clone().into_labels();
+        let full_labels = full_output[0].clone().into_labels();
 
         Ok(PMSLabels {
             active_labels,
@@ -358,30 +365,6 @@ where
 
     async fn compute_pms_labels(&mut self) -> Result<PMSLabels, KeyExchangeError> {
         self.compute_pms_labels_for().await
-    }
-}
-
-/// A config used in the key exchange protocol
-#[derive(Debug, Clone, Builder)]
-pub struct KeyExchangeConfig<R> {
-    id: String,
-    role: R,
-}
-
-impl<R: Role> KeyExchangeConfig<R> {
-    /// Create a new config
-    pub fn new(id: String, role: R) -> Self {
-        Self { id, role }
-    }
-
-    /// Get the id of this instance
-    pub fn id(&self) -> &str {
-        &self.id
-    }
-
-    /// Get the role of this instance
-    pub fn role(&self) -> &R {
-        &self.role
     }
 }
 

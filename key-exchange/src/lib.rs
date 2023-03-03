@@ -10,6 +10,7 @@
 //! <https://docs.tlsnotary.org/protocol/notarization/key_exchange.html>.
 
 mod circuit;
+mod config;
 mod exchange;
 #[cfg(feature = "mock")]
 pub mod mock;
@@ -42,6 +43,8 @@ pub enum KeyExchangeError {
     NoPrivateKey,
     #[error("PMSShares are not set")]
     NoPMSShares,
+    #[error("Encoder is not set")]
+    NoEncoder,
     #[error("PMS equality check failed")]
     CheckFailed,
     #[error("Encoding Error: {0}")]
@@ -56,8 +59,6 @@ pub enum KeyExchangeError {
     DualExConfig(#[from] DualExConfigBuilderError),
     #[error("Error during decoding of output: {0}")]
     Decoding(#[from] Error),
-    #[error("Unexepcted output value from circuit")]
-    UnexpectedOutputValue,
     #[error("GC Factory Error: {0}")]
     GCFactoryError(#[from] GCFactoryError),
     #[error("IOError: {0}")]
