@@ -27,12 +27,14 @@ pub enum ReceiverState {
 pub mod tests {
     use super::*;
     use crate::{msgs::ot as msgs, Block};
-    use utils::iter::u8vec_to_boolvec;
 
+    use fixtures::choice;
     use rand::{thread_rng, RngCore};
     use rstest::*;
 
     pub mod fixtures {
+        use utils::bits::BytesToBits;
+
         use super::*;
 
         pub struct Data {
@@ -47,7 +49,7 @@ pub mod tests {
         pub fn choice() -> Vec<bool> {
             let mut choice = vec![0u8; 16];
             thread_rng().fill_bytes(&mut choice);
-            u8vec_to_boolvec(&choice)
+            choice.into_iter().into_msb0()
         }
 
         #[fixture]
@@ -83,14 +85,12 @@ pub mod tests {
     }
 
     #[rstest]
-    fn test_ot() {
+    fn test_ot(choice: &[bool]) {
         let mut rng = thread_rng();
         let s_inputs: Vec<[Block; 2]> = (0..128)
             .map(|_| [Block::random(&mut rng), Block::random(&mut rng)])
             .collect();
-        let mut choice = vec![0u8; 16];
-        rng.fill_bytes(&mut choice);
-        let choice = u8vec_to_boolvec(&choice);
+
         let expected: Vec<Block> = s_inputs
             .iter()
             .zip(choice.iter())

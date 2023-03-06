@@ -5,7 +5,7 @@ use mpc_core::{
 };
 use rand::{RngCore, SeedableRng};
 use rand_chacha::ChaCha12Rng;
-use utils::iter::u8vec_to_boolvec;
+use utils::bits::BytesToBits;
 
 fn base_ot(c: &mut Criterion) {
     let mut group = c.benchmark_group("base_ot");
@@ -15,7 +15,7 @@ fn base_ot(c: &mut Criterion) {
             let mut rng = ChaCha12Rng::from_entropy();
             let mut choice = vec![0u8; n / 8];
             rng.fill_bytes(&mut choice);
-            let choice = u8vec_to_boolvec(&choice);
+            let choice = choice.into_msb0();
             b.iter(|| {
                 let mut sender = DhOtSender::default();
                 let sender_setup = sender.setup(&mut rng).unwrap();
@@ -38,7 +38,7 @@ fn ext_ot(c: &mut Criterion) {
             let mut rng = ChaCha12Rng::from_entropy();
             let mut choice = vec![0u8; n / 8];
             rng.fill_bytes(&mut choice);
-            let choice = u8vec_to_boolvec(&choice);
+            let choice = choice.into_msb0();
             b.iter(|| {
                 let receiver = Kos15Receiver::default();
                 let (receiver, base_sender_setup) = receiver.base_setup().unwrap();

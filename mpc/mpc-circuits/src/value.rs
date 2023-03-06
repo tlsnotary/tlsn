@@ -212,18 +212,7 @@ mod tests {
     use super::*;
     use rstest::*;
 
-    fn string_to_boolvec(string: &str) -> Vec<bool> {
-        string
-            .chars()
-            .map(|c| match c {
-                '1' => true,
-                '0' => false,
-                _ => {
-                    panic!()
-                }
-            })
-            .collect()
-    }
+    use utils::bits::BitStringToBoolVec;
 
     #[rstest]
     #[case(ValueType::ConstZero, "", Value::ConstZero)]
@@ -247,7 +236,7 @@ mod tests {
         Value::U128(1u128)
     )]
     fn test_value_new(#[case] value_type: ValueType, #[case] bits: &str, #[case] expected: Value) {
-        let value = Value::new(value_type, string_to_boolvec(bits)).unwrap();
+        let value = Value::new(value_type, bits.to_bool_vec()).unwrap();
         assert_eq!(value, expected);
         assert_eq!(value.value_type(), value_type);
     }
@@ -272,7 +261,7 @@ mod tests {
         "1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
     )]
     fn test_value_wrong_bit_length(#[case] value_type: ValueType, #[case] bits: &str) {
-        let err = Value::new(value_type, string_to_boolvec(bits)).unwrap_err();
+        let err = Value::new(value_type, bits.to_bool_vec()).unwrap_err();
         assert!(matches!(err, Error::ParseError(_, _)))
     }
 
@@ -313,6 +302,6 @@ mod tests {
     #[case(1u128, "10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")]
     fn test_value_to_bits(#[case] value: impl Into<Value>, #[case] expected: &str) {
         let value: Value = value.into();
-        assert_eq!(value.to_lsb0_bits(), string_to_boolvec(expected));
+        assert_eq!(value.to_lsb0_bits(), expected.to_bool_vec());
     }
 }

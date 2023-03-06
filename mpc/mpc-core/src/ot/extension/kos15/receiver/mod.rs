@@ -20,7 +20,7 @@ use error::{CommittedOTError, ExtReceiverCoreError};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 use rand_core::RngCore;
-use utils::iter::{boolvec_to_u8vec, xor};
+use utils::{bits::BitsToBytes, iter::xor};
 
 pub struct Kos15Receiver<S = state::Initialized>(S)
 where
@@ -367,7 +367,7 @@ fn extension_setup_from(
     // Extend choice bits
     let mut r_bool = choices.to_vec();
     r_bool.extend(&padding_values);
-    let r = boolvec_to_u8vec(&r_bool);
+    let r = r_bool.iter().copied().msb0_into_bytes();
     let ncols = r_bool.len();
 
     let row_length = ncols / 8;
