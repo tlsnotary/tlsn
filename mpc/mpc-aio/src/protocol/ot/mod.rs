@@ -1,3 +1,4 @@
+mod backend;
 pub mod kos;
 #[cfg(feature = "ot")]
 pub mod mock;
@@ -15,6 +16,12 @@ use utils_aio::{mux::MuxerError, Channel};
 pub use mpc_core::ot::config;
 
 type OTChannel = Box<dyn Channel<OTMessage, Error = std::io::Error>>;
+
+#[async_trait]
+pub trait OTSenderSetupProcessor<T, U> {
+    async fn base_setup<V: FnOnce() -> T + Send + 'static>(func: V) -> T;
+    async fn extension_setup<V: FnOnce() -> U + Send + 'static>(func: V) -> U;
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum OTError {
@@ -34,6 +41,8 @@ pub enum OTError {
     Unexpected(OTMessage),
     #[error("Received ciphertext with wrong length: expected {0}, got {1}")]
     InvalidCiphertextLength(usize, usize),
+    #[error("Backend error")]
+    BackendError(String),
 }
 
 #[derive(Debug, thiserror::Error)]

@@ -12,7 +12,7 @@ mod tests {
     use super::{
         receiver::Kos15IOReceiver, sender::Kos15IOSender, ObliviousReceive, ObliviousSend,
     };
-    use mpc_core::{msgs::ot::OTMessage, Block};
+    use mpc_core::{msgs::ot::OTMessage, ot::s_state, Block};
     use rand::SeedableRng;
     use rand_chacha::ChaCha12Rng;
     use utils_aio::duplex::DuplexChannel;
@@ -28,7 +28,7 @@ mod tests {
 
         let (channel, channel_2) = DuplexChannel::<OTMessage>::new();
         let (sender, receiver) = (
-            Kos15IOSender::new(Box::new(channel)),
+            Kos15IOSender::<s_state::Initialized>::new(Box::new(channel)),
             Kos15IOReceiver::new(Box::new(channel_2)),
         );
         let send = tokio::spawn(async {
@@ -65,7 +65,7 @@ mod tests {
 
         let (channel, channel_2) = DuplexChannel::<OTMessage>::new();
         let (sender, receiver) = (
-            Kos15IOSender::new(Box::new(channel)),
+            Kos15IOSender::<s_state::Initialized>::new(Box::new(channel)),
             Kos15IOReceiver::new(Box::new(channel_2)),
         );
 
@@ -108,7 +108,7 @@ mod tests {
 
         let (channel, channel_2) = DuplexChannel::<OTMessage>::new();
         let (mut sender, mut receiver) = (
-            Kos15IOSender::new(Box::new(channel)),
+            Kos15IOSender::<s_state::Initialized>::new(Box::new(channel)),
             Kos15IOReceiver::new(Box::new(channel_2)),
         );
         let send = tokio::spawn(async {
