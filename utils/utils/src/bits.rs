@@ -82,7 +82,7 @@ where
                     panic!("bit iterator yielded less than a byte")
                 }
             };
-            byte ^= (bit as u8) << idx;
+            byte |= (bit as u8) << idx;
         }
 
         Some(byte)
@@ -106,7 +106,7 @@ where
                     panic!("bit iterator yielded less than a byte")
                 }
             };
-            byte ^= (bit as u8) << (7 - idx);
+            byte |= (bit as u8) << (7 - idx);
         }
 
         Some(byte)
