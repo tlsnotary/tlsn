@@ -27,7 +27,7 @@ mod tests {
 
         let (channel, channel_2) = DuplexChannel::<OTMessage>::new();
         let (sender, receiver) = (
-            Kos15IOSender::new(Box::new(channel)),
+            Kos15IOSender::<s_state::Initialized>::new(Box::new(channel)),
             Kos15IOReceiver::new(Box::new(channel_2)),
         );
         let send = tokio::spawn(async {
@@ -64,7 +64,7 @@ mod tests {
 
         let (channel, channel_2) = DuplexChannel::<OTMessage>::new();
         let (sender, receiver) = (
-            Kos15IOSender::new(Box::new(channel)),
+            Kos15IOSender::<s_state::Initialized>::new(Box::new(channel)),
             Kos15IOReceiver::new(Box::new(channel_2)),
         );
 
@@ -107,7 +107,7 @@ mod tests {
 
         let (channel, channel_2) = DuplexChannel::<OTMessage>::new();
         let (mut sender, mut receiver) = (
-            Kos15IOSender::new(Box::new(channel)),
+            Kos15IOSender::<s_state::Initialized>::new(Box::new(channel)),
             Kos15IOReceiver::new(Box::new(channel_2)),
         );
         let send = tokio::spawn(async {
