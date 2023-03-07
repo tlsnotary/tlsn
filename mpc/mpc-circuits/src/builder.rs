@@ -286,6 +286,7 @@ pub struct Outputs {
     bit_order: BitOrder,
     inputs: Vec<InputHandle>,
     gates: Vec<GateHandle>,
+    /// A map containing all the wire connections between gates and inputs/outputs.
     conns: HashMap<usize, usize>,
     output_wire_id: usize,
     outputs: Vec<OutputHandle>,
@@ -512,6 +513,8 @@ impl CircuitBuilder<Outputs> {
             .flatten()
             .collect::<HashSet<usize>>();
 
+        // Collect all the connections that include an output wire
+        // into a map
         let mut output_wire_connections: HashMap<usize, usize> = HashMap::default();
         for (sink, feed) in self
             .0

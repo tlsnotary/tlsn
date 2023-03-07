@@ -15,9 +15,11 @@ struct Args {
     name: String,
     #[clap(short)]
     version: String,
-    /// This flag reverses the circuit the circuit input and output wires, ie flips the bit order.
+    /// This flag reverses the circuit input and output wires, ie flips the bit order
+    /// of the circuit.
     ///
-    /// Any byte values will also be reversed, ie flipping the endianness.
+    /// Any byte values will also be reversed, ie flipping the endianness. Little-endian
+    /// inputs/outputs will become big-endian and vice versa.
     #[clap(short, default_value = "false")]
     reverse: bool,
     /// Path to bristol fashion circuit
@@ -54,6 +56,7 @@ fn main() {
     println!("Successfully processed {}", &args.name);
 }
 
+// Reverses the input and output wires of a circuit.
 fn reverse_bristol(circ: &Circuit) -> Arc<Circuit> {
     let id = circ.id().clone().to_string();
     let mut builder = CircuitBuilder::new(
@@ -83,6 +86,7 @@ fn reverse_bristol(circ: &Circuit) -> Arc<Circuit> {
 
     let original_circ = builder.add_circ(&circ);
 
+    // For each input, create a new input with reversed wires.
     for (idx, input) in new_inputs.iter().enumerate() {
         let input_wires = input[..].iter().cloned().collect::<Vec<_>>();
         let original_input_wires = original_circ.input(idx).unwrap()[..]
@@ -90,6 +94,7 @@ fn reverse_bristol(circ: &Circuit) -> Arc<Circuit> {
             .cloned()
             .collect::<Vec<_>>();
 
+        // Connect the new input wires to the original input wires in reverse order.
         for (feed, sink) in input_wires.iter().zip(original_input_wires.iter().rev()) {
             builder.connect(&[*feed], &[*sink]);
         }
@@ -110,6 +115,7 @@ fn reverse_bristol(circ: &Circuit) -> Arc<Circuit> {
         })
         .collect::<Vec<_>>();
 
+    // For each output, create a new output with reversed wires.
     for (idx, output) in new_outputs.iter().enumerate() {
         let output_wires = output[..].iter().cloned().collect::<Vec<_>>();
         let original_output_wires = original_circ.output(idx).unwrap()[..]
@@ -117,6 +123,7 @@ fn reverse_bristol(circ: &Circuit) -> Arc<Circuit> {
             .cloned()
             .collect::<Vec<_>>();
 
+        // Connect the new output wires to the original output wires in reverse order.
         for (feed, sink) in original_output_wires.iter().zip(output_wires.iter().rev()) {
             builder.connect(&[*feed], &[*sink]);
         }
