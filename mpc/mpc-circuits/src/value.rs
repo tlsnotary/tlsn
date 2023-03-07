@@ -12,6 +12,9 @@ pub enum BitOrder {
 }
 
 impl BitOrder {
+    /// Parses bit order from string
+    ///
+    /// Returns error if string is not a valid bit order
     pub fn from_str(s: &str) -> Result<Self, String> {
         match s.to_lowercase().as_str() {
             "msb0" => Ok(Self::Msb0),
