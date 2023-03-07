@@ -23,6 +23,7 @@ futures-util.workspace = true
 async-trait.workspace = true
 thiserror.workspace = true
 async-std.workspace = true
+rayon.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = [
