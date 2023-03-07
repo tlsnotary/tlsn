@@ -8,7 +8,7 @@ use futures::channel::{oneshot, oneshot::Canceled};
 pub trait SpawnRayon<T: Send + 'static> {
     type Error: std::error::Error + From<Canceled>;
 
-    // Spawn the closure in a separate thread and await the result
+    /// Spawn the closure in a separate thread and await the result
     async fn spawn<
         F: FnOnce() -> Result<T, R> + Send + 'static,
         R: std::error::Error + Into<Self::Error> + Send + 'static,
