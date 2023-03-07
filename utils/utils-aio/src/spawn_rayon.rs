@@ -13,7 +13,6 @@ pub trait SpawnRayon<T: Send + 'static> {
         F: FnOnce() -> Result<T, R> + Send + 'static,
         R: std::error::Error + Into<Self::Error> + Send + 'static,
     >(
-        &self,
         closure: F,
     ) -> Result<T, Self::Error> {
         let (sender, receiver) = oneshot::channel();
