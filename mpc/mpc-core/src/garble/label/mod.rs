@@ -12,7 +12,7 @@ use std::{
     sync::Arc,
 };
 
-use mpc_circuits::{Input, Output, Value};
+use mpc_circuits::{BitOrder, Input, Output, Value};
 use rand::{CryptoRng, Rng};
 
 use crate::{block::Block, garble::EncodingError};
@@ -203,7 +203,11 @@ impl Labels<Full> {
     }
 
     /// Returns active labels corresponding to the `value`
-    pub fn select(&self, value: &Value) -> Result<ActiveLabels, EncodingError> {
+    pub fn select(
+        &self,
+        value: &Value,
+        bit_order: BitOrder,
+    ) -> Result<ActiveLabels, EncodingError> {
         if value.len() != self.labels.len() {
             return Err(EncodingError::InvalidValue(self.len(), value.len()));
         }
@@ -212,7 +216,7 @@ impl Labels<Full> {
             .labels
             .iter()
             .copied()
-            .zip(value.to_lsb0_bits().into_iter())
+            .zip(value.to_bits(bit_order).into_iter())
             .map(|(low, level)| if level { low ^ self.get_delta() } else { low })
             .collect::<Vec<_>>();
 
@@ -663,11 +667,11 @@ mod tests {
         let b = Labels::<Full>::generate(&mut rng, 8, Some(delta));
         let c = &a ^ &b;
 
-        let a_active = a.select(&1u8.into()).unwrap();
-        let b_active = b.select(&2u8.into()).unwrap();
+        let a_active = a.select(&1u8.into(), BitOrder::Msb0).unwrap();
+        let b_active = b.select(&2u8.into(), BitOrder::Msb0).unwrap();
 
         let c_active = a_active ^ b_active;
 
-        assert_eq!(c_active, c.select(&3u8.into()).unwrap());
+        assert_eq!(c_active, c.select(&3u8.into(), BitOrder::Msb0).unwrap());
     }
 }

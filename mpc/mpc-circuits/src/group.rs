@@ -1,6 +1,6 @@
 use std::sync::{Arc, Weak};
 
-use crate::{Circuit, GroupError, Value, ValueType};
+use crate::{value::BitOrder, Circuit, GroupError, Value, ValueType};
 
 /// A unique identifier for a `Group` belonging to a `Circuit`.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -38,6 +38,10 @@ where
     fn description(&self) -> &str;
     /// Returns group value type
     fn value_type(&self) -> ValueType;
+    /// Returns bit order of group
+    fn bit_order(&self) -> BitOrder {
+        self.circuit().bit_order()
+    }
     /// Returns group wire ids
     fn wires(&self) -> &[usize];
     /// Returns number of wires
@@ -211,18 +215,18 @@ where
 
     /// Returns wire ids and values
     #[inline]
-    pub fn wire_values(&self) -> Vec<(usize, bool)> {
+    pub fn wire_values(&self, order: BitOrder) -> Vec<(usize, bool)> {
         self.group
             .wires()
             .iter()
             .copied()
-            .zip(self.value.to_lsb0_bits().into_iter())
+            .zip(self.value.to_bits(order).into_iter())
             .collect()
     }
 
     /// Creates group value from LSB0 bit string
     #[inline]
-    pub fn from_bits(group: T, bits: Vec<bool>) -> Result<Self, GroupError> {
+    pub fn from_bits(group: T, bits: Vec<bool>, order: BitOrder) -> Result<Self, GroupError> {
         if group.len() != bits.len() {
             return Err(GroupError::InvalidLength(
                 group.id().clone(),
@@ -231,7 +235,7 @@ where
             ));
         }
 
-        let value = Value::new(group.value_type(), bits)
+        let value = Value::new(group.value_type(), bits, order)
             .map_err(|e| GroupError::ValueError(group.id().clone(), e))?;
 
         Ok(Self { group, value })

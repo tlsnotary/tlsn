@@ -84,7 +84,7 @@ where
     pub fn select(&self, value: &Value) -> Result<Encoded<G, Active>, EncodingError> {
         Ok(Encoded {
             group: self.group.clone(),
-            labels: self.labels.select(value)?,
+            labels: self.labels.select(value, self.group.bit_order())?,
         })
     }
 
@@ -162,8 +162,10 @@ where
         // `bits` are guaranteed to have the correct number of bits for this group
         let bits = self.labels.decode(decoding.decoding)?;
 
-        Ok(GroupValue::from_bits(self.group.clone(), bits)
-            .expect("Value should have correct bit count"))
+        Ok(
+            GroupValue::from_bits(self.group.clone(), bits, self.group.bit_order())
+                .expect("Value should have correct bit count"),
+        )
     }
 
     #[cfg(test)]
@@ -365,7 +367,7 @@ pub(crate) mod unchecked {
 
         #[fixture]
         fn circ() -> Arc<Circuit> {
-            Circuit::load_bytes(ADDER_64).unwrap()
+            ADDER_64.clone()
         }
 
         #[fixture]

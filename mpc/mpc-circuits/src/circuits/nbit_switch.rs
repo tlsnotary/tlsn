@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{
     builder::{CircuitBuilder, Feed, WireHandle},
     circuit::GateType,
-    Circuit, ValueType,
+    BitOrder, Circuit, ValueType,
 };
 
 /// Builds a switch which toggles between two n-bit numbers
@@ -14,6 +14,7 @@ pub fn nbit_switch(n: usize) -> Arc<Circuit> {
         &format!("{n}BitSwitch"),
         &format!("{n}-bit Binary Switch"),
         "0.1.0",
+        BitOrder::Lsb0,
     );
 
     let a = builder.add_input("A", &format!("{}-bit number", n), ValueType::Bits, n);

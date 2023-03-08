@@ -1,6 +1,7 @@
 use crate::{
-    group::UncheckedGroup, proto::Circuit as ProtoCircuit, utils::topological_sort, CircuitError,
-    Group, Input, InputValue, Output, OutputValue, Value, ValueType, WireGroup,
+    group::UncheckedGroup, proto::Circuit as ProtoCircuit, utils::topological_sort,
+    value::BitOrder, CircuitError, Group, Input, InputValue, Output, OutputValue, Value, ValueType,
+    WireGroup,
 };
 
 use prost::Message;
@@ -196,6 +197,8 @@ pub struct Circuit {
     pub(crate) description: String,
     /// Version of circuit
     pub(crate) version: String,
+    /// Bit-order
+    pub(crate) bit_order: BitOrder,
 
     /// Number of wires in the circuit
     pub(crate) wire_count: usize,
@@ -251,6 +254,7 @@ impl Circuit {
         id: &str,
         description: &str,
         version: &str,
+        bit_order: BitOrder,
         inputs: Vec<UncheckedGroup>,
         outputs: Vec<UncheckedGroup>,
         gates: Vec<Gate>,
@@ -276,6 +280,7 @@ impl Circuit {
             id,
             description,
             version,
+            bit_order,
             inputs,
             outputs,
             gates,
@@ -288,6 +293,7 @@ impl Circuit {
         id: CircuitId,
         description: &str,
         version: &str,
+        bit_order: BitOrder,
         inputs: Vec<Group>,
         outputs: Vec<Group>,
         gates: Vec<Gate>,
@@ -321,6 +327,7 @@ impl Circuit {
                 id,
                 description: description.to_string(),
                 version: version.to_string(),
+                bit_order,
                 wire_count: info.wire_count,
                 and_count: info.and_count,
                 xor_count: info.xor_count,
@@ -525,6 +532,11 @@ impl Circuit {
         &self.version
     }
 
+    /// Returns bit-order of circuit
+    pub fn bit_order(&self) -> BitOrder {
+        self.bit_order
+    }
+
     /// Returns total number of wires in circuit
     pub fn len(&self) -> usize {
         self.wire_count
@@ -640,7 +652,7 @@ impl Circuit {
         // Insert input values
         for input_value in inputs {
             input_value
-                .wire_values()
+                .wire_values(self.bit_order)
                 .into_iter()
                 .for_each(|(id, value)| wires[id] = Some(value));
         }
@@ -677,7 +689,7 @@ impl Circuit {
             for id in output.wires() {
                 bits.push(wires[*id].ok_or(CircuitError::UninitializedWire(*id))?);
             }
-            let value = Value::new(output.value_type(), bits)?;
+            let value = Value::new(output.value_type(), bits, self.bit_order)?;
             outputs.push(output.clone().to_value(value)?);
         }
 
@@ -705,7 +717,7 @@ mod tests {
             zref: 2,
         }];
 
-        let err = Circuit::new("test", "", "", inputs, vec![], gates).unwrap_err();
+        let err = Circuit::new("test", "", "", BitOrder::Msb0, inputs, vec![], gates).unwrap_err();
 
         assert!(err
             .to_string()
@@ -735,7 +747,7 @@ mod tests {
             vec![3],
         )];
 
-        let err = Circuit::new("test", "", "", inputs, outputs, gates).unwrap_err();
+        let err = Circuit::new("test", "", "", BitOrder::Msb0, inputs, outputs, gates).unwrap_err();
 
         assert!(err
             .to_string()
@@ -774,7 +786,7 @@ mod tests {
             vec![2],
         )];
 
-        assert!(Circuit::new("test", "", "", inputs, outputs, gates).is_err());
+        assert!(Circuit::new("test", "", "", BitOrder::Msb0, inputs, outputs, gates).is_err());
     }
 
     #[test]
@@ -809,7 +821,7 @@ mod tests {
             vec![2],
         )];
 
-        assert!(Circuit::new("test", "", "", inputs, outputs, gates).is_err());
+        assert!(Circuit::new("test", "", "", BitOrder::Msb0, inputs, outputs, gates).is_err());
     }
 
     #[test]
@@ -844,7 +856,7 @@ mod tests {
             vec![2],
         )];
 
-        assert!(Circuit::new("test", "", "", inputs, outputs, gates).is_err());
+        assert!(Circuit::new("test", "", "", BitOrder::Msb0, inputs, outputs, gates).is_err());
     }
 
     #[test]
@@ -870,7 +882,7 @@ mod tests {
             vec![2],
         )];
 
-        assert!(Circuit::new("test", "", "", inputs, outputs, gates).is_err());
+        assert!(Circuit::new("test", "", "", BitOrder::Msb0, inputs, outputs, gates).is_err());
     }
 
     #[test]
@@ -910,7 +922,7 @@ mod tests {
             vec![2],
         )];
 
-        assert!(Circuit::new("test", "", "", inputs, outputs, gates).is_err());
+        assert!(Circuit::new("test", "", "", BitOrder::Msb0, inputs, outputs, gates).is_err());
     }
 
     #[test]
@@ -957,7 +969,7 @@ mod tests {
             vec![3, 4],
         )];
 
-        assert!(Circuit::new("test", "", "", inputs, outputs, gates).is_err());
+        assert!(Circuit::new("test", "", "", BitOrder::Msb0, inputs, outputs, gates).is_err());
     }
 
     #[test]
@@ -991,7 +1003,7 @@ mod tests {
             vec![2],
         )];
 
-        assert!(Circuit::new("test", "", "", inputs, outputs, gates).is_err());
+        assert!(Circuit::new("test", "", "", BitOrder::Msb0, inputs, outputs, gates).is_err());
     }
 
     #[test]
@@ -1025,6 +1037,6 @@ mod tests {
             ValueType::Bits,
             vec![2],
         )];
-        assert!(Circuit::new("test", "", "", inputs, outputs, gates).is_ok());
+        assert!(Circuit::new("test", "", "", BitOrder::Msb0, inputs, outputs, gates).is_ok());
     }
 }

@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
-use crate::{builder::CircuitBuilder, circuit::GateType, Circuit, ValueType};
+use crate::{builder::CircuitBuilder, circuit::GateType, value::BitOrder, Circuit, ValueType};
 
 use super::half_adder;
 
 fn ripple() -> Arc<Circuit> {
-    let mut builder = CircuitBuilder::new("Ripple", "Ripple adder", "");
+    let mut builder = CircuitBuilder::new("Ripple", "Ripple adder", "", BitOrder::Lsb0);
     let a = builder.add_input("A", "", ValueType::Bool, 1);
     let b = builder.add_input("B", "", ValueType::Bool, 1);
     let c_in = builder.add_input("C_IN", "Carry-in bit", ValueType::Bool, 1);
@@ -59,6 +59,7 @@ pub fn nbit_adder(n: usize) -> Arc<Circuit> {
         &format!("{n}BitAdder"),
         &format!("{n}-bit Binary Adder without Carry-out"),
         "0.1.0",
+        BitOrder::Lsb0,
     );
 
     let a = builder.add_input("A", &format!("{}-bit number", n), ValueType::Bits, n);
@@ -124,7 +125,7 @@ mod tests {
     use super::*;
     use crate::{circuits::test_circ, Value};
 
-    /// Converts u64 to LSB0 order boolvec
+    /// Converts u64 to Lsb0 order boolvec
     fn u64(v: u64) -> Vec<bool> {
         (0..64).map(|i| (v >> i & 1) == 1).collect()
     }

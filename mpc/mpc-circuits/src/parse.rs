@@ -1,4 +1,4 @@
-use crate::{group::UncheckedGroup, Circuit, CircuitError, Gate, ValueType};
+use crate::{group::UncheckedGroup, value::BitOrder, Circuit, CircuitError, Gate, ValueType};
 use regex::Regex;
 use std::{
     fs::File,
@@ -21,7 +21,12 @@ fn line2vec<'a>(re: &Regex, line: &'a str) -> Result<Vec<&'a str>, CircuitError>
 impl Circuit {
     /// Parses circuit files in Bristol Fashion format as specified here:
     /// `https://homes.esat.kuleuven.be/~nsmart/MPC/`
-    pub fn parse(filename: &str, name: &str, version: &str) -> Result<Arc<Self>, CircuitError> {
+    pub fn parse(
+        filename: &str,
+        name: &str,
+        version: &str,
+        bit_order: BitOrder,
+    ) -> Result<Arc<Self>, CircuitError> {
         let f = File::open(filename)?;
         let mut reader = BufReader::new(f);
 
@@ -216,6 +221,7 @@ impl Circuit {
             name,
             "",
             version,
+            bit_order,
             input_groups,
             output_groups,
             gates,
@@ -229,7 +235,13 @@ mod tests {
 
     #[test]
     fn test_parse_adder64() {
-        let circ = Circuit::parse("circuits/bristol/adder64.txt", "adder64", "").unwrap();
+        let circ = Circuit::parse(
+            "circuits/bristol/adder64_reverse.txt",
+            "adder64",
+            "",
+            BitOrder::Lsb0,
+        )
+        .unwrap();
 
         assert_eq!(circ.input_len(), 128);
         assert_eq!(circ.output_len(), 64);
@@ -243,6 +255,7 @@ mod tests {
             "circuits/bristol/aes_128_reverse.txt",
             "aes_128_reverse",
             "",
+            BitOrder::Lsb0,
         )
         .unwrap();
 

@@ -5,8 +5,8 @@ edition = "2021"
 
 [features]
 default = ["full"]
-full = ["aes_128_reverse", "adder64", "sha256"]
-aes_128_reverse = []
+full = ["aes128", "adder64", "sha256"]
+aes128 = []
 adder64 = []
 sha256 = []
 
@@ -22,6 +22,7 @@ hex.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_yaml.workspace = true
 lazy_static.workspace = true
+once_cell.workspace = true
 
 [dev-dependencies]
 aes.workspace = true

@@ -1,12 +1,13 @@
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     marker::PhantomData,
     sync::Arc,
 };
 
 pub use crate::error::BuilderError;
 use crate::{
-    circuit::GateType, group::UncheckedGroup, Circuit, Gate, Input, Output, ValueType, WireGroup,
+    circuit::GateType, group::UncheckedGroup, value::BitOrder, Circuit, Gate, Input, Output,
+    ValueType, WireGroup,
 };
 
 /// A circuit feed
@@ -261,6 +262,7 @@ pub struct Inputs {
     id: String,
     description: String,
     version: String,
+    bit_order: BitOrder,
     input_wire_id: usize,
     inputs: Vec<InputHandle>,
 }
@@ -270,6 +272,7 @@ pub struct Gates {
     id: String,
     description: String,
     version: String,
+    bit_order: BitOrder,
     inputs: Vec<InputHandle>,
     gate_wire_id: usize,
     gates: Vec<GateHandle>,
@@ -280,8 +283,10 @@ pub struct Outputs {
     id: String,
     description: String,
     version: String,
+    bit_order: BitOrder,
     inputs: Vec<InputHandle>,
     gates: Vec<GateHandle>,
+    /// A map containing all the wire connections between gates and inputs/outputs.
     conns: HashMap<usize, usize>,
     output_wire_id: usize,
     outputs: Vec<OutputHandle>,
@@ -301,11 +306,12 @@ pub struct CircuitBuilder<S: BuilderState>(S);
 
 impl CircuitBuilder<Inputs> {
     /// Creates new builder
-    pub fn new(id: &str, description: &str, version: &str) -> Self {
+    pub fn new(id: &str, description: &str, version: &str, bit_order: BitOrder) -> Self {
         Self(Inputs {
             id: id.to_string(),
             description: description.to_string(),
             version: version.to_string(),
+            bit_order,
             input_wire_id: 0,
             inputs: vec![],
         })
@@ -342,6 +348,7 @@ impl CircuitBuilder<Inputs> {
             id: self.0.id,
             description: self.0.description,
             version: self.0.version,
+            bit_order: self.0.bit_order,
             inputs: self.0.inputs,
             gate_wire_id: self.0.input_wire_id,
             gates: Vec::new(),
@@ -445,6 +452,7 @@ impl CircuitBuilder<Gates> {
             id: self.0.id,
             description: self.0.description,
             version: self.0.version,
+            bit_order: self.0.bit_order,
             inputs: self.0.inputs,
             gates: self.0.gates,
             conns: self.0.conns,
@@ -497,6 +505,34 @@ impl CircuitBuilder<Outputs> {
 
     /// Fully builds circuit
     pub fn build_circuit(mut self) -> Result<Arc<Circuit>, BuilderError> {
+        let output_wire_ids = self
+            .0
+            .outputs
+            .iter()
+            .map(|output| output.output.wires.clone())
+            .flatten()
+            .collect::<HashSet<usize>>();
+
+        // Collect all the connections that include an output wire
+        // into a map
+        let mut output_wire_connections: HashMap<usize, usize> = HashMap::default();
+        for (sink, feed) in self
+            .0
+            .conns
+            .iter()
+            .filter(|(sink, _)| output_wire_ids.contains(sink))
+        {
+            output_wire_connections.insert(*feed, *sink);
+        }
+
+        // Preserve output wire ids by replacing gate wire
+        // ids if they are connected to an output wire
+        for (_, feed) in self.0.conns.iter_mut() {
+            if let Some(new_id) = output_wire_connections.get(feed) {
+                *feed = *new_id;
+            }
+        }
+
         // Connect all gate wires and create id set
         let mut id_set: BTreeSet<usize> = BTreeSet::new();
         self.0.gates.iter_mut().for_each(|gate| {
@@ -508,6 +544,9 @@ impl CircuitBuilder<Outputs> {
                     y.id = *new_id;
                 }
                 id_set.insert(y.id);
+            }
+            if let Some(new_id) = output_wire_connections.get(&gate.z.id) {
+                gate.z.id = *new_id;
             }
             id_set.insert(gate.x.id);
             id_set.insert(gate.z.id);
@@ -588,6 +627,7 @@ impl CircuitBuilder<Outputs> {
             &self.0.id,
             &self.0.description,
             &self.0.version,
+            self.0.bit_order,
             inputs,
             outputs,
             gates,
@@ -597,37 +637,50 @@ impl CircuitBuilder<Outputs> {
 
 /// Maps byte values to sinks using constant wires
 ///
-/// Bytes must be in little-endian order
-///
 /// Panics if a sink is not provided for every bit in byte array
-pub fn map_le_bytes(
+pub fn map_bytes(
     builder: &mut CircuitBuilder<Gates>,
+    order: BitOrder,
     zero: WireHandle<Feed>,
     one: WireHandle<Feed>,
     sinks: &[WireHandle<Sink>],
     bytes: &[u8],
 ) {
     assert_eq!(sinks.len(), bytes.len() * 8);
-    bytes.iter().enumerate().for_each(|(n, byte)| {
-        (0..8).for_each(|i| {
-            if (byte >> i & 1) == 1 {
-                builder.connect(&[one], &[sinks[(n * 8) + i]])
-            } else {
-                builder.connect(&[zero], &[sinks[(n * 8) + i]])
+    bytes
+        .iter()
+        .zip(sinks.chunks_exact(8))
+        .for_each(|(byte, sinks)| match order {
+            BitOrder::Lsb0 => {
+                for (i, sink) in sinks.iter().enumerate() {
+                    if (byte >> i & 1) == 1 {
+                        builder.connect(&[one], &[*sink]);
+                    } else {
+                        builder.connect(&[zero], &[*sink]);
+                    }
+                }
             }
-        })
-    });
+            BitOrder::Msb0 => {
+                for (i, sink) in sinks.iter().rev().enumerate() {
+                    if (byte >> i & 1) == 1 {
+                        builder.connect(&[one], &[*sink]);
+                    } else {
+                        builder.connect(&[zero], &[*sink]);
+                    }
+                }
+            }
+        });
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Value, ADDER_64};
+    use crate::{Value, ADDER_64_BYTES};
 
     #[test]
     fn test_adder_64() {
-        let mut builder = CircuitBuilder::new("test", "", "");
-        let adder_64 = Circuit::load_bytes(ADDER_64).unwrap();
+        let mut builder = CircuitBuilder::new("test", "", "", BitOrder::Lsb0);
+        let adder_64 = Circuit::load_bytes(ADDER_64_BYTES).unwrap();
 
         let in_1 = builder.add_input("in_1", "", ValueType::U64, 64);
         let in_2 = builder.add_input("in_2", "", ValueType::U64, 64);
@@ -672,7 +725,7 @@ mod tests {
 
     #[test]
     fn test_u8_xor() {
-        let mut builder = CircuitBuilder::new("test", "", "");
+        let mut builder = CircuitBuilder::new("test", "", "", BitOrder::Lsb0);
 
         let in_1 = builder.add_input("in_0", "", ValueType::U8, 8);
         let in_2 = builder.add_input("in_1", "", ValueType::U8, 8);
@@ -710,7 +763,7 @@ mod tests {
 
     #[test]
     fn test_map_bytes() {
-        let mut builder = CircuitBuilder::new("test", "", "");
+        let mut builder = CircuitBuilder::new("test", "", "", BitOrder::Lsb0);
 
         let const_zero = builder.add_input("const0", "", ValueType::ConstZero, 1);
         let const_one = builder.add_input("const1", "", ValueType::ConstOne, 1);
@@ -719,8 +772,9 @@ mod tests {
 
         let gates: Vec<_> = (0..24).map(|_| builder.add_gate(GateType::Inv)).collect();
 
-        map_le_bytes(
+        map_bytes(
             &mut builder,
+            BitOrder::Lsb0,
             const_zero[0],
             const_one[0],
             &gates.iter().map(|gate| gate.x()).collect::<Vec<_>>(),

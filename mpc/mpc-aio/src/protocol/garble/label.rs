@@ -44,7 +44,7 @@ where
     ) -> Result<Vec<ActiveEncodedInput>, OTError> {
         let choice_bits = choices
             .iter()
-            .map(|value| value.value().to_lsb0_bits())
+            .map(|value| value.value().to_bits(value.bit_order()))
             .flatten()
             .collect::<Vec<bool>>();
 
@@ -82,13 +82,13 @@ where
 mod tests {
     use super::*;
     use crate::protocol::ot::mock::mock_ot_pair;
-    use mpc_circuits::{Circuit, ADDER_64};
+    use mpc_circuits::ADDER_64;
     use mpc_core::garble::FullInputSet;
     use rand::thread_rng;
 
     #[tokio::test]
     async fn test_wire_label_transfer() {
-        let circ = Circuit::load_bytes(ADDER_64).unwrap();
+        let circ = ADDER_64.clone();
         let full_labels = FullInputSet::generate(&mut thread_rng(), &circ, None);
 
         let receiver_labels = full_labels[1].clone();

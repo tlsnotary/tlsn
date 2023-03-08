@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{builder::CircuitBuilder, Circuit, ValueType};
+use crate::{builder::CircuitBuilder, value::BitOrder, Circuit, ValueType};
 
 use super::{nbit_adder, nbit_subtractor, nbit_switch};
 
@@ -12,6 +12,7 @@ pub fn nbit_add_mod(n: usize) -> Arc<Circuit> {
         &format!("{n}BitAddMod"),
         &format!("{n} bit modular addition"),
         "0.1.0",
+        BitOrder::Lsb0,
     );
     let a = builder.add_input("A", &format!("{}_bit number", n), ValueType::Bits, n);
     let b = builder.add_input("B", &format!("{}_bit number", n), ValueType::Bits, n);
@@ -76,6 +77,7 @@ mod tests {
     use super::*;
     use crate::{circuits::test_circ, Value};
 
+    // convert u8 to a vector of bits in Lsb0 order
     fn u8(v: u8) -> Vec<bool> {
         (0..8).map(|n| (v >> n & 1) == 1).collect()
     }

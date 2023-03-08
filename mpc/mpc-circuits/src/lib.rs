@@ -11,26 +11,38 @@ mod spec;
 pub mod utils;
 mod value;
 
+use once_cell::sync::Lazy;
+use std::sync::Arc;
+
 pub use circuit::{Circuit, CircuitId, Gate};
 pub use error::{CircuitError, GroupError, ValueError};
 pub use group::{Group, GroupId, GroupValue, WireGroup};
 pub use input::Input;
 pub use output::Output;
 pub use spec::CircuitSpec;
-pub use value::{Value, ValueType};
+pub use value::{BitOrder, Value, ValueType};
 
 /// Group of wires corresponding to a circuit input
 pub type InputValue = GroupValue<Input>;
 /// Group of wires corresponding to a circuit output
 pub type OutputValue = GroupValue<Output>;
 
-#[cfg(feature = "aes_128_reverse")]
-pub static AES_128_REVERSE: &'static [u8] =
-    std::include_bytes!("../circuits/bin/aes_128_reverse.bin");
+#[cfg(feature = "aes128")]
+pub static AES_128_BYTES: &'static [u8] = std::include_bytes!("../circuits/bin/aes128.bin");
 #[cfg(feature = "adder64")]
-pub static ADDER_64: &'static [u8] = std::include_bytes!("../circuits/bin/adder64.bin");
+pub static ADDER_64_BYTES: &'static [u8] = std::include_bytes!("../circuits/bin/adder64.bin");
 #[cfg(feature = "sha256")]
-pub static SHA_256: &'static [u8] = std::include_bytes!("../circuits/bin/sha256.bin");
+pub static SHA_256_BYTES: &'static [u8] = std::include_bytes!("../circuits/bin/sha256.bin");
+
+#[cfg(feature = "aes128")]
+pub static AES_128: Lazy<Arc<Circuit>> =
+    Lazy::new(|| Circuit::load_bytes(AES_128_BYTES).expect("Failed to load aes128 circuit"));
+#[cfg(feature = "adder64")]
+pub static ADDER_64: Lazy<Arc<Circuit>> =
+    Lazy::new(|| Circuit::load_bytes(ADDER_64_BYTES).expect("Failed to load adder64 circuit"));
+#[cfg(feature = "sha256")]
+pub static SHA_256: Lazy<Arc<Circuit>> =
+    Lazy::new(|| Circuit::load_bytes(SHA_256_BYTES).expect("Failed to load sha256 circuit"));
 
 #[cfg(test)]
 mod tests {
@@ -70,7 +82,7 @@ mod tests {
 
         #[test]
         fn test_adder_64() {
-            let circ = Circuit::load_bytes(ADDER_64).unwrap();
+            let circ = ADDER_64.clone();
 
             test_circ(
                 &circ,
@@ -98,57 +110,38 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "aes_128_reverse")]
-    mod aes_128_reverse {
+    #[cfg(feature = "aes128")]
+    mod aes128 {
         use super::*;
+        use crate::{circuits::test_circ, Value};
+
         use aes::{Aes128, BlockEncrypt, NewBlockCipher};
 
+        fn reference_aes128(key: &[u8; 16], msg: &[u8; 16]) -> Vec<u8> {
+            let cipher = Aes128::new(key.into());
+            let mut ciphertext = [0u8; 16];
+            ciphertext.copy_from_slice(msg);
+
+            let mut ciphertext = ciphertext.into();
+
+            cipher.encrypt_block(&mut ciphertext);
+
+            ciphertext.to_vec()
+        }
+
         #[test]
-        fn test_aes_128_reverse() {
-            let circ = Circuit::load_bytes(AES_128_REVERSE).unwrap();
+        fn test_aes128() {
+            let circ = AES_128.clone();
 
-            let key = vec![0x00; 16];
-            let m = vec![0x00; 16];
-            let cipher = Aes128::new_from_slice(&key).unwrap();
-            let mut ciphertext = [0x00; 16].into();
-            cipher.encrypt_block(&mut ciphertext);
+            let key = [69u8; 16];
+            let msg = b"aes test message";
 
-            ciphertext.reverse();
+            let expected = reference_aes128(&key, msg);
+
             test_circ(
                 &circ,
-                &[Value::from(key), Value::from(m)],
-                &[Value::from(ciphertext.to_vec())],
-            );
-
-            let key = vec![0xFF; 16];
-            let m = vec![0x00; 16];
-            let cipher = Aes128::new_from_slice(&key).unwrap();
-            let mut ciphertext = [0x00; 16].into();
-            cipher.encrypt_block(&mut ciphertext);
-
-            ciphertext.reverse();
-            test_circ(
-                &circ,
-                &[Value::from(key), Value::from(m)],
-                &[Value::from(ciphertext.to_vec())],
-            );
-
-            let mut key = vec![
-                0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00,
-            ];
-            let mut pt = vec![0x00; 16];
-            let cipher = Aes128::new_from_slice(&key).unwrap();
-            let mut ciphertext = [0x00; 16].into();
-            cipher.encrypt_block(&mut ciphertext);
-
-            key.reverse();
-            pt.reverse();
-            ciphertext.reverse();
-            test_circ(
-                &circ,
-                &[Value::from(key), Value::from(pt)],
-                &[Value::from(ciphertext.to_vec())],
+                &[Value::Bytes(key.to_vec()), Value::Bytes(msg.to_vec())],
+                &[Value::Bytes(expected)],
             );
         }
     }
@@ -156,44 +149,41 @@ mod tests {
     #[cfg(feature = "sha256")]
     mod sha256 {
         use super::*;
-        use digest::{generic_array::GenericArray, typenum::U64};
+        use crate::{circuits::test_circ, Value};
+
         use sha2::compress256;
 
-        fn partial_sha256_digest(input: &[u8], mut state: [u32; 8]) -> [u32; 8] {
-            for b in input.chunks_exact(64) {
-                compress256(&mut state, &[*GenericArray::<u8, U64>::from_slice(b)]);
-            }
-            state
-        }
+        static SHA256_STATE: [u32; 8] = [
+            0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
+            0x5be0cd19,
+        ];
 
         #[test]
-        fn test_sha256() {
-            let circ = Circuit::load_bytes(SHA_256).unwrap();
+        fn test_sha256_compress() {
+            let circ = SHA_256.clone();
 
-            let msg = vec![0x33; 64];
-            let state = [
-                0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
-                0x5be0cd19,
-            ];
-            let expected = partial_sha256_digest(&msg, state);
+            let msg = [33u8; 64];
 
-            let lsb_state = state
+            let mut expected = SHA256_STATE;
+            compress256(&mut expected, &[msg.into()]);
+
+            let expected = expected
                 .into_iter()
-                .map(|chunk| chunk.to_le_bytes())
-                .rev()
+                .map(|chunk| chunk.to_be_bytes())
                 .flatten()
-                .collect();
-            let lsb_expected = expected
+                .collect::<Vec<u8>>();
+
+            let initial_state = SHA256_STATE
                 .into_iter()
-                .map(|chunk| chunk.to_le_bytes())
-                .rev()
+                .map(|chunk| chunk.to_be_bytes())
                 .flatten()
-                .collect();
+                .collect::<Vec<u8>>();
+
             test_circ(
                 &circ,
-                &[Value::Bytes(msg), Value::Bytes(lsb_state)],
-                &[Value::Bytes(lsb_expected)],
-            )
+                &[Value::Bytes(msg.to_vec()), Value::Bytes(initial_state)],
+                &[Value::Bytes(expected)],
+            );
         }
     }
 }

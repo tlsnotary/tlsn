@@ -243,17 +243,17 @@ mod tests {
     use super::*;
     use rstest::*;
 
-    use mpc_circuits::{Circuit, CircuitId, Value, ADDER_64, AES_128_REVERSE};
+    use mpc_circuits::{Circuit, CircuitId, Value, ADDER_64, AES_128};
     use rand::SeedableRng;
     use rand_chacha::ChaCha12Rng;
 
     #[fixture]
     pub fn circ() -> Arc<Circuit> {
-        Circuit::load_bytes(ADDER_64).unwrap()
+        ADDER_64.clone()
     }
 
     fn circ_id() -> CircuitId {
-        Circuit::load_bytes(ADDER_64).unwrap().id().clone()
+        ADDER_64.id().clone()
     }
 
     #[fixture]
@@ -297,7 +297,7 @@ mod tests {
     fn test_set_circuit_mismatch(circ: Arc<Circuit>, mut rng: ChaCha12Rng) {
         let set = EncodedSet::generate(&mut rng, &circ, None);
 
-        let circ_2 = Circuit::load_bytes(AES_128_REVERSE).unwrap();
+        let circ_2 = AES_128.clone();
         let set_2 = EncodedSet::generate(&mut rng, &circ_2, None);
 
         let err = EncodedSet::<Input, state::Active>::new(vec![

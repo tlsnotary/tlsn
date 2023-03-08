@@ -205,7 +205,7 @@ pub(crate) mod unchecked {
 
         #[fixture]
         fn circ() -> Arc<Circuit> {
-            Circuit::load_bytes(ADDER_64).unwrap()
+            ADDER_64.clone()
         }
 
         #[fixture]
@@ -300,12 +300,12 @@ mod tests {
     use super::*;
     use rstest::*;
 
-    use mpc_circuits::{Circuit, ADDER_64, AES_128_REVERSE};
+    use mpc_circuits::{Circuit, ADDER_64, AES_128};
     use rand::thread_rng;
 
     #[fixture]
     pub fn circ() -> Arc<Circuit> {
-        Circuit::load_bytes(ADDER_64).unwrap()
+        ADDER_64.clone()
     }
 
     #[rstest]
@@ -365,7 +365,7 @@ mod tests {
 
     #[rstest]
     fn test_to_input_labels_length_mismatch(circ: Arc<Circuit>) {
-        let circ_2 = Circuit::load_bytes(AES_128_REVERSE).unwrap();
+        let circ_2 = AES_128.clone();
 
         let input = circ_2.input(0).unwrap();
         let output = circ.output(0).unwrap();

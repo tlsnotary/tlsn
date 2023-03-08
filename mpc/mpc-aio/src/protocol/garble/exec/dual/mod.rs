@@ -251,7 +251,7 @@ pub mod mock {
 mod tests {
     use super::*;
     use mock::*;
-    use mpc_circuits::{Circuit, ADDER_64};
+    use mpc_circuits::ADDER_64;
     use mpc_core::garble::exec::dual::DualExConfigBuilder;
     use rand::SeedableRng;
     use rand_chacha::ChaCha12Rng;
@@ -259,7 +259,7 @@ mod tests {
     #[tokio::test]
     async fn test_dualex() {
         let mut rng = ChaCha12Rng::seed_from_u64(0);
-        let circ = Circuit::load_bytes(ADDER_64).unwrap();
+        let circ = ADDER_64.clone();
         let config = DualExConfigBuilder::default()
             .id("test".to_string())
             .circ(circ.clone())

@@ -5,7 +5,8 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    error::SpecError as Error, group::UncheckedGroup, Circuit, Gate, Group, ValueType, WireGroup,
+    error::SpecError as Error, group::UncheckedGroup, value::BitOrder, Circuit, Gate, Group,
+    ValueType, WireGroup,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -164,6 +165,7 @@ pub struct CircuitSpec {
     id: String,
     description: String,
     version: String,
+    bit_order: String,
     wires: usize,
     inputs: Vec<GroupSpec>,
     outputs: Vec<GroupSpec>,
@@ -176,6 +178,7 @@ impl From<&Circuit> for CircuitSpec {
             id: c.id.as_ref().clone(),
             description: c.description.clone(),
             version: c.version.clone(),
+            bit_order: c.bit_order.to_string(),
             wires: c.wire_count,
             inputs: c
                 .inputs
@@ -236,10 +239,14 @@ impl CircuitSpec {
             .map(|(id, gate)| gate.to_gate(id))
             .collect::<Result<Vec<Gate>, Error>>()?;
 
+        let bit_order =
+            BitOrder::from_str(&self.bit_order).map_err(|s| Error::InvalidBitOrder(s))?;
+
         Ok(Circuit::new(
             &self.id,
             &self.description,
             &self.version,
+            bit_order,
             inputs,
             outputs,
             gates,
@@ -258,8 +265,8 @@ mod tests {
     }
 
     #[test]
-    fn test_load_aes_128_reverse() {
-        let bytes = std::fs::read("circuits/specs/aes_128_reverse.yml").unwrap();
+    fn test_load_aes_128() {
+        let bytes = std::fs::read("circuits/specs/aes128.yml").unwrap();
         let _ = CircuitSpec::from_yaml(&bytes).unwrap();
     }
 
@@ -277,8 +284,8 @@ mod tests {
     }
 
     #[test]
-    fn test_build_aes_128_reverse() {
-        let bytes = std::fs::read("circuits/specs/aes_128_reverse.yml").unwrap();
+    fn test_build_aes_128() {
+        let bytes = std::fs::read("circuits/specs/aes128.yml").unwrap();
         let spec = CircuitSpec::from_yaml(&bytes).unwrap();
         let _ = spec.build().unwrap();
     }

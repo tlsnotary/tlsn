@@ -1,20 +1,18 @@
-use std::sync::Arc;
-
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use mpc_circuits::{Circuit, WireGroup, AES_128_REVERSE};
+use mpc_circuits::{BitOrder, WireGroup, AES_128};
 use mpc_core::garble::{ChaChaEncoder, Encoder};
 
 fn criterion_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("encoder");
 
-    let circ = Arc::new(Circuit::load_bytes(AES_128_REVERSE).unwrap());
+    let circ = AES_128.clone();
     group.bench_function(circ.id().clone().to_string(), |b| {
-        let mut enc = ChaChaEncoder::new([0u8; 32]);
+        let mut enc = ChaChaEncoder::new([0u8; 32], BitOrder::Msb0);
         b.iter(|| {
             black_box(
                 circ.inputs()
                     .iter()
-                    .map(|input| enc.encode(input.index() as u32, input, false))
+                    .map(|input| enc.encode(input.index() as u32, input))
                     .collect::<Vec<_>>(),
             )
         })
