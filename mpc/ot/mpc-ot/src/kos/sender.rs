@@ -13,33 +13,19 @@ use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use utils_aio::{adaptive_barrier::AdaptiveBarrier, expect_msg_or_err};
 
-pub struct Kos15IOSender<T: SenderState, B = RayonBackend>
-where
-    B: OTSenderSetupProcessor<
-        Result<(Kos15Sender<s_state::BaseSetup>, BaseReceiverSetupWrapper), OTError>,
-        Result<Kos15Sender<s_state::RandSetup>, OTError>,
-    >,
-{
+pub struct Kos15IOSender<T: SenderState> {
     inner: Kos15Sender<T>,
     channel: OTChannel,
     // Needed for task synchronization for committed OT
     barrier: AdaptiveBarrier,
-    backend: std::marker::PhantomData<B>,
 }
 
-impl<B> Kos15IOSender<s_state::Initialized, B>
-where
-    B: OTSenderSetupProcessor<
-        Result<(Kos15Sender<s_state::BaseSetup>, BaseReceiverSetupWrapper), OTError>,
-        Result<Kos15Sender<s_state::RandSetup>, OTError>,
-    >,
-{
+impl Kos15IOSender<s_state::Initialized> {
     pub fn new(channel: OTChannel) -> Self {
         Self {
             inner: Kos15Sender::default(),
             channel,
             barrier: AdaptiveBarrier::new(),
-            backend: std::marker::PhantomData,
         }
     }
 
@@ -56,8 +42,7 @@ where
             OTError::Unexpected
         )?;
 
-        let (kos_sender, message) =
-            B::base_setup(move || self.inner.base_setup(message).map_err(OTError::from)).await?;
+        let (kos_sender, message) = self.inner.base_setup(message)?;
         self.channel
             .send(OTMessage::BaseReceiverSetupWrapper(message))
             .await?;
@@ -76,18 +61,11 @@ where
             OTError::Unexpected
         )?;
 
-        let kos_sender = B::extension_setup(move || {
-            kos_sender
-                .rand_extension_setup(count, message)
-                .map_err(OTError::from)
-        })
-        .await?;
-
+        let kos_sender = kos_sender.rand_extension_setup(count, message)?;
         let kos_io_sender = Kos15IOSender {
             inner: kos_sender,
             channel: self.channel,
             barrier: self.barrier,
-            backend: std::marker::PhantomData,
         };
         Ok(kos_io_sender)
     }
@@ -109,21 +87,18 @@ impl Kos15IOSender<s_state::RandSetup> {
             inner: mut child,
             channel: parent_channel,
             barrier,
-            backend: std::marker::PhantomData,
         } = self;
 
         let parent = Self {
             inner: child.split(count)?,
             channel: parent_channel,
             barrier: barrier.clone(),
-            backend: std::marker::PhantomData,
         };
 
         let child = Self {
             inner: child,
             channel,
             barrier,
-            backend: std::marker::PhantomData,
         };
 
         Ok((parent, child))
