@@ -11,7 +11,11 @@ use mpc_ot_core::{
 };
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
-use utils_aio::{adaptive_barrier::AdaptiveBarrier, expect_msg_or_err};
+use utils_aio::{
+    adaptive_barrier::AdaptiveBarrier,
+    expect_msg_or_err,
+    non_blocking_backend::{Backend, NonBlockingBackend},
+};
 
 pub struct Kos15IOSender<T: SenderState> {
     inner: Kos15Sender<T>,
@@ -42,7 +46,8 @@ impl Kos15IOSender<s_state::Initialized> {
             OTError::Unexpected
         )?;
 
-        let (kos_sender, message) = self.inner.base_setup(message)?;
+        let (kos_sender, message) =
+            Backend::spawn(move || self.inner.base_setup(message).map_err(OTError::from)).await?;
         self.channel
             .send(OTMessage::BaseReceiverSetupWrapper(message))
             .await?;
@@ -61,7 +66,12 @@ impl Kos15IOSender<s_state::Initialized> {
             OTError::Unexpected
         )?;
 
-        let kos_sender = kos_sender.rand_extension_setup(count, message)?;
+        let kos_sender = Backend::spawn(move || {
+            kos_sender
+                .rand_extension_setup(count, message)
+                .map_err(OTError::from)
+        })
+        .await?;
         let kos_io_sender = Kos15IOSender {
             inner: kos_sender,
             channel: self.channel,

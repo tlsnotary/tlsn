@@ -9,7 +9,10 @@ use mpc_ot_core::{
     msgs::{ExtSenderEncryptedPayload, OTMessage},
     r_state::ReceiverState,
 };
-use utils_aio::expect_msg_or_err;
+use utils_aio::{
+    expect_msg_or_err,
+    non_blocking_backend::{Backend, NonBlockingBackend},
+};
 
 pub struct Kos15IOReceiver<T: ReceiverState> {
     inner: Kos15Receiver<T>,
@@ -31,7 +34,8 @@ impl Kos15IOReceiver<r_state::Initialized> {
         mut self,
         count: usize,
     ) -> Result<Kos15IOReceiver<r_state::RandSetup>, OTError> {
-        let (kos_receiver, message) = self.inner.base_setup()?;
+        let (kos_receiver, message) =
+            Backend::spawn(move || self.inner.base_setup().map_err(OTError::from)).await?;
         self.channel
             .send(OTMessage::BaseSenderSetupWrapper(message))
             .await?;
@@ -46,7 +50,12 @@ impl Kos15IOReceiver<r_state::Initialized> {
             .send(OTMessage::BaseSenderPayloadWrapper(message))
             .await?;
 
-        let (kos_receiver, message) = kos_receiver.rand_extension_setup(count)?;
+        let (kos_receiver, message) = Backend::spawn(move || {
+            kos_receiver
+                .rand_extension_setup(count)
+                .map_err(OTError::from)
+        })
+        .await?;
 
         self.channel
             .send(OTMessage::ExtReceiverSetup(message))

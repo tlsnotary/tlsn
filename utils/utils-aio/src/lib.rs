@@ -7,7 +7,7 @@ pub mod expect_msg;
 pub mod factory;
 #[cfg(feature = "mux")]
 pub mod mux;
-pub mod spawn_rayon;
+pub mod non_blocking_backend;
 
 pub trait Channel<T>: futures::Stream<Item = T> + futures::Sink<T> + Send + Unpin {}
 
