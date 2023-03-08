@@ -210,14 +210,17 @@ where
 #[cfg(feature = "mock")]
 pub mod mock {
     use super::{state::Initialized, *};
-    use crate::backend::RayonBackend;
+    use crate::protocol::{
+        garble::backend::GarbleBackend,
+        ot::mock::{MockOTFactory, MockOTReceiver, MockOTSender},
+    };
     use mpc_core::Block;
     use mpc_ot::mock::{MockOTFactory, MockOTReceiver, MockOTSender};
     use utils_aio::duplex::DuplexChannel;
 
     pub type MockDualExLeader = DualExLeader<
         Initialized,
-        RayonBackend,
+        GarbleBackend,
         MockOTFactory<Block>,
         MockOTFactory<Block>,
         MockOTSender<Block>,
@@ -226,7 +229,7 @@ pub mod mock {
 
     pub type MockDualExFollower = DualExFollower<
         Initialized,
-        RayonBackend,
+        GarbleBackend,
         MockOTFactory<Block>,
         MockOTFactory<Block>,
         MockOTSender<Block>,
@@ -240,7 +243,7 @@ pub mod mock {
         let leader = DualExLeader::new(
             config.clone(),
             Box::new(leader_channel),
-            RayonBackend,
+            GarbleBackend,
             ot_factory.clone(),
             ot_factory.clone(),
         );
@@ -248,7 +251,7 @@ pub mod mock {
         let follower = DualExFollower::new(
             config,
             Box::new(follower_channel),
-            RayonBackend,
+            GarbleBackend,
             ot_factory.clone(),
             ot_factory.clone(),
         );

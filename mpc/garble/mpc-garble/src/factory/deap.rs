@@ -208,13 +208,15 @@ pub mod mock {
     use mpc_ot::mock::{MockOTFactory, MockOTReceiver, MockOTSender};
     use utils_aio::mux::mock::MockMuxChannelFactory;
 
-    use crate::backend::RayonBackend;
-
     use super::*;
+    use crate::protocol::{
+        garble::backend::GarbleBackend,
+        ot::mock::{MockOTFactory, MockOTReceiver, MockOTSender},
+    };
 
     pub type MockDEAPLeaderFactory = DEAPLeaderFactory<
         MockMuxChannelFactory<GarbleMessage>,
-        RayonBackend,
+        GarbleBackend,
         MockOTFactory<Block>,
         MockOTFactory<Block>,
         MockOTSender<Block>,
@@ -223,7 +225,7 @@ pub mod mock {
 
     pub type MockDEAPFollowerFactory = DEAPFollowerFactory<
         MockMuxChannelFactory<GarbleMessage>,
-        RayonBackend,
+        GarbleBackend,
         MockOTFactory<Block>,
         MockOTFactory<Block>,
         MockOTSender<Block>,
@@ -237,11 +239,11 @@ pub mod mock {
         (
             DEAPLeaderFactory::new(
                 mux_factory.clone(),
-                RayonBackend,
+                GarbleBackend,
                 ot_factory.clone(),
                 ot_factory.clone(),
             ),
-            DEAPFollowerFactory::new(mux_factory, RayonBackend, ot_factory.clone(), ot_factory),
+            DEAPFollowerFactory::new(mux_factory, GarbleBackend, ot_factory.clone(), ot_factory),
         )
     }
 }

@@ -110,19 +110,22 @@ pub mod mock {
     use mpc_ot::mock::{MockOTFactory, MockOTReceiver, MockOTSender};
     use utils_aio::duplex::DuplexChannel;
 
-    use crate::backend::RayonBackend;
+    use crate::protocol::{
+        garble::backend::GarbleBackend,
+        ot::mock::{MockOTFactory, MockOTReceiver, MockOTSender},
+    };
 
     use super::*;
 
     pub type MockProver = Prover<
         prover_state::Initialized,
-        RayonBackend,
+        GarbleBackend,
         MockOTFactory<Block>,
         MockOTReceiver<Block>,
     >;
     pub type MockVerifier = Verifier<
         verifier_state::Initialized,
-        RayonBackend,
+        GarbleBackend,
         MockOTFactory<Block>,
         MockOTSender<Block>,
     >;
@@ -136,13 +139,13 @@ pub mod mock {
         let prover = Prover::new(
             prover_config,
             Box::new(prover_channel),
-            RayonBackend,
+            GarbleBackend,
             ot_factory.clone(),
         );
         let verifier = Verifier::new(
             verifier_config,
             Box::new(verifier_channel),
-            RayonBackend,
+            GarbleBackend,
             ot_factory,
         );
         (prover, verifier)

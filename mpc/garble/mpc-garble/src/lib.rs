@@ -5,6 +5,7 @@ pub mod factory;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use futures::channel::oneshot::Canceled;
 use mpc_circuits::Circuit;
 use mpc_garble_core::{
     gc_state, msgs::GarbleMessage, ActiveInputSet, CircuitOpening, FullInputSet, GarbledCircuit,
@@ -39,6 +40,8 @@ pub enum GCError {
     DeferralError(String),
     #[error("Proof Error: {0}")]
     ProofError(String),
+    #[error("Channel error: {0}")]
+    Channel(#[from] Canceled),
 }
 
 #[async_trait]
