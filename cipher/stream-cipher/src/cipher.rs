@@ -31,7 +31,7 @@ pub trait CtrCircuit: Default + Clone + Send + Sync {
     fn nonce(&self) -> Input;
     /// Returns input corresponding to counter
     fn counter(&self) -> Input;
-    /// Returns output correpsonding to output text
+    /// Returns output corresponding to output text
     fn output_text(&self) -> Output;
 }
 
