@@ -386,6 +386,7 @@ where
             )
             .await?;
 
+        // If we are recording, we simply push the plaintext labels into the transcript
         if record {
             // Receive plaintext labels directly from follower
             let msg = expect_msg_or_err!(
@@ -449,6 +450,8 @@ where
             .map(|((masked_stream, mask), ciphertext)| masked_stream ^ mask ^ ciphertext)
             .collect::<Vec<u8>>();
 
+        // If we are recording the transcript, we need to retrieve labels for the plaintext and
+        // prove to the follower that they encrypt to the expected ciphertext.
         if record {
             let key_stream_labels = extract_key_stream_labels::<C>(plaintext.len(), summaries);
 
@@ -504,6 +507,11 @@ fn extract_plaintext_labels<C: CtrCircuitSuite>(
 }
 
 /// Extracts the key stream labels from execution summaries.
+///
+/// The input text labels correspond to the random mask that was used to hide the key stream.
+///
+/// We XOR the input text labels with the output text labels to recover the key stream labels, which
+/// can be used to prove the correctness of the plaintext.
 fn extract_key_stream_labels<C: CtrCircuitSuite>(
     len: usize,
     summaries: Vec<DESummary>,
