@@ -63,7 +63,7 @@ pub struct Delta(Block);
 
 impl Delta {
     /// Creates new random Delta
-    pub(crate) fn random<R: Rng + CryptoRng + ?Sized>(rng: &mut R) -> Self {
+    pub fn random<R: Rng + CryptoRng + ?Sized>(rng: &mut R) -> Self {
         let mut block = Block::random(rng);
         block.set_lsb();
         Self(block)

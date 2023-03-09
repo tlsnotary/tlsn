@@ -1,7 +1,3 @@
-pub mod msgs;
-#[cfg(feature = "prf")]
-pub mod prf;
-
 pub use mpc_circuits::{Circuit, CircuitError};
 
 use once_cell::sync::Lazy;
