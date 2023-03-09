@@ -2,6 +2,13 @@
 //!
 //! Each party plays a specific role, either the `StreamCipherLeader` or the `StreamCipherFollower`. Both parties
 //! work together to encrypt and decrypt messages using a shared key.
+//!
+//! # Transcript
+//!
+//! Using the `record` flag, the `StreamCipherFollower` can optionally use a dedicated stream when encoding the plaintext labels, which
+//! allows the `StreamCipherLeader` to build a transcript of active labels which are pushed to the provided `TranscriptSink`.
+//!
+//! Afterwards, the `StreamCipherLeader` can create commitments to the transcript which can be used in a selective disclosure protocol.
 
 pub mod cipher;
 pub mod config;
@@ -75,6 +82,7 @@ where
     ///
     /// * `explicit_nonce`: The explicit nonce to use for the key stream.
     /// * `plaintext`: The message to apply the key stream to.
+    /// * `record`: Whether to record the message in the transcript.
     async fn encrypt_public(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -87,6 +95,7 @@ where
     ///
     /// * `explicit_nonce`: The explicit nonce to use for the key stream.
     /// * `plaintext`: The message to apply the key stream to.
+    /// * `record`: Whether to record the message in the transcript.
     async fn encrypt_private(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -99,6 +108,7 @@ where
     ///
     /// * `explicit_nonce`: The explicit nonce to use for the key stream.
     /// * `ciphertext`: The ciphertext to decrypt.
+    /// * `record`: Whether to record the message in the transcript.
     async fn decrypt_public(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -111,6 +121,7 @@ where
     ///
     /// * `explicit_nonce`: The explicit nonce to use for the key stream.
     /// * `ciphertext`: The ciphertext to decrypt.
+    /// * `record`: Whether to record the message in the transcript.
     async fn decrypt_private(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -150,6 +161,7 @@ where
     ///
     /// * `explicit_nonce`: The explicit nonce to use for the key stream.
     /// * `plaintext`: The message to apply the key stream to.
+    /// * `record`: Whether to record the message in the transcript.
     async fn encrypt_public(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -161,6 +173,7 @@ where
     ///
     /// * `explicit_nonce`: The explicit nonce to use for the key stream.
     /// * `len`: The length of the plaintext provided by the other party.
+    /// * `record`: Whether to record the message in the transcript.
     async fn encrypt_blind(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -173,6 +186,7 @@ where
     ///
     /// * `explicit_nonce`: The explicit nonce to use for the key stream.
     /// * `ciphertext`: The ciphertext to decrypt.
+    /// * `record`: Whether to record the message in the transcript.
     async fn decrypt_public(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -185,6 +199,7 @@ where
     ///
     /// * `explicit_nonce`: The explicit nonce to use for the key stream.
     /// * `ciphertext`: The ciphertext to decrypt.
+    /// * `record`: Whether to record the message in the transcript.
     async fn decrypt_blind(
         &mut self,
         explicit_nonce: Vec<u8>,
