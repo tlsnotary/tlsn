@@ -4,14 +4,14 @@ use mpc_circuits::{
     builder::CircuitBuilder, circuits::nbit_xor, BitOrder, Circuit, ValueType, AES_128,
 };
 
-/// Encrypt plaintext and apply additive masks
+/// Encrypt plaintext and apply XOR masks
 ///
 /// Inputs:
 ///
 ///   0. KEY: 16-byte encryption key
 ///   1. TEXT: 16-byte plaintext
-///   2. MASK_0: 16-byte additive mask
-///   3. MASK_1: 16-byte additive mask
+///   2. MASK_0: 16-byte XOR mask
+///   3. MASK_1: 16-byte XOR mask
 ///
 /// Outputs:
 ///
@@ -26,8 +26,8 @@ pub fn aes_masked() -> Arc<Circuit> {
 
     let key = builder.add_input("KEY", "16-byte encryption key", ValueType::Bytes, 128);
     let text = builder.add_input("TEXT", "16-byte plaintext", ValueType::Bytes, 128);
-    let mask_0 = builder.add_input("MASK_0", "16-byte additive mask", ValueType::Bytes, 128);
-    let mask_1 = builder.add_input("MASK_1", "16-byte additive mask", ValueType::Bytes, 128);
+    let mask_0 = builder.add_input("MASK_0", "16-byte XOR mask", ValueType::Bytes, 128);
+    let mask_1 = builder.add_input("MASK_1", "16-byte XOR mask", ValueType::Bytes, 128);
 
     let mut builder = builder.build_inputs();
 

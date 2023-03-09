@@ -4,7 +4,7 @@ use mpc_circuits::{
     builder::CircuitBuilder, circuits::nbit_xor, BitOrder, Circuit, ValueType, AES_128,
 };
 
-/// AES encrypt counter-block and apply two additive masks
+/// AES encrypt counter-block and apply two XOR masks
 ///
 /// Inputs:
 ///
@@ -12,8 +12,8 @@ use mpc_circuits::{
 ///   1. IV: 4-byte initialization-vector
 ///   2. NONCE: 8-byte Explicit Nonce
 ///   3. CTR: U32 Counter
-///   4. MASK_0: 16-byte mask
-///   5. MASK_1: 16-byte mask
+///   4. MASK_0: 16-byte XOR mask
+///   5. MASK_1: 16-byte XOR mask
 ///
 /// Outputs:
 ///
@@ -30,8 +30,8 @@ pub fn aes_ctr_masked() -> Arc<Circuit> {
     let iv = builder.add_input("IV", "4-byte initialization-vector", ValueType::Bytes, 32);
     let nonce = builder.add_input("NONCE", "8-byte Explicit Nonce", ValueType::Bytes, 64);
     let ctr = builder.add_input("CTR", "U32 Counter", ValueType::U32, 32);
-    let mask_0 = builder.add_input("MASK_0", "16-byte mask", ValueType::Bytes, 128);
-    let mask_1 = builder.add_input("MASK_1", "16-byte mask", ValueType::Bytes, 128);
+    let mask_0 = builder.add_input("MASK_0", "16-byte XOR mask", ValueType::Bytes, 128);
+    let mask_1 = builder.add_input("MASK_1", "16-byte XOR mask", ValueType::Bytes, 128);
 
     let mut builder = builder.build_inputs();
 
