@@ -26,7 +26,7 @@ use mpc_circuits::Circuit;
 /// # Outputs
 ///
 ///   0. T_OUT: 16-byte output (plaintext or ciphertext)
-pub static AES_CTR: Lazy<Arc<Circuit>> = Lazy::new(|| aes_ctr());
+pub static AES_CTR: Lazy<Arc<Circuit>> = Lazy::new(aes_ctr);
 
 /// AES encrypt counter-block and apply two XOR masks
 ///
@@ -42,7 +42,7 @@ pub static AES_CTR: Lazy<Arc<Circuit>> = Lazy::new(|| aes_ctr());
 /// # Outputs
 ///
 ///   0. C_MASKED: 16-byte masked key block (C + MASK_0 + MASK_1)
-pub static AES_CTR_MASKED: Lazy<Arc<Circuit>> = Lazy::new(|| aes_ctr_masked());
+pub static AES_CTR_MASKED: Lazy<Arc<Circuit>> = Lazy::new(aes_ctr_masked);
 
 /// Encrypt plaintext and apply XOR masks
 ///
@@ -56,4 +56,4 @@ pub static AES_CTR_MASKED: Lazy<Arc<Circuit>> = Lazy::new(|| aes_ctr_masked());
 /// # Outputs
 ///
 ///   0. C_MASKED: 16-byte output (CIPHERTEXT + MASK_0 + MASK_1)
-pub static AES_MASKED: Lazy<Arc<Circuit>> = Lazy::new(|| aes_masked());
+pub static AES_MASKED: Lazy<Arc<Circuit>> = Lazy::new(aes_masked);
