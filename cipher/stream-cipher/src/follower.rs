@@ -50,7 +50,6 @@ where
 
     verifier_factory: VF,
 
-    _cipher: PhantomData<C>,
     _verifier: PhantomData<V>,
 }
 
@@ -83,7 +82,6 @@ where
             channel,
             ctr_mode: CtrMode::new(ctr_mode_config, de_factory),
             verifier_factory,
-            _cipher: PhantomData,
             _verifier: PhantomData,
         }
     }

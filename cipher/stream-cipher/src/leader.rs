@@ -53,7 +53,6 @@ where
 
     prover_factory: PF,
 
-    _cipher: PhantomData<C>,
     _prover: PhantomData<P>,
 }
 
@@ -86,7 +85,6 @@ where
             channel,
             ctr_mode: CtrMode::new(ctr_mode_config, de_factory),
             prover_factory,
-            _cipher: PhantomData,
             _prover: PhantomData,
         }
     }
