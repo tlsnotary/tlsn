@@ -156,13 +156,13 @@ mod tests {
         let (mut leader, mut follower) = setup_pair(key.clone(), iv.clone()).await;
 
         let (leader_ciphertext, follower_ciphertext) = tokio::try_join!(
-            leader.encrypt(
+            leader.encrypt_public(
                 explicit_nonce.clone(),
                 plaintext.clone(),
                 aad.clone(),
                 false
             ),
-            follower.encrypt(
+            follower.encrypt_public(
                 explicit_nonce.clone(),
                 plaintext.clone(),
                 aad.clone(),
@@ -269,13 +269,13 @@ mod tests {
         let (mut leader, mut follower) = setup_pair(key.clone(), iv.clone()).await;
 
         let (leader_plaintext, follower_plaintext) = tokio::try_join!(
-            leader.decrypt(
+            leader.decrypt_public(
                 explicit_nonce.clone(),
                 ciphertext.clone(),
                 aad.clone(),
                 false
             ),
-            follower.decrypt(explicit_nonce.clone(), ciphertext, aad.clone(), false)
+            follower.decrypt_public(explicit_nonce.clone(), ciphertext, aad.clone(), false)
         )
         .unwrap();
 
@@ -302,13 +302,13 @@ mod tests {
 
         // leader receives corrupted tag
         let err = tokio::try_join!(
-            leader.decrypt(
+            leader.decrypt_public(
                 explicit_nonce.clone(),
                 corrupted.clone(),
                 aad.clone(),
                 false
             ),
-            follower.decrypt(
+            follower.decrypt_public(
                 explicit_nonce.clone(),
                 ciphertext.clone(),
                 aad.clone(),
@@ -320,13 +320,13 @@ mod tests {
 
         // follower receives corrupted tag
         let err = tokio::try_join!(
-            leader.decrypt(
+            leader.decrypt_public(
                 explicit_nonce.clone(),
                 ciphertext.clone(),
                 aad.clone(),
                 false
             ),
-            follower.decrypt(
+            follower.decrypt_public(
                 explicit_nonce.clone(),
                 corrupted.clone(),
                 aad.clone(),

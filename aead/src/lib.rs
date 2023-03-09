@@ -50,11 +50,13 @@ pub trait AeadLeader {
 
     /// Encrypts a plaintext message, returning the ciphertext and tag.
     ///
+    /// The plaintext is provided by both parties.
+    ///
     /// * `explicit_nonce` - The explicit nonce to use for encryption.
     /// * `plaintext` - The plaintext to encrypt.
     /// * `aad` - Optional additional authenticated data.
     /// * `record` - Whether to record the message in the stream cipher transcript.
-    async fn encrypt(
+    async fn encrypt_public(
         &mut self,
         explicit_nonce: Vec<u8>,
         plaintext: Vec<u8>,
@@ -84,7 +86,7 @@ pub trait AeadLeader {
     /// * `ciphertext` - The ciphertext and tag to authenticate and decrypt.
     /// * `aad` - Additional authenticated data.
     /// * `record` - Whether to record the message in the stream cipher transcript.
-    async fn decrypt(
+    async fn decrypt_public(
         &mut self,
         explicit_nonce: Vec<u8>,
         ciphertext: Vec<u8>,
@@ -118,11 +120,13 @@ pub trait AeadFollower {
 
     /// Encrypts a plaintext message returning the ciphertext and tag.
     ///
+    /// The plaintext is provided by both parties.
+    ///
     /// * `explicit_nonce` - The explicit nonce to use for encryption.
     /// * `plaintext` - The length of the plaintext to encrypt.
     /// * `aad` - Optional additional authenticated data.
     /// * `record` - Whether to record the message in the stream cipher transcript.
-    async fn encrypt(
+    async fn encrypt_public(
         &mut self,
         explicit_nonce: Vec<u8>,
         plaintext: Vec<u8>,
@@ -153,7 +157,7 @@ pub trait AeadFollower {
     /// * `ciphertext` - The ciphertext and tag to authenticate and decrypt.
     /// * `aad` - Additional authenticated data.
     /// * `record` - Whether to record the message in the stream cipher transcript.
-    async fn decrypt(
+    async fn decrypt_public(
         &mut self,
         explicit_nonce: Vec<u8>,
         ciphertext: Vec<u8>,
