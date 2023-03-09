@@ -51,7 +51,7 @@ where
         format!("{}/{}/{ctr}", self.config.id, self.execution_id)
     }
 
-    pub async fn share_key_block(
+    pub async fn share_keystream_block(
         &mut self,
         explicit_nonce: Vec<u8>,
         ctr: u32,

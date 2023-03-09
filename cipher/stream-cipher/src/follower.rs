@@ -439,7 +439,7 @@ where
         let labels = self.build_ctr_share_labels().await?;
 
         self.ctr_mode
-            .share_key_block(explicit_nonce, ctr, labels)
+            .share_keystream_block(explicit_nonce, ctr, labels)
             .await
     }
 }
