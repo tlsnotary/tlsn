@@ -113,7 +113,7 @@ where
     async fn prove_ciphertext(
         &mut self,
         plaintext: Vec<u8>,
-        key_stream_labels: ActiveLabels,
+        keystream_labels: ActiveLabels,
     ) -> Result<Vec<Label>, StreamCipherError> {
         let circ = nbyte_xor(plaintext.len());
 
@@ -133,12 +133,12 @@ where
             .to_value(plaintext)
             .expect("Input should be valid");
 
-        let input_key_stream =
-            ActiveEncodedInput::from_active_labels(circ.inputs()[1].clone(), key_stream_labels)
+        let input_keystream =
+            ActiveEncodedInput::from_active_labels(circ.inputs()[1].clone(), keystream_labels)
                 .expect("Key stream labels should be valid");
 
         let summary = prover
-            .prove_and_summarize(vec![input_plaintext], vec![input_key_stream])
+            .prove_and_summarize(vec![input_plaintext], vec![input_keystream])
             .await?;
 
         let plaintext_labels = summary.get_evaluator_summary().input_labels()[0]
@@ -302,7 +302,7 @@ where
 
         let (ciphertext, summaries) = self
             .ctr_mode
-            .apply_key_stream(
+            .apply_keystream(
                 explicit_nonce.clone(),
                 Some(plaintext.clone()),
                 len,
@@ -377,7 +377,7 @@ where
 
         let (plaintext, _) = self
             .ctr_mode
-            .apply_key_stream(
+            .apply_keystream(
                 explicit_nonce.clone(),
                 Some(ciphertext.clone()),
                 len,
@@ -425,7 +425,7 @@ where
         record: bool,
     ) -> Result<Vec<u8>, StreamCipherError> {
         let len = ciphertext.len();
-        // Generate a random mask to hide the key stream
+        // Generate a random mask to hide the keystream
         let mut stream_mask = vec![0u8; ciphertext.len()];
         rand::thread_rng().fill_bytes(&mut stream_mask);
 
@@ -433,7 +433,7 @@ where
 
         let (masked_stream, summaries) = self
             .ctr_mode
-            .apply_key_stream(
+            .apply_keystream(
                 explicit_nonce.clone(),
                 Some(stream_mask.clone()),
                 len,
@@ -453,10 +453,10 @@ where
         // If we are recording the transcript, we need to retrieve labels for the plaintext and
         // prove to the follower that they encrypt to the expected ciphertext.
         if record {
-            let key_stream_labels = extract_key_stream_labels::<C>(plaintext.len(), summaries);
+            let keystream_labels = extract_keystream_labels::<C>(plaintext.len(), summaries);
 
             let plaintext_labels = self
-                .prove_ciphertext(plaintext.clone(), key_stream_labels)
+                .prove_ciphertext(plaintext.clone(), keystream_labels)
                 .await?;
 
             self.write_to_transcript(
@@ -471,7 +471,7 @@ where
         Ok(plaintext)
     }
 
-    async fn share_key_block(
+    async fn share_keystream_block(
         &mut self,
         explicit_nonce: Vec<u8>,
         ctr: u32,
@@ -506,13 +506,13 @@ fn extract_plaintext_labels<C: CtrCircuitSuite>(
     ActiveLabels::new_active(plaintext_labels)
 }
 
-/// Extracts the key stream labels from execution summaries.
+/// Extracts the keystream labels from execution summaries.
 ///
-/// The input text labels correspond to the random mask that was used to hide the key stream.
+/// The input text labels correspond to the random mask that was used to hide the keystream.
 ///
-/// We XOR the input text labels with the output text labels to recover the key stream labels, which
+/// We XOR the input text labels with the output text labels to recover the keystream labels, which
 /// can be used to prove the correctness of the plaintext.
-fn extract_key_stream_labels<C: CtrCircuitSuite>(
+fn extract_keystream_labels<C: CtrCircuitSuite>(
     len: usize,
     summaries: Vec<DESummary>,
 ) -> ActiveLabels {
@@ -520,7 +520,7 @@ fn extract_key_stream_labels<C: CtrCircuitSuite>(
     let input_text_index = cipher.input_text().index();
     let output_text_index = cipher.output_text().index();
 
-    let mut key_stream_labels = Vec::with_capacity(summaries.len() * C::CtrCircuit::BLOCK_SIZE);
+    let mut keystream_labels = Vec::with_capacity(summaries.len() * C::CtrCircuit::BLOCK_SIZE);
     for summary in summaries {
         let input_labels = summary.get_evaluator_summary().input_labels();
         let output_labels = summary.get_evaluator_summary().output_labels();
@@ -532,9 +532,9 @@ fn extract_key_stream_labels<C: CtrCircuitSuite>(
             .iter()
             .collect::<Vec<Label>>();
 
-        key_stream_labels.extend(key_block_labels);
+        keystream_labels.extend(key_block_labels);
     }
-    key_stream_labels.truncate(len * 8);
+    keystream_labels.truncate(len * 8);
 
-    ActiveLabels::new_active(key_stream_labels)
+    ActiveLabels::new_active(keystream_labels)
 }

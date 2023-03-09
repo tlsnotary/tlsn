@@ -15,7 +15,7 @@ pub struct KeyBlockLabels {
     pub(crate) active_iv_labels: ActiveEncodedInput,
 }
 
-/// Applies a key block to a block of text.
+/// Applies a keystream block to a block of text.
 ///
 /// * `de` - The dual execution instance to use
 /// * `labels` - The input labels for the key block circuit
@@ -35,7 +35,7 @@ pub struct KeyBlockLabels {
 /// If the `text` is `Some` and `private` is `false`, then the input text is public
 /// and is provided by both parties. In which case, no OT is required and the execution
 /// will fail if the input text does not match.
-pub(crate) async fn apply_key_block<C: CtrCircuit, DE: DEExecute>(
+pub(crate) async fn apply_keystream_block<C: CtrCircuit, DE: DEExecute>(
     de: DE,
     labels: KeyBlockLabels,
     text: Option<Vec<u8>>,
@@ -105,7 +105,7 @@ pub(crate) async fn apply_key_block<C: CtrCircuit, DE: DEExecute>(
     Ok((output_text, summary))
 }
 
-/// Shares a key block between two parties.
+/// Shares a keystream block between two parties.
 ///
 /// * `role` - The role of the current party
 /// * `de` - The dual execution instance to use
@@ -127,7 +127,7 @@ pub(crate) async fn apply_key_block<C: CtrCircuit, DE: DEExecute>(
 /// Follower share: FOLLOWER_MASK
 ///
 /// Now both parties hold additive shares of the key block.
-pub(crate) async fn share_key_block<C: CtrShareCircuit, DE: DEExecute>(
+pub(crate) async fn share_keystream_block<C: CtrShareCircuit, DE: DEExecute>(
     role: Role,
     de: DE,
     labels: KeyBlockLabels,

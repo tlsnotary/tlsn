@@ -6,7 +6,7 @@ use tokio::sync::Semaphore;
 use crate::{
     cipher::{CtrCircuit, CtrCircuitSuite, CtrShareCircuit},
     config::CounterModeConfig,
-    counter_block::{apply_key_block, share_key_block, KeyBlockLabels},
+    counter_block::{apply_keystream_block, share_keystream_block, KeyBlockLabels},
     utils::block_count,
     StreamCipherError,
 };
@@ -68,7 +68,7 @@ where
 
         let de = self.de_factory.create(id, de_config).await?;
 
-        let share = share_key_block::<C::CtrShareCircuit, DE>(
+        let share = share_keystream_block::<C::CtrShareCircuit, DE>(
             self.config.role,
             de,
             labels,
@@ -80,7 +80,7 @@ where
         Ok(share)
     }
 
-    pub async fn apply_key_stream(
+    pub async fn apply_keystream(
         &mut self,
         explicit_nonce: Vec<u8>,
         mut text: Option<Vec<u8>>,
@@ -129,7 +129,7 @@ where
 
                     let de = de_factory.create(id, de_config).await?;
 
-                    let (output_text, summary) = apply_key_block::<C::CtrCircuit, DE>(
+                    let (output_text, summary) = apply_keystream_block::<C::CtrCircuit, DE>(
                         de,
                         block_labels,
                         text,

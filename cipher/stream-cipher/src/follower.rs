@@ -89,7 +89,7 @@ where
     async fn verify_plaintext(
         &mut self,
         plaintext_labels: FullLabels,
-        key_stream_labels: FullLabels,
+        keystream_labels: FullLabels,
         ciphertext: Vec<u8>,
     ) -> Result<(), StreamCipherError> {
         let circ = nbyte_xor(ciphertext.len());
@@ -109,8 +109,8 @@ where
             FullEncodedInput::from_labels(circ.inputs()[0].clone(), plaintext_labels)
                 .expect("Labels should be valid");
 
-        let input_key_stream =
-            FullEncodedInput::from_labels(circ.inputs()[1].clone(), key_stream_labels)
+        let input_keystream =
+            FullEncodedInput::from_labels(circ.inputs()[1].clone(), keystream_labels)
                 .expect("Labels should be valid");
 
         let expected_output = circ.outputs()[0]
@@ -118,7 +118,7 @@ where
             .to_value(ciphertext)
             .expect("Ciphertext should be valid");
 
-        let gen_labels = FullInputSet::new(vec![input_plaintext, input_key_stream])
+        let gen_labels = FullInputSet::new(vec![input_plaintext, input_keystream])
             .expect("Inputs should be valid");
 
         _ = verifier
@@ -349,7 +349,7 @@ where
 
         let (ciphertext, _) = self
             .ctr_mode
-            .apply_key_stream(explicit_nonce, Some(plaintext), len, labels, false)
+            .apply_keystream(explicit_nonce, Some(plaintext), len, labels, false)
             .await?;
 
         Ok(ciphertext)
@@ -365,7 +365,7 @@ where
 
         let (ciphertext, _) = self
             .ctr_mode
-            .apply_key_stream(explicit_nonce, None, len, labels, true)
+            .apply_keystream(explicit_nonce, None, len, labels, true)
             .await?;
 
         Ok(ciphertext)
@@ -382,7 +382,7 @@ where
 
         let (plaintext, _) = self
             .ctr_mode
-            .apply_key_stream(explicit_nonce, Some(ciphertext.clone()), len, labels, false)
+            .apply_keystream(explicit_nonce, Some(ciphertext.clone()), len, labels, false)
             .await?;
 
         if record {
@@ -416,22 +416,22 @@ where
 
         let (_, summaries) = self
             .ctr_mode
-            .apply_key_stream(explicit_nonce, None, len, labels, true)
+            .apply_keystream(explicit_nonce, None, len, labels, true)
             .await?;
 
         if record {
             let plaintext_labels = self.build_plaintext_labels(len).await?;
-            let key_stream_labels = extract_key_stream_labels::<C>(len, summaries);
+            let keystream_labels = extract_keystream_labels::<C>(len, summaries);
 
             // Verify that the leader's plaintext encrypts to the ciphertext
-            self.verify_plaintext(plaintext_labels, key_stream_labels, ciphertext)
+            self.verify_plaintext(plaintext_labels, keystream_labels, ciphertext)
                 .await?;
         }
 
         Ok(())
     }
 
-    async fn share_key_block(
+    async fn share_keystream_block(
         &mut self,
         explicit_nonce: Vec<u8>,
         ctr: u32,
@@ -444,8 +444,8 @@ where
     }
 }
 
-/// Extracts key stream labels from execution summaries.
-fn extract_key_stream_labels<C: CtrCircuitSuite>(
+/// Extracts keystream labels from execution summaries.
+fn extract_keystream_labels<C: CtrCircuitSuite>(
     len: usize,
     summaries: Vec<DESummary>,
 ) -> FullLabels {
@@ -453,7 +453,7 @@ fn extract_key_stream_labels<C: CtrCircuitSuite>(
     let input_text_index = cipher.input_text().index();
     let output_text_index = cipher.output_text().index();
 
-    let mut key_stream_labels = Vec::with_capacity(summaries.len() * C::CtrCircuit::BLOCK_SIZE);
+    let mut keystream_labels = Vec::with_capacity(summaries.len() * C::CtrCircuit::BLOCK_SIZE);
     for summary in summaries {
         let input_labels = summary.get_generator_summary().input_labels();
         let output_labels = summary.get_generator_summary().output_labels();
@@ -465,9 +465,9 @@ fn extract_key_stream_labels<C: CtrCircuitSuite>(
             .iter()
             .collect::<Vec<LabelPair>>();
 
-        key_stream_labels.extend(key_block_labels);
+        keystream_labels.extend(key_block_labels);
     }
-    key_stream_labels.truncate(len * 8);
+    keystream_labels.truncate(len * 8);
 
-    FullLabels::new_from_pairs(key_stream_labels)
+    FullLabels::new_from_pairs(keystream_labels)
 }

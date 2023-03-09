@@ -77,11 +77,11 @@ where
     /// Sets transcript sink
     fn set_transcript_sink(&mut self, sink: TranscriptSink);
 
-    /// Applies the key stream to the given plaintext, where both parties
+    /// Applies the keystream to the given plaintext, where both parties
     /// provide the plaintext as an input.
     ///
-    /// * `explicit_nonce`: The explicit nonce to use for the key stream.
-    /// * `plaintext`: The message to apply the key stream to.
+    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
+    /// * `plaintext`: The message to apply the keystream to.
     /// * `record`: Whether to record the message in the transcript.
     async fn encrypt_public(
         &mut self,
@@ -90,11 +90,11 @@ where
         record: bool,
     ) -> Result<Vec<u8>, StreamCipherError>;
 
-    /// Applies the key stream to the given plaintext without revealing it
+    /// Applies the keystream to the given plaintext without revealing it
     /// to the other party.
     ///
-    /// * `explicit_nonce`: The explicit nonce to use for the key stream.
-    /// * `plaintext`: The message to apply the key stream to.
+    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
+    /// * `plaintext`: The message to apply the keystream to.
     /// * `record`: Whether to record the message in the transcript.
     async fn encrypt_private(
         &mut self,
@@ -103,10 +103,10 @@ where
         record: bool,
     ) -> Result<Vec<u8>, StreamCipherError>;
 
-    /// Decrypts a ciphertext by removing the key stream, where the plaintext
+    /// Decrypts a ciphertext by removing the keystream, where the plaintext
     /// is revealed to both parties.
     ///
-    /// * `explicit_nonce`: The explicit nonce to use for the key stream.
+    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
     /// * `ciphertext`: The ciphertext to decrypt.
     /// * `record`: Whether to record the message in the transcript.
     async fn decrypt_public(
@@ -116,10 +116,10 @@ where
         record: bool,
     ) -> Result<Vec<u8>, StreamCipherError>;
 
-    /// Decrypts a ciphertext by removing the key stream, where the plaintext
+    /// Decrypts a ciphertext by removing the keystream, where the plaintext
     /// is not revealed to the `StreamCipherFollower`.
     ///
-    /// * `explicit_nonce`: The explicit nonce to use for the key stream.
+    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
     /// * `ciphertext`: The ciphertext to decrypt.
     /// * `record`: Whether to record the message in the transcript.
     async fn decrypt_private(
@@ -129,13 +129,13 @@ where
         record: bool,
     ) -> Result<Vec<u8>, StreamCipherError>;
 
-    /// Computes additive shares of a key block.
+    /// Computes XOR shares of a keystream block.
     ///
-    /// Returns an additive share of the key block.
+    /// Returns the leader's XOR share of the keystream block.
     ///
-    /// * `explicit_nonce`: The explicit nonce to use for the key block.
-    /// * `ctr`: The counter to use for the key block.
-    async fn share_key_block(
+    /// * `explicit_nonce`: The explicit nonce to use for the keystream block.
+    /// * `ctr`: The counter to use for the keystream block.
+    async fn share_keystream_block(
         &mut self,
         explicit_nonce: Vec<u8>,
         ctr: u32,
@@ -156,11 +156,11 @@ where
     /// used during 2PC.
     fn set_encoder(&mut self, encoder: Arc<Mutex<ChaChaEncoder>>);
 
-    /// Applies the key stream to the given plaintext, where both parties
+    /// Applies the keystream to the given plaintext, where both parties
     /// provide the plaintext as an input.
     ///
-    /// * `explicit_nonce`: The explicit nonce to use for the key stream.
-    /// * `plaintext`: The message to apply the key stream to.
+    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
+    /// * `plaintext`: The message to apply the keystream to.
     /// * `record`: Whether to record the message in the transcript.
     async fn encrypt_public(
         &mut self,
@@ -169,9 +169,9 @@ where
         record: bool,
     ) -> Result<Vec<u8>, StreamCipherError>;
 
-    /// Applies the key stream to a plaintext provided by the `StreamCipherLeader`.
+    /// Applies the keystream to a plaintext provided by the `StreamCipherLeader`.
     ///
-    /// * `explicit_nonce`: The explicit nonce to use for the key stream.
+    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
     /// * `len`: The length of the plaintext provided by the other party.
     /// * `record`: Whether to record the message in the transcript.
     async fn encrypt_blind(
@@ -181,10 +181,10 @@ where
         record: bool,
     ) -> Result<Vec<u8>, StreamCipherError>;
 
-    /// Decrypts a ciphertext by removing the key stream, where the plaintext
+    /// Decrypts a ciphertext by removing the keystream, where the plaintext
     /// is revealed to both parties.
     ///
-    /// * `explicit_nonce`: The explicit nonce to use for the key stream.
+    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
     /// * `ciphertext`: The ciphertext to decrypt.
     /// * `record`: Whether to record the message in the transcript.
     async fn decrypt_public(
@@ -194,10 +194,10 @@ where
         record: bool,
     ) -> Result<Vec<u8>, StreamCipherError>;
 
-    /// Decrypts a ciphertext by removing the key stream, where the plaintext
+    /// Decrypts a ciphertext by removing the keystream, where the plaintext
     /// is only revealed to the `StreamCipherLeader`.
     ///
-    /// * `explicit_nonce`: The explicit nonce to use for the key stream.
+    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
     /// * `ciphertext`: The ciphertext to decrypt.
     /// * `record`: Whether to record the message in the transcript.
     async fn decrypt_blind(
@@ -207,13 +207,13 @@ where
         record: bool,
     ) -> Result<(), StreamCipherError>;
 
-    /// Computes additive shares of a key block.
+    /// Computes XOR shares of a keystream block.
     ///
-    /// Returns an additive share of the key block.
+    /// Returns the follower's share of the keystream block.
     ///
-    /// * `explicit_nonce`: The explicit nonce to use for the key block.
-    /// * `ctr`: The counter to use for the key block.
-    async fn share_key_block(
+    /// * `explicit_nonce`: The explicit nonce to use for the keystream block.
+    /// * `ctr`: The counter to use for the keystream block.
+    async fn share_keystream_block(
         &mut self,
         explicit_nonce: Vec<u8>,
         ctr: u32,
@@ -552,14 +552,14 @@ mod tests {
 
         let leader_fut = async {
             leader
-                .share_key_block(explicit_nonce.to_vec(), 1)
+                .share_keystream_block(explicit_nonce.to_vec(), 1)
                 .await
                 .unwrap()
         };
 
         let follower_fut = async {
             follower
-                .share_key_block(explicit_nonce.to_vec(), 1)
+                .share_keystream_block(explicit_nonce.to_vec(), 1)
                 .await
                 .unwrap()
         };
