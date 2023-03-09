@@ -219,7 +219,7 @@ where
     async fn build_ctr_labels(
         &mut self,
         msg_len: usize,
-        record: bool,
+        use_dedicated_stream: bool,
     ) -> Result<Vec<KeyBlockLabels>, StreamCipherError> {
         let cipher = C::CtrCircuit::default();
 
@@ -249,7 +249,7 @@ where
                 .expect("IV labels should be valid");
 
         // If we're recording, we need to use the dedicated text stream ID
-        let text_stream_id = if record {
+        let text_stream_id = if use_dedicated_stream {
             self.config.encoder_text_stream_id
         } else {
             self.config.encoder_default_stream_id
