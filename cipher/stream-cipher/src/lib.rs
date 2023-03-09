@@ -70,11 +70,12 @@ where
     /// Sets transcript sink
     fn set_transcript_sink(&mut self, sink: TranscriptSink);
 
-    /// Applies the key stream to the given plaintext.
+    /// Applies the key stream to the given plaintext, where both parties
+    /// provide the plaintext as an input.
     ///
     /// * `explicit_nonce`: The explicit nonce to use for the key stream.
     /// * `plaintext`: The message to apply the key stream to.
-    async fn encrypt(
+    async fn encrypt_public(
         &mut self,
         explicit_nonce: Vec<u8>,
         plaintext: Vec<u8>,
@@ -98,7 +99,7 @@ where
     ///
     /// * `explicit_nonce`: The explicit nonce to use for the key stream.
     /// * `ciphertext`: The ciphertext to decrypt.
-    async fn decrypt(
+    async fn decrypt_public(
         &mut self,
         explicit_nonce: Vec<u8>,
         ciphertext: Vec<u8>,
@@ -144,11 +145,12 @@ where
     /// used during 2PC.
     fn set_encoder(&mut self, encoder: Arc<Mutex<ChaChaEncoder>>);
 
-    /// Applies the key stream to the given plaintext.
+    /// Applies the key stream to the given plaintext, where both parties
+    /// provide the plaintext as an input.
     ///
     /// * `explicit_nonce`: The explicit nonce to use for the key stream.
     /// * `plaintext`: The message to apply the key stream to.
-    async fn encrypt(
+    async fn encrypt_public(
         &mut self,
         explicit_nonce: Vec<u8>,
         plaintext: Vec<u8>,
@@ -171,7 +173,7 @@ where
     ///
     /// * `explicit_nonce`: The explicit nonce to use for the key stream.
     /// * `ciphertext`: The ciphertext to decrypt.
-    async fn decrypt(
+    async fn decrypt_public(
         &mut self,
         explicit_nonce: Vec<u8>,
         ciphertext: Vec<u8>,
@@ -396,12 +398,12 @@ mod tests {
 
         let leader_fut = async {
             let leader_encrypted_msg = leader
-                .encrypt(explicit_nonce.to_vec(), msg.clone(), true)
+                .encrypt_public(explicit_nonce.to_vec(), msg.clone(), true)
                 .await
                 .unwrap();
 
             let leader_decrypted_msg = leader
-                .decrypt(explicit_nonce.to_vec(), leader_encrypted_msg.clone(), false)
+                .decrypt_public(explicit_nonce.to_vec(), leader_encrypted_msg.clone(), false)
                 .await
                 .unwrap();
 
@@ -410,12 +412,12 @@ mod tests {
 
         let follower_fut = async {
             let follower_encrypted_msg = follower
-                .encrypt(explicit_nonce.to_vec(), msg.clone(), true)
+                .encrypt_public(explicit_nonce.to_vec(), msg.clone(), true)
                 .await
                 .unwrap();
 
             let follower_decrypted_msg = follower
-                .decrypt(
+                .decrypt_public(
                     explicit_nonce.to_vec(),
                     follower_encrypted_msg.clone(),
                     false,

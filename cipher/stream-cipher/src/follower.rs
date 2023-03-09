@@ -338,7 +338,7 @@ where
         self.state.encoder = Some(encoder);
     }
 
-    async fn encrypt(
+    async fn encrypt_public(
         &mut self,
         explicit_nonce: Vec<u8>,
         plaintext: Vec<u8>,
@@ -371,7 +371,7 @@ where
         Ok(ciphertext)
     }
 
-    async fn decrypt(
+    async fn decrypt_public(
         &mut self,
         explicit_nonce: Vec<u8>,
         ciphertext: Vec<u8>,

@@ -348,7 +348,7 @@ where
         self.state.transcript_sink = Some(sink);
     }
 
-    async fn encrypt(
+    async fn encrypt_public(
         &mut self,
         explicit_nonce: Vec<u8>,
         plaintext: Vec<u8>,
@@ -366,7 +366,7 @@ where
         self.encrypt(explicit_nonce, plaintext, record, true).await
     }
 
-    async fn decrypt(
+    async fn decrypt_public(
         &mut self,
         explicit_nonce: Vec<u8>,
         ciphertext: Vec<u8>,
