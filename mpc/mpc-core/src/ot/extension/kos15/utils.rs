@@ -7,7 +7,7 @@ use matrix_transpose::LANE_COUNT;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 use std::convert::TryInto;
-use utils::bits::BitsToBytes;
+use utils::bits::{FromBits, IterFromBits};
 
 /// Row length of the transposed KOS15 matrix
 const ROW_LENGTH_TR: usize = BASE_COUNT / 8;
@@ -116,7 +116,7 @@ pub fn kos15_check_sender(
     }
 
     let mut delta = [0u8; ROW_LENGTH_TR];
-    let choice_bytes = base_choices.into_iter().copied().msb0_into_bytes();
+    let choice_bytes: Vec<u8> = Vec::from_msb0(base_choices.into_iter().copied());
     delta.copy_from_slice(&choice_bytes);
     let delta = Clmul::new(&delta);
 
@@ -157,9 +157,10 @@ pub fn encrypt_values<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     let base_choice: [u8; 16] = choices
         .into_iter()
         .copied()
-        .msb0_into_bytes()
+        .iter_from_msb0()
+        .collect::<Vec<u8>>()
         .try_into()
-        .unwrap();
+        .expect("choices should be 16 bytes long");
     let delta = Block::from(base_choice);
     // If Receiver used *random* choice bits during OT extension setup, he will now
     // instruct us to de-randomize, so that the value corresponding to his *actual*

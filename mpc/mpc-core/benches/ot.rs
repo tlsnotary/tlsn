@@ -5,7 +5,7 @@ use mpc_core::{
 };
 use rand::{RngCore, SeedableRng};
 use rand_chacha::ChaCha12Rng;
-use utils::bits::BytesToBits;
+use utils::bits::IterToBits;
 
 fn base_ot(c: &mut Criterion) {
     let mut group = c.benchmark_group("base_ot");
