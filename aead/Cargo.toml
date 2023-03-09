@@ -16,8 +16,6 @@ tlsn-stream-cipher = { path = "../cipher/stream-cipher" }
 tlsn-universal-hash = { path = "../universal-hash" }
 tlsn-mpc-circuits = { path = "../mpc/mpc-circuits" }
 tlsn-mpc-core = { path = "../mpc/mpc-core" }
-tlsn-mpc-aio = { path = "../mpc/mpc-aio" }
-tlsn-utils = { path = "../utils/utils" }
 tlsn-utils-aio = { path = "../utils/utils-aio" }
 share-conversion-aio = { path = "../mpc/share-conversion-aio" }
 

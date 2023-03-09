@@ -57,12 +57,12 @@ impl BlockCipherLabels {
     }
 
     /// Returns the full labels for the key input
-    pub fn get_key_full(&self) -> &FullLabels {
+    pub fn key_full(&self) -> &FullLabels {
         &self.key_full
     }
 
     /// Returns the active labels for the key input
-    pub fn get_key_active(&self) -> &ActiveLabels {
+    pub fn key_active(&self) -> &ActiveLabels {
         &self.key_active
     }
 }

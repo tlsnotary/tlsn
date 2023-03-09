@@ -186,15 +186,20 @@ pub struct AeadLabels {
     iv_active: ActiveLabels,
 }
 
-impl Into<StreamCipherLabels> for AeadLabels {
-    fn into(self) -> StreamCipherLabels {
-        StreamCipherLabels::new(self.key_full, self.key_active, self.iv_full, self.iv_active)
+impl From<AeadLabels> for StreamCipherLabels {
+    fn from(labels: AeadLabels) -> Self {
+        StreamCipherLabels::new(
+            labels.key_full,
+            labels.key_active,
+            labels.iv_full,
+            labels.iv_active,
+        )
     }
 }
 
-impl Into<BlockCipherLabels> for AeadLabels {
-    fn into(self) -> BlockCipherLabels {
-        BlockCipherLabels::new(self.key_full, self.key_active)
+impl From<AeadLabels> for BlockCipherLabels {
+    fn from(labels: AeadLabels) -> Self {
+        BlockCipherLabels::new(labels.key_full, labels.key_active)
     }
 }
 
