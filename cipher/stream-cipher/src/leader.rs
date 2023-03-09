@@ -488,7 +488,7 @@ fn extract_plaintext_labels<C: CtrCircuitSuite>(
     let cipher = C::CtrCircuit::default();
     let input_text_index = cipher.input_text().index();
 
-    let mut plaintext_labels = Vec::with_capacity(summaries.len() * C::CtrCircuit::BLOCK_SIZE);
+    let mut plaintext_labels = Vec::with_capacity(summaries.len() * C::CtrCircuit::BLOCK_SIZE * 8);
     for summary in summaries {
         let input_labels = summary.get_evaluator_summary().input_labels();
 
