@@ -93,7 +93,7 @@ where
         let encoder = self
             .state
             .encoder
-            .clone()
+            .as_mut()
             .ok_or(BlockCipherError::EncoderNotSet)?;
 
         // Compute instance id
@@ -323,7 +323,7 @@ where
             Role::Leader => {
                 let mask_leader_input = mask_leader_input
                     .to_value(mask.clone())
-                    .expect("mask is valid length");
+                    .expect("mask should be valid length");
 
                 (
                     vec![text_input.clone(), mask_leader_input.clone()],

@@ -43,8 +43,8 @@ pub enum BlockCipherError {
 
 #[derive(Clone)]
 pub struct BlockCipherLabels {
-    key_full: FullLabels,
-    key_active: ActiveLabels,
+    pub key_full: FullLabels,
+    pub key_active: ActiveLabels,
 }
 
 #[async_trait]

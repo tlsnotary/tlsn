@@ -21,7 +21,7 @@ pub trait BlockCipherCircuit: Default + Clone + Send + Sync {
     fn key(&self) -> Input;
     /// Returns input corresponding to text
     fn text(&self) -> Input;
-    /// Returns output correpsonding to ciphertext
+    /// Returns output corresponding to ciphertext
     fn ciphertext(&self) -> Output;
 }
 
@@ -39,7 +39,7 @@ pub trait BlockCipherShareCircuit: Default + Clone + Send + Sync {
     fn mask_0(&self) -> Input;
     /// Returns input corresponding to mask 1
     fn mask_1(&self) -> Input;
-    /// Returns output correpsonding to masked ciphertext
+    /// Returns output corresponding to masked ciphertext
     fn masked_ciphertext(&self) -> Output;
 }
 
