@@ -1,4 +1,4 @@
-use utils::bits::{BitsToBytes, BitsToUint, BytesToBits};
+use utils::bits::{FromBits, IterToBits, ToBits};
 
 use crate::error::ValueError as Error;
 
@@ -56,17 +56,25 @@ impl Value {
     }
 
     /// Creates value from LSB0 bit vec
-    fn new_from_lsb0(typ: ValueType, mut bits: Vec<bool>) -> Result<Self, Error> {
-        match typ {
-            ValueType::Bytes => {
-                // Preserve byte-order, but reverse bits in each byte
-                bits.chunks_mut(8).for_each(|byte| byte.reverse());
-            }
-            // Preserve bit-order
-            ValueType::Bits => {}
-            _ => bits.reverse(),
-        }
-        Self::new_from_msb0(typ, bits)
+    fn new_from_lsb0(typ: ValueType, bits: Vec<bool>) -> Result<Self, Error> {
+        let value = match typ {
+            ValueType::ConstZero if bits.len() == 0 => Value::ConstZero,
+            ValueType::ConstOne if bits.len() == 0 => Value::ConstOne,
+            ValueType::Bool if bits.len() == 1 => Value::Bool(
+                *bits
+                    .get(0)
+                    .expect("slice with length 1 has no element at index 0"),
+            ),
+            ValueType::Bits if bits.len() > 0 => Value::Bits(bits),
+            ValueType::Bytes if bits.len() % 8 == 0 => Value::Bytes(Vec::<u8>::from_lsb0(bits)),
+            ValueType::U8 if bits.len() == 8 => Value::U8(u8::from_lsb0(bits)),
+            ValueType::U16 if bits.len() == 16 => Value::U16(u16::from_lsb0(bits)),
+            ValueType::U32 if bits.len() == 32 => Value::U32(u32::from_lsb0(bits)),
+            ValueType::U64 if bits.len() == 64 => Value::U64(u64::from_lsb0(bits)),
+            ValueType::U128 if bits.len() == 128 => Value::U128(u128::from_lsb0(bits)),
+            _ => return Err(Error::ParseError(bits.len(), typ)),
+        };
+        Ok(value)
     }
 
     /// Creates value from MSB0 bit vec
@@ -80,12 +88,12 @@ impl Value {
                     .expect("slice with length 1 has no element at index 0"),
             ),
             ValueType::Bits if bits.len() > 0 => Value::Bits(bits),
-            ValueType::Bytes if bits.len() % 8 == 0 => Value::Bytes(bits.msb0_into_bytes()),
-            ValueType::U8 if bits.len() == 8 => Value::U8(bits.msb0_into_u8()),
-            ValueType::U16 if bits.len() == 16 => Value::U16(bits.msb0_into_u16()),
-            ValueType::U32 if bits.len() == 32 => Value::U32(bits.msb0_into_u32()),
-            ValueType::U64 if bits.len() == 64 => Value::U64(bits.msb0_into_u64()),
-            ValueType::U128 if bits.len() == 128 => Value::U128(bits.msb0_into_u128()),
+            ValueType::Bytes if bits.len() % 8 == 0 => Value::Bytes(Vec::<u8>::from_msb0(bits)),
+            ValueType::U8 if bits.len() == 8 => Value::U8(u8::from_msb0(bits)),
+            ValueType::U16 if bits.len() == 16 => Value::U16(u16::from_msb0(bits)),
+            ValueType::U32 if bits.len() == 32 => Value::U32(u32::from_msb0(bits)),
+            ValueType::U64 if bits.len() == 64 => Value::U64(u64::from_msb0(bits)),
+            ValueType::U128 if bits.len() == 128 => Value::U128(u128::from_msb0(bits)),
             _ => return Err(Error::ParseError(bits.len(), typ)),
         };
         Ok(value)
@@ -133,17 +141,18 @@ impl Value {
 
     /// Converts value to bit vector in LSB0 order
     fn to_lsb0_bits(&self) -> Vec<bool> {
-        let mut bits = self.to_msb0_bits();
-        match self.value_type() {
-            ValueType::Bytes => {
-                // Preserve byte-order, but reverse bits in each byte
-                bits.chunks_mut(8).for_each(|byte| byte.reverse());
-            }
-            // Preserve bit-order
-            ValueType::Bits => {}
-            _ => bits.reverse(),
+        match self {
+            Value::ConstZero => vec![false],
+            Value::ConstOne => vec![true],
+            Value::Bool(v) => vec![*v],
+            Value::Bits(v) => v.clone(),
+            Value::Bytes(v) => v.clone().into_lsb0(),
+            Value::U8(v) => (*v).into_lsb0(),
+            Value::U16(v) => (*v).into_lsb0(),
+            Value::U32(v) => (*v).into_lsb0(),
+            Value::U64(v) => (*v).into_lsb0(),
+            Value::U128(v) => (*v).into_lsb0(),
         }
-        bits
     }
 
     /// Converts value to bit vector in MSB0 order
@@ -154,11 +163,11 @@ impl Value {
             Value::Bool(v) => vec![*v],
             Value::Bits(v) => v.clone(),
             Value::Bytes(v) => v.clone().into_msb0(),
-            Value::U8(v) => (0..8).rev().map(|i| (v >> i & 1) == 1).collect(),
-            Value::U16(v) => (0..16).rev().map(|i| (v >> i & 1) == 1).collect(),
-            Value::U32(v) => (0..32).rev().map(|i| (v >> i & 1) == 1).collect(),
-            Value::U64(v) => (0..64).rev().map(|i| (v >> i & 1) == 1).collect(),
-            Value::U128(v) => (0..128).rev().map(|i| (v >> i & 1) == 1).collect(),
+            Value::U8(v) => (*v).into_msb0(),
+            Value::U16(v) => (*v).into_msb0(),
+            Value::U32(v) => (*v).into_msb0(),
+            Value::U64(v) => (*v).into_msb0(),
+            Value::U128(v) => (*v).into_msb0(),
         }
     }
 }
@@ -257,7 +266,7 @@ mod tests {
     use super::*;
     use rstest::*;
 
-    use utils::bits::BitStringToBoolVec;
+    use utils::bits::StrToBits;
 
     #[rstest]
     #[case::const_0(ValueType::ConstZero, "", Value::ConstZero)]
@@ -277,7 +286,7 @@ mod tests {
         #[case] bits: impl AsRef<str>,
         #[case] expected: Value,
     ) {
-        let value = Value::new_from_msb0(value_type, bits.as_ref().to_bool_vec()).unwrap();
+        let value = Value::new_from_msb0(value_type, bits.as_ref().to_bit_vec()).unwrap();
         assert_eq!(value, expected);
         assert_eq!(value.value_type(), value_type);
     }
@@ -296,7 +305,7 @@ mod tests {
     #[case::u64_63bit(ValueType::U64, format!("{:063b}", 1u64))]
     #[case::u128_127bit(ValueType::U128, format!("{:0127b}", 1u128))]
     fn test_value_wrong_bit_length(#[case] value_type: ValueType, #[case] bits: impl AsRef<str>) {
-        let err = Value::new_from_msb0(value_type, bits.as_ref().to_bool_vec()).unwrap_err();
+        let err = Value::new_from_msb0(value_type, bits.as_ref().to_bit_vec()).unwrap_err();
         assert!(matches!(err, Error::ParseError(_, _)))
     }
 
@@ -334,6 +343,6 @@ mod tests {
     #[case::u128(1u128, format!("{:0128b}", 1u128))]
     fn test_value_to_bits(#[case] value: impl Into<Value>, #[case] expected: impl AsRef<str>) {
         let value: Value = value.into();
-        assert_eq!(value.to_msb0_bits(), expected.to_bool_vec());
+        assert_eq!(value.to_msb0_bits(), expected.to_bit_vec());
     }
 }
