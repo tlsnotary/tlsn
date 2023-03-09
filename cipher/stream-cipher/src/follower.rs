@@ -122,7 +122,7 @@ where
             .expect("Inputs should be valid");
 
         _ = verifier
-            .verify_and_summarize(
+            .verify(
                 gen_labels,
                 vec![],
                 vec![circ.inputs()[0].clone()],
