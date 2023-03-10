@@ -1,5 +1,5 @@
 [workspace]
-members = ["stream-cipher", "cipher-circuits"]
+members = ["stream-cipher", "block-cipher", "cipher-circuits"]
 
 [workspace.dependencies]
 # tlsn
