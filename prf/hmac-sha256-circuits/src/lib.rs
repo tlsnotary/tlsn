@@ -1,23 +1,15 @@
-mod combine_pms_shares;
-mod hmac_pad;
 mod hmac_sha256;
-mod hmac_sha256_finalize;
 mod master_secret;
-mod premaster_secret;
 mod prf;
 mod session_keys;
 mod sha256;
-mod sha256_finalize;
 mod verify_data;
 
-pub use combine_pms_shares::combine_pms_shares;
-pub use hmac_pad::hmac_pad;
-pub use hmac_sha256_finalize::hmac_sha256_finalize;
+pub use hmac_sha256::{add_hmac_sha256_finalize, add_hmac_sha256_partial, hmac_sha256_finalize};
 pub use master_secret::master_secret;
-pub use premaster_secret::premaster_secret;
+pub use prf::{add_prf, prf};
 pub use session_keys::session_keys;
-pub use sha256::sha256;
-pub use sha256_finalize::sha256_finalize;
+pub use sha256::{add_sha256_compress, add_sha256_finalize, sha256};
 pub use verify_data::verify_data;
 
 static SHA256_STATE: [u32; 8] = [
@@ -26,13 +18,7 @@ static SHA256_STATE: [u32; 8] = [
 
 #[cfg(test)]
 mod test_helpers {
-    use std::slice::from_ref;
-
-    use generic_array::typenum::U64;
-    use sha2::{
-        compress256,
-        digest::block_buffer::{BlockBuffer, Eager},
-    };
+    use hmac::{Hmac, Mac};
 
     use mpc_circuits::{Circuit, Value, WireGroup};
 
@@ -75,19 +61,49 @@ mod test_helpers {
         state
     }
 
-    pub fn finalize_sha256_digest(mut state: [u32; 8], pos: usize, input: &[u8]) -> [u8; 32] {
-        let mut buffer = BlockBuffer::<U64, Eager>::default();
-        buffer.digest_blocks(input, |b| compress256(&mut state, b));
-        buffer.digest_pad(
-            0x80,
-            &(((input.len() + pos) * 8) as u64).to_be_bytes(),
-            |b| compress256(&mut state, from_ref(b)),
-        );
+    pub fn partial_hmac(key: &[u8]) -> ([u32; 8], [u32; 8]) {
+        let mut key_opad = [0x5cu8; 64];
+        let mut key_ipad = [0x36u8; 64];
 
-        let mut out: [u8; 32] = [0; 32];
-        for (chunk, v) in out.chunks_exact_mut(4).zip(state.iter()) {
-            chunk.copy_from_slice(&v.to_be_bytes());
-        }
-        out
+        key_opad.iter_mut().zip(key).for_each(|(a, b)| *a ^= b);
+        key_ipad.iter_mut().zip(key).for_each(|(a, b)| *a ^= b);
+
+        let outer_state = partial_sha256_digest(&key_opad);
+        let inner_state = partial_sha256_digest(&key_ipad);
+
+        (outer_state, inner_state)
+    }
+
+    pub fn hmac(key: &[u8], msg: &[u8]) -> Vec<u8> {
+        let mut hmac = Hmac::<sha2::Sha256>::new_from_slice(key).unwrap();
+        hmac.update(msg);
+        hmac.finalize().into_bytes().to_vec()
+    }
+
+    pub fn prf_a(key: &[u8], seed: &[u8], i: usize) -> Vec<u8> {
+        (0..i).fold(seed.to_vec(), |a_prev, _| hmac(key, &a_prev))
+    }
+
+    fn prf_p_hash(key: &[u8], seed: &[u8], iterations: usize) -> Vec<u8> {
+        (0..iterations)
+            .map(|i| {
+                let msg = {
+                    let mut msg = prf_a(key, seed, i + 1);
+                    msg.extend_from_slice(seed);
+                    msg
+                };
+                hmac(key, &msg)
+            })
+            .flatten()
+            .collect()
+    }
+
+    pub fn prf(key: &[u8], label: &[u8], seed: &[u8], bytes: usize) -> Vec<u8> {
+        let iterations = bytes / 32 + (bytes % 32 != 0) as usize;
+
+        let mut label_seed = label.to_vec();
+        label_seed.extend_from_slice(seed);
+
+        prf_p_hash(key, &label_seed, iterations)[..bytes].to_vec()
     }
 }

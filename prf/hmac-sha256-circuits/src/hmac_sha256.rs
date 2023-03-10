@@ -1,28 +1,153 @@
 use std::sync::Arc;
 
 use mpc_circuits::{
-    builder::{map_bytes, CircuitBuilder},
+    builder::{map_bytes, CircuitBuilder, Feed, Gates, WireHandle},
     circuits::nbit_xor,
     BitOrder, Circuit, ValueType,
 };
+use utils::bits::IterToBits;
 
-use crate::sha256;
+use crate::{add_sha256_compress, add_sha256_finalize, SHA256_STATE};
 
-/// Computes HMAC(k, m).
+/// Computes the outer and inner states of HMAC-SHA256.
 ///
-/// Inputs:
+/// Outer state is H(key ⊕ opad)
 ///
-///   0. KEY: 32-byte key
-///   1. MSG: N-byte message
+/// Inner state is H(key ⊕ ipad)
 ///
-/// Outputs:
+/// # Arguments
+///
+/// * `builder` - Mutable reference to the circuit builder
+/// * `key` - N-byte key (must be <= 64 bytes)
+/// * `const_zero` - 1-bit constant zero
+/// * `const_one` - 1-bit constant one
+///
+/// # Returns
+///
+/// * `outer_state` - 256-bit outer state
+/// * `inner_state` - 256-bit inner state
+pub fn add_hmac_sha256_partial(
+    builder: &mut CircuitBuilder<Gates>,
+    key: &[WireHandle<Feed>],
+    const_zero: &WireHandle<Feed>,
+    const_one: &WireHandle<Feed>,
+) -> (Vec<WireHandle<Feed>>, Vec<WireHandle<Feed>>) {
+    let xor_circ = nbit_xor(512);
+
+    let xor_opad = builder.add_circ(&xor_circ);
+    let xor_ipad = builder.add_circ(&xor_circ);
+
+    let key_opad = {
+        let a = xor_opad.input(0).expect("xor should have input 0");
+        let b = xor_opad.input(1).expect("xor should have input 1");
+
+        // Connect key wires
+        builder.connect(key, &a[..key.len()]);
+        // Connect zero pads
+        builder.connect_fan_out(*const_zero, &a[key.len()..]);
+
+        // Connect opad wires
+        map_bytes(
+            builder,
+            BitOrder::Msb0,
+            *const_zero,
+            *const_one,
+            &b[..],
+            &[0x5cu8; 64],
+        );
+
+        xor_opad.output(0).expect("xor should have output 0")
+    };
+
+    let key_ipad = {
+        let a = xor_ipad.input(0).expect("xor should have input 0");
+        let b = xor_ipad.input(1).expect("xor should have input 1");
+
+        // Connect key wires
+        builder.connect(key, &a[..key.len()]);
+        // Connect zero pads
+        builder.connect_fan_out(*const_zero, &a[key.len()..]);
+
+        // Connect ipad wires
+        map_bytes(
+            builder,
+            BitOrder::Msb0,
+            *const_zero,
+            *const_one,
+            &b[..],
+            &[0x36; 64],
+        );
+
+        xor_ipad.output(0).expect("xor should have output 0")
+    };
+
+    let sha256_initial_state = SHA256_STATE
+        .into_msb0_iter()
+        .map(|bit| if bit { *const_one } else { *const_zero })
+        .collect::<Vec<_>>();
+
+    let outer_state = add_sha256_compress(builder, &key_opad[..], &sha256_initial_state);
+    let inner_state = add_sha256_compress(builder, &key_ipad[..], &sha256_initial_state);
+
+    (outer_state, inner_state)
+}
+
+/// Computes HMAC(k, m) using existing key hash states.
+///
+/// # Inputs
+///
+/// * `builder` - Mutable reference to the circuit builder
+/// * `outer_state` - 256-bit outer hash state
+/// * `inner_state` - 256-bit inner hash state
+/// * `msg` - Arbitrary length message
+/// * `const_zero` - 1-bit constant zero
+/// * `const_one` - 1-bit constant one
+///
+/// # Returns
+///
+/// * `hash` - 256-bit HMAC-SHA256 hash
+pub fn add_hmac_sha256_finalize(
+    builder: &mut CircuitBuilder<Gates>,
+    outer_state: &[WireHandle<Feed>],
+    inner_state: &[WireHandle<Feed>],
+    msg: &[WireHandle<Feed>],
+    const_zero: &WireHandle<Feed>,
+    const_one: &WireHandle<Feed>,
+) -> Vec<WireHandle<Feed>> {
+    let inner_hash = add_sha256_finalize(builder, msg, inner_state, const_zero, const_one, 64);
+    let outer_hash =
+        add_sha256_finalize(builder, &inner_hash, outer_state, const_zero, const_one, 64);
+
+    outer_hash
+}
+
+/// Computes HMAC(k, m) using existing key hash states.
+///
+/// # Inputs
+///
+///   0. OUTER_STATE: 32-byte outer hash state
+///   1. INNER_STATE: 32-byte inner hash state
+///   2. MSG: N-byte message
+///
+/// # Outputs
 ///
 ///   0. HASH: 32-byte hash
-pub fn hmac_sha256(len: usize) -> Arc<Circuit> {
+pub fn hmac_sha256_finalize(len: usize) -> Arc<Circuit> {
     let mut builder =
         CircuitBuilder::new(&format!("{len}byte_sha256"), "", "0.1.0", BitOrder::Msb0);
 
-    let key = builder.add_input("KEY", "32-byte key", ValueType::Bytes, 256);
+    let outer_state = builder.add_input(
+        "OUTER_STATE",
+        "32-byte outer hash state",
+        ValueType::Bytes,
+        256,
+    );
+    let inner_state = builder.add_input(
+        "INNER_STATE",
+        "32-byte inner hash state",
+        ValueType::Bytes,
+        256,
+    );
     let msg = builder.add_input(
         "MSG",
         &format!("{len}-byte message"),
@@ -44,122 +169,20 @@ pub fn hmac_sha256(len: usize) -> Arc<Circuit> {
 
     let mut builder = builder.build_inputs();
 
-    let sha256_inner_circ = sha256(64 + len);
-    let sha256_outer_circ = sha256(96);
-    let xor_circ = nbit_xor(512);
-
-    let inner_hash_circ = builder.add_circ(&sha256_inner_circ);
-    let outer_hash_circ = builder.add_circ(&sha256_outer_circ);
-    let xor_ipad = builder.add_circ(&xor_circ);
-    let xor_opad = builder.add_circ(&xor_circ);
-
-    // Connect constant wires
-    builder.connect(
-        &const_zero[..],
-        &inner_hash_circ
-            .input(1)
-            .expect("sha256 should have input 1")[..],
+    let hash = add_hmac_sha256_finalize(
+        &mut builder,
+        &outer_state[..],
+        &inner_state[..],
+        &msg[..],
+        &const_zero[0],
+        &const_one[0],
     );
-    builder.connect(
-        &const_one[..],
-        &inner_hash_circ
-            .input(2)
-            .expect("sha256 should have input 2")[..],
-    );
-    builder.connect(
-        &const_zero[..],
-        &outer_hash_circ
-            .input(1)
-            .expect("sha256 should have input 1")[..],
-    );
-    builder.connect(
-        &const_one[..],
-        &outer_hash_circ
-            .input(2)
-            .expect("sha256 should have input 2")[..],
-    );
-
-    let key_ipad = {
-        let a = xor_ipad.input(0).expect("xor should have input 0");
-        let b = xor_ipad.input(1).expect("xor should have input 1");
-
-        // Connect key wires (32 bytes)
-        builder.connect(&key[..], &a[..256]);
-        // Connect zero pads (32 bytes)
-        builder.connect_fan_out(const_zero[0], &a[256..]);
-
-        // Connect ipad wires
-        map_bytes(
-            &mut builder,
-            BitOrder::Msb0,
-            const_zero[0],
-            const_one[0],
-            &b[..],
-            &[0x36; 64],
-        );
-
-        xor_ipad.output(0).expect("xor should have output 0")
-    };
-
-    let key_opad = {
-        let a = xor_opad.input(0).expect("xor should have input 0");
-        let b = xor_opad.input(1).expect("xor should have input 1");
-
-        // Connect key wires (32 bytes)
-        builder.connect(&key[..], &a[..256]);
-        // Connect zero pads (32 bytes)
-        builder.connect_fan_out(const_zero[0], &a[256..]);
-
-        // Connect opad wires
-        map_bytes(
-            &mut builder,
-            BitOrder::Msb0,
-            const_zero[0],
-            const_one[0],
-            &b[..],
-            &[0x5cu8; 64],
-        );
-
-        xor_opad.output(0).expect("xor should have output 0")
-    };
-
-    // Compute inner hash
-    let inner_hash = {
-        let inner_msg = inner_hash_circ
-            .input(0)
-            .expect("sha256 should have input 0");
-
-        // Connect key wires
-        builder.connect(&key_ipad[..], &inner_msg[..512]);
-        // Connect msg wires
-        builder.connect(&msg[..], &inner_msg[512..]);
-
-        inner_hash_circ
-            .output(0)
-            .expect("sha256 should have output 0")
-    };
-
-    // Compute outer hash
-    let outer_hash = {
-        let outer_msg = outer_hash_circ
-            .input(0)
-            .expect("sha256 should have input 0");
-
-        // Connect key wires
-        builder.connect(&key_opad[..], &outer_msg[..512]);
-        // Connect inner hash wires
-        builder.connect(&inner_hash[..], &outer_msg[512..]);
-
-        outer_hash_circ
-            .output(0)
-            .expect("sha256 should have output 0")
-    };
 
     let mut builder = builder.build_gates();
 
-    let hash = builder.add_output("HASH", "32-byte hash", ValueType::Bytes, 256);
+    let hash_output = builder.add_output("HASH", "32-byte hash", ValueType::Bytes, 256);
 
-    builder.connect(&outer_hash[..], &hash[..]);
+    builder.connect(&hash[..], &hash_output[..]);
 
     builder
         .build_circuit()
@@ -169,45 +192,101 @@ pub fn hmac_sha256(len: usize) -> Arc<Circuit> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{partial_sha256_digest, test_circ};
+    use crate::test_helpers::{self, partial_sha256_digest, test_circ};
     use mpc_circuits::Value;
-
-    use hmac::{Hmac, Mac};
 
     #[test]
     #[ignore = "expensive"]
-    fn test_hmac_sha256() {
+    fn test_hmac_sha256_finalize() {
         let key = [69u8; 32];
         let msg = [42u8; 47];
 
-        let circ = hmac_sha256(msg.len());
+        let circ = hmac_sha256_finalize(msg.len());
 
-        let mut hmac = Hmac::<sha2::Sha256>::new_from_slice(&key).unwrap();
-        hmac.update(&msg);
-        let expected = hmac.finalize().into_bytes().to_vec();
+        let key_opad = key
+            .iter()
+            .chain(&[0u8; 32])
+            .map(|k| k ^ 0x5cu8)
+            .collect::<Vec<_>>();
+
+        let key_ipad = key
+            .iter()
+            .chain(&[0u8; 32])
+            .map(|k| k ^ 0x36u8)
+            .collect::<Vec<_>>();
+
+        let outer_hash_state = partial_sha256_digest(&key_opad);
+        let inner_hash_state = partial_sha256_digest(&key_ipad);
+
+        let expected = test_helpers::hmac(&key, &msg);
 
         test_circ(
             &circ,
-            &[Value::Bytes(key.to_vec()), Value::Bytes(msg.to_vec())],
+            &[
+                Value::Bytes(
+                    outer_hash_state
+                        .into_iter()
+                        .map(|chunk| chunk.to_be_bytes())
+                        .flatten()
+                        .collect(),
+                ),
+                Value::Bytes(
+                    inner_hash_state
+                        .into_iter()
+                        .map(|chunk| chunk.to_be_bytes())
+                        .flatten()
+                        .collect(),
+                ),
+                Value::Bytes(msg.to_vec()),
+            ],
             &[Value::Bytes(expected)],
         );
     }
 
     #[test]
     #[ignore = "expensive"]
-    fn test_hmac_sha256_multi_block() {
+    fn test_hmac_sha256_finalize_multi_block() {
         let key = [69u8; 32];
         let msg = [42u8; 79];
 
-        let circ = hmac_sha256(msg.len());
+        let circ = hmac_sha256_finalize(msg.len());
 
-        let mut hmac = Hmac::<sha2::Sha256>::new_from_slice(&key).unwrap();
-        hmac.update(&msg);
-        let expected = hmac.finalize().into_bytes().to_vec();
+        let key_opad = key
+            .iter()
+            .chain(&[0u8; 32])
+            .map(|k| k ^ 0x5cu8)
+            .collect::<Vec<_>>();
+
+        let key_ipad = key
+            .iter()
+            .chain(&[0u8; 32])
+            .map(|k| k ^ 0x36u8)
+            .collect::<Vec<_>>();
+
+        let outer_hash_state = partial_sha256_digest(&key_opad);
+        let inner_hash_state = partial_sha256_digest(&key_ipad);
+
+        let expected = test_helpers::hmac(&key, &msg);
 
         test_circ(
             &circ,
-            &[Value::Bytes(key.to_vec()), Value::Bytes(msg.to_vec())],
+            &[
+                Value::Bytes(
+                    outer_hash_state
+                        .into_iter()
+                        .map(|chunk| chunk.to_be_bytes())
+                        .flatten()
+                        .collect(),
+                ),
+                Value::Bytes(
+                    inner_hash_state
+                        .into_iter()
+                        .map(|chunk| chunk.to_be_bytes())
+                        .flatten()
+                        .collect(),
+                ),
+                Value::Bytes(msg.to_vec()),
+            ],
             &[Value::Bytes(expected)],
         );
     }

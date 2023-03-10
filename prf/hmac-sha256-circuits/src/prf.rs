@@ -1,74 +1,116 @@
+//! This module provides an implementation of the HMAC-SHA256 PRF defined in [RFC 5246](https://www.rfc-editor.org/rfc/rfc5246#section-5).
+
 use std::sync::Arc;
 
 use mpc_circuits::{
-    builder::{map_bytes, CircuitBuilder, Feed, Gates, SubOutputHandle, WireHandle},
-    circuits::nbit_xor,
+    builder::{CircuitBuilder, Feed, Gates, WireHandle},
     BitOrder, Circuit, ValueType,
 };
 
-use crate::{hmac_pad, hmac_sha256_finalize, sha256};
+use utils::bits::IterToBits;
 
-fn A(
+use crate::{add_hmac_sha256_finalize, add_hmac_sha256_partial};
+
+// P_hash(secret, seed) =
+//   HMAC_hash(secret, A(1) + seed) +
+//   HMAC_hash(secret, A(2) + seed) +
+//   HMAC_hash(secret, A(3) + seed) + ...
+fn add_p_hash(
     builder: &mut CircuitBuilder<Gates>,
-    hmac_finalize_seed: &Circuit,
-    hmac_finalize: &Circuit,
-    inner_state: &[WireHandle<Feed>],
     outer_state: &[WireHandle<Feed>],
-    const_zero: &[WireHandle<Feed>],
-    const_one: &[WireHandle<Feed>],
+    inner_state: &[WireHandle<Feed>],
+    const_zero: &WireHandle<Feed>,
+    const_one: &WireHandle<Feed>,
     seed: &[WireHandle<Feed>],
-    n: usize,
-) -> SubOutputHandle {
-    let (a, msg) = if n == 1 {
-        (builder.add_circ(hmac_finalize_seed), seed.to_vec())
-    } else {
-        let a = builder.add_circ(hmac_finalize);
+    iterations: usize,
+) -> Vec<WireHandle<Feed>> {
+    // A() is defined as:
+    //
+    // A(0) = seed
+    // A(i) = HMAC_hash(secret, A(i-1))
+    let mut a_cache: Vec<_> = Vec::with_capacity(iterations + 1);
+    a_cache.push(seed.to_vec());
 
-        let a_prev = A(
+    for i in 0..iterations {
+        let a_i = add_hmac_sha256_finalize(
             builder,
-            hmac_finalize_seed,
-            hmac_finalize,
-            inner_state,
             outer_state,
+            inner_state,
+            &a_cache[i],
             const_zero,
             const_one,
-            seed,
-            n,
         );
+        a_cache.push(a_i);
+    }
 
-        (a, a_prev[..].to_vec())
-    };
+    // HMAC_hash(secret, A(i) + seed)
+    let mut output: Vec<WireHandle<Feed>> = Vec::with_capacity(iterations * 32 * 8);
+    for i in 0..iterations {
+        let mut a_i_seed = a_cache[i + 1].clone();
+        a_i_seed.extend_from_slice(seed);
 
-    let input_inner_state = a
-        .input(0)
-        .expect("hmac_sha256_finalize should have input 0");
-    let input_outer_state = a
-        .input(1)
-        .expect("hamc_sha256_finalize should have input 1");
-    let input_msg = a
-        .input(2)
-        .expect("hmac_sha256_finalize should have input 2");
+        let hash = add_hmac_sha256_finalize(
+            builder,
+            outer_state,
+            inner_state,
+            &a_i_seed,
+            const_zero,
+            const_one,
+        );
+        output.extend_from_slice(&hash);
+    }
 
-    builder.connect(inner_state, &input_inner_state[..]);
-    builder.connect(outer_state, &input_outer_state[..]);
-    builder.connect(
-        const_zero,
-        &a.input(3)
-            .expect("hmac_sha256_finalize should have input 3")[..],
-    );
-    builder.connect(
-        const_one,
-        &a.input(4)
-            .expect("hmac_sha256_finalize should have input 4")[..],
-    );
-
-    builder.connect(&msg, &input_msg[..]);
-
-    a.output(0)
-        .expect("hmac_sha256_finalize should have output 0")
+    output
 }
 
-/// Computes PRF(k, seed)
+/// Computes PRF(secret, label, seed)
+///
+/// # Arguments
+///
+/// * `builder` - Mutable reference to the circuit builder
+/// * `outer_state` - The outer state of HMAC-SHA256
+/// * `inner_state` - The inner state of HMAC-SHA256
+/// * `const_zero` - A constant wire that is always 0
+/// * `const_one` - A constant wire that is always 1
+/// * `label` - The label to use
+/// * `seed` - The seed to use
+/// * `bytes` - The number of bytes to output
+///
+/// # Returns
+///
+/// * `prf_bytes` - `bytes` bytes of output
+pub fn add_prf(
+    builder: &mut CircuitBuilder<Gates>,
+    outer_state: &[WireHandle<Feed>],
+    inner_state: &[WireHandle<Feed>],
+    const_zero: &WireHandle<Feed>,
+    const_one: &WireHandle<Feed>,
+    label: &[WireHandle<Feed>],
+    seed: &[WireHandle<Feed>],
+    bytes: usize,
+) -> Vec<WireHandle<Feed>> {
+    let iterations = bytes / 32 + (bytes % 32 != 0) as usize;
+
+    let mut label_seed = label.to_vec();
+    label_seed.extend_from_slice(seed);
+
+    let p_hash = add_p_hash(
+        builder,
+        outer_state,
+        inner_state,
+        const_zero,
+        const_one,
+        &label_seed,
+        iterations,
+    );
+
+    // Truncate to the desired number of bytes
+    let prf_bytes = p_hash[..bytes * 8].to_vec();
+
+    prf_bytes
+}
+
+/// Computes PRF(key, seed)
 ///
 /// Inputs:
 ///
@@ -77,20 +119,31 @@ fn A(
 ///
 /// Outputs:
 ///
-///   0. HASH: 32-byte hash
+///   0. BYTES: N-byte output
 ///
 /// # Arguments
+/// * `name` - The name of the circuit
+/// * `description` - The description of the circuit
+/// * `label` - The label to use
+/// * `key_len` - The length of the key in bytes
 /// * `seed_len` - The length of the seed in bytes
-/// * `iterations` - The number of iterations to perform (32 bytes per iteration)
-pub fn prf(seed_len: usize, iterations: usize) -> Arc<Circuit> {
-    let mut builder = CircuitBuilder::new(
-        &format!("prf_{seed_len}_{iterations}"),
-        "",
-        "0.1.0",
-        BitOrder::Msb0,
-    );
+/// * `output_len` - The number of bytes to generate
+pub fn prf(
+    name: &str,
+    description: &str,
+    label: &[u8],
+    key_len: usize,
+    seed_len: usize,
+    output_len: usize,
+) -> Arc<Circuit> {
+    let mut builder = CircuitBuilder::new(name, description, "0.1.0", BitOrder::Msb0);
 
-    let key = builder.add_input("KEY", "32-byte key", ValueType::Bytes, 256);
+    let key = builder.add_input(
+        "KEY",
+        &format!("{key_len}-byte key"),
+        ValueType::Bytes,
+        key_len * 8,
+    );
     let seed = builder.add_input(
         "SEED",
         &format!("{seed_len}-byte seed"),
@@ -112,120 +165,70 @@ pub fn prf(seed_len: usize, iterations: usize) -> Arc<Circuit> {
 
     let mut builder = builder.build_inputs();
 
-    let hmac_finalize_seed = hmac_sha256_finalize(seed_len);
-    let hmac_finalize = hmac_sha256_finalize(32 + seed_len);
+    let label = label
+        .into_iter()
+        .copied()
+        .into_msb0_iter()
+        .map(|bit| if bit { const_one[0] } else { const_zero[0] })
+        .collect::<Vec<_>>();
 
-    let inner_hash_state_circ = builder.add_circ(&hmac_pad(32, [0x36; 64]));
-    let outer_hash_state_circ = builder.add_circ(&hmac_pad(32, [0x5c; 64]));
+    let (outer_state, inner_state) =
+        add_hmac_sha256_partial(&mut builder, &key[..], &const_zero[0], &const_one[0]);
 
-    let inner_hash_state = {
-        // Connect key wires
-        builder.connect(
-            &key[..],
-            &inner_hash_state_circ
-                .input(0)
-                .expect("hmac_pad should have input 0")[..],
-        );
-        // Connect constant wires
-        builder.connect(
-            &const_zero[..],
-            &inner_hash_state_circ
-                .input(1)
-                .expect("hmac_pad should have input 1")[..],
-        );
-        builder.connect(
-            &const_one[..],
-            &inner_hash_state_circ
-                .input(2)
-                .expect("hmac_pad should have input 2")[..],
-        );
-
-        inner_hash_state_circ
-            .output(0)
-            .expect("hmac_pad should have output 0")
-    };
-
-    let outer_hash_state = {
-        // Connect key wires
-        builder.connect(
-            &key[..],
-            &outer_hash_state_circ
-                .input(0)
-                .expect("hmac_pad should have input 0")[..],
-        );
-        // Connect constant wires
-        builder.connect(
-            &const_zero[..],
-            &outer_hash_state_circ
-                .input(1)
-                .expect("hmac_pad should have input 1")[..],
-        );
-        builder.connect(
-            &const_one[..],
-            &outer_hash_state_circ
-                .input(2)
-                .expect("hmac_pad should have input 2")[..],
-        );
-
-        outer_hash_state_circ
-            .output(0)
-            .expect("hmac_pad should have output 0")
-    };
-
-    let output_hash = A(
+    let prf_bytes = add_prf(
         &mut builder,
-        &hmac_finalize_seed,
-        &hmac_finalize,
-        &inner_hash_state[..],
-        &outer_hash_state[..],
-        &const_zero[..],
-        &const_one[..],
+        &outer_state,
+        &inner_state,
+        &const_zero[0],
+        &const_one[0],
+        &label,
         &seed[..],
-        1,
+        output_len,
     );
 
     let mut builder = builder.build_gates();
 
-    let hash = builder.add_output("HASH", "32-byte hash", ValueType::Bytes, 256);
+    let bytes_out = builder.add_output(
+        "BYTES",
+        &format!("{output_len}-byte output"),
+        ValueType::Bytes,
+        output_len * 8,
+    );
 
-    builder.connect(&output_hash[..], &hash[..]);
+    builder.connect(&prf_bytes, &bytes_out[..]);
 
-    builder
-        .build_circuit()
-        .expect("failed to build hmac_sha256")
+    builder.build_circuit().expect("failed to build prf")
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{partial_sha256_digest, test_circ};
+    use crate::test_helpers::{self, test_circ};
     use mpc_circuits::Value;
-
-    use hmac::{Hmac, Mac};
 
     #[test]
     #[ignore = "expensive"]
-    fn test_hmac_sha256() {
-        let key = [69u8; 32];
+    fn test_prf() {
+        let pms = [69u8; 32];
         let label = b"master secret";
         let client_random = [42u8; 32];
         let server_random = [69u8; 32];
 
-        let mut seed = [0u8; 77];
-        seed[..13].copy_from_slice(label);
-        seed[13..45].copy_from_slice(&client_random);
-        seed[45..].copy_from_slice(&server_random);
+        let seed = {
+            let mut seed = Vec::new();
+            seed.extend_from_slice(&client_random);
+            seed.extend_from_slice(&server_random);
+            seed
+        };
 
-        let circ = prf(77, 2);
+        let circ = prf("ms", "", label, 32, 64, 48);
 
-        // let mut hmac = Hmac::<sha2::Sha256>::new_from_slice(&key).unwrap();
-        // hmac.update(&msg);
-        // let expected = hmac.finalize().into_bytes().to_vec();
+        let expected = test_helpers::prf(&pms, label, &seed, 48);
 
         test_circ(
             &circ,
-            &[Value::Bytes(key.to_vec()), Value::Bytes(seed.to_vec())],
-            &[Value::Bytes(vec![])],
+            &[Value::Bytes(pms.to_vec()), Value::Bytes(seed)],
+            &[Value::Bytes(expected)],
         );
     }
 }
