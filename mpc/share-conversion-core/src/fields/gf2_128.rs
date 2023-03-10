@@ -125,6 +125,14 @@ impl Field for Gf2_128 {
         }
         out
     }
+
+    fn to_le_bytes(&self) -> Vec<u8> {
+        self.0.to_le_bytes().to_vec()
+    }
+
+    fn to_be_bytes(&self) -> Vec<u8> {
+        self.0.to_be_bytes().to_vec()
+    }
 }
 
 #[cfg(test)]

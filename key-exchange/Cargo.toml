@@ -1,0 +1,33 @@
+[package]
+name = "tlsn-key-exchange"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "key_exchange"
+
+[features]
+default = ["mock"]
+mock = []
+serde = ["dep:serde"]
+
+[dependencies]
+tlsn-mpc-aio = { path = "../mpc/mpc-aio" }
+tlsn-mpc-core = { path = "../mpc/mpc-core" }
+tlsn-mpc-circuits = { path = "../mpc/mpc-circuits" }
+tlsn-tls-circuits = { path = "../tls/tls-circuits" }
+tlsn-utils-aio = { path = "../utils/utils-aio" }
+share-conversion-core = { path = "../mpc/share-conversion-core" }
+tlsn-point-addition = { path = "../point-addition" }
+p256 = {version = "0.12", features = ["ecdh"]}
+async-trait = "0.1"
+thiserror = "1"
+serde = { version = "1", optional = true }
+futures = "0.3"
+rand_chacha = "0.3"
+rand_core = "0.6"
+once_cell = "1"
+derive_builder = "0.12"
+
+[dev-dependencies]
+tokio = { version = "1.23", features = ["macros", "rt", "rt-multi-thread"] }

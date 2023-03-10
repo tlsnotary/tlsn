@@ -114,6 +114,17 @@ impl Encoded<Output, state::Active> {
     }
 }
 
+impl Encoded<Output, state::Full> {
+    /// Converts full output labels to input labels.
+    ///
+    /// This can be used to chain garbled circuits together
+    ///
+    /// **Note:** This operation clones the underlying label data
+    pub fn to_input(self, input: Input) -> Result<Encoded<Input, state::Full>, EncodingError> {
+        Encoded::<Input, state::Full>::from_labels(input, self.labels)
+    }
+}
+
 pub(crate) mod unchecked {
     use mpc_circuits::Circuit;
 

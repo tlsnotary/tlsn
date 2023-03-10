@@ -46,6 +46,21 @@ pub trait Field:
 
     // Create a field element from bits, where first bit is the most-significant bit
     fn from_bits_msb0(bits: &[bool]) -> Self;
+
+    // Return field element as msb0 bit vector
+    fn to_bits_msb0(&self) -> Vec<bool> {
+        let mut out = Vec::with_capacity(Self::BIT_SIZE as usize);
+        for i in 0..Self::BIT_SIZE {
+            out.push(self.get_bit_msb0(i));
+        }
+        out
+    }
+
+    // Return field element as little-endian bytes
+    fn to_le_bytes(&self) -> Vec<u8>;
+
+    // Return field element as little-endian bytes
+    fn to_be_bytes(&self) -> Vec<u8>;
 }
 
 // A trait for sampling random elements of the field
