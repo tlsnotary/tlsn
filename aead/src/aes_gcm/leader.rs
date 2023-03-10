@@ -52,7 +52,7 @@ where
     async fn compute_j0_share(&mut self, explicit_nonce: Vec<u8>) -> Result<Vec<u8>, AeadError> {
         let j0_share = self
             .aes_ctr
-            .share_key_block(explicit_nonce.clone(), 1)
+            .share_keystream_block(explicit_nonce.clone(), 1)
             .await?;
 
         Ok(j0_share)
@@ -138,7 +138,7 @@ where
                 .await?
         } else {
             self.aes_ctr
-                .encrypt(explicit_nonce.clone(), plaintext, record)
+                .encrypt_public(explicit_nonce.clone(), plaintext, record)
                 .await?
         };
 
@@ -177,7 +177,7 @@ where
                 .await?
         } else {
             self.aes_ctr
-                .decrypt(explicit_nonce, ciphertext, record)
+                .decrypt_public(explicit_nonce, ciphertext, record)
                 .await?
         };
 
