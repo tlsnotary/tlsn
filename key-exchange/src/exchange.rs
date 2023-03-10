@@ -266,7 +266,7 @@ where
         // Turn output into labels and return them
         // We only need half the labels because we only need one of the two PMS values (which we
         // know are equal to each other)
-        // Since, there are only 2 output labels, we can just take the first one
+        // Since, there are only 2 output label sets, we can just take the first one
         let active_labels = active_output[0].clone().into_labels();
         let full_labels = full_output[0].clone().into_labels();
 
