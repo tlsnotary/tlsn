@@ -19,7 +19,12 @@ xtra = { git = "https://github.com/Restioson/xtra", rev = "ca061b4", features = 
     "macros",
     "tokio",
 ], default-features = false }
-tokio = "1.23"
+tokio = { version = "1", features = [
+    "net",
+    "macros",
+    "rt",
+    "rt-multi-thread",
+] }
 rand_chacha = "0.3"
 rand = "0.8"
 actor-mux = { path = "../actor-mux" }
