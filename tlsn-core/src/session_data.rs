@@ -27,7 +27,7 @@ impl SessionData {
         &self.transcript
     }
 
-    pub fn commitments(&self) -> &Vec<Commitment> {
+    pub fn commitments(&self) -> &[Commitment] {
         &self.commitments
     }
 }

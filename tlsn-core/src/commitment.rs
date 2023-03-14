@@ -1,4 +1,4 @@
-use super::{error::Error, HashCommitment};
+use crate::{transcript::TranscriptRange, HashCommitment};
 use serde::Serialize;
 
 /// A User's commitment to a portion of the notarized data
@@ -48,7 +48,7 @@ impl Commitment {
         self.commitment
     }
 
-    pub fn ranges(&self) -> &Vec<TranscriptRange> {
+    pub fn ranges(&self) -> &[TranscriptRange] {
         &self.ranges
     }
 }
@@ -71,29 +71,4 @@ pub enum Direction {
     #[default]
     Sent,
     Received,
-}
-
-#[derive(Serialize, Clone, Debug, PartialEq)]
-/// A non-empty half-open range [start, end). Range bounds are ascending i.e. start < end
-pub struct TranscriptRange {
-    start: u32,
-    end: u32,
-}
-
-impl TranscriptRange {
-    pub fn new(start: u32, end: u32) -> Result<Self, Error> {
-        // empty ranges are not allowed
-        if start >= end {
-            return Err(Error::RangeInvalid);
-        }
-        Ok(Self { start, end })
-    }
-
-    pub fn start(&self) -> u32 {
-        self.start
-    }
-
-    pub fn end(&self) -> u32 {
-        self.end
-    }
 }

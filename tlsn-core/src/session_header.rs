@@ -17,7 +17,7 @@ pub struct SessionHeader {
 
     handshake_summary: HandshakeSummary,
 
-    /// Notary's signature over the [crate::signed::Signed] portion of this doc
+    /// Notary's signature over all the other fields of this structure
     signature: Option<Vec<u8>>,
 }
 
@@ -48,7 +48,7 @@ impl SessionHeader {
         &self.handshake_summary
     }
 
-    pub fn signature(&self) -> &Option<Vec<u8>> {
-        &self.signature
+    pub fn signature(&self) -> Option<&[u8]> {
+        self.signature.as_deref()
     }
 }

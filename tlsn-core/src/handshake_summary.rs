@@ -60,7 +60,7 @@ impl EphemeralECPubkey {
         &self.typ
     }
 
-    pub fn pubkey(&self) -> &Vec<u8> {
+    pub fn pubkey(&self) -> &[u8] {
         &self.pubkey
     }
 }

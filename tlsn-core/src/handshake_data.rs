@@ -12,7 +12,7 @@ pub type CertDER = Vec<u8>;
 /// for ECDSA sigs it is possible to derive the pubkey from the sig and then use that pubkey to find out
 /// the identity of the webserver.
 //
-/// Note that there is no need to commit to the ephemeral key because it will be signed explicitely
+/// Note that there is no need to commit to the ephemeral key because it will be signed explicitly
 /// by the Notary
 #[derive(Serialize, Clone, Default)]
 pub struct HandshakeData {
@@ -41,7 +41,7 @@ impl HandshakeData {
         bincode::serialize(&self).map_err(|_| Error::SerializationError)
     }
 
-    pub fn tls_cert_chain(&self) -> &Vec<CertDER> {
+    pub fn tls_cert_chain(&self) -> &[CertDER] {
         &self.tls_cert_chain
     }
 
@@ -49,11 +49,11 @@ impl HandshakeData {
         &self.sig_ke_params
     }
 
-    pub fn client_random(&self) -> &Vec<u8> {
+    pub fn client_random(&self) -> &[u8] {
         &self.client_random
     }
 
-    pub fn server_random(&self) -> &Vec<u8> {
+    pub fn server_random(&self) -> &[u8] {
         &self.server_random
     }
 }
@@ -83,7 +83,7 @@ impl ServerSignature {
         &self.alg
     }
 
-    pub fn sig(&self) -> &Vec<u8> {
+    pub fn sig(&self) -> &[u8] {
         &self.sig
     }
 }
