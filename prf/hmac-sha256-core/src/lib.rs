@@ -1,7 +1,6 @@
 mod config;
 pub mod mock;
 pub mod sha;
-pub mod utils;
 
 pub use config::{
     PRFFollowerConfig, PRFFollowerConfigBuilder, PRFFollowerConfigBuilderError, PRFLeaderConfig,

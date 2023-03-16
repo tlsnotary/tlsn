@@ -7,20 +7,15 @@ edition = "2021"
 name = "hmac_sha256_circuits"
 
 [features]
-default = ["compile"]
-compile = ["dep:rayon", "dep:prost"]
+default = []
 
 [dependencies]
 tlsn-hmac-sha256-utils = { path = "../hmac-sha256-utils" }
 tlsn-mpc-circuits.workspace = true
 tlsn-utils.workspace = true
-rayon = { workspace = true, optional = true }
-prost = { workspace = true, optional = true }
 
 [dev-dependencies]
 generic-array.workspace = true
 rand.workspace = true
 rand_chacha.workspace = true
 sha2 = { workspace = true, features = ["compress"] }
-num-bigint = { workspace = true, features = ["rand"] }
-num-traits.workspace = true

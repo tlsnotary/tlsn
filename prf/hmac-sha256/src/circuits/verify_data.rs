@@ -178,7 +178,7 @@ mod tests {
     use super::*;
 
     use crate::mock::create_mock_ms_state_labels;
-    use hmac_sha256_core::{utils::compute_client_finished_vd, CF_VD};
+    use hmac_sha256_core::CF_VD;
     use mpc_aio::protocol::garble::exec::dual::mock::mock_dualex_pair;
     use mpc_core::garble::exec::dual::DualExConfigBuilder;
 
@@ -200,7 +200,7 @@ mod tests {
         let ((leader_labels, follower_labels), (leader_encoder, follower_encoder)) =
             create_mock_ms_state_labels(ms, client_random, server_random);
 
-        let expected_vd = compute_client_finished_vd(ms, hs_hash);
+        let expected_vd = hmac_sha256_utils::prf(&ms, b"client finished", &hs_hash, 12);
 
         let (vd, _) = tokio::try_join!(
             leader_verify_data(
@@ -221,6 +221,6 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(vd, expected_vd);
+        assert_eq!(vd.to_vec(), expected_vd);
     }
 }

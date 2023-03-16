@@ -176,14 +176,12 @@ mod tests {
 
         let pms = [42u8; 32];
         let client_random = [69u8; 32];
-        let server_random = [96u8; 32];
-
+        let server_random: [u8; 32] = [96u8; 32];
         let seed = client_random
             .iter()
             .chain(&server_random)
             .copied()
-            .collect::<Vec<u8>>();
-
+            .collect::<Vec<_>>();
         let ms = hmac_sha256_utils::prf(&pms, b"master secret", &seed, 48);
 
         let (expected_outer_state, expected_inner_state) = hmac_sha256_utils::partial_hmac(&ms);

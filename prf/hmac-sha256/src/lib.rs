@@ -101,10 +101,7 @@ mod tests {
     use std::sync::Arc;
 
     use futures::lock::Mutex;
-    use hmac_sha256_core::{
-        utils::{compute_client_finished_vd, compute_ms, compute_server_finished_vd},
-        PRFFollowerConfigBuilder, PRFLeaderConfigBuilder,
-    };
+    use hmac_sha256_core::{PRFFollowerConfigBuilder, PRFLeaderConfigBuilder};
 
     use super::*;
     use mock::*;
@@ -128,14 +125,18 @@ mod tests {
         let server_random: [u8; 32] = [96u8; 32];
         let cf_hs_hash: [u8; 32] = [1u8; 32];
         let sf_hs_hash: [u8; 32] = [2u8; 32];
+        let seed = client_random
+            .iter()
+            .chain(&server_random)
+            .copied()
+            .collect::<Vec<_>>();
+        let ms = hmac_sha256_utils::prf(&pms, b"master secret", &seed, 48);
 
         let ((leader_share, follower_share), (leader_encoder, follower_encoder)) =
             create_mock_pms_labels(pms);
 
         leader.set_encoder(Arc::new(Mutex::new(leader_encoder)));
         follower.set_encoder(Arc::new(Mutex::new(follower_encoder)));
-
-        let ms = compute_ms(&client_random, &server_random, &pms);
 
         let (leader_keys, follower_keys) = tokio::try_join!(
             leader.compute_session_keys(client_random, server_random, leader_share),
@@ -187,8 +188,8 @@ mod tests {
         )
         .unwrap();
 
-        let expected_cf_vd = compute_client_finished_vd(ms, cf_hs_hash);
-        assert_eq!(leader_cf_vd, expected_cf_vd);
+        let expected_cf_vd = hmac_sha256_utils::prf(&ms, b"client finished", &cf_hs_hash, 12);
+        assert_eq!(leader_cf_vd.to_vec(), expected_cf_vd);
 
         let (leader_sf_vd, _) = tokio::try_join!(
             leader.compute_server_finished_vd(sf_hs_hash),
@@ -196,7 +197,7 @@ mod tests {
         )
         .unwrap();
 
-        let expected_sf_vd = compute_server_finished_vd(ms, sf_hs_hash);
-        assert_eq!(leader_sf_vd, expected_sf_vd);
+        let expected_sf_vd = hmac_sha256_utils::prf(&ms, b"server finished", &sf_hs_hash, 12);
+        assert_eq!(leader_sf_vd.to_vec(), expected_sf_vd);
     }
 }

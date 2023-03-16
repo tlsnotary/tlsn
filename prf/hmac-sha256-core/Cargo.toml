@@ -20,8 +20,6 @@ tlsn-hmac-sha256-utils = { path = "../hmac-sha256-utils" }
 sha2 = { workspace = true, features = ["compress"] }
 digest.workspace = true
 hmac.workspace = true
-elliptic-curve.workspace = true
-num = { workspace = true, features = ["rand"] }
 rand.workspace = true
 thiserror.workspace = true
 serde = { workspace = true, features = ["derive"], optional = true }
@@ -31,11 +29,9 @@ derive_builder.workspace = true
 [dev-dependencies]
 criterion.workspace = true
 rand_chacha.workspace = true
-hex.workspace = true
 
 [build-dependencies]
 tlsn-mpc-circuits.workspace = true
 tlsn-hmac-sha256-circuits = { path = "../hmac-sha256-circuits" }
-regex.workspace = true
 prost.workspace = true
 rayon.workspace = true
