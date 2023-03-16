@@ -6,7 +6,7 @@ use futures::lock::Mutex;
 use hmac_sha256_core::{
     self as leader_core, PRFLeaderConfig, PmsLabels, SessionKeyLabels, MS, SESSION_KEYS,
 };
-use leader_core::{MasterSecretStateLabels, CF_VD, SF_VD};
+use leader_core::{CF_VD, SF_VD};
 use mpc_aio::protocol::garble::{exec::dual::DEExecute, factory::GCFactoryError};
 use mpc_core::garble::{
     exec::dual::{DualExConfig, DualExConfigBuilder},
@@ -14,21 +14,9 @@ use mpc_core::garble::{
 };
 use utils_aio::factory::AsyncFactory;
 
-use crate::{circuits, PRFLeader};
+use crate::{circuits, PRFLeader, State};
 
 use super::PRFError;
-
-enum State {
-    MasterSecret,
-    ClientFinished {
-        ms_hash_state_labels: MasterSecretStateLabels,
-    },
-    ServerFinished {
-        ms_hash_state_labels: MasterSecretStateLabels,
-    },
-    Complete,
-    Error,
-}
 
 pub struct DEPRFLeader<DEF, DE>
 where
@@ -53,7 +41,7 @@ where
     pub fn new(config: PRFLeaderConfig, de_factory: DEF) -> DEPRFLeader<DEF, DE> {
         DEPRFLeader {
             config,
-            state: State::MasterSecret,
+            state: State::SessionKeys,
             encoder: None,
             de_factory,
             _de: PhantomData,
@@ -74,7 +62,12 @@ where
         server_random: [u8; 32],
         pms_labels: PmsLabels,
     ) -> Result<SessionKeyLabels, PRFError> {
-        let encoder = self.encoder.clone().unwrap();
+        let state = std::mem::replace(&mut self.state, State::Error);
+        let encoder = self.encoder.clone().ok_or(PRFError::EncoderNotSet)?;
+
+        let State::SessionKeys = state else {
+            return Err(PRFError::InvalidState(state));
+        };
 
         // TODO: Set up this stuff concurrently
         let id = format!("{}/ms", self.config.id());
@@ -117,10 +110,10 @@ where
         handshake_hash: [u8; 32],
     ) -> Result<[u8; 12], PRFError> {
         let state = std::mem::replace(&mut self.state, State::Error);
-        let encoder = self.encoder.clone().unwrap();
+        let encoder = self.encoder.clone().ok_or(PRFError::EncoderNotSet)?;
 
         let State::ClientFinished { ms_hash_state_labels } = state else {
-            panic!()
+            return Err(PRFError::InvalidState(state));
         };
 
         let id = format!("{}/cf", self.config.id());
@@ -153,10 +146,10 @@ where
         handshake_hash: [u8; 32],
     ) -> Result<[u8; 12], PRFError> {
         let state = std::mem::replace(&mut self.state, State::Error);
-        let encoder = self.encoder.clone().unwrap();
+        let encoder = self.encoder.clone().ok_or(PRFError::EncoderNotSet)?;
 
         let State::ServerFinished { ms_hash_state_labels } = state else {
-            panic!()
+            return Err(PRFError::InvalidState(state));
         };
 
         let id = format!("{}/sf", self.config.id());

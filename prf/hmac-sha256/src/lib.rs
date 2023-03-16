@@ -8,7 +8,7 @@ mod leader;
 
 use async_trait::async_trait;
 
-use hmac_sha256_core::SessionKeyLabels;
+use hmac_sha256_core::{MasterSecretStateLabels, SessionKeyLabels};
 use mpc_aio::protocol::garble::GCError;
 
 pub use follower::DEPRFFollower;
@@ -18,6 +18,19 @@ pub use hmac_sha256_core::{
     PRFFollowerConfig, PRFFollowerConfigBuilder, PRFFollowerConfigBuilderError, PRFLeaderConfig,
     PRFLeaderConfigBuilder, PRFLeaderConfigBuilderError, PmsLabels,
 };
+
+#[derive(Debug, Clone)]
+pub enum State {
+    SessionKeys,
+    ClientFinished {
+        ms_hash_state_labels: MasterSecretStateLabels,
+    },
+    ServerFinished {
+        ms_hash_state_labels: MasterSecretStateLabels,
+    },
+    Complete,
+    Error,
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum PRFError {
@@ -29,6 +42,10 @@ pub enum PRFError {
     IOError(#[from] std::io::Error),
     #[error("MuxerError: {0}")]
     MuxerError(#[from] utils_aio::mux::MuxerError),
+    #[error("Encoder not set")]
+    EncoderNotSet,
+    #[error("Invalid state: {0:?}")]
+    InvalidState(State),
 }
 
 #[async_trait]

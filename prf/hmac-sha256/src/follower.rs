@@ -5,8 +5,7 @@ use follower_core::{CF_VD, SF_VD};
 use futures::lock::Mutex;
 
 use hmac_sha256_core::{
-    self as follower_core, MasterSecretStateLabels, PRFFollowerConfig, PmsLabels, SessionKeyLabels,
-    MS, SESSION_KEYS,
+    self as follower_core, PRFFollowerConfig, PmsLabels, SessionKeyLabels, MS, SESSION_KEYS,
 };
 use mpc_aio::protocol::garble::{exec::dual::DEExecute, factory::GCFactoryError};
 use mpc_core::garble::{
@@ -15,21 +14,9 @@ use mpc_core::garble::{
 };
 use utils_aio::factory::AsyncFactory;
 
-use crate::{circuits, PRFFollower};
+use crate::{circuits, PRFFollower, State};
 
 use super::PRFError;
-
-enum State {
-    MasterSecret,
-    ClientFinished {
-        ms_hash_state_labels: MasterSecretStateLabels,
-    },
-    ServerFinished {
-        ms_hash_state_labels: MasterSecretStateLabels,
-    },
-    Complete,
-    Error,
-}
 
 pub struct DEPRFFollower<DEF, DE>
 where
@@ -54,7 +41,7 @@ where
     pub fn new(config: PRFFollowerConfig, de_factory: DEF) -> DEPRFFollower<DEF, DE> {
         DEPRFFollower {
             config,
-            state: State::MasterSecret,
+            state: State::SessionKeys,
             encoder: None,
             de_factory,
             _de: PhantomData,
@@ -69,7 +56,12 @@ where
         &mut self,
         pms_labels: PmsLabels,
     ) -> Result<SessionKeyLabels, PRFError> {
+        let state = std::mem::replace(&mut self.state, State::Error);
         let encoder = self.encoder.clone().unwrap();
+
+        let State::SessionKeys = state else {
+            return Err(PRFError::InvalidState(state));
+        };
 
         // TODO: Set up this stuff concurrently
         let id = format!("{}/ms", self.config.id());
@@ -110,7 +102,7 @@ where
         let encoder = self.encoder.clone().unwrap();
 
         let State::ClientFinished { ms_hash_state_labels } = state else {
-            panic!()
+            return Err(PRFError::InvalidState(state));
         };
 
         let id = format!("{}/cf", self.config.id());
@@ -142,7 +134,7 @@ where
         let encoder = self.encoder.clone().unwrap();
 
         let State::ServerFinished { ms_hash_state_labels } = state else {
-            panic!()
+            return Err(PRFError::InvalidState(state));
         };
 
         let id = format!("{}/sf", self.config.id());
