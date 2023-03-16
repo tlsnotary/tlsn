@@ -1,4 +1,4 @@
-use hmac_sha256_circuits::{master_secret, premaster_secret, session_keys, verify_data};
+use hmac_sha256_circuits::{master_secret, session_keys, verify_data};
 use mpc_circuits::{proto, Circuit};
 use prost::Message;
 use rayon::prelude::*;
@@ -7,7 +7,6 @@ use std::{env, fs, io, path::Path, sync::Arc};
 type CircuitBuilderMap = [(&'static str, fn() -> Arc<Circuit>)];
 
 static CIRCUITS: &CircuitBuilderMap = &[
-    ("premaster_secret", premaster_secret),
     ("master_secret", master_secret),
     ("session_keys", session_keys),
     ("cf_verify_data", || verify_data(b"client finished")),

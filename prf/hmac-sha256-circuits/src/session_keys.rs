@@ -109,7 +109,7 @@ pub fn session_keys() -> Arc<Circuit> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{self, test_circ};
+    use crate::test_helpers::test_circ;
     use mpc_circuits::Value;
 
     #[test]
@@ -128,9 +128,9 @@ mod tests {
             .copied()
             .collect::<Vec<_>>();
 
-        let (outer_hash_state, inner_hash_state) = test_helpers::partial_hmac(&ms);
+        let (outer_hash_state, inner_hash_state) = hmac_sha256_utils::partial_hmac(&ms);
 
-        let key_material = test_helpers::prf(&ms, b"key expansion", &seed, 40);
+        let key_material = hmac_sha256_utils::prf(&ms, b"key expansion", &seed, 40);
 
         // split into client/server_write_key and client/server_write_iv
         let mut cwk = [0u8; 16];

@@ -203,7 +203,8 @@ pub fn prf(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{self, test_circ};
+
+    use crate::test_helpers::test_circ;
     use mpc_circuits::Value;
 
     #[test]
@@ -223,7 +224,7 @@ mod tests {
 
         let circ = prf("ms", "", label, 32, 64, 48);
 
-        let expected = test_helpers::prf(&pms, label, &seed, 48);
+        let expected = hmac_sha256_utils::prf(&pms, label, &seed, 48);
 
         test_circ(
             &circ,

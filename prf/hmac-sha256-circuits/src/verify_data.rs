@@ -101,7 +101,7 @@ pub fn verify_data(label: &[u8]) -> Arc<Circuit> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{partial_hmac, prf, test_circ};
+    use crate::test_helpers::test_circ;
     use mpc_circuits::Value;
 
     const CF_LABEL: &[u8; 15] = b"client finished";
@@ -117,9 +117,9 @@ mod tests {
         let mask = [249u8; 12];
         let hs_hash = [99u8; 32];
 
-        let (ms_outer_hash_state, ms_inner_hash_state) = partial_hmac(&ms);
+        let (ms_outer_hash_state, ms_inner_hash_state) = hmac_sha256_utils::partial_hmac(&ms);
 
-        let vd = prf(&ms, CF_LABEL, &hs_hash, 12);
+        let vd = hmac_sha256_utils::prf(&ms, CF_LABEL, &hs_hash, 12);
 
         let vd_masked = vd
             .iter()

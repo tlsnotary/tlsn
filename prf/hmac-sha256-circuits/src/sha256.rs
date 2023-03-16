@@ -6,7 +6,7 @@ use mpc_circuits::{
 };
 use utils::bits::{IterToBits, ToBits};
 
-use crate::SHA256_STATE;
+use hmac_sha256_utils::SHA256_INITIAL_STATE;
 
 /// Computes SHA-256 compression function
 ///
@@ -136,7 +136,7 @@ pub fn sha256(len: usize) -> Arc<Circuit> {
 
     let mut builder = builder.build_inputs();
 
-    let initial_state = SHA256_STATE
+    let initial_state = SHA256_INITIAL_STATE
         .into_msb0_iter()
         .map(|bit| if bit { const_one[0] } else { const_zero[0] })
         .collect::<Vec<_>>();

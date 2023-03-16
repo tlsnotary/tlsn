@@ -55,7 +55,7 @@ pub fn master_secret() -> Arc<Circuit> {
 
     let mut builder = builder.build_inputs();
 
-    let (pms_inner_state, pms_outer_state) =
+    let (pms_outer_state, pms_inner_state) =
         add_hmac_sha256_partial(&mut builder, &pms[..], &const_zero[0], &const_one[0]);
 
     let label = b"master secret"
@@ -70,8 +70,8 @@ pub fn master_secret() -> Arc<Circuit> {
 
     let ms = add_prf(
         &mut builder,
-        &pms_inner_state,
         &pms_outer_state,
+        &pms_inner_state,
         &const_zero[0],
         &const_one[0],
         &label,
@@ -110,7 +110,9 @@ pub fn master_secret() -> Arc<Circuit> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{self, test_circ};
+
+    use crate::test_helpers::test_circ;
+    use hmac_sha256_utils::{partial_hmac, prf};
     use mpc_circuits::Value;
 
     #[test]
@@ -130,9 +132,9 @@ mod tests {
             .copied()
             .collect::<Vec<_>>();
 
-        let ms = test_helpers::prf(&pms, b"master secret", &seed, 48);
+        let ms = prf(&pms, b"master secret", &seed, 48);
 
-        let (expected_outer_state, expected_inner_state) = test_helpers::partial_hmac(&ms);
+        let (expected_outer_state, expected_inner_state) = partial_hmac(&ms);
 
         let expected_outer_state = expected_outer_state
             .into_iter()

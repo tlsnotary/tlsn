@@ -27,6 +27,8 @@ thiserror.workspace = true
 derive_builder.workspace = true
 
 [dev-dependencies]
+tlsn-utils.workspace = true
+tlsn-hmac-sha256-utils = { path = "../hmac-sha256-utils" }
 criterion = { workspace = true, features = ["async_tokio"] }
 tokio.workspace = true
 p256.workspace = true

@@ -1,23 +1,23 @@
 use std::{marker::PhantomData, sync::Arc};
 
 use async_trait::async_trait;
-use follower_core::{Role, CF_VD, SF_VD};
-use futures::{lock::Mutex, SinkExt, StreamExt};
+use follower_core::{CF_VD, SF_VD};
+use futures::lock::Mutex;
 
 use hmac_sha256_core::{
-    self as follower_core, MasterSecretStateLabels, PRFFollowerConfig, PRFMessage, PmsLabels,
-    SessionKeyLabels, MS, PMS, SESSION_KEYS,
+    self as follower_core, MasterSecretStateLabels, PRFFollowerConfig, PmsLabels, SessionKeyLabels,
+    MS, SESSION_KEYS,
 };
 use mpc_aio::protocol::garble::{exec::dual::DEExecute, factory::GCFactoryError};
 use mpc_core::garble::{
     exec::dual::{DualExConfig, DualExConfigBuilder},
     ChaChaEncoder,
 };
-use utils_aio::{expect_msg_or_err, factory::AsyncFactory};
+use utils_aio::factory::AsyncFactory;
 
 use crate::{circuits, PRFFollower};
 
-use super::{PRFChannel, PRFError};
+use super::PRFError;
 
 enum State {
     MasterSecret,
@@ -38,7 +38,6 @@ where
 {
     config: PRFFollowerConfig,
     state: State,
-    channel: PRFChannel,
 
     encoder: Option<Arc<Mutex<ChaChaEncoder>>>,
 
@@ -52,15 +51,10 @@ where
     DEF: AsyncFactory<DE, Config = DualExConfig, Error = GCFactoryError> + Send,
     DE: DEExecute + Send,
 {
-    pub fn new(
-        config: PRFFollowerConfig,
-        channel: PRFChannel,
-        de_factory: DEF,
-    ) -> DEPRFFollower<DEF, DE> {
+    pub fn new(config: PRFFollowerConfig, de_factory: DEF) -> DEPRFFollower<DEF, DE> {
         DEPRFFollower {
             config,
             state: State::MasterSecret,
-            channel,
             encoder: None,
             de_factory,
             _de: PhantomData,
@@ -73,21 +67,11 @@ where
 
     pub async fn compute_session_keys(
         &mut self,
-        pms_share_labels: PmsLabels,
+        pms_labels: PmsLabels,
     ) -> Result<SessionKeyLabels, PRFError> {
-        let Some(encoder) = self.encoder.clone().take() else {
-            panic!()
-        };
+        let encoder = self.encoder.clone().unwrap();
 
         // TODO: Set up this stuff concurrently
-        let id = format!("{}/pms", self.config.id());
-        let de_config = DualExConfigBuilder::default()
-            .id(id.clone())
-            .circ(PMS.clone())
-            .build()
-            .expect("DualExConfig should be valid");
-        let de_pms = self.de_factory.create(id, de_config).await?;
-
         let id = format!("{}/ms", self.config.id());
         let de_config = DualExConfigBuilder::default()
             .id(id.clone())
@@ -104,88 +88,47 @@ where
             .expect("DualExConfig should be valid");
         let de_ke = self.de_factory.create(id, de_config).await?;
 
-        let pms_outer_hash_state =
-            circuits::execute_pms(de_pms, Role::Follower, pms_share_labels).await?;
-
-        let msg = expect_msg_or_err!(
-            self.channel.next().await,
-            PRFMessage::LeaderMs1,
-            PRFError::UnexpectedMessage
-        )?;
-        let (msg, core) = follower_core::PRFFollower::new().next(pms_outer_hash_state, msg);
-
-        self.channel.send(PRFMessage::FollowerMs1(msg)).await?;
-
-        let msg = expect_msg_or_err!(
-            self.channel.next().await,
-            PRFMessage::LeaderMs2,
-            PRFError::UnexpectedMessage
-        )?;
-        let (msg, core) = core.next(msg);
-        self.channel.send(PRFMessage::FollowerMs2(msg)).await?;
-
-        let msg = expect_msg_or_err!(
-            self.channel.next().await,
-            PRFMessage::LeaderMs3,
-            PRFError::UnexpectedMessage
-        )?;
-        let core = core.next(msg);
-
-        let p2 = core.p2();
-        let (ms_outer_hash_state, ms_hash_state_labels) =
-            circuits::follower_ms(de_ms, pms_outer_hash_state, p2).await?;
-
-        let core = core.next().next(ms_outer_hash_state);
-
-        let msg = expect_msg_or_err!(
-            self.channel.next().await,
-            PRFMessage::LeaderKe1,
-            PRFError::UnexpectedMessage
-        )?;
-        let (msg, core) = core.next(msg);
-        self.channel.send(PRFMessage::FollowerKe1(msg)).await?;
-
-        let msg = expect_msg_or_err!(
-            self.channel.next().await,
-            PRFMessage::LeaderKe2,
-            PRFError::UnexpectedMessage
-        )?;
-        let msg = core.next(msg);
-        self.channel.send(PRFMessage::FollowerKe2(msg)).await?;
-
-        let session_keys = circuits::follower_session_keys(
-            de_ke,
+        let ms_state_labels = circuits::follower_ms(
+            de_ms,
             encoder,
             self.config.encoder_default_stream_id(),
-            ms_outer_hash_state,
+            pms_labels,
         )
         .await?;
 
+        let session_key_labels = circuits::session_keys(de_ke, ms_state_labels.clone()).await?;
+
         self.state = State::ClientFinished {
-            ms_hash_state_labels,
+            ms_hash_state_labels: ms_state_labels,
         };
 
-        Ok(session_keys)
+        Ok(session_key_labels)
     }
 
     pub async fn compute_client_finished_vd(&mut self) -> Result<(), PRFError> {
         let state = std::mem::replace(&mut self.state, State::Error);
+        let encoder = self.encoder.clone().unwrap();
 
         let State::ClientFinished { ms_hash_state_labels } = state else {
             panic!()
         };
 
-        let circ = CF_VD.clone();
-
         let id = format!("{}/cf", self.config.id());
         let de_config = DualExConfigBuilder::default()
             .id(id.clone())
-            .circ(circ.clone())
+            .circ(CF_VD.clone())
             .build()
             .expect("DualExConfig should be valid");
         let de_cf = self.de_factory.create(id, de_config).await?;
 
-        circuits::follower_verify_data(de_cf, circ, ms_hash_state_labels.clone()).await?;
+        circuits::follower_verify_data(
+            de_cf,
+            &CF_VD,
+            encoder,
+            self.config.encoder_default_stream_id(),
+            ms_hash_state_labels.clone(),
+        )
+        .await?;
 
         self.state = State::ServerFinished {
             ms_hash_state_labels,
@@ -196,23 +139,28 @@ where
 
     pub async fn compute_server_finished_vd(&mut self) -> Result<(), PRFError> {
         let state = std::mem::replace(&mut self.state, State::Error);
+        let encoder = self.encoder.clone().unwrap();
 
         let State::ServerFinished { ms_hash_state_labels } = state else {
             panic!()
         };
 
-        let circ = SF_VD.clone();
-
         let id = format!("{}/sf", self.config.id());
         let de_config = DualExConfigBuilder::default()
             .id(id.clone())
-            .circ(circ.clone())
+            .circ(SF_VD.clone())
             .build()
             .expect("DualExConfig should be valid");
         let de_sf = self.de_factory.create(id, de_config).await?;
 
-        let circ = SF_VD.clone();
-        circuits::follower_verify_data(de_sf, circ, ms_hash_state_labels.clone()).await?;
+        circuits::follower_verify_data(
+            de_sf,
+            &SF_VD,
+            encoder,
+            self.config.encoder_default_stream_id(),
+            ms_hash_state_labels.clone(),
+        )
+        .await?;
 
         self.state = State::Complete;
 
@@ -228,9 +176,9 @@ where
 {
     async fn compute_session_keys(
         &mut self,
-        pms_share_labels: PmsLabels,
+        pms_labels: PmsLabels,
     ) -> Result<SessionKeyLabels, PRFError> {
-        self.compute_session_keys(pms_share_labels).await
+        self.compute_session_keys(pms_labels).await
     }
 
     async fn compute_client_finished_vd(&mut self) -> Result<(), PRFError> {

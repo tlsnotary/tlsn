@@ -7,7 +7,8 @@ use mpc_circuits::{
 };
 use utils::bits::IterToBits;
 
-use crate::{add_sha256_compress, add_sha256_finalize, SHA256_STATE};
+use crate::{add_sha256_compress, add_sha256_finalize};
+use hmac_sha256_utils::SHA256_INITIAL_STATE;
 
 /// Computes the outer and inner states of HMAC-SHA256.
 ///
@@ -81,7 +82,7 @@ pub fn add_hmac_sha256_partial(
         xor_ipad.output(0).expect("xor should have output 0")
     };
 
-    let sha256_initial_state = SHA256_STATE
+    let sha256_initial_state = SHA256_INITIAL_STATE
         .into_msb0_iter()
         .map(|bit| if bit { *const_one } else { *const_zero })
         .collect::<Vec<_>>();
@@ -192,7 +193,9 @@ pub fn hmac_sha256_finalize(len: usize) -> Arc<Circuit> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{self, partial_sha256_digest, test_circ};
+
+    use crate::test_helpers::test_circ;
+    use hmac_sha256_utils::{hmac, partial_sha256_digest};
     use mpc_circuits::Value;
 
     #[test]
@@ -218,7 +221,7 @@ mod tests {
         let outer_hash_state = partial_sha256_digest(&key_opad);
         let inner_hash_state = partial_sha256_digest(&key_ipad);
 
-        let expected = test_helpers::hmac(&key, &msg);
+        let expected = hmac(&key, &msg);
 
         test_circ(
             &circ,
@@ -266,7 +269,7 @@ mod tests {
         let outer_hash_state = partial_sha256_digest(&key_opad);
         let inner_hash_state = partial_sha256_digest(&key_ipad);
 
-        let expected = test_helpers::hmac(&key, &msg);
+        let expected = hmac(&key, &msg);
 
         test_circ(
             &circ,

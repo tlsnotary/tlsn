@@ -1,233 +1,166 @@
-use hmac_sha256_core::{MasterSecretStateLabels, MS};
+use std::sync::Arc;
+
+use futures::lock::Mutex;
+use hmac_sha256_core::{MasterSecretStateLabels, PmsLabels, MS};
 use mpc_aio::protocol::garble::{exec::dual::DEExecute, GCError};
 use mpc_circuits::{Value, WireGroup};
-use mpc_core::garble::FullInputSet;
-use rand::{thread_rng, Rng};
+use mpc_core::garble::{
+    exec::dual::DESummary, ActiveEncodedInput, ChaChaEncoder, Encoder, FullEncodedInput,
+    FullInputSet,
+};
 
 /// Executes master secret circuit as PRFLeader
 ///
-/// Returns inner_hash_state
+/// Returns master secret hash state labels
 pub async fn leader_ms<DE: DEExecute>(
     leader: DE,
-    p1_inner_hash: [u8; 32],
-) -> Result<([u32; 8], MasterSecretStateLabels), GCError> {
-    let circ = MS.clone();
+    encoder: Arc<Mutex<ChaChaEncoder>>,
+    encoder_stream_id: u32,
+    pms_labels: PmsLabels,
+    client_random: [u8; 32],
+    server_random: [u8; 32],
+) -> Result<MasterSecretStateLabels, GCError> {
+    let inputs = MS.inputs();
 
-    let [outer_hash_state_input, p1_inner, p2, mask_outer, mask_inner, const_zero, const_one] = circ.inputs() else {
-        panic!("Circuit 2 should have 5 inputs");
-    };
-
-    let gen_labels = FullInputSet::generate(&mut thread_rng(), &circ, None);
-
-    let mask: Vec<u8> = thread_rng().gen::<[u8; 32]>().to_vec();
-    let mask_inner_value = mask_inner
+    let client_random = inputs[1]
         .clone()
-        .to_value(mask.clone())
-        .expect("MASK_I should be 32 bytes");
-    let p1_inner_value = p1_inner
+        .to_value(Value::Bytes(client_random.to_vec()))
+        .expect("client_random should be 32 bytes");
+    let server_random = inputs[2]
         .clone()
-        .to_value(p1_inner_hash.to_vec())
-        .expect("P1_INNER should be 32 bytes");
-    let const_zero_value = const_zero
+        .to_value(Value::Bytes(server_random.to_vec()))
+        .expect("server_random should be 32 bytes");
+    let const_zero = inputs[3]
         .clone()
         .to_value(Value::ConstZero)
         .expect("const_zero should be 0");
-    let const_one_value = const_one
+    let const_one = inputs[4]
         .clone()
         .to_value(Value::ConstOne)
         .expect("const_one should be 1");
 
-    let (_, summary) = leader
-        .execute_and_summarize(
+    let (gen_labels, cached_labels) = build_labels(encoder, encoder_stream_id, pms_labels).await;
+
+    let summary = leader
+        .execute_skip_equality_check(
             gen_labels,
             vec![
-                p1_inner_value.clone(),
-                mask_inner_value.clone(),
-                const_zero_value,
-                const_one_value,
+                client_random.clone(),
+                server_random.clone(),
+                const_zero,
+                const_one,
             ],
-            vec![
-                outer_hash_state_input.clone(),
-                p2.clone(),
-                mask_outer.clone(),
-            ],
-            vec![mask_inner_value, p1_inner_value],
             vec![],
+            vec![client_random, server_random],
+            cached_labels,
         )
         .await?;
 
-    let full_input_labels = summary.get_generator_summary().input_labels();
-    let full_output_labels = summary.get_generator_summary().output_labels();
-    let full_mask_outer_labels = full_input_labels[3].clone().into_labels();
-    let full_mask_inner_labels = full_input_labels[4].clone().into_labels();
-    let full_masked_outer_hash_state = full_output_labels[0].clone().into_labels();
-    let full_masked_inner_hash_state = full_output_labels[1].clone().into_labels();
+    let labels = build_ms_labels(summary);
 
-    // Compute labels for outer hash state by removing masks
-    let full_outer_hash_state_labels = full_mask_outer_labels ^ full_masked_outer_hash_state;
-    let full_inner_hash_state_labels = full_mask_inner_labels ^ full_masked_inner_hash_state;
-
-    let active_input_labels = summary.get_evaluator_summary().input_labels();
-    let active_output_labels = summary.get_evaluator_summary().output_labels();
-    let active_mask_outer_labels = active_input_labels[3].clone().into_labels();
-    let active_mask_inner_labels = active_input_labels[4].clone().into_labels();
-    let active_masked_outer_hash_state = active_output_labels[0].clone().into_labels();
-    let active_masked_inner_hash_state = active_output_labels[1].clone().into_labels();
-
-    // Compute labels for outer hash state by removing masks
-    let active_outer_hash_state_labels = active_mask_outer_labels ^ active_masked_outer_hash_state;
-    let active_inner_hash_state_labels = active_mask_inner_labels ^ active_masked_inner_hash_state;
-
-    let labels = MasterSecretStateLabels::new(
-        full_outer_hash_state_labels,
-        full_inner_hash_state_labels,
-        active_outer_hash_state_labels,
-        active_inner_hash_state_labels,
-    );
-
-    let outputs = summary.get_evaluator_summary().decode()?;
-
-    let Value::Bytes(masked_inner_hash_state) = outputs[1].value().clone() else {
-        panic!("MS circuit output 1 should be bytes");
-    };
-
-    // Remove mask
-    let inner_hash_state = masked_inner_hash_state
-        .iter()
-        .zip(mask.iter())
-        .map(|(a, b)| a ^ b)
-        .collect::<Vec<u8>>();
-
-    let inner_hash_state = inner_hash_state
-        .chunks_exact(4)
-        .map(|c| u32::from_be_bytes(c.try_into().expect("chunk should be 4 bytes")))
-        .collect::<Vec<u32>>()
-        .try_into()
-        .expect("inner hash state should be 32 bytes");
-
-    Ok((inner_hash_state, labels))
+    Ok(labels)
 }
 
 /// Executes master secret circuit as PRFFollower
 ///
-/// Returns outer_hash_state
+/// Returns master secret hash state labels
 pub async fn follower_ms<DE: DEExecute>(
     follower: DE,
-    pms_outer_hash_state: [u32; 8],
-    p2: [u8; 32],
-) -> Result<([u32; 8], MasterSecretStateLabels), GCError> {
-    let circ = MS.clone();
+    encoder: Arc<Mutex<ChaChaEncoder>>,
+    encoder_stream_id: u32,
+    pms_labels: PmsLabels,
+) -> Result<MasterSecretStateLabels, GCError> {
+    let inputs = MS.inputs();
 
-    let [outer_hash_state_input, p1_inner, p2_input, mask_outer, mask_inner, const_zero, const_one] = circ.inputs() else {
-        panic!("Circuit 2 should have 5 inputs");
-    };
-
-    let gen_labels = FullInputSet::generate(&mut thread_rng(), &circ, None);
-
-    let mask: Vec<u8> = thread_rng().gen::<[u8; 32]>().to_vec();
-    let mask_outer_value = mask_outer
-        .clone()
-        .to_value(mask.clone())
-        .expect("MASK_O should be 32 bytes");
-    let outer_hash_state_value = outer_hash_state_input
-        .clone()
-        .to_value(
-            pms_outer_hash_state
-                .into_iter()
-                .map(|chunk| chunk.to_be_bytes())
-                .flatten()
-                .collect::<Vec<u8>>(),
-        )
-        .expect("outer_hash_state should be 32 bytes");
-    let p2_value = p2_input
-        .clone()
-        .to_value(p2[..16].to_vec())
-        .expect("P2 should be 32 bytes");
-    let const_zero_value = const_zero
+    let client_random = inputs[1].clone();
+    let server_random = inputs[2].clone();
+    let const_zero = inputs[3]
         .clone()
         .to_value(Value::ConstZero)
         .expect("const_zero should be 0");
-    let const_one_value = const_one
+    let const_one = inputs[4]
         .clone()
         .to_value(Value::ConstOne)
         .expect("const_one should be 1");
 
-    let (_, summary) = follower
-        .execute_and_summarize(
+    let (gen_labels, cached_labels) = build_labels(encoder, encoder_stream_id, pms_labels).await;
+
+    let summary = follower
+        .execute_skip_equality_check(
             gen_labels,
-            vec![
-                outer_hash_state_value.clone(),
-                p2_value.clone(),
-                mask_outer_value.clone(),
-                const_zero_value,
-                const_one_value,
-            ],
-            vec![mask_inner.clone(), p1_inner.clone()],
-            vec![outer_hash_state_value, p2_value, mask_outer_value],
+            vec![const_zero, const_one],
+            vec![client_random, server_random],
             vec![],
+            cached_labels,
         )
         .await?;
 
-    let full_input_labels = summary.get_generator_summary().input_labels();
-    let full_output_labels = summary.get_generator_summary().output_labels();
-    let full_mask_outer_labels = full_input_labels[3].clone().into_labels();
-    let full_mask_inner_labels = full_input_labels[4].clone().into_labels();
-    let full_masked_outer_hash_state = full_output_labels[0].clone().into_labels();
-    let full_masked_inner_hash_state = full_output_labels[1].clone().into_labels();
+    let labels = build_ms_labels(summary);
 
-    // Compute labels for hash states by removing masks
-    let full_outer_hash_state_labels = full_mask_outer_labels ^ full_masked_outer_hash_state;
-    let full_inner_hash_state_labels = full_mask_inner_labels ^ full_masked_inner_hash_state;
+    Ok(labels)
+}
 
-    let active_input_labels = summary.get_evaluator_summary().input_labels();
-    let active_output_labels = summary.get_evaluator_summary().output_labels();
-    let active_mask_outer_labels = active_input_labels[3].clone().into_labels();
-    let active_mask_inner_labels = active_input_labels[4].clone().into_labels();
-    let active_masked_outer_hash_state = active_output_labels[0].clone().into_labels();
-    let active_masked_inner_hash_state = active_output_labels[1].clone().into_labels();
-
-    // Compute labels for hash states by removing masks
-    let active_outer_hash_state_labels = active_mask_outer_labels ^ active_masked_outer_hash_state;
-    let active_inner_hash_state_labels = active_mask_inner_labels ^ active_masked_inner_hash_state;
-
-    let labels = MasterSecretStateLabels::new(
-        full_outer_hash_state_labels,
-        full_inner_hash_state_labels,
-        active_outer_hash_state_labels,
-        active_inner_hash_state_labels,
-    );
-
-    let outputs = summary.get_evaluator_summary().decode()?;
-
-    let Value::Bytes(masked_outer_hash_state) = outputs[0].value().clone() else {
-        panic!("MS circuit output 0 should be bytes");
+async fn build_labels(
+    encoder: Arc<Mutex<ChaChaEncoder>>,
+    encoder_stream_id: u32,
+    pms_labels: PmsLabels,
+) -> (FullInputSet, Vec<ActiveEncodedInput>) {
+    let [pms, client_random, server_random, const_zero, const_one] = MS.inputs() else {
+        panic!("MS circuit should have 5 inputs");
     };
 
-    // Remove mask
-    let outer_hash_state = masked_outer_hash_state
-        .iter()
-        .zip(mask.iter())
-        .map(|(a, b)| a ^ b)
-        .collect::<Vec<u8>>();
+    let mut encoder = encoder.lock().await;
+    let delta = encoder.get_delta();
+    let rng = encoder.get_stream(encoder_stream_id);
 
-    let outer_hash_state = outer_hash_state
-        .chunks_exact(4)
-        .map(|c| u32::from_be_bytes(c.try_into().expect("chunk should be 4 bytes")))
-        .collect::<Vec<u32>>()
-        .try_into()
-        .expect("outer hash state should be 32 bytes");
+    let full_pms =
+        FullEncodedInput::from_labels(pms.clone(), pms_labels.full).expect("pms should be valid");
+    let full_client_random = FullEncodedInput::generate(rng, client_random.clone(), delta);
+    let full_server_random = FullEncodedInput::generate(rng, server_random.clone(), delta);
+    let full_const_zero = FullEncodedInput::generate(rng, const_zero.clone(), delta);
+    let full_const_one = FullEncodedInput::generate(rng, const_one.clone(), delta);
 
-    Ok((outer_hash_state, labels))
+    let gen_labels = FullInputSet::new(vec![
+        full_pms,
+        full_client_random,
+        full_server_random,
+        full_const_zero,
+        full_const_one,
+    ])
+    .expect("Labels should be valid");
+
+    let pms_labels = ActiveEncodedInput::from_active_labels(pms.clone(), pms_labels.active)
+        .expect("pms should be 32 bytes");
+
+    (gen_labels, vec![pms_labels])
+}
+
+fn build_ms_labels(summary: DESummary) -> MasterSecretStateLabels {
+    let full_input_labels = summary.get_generator_summary().input_labels();
+    let full_output_labels = summary.get_generator_summary().output_labels();
+    let active_input_labels = summary.get_evaluator_summary().input_labels();
+    let active_output_labels = summary.get_evaluator_summary().output_labels();
+
+    MasterSecretStateLabels {
+        full_outer_hash_state: full_output_labels[0].clone().into_labels(),
+        full_inner_hash_state: full_output_labels[1].clone().into_labels(),
+        active_outer_hash_state: active_output_labels[0].clone().into_labels(),
+        active_inner_hash_state: active_output_labels[1].clone().into_labels(),
+        full_client_random: full_input_labels[1].clone().into_labels(),
+        full_server_random: full_input_labels[2].clone().into_labels(),
+        active_client_random: active_input_labels[1].clone().into_labels(),
+        active_server_random: active_input_labels[2].clone().into_labels(),
+        full_const_zero: full_input_labels[3].clone().into_labels(),
+        full_const_one: full_input_labels[4].clone().into_labels(),
+        active_const_zero: active_input_labels[3].clone().into_labels(),
+        active_const_one: active_input_labels[4].clone().into_labels(),
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    use hmac_sha256_core::{
-        sha::{finalize_sha256_digest, partial_sha256_digest},
-        utils::{compute_ms, hmac_sha256, seed_ms},
-    };
     use mpc_aio::protocol::garble::exec::dual::mock::mock_dualex_pair;
     use mpc_core::garble::exec::dual::DualExConfigBuilder;
 
@@ -244,48 +177,17 @@ mod tests {
         let pms = [42u8; 32];
         let client_random = [69u8; 32];
         let server_random = [96u8; 32];
-        let ms = compute_ms(&client_random, &server_random, &pms);
 
-        let mut ms_zeropadded = [0u8; 64];
-        ms_zeropadded[0..48].copy_from_slice(&ms);
+        let seed = client_random
+            .iter()
+            .chain(&server_random)
+            .copied()
+            .collect::<Vec<u8>>();
 
-        let ms_opad = ms_zeropadded.iter().map(|b| b ^ 0x5c).collect::<Vec<u8>>();
-        let ms_ipad = ms_zeropadded.iter().map(|b| b ^ 0x36).collect::<Vec<u8>>();
+        let ms = hmac_sha256_utils::prf(&pms, b"master secret", &seed, 48);
 
-        let expected_ms_outer_hash_state = partial_sha256_digest(&ms_opad);
-        let expected_ms_inner_hash_state = partial_sha256_digest(&ms_ipad);
+        let (expected_outer_state, expected_inner_state) = hmac_sha256_utils::partial_hmac(&ms);
 
-        let mut pms_padded = [0u8; 64];
-        pms_padded[0..32].copy_from_slice(&pms);
-
-        let pms_opad = pms_padded.iter().map(|b| b ^ 0x5c).collect::<Vec<u8>>();
-        let pms_ipad = pms_padded.iter().map(|b| b ^ 0x36).collect::<Vec<u8>>();
-
-        let pms_outer_hash_state = partial_sha256_digest(&pms_opad);
-        let pms_inner_hash_state = partial_sha256_digest(&pms_ipad);
-
-        let seed = seed_ms(&client_random, &server_random);
-        let a1 = hmac_sha256(&pms, &seed);
-        let a2 = hmac_sha256(&pms, &a1);
-        let mut a1_seed = [0u8; 109];
-        a1_seed[..32].copy_from_slice(&a1);
-        a1_seed[32..].copy_from_slice(&seed);
-        let mut a2_seed = [0u8; 109];
-        a2_seed[..32].copy_from_slice(&a2);
-        a2_seed[32..].copy_from_slice(&seed);
-        let p1_inner_hash = finalize_sha256_digest(pms_inner_hash_state, 64, &a1_seed);
-        let p2 = hmac_sha256(&pms, &a2_seed);
-
-        let ((ms_inner_hash_state, _), (ms_outer_hash_state, _)) = futures::join!(
-            async move { leader_ms(gc_leader, p1_inner_hash).await.unwrap() },
-            async move {
-                follower_ms(gc_follower, pms_outer_hash_state, p2)
-                    .await
-                    .unwrap()
-            }
-        );
-
-        assert_eq!(ms_outer_hash_state, expected_ms_outer_hash_state);
-        assert_eq!(ms_inner_hash_state, expected_ms_inner_hash_state);
+        todo!()
     }
 }

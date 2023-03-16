@@ -1,5 +1,10 @@
 [workspace]
-members = ["hmac-sha256-circuits", "hmac-sha256-core", "hmac-sha256"]
+members = [
+    "hmac-sha256-utils",
+    "hmac-sha256-circuits",
+    "hmac-sha256-core",
+    "hmac-sha256",
+]
 
 [workspace.dependencies]
 # tlsn

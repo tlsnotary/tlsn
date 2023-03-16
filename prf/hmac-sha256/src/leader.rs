@@ -1,23 +1,22 @@
 use std::{marker::PhantomData, sync::Arc};
 
 use async_trait::async_trait;
-use futures::{lock::Mutex, SinkExt, StreamExt};
+use futures::lock::Mutex;
 
 use hmac_sha256_core::{
-    self as leader_core, PRFLeaderConfig, PRFMessage, PmsLabels, SessionKeyLabels, MS, PMS,
-    SESSION_KEYS,
+    self as leader_core, PRFLeaderConfig, PmsLabels, SessionKeyLabels, MS, SESSION_KEYS,
 };
-use leader_core::{MasterSecretStateLabels, Role, CF_VD, SF_VD};
+use leader_core::{MasterSecretStateLabels, CF_VD, SF_VD};
 use mpc_aio::protocol::garble::{exec::dual::DEExecute, factory::GCFactoryError};
 use mpc_core::garble::{
     exec::dual::{DualExConfig, DualExConfigBuilder},
     ChaChaEncoder,
 };
-use utils_aio::{expect_msg_or_err, factory::AsyncFactory};
+use utils_aio::factory::AsyncFactory;
 
 use crate::{circuits, PRFLeader};
 
-use super::{PRFChannel, PRFError};
+use super::PRFError;
 
 enum State {
     MasterSecret,
@@ -38,7 +37,6 @@ where
 {
     config: PRFLeaderConfig,
     state: State,
-    channel: PRFChannel,
 
     encoder: Option<Arc<Mutex<ChaChaEncoder>>>,
 
@@ -52,15 +50,10 @@ where
     DEF: AsyncFactory<DE, Config = DualExConfig, Error = GCFactoryError> + Send,
     DE: DEExecute + Send,
 {
-    pub fn new(
-        config: PRFLeaderConfig,
-        channel: PRFChannel,
-        de_factory: DEF,
-    ) -> DEPRFLeader<DEF, DE> {
+    pub fn new(config: PRFLeaderConfig, de_factory: DEF) -> DEPRFLeader<DEF, DE> {
         DEPRFLeader {
             config,
             state: State::MasterSecret,
-            channel,
             encoder: None,
             de_factory,
             _de: PhantomData,
@@ -79,21 +72,11 @@ where
         &mut self,
         client_random: [u8; 32],
         server_random: [u8; 32],
-        pms_share_labels: PmsLabels,
+        pms_labels: PmsLabels,
     ) -> Result<SessionKeyLabels, PRFError> {
-        let Some(encoder) = self.encoder.clone().take() else {
-            panic!()
-        };
+        let encoder = self.encoder.clone().unwrap();
 
         // TODO: Set up this stuff concurrently
-        let id = format!("{}/pms", self.config.id());
-        let de_config = DualExConfigBuilder::default()
-            .id(id.clone())
-            .circ(PMS.clone())
-            .build()
-            .expect("DualExConfig should be valid");
-        let de_pms = self.de_factory.create(id, de_config).await?;
-
         let id = format!("{}/ms", self.config.id());
         let de_config = DualExConfigBuilder::default()
             .id(id.clone())
@@ -110,67 +93,20 @@ where
             .expect("DualExConfig should be valid");
         let de_ke = self.de_factory.create(id, de_config).await?;
 
-        // Execute C1
-        let pms_inner_hash_state =
-            circuits::execute_pms(de_pms, Role::Leader, pms_share_labels).await?;
-
-        let (msg, core) =
-            leader_core::PRFLeader::new().next(client_random, server_random, pms_inner_hash_state);
-
-        self.channel.send(PRFMessage::LeaderMs1(msg)).await?;
-
-        let msg = expect_msg_or_err!(
-            self.channel.next().await,
-            PRFMessage::FollowerMs1,
-            PRFError::UnexpectedMessage
-        )?;
-        let (msg, core) = core.next(msg);
-        self.channel.send(PRFMessage::LeaderMs2(msg)).await?;
-
-        let msg = expect_msg_or_err!(
-            self.channel.next().await,
-            PRFMessage::FollowerMs2,
-            PRFError::UnexpectedMessage
-        )?;
-        let (msg, core) = core.next(msg);
-        self.channel.send(PRFMessage::LeaderMs3(msg)).await?;
-
-        let p1_inner_hash = core.p1_inner_hash();
-
-        let (ms_inner_hash_state, ms_hash_state_labels) =
-            circuits::leader_ms(de_ms, p1_inner_hash).await?;
-
-        let (msg, core) = core.next().next(ms_inner_hash_state);
-        self.channel.send(PRFMessage::LeaderKe1(msg)).await?;
-
-        let msg = expect_msg_or_err!(
-            self.channel.next().await,
-            PRFMessage::FollowerKe1,
-            PRFError::UnexpectedMessage
-        )?;
-        let (msg, core) = core.next(msg);
-        self.channel.send(PRFMessage::LeaderKe2(msg)).await?;
-
-        let msg = expect_msg_or_err!(
-            self.channel.next().await,
-            PRFMessage::FollowerKe2,
-            PRFError::UnexpectedMessage
-        )?;
-        let core = core.next(msg);
-        let p1_inner_hash = core.p1_inner_hash();
-        let p2_inner_hash = core.p2_inner_hash();
-
-        let session_key_labels = circuits::leader_session_keys(
-            de_ke,
+        let ms_state_labels = circuits::leader_ms(
+            de_ms,
             encoder,
             self.config.encoder_default_stream_id(),
-            p1_inner_hash,
-            p2_inner_hash,
+            pms_labels,
+            client_random,
+            server_random,
         )
         .await?;
 
+        let session_key_labels = circuits::session_keys(de_ke, ms_state_labels.clone()).await?;
+
         self.state = State::ClientFinished {
-            ms_hash_state_labels,
+            ms_hash_state_labels: ms_state_labels,
         };
 
         Ok(session_key_labels)
@@ -181,24 +117,29 @@ where
         handshake_hash: [u8; 32],
     ) -> Result<[u8; 12], PRFError> {
         let state = std::mem::replace(&mut self.state, State::Error);
+        let encoder = self.encoder.clone().unwrap();
 
         let State::ClientFinished { ms_hash_state_labels } = state else {
             panic!()
         };
 
-        let circ = CF_VD.clone();
-
         let id = format!("{}/cf", self.config.id());
         let de_config = DualExConfigBuilder::default()
             .id(id.clone())
-            .circ(circ.clone())
+            .circ(CF_VD.clone())
             .build()
             .expect("DualExConfig should be valid");
         let de_cf = self.de_factory.create(id, de_config).await?;
 
-        let vd =
-            circuits::leader_verify_data(de_cf, circ, ms_hash_state_labels.clone(), handshake_hash)
-                .await?;
+        let vd = circuits::leader_verify_data(
+            de_cf,
+            &CF_VD,
+            encoder,
+            self.config.encoder_default_stream_id(),
+            ms_hash_state_labels.clone(),
+            handshake_hash,
+        )
+        .await?;
 
         self.state = State::ServerFinished {
             ms_hash_state_labels,
@@ -212,24 +153,29 @@ where
         handshake_hash: [u8; 32],
     ) -> Result<[u8; 12], PRFError> {
         let state = std::mem::replace(&mut self.state, State::Error);
+        let encoder = self.encoder.clone().unwrap();
 
         let State::ServerFinished { ms_hash_state_labels } = state else {
             panic!()
         };
 
-        let circ = SF_VD.clone();
-
         let id = format!("{}/sf", self.config.id());
         let de_config = DualExConfigBuilder::default()
             .id(id.clone())
-            .circ(circ.clone())
+            .circ(SF_VD.clone())
             .build()
             .expect("DualExConfig should be valid");
         let de_sf = self.de_factory.create(id, de_config).await?;
 
-        let vd =
-            circuits::leader_verify_data(de_sf, circ, ms_hash_state_labels.clone(), handshake_hash)
-                .await?;
+        let vd = circuits::leader_verify_data(
+            de_sf,
+            &SF_VD,
+            encoder,
+            self.config.encoder_default_stream_id(),
+            ms_hash_state_labels.clone(),
+            handshake_hash,
+        )
+        .await?;
 
         self.state = State::Complete;
 
@@ -247,9 +193,9 @@ where
         &mut self,
         client_random: [u8; 32],
         server_random: [u8; 32],
-        pms_share_labels: PmsLabels,
+        pms_labels: PmsLabels,
     ) -> Result<SessionKeyLabels, PRFError> {
-        self.compute_session_keys(client_random, server_random, pms_share_labels)
+        self.compute_session_keys(client_random, server_random, pms_labels)
             .await
     }
 

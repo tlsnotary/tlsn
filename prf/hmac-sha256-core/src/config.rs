@@ -1,15 +1,9 @@
 use derive_builder::Builder;
 
-#[derive(Debug, Clone, Copy)]
-pub enum Role {
-    Leader,
-    Follower,
-}
-
 #[derive(Debug, Clone, Builder)]
 pub struct PRFLeaderConfig {
     id: String,
-    #[builder(default = "0")]
+    #[builder(default = "u32::MAX")]
     encoder_default_stream_id: u32,
 }
 
@@ -28,7 +22,7 @@ impl PRFLeaderConfig {
 #[derive(Debug, Clone, Builder)]
 pub struct PRFFollowerConfig {
     id: String,
-    #[builder(default = "0")]
+    #[builder(default = "u32::MAX")]
     encoder_default_stream_id: u32,
 }
 
