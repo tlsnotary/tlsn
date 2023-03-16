@@ -194,9 +194,8 @@ pub fn hmac_sha256_finalize(len: usize) -> Arc<Circuit> {
 mod tests {
     use super::*;
 
-    use crate::test_helpers::test_circ;
     use hmac_sha256_utils::{hmac, partial_sha256_digest};
-    use mpc_circuits::Value;
+    use mpc_circuits::{circuits::test_circ, Value};
 
     #[test]
     #[ignore = "expensive"]

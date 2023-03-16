@@ -101,8 +101,7 @@ pub fn verify_data(label: &[u8]) -> Arc<Circuit> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::test_circ;
-    use mpc_circuits::Value;
+    use mpc_circuits::{circuits::test_circ, Value};
 
     const CF_LABEL: &[u8; 15] = b"client finished";
 

@@ -111,9 +111,8 @@ pub fn master_secret() -> Arc<Circuit> {
 mod tests {
     use super::*;
 
-    use crate::test_helpers::test_circ;
     use hmac_sha256_utils::{partial_hmac, prf};
-    use mpc_circuits::Value;
+    use mpc_circuits::{circuits::test_circ, Value};
 
     #[test]
     #[ignore = "expensive"]

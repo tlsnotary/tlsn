@@ -164,8 +164,7 @@ pub fn sha256(len: usize) -> Arc<Circuit> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::test_circ;
-    use mpc_circuits::Value;
+    use mpc_circuits::{circuits::test_circ, Value};
     use sha2::{Digest, Sha256};
 
     #[test]
