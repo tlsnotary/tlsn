@@ -156,36 +156,3 @@ fn build_ms_labels(summary: DESummary) -> MasterSecretStateLabels {
         active_const_one: active_input_labels[4].clone().into_labels(),
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    use mpc_aio::protocol::garble::exec::dual::mock::mock_dualex_pair;
-    use mpc_core::garble::exec::dual::DualExConfigBuilder;
-
-    #[ignore = "expensive"]
-    #[tokio::test]
-    async fn test_ms() {
-        let de_config = DualExConfigBuilder::default()
-            .id("test".to_string())
-            .circ(MS.clone())
-            .build()
-            .expect("DE config should be valid");
-        let (gc_leader, gc_follower) = mock_dualex_pair(de_config);
-
-        let pms = [42u8; 32];
-        let client_random = [69u8; 32];
-        let server_random: [u8; 32] = [96u8; 32];
-        let seed = client_random
-            .iter()
-            .chain(&server_random)
-            .copied()
-            .collect::<Vec<_>>();
-        let ms = hmac_sha256_utils::prf(&pms, b"master secret", &seed, 48);
-
-        let (expected_outer_state, expected_inner_state) = hmac_sha256_utils::partial_hmac(&ms);
-
-        todo!()
-    }
-}
