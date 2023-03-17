@@ -28,8 +28,7 @@ impl<T: Field> AddShare<T> {
         };
 
         // generate random masks
-        let mut masks: Vec<T> = vec![T::zero(); T::BIT_SIZE as usize];
-        masks.iter_mut().for_each(|m| *m = T::rand(rng));
+        let mut masks: Vec<T> = (0..T::BIT_SIZE as usize).map(|_| T::rand(rng)).collect();
 
         // set the last mask such that the sum of all [T::BIT_SIZE] masks equals 0
         masks[T::BIT_SIZE as usize - 1] = -masks
@@ -38,8 +37,7 @@ impl<T: Field> AddShare<T> {
             .fold(T::zero(), |acc, i| acc + *i);
 
         // split up our additive share `x` into random summands
-        let mut x_summands: Vec<T> = vec![T::zero(); T::BIT_SIZE as usize];
-        x_summands.iter_mut().for_each(|s| *s = T::rand(rng));
+        let mut x_summands: Vec<T> = (0..T::BIT_SIZE as usize).map(|_| T::rand(rng)).collect();
 
         // set the last summand such that the sum of all [T::BIT_SIZE] summands equals `x`
         x_summands[T::BIT_SIZE as usize - 1] = self.inner()
@@ -57,7 +55,7 @@ impl<T: Field> AddShare<T> {
         // For each peer's summand (called `y_summand`), we send back `(x_summand + y_summand) * random
         // + mask`. The purpose of the mask is to hide the product.
 
-        let values: Vec<[T; 2]> = (0..T::BIT_SIZE)
+        let (v0, v1): (Vec<T>, Vec<T>) = (0..T::BIT_SIZE)
             .map(|k| {
                 // when y_summand is zero, we send `x_summand * random + mask`
                 let v0 = x_summands[k as usize] * random + masks[k as usize];
@@ -68,14 +66,12 @@ impl<T: Field> AddShare<T> {
                 let y_summand = T::from_bits_msb0(&bits);
                 let v1 = (x_summands[k as usize] + y_summand) * random + masks[k as usize];
 
-                [v0, v1]
+                (v0, v1)
             })
-            .collect();
+            .unzip();
 
         // when the peer adds up all the received values, the masks will cancel one another out and
         // the remaining `(x + y) * random` will be the peer's multiplicative share
-
-        let (v0, v1): (Vec<T>, Vec<T>) = values.into_iter().map(|[v0, v1]| (v0, v1)).unzip();
 
         Ok((mul_share, OTEnvelope::new(v0, v1)?))
     }
