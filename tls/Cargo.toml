@@ -1,6 +1,6 @@
 [workspace]
 members = ["tls-core"]
-exclude = ["tls-client", "tls-circuits", "tls-2pc-aio", "tls-2pc-core"]
+exclude = ["tls-client"]
 
 [workspace.dependencies]
 # tlsn
