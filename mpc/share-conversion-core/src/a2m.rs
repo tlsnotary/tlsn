@@ -26,8 +26,9 @@ impl<T: Field> AddShare<T> {
                 break r;
             }
         };
-        let mut masks: Vec<T> = vec![T::zero(); T::BIT_SIZE as usize];
-        masks.iter_mut().for_each(|x| *x = T::rand(rng));
+
+        // generate random masks
+        let mut masks: Vec<T> = (0..T::BIT_SIZE as usize).map(|_| T::rand(rng)).collect();
 
         // set the last mask such that the sum of all [T::BIT_SIZE] masks equals 0
         masks[T::BIT_SIZE as usize - 1] = -masks
@@ -35,37 +36,44 @@ impl<T: Field> AddShare<T> {
             .take(T::BIT_SIZE as usize - 1)
             .fold(T::zero(), |acc, i| acc + *i);
 
+        // split up our additive share `x` into random summands
+        let mut x_summands: Vec<T> = (0..T::BIT_SIZE as usize).map(|_| T::rand(rng)).collect();
+
+        // set the last summand such that the sum of all [T::BIT_SIZE] summands equals `x`
+        x_summands[T::BIT_SIZE as usize - 1] = self.inner()
+            + -x_summands
+                .iter()
+                .take(T::BIT_SIZE as usize - 1)
+                .fold(T::zero(), |acc, i| acc + *i);
+
         // the inverse of the random share will be the multiplicative share for the sender
         let mul_share = MulShare::new(random.inverse());
 
-        // decompose the share into a sum of components, e.g. if the share is 10110, we decompose it into
-        // 0 + 10 + 100 + 0000 + 10000
-        let components: Vec<T> = (0..T::BIT_SIZE)
+        // Each choice bit of the peer's share `y` represents a summand of `y`, e.g.
+        // if `y` is 10110 (in binary), then the choice bits in lsb0 order (0,1,1,0,1) represent the
+        // summands (0, 10, 100, 0000, 10000).
+        // For each peer's summand (called `y_summand`), we send back `(x_summand + y_summand) * random
+        // + mask`. The purpose of the mask is to hide the product.
+
+        let (v0, v1): (Vec<T>, Vec<T>) = (0..T::BIT_SIZE)
             .map(|k| {
-                // we extract a bit of `self.inner()` in position `k` (counting from the left) and
-                // then left-shift that bit by `k`;
+                // when y_summand is zero, we send `x_summand * random + mask`
+                let v0 = x_summands[k as usize] * random + masks[k as usize];
+
+                // otherwise we send `(x_summand + y_summand) * random + mask`
                 let mut bits = vec![false; T::BIT_SIZE as usize];
-                bits[k as usize] = self.inner().get_bit_msb0(k);
-                T::from_bits_msb0(&bits)
+                bits[(T::BIT_SIZE - 1 - k) as usize] = true;
+                let y_summand = T::from_bits_msb0(&bits);
+                let v1 = (x_summands[k as usize] + y_summand) * random + masks[k as usize];
+
+                (v0, v1)
             })
-            .collect();
+            .unzip();
 
-        let mut b0 = vec![T::zero(); T::BIT_SIZE as usize];
-        for ((b, c), m) in b0.iter_mut().zip(components.iter()).zip(masks.iter()) {
-            *b = (*c * random) + *m;
-        }
+        // when the peer adds up all the received values, the masks will cancel one another out and
+        // the remaining `(x + y) * random` will be the peer's multiplicative share
 
-        let mut b1 = vec![T::zero(); T::BIT_SIZE as usize];
-        for (k, ((b, c), m)) in b1
-            .iter_mut()
-            .zip(components.iter())
-            .zip(masks.iter())
-            .enumerate()
-        {
-            *b = ((*c + T::two_pow(k as u32)) * random) + *m;
-        }
-
-        Ok((mul_share, OTEnvelope::new(b0, b1)?))
+        Ok((mul_share, OTEnvelope::new(v0, v1)?))
     }
 }
 
