@@ -5,7 +5,7 @@ use crate::{
     garble::{
         self,
         circuit::{self, unchecked as unchecked_circuit, unchecked::UncheckedCircuitOpening},
-        commitment, gc_state, label,
+        gc_state, label,
         label::{encoded::unchecked::*, input::unchecked::*, output::unchecked::*},
     },
     Block,
@@ -19,66 +19,9 @@ pub enum GarbleMessage {
     GarbledCircuit(GarbledCircuit),
     CircuitOpening(CircuitOpening),
     Output(Output),
-    HashCommitment(HashCommitment),
-    CommitmentOpening(CommitmentOpening),
+    HashCommitment(super::HashCommitment),
+    CommitmentOpening(super::CommitmentOpening),
     OutputLabelsDigest(OutputLabelsDigest),
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct HashCommitment([u8; 32]);
-
-impl From<commitment::HashCommitment> for HashCommitment {
-    fn from(c: commitment::HashCommitment) -> Self {
-        Self(c.0)
-    }
-}
-
-impl From<HashCommitment> for commitment::HashCommitment {
-    fn from(c: HashCommitment) -> Self {
-        Self(c.0)
-    }
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct CommitmentKey([u8; 32]);
-
-impl From<commitment::CommitmentKey> for CommitmentKey {
-    fn from(key: commitment::CommitmentKey) -> Self {
-        Self(key.0)
-    }
-}
-
-impl From<CommitmentKey> for commitment::CommitmentKey {
-    fn from(key: CommitmentKey) -> Self {
-        Self(key.0)
-    }
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct CommitmentOpening {
-    key: CommitmentKey,
-    message: Vec<u8>,
-}
-
-impl From<commitment::Opening> for CommitmentOpening {
-    fn from(c: commitment::Opening) -> Self {
-        Self {
-            key: c.key.into(),
-            message: c.message,
-        }
-    }
-}
-
-impl From<CommitmentOpening> for commitment::Opening {
-    fn from(c: CommitmentOpening) -> Self {
-        Self {
-            key: c.key.into(),
-            message: c.message,
-        }
-    }
 }
 
 #[derive(Debug, Clone)]

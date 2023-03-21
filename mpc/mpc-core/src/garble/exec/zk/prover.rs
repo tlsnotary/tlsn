@@ -1,12 +1,14 @@
-use crate::garble::{
-    circuit::{
-        state as gc_state,
-        unchecked::{UncheckedCircuitOpening, UncheckedGarbledCircuit},
-        GarbledCircuit,
+use crate::{
+    commit::{HashCommitment, Opening},
+    garble::{
+        circuit::{
+            state as gc_state,
+            unchecked::{UncheckedCircuitOpening, UncheckedGarbledCircuit},
+            GarbledCircuit,
+        },
+        label::ActiveInputSet,
+        CircuitOpening, Error, LabelsDigest,
     },
-    commitment::{HashCommitment, Opening},
-    label::ActiveInputSet,
-    CircuitOpening, Error, LabelsDigest,
 };
 use mpc_circuits::Circuit;
 

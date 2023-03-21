@@ -1,8 +1,10 @@
-use crate::garble::{
-    circuit::{state as gc_state, GarbledCircuit},
-    commitment::{HashCommitment, Opening},
-    label::{ActiveEncodedOutput, ActiveInputSet, FullInputSet, LabelsDigest},
-    Error,
+use crate::{
+    commit::{HashCommitment, Opening},
+    garble::{
+        circuit::{state as gc_state, GarbledCircuit},
+        label::{ActiveEncodedOutput, ActiveInputSet, FullInputSet, LabelsDigest},
+        Error,
+    },
 };
 use mpc_circuits::Circuit;
 

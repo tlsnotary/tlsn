@@ -59,7 +59,10 @@ mod tests {
 
     use std::sync::Arc;
 
-    use crate::garble::{commitment::Opening, ActiveInputSet, Delta, Error, FullInputSet};
+    use crate::{
+        commit::Opening,
+        garble::{ActiveInputSet, Delta, Error, FullInputSet},
+    };
 
     use mpc_circuits::{Circuit, Value, ADDER_64};
     use rand::SeedableRng;

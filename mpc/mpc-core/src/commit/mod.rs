@@ -1,4 +1,4 @@
-//! Commitments used during execution of garbled circuit protocols
+//! Commitment protocols
 
 use rand::{thread_rng, Rng};
 
@@ -7,7 +7,7 @@ use crate::utils::blake3;
 /// Error associated with commitments
 #[derive(Debug, thiserror::Error)]
 pub enum CommitmentError {
-    #[error("invalid commitment opening")]
+    #[error("Invalid commitment opening")]
     InvalidOpening,
     #[error("Message does not match commitment")]
     InvalidMessage,
