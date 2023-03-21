@@ -11,8 +11,8 @@ use async_trait::async_trait;
 use hmac_sha256_core::{MasterSecretStateLabels, SessionKeyLabels};
 use mpc_aio::protocol::garble::GCError;
 
-pub use follower::DEPRFFollower;
-pub use leader::DEPRFLeader;
+pub use follower::PRFFollower;
+pub use leader::PRFLeader;
 
 pub use hmac_sha256_core::{
     PRFFollowerConfig, PRFFollowerConfigBuilder, PRFFollowerConfigBuilderError, PRFLeaderConfig,
@@ -49,7 +49,7 @@ pub enum PRFError {
 }
 
 #[async_trait]
-pub trait PRFLeader {
+pub trait PRFLead {
     async fn compute_session_keys(
         &mut self,
         client_random: [u8; 32],
@@ -69,7 +69,7 @@ pub trait PRFLeader {
 }
 
 #[async_trait]
-pub trait PRFFollower {
+pub trait PRFFollow {
     async fn compute_session_keys(
         &mut self,
         pms_labels: PmsLabels,
@@ -89,25 +89,23 @@ pub mod mock {
 
     pub use hmac_sha256_core::mock::*;
 
-    use crate::{DEPRFFollower, DEPRFLeader};
+    use crate::{PRFFollower, PRFLeader};
 
     pub fn create_mock_prf_pair(
         leader_config: PRFLeaderConfig,
         follower_config: PRFFollowerConfig,
     ) -> (
-        DEPRFLeader<MockDualExFactory, MockDualExLeader>,
-        DEPRFFollower<MockDualExFactory, MockDualExFollower>,
+        PRFLeader<MockDualExFactory, MockDualExLeader>,
+        PRFFollower<MockDualExFactory, MockDualExFollower>,
     ) {
         let de_factory = create_mock_dualex_factory();
 
-        let leader = DEPRFLeader::<MockDualExFactory, MockDualExLeader>::new(
+        let leader = PRFLeader::<MockDualExFactory, MockDualExLeader>::new(
             leader_config,
             de_factory.clone(),
         );
-        let follower = DEPRFFollower::<MockDualExFactory, MockDualExFollower>::new(
-            follower_config,
-            de_factory,
-        );
+        let follower =
+            PRFFollower::<MockDualExFactory, MockDualExFollower>::new(follower_config, de_factory);
 
         (leader, follower)
     }

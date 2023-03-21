@@ -14,11 +14,11 @@ use mpc_core::garble::{
 };
 use utils_aio::factory::AsyncFactory;
 
-use crate::{circuits, PRFLeader, State};
+use crate::{circuits, PRFLead, State};
 
 use super::PRFError;
 
-pub struct DEPRFLeader<DEF, DE>
+pub struct PRFLeader<DEF, DE>
 where
     DEF: AsyncFactory<DE, Config = DualExConfig, Error = GCFactoryError>,
     DE: DEExecute + Send,
@@ -33,13 +33,13 @@ where
     _de: PhantomData<DE>,
 }
 
-impl<DEF, DE> DEPRFLeader<DEF, DE>
+impl<DEF, DE> PRFLeader<DEF, DE>
 where
     DEF: AsyncFactory<DE, Config = DualExConfig, Error = GCFactoryError> + Send,
     DE: DEExecute + Send,
 {
-    pub fn new(config: PRFLeaderConfig, de_factory: DEF) -> DEPRFLeader<DEF, DE> {
-        DEPRFLeader {
+    pub fn new(config: PRFLeaderConfig, de_factory: DEF) -> PRFLeader<DEF, DE> {
+        PRFLeader {
             config,
             state: State::SessionKeys,
             encoder: None,
@@ -177,7 +177,7 @@ where
 }
 
 #[async_trait]
-impl<DEF, DE> PRFLeader for DEPRFLeader<DEF, DE>
+impl<DEF, DE> PRFLead for PRFLeader<DEF, DE>
 where
     DEF: AsyncFactory<DE, Config = DualExConfig, Error = GCFactoryError> + Send,
     DE: DEExecute + Send,
