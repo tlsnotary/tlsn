@@ -2,6 +2,7 @@ use super::{config::AesGcmFollowerConfig, AesGcmTagShare, AES_GCM_TAG_LEN};
 
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
+use mpc_core::commit::{HashCommitment, Opening};
 use rand::Rng;
 use tlsn_universal_hash::UniversalHash;
 
@@ -105,19 +106,37 @@ where
             .compute_tag_share(explicit_nonce, aad, ciphertext.clone())
             .await?;
 
+        // Wait for commitment from leader
+        let msg = expect_msg_or_err!(
+            self.channel.next().await,
+            AeadMessage::TagShareCommitment,
+            AeadError::UnexpectedMessage
+        )?;
+
+        let commitment: HashCommitment = msg.into();
+
         // Send tag share to leader
         self.channel
             .send(AeadMessage::TagShare(tag_share.into()))
             .await?;
 
-        // Expect tag share from leader
+        // Expect opening (tag share) from leader
         let msg = expect_msg_or_err!(
             self.channel.next().await,
-            AeadMessage::TagShare,
+            AeadMessage::TagShareOpening,
             AeadError::UnexpectedMessage
         )?;
 
-        let other_tag_share = AesGcmTagShare::from_unchecked(msg.into())?;
+        let opening: Opening = msg.into();
+
+        // Verify commitment
+        commitment.verify(&opening).map_err(|_| {
+            AeadError::ValidationError(
+                "Leader tag share commitment verification failed".to_string(),
+            )
+        })?;
+
+        let other_tag_share = AesGcmTagShare::from_unchecked(opening.message())?;
 
         let tag = tag_share + other_tag_share;
 

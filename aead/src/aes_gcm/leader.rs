@@ -6,6 +6,7 @@ use rand::Rng;
 use tlsn_universal_hash::UniversalHash;
 
 use block_cipher::{Aes128, BlockCipher};
+use mpc_core::commit::Opening;
 use tlsn_stream_cipher::{cipher::Aes128Ctr, StreamCipherLeader};
 use utils_aio::expect_msg_or_err;
 
@@ -105,6 +106,14 @@ where
             .compute_tag_share(explicit_nonce, aad, ciphertext.clone())
             .await?;
 
+        // Send commitment of tag share to follower
+        let tag_share_opening = Opening::new(tag_share.0.as_slice());
+        let tag_share_commit = tag_share_opening.commit();
+
+        self.channel
+            .send(AeadMessage::TagShareCommitment(tag_share_commit.into()))
+            .await?;
+
         // Expect tag share from follower
         let msg = expect_msg_or_err!(
             self.channel.next().await,
@@ -112,11 +121,11 @@ where
             AeadError::UnexpectedMessage
         )?;
 
-        let other_tag_share = AesGcmTagShare::from_unchecked(msg.into())?;
+        let other_tag_share = AesGcmTagShare::from_unchecked(&msg.share)?;
 
-        // Send tag share to follower
+        // Send commitment opening (tag share) to follower
         self.channel
-            .send(AeadMessage::TagShare(tag_share.into()))
+            .send(AeadMessage::TagShareOpening(tag_share_opening.into()))
             .await?;
 
         let tag = tag_share + other_tag_share;

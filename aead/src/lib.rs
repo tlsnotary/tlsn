@@ -206,8 +206,3 @@ impl From<AeadLabels> for BlockCipherLabels {
         BlockCipherLabels::new(labels.key_full, labels.key_active)
     }
 }
-
-pub(crate) mod unchecked {
-    #[derive(Debug, Clone)]
-    pub struct UncheckedTagShare(pub Vec<u8>);
-}

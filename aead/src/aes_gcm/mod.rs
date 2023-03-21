@@ -24,14 +24,14 @@ pub const AES_GCM_TAG_LEN: usize = 16;
 pub struct AesGcmTagShare(pub(crate) [u8; 16]);
 
 impl AesGcmTagShare {
-    pub fn from_unchecked(share: crate::unchecked::UncheckedTagShare) -> Result<Self, AeadError> {
-        if share.0.len() != 16 {
+    pub fn from_unchecked(share: &[u8]) -> Result<Self, AeadError> {
+        if share.len() != 16 {
             return Err(AeadError::ValidationError(
                 "Received tag share is not 16 bytes long".to_string(),
             ));
         }
         let mut result = [0u8; 16];
-        result.copy_from_slice(&share.0);
+        result.copy_from_slice(share);
         Ok(Self(result))
     }
 }
@@ -238,6 +238,8 @@ mod tests {
         .unwrap_err();
         assert!(matches!(err, AeadError::CorruptedTag));
 
+        let (mut leader, mut follower) = setup_pair(key.clone(), iv.clone()).await;
+
         // follower receives corrupted tag
         let err = tokio::try_join!(
             leader.decrypt_private(
@@ -317,6 +319,8 @@ mod tests {
         )
         .unwrap_err();
         assert!(matches!(err, AeadError::CorruptedTag));
+
+        let (mut leader, mut follower) = setup_pair(key.clone(), iv.clone()).await;
 
         // follower receives corrupted tag
         let err = tokio::try_join!(

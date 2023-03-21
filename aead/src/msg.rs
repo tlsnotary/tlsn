@@ -1,9 +1,13 @@
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+use mpc_core::msgs::{CommitmentOpening, HashCommitment};
+
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum AeadMessage {
+    TagShareCommitment(HashCommitment),
+    TagShareOpening(CommitmentOpening),
     TagShare(TagShare),
 }
 
@@ -18,11 +22,5 @@ impl From<crate::aes_gcm::AesGcmTagShare> for TagShare {
         Self {
             share: tag_share.0.to_vec(),
         }
-    }
-}
-
-impl From<TagShare> for crate::unchecked::UncheckedTagShare {
-    fn from(tag_share: TagShare) -> Self {
-        Self(tag_share.share)
     }
 }
