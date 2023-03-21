@@ -1,4 +1,4 @@
-use super::{config::AesGcmLeaderConfig, AesGcmTagShare, AES_GCM_TAG_LEN};
+use super::{build_ghash_data, config::AesGcmLeaderConfig, AesGcmTagShare, AES_GCM_TAG_LEN};
 
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
@@ -62,30 +62,15 @@ where
     async fn compute_tag_share(
         &mut self,
         explicit_nonce: Vec<u8>,
-        mut aad: Vec<u8>,
-        mut ciphertext: Vec<u8>,
+        aad: Vec<u8>,
+        ciphertext: Vec<u8>,
     ) -> Result<AesGcmTagShare, AeadError> {
         let j0_share = self.compute_j0_share(explicit_nonce.clone()).await?;
 
-        let associated_data_bitlen = (aad.len() as u64) * 8;
-        let text_bitlen = (ciphertext.len() as u64) * 8;
-
-        let len_block = ((associated_data_bitlen as u128) << 64) + (text_bitlen as u128);
-
-        // pad data to be a multiple of 16 bytes
-        let aad_padded_block_count = (aad.len() / 16) + (aad.len() % 16 != 0) as usize;
-        aad.resize(aad_padded_block_count * 16, 0);
-
-        let ciphertext_padded_block_count =
-            (ciphertext.len() / 16) + (ciphertext.len() % 16 != 0) as usize;
-        ciphertext.resize(ciphertext_padded_block_count * 16, 0);
-
-        let mut data: Vec<u8> = Vec::with_capacity(aad.len() + ciphertext.len() + 8);
-        data.extend(aad);
-        data.extend(ciphertext);
-        data.extend_from_slice(&len_block.to_be_bytes());
-
-        let hash = self.ghash.finalize(data).await?;
+        let hash = self
+            .ghash
+            .finalize(build_ghash_data(aad, ciphertext))
+            .await?;
 
         let mut tag_share = [0u8; 16];
         tag_share.copy_from_slice(&hash[..]);
