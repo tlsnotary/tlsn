@@ -1,0 +1,37 @@
+[package]
+name = "tlsn-hmac-sha256-core"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "hmac_sha256_core"
+
+[features]
+default = []
+serde = ["dep:serde"]
+build-circuits = []
+
+[dependencies]
+tlsn-mpc-circuits.workspace = true
+tlsn-mpc-core.workspace = true
+tlsn-utils.workspace = true
+tlsn-hmac-sha256-utils = { path = "../hmac-sha256-utils" }
+
+sha2 = { workspace = true, features = ["compress"] }
+digest.workspace = true
+hmac.workspace = true
+rand.workspace = true
+thiserror.workspace = true
+serde = { workspace = true, features = ["derive"], optional = true }
+once_cell.workspace = true
+derive_builder.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+rand_chacha.workspace = true
+
+[build-dependencies]
+tlsn-mpc-circuits.workspace = true
+tlsn-hmac-sha256-circuits = { path = "../hmac-sha256-circuits" }
+prost.workspace = true
+rayon.workspace = true
