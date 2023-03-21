@@ -228,6 +228,43 @@ pub struct StreamCipherLabels {
     pub iv_active: ActiveLabels,
 }
 
+impl StreamCipherLabels {
+    /// Creates a new set of input labels for the stream cipher.
+    pub fn new(
+        key_full: FullLabels,
+        key_active: ActiveLabels,
+        iv_full: FullLabels,
+        iv_active: ActiveLabels,
+    ) -> Self {
+        Self {
+            key_full,
+            key_active,
+            iv_full,
+            iv_active,
+        }
+    }
+
+    /// Returns the full labels for the key input.
+    pub fn get_key_full(&self) -> &FullLabels {
+        &self.key_full
+    }
+
+    /// Returns the active labels for the key input.
+    pub fn get_key_active(&self) -> &ActiveLabels {
+        &self.key_active
+    }
+
+    /// Returns the full labels for the IV input.
+    pub fn get_iv_full(&self) -> &FullLabels {
+        &self.iv_full
+    }
+
+    /// Returns the active labels for the IV input.
+    pub fn get_iv_active(&self) -> &ActiveLabels {
+        &self.iv_active
+    }
+}
+
 #[cfg(feature = "mock")]
 pub mod mock {
     use super::*;

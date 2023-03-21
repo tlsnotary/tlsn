@@ -5,7 +5,6 @@
 //! Additionally, it provides various [execution modes](exec) which can be selected depending on protocol requirements.
 
 pub(crate) mod circuit;
-pub(crate) mod commitment;
 mod error;
 mod evaluator;
 pub mod exec;

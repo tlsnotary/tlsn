@@ -48,10 +48,12 @@ impl DESummary {
 
 #[cfg(test)]
 mod tests {
-    use crate::garble::{
-        commitment::Opening,
-        label::{ActiveInputSet, FullInputSet},
-        Error, LabelsDigest,
+    use crate::{
+        commit::Opening,
+        garble::{
+            label::{ActiveInputSet, FullInputSet},
+            Error, LabelsDigest,
+        },
     };
 
     use super::*;

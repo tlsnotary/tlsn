@@ -1,6 +1,6 @@
 use mpc_circuits::{CircuitId, GroupId};
 
-use super::commitment::CommitmentError;
+use crate::commit::CommitmentError;
 
 /// Error associated with garbled circuits
 #[derive(Debug, thiserror::Error)]

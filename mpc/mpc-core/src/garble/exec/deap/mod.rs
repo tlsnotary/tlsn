@@ -6,7 +6,10 @@ pub use leader::{state as leader_state, DEAPLeader};
 
 #[cfg(test)]
 mod tests {
-    use crate::garble::{commitment::Opening, ActiveInputSet, Delta, Error, FullInputSet};
+    use crate::{
+        commit::Opening,
+        garble::{ActiveInputSet, Delta, Error, FullInputSet},
+    };
     use std::sync::Arc;
 
     use super::*;
