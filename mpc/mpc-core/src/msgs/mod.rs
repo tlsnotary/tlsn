@@ -1,6 +1,3 @@
-#[cfg(feature = "ot")]
-pub mod ot;
-
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
