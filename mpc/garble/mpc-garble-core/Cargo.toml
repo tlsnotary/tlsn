@@ -1,20 +1,15 @@
 [package]
-name = "tlsn-mpc-core"
+name = "tlsn-mpc-garble-core"
 version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "mpc_core"
-
-[features]
-default = []
-serde = ["dep:serde"]
+name = "mpc_garble_core"
 
 [dependencies]
+tlsn-mpc-core.workspace = true
 tlsn-mpc-circuits.workspace = true
 tlsn-utils.workspace = true
-clmul.workspace = true
-matrix-transpose.workspace = true
 
 aes = { workspace = true, features = [] }
 cipher.workspace = true
@@ -23,13 +18,20 @@ rand.workspace = true
 rand_core.workspace = true
 rand_chacha.workspace = true
 regex = { workspace = true, optional = true }
-curve25519-dalek = { workspace = true, features = ["serde", "rand_core"] }
+
 serde = { workspace = true, features = ["derive"], optional = true }
 thiserror.workspace = true
 derive_builder.workspace = true
-merlin.workspace = true
 
 [dev-dependencies]
 rstest.workspace = true
 criterion.workspace = true
 pretty_assertions.workspace = true
+
+[[bench]]
+name = "garble"
+harness = false
+
+[[bench]]
+name = "encoder"
+harness = false

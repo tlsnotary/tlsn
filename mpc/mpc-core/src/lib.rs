@@ -1,7 +1,5 @@
 pub mod block;
 pub mod commit;
-#[cfg(feature = "garble")]
-pub mod garble;
 pub mod msgs;
 #[cfg(feature = "ot")]
 pub mod ot;

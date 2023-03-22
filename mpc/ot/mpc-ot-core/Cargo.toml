@@ -1,30 +1,26 @@
 [package]
-name = "tlsn-mpc-core"
+name = "tlsn-mpc-ot-core"
 version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "mpc_core"
-
-[features]
-default = []
-serde = ["dep:serde"]
+name = "mpc_ot_core"
 
 [dependencies]
-tlsn-mpc-circuits.workspace = true
+tlsn-mpc-core.workspace = true
 tlsn-utils.workspace = true
 clmul.workspace = true
 matrix-transpose.workspace = true
 
-aes = { workspace = true, features = [] }
-cipher.workspace = true
+aes.workspace = true
 blake3.workspace = true
+cipher.workspace = true
 rand.workspace = true
 rand_core.workspace = true
 rand_chacha.workspace = true
-regex = { workspace = true, optional = true }
 curve25519-dalek = { workspace = true, features = ["serde", "rand_core"] }
 serde = { workspace = true, features = ["derive"], optional = true }
+prost = { workspace = true, optional = true }
 thiserror.workspace = true
 derive_builder.workspace = true
 merlin.workspace = true
@@ -33,3 +29,10 @@ merlin.workspace = true
 rstest.workspace = true
 criterion.workspace = true
 pretty_assertions.workspace = true
+
+[build-dependencies]
+prost-build = { workspace = true, optional = true }
+
+[[bench]]
+name = "ot"
+harness = false
