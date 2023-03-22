@@ -10,8 +10,8 @@ use block_cipher::{
     mock::{create_mock_block_cipher_pair, MockDEBlockCipherFollower, MockDEBlockCipherLeader},
     Aes128, BlockCipher, BlockCipherConfigBuilder, Role as BlockCipherRole,
 };
-use mpc_core::garble::{ChaChaEncoder, Encoder, FullLabels};
-use share_conversion_aio::conversion::recorder::Void;
+use mpc_garble_core::{ChaChaEncoder, Encoder, FullLabels};
+use mpc_share_conversion::conversion::recorder::Void;
 use tlsn_stream_cipher::{
     cipher::Aes128Ctr,
     mock::{create_mock_stream_cipher_pair, MockStreamCipherFollower, MockStreamCipherLeader},

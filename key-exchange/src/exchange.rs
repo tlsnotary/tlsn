@@ -9,16 +9,16 @@ use super::{
 };
 use async_trait::async_trait;
 use futures::{lock::Mutex, SinkExt, StreamExt};
-use mpc_aio::protocol::garble::{exec::dual::DEExecute, factory::GCFactoryError};
 use mpc_circuits::{Input, Value, WireGroup};
-use mpc_core::garble::{
+use mpc_garble::{exec::dual::DEExecute, factory::GCFactoryError};
+use mpc_garble_core::{
     exec::dual::{DualExConfig, DualExConfigBuilder},
     label_state::{Active, Full},
-    ChaChaEncoder, Encoded, EncodedSet, Encoder, EncodingError, FullInputSet,
+    ChaChaEncoder, Encoded, EncodedSet, Encoder, EncodingError, FullEncodedInput, FullInputSet,
 };
+use mpc_share_conversion_core::fields::{p256::P256, Field};
 use p256::{EncodedPoint, SecretKey};
 use point_addition::PointAddition;
-use share_conversion_core::fields::{p256::P256, Field};
 use std::{borrow::Borrow, sync::Arc};
 use utils_aio::{expect_msg_or_err, factory::AsyncFactory};
 
@@ -172,7 +172,13 @@ where
         let full_labels = &COMBINE_PMS
             .inputs()
             .iter()
-            .map(|input| encoder.encode(self.config.encoder_default_stream_id, input, false))
+            .map(|input| {
+                FullEncodedInput::from_labels(
+                    input.clone(),
+                    encoder.encode(self.config.encoder_default_stream_id, input),
+                )
+                .expect("Labels should be valid")
+            })
             .collect::<Vec<Encoded<Input, Full>>>();
         let full_input_set =
             FullInputSet::new(full_labels.to_vec()).expect("Labels should be valid");
@@ -370,10 +376,10 @@ where
 
 #[cfg(test)]
 mod tests {
+    use mpc_share_conversion_core::fields::{p256::P256, Field};
     use p256::{NonZeroScalar, PublicKey, SecretKey};
     use rand_chacha::ChaCha20Rng;
     use rand_core::SeedableRng;
-    use share_conversion_core::fields::{p256::P256, Field};
 
     use super::{KeyExchangeFollow, KeyExchangeLead};
     use crate::{

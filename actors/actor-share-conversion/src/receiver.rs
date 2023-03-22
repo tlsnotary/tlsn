@@ -1,14 +1,13 @@
 use super::{A2MMessage, M2AMessage, SetupMessage, VerifyTapeMessage};
-use mpc_aio::protocol::ot::{OTFactoryError, ObliviousReceive};
-use mpc_core::ot::config::OTReceiverConfig;
-use share_conversion_aio::{
+use mpc_ot::{config::OTReceiverConfig, OTFactoryError, ObliviousReceive};
+use mpc_share_conversion::{
     conversion::{
         recorder::{Recorder, Tape, Void},
         Receiver as IOReceiver, ShareConversionMessage,
     },
     AdditiveToMultiplicative, MultiplicativeToAdditive, ShareConversionError, VerifyTape,
 };
-use share_conversion_core::{fields::Field, ShareConvert};
+use mpc_share_conversion_core::{fields::Field, ShareConvert};
 use utils_aio::{factory::AsyncFactory, mux::MuxChannelControl};
 use xtra::prelude::*;
 
@@ -25,7 +24,7 @@ enum State<
         id: String,
         /// a local muxer which provides a channel to the remote conversion sender
         muxer: V,
-        /// see `receiver_factory` in [share_conversion_aio::conversion::Receiver]
+        /// see `receiver_factory` in [mpc_share_conversion::conversion::Receiver]
         receiver_factory: T,
     },
     Setup(IOReceiver<T, OT, U, Y, X, W>),

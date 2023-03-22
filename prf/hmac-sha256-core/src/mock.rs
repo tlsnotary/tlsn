@@ -1,5 +1,5 @@
 use mpc_circuits::{BitOrder, Value};
-use mpc_core::garble::{ChaChaEncoder, Encoder};
+use mpc_garble_core::{ChaChaEncoder, Encoder};
 
 use super::*;
 

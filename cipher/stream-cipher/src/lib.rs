@@ -35,7 +35,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures::lock::Mutex;
 
-use mpc_core::garble::{ActiveLabels, ChaChaEncoder, FullLabels};
+use mpc_garble_core::{ActiveLabels, ChaChaEncoder, FullLabels};
 
 pub type StreamCipherChannel =
     Box<dyn Channel<StreamCipherMessage, Error = std::io::Error> + Send + Sync + Unpin>;
@@ -47,9 +47,9 @@ pub enum StreamCipherError {
     #[error("Muxer error: {0:?}")]
     MuxerError(#[from] utils_aio::mux::MuxerError),
     #[error("GCFactoryError: {0:?}")]
-    GCFactoryError(#[from] mpc_aio::protocol::garble::factory::GCFactoryError),
+    GCFactoryError(#[from] mpc_garble::factory::GCFactoryError),
     #[error("GCError: {0:?}")]
-    GCError(#[from] mpc_aio::protocol::garble::GCError),
+    GCError(#[from] mpc_garble::GCError),
     #[error("Keys are not set")]
     KeysNotSet,
     #[error("Encoder is not set")]
@@ -271,7 +271,8 @@ pub mod mock {
 
     use crate::cipher::CtrCircuitSuite;
     use cipher_circuits::AES_CTR;
-    use mpc_aio::protocol::garble::{
+    use mpc_circuits::{BitOrder, Value};
+    use mpc_garble::{
         exec::{
             dual::mock::{MockDualExFollower, MockDualExLeader},
             zk::mock::{MockProver, MockVerifier},
@@ -281,8 +282,7 @@ pub mod mock {
             zk::mock::{create_mock_zk_factory_pair, MockProverFactory, MockVerifierFactory},
         },
     };
-    use mpc_circuits::{BitOrder, Value};
-    use mpc_core::garble::Encoder;
+    use mpc_garble_core::Encoder;
     use utils_aio::duplex::DuplexChannel;
 
     pub type MockStreamCipherLeader<C> =

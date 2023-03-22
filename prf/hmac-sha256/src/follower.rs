@@ -7,8 +7,8 @@ use futures::lock::Mutex;
 use hmac_sha256_core::{
     self as follower_core, PRFFollowerConfig, PmsLabels, SessionKeyLabels, MS, SESSION_KEYS,
 };
-use mpc_aio::protocol::garble::{exec::dual::DEExecute, factory::GCFactoryError};
-use mpc_core::garble::{
+use mpc_garble::{exec::dual::DEExecute, factory::GCFactoryError};
+use mpc_garble_core::{
     exec::dual::{DualExConfig, DualExConfigBuilder},
     ChaChaEncoder,
 };

@@ -1,5 +1,5 @@
 [package]
-name = "tlsn-share-conversion-core"
+name = "tlsn-mpc-share-conversion-core"
 version = "0.1.0"
 edition = "2021"
 

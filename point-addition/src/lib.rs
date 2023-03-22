@@ -1,6 +1,6 @@
 use async_trait::async_trait;
-use share_conversion_aio::ShareConversionError;
-use share_conversion_core::fields::Field;
+use mpc_share_conversion::ShareConversionError;
+use mpc_share_conversion_core::fields::Field;
 
 mod conversion;
 #[cfg(feature = "mock")]
@@ -45,7 +45,7 @@ mod tests {
     };
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
-    use share_conversion_core::fields::p256::P256;
+    use mpc_share_conversion_core::fields::p256::P256;
 
     #[tokio::test]
     async fn test_point_conversion() {

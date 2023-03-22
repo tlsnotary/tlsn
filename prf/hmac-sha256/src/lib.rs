@@ -9,7 +9,7 @@ mod leader;
 use async_trait::async_trait;
 
 use hmac_sha256_core::{MasterSecretStateLabels, SessionKeyLabels};
-use mpc_aio::protocol::garble::GCError;
+use mpc_garble::GCError;
 
 pub use follower::PRFFollower;
 pub use leader::PRFLeader;
@@ -37,7 +37,7 @@ pub enum PRFError {
     #[error("GCError: {0}")]
     GCError(#[from] GCError),
     #[error("GCFactoryError: {0}")]
-    GCFactoryError(#[from] mpc_aio::protocol::garble::factory::GCFactoryError),
+    GCFactoryError(#[from] mpc_garble::factory::GCFactoryError),
     #[error("IO Error: {0}")]
     IOError(#[from] std::io::Error),
     #[error("MuxerError: {0}")]
@@ -82,7 +82,7 @@ pub trait PRFFollow {
 
 pub mod mock {
     use hmac_sha256_core::{PRFFollowerConfig, PRFLeaderConfig};
-    use mpc_aio::protocol::garble::{
+    use mpc_garble::{
         exec::dual::mock::{MockDualExFollower, MockDualExLeader},
         factory::dual::mock::{create_mock_dualex_factory, MockDualExFactory},
     };

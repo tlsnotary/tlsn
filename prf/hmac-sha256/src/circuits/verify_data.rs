@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use futures::lock::Mutex;
 use hmac_sha256_core::MasterSecretStateLabels;
-use mpc_aio::protocol::garble::{exec::dual::DEExecute, GCError};
+use mpc_garble::{exec::dual::DEExecute, GCError};
 use mpc_circuits::{Circuit, Value, WireGroup};
-use mpc_core::garble::{
+use mpc_garble_core::{
     ActiveEncodedInput, ChaChaEncoder, Encoder, FullEncodedInput, FullInputSet,
 };
 use rand::Rng;
@@ -179,8 +179,8 @@ mod tests {
 
     use crate::mock::create_mock_ms_state_labels;
     use hmac_sha256_core::CF_VD;
-    use mpc_aio::protocol::garble::exec::dual::mock::mock_dualex_pair;
-    use mpc_core::garble::exec::dual::DualExConfigBuilder;
+    use mpc_garble::exec::dual::mock::mock_dualex_pair;
+    use mpc_garble_core::exec::dual::DualExConfigBuilder;
 
     #[ignore = "expensive"]
     #[tokio::test]

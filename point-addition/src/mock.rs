@@ -1,10 +1,10 @@
 use super::{Converter, Role};
 use mpc_core::Block;
-use share_conversion_aio::conversion::{
+use mpc_share_conversion::conversion::{
     mock::{mock_converter_pair, MockReceiver, MockSender},
     recorder::Void,
 };
-use share_conversion_core::{fields::p256::P256, AddShare, MulShare};
+use mpc_share_conversion_core::{fields::p256::P256, AddShare, MulShare};
 
 pub type MockPointConversionSender = Converter<
     MockSender<AddShare<P256>, P256, [Block; 2], Void>,

@@ -4,9 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-share-conversion-aio = { path = "../../mpc/share-conversion-aio" }
-share-conversion-core = { path = "../../mpc/share-conversion-core" }
-tlsn-mpc-aio = { path = "../../mpc/mpc-aio" }
+tlsn-mpc-share-conversion = { path = "../../mpc/share-conversion/mpc-share-conversion" }
+tlsn-mpc-share-conversion-core = { path = "../../mpc/share-conversion/mpc-share-conversion-core" }
+tlsn-mpc-ot = { path = "../../mpc/ot/mpc-ot" }
 tlsn-mpc-core = { path = "../../mpc/mpc-core" }
 tlsn-utils-aio = { path = "../../utils/utils-aio" }
 xtra = { git = "https://github.com/Restioson/xtra", rev = "ca061b4", features = [

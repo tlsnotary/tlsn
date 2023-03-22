@@ -3,17 +3,17 @@ use std::collections::HashMap;
 use async_trait::async_trait;
 
 use futures::{channel::oneshot, stream::SplitSink, Future, StreamExt};
-use mpc_aio::protocol::ot::{
+use mpc_ot::{
     config::OTReceiverConfig, kos::receiver::Kos15IOReceiver, OTFactoryError,
     ObliviousAcceptCommit, ObliviousReceive,
 };
 use xtra::{prelude::*, scoped};
 
 use crate::{config::ReceiverFactoryConfig, GetReceiver, Setup};
-use mpc_core::{
-    msgs::ot::{OTFactoryMessage, OTMessage, Split},
-    ot::r_state::RandSetup,
-    Block,
+use mpc_core::Block;
+use mpc_ot_core::{
+    msgs::{OTFactoryMessage, OTMessage, Split},
+    r_state::RandSetup,
 };
 use utils_aio::{factory::AsyncFactory, mux::MuxChannelControl, Channel};
 

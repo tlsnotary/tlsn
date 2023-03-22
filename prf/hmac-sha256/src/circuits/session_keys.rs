@@ -1,6 +1,6 @@
 use hmac_sha256_core::{MasterSecretStateLabels, SessionKeyLabels, SESSION_KEYS};
-use mpc_aio::protocol::garble::{exec::dual::DEExecute, GCError};
-use mpc_core::garble::{ActiveEncodedInput, FullEncodedInput, FullInputSet};
+use mpc_garble::{exec::dual::DEExecute, GCError};
+use mpc_garble_core::{ActiveEncodedInput, FullEncodedInput, FullInputSet};
 
 /// Executes session_keys as PRFLeader
 ///
@@ -139,8 +139,8 @@ mod tests {
     use super::*;
 
     use hmac_sha256_core::mock::create_mock_ms_state_labels;
-    use mpc_aio::protocol::garble::exec::dual::mock::mock_dualex_pair;
-    use mpc_core::garble::exec::dual::DualExConfigBuilder;
+    use mpc_garble::exec::dual::mock::mock_dualex_pair;
+    use mpc_garble_core::exec::dual::DualExConfigBuilder;
     use utils::bits::FromBits;
 
     #[ignore = "expensive"]

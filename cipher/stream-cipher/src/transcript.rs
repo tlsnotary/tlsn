@@ -1,5 +1,5 @@
 use futures::Sink;
-use mpc_core::garble::Label;
+use mpc_garble_core::Label;
 
 pub type TranscriptSink = Box<dyn Sink<MessageTranscript, Error = std::io::Error> + Send + Unpin>;
 

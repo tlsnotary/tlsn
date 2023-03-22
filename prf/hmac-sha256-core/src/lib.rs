@@ -7,7 +7,7 @@ pub use config::{
 };
 
 use mpc_circuits::Circuit;
-use mpc_core::garble::{ActiveLabels, FullLabels};
+use mpc_garble_core::{ActiveLabels, FullLabels};
 use once_cell::sync::Lazy;
 use std::sync::Arc;
 

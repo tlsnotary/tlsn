@@ -7,15 +7,15 @@ use super::{
     KeyExchangeCore, KeyExchangeMessage,
 };
 use futures::lock::Mutex;
-use mpc_aio::protocol::{
-    garble::{
-        backend::RayonBackend,
-        exec::dual::{state::Initialized, DualExFollower, DualExLeader},
-        factory::dual::mock::{create_mock_dualex_factory, MockDualExFactory},
-    },
-    ot::mock::{MockOTFactory, MockOTReceiver, MockOTSender},
+use mpc_circuits::BitOrder;
+use mpc_core::Block;
+use mpc_garble::{
+    backend::RayonBackend,
+    exec::dual::{state::Initialized, DualExFollower, DualExLeader},
+    factory::dual::mock::{create_mock_dualex_factory, MockDualExFactory},
 };
-use mpc_core::{garble::ChaChaEncoder, Block};
+use mpc_garble_core::ChaChaEncoder;
+use mpc_ot::mock::{MockOTFactory, MockOTReceiver, MockOTSender};
 use point_addition::mock::{
     create_mock_point_converter_pair, MockPointConversionReceiver, MockPointConversionSender,
 };
@@ -79,7 +79,10 @@ pub fn create_mock_key_exchange_pair() -> (MockKeyExchangeLeader, MockKeyExchang
         dual_ex_factory.clone(),
         key_exchange_config_leader,
     );
-    leader.set_encoder(Arc::new(Mutex::new(ChaChaEncoder::new([0; 32]))));
+    leader.set_encoder(Arc::new(Mutex::new(ChaChaEncoder::new(
+        [0; 32],
+        BitOrder::Lsb0,
+    ))));
 
     let mut follower = KeyExchangeCore::new(
         Box::new(follower_channel),
@@ -88,7 +91,10 @@ pub fn create_mock_key_exchange_pair() -> (MockKeyExchangeLeader, MockKeyExchang
         dual_ex_factory,
         key_exchange_config_follower,
     );
-    follower.set_encoder(Arc::new(Mutex::new(ChaChaEncoder::new([0; 32]))));
+    follower.set_encoder(Arc::new(Mutex::new(ChaChaEncoder::new(
+        [0; 32],
+        BitOrder::Lsb0,
+    ))));
 
     (leader, follower)
 }

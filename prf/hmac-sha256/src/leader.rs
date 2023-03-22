@@ -7,8 +7,8 @@ use hmac_sha256_core::{
     self as leader_core, PRFLeaderConfig, PmsLabels, SessionKeyLabels, MS, SESSION_KEYS,
 };
 use leader_core::{CF_VD, SF_VD};
-use mpc_aio::protocol::garble::{exec::dual::DEExecute, factory::GCFactoryError};
-use mpc_core::garble::{
+use mpc_garble::{exec::dual::DEExecute, factory::GCFactoryError};
+use mpc_garble_core::{
     exec::dual::{DualExConfig, DualExConfigBuilder},
     ChaChaEncoder,
 };

@@ -1,7 +1,7 @@
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use mpc_core::garble::Label;
+use mpc_garble_core::Label;
 
 #[derive(Debug)]
 pub enum StreamCipherMessage {

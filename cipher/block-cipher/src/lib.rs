@@ -11,8 +11,8 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures::lock::Mutex;
 
-use mpc_aio::protocol::garble::GCError;
-use mpc_core::garble::{ActiveLabels, ChaChaEncoder, FullLabels};
+use mpc_garble::GCError;
+use mpc_garble_core::{ActiveLabels, ChaChaEncoder, FullLabels};
 
 pub use crate::{
     cipher::DEBlockCipher,
@@ -30,7 +30,7 @@ pub enum BlockCipherError {
     #[error("MuxerError: {0}")]
     MuxerError(#[from] utils_aio::mux::MuxerError),
     #[error("GCFactoryError: {0}")]
-    GCFactoryError(#[from] mpc_aio::protocol::garble::factory::GCFactoryError),
+    GCFactoryError(#[from] mpc_garble::factory::GCFactoryError),
     #[error("GCError: {0}")]
     GCError(#[from] GCError),
     #[error("Cipher key labels not set")]
@@ -112,12 +112,12 @@ where
 
 #[cfg(feature = "mock")]
 pub mod mock {
-    use mpc_aio::protocol::garble::{
+    use mpc_circuits::{BitOrder, Value};
+    use mpc_garble::{
         exec::dual::mock::{MockDualExFollower, MockDualExLeader},
         factory::dual::mock::{create_mock_dualex_factory, MockDualExFactory},
     };
-    use mpc_circuits::{BitOrder, Value};
-    use mpc_core::garble::Encoder;
+    use mpc_garble_core::Encoder;
 
     use super::*;
 

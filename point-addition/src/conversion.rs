@@ -8,8 +8,8 @@
 use super::{PointAddition, PointAdditionError};
 use async_trait::async_trait;
 use p256::EncodedPoint;
-use share_conversion_aio::{AdditiveToMultiplicative, MultiplicativeToAdditive};
-use share_conversion_core::fields::{p256::P256, Field};
+use mpc_share_conversion::{AdditiveToMultiplicative, MultiplicativeToAdditive};
+use mpc_share_conversion_core::fields::{p256::P256, Field};
 
 /// The instance used for adding the curve points
 pub struct Converter<T, U, V>

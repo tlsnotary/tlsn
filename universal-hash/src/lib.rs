@@ -12,7 +12,7 @@ pub enum UniversalHashError {
     #[error("Invalid input length: {0}")]
     InputLengthError(usize),
     #[error("Share Conversion Error: {0}")]
-    ShareConversionError(#[from] share_conversion_aio::ShareConversionError),
+    ShareConversionError(#[from] mpc_share_conversion::ShareConversionError),
 }
 
 #[async_trait]

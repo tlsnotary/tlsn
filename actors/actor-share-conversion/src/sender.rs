@@ -1,14 +1,13 @@
 use super::{A2MMessage, M2AMessage, SendTapeMessage, SetupMessage};
-use mpc_aio::protocol::ot::{OTFactoryError, ObliviousSend};
-use mpc_core::ot::config::OTSenderConfig;
-use share_conversion_aio::{
+use mpc_ot::{config::OTSenderConfig, OTFactoryError, ObliviousSend};
+use mpc_share_conversion::{
     conversion::{
         recorder::{Recorder, Tape, Void},
         Sender as IOSender, ShareConversionMessage,
     },
     AdditiveToMultiplicative, MultiplicativeToAdditive, SendTape, ShareConversionError,
 };
-use share_conversion_core::{fields::Field, ShareConvert};
+use mpc_share_conversion_core::{fields::Field, ShareConvert};
 use utils_aio::{adaptive_barrier::AdaptiveBarrier, factory::AsyncFactory, mux::MuxChannelControl};
 use xtra::prelude::*;
 
@@ -23,11 +22,11 @@ enum State<
 > {
     Initialized {
         id: String,
-        /// see `barrier` in [share_conversion_aio::conversion::Sender]
+        /// see `barrier` in [mpc_share_conversion::conversion::Sender]
         barrier: Option<AdaptiveBarrier>,
         /// a local muxer which provides a channel to the remote conversion receiver
         muxer: V,
-        /// see `sender_factory` in [share_conversion_aio::conversion::Sender]
+        /// see `sender_factory` in [mpc_share_conversion::conversion::Sender]
         sender_factory: T,
     },
     Setup(IOSender<T, OT, U, Y, X, W>),

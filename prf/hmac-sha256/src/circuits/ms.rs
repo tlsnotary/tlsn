@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use futures::lock::Mutex;
 use hmac_sha256_core::{MasterSecretStateLabels, PmsLabels, MS};
-use mpc_aio::protocol::garble::{exec::dual::DEExecute, GCError};
+use mpc_garble::{exec::dual::DEExecute, GCError};
 use mpc_circuits::{Value, WireGroup};
-use mpc_core::garble::{
+use mpc_garble_core::{
     exec::dual::DESummary, ActiveEncodedInput, ChaChaEncoder, Encoder, FullEncodedInput,
     FullInputSet,
 };
