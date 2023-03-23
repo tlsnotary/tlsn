@@ -26,7 +26,7 @@ rand.workspace = true
 rand_core.workspace = true
 rand_chacha = { workspace = true }
 thiserror.workspace = true
-aes = { workspace = true, optional = true }
+aes = { workspace = true }
 rayon = { workspace = true }
 
 [dev-dependencies]

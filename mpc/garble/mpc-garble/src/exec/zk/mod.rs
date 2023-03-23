@@ -105,17 +105,12 @@ pub trait Verify {
 
 #[cfg(feature = "mock")]
 pub mod mock {
+    use super::*;
+    use crate::backend::GarbleBackend;
     use mpc_core::Block;
     use mpc_garble_core::exec::zk::{ProverConfig, VerifierConfig};
     use mpc_ot::mock::{MockOTFactory, MockOTReceiver, MockOTSender};
     use utils_aio::duplex::DuplexChannel;
-
-    use crate::protocol::{
-        garble::backend::GarbleBackend,
-        ot::mock::{MockOTFactory, MockOTReceiver, MockOTSender},
-    };
-
-    use super::*;
 
     pub type MockProver = Prover<
         prover_state::Initialized,

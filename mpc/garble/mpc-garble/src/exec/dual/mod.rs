@@ -210,11 +210,9 @@ where
 #[cfg(feature = "mock")]
 pub mod mock {
     use super::{state::Initialized, *};
-    use crate::protocol::{
-        garble::backend::GarbleBackend,
-        ot::mock::{MockOTFactory, MockOTReceiver, MockOTSender},
-    };
+    use crate::backend::GarbleBackend;
     use mpc_core::Block;
+    use mpc_garble_core::msgs::GarbleMessage;
     use mpc_ot::mock::{MockOTFactory, MockOTReceiver, MockOTSender};
     use utils_aio::duplex::DuplexChannel;
 

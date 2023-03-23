@@ -12,11 +12,10 @@ pub(crate) use super::dual::setup_inputs_with;
 #[cfg(feature = "mock")]
 pub mod mock {
     use super::*;
-    use crate::protocol::{
-        garble::backend::GarbleBackend,
-        ot::mock::{MockOTFactory, MockOTReceiver, MockOTSender},
-    };
-    use mpc_core::{garble::exec::dual::DualExConfig, msgs::garble::GarbleMessage, Block};
+    use crate::backend::GarbleBackend;
+    use mpc_core::Block;
+    use mpc_garble_core::{exec::dual::DualExConfig, msgs::GarbleMessage};
+    use mpc_ot::mock::{MockOTFactory, MockOTReceiver, MockOTSender};
     use utils_aio::duplex::DuplexChannel;
 
     pub type MockDEAPLeader = DEAPLeader<

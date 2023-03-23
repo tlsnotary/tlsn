@@ -1,20 +1,12 @@
-use crate::protocol::garble::{Compressor, Evaluator, GCError, Generator, Validator};
+use crate::{Compressor, Evaluator, GCError, Generator, Validator};
 use aes::{Aes128, NewBlockCipher};
 use async_trait::async_trait;
 use mpc_circuits::Circuit;
-<<<<<<<< HEAD:mpc/garble/mpc-garble/src/backend/rayon.rs
 use mpc_garble_core::{gc_state, ActiveInputSet, CircuitOpening, FullInputSet, GarbledCircuit};
-
-use crate::{Compressor, Evaluator, GCError, Generator, Validator};
-
-/// Garbler backend using Rayon to garble and evaluate circuits asynchronously and in parallel
-========
-use mpc_core::garble::{gc_state, ActiveInputSet, CircuitOpening, FullInputSet, GarbledCircuit};
 use std::sync::Arc;
 use utils_aio::non_blocking_backend::{Backend, NonBlockingBackend};
 
 /// Garbler backend to garble and evaluate circuits asynchronously and in parallel
->>>>>>>> 6090ec1 (Replaced old RayonBackend for Garbling with new Backend):mpc/garble/mpc-garble/src/backend.rs
 #[derive(Clone)]
 pub struct GarbleBackend;
 

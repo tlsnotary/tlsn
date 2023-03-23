@@ -209,10 +209,7 @@ pub mod mock {
     use utils_aio::mux::mock::MockMuxChannelFactory;
 
     use super::*;
-    use crate::protocol::{
-        garble::backend::GarbleBackend,
-        ot::mock::{MockOTFactory, MockOTReceiver, MockOTSender},
-    };
+    use crate::backend::GarbleBackend;
 
     pub type MockDEAPLeaderFactory = DEAPLeaderFactory<
         MockMuxChannelFactory<GarbleMessage>,
