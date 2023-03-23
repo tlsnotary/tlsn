@@ -17,7 +17,7 @@ pub use msg::AeadMessage;
 use async_trait::async_trait;
 
 use block_cipher::BlockCipherLabels;
-use mpc_core::garble::{ActiveLabels, FullLabels};
+use mpc_garble_core::{ActiveLabels, FullLabels};
 use tlsn_stream_cipher::StreamCipherLabels;
 use utils_aio::Channel;
 

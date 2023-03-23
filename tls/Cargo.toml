@@ -3,14 +3,6 @@ members = ["tls-core"]
 exclude = ["tls-client"]
 
 [workspace.dependencies]
-# tlsn
-tlsn-mpc-circuits = { path = "../mpc/mpc-circuits" }
-tlsn-mpc-core = { path = "../mpc/mpc-core" }
-tlsn-mpc-aio = { path = "../mpc/mpc-aio" }
-tlsn-utils = { path = "../utils/utils" }
-tlsn-utils-aio = { path = "../utils/utils-aio" }
-share-conversion-core = { path = "../mpc/share-conversion-core" }
-
 # rand
 rand = "0.8"
 rand_chacha = "0.3"

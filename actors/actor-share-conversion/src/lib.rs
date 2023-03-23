@@ -15,18 +15,18 @@ mod tests {
     use actor_mux::{
         MockClientChannelMuxer, MockClientControl, MockServerChannelMuxer, MockServerControl,
     };
-    use mpc_aio::protocol::ot::mock::{MockOTFactory, MockOTReceiver, MockOTSender};
     use mpc_core::Block;
-    use rand::SeedableRng;
-    use rand_chacha::ChaCha12Rng;
-    use share_conversion_aio::{
+    use mpc_ot::mock::{MockOTFactory, MockOTReceiver, MockOTSender};
+    use mpc_share_conversion::{
         conversion::recorder::Tape, AdditiveToMultiplicative, MultiplicativeToAdditive, SendTape,
         VerifyTape,
     };
-    use share_conversion_core::{
+    use mpc_share_conversion_core::{
         fields::{gf2_128::Gf2_128, UniformRand},
         AddShare, MulShare, ShareConvert,
     };
+    use rand::SeedableRng;
+    use rand_chacha::ChaCha12Rng;
     use utils_aio::adaptive_barrier::AdaptiveBarrier;
     use xtra::prelude::*;
 

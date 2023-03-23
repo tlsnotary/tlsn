@@ -1,9 +1,9 @@
 use mpc_core::Block;
-use share_conversion_aio::conversion::{
+use mpc_share_conversion::conversion::{
     mock::{mock_converter_pair, MockReceiver, MockSender},
     recorder::Recorder,
 };
-use share_conversion_core::{fields::gf2_128::Gf2_128, AddShare, MulShare};
+use mpc_share_conversion_core::{fields::gf2_128::Gf2_128, AddShare, MulShare};
 
 use super::{Ghash, GhashConfigBuilder};
 

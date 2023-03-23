@@ -3,9 +3,9 @@ use std::{marker::PhantomData, sync::Arc};
 use async_trait::async_trait;
 use futures::lock::Mutex;
 
-use mpc_aio::protocol::garble::{exec::dual::DEExecute, factory::GCFactoryError};
 use mpc_circuits::{Value, WireGroup};
-use mpc_core::garble::{
+use mpc_garble::{exec::dual::DEExecute, factory::GCFactoryError};
+use mpc_garble_core::{
     exec::dual::{DualExConfig, DualExConfigBuilder},
     ActiveEncodedInput, ChaChaEncoder, Encoder, FullEncodedInput, FullInputSet,
 };

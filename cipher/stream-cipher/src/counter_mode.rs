@@ -10,8 +10,8 @@ use crate::{
     utils::block_count,
     StreamCipherError,
 };
-use mpc_aio::protocol::garble::{exec::dual::DEExecute, factory::GCFactoryError};
-use mpc_core::garble::exec::dual::{DESummary, DualExConfig, DualExConfigBuilder};
+use mpc_garble::{exec::dual::DEExecute, factory::GCFactoryError};
+use mpc_garble_core::exec::dual::{DESummary, DualExConfig, DualExConfigBuilder};
 use utils_aio::factory::AsyncFactory;
 
 pub struct CtrMode<C, DEF, DE>

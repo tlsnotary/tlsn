@@ -14,6 +14,7 @@ build-circuits = []
 [dependencies]
 tlsn-mpc-circuits.workspace = true
 tlsn-mpc-core.workspace = true
+tlsn-mpc-garble-core.workspace = true
 tlsn-utils.workspace = true
 tlsn-hmac-sha256-utils = { path = "../hmac-sha256-utils" }
 

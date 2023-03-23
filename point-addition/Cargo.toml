@@ -12,8 +12,8 @@ mock = ["dep:tlsn-mpc-core"]
 
 [dependencies]
 tlsn-mpc-core = { path = "../mpc/mpc-core", optional = true }
-share-conversion-aio = { path = "../mpc/share-conversion-aio"}
-share-conversion-core = { path = "../mpc/share-conversion-core"}
+tlsn-mpc-share-conversion = { path = "../mpc/share-conversion/mpc-share-conversion" }
+tlsn-mpc-share-conversion-core = { path = "../mpc/share-conversion/mpc-share-conversion-core" }
 p256 = { version = "0.12", features = ["arithmetic"] }
 async-trait = "0.1"
 thiserror = "1"
@@ -22,4 +22,3 @@ thiserror = "1"
 tokio = { version = "1.23", features = ["macros", "rt", "rt-multi-thread"] }
 rand_chacha = "0.3"
 rand = "0.8"
-

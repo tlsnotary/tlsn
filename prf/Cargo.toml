@@ -10,7 +10,8 @@ members = [
 # tlsn
 tlsn-mpc-circuits = { path = "../mpc/mpc-circuits" }
 tlsn-mpc-core = { path = "../mpc/mpc-core" }
-tlsn-mpc-aio = { path = "../mpc/mpc-aio" }
+tlsn-mpc-garble-core = { path = "../mpc/garble/mpc-garble-core" }
+tlsn-mpc-garble = { path = "../mpc/garble/mpc-garble" }
 tlsn-utils = { path = "../utils/utils" }
 tlsn-utils-aio = { path = "../utils/utils-aio" }
 

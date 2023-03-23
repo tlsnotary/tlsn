@@ -18,9 +18,9 @@ pub mod msg;
 mod role;
 
 use async_trait::async_trait;
-use mpc_aio::protocol::garble::{factory::GCFactoryError, GCError};
+use mpc_garble::{factory::GCFactoryError, GCError};
 use mpc_circuits::{CircuitError, GroupError};
-use mpc_core::garble::{
+use mpc_garble_core::{
     exec::dual::DualExConfigBuilderError, ActiveLabels, EncodingError, Error, FullLabels,
 };
 pub use msg::KeyExchangeMessage;

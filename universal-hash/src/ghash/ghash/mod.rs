@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use share_conversion_core::fields::gf2_128::Gf2_128;
+use mpc_share_conversion_core::fields::gf2_128::Gf2_128;
 
 use crate::{
     ghash::ghash_core::{
@@ -8,7 +8,7 @@ use crate::{
     },
     UniversalHash, UniversalHashError,
 };
-use share_conversion_aio::{AdditiveToMultiplicative, MultiplicativeToAdditive};
+use mpc_share_conversion::{AdditiveToMultiplicative, MultiplicativeToAdditive};
 
 mod config;
 #[cfg(feature = "mock")]
@@ -165,9 +165,9 @@ mod tests {
         universal_hash::{NewUniversalHash, UniversalHash as UniversalHashReference},
         GHash as GhashReference,
     };
+    use mpc_share_conversion::conversion::recorder::Void;
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
-    use share_conversion_aio::conversion::recorder::Void;
 
     #[tokio::test]
     async fn test_ghash_output() {

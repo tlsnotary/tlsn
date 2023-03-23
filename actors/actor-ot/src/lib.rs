@@ -48,16 +48,14 @@ mod test {
     use actor_mux::{
         MockClientChannelMuxer, MockClientControl, MockServerChannelMuxer, MockServerControl,
     };
-    use mpc_aio::protocol::ot::{
-        OTFactoryError, ObliviousReceive, ObliviousReveal, ObliviousSend, ObliviousVerify,
-    };
-    use mpc_core::{
-        msgs::ot::OTFactoryMessage,
-        ot::config::{
+    use mpc_core::Block;
+    use mpc_ot::{
+        config::{
             OTReceiverConfig, OTReceiverConfigBuilder, OTSenderConfig, OTSenderConfigBuilder,
         },
-        Block,
+        OTFactoryError, ObliviousReceive, ObliviousReveal, ObliviousSend, ObliviousVerify,
     };
+    use mpc_ot_core::msgs::OTFactoryMessage;
     use utils_aio::{factory::AsyncFactory, mux::MuxChannelControl, Channel};
     use xtra::prelude::*;
 

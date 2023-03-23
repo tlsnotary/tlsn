@@ -13,11 +13,11 @@ use crate::{
     utils::block_count,
     Role, StreamCipherChannel, StreamCipherError, StreamCipherFollower, StreamCipherLabels,
 };
-use mpc_aio::protocol::garble::{
+use mpc_garble::{
     exec::{dual::DEExecute, zk::Verify},
     factory::GCFactoryError,
 };
-use mpc_core::garble::{
+use mpc_garble_core::{
     exec::{
         dual::{DESummary, DualExConfig},
         zk::{VerifierConfig, VerifierConfigBuilder},

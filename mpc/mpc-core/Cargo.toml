@@ -6,21 +6,16 @@ edition = "2021"
 [lib]
 name = "mpc_core"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [features]
-default = ["ot", "garble"]
-garble = ["regex"]
-ot = []
-pa = []
-proto = ["prost", "prost-build"]
+default = []
 serde = ["dep:serde"]
 
 [dependencies]
-tlsn-mpc-circuits = { path = "../mpc-circuits" }
-clmul = { path = "../clmul" }
-matrix-transpose = { path = "../matrix-transpose" }
+tlsn-mpc-circuits.workspace = true
 tlsn-utils.workspace = true
+clmul.workspace = true
+matrix-transpose.workspace = true
+
 aes = { workspace = true, features = [] }
 cipher.workspace = true
 blake3.workspace = true
@@ -30,7 +25,6 @@ rand_chacha.workspace = true
 regex = { workspace = true, optional = true }
 curve25519-dalek = { workspace = true, features = ["serde", "rand_core"] }
 serde = { workspace = true, features = ["derive"], optional = true }
-prost = { workspace = true, optional = true }
 thiserror.workspace = true
 derive_builder.workspace = true
 merlin.workspace = true
@@ -39,18 +33,3 @@ merlin.workspace = true
 rstest.workspace = true
 criterion.workspace = true
 pretty_assertions.workspace = true
-
-[build-dependencies]
-prost-build = { workspace = true, optional = true }
-
-[[bench]]
-name = "garble"
-harness = false
-
-[[bench]]
-name = "ot"
-harness = false
-
-[[bench]]
-name = "encoder"
-harness = false

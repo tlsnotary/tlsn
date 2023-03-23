@@ -11,11 +11,11 @@ mock = []
 [dependencies]
 # tlsn
 tlsn-mpc-core = { path = "../mpc/mpc-core" }
-tlsn-mpc-aio = { path = "../mpc/mpc-aio" }
+tlsn-mpc-ot = { path = "../mpc/ot/mpc-ot" }
 tlsn-utils = { path = "../utils/utils" }
 tlsn-utils-aio = { path = "../utils/utils-aio" }
-share-conversion-core = { path = "../mpc/share-conversion-core" }
-share-conversion-aio = { path = "../mpc/share-conversion-aio" }
+tlsn-mpc-share-conversion-core = { path = "../mpc/share-conversion/mpc-share-conversion-core" }
+tlsn-mpc-share-conversion = { path = "../mpc/share-conversion/mpc-share-conversion" }
 
 # rand
 rand_chacha = "0.3"

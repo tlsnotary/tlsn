@@ -6,7 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tlsn-mpc-aio = { path = "../../mpc/mpc-aio" }
+tlsn-mpc-ot-core = { path = "../../mpc/ot/mpc-ot-core" }
+tlsn-mpc-ot = { path = "../../mpc/ot/mpc-ot" }
 tlsn-mpc-core = { path = "../../mpc/mpc-core" }
 tlsn-utils-aio = { path = "../../utils/utils-aio" }
 async-trait = "0.1"

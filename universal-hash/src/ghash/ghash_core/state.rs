@@ -1,4 +1,4 @@
-use share_conversion_core::fields::gf2_128::Gf2_128;
+use mpc_share_conversion_core::fields::gf2_128::Gf2_128;
 
 mod sealed {
     pub trait Sealed {}

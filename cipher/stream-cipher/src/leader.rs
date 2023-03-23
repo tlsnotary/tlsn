@@ -15,11 +15,11 @@ use crate::{
     MessageTranscript, Role, StreamCipherChannel, StreamCipherError, StreamCipherLabels,
     StreamCipherLeader, TranscriptSink,
 };
-use mpc_aio::protocol::garble::{
+use mpc_garble::{
     exec::{dual::DEExecute, zk::Prove},
     factory::GCFactoryError,
 };
-use mpc_core::garble::{
+use mpc_garble_core::{
     exec::{
         dual::{DESummary, DualExConfig},
         zk::{ProverConfig, ProverConfigBuilder},

@@ -16,8 +16,9 @@ tlsn-stream-cipher = { path = "../cipher/stream-cipher" }
 tlsn-universal-hash = { path = "../universal-hash" }
 tlsn-mpc-circuits = { path = "../mpc/mpc-circuits" }
 tlsn-mpc-core = { path = "../mpc/mpc-core" }
+tlsn-mpc-garble-core = { path = "../mpc/garble/mpc-garble-core" }
 tlsn-utils-aio = { path = "../utils/utils-aio" }
-share-conversion-aio = { path = "../mpc/share-conversion-aio" }
+tlsn-mpc-share-conversion = { path = "../mpc/share-conversion/mpc-share-conversion" }
 
 async-trait = "0.1"
 derive_builder = "0.11"

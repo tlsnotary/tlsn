@@ -1,17 +1,17 @@
 use async_trait::async_trait;
 
 use futures::{stream::SplitSink, Future, SinkExt, StreamExt};
-use mpc_aio::protocol::ot::{
+use mpc_ot::{
     config::OTSenderConfig, kos::sender::Kos15IOSender, OTFactoryError, ObliviousCommit,
     ObliviousReveal, ObliviousSend,
 };
 use xtra::{prelude::*, scoped};
 
 use crate::{config::SenderFactoryConfig, GetSender, Setup, Verify};
-use mpc_core::{
-    msgs::ot::{OTFactoryMessage, OTMessage, Split},
-    ot::s_state::RandSetup,
-    Block,
+use mpc_core::Block;
+use mpc_ot_core::{
+    msgs::{OTFactoryMessage, OTMessage, Split},
+    s_state::RandSetup,
 };
 use utils_aio::{factory::AsyncFactory, mux::MuxChannelControl, Channel};
 

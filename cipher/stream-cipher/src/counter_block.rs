@@ -1,6 +1,6 @@
-use mpc_aio::protocol::garble::exec::dual::DEExecute;
 use mpc_circuits::{Value, WireGroup};
-use mpc_core::garble::{exec::dual::DESummary, ActiveEncodedInput, FullInputSet};
+use mpc_garble::exec::dual::DEExecute;
+use mpc_garble_core::{exec::dual::DESummary, ActiveEncodedInput, FullInputSet};
 use rand::RngCore;
 
 use crate::{

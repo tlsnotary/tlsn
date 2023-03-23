@@ -1,18 +1,28 @@
 [workspace]
 members = [
     "mpc-core",
+    "garble/*",
+    "ot/*",
     "mpc-circuits",
-    "mpc-aio",
-    "share-conversion-core",
-    "share-conversion-aio",
+    "share-conversion/*",
     "matrix-transpose",
     "clmul",
 ]
 
 [workspace.dependencies]
 # tlsn
+tlsn-mpc-core = { path = "mpc-core" }
+tlsn-mpc-circuits = { path = "mpc-circuits" }
+tlsn-mpc-ot-core = { path = "ot/mpc-ot-core" }
+tlsn-mpc-ot = { path = "ot/mpc-ot" }
+tlsn-mpc-garble-core = { path = "garble/mpc-garble-core" }
+tlsn-mpc-garble = { path = "garble/mpc-garble" }
+tlsn-mpc-share-conversion-core = { path = "share-conversion/mpc-share-conversion-core" }
+tlsn-share-conversion = { path = "share-conversion/mpc-share-conversion" }
 tlsn-utils = { path = "../utils/utils" }
 tlsn-utils-aio = { path = "../utils/utils-aio" }
+clmul = { path = "clmul" }
+matrix-transpose = { path = "matrix-transpose" }
 
 # rand
 rand_chacha = "0.3"
@@ -50,7 +60,6 @@ yamux = "0.10"
 
 # testing
 prost = "0.9"
-mockall = "0.11"
 rstest = "0.12"
 pretty_assertions = "1"
 criterion = "0.3"
