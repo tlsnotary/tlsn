@@ -170,24 +170,22 @@ where
 
 #[cfg(feature = "mock")]
 pub mod mock {
+    use super::*;
+    use crate::backend::GarbleBackend;
     use mpc_core::Block;
     use mpc_ot::mock::{MockOTFactory, MockOTReceiver, MockOTSender};
     use utils_aio::mux::mock::MockMuxChannelFactory;
 
-    use crate::backend::RayonBackend;
-
-    use super::*;
-
     pub type MockProverFactory = ProverFactory<
         MockMuxChannelFactory<GarbleMessage>,
-        RayonBackend,
+        GarbleBackend,
         MockOTFactory<Block>,
         MockOTReceiver<Block>,
     >;
 
     pub type MockVerifierFactory = VerifierFactory<
         MockMuxChannelFactory<GarbleMessage>,
-        RayonBackend,
+        GarbleBackend,
         MockOTFactory<Block>,
         MockOTSender<Block>,
     >;
@@ -197,8 +195,8 @@ pub mod mock {
         let ot_factory = MockOTFactory::new();
 
         (
-            ProverFactory::new(mux_factory.clone(), RayonBackend, ot_factory.clone()),
-            VerifierFactory::new(mux_factory, RayonBackend, ot_factory),
+            ProverFactory::new(mux_factory.clone(), GarbleBackend, ot_factory.clone()),
+            VerifierFactory::new(mux_factory, GarbleBackend, ot_factory),
         )
     }
 }

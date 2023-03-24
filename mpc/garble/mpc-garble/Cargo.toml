@@ -26,12 +26,6 @@ rand.workspace = true
 rand_core.workspace = true
 rand_chacha = { workspace = true }
 thiserror.workspace = true
-tokio = { workspace = true, features = [
-    "net",
-    "macros",
-    "rt",
-    "rt-multi-thread",
-] }
 aes = { workspace = true }
 rayon = { workspace = true }
 
@@ -40,6 +34,12 @@ tlsn-mpc-ot = { workspace = true, features = ["mock"] }
 rstest = { workspace = true }
 criterion = { workspace = true, features = ["async_tokio"] }
 tlsn-utils-aio = { workspace = true, features = ["duplex"] }
+tokio = { workspace = true, features = [
+    "net",
+    "macros",
+    "rt",
+    "rt-multi-thread",
+] }
 
 [[bench]]
 name = "dualex"

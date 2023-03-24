@@ -12,7 +12,7 @@ pub(crate) use super::dual::setup_inputs_with;
 #[cfg(feature = "mock")]
 pub mod mock {
     use super::*;
-    use crate::backend::RayonBackend;
+    use crate::backend::GarbleBackend;
     use mpc_core::Block;
     use mpc_garble_core::{exec::dual::DualExConfig, msgs::GarbleMessage};
     use mpc_ot::mock::{MockOTFactory, MockOTReceiver, MockOTSender};
@@ -20,7 +20,7 @@ pub mod mock {
 
     pub type MockDEAPLeader = DEAPLeader<
         leader_state::Initialized,
-        RayonBackend,
+        GarbleBackend,
         MockOTFactory<Block>,
         MockOTFactory<Block>,
         MockOTSender<Block>,
@@ -28,7 +28,7 @@ pub mod mock {
     >;
     pub type MockDEAPFollower = DEAPFollower<
         follower_state::Initialized,
-        RayonBackend,
+        GarbleBackend,
         MockOTFactory<Block>,
         MockOTFactory<Block>,
         MockOTSender<Block>,
@@ -42,7 +42,7 @@ pub mod mock {
         let leader = DEAPLeader::new(
             config.clone(),
             Box::new(leader_channel),
-            RayonBackend,
+            GarbleBackend,
             ot_factory.clone(),
             ot_factory.clone(),
         );
@@ -50,7 +50,7 @@ pub mod mock {
         let follower = DEAPFollower::new(
             config,
             Box::new(follower_channel),
-            RayonBackend,
+            GarbleBackend,
             ot_factory.clone(),
             ot_factory,
         );

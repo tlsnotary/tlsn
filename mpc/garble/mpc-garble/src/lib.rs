@@ -5,6 +5,7 @@ pub mod factory;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use futures::channel::oneshot::Canceled;
 use mpc_circuits::Circuit;
 use mpc_garble_core::{
     gc_state, msgs::GarbleMessage, ActiveInputSet, CircuitOpening, FullInputSet, GarbledCircuit,
@@ -29,8 +30,8 @@ pub enum GCError {
     OTFactoryError(#[from] mpc_ot::OTFactoryError),
     #[error("Received unexpected message: {0:?}")]
     Unexpected(GarbleMessage),
-    #[error("backend error")]
-    BackendError(String),
+    #[error("Backend error")]
+    BackendError(#[from] Canceled),
     #[error("Configured to send OTs but no OT sender was provided")]
     MissingOTSender,
     #[error("Configured to receive OTs but no OT receiver was provided")]

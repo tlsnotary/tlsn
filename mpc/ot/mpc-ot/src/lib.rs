@@ -3,6 +3,7 @@ pub mod kos;
 pub mod mock;
 
 use async_trait::async_trait;
+use futures::channel::oneshot::Canceled;
 use mpc_circuits::{InputValue, WireGroup};
 use mpc_core::Block;
 use mpc_garble_core::{ActiveEncodedInput, ActiveLabels, FullEncodedInput};
@@ -34,6 +35,8 @@ pub enum OTError {
     Unexpected(OTMessage),
     #[error("Received ciphertext with wrong length: expected {0}, got {1}")]
     InvalidCiphertextLength(usize, usize),
+    #[error("Encountered error in backend")]
+    Backend(#[from] Canceled),
 }
 
 #[derive(Debug, thiserror::Error)]

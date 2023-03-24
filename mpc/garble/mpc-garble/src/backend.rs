@@ -1,71 +1,53 @@
-use std::sync::Arc;
-
+use crate::{Compressor, Evaluator, GCError, Generator, Validator};
 use aes::{Aes128, NewBlockCipher};
 use async_trait::async_trait;
-use futures::channel::oneshot;
-
 use mpc_circuits::Circuit;
 use mpc_garble_core::{gc_state, ActiveInputSet, CircuitOpening, FullInputSet, GarbledCircuit};
+use std::sync::Arc;
+use utils_aio::non_blocking_backend::{Backend, NonBlockingBackend};
 
-use crate::{Compressor, Evaluator, GCError, Generator, Validator};
-
-/// Garbler backend using Rayon to garble and evaluate circuits asynchronously and in parallel
+/// Garbler backend to garble and evaluate circuits asynchronously and in parallel
 #[derive(Clone)]
-pub struct RayonBackend;
+pub struct GarbleBackend;
 
 #[async_trait]
-impl Generator for RayonBackend {
+impl Generator for GarbleBackend {
     async fn generate(
         &mut self,
         circ: Arc<Circuit>,
         input_labels: FullInputSet,
     ) -> Result<GarbledCircuit<gc_state::Full>, GCError> {
-        let (sender, receiver) = oneshot::channel();
-        rayon::spawn(move || {
+        Backend::spawn(move || {
             let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
-            let gc = GarbledCircuit::generate(&cipher, circ, input_labels).map_err(GCError::from);
-            _ = sender.send(gc);
-        });
-        receiver
-            .await
-            .map_err(|_| GCError::BackendError("channel error".to_string()))?
+            GarbledCircuit::generate(&cipher, circ, input_labels).map_err(GCError::from)
+        })
+        .await
     }
 }
 
 #[async_trait]
-impl Evaluator for RayonBackend {
+impl Evaluator for GarbleBackend {
     async fn evaluate(
         &mut self,
         circ: GarbledCircuit<gc_state::Partial>,
         input_labels: ActiveInputSet,
     ) -> Result<GarbledCircuit<gc_state::Evaluated>, GCError> {
-        let (sender, receiver) = oneshot::channel();
-        rayon::spawn(move || {
+        Backend::spawn(move || {
             let cipher = Aes128::new_from_slice(&[0u8; 16]).unwrap();
-            let ev = circ.evaluate(&cipher, input_labels).map_err(GCError::from);
-            _ = sender.send(ev);
-        });
-        receiver
-            .await
-            .map_err(|_| GCError::BackendError("channel error".to_string()))?
+            circ.evaluate(&cipher, input_labels).map_err(GCError::from)
+        })
+        .await
     }
 }
 
 #[async_trait]
-impl Validator for RayonBackend {
+impl Validator for GarbleBackend {
     async fn validate_evaluated(
         &mut self,
         circ: GarbledCircuit<gc_state::Evaluated>,
         opening: CircuitOpening,
     ) -> Result<GarbledCircuit<gc_state::Evaluated>, GCError> {
-        let (sender, receiver) = oneshot::channel();
-        rayon::spawn(move || {
-            let circ = circ.validate(opening).map(|_| circ).map_err(GCError::from);
-            _ = sender.send(circ);
-        });
-        receiver
-            .await
-            .map_err(|_| GCError::BackendError("channel error".to_string()))?
+        Backend::spawn(move || circ.validate(opening).map(|_| circ).map_err(GCError::from)).await
     }
 
     async fn validate_compressed(
@@ -73,30 +55,17 @@ impl Validator for RayonBackend {
         circ: GarbledCircuit<gc_state::Compressed>,
         opening: CircuitOpening,
     ) -> Result<GarbledCircuit<gc_state::Compressed>, GCError> {
-        let (sender, receiver) = oneshot::channel();
-        rayon::spawn(move || {
-            let circ = circ.validate(opening).map(|_| circ).map_err(GCError::from);
-            _ = sender.send(circ);
-        });
-        receiver
-            .await
-            .map_err(|_| GCError::BackendError("channel error".to_string()))?
+        Backend::spawn(move || circ.validate(opening).map(|_| circ).map_err(GCError::from)).await
     }
 }
 
 #[async_trait]
-impl Compressor for RayonBackend {
+impl Compressor for GarbleBackend {
     async fn compress(
         &mut self,
         circ: GarbledCircuit<gc_state::Evaluated>,
     ) -> Result<GarbledCircuit<gc_state::Compressed>, GCError> {
-        let (sender, receiver) = oneshot::channel();
-        rayon::spawn(move || {
-            _ = sender.send(Ok(circ.into_compressed()));
-        });
-        receiver
-            .await
-            .map_err(|_| GCError::BackendError("channel error".to_string()))?
+        Backend::spawn(move || Ok(circ.into_compressed())).await
     }
 }
 
@@ -111,7 +80,7 @@ mod test {
     async fn test_rayon_garbler() {
         let circ = ADDER_64.clone();
         let input_labels = FullInputSet::generate(&mut thread_rng(), &circ, None);
-        let gc = RayonBackend
+        let gc = GarbleBackend
             .generate(circ.clone(), input_labels.clone())
             .await
             .unwrap();
@@ -122,7 +91,7 @@ mod test {
         ])
         .unwrap();
 
-        let _ = RayonBackend
+        let _ = GarbleBackend
             .evaluate(gc.get_partial(true, false).unwrap(), input_labels)
             .await
             .unwrap();
@@ -133,7 +102,7 @@ mod test {
         let circ = ADDER_64.clone();
         let input_labels = FullInputSet::generate(&mut thread_rng(), &circ, None);
 
-        let gc = RayonBackend
+        let gc = GarbleBackend
             .generate(circ.clone(), input_labels.clone())
             .await
             .unwrap();
@@ -145,19 +114,19 @@ mod test {
         ])
         .unwrap();
 
-        let ev_gc = RayonBackend
+        let ev_gc = GarbleBackend
             .evaluate(gc.get_partial(true, false).unwrap(), input_labels)
             .await
             .unwrap();
 
-        let ev_gc = RayonBackend
+        let ev_gc = GarbleBackend
             .validate_evaluated(ev_gc, opening.clone())
             .await
             .unwrap();
 
-        let compressed_gc = RayonBackend.compress(ev_gc).await.unwrap();
+        let compressed_gc = GarbleBackend.compress(ev_gc).await.unwrap();
 
-        let _ = RayonBackend
+        let _ = GarbleBackend
             .validate_compressed(compressed_gc, opening)
             .await
             .unwrap();
