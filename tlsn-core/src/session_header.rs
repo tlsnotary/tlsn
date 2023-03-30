@@ -1,6 +1,11 @@
-use crate::{handshake_summary::HandshakeSummary, LabelSeed};
+use crate::{error::Error, handshake_summary::HandshakeSummary, pubkey::PubKey, signer::Signer};
 use serde::Serialize;
 
+/// A PRG seeds from which to generate garbled circuit active labels, see
+/// [crate::commitment::CommitmentType::labels_blake3]
+pub type LabelSeed = [u8; 32];
+
+/// An authentic session header from the Notary
 #[derive(Clone, Serialize, Default)]
 pub struct SessionHeader {
     /// A PRG seeds from which to generate garbled circuit active labels, see
@@ -16,9 +21,6 @@ pub struct SessionHeader {
     merkle_root: [u8; 32],
 
     handshake_summary: HandshakeSummary,
-
-    /// Notary's signature over all the other fields of this structure
-    signature: Option<Vec<u8>>,
 }
 
 impl SessionHeader {
@@ -26,14 +28,32 @@ impl SessionHeader {
         label_seed: LabelSeed,
         merkle_root: [u8; 32],
         handshake_summary: HandshakeSummary,
-        signature: Option<Vec<u8>>,
     ) -> Self {
         Self {
             label_seed,
             merkle_root,
             handshake_summary,
-            signature,
         }
+    }
+
+    pub fn from_msg(msg: &SessionHeaderMsg, pubkey: Option<&PubKey>) -> Result<Self, Error> {
+        match (pubkey, msg.signature) {
+            (Some(pubkey), Some(sig)) => msg.verify(pubkey),
+            (None, None) => msg.get_header(),
+            _ => {
+                return Err(Error::InternalError);
+            }
+        }
+    }
+
+    pub fn sign(self, signer: &Signer) -> Result<&[u8], Error> {
+        let msg = self.serialize()?;
+        let sig = signer.sign(msg);
+        Ok(sig)
+    }
+
+    pub fn serialize(&self) -> Result<Vec<u8>, Error> {
+        bincode::serialize(&self).map_err(|_| Error::SerializationError)
     }
 
     pub fn label_seed(&self) -> &LabelSeed {
@@ -47,8 +67,51 @@ impl SessionHeader {
     pub fn handshake_summary(&self) -> &HandshakeSummary {
         &self.handshake_summary
     }
+}
 
-    pub fn signature(&self) -> Option<&[u8]> {
-        self.signature.as_deref()
+pub struct SessionHeaderMsg {
+    header: SessionHeader,
+    /// signature over `header`
+    signature: Option<Vec<u8>>,
+}
+
+impl SessionHeaderMsg {
+    pub fn new(header: &SessionHeader, signature: Option<Vec<u8>>) -> Self {
+        Self {
+            header: header.clone(),
+            signature,
+        }
+    }
+
+    /// Verifies the signature over the header against the public key
+    ///
+    /// Returns the verified header
+    pub fn verify(&self, pubkey: &PubKey) -> Result<SessionHeader, Error> {
+        let msg = self.header.serialize()?;
+
+        match self.signature {
+            Some(signature) => {
+                pubkey.verify_signature(&msg, &signature)?;
+            }
+            _ => {
+                return Err(Error::SignatureExpected);
+            }
+        }
+
+        Ok(self.header)
+    }
+
+    /// Returns the session header only if the signature is not present
+    pub fn get_header(&self) -> Result<SessionHeader, Error> {
+        match self.signature {
+            Some(signature) => Ok(self.header),
+            _ => {
+                return Err(Error::SignatureNotExpected);
+            }
+        }
+    }
+
+    pub fn signature(&self) -> Option<Vec<u8>> {
+        self.signature
     }
 }

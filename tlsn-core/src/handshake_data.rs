@@ -1,4 +1,4 @@
-use crate::error::Error;
+use crate::{error::Error, utils::blake3, webpki_utils, HashCommitment, SessionHeader};
 use serde::Serialize;
 
 /// an x509 certificate in DER format
@@ -37,24 +37,75 @@ impl HandshakeData {
         }
     }
 
-    pub fn serialize(&self) -> Result<Vec<u8>, Error> {
+    /// Creates a hash commitment to `self`
+    pub fn commit(&self) -> Result<HashCommitment, Error> {
+        let msg = self.serialize()?;
+        Ok(blake3(&msg))
+    }
+
+    fn serialize(&self) -> Result<Vec<u8>, Error> {
         bincode::serialize(&self).map_err(|_| Error::SerializationError)
     }
+}
 
-    pub fn tls_cert_chain(&self) -> &[CertDER] {
-        &self.tls_cert_chain
+pub struct HandshakeDataMsg {
+    tls_cert_chain: Vec<CertDER>,
+    sig_ke_params: ServerSignature,
+    client_random: Vec<u8>,
+    server_random: Vec<u8>,
+}
+
+impl HandshakeDataMsg {
+    /// Verifies the TLS document against the DNS name `dns_name`:
+    /// - end entity certificate was issued to `dns_name` and was valid at the time of the
+    ///   notarization
+    /// - certificate chain was signed by a trusted certificate authority
+    /// - key exchange parameters were signed by the end entity certificate
+    /// - commitment to misc TLS data is correct
+    ///
+    pub fn verify(self, header: &SessionHeader, dns_name: &str) -> Result<(), Error> {
+        // Verify TLS certificate chain against local root certs. Some certs in the chain may
+        // have expired at the time of this verification. We verify their validity at the time
+        // of notarization.
+        webpki_utils::verify_cert_chain(&self.tls_cert_chain, header.handshake_summary().time())?;
+
+        let ee_cert = webpki_utils::extract_end_entity_cert(&self.tls_cert_chain)?;
+
+        // check that TLS key exchange parameters were signed by the end-entity cert
+        webpki_utils::verify_sig_ke_params(
+            &ee_cert,
+            &self.sig_ke_params,
+            header.handshake_summary().ephemeral_ec_pubkey(),
+            &self.client_random,
+            &self.server_random,
+        )?;
+
+        webpki_utils::check_dns_name_present_in_cert(&ee_cert, dns_name)?;
+
+        // Create a commitment and compare it to the value committed to earlier
+        let expected = HandshakeData::new(
+            self.tls_cert_chain,
+            self.sig_ke_params,
+            self.client_random,
+            self.server_random,
+        )
+        .commit()?;
+        if &expected != header.handshake_summary().handshake_commitment() {
+            return Err(Error::CommitmentVerificationFailed);
+        }
+
+        Ok(())
     }
+}
 
-    pub fn sig_ke_params(&self) -> &ServerSignature {
-        &self.sig_ke_params
-    }
-
-    pub fn client_random(&self) -> &[u8] {
-        &self.client_random
-    }
-
-    pub fn server_random(&self) -> &[u8] {
-        &self.server_random
+impl From<HandshakeData> for HandshakeDataMsg {
+    fn from(data: HandshakeData) -> HandshakeDataMsg {
+        HandshakeDataMsg {
+            tls_cert_chain: data.tls_cert_chain,
+            sig_ke_params: data.sig_ke_params,
+            client_random: data.client_random,
+            server_random: data.server_random,
+        }
     }
 }
 

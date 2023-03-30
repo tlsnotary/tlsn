@@ -1,4 +1,4 @@
-use crate::HashCommitment;
+use crate::{pubkey::PubKey, HashCommitment};
 use serde::Serialize;
 
 #[derive(Clone, Serialize, Default)]
@@ -6,7 +6,7 @@ pub struct HandshakeSummary {
     /// notarization time against which the TLS Certificate validity is checked
     time: u64,
     /// ephemeral pubkey for ECDH key exchange
-    ephemeral_ec_pubkey: EphemeralECPubkey,
+    ephemeral_ec_pubkey: PubKey,
     /// User's commitment to [crate::handshake_data::HandshakeData]
     handshake_commitment: HashCommitment,
 }
@@ -14,7 +14,7 @@ pub struct HandshakeSummary {
 impl HandshakeSummary {
     pub fn new(
         time: u64,
-        ephemeral_ec_pubkey: EphemeralECPubkey,
+        ephemeral_ec_pubkey: PubKey,
         handshake_commitment: HashCommitment,
     ) -> Self {
         Self {
@@ -28,7 +28,7 @@ impl HandshakeSummary {
         self.time
     }
 
-    pub fn ephemeral_ec_pubkey(&self) -> &EphemeralECPubkey {
+    pub fn ephemeral_ec_pubkey(&self) -> &PubKey {
         &self.ephemeral_ec_pubkey
     }
 
@@ -39,24 +39,24 @@ impl HandshakeSummary {
 
 /// Types of the ephemeral EC pubkey currently supported by TLSNotary
 #[derive(Clone, Serialize, Default)]
-pub enum EphemeralECPubkeyType {
+pub enum EphemeralKeyType {
     #[default]
     P256,
 }
 
 /// The ephemeral EC public key (part of the TLS key exchange parameters)
 #[derive(Clone, Serialize, Default)]
-pub struct EphemeralECPubkey {
-    typ: EphemeralECPubkeyType,
+pub struct EphemeralKey {
+    typ: EphemeralKeyType,
     pubkey: Vec<u8>,
 }
 
-impl EphemeralECPubkey {
-    pub fn new(typ: EphemeralECPubkeyType, pubkey: Vec<u8>) -> Self {
+impl EphemeralKey {
+    pub fn new(typ: EphemeralKeyType, pubkey: Vec<u8>) -> Self {
         Self { typ, pubkey }
     }
 
-    pub fn typ(&self) -> &EphemeralECPubkeyType {
+    pub fn typ(&self) -> &EphemeralKeyType {
         &self.typ
     }
 

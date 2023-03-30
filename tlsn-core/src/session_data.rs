@@ -1,5 +1,6 @@
 use crate::{commitment::Commitment, handshake_data::HandshakeData, transcript::Transcript};
 
+#[derive(Default)]
 pub struct SessionData {
     handshake_data: HandshakeData,
     transcript: Transcript,
