@@ -1,12 +1,13 @@
 [workspace]
 members = [
-    "mpc-core",
-    "garble/*",
-    "ot/*",
+    #"mpc-core",
+    #"garble/*",
+    #"ot/*",
     "mpc-circuits",
-    "share-conversion/*",
-    "matrix-transpose",
-    "clmul",
+    "mpc-circuits-macros",
+    #"share-conversion/*",
+    #"matrix-transpose",
+    #"clmul",
 ]
 
 [workspace.dependencies]
