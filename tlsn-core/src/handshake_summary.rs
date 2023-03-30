@@ -1,12 +1,14 @@
-use crate::HashCommitment;
-use serde::Serialize;
+use crate::{pubkey::PubKey, HashCommitment};
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Serialize, Default)]
+/// Handshake summary is part of the session header signed by the Notary
+#[derive(Clone, Serialize, Deserialize)]
 pub struct HandshakeSummary {
-    /// notarization time against which the TLS Certificate validity is checked
+    /// time when Notary signed the session header
+    // TODO: we can change this to be the time when the Notary started the TLS handshake 2PC
     time: u64,
     /// ephemeral pubkey for ECDH key exchange
-    ephemeral_ec_pubkey: EphemeralECPubkey,
+    ephemeral_ec_pubkey: PubKey,
     /// User's commitment to [crate::handshake_data::HandshakeData]
     handshake_commitment: HashCommitment,
 }
@@ -14,7 +16,7 @@ pub struct HandshakeSummary {
 impl HandshakeSummary {
     pub fn new(
         time: u64,
-        ephemeral_ec_pubkey: EphemeralECPubkey,
+        ephemeral_ec_pubkey: PubKey,
         handshake_commitment: HashCommitment,
     ) -> Self {
         Self {
@@ -28,39 +30,11 @@ impl HandshakeSummary {
         self.time
     }
 
-    pub fn ephemeral_ec_pubkey(&self) -> &EphemeralECPubkey {
+    pub fn ephemeral_ec_pubkey(&self) -> &PubKey {
         &self.ephemeral_ec_pubkey
     }
 
     pub fn handshake_commitment(&self) -> &HashCommitment {
         &self.handshake_commitment
-    }
-}
-
-/// Types of the ephemeral EC pubkey currently supported by TLSNotary
-#[derive(Clone, Serialize, Default)]
-pub enum EphemeralECPubkeyType {
-    #[default]
-    P256,
-}
-
-/// The ephemeral EC public key (part of the TLS key exchange parameters)
-#[derive(Clone, Serialize, Default)]
-pub struct EphemeralECPubkey {
-    typ: EphemeralECPubkeyType,
-    pubkey: Vec<u8>,
-}
-
-impl EphemeralECPubkey {
-    pub fn new(typ: EphemeralECPubkeyType, pubkey: Vec<u8>) -> Self {
-        Self { typ, pubkey }
-    }
-
-    pub fn typ(&self) -> &EphemeralECPubkeyType {
-        &self.typ
-    }
-
-    pub fn pubkey(&self) -> &[u8] {
-        &self.pubkey
     }
 }
