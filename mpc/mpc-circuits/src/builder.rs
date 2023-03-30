@@ -97,7 +97,7 @@ impl CircuitBuilder {
     /// # Returns
     ///
     /// The binary encoded form of the array.
-    pub fn add_array_input<'a, const N: usize, T: ToBinaryRepr + BinaryLength>(
+    pub fn add_array_input<'a, T: ToBinaryRepr + BinaryLength, const N: usize>(
         &'a self,
     ) -> [Tracer<'a, T::Repr>; N]
     where

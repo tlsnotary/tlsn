@@ -132,7 +132,7 @@ pub(crate) fn trace_impl(args: TokenStream, item: TokenStream) -> TokenStream {
                     _ => panic!("Unsupported argument type: {:?}", arg.to_token_stream()),
                 };
 
-                parse_quote! { let #ident = builder.add_array_input::<#len, #ty>(); }
+                parse_quote! { let #ident = builder.add_array_input::<#ty, #len>(); }
             }
             _ => {
                 panic!("Unsupported argument type: {:?}", arg.to_token_stream())

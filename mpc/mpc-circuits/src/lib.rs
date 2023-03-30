@@ -56,8 +56,8 @@ pub use once_cell;
 ///
 /// fn main() {
 ///     let builder = CircuitBuilder::new();
-///     let a = builder.add_array_input::<16, u8>();
-///     let b = builder.add_array_input::<16, u8>();
+///     let a = builder.add_array_input::<u8, 16>();
+///     let b = builder.add_array_input::<u8, 16>();
 ///
 ///     let c = bitxor_trace(&mut builder.state(), a, b);
 ///
@@ -110,8 +110,8 @@ pub use mpc_circuits_macros::trace;
 ///
 /// fn main() {
 ///    let builder = CircuitBuilder::new();
-///    let a = builder.add_array_input::<16, u8>();
-///    let b = builder.add_array_input::<16, u8>();
+///    let a = builder.add_array_input::<u8, 16>();
+///    let b = builder.add_array_input::<u8, 16>();
 ///
 ///    let c = bitxor_and_trace(&mut builder.state(), a, b);
 ///

@@ -91,8 +91,8 @@ mod tests {
     fn test_nbyte_add_mod() {
         let builder = CircuitBuilder::new();
 
-        let a = builder.add_array_input::<2, u8>();
-        let b = builder.add_array_input::<2, u8>();
+        let a = builder.add_array_input::<u8, 2>();
+        let b = builder.add_array_input::<u8, 2>();
         let modulus = [0u8, 239u8];
 
         let sum = nbyte_add_mod_trace(&builder.state(), a, b, modulus).map(|v| v.to_inner());
