@@ -21,8 +21,3 @@ Cargo.lock
 
 # vscode project specific settings
 .vscode/
-
-tlsn-mpc-circuits/compiled/*
-
-# ignore compiled circuits
-**/bin/*.bin
