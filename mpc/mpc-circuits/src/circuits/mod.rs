@@ -13,9 +13,8 @@ use crate::{
 /// AES-128 circuit.
 ///
 /// The circuit has the following signature:
-/// ```ignore
-/// fn(key: [u8; 16], msg: [u8; 16]) -> [u8; 16]
-/// ```
+///
+/// `fn(key: [u8; 16], msg: [u8; 16]) -> [u8; 16]`
 #[cfg(feature = "aes")]
 pub static AES128: Lazy<Arc<Circuit>> = Lazy::new(|| {
     let bytes = include_bytes!("../../circuits/bin/aes_128.bin");
@@ -25,9 +24,8 @@ pub static AES128: Lazy<Arc<Circuit>> = Lazy::new(|| {
 /// SHA-256 circuit.
 ///
 /// The circuit has the following signature:
-/// ```ignore
-/// fn(state: [u32; 8], msg: [u8; 64]) -> [u32; 8]
-/// ```
+///
+/// `fn(state: [u32; 8], msg: [u8; 64]) -> [u32; 8]`
 #[cfg(feature = "sha2")]
 pub static SHA256: Lazy<Arc<Circuit>> = Lazy::new(|| {
     let bytes = include_bytes!("../../circuits/bin/sha256.bin");

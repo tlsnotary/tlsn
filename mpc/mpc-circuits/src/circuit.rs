@@ -219,12 +219,10 @@ mod tests {
 
     #[test]
     fn test_evaluate() {
-        extern crate self as mpc_circuits;
-
         let circ = build_adder();
 
         let out = evaluate!(circ, fn(1u8, 2u8) -> u8).unwrap();
 
-        println!("out: {:?}", out);
+        assert_eq!(out, 3u8);
     }
 }

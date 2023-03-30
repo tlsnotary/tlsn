@@ -177,9 +177,6 @@ pub(crate) fn xor_nbit<const N: usize>(
     a: [Node<Feed>; N],
     b: [Node<Feed>; N],
 ) -> [Node<Feed>; N] {
-    debug_assert_eq!(a.len(), N);
-    debug_assert_eq!(b.len(), N);
-
     std::array::from_fn(|n| state.add_xor_gate(a[n], b[n]))
 }
 
@@ -189,9 +186,6 @@ pub(crate) fn and_nbit<const N: usize>(
     a: [Node<Feed>; N],
     b: [Node<Feed>; N],
 ) -> [Node<Feed>; N] {
-    debug_assert_eq!(a.len(), N);
-    debug_assert_eq!(b.len(), N);
-
     std::array::from_fn(|n| state.add_and_gate(a[n], b[n]))
 }
 
@@ -201,9 +195,6 @@ pub(crate) fn or_nbit<const N: usize>(
     a: [Node<Feed>; N],
     b: [Node<Feed>; N],
 ) -> [Node<Feed>; N] {
-    debug_assert_eq!(a.len(), N);
-    debug_assert_eq!(b.len(), N);
-
     std::array::from_fn(|n| {
         // OR = (A ⊕ B) ⊕ (A ^ B)
         let a_xor_b = state.add_xor_gate(a[n], b[n]);

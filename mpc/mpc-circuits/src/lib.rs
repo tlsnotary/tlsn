@@ -65,9 +65,12 @@ pub use once_cell;
 ///
 ///     let circ = builder.build().unwrap();
 ///
-///     let output = evaluate!(circ, fn([1u8; 16], [1u8; 16]) -> [u8; 16]).unwrap();
+///     let a = [42u8; 16];
+///     let b = [69u8; 16];
 ///
-///     assert_eq!(output, [0u8; 16]);
+///     let output = evaluate!(circ, fn(a, b) -> [u8; 16]).unwrap();
+///
+///     assert_eq!(output, bitxor(a, b));
 /// }
 /// ```
 pub use mpc_circuits_macros::trace;
@@ -116,9 +119,12 @@ pub use mpc_circuits_macros::trace;
 ///
 ///    let circ = builder.build().unwrap();
 ///
-///    let output = evaluate!(circ, fn([1u8; 16], [1u8; 16]) -> [u8; 16]).unwrap();
+///    let a = [42u8; 16];
+///    let b = [69u8; 16];
 ///
-///    assert_eq!(output, [0u8; 16]);
+///    let output = evaluate!(circ, fn(a, b) -> [u8; 16]).unwrap();
+///
+///    assert_eq!(output, bitxor_and(a, b));
 /// }
 /// ```
 pub use mpc_circuits_macros::dep;
@@ -150,6 +156,6 @@ pub use mpc_circuits_macros::dep;
 ///
 /// let output: u8 = evaluate!(circ, fn(1u8, 2u8) -> u8).unwrap();
 ///
-/// assert_eq!(output, 3);
+/// assert_eq!(output, 1u8 + 2u8);
 /// ```
 pub use mpc_circuits_macros::evaluate;
