@@ -1,6 +1,7 @@
 use crate::{commitment::Commitment, handshake_data::HandshakeData, transcript::Transcript};
+use serde::Serialize;
 
-#[derive(Default)]
+#[derive(Default, Serialize)]
 pub struct SessionData {
     handshake_data: HandshakeData,
     transcript: Transcript,

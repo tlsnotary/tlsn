@@ -2,7 +2,7 @@ use crate::error::Error;
 use serde::Serialize;
 
 /// A transcript consists of all bytes which were sent and all bytes which were received
-#[derive(Default)]
+#[derive(Default, Serialize)]
 pub struct Transcript {
     sent: Vec<u8>,
     received: Vec<u8>,

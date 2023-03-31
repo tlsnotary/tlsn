@@ -1,8 +1,5 @@
-use crate::error::Error;
-use p256::{
-    ecdsa::{signature::Verifier, Signature},
-    EncodedPoint,
-};
+use crate::{error::Error, signature::Signature};
+use p256::{ecdsa::signature::Verifier, EncodedPoint};
 use serde::ser::{Serialize, Serializer};
 
 pub enum KeyType {
@@ -34,18 +31,24 @@ impl PubKey {
     }
 
     /// Verifies a signature `sig` for the message `msg`
-    pub fn verify_signature(&self, msg: &[u8], sig: &[u8]) -> Result<(), Error> {
-        match *self {
-            PubKey::P256(key) => {
-                let signature = match Signature::from_der(sig) {
-                    Ok(sig) => sig,
-                    Err(_) => return Err(Error::SignatureVerificationError),
-                };
-                match key.verify(msg, &signature) {
-                    Ok(_) => Ok(()),
-                    Err(_) => Err(Error::SignatureVerificationError),
-                }
-            }
+    pub fn verify(&self, msg: &impl Serialize, sig: &Signature) -> Result<(), Error> {
+        let msg = bincode::serialize(msg).map_err(|_| Error::SerializationError)?;
+
+        match (self, sig) {
+            (PubKey::P256(key), Signature::P256(sig)) => match key.verify(&msg, sig) {
+                Ok(_) => Ok(()),
+                Err(_) => Err(Error::SignatureVerificationError),
+            },
+            // pubkey and sig types must match
+            _ => Err(Error::InternalError),
+        }
+    }
+
+    /// Returns the pubkey in the compressed SEC1 format
+    /// TODO: will it have the leading 04
+    pub fn to_bytes(&self) -> Vec<u8> {
+        match self {
+            PubKey::P256(key) => key.to_encoded_point(true).to_bytes().to_vec(),
         }
     }
 }
@@ -73,7 +76,10 @@ impl Default for PubKey {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::pubkey::{KeyType, PubKey};
+    use crate::{
+        pubkey::{KeyType, PubKey},
+        signature::Signature,
+    };
     use p256::{
         self,
         ecdsa::{signature::Signer, SigningKey, VerifyingKey},
@@ -84,7 +90,7 @@ mod test {
 
     #[fixture]
     // Create a valid (piblic key, message, signature) tuple
-    pub fn create_key_msg_sig() -> (PubKey, Vec<u8>, Vec<u8>) {
+    pub fn create_key_msg_sig() -> (PubKey, Vec<u8>, Signature) {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         let signing_key = SigningKey::random(&mut rng);
@@ -95,16 +101,14 @@ mod test {
 
         let msg: [u8; 16] = rng.gen();
 
-        let signature = signing_key.sign(&msg);
-        let sig_der = signature.to_der();
-        let signature = sig_der.as_bytes();
+        let signature = Signature::P256(signing_key.sign(&msg));
 
-        (key, msg.to_vec(), signature.to_vec())
+        (key, msg.to_vec(), signature)
     }
 
     #[rstest]
     // Expect verify_signature() to fail because the public key is wrong
-    fn test_verify_signature_fail_wrong_key(create_key_msg_sig: (PubKey, Vec<u8>, Vec<u8>)) {
+    fn test_verify_signature_fail_wrong_key(create_key_msg_sig: (PubKey, Vec<u8>, Signature)) {
         let msg = create_key_msg_sig.1;
         let sig = create_key_msg_sig.2;
 
@@ -117,14 +121,12 @@ mod test {
         let pubkey_bytes = encoded.as_bytes();
         let key = PubKey::from_bytes(KeyType::P256, pubkey_bytes).unwrap();
 
-        assert!(
-            key.verify_signature(&msg, &sig).err().unwrap() == Error::SignatureVerificationError
-        );
+        assert!(key.verify(&msg, &sig).err().unwrap() == Error::SignatureVerificationError);
     }
 
     #[rstest]
     // Expect verify_signature() to fail because the message is wrong
-    fn test_verify_signature_fail_wrong_msg(create_key_msg_sig: (PubKey, Vec<u8>, Vec<u8>)) {
+    fn test_verify_signature_fail_wrong_msg(create_key_msg_sig: (PubKey, Vec<u8>, Signature)) {
         let key = create_key_msg_sig.0;
         let sig = create_key_msg_sig.2;
 
@@ -132,23 +134,25 @@ mod test {
         let mut rng = ChaCha12Rng::from_seed([1; 32]);
         let msg: [u8; 16] = rng.gen();
 
-        assert!(
-            key.verify_signature(&msg, &sig).err().unwrap() == Error::SignatureVerificationError
-        );
+        assert!(key.verify(&msg, &sig).err().unwrap() == Error::SignatureVerificationError);
     }
 
     #[rstest]
     // Expect verify_signature() to fail because the signature is wrong
-    fn test_verify_signature_fail_wrong_sig(create_key_msg_sig: (PubKey, Vec<u8>, Vec<u8>)) {
+    fn test_verify_signature_fail_wrong_sig(create_key_msg_sig: (PubKey, Vec<u8>, Signature)) {
         let key = create_key_msg_sig.0;
         let msg = create_key_msg_sig.1;
-        let mut sig = create_key_msg_sig.2;
+        let sig = create_key_msg_sig.2;
 
         // corrupt a byte of signature
-        sig[10] = sig[10].checked_add(1).unwrap_or(0);
+        let sig = match sig {
+            Signature::P256(sig) => sig,
+            _ => panic!(),
+        };
+        let mut bytes = sig.to_vec();
+        bytes[10] = bytes[10].checked_add(1).unwrap_or(0);
+        let sig = Signature::P256(p256::ecdsa::Signature::from_der(&bytes).unwrap());
 
-        assert!(
-            key.verify_signature(&msg, &sig).err().unwrap() == Error::SignatureVerificationError
-        );
+        assert!(key.verify(&msg, &sig).err().unwrap() == Error::SignatureVerificationError);
     }
 }

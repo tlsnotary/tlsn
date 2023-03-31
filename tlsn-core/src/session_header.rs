@@ -1,4 +1,7 @@
-use crate::{error::Error, handshake_summary::HandshakeSummary, pubkey::PubKey, signer::Signer};
+use crate::{
+    error::Error, handshake_summary::HandshakeSummary, pubkey::PubKey,
+    session_artifacts::SessionArtifacts, signature::Signature, signer::Signer,
+};
 use serde::Serialize;
 
 /// A PRG seeds from which to generate garbled circuit active labels, see
@@ -37,23 +40,28 @@ impl SessionHeader {
     }
 
     pub fn from_msg(msg: &SessionHeaderMsg, pubkey: Option<&PubKey>) -> Result<Self, Error> {
-        match (pubkey, msg.signature) {
-            (Some(pubkey), Some(sig)) => msg.verify(pubkey),
+        match (pubkey, &msg.signature) {
+            (Some(pubkey), Some(_)) => msg.verify(pubkey),
             (None, None) => msg.get_header(),
-            _ => {
-                return Err(Error::InternalError);
-            }
+            _ => Err(Error::InternalError),
         }
     }
 
-    pub fn sign(self, signer: &Signer) -> Result<&[u8], Error> {
-        let msg = self.serialize()?;
-        let sig = signer.sign(msg);
-        Ok(sig)
+    pub fn sign(&self, signer: &Signer) -> Result<Signature, Error> {
+        signer.sign(self)
     }
 
-    pub fn serialize(&self) -> Result<Vec<u8>, Error> {
-        bincode::serialize(&self).map_err(|_| Error::SerializationError)
+    pub fn check_artifacts(&self, artifacts: &SessionArtifacts) -> Result<(), Error> {
+        if self.handshake_summary.time() - artifacts.time() > 300
+            || &self.merkle_root != artifacts.merkle_root()
+            || &self.label_seed != artifacts.label_seed()
+            || self.handshake_summary.handshake_commitment() != artifacts.handshake_commitment()
+        // TODO impl eq check for pubkey
+        // || self.handshake_summary.ephemeral_ec_pubkey() != artifacts.ephem_key()
+        {
+            return Err(Error::InternalError);
+        }
+        Ok(())
     }
 
     pub fn label_seed(&self) -> &LabelSeed {
@@ -69,49 +77,52 @@ impl SessionHeader {
     }
 }
 
+#[derive(Clone, Serialize, Default)]
 pub struct SessionHeaderMsg {
     header: SessionHeader,
     /// signature over `header`
-    signature: Option<Vec<u8>>,
+    signature: Option<Signature>,
 }
 
 impl SessionHeaderMsg {
-    pub fn new(header: &SessionHeader, signature: Option<Vec<u8>>) -> Self {
+    pub fn new(header: &SessionHeader, signature: Option<Signature>) -> Self {
         Self {
             header: header.clone(),
             signature,
         }
     }
 
-    /// Verifies the signature over the header against the public key
+    /// Verifies the signature over the header against the public key. This is only called when we
+    /// know that `signature` is Some().
     ///
     /// Returns the verified header
-    pub fn verify(&self, pubkey: &PubKey) -> Result<SessionHeader, Error> {
-        let msg = self.header.serialize()?;
+    fn verify(&self, pubkey: &PubKey) -> Result<SessionHeader, Error> {
+        let sig = match &self.signature {
+            Some(sig) => sig,
+            _ => return Err(Error::InternalError),
+        };
 
-        match self.signature {
-            Some(signature) => {
-                pubkey.verify_signature(&msg, &signature)?;
-            }
-            _ => {
-                return Err(Error::SignatureExpected);
+        match (sig, pubkey) {
+            // signature and pubkey types must match
+            (Signature::P256(_), PubKey::P256(_)) => {
+                pubkey.verify(&self.header, &sig)?;
             }
         }
 
-        Ok(self.header)
+        Ok(self.header.clone())
     }
 
     /// Returns the session header only if the signature is not present
     pub fn get_header(&self) -> Result<SessionHeader, Error> {
-        match self.signature {
-            Some(signature) => Ok(self.header),
+        match &self.signature {
+            Some(_) => Ok(self.header.clone()),
             _ => {
                 return Err(Error::SignatureNotExpected);
             }
         }
     }
 
-    pub fn signature(&self) -> Option<Vec<u8>> {
-        self.signature
+    pub fn signature(&self) -> Option<Signature> {
+        self.signature.clone()
     }
 }

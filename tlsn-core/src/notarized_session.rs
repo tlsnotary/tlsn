@@ -1,9 +1,12 @@
-use crate::{session_data::SessionData, session_header::SessionHeader};
+use serde::Serialize;
 
+use crate::{session_data::SessionData, session_header::SessionHeader, signature::Signature};
+
+#[derive(Serialize)]
 pub struct NotarizedSession {
     version: u8,
     header: SessionHeader,
-    signature: Option<Vec<u8>>,
+    signature: Option<Signature>,
     data: SessionData,
 }
 
@@ -11,7 +14,7 @@ impl NotarizedSession {
     pub fn new(
         version: u8,
         header: SessionHeader,
-        signature: Option<Vec<u8>>,
+        signature: Option<Signature>,
         data: SessionData,
     ) -> Self {
         Self {
@@ -30,7 +33,7 @@ impl NotarizedSession {
         &self.header
     }
 
-    pub fn signature(&self) -> &Option<Vec<u8>> {
+    pub fn signature(&self) -> &Option<Signature> {
         &self.signature
     }
 

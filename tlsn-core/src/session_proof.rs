@@ -4,8 +4,8 @@ use crate::{
 };
 
 pub struct SessionProof {
-    header: SessionHeaderMsg,
-    handshake_data: HandshakeDataMsg,
+    pub header: SessionHeaderMsg,
+    pub handshake_data: HandshakeDataMsg,
 }
 
 impl From<&NotarizedSession> for SessionProof {

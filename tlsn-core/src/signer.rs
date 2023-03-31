@@ -1,8 +1,49 @@
-#[derive(Default)]
-pub struct Signer {}
+use crate::{
+    error::Error,
+    pubkey::{KeyType, PubKey},
+    signature::Signature,
+    utils::blake3,
+};
+use p256::{
+    ecdsa::{
+        signature::{DigestSigner, Signer as P256Signer},
+        SigningKey, VerifyingKey,
+    },
+    elliptic_curve::consts::P256,
+    NistP256,
+};
+use serde::Serialize;
+
+pub enum Signer {
+    P256(p256::ecdsa::SigningKey),
+}
 
 impl Signer {
-    pub fn sign(&self, msg: Vec<u8>) -> &[u8] {
-        &[0u8; 32]
+    pub fn new(typ: KeyType, bytes: &[u8]) -> Result<Self, Error> {
+        match typ {
+            KeyType::P256 => {
+                let signing_key = match p256::ecdsa::SigningKey::from_bytes(bytes) {
+                    Ok(key) => key,
+                    Err(_) => return Err(Error::InternalError),
+                };
+                return Ok(Signer::P256(signing_key));
+            }
+        }
+    }
+
+    pub fn verifying_key(&self) -> PubKey {
+        match self {
+            Signer::P256(signing_key) => {
+                let vk = signing_key.verifying_key();
+                PubKey::P256(vk)
+            }
+        }
+    }
+
+    pub fn sign(&self, msg: &impl Serialize) -> Result<Signature, Error> {
+        let msg = bincode::serialize(msg).map_err(|_| Error::SerializationError)?;
+        match self {
+            Signer::P256(signing_key) => Ok(Signature::P256(signing_key.sign(&msg))),
+        }
     }
 }

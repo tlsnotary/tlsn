@@ -76,14 +76,14 @@ pub fn verify_sig_ke_params(
         .map_err(|e| Error::WebpkiError(e.to_string()))?;
 
     // curve constant from the TLS spec
-    let curve_const = match &ephem_pubkey.typ() {
-        EphemeralKeyType::P256 => [0x00, 0x17],
-        #[allow(unreachable_patterns)]
+    let curve_const = match &ephem_pubkey {
+        PubKey::P256(_) => [0x00, 0x17],
         _ => return Err(Error::UnknownCurveInKeyExchange),
     };
 
     // type of the public key from the TLS spec: 0x03 = "named_curve"
     let pubkey_type = [0x03];
+    let bytes = ephem_pubkey.to_bytes();
 
     // message that was signed
     let msg = [
@@ -91,8 +91,8 @@ pub fn verify_sig_ke_params(
         server_random,
         &pubkey_type,
         &curve_const,
-        &[ephem_pubkey.pubkey().len() as u8], // pubkey length
-        ephem_pubkey.pubkey(),                // pubkey
+        &[bytes.len() as u8], // pubkey length
+        &bytes,               // pubkey
     ]
     .concat();
 
@@ -135,6 +135,8 @@ pub fn extract_end_entity_cert(chain: &[CertDER]) -> Result<CertDER, Error> {
 
 #[cfg(test)]
 mod test {
+    use crate::pubkey::KeyType;
+
     use super::*;
 
     /// end entity cert
@@ -235,9 +237,9 @@ mod test {
 
         let sig = ServerSignature::new(KEParamsSigAlg::RSA_PKCS1_2048_8192_SHA256, sig.to_vec());
 
-        let pubkey = EphemeralKey::new(EphemeralKeyType::P256, pubkey.to_vec());
+        let ephem_pubkey = PubKey::from_bytes(KeyType::P256, pubkey).unwrap();
 
-        assert!(verify_sig_ke_params(&RSA_CERT.to_vec(), &sig, &pubkey, cr, sr).is_ok());
+        assert!(verify_sig_ke_params(&RSA_CERT.to_vec(), &sig, &ephem_pubkey, cr, sr).is_ok());
     }
 
     // Expect to succeed when key exchange params signed correctly with an ECDSA cert
@@ -250,9 +252,9 @@ mod test {
 
         let sig = ServerSignature::new(KEParamsSigAlg::ECDSA_P256_SHA256, sig.to_vec());
 
-        let pubkey = EphemeralKey::new(EphemeralKeyType::P256, pubkey.to_vec());
+        let ephem_pubkey = PubKey::from_bytes(KeyType::P256, pubkey).unwrap();
 
-        assert!(verify_sig_ke_params(&ECDSA_CERT.to_vec(), &sig, &pubkey, cr, sr).is_ok());
+        assert!(verify_sig_ke_params(&ECDSA_CERT.to_vec(), &sig, &ephem_pubkey, cr, sr).is_ok());
     }
 
     // Expect RSA sig verification to fail because client_random is wrong
@@ -265,7 +267,7 @@ mod test {
 
         let sig = ServerSignature::new(KEParamsSigAlg::RSA_PKCS1_2048_8192_SHA256, sig.to_vec());
 
-        let pubkey = EphemeralKey::new(EphemeralKeyType::P256, pubkey.to_vec());
+        let ephem_pubkey = PubKey::from_bytes(KeyType::P256, pubkey).unwrap();
 
         let mut cr = cr.to_vec();
         // corrupt the last byte of client random
@@ -273,7 +275,7 @@ mod test {
         let (corrupted, _) = last.overflowing_add(1);
         cr.push(corrupted);
 
-        let err = verify_sig_ke_params(&RSA_CERT.to_vec(), &sig, &pubkey, &cr, sr);
+        let err = verify_sig_ke_params(&RSA_CERT.to_vec(), &sig, &ephem_pubkey, &cr, sr);
 
         assert_eq!(
             err.unwrap_err(),
@@ -297,9 +299,9 @@ mod test {
 
         let sig = ServerSignature::new(KEParamsSigAlg::ECDSA_P256_SHA256, sig.to_vec());
 
-        let pubkey = EphemeralKey::new(EphemeralKeyType::P256, pubkey.to_vec());
+        let ephem_pubkey = PubKey::from_bytes(KeyType::P256, pubkey).unwrap();
 
-        let err = verify_sig_ke_params(&ECDSA_CERT.to_vec(), &sig, &pubkey, cr, sr);
+        let err = verify_sig_ke_params(&ECDSA_CERT.to_vec(), &sig, &ephem_pubkey, cr, sr);
         assert_eq!(
             err.unwrap_err(),
             Error::WebpkiError("InvalidSignatureForPublicKey".to_string())
