@@ -1,189 +1,161 @@
-pub mod builder;
-pub mod circuit;
+//! This crate provides types for representing computation as binary circuits.
+#![deny(missing_docs, unreachable_pub, unused_must_use)]
+
+extern crate self as mpc_circuits;
+
+mod builder;
+mod circuit;
 pub mod circuits;
-mod error;
-pub(crate) mod group;
-mod input;
-mod output;
-pub mod parse;
-pub mod proto;
-mod spec;
-pub mod utils;
-mod value;
+pub(crate) mod components;
+pub mod ops;
+#[cfg(feature = "parse")]
+mod parse;
+mod tracer;
+pub mod types;
 
-use once_cell::sync::Lazy;
-use std::sync::Arc;
+#[doc(hidden)]
+pub use builder::BuilderState;
+pub use builder::{BuilderError, CircuitBuilder};
+pub use circuit::{Circuit, CircuitError};
+#[doc(hidden)]
+pub use components::{Feed, Node, Sink};
+pub use components::{Gate, GateType};
+pub use tracer::Tracer;
 
-pub use circuit::{Circuit, CircuitId, Gate};
-pub use error::{CircuitError, GroupError, ValueError};
-pub use group::{Group, GroupId, GroupValue, WireGroup};
-pub use input::Input;
-pub use output::Output;
-pub use spec::CircuitSpec;
-pub use value::{BitOrder, Value, ValueType};
+pub use once_cell;
 
-/// Group of wires corresponding to a circuit input
-pub type InputValue = GroupValue<Input>;
-/// Group of wires corresponding to a circuit output
-pub type OutputValue = GroupValue<Output>;
+/// An attribute macro that can be applied to a function to automatically convert
+/// it into a circuit.
+///
+/// Other traced functions can be called from within the traced function, using the [`dep`](crate::dep) macro.
+///
+/// # Cache
+///
+/// The macro can optionally be configured with the `cache` argument which will cache the circuit
+/// after the first invocation. This can be useful for functions that will be used multiple times.
+///
+/// The circuit will be cached for the lifetime of the program.
+///
+/// # Suffix
+///
+/// The macro copies the traced function and appends the `_trace` suffix to the end of the name.
+///
+/// This preserves the original function, which can be used for testing.
+///
+/// This suffix can be overriden by passing the `suffix = "new_suffix"` argument to the macro.
+///
+/// # Example
+///
+/// ```
+/// use mpc_circuits::{trace, evaluate, CircuitBuilder};
+///
+/// #[trace]
+/// fn bitxor(a: [u8; 16], b: [u8; 16]) -> [u8; 16] {
+///     std::array::from_fn(|i| a[i] ^ b[i])
+/// }
+///
+/// fn main() {
+///     let builder = CircuitBuilder::new();
+///     let a = builder.add_array_input::<u8, 16>();
+///     let b = builder.add_array_input::<u8, 16>();
+///
+///     let c = bitxor_trace(&mut builder.state(), a, b);
+///
+///     builder.add_output(c);
+///
+///     let circ = builder.build().unwrap();
+///
+///     let a = [42u8; 16];
+///     let b = [69u8; 16];
+///
+///     let output = evaluate!(circ, fn(a, b) -> [u8; 16]).unwrap();
+///
+///     assert_eq!(output, bitxor(a, b));
+/// }
+/// ```
+pub use mpc_circuits_macros::trace;
 
-#[cfg(feature = "aes128")]
-pub static AES_128_BYTES: &'static [u8] = std::include_bytes!("../circuits/bin/aes128.bin");
-#[cfg(feature = "adder64")]
-pub static ADDER_64_BYTES: &'static [u8] = std::include_bytes!("../circuits/bin/adder64.bin");
-#[cfg(feature = "sha256")]
-pub static SHA_256_BYTES: &'static [u8] = std::include_bytes!("../circuits/bin/sha256.bin");
+/// An attribute macro that is used in combination with [`trace`](crate::trace) to indicate that a function
+/// has a dependency on another traced function.
+///
+/// This is used to replace the path of a function call with the path of its trace.
+///
+/// # Path override
+///
+/// The default path of the trace is the original path appended with the `_trace` suffix.
+///
+/// This can be overriden by passing the path in as the second argument to the macro.
+///
+/// # Example
+///
+///  ```
+/// use mpc_circuits::{trace, evaluate, dep, CircuitBuilder};
+///
+/// #[trace]
+/// fn bitxor(a: [u8; 16], b: [u8; 16]) -> [u8; 16] {
+///     std::array::from_fn(|i| a[i] ^ b[i])
+/// }
+///
+/// #[trace]
+/// fn bitand(a: [u8; 16], b: [u8; 16]) -> [u8; 16] {
+///     std::array::from_fn(|i| a[i] & b[i])
+/// }
+///
+/// #[trace]
+/// #[dep(bitxor, bitxor_trace)]
+/// #[dep(bitand)]
+/// fn bitxor_and(a: [u8; 16], b: [u8; 16]) -> [u8; 16] {
+///     bitxor(a, bitand(a, b))
+/// }
+///
+/// fn main() {
+///    let builder = CircuitBuilder::new();
+///    let a = builder.add_array_input::<u8, 16>();
+///    let b = builder.add_array_input::<u8, 16>();
+///
+///    let c = bitxor_and_trace(&mut builder.state(), a, b);
+///
+///    builder.add_output(c);
+///
+///    let circ = builder.build().unwrap();
+///
+///    let a = [42u8; 16];
+///    let b = [69u8; 16];
+///
+///    let output = evaluate!(circ, fn(a, b) -> [u8; 16]).unwrap();
+///
+///    assert_eq!(output, bitxor_and(a, b));
+/// }
+/// ```
+pub use mpc_circuits_macros::dep;
 
-#[cfg(feature = "aes128")]
-pub static AES_128: Lazy<Arc<Circuit>> =
-    Lazy::new(|| Circuit::load_bytes(AES_128_BYTES).expect("Failed to load aes128 circuit"));
-#[cfg(feature = "adder64")]
-pub static ADDER_64: Lazy<Arc<Circuit>> =
-    Lazy::new(|| Circuit::load_bytes(ADDER_64_BYTES).expect("Failed to load adder64 circuit"));
-#[cfg(feature = "sha256")]
-pub static SHA_256: Lazy<Arc<Circuit>> =
-    Lazy::new(|| Circuit::load_bytes(SHA_256_BYTES).expect("Failed to load sha256 circuit"));
-
-#[cfg(test)]
-mod tests {
-    use crate::InputValue;
-
-    use super::*;
-
-    fn test_circ(circ: &Circuit, inputs: &[Value], expected: &[Value]) {
-        let inputs: Vec<InputValue> = inputs
-            .iter()
-            .zip(circ.inputs.iter())
-            .map(|(value, input)| input.clone().to_value(value.clone()).unwrap())
-            .collect();
-        let outputs = circ.evaluate(&inputs).unwrap();
-        for (output, expected) in outputs.iter().zip(expected) {
-            if output.value() != expected {
-                let report = format!(
-                    "Circuit {}\n{}{}Expected: {:?}",
-                    circ.description(),
-                    inputs
-                        .iter()
-                        .enumerate()
-                        .map(|(id, input)| format!("Input {}:  {:?}\n", id, input.value()))
-                        .collect::<Vec<String>>()
-                        .join(""),
-                    format!("Output {}: {:?}\n", output.index(), output.value()),
-                    expected
-                );
-                panic!("{}", report.to_string());
-            }
-        }
-    }
-
-    #[cfg(feature = "adder64")]
-    mod adder_64 {
-        use super::*;
-
-        #[test]
-        fn test_adder_64() {
-            let circ = ADDER_64.clone();
-
-            test_circ(
-                &circ,
-                &[Value::from(0u64), Value::from(1u64)],
-                &[Value::from(1u64)],
-            );
-
-            test_circ(
-                &circ,
-                &[Value::from(1u64), Value::from(1u64)],
-                &[Value::from(2u64)],
-            );
-
-            test_circ(
-                &circ,
-                &[Value::from(1u64), Value::from(2u64)],
-                &[Value::from(3u64)],
-            );
-
-            test_circ(
-                &circ,
-                &[Value::from(u64::MAX), Value::from(1u64)],
-                &[Value::from(0u64)],
-            );
-        }
-    }
-
-    #[cfg(feature = "aes128")]
-    mod aes128 {
-        use super::*;
-        use crate::{circuits::test_circ, Value};
-
-        use aes::{Aes128, BlockEncrypt, NewBlockCipher};
-
-        fn reference_aes128(key: &[u8; 16], msg: &[u8; 16]) -> Vec<u8> {
-            let cipher = Aes128::new(key.into());
-            let mut ciphertext = [0u8; 16];
-            ciphertext.copy_from_slice(msg);
-
-            let mut ciphertext = ciphertext.into();
-
-            cipher.encrypt_block(&mut ciphertext);
-
-            ciphertext.to_vec()
-        }
-
-        #[test]
-        fn test_aes128() {
-            let circ = AES_128.clone();
-
-            let key = [69u8; 16];
-            let msg = b"aes test message";
-
-            let expected = reference_aes128(&key, msg);
-
-            test_circ(
-                &circ,
-                &[Value::Bytes(key.to_vec()), Value::Bytes(msg.to_vec())],
-                &[Value::Bytes(expected)],
-            );
-        }
-    }
-
-    #[cfg(feature = "sha256")]
-    mod sha256 {
-        use super::*;
-        use crate::{circuits::test_circ, Value};
-
-        use sha2::compress256;
-
-        static SHA256_STATE: [u32; 8] = [
-            0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
-            0x5be0cd19,
-        ];
-
-        #[test]
-        fn test_sha256_compress() {
-            let circ = SHA_256.clone();
-
-            let msg = [33u8; 64];
-
-            let mut expected = SHA256_STATE;
-            compress256(&mut expected, &[msg.into()]);
-
-            let expected = expected
-                .into_iter()
-                .map(|chunk| chunk.to_be_bytes())
-                .flatten()
-                .collect::<Vec<u8>>();
-
-            let initial_state = SHA256_STATE
-                .into_iter()
-                .map(|chunk| chunk.to_be_bytes())
-                .flatten()
-                .collect::<Vec<u8>>();
-
-            test_circ(
-                &circ,
-                &[Value::Bytes(msg.to_vec()), Value::Bytes(initial_state)],
-                &[Value::Bytes(expected)],
-            );
-        }
-    }
-}
+/// Evaluates a circuit and attempts to coerce the output into the specified return type
+/// indicated in the function signature.
+///
+/// # Returns
+///
+/// The macro returns a `Result` with the output of the circuit or a [`TypeError`](crate::types::TypeError) if the
+/// output could not be coerced into the specified return type.
+///
+/// `Result<T, TypeError>`
+///
+/// # Example
+///
+/// ```
+/// # let circ = {
+/// #    use mpc_circuits::{CircuitBuilder, ops::WrappingAdd};
+/// #
+/// #    let builder = CircuitBuilder::new();
+/// #    let a = builder.add_input::<u8>();
+/// #    let b = builder.add_input::<u8>();
+/// #    let c = a.wrapping_add(b);
+/// #    builder.add_output(c);
+/// #    builder.build().unwrap()
+/// # };
+/// use mpc_circuits::evaluate;
+///
+/// let output: u8 = evaluate!(circ, fn(1u8, 2u8) -> u8).unwrap();
+///
+/// assert_eq!(output, 1u8 + 2u8);
+/// ```
+pub use mpc_circuits_macros::evaluate;
