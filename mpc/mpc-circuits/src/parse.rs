@@ -1,267 +1,241 @@
-use crate::{group::UncheckedGroup, value::BitOrder, Circuit, CircuitError, Gate, ValueType};
-use regex::Regex;
-use std::{
-    fs::File,
-    io::{BufRead, BufReader},
-    sync::Arc,
+use crate::{
+    components::{Feed, GateType, Node},
+    types::ValueType,
+    Circuit, CircuitBuilder,
 };
+use regex::{Captures, Regex};
+use std::collections::HashMap;
 
-/// Parses captures into a Vec for convenience
-fn line2vec<'a>(re: &Regex, line: &'a str) -> Result<Vec<&'a str>, CircuitError> {
-    let v: Vec<&'a str> = re
-        .captures_iter(line)
-        .map(|cap| {
-            let s = cap.get(1).unwrap().as_str();
-            s
-        })
-        .collect();
-    Ok(v)
+static GATE_PATTERN: &str = r"(?P<input_count>\d+)\s(?P<output_count>\d+)\s(?P<xref>\d+)\s(?:(?P<yref>\d+)\s)?(?P<zref>\d+)\s(?P<gate>INV|AND|XOR)";
+
+#[derive(Debug, thiserror::Error)]
+pub enum ParseError {
+    #[error(transparent)]
+    IOError(#[from] std::io::Error),
+    #[error(transparent)]
+    ParseIntError(#[from] std::num::ParseIntError),
+    #[error("uninitialized feed: {0}")]
+    UninitializedFeed(usize),
+    #[error("unsupported gate type: {0}")]
+    UnsupportedGateType(String),
+    #[error(transparent)]
+    BuilderError(#[from] crate::BuilderError),
 }
 
 impl Circuit {
-    /// Parses circuit files in Bristol Fashion format as specified here:
-    /// `https://homes.esat.kuleuven.be/~nsmart/MPC/`
+    /// Parses a circuit in Bristol-fashion format from a file.
+    ///
+    /// See `https://homes.esat.kuleuven.be/~nsmart/MPC/` for more information.
+    ///
+    /// # Arguments
+    ///
+    /// * `filename` - The path to the file to parse.
+    /// * `inputs` - The types of the inputs to the circuit.
+    /// * `outputs` - The types of the outputs to the circuit.
+    ///
+    /// # Returns
+    ///
+    /// The parsed circuit.
     pub fn parse(
         filename: &str,
-        name: &str,
-        version: &str,
-        bit_order: BitOrder,
-    ) -> Result<Arc<Self>, CircuitError> {
-        let f = File::open(filename)?;
-        let mut reader = BufReader::new(f);
+        inputs: &[ValueType],
+        outputs: &[ValueType],
+    ) -> Result<Self, ParseError> {
+        let file = std::fs::read_to_string(filename)?;
 
-        // Parse first line: ngates nwires\n
-        let mut line = String::new();
-        let _ = reader
-            .read_line(&mut line)
-            .map_err(|_| CircuitError::ParsingError("failed to read line".to_string()))?;
-        let re = Regex::new(r"(\d+)").expect("Failed to compile regex");
-        let line_1 = line2vec(&re, &line)?;
+        let builder = CircuitBuilder::new();
 
-        // Check that first line has 2 values: ngates, nwires
-        if line_1.len() != 2 {
-            return Err(CircuitError::ParsingError(
-                format!("Expecting line to be ngates, nwires: {line}").to_string(),
-            ));
-        }
+        let mut feed_ids: Vec<usize> = Vec::new();
+        let mut feed_map: HashMap<usize, Node<Feed>> = HashMap::default();
 
-        let ngates: usize = line_1[0].parse().map_err(|_| {
-            CircuitError::ParsingError(format!("Failed to parse ngates: {}", line_1[0]).to_string())
-        })?;
-        let wire_count: usize = line_1[1].parse().map_err(|_| {
-            CircuitError::ParsingError(format!("Failed to parse nwires: {}", line_1[1]).to_string())
-        })?;
-
-        // Parse second line: ninputs input_0_nwires input_1_nwires...
-        let mut line = String::new();
-        let _ = reader
-            .read_line(&mut line)
-            .map_err(|_| CircuitError::ParsingError("failed to read line".to_string()))?;
-        let re = Regex::new(r"(\d+)\s*").expect("Failed to compile regex");
-        let line_2 = line2vec(&re, &line)?;
-
-        // Number of circuit inputs
-        let ninputs: usize = line_2[0].parse().map_err(|_| {
-            CircuitError::ParsingError(
-                format!("Failed to parse ninputs: {}", line_2[0]).to_string(),
-            )
-        })?;
-        let input_nwires: Vec<usize> = line_2[1..]
-            .iter()
-            .map(|nwires| {
-                let nwires: usize = nwires.parse().unwrap();
-                nwires
-            })
-            .collect();
-
-        // Check that nwires is specified for every input
-        if input_nwires.len() != ninputs {
-            return Err(CircuitError::ParsingError(
-                format!("Expecting wire count to be specified for every input: {line}").to_string(),
-            ));
-        }
-
-        let input_groups = (0..ninputs)
-            .map(|index| {
-                let start_id = input_nwires[..index].iter().sum();
-                let count = input_nwires[index];
-                let wires: Vec<usize> = (start_id..start_id + count).collect();
-                UncheckedGroup::new(
-                    index,
-                    format!("input_{index}"),
-                    "".to_string(),
-                    ValueType::Bits,
-                    wires,
-                )
-            })
-            .collect();
-
-        // Parse third line: noutputs output_0_nwires output_1_nwires...
-        let mut line = String::new();
-        let _ = reader
-            .read_line(&mut line)
-            .map_err(|_| CircuitError::ParsingError("failed to read line".to_string()))?;
-        let re = Regex::new(r"(\d+)\s*").expect("Failed to compile regex");
-        let line_3 = line2vec(&re, &line)?;
-
-        // Number of circuit outputs
-        let noutputs: usize = line_3[0].parse().map_err(|_| {
-            CircuitError::ParsingError(
-                format!("Failed to parse noutputs: {}", line_3[0]).to_string(),
-            )
-        })?;
-        let output_nwires: Vec<usize> = line_3[1..]
-            .iter()
-            .map(|nwires| {
-                let nwires: usize = nwires.parse().unwrap();
-                nwires
-            })
-            .collect();
-
-        // Check that nwires is specified for every output
-        if output_nwires.len() != noutputs {
-            return Err(CircuitError::ParsingError(
-                format!(
-                    "Expecting wire count to be specified for every output: {}",
-                    line
-                )
-                .to_string(),
-            ));
-        }
-
-        let output_groups = (0..noutputs)
-            .map(|index| {
-                let start_id = (wire_count - output_nwires.iter().sum::<usize>())
-                    + output_nwires[..index].iter().sum::<usize>();
-                let count = output_nwires[index];
-                let wires: Vec<usize> = (start_id..start_id + count).collect();
-                UncheckedGroup::new(
-                    index,
-                    format!("output_{index}"),
-                    "".to_string(),
-                    ValueType::Bits,
-                    wires,
-                )
-            })
-            .collect();
-
-        let re = Regex::new(r"(\d+|\S+)\s*").expect("Failed to compile regex");
-
-        let mut id = 0;
-        let mut gates = Vec::with_capacity(ngates);
-
-        // Process gates
-        for line in reader.lines() {
-            let line =
-                line.map_err(|_| CircuitError::ParsingError("failed to read line".to_string()))?;
-            if line.is_empty() {
-                continue;
+        let mut input_len = 0;
+        for input in inputs {
+            let input = builder.add_input_by_type(input.clone());
+            for (node, old_id) in input.iter().zip(input_len..input_len + input.len()) {
+                feed_map.insert(old_id, *node);
             }
-            let gate_vals = line2vec(&re, &line)?;
-            let typ = gate_vals.last().unwrap();
-            let gate = match *typ {
-                "INV" => {
-                    let xref: usize = gate_vals[2].parse().map_err(|_| {
-                        CircuitError::ParsingError("failed to parse gate".to_string())
-                    })?;
-                    let zref: usize = gate_vals[3].parse().map_err(|_| {
-                        CircuitError::ParsingError("failed to parse gate".to_string())
-                    })?;
-                    Gate::Inv { id, xref, zref }
-                }
-                "AND" => {
-                    let xref: usize = gate_vals[2].parse().map_err(|_| {
-                        CircuitError::ParsingError("failed to parse gate".to_string())
-                    })?;
-                    let yref: usize = gate_vals[3].parse().map_err(|_| {
-                        CircuitError::ParsingError("failed to parse gate".to_string())
-                    })?;
-                    let zref: usize = gate_vals[4].parse().map_err(|_| {
-                        CircuitError::ParsingError("failed to parse gate".to_string())
-                    })?;
-                    Gate::And {
-                        id,
-                        xref,
-                        yref,
-                        zref,
-                    }
-                }
-                "XOR" => {
-                    let xref: usize = gate_vals[2].parse().map_err(|_| {
-                        CircuitError::ParsingError("failed to parse gate".to_string())
-                    })?;
-                    let yref: usize = gate_vals[3].parse().map_err(|_| {
-                        CircuitError::ParsingError("failed to parse gate".to_string())
-                    })?;
-                    let zref: usize = gate_vals[4].parse().map_err(|_| {
-                        CircuitError::ParsingError("failed to parse gate".to_string())
-                    })?;
-                    Gate::Xor {
-                        id,
-                        xref,
-                        yref,
-                        zref,
-                    }
-                }
-                _ => {
-                    return Err(CircuitError::ParsingError(
-                        format!("Encountered unsupported gate type: {}", typ).to_string(),
-                    ));
-                }
-            };
-            gates.push(gate);
-            id += 1;
+            input_len += input.len();
         }
-        if id != ngates {
-            return Err(CircuitError::ParsingError(
-                format!("expecting {ngates} gates, parsed {id}").to_string(),
-            ));
+
+        let mut state = builder.state().borrow_mut();
+        let pattern = Regex::new(GATE_PATTERN).unwrap();
+        for cap in pattern.captures_iter(&file) {
+            let UncheckedGate {
+                xref,
+                yref,
+                zref,
+                gate_type,
+            } = UncheckedGate::parse(cap)?;
+            feed_ids.push(zref);
+
+            match gate_type {
+                GateType::Xor => {
+                    let new_x = feed_map
+                        .get(&xref)
+                        .ok_or(ParseError::UninitializedFeed(xref))?;
+                    let new_y = feed_map
+                        .get(&yref.unwrap())
+                        .ok_or(ParseError::UninitializedFeed(yref.unwrap()))?;
+                    let new_z = state.add_xor_gate(*new_x, *new_y);
+                    feed_map.insert(zref, new_z);
+                }
+                GateType::And => {
+                    let new_x = feed_map
+                        .get(&xref)
+                        .ok_or(ParseError::UninitializedFeed(xref))?;
+                    let new_y = feed_map
+                        .get(&yref.unwrap())
+                        .ok_or(ParseError::UninitializedFeed(yref.unwrap()))?;
+                    let new_z = state.add_and_gate(*new_x, *new_y);
+                    feed_map.insert(zref, new_z);
+                }
+                GateType::Inv => {
+                    let new_x = feed_map
+                        .get(&xref)
+                        .ok_or(ParseError::UninitializedFeed(xref))?;
+                    let new_z = state.add_inv_gate(*new_x);
+                    feed_map.insert(zref, new_z);
+                }
+            }
         }
-        Ok(Circuit::new(
-            name,
-            "",
-            version,
-            bit_order,
-            input_groups,
-            output_groups,
-            gates,
-        )?)
+        drop(state);
+        feed_ids.sort();
+
+        for output in outputs.iter().rev() {
+            let feeds = feed_ids
+                .drain(feed_ids.len() - output.len()..)
+                .map(|id| {
+                    *feed_map
+                        .get(&id)
+                        .expect("Old feed should be mapped to new feed")
+                })
+                .collect::<Vec<Node<Feed>>>();
+
+            let output = output.to_bin_repr(&feeds).unwrap();
+            builder.add_output(output);
+        }
+
+        Ok(builder.build()?)
+    }
+}
+
+struct UncheckedGate {
+    xref: usize,
+    yref: Option<usize>,
+    zref: usize,
+    gate_type: GateType,
+}
+
+impl UncheckedGate {
+    fn parse(captures: Captures) -> Result<Self, ParseError> {
+        let xref: usize = captures.name("xref").unwrap().as_str().parse()?;
+        let yref: Option<usize> = captures
+            .name("yref")
+            .map(|yref| yref.as_str().parse())
+            .transpose()?;
+        let zref: usize = captures.name("zref").unwrap().as_str().parse()?;
+        let gate_type = captures.name("gate").unwrap().as_str();
+
+        let gate_type = match gate_type {
+            "XOR" => GateType::Xor,
+            "AND" => GateType::And,
+            "INV" => GateType::Inv,
+            _ => return Err(ParseError::UnsupportedGateType(gate_type.to_string())),
+        };
+
+        Ok(Self {
+            xref,
+            yref,
+            zref,
+            gate_type,
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use mpc_circuits_macros::evaluate;
+
     use super::*;
 
     #[test]
-    fn test_parse_adder64() {
+    fn test_parse_adder_64() {
         let circ = Circuit::parse(
             "circuits/bristol/adder64_reverse.txt",
-            "adder64",
-            "",
-            BitOrder::Lsb0,
+            &[ValueType::U64, ValueType::U64],
+            &[ValueType::U64],
         )
         .unwrap();
 
-        assert_eq!(circ.input_len(), 128);
-        assert_eq!(circ.output_len(), 64);
-        assert_eq!(circ.xor_count(), 313);
-        assert_eq!(circ.and_count(), 63);
+        let output: u64 = evaluate!(circ, fn(1u64, 2u64) -> u64).unwrap();
+
+        assert_eq!(output, 3);
     }
 
     #[test]
-    fn test_aes_reverse() {
+    #[cfg(feature = "aes")]
+    #[ignore = "expensive"]
+    fn test_parse_aes() {
+        use aes::{Aes128, BlockEncrypt, NewBlockCipher};
+
         let circ = Circuit::parse(
             "circuits/bristol/aes_128_reverse.txt",
-            "aes_128_reverse",
-            "",
-            BitOrder::Lsb0,
+            &[
+                ValueType::Array(Box::new(ValueType::U8), 16),
+                ValueType::Array(Box::new(ValueType::U8), 16),
+            ],
+            &[ValueType::Array(Box::new(ValueType::U8), 16)],
         )
-        .unwrap();
+        .unwrap()
+        .reverse_input(0)
+        .reverse_input(1)
+        .reverse_output(0);
 
-        assert_eq!(circ.input_len(), 256);
-        assert_eq!(circ.output_len(), 128);
-        assert_eq!(circ.xor_count(), 28176);
-        assert_eq!(circ.and_count(), 6400);
+        let key = [0u8; 16];
+        let msg = [69u8; 16];
+
+        let ciphertext = evaluate!(circ, fn(key, msg) -> [u8; 16]).unwrap();
+
+        let aes = Aes128::new_from_slice(&key).unwrap();
+        let mut expected = msg.into();
+        aes.encrypt_block(&mut expected);
+        let expected: [u8; 16] = expected.into();
+
+        assert_eq!(ciphertext, expected);
+    }
+
+    #[test]
+    #[cfg(feature = "sha2")]
+    #[ignore = "expensive"]
+    fn test_parse_sha() {
+        use sha2::compress256;
+
+        let circ = Circuit::parse(
+            "circuits/bristol/sha256_reverse.txt",
+            &[
+                ValueType::Array(Box::new(ValueType::U8), 64),
+                ValueType::Array(Box::new(ValueType::U32), 8),
+            ],
+            &[ValueType::Array(Box::new(ValueType::U32), 8)],
+        )
+        .unwrap()
+        .reverse_inputs()
+        .reverse_input(0)
+        .reverse_input(1)
+        .reverse_output(0);
+
+        static SHA2_INITIAL_STATE: [u32; 8] = [
+            0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
+            0x5be0cd19,
+        ];
+
+        let msg = [69u8; 64];
+
+        let output = evaluate!(circ, fn(SHA2_INITIAL_STATE, msg) -> [u32; 8]).unwrap();
+
+        let mut expected = SHA2_INITIAL_STATE;
+        compress256(&mut expected, &[msg.into()]);
+
+        assert_eq!(output, expected);
     }
 }

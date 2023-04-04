@@ -1,799 +1,503 @@
-use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
-    marker::PhantomData,
-    sync::Arc,
-};
-
-pub use crate::error::BuilderError;
 use crate::{
-    circuit::GateType, group::UncheckedGroup, value::BitOrder, Circuit, Gate, Input, Output,
-    ValueType, WireGroup,
+    components::{Feed, Gate, Node},
+    types::{BinaryLength, BinaryRepr, ToBinaryRepr, ValueType},
+    Circuit, Tracer,
 };
+use std::{cell::RefCell, collections::HashMap, mem::discriminant};
 
-/// A circuit feed
-#[derive(Debug, Clone, Copy)]
-pub struct Feed;
-/// A circuit sink
-#[derive(Debug, Clone, Copy)]
-pub struct Sink;
-
-/// A handle on a circuit wire
-#[derive(Debug, Clone, Copy)]
-pub struct WireHandle<T> {
-    id: usize,
-    _pd: PhantomData<T>,
+/// An error that can occur when building a circuit.
+#[derive(Debug, thiserror::Error)]
+#[allow(missing_docs)]
+pub enum BuilderError {
+    #[error("missing wire connection: sink {0}")]
+    MissingWire(usize),
+    #[error("error appending circuit: {0}")]
+    AppendError(String),
 }
 
-impl WireHandle<Feed> {
-    /// Creates new feed
-    fn new_feed(id: usize) -> WireHandle<Feed> {
-        WireHandle {
-            id,
-            _pd: PhantomData::<Feed>,
-        }
-    }
-}
-
-impl WireHandle<Sink> {
-    /// Creates new sink
-    fn new_sink(id: usize) -> WireHandle<Sink> {
-        WireHandle {
-            id,
-            _pd: PhantomData::<Sink>,
-        }
-    }
-}
-
-/// A handle on a sub-circuit
-#[derive(Debug, Clone)]
-pub struct CircuitHandle {
-    inputs: Vec<SubInputHandle>,
-    outputs: Vec<SubOutputHandle>,
-}
-
-impl CircuitHandle {
-    /// Returns a handle to the sub-circuit input
-    pub fn input(&self, id: usize) -> Option<SubInputHandle> {
-        self.inputs.get(id).cloned()
-    }
-
-    /// Returns a handle to the sub-circuit output
-    pub fn output(&self, id: usize) -> Option<SubOutputHandle> {
-        self.outputs.get(id).cloned()
-    }
-}
-
-/// A handle on a circuit input
-#[derive(Debug, Clone)]
-pub struct InputHandle {
-    input: UncheckedGroup,
-    wire_handles: Vec<WireHandle<Feed>>,
-}
-
-impl<Idx> std::ops::Index<Idx> for InputHandle
-where
-    Idx: std::slice::SliceIndex<[WireHandle<Feed>]>,
-{
-    type Output = Idx::Output;
-
-    fn index(&self, index: Idx) -> &Self::Output {
-        &self.wire_handles[index]
-    }
-}
-
-/// A handle on a circuit output
-#[derive(Debug, Clone)]
-pub struct OutputHandle {
-    output: UncheckedGroup,
-    wire_handles: Vec<WireHandle<Sink>>,
-}
-
-impl<Idx> std::ops::Index<Idx> for OutputHandle
-where
-    Idx: std::slice::SliceIndex<[WireHandle<Sink>]>,
-{
-    type Output = Idx::Output;
-
-    fn index(&self, index: Idx) -> &Self::Output {
-        &self.wire_handles[index]
-    }
-}
-
-/// A handle on a sub-circuits input
-#[derive(Debug, Clone)]
-pub struct SubInputHandle {
-    wire_handles: Vec<WireHandle<Sink>>,
-}
-
-impl SubInputHandle {
-    fn shift_right(&mut self, offset: usize) {
-        self.wire_handles
-            .iter_mut()
-            .for_each(|handle| handle.id += offset);
-    }
-}
-
-impl From<&Input> for SubInputHandle {
-    fn from(input: &Input) -> Self {
-        Self {
-            wire_handles: input
-                .wires()
-                .iter()
-                .copied()
-                .map(|id| WireHandle {
-                    id,
-                    _pd: PhantomData,
-                })
-                .collect(),
-        }
-    }
-}
-
-impl<Idx> std::ops::Index<Idx> for SubInputHandle
-where
-    Idx: std::slice::SliceIndex<[WireHandle<Sink>]>,
-{
-    type Output = Idx::Output;
-
-    fn index(&self, index: Idx) -> &Self::Output {
-        &self.wire_handles[index]
-    }
-}
-
-/// A handle on a sub-circuits output
-#[derive(Debug, Clone)]
-pub struct SubOutputHandle {
-    wire_handles: Vec<WireHandle<Feed>>,
-}
-
-impl SubOutputHandle {
-    fn shift_right(&mut self, offset: usize) {
-        self.wire_handles
-            .iter_mut()
-            .for_each(|handle| handle.id += offset);
-    }
-}
-
-impl From<&Output> for SubOutputHandle {
-    fn from(input: &Output) -> Self {
-        Self {
-            wire_handles: input
-                .wires()
-                .iter()
-                .copied()
-                .map(|id| WireHandle {
-                    id,
-                    _pd: PhantomData,
-                })
-                .collect(),
-        }
-    }
-}
-
-impl<Idx> std::ops::Index<Idx> for SubOutputHandle
-where
-    Idx: std::slice::SliceIndex<[WireHandle<Feed>]>,
-{
-    type Output = Idx::Output;
-
-    fn index(&self, index: Idx) -> &Self::Output {
-        &self.wire_handles[index]
-    }
-}
-
-/// A handle to a circuit gate
-#[derive(Debug, Clone, Copy)]
-pub struct GateHandle {
-    x: WireHandle<Sink>,
-    y: Option<WireHandle<Sink>>,
-    z: WireHandle<Feed>,
-    gate_type: GateType,
-}
-
-impl GateHandle {
-    /// Returns handle to x
-    pub fn x(&self) -> WireHandle<Sink> {
-        self.x
-    }
-
-    /// Returns handle to y
-    pub fn y(&self) -> Option<WireHandle<Sink>> {
-        self.y
-    }
-
-    /// Returns handle to z
-    pub fn z(&self) -> WireHandle<Feed> {
-        self.z
-    }
-
-    /// Returns gate type
-    pub fn gate_type(&self) -> GateType {
-        self.gate_type
-    }
-
-    fn shift_right(&mut self, offset: usize) {
-        self.x.id += offset;
-        if let Some(y) = self.y.as_mut() {
-            y.id += offset;
-        }
-        self.z.id += offset;
-    }
-
-    fn to_gate(self, id: usize) -> Gate {
-        match self.gate_type {
-            GateType::Xor => Gate::Xor {
-                id,
-                xref: self.x.id,
-                yref: self.y.unwrap().id,
-                zref: self.z.id,
-            },
-            GateType::And => Gate::And {
-                id,
-                xref: self.x.id,
-                yref: self.y.unwrap().id,
-                zref: self.z.id,
-            },
-            GateType::Inv => Gate::Inv {
-                id,
-                xref: self.x.id,
-                zref: self.z.id,
-            },
-        }
-    }
-}
-
-impl From<&Gate> for GateHandle {
-    fn from(gate: &Gate) -> Self {
-        Self {
-            x: WireHandle::new_sink(gate.xref()),
-            y: gate
-                .yref()
-                .and_then(|yref| Some(WireHandle::new_sink(yref))),
-            z: WireHandle::new_feed(gate.zref()),
-            gate_type: gate.gate_type(),
-        }
-    }
-}
-
-/// State of [`CircuitBuilder`]
-pub trait BuilderState {}
-
-pub struct Inputs {
-    id: String,
-    description: String,
-    version: String,
-    bit_order: BitOrder,
-    input_wire_id: usize,
-    inputs: Vec<InputHandle>,
-}
-impl BuilderState for Inputs {}
-
-pub struct Gates {
-    id: String,
-    description: String,
-    version: String,
-    bit_order: BitOrder,
-    inputs: Vec<InputHandle>,
-    gate_wire_id: usize,
-    gates: Vec<GateHandle>,
-    conns: HashMap<usize, usize>,
-}
-impl BuilderState for Gates {}
-pub struct Outputs {
-    id: String,
-    description: String,
-    version: String,
-    bit_order: BitOrder,
-    inputs: Vec<InputHandle>,
-    gates: Vec<GateHandle>,
-    /// A map containing all the wire connections between gates and inputs/outputs.
-    conns: HashMap<usize, usize>,
-    output_wire_id: usize,
-    outputs: Vec<OutputHandle>,
-}
-impl BuilderState for Outputs {}
-
-/// Circuit Builder
+/// A circuit builder.
 ///
-/// This can be used to construct new circuits and synthesize existing circuits together.
+/// This type is used in conjunction with [`Tracer`](crate::Tracer) to build a circuit.
 ///
-/// It has three states:
-/// 1. Define inputs
-/// 2. Define gates
-/// 3. Define outputs
-#[derive(Debug)]
-pub struct CircuitBuilder<S: BuilderState>(S);
+/// # Example
+///
+/// The following example shows how to build a circuit that adds two u8 inputs.
+///
+/// ```
+/// use mpc_circuits::{CircuitBuilder, Tracer, ops::WrappingAdd};
+/// use std::cell::RefCell;
+///
+/// let builder = CircuitBuilder::new();
+///
+/// // Add two u8 inputs to the circuit
+/// let a = builder.add_input::<u8>();
+/// let b = builder.add_input::<u8>();
+///
+/// // Add the two inputs together
+/// let c = a.wrapping_add(b);
+///
+/// // Add the output to the circuit
+/// builder.add_output(c);
+///
+/// // Build the circuit
+/// let circuit = builder.build().unwrap();
+/// ```
+#[derive(Default)]
+pub struct CircuitBuilder {
+    state: RefCell<BuilderState>,
+}
 
-impl CircuitBuilder<Inputs> {
-    /// Creates new builder
-    pub fn new(id: &str, description: &str, version: &str, bit_order: BitOrder) -> Self {
-        Self(Inputs {
-            id: id.to_string(),
-            description: description.to_string(),
-            version: version.to_string(),
-            bit_order,
-            input_wire_id: 0,
+impl CircuitBuilder {
+    /// Creates a new circuit builder
+    pub fn new() -> Self {
+        Self {
+            state: RefCell::new(BuilderState::default()),
+        }
+    }
+
+    /// Returns a reference to the internal state of the builder
+    pub fn state(&self) -> &RefCell<BuilderState> {
+        &self.state
+    }
+
+    /// Adds a new input to the circuit of the provided type
+    ///
+    /// # Returns
+    ///
+    /// The binary encoded form of the input.
+    pub fn add_input<'a, T: ToBinaryRepr + BinaryLength>(&'a self) -> Tracer<'a, T::Repr> {
+        let mut state = self.state.borrow_mut();
+
+        let value = state.add_value::<T>();
+        state.inputs.push(value.clone().into());
+
+        Tracer::new(&self.state, value)
+    }
+
+    /// Adds a new input to the circuit of the provided type
+    ///
+    /// # Arguments
+    ///
+    /// * `typ` - The type of the input.
+    ///
+    /// # Returns
+    ///
+    /// The binary encoded form of the input.
+    pub fn add_input_by_type(&self, typ: ValueType) -> BinaryRepr {
+        let mut state = self.state.borrow_mut();
+
+        let value = state.add_value_by_type(typ);
+        state.inputs.push(value.clone());
+
+        value
+    }
+
+    /// Adds a new array input to the circuit of the provided type
+    ///
+    /// # Returns
+    ///
+    /// The binary encoded form of the array.
+    pub fn add_array_input<'a, T: ToBinaryRepr + BinaryLength, const N: usize>(
+        &'a self,
+    ) -> [Tracer<'a, T::Repr>; N]
+    where
+        [T::Repr; N]: Into<BinaryRepr>,
+    {
+        let mut state = self.state.borrow_mut();
+
+        let values: [T::Repr; N] = std::array::from_fn(|_| state.add_value::<T>());
+        state.inputs.push(values.clone().into());
+
+        values.map(|v| Tracer::new(&self.state, v))
+    }
+
+    /// Adds a new `Vec<T>` input to the circuit of the provided type
+    ///
+    /// # Arguments
+    ///
+    /// * `len` - The length of the vector.
+    ///
+    /// # Returns
+    ///
+    /// The binary encoded form of the vector.
+    pub fn add_vec_input<'a, T: ToBinaryRepr + BinaryLength>(
+        &'a self,
+        len: usize,
+    ) -> Vec<Tracer<'a, T::Repr>>
+    where
+        Vec<T::Repr>: Into<BinaryRepr>,
+    {
+        let mut state = self.state.borrow_mut();
+
+        let values: Vec<T::Repr> = (0..len).map(|_| state.add_value::<T>()).collect();
+        state.inputs.push(values.clone().into());
+
+        values
+            .into_iter()
+            .map(|v| Tracer::new(&self.state, v))
+            .collect()
+    }
+
+    /// Adds a new output to the circuit
+    pub fn add_output(&self, value: impl Into<BinaryRepr>) {
+        let mut state = self.state.borrow_mut();
+
+        state.outputs.push(value.into());
+    }
+
+    /// Appends an existing circuit
+    ///
+    /// # Arguments
+    ///
+    /// * `circ` - The circuit to append
+    /// * `builder_inputs` - The inputs to the appended circuit
+    ///
+    /// # Returns
+    ///
+    /// The outputs of the appended circuit
+    pub fn append(
+        &self,
+        circ: &Circuit,
+        builder_inputs: &[BinaryRepr],
+    ) -> Result<Vec<BinaryRepr>, BuilderError> {
+        self.state.borrow_mut().append(circ, builder_inputs)
+    }
+
+    /// Builds the circuit
+    pub fn build(self) -> Result<Circuit, BuilderError> {
+        self.state.into_inner().build()
+    }
+}
+
+/// The internal state of the [`CircuitBuilder`]
+pub struct BuilderState {
+    feed_id: usize,
+    inputs: Vec<BinaryRepr>,
+    outputs: Vec<BinaryRepr>,
+    gates: Vec<Gate>,
+
+    and_count: usize,
+    xor_count: usize,
+}
+
+impl Default for BuilderState {
+    fn default() -> Self {
+        Self {
+            // ids 0 and 1 are reserved for constant zero and one
+            feed_id: 2,
             inputs: vec![],
-        })
-    }
-
-    /// Add inputs to circuit
-    pub fn add_input(
-        &mut self,
-        id: &str,
-        desc: &str,
-        value_type: ValueType,
-        wire_count: usize,
-    ) -> InputHandle {
-        let wires: Vec<usize> = (self.0.input_wire_id..self.0.input_wire_id + wire_count).collect();
-        self.0.input_wire_id += wire_count;
-        let wire_handles = wires.iter().copied().map(WireHandle::new_feed).collect();
-        let input = InputHandle {
-            input: UncheckedGroup::new(
-                self.0.inputs.len(),
-                id.to_string(),
-                desc.to_string(),
-                value_type,
-                wires,
-            ),
-            wire_handles,
-        };
-        self.0.inputs.push(input.clone());
-        input
-    }
-
-    /// Sets inputs and moves to next state where gates and subcircuits are added
-    pub fn build_inputs(self) -> CircuitBuilder<Gates> {
-        CircuitBuilder(Gates {
-            id: self.0.id,
-            description: self.0.description,
-            version: self.0.version,
-            bit_order: self.0.bit_order,
-            inputs: self.0.inputs,
-            gate_wire_id: self.0.input_wire_id,
-            gates: Vec::new(),
-            conns: HashMap::new(),
-        })
+            outputs: vec![],
+            gates: vec![],
+            and_count: 0,
+            xor_count: 0,
+        }
     }
 }
 
-impl CircuitBuilder<Gates> {
-    /// Add sub-circuit to circuit
-    pub fn add_circ(&mut self, circ: &Circuit) -> CircuitHandle {
-        let offset = self.0.gate_wire_id;
-        self.0.gate_wire_id += circ.len();
-
-        // Insert gate handles
-        self.0.gates.extend(
-            circ.gates
-                .iter()
-                .map(|gate| {
-                    let mut handle: GateHandle = gate.into();
-                    handle.shift_right(offset);
-                    handle
-                })
-                .collect::<Vec<GateHandle>>(),
-        );
-
-        let inputs = circ
-            .inputs
-            .iter()
-            .map(|input| {
-                let mut handle: SubInputHandle = input.into();
-                handle.shift_right(offset);
-                handle
-            })
-            .collect::<Vec<SubInputHandle>>();
-
-        let outputs = circ
-            .outputs
-            .iter()
-            .map(|input| {
-                let mut handle: SubOutputHandle = input.into();
-                handle.shift_right(offset);
-                handle
-            })
-            .collect::<Vec<SubOutputHandle>>();
-
-        CircuitHandle { inputs, outputs }
+impl BuilderState {
+    /// Returns constant zero node.
+    pub(crate) fn get_const_zero(&self) -> Node<Feed> {
+        Node::<Feed>::new(0)
     }
 
-    /// Add gate to circuit
-    pub fn add_gate(&mut self, gate_type: GateType) -> GateHandle {
-        let (x, y, z) = match gate_type {
-            GateType::Xor => {
-                let x = self.0.gate_wire_id;
-                let y = x + 1;
-                let z = y + 1;
-                self.0.gate_wire_id += 3;
-                (x, Some(y), z)
-            }
-            GateType::And => {
-                let x = self.0.gate_wire_id;
-                let y = x + 1;
-                let z = y + 1;
-                self.0.gate_wire_id += 3;
-                (x, Some(y), z)
-            }
-            GateType::Inv => {
-                let x = self.0.gate_wire_id;
-                let z = x + 1;
-                self.0.gate_wire_id += 2;
-                (x, None, z)
-            }
-        };
-        let handle = GateHandle {
-            x: WireHandle::new_sink(x),
-            y: y.and_then(|y| Some(WireHandle::new_sink(y))),
-            z: WireHandle::new_feed(z),
-            gate_type,
-        };
-        self.0.gates.push(handle.clone());
-        handle
+    /// Returns constant one node.
+    pub(crate) fn get_const_one(&self) -> Node<Feed> {
+        Node::<Feed>::new(1)
     }
 
-    // Connect wires together
-    pub fn connect(&mut self, feeds: &[WireHandle<Feed>], sinks: &[WireHandle<Sink>]) {
-        for (feed, sink) in feeds.iter().zip(sinks) {
-            self.0.conns.insert(sink.id, feed.id);
+    /// Returns a value encoded using constant nodes.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - The value to encode.
+    pub(crate) fn get_constant<T: ToBinaryRepr>(&mut self, value: T) -> T::Repr {
+        let zero = self.get_const_zero();
+        let one = self.get_const_one();
+
+        let nodes: Vec<_> = value
+            .into_lsb0_iter()
+            .map(|bit| if bit { one } else { zero })
+            .collect();
+
+        T::new_bin_repr(&nodes).expect("Value should have correct bit length")
+    }
+
+    /// Adds a feed to the circuit.
+    pub(crate) fn add_feed(&mut self) -> Node<Feed> {
+        let feed = Node::<Feed>::new(self.feed_id);
+        self.feed_id += 1;
+
+        feed
+    }
+
+    /// Adds a value to the circuit.
+    pub(crate) fn add_value<T: ToBinaryRepr + BinaryLength>(&mut self) -> T::Repr {
+        let nodes: Vec<_> = (0..T::LEN).map(|_| self.add_feed()).collect();
+        T::new_bin_repr(&nodes).expect("Value should have correct bit length")
+    }
+
+    /// Adds a value to the circuit by type.
+    ///
+    /// # Arguments
+    ///
+    /// * `typ` - The type of the value to add.
+    pub(crate) fn add_value_by_type(&mut self, typ: ValueType) -> BinaryRepr {
+        let nodes: Vec<_> = (0..typ.len()).map(|_| self.add_feed()).collect();
+        typ.to_bin_repr(&nodes)
+            .expect("Value should have correct bit length")
+    }
+
+    /// Adds an XOR gate to the circuit.
+    ///
+    /// # Arguments
+    ///
+    /// * `x` - The first input to the gate.
+    /// * `y` - The second input to the gate.
+    ///
+    /// # Returns
+    ///
+    /// The output of the gate.
+    pub(crate) fn add_xor_gate(&mut self, x: Node<Feed>, y: Node<Feed>) -> Node<Feed> {
+        // if either input is a constant, we can simplify the gate
+        if x.id() == 0 && y.id() == 0 {
+            return self.get_const_zero();
+        } else if x.id() == 1 && y.id() == 1 {
+            return self.get_const_zero();
+        } else if x.id() == 0 {
+            return y;
+        } else if y.id() == 0 {
+            return x;
+        } else if x.id() == 1 {
+            let out = self.add_feed();
+            self.gates.push(Gate::Inv {
+                x: y.into(),
+                z: out,
+            });
+            return out;
+        } else if y.id() == 1 {
+            let out = self.add_feed();
+            self.gates.push(Gate::Inv {
+                x: x.into(),
+                z: out,
+            });
+            return out;
+        } else {
+            let out = self.add_feed();
+            self.gates.push(Gate::Xor {
+                x: x.into(),
+                y: y.into(),
+                z: out,
+            });
+            self.xor_count += 1;
+            return out;
         }
     }
 
-    // Fan out feed to multiple sinks
-    pub fn connect_fan_out(&mut self, feed: WireHandle<Feed>, sinks: &[WireHandle<Sink>]) {
-        for sink in sinks {
-            self.0.conns.insert(sink.id, feed.id);
+    /// Adds an AND gate to the circuit.
+    ///
+    /// # Arguments
+    ///
+    /// * `x` - The first input to the gate.
+    /// * `y` - The second input to the gate.
+    ///
+    /// # Returns
+    ///
+    /// The output of the gate.
+    pub(crate) fn add_and_gate(&mut self, x: Node<Feed>, y: Node<Feed>) -> Node<Feed> {
+        // if either input is a constant, we can simplify the gate
+        if x.id() == 0 || y.id() == 0 {
+            return self.get_const_zero();
+        } else if x.id() == 1 {
+            return y;
+        } else if y.id() == 1 {
+            return x;
+        } else {
+            let out = self.add_feed();
+            self.gates.push(Gate::And {
+                x: x.into(),
+                y: y.into(),
+                z: out,
+            });
+            self.and_count += 1;
+            return out;
         }
     }
 
-    // Sets gates and moves to next state where outputs can be added
-    pub fn build_gates(self) -> CircuitBuilder<Outputs> {
-        CircuitBuilder(Outputs {
-            id: self.0.id,
-            description: self.0.description,
-            version: self.0.version,
-            bit_order: self.0.bit_order,
-            inputs: self.0.inputs,
-            gates: self.0.gates,
-            conns: self.0.conns,
-            output_wire_id: self.0.gate_wire_id,
-            outputs: Vec::new(),
-        })
+    /// Adds an INV gate to the circuit.
+    ///
+    /// # Arguments
+    ///
+    /// * `x` - The input to the gate.
+    ///
+    /// # Returns
+    ///
+    /// The output of the gate.
+    pub(crate) fn add_inv_gate(&mut self, x: Node<Feed>) -> Node<Feed> {
+        if x.id() == 0 {
+            return self.get_const_one();
+        } else if x.id() == 1 {
+            return self.get_const_zero();
+        } else {
+            let out = self.add_feed();
+            self.gates.push(Gate::Inv {
+                x: x.into(),
+                z: out,
+            });
+            return out;
+        }
     }
-}
 
-impl CircuitBuilder<Outputs> {
-    /// Add outputs to circuit
-    pub fn add_output(
+    /// Appends an existing circuit
+    ///
+    /// # Arguments
+    ///
+    /// * `circ` - The circuit to append
+    /// * `builder_inputs` - The inputs to the appended circuit
+    ///
+    /// # Returns
+    ///
+    /// The outputs of the appended circuit
+    pub fn append(
         &mut self,
-        id: &str,
-        desc: &str,
-        value_type: ValueType,
-        wire_count: usize,
-    ) -> OutputHandle {
-        let wires: Vec<usize> =
-            (self.0.output_wire_id..self.0.output_wire_id + wire_count).collect();
-        self.0.output_wire_id += wire_count;
-        let wire_handles = wires.iter().copied().map(WireHandle::new_sink).collect();
-        let output = OutputHandle {
-            output: UncheckedGroup::new(
-                self.0.outputs.len(),
-                id.to_string(),
-                desc.to_string(),
-                value_type,
-                wires,
-            ),
-            wire_handles,
-        };
-        self.0.outputs.push(output.clone());
-        output
-    }
-
-    /// Connect wires together
-    pub fn connect(&mut self, feeds: &[WireHandle<Feed>], sinks: &[WireHandle<Sink>]) {
-        for (feed, sink) in feeds.iter().zip(sinks) {
-            self.0.conns.insert(sink.id, feed.id);
+        circ: &Circuit,
+        builder_inputs: &[BinaryRepr],
+    ) -> Result<Vec<BinaryRepr>, BuilderError> {
+        if builder_inputs.len() != circ.inputs().len() {
+            return Err(BuilderError::AppendError(
+                "Number of inputs does not match number of inputs in circuit".to_string(),
+            ));
         }
-    }
 
-    /// Fan out feed to multiple sinks
-    pub fn connect_fan_out(&mut self, feed: WireHandle<Feed>, sinks: &[WireHandle<Sink>]) {
-        for sink in sinks {
-            self.0.conns.insert(sink.id, feed.id);
-        }
-    }
-
-    /// Fully builds circuit
-    pub fn build_circuit(mut self) -> Result<Arc<Circuit>, BuilderError> {
-        let output_wire_ids = self
-            .0
-            .outputs
-            .iter()
-            .map(|output| output.output.wires.clone())
-            .flatten()
-            .collect::<HashSet<usize>>();
-
-        // Collect all the connections that include an output wire
-        // into a map
-        let mut output_wire_connections: HashMap<usize, usize> = HashMap::default();
-        for (sink, feed) in self
-            .0
-            .conns
-            .iter()
-            .filter(|(sink, _)| output_wire_ids.contains(sink))
+        // Maps old feed id -> new feed id
+        let mut feed_map: HashMap<Node<Feed>, Node<Feed>> = HashMap::default();
+        for (i, (builder_input, append_input)) in
+            builder_inputs.iter().zip(circ.inputs()).enumerate()
         {
-            output_wire_connections.insert(*feed, *sink);
-        }
-
-        // Preserve output wire ids by replacing gate wire
-        // ids if they are connected to an output wire
-        for (_, feed) in self.0.conns.iter_mut() {
-            if let Some(new_id) = output_wire_connections.get(feed) {
-                *feed = *new_id;
+            if discriminant(builder_input) != discriminant(append_input) {
+                return Err(BuilderError::AppendError(format!(
+                    "Input {i} type does not match input type in circuit, expected {}, got {}",
+                    append_input.to_string(),
+                    builder_input.to_string(),
+                )));
+            }
+            for (builder_node, append_node) in builder_input.iter().zip(append_input.iter()) {
+                feed_map.insert(*append_node, *builder_node);
             }
         }
 
-        // Connect all gate wires and create id set
-        let mut id_set: BTreeSet<usize> = BTreeSet::new();
-        self.0.gates.iter_mut().for_each(|gate| {
-            if let Some(new_id) = self.0.conns.get(&gate.x.id) {
-                gate.x.id = *new_id;
-            }
-            if let Some(y) = &mut gate.y {
-                if let Some(new_id) = self.0.conns.get(&y.id) {
-                    y.id = *new_id;
+        // Add new gates, mapping the node ids from the old circuit to the new circuit
+        for gate in circ.gates() {
+            match gate {
+                Gate::Xor { x, y, z } => {
+                    let new_x = feed_map.get(&(*x).into()).expect("feed should exist");
+                    let new_y = feed_map.get(&(*y).into()).expect("feed should exist");
+                    let new_z = self.add_xor_gate(*new_x, *new_y);
+                    feed_map.insert(*z, new_z);
                 }
-                id_set.insert(y.id);
-            }
-            if let Some(new_id) = output_wire_connections.get(&gate.z.id) {
-                gate.z.id = *new_id;
-            }
-            id_set.insert(gate.x.id);
-            id_set.insert(gate.z.id);
-        });
-
-        // Create an id map which will left pack wire ids to remove gaps
-        let id_map: BTreeMap<usize, usize> = id_set
-            .into_iter()
-            .enumerate()
-            .map(|(ix, id)| (id, ix))
-            .collect();
-
-        // Left pack wire ids
-        self.0.gates.iter_mut().for_each(|gate| {
-            if let Some(new_id) = id_map.get(&gate.x.id) {
-                gate.x.id = *new_id;
-            }
-            if let Some(y) = &mut gate.y {
-                if let Some(new_id) = id_map.get(&y.id) {
-                    y.id = *new_id;
+                Gate::And { x, y, z } => {
+                    let new_x = feed_map.get(&(*x).into()).expect("feed should exist");
+                    let new_y = feed_map.get(&(*y).into()).expect("feed should exist");
+                    let new_z = self.add_and_gate(*new_x, *new_y);
+                    feed_map.insert(*z, new_z);
+                }
+                Gate::Inv { x, z } => {
+                    let new_x = feed_map.get(&(*x).into()).expect("feed should exist");
+                    let new_z = self.add_inv_gate(*new_x);
+                    feed_map.insert(*z, new_z);
                 }
             }
-            if let Some(new_id) = id_map.get(&gate.z.id) {
-                gate.z.id = *new_id;
+        }
+
+        // Update the outputs
+        let mut outputs = circ.outputs().to_vec();
+        outputs.iter_mut().for_each(|output| {
+            for node in output.iter_mut() {
+                *node = *feed_map.get(node).expect("feed should exist");
             }
         });
 
-        // Build inputs
-        let inputs = self
-            .0
-            .inputs
-            .into_iter()
-            .map(|handle| handle.input)
-            .collect::<Vec<UncheckedGroup>>();
-
-        // Build outputs
-        let outputs =
-            self.0
-                .outputs
-                .into_iter()
-                .map(|mut handle| {
-                    handle.output.wires =
-                        handle
-                            .output
-                            .wires
-                            .clone()
-                            .into_iter()
-                            .map(|id| {
-                                let mut feed = self.0.conns.get(&id).ok_or(
-                                    BuilderError::MissingConnection(
-                                        format!(
-                                            "Output {} was not fully mapped to gates",
-                                            handle.output.index()
-                                        )
-                                        .to_string(),
-                                    ),
-                                )?;
-                                if let Some(new_id) = id_map.get(feed) {
-                                    feed = new_id;
-                                }
-                                Ok(*feed)
-                            })
-                            .collect::<Result<Vec<usize>, BuilderError>>()?;
-
-                    Ok(handle.output)
-                })
-                .collect::<Result<Vec<UncheckedGroup>, BuilderError>>()?;
-
-        let gates: Vec<Gate> = self
-            .0
-            .gates
-            .into_iter()
-            .enumerate()
-            .map(|(id, handle)| handle.to_gate(id))
-            .collect();
-
-        Ok(Circuit::new(
-            &self.0.id,
-            &self.0.description,
-            &self.0.version,
-            self.0.bit_order,
-            inputs,
-            outputs,
-            gates,
-        )?)
+        Ok(outputs)
     }
-}
 
-/// Maps byte values to sinks using constant wires
-///
-/// Panics if a sink is not provided for every bit in byte array
-pub fn map_bytes(
-    builder: &mut CircuitBuilder<Gates>,
-    order: BitOrder,
-    zero: WireHandle<Feed>,
-    one: WireHandle<Feed>,
-    sinks: &[WireHandle<Sink>],
-    bytes: &[u8],
-) {
-    assert_eq!(sinks.len(), bytes.len() * 8);
-    bytes
-        .iter()
-        .zip(sinks.chunks_exact(8))
-        .for_each(|(byte, sinks)| match order {
-            BitOrder::Lsb0 => {
-                for (i, sink) in sinks.iter().enumerate() {
-                    if (byte >> i & 1) == 1 {
-                        builder.connect(&[one], &[*sink]);
-                    } else {
-                        builder.connect(&[zero], &[*sink]);
-                    }
-                }
-            }
-            BitOrder::Msb0 => {
-                for (i, sink) in sinks.iter().rev().enumerate() {
-                    if (byte >> i & 1) == 1 {
-                        builder.connect(&[one], &[*sink]);
-                    } else {
-                        builder.connect(&[zero], &[*sink]);
-                    }
-                }
-            }
-        });
+    /// Builds the circuit.
+    pub(crate) fn build(mut self) -> Result<Circuit, BuilderError> {
+        // Shift all the node ids to the left by 2 to eliminate
+        // the reserved constant nodes (which should be factored out during building)
+        self.inputs.iter_mut().for_each(|input| input.shift_left(2));
+        self.gates.iter_mut().for_each(|gate| gate.shift_left(2));
+        self.outputs
+            .iter_mut()
+            .for_each(|output| output.shift_left(2));
+
+        Ok(Circuit {
+            inputs: self.inputs,
+            outputs: self.outputs,
+            gates: self.gates,
+            feed_count: self.feed_id,
+            and_count: self.and_count,
+            xor_count: self.xor_count,
+        })
+    }
 }
 
 #[cfg(test)]
-mod tests {
+mod test {
+    use mpc_circuits_macros::evaluate;
+
+    use crate::ops::WrappingAdd;
+
     use super::*;
-    use crate::{Value, ADDER_64_BYTES};
 
-    #[test]
-    fn test_adder_64() {
-        let mut builder = CircuitBuilder::new("test", "", "", BitOrder::Lsb0);
-        let adder_64 = Circuit::load_bytes(ADDER_64_BYTES).unwrap();
+    fn build_adder() -> Circuit {
+        let builder = CircuitBuilder::new();
 
-        let in_1 = builder.add_input("in_1", "", ValueType::U64, 64);
-        let in_2 = builder.add_input("in_2", "", ValueType::U64, 64);
+        let a = builder.add_input::<u8>();
+        let b = builder.add_input::<u8>();
 
-        let mut builder = builder.build_inputs();
+        let c = a.wrapping_add(b);
 
-        let circ_1 = builder.add_circ(&adder_64);
-        let circ_2 = builder.add_circ(&adder_64);
+        builder.add_output(c);
 
-        let a = circ_1.input(0).unwrap();
-        let b = circ_1.input(1).unwrap();
-        let c = circ_1.output(0).unwrap();
-
-        let x = circ_2.input(0).unwrap();
-        let y = circ_2.input(1).unwrap();
-        let z = circ_2.output(0).unwrap();
-
-        builder.connect(&in_1[..], &a[..]);
-        builder.connect(&in_2[..], &b[..]);
-        builder.connect(&c[..], &x[..]);
-        builder.connect(&in_1[..], &y[..]);
-
-        let mut builder = builder.build_gates();
-
-        let out = builder.add_output("out", "", ValueType::U64, 64);
-
-        builder.connect(&z[..], &out[..]);
-
-        let circ = builder.build_circuit().unwrap();
-
-        let a = circ.input(0).unwrap();
-        let b = circ.input(1).unwrap();
-
-        assert_eq!(
-            *circ
-                .evaluate(&[a.to_value(0u64).unwrap(), b.to_value(1u64).unwrap()])
-                .unwrap()[0]
-                .value(),
-            Value::U64(1)
-        );
+        builder.build().unwrap()
     }
 
     #[test]
-    fn test_u8_xor() {
-        let mut builder = CircuitBuilder::new("test", "", "", BitOrder::Lsb0);
+    fn test_build_adder() {
+        let circ = build_adder();
 
-        let in_1 = builder.add_input("in_0", "", ValueType::U8, 8);
-        let in_2 = builder.add_input("in_1", "", ValueType::U8, 8);
+        let a = 1u8;
+        let b = 255u8;
+        let c = a.wrapping_add(b);
 
-        let mut builder = builder.build_inputs();
+        let output = evaluate!(circ, fn(a, b) -> u8).unwrap();
 
-        let gates: Vec<GateHandle> = (0..8).map(|_| builder.add_gate(GateType::Xor)).collect();
-
-        gates.iter().cloned().enumerate().for_each(|(i, gate)| {
-            builder.connect(&[in_1[i]], &[gate.x]);
-            builder.connect(&[in_2[i]], &[gate.y.unwrap()]);
-        });
-
-        let mut builder = builder.build_gates();
-
-        let out = builder.add_output("out_0", "", ValueType::U8, 8);
-
-        gates.iter().enumerate().for_each(|(i, gate)| {
-            builder.connect(&[gate.z], &[out[i]]);
-        });
-
-        let circ = builder.build_circuit().unwrap();
-
-        let a = circ.input(0).unwrap();
-        let b = circ.input(1).unwrap();
-
-        assert_eq!(
-            *circ
-                .evaluate(&[a.to_value(2u8).unwrap(), b.to_value(2u8).unwrap()])
-                .unwrap()[0]
-                .value(),
-            Value::U8(0)
-        );
+        assert_eq!(output, c);
     }
 
     #[test]
-    fn test_map_bytes() {
-        let mut builder = CircuitBuilder::new("test", "", "", BitOrder::Lsb0);
+    fn test_append() {
+        let circ = build_adder();
 
-        let const_zero = builder.add_input("const0", "", ValueType::ConstZero, 1);
-        let const_one = builder.add_input("const1", "", ValueType::ConstOne, 1);
+        let builder = CircuitBuilder::new();
 
-        let mut builder = builder.build_inputs();
+        let a = builder.add_input::<u8>();
+        let b = builder.add_input::<u8>();
 
-        let gates: Vec<_> = (0..24).map(|_| builder.add_gate(GateType::Inv)).collect();
+        let c = a.wrapping_add(b);
 
-        map_bytes(
-            &mut builder,
-            BitOrder::Lsb0,
-            const_zero[0],
-            const_one[0],
-            &gates.iter().map(|gate| gate.x()).collect::<Vec<_>>(),
-            &[0xAB, 0x00, 0xCD],
-        );
+        let mut appended_outputs = builder.append(&circ, &[a.into(), c.into()]).unwrap();
 
-        let mut builder = builder.build_gates();
+        let d = appended_outputs.pop().unwrap();
 
-        let out = builder.add_output("test", "", ValueType::Bytes, 24);
+        builder.add_output(d);
 
-        gates
-            .iter()
-            .enumerate()
-            .for_each(|(i, gate)| builder.connect(&[gate.z()], &[out[i]]));
+        let circ = builder.build().unwrap();
 
-        let circ = builder.build_circuit().unwrap();
+        let mut output = circ.evaluate(&[1u8.into(), 1u8.into()]).unwrap();
 
-        let result = circ.evaluate(&[]).unwrap();
+        let d: u8 = output.pop().unwrap().try_into().unwrap();
 
-        assert_eq!(*result[0].value(), Value::Bytes(vec![0x54, 0xFF, 0x32]));
+        // a + (a + b) = 2a + b
+        assert_eq!(d, 3u8);
     }
 }

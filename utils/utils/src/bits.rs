@@ -263,26 +263,73 @@ where
 }
 
 /// Trait for converting types to bit iterators.
-pub trait ToBits {
+pub trait ToBitsIter {
     type Lsb0Iter: Iterator<Item = bool>;
     type Msb0Iter: Iterator<Item = bool>;
 
     /// Converts into an iterator of LSB0 bits.
     fn into_lsb0_iter(self) -> Self::Lsb0Iter;
 
+    /// Converts into an iterator of MSB0 bits.
+    fn into_msb0_iter(self) -> Self::Msb0Iter;
+}
+
+pub trait ToBits {
     /// Converts into an LSB0 bit vector.
     fn into_lsb0(self) -> Vec<bool>;
 
-    /// Converts into an iterator of MSB0 bits.
-    fn into_msb0_iter(self) -> Self::Msb0Iter;
+    /// Converts into an LSB0 bit vector.
+    fn into_lsb0_boxed(self: Box<Self>) -> Vec<bool>;
 
     /// Converts into an MSB0 bit vector.
     fn into_msb0(self) -> Vec<bool>;
+
+    /// Converts into an MSB0 bit vector.
+    fn into_msb0_boxed(self: Box<Self>) -> Vec<bool>;
+}
+
+impl ToBitsIter for bool {
+    type Lsb0Iter = std::iter::Once<bool>;
+    type Msb0Iter = std::iter::Once<bool>;
+
+    fn into_lsb0_iter(self) -> Self::Lsb0Iter {
+        std::iter::once(self)
+    }
+
+    fn into_msb0_iter(self) -> Self::Msb0Iter {
+        std::iter::once(self)
+    }
+}
+
+impl<const N: usize> ToBitsIter for [bool; N] {
+    type Lsb0Iter = std::array::IntoIter<bool, N>;
+    type Msb0Iter = std::array::IntoIter<bool, N>;
+
+    fn into_lsb0_iter(self) -> Self::Lsb0Iter {
+        self.into_iter()
+    }
+
+    fn into_msb0_iter(self) -> Self::Msb0Iter {
+        self.into_iter()
+    }
+}
+
+impl ToBitsIter for Vec<bool> {
+    type Lsb0Iter = std::vec::IntoIter<bool>;
+    type Msb0Iter = std::vec::IntoIter<bool>;
+
+    fn into_lsb0_iter(self) -> Self::Lsb0Iter {
+        self.into_iter()
+    }
+
+    fn into_msb0_iter(self) -> Self::Msb0Iter {
+        self.into_iter()
+    }
 }
 
 macro_rules! impl_uint_to_bits {
     ($typ:ty) => {
-        impl ToBits for $typ {
+        impl ToBitsIter for $typ {
             type Lsb0Iter = UintIterator<$typ, Lsb0>;
             type Msb0Iter = UintIterator<$typ, Msb0>;
 
@@ -294,10 +341,6 @@ macro_rules! impl_uint_to_bits {
                 }
             }
 
-            fn into_lsb0(self) -> Vec<bool> {
-                self.into_lsb0_iter().collect()
-            }
-
             fn into_msb0_iter(self) -> UintIterator<$typ, Msb0> {
                 UintIterator {
                     bit_order: PhantomData::<Msb0>,
@@ -305,8 +348,64 @@ macro_rules! impl_uint_to_bits {
                     pos: 0,
                 }
             }
+        }
+
+        impl<const N: usize> ToBitsIter for [$typ; N] {
+            type Lsb0Iter = std::iter::FlatMap<
+                std::array::IntoIter<$typ, N>,
+                UintIterator<$typ, Lsb0>,
+                fn($typ) -> <$typ as ToBitsIter>::Lsb0Iter,
+            >;
+            type Msb0Iter = std::iter::FlatMap<
+                std::array::IntoIter<$typ, N>,
+                UintIterator<$typ, Msb0>,
+                fn($typ) -> <$typ as ToBitsIter>::Msb0Iter,
+            >;
+
+            fn into_lsb0_iter(self) -> Self::Lsb0Iter {
+                self.into_iter().flat_map(|v| v.into_lsb0_iter())
+            }
+
+            fn into_msb0_iter(self) -> Self::Msb0Iter {
+                self.into_iter().flat_map(|v| v.into_msb0_iter())
+            }
+        }
+
+        impl ToBitsIter for Vec<$typ> {
+            type Lsb0Iter = std::iter::FlatMap<
+                std::vec::IntoIter<$typ>,
+                UintIterator<$typ, Lsb0>,
+                fn($typ) -> <$typ as ToBitsIter>::Lsb0Iter,
+            >;
+            type Msb0Iter = std::iter::FlatMap<
+                std::vec::IntoIter<$typ>,
+                UintIterator<$typ, Msb0>,
+                fn($typ) -> <$typ as ToBitsIter>::Msb0Iter,
+            >;
+
+            fn into_lsb0_iter(self) -> Self::Lsb0Iter {
+                self.into_iter().flat_map(|v| v.into_lsb0_iter())
+            }
+
+            fn into_msb0_iter(self) -> Self::Msb0Iter {
+                self.into_iter().flat_map(|v| v.into_msb0_iter())
+            }
+        }
+
+        impl ToBits for $typ {
+            fn into_lsb0(self) -> Vec<bool> {
+                self.into_lsb0_iter().collect()
+            }
+
+            fn into_lsb0_boxed(self: Box<Self>) -> Vec<bool> {
+                self.into_lsb0_iter().collect()
+            }
 
             fn into_msb0(self) -> Vec<bool> {
+                self.into_msb0_iter().collect()
+            }
+
+            fn into_msb0_boxed(self: Box<Self>) -> Vec<bool> {
                 self.into_msb0_iter().collect()
             }
         }
@@ -325,10 +424,10 @@ pub struct BitIterator<I, V, Ord> {
     outer_iter: I,
 }
 
-impl<I, V> Iterator for BitIterator<I, <V as ToBits>::Lsb0Iter, Lsb0>
+impl<I, V> Iterator for BitIterator<I, <V as ToBitsIter>::Lsb0Iter, Lsb0>
 where
     I: Iterator<Item = V>,
-    V: ToBits,
+    V: ToBitsIter,
 {
     type Item = bool;
 
@@ -358,10 +457,10 @@ where
     }
 }
 
-impl<I, V> Iterator for BitIterator<I, <V as ToBits>::Msb0Iter, Msb0>
+impl<I, V> Iterator for BitIterator<I, <V as ToBitsIter>::Msb0Iter, Msb0>
 where
     I: Iterator<Item = V>,
-    V: ToBits,
+    V: ToBitsIter,
 {
     type Item = bool;
 
@@ -396,7 +495,7 @@ pub trait IterToBits
 where
     Self: IntoIterator,
 {
-    type Item: ToBits;
+    type Item: ToBitsIter;
     type Lsb0Iter: Iterator<Item = bool>;
     type Msb0Iter: Iterator<Item = bool>;
 
@@ -412,11 +511,11 @@ where
 impl<I, V> IterToBits for I
 where
     I: IntoIterator<Item = V>,
-    V: ToBits,
+    V: ToBitsIter,
 {
     type Item = V;
-    type Lsb0Iter = BitIterator<<I as IntoIterator>::IntoIter, <V as ToBits>::Lsb0Iter, Lsb0>;
-    type Msb0Iter = BitIterator<<I as IntoIterator>::IntoIter, <V as ToBits>::Msb0Iter, Msb0>;
+    type Lsb0Iter = BitIterator<<I as IntoIterator>::IntoIter, <V as ToBitsIter>::Lsb0Iter, Lsb0>;
+    type Msb0Iter = BitIterator<<I as IntoIterator>::IntoIter, <V as ToBitsIter>::Msb0Iter, Msb0>;
 
     fn into_lsb0_iter(self) -> Self::Lsb0Iter {
         BitIterator {
@@ -607,7 +706,7 @@ mod test {
     #[case(vec![1u32, 2u32], format!("{:032b}{:032b}", 1u32, 2u32))]
     #[case(vec![1u64, 2u64], format!("{:064b}{:064b}", 1u64, 2u64))]
     #[case(vec![1u128, 2u128], format!("{:0128b}{:0128b}", 1u128, 2u128))]
-    fn test_iter_to_bits<V: ToBits + Clone>(
+    fn test_iter_to_bits<V: ToBitsIter + Clone>(
         #[case] mut values: Vec<V>,
         #[case] expected: impl AsRef<str>,
     ) {
