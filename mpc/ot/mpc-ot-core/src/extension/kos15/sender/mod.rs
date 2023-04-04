@@ -171,7 +171,6 @@ impl Kos15Sender<state::BaseReceive> {
             count: ncols_unpadded,
             sent: 0,
             base_choices: self.0.base_choices,
-            offset: 0,
         }))
     }
 }
@@ -186,22 +185,6 @@ impl Kos15Sender<state::Setup> {
             inputs,
             None,
         )
-    }
-
-    /// Splits this extended OT sender into two senders. This sender will be mutated
-    /// and will contain `split_at` OT instances. A new sender will be returned
-    /// and it will contain all the remaining OT instances.
-    pub fn split(&mut self, split_at: usize) -> Result<Self, ExtSenderCoreError> {
-        let split_table = self.0.table.split_off_rows(split_at)?;
-        let rows = split_table.rows();
-        self.0.count -= rows;
-
-        Ok(Kos15Sender(state::Setup {
-            table: split_table,
-            count: rows,
-            sent: 0,
-            base_choices: self.0.base_choices.clone(),
-        }))
     }
 
     pub fn is_complete(&self) -> bool {
@@ -223,25 +206,6 @@ impl Kos15Sender<state::RandSetup> {
             inputs,
             Some(derandomize),
         )
-    }
-
-    /// Splits this extended OT sender into two senders. This sender will be mutated
-    /// and will contain `split_at` OT instances. A new sender will be returned
-    /// and it will contain all the remaining OT instances.
-    pub fn split(&mut self, split_at: usize) -> Result<Self, ExtSenderCoreError> {
-        let split_table = self.0.table.split_off_rows(split_at)?;
-        let rows = split_table.rows();
-        self.0.count -= rows;
-
-        Ok(Kos15Sender(state::RandSetup {
-            rng: self.0.rng.clone(),
-            salt: self.0.salt,
-            table: split_table,
-            count: rows,
-            sent: 0,
-            base_choices: self.0.base_choices.clone(),
-            offset: self.0.offset + self.0.sent + split_at,
-        }))
     }
 
     pub fn is_complete(&self) -> bool {
@@ -267,7 +231,6 @@ impl Kos15Sender<state::RandSetup> {
         Ok(ExtSenderReveal {
             seed: self.0.rng.get_seed(),
             salt: self.0.salt,
-            offset: self.0.offset,
         })
     }
 }

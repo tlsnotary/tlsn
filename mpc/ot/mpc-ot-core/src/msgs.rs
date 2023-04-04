@@ -110,7 +110,6 @@ pub struct ExtSenderCommit(pub [u8; 32]);
 pub struct ExtSenderReveal {
     pub seed: [u8; 32],
     pub salt: [u8; 32],
-    pub offset: usize,
 }
 
 /// We use this message when we want to send data which is longer than 128 bits
