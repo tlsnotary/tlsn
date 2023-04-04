@@ -12,9 +12,7 @@ mock = []
 
 [dependencies]
 tlsn-mpc-core.workspace = true
-tlsn-mpc-garble-core.workspace = true
 tlsn-mpc-ot-core.workspace = true
-tlsn-mpc-circuits.workspace = true
 tlsn-utils-aio.workspace = true
 
 async-trait.workspace = true
@@ -40,3 +38,5 @@ rayon = { workspace = true }
 rstest = { workspace = true }
 criterion = { workspace = true, features = ["async_tokio"] }
 tlsn-utils-aio = { workspace = true, features = ["duplex"] }
+tlsn-mpc-garble-core.workspace = true
+tlsn-mpc-circuits.workspace = true

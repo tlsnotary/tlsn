@@ -75,8 +75,6 @@ pub struct RandSetup {
     pub(crate) count: Count,
     pub(crate) sent: Sent,
     pub(crate) base_choices: BaseChoices,
-    // Tracks the offset of OTs split off from other OTs
-    pub(crate) offset: usize,
     pub(crate) salt: Salt,
 }
 impl SenderState for RandSetup {}
