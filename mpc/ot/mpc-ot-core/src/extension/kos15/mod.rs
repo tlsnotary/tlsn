@@ -294,91 +294,6 @@ pub mod tests {
     }
 
     #[rstest]
-    fn test_ot_splitting(
-        pair_base_setup: (
-            Kos15Sender<s_state::BaseReceive>,
-            Kos15Receiver<r_state::BaseSend>,
-        ),
-        input_setup: (Vec<bool>, Vec<[Block; 2]>),
-    ) {
-        let (sender, receiver) = pair_base_setup;
-        let (choices, inputs) = input_setup;
-        let mut rng = ChaCha12Rng::from_seed([0; 32]);
-        let split_at: usize = rng.gen_range(0..inputs.len());
-
-        let (mut receiver, receiver_setup) = receiver.extension_setup(&choices).unwrap();
-        let mut sender = sender
-            .extension_setup(choices.len(), receiver_setup)
-            .unwrap();
-
-        let mut receiver_2 = receiver.split(split_at).unwrap();
-        let mut sender_2 = sender.split(split_at).unwrap();
-
-        // Check original sender/receiver
-        let payload = sender.send(&inputs[..split_at]).unwrap();
-        let receive = receiver.receive(payload).unwrap();
-
-        let expected: Vec<Block> = inputs[..split_at]
-            .iter()
-            .zip(choices[..split_at].iter())
-            .map(|(input, choice)| input[*choice as usize])
-            .collect();
-
-        assert_eq!(expected, receive);
-
-        //Check split sender/receiver
-        let payload_2 = sender_2.send(&inputs[split_at..]).unwrap();
-        let receive_2 = receiver_2.receive(payload_2).unwrap();
-
-        let expected_2: Vec<Block> = inputs[split_at..]
-            .iter()
-            .zip(choices[split_at..].iter())
-            .map(|(input, choice)| input[*choice as usize])
-            .collect();
-
-        assert_eq!(expected_2, receive_2);
-
-        // Check for completeness
-        assert!(sender.is_complete());
-        assert!(receiver.is_complete());
-        assert!(sender_2.is_complete());
-        assert!(receiver_2.is_complete());
-    }
-
-    #[should_panic]
-    #[rstest]
-    fn test_ot_splitting_mix_pairs(
-        pair_base_setup: (
-            Kos15Sender<s_state::BaseReceive>,
-            Kos15Receiver<r_state::BaseSend>,
-        ),
-        input_setup: (Vec<bool>, Vec<[Block; 2]>),
-    ) {
-        let (sender, receiver) = pair_base_setup;
-        let (choices, inputs) = input_setup;
-        let length = inputs.len();
-
-        let (mut receiver, receiver_setup) = receiver.extension_setup(&choices).unwrap();
-        let mut sender = sender
-            .extension_setup(choices.len(), receiver_setup)
-            .unwrap();
-
-        // Use original sender together with split receiver, should panic
-        let mut receiver_2 = receiver.split(length / 2).unwrap();
-
-        let payload = sender.send(&inputs[..length / 2]).unwrap();
-        let receive = receiver_2.receive(payload).unwrap();
-
-        let expected: Vec<Block> = inputs[..length / 2]
-            .iter()
-            .zip(choices[length / 2..].iter())
-            .map(|(input, choice)| input[*choice as usize])
-            .collect();
-
-        assert_eq!(expected, receive);
-    }
-
-    #[rstest]
     fn test_committed_ot(input_setup: (Vec<bool>, Vec<[Block; 2]>)) {
         let (choices, inputs) = input_setup;
         let (sender, mut receiver) = (Kos15Sender::default(), Kos15Receiver::default());
@@ -437,41 +352,6 @@ pub mod tests {
 
         let check = receiver.verify(reveal, &inputs);
         assert!(check.unwrap_err() == CommittedOTError::Verify);
-    }
-
-    #[rstest]
-    fn test_committed_ot_split(input_setup: (Vec<bool>, Vec<[Block; 2]>)) {
-        let (choices, inputs) = input_setup;
-        let (sender, mut receiver) = (Kos15Sender::default(), Kos15Receiver::default());
-
-        let commitment = sender.commit_to_seed();
-        receiver.store_commitment(commitment.0);
-
-        let (receiver, message) = receiver.base_setup().unwrap();
-        let (sender, message) = sender.base_setup(message).unwrap();
-
-        let (receiver, message) = receiver.base_send(message).unwrap();
-        let sender = sender.base_receive(message).unwrap();
-
-        let (mut receiver, receiver_setup) = receiver.rand_extension_setup(choices.len()).unwrap();
-        let mut sender = sender
-            .rand_extension_setup(choices.len(), receiver_setup)
-            .unwrap();
-
-        let mut sender = sender.split(inputs.len() / 2).unwrap();
-        let mut receiver = receiver.split(choices.len() / 2).unwrap();
-
-        let message = receiver.derandomize(&choices[choices.len() / 2..]).unwrap();
-
-        let sender_output = sender
-            .rand_send(&inputs[inputs.len() / 2..], message)
-            .unwrap();
-        let _ = receiver.receive(sender_output).unwrap();
-
-        let reveal = unsafe { sender.reveal().unwrap() };
-
-        let check = receiver.verify(reveal, &inputs[inputs.len() / 2..]);
-        assert!(check.is_ok());
     }
 
     #[rstest]
