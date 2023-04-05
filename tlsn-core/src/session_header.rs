@@ -1,5 +1,5 @@
 use crate::{
-    error::Error, handshake_summary::HandshakeSummary, pubkey::PubKey,
+    encoder::ChaChaEncoder, error::Error, handshake_summary::HandshakeSummary, pubkey::PubKey,
     session_artifacts::SessionArtifacts, signature::Signature, signer::Signer,
 };
 use serde::Serialize;
@@ -62,6 +62,10 @@ impl SessionHeader {
             return Err(Error::InternalError);
         }
         Ok(())
+    }
+
+    pub fn encoder(&self) -> ChaChaEncoder {
+        ChaChaEncoder::new(self.label_seed)
     }
 
     pub fn label_seed(&self) -> &LabelSeed {

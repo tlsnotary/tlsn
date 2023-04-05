@@ -1,7 +1,10 @@
 pub mod commitment;
+pub mod encoder;
 pub mod error;
 pub mod handshake_data;
 pub mod handshake_summary;
+pub(crate) mod inclusion_proof;
+pub mod merkle;
 pub mod notarized_session;
 pub mod pubkey;
 pub mod session_artifacts;
@@ -10,6 +13,9 @@ pub mod session_header;
 pub mod session_proof;
 pub mod signature;
 pub mod signer;
+pub mod substrings_commitment;
+pub mod substrings_opening;
+pub mod substrings_proof;
 pub mod transcript;
 mod utils;
 mod webpki_utils;
@@ -76,18 +82,21 @@ pub mod test {
         let data = SessionData::default();
         let session = NotarizedSession::new(1, header, signature, data);
 
-        // User converts NotarizedSession into SessionProof and sends it to the Verifier
-        let proof: SessionProof = (&session).into();
+        // User converts NotarizedSession into SessionProof and SubstringsProof and sends them to the Verifier
+        let session_proof: SessionProof = (&session).into();
+        let substrings_proof = session.generate_substring_proof([1, 2].to_vec()).unwrap();
 
         // The Verifier does:
         let SessionProof {
             header,
             handshake_data,
-        } = proof;
+        } = session_proof;
 
         // (if the Notary is the Verifier then no pubkey is required and None is passed)
         let header = SessionHeader::from_msg(&header, Some(&pubkey)).unwrap();
 
         handshake_data.verify(&header, "tlsnotary.org").unwrap();
+
+        let transcript_slices = substrings_proof.verify(&header).unwrap();
     }
 }
