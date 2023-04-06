@@ -5,10 +5,10 @@ pub mod mock;
 use async_trait::async_trait;
 use futures::channel::oneshot::Canceled;
 use mpc_ot_core::{
-    msgs::{OTFactoryMessage, OTMessage},
-    CommittedOTError, ExtReceiverCoreError, ExtSenderCoreError, ReceiverCoreError, SenderCoreError,
+    msgs::OTMessage, CommittedOTError, ExtReceiverCoreError, ExtSenderCoreError, ReceiverCoreError,
+    SenderCoreError,
 };
-use utils_aio::{mux::MuxerError, Channel};
+use utils_aio::Channel;
 
 pub use mpc_ot_core::config;
 
@@ -34,22 +34,6 @@ pub enum OTError {
     InvalidCiphertextLength(usize, usize),
     #[error("Encountered error in backend")]
     Backend(#[from] Canceled),
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum OTFactoryError {
-    #[error("muxer error")]
-    MuxerError(#[from] MuxerError),
-    #[error("ot error")]
-    OTError(#[from] OTError),
-    #[error("io error")]
-    IOError(#[from] std::io::Error),
-    #[error("unexpected message")]
-    UnexpectedMessage(OTFactoryMessage),
-    #[error("{0} Sender expects {1} OTs, Receiver expects {2}")]
-    SplitMismatch(String, usize, usize),
-    #[error("other: {0}")]
-    Other(String),
 }
 
 #[async_trait]
