@@ -34,16 +34,20 @@ pub enum OTError {
     InvalidCiphertextLength(usize, usize),
     #[error("Encountered error in backend")]
     Backend(#[from] Canceled),
+    #[error("MuxerError: {0}")]
+    MuxerError(#[from] utils_aio::mux::MuxerError),
+    #[error("Other: {0}")]
+    Other(String),
 }
 
 #[async_trait]
 pub trait ObliviousSend<T> {
-    async fn send(&mut self, inputs: Vec<T>) -> Result<(), OTError>;
+    async fn send(&mut self, id: String, inputs: Vec<T>) -> Result<(), OTError>;
 }
 
 #[async_trait]
 pub trait ObliviousReceive<T, U> {
-    async fn receive(&mut self, choices: Vec<T>) -> Result<Vec<U>, OTError>;
+    async fn receive(&mut self, id: String, choices: Vec<T>) -> Result<Vec<U>, OTError>;
 }
 
 #[async_trait]
@@ -67,7 +71,7 @@ pub trait ObliviousAcceptCommit {
 #[async_trait]
 pub trait ObliviousVerify<T> {
     /// Verifies the correctness of the revealed OT seed
-    async fn verify(self, input: Vec<T>) -> Result<(), OTError>;
+    async fn verify(self, id: String, input: Vec<T>) -> Result<(), OTError>;
 }
 
 #[cfg(test)]

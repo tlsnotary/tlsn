@@ -6,13 +6,6 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum OTFactoryMessage {
-    OTMessage(OTMessage),
-    Split(Split),
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum OTMessage {
     BaseSenderSetup(SenderSetup),
     BaseSenderSetupWrapper(BaseSenderSetupWrapper),
@@ -26,6 +19,7 @@ pub enum OTMessage {
     ExtSenderCommit(ExtSenderCommit),
     ExtSenderReveal(ExtSenderReveal),
     ExtSenderEncryptedPayload(ExtSenderEncryptedPayload),
+    Split(Split),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

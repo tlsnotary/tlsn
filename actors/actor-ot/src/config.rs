@@ -1,9 +1,9 @@
 use derive_builder::Builder;
 
-const DEFAULT_OT_ID: &str = "FactoryParentOT";
+const DEFAULT_OT_ID: &str = "ParentOT";
 
 #[derive(Debug, Default, Builder)]
-pub struct SenderFactoryConfig {
+pub struct OTActorSenderConfig {
     #[builder(default = "DEFAULT_OT_ID.to_string()")]
     pub(crate) ot_id: String,
     pub(crate) initial_count: usize,
@@ -11,7 +11,7 @@ pub struct SenderFactoryConfig {
     pub(crate) committed: bool,
 }
 
-impl SenderFactoryConfigBuilder {
+impl OTActorSenderConfigBuilder {
     pub fn committed(&mut self) -> &mut Self {
         self.committed = Some(true);
         self
@@ -19,7 +19,7 @@ impl SenderFactoryConfigBuilder {
 }
 
 #[derive(Debug, Default, Builder)]
-pub struct ReceiverFactoryConfig {
+pub struct OTActorReceiverConfig {
     #[builder(default = "DEFAULT_OT_ID.to_string()")]
     pub(crate) ot_id: String,
     pub(crate) initial_count: usize,
@@ -27,7 +27,7 @@ pub struct ReceiverFactoryConfig {
     pub(crate) committed: bool,
 }
 
-impl ReceiverFactoryConfigBuilder {
+impl OTActorReceiverConfigBuilder {
     pub fn committed(&mut self) -> &mut Self {
         self.committed = Some(true);
         self

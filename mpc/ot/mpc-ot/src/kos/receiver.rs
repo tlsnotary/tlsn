@@ -102,7 +102,7 @@ impl Kos15IOReceiver<r_state::RandSetup> {
 
 #[async_trait]
 impl ObliviousReceive<bool, Block> for Kos15IOReceiver<r_state::RandSetup> {
-    async fn receive(&mut self, choices: Vec<bool>) -> Result<Vec<Block>, OTError> {
+    async fn receive(&mut self, _id: String, choices: Vec<bool>) -> Result<Vec<Block>, OTError> {
         let message = self.inner.derandomize(&choices)?;
         self.channel
             .send(OTMessage::ExtDerandomize(message))
@@ -124,9 +124,13 @@ impl ObliviousReceive<bool, Block> for Kos15IOReceiver<r_state::RandSetup> {
 // unlimited message length.
 #[async_trait]
 impl<const N: usize> ObliviousReceive<bool, [Block; N]> for Kos15IOReceiver<r_state::RandSetup> {
-    async fn receive(&mut self, choices: Vec<bool>) -> Result<Vec<[Block; N]>, OTError> {
+    async fn receive(
+        &mut self,
+        id: String,
+        choices: Vec<bool>,
+    ) -> Result<Vec<[Block; N]>, OTError> {
         // Receive AES encryption keys from OT
-        let keys = ObliviousReceive::<bool, Block>::receive(self, choices.clone()).await?;
+        let keys = ObliviousReceive::<bool, Block>::receive(self, id, choices.clone()).await?;
 
         // Expect the sender to send the encrypted messages
         let ExtSenderEncryptedPayload { ciphertexts } = expect_msg_or_err!(
@@ -201,7 +205,7 @@ impl ObliviousAcceptCommit for Kos15IOReceiver<r_state::Initialized> {
 
 #[async_trait]
 impl ObliviousVerify<[Block; 2]> for Kos15IOReceiver<r_state::RandSetup> {
-    async fn verify(mut self, input: Vec<[Block; 2]>) -> Result<(), OTError> {
+    async fn verify(mut self, _id: String, input: Vec<[Block; 2]>) -> Result<(), OTError> {
         let reveal = expect_msg_or_err!(
             self.channel.next().await,
             OTMessage::ExtSenderReveal,

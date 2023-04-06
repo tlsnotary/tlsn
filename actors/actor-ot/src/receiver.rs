@@ -9,7 +9,7 @@ use mpc_ot::{
 };
 use xtra::{prelude::*, scoped};
 
-use crate::{config::ReceiverFactoryConfig, GetReceiver, Setup};
+use crate::{config::OTActorReceiverConfig, GetReceiver, Setup};
 use mpc_core::Block;
 use mpc_ot_core::{
     msgs::{OTFactoryMessage, OTMessage, Split},
@@ -25,7 +25,7 @@ pub enum State {
 
 #[derive(xtra::Actor)]
 pub struct KOSReceiverFactory<T, U> {
-    config: ReceiverFactoryConfig,
+    config: OTActorReceiverConfig,
     /// This sink is not used at the moment. Future features may
     /// require the ReceiverFactory to send messages to the SenderFactory, so
     /// we keep this around.
@@ -47,7 +47,7 @@ where
     U: MuxChannelControl<OTMessage> + Send + 'static,
 {
     pub fn new(
-        config: ReceiverFactoryConfig,
+        config: OTActorReceiverConfig,
         addr: Address<Self>,
         // the channel over which OT splits are synchronized with the remote
         // KOSSenderFactory

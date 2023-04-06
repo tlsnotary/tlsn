@@ -117,7 +117,7 @@ impl Kos15IOSender<s_state::RandSetup> {
 
 #[async_trait]
 impl ObliviousSend<[Block; 2]> for Kos15IOSender<s_state::RandSetup> {
-    async fn send(&mut self, inputs: Vec<[Block; 2]>) -> Result<(), OTError> {
+    async fn send(&mut self, _id: String, inputs: Vec<[Block; 2]>) -> Result<(), OTError> {
         let message = expect_msg_or_err!(
             self.channel.next().await,
             OTMessage::ExtDerandomize,
@@ -137,7 +137,7 @@ impl ObliviousSend<[Block; 2]> for Kos15IOSender<s_state::RandSetup> {
 // unlimited message length.
 #[async_trait]
 impl<const N: usize> ObliviousSend<[[Block; N]; 2]> for Kos15IOSender<s_state::RandSetup> {
-    async fn send(&mut self, inputs: Vec<[[Block; N]; 2]>) -> Result<(), OTError> {
+    async fn send(&mut self, id: String, inputs: Vec<[[Block; N]; 2]>) -> Result<(), OTError> {
         let mut rng = ChaCha20Rng::from_entropy();
 
         // Prepare keys and convert inputs
@@ -166,7 +166,7 @@ impl<const N: usize> ObliviousSend<[[Block; N]; 2]> for Kos15IOSender<s_state::R
         }
 
         // Send keys using OT
-        ObliviousSend::<[Block; 2]>::send(self, keys).await?;
+        ObliviousSend::<[Block; 2]>::send(self, id, keys).await?;
 
         // Send ciphertexts
         self.channel
