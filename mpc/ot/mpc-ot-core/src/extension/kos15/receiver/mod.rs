@@ -173,6 +173,13 @@ impl Kos15Receiver<state::Setup> {
     pub fn is_complete(&self) -> bool {
         self.0.choices.is_empty()
     }
+
+    pub fn split(&mut self, split_at: usize) -> Result<Self, ExtReceiverCoreError> {
+        Ok(Kos15Receiver(state::Setup {
+            table: self.0.table.split_off_rows(split_at)?,
+            choices: self.0.choices.split_off(split_at),
+        }))
+    }
 }
 
 impl Kos15Receiver<state::RandSetup> {
@@ -233,6 +240,23 @@ impl Kos15Receiver<state::RandSetup> {
         self.0.rand_choices.len()
     }
 
+    pub fn split(&mut self, split_at: usize) -> Result<Self, ExtReceiverCoreError> {
+        if !self.0.derandomized.is_empty() {
+            return Err(ExtReceiverCoreError::SplitAfterDerand);
+        }
+
+        Ok(Kos15Receiver(state::RandSetup {
+            rng: self.0.rng.clone(),
+            table: self.0.table.split_off_rows(split_at)?,
+            rand_choices: self.0.rand_choices.split_off(split_at),
+            derandomized: Vec::new(),
+            sender_output_tape: Vec::new(),
+            choices_tape: Vec::new(),
+            commitment: self.0.commitment,
+            init_ot_number: self.0.init_ot_number,
+        }))
+    }
+
     /// Implements a weak version of verifiable OT
     ///
     /// This function is an implementation of verifiable OT for the sender only. It uses a
@@ -272,6 +296,12 @@ impl Kos15Receiver<state::RandSetup> {
 
         let (mut receiver, r_message) = receiver.rand_extension_setup(self.0.init_ot_number)?;
         let mut sender = sender.rand_extension_setup(self.0.init_ot_number, r_message)?;
+
+        let (mut sender, mut receiver) = if reveal.offset > 0 {
+            (sender.split(reveal.offset)?, receiver.split(reveal.offset)?)
+        } else {
+            (sender, receiver)
+        };
 
         let derandomized = receiver.derandomize(&self.0.choices_tape)?;
         let sender_output = sender.rand_send(expected_sender_input, derandomized)?;
