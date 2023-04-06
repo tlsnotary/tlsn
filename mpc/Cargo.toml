@@ -2,7 +2,7 @@
 members = [
     #"mpc-core",
     #"garble/*",
-    #"ot/*",
+    "ot/*",
     "mpc-circuits",
     "mpc-circuits-macros",
     #"share-conversion/*",
