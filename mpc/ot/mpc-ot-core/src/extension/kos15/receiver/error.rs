@@ -15,6 +15,8 @@ pub enum ExtReceiverCoreError {
     InvalidChoiceLength,
     #[error("Received payload of unexpected size")]
     InvalidPayloadSize,
+    #[error("Unable to split OT after derandomization")]
+    SplitAfterDerand,
     #[error("Matrix Error: {0}")]
     MatrixError(#[from] MatrixError),
 }

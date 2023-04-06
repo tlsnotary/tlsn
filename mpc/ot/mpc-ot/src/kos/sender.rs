@@ -12,6 +12,7 @@ use mpc_ot_core::{
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use utils_aio::{
+    adaptive_barrier::AdaptiveBarrier,
     expect_msg_or_err,
     non_blocking_backend::{Backend, NonBlockingBackend},
 };
@@ -19,6 +20,8 @@ use utils_aio::{
 pub struct Kos15IOSender<T: SenderState> {
     inner: Kos15Sender<T>,
     channel: OTChannel,
+    // Needed for task synchronization for committed OT
+    barrier: AdaptiveBarrier,
 }
 
 impl Kos15IOSender<s_state::Initialized> {
@@ -26,6 +29,7 @@ impl Kos15IOSender<s_state::Initialized> {
         Self {
             inner: Kos15Sender::default(),
             channel,
+            barrier: AdaptiveBarrier::new(),
         }
     }
 
@@ -71,6 +75,7 @@ impl Kos15IOSender<s_state::Initialized> {
         let kos_io_sender = Kos15IOSender {
             inner: kos_sender,
             channel: self.channel,
+            barrier: self.barrier,
         };
         Ok(kos_io_sender)
     }
@@ -80,6 +85,33 @@ impl Kos15IOSender<s_state::RandSetup> {
     /// Returns the number of remaining OTs which have not been consumed yet
     pub fn remaining(&self) -> usize {
         self.inner.remaining()
+    }
+
+    /// Splits OT into separate instances, returning the original instance and the new instance
+    /// respectively.
+    ///
+    /// * channel - Channel to attach to the new instance
+    /// * count - Number of OTs to allocate to the new instance
+    pub fn split(self, channel: OTChannel, count: usize) -> Result<(Self, Self), OTError> {
+        let Self {
+            inner: mut child,
+            channel: parent_channel,
+            barrier,
+        } = self;
+
+        let parent = Self {
+            inner: child.split(count)?,
+            channel: parent_channel,
+            barrier: barrier.clone(),
+        };
+
+        let child = Self {
+            inner: child,
+            channel,
+            barrier,
+        };
+
+        Ok((parent, child))
     }
 }
 
@@ -163,6 +195,8 @@ impl ObliviousCommit for Kos15IOSender<s_state::Initialized> {
 #[async_trait]
 impl ObliviousReveal for Kos15IOSender<s_state::RandSetup> {
     async fn reveal(mut self) -> Result<(), OTError> {
+        // wait for all other split-off OTs (if any) to also call reveal()
+        self.barrier.wait().await;
         let message = unsafe { self.inner.reveal()? };
         self.channel
             .send(OTMessage::ExtSenderReveal(message))
