@@ -282,7 +282,9 @@ where
             })
             .await
             .map_err(|e| OTError::Other(e.to_string()))??;
-        sender.send(id, inputs).await
+
+        self.child_sender = Some(sender);
+        self.child_sender.unwrap().send(id, inputs).await
     }
 }
 
