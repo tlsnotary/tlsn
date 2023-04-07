@@ -142,7 +142,7 @@ where
         let child_channel = child_channel?;
         _ = send_msg?;
 
-        let (parent_ot, child_ot) = sender.split(child_channel, count)?;
+        let (sender, child_ot) = sender.split(child_channel, count)?;
 
         self.state = State::Setup {
             sender,
@@ -172,7 +172,7 @@ where
         // Leave actor in error state
         let state = std::mem::replace(&mut self.state, State::Error);
 
-        let State::Setup{sender, reveal_senders} = state else {
+        let State::Setup{sender, mut reveal_senders} = state else {
             return Err(OTError::Other("KOSSenderActor is not setup".to_string()));
         };
 
@@ -196,7 +196,7 @@ where
     type Return = Result<(), OTError>;
 
     /// Handles the Reveal message
-    async fn handle(&mut self, msg: Reveal, ctx: &mut Context<Self>) -> Self::Return {
+    async fn handle(&mut self, _msg: Reveal, ctx: &mut Context<Self>) -> Self::Return {
         if !self.config.committed {
             return Err(OTError::Other(
                 "KOSSenderActor not configured for committed OT".to_string(),
@@ -206,7 +206,7 @@ where
         // Leave actor in error state
         let state = std::mem::replace(&mut self.state, State::Error);
 
-        let State::Setup{sender, reveal_senders} = state else {
+        let State::Setup{reveal_senders, ..} = state else {
             return Err(OTError::Other("KOSSenderActor is not setup".to_string()));
         };
 
@@ -277,14 +277,14 @@ where
         let sender = self
             .address
             .send(GetSender {
-                id,
+                id: id.clone(),
                 count: inputs.len(),
             })
             .await
             .map_err(|e| OTError::Other(e.to_string()))??;
 
         self.child_sender = Some(sender);
-        self.child_sender.unwrap().send(id, inputs).await
+        self.child_sender.as_mut().unwrap().send(id, inputs).await
     }
 }
 
