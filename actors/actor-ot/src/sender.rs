@@ -16,7 +16,7 @@ pub enum State {
     Initialized,
     Setup {
         sender: Kos15IOSender<RandSetup>,
-        child_senders: Vec<Kos15IOSender<RandSetup>>,
+        reveal_senders: Vec<Kos15IOSender<RandSetup>>,
     },
     Error,
 }
@@ -99,7 +99,7 @@ where
 
         self.state = State::Setup {
             sender: parent_ot,
-            child_senders: vec![],
+            reveal_senders: vec![],
         };
 
         Ok(())
@@ -126,7 +126,7 @@ where
         // in case of early returns
         let state = std::mem::replace(&mut self.state, State::Error);
 
-        let State::Setup{sender, child_senders} = state else {
+        let State::Setup{sender, reveal_senders} = state else {
             return Err(OTError::Other("KOSSenderActor is not setup".to_string()));
         };
 
@@ -146,7 +146,7 @@ where
 
         self.state = State::Setup {
             sender,
-            child_senders,
+            reveal_senders,
         };
 
         Ok(child_ot)
@@ -172,15 +172,15 @@ where
         // Leave actor in error state
         let state = std::mem::replace(&mut self.state, State::Error);
 
-        let State::Setup{sender, child_senders} = state else {
+        let State::Setup{sender, reveal_senders} = state else {
             return Err(OTError::Other("KOSSenderActor is not setup".to_string()));
         };
 
-        child_senders.push(msg.0);
+        reveal_senders.push(msg.0);
 
         self.state = State::Setup {
             sender,
-            child_senders,
+            reveal_senders,
         };
 
         Ok(())
@@ -206,11 +206,11 @@ where
         // Leave actor in error state
         let state = std::mem::replace(&mut self.state, State::Error);
 
-        let State::Setup{sender, child_senders} = state else {
+        let State::Setup{sender, reveal_senders} = state else {
             return Err(OTError::Other("KOSSenderActor is not setup".to_string()));
         };
 
-        for s in child_senders {
+        for s in reveal_senders {
             s.reveal().await?;
         }
         ctx.stop_self();
@@ -237,9 +237,9 @@ where
     T: Handler<Setup, Return = Result<(), OTError>>
         + Handler<MarkForReveal, Return = Result<(), OTError>>,
 {
-    pub fn new(addr: Address<T>) -> Self {
+    pub fn new(address: Address<T>) -> Self {
         Self {
-            address: addr,
+            address,
             child_sender: None,
         }
     }

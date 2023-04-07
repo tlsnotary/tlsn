@@ -23,8 +23,10 @@ pub use config::{
     OTActorSenderConfigBuilder,
 };
 use mpc_ot::kos::sender::Kos15IOSender;
-use mpc_ot_core::s_state::RandSetup as RandSetupSender;
-pub use receiver::{KOSReceiverFactory, ReceiverFactoryControl};
+use mpc_ot_core::{
+    r_state::RandSetup as RandSetupReceiver, s_state::RandSetup as RandSetupSender, Kos15Receiver,
+};
+pub use receiver::{KOSReceiverActor, ReceiverActorControl};
 pub use sender::{KOSSenderActor, SenderActorControl};
 
 pub struct Setup;
@@ -33,16 +35,13 @@ pub struct GetSender {
     id: String,
     count: usize,
 }
-
 pub struct GetReceiver {
     id: String,
     count: usize,
 }
-
 pub struct MarkForReveal(Kos15IOSender<RandSetupSender>);
-
+pub struct MarkForVerify(Kos15Receiver<RandSetupReceiver>);
 pub struct Reveal;
-
 pub struct Verify;
 
 #[cfg(test)]
@@ -72,7 +71,7 @@ mod test {
         receiver_config: OTActorReceiverConfig,
     ) -> (
         Address<KOSSenderActor<OTFactoryChannel, MockClientControl>>,
-        Address<KOSReceiverFactory<OTFactoryChannel, MockServerControl>>,
+        Address<KOSReceiverActor<OTFactoryChannel, MockServerControl>>,
     ) {
         let receiver_mux_addr =
             xtra::spawn_tokio(MockServerChannelMuxer::default(), Mailbox::unbounded());
@@ -100,7 +99,7 @@ mod test {
             .await
             .unwrap();
         let (receiver_addr, receiver_mailbox) = Mailbox::unbounded();
-        let (receiver_factory, receiver_fut) = KOSReceiverFactory::new(
+        let (receiver_factory, receiver_fut) = KOSReceiverActor::new(
             receiver_config,
             receiver_addr.clone(),
             receiver_channel,
@@ -120,12 +119,12 @@ mod test {
         receiver_config: OTActorReceiverConfig,
     ) -> (
         SenderActorControl<KOSSenderActor<OTFactoryChannel, MockClientControl>>,
-        ReceiverFactoryControl<KOSReceiverFactory<OTFactoryChannel, MockServerControl>>,
+        ReceiverActorControl<KOSReceiverActor<OTFactoryChannel, MockServerControl>>,
     ) {
         let (sender_addr, receiver_addr) = create_pair(sender_config, receiver_config).await;
         (
             SenderActorControl::new(sender_addr),
-            ReceiverFactoryControl::new(receiver_addr),
+            ReceiverActorControl::new(receiver_addr),
         )
     }
 
@@ -134,7 +133,7 @@ mod test {
         receiver_config: OTActorReceiverConfig,
     ) -> (
         SenderActorControl<KOSSenderActor<OTFactoryChannel, MockClientControl>>,
-        ReceiverFactoryControl<KOSReceiverFactory<OTFactoryChannel, MockServerControl>>,
+        ReceiverActorControl<KOSReceiverActor<OTFactoryChannel, MockServerControl>>,
     ) {
         let (mut sender_control, mut receiver_control) =
             create_pair_controls(sender_config, receiver_config).await;

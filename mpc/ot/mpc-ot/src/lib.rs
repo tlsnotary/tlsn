@@ -36,6 +36,8 @@ pub enum OTError {
     Backend(#[from] Canceled),
     #[error("MuxerError: {0}")]
     MuxerError(#[from] utils_aio::mux::MuxerError),
+    #[error("{0} Sender expects {1} OTs, Receiver expects {2}")]
+    SplitMismatch(String, usize, usize),
     #[error("Other: {0}")]
     Other(String),
 }
