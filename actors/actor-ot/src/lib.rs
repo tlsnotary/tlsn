@@ -22,10 +22,8 @@ pub use config::{
     OTActorReceiverConfig, OTActorReceiverConfigBuilder, OTActorSenderConfig,
     OTActorSenderConfigBuilder,
 };
-use mpc_ot::kos::sender::Kos15IOSender;
-use mpc_ot_core::{
-    r_state::RandSetup as RandSetupReceiver, s_state::RandSetup as RandSetupSender, Kos15Receiver,
-};
+use mpc_ot::kos::{receiver::Kos15IOReceiver, sender::Kos15IOSender};
+use mpc_ot_core::{r_state::RandSetup as RandSetupReceiver, s_state::RandSetup as RandSetupSender};
 pub use receiver::{KOSReceiverActor, ReceiverActorControl};
 pub use sender::{KOSSenderActor, SenderActorControl};
 
@@ -40,7 +38,7 @@ pub struct GetReceiver {
     count: usize,
 }
 pub struct MarkForReveal(Kos15IOSender<RandSetupSender>);
-pub struct MarkForVerify(Kos15Receiver<RandSetupReceiver>);
+pub struct MarkForVerify(Kos15IOReceiver<RandSetupReceiver>);
 pub struct Reveal;
 pub struct Verify;
 

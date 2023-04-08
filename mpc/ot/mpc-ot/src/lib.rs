@@ -73,7 +73,7 @@ pub trait ObliviousAcceptCommit {
 #[async_trait]
 pub trait ObliviousVerify<T> {
     /// Verifies the correctness of the revealed OT seed
-    async fn verify(self, id: String, input: Vec<T>) -> Result<(), OTError>;
+    async fn verify(self, input: Vec<T>) -> Result<(), OTError>;
 }
 
 #[cfg(test)]
