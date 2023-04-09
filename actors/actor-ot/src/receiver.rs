@@ -289,7 +289,7 @@ where
 impl<T> ObliviousVerify<[Block; 2]> for ReceiverActorControl<T> {
     async fn verify(mut self, input: Vec<[Block; 2]>) -> Result<(), OTError> {
         let child_receiver = self.child_receiver.take().ok_or(OTError::Other(
-            "No KOSReceiver instance available to reveal".to_string(),
+            "No KOSReceiver instance available to verify".to_string(),
         ))?;
         child_receiver.verify(input).await
     }
