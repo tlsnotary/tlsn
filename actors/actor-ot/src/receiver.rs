@@ -9,7 +9,7 @@ use mpc_ot::{
 };
 use xtra::{prelude::*, scoped};
 
-use crate::{config::OTActorReceiverConfig, GetReceiver, MarkForVerify, Setup, Verify};
+use crate::{config::OTActorReceiverConfig, GetReceiver, Setup};
 use mpc_core::Block;
 use mpc_ot_core::{
     msgs::{OTMessage, Split},
@@ -19,10 +19,7 @@ use utils_aio::{mux::MuxChannelControl, Channel};
 
 pub enum State {
     Initialized(oneshot::Sender<()>),
-    Setup {
-        receiver: Kos15IOReceiver<RandSetup>,
-        verify_receivers: Vec<Kos15IOReceiver<RandSetup>>,
-    },
+    Setup(Kos15IOReceiver<RandSetup>),
     Error,
 }
 
@@ -122,10 +119,7 @@ where
 
         let parent_ot = parent_ot.rand_setup(self.config.initial_count).await?;
 
-        self.state = State::Setup {
-            receiver: parent_ot,
-            verify_receivers: Vec::new(),
-        };
+        self.state = State::Setup(parent_ot);
 
         // Signal to OTMessage stream that we're ready to process messages
         _ = setup_signal.send(());
@@ -152,7 +146,7 @@ where
 
         // These messages should not start being processed until after setup
         // so this is a fatal error
-        let State::Setup{receiver, verify_receivers} = state else {
+        let State::Setup(receiver) = state else {
             return Err(OTError::Other("KOSReceiverActor is not setup".to_string()));
         };
 
@@ -169,10 +163,7 @@ where
             self.child_buffer.insert(id, Ok(child_ot));
         }
 
-        self.state = State::Setup {
-            receiver,
-            verify_receivers,
-        };
+        self.state = State::Setup(receiver);
 
         Ok(())
     }
@@ -226,58 +217,6 @@ where
     }
 }
 
-#[async_trait]
-impl<T, U> Handler<MarkForVerify> for KOSReceiverActor<T, U>
-where
-    T: Channel<OTMessage, Error = std::io::Error> + Send + 'static,
-    U: MuxChannelControl<OTMessage> + Send + 'static,
-{
-    type Return = Result<(), OTError>;
-
-    /// Handles the MarkForVerify message
-    async fn handle(
-        &mut self,
-        msg: MarkForVerify,
-        _ctx: &mut Context<Self>,
-    ) -> Result<(), OTError> {
-        if !self.config.committed {
-            return Err(OTError::Other(
-                "KOSReceiverActor not configured for committed OT".to_string(),
-            ));
-        }
-
-        // Leave actor in error state
-        let state = std::mem::replace(&mut self.state, State::Error);
-
-        let State::Setup{receiver, mut verify_receivers} = state else {
-            return Err(OTError::Other("KOSReceiverActor is not setup".to_string()));
-        };
-
-        verify_receivers.push(msg.0);
-
-        self.state = State::Setup {
-            receiver,
-            verify_receivers,
-        };
-
-        Ok(())
-    }
-}
-
-#[async_trait]
-impl<T, U> Handler<Verify> for KOSReceiverActor<T, U>
-where
-    T: Channel<OTMessage, Error = std::io::Error> + Send + 'static,
-    U: MuxChannelControl<OTMessage> + Send + 'static,
-{
-    type Return = Result<(), OTError>;
-
-    /// Handles the Verify message
-    async fn handle(&mut self, msg: Verify, _ctx: &mut Context<Self>) -> Result<(), OTError> {
-        todo!()
-    }
-}
-
 pub struct ReceiverActorControl<T> {
     address: Address<T>,
     child_receiver: Option<Kos15IOReceiver<RandSetup>>,
@@ -295,9 +234,7 @@ impl<T> Clone for ReceiverActorControl<T> {
 impl<T, S> ReceiverActorControl<T>
 where
     T: Handler<Setup, Return = Result<(), OTError>>
-        + Handler<GetReceiver, Return = oneshot::Receiver<Result<S, OTError>>>
-        + Handler<MarkForVerify, Return = Result<(), OTError>>,
-    S: ObliviousReceive<bool, Block>,
+        + Handler<GetReceiver, Return = oneshot::Receiver<Result<S, OTError>>>,
 {
     pub fn new(address: Address<T>) -> Self {
         Self {
@@ -315,17 +252,6 @@ where
     pub async fn setup(&mut self) -> Result<(), OTError> {
         self.address
             .send(Setup)
-            .await
-            .map_err(|e| OTError::Other(e.to_string()))?
-    }
-
-    /// Sends mark for verify message to actor
-    pub async fn mark_for_verify(&mut self) -> Result<(), OTError> {
-        let child_receiver = self.child_receiver.take().ok_or(OTError::Other(
-            "No KOSReceiver instance available to reveal".to_string(),
-        ))?;
-        self.address
-            .send(MarkForVerify(child_receiver))
             .await
             .map_err(|e| OTError::Other(e.to_string()))?
     }
@@ -360,11 +286,11 @@ where
 }
 
 #[async_trait]
-impl<T> ObliviousVerify<Block> for ReceiverActorControl<T>
-where
-    T: Handler<Verify, Return = Result<(), OTError>>,
-{
-    async fn verify(self, input: Vec<Block>) -> Result<(), OTError> {
-        todo!()
+impl<T> ObliviousVerify<[Block; 2]> for ReceiverActorControl<T> {
+    async fn verify(mut self, input: Vec<[Block; 2]>) -> Result<(), OTError> {
+        let child_receiver = self.child_receiver.take().ok_or(OTError::Other(
+            "No KOSReceiver instance available to reveal".to_string(),
+        ))?;
+        child_receiver.verify(input).await
     }
 }
