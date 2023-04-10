@@ -1,4 +1,4 @@
-use crate::{config::OTActorSenderConfig, GetSender, MarkForReveal, Reveal, Setup};
+use crate::{config::OTActorSenderConfig, GetSender, MarkForReveal, Reveal, SendBackSender, Setup};
 use async_trait::async_trait;
 use futures::{stream::SplitSink, Future, SinkExt, StreamExt};
 use mpc_core::Block;
@@ -9,6 +9,7 @@ use mpc_ot_core::{
     msgs::{OTMessage, Split},
     s_state::RandSetup,
 };
+use std::collections::HashMap;
 use utils_aio::{mux::MuxChannelControl, Channel};
 use xtra::{prelude::*, scoped};
 
@@ -16,7 +17,8 @@ pub enum State {
     Initialized,
     Setup {
         sender: Kos15IOSender<RandSetup>,
-        reveal_senders: Vec<Kos15IOSender<RandSetup>>,
+        reveal: Vec<String>,
+        child_senders: HashMap<String, Kos15IOSender<RandSetup>>,
     },
     Error,
 }
@@ -99,7 +101,8 @@ where
 
         self.state = State::Setup {
             sender: parent_ot,
-            reveal_senders: vec![],
+            reveal: vec![],
+            child_senders: HashMap::new(),
         };
 
         Ok(())
@@ -126,7 +129,7 @@ where
         // in case of early returns
         let state = std::mem::replace(&mut self.state, State::Error);
 
-        let State::Setup{sender, reveal_senders} = state else {
+        let State::Setup{sender, reveal, child_senders} = state else {
             return Err(OTError::Other("KOSSenderActor is not setup".to_string()));
         };
 
@@ -146,7 +149,8 @@ where
 
         self.state = State::Setup {
             sender,
-            reveal_senders,
+            reveal,
+            child_senders,
         };
 
         Ok(child_ot)
@@ -172,15 +176,16 @@ where
         // Leave actor in error state
         let state = std::mem::replace(&mut self.state, State::Error);
 
-        let State::Setup{sender, mut reveal_senders} = state else {
+        let State::Setup{sender, mut reveal, child_senders} = state else {
             return Err(OTError::Other("KOSSenderActor is not setup".to_string()));
         };
 
-        reveal_senders.push(msg.0);
+        reveal.push(msg.0);
 
         self.state = State::Setup {
             sender,
-            reveal_senders,
+            reveal,
+            child_senders,
         };
 
         Ok(())
@@ -206,29 +211,57 @@ where
         // Leave actor in error state
         let state = std::mem::replace(&mut self.state, State::Error);
 
-        let State::Setup{reveal_senders, ..} = state else {
+        let State::Setup{reveal, mut child_senders, ..} = state else {
             return Err(OTError::Other("KOSSenderActor is not setup".to_string()));
         };
-
-        for s in reveal_senders {
-            s.reveal().await?;
-        }
         ctx.stop_self();
+
+        for id in reveal {
+            let child_sender = child_senders
+                .remove(&id)
+                .ok_or(OTError::Other("Child sender not found".to_string()))?;
+            child_sender.reveal().await?;
+        }
         Ok(())
     }
 }
 
-pub struct SenderActorControl<T> {
-    address: Address<T>,
-    child_sender: Option<Kos15IOSender<RandSetup>>,
+#[async_trait]
+impl<T, U> Handler<SendBackSender> for KOSSenderActor<T, U>
+where
+    T: Channel<OTMessage, Error = std::io::Error> + Send + 'static,
+    U: MuxChannelControl<OTMessage> + Send + 'static,
+{
+    type Return = Result<(), OTError>;
+
+    /// Handles the SendBackSender message
+    async fn handle(&mut self, msg: SendBackSender, _ctx: &mut Context<Self>) -> Self::Return {
+        let SendBackSender { id, child_sender } = msg;
+
+        // Leave actor in error state
+        let state = std::mem::replace(&mut self.state, State::Error);
+
+        let State::Setup{sender, reveal, mut child_senders} = state else {
+            return Err(OTError::Other("KOSSenderActor is not setup".to_string()));
+        };
+
+        child_senders.insert(id, child_sender);
+
+        self.state = State::Setup {
+            sender,
+            reveal,
+            child_senders,
+        };
+
+        Ok(())
+    }
 }
+
+pub struct SenderActorControl<T>(Address<T>);
 
 impl<T> Clone for SenderActorControl<T> {
     fn clone(&self) -> Self {
-        Self {
-            address: self.address.clone(),
-            child_sender: None,
-        }
+        Self(self.0.clone())
     }
 }
 
@@ -238,31 +271,25 @@ where
         + Handler<MarkForReveal, Return = Result<(), OTError>>,
 {
     pub fn new(address: Address<T>) -> Self {
-        Self {
-            address,
-            child_sender: None,
-        }
+        Self(address)
     }
 
     /// Returns mutable reference to address
     pub fn address(&mut self) -> &mut Address<T> {
-        &mut self.address
+        &mut self.0
     }
 
     /// Sends setup message to actor
     pub async fn setup(&mut self) -> Result<(), OTError> {
-        self.address
+        self.0
             .send(Setup)
             .await
             .map_err(|e| OTError::Other(e.to_string()))?
     }
 
-    pub async fn mark_for_reveal(&mut self) -> Result<(), OTError> {
-        let child_sender = self.child_sender.take().ok_or(OTError::Other(
-            "No KOSSender instance available to reveal".to_string(),
-        ))?;
-        self.address
-            .send(MarkForReveal(child_sender))
+    pub async fn mark_for_reveal(&mut self, id: String) -> Result<(), OTError> {
+        self.0
+            .send(MarkForReveal(id))
             .await
             .map_err(|e| OTError::Other(e.to_string()))?
     }
@@ -271,11 +298,12 @@ where
 #[async_trait]
 impl<T> ObliviousSend<[Block; 2]> for SenderActorControl<T>
 where
-    T: Handler<GetSender, Return = Result<Kos15IOSender<RandSetup>, OTError>>,
+    T: Handler<GetSender, Return = Result<Kos15IOSender<RandSetup>, OTError>>
+        + Handler<SendBackSender, Return = Result<(), OTError>>,
 {
     async fn send(&mut self, id: String, inputs: Vec<[Block; 2]>) -> Result<(), OTError> {
-        let sender = self
-            .address
+        let mut child_sender = self
+            .0
             .send(GetSender {
                 id: id.clone(),
                 count: inputs.len(),
@@ -283,8 +311,11 @@ where
             .await
             .map_err(|e| OTError::Other(e.to_string()))??;
 
-        self.child_sender = Some(sender);
-        self.child_sender.as_mut().unwrap().send(id, inputs).await
+        _ = child_sender.send(id.clone(), inputs).await?;
+        self.0
+            .send(SendBackSender { id, child_sender })
+            .await
+            .map_err(|e| OTError::Other(e.to_string()))?
     }
 }
 
@@ -294,7 +325,7 @@ where
     T: Handler<Reveal, Return = Result<(), OTError>>,
 {
     async fn reveal(mut self) -> Result<(), OTError> {
-        self.address
+        self.0
             .send(Reveal)
             .await
             .map_err(|e| OTError::Other(e.to_string()))?

@@ -37,8 +37,12 @@ pub struct GetReceiver {
     id: String,
     count: usize,
 }
-pub struct MarkForReveal(Kos15IOSender<RandSetupSender>);
+pub struct MarkForReveal(String);
 pub struct Reveal;
+pub struct SendBackSender {
+    id: String,
+    child_sender: Kos15IOSender<RandSetupSender>,
+}
 
 #[cfg(test)]
 mod test {
