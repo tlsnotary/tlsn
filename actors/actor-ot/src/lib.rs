@@ -22,8 +22,9 @@ pub use config::{
     OTActorReceiverConfig, OTActorReceiverConfigBuilder, OTActorSenderConfig,
     OTActorSenderConfigBuilder,
 };
-use mpc_ot::kos::sender::Kos15IOSender;
-use mpc_ot_core::s_state::RandSetup as RandSetupSender;
+use mpc_core::Block;
+use mpc_ot::kos::{receiver::Kos15IOReceiver, sender::Kos15IOSender};
+use mpc_ot_core::{r_state::RandSetup as RandSetupReceiver, s_state::RandSetup as RandSetupSender};
 pub use receiver::{KOSReceiverActor, ReceiverActorControl};
 pub use sender::{KOSSenderActor, SenderActorControl};
 
@@ -42,6 +43,14 @@ pub struct Reveal;
 pub struct SendBackSender {
     id: String,
     child_sender: Kos15IOSender<RandSetupSender>,
+}
+pub struct SendBackReceiver {
+    id: String,
+    child_receiver: Kos15IOReceiver<RandSetupReceiver>,
+}
+pub struct Verify {
+    id: String,
+    input: Vec<[Block; 2]>,
 }
 
 #[cfg(test)]

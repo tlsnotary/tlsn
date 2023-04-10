@@ -59,7 +59,7 @@ impl<T> ObliviousVerify<[T; 2]> for MockOTReceiver<T>
 where
     T: Send + 'static,
 {
-    async fn verify(self, _input: Vec<[T; 2]>) -> Result<(), OTError> {
+    async fn verify(self, _id: String, _input: Vec<[T; 2]>) -> Result<(), OTError> {
         // MockOT is always honest
         Ok(())
     }
