@@ -1,18 +1,18 @@
 use serde::Serialize;
 
 use crate::{
-    commitment::{self, Commitment},
+    commitment::Commitment,
     error::Error,
     inclusion_proof::InclusionProof,
     merkle::MerkleProof,
     session_data::SessionData,
-    session_header::SessionHeader,
+    session_header::{SessionHeader, SessionHeaderMsg},
+    session_proof::SessionProof,
     signature::Signature,
     substrings_commitment::SubstringsCommitment,
     substrings_opening::{Blake3Opening, SubstringsOpening},
     substrings_proof::SubstringsProof,
 };
-use rs_merkle::{algorithms::Sha256, MerkleTree};
 
 #[derive(Serialize)]
 pub struct NotarizedSession {
@@ -87,6 +87,13 @@ impl NotarizedSession {
             InclusionProof::new(commitments, merkle_proof, merkle_tree_leaf_count as u32);
 
         Ok(SubstringsProof::new(openings, inclusion_proof))
+    }
+
+    pub fn session_proof(&self) -> SessionProof {
+        SessionProof::new(
+            SessionHeaderMsg::new(self.header(), self.signature().clone()),
+            self.data().handshake_data().clone(),
+        )
     }
 
     pub fn version(&self) -> u8 {

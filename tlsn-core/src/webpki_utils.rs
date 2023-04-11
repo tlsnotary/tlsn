@@ -1,7 +1,6 @@
 use crate::{
     error::Error,
     handshake_data::{CertDER, KEParamsSigAlg, ServerSignature},
-    handshake_summary::{EphemeralKey, EphemeralKeyType},
     pubkey::PubKey,
 };
 use x509_parser::{certificate, prelude::FromDer};

@@ -33,13 +33,9 @@ pub mod test {
         pubkey::{KeyType, PubKey},
         session_artifacts::SessionArtifacts,
         session_header::{LabelSeed, SessionHeader, SessionHeaderMsg},
-        session_proof::SessionProof,
         signer::Signer,
         HashCommitment, SessionData,
     };
-    use p256::ecdsa::{signature::DigestSigner, SigningKey, VerifyingKey};
-    use rand::SeedableRng;
-    use rand_chacha::ChaCha12Rng;
 
     #[test]
     fn test() {
@@ -77,23 +73,21 @@ pub mod test {
         // User verifies the header and stores it with the signature in NotarizedSession
         let header = SessionHeader::from_msg(&msg, Some(&pubkey)).unwrap();
         header.check_artifacts(&artifacts).unwrap();
-        let signature = msg.signature();
+        let signature = msg.signature().cloned();
 
         let data = SessionData::default();
         let session = NotarizedSession::new(1, header, signature, data);
 
         // User converts NotarizedSession into SessionProof and SubstringsProof and sends them to the Verifier
-        let session_proof: SessionProof = (&session).into();
+        let session_proof = session.session_proof();
         let substrings_proof = session.generate_substring_proof([1, 2].to_vec()).unwrap();
 
         // The Verifier does:
-        let SessionProof {
-            header,
-            handshake_data,
-        } = session_proof;
+        let header = session_proof.header();
+        let handshake_data = session_proof.handshake_data().clone();
 
         // (if the Notary is the Verifier then no pubkey is required and None is passed)
-        let header = SessionHeader::from_msg(&header, Some(&pubkey)).unwrap();
+        let header = SessionHeader::from_msg(header, Some(&pubkey)).unwrap();
 
         handshake_data.verify(&header, "tlsnotary.org").unwrap();
 

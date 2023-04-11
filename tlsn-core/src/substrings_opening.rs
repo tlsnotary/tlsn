@@ -18,7 +18,12 @@ impl SubstringsOpening {
         commitment: &Commitment,
     ) -> Result<Vec<TranscriptSlice>, Error> {
         match self {
-            SubstringsOpening::Blake3(opening) => opening.verify(header, commitment)?,
+            SubstringsOpening::Blake3(opening) => {
+                let labels = header
+                    .encoder()
+                    .get_labels(opening.opening(), opening.ranges());
+                opening.verify(labels, commitment)?
+            }
         }
         Ok(self.into_slices())
     }
@@ -29,15 +34,9 @@ impl SubstringsOpening {
         }
     }
 
-    pub fn opening(&self) -> &[u8] {
+    pub fn direction(&self) -> &Direction {
         match self {
-            SubstringsOpening::Blake3(opening) => opening.opening(),
-        }
-    }
-
-    pub fn ranges(&self) -> &[TranscriptRange] {
-        match self {
-            SubstringsOpening::Blake3(opening) => opening.ranges(),
+            SubstringsOpening::Blake3(opening) => opening.direction(),
         }
     }
 
@@ -75,8 +74,7 @@ impl Blake3Opening {
         }
     }
 
-    pub fn verify(&self, header: &SessionHeader, commitment: &Commitment) -> Result<(), Error> {
-        let labels = header.encoder().get_labels(&self.opening(), self.ranges());
+    pub fn verify(&self, labels: Vec<Block>, commitment: &Commitment) -> Result<(), Error> {
         // TODO: commitment should be Blake3, hash the labels and compare to the commitment
         Ok(())
     }
@@ -91,5 +89,9 @@ impl Blake3Opening {
 
     pub fn ranges(&self) -> &[TranscriptRange] {
         &self.ranges
+    }
+
+    pub fn direction(&self) -> &Direction {
+        &self.direction
     }
 }

@@ -43,19 +43,6 @@ impl HandshakeData {
         Ok(blake3(&msg))
     }
 
-    fn serialize(&self) -> Result<Vec<u8>, Error> {
-        bincode::serialize(&self).map_err(|_| Error::SerializationError)
-    }
-}
-
-pub struct HandshakeDataMsg {
-    tls_cert_chain: Vec<CertDER>,
-    sig_ke_params: ServerSignature,
-    client_random: Vec<u8>,
-    server_random: Vec<u8>,
-}
-
-impl HandshakeDataMsg {
     /// Verifies the TLS document against the DNS name `dns_name`:
     /// - end entity certificate was issued to `dns_name` and was valid at the time of the
     ///   notarization
@@ -96,16 +83,9 @@ impl HandshakeDataMsg {
 
         Ok(())
     }
-}
 
-impl From<HandshakeData> for HandshakeDataMsg {
-    fn from(data: HandshakeData) -> HandshakeDataMsg {
-        HandshakeDataMsg {
-            tls_cert_chain: data.tls_cert_chain,
-            sig_ke_params: data.sig_ke_params,
-            client_random: data.client_random,
-            server_random: data.server_random,
-        }
+    fn serialize(&self) -> Result<Vec<u8>, Error> {
+        bincode::serialize(&self).map_err(|_| Error::SerializationError)
     }
 }
 

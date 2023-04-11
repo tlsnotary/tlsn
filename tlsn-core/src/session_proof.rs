@@ -1,18 +1,23 @@
-use crate::{
-    handshake_data::HandshakeDataMsg, notarized_session::NotarizedSession,
-    session_header::SessionHeaderMsg,
-};
+use crate::{handshake_data::HandshakeData, session_header::SessionHeaderMsg};
 
 pub struct SessionProof {
-    pub header: SessionHeaderMsg,
-    pub handshake_data: HandshakeDataMsg,
+    header: SessionHeaderMsg,
+    handshake_data: HandshakeData,
 }
 
-impl From<&NotarizedSession> for SessionProof {
-    fn from(session: &NotarizedSession) -> SessionProof {
-        SessionProof {
-            header: SessionHeaderMsg::new(session.header(), session.signature().clone()),
-            handshake_data: HandshakeDataMsg::from(session.data().handshake_data().clone()),
+impl SessionProof {
+    pub fn new(header: SessionHeaderMsg, handshake_data: HandshakeData) -> Self {
+        Self {
+            header,
+            handshake_data,
         }
+    }
+
+    pub fn header(&self) -> &SessionHeaderMsg {
+        &self.header
+    }
+
+    pub fn handshake_data(&self) -> &HandshakeData {
+        &self.handshake_data
     }
 }

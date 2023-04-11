@@ -1,4 +1,4 @@
-use crate::{commitment::Commitment, transcript::TranscriptRange, HashCommitment};
+use crate::{commitment::Commitment, transcript::TranscriptRange};
 use serde::Serialize;
 
 /// A User's commitment to one or multiple substrings of the notarized data

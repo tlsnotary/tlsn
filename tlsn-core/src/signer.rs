@@ -2,16 +2,8 @@ use crate::{
     error::Error,
     pubkey::{KeyType, PubKey},
     signature::Signature,
-    utils::blake3,
 };
-use p256::{
-    ecdsa::{
-        signature::{DigestSigner, Signer as P256Signer},
-        SigningKey, VerifyingKey,
-    },
-    elliptic_curve::consts::P256,
-    NistP256,
-};
+use p256::ecdsa::signature::Signer as P256Signer;
 use serde::Serialize;
 
 pub enum Signer {
@@ -26,7 +18,7 @@ impl Signer {
                     Ok(key) => key,
                     Err(_) => return Err(Error::InternalError),
                 };
-                return Ok(Signer::P256(signing_key));
+                Ok(Signer::P256(signing_key))
             }
         }
     }

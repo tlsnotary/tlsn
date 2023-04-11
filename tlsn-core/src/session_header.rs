@@ -23,6 +23,11 @@ pub struct SessionHeader {
     /// to the User.
     merkle_root: [u8; 32],
 
+    /// Bytelength of all data which was sent to the webserver
+    sent_len: u32,
+    /// Bytelength of all data which was received from the webserver
+    recv_len: u32,
+
     handshake_summary: HandshakeSummary,
 }
 
@@ -30,11 +35,15 @@ impl SessionHeader {
     pub fn new(
         label_seed: LabelSeed,
         merkle_root: [u8; 32],
+        sent_len: u32,
+        recv_len: u32,
         handshake_summary: HandshakeSummary,
     ) -> Self {
         Self {
             label_seed,
             merkle_root,
+            sent_len,
+            recv_len,
             handshake_summary,
         }
     }
@@ -109,7 +118,7 @@ impl SessionHeaderMsg {
         match (sig, pubkey) {
             // signature and pubkey types must match
             (Signature::P256(_), PubKey::P256(_)) => {
-                pubkey.verify(&self.header, &sig)?;
+                pubkey.verify(&self.header, sig)?;
             }
         }
 
@@ -117,16 +126,14 @@ impl SessionHeaderMsg {
     }
 
     /// Returns the session header only if the signature is not present
-    pub fn get_header(&self) -> Result<SessionHeader, Error> {
+    fn get_header(&self) -> Result<SessionHeader, Error> {
         match &self.signature {
             Some(_) => Ok(self.header.clone()),
-            _ => {
-                return Err(Error::SignatureNotExpected);
-            }
+            _ => Err(Error::SignatureNotExpected),
         }
     }
 
-    pub fn signature(&self) -> Option<Signature> {
-        self.signature.clone()
+    pub fn signature(&self) -> Option<&Signature> {
+        self.signature.as_ref()
     }
 }

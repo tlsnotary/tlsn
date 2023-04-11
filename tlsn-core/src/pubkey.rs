@@ -35,12 +35,11 @@ impl PubKey {
         let msg = bincode::serialize(msg).map_err(|_| Error::SerializationError)?;
 
         match (self, sig) {
+            // pubkey and sig types must match
             (PubKey::P256(key), Signature::P256(sig)) => match key.verify(&msg, sig) {
                 Ok(_) => Ok(()),
                 Err(_) => Err(Error::SignatureVerificationError),
             },
-            // pubkey and sig types must match
-            _ => Err(Error::InternalError),
         }
     }
 
