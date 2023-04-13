@@ -52,7 +52,7 @@ where
 
         let fut = scoped(&addr, async move {
             while let Some(msg) = stream.next().await {
-                // The receiver factory shouldn't send messages
+                // The receiver actor shouldn't send messages
                 return Err(OTError::Unexpected(msg));
             }
             Ok(())
@@ -178,7 +178,6 @@ where
 
         // Leave actor in error state
         let state = std::mem::replace(&mut self.state, State::Error);
-
         let State::Setup{sender, mut reveal, child_senders} = state else {
             return Err(OTError::Other("KOSSenderActor is not setup".to_string()));
         };
@@ -190,7 +189,6 @@ where
             reveal,
             child_senders,
         };
-
         Ok(())
     }
 }
@@ -282,7 +280,7 @@ where
         &mut self.0
     }
 
-    /// Sends setup message to actor
+    /// Sends Setup message to actor
     pub async fn setup(&mut self) -> Result<(), OTError> {
         self.0
             .send(Setup)
@@ -290,6 +288,7 @@ where
             .map_err(|e| OTError::Other(e.to_string()))?
     }
 
+    /// Sends MarkForReveal message to actor
     pub async fn mark_for_reveal(&self, id: &str) -> Result<(), OTError> {
         self.0
             .send(MarkForReveal(id.to_owned()))
@@ -315,6 +314,7 @@ where
             .map_err(|e| OTError::Other(e.to_string()))??;
 
         _ = child_sender.send(inputs).await?;
+
         self.0
             .send(SendBackSender {
                 id: id.to_owned(),

@@ -275,7 +275,7 @@ where
 {
     type Return = Result<(), OTError>;
 
-    /// Handles the SendBackReceiver message
+    /// Handles the Verify message
     async fn handle(&mut self, msg: Verify, _ctx: &mut Context<Self>) -> Result<(), OTError> {
         let Verify { id, input } = msg;
 
@@ -329,7 +329,7 @@ where
         &mut self.0
     }
 
-    /// Sends setup message to actor
+    /// Sends Setup message to actor
     pub async fn setup(&mut self) -> Result<(), OTError> {
         self.0
             .send(Setup)

@@ -37,7 +37,7 @@ impl<T: std::fmt::Debug + Send> OTSendOwned<T> for MockOTSenderControl<T> {
         if let Some(sender) = self.receiver_buffer.lock().unwrap().remove(id) {
             sender
                 .send(input)
-                .expect("MockOTSend should be able to send");
+                .expect("MockOTSenderControl should be able to send");
         } else {
             self.sender_buffer
                 .lock()
