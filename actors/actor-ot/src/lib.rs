@@ -22,12 +22,10 @@ mod sender;
 pub use actor_msg::{
     GetReceiver, GetSender, MarkForReveal, Reveal, SendBackReceiver, SendBackSender, Setup, Verify,
 };
-use async_trait::async_trait;
 pub use config::{
     OTActorReceiverConfig, OTActorReceiverConfigBuilder, OTActorSenderConfig,
     OTActorSenderConfigBuilder,
 };
-use mpc_ot::OTError;
 pub use receiver::{KOSReceiverActor, ReceiverActorControl};
 pub use sender::{KOSSenderActor, SenderActorControl};
 
@@ -38,6 +36,7 @@ mod test {
         MockClientChannelMuxer, MockClientControl, MockServerChannelMuxer, MockServerControl,
     };
     use mpc_core::Block;
+    use mpc_ot::{OTReceive, OTReveal, OTSend, OTVerify};
     use mpc_ot_core::msgs::OTMessage;
     use utils_aio::{mux::MuxChannelControl, Channel};
     use xtra::prelude::*;
