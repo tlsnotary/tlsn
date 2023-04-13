@@ -1,24 +1,18 @@
-use std::collections::HashMap;
-
+use crate::{config::OTActorReceiverConfig, GetReceiver, SendBackReceiver, Setup, Verify};
 use async_trait::async_trait;
-
 use futures::{channel::oneshot, stream::SplitSink, Future, StreamExt};
-use mpc_ot::{
-    kos::receiver::Kos15IOReceiver, OTError, ObliviousAcceptCommit, ObliviousReceive,
-    ObliviousVerify,
-};
-use xtra::{prelude::*, scoped};
-
-use crate::{
-    config::OTActorReceiverConfig, GetReceiver, OTReceiveOwned, OTVerifyOwned, SendBackReceiver,
-    Setup, Verify,
-};
 use mpc_core::Block;
+use mpc_ot::{
+    kos::receiver::Kos15IOReceiver, OTError, OTReceive, OTVerify, ObliviousAcceptCommitOwned,
+    ObliviousReceiveOwned, ObliviousVerifyOwned,
+};
 use mpc_ot_core::{
     msgs::{OTMessage, Split},
     r_state::RandSetup,
 };
+use std::collections::HashMap;
 use utils_aio::{mux::MuxChannelControl, Channel};
+use xtra::{prelude::*, scoped};
 
 pub enum State {
     Initialized(oneshot::Sender<()>),
@@ -339,7 +333,7 @@ where
 }
 
 #[async_trait]
-impl<T> OTReceiveOwned<Vec<bool>, Vec<Block>> for ReceiverActorControl<T>
+impl<T> OTReceive<Vec<bool>, Vec<Block>> for ReceiverActorControl<T>
 where
     T: Handler<
             GetReceiver,
@@ -371,7 +365,7 @@ where
 }
 
 #[async_trait]
-impl<T> OTVerifyOwned<Vec<[Block; 2]>> for ReceiverActorControl<T>
+impl<T> OTVerify<Vec<[Block; 2]>> for ReceiverActorControl<T>
 where
     T: Handler<Verify, Return = Result<(), OTError>>,
 {

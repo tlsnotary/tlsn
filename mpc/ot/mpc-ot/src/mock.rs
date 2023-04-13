@@ -1,6 +1,18 @@
-use super::{OTError, ObliviousReceive, ObliviousReveal, ObliviousSend, ObliviousVerify};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
+
+use crate::{OTReceive, OTReveal, OTSend, OTVerify};
+
+use super::{
+    OTError, ObliviousReceiveOwned, ObliviousRevealOwned, ObliviousSendOwned, ObliviousVerifyOwned,
+};
 use async_trait::async_trait;
-use futures::{channel::mpsc, StreamExt};
+use futures::{
+    channel::{mpsc, oneshot},
+    StreamExt,
+};
 
 pub struct MockOTSender<T> {
     sender: mpsc::Sender<Vec<[T; 2]>>,
@@ -16,7 +28,7 @@ pub fn mock_ot_pair<T: Send + 'static>() -> (MockOTSender<T>, MockOTReceiver<T>)
 }
 
 #[async_trait]
-impl<T> ObliviousSend<[T; 2]> for MockOTSender<T>
+impl<T> ObliviousSendOwned<[T; 2]> for MockOTSender<T>
 where
     T: Send + 'static,
 {
@@ -29,7 +41,7 @@ where
 }
 
 #[async_trait]
-impl<T> ObliviousReceive<bool, T> for MockOTReceiver<T>
+impl<T> ObliviousReceiveOwned<bool, T> for MockOTReceiver<T>
 where
     T: Send + 'static,
 {
@@ -55,7 +67,7 @@ where
 }
 
 #[async_trait]
-impl<T> ObliviousVerify<[T; 2]> for MockOTReceiver<T>
+impl<T> ObliviousVerifyOwned<[T; 2]> for MockOTReceiver<T>
 where
     T: Send + 'static,
 {
@@ -66,11 +78,90 @@ where
 }
 
 #[async_trait]
-impl<T> ObliviousReveal for MockOTSender<T>
+impl<T> ObliviousRevealOwned for MockOTSender<T>
 where
     T: Send + 'static,
 {
     async fn reveal(mut self) -> Result<(), OTError> {
+        Ok(())
+    }
+}
+
+pub fn create_mock_ot_control_pair<T: Send + Copy>(
+) -> (MockOTSenderControl<[T; 2]>, MockOTReceiverControl<[T; 2]>) {
+    let sender_buffer = Arc::new(Mutex::new(HashMap::new()));
+    let receiver_buffer = Arc::new(Mutex::new(HashMap::new()));
+
+    let sender = MockOTSenderControl {
+        sender_buffer: sender_buffer.clone(),
+        receiver_buffer: receiver_buffer.clone(),
+    };
+
+    let receiver = MockOTReceiverControl {
+        sender_buffer,
+        receiver_buffer,
+    };
+
+    (sender, receiver)
+}
+
+#[derive(Clone)]
+pub struct MockOTSenderControl<T> {
+    sender_buffer: Arc<Mutex<HashMap<String, T>>>,
+    receiver_buffer: Arc<Mutex<HashMap<String, oneshot::Sender<T>>>>,
+}
+
+#[async_trait]
+impl<T: std::fmt::Debug + Send> OTSend<T> for MockOTSenderControl<T> {
+    async fn send(&self, id: &str, input: T) -> Result<(), OTError> {
+        if let Some(sender) = self.receiver_buffer.lock().unwrap().remove(id) {
+            sender
+                .send(input)
+                .expect("MockOTSenderControl should be able to send");
+        } else {
+            self.sender_buffer
+                .lock()
+                .unwrap()
+                .insert(id.to_string(), input);
+        }
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl<T: Send> OTReveal for MockOTSenderControl<T> {
+    async fn reveal(&self) -> Result<(), OTError> {
+        Ok(())
+    }
+}
+
+#[derive(Clone)]
+pub struct MockOTReceiverControl<T> {
+    sender_buffer: Arc<Mutex<HashMap<String, T>>>,
+    receiver_buffer: Arc<Mutex<HashMap<String, oneshot::Sender<T>>>>,
+}
+
+#[async_trait]
+impl<T: Send + Copy> OTReceive<bool, T> for MockOTReceiverControl<[T; 2]> {
+    async fn receive(&self, id: &str, choice: bool) -> Result<T, OTError> {
+        if let Some(value) = self.sender_buffer.lock().unwrap().remove(id) {
+            return Ok(value[choice as usize]);
+        }
+
+        let (sender, receiver) = oneshot::channel();
+        self.receiver_buffer
+            .lock()
+            .unwrap()
+            .insert(id.to_string(), sender);
+
+        Ok(receiver.await.unwrap()[choice as usize])
+    }
+}
+
+#[async_trait]
+impl<T: Send> OTVerify<T> for MockOTReceiverControl<T> {
+    async fn verify(&self, _id: &str, _input: T) -> Result<(), OTError> {
+        // MockOT is always honest
         Ok(())
     }
 }

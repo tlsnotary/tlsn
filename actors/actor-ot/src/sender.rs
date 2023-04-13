@@ -1,12 +1,10 @@
-use crate::{
-    config::OTActorSenderConfig, GetSender, MarkForReveal, OTRevealOwned, OTSendOwned, Reveal,
-    SendBackSender, Setup,
-};
+use crate::{config::OTActorSenderConfig, GetSender, MarkForReveal, Reveal, SendBackSender, Setup};
 use async_trait::async_trait;
 use futures::{stream::SplitSink, Future, SinkExt, StreamExt};
 use mpc_core::Block;
 use mpc_ot::{
-    kos::sender::Kos15IOSender, OTError, ObliviousCommit, ObliviousReveal, ObliviousSend,
+    kos::sender::Kos15IOSender, OTError, OTReveal, OTSend, ObliviousCommitOwned,
+    ObliviousRevealOwned, ObliviousSendOwned,
 };
 use mpc_ot_core::{
     msgs::{OTMessage, Split},
@@ -298,7 +296,7 @@ where
 }
 
 #[async_trait]
-impl<T> OTSendOwned<Vec<[Block; 2]>> for SenderActorControl<T>
+impl<T> OTSend<Vec<[Block; 2]>> for SenderActorControl<T>
 where
     T: Handler<GetSender, Return = Result<Kos15IOSender<RandSetup>, OTError>>
         + Handler<SendBackSender, Return = Result<(), OTError>>,
@@ -326,7 +324,7 @@ where
 }
 
 #[async_trait]
-impl<T> OTRevealOwned for SenderActorControl<T>
+impl<T> OTReveal for SenderActorControl<T>
 where
     T: Handler<Reveal, Return = Result<(), OTError>>,
 {

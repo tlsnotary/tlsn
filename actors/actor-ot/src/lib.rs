@@ -16,8 +16,6 @@
 
 mod actor_msg;
 mod config;
-#[cfg(feature = "mock")]
-pub mod mock;
 mod receiver;
 mod sender;
 
@@ -32,40 +30,6 @@ pub use config::{
 use mpc_ot::OTError;
 pub use receiver::{KOSReceiverActor, ReceiverActorControl};
 pub use sender::{KOSSenderActor, SenderActorControl};
-
-/// The owned trait version of ObliviousSend
-#[async_trait]
-pub trait OTSendOwned<T> {
-    async fn send(&self, id: &str, input: T) -> Result<(), OTError>;
-}
-
-/// The owned trait version of ObliviousReveal
-#[async_trait]
-pub trait OTRevealOwned {
-    async fn reveal(&self) -> Result<(), OTError>;
-}
-
-/// The owned trait version of ObliviousReceive
-#[async_trait]
-pub trait OTReceiveOwned<T, U> {
-    async fn receive(&self, id: &str, choice: T) -> Result<U, OTError>;
-}
-
-/// The owned trait version of ObliviousVerify
-#[async_trait]
-pub trait OTVerifyOwned<T> {
-    async fn verify(&self, id: &str, input: T) -> Result<(), OTError>;
-}
-
-/// Marker trait for OTSendOwned + OTRevealOwned
-pub trait VerifiableOTSend<T>: OTSendOwned<T> + OTRevealOwned {}
-
-impl<T> VerifiableOTSend<T> for T where T: OTSendOwned<T> + OTRevealOwned {}
-
-/// Marker trait for OTReceiveOwned + OTVerifyOwned
-pub trait VerifiableOTReceive<T, U, V>: OTReceiveOwned<T, U> + OTVerifyOwned<V> {}
-
-impl<T, U, V> VerifiableOTReceive<T, U, V> for T where T: OTReceiveOwned<T, U> + OTVerifyOwned<V> {}
 
 #[cfg(test)]
 mod test {

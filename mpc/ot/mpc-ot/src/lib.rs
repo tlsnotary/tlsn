@@ -43,35 +43,63 @@ pub enum OTError {
 }
 
 #[async_trait]
-pub trait ObliviousSend<T> {
+pub trait OTSend<T> {
+    async fn send(&self, id: &str, input: T) -> Result<(), OTError>;
+}
+
+#[async_trait]
+pub trait OTReveal {
+    async fn reveal(&self) -> Result<(), OTError>;
+}
+
+#[async_trait]
+pub trait OTReceive<T, U> {
+    async fn receive(&self, id: &str, choice: T) -> Result<U, OTError>;
+}
+
+#[async_trait]
+pub trait OTVerify<T> {
+    async fn verify(&self, id: &str, input: T) -> Result<(), OTError>;
+}
+
+pub trait VerifiableOTSend<T>: OTSend<T> + OTReveal {}
+
+impl<T> VerifiableOTSend<T> for T where T: OTSend<T> + OTReveal {}
+
+pub trait VerifiableOTReceive<T, U, V>: OTReceive<T, U> + OTVerify<V> {}
+
+impl<T, U, V> VerifiableOTReceive<T, U, V> for T where T: OTReceive<T, U> + OTVerify<V> {}
+
+#[async_trait]
+pub trait ObliviousSendOwned<T> {
     async fn send(&mut self, inputs: Vec<T>) -> Result<(), OTError>;
 }
 
 #[async_trait]
-pub trait ObliviousReceive<T, U> {
+pub trait ObliviousReceiveOwned<T, U> {
     async fn receive(&mut self, choices: Vec<T>) -> Result<Vec<U>, OTError>;
 }
 
 #[async_trait]
-pub trait ObliviousCommit {
+pub trait ObliviousCommitOwned {
     /// Sends a commitment to the OT seed
     async fn commit(&mut self) -> Result<(), OTError>;
 }
 
 #[async_trait]
-pub trait ObliviousReveal {
+pub trait ObliviousRevealOwned {
     /// Reveals the OT seed
     async fn reveal(mut self) -> Result<(), OTError>;
 }
 
 #[async_trait]
-pub trait ObliviousAcceptCommit {
+pub trait ObliviousAcceptCommitOwned {
     /// Receives and stores a commitment to the OT seed
     async fn accept_commit(&mut self) -> Result<(), OTError>;
 }
 
 #[async_trait]
-pub trait ObliviousVerify<T> {
+pub trait ObliviousVerifyOwned<T> {
     /// Verifies the correctness of the revealed OT seed
     async fn verify(self, input: Vec<T>) -> Result<(), OTError>;
 }

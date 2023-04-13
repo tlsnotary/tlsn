@@ -1,5 +1,5 @@
-use super::{OTChannel, ObliviousReceive};
-use crate::{OTError, ObliviousAcceptCommit, ObliviousVerify};
+use super::{OTChannel, ObliviousReceiveOwned};
+use crate::{OTError, ObliviousAcceptCommitOwned, ObliviousVerifyOwned};
 use aes::{cipher::NewBlockCipher, Aes128, BlockDecrypt};
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
@@ -101,7 +101,7 @@ impl Kos15IOReceiver<r_state::RandSetup> {
 }
 
 #[async_trait]
-impl ObliviousReceive<bool, Block> for Kos15IOReceiver<r_state::RandSetup> {
+impl ObliviousReceiveOwned<bool, Block> for Kos15IOReceiver<r_state::RandSetup> {
     async fn receive(&mut self, choices: Vec<bool>) -> Result<Vec<Block>, OTError> {
         let message = self.inner.derandomize(&choices)?;
         self.channel
@@ -123,10 +123,12 @@ impl ObliviousReceive<bool, Block> for Kos15IOReceiver<r_state::RandSetup> {
 // is sent shortly after the OT. This way we extend our OT from 128-bit maximum message length to an
 // unlimited message length.
 #[async_trait]
-impl<const N: usize> ObliviousReceive<bool, [Block; N]> for Kos15IOReceiver<r_state::RandSetup> {
+impl<const N: usize> ObliviousReceiveOwned<bool, [Block; N]>
+    for Kos15IOReceiver<r_state::RandSetup>
+{
     async fn receive(&mut self, choices: Vec<bool>) -> Result<Vec<[Block; N]>, OTError> {
         // Receive AES encryption keys from OT
-        let keys = ObliviousReceive::<bool, Block>::receive(self, choices.clone()).await?;
+        let keys = ObliviousReceiveOwned::<bool, Block>::receive(self, choices.clone()).await?;
 
         // Expect the sender to send the encrypted messages
         let ExtSenderEncryptedPayload { ciphertexts } = expect_msg_or_err!(
@@ -187,7 +189,7 @@ impl<const N: usize> ObliviousReceive<bool, [Block; N]> for Kos15IOReceiver<r_st
 }
 
 #[async_trait]
-impl ObliviousAcceptCommit for Kos15IOReceiver<r_state::Initialized> {
+impl ObliviousAcceptCommitOwned for Kos15IOReceiver<r_state::Initialized> {
     async fn accept_commit(&mut self) -> Result<(), OTError> {
         let message = expect_msg_or_err!(
             self.channel.next().await,
@@ -200,7 +202,7 @@ impl ObliviousAcceptCommit for Kos15IOReceiver<r_state::Initialized> {
 }
 
 #[async_trait]
-impl ObliviousVerify<[Block; 2]> for Kos15IOReceiver<r_state::RandSetup> {
+impl ObliviousVerifyOwned<[Block; 2]> for Kos15IOReceiver<r_state::RandSetup> {
     async fn verify(mut self, input: Vec<[Block; 2]>) -> Result<(), OTError> {
         let reveal = expect_msg_or_err!(
             self.channel.next().await,
