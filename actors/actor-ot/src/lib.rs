@@ -17,7 +17,7 @@
 mod actor_msg;
 mod config;
 #[cfg(feature = "mock")]
-mod mock;
+pub mod mock;
 mod receiver;
 mod sender;
 
@@ -175,20 +175,18 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_ot_factory() {
-        let initial_count = 10;
-
-        let sender_factory_config = SenderFactoryConfigBuilder::default()
-            .initial_count(initial_count)
+    async fn test_ot_actor() {
+        let sender_config = OTActorSenderConfigBuilder::default()
+            .initial_count(10)
             .build()
             .unwrap();
-        let receiver_factory_config = ReceiverFactoryConfigBuilder::default()
-            .initial_count(initial_count)
+        let receiver_config = OTActorReceiverConfigBuilder::default()
+            .initial_count(10)
             .build()
             .unwrap();
 
         let (mut sender_control, mut receiver_control) =
-            create_setup_pair(sender_factory_config, receiver_factory_config).await;
+            create_setup_pair(sender_config, receiver_config).await;
 
         let instance_id = "test".to_string();
         let data: Vec<[Block; 2]> = (0..10).map(|_| [Block::new(0), Block::new(1)]).collect();
@@ -202,23 +200,9 @@ mod test {
             .map(|(data, choice)| data[*choice as usize])
             .collect();
 
-        let mut sender = sender_control
-            .create(instance_id.clone(), sender_config(choices.len()))
-            .await
-            .unwrap();
+        let send = async { sender_control.send("", data).await.unwrap() };
 
-        let mut receiver = receiver_control
-            .create(instance_id.clone(), receiver_config(choices.len()))
-            .await
-            .unwrap();
-
-        let send = async { sender.send(data).await.unwrap() };
-
-        let receive = async {
-            ObliviousReceive::<bool, Block>::receive(&mut receiver, choices)
-                .await
-                .unwrap()
-        };
+        let receive = async { receiver_control.receive("", choices).await.unwrap() };
 
         let (_, received) = futures::join!(send, receive);
 
@@ -226,68 +210,29 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_ot_factory_mismatch() {
-        let initial_count = 10;
-
-        let sender_factory_config = SenderFactoryConfigBuilder::default()
-            .initial_count(initial_count)
+    async fn test_ot_actor_many_splits() {
+        let sender_config = OTActorSenderConfigBuilder::default()
+            .initial_count(100)
             .build()
             .unwrap();
-        let receiver_factory_config = ReceiverFactoryConfigBuilder::default()
-            .initial_count(initial_count)
-            .build()
-            .unwrap();
-
-        let (mut sender_control, mut receiver_control) =
-            create_setup_pair(sender_factory_config, receiver_factory_config).await;
-
-        let instance_id = "test".to_string();
-
-        let _ = sender_control
-            .create(instance_id.clone(), sender_config(10))
-            .await
-            .unwrap();
-
-        let err = receiver_control
-            .create(instance_id.clone(), receiver_config(9))
-            .await;
-
-        assert!(matches!(
-            err,
-            Err(OTFactoryError::SplitMismatch(
-                id,
-                10,
-                9
-            )) if id == instance_id
-        ));
-    }
-
-    #[tokio::test]
-    async fn test_ot_factory_many_splits() {
-        let initial_count = 100;
-
-        let sender_factory_config = SenderFactoryConfigBuilder::default()
-            .initial_count(initial_count)
-            .build()
-            .unwrap();
-        let receiver_factory_config = ReceiverFactoryConfigBuilder::default()
-            .initial_count(initial_count)
+        let receiver_config = OTActorReceiverConfigBuilder::default()
+            .initial_count(100)
             .build()
             .unwrap();
 
         let (mut sender_control, mut receiver_control) =
-            create_setup_pair(sender_factory_config, receiver_factory_config).await;
+            create_setup_pair(sender_config, receiver_config).await;
 
+        let data: Vec<[Block; 2]> = (0..10).map(|_| [Block::new(0), Block::new(1)]).collect();
+        let choices = vec![
+            false, false, true, true, false, true, true, false, true, false,
+        ];
         for id in 0..10 {
-            let _ = sender_control
-                .create(id.to_string(), sender_config(10))
-                .await
-                .unwrap();
+            let send = async { sender_control.send("", data).await.unwrap() };
 
-            let _ = receiver_control
-                .create(id.to_string(), receiver_config(10))
-                .await
-                .unwrap();
+            let receive = async { receiver_control.receive("", choices).await.unwrap() };
+
+            let (_, received) = futures::join!(send, receive);
         }
     }
 
