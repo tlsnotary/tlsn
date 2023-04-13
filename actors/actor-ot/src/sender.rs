@@ -1,4 +1,7 @@
-use crate::{config::OTActorSenderConfig, GetSender, MarkForReveal, Reveal, SendBackSender, Setup};
+use crate::{
+    config::OTActorSenderConfig, GetSender, MarkForReveal, OTRevealOwned, OTSendOwned, Reveal,
+    SendBackSender, Setup,
+};
 use async_trait::async_trait;
 use futures::{stream::SplitSink, Future, SinkExt, StreamExt};
 use mpc_core::Block;
@@ -287,44 +290,47 @@ where
             .map_err(|e| OTError::Other(e.to_string()))?
     }
 
-    pub async fn mark_for_reveal(&mut self, id: String) -> Result<(), OTError> {
+    pub async fn mark_for_reveal(&self, id: &str) -> Result<(), OTError> {
         self.0
-            .send(MarkForReveal(id))
+            .send(MarkForReveal(id.to_owned()))
             .await
             .map_err(|e| OTError::Other(e.to_string()))?
     }
 }
 
 #[async_trait]
-impl<T> ObliviousSend<[Block; 2]> for SenderActorControl<T>
+impl<T> OTSendOwned<Vec<[Block; 2]>> for SenderActorControl<T>
 where
     T: Handler<GetSender, Return = Result<Kos15IOSender<RandSetup>, OTError>>
         + Handler<SendBackSender, Return = Result<(), OTError>>,
 {
-    async fn send(&mut self, id: String, inputs: Vec<[Block; 2]>) -> Result<(), OTError> {
+    async fn send(&self, id: &str, inputs: Vec<[Block; 2]>) -> Result<(), OTError> {
         let mut child_sender = self
             .0
             .send(GetSender {
-                id: id.clone(),
+                id: id.to_owned(),
                 count: inputs.len(),
             })
             .await
             .map_err(|e| OTError::Other(e.to_string()))??;
 
-        _ = child_sender.send(id.clone(), inputs).await?;
+        _ = child_sender.send(inputs).await?;
         self.0
-            .send(SendBackSender { id, child_sender })
+            .send(SendBackSender {
+                id: id.to_owned(),
+                child_sender,
+            })
             .await
             .map_err(|e| OTError::Other(e.to_string()))?
     }
 }
 
 #[async_trait]
-impl<T> ObliviousReveal for SenderActorControl<T>
+impl<T> OTRevealOwned for SenderActorControl<T>
 where
     T: Handler<Reveal, Return = Result<(), OTError>>,
 {
-    async fn reveal(mut self) -> Result<(), OTError> {
+    async fn reveal(&self) -> Result<(), OTError> {
         self.0
             .send(Reveal)
             .await

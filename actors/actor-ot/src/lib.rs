@@ -14,44 +14,50 @@
 //! Both the Sender and Receiver factories provide an async API, however, both must synchronize the order in which they
 //! partition the pre-allocated OTs. To do this, the Sender factory dictates the order of this process.
 
+mod actor_msg;
 mod config;
 mod receiver;
 mod sender;
 
+pub use actor_msg::{
+    GetReceiver, GetSender, MarkForReveal, Reveal, SendBackReceiver, SendBackSender, Setup, Verify,
+};
+use async_trait::async_trait;
 pub use config::{
     OTActorReceiverConfig, OTActorReceiverConfigBuilder, OTActorSenderConfig,
     OTActorSenderConfigBuilder,
 };
-use mpc_core::Block;
-use mpc_ot::kos::{receiver::Kos15IOReceiver, sender::Kos15IOSender};
-use mpc_ot_core::{r_state::RandSetup as RandSetupReceiver, s_state::RandSetup as RandSetupSender};
+use mpc_ot::OTError;
 pub use receiver::{KOSReceiverActor, ReceiverActorControl};
 pub use sender::{KOSSenderActor, SenderActorControl};
 
-pub struct Setup;
+#[async_trait]
+pub trait OTSendOwned<T> {
+    async fn send(&self, id: &str, input: T) -> Result<(), OTError>;
+}
 
-pub struct GetSender {
-    id: String,
-    count: usize,
+#[async_trait]
+pub trait OTRevealOwned {
+    async fn reveal(&self) -> Result<(), OTError>;
 }
-pub struct GetReceiver {
-    id: String,
-    count: usize,
+
+#[async_trait]
+pub trait OTReceiveOwned<T, U> {
+    async fn receive(&self, id: &str, choice: T) -> Result<U, OTError>;
 }
-pub struct MarkForReveal(String);
-pub struct Reveal;
-pub struct SendBackSender {
-    id: String,
-    child_sender: Kos15IOSender<RandSetupSender>,
+
+#[async_trait]
+pub trait OTVerifyOwned<T> {
+    async fn verify(&self, id: &str, input: T) -> Result<(), OTError>;
 }
-pub struct SendBackReceiver {
-    id: String,
-    child_receiver: Kos15IOReceiver<RandSetupReceiver>,
-}
-pub struct Verify {
-    id: String,
-    input: Vec<[Block; 2]>,
-}
+
+pub trait VerifiableOTSend<T>: OTSendOwned<T> + OTRevealOwned {}
+
+impl<T> VerifiableOTSend<T> for T where T: OTSendOwned<T> + OTRevealOwned {}
+
+pub trait VerifiableOTReceive<T, U, V>: OTReceiveOwned<T, U> + OTVerifyOwned<V> {}
+
+impl<T, U, V> VerifiableOTReceive<T, U, V> for T where T: OTReceiveOwned<T, U> + OTVerifyOwned<V> {}
 
 #[cfg(test)]
 mod test {
@@ -63,24 +69,21 @@ mod test {
         MockClientChannelMuxer, MockClientControl, MockServerChannelMuxer, MockServerControl,
     };
     use mpc_core::Block;
-    use mpc_ot::{
-        config::{
-            OTReceiverConfig, OTReceiverConfigBuilder, OTSenderConfig, OTSenderConfigBuilder,
-        },
-        OTFactoryError, ObliviousReceive, ObliviousReveal, ObliviousSend, ObliviousVerify,
+    use mpc_ot::config::{
+        OTReceiverConfig, OTReceiverConfigBuilder, OTSenderConfig, OTSenderConfigBuilder,
     };
-    use mpc_ot_core::msgs::OTFactoryMessage;
-    use utils_aio::{factory::AsyncFactory, mux::MuxChannelControl, Channel};
+    use mpc_ot_core::msgs::OTMessage;
+    use utils_aio::{mux::MuxChannelControl, Channel};
     use xtra::prelude::*;
 
-    type OTFactoryChannel = Box<dyn Channel<OTFactoryMessage, Error = std::io::Error>>;
+    type OTChannel = Box<dyn Channel<OTMessage, Error = std::io::Error>>;
 
     async fn create_pair(
-        sender_config: OTActorConfig,
+        sender_config: OTActorSenderConfig,
         receiver_config: OTActorReceiverConfig,
     ) -> (
-        Address<KOSSenderActor<OTFactoryChannel, MockClientControl>>,
-        Address<KOSReceiverActor<OTFactoryChannel, MockServerControl>>,
+        Address<KOSSenderActor<OTChannel, MockClientControl>>,
+        Address<KOSReceiverActor<OTChannel, MockServerControl>>,
     ) {
         let receiver_mux_addr =
             xtra::spawn_tokio(MockServerChannelMuxer::default(), Mailbox::unbounded());
@@ -96,7 +99,7 @@ mod test {
             .await
             .unwrap();
         let (sender_addr, sender_mailbox) = Mailbox::unbounded();
-        let (sender_factory, sender_fut) = KOSSenderActor::new(
+        let (sender_actor, sender_fut) = KOSSenderActor::new(
             sender_config,
             sender_addr.clone(),
             sender_channel,
@@ -108,7 +111,7 @@ mod test {
             .await
             .unwrap();
         let (receiver_addr, receiver_mailbox) = Mailbox::unbounded();
-        let (receiver_factory, receiver_fut) = KOSReceiverActor::new(
+        let (receiver_actor, receiver_fut) = KOSReceiverActor::new(
             receiver_config,
             receiver_addr.clone(),
             receiver_channel,
@@ -117,18 +120,18 @@ mod test {
 
         tokio::spawn(sender_fut);
         tokio::spawn(receiver_fut);
-        let sender_addr = xtra::spawn_tokio(sender_factory, (sender_addr, sender_mailbox));
-        let receiver_addr = xtra::spawn_tokio(receiver_factory, (receiver_addr, receiver_mailbox));
+        let sender_addr = xtra::spawn_tokio(sender_actor, (sender_addr, sender_mailbox));
+        let receiver_addr = xtra::spawn_tokio(receiver_actor, (receiver_addr, receiver_mailbox));
 
         (sender_addr, receiver_addr)
     }
 
     async fn create_pair_controls(
-        sender_config: OTActorConfig,
+        sender_config: OTActorSenderConfig,
         receiver_config: OTActorReceiverConfig,
     ) -> (
-        SenderActorControl<KOSSenderActor<OTFactoryChannel, MockClientControl>>,
-        ReceiverActorControl<KOSReceiverActor<OTFactoryChannel, MockServerControl>>,
+        SenderActorControl<KOSSenderActor<OTChannel, MockClientControl>>,
+        ReceiverActorControl<KOSReceiverActor<OTChannel, MockServerControl>>,
     ) {
         let (sender_addr, receiver_addr) = create_pair(sender_config, receiver_config).await;
         (
@@ -138,11 +141,11 @@ mod test {
     }
 
     async fn create_setup_pair(
-        sender_config: OTActorConfig,
+        sender_config: OTActorSenderConfig,
         receiver_config: OTActorReceiverConfig,
     ) -> (
-        SenderActorControl<KOSSenderActor<OTFactoryChannel, MockClientControl>>,
-        ReceiverActorControl<KOSReceiverActor<OTFactoryChannel, MockServerControl>>,
+        SenderActorControl<KOSSenderActor<OTChannel, MockClientControl>>,
+        ReceiverActorControl<KOSReceiverActor<OTChannel, MockServerControl>>,
     ) {
         let (mut sender_control, mut receiver_control) =
             create_pair_controls(sender_config, receiver_config).await;

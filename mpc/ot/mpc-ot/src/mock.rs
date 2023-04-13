@@ -20,7 +20,7 @@ impl<T> ObliviousSend<[T; 2]> for MockOTSender<T>
 where
     T: Send + 'static,
 {
-    async fn send(&mut self, _id: String, inputs: Vec<[T; 2]>) -> Result<(), OTError> {
+    async fn send(&mut self, inputs: Vec<[T; 2]>) -> Result<(), OTError> {
         self.sender
             .try_send(inputs)
             .expect("DummySender should be able to send");
@@ -33,7 +33,7 @@ impl<T> ObliviousReceive<bool, T> for MockOTReceiver<T>
 where
     T: Send + 'static,
 {
-    async fn receive(&mut self, _id: String, choices: Vec<bool>) -> Result<Vec<T>, OTError> {
+    async fn receive(&mut self, choices: Vec<bool>) -> Result<Vec<T>, OTError> {
         let payload = self
             .receiver
             .next()
@@ -59,7 +59,7 @@ impl<T> ObliviousVerify<[T; 2]> for MockOTReceiver<T>
 where
     T: Send + 'static,
 {
-    async fn verify(self, _id: String, _input: Vec<[T; 2]>) -> Result<(), OTError> {
+    async fn verify(self, _input: Vec<[T; 2]>) -> Result<(), OTError> {
         // MockOT is always honest
         Ok(())
     }

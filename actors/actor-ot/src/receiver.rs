@@ -9,7 +9,10 @@ use mpc_ot::{
 };
 use xtra::{prelude::*, scoped};
 
-use crate::{config::OTActorReceiverConfig, GetReceiver, SendBackReceiver, Setup, Verify};
+use crate::{
+    config::OTActorReceiverConfig, GetReceiver, OTReceiveOwned, OTVerifyOwned, SendBackReceiver,
+    Setup, Verify,
+};
 use mpc_core::Block;
 use mpc_ot_core::{
     msgs::{OTMessage, Split},
@@ -293,7 +296,7 @@ where
         )))?;
 
         // Verify child receiver
-        let result = child_receiver.verify(id, input).await;
+        let result = child_receiver.verify(input).await;
 
         self.state = State::Setup {
             receiver,
@@ -336,28 +339,31 @@ where
 }
 
 #[async_trait]
-impl<T> ObliviousReceive<bool, Block> for ReceiverActorControl<T>
+impl<T> OTReceiveOwned<Vec<bool>, Vec<Block>> for ReceiverActorControl<T>
 where
     T: Handler<
             GetReceiver,
             Return = oneshot::Receiver<Result<Kos15IOReceiver<RandSetup>, OTError>>,
         > + Handler<SendBackReceiver, Return = Result<(), OTError>>,
 {
-    async fn receive(&mut self, id: String, choices: Vec<bool>) -> Result<Vec<Block>, OTError> {
+    async fn receive(&self, id: &str, choices: Vec<bool>) -> Result<Vec<Block>, OTError> {
         let mut child_receiver = self
             .0
             .send(GetReceiver {
-                id: id.clone(),
+                id: id.to_owned(),
                 count: choices.len(),
             })
             .await
             .map_err(|e| OTError::Other(e.to_string()))?
             .await??;
 
-        let output = child_receiver.receive(id.clone(), choices).await?;
+        let output = child_receiver.receive(choices).await?;
         _ = self
             .0
-            .send(SendBackReceiver { id, child_receiver })
+            .send(SendBackReceiver {
+                id: id.to_owned(),
+                child_receiver,
+            })
             .await
             .map_err(|e| OTError::Other(e.to_string()))?;
         Ok(output)
@@ -365,13 +371,16 @@ where
 }
 
 #[async_trait]
-impl<T> ObliviousVerify<[Block; 2]> for ReceiverActorControl<T>
+impl<T> OTVerifyOwned<Vec<[Block; 2]>> for ReceiverActorControl<T>
 where
     T: Handler<Verify, Return = Result<(), OTError>>,
 {
-    async fn verify(mut self, id: String, input: Vec<[Block; 2]>) -> Result<(), OTError> {
+    async fn verify(&self, id: &str, input: Vec<[Block; 2]>) -> Result<(), OTError> {
         self.0
-            .send(Verify { id, input })
+            .send(Verify {
+                id: id.to_owned(),
+                input,
+            })
             .await
             .map_err(|e| OTError::Other(e.to_string()))?
     }
