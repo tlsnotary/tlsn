@@ -16,6 +16,8 @@
 
 mod actor_msg;
 mod config;
+#[cfg(feature = "mock")]
+mod mock;
 mod receiver;
 mod sender;
 

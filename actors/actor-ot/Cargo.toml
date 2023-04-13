@@ -18,6 +18,10 @@ xtra = { git = "https://github.com/Restioson/xtra", rev = "ca061b4", features = 
     "macros",
 ], default-features = false }
 
+[features]
+default = ["mock"]
+mock = []
+
 
 [dev-dependencies]
 actor-mux = { path = "../actor-mux", default-features = false, features = [
