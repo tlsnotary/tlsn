@@ -14,17 +14,19 @@
 //! Both the Sender and Receiver provide an async API, however, both must synchronize the order in which they
 //! partition the pre-allocated OTs. To do this, the Sender dictates the order of this process.
 
-mod actor_msg;
 mod config;
+/// This module contains message structs which can be sent to the actor to trigger different
+/// message handlers.
+mod msg;
 mod receiver;
 mod sender;
 
-pub use actor_msg::{
-    GetReceiver, GetSender, MarkForReveal, Reveal, SendBackReceiver, SendBackSender, Setup, Verify,
-};
 pub use config::{
     OTActorReceiverConfig, OTActorReceiverConfigBuilder, OTActorSenderConfig,
     OTActorSenderConfigBuilder,
+};
+pub use msg::{
+    GetReceiver, GetSender, MarkForReveal, Reveal, SendBackReceiver, SendBackSender, Setup, Verify,
 };
 pub use receiver::{KOSReceiverActor, ReceiverActorControl};
 pub use sender::{KOSSenderActor, SenderActorControl};
@@ -36,7 +38,7 @@ mod test {
         MockClientChannelMuxer, MockClientControl, MockServerChannelMuxer, MockServerControl,
     };
     use mpc_core::Block;
-    use mpc_ot::{OTReceive, OTReveal, OTSend, OTVerify};
+    use mpc_ot::{ObliviousReceive, ObliviousReveal, ObliviousSend, ObliviousVerify};
     use mpc_ot_core::msgs::OTMessage;
     use utils_aio::{mux::MuxChannelControl, Channel};
     use xtra::prelude::*;

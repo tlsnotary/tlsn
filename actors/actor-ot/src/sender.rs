@@ -3,8 +3,8 @@ use async_trait::async_trait;
 use futures::{stream::SplitSink, Future, SinkExt, StreamExt};
 use mpc_core::Block;
 use mpc_ot::{
-    kos::sender::Kos15IOSender, OTError, OTReveal, OTSend, ObliviousCommitOwned,
-    ObliviousRevealOwned, ObliviousSendOwned,
+    kos::sender::Kos15IOSender, OTError, ObliviousCommitOwned, ObliviousReveal,
+    ObliviousRevealOwned, ObliviousSend, ObliviousSendOwned,
 };
 use mpc_ot_core::{
     msgs::{OTMessage, Split},
@@ -296,7 +296,7 @@ where
 }
 
 #[async_trait]
-impl<T> OTSend<Vec<[Block; 2]>> for SenderActorControl<T>
+impl<T> ObliviousSend<Vec<[Block; 2]>> for SenderActorControl<T>
 where
     T: Handler<GetSender, Return = Result<Kos15IOSender<RandSetup>, OTError>>
         + Handler<SendBackSender, Return = Result<(), OTError>>,
@@ -324,7 +324,7 @@ where
 }
 
 #[async_trait]
-impl<T> OTReveal for SenderActorControl<T>
+impl<T> ObliviousReveal for SenderActorControl<T>
 where
     T: Handler<Reveal, Return = Result<(), OTError>>,
 {

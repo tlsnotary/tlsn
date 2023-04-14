@@ -43,32 +43,35 @@ pub enum OTError {
 }
 
 #[async_trait]
-pub trait OTSend<T> {
+pub trait ObliviousSend<T> {
     async fn send(&self, id: &str, input: T) -> Result<(), OTError>;
 }
 
 #[async_trait]
-pub trait OTReveal {
+pub trait ObliviousReveal {
     async fn reveal(&self) -> Result<(), OTError>;
 }
 
 #[async_trait]
-pub trait OTReceive<T, U> {
+pub trait ObliviousReceive<T, U> {
     async fn receive(&self, id: &str, choice: T) -> Result<U, OTError>;
 }
 
 #[async_trait]
-pub trait OTVerify<T> {
+pub trait ObliviousVerify<T> {
     async fn verify(&self, id: &str, input: T) -> Result<(), OTError>;
 }
 
-pub trait VerifiableOTSend<T>: OTSend<T> + OTReveal {}
+pub trait VerifiableObliviousSend<T>: ObliviousSend<T> + ObliviousReveal {}
 
-impl<T> VerifiableOTSend<T> for T where T: OTSend<T> + OTReveal {}
+impl<T, U> VerifiableObliviousSend<U> for T where T: ObliviousSend<U> + ObliviousReveal {}
 
-pub trait VerifiableOTReceive<T, U, V>: OTReceive<T, U> + OTVerify<V> {}
+pub trait VerifiableObliviousReceive<T, U, V>: ObliviousReceive<T, U> + ObliviousVerify<V> {}
 
-impl<T, U, V> VerifiableOTReceive<T, U, V> for T where T: OTReceive<T, U> + OTVerify<V> {}
+impl<T, U, V> VerifiableObliviousReceive<T, U, V> for T where
+    T: ObliviousReceive<T, U> + ObliviousVerify<V>
+{
+}
 
 #[async_trait]
 pub trait ObliviousSendOwned<T> {

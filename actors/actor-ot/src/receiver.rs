@@ -3,8 +3,8 @@ use async_trait::async_trait;
 use futures::{channel::oneshot, stream::SplitSink, Future, StreamExt};
 use mpc_core::Block;
 use mpc_ot::{
-    kos::receiver::Kos15IOReceiver, OTError, OTReceive, OTVerify, ObliviousAcceptCommitOwned,
-    ObliviousReceiveOwned, ObliviousVerifyOwned,
+    kos::receiver::Kos15IOReceiver, OTError, ObliviousAcceptCommitOwned, ObliviousReceive,
+    ObliviousReceiveOwned, ObliviousVerify, ObliviousVerifyOwned,
 };
 use mpc_ot_core::{
     msgs::{OTMessage, Split},
@@ -333,7 +333,7 @@ where
 }
 
 #[async_trait]
-impl<T> OTReceive<Vec<bool>, Vec<Block>> for ReceiverActorControl<T>
+impl<T> ObliviousReceive<Vec<bool>, Vec<Block>> for ReceiverActorControl<T>
 where
     T: Handler<
             GetReceiver,
@@ -359,13 +359,13 @@ where
                 child_receiver,
             })
             .await
-            .map_err(|e| OTError::Other(e.to_string()))?;
+            .map_err(|e| OTError::Other(e.to_string()))??;
         Ok(output)
     }
 }
 
 #[async_trait]
-impl<T> OTVerify<Vec<[Block; 2]>> for ReceiverActorControl<T>
+impl<T> ObliviousVerify<Vec<[Block; 2]>> for ReceiverActorControl<T>
 where
     T: Handler<Verify, Return = Result<(), OTError>>,
 {

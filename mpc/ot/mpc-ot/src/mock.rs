@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::{OTReceive, OTReveal, OTSend, OTVerify};
+use crate::{ObliviousReceive, ObliviousReveal, ObliviousSend, ObliviousVerify};
 
 use super::{
     OTError, ObliviousReceiveOwned, ObliviousRevealOwned, ObliviousSendOwned, ObliviousVerifyOwned,
@@ -13,22 +13,27 @@ use futures::{
     channel::{mpsc, oneshot},
     StreamExt,
 };
+use mpc_ot_core::config::{OTReceiverConfig, OTSenderConfig};
+use utils_aio::factory::AsyncFactory;
 
-pub struct MockOTSender<T> {
+pub struct MockOTSenderOwned<T> {
     sender: mpsc::Sender<Vec<[T; 2]>>,
 }
 
-pub struct MockOTReceiver<T> {
+pub struct MockOTReceiverOwned<T> {
     receiver: mpsc::Receiver<Vec<[T; 2]>>,
 }
 
-pub fn mock_ot_pair<T: Send + 'static>() -> (MockOTSender<T>, MockOTReceiver<T>) {
+pub fn mock_ot_pair<T: Send + 'static>() -> (MockOTSenderOwned<T>, MockOTReceiverOwned<T>) {
     let (sender, receiver) = mpsc::channel::<Vec<[T; 2]>>(10);
-    (MockOTSender { sender }, MockOTReceiver { receiver })
+    (
+        MockOTSenderOwned { sender },
+        MockOTReceiverOwned { receiver },
+    )
 }
 
 #[async_trait]
-impl<T> ObliviousSendOwned<[T; 2]> for MockOTSender<T>
+impl<T> ObliviousSendOwned<[T; 2]> for MockOTSenderOwned<T>
 where
     T: Send + 'static,
 {
@@ -41,7 +46,7 @@ where
 }
 
 #[async_trait]
-impl<T> ObliviousReceiveOwned<bool, T> for MockOTReceiver<T>
+impl<T> ObliviousReceiveOwned<bool, T> for MockOTReceiverOwned<T>
 where
     T: Send + 'static,
 {
@@ -67,7 +72,7 @@ where
 }
 
 #[async_trait]
-impl<T> ObliviousVerifyOwned<[T; 2]> for MockOTReceiver<T>
+impl<T> ObliviousVerifyOwned<[T; 2]> for MockOTReceiverOwned<T>
 where
     T: Send + 'static,
 {
@@ -78,7 +83,7 @@ where
 }
 
 #[async_trait]
-impl<T> ObliviousRevealOwned for MockOTSender<T>
+impl<T> ObliviousRevealOwned for MockOTSenderOwned<T>
 where
     T: Send + 'static,
 {
@@ -88,16 +93,16 @@ where
 }
 
 pub fn create_mock_ot_control_pair<T: Send + Copy>(
-) -> (MockOTSenderControl<[T; 2]>, MockOTReceiverControl<[T; 2]>) {
+) -> (MockOTSender<[T; 2]>, MockOTReceiver<[T; 2]>) {
     let sender_buffer = Arc::new(Mutex::new(HashMap::new()));
     let receiver_buffer = Arc::new(Mutex::new(HashMap::new()));
 
-    let sender = MockOTSenderControl {
+    let sender = MockOTSender {
         sender_buffer: sender_buffer.clone(),
         receiver_buffer: receiver_buffer.clone(),
     };
 
-    let receiver = MockOTReceiverControl {
+    let receiver = MockOTReceiver {
         sender_buffer,
         receiver_buffer,
     };
@@ -106,13 +111,13 @@ pub fn create_mock_ot_control_pair<T: Send + Copy>(
 }
 
 #[derive(Clone)]
-pub struct MockOTSenderControl<T> {
+pub struct MockOTSender<T> {
     sender_buffer: Arc<Mutex<HashMap<String, T>>>,
     receiver_buffer: Arc<Mutex<HashMap<String, oneshot::Sender<T>>>>,
 }
 
 #[async_trait]
-impl<T: std::fmt::Debug + Send> OTSend<T> for MockOTSenderControl<T> {
+impl<T: std::fmt::Debug + Send> ObliviousSend<T> for MockOTSender<T> {
     async fn send(&self, id: &str, input: T) -> Result<(), OTError> {
         if let Some(sender) = self.receiver_buffer.lock().unwrap().remove(id) {
             sender
@@ -129,20 +134,20 @@ impl<T: std::fmt::Debug + Send> OTSend<T> for MockOTSenderControl<T> {
 }
 
 #[async_trait]
-impl<T: Send> OTReveal for MockOTSenderControl<T> {
+impl<T: Send> ObliviousReveal for MockOTSender<T> {
     async fn reveal(&self) -> Result<(), OTError> {
         Ok(())
     }
 }
 
 #[derive(Clone)]
-pub struct MockOTReceiverControl<T> {
+pub struct MockOTReceiver<T> {
     sender_buffer: Arc<Mutex<HashMap<String, T>>>,
     receiver_buffer: Arc<Mutex<HashMap<String, oneshot::Sender<T>>>>,
 }
 
 #[async_trait]
-impl<T: Send + Copy> OTReceive<bool, T> for MockOTReceiverControl<[T; 2]> {
+impl<T: Send + Copy> ObliviousReceive<bool, T> for MockOTReceiver<[T; 2]> {
     async fn receive(&self, id: &str, choice: bool) -> Result<T, OTError> {
         if let Some(value) = self.sender_buffer.lock().unwrap().remove(id) {
             return Ok(value[choice as usize]);
@@ -159,10 +164,83 @@ impl<T: Send + Copy> OTReceive<bool, T> for MockOTReceiverControl<[T; 2]> {
 }
 
 #[async_trait]
-impl<T: Send> OTVerify<T> for MockOTReceiverControl<T> {
+impl<T: Send> ObliviousVerify<T> for MockOTReceiver<T> {
     async fn verify(&self, _id: &str, _input: T) -> Result<(), OTError> {
         // MockOT is always honest
         Ok(())
+    }
+}
+
+struct FactoryState<T> {
+    sender_buffer: HashMap<String, MockOTSenderOwned<T>>,
+    receiver_buffer: HashMap<String, MockOTReceiverOwned<T>>,
+}
+
+#[derive(Clone)]
+pub struct MockOTFactory<T> {
+    state: Arc<Mutex<FactoryState<T>>>,
+}
+
+impl<T> MockOTFactory<T> {
+    pub fn new() -> Self {
+        Self {
+            state: Arc::new(Mutex::new(FactoryState {
+                sender_buffer: HashMap::new(),
+                receiver_buffer: HashMap::new(),
+            })),
+        }
+    }
+}
+
+#[async_trait]
+impl<T> AsyncFactory<MockOTSenderOwned<T>> for MockOTFactory<T>
+where
+    T: Send + 'static,
+{
+    type Config = OTSenderConfig;
+
+    type Error = OTError;
+
+    async fn create(
+        &mut self,
+        id: String,
+        _config: Self::Config,
+    ) -> Result<MockOTSenderOwned<T>, Self::Error> {
+        let mut factory = self.state.lock().unwrap();
+        let sender = if let Some(sender) = factory.sender_buffer.remove(&id) {
+            sender
+        } else {
+            let (sender, receiver) = mock_ot_pair::<T>();
+            factory.receiver_buffer.insert(id, receiver);
+            sender
+        };
+        Ok(sender)
+    }
+}
+
+#[async_trait]
+impl<T> AsyncFactory<MockOTReceiverOwned<T>> for MockOTFactory<T>
+where
+    T: Send + 'static,
+{
+    type Config = OTReceiverConfig;
+
+    type Error = OTError;
+
+    async fn create(
+        &mut self,
+        id: String,
+        _config: Self::Config,
+    ) -> Result<MockOTReceiverOwned<T>, Self::Error> {
+        let mut factory = self.state.lock().unwrap();
+        let receiver = if let Some(receiver) = factory.receiver_buffer.remove(&id) {
+            receiver
+        } else {
+            let (sender, receiver) = mock_ot_pair::<T>();
+            factory.sender_buffer.insert(id, sender);
+            receiver
+        };
+        Ok(receiver)
     }
 }
 
