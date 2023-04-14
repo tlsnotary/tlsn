@@ -36,5 +36,3 @@ rayon = { workspace = true }
 [dev-dependencies]
 rstest = { workspace = true }
 criterion = { workspace = true, features = ["async_tokio"] }
-tlsn-mpc-circuits.workspace = true
-tlsn-mpc-garble-core.workspace = true

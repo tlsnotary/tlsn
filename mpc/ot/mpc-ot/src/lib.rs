@@ -106,28 +106,3 @@ pub trait ObliviousVerifyOwned<T> {
     /// Verifies the correctness of the revealed OT seed
     async fn verify(self, input: Vec<T>) -> Result<(), OTError>;
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::mock::mock_ot_pair_owned;
-    use mpc_circuits::{InputValue, WireGroup, ADDER_64};
-    use mpc_garble_core::{ActiveEncodedInput, ActiveLabels, FullEncodedInput, FullInputSet};
-    use rand::thread_rng;
-
-    #[tokio::test]
-    async fn test_wire_label_transfer() {
-        let circ = ADDER_64.clone();
-        let full_labels = FullInputSet::generate(&mut thread_rng(), &circ, None);
-
-        let receiver_labels = full_labels[1].clone();
-
-        let value = circ.input(1).unwrap().to_value(4u64).unwrap();
-        let expected = receiver_labels.select(value.value()).unwrap();
-
-        let (mut sender, mut receiver) = mock_ot_pair_owned::<Block>();
-        sender.send(vec![receiver_labels]).await.unwrap();
-        let received = receiver.receive(vec![value]).await.unwrap();
-
-        assert_eq!(received[0], expected);
-    }
-}
