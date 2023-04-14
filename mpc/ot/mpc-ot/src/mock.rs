@@ -24,7 +24,7 @@ pub struct MockOTReceiverOwned<T> {
     receiver: mpsc::Receiver<Vec<[T; 2]>>,
 }
 
-pub fn mock_ot_pair<T: Send + 'static>() -> (MockOTSenderOwned<T>, MockOTReceiverOwned<T>) {
+pub fn mock_ot_pair_owned<T: Send + 'static>() -> (MockOTSenderOwned<T>, MockOTReceiverOwned<T>) {
     let (sender, receiver) = mpsc::channel::<Vec<[T; 2]>>(10);
     (
         MockOTSenderOwned { sender },
@@ -92,8 +92,7 @@ where
     }
 }
 
-pub fn create_mock_ot_control_pair<T: Send + Copy>(
-) -> (MockOTSender<[T; 2]>, MockOTReceiver<[T; 2]>) {
+pub fn create_mock_ot_pair<T: Send + Copy>() -> (MockOTSender<[T; 2]>, MockOTReceiver<[T; 2]>) {
     let sender_buffer = Arc::new(Mutex::new(HashMap::new()));
     let receiver_buffer = Arc::new(Mutex::new(HashMap::new()));
 
@@ -164,6 +163,33 @@ impl<T: Send + Copy> ObliviousReceive<bool, T> for MockOTReceiver<[T; 2]> {
 }
 
 #[async_trait]
+impl<T: Send + Copy> ObliviousReceive<Vec<bool>, Vec<T>> for MockOTReceiver<Vec<[T; 2]>> {
+    async fn receive(&self, id: &str, choice: Vec<bool>) -> Result<Vec<T>, OTError> {
+        if let Some(value) = self.sender_buffer.lock().unwrap().remove(id) {
+            return Ok(value
+                .into_iter()
+                .zip(choice)
+                .map(|(v, c)| v[c as usize])
+                .collect::<Vec<T>>());
+        }
+
+        let (sender, receiver) = oneshot::channel();
+        self.receiver_buffer
+            .lock()
+            .unwrap()
+            .insert(id.to_string(), sender);
+
+        Ok(receiver
+            .await
+            .unwrap()
+            .into_iter()
+            .zip(choice)
+            .map(|(v, c)| v[c as usize])
+            .collect::<Vec<T>>())
+    }
+}
+
+#[async_trait]
 impl<T: Send> ObliviousVerify<T> for MockOTReceiver<T> {
     async fn verify(&self, _id: &str, _input: T) -> Result<(), OTError> {
         // MockOT is always honest
@@ -210,7 +236,7 @@ where
         let sender = if let Some(sender) = factory.sender_buffer.remove(&id) {
             sender
         } else {
-            let (sender, receiver) = mock_ot_pair::<T>();
+            let (sender, receiver) = mock_ot_pair_owned::<T>();
             factory.receiver_buffer.insert(id, receiver);
             sender
         };
@@ -236,7 +262,7 @@ where
         let receiver = if let Some(receiver) = factory.receiver_buffer.remove(&id) {
             receiver
         } else {
-            let (sender, receiver) = mock_ot_pair::<T>();
+            let (sender, receiver) = mock_ot_pair_owned::<T>();
             factory.sender_buffer.insert(id, sender);
             receiver
         };
@@ -253,7 +279,7 @@ mod tests {
     async fn test_mock_ot() {
         let values = vec![[0, 1], [2, 3]];
         let choice = vec![false, true];
-        let (mut sender, mut receiver) = mock_ot_pair::<u8>();
+        let (mut sender, mut receiver) = mock_ot_pair_owned::<u8>();
 
         sender.send(values).await.unwrap();
 

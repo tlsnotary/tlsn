@@ -109,7 +109,7 @@ pub trait ObliviousVerifyOwned<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::mock::mock_ot_pair;
+    use crate::mock::mock_ot_pair_owned;
     use mpc_circuits::{InputValue, WireGroup, ADDER_64};
     use mpc_garble_core::{ActiveEncodedInput, ActiveLabels, FullEncodedInput, FullInputSet};
     use rand::thread_rng;
@@ -124,7 +124,7 @@ mod tests {
         let value = circ.input(1).unwrap().to_value(4u64).unwrap();
         let expected = receiver_labels.select(value.value()).unwrap();
 
-        let (mut sender, mut receiver) = mock_ot_pair::<Block>();
+        let (mut sender, mut receiver) = mock_ot_pair_owned::<Block>();
         sender.send(vec![receiver_labels]).await.unwrap();
         let received = receiver.receive(vec![value]).await.unwrap();
 

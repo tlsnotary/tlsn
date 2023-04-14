@@ -1,6 +1,9 @@
 use crate::{config::OTActorSenderConfig, GetSender, MarkForReveal, Reveal, SendBackSender, Setup};
 use async_trait::async_trait;
-use futures::{stream::SplitSink, Future, SinkExt, StreamExt};
+use futures::{
+    stream::{FuturesUnordered, SplitSink},
+    Future, SinkExt, StreamExt, TryStreamExt,
+};
 use mpc_core::Block;
 use mpc_ot::{
     kos::sender::Kos15IOSender, OTError, ObliviousCommitOwned, ObliviousReveal,
@@ -215,12 +218,14 @@ where
         };
         ctx.stop_self();
 
+        let futures = FuturesUnordered::new();
         for id in reveal {
             let child_sender = child_senders
                 .remove(&id)
                 .ok_or(OTError::Other("Child sender not found".to_string()))?;
-            child_sender.reveal().await?;
+            futures.push(child_sender.reveal());
         }
+        futures.try_collect::<Vec<_>>().await?;
         Ok(())
     }
 }

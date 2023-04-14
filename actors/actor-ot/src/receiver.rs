@@ -10,7 +10,7 @@ use mpc_ot_core::{
     msgs::{OTMessage, Split},
     r_state::RandSetup,
 };
-use std::collections::HashMap;
+use std::{collections::HashMap, pin::Pin};
 use utils_aio::{mux::MuxChannelControl, Channel};
 use xtra::{prelude::*, scoped};
 
@@ -267,10 +267,11 @@ where
     T: Channel<OTMessage, Error = std::io::Error> + Send + 'static,
     U: MuxChannelControl<OTMessage> + Send + 'static,
 {
-    type Return = Result<(), OTError>;
+    type Return =
+        Result<Pin<Box<dyn Future<Output = Result<(), OTError>> + Send + 'static>>, OTError>;
 
     /// Handles the Verify message
-    async fn handle(&mut self, msg: Verify, _ctx: &mut Context<Self>) -> Result<(), OTError> {
+    async fn handle(&mut self, msg: Verify, _ctx: &mut Context<Self>) -> Self::Return {
         let Verify { id, input } = msg;
 
         // We move the state into scope and replace with error state
@@ -290,14 +291,14 @@ where
         )))?;
 
         // Verify child receiver
-        let result = child_receiver.verify(input).await;
+        let result = child_receiver.verify(input);
 
         self.state = State::Setup {
             receiver,
             child_receivers,
         };
 
-        result
+        Ok(result)
     }
 }
 
@@ -367,15 +368,24 @@ where
 #[async_trait]
 impl<T> ObliviousVerify<Vec<[Block; 2]>> for ReceiverActorControl<T>
 where
-    T: Handler<Verify, Return = Result<(), OTError>>,
+    T: Handler<
+        Verify,
+        Return = Result<
+            Pin<Box<dyn Future<Output = Result<(), OTError>> + Send + 'static>>,
+            OTError,
+        >,
+    >,
 {
     async fn verify(&self, id: &str, input: Vec<[Block; 2]>) -> Result<(), OTError> {
-        self.0
+        let verify_future = self
+            .0
             .send(Verify {
                 id: id.to_owned(),
                 input,
             })
             .await
-            .map_err(|e| OTError::Other(e.to_string()))?
+            .map_err(|e| OTError::Other(e.to_string()))??;
+
+        verify_future.await
     }
 }
