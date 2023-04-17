@@ -7,10 +7,7 @@ use super::{
 use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive, SendTape, ShareConversionError};
 use async_trait::async_trait;
 use futures::SinkExt;
-use mpc_ot::{
-    config::{OTSenderConfig, OTSenderConfigBuilder},
-    OTFactoryError, ObliviousSend,
-};
+use mpc_ot::ObliviousSend;
 use mpc_share_conversion_core::{
     fields::Field,
     msgs::{SenderRecordings, ShareConversionMessage},
@@ -19,22 +16,19 @@ use mpc_share_conversion_core::{
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 use std::marker::PhantomData;
-use utils_aio::{adaptive_barrier::AdaptiveBarrier, factory::AsyncFactory};
+use utils_aio::adaptive_barrier::AdaptiveBarrier;
 
 /// The sender for the conversion
 ///
 /// Will be the OT sender
-pub struct Sender<T, OT, U, V, X, W = Void>
+pub struct Sender<OT, U, V, X, W = Void>
 where
-    T: AsyncFactory<OT>,
     OT: ObliviousSend<[X; 2]>,
     U: ShareConvert<Inner = V>,
     V: Field<BlockEncoding = X>,
     W: Recorder<U, V>,
 {
-    /// Provides initialized OTs for the OT sender
-    sender_factory: T,
-    _ot: PhantomData<OT>,
+    ot_sender: OT,
     id: String,
     _protocol: PhantomData<U>,
     rng: ChaCha12Rng,
@@ -48,9 +42,8 @@ where
     counter: usize,
 }
 
-impl<T, OT, U, V, X, W> Sender<T, OT, U, V, X, W>
+impl<OT, U, V, X, W> Sender<OT, U, V, X, W>
 where
-    T: AsyncFactory<OT, Config = OTSenderConfig, Error = OTFactoryError> + Send,
     OT: ObliviousSend<[X; 2]>,
     U: ShareConvert<Inner = V>,
     V: Field<BlockEncoding = X>,
@@ -58,15 +51,14 @@ where
 {
     /// Create a new sender
     pub fn new(
-        sender_factory: T,
+        ot_sender: OT,
         id: String,
         channel: ShareConversionChannel<V>,
         barrier: Option<AdaptiveBarrier>,
     ) -> Self {
         let rng = ChaCha12Rng::from_entropy();
         Self {
-            sender_factory,
-            _ot: PhantomData,
+            ot_sender,
             id,
             _protocol: PhantomData,
             rng,
@@ -94,20 +86,15 @@ where
             ot_shares.extend(ot);
         }
 
-        // Get an OT sender from factory
-        let mut ot_sender = self
-            .sender_factory
-            .create(
-                format!("{}/{}/ot", &self.id, &self.counter),
-                OTSenderConfigBuilder::default()
-                    .count(ot_shares.len() * 128)
-                    .build()
-                    .expect("OTSenderConfig should be valid"),
+        // Send OT shares to the receiver and increment batch counter
+        self.ot_sender
+            .send(
+                &format!("{}/{}/ot", &self.id, &self.counter),
+                ot_shares.into(),
             )
             .await?;
-
         self.counter += 1;
-        ot_sender.send(ot_shares.into()).await?;
+
         Ok(local_shares)
     }
 }
@@ -127,9 +114,8 @@ where
 }
 
 #[async_trait]
-impl<T, OT, V, X, W> AdditiveToMultiplicative<V> for Sender<T, OT, AddShare<V>, V, X, W>
+impl<OT, V, X, W> AdditiveToMultiplicative<V> for Sender<OT, AddShare<V>, V, X, W>
 where
-    T: AsyncFactory<OT, Config = OTSenderConfig, Error = OTFactoryError> + Send,
     OT: ObliviousSend<[X; 2]> + Send,
     V: Field<BlockEncoding = X>,
     W: Recorder<AddShare<V>, V> + Send,
@@ -143,9 +129,8 @@ where
 }
 
 #[async_trait]
-impl<T, OT, V, X, W> MultiplicativeToAdditive<V> for Sender<T, OT, MulShare<V>, V, X, W>
+impl<OT, V, X, W> MultiplicativeToAdditive<V> for Sender<OT, MulShare<V>, V, X, W>
 where
-    T: AsyncFactory<OT, Config = OTSenderConfig, Error = OTFactoryError> + Send,
     OT: ObliviousSend<[X; 2]> + Send,
     V: Field<BlockEncoding = X>,
     W: Recorder<MulShare<V>, V> + Send,
@@ -159,9 +144,8 @@ where
 }
 
 #[async_trait]
-impl<T, OT, U, V, X> SendTape for Sender<T, OT, U, V, X, Tape<V>>
+impl<OT, U, V, X> SendTape for Sender<OT, U, V, X, Tape<V>>
 where
-    T: AsyncFactory<OT> + Send,
     OT: ObliviousSend<[X; 2]> + Send,
     U: ShareConvert<Inner = V> + Send,
     V: Field<BlockEncoding = X>,

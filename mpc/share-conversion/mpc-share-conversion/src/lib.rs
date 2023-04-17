@@ -1,7 +1,7 @@
 //! This subcrate implements the async IO layer for share-conversion
 
 use async_trait::async_trait;
-use mpc_ot::{OTError, OTFactoryError};
+use mpc_ot::OTError;
 use mpc_share_conversion_core::{fields::Field, ShareConversionCoreError};
 use thiserror::Error;
 
@@ -40,8 +40,6 @@ pub trait VerifyTape {
 /// An error for what can go wrong during conversion
 #[derive(Debug, Error)]
 pub enum ShareConversionError {
-    #[error("OTFactoryError: {0}")]
-    OTFactoryError(#[from] OTFactoryError),
     #[error("OTError: {0}")]
     OTError(#[from] OTError),
     #[error("IO Error: {0}")]
