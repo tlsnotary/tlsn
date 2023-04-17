@@ -12,7 +12,7 @@ use utils_aio::{adaptive_barrier::AdaptiveBarrier, mux::MuxChannelControl};
 use xtra::prelude::*;
 
 enum State<
-    OT: ObliviousSend<[X; 2]>,
+    OT: ObliviousSend<[X; 2]> + Send + Sync,
     U: ShareConvert<Inner = Y>,
     V: MuxChannelControl<ShareConversionMessage<Y>>,
     W: Recorder<U, Y>,
@@ -36,7 +36,7 @@ enum State<
 #[derive(xtra::Actor)]
 pub struct Sender<OT, U, V, X, Y, W = Void>
 where
-    OT: ObliviousSend<[X; 2]>,
+    OT: ObliviousSend<[X; 2]> + Send + Sync,
     U: ShareConvert<Inner = Y>,
     V: MuxChannelControl<ShareConversionMessage<Y>>,
     W: Recorder<U, Y>,
@@ -47,7 +47,7 @@ where
 
 impl<OT, U, V, X, Y, W> Sender<OT, U, V, X, Y, W>
 where
-    OT: ObliviousSend<[X; 2]>,
+    OT: ObliviousSend<[X; 2]> + Send + Sync,
     U: ShareConvert<Inner = Y>,
     V: MuxChannelControl<ShareConversionMessage<Y>>,
     W: Recorder<U, Y>,
@@ -138,7 +138,7 @@ where
 #[async_trait]
 impl<OT, U, V, X, Y, W> Handler<SetupMessage> for Sender<OT, U, V, X, Y, W>
 where
-    OT: ObliviousSend<[X; 2]> + Send + 'static,
+    OT: ObliviousSend<[X; 2]> + Send + Sync + 'static,
     U: ShareConvert<Inner = Y> + Send + 'static,
     V: MuxChannelControl<ShareConversionMessage<Y>> + Send + 'static,
     W: Recorder<U, Y> + Send + 'static,
@@ -170,7 +170,7 @@ where
 #[async_trait]
 impl<OT, U, V, X, Y, W> Handler<M2AMessage<Vec<Y>>> for Sender<OT, U, V, X, Y, W>
 where
-    OT: ObliviousSend<[X; 2]> + Send + 'static,
+    OT: ObliviousSend<[X; 2]> + Send + Sync + 'static,
     U: ShareConvert<Inner = Y> + Send + 'static,
     V: MuxChannelControl<ShareConversionMessage<Y>> + Send + 'static,
     W: Recorder<U, Y> + Send + 'static,
@@ -203,7 +203,7 @@ where
 #[async_trait]
 impl<OT, U, V, X, Y, W> Handler<A2MMessage<Vec<Y>>> for Sender<OT, U, V, X, Y, W>
 where
-    OT: ObliviousSend<[X; 2]> + Send + 'static,
+    OT: ObliviousSend<[X; 2]> + Send + Sync + 'static,
     U: ShareConvert<Inner = Y> + Send + 'static,
     V: MuxChannelControl<ShareConversionMessage<Y>> + Send + 'static,
     W: Recorder<U, Y> + Send + 'static,
@@ -236,7 +236,7 @@ where
 #[async_trait]
 impl<OT, U, V, X, Y> Handler<SendTapeMessage> for Sender<OT, U, V, X, Y, Tape<Y>>
 where
-    OT: ObliviousSend<[X; 2]> + Send + 'static,
+    OT: ObliviousSend<[X; 2]> + Send + Sync + 'static,
     U: ShareConvert<Inner = Y> + Send + 'static,
     V: MuxChannelControl<ShareConversionMessage<Y>> + Send + 'static,
     X: Send + 'static,
