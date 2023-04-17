@@ -20,7 +20,7 @@ use std::marker::PhantomData;
 /// Will be the OT receiver
 pub struct Receiver<OT, U, V, X, W = Void>
 where
-    OT: ObliviousReceive<bool, X>,
+    OT: ObliviousReceive<bool, X> + Send + Sync,
     U: ShareConvert<Inner = V>,
     V: Field<BlockEncoding = X>,
     W: Recorder<U, V>,
@@ -37,7 +37,7 @@ where
 
 impl<OT, U, V, X, W> Receiver<OT, U, V, X, W>
 where
-    OT: ObliviousReceive<bool, X>,
+    OT: ObliviousReceive<bool, X> + Send + Sync,
     U: ShareConvert<Inner = V>,
     V: Field<BlockEncoding = X>,
     W: Recorder<U, V>,
@@ -95,7 +95,7 @@ where
 #[async_trait]
 impl<OT, V, X, W> AdditiveToMultiplicative<V> for Receiver<OT, AddShare<V>, V, X, W>
 where
-    OT: ObliviousReceive<bool, X> + Send,
+    OT: ObliviousReceive<bool, X> + Send + Sync,
     V: Field<BlockEncoding = X>,
     W: Recorder<AddShare<V>, V> + Send,
 {
@@ -109,7 +109,7 @@ where
 #[async_trait]
 impl<OT, V, X, W> MultiplicativeToAdditive<V> for Receiver<OT, MulShare<V>, V, X, W>
 where
-    OT: ObliviousReceive<bool, X> + Send,
+    OT: ObliviousReceive<bool, X> + Send + Sync,
     V: Field<BlockEncoding = X>,
     W: Recorder<MulShare<V>, V> + Send,
 {
@@ -123,7 +123,7 @@ where
 #[async_trait]
 impl<OT, U, V, X> VerifyTape for Receiver<OT, U, V, X, Tape<V>>
 where
-    OT: ObliviousReceive<bool, X> + Send,
+    OT: ObliviousReceive<bool, X> + Send + Sync,
     U: ShareConvert<Inner = V> + Send,
     V: Field<BlockEncoding = X>,
 {

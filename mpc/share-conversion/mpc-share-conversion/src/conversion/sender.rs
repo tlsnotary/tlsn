@@ -23,7 +23,7 @@ use utils_aio::adaptive_barrier::AdaptiveBarrier;
 /// Will be the OT sender
 pub struct Sender<OT, U, V, X, W = Void>
 where
-    OT: ObliviousSend<[X; 2]>,
+    OT: ObliviousSend<[X; 2]> + Send + Sync,
     U: ShareConvert<Inner = V>,
     V: Field<BlockEncoding = X>,
     W: Recorder<U, V>,
@@ -44,7 +44,7 @@ where
 
 impl<OT, U, V, X, W> Sender<OT, U, V, X, W>
 where
-    OT: ObliviousSend<[X; 2]>,
+    OT: ObliviousSend<[X; 2]> + Send + Sync,
     U: ShareConvert<Inner = V>,
     V: Field<BlockEncoding = X>,
     W: Recorder<U, V>,
@@ -101,10 +101,9 @@ where
 
 // Used for unit testing
 #[cfg(test)]
-impl<T, OT, U, X, V> Sender<T, OT, U, V, X, Tape<V>>
+impl<OT, U, X, V> Sender<OT, U, V, X, Tape<V>>
 where
-    T: AsyncFactory<OT> + Send,
-    OT: ObliviousSend<[X; 2]>,
+    OT: ObliviousSend<[X; 2]> + Send + Sync,
     U: ShareConvert<Inner = V>,
     V: Field<BlockEncoding = X>,
 {
@@ -116,7 +115,7 @@ where
 #[async_trait]
 impl<OT, V, X, W> AdditiveToMultiplicative<V> for Sender<OT, AddShare<V>, V, X, W>
 where
-    OT: ObliviousSend<[X; 2]> + Send,
+    OT: ObliviousSend<[X; 2]> + Send + Sync,
     V: Field<BlockEncoding = X>,
     W: Recorder<AddShare<V>, V> + Send,
     X: Send,
@@ -131,7 +130,7 @@ where
 #[async_trait]
 impl<OT, V, X, W> MultiplicativeToAdditive<V> for Sender<OT, MulShare<V>, V, X, W>
 where
-    OT: ObliviousSend<[X; 2]> + Send,
+    OT: ObliviousSend<[X; 2]> + Send + Sync,
     V: Field<BlockEncoding = X>,
     W: Recorder<MulShare<V>, V> + Send,
     X: Send,
@@ -146,7 +145,7 @@ where
 #[async_trait]
 impl<OT, U, V, X> SendTape for Sender<OT, U, V, X, Tape<V>>
 where
-    OT: ObliviousSend<[X; 2]> + Send,
+    OT: ObliviousSend<[X; 2]> + Send + Sync,
     U: ShareConvert<Inner = V> + Send,
     V: Field<BlockEncoding = X>,
 {

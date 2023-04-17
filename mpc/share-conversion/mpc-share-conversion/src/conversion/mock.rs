@@ -10,7 +10,7 @@ pub type MockReceiver<U, V, X, W> = Receiver<MockOTReceiver<X>, U, V, X, W>;
 pub fn mock_converter_pair<
     U: ShareConvert<Inner = V>,
     V: Field<BlockEncoding = X>,
-    X: Send + 'static,
+    X: Send + Copy + std::fmt::Debug + 'static,
     W: Recorder<U, V>,
 >() -> (MockSender<U, V, X, W>, MockReceiver<U, V, X, W>) {
     let (c1, c2): (ShareConversionChannel<V>, ShareConversionChannel<V>) = DuplexChannel::new();
