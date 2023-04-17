@@ -52,6 +52,10 @@ impl<T: Send> ObliviousReveal for MockOTSender<T> {
     async fn reveal(&self) -> Result<(), OTError> {
         Ok(())
     }
+
+    async fn mark_for_reveal(&self, _id: &str) -> Result<(), OTError> {
+        Ok(())
+    }
 }
 
 #[derive(Clone)]

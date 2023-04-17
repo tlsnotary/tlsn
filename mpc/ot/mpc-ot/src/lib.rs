@@ -50,6 +50,7 @@ pub trait ObliviousSend<T> {
 #[async_trait]
 pub trait ObliviousReveal {
     async fn reveal(&self) -> Result<(), OTError>;
+    async fn mark_for_reveal(&self, id: &str) -> Result<(), OTError>;
 }
 
 #[async_trait]
@@ -68,8 +69,8 @@ impl<T, U> VerifiableObliviousSend<U> for T where T: ObliviousSend<U> + Obliviou
 
 pub trait VerifiableObliviousReceive<T, U, V>: ObliviousReceive<T, U> + ObliviousVerify<V> {}
 
-impl<T, U, V> VerifiableObliviousReceive<T, U, V> for T where
-    T: ObliviousReceive<T, U> + ObliviousVerify<V>
+impl<T, U, V, X> VerifiableObliviousReceive<T, U, V> for X where
+    X: ObliviousReceive<T, U> + ObliviousVerify<V>
 {
 }
 

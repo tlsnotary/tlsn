@@ -271,8 +271,7 @@ impl<T> Clone for SenderActorControl<T> {
 
 impl<T> SenderActorControl<T>
 where
-    T: Handler<Setup, Return = Result<(), OTError>>
-        + Handler<MarkForReveal, Return = Result<(), OTError>>,
+    T: Handler<Setup, Return = Result<(), OTError>>,
 {
     pub fn new(address: Address<T>) -> Self {
         Self(address)
@@ -287,14 +286,6 @@ where
     pub async fn setup(&mut self) -> Result<(), OTError> {
         self.0
             .send(Setup)
-            .await
-            .map_err(|e| OTError::Other(e.to_string()))?
-    }
-
-    /// Sends MarkForReveal message to actor
-    pub async fn mark_for_reveal(&self, id: &str) -> Result<(), OTError> {
-        self.0
-            .send(MarkForReveal(id.to_owned()))
             .await
             .map_err(|e| OTError::Other(e.to_string()))?
     }
@@ -316,7 +307,7 @@ where
             .await
             .map_err(|e| OTError::Other(e.to_string()))??;
 
-        _ = child_sender.send(inputs).await?;
+        child_sender.send(inputs).await?;
 
         self.0
             .send(SendBackSender {
@@ -331,8 +322,16 @@ where
 #[async_trait]
 impl<T> ObliviousReveal for SenderActorControl<T>
 where
-    T: Handler<Reveal, Return = Result<(), OTError>>,
+    T: Handler<MarkForReveal, Return = Result<(), OTError>>
+        + Handler<Reveal, Return = Result<(), OTError>>,
 {
+    async fn mark_for_reveal(&self, id: &str) -> Result<(), OTError> {
+        self.0
+            .send(MarkForReveal(id.to_owned()))
+            .await
+            .map_err(|e| OTError::Other(e.to_string()))?
+    }
+
     async fn reveal(&self) -> Result<(), OTError> {
         self.0
             .send(Reveal)

@@ -353,8 +353,7 @@ where
             .await??;
 
         let output = child_receiver.receive(choices).await?;
-        _ = self
-            .0
+        self.0
             .send(SendBackReceiver {
                 id: id.to_owned(),
                 child_receiver,
