@@ -31,7 +31,7 @@ pub struct MockOTSender<T> {
 }
 
 #[async_trait]
-impl<T: std::fmt::Debug + Send> ObliviousSend<Vec<[T; 2]>> for MockOTSender<T> {
+impl<T: std::fmt::Debug + Send> ObliviousSend<[T; 2]> for MockOTSender<T> {
     async fn send(&self, id: &str, input: Vec<[T; 2]>) -> Result<(), OTError> {
         if let Some(sender) = self.receiver_buffer.lock().unwrap().remove(id) {
             sender
@@ -65,7 +65,7 @@ pub struct MockOTReceiver<T> {
 }
 
 #[async_trait]
-impl<T: Send + Copy> ObliviousReceive<Vec<bool>, Vec<T>> for MockOTReceiver<T> {
+impl<T: Send + Copy> ObliviousReceive<bool, T> for MockOTReceiver<T> {
     async fn receive(&self, id: &str, choice: Vec<bool>) -> Result<Vec<T>, OTError> {
         if let Some(value) = self.sender_buffer.lock().unwrap().remove(id) {
             return Ok(value
@@ -93,7 +93,7 @@ impl<T: Send + Copy> ObliviousReceive<Vec<bool>, Vec<T>> for MockOTReceiver<T> {
 
 #[async_trait]
 impl<T: Send> ObliviousVerify<T> for MockOTReceiver<T> {
-    async fn verify(&self, _id: &str, _input: T) -> Result<(), OTError> {
+    async fn verify(&self, _id: &str, _input: Vec<T>) -> Result<(), OTError> {
         // MockOT is always honest
         Ok(())
     }

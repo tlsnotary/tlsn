@@ -334,7 +334,7 @@ where
 }
 
 #[async_trait]
-impl<T> ObliviousReceive<Vec<bool>, Vec<Block>> for ReceiverActorControl<T>
+impl<T> ObliviousReceive<bool, Block> for ReceiverActorControl<T>
 where
     T: Handler<
             GetReceiver,
@@ -365,7 +365,7 @@ where
 }
 
 #[async_trait]
-impl<T> ObliviousVerify<Vec<[Block; 2]>> for ReceiverActorControl<T>
+impl<T> ObliviousVerify<[Block; 2]> for ReceiverActorControl<T>
 where
     T: Handler<
         Verify,

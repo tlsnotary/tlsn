@@ -44,7 +44,7 @@ pub enum OTError {
 
 #[async_trait]
 pub trait ObliviousSend<T> {
-    async fn send(&self, id: &str, input: T) -> Result<(), OTError>;
+    async fn send(&self, id: &str, input: Vec<T>) -> Result<(), OTError>;
 }
 
 #[async_trait]
@@ -55,12 +55,12 @@ pub trait ObliviousReveal {
 
 #[async_trait]
 pub trait ObliviousReceive<T, U> {
-    async fn receive(&self, id: &str, choice: T) -> Result<U, OTError>;
+    async fn receive(&self, id: &str, choice: Vec<T>) -> Result<Vec<U>, OTError>;
 }
 
 #[async_trait]
 pub trait ObliviousVerify<T> {
-    async fn verify(&self, id: &str, input: T) -> Result<(), OTError>;
+    async fn verify(&self, id: &str, input: Vec<T>) -> Result<(), OTError>;
 }
 
 pub trait VerifiableObliviousSend<T>: ObliviousSend<T> + ObliviousReveal {}

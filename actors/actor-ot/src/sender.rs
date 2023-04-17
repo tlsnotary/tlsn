@@ -292,7 +292,7 @@ where
 }
 
 #[async_trait]
-impl<T> ObliviousSend<Vec<[Block; 2]>> for SenderActorControl<T>
+impl<T> ObliviousSend<[Block; 2]> for SenderActorControl<T>
 where
     T: Handler<GetSender, Return = Result<Kos15IOSender<RandSetup>, OTError>>
         + Handler<SendBackSender, Return = Result<(), OTError>>,
