@@ -5,10 +5,10 @@ pub mod mock;
 use async_trait::async_trait;
 use futures::channel::oneshot::Canceled;
 use mpc_ot_core::{
-    msgs::{OTFactoryMessage, OTMessage},
-    CommittedOTError, ExtReceiverCoreError, ExtSenderCoreError, ReceiverCoreError, SenderCoreError,
+    msgs::OTMessage, CommittedOTError, ExtReceiverCoreError, ExtSenderCoreError, ReceiverCoreError,
+    SenderCoreError,
 };
-use utils_aio::{mux::MuxerError, Channel};
+use utils_aio::Channel;
 
 pub use mpc_ot_core::config;
 
@@ -34,79 +34,76 @@ pub enum OTError {
     InvalidCiphertextLength(usize, usize),
     #[error("Encountered error in backend")]
     Backend(#[from] Canceled),
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum OTFactoryError {
-    #[error("muxer error")]
-    MuxerError(#[from] MuxerError),
-    #[error("ot error")]
-    OTError(#[from] OTError),
-    #[error("io error")]
-    IOError(#[from] std::io::Error),
-    #[error("unexpected message")]
-    UnexpectedMessage(OTFactoryMessage),
+    #[error("MuxerError: {0}")]
+    MuxerError(#[from] utils_aio::mux::MuxerError),
     #[error("{0} Sender expects {1} OTs, Receiver expects {2}")]
     SplitMismatch(String, usize, usize),
-    #[error("other: {0}")]
+    #[error("Other: {0}")]
     Other(String),
 }
 
 #[async_trait]
 pub trait ObliviousSend<T> {
-    async fn send(&mut self, inputs: Vec<T>) -> Result<(), OTError>;
+    async fn send(&self, id: &str, input: Vec<T>) -> Result<(), OTError>;
+}
+
+#[async_trait]
+pub trait ObliviousReveal {
+    async fn reveal(&self) -> Result<(), OTError>;
+    async fn mark_for_reveal(&self, id: &str) -> Result<(), OTError>;
 }
 
 #[async_trait]
 pub trait ObliviousReceive<T, U> {
+    async fn receive(&self, id: &str, choice: Vec<T>) -> Result<Vec<U>, OTError>;
+}
+
+#[async_trait]
+pub trait ObliviousVerify<T> {
+    async fn verify(&self, id: &str, input: Vec<T>) -> Result<(), OTError>;
+}
+
+pub trait VerifiableObliviousSend<T>: ObliviousSend<T> + ObliviousReveal {}
+
+impl<T, U> VerifiableObliviousSend<U> for T where T: ObliviousSend<U> + ObliviousReveal {}
+
+pub trait VerifiableObliviousReceive<T, U, V>: ObliviousReceive<T, U> + ObliviousVerify<V> {}
+
+impl<T, U, V, X> VerifiableObliviousReceive<T, U, V> for X where
+    X: ObliviousReceive<T, U> + ObliviousVerify<V>
+{
+}
+
+#[async_trait]
+pub trait ObliviousSendOwned<T> {
+    async fn send(&mut self, inputs: Vec<T>) -> Result<(), OTError>;
+}
+
+#[async_trait]
+pub trait ObliviousReceiveOwned<T, U> {
     async fn receive(&mut self, choices: Vec<T>) -> Result<Vec<U>, OTError>;
 }
 
 #[async_trait]
-pub trait ObliviousCommit {
+pub trait ObliviousCommitOwned {
     /// Sends a commitment to the OT seed
     async fn commit(&mut self) -> Result<(), OTError>;
 }
 
 #[async_trait]
-pub trait ObliviousReveal {
+pub trait ObliviousRevealOwned {
     /// Reveals the OT seed
     async fn reveal(mut self) -> Result<(), OTError>;
 }
 
 #[async_trait]
-pub trait ObliviousAcceptCommit {
+pub trait ObliviousAcceptCommitOwned {
     /// Receives and stores a commitment to the OT seed
     async fn accept_commit(&mut self) -> Result<(), OTError>;
 }
 
 #[async_trait]
-pub trait ObliviousVerify<T> {
+pub trait ObliviousVerifyOwned<T> {
     /// Verifies the correctness of the revealed OT seed
     async fn verify(self, input: Vec<T>) -> Result<(), OTError>;
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::mock::mock_ot_pair;
-    use mpc_circuits::{InputValue, WireGroup, ADDER_64};
-    use mpc_garble_core::{ActiveEncodedInput, ActiveLabels, FullEncodedInput, FullInputSet};
-    use rand::thread_rng;
-
-    #[tokio::test]
-    async fn test_wire_label_transfer() {
-        let circ = ADDER_64.clone();
-        let full_labels = FullInputSet::generate(&mut thread_rng(), &circ, None);
-
-        let receiver_labels = full_labels[1].clone();
-
-        let value = circ.input(1).unwrap().to_value(4u64).unwrap();
-        let expected = receiver_labels.select(value.value()).unwrap();
-
-        let (mut sender, mut receiver) = mock_ot_pair::<Block>();
-        sender.send(vec![receiver_labels]).await.unwrap();
-        let received = receiver.receive(vec![value]).await.unwrap();
-
-        assert_eq!(received[0], expected);
-    }
 }
