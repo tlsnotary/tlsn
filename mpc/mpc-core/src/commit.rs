@@ -65,7 +65,7 @@ where
     }
 
     /// Returns the data
-    pub fn to_inner(self) -> T {
+    pub fn into_inner(self) -> T {
         self.data
     }
 }
@@ -76,9 +76,9 @@ where
     Self: serde::Serialize + Sized,
 {
     /// Creates a hash commitment to self
-    fn commit(self) -> (Decommitment<Self>, Hash) {
+    fn hash_commit(self) -> (Decommitment<Self>, Hash) {
         let decommitment = Decommitment::new(self);
-        let commitment = Decommitment::commit(&decommitment);
+        let commitment = decommitment.commit();
 
         (decommitment, commitment)
     }
@@ -93,19 +93,19 @@ mod test {
     #[test]
     fn test_commitment_pass() {
         let message = [0, 1, 2, 3u8];
-        let (opening, commitment) = message.commit();
+        let (decommitment, commitment) = message.hash_commit();
 
-        opening.verify(&commitment).unwrap();
+        decommitment.verify(&commitment).unwrap();
     }
 
     #[test]
     fn test_commitment_invalid_nonce() {
         let message = [0, 1, 2, 3u8];
-        let (mut opening, commitment) = message.commit();
+        let (mut decommitment, commitment) = message.hash_commit();
 
-        opening.nonce.0[0] = opening.nonce.0[0] - 1;
+        decommitment.nonce.0[0] = decommitment.nonce.0[0] - 1;
 
-        let err = opening.verify(&commitment).unwrap_err();
+        let err = decommitment.verify(&commitment).unwrap_err();
 
         assert!(matches!(err, CommitmentError::InvalidDecommitment));
     }
@@ -113,11 +113,11 @@ mod test {
     #[test]
     fn test_commitment_invalid_data() {
         let message = [0, 1, 2, 3u8];
-        let (mut opening, commitment) = message.commit();
+        let (mut decommitment, commitment) = message.hash_commit();
 
-        opening.data[0] = opening.data[0] + 1;
+        decommitment.data[0] = decommitment.data[0] + 1;
 
-        let err = opening.verify(&commitment).unwrap_err();
+        let err = decommitment.verify(&commitment).unwrap_err();
 
         assert!(matches!(err, CommitmentError::InvalidDecommitment));
     }
