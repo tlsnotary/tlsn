@@ -1,5 +1,5 @@
-use super::{OTChannel, ObliviousSend};
-use crate::{OTError, ObliviousCommit, ObliviousReveal};
+use super::{OTChannel, ObliviousSendOwned};
+use crate::{OTError, ObliviousCommitOwned, ObliviousRevealOwned};
 use aes::{cipher::NewBlockCipher, Aes128, BlockEncrypt};
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
@@ -12,7 +12,6 @@ use mpc_ot_core::{
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use utils_aio::{
-    adaptive_barrier::AdaptiveBarrier,
     expect_msg_or_err,
     non_blocking_backend::{Backend, NonBlockingBackend},
 };
@@ -20,8 +19,6 @@ use utils_aio::{
 pub struct Kos15IOSender<T: SenderState> {
     inner: Kos15Sender<T>,
     channel: OTChannel,
-    // Needed for task synchronization for committed OT
-    barrier: AdaptiveBarrier,
 }
 
 impl Kos15IOSender<s_state::Initialized> {
@@ -29,7 +26,6 @@ impl Kos15IOSender<s_state::Initialized> {
         Self {
             inner: Kos15Sender::default(),
             channel,
-            barrier: AdaptiveBarrier::new(),
         }
     }
 
@@ -75,7 +71,6 @@ impl Kos15IOSender<s_state::Initialized> {
         let kos_io_sender = Kos15IOSender {
             inner: kos_sender,
             channel: self.channel,
-            barrier: self.barrier,
         };
         Ok(kos_io_sender)
     }
@@ -96,19 +91,16 @@ impl Kos15IOSender<s_state::RandSetup> {
         let Self {
             inner: mut child,
             channel: parent_channel,
-            barrier,
         } = self;
 
         let parent = Self {
             inner: child.split(count)?,
             channel: parent_channel,
-            barrier: barrier.clone(),
         };
 
         let child = Self {
             inner: child,
             channel,
-            barrier,
         };
 
         Ok((parent, child))
@@ -116,7 +108,7 @@ impl Kos15IOSender<s_state::RandSetup> {
 }
 
 #[async_trait]
-impl ObliviousSend<[Block; 2]> for Kos15IOSender<s_state::RandSetup> {
+impl ObliviousSendOwned<[Block; 2]> for Kos15IOSender<s_state::RandSetup> {
     async fn send(&mut self, inputs: Vec<[Block; 2]>) -> Result<(), OTError> {
         let message = expect_msg_or_err!(
             self.channel.next().await,
@@ -136,7 +128,7 @@ impl ObliviousSend<[Block; 2]> for Kos15IOSender<s_state::RandSetup> {
 // is sent shortly after the OT. This way we extend our OT from 128-bit maximum message length to an
 // unlimited message length.
 #[async_trait]
-impl<const N: usize> ObliviousSend<[[Block; N]; 2]> for Kos15IOSender<s_state::RandSetup> {
+impl<const N: usize> ObliviousSendOwned<[[Block; N]; 2]> for Kos15IOSender<s_state::RandSetup> {
     async fn send(&mut self, inputs: Vec<[[Block; N]; 2]>) -> Result<(), OTError> {
         let mut rng = ChaCha20Rng::from_entropy();
 
@@ -166,7 +158,7 @@ impl<const N: usize> ObliviousSend<[[Block; N]; 2]> for Kos15IOSender<s_state::R
         }
 
         // Send keys using OT
-        ObliviousSend::<[Block; 2]>::send(self, keys).await?;
+        ObliviousSendOwned::<[Block; 2]>::send(self, keys).await?;
 
         // Send ciphertexts
         self.channel
@@ -182,7 +174,7 @@ impl<const N: usize> ObliviousSend<[[Block; N]; 2]> for Kos15IOSender<s_state::R
 }
 
 #[async_trait]
-impl ObliviousCommit for Kos15IOSender<s_state::Initialized> {
+impl ObliviousCommitOwned for Kos15IOSender<s_state::Initialized> {
     async fn commit(&mut self) -> Result<(), OTError> {
         let message = self.inner.commit_to_seed();
         self.channel
@@ -193,10 +185,8 @@ impl ObliviousCommit for Kos15IOSender<s_state::Initialized> {
 }
 
 #[async_trait]
-impl ObliviousReveal for Kos15IOSender<s_state::RandSetup> {
+impl ObliviousRevealOwned for Kos15IOSender<s_state::RandSetup> {
     async fn reveal(mut self) -> Result<(), OTError> {
-        // wait for all other split-off OTs (if any) to also call reveal()
-        self.barrier.wait().await;
         let message = unsafe { self.inner.reveal()? };
         self.channel
             .send(OTMessage::ExtSenderReveal(message))

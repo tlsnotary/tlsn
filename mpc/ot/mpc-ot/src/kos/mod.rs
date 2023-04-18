@@ -1,14 +1,17 @@
 pub mod receiver;
 pub mod sender;
 
-use super::{OTChannel, ObliviousReceive, ObliviousSend};
+use super::{OTChannel, ObliviousReceiveOwned, ObliviousSendOwned};
 
 #[cfg(test)]
 mod tests {
-    use crate::{ObliviousAcceptCommit, ObliviousCommit, ObliviousReveal, ObliviousVerify};
+    use crate::{
+        ObliviousAcceptCommitOwned, ObliviousCommitOwned, ObliviousRevealOwned,
+        ObliviousVerifyOwned,
+    };
 
     use super::{
-        receiver::Kos15IOReceiver, sender::Kos15IOSender, ObliviousReceive, ObliviousSend,
+        receiver::Kos15IOReceiver, sender::Kos15IOSender, ObliviousReceiveOwned, ObliviousSendOwned,
     };
     use mpc_core::Block;
     use mpc_ot_core::msgs::OTMessage;
