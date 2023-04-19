@@ -5,7 +5,7 @@ members = [
     "ot/*",
     "mpc-circuits",
     "mpc-circuits-macros",
-    #"share-conversion/*",
+    "share-conversion/*",
     #"matrix-transpose",
     #"clmul",
 ]
