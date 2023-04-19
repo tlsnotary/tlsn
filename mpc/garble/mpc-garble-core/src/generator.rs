@@ -61,13 +61,24 @@ pub(crate) fn and_gate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
 }
 
 /// Core generator type used to generate garbled circuits.
+///
+/// A generator is to be used as an iterator of encrypted gates. Each
+/// iteration will return the next encrypted gate in the circuit until the
+/// entire garbled circuit has been yielded.
 pub struct Generator {
+    /// Cipher to use to encrypt the gates
     cipher: Aes128,
+    /// Circuit to generate a garbled circuit for
     circ: Arc<Circuit>,
+    /// Delta value to use while generating the circuit
     delta: Delta,
+    /// The 0 bit labels for the garbled circuit
     low_labels: Vec<Option<Label>>,
+    /// Current position in the circuit
     pos: usize,
+    /// Current gate id
     gid: usize,
+    /// Hasher to use to hash the encrypted gates
     hasher: Option<Hasher>,
 }
 
@@ -79,12 +90,35 @@ impl Generator {
     /// * `circ` - The circuit to generate a garbled circuit for.
     /// * `delta` - The delta value to use.
     /// * `inputs` - The inputs to the circuit.
-    /// * `hash` - Whether to hash the circuit.
     pub fn new(
         circ: Arc<Circuit>,
         delta: Delta,
         inputs: &[EncodedValue<state::Full>],
-        hash: bool,
+    ) -> Result<Self, GeneratorError> {
+        Self::new_with(circ, delta, inputs, None)
+    }
+
+    /// Creates a new generator for the given circuit. Generator will compute a hash
+    /// of the encrypted gates while they are produced.
+    ///
+    /// # Arguments
+    ///
+    /// * `circ` - The circuit to generate a garbled circuit for.
+    /// * `delta` - The delta value to use.
+    /// * `inputs` - The inputs to the circuit.
+    pub fn new_with_hasher(
+        circ: Arc<Circuit>,
+        delta: Delta,
+        inputs: &[EncodedValue<state::Full>],
+    ) -> Result<Self, GeneratorError> {
+        Self::new_with(circ, delta, inputs, Some(Hasher::new()))
+    }
+
+    fn new_with(
+        circ: Arc<Circuit>,
+        delta: Delta,
+        inputs: &[EncodedValue<state::Full>],
+        hasher: Option<Hasher>,
     ) -> Result<Self, GeneratorError> {
         if inputs.len() != circ.inputs().len() {
             return Err(CircuitError::InvalidInputCount(
@@ -114,7 +148,7 @@ impl Generator {
             low_labels,
             pos: 0,
             gid: 1,
-            hasher: if hash { Some(Hasher::new()) } else { None },
+            hasher,
         })
     }
 
@@ -220,12 +254,9 @@ mod tests {
             .map(|input| encoder.encode_by_type(0, &input.value_type()))
             .collect();
 
-        let mut gen = Generator::new(AES128.clone(), encoder.delta(), &inputs, true).unwrap();
+        let mut gen = Generator::new_with_hasher(AES128.clone(), encoder.delta(), &inputs).unwrap();
 
-        let mut enc_gates = Vec::with_capacity(AES128.and_count());
-        while let Some(gate) = gen.next() {
-            enc_gates.push(gate);
-        }
+        let enc_gates: Vec<EncryptedGate> = gen.by_ref().collect();
 
         assert!(gen.is_complete());
         assert_eq!(enc_gates.len(), AES128.and_count());

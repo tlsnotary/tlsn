@@ -1,6 +1,55 @@
 //! Core components used to implement garbled circuit protocols
 //!
 //! This module implements "half-gate" garbled circuits from the [Two Halves Make a Whole \[ZRE15\]](https://eprint.iacr.org/2014/756) paper.
+//!
+//! # Example
+//!
+//! ```
+//! use mpc_circuits::circuits::AES128;
+//! use mpc_garble_core::{Generator, Evaluator, ChaChaEncoder, Encoder};
+//!
+//! fn main() {
+//!     let encoder = ChaChaEncoder::new([0u8; 32]);
+//!     let encoded_key = encoder.encode::<[u8; 16]>(0);
+//!     let encoded_plaintext = encoder.encode::<[u8; 16]>(1);
+//!
+//!     let key = b"super secret key";
+//!     let plaintext = b"super secret msg";
+//!
+//!     let active_key = encoded_key.select(*key).unwrap();
+//!     let active_plaintext = encoded_plaintext.select(*plaintext).unwrap();
+//!
+//!     let mut gen =
+//!         Generator::new(
+//!             AES128.clone(),
+//!             encoder.delta(),
+//!             &[encoded_key, encoded_plaintext]
+//!         ).unwrap();
+//!
+//!     let mut ev =
+//!         Evaluator::new(
+//!             AES128.clone(),
+//!             &[active_key, active_plaintext]
+//!         ).unwrap();
+//!
+//!     const BATCH_SIZE: usize = 1000;
+//!     while !(gen.is_complete() && ev.is_complete()) {
+//!         let batch: Vec<_> = gen.by_ref().take(BATCH_SIZE).collect();
+//!         ev.evaluate(batch.iter());
+//!     }
+//!
+//!     let encoded_outputs = gen.outputs().unwrap();
+//!     let encoded_ciphertext = encoded_outputs[0].clone();
+//!     let ciphertext_decoding = encoded_ciphertext.decoding();
+//!
+//!     let active_outputs = ev.outputs().unwrap();
+//!     let active_ciphertext = active_outputs[0].clone();
+//!     let ciphertext: [u8; 16] =
+//!         active_ciphertext.decode(&ciphertext_decoding).unwrap().try_into().unwrap();
+//!
+//!     println!("'{plaintext:?} AES encrypted with key '{key:?}' is '{ciphertext:?}'");
+//! }
+//! ```
 
 #![deny(missing_docs, unreachable_pub, unused_must_use)]
 #![deny(clippy::all)]
@@ -13,7 +62,7 @@ pub mod msg;
 
 pub use circuit::EncryptedGate;
 pub use encoding::{
-    state as label_state, ChaChaEncoder, Decoding, Delta, Encode, EncodedValue, Encoder,
+    state as encoding_state, ChaChaEncoder, Decoding, Delta, Encode, EncodedValue, Encoder,
     EncodingCommitment, EqualityCheck, Label, ValueError,
 };
 pub use evaluator::{Evaluator, EvaluatorError};
@@ -81,19 +130,20 @@ mod tests {
             out.into()
         };
 
-        let full_inputs: Vec<EncodedValue<label_state::Full>> = AES128
+        let full_inputs: Vec<EncodedValue<encoding_state::Full>> = AES128
             .inputs()
             .iter()
             .map(|input| encoder.encode_by_type(0, &input.value_type()))
             .collect();
 
-        let active_inputs: Vec<EncodedValue<label_state::Active>> = vec![
+        let active_inputs: Vec<EncodedValue<encoding_state::Active>> = vec![
             full_inputs[0].clone().select(key).unwrap(),
             full_inputs[1].clone().select(msg).unwrap(),
         ];
 
-        let mut gen = Generator::new(AES128.clone(), encoder.delta(), &full_inputs, true).unwrap();
-        let mut ev = Evaluator::new(AES128.clone(), &active_inputs, true).unwrap();
+        let mut gen =
+            Generator::new_with_hasher(AES128.clone(), encoder.delta(), &full_inputs).unwrap();
+        let mut ev = Evaluator::new_with_hasher(AES128.clone(), &active_inputs).unwrap();
 
         while !(gen.is_complete() && ev.is_complete()) {
             let mut batch = Vec::with_capacity(BATCH_SIZE);

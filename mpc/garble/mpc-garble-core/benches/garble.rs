@@ -14,8 +14,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     group.bench_function("aes128", |b| {
         b.iter(|| {
             black_box({
-                let mut gen =
-                    Generator::new(AES128.clone(), encoder.delta(), &inputs, false).unwrap();
+                let mut gen = Generator::new(AES128.clone(), encoder.delta(), &inputs).unwrap();
 
                 let mut enc_gates = Vec::with_capacity(AES128.and_count());
                 while let Some(gate) = gen.next() {
@@ -30,7 +29,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             black_box({
                 let mut gen =
-                    Generator::new(AES128.clone(), encoder.delta(), &inputs, true).unwrap();
+                    Generator::new_with_hasher(AES128.clone(), encoder.delta(), &inputs).unwrap();
 
                 let mut enc_gates = Vec::with_capacity(AES128.and_count());
                 while let Some(gate) = gen.next() {

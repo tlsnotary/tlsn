@@ -2,7 +2,7 @@ use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use utils::bits::{FromBits, ToBitsIter};
 
-use mpc_circuits::types::{TypeError, Value, ValueType};
+use mpc_circuits::types::{StaticValueType, TypeError, Value, ValueType};
 use mpc_core::{utils::blake3, Block};
 
 use crate::encoding::{state, Delta, Label, LabelState, Labels};
@@ -359,6 +359,18 @@ macro_rules! define_encoded_variant {
                 let labels = labels.try_into().expect("bit length should match");
 
                 Ok(Self::Encoded::new(delta, labels))
+            }
+        }
+
+        impl<const N: usize> Encode for [$PlaintextTy; N] {
+            type Encoded = EncodedValue<state::Full>;
+
+            fn encode(delta: Delta, labels: &[Label]) -> Result<Self::Encoded, ValueError> {
+                EncodedValue::<state::Full>::from_labels(
+                    <[$PlaintextTy; N]>::value_type(),
+                    delta,
+                    labels,
+                )
             }
         }
 

@@ -105,8 +105,16 @@ impl Encoder for ChaChaEncoder {
             ValueType::U32 => self.encode::<u32>(id).into(),
             ValueType::U64 => self.encode::<u64>(id).into(),
             ValueType::U128 => self.encode::<u128>(id).into(),
-            ValueType::Array(ty, len) => {
-                EncodedValue::Array((0..*len).map(|_| self.encode_by_type(id, ty)).collect())
+            ValueType::Array(_, _) => {
+                let mut rng = self.get_rng(id);
+
+                let labels = Block::random_vec(&mut rng, ty.len())
+                    .into_iter()
+                    .map(Label::new)
+                    .collect::<Vec<_>>();
+
+                EncodedValue::<state::Full>::from_labels(ty.clone(), self.delta, &labels)
+                    .expect("bit length should be correct")
             }
             _ => unimplemented!("encoding of type {:?} is not implemented", ty),
         }

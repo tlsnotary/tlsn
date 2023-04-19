@@ -3,7 +3,7 @@ use blake3::Hasher;
 use mpc_circuits::types::Value;
 use serde::{Deserialize, Serialize};
 
-use crate::{label_state, EncodedValue};
+use crate::{encoding_state, EncodedValue};
 
 /// A hash value used in dual-execution mode to check equality of two sets of encodings.
 ///
@@ -32,8 +32,8 @@ impl EqualityCheck {
     /// Panics if the lengths of the given slices are not equal, or if the
     /// provided values have a different type than the encodings.
     pub fn new(
-        our_encodings: &[EncodedValue<label_state::Full>],
-        peer_encodings: &[EncodedValue<label_state::Active>],
+        our_encodings: &[EncodedValue<encoding_state::Full>],
+        peer_encodings: &[EncodedValue<encoding_state::Active>],
         purported_values: &[Value],
         order: bool,
     ) -> Self {

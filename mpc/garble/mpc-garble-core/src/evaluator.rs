@@ -53,12 +53,19 @@ pub(crate) fn and_gate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
 
 /// Core evaluator type for evaluating a garbled circuit.
 pub struct Evaluator {
+    /// Cipher to use to encrypt the gates
     cipher: Aes128,
+    /// Circuit to evaluate
     circ: Arc<Circuit>,
+    /// Active label state
     active_labels: Vec<Option<Label>>,
+    /// Current position in the circuit
     pos: usize,
+    /// Current gate id
     gid: usize,
+    /// Whether the evaluator is finished
     complete: bool,
+    /// Hasher to use to hash the encrypted gates
     hasher: Option<Hasher>,
 }
 
@@ -69,11 +76,31 @@ impl Evaluator {
     ///
     /// * `circ` - The circuit to evaluate.
     /// * `inputs` - The inputs to the circuit.
-    /// * `hash` - Whether to hash the circuit.
     pub fn new(
         circ: Arc<Circuit>,
         inputs: &[EncodedValue<state::Active>],
-        hash: bool,
+    ) -> Result<Self, EvaluatorError> {
+        Self::new_with(circ, inputs, None)
+    }
+
+    /// Creates a new evaluator for the given circuit. Evaluator will compute
+    /// a hash of the encrypted gates while they are evaluated.
+    ///
+    /// # Arguments
+    ///
+    /// * `circ` - The circuit to evaluate.
+    /// * `inputs` - The inputs to the circuit.
+    pub fn new_with_hasher(
+        circ: Arc<Circuit>,
+        inputs: &[EncodedValue<state::Active>],
+    ) -> Result<Self, EvaluatorError> {
+        Self::new_with(circ, inputs, Some(Hasher::new()))
+    }
+
+    fn new_with(
+        circ: Arc<Circuit>,
+        inputs: &[EncodedValue<state::Active>],
+        hasher: Option<Hasher>,
     ) -> Result<Self, EvaluatorError> {
         if inputs.len() != circ.inputs().len() {
             return Err(CircuitError::InvalidInputCount(
@@ -103,7 +130,7 @@ impl Evaluator {
             pos: 0,
             gid: 1,
             complete: false,
-            hasher: if hash { Some(Hasher::new()) } else { None },
+            hasher,
         };
 
         // If circuit has no AND gates we can evaluate it immediately for cheap
