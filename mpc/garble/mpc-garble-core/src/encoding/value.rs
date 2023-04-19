@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use utils::bits::{FromBits, ToBitsIter};
 
 use mpc_circuits::types::{StaticValueType, TypeError, Value, ValueType};
-use mpc_core::{utils::blake3, Block};
+use mpc_core::{hash::DomainSeparatedHash, impl_domain_separated_hash, Block};
 
 use crate::encoding::{state, Delta, Label, LabelState, Labels};
 
@@ -546,6 +546,11 @@ define_decoding_info_variant!(U32Decoding, U32, u32);
 define_decoding_info_variant!(U64Decoding, U64, u64);
 define_decoding_info_variant!(U128Decoding, U128, u128);
 
+#[derive(Serialize)]
+struct LabelCommit(Label);
+
+impl_domain_separated_hash!(LabelCommit, "LABEL_COMMITMENT");
+
 macro_rules! define_encoding_commitment {
     ($( ($EncodedTy:ident, $CommitmentTy:ident) ),*) => {
         /// A commitment to the encoding of a value.
@@ -645,8 +650,8 @@ macro_rules! define_encoding_commitment_variant {
                     let low = value.0[i];
                     let high = low ^ delta;
 
-                    let low = Self::compute_hash(low.to_inner());
-                    let high = Self::compute_hash(high.to_inner());
+                    let low = Self::compute_commitment(low);
+                    let high = Self::compute_commitment(high);
 
                     if flip[i] {
                         [low, high]
@@ -666,7 +671,7 @@ macro_rules! define_encoding_commitment_variant {
                 value: &$value_ident<state::Active>,
             ) -> Result<(), ValueError> {
                 if self.0.iter().zip(value.0.iter()).all(|(pair, label)| {
-                    let h = Self::compute_hash(label.to_inner());
+                    let h = Self::compute_commitment(*label);
                     h == pair[0] || h == pair[1]
                 }) {
                     Ok(())
@@ -676,15 +681,11 @@ macro_rules! define_encoding_commitment_variant {
             }
 
             // We use a truncated Blake3 hash to commit to the labels
-            fn compute_hash(block: Block) -> Block {
-                // We use a salt to ensure domain separation from other uses
-                let salt = b"ENCODING_COMMITMENT";
-                let mut bytes = [0u8; 35];
-                bytes[..19].copy_from_slice(salt);
-                bytes[19..].copy_from_slice(block.to_be_bytes().as_slice());
-
-                let commitment: [u8; 16] =
-                    blake3(&bytes)[..16].try_into().expect("slice is 16 bytes");
+            fn compute_commitment(label: Label) -> Block {
+                let commitment: [u8; 16] = LabelCommit(label).domain_separated_hash().as_bytes()
+                    [..16]
+                    .try_into()
+                    .expect("slice is 16 bytes");
                 commitment.into()
             }
         }

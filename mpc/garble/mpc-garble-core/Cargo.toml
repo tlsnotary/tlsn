@@ -21,6 +21,7 @@ rand.workspace = true
 rand_core.workspace = true
 rand_chacha.workspace = true
 regex = { workspace = true, optional = true }
+once_cell.workspace = true
 
 serde = { workspace = true, features = ["derive"] }
 serde_arrays.workspace = true
