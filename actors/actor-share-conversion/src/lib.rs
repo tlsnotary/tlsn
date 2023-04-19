@@ -16,7 +16,7 @@ mod tests {
         MockClientChannelMuxer, MockClientControl, MockServerChannelMuxer, MockServerControl,
     };
     use mpc_core::Block;
-    use mpc_ot::mock::{MockOTFactory, MockOTReceiver, MockOTSender};
+    use mpc_ot::mock::{mock_ot_pair, MockOTReceiver, MockOTSender};
     use mpc_share_conversion::{
         conversion::recorder::Tape, AdditiveToMultiplicative, MultiplicativeToAdditive, SendTape,
         VerifyTape,
@@ -235,7 +235,6 @@ mod tests {
     ) -> (
         SenderControl<
             ActorShareConversionSender<
-                MockOTFactory<Block>,
                 MockOTSender<Block>,
                 T,
                 MockClientControl,
@@ -246,7 +245,6 @@ mod tests {
         >,
         ReceiverControl<
             ActorShareConversionReceiver<
-                MockOTFactory<Block>,
                 MockOTReceiver<Block>,
                 T,
                 MockServerControl,
@@ -268,17 +266,18 @@ mod tests {
         );
         let sender_mux = MockClientControl::new(sender_mux_addr);
 
-        let ot_factory = MockOTFactory::new();
-        let sender = ActorShareConversionSender::<_, _, T, _, _, Gf2_128, _>::new(
+        let (ot_sender, ot_receiver) = mock_ot_pair();
+
+        let sender = ActorShareConversionSender::<_, T, _, _, Gf2_128, _>::new(
             String::from(""),
             barrier,
             sender_mux,
-            ot_factory.clone(),
+            ot_sender,
         );
-        let receiver = ActorShareConversionReceiver::<_, _, T, _, _, Gf2_128, _>::new(
+        let receiver = ActorShareConversionReceiver::<_, T, _, _, Gf2_128, _>::new(
             String::from(""),
             receiver_mux,
-            ot_factory,
+            ot_receiver,
         );
 
         let sender_addr = xtra::spawn_tokio(sender, Mailbox::unbounded());

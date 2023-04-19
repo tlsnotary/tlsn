@@ -7,32 +7,25 @@ use super::{
 use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive, ShareConversionError, VerifyTape};
 use async_trait::async_trait;
 use futures::StreamExt;
-use mpc_ot::{
-    config::{OTReceiverConfig, OTReceiverConfigBuilder},
-    OTFactoryError, ObliviousReceive,
-};
+use mpc_ot::ObliviousReceive;
 use mpc_share_conversion_core::{
     fields::Field,
     msgs::{SenderRecordings, ShareConversionMessage},
     AddShare, MulShare, ShareConvert,
 };
 use std::marker::PhantomData;
-use utils_aio::factory::AsyncFactory;
 
 /// The receiver for the conversion
 ///
 /// Will be the OT receiver
-pub struct Receiver<T, OT, U, V, X, W = Void>
+pub struct Receiver<OT, U, V, X, W = Void>
 where
-    T: AsyncFactory<OT>,
-    OT: ObliviousReceive<bool, X>,
+    OT: ObliviousReceive<bool, X> + Send + Sync,
     U: ShareConvert<Inner = V>,
     V: Field<BlockEncoding = X>,
     W: Recorder<U, V>,
 {
-    /// Provides initialized OTs for the OT receiver
-    receiver_factory: T,
-    _ot: PhantomData<OT>,
+    ot_receiver: OT,
     id: String,
     _protocol: PhantomData<U>,
     channel: ShareConversionChannel<V>,
@@ -42,19 +35,17 @@ where
     counter: usize,
 }
 
-impl<T, OT, U, V, X, W> Receiver<T, OT, U, V, X, W>
+impl<OT, U, V, X, W> Receiver<OT, U, V, X, W>
 where
-    T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
-    OT: ObliviousReceive<bool, X>,
+    OT: ObliviousReceive<bool, X> + Send + Sync,
     U: ShareConvert<Inner = V>,
     V: Field<BlockEncoding = X>,
     W: Recorder<U, V>,
 {
     /// Create a new receiver
-    pub fn new(receiver_factory: T, id: String, channel: ShareConversionChannel<V>) -> Self {
+    pub fn new(ot_receiver: OT, id: String, channel: ShareConversionChannel<V>) -> Self {
         Self {
-            receiver_factory,
-            _ot: PhantomData,
+            ot_receiver,
             id,
             _protocol: PhantomData,
             channel,
@@ -77,20 +68,12 @@ where
             choices.extend_from_slice(&share);
         });
 
-        // Get an OT receiver from factory
-        let mut ot_receiver = self
-            .receiver_factory
-            .create(
-                format!("{}/{}/ot", &self.id, &self.counter),
-                OTReceiverConfigBuilder::default()
-                    .count(ot_number)
-                    .build()
-                    .expect("OTReceiverConfig should be valid"),
-            )
+        // Receive OT shares from the sender and increment batch counter
+        let ot_output = self
+            .ot_receiver
+            .receive(&format!("{}/{}/ot", &self.id, &self.counter), choices)
             .await?;
-
         self.counter += 1;
-        let ot_output = ot_receiver.receive(choices).await?;
 
         // Aggregate OTs to get back field elements from [Field::BlockEncoding]
         let field_elements: Vec<V> = ot_output
@@ -110,10 +93,9 @@ where
 }
 
 #[async_trait]
-impl<T, OT, V, X, W> AdditiveToMultiplicative<V> for Receiver<T, OT, AddShare<V>, V, X, W>
+impl<OT, V, X, W> AdditiveToMultiplicative<V> for Receiver<OT, AddShare<V>, V, X, W>
 where
-    T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
-    OT: ObliviousReceive<bool, X> + Send,
+    OT: ObliviousReceive<bool, X> + Send + Sync,
     V: Field<BlockEncoding = X>,
     W: Recorder<AddShare<V>, V> + Send,
 {
@@ -125,10 +107,9 @@ where
 }
 
 #[async_trait]
-impl<T, OT, V, X, W> MultiplicativeToAdditive<V> for Receiver<T, OT, MulShare<V>, V, X, W>
+impl<OT, V, X, W> MultiplicativeToAdditive<V> for Receiver<OT, MulShare<V>, V, X, W>
 where
-    T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send,
-    OT: ObliviousReceive<bool, X> + Send,
+    OT: ObliviousReceive<bool, X> + Send + Sync,
     V: Field<BlockEncoding = X>,
     W: Recorder<MulShare<V>, V> + Send,
 {
@@ -140,10 +121,9 @@ where
 }
 
 #[async_trait]
-impl<T, OT, U, V, X> VerifyTape for Receiver<T, OT, U, V, X, Tape<V>>
+impl<OT, U, V, X> VerifyTape for Receiver<OT, U, V, X, Tape<V>>
 where
-    T: AsyncFactory<OT> + Send,
-    OT: ObliviousReceive<bool, X> + Send,
+    OT: ObliviousReceive<bool, X> + Send + Sync,
     U: ShareConvert<Inner = V> + Send,
     V: Field<BlockEncoding = X>,
 {

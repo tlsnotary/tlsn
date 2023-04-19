@@ -1,5 +1,5 @@
 use super::{A2MMessage, M2AMessage, SetupMessage, VerifyTapeMessage};
-use mpc_ot::{config::OTReceiverConfig, OTFactoryError, ObliviousReceive};
+use mpc_ot::ObliviousReceive;
 use mpc_share_conversion::{
     conversion::{
         recorder::{Recorder, Tape, Void},
@@ -8,12 +8,11 @@ use mpc_share_conversion::{
     AdditiveToMultiplicative, MultiplicativeToAdditive, ShareConversionError, VerifyTape,
 };
 use mpc_share_conversion_core::{fields::Field, ShareConvert};
-use utils_aio::{factory::AsyncFactory, mux::MuxChannelControl};
+use utils_aio::mux::MuxChannelControl;
 use xtra::prelude::*;
 
 enum State<
-    T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError>,
-    OT: ObliviousReceive<bool, X>,
+    OT: ObliviousReceive<bool, X> + Send + Sync,
     U: ShareConvert<Inner = Y>,
     V: MuxChannelControl<ShareConversionMessage<Y>>,
     W: Recorder<U, Y>,
@@ -24,42 +23,40 @@ enum State<
         id: String,
         /// a local muxer which provides a channel to the remote conversion sender
         muxer: V,
-        /// see `receiver_factory` in [mpc_share_conversion::conversion::Receiver]
-        receiver_factory: T,
+        /// the receiver used for oblivious transfer
+        ot_receiver: OT,
     },
-    Setup(IOReceiver<T, OT, U, Y, X, W>),
+    Setup(IOReceiver<OT, U, Y, X, W>),
     Complete,
     Error,
 }
 
 #[derive(xtra::Actor)]
-pub struct Receiver<T, OT, U, V, X, Y, W = Void>
+pub struct Receiver<OT, U, V, X, Y, W = Void>
 where
-    T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError>,
-    OT: ObliviousReceive<bool, X>,
+    OT: ObliviousReceive<bool, X> + Send + Sync,
     U: ShareConvert<Inner = Y>,
     V: MuxChannelControl<ShareConversionMessage<Y>>,
     W: Recorder<U, Y>,
     Y: Field<BlockEncoding = X>,
 {
-    state: State<T, OT, U, V, W, Y, X>,
+    state: State<OT, U, V, W, Y, X>,
 }
 
-impl<T, OT, U, V, X, Y, W> Receiver<T, OT, U, V, X, Y, W>
+impl<OT, U, V, X, Y, W> Receiver<OT, U, V, X, Y, W>
 where
-    T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError>,
-    OT: ObliviousReceive<bool, X>,
+    OT: ObliviousReceive<bool, X> + Send + Sync,
     U: ShareConvert<Inner = Y>,
     V: MuxChannelControl<ShareConversionMessage<Y>>,
     W: Recorder<U, Y>,
     Y: Field<BlockEncoding = X>,
 {
-    pub fn new(id: String, muxer: V, receiver_factory: T) -> Self {
+    pub fn new(id: String, muxer: V, ot_receiver: OT) -> Self {
         Self {
             state: State::Initialized {
                 id,
                 muxer,
-                receiver_factory,
+                ot_receiver,
             },
         }
     }
@@ -136,10 +133,9 @@ where
 }
 
 #[async_trait]
-impl<T, OT, U, V, X, Y, W> Handler<SetupMessage> for Receiver<T, OT, U, V, X, Y, W>
+impl<OT, U, V, X, Y, W> Handler<SetupMessage> for Receiver<OT, U, V, X, Y, W>
 where
-    T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send + 'static,
-    OT: ObliviousReceive<bool, X> + Send + 'static,
+    OT: ObliviousReceive<bool, X> + Send + Sync + 'static,
     U: ShareConvert<Inner = Y> + Send + 'static,
     V: MuxChannelControl<ShareConversionMessage<Y>> + Send + 'static,
     W: Recorder<U, Y> + Send + 'static,
@@ -152,7 +148,7 @@ where
         // We need to own the state, so we use this only as a temporary modification
         let state = std::mem::replace(&mut self.state, State::Error);
 
-        let State::Initialized {id, mut muxer, receiver_factory} = state else {
+        let State::Initialized {id, mut muxer, ot_receiver} = state else {
             ctx.stop_self();
             return Err(ShareConversionError::Other(String::from("Actor has to be in the Initialized state")));
         };
@@ -161,7 +157,7 @@ where
             .get_channel(id.clone())
             .await
             .map_err(|err| ShareConversionError::Other(err.to_string()))?;
-        let receiver = IOReceiver::new(receiver_factory, id, channel);
+        let receiver = IOReceiver::new(ot_receiver, id, channel);
         self.state = State::Setup(receiver);
 
         Ok(())
@@ -169,16 +165,15 @@ where
 }
 
 #[async_trait]
-impl<T, OT, U, V, X, Y, W> Handler<M2AMessage<Vec<Y>>> for Receiver<T, OT, U, V, X, Y, W>
+impl<OT, U, V, X, Y, W> Handler<M2AMessage<Vec<Y>>> for Receiver<OT, U, V, X, Y, W>
 where
-    T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send + 'static,
-    OT: ObliviousReceive<bool, X> + Send + 'static,
+    OT: ObliviousReceive<bool, X> + Send + Sync + 'static,
     U: ShareConvert<Inner = Y> + Send + 'static,
     V: MuxChannelControl<ShareConversionMessage<Y>> + Send + 'static,
     W: Recorder<U, Y> + Send + 'static,
     X: Send + 'static,
     Y: Field<BlockEncoding = X> + Send + 'static,
-    IOReceiver<T, OT, U, Y, X, W>: MultiplicativeToAdditive<Y>,
+    IOReceiver<OT, U, Y, X, W>: MultiplicativeToAdditive<Y>,
 {
     type Return = Result<Vec<Y>, ShareConversionError>;
 
@@ -203,16 +198,15 @@ where
 }
 
 #[async_trait]
-impl<T, OT, U, V, X, Y, W> Handler<A2MMessage<Vec<Y>>> for Receiver<T, OT, U, V, X, Y, W>
+impl<OT, U, V, X, Y, W> Handler<A2MMessage<Vec<Y>>> for Receiver<OT, U, V, X, Y, W>
 where
-    T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send + 'static,
-    OT: ObliviousReceive<bool, X> + Send + 'static,
+    OT: ObliviousReceive<bool, X> + Send + Sync + 'static,
     U: ShareConvert<Inner = Y> + Send + 'static,
     V: MuxChannelControl<ShareConversionMessage<Y>> + Send + 'static,
     W: Recorder<U, Y> + Send + 'static,
     X: Send + 'static,
     Y: Field<BlockEncoding = X> + Send + 'static,
-    IOReceiver<T, OT, U, Y, X, W>: AdditiveToMultiplicative<Y>,
+    IOReceiver<OT, U, Y, X, W>: AdditiveToMultiplicative<Y>,
 {
     type Return = Result<Vec<Y>, ShareConversionError>;
 
@@ -237,15 +231,14 @@ where
 }
 
 #[async_trait]
-impl<T, OT, U, V, X, Y> Handler<VerifyTapeMessage> for Receiver<T, OT, U, V, X, Y, Tape<Y>>
+impl<OT, U, V, X, Y> Handler<VerifyTapeMessage> for Receiver<OT, U, V, X, Y, Tape<Y>>
 where
-    T: AsyncFactory<OT, Config = OTReceiverConfig, Error = OTFactoryError> + Send + 'static,
-    OT: ObliviousReceive<bool, X> + Send + 'static,
+    OT: ObliviousReceive<bool, X> + Send + Sync + 'static,
     U: ShareConvert<Inner = Y> + Send + 'static,
     V: MuxChannelControl<ShareConversionMessage<Y>> + Send + 'static,
     X: Send + 'static,
     Y: Field<BlockEncoding = X> + Send + 'static,
-    IOReceiver<T, OT, U, Y, X, Tape<Y>>: VerifyTape,
+    IOReceiver<OT, U, Y, X, Tape<Y>>: VerifyTape,
 {
     type Return = Result<(), ShareConversionError>;
 
