@@ -34,9 +34,9 @@ pub(crate) fn and_gate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     gid: usize,
 ) -> (Label, EncryptedGate) {
     let delta = delta.into_inner();
-    let x_0 = x_0.into_inner();
+    let x_0 = x_0.to_inner();
     let x_1 = x_0 ^ delta;
-    let y_0 = y_0.into_inner();
+    let y_0 = y_0.to_inner();
     let y_1 = y_0 ^ delta;
 
     let p_a = x_0.lsb();

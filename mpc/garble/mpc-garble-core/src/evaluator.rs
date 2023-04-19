@@ -33,8 +33,8 @@ pub(crate) fn and_gate<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
     encrypted_gate: &EncryptedGate,
     gid: usize,
 ) -> Label {
-    let x = x.into_inner();
-    let y = y.into_inner();
+    let x = x.to_inner();
+    let y = y.to_inner();
 
     let s_a = x.lsb();
     let s_b = y.lsb();

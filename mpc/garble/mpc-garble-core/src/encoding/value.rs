@@ -633,8 +633,8 @@ macro_rules! define_encoding_commitment_variant {
                     let low = value.0[i];
                     let high = low ^ delta;
 
-                    let low = Self::compute_hash(low.into_inner());
-                    let high = Self::compute_hash(high.into_inner());
+                    let low = Self::compute_hash(low.to_inner());
+                    let high = Self::compute_hash(high.to_inner());
 
                     if flip[i] {
                         [low, high]
@@ -654,7 +654,7 @@ macro_rules! define_encoding_commitment_variant {
                 value: &$value_ident<state::Active>,
             ) -> Result<(), ValueError> {
                 if self.0.iter().zip(value.0.iter()).all(|(pair, label)| {
-                    let h = Self::compute_hash(label.into_inner());
+                    let h = Self::compute_hash(label.to_inner());
                     h == pair[0] || h == pair[1]
                 }) {
                     Ok(())
