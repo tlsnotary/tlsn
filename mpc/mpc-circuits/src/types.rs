@@ -219,6 +219,10 @@ macro_rules! define_binary_value {
             const LEN: usize = $len;
         }
 
+        impl<const N: usize> BinaryLength for [$ty; N] {
+            const LEN: usize = $len * N;
+        }
+
         impl<const N: usize> ToBinaryRepr for [$ty; N] {
             type Repr = [$id; N];
 
