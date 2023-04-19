@@ -8,28 +8,20 @@ name = "mpc_core"
 
 [features]
 default = []
-serde = ["dep:serde"]
 
 [dependencies]
-tlsn-mpc-circuits.workspace = true
 tlsn-utils.workspace = true
-clmul.workspace = true
-matrix-transpose.workspace = true
 
 aes = { workspace = true, features = [] }
 cipher.workspace = true
 blake3.workspace = true
 rand.workspace = true
-rand_core.workspace = true
-rand_chacha.workspace = true
-regex = { workspace = true, optional = true }
-curve25519-dalek = { workspace = true, features = ["serde", "rand_core"] }
-serde = { workspace = true, features = ["derive"], optional = true }
+serde = { workspace = true, features = ["derive"] }
 thiserror.workspace = true
-derive_builder.workspace = true
-merlin.workspace = true
+once_cell.workspace = true
+
+bcs = "0.1.5"
 
 [dev-dependencies]
 rstest.workspace = true
 criterion.workspace = true
-pretty_assertions.workspace = true

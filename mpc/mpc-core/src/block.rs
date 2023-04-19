@@ -2,36 +2,52 @@ use aes::BlockDecrypt;
 use cipher::{consts::U16, generic_array::GenericArray, BlockCipher, BlockEncrypt};
 use core::ops::{BitAnd, BitXor};
 use rand::{CryptoRng, Rng};
-#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::convert::{From, TryInto};
+use utils::bits::ToBitsIter;
 
+/// A block of 128 bits
 #[repr(transparent)]
-#[derive(Copy, Clone, Debug, Default, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Block(u128);
 
 impl Block {
+    /// The length of a block in bytes
     pub const LEN: usize = 16;
+    /// A zero block
     pub const ZERO: Self = Self(0);
+    /// A block with all bits set to 1
     pub const ONES: Self = Self(u128::MAX);
+    /// A length 2 array of zero and one blocks
     pub const SELECT_MASK: [Self; 2] = [Self::ZERO, Self::ONES];
 
+    /// Create a new block
     #[inline]
     pub fn new(b: u128) -> Self {
         Self(b)
     }
 
+    /// Return the inner representation of the block
     #[inline]
     pub fn inner(&self) -> u128 {
         self.0
     }
 
+    /// Generate a random block using the provided RNG
     #[inline]
     pub fn random<R: Rng + CryptoRng + ?Sized>(rng: &mut R) -> Self {
         Self::new(rng.gen())
     }
 
+    /// Generate a random array of blocks using the provided RNG
+    #[inline]
+    pub fn random_array<const N: usize, R: Rng + CryptoRng>(rng: &mut R) -> [Self; N] {
+        let mut blocks = [0u128; N];
+        rng.fill(blocks.as_mut_slice());
+        blocks.map(Self::new)
+    }
+
+    /// Generate a random vector of blocks using the provided RNG
     #[inline]
     pub fn random_vec<R: Rng + CryptoRng + ?Sized>(rng: &mut R, n: usize) -> Vec<Self> {
         let mut blocks = vec![0u128; n];
@@ -39,17 +55,17 @@ impl Block {
         blocks.into_iter().map(Self::new).collect()
     }
 
+    /// OT extension Sender must break correlation between his 2 masks before
+    /// using them in 1-out-of-2 Oblivious Transfer. Every pair of masks has
+    /// a constant correlation: their XOR equals a delta (delta is choice bits
+    /// in base OT).
+    /// If masks were used as-is in OT, Receiver could infer bits of delta and break
+    /// the OT security.
+    /// For performance reasons, we don't use a standard hash but a construction which has
+    /// tweakable correlation robustness (tcr). The GKWY20 paper shows (in
+    /// Section 7.4) how to achieve tcr using a fixed-key cipher C instead of a
+    /// hash, i.e. instead of Hash(x, i) we must do C(C(x) xor i) xor C(x).
     #[inline]
-    // OT extension Sender must break correlation between his 2 masks before
-    // using them in 1-out-of-2 Oblivious Transfer. Every pair of masks has
-    // a constant correlation: their XOR equals a delta (delta is choice bits
-    // in base OT).
-    // If masks were used as-is in OT, Receiver could infer bits of delta and break
-    // the OT security.
-    // For performance reasons, we don't use a hash but a construction which has
-    // tweakable correlation robustness (tcr). The GKWY20 paper shows (in
-    // Section 7.4) how to achieve tcr using a fixed-key cipher C instead of a
-    // hash, i.e. instead of Hash(x, i) we must do C(C(x) xor i) xor C(x).
     pub fn hash_tweak<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(
         &self,
         c: &C,
@@ -76,6 +92,7 @@ impl Block {
         Self::new(h)
     }
 
+    /// Encrypts a block using the provided cipher
     #[inline]
     pub fn encrypt<C: BlockCipher<BlockSize = U16> + BlockEncrypt>(&self, cipher: &C) -> Self {
         let mut b = self.to_be_bytes().into();
@@ -83,6 +100,7 @@ impl Block {
         Self::new(u128::from_be_bytes(b.into()))
     }
 
+    /// Decrypts a block using the provided cipher
     #[inline]
     pub fn decrypt<C: BlockCipher<BlockSize = U16> + BlockDecrypt>(&self, cipher: &C) -> Self {
         let mut b = self.to_be_bytes().into();
@@ -90,48 +108,42 @@ impl Block {
         Self::new(u128::from_be_bytes(b.into()))
     }
 
-    #[inline]
-    pub fn zero() -> Self {
-        Self(0)
-    }
-
-    #[inline]
-    pub fn ones() -> Self {
-        Self(u128::MAX)
-    }
-
+    /// Sets the least significant bit of the block
     #[inline]
     pub fn set_lsb(&mut self) {
         self.0 |= 1;
     }
 
+    /// Returns the least significant bit of the block
     #[inline]
     pub fn lsb(&self) -> usize {
         ((self.0 & 1) == 1) as usize
     }
 
+    /// Serializes the block in native-endian format
     #[inline]
     pub fn to_ne_bytes(&self) -> [u8; 16] {
         self.0.to_ne_bytes()
     }
 
+    /// Serializes the block in big-endian format
     #[inline]
     pub fn to_be_bytes(&self) -> [u8; 16] {
         self.0.to_be_bytes()
     }
+}
 
-    #[inline]
-    pub fn to_bits(&self) -> [bool; 128] {
-        let bytes: Vec<Vec<bool>> = self
-            .to_be_bytes()
-            .iter()
-            .map(|b| (0..8).map(|i| (1 << i) & b == 1).collect::<Vec<bool>>())
-            .collect();
-        bytes
-            .concat()
-            .as_slice()
-            .try_into()
-            .expect("Could not convert block into bit array")
+impl ToBitsIter for Block {
+    type Lsb0Iter = <u128 as ToBitsIter>::Lsb0Iter;
+
+    type Msb0Iter = <u128 as ToBitsIter>::Msb0Iter;
+
+    fn into_lsb0_iter(self) -> Self::Lsb0Iter {
+        self.0.into_lsb0_iter()
+    }
+
+    fn into_msb0_iter(self) -> Self::Msb0Iter {
+        self.0.into_msb0_iter()
     }
 }
 
