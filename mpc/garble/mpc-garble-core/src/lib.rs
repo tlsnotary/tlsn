@@ -69,6 +69,9 @@ pub use evaluator::{Evaluator, EvaluatorError};
 pub use generator::{Generator, GeneratorError};
 
 /// Fixed key used for AES encryption
+///
+/// See [Efficient Garbling from a Fixed-Key Blockcipher \[BHKR13\]](https://eprint.iacr.org/2013/426.pdf)
+/// for more details.
 pub(crate) static CIPHER_FIXED_KEY: [u8; 16] = [69u8; 16];
 
 #[cfg(test)]
