@@ -11,6 +11,13 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Hash([u8; 32]);
 
+impl Hash {
+    /// Returns the hash as a byte slice
+    pub fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
+
 impl From<[u8; 32]> for Hash {
     fn from(bytes: [u8; 32]) -> Self {
         Self(bytes)
@@ -52,31 +59,48 @@ where
 ///
 /// # Example
 ///
-/// ```ignore
-/// # use mpc_core::hash::DomainSeparatedHash;
-/// # use serde::{Deserialize, Serialize};
+/// ```
+/// # use mpc_core::{hash::DomainSeparatedHash, impl_domain_separated_hash};
+/// # use serde::Serialize;
 ///
-/// #[derive(Serialize, Deserialize)]
+/// #[derive(Serialize)]
 /// pub struct Foo(u64);
 ///
 /// // All instances of `Foo` will be hashed with the domain separator "FOO"
 /// impl_domain_separated_hash!(Foo, "FOO");
+///
+/// fn main() {
+///     let foo = Foo(42u64);
+///     let hash = foo.domain_separated_hash();
+///     
+///     let mut seed_hasher = blake3::Hasher::new();
+///     seed_hasher.update("FOO".as_bytes());
+///     let seed = seed_hasher.finalize();
+///
+///     let mut hasher = blake3::Hasher::new();
+///     hasher.update(seed.as_bytes().as_slice());
+///     hasher.update(42u64.to_le_bytes().as_slice());
+///     let expected_hash = hasher.finalize();
+///
+///     assert_eq!(hash.as_bytes(), expected_hash.as_bytes());
+/// }
 /// ```
 #[macro_export]
 macro_rules! impl_domain_separated_hash {
     ($ty:ty, $domain:expr) => {
         impl DomainSeparatedHash for $ty {
-            fn hasher() -> Hasher {
-                static HASHER: once_cell::sync::Lazy<Hasher> = once_cell::sync::Lazy::new(|| {
-                    let mut hasher = Hasher::new();
-                    hasher.update($domain.as_bytes());
-                    // Fixed length seed computed from the domain salt
-                    let seed: [u8; 32] = hasher.finalize().into();
+            fn hasher() -> blake3::Hasher {
+                static HASHER: once_cell::sync::Lazy<blake3::Hasher> =
+                    once_cell::sync::Lazy::new(|| {
+                        let mut hasher = blake3::Hasher::new();
+                        hasher.update($domain.as_bytes());
+                        // Fixed length seed computed from the domain salt
+                        let seed = hasher.finalize();
 
-                    let mut hasher = Hasher::new();
-                    hasher.update(&seed);
-                    hasher
-                });
+                        let mut hasher = blake3::Hasher::new();
+                        hasher.update(seed.as_bytes().as_slice());
+                        hasher
+                    });
 
                 HASHER.clone()
             }
