@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    #"mpc-core",
+    "mpc-core",
     #"garble/*",
     "ot/*",
     "mpc-circuits",
