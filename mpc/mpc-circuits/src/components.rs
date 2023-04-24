@@ -82,7 +82,7 @@ impl Gate {
 }
 
 /// The type of a gate.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum GateType {
     /// XOR gate.
     Xor,

@@ -18,7 +18,7 @@ tlsn-utils.workspace = true
 tlsn-mpc-circuits-macros = { path = "../mpc-circuits-macros" }
 
 serde = { workspace = true, optional = true, features = ["derive"] }
-serde_arrays = { version = "0.1.0", optional = true }
+serde_arrays = { workspace = true, optional = true }
 bincode = { version = "1.3", optional = true }
 
 regex = { workspace = true, optional = true }
