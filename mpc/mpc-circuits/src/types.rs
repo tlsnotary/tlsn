@@ -35,7 +35,7 @@ pub trait ToBinaryRepr: ToBitsIter + Into<Value> {
 }
 
 /// A type for which the value type can be statically determined.
-pub trait StaticValueType {
+pub trait StaticValueType: Into<Value> {
     /// The value type of the type.
     fn value_type() -> ValueType;
 }
