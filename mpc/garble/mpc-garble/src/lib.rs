@@ -23,7 +23,7 @@ mod threadpool;
 
 pub use evaluator::{Evaluator, EvaluatorConfig, EvaluatorConfigBuilder, EvaluatorError};
 pub use generator::{Generator, GeneratorConfig, GeneratorConfigBuilder, GeneratorError};
-pub use registry::{ValueId, ValueRef};
+pub use registry::{ValueId, ValueRef, ValueRegistry};
 pub use threadpool::ThreadPool;
 
 use utils::id::NestedId;
@@ -231,119 +231,4 @@ pub trait Verify {
 pub trait Decode {
     /// Decodes the provided values, returning the plaintext values to all parties.
     async fn decode(&mut self, values: &[ValueRef]) -> Result<Vec<Value>, DecodeError>;
-}
-
-#[cfg(test)]
-mod tests {
-    use mpc_circuits::{circuits::AES128, types::StaticValueType};
-    use mpc_garble_core::msg::GarbleMessage;
-    use mpc_ot::mock::mock_ot_pair;
-    use utils_aio::duplex::DuplexChannel;
-
-    use crate::{
-        config::ValueConfig,
-        evaluator::Evaluator,
-        generator::{Generator, GeneratorConfigBuilder},
-        registry::ValueRegistry,
-    };
-
-    #[tokio::test]
-    async fn test_semi_honest() {
-        let (mut gen_channel, mut ev_channel) = DuplexChannel::<GarbleMessage>::new();
-        let (ot_send, ot_recv) = mock_ot_pair();
-
-        let gen = Generator::new(
-            GeneratorConfigBuilder::default().build().unwrap(),
-            [0u8; 32],
-        );
-        let ev = Evaluator::default();
-
-        let mut value_registry = ValueRegistry::default();
-
-        let key = [69u8; 16];
-        let msg = [42u8; 16];
-
-        let key_ref = value_registry
-            .add_value("key", <[u8; 16]>::value_type())
-            .unwrap();
-        let msg_ref = value_registry
-            .add_value("msg", <[u8; 16]>::value_type())
-            .unwrap();
-        let ciphertext_ref = value_registry
-            .add_value("ciphertext", <[u8; 16]>::value_type())
-            .unwrap();
-
-        let gen_fut = async {
-            gen.setup_inputs(
-                "test",
-                &[
-                    ValueConfig::new_private::<[u8; 16]>(key_ref.clone(), Some(key)).unwrap(),
-                    ValueConfig::new_private::<[u8; 16]>(msg_ref.clone(), None).unwrap(),
-                ],
-                &mut gen_channel,
-                &ot_send,
-            )
-            .await
-            .unwrap();
-
-            gen.generate(
-                AES128.clone(),
-                &[key_ref.clone(), msg_ref.clone()],
-                &[ciphertext_ref.clone()],
-                &mut gen_channel,
-                false,
-            )
-            .await
-            .unwrap();
-        };
-
-        let ev_fut = async {
-            ev.setup_inputs(
-                "test",
-                &[
-                    ValueConfig::new_private::<[u8; 16]>(key_ref.clone(), None).unwrap(),
-                    ValueConfig::new_private::<[u8; 16]>(msg_ref.clone(), Some(msg)).unwrap(),
-                ],
-                &mut ev_channel,
-                &ot_recv,
-            )
-            .await
-            .unwrap();
-
-            _ = ev
-                .evaluate(
-                    AES128.clone(),
-                    &[key_ref.clone(), msg_ref.clone()],
-                    &[ciphertext_ref.clone()],
-                    &mut ev_channel,
-                )
-                .await
-                .unwrap();
-        };
-
-        tokio::join!(gen_fut, ev_fut);
-
-        let ciphertext_full_encoding = gen.get_encoding(&ciphertext_ref).unwrap();
-        let ciphertext_active_encoding = ev.get_encoding(&ciphertext_ref).unwrap();
-
-        let decoding = ciphertext_full_encoding.decoding();
-        let ciphertext: [u8; 16] = ciphertext_active_encoding
-            .decode(&decoding)
-            .unwrap()
-            .try_into()
-            .unwrap();
-
-        let expected: [u8; 16] = {
-            use aes::{Aes128, BlockEncrypt, NewBlockCipher};
-
-            let mut msg = msg.into();
-
-            let cipher = Aes128::new_from_slice(&key).unwrap();
-            cipher.encrypt_block(&mut msg);
-
-            msg.into()
-        };
-
-        assert_eq!(ciphertext, expected)
-    }
 }

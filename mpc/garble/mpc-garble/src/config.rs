@@ -66,7 +66,8 @@ pub(crate) enum ValueIdConfig {
 }
 
 impl ValueConfig {
-    pub(crate) fn new_public<T: StaticValueType>(
+    /// Creates a new public value config
+    pub fn new_public<T: StaticValueType>(
         value_ref: ValueRef,
         value: impl Into<Value>,
     ) -> Result<Self, ValueConfigError> {
@@ -75,7 +76,8 @@ impl ValueConfig {
         Self::new(value_ref, ty, Some(value), Visibility::Public)
     }
 
-    pub(crate) fn new_public_array<T: StaticValueType>(
+    /// Creates a new public array value config
+    pub fn new_public_array<T: StaticValueType>(
         value_ref: ValueRef,
         value: Vec<T>,
     ) -> Result<Self, ValueConfigError>
@@ -87,7 +89,8 @@ impl ValueConfig {
         Self::new(value_ref, ty, Some(value), Visibility::Public)
     }
 
-    pub(crate) fn new_private<T: StaticValueType>(
+    /// Creates a new private value config
+    pub fn new_private<T: StaticValueType>(
         value_ref: ValueRef,
         value: Option<T>,
     ) -> Result<Self, ValueConfigError> {
@@ -96,7 +99,8 @@ impl ValueConfig {
         Self::new(value_ref, ty, value, Visibility::Private)
     }
 
-    pub(crate) fn new_private_array<T: StaticValueType>(
+    /// Creates a new private array value config
+    pub fn new_private_array<T: StaticValueType>(
         value_ref: ValueRef,
         value: Option<Vec<T>>,
         len: usize,

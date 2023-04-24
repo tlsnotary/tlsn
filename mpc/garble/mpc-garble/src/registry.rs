@@ -71,7 +71,7 @@ impl ValueRef {
 ///
 /// It enforces that a value is only defined once, returning an error otherwise.
 #[derive(Debug, Default)]
-pub(crate) struct ValueRegistry {
+pub struct ValueRegistry {
     /// A map of value IDs to their types.
     values: HashMap<ValueId, ValueType>,
     /// A map of value IDs to their references.
@@ -79,11 +79,14 @@ pub(crate) struct ValueRegistry {
 }
 
 impl ValueRegistry {
-    pub(crate) fn add_value(&mut self, id: &str, ty: ValueType) -> Result<ValueRef, MemoryError> {
+    /// Adds a value to the registry.
+    pub fn add_value(&mut self, id: &str, ty: ValueType) -> Result<ValueRef, MemoryError> {
         self.add_value_with_offset(id, ty, 0)
     }
 
-    pub(crate) fn add_value_with_offset(
+    /// Adds a value to the registry, applying an offset to the ids of the elements if the
+    /// value is an array.
+    pub fn add_value_with_offset(
         &mut self,
         id: &str,
         ty: ValueType,

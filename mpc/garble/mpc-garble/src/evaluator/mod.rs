@@ -100,7 +100,7 @@ impl Evaluator {
         Ok(())
     }
 
-    /// Returns the encoding of a value if it exists.
+    /// Returns the encoding for a value.
     pub fn get_encoding(&self, value: &ValueRef) -> Option<EncodedValue<encoding_state::Active>> {
         self.state().encoding_registry.get_encoding(value)
     }

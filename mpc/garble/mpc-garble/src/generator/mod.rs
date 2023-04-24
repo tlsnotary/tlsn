@@ -49,7 +49,8 @@ struct State {
 }
 
 impl Generator {
-    pub(crate) fn new(config: GeneratorConfig, encoder_seed: [u8; 32]) -> Self {
+    /// Create a new generator.
+    pub fn new(config: GeneratorConfig, encoder_seed: [u8; 32]) -> Self {
         Self {
             config,
             state: Mutex::new(State::new(ChaChaEncoder::new(encoder_seed))),
@@ -67,10 +68,7 @@ impl Generator {
     }
 
     /// Returns the encoding for a value.
-    pub(crate) fn get_encoding(
-        &self,
-        value: &ValueRef,
-    ) -> Option<EncodedValue<encoding_state::Full>> {
+    pub fn get_encoding(&self, value: &ValueRef) -> Option<EncodedValue<encoding_state::Full>> {
         self.state().encoding_registry.get_encoding(value)
     }
 
