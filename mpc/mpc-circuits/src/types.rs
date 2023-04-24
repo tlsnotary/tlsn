@@ -440,6 +440,11 @@ impl ValueType {
         }
     }
 
+    /// Returns whether the value type is an array.
+    pub fn is_array(&self) -> bool {
+        matches!(self, ValueType::Array(..))
+    }
+
     pub(crate) fn to_bin_repr(&self, nodes: &[Node<Feed>]) -> Result<BinaryRepr, TypeError> {
         if nodes.len() != self.len() {
             return Err(TypeError::InvalidLength {
