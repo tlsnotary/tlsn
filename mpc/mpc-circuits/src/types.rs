@@ -34,7 +34,7 @@ pub trait ToBinaryRepr: ToBitsIter + Into<Value> {
     fn new_bin_repr(nodes: &[Node<Feed>]) -> Result<Self::Repr, TypeError>;
 }
 
-/// A type to which the value type can be statically determined.
+/// A type for which the value type can be statically determined.
 pub trait StaticValueType {
     /// The value type of the type.
     fn value_type() -> ValueType;
