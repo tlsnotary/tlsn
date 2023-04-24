@@ -6,6 +6,9 @@ edition = "2021"
 [lib]
 name = "mpc_garble_core"
 
+[profile.release]
+lto = true
+
 [dependencies]
 tlsn-mpc-core.workspace = true
 tlsn-mpc-circuits.workspace = true
@@ -18,8 +21,10 @@ rand.workspace = true
 rand_core.workspace = true
 rand_chacha.workspace = true
 regex = { workspace = true, optional = true }
+once_cell.workspace = true
 
-serde = { workspace = true, features = ["derive"], optional = true }
+serde = { workspace = true, features = ["derive"] }
+serde_arrays.workspace = true
 thiserror.workspace = true
 derive_builder.workspace = true
 

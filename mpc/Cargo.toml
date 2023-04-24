@@ -1,7 +1,7 @@
 [workspace]
 members = [
     "mpc-core",
-    #"garble/*",
+    "garble/mpc-garble-core",
     "ot/*",
     "mpc-circuits",
     "mpc-circuits-macros",
@@ -55,6 +55,7 @@ tokio-util = "0.7"
 # serialization
 serde = "1.0"
 serde_yaml = "0.9"
+serde_arrays = "0.1"
 prost-build = "0.9"
 bytes = "1"
 yamux = "0.10"

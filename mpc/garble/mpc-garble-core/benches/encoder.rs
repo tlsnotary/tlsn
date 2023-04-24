@@ -1,18 +1,18 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use mpc_circuits::{BitOrder, WireGroup, AES_128};
+use mpc_circuits::circuits::AES128;
 use mpc_garble_core::{ChaChaEncoder, Encoder};
 
 fn criterion_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("encoder");
 
-    let circ = AES_128.clone();
-    group.bench_function(circ.id().clone().to_string(), |b| {
-        let mut enc = ChaChaEncoder::new([0u8; 32], BitOrder::Msb0);
+    group.bench_function("encode_aes128".to_string(), |b| {
+        let encoder = ChaChaEncoder::new([0u8; 32]);
         b.iter(|| {
             black_box(
-                circ.inputs()
+                AES128
+                    .inputs()
                     .iter()
-                    .map(|input| enc.encode(input.index() as u32, input))
+                    .map(|value| encoder.encode_by_type(0, &value.value_type()))
                     .collect::<Vec<_>>(),
             )
         })
