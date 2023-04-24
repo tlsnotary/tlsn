@@ -173,7 +173,7 @@ impl ValueConfig {
         })
     }
 
-    /// Flattens to a vector of `ValueConfig`
+    /// Flattens to a vector of `ValueIdConfig`
     pub(crate) fn flatten(self) -> Vec<ValueIdConfig> {
         match self {
             ValueConfig::Public {
