@@ -102,43 +102,47 @@ pub fn sha256_trace<'a>(
 mod tests {
     use super::*;
 
-    use crate::evaluate;
+    use mpc_circuits_macros::test_circ;
 
     #[test]
     #[cfg(feature = "aes")]
     fn test_aes128() {
-        use aes::{Aes128, BlockEncrypt, NewBlockCipher};
+        fn aes_128(key: [u8; 16], msg: [u8; 16]) -> [u8; 16] {
+            use aes::{Aes128, BlockEncrypt, NewBlockCipher};
 
-        let key = [0u8; 16];
-        let msg = [69u8; 16];
+            let aes = Aes128::new_from_slice(&key).unwrap();
+            let mut ciphertext = msg.into();
+            aes.encrypt_block(&mut ciphertext);
+            ciphertext.into()
+        }
 
-        let ciphertext = evaluate!(AES128, fn(key, msg) -> [u8; 16]).unwrap();
-
-        let aes = Aes128::new_from_slice(&key).unwrap();
-        let mut expected = msg.into();
-        aes.encrypt_block(&mut expected);
-        let expected: [u8; 16] = expected.into();
-
-        assert_eq!(ciphertext, expected);
+        test_circ!(
+            AES128,
+            aes_128,
+            fn([0u8; 16], [69u8; 16]) -> [u8; 16]
+        );
     }
 
     #[test]
     #[cfg(feature = "sha2")]
     fn test_sha256() {
-        use sha2::compress256;
+        fn sha256(state: [u32; 8], msg: [u8; 64]) -> [u32; 8] {
+            use sha2::compress256;
+
+            let mut state = state;
+            compress256(&mut state, &[msg.into()]);
+            state
+        }
 
         static SHA2_INITIAL_STATE: [u32; 8] = [
             0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
             0x5be0cd19,
         ];
 
-        let msg = [69u8; 64];
-
-        let output = evaluate!(SHA256, fn(SHA2_INITIAL_STATE, msg) -> [u32; 8]).unwrap();
-
-        let mut expected = SHA2_INITIAL_STATE;
-        compress256(&mut expected, &[msg.into()]);
-
-        assert_eq!(output, expected);
+        test_circ!(
+            SHA256,
+            sha256,
+            fn(SHA2_INITIAL_STATE, [69u8; 64]) -> [u32; 8]
+        );
     }
 }
