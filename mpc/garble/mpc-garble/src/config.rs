@@ -130,22 +130,14 @@ impl ValueConfig {
         // the outer context must ensure that the provided `ty` is correct for the
         // provided `value_ref`.
         Ok(match (&value_ref, &ty, &visibility, &value) {
-            (_, _, Visibility::Private, _)
-                if !value_ref.is_array()
-                    && !ty.is_array()
-                    && value
-                        .as_ref()
-                        .map_or(true, |value| value.value_type() == ty) =>
-            {
+            (_, _, Visibility::Private, _) if !value_ref.is_array() && !ty.is_array() => {
                 Self::Private {
                     value_ref,
                     ty,
                     value,
                 }
             }
-            (_, _, Visibility::Public, Some(v))
-                if !value_ref.is_array() && !ty.is_array() && v.value_type() == ty =>
-            {
+            (_, _, Visibility::Public, Some(_)) if !value_ref.is_array() && !ty.is_array() => {
                 Self::Public {
                     value_ref,
                     ty,
@@ -153,10 +145,7 @@ impl ValueConfig {
                 }
             }
             (ValueRef::Array(ids), ValueType::Array(_, len), Visibility::Private, _)
-                if ids.len() == *len
-                    && value
-                        .as_ref()
-                        .map_or(true, |value| value.value_type() == ty) =>
+                if ids.len() == *len =>
             {
                 Self::Private {
                     value_ref,
@@ -164,8 +153,8 @@ impl ValueConfig {
                     value,
                 }
             }
-            (ValueRef::Array(ids), ValueType::Array(_, len), Visibility::Public, Some(v))
-                if ids.len() == *len && v.value_type() == ty =>
+            (ValueRef::Array(ids), ValueType::Array(_, len), Visibility::Public, Some(_))
+                if ids.len() == *len =>
             {
                 Self::Public {
                     value_ref,
