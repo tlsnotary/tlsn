@@ -21,7 +21,7 @@ pub enum GarbleMessage {
     ValueDecodings(Vec<Decoding>),
     EqualityCheck(EqualityCheck),
     HashCommitment(Hash),
-    EqualityCheckOpening(Decommitment<EqualityCheck>),
+    EqualityCheckDecommitment(Decommitment<EqualityCheck>),
     EqualityCheckDecommitments(Vec<Decommitment<EqualityCheck>>),
     ProofDecommitments(Vec<Decommitment<Hash>>),
     Delta(Delta),
