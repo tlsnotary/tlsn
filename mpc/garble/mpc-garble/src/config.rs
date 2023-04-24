@@ -29,7 +29,7 @@ pub(crate) enum Visibility {
     Private,
 }
 
-/// Configuration of a value by reference
+/// Configuration of a value
 #[derive(Debug, Clone)]
 #[allow(missing_docs)]
 pub enum ValueConfig {
