@@ -9,7 +9,7 @@ use futures::{
     StreamExt, TryFutureExt,
 };
 use mpc_circuits::{
-    types::{StaticValueType, Value},
+    types::{StaticValueType, Value, ValueType},
     Circuit,
 };
 
@@ -193,7 +193,6 @@ impl<OTS, OTR> Thread for DEAPThread<OTS, OTR> {}
 
 #[async_trait]
 impl<OTS, OTR> Memory for DEAPThread<OTS, OTR> {
-    /// Adds a new public input value, returning a reference to it.
     fn new_public_input<T: StaticValueType>(
         &self,
         id: &str,
@@ -202,7 +201,6 @@ impl<OTS, OTR> Memory for DEAPThread<OTS, OTR> {
         self.deap().new_public_input(id, value)
     }
 
-    /// Adds a new public array input value, returning a reference to it.
     fn new_public_array_input<T: StaticValueType>(
         &self,
         id: &str,
@@ -214,7 +212,10 @@ impl<OTS, OTR> Memory for DEAPThread<OTS, OTR> {
         self.deap().new_public_array_input(id, value)
     }
 
-    /// Adds a new private input value, returning a reference to it.
+    fn new_public_input_by_type(&self, id: &str, value: Value) -> Result<ValueRef, MemoryError> {
+        self.deap().new_public_input_by_type(id, value)
+    }
+
     fn new_private_input<T: StaticValueType>(
         &self,
         id: &str,
@@ -223,7 +224,6 @@ impl<OTS, OTR> Memory for DEAPThread<OTS, OTR> {
         self.deap().new_private_input(id, value)
     }
 
-    /// Adds a new private array input value, returning a reference to it.
     fn new_private_array_input<T: StaticValueType>(
         &self,
         id: &str,
@@ -236,12 +236,19 @@ impl<OTS, OTR> Memory for DEAPThread<OTS, OTR> {
         self.deap().new_private_array_input(id, value, len)
     }
 
-    /// Creates a new output value, returning a reference to it.
+    fn new_private_input_by_type(
+        &self,
+        id: &str,
+        ty: &ValueType,
+        value: Option<Value>,
+    ) -> Result<ValueRef, MemoryError> {
+        self.deap().new_private_input_by_type(id, ty, value)
+    }
+
     fn new_output<T: StaticValueType>(&self, id: &str) -> Result<ValueRef, MemoryError> {
         self.deap().new_output::<T>(id)
     }
 
-    /// Creates a new array output value, returning a reference to it.
     fn new_array_output<T: StaticValueType>(
         &self,
         id: &str,
@@ -253,7 +260,10 @@ impl<OTS, OTR> Memory for DEAPThread<OTS, OTR> {
         self.deap().new_array_output::<T>(id, len)
     }
 
-    /// Returns a reference to a value if it exists.
+    fn new_output_by_type(&self, id: &str, ty: &ValueType) -> Result<ValueRef, MemoryError> {
+        self.deap().new_output_by_type(id, ty)
+    }
+
     fn get_value(&self, id: &str) -> Option<ValueRef> {
         self.deap().get_value(id)
     }

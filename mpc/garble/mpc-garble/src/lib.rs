@@ -9,7 +9,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 use mpc_circuits::{
-    types::{StaticValueType, Value},
+    types::{StaticValueType, Value, ValueType},
     Circuit,
 };
 
@@ -156,6 +156,9 @@ pub trait Memory {
     where
         Vec<T>: Into<Value>;
 
+    /// Adds a new public input value, returning a reference to it.
+    fn new_public_input_by_type(&self, id: &str, value: Value) -> Result<ValueRef, MemoryError>;
+
     /// Adds a new private input value, returning a reference to it.
     fn new_private_input<T: StaticValueType>(
         &self,
@@ -173,6 +176,14 @@ pub trait Memory {
     where
         Vec<T>: Into<Value>;
 
+    /// Adds a new private input value, returning a reference to it.
+    fn new_private_input_by_type(
+        &self,
+        id: &str,
+        ty: &ValueType,
+        value: Option<Value>,
+    ) -> Result<ValueRef, MemoryError>;
+
     /// Creates a new output value, returning a reference to it.
     fn new_output<T: StaticValueType>(&self, id: &str) -> Result<ValueRef, MemoryError>;
 
@@ -184,6 +195,9 @@ pub trait Memory {
     ) -> Result<ValueRef, MemoryError>
     where
         Vec<T>: Into<Value>;
+
+    /// Creates a new output value, returning a reference to it.
+    fn new_output_by_type(&self, id: &str, ty: &ValueType) -> Result<ValueRef, MemoryError>;
 
     /// Returns a value if it exists.
     fn get_value(&self, id: &str) -> Option<ValueRef>;

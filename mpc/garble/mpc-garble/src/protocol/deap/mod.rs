@@ -12,7 +12,7 @@ use std::{
 
 use futures::{Sink, SinkExt, Stream, StreamExt, TryFutureExt};
 use mpc_circuits::{
-    types::{StaticValueType, Value, ValueType},
+    types::{StaticValueType, TypeError, Value, ValueType},
     Circuit,
 };
 use mpc_core::{
@@ -23,12 +23,12 @@ use mpc_garble_core::{msg::GarbleMessage, EqualityCheck};
 use utils_aio::expect_msg_or_err;
 
 use crate::{
-    config::{Role, ValueConfig},
+    config::{Role, ValueConfig, Visibility},
     evaluator::{Evaluator, EvaluatorConfigBuilder},
     generator::{Generator, GeneratorConfigBuilder},
     ot::{OTReceiveEncoding, OTSendEncoding, OTVerifyEncoding},
     registry::ValueRegistry,
-    Memory, ValueRef,
+    Memory, MemoryError, ValueRef,
 };
 
 pub use error::DEAPError;
@@ -532,6 +532,18 @@ impl Memory for DEAP {
         Ok(value_ref)
     }
 
+    fn new_public_input_by_type(&self, id: &str, value: Value) -> Result<ValueRef, MemoryError> {
+        let mut state = self.state();
+
+        let ty = value.value_type();
+        let value_ref = state.value_registry.add_value(id, ty.clone())?;
+        let config = ValueConfig::new(value_ref.clone(), ty, Some(value), Visibility::Public)
+            .expect("config is valid");
+        state.input_buffer.insert(value_ref.clone(), config);
+
+        Ok(value_ref)
+    }
+
     fn new_private_input<T: StaticValueType>(
         &self,
         id: &str,
@@ -568,6 +580,31 @@ impl Memory for DEAP {
         Ok(value_ref)
     }
 
+    fn new_private_input_by_type(
+        &self,
+        id: &str,
+        ty: &ValueType,
+        value: Option<Value>,
+    ) -> Result<ValueRef, MemoryError> {
+        if let Some(value) = &value {
+            if &value.value_type() != ty {
+                return Err(TypeError::UnexpectedType {
+                    expected: ty.clone(),
+                    actual: value.value_type(),
+                })?;
+            }
+        }
+
+        let mut state = self.state();
+
+        let value_ref = state.value_registry.add_value(id, ty.clone())?;
+        let config = ValueConfig::new(value_ref.clone(), ty.clone(), value, Visibility::Private)
+            .expect("config is valid");
+        state.input_buffer.insert(value_ref.clone(), config);
+
+        Ok(value_ref)
+    }
+
     fn new_output<T: StaticValueType>(&self, id: &str) -> Result<ValueRef, crate::MemoryError> {
         let mut state = self.state();
 
@@ -589,6 +626,14 @@ impl Memory for DEAP {
 
         let ty = ValueType::new_array::<T>(len);
         let value_ref = state.value_registry.add_value(id, ty)?;
+
+        Ok(value_ref)
+    }
+
+    fn new_output_by_type(&self, id: &str, ty: &ValueType) -> Result<ValueRef, MemoryError> {
+        let mut state = self.state();
+
+        let value_ref = state.value_registry.add_value(id, ty.clone())?;
 
         Ok(value_ref)
     }
