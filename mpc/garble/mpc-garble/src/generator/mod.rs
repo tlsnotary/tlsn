@@ -10,7 +10,10 @@ use std::{
 };
 
 use futures::{Sink, SinkExt};
-use mpc_circuits::{types::ValueType, Circuit};
+use mpc_circuits::{
+    types::{Value, ValueType},
+    Circuit,
+};
 use mpc_core::hash::Hash;
 use mpc_garble_core::{
     encoding_state, msg::GarbleMessage, ChaChaEncoder, EncodedValue, Encoder,
@@ -91,7 +94,7 @@ impl Generator {
         let mut state = self.state();
 
         for (id, ty) in values {
-            _ = state.encode(id, ty)?;
+            _ = state.encode_by_id(id, ty)?;
         }
 
         Ok(())
@@ -116,61 +119,111 @@ impl Generator {
         sink: &mut S,
         ot: &OT,
     ) -> Result<(), GeneratorError> {
-        let (ot_send_values, direct_send_values) = {
-            let mut state = self.state();
+        // Flatten the configs to `ValueIdConfig` (config per value id)
+        let input_configs: Vec<ValueIdConfig> = input_configs
+            .iter()
+            .flat_map(|config| config.clone().flatten())
+            .collect();
 
-            // Filter out any values that are already active, setting them active otherwise.
-            let mut input_configs: Vec<ValueIdConfig> = input_configs
-                .iter()
-                .flat_map(|config| config.clone().flatten())
-                .filter(|config| state.active.insert(config.id().clone()))
-                .collect();
-
-            input_configs.sort_by_key(|config| config.id().clone());
-
-            let mut ot_send_values = Vec::new();
-            let mut direct_send_values = Vec::new();
-            for config in input_configs.into_iter() {
-                let encoding = state.encode(config.id(), config.value_type())?;
-
-                match config {
-                    ValueIdConfig::Public { value, .. } => {
-                        direct_send_values.push(encoding.select(value)?);
-                    }
-                    ValueIdConfig::Private { value, .. } => {
-                        if let Some(value) = value {
-                            direct_send_values.push(encoding.select(value)?);
-                        } else {
-                            ot_send_values.push(encoding);
-                        }
+        let mut ot_send_values = Vec::new();
+        let mut direct_send_values = Vec::new();
+        for config in input_configs.into_iter() {
+            match config {
+                ValueIdConfig::Public { id, value, .. } => {
+                    direct_send_values.push((id, value));
+                }
+                ValueIdConfig::Private { id, value, ty } => {
+                    if let Some(value) = value {
+                        direct_send_values.push((id, value));
+                    } else {
+                        ot_send_values.push((id, ty));
                     }
                 }
             }
+        }
 
-            (ot_send_values, direct_send_values)
+        futures::try_join!(
+            self.ot_send_active_encodings(id, &ot_send_values, ot),
+            self.direct_send_active_encodings(&direct_send_values, sink)
+        )?;
+
+        Ok(())
+    }
+
+    /// Sends the encodings of the provided value to the evaluator via oblivious transfer.
+    ///
+    /// # Arguments
+    ///
+    /// - `id` - The ID of this operation
+    /// - `values` - The values to send
+    /// - `ot` - The OT sender
+    async fn ot_send_active_encodings<OT: OTSendEncoding>(
+        &self,
+        id: &str,
+        values: &[(ValueId, ValueType)],
+        ot: &OT,
+    ) -> Result<(), GeneratorError> {
+        if values.is_empty() {
+            return Ok(());
+        }
+
+        let full_encodings = {
+            let mut state = self.state();
+            // Filter out any values that are already active, setting them active otherwise.
+            let mut values = values
+                .iter()
+                .filter(|(id, _)| state.active.insert(id.clone()))
+                .collect::<Vec<_>>();
+            values.sort_by_key(|(id, _)| id.clone());
+
+            values
+                .iter()
+                .map(|(id, ty)| Ok(state.encode_by_id(id, &ty)?))
+                .collect::<Result<Vec<_>, GeneratorError>>()?
         };
 
-        let ot_fut = async {
-            if !ot_send_values.is_empty() {
-                ot.send(id, ot_send_values)
-                    .await
-                    .map_err(GeneratorError::from)
-            } else {
-                Ok(())
-            }
+        ot.send(id, full_encodings).await?;
+
+        Ok(())
+    }
+
+    /// Directly sends the active encodings of the provided values to the evaluator.
+    ///
+    /// # Arguments
+    ///
+    /// - `values` - The values to send
+    /// - `sink` - The sink to send the encodings to the evaluator
+    async fn direct_send_active_encodings<
+        S: Sink<GarbleMessage, Error = std::io::Error> + Unpin,
+    >(
+        &self,
+        values: &[(ValueId, Value)],
+        sink: &mut S,
+    ) -> Result<(), GeneratorError> {
+        if values.is_empty() {
+            return Ok(());
+        }
+
+        let active_encodings = {
+            let mut state = self.state();
+            // Filter out any values that are already active, setting them active otherwise.
+            let mut values = values
+                .iter()
+                .filter(|(id, _)| state.active.insert(id.clone()))
+                .collect::<Vec<_>>();
+            values.sort_by_key(|(id, _)| id.clone());
+
+            values
+                .iter()
+                .map(|(id, value)| {
+                    let full_encoding = state.encode_by_id(id, &value.value_type())?;
+                    Ok(full_encoding.select(value.clone())?)
+                })
+                .collect::<Result<Vec<_>, GeneratorError>>()?
         };
 
-        let send_fut = async {
-            if !direct_send_values.is_empty() {
-                sink.send(GarbleMessage::ActiveValues(direct_send_values))
-                    .await
-                    .map_err(GeneratorError::from)
-            } else {
-                Ok(())
-            }
-        };
-
-        futures::try_join!(ot_fut, send_fut)?;
+        sink.send(GarbleMessage::ActiveValues(active_encodings))
+            .await?;
 
         Ok(())
     }
@@ -298,7 +351,27 @@ impl State {
         }
     }
 
+    #[allow(dead_code)]
     fn encode(
+        &mut self,
+        value: &ValueRef,
+        ty: &ValueType,
+    ) -> Result<EncodedValue<encoding_state::Full>, GeneratorError> {
+        match (value, ty) {
+            (ValueRef::Value { id }, ty) if !ty.is_array() => self.encode_by_id(id, ty),
+            (ValueRef::Array(ids), ValueType::Array(elem_ty, len)) if ids.len() == *len => {
+                let encodings = ids
+                    .iter()
+                    .map(|id| self.encode_by_id(id, elem_ty))
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                Ok(EncodedValue::Array(encodings))
+            }
+            _ => panic!("invalid value and type combination: {:?} {:?}", value, ty),
+        }
+    }
+
+    fn encode_by_id(
         &mut self,
         id: &ValueId,
         ty: &ValueType,

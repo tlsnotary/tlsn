@@ -126,8 +126,8 @@ impl Evaluator {
         stream: &mut S,
         ot: &OT,
     ) -> Result<(), EvaluatorError> {
-        let (ot_recv_ids, ot_recv_values, direct_recv_ids, direct_recv_types) = {
-            let mut state = self.state();
+        let (ot_recv_values, direct_recv_values) = {
+            let state = self.state();
 
             // Filter out any values that are already active.
             let mut input_configs: Vec<ValueIdConfig> = input_configs
@@ -138,84 +138,133 @@ impl Evaluator {
 
             input_configs.sort_by_key(|config| config.id().clone());
 
-            let mut ot_recv_ids = Vec::new();
             let mut ot_recv_values = Vec::new();
-            let mut direct_recv_ids = Vec::new();
-            let mut direct_recv_types = Vec::new();
+            let mut direct_recv_values = Vec::new();
             for config in input_configs.into_iter() {
                 match config {
                     ValueIdConfig::Public { id, ty, .. } => {
-                        direct_recv_ids.push(id);
-                        direct_recv_types.push(ty);
+                        direct_recv_values.push((id, ty));
                     }
                     ValueIdConfig::Private { id, ty, value } => {
                         if let Some(value) = value {
-                            ot_recv_ids.push(id);
-                            ot_recv_values.push(value)
+                            ot_recv_values.push((id, value));
                         } else {
-                            direct_recv_ids.push(id);
-                            direct_recv_types.push(ty);
+                            direct_recv_values.push((id, ty));
                         }
                     }
                 }
             }
 
-            // Add the OT log
-            state.ot_log.insert(id.to_string(), ot_recv_ids.clone());
-
-            (
-                ot_recv_ids,
-                ot_recv_values,
-                direct_recv_ids,
-                direct_recv_types,
-            )
+            (ot_recv_values, direct_recv_values)
         };
 
-        let ot_fut = async {
-            if !ot_recv_values.is_empty() {
-                ot.receive(id, ot_recv_values)
-                    .await
-                    .map_err(EvaluatorError::from)
-            } else {
-                Ok(Vec::new())
-            }
-        };
+        futures::try_join!(
+            self.ot_receive_active_encodings(id, &ot_recv_values, ot),
+            self.direct_receive_active_encodings(&direct_recv_values, stream)
+        )?;
 
-        let direct_recv_fut = async {
-            if !direct_recv_ids.is_empty() {
-                expect_msg_or_err!(
-                    stream.next().await,
-                    GarbleMessage::ActiveValues,
-                    EvaluatorError::UnexpectedMessage
-                )
-                .map_err(EvaluatorError::from)
-            } else {
-                Ok(Vec::new())
-            }
-        };
+        Ok(())
+    }
 
-        let (ot_recv_values, direct_recv_values) = futures::try_join!(ot_fut, direct_recv_fut)?;
-
-        // Make sure all the received values have the correct type.
-        for (expected_ty, value) in direct_recv_types.into_iter().zip(&direct_recv_values) {
-            if value.value_type() != expected_ty {
-                return Err(TypeError::UnexpectedType {
-                    expected: expected_ty,
-                    actual: value.value_type(),
-                })?;
-            }
+    /// Receives active encodings for the provided values via oblivious transfer.
+    ///
+    /// # Arguments
+    /// - `id` - The id of this operation
+    /// - `values` - The values to receive via oblivious transfer.
+    /// - `ot` - The oblivious transfer receiver
+    async fn ot_receive_active_encodings<OT: OTReceiveEncoding>(
+        &self,
+        id: &str,
+        values: &[(ValueId, Value)],
+        ot: &OT,
+    ) -> Result<(), EvaluatorError> {
+        if values.is_empty() {
+            return Ok(());
         }
 
-        // Add the received values to the encoding registry.
+        let (ot_recv_ids, ot_recv_values): (Vec<ValueId>, Vec<Value>) =
+            values.iter().cloned().unzip();
+
+        let active_encodings = ot.receive(id, ot_recv_values).await?;
+
+        // Make sure the generator sent the expected number of values.
+        // This should be handled by the ot receiver, but we double-check anyways :)
+        if active_encodings.len() != values.len() {
+            return Err(EvaluatorError::IncorrectValueCount {
+                expected: values.len(),
+                actual: active_encodings.len(),
+            });
+        }
+
         let mut state = self.state();
-        let ids = ot_recv_ids.into_iter().chain(direct_recv_ids);
-        let values = ot_recv_values.into_iter().chain(direct_recv_values);
-        for (id, active_value) in ids.zip(values) {
-            let ty = active_value.value_type();
+
+        // Add the OT log
+        state.ot_log.insert(id.to_string(), ot_recv_ids);
+
+        for ((id, value), active_encoding) in values.iter().zip(active_encodings) {
+            let expected_ty = value.value_type();
+            // Make sure the generator sent the expected type.
+            // This is also handled by the ot receiver, but we're paranoid.
+            if active_encoding.value_type() != expected_ty {
+                return Err(TypeError::UnexpectedType {
+                    expected: expected_ty,
+                    actual: active_encoding.value_type(),
+                })?;
+            }
+            // Add the received values to the encoding registry.
             state
                 .encoding_registry
-                .set_encoding_by_id(&id, active_value)?;
-            state.received_values.insert(id, ty);
+                .set_encoding_by_id(&id, active_encoding)?;
+            state.received_values.insert(id.clone(), expected_ty);
+        }
+
+        Ok(())
+    }
+
+    /// Receives active encodings for the provided values directly from the generator.
+    ///
+    /// # Arguments
+    /// - `values` - The values and types expected to be received
+    /// - `stream` - The stream of messages from the generator
+    async fn direct_receive_active_encodings<S: Stream<Item = GarbleMessage> + Unpin>(
+        &self,
+        values: &[(ValueId, ValueType)],
+        stream: &mut S,
+    ) -> Result<(), EvaluatorError> {
+        if values.is_empty() {
+            return Ok(());
+        }
+
+        let active_encodings = expect_msg_or_err!(
+            stream.next().await,
+            GarbleMessage::ActiveValues,
+            EvaluatorError::UnexpectedMessage
+        )?;
+
+        // Make sure the generator sent the expected number of values.
+        if active_encodings.len() != values.len() {
+            return Err(EvaluatorError::IncorrectValueCount {
+                expected: values.len(),
+                actual: active_encodings.len(),
+            });
+        }
+
+        let mut state = self.state();
+        for ((id, expected_ty), active_encoding) in values.iter().zip(active_encodings) {
+            // Make sure the generator sent the expected type.
+            if &active_encoding.value_type() != expected_ty {
+                return Err(TypeError::UnexpectedType {
+                    expected: expected_ty.clone(),
+                    actual: active_encoding.value_type(),
+                })?;
+            }
+            // Add the received values to the encoding registry.
+            state
+                .encoding_registry
+                .set_encoding_by_id(&id, active_encoding)?;
+            state
+                .received_values
+                .insert(id.clone(), expected_ty.clone());
         }
 
         Ok(())
@@ -285,6 +334,14 @@ impl Evaluator {
                 EvaluatorError::UnexpectedMessage
             )?;
 
+            // Make sure the generator sent the expected number of commitments.
+            if commitments.len() != encoded_outputs.len() {
+                return Err(EvaluatorError::IncorrectValueCount {
+                    expected: encoded_outputs.len(),
+                    actual: commitments.len(),
+                });
+            }
+
             for (output, commitment) in encoded_outputs.iter().zip(commitments) {
                 commitment.verify(output)?;
             }
@@ -329,6 +386,14 @@ impl Evaluator {
             GarbleMessage::ValueDecodings,
             EvaluatorError::UnexpectedMessage
         )?;
+
+        // Make sure the generator sent the expected number of decodings.
+        if decodings.len() != values.len() {
+            return Err(EvaluatorError::IncorrectValueCount {
+                expected: values.len(),
+                actual: decodings.len(),
+            });
+        }
 
         for (value, decoding) in values.iter().zip(decodings.iter()) {
             self.set_decoded(value)?;

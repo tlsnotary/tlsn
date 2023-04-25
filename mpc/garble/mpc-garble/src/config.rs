@@ -252,12 +252,4 @@ impl ValueIdConfig {
             ValueIdConfig::Private { id, .. } => id,
         }
     }
-
-    /// Returns the value type
-    pub(crate) fn value_type(&self) -> &ValueType {
-        match self {
-            ValueIdConfig::Public { ty, .. } => ty,
-            ValueIdConfig::Private { ty, .. } => ty,
-        }
-    }
 }
