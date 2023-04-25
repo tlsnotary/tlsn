@@ -214,7 +214,7 @@ impl Evaluator {
             // Add the received values to the encoding registry.
             state
                 .encoding_registry
-                .set_encoding_by_id(&id, active_encoding)?;
+                .set_encoding_by_id(id, active_encoding)?;
             state.received_values.insert(id.clone(), expected_ty);
         }
 
@@ -261,7 +261,7 @@ impl Evaluator {
             // Add the received values to the encoding registry.
             state
                 .encoding_registry
-                .set_encoding_by_id(&id, active_encoding)?;
+                .set_encoding_by_id(id, active_encoding)?;
             state
                 .received_values
                 .insert(id.clone(), expected_ty.clone());

@@ -178,7 +178,7 @@ impl Generator {
 
             values
                 .iter()
-                .map(|(id, ty)| Ok(state.encode_by_id(id, &ty)?))
+                .map(|(id, ty)| state.encode_by_id(id, ty))
                 .collect::<Result<Vec<_>, GeneratorError>>()?
         };
 
