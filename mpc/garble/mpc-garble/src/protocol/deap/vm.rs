@@ -267,6 +267,10 @@ impl<OTS, OTR> Memory for DEAPThread<OTS, OTR> {
     fn get_value(&self, id: &str) -> Option<ValueRef> {
         self.deap().get_value(id)
     }
+
+    fn get_value_type(&self, id: &str) -> Option<ValueType> {
+        self.deap().get_value_type(id)
+    }
 }
 
 #[async_trait]

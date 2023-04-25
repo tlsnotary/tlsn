@@ -132,6 +132,31 @@ impl ValueRegistry {
     pub(crate) fn get_value(&self, id: &str) -> Option<ValueRef> {
         self.refs.get(id).cloned()
     }
+
+    /// Returns the type of the value with the given ID.
+    pub(crate) fn get_value_type(&self, id: &str) -> Option<ValueType> {
+        let value_ref = self.get_value(id)?;
+
+        match value_ref {
+            ValueRef::Value { id } => self.values.get(&id).cloned(),
+            ValueRef::Array(values) => {
+                let elem_tys = values
+                    .iter()
+                    .map(|id| self.values.get(id).cloned())
+                    .collect::<Option<Vec<_>>>()?;
+
+                // Ensure that all the elements have the same type.
+                if elem_tys.windows(2).any(|window| window[0] != window[1]) {
+                    return None;
+                }
+
+                Some(ValueType::Array(
+                    Box::new(elem_tys[0].clone()),
+                    values.len(),
+                ))
+            }
+        }
+    }
 }
 
 /// A unique ID for an encoding.

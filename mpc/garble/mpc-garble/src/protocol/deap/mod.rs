@@ -641,6 +641,10 @@ impl Memory for DEAP {
     fn get_value(&self, id: &str) -> Option<ValueRef> {
         self.state().value_registry.get_value(id)
     }
+
+    fn get_value_type(&self, id: &str) -> Option<ValueType> {
+        self.state().value_registry.get_value_type(id)
+    }
 }
 
 #[cfg(test)]

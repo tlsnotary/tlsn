@@ -201,6 +201,9 @@ pub trait Memory {
 
     /// Returns a value if it exists.
     fn get_value(&self, id: &str) -> Option<ValueRef>;
+
+    /// Returns the type of a value if it exists.
+    fn get_value_type(&self, id: &str) -> Option<ValueType>;
 }
 
 /// This trait provides methods for executing a circuit.
