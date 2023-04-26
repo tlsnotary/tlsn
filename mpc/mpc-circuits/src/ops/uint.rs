@@ -1,7 +1,7 @@
 use std::ops::{BitAnd, BitOr, BitXor, Not, Shl, Shr};
 
 use crate::{
-    types::{U128, U16, U32, U64, U8},
+    types::{BinaryRepr, U128, U16, U32, U64, U8},
     Tracer,
 };
 
@@ -108,6 +108,52 @@ impl_wrapping_sub_uint!(U16, u16, 16);
 impl_wrapping_sub_uint!(U32, u32, 32);
 impl_wrapping_sub_uint!(U64, u64, 64);
 impl_wrapping_sub_uint!(U128, u128, 128);
+
+impl<'a> BitXor for Tracer<'a, BinaryRepr> {
+    type Output = Tracer<'a, BinaryRepr>;
+
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        match (self.value, rhs.value) {
+            (BinaryRepr::Bit(a), BinaryRepr::Bit(b)) => {
+                let c = Tracer::new(self.state, a) ^ Tracer::new(self.state, b);
+                Tracer::new(self.state, c.into())
+            }
+            (BinaryRepr::U8(a), BinaryRepr::U8(b)) => {
+                let c = Tracer::new(self.state, a) ^ Tracer::new(self.state, b);
+                Tracer::new(self.state, c.into())
+            }
+            (BinaryRepr::U16(a), BinaryRepr::U16(b)) => {
+                let c = Tracer::new(self.state, a) ^ Tracer::new(self.state, b);
+                Tracer::new(self.state, c.into())
+            }
+            (BinaryRepr::U32(a), BinaryRepr::U32(b)) => {
+                let c = Tracer::new(self.state, a) ^ Tracer::new(self.state, b);
+                Tracer::new(self.state, c.into())
+            }
+            (BinaryRepr::U64(a), BinaryRepr::U64(b)) => {
+                let c = Tracer::new(self.state, a) ^ Tracer::new(self.state, b);
+                Tracer::new(self.state, c.into())
+            }
+            (BinaryRepr::U128(a), BinaryRepr::U128(b)) => {
+                let c = Tracer::new(self.state, a) ^ Tracer::new(self.state, b);
+                Tracer::new(self.state, c.into())
+            }
+            (BinaryRepr::Array(a), BinaryRepr::Array(b)) => Tracer::new(
+                self.state,
+                BinaryRepr::Array(
+                    a.into_iter()
+                        .zip(b.into_iter())
+                        .map(|(a, b)| {
+                            let c = Tracer::new(self.state, a) ^ Tracer::new(self.state, b);
+                            c.value
+                        })
+                        .collect(),
+                ),
+            ),
+            (a, b) => panic!("types {:?} and {:?} are not compatible", a, b),
+        }
+    }
+}
 
 macro_rules! impl_bitxor_uint {
     ($ty:ident, $const_ty:ident, $len:expr) => {

@@ -8,7 +8,7 @@ use crate::{builder::BuilderState, types::BinaryRepr};
 /// is used to build a circuit via a [`CircuitBuilder`](crate::CircuitBuilder).
 #[derive(Clone, Copy)]
 pub struct Tracer<'a, T> {
-    value: T,
+    pub(crate) value: T,
     pub(crate) state: &'a RefCell<BuilderState>,
 }
 
