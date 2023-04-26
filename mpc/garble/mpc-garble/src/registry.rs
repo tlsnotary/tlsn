@@ -166,7 +166,7 @@ impl ValueRegistry {
 
     pub(crate) fn get_value_type_with_ref(&self, value: &ValueRef) -> Option<ValueType> {
         match value {
-            ValueRef::Value { id } => self.values.get(&id).cloned(),
+            ValueRef::Value { id } => self.values.get(id).cloned(),
             ValueRef::Array(values) => {
                 let elem_tys = values
                     .iter()

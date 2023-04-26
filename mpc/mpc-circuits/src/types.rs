@@ -636,13 +636,33 @@ impl BitXor for Value {
     type Output = Result<Value, TypeError>;
 
     fn bitxor(self, rhs: Self) -> Self::Output {
-        if self.value_type() != rhs.value_type() {
-            return Err(TypeError::UnexpectedType {
-                expected: self.value_type(),
-                actual: rhs.value_type(),
-            });
-        }
+        Ok(match (&self, &rhs) {
+            (Value::Bit(a), Value::Bit(b)) => Value::Bit(a ^ b),
+            (Value::U8(a), Value::U8(b)) => Value::U8(a ^ b),
+            (Value::U16(a), Value::U16(b)) => Value::U16(a ^ b),
+            (Value::U32(a), Value::U32(b)) => Value::U32(a ^ b),
+            (Value::U64(a), Value::U64(b)) => Value::U64(a ^ b),
+            (Value::U128(a), Value::U128(b)) => Value::U128(a ^ b),
+            (Value::Array(a), Value::Array(b)) => Value::Array(
+                a.into_iter()
+                    .zip(b.into_iter())
+                    .map(|(a, b)| a ^ b)
+                    .collect::<Result<Vec<_>, _>>()?,
+            ),
+            _ => {
+                return Err(TypeError::UnexpectedType {
+                    expected: self.value_type(),
+                    actual: rhs.value_type(),
+                })
+            }
+        })
+    }
+}
 
+impl BitXor<&Value> for &Value {
+    type Output = Result<Value, TypeError>;
+
+    fn bitxor(self, rhs: &Value) -> Self::Output {
         Ok(match (self, rhs) {
             (Value::Bit(a), Value::Bit(b)) => Value::Bit(a ^ b),
             (Value::U8(a), Value::U8(b)) => Value::U8(a ^ b),
@@ -656,7 +676,66 @@ impl BitXor for Value {
                     .map(|(a, b)| a ^ b)
                     .collect::<Result<Vec<_>, _>>()?,
             ),
-            _ => unreachable!(),
+            _ => {
+                return Err(TypeError::UnexpectedType {
+                    expected: self.value_type(),
+                    actual: rhs.value_type(),
+                })
+            }
+        })
+    }
+}
+
+impl BitXor<&Value> for Value {
+    type Output = Result<Value, TypeError>;
+
+    fn bitxor(self, rhs: &Value) -> Self::Output {
+        Ok(match (&self, rhs) {
+            (Value::Bit(a), Value::Bit(b)) => Value::Bit(a ^ b),
+            (Value::U8(a), Value::U8(b)) => Value::U8(a ^ b),
+            (Value::U16(a), Value::U16(b)) => Value::U16(a ^ b),
+            (Value::U32(a), Value::U32(b)) => Value::U32(a ^ b),
+            (Value::U64(a), Value::U64(b)) => Value::U64(a ^ b),
+            (Value::U128(a), Value::U128(b)) => Value::U128(a ^ b),
+            (Value::Array(a), Value::Array(b)) => Value::Array(
+                a.into_iter()
+                    .zip(b.into_iter())
+                    .map(|(a, b)| a ^ b)
+                    .collect::<Result<Vec<_>, _>>()?,
+            ),
+            _ => {
+                return Err(TypeError::UnexpectedType {
+                    expected: self.value_type(),
+                    actual: rhs.value_type(),
+                })
+            }
+        })
+    }
+}
+
+impl BitXor<Value> for &Value {
+    type Output = Result<Value, TypeError>;
+
+    fn bitxor(self, rhs: Value) -> Self::Output {
+        Ok(match (self, &rhs) {
+            (Value::Bit(a), Value::Bit(b)) => Value::Bit(a ^ b),
+            (Value::U8(a), Value::U8(b)) => Value::U8(a ^ b),
+            (Value::U16(a), Value::U16(b)) => Value::U16(a ^ b),
+            (Value::U32(a), Value::U32(b)) => Value::U32(a ^ b),
+            (Value::U64(a), Value::U64(b)) => Value::U64(a ^ b),
+            (Value::U128(a), Value::U128(b)) => Value::U128(a ^ b),
+            (Value::Array(a), Value::Array(b)) => Value::Array(
+                a.into_iter()
+                    .zip(b.into_iter())
+                    .map(|(a, b)| a ^ b)
+                    .collect::<Result<Vec<_>, _>>()?,
+            ),
+            _ => {
+                return Err(TypeError::UnexpectedType {
+                    expected: self.value_type(),
+                    actual: rhs.value_type(),
+                })
+            }
         })
     }
 }
