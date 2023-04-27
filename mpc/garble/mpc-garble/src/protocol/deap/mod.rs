@@ -348,7 +348,7 @@ impl DEAP {
     /// * `values` - The values to decode
     /// * `sink` - The sink to send messages to.
     /// * `stream` - The stream to receive messages from.
-    pub(crate) async fn decode<T, U>(
+    pub async fn decode<T, U>(
         &self,
         id: &str,
         values: &[ValueRef],
