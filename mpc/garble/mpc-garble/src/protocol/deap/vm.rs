@@ -115,8 +115,6 @@ where
     async fn new_thread(&mut self, id: &str) -> Result<DEAPThread<OTS, OTR>, VmError> {
         if self.finalized {
             return Err(VmError::Shutdown);
-        } else {
-            self.finalized = true;
         }
 
         let thread_id = self.id.append_string(id);
