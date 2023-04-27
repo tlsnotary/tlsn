@@ -20,12 +20,22 @@ pub enum DEAPError {
     ValueError(#[from] ValueError),
     #[error("missing encoding for value: {0:?}")]
     MissingEncoding(ValueRef),
+    #[error(transparent)]
+    FinalizationError(#[from] FinalizationError),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum FinalizationError {
+    #[error("DEAP instance already finalized")]
+    AlreadyFinalized,
+    #[error(transparent)]
+    CommitmentError(#[from] mpc_core::commit::CommitmentError),
+    #[error("invalid encoder seed")]
+    InvalidEncoderSeed,
     #[error("invalid equality check")]
     InvalidEqualityCheck,
     #[error("invalid proof")]
     InvalidProof,
-    #[error("DEAP instance already finalized")]
-    AlreadyFinalized,
 }
 
 impl From<DEAPError> for ExecutionError {

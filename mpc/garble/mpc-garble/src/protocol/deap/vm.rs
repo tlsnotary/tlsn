@@ -24,7 +24,7 @@ use crate::{
     ValueRef, Verify, VerifyError, Vm, VmError,
 };
 
-use super::{DEAPError, DEAP};
+use super::{error::FinalizationError, DEAPError, DEAP};
 
 type ChannelFactory = Box<dyn MuxChannelControl<GarbleMessage> + Send + 'static>;
 type GarbleChannel = Box<dyn Channel<GarbleMessage, Error = std::io::Error>>;
@@ -89,7 +89,7 @@ where
     /// Finalizes the DEAP instance.
     pub async fn finalize(&mut self) -> Result<(), DEAPError> {
         if self.finalized {
-            return Err(DEAPError::AlreadyFinalized);
+            return Err(FinalizationError::AlreadyFinalized)?;
         } else {
             self.finalized = true;
         }
@@ -113,6 +113,12 @@ where
     type Thread = DEAPThread<OTS, OTR>;
 
     async fn new_thread(&mut self, id: &str) -> Result<DEAPThread<OTS, OTR>, VmError> {
+        if self.finalized {
+            return Err(VmError::Shutdown);
+        } else {
+            self.finalized = true;
+        }
+
         let thread_id = self.id.append(id);
 
         if self.threads.contains(&thread_id) {
@@ -122,8 +128,7 @@ where
         let channel = self
             .channel_factory
             .get_channel(thread_id.to_string())
-            .await
-            .unwrap();
+            .await?;
 
         Ok(DEAPThread::new(
             thread_id,
@@ -146,6 +151,7 @@ pub struct DEAPThread<OTS, OTR> {
     op_id: NestedId,
     /// Reference to the DEAP instance.
     deap: Weak<DEAP>,
+    /// OT sender.
     ot_send: Arc<OTS>,
     /// OT receiver.
     ot_recv: Arc<OTR>,
@@ -314,7 +320,7 @@ where
         outputs: &[ValueRef],
     ) -> Result<(), ProveError> {
         self.deap()
-            .prove(
+            .defer_prove(
                 &self.op_id.increment_in_place().to_string(),
                 circ,
                 inputs,
@@ -342,7 +348,7 @@ where
         expected_outputs: &[Value],
     ) -> Result<(), VerifyError> {
         self.deap()
-            .verify(
+            .defer_verify(
                 &self.op_id.increment_in_place().to_string(),
                 circ,
                 inputs,

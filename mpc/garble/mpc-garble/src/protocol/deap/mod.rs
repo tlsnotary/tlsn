@@ -1,4 +1,6 @@
 //! An implementation of the Dual-execution with Asymmetric Privacy (DEAP) protocol.
+//!
+//! For more information, see the [DEAP specification](https://docs.tlsnotary.org/protocol/2pc/deap.html).
 
 mod error;
 pub mod mock;
@@ -33,6 +35,8 @@ use crate::{
 
 pub use error::DEAPError;
 pub use vm::{DEAPThread, DEAPVm};
+
+use self::error::FinalizationError;
 
 /// The DEAP protocol.
 #[derive(Debug, Default)]
@@ -101,8 +105,20 @@ impl DEAP {
         self.state.lock().unwrap()
     }
 
+    /// Executes a circuit.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - The ID of the circuit.
+    /// * `circ` - The circuit to execute.
+    /// * `inputs` - The inputs to the circuit.
+    /// * `outputs` - The outputs to the circuit.
+    /// * `sink` - The sink to send messages to.
+    /// * `stream` - The stream to receive messages from.
+    /// * `ot_send` - The OT sender.
+    /// * `ot_recv` - The OT receiver.
     #[allow(clippy::too_many_arguments)]
-    pub(crate) async fn execute<T, U, OTS, OTR>(
+    pub async fn execute<T, U, OTS, OTR>(
         &self,
         id: &str,
         circ: Arc<Circuit>,
@@ -152,8 +168,27 @@ impl DEAP {
         Ok(())
     }
 
+    /// Proves the output of a circuit to the other party.
+    ///
+    /// # Notes
+    ///
+    /// This function can only be called by the leader.
+    ///
+    /// This function does _not_ prove the output right away,
+    /// instead the proof is committed to and decommitted later during
+    /// the call to [`finalize`](Self::finalize).
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - The ID of the circuit.
+    /// * `circ` - The circuit to execute.
+    /// * `inputs` - The inputs to the circuit.
+    /// * `outputs` - The outputs to the circuit.
+    /// * `sink` - The sink to send messages to.
+    /// * `stream` - The stream to receive messages from.
+    /// * `ot_recv` - The OT receiver.
     #[allow(clippy::too_many_arguments)]
-    pub(crate) async fn prove<T, U, OTR>(
+    pub async fn defer_prove<T, U, OTR>(
         &self,
         id: &str,
         circ: Arc<Circuit>,
@@ -183,6 +218,8 @@ impl DEAP {
                 .collect::<Vec<_>>()
         };
 
+        // The prover only acts as the evaluator for ZKPs instead of
+        // dual-execution.
         self.ev
             .setup_inputs(id, &input_configs, stream, ot_recv)
             .map_err(DEAPError::from)
@@ -207,8 +244,28 @@ impl DEAP {
         Ok(())
     }
 
+    /// Verifies the output of a circuit.
+    ///
+    /// # Notes
+    ///
+    /// This function can only be called by the follower.
+    ///
+    /// This function does _not_ verify the output right away,
+    /// instead the leader commits to the proof and later it is checked
+    /// during the call to [`finalize`](Self::finalize).
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - The ID of the circuit.
+    /// * `circ` - The circuit to execute.
+    /// * `inputs` - The inputs to the circuit.
+    /// * `outputs` - The outputs to the circuit.
+    /// * `expected_outputs` - The expected outputs of the circuit.
+    /// * `sink` - The sink to send messages to.
+    /// * `stream` - The stream to receive messages from.
+    /// * `ot_send` - The OT sender.
     #[allow(clippy::too_many_arguments)]
-    pub(crate) async fn verify<T, U, OTS>(
+    pub async fn defer_verify<T, U, OTS>(
         &self,
         id: &str,
         circ: Arc<Circuit>,
@@ -239,6 +296,8 @@ impl DEAP {
                 .collect::<Vec<_>>()
         };
 
+        // The verifier only acts as the generator for ZKPs instead of
+        // dual-execution.
         self.gen
             .setup_inputs(id, &input_configs, sink, ot_send)
             .map_err(DEAPError::from)
@@ -264,6 +323,7 @@ impl DEAP {
             DEAPError::UnexpectedMessage
         )?;
 
+        // Store commitment to proof until finalization
         self.state()
             .proof_commitments
             .insert(id.to_string(), (expected_digest, commitment));
@@ -271,6 +331,22 @@ impl DEAP {
         Ok(())
     }
 
+    /// Decodes the provided values, revealing the plaintext value to both parties.
+    ///
+    /// # Notes
+    ///
+    /// The dual-execution equality check is deferred until [`finalize`](Self::finalize).
+    ///
+    /// For the leader, the authenticity of the decoded values is guaranteed. Conversely,
+    /// the follower can not be sure that the values are authentic until the equality check
+    /// is performed later during [`finalize`](Self::finalize).
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - The ID of the operation
+    /// * `values` - The values to decode
+    /// * `sink` - The sink to send messages to.
+    /// * `stream` - The stream to receive messages from.
     pub(crate) async fn decode<T, U>(
         &self,
         id: &str,
@@ -368,7 +444,17 @@ impl DEAP {
 
     /// Finalize the DEAP instance.
     ///
-    /// This function will reveal all private inputs of the follower
+    /// # Notes
+    ///
+    /// **This function will reveal all private inputs of the follower.**
+    ///
+    /// The follower reveals all his secrets to the leader, who can then verify
+    /// that all oblivious transfers, circuit garbling, and value decoding was
+    /// performed correctly.
+    ///
+    /// After the leader has verified everything, they decommit to all equality checks
+    /// and ZK proofs from the session. The follower then verifies the decommitments
+    /// and that all the equality checks and proofs were performed as expected.
     ///
     /// # Arguments
     ///
@@ -385,7 +471,7 @@ impl DEAP {
         ot: &OT,
     ) -> Result<(), DEAPError> {
         if self.finalized {
-            return Err(DEAPError::AlreadyFinalized);
+            return Err(FinalizationError::AlreadyFinalized)?;
         } else {
             self.finalized = true;
         }
@@ -421,7 +507,9 @@ impl DEAP {
                     DEAPError::UnexpectedMessage
                 )?;
 
-                let encoder_seed: [u8; 32] = encoder_seed.try_into().unwrap();
+                let encoder_seed: [u8; 32] = encoder_seed
+                    .try_into()
+                    .map_err(|_| FinalizationError::InvalidEncoderSeed)?;
 
                 // Verify all oblivious transfers, garbled circuits and decodings
                 // sent by the follower.
@@ -471,9 +559,9 @@ impl DEAP {
                 {
                     decommitment
                         .verify(commitment)
-                        .map_err(|_| DEAPError::InvalidEqualityCheck)?;
+                        .map_err(FinalizationError::from)?;
                     if decommitment.data() != expected_check {
-                        return Err(DEAPError::InvalidEqualityCheck);
+                        return Err(FinalizationError::InvalidEqualityCheck)?;
                     }
                 }
 
@@ -483,9 +571,9 @@ impl DEAP {
                 {
                     decommitment
                         .verify(commitment)
-                        .map_err(|_| DEAPError::InvalidProof)?;
+                        .map_err(FinalizationError::from)?;
                     if decommitment.data() != expected_digest {
-                        return Err(DEAPError::InvalidProof);
+                        return Err(FinalizationError::InvalidProof)?;
                     }
                 }
             }
@@ -788,7 +876,7 @@ mod tests {
 
             async move {
                 leader
-                    .prove(
+                    .defer_prove(
                         "test",
                         AES128.clone(),
                         &[key_ref, msg_ref],
@@ -817,7 +905,7 @@ mod tests {
 
             async move {
                 follower
-                    .verify(
+                    .defer_verify(
                         "test",
                         AES128.clone(),
                         &[key_ref, msg_ref],
