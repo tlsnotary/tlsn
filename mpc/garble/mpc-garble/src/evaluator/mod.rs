@@ -278,7 +278,8 @@ impl Evaluator {
     /// # Arguments
     ///
     /// * `circ` - The circuit to evaluate
-    /// * `inputs` - The inputs to use for the evaluation
+    /// * `inputs` - The inputs to the circuit.
+    /// * `outputs` - The outputs from the circuit.
     /// * `stream` - The stream of encrypted gates
     pub async fn evaluate<S: Stream<Item = GarbleMessage> + Unpin>(
         &self,
@@ -420,7 +421,7 @@ impl Evaluator {
         Ok(decoded_values)
     }
 
-    /// Verifies the all the evaluator state using the generator's encoder seed and the OT verifier.
+    /// Verifies all the evaluator state using the generator's encoder seed and the OT verifier.
     ///
     /// # Arguments
     ///
