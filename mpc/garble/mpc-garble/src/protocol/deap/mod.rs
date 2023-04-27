@@ -203,7 +203,7 @@ impl DEAP {
         U: Stream<Item = GarbleMessage> + Unpin,
         OTR: OTReceiveEncoding,
     {
-        if let Role::Follower = self.role {
+        if matches!(self.role, Role::Follower) {
             return Err(DEAPError::RoleError(
                 "DEAP follower can not act as the prover".to_string(),
             ))?;
@@ -281,7 +281,7 @@ impl DEAP {
         U: Stream<Item = GarbleMessage> + Unpin,
         OTS: OTSendEncoding,
     {
-        if let Role::Leader = self.role {
+        if matches!(self.role, Role::Leader) {
             return Err(DEAPError::RoleError(
                 "DEAP leader can not act as the verifier".to_string(),
             ))?;
