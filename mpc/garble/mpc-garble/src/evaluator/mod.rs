@@ -87,7 +87,7 @@ impl Evaluator {
     /// # Errors
     ///
     /// Returns an error if the value has already been decoded.
-    pub fn set_decoded(&self, value: &ValueRef) -> Result<(), EvaluatorError> {
+    pub(crate) fn set_decoded(&self, value: &ValueRef) -> Result<(), EvaluatorError> {
         let mut state = self.state();
         // Check that none of the values in this reference have already been decoded.
         // We track every individual value of an array separately to ensure that a decoding
