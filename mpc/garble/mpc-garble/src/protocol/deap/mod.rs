@@ -39,7 +39,7 @@ pub use vm::{DEAPThread, DEAPVm};
 use self::error::FinalizationError;
 
 /// The DEAP protocol.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct DEAP {
     role: Role,
     gen: Generator,
@@ -97,7 +97,8 @@ impl DEAP {
             role,
             gen,
             ev,
-            ..Default::default()
+            state: Mutex::new(State::default()),
+            finalized: false,
         }
     }
 

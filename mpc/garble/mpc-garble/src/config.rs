@@ -5,10 +5,9 @@ use mpc_circuits::types::{StaticValueType, Value, ValueType};
 use crate::{ValueId, ValueRef};
 
 /// Role in 2PC.
-#[derive(Debug, Default, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[allow(missing_docs)]
 pub enum Role {
-    #[default]
     Leader,
     Follower,
 }
