@@ -121,9 +121,11 @@ impl ValueRegistry {
         }
 
         // Ensure that the value is not already defined.
-        if self.values.insert(id.clone(), ty).is_some() {
+        if self.values.contains_key(&id) {
             return Err(MemoryError::DuplicateValueId(id));
         }
+
+        self.values.insert(id, ty);
 
         Ok(())
     }
