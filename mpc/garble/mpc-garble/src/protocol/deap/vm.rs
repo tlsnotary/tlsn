@@ -119,7 +119,7 @@ where
             self.finalized = true;
         }
 
-        let thread_id = self.id.append(id);
+        let thread_id = self.id.append_string(id);
 
         if self.threads.contains(&thread_id) {
             return Err(VmError::ThreadAlreadyExists(thread_id.to_string()));

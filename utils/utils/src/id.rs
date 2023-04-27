@@ -60,7 +60,7 @@ impl NestedId {
     }
 
     /// Creates a new ID with `self` as the root.
-    pub fn append(&self, id: &str) -> NestedId {
+    pub fn append_string(&self, id: &str) -> NestedId {
         Self::String {
             id: id.to_string(),
             root: Some(Arc::new(self.clone())),
@@ -134,12 +134,12 @@ mod tests {
         assert_eq!(id.to_string(), "foo");
         assert_eq!(id.root(), None);
 
-        let id = id.append("bar");
+        let id = id.append_string("bar");
         assert_eq!(id.to_string(), "foo/bar");
         assert_eq!(id.root().unwrap().to_string(), "foo");
         assert!(id.is_string());
 
-        let id = id.append("baz");
+        let id = id.append_string("baz");
         assert_eq!(id.to_string(), "foo/bar/baz");
         assert_eq!(id.root().unwrap().to_string(), "foo/bar");
         assert!(id.is_string());
