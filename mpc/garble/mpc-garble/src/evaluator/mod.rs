@@ -18,6 +18,7 @@ use mpc_core::hash::Hash;
 use mpc_garble_core::{
     encoding_state, msg::GarbleMessage, Decoding, EncodedValue, Evaluator as EvaluatorCore,
 };
+use utils::iter::FilterDrain;
 use utils_aio::{
     expect_msg_or_err,
     non_blocking_backend::{Backend, NonBlockingBackend},
@@ -468,23 +469,15 @@ impl Evaluator {
             // drain_filter is not stabilized.. such is life.
             // here we drain out log batches for which we have all the input encodings
             // computed at this point.
-            let log_batch = {
-                let mut state = self.state();
-                let mut i = 0;
-                let mut batch = Vec::new();
-                while i < state.circuit_logs.len() {
-                    if state.circuit_logs[i]
-                        .inputs
+            let log_batch = self
+                .state()
+                .circuit_logs
+                .filter_drain(|log| {
+                    log.inputs
                         .iter()
                         .all(|input| gen.get_encoding(input).is_some())
-                    {
-                        batch.push(state.circuit_logs.swap_remove(i));
-                    } else {
-                        i += 1;
-                    }
-                }
-                batch
-            };
+                })
+                .collect::<Vec<_>>();
 
             let mut batch_futs: FuturesUnordered<_> = log_batch
                 .iter()
