@@ -43,7 +43,7 @@ impl NestedId {
             NestedId::Counter { root, .. } => root,
         }
         .as_ref()
-        .map(|id| &**id)
+        .map(|id| id.as_ref())
     }
 
     /// Returns whether this ID is a counter ID.
