@@ -67,6 +67,25 @@ struct State {
     proof_commitments: HashMap<String, (Hash, Hash)>,
 }
 
+impl State {
+    /// Adds input configs to the buffer.
+    fn add_input_config(&mut self, value: &ValueRef, config: ValueConfig) {
+        value
+            .iter()
+            .zip(config.flatten())
+            .for_each(|(id, config)| _ = self.input_buffer.insert(id.clone(), config));
+    }
+
+    /// Returns input configs from the buffer.
+    fn remove_input_configs(&mut self, values: &[ValueRef]) -> Vec<ValueIdConfig> {
+        values
+            .iter()
+            .flat_map(|value| value.iter())
+            .filter_map(|id| self.input_buffer.remove(id))
+            .collect::<Vec<_>>()
+    }
+}
+
 impl DEAP {
     /// Creates a new DEAP protocol instance.
     pub fn new(role: Role, encoder_seed: [u8; 32]) -> Self {
@@ -80,7 +99,6 @@ impl DEAP {
                 // Logs evaluated circuits and decodings.
                 ev_config_builder.log_circuits().log_decodings();
             }
-
             Role::Follower => {
                 // Expects commitments to output encodings.
                 ev_config_builder.encoding_commitments();
@@ -136,14 +154,7 @@ impl DEAP {
         OTS: OTSendEncoding,
         OTR: OTReceiveEncoding,
     {
-        let input_configs = {
-            let mut state = self.state();
-            inputs
-                .iter()
-                .flat_map(|input| input.iter())
-                .filter_map(|input| state.input_buffer.remove(input))
-                .collect::<Vec<_>>()
-        };
+        let input_configs = self.state().remove_input_configs(inputs);
 
         // Setup inputs concurrently.
         futures::try_join!(
@@ -210,14 +221,7 @@ impl DEAP {
             ))?;
         }
 
-        let input_configs = {
-            let mut state = self.state();
-            inputs
-                .iter()
-                .flat_map(|input| input.iter())
-                .filter_map(|input| state.input_buffer.remove(input))
-                .collect::<Vec<_>>()
-        };
+        let input_configs = self.state().remove_input_configs(inputs);
 
         // The prover only acts as the evaluator for ZKPs instead of
         // dual-execution.
@@ -288,14 +292,7 @@ impl DEAP {
             ))?;
         }
 
-        let input_configs = {
-            let mut state = self.state();
-            inputs
-                .iter()
-                .flat_map(|input| input.iter())
-                .filter_map(|input| state.input_buffer.remove(input))
-                .collect::<Vec<_>>()
-        };
+        let input_configs = self.state().remove_input_configs(inputs);
 
         // The verifier only acts as the generator for ZKPs instead of
         // dual-execution.
@@ -594,13 +591,11 @@ impl Memory for DEAP {
 
         let ty = T::value_type();
         let value_ref = state.value_registry.add_value(id, ty)?;
-        let config =
-            ValueConfig::new_public::<T>(value_ref.clone(), value).expect("config is valid");
 
-        value_ref
-            .iter()
-            .zip(config.flatten())
-            .for_each(|(id, config)| _ = state.input_buffer.insert(id.clone(), config));
+        state.add_input_config(
+            &value_ref,
+            ValueConfig::new_public::<T>(value_ref.clone(), value).expect("config is valid"),
+        );
 
         Ok(value_ref)
     }
@@ -618,13 +613,11 @@ impl Memory for DEAP {
         let value: Value = value.into();
         let ty = value.value_type();
         let value_ref = state.value_registry.add_value(id, ty)?;
-        let config =
-            ValueConfig::new_public::<T>(value_ref.clone(), value).expect("config is valid");
 
-        value_ref
-            .iter()
-            .zip(config.flatten())
-            .for_each(|(id, config)| _ = state.input_buffer.insert(id.clone(), config));
+        state.add_input_config(
+            &value_ref,
+            ValueConfig::new_public::<T>(value_ref.clone(), value).expect("config is valid"),
+        );
 
         Ok(value_ref)
     }
@@ -634,13 +627,12 @@ impl Memory for DEAP {
 
         let ty = value.value_type();
         let value_ref = state.value_registry.add_value(id, ty.clone())?;
-        let config = ValueConfig::new(value_ref.clone(), ty, Some(value), Visibility::Public)
-            .expect("config is valid");
 
-        value_ref
-            .iter()
-            .zip(config.flatten())
-            .for_each(|(id, config)| _ = state.input_buffer.insert(id.clone(), config));
+        state.add_input_config(
+            &value_ref,
+            ValueConfig::new(value_ref.clone(), ty, Some(value), Visibility::Public)
+                .expect("config is valid"),
+        );
 
         Ok(value_ref)
     }
@@ -654,13 +646,11 @@ impl Memory for DEAP {
 
         let ty = T::value_type();
         let value_ref = state.value_registry.add_value(id, ty)?;
-        let config =
-            ValueConfig::new_private::<T>(value_ref.clone(), value).expect("config is valid");
 
-        value_ref
-            .iter()
-            .zip(config.flatten())
-            .for_each(|(id, config)| _ = state.input_buffer.insert(id.clone(), config));
+        state.add_input_config(
+            &value_ref,
+            ValueConfig::new_private::<T>(value_ref.clone(), value).expect("config is valid"),
+        );
 
         Ok(value_ref)
     }
@@ -678,13 +668,12 @@ impl Memory for DEAP {
 
         let ty = ValueType::new_array::<T>(len);
         let value_ref = state.value_registry.add_value(id, ty)?;
-        let config = ValueConfig::new_private_array::<T>(value_ref.clone(), value, len)
-            .expect("config is valid");
 
-        value_ref
-            .iter()
-            .zip(config.flatten())
-            .for_each(|(id, config)| _ = state.input_buffer.insert(id.clone(), config));
+        state.add_input_config(
+            &value_ref,
+            ValueConfig::new_private_array::<T>(value_ref.clone(), value, len)
+                .expect("config is valid"),
+        );
 
         Ok(value_ref)
     }
@@ -707,13 +696,12 @@ impl Memory for DEAP {
         let mut state = self.state();
 
         let value_ref = state.value_registry.add_value(id, ty.clone())?;
-        let config = ValueConfig::new(value_ref.clone(), ty.clone(), value, Visibility::Private)
-            .expect("config is valid");
 
-        value_ref
-            .iter()
-            .zip(config.flatten())
-            .for_each(|(id, config)| _ = state.input_buffer.insert(id.clone(), config));
+        state.add_input_config(
+            &value_ref,
+            ValueConfig::new(value_ref.clone(), ty.clone(), value, Visibility::Private)
+                .expect("config is valid"),
+        );
 
         Ok(value_ref)
     }
