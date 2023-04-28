@@ -3,6 +3,7 @@
 //! For more information, see the [DEAP specification](https://docs.tlsnotary.org/protocol/2pc/deap.html).
 
 mod error;
+mod memory;
 pub mod mock;
 mod vm;
 
@@ -13,10 +14,7 @@ use std::{
 };
 
 use futures::{Sink, SinkExt, Stream, StreamExt, TryFutureExt};
-use mpc_circuits::{
-    types::{StaticValueType, TypeError, Value, ValueType},
-    Circuit,
-};
+use mpc_circuits::{types::Value, Circuit};
 use mpc_core::{
     commit::{Decommitment, HashCommit},
     hash::{Hash, SecureHash},
@@ -25,12 +23,12 @@ use mpc_garble_core::{msg::GarbleMessage, EqualityCheck};
 use utils_aio::expect_msg_or_err;
 
 use crate::{
-    config::{Role, ValueConfig, ValueIdConfig, Visibility},
+    config::{Role, ValueConfig, ValueIdConfig},
     evaluator::{Evaluator, EvaluatorConfigBuilder},
     generator::{Generator, GeneratorConfigBuilder},
     ot::{OTReceiveEncoding, OTSendEncoding, OTVerifyEncoding},
     registry::ValueRegistry,
-    Memory, MemoryError, ValueId, ValueRef,
+    ValueId, ValueRef,
 };
 
 pub use error::DEAPError;
@@ -65,25 +63,6 @@ struct State {
     proof_decommitments: HashMap<String, Decommitment<Hash>>,
     /// Proof commitments from the leader
     proof_commitments: HashMap<String, (Hash, Hash)>,
-}
-
-impl State {
-    /// Adds input configs to the buffer.
-    fn add_input_config(&mut self, value: &ValueRef, config: ValueConfig) {
-        value
-            .iter()
-            .zip(config.flatten())
-            .for_each(|(id, config)| _ = self.input_buffer.insert(id.clone(), config));
-    }
-
-    /// Returns input configs from the buffer.
-    fn remove_input_configs(&mut self, values: &[ValueRef]) -> Vec<ValueIdConfig> {
-        values
-            .iter()
-            .flat_map(|value| value.iter())
-            .filter_map(|id| self.input_buffer.remove(id))
-            .collect::<Vec<_>>()
-    }
 }
 
 impl DEAP {
@@ -581,170 +560,22 @@ impl DEAP {
     }
 }
 
-impl Memory for DEAP {
-    fn new_public_input<T: StaticValueType>(
-        &self,
-        id: &str,
-        value: T,
-    ) -> Result<ValueRef, crate::MemoryError> {
-        let mut state = self.state();
-
-        let ty = T::value_type();
-        let value_ref = state.value_registry.add_value(id, ty)?;
-
-        state.add_input_config(
-            &value_ref,
-            ValueConfig::new_public::<T>(value_ref.clone(), value).expect("config is valid"),
-        );
-
-        Ok(value_ref)
+impl State {
+    /// Adds input configs to the buffer.
+    fn add_input_config(&mut self, value: &ValueRef, config: ValueConfig) {
+        value
+            .iter()
+            .zip(config.flatten())
+            .for_each(|(id, config)| _ = self.input_buffer.insert(id.clone(), config));
     }
 
-    fn new_public_array_input<T: StaticValueType>(
-        &self,
-        id: &str,
-        value: Vec<T>,
-    ) -> Result<ValueRef, crate::MemoryError>
-    where
-        Vec<T>: Into<Value>,
-    {
-        let mut state = self.state();
-
-        let value: Value = value.into();
-        let ty = value.value_type();
-        let value_ref = state.value_registry.add_value(id, ty)?;
-
-        state.add_input_config(
-            &value_ref,
-            ValueConfig::new_public::<T>(value_ref.clone(), value).expect("config is valid"),
-        );
-
-        Ok(value_ref)
-    }
-
-    fn new_public_input_by_type(&self, id: &str, value: Value) -> Result<ValueRef, MemoryError> {
-        let mut state = self.state();
-
-        let ty = value.value_type();
-        let value_ref = state.value_registry.add_value(id, ty.clone())?;
-
-        state.add_input_config(
-            &value_ref,
-            ValueConfig::new(value_ref.clone(), ty, Some(value), Visibility::Public)
-                .expect("config is valid"),
-        );
-
-        Ok(value_ref)
-    }
-
-    fn new_private_input<T: StaticValueType>(
-        &self,
-        id: &str,
-        value: Option<T>,
-    ) -> Result<ValueRef, crate::MemoryError> {
-        let mut state = self.state();
-
-        let ty = T::value_type();
-        let value_ref = state.value_registry.add_value(id, ty)?;
-
-        state.add_input_config(
-            &value_ref,
-            ValueConfig::new_private::<T>(value_ref.clone(), value).expect("config is valid"),
-        );
-
-        Ok(value_ref)
-    }
-
-    fn new_private_array_input<T: StaticValueType>(
-        &self,
-        id: &str,
-        value: Option<Vec<T>>,
-        len: usize,
-    ) -> Result<ValueRef, crate::MemoryError>
-    where
-        Vec<T>: Into<Value>,
-    {
-        let mut state = self.state();
-
-        let ty = ValueType::new_array::<T>(len);
-        let value_ref = state.value_registry.add_value(id, ty)?;
-
-        state.add_input_config(
-            &value_ref,
-            ValueConfig::new_private_array::<T>(value_ref.clone(), value, len)
-                .expect("config is valid"),
-        );
-
-        Ok(value_ref)
-    }
-
-    fn new_private_input_by_type(
-        &self,
-        id: &str,
-        ty: &ValueType,
-        value: Option<Value>,
-    ) -> Result<ValueRef, MemoryError> {
-        if let Some(value) = &value {
-            if &value.value_type() != ty {
-                return Err(TypeError::UnexpectedType {
-                    expected: ty.clone(),
-                    actual: value.value_type(),
-                })?;
-            }
-        }
-
-        let mut state = self.state();
-
-        let value_ref = state.value_registry.add_value(id, ty.clone())?;
-
-        state.add_input_config(
-            &value_ref,
-            ValueConfig::new(value_ref.clone(), ty.clone(), value, Visibility::Private)
-                .expect("config is valid"),
-        );
-
-        Ok(value_ref)
-    }
-
-    fn new_output<T: StaticValueType>(&self, id: &str) -> Result<ValueRef, crate::MemoryError> {
-        let mut state = self.state();
-
-        let ty = T::value_type();
-        let value_ref = state.value_registry.add_value(id, ty)?;
-
-        Ok(value_ref)
-    }
-
-    fn new_array_output<T: StaticValueType>(
-        &self,
-        id: &str,
-        len: usize,
-    ) -> Result<ValueRef, crate::MemoryError>
-    where
-        Vec<T>: Into<Value>,
-    {
-        let mut state = self.state();
-
-        let ty = ValueType::new_array::<T>(len);
-        let value_ref = state.value_registry.add_value(id, ty)?;
-
-        Ok(value_ref)
-    }
-
-    fn new_output_by_type(&self, id: &str, ty: &ValueType) -> Result<ValueRef, MemoryError> {
-        let mut state = self.state();
-
-        let value_ref = state.value_registry.add_value(id, ty.clone())?;
-
-        Ok(value_ref)
-    }
-
-    fn get_value(&self, id: &str) -> Option<ValueRef> {
-        self.state().value_registry.get_value(id)
-    }
-
-    fn get_value_type(&self, id: &str) -> Option<ValueType> {
-        self.state().value_registry.get_value_type(id)
+    /// Returns input configs from the buffer.
+    fn remove_input_configs(&mut self, values: &[ValueRef]) -> Vec<ValueIdConfig> {
+        values
+            .iter()
+            .flat_map(|value| value.iter())
+            .filter_map(|id| self.input_buffer.remove(id))
+            .collect::<Vec<_>>()
     }
 }
 
@@ -753,6 +584,8 @@ mod tests {
     use mpc_circuits::circuits::AES128;
     use mpc_ot::mock::mock_ot_pair;
     use utils_aio::duplex::DuplexChannel;
+
+    use crate::Memory;
 
     use super::*;
 
