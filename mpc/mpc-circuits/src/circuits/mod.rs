@@ -111,7 +111,7 @@ pub fn sha256_compress_trace<'a>(
 ///
 /// `fn(state: [u32; 8], msg: [u8; msg_len]) -> [u32; 8]`
 #[cfg(feature = "sha2")]
-pub fn build_sha256(pos: usize, msg_len: usize) -> Arc<Circuit> {
+pub fn build_sha256(pos: usize, msg_len: usize) -> Circuit {
     let builder = CircuitBuilder::new();
     let mut state = builder.add_array_input::<u32, 8>();
     let mut msg = builder.add_vec_input::<u8>(msg_len);
@@ -148,7 +148,7 @@ pub fn build_sha256(pos: usize, msg_len: usize) -> Arc<Circuit> {
 
     builder.add_output(state);
 
-    Arc::new(builder.build().expect("circuit is valid"))
+    builder.build().expect("circuit is valid")
 }
 
 /// SHA-256 circuit trace.
