@@ -65,6 +65,19 @@ struct State {
     proof_commitments: HashMap<String, (Hash, Hash)>,
 }
 
+struct FinalizedState {
+    /// Equality check decommitments withheld by the leader
+    /// prior to finalization
+    eq_decommitments: Vec<(String, Decommitment<EqualityCheck>)>,
+    /// Equality check commitments from the leader
+    eq_commitments: Vec<(String, (EqualityCheck, Hash))>,
+    /// Proof decommitments withheld by the leader
+    /// prior to finalization
+    proof_decommitments: Vec<(String, Decommitment<Hash>)>,
+    /// Proof commitments from the leader
+    proof_commitments: Vec<(String, (Hash, Hash))>,
+}
+
 impl DEAP {
     /// Creates a new DEAP protocol instance.
     pub fn new(role: Role, encoder_seed: [u8; 32]) -> Self {
@@ -453,27 +466,12 @@ impl DEAP {
             self.finalized = true;
         }
 
-        // Drain the state
-        let (
-            mut eq_decommitments,
-            mut eq_commitments,
-            mut proof_decommitments,
-            mut proof_commitments,
-        ) = {
-            let mut state = self.state();
-            (
-                state.eq_decommitments.drain().collect::<Vec<_>>(),
-                state.eq_commitments.drain().collect::<Vec<_>>(),
-                state.proof_decommitments.drain().collect::<Vec<_>>(),
-                state.proof_commitments.drain().collect::<Vec<_>>(),
-            )
-        };
-
-        // Sort the decommitments and commitments by id
-        eq_decommitments.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
-        eq_commitments.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
-        proof_decommitments.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
-        proof_commitments.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+        let FinalizedState {
+            eq_commitments,
+            eq_decommitments,
+            proof_commitments,
+            proof_decommitments,
+        } = self.state().finalize_state();
 
         match self.role {
             Role::Leader => {
@@ -537,6 +535,7 @@ impl DEAP {
                     decommitment
                         .verify(commitment)
                         .map_err(FinalizationError::from)?;
+
                     if decommitment.data() != expected_check {
                         return Err(FinalizationError::InvalidEqualityCheck)?;
                     }
@@ -549,6 +548,7 @@ impl DEAP {
                     decommitment
                         .verify(commitment)
                         .map_err(FinalizationError::from)?;
+
                     if decommitment.data() != expected_digest {
                         return Err(FinalizationError::InvalidProof)?;
                     }
@@ -576,6 +576,36 @@ impl State {
             .flat_map(|value| value.iter())
             .filter_map(|id| self.input_buffer.remove(id))
             .collect::<Vec<_>>()
+    }
+
+    /// Drain the states to be finalized.
+    fn finalize_state(&mut self) -> FinalizedState {
+        let (
+            mut eq_decommitments,
+            mut eq_commitments,
+            mut proof_decommitments,
+            mut proof_commitments,
+        ) = {
+            (
+                self.eq_decommitments.drain().collect::<Vec<_>>(),
+                self.eq_commitments.drain().collect::<Vec<_>>(),
+                self.proof_decommitments.drain().collect::<Vec<_>>(),
+                self.proof_commitments.drain().collect::<Vec<_>>(),
+            )
+        };
+
+        // Sort the decommitments and commitments by id
+        eq_decommitments.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+        eq_commitments.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+        proof_decommitments.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+        proof_commitments.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+
+        FinalizedState {
+            eq_decommitments,
+            eq_commitments,
+            proof_decommitments,
+            proof_commitments,
+        }
     }
 }
 
