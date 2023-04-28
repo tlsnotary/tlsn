@@ -386,3 +386,41 @@ impl_neg_uint!(U16);
 impl_neg_uint!(U32);
 impl_neg_uint!(U64);
 impl_neg_uint!(U128);
+
+macro_rules! impl_convert_bytes {
+    ($ty:ident, $len:expr) => {
+        impl<'a> Tracer<'a, $ty> {
+            /// Create a value from its representation as a byte array in big endian.
+            pub fn from_be_bytes(bytes: [Tracer<'a, U8>; $len]) -> Tracer<'a, $ty> {
+                let state = bytes[0].state;
+                Tracer::new(state, $ty::from_be_bytes(bytes.map(|byte| byte.to_inner())))
+            }
+
+            /// Returns the representation of this type as a byte array in big endian.
+            pub fn to_be_bytes(self) -> [Tracer<'a, U8>; $len] {
+                self.value
+                    .to_be_bytes()
+                    .map(|value| Tracer::new(self.state, value))
+            }
+
+            /// Create a value from its representation as a byte array in little endian.
+            pub fn from_le_bytes(bytes: [Tracer<'a, U8>; $len]) -> Tracer<'a, $ty> {
+                let state = bytes[0].state;
+                Tracer::new(state, $ty::from_le_bytes(bytes.map(|byte| byte.to_inner())))
+            }
+
+            /// Returns the representation of this type as a byte array in little endian.
+            pub fn to_le_bytes(self) -> [Tracer<'a, U8>; $len] {
+                self.value
+                    .to_le_bytes()
+                    .map(|value| Tracer::new(self.state, value))
+            }
+        }
+    };
+}
+
+impl_convert_bytes!(U8, 1);
+impl_convert_bytes!(U16, 2);
+impl_convert_bytes!(U32, 4);
+impl_convert_bytes!(U64, 8);
+impl_convert_bytes!(U128, 16);
