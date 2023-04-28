@@ -79,10 +79,8 @@ impl Circuit {
     ///
     /// The circuit with the input reversed.
     pub fn reverse_input(mut self, idx: usize) -> Self {
-        if let Some(input) = self.inputs.get_mut(idx) {
-            if let BinaryRepr::Array(arr) = input {
-                arr.reverse();
-            }
+        if let Some(BinaryRepr::Array(arr)) = self.inputs.get_mut(idx) {
+            arr.reverse();
         }
         self
     }
@@ -105,10 +103,8 @@ impl Circuit {
     ///
     /// The circuit with the output reversed.
     pub fn reverse_output(mut self, idx: usize) -> Self {
-        if let Some(output) = self.outputs.get_mut(idx) {
-            if let BinaryRepr::Array(arr) = output {
-                arr.reverse();
-            }
+        if let Some(BinaryRepr::Array(arr)) = self.outputs.get_mut(idx) {
+            arr.reverse();
         }
         self
     }
