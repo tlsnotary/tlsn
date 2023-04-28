@@ -65,7 +65,7 @@ impl CircuitBuilder {
     /// # Returns
     ///
     /// The binary encoded form of the input.
-    pub fn add_input<'a, T: ToBinaryRepr + BinaryLength>(&'a self) -> Tracer<'a, T::Repr> {
+    pub fn add_input<T: ToBinaryRepr + BinaryLength>(&self) -> Tracer<'_, T::Repr> {
         let mut state = self.state.borrow_mut();
 
         let value = state.add_value::<T>();
@@ -97,9 +97,9 @@ impl CircuitBuilder {
     /// # Returns
     ///
     /// The binary encoded form of the array.
-    pub fn add_array_input<'a, T: ToBinaryRepr + BinaryLength, const N: usize>(
-        &'a self,
-    ) -> [Tracer<'a, T::Repr>; N]
+    pub fn add_array_input<T: ToBinaryRepr + BinaryLength, const N: usize>(
+        &self,
+    ) -> [Tracer<'_, T::Repr>; N]
     where
         [T::Repr; N]: Into<BinaryRepr>,
     {
@@ -120,10 +120,10 @@ impl CircuitBuilder {
     /// # Returns
     ///
     /// The binary encoded form of the vector.
-    pub fn add_vec_input<'a, T: ToBinaryRepr + BinaryLength>(
-        &'a self,
+    pub fn add_vec_input<T: ToBinaryRepr + BinaryLength>(
+        &self,
         len: usize,
-    ) -> Vec<Tracer<'a, T::Repr>>
+    ) -> Vec<Tracer<'_, T::Repr>>
     where
         Vec<T::Repr>: Into<BinaryRepr>,
     {
@@ -385,8 +385,7 @@ impl BuilderState {
             if discriminant(builder_input) != discriminant(append_input) {
                 return Err(BuilderError::AppendError(format!(
                     "Input {i} type does not match input type in circuit, expected {}, got {}",
-                    append_input,
-                    builder_input,
+                    append_input, builder_input,
                 )));
             }
             for (builder_node, append_node) in builder_input.iter().zip(append_input.iter()) {
