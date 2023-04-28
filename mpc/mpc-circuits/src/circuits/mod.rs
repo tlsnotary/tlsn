@@ -109,7 +109,7 @@ pub fn sha256_compress_trace<'a>(
 ///
 /// # Returns a circuit with the following signature:
 ///
-/// `fn(state: [u32; 8], msg: [u8; msg_len]) -> [u32; 8]`
+/// `fn(state: [u32; 8], msg: [u8; msg_len]) -> [u8; 32]`
 #[cfg(feature = "sha2")]
 pub fn build_sha256(pos: usize, msg_len: usize) -> Circuit {
     let builder = CircuitBuilder::new();
@@ -146,7 +146,13 @@ pub fn build_sha256(pos: usize, msg_len: usize) -> Circuit {
         );
     }
 
-    builder.add_output(state);
+    let hash = state
+        .iter()
+        .flat_map(|value| value.to_be_bytes())
+        .collect::<Vec<_>>();
+    let hash: [_; 32] = hash.try_into().expect("hash is 32 bytes");
+
+    builder.add_output(hash);
 
     builder.build().expect("circuit is valid")
 }
@@ -262,23 +268,18 @@ mod tests {
         );
     }
 
-    // #[test]
-    // #[cfg(feature = "sha2")]
-    // fn test_sha256() {
-    //     use mpc_circuits_macros::evaluate;
+    #[test]
+    #[cfg(feature = "sha2")]
+    fn test_sha256() {
+        use mpc_circuits_macros::evaluate;
 
-    //     let msg = [69u8; 100];
+        let msg = [69u8; 100];
 
-    //     let circ = build_sha256(0, 100);
+        let circ = build_sha256(0, 100);
 
-    //     let expected = sha256(&msg);
+        let expected = sha256(SHA2_INITIAL_STATE, 0, msg);
+        let actual = evaluate!(circ, fn(SHA2_INITIAL_STATE, msg) -> [u8; 32]).unwrap();
 
-    //     let actual = evaluate!(circ, fn(SHA2_INITIAL_STATE, msg) -> [u32; 8])
-    //         .unwrap()
-    //         .into_iter()
-    //         .flat_map(|v| v.to_be_bytes())
-    //         .collect::<Vec<_>>();
-
-    //     assert_eq!(actual, expected);
-    // }
+        assert_eq!(actual, expected);
+    }
 }
