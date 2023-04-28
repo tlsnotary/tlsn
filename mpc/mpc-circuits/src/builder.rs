@@ -145,6 +145,14 @@ impl CircuitBuilder {
         state.outputs.push(value.into());
     }
 
+    /// Returns a tracer for a constant value
+    pub fn get_constant<T: ToBinaryRepr>(&self, value: T) -> Tracer<'_, T::Repr> {
+        let mut state = self.state.borrow_mut();
+
+        let value = state.get_constant(value);
+        Tracer::new(&self.state, value)
+    }
+
     /// Appends an existing circuit
     ///
     /// # Arguments
