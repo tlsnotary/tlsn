@@ -269,7 +269,7 @@ impl BuilderState {
     pub(crate) fn add_xor_gate(&mut self, x: Node<Feed>, y: Node<Feed>) -> Node<Feed> {
         // if either input is a constant, we can simplify the gate
         if x.id() == 0 && y.id() == 0 {
-            return self.get_const_zero();
+            self.get_const_zero()
         } else if x.id() == 1 && y.id() == 1 {
             return self.get_const_zero();
         } else if x.id() == 0 {
@@ -315,7 +315,7 @@ impl BuilderState {
     pub(crate) fn add_and_gate(&mut self, x: Node<Feed>, y: Node<Feed>) -> Node<Feed> {
         // if either input is a constant, we can simplify the gate
         if x.id() == 0 || y.id() == 0 {
-            return self.get_const_zero();
+            self.get_const_zero()
         } else if x.id() == 1 {
             return y;
         } else if y.id() == 1 {
@@ -343,7 +343,7 @@ impl BuilderState {
     /// The output of the gate.
     pub(crate) fn add_inv_gate(&mut self, x: Node<Feed>) -> Node<Feed> {
         if x.id() == 0 {
-            return self.get_const_one();
+            self.get_const_one()
         } else if x.id() == 1 {
             return self.get_const_zero();
         } else {
@@ -385,8 +385,8 @@ impl BuilderState {
             if discriminant(builder_input) != discriminant(append_input) {
                 return Err(BuilderError::AppendError(format!(
                     "Input {i} type does not match input type in circuit, expected {}, got {}",
-                    append_input.to_string(),
-                    builder_input.to_string(),
+                    append_input,
+                    builder_input,
                 )));
             }
             for (builder_node, append_node) in builder_input.iter().zip(append_input.iter()) {

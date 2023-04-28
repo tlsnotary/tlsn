@@ -644,8 +644,8 @@ impl BitXor for Value {
             (Value::U64(a), Value::U64(b)) => Value::U64(a ^ b),
             (Value::U128(a), Value::U128(b)) => Value::U128(a ^ b),
             (Value::Array(a), Value::Array(b)) => Value::Array(
-                a.into_iter()
-                    .zip(b.into_iter())
+                a.iter()
+                    .zip(b.iter())
                     .map(|(a, b)| a ^ b)
                     .collect::<Result<Vec<_>, _>>()?,
             ),
@@ -671,8 +671,8 @@ impl BitXor<&Value> for &Value {
             (Value::U64(a), Value::U64(b)) => Value::U64(a ^ b),
             (Value::U128(a), Value::U128(b)) => Value::U128(a ^ b),
             (Value::Array(a), Value::Array(b)) => Value::Array(
-                a.into_iter()
-                    .zip(b.into_iter())
+                a.iter()
+                    .zip(b.iter())
                     .map(|(a, b)| a ^ b)
                     .collect::<Result<Vec<_>, _>>()?,
             ),
@@ -698,8 +698,8 @@ impl BitXor<&Value> for Value {
             (Value::U64(a), Value::U64(b)) => Value::U64(a ^ b),
             (Value::U128(a), Value::U128(b)) => Value::U128(a ^ b),
             (Value::Array(a), Value::Array(b)) => Value::Array(
-                a.into_iter()
-                    .zip(b.into_iter())
+                a.iter()
+                    .zip(b.iter())
                     .map(|(a, b)| a ^ b)
                     .collect::<Result<Vec<_>, _>>()?,
             ),
@@ -725,8 +725,8 @@ impl BitXor<Value> for &Value {
             (Value::U64(a), Value::U64(b)) => Value::U64(a ^ b),
             (Value::U128(a), Value::U128(b)) => Value::U128(a ^ b),
             (Value::Array(a), Value::Array(b)) => Value::Array(
-                a.into_iter()
-                    .zip(b.into_iter())
+                a.iter()
+                    .zip(b.iter())
                     .map(|(a, b)| a ^ b)
                     .collect::<Result<Vec<_>, _>>()?,
             ),
