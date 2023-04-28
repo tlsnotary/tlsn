@@ -25,7 +25,7 @@ use utils_aio::{
 };
 
 use crate::{
-    config::{ValueConfig, ValueIdConfig},
+    config::ValueIdConfig,
     ot::{OTReceiveEncoding, OTVerifyEncoding},
     registry::EncodingRegistry,
     Generator, GeneratorConfigBuilder, ValueId, ValueRef,
@@ -123,7 +123,7 @@ impl Evaluator {
     pub async fn setup_inputs<S: Stream<Item = GarbleMessage> + Unpin, OT: OTReceiveEncoding>(
         &self,
         id: &str,
-        input_configs: &[ValueConfig],
+        input_configs: &[ValueIdConfig],
         stream: &mut S,
         ot: &OT,
     ) -> Result<(), EvaluatorError> {
@@ -133,7 +133,7 @@ impl Evaluator {
             // Filter out any values that are already active.
             let mut input_configs: Vec<ValueIdConfig> = input_configs
                 .iter()
-                .flat_map(|config| config.clone().flatten())
+                .cloned()
                 .filter(|config| !state.encoding_registry.contains(config.id()))
                 .collect();
 

@@ -49,7 +49,7 @@ pub enum ValueConfig {
 /// Configuration of a value
 #[derive(Debug, Clone)]
 #[allow(missing_docs)]
-pub(crate) enum ValueIdConfig {
+pub enum ValueIdConfig {
     /// A value known to all parties
     Public {
         id: ValueId,
@@ -173,7 +173,7 @@ impl ValueConfig {
     }
 
     /// Flattens to a vector of `ValueIdConfig`
-    pub(crate) fn flatten(self) -> Vec<ValueIdConfig> {
+    pub fn flatten(self) -> Vec<ValueIdConfig> {
         match self {
             ValueConfig::Public {
                 value_ref,

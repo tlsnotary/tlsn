@@ -34,17 +34,19 @@ async fn test_semi_honest() {
         .unwrap();
 
     let gen_fut = async {
-        gen.setup_inputs(
-            "test",
-            &[
-                ValueConfig::new_private::<[u8; 16]>(key_ref.clone(), Some(key)).unwrap(),
-                ValueConfig::new_private::<[u8; 16]>(msg_ref.clone(), None).unwrap(),
-            ],
-            &mut gen_channel,
-            &ot_send,
-        )
-        .await
-        .unwrap();
+        let value_configs = [
+            ValueConfig::new_private::<[u8; 16]>(key_ref.clone(), Some(key))
+                .unwrap()
+                .flatten(),
+            ValueConfig::new_private::<[u8; 16]>(msg_ref.clone(), None)
+                .unwrap()
+                .flatten(),
+        ]
+        .concat();
+
+        gen.setup_inputs("test", &value_configs, &mut gen_channel, &ot_send)
+            .await
+            .unwrap();
 
         gen.generate(
             AES128.clone(),
@@ -58,17 +60,19 @@ async fn test_semi_honest() {
     };
 
     let ev_fut = async {
-        ev.setup_inputs(
-            "test",
-            &[
-                ValueConfig::new_private::<[u8; 16]>(key_ref.clone(), None).unwrap(),
-                ValueConfig::new_private::<[u8; 16]>(msg_ref.clone(), Some(msg)).unwrap(),
-            ],
-            &mut ev_channel,
-            &ot_recv,
-        )
-        .await
-        .unwrap();
+        let value_configs = [
+            ValueConfig::new_private::<[u8; 16]>(key_ref.clone(), None)
+                .unwrap()
+                .flatten(),
+            ValueConfig::new_private::<[u8; 16]>(msg_ref.clone(), Some(msg))
+                .unwrap()
+                .flatten(),
+        ]
+        .concat();
+
+        ev.setup_inputs("test", &value_configs, &mut ev_channel, &ot_recv)
+            .await
+            .unwrap();
 
         _ = ev
             .evaluate(

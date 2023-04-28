@@ -22,10 +22,7 @@ use mpc_garble_core::{
 use utils_aio::non_blocking_backend::{Backend, NonBlockingBackend};
 
 use crate::{
-    config::{ValueConfig, ValueIdConfig},
-    ot::OTSendEncoding,
-    registry::EncodingRegistry,
-    ValueId, ValueRef,
+    config::ValueIdConfig, ot::OTSendEncoding, registry::EncodingRegistry, ValueId, ValueRef,
 };
 
 pub use config::{GeneratorConfig, GeneratorConfigBuilder};
@@ -115,19 +112,13 @@ impl Generator {
     >(
         &self,
         id: &str,
-        input_configs: &[ValueConfig],
+        input_configs: &[ValueIdConfig],
         sink: &mut S,
         ot: &OT,
     ) -> Result<(), GeneratorError> {
-        // Flatten the configs to `ValueIdConfig` (config per value id)
-        let input_configs: Vec<ValueIdConfig> = input_configs
-            .iter()
-            .flat_map(|config| config.clone().flatten())
-            .collect();
-
         let mut ot_send_values = Vec::new();
         let mut direct_send_values = Vec::new();
-        for config in input_configs.into_iter() {
+        for config in input_configs.iter().cloned() {
             match config {
                 ValueIdConfig::Public { id, value, .. } => {
                     direct_send_values.push((id, value));

@@ -25,12 +25,12 @@ use mpc_garble_core::{msg::GarbleMessage, EqualityCheck};
 use utils_aio::expect_msg_or_err;
 
 use crate::{
-    config::{Role, ValueConfig, Visibility},
+    config::{Role, ValueConfig, ValueIdConfig, Visibility},
     evaluator::{Evaluator, EvaluatorConfigBuilder},
     generator::{Generator, GeneratorConfigBuilder},
     ot::{OTReceiveEncoding, OTSendEncoding, OTVerifyEncoding},
     registry::ValueRegistry,
-    Memory, MemoryError, ValueRef,
+    Memory, MemoryError, ValueId, ValueRef,
 };
 
 pub use error::DEAPError;
@@ -54,7 +54,7 @@ struct State {
     value_registry: ValueRegistry,
     /// An internal buffer for value configurations which get
     /// drained and set up prior to execution.
-    input_buffer: HashMap<ValueRef, ValueConfig>,
+    input_buffer: HashMap<ValueId, ValueIdConfig>,
     /// Equality check decommitments withheld by the leader
     /// prior to finalization
     eq_decommitments: HashMap<String, Decommitment<EqualityCheck>>,
@@ -138,9 +138,9 @@ impl DEAP {
     {
         let input_configs = {
             let mut state = self.state();
-
             inputs
                 .iter()
+                .flat_map(|input| input.iter())
                 .filter_map(|input| state.input_buffer.remove(input))
                 .collect::<Vec<_>>()
         };
@@ -212,9 +212,9 @@ impl DEAP {
 
         let input_configs = {
             let mut state = self.state();
-
             inputs
                 .iter()
+                .flat_map(|input| input.iter())
                 .filter_map(|input| state.input_buffer.remove(input))
                 .collect::<Vec<_>>()
         };
@@ -290,9 +290,9 @@ impl DEAP {
 
         let input_configs = {
             let mut state = self.state();
-
             inputs
                 .iter()
+                .flat_map(|input| input.iter())
                 .filter_map(|input| state.input_buffer.remove(input))
                 .collect::<Vec<_>>()
         };
@@ -596,7 +596,11 @@ impl Memory for DEAP {
         let value_ref = state.value_registry.add_value(id, ty)?;
         let config =
             ValueConfig::new_public::<T>(value_ref.clone(), value).expect("config is valid");
-        state.input_buffer.insert(value_ref.clone(), config);
+
+        value_ref
+            .iter()
+            .zip(config.flatten())
+            .for_each(|(id, config)| _ = state.input_buffer.insert(id.clone(), config));
 
         Ok(value_ref)
     }
@@ -616,7 +620,11 @@ impl Memory for DEAP {
         let value_ref = state.value_registry.add_value(id, ty)?;
         let config =
             ValueConfig::new_public::<T>(value_ref.clone(), value).expect("config is valid");
-        state.input_buffer.insert(value_ref.clone(), config);
+
+        value_ref
+            .iter()
+            .zip(config.flatten())
+            .for_each(|(id, config)| _ = state.input_buffer.insert(id.clone(), config));
 
         Ok(value_ref)
     }
@@ -628,7 +636,11 @@ impl Memory for DEAP {
         let value_ref = state.value_registry.add_value(id, ty.clone())?;
         let config = ValueConfig::new(value_ref.clone(), ty, Some(value), Visibility::Public)
             .expect("config is valid");
-        state.input_buffer.insert(value_ref.clone(), config);
+
+        value_ref
+            .iter()
+            .zip(config.flatten())
+            .for_each(|(id, config)| _ = state.input_buffer.insert(id.clone(), config));
 
         Ok(value_ref)
     }
@@ -644,7 +656,11 @@ impl Memory for DEAP {
         let value_ref = state.value_registry.add_value(id, ty)?;
         let config =
             ValueConfig::new_private::<T>(value_ref.clone(), value).expect("config is valid");
-        state.input_buffer.insert(value_ref.clone(), config);
+
+        value_ref
+            .iter()
+            .zip(config.flatten())
+            .for_each(|(id, config)| _ = state.input_buffer.insert(id.clone(), config));
 
         Ok(value_ref)
     }
@@ -664,7 +680,11 @@ impl Memory for DEAP {
         let value_ref = state.value_registry.add_value(id, ty)?;
         let config = ValueConfig::new_private_array::<T>(value_ref.clone(), value, len)
             .expect("config is valid");
-        state.input_buffer.insert(value_ref.clone(), config);
+
+        value_ref
+            .iter()
+            .zip(config.flatten())
+            .for_each(|(id, config)| _ = state.input_buffer.insert(id.clone(), config));
 
         Ok(value_ref)
     }
@@ -689,7 +709,11 @@ impl Memory for DEAP {
         let value_ref = state.value_registry.add_value(id, ty.clone())?;
         let config = ValueConfig::new(value_ref.clone(), ty.clone(), value, Visibility::Private)
             .expect("config is valid");
-        state.input_buffer.insert(value_ref.clone(), config);
+
+        value_ref
+            .iter()
+            .zip(config.flatten())
+            .for_each(|(id, config)| _ = state.input_buffer.insert(id.clone(), config));
 
         Ok(value_ref)
     }
