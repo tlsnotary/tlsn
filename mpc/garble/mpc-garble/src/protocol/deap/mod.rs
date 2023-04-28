@@ -24,7 +24,7 @@ use rand::thread_rng;
 use utils_aio::expect_msg_or_err;
 
 use crate::{
-    config::{Role, ValueConfig, ValueIdConfig},
+    config::{Role, ValueConfig, ValueIdConfig, Visibility},
     evaluator::{Evaluator, EvaluatorConfigBuilder},
     generator::{Generator, GeneratorConfigBuilder},
     internal_circuits::{build_otp_circuit, build_otp_shared_circuit},
@@ -484,14 +484,16 @@ impl DEAP {
             for ((otp_ref, otp_ty), otp_value) in
                 otp_refs.iter().zip(otp_tys.iter()).zip(otp_values.iter())
             {
-                let config = ValueConfig::new(
-                    otp_ref.clone(),
-                    otp_ty.clone(),
-                    Some(otp_value.clone()),
-                    Visibility::Private,
-                )
-                .expect("config is valid");
-                state.input_buffer.insert(otp_ref.clone(), config);
+                state.add_input_config(
+                    otp_ref,
+                    ValueConfig::new(
+                        otp_ref.clone(),
+                        otp_ty.clone(),
+                        Some(otp_value.clone()),
+                        Visibility::Private,
+                    )
+                    .expect("config is valid"),
+                );
             }
 
             (otp_tys, otp_values)
@@ -564,10 +566,11 @@ impl DEAP {
                 .collect::<Result<Vec<_>, _>>()?;
 
             for (otp_ref, otp_ty) in otp_refs.iter().zip(otp_tys.iter()) {
-                let config =
+                state.add_input_config(
+                    otp_ref,
                     ValueConfig::new(otp_ref.clone(), otp_ty.clone(), None, Visibility::Private)
-                        .expect("config is valid");
-                state.input_buffer.insert(otp_ref.clone(), config);
+                        .expect("config is valid"),
+                );
             }
 
             otp_tys
@@ -684,8 +687,8 @@ impl DEAP {
                         .expect("config is valid"),
                     ),
                 };
-                state.input_buffer.insert(otp_0_ref.clone(), otp_0_config);
-                state.input_buffer.insert(opt_1_ref.clone(), otp_1_config);
+                state.add_input_config(otp_0_ref, otp_0_config);
+                state.add_input_config(opt_1_ref, otp_1_config);
             }
 
             (otp_tys, otp_values)
