@@ -271,15 +271,11 @@ mod tests {
     #[test]
     #[cfg(feature = "sha2")]
     fn test_sha256() {
-        use mpc_circuits_macros::evaluate;
-
         let msg = [69u8; 100];
 
         let circ = build_sha256(0, 100);
+        let reference = |state, msg| sha256(state, 0, msg);
 
-        let expected = sha256(SHA2_INITIAL_STATE, 0, msg);
-        let actual = evaluate!(circ, fn(SHA2_INITIAL_STATE, msg) -> [u8; 32]).unwrap();
-
-        assert_eq!(actual, expected);
+        test_circ!(circ, reference, fn(SHA2_INITIAL_STATE, msg) -> [u8; 32]);
     }
 }
