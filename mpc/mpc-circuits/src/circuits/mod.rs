@@ -268,7 +268,7 @@ mod tests {
     fn test_sha256_compress() {
         test_circ!(
             SHA256_COMPRESS,
-            compress,
+            sha256_compress,
             fn(SHA2_INITIAL_STATE, [69u8; 64]) -> [u32; 8]
         );
     }
