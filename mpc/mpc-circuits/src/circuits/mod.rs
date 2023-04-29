@@ -190,6 +190,19 @@ pub fn sha256_trace<'a, const N: usize>(
     hash.map(|value| Tracer::new(builder_state, value.try_into().unwrap()))
 }
 
+/// Reference SHA256 compression function implementation.
+///
+/// # Arguments
+///
+/// * `state` - The SHA256 state.
+/// * `msg` - The message to compress.
+#[cfg(feature = "sha2")]
+pub fn sha256_compress(state: [u32; 8], msg: [u8; 64]) -> [u32; 8] {
+    let mut state = state;
+    sha2::compress256(&mut state, &[msg.into()]);
+    state
+}
+
 /// Reference SHA256 implementation.
 ///
 /// # Arguments
@@ -253,14 +266,6 @@ mod tests {
     #[test]
     #[cfg(feature = "sha2")]
     fn test_sha256_compress() {
-        fn compress(state: [u32; 8], msg: [u8; 64]) -> [u32; 8] {
-            use sha2::compress256;
-
-            let mut state = state;
-            compress256(&mut state, &[msg.into()]);
-            state
-        }
-
         test_circ!(
             SHA256_COMPRESS,
             compress,
