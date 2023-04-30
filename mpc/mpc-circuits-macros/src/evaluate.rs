@@ -68,7 +68,7 @@ pub(crate) fn evaluate_impl(item: TokenStream) -> TokenStream {
                     ));
                 }
 
-                let mut outputs = #circ.evaluate(&[#(#input_args.into()),*])?;
+                let mut outputs = #circ.evaluate(&[#((#input_args).into()),*])?;
                 outputs.reverse();
 
                 Ok(#return_expr)

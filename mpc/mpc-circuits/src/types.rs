@@ -304,6 +304,18 @@ macro_rules! define_binary_value {
             }
         }
 
+        impl<const N: usize> From<&[$ty; N]> for Value {
+            fn from(v: &[$ty; N]) -> Self {
+                Self::Array(v.into_iter().map(|v| (*v).into()).collect())
+            }
+        }
+
+        impl From<&[$ty]> for Value {
+            fn from(v: &[$ty]) -> Self {
+                Self::Array(v.iter().map(|v| (*v).into()).collect())
+            }
+        }
+
         impl From<Vec<$ty>> for Value {
             fn from(v: Vec<$ty>) -> Self {
                 Self::Array(v.into_iter().map(|v| v.into()).collect())
@@ -370,6 +382,12 @@ macro_rules! define_binary_value {
         impl<const N: usize> From<[$id; N]> for BinaryRepr {
             fn from(v: [$id; N]) -> Self {
                 BinaryRepr::Array(v.into_iter().map(|v| v.into()).collect())
+            }
+        }
+
+        impl From<&[$id]> for BinaryRepr {
+            fn from(v: &[$id]) -> Self {
+                BinaryRepr::Array(v.iter().map(|v| (*v).into()).collect())
             }
         }
 
