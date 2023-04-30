@@ -119,8 +119,13 @@ pub fn build_sha256(pos: usize, msg_len: usize) -> Circuit {
     let bit_len = msg_len * 8;
     let processed_bit_len = (bit_len + (pos * 8)) as u64;
 
-    let block_count = (msg_len / 64) + (msg_len % 64 != 0) as usize;
+    // minimum length of padded message in bytes
+    let min_padded_len = msg_len + 9;
+    // number of 64-byte blocks rounded up
+    let block_count = (min_padded_len / 64) + (min_padded_len % 64 != 0) as usize;
+    // message is padded to a multiple of 64 bytes
     let padded_len = block_count * 64;
+    // number of bytes to pad
     let pad_len = padded_len - msg_len;
 
     // append a single '1' bit
@@ -276,11 +281,12 @@ mod tests {
     #[test]
     #[cfg(feature = "sha2")]
     fn test_sha256() {
-        let msg = [69u8; 100];
+        for len in [5, 64, 100] {
+            let msg = vec![0u8; len];
+            let circ = build_sha256(0, len);
+            let reference = |state, msg| sha256(state, 0, msg);
 
-        let circ = build_sha256(0, 100);
-        let reference = |state, msg| sha256(state, 0, msg);
-
-        test_circ!(circ, reference, fn(SHA2_INITIAL_STATE, &msg) -> [u8; 32]);
+            test_circ!(circ, reference, fn(SHA2_INITIAL_STATE, msg.as_slice()) -> [u8; 32]);
+        }
     }
 }
