@@ -169,16 +169,16 @@ pub fn build_sha256(pos: usize, msg_len: usize) -> Circuit {
 /// * `pos` - The number of bytes processed in the current state.
 /// * `msg` - The message to hash.
 #[cfg(feature = "sha2")]
-pub fn sha256_trace<'a, const N: usize>(
+pub fn sha256_trace<'a>(
     builder_state: &'a RefCell<BuilderState>,
     state: [Tracer<'a, U32>; 8],
     pos: usize,
-    msg: [Tracer<'a, U8>; N],
+    msg: &[Tracer<'a, U8>],
 ) -> [Tracer<'a, U8>; 32] {
     let circ = build_sha256(pos, msg.len());
     let mut outputs = builder_state
         .borrow_mut()
-        .append(&circ, &[state.into(), msg.into()])
+        .append(&circ, &[state.into(), msg.to_vec().into()])
         .expect("circuit should append successfully");
 
     let BinaryRepr::Array(hash) = outputs.pop().unwrap() else {
@@ -211,7 +211,7 @@ pub fn sha256_compress(state: [u32; 8], msg: [u8; 64]) -> [u32; 8] {
 /// * `pos` - The number of bytes processed in the current state.
 /// * `msg` - The message to hash.
 #[cfg(feature = "sha2")]
-pub fn sha256<const N: usize>(mut state: [u32; 8], pos: usize, msg: [u8; N]) -> [u8; 32] {
+pub fn sha256(mut state: [u32; 8], pos: usize, msg: &[u8]) -> [u8; 32] {
     use sha2::{
         compress256,
         digest::{
@@ -221,7 +221,7 @@ pub fn sha256<const N: usize>(mut state: [u32; 8], pos: usize, msg: [u8; N]) -> 
     };
 
     let mut buffer = BlockBuffer::<U64, Eager>::default();
-    buffer.digest_blocks(msg.as_slice(), |b| compress256(&mut state, b));
+    buffer.digest_blocks(msg, |b| compress256(&mut state, b));
     buffer.digest_pad(0x80, &(((msg.len() + pos) * 8) as u64).to_be_bytes(), |b| {
         compress256(&mut state, &[*b])
     });
@@ -281,6 +281,6 @@ mod tests {
         let circ = build_sha256(0, 100);
         let reference = |state, msg| sha256(state, 0, msg);
 
-        test_circ!(circ, reference, fn(SHA2_INITIAL_STATE, msg) -> [u8; 32]);
+        test_circ!(circ, reference, fn(SHA2_INITIAL_STATE, &msg) -> [u8; 32]);
     }
 }
