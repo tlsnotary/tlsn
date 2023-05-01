@@ -5,7 +5,11 @@ use syn::{
     FnArg, Ident, ItemFn, Meta, Pat, ReturnType, Stmt, Token, Type,
 };
 
-use crate::{traits::IsPrimitiveType, visitors::FnSigTypeReplace, DEFAULT_SUFFIX};
+use crate::{
+    traits::IsPrimitiveType,
+    visitors::{CallRename, CallRenameConfig, FnSigTypeReplace},
+    DEFAULT_SUFFIX,
+};
 
 struct StripConstArgAttr;
 
@@ -72,6 +76,23 @@ pub(crate) fn trace_impl(args: TokenStream, item: TokenStream) -> TokenStream {
     StripConstArgAttr.visit_item_fn_mut(&mut item_fn);
     // Strip any #[dep] attribute from original function
     item_fn.attrs.retain(|attr| !attr.path.is_ident("dep"));
+
+    // Collect deps
+    let deps: Vec<_> = trace_fn
+        .attrs
+        .iter()
+        .filter(|attr| attr.path.is_ident("dep"))
+        .cloned()
+        .collect();
+
+    // Strip any #[dep] attribute from trace function
+    trace_fn.attrs.retain(|attr| !attr.path.is_ident("dep"));
+
+    // Replace dependencies with their traced versions
+    for dep in deps {
+        let config = dep.parse_args_with(CallRenameConfig::parse).unwrap();
+        CallRename { config }.visit_item_fn_mut(&mut trace_fn);
+    }
 
     // insert 'trace lifetime into generics
     trace_fn.sig.generics.params.insert(0, parse_quote!('trace));

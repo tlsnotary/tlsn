@@ -1,4 +1,7 @@
-use syn::{parse_quote, visit_mut::VisitMut, FnArg, ItemFn, Type};
+use syn::{
+    parse::Parse, parse_quote, visit_mut::VisitMut, Expr, FnArg, Ident, ItemFn, Meta, Path, Token,
+    Type,
+};
 
 use crate::map::map_primitive_type;
 
@@ -58,6 +61,75 @@ impl VisitMut for ReturnsTypeReplace {
     fn visit_return_type_mut(&mut self, i: &mut syn::ReturnType) {
         if let syn::ReturnType::Type(_, ty) = i {
             PrimitiveTypeReplace.visit_type_mut(ty);
+        }
+    }
+}
+
+pub struct CallRename {
+    pub(crate) config: CallRenameConfig,
+}
+
+#[derive(Debug)]
+pub struct CallRenameConfig {
+    path: Path,
+    new_path: Option<Path>,
+}
+
+impl Parse for CallRenameConfig {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let mut meta: Vec<Meta> = input
+            .parse_terminated::<Meta, Token![,]>(Meta::parse)?
+            .into_iter()
+            .rev()
+            .collect();
+
+        let path = if let Some(Meta::Path(path)) = meta.pop() {
+            path
+        } else {
+            return Err(syn::Error::new(
+                input.span(),
+                "Expected path of function to trace",
+            ));
+        };
+
+        let new_path = if let Some(Meta::Path(path)) = meta.pop() {
+            Some(path)
+        } else {
+            None
+        };
+
+        Ok(Self { path, new_path })
+    }
+}
+
+impl VisitMut for CallRename {
+    fn visit_expr_call_mut(&mut self, i: &mut syn::ExprCall) {
+        if let Expr::Path(path) = &mut (*i.func) {
+            if path.path == self.config.path {
+                if let Some(new_path) = &self.config.new_path {
+                    path.path = new_path.clone();
+                } else {
+                    let path_segment = path.path.segments.last_mut().unwrap();
+                    path_segment.ident = Ident::new(
+                        &format!(
+                            "{}_{}",
+                            path_segment.ident.to_string(),
+                            crate::DEFAULT_SUFFIX
+                        ),
+                        path_segment.ident.span(),
+                    );
+                }
+
+                // pass builder argument to call
+                i.args.insert(0, parse_quote!(state));
+            }
+
+            // process nested calls
+            for arg in &mut i.args {
+                if let Expr::Call(call) = arg {
+                    self.visit_expr_call_mut(call);
+                }
+            }
         }
     }
 }
