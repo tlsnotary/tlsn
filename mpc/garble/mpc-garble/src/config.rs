@@ -119,57 +119,38 @@ impl ValueConfig {
         value: Option<Value>,
         visibility: Visibility,
     ) -> Result<Self, ValueConfigError> {
-        // combinatorial explosion, anyone?
-        // there must be a better way...
-        //
         // invariants:
         // - public values are always set
         // - types and lengths are consistent across `value_ref`, `ty`, and `value`
         //
         // the outer context must ensure that the provided `ty` is correct for the
         // provided `value_ref`.
-        Ok(match (&value_ref, &ty, &visibility, &value) {
-            (_, _, Visibility::Private, _) if !value_ref.is_array() && !ty.is_array() => {
-                Self::Private {
-                    value_ref,
-                    ty,
-                    value,
-                }
-            }
-            (_, _, Visibility::Public, Some(_)) if !value_ref.is_array() && !ty.is_array() => {
-                Self::Public {
-                    value_ref,
-                    ty,
-                    value: value.unwrap(),
-                }
-            }
-            (ValueRef::Array(ids), ValueType::Array(_, len), Visibility::Private, _)
-                if ids.len() == *len =>
-            {
-                Self::Private {
-                    value_ref,
-                    ty,
-                    value,
-                }
-            }
-            (ValueRef::Array(ids), ValueType::Array(_, len), Visibility::Public, Some(_))
-                if ids.len() == *len =>
-            {
-                Self::Public {
-                    value_ref,
-                    ty,
-                    value: value.unwrap(),
-                }
-            }
-            _ => {
-                return Err(ValueConfigError {
-                    value_ref,
-                    ty,
-                    value,
-                    visibility,
-                })
-            }
-        })
+        let is_ok = if !value_ref.is_array() && !ty.is_array() {
+            true
+        } else if let (ValueRef::Array(ids), ValueType::Array(_, len)) = (&value_ref, &ty) {
+            ids.len() == *len
+        } else {
+            false
+        };
+
+        match visibility {
+            Visibility::Public if is_ok && value.is_some() => Ok(Self::Public {
+                value_ref,
+                ty,
+                value: value.unwrap(),
+            }),
+            Visibility::Private if is_ok => Ok(Self::Private {
+                value_ref,
+                ty,
+                value,
+            }),
+            _ => Err(ValueConfigError {
+                value_ref,
+                ty,
+                value,
+                visibility,
+            }),
+        }
     }
 
     /// Flattens to a vector of `ValueIdConfig`
