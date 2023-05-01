@@ -111,10 +111,10 @@ where
         }
 
         if (self.pred)(&self.vec[self.pos]) {
-            return Some(self.vec.swap_remove(self.pos));
+            Some(self.vec.swap_remove(self.pos))
         } else {
             self.pos += 1;
-            return self.next();
+            self.next()
         }
     }
 }
@@ -162,7 +162,7 @@ mod test {
     struct Container<T>(T);
 
     impl<T> Container<T> {
-        fn get<'a>(&'a self) -> &'a T {
+        fn get(&self) -> &T {
             &self.0
         }
     }

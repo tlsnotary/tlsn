@@ -7,7 +7,7 @@ use std::sync::Arc;
 /// ```
 /// # use utils::id::NestedId;
 /// let id = NestedId::new("foo");
-/// let id = id.append("bar");
+/// let id = id.append_string("bar");
 /// assert_eq!(id.to_string(), "foo/bar");
 /// let mut id = id.append_counter();
 /// assert_eq!(id.to_string(), "foo/bar/0");
