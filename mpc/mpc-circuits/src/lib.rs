@@ -27,23 +27,6 @@ pub use once_cell;
 /// An attribute macro that can be applied to a function to automatically convert
 /// it into a circuit.
 ///
-/// Other traced functions can be called from within the traced function, using the [`dep`](crate::dep) macro.
-///
-/// # Cache
-///
-/// The macro can optionally be configured with the `cache` argument which will cache the circuit
-/// after the first invocation. This can be useful for functions that will be used multiple times.
-///
-/// The circuit will be cached for the lifetime of the program.
-///
-/// # Suffix
-///
-/// The macro copies the traced function and appends the `_trace` suffix to the end of the name.
-///
-/// This preserves the original function, which can be used for testing.
-///
-/// This suffix can be overriden by passing the `suffix = "new_suffix"` argument to the macro.
-///
 /// # Example
 ///
 /// ```
@@ -73,23 +56,22 @@ pub use once_cell;
 ///     assert_eq!(output, bitxor(a, b));
 /// }
 /// ```
-pub use mpc_circuits_macros::trace;
-
-/// An attribute macro that is used in combination with [`trace`](crate::trace) to indicate that a function
-/// has a dependency on another traced function.
 ///
-/// This is used to replace the path of a function call with the path of its trace.
+/// # Dependencies
 ///
-/// # Path override
+/// Dependencies can be specified using the `#[dep]` attribute. This will replace any calls
+/// to the specified function with the provided trace function.
+///
+/// ## Path override
 ///
 /// The default path of the trace is the original path appended with the `_trace` suffix.
 ///
-/// This can be overriden by passing the path in as the second argument to the macro.
+/// This can be overriden by passing the path in as the second argument to the attribute, eg `#[dep(old_path, new_path)]`.
 ///
-/// # Example
+/// ## Example
 ///
 ///  ```
-/// use mpc_circuits::{trace, evaluate, dep, CircuitBuilder};
+/// use mpc_circuits::{trace, evaluate, CircuitBuilder};
 ///
 /// #[trace]
 /// fn bitxor(a: [u8; 16], b: [u8; 16]) -> [u8; 16] {
@@ -127,7 +109,21 @@ pub use mpc_circuits_macros::trace;
 ///    assert_eq!(output, bitxor_and(a, b));
 /// }
 /// ```
-pub use mpc_circuits_macros::dep;
+/// # Cache
+///
+/// The macro can optionally be configured with the `cache` argument which will cache the circuit
+/// after the first invocation. This can be useful for functions that will be used multiple times.
+///
+/// The circuit will be cached for the lifetime of the program.
+///
+/// # Suffix
+///
+/// The macro copies the traced function and appends the `_trace` suffix to the end of the name.
+///
+/// This preserves the original function, which can be used for testing.
+///
+/// This suffix can be overriden by passing the `suffix = "new_suffix"` argument to the macro.
+pub use mpc_circuits_macros::trace;
 
 /// Evaluates a circuit and attempts to coerce the output into the specified return type
 /// indicated in the function signature.
@@ -159,3 +155,28 @@ pub use mpc_circuits_macros::dep;
 /// assert_eq!(output, 1u8 + 2u8);
 /// ```
 pub use mpc_circuits_macros::evaluate;
+
+/// Helper macro for testing that a circuit evaluates to the expected value.
+///
+/// # Example
+///
+/// ```
+/// # let circ = {
+/// #    use mpc_circuits::{CircuitBuilder, ops::WrappingAdd};
+/// #
+/// #    let builder = CircuitBuilder::new();
+/// #    let a = builder.add_input::<u8>();
+/// #    let b = builder.add_input::<u8>();
+/// #    let c = a.wrapping_add(b);
+/// #    builder.add_output(c);
+/// #    builder.build().unwrap()
+/// # };
+/// use mpc_circuits::test_circ;
+///
+/// fn wrapping_add(a: u8, b: u8) -> u8 {
+///    a.wrapping_add(b)
+/// }
+///
+/// test_circ!(circ, wrapping_add, fn(1u8, 2u8) -> u8);
+/// ```
+pub use mpc_circuits_macros::test_circ;
