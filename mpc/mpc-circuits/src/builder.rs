@@ -219,7 +219,7 @@ impl BuilderState {
     /// # Arguments
     ///
     /// * `value` - The value to encode.
-    pub(crate) fn get_constant<T: ToBinaryRepr>(&mut self, value: T) -> T::Repr {
+    pub fn get_constant<T: ToBinaryRepr>(&mut self, value: T) -> T::Repr {
         let zero = self.get_const_zero();
         let one = self.get_const_one();
 

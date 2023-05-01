@@ -11,7 +11,7 @@ default = ["mock"]
 mock = []
 
 [dependencies]
-tlsn-hmac-sha256-core = { path = "../hmac-sha256-core" }
+tlsn-hmac-sha256-circuits = { path = "../hmac-sha256-circuits" }
 tlsn-mpc-circuits.workspace = true
 tlsn-mpc-core.workspace = true
 tlsn-mpc-garble-core.workspace = true
@@ -29,10 +29,9 @@ derive_builder.workspace = true
 
 [dev-dependencies]
 tlsn-utils.workspace = true
-tlsn-hmac-sha256-utils = { path = "../hmac-sha256-utils" }
 criterion = { workspace = true, features = ["async_tokio"] }
 tokio.workspace = true
 
 [[bench]]
-name = "mock"
+name = "prf"
 harness = false
