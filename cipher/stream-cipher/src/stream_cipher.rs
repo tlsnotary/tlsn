@@ -17,7 +17,7 @@ use crate::{
 pub struct MpcStreamCipher<C, E>
 where
     C: CtrCircuit,
-    E: Thread + Execute + Decode + DecodePrivate,
+    E: Thread + Execute + Decode + DecodePrivate + Send + Sync,
 {
     config: StreamCipherConfig,
     state: State,
@@ -52,7 +52,7 @@ struct KeyAndIv {
 impl<C, E> MpcStreamCipher<C, E>
 where
     C: CtrCircuit,
-    E: Thread + Execute + Prove + Verify + Decode + DecodePrivate + 'static,
+    E: Thread + Execute + Prove + Verify + Decode + DecodePrivate + Send + Sync + 'static,
 {
     /// Creates a new counter-mode cipher.
     pub fn new(config: StreamCipherConfig, thread_pool: ThreadPool<E>) -> Self {
@@ -208,11 +208,11 @@ where
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl<C, E> StreamCipher<C> for MpcStreamCipher<C, E>
 where
     C: CtrCircuit,
-    E: Thread + Execute + Prove + Verify + Decode + DecodePrivate + 'static,
+    E: Thread + Execute + Prove + Verify + Decode + DecodePrivate + Send + Sync + 'static,
 {
     fn set_key(&mut self, key: ValueRef, iv: ValueRef) {
         self.state.key_iv = Some(KeyAndIv { key, iv });
@@ -540,7 +540,7 @@ async fn plaintext_proof<T: Thread + Memory + Prove + Verify + Decode + DecodePr
 }
 
 async fn apply_keystream<
-    T: Thread + Memory + Execute + Decode + DecodePrivate + 'static,
+    T: Thread + Memory + Execute + Decode + DecodePrivate + Send + 'static,
     C: CtrCircuit,
 >(
     thread_pool: &mut ThreadPool<T>,
@@ -571,7 +571,7 @@ async fn apply_keystream<
     }
 }
 
-async fn apply_keyblock<T: Memory + Execute + Decode + DecodePrivate, C: CtrCircuit>(
+async fn apply_keyblock<T: Memory + Execute + Decode + DecodePrivate + Send, C: CtrCircuit>(
     thread: &mut T,
     block_id: NestedId,
     config: KeyBlockConfig<C>,

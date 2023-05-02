@@ -38,10 +38,9 @@ pub enum BlockCipherError {
 
 /// A trait for MPC block ciphers
 #[async_trait]
-pub trait BlockCipher<Cipher>
+pub trait BlockCipher<Cipher>: Send + Sync
 where
     Cipher: BlockCipherCircuit,
-    Self: Sized + Send,
 {
     /// Sets the key for the block cipher.
     fn set_key(&mut self, key: ValueRef);

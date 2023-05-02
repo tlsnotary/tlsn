@@ -49,8 +49,8 @@ pub enum StreamCipherError {
 }
 
 /// A trait for MPC stream ciphers.
-#[async_trait(?Send)]
-pub trait StreamCipher<Cipher>
+#[async_trait]
+pub trait StreamCipher<Cipher>: Send + Sync
 where
     Cipher: cipher::CtrCircuit,
 {
@@ -333,8 +333,6 @@ mod tests {
                 .decrypt_blind(explicit_nonce.to_vec(), ciphertext.clone())
                 .await
                 .unwrap();
-
-            
 
             follower
                 .encrypt_blind(explicit_nonce.to_vec(), msg.len())

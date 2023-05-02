@@ -16,7 +16,7 @@ struct State {
 pub struct MpcBlockCipher<C, E>
 where
     C: BlockCipherCircuit,
-    E: Memory + Execute + Decode + DecodePrivate,
+    E: Memory + Execute + Decode + DecodePrivate + Send + Sync,
 {
     state: State,
 
@@ -28,7 +28,7 @@ where
 impl<C, E> MpcBlockCipher<C, E>
 where
     C: BlockCipherCircuit,
-    E: Memory + Execute + Decode + DecodePrivate,
+    E: Memory + Execute + Decode + DecodePrivate + Send + Sync,
 {
     /// Creates a new MPC block cipher
     ///
@@ -53,7 +53,7 @@ where
 impl<C, E> BlockCipher<C> for MpcBlockCipher<C, E>
 where
     C: BlockCipherCircuit,
-    E: Memory + Execute + Decode + DecodePrivate + Send,
+    E: Memory + Execute + Decode + DecodePrivate + Send + Sync + Send,
 {
     fn set_key(&mut self, key: ValueRef) {
         self.state.key = Some(key);
