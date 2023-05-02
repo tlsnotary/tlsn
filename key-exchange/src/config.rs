@@ -1,25 +1,32 @@
 //! This module provides the [KeyExchangeConfig] for configuration of the key exchange instance
 
-use super::role::Role;
 use derive_builder::Builder;
+
+/// Role in the key exchange protocol
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(missing_docs)]
+pub enum Role {
+    Leader,
+    Follower,
+}
 
 /// A config used in the key exchange protocol
 #[derive(Debug, Clone, Builder)]
-pub struct KeyExchangeConfig<R> {
-    pub(crate) id: String,
-    pub(crate) role: R,
-    #[builder(default = "u32::MAX")]
-    pub(crate) encoder_default_stream_id: u32,
+pub struct KeyExchangeConfig {
+    /// The id of this instance
+    id: String,
+    /// Protocol role
+    role: Role,
 }
 
-impl<R: Role> KeyExchangeConfig<R> {
+impl KeyExchangeConfig {
     /// Get the id of this instance
     pub fn id(&self) -> &str {
         &self.id
     }
 
     /// Get the role of this instance
-    pub fn role(&self) -> &R {
+    pub fn role(&self) -> &Role {
         &self.role
     }
 }
