@@ -41,7 +41,7 @@ pub type HashCommitment = [u8; 32];
 /// The maximum allowed total size of all committed data. Used to prevent DoS during verification.
 /// (this will cause the verifier to hash up to a max of 1GB * 128 = 128GB of labels if the
 /// commitment type is [crate::commitment::Blake3])
-const MAX_TOTAL_COMMITTED_DATA: u64 = 1000000000;
+const MAX_TOTAL_COMMITTED_DATA: u64 = 1_000_000_000;
 
 #[cfg(test)]
 pub mod test {
