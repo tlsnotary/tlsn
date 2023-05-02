@@ -1,18 +1,15 @@
-#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use mpc_core::msgs::{CommitmentOpening, HashCommitment};
+use mpc_core::{commit::Decommitment, hash::Hash};
 
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AeadMessage {
-    TagShareCommitment(HashCommitment),
-    TagShareOpening(CommitmentOpening),
+    TagShareCommitment(Hash),
+    TagShareDecommitment(Decommitment<TagShare>),
     TagShare(TagShare),
 }
 
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TagShare {
     pub share: Vec<u8>,
 }

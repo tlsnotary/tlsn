@@ -1,13 +1,27 @@
 use derive_builder::Builder;
 
-#[derive(Debug, Clone, Builder)]
-pub struct AesGcmLeaderConfig {
-    #[allow(dead_code)]
-    pub(crate) id: String,
+/// Protocol role
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Role {
+    Leader,
+    Follower,
 }
 
 #[derive(Debug, Clone, Builder)]
-pub struct AesGcmFollowerConfig {
+pub struct AesGcmConfig {
     #[allow(dead_code)]
-    pub(crate) id: String,
+    id: String,
+    role: Role,
+}
+
+impl AesGcmConfig {
+    /// Returns the id of this instance
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    /// Returns the protocol role
+    pub fn role(&self) -> &Role {
+        &self.role
+    }
 }
