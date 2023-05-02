@@ -86,14 +86,17 @@ where
         };
 
         let encoded_point = EncodedPoint::from(PublicKey::from_affine(shared_secret)?);
-        let (pms1, pms2) = futures::try_join!(
+        let (sender_share, receiver_share) = futures::try_join!(
             self.point_addition_sender
                 .compute_x_coordinate_share(encoded_point),
             self.point_addition_receiver
                 .compute_x_coordinate_share(encoded_point)
         )?;
 
-        Ok((pms1, pms2))
+        match self.config.role() {
+            Role::Leader => Ok((sender_share, receiver_share)),
+            Role::Follower => Ok((receiver_share, sender_share)),
+        }
     }
 
     async fn compute_pms_for(
