@@ -290,30 +290,30 @@ mod tests {
     }
 
     #[test]
+    fn test_ring_buffer_read_write_long_repeatd() {
+        let input = (0..=255).collect::<Vec<u8>>();
+        let mut output = vec![0; 256];
+
+        let buffer = RingBuffer::new(128);
+
+        let mut read_mark = 0;
+        let mut write_mark = 0;
+        loop {
+            write_mark += (&buffer).write(&input[write_mark..]).unwrap();
+            read_mark += (&buffer).read(&mut output[read_mark..]).unwrap();
+            if write_mark == input.len() {
+                break;
+            }
+        }
+        assert_eq!(input, output);
+    }
+
+    #[test]
     fn test_ring_buffer_read_write_short_repeated() {
-        let input = (0..128).collect::<Vec<u8>>();
-        let mut output = vec![0; 128];
+        let input = (0..64).collect::<Vec<u8>>();
+        let mut output = vec![0; 64];
 
-        let buffer = RingBuffer::new(16);
-
-        let mut read_mark = 0;
-        let mut write_mark = 0;
-        loop {
-            write_mark += (&buffer).write(&input[write_mark..]).unwrap();
-            read_mark += (&buffer).read(&mut output[read_mark..]).unwrap();
-            if write_mark == input.len() {
-                break;
-            }
-        }
-        assert_eq!(input, output);
-    }
-
-    #[test]
-    fn test_ring_buffer_read_write_long_repeated() {
-        let input = (0..128).collect::<Vec<u8>>();
-        let mut output = vec![0; 128];
-
-        let buffer = RingBuffer::new(256);
+        let buffer = RingBuffer::new(128);
 
         let mut read_mark = 0;
         let mut write_mark = 0;
@@ -328,10 +328,10 @@ mod tests {
     }
 
     #[test]
-    fn test_ring_buffer_multi_thread_short() {
-        let input = (0..128).collect::<Vec<u8>>();
-        let mut output = vec![0; 128];
-        let buffer = RingBuffer::new(32);
+    fn test_ring_buffer_multi_thread_long() {
+        let input = (0..=255).collect::<Vec<u8>>();
+        let mut output = vec![0; 256];
+        let buffer = RingBuffer::new(128);
 
         std::thread::scope(|s| {
             s.spawn(|| {
@@ -363,10 +363,10 @@ mod tests {
     }
 
     #[test]
-    fn test_ring_buffer_multi_thread_long() {
-        let input = (0..128).collect::<Vec<u8>>();
-        let mut output = vec![0; 128];
-        let buffer = RingBuffer::new(256);
+    fn test_ring_buffer_multi_thread_short() {
+        let input = (0..64).collect::<Vec<u8>>();
+        let mut output = vec![0; 64];
+        let buffer = RingBuffer::new(128);
 
         std::thread::scope(|s| {
             s.spawn(|| {
@@ -399,9 +399,9 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_ring_buffer_async_long() {
-        let input = (0..128).collect::<Vec<u8>>();
-        let mut output = vec![0; 128];
-        let mut buffer: &'static RingBuffer = Box::leak(Box::new(RingBuffer::new(256)));
+        let input = (0..=255).collect::<Vec<u8>>();
+        let mut output = vec![0; 256];
+        let mut buffer: &'static RingBuffer = Box::leak(Box::new(RingBuffer::new(128)));
 
         let fut_write = tokio::spawn(async move {
             let mut write_mark = 0;
@@ -434,9 +434,9 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_ring_buffer_async_short() {
-        let input = (0..128).collect::<Vec<u8>>();
-        let mut output = vec![0; 128];
-        let mut buffer: &'static RingBuffer = Box::leak(Box::new(RingBuffer::new(32)));
+        let input = (0..64).collect::<Vec<u8>>();
+        let mut output = vec![0; 64];
+        let mut buffer: &'static RingBuffer = Box::leak(Box::new(RingBuffer::new(128)));
 
         let fut_write = tokio::spawn(async move {
             let mut write_mark = 0;
