@@ -55,11 +55,6 @@ bimap = "0.6.2"
 name = "bench"
 path = "examples/internal/bench.rs"
 
-[[bench]]
-name = "benchmarks"
-path = "tests/benchmarks.rs"
-harness = false
-
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
