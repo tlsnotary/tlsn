@@ -1,61 +1,79 @@
-use super::*;
-
-use block_cipher::{Aes128, BlockCipher, BlockCipherConfigBuilder, MpcBlockCipher};
+use block_cipher::{BlockCipherConfigBuilder, MpcBlockCipher};
+use mpc_garble::{Decode, DecodePrivate, Execute, Memory, Prove, Verify, Vm};
 use mpc_share_conversion::conversion::recorder::Void;
-use tlsn_stream_cipher::{Aes128Ctr, StreamCipher, StreamCipherConfigBuilder};
-use tlsn_universal_hash::ghash::{mock_ghash_pair, MockGhashReceiver, MockGhashSender};
+use tlsn_stream_cipher::{MpcStreamCipher, StreamCipherConfigBuilder};
+use tlsn_universal_hash::ghash::mock_ghash_pair;
 use utils_aio::duplex::DuplexChannel;
 
-pub type MockAesGcm =
-    AesGcm<MpcBlockCipher<Aes128>, MockStreamCipherLeader<Aes128Ctr>, MockGhashSender<Void, Void>>;
+use super::*;
 
-pub fn create_mock_aes_gcm_pair(
+pub async fn create_mock_aes_gcm_pair<T>(
+    id: &str,
+    leader_vm: &mut T,
+    follower_vm: &mut T,
     leader_config: AesGcmConfig,
     follower_config: AesGcmConfig,
-) -> (MockAesGcm, MockAesGcm) {
+) -> (MpcAesGcm, MpcAesGcm)
+where
+    T: Vm + Send,
+    <T as Vm>::Thread: Memory + Execute + Decode + DecodePrivate + Prove + Verify + Send + Sync,
+{
+    let block_cipher_id = format!("{}/block_cipher", id);
+    let leader_block_cipher = MpcBlockCipher::new(
+        BlockCipherConfigBuilder::default()
+            .id(block_cipher_id.clone())
+            .build()
+            .unwrap(),
+        leader_vm.new_thread(&block_cipher_id).await.unwrap(),
+    );
+    let follower_block_cipher = MpcBlockCipher::new(
+        BlockCipherConfigBuilder::default()
+            .id(block_cipher_id.clone())
+            .build()
+            .unwrap(),
+        follower_vm.new_thread(&block_cipher_id).await.unwrap(),
+    );
+
+    let stream_cipher_id = format!("{}/stream_cipher", id);
+    let leader_stream_cipher = MpcStreamCipher::new(
+        StreamCipherConfigBuilder::default()
+            .id(stream_cipher_id.clone())
+            .build()
+            .unwrap(),
+        leader_vm
+            .new_thread_pool(&stream_cipher_id, 4)
+            .await
+            .unwrap(),
+    );
+    let follower_stream_cipher = MpcStreamCipher::new(
+        StreamCipherConfigBuilder::default()
+            .id(stream_cipher_id.clone())
+            .build()
+            .unwrap(),
+        follower_vm
+            .new_thread_pool(&stream_cipher_id, 4)
+            .await
+            .unwrap(),
+    );
+
+    let (leader_ghash, follower_ghash) = mock_ghash_pair::<Void, Void>(64);
+
     let (leader_channel, follower_channel) = DuplexChannel::new();
 
-    let (mut block_cipher_leader, mut block_cipher_follower) =
-        create_mock_block_cipher_pair::<Aes128>(
-            BlockCipherConfigBuilder::default()
-                .id("mock-block-cipher".to_string())
-                .build()
-                .unwrap(),
-            BlockCipherConfigBuilder::default()
-                .id("mock-block-cipher".to_string())
-                .build()
-                .unwrap(),
-        );
-
-    let (mut stream_cipher_leader, mut stream_cipher_follower) = create_mock_stream_cipher_pair(
-        StreamCipherConfigBuilder::default()
-            .id("mock-stream-cipher".to_string())
-            .start_ctr(2)
-            .build()
-            .unwrap(),
-        StreamCipherConfigBuilder::default()
-            .id("mock-stream-cipher".to_string())
-            .start_ctr(2)
-            .build()
-            .unwrap(),
-    );
-
-    let (universal_hash_sender, universal_hash_receiver) = mock_ghash_pair(1024);
-
-    let leader = AesGcm::new(
+    let leader = MpcAesGcm::new(
         leader_config,
         Box::new(leader_channel),
-        block_cipher_leader,
-        stream_cipher_leader,
-        universal_hash_sender,
+        Box::new(leader_block_cipher),
+        Box::new(leader_stream_cipher),
+        Box::new(leader_ghash),
     );
 
-    let follower = AesGcm::new(
+    let follower = MpcAesGcm::new(
         follower_config,
         Box::new(follower_channel),
-        block_cipher_follower,
-        stream_cipher_follower,
-        universal_hash_receiver,
+        Box::new(follower_block_cipher),
+        Box::new(follower_stream_cipher),
+        Box::new(follower_ghash),
     );
 
     (leader, follower)

@@ -2,8 +2,8 @@
 //! traits in this crate.
 
 mod config;
-// #[cfg(feature = "mock")]
-// pub mod mock;
+#[cfg(feature = "mock")]
+pub mod mock;
 mod tag;
 
 pub use config::{AesGcmConfig, AesGcmConfigBuilder, AesGcmConfigBuilderError, Role};
@@ -311,19 +311,13 @@ impl Aead for MpcAesGcm {
 
 #[cfg(test)]
 mod tests {
+    use super::{mock::create_mock_aes_gcm_pair, *};
     use crate::Aead;
 
-    use super::*;
-
-    use block_cipher::{BlockCipherConfigBuilder, MpcBlockCipher};
     use mpc_garble::{
         protocol::deap::mock::{create_mock_deap_vm, MockFollower, MockLeader},
         Memory, Vm,
     };
-    use mpc_share_conversion::conversion::recorder::Void;
-    use tlsn_stream_cipher::{MpcStreamCipher, StreamCipherConfigBuilder};
-    use tlsn_universal_hash::ghash::mock_ghash_pair;
-    use utils_aio::duplex::DuplexChannel;
 
     use ::aes_gcm::{
         aead::{AeadInPlace, KeyInit},
@@ -367,46 +361,6 @@ mod tests {
         let follower_key = follower_thread.new_public_array_input("key", key).unwrap();
         let follower_iv = follower_thread.new_public_array_input("iv", iv).unwrap();
 
-        let leader_block_cipher = MpcBlockCipher::new(
-            BlockCipherConfigBuilder::default()
-                .id("test_block_cipher".to_string())
-                .build()
-                .unwrap(),
-            leader_vm.new_thread("test_block_cipher").await.unwrap(),
-        );
-        let follower_block_cipher = MpcBlockCipher::new(
-            BlockCipherConfigBuilder::default()
-                .id("test_block_cipher".to_string())
-                .build()
-                .unwrap(),
-            follower_vm.new_thread("test_block_cipher").await.unwrap(),
-        );
-
-        let leader_stream_cipher = MpcStreamCipher::new(
-            StreamCipherConfigBuilder::default()
-                .id("test_stream_cipher".to_string())
-                .build()
-                .unwrap(),
-            leader_vm
-                .new_thread_pool("test_stream_cipher", 4)
-                .await
-                .unwrap(),
-        );
-        let follower_stream_cipher = MpcStreamCipher::new(
-            StreamCipherConfigBuilder::default()
-                .id("test_stream_cipher".to_string())
-                .build()
-                .unwrap(),
-            follower_vm
-                .new_thread_pool("test_stream_cipher", 4)
-                .await
-                .unwrap(),
-        );
-
-        let (leader_ghash, follower_ghash) = mock_ghash_pair::<Void, Void>(64);
-
-        let (leader_channel, follower_channel) = DuplexChannel::new();
-
         let leader_config = AesGcmConfigBuilder::default()
             .id("test".to_string())
             .role(Role::Leader)
@@ -418,20 +372,14 @@ mod tests {
             .build()
             .unwrap();
 
-        let mut leader = MpcAesGcm::new(
+        let (mut leader, mut follower) = create_mock_aes_gcm_pair(
+            "test",
+            &mut leader_vm,
+            &mut follower_vm,
             leader_config,
-            Box::new(leader_channel),
-            Box::new(leader_block_cipher),
-            Box::new(leader_stream_cipher),
-            Box::new(leader_ghash),
-        );
-        let mut follower = MpcAesGcm::new(
             follower_config,
-            Box::new(follower_channel),
-            Box::new(follower_block_cipher),
-            Box::new(follower_stream_cipher),
-            Box::new(follower_ghash),
-        );
+        )
+        .await;
 
         futures::try_join!(
             leader.set_key(leader_key, leader_iv),
