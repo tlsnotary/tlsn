@@ -3,7 +3,6 @@ use super::{
     enums::{AlertDescription, AlertLevel, HandshakeType},
     message::{Message, OpaqueMessage, PlainMessage},
 };
-
 use std::{
     convert::TryFrom,
     fs,

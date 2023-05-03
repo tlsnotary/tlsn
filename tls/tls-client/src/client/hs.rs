@@ -1,37 +1,40 @@
 #[cfg(feature = "logging")]
 use crate::bs_debug;
-use crate::check::inappropriate_handshake_message;
-use crate::conn::{CommonState, ConnectionRandoms, State};
-use crate::error::Error;
-use crate::hash_hs::HandshakeHashBuffer;
 #[cfg(feature = "logging")]
 use crate::log::{debug, trace};
-use crate::msgs::persist;
-use crate::ticketer::TimeBase;
-use tls_core::key::PublicKey;
-use tls_core::msgs::base::Payload;
-use tls_core::msgs::codec::{Codec, Reader};
-use tls_core::msgs::enums::{
-    AlertDescription, CipherSuite, Compression, ContentType, ProtocolVersion,
+use crate::{
+    check::inappropriate_handshake_message,
+    conn::{CommonState, ConnectionRandoms, State},
+    error::Error,
+    hash_hs::HandshakeHashBuffer,
+    msgs::persist,
+    ticketer::TimeBase,
 };
-use tls_core::msgs::enums::{ECPointFormat, PSKKeyExchangeMode};
-use tls_core::msgs::enums::{ExtensionType, HandshakeType};
-use tls_core::msgs::handshake::HelloRetryRequest;
-use tls_core::msgs::handshake::{CertificateStatusRequest, ClientSessionTicket, SCTList};
-use tls_core::msgs::handshake::{ClientExtension, HasServerExtensions};
-use tls_core::msgs::handshake::{ClientHelloPayload, HandshakeMessagePayload, HandshakePayload};
-use tls_core::msgs::handshake::{ConvertProtocolNameList, ProtocolNameList};
-use tls_core::msgs::handshake::{ECPointFormatList, SupportedPointFormats};
-use tls_core::msgs::handshake::{Random, SessionID};
-use tls_core::msgs::message::{Message, MessagePayload};
-use tls_core::suites::SupportedCipherSuite;
+use tls_core::{
+    key::PublicKey,
+    msgs::{
+        base::Payload,
+        codec::{Codec, Reader},
+        enums::{
+            AlertDescription, CipherSuite, Compression, ContentType, ECPointFormat, ExtensionType,
+            HandshakeType, PSKKeyExchangeMode, ProtocolVersion,
+        },
+        handshake::{
+            CertificateStatusRequest, ClientExtension, ClientHelloPayload, ClientSessionTicket,
+            ConvertProtocolNameList, ECPointFormatList, HandshakeMessagePayload, HandshakePayload,
+            HasServerExtensions, HelloRetryRequest, ProtocolNameList, Random, SCTList, SessionID,
+            SupportedPointFormats,
+        },
+        message::{Message, MessagePayload},
+    },
+    suites::SupportedCipherSuite,
+};
 
 #[cfg(feature = "tls12")]
 use super::tls12;
-use crate::client::client_conn::ClientConnectionData;
-use crate::client::common::ClientHelloDetails;
-use crate::client::{tls13, ClientConfig, ServerName};
-
+use crate::client::{
+    client_conn::ClientConnectionData, common::ClientHelloDetails, tls13, ClientConfig, ServerName,
+};
 use async_trait::async_trait;
 use std::sync::Arc;
 
@@ -83,7 +86,7 @@ pub(super) async fn start_handshake(
 
     let support_tls13 = config.supports_version(ProtocolVersion::TLSv1_3);
     let key_share = if support_tls13 {
-        Some(cx.common.crypto.client_key_share().await?)
+        Some(cx.common.backend.get_client_key_share().await?)
     } else {
         None
     };
@@ -113,7 +116,7 @@ pub(super) async fn start_handshake(
         session_id = Some(SessionID::random()?);
     }
 
-    let random = cx.common.crypto.client_random().await?;
+    let random = cx.common.backend.get_client_random().await?;
     let hello_details = ClientHelloDetails::new();
     let sent_tls13_fake_ccs = false;
     let may_send_sct_list = config.verifier.request_scts();
@@ -449,7 +452,7 @@ impl State<ClientConnectionData> for ExpectServerHello {
             }
         };
 
-        cx.common.crypto.select_protocol_version(version)?;
+        cx.common.backend.set_protocol_version(version).await?;
 
         if server_hello.compression_method != Compression::Null {
             return Err(cx
@@ -531,7 +534,7 @@ impl State<ClientConnectionData> for ExpectServerHello {
                 debug!("Using ciphersuite {:?}", suite);
                 self.suite = Some(suite);
                 cx.common.suite = Some(suite);
-                cx.common.crypto.select_cipher_suite(suite)?;
+                cx.common.backend.set_cipher_suite(suite).await?;
             }
         }
 
@@ -541,7 +544,7 @@ impl State<ClientConnectionData> for ExpectServerHello {
 
         let randoms = ConnectionRandoms::new(self.random, server_hello.random);
         cx.common
-            .crypto
+            .backend
             .set_server_random(server_hello.random)
             .await?;
         // For TLS1.3, start message encryption using

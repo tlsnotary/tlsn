@@ -1,4 +1,4 @@
-use crate::{error::Error, Crypto};
+use crate::{error::Error, Backend};
 use tls_core::msgs::message::{OpaqueMessage, PlainMessage};
 
 static SEQ_SOFT_LIMIT: u64 = 0xffff_ffff_ffff_0000u64;
@@ -147,7 +147,7 @@ impl RecordLayer {
     /// an error is returned.
     pub(crate) async fn decrypt_incoming(
         &mut self,
-        cipher: &mut dyn Crypto,
+        cipher: &mut dyn Backend,
         encr: OpaqueMessage,
     ) -> Result<PlainMessage, Error> {
         debug_assert!(self.is_decrypting());
@@ -163,13 +163,13 @@ impl RecordLayer {
     /// panics if the requisite keying material hasn't been established yet.
     pub(crate) async fn encrypt_outgoing(
         &mut self,
-        cipher: &mut dyn Crypto,
+        cipher: &mut dyn Backend,
         plain: PlainMessage,
     ) -> Result<OpaqueMessage, Error> {
         debug_assert!(self.encrypt_state == DirectionState::Active);
         assert!(!self.encrypt_exhausted());
         let seq = self.write_seq;
         self.write_seq += 1;
-        cipher.encrypt(plain, seq).await
+        Ok(cipher.encrypt(plain, seq).await?)
     }
 }

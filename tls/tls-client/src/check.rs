@@ -1,8 +1,10 @@
 use crate::error::Error;
 #[cfg(feature = "logging")]
 use crate::log::warn;
-use tls_core::msgs::enums::{ContentType, HandshakeType};
-use tls_core::msgs::message::MessagePayload;
+use tls_core::msgs::{
+    enums::{ContentType, HandshakeType},
+    message::MessagePayload,
+};
 
 /// For a Message $m, and a HandshakePayload enum member $payload_type,
 /// return Ok(payload) if $m is both a handshake message and one that

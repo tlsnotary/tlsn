@@ -1,12 +1,14 @@
 #[cfg(feature = "logging")]
 use crate::log::warn;
 use crate::KeyLog;
-use std::env;
-use std::fs::{File, OpenOptions};
-use std::io;
-use std::io::Write;
-use std::path::Path;
-use std::sync::Mutex;
+use std::{
+    env,
+    fs::{File, OpenOptions},
+    io,
+    io::Write,
+    path::Path,
+    sync::Mutex,
+};
 
 // Internal mutable state for KeyLogFile
 struct KeyLogFileInner {

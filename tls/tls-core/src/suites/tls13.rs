@@ -1,8 +1,9 @@
-use crate::msgs::enums::CipherSuite;
-use crate::suites::{
-    AEADAlgorithm, CipherSuiteCommon, HKDFAlgorithm, HashAlgorithm, SupportedCipherSuite,
+use crate::{
+    msgs::enums::CipherSuite,
+    suites::{
+        AEADAlgorithm, CipherSuiteCommon, HKDFAlgorithm, HashAlgorithm, SupportedCipherSuite,
+    },
 };
-
 use std::fmt;
 
 /// The TLS1.3 ciphersuite TLS_CHACHA20_POLY1305_SHA256

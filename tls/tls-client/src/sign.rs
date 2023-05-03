@@ -1,15 +1,16 @@
-use crate::error::Error;
-use crate::x509::{wrap_in_asn1_len, wrap_in_sequence};
-use tls_core::key;
-use tls_core::msgs::enums::{SignatureAlgorithm, SignatureScheme};
-
-use ring::io::der;
-use ring::signature::{self, EcdsaKeyPair, Ed25519KeyPair, RsaKeyPair};
-
-use std::convert::TryFrom;
-use std::error::Error as StdError;
-use std::fmt;
-use std::sync::Arc;
+use crate::{
+    error::Error,
+    x509::{wrap_in_asn1_len, wrap_in_sequence},
+};
+use ring::{
+    io::der,
+    signature::{self, EcdsaKeyPair, Ed25519KeyPair, RsaKeyPair},
+};
+use std::{convert::TryFrom, error::Error as StdError, fmt, sync::Arc};
+use tls_core::{
+    key,
+    msgs::enums::{SignatureAlgorithm, SignatureScheme},
+};
 
 /// An abstract signing key.
 pub trait SigningKey: Send + Sync {

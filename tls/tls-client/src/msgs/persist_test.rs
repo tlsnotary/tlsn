@@ -1,12 +1,14 @@
 use super::persist::*;
-use tls_core::msgs::codec::{Codec, Reader};
-use tls_core::msgs::enums::*;
-
 use crate::ticketer::TimeBase;
-use tls_core::key::Certificate;
-use tls_core::suites::TLS13_AES_128_GCM_SHA256;
-
 use std::convert::TryInto;
+use tls_core::{
+    key::Certificate,
+    msgs::{
+        codec::{Codec, Reader},
+        enums::*,
+    },
+    suites::TLS13_AES_128_GCM_SHA256,
+};
 
 #[test]
 fn clientsessionkey_is_debug() {

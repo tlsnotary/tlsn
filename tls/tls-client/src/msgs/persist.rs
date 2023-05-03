@@ -1,18 +1,18 @@
-use crate::client::ServerName;
-use crate::ticketer::TimeBase;
-use tls_core::msgs::base::{PayloadU16, PayloadU8};
-use tls_core::msgs::codec::{Codec, Reader};
-use tls_core::msgs::enums::{CipherSuite, ProtocolVersion};
-use tls_core::msgs::handshake::CertificatePayload;
-use tls_core::msgs::handshake::SessionID;
-use tls_core::suites::SupportedCipherSuite;
-#[cfg(feature = "tls12")]
-use tls_core::suites::Tls12CipherSuite;
-use tls_core::suites::Tls13CipherSuite;
-
+use crate::{client::ServerName, ticketer::TimeBase};
 use std::cmp;
 #[cfg(feature = "tls12")]
 use std::mem;
+#[cfg(feature = "tls12")]
+use tls_core::suites::Tls12CipherSuite;
+use tls_core::{
+    msgs::{
+        base::{PayloadU16, PayloadU8},
+        codec::{Codec, Reader},
+        enums::{CipherSuite, ProtocolVersion},
+        handshake::{CertificatePayload, SessionID},
+    },
+    suites::{SupportedCipherSuite, Tls13CipherSuite},
+};
 
 // These are the keys and values we store in session storage.
 

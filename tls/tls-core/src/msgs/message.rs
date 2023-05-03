@@ -1,12 +1,14 @@
-use crate::error::Error;
-use crate::msgs::alert::AlertMessagePayload;
-use crate::msgs::base::Payload;
-use crate::msgs::ccs::ChangeCipherSpecPayload;
-use crate::msgs::codec::{Codec, Reader};
-use crate::msgs::enums::HandshakeType;
-use crate::msgs::enums::{AlertDescription, AlertLevel};
-use crate::msgs::enums::{ContentType, ProtocolVersion};
-use crate::msgs::handshake::HandshakeMessagePayload;
+use crate::{
+    error::Error,
+    msgs::{
+        alert::AlertMessagePayload,
+        base::Payload,
+        ccs::ChangeCipherSpecPayload,
+        codec::{Codec, Reader},
+        enums::{AlertDescription, AlertLevel, ContentType, HandshakeType, ProtocolVersion},
+        handshake::HandshakeMessagePayload,
+    },
+};
 
 use std::convert::TryFrom;
 
@@ -102,9 +104,7 @@ impl OpaqueMessage {
             _ => {}
         };
 
-        let mut sub = r
-            .sub(len as usize)
-            .ok_or(MessageError::TooShortForLength)?;
+        let mut sub = r.sub(len as usize).ok_or(MessageError::TooShortForLength)?;
         let payload = Payload::read(&mut sub);
 
         Ok(Self {

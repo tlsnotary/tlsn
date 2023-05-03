@@ -1,7 +1,11 @@
-use crate::msgs::codec::{Codec, Reader};
-use crate::msgs::enums::{CipherSuite, SignatureScheme};
-use crate::msgs::handshake::KeyExchangeAlgorithm;
-use crate::suites::{AEADAlgorithm, CipherSuiteCommon, HashAlgorithm, SupportedCipherSuite};
+use crate::{
+    msgs::{
+        codec::{Codec, Reader},
+        enums::{CipherSuite, SignatureScheme},
+        handshake::KeyExchangeAlgorithm,
+    },
+    suites::{AEADAlgorithm, CipherSuiteCommon, HashAlgorithm, SupportedCipherSuite},
+};
 use std::fmt;
 
 pub const DOWNGRADE_SENTINEL: [u8; 8] = [0x44, 0x4f, 0x57, 0x4e, 0x47, 0x52, 0x44, 0x01];

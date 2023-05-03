@@ -1,11 +1,10 @@
 use crate::Error;
+use async_trait::async_trait;
+use ring::{aead, hkdf};
 use tls_core::msgs::{
     codec,
     message::{OpaqueMessage, PlainMessage},
 };
-
-use async_trait::async_trait;
-use ring::{aead, hkdf};
 
 /// Objects with this trait can decrypt TLS messages.
 #[async_trait]

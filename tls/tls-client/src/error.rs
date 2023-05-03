@@ -1,16 +1,18 @@
-use crate::rand;
-use tls_core::msgs::enums::{AlertDescription, ContentType, HandshakeType};
-use tls_core::Error as CoreError;
-
-use std::error::Error as StdError;
-use std::fmt;
-use std::time::SystemTimeError;
+use crate::{backend::BackendError, rand};
+use std::{error::Error as StdError, fmt, time::SystemTimeError};
+use tls_core::{
+    msgs::enums::{AlertDescription, ContentType, HandshakeType},
+    Error as CoreError,
+};
 
 /// rustls reports protocol errors using this type.
 #[derive(Debug, PartialEq, Clone)]
 pub enum Error {
     /// Error propagated from tls-core library
     CoreError(CoreError),
+
+    /// Backend error
+    BackendError(BackendError),
 
     /// We received a TLS message that isn't valid right now.
     /// `expect_types` lists the message types we can expect right now.
@@ -117,6 +119,9 @@ impl fmt::Display for Error {
             Error::CoreError(ref e) => {
                 write!(f, "core error: {}", e)
             }
+            Error::BackendError(ref e) => {
+                write!(f, "backend error: {}", e)
+            }
             Error::InappropriateMessage {
                 ref expect_types,
                 ref got_type,
@@ -176,6 +181,13 @@ impl From<CoreError> for Error {
     #[inline]
     fn from(e: CoreError) -> Self {
         Self::CoreError(e)
+    }
+}
+
+impl From<BackendError> for Error {
+    #[inline]
+    fn from(e: BackendError) -> Self {
+        Self::BackendError(e)
     }
 }
 

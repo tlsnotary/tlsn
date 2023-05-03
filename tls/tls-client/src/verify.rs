@@ -1,16 +1,19 @@
-use crate::anchors::{OwnedTrustAnchor, RootCertStore};
-use crate::client::ServerName;
-use crate::error::Error;
 #[cfg(feature = "logging")]
 use crate::log::{debug, trace, warn};
-use tls_core::key::Certificate;
-use tls_core::msgs::enums::SignatureScheme;
-use tls_core::msgs::handshake::{DigitallySignedStruct, DistinguishedNames};
-
+use crate::{
+    anchors::{OwnedTrustAnchor, RootCertStore},
+    client::ServerName,
+    error::Error,
+};
 use ring::digest::Digest;
-
-use std::convert::TryFrom;
-use std::time::SystemTime;
+use std::{convert::TryFrom, time::SystemTime};
+use tls_core::{
+    key::Certificate,
+    msgs::{
+        enums::SignatureScheme,
+        handshake::{DigitallySignedStruct, DistinguishedNames},
+    },
+};
 
 type SignatureAlgorithms = &'static [&'static webpki::SignatureAlgorithm];
 

@@ -1,18 +1,19 @@
 #![allow(dead_code)]
 
-use std::convert::{TryFrom, TryInto};
-use std::io;
-use std::sync::Arc;
-
-use tls_client::internal::msgs::codec::Reader;
-use tls_client::internal::msgs::message::{Message, OpaqueMessage, PlainMessage};
-use tls_client::Error;
-use tls_client::RootCertStore;
-use tls_client::{Certificate, PrivateKey};
-use tls_client::{ClientConfig, ClientConnection};
-
-use rustls::server::AllowAnyAuthenticatedClient;
-use rustls::{ServerConfig, ServerConnection};
+use rustls::{server::AllowAnyAuthenticatedClient, ServerConfig, ServerConnection};
+use std::{
+    convert::{TryFrom, TryInto},
+    io,
+    sync::Arc,
+};
+use tls_client::{
+    internal::msgs::{
+        codec::Reader,
+        message::{Message, OpaqueMessage, PlainMessage},
+    },
+    Certificate, ClientConfig, ClientConnection, Error, PrivateKey, RootCertStore,
+    RustCryptoBackend,
+};
 
 macro_rules! embed_files {
     (
@@ -489,8 +490,12 @@ pub async fn make_pair_for_arc_configs(
     client_config: &Arc<ClientConfig>,
     server_config: &Arc<ServerConfig>,
 ) -> (ClientConnection, ServerConnection) {
-    let mut client =
-        ClientConnection::new(Arc::clone(client_config), dns_name("localhost")).unwrap();
+    let mut client = ClientConnection::new(
+        Arc::clone(client_config),
+        Box::new(RustCryptoBackend::new()),
+        dns_name("localhost"),
+    )
+    .unwrap();
     client.start().await.unwrap();
     (
         client,

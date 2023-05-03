@@ -1,8 +1,8 @@
-use std::collections::VecDeque;
-use std::io;
-
-use crate::msgs::codec;
-use crate::msgs::message::{MessageError, OpaqueMessage};
+use crate::msgs::{
+    codec,
+    message::{MessageError, OpaqueMessage},
+};
+use std::{collections::VecDeque, io};
 
 /// This deframer works to reconstruct TLS messages
 /// from arbitrary-sized reads, buffering as necessary.
@@ -134,10 +134,8 @@ impl MessageDeframer {
 #[cfg(test)]
 mod tests {
     use super::MessageDeframer;
-    use crate::msgs;
-    use crate::msgs::message::Message;
-    use std::convert::TryFrom;
-    use std::io;
+    use crate::{msgs, msgs::message::Message};
+    use std::{convert::TryFrom, io};
 
     const FIRST_MESSAGE: &[u8] = include_bytes!("../../testdata/deframer-test.1.bin");
     const SECOND_MESSAGE: &[u8] = include_bytes!("../../testdata/deframer-test.2.bin");

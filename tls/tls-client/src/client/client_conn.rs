@@ -1,29 +1,31 @@
 use async_trait::async_trait;
 
-use crate::builder::{ConfigBuilder, WantsCipherSuites};
-use crate::conn::{CommonState, ConnectionCommon, Protocol, Side, State};
-use crate::error::Error;
-use crate::kx::SupportedKxGroup;
+use super::hs;
 #[cfg(feature = "logging")]
 use crate::log::trace;
-use crate::sign;
-use crate::verify;
-use crate::KeyLog;
-use tls_core::msgs::enums::CipherSuite;
-use tls_core::msgs::enums::ProtocolVersion;
-use tls_core::msgs::enums::SignatureScheme;
-use tls_core::msgs::handshake::ClientExtension;
-use tls_core::msgs::message::Message;
-use tls_core::suites::SupportedCipherSuite;
-use tls_core::versions;
-
-use super::hs;
-
-use std::convert::TryFrom;
-use std::error::Error as StdError;
-use std::ops::{Deref, DerefMut};
-use std::sync::Arc;
-use std::{fmt, io, mem};
+use crate::{
+    builder::{ConfigBuilder, WantsCipherSuites},
+    conn::{CommonState, ConnectionCommon, Protocol, Side, State},
+    error::Error,
+    kx::SupportedKxGroup,
+    sign, verify, Backend, KeyLog,
+};
+use std::{
+    convert::TryFrom,
+    error::Error as StdError,
+    fmt, io, mem,
+    ops::{Deref, DerefMut},
+    sync::Arc,
+};
+use tls_core::{
+    msgs::{
+        enums::{CipherSuite, ProtocolVersion, SignatureScheme},
+        handshake::ClientExtension,
+        message::Message,
+    },
+    suites::SupportedCipherSuite,
+    versions,
+};
 
 /// A trait for the ability to store client session data.
 /// The keys and values are opaque.
@@ -272,8 +274,7 @@ impl StdError for InvalidDnsNameError {}
 pub(super) mod danger {
     use std::sync::Arc;
 
-    use super::verify::ServerCertVerifier;
-    use super::ClientConfig;
+    use super::{verify::ServerCertVerifier, ClientConfig};
 
     /// Accessor for dangerous configuration options.
     pub struct DangerousClientConfig<'a> {
@@ -411,17 +412,22 @@ impl ClientConnection {
     /// Make a new ClientConnection.  `config` controls how
     /// we behave in the TLS protocol, `name` is the
     /// name of the server we want to talk to.
-    pub fn new(config: Arc<ClientConfig>, name: ServerName) -> Result<Self, Error> {
-        Self::new_inner(config, name, Vec::new(), Protocol::Tcp)
+    pub fn new(
+        config: Arc<ClientConfig>,
+        backend: Box<dyn Backend>,
+        name: ServerName,
+    ) -> Result<Self, Error> {
+        Self::new_inner(config, backend, name, Vec::new(), Protocol::Tcp)
     }
 
     fn new_inner(
         config: Arc<ClientConfig>,
+        backend: Box<dyn Backend>,
         name: ServerName,
         extra_exts: Vec<ClientExtension>,
         proto: Protocol,
     ) -> Result<Self, Error> {
-        let mut common_state = CommonState::new(config.max_fragment_size, Side::Client)?;
+        let mut common_state = CommonState::new(config.max_fragment_size, Side::Client, backend)?;
         common_state.protocol = proto;
         let data = ClientConnectionData::new();
 

@@ -1,9 +1,13 @@
 use ring::digest;
 use std::mem;
-use tls_core::msgs::codec::Codec;
-use tls_core::msgs::handshake::HandshakeMessagePayload;
-use tls_core::msgs::message::{Message, MessagePayload};
-use tls_core::suites::HashAlgorithm;
+use tls_core::{
+    msgs::{
+        codec::Codec,
+        handshake::HandshakeMessagePayload,
+        message::{Message, MessagePayload},
+    },
+    suites::HashAlgorithm,
+};
 
 /// Early stage buffering of handshake payloads.
 ///

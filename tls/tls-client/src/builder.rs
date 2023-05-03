@@ -1,7 +1,11 @@
-use crate::error::Error;
-use crate::kx::{SupportedKxGroup, ALL_KX_GROUPS};
-use tls_core::suites::{SupportedCipherSuite, DEFAULT_CIPHER_SUITES};
-use tls_core::versions;
+use crate::{
+    error::Error,
+    kx::{SupportedKxGroup, ALL_KX_GROUPS},
+};
+use tls_core::{
+    suites::{SupportedCipherSuite, DEFAULT_CIPHER_SUITES},
+    versions,
+};
 
 use std::fmt;
 

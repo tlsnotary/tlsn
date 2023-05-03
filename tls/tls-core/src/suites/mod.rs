@@ -1,11 +1,15 @@
 pub mod tls12;
 pub mod tls13;
 
-use crate::msgs::enums::{CipherSuite, ProtocolVersion, SignatureAlgorithm, SignatureScheme};
-use crate::msgs::handshake::DecomposedSignatureScheme;
 #[cfg(feature = "tls12")]
 use crate::versions::TLS12;
-use crate::versions::{SupportedProtocolVersion, TLS13};
+use crate::{
+    msgs::{
+        enums::{CipherSuite, ProtocolVersion, SignatureAlgorithm, SignatureScheme},
+        handshake::DecomposedSignatureScheme,
+    },
+    versions::{SupportedProtocolVersion, TLS13},
+};
 #[cfg(feature = "tls12")]
 pub use tls12::Tls12CipherSuite;
 #[cfg(feature = "tls12")]
@@ -18,9 +22,9 @@ pub use tls12::{
     TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
     TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
 };
-pub use tls13::Tls13CipherSuite;
 pub use tls13::{
-    TLS13_AES_128_GCM_SHA256, TLS13_AES_256_GCM_SHA384, TLS13_CHACHA20_POLY1305_SHA256,
+    Tls13CipherSuite, TLS13_AES_128_GCM_SHA256, TLS13_AES_256_GCM_SHA384,
+    TLS13_CHACHA20_POLY1305_SHA256,
 };
 
 /// AEAD Algorithm scheme used by a cipher suite.

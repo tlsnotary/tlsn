@@ -15,6 +15,9 @@ name = "tls_client"
 rustversion = { version = "1.0.6", optional = true }
 
 [dependencies]
+tlsn-tls-backend = { path = "../tls-backend" }
+tlsn-tls-core = { path = "../tls-core" }
+
 async-recursion = "1.0.0"
 async-trait = "0.1.53"
 futures = "0.3.21"
@@ -23,13 +26,13 @@ ring = "0.16.20"
 sct = "0.7.0"
 tokio = { version = "1.18.2", features = ["macros", "rt", "rt-multi-thread"] }
 webpki = { version = "0.22.0", features = ["alloc", "std"] }
-tlsn-tls-core = { path = "../tls-core" }
 aes-gcm = { version = "0.9.4" }
 p256 = { version = "0.10.1", features = ["ecdh"] }
 rand = "0.8.5"
 hmac = { version = "0.12.1" }
 sha2 = { version = "0.10.1", features = ["compress"] }
 digest = { version = "0.10.3" }
+thiserror = { version = "1" }
 
 [features]
 default = ["logging", "tls12"]
