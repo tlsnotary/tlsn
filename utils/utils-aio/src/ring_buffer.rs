@@ -401,12 +401,19 @@ mod tests {
     async fn test_ring_buffer_async_long() {
         let input = (0..=255).collect::<Vec<u8>>();
         let mut output = vec![0; 256];
-        let mut buffer: &'static RingBuffer = Box::leak(Box::new(RingBuffer::new(128)));
+        let buffer = std::sync::Arc::new(RingBuffer::new(128));
+        let read_handle = buffer.clone();
+        let write_handle = buffer.clone();
 
         let fut_write = tokio::spawn(async move {
             let mut write_mark = 0;
             loop {
-                match futures::AsyncWriteExt::write(&mut buffer, &input[write_mark..]).await {
+                match futures::AsyncWriteExt::write(
+                    &mut std::ops::Deref::deref(&write_handle),
+                    &input[write_mark..],
+                )
+                .await
+                {
                     Ok(len) => write_mark += len,
                     Err(_) => continue,
                 }
@@ -419,7 +426,12 @@ mod tests {
         let fut_read = tokio::spawn(async move {
             let mut read_mark = 0;
             loop {
-                match futures::AsyncReadExt::read(&mut buffer, &mut output[read_mark..]).await {
+                match futures::AsyncReadExt::read(
+                    &mut std::ops::Deref::deref(&read_handle),
+                    &mut output[read_mark..],
+                )
+                .await
+                {
                     Ok(len) => read_mark += len,
                     Err(_) => continue,
                 }
@@ -436,12 +448,19 @@ mod tests {
     async fn test_ring_buffer_async_short() {
         let input = (0..64).collect::<Vec<u8>>();
         let mut output = vec![0; 64];
-        let mut buffer: &'static RingBuffer = Box::leak(Box::new(RingBuffer::new(128)));
+        let buffer = std::sync::Arc::new(RingBuffer::new(128));
+        let read_handle = buffer.clone();
+        let write_handle = buffer.clone();
 
         let fut_write = tokio::spawn(async move {
             let mut write_mark = 0;
             loop {
-                match futures::AsyncWriteExt::write(&mut buffer, &input[write_mark..]).await {
+                match futures::AsyncWriteExt::write(
+                    &mut std::ops::Deref::deref(&write_handle),
+                    &input[write_mark..],
+                )
+                .await
+                {
                     Ok(len) => write_mark += len,
                     Err(_) => continue,
                 }
@@ -454,7 +473,12 @@ mod tests {
         let fut_read = tokio::spawn(async move {
             let mut read_mark = 0;
             loop {
-                match futures::AsyncReadExt::read(&mut buffer, &mut output[read_mark..]).await {
+                match futures::AsyncReadExt::read(
+                    &mut std::ops::Deref::deref(&read_handle),
+                    &mut output[read_mark..],
+                )
+                .await
+                {
                     Ok(len) => read_mark += len,
                     Err(_) => continue,
                 }
