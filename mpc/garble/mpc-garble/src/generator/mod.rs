@@ -43,6 +43,8 @@ struct State {
     encoding_registry: EncodingRegistry<encoding_state::Full>,
     /// The set of values that are currently active.
     ///
+    /// A value is considered active when it has been encoded and sent to the evaluator.
+    ///
     /// This is used to guarantee that the same encoding is never used
     /// with different active values.
     active: HashSet<ValueId>,

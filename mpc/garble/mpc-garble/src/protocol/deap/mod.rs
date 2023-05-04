@@ -53,15 +53,24 @@ struct State {
     /// An internal buffer for value configurations which get
     /// drained and set up prior to execution.
     input_buffer: HashMap<ValueId, ValueIdConfig>,
+
     /// Equality check decommitments withheld by the leader
     /// prior to finalization
+    ///
+    /// Operation ID => Equality check decommitment
     eq_decommitments: HashMap<String, Decommitment<EqualityCheck>>,
     /// Equality check commitments from the leader
+    ///
+    /// Operation ID => (Expected eq. check value, hash commitment from leader)
     eq_commitments: HashMap<String, (EqualityCheck, Hash)>,
     /// Proof decommitments withheld by the leader
     /// prior to finalization
+    ///
+    /// Operation ID => GC output hash decommitment
     proof_decommitments: HashMap<String, Decommitment<Hash>>,
     /// Proof commitments from the leader
+    ///
+    /// Operation ID => (Expected GC output hash, hash commitment from leader)
     proof_commitments: HashMap<String, (Hash, Hash)>,
 }
 
@@ -401,7 +410,7 @@ impl DEAP {
                     DEAPError::UnexpectedMessage
                 )?;
 
-                // Authentic values
+                // Authenticate and decode values
                 active
                     .into_iter()
                     .zip(full)

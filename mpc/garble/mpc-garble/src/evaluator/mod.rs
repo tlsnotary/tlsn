@@ -271,9 +271,9 @@ impl Evaluator {
         Ok(())
     }
 
-    /// Evaluate a garbled circuit, streaming the encrypted gates in batches.
+    /// Evaluate a garbled circuit, receiving the encrypted gates in batches from the provided stream.
     ///
-    /// Returns the encoded outputs of the garbled circuit.
+    /// Returns the encoded outputs of the evaluated circuit.
     ///
     /// # Arguments
     ///
