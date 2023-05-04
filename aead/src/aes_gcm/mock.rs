@@ -1,3 +1,5 @@
+//! Mock implementation of AES-GCM for testing purposes.
+
 use block_cipher::{BlockCipherConfigBuilder, MpcBlockCipher};
 use mpc_garble::{Decode, DecodePrivate, Execute, Memory, Prove, Verify, Vm};
 use mpc_share_conversion::conversion::recorder::Void;
@@ -7,6 +9,15 @@ use utils_aio::duplex::DuplexChannel;
 
 use super::*;
 
+/// Creates a mock AES-GCM pair.
+///
+/// # Arguments
+///
+/// * `id` - The id of the AES-GCM instances.
+/// * `leader_vm` - The VM of the leader.
+/// * `follower_vm` - The VM of the follower.
+/// * `leader_config` - The configuration of the leader.
+/// * `follower_config` - The configuration of the follower.
 pub async fn create_mock_aes_gcm_pair<T>(
     id: &str,
     leader_vm: &mut T,

@@ -1,5 +1,4 @@
-//! This module provides an implementation of 2PC AES-GCM which implements the `AEADLeader` and `AEADFollower`
-//! traits in this crate.
+//! This module provides an implementation of 2PC AES-GCM.
 
 mod config;
 #[cfg(feature = "mock")]
@@ -7,7 +6,6 @@ pub mod mock;
 mod tag;
 
 pub use config::{AesGcmConfig, AesGcmConfigBuilder, AesGcmConfigBuilderError, Role};
-pub use tag::AesGcmTagShare;
 
 use crate::{
     msg::{AeadMessage, TagShare},
@@ -24,8 +22,10 @@ use tlsn_stream_cipher::{Aes128Ctr, StreamCipher};
 use tlsn_universal_hash::UniversalHash;
 use utils_aio::expect_msg_or_err;
 
+pub(crate) use tag::AesGcmTagShare;
 use tag::{build_ghash_data, AES_GCM_TAG_LEN};
 
+/// An implementation of 2PC AES-GCM.
 pub struct MpcAesGcm {
     config: AesGcmConfig,
 
@@ -37,6 +37,7 @@ pub struct MpcAesGcm {
 }
 
 impl MpcAesGcm {
+    /// Creates a new instance of `MpcAesGcm`.
     pub fn new(
         config: AesGcmConfig,
         channel: AeadChannel,

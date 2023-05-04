@@ -2,15 +2,18 @@ use derive_builder::Builder;
 
 /// Protocol role
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub enum Role {
     Leader,
     Follower,
 }
 
+/// Configuration for AES-GCM.
 #[derive(Debug, Clone, Builder)]
 pub struct AesGcmConfig {
-    #[allow(dead_code)]
+    /// The id of this instance
     id: String,
+    /// The protocol role
     role: Role,
 }
 
