@@ -8,11 +8,11 @@ use std::{
     sync::atomic::AtomicUsize,
 };
 
-/// A lock-free FIFO, single-consumer single-producer (SCSP) ring buffer for bytes
+/// A lock-free, FIFO, single-consumer single-producer (SCSP) ring buffer for bytes
 ///
 /// Implements [`AsyncRead`] and [`AsyncWrite`], as well as [`Read`] and [`Write`].
 /// This buffer is not entirely safe. Users have to ensure that:
-/// 1. There are not multiple readers or multiple writers at the same time, i.e. only a single
+/// 1. There are no multiple readers or multiple writers at the same time, i.e. only a single
 ///    reader and a single writer.
 /// 2. The buffer is not moved during writing.
 #[derive(Debug)]
@@ -27,9 +27,12 @@ pub struct RingBuffer {
 impl RingBuffer {
     /// Creates a new ring buffer with the given size
     ///
+    /// The size will be rounded up to the next power of two.
+    ///
     /// # Safety
-    /// The buffer must not be moved during writing.
-    pub fn new(size: usize) -> Self {
+    /// Users of this buffer have to ensure that there are no multiple readers or multiple writers
+    /// and that the buffer is not moved during writing.
+    pub unsafe fn new(size: usize) -> Self {
         let optimized_size = size.next_power_of_two();
         Self {
             buffer: vec![0; optimized_size],
@@ -47,10 +50,22 @@ impl RingBuffer {
         }
     }
 
+    // The ring buffer works as follows: Imagine it like a byte vector with read mark (R) and write
+    // mark (W)
+    // _,_,_,_,_,_,R,_,_,_W,_,_
+    //
+    // The buffer is readable from R to W. If R == W, the buffer has been read completely and is
+    // fully writable.
+    // The buffer is writable from W to R - 1. If W == R - 1, the buffer has been fully written and
+    // needs to be read again
+    //
+    // Each read or write operation advances R and W accordingly.
+
     fn compute_new_read_mark(&self, max: usize) -> Result<(usize, usize, usize), BufferError> {
         let read_mark = self.read_mark.load(std::sync::atomic::Ordering::Relaxed);
         let write_mark = self.write_mark.load(std::sync::atomic::Ordering::Relaxed);
 
+        // Buffer only contains old data, we need to wait for new writes
         if read_mark == write_mark {
             return Err(BufferError::NoProgress);
         }
@@ -65,6 +80,7 @@ impl RingBuffer {
         let write_mark = self.write_mark.load(std::sync::atomic::Ordering::Relaxed);
         let read_mark = self.read_mark.load(std::sync::atomic::Ordering::Relaxed);
 
+        // Buffer is full, we need to wait for reads
         if (write_mark + 1) & (self.buffer.len() - 1) == read_mark {
             return Err(BufferError::NoProgress);
         }
@@ -72,6 +88,7 @@ impl RingBuffer {
         let mut distance = self.compute_distance(write_mark, read_mark, max);
         let mut new_mark = (write_mark + distance) & (self.buffer.len() - 1);
 
+        // Adapt the distance so that for writes the buffer is full, when W == R - 1
         if new_mark == read_mark {
             distance -= 1;
             new_mark = (write_mark + distance) & (self.buffer.len() - 1);
@@ -80,6 +97,7 @@ impl RingBuffer {
         Ok((write_mark, new_mark, distance))
     }
 
+    // Computes the number of steps from mark_to_increment to until_mark
     fn compute_distance(&self, mark_to_increment: usize, until_mark: usize, max: usize) -> usize {
         let mut distance = mark_to_increment.abs_diff(until_mark);
         if until_mark <= mark_to_increment {
@@ -247,7 +265,7 @@ mod tests {
 
     #[test]
     fn test_ring_buffer_write_longer_input() {
-        let mut buffer = RingBuffer::new(256);
+        let mut buffer = unsafe { RingBuffer::new(256) };
         let input = vec![1; 512];
         let result = buffer.write(&input);
 
@@ -259,7 +277,7 @@ mod tests {
 
     #[test]
     fn test_ring_buffer_write_shorter_input() {
-        let mut buffer = RingBuffer::new(256);
+        let mut buffer = unsafe { RingBuffer::new(256) };
         let input = vec![1; 30];
         let result = buffer.write(&input);
 
@@ -271,7 +289,7 @@ mod tests {
 
     #[test]
     fn test_ring_buffer_read_longer_output() {
-        let mut buffer = RingBuffer::new(256);
+        let mut buffer = unsafe { RingBuffer::new(256) };
         buffer.buffer = vec![1; 256];
         buffer.write_mark.store(255, Ordering::SeqCst);
 
@@ -287,7 +305,7 @@ mod tests {
 
     #[test]
     fn test_ring_buffer_read_shorter_output() {
-        let mut buffer = RingBuffer::new(256);
+        let mut buffer = unsafe { RingBuffer::new(256) };
         buffer.buffer = vec![1; 256];
         buffer.write_mark.store(255, Ordering::SeqCst);
 
@@ -305,7 +323,7 @@ mod tests {
         let input = (0..=255).collect::<Vec<u8>>();
         let mut output = vec![0; 256];
 
-        let buffer = RingBuffer::new(128);
+        let buffer = unsafe { RingBuffer::new(128) };
 
         let mut read_mark = 0;
         let mut write_mark = 0;
@@ -324,7 +342,7 @@ mod tests {
         let input = (0..64).collect::<Vec<u8>>();
         let mut output = vec![0; 64];
 
-        let buffer = RingBuffer::new(128);
+        let buffer = unsafe { RingBuffer::new(128) };
 
         let mut read_mark = 0;
         let mut write_mark = 0;
@@ -342,7 +360,7 @@ mod tests {
     fn test_ring_buffer_multi_thread_long() {
         let input = (0..=255).collect::<Vec<u8>>();
         let mut output = vec![0; 256];
-        let buffer = RingBuffer::new(128);
+        let buffer = unsafe { RingBuffer::new(128) };
 
         std::thread::scope(|s| {
             s.spawn(|| {
@@ -377,7 +395,7 @@ mod tests {
     fn test_ring_buffer_multi_thread_short() {
         let input = (0..64).collect::<Vec<u8>>();
         let mut output = vec![0; 64];
-        let buffer = RingBuffer::new(128);
+        let buffer = unsafe { RingBuffer::new(128) };
 
         std::thread::scope(|s| {
             s.spawn(|| {
@@ -412,7 +430,7 @@ mod tests {
     async fn test_ring_buffer_async_long() {
         let input = (0..=255).collect::<Vec<u8>>();
         let mut output = vec![0; 256];
-        let buffer = std::sync::Arc::new(RingBuffer::new(128));
+        let buffer = std::sync::Arc::new(unsafe { RingBuffer::new(128) });
         let read_handle = buffer.clone();
         let write_handle = buffer.clone();
 
@@ -459,7 +477,7 @@ mod tests {
     async fn test_ring_buffer_async_short() {
         let input = (0..64).collect::<Vec<u8>>();
         let mut output = vec![0; 64];
-        let buffer = std::sync::Arc::new(RingBuffer::new(128));
+        let buffer = std::sync::Arc::new(unsafe { RingBuffer::new(128) });
         let read_handle = buffer.clone();
         let write_handle = buffer.clone();
 
