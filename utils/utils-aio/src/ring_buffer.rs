@@ -8,6 +8,13 @@ use std::{
     sync::atomic::AtomicUsize,
 };
 
+/// A lock-free FIFO, single-consumer single-producer (SCSP) ring buffer for bytes
+///
+/// Implements [`AsyncRead`] and [`AsyncWrite`], as well as [`Read`] and [`Write`].
+/// This buffer is not entirely safe. Users have to ensure that:
+/// 1. There are not multiple readers or multiple writers at the same time, i.e. only a single
+///    reader and a single writer.
+/// 2. The buffer is not moved during writing.
 #[derive(Debug)]
 pub struct RingBuffer {
     buffer: Vec<u8>,
@@ -18,6 +25,10 @@ pub struct RingBuffer {
 }
 
 impl RingBuffer {
+    /// Creates a new ring buffer with the given size
+    ///
+    /// # Safety
+    /// The buffer must not be moved during writing.
     pub fn new(size: usize) -> Self {
         let optimized_size = size.next_power_of_two();
         Self {
