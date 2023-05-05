@@ -6,115 +6,73 @@
 //! # Committed OT
 //!
 //! This crate also supports a weak flavor of "Committed OT" which allows the Sender to reveal their private inputs
-//! so the Receiver can verify messages sent during OT were correct. This procedure is synchronized in such a way to
-//! require unanimous agreement across all "split" OTs prior to revealing the Sender's private inputs.
+//! so the Receiver can verify messages sent during OT were correct.
 //!
 //! # Partitioning Synchronization
 //!
 //! Both the Sender and Receiver provide an async API, however, both must synchronize the order in which they
 //! partition the pre-allocated OTs. To do this, the Sender dictates the order of this process.
 
+#![deny(missing_docs, unreachable_pub, unused_must_use)]
+#![deny(clippy::all)]
+#![forbid(unsafe_code)]
+
 mod config;
-/// This module contains message structs which can be sent to the actor to trigger different
-/// message handlers.
 mod msg;
 mod receiver;
 mod sender;
+mod setup;
 
 pub use config::{
     OTActorReceiverConfig, OTActorReceiverConfigBuilder, OTActorSenderConfig,
     OTActorSenderConfigBuilder,
 };
-pub use msg::{
+pub use mpc_ot_core::msgs::OTMessage;
+pub(crate) use msg::{
     GetReceiver, GetSender, MarkForReveal, Reveal, SendBackReceiver, SendBackSender, Setup, Verify,
 };
 pub use receiver::{KOSReceiverActor, ReceiverActorControl};
 pub use sender::{KOSSenderActor, SenderActorControl};
+pub use setup::{create_ot_pair, create_ot_receiver, create_ot_sender};
+
+/// Errors which can occur when working with the OT actors
+#[derive(Debug, thiserror::Error)]
+#[allow(missing_docs)]
+pub enum OTActorError {
+    #[error(transparent)]
+    SpawnError(#[from] futures::task::SpawnError),
+    #[error(transparent)]
+    OTError(#[from] mpc_ot::OTError),
+}
 
 #[cfg(test)]
 mod test {
+    use crate::setup::create_ot_pair;
+
     use super::*;
-    use actor_mux::{
-        MockClientChannelMuxer, MockClientControl, MockServerChannelMuxer, MockServerControl,
-    };
+
     use mpc_core::Block;
     use mpc_ot::{ObliviousReceive, ObliviousReveal, ObliviousSend, ObliviousVerify};
-    use mpc_ot_core::msgs::OTMessage;
-    use utils_aio::{mux::MuxChannelControl, Channel};
-    use xtra::prelude::*;
-
-    type OTChannel = Box<dyn Channel<OTMessage, Error = std::io::Error>>;
-
-    async fn create_pair(
-        sender_config: OTActorSenderConfig,
-        receiver_config: OTActorReceiverConfig,
-    ) -> (
-        Address<KOSSenderActor<OTChannel, MockClientControl>>,
-        Address<KOSReceiverActor<OTChannel, MockServerControl>>,
-    ) {
-        let receiver_mux_addr =
-            xtra::spawn_tokio(MockServerChannelMuxer::default(), Mailbox::unbounded());
-        let mut receiver_mux = MockServerControl::new(receiver_mux_addr.clone());
-
-        let mut sender_mux = MockClientControl::new(xtra::spawn_tokio(
-            MockClientChannelMuxer::new(receiver_mux_addr),
-            Mailbox::unbounded(),
-        ));
-
-        let sender_channel = sender_mux.get_channel("KOS".to_string()).await.unwrap();
-        let (sender_addr, sender_mailbox) = Mailbox::unbounded();
-        let (sender_actor, sender_fut) = KOSSenderActor::new(
-            sender_config,
-            sender_addr.clone(),
-            sender_channel,
-            sender_mux,
-        );
-
-        let receiver_channel = receiver_mux.get_channel("KOS".to_string()).await.unwrap();
-        let (receiver_addr, receiver_mailbox) = Mailbox::unbounded();
-        let (receiver_actor, receiver_fut) = KOSReceiverActor::new(
-            receiver_config,
-            receiver_addr.clone(),
-            receiver_channel,
-            receiver_mux,
-        );
-
-        tokio::spawn(sender_fut);
-        tokio::spawn(receiver_fut);
-        let sender_addr = xtra::spawn_tokio(sender_actor, (sender_addr, sender_mailbox));
-        let receiver_addr = xtra::spawn_tokio(receiver_actor, (receiver_addr, receiver_mailbox));
-
-        (sender_addr, receiver_addr)
-    }
-
-    async fn create_pair_controls(
-        sender_config: OTActorSenderConfig,
-        receiver_config: OTActorReceiverConfig,
-    ) -> (
-        SenderActorControl<KOSSenderActor<OTChannel, MockClientControl>>,
-        ReceiverActorControl<KOSReceiverActor<OTChannel, MockServerControl>>,
-    ) {
-        let (sender_addr, receiver_addr) = create_pair(sender_config, receiver_config).await;
-        (
-            SenderActorControl::new(sender_addr),
-            ReceiverActorControl::new(receiver_addr),
-        )
-    }
+    use utils_aio::{executor::SpawnCompatExt, mux::mock::MockMuxChannelFactory};
 
     async fn create_setup_pair(
         sender_config: OTActorSenderConfig,
         receiver_config: OTActorReceiverConfig,
-    ) -> (
-        SenderActorControl<KOSSenderActor<OTChannel, MockClientControl>>,
-        ReceiverActorControl<KOSReceiverActor<OTChannel, MockServerControl>>,
-    ) {
-        let (mut sender_control, mut receiver_control) =
-            create_pair_controls(sender_config, receiver_config).await;
+    ) -> (SenderActorControl, ReceiverActorControl) {
+        let mux_factory = MockMuxChannelFactory::new();
 
-        let (sender_setup_result, receiver_setup_result) =
-            futures::join!(sender_control.setup(), receiver_control.setup());
-        sender_setup_result.unwrap();
-        receiver_setup_result.unwrap();
+        let (mut sender_control, mut receiver_control) = create_ot_pair(
+            "test",
+            &tokio::runtime::Handle::current().compat(),
+            mux_factory.clone(),
+            mux_factory,
+            sender_config,
+            receiver_config,
+        )
+        .await
+        .unwrap();
+
+        futures::try_join!(sender_control.setup(), receiver_control.setup()).unwrap();
 
         (sender_control, receiver_control)
     }
@@ -122,10 +80,12 @@ mod test {
     #[tokio::test]
     async fn test_ot_actor() {
         let sender_config = OTActorSenderConfigBuilder::default()
+            .id("test".to_string())
             .initial_count(10)
             .build()
             .unwrap();
         let receiver_config = OTActorReceiverConfigBuilder::default()
+            .id("test".to_string())
             .initial_count(10)
             .build()
             .unwrap();
@@ -156,10 +116,12 @@ mod test {
     #[tokio::test]
     async fn test_ot_actor_many_splits() {
         let sender_config = OTActorSenderConfigBuilder::default()
+            .id("test".to_string())
             .initial_count(100)
             .build()
             .unwrap();
         let receiver_config = OTActorReceiverConfigBuilder::default()
+            .id("test".to_string())
             .initial_count(100)
             .build()
             .unwrap();
@@ -186,18 +148,20 @@ mod test {
                     .unwrap()
             };
 
-            let (_, _received) = futures::join!(send, receive);
+            _ = futures::join!(send, receive);
         }
     }
 
     #[tokio::test]
     async fn test_ot_actor_committed_ot() {
         let sender_config = OTActorSenderConfigBuilder::default()
+            .id("test".to_string())
             .initial_count(100)
             .committed()
             .build()
             .unwrap();
         let receiver_config = OTActorReceiverConfigBuilder::default()
+            .id("test".to_string())
             .initial_count(100)
             .committed()
             .build()
@@ -210,20 +174,18 @@ mod test {
         let choices = vec![
             false, false, true, true, false, true, true, false, true, false,
         ];
-        let send = async { sender_control.send("", data.clone()).await.unwrap() };
+        let send = async { sender_control.send("", data.clone()).await };
 
-        let receive = async { receiver_control.receive("", choices).await.unwrap() };
+        let receive = async { receiver_control.receive("", choices).await.map(|_| ()) };
 
         let reveal = async {
             sender_control.mark_for_reveal("").await.unwrap();
-            sender_control.reveal().await.unwrap()
+            sender_control.reveal().await
         };
 
-        let verify = async { receiver_control.verify("", data.clone()).await };
+        let verify = async { receiver_control.verify("", data.clone()).await.map(|_| ()) };
 
-        let (_, _) = futures::join!(send, receive);
-        let (_, verify) = futures::join!(reveal, verify);
-
-        assert!(matches!(verify, Ok(())));
+        futures::try_join!(send, receive).unwrap();
+        futures::try_join!(reveal, verify).unwrap();
     }
 }
