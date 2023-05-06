@@ -2,8 +2,8 @@ mod config;
 #[cfg(feature = "mock")]
 pub mod mock;
 mod receiver;
-pub mod recorder;
 mod sender;
+pub mod tape;
 
 pub use config::{
     ReceiverConfig, ReceiverConfigBuilder, ReceiverConfigBuilderError, SenderConfig,
@@ -17,7 +17,7 @@ use utils_aio::Channel;
 
 /// A channel used by conversion protocols for messaging
 pub type ShareConversionChannel<T> =
-    Box<dyn Channel<ShareConversionMessage<T>, Error = std::io::Error>>;
+    Box<dyn Channel<ShareConversionMessage<T>, Error = std::io::Error> + Send + Sync>;
 
 #[cfg(test)]
 mod tests {
@@ -106,7 +106,7 @@ mod tests {
     }
 
     async fn test_a2m<T: Field>() {
-        let (mut sender, mut receiver) =
+        let (sender, receiver) =
             mock_converter_pair::<AddShare<T>, T>(sender_config(), receiver_config());
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
@@ -134,7 +134,7 @@ mod tests {
     }
 
     async fn test_m2a<T: Field>() {
-        let (mut sender, mut receiver) =
+        let (sender, receiver) =
             mock_converter_pair::<MulShare<T>, T>(sender_config(), receiver_config());
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
@@ -162,7 +162,7 @@ mod tests {
     }
 
     async fn test_a2m_recorded<T: Field>() {
-        let (mut sender, mut receiver) =
+        let (sender, receiver) =
             mock_converter_pair::<AddShare<T>, T>(sender_config(), receiver_config());
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
@@ -188,7 +188,7 @@ mod tests {
     }
 
     async fn test_m2a_recorded<T: Field>() {
-        let (mut sender, mut receiver) =
+        let (sender, receiver) =
             mock_converter_pair::<MulShare<T>, T>(sender_config(), receiver_config());
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
@@ -214,7 +214,7 @@ mod tests {
     }
 
     async fn test_a2m_recorded_fail<T: Field>() {
-        let (mut sender, mut receiver) =
+        let (mut sender, receiver) =
             mock_converter_pair::<AddShare<T>, T>(sender_config(), receiver_config());
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
@@ -227,7 +227,14 @@ mod tests {
             let _ = sender.a_to_m(random_numbers_1).await.unwrap();
 
             // Malicious sender now changes his input in the tape before sending it
-            *sender.tape_mut().sender_inputs.last_mut().unwrap() = T::one();
+            *sender
+                .state_mut()
+                .tape
+                .as_mut()
+                .unwrap()
+                .sender_inputs
+                .last_mut()
+                .unwrap() = T::one();
             sender.send_tape().await.unwrap()
         });
         let receiver_task = tokio::spawn(async move {
@@ -246,7 +253,7 @@ mod tests {
     }
 
     async fn test_m2a_recorded_fail<T: Field>() {
-        let (mut sender, mut receiver) =
+        let (mut sender, receiver) =
             mock_converter_pair::<MulShare<T>, T>(sender_config(), receiver_config());
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
@@ -258,7 +265,14 @@ mod tests {
             let _ = sender.m_to_a(random_numbers_1).await.unwrap();
 
             // Malicious sender now changes his input in the tape before sending it
-            *sender.tape_mut().sender_inputs.last_mut().unwrap() = T::one();
+            *sender
+                .state_mut()
+                .tape
+                .as_mut()
+                .unwrap()
+                .sender_inputs
+                .last_mut()
+                .unwrap() = T::one();
             sender.send_tape().await.unwrap()
         });
         let receiver_task = tokio::spawn(async move {

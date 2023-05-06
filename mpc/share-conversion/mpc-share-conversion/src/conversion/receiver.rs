@@ -1,6 +1,6 @@
 //! This module implements the async IO receiver
 
-use super::{recorder::Tape, ReceiverConfig, ShareConversionChannel};
+use super::{tape::Tape, ReceiverConfig, ShareConversionChannel};
 use crate::{
     ot::OTReceiveElement, AdditiveToMultiplicative, MultiplicativeToAdditive, ShareConversionError,
     VerifyTape,
@@ -12,7 +12,10 @@ use mpc_share_conversion_core::{
     msgs::{SenderRecordings, ShareConversionMessage},
     AddShare, MulShare, ShareConvert,
 };
-use std::{marker::PhantomData, sync::Arc};
+use std::{
+    marker::PhantomData,
+    sync::{Arc, Mutex},
+};
 
 /// The receiver for the conversion
 ///
@@ -24,8 +27,13 @@ where
 {
     ot_receiver: Arc<dyn OTReceiveElement<F>>,
     config: ReceiverConfig,
-    _protocol: PhantomData<T>,
     channel: ShareConversionChannel<F>,
+    state: Mutex<State<F>>,
+
+    _protocol: PhantomData<T>,
+}
+
+struct State<F: Field> {
     /// If a non-Void recorder was passed in, it will be used to record the "tape", ( see [Recorder::Tape])
     recorder: Option<Tape<F>>,
     /// keeps track of how many batched share conversions we've made so far
@@ -47,18 +55,21 @@ where
         Self {
             ot_receiver,
             config,
-            _protocol: PhantomData,
             channel,
-            recorder,
-            counter: 0,
+            state: Mutex::new(State {
+                recorder,
+                counter: 0,
+            }),
+            _protocol: PhantomData,
         }
     }
 
     /// Converts a batch of shares using oblivious transfer
-    async fn convert_from(&mut self, shares: &[F]) -> Result<Vec<F>, ShareConversionError> {
+    async fn convert_from(&self, shares: &[F]) -> Result<Vec<F>, ShareConversionError> {
         if shares.is_empty() {
             return Ok(vec![]);
         }
+
         let ot_number = shares.len() * F::BIT_SIZE as usize;
 
         // Get choices for OT from shares
@@ -68,15 +79,18 @@ where
             choices.extend_from_slice(&share);
         });
 
+        let counter = {
+            let mut state = self.state.lock().unwrap();
+            let counter = state.counter;
+            state.counter += 1;
+            counter
+        };
+
         // Receive OT shares from the sender and increment batch counter
         let ot_output = self
             .ot_receiver
-            .receive(
-                &format!("{}/{}/ot", &self.config.id(), &self.counter),
-                choices,
-            )
+            .receive(&format!("{}/{}/ot", &self.config.id(), &counter), choices)
             .await?;
-        self.counter += 1;
 
         // Aggregate OTs to get back field elements from [Field::BlockEncoding]
         let field_elements: Vec<F> = ot_output
@@ -91,6 +105,10 @@ where
             .map(|elements| T::from_sender_values(elements).inner())
             .collect();
 
+        if let Some(recorder) = self.state.lock().unwrap().recorder.as_mut() {
+            recorder.record_for_receiver(shares, &converted_shares);
+        }
+
         Ok(converted_shares)
     }
 }
@@ -100,12 +118,8 @@ impl<F> AdditiveToMultiplicative<F> for Receiver<AddShare<F>, F>
 where
     F: Field,
 {
-    async fn a_to_m(&mut self, input: Vec<F>) -> Result<Vec<F>, ShareConversionError> {
-        let output = self.convert_from(&input).await?;
-        if let Some(recorder) = self.recorder.as_mut() {
-            recorder.record_for_receiver(&input, &output);
-        }
-        Ok(output)
+    async fn a_to_m(&self, input: Vec<F>) -> Result<Vec<F>, ShareConversionError> {
+        self.convert_from(&input).await
     }
 }
 
@@ -114,12 +128,8 @@ impl<F> MultiplicativeToAdditive<F> for Receiver<MulShare<F>, F>
 where
     F: Field,
 {
-    async fn m_to_a(&mut self, input: Vec<F>) -> Result<Vec<F>, ShareConversionError> {
-        let output = self.convert_from(&input).await?;
-        if let Some(recorder) = self.recorder.as_mut() {
-            recorder.record_for_receiver(&input, &output);
-        }
-        Ok(output)
+    async fn m_to_a(&self, input: Vec<F>) -> Result<Vec<F>, ShareConversionError> {
+        self.convert_from(&input).await
     }
 }
 
@@ -130,7 +140,7 @@ where
     F: Field,
 {
     async fn verify_tape(mut self) -> Result<(), ShareConversionError> {
-        let Some(mut tape) = self.recorder.take() else {
+        let Some(mut tape) = self.state.lock().unwrap().recorder.take() else {
             return Err(ShareConversionError::TapeNotConfigured);
         };
 

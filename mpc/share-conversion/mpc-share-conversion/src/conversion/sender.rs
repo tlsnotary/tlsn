@@ -1,6 +1,11 @@
 //! This module implements the async IO sender
 
-use super::{recorder::Tape, SenderConfig, ShareConversionChannel};
+use std::{
+    marker::PhantomData,
+    sync::{Arc, Mutex},
+};
+
+use super::{tape::Tape, SenderConfig, ShareConversionChannel};
 use crate::{
     ot::OTSendElement, AdditiveToMultiplicative, MultiplicativeToAdditive, SendTape,
     ShareConversionError,
@@ -14,7 +19,7 @@ use mpc_share_conversion_core::{
 };
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
-use std::{marker::PhantomData, sync::Arc};
+
 use utils_aio::adaptive_barrier::AdaptiveBarrier;
 
 /// The sender for the conversion
@@ -27,14 +32,19 @@ where
 {
     ot_sender: Arc<dyn OTSendElement<F>>,
     config: SenderConfig,
-    _protocol: PhantomData<T>,
-    rng: ChaCha12Rng,
+    state: Mutex<State<F>>,
     channel: ShareConversionChannel<F>,
-    /// If a non-[Void] recorder was passed in, it will be used to record the "tape", ( see [super::recorder::Tape])
-    recorder: Option<Tape<F>>,
+
     /// A barrier at which this Sender must wait before revealing the tape to the receiver. Used when
     /// multiple parallel share conversion protocols need to agree when to reveal their tapes.
     barrier: Option<AdaptiveBarrier>,
+
+    _protocol: PhantomData<T>,
+}
+
+pub(crate) struct State<F: Field> {
+    rng: ChaCha12Rng,
+    pub(crate) tape: Option<Tape<F>>,
     /// keeps track of how many batched share conversions we've made so far
     counter: usize,
 }
@@ -52,48 +62,66 @@ where
         barrier: Option<AdaptiveBarrier>,
     ) -> Self {
         let rng = ChaCha12Rng::from_entropy();
-        let recorder = config.record().then(|| Tape::new(rng.get_seed()));
+        let tape = config.record().then(|| Tape::new(rng.get_seed()));
+
         Self {
             ot_sender,
             config,
-            _protocol: PhantomData,
-            rng,
             channel,
-            recorder,
             barrier,
-            counter: 0,
+            state: Mutex::new(State {
+                rng,
+                tape,
+                counter: 0,
+            }),
+            _protocol: PhantomData,
         }
     }
 
     /// Converts a batch of shares using oblivious transfer
-    async fn convert_from(&mut self, shares: &[F]) -> Result<Vec<F>, ShareConversionError> {
+    async fn convert_from(&self, shares: &[F]) -> Result<Vec<F>, ShareConversionError> {
         let mut local_shares = Vec::with_capacity(shares.len());
 
         if shares.is_empty() {
             return Ok(local_shares);
         }
 
-        // Prepare shares for OT and also create this party's converted shares
-        let mut ot_shares = OTEnvelope::default();
-        for share in shares {
-            let share = T::new(*share);
-            let (local, ot) = share.convert(&mut self.rng)?;
-            local_shares.push(local.inner());
-            ot_shares.extend(ot);
-        }
+        let (ot_shares, counter) = {
+            let mut state = self.state.lock().unwrap();
+
+            if let Some(tape) = state.tape.as_mut() {
+                tape.record_for_sender(shares);
+            }
+
+            let counter = state.counter;
+            state.counter += 1;
+
+            // Prepare shares for OT and also create this party's converted shares
+            let mut ot_shares = OTEnvelope::default();
+            for share in shares {
+                let share = T::new(*share);
+                let (local, ot) = share.convert(&mut state.rng)?;
+                local_shares.push(local.inner());
+                ot_shares.extend(ot);
+            }
+
+            (ot_shares, counter)
+        };
 
         // Send OT shares to the receiver and increment batch counter
         self.ot_sender
             .send(
-                &format!("{}/{}/ot", &self.config.id(), &self.counter),
+                &format!("{}/{}/ot", &self.config.id(), counter),
                 ot_shares.into(),
             )
             .await?;
-        self.counter += 1;
 
         Ok(local_shares)
     }
 }
+
+#[cfg(test)]
+use std::ops::DerefMut;
 
 // Used for unit testing
 #[cfg(test)]
@@ -102,8 +130,8 @@ where
     T: ShareConvert<Inner = F>,
     F: Field,
 {
-    pub(crate) fn tape_mut(&mut self) -> &mut Tape<F> {
-        self.recorder.as_mut().unwrap()
+    pub(crate) fn state_mut(&mut self) -> impl DerefMut<Target = State<F>> + '_ {
+        self.state.try_lock().unwrap()
     }
 }
 
@@ -112,10 +140,7 @@ impl<F> AdditiveToMultiplicative<F> for Sender<AddShare<F>, F>
 where
     F: Field,
 {
-    async fn a_to_m(&mut self, input: Vec<F>) -> Result<Vec<F>, ShareConversionError> {
-        if let Some(recorder) = self.recorder.as_mut() {
-            recorder.record_for_sender(&input)
-        }
+    async fn a_to_m(&self, input: Vec<F>) -> Result<Vec<F>, ShareConversionError> {
         self.convert_from(&input).await
     }
 }
@@ -125,10 +150,7 @@ impl<F> MultiplicativeToAdditive<F> for Sender<MulShare<F>, F>
 where
     F: Field,
 {
-    async fn m_to_a(&mut self, input: Vec<F>) -> Result<Vec<F>, ShareConversionError> {
-        if let Some(recorder) = self.recorder.as_mut() {
-            recorder.record_for_sender(&input)
-        }
+    async fn m_to_a(&self, input: Vec<F>) -> Result<Vec<F>, ShareConversionError> {
         self.convert_from(&input).await
     }
 }
@@ -140,7 +162,7 @@ where
     F: Field,
 {
     async fn send_tape(mut self) -> Result<(), ShareConversionError> {
-        let Some(tape) = self.recorder.take() else {
+        let Some(tape) = self.state.lock().unwrap().tape.take() else {
             return Err(ShareConversionError::TapeNotConfigured);
         };
 
@@ -149,7 +171,7 @@ where
             sender_inputs: tape.sender_inputs,
         };
 
-        if let Some(barrier) = self.barrier {
+        if let Some(barrier) = self.barrier.take() {
             barrier.wait().await;
         }
 

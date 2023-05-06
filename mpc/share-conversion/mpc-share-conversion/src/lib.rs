@@ -10,14 +10,14 @@ mod ot;
 
 /// Allows to convert additive shares into multiplicative ones
 #[async_trait]
-pub trait AdditiveToMultiplicative<T: Field> {
-    async fn a_to_m(&mut self, input: Vec<T>) -> Result<Vec<T>, ShareConversionError>;
+pub trait AdditiveToMultiplicative<T: Field>: Sync {
+    async fn a_to_m(&self, input: Vec<T>) -> Result<Vec<T>, ShareConversionError>;
 }
 
 /// Allows to convert multiplicative shares  into additive ones
 #[async_trait]
-pub trait MultiplicativeToAdditive<T: Field> {
-    async fn m_to_a(&mut self, input: Vec<T>) -> Result<Vec<T>, ShareConversionError>;
+pub trait MultiplicativeToAdditive<T: Field>: Sync {
+    async fn m_to_a(&self, input: Vec<T>) -> Result<Vec<T>, ShareConversionError>;
 }
 
 /// Send a tape used for verification of the conversion
