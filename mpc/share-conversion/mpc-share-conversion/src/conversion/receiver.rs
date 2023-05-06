@@ -1,9 +1,6 @@
 //! This module implements the async IO receiver
 
-use super::{
-    recorder::{Recorder, Tape, Void},
-    ShareConversionChannel,
-};
+use super::{recorder::Tape, ReceiverConfig, ShareConversionChannel};
 use crate::{AdditiveToMultiplicative, MultiplicativeToAdditive, ShareConversionError, VerifyTape};
 use async_trait::async_trait;
 use futures::StreamExt;
@@ -18,40 +15,39 @@ use std::{marker::PhantomData, sync::Arc};
 /// The receiver for the conversion
 ///
 /// Will be the OT receiver
-pub struct Receiver<U, V, X, W = Void>
+pub struct Receiver<U, V, X>
 where
     U: ShareConvert<Inner = V>,
     V: Field<BlockEncoding = X>,
-    W: Recorder<U, V>,
 {
     ot_receiver: Arc<dyn ObliviousReceive<bool, X> + Send + Sync>,
-    id: String,
+    config: ReceiverConfig,
     _protocol: PhantomData<U>,
     channel: ShareConversionChannel<V>,
     /// If a non-Void recorder was passed in, it will be used to record the "tape", ( see [Recorder::Tape])
-    recorder: W,
+    recorder: Option<Tape<V>>,
     /// keeps track of how many batched share conversions we've made so far
     counter: usize,
 }
 
-impl<U, V, X, W> Receiver<U, V, X, W>
+impl<U, V, X> Receiver<U, V, X>
 where
     U: ShareConvert<Inner = V>,
     V: Field<BlockEncoding = X>,
-    W: Recorder<U, V>,
 {
     /// Create a new receiver
     pub fn new(
+        config: ReceiverConfig,
         ot_receiver: Arc<dyn ObliviousReceive<bool, X> + Send + Sync>,
-        id: String,
         channel: ShareConversionChannel<V>,
     ) -> Self {
+        let recorder = config.record().then(Tape::default);
         Self {
             ot_receiver,
-            id,
+            config,
             _protocol: PhantomData,
             channel,
-            recorder: W::default(),
+            recorder,
             counter: 0,
         }
     }
@@ -73,7 +69,10 @@ where
         // Receive OT shares from the sender and increment batch counter
         let ot_output = self
             .ot_receiver
-            .receive(&format!("{}/{}/ot", &self.id, &self.counter), choices)
+            .receive(
+                &format!("{}/{}/ot", &self.config.id(), &self.counter),
+                choices,
+            )
             .await?;
         self.counter += 1;
 
@@ -95,38 +94,44 @@ where
 }
 
 #[async_trait]
-impl<V, X, W> AdditiveToMultiplicative<V> for Receiver<AddShare<V>, V, X, W>
+impl<V, X> AdditiveToMultiplicative<V> for Receiver<AddShare<V>, V, X>
 where
     V: Field<BlockEncoding = X>,
-    W: Recorder<AddShare<V>, V> + Send,
 {
     async fn a_to_m(&mut self, input: Vec<V>) -> Result<Vec<V>, ShareConversionError> {
         let output = self.convert_from(&input).await?;
-        self.recorder.record_for_receiver(&input, &output);
+        if let Some(recorder) = self.recorder.as_mut() {
+            recorder.record_for_receiver(&input, &output);
+        }
         Ok(output)
     }
 }
 
 #[async_trait]
-impl<V, X, W> MultiplicativeToAdditive<V> for Receiver<MulShare<V>, V, X, W>
+impl<V, X> MultiplicativeToAdditive<V> for Receiver<MulShare<V>, V, X>
 where
     V: Field<BlockEncoding = X>,
-    W: Recorder<MulShare<V>, V> + Send,
 {
     async fn m_to_a(&mut self, input: Vec<V>) -> Result<Vec<V>, ShareConversionError> {
         let output = self.convert_from(&input).await?;
-        self.recorder.record_for_receiver(&input, &output);
+        if let Some(recorder) = self.recorder.as_mut() {
+            recorder.record_for_receiver(&input, &output);
+        }
         Ok(output)
     }
 }
 
 #[async_trait]
-impl<U, V, X> VerifyTape for Receiver<U, V, X, Tape<V>>
+impl<U, V, X> VerifyTape for Receiver<U, V, X>
 where
     U: ShareConvert<Inner = V> + Send,
     V: Field<BlockEncoding = X>,
 {
     async fn verify_tape(mut self) -> Result<(), ShareConversionError> {
+        let Some(mut tape) = self.recorder.take() else {
+            return Err(ShareConversionError::TapeNotConfigured);
+        };
+
         let message = self.channel.next().await.ok_or(std::io::Error::new(
             std::io::ErrorKind::ConnectionAborted,
             "stream closed unexpectedly",
@@ -137,12 +142,11 @@ where
             sender_inputs,
         }) = message;
 
-        <Tape<V> as Recorder<U, V>>::set_seed(
-            &mut self.recorder,
+        tape.set_seed(
             seed.try_into()
-                .expect("Seed does not fit into 32 byte array"),
+                .map_err(|_| ShareConversionError::InvalidSeed)?,
         );
-        <Tape<V> as Recorder<U, V>>::record_for_sender(&mut self.recorder, &sender_inputs);
-        <Tape<V> as Recorder<U, V>>::verify(&self.recorder)
+        tape.record_for_sender(&sender_inputs);
+        tape.verify::<U>()
     }
 }

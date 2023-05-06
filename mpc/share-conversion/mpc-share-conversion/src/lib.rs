@@ -46,6 +46,10 @@ pub enum ShareConversionError {
     IOError(#[from] std::io::Error),
     #[error("ShareConversionCore Error: {0}")]
     ShareConversionCore(#[from] ShareConversionCoreError),
+    #[error("Received invalid seed")]
+    InvalidSeed,
+    #[error("Tape not configured")]
+    TapeNotConfigured,
     #[error("Tape verification failed")]
     VerifyTapeFailed,
     #[error("Error: {0}")]

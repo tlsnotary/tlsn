@@ -1,12 +1,18 @@
+mod config;
 #[cfg(feature = "mock")]
 pub mod mock;
 mod receiver;
 pub mod recorder;
 mod sender;
 
+pub use config::{
+    ReceiverConfig, ReceiverConfigBuilder, ReceiverConfigBuilderError, SenderConfig,
+    SenderConfigBuilder, SenderConfigBuilderError,
+};
 pub use mpc_share_conversion_core::msgs::ShareConversionMessage;
 pub use receiver::Receiver;
 pub use sender::Sender;
+
 use utils_aio::Channel;
 
 /// A channel used by conversion protocols for messaging
@@ -15,7 +21,7 @@ pub type ShareConversionChannel<T> =
 
 #[cfg(test)]
 mod tests {
-    use super::recorder::{Tape, Void};
+    use super::{ReceiverConfig, SenderConfig};
     use crate::{
         conversion::mock::mock_converter_pair, AdditiveToMultiplicative, MultiplicativeToAdditive,
         SendTape, ShareConversionError, VerifyTape,
@@ -27,6 +33,18 @@ mod tests {
     };
     use rand::SeedableRng;
     use rand_chacha::ChaCha12Rng;
+
+    fn sender_config() -> SenderConfig {
+        SenderConfig::builder().id("test").record().build().unwrap()
+    }
+
+    fn receiver_config() -> ReceiverConfig {
+        ReceiverConfig::builder()
+            .id("test")
+            .record()
+            .build()
+            .unwrap()
+    }
 
     #[tokio::test]
     async fn test_share_conversion_gf2_128_a2m() {
@@ -92,7 +110,8 @@ mod tests {
         T: Field<BlockEncoding = U>,
         U: Send + Clone + Copy + 'static + std::fmt::Debug,
     >() {
-        let (mut sender, mut receiver) = mock_converter_pair::<AddShare<T>, T, U, Void>();
+        let (mut sender, mut receiver) =
+            mock_converter_pair::<AddShare<T>, T, U>(sender_config(), receiver_config());
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
@@ -122,7 +141,8 @@ mod tests {
         T: Field<BlockEncoding = U>,
         U: Send + Clone + Copy + 'static + std::fmt::Debug,
     >() {
-        let (mut sender, mut receiver) = mock_converter_pair::<MulShare<T>, T, U, Void>();
+        let (mut sender, mut receiver) =
+            mock_converter_pair::<MulShare<T>, T, U>(sender_config(), receiver_config());
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
@@ -152,7 +172,8 @@ mod tests {
         T: Field<BlockEncoding = U>,
         U: Send + Clone + Copy + 'static + std::fmt::Debug,
     >() {
-        let (mut sender, mut receiver) = mock_converter_pair::<AddShare<T>, T, U, Tape<T>>();
+        let (mut sender, mut receiver) =
+            mock_converter_pair::<AddShare<T>, T, U>(sender_config(), receiver_config());
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
@@ -180,7 +201,8 @@ mod tests {
         T: Field<BlockEncoding = U>,
         U: Send + Clone + Copy + 'static + std::fmt::Debug,
     >() {
-        let (mut sender, mut receiver) = mock_converter_pair::<MulShare<T>, T, U, Tape<T>>();
+        let (mut sender, mut receiver) =
+            mock_converter_pair::<MulShare<T>, T, U>(sender_config(), receiver_config());
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
@@ -208,7 +230,8 @@ mod tests {
         T: Field<BlockEncoding = U>,
         U: Send + Clone + Copy + 'static + std::fmt::Debug,
     >() {
-        let (mut sender, mut receiver) = mock_converter_pair::<AddShare<T>, T, U, Tape<T>>();
+        let (mut sender, mut receiver) =
+            mock_converter_pair::<AddShare<T>, T, U>(sender_config(), receiver_config());
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
@@ -242,7 +265,8 @@ mod tests {
         T: Field<BlockEncoding = U>,
         U: Send + Clone + Copy + 'static + std::fmt::Debug,
     >() {
-        let (mut sender, mut receiver) = mock_converter_pair::<MulShare<T>, T, U, Tape<T>>();
+        let (mut sender, mut receiver) =
+            mock_converter_pair::<MulShare<T>, T, U>(sender_config(), receiver_config());
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
