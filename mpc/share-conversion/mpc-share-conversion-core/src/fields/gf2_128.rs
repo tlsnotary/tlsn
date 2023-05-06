@@ -120,7 +120,7 @@ impl Field for Gf2_128 {
     fn from_bits_msb0(bits: &[bool]) -> Self {
         let mut out = Self::zero();
         for k in 0..bits.len() {
-            out.0 |= (bits[k as usize] as u128) << k
+            out.0 |= (bits[k] as u128) << k
         }
         out
     }

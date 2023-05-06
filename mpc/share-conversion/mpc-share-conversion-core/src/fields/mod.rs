@@ -144,9 +144,9 @@ mod tests {
         let b = T::from_bits_msb0(&b);
 
         assert_eq!(a, T::one());
-        assert_eq!(a.get_bit_msb0(T::BIT_SIZE - 1), true);
+        assert!(a.get_bit_msb0(T::BIT_SIZE - 1));
 
         assert_eq!(b, T::one() * T::two_pow(T::BIT_SIZE - 1));
-        assert_eq!(b.get_bit_msb0(0), true);
+        assert!(b.get_bit_msb0(0));
     }
 }
