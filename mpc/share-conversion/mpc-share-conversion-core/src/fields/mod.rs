@@ -1,6 +1,7 @@
 pub mod gf2_128;
 pub mod p256;
 
+use mpc_core::BlockConvert;
 use rand::{distributions::Standard, prelude::Distribution, Rng};
 use std::{
     fmt::Debug,
@@ -23,11 +24,9 @@ pub trait Field:
     + Ord
     + PartialEq
     + Eq
-    + From<Self::BlockEncoding>
-    + Into<Self::BlockEncoding>
+    + BlockConvert
 {
     const BIT_SIZE: u32;
-    type BlockEncoding;
 
     // Return the additive neutral element
     fn zero() -> Self;

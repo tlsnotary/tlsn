@@ -26,7 +26,6 @@ mod tests {
         conversion::mock::mock_converter_pair, AdditiveToMultiplicative, MultiplicativeToAdditive,
         SendTape, ShareConversionError, VerifyTape,
     };
-    use mpc_core::Block;
     use mpc_share_conversion_core::{
         fields::{gf2_128::Gf2_128, p256::P256, Field},
         AddShare, MulShare,
@@ -48,70 +47,67 @@ mod tests {
 
     #[tokio::test]
     async fn test_share_conversion_gf2_128_a2m() {
-        test_a2m::<Gf2_128, Block>().await;
+        test_a2m::<Gf2_128>().await;
     }
 
     #[tokio::test]
     async fn test_share_conversion_gf2_128_m2a() {
-        test_m2a::<Gf2_128, Block>().await;
+        test_m2a::<Gf2_128>().await;
     }
 
     #[tokio::test]
     async fn test_share_conversion_gf2_128_a2m_recorded() {
-        test_a2m_recorded::<Gf2_128, Block>().await;
+        test_a2m_recorded::<Gf2_128>().await;
     }
 
     #[tokio::test]
     async fn test_share_conversion_gf2_128_m2a_recorded() {
-        test_m2a_recorded::<Gf2_128, Block>().await;
+        test_m2a_recorded::<Gf2_128>().await;
     }
 
     #[tokio::test]
     async fn test_share_conversion_gf2_128_a2m_recorded_fail() {
-        test_a2m_recorded_fail::<Gf2_128, Block>().await;
+        test_a2m_recorded_fail::<Gf2_128>().await;
     }
 
     #[tokio::test]
     async fn test_share_conversion_gf2_128_m2a_recorded_fail() {
-        test_m2a_recorded_fail::<Gf2_128, Block>().await;
+        test_m2a_recorded_fail::<Gf2_128>().await;
     }
 
     #[tokio::test]
     async fn test_share_conversion_p256_a2m() {
-        test_a2m::<P256, [Block; 2]>().await;
+        test_a2m::<P256>().await;
     }
 
     #[tokio::test]
     async fn test_share_conversion_p256_m2a() {
-        test_m2a::<P256, [Block; 2]>().await;
+        test_m2a::<P256>().await;
     }
 
     #[tokio::test]
     async fn test_share_conversion_p256_a2m_recorded() {
-        test_a2m_recorded::<P256, [Block; 2]>().await;
+        test_a2m_recorded::<P256>().await;
     }
 
     #[tokio::test]
     async fn test_share_conversion_p256_m2a_recorded() {
-        test_m2a_recorded::<P256, [Block; 2]>().await;
+        test_m2a_recorded::<P256>().await;
     }
 
     #[tokio::test]
     async fn test_share_conversion_p256_a2m_recorded_fail() {
-        test_a2m_recorded_fail::<P256, [Block; 2]>().await;
+        test_a2m_recorded_fail::<P256>().await;
     }
 
     #[tokio::test]
     async fn test_share_conversion_p256_m2a_recorded_fail() {
-        test_m2a_recorded_fail::<P256, [Block; 2]>().await;
+        test_m2a_recorded_fail::<P256>().await;
     }
 
-    async fn test_a2m<
-        T: Field<BlockEncoding = U>,
-        U: Send + Clone + Copy + 'static + std::fmt::Debug,
-    >() {
+    async fn test_a2m<T: Field>() {
         let (mut sender, mut receiver) =
-            mock_converter_pair::<AddShare<T>, T, U>(sender_config(), receiver_config());
+            mock_converter_pair::<AddShare<T>, T>(sender_config(), receiver_config());
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
@@ -137,12 +133,9 @@ mod tests {
         }
     }
 
-    async fn test_m2a<
-        T: Field<BlockEncoding = U>,
-        U: Send + Clone + Copy + 'static + std::fmt::Debug,
-    >() {
+    async fn test_m2a<T: Field>() {
         let (mut sender, mut receiver) =
-            mock_converter_pair::<MulShare<T>, T, U>(sender_config(), receiver_config());
+            mock_converter_pair::<MulShare<T>, T>(sender_config(), receiver_config());
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
@@ -168,12 +161,9 @@ mod tests {
         }
     }
 
-    async fn test_a2m_recorded<
-        T: Field<BlockEncoding = U>,
-        U: Send + Clone + Copy + 'static + std::fmt::Debug,
-    >() {
+    async fn test_a2m_recorded<T: Field>() {
         let (mut sender, mut receiver) =
-            mock_converter_pair::<AddShare<T>, T, U>(sender_config(), receiver_config());
+            mock_converter_pair::<AddShare<T>, T>(sender_config(), receiver_config());
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
@@ -197,12 +187,9 @@ mod tests {
         // fine.
     }
 
-    async fn test_m2a_recorded<
-        T: Field<BlockEncoding = U>,
-        U: Send + Clone + Copy + 'static + std::fmt::Debug,
-    >() {
+    async fn test_m2a_recorded<T: Field>() {
         let (mut sender, mut receiver) =
-            mock_converter_pair::<MulShare<T>, T, U>(sender_config(), receiver_config());
+            mock_converter_pair::<MulShare<T>, T>(sender_config(), receiver_config());
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
@@ -226,12 +213,9 @@ mod tests {
         // fine.
     }
 
-    async fn test_a2m_recorded_fail<
-        T: Field<BlockEncoding = U>,
-        U: Send + Clone + Copy + 'static + std::fmt::Debug,
-    >() {
+    async fn test_a2m_recorded_fail<T: Field>() {
         let (mut sender, mut receiver) =
-            mock_converter_pair::<AddShare<T>, T, U>(sender_config(), receiver_config());
+            mock_converter_pair::<AddShare<T>, T>(sender_config(), receiver_config());
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers
@@ -261,12 +245,9 @@ mod tests {
         ));
     }
 
-    async fn test_m2a_recorded_fail<
-        T: Field<BlockEncoding = U>,
-        U: Send + Clone + Copy + 'static + std::fmt::Debug,
-    >() {
+    async fn test_m2a_recorded_fail<T: Field>() {
         let (mut sender, mut receiver) =
-            mock_converter_pair::<MulShare<T>, T, U>(sender_config(), receiver_config());
+            mock_converter_pair::<MulShare<T>, T>(sender_config(), receiver_config());
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Create some random numbers

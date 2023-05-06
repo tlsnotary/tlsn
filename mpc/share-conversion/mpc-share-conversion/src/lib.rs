@@ -6,6 +6,7 @@ use mpc_share_conversion_core::{fields::Field, ShareConversionCoreError};
 use thiserror::Error;
 
 pub mod conversion;
+mod ot;
 
 /// Allows to convert additive shares into multiplicative ones
 #[async_trait]

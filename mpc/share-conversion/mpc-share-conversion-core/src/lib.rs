@@ -123,14 +123,14 @@ impl<T> Default for OTEnvelope<T> {
     }
 }
 
-impl<T> From<OTEnvelope<T>> for Vec<[T::BlockEncoding; 2]>
+impl<T> From<OTEnvelope<T>> for Vec<[T; 2]>
 where
     T: Field,
 {
     fn from(value: OTEnvelope<T>) -> Self {
         let mut out = Vec::with_capacity(value.0.len());
-        for (zero, one) in value.0.iter().zip(value.1.iter()) {
-            out.push([Into::into(*zero), Into::into(*one)])
+        for (zero, one) in value.0.into_iter().zip(value.1.into_iter()) {
+            out.push([zero, one])
         }
         out
     }

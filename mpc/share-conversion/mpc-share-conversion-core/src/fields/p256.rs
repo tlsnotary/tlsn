@@ -3,7 +3,7 @@
 use super::Field;
 use ark_ff::{BigInt, BigInteger, Field as ArkField, FpConfig, MontBackend, One, Zero};
 use ark_secp256r1::{fq::Fq, FqConfig};
-use mpc_core::Block;
+use mpc_core::{Block, BlockConvert};
 use num_bigint::ToBigUint;
 use rand::{distributions::Standard, prelude::Distribution};
 use std::ops::{Add, Mul, Neg};
@@ -86,7 +86,6 @@ impl Neg for P256 {
 
 impl Field for P256 {
     const BIT_SIZE: u32 = 256;
-    type BlockEncoding = [Block; 2];
 
     fn zero() -> Self {
         P256(<Fq as Zero>::zero())
@@ -127,6 +126,18 @@ impl Field for P256 {
 
     fn to_be_bytes(&self) -> Vec<u8> {
         BigInt::to_bytes_be(&MontBackend::<FqConfig, 4>::into_bigint(self.0))
+    }
+}
+
+impl BlockConvert for P256 {
+    type BlockRepr = [Block; 2];
+
+    fn from_blocks(blocks: Self::BlockRepr) -> Self {
+        blocks.into()
+    }
+
+    fn to_blocks(self) -> Self::BlockRepr {
+        self.into()
     }
 }
 

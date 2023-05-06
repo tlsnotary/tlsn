@@ -1,7 +1,7 @@
 //! This module implements the extension field GF(2^128)
 
 use super::Field;
-use mpc_core::Block;
+use mpc_core::{Block, BlockConvert};
 use rand::{distributions::Standard, prelude::Distribution};
 use std::ops::{Add, Mul, Neg};
 
@@ -79,7 +79,6 @@ impl Neg for Gf2_128 {
 
 impl Field for Gf2_128 {
     const BIT_SIZE: u32 = 128;
-    type BlockEncoding = Block;
 
     fn zero() -> Self {
         Self::new(0)
@@ -132,6 +131,18 @@ impl Field for Gf2_128 {
 
     fn to_be_bytes(&self) -> Vec<u8> {
         self.0.to_be_bytes().to_vec()
+    }
+}
+
+impl BlockConvert for Gf2_128 {
+    type BlockRepr = Block;
+
+    fn from_blocks(blocks: Self::BlockRepr) -> Self {
+        Gf2_128::new(blocks.inner())
+    }
+
+    fn to_blocks(self) -> Self::BlockRepr {
+        Block::new(self.0)
     }
 }
 
