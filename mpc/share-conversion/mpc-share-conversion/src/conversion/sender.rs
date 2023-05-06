@@ -15,20 +15,19 @@ use mpc_share_conversion_core::{
 };
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
-use std::marker::PhantomData;
+use std::{marker::PhantomData, sync::Arc};
 use utils_aio::adaptive_barrier::AdaptiveBarrier;
 
 /// The sender for the conversion
 ///
 /// Will be the OT sender
-pub struct Sender<OT, U, V, X, W = Void>
+pub struct Sender<U, V, X, W = Void>
 where
-    OT: ObliviousSend<[X; 2]> + Send + Sync,
     U: ShareConvert<Inner = V>,
     V: Field<BlockEncoding = X>,
     W: Recorder<U, V>,
 {
-    ot_sender: OT,
+    ot_sender: Arc<dyn ObliviousSend<[X; 2]> + Send + Sync>,
     id: String,
     _protocol: PhantomData<U>,
     rng: ChaCha12Rng,
@@ -42,16 +41,15 @@ where
     counter: usize,
 }
 
-impl<OT, U, V, X, W> Sender<OT, U, V, X, W>
+impl<U, V, X, W> Sender<U, V, X, W>
 where
-    OT: ObliviousSend<[X; 2]> + Send + Sync,
     U: ShareConvert<Inner = V>,
     V: Field<BlockEncoding = X>,
     W: Recorder<U, V>,
 {
     /// Create a new sender
     pub fn new(
-        ot_sender: OT,
+        ot_sender: Arc<dyn ObliviousSend<[X; 2]> + Send + Sync>,
         id: String,
         channel: ShareConversionChannel<V>,
         barrier: Option<AdaptiveBarrier>,
@@ -101,9 +99,8 @@ where
 
 // Used for unit testing
 #[cfg(test)]
-impl<OT, U, X, V> Sender<OT, U, V, X, Tape<V>>
+impl<U, X, V> Sender<U, V, X, Tape<V>>
 where
-    OT: ObliviousSend<[X; 2]> + Send + Sync,
     U: ShareConvert<Inner = V>,
     V: Field<BlockEncoding = X>,
 {
@@ -113,9 +110,8 @@ where
 }
 
 #[async_trait]
-impl<OT, V, X, W> AdditiveToMultiplicative<V> for Sender<OT, AddShare<V>, V, X, W>
+impl<V, X, W> AdditiveToMultiplicative<V> for Sender<AddShare<V>, V, X, W>
 where
-    OT: ObliviousSend<[X; 2]> + Send + Sync,
     V: Field<BlockEncoding = X>,
     W: Recorder<AddShare<V>, V> + Send,
     X: Send,
@@ -128,9 +124,8 @@ where
 }
 
 #[async_trait]
-impl<OT, V, X, W> MultiplicativeToAdditive<V> for Sender<OT, MulShare<V>, V, X, W>
+impl<V, X, W> MultiplicativeToAdditive<V> for Sender<MulShare<V>, V, X, W>
 where
-    OT: ObliviousSend<[X; 2]> + Send + Sync,
     V: Field<BlockEncoding = X>,
     W: Recorder<MulShare<V>, V> + Send,
     X: Send,
@@ -143,9 +138,8 @@ where
 }
 
 #[async_trait]
-impl<OT, U, V, X> SendTape for Sender<OT, U, V, X, Tape<V>>
+impl<U, V, X> SendTape for Sender<U, V, X, Tape<V>>
 where
-    OT: ObliviousSend<[X; 2]> + Send + Sync,
     U: ShareConvert<Inner = V> + Send,
     V: Field<BlockEncoding = X>,
 {

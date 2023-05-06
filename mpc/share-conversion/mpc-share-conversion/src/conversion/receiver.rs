@@ -13,19 +13,18 @@ use mpc_share_conversion_core::{
     msgs::{SenderRecordings, ShareConversionMessage},
     AddShare, MulShare, ShareConvert,
 };
-use std::marker::PhantomData;
+use std::{marker::PhantomData, sync::Arc};
 
 /// The receiver for the conversion
 ///
 /// Will be the OT receiver
-pub struct Receiver<OT, U, V, X, W = Void>
+pub struct Receiver<U, V, X, W = Void>
 where
-    OT: ObliviousReceive<bool, X> + Send + Sync,
     U: ShareConvert<Inner = V>,
     V: Field<BlockEncoding = X>,
     W: Recorder<U, V>,
 {
-    ot_receiver: OT,
+    ot_receiver: Arc<dyn ObliviousReceive<bool, X> + Send + Sync>,
     id: String,
     _protocol: PhantomData<U>,
     channel: ShareConversionChannel<V>,
@@ -35,15 +34,18 @@ where
     counter: usize,
 }
 
-impl<OT, U, V, X, W> Receiver<OT, U, V, X, W>
+impl<U, V, X, W> Receiver<U, V, X, W>
 where
-    OT: ObliviousReceive<bool, X> + Send + Sync,
     U: ShareConvert<Inner = V>,
     V: Field<BlockEncoding = X>,
     W: Recorder<U, V>,
 {
     /// Create a new receiver
-    pub fn new(ot_receiver: OT, id: String, channel: ShareConversionChannel<V>) -> Self {
+    pub fn new(
+        ot_receiver: Arc<dyn ObliviousReceive<bool, X> + Send + Sync>,
+        id: String,
+        channel: ShareConversionChannel<V>,
+    ) -> Self {
         Self {
             ot_receiver,
             id,
@@ -93,9 +95,8 @@ where
 }
 
 #[async_trait]
-impl<OT, V, X, W> AdditiveToMultiplicative<V> for Receiver<OT, AddShare<V>, V, X, W>
+impl<V, X, W> AdditiveToMultiplicative<V> for Receiver<AddShare<V>, V, X, W>
 where
-    OT: ObliviousReceive<bool, X> + Send + Sync,
     V: Field<BlockEncoding = X>,
     W: Recorder<AddShare<V>, V> + Send,
 {
@@ -107,9 +108,8 @@ where
 }
 
 #[async_trait]
-impl<OT, V, X, W> MultiplicativeToAdditive<V> for Receiver<OT, MulShare<V>, V, X, W>
+impl<V, X, W> MultiplicativeToAdditive<V> for Receiver<MulShare<V>, V, X, W>
 where
-    OT: ObliviousReceive<bool, X> + Send + Sync,
     V: Field<BlockEncoding = X>,
     W: Recorder<MulShare<V>, V> + Send,
 {
@@ -121,9 +121,8 @@ where
 }
 
 #[async_trait]
-impl<OT, U, V, X> VerifyTape for Receiver<OT, U, V, X, Tape<V>>
+impl<U, V, X> VerifyTape for Receiver<U, V, X, Tape<V>>
 where
-    OT: ObliviousReceive<bool, X> + Send + Sync,
     U: ShareConvert<Inner = V> + Send,
     V: Field<BlockEncoding = X>,
 {
