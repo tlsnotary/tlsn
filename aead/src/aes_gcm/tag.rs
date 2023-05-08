@@ -56,7 +56,7 @@ pub(crate) fn build_ghash_data(mut aad: Vec<u8>, mut ciphertext: Vec<u8>) -> Vec
         (ciphertext.len() / 16) + (ciphertext.len() % 16 != 0) as usize;
     ciphertext.resize(ciphertext_padded_block_count * 16, 0);
 
-    let mut data: Vec<u8> = Vec::with_capacity(aad.len() + ciphertext.len() + 8);
+    let mut data: Vec<u8> = Vec::with_capacity(aad.len() + ciphertext.len() + 16);
     data.extend(aad);
     data.extend(ciphertext);
     data.extend_from_slice(&len_block.to_be_bytes());
