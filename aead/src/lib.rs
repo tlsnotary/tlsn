@@ -1,13 +1,16 @@
 //! This crate provides implementations of 2PC AEADs for authenticated encryption with
 //! a shared key.
 //!
-//! There are two distinct roles, the `AEADLeader` and the `AEADFollower`.
+//! Both parties can work together to encrypt and decrypt messages with different visibility
+//! configurations. See [`Aead`] for more information on the interface.
 //!
-//! Both parties can work together to encrypt and decrypt messages where the plaintext
-//! is visible to both.
-//!
-//! Alternatively, they can choose to encrypt or decrypt where only the leader
-//! sees the plaintext message.
+//! For example, one party can privately provide the plaintext to encrypt, while both parties
+//! can see the ciphertext and the tag. Or, both parties can cooperate to decrypt a ciphertext
+//! and verify the tag, while only one party can see the plaintext.
+
+#![deny(missing_docs, unreachable_pub, unused_must_use)]
+#![deny(clippy::all)]
+#![forbid(unsafe_code)]
 
 pub mod aes_gcm;
 pub mod msg;
@@ -16,14 +19,15 @@ pub use msg::AeadMessage;
 
 use async_trait::async_trait;
 
-use block_cipher::BlockCipherLabels;
-use mpc_garble_core::{ActiveLabels, FullLabels};
-use tlsn_stream_cipher::StreamCipherLabels;
+use mpc_garble::ValueRef;
 use utils_aio::Channel;
 
+/// A channel for sending and receiving AEAD messages.
 pub type AeadChannel = Box<dyn Channel<AeadMessage, Error = std::io::Error> + Send>;
 
+/// An error that can occur during AEAD operations.
 #[derive(Debug, thiserror::Error)]
+#[allow(missing_docs)]
 pub enum AeadError {
     #[error("BlockCipherError: {0}")]
     BlockCipherError(#[from] block_cipher::BlockCipherError),
@@ -41,12 +45,26 @@ pub enum AeadError {
     IoError(#[from] std::io::Error),
 }
 
+/// This trait defines the interface for AEADs.
 #[async_trait]
-pub trait AeadLeader {
-    /// Sets the key input labels for the AEAD.
+pub trait Aead: Send {
+    /// Sets the key for the AEAD.
+    async fn set_key(&mut self, key: ValueRef, iv: ValueRef) -> Result<(), AeadError>;
+
+    /// Sets the transcript id
     ///
-    /// * `labels` - The labels to use for the key input.
-    async fn set_keys(&mut self, labels: AeadLabels) -> Result<(), AeadError>;
+    /// The AEAD assigns unique identifiers to each byte of plaintext
+    /// during encryption and decryption.
+    ///
+    /// For example, if the transcript id is set to `foo`, then the first byte will
+    /// be assigned the id `foo/0`, the second byte `foo/1`, and so on.
+    ///
+    /// Each transcript id has an independent counter.
+    ///
+    /// # Note
+    ///
+    /// The state of a transcript counter is preserved between calls to `set_transcript_id`.
+    fn set_transcript_id(&mut self, id: &str);
 
     /// Encrypts a plaintext message, returning the ciphertext and tag.
     ///
@@ -54,99 +72,37 @@ pub trait AeadLeader {
     ///
     /// * `explicit_nonce` - The explicit nonce to use for encryption.
     /// * `plaintext` - The plaintext to encrypt.
-    /// * `aad` - Optional additional authenticated data.
-    /// * `record` - Whether to record the message in the stream cipher transcript.
+    /// * `aad` - Additional authenticated data.
     async fn encrypt_public(
         &mut self,
         explicit_nonce: Vec<u8>,
         plaintext: Vec<u8>,
         aad: Vec<u8>,
-        record: bool,
     ) -> Result<Vec<u8>, AeadError>;
 
-    /// Encrypts a plaintext message, hiding it from `AeadFollower`, returning the ciphertext and tag.
+    /// Encrypts a plaintext message, hiding it from the other party, returning the ciphertext and tag.
     ///
     /// * `explicit_nonce` - The explicit nonce to use for encryption.
     /// * `plaintext` - The plaintext to encrypt.
-    /// * `aad` - Optional additional authenticated data.
-    /// * `record` - Whether to record the message in the stream cipher transcript.
+    /// * `aad` - Additional authenticated data.
     async fn encrypt_private(
         &mut self,
         explicit_nonce: Vec<u8>,
         plaintext: Vec<u8>,
         aad: Vec<u8>,
-        record: bool,
     ) -> Result<Vec<u8>, AeadError>;
 
-    /// Decrypts a ciphertext message, returning the plaintext to both parties.
-    ///
-    /// This method checks the authenticity of the ciphertext, tag and additional data.
-    ///
-    /// * `explicit_nonce` - The explicit nonce to use for decryption.
-    /// * `ciphertext` - The ciphertext and tag to authenticate and decrypt.
-    /// * `aad` - Additional authenticated data.
-    /// * `record` - Whether to record the message in the stream cipher transcript.
-    async fn decrypt_public(
-        &mut self,
-        explicit_nonce: Vec<u8>,
-        ciphertext: Vec<u8>,
-        aad: Vec<u8>,
-        record: bool,
-    ) -> Result<Vec<u8>, AeadError>;
-
-    /// Decrypts a ciphertext message, returning the plaintext only to the `AeadLeader`.
-    ///
-    /// This method checks the authenticity of the ciphertext, tag and additional data.
-    ///
-    /// * `explicit_nonce` - The explicit nonce to use for decryption.
-    /// * `ciphertext` - The ciphertext and tag to authenticate and decrypt.
-    /// * `aad` - Additional authenticated data.
-    /// * `record` - Whether to record the message in the stream cipher transcript.
-    async fn decrypt_private(
-        &mut self,
-        explicit_nonce: Vec<u8>,
-        ciphertext: Vec<u8>,
-        aad: Vec<u8>,
-        record: bool,
-    ) -> Result<Vec<u8>, AeadError>;
-}
-
-#[async_trait]
-pub trait AeadFollower {
-    /// Sets the key input labels for the AEAD.
-    ///
-    /// * `labels` - The labels to use for the key input.
-    async fn set_keys(&mut self, labels: AeadLabels) -> Result<(), AeadError>;
-
-    /// Encrypts a plaintext message returning the ciphertext and tag.
-    ///
-    /// The plaintext is provided by both parties.
-    ///
-    /// * `explicit_nonce` - The explicit nonce to use for encryption.
-    /// * `plaintext` - The length of the plaintext to encrypt.
-    /// * `aad` - Optional additional authenticated data.
-    /// * `record` - Whether to record the message in the stream cipher transcript.
-    async fn encrypt_public(
-        &mut self,
-        explicit_nonce: Vec<u8>,
-        plaintext: Vec<u8>,
-        aad: Vec<u8>,
-        record: bool,
-    ) -> Result<Vec<u8>, AeadError>;
-
-    /// Encrypts a plaintext message provided by the `AeadLeader`, returning
+    /// Encrypts a plaintext message provided by the other party, returning
     /// the ciphertext and tag.
     ///
     /// * `explicit_nonce` - The explicit nonce to use for encryption.
     /// * `plaintext_len` - The length of the plaintext to encrypt.
-    /// * `aad` - Optional additional authenticated data.
-    /// * `record` - Whether to record the message in the stream cipher transcript.
+    /// * `aad` - Additional authenticated data.
     async fn encrypt_blind(
         &mut self,
         explicit_nonce: Vec<u8>,
         plaintext_len: usize,
         aad: Vec<u8>,
-        record: bool,
     ) -> Result<Vec<u8>, AeadError>;
 
     /// Decrypts a ciphertext message, returning the plaintext to both parties.
@@ -156,53 +112,38 @@ pub trait AeadFollower {
     /// * `explicit_nonce` - The explicit nonce to use for decryption.
     /// * `ciphertext` - The ciphertext and tag to authenticate and decrypt.
     /// * `aad` - Additional authenticated data.
-    /// * `record` - Whether to record the message in the stream cipher transcript.
     async fn decrypt_public(
         &mut self,
         explicit_nonce: Vec<u8>,
         ciphertext: Vec<u8>,
         aad: Vec<u8>,
-        record: bool,
     ) -> Result<Vec<u8>, AeadError>;
 
-    /// Decrypts a ciphertext message, returning the plaintext only to the `AeadLeader`.
+    /// Decrypts a ciphertext message, returning the plaintext only to this party.
     ///
     /// This method checks the authenticity of the ciphertext, tag and additional data.
     ///
     /// * `explicit_nonce` - The explicit nonce to use for decryption.
     /// * `ciphertext` - The ciphertext and tag to authenticate and decrypt.
     /// * `aad` - Additional authenticated data.
-    /// * `record` - Whether to record the message in the stream cipher transcript.
+    async fn decrypt_private(
+        &mut self,
+        explicit_nonce: Vec<u8>,
+        ciphertext: Vec<u8>,
+        aad: Vec<u8>,
+    ) -> Result<Vec<u8>, AeadError>;
+
+    /// Decrypts a ciphertext message, returning the plaintext only to the other party.
+    ///
+    /// This method checks the authenticity of the ciphertext, tag and additional data.
+    ///
+    /// * `explicit_nonce` - The explicit nonce to use for decryption.
+    /// * `ciphertext` - The ciphertext and tag to authenticate and decrypt.
+    /// * `aad` - Additional authenticated data.
     async fn decrypt_blind(
         &mut self,
         explicit_nonce: Vec<u8>,
         ciphertext: Vec<u8>,
         aad: Vec<u8>,
-        record: bool,
     ) -> Result<(), AeadError>;
-}
-
-#[derive(Debug, Clone)]
-pub struct AeadLabels {
-    key_full: FullLabels,
-    key_active: ActiveLabels,
-    iv_full: FullLabels,
-    iv_active: ActiveLabels,
-}
-
-impl From<AeadLabels> for StreamCipherLabels {
-    fn from(labels: AeadLabels) -> Self {
-        StreamCipherLabels::new(
-            labels.key_full,
-            labels.key_active,
-            labels.iv_full,
-            labels.iv_active,
-        )
-    }
-}
-
-impl From<AeadLabels> for BlockCipherLabels {
-    fn from(labels: AeadLabels) -> Self {
-        BlockCipherLabels::new(labels.key_full, labels.key_active)
-    }
 }

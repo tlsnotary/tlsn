@@ -16,12 +16,7 @@ pub enum UniversalHashError {
 }
 
 #[async_trait]
-pub trait UniversalHash {
-    /// Size of the key in bytes
-    const KEY_SIZE: usize;
-    /// Size of the block in bytes
-    const BLOCK_SIZE: usize;
-
+pub trait UniversalHash: Send {
     /// Set the key for the hash function
     ///
     /// * `key` - Key to use for the hash function
