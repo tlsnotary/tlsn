@@ -72,7 +72,7 @@ pub trait Aead: Send {
     ///
     /// * `explicit_nonce` - The explicit nonce to use for encryption.
     /// * `plaintext` - The plaintext to encrypt.
-    /// * `aad` - Optional additional authenticated data.
+    /// * `aad` - Additional authenticated data.
     async fn encrypt_public(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -84,7 +84,7 @@ pub trait Aead: Send {
     ///
     /// * `explicit_nonce` - The explicit nonce to use for encryption.
     /// * `plaintext` - The plaintext to encrypt.
-    /// * `aad` - Optional additional authenticated data.
+    /// * `aad` - Additional authenticated data.
     async fn encrypt_private(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -97,7 +97,7 @@ pub trait Aead: Send {
     ///
     /// * `explicit_nonce` - The explicit nonce to use for encryption.
     /// * `plaintext_len` - The length of the plaintext to encrypt.
-    /// * `aad` - Optional additional authenticated data.
+    /// * `aad` - Additional authenticated data.
     async fn encrypt_blind(
         &mut self,
         explicit_nonce: Vec<u8>,
