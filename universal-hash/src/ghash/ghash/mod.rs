@@ -80,9 +80,6 @@ where
     T: AdditiveToMultiplicative<Gf2_128> + Send,
     U: MultiplicativeToAdditive<Gf2_128> + Send,
 {
-    const KEY_SIZE: usize = 16;
-    const BLOCK_SIZE: usize = 16;
-
     async fn set_key(&mut self, key: Vec<u8>) -> Result<(), UniversalHashError> {
         if key.len() != 16 {
             return Err(UniversalHashError::KeyLengthError(16, key.len()));

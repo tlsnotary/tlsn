@@ -1,19 +1,22 @@
-#[cfg(feature = "serde")]
+//! Message types for AEAD protocols.
+
 use serde::{Deserialize, Serialize};
 
-use mpc_core::msgs::{CommitmentOpening, HashCommitment};
+use mpc_core::{commit::Decommitment, hash::Hash};
 
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+/// Aead messages.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub enum AeadMessage {
-    TagShareCommitment(HashCommitment),
-    TagShareOpening(CommitmentOpening),
+    TagShareCommitment(Hash),
+    TagShareDecommitment(Decommitment<TagShare>),
     TagShare(TagShare),
 }
 
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+/// A tag share.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TagShare {
+    /// The share of the tag.
     pub share: Vec<u8>,
 }
 
