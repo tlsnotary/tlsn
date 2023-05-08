@@ -92,8 +92,8 @@ impl<T: Send + Copy> ObliviousReceive<bool, T> for MockOTReceiver<T> {
 }
 
 #[async_trait]
-impl<T: Send> ObliviousVerify<T> for MockOTReceiver<T> {
-    async fn verify(&self, _id: &str, _input: Vec<T>) -> Result<(), OTError> {
+impl<T: Send> ObliviousVerify<[T; 2]> for MockOTReceiver<T> {
+    async fn verify(&self, _id: &str, _input: Vec<[T; 2]>) -> Result<(), OTError> {
         // MockOT is always honest
         Ok(())
     }

@@ -15,6 +15,7 @@ tlsn-mpc-circuits.workspace = true
 tlsn-mpc-ot.workspace = true
 tlsn-mpc-garble-core.workspace = true
 tlsn-mpc-core.workspace = true
+tlsn-utils.workspace = true
 tlsn-utils-aio.workspace = true
 
 async-trait.workspace = true
@@ -28,6 +29,7 @@ rand_chacha = { workspace = true }
 thiserror.workspace = true
 aes = { workspace = true }
 rayon = { workspace = true }
+derive_builder.workspace = true
 
 [dev-dependencies]
 tlsn-mpc-ot = { workspace = true, features = ["mock"] }
@@ -40,10 +42,7 @@ tokio = { workspace = true, features = [
     "rt",
     "rt-multi-thread",
 ] }
-
-[[bench]]
-name = "dualex"
-harness = false
+async_executors = { version = "0.6", features = ["notwasm", "tokio_tp"] }
 
 [[bench]]
 name = "deap"

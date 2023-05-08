@@ -13,17 +13,17 @@ use crate::{
 #[non_exhaustive]
 #[allow(missing_docs)]
 pub enum GarbleMessage {
-    ActiveValue(EncodedValue<encoding_state::Active>),
+    ActiveValue(Box<EncodedValue<encoding_state::Active>>),
     ActiveValues(Vec<EncodedValue<encoding_state::Active>>),
     EncryptedGates(Vec<EncryptedGate>),
     EncodingCommitments(Vec<EncodingCommitment>),
-    ValueDecoding(Decoding),
+    ValueDecoding(Box<Decoding>),
     ValueDecodings(Vec<Decoding>),
     EqualityCheck(EqualityCheck),
     HashCommitment(Hash),
-    EqualityCheckOpening(Decommitment<EqualityCheck>),
-    EqualityCheckOpenings(Vec<Decommitment<EqualityCheck>>),
-    ProofOpenings(Vec<Decommitment<Hash>>),
+    EqualityCheckDecommitment(Decommitment<EqualityCheck>),
+    EqualityCheckDecommitments(Vec<Decommitment<EqualityCheck>>),
+    ProofDecommitments(Vec<Decommitment<Hash>>),
     Delta(Delta),
     EncoderSeed(Vec<u8>),
 }
