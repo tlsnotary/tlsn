@@ -35,7 +35,7 @@ pub trait ToBinaryRepr: ToBitsIter + Into<Value> {
 }
 
 /// A type for which the value type can be statically determined.
-pub trait StaticValueType {
+pub trait StaticValueType: Into<Value> {
     /// The value type of the type.
     fn value_type() -> ValueType;
 }
@@ -438,6 +438,11 @@ impl ValueType {
             ValueType::U128 => 128,
             ValueType::Array(ty, len) => ty.len() * len,
         }
+    }
+
+    /// Returns whether the value type is an array.
+    pub fn is_array(&self) -> bool {
+        matches!(self, ValueType::Array(..))
     }
 
     pub(crate) fn to_bin_repr(&self, nodes: &[Node<Feed>]) -> Result<BinaryRepr, TypeError> {

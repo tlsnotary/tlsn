@@ -93,6 +93,68 @@ where
 {
 }
 
+pub struct FilterDrainIter<'a, F, T> {
+    vec: &'a mut Vec<T>,
+    pos: usize,
+    pred: F,
+}
+
+impl<'a, F, T> Iterator for FilterDrainIter<'a, F, T>
+where
+    F: Fn(&T) -> bool,
+{
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.pos >= self.vec.len() {
+            return None;
+        }
+
+        if (self.pred)(&self.vec[self.pos]) {
+            Some(self.vec.swap_remove(self.pos))
+        } else {
+            self.pos += 1;
+            self.next()
+        }
+    }
+}
+
+/// Helper trait that implements `drain_filter` which is not stable yet.
+///
+/// See [tracking issue](https://github.com/rust-lang/rust/issues/43244)
+///
+/// We call this `FilterDrain` to avoid the naming conflict with the standard library.
+///
+/// # Note
+///
+/// The order of the elements is not preserved.
+pub trait FilterDrain<'a, F, T>
+where
+    F: Fn(&T) -> bool,
+{
+    type Item;
+    type Iter: Iterator<Item = Self::Item> + 'a;
+
+    fn filter_drain(&'a mut self, pred: F) -> Self::Iter;
+}
+
+impl<'a, F, T> FilterDrain<'a, F, T> for Vec<T>
+where
+    F: Fn(&T) -> bool + 'a,
+    T: 'a,
+{
+    type Item = T;
+    type Iter = FilterDrainIter<'a, F, T>;
+
+    fn filter_drain(&'a mut self, pred: F) -> FilterDrainIter<'a, F, T> {
+        FilterDrainIter {
+            vec: self,
+            pos: 0,
+            pred,
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -100,9 +162,21 @@ mod test {
     struct Container<T>(T);
 
     impl<T> Container<T> {
-        fn get<'a>(&'a self) -> &'a T {
+        fn get(&self) -> &T {
             &self.0
         }
+    }
+
+    #[test]
+    fn test_filter_drain() {
+        let mut v = vec![1, 2, 3, 4, 5, 6, 7, 8];
+        let mut even = v.filter_drain(|x| *x % 2 == 0).collect::<Vec<_>>();
+
+        v.sort();
+        even.sort();
+
+        assert_eq!(even, vec![2, 4, 6, 8]);
+        assert_eq!(v, vec![1, 3, 5, 7]);
     }
 
     #[test]
