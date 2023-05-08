@@ -6,7 +6,7 @@ use crate::{builder::BuilderState, types::BinaryRepr};
 ///
 /// This type is used to track the operations applied to a value, which
 /// is used to build a circuit via a [`CircuitBuilder`](crate::CircuitBuilder).
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct Tracer<'a, T> {
     pub(crate) value: T,
     pub(crate) state: &'a RefCell<BuilderState>,

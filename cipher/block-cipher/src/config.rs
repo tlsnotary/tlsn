@@ -1,15 +1,8 @@
 use derive_builder::Builder;
 
-#[derive(Debug, Clone, Copy)]
-pub enum Role {
-    Leader,
-    Follower,
-}
-
+/// Configuration for a block cipher
 #[derive(Debug, Clone, Builder)]
 pub struct BlockCipherConfig {
+    /// The ID of the block cipher
     pub(crate) id: String,
-    pub(crate) role: Role,
-    #[builder(default = "u32::MAX")]
-    pub(crate) encoder_default_stream_id: u32,
 }
