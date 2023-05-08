@@ -1,218 +1,203 @@
-//! This module contains the protocol for computing TLS SHA-256 HMAC PRF using 2PC in such a way
-//! that neither party learns the session keys, rather, they learn encodings of the keys which can
-//! be used in subsequent computations.
+//! This module contains the protocol for computing TLS SHA-256 HMAC PRF.
 
-pub(crate) mod circuits;
-mod follower;
-mod leader;
+#![deny(missing_docs, unreachable_pub, unused_must_use)]
+#![deny(clippy::all)]
+#![forbid(unsafe_code)]
+
+mod prf;
+
+pub use prf::MpcPrf;
 
 use async_trait::async_trait;
 
-use hmac_sha256_core::{MasterSecretStateLabels, SessionKeyLabels};
-use mpc_garble::GCError;
+use mpc_garble::ValueRef;
+use prf::State;
 
-pub use follower::PRFFollower;
-pub use leader::PRFLeader;
-
-pub use hmac_sha256_core::{
-    PRFFollowerConfig, PRFFollowerConfigBuilder, PRFFollowerConfigBuilderError, PRFLeaderConfig,
-    PRFLeaderConfigBuilder, PRFLeaderConfigBuilderError, PmsLabels,
-};
-
-#[derive(Debug, Clone)]
-pub enum State {
-    SessionKeys,
-    ClientFinished {
-        ms_hash_state_labels: MasterSecretStateLabels,
-    },
-    ServerFinished {
-        ms_hash_state_labels: MasterSecretStateLabels,
-    },
-    Complete,
-    Error,
+/// Session keys computed by the PRF.
+pub struct SessionKeys {
+    /// Client write key.
+    pub client_write_key: ValueRef,
+    /// Server write key.
+    pub server_write_key: ValueRef,
+    /// Client IV.
+    pub client_iv: ValueRef,
+    /// Server IV.
+    pub server_iv: ValueRef,
 }
 
+/// Errors that can occur during PRF computation.
 #[derive(Debug, thiserror::Error)]
-pub enum PRFError {
-    #[error("GCError: {0}")]
-    GCError(#[from] GCError),
-    #[error("GCFactoryError: {0}")]
-    GCFactoryError(#[from] mpc_garble::factory::GCFactoryError),
-    #[error("IO Error: {0}")]
-    IOError(#[from] std::io::Error),
-    #[error("MuxerError: {0}")]
-    MuxerError(#[from] utils_aio::mux::MuxerError),
-    #[error("Encoder not set")]
-    EncoderNotSet,
+#[allow(missing_docs)]
+pub enum PrfError {
+    #[error(transparent)]
+    MemoryError(#[from] mpc_garble::MemoryError),
+    #[error(transparent)]
+    ExecutionError(#[from] mpc_garble::ExecutionError),
+    #[error(transparent)]
+    DecodeError(#[from] mpc_garble::DecodeError),
+    #[error("role error: {0:?}")]
+    RoleError(String),
     #[error("Invalid state: {0:?}")]
     InvalidState(State),
 }
 
+/// PRF trait for computing TLS PRF.
 #[async_trait]
-pub trait PRFLead {
-    async fn compute_session_keys(
+pub trait Prf {
+    /// Computes the session keys using the provided client random, server random and PMS.
+    async fn compute_session_keys_private(
         &mut self,
         client_random: [u8; 32],
         server_random: [u8; 32],
-        pms_labels: PmsLabels,
-    ) -> Result<SessionKeyLabels, PRFError>;
+        pms: ValueRef,
+    ) -> Result<SessionKeys, PrfError>;
 
-    async fn compute_client_finished_vd(
+    /// Computes the client finished verify data using the provided handshake hash.
+    async fn compute_client_finished_vd_private(
         &mut self,
         handshake_hash: [u8; 32],
-    ) -> Result<[u8; 12], PRFError>;
+    ) -> Result<[u8; 12], PrfError>;
 
-    async fn compute_server_finished_vd(
+    /// Computes the server finished verify data using the provided handshake hash.
+    async fn compute_server_finished_vd_private(
         &mut self,
         handshake_hash: [u8; 32],
-    ) -> Result<[u8; 12], PRFError>;
-}
+    ) -> Result<[u8; 12], PrfError>;
 
-#[async_trait]
-pub trait PRFFollow {
-    async fn compute_session_keys(
-        &mut self,
-        pms_labels: PmsLabels,
-    ) -> Result<SessionKeyLabels, PRFError>;
+    /// Computes the session keys using randoms provided by the other party.
+    async fn compute_session_keys_blind(&mut self, pms: ValueRef) -> Result<SessionKeys, PrfError>;
 
-    async fn compute_client_finished_vd(&mut self) -> Result<(), PRFError>;
+    /// Computes the client finished verify data using the handshake hash provided by the other party.
+    async fn compute_client_finished_vd_blind(&mut self) -> Result<(), PrfError>;
 
-    async fn compute_server_finished_vd(&mut self) -> Result<(), PRFError>;
-}
-
-pub mod mock {
-    use hmac_sha256_core::{PRFFollowerConfig, PRFLeaderConfig};
-    use mpc_garble::{
-        exec::dual::mock::{MockDualExFollower, MockDualExLeader},
-        factory::dual::mock::{create_mock_dualex_factory, MockDualExFactory},
-    };
-
-    pub use hmac_sha256_core::mock::*;
-
-    use crate::{PRFFollower, PRFLeader};
-
-    pub fn create_mock_prf_pair(
-        leader_config: PRFLeaderConfig,
-        follower_config: PRFFollowerConfig,
-    ) -> (
-        PRFLeader<MockDualExFactory, MockDualExLeader>,
-        PRFFollower<MockDualExFactory, MockDualExFollower>,
-    ) {
-        let de_factory = create_mock_dualex_factory();
-
-        let leader = PRFLeader::<MockDualExFactory, MockDualExLeader>::new(
-            leader_config,
-            de_factory.clone(),
-        );
-        let follower =
-            PRFFollower::<MockDualExFactory, MockDualExFollower>::new(follower_config, de_factory);
-
-        (leader, follower)
-    }
+    /// Computes the server finished verify data using the handshake hash provided by the other party.
+    async fn compute_server_finished_vd_blind(&mut self) -> Result<(), PrfError>;
 }
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use mpc_garble::{protocol::deap::mock::create_mock_deap_vm, Decode, Memory, Vm};
 
-    use futures::lock::Mutex;
-    use hmac_sha256_core::{PRFFollowerConfigBuilder, PRFLeaderConfigBuilder};
+    use hmac_sha256_circuits::{hmac_sha256_partial, prf, session_keys};
 
     use super::*;
-    use mock::*;
 
-    #[ignore = "expensive"]
-    #[tokio::test]
-    async fn test_prf() {
-        let leader_config = PRFLeaderConfigBuilder::default()
-            .id("test".to_string())
-            .build()
-            .unwrap();
-        let follower_config = PRFFollowerConfigBuilder::default()
-            .id("test".to_string())
-            .build()
-            .unwrap();
-
-        let (mut leader, mut follower) = create_mock_prf_pair(leader_config, follower_config);
-
-        let pms = [42u8; 32];
-        let client_random = [69u8; 32];
-        let server_random: [u8; 32] = [96u8; 32];
-        let cf_hs_hash: [u8; 32] = [1u8; 32];
-        let sf_hs_hash: [u8; 32] = [2u8; 32];
+    fn compute_ms(pms: [u8; 32], client_random: [u8; 32], server_random: [u8; 32]) -> [u8; 48] {
+        let (outer_state, inner_state) = hmac_sha256_partial(&pms);
         let seed = client_random
             .iter()
             .chain(&server_random)
             .copied()
             .collect::<Vec<_>>();
-        let ms = hmac_sha256_utils::prf(&pms, b"master secret", &seed, 48);
+        let ms = prf(outer_state, inner_state, &seed, b"master secret", 48);
+        ms.try_into().unwrap()
+    }
 
-        let ((leader_share, follower_share), (leader_encoder, follower_encoder)) =
-            create_mock_pms_labels(pms);
+    fn compute_vd(ms: [u8; 48], label: &[u8], hs_hash: [u8; 32]) -> [u8; 12] {
+        let (outer_state, inner_state) = hmac_sha256_partial(&ms);
+        let vd = prf(outer_state, inner_state, &hs_hash, label, 12);
+        vd.try_into().unwrap()
+    }
 
-        leader.set_encoder(Arc::new(Mutex::new(leader_encoder)));
-        follower.set_encoder(Arc::new(Mutex::new(follower_encoder)));
+    #[ignore = "expensive"]
+    #[tokio::test]
+    async fn test_prf() {
+        let (mut leader_vm, mut follower_vm) = create_mock_deap_vm("test").await;
 
-        let (leader_keys, follower_keys) = tokio::try_join!(
-            leader.compute_session_keys(client_random, server_random, leader_share),
-            follower.compute_session_keys(follower_share)
+        let mut leader_test_thread = leader_vm.new_thread("test").await.unwrap();
+        let mut follower_test_thread = follower_vm.new_thread("test").await.unwrap();
+
+        let mut leader = MpcPrf::new(leader_vm.new_thread("prf").await.unwrap());
+        let mut follower = MpcPrf::new(follower_vm.new_thread("prf").await.unwrap());
+
+        let pms = [42u8; 32];
+        let client_random = [69u8; 32];
+        let server_random: [u8; 32] = [96u8; 32];
+        let ms = compute_ms(pms, client_random, server_random);
+
+        // Setup public PMS for testing
+        let leader_pms = leader_test_thread.new_public_input("pms", pms).unwrap();
+        let follower_pms = follower_test_thread.new_public_input("pms", pms).unwrap();
+
+        let (leader_session_keys, follower_session_keys) = futures::try_join!(
+            leader.compute_session_keys_private(client_random, server_random, leader_pms),
+            follower.compute_session_keys_blind(follower_pms)
         )
         .unwrap();
 
-        let leader_cwk = leader_keys
-            .active_cwk
-            .decode(follower_keys.full_cwk.get_decoding())
-            .unwrap();
-        let leader_swk = leader_keys
-            .active_swk
-            .decode(follower_keys.full_swk.get_decoding())
-            .unwrap();
-        let leader_civ = leader_keys
-            .active_civ
-            .decode(follower_keys.full_civ.get_decoding())
-            .unwrap();
-        let leader_siv = leader_keys
-            .active_siv
-            .decode(follower_keys.full_siv.get_decoding())
-            .unwrap();
-        let follower_cwk = follower_keys
-            .active_cwk
-            .decode(leader_keys.full_cwk.get_decoding())
-            .unwrap();
-        let follower_swk = follower_keys
-            .active_swk
-            .decode(leader_keys.full_swk.get_decoding())
-            .unwrap();
-        let follower_civ = follower_keys
-            .active_civ
-            .decode(leader_keys.full_civ.get_decoding())
-            .unwrap();
-        let follower_siv = follower_keys
-            .active_siv
-            .decode(leader_keys.full_siv.get_decoding())
-            .unwrap();
+        let SessionKeys {
+            client_write_key: leader_cwk,
+            server_write_key: leader_swk,
+            client_iv: leader_civ,
+            server_iv: leader_siv,
+        } = leader_session_keys;
 
-        assert_eq!(leader_cwk, follower_cwk);
-        assert_eq!(leader_swk, follower_swk);
-        assert_eq!(leader_civ, follower_civ);
-        assert_eq!(leader_siv, follower_siv);
+        let SessionKeys {
+            client_write_key: follower_cwk,
+            server_write_key: follower_swk,
+            client_iv: follower_civ,
+            server_iv: follower_siv,
+        } = follower_session_keys;
 
-        let (leader_cf_vd, _) = tokio::try_join!(
-            leader.compute_client_finished_vd(cf_hs_hash),
-            follower.compute_client_finished_vd()
+        // Decode session keys
+        let (leader_session_keys, follower_session_keys) = futures::try_join!(
+            async move {
+                leader_test_thread
+                    .decode(&[leader_cwk, leader_swk, leader_civ, leader_siv])
+                    .await
+            },
+            async move {
+                follower_test_thread
+                    .decode(&[follower_cwk, follower_swk, follower_civ, follower_siv])
+                    .await
+            }
         )
         .unwrap();
 
-        let expected_cf_vd = hmac_sha256_utils::prf(&ms, b"client finished", &cf_hs_hash, 12);
-        assert_eq!(leader_cf_vd.to_vec(), expected_cf_vd);
+        let leader_cwk: [u8; 16] = leader_session_keys[0].clone().try_into().unwrap();
+        let leader_swk: [u8; 16] = leader_session_keys[1].clone().try_into().unwrap();
+        let leader_civ: [u8; 4] = leader_session_keys[2].clone().try_into().unwrap();
+        let leader_siv: [u8; 4] = leader_session_keys[3].clone().try_into().unwrap();
 
-        let (leader_sf_vd, _) = tokio::try_join!(
-            leader.compute_server_finished_vd(sf_hs_hash),
-            follower.compute_server_finished_vd()
+        let follower_cwk: [u8; 16] = follower_session_keys[0].clone().try_into().unwrap();
+        let follower_swk: [u8; 16] = follower_session_keys[1].clone().try_into().unwrap();
+        let follower_civ: [u8; 4] = follower_session_keys[2].clone().try_into().unwrap();
+        let follower_siv: [u8; 4] = follower_session_keys[3].clone().try_into().unwrap();
+
+        let (expected_cwk, expected_swk, expected_civ, expected_siv) =
+            session_keys(pms, client_random, server_random);
+
+        assert_eq!(leader_cwk, expected_cwk);
+        assert_eq!(leader_swk, expected_swk);
+        assert_eq!(leader_civ, expected_civ);
+        assert_eq!(leader_siv, expected_siv);
+
+        assert_eq!(follower_cwk, expected_cwk);
+        assert_eq!(follower_swk, expected_swk);
+        assert_eq!(follower_civ, expected_civ);
+        assert_eq!(follower_siv, expected_siv);
+
+        let cf_hs_hash = [1u8; 32];
+        let sf_hs_hash = [2u8; 32];
+
+        let (cf_vd, _) = futures::try_join!(
+            leader.compute_client_finished_vd_private(cf_hs_hash),
+            follower.compute_client_finished_vd_blind()
         )
         .unwrap();
 
-        let expected_sf_vd = hmac_sha256_utils::prf(&ms, b"server finished", &sf_hs_hash, 12);
-        assert_eq!(leader_sf_vd.to_vec(), expected_sf_vd);
+        let expected_cf_vd = compute_vd(ms, b"client finished", cf_hs_hash);
+
+        assert_eq!(cf_vd, expected_cf_vd);
+
+        let (sf_vd, _) = futures::try_join!(
+            leader.compute_server_finished_vd_private(sf_hs_hash),
+            follower.compute_server_finished_vd_blind()
+        )
+        .unwrap();
+
+        let expected_sf_vd = compute_vd(ms, b"server finished", sf_hs_hash);
+
+        assert_eq!(sf_vd, expected_sf_vd);
     }
 }

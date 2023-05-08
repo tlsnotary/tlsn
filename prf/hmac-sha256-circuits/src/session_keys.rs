@@ -1,172 +1,204 @@
-use std::sync::Arc;
+use std::cell::RefCell;
 
-use mpc_circuits::{builder::CircuitBuilder, BitOrder, Circuit, ValueType};
-use utils::bits::IterToBits;
+use mpc_circuits::{
+    types::{U32, U8},
+    BuilderState, Tracer,
+};
 
-use crate::add_prf;
+use crate::{
+    hmac_sha256::{hmac_sha256_partial, hmac_sha256_partial_trace},
+    prf::{prf, prf_trace},
+};
 
 /// Session Keys
 ///
 /// Compute expanded p1 which consists of client_write_key + server_write_key
 /// Compute expanded p2 which consists of client_IV + server_IV
 ///
-/// Inputs:
+/// # Arguments
 ///
-///   0. OUTER_HASH_STATE: 32-byte MS outer-hash state
-///   1. INNER_HASH_STATE: 32-byte MS inner-hash state
-///   2. CLIENT_RAND: 32-byte client random
-///   3. SERVER_RAND: 32-byte server random
+/// * `builder_state` - Reference to builder state
+/// * `pms` - 32-byte premaster secret
+/// * `client_random` - 32-byte client random
+/// * `server_random` - 32-byte server random
 ///
-/// Outputs:
+/// # Returns
 ///
-///   0. CWK: 16-byte client write-key
-///   1. SWK: 16-byte server write-key
-///   2. CIV: 4-byte client IV
-///   3. SIV: 4-byte server IV
-pub fn session_keys() -> Arc<Circuit> {
-    let mut builder = CircuitBuilder::new("session_keys", "", "0.1.0", BitOrder::Msb0);
+/// * `client_write_key` - 16-byte client write key
+/// * `server_write_key` - 16-byte server write key
+/// * `client_IV` - 4-byte client IV
+/// * `server_IV` - 4-byte server IV
+/// * `outer_hash_state` - 256-bit master-secret outer HMAC state
+/// * `inner_hash_state` - 256-bit master-secret inner HMAC state
+#[allow(clippy::type_complexity)]
+pub fn session_keys_trace<'a>(
+    builder_state: &'a RefCell<BuilderState>,
+    pms: [Tracer<'a, U8>; 32],
+    client_random: [Tracer<'a, U8>; 32],
+    server_random: [Tracer<'a, U8>; 32],
+) -> (
+    [Tracer<'a, U8>; 16],
+    [Tracer<'a, U8>; 16],
+    [Tracer<'a, U8>; 4],
+    [Tracer<'a, U8>; 4],
+    [Tracer<'a, U32>; 8],
+    [Tracer<'a, U32>; 8],
+) {
+    let (pms_outer_state, pms_inner_state) = hmac_sha256_partial_trace(builder_state, &pms);
 
-    let outer_state = builder.add_input(
-        "OUTER_HASH_STATE",
-        "32-byte MS outer-hash state",
-        ValueType::Bytes,
-        256,
-    );
-    let inner_state = builder.add_input(
-        "INNER_HASH_STATE",
-        "32-byte MS inner-hash state",
-        ValueType::Bytes,
-        256,
-    );
-    let client_random = builder.add_input(
-        "CLIENT_RAND",
-        "32-byte client random",
-        ValueType::Bytes,
-        256,
-    );
-    let server_random = builder.add_input(
-        "SERVER_RAND",
-        "32-byte server random",
-        ValueType::Bytes,
-        256,
-    );
-    let const_zero = builder.add_input(
-        "const_zero",
-        "input that is always 0",
-        ValueType::ConstZero,
-        1,
-    );
-    let const_one = builder.add_input(
-        "const_one",
-        "input that is always 1",
-        ValueType::ConstOne,
-        1,
-    );
+    let master_secret = {
+        let seed = client_random
+            .iter()
+            .chain(&server_random)
+            .copied()
+            .collect::<Vec<_>>();
 
-    let mut builder = builder.build_inputs();
+        let label = builder_state
+            .borrow_mut()
+            .get_constant(*b"master secret")
+            .map(|v| Tracer::new(builder_state, v));
 
-    let label = b"key expansion"
-        .into_msb0_iter()
-        .map(|bit| if bit { const_one[0] } else { const_zero[0] })
-        .collect::<Vec<_>>();
-    let seed = server_random[..]
-        .iter()
-        .chain(&client_random[..])
-        .copied()
-        .collect::<Vec<_>>();
+        prf_trace(
+            builder_state,
+            pms_outer_state,
+            pms_inner_state,
+            &seed,
+            &label,
+            48,
+        )
+    };
 
-    let key_material = add_prf(
-        &mut builder,
-        &outer_state[..],
-        &inner_state[..],
-        &const_zero[0],
-        &const_one[0],
-        &label,
-        &seed,
-        40,
-    );
+    let (master_secret_outer_state, master_secret_inner_state) =
+        hmac_sha256_partial_trace(builder_state, &master_secret);
 
-    let mut builder = builder.build_gates();
-
-    let cwk = builder.add_output("CWK", "16-byte client write-key", ValueType::Bytes, 128);
-    let swk = builder.add_output("SWK", "16-byte server write-key", ValueType::Bytes, 128);
-    let civ = builder.add_output("CIV", "4-byte client IV", ValueType::Bytes, 32);
-    let siv = builder.add_output("SIV", "4-byte server IV", ValueType::Bytes, 32);
-
-    builder.connect(&key_material[..128], &cwk[..]);
-
-    builder.connect(&key_material[128..256], &swk[..]);
-
-    builder.connect(&key_material[256..288], &civ[..]);
-
-    builder.connect(&key_material[288..], &siv[..]);
-
-    builder
-        .build_circuit()
-        .expect("failed to build session_keys")
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use mpc_circuits::{circuits::test_circ, Value};
-
-    #[test]
-    #[ignore = "expensive"]
-    fn test_session_keys() {
-        let circ = session_keys();
-
-        println!("KE Circuit size: {}", circ.and_count());
-
-        let ms = [42u8; 48];
-        let client_random = [1u8; 32];
-        let server_random = [2u8; 32];
+    let key_material = {
         let seed = server_random
             .iter()
             .chain(&client_random)
             .copied()
             .collect::<Vec<_>>();
 
-        let (outer_hash_state, inner_hash_state) = hmac_sha256_utils::partial_hmac(&ms);
+        let label = builder_state
+            .borrow_mut()
+            .get_constant(*b"key expansion")
+            .map(|v| Tracer::new(builder_state, v));
 
-        let key_material = hmac_sha256_utils::prf(&ms, b"key expansion", &seed, 40);
+        prf_trace(
+            builder_state,
+            master_secret_outer_state,
+            master_secret_inner_state,
+            &seed,
+            &label,
+            40,
+        )
+    };
 
-        // split into client/server_write_key and client/server_write_iv
-        let mut cwk = [0u8; 16];
-        cwk.copy_from_slice(&key_material[0..16]);
-        let mut swk = [0u8; 16];
-        swk.copy_from_slice(&key_material[16..32]);
-        let mut civ = [0u8; 4];
-        civ.copy_from_slice(&key_material[32..36]);
-        let mut siv = [0u8; 4];
-        siv.copy_from_slice(&key_material[36..40]);
+    let cwk = key_material[0..16].try_into().unwrap();
+    let swk = key_material[16..32].try_into().unwrap();
+    let civ = key_material[32..36].try_into().unwrap();
+    let siv = key_material[36..40].try_into().unwrap();
 
-        test_circ(
-            &circ,
-            &[
-                Value::Bytes(
-                    outer_hash_state
-                        .into_iter()
-                        .map(|chunk| chunk.to_be_bytes())
-                        .flatten()
-                        .collect(),
-                ),
-                Value::Bytes(
-                    inner_hash_state
-                        .into_iter()
-                        .map(|chunk| chunk.to_be_bytes())
-                        .flatten()
-                        .collect(),
-                ),
-                Value::Bytes(client_random.to_vec()),
-                Value::Bytes(server_random.to_vec()),
-            ],
-            &[
-                Value::Bytes(cwk.to_vec()),
-                Value::Bytes(swk.to_vec()),
-                Value::Bytes(civ.to_vec()),
-                Value::Bytes(siv.to_vec()),
-            ],
-        );
+    (
+        cwk,
+        swk,
+        civ,
+        siv,
+        master_secret_outer_state,
+        master_secret_inner_state,
+    )
+}
+
+/// Reference implementation of session keys derivation.
+pub fn session_keys(
+    pms: [u8; 32],
+    client_random: [u8; 32],
+    server_random: [u8; 32],
+) -> ([u8; 16], [u8; 16], [u8; 4], [u8; 4]) {
+    let (pms_outer_state, pms_inner_state) = hmac_sha256_partial(&pms);
+
+    let master_secret = {
+        let seed = client_random
+            .iter()
+            .chain(&server_random)
+            .copied()
+            .collect::<Vec<_>>();
+
+        let label = b"master secret";
+
+        prf(pms_outer_state, pms_inner_state, &seed, label, 48)
+    };
+
+    let (master_secret_outer_state, master_secret_inner_state) =
+        hmac_sha256_partial(&master_secret);
+
+    let key_material = {
+        let seed = server_random
+            .iter()
+            .chain(&client_random)
+            .copied()
+            .collect::<Vec<_>>();
+
+        let label = b"key expansion";
+
+        prf(
+            master_secret_outer_state,
+            master_secret_inner_state,
+            &seed,
+            label,
+            40,
+        )
+    };
+
+    let cwk = key_material[0..16].try_into().unwrap();
+    let swk = key_material[16..32].try_into().unwrap();
+    let civ = key_material[32..36].try_into().unwrap();
+    let siv = key_material[36..40].try_into().unwrap();
+
+    (cwk, swk, civ, siv)
+}
+
+#[cfg(test)]
+mod tests {
+    use mpc_circuits::{evaluate, CircuitBuilder};
+
+    use super::*;
+
+    #[test]
+    fn test_session_keys() {
+        let builder = CircuitBuilder::new();
+        let pms = builder.add_array_input::<u8, 32>();
+        let client_random = builder.add_array_input::<u8, 32>();
+        let server_random = builder.add_array_input::<u8, 32>();
+        let (cwk, swk, civ, siv, outer_state, inner_state) =
+            session_keys_trace(builder.state(), pms, client_random, server_random);
+        builder.add_output(cwk);
+        builder.add_output(swk);
+        builder.add_output(civ);
+        builder.add_output(siv);
+        builder.add_output(outer_state);
+        builder.add_output(inner_state);
+        let circ = builder.build().unwrap();
+
+        let pms = [0u8; 32];
+        let client_random = [42u8; 32];
+        let server_random = [69u8; 32];
+
+        let (expected_cwk, expected_swk, expected_civ, expected_siv) =
+            session_keys(pms, client_random, server_random);
+
+        let (cwk, swk, civ, siv, _, _) = evaluate!(
+            circ,
+            fn(
+                pms,
+                client_random,
+                server_random,
+            ) -> ([u8; 16], [u8; 16], [u8; 4], [u8; 4], [u32; 8], [u32; 8])
+        )
+        .unwrap();
+
+        assert_eq!(cwk, expected_cwk);
+        assert_eq!(swk, expected_swk);
+        assert_eq!(civ, expected_civ);
+        assert_eq!(siv, expected_siv);
     }
 }
