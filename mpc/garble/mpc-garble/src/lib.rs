@@ -16,6 +16,7 @@ use mpc_circuits::{
 pub mod config;
 pub(crate) mod evaluator;
 pub(crate) mod generator;
+pub(crate) mod internal_circuits;
 pub mod ot;
 pub mod protocol;
 pub(crate) mod registry;
@@ -250,4 +251,17 @@ pub trait Verify {
 pub trait Decode {
     /// Decodes the provided values, returning the plaintext values to all parties.
     async fn decode(&mut self, values: &[ValueRef]) -> Result<Vec<Value>, DecodeError>;
+}
+
+/// This trait provides methods for decoding values with different privacy configurations.
+#[async_trait]
+pub trait DecodePrivate {
+    /// Decodes the provided values, returning the plaintext values to only this party.
+    async fn decode_private(&mut self, values: &[ValueRef]) -> Result<Vec<Value>, DecodeError>;
+
+    /// Decodes the provided values, returning the plaintext values to the other party(s).
+    async fn decode_blind(&mut self, values: &[ValueRef]) -> Result<(), DecodeError>;
+
+    /// Decodes the provided values, returning additive shares of plaintext values to all parties.
+    async fn decode_shared(&mut self, values: &[ValueRef]) -> Result<Vec<Value>, DecodeError>;
 }
