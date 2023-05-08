@@ -6,7 +6,16 @@ use utils_aio::mux::{mock::MockMuxChannelFactory, MuxChannelControl};
 
 use crate::config::Role;
 
-use super::vm::DEAPVm;
+use super::{vm::DEAPVm, DEAPThread};
+
+/// Mock DEAP Leader VM.
+pub type MockLeader = DEAPVm<MockOTSender<Block>, MockOTReceiver<Block>>;
+/// Mock DEAP Leader thread.
+pub type MockLeaderThread = DEAPThread<MockOTSender<Block>, MockOTReceiver<Block>>;
+/// Mock DEAP Follower VM.
+pub type MockFollower = DEAPVm<MockOTSender<Block>, MockOTReceiver<Block>>;
+/// Mock DEAP Follower thread.
+pub type MockFollowerThread = DEAPThread<MockOTSender<Block>, MockOTReceiver<Block>>;
 
 /// Create a pair of mocked DEAP VMs
 pub async fn create_mock_deap_vm(

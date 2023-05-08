@@ -6,7 +6,7 @@ use crate::Thread;
 
 /// A closure which takes a mutable reference to a thread and returns a boxed future.
 type ThreadClosure<'a, T, R> =
-    Box<dyn for<'b> FnOnce(&'b mut T) -> Pin<Box<dyn Future<Output = R> + 'b>> + 'a>;
+    Box<dyn for<'b> FnOnce(&'b mut T) -> Pin<Box<dyn Future<Output = R> + Send + 'b>> + Send + 'a>;
 
 /// An MPC thread pool.
 pub struct ThreadPool<T> {
@@ -43,7 +43,7 @@ impl<'a, T, R> Scope<'a, T, R> {
     /// processing time.
     pub fn push<F>(&mut self, f: F)
     where
-        F: for<'b> FnOnce(&'b mut T) -> Pin<Box<dyn Future<Output = R> + 'b>> + 'a,
+        F: for<'b> FnOnce(&'b mut T) -> Pin<Box<dyn Future<Output = R> + Send + 'b>> + Send + 'a,
     {
         self.closures.push(Box::new(f));
     }

@@ -170,6 +170,7 @@ impl CircuitBuilder {
 }
 
 /// The internal state of the [`CircuitBuilder`]
+#[derive(Debug)]
 pub struct BuilderState {
     feed_id: usize,
     inputs: Vec<BinaryRepr>,
