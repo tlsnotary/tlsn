@@ -20,8 +20,8 @@ use utils_aio::{mux::MuxChannelControl, Channel};
 use crate::{
     config::Role,
     ot::{VerifiableOTReceiveEncoding, VerifiableOTSendEncoding},
-    Decode, DecodeError, Execute, ExecutionError, Memory, MemoryError, Prove, ProveError, Thread,
-    ValueRef, Verify, VerifyError, Vm, VmError,
+    Decode, DecodeError, DecodePrivate, Execute, ExecutionError, Memory, MemoryError, Prove,
+    ProveError, Thread, ValueRef, Verify, VerifyError, Vm, VmError,
 };
 
 use super::{error::FinalizationError, DEAPError, DEAP};
@@ -374,6 +374,55 @@ where
                 values,
                 &mut self.sink,
                 &mut self.stream,
+            )
+            .map_err(DecodeError::from)
+            .await
+    }
+}
+
+#[async_trait]
+impl<OTS, OTR> DecodePrivate for DEAPThread<OTS, OTR>
+where
+    OTS: VerifiableOTSendEncoding + Send + Sync,
+    OTR: VerifiableOTReceiveEncoding + Send + Sync,
+{
+    async fn decode_private(&mut self, values: &[ValueRef]) -> Result<Vec<Value>, DecodeError> {
+        self.deap()
+            .decode_private(
+                &self.op_id.increment_in_place().to_string(),
+                values,
+                &mut self.sink,
+                &mut self.stream,
+                &*self.ot_send,
+                &*self.ot_recv,
+            )
+            .map_err(DecodeError::from)
+            .await
+    }
+
+    async fn decode_blind(&mut self, values: &[ValueRef]) -> Result<(), DecodeError> {
+        self.deap()
+            .decode_blind(
+                &self.op_id.increment_in_place().to_string(),
+                values,
+                &mut self.sink,
+                &mut self.stream,
+                &*self.ot_send,
+                &*self.ot_recv,
+            )
+            .map_err(DecodeError::from)
+            .await
+    }
+
+    async fn decode_shared(&mut self, values: &[ValueRef]) -> Result<Vec<Value>, DecodeError> {
+        self.deap()
+            .decode_shared(
+                &self.op_id.increment_in_place().to_string(),
+                values,
+                &mut self.sink,
+                &mut self.stream,
+                &*self.ot_send,
+                &*self.ot_recv,
             )
             .map_err(DecodeError::from)
             .await

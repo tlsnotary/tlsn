@@ -16,6 +16,11 @@ impl ValueId {
         Self(Arc::new(id.to_string()))
     }
 
+    /// Returns a new value ID with the provided ID appended.
+    pub(crate) fn append_id(&self, id: &str) -> Self {
+        Self::new(&format!("{}/{}", self.0, id))
+    }
+
     /// Returns the encoding ID.
     pub(crate) fn encoding_id(&self) -> EncodingId {
         EncodingId::new(self.0.as_ref())
@@ -48,6 +53,23 @@ impl ValueRef {
         match self {
             ValueRef::Value { .. } => 1,
             ValueRef::Array(values) => values.len(),
+        }
+    }
+
+    /// Returns a new value reference with the provided ID appended.
+    ///
+    /// If the value is an array, then the ID will be appended to each element.
+    pub(crate) fn append_id(&self, id: &str) -> Self {
+        match self {
+            ValueRef::Value { id: value_id } => ValueRef::Value {
+                id: value_id.append_id(id),
+            },
+            ValueRef::Array(values) => ValueRef::Array(
+                values
+                    .iter()
+                    .map(|value_id| value_id.append_id(id))
+                    .collect(),
+            ),
         }
     }
 
@@ -139,8 +161,12 @@ impl ValueRegistry {
     pub(crate) fn get_value_type(&self, id: &str) -> Option<ValueType> {
         let value_ref = self.get_value(id)?;
 
-        match value_ref {
-            ValueRef::Value { id } => self.values.get(&id).cloned(),
+        self.get_value_type_with_ref(&value_ref)
+    }
+
+    pub(crate) fn get_value_type_with_ref(&self, value: &ValueRef) -> Option<ValueType> {
+        match value {
+            ValueRef::Value { id } => self.values.get(id).cloned(),
             ValueRef::Array(values) => {
                 let elem_tys = values
                     .iter()

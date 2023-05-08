@@ -20,12 +20,14 @@ use mpc_core::{
     hash::{Hash, SecureHash},
 };
 use mpc_garble_core::{msg::GarbleMessage, EqualityCheck};
+use rand::thread_rng;
 use utils_aio::expect_msg_or_err;
 
 use crate::{
-    config::{Role, ValueConfig, ValueIdConfig},
+    config::{Role, ValueConfig, ValueIdConfig, Visibility},
     evaluator::{Evaluator, EvaluatorConfigBuilder},
     generator::{Generator, GeneratorConfigBuilder},
+    internal_circuits::{build_otp_circuit, build_otp_shared_circuit},
     ot::{OTReceiveEncoding, OTSendEncoding, OTVerifyEncoding},
     registry::ValueRegistry,
     ValueId, ValueRef,
@@ -441,6 +443,299 @@ impl DEAP {
         Ok(output)
     }
 
+    pub(crate) async fn decode_private<T, U, OTS, OTR>(
+        &self,
+        id: &str,
+        values: &[ValueRef],
+        sink: &mut T,
+        stream: &mut U,
+        ot_send: &OTS,
+        ot_recv: &OTR,
+    ) -> Result<Vec<Value>, DEAPError>
+    where
+        T: Sink<GarbleMessage, Error = std::io::Error> + Unpin,
+        U: Stream<Item = GarbleMessage> + Unpin,
+        OTS: OTSendEncoding,
+        OTR: OTReceiveEncoding,
+    {
+        let (otp_refs, masked_refs): (Vec<_>, Vec<_>) = values
+            .iter()
+            .map(|value| (value.append_id("otp"), value.append_id("masked")))
+            .unzip();
+
+        let (otp_tys, otp_values) = {
+            let mut state = self.state();
+
+            let otp_tys = values
+                .iter()
+                .map(|value| {
+                    state
+                        .value_registry
+                        .get_value_type_with_ref(value)
+                        .ok_or_else(|| DEAPError::ValueDoesNotExist(value.clone()))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+
+            let otp_values = otp_tys
+                .iter()
+                .map(|ty| Value::random(&mut thread_rng(), ty))
+                .collect::<Vec<_>>();
+
+            for ((otp_ref, otp_ty), otp_value) in
+                otp_refs.iter().zip(otp_tys.iter()).zip(otp_values.iter())
+            {
+                state.add_input_config(
+                    otp_ref,
+                    ValueConfig::new(
+                        otp_ref.clone(),
+                        otp_ty.clone(),
+                        Some(otp_value.clone()),
+                        Visibility::Private,
+                    )
+                    .expect("config is valid"),
+                );
+            }
+
+            (otp_tys, otp_values)
+        };
+
+        // Apply OTPs to values
+        let circ = build_otp_circuit(&otp_tys);
+
+        let inputs = values
+            .iter()
+            .zip(otp_refs.iter())
+            .flat_map(|(value, otp)| [value, otp])
+            .cloned()
+            .collect::<Vec<_>>();
+
+        self.execute(
+            id,
+            circ,
+            &inputs,
+            &masked_refs,
+            sink,
+            stream,
+            ot_send,
+            ot_recv,
+        )
+        .await?;
+
+        // Decode masked values
+        let masked_values = self.decode(id, &masked_refs, sink, stream).await?;
+
+        // Remove OTPs, returning plaintext values
+        Ok(masked_values
+            .into_iter()
+            .zip(otp_values)
+            .map(|(masked, otp)| (masked ^ otp).expect("values are same type"))
+            .collect())
+    }
+
+    pub(crate) async fn decode_blind<T, U, OTS, OTR>(
+        &self,
+        id: &str,
+        values: &[ValueRef],
+        sink: &mut T,
+        stream: &mut U,
+        ot_send: &OTS,
+        ot_recv: &OTR,
+    ) -> Result<(), DEAPError>
+    where
+        T: Sink<GarbleMessage, Error = std::io::Error> + Unpin,
+        U: Stream<Item = GarbleMessage> + Unpin,
+        OTS: OTSendEncoding,
+        OTR: OTReceiveEncoding,
+    {
+        let (otp_refs, masked_refs): (Vec<_>, Vec<_>) = values
+            .iter()
+            .map(|value| (value.append_id("otp"), value.append_id("masked")))
+            .unzip();
+
+        let otp_tys = {
+            let mut state = self.state();
+
+            let otp_tys = values
+                .iter()
+                .map(|value| {
+                    state
+                        .value_registry
+                        .get_value_type_with_ref(value)
+                        .ok_or_else(|| DEAPError::ValueDoesNotExist(value.clone()))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+
+            for (otp_ref, otp_ty) in otp_refs.iter().zip(otp_tys.iter()) {
+                state.add_input_config(
+                    otp_ref,
+                    ValueConfig::new(otp_ref.clone(), otp_ty.clone(), None, Visibility::Private)
+                        .expect("config is valid"),
+                );
+            }
+
+            otp_tys
+        };
+
+        // Apply OTPs to values
+        let circ = build_otp_circuit(&otp_tys);
+
+        let inputs = values
+            .iter()
+            .zip(otp_refs.iter())
+            .flat_map(|(value, otp)| [value, otp])
+            .cloned()
+            .collect::<Vec<_>>();
+
+        self.execute(
+            id,
+            circ,
+            &inputs,
+            &masked_refs,
+            sink,
+            stream,
+            ot_send,
+            ot_recv,
+        )
+        .await?;
+
+        // Discard masked values
+        _ = self.decode(id, &masked_refs, sink, stream).await?;
+
+        Ok(())
+    }
+
+    pub(crate) async fn decode_shared<T, U, OTS, OTR>(
+        &self,
+        id: &str,
+        values: &[ValueRef],
+        sink: &mut T,
+        stream: &mut U,
+        ot_send: &OTS,
+        ot_recv: &OTR,
+    ) -> Result<Vec<Value>, DEAPError>
+    where
+        T: Sink<GarbleMessage, Error = std::io::Error> + Unpin,
+        U: Stream<Item = GarbleMessage> + Unpin,
+        OTS: OTSendEncoding,
+        OTR: OTReceiveEncoding,
+    {
+        let (otp_0_refs, (otp_1_refs, masked_refs)): (Vec<_>, (Vec<_>, Vec<_>)) = values
+            .iter()
+            .map(|value| {
+                (
+                    value.append_id("otp_0"),
+                    (value.append_id("otp_1"), value.append_id("masked")),
+                )
+            })
+            .unzip();
+
+        let (otp_tys, otp_values) = {
+            let mut state = self.state();
+
+            let otp_tys = values
+                .iter()
+                .map(|value| {
+                    state
+                        .value_registry
+                        .get_value_type_with_ref(value)
+                        .ok_or_else(|| DEAPError::ValueDoesNotExist(value.clone()))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+
+            let otp_values = otp_tys
+                .iter()
+                .map(|ty| Value::random(&mut thread_rng(), ty))
+                .collect::<Vec<_>>();
+
+            for (((otp_0_ref, opt_1_ref), otp_ty), otp_value) in otp_0_refs
+                .iter()
+                .zip(&otp_1_refs)
+                .zip(&otp_tys)
+                .zip(&otp_values)
+            {
+                let (otp_0_config, otp_1_config) = match self.role {
+                    Role::Leader => (
+                        ValueConfig::new(
+                            otp_0_ref.clone(),
+                            otp_ty.clone(),
+                            Some(otp_value.clone()),
+                            Visibility::Private,
+                        )
+                        .expect("config is valid"),
+                        ValueConfig::new(
+                            opt_1_ref.clone(),
+                            otp_ty.clone(),
+                            None,
+                            Visibility::Private,
+                        )
+                        .expect("config is valid"),
+                    ),
+                    Role::Follower => (
+                        ValueConfig::new(
+                            otp_0_ref.clone(),
+                            otp_ty.clone(),
+                            None,
+                            Visibility::Private,
+                        )
+                        .expect("config is valid"),
+                        ValueConfig::new(
+                            opt_1_ref.clone(),
+                            otp_ty.clone(),
+                            Some(otp_value.clone()),
+                            Visibility::Private,
+                        )
+                        .expect("config is valid"),
+                    ),
+                };
+                state.add_input_config(otp_0_ref, otp_0_config);
+                state.add_input_config(opt_1_ref, otp_1_config);
+            }
+
+            (otp_tys, otp_values)
+        };
+
+        // Apply OTPs to values
+        let circ = build_otp_shared_circuit(&otp_tys);
+
+        let inputs = values
+            .iter()
+            .zip(&otp_0_refs)
+            .zip(&otp_1_refs)
+            .flat_map(|((value, otp_0), otp_1)| [value, otp_0, otp_1])
+            .cloned()
+            .collect::<Vec<_>>();
+
+        self.execute(
+            id,
+            circ,
+            &inputs,
+            &masked_refs,
+            sink,
+            stream,
+            ot_send,
+            ot_recv,
+        )
+        .await?;
+
+        // Decode masked values
+        let masked_values = self.decode(id, &masked_refs, sink, stream).await?;
+
+        match self.role {
+            Role::Leader => {
+                // Leader removes his OTP
+                Ok(masked_values
+                    .into_iter()
+                    .zip(otp_values)
+                    .map(|(masked, otp)| (masked ^ otp).expect("values are the same type"))
+                    .collect::<Vec<_>>())
+            }
+            Role::Follower => {
+                // Follower uses his OTP as his share
+                Ok(otp_values)
+            }
+        }
+    }
+
     /// Finalize the DEAP instance.
     ///
     /// # Notes
@@ -620,13 +915,26 @@ impl State {
 
 #[cfg(test)]
 mod tests {
-    use mpc_circuits::circuits::AES128;
+    use mpc_circuits::{circuits::AES128, ops::WrappingAdd, CircuitBuilder};
     use mpc_ot::mock::mock_ot_pair;
     use utils_aio::duplex::DuplexChannel;
 
     use crate::Memory;
 
     use super::*;
+
+    fn adder_circ() -> Arc<Circuit> {
+        let builder = CircuitBuilder::new();
+
+        let a = builder.add_input::<u8>();
+        let b = builder.add_input::<u8>();
+
+        let c = a.wrapping_add(b);
+
+        builder.add_output(c);
+
+        Arc::new(builder.build().unwrap())
+    }
 
     #[tokio::test]
     async fn test_deap() {
@@ -715,6 +1023,221 @@ mod tests {
         let (leader_output, follower_output) = tokio::join!(leader_fut, follower_fut);
 
         assert_eq!(leader_output, follower_output);
+    }
+
+    #[tokio::test]
+    async fn test_deap_decode_private() {
+        let (leader_channel, follower_channel) = DuplexChannel::<GarbleMessage>::new();
+        let (leader_ot_send, follower_ot_recv) = mock_ot_pair();
+        let (follower_ot_send, leader_ot_recv) = mock_ot_pair();
+
+        let mut leader = DEAP::new(Role::Leader, [42u8; 32]);
+        let mut follower = DEAP::new(Role::Follower, [69u8; 32]);
+
+        let circ = adder_circ();
+
+        let a = 1u8;
+        let b = 2u8;
+        let c: Value = (a + b).into();
+
+        let leader_fut = {
+            let (mut sink, mut stream) = leader_channel.split();
+            let circ = circ.clone();
+            let a_ref = leader.new_private_input("a", Some(a)).unwrap();
+            let b_ref = leader.new_private_input::<u8>("b", None).unwrap();
+            let c_ref = leader.new_output::<u8>("c").unwrap();
+
+            async move {
+                leader
+                    .execute(
+                        "test",
+                        circ,
+                        &[a_ref, b_ref],
+                        &[c_ref.clone()],
+                        &mut sink,
+                        &mut stream,
+                        &leader_ot_send,
+                        &leader_ot_recv,
+                    )
+                    .await
+                    .unwrap();
+
+                let outputs = leader
+                    .decode_private(
+                        "test",
+                        &[c_ref],
+                        &mut sink,
+                        &mut stream,
+                        &leader_ot_send,
+                        &leader_ot_recv,
+                    )
+                    .await
+                    .unwrap();
+
+                leader
+                    .finalize(&mut sink, &mut stream, &leader_ot_recv)
+                    .await
+                    .unwrap();
+
+                outputs
+            }
+        };
+
+        let follower_fut = {
+            let (mut sink, mut stream) = follower_channel.split();
+
+            let a_ref = follower.new_private_input::<u8>("a", None).unwrap();
+            let b_ref = follower.new_private_input("b", Some(b)).unwrap();
+            let c_ref = follower.new_output::<u8>("c").unwrap();
+
+            async move {
+                follower
+                    .execute(
+                        "test",
+                        circ.clone(),
+                        &[a_ref, b_ref],
+                        &[c_ref.clone()],
+                        &mut sink,
+                        &mut stream,
+                        &follower_ot_send,
+                        &follower_ot_recv,
+                    )
+                    .await
+                    .unwrap();
+
+                let outputs = follower
+                    .decode_blind(
+                        "test",
+                        &[c_ref],
+                        &mut sink,
+                        &mut stream,
+                        &follower_ot_send,
+                        &follower_ot_recv,
+                    )
+                    .await
+                    .unwrap();
+
+                follower
+                    .finalize(&mut sink, &mut stream, &follower_ot_recv)
+                    .await
+                    .unwrap();
+
+                outputs
+            }
+        };
+
+        let (leader_output, _) = tokio::join!(leader_fut, follower_fut);
+
+        assert_eq!(leader_output, vec![c]);
+    }
+
+    #[tokio::test]
+    async fn test_deap_decode_shared() {
+        let (leader_channel, follower_channel) = DuplexChannel::<GarbleMessage>::new();
+        let (leader_ot_send, follower_ot_recv) = mock_ot_pair();
+        let (follower_ot_send, leader_ot_recv) = mock_ot_pair();
+
+        let mut leader = DEAP::new(Role::Leader, [42u8; 32]);
+        let mut follower = DEAP::new(Role::Follower, [69u8; 32]);
+
+        let circ = adder_circ();
+
+        let a = 1u8;
+        let b = 2u8;
+        let c = a + b;
+
+        let leader_fut = {
+            let (mut sink, mut stream) = leader_channel.split();
+            let circ = circ.clone();
+            let a_ref = leader.new_private_input("a", Some(a)).unwrap();
+            let b_ref = leader.new_private_input::<u8>("b", None).unwrap();
+            let c_ref = leader.new_output::<u8>("c").unwrap();
+
+            async move {
+                leader
+                    .execute(
+                        "test",
+                        circ,
+                        &[a_ref, b_ref],
+                        &[c_ref.clone()],
+                        &mut sink,
+                        &mut stream,
+                        &leader_ot_send,
+                        &leader_ot_recv,
+                    )
+                    .await
+                    .unwrap();
+
+                let outputs = leader
+                    .decode_shared(
+                        "test",
+                        &[c_ref],
+                        &mut sink,
+                        &mut stream,
+                        &leader_ot_send,
+                        &leader_ot_recv,
+                    )
+                    .await
+                    .unwrap();
+
+                leader
+                    .finalize(&mut sink, &mut stream, &leader_ot_recv)
+                    .await
+                    .unwrap();
+
+                outputs
+            }
+        };
+
+        let follower_fut = {
+            let (mut sink, mut stream) = follower_channel.split();
+
+            let a_ref = follower.new_private_input::<u8>("a", None).unwrap();
+            let b_ref = follower.new_private_input("b", Some(b)).unwrap();
+            let c_ref = follower.new_output::<u8>("c").unwrap();
+
+            async move {
+                follower
+                    .execute(
+                        "test",
+                        circ.clone(),
+                        &[a_ref, b_ref],
+                        &[c_ref.clone()],
+                        &mut sink,
+                        &mut stream,
+                        &follower_ot_send,
+                        &follower_ot_recv,
+                    )
+                    .await
+                    .unwrap();
+
+                let outputs = follower
+                    .decode_shared(
+                        "test",
+                        &[c_ref],
+                        &mut sink,
+                        &mut stream,
+                        &follower_ot_send,
+                        &follower_ot_recv,
+                    )
+                    .await
+                    .unwrap();
+
+                follower
+                    .finalize(&mut sink, &mut stream, &follower_ot_recv)
+                    .await
+                    .unwrap();
+
+                outputs
+            }
+        };
+
+        let (mut leader_output, mut follower_output) = tokio::join!(leader_fut, follower_fut);
+
+        let leader_share: u8 = leader_output.pop().unwrap().try_into().unwrap();
+        let follower_share: u8 = follower_output.pop().unwrap().try_into().unwrap();
+
+        assert_eq!((leader_share ^ follower_share), c);
     }
 
     #[tokio::test]

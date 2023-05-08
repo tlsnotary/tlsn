@@ -18,6 +18,8 @@ pub enum DEAPError {
     EvaluatorError(#[from] crate::evaluator::EvaluatorError),
     #[error(transparent)]
     ValueError(#[from] ValueError),
+    #[error("value does not exist: {0:?}")]
+    ValueDoesNotExist(ValueRef),
     #[error("missing encoding for value: {0:?}")]
     MissingEncoding(ValueRef),
     #[error(transparent)]
