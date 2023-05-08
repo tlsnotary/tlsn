@@ -14,6 +14,7 @@
 
 mod encoder;
 mod equality;
+mod ops;
 mod value;
 
 use std::{
@@ -170,6 +171,94 @@ impl<const N: usize> Labels<N, state::Active> {
         Self {
             state: state::Active,
             labels: Arc::new(labels),
+        }
+    }
+}
+
+impl<const N: usize> BitXor for Labels<N, state::Full> {
+    type Output = Labels<N, state::Full>;
+
+    fn bitxor(self, rhs: Self) -> Labels<N, state::Full> {
+        Labels {
+            state: self.state,
+            labels: Arc::new(std::array::from_fn(|i| self.labels[i] ^ rhs.labels[i])),
+        }
+    }
+}
+
+impl<const N: usize> BitXor for &Labels<N, state::Full> {
+    type Output = Labels<N, state::Full>;
+
+    fn bitxor(self, rhs: Self) -> Labels<N, state::Full> {
+        Labels {
+            state: self.state,
+            labels: Arc::new(std::array::from_fn(|i| self.labels[i] ^ rhs.labels[i])),
+        }
+    }
+}
+
+impl<const N: usize> BitXor<&Self> for Labels<N, state::Full> {
+    type Output = Labels<N, state::Full>;
+
+    fn bitxor(self, rhs: &Self) -> Labels<N, state::Full> {
+        Labels {
+            state: self.state,
+            labels: Arc::new(std::array::from_fn(|i| self.labels[i] ^ rhs.labels[i])),
+        }
+    }
+}
+
+impl<const N: usize> BitXor<Labels<N, state::Full>> for &Labels<N, state::Full> {
+    type Output = Labels<N, state::Full>;
+
+    fn bitxor(self, rhs: Labels<N, state::Full>) -> Labels<N, state::Full> {
+        Labels {
+            state: self.state,
+            labels: Arc::new(std::array::from_fn(|i| self.labels[i] ^ rhs.labels[i])),
+        }
+    }
+}
+
+impl<const N: usize> BitXor for Labels<N, state::Active> {
+    type Output = Labels<N, state::Active>;
+
+    fn bitxor(self, rhs: Self) -> Labels<N, state::Active> {
+        Labels {
+            state: self.state,
+            labels: Arc::new(std::array::from_fn(|i| self.labels[i] ^ rhs.labels[i])),
+        }
+    }
+}
+
+impl<const N: usize> BitXor for &Labels<N, state::Active> {
+    type Output = Labels<N, state::Active>;
+
+    fn bitxor(self, rhs: Self) -> Labels<N, state::Active> {
+        Labels {
+            state: self.state,
+            labels: Arc::new(std::array::from_fn(|i| self.labels[i] ^ rhs.labels[i])),
+        }
+    }
+}
+
+impl<const N: usize> BitXor<&Self> for Labels<N, state::Active> {
+    type Output = Labels<N, state::Active>;
+
+    fn bitxor(self, rhs: &Self) -> Labels<N, state::Active> {
+        Labels {
+            state: self.state,
+            labels: Arc::new(std::array::from_fn(|i| self.labels[i] ^ rhs.labels[i])),
+        }
+    }
+}
+
+impl<const N: usize> BitXor<Labels<N, state::Active>> for &Labels<N, state::Active> {
+    type Output = Labels<N, state::Active>;
+
+    fn bitxor(self, rhs: Labels<N, state::Active>) -> Labels<N, state::Active> {
+        Labels {
+            state: self.state,
+            labels: Arc::new(std::array::from_fn(|i| self.labels[i] ^ rhs.labels[i])),
         }
     }
 }
