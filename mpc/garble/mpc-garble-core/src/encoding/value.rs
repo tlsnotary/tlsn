@@ -1,5 +1,6 @@
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
+use std::ops::BitXor;
 use utils::bits::{FromBits, ToBitsIter};
 
 use mpc_circuits::types::{StaticValueType, TypeError, Value, ValueType};
@@ -342,6 +343,70 @@ macro_rules! define_encoded_variant {
         impl $EncodedTy<state::Active> {
             pub(crate) fn new(labels: [Label; $len]) -> Self {
                 Self(Labels::<$len, state::Active>::new(labels))
+            }
+        }
+
+        impl BitXor for $EncodedTy<state::Full> {
+            type Output = $EncodedTy<state::Full>;
+
+            fn bitxor(self, rhs: Self) -> $EncodedTy<state::Full> {
+                $EncodedTy::<state::Full>(self.0 ^ rhs.0)
+            }
+        }
+
+        impl BitXor<&Self> for $EncodedTy<state::Full> {
+            type Output = $EncodedTy<state::Full>;
+
+            fn bitxor(self, rhs: &Self) -> $EncodedTy<state::Full> {
+                $EncodedTy::<state::Full>(self.0 ^ &rhs.0)
+            }
+        }
+
+        impl BitXor<$EncodedTy<state::Full>> for &$EncodedTy<state::Full> {
+            type Output = $EncodedTy<state::Full>;
+
+            fn bitxor(self, rhs: $EncodedTy<state::Full>) -> $EncodedTy<state::Full> {
+                $EncodedTy::<state::Full>(&self.0 ^ rhs.0)
+            }
+        }
+
+        impl BitXor for &$EncodedTy<state::Full> {
+            type Output = $EncodedTy<state::Full>;
+
+            fn bitxor(self, rhs: Self) -> $EncodedTy<state::Full> {
+                $EncodedTy::<state::Full>(&self.0 ^ &rhs.0)
+            }
+        }
+
+        impl BitXor for $EncodedTy<state::Active> {
+            type Output = $EncodedTy<state::Active>;
+
+            fn bitxor(self, rhs: Self) -> $EncodedTy<state::Active> {
+                $EncodedTy::<state::Active>(self.0 ^ rhs.0)
+            }
+        }
+
+        impl BitXor<&Self> for $EncodedTy<state::Active> {
+            type Output = $EncodedTy<state::Active>;
+
+            fn bitxor(self, rhs: &Self) -> $EncodedTy<state::Active> {
+                $EncodedTy::<state::Active>(self.0 ^ &rhs.0)
+            }
+        }
+
+        impl BitXor<$EncodedTy<state::Active>> for &$EncodedTy<state::Active> {
+            type Output = $EncodedTy<state::Active>;
+
+            fn bitxor(self, rhs: $EncodedTy<state::Active>) -> $EncodedTy<state::Active> {
+                $EncodedTy::<state::Active>(&self.0 ^ rhs.0)
+            }
+        }
+
+        impl BitXor for &$EncodedTy<state::Active> {
+            type Output = $EncodedTy<state::Active>;
+
+            fn bitxor(self, rhs: Self) -> $EncodedTy<state::Active> {
+                $EncodedTy::<state::Active>(&self.0 ^ &rhs.0)
             }
         }
 
