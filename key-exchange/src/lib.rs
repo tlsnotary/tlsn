@@ -9,69 +9,87 @@
 //! A detailed description of this protocol can be found in our documentation
 //! <https://docs.tlsnotary.org/protocol/notarization/key_exchange.html>.
 
+#![deny(missing_docs, unreachable_pub, unused_must_use)]
+#![deny(clippy::all)]
+#![forbid(unsafe_code)]
+
 mod circuit;
 mod config;
 mod exchange;
 #[cfg(feature = "mock")]
 pub mod mock;
 pub mod msg;
-mod role;
 
-use async_trait::async_trait;
-use mpc_garble::{factory::GCFactoryError, GCError};
-use mpc_circuits::{CircuitError, GroupError};
-use mpc_garble_core::{
-    exec::dual::DualExConfigBuilderError, ActiveLabels, EncodingError, Error, FullLabels,
+pub use config::{
+    KeyExchangeConfig, KeyExchangeConfigBuilder, KeyExchangeConfigBuilderError, Role,
 };
-pub use msg::KeyExchangeMessage;
-use p256::{PublicKey, SecretKey};
-use utils_aio::Channel;
-
 pub use exchange::KeyExchangeCore;
+pub use msg::KeyExchangeMessage;
 
 /// A channel for exchanging key exchange messages
 pub type KeyExchangeChannel = Box<dyn Channel<KeyExchangeMessage, Error = std::io::Error> + Send>;
 
+use async_trait::async_trait;
+use mpc_garble::ValueRef;
+use p256::{PublicKey, SecretKey};
+use utils_aio::Channel;
+
+/// Pre-master secret.
+#[derive(Debug, Clone)]
+pub struct Pms(ValueRef);
+
+impl Pms {
+    /// Create a new PMS
+    pub fn new(value: ValueRef) -> Self {
+        Self(value)
+    }
+
+    /// Get the value of the PMS
+    pub fn value(&self) -> &ValueRef {
+        &self.0
+    }
+}
+
 /// An error that can occur during the key exchange protocol
 #[derive(Debug, thiserror::Error)]
+#[allow(missing_docs)]
 pub enum KeyExchangeError {
+    #[error("IOError: {0}")]
+    IOError(#[from] std::io::Error),
+    #[error(transparent)]
+    MemoryError(#[from] mpc_garble::MemoryError),
+    #[error(transparent)]
+    ExecutionError(#[from] mpc_garble::ExecutionError),
+    #[error(transparent)]
+    DecodeError(#[from] mpc_garble::DecodeError),
     #[error("Unable to compute public key: {0}")]
     PublicKey(#[from] p256::elliptic_curve::Error),
+    #[error(transparent)]
+    KeyParseError(#[from] msg::KeyParseError),
     #[error("Server Key not set")]
     NoServerKey,
     #[error("Private key not set")]
     NoPrivateKey,
     #[error("PMSShares are not set")]
     NoPMSShares,
-    #[error("Encoder is not set")]
-    NoEncoder,
     #[error("PMS equality check failed")]
     CheckFailed,
-    #[error("Encoding Error: {0}")]
-    Encoding(#[from] EncodingError),
-    #[error("Circuit Error: {0}")]
-    Circuit(#[from] CircuitError),
-    #[error("Group Error: {0}")]
-    Group(#[from] GroupError),
-    #[error("Garbled Circuit Error: {0}")]
-    GCError(#[from] GCError),
-    #[error("DualExConigBuilder Error: {0}")]
-    DualExConfig(#[from] DualExConfigBuilderError),
-    #[error("Error during decoding of output: {0}")]
-    Decoding(#[from] Error),
-    #[error("GC Factory Error: {0}")]
-    GCFactoryError(#[from] GCFactoryError),
-    #[error("IOError: {0}")]
-    IOError(#[from] std::io::Error),
     #[error("UnexpectedMessage: {0:?}")]
     Unexpected(KeyExchangeMessage),
     #[error("PointAdditionError: {0}")]
     PointAdditionError(#[from] point_addition::PointAdditionError),
 }
 
+/// A trait for computing PMS shares
+#[async_trait]
+pub trait ComputePms {
+    /// Computes the PMS
+    async fn compute_pms(&mut self) -> Result<Pms, KeyExchangeError>;
+}
+
 /// A trait for the leader of the key exchange protocol
 #[async_trait]
-pub trait KeyExchangeLead {
+pub trait KeyExchangeLead: ComputePms {
     /// Compute the client's public key
     ///
     /// The client's public key in this context is the combined public key (EC point addition) of
@@ -83,22 +101,11 @@ pub trait KeyExchangeLead {
 
     /// Set the server's public key
     async fn set_server_key(&mut self, server_key: PublicKey) -> Result<(), KeyExchangeError>;
-
-    /// Compute PMS shares
-    ///
-    /// PMS shares are an additive sharing of the x-coordinate of the curve point resulting from an
-    /// ECDH handshake between server and client
-    async fn compute_pms_shares(&mut self) -> Result<(), KeyExchangeError>;
-
-    /// Compute PMS labels
-    ///
-    /// The returned labels are used as cached inputs for another circuit
-    async fn compute_pms_labels(&mut self) -> Result<PMSLabels, KeyExchangeError>;
 }
 
 /// A trait for the follower of the key exchange protocol
 #[async_trait]
-pub trait KeyExchangeFollow {
+pub trait KeyExchangeFollow: ComputePms {
     /// Send the follower's public key to the key exchange leader
     async fn send_public_key(
         &mut self,
@@ -107,24 +114,4 @@ pub trait KeyExchangeFollow {
 
     /// Receive the server's public key from the key exchange leader
     async fn receive_server_key(&mut self) -> Result<(), KeyExchangeError>;
-
-    /// Compute PMS shares
-    ///
-    /// PMS shares are an additive sharing of the x-coordinate of the curve point resulting from an
-    /// ECDH handshake between server and client
-    async fn compute_pms_shares(&mut self) -> Result<(), KeyExchangeError>;
-
-    /// Compute PMS labels
-    ///
-    /// The returned labels are used as cached inputs for another circuit
-    async fn compute_pms_labels(&mut self) -> Result<PMSLabels, KeyExchangeError>;
-}
-
-/// A wrapper struct for the PMS labels
-///
-/// PMS labels are encrypted circuit inputs for computing the master secrets
-#[derive(Debug, Clone)]
-pub struct PMSLabels {
-    pub active_labels: ActiveLabels,
-    pub full_labels: FullLabels,
 }
