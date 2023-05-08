@@ -99,7 +99,7 @@ pub(crate) fn trace_impl(args: TokenStream, item: TokenStream) -> TokenStream {
 
     // add _trace suffix to function ident
     trace_fn.sig.ident = Ident::new(
-        &format!("{}_{}", fn_name.to_string(), suffix),
+        &format!("{}_{}", fn_name, suffix),
         trace_fn.sig.ident.span(),
     );
 

@@ -304,6 +304,18 @@ macro_rules! define_binary_value {
             }
         }
 
+        impl<const N: usize> From<&[$ty; N]> for Value {
+            fn from(v: &[$ty; N]) -> Self {
+                Self::Array(v.into_iter().map(|v| (*v).into()).collect())
+            }
+        }
+
+        impl From<&[$ty]> for Value {
+            fn from(v: &[$ty]) -> Self {
+                Self::Array(v.iter().map(|v| (*v).into()).collect())
+            }
+        }
+
         impl From<Vec<$ty>> for Value {
             fn from(v: Vec<$ty>) -> Self {
                 Self::Array(v.into_iter().map(|v| v.into()).collect())
@@ -370,6 +382,12 @@ macro_rules! define_binary_value {
         impl<const N: usize> From<[$id; N]> for BinaryRepr {
             fn from(v: [$id; N]) -> Self {
                 BinaryRepr::Array(v.into_iter().map(|v| v.into()).collect())
+            }
+        }
+
+        impl From<&[$id]> for BinaryRepr {
+            fn from(v: &[$id]) -> Self {
+                BinaryRepr::Array(v.iter().map(|v| (*v).into()).collect())
             }
         }
 
@@ -644,8 +662,8 @@ impl BitXor for Value {
             (Value::U64(a), Value::U64(b)) => Value::U64(a ^ b),
             (Value::U128(a), Value::U128(b)) => Value::U128(a ^ b),
             (Value::Array(a), Value::Array(b)) => Value::Array(
-                a.into_iter()
-                    .zip(b.into_iter())
+                a.iter()
+                    .zip(b.iter())
                     .map(|(a, b)| a ^ b)
                     .collect::<Result<Vec<_>, _>>()?,
             ),
@@ -671,8 +689,8 @@ impl BitXor<&Value> for &Value {
             (Value::U64(a), Value::U64(b)) => Value::U64(a ^ b),
             (Value::U128(a), Value::U128(b)) => Value::U128(a ^ b),
             (Value::Array(a), Value::Array(b)) => Value::Array(
-                a.into_iter()
-                    .zip(b.into_iter())
+                a.iter()
+                    .zip(b.iter())
                     .map(|(a, b)| a ^ b)
                     .collect::<Result<Vec<_>, _>>()?,
             ),
@@ -698,8 +716,8 @@ impl BitXor<&Value> for Value {
             (Value::U64(a), Value::U64(b)) => Value::U64(a ^ b),
             (Value::U128(a), Value::U128(b)) => Value::U128(a ^ b),
             (Value::Array(a), Value::Array(b)) => Value::Array(
-                a.into_iter()
-                    .zip(b.into_iter())
+                a.iter()
+                    .zip(b.iter())
                     .map(|(a, b)| a ^ b)
                     .collect::<Result<Vec<_>, _>>()?,
             ),
@@ -725,8 +743,8 @@ impl BitXor<Value> for &Value {
             (Value::U64(a), Value::U64(b)) => Value::U64(a ^ b),
             (Value::U128(a), Value::U128(b)) => Value::U128(a ^ b),
             (Value::Array(a), Value::Array(b)) => Value::Array(
-                a.into_iter()
-                    .zip(b.into_iter())
+                a.iter()
+                    .zip(b.iter())
                     .map(|(a, b)| a ^ b)
                     .collect::<Result<Vec<_>, _>>()?,
             ),
@@ -737,5 +755,73 @@ impl BitXor<Value> for &Value {
                 })
             }
         })
+    }
+}
+
+macro_rules! impl_convert_bytes {
+    ($ty:ident, $len:expr) => {
+        impl $ty {
+            /// Create a value from its representation as a byte array in big endian.
+            pub fn from_be_bytes(bytes: [U8; $len]) -> Self {
+                $ty(std::array::from_fn(|i| bytes[$len - (i / 8) - 1].0[i % 8]))
+            }
+
+            /// Returns the representation of this type as a byte array in big endian.
+            pub fn to_be_bytes(self) -> [U8; $len] {
+                std::array::from_fn(|i| U8(std::array::from_fn(|j| self.0[($len - i - 1) * 8 + j])))
+            }
+
+            /// Create a value from its representation as a byte array in little endian.
+            pub fn from_le_bytes(bytes: [U8; $len]) -> Self {
+                $ty(std::array::from_fn(|i| bytes[i / 8].0[i % 8]))
+            }
+
+            /// Returns the representation of this type as a byte array in little endian.
+            pub fn to_le_bytes(self) -> [U8; $len] {
+                std::array::from_fn(|i| U8(std::array::from_fn(|j| self.0[i * 8 + j])))
+            }
+        }
+    };
+}
+
+impl_convert_bytes!(U8, 1);
+impl_convert_bytes!(U16, 2);
+impl_convert_bytes!(U32, 4);
+impl_convert_bytes!(U64, 8);
+impl_convert_bytes!(U128, 16);
+
+#[cfg(test)]
+mod tests {
+    use mpc_circuits_macros::{test_circ, trace};
+
+    use crate::CircuitBuilder;
+
+    #[trace]
+    fn to_be_bytes(a: u128) -> [u8; 16] {
+        a.to_be_bytes()
+    }
+
+    #[trace]
+    fn to_le_bytes(a: u128) -> [u8; 16] {
+        a.to_le_bytes()
+    }
+
+    #[test]
+    fn test_convert_bytes() {
+        let builder = CircuitBuilder::new();
+        let a = builder.add_input::<u128>();
+        let a_bytes = to_be_bytes_trace(builder.state(), a);
+        builder.add_output(a_bytes);
+        let circ = builder.build().unwrap();
+
+        test_circ!(circ, to_be_bytes, fn(69u128) -> [u8; 16]);
+
+        let builder = CircuitBuilder::new();
+        let a = builder.add_input::<u128>();
+        let a_bytes = to_le_bytes_trace(builder.state(), a);
+        builder.add_output(a_bytes);
+        let circ = builder.build().unwrap();
+
+        test_circ!(circ, to_le_bytes, fn(69u128) -> [u8; 16]);
     }
 }

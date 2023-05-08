@@ -11,11 +11,13 @@ default = ["parse", "serde", "aes", "sha2"]
 parse = ["dep:regex"]
 serde = ["dep:serde", "dep:serde_arrays", "dep:bincode"]
 aes = []
-sha2 = []
+sha2 = ["dep:sha2"]
 
 [dependencies]
 tlsn-utils.workspace = true
 tlsn-mpc-circuits-macros = { path = "../mpc-circuits-macros" }
+
+sha2 = { workspace = true, features = ["compress"], optional = true }
 
 serde = { workspace = true, optional = true, features = ["derive"] }
 serde_arrays = { workspace = true, optional = true }
@@ -28,4 +30,3 @@ thiserror.workspace = true
 
 [dev-dependencies]
 aes.workspace = true
-sha2 = { workspace = true, features = ["compress"] }

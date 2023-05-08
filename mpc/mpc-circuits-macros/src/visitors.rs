@@ -21,7 +21,7 @@ impl VisitMut for PrimitiveTypeReplace {
                 .elems
                 .iter_mut()
                 .for_each(|ty| self.visit_type_mut(ty)),
-            _ => return,
+            _ => {}
         }
     }
 }
@@ -111,11 +111,7 @@ impl VisitMut for CallRename {
                 } else {
                     let path_segment = path.path.segments.last_mut().unwrap();
                     path_segment.ident = Ident::new(
-                        &format!(
-                            "{}_{}",
-                            path_segment.ident.to_string(),
-                            crate::DEFAULT_SUFFIX
-                        ),
+                        &format!("{}_{}", path_segment.ident, crate::DEFAULT_SUFFIX),
                         path_segment.ident.span(),
                     );
                 }
