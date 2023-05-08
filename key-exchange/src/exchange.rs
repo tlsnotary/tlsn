@@ -49,7 +49,7 @@ where
     /// * `channel`                 - The channel for sending messages between leader and follower
     /// * `point_addition_sender`   - The point addition sender instance used during key exchange
     /// * `point_addition_receiver` - The point addition receiver instance used during key exchange
-    /// * `dual_ex_factory`         - The garbled circuit dual execution factory for creating dual execution instances
+    /// * `executor`                - The MPC executor
     /// * `config`                  - The config used for the key exchange protocol
     pub fn new(
         channel: KeyExchangeChannel,
