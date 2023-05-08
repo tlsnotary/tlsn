@@ -1,6 +1,5 @@
 [workspace]
-members = ["tls-core"]
-exclude = ["tls-client"]
+members = ["tls-client", "tls-backend", "tls-core"]
 
 [workspace.dependencies]
 # rand

@@ -1,7 +1,4 @@
-use std::cmp;
-use std::collections::VecDeque;
-use std::io;
-use std::io::Read;
+use std::{cmp, collections::VecDeque, io, io::Read};
 
 /// This is a byte buffer that is built from a vector
 /// of byte vectors.  This avoids extra copies when
@@ -88,9 +85,7 @@ impl ChunkVecBuffer {
         let mut offs = 0;
 
         while offs < buf.len() && !self.is_empty() {
-            let used = self.chunks[0]
-                .as_slice()
-                .read(&mut buf[offs..])?;
+            let used = self.chunks[0].as_slice().read(&mut buf[offs..])?;
 
             self.consume(used);
             offs += used;
@@ -115,8 +110,7 @@ impl ChunkVecBuffer {
     fn consume(&mut self, mut used: usize) {
         while let Some(mut buf) = self.chunks.pop_front() {
             if used < buf.len() {
-                self.chunks
-                    .push_front(buf.split_off(used));
+                self.chunks.push_front(buf.split_off(used));
                 break;
             } else {
                 used -= buf.len();

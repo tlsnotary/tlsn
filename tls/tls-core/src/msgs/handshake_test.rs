@@ -1,7 +1,9 @@
-use super::base::{Payload, PayloadU16, PayloadU24, PayloadU8};
-use super::codec::{put_u16, Codec, Reader};
-use super::enums::*;
-use super::handshake::*;
+use super::{
+    base::{Payload, PayloadU16, PayloadU24, PayloadU8},
+    codec::{put_u16, Codec, Reader},
+    enums::*,
+    handshake::*,
+};
 use crate::key::Certificate;
 use webpki::DnsNameRef;
 

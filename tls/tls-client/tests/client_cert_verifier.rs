@@ -9,11 +9,10 @@ use crate::common::{
     make_client_config_with_versions, make_client_config_with_versions_with_auth,
     make_pair_for_arc_configs, ErrorFromPeer, KeyType, ALL_KEY_TYPES,
 };
-use rustls::client::WebPkiVerifier;
-use rustls::internal::msgs::enums::AlertDescription;
-use rustls::internal::msgs::enums::ContentType;
-use rustls::server::{ClientCertVerified, ClientCertVerifier};
 use rustls::{
+    client::WebPkiVerifier,
+    internal::msgs::enums::{AlertDescription, ContentType},
+    server::{ClientCertVerified, ClientCertVerifier},
     Certificate, ClientConnection, DistinguishedNames, Error, ServerConfig, ServerConnection,
     SignatureScheme,
 };

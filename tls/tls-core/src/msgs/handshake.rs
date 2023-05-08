@@ -1,22 +1,23 @@
-use crate::key;
-use crate::msgs::base::{Payload, PayloadU16, PayloadU24, PayloadU8};
-use crate::msgs::codec;
-use crate::msgs::codec::{Codec, Reader};
-use crate::msgs::enums::ECCurveType;
-use crate::msgs::enums::PSKKeyExchangeMode;
-use crate::msgs::enums::{CertificateStatusType, ClientCertificateType};
-use crate::msgs::enums::{CipherSuite, Compression, ECPointFormat, ExtensionType};
-use crate::msgs::enums::{HandshakeType, ProtocolVersion};
-use crate::msgs::enums::{HashAlgorithm, ServerNameType, SignatureAlgorithm};
-use crate::msgs::enums::{KeyUpdateRequest, NamedGroup, SignatureScheme};
-use crate::rand;
-use crate::Error;
+use crate::{
+    key,
+    msgs::{
+        base::{Payload, PayloadU16, PayloadU24, PayloadU8},
+        codec,
+        codec::{Codec, Reader},
+        enums::{
+            CertificateStatusType, CipherSuite, ClientCertificateType, Compression, ECCurveType,
+            ECPointFormat, ExtensionType, HandshakeType, HashAlgorithm, KeyUpdateRequest,
+            NamedGroup, PSKKeyExchangeMode, ProtocolVersion, ServerNameType, SignatureAlgorithm,
+            SignatureScheme,
+        },
+    },
+    rand, Error,
+};
 
 #[cfg(feature = "logging")]
 use tracing::warn;
 
-use std::collections;
-use std::fmt;
+use std::{collections, fmt};
 
 macro_rules! declare_u8_vec(
   ($name:ident, $itemtype:ty) => {
@@ -226,8 +227,10 @@ impl DecomposedSignatureScheme for SignatureScheme {
     }
 
     fn make(alg: SignatureAlgorithm, hash: HashAlgorithm) -> SignatureScheme {
-        use crate::msgs::enums::HashAlgorithm::{SHA1, SHA256, SHA384, SHA512};
-        use crate::msgs::enums::SignatureAlgorithm::{ECDSA, RSA};
+        use crate::msgs::enums::{
+            HashAlgorithm::{SHA1, SHA256, SHA384, SHA512},
+            SignatureAlgorithm::{ECDSA, RSA},
+        };
 
         match (alg, hash) {
             (RSA, SHA1) => Self::RSA_PKCS1_SHA1,

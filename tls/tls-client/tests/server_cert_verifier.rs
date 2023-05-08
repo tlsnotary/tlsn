@@ -7,12 +7,11 @@ use crate::common::{
     do_handshake, do_handshake_until_both_error, make_client_config_with_versions,
     make_pair_for_arc_configs, make_server_config, ErrorFromPeer, ALL_KEY_TYPES,
 };
-use rustls::client::{
-    HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier, WebPkiVerifier,
+use rustls::{
+    client::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier, WebPkiVerifier},
+    internal::msgs::{enums::AlertDescription, handshake::DigitallySignedStruct},
+    Certificate, Error, SignatureScheme,
 };
-use rustls::internal::msgs::enums::AlertDescription;
-use rustls::internal::msgs::handshake::DigitallySignedStruct;
-use rustls::{Certificate, Error, SignatureScheme};
 use std::sync::Arc;
 
 #[test]
@@ -72,9 +71,7 @@ fn client_can_override_certificate_verification_and_reject_tls12_signatures() {
             Error::CorruptMessage,
         ));
 
-        client_config
-            .dangerous()
-            .set_certificate_verifier(verifier);
+        client_config.dangerous().set_certificate_verifier(verifier);
 
         let server_config = Arc::new(make_server_config(*kt));
 
@@ -99,9 +96,7 @@ fn client_can_override_certificate_verification_and_reject_tls13_signatures() {
             Error::CorruptMessage,
         ));
 
-        client_config
-            .dangerous()
-            .set_certificate_verifier(verifier);
+        client_config.dangerous().set_certificate_verifier(verifier);
 
         let server_config = Arc::new(make_server_config(*kt));
 

@@ -313,9 +313,9 @@ mod log {
 pub extern crate tls_core;
 
 mod anchors;
+mod backend;
 mod cipher;
 mod conn;
-mod crypto;
 mod error;
 mod hash_hs;
 mod limited_cache;
@@ -347,24 +347,26 @@ pub mod internal {
 }
 
 // The public interface is:
-pub use crate::anchors::{OwnedTrustAnchor, RootCertStore};
-pub use crate::builder::{
-    ConfigBuilder, WantsCipherSuites, WantsKxGroups, WantsVerifier, WantsVersions,
+pub use crate::{
+    anchors::{OwnedTrustAnchor, RootCertStore},
+    builder::{ConfigBuilder, WantsCipherSuites, WantsKxGroups, WantsVerifier, WantsVersions},
+    conn::{CommonState, ConnectionCommon, IoState, Reader, SideData},
+    error::Error,
+    key_log::{KeyLog, NoKeyLog},
+    key_log_file::KeyLogFile,
+    kx::{SupportedKxGroup, ALL_KX_GROUPS},
 };
-pub use crate::conn::{CommonState, ConnectionCommon, IoState, Reader, SideData};
-pub use crate::error::Error;
-pub use crate::key_log::{KeyLog, NoKeyLog};
-pub use crate::key_log_file::KeyLogFile;
-pub use crate::kx::{SupportedKxGroup, ALL_KX_GROUPS};
+pub use backend::{Backend, BackendError, DecryptMode, EncryptMode, RustCryptoBackend};
 pub use cipher::{MessageDecrypter, MessageEncrypter};
-pub use crypto::{Crypto, DecryptMode, EncryptMode};
-pub use tls_core::key::{Certificate, PrivateKey};
-pub use tls_core::msgs::enums::CipherSuite;
-pub use tls_core::msgs::enums::ProtocolVersion;
-pub use tls_core::msgs::enums::SignatureScheme;
-pub use tls_core::msgs::handshake::DistinguishedNames;
-pub use tls_core::suites::{SupportedCipherSuite, ALL_CIPHER_SUITES};
-pub use tls_core::versions::{SupportedProtocolVersion, ALL_VERSIONS};
+pub use tls_core::{
+    key::{Certificate, PrivateKey},
+    msgs::{
+        enums::{CipherSuite, ProtocolVersion, SignatureScheme},
+        handshake::DistinguishedNames,
+    },
+    suites::{SupportedCipherSuite, ALL_CIPHER_SUITES},
+    versions::{SupportedProtocolVersion, ALL_VERSIONS},
+};
 //pub use crate::stream::{Stream, StreamOwned};
 //pub use crate::ticketer::Ticketer;
 
@@ -380,11 +382,10 @@ pub mod client {
     mod tls13;
 
     pub use builder::{WantsClientCert, WantsTransparencyPolicyOrClientCert};
-    pub use client_conn::InvalidDnsNameError;
-    pub use client_conn::ResolvesClientCert;
-    pub use client_conn::ServerName;
-    pub use client_conn::StoresClientSessions;
-    pub use client_conn::{ClientConfig, ClientConnection, ClientConnectionData};
+    pub use client_conn::{
+        ClientConfig, ClientConnection, ClientConnectionData, InvalidDnsNameError,
+        ResolvesClientCert, ServerName, StoresClientSessions,
+    };
     pub use handy::{ClientSessionMemoryCache, NoClientSessionStorage};
 
     #[cfg(feature = "dangerous_configuration")]
@@ -413,9 +414,7 @@ pub mod version {
 ///
 /// ALL_KX_GROUPS is provided as an array of all of these values.
 pub mod kx_group {
-    pub use crate::kx::SECP256R1;
-    pub use crate::kx::SECP384R1;
-    pub use crate::kx::X25519;
+    pub use crate::kx::{SECP256R1, SECP384R1, X25519};
 }
 
 /// Message signing interfaces and implementations.

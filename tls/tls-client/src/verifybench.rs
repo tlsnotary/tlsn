@@ -4,13 +4,11 @@
 // Note: we don't use any of the standard 'cargo bench', 'test::Bencher',
 // etc. because it's unstable at the time of writing.
 
-use std::convert::TryInto;
-use std::time::{Duration, Instant, SystemTime};
-
-use crate::verify;
-use crate::verify::ServerCertVerifier;
-use crate::{anchors, OwnedTrustAnchor};
-
+use crate::{anchors, verify, verify::ServerCertVerifier, OwnedTrustAnchor};
+use std::{
+    convert::TryInto,
+    time::{Duration, Instant, SystemTime},
+};
 use webpki_roots;
 
 fn duration_nanos(d: Duration) -> u64 {

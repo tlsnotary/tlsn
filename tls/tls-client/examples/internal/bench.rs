@@ -3,24 +3,22 @@
 // Note: we don't use any of the standard 'cargo bench', 'test::Bencher',
 // etc. because it's unstable at the time of writing.
 
-use std::convert::TryInto;
-use std::env;
-use std::fs;
-use std::io::{self, Read, Write};
-use std::ops::Deref;
-use std::ops::DerefMut;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
-
-use rustls::client::{ClientSessionMemoryCache, NoClientSessionStorage};
-use rustls::server::{
-    AllowAnyAuthenticatedClient, NoClientAuth, NoServerSessionStorage, ServerSessionMemoryCache,
+use rustls::{
+    client::{ClientSessionMemoryCache, NoClientSessionStorage},
+    server::{
+        AllowAnyAuthenticatedClient, NoClientAuth, NoServerSessionStorage, ServerSessionMemoryCache,
+    },
+    ClientConfig, ClientConnection, ConnectionCommon, RootCertStore, ServerConfig,
+    ServerConnection, SideData, Ticketer,
 };
-use rustls::RootCertStore;
-use rustls::Ticketer;
-use rustls::{ClientConfig, ClientConnection};
-use rustls::{ConnectionCommon, SideData};
-use rustls::{ServerConfig, ServerConnection};
+use std::{
+    convert::TryInto,
+    env, fs,
+    io::{self, Read, Write},
+    ops::{Deref, DerefMut},
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 fn duration_nanos(d: Duration) -> f64 {
     (d.as_secs() as f64) + f64::from(d.subsec_nanos()) / 1e9
@@ -68,9 +66,7 @@ where
         let mut sz = 0;
 
         while left.wants_write() {
-            let written = left
-                .write_tls(&mut buf[sz..].as_mut())
-                .unwrap();
+            let written = left.write_tls(&mut buf[sz..].as_mut()).unwrap();
             if written == 0 {
                 break;
             }
@@ -85,9 +81,7 @@ where
         let mut offs = 0;
         loop {
             let start = Instant::now();
-            offs += right
-                .read_tls(&mut buf[offs..sz].as_ref())
-                .unwrap();
+            offs += right.read_tls(&mut buf[offs..sz].as_ref()).unwrap();
             let end = Instant::now();
             read_time += duration_nanos(end.duration_since(start));
             if sz == offs {
@@ -361,9 +355,7 @@ fn make_client_config(
 
 fn apply_work_multiplier(work: u64) -> u64 {
     let mul = match env::var("BENCH_MULTIPLIER") {
-        Ok(val) => val
-            .parse::<f64>()
-            .expect("invalid BENCH_MULTIPLIER value"),
+        Ok(val) => val.parse::<f64>().expect("invalid BENCH_MULTIPLIER value"),
         Err(_) => 1.,
     };
 
@@ -534,31 +526,19 @@ fn bench_memory(params: &BenchmarkParam, conn_count: u64) {
     }
 
     for _step in 0..5 {
-        for (client, server) in clients
-            .iter_mut()
-            .zip(servers.iter_mut())
-        {
+        for (client, server) in clients.iter_mut().zip(servers.iter_mut()) {
             do_handshake_step(client, server);
         }
     }
 
     for client in clients.iter_mut() {
-        client
-            .writer()
-            .write_all(&[0u8; 1024])
-            .unwrap();
+        client.writer().write_all(&[0u8; 1024]).unwrap();
     }
 
-    for (client, server) in clients
-        .iter_mut()
-        .zip(servers.iter_mut())
-    {
+    for (client, server) in clients.iter_mut().zip(servers.iter_mut()) {
         transfer(client, server);
         let mut buf = [0u8; 1024];
-        server
-            .reader()
-            .read_exact(&mut buf)
-            .unwrap();
+        server.reader().read_exact(&mut buf).unwrap();
     }
 }
 
@@ -578,9 +558,7 @@ fn lookup_matching_benches(name: &str) -> Vec<&BenchmarkParam> {
 }
 
 fn selected_tests(mut args: env::Args) {
-    let mode = args
-        .next()
-        .expect("first argument must be mode");
+    let mode = args.next().expect("first argument must be mode");
 
     match mode.as_ref() {
         "bulk" => match args.next() {

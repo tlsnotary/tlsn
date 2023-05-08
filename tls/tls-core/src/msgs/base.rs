@@ -1,6 +1,11 @@
-use crate::key;
-use crate::msgs::codec;
-use crate::msgs::codec::{Codec, Reader};
+use crate::{
+    key,
+    msgs::{
+        codec,
+        codec::{Codec, Reader},
+    },
+};
+
 /// An externally length'd payload
 #[derive(Debug, Clone, PartialEq)]
 pub struct Payload(pub Vec<u8>);

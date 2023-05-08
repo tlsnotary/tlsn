@@ -1,9 +1,10 @@
+use crate::msgs::{
+    codec,
+    enums::{ContentType, ProtocolVersion},
+    handshake::HandshakeMessagePayload,
+    message::{Message, MessagePayload, PlainMessage},
+};
 use std::collections::VecDeque;
-
-use crate::msgs::codec;
-use crate::msgs::enums::{ContentType, ProtocolVersion};
-use crate::msgs::handshake::HandshakeMessagePayload;
-use crate::msgs::message::{Message, MessagePayload, PlainMessage};
 
 const HEADER_SIZE: usize = 1 + 3;
 
@@ -74,8 +75,7 @@ impl HandshakeJoiner {
         if self.buf.is_empty() {
             self.buf = msg.payload.0;
         } else {
-            self.buf
-                .extend_from_slice(&msg.payload.0[..]);
+            self.buf.extend_from_slice(&msg.payload.0[..]);
         }
 
         let mut count = 0;
@@ -140,11 +140,13 @@ impl HandshakeJoiner {
 #[cfg(test)]
 mod tests {
     use super::HandshakeJoiner;
-    use crate::msgs::base::Payload;
-    use crate::msgs::codec::Codec;
-    use crate::msgs::enums::{ContentType, HandshakeType, ProtocolVersion};
-    use crate::msgs::handshake::{HandshakeMessagePayload, HandshakePayload};
-    use crate::msgs::message::{Message, MessagePayload, PlainMessage};
+    use crate::msgs::{
+        base::Payload,
+        codec::Codec,
+        enums::{ContentType, HandshakeType, ProtocolVersion},
+        handshake::{HandshakeMessagePayload, HandshakePayload},
+        message::{Message, MessagePayload, PlainMessage},
+    };
 
     #[test]
     fn want() {

@@ -1,6 +1,5 @@
-use std::fmt;
-
 use crate::msgs::enums::NamedGroup;
+use std::fmt;
 
 /// This type contains a private key by value.
 ///

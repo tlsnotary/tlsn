@@ -1,5 +1,4 @@
-use crate::msgs::codec;
-use crate::Error;
+use crate::{msgs::codec, Error};
 use rand::{thread_rng, Rng};
 
 /// Fill the whole slice with random material.

@@ -1,17 +1,14 @@
-use crate::anchors;
-use crate::builder::{ConfigBuilder, WantsVerifier};
-use crate::client::handy;
-use crate::client::{ClientConfig, ResolvesClientCert};
-use crate::error::Error;
-use crate::kx::SupportedKxGroup;
-use crate::verify::{self, CertificateTransparencyPolicy};
-use crate::NoKeyLog;
-use tls_core::key;
-use tls_core::suites::SupportedCipherSuite;
-use tls_core::versions;
-
-use std::sync::Arc;
-use std::time::SystemTime;
+use crate::{
+    anchors,
+    builder::{ConfigBuilder, WantsVerifier},
+    client::{handy, ClientConfig, ResolvesClientCert},
+    error::Error,
+    kx::SupportedKxGroup,
+    verify::{self, CertificateTransparencyPolicy},
+    NoKeyLog,
+};
+use std::{sync::Arc, time::SystemTime};
+use tls_core::{key, suites::SupportedCipherSuite, versions};
 
 impl ConfigBuilder<WantsVerifier> {
     /// Choose how to verify client certificates.

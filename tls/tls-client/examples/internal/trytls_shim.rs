@@ -5,14 +5,16 @@
 //
 
 use rustls::{ClientConfig, ClientConnection, Error, OwnedTrustAnchor, RootCertStore};
-use std::convert::TryInto;
-use std::env;
-use std::error::Error as StdError;
-use std::fs::File;
-use std::io::{BufReader, Read, Write};
-use std::net::TcpStream;
-use std::process;
-use std::sync::Arc;
+use std::{
+    convert::TryInto,
+    env,
+    error::Error as StdError,
+    fs::File,
+    io::{BufReader, Read, Write},
+    net::TcpStream,
+    process,
+    sync::Arc,
+};
 
 enum Verdict {
     Accept,
@@ -23,18 +25,15 @@ fn parse_args(args: &[String]) -> Result<(String, u16, ClientConfig), Box<dyn St
     let mut root_store = RootCertStore::empty();
     match args.len() {
         3 => {
-            root_store.add_server_trust_anchors(
-                webpki_roots::TLS_SERVER_ROOTS
-                    .0
-                    .iter()
-                    .map(|ta| {
-                        OwnedTrustAnchor::from_subject_spki_name_constraints(
-                            ta.subject,
-                            ta.spki,
-                            ta.name_constraints,
-                        )
-                    }),
-            );
+            root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(
+                |ta| {
+                    OwnedTrustAnchor::from_subject_spki_name_constraints(
+                        ta.subject,
+                        ta.spki,
+                        ta.name_constraints,
+                    )
+                },
+            ));
         }
         4 => {
             let f = File::open(&args[3])?;

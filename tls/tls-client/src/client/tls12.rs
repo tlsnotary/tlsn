@@ -1,47 +1,47 @@
-use crate::check::{inappropriate_handshake_message, inappropriate_message};
-use crate::conn::{CommonState, ConnectionRandoms, State};
-use crate::error::Error;
-use crate::hash_hs::HandshakeHash;
+use super::{client_conn::ClientConnectionData, hs::ClientContext};
 #[cfg(feature = "logging")]
 use crate::log::{debug, trace};
-use crate::msgs::persist;
-use crate::sign::Signer;
-use crate::ticketer::TimeBase;
-use crate::verify;
-use tls_core::key::PublicKey;
-use tls_core::msgs::base::{Payload, PayloadU8};
-use tls_core::msgs::ccs::ChangeCipherSpecPayload;
-use tls_core::msgs::codec::Codec;
-use tls_core::msgs::enums::{AlertDescription, ProtocolVersion};
-use tls_core::msgs::enums::{ContentType, HandshakeType};
-use tls_core::msgs::handshake::{
-    CertificatePayload, DecomposedSignatureScheme, SCTList, SessionID,
+use crate::{
+    check::{inappropriate_handshake_message, inappropriate_message},
+    client::{
+        common::{ClientAuthDetails, ServerCertDetails},
+        hs, ClientConfig, ServerName,
+    },
+    conn::{CommonState, ConnectionRandoms, State},
+    error::Error,
+    hash_hs::HandshakeHash,
+    msgs::persist,
+    sign::Signer,
+    ticketer::TimeBase,
+    verify,
 };
-use tls_core::msgs::handshake::{DigitallySignedStruct, ServerECDHParams};
-use tls_core::msgs::handshake::{
-    HandshakeMessagePayload, HandshakePayload, NewSessionTicketPayload,
-};
-use tls_core::msgs::message::{Message, MessagePayload};
-use tls_core::suites::SupportedCipherSuite;
-use tls_core::suites::{tls12, Tls12CipherSuite};
-
-use super::client_conn::ClientConnectionData;
-use super::hs::ClientContext;
-use crate::client::common::ClientAuthDetails;
-use crate::client::common::ServerCertDetails;
-use crate::client::{hs, ClientConfig, ServerName};
-
-use ring::constant_time;
-
 use async_trait::async_trait;
+use ring::constant_time;
 use std::sync::Arc;
+use tls_core::{
+    key::PublicKey,
+    msgs::{
+        base::{Payload, PayloadU8},
+        ccs::ChangeCipherSpecPayload,
+        codec::Codec,
+        enums::{AlertDescription, ContentType, HandshakeType, ProtocolVersion},
+        handshake::{
+            CertificatePayload, DecomposedSignatureScheme, DigitallySignedStruct,
+            HandshakeMessagePayload, HandshakePayload, NewSessionTicketPayload, SCTList,
+            ServerECDHParams, SessionID,
+        },
+        message::{Message, MessagePayload},
+    },
+    suites::{tls12, SupportedCipherSuite, Tls12CipherSuite},
+};
 
 pub(super) use server_hello::CompleteServerHelloHandling;
 
 mod server_hello {
-    use tls_core::msgs::enums::ExtensionType;
-    use tls_core::msgs::handshake::HasServerExtensions;
-    use tls_core::msgs::handshake::ServerHelloPayload;
+    use tls_core::msgs::{
+        enums::ExtensionType,
+        handshake::{HasServerExtensions, ServerHelloPayload},
+    };
 
     use super::*;
 
@@ -819,7 +819,7 @@ impl State<ClientConnectionData> for ExpectServerDone {
                 }
             };
 
-        let key_share = cx.common.crypto.client_key_share().await?;
+        let key_share = cx.common.backend.get_client_key_share().await?;
         if key_share.group != ecdh_params.curve_params.named_group {
             return Err(Error::PeerMisbehavedError(
                 "peer chose an unsupported group".to_string(),
@@ -833,7 +833,7 @@ impl State<ClientConnectionData> for ExpectServerDone {
         let ems_seed = transcript.get_current_hash();
 
         cx.common
-            .crypto
+            .backend
             .set_hs_hash_client_key_exchange(ems_seed.as_ref())
             .await?;
 
@@ -850,7 +850,7 @@ impl State<ClientConnectionData> for ExpectServerDone {
             PublicKey::new(ecdh_params.curve_params.named_group, &ecdh_params.public.0);
 
         cx.common
-            .crypto
+            .backend
             .set_server_key_share(server_key_share)
             .await?;
         cx.common.record_layer.prepare_message_encrypter();
@@ -863,7 +863,11 @@ impl State<ClientConnectionData> for ExpectServerDone {
 
         // 6.
         let hs = transcript.get_current_hash();
-        let cf = cx.common.crypto.client_finished(hs.as_ref()).await?;
+        let cf = cx
+            .common
+            .backend
+            .get_client_finished_vd(hs.as_ref())
+            .await?;
         emit_finished(&cf, &mut transcript, cx.common).await?;
 
         if st.must_issue_new_ticket {
@@ -1071,7 +1075,11 @@ impl State<ClientConnectionData> for ExpectFinished {
 
         // Work out what verify_data we expect.
         let vh = st.transcript.get_current_hash();
-        let expect_verify_data = cx.common.crypto.server_finished(vh.as_ref()).await?;
+        let expect_verify_data = cx
+            .common
+            .backend
+            .get_server_finished_vd(vh.as_ref())
+            .await?;
 
         // Constant-time verification of this is relatively unimportant: they only
         // get one chance.  But it can't hurt.

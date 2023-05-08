@@ -6,25 +6,25 @@
 
 use base64;
 use env_logger;
-use rustls;
-
-use rustls::internal::msgs::codec::{Codec, Reader};
-use rustls::internal::msgs::enums::{CipherSuite, ProtocolVersion};
-use rustls::internal::msgs::persist;
-use rustls::quic::{self, ClientQuicExt, QuicExt, ServerQuicExt};
-use rustls::server::ClientHello;
-use rustls::{ClientConnection, Connection, ServerConnection};
-
-use std::convert::TryInto;
-use std::env;
-use std::fs;
-use std::io;
-use std::io::BufReader;
-use std::io::{Read, Write};
-use std::net;
-use std::process;
-use std::sync::Arc;
-use std::time::SystemTime;
+use rustls::{
+    self,
+    internal::msgs::{
+        codec::{Codec, Reader},
+        enums::{CipherSuite, ProtocolVersion},
+        persist,
+    },
+    quic::{self, ClientQuicExt, QuicExt, ServerQuicExt},
+    server::ClientHello,
+    ClientConnection, Connection, ServerConnection,
+};
+use std::{
+    convert::TryInto,
+    env, fs, io,
+    io::{BufReader, Read, Write},
+    net, process,
+    sync::Arc,
+    time::SystemTime,
+};
 
 static BOGO_NACK: i32 = 89;
 
@@ -287,9 +287,7 @@ impl rustls::client::ResolvesClientCert for FixedSignatureSchemeClientCertResolv
         if !sigschemes.contains(&self.scheme) {
             quit(":NO_COMMON_SIGNATURE_ALGORITHMS:");
         }
-        let mut certkey = self
-            .resolver
-            .resolve(acceptable_issuers, sigschemes)?;
+        let mut certkey = self.resolver.resolve(acceptable_issuers, sigschemes)?;
         Arc::make_mut(&mut certkey).key = Arc::new(FixedSignatureSchemeSigningKey {
             key: certkey.key.clone(),
             scheme: self.scheme,
@@ -353,8 +351,7 @@ impl rustls::server::StoresServerSessions for ServerCacheWithResumptionDelay {
         let mut ssv = persist::ServerSessionValue::read_bytes(&value).unwrap();
         ssv.creation_time_sec -= self.delay as u64;
 
-        self.storage
-            .put(key, ssv.get_encoding())
+        self.storage.put(key, ssv.get_encoding())
     }
 
     fn get(&self, key: &[u8]) -> Option<Vec<u8>> {
@@ -552,8 +549,10 @@ fn quit_err(why: &str) -> ! {
 }
 
 fn handle_err(err: rustls::Error) -> ! {
-    use rustls::internal::msgs::enums::{AlertDescription, ContentType};
-    use rustls::Error;
+    use rustls::{
+        internal::msgs::enums::{AlertDescription, ContentType},
+        Error,
+    };
     use std::{thread, time};
 
     println!("TLS error: {:?}", err);
@@ -634,9 +633,7 @@ fn exec(opts: &Options, mut sess: Connection, count: usize) {
                 .expect("0rtt not available")
                 .write(b"hello")
                 .expect("0rtt write failed");
-            sess.writer()
-                .write_all(&b"hello"[len..])
-                .unwrap();
+            sess.writer().write_all(&b"hello"[len..]).unwrap();
             sent_message = true;
         } else if !opts.only_write_one_byte_after_handshake {
             let _ = sess.writer().write_all(b"hello");
@@ -674,9 +671,7 @@ fn exec(opts: &Options, mut sess: Connection, count: usize) {
         if opts.server && opts.enable_early_data {
             if let Some(ref mut ed) = server(&mut sess).early_data() {
                 let mut data = Vec::new();
-                let data_len = ed
-                    .read_to_end(&mut data)
-                    .expect("cannot read early_data");
+                let data_len = ed.read_to_end(&mut data).expect("cannot read early_data");
 
                 for b in data.iter_mut() {
                     *b ^= 0xff;
@@ -693,21 +688,15 @@ fn exec(opts: &Options, mut sess: Connection, count: usize) {
             export.resize(opts.export_keying_material, 0u8);
             sess.export_keying_material(
                 &mut export,
-                opts.export_keying_material_label
-                    .as_bytes(),
+                opts.export_keying_material_label.as_bytes(),
                 if opts.export_keying_material_context_used {
-                    Some(
-                        opts.export_keying_material_context
-                            .as_bytes(),
-                    )
+                    Some(opts.export_keying_material_context.as_bytes())
                 } else {
                     None
                 },
             )
             .unwrap();
-            sess.writer()
-                .write_all(&export)
-                .unwrap();
+            sess.writer().write_all(&export).unwrap();
             sent_exporter = true;
         }
 
@@ -715,9 +704,7 @@ fn exec(opts: &Options, mut sess: Connection, count: usize) {
             println!("writing message and then only one byte of its tls frame");
             flush(&mut sess, &mut conn);
 
-            sess.writer()
-                .write_all(b"hello")
-                .unwrap();
+            sess.writer().write_all(b"hello").unwrap();
             sent_message = true;
 
             let mut one_byte = [0u8];
@@ -742,11 +729,7 @@ fn exec(opts: &Options, mut sess: Connection, count: usize) {
             }
         }
 
-        if !sess.is_handshaking()
-            && !opts
-                .expect_quic_transport_params
-                .is_empty()
-        {
+        if !sess.is_handshaking() && !opts.expect_quic_transport_params.is_empty() {
             let their_transport_params = sess
                 .quic_transport_parameters()
                 .expect("missing peer quic transport params");
@@ -754,10 +737,7 @@ fn exec(opts: &Options, mut sess: Connection, count: usize) {
         }
 
         let mut buf = [0u8; 1024];
-        let len = match sess
-            .reader()
-            .read(&mut buf[..opts.read_size])
-        {
+        let len = match sess.reader().read(&mut buf[..opts.read_size]) {
             Ok(0) => {
                 if opts.check_close_notify {
                     println!("close notify ok");
@@ -791,9 +771,7 @@ fn exec(opts: &Options, mut sess: Connection, count: usize) {
             *b ^= 0xff;
         }
 
-        sess.writer()
-            .write_all(&buf[..len])
-            .unwrap();
+        sess.writer().write_all(&buf[..len]).unwrap();
     }
 }
 
@@ -1137,11 +1115,7 @@ fn main() {
             };
             s.into()
         } else {
-            let server_name = opts
-                .host_name
-                .as_str()
-                .try_into()
-                .unwrap();
+            let server_name = opts.host_name.as_str().try_into().unwrap();
             let ccfg = Arc::clone(ccfg.as_ref().unwrap());
             let c = if opts.quic_transport_params.is_empty() {
                 rustls::ClientConnection::new(ccfg, server_name)

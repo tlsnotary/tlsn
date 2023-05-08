@@ -1,11 +1,6 @@
-use crate::client;
-use crate::error::Error;
-use crate::limited_cache;
-use crate::sign;
-use tls_core::key;
-use tls_core::msgs::enums::SignatureScheme;
-
+use crate::{client, error::Error, limited_cache, sign};
 use std::sync::{Arc, Mutex};
+use tls_core::{key, msgs::enums::SignatureScheme};
 
 /// An implementer of `StoresClientSessions` which does nothing.
 pub struct NoClientSessionStorage {}

@@ -2,12 +2,11 @@ use super::ResolvesClientCert;
 #[cfg(feature = "logging")]
 use crate::log::{debug, trace};
 use crate::{sign, DistinguishedNames, SignatureScheme};
-use tls_core::msgs::enums::ExtensionType;
-use tls_core::msgs::handshake::CertificatePayload;
-use tls_core::msgs::handshake::SCTList;
-use tls_core::msgs::handshake::ServerExtension;
-
 use std::sync::Arc;
+use tls_core::msgs::{
+    enums::ExtensionType,
+    handshake::{CertificatePayload, SCTList, ServerExtension},
+};
 
 pub(super) struct ServerCertDetails {
     pub(super) cert_chain: CertificatePayload,

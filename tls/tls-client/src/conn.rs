@@ -1,27 +1,32 @@
-use crate::client::ClientConnectionData;
-use crate::crypto::{Crypto, StandardCrypto};
-use crate::error::Error;
 #[cfg(feature = "logging")]
 use crate::log::{debug, error, trace, warn};
-use crate::record_layer;
-use crate::vecbuf::ChunkVecBuffer;
-use tls_core::msgs::alert::AlertMessagePayload;
-use tls_core::msgs::base::Payload;
-use tls_core::msgs::deframer::MessageDeframer;
-use tls_core::msgs::enums::HandshakeType;
-use tls_core::msgs::enums::{AlertDescription, AlertLevel, ContentType, ProtocolVersion};
-use tls_core::msgs::fragmenter::MessageFragmenter;
-use tls_core::msgs::handshake::Random;
-use tls_core::msgs::hsjoiner::HandshakeJoiner;
-use tls_core::msgs::message::{Message, MessagePayload, OpaqueMessage, PlainMessage};
-use tls_core::suites::SupportedCipherSuite;
-
+use crate::{
+    backend::{Backend, RustCryptoBackend},
+    client::ClientConnectionData,
+    error::Error,
+    record_layer,
+    vecbuf::ChunkVecBuffer,
+};
 use async_trait::async_trait;
-use std::collections::VecDeque;
-use std::convert::TryFrom;
-use std::io;
-use std::mem;
-use std::ops::{Deref, DerefMut};
+use std::{
+    collections::VecDeque,
+    convert::TryFrom,
+    io, mem,
+    ops::{Deref, DerefMut},
+};
+use tls_core::{
+    msgs::{
+        alert::AlertMessagePayload,
+        base::Payload,
+        deframer::MessageDeframer,
+        enums::{AlertDescription, AlertLevel, ContentType, HandshakeType, ProtocolVersion},
+        fragmenter::MessageFragmenter,
+        handshake::Random,
+        hsjoiner::HandshakeJoiner,
+        message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
+    },
+    suites::SupportedCipherSuite,
+};
 
 /// Values of this structure are returned from [`Connection::process_new_packets`]
 /// and tell the caller the current I/O state of the TLS connection.
@@ -571,7 +576,7 @@ pub struct CommonState {
     pub(crate) negotiated_version: Option<ProtocolVersion>,
     pub(crate) side: Side,
     pub(crate) record_layer: record_layer::RecordLayer,
-    pub(crate) crypto: Box<dyn Crypto>,
+    pub(crate) backend: Box<dyn Backend>,
     pub(crate) suite: Option<SupportedCipherSuite>,
     pub(crate) alpn_protocol: Option<Vec<u8>>,
     aligned_handshake: bool,
@@ -594,12 +599,16 @@ pub struct CommonState {
 }
 
 impl CommonState {
-    pub(crate) fn new(max_fragment_size: Option<usize>, side: Side) -> Result<Self, Error> {
+    pub(crate) fn new(
+        max_fragment_size: Option<usize>,
+        side: Side,
+        backend: Box<dyn Backend>,
+    ) -> Result<Self, Error> {
         Ok(Self {
             negotiated_version: None,
             side,
             record_layer: record_layer::RecordLayer::new(),
-            crypto: Box::new(StandardCrypto::new()),
+            backend,
             suite: None,
             alpn_protocol: None,
             aligned_handshake: true,
@@ -759,7 +768,7 @@ impl CommonState {
         let encrypted_len = encr.payload.0.len();
         let plain = self
             .record_layer
-            .decrypt_incoming(self.crypto.as_mut(), encr)
+            .decrypt_incoming(self.backend.as_mut(), encr)
             .await;
 
         match plain {
@@ -839,7 +848,7 @@ impl CommonState {
 
         let em = self
             .record_layer
-            .encrypt_outgoing(self.crypto.as_mut(), m)
+            .encrypt_outgoing(self.backend.as_mut(), m)
             .await?;
         self.queue_tls_message(em);
         Ok(())

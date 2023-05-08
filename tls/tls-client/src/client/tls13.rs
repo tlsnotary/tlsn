@@ -1,33 +1,38 @@
-use crate::check::inappropriate_handshake_message;
-use crate::conn::{CommonState, ConnectionRandoms, State};
-use crate::crypto::{DecryptMode, EncryptMode};
-use crate::error::Error;
-use crate::hash_hs::{HandshakeHash, HandshakeHashBuffer};
+use super::{client_conn::ClientConnectionData, hs::ClientContext};
 #[cfg(feature = "logging")]
 use crate::log::{debug, trace, warn};
-use crate::msgs::persist;
-use crate::verify;
-use crate::{sign, KeyLog};
-use tls_core::key::PublicKey;
-use tls_core::msgs::base::{Payload, PayloadU8};
-use tls_core::msgs::ccs::ChangeCipherSpecPayload;
-use tls_core::msgs::enums::KeyUpdateRequest;
-use tls_core::msgs::enums::{AlertDescription, ProtocolVersion};
-use tls_core::msgs::enums::{ContentType, ExtensionType, HandshakeType, SignatureScheme};
-use tls_core::msgs::handshake::{CertificateEntry, CertificatePayloadTLS13};
-use tls_core::msgs::handshake::{ClientExtension, DigitallySignedStruct};
-use tls_core::msgs::handshake::{EncryptedExtensions, PresharedKeyIdentity};
-use tls_core::msgs::handshake::{HandshakeMessagePayload, HandshakePayload};
-use tls_core::msgs::handshake::{HasServerExtensions, ServerHelloPayload};
-use tls_core::msgs::handshake::{NewSessionTicketPayloadTLS13, PresharedKeyOffer};
-use tls_core::msgs::message::{Message, MessagePayload};
-use tls_core::suites::Tls13CipherSuite;
-
-use super::client_conn::ClientConnectionData;
-use super::hs::ClientContext;
-use crate::client::common::ServerCertDetails;
-use crate::client::common::{ClientAuthDetails, ClientHelloDetails};
-use crate::client::{hs, ClientConfig, ServerName, StoresClientSessions};
+use crate::{
+    backend::{DecryptMode, EncryptMode},
+    check::inappropriate_handshake_message,
+    client::{
+        common::{ClientAuthDetails, ClientHelloDetails, ServerCertDetails},
+        hs, ClientConfig, ServerName, StoresClientSessions,
+    },
+    conn::{CommonState, ConnectionRandoms, State},
+    error::Error,
+    hash_hs::{HandshakeHash, HandshakeHashBuffer},
+    msgs::persist,
+    sign, verify, KeyLog,
+};
+use tls_core::{
+    key::PublicKey,
+    msgs::{
+        base::{Payload, PayloadU8},
+        ccs::ChangeCipherSpecPayload,
+        enums::{
+            AlertDescription, ContentType, ExtensionType, HandshakeType, KeyUpdateRequest,
+            ProtocolVersion, SignatureScheme,
+        },
+        handshake::{
+            CertificateEntry, CertificatePayloadTLS13, ClientExtension, DigitallySignedStruct,
+            EncryptedExtensions, HandshakeMessagePayload, HandshakePayload, HasServerExtensions,
+            NewSessionTicketPayloadTLS13, PresharedKeyIdentity, PresharedKeyOffer,
+            ServerHelloPayload,
+        },
+        message::{Message, MessagePayload},
+    },
+    suites::Tls13CipherSuite,
+};
 
 use ring::constant_time;
 
@@ -81,7 +86,7 @@ pub(super) async fn handle_server_hello(
     }
 
     cx.common
-        .crypto
+        .backend
         .set_server_key_share(their_key_share.clone().into())
         .await?;
 
@@ -116,16 +121,22 @@ pub(super) async fn handle_server_hello(
     cx.common.check_aligned_handshake().await?;
 
     cx.common
-        .crypto
+        .backend
         .set_hs_hash_server_hello(transcript.get_current_hash().as_ref())
         .await?;
 
     // Decrypt with the peer's key, encrypt with our own key
-    cx.common.crypto.set_decrypt(DecryptMode::Handshake)?;
+    cx.common
+        .backend
+        .set_decrypt(DecryptMode::Handshake)
+        .await?;
 
     if !cx.data.early_data.is_enabled() {
         // Set the client encryption key for handshakes if early data is not used
-        cx.common.crypto.set_encrypt(EncryptMode::Handshake)?;
+        cx.common
+            .backend
+            .set_encrypt(EncryptMode::Handshake)
+            .await?;
     }
 
     emit_fake_ccs(&mut sent_tls13_fake_ccs, cx.common).await?;
@@ -750,8 +761,8 @@ impl State<ClientConnectionData> for ExpectFinished {
         let handshake_hash = st.transcript.get_current_hash();
         let expect_verify_data = cx
             .common
-            .crypto
-            .server_finished(handshake_hash.as_ref())
+            .backend
+            .get_server_finished_vd(handshake_hash.as_ref())
             .await?;
 
         let fin = match constant_time::verify_slices_are_equal(
@@ -775,7 +786,10 @@ impl State<ClientConnectionData> for ExpectFinished {
             emit_end_of_early_data_tls13(&mut st.transcript, cx.common).await?;
             cx.common.early_traffic = false;
             cx.data.early_data.finished();
-            cx.common.crypto.set_encrypt(EncryptMode::Handshake)?;
+            cx.common
+                .backend
+                .set_encrypt(EncryptMode::Handshake)
+                .await?;
         }
 
         /* Send our authentication/finished messages.  These are still encrypted
@@ -808,16 +822,22 @@ impl State<ClientConnectionData> for ExpectFinished {
         let handshake_hash = st.transcript.get_current_hash();
         let client_finished = cx
             .common
-            .crypto
-            .client_finished(handshake_hash.as_ref())
+            .backend
+            .get_client_finished_vd(handshake_hash.as_ref())
             .await?;
         emit_finished_tls13(&client_finished, &mut st.transcript, cx.common).await?;
 
         /* Now move to our application traffic keys. */
         cx.common.check_aligned_handshake().await?;
 
-        cx.common.crypto.set_encrypt(EncryptMode::Application)?;
-        cx.common.crypto.set_decrypt(DecryptMode::Application)?;
+        cx.common
+            .backend
+            .set_encrypt(EncryptMode::Application)
+            .await?;
+        cx.common
+            .backend
+            .set_decrypt(DecryptMode::Application)
+            .await?;
 
         cx.common.start_traffic().await?;
 

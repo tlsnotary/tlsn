@@ -1,7 +1,11 @@
-use crate::msgs::base::Payload;
-use crate::msgs::enums::{ContentType, ProtocolVersion};
-use crate::msgs::message::{BorrowedPlainMessage, PlainMessage};
-use crate::Error;
+use crate::{
+    msgs::{
+        base::Payload,
+        enums::{ContentType, ProtocolVersion},
+        message::{BorrowedPlainMessage, PlainMessage},
+    },
+    Error,
+};
 use std::collections::VecDeque;
 
 pub const MAX_FRAGMENT_LEN: usize = 16384;
@@ -76,9 +80,11 @@ impl MessageFragmenter {
 #[cfg(test)]
 mod tests {
     use super::{MessageFragmenter, PACKET_OVERHEAD};
-    use crate::msgs::base::Payload;
-    use crate::msgs::enums::{ContentType, ProtocolVersion};
-    use crate::msgs::message::PlainMessage;
+    use crate::msgs::{
+        base::Payload,
+        enums::{ContentType, ProtocolVersion},
+        message::PlainMessage,
+    };
     use std::collections::VecDeque;
 
     fn msg_eq(
@@ -89,10 +95,7 @@ mod tests {
         bytes: &[u8],
     ) {
         let m = mm.unwrap();
-        let buf = m
-            .clone()
-            .into_unencrypted_opaque()
-            .encode();
+        let buf = m.clone().into_unencrypted_opaque().encode();
 
         assert_eq!(&m.typ, typ);
         assert_eq!(&m.version, version);
