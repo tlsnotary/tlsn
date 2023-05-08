@@ -10,7 +10,6 @@ name = "hmac_sha256_circuits"
 default = []
 
 [dependencies]
-tlsn-hmac-sha256-utils = { path = "../hmac-sha256-utils" }
 tlsn-mpc-circuits.workspace = true
 tlsn-utils.workspace = true
 
@@ -19,3 +18,4 @@ generic-array.workspace = true
 rand.workspace = true
 rand_chacha.workspace = true
 sha2 = { workspace = true, features = ["compress"] }
+ring = "0.16"

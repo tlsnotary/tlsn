@@ -1,152 +1,86 @@
-use std::sync::Arc;
+use std::cell::RefCell;
 
-use mpc_circuits::{builder::CircuitBuilder, circuits::nbit_xor, BitOrder, Circuit, ValueType};
-use utils::bits::IterToBits;
+use mpc_circuits::{
+    types::{U32, U8},
+    BuilderState, Tracer,
+};
 
-use crate::add_prf;
+use crate::prf::{prf, prf_trace};
 
 /// Computes verify_data as specified in RFC 5246, Section 7.4.9.
 ///
 /// verify_data
 ///   PRF(master_secret, finished_label, Hash(handshake_messages))[0..verify_data_length-1];
 ///
-/// Inputs:
+/// # Arguments
 ///
-///   0. OUTER_STATE: 32-byte MS outer-hash state H(ms ⊕ opad)
-///   1. INNER_STATE: 32-byte MS inner-hash state H(ms ⊕ ipad)
-///   2. HS_HASH: 32-byte handshake hash
-///   3. MASK: 12-byte mask for verify_data
+/// * `builder_state` - The builder state
+/// * `outer_state` - The outer HMAC state of the master secret
+/// * `inner_state` - The inner HMAC state of the master secret
+/// * `label` - The label to use
+/// * `hs_hash` - The handshake hash
+pub fn verify_data_trace<'a>(
+    builder_state: &'a RefCell<BuilderState>,
+    outer_state: [Tracer<'a, U32>; 8],
+    inner_state: [Tracer<'a, U32>; 8],
+    label: &[Tracer<'a, U8>],
+    hs_hash: [Tracer<'a, U8>; 32],
+) -> [Tracer<'a, U8>; 12] {
+    let vd = prf_trace(builder_state, outer_state, inner_state, &hs_hash, label, 12);
+
+    vd.try_into().expect("vd is 12 bytes")
+}
+
+/// Reference implementation of verify_data as specified in RFC 5246, Section 7.4.9.
 ///
-/// Outputs:
+/// # Arguments
 ///
-///   0. MASKED_VD: 12-byte masked verify_data (VD + MASK)
-pub fn verify_data(label: &[u8]) -> Arc<Circuit> {
-    let label = label.to_vec();
+/// * `outer_state` - The outer HMAC state of the master secret
+/// * `inner_state` - The inner HMAC state of the master secret
+/// * `label` - The label to use
+/// * `hs_hash` - The handshake hash
+pub fn verify_data(
+    outer_state: [u32; 8],
+    inner_state: [u32; 8],
+    label: &[u8],
+    hs_hash: [u8; 32],
+) -> [u8; 12] {
+    let vd = prf(outer_state, inner_state, &hs_hash, label, 12);
 
-    let mut builder = CircuitBuilder::new("verify_data", "", "0.1.0", BitOrder::Msb0);
-
-    let outer_hash_state = builder.add_input(
-        "OUTER_STATE",
-        "32-byte MS outer-hash state H(ms ⊕ opad)",
-        ValueType::Bytes,
-        256,
-    );
-    let inner_hash_state = builder.add_input(
-        "INNER_STATE",
-        "32-byte MS inner-hash state H(ms ⊕ ipad)",
-        ValueType::Bytes,
-        256,
-    );
-    let hs_hash = builder.add_input("HS_HASH", "32-byte handshake hash", ValueType::Bytes, 256);
-    let mask = builder.add_input("MASK", "12-byte mask for verify_data", ValueType::Bytes, 96);
-    let const_zero = builder.add_input(
-        "const_zero",
-        "input that is always 0",
-        ValueType::ConstZero,
-        1,
-    );
-    let const_one = builder.add_input(
-        "const_one",
-        "input that is always 1",
-        ValueType::ConstOne,
-        1,
-    );
-
-    let mut builder = builder.build_inputs();
-
-    let xor = builder.add_circ(&nbit_xor(96));
-
-    let label = label
-        .into_msb0_iter()
-        .map(|bit| if bit { const_one[0] } else { const_zero[0] })
-        .collect::<Vec<_>>();
-
-    let vd = add_prf(
-        &mut builder,
-        &outer_hash_state[..],
-        &inner_hash_state[..],
-        &const_zero[0],
-        &const_one[0],
-        &label,
-        &hs_hash[..],
-        12,
-    );
-
-    // Apply mask to vd
-    let masked_vd = {
-        builder.connect(&vd, &xor.input(0).expect("nbit_xor missing input 0")[..]);
-        builder.connect(
-            &mask[..],
-            &xor.input(1).expect("nbit_xor missing input 1")[..],
-        );
-        xor.output(0).expect("nbit_xor missing output 0")
-    };
-
-    let mut builder = builder.build_gates();
-
-    let out_masked_vd = builder.add_output(
-        "MASKED_VD",
-        "12-byte masked verify_data",
-        ValueType::Bytes,
-        96,
-    );
-
-    builder.connect(&masked_vd[..], &out_masked_vd[..]);
-
-    builder
-        .build_circuit()
-        .expect("failed to build verify_data")
+    vd.try_into().expect("vd is 12 bytes")
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mpc_circuits::{circuits::test_circ, Value};
+
+    use mpc_circuits::{evaluate, CircuitBuilder};
 
     const CF_LABEL: &[u8; 15] = b"client finished";
 
     #[test]
-    #[ignore = "expensive"]
     fn test_verify_data() {
-        let circ = verify_data(CF_LABEL);
+        let builder = CircuitBuilder::new();
+        let outer_state = builder.add_array_input::<u32, 8>();
+        let inner_state = builder.add_array_input::<u32, 8>();
+        let label = builder.add_array_input::<u8, 15>();
+        let hs_hash = builder.add_array_input::<u8, 32>();
+        let vd = verify_data_trace(builder.state(), outer_state, inner_state, &label, hs_hash);
+        builder.add_output(vd);
+        let circ = builder.build().unwrap();
 
-        println!("VD Circuit size: {}", circ.and_count());
+        let outer_state = [0u32; 8];
+        let inner_state = [1u32; 8];
+        let hs_hash = [42u8; 32];
 
-        let ms = [254u8; 48];
-        let mask = [249u8; 12];
-        let hs_hash = [99u8; 32];
+        let expected = prf(outer_state, inner_state, &hs_hash, CF_LABEL, 12);
 
-        let (ms_outer_hash_state, ms_inner_hash_state) = hmac_sha256_utils::partial_hmac(&ms);
+        let actual = evaluate!(
+            circ,
+            fn(outer_state, inner_state, CF_LABEL, hs_hash) -> [u8; 12]
+        )
+        .unwrap();
 
-        let vd = hmac_sha256_utils::prf(&ms, CF_LABEL, &hs_hash, 12);
-
-        let vd_masked = vd
-            .iter()
-            .zip(mask.iter())
-            .map(|(a, b)| a ^ b)
-            .collect::<Vec<u8>>();
-
-        test_circ(
-            &circ,
-            &[
-                Value::Bytes(
-                    ms_outer_hash_state
-                        .into_iter()
-                        .map(|v| v.to_be_bytes())
-                        .flatten()
-                        .collect::<Vec<u8>>(),
-                ),
-                Value::Bytes(
-                    ms_inner_hash_state
-                        .into_iter()
-                        .map(|v| v.to_be_bytes())
-                        .flatten()
-                        .collect::<Vec<u8>>(),
-                ),
-                Value::Bytes(hs_hash.to_vec()),
-                Value::Bytes(mask.to_vec()),
-            ],
-            &[Value::Bytes(vd_masked)],
-        );
+        assert_eq!(actual.to_vec(), expected);
     }
 }
