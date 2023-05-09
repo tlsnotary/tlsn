@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{handshake_data::HandshakeData, session_header::SessionHeaderMsg};
+use crate::{handshake_data::HandshakeData, session::session_header::SessionHeaderMsg};
 
 #[derive(Serialize, Deserialize)]
 pub struct SessionProof {

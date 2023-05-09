@@ -1,4 +1,4 @@
-use crate::HashCommitment;
+use mpc_core::hash::Hash;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -10,15 +10,15 @@ pub enum Commitment {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Blake3 {
     /// A salted hash of the encoding of the plaintext
-    encoding_hash: HashCommitment,
+    encoding_hash: Hash,
 }
 
 impl Blake3 {
-    pub fn new(encoding_hash: HashCommitment) -> Self {
+    pub fn new(encoding_hash: Hash) -> Self {
         Self { encoding_hash }
     }
 
-    pub fn encoding_hash(&self) -> &HashCommitment {
+    pub fn encoding_hash(&self) -> &Hash {
         &self.encoding_hash
     }
 }

@@ -1,4 +1,5 @@
-use crate::{pubkey::PubKey, HashCommitment};
+use crate::pubkey::PubKey;
+use mpc_core::hash::Hash;
 use serde::{Deserialize, Serialize};
 
 /// Handshake summary is part of the session header signed by the Notary
@@ -10,15 +11,11 @@ pub struct HandshakeSummary {
     /// ephemeral pubkey for ECDH key exchange
     ephemeral_ec_pubkey: PubKey,
     /// User's commitment to [crate::handshake_data::HandshakeData]
-    handshake_commitment: HashCommitment,
+    handshake_commitment: Hash,
 }
 
 impl HandshakeSummary {
-    pub fn new(
-        time: u64,
-        ephemeral_ec_pubkey: PubKey,
-        handshake_commitment: HashCommitment,
-    ) -> Self {
+    pub fn new(time: u64, ephemeral_ec_pubkey: PubKey, handshake_commitment: Hash) -> Self {
         Self {
             time,
             ephemeral_ec_pubkey,
@@ -34,7 +31,7 @@ impl HandshakeSummary {
         &self.ephemeral_ec_pubkey
     }
 
-    pub fn handshake_commitment(&self) -> &HashCommitment {
+    pub fn handshake_commitment(&self) -> &Hash {
         &self.handshake_commitment
     }
 }

@@ -1,5 +1,10 @@
+//#![deny(missing_docs, unreachable_pub, unused_must_use)]
+//#![deny(clippy::all)]
+//#![forbid(unsafe_code)]
+
+//! Types used by the Prover, the Notary, the Verifier
+
 pub mod commitment;
-//pub mod encoder;
 pub mod end_entity_cert;
 pub mod error;
 pub mod handshake_data;
@@ -9,15 +14,10 @@ pub mod keparams;
 pub mod merkle;
 pub mod notarized_session;
 pub mod pubkey;
-pub mod session_artifacts;
-pub mod session_data;
-pub mod session_header;
-pub(crate) mod session_proof;
+pub mod session;
 pub mod signature;
 pub mod signer;
-pub mod substrings_commitment;
-pub mod substrings_opening;
-pub(crate) mod substrings_proof;
+pub mod substrings;
 pub mod transcript;
 mod utils;
 
@@ -28,15 +28,17 @@ pub use handshake_summary::HandshakeSummary;
 pub use inclusion_proof::InclusionProof;
 pub use keparams::KEParams;
 pub use notarized_session::NotarizedSession;
-pub use session_artifacts::SessionArtifacts;
-pub use session_data::SessionData;
-pub use session_header::{SessionHeader, SessionHeaderMsg};
-pub use session_proof::SessionProof;
-pub use substrings_commitment::{SubstringsCommitment, SubstringsCommitmentSet};
-pub use substrings_opening::SubstringsOpeningSet;
+pub use session::{
+    session_artifacts::SessionArtifacts,
+    session_data::SessionData,
+    session_header::{SessionHeader, SessionHeaderMsg},
+    session_proof::SessionProof,
+};
+pub use substrings::{
+    substrings_commitment::{SubstringsCommitment, SubstringsCommitmentSet},
+    substrings_opening::SubstringsOpeningSet,
+};
 pub use transcript::{Direction, Transcript, TranscriptRange, TranscriptSlice};
-
-pub type HashCommitment = [u8; 32];
 
 /// The maximum allowed total size of all committed data. Used to prevent DoS during verification.
 /// (this will cause the verifier to hash up to a max of 1GB * 128 = 128GB of labels if the
@@ -48,32 +50,19 @@ pub mod test {
 
     use crate::{
         commitment::{Blake3, Commitment},
-        //encoder::{ChaChaEncoder, EncoderSeed},
         end_entity_cert::EndEntityCert,
         handshake_data::ServerSignature,
         merkle::MerkleTree,
         pubkey::{KeyType, PubKey},
         signer::Signer,
-        substrings_proof::SubstringsProof,
+        substrings::substrings_proof::SubstringsProof,
         utils::encode_bytes_in_ranges,
-        Direction,
-        HandshakeData,
-        HandshakeSummary,
-        HashCommitment,
-        KEParams,
-        NotarizedSession,
-        SessionArtifacts,
-        SessionData,
-        SessionHeader,
-        SessionHeaderMsg,
-        SessionProof,
-        SubstringsCommitment,
-        SubstringsCommitmentSet,
-        Transcript,
-        TranscriptRange,
-        TranscriptSlice,
+        Direction, HandshakeData, HandshakeSummary, KEParams, NotarizedSession, SessionArtifacts,
+        SessionData, SessionHeader, SessionHeaderMsg, SessionProof, SubstringsCommitment,
+        SubstringsCommitmentSet, Transcript, TranscriptRange, TranscriptSlice,
     };
     use blake3::Hasher;
+    use mpc_core::hash::Hash;
     use mpc_garble_core::ChaChaEncoder;
     use rand_chacha::ChaCha20Rng;
     use rand_core::SeedableRng;
@@ -134,20 +123,22 @@ pub mod test {
         // add salt
         hasher2.update(&salt2);
 
-        let commitment1_bytes: HashCommitment = hasher1.finalize().into();
-        let commitment2_bytes: HashCommitment = hasher2.finalize().into();
+        let hash1: [u8; 32] = hasher1.finalize().into();
+        let hash2: [u8; 32] = hasher1.finalize().into();
+        let hash1 = Hash::from(hash1);
+        let hash2 = Hash::from(hash2);
 
         let commitments = vec![
             SubstringsCommitment::new(
                 0,
-                Commitment::Blake3(Blake3::new(commitment1_bytes)),
+                Commitment::Blake3(Blake3::new(hash1)),
                 vec![range1.clone()],
                 Direction::Sent,
                 salt1,
             ),
             SubstringsCommitment::new(
                 1,
-                Commitment::Blake3(Blake3::new(commitment2_bytes)),
+                Commitment::Blake3(Blake3::new(hash2)),
                 vec![range2.clone()],
                 Direction::Received,
                 salt2,
@@ -160,7 +151,7 @@ pub mod test {
         let time = testdata.time;
 
         // merkle tree of all User's commitments (the root of the tree was sent to the Notary earlier)
-        let merkle_tree = MerkleTree::from_leaves(&[commitment1_bytes, commitment2_bytes]);
+        let merkle_tree = MerkleTree::from_leaves(&[hash1, hash2]);
 
         // encoder seed revealed by the Notary at the end of the label commitment protocol
         let encoder_seed: [u8; 32] = notary_encoder_seed;

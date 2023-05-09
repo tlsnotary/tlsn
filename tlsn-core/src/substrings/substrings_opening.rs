@@ -2,9 +2,10 @@ use crate::{
     commitment::{Blake3, Commitment},
     error::Error,
     utils::{encode_bytes_in_ranges, has_unique_elements, merge_slices},
-    Direction, HashCommitment, SessionHeader, TranscriptRange, TranscriptSlice,
+    Direction, SessionHeader, TranscriptRange, TranscriptSlice,
 };
 use blake3::Hasher;
+use mpc_core::hash::Hash;
 use serde::{Deserialize, Serialize};
 
 /// A set of openings
@@ -201,7 +202,8 @@ impl Blake3Opening {
         // add salt
         hasher.update(&self.salt);
 
-        let hash: HashCommitment = hasher.finalize().into();
+        let hash: [u8; 32] = hasher.finalize().into();
+        let hash = Hash::from(hash);
         if &hash != commitment.encoding_hash() {
             return Err(Error::OpeningVerificationFailed);
         }

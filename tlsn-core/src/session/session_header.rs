@@ -1,6 +1,6 @@
 use crate::{
     error::Error, handshake_summary::HandshakeSummary, merkle::MerkleRoot, pubkey::PubKey,
-    session_artifacts::SessionArtifacts, signature::Signature, signer::Signer,
+    signature::Signature, signer::Signer, SessionArtifacts,
 };
 use mpc_garble_core::ChaChaEncoder;
 use serde::{Deserialize, Serialize};

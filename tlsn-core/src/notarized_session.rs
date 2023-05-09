@@ -3,11 +3,13 @@ use serde::{Deserialize, Serialize};
 use crate::{
     error::Error,
     signature::Signature,
-    substrings_commitment::{SubstringsCommitment, SubstringsCommitmentSet},
-    substrings_opening::{Blake3Opening, SubstringsOpening, SubstringsOpeningSet},
-    substrings_proof::SubstringsProof,
+    substrings::{
+        substrings_opening::{Blake3Opening, SubstringsOpening, SubstringsOpeningSet},
+        substrings_proof::SubstringsProof,
+    },
     utils::has_unique_elements,
     Commitment, InclusionProof, SessionData, SessionHeader, SessionHeaderMsg, SessionProof,
+    SubstringsCommitment, SubstringsCommitmentSet,
 };
 
 #[derive(Serialize, Deserialize)]

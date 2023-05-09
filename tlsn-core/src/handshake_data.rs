@@ -1,7 +1,7 @@
 use crate::{
-    end_entity_cert::EndEntityCert, error::Error, utils::blake3, HandshakeSummary, HashCommitment,
-    KEParams,
+    end_entity_cert::EndEntityCert, error::Error, utils::blake3, HandshakeSummary, KEParams,
 };
+use mpc_core::hash::Hash;
 use serde::{Deserialize, Serialize};
 
 /// Misc TLS handshake data which the User committed to before the User and the Notary engaged in 2PC
@@ -39,9 +39,9 @@ impl HandshakeData {
     }
 
     /// Creates a hash commitment to `self`
-    pub fn commit(&self) -> Result<HashCommitment, Error> {
+    pub fn commit(&self) -> Result<Hash, Error> {
         let msg = self.serialize()?;
-        Ok(blake3(&msg))
+        Ok(Hash::from(blake3(&msg)))
     }
 
     /// Verifies this `HandshakeData` against a [HandshakeSummary] and the `dns_name`, making

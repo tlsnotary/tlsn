@@ -1,9 +1,9 @@
 use crate::{error::Error, utils::has_unique_elements};
+use mpc_core::hash::Hash;
 use rs_merkle::{
     algorithms::Sha256, proof_serializers, MerkleProof as MerkleProof_rs_merkle,
     MerkleTree as MerkleTree_rs_merkle,
 };
-
 use serde::{ser::Serializer, Deserialize, Deserializer, Serialize};
 
 pub type MerkleRoot = [u8; 32];
@@ -24,7 +24,7 @@ impl MerkleProof {
         &self,
         root: &MerkleRoot,
         leaf_indices: &[usize],
-        leaf_hashes: &[[u8; 32]],
+        leaf_hashes: &[Hash],
         total_leaves_count: usize,
     ) -> Result<(), Error> {
         if leaf_indices.len() != leaf_hashes.len() {
@@ -38,7 +38,7 @@ impl MerkleProof {
         let mut tuples: Vec<(usize, [u8; 32])> = leaf_indices
             .iter()
             .cloned()
-            .zip(leaf_hashes.iter().cloned())
+            .zip(leaf_hashes.iter().cloned().map(|h| *h.as_bytes()))
             .collect();
 
         // sort by index and unzip
@@ -97,8 +97,9 @@ impl MerkleTree {
         MerkleProof(proof)
     }
 
-    pub fn from_leaves(leaves: &[[u8; 32]]) -> Self {
-        Self(MerkleTree_rs_merkle::<Sha256>::from_leaves(leaves))
+    pub fn from_leaves(leaves: &[Hash]) -> Self {
+        let leaves: Vec<[u8; 32]> = leaves.iter().map(|h| *h.as_bytes()).collect();
+        Self(MerkleTree_rs_merkle::<Sha256>::from_leaves(&leaves))
     }
 
     /// Returns the Merkle root for this MerkleTree
@@ -154,11 +155,11 @@ pub mod test {
     // Expect Merkle proof verification to succeed
     #[test]
     fn test_verify_success() {
-        let leaf0 = [0u8; 32];
-        let leaf1 = [1u8; 32];
-        let leaf2 = [2u8; 32];
-        let leaf3 = [3u8; 32];
-        let leaf4 = [3u8; 32];
+        let leaf0 = Hash::from([0u8; 32]);
+        let leaf1 = Hash::from([1u8; 32]);
+        let leaf2 = Hash::from([2u8; 32]);
+        let leaf3 = Hash::from([3u8; 32]);
+        let leaf4 = Hash::from([4u8; 32]);
         let tree = MerkleTree::from_leaves(&[leaf0, leaf1, leaf2, leaf3, leaf4]);
         let proof = tree.proof(&[4, 2, 3]);
 
@@ -170,11 +171,11 @@ pub mod test {
     // Expect Merkle proof verification to fail
     #[test]
     fn test_verify_fail() {
-        let leaf0 = [0u8; 32];
-        let leaf1 = [1u8; 32];
-        let leaf2 = [2u8; 32];
-        let leaf3 = [3u8; 32];
-        let leaf4 = [3u8; 32];
+        let leaf0 = Hash::from([0u8; 32]);
+        let leaf1 = Hash::from([1u8; 32]);
+        let leaf2 = Hash::from([2u8; 32]);
+        let leaf3 = Hash::from([3u8; 32]);
+        let leaf4 = Hash::from([4u8; 32]);
         let tree = MerkleTree::from_leaves(&[leaf0, leaf1, leaf2, leaf3, leaf4]);
         let proof = tree.proof(&[4, 2, 3]);
 
@@ -228,11 +229,11 @@ pub mod test {
     // Expect MerkleProof/MerkleTree custom serialization/deserialization to work
     #[test]
     fn test_serialization() {
-        let leaf0 = [0u8; 32];
-        let leaf1 = [1u8; 32];
-        let leaf2 = [2u8; 32];
-        let leaf3 = [3u8; 32];
-        let leaf4 = [3u8; 32];
+        let leaf0 = Hash::from([0u8; 32]);
+        let leaf1 = Hash::from([1u8; 32]);
+        let leaf2 = Hash::from([2u8; 32]);
+        let leaf3 = Hash::from([3u8; 32]);
+        let leaf4 = Hash::from([4u8; 32]);
         let tree = MerkleTree::from_leaves(&[leaf0, leaf1, leaf2, leaf3, leaf4]);
         let proof = tree.proof(&[4, 2, 3]);
 
@@ -258,11 +259,11 @@ pub mod test {
     #[ignore = "waiting for a panic in rs_merkle to be fixed"]
     #[test]
     fn test_verify_fail_panic1() {
-        let leaf0 = [0u8; 32];
-        let leaf1 = [1u8; 32];
-        let leaf2 = [2u8; 32];
-        let leaf3 = [3u8; 32];
-        let leaf4 = [3u8; 32];
+        let leaf0 = Hash::from([0u8; 32]);
+        let leaf1 = Hash::from([1u8; 32]);
+        let leaf2 = Hash::from([2u8; 32]);
+        let leaf3 = Hash::from([3u8; 32]);
+        let leaf4 = Hash::from([4u8; 32]);
         let tree = MerkleTree::from_leaves(&[leaf0, leaf1, leaf2, leaf3, leaf4]);
         let proof = tree.proof(&[4, 2, 3]);
 
@@ -275,11 +276,11 @@ pub mod test {
     #[ignore = "waiting for a panic in rs_merkle to be fixed"]
     #[test]
     fn test_verify_fail_panic2() {
-        let leaf0 = [0u8; 32];
-        let leaf1 = [1u8; 32];
-        let leaf2 = [2u8; 32];
-        let leaf3 = [3u8; 32];
-        let leaf4 = [3u8; 32];
+        let leaf0 = Hash::from([0u8; 32]);
+        let leaf1 = Hash::from([1u8; 32]);
+        let leaf2 = Hash::from([2u8; 32]);
+        let leaf3 = Hash::from([3u8; 32]);
+        let leaf4 = Hash::from([4u8; 32]);
         let tree = MerkleTree::from_leaves(&[leaf0, leaf1, leaf2, leaf3, leaf4]);
         let proof = tree.proof(&[4, 2, 3]);
 
@@ -291,11 +292,11 @@ pub mod test {
     #[ignore = "waiting for a panic in rs_merkle to be fixed"]
     #[test]
     fn test_verify_fail_panic3() {
-        let leaf0 = [0u8; 32];
-        let leaf1 = [1u8; 32];
-        let leaf2 = [2u8; 32];
-        let leaf3 = [3u8; 32];
-        let leaf4 = [3u8; 32];
+        let leaf0 = Hash::from([0u8; 32]);
+        let leaf1 = Hash::from([1u8; 32]);
+        let leaf2 = Hash::from([2u8; 32]);
+        let leaf3 = Hash::from([3u8; 32]);
+        let leaf4 = Hash::from([4u8; 32]);
         let tree = MerkleTree::from_leaves(&[leaf0, leaf1, leaf2, leaf3, leaf4]);
         let proof = tree.proof(&[4, 2, 3]);
 

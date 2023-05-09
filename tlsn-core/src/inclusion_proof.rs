@@ -1,13 +1,12 @@
-use std::collections::HashMap;
-
-use serde::{Deserialize, Serialize};
-
 use crate::{
     commitment::Commitment,
     error::Error,
     merkle::{MerkleProof, MerkleRoot},
     SubstringsCommitmentSet,
 };
+use mpc_core::hash::Hash;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize)]
 pub struct InclusionProof {
@@ -36,7 +35,7 @@ impl InclusionProof {
         let mut map: HashMap<u32, Commitment> = HashMap::new();
 
         // indices and leaves to verify
-        let (indices, leaves): (Vec<usize>, Vec<[u8; 32]>) = self
+        let (indices, leaves): (Vec<usize>, Vec<Hash>) = self
             .commitments
             .iter()
             .map(|c| {

@@ -16,9 +16,11 @@ rs_merkle = "1.2.0"
 rand_chacha = "0.3"
 rand = "0.8"
 rand_core = "0.6"
-tlsn-mpc-garble-core = {git = "https://github.com/tlsnotary/tlsn", branch = "mpc-upgrades"}
-tlsn-mpc-circuits = {git = "https://github.com/tlsnotary/tlsn", branch = "mpc-upgrades"}
-tlsn-utils = {git = "https://github.com/tlsnotary/tlsn", branch = "mpc-upgrades"}
+tlsn-mpc-garble-core = { path = "../mpc/garble/mpc-garble-core" }
+tlsn-mpc-core = { path = "../mpc/mpc-core" }
+tlsn-mpc-garble = { path = "../mpc/garble/mpc-garble" }
+tlsn-mpc-circuits = { path = "../mpc/mpc-circuits" }
+tlsn-utils = { path = "../utils/utils" }
 
 [dev-dependencies]
 rstest = "0.12"
