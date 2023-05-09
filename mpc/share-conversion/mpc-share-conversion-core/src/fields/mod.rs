@@ -1,7 +1,7 @@
 pub mod gf2_128;
 pub mod p256;
 
-use mpc_core::BlockConvert;
+use mpc_core::BlockSerialize;
 use rand::{distributions::Standard, prelude::Distribution, Rng};
 use std::{
     fmt::Debug,
@@ -24,7 +24,7 @@ pub trait Field:
     + Ord
     + PartialEq
     + Eq
-    + BlockConvert
+    + BlockSerialize
 {
     const BIT_SIZE: u32;
 

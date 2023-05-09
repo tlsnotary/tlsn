@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use mpc_core::BlockConvert;
+use mpc_core::BlockSerialize;
 use mpc_share_conversion_core::fields::Field;
 
 #[async_trait]
@@ -11,7 +11,7 @@ pub trait OTSendElement<F: Field>: Send + Sync {
 #[async_trait]
 impl<T, F> OTSendElement<F> for T
 where
-    T: mpc_ot::ObliviousSend<[<F as BlockConvert>::BlockRepr; 2]> + Send + Sync,
+    T: mpc_ot::ObliviousSend<[<F as BlockSerialize>::Serialized; 2]> + Send + Sync,
     F: Field + Send,
 {
     async fn send(&self, id: &str, input: Vec<[F; 2]>) -> Result<(), mpc_ot::OTError> {
@@ -32,7 +32,7 @@ pub trait OTReceiveElement<F: Field>: Send + Sync {
 #[async_trait]
 impl<T, F> OTReceiveElement<F> for T
 where
-    T: mpc_ot::ObliviousReceive<bool, <F as BlockConvert>::BlockRepr> + Send + Sync,
+    T: mpc_ot::ObliviousReceive<bool, <F as BlockSerialize>::Serialized> + Send + Sync,
     F: Field,
 {
     async fn receive(&self, id: &str, choice: Vec<bool>) -> Result<Vec<F>, mpc_ot::OTError> {

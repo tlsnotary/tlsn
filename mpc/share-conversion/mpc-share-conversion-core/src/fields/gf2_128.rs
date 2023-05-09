@@ -1,7 +1,7 @@
 //! This module implements the extension field GF(2^128)
 
 use super::Field;
-use mpc_core::{Block, BlockConvert};
+use mpc_core::{Block, BlockSerialize};
 use rand::{distributions::Standard, prelude::Distribution};
 use std::ops::{Add, Mul, Neg};
 
@@ -134,15 +134,15 @@ impl Field for Gf2_128 {
     }
 }
 
-impl BlockConvert for Gf2_128 {
-    type BlockRepr = Block;
+impl BlockSerialize for Gf2_128 {
+    type Serialized = Block;
 
-    fn from_blocks(blocks: Self::BlockRepr) -> Self {
-        Gf2_128::new(blocks.inner())
+    fn to_blocks(self) -> Self::Serialized {
+        self.into()
     }
 
-    fn to_blocks(self) -> Self::BlockRepr {
-        Block::new(self.0)
+    fn from_blocks(blocks: Self::Serialized) -> Self {
+        blocks.into()
     }
 }
 

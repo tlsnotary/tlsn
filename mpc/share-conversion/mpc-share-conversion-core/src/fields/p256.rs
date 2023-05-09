@@ -3,7 +3,7 @@
 use super::Field;
 use ark_ff::{BigInt, BigInteger, Field as ArkField, FpConfig, MontBackend, One, Zero};
 use ark_secp256r1::{fq::Fq, FqConfig};
-use mpc_core::{Block, BlockConvert};
+use mpc_core::{Block, BlockSerialize};
 use num_bigint::ToBigUint;
 use rand::{distributions::Standard, prelude::Distribution};
 use std::ops::{Add, Mul, Neg};
@@ -129,15 +129,15 @@ impl Field for P256 {
     }
 }
 
-impl BlockConvert for P256 {
-    type BlockRepr = [Block; 2];
+impl BlockSerialize for P256 {
+    type Serialized = [Block; 2];
 
-    fn from_blocks(blocks: Self::BlockRepr) -> Self {
-        blocks.into()
+    fn to_blocks(self) -> Self::Serialized {
+        self.into()
     }
 
-    fn to_blocks(self) -> Self::BlockRepr {
-        self.into()
+    fn from_blocks(blocks: Self::Serialized) -> Self {
+        blocks.into()
     }
 }
 
