@@ -38,7 +38,7 @@ pub use substrings::{
     substrings_commitment::{SubstringsCommitment, SubstringsCommitmentSet},
     substrings_opening::SubstringsOpeningSet,
 };
-pub use transcript::{Direction, Transcript, TranscriptRange, TranscriptSlice};
+pub use transcript::{Direction, Transcript, TranscriptSlice};
 
 /// The maximum allowed total size of all committed data. Used to prevent DoS during verification.
 /// (this will cause the verifier to hash up to a max of 1GB * 128 = 128GB of labels if the
@@ -59,13 +59,14 @@ pub mod test {
         utils::encode_bytes_in_ranges,
         Direction, HandshakeData, HandshakeSummary, KEParams, NotarizedSession, SessionArtifacts,
         SessionData, SessionHeader, SessionHeaderMsg, SessionProof, SubstringsCommitment,
-        SubstringsCommitmentSet, Transcript, TranscriptRange, TranscriptSlice,
+        SubstringsCommitmentSet, Transcript, TranscriptSlice,
     };
     use blake3::Hasher;
     use mpc_core::hash::Hash;
     use mpc_garble_core::ChaChaEncoder;
     use rand_chacha::ChaCha20Rng;
     use rand_core::SeedableRng;
+    use std::ops::Range;
 
     #[test]
     fn test() {
@@ -75,9 +76,11 @@ pub mod test {
         let data_recv = "data received".as_bytes();
         let transcript = Transcript::new(data_sent.to_vec(), data_recv.to_vec());
 
+        // TODO validate that ranges are valid, i.e. end > start
+
         // Ranges of plaintext for which the User wants to create a commitment
-        let range1 = TranscriptRange::new(0, 2).unwrap();
-        let range2 = TranscriptRange::new(1, 3).unwrap();
+        let range1 = Range { start: 0, end: 2 };
+        let range2 = Range { start: 1, end: 3 };
 
         // Bytes located in the ranges
         let bytes1 = transcript

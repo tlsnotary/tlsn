@@ -3,9 +3,10 @@ use blake3::Hasher;
 use mpc_garble_core::{ChaChaEncoder, Encoder};
 use std::{collections::HashSet, hash::Hash};
 
-use crate::transcript::{TranscriptRange, TranscriptSlice};
+use crate::transcript::TranscriptSlice;
 use mpc_circuits::types::ValueType;
 use mpc_garble_core::EncodedValue;
+use std::ops::Range;
 use utils::bits::IterToBits;
 
 /// Outputs a blake3 digest
@@ -34,7 +35,7 @@ pub fn merge_slices(mut slices: Vec<TranscriptSlice>) -> Result<Vec<TranscriptSl
     }
 
     // sort by the start bound of the slice's range
-    slices.sort_by_key(|slice| slice.range().start());
+    slices.sort_by_key(|slice| slice.range().start);
 
     // `new_slices.len()` will always be <= `slices.len()`
     let mut new_slices = Vec::with_capacity(slices.len());
@@ -75,10 +76,10 @@ fn merged_slice(
 
     // copy data from both slices into the output slice, ignoring for now the fact that
     // overlapping data will be overwritten
-    let a_start_offset = (a.range().start() - merged_range.start()) as usize;
+    let a_start_offset = (a.range().start - merged_range.start) as usize;
     merged_data[a_start_offset..a_start_offset + a.data().len()].copy_from_slice(a.data());
 
-    let b_start_offset = (b.range().start() - merged_range.start()) as usize;
+    let b_start_offset = (b.range().start - merged_range.start) as usize;
     merged_data[b_start_offset..b_start_offset + b.data().len()].copy_from_slice(b.data());
 
     // by checking that both a and b are subsets of the output slice, we make sure that a and b have
@@ -93,22 +94,21 @@ fn merged_slice(
 }
 
 /// If two ranges overlap or are adjacent, returns a merged range
-fn merged_range(a: &TranscriptRange, b: &TranscriptRange) -> Option<TranscriptRange> {
+fn merged_range(a: &Range<u32>, b: &Range<u32>) -> Option<Range<u32>> {
     if !is_overlapping_or_adjacent(a, b) {
         return None;
     }
-    // overlap detected
-    let merged_start = std::cmp::min(a.start(), b.start());
-    let merged_end = std::cmp::max(a.end(), b.end());
-
-    Some(TranscriptRange::new(merged_start, merged_end).expect("start bound must be > end bound"))
+    Some(Range {
+        start: std::cmp::min(a.start, b.start),
+        end: std::cmp::max(a.end, b.end),
+    })
 }
 
 /// Returns true if two ranges overlap or are adjacent
-fn is_overlapping_or_adjacent(a: &TranscriptRange, b: &TranscriptRange) -> bool {
+fn is_overlapping_or_adjacent(a: &Range<u32>, b: &Range<u32>) -> bool {
     // find purported overlap's start and end
-    let ov_start = std::cmp::max(a.start(), b.start());
-    let ov_end = std::cmp::min(a.end(), b.end());
+    let ov_start = std::cmp::max(a.start, b.start);
+    let ov_end = std::cmp::min(a.end, b.end);
 
     // Note that even if ranges do not overlap, they may still be adjacent if
     // ov_start == ov_end
@@ -123,12 +123,12 @@ fn is_overlapping_or_adjacent(a: &TranscriptRange, b: &TranscriptRange) -> bool 
 pub(crate) fn encode_bytes_in_ranges(
     encoder: &ChaChaEncoder,
     bytes: &[u8],
-    ranges: &[TranscriptRange],
+    ranges: &[Range<u32>],
     direction: &Direction,
 ) -> Vec<[u8; 16]> {
     // dummy id. In reality, the id will be generated differently
     let id = if direction == &Direction::Sent { 0 } else { 1 };
-    let value_type = ValueType::new_array::<u8>(ranges.last().unwrap().end() as usize);
+    let value_type = ValueType::new_array::<u8>(ranges.last().unwrap().end as usize);
     let full_encodings: EncodedValue<_> = encoder.encode_by_type(id, &value_type);
 
     // convert into bytes
@@ -146,7 +146,7 @@ pub(crate) fn encode_bytes_in_ranges(
     let mut full_encodings_in_ranges: Vec<[[u8; 16]; 2]> = Vec::new();
     for r in ranges {
         full_encodings_in_ranges
-            .append(&mut full_encodings[(r.start() * 8) as usize..(r.end() * 8) as usize].to_vec())
+            .append(&mut full_encodings[(r.start * 8) as usize..(r.end * 8) as usize].to_vec())
     }
 
     // choose only active encodings
@@ -173,28 +173,15 @@ mod tests {
     fn test_merge_slices_new() {
         let data = "some data for testing";
 
-        let a_slice = TranscriptSlice::new(
-            TranscriptRange::new(2, 4).unwrap(),
-            "me".as_bytes().to_vec(),
-        );
-        let b_slice = TranscriptSlice::new(
-            TranscriptRange::new(3, 10).unwrap(),
-            "e data ".as_bytes().to_vec(),
-        );
-        let c_slice = TranscriptSlice::new(
-            TranscriptRange::new(1, 5).unwrap(),
-            "ome ".as_bytes().to_vec(),
-        );
-        let d_slice = TranscriptSlice::new(
-            TranscriptRange::new(13, 15).unwrap(),
-            " t".as_bytes().to_vec(),
-        );
+        let a_slice = TranscriptSlice::new(Range { start: 2, end: 4 }, "me".as_bytes().to_vec());
+        let b_slice =
+            TranscriptSlice::new(Range { start: 3, end: 10 }, "e data ".as_bytes().to_vec());
+        let c_slice = TranscriptSlice::new(Range { start: 1, end: 5 }, "ome ".as_bytes().to_vec());
+        let d_slice = TranscriptSlice::new(Range { start: 13, end: 15 }, " t".as_bytes().to_vec());
 
         // the first 3 slices will be merged into one slice
-        let expected1 = TranscriptSlice::new(
-            TranscriptRange::new(1, 10).unwrap(),
-            "ome data ".as_bytes().to_vec(),
-        );
+        let expected1 =
+            TranscriptSlice::new(Range { start: 1, end: 10 }, "ome data ".as_bytes().to_vec());
         // the 4th one will not be merged
         let expected2 = d_slice.clone();
 
@@ -209,20 +196,10 @@ mod tests {
     fn test_merge_slices_same() {
         let data = "some data for testing";
 
-        let a_slice = TranscriptSlice::new(
-            TranscriptRange::new(2, 4).unwrap(),
-            "me".as_bytes().to_vec(),
-        );
-        let b_slice = TranscriptSlice::new(
-            TranscriptRange::new(9, 11).unwrap(),
-            "fo".as_bytes().to_vec(),
-        );
-        let c_slice =
-            TranscriptSlice::new(TranscriptRange::new(6, 7).unwrap(), "a".as_bytes().to_vec());
-        let d_slice = TranscriptSlice::new(
-            TranscriptRange::new(13, 15).unwrap(),
-            " t".as_bytes().to_vec(),
-        );
+        let a_slice = TranscriptSlice::new(Range { start: 2, end: 4 }, "me".as_bytes().to_vec());
+        let b_slice = TranscriptSlice::new(Range { start: 9, end: 11 }, "fo".as_bytes().to_vec());
+        let c_slice = TranscriptSlice::new(Range { start: 6, end: 7 }, "a".as_bytes().to_vec());
+        let d_slice = TranscriptSlice::new(Range { start: 13, end: 15 }, " t".as_bytes().to_vec());
 
         // the slices will not be merged but will be sorted
 
@@ -242,23 +219,12 @@ mod tests {
     fn test_merge_slices_wrong_overlap_data() {
         let data = "some data for testing";
 
-        let a_slice = TranscriptSlice::new(
-            TranscriptRange::new(2, 4).unwrap(),
-            "me".as_bytes().to_vec(),
-        );
-        let b_slice = TranscriptSlice::new(
-            TranscriptRange::new(3, 10).unwrap(),
-            "e data ".as_bytes().to_vec(),
-        );
+        let a_slice = TranscriptSlice::new(Range { start: 2, end: 4 }, "me".as_bytes().to_vec());
+        let b_slice =
+            TranscriptSlice::new(Range { start: 3, end: 10 }, "e data ".as_bytes().to_vec());
         // this overlapping slice's data will not match
-        let c_slice = TranscriptSlice::new(
-            TranscriptRange::new(1, 5).unwrap(),
-            "o?e ".as_bytes().to_vec(),
-        );
-        let d_slice = TranscriptSlice::new(
-            TranscriptRange::new(13, 15).unwrap(),
-            " t".as_bytes().to_vec(),
-        );
+        let c_slice = TranscriptSlice::new(Range { start: 1, end: 5 }, "o?e ".as_bytes().to_vec());
+        let d_slice = TranscriptSlice::new(Range { start: 13, end: 15 }, " t".as_bytes().to_vec());
 
         let err = merge_slices(vec![a_slice, b_slice, c_slice, d_slice]);
         assert_eq!(err.unwrap_err(), Error::OverlappingSlicesDontMatch);

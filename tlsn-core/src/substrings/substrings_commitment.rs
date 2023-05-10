@@ -1,10 +1,8 @@
 use crate::{
-    commitment::Commitment,
-    error::Error,
-    transcript::{Direction, TranscriptRange},
-    utils::has_unique_elements,
+    commitment::Commitment, error::Error, transcript::Direction, utils::has_unique_elements,
 };
 use serde::{Deserialize, Serialize};
+use std::ops::Range;
 
 /// A set of commitments
 #[derive(Default, Serialize, Deserialize)]
@@ -37,7 +35,7 @@ impl SubstringsCommitmentSet {
         let mut total_committed = 0u64;
         for commitment in &self.0 {
             for r in commitment.ranges() {
-                total_committed += (r.end() - r.start()) as u64;
+                total_committed += (r.end - r.start) as u64;
                 if total_committed > crate::MAX_TOTAL_COMMITTED_DATA {
                     return Err(Error::ValidationError);
                 }
@@ -70,7 +68,7 @@ pub struct SubstringsCommitment {
     commitment: Commitment,
     /// The absolute byte ranges within the [crate::Transcript]. The committed data
     /// is located in those ranges. Ranges do not overlap.
-    ranges: Vec<TranscriptRange>,
+    ranges: Vec<Range<u32>>,
     direction: Direction,
     /// Randomness used to salt the commitment
     salt: [u8; 16],
@@ -80,7 +78,7 @@ impl SubstringsCommitment {
     pub fn new(
         merkle_tree_index: u32,
         commitment: Commitment,
-        ranges: Vec<TranscriptRange>,
+        ranges: Vec<Range<u32>>,
         direction: Direction,
         salt: [u8; 16],
     ) -> Self {
@@ -103,14 +101,14 @@ impl SubstringsCommitment {
 
         for r in self.ranges() {
             // ranges must be valid
-            if r.end() <= r.start() {
+            if r.end <= r.start {
                 return Err(Error::ValidationError);
             }
         }
 
         // ranges must not overlap and must be ascending relative to each other
         for pair in self.ranges().windows(2) {
-            if pair[1].start() < pair[0].end() {
+            if pair[1].start < pair[0].end {
                 return Err(Error::ValidationError);
             }
         }
@@ -118,7 +116,7 @@ impl SubstringsCommitment {
         // grand total in all the commitment's ranges must be sane
         let mut total_in_ranges = 0u64;
         for r in self.ranges() {
-            total_in_ranges += (r.end() - r.start()) as u64;
+            total_in_ranges += (r.end - r.start) as u64;
             if total_in_ranges > crate::MAX_TOTAL_COMMITTED_DATA {
                 return Err(Error::ValidationError);
             }
@@ -135,7 +133,7 @@ impl SubstringsCommitment {
         &self.commitment
     }
 
-    pub fn ranges(&self) -> &[TranscriptRange] {
+    pub fn ranges(&self) -> &[Range<u32>] {
         &self.ranges
     }
 

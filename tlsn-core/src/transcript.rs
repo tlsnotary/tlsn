@@ -1,5 +1,6 @@
 use crate::error::Error;
 use serde::{Deserialize, Serialize};
+use std::ops::Range;
 
 /// A transcript consists of all bytes which were sent and all bytes which were received
 #[derive(Default, Serialize, Deserialize)]
@@ -16,7 +17,7 @@ impl Transcript {
     /// Returns a concatenated bytestring located in the given ranges of the transcript.
     pub fn get_bytes_in_ranges(
         &self,
-        ranges: &[TranscriptRange],
+        ranges: &[Range<u32>],
         direction: &Direction,
     ) -> Result<Vec<u8>, Error> {
         // at least one range must be present
@@ -33,11 +34,11 @@ impl Transcript {
 
         let mut dst: Vec<u8> = Vec::new();
         for r in ranges {
-            if r.end() as usize >= src.len() {
+            if r.end as usize >= src.len() {
                 // range bounds must be within `src` length
                 return Err(Error::InternalError);
             } else {
-                dst.extend(&src[r.start() as usize..r.end() as usize]);
+                dst.extend(&src[r.start as usize..r.end as usize]);
             }
         }
 
@@ -56,13 +57,13 @@ impl Transcript {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
 /// A non-empty half-open range of the bytes in the transcript. Range bounds are ascending
 /// i.e. start < end
-pub struct TranscriptRange {
+pub struct TranscriptRange2 {
     start: u32,
     end: u32,
 }
 
 #[allow(clippy::len_without_is_empty)]
-impl TranscriptRange {
+impl TranscriptRange2 {
     pub fn new(start: u32, end: u32) -> Result<Self, Error> {
         // empty ranges are not allowed
         if start >= end {
@@ -88,17 +89,17 @@ impl TranscriptRange {
 #[derive(PartialEq, Debug, Clone, Default)]
 pub struct TranscriptSlice {
     /// A byte range of this slice
-    range: TranscriptRange,
+    range: Range<u32>,
     /// The actual byte content of the slice
     data: Vec<u8>,
 }
 
 impl TranscriptSlice {
-    pub(crate) fn new(range: TranscriptRange, data: Vec<u8>) -> Self {
+    pub(crate) fn new(range: Range<u32>, data: Vec<u8>) -> Self {
         Self { range, data }
     }
 
-    pub fn range(&self) -> &TranscriptRange {
+    pub fn range(&self) -> &Range<u32> {
         &self.range
     }
 
@@ -131,8 +132,8 @@ mod tests {
 
     #[rstest]
     fn test_get_bytes_in_ranges_ok(transcript: Transcript) {
-        let range1 = TranscriptRange::new(2, 4).unwrap();
-        let range2 = TranscriptRange::new(10, 15).unwrap();
+        let range1 = Range { start: 2, end: 4 };
+        let range2 = Range { start: 10, end: 15 };
 
         let expected = "ta12345".as_bytes().to_vec();
         assert_eq!(
@@ -158,7 +159,7 @@ mod tests {
         assert_eq!(err.unwrap_err(), Error::InternalError);
 
         // range larger than data length
-        let bad_range = TranscriptRange::new(2, 40).unwrap();
+        let bad_range = Range { start: 2, end: 40 };
         let err = transcript.get_bytes_in_ranges(&[bad_range], &Direction::Sent);
         assert_eq!(err.unwrap_err(), Error::InternalError);
     }

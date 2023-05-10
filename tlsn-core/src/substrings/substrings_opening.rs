@@ -2,11 +2,12 @@ use crate::{
     commitment::{Blake3, Commitment},
     error::Error,
     utils::{encode_bytes_in_ranges, has_unique_elements, merge_slices},
-    Direction, SessionHeader, TranscriptRange, TranscriptSlice,
+    Direction, SessionHeader, TranscriptSlice,
 };
 use blake3::Hasher;
 use mpc_core::hash::Hash;
 use serde::{Deserialize, Serialize};
+use std::ops::Range;
 
 /// A set of openings
 #[derive(Serialize, Deserialize)]
@@ -139,7 +140,7 @@ impl SubstringsOpening {
         }
     }
 
-    pub fn ranges(&self) -> &[TranscriptRange] {
+    pub fn ranges(&self) -> &[Range<u32>] {
         match self {
             SubstringsOpening::Blake3(opening) => opening.ranges(),
         }
@@ -153,7 +154,7 @@ impl SubstringsOpening {
         self.ranges()
             .iter()
             .map(|r| {
-                let range_len = (r.end() - r.start()) as usize;
+                let range_len = (r.end - r.start) as usize;
                 TranscriptSlice::new(r.clone(), opening.drain(0..range_len).collect())
             })
             .collect()
@@ -169,7 +170,7 @@ pub struct Blake3Opening {
     opening: Vec<u8>,
     /// The absolute byte ranges within the notarized data. The committed data
     /// is located in those ranges. Ranges do not overlap.
-    ranges: Vec<TranscriptRange>,
+    ranges: Vec<Range<u32>>,
     direction: Direction,
     /// Randomness used to salt the commitment
     salt: [u8; 16],
@@ -179,7 +180,7 @@ impl Blake3Opening {
     pub fn new(
         merkle_tree_index: u32,
         opening: Vec<u8>,
-        ranges: &[TranscriptRange],
+        ranges: &[Range<u32>],
         direction: Direction,
         salt: [u8; 16],
     ) -> Self {
@@ -220,14 +221,14 @@ impl Blake3Opening {
 
         for r in self.ranges() {
             // ranges must be valid
-            if r.end() <= r.start() {
+            if r.end <= r.start {
                 return Err(Error::ValidationError);
             }
         }
 
         // ranges must not overlap and must be ascending relative to each other
         for pair in self.ranges().windows(2) {
-            if pair[1].start() < pair[0].end() {
+            if pair[1].start < pair[0].end {
                 return Err(Error::ValidationError);
             }
         }
@@ -235,7 +236,7 @@ impl Blake3Opening {
         // the total length of all ranges must be sane
         let mut total_len = 0u64;
         for r in self.ranges() {
-            total_len += (r.end() - r.start()) as u64;
+            total_len += (r.end - r.start) as u64;
             if total_len > crate::MAX_TOTAL_COMMITTED_DATA {
                 return Err(Error::ValidationError);
             }
@@ -257,7 +258,7 @@ impl Blake3Opening {
         &self.opening
     }
 
-    pub fn ranges(&self) -> &[TranscriptRange] {
+    pub fn ranges(&self) -> &[Range<u32>] {
         &self.ranges
     }
 
