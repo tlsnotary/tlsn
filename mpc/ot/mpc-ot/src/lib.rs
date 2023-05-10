@@ -12,7 +12,7 @@ use utils_aio::Channel;
 
 pub use mpc_ot_core::config;
 
-type OTChannel = Box<dyn Channel<OTMessage, Error = std::io::Error>>;
+pub type OTChannel = Box<dyn Channel<OTMessage, Error = std::io::Error>>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum OTError {

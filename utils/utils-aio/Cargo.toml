@@ -7,16 +7,19 @@ edition = "2021"
 name = "utils_aio"
 
 [features]
-default = ["mux", "duplex"]
+default = ["mux", "duplex", "tokio_compat", "wasm_compat"]
 codec = []
 mux = []
 duplex = []
+tokio_compat = []
+wasm_compat = ["dep:wasm-bindgen-futures"]
 
 [dependencies]
 bytes.workspace = true
 prost.workspace = true
 tokio = { workspace = true, features = ["sync"] }
 tokio-util = { workspace = true, features = ["codec", "compat"] }
+wasm-bindgen-futures = { version = "0.4", optional = true }
 async-tungstenite.workspace = true
 futures.workspace = true
 futures-util.workspace = true

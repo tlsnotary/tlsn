@@ -2,11 +2,12 @@ use crate::{config::OTActorSenderConfig, GetSender, MarkForReveal, Reveal, SendB
 use async_trait::async_trait;
 use futures::{
     stream::{FuturesUnordered, SplitSink},
-    Future, SinkExt, StreamExt, TryStreamExt,
+    task::{Spawn, SpawnExt},
+    FutureExt, SinkExt, StreamExt, TryStreamExt,
 };
 use mpc_core::Block;
 use mpc_ot::{
-    kos::sender::Kos15IOSender, OTError, ObliviousCommitOwned, ObliviousReveal,
+    kos::sender::Kos15IOSender, OTChannel, OTError, ObliviousCommitOwned, ObliviousReveal,
     ObliviousRevealOwned, ObliviousSend, ObliviousSendOwned,
 };
 use mpc_ot_core::{
@@ -14,10 +15,11 @@ use mpc_ot_core::{
     s_state::RandSetup,
 };
 use std::collections::HashMap;
-use utils_aio::{mux::MuxChannelControl, Channel};
+use utils_aio::mux::MuxChannelControl;
 use xtra::{prelude::*, scoped};
 
-pub enum State {
+#[allow(clippy::large_enum_variant)]
+enum State {
     Initialized,
     Setup {
         sender: Kos15IOSender<RandSetup>,
@@ -27,56 +29,59 @@ pub enum State {
     Error,
 }
 
+/// KOS OT Sender Actor
 #[derive(xtra::Actor)]
-pub struct KOSSenderActor<T, U> {
+pub struct KOSSenderActor {
     config: OTActorSenderConfig,
-    sink: SplitSink<T, OTMessage>,
+    sink: SplitSink<OTChannel, OTMessage>,
     /// Local muxer which sets up channels with the remote KOSReceiverActor
-    mux_control: U,
+    mux_control: Box<dyn MuxChannelControl<OTMessage> + Send>,
     state: State,
 }
 
-impl<T, U> KOSSenderActor<T, U>
-where
-    T: Channel<OTMessage, Error = std::io::Error> + Send + 'static,
-    U: MuxChannelControl<OTMessage> + Send + 'static,
-{
+impl KOSSenderActor {
+    /// Creates a new KOSSenderActor
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - The configuration for the sender
+    /// * `addr` - The address of the sender
+    /// * `spawner` - The spawner to spawn the internal tasks
+    /// * `channel` - The channel over which OT splits are synchronized with the remote
+    ///               KOSReceiverActor
+    /// * `mux_control` - The muxer which sets up channels with the remote KOSReceiverActor
     pub fn new(
         config: OTActorSenderConfig,
         addr: Address<Self>,
-        // the channel over which OT splits are synchronized with the remote
-        // KOSReceiverActor
-        channel: T,
-        mux_control: U,
-    ) -> (Self, impl Future<Output = Option<Result<(), OTError>>>) {
+        spawner: &impl Spawn,
+        channel: OTChannel,
+        mux_control: Box<dyn MuxChannelControl<OTMessage> + Send>,
+    ) -> Self {
         let (sink, mut stream) = channel.split();
 
-        let fut = scoped(&addr, async move {
-            while let Some(msg) = stream.next().await {
-                // The receiver actor shouldn't send messages
-                return Err(OTError::Unexpected(msg));
-            }
-            Ok(())
-        });
+        spawner
+            .spawn(
+                scoped(&addr, async move {
+                    while stream.next().await.is_some() {
+                        // Receiver should not send messages, we just discard.
+                        continue;
+                    }
+                })
+                .map(|_| ()),
+            )
+            .expect("executor can spawn");
 
-        (
-            Self {
-                config,
-                sink,
-                mux_control,
-                state: State::Initialized,
-            },
-            fut,
-        )
+        Self {
+            config,
+            sink,
+            mux_control,
+            state: State::Initialized,
+        }
     }
 }
 
 #[async_trait]
-impl<T, U> Handler<Setup> for KOSSenderActor<T, U>
-where
-    T: Channel<OTMessage, Error = std::io::Error> + Send + 'static,
-    U: MuxChannelControl<OTMessage> + Send + 'static,
-{
+impl Handler<Setup> for KOSSenderActor {
     type Return = Result<(), OTError>;
 
     /// Handles the Setup message
@@ -91,10 +96,7 @@ where
             ));
         };
 
-        let parent_ot_channel = self
-            .mux_control
-            .get_channel(self.config.ot_id.clone())
-            .await?;
+        let parent_ot_channel = self.mux_control.get_channel(self.config.id.clone()).await?;
         let mut parent_ot = Kos15IOSender::new(parent_ot_channel);
 
         if self.config.committed {
@@ -114,11 +116,7 @@ where
 }
 
 #[async_trait]
-impl<T, U> Handler<GetSender> for KOSSenderActor<T, U>
-where
-    T: Channel<OTMessage, Error = std::io::Error> + Send + 'static,
-    U: MuxChannelControl<OTMessage> + Send + 'static,
-{
+impl Handler<GetSender> for KOSSenderActor {
     type Return = Result<Kos15IOSender<RandSetup>, OTError>;
 
     /// Handles the GetSender message
@@ -162,11 +160,7 @@ where
 }
 
 #[async_trait]
-impl<T, U> Handler<MarkForReveal> for KOSSenderActor<T, U>
-where
-    T: Channel<OTMessage, Error = std::io::Error> + Send + 'static,
-    U: MuxChannelControl<OTMessage> + Send + 'static,
-{
+impl Handler<MarkForReveal> for KOSSenderActor {
     type Return = Result<(), OTError>;
 
     /// Handles the Verify message
@@ -195,11 +189,7 @@ where
 }
 
 #[async_trait]
-impl<T, U> Handler<Reveal> for KOSSenderActor<T, U>
-where
-    T: Channel<OTMessage, Error = std::io::Error> + Send + 'static,
-    U: MuxChannelControl<OTMessage> + Send + 'static,
-{
+impl Handler<Reveal> for KOSSenderActor {
     type Return = Result<(), OTError>;
 
     /// Handles the Reveal message
@@ -231,11 +221,7 @@ where
 }
 
 #[async_trait]
-impl<T, U> Handler<SendBackSender> for KOSSenderActor<T, U>
-where
-    T: Channel<OTMessage, Error = std::io::Error> + Send + 'static,
-    U: MuxChannelControl<OTMessage> + Send + 'static,
-{
+impl Handler<SendBackSender> for KOSSenderActor {
     type Return = Result<(), OTError>;
 
     /// Handles the SendBackSender message
@@ -261,24 +247,23 @@ where
     }
 }
 
-pub struct SenderActorControl<T>(Address<T>);
+/// Control handle for the KOSSenderActor
+pub struct SenderActorControl(Address<KOSSenderActor>);
 
-impl<T> Clone for SenderActorControl<T> {
+impl Clone for SenderActorControl {
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
 }
 
-impl<T> SenderActorControl<T>
-where
-    T: Handler<Setup, Return = Result<(), OTError>>,
-{
-    pub fn new(address: Address<T>) -> Self {
+impl SenderActorControl {
+    /// Creates a new SenderActorControl
+    pub fn new(address: Address<KOSSenderActor>) -> Self {
         Self(address)
     }
 
     /// Returns mutable reference to address
-    pub fn address(&mut self) -> &mut Address<T> {
+    pub fn address(&mut self) -> &mut Address<KOSSenderActor> {
         &mut self.0
     }
 
@@ -292,11 +277,7 @@ where
 }
 
 #[async_trait]
-impl<T> ObliviousSend<[Block; 2]> for SenderActorControl<T>
-where
-    T: Handler<GetSender, Return = Result<Kos15IOSender<RandSetup>, OTError>>
-        + Handler<SendBackSender, Return = Result<(), OTError>>,
-{
+impl ObliviousSend<[Block; 2]> for SenderActorControl {
     async fn send(&self, id: &str, inputs: Vec<[Block; 2]>) -> Result<(), OTError> {
         let mut child_sender = self
             .0
@@ -320,11 +301,7 @@ where
 }
 
 #[async_trait]
-impl<T> ObliviousReveal for SenderActorControl<T>
-where
-    T: Handler<MarkForReveal, Return = Result<(), OTError>>
-        + Handler<Reveal, Return = Result<(), OTError>>,
-{
+impl ObliviousReveal for SenderActorControl {
     async fn mark_for_reveal(&self, id: &str) -> Result<(), OTError> {
         self.0
             .send(MarkForReveal(id.to_owned()))

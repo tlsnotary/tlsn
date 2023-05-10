@@ -24,9 +24,6 @@ mock = []
 
 
 [dev-dependencies]
-actor-mux = { path = "../actor-mux", default-features = false, features = [
-    "mock",
-] }
 xtra = { git = "https://github.com/Restioson/xtra", rev = "ca061b4", features = [
     "tokio",
 ], default-features = false }
