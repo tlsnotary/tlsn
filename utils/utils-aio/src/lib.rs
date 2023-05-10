@@ -3,12 +3,12 @@ pub mod adaptive_barrier;
 pub mod codec;
 #[cfg(feature = "duplex")]
 pub mod duplex;
+pub mod executor;
 pub mod expect_msg;
 pub mod factory;
 #[cfg(feature = "mux")]
 pub mod mux;
 pub mod non_blocking_backend;
-pub mod executor;
 
 pub trait Channel<T>: futures::Stream<Item = T> + futures::Sink<T> + Send + Unpin {}
 
