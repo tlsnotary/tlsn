@@ -5,7 +5,7 @@ use derive_builder::Builder;
 pub struct OTActorSenderConfig {
     /// The ID of the sender
     pub(crate) id: String,
-    /// The number of OTs to setup
+    /// The number of OTs to set up
     pub(crate) initial_count: usize,
     /// Whether the sender should commit to the OTs
     #[builder(default = "false", setter(custom))]
