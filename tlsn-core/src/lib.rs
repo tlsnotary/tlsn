@@ -4,6 +4,7 @@
 
 //! THis crate contains types used by the Prover, the Notary, and the Verifier
 
+pub mod cert;
 pub mod commitment;
 pub mod end_entity_cert;
 pub mod error;
@@ -194,7 +195,7 @@ pub mod test {
 
         // handshake data (to which the User sent a commitment earlier)
         let handshake_data = HandshakeData::new(
-            EndEntityCert::new(testdata.ee.clone()),
+            testdata.ee.clone(),
             vec![testdata.ca, testdata.inter],
             KEParams::new(ephem_key.clone(), testdata.cr, testdata.sr),
             ServerSignature::new(testdata.sigalg, testdata.sig),

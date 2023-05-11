@@ -1,5 +1,6 @@
 use crate::{
-    end_entity_cert::EndEntityCert, error::Error, utils::blake3, HandshakeSummary, KEParams,
+    cert::Cert, end_entity_cert::EndEntityCert, error::Error, utils::blake3, HandshakeSummary,
+    KEParams,
 };
 use mpc_core::hash::Hash;
 use serde::{Deserialize, Serialize};
@@ -16,7 +17,7 @@ pub struct HandshakeData {
     /// End-entity certificate
     end_entity_cert: EndEntityCert,
     /// Intermediate certificates in descending order (root certificate is allowed to be present)
-    interm_certs: Vec<Vec<u8>>,
+    interm_certs: Vec<Cert>,
     /// Key exchange parameters
     ke_params: KEParams,
     /// Signature made by the `end_entity_cert` over the `ke_params`
@@ -26,7 +27,7 @@ pub struct HandshakeData {
 impl HandshakeData {
     pub fn new(
         end_entity_cert: EndEntityCert,
-        interm_certs: Vec<Vec<u8>>,
+        interm_certs: Vec<Cert>,
         ke_params: KEParams,
         server_signature: ServerSignature,
     ) -> Self {

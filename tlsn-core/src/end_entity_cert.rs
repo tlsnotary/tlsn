@@ -1,4 +1,5 @@
 use crate::{
+    cert::Cert,
     error::Error,
     handshake_data::{ServerSigAlg, ServerSignature},
 };
@@ -40,7 +41,7 @@ impl EndEntityCert {
     /// Wraps [webpki::EndEntityCert]'s `verify_is_valid_tls_server_cert`
     pub fn verify_is_valid_tls_server_cert(
         &self,
-        intermediate_certs: &[Vec<u8>],
+        intermediate_certs: &[Cert],
         time: u64,
     ) -> Result<(), Error> {
         let time = webpki::Time::from_seconds_since_unix_epoch(time);
@@ -48,8 +49,9 @@ impl EndEntityCert {
         let cert = webpki_EndEntityCert::try_from(self.der.as_slice())
             .map_err(|e| Error::WebpkiError(e.to_string()))?;
 
-        // convert a vec of vecs into a slice of slices
-        let interm: Vec<&[u8]> = intermediate_certs.iter().map(|c| c.as_slice()).collect();
+        // convert a vec of `IntermCert` into a slice of slices
+        let interm: Vec<Vec<u8>> = intermediate_certs.iter().map(|c| c.as_bytes()).collect();
+        let interm: Vec<&[u8]> = interm.iter().map(|v| v.as_slice()).collect();
         let interm = interm.as_slice();
 
         cert.verify_is_valid_tls_server_cert(SUPPORTED_SIG_ALGS, &TLS_SERVER_ROOTS, interm, time)
@@ -99,11 +101,11 @@ pub(crate) mod test {
 
     pub struct TestData {
         // end-entity cert
-        pub ee: Vec<u8>,
+        pub ee: EndEntityCert,
         // intermediate cert
-        pub inter: Vec<u8>,
+        pub inter: Cert,
         // CA cert
-        pub ca: Vec<u8>,
+        pub ca: Cert,
         // client random
         pub cr: [u8; 32],
         // server random
@@ -128,9 +130,13 @@ pub(crate) mod test {
     #[fixture]
     pub fn tlsnotary() -> TestData {
         TestData {
-            ee: include_bytes!("testdata/key_exchange/tlsnotary.org/ee.der").to_vec(),
-            inter: include_bytes!("testdata/key_exchange/tlsnotary.org/inter.der").to_vec(),
-            ca: include_bytes!("testdata/key_exchange/tlsnotary.org/ca.der").to_vec(),
+            ee: EndEntityCert::new(
+                include_bytes!("testdata/key_exchange/tlsnotary.org/ee.der").to_vec(),
+            ),
+            inter: Cert::new(
+                include_bytes!("testdata/key_exchange/tlsnotary.org/inter.der").to_vec(),
+            ),
+            ca: Cert::new(include_bytes!("testdata/key_exchange/tlsnotary.org/ca.der").to_vec()),
             cr: from_hex(include_bytes!(
                 "testdata/key_exchange/tlsnotary.org/client_random"
             ))
@@ -154,9 +160,13 @@ pub(crate) mod test {
     #[fixture]
     pub fn appliedzkp() -> TestData {
         TestData {
-            ee: include_bytes!("testdata/key_exchange/appliedzkp.org/ee.der").to_vec(),
-            inter: include_bytes!("testdata/key_exchange/appliedzkp.org/inter.der").to_vec(),
-            ca: include_bytes!("testdata/key_exchange/appliedzkp.org/ca.der").to_vec(),
+            ee: EndEntityCert::new(
+                include_bytes!("testdata/key_exchange/appliedzkp.org/ee.der").to_vec(),
+            ),
+            inter: Cert::new(
+                include_bytes!("testdata/key_exchange/appliedzkp.org/inter.der").to_vec(),
+            ),
+            ca: Cert::new(include_bytes!("testdata/key_exchange/appliedzkp.org/ca.der").to_vec()),
             cr: from_hex(include_bytes!(
                 "testdata/key_exchange/appliedzkp.org/client_random"
             ))
@@ -184,7 +194,8 @@ pub(crate) mod test {
     #[case(appliedzkp())]
     /// Expect chain verification to succeed
     fn test_verify_cert_chain_sucess_ca_implicit(#[case] data: TestData) {
-        assert!(EndEntityCert::new(data.ee)
+        assert!(data
+            .ee
             .verify_is_valid_tls_server_cert(&[data.inter], data.time)
             .is_ok());
     }
@@ -195,7 +206,8 @@ pub(crate) mod test {
     /// Expect chain verification to succeed even when a trusted CA is provided among the intermediate
     /// certs. webpki handles such cases properly.
     fn test_verify_cert_chain_success_ca_explicit(#[case] data: TestData) {
-        assert!(EndEntityCert::new(data.ee)
+        assert!(data
+            .ee
             .verify_is_valid_tls_server_cert(&[data.ca, data.inter], data.time)
             .is_ok());
     }
@@ -208,8 +220,9 @@ pub(crate) mod test {
         // unix time when the cert chain was NOT valid
         let bad_time: u64 = 1571465711;
 
-        let err =
-            EndEntityCert::new(data.ee).verify_is_valid_tls_server_cert(&[data.inter], bad_time);
+        let err = data
+            .ee
+            .verify_is_valid_tls_server_cert(&[data.inter], bad_time);
 
         assert_eq!(
             err.unwrap_err(),
@@ -222,7 +235,7 @@ pub(crate) mod test {
     #[case(appliedzkp())]
     // Expect to fail when no intermediate cert provided
     fn test_verify_cert_chain_fail_no_interm_cert(#[case] data: TestData) {
-        let err = EndEntityCert::new(data.ee).verify_is_valid_tls_server_cert(&[], data.time);
+        let err = data.ee.verify_is_valid_tls_server_cert(&[], data.time);
 
         assert_eq!(
             err.unwrap_err(),
@@ -235,8 +248,9 @@ pub(crate) mod test {
     #[case(appliedzkp())]
     // Expect to fail when no intermediate cert provided even if a trusted CA cert is provided
     fn test_verify_cert_chain_fail_no_interm_cert_with_ca_cert(#[case] data: TestData) {
-        let err =
-            EndEntityCert::new(data.ee).verify_is_valid_tls_server_cert(&[data.ca], data.time);
+        let err = data
+            .ee
+            .verify_is_valid_tls_server_cert(&[data.ca], data.time);
 
         assert_eq!(
             err.unwrap_err(),
@@ -265,14 +279,14 @@ pub(crate) mod test {
     // is valid
     fn test_verify_cert_chain_fail_unknown_root() {
         // locally generated valid chain with an unknown CA:
-        let ee: &[u8] = include_bytes!("testdata/key_exchange/unknown/ee.der");
-        let ca: &[u8] = include_bytes!("testdata/key_exchange/unknown/ca.der");
+        let ee =
+            EndEntityCert::new(include_bytes!("testdata/key_exchange/unknown/ee.der").to_vec());
+        let ca = Cert::new(include_bytes!("testdata/key_exchange/unknown/ca.der").to_vec());
 
         // unix time when the end-entity cert was valid
         let time: u64 = 1671637529;
 
-        let err =
-            EndEntityCert::new(ee.to_vec()).verify_is_valid_tls_server_cert(&[ca.to_vec()], time);
+        let err = ee.verify_is_valid_tls_server_cert(&[ca], time);
 
         assert_eq!(
             err.unwrap_err(),
@@ -289,7 +303,8 @@ pub(crate) mod test {
         let ephem_pubkey = crate::pubkey::PubKey::from_bytes(KeyType::P256, &data.pubkey).unwrap();
         let ke_params = KEParams::new(ephem_pubkey, data.cr, data.sr);
 
-        assert!(EndEntityCert::new(data.ee.to_vec())
+        assert!(data
+            .ee
             .verify_signature(&ke_params.to_bytes().unwrap(), &sig)
             .is_ok());
     }
@@ -309,7 +324,8 @@ pub(crate) mod test {
         cr[31] = corrupted;
 
         let ke_params = KEParams::new(ephem_pubkey, cr, data.sr);
-        let err = EndEntityCert::new(data.ee.to_vec())
+        let err = data
+            .ee
             .verify_signature(&ke_params.to_bytes().unwrap(), &sig);
 
         assert_eq!(
@@ -333,7 +349,8 @@ pub(crate) mod test {
         let ephem_pubkey = crate::pubkey::PubKey::from_bytes(KeyType::P256, &data.pubkey).unwrap();
         let ke_params = KEParams::new(ephem_pubkey, data.cr, data.sr);
 
-        let err = EndEntityCert::new(data.ee.to_vec())
+        let err = data
+            .ee
             .verify_signature(&ke_params.to_bytes().unwrap(), &sig);
 
         assert_eq!(
@@ -347,9 +364,7 @@ pub(crate) mod test {
     #[case(tlsnotary())]
     #[case(appliedzkp())]
     fn test_check_dns_name_present_in_cert_success(#[case] data: TestData) {
-        assert!(EndEntityCert::new(data.ee.to_vec())
-            .verify_is_valid_for_dns_name(&data.dns_name)
-            .is_ok());
+        assert!(data.ee.verify_is_valid_for_dns_name(&data.dns_name).is_ok());
     }
 
     // Expect to fail because the dns name is not in the cert
@@ -359,7 +374,7 @@ pub(crate) mod test {
     fn test_check_dns_name_present_in_cert_fail_bad_host(#[case] data: TestData) {
         let bad_name = String::from("bad_name");
 
-        let err = EndEntityCert::new(data.ee.to_vec()).verify_is_valid_for_dns_name(&bad_name);
+        let err = data.ee.verify_is_valid_for_dns_name(&bad_name);
 
         let _str = String::from("CertNotValidForName");
         assert_eq!(
@@ -375,7 +390,7 @@ pub(crate) mod test {
     fn test_check_dns_name_present_in_cert_fail_invalid_dns_name(#[case] data: TestData) {
         let host = String::from("tlsnotary.org%");
 
-        let err = EndEntityCert::new(data.ee.to_vec()).verify_is_valid_for_dns_name(&host);
+        let err = data.ee.verify_is_valid_for_dns_name(&host);
 
         assert_eq!(
             err.unwrap_err(),
