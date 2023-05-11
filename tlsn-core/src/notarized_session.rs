@@ -101,7 +101,7 @@ impl NotarizedSession {
     pub fn session_proof(&self) -> SessionProof {
         SessionProof::new(
             SessionHeaderMsg::new(self.header(), self.signature().clone()),
-            self.data().handshake_data().clone(),
+            self.data().handshake_data_decommitment().clone(),
         )
     }
 

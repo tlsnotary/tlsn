@@ -61,8 +61,10 @@ impl SessionHeader {
         if self.handshake_summary.time() - artifacts.time() > 300
             || self.merkle_root != artifacts.merkle_tree().root()?
             || &self.encoder_seed != artifacts.encoder_seed()
-            || *self.handshake_summary.handshake_commitment()
-                != artifacts.handshake_data().commit()?
+            || artifacts
+                .handshake_data_decommitment()
+                .verify(self.handshake_summary.handshake_commitment())
+                .is_err()
             || self.handshake_summary.ephemeral_ec_pubkey() != artifacts.ephem_key()
         {
             return Err(Error::WrongSessionHeader);

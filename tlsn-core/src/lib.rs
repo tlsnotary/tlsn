@@ -68,21 +68,19 @@ pub mod test {
 
     use crate::{
         commitment::{Blake3, Commitment},
-        end_entity_cert::EndEntityCert,
-        handshake_data::ServerSignature,
+        handshake_data::{self, ServerSignature},
         merkle::MerkleTree,
         pubkey::{KeyType, PubKey},
         signer::Signer,
         substrings::substrings_proof::SubstringsProof,
         transcript::TranscriptSet,
-        utils::encode_bytes_in_ranges,
         Direction, HandshakeData, HandshakeSummary, KEParams, NotarizedSession, SessionArtifacts,
         SessionData, SessionHeader, SessionHeaderMsg, SessionProof, SubstringsCommitment,
         SubstringsCommitmentSet, Transcript, TranscriptSlice,
     };
     use blake3::Hasher;
     use mpc_circuits::types::ValueType;
-    use mpc_core::hash::Hash;
+    use mpc_core::{commit::HashCommit, hash::Hash};
     use mpc_garble_core::{ChaChaEncoder, EncodedValue, Encoder};
     use rand_chacha::ChaCha20Rng;
     use rand_core::SeedableRng;
@@ -202,14 +200,14 @@ pub mod test {
         );
 
         // Commitment to the handshake which the User sent at the start of the TLS handshake
-        let handshake_commitment = handshake_data.commit().unwrap();
+        let (hs_decommitment, hs_commitment) = handshake_data.hash_commit();
 
         let artifacts = SessionArtifacts::new(
             time,
             merkle_tree.clone(),
             encoder_seed,
             ephem_key.clone(),
-            handshake_data,
+            hs_decommitment,
         );
 
         // Some outer context generates an (ephemeral) signing key for the Notary, e.g.
@@ -231,7 +229,7 @@ pub mod test {
             data_sent.len() as u32,
             data_recv.len() as u32,
             // the session's end time and TLS handshake start time may be a few mins apart
-            HandshakeSummary::new(time + 60, ephem_key, handshake_commitment),
+            HandshakeSummary::new(time + 60, ephem_key, hs_commitment),
         );
 
         let signature = header.sign(&signer).unwrap();
@@ -250,7 +248,7 @@ pub mod test {
         let signature = msg.signature().cloned();
 
         let data = SessionData::new(
-            artifacts.handshake_data().clone(),
+            artifacts.handshake_data_decommitment().clone(),
             TranscriptSet::new(&[transcript_tx, transcript_rx]),
             artifacts.merkle_tree().clone(),
             SubstringsCommitmentSet::new(commitments),
@@ -271,12 +269,19 @@ pub mod test {
 
         // The Verifier does:
         let header = session_proof.header();
-        let handshake_data = session_proof.handshake_data().clone();
+        let handshake_data_decommitment = session_proof.handshake_data_decommitment().clone();
 
         // (if the Notary is the Verifier then no pubkey is required and None is passed)
         let header = SessionHeader::from_msg(header, Some(&pubkey)).unwrap();
 
-        handshake_data
+        // verify the decommitment against the commitment which the Notary signed
+        handshake_data_decommitment
+            .verify(header.handshake_summary().handshake_commitment())
+            .unwrap();
+
+        handshake_data_decommitment
+            .data()
+            .clone()
             .verify(header.handshake_summary(), &testdata.dns_name)
             .unwrap();
 

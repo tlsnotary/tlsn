@@ -1,3 +1,5 @@
+use mpc_core::commit::Decommitment;
+
 use crate::{merkle::MerkleTree, pubkey::PubKey, HandshakeData};
 
 // Various artifacts which the User holds at the end of the notarization session
@@ -10,8 +12,8 @@ pub struct SessionArtifacts {
     encoder_seed: [u8; 32],
     // server ephemeral key
     ephem_key: PubKey,
-    // handshake data to which the User committed
-    handshake_data: HandshakeData,
+    // decommitment to handshake data
+    handshake_data_decommitment: Decommitment<HandshakeData>,
 }
 
 impl SessionArtifacts {
@@ -20,14 +22,14 @@ impl SessionArtifacts {
         merkle_tree: MerkleTree,
         encoder_seed: [u8; 32],
         ephem_key: PubKey,
-        handshake_data: HandshakeData,
+        handshake_data_decommitment: Decommitment<HandshakeData>,
     ) -> Self {
         Self {
             time,
             merkle_tree,
             encoder_seed,
             ephem_key,
-            handshake_data,
+            handshake_data_decommitment,
         }
     }
 
@@ -47,7 +49,7 @@ impl SessionArtifacts {
         &self.ephem_key
     }
 
-    pub fn handshake_data(&self) -> &HandshakeData {
-        &self.handshake_data
+    pub fn handshake_data_decommitment(&self) -> &Decommitment<HandshakeData> {
+        &self.handshake_data_decommitment
     }
 }

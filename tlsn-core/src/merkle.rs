@@ -17,7 +17,7 @@ pub struct MerkleProof(
         serialize_with = "merkle_proof_serialize",
         deserialize_with = "merkle_proof_deserialize"
     )]
-    pub MerkleProof_rs_merkle<Sha256>,
+    MerkleProof_rs_merkle<Sha256>,
 );
 
 impl MerkleProof {

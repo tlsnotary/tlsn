@@ -1,8 +1,4 @@
-use crate::{
-    cert::Cert, end_entity_cert::EndEntityCert, error::Error, utils::blake3, HandshakeSummary,
-    KEParams,
-};
-use mpc_core::hash::Hash;
+use crate::{cert::Cert, end_entity_cert::EndEntityCert, error::Error, HandshakeSummary, KEParams};
 use serde::{Deserialize, Serialize};
 
 /// Misc TLS handshake data which the User committed to before the User and the Notary engaged in 2PC
@@ -39,19 +35,12 @@ impl HandshakeData {
         }
     }
 
-    /// Creates a hash commitment to `self`
-    pub fn commit(&self) -> Result<Hash, Error> {
-        let msg = self.serialize()?;
-        Ok(Hash::from(blake3(&msg)))
-    }
-
     /// Verifies this `HandshakeData` against a [HandshakeSummary] and the `dns_name`, making
     /// sure that:
     /// - end-entity certificate was issued to `dns_name` and was valid at the time of the
     ///   notarization
     /// - certificate chain was signed by a trusted certificate authority
     /// - key exchange parameters were signed by the end-entity certificate
-    /// - User's commitment to this `HandshakeData` is correct
     ///
     pub fn verify(self, hs_summary: &HandshakeSummary, dns_name: &str) -> Result<(), Error> {
         // Ephemeral pubkey must match the one which the Notary signed
@@ -73,23 +62,7 @@ impl HandshakeData {
         self.end_entity_cert
             .verify_is_valid_for_dns_name(dns_name)?;
 
-        // Create a commitment and compare it to the value committed to earlier
-        let expected = HandshakeData::new(
-            self.end_entity_cert,
-            self.interm_certs,
-            self.ke_params,
-            self.server_signature,
-        )
-        .commit()?;
-        if &expected != hs_summary.handshake_commitment() {
-            return Err(Error::CommitmentVerificationFailed);
-        }
-
         Ok(())
-    }
-
-    fn serialize(&self) -> Result<Vec<u8>, Error> {
-        bincode::serialize(&self).map_err(|_| Error::SerializationError)
     }
 }
 
