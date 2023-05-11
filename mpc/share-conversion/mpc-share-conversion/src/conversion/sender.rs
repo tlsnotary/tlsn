@@ -162,7 +162,9 @@ where
     F: Field,
 {
     async fn send_tape(mut self) -> Result<(), ShareConversionError> {
-        let Some(tape) = self.state.lock().unwrap().tape.take() else {
+        let mut state = self.state.into_inner().unwrap();
+
+        let Some(mut tape) = state.tape.take() else {
             return Err(ShareConversionError::TapeNotConfigured);
         };
 

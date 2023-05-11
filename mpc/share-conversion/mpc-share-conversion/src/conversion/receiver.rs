@@ -34,8 +34,7 @@ where
 }
 
 struct State<F: Field> {
-    /// If a non-Void recorder was passed in, it will be used to record the "tape", ( see [Recorder::Tape])
-    recorder: Option<Tape<F>>,
+    tape: Option<Tape<F>>,
     /// keeps track of how many batched share conversions we've made so far
     counter: usize,
 }
@@ -57,7 +56,7 @@ where
             config,
             channel,
             state: Mutex::new(State {
-                recorder,
+                tape: recorder,
                 counter: 0,
             }),
             _protocol: PhantomData,
@@ -105,7 +104,7 @@ where
             .map(|elements| T::from_sender_values(elements).inner())
             .collect();
 
-        if let Some(recorder) = self.state.lock().unwrap().recorder.as_mut() {
+        if let Some(recorder) = self.state.lock().unwrap().tape.as_mut() {
             recorder.record_for_receiver(shares, &converted_shares);
         }
 
@@ -140,7 +139,9 @@ where
     F: Field,
 {
     async fn verify_tape(mut self) -> Result<(), ShareConversionError> {
-        let Some(mut tape) = self.state.lock().unwrap().recorder.take() else {
+        let mut state = self.state.into_inner().unwrap();
+
+        let Some(mut tape) = state.tape.take() else {
             return Err(ShareConversionError::TapeNotConfigured);
         };
 
