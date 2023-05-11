@@ -1,91 +1,10 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use mpc_circuits::types::ValueType;
-use mpc_core::utils::blake3;
+use mpc_core::value::{ValueId, ValueRef};
 use mpc_garble_core::{encoding_state::LabelState, EncodedValue};
 
 use crate::MemoryError;
-
-/// A unique ID for a value.
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
-pub struct ValueId(Arc<String>);
-
-impl ValueId {
-    /// Create a new value ID.
-    pub(crate) fn new(id: &str) -> Self {
-        Self(Arc::new(id.to_string()))
-    }
-
-    /// Returns a new value ID with the provided ID appended.
-    pub(crate) fn append_id(&self, id: &str) -> Self {
-        Self::new(&format!("{}/{}", self.0, id))
-    }
-
-    /// Returns the encoding ID.
-    pub(crate) fn encoding_id(&self) -> EncodingId {
-        EncodingId::new(self.0.as_ref())
-    }
-}
-
-impl AsRef<str> for ValueId {
-    fn as_ref(&self) -> &str {
-        &self.0
-    }
-}
-
-/// A reference to a value.
-///
-/// Every single value is assigned a unique ID. Whereas, arrays are
-/// collections of values, and do not have their own ID.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[allow(missing_docs)]
-pub enum ValueRef {
-    /// A single value.
-    Value { id: ValueId },
-    /// An array of values.
-    Array(Vec<ValueId>),
-}
-
-impl ValueRef {
-    /// Returns the number of values.
-    #[allow(clippy::len_without_is_empty)]
-    pub fn len(&self) -> usize {
-        match self {
-            ValueRef::Value { .. } => 1,
-            ValueRef::Array(values) => values.len(),
-        }
-    }
-
-    /// Returns a new value reference with the provided ID appended.
-    ///
-    /// If the value is an array, then the ID will be appended to each element.
-    pub(crate) fn append_id(&self, id: &str) -> Self {
-        match self {
-            ValueRef::Value { id: value_id } => ValueRef::Value {
-                id: value_id.append_id(id),
-            },
-            ValueRef::Array(values) => ValueRef::Array(
-                values
-                    .iter()
-                    .map(|value_id| value_id.append_id(id))
-                    .collect(),
-            ),
-        }
-    }
-
-    /// Returns `true` if the value is an array.
-    pub fn is_array(&self) -> bool {
-        matches!(self, ValueRef::Array(_))
-    }
-
-    /// Returns an iterator of the value IDs.
-    pub fn iter(&self) -> Box<dyn Iterator<Item = &ValueId> + '_> {
-        match self {
-            ValueRef::Value { id, .. } => Box::new(std::iter::once(id)),
-            ValueRef::Array(values) => Box::new(values.iter()),
-        }
-    }
-}
 
 /// A registry of values.
 ///
@@ -202,14 +121,14 @@ pub(crate) struct EncodingId(u64);
 
 impl EncodingId {
     /// Create a new encoding ID.
-    pub(crate) fn new(id: &str) -> Self {
-        let hash = blake3(id.as_bytes());
-        Self(u64::from_be_bytes(hash[..8].try_into().unwrap()))
+    pub(crate) fn new(id: u64) -> Self {
+        Self(id)
     }
+}
 
-    /// Returns the encoding ID.
-    pub(crate) fn to_inner(self) -> u64 {
-        self.0
+impl From<u64> for EncodingId {
+    fn from(id: u64) -> Self {
+        Self::new(id)
     }
 }
 
@@ -254,7 +173,7 @@ where
         id: &ValueId,
         encoding: EncodedValue<T>,
     ) -> Result<(), EncodingRegistryError> {
-        let encoding_id = id.encoding_id();
+        let encoding_id = EncodingId::new(id.to_u64());
         if self.encodings.contains_key(&encoding_id) {
             return Err(EncodingRegistryError::DuplicateId(id.clone()));
         }
@@ -292,7 +211,7 @@ where
 
     /// Get the encoding for a value id if it exists.
     pub(crate) fn get_encoding_by_id(&self, id: &ValueId) -> Option<EncodedValue<T>> {
-        self.encodings.get(&id.encoding_id()).cloned()
+        self.encodings.get(&id.to_u64().into()).cloned()
     }
 
     /// Get the encoding for a value if it exists.
@@ -302,11 +221,11 @@ where
     /// Panics if the value is an array and if the type of its elements are not consistent.
     pub(crate) fn get_encoding(&self, value: &ValueRef) -> Option<EncodedValue<T>> {
         match value {
-            ValueRef::Value { id, .. } => self.encodings.get(&id.encoding_id()).cloned(),
+            ValueRef::Value { id, .. } => self.encodings.get(&id.to_u64().into()).cloned(),
             ValueRef::Array(ids) => {
                 let encodings = ids
                     .iter()
-                    .map(|id| self.encodings.get(&id.encoding_id()).cloned())
+                    .map(|id| self.encodings.get(&id.to_u64().into()).cloned())
                     .collect::<Option<Vec<_>>>()?;
 
                 assert!(
@@ -324,7 +243,7 @@ where
 
     /// Returns whether an encoding is present for a value id.
     pub(crate) fn contains(&self, id: &ValueId) -> bool {
-        self.encodings.contains_key(&id.encoding_id())
+        self.encodings.contains_key(&id.to_u64().into())
     }
 }
 
@@ -349,10 +268,10 @@ mod tests {
         ty: &ValueType,
     ) -> EncodedValue<encoding_state::Full> {
         match (value, ty) {
-            (ValueRef::Value { id }, ty) => encoder.encode_by_type(id.encoding_id().to_inner(), ty),
+            (ValueRef::Value { id }, ty) => encoder.encode_by_type(id.to_u64(), ty),
             (ValueRef::Array(ids), ValueType::Array(elem_ty, _)) => EncodedValue::Array(
                 ids.iter()
-                    .map(|id| encoder.encode_by_type(id.encoding_id().to_inner(), elem_ty))
+                    .map(|id| encoder.encode_by_type(id.to_u64(), elem_ty))
                     .collect(),
             ),
             _ => panic!(),

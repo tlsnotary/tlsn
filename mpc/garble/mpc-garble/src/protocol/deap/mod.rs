@@ -18,6 +18,7 @@ use mpc_circuits::{types::Value, Circuit};
 use mpc_core::{
     commit::{Decommitment, HashCommit},
     hash::{Hash, SecureHash},
+    value::{ValueId, ValueRef},
 };
 use mpc_garble_core::{msg::GarbleMessage, EqualityCheck};
 use rand::thread_rng;
@@ -30,7 +31,6 @@ use crate::{
     internal_circuits::{build_otp_circuit, build_otp_shared_circuit},
     ot::{OTReceiveEncoding, OTSendEncoding, OTVerifyEncoding},
     registry::ValueRegistry,
-    ValueId, ValueRef,
 };
 
 pub use error::DEAPError;

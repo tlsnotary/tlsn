@@ -1,8 +1,9 @@
 use mpc_circuits::types::{StaticValueType, TypeError, Value, ValueType};
+use mpc_core::value::ValueRef;
 
 use crate::{
     config::{ValueConfig, Visibility},
-    Memory, MemoryError, ValueRef,
+    Memory, MemoryError,
 };
 
 use super::DEAP;

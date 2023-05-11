@@ -12,6 +12,7 @@ use mpc_circuits::{
     types::{StaticValueType, Value, ValueType},
     Circuit,
 };
+use mpc_core::value::{ValueId, ValueRef};
 
 pub mod config;
 pub(crate) mod evaluator;
@@ -24,7 +25,7 @@ mod threadpool;
 
 pub use evaluator::{Evaluator, EvaluatorConfig, EvaluatorConfigBuilder, EvaluatorError};
 pub use generator::{Generator, GeneratorConfig, GeneratorConfigBuilder, GeneratorError};
-pub use registry::{ValueId, ValueRef, ValueRegistry};
+pub use registry::ValueRegistry;
 pub use threadpool::ThreadPool;
 
 use utils::id::NestedId;

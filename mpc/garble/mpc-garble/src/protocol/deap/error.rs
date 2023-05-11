@@ -1,6 +1,7 @@
+use mpc_core::value::ValueRef;
 use mpc_garble_core::{msg::GarbleMessage, ValueError};
 
-use crate::{DecodeError, ExecutionError, ProveError, ValueRef, VerifyError};
+use crate::{DecodeError, ExecutionError, ProveError, VerifyError};
 
 /// Errors that can occur during the DEAP protocol.
 #[derive(Debug, thiserror::Error)]

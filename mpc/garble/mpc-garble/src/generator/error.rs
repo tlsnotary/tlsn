@@ -1,6 +1,5 @@
+use mpc_core::value::ValueRef;
 use mpc_garble_core::ValueError;
-
-use crate::ValueRef;
 
 /// Errors that can occur while performing the role of a generator
 #[derive(Debug, thiserror::Error)]

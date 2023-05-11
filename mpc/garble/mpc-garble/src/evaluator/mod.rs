@@ -14,7 +14,10 @@ use mpc_circuits::{
     types::{TypeError, Value, ValueType},
     Circuit,
 };
-use mpc_core::hash::Hash;
+use mpc_core::{
+    hash::Hash,
+    value::{ValueId, ValueRef},
+};
 use mpc_garble_core::{
     encoding_state, msg::GarbleMessage, Decoding, EncodedValue, Evaluator as EvaluatorCore,
 };
@@ -28,7 +31,7 @@ use crate::{
     config::ValueIdConfig,
     ot::{OTReceiveEncoding, OTVerifyEncoding},
     registry::EncodingRegistry,
-    Generator, GeneratorConfigBuilder, ValueId, ValueRef,
+    Generator, GeneratorConfigBuilder,
 };
 
 pub use config::{EvaluatorConfig, EvaluatorConfigBuilder};

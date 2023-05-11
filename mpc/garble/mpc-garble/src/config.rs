@@ -1,8 +1,7 @@
 //! Various configuration used in the protocol
 
 use mpc_circuits::types::{StaticValueType, Value, ValueType};
-
-use crate::{ValueId, ValueRef};
+use mpc_core::value::{ValueId, ValueRef};
 
 /// Role in 2PC.
 #[derive(Debug, Clone, Copy, PartialEq)]

@@ -1,6 +1,5 @@
+use mpc_core::value::{ValueId, ValueRef};
 use mpc_garble_core::msg::GarbleMessage;
-
-use crate::{ValueId, ValueRef};
 
 /// Errors that can occur while performing the role of an evaluator
 #[derive(Debug, thiserror::Error)]

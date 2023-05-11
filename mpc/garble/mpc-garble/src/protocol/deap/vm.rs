@@ -8,11 +8,12 @@ use futures::{
     stream::{SplitSink, SplitStream},
     StreamExt, TryFutureExt,
 };
+
 use mpc_circuits::{
     types::{StaticValueType, Value, ValueType},
     Circuit,
 };
-
+use mpc_core::value::ValueRef;
 use mpc_garble_core::msg::GarbleMessage;
 use utils::id::NestedId;
 use utils_aio::{mux::MuxChannelControl, Channel};
@@ -21,7 +22,7 @@ use crate::{
     config::Role,
     ot::{VerifiableOTReceiveEncoding, VerifiableOTSendEncoding},
     Decode, DecodeError, DecodePrivate, Execute, ExecutionError, Memory, MemoryError, Prove,
-    ProveError, Thread, ValueRef, Verify, VerifyError, Vm, VmError,
+    ProveError, Thread, Verify, VerifyError, Vm, VmError,
 };
 
 use super::{error::FinalizationError, DEAPError, DEAP};

@@ -14,16 +14,17 @@ use mpc_circuits::{
     types::{Value, ValueType},
     Circuit,
 };
-use mpc_core::hash::Hash;
+use mpc_core::{
+    hash::Hash,
+    value::{ValueId, ValueRef},
+};
 use mpc_garble_core::{
     encoding_state, msg::GarbleMessage, ChaChaEncoder, EncodedValue, Encoder,
     Generator as GeneratorCore,
 };
 use utils_aio::non_blocking_backend::{Backend, NonBlockingBackend};
 
-use crate::{
-    config::ValueIdConfig, ot::OTSendEncoding, registry::EncodingRegistry, ValueId, ValueRef,
-};
+use crate::{config::ValueIdConfig, ot::OTSendEncoding, registry::EncodingRegistry};
 
 pub use config::{GeneratorConfig, GeneratorConfigBuilder};
 pub use error::GeneratorError;
@@ -369,7 +370,7 @@ impl State {
         id: &ValueId,
         ty: &ValueType,
     ) -> Result<EncodedValue<encoding_state::Full>, GeneratorError> {
-        let encoding = self.encoder.encode_by_type(id.encoding_id().to_inner(), ty);
+        let encoding = self.encoder.encode_by_type(id.to_u64(), ty);
 
         // Returns error if the encoding already exists
         self.encoding_registry

@@ -6,5 +6,6 @@ mod block;
 pub mod commit;
 pub mod hash;
 pub mod utils;
+pub mod value;
 
 pub use block::Block;
