@@ -1,8 +1,7 @@
-use crate::{
-    commitment::Commitment, error::Error, transcript::Direction, utils::has_unique_elements,
-};
+use crate::{commitment::Commitment, error::Error, transcript::Direction};
 use serde::{Deserialize, Serialize};
 use std::ops::Range;
+use utils::iter::DuplicateCheck;
 
 /// A set of commitments
 #[derive(Default, Serialize, Deserialize)]
@@ -27,7 +26,7 @@ impl SubstringsCommitmentSet {
 
         // merkle_tree_index of each commitment must be unique
         let ids: Vec<u32> = self.0.iter().map(|c| c.merkle_tree_index()).collect();
-        if !has_unique_elements(ids) {
+        if ids.iter().contains_dups() {
             return Err(Error::ValidationError);
         }
 

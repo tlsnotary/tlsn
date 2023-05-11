@@ -1,7 +1,7 @@
 use crate::{
     commitment::{Blake3, Commitment},
     error::Error,
-    utils::{encode_bytes_in_ranges, has_unique_elements, merge_slices},
+    utils::merge_slices,
     Direction, SessionHeader, Transcript, TranscriptSlice,
 };
 use blake3::Hasher;
@@ -10,6 +10,7 @@ use mpc_core::hash::Hash;
 use mpc_garble_core::{EncodedValue, Encoder};
 use serde::{Deserialize, Serialize};
 use std::ops::Range;
+use utils::iter::DuplicateCheck;
 
 /// A set of openings
 #[derive(Serialize, Deserialize)]
@@ -34,7 +35,7 @@ impl SubstringsOpeningSet {
 
         // --- merkle_tree_index of each opening must be unique
         let ids: Vec<u32> = self.0.iter().map(|o| o.merkle_tree_index()).collect();
-        if !has_unique_elements(ids) {
+        if ids.iter().contains_dups() {
             return Err(Error::ValidationError);
         }
 

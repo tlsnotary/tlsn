@@ -16,16 +16,6 @@ pub fn blake3(data: &[u8]) -> [u8; 32] {
     hasher.finalize().into()
 }
 
-/// Returns true if all elements of the iterator are unique
-pub fn has_unique_elements<T>(iter: T) -> bool
-where
-    T: IntoIterator,
-    T::Item: Eq + Hash,
-{
-    let mut uniq = HashSet::new();
-    iter.into_iter().all(move |x| uniq.insert(x))
-}
-
 /// Tries to merge `slices` and returns the resulting slices sorted ascendingly (note that even if no
 /// merging was necessary, the `slices` will be returned sorted ascendingly).
 /// Merging happens if slices overlap or are adjacent.
@@ -159,14 +149,6 @@ pub(crate) fn encode_bytes_in_ranges(
 
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_has_unique_elements() {
-        let unique: Vec<u32> = vec![1, 34, 3432, 5643];
-        let not_unique: Vec<u32> = vec![1, 34, 3432, 5643, 34];
-        assert!(has_unique_elements(unique));
-        assert!(!has_unique_elements(not_unique));
-    }
 
     #[test]
     // Expect merge_slices() to return a new vec of slices since some were merged

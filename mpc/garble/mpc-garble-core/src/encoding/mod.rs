@@ -287,7 +287,7 @@ impl Label {
 
     /// Returns inner block
     #[inline]
-    pub(crate) fn to_inner(self) -> Block {
+    pub fn to_inner(self) -> Block {
         self.0
     }
 

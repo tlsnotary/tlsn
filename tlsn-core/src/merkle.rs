@@ -1,10 +1,11 @@
-use crate::{error::Error, utils::has_unique_elements};
+use crate::error::Error;
 use mpc_core::hash::Hash;
 use rs_merkle::{
     algorithms::Sha256, proof_serializers, MerkleProof as MerkleProof_rs_merkle,
     MerkleTree as MerkleTree_rs_merkle,
 };
 use serde::{ser::Serializer, Deserialize, Deserializer, Serialize};
+use utils::iter::DuplicateCheck;
 
 pub type MerkleRoot = [u8; 32];
 
@@ -30,7 +31,7 @@ impl MerkleProof {
         if leaf_indices.len() != leaf_hashes.len() {
             return Err(Error::MerkleProofVerificationFailed);
         }
-        if !has_unique_elements(leaf_indices) {
+        if leaf_indices.iter().contains_dups() {
             return Err(Error::MerkleProofVerificationFailed);
         }
 

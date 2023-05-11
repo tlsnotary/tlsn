@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use utils::iter::DuplicateCheck;
 
 use crate::{
     error::Error,
@@ -7,7 +8,6 @@ use crate::{
         substrings_opening::{Blake3Opening, SubstringsOpening, SubstringsOpeningSet},
         substrings_proof::SubstringsProof,
     },
-    utils::has_unique_elements,
     Commitment, Direction, InclusionProof, SessionData, SessionHeader, SessionHeaderMsg,
     SessionProof, SubstringsCommitment, SubstringsCommitmentSet,
 };
@@ -31,7 +31,7 @@ impl NotarizedSession {
     /// Generates a `SubstringsProof` for commitments with the provided merkle tree indices
     pub fn generate_substring_proof(&self, indices: Vec<usize>) -> Result<SubstringsProof, Error> {
         // check that merkle tree indices are unique
-        if !has_unique_elements(&indices) {
+        if indices.iter().contains_dups() {
             return Err(Error::WrongMerkleTreeIndices);
         }
 
