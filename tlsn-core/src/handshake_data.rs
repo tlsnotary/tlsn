@@ -1,4 +1,4 @@
-use crate::{cert::Cert, end_entity_cert::EndEntityCert, error::Error, HandshakeSummary, KEParams};
+use crate::{cert::Cert, end_entity_cert::EndEntityCert, error::Error, HandshakeSummary, KEData};
 use serde::{Deserialize, Serialize};
 
 /// Misc TLS handshake data which the User committed to before the User and the Notary engaged in 2PC
@@ -15,7 +15,7 @@ pub struct HandshakeData {
     /// Intermediate certificates in descending order (root certificate is allowed to be present)
     interm_certs: Vec<Cert>,
     /// Key exchange parameters
-    ke_params: KEParams,
+    ke_params: KEData,
     /// Signature made by the `end_entity_cert` over the `ke_params`
     server_signature: ServerSignature,
 }
@@ -24,7 +24,7 @@ impl HandshakeData {
     pub fn new(
         end_entity_cert: EndEntityCert,
         interm_certs: Vec<Cert>,
-        ke_params: KEParams,
+        ke_params: KEData,
         server_signature: ServerSignature,
     ) -> Self {
         Self {

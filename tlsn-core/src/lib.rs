@@ -27,7 +27,7 @@ pub use end_entity_cert::EndEntityCert;
 pub use handshake_data::HandshakeData;
 pub use handshake_summary::HandshakeSummary;
 pub use inclusion_proof::InclusionProof;
-pub use keparams::KEParams;
+pub use keparams::KEData;
 pub use notarized_session::NotarizedSession;
 pub use session::{
     session_artifacts::SessionArtifacts,
@@ -46,7 +46,7 @@ pub use transcript::{Direction, Transcript, TranscriptSlice};
 /// commitment type is [crate::commitment::Blake3])
 const MAX_TOTAL_COMMITTED_DATA: u64 = 1_000_000_000;
 
-use crate::utils::blake3;
+use mpc_core::utils::blake3;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Ord, PartialOrd, Hash)]
 pub struct EncodingId(u64);
 
@@ -68,13 +68,13 @@ pub mod test {
 
     use crate::{
         commitment::{Blake3, Commitment},
-        handshake_data::{self, ServerSignature},
+        handshake_data::ServerSignature,
         merkle::MerkleTree,
         pubkey::{KeyType, PubKey},
         signer::Signer,
         substrings::substrings_proof::SubstringsProof,
         transcript::TranscriptSet,
-        Direction, HandshakeData, HandshakeSummary, KEParams, NotarizedSession, SessionArtifacts,
+        Direction, HandshakeData, HandshakeSummary, KEData, NotarizedSession, SessionArtifacts,
         SessionData, SessionHeader, SessionHeaderMsg, SessionProof, SubstringsCommitment,
         SubstringsCommitmentSet, Transcript, TranscriptSlice,
     };
@@ -87,7 +87,8 @@ pub mod test {
     use std::ops::Range;
 
     #[test]
-    fn test() {
+    /// Tests that the commitment creation protool and verification work end-to-end
+    fn test_e2e() {
         let testdata = crate::end_entity_cert::test::tlsnotary();
         // User's transcript
         let data_sent = "data sent".as_bytes();
@@ -195,7 +196,7 @@ pub mod test {
         let handshake_data = HandshakeData::new(
             testdata.ee.clone(),
             vec![testdata.ca, testdata.inter],
-            KEParams::new(ephem_key.clone(), testdata.cr, testdata.sr),
+            KEData::new(ephem_key.clone(), testdata.cr, testdata.sr),
             ServerSignature::new(testdata.sigalg, testdata.sig),
         );
 

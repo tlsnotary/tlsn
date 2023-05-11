@@ -1,20 +1,7 @@
-use crate::{error::Error, Direction};
-use blake3::Hasher;
-use mpc_garble_core::{ChaChaEncoder, Encoder};
-use std::{collections::HashSet, hash::Hash};
+use crate::error::Error;
 
 use crate::transcript::TranscriptSlice;
-use mpc_circuits::types::ValueType;
-use mpc_garble_core::EncodedValue;
 use std::ops::Range;
-use utils::bits::IterToBits;
-
-/// Outputs a blake3 digest
-pub fn blake3(data: &[u8]) -> [u8; 32] {
-    let mut hasher = Hasher::new();
-    hasher.update(data);
-    hasher.finalize().into()
-}
 
 /// Tries to merge `slices` and returns the resulting slices sorted ascendingly (note that even if no
 /// merging was necessary, the `slices` will be returned sorted ascendingly).
@@ -62,7 +49,7 @@ fn merged_slice(
     };
 
     // `merged_data` will contain data of the merged output slice
-    let mut merged_data: Vec<u8> = vec![0u8; merged_range.len() as usize];
+    let mut merged_data: Vec<u8> = vec![0u8; merged_range.len()];
 
     // copy data from both slices into the output slice, ignoring for now the fact that
     // overlapping data will be overwritten
@@ -106,49 +93,10 @@ fn is_overlapping_or_adjacent(a: &Range<u32>, b: &Range<u32>) -> bool {
     ov_end as i64 - ov_start as i64 >= 0
 }
 
-/// Encodes the bytes located in ranges and returns a vec of encodings
-/// It is only called internally when we know that
-/// A) bytes.len() is equal to the sum of lengths of all ranges
-/// B) ranges are non-overlapping and in ascending order
-pub(crate) fn encode_bytes_in_ranges(
-    encoder: &ChaChaEncoder,
-    bytes: &[u8],
-    ranges: &[Range<u32>],
-    direction: &Direction,
-) -> Vec<[u8; 16]> {
-    // dummy id. In reality, the id will be generated differently
-    let id = if direction == &Direction::Sent { 0 } else { 1 };
-    let value_type = ValueType::new_array::<u8>(ranges.last().unwrap().end as usize);
-    let full_encodings: EncodedValue<_> = encoder.encode_by_type(id, &value_type);
-
-    // convert into bytes
-    let full_encodings: Vec<[[u8; 16]; 2]> = full_encodings
-        .iter_blocks()
-        .map(|blocks| {
-            [
-                blocks[0].inner().to_be_bytes(),
-                blocks[1].inner().to_be_bytes(),
-            ]
-        })
-        .collect();
-
-    // select only encodings located in ranges
-    let mut full_encodings_in_ranges: Vec<[[u8; 16]; 2]> = Vec::new();
-    for r in ranges {
-        full_encodings_in_ranges
-            .append(&mut full_encodings[(r.start * 8) as usize..(r.end * 8) as usize].to_vec())
-    }
-
-    // choose only active encodings
-    full_encodings_in_ranges
-        .into_iter()
-        .zip(bytes.to_vec().into_lsb0_iter())
-        .map(|(blocks, bit)| if bit { blocks[1] } else { blocks[0] })
-        .collect()
-}
-
+#[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::{error::Error, utils::merge_slices, *};
+    use std::ops::Range;
 
     #[test]
     // Expect merge_slices() to return a new vec of slices since some were merged

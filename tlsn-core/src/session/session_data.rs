@@ -1,6 +1,5 @@
 use crate::{
     merkle::MerkleTree, transcript::TranscriptSet, HandshakeData, SubstringsCommitmentSet,
-    Transcript,
 };
 use mpc_core::commit::Decommitment;
 use serde::{Deserialize, Serialize};

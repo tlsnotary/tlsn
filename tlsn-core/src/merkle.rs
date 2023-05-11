@@ -259,6 +259,7 @@ pub mod test {
     // This test causes rs_merkle to panic
     #[ignore = "waiting for a panic in rs_merkle to be fixed"]
     #[test]
+    #[allow(unused_must_use)]
     fn test_verify_fail_panic1() {
         let leaf0 = Hash::from([0u8; 32]);
         let leaf1 = Hash::from([1u8; 32]);
@@ -276,6 +277,7 @@ pub mod test {
     // https://github.com/antouhou/rs-merkle/issues/20
     #[ignore = "waiting for a panic in rs_merkle to be fixed"]
     #[test]
+    #[allow(unused_must_use)]
     fn test_verify_fail_panic2() {
         let leaf0 = Hash::from([0u8; 32]);
         let leaf1 = Hash::from([1u8; 32]);
@@ -292,6 +294,7 @@ pub mod test {
     // This test causes rs_merkle to panic
     #[ignore = "waiting for a panic in rs_merkle to be fixed"]
     #[test]
+    #[allow(unused_must_use)]
     fn test_verify_fail_panic3() {
         let leaf0 = Hash::from([0u8; 32]);
         let leaf1 = Hash::from([1u8; 32]);

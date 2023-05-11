@@ -95,7 +95,7 @@ impl EndEntityCert {
 pub(crate) mod test {
     use rstest::{fixture, rstest};
 
-    use crate::{pubkey::KeyType, KEParams};
+    use crate::{pubkey::KeyType, KEData};
 
     use super::*;
 
@@ -301,7 +301,7 @@ pub(crate) mod test {
     fn test_verify_sig_ke_params_success(#[case] data: TestData) {
         let sig = ServerSignature::new(data.sigalg, data.sig);
         let ephem_pubkey = crate::pubkey::PubKey::from_bytes(KeyType::P256, &data.pubkey).unwrap();
-        let ke_params = KEParams::new(ephem_pubkey, data.cr, data.sr);
+        let ke_params = KEData::new(ephem_pubkey, data.cr, data.sr);
 
         assert!(data
             .ee
@@ -317,13 +317,13 @@ pub(crate) mod test {
         let sig = ServerSignature::new(data.sigalg, data.sig);
         let ephem_pubkey = crate::pubkey::PubKey::from_bytes(KeyType::P256, &data.pubkey).unwrap();
 
-        let mut cr = data.cr.clone();
+        let mut cr = data.cr;
         // corrupt the last byte of client random
         let last = cr[31];
         let (corrupted, _) = last.overflowing_add(1);
         cr[31] = corrupted;
 
-        let ke_params = KEParams::new(ephem_pubkey, cr, data.sr);
+        let ke_params = KEData::new(ephem_pubkey, cr, data.sr);
         let err = data
             .ee
             .verify_signature(&ke_params.to_bytes().unwrap(), &sig);
@@ -347,7 +347,7 @@ pub(crate) mod test {
 
         let sig = ServerSignature::new(data.sigalg, sig);
         let ephem_pubkey = crate::pubkey::PubKey::from_bytes(KeyType::P256, &data.pubkey).unwrap();
-        let ke_params = KEParams::new(ephem_pubkey, data.cr, data.sr);
+        let ke_params = KEData::new(ephem_pubkey, data.cr, data.sr);
 
         let err = data
             .ee
