@@ -4,6 +4,7 @@ use super::Field;
 use mpc_core::{Block, BlockSerialize};
 use rand::{distributions::Standard, prelude::Distribution};
 use std::ops::{Add, Mul, Neg};
+use utils::bits::{FromBits, ToBits};
 
 /// A type for holding field elements of Gf(2^128)
 ///
@@ -12,10 +13,20 @@ use std::ops::{Add, Mul, Neg};
 pub struct Gf2_128(pub(crate) u128);
 
 impl Gf2_128 {
+    /// Creates a new field element from a u128,
+    /// mapping the integer to the corresponding polynomial
+    ///
+    /// For example, 3u128 is mapped to the polynomial `1 + x^2`
     pub fn new(input: u128) -> Self {
-        Gf2_128(input)
+        Gf2_128(input.reverse_bits())
     }
 
+    /// Creates a new field element from a block.
+    pub fn new_from_block(block: Block) -> Self {
+        Gf2_128(block.inner())
+    }
+
+    /// Returns the polynomial representation
     pub fn into_inner(self) -> u128 {
         self.0
     }
@@ -28,8 +39,8 @@ impl From<Gf2_128> for Block {
 }
 
 impl From<Block> for Gf2_128 {
-    fn from(value: Block) -> Self {
-        Gf2_128::new(value.inner())
+    fn from(block: Block) -> Self {
+        Gf2_128::new_from_block(block)
     }
 }
 
@@ -52,20 +63,22 @@ impl Mul for Gf2_128 {
     type Output = Self;
 
     /// Galois field multiplication of two 128-bit blocks reduced by the GCM polynomial
-    fn mul(self, rhs: Self) -> Self::Output {
-        /// R is the GCM "special element" (see section 2.5 of "The Galois/Counter Mode of Operation (GCM)")
-        /// in little-endian. In hex: "E1000000000000000000000000000000"
-        const R: u128 = 299076299051606071403356588563077529600;
+    fn mul(self, y: Self) -> Self::Output {
+        /// See NIST SP 800-38D, Recommendation for Block Cipher Modes of Operation: Galois/Counter Mode (GCM) and GMAC
+        const R: u128 = 0xE1000000000000000000000000000000;
 
-        let mut x = self.0;
-        let y = rhs.0;
+        let x = self.0;
+        let mut z = 0u128;
+        let mut v = y.0;
 
-        let mut result = 0_u128;
         for i in (0..128).rev() {
-            result ^= x * ((y >> i) & 1);
-            x = (x >> 1) ^ ((x & 1) * R);
+            if ((x >> i) & 1) == 1 {
+                z ^= v;
+            }
+            v = (v >> 1) ^ ((v & 1) * R);
         }
-        Gf2_128::new(result)
+
+        Gf2_128(z)
     }
 }
 
@@ -85,42 +98,24 @@ impl Field for Gf2_128 {
     }
 
     fn one() -> Self {
-        Self::new(1 << 127)
+        Self::new(1)
     }
 
     fn two_pow(rhs: u32) -> Self {
-        if rhs == 0 {
-            return Self::one();
-        }
-
-        let mut out = Self::new(1 << 126);
-        for _ in 1..rhs {
-            out = out * Self::new(1 << 126);
-        }
-        out
+        Self(1 << rhs)
     }
 
-    fn get_bit_msb0(&self, n: u32) -> bool {
-        (self.0 >> n) & 1 == 1
+    fn get_bit(&self, n: usize) -> bool {
+        (self.0 << n) & 1 == 1
     }
 
     /// Galois field inversion of 128-bit block
     fn inverse(self) -> Self {
         let mut a = self;
-        let one = Self::one();
-        let mut out = one;
-
+        let mut out = Self::one();
         for _ in 0..127 {
             a = a * a;
             out = out * a;
-        }
-        out
-    }
-
-    fn from_bits_msb0(bits: &[bool]) -> Self {
-        let mut out = Self::zero();
-        for k in 0..bits.len() {
-            out.0 |= (bits[k] as u128) << k
         }
         out
     }
@@ -131,6 +126,34 @@ impl Field for Gf2_128 {
 
     fn to_be_bytes(&self) -> Vec<u8> {
         self.0.to_be_bytes().to_vec()
+    }
+}
+
+impl FromBits for Gf2_128 {
+    fn from_lsb0(iter: impl IntoIterator<Item = bool>) -> Self {
+        Self(u128::from_lsb0(iter))
+    }
+
+    fn from_msb0(iter: impl IntoIterator<Item = bool>) -> Self {
+        Self(u128::from_msb0(iter))
+    }
+}
+
+impl ToBits for Gf2_128 {
+    fn into_lsb0(self) -> Vec<bool> {
+        self.0.into_lsb0()
+    }
+
+    fn into_lsb0_boxed(self: Box<Self>) -> Vec<bool> {
+        self.0.into_lsb0()
+    }
+
+    fn into_msb0(self) -> Vec<bool> {
+        self.0.into_msb0()
+    }
+
+    fn into_msb0_boxed(self: Box<Self>) -> Vec<bool> {
+        self.0.into_msb0()
     }
 }
 
@@ -150,13 +173,14 @@ impl BlockSerialize for Gf2_128 {
 mod tests {
     use super::Gf2_128;
     use crate::fields::{
-        tests::{test_field_basic, test_field_bit_ops, test_field_compute_product_repeated},
-        Field, UniformRand,
+        tests::{test_field_basic, test_field_compute_product_repeated},
+        Field,
     };
     use ghash_rc::{
         universal_hash::{NewUniversalHash, UniversalHash},
         GHash,
     };
+    use mpc_core::Block;
     use rand::SeedableRng;
     use rand_chacha::ChaCha12Rng;
 
@@ -164,7 +188,7 @@ mod tests {
     fn test_gf2_128_basic() {
         test_field_basic::<Gf2_128>();
         assert_eq!(Gf2_128::new(0), Gf2_128::zero());
-        assert_eq!(Gf2_128::new(1 << 127), Gf2_128::one());
+        assert_eq!(Gf2_128::new(1), Gf2_128::one());
     }
 
     #[test]
@@ -173,39 +197,40 @@ mod tests {
     }
 
     #[test]
-    fn test_gf2_128_bit_ops() {
-        test_field_bit_ops::<Gf2_128>();
-    }
-
-    #[test]
     fn test_gf2_128_mul() {
-        // We reverse bits here, because we use an LSB0 encoding
-
         // Naive multiplication is the same here
-        let a = Gf2_128::new(3_u128.reverse_bits());
-        let b = Gf2_128::new(5_u128.reverse_bits());
+        let a = Gf2_128::new(3);
+        let b = Gf2_128::new(5);
 
         // Here we cannot calculate naively
-        let c = Gf2_128::new(3_u128.reverse_bits());
-        let d = Gf2_128::new(7_u128.reverse_bits());
+        let c = Gf2_128::new(3);
+        let d = Gf2_128::new(7);
 
-        assert_eq!(a * b, Gf2_128::new(15_u128.reverse_bits()));
-        assert_eq!(c * d, Gf2_128::new(9_u128.reverse_bits()));
+        // Test vector from Intel® Carry-Less Multiplication Instruction and its Usage for Computing the GCM Mode
+        let e = Gf2_128::new(0x7b5b54657374566563746f725d53475d);
+        let f = Gf2_128::new(0x48692853686179295b477565726f6e5d);
+
+        assert_eq!(a * b, b * a);
+        assert_eq!(a * b, Gf2_128::new(15));
+        assert_eq!(c * d, Gf2_128::new(9));
+        assert_eq!(e * f, Gf2_128::new(0x40229a09a5ed12e7e4e10da323506d2));
     }
 
     #[test]
     // Test multiplication against RustCrypto
     fn test_gf2_128_against_ghash_impl() {
-        let mut rng = ChaCha12Rng::from_seed([0; 32]);
-        let a: Gf2_128 = Gf2_128::rand(&mut rng);
-        let b: Gf2_128 = Gf2_128::rand(&mut rng);
+        let mut rng = ChaCha12Rng::seed_from_u64(0u64);
+        let a = Block::random(&mut rng);
+        let b = Block::random(&mut rng);
 
-        let mut g = GHash::new(&a.0.to_be_bytes().into());
-        g.update(&b.0.to_be_bytes().into());
+        let mut g = GHash::new(&a.to_be_bytes().into());
+        g.update(&b.to_be_bytes().into());
+        let expected = Block::from(g.finalize().into_bytes());
 
-        // Ghash will internally multiply a and b
-        let expected = u128::from_be_bytes(g.finalize().into_bytes().into());
-        let output = (a * b).0;
+        let a = Gf2_128::new_from_block(a);
+        let b = Gf2_128::new_from_block(b);
+        let output: Block = (a * b).into();
+
         assert_eq!(expected, output);
     }
 }

@@ -7,6 +7,7 @@ use mpc_core::{Block, BlockSerialize};
 use num_bigint::ToBigUint;
 use rand::{distributions::Standard, prelude::Distribution};
 use std::ops::{Add, Mul, Neg};
+use utils::bits::{FromBits, ToBits};
 
 /// A type for holding field elements of P256
 ///
@@ -15,6 +16,7 @@ use std::ops::{Add, Mul, Neg};
 pub struct P256(pub(crate) Fq);
 
 impl P256 {
+    /// Creates a new field element
     pub fn new(input: impl ToBigUint) -> Self {
         let input = input.to_biguint().expect("Unable to create field element");
         P256(Fq::from(input))
@@ -96,28 +98,20 @@ impl Field for P256 {
     }
 
     fn two_pow(rhs: u32) -> Self {
-        if rhs == 0 {
-            return Self::one();
+        let mut out = <Fq as One>::one();
+        for _ in 0..rhs {
+            MontBackend::<FqConfig, 4>::double_in_place(&mut out);
         }
 
-        let mut out = Self::new(2);
-        for _ in 1..rhs {
-            out = out * Self::new(2);
-        }
-        out
+        P256(out)
     }
 
-    fn get_bit_msb0(&self, n: u32) -> bool {
-        MontBackend::<FqConfig, 4>::into_bigint(self.0)
-            .get_bit(Self::BIT_SIZE as usize - n as usize - 1)
+    fn get_bit(&self, n: usize) -> bool {
+        MontBackend::<FqConfig, 4>::into_bigint(self.0).get_bit(n)
     }
 
     fn inverse(self) -> Self {
         P256(ArkField::inverse(&self.0).expect("Unable to invert field element"))
-    }
-
-    fn from_bits_msb0(bits: &[bool]) -> Self {
-        P256(BigInt::from_bits_be(bits).into())
     }
 
     fn to_le_bytes(&self) -> Vec<u8> {
@@ -126,6 +120,34 @@ impl Field for P256 {
 
     fn to_be_bytes(&self) -> Vec<u8> {
         BigInt::to_bytes_be(&MontBackend::<FqConfig, 4>::into_bigint(self.0))
+    }
+}
+
+impl FromBits for P256 {
+    fn from_lsb0(iter: impl IntoIterator<Item = bool>) -> Self {
+        P256(BigInt::from_bits_le(&iter.into_iter().collect::<Vec<bool>>()).into())
+    }
+
+    fn from_msb0(iter: impl IntoIterator<Item = bool>) -> Self {
+        P256(BigInt::from_bits_be(&iter.into_iter().collect::<Vec<bool>>()).into())
+    }
+}
+
+impl ToBits for P256 {
+    fn into_lsb0(self) -> Vec<bool> {
+        (0..256).map(|i| self.get_bit(i)).collect()
+    }
+
+    fn into_lsb0_boxed(self: Box<Self>) -> Vec<bool> {
+        (0..256).map(|i| self.get_bit(i)).collect()
+    }
+
+    fn into_msb0(self) -> Vec<bool> {
+        (0..256).map(|i| self.get_bit(i)).rev().collect()
+    }
+
+    fn into_msb0_boxed(self: Box<Self>) -> Vec<bool> {
+        (0..256).map(|i| self.get_bit(i)).rev().collect()
     }
 }
 
@@ -145,7 +167,7 @@ impl BlockSerialize for P256 {
 mod tests {
     use super::P256;
     use crate::fields::{
-        tests::{test_field_basic, test_field_bit_ops, test_field_compute_product_repeated},
+        tests::{test_field_basic, test_field_compute_product_repeated},
         Field,
     };
 
@@ -159,10 +181,5 @@ mod tests {
     #[test]
     fn test_p256_compute_product_repeated() {
         test_field_compute_product_repeated::<P256>();
-    }
-
-    #[test]
-    fn test_p256_bit_ops() {
-        test_field_bit_ops::<P256>();
     }
 }

@@ -14,6 +14,10 @@
 //! them ends up with a multiplicative share of A. So both parties start with `x` and `y` and want to
 //! end up with `a` and `b`, where `A = x + y = a * b`.
 
+#![deny(missing_docs, unreachable_pub, unused_must_use)]
+#![deny(clippy::all)]
+#![deny(unsafe_code)]
+
 mod a2m;
 pub mod fields;
 mod m2a;
@@ -23,6 +27,7 @@ pub use a2m::AddShare;
 use fields::Field;
 pub use m2a::MulShare;
 use rand::{CryptoRng, Rng};
+use utils::bits::ToBits;
 
 /// A trait for converting field elements
 ///
@@ -32,7 +37,9 @@ pub trait ShareConvert: Copy
 where
     Self: Sized,
 {
+    /// The current share type
     type Inner: Field;
+    /// The converted share type
     type Output: ShareConvert<Inner = Self::Inner, Output = Self>;
 
     /// Create a new instance
@@ -43,15 +50,7 @@ where
     /// We need to start with the smallest bit here, because we need to follow the decomposition we
     /// chose in the [a2m] and [m2a] modules.
     fn choices(&self) -> Vec<bool> {
-        let len: usize = Self::Inner::BIT_SIZE as usize;
-        let mut out: Vec<bool> = Vec::with_capacity(len);
-        for k in 0..len {
-            out.push(
-                self.inner()
-                    .get_bit_msb0(Self::Inner::BIT_SIZE - k as u32 - 1),
-            );
-        }
-        out
+        self.inner().into_lsb0()
     }
 
     /// Return the inner value
@@ -136,7 +135,9 @@ where
     }
 }
 
+/// Errors that can occur during share conversion.
 #[derive(Debug, thiserror::Error)]
+#[allow(missing_docs)]
 pub enum ShareConversionCoreError {
     #[error("Cannot build OTEnvelope from vecs with unequal length")]
     OTEnvelopeUnequalLength,
@@ -178,6 +179,7 @@ mod tests {
         assert_eq!(x + y, a * b);
     }
 
+    #[allow(clippy::type_complexity)]
     fn generic_convert<T: ShareConvert<Inner = U>, U: Field>() -> (
         T::Inner,
         T::Inner,

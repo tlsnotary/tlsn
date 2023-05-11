@@ -8,6 +8,7 @@ name = "mpc_share_conversion_core"
 
 [dependencies]
 tlsn-mpc-core.workspace = true
+tlsn-utils.workspace = true
 
 thiserror.workspace = true
 rand.workspace = true

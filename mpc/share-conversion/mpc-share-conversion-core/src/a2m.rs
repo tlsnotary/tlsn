@@ -55,16 +55,16 @@ impl<T: Field> AddShare<T> {
         // For each peer's summand (called `y_summand`), we send back `(x_summand + y_summand) * random
         // + mask`. The purpose of the mask is to hide the product.
 
-        let (v0, v1): (Vec<T>, Vec<T>) = (0..T::BIT_SIZE)
+        let (v0, v1): (Vec<T>, Vec<T>) = (0..T::BIT_SIZE as usize)
             .map(|k| {
                 // when y_summand is zero, we send `x_summand * random + mask`
-                let v0 = x_summands[k as usize] * random + masks[k as usize];
+                let v0 = x_summands[k] * random + masks[k];
 
                 // otherwise we send `(x_summand + y_summand) * random + mask`
                 let mut bits = vec![false; T::BIT_SIZE as usize];
-                bits[(T::BIT_SIZE - 1 - k) as usize] = true;
-                let y_summand = T::from_bits_msb0(&bits);
-                let v1 = (x_summands[k as usize] + y_summand) * random + masks[k as usize];
+                bits[k] = true;
+                let y_summand = T::from_lsb0(bits);
+                let v1 = (x_summands[k] + y_summand) * random + masks[k];
 
                 (v0, v1)
             })
