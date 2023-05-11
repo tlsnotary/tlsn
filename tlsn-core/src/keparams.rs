@@ -24,7 +24,6 @@ impl KEParams {
         // curve constant from the TLS spec
         let curve_const = match &self.ephem_pubkey {
             PubKey::P256(_) => [0x00, 0x17],
-            _ => return Err(Error::UnknownCurveInKeyExchange),
         };
 
         // type of the public key from the TLS spec: 0x03 = "named_curve"

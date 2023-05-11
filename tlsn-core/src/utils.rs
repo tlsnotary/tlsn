@@ -171,7 +171,7 @@ mod tests {
     #[test]
     // Expect merge_slices() to return a new vec of slices since some were merged
     fn test_merge_slices_new() {
-        let data = "some data for testing";
+        let _data = "some data for testing";
 
         let a_slice = TranscriptSlice::new(Range { start: 2, end: 4 }, "me".as_bytes().to_vec());
         let b_slice =
@@ -194,7 +194,7 @@ mod tests {
     #[test]
     // Expect merge_slices() to return the same vec of slices since none were merged
     fn test_merge_slices_same() {
-        let data = "some data for testing";
+        let _data = "some data for testing";
 
         let a_slice = TranscriptSlice::new(Range { start: 2, end: 4 }, "me".as_bytes().to_vec());
         let b_slice = TranscriptSlice::new(Range { start: 9, end: 11 }, "fo".as_bytes().to_vec());
@@ -217,7 +217,7 @@ mod tests {
     #[test]
     // Expect merge_slices() to return an error because data in overlapping slices does not match
     fn test_merge_slices_wrong_overlap_data() {
-        let data = "some data for testing";
+        let _data = "some data for testing";
 
         let a_slice = TranscriptSlice::new(Range { start: 2, end: 4 }, "me".as_bytes().to_vec());
         let b_slice =

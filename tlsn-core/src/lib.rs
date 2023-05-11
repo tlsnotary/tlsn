@@ -2,7 +2,7 @@
 //#![deny(clippy::all)]
 //#![forbid(unsafe_code)]
 
-//! Types used by the Prover, the Notary, the Verifier
+//! THis crate contains types used by the Prover, the Notary, and the Verifier
 
 pub mod commitment;
 pub mod end_entity_cert;
@@ -76,8 +76,6 @@ pub mod test {
         let data_recv = "data received".as_bytes();
         let transcript = Transcript::new(data_sent.to_vec(), data_recv.to_vec());
 
-        // TODO validate that ranges are valid, i.e. end > start
-
         // Ranges of plaintext for which the User wants to create a commitment
         let range1 = Range { start: 0, end: 2 };
         let range2 = Range { start: 1, end: 3 };
@@ -127,7 +125,7 @@ pub mod test {
         hasher2.update(&salt2);
 
         let hash1: [u8; 32] = hasher1.finalize().into();
-        let hash2: [u8; 32] = hasher1.finalize().into();
+        let hash2: [u8; 32] = hasher2.finalize().into();
         let hash1 = Hash::from(hash1);
         let hash2 = Hash::from(hash2);
 

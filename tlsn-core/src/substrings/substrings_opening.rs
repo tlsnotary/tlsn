@@ -93,13 +93,8 @@ impl SubstringsOpening {
         header: &SessionHeader,
         commitment: &Commitment,
     ) -> Result<Vec<TranscriptSlice>, Error> {
-        match &self {
-            SubstringsOpening::Blake3(opening) => {
-                let comm = match commitment {
-                    Commitment::Blake3(comm) => comm,
-                    _ => return Err(Error::CommitmentAndOpeningTypeMismatch),
-                };
-
+        match (&self, commitment) {
+            (SubstringsOpening::Blake3(opening), Commitment::Blake3(comm)) => {
                 let encodings = encode_bytes_in_ranges(
                     &header.encoder(),
                     opening.opening(),

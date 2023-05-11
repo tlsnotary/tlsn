@@ -80,6 +80,8 @@ impl PubKey {
                 Ok(_) => Ok(()),
                 Err(_) => Err(Error::SignatureVerificationError),
             },
+            #[allow(unreachable_patterns)]
+            _ => Err(Error::SignatureAndPubkeyMismatch),
         }
     }
 
@@ -107,32 +109,42 @@ mod test {
     use crate::{
         pubkey::{KeyType, PubKey},
         signature::Signature,
+        signer::Signer,
     };
     use p256::{
         self,
-        ecdsa::{signature::Signer, SigningKey, VerifyingKey},
+        ecdsa::{SigningKey, VerifyingKey},
     };
     use rand::{Rng, SeedableRng};
     use rand_chacha::{ChaCha12Rng, ChaCha20Rng};
     use rstest::{fixture, rstest};
 
     #[fixture]
-    // Create a valid (piblic key, message, signature) tuple
+    // Create a valid (public key, message, signature) tuple
     pub fn create_key_msg_sig() -> (PubKey, Vec<u8>, Signature) {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
-        let signing_key = SigningKey::random(&mut rng);
-        let verifying_key = VerifyingKey::from(&signing_key);
-        let encoded = verifying_key.to_encoded_point(true);
+        let raw_signing_key = SigningKey::random(&mut rng).to_bytes().to_vec();
+        let signer = Signer::new(KeyType::P256, &raw_signing_key).unwrap();
 
-        let pubkey_bytes = encoded.as_bytes();
-        let key = PubKey::from_bytes(KeyType::P256, pubkey_bytes).unwrap();
+        let pubkey = signer.verifying_key();
 
         let msg: [u8; 16] = rng.gen();
+        let msg = msg.to_vec();
 
-        let signature = Signature::P256(signing_key.sign(&msg));
+        let signature = signer.sign(&msg).unwrap();
 
-        (key, msg.to_vec(), signature)
+        (pubkey, msg, signature)
+    }
+
+    #[rstest]
+    // Expect verification to succeed
+    fn test_verify_signature_success(create_key_msg_sig: (PubKey, Vec<u8>, Signature)) {
+        let key = create_key_msg_sig.0;
+        let msg = create_key_msg_sig.1;
+        let sig = create_key_msg_sig.2;
+
+        assert!(key.verify(&msg, &sig).is_ok());
     }
 
     #[rstest]
@@ -174,18 +186,16 @@ mod test {
         let sig = create_key_msg_sig.2;
 
         // corrupt a byte of signature
-        let sig = match sig {
-            Signature::P256(sig) => sig,
-            _ => panic!(),
-        };
-        let mut bytes = sig.to_vec();
+        let Signature::P256(sig) = sig;
+        let der = sig.to_der();
+        let mut bytes = der.as_bytes().to_owned();
         bytes[10] = bytes[10].checked_add(1).unwrap_or(0);
         let sig = Signature::P256(p256::ecdsa::Signature::from_der(&bytes).unwrap());
 
         assert!(key.verify(&msg, &sig).err().unwrap() == Error::SignatureVerificationError);
     }
 
-    // Test custom serialization/deserialization of `PubKey`
+    // Test our custom serialization/deserialization of P256
     #[test]
     fn test_serialize() {
         // Create a key and sign some data

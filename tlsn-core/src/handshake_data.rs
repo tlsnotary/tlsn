@@ -59,7 +59,7 @@ impl HandshakeData {
         }
 
         // Verify TLS certificate chain against local root certs. Some certs in the chain may
-        // have expired at the time of this verification. We verify their validity at the time
+        // have expired at the time of this verification. We verify their validity against the time
         // of notarization.
         self.end_entity_cert
             .verify_is_valid_tls_server_cert(&self.interm_certs, hs_summary.time())?;

@@ -28,7 +28,7 @@ impl Signer {
         match self {
             Signer::P256(signing_key) => {
                 let vk = signing_key.verifying_key();
-                PubKey::P256(P256::new(vk, true))
+                PubKey::P256(P256::new(vk, false))
             }
         }
     }

@@ -38,6 +38,8 @@ pub enum Error {
     InternalError,
     #[error("Error during signature verification")]
     SignatureVerificationError,
+    #[error("The types of the signature and the pubkey do not match")]
+    SignatureAndPubkeyMismatch,
     #[error("Incorrect Merkle tree indices provided")]
     WrongMerkleTreeIndices,
     #[error("The session header from the Notary is incorrect")]

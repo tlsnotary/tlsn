@@ -93,9 +93,8 @@ impl SubstringsCommitment {
 
     /// Validates this commitment
     pub fn validate(&self) -> Result<(), Error> {
-        let len = self.ranges().len();
         // at least one range is expected
-        if len == 0 {
+        if self.ranges().is_empty() {
             return Err(Error::ValidationError);
         }
 
