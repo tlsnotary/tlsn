@@ -1,10 +1,13 @@
-use crate::{merkle::MerkleTree, HandshakeData, SubstringsCommitmentSet, Transcript};
+use crate::{
+    merkle::MerkleTree, transcript::TranscriptSet, HandshakeData, SubstringsCommitmentSet,
+    Transcript,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 pub struct SessionData {
     handshake_data: HandshakeData,
-    transcript: Transcript,
+    transcripts: TranscriptSet,
     merkle_tree: MerkleTree,
     commitments: SubstringsCommitmentSet,
 }
@@ -12,13 +15,13 @@ pub struct SessionData {
 impl SessionData {
     pub fn new(
         handshake_data: HandshakeData,
-        transcript: Transcript,
+        transcripts: TranscriptSet,
         merkle_tree: MerkleTree,
         commitments: SubstringsCommitmentSet,
     ) -> Self {
         Self {
             handshake_data,
-            transcript,
+            transcripts,
             merkle_tree,
             commitments,
         }
@@ -28,8 +31,8 @@ impl SessionData {
         &self.handshake_data
     }
 
-    pub fn transcript(&self) -> &Transcript {
-        &self.transcript
+    pub fn transcripts(&self) -> &TranscriptSet {
+        &self.transcripts
     }
 
     pub fn merkle_tree(&self) -> &MerkleTree {

@@ -2,10 +2,12 @@ use crate::{
     commitment::{Blake3, Commitment},
     error::Error,
     utils::{encode_bytes_in_ranges, has_unique_elements, merge_slices},
-    Direction, SessionHeader, TranscriptSlice,
+    Direction, SessionHeader, Transcript, TranscriptSlice,
 };
 use blake3::Hasher;
+use mpc_circuits::types::ValueType;
 use mpc_core::hash::Hash;
+use mpc_garble_core::{EncodedValue, Encoder};
 use serde::{Deserialize, Serialize};
 use std::ops::Range;
 
@@ -95,12 +97,46 @@ impl SubstringsOpening {
     ) -> Result<Vec<TranscriptSlice>, Error> {
         match (&self, commitment) {
             (SubstringsOpening::Blake3(opening), Commitment::Blake3(comm)) => {
-                let encodings = encode_bytes_in_ranges(
-                    &header.encoder(),
-                    opening.opening(),
-                    opening.ranges(),
-                    opening.direction(),
-                );
+                // instantiate an empty transcript in order to derive the encoding ids
+                let transcript = if opening.direction() == &Direction::Sent {
+                    Transcript::new("tx", vec![])
+                } else {
+                    Transcript::new("rx", vec![])
+                };
+
+                // collect full encodings for each byte in each range
+                let full_encodings: Vec<EncodedValue<_>> = opening
+                    .ranges()
+                    .iter()
+                    .flat_map(|range| {
+                        transcript
+                            .get_ids(range)
+                            .into_iter()
+                            .map(|id| {
+                                header
+                                    .encoder()
+                                    .encode_by_type(id.to_inner(), &ValueType::U8)
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    .collect();
+
+                // select only active encodings
+                let active_encodings: Vec<_> = full_encodings
+                    .into_iter()
+                    .zip(opening.opening())
+                    .map(|(enc, value)| enc.select(*value).unwrap())
+                    .collect();
+
+                // convert to a flat vec of encodings
+                let encodings: Vec<[u8; 16]> = active_encodings
+                    .iter()
+                    .flat_map(|enc| {
+                        enc.iter()
+                            .map(|label| label.to_inner().inner().to_be_bytes())
+                            .collect::<Vec<_>>()
+                    })
+                    .collect();
 
                 opening.verify(encodings, comm)?
             }

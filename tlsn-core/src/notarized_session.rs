@@ -8,8 +8,8 @@ use crate::{
         substrings_proof::SubstringsProof,
     },
     utils::has_unique_elements,
-    Commitment, InclusionProof, SessionData, SessionHeader, SessionHeaderMsg, SessionProof,
-    SubstringsCommitment, SubstringsCommitmentSet,
+    Commitment, Direction, InclusionProof, SessionData, SessionHeader, SessionHeaderMsg,
+    SessionProof, SubstringsCommitment, SubstringsCommitmentSet,
 };
 
 #[derive(Serialize, Deserialize)]
@@ -60,10 +60,17 @@ impl NotarizedSession {
         // create an opening for each commitment
         let mut openings: Vec<SubstringsOpening> = Vec::with_capacity(commitments.len());
         for com in &commitments {
-            let bytes: Vec<u8> = self
-                .data()
-                .transcript()
-                .get_bytes_in_ranges(com.ranges(), com.direction())?;
+            let transcript = if com.direction() == &Direction::Sent {
+                self.data().transcripts().get_by_id("tx")
+            } else {
+                self.data().transcripts().get_by_id("rx")
+            };
+            let transcript = match transcript {
+                Some(t) => t,
+                None => return Err(Error::InternalError),
+            };
+
+            let bytes: Vec<u8> = transcript.get_bytes_in_ranges(com.ranges())?;
 
             match com.commitment() {
                 Commitment::Blake3(_) => {

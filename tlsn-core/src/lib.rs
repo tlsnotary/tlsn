@@ -45,6 +45,23 @@ pub use transcript::{Direction, Transcript, TranscriptSlice};
 /// commitment type is [crate::commitment::Blake3])
 const MAX_TOTAL_COMMITTED_DATA: u64 = 1_000_000_000;
 
+use crate::utils::blake3;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Ord, PartialOrd, Hash)]
+pub struct EncodingId(u64);
+
+impl EncodingId {
+    /// Create a new encoding ID.
+    pub(crate) fn new(id: &str) -> Self {
+        let hash = blake3(id.as_bytes());
+        Self(u64::from_be_bytes(hash[..8].try_into().unwrap()))
+    }
+
+    /// Returns the encoding ID.
+    pub(crate) fn to_inner(self) -> u64 {
+        self.0
+    }
+}
+
 #[cfg(test)]
 pub mod test {
 
@@ -56,14 +73,16 @@ pub mod test {
         pubkey::{KeyType, PubKey},
         signer::Signer,
         substrings::substrings_proof::SubstringsProof,
+        transcript::TranscriptSet,
         utils::encode_bytes_in_ranges,
         Direction, HandshakeData, HandshakeSummary, KEParams, NotarizedSession, SessionArtifacts,
         SessionData, SessionHeader, SessionHeaderMsg, SessionProof, SubstringsCommitment,
         SubstringsCommitmentSet, Transcript, TranscriptSlice,
     };
     use blake3::Hasher;
+    use mpc_circuits::types::ValueType;
     use mpc_core::hash::Hash;
-    use mpc_garble_core::ChaChaEncoder;
+    use mpc_garble_core::{ChaChaEncoder, EncodedValue, Encoder};
     use rand_chacha::ChaCha20Rng;
     use rand_core::SeedableRng;
     use std::ops::Range;
@@ -74,52 +93,65 @@ pub mod test {
         // User's transcript
         let data_sent = "data sent".as_bytes();
         let data_recv = "data received".as_bytes();
-        let transcript = Transcript::new(data_sent.to_vec(), data_recv.to_vec());
+        let transcript_tx = Transcript::new("tx", data_sent.to_vec());
+        let transcript_rx = Transcript::new("rx", data_recv.to_vec());
 
         // Ranges of plaintext for which the User wants to create a commitment
-        let range1 = Range { start: 0, end: 2 };
-        let range2 = Range { start: 1, end: 3 };
-
-        // Bytes located in the ranges
-        let bytes1 = transcript
-            .get_bytes_in_ranges(&[range1.clone()], &Direction::Sent)
-            .unwrap();
-        let bytes2 = transcript
-            .get_bytes_in_ranges(&[range2.clone()], &Direction::Received)
-            .unwrap();
+        let range1: Range<u32> = Range { start: 0, end: 2 };
+        let range2: Range<u32> = Range { start: 1, end: 3 };
 
         // Plaintext encodings which the User obtained from GC evaluation
         // (for simplicity of this test we instead generate the encodings using the Notary's encoder)
         let notary_encoder_seed = [5u8; 32];
         let notary_encoder = ChaChaEncoder::new(notary_encoder_seed);
 
-        let encodings1 = encode_bytes_in_ranges(
-            &notary_encoder,
-            &bytes1,
-            &[range1.clone()],
-            &Direction::Sent,
-        );
-        let encodings2 = encode_bytes_in_ranges(
-            &notary_encoder,
-            &bytes2,
-            &[range2.clone()],
-            &Direction::Received,
-        );
+        // Full encodings for each byte in range1
+        let full_encodings_range1: Vec<EncodedValue<_>> = transcript_tx
+            .get_ids(&range1)
+            .into_iter()
+            .map(|id| notary_encoder.encode_by_type(id.to_inner(), &ValueType::U8))
+            .collect();
+
+        // Full encodings for each byte in range2
+        let full_encodings_range2: Vec<EncodedValue<_>> = transcript_rx
+            .get_ids(&range2)
+            .into_iter()
+            .map(|id| notary_encoder.encode_by_type(id.to_inner(), &ValueType::U8))
+            .collect();
+
+        // select active encodings in range1
+        let active_encodings_range1: Vec<_> = full_encodings_range1
+            .into_iter()
+            .zip(transcript_tx.data()[range1.start as usize..range1.end as usize].to_vec())
+            .map(|(enc, value)| enc.select(value).unwrap())
+            .collect();
+
+        // select active encodings in range2
+        let active_encodings_range2: Vec<_> = full_encodings_range2
+            .into_iter()
+            .zip(transcript_tx.data()[range2.start as usize..range2.end as usize].to_vec())
+            .map(|(enc, value)| enc.select(value).unwrap())
+            .collect();
+
         // salt adds entropy to the commitment
         let salt1 = [3u8; 16];
         let salt2 = [4u8; 16];
 
         // hashing the encodings with the salt produces a commitment
         let mut hasher1 = Hasher::new();
-        for e in encodings1 {
-            hasher1.update(&e);
+        for e in active_encodings_range1 {
+            for label in e.iter() {
+                hasher1.update(&label.to_inner().inner().to_be_bytes());
+            }
         }
         // add salt
         hasher1.update(&salt1);
 
         let mut hasher2 = Hasher::new();
-        for e in encodings2 {
-            hasher2.update(&e);
+        for e in active_encodings_range2 {
+            for label in e.iter() {
+                hasher2.update(&label.to_inner().inner().to_be_bytes());
+            }
         }
         // add salt
         hasher2.update(&salt2);
@@ -218,7 +250,7 @@ pub mod test {
 
         let data = SessionData::new(
             artifacts.handshake_data().clone(),
-            transcript,
+            TranscriptSet::new(&[transcript_tx, transcript_rx]),
             artifacts.merkle_tree().clone(),
             SubstringsCommitmentSet::new(commitments),
         );
