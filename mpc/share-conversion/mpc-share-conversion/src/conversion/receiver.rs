@@ -88,7 +88,7 @@ where
         // Receive OT shares from the sender and increment batch counter
         let ot_output = self
             .ot_receiver
-            .receive(&format!("{}/{}/ot", &self.config.id(), &counter), choices)
+            .receive(&format!("{}/{}", &self.config.id(), &counter), choices)
             .await?;
 
         // Aggregate OTs to get back field elements from [Field::BlockEncoding]

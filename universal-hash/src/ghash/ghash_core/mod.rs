@@ -181,10 +181,10 @@ mod tests {
         let output = sender.finalize(&message).unwrap() + receiver.finalize(&message).unwrap();
 
         assert_eq!(
-            output.into_inner(),
+            output.to_block().inner(),
             ghash_reference_impl(
-                h.into_inner(),
-                message.iter().map(|x| x.into_inner()).collect()
+                h.to_block().inner(),
+                message.iter().map(|x| x.to_block().inner()).collect()
             )
         );
     }
@@ -214,10 +214,10 @@ mod tests {
             sender.finalize(&message_short).unwrap() + receiver.finalize(&message_short).unwrap();
 
         assert_eq!(
-            output.into_inner(),
+            output.to_block().inner(),
             ghash_reference_impl(
-                h.into_inner(),
-                message_short.iter().map(|x| x.into_inner()).collect()
+                h.to_block().inner(),
+                message_short.iter().map(|x| x.to_block().inner()).collect()
             )
         );
     }
@@ -246,10 +246,10 @@ mod tests {
             sender.finalize(&message_long).unwrap() + receiver.finalize(&message_long).unwrap();
 
         assert_eq!(
-            output.into_inner(),
+            output.to_block().inner(),
             ghash_reference_impl(
-                h.into_inner(),
-                message_long.iter().map(|x| x.into_inner()).collect()
+                h.to_block().inner(),
+                message_long.iter().map(|x| x.to_block().inner()).collect()
             )
         );
     }

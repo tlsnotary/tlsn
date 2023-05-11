@@ -111,7 +111,7 @@ where
         // Send OT shares to the receiver and increment batch counter
         self.ot_sender
             .send(
-                &format!("{}/{}/ot", &self.config.id(), counter),
+                &format!("{}/{}", &self.config.id(), counter),
                 ot_shares.into(),
             )
             .await?;

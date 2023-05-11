@@ -26,9 +26,9 @@ impl Gf2_128 {
         Gf2_128(block.inner())
     }
 
-    /// Returns the polynomial representation
-    pub fn into_inner(self) -> u128 {
-        self.0
+    /// Returns the element as a block
+    pub fn to_block(&self) -> Block {
+        Block::new(self.0)
     }
 }
 

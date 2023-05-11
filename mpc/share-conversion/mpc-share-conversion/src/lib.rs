@@ -5,8 +5,13 @@ use mpc_ot::OTError;
 use mpc_share_conversion_core::{fields::Field, ShareConversionCoreError};
 use thiserror::Error;
 
-pub mod conversion;
+mod conversion;
 mod ot;
+
+pub use conversion::{
+    mock, Receiver, ReceiverConfig, ReceiverConfigBuilder, ReceiverConfigBuilderError, Sender,
+    SenderConfig, SenderConfigBuilder, SenderConfigBuilderError,
+};
 
 /// Allows to convert additive shares into multiplicative ones
 #[async_trait]
