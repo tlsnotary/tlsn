@@ -78,9 +78,8 @@ pub mod test {
         SessionData, SessionHeader, SessionHeaderMsg, SessionProof, SubstringsCommitment,
         SubstringsCommitmentSet, Transcript, TranscriptSlice,
     };
-    use blake3::Hasher;
     use mpc_circuits::types::ValueType;
-    use mpc_core::{commit::HashCommit, hash::Hash};
+    use mpc_core::commit::HashCommit;
     use mpc_garble_core::{ChaChaEncoder, EncodedValue, Encoder};
     use rand_chacha::ChaCha20Rng;
     use rand_core::SeedableRng;
@@ -91,8 +90,8 @@ pub mod test {
     fn test_e2e() {
         let testdata = crate::end_entity_cert::test::tlsnotary();
         // User's transcript
-        let data_sent = "data sent".as_bytes();
-        let data_recv = "data received".as_bytes();
+        let data_sent = "sent data".as_bytes();
+        let data_recv = "received data".as_bytes();
         let transcript_tx = Transcript::new("tx", data_sent.to_vec());
         let transcript_rx = Transcript::new("rx", data_recv.to_vec());
 
@@ -105,76 +104,41 @@ pub mod test {
         let notary_encoder_seed = [5u8; 32];
         let notary_encoder = ChaChaEncoder::new(notary_encoder_seed);
 
-        // Full encodings for each byte in range1
-        let full_encodings_range1: Vec<EncodedValue<_>> = transcript_tx
+        // active encodings for each byte in range1
+        let active_encodings_range1: Vec<EncodedValue<_>> = transcript_tx
             .get_ids(&range1)
             .into_iter()
             .map(|id| notary_encoder.encode_by_type(id.to_inner(), &ValueType::U8))
-            .collect();
-
-        // Full encodings for each byte in range2
-        let full_encodings_range2: Vec<EncodedValue<_>> = transcript_rx
-            .get_ids(&range2)
-            .into_iter()
-            .map(|id| notary_encoder.encode_by_type(id.to_inner(), &ValueType::U8))
-            .collect();
-
-        // select active encodings in range1
-        let active_encodings_range1: Vec<_> = full_encodings_range1
-            .into_iter()
             .zip(transcript_tx.data()[range1.start as usize..range1.end as usize].to_vec())
             .map(|(enc, value)| enc.select(value).unwrap())
             .collect();
 
-        // select active encodings in range2
-        let active_encodings_range2: Vec<_> = full_encodings_range2
+        // Full encodings for each byte in range2
+        let active_encodings_range2: Vec<EncodedValue<_>> = transcript_rx
+            .get_ids(&range2)
             .into_iter()
-            .zip(transcript_tx.data()[range2.start as usize..range2.end as usize].to_vec())
+            .map(|id| notary_encoder.encode_by_type(id.to_inner(), &ValueType::U8))
+            .zip(transcript_rx.data()[range2.start as usize..range2.end as usize].to_vec())
             .map(|(enc, value)| enc.select(value).unwrap())
             .collect();
 
-        // salt adds entropy to the commitment
-        let salt1 = [3u8; 16];
-        let salt2 = [4u8; 16];
-
-        // hashing the encodings with the salt produces a commitment
-        let mut hasher1 = Hasher::new();
-        for e in active_encodings_range1 {
-            for label in e.iter() {
-                hasher1.update(&label.to_inner().inner().to_be_bytes());
-            }
-        }
-        // add salt
-        hasher1.update(&salt1);
-
-        let mut hasher2 = Hasher::new();
-        for e in active_encodings_range2 {
-            for label in e.iter() {
-                hasher2.update(&label.to_inner().inner().to_be_bytes());
-            }
-        }
-        // add salt
-        hasher2.update(&salt2);
-
-        let hash1: [u8; 32] = hasher1.finalize().into();
-        let hash2: [u8; 32] = hasher2.finalize().into();
-        let hash1 = Hash::from(hash1);
-        let hash2 = Hash::from(hash2);
+        let (decommit1, commit1) = active_encodings_range1.hash_commit();
+        let (decommit2, commit2) = active_encodings_range2.hash_commit();
 
         let commitments = vec![
             SubstringsCommitment::new(
                 0,
-                Commitment::Blake3(Blake3::new(hash1)),
+                Commitment::Blake3(Blake3::new(commit1)),
                 vec![range1.clone()],
                 Direction::Sent,
-                salt1,
+                *decommit1.nonce(),
             ),
             SubstringsCommitment::new(
                 1,
-                Commitment::Blake3(Blake3::new(hash2)),
+                Commitment::Blake3(Blake3::new(commit2)),
                 vec![range2.clone()],
                 Direction::Received,
-                salt2,
+                *decommit2.nonce(),
             ),
         ];
 
@@ -184,7 +148,7 @@ pub mod test {
         let time = testdata.time;
 
         // merkle tree of all User's commitments (the root of the tree was sent to the Notary earlier)
-        let merkle_tree = MerkleTree::from_leaves(&[hash1, hash2]);
+        let merkle_tree = MerkleTree::from_leaves(&[commit1, commit2]);
 
         // encoder seed revealed by the Notary at the end of the label commitment protocol
         let encoder_seed: [u8; 32] = notary_encoder_seed;
@@ -288,7 +252,7 @@ pub mod test {
 
         let (sent_slices, recv_slices) = substrings_proof.verify(&header).unwrap();
 
-        assert!(sent_slices == vec![TranscriptSlice::new(range1, b"da".to_vec())]);
-        assert!(recv_slices == vec![TranscriptSlice::new(range2, b"at".to_vec())])
+        assert!(sent_slices == vec![TranscriptSlice::new(range1, b"se".to_vec())]);
+        assert!(recv_slices == vec![TranscriptSlice::new(range2, b"ec".to_vec())])
     }
 }

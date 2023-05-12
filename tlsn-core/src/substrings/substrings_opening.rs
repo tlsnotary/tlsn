@@ -4,10 +4,9 @@ use crate::{
     utils::merge_slices,
     Direction, SessionHeader, Transcript, TranscriptSlice,
 };
-use blake3::Hasher;
 use mpc_circuits::types::ValueType;
-use mpc_core::hash::Hash;
-use mpc_garble_core::{EncodedValue, Encoder};
+use mpc_core::commit::{Decommitment, Nonce};
+use mpc_garble_core::{encoding_state::Active, EncodedValue, Encoder};
 use serde::{Deserialize, Serialize};
 use std::ops::Range;
 use utils::iter::DuplicateCheck;
@@ -99,14 +98,14 @@ impl SubstringsOpening {
         match (&self, commitment) {
             (SubstringsOpening::Blake3(opening), Commitment::Blake3(comm)) => {
                 // instantiate an empty transcript in order to derive the encoding ids
-                let transcript = if opening.direction() == &Direction::Sent {
-                    Transcript::new("tx", vec![])
-                } else {
-                    Transcript::new("rx", vec![])
+                let id = match opening.direction() {
+                    Direction::Sent => "tx",
+                    Direction::Received => "rx",
                 };
+                let transcript = Transcript::new(id, vec![]);
 
-                // collect full encodings for each byte in each range
-                let full_encodings: Vec<EncodedValue<_>> = opening
+                // collect active encodings for each byte in each range
+                let active_encodings: Vec<EncodedValue<Active>> = opening
                     .ranges()
                     .iter()
                     .flat_map(|range| {
@@ -118,28 +117,14 @@ impl SubstringsOpening {
                                     .encoder()
                                     .encode_by_type(id.to_inner(), &ValueType::U8)
                             })
+                            // collect full encodings
                             .collect::<Vec<_>>()
                     })
-                    .collect();
-
-                // select only active encodings
-                let active_encodings: Vec<_> = full_encodings
-                    .into_iter()
                     .zip(opening.opening())
                     .map(|(enc, value)| enc.select(*value).unwrap())
                     .collect();
 
-                // convert to a flat vec of encodings
-                let encodings: Vec<[u8; 16]> = active_encodings
-                    .iter()
-                    .flat_map(|enc| {
-                        enc.iter()
-                            .map(|label| label.to_inner().inner().to_be_bytes())
-                            .collect::<Vec<_>>()
-                    })
-                    .collect();
-
-                opening.verify(encodings, comm)?
+                opening.verify(active_encodings, comm)?;
             }
         }
         Ok(self.as_slices())
@@ -205,7 +190,7 @@ pub struct Blake3Opening {
     ranges: Vec<Range<u32>>,
     direction: Direction,
     /// Randomness used to salt the commitment
-    salt: [u8; 16],
+    salt: Nonce,
 }
 
 impl Blake3Opening {
@@ -214,7 +199,7 @@ impl Blake3Opening {
         opening: Vec<u8>,
         ranges: &[Range<u32>],
         direction: Direction,
-        salt: [u8; 16],
+        salt: Nonce,
     ) -> Self {
         Self {
             merkle_tree_index,
@@ -226,22 +211,15 @@ impl Blake3Opening {
     }
 
     /// Verify the encodings against the commitment
-    pub fn verify(&self, encodings: Vec<[u8; 16]>, commitment: &Blake3) -> Result<(), Error> {
-        // hash all labels
-        let mut hasher = Hasher::new();
-        for e in encodings {
-            hasher.update(&e);
-        }
-        // add salt
-        hasher.update(&self.salt);
-
-        let hash: [u8; 32] = hasher.finalize().into();
-        let hash = Hash::from(hash);
-        if &hash != commitment.encoding_hash() {
-            return Err(Error::OpeningVerificationFailed);
-        }
-
-        Ok(())
+    pub fn verify(
+        &self,
+        encodings: Vec<EncodedValue<Active>>,
+        commitment: &Blake3,
+    ) -> Result<(), Error> {
+        // create a decommitment and verify it against the commitment
+        Decommitment::new_with_nonce(encodings, self.salt)
+            .verify(commitment.encoding_hash())
+            .map_err(|_| Error::OpeningVerificationFailed)
     }
 
     /// Validates this opening

@@ -1,4 +1,5 @@
 use crate::{commitment::Commitment, error::Error, transcript::Direction};
+use mpc_core::commit::Nonce;
 use serde::{Deserialize, Serialize};
 use std::ops::Range;
 use utils::iter::DuplicateCheck;
@@ -70,7 +71,7 @@ pub struct SubstringsCommitment {
     ranges: Vec<Range<u32>>,
     direction: Direction,
     /// Randomness used to salt the commitment
-    salt: [u8; 16],
+    salt: Nonce,
 }
 
 impl SubstringsCommitment {
@@ -79,7 +80,7 @@ impl SubstringsCommitment {
         commitment: Commitment,
         ranges: Vec<Range<u32>>,
         direction: Direction,
-        salt: [u8; 16],
+        salt: Nonce,
     ) -> Self {
         Self {
             merkle_tree_index,
@@ -139,7 +140,7 @@ impl SubstringsCommitment {
         &self.direction
     }
 
-    pub fn salt(&self) -> &[u8; 16] {
+    pub fn salt(&self) -> &Nonce {
         &self.salt
     }
 }
