@@ -224,14 +224,14 @@ mod tests {
             .await
             .unwrap();
 
-        let leader_config = StreamCipherConfigBuilder::default()
-            .id("test".to_string())
+        let leader_config = StreamCipherConfig::builder()
+            .id("test")
             .start_ctr(start_ctr)
             .build()
             .unwrap();
 
-        let follower_config = StreamCipherConfigBuilder::default()
-            .id("test".to_string())
+        let follower_config = StreamCipherConfig::builder()
+            .id("test")
             .start_ctr(start_ctr)
             .build()
             .unwrap();

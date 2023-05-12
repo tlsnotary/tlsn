@@ -4,12 +4,20 @@ use derive_builder::Builder;
 #[derive(Debug, Default, Builder)]
 pub struct OTActorSenderConfig {
     /// The ID of the sender
+    #[builder(setter(into))]
     pub(crate) id: String,
     /// The number of OTs to set up
     pub(crate) initial_count: usize,
     /// Whether the sender should commit to the OTs
     #[builder(default = "false", setter(custom))]
     pub(crate) committed: bool,
+}
+
+impl OTActorSenderConfig {
+    /// Creates a new builder for the OT sender actor configuration
+    pub fn builder() -> OTActorSenderConfigBuilder {
+        OTActorSenderConfigBuilder::default()
+    }
 }
 
 impl OTActorSenderConfigBuilder {
@@ -24,12 +32,20 @@ impl OTActorSenderConfigBuilder {
 #[derive(Debug, Default, Builder)]
 pub struct OTActorReceiverConfig {
     /// The ID of the receiver
+    #[builder(setter(into))]
     pub(crate) id: String,
     /// The number of OTs to setup
     pub(crate) initial_count: usize,
     /// Whether the receiver should expect the sender to commit to the OTs
     #[builder(default = "false", setter(custom))]
     pub(crate) committed: bool,
+}
+
+impl OTActorReceiverConfig {
+    /// Creates a new builder for the OT receiver actor configuration
+    pub fn builder() -> OTActorReceiverConfigBuilder {
+        OTActorReceiverConfigBuilder::default()
+    }
 }
 
 impl OTActorReceiverConfigBuilder {

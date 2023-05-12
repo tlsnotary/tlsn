@@ -79,13 +79,13 @@ mod test {
 
     #[tokio::test]
     async fn test_ot_actor() {
-        let sender_config = OTActorSenderConfigBuilder::default()
-            .id("test".to_string())
+        let sender_config = OTActorSenderConfig::builder()
+            .id("test")
             .initial_count(10)
             .build()
             .unwrap();
-        let receiver_config = OTActorReceiverConfigBuilder::default()
-            .id("test".to_string())
+        let receiver_config = OTActorReceiverConfig::builder()
+            .id("test")
             .initial_count(10)
             .build()
             .unwrap();
@@ -115,13 +115,13 @@ mod test {
 
     #[tokio::test]
     async fn test_ot_actor_many_splits() {
-        let sender_config = OTActorSenderConfigBuilder::default()
-            .id("test".to_string())
+        let sender_config = OTActorSenderConfig::builder()
+            .id("test")
             .initial_count(100)
             .build()
             .unwrap();
-        let receiver_config = OTActorReceiverConfigBuilder::default()
-            .id("test".to_string())
+        let receiver_config = OTActorReceiverConfig::builder()
+            .id("test")
             .initial_count(100)
             .build()
             .unwrap();
@@ -154,14 +154,14 @@ mod test {
 
     #[tokio::test]
     async fn test_ot_actor_committed_ot() {
-        let sender_config = OTActorSenderConfigBuilder::default()
-            .id("test".to_string())
+        let sender_config = OTActorSenderConfig::builder()
+            .id("test")
             .initial_count(100)
             .committed()
             .build()
             .unwrap();
-        let receiver_config = OTActorReceiverConfigBuilder::default()
-            .id("test".to_string())
+        let receiver_config = OTActorReceiverConfig::builder()
+            .id("test")
             .initial_count(100)
             .committed()
             .build()

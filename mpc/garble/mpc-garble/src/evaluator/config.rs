@@ -17,6 +17,13 @@ pub struct EvaluatorConfig {
     pub(crate) batch_size: usize,
 }
 
+impl EvaluatorConfig {
+    /// Creates a new builder for the evaluator configuration.
+    pub fn builder() -> EvaluatorConfigBuilder {
+        EvaluatorConfigBuilder::default()
+    }
+}
+
 impl EvaluatorConfigBuilder {
     /// Enable encoding commitments.
     pub fn encoding_commitments(&mut self) -> &mut Self {

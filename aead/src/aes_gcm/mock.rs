@@ -1,9 +1,9 @@
 //! Mock implementation of AES-GCM for testing purposes.
 
-use block_cipher::{BlockCipherConfigBuilder, MpcBlockCipher};
+use block_cipher::{BlockCipherConfig, MpcBlockCipher};
 use mpc_garble::{Decode, DecodePrivate, Execute, Memory, Prove, Verify, Vm};
 use mpc_share_conversion::conversion::recorder::Void;
-use tlsn_stream_cipher::{MpcStreamCipher, StreamCipherConfigBuilder};
+use tlsn_stream_cipher::{MpcStreamCipher, StreamCipherConfig};
 use tlsn_universal_hash::ghash::mock_ghash_pair;
 use utils_aio::duplex::DuplexChannel;
 
@@ -31,14 +31,14 @@ where
 {
     let block_cipher_id = format!("{}/block_cipher", id);
     let leader_block_cipher = MpcBlockCipher::new(
-        BlockCipherConfigBuilder::default()
+        BlockCipherConfig::builder()
             .id(block_cipher_id.clone())
             .build()
             .unwrap(),
         leader_vm.new_thread(&block_cipher_id).await.unwrap(),
     );
     let follower_block_cipher = MpcBlockCipher::new(
-        BlockCipherConfigBuilder::default()
+        BlockCipherConfig::builder()
             .id(block_cipher_id.clone())
             .build()
             .unwrap(),
@@ -47,7 +47,7 @@ where
 
     let stream_cipher_id = format!("{}/stream_cipher", id);
     let leader_stream_cipher = MpcStreamCipher::new(
-        StreamCipherConfigBuilder::default()
+        StreamCipherConfig::builder()
             .id(stream_cipher_id.clone())
             .build()
             .unwrap(),
@@ -57,7 +57,7 @@ where
             .unwrap(),
     );
     let follower_stream_cipher = MpcStreamCipher::new(
-        StreamCipherConfigBuilder::default()
+        StreamCipherConfig::builder()
             .id(stream_cipher_id.clone())
             .build()
             .unwrap(),

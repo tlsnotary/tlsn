@@ -86,15 +86,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_block_cipher_blind() {
-        let leader_config = BlockCipherConfigBuilder::default()
-            .id("test".to_string())
-            .build()
-            .unwrap();
-
-        let follower_config = BlockCipherConfigBuilder::default()
-            .id("test".to_string())
-            .build()
-            .unwrap();
+        let leader_config = BlockCipherConfig::builder().id("test").build().unwrap();
+        let follower_config = BlockCipherConfig::builder().id("test").build().unwrap();
 
         let key = [0u8; 16];
 
@@ -128,15 +121,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_block_cipher_share() {
-        let leader_config = BlockCipherConfigBuilder::default()
-            .id("test".to_string())
-            .build()
-            .unwrap();
-
-        let follower_config = BlockCipherConfigBuilder::default()
-            .id("test".to_string())
-            .build()
-            .unwrap();
+        let leader_config = BlockCipherConfig::builder().id("test").build().unwrap();
+        let follower_config = BlockCipherConfig::builder().id("test").build().unwrap();
 
         let key = [0u8; 16];
 

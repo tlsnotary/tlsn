@@ -12,12 +12,18 @@ pub enum Role {
 #[derive(Debug, Clone, Builder)]
 pub struct AesGcmConfig {
     /// The id of this instance
+    #[builder(setter(into))]
     id: String,
     /// The protocol role
     role: Role,
 }
 
 impl AesGcmConfig {
+    /// Creates a new builder for the AES-GCM configuration
+    pub fn builder() -> AesGcmConfigBuilder {
+        AesGcmConfigBuilder::default()
+    }
+
     /// Returns the id of this instance
     pub fn id(&self) -> &str {
         &self.id

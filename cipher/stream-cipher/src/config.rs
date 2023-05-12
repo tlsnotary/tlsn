@@ -9,14 +9,22 @@ use crate::CtrCircuit;
 #[derive(Debug, Clone, Builder)]
 pub struct StreamCipherConfig {
     /// The ID of the stream cipher.
+    #[builder(setter(into))]
     pub(crate) id: String,
     /// The start block counter value.
     #[builder(default = "2")]
     pub(crate) start_ctr: usize,
     /// Transcript ID used to determine the unique identifiers
     /// for the plaintext bytes during encryption and decryption.
-    #[builder(default = "\"transcript\".to_string()")]
+    #[builder(setter(into), default = "\"transcript\".to_string()")]
     pub(crate) transcript_id: String,
+}
+
+impl StreamCipherConfig {
+    /// Creates a new builder for the stream cipher configuration.
+    pub fn builder() -> StreamCipherConfigBuilder {
+        StreamCipherConfigBuilder::default()
+    }
 }
 
 pub(crate) struct KeyBlockConfig<C: CtrCircuit> {
