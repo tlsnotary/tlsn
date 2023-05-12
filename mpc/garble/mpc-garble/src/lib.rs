@@ -12,7 +12,7 @@ use mpc_circuits::{
     types::{StaticValueType, Value, ValueType},
     Circuit,
 };
-use mpc_core::value::{ValueId, ValueRef};
+pub use mpc_core::value::{ValueId, ValueRef};
 
 pub mod config;
 pub(crate) mod evaluator;
