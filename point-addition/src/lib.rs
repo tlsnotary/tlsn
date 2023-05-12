@@ -3,8 +3,6 @@ use mpc_share_conversion::ShareConversionError;
 use mpc_share_conversion_core::fields::Field;
 
 mod conversion;
-#[cfg(feature = "mock")]
-pub mod mock;
 
 pub use conversion::{Converter, Role};
 
@@ -33,9 +31,12 @@ pub trait PointAddition {
 
 #[cfg(test)]
 mod tests {
-    use super::mock::create_mock_point_converter_pair;
-    use crate::{conversion::point_to_p256, PointAddition};
+    use std::sync::Arc;
+
+    use crate::{conversion::point_to_p256, Converter, PointAddition, Role};
     use mpc_core::Block;
+    use mpc_share_conversion::{mock::mock_converter_pair, ReceiverConfig, SenderConfig};
+    use mpc_share_conversion_core::fields::p256::P256;
     use p256::{
         elliptic_curve::{
             ops::Reduce,
@@ -45,7 +46,25 @@ mod tests {
     };
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
-    use mpc_share_conversion_core::fields::p256::P256;
+
+    fn create_pair() -> (Converter<P256>, Converter<P256>) {
+        let (leader_a2m, follower_a2m) = mock_converter_pair(
+            SenderConfig::builder().id("a2m").build().unwrap(),
+            ReceiverConfig::builder().id("a2m").build().unwrap(),
+        );
+        let (leader_m2a, follower_m2a) = mock_converter_pair(
+            SenderConfig::builder().id("m2a").build().unwrap(),
+            ReceiverConfig::builder().id("m2a").build().unwrap(),
+        );
+        (
+            Converter::new(Arc::new(leader_a2m), Arc::new(leader_m2a), Role::Leader),
+            Converter::new(
+                Arc::new(follower_a2m),
+                Arc::new(follower_m2a),
+                Role::Follower,
+            ),
+        )
+    }
 
     #[tokio::test]
     async fn test_point_conversion() {
@@ -59,7 +78,7 @@ mod tests {
 
         let p = add_curve_points(&p1, &p2);
 
-        let (mut c1, mut c2) = create_mock_point_converter_pair();
+        let (mut c1, mut c2) = create_pair();
 
         let c1_fut = c1.compute_x_coordinate_share(p1);
         let c2_fut = c2.compute_x_coordinate_share(p2);

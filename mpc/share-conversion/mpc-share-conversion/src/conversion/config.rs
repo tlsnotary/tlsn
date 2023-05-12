@@ -7,7 +7,7 @@ pub struct SenderConfig {
     #[builder(setter(into))]
     id: String,
     /// Whether recording is enabled.
-    #[builder(setter(custom))]
+    #[builder(default = "false", setter(custom))]
     record: bool,
 }
 
@@ -43,7 +43,7 @@ pub struct ReceiverConfig {
     #[builder(setter(into))]
     id: String,
     /// Whether recording is enabled.
-    #[builder(setter(custom))]
+    #[builder(default = "false", setter(custom))]
     record: bool,
 }
 

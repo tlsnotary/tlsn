@@ -5,27 +5,27 @@
 //!
 //! The protocol is described in <https://docs.tlsnotary.org/protocol/notarization/key_exchange.html>
 
+use std::sync::Arc;
+
 use super::{PointAddition, PointAdditionError};
 use async_trait::async_trait;
-use p256::EncodedPoint;
 use mpc_share_conversion::{AdditiveToMultiplicative, MultiplicativeToAdditive};
 use mpc_share_conversion_core::fields::{p256::P256, Field};
+use p256::EncodedPoint;
 
 /// The instance used for adding the curve points
-pub struct Converter<T, U, V>
+pub struct Converter<F>
 where
-    T: AdditiveToMultiplicative<V>,
-    U: MultiplicativeToAdditive<V>,
-    V: Field,
+    F: Field,
 {
     /// Performs conversion of addition to multiplication
-    a2m_converter: T,
+    a2m_converter: Arc<dyn AdditiveToMultiplicative<F> + Send>,
     /// Performs conversion of multiplication to addition
-    m2a_converter: U,
+    m2a_converter: Arc<dyn MultiplicativeToAdditive<F> + Send>,
     /// Indicates which role this converter instance will fulfill
     role: Role,
     /// PhantomData used for the underlying elliptic curve field
-    _field: std::marker::PhantomData<V>,
+    _field: std::marker::PhantomData<F>,
 }
 
 /// The role: either Leader or Follower
@@ -46,14 +46,16 @@ impl Role {
     }
 }
 
-impl<T, U, V> Converter<T, U, V>
+impl<F> Converter<F>
 where
-    T: AdditiveToMultiplicative<V>,
-    U: MultiplicativeToAdditive<V>,
-    V: Field,
+    F: Field,
 {
     /// Create a new [Converter] instance
-    pub fn new(a2m_converter: T, m2a_converter: U, role: Role) -> Self {
+    pub fn new(
+        a2m_converter: Arc<dyn AdditiveToMultiplicative<F> + Send>,
+        m2a_converter: Arc<dyn MultiplicativeToAdditive<F> + Send>,
+        role: Role,
+    ) -> Self {
         Self {
             a2m_converter,
             m2a_converter,
@@ -68,7 +70,7 @@ where
     /// curve point addition is an expensive operation in 2PC, we secretly share the x-coordinate
     /// of P as a simple addition of field elements between the two parties. So we go from an EC
     /// point addition to an addition of field elements for the x-coordinate.
-    async fn convert(&mut self, [x, y]: [V; 2]) -> Result<V, PointAdditionError> {
+    async fn convert(&mut self, [x, y]: [F; 2]) -> Result<F, PointAdditionError> {
         let [x_n, y_n] = self.role.adapt_point([x, y]);
 
         let a2m_output = self.a2m_converter.a_to_m(vec![y_n, x_n]).await?;
@@ -87,11 +89,7 @@ where
 }
 
 #[async_trait]
-impl<T, U> PointAddition for Converter<T, U, P256>
-where
-    T: AdditiveToMultiplicative<P256> + Send,
-    U: MultiplicativeToAdditive<P256> + Send,
-{
+impl PointAddition for Converter<P256> {
     type Point = EncodedPoint;
     type XCoordinate = P256;
 
