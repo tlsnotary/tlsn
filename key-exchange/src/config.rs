@@ -14,12 +14,18 @@ pub enum Role {
 #[derive(Debug, Clone, Builder)]
 pub struct KeyExchangeConfig {
     /// The id of this instance
+    #[builder(setter(into))]
     id: String,
     /// Protocol role
     role: Role,
 }
 
 impl KeyExchangeConfig {
+    /// Creates a new builder for the key exchange configuration
+    pub fn builder() -> KeyExchangeConfigBuilder {
+        KeyExchangeConfigBuilder::default()
+    }
+
     /// Get the id of this instance
     pub fn id(&self) -> &str {
         &self.id

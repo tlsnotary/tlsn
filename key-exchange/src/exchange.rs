@@ -273,6 +273,7 @@ mod tests {
         let (mut leader_vm, mut follower_vm) = create_mock_deap_vm("test").await;
         (
             create_mock_key_exchange_pair(
+                "test",
                 leader_vm.new_thread("ke").await.unwrap(),
                 follower_vm.new_thread("ke").await.unwrap(),
             ),

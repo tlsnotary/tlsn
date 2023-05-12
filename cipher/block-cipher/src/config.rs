@@ -4,5 +4,13 @@ use derive_builder::Builder;
 #[derive(Debug, Clone, Builder)]
 pub struct BlockCipherConfig {
     /// The ID of the block cipher
+    #[builder(setter(into))]
     pub(crate) id: String,
+}
+
+impl BlockCipherConfig {
+    /// Creates a new builder for the block cipher configuration
+    pub fn builder() -> BlockCipherConfigBuilder {
+        BlockCipherConfigBuilder::default()
+    }
 }

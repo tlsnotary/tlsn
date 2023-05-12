@@ -9,3 +9,10 @@ pub struct GhashConfig {
     #[builder(default = "1024")]
     pub max_block_count: usize,
 }
+
+impl GhashConfig {
+    /// Creates a new builder for the ghash configuration
+    pub fn builder() -> GhashConfigBuilder {
+        GhashConfigBuilder::default()
+    }
+}

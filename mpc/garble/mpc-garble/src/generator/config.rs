@@ -11,6 +11,13 @@ pub struct GeneratorConfig {
     pub(crate) batch_size: usize,
 }
 
+impl GeneratorConfig {
+    /// Creates a new builder for the generator configuration.
+    pub fn builder() -> GeneratorConfigBuilder {
+        GeneratorConfigBuilder::default()
+    }
+}
+
 impl GeneratorConfigBuilder {
     /// Enable encoding commitments.
     pub fn encoding_commitments(&mut self) -> &mut Self {
