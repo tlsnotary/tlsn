@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use mpc_core::Block;
 use mpc_share_conversion_core::fields::gf2_128::Gf2_128;
@@ -30,8 +32,8 @@ pub struct Ghash {
     state: State,
     config: GhashConfig,
 
-    a2m_converter: Box<dyn AdditiveToMultiplicative<Gf2_128> + Send>,
-    m2a_converter: Box<dyn MultiplicativeToAdditive<Gf2_128> + Send>,
+    a2m_converter: Arc<dyn AdditiveToMultiplicative<Gf2_128> + Send>,
+    m2a_converter: Arc<dyn MultiplicativeToAdditive<Gf2_128> + Send>,
 }
 
 impl Ghash {
@@ -44,8 +46,8 @@ impl Ghash {
     ///                           shares
     pub fn new(
         config: GhashConfig,
-        a2m_converter: Box<dyn AdditiveToMultiplicative<Gf2_128> + Send>,
-        m2a_converter: Box<dyn MultiplicativeToAdditive<Gf2_128> + Send>,
+        a2m_converter: Arc<dyn AdditiveToMultiplicative<Gf2_128> + Send>,
+        m2a_converter: Arc<dyn MultiplicativeToAdditive<Gf2_128> + Send>,
     ) -> Self {
         Self {
             state: State::Init,

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use mpc_share_conversion::{mock::mock_converter_pair, ReceiverConfig, SenderConfig};
 use mpc_share_conversion_core::{fields::gf2_128::Gf2_128, AddShare, MulShare};
 
@@ -31,11 +33,11 @@ pub fn mock_ghash_pair(sender_config: GhashConfig, receiver_config: GhashConfig)
     );
 
     let (sender, receiver) = (
-        Ghash::new(sender_config, Box::new(sender_a2m), Box::new(sender_m2a)),
+        Ghash::new(sender_config, Arc::new(sender_a2m), Arc::new(sender_m2a)),
         Ghash::new(
             receiver_config,
-            Box::new(receiver_a2m),
-            Box::new(receiver_m2a),
+            Arc::new(receiver_a2m),
+            Arc::new(receiver_m2a),
         ),
     );
 
