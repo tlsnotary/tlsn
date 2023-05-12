@@ -42,7 +42,9 @@ impl Transcript {
     }
 
     /// Returns a concatenated bytestring located in the given ranges of the transcript.
-    pub fn get_bytes_in_ranges(&self, ranges: &[Range<u32>]) -> Result<Vec<u8>, Error> {
+    ///
+    /// Is only called with non-empty well-formed `ranges`
+    pub(crate) fn get_bytes_in_ranges(&self, ranges: &[Range<u32>]) -> Result<Vec<u8>, Error> {
         // at least one range must be present
         if ranges.is_empty() {
             return Err(Error::InternalError);

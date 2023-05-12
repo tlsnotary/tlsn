@@ -37,9 +37,9 @@ impl SubstringsProof {
 
         // verify each opening against the corresponding commitment
         for opening in self.openings.iter() {
-            let Some(commitment) = commitments.get(&opening.merkle_tree_index()) else {
-                return Err(Error::InternalError)
-            };
+            let commitment = commitments
+                .get(&opening.merkle_tree_index())
+                .expect("commitment should be present");
 
             let opening_slices = opening.verify(header, commitment)?;
 

@@ -1,5 +1,6 @@
 use crate::{
     merkle::MerkleTree, transcript::TranscriptSet, HandshakeData, SubstringsCommitmentSet,
+    Transcript,
 };
 use mpc_core::commit::Decommitment;
 use serde::{Deserialize, Serialize};
@@ -15,13 +16,14 @@ pub struct SessionData {
 impl SessionData {
     pub fn new(
         handshake_data_decommitment: Decommitment<HandshakeData>,
-        transcripts: TranscriptSet,
+        transcript_tx: Transcript,
+        transcript_rx: Transcript,
         merkle_tree: MerkleTree,
         commitments: SubstringsCommitmentSet,
     ) -> Self {
         Self {
             handshake_data_decommitment,
-            transcripts,
+            transcripts: TranscriptSet::new(&[transcript_tx, transcript_rx]),
             merkle_tree,
             commitments,
         }

@@ -1,4 +1,4 @@
-use crate::{error::Error, signature::Signature};
+use crate::signature::Signature;
 use p256::{ecdsa::signature::Verifier, EncodedPoint};
 use serde::{ser::Serializer, Deserialize, Deserializer, Serialize};
 
@@ -46,6 +46,16 @@ impl<'de> Deserialize<'de> for P256 {
     }
 }
 
+/// Errors that can occur during operations with the pubkey
+#[derive(Debug, thiserror::Error, PartialEq)]
+#[allow(missing_docs)]
+pub enum PubKeyError {
+    #[error("Can't construct pubkey from provided bytes")]
+    WrongBytes,
+    #[error("Error during signature verification")]
+    SignatureVerificationError,
+}
+
 /// A public key
 #[derive(Clone, Serialize, Deserialize)]
 pub enum PubKey {
@@ -54,16 +64,16 @@ pub enum PubKey {
 
 impl PubKey {
     /// Constructs pubkey from bytes
-    pub fn from_bytes(typ: KeyType, bytes: &[u8]) -> Result<Self, Error> {
+    pub fn from_bytes(typ: KeyType, bytes: &[u8]) -> Result<Self, PubKeyError> {
         match typ {
             KeyType::P256 => {
                 let point = match EncodedPoint::from_bytes(bytes) {
                     Ok(point) => point,
-                    Err(_) => return Err(Error::InternalError),
+                    Err(_) => return Err(PubKeyError::WrongBytes),
                 };
                 let vk = match p256::ecdsa::VerifyingKey::from_encoded_point(&point) {
                     Ok(vk) => vk,
-                    Err(_) => return Err(Error::InternalError),
+                    Err(_) => return Err(PubKeyError::WrongBytes),
                 };
                 Ok(PubKey::P256(P256::new(vk, point.is_compressed())))
             }
@@ -71,17 +81,15 @@ impl PubKey {
     }
 
     /// Verifies a signature `sig` for the message `msg`
-    pub fn verify(&self, msg: &impl Serialize, sig: &Signature) -> Result<(), Error> {
-        let msg = bincode::serialize(msg).map_err(|_| Error::SerializationError)?;
+    pub fn verify(&self, msg: &impl Serialize, sig: &Signature) -> Result<(), PubKeyError> {
+        let msg = bincode::serialize(msg).expect("should be able to serialize");
 
         match (self, sig) {
             // pubkey and sig types must match
             (PubKey::P256(p256), Signature::P256(sig)) => match p256.key.verify(&msg, sig) {
                 Ok(_) => Ok(()),
-                Err(_) => Err(Error::SignatureVerificationError),
+                Err(_) => Err(PubKeyError::SignatureVerificationError),
             },
-            #[allow(unreachable_patterns)]
-            _ => Err(Error::SignatureAndPubkeyMismatch),
         }
     }
 
@@ -162,7 +170,7 @@ mod test {
         let pubkey_bytes = encoded.as_bytes();
         let key = PubKey::from_bytes(KeyType::P256, pubkey_bytes).unwrap();
 
-        assert!(key.verify(&msg, &sig).err().unwrap() == Error::SignatureVerificationError);
+        assert!(key.verify(&msg, &sig).err().unwrap() == PubKeyError::SignatureVerificationError);
     }
 
     #[rstest]
@@ -175,7 +183,7 @@ mod test {
         let mut rng = ChaCha12Rng::from_seed([1; 32]);
         let msg: [u8; 16] = rng.gen();
 
-        assert!(key.verify(&msg, &sig).err().unwrap() == Error::SignatureVerificationError);
+        assert!(key.verify(&msg, &sig).err().unwrap() == PubKeyError::SignatureVerificationError);
     }
 
     #[rstest]
@@ -192,7 +200,7 @@ mod test {
         bytes[10] = bytes[10].checked_add(1).unwrap_or(0);
         let sig = Signature::P256(p256::ecdsa::Signature::from_der(&bytes).unwrap());
 
-        assert!(key.verify(&msg, &sig).err().unwrap() == Error::SignatureVerificationError);
+        assert!(key.verify(&msg, &sig).err().unwrap() == PubKeyError::SignatureVerificationError);
     }
 
     // Test our custom serialization/deserialization of P256

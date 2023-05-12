@@ -2,7 +2,7 @@
 //#![deny(clippy::all)]
 //#![forbid(unsafe_code)]
 
-//! THis crate contains types used by the Prover, the Notary, and the Verifier
+//! This crate contains types used by the Prover, the Notary, and the Verifier
 
 pub mod cert;
 pub mod commitment;
@@ -73,7 +73,6 @@ pub mod test {
         pubkey::{KeyType, PubKey},
         signer::Signer,
         substrings::substrings_proof::SubstringsProof,
-        transcript::TranscriptSet,
         Direction, HandshakeData, HandshakeSummary, KEData, NotarizedSession, SessionArtifacts,
         SessionData, SessionHeader, SessionHeaderMsg, SessionProof, SubstringsCommitment,
         SubstringsCommitmentSet, Transcript, TranscriptSlice,
@@ -148,7 +147,7 @@ pub mod test {
         let time = testdata.time;
 
         // merkle tree of all User's commitments (the root of the tree was sent to the Notary earlier)
-        let merkle_tree = MerkleTree::from_leaves(&[commit1, commit2]);
+        let merkle_tree = MerkleTree::from_leaves(&[commit1, commit2]).unwrap();
 
         // encoder seed revealed by the Notary at the end of the label commitment protocol
         let encoder_seed: [u8; 32] = notary_encoder_seed;
@@ -190,7 +189,7 @@ pub mod test {
 
         let header = SessionHeader::new(
             notary_encoder_seed,
-            merkle_tree.root().unwrap(),
+            merkle_tree.root(),
             data_sent.len() as u32,
             data_recv.len() as u32,
             // the session's end time and TLS handshake start time may be a few mins apart
@@ -214,7 +213,8 @@ pub mod test {
 
         let data = SessionData::new(
             artifacts.handshake_data_decommitment().clone(),
-            TranscriptSet::new(&[transcript_tx, transcript_rx]),
+            transcript_tx,
+            transcript_rx,
             artifacts.merkle_tree().clone(),
             SubstringsCommitmentSet::new(commitments),
         );

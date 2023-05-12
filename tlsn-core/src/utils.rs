@@ -89,7 +89,6 @@ fn is_overlapping_or_adjacent(a: &Range<u32>, b: &Range<u32>) -> bool {
 
     // Note that even if ranges do not overlap, they may still be adjacent if
     // ov_start == ov_end
-    // (prevent overflow panic by casting into i64)
     ov_end as i64 - ov_start as i64 >= 0
 }
 

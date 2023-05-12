@@ -48,7 +48,7 @@ impl SessionHeader {
         match (pubkey, &msg.signature) {
             (Some(pubkey), Some(_)) => msg.verify(pubkey),
             (None, None) => msg.get_header(),
-            _ => Err(Error::InternalError),
+            _ => Err(Error::MalformedSessionHeaderMsg),
         }
     }
 
@@ -59,7 +59,7 @@ impl SessionHeader {
     /// Check this header against User's artifacts
     pub fn check_artifacts(&self, artifacts: &SessionArtifacts) -> Result<(), Error> {
         if self.handshake_summary.time() - artifacts.time() > 300
-            || self.merkle_root != artifacts.merkle_tree().root()?
+            || self.merkle_root != artifacts.merkle_tree().root()
             || &self.encoder_seed != artifacts.encoder_seed()
             || artifacts
                 .handshake_data_decommitment()

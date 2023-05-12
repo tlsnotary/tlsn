@@ -9,7 +9,7 @@ use crate::{
         substrings_proof::SubstringsProof,
     },
     Commitment, Direction, InclusionProof, SessionData, SessionHeader, SessionHeaderMsg,
-    SessionProof, SubstringsCommitment, SubstringsCommitmentSet,
+    SessionProof, SubstringsCommitment, SubstringsCommitmentSet, Transcript,
 };
 
 #[derive(Serialize, Deserialize)]
@@ -65,10 +65,7 @@ impl NotarizedSession {
             } else {
                 self.data().transcripts().get_by_id("rx")
             };
-            let transcript = match transcript {
-                Some(t) => t,
-                None => return Err(Error::InternalError),
-            };
+            let transcript: &Transcript = transcript.expect("transcript should be available");
 
             let bytes: Vec<u8> = transcript.get_bytes_in_ranges(com.ranges())?;
 

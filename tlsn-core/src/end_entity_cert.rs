@@ -1,6 +1,5 @@
 use crate::{
     cert::Cert,
-    error::Error,
     handshake_data::{ServerSigAlg, ServerSignature},
 };
 use serde::{Deserialize, Serialize};
@@ -26,6 +25,14 @@ static SUPPORTED_SIG_ALGS: SignatureAlgorithms = &[
     &webpki::RSA_PKCS1_3072_8192_SHA384,
 ];
 
+// An error that can occur during various operations with `EndEntityCert`
+#[derive(Debug, thiserror::Error, PartialEq)]
+#[allow(missing_docs)]
+pub enum EndEntityCertError {
+    #[error("webpki error: {0}")]
+    WebpkiError(String),
+}
+
 /// An x509 end-entity cerificate
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct EndEntityCert {
@@ -43,11 +50,11 @@ impl EndEntityCert {
         &self,
         intermediate_certs: &[Cert],
         time: u64,
-    ) -> Result<(), Error> {
+    ) -> Result<(), EndEntityCertError> {
         let time = webpki::Time::from_seconds_since_unix_epoch(time);
 
         let cert = webpki_EndEntityCert::try_from(self.der.as_slice())
-            .map_err(|e| Error::WebpkiError(e.to_string()))?;
+            .map_err(|e| EndEntityCertError::WebpkiError(e.to_string()))?;
 
         // convert a vec of `IntermCert` into a slice of slices
         let interm: Vec<Vec<u8>> = intermediate_certs.iter().map(|c| c.as_bytes()).collect();
@@ -55,7 +62,7 @@ impl EndEntityCert {
         let interm = interm.as_slice();
 
         cert.verify_is_valid_tls_server_cert(SUPPORTED_SIG_ALGS, &TLS_SERVER_ROOTS, interm, time)
-            .map_err(|e| Error::WebpkiError(e.to_string()))
+            .map_err(|e| EndEntityCertError::WebpkiError(e.to_string()))
     }
 
     /// Wraps [webpki::EndEntityCert]'s `verify_signature`
@@ -63,31 +70,29 @@ impl EndEntityCert {
         &self,
         msg: &[u8],
         server_signature: &ServerSignature,
-    ) -> Result<(), Error> {
+    ) -> Result<(), EndEntityCertError> {
         let sigalg = match &server_signature.alg() {
             ServerSigAlg::RSA_PKCS1_2048_8192_SHA256 => &webpki::RSA_PKCS1_2048_8192_SHA256,
             ServerSigAlg::ECDSA_P256_SHA256 => &webpki::ECDSA_P256_SHA256,
-            #[allow(unreachable_patterns)]
-            _ => return Err(Error::UnknownSigningAlgorithmInKeyExchange),
         };
 
         let cert = webpki_EndEntityCert::try_from(self.der.as_slice())
-            .map_err(|e| Error::WebpkiError(e.to_string()))?;
+            .map_err(|e| EndEntityCertError::WebpkiError(e.to_string()))?;
 
         cert.verify_signature(sigalg, msg, server_signature.sig())
-            .map_err(|e| Error::WebpkiError(e.to_string()))
+            .map_err(|e| EndEntityCertError::WebpkiError(e.to_string()))
     }
 
     /// Wraps [webpki::EndEntityCert]'s `verify_is_valid_for_dns_name`
-    pub fn verify_is_valid_for_dns_name(&self, dns_name: &str) -> Result<(), Error> {
+    pub fn verify_is_valid_for_dns_name(&self, dns_name: &str) -> Result<(), EndEntityCertError> {
         let dns_name = webpki::DnsNameRef::try_from_ascii_str(dns_name)
-            .map_err(|e| Error::WebpkiError(e.to_string()))?;
+            .map_err(|e| EndEntityCertError::WebpkiError(e.to_string()))?;
 
         let cert = webpki_EndEntityCert::try_from(self.der.as_slice())
-            .map_err(|e| Error::WebpkiError(e.to_string()))?;
+            .map_err(|e| EndEntityCertError::WebpkiError(e.to_string()))?;
 
         cert.verify_is_valid_for_dns_name(dns_name)
-            .map_err(|e| Error::WebpkiError(e.to_string()))
+            .map_err(|e| EndEntityCertError::WebpkiError(e.to_string()))
     }
 }
 
@@ -226,7 +231,7 @@ pub(crate) mod test {
 
         assert_eq!(
             err.unwrap_err(),
-            Error::WebpkiError("CertNotValidYet".to_string())
+            EndEntityCertError::WebpkiError("CertNotValidYet".to_string())
         );
     }
 
@@ -239,7 +244,7 @@ pub(crate) mod test {
 
         assert_eq!(
             err.unwrap_err(),
-            Error::WebpkiError("UnknownIssuer".to_string())
+            EndEntityCertError::WebpkiError("UnknownIssuer".to_string())
         );
     }
 
@@ -254,7 +259,7 @@ pub(crate) mod test {
 
         assert_eq!(
             err.unwrap_err(),
-            Error::WebpkiError("UnknownIssuer".to_string())
+            EndEntityCertError::WebpkiError("UnknownIssuer".to_string())
         );
     }
 
@@ -270,7 +275,7 @@ pub(crate) mod test {
 
         assert_eq!(
             err.unwrap_err(),
-            Error::WebpkiError("UnknownIssuer".to_string())
+            EndEntityCertError::WebpkiError("UnknownIssuer".to_string())
         );
     }
 
@@ -290,7 +295,7 @@ pub(crate) mod test {
 
         assert_eq!(
             err.unwrap_err(),
-            Error::WebpkiError("UnknownIssuer".to_string())
+            EndEntityCertError::WebpkiError("UnknownIssuer".to_string())
         );
     }
 
@@ -330,7 +335,7 @@ pub(crate) mod test {
 
         assert_eq!(
             err.unwrap_err(),
-            Error::WebpkiError("InvalidSignatureForPublicKey".to_string())
+            EndEntityCertError::WebpkiError("InvalidSignatureForPublicKey".to_string())
         );
     }
 
@@ -355,7 +360,7 @@ pub(crate) mod test {
 
         assert_eq!(
             err.unwrap_err(),
-            Error::WebpkiError("InvalidSignatureForPublicKey".to_string())
+            EndEntityCertError::WebpkiError("InvalidSignatureForPublicKey".to_string())
         );
     }
 
@@ -379,7 +384,7 @@ pub(crate) mod test {
         let _str = String::from("CertNotValidForName");
         assert_eq!(
             err.unwrap_err(),
-            Error::WebpkiError("CertNotValidForName".to_string())
+            EndEntityCertError::WebpkiError("CertNotValidForName".to_string())
         );
     }
 
@@ -394,7 +399,7 @@ pub(crate) mod test {
 
         assert_eq!(
             err.unwrap_err(),
-            Error::WebpkiError("InvalidDnsNameError".to_string())
+            EndEntityCertError::WebpkiError("InvalidDnsNameError".to_string())
         );
     }
 }
