@@ -96,7 +96,7 @@ impl Handler<Setup> for KOSSenderActor {
             ));
         };
 
-        let parent_ot_channel = self.mux_control.get_channel(self.config.id.clone()).await?;
+        let parent_ot_channel = self.mux_control.get_channel(format!("{}/parent", self.config.id)).await?;
         let mut parent_ot = Kos15IOSender::new(parent_ot_channel);
 
         if self.config.committed {
