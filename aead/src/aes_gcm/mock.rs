@@ -2,9 +2,8 @@
 
 use block_cipher::{BlockCipherConfigBuilder, MpcBlockCipher};
 use mpc_garble::{Decode, DecodePrivate, Execute, Memory, Prove, Verify, Vm};
-use mpc_share_conversion::conversion::recorder::Void;
 use tlsn_stream_cipher::{MpcStreamCipher, StreamCipherConfigBuilder};
-use tlsn_universal_hash::ghash::mock_ghash_pair;
+use tlsn_universal_hash::ghash::{mock_ghash_pair, GhashConfig};
 use utils_aio::duplex::DuplexChannel;
 
 use super::*;
@@ -67,7 +66,18 @@ where
             .unwrap(),
     );
 
-    let (leader_ghash, follower_ghash) = mock_ghash_pair::<Void, Void>(64);
+    let (leader_ghash, follower_ghash) = mock_ghash_pair(
+        GhashConfig::builder()
+            .id(format!("{}/ghash", id))
+            .initial_block_count(64)
+            .build()
+            .unwrap(),
+        GhashConfig::builder()
+            .id(format!("{}/ghash", id))
+            .initial_block_count(64)
+            .build()
+            .unwrap(),
+    );
 
     let (leader_channel, follower_channel) = DuplexChannel::new();
 
