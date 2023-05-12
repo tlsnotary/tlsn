@@ -159,13 +159,21 @@ impl DEAP {
     {
         let input_configs = self.state().remove_input_configs(inputs);
 
+        let id_0 = format!("{}/0", id);
+        let id_1 = format!("{}/1", id);
+
+        let (gen_id, ev_id) = match self.role {
+            Role::Leader => (id_0, id_1),
+            Role::Follower => (id_1, id_0),
+        };
+
         // Setup inputs concurrently.
         futures::try_join!(
             self.gen
-                .setup_inputs(id, &input_configs, sink, ot_send)
+                .setup_inputs(&gen_id, &input_configs, sink, ot_send)
                 .map_err(DEAPError::from),
             self.ev
-                .setup_inputs(id, &input_configs, stream, ot_recv)
+                .setup_inputs(&ev_id, &input_configs, stream, ot_recv)
                 .map_err(DEAPError::from)
         )?;
 
