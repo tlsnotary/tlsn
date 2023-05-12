@@ -16,7 +16,7 @@ impl Gf2_128 {
     /// Creates a new field element from a u128,
     /// mapping the integer to the corresponding polynomial
     ///
-    /// For example, 3u128 is mapped to the polynomial `1 + x^2`
+    /// For example, 5u128 is mapped to the polynomial `1 + x^2`
     pub fn new(input: u128) -> Self {
         Gf2_128(input.reverse_bits())
     }
