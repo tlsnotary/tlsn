@@ -137,35 +137,3 @@ where
         Ok(())
     }
 }
-
-// #[async_trait]
-// impl<F> AdditiveToMultiplicative<F> for GilboaReceiver<F>
-// where
-//     F: Field,
-// {
-//     async fn to_multiplicative(&self, input: Vec<F>) -> Result<Vec<F>, ShareConversionError> {
-//         let output = self.convert_from::<AddShare<F>>(&input).await?;
-
-//         if let Some(recorder) = self.state.lock().unwrap().a2m_tape.as_mut() {
-//             recorder.record(&input, &output);
-//         }
-
-//         Ok(output)
-//     }
-// }
-
-// #[async_trait]
-// impl<F> MultiplicativeToAdditive<F> for GilboaReceiver<F>
-// where
-//     F: Field,
-// {
-//     async fn to_additive(&self, input: Vec<F>) -> Result<Vec<F>, ShareConversionError> {
-//         let output = self.convert_from::<MulShare<F>>(&input).await?;
-
-//         if let Some(recorder) = self.state.lock().unwrap().m2a_tape.as_mut() {
-//             recorder.record(&input, &output);
-//         }
-
-//         Ok(output)
-//     }
-// }
