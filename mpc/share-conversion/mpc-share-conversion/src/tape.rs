@@ -43,8 +43,6 @@ impl<F: Field> ReceiverTape<F> {
         self.outputs.extend_from_slice(outputs);
     }
 
-    // TODO: fix this clippy warning
-    #[allow(clippy::result_large_err)]
     pub(crate) fn verify(
         &self,
         seed: [u8; 32],
