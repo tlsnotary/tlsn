@@ -1,5 +1,7 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
-use mpc_share_conversion_core::fields::gf2_128::Gf2_128;
+use mpc_core::Block;
 
 use crate::{
     ghash::ghash_core::{
@@ -8,7 +10,7 @@ use crate::{
     },
     UniversalHash, UniversalHashError,
 };
-use mpc_share_conversion::{AdditiveToMultiplicative, MultiplicativeToAdditive};
+use mpc_share_conversion::{Gf2_128, ShareConversion};
 
 mod config;
 #[cfg(feature = "mock")]
@@ -25,22 +27,16 @@ enum State {
 /// This is the common instance used by both sender and receiver
 ///
 /// It is an aio wrapper which mostly uses [GhashCore] for computation
-pub struct Ghash<T, U>
-where
-    T: AdditiveToMultiplicative<Gf2_128>,
-    U: MultiplicativeToAdditive<Gf2_128>,
-{
+pub struct Ghash<C> {
     state: State,
     config: GhashConfig,
 
-    a2m_converter: T,
-    m2a_converter: U,
+    converter: C,
 }
 
-impl<T, U> Ghash<T, U>
+impl<C> Ghash<C>
 where
-    T: AdditiveToMultiplicative<Gf2_128>,
-    U: MultiplicativeToAdditive<Gf2_128>,
+    C: ShareConversion<Gf2_128> + Send + Sync,
 {
     /// Creates a new instance
     ///
@@ -49,12 +45,11 @@ where
     ///                           shares
     /// * `m2a_converter`       - An instance which allows to convert multiplicative into additive
     ///                           shares
-    pub fn new(config: GhashConfig, a2m_converter: T, m2a_converter: U) -> Self {
+    pub fn new(config: GhashConfig, converter: C) -> Self {
         Self {
             state: State::Init,
             config,
-            a2m_converter,
-            m2a_converter,
+            converter,
         }
     }
 
@@ -67,7 +62,7 @@ where
     ) -> Result<GhashCore<Finalized>, UniversalHashError> {
         let odd_mul_shares = core.odd_mul_shares();
 
-        let add_shares = self.m2a_converter.m_to_a(odd_mul_shares).await?;
+        let add_shares = self.converter.to_additive(odd_mul_shares).await?;
         let core = core.add_new_add_shares(&add_shares);
 
         Ok(core)
@@ -75,10 +70,9 @@ where
 }
 
 #[async_trait]
-impl<T, U> UniversalHash for Ghash<T, U>
+impl<C> UniversalHash for Ghash<C>
 where
-    T: AdditiveToMultiplicative<Gf2_128> + Send,
-    U: MultiplicativeToAdditive<Gf2_128> + Send,
+    C: ShareConversion<Gf2_128> + Send + Sync,
 {
     async fn set_key(&mut self, key: Vec<u8>) -> Result<(), UniversalHashError> {
         if key.len() != 16 {
@@ -94,8 +88,8 @@ where
         let mut h_additive = [0u8; 16];
         h_additive.copy_from_slice(key.as_slice());
 
-        let h_additive = Gf2_128::new(u128::from_be_bytes(h_additive));
-        let h_multiplicative = self.a2m_converter.a_to_m(vec![h_additive]).await?;
+        let h_additive = Gf2_128::new_from_block(Block::from(h_additive));
+        let h_multiplicative = self.converter.to_multiplicative(vec![h_additive]).await?;
 
         let core = GhashCore::new(self.config.initial_block_count);
         let core = core.compute_odd_mul_powers(h_multiplicative[0]);
@@ -140,7 +134,7 @@ where
             .map(|chunk| {
                 let mut block = [0u8; 16];
                 block.copy_from_slice(chunk);
-                Gf2_128::new(u128::from_be_bytes(block))
+                Gf2_128::new_from_block(Block::from(block))
             })
             .collect::<Vec<Gf2_128>>();
 
@@ -151,20 +145,29 @@ where
         // Reinsert state
         self.state = State::Ready { core };
 
-        Ok(tag.into_inner().to_be_bytes().to_vec())
+        Ok(tag.to_block().to_be_bytes().to_vec())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{mock::mock_ghash_pair, UniversalHash};
+    use super::{mock::mock_ghash_pair, GhashConfig, UniversalHash};
     use ghash_rc::{
         universal_hash::{NewUniversalHash, UniversalHash as UniversalHashReference},
         GHash as GhashReference,
     };
-    use mpc_share_conversion::conversion::recorder::Void;
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
+
+    fn create_pair(id: &str, block_count: usize) -> (impl UniversalHash, impl UniversalHash) {
+        let config = GhashConfig::builder()
+            .id(id)
+            .initial_block_count(block_count)
+            .build()
+            .unwrap();
+
+        mock_ghash_pair(config.clone(), config)
+    }
 
     #[tokio::test]
     async fn test_ghash_output() {
@@ -174,7 +177,7 @@ mod tests {
         let receiver_key: u128 = h ^ sender_key;
         let message: Vec<u8> = (0..128).map(|_| rng.gen()).collect();
 
-        let (mut sender, mut receiver) = mock_ghash_pair::<Void, Void>(message.len());
+        let (mut sender, mut receiver) = create_pair("test", 1);
 
         let (sender_setup_fut, receiver_setup_fut) = (
             sender.set_key(sender_key.to_be_bytes().to_vec()),
@@ -211,7 +214,7 @@ mod tests {
         // Message length is not a multiple of the block length
         let message: Vec<u8> = (0..126).map(|_| rng.gen()).collect();
 
-        let (mut sender, mut receiver) = mock_ghash_pair::<Void, Void>(message.len());
+        let (mut sender, mut receiver) = create_pair("test", 1);
 
         let (sender_setup_fut, receiver_setup_fut) = (
             sender.set_key(sender_key.to_be_bytes().to_vec()),
@@ -250,7 +253,7 @@ mod tests {
         let long_message: Vec<u8> = (0..192).map(|_| rng.gen()).collect();
 
         // Create and setup sender and receiver for short message length
-        let (mut sender, mut receiver) = mock_ghash_pair::<Void, Void>(short_message.len());
+        let (mut sender, mut receiver) = create_pair("test", 1);
 
         let (sender_setup_fut, receiver_setup_fut) = (
             sender.set_key(sender_key.to_be_bytes().to_vec()),
@@ -301,7 +304,7 @@ mod tests {
 
     fn ghash_reference_impl(h: u128, message: &[u8]) -> Vec<u8> {
         let mut ghash = GhashReference::new(&h.to_be_bytes().into());
-        ghash.update_padded(&message);
+        ghash.update_padded(message);
         let mac = ghash.finalize();
         mac.into_bytes().to_vec()
     }

@@ -6,11 +6,13 @@ mod conversion;
 #[cfg(feature = "mock")]
 pub mod mock;
 
-pub use conversion::{Converter, Role};
+pub use conversion::{MpcPointAddition, Role};
+
+pub use mpc_share_conversion_core::fields::p256::P256;
 
 #[derive(Debug, thiserror::Error)]
 pub enum PointAdditionError {
-    #[error("ShareConversionError: {0}")]
+    #[error(transparent)]
     ShareConversion(#[from] ShareConversionError),
     #[error("Unable to get coordinates from elliptic curve point")]
     Coordinates,
@@ -33,9 +35,9 @@ pub trait PointAddition {
 
 #[cfg(test)]
 mod tests {
-    use super::mock::create_mock_point_converter_pair;
-    use crate::{conversion::point_to_p256, PointAddition};
+    use crate::{conversion::point_to_p256, mock::mock_point_converter_pair, PointAddition};
     use mpc_core::Block;
+    use mpc_share_conversion_core::fields::p256::P256;
     use p256::{
         elliptic_curve::{
             ops::Reduce,
@@ -45,7 +47,6 @@ mod tests {
     };
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
-    use mpc_share_conversion_core::fields::p256::P256;
 
     #[tokio::test]
     async fn test_point_conversion() {
@@ -59,7 +60,7 @@ mod tests {
 
         let p = add_curve_points(&p1, &p2);
 
-        let (mut c1, mut c2) = create_mock_point_converter_pair();
+        let (mut c1, mut c2) = mock_point_converter_pair("test");
 
         let c1_fut = c1.compute_x_coordinate_share(p1);
         let c2_fut = c2.compute_x_coordinate_share(p2);

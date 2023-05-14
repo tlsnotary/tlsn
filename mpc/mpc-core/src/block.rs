@@ -133,6 +133,18 @@ impl Block {
     }
 }
 
+/// A trait for converting a type to blocks
+pub trait BlockSerialize {
+    /// The block representation of the type
+    type Serialized: std::fmt::Debug + Clone + Copy + Send + Sync + 'static;
+
+    /// Convert the type to blocks
+    fn to_blocks(self) -> Self::Serialized;
+
+    /// Convert the blocks to the type
+    fn from_blocks(blocks: Self::Serialized) -> Self;
+}
+
 impl ToBitsIter for Block {
     type Lsb0Iter = <u128 as ToBitsIter>::Lsb0Iter;
 

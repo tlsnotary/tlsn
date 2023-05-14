@@ -8,4 +8,4 @@ pub mod hash;
 pub mod utils;
 pub mod value;
 
-pub use block::Block;
+pub use block::{Block, BlockSerialize};
