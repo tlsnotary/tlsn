@@ -86,7 +86,7 @@ where
 #[async_trait]
 impl<C> PointAddition for MpcPointAddition<P256, C>
 where
-    C: ShareConversion<P256> + Send,
+    C: ShareConversion<P256> + Send + Sync,
 {
     type Point = EncodedPoint;
     type XCoordinate = P256;

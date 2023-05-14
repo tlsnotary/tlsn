@@ -41,14 +41,14 @@ pub type ShareConversionChannel<T> =
 
 /// A trait for converting additive shares into multiplicative shares.
 #[async_trait]
-pub trait AdditiveToMultiplicative<T: Field>: Sync {
+pub trait AdditiveToMultiplicative<T: Field> {
     /// Converts additive shares into multiplicative shares
     async fn to_multiplicative(&self, input: Vec<T>) -> Result<Vec<T>, ShareConversionError>;
 }
 
 /// A trait for converting multiplicative shares into additive shares.
 #[async_trait]
-pub trait MultiplicativeToAdditive<T: Field>: Sync {
+pub trait MultiplicativeToAdditive<T: Field> {
     /// Converts multiplicative shares into additive shares
     async fn to_additive(&self, input: Vec<T>) -> Result<Vec<T>, ShareConversionError>;
 }
