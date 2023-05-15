@@ -17,8 +17,6 @@ pub(crate) struct GetReceiver {
     pub(crate) count: usize,
 }
 
-pub(crate) struct MarkForReveal(pub(crate) String);
-
 pub(crate) struct Reveal;
 
 pub(crate) struct SendBackSender {
