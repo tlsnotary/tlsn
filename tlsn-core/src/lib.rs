@@ -41,9 +41,11 @@ pub use substrings::{
 };
 pub use transcript::{Direction, Transcript, TranscriptSlice};
 
-/// The maximum allowed total size of all committed data. Used to prevent DoS during verification.
+/// The maximum allowed total bytelength of all committed data. Used to prevent DoS during verification.
 /// (this will cause the verifier to hash up to a max of 1GB * 128 = 128GB of labels if the
-/// commitment type is [crate::commitment::Blake3])
+/// commitment type is [crate::commitment::Blake3]).
+///
+/// This value must not exceed bcs's MAX_SEQUENCE_LENGTH limit (which is (1 << 31) - 1 by default)
 const MAX_TOTAL_COMMITTED_DATA: u64 = 1_000_000_000;
 
 use mpc_core::utils::blake3;
@@ -79,7 +81,7 @@ pub mod test {
     };
     use mpc_circuits::types::ValueType;
     use mpc_core::commit::HashCommit;
-    use mpc_garble_core::{ChaChaEncoder, EncodedValue, Encoder};
+    use mpc_garble_core::{encoding_state::Active, ChaChaEncoder, EncodedValue, Encoder};
     use rand_chacha::ChaCha20Rng;
     use rand_core::SeedableRng;
     use std::ops::Range;
@@ -254,5 +256,26 @@ pub mod test {
 
         assert!(sent_slices == vec![TranscriptSlice::new(range1, b"se".to_vec())]);
         assert!(recv_slices == vec![TranscriptSlice::new(range2, b"ec".to_vec())])
+    }
+
+    // Test that Vec<EncodedValue<Active>> serializes/deserializes correctly using bcs
+    #[test]
+    fn test_bcs_serialization() {
+        // generate random active encodings
+        let encoder = ChaChaEncoder::new([0u8; 32]);
+        let active_encodings: Vec<EncodedValue<Active>> = (0..10_000)
+            .map(|i| {
+                encoder
+                    .encode_by_type(i, &ValueType::U8)
+                    .select(55u8)
+                    .unwrap()
+            })
+            .collect();
+
+        // serialize and then deserialize
+        let bytes = bcs::to_bytes(&active_encodings).unwrap();
+        let active_encodings2: Vec<EncodedValue<Active>> = bcs::from_bytes(&bytes).unwrap();
+
+        assert_eq!(active_encodings, active_encodings2)
     }
 }

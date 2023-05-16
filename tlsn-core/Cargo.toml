@@ -25,3 +25,4 @@ tlsn-utils = { path = "../utils/utils" }
 [dev-dependencies]
 rstest = "0.12"
 hex = "0.4"
+bcs = "0.1.5"
