@@ -18,7 +18,7 @@ pub struct Nonce([u8; 32]);
 
 impl Nonce {
     /// Creates a random 32 byte nonce
-    pub fn random() -> Self {
+    fn random() -> Self {
         Self(thread_rng().gen())
     }
 }
@@ -45,6 +45,11 @@ where
         }
     }
 
+    /// Creates a new decommitment with the provided nonce
+    pub fn new_with_nonce(data: T, nonce: Nonce) -> Self {
+        Self { nonce, data }
+    }
+
     /// Creates a hash commitment
     pub fn commit(&self) -> Hash {
         self.hash()
@@ -62,6 +67,11 @@ where
     /// Returns the data
     pub fn data(&self) -> &T {
         &self.data
+    }
+
+    /// Returns the nonce
+    pub fn nonce(&self) -> &Nonce {
+        &self.nonce
     }
 
     /// Returns the data
