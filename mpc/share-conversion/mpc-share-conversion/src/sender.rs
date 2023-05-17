@@ -98,7 +98,7 @@ where
             (new_shares, all_summands, ot_id)
         };
 
-        // Send OT shares to the receiver and increment batch counter
+        // Send OT shares to the receiver
         ot.send(&ot_id, summands).await?;
 
         Ok(new_shares)

@@ -5,7 +5,7 @@ use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 
 /// A tape which allows to record inputs and outputs of the conversion.
-/// The sender can reveal his tape (thus revealing all his secret inputs) to the receiver
+/// The sender can reveal his tape (and rng seed for generating shares) to the receiver
 /// who will check it against her tape to detect any malicious behaviour of the sender.
 pub(crate) struct SenderTape<F> {
     pub(crate) inputs: Vec<Share<F>>,
