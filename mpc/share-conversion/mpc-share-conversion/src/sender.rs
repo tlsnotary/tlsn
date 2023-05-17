@@ -4,7 +4,7 @@ use std::sync::Mutex;
 
 use futures::{Sink, SinkExt};
 use rand::SeedableRng;
-use rand_chacha::ChaCha12Rng;
+use rand_chacha::ChaCha20Rng;
 
 use mpc_share_conversion_core::{
     fields::Field,
@@ -25,7 +25,7 @@ where
 }
 
 pub(crate) struct State<F: Field> {
-    rng: ChaCha12Rng,
+    rng: ChaCha20Rng,
     pub(crate) tape: Option<SenderTape<F>>,
     /// keeps track of how many batched share conversions we've made so far
     counter: usize,
@@ -44,7 +44,7 @@ where
 {
     /// Create a new sender
     pub fn new(config: SenderConfig) -> Self {
-        let rng = ChaCha12Rng::from_entropy();
+        let rng = ChaCha20Rng::from_entropy();
         let tape = config.record().then(SenderTape::default);
 
         Self {

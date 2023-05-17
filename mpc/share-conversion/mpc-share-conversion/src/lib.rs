@@ -103,7 +103,7 @@ mod tests {
         ShareType,
     };
     use rand::SeedableRng;
-    use rand_chacha::ChaCha12Rng;
+    use rand_chacha::ChaCha20Rng;
 
     fn create_pair<F: Field>() -> (GilboaSender<F>, GilboaReceiver<F>) {
         (
@@ -132,7 +132,7 @@ mod tests {
         let (ot_sender, ot_receiver) = mock_ot_pair();
         let (mut sender_channel, mut receiver_channel) = DuplexChannel::new();
         let (mut sender, mut receiver) = create_pair::<T>();
-        let mut rng = ChaCha12Rng::from_seed([0; 32]);
+        let mut rng = ChaCha20Rng::from_seed([0; 32]);
 
         // Create some random shares
         let sender_shares = (0..16)
