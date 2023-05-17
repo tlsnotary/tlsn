@@ -12,6 +12,8 @@ use crate::{
 /// The share conversion sender
 pub struct ConverterSender<F: Field, OT> {
     ot: OT,
+    // Sender is wrapped in an option so that we can take ownership of it in `finalize`
+    // This prevents the sender from being used after finalization
     sender: Option<Arc<GilboaSender<F>>>,
     channel: ShareConversionChannel<F>,
 }
@@ -100,6 +102,7 @@ where
 }
 
 /// A handle to a sender
+#[derive(Clone)]
 pub struct ConverterSenderHandle<F: Field, OT> {
     ot: OT,
     sender: Weak<GilboaSender<F>>,
@@ -146,6 +149,8 @@ where
 /// The share conversion receiver
 pub struct ConverterReceiver<F: Field, OT> {
     ot: OT,
+    // Receiver is wrapped in an option so that we can take ownership of it in `finalize`
+    // This prevents the receiver from being used after finalization
     receiver: Option<Arc<GilboaReceiver<F>>>,
     channel: ShareConversionChannel<F>,
 }
@@ -234,6 +239,7 @@ where
 }
 
 /// A handle to a receiver
+#[derive(Clone)]
 pub struct ConverterReceiverHandle<F: Field, OT> {
     ot: OT,
     receiver: Weak<GilboaReceiver<F>>,
