@@ -175,7 +175,7 @@ impl BlockSerialize for P256 {
 mod tests {
     use super::P256;
     use crate::fields::{
-        tests::{test_field_basic, test_field_compute_product_repeated},
+        tests::{test_field_basic, test_field_bit_ops, test_field_compute_product_repeated},
         Field,
     };
 
@@ -189,5 +189,10 @@ mod tests {
     #[test]
     fn test_p256_compute_product_repeated() {
         test_field_compute_product_repeated::<P256>();
+    }
+
+    #[test]
+    fn test_p256_bit_ops() {
+        test_field_bit_ops::<P256>();
     }
 }

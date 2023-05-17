@@ -11,8 +11,6 @@ use utils::bits::{FromBits, ToBits};
 use super::Field;
 
 /// A type for holding field elements of Gf(2^128)
-///
-/// Uses internally an  LSB0 encoding
 #[derive(Copy, Clone, PartialOrd, Ord, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Gf2_128(pub(crate) u128);
 
@@ -24,17 +22,12 @@ impl Gf2_128 {
     ///
     /// For example, 5u128 is mapped to the polynomial `1 + x^2`
     pub fn new(input: u128) -> Self {
-        Gf2_128(input.reverse_bits())
+        Gf2_128(input)
     }
 
-    /// Creates a new field element from a block.
-    pub fn new_from_block(block: Block) -> Self {
-        Gf2_128(block.inner())
-    }
-
-    /// Returns the element as a block
-    pub fn to_block(&self) -> Block {
-        Block::new(self.0)
+    /// Returns the field element as a u128
+    pub fn to_inner(self) -> u128 {
+        self.0
     }
 }
 
@@ -46,7 +39,7 @@ impl From<Gf2_128> for Block {
 
 impl From<Block> for Gf2_128 {
     fn from(block: Block) -> Self {
-        Gf2_128::new_from_block(block)
+        Gf2_128(block.inner())
     }
 }
 
@@ -69,19 +62,27 @@ impl Mul for Gf2_128 {
     type Output = Self;
 
     /// Galois field multiplication of two 128-bit blocks reduced by the GCM polynomial
-    fn mul(self, y: Self) -> Self::Output {
-        /// See NIST SP 800-38D, Recommendation for Block Cipher Modes of Operation: Galois/Counter Mode (GCM) and GMAC
-        const R: u128 = 0xE1000000000000000000000000000000;
+    fn mul(self, rhs: Self) -> Self::Output {
+        // See NIST SP 800-38D, Recommendation for Block Cipher Modes of Operation: Galois/Counter Mode (GCM) and GMAC
+        //
+        // Note that the NIST specification uses a different representation of the polynomial, where the bits are
+        // reversed. This "bit reflection" is discussed in Intel® Carry-Less Multiplication Instruction and its Usage for Computing the GCM Mode
+        //
+        // The irreducible polynomial is the same, ie `x^128 + x^7 + x^2 + x + 1`
 
-        let x = self.0;
+        const R: u128 = 0x00000000000000000000000000000087;
+
+        let mut x = self.0;
+        let mut y = rhs.0;
         let mut z = 0u128;
-        let mut v = y.0;
 
-        for i in (0..128).rev() {
-            if ((x >> i) & 1) == 1 {
-                z ^= v;
-            }
-            v = (v >> 1) ^ ((v & 1) * R);
+        // https://en.wikipedia.org/wiki/Finite_field_arithmetic#C_programming_example
+        //
+        // TODO: Use RustCrypto polyval crate
+        while (x != 0) && (y != 0) {
+            z ^= (y & 1) * x;
+            x = (x << 1) ^ ((x >> 127) * R);
+            y >>= 1;
         }
 
         Gf2_128(z)
@@ -112,7 +113,7 @@ impl Field for Gf2_128 {
     }
 
     fn get_bit(&self, n: usize) -> bool {
-        (self.0 << n) & 1 == 1
+        (self.0 >> n) & 1 == 1
     }
 
     /// Galois field inversion of 128-bit block
@@ -179,7 +180,7 @@ impl BlockSerialize for Gf2_128 {
 mod tests {
     use super::Gf2_128;
     use crate::fields::{
-        tests::{test_field_basic, test_field_compute_product_repeated},
+        tests::{test_field_basic, test_field_bit_ops, test_field_compute_product_repeated},
         Field,
     };
     use ghash_rc::{
@@ -200,6 +201,11 @@ mod tests {
     #[test]
     fn test_gf2_128_compute_product_repeated() {
         test_field_compute_product_repeated::<Gf2_128>();
+    }
+
+    #[test]
+    fn test_gf2_128_bit_ops() {
+        test_field_bit_ops::<Gf2_128>();
     }
 
     #[test]
@@ -226,6 +232,7 @@ mod tests {
     // Test multiplication against RustCrypto
     fn test_gf2_128_against_ghash_impl() {
         let mut rng = ChaCha12Rng::seed_from_u64(0u64);
+
         let a = Block::random(&mut rng);
         let b = Block::random(&mut rng);
 
@@ -233,9 +240,12 @@ mod tests {
         g.update(&b.to_be_bytes().into());
         let expected = Block::from(g.finalize().into_bytes());
 
-        let a = Gf2_128::new_from_block(a);
-        let b = Gf2_128::new_from_block(b);
+        // GHASH reverses the bits of the blocks before performing multiplication
+        // then reverses the output
+        let a: Gf2_128 = a.reverse_bits().into();
+        let b: Gf2_128 = b.reverse_bits().into();
         let output: Block = (a * b).into();
+        let output = output.reverse_bits();
 
         assert_eq!(expected, output);
     }

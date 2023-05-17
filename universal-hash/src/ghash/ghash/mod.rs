@@ -86,7 +86,9 @@ where
         let mut h_additive = [0u8; 16];
         h_additive.copy_from_slice(key.as_slice());
 
-        let h_additive = Gf2_128::new_from_block(Block::from(h_additive));
+        // GHASH reflects the bits of the key
+        let h_additive = Gf2_128::new(u128::from_be_bytes(h_additive).reverse_bits());
+
         let h_multiplicative = self.converter.to_multiplicative(vec![h_additive]).await?;
 
         let core = GhashCore::new(self.config.initial_block_count);
@@ -132,9 +134,9 @@ where
             .map(|chunk| {
                 let mut block = [0u8; 16];
                 block.copy_from_slice(chunk);
-                Gf2_128::new_from_block(Block::from(block))
+                Block::from(block)
             })
-            .collect::<Vec<Gf2_128>>();
+            .collect::<Vec<Block>>();
 
         let tag = core
             .finalize(&blocks)
@@ -143,7 +145,7 @@ where
         // Reinsert state
         self.state = State::Ready { core };
 
-        Ok(tag.to_block().to_be_bytes().to_vec())
+        Ok(tag.to_be_bytes().to_vec())
     }
 }
 

@@ -108,6 +108,12 @@ impl Block {
         Self::new(u128::from_be_bytes(b.into()))
     }
 
+    /// Reverses the bits of the block
+    #[inline]
+    pub fn reverse_bits(self) -> Self {
+        Self(self.0.reverse_bits())
+    }
+
     /// Sets the least significant bit of the block
     #[inline]
     pub fn set_lsb(&mut self) {

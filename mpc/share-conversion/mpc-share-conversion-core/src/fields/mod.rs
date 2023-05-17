@@ -127,4 +127,21 @@ mod tests {
         assert_eq!(powers[1], powers[0] * factor);
         assert_eq!(powers[2], powers[1] * factor);
     }
+
+    pub(crate) fn test_field_bit_ops<T: Field>() {
+        let mut a = vec![false; T::BIT_SIZE as usize];
+        let mut b = vec![false; T::BIT_SIZE as usize];
+
+        a[0] = true;
+        b[T::BIT_SIZE as usize - 1] = true;
+
+        let a = T::from_lsb0(a);
+        let b = T::from_lsb0(b);
+
+        assert_eq!(a, T::one());
+        assert!(a.get_bit(0));
+
+        assert_eq!(b, T::two_pow(T::BIT_SIZE - 1));
+        assert!(b.get_bit((T::BIT_SIZE - 1) as usize));
+    }
 }
