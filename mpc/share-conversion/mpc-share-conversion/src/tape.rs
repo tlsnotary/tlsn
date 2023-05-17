@@ -2,7 +2,7 @@ use crate::TapeVerificationError;
 
 use mpc_share_conversion_core::{fields::Field, Share};
 use rand::SeedableRng;
-use rand_chacha::ChaCha12Rng;
+use rand_chacha::ChaCha20Rng;
 
 /// A tape which allows to record inputs and outputs of the conversion.
 /// The sender can reveal his tape (thus revealing all his secret inputs) to the receiver
@@ -48,7 +48,7 @@ impl<F: Field> ReceiverTape<F> {
         seed: [u8; 32],
         sender_inputs: &[Share<F>],
     ) -> Result<(), TapeVerificationError> {
-        let mut rng = ChaCha12Rng::from_seed(seed);
+        let mut rng = ChaCha20Rng::from_seed(seed);
 
         if sender_inputs.len() != self.inputs.len() {
             return Err(TapeVerificationError::IncorrectLength(
