@@ -1,5 +1,9 @@
-//! This crate provides a protocol for converting secret-shared finite field elements
+//! This crate provides a semi-honest protocol (with optional covert-security) for converting secret-shared finite field elements
 //! between additive and multiplicative representations.
+//!
+//! The protocol is based on `Two Party RSA Key Generation [Gil99]` which devised a method for
+//! converting additive shares of a finite field element into multiplicative shares (A2M). We use a similar technique
+//! to convert multiplicative shares into additive shares (M2A), inspired by `Efficient Secure Two-Party Exponentiation [YCCL11]`.
 
 #![deny(missing_docs, unreachable_pub, unused_must_use)]
 #![deny(clippy::all)]
