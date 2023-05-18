@@ -14,7 +14,7 @@ use mpc_circuits::{
     Circuit,
 };
 use mpc_core::value::ValueRef;
-use mpc_garble_core::msg::GarbleMessage;
+use mpc_garble_core::{encoding_state::Active, msg::GarbleMessage, EncodedValue};
 use utils::id::NestedId;
 use utils_aio::{mux::MuxChannelControl, Channel};
 
@@ -25,7 +25,10 @@ use crate::{
     ProveError, Thread, Verify, VerifyError, Vm, VmError,
 };
 
-use super::{error::FinalizationError, DEAPError, DEAP};
+use super::{
+    error::{FinalizationError, PeerEncodingsError},
+    DEAPError, DEAP,
+};
 
 type ChannelFactory = Box<dyn MuxChannelControl<GarbleMessage> + Send + 'static>;
 type GarbleChannel = Box<dyn Channel<GarbleMessage, Error = std::io::Error>>;
@@ -430,6 +433,48 @@ where
     }
 }
 
+/// This trait provides methods to get peer's encodings.
+trait PeerEncodings {
+    /// Returns the peer's encodings of the provided **input** values.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the input value is not found or its encoding is not available.
+    fn get_peer_encodings(
+        &self,
+        value_ids: &[&str],
+    ) -> Result<Vec<EncodedValue<Active>>, PeerEncodingsError>;
+}
+
+impl<OTS, OTR> PeerEncodings for DEAPVm<OTS, OTR> {
+    fn get_peer_encodings(
+        &self,
+        value_ids: &[&str],
+    ) -> Result<Vec<EncodedValue<Active>>, PeerEncodingsError> {
+        if self.finalized {
+            return Err(PeerEncodingsError::AlreadyFinalized)?;
+        }
+
+        let deap = self.deap.as_ref().expect("instance set until finalization");
+
+        Ok(value_ids
+            .iter()
+            .map(|id| {
+                // get reference by id
+                let value_ref = match deap.get_value(id) {
+                    Some(v) => v,
+                    None => return Err(PeerEncodingsError::ValueIdNotFound(id.to_string())),
+                };
+                // get encoding by reference
+                match deap.ev().get_encoding(&value_ref) {
+                    Some(e) => Ok(e),
+                    None => return Err(PeerEncodingsError::EncodingNotAvailable(value_ref)),
+                }
+            })
+            .collect::<Result<Vec<_>, PeerEncodingsError>>()?)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -500,8 +545,21 @@ mod tests {
 
         assert_eq!(leader_result, follower_result);
 
+        // These encodings should be available
+        assert!(leader_vm.get_peer_encodings(&["msg", "ciphertext"]).is_ok());
+
+        // A non-existent value id will cause an error
+        let err = leader_vm
+            .get_peer_encodings(&["msg", "random_id"])
+            .unwrap_err();
+        assert!(matches!(err, PeerEncodingsError::ValueIdNotFound(_)));
+
         let (leader_result, follower_result) =
             futures::join!(leader_vm.finalize(), follower_vm.finalize());
+
+        // Trying to get encodings after finalization will cause an error
+        let err = leader_vm.get_peer_encodings(&["msg"]).unwrap_err();
+        assert!(matches!(err, PeerEncodingsError::AlreadyFinalized));
 
         leader_result.unwrap();
         follower_result.unwrap();

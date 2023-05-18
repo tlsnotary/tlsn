@@ -33,7 +33,7 @@ use crate::{
     registry::ValueRegistry,
 };
 
-pub use error::DEAPError;
+pub use error::{DEAPError, PeerEncodingsError};
 pub use vm::{DEAPThread, DEAPVm};
 
 use self::error::FinalizationError;
@@ -869,6 +869,11 @@ impl DEAP {
         }
 
         Ok(())
+    }
+
+    // Returns a reference to the evaluator
+    pub(crate) fn ev(&self) -> &Evaluator {
+        &self.ev
     }
 }
 
