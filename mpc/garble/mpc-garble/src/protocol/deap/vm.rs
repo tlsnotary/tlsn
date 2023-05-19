@@ -14,7 +14,7 @@ use mpc_circuits::{
     Circuit,
 };
 use mpc_core::value::ValueRef;
-use mpc_garble_core::msg::GarbleMessage;
+use mpc_garble_core::{encoding_state::Active, msg::GarbleMessage, EncodedValue};
 use utils::id::NestedId;
 use utils_aio::{mux::MuxChannelControl, Channel};
 
@@ -25,7 +25,10 @@ use crate::{
     ProveError, Thread, Verify, VerifyError, Vm, VmError,
 };
 
-use super::{error::FinalizationError, DEAPError, DEAP};
+use super::{
+    error::{FinalizationError, PeerEncodingsError},
+    DEAPError, DEAP,
+};
 
 type ChannelFactory = Box<dyn MuxChannelControl<GarbleMessage> + Send + 'static>;
 type GarbleChannel = Box<dyn Channel<GarbleMessage, Error = std::io::Error>>;
@@ -430,6 +433,48 @@ where
     }
 }
 
+/// This trait provides methods to get peer's encodings.
+trait PeerEncodings {
+    /// Returns the peer's encodings of the provided values.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the value is not found or its encoding is not available.
+    fn get_peer_encodings(
+        &self,
+        value_ids: &[&str],
+    ) -> Result<Vec<EncodedValue<Active>>, PeerEncodingsError>;
+}
+
+impl<OTS, OTR> PeerEncodings for DEAPVm<OTS, OTR> {
+    fn get_peer_encodings(
+        &self,
+        value_ids: &[&str],
+    ) -> Result<Vec<EncodedValue<Active>>, PeerEncodingsError> {
+        if self.finalized {
+            return Err(PeerEncodingsError::AlreadyFinalized);
+        }
+
+        let deap = self.deap.as_ref().expect("instance set until finalization");
+
+        value_ids
+            .iter()
+            .map(|id| {
+                // get reference by id
+                let value_ref = match deap.get_value(id) {
+                    Some(v) => v,
+                    None => return Err(PeerEncodingsError::ValueIdNotFound(id.to_string())),
+                };
+                // get encoding by reference
+                match deap.ev().get_encoding(&value_ref) {
+                    Some(e) => Ok(e),
+                    None => Err(PeerEncodingsError::EncodingNotAvailable(value_ref)),
+                }
+            })
+            .collect::<Result<Vec<_>, PeerEncodingsError>>()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -438,8 +483,22 @@ mod tests {
 
     use crate::protocol::deap::mock::create_mock_deap_vm;
 
-    #[tokio::test]
-    async fn test_vm() {
+    use core::future::Future;
+    use mpc_core::Block;
+    use mpc_ot::mock::{MockOTReceiver, MockOTSender};
+
+    // Sets up leader and follower VMs. Returns the VMs and the futures which need to be awaited
+    // to trigger circuit execution.
+    async fn set_up_vms() -> (
+        (
+            DEAPVm<MockOTSender<Block>, MockOTReceiver<Block>>,
+            impl Future<Output = Vec<Value>>,
+        ),
+        (
+            DEAPVm<MockOTSender<Block>, MockOTReceiver<Block>>,
+            impl Future<Output = Vec<Value>>,
+        ),
+    ) {
         let (mut leader_vm, mut follower_vm) = create_mock_deap_vm("test_vm").await;
 
         let mut leader_thread = leader_vm.new_thread("test_thread").await.unwrap();
@@ -457,7 +516,7 @@ mod tests {
                 .unwrap();
             let ciphertext_ref = leader_thread.new_output::<[u8; 16]>("ciphertext").unwrap();
 
-            async {
+            async move {
                 leader_thread
                     .execute(
                         AES128.clone(),
@@ -482,7 +541,7 @@ mod tests {
                 .new_output::<[u8; 16]>("ciphertext")
                 .unwrap();
 
-            async {
+            async move {
                 follower_thread
                     .execute(
                         AES128.clone(),
@@ -496,6 +555,13 @@ mod tests {
             }
         };
 
+        ((leader_vm, leader_fut), (follower_vm, follower_fut))
+    }
+
+    #[tokio::test]
+    async fn test_vm() {
+        let ((mut leader_vm, leader_fut), (mut follower_vm, follower_fut)) = set_up_vms().await;
+
         let (leader_result, follower_result) = futures::join!(leader_fut, follower_fut);
 
         assert_eq!(leader_result, follower_result);
@@ -505,5 +571,33 @@ mod tests {
 
         leader_result.unwrap();
         follower_result.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_peer_encodings() {
+        let ((mut leader_vm, leader_fut), (mut follower_vm, follower_fut)) = set_up_vms().await;
+
+        // Encodings are not yet available because the circuit hasn't yet been executed
+        let err = leader_vm.get_peer_encodings(&["msg"]).unwrap_err();
+        assert!(matches!(err, PeerEncodingsError::EncodingNotAvailable(_)));
+
+        // Execute the circuits
+        _ = futures::join!(leader_fut, follower_fut);
+
+        // Encodings must be available now
+        assert!(leader_vm
+            .get_peer_encodings(&["msg", "key", "ciphertext"])
+            .is_ok());
+
+        // A non-existent value id will cause an error
+        let err = leader_vm
+            .get_peer_encodings(&["msg", "random_id"])
+            .unwrap_err();
+        assert!(matches!(err, PeerEncodingsError::ValueIdNotFound(_)));
+
+        // Trying to get encodings after finalization will cause an error
+        _ = futures::join!(leader_vm.finalize(), follower_vm.finalize());
+        let err = leader_vm.get_peer_encodings(&["msg"]).unwrap_err();
+        assert!(matches!(err, PeerEncodingsError::AlreadyFinalized));
     }
 }

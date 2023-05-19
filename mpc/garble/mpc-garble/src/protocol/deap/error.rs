@@ -41,6 +41,18 @@ pub enum FinalizationError {
     InvalidProof,
 }
 
+/// Errors that can occur when accessing peer's encodings.
+#[derive(Debug, thiserror::Error)]
+#[allow(missing_docs)]
+pub enum PeerEncodingsError {
+    #[error("Encodings not available since DEAP instance already finalized")]
+    AlreadyFinalized,
+    #[error("Value id was not found in registry: {0:?}")]
+    ValueIdNotFound(String),
+    #[error("Encoding is not available for value: {0:?}")]
+    EncodingNotAvailable(ValueRef),
+}
+
 impl From<DEAPError> for ExecutionError {
     fn from(err: DEAPError) -> Self {
         match err {
