@@ -483,22 +483,23 @@ mod tests {
 
     use crate::protocol::deap::mock::create_mock_deap_vm;
 
-    use core::future::Future;
+    use core::{future::Future, pin::Pin};
     use mpc_core::Block;
     use mpc_ot::mock::{MockOTReceiver, MockOTSender};
+    use rstest::{fixture, rstest};
 
-    // Sets up leader and follower VMs. Returns the VMs and the futures which need to be awaited
+    // Leader and follower VMs in a set up state and the futures which need to be awaited
     // to trigger circuit execution.
-    async fn set_up_vms() -> (
-        (
-            DEAPVm<MockOTSender<Block>, MockOTReceiver<Block>>,
-            impl Future<Output = Vec<Value>>,
-        ),
-        (
-            DEAPVm<MockOTSender<Block>, MockOTReceiver<Block>>,
-            impl Future<Output = Vec<Value>>,
-        ),
-    ) {
+    struct VmFixture {
+        leader_vm: DEAPVm<MockOTSender<Block>, MockOTReceiver<Block>>,
+        leader_fut: Pin<Box<dyn Future<Output = Vec<Value>>>>,
+        follower_vm: DEAPVm<MockOTSender<Block>, MockOTReceiver<Block>>,
+        follower_fut: Pin<Box<dyn Future<Output = Vec<Value>>>>,
+    }
+
+    // Sets up leader and follower VMs.
+    #[fixture]
+    async fn set_up_vms() -> VmFixture {
         let (mut leader_vm, mut follower_vm) = create_mock_deap_vm("test_vm").await;
 
         let mut leader_thread = leader_vm.new_thread("test_thread").await.unwrap();
@@ -555,12 +556,23 @@ mod tests {
             }
         };
 
-        ((leader_vm, leader_fut), (follower_vm, follower_fut))
+        VmFixture {
+            leader_vm,
+            leader_fut: Box::pin(leader_fut),
+            follower_vm,
+            follower_fut: Box::pin(follower_fut),
+        }
     }
 
+    #[rstest]
     #[tokio::test]
-    async fn test_vm() {
-        let ((mut leader_vm, leader_fut), (mut follower_vm, follower_fut)) = set_up_vms().await;
+    async fn test_vm(set_up_vms: impl Future<Output = VmFixture>) {
+        let VmFixture {
+            mut leader_vm,
+            leader_fut,
+            mut follower_vm,
+            follower_fut,
+        } = set_up_vms.await;
 
         let (leader_result, follower_result) = futures::join!(leader_fut, follower_fut);
 
@@ -573,9 +585,15 @@ mod tests {
         follower_result.unwrap();
     }
 
+    #[rstest]
     #[tokio::test]
-    async fn test_peer_encodings() {
-        let ((mut leader_vm, leader_fut), (mut follower_vm, follower_fut)) = set_up_vms().await;
+    async fn test_peer_encodings(set_up_vms: impl Future<Output = VmFixture>) {
+        let VmFixture {
+            mut leader_vm,
+            leader_fut,
+            mut follower_vm,
+            follower_fut,
+        } = set_up_vms.await;
 
         // Encodings are not yet available because the circuit hasn't yet been executed
         let err = leader_vm.get_peer_encodings(&["msg"]).unwrap_err();
