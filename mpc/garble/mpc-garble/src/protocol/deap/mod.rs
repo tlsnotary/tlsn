@@ -871,7 +871,7 @@ impl DEAP {
         Ok(())
     }
 
-    // Returns a reference to the evaluator
+    /// Returns a reference to the evaluator.
     pub(crate) fn ev(&self) -> &Evaluator {
         &self.ev
     }
