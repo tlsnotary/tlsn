@@ -2,7 +2,7 @@
 
 use block_cipher::{BlockCipherConfig, MpcBlockCipher};
 use mpc_garble::{Decode, DecodePrivate, Execute, Memory, Prove, Verify, Vm};
-use tlsn_stream_cipher::{MpcStreamCipher, StreamCipherConfigBuilder};
+use tlsn_stream_cipher::{MpcStreamCipher, StreamCipherConfig};
 use tlsn_universal_hash::ghash::{mock_ghash_pair, GhashConfig};
 use utils_aio::duplex::DuplexChannel;
 
