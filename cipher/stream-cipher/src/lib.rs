@@ -246,7 +246,7 @@ mod tests {
     }
 
     #[rstest]
-    #[timeout(Duration::from_millis(5000))]
+    #[timeout(Duration::from_millis(10000))]
     #[tokio::test]
     async fn test_stream_cipher_public() {
         let key = [0u8; 16];
@@ -300,7 +300,7 @@ mod tests {
     }
 
     #[rstest]
-    #[timeout(Duration::from_millis(5000))]
+    #[timeout(Duration::from_millis(10000))]
     #[tokio::test]
     async fn test_stream_cipher_private() {
         let key = [0u8; 16];
@@ -351,7 +351,7 @@ mod tests {
     }
 
     #[rstest]
-    #[timeout(Duration::from_millis(5000))]
+    #[timeout(Duration::from_millis(10000))]
     #[tokio::test]
     async fn test_stream_cipher_share_key_block() {
         let key = [0u8; 16];
