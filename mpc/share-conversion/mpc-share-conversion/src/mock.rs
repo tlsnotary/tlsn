@@ -1,17 +1,14 @@
 //! Mocks for testing the share conversion protocol.
 
 use super::{ConverterReceiver, ConverterSender, ReceiverConfig, SenderConfig};
-use mpc_core::BlockSerialize;
 use mpc_ot::mock::{mock_ot_pair, MockOTReceiver, MockOTSender};
 use mpc_share_conversion_core::fields::Field;
 use utils_aio::duplex::DuplexChannel;
 
 /// A mock converter sender
-pub type MockConverterSender<F> =
-    ConverterSender<F, MockOTSender<<F as BlockSerialize>::Serialized>>;
+pub type MockConverterSender<F> = ConverterSender<F, MockOTSender>;
 /// A mock converter receiver
-pub type MockConverterReceiver<F> =
-    ConverterReceiver<F, MockOTReceiver<<F as BlockSerialize>::Serialized>>;
+pub type MockConverterReceiver<F> = ConverterReceiver<F, MockOTReceiver>;
 
 /// Creates a mock sender and receiver for testing the share conversion protocol.
 #[allow(clippy::type_complexity)]
@@ -19,8 +16,8 @@ pub fn mock_converter_pair<F: Field>(
     sender_config: SenderConfig,
     receiver_config: ReceiverConfig,
 ) -> (
-    ConverterSender<F, MockOTSender<<F as BlockSerialize>::Serialized>>,
-    ConverterReceiver<F, MockOTReceiver<<F as BlockSerialize>::Serialized>>,
+    ConverterSender<F, MockOTSender>,
+    ConverterReceiver<F, MockOTReceiver>,
 ) {
     let (c1, c2) = DuplexChannel::new();
 

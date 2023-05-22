@@ -1,6 +1,5 @@
 //! Mocked DEAP VMs for testing
 
-use mpc_core::Block;
 use mpc_ot::mock::{mock_ot_pair, MockOTReceiver, MockOTSender};
 use utils_aio::mux::{mock::MockMuxChannelFactory, MuxChannelControl};
 
@@ -9,20 +8,20 @@ use crate::config::Role;
 use super::{vm::DEAPVm, DEAPThread};
 
 /// Mock DEAP Leader VM.
-pub type MockLeader = DEAPVm<MockOTSender<Block>, MockOTReceiver<Block>>;
+pub type MockLeader = DEAPVm<MockOTSender, MockOTReceiver>;
 /// Mock DEAP Leader thread.
-pub type MockLeaderThread = DEAPThread<MockOTSender<Block>, MockOTReceiver<Block>>;
+pub type MockLeaderThread = DEAPThread<MockOTSender, MockOTReceiver>;
 /// Mock DEAP Follower VM.
-pub type MockFollower = DEAPVm<MockOTSender<Block>, MockOTReceiver<Block>>;
+pub type MockFollower = DEAPVm<MockOTSender, MockOTReceiver>;
 /// Mock DEAP Follower thread.
-pub type MockFollowerThread = DEAPThread<MockOTSender<Block>, MockOTReceiver<Block>>;
+pub type MockFollowerThread = DEAPThread<MockOTSender, MockOTReceiver>;
 
 /// Create a pair of mocked DEAP VMs
 pub async fn create_mock_deap_vm(
     id: &str,
 ) -> (
-    DEAPVm<MockOTSender<Block>, MockOTReceiver<Block>>,
-    DEAPVm<MockOTSender<Block>, MockOTReceiver<Block>>,
+    DEAPVm<MockOTSender, MockOTReceiver>,
+    DEAPVm<MockOTSender, MockOTReceiver>,
 ) {
     let mut mux_factory = MockMuxChannelFactory::new();
     let (leader_ot_send, follower_ot_recv) = mock_ot_pair();

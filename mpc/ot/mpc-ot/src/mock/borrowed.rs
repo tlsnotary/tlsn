@@ -3,11 +3,12 @@ use crate::{ObliviousReceive, ObliviousReveal, ObliviousSend, ObliviousVerify};
 use async_trait::async_trait;
 use futures::channel::oneshot;
 use std::{
+    any::Any,
     collections::HashMap,
     sync::{Arc, Mutex},
 };
 
-pub fn mock_ot_pair<T: Send + Copy>() -> (MockOTSender<T>, MockOTReceiver<T>) {
+pub fn mock_ot_pair() -> (MockOTSender, MockOTReceiver) {
     let sender_buffer = Arc::new(Mutex::new(HashMap::new()));
     let receiver_buffer = Arc::new(Mutex::new(HashMap::new()));
 
@@ -25,14 +26,15 @@ pub fn mock_ot_pair<T: Send + Copy>() -> (MockOTSender<T>, MockOTReceiver<T>) {
 }
 
 #[derive(Clone)]
-pub struct MockOTSender<T> {
-    sender_buffer: Arc<Mutex<HashMap<String, Vec<[T; 2]>>>>,
-    receiver_buffer: Arc<Mutex<HashMap<String, oneshot::Sender<Vec<[T; 2]>>>>>,
+pub struct MockOTSender {
+    sender_buffer: Arc<Mutex<HashMap<String, Box<dyn Any + Send + 'static>>>>,
+    receiver_buffer: Arc<Mutex<HashMap<String, oneshot::Sender<Box<dyn Any + Send + 'static>>>>>,
 }
 
 #[async_trait]
-impl<T: std::fmt::Debug + Send> ObliviousSend<[T; 2]> for MockOTSender<T> {
+impl<T: std::fmt::Debug + Send + 'static> ObliviousSend<[T; 2]> for MockOTSender {
     async fn send(&self, id: &str, input: Vec<[T; 2]>) -> Result<(), OTError> {
+        let input = Box::new(input);
         if let Some(sender) = self.receiver_buffer.lock().unwrap().remove(id) {
             sender
                 .send(input)
@@ -48,22 +50,26 @@ impl<T: std::fmt::Debug + Send> ObliviousSend<[T; 2]> for MockOTSender<T> {
 }
 
 #[async_trait]
-impl<T: Send> ObliviousReveal for MockOTSender<T> {
+impl ObliviousReveal for MockOTSender {
     async fn reveal(&self) -> Result<(), OTError> {
         Ok(())
     }
 }
 
 #[derive(Clone)]
-pub struct MockOTReceiver<T> {
-    sender_buffer: Arc<Mutex<HashMap<String, Vec<[T; 2]>>>>,
-    receiver_buffer: Arc<Mutex<HashMap<String, oneshot::Sender<Vec<[T; 2]>>>>>,
+pub struct MockOTReceiver {
+    sender_buffer: Arc<Mutex<HashMap<String, Box<dyn Any + Send + 'static>>>>,
+    receiver_buffer: Arc<Mutex<HashMap<String, oneshot::Sender<Box<dyn Any + Send + 'static>>>>>,
 }
 
 #[async_trait]
-impl<T: Send + Copy> ObliviousReceive<bool, T> for MockOTReceiver<T> {
+impl<T: Send + Copy + 'static> ObliviousReceive<bool, T> for MockOTReceiver {
     async fn receive(&self, id: &str, choice: Vec<bool>) -> Result<Vec<T>, OTError> {
         if let Some(value) = self.sender_buffer.lock().unwrap().remove(id) {
+            let value = *value
+                .downcast::<Vec<[T; 2]>>()
+                .expect("value type should be consistent");
+
             return Ok(value
                 .into_iter()
                 .zip(choice)
@@ -77,9 +83,13 @@ impl<T: Send + Copy> ObliviousReceive<bool, T> for MockOTReceiver<T> {
             .unwrap()
             .insert(id.to_string(), sender);
 
-        Ok(receiver
-            .await
-            .unwrap()
+        let values = receiver.await.unwrap();
+
+        let values = *values
+            .downcast::<Vec<[T; 2]>>()
+            .expect("value type should be consistent");
+
+        Ok(values
             .into_iter()
             .zip(choice)
             .map(|(v, c)| v[c as usize])
@@ -88,7 +98,7 @@ impl<T: Send + Copy> ObliviousReceive<bool, T> for MockOTReceiver<T> {
 }
 
 #[async_trait]
-impl<T: Send> ObliviousVerify<[T; 2]> for MockOTReceiver<T> {
+impl<T: Send + 'static> ObliviousVerify<[T; 2]> for MockOTReceiver {
     async fn verify(&self, _id: &str, _input: Vec<[T; 2]>) -> Result<(), OTError> {
         // MockOT is always honest
         Ok(())
@@ -103,11 +113,11 @@ mod tests {
     async fn test_mock_ot() {
         let values = vec![[0, 1], [2, 3]];
         let choice = vec![false, true];
-        let (sender, receiver) = mock_ot_pair::<i32>();
+        let (sender, receiver) = mock_ot_pair();
 
         sender.send("", values).await.unwrap();
 
-        let received = receiver.receive("", choice).await.unwrap();
+        let received: Vec<i32> = receiver.receive("", choice).await.unwrap();
         assert_eq!(received, vec![0, 3]);
     }
 }
