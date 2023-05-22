@@ -1,4 +1,4 @@
-use crate::{config::OTActorSenderConfig, GetSender, MarkForReveal, Reveal, SendBackSender, Setup};
+use crate::{config::OTActorSenderConfig, GetSender, Reveal, SendBackSender, Setup};
 use async_trait::async_trait;
 use futures::{
     stream::{FuturesUnordered, SplitSink},
@@ -23,7 +23,6 @@ enum State {
     Initialized,
     Setup {
         sender: Kos15IOSender<RandSetup>,
-        reveal: Vec<String>,
         child_senders: HashMap<String, Kos15IOSender<RandSetup>>,
     },
     Error,
@@ -110,7 +109,6 @@ impl Handler<Setup> for KOSSenderActor {
 
         self.state = State::Setup {
             sender: parent_ot,
-            reveal: vec![],
             child_senders: HashMap::new(),
         };
 
@@ -134,7 +132,7 @@ impl Handler<GetSender> for KOSSenderActor {
         // in case of early returns
         let state = std::mem::replace(&mut self.state, State::Error);
 
-        let State::Setup{sender, reveal, child_senders} = state else {
+        let State::Setup{sender, child_senders} = state else {
             return Err(OTError::Other("KOSSenderActor is not setup".to_string()));
         };
 
@@ -154,40 +152,10 @@ impl Handler<GetSender> for KOSSenderActor {
 
         self.state = State::Setup {
             sender,
-            reveal,
             child_senders,
         };
 
         Ok(child_ot)
-    }
-}
-
-#[async_trait]
-impl Handler<MarkForReveal> for KOSSenderActor {
-    type Return = Result<(), OTError>;
-
-    /// Handles the Verify message
-    async fn handle(&mut self, msg: MarkForReveal, _ctx: &mut Context<Self>) -> Self::Return {
-        if !self.config.committed {
-            return Err(OTError::Other(
-                "KOSSenderActor not configured for committed OT".to_string(),
-            ));
-        }
-
-        // Leave actor in error state
-        let state = std::mem::replace(&mut self.state, State::Error);
-        let State::Setup{sender, mut reveal, child_senders} = state else {
-            return Err(OTError::Other("KOSSenderActor is not setup".to_string()));
-        };
-
-        reveal.push(msg.0);
-
-        self.state = State::Setup {
-            sender,
-            reveal,
-            child_senders,
-        };
-        Ok(())
     }
 }
 
@@ -206,18 +174,15 @@ impl Handler<Reveal> for KOSSenderActor {
         // Leave actor in error state
         let state = std::mem::replace(&mut self.state, State::Error);
 
-        let State::Setup{reveal, mut child_senders, ..} = state else {
+        let State::Setup{child_senders, ..} = state else {
             return Err(OTError::Other("KOSSenderActor is not setup".to_string()));
         };
         ctx.stop_self();
 
-        let futures = FuturesUnordered::new();
-        for id in reveal {
-            let child_sender = child_senders
-                .remove(&id)
-                .ok_or(OTError::Other("Child sender not found".to_string()))?;
-            futures.push(child_sender.reveal());
-        }
+        let futures: FuturesUnordered<_> = child_senders
+            .into_values()
+            .map(|child_sender| child_sender.reveal())
+            .collect();
         futures.try_collect::<Vec<_>>().await?;
         Ok(())
     }
@@ -234,7 +199,7 @@ impl Handler<SendBackSender> for KOSSenderActor {
         // Leave actor in error state
         let state = std::mem::replace(&mut self.state, State::Error);
 
-        let State::Setup{sender, reveal, mut child_senders} = state else {
+        let State::Setup{sender, mut child_senders} = state else {
             return Err(OTError::Other("KOSSenderActor is not setup".to_string()));
         };
 
@@ -242,7 +207,6 @@ impl Handler<SendBackSender> for KOSSenderActor {
 
         self.state = State::Setup {
             sender,
-            reveal,
             child_senders,
         };
 
@@ -305,13 +269,6 @@ impl ObliviousSend<[Block; 2]> for SenderActorControl {
 
 #[async_trait]
 impl ObliviousReveal for SenderActorControl {
-    async fn mark_for_reveal(&self, id: &str) -> Result<(), OTError> {
-        self.0
-            .send(MarkForReveal(id.to_owned()))
-            .await
-            .map_err(|e| OTError::Other(e.to_string()))?
-    }
-
     async fn reveal(&self) -> Result<(), OTError> {
         self.0
             .send(Reveal)

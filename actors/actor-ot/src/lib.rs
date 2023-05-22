@@ -29,7 +29,7 @@ pub use config::{
 };
 pub use mpc_ot_core::msgs::OTMessage;
 pub(crate) use msg::{
-    GetReceiver, GetSender, MarkForReveal, Reveal, SendBackReceiver, SendBackSender, Setup, Verify,
+    GetReceiver, GetSender, Reveal, SendBackReceiver, SendBackSender, Setup, Verify,
 };
 pub use receiver::{KOSReceiverActor, ReceiverActorControl};
 pub use sender::{KOSSenderActor, SenderActorControl};
@@ -178,10 +178,7 @@ mod test {
 
         let receive = async { receiver_control.receive("", choices).await.map(|_| ()) };
 
-        let reveal = async {
-            sender_control.mark_for_reveal("").await.unwrap();
-            sender_control.reveal().await
-        };
+        let reveal = sender_control.reveal();
 
         let verify = async { receiver_control.verify("", data.clone()).await.map(|_| ()) };
 

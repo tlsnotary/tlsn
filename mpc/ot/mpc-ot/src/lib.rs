@@ -50,7 +50,6 @@ pub trait ObliviousSend<T> {
 #[async_trait]
 pub trait ObliviousReveal {
     async fn reveal(&self) -> Result<(), OTError>;
-    async fn mark_for_reveal(&self, id: &str) -> Result<(), OTError>;
 }
 
 #[async_trait]
