@@ -5,13 +5,13 @@ use crate::{KeyExchangeConfig, KeyExchangeCore, KeyExchangeMessage, Role};
 
 use mpc_garble::{Decode, Execute, Memory};
 use point_addition::mock::{
-    create_mock_point_converter_pair, MockPointConversionReceiver, MockPointConversionSender,
+    mock_point_converter_pair, MockPointAdditionReceiver, MockPointAdditionSender,
 };
 use utils_aio::duplex::DuplexChannel;
 
 /// A mock key exchange instance
 pub type MockKeyExchange<E> =
-    KeyExchangeCore<MockPointConversionSender, MockPointConversionReceiver, E>;
+    KeyExchangeCore<MockPointAdditionSender, MockPointAdditionReceiver, E>;
 
 /// Create a mock pair of key exchange leader and follower
 pub fn create_mock_key_exchange_pair<E: Memory + Execute + Decode + Send>(
@@ -19,8 +19,8 @@ pub fn create_mock_key_exchange_pair<E: Memory + Execute + Decode + Send>(
     leader_executor: E,
     follower_executor: E,
 ) -> (MockKeyExchange<E>, MockKeyExchange<E>) {
-    let (leader_pa_sender, follower_pa_recvr) = create_mock_point_converter_pair();
-    let (follower_pa_sender, leader_pa_recvr) = create_mock_point_converter_pair();
+    let (leader_pa_sender, follower_pa_recvr) = mock_point_converter_pair(&format!("{}/pa/0", id));
+    let (follower_pa_sender, leader_pa_recvr) = mock_point_converter_pair(&format!("{}/pa/1", id));
 
     let (leader_channel, follower_channel) = DuplexChannel::<KeyExchangeMessage>::new();
 

@@ -108,6 +108,12 @@ impl Block {
         Self::new(u128::from_be_bytes(b.into()))
     }
 
+    /// Reverses the bits of the block
+    #[inline]
+    pub fn reverse_bits(self) -> Self {
+        Self(self.0.reverse_bits())
+    }
+
     /// Sets the least significant bit of the block
     #[inline]
     pub fn set_lsb(&mut self) {
@@ -131,6 +137,18 @@ impl Block {
     pub fn to_be_bytes(&self) -> [u8; 16] {
         self.0.to_be_bytes()
     }
+}
+
+/// A trait for converting a type to blocks
+pub trait BlockSerialize {
+    /// The block representation of the type
+    type Serialized: std::fmt::Debug + Clone + Copy + Send + Sync + 'static;
+
+    /// Convert the type to blocks
+    fn to_blocks(self) -> Self::Serialized;
+
+    /// Convert the blocks to the type
+    fn from_blocks(blocks: Self::Serialized) -> Self;
 }
 
 impl ToBitsIter for Block {

@@ -1,3 +1,4 @@
+use mpc_core::Block;
 use mpc_share_conversion_core::fields::{gf2_128::Gf2_128, Field};
 
 use super::{
@@ -92,15 +93,21 @@ impl GhashCore<Finalized> {
     /// Generate the GHASH output
     ///
     /// Computes the 2PC additive share of the GHASH output
-    pub fn finalize(&self, message: &[Gf2_128]) -> Result<Gf2_128, GhashError> {
+    pub fn finalize(&self, message: &[Block]) -> Result<Block, GhashError> {
         if message.len() > self.max_block_count {
             return Err(GhashError::InvalidMessageLength);
         }
         let offset = self.state.add_shares.len() - message.len();
-        Ok(message
+
+        let output: Block = message
             .iter()
             .zip(self.state.add_shares.iter().rev().skip(offset))
-            .fold(Gf2_128::zero(), |acc, (block, share)| acc + *block * *share))
+            .fold(Gf2_128::zero(), |acc, (block, share)| {
+                acc + Gf2_128::from(block.reverse_bits()) * *share
+            })
+            .into();
+
+        Ok(output.reverse_bits())
     }
 
     /// Change the maximum hashkey power

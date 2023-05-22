@@ -90,6 +90,7 @@ mod tests {
         universal_hash::{NewUniversalHash, UniversalHash},
         GHash,
     };
+    use mpc_core::Block;
     use mpc_share_conversion_core::fields::{gf2_128::Gf2_128, Field};
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
@@ -106,7 +107,7 @@ mod tests {
 
         // The Ghash key
         let h: Gf2_128 = rng.gen();
-        let message = gen_gf2_128_vec();
+        let message = Block::random_vec(&mut rng, 10);
         let message_len = message.len();
         let number_of_powers_needed: usize = message_len / 2 + (message_len & 1);
 
@@ -139,7 +140,7 @@ mod tests {
 
         // The Ghash key
         let h: Gf2_128 = rng.gen();
-        let message = gen_gf2_128_vec();
+        let message = Block::random_vec(&mut rng, 10);
         let message_len = message.len();
 
         let (sender, receiver) = setup_ghash_to_intermediate_state(h, message_len);
@@ -173,19 +174,16 @@ mod tests {
 
         // The Ghash key
         let h: Gf2_128 = rng.gen();
-        let message = gen_gf2_128_vec();
+        let message = Block::random_vec(&mut rng, 10);
 
         let (sender, receiver) = setup_ghash_to_intermediate_state(h, message.len());
         let (sender, receiver) = ghash_to_finalized(sender, receiver);
 
-        let output = sender.finalize(&message).unwrap() + receiver.finalize(&message).unwrap();
+        let output = sender.finalize(&message).unwrap() ^ receiver.finalize(&message).unwrap();
 
         assert_eq!(
-            output.into_inner(),
-            ghash_reference_impl(
-                h.into_inner(),
-                message.iter().map(|x| x.into_inner()).collect()
-            )
+            output,
+            ghash_reference_impl(h.to_inner().reverse_bits(), &message)
         );
     }
 
@@ -195,13 +193,12 @@ mod tests {
 
         // The Ghash key
         let h: Gf2_128 = rng.gen();
-        let message = gen_gf2_128_vec();
+        let message = Block::random_vec(&mut rng, 10);
 
         let (sender, receiver) = setup_ghash_to_intermediate_state(h, message.len());
         let (sender, receiver) = ghash_to_finalized(sender, receiver);
 
-        let mut message_short: Vec<Gf2_128> = vec![Gf2_128::zero(); message.len() / 2];
-        message_short.iter_mut().for_each(|x| *x = rng.gen());
+        let message_short = Block::random_vec(&mut rng, 5);
 
         let (sender, receiver) = (
             sender.change_max_hashkey(message_short.len()),
@@ -211,14 +208,11 @@ mod tests {
         let (sender, receiver) = ghash_to_finalized(sender, receiver);
 
         let output =
-            sender.finalize(&message_short).unwrap() + receiver.finalize(&message_short).unwrap();
+            sender.finalize(&message_short).unwrap() ^ receiver.finalize(&message_short).unwrap();
 
         assert_eq!(
-            output.into_inner(),
-            ghash_reference_impl(
-                h.into_inner(),
-                message_short.iter().map(|x| x.into_inner()).collect()
-            )
+            output,
+            ghash_reference_impl(h.to_inner().reverse_bits(), &message_short)
         );
     }
 
@@ -228,13 +222,12 @@ mod tests {
 
         // The Ghash key
         let h: Gf2_128 = rng.gen();
-        let message = gen_gf2_128_vec();
+        let message = Block::random_vec(&mut rng, 10);
 
         let (sender, receiver) = setup_ghash_to_intermediate_state(h, message.len());
         let (sender, receiver) = ghash_to_finalized(sender, receiver);
 
-        let mut message_long: Vec<Gf2_128> = vec![Gf2_128::zero(); 2 * message.len()];
-        message_long.iter_mut().for_each(|x| *x = rng.gen());
+        let message_long = Block::random_vec(&mut rng, 20);
 
         let (sender, receiver) = (
             sender.change_max_hashkey(message_long.len()),
@@ -243,14 +236,11 @@ mod tests {
 
         let (sender, receiver) = ghash_to_finalized(sender, receiver);
         let output =
-            sender.finalize(&message_long).unwrap() + receiver.finalize(&message_long).unwrap();
+            sender.finalize(&message_long).unwrap() ^ receiver.finalize(&message_long).unwrap();
 
         assert_eq!(
-            output.into_inner(),
-            ghash_reference_impl(
-                h.into_inner(),
-                message_long.iter().map(|x| x.into_inner()).collect()
-            )
+            output,
+            ghash_reference_impl(h.to_inner().reverse_bits(), &message_long)
         );
     }
 
@@ -330,13 +320,13 @@ mod tests {
         message
     }
 
-    fn ghash_reference_impl(h: u128, message: Vec<u128>) -> u128 {
+    fn ghash_reference_impl(h: u128, message: &[Block]) -> Block {
         let mut ghash = GHash::new(&h.to_be_bytes().into());
         for el in message {
             ghash.update(&el.to_be_bytes().into());
         }
         let ghash_output = ghash.finalize();
-        u128::from_be_bytes(ghash_output.into_bytes().try_into().unwrap())
+        Block::from(ghash_output.into_bytes())
     }
 
     fn setup_ghash_to_intermediate_state(

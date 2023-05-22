@@ -1,32 +1,30 @@
-use super::{Converter, Role};
-use mpc_core::Block;
-use mpc_share_conversion::conversion::{
-    mock::{mock_converter_pair, MockReceiver, MockSender},
-    recorder::Void,
+use crate::{MpcPointAddition, Role};
+use mpc_share_conversion::{
+    mock::{mock_converter_pair, MockConverterReceiver, MockConverterSender},
+    ReceiverConfig, SenderConfig,
 };
-use mpc_share_conversion_core::{fields::p256::P256, AddShare, MulShare};
+use mpc_share_conversion_core::fields::p256::P256;
 
-pub type MockPointConversionSender = Converter<
-    MockSender<AddShare<P256>, P256, [Block; 2], Void>,
-    MockSender<MulShare<P256>, P256, [Block; 2], Void>,
-    P256,
->;
+/// A mock point addition sender
+pub type MockPointAdditionSender = MpcPointAddition<P256, MockConverterSender<P256>>;
 
-pub type MockPointConversionReceiver = Converter<
-    MockReceiver<AddShare<P256>, P256, [Block; 2], Void>,
-    MockReceiver<MulShare<P256>, P256, [Block; 2], Void>,
-    P256,
->;
+/// A mock point addition receiver
+pub type MockPointAdditionReceiver = MpcPointAddition<P256, MockConverterReceiver<P256>>;
 
-pub fn create_mock_point_converter_pair() -> (MockPointConversionSender, MockPointConversionReceiver)
-{
-    let (sender_a2m, receiver_a2m) =
-        mock_converter_pair::<AddShare<P256>, P256, [Block; 2], Void>();
-    let (sender_m2a, receiver_m2a) =
-        mock_converter_pair::<MulShare<P256>, P256, [Block; 2], Void>();
-
-    let sender = MockPointConversionSender::new(sender_a2m, sender_m2a, Role::Leader);
-    let receiver = MockPointConversionReceiver::new(receiver_a2m, receiver_m2a, Role::Follower);
-
-    (sender, receiver)
+/// Create a pair of [Converter] instances
+pub fn mock_point_converter_pair(id: &str) -> (MockPointAdditionSender, MockPointAdditionReceiver) {
+    let (sender, receiver) = mock_converter_pair(
+        SenderConfig::builder()
+            .id(format!("{}/converter", id))
+            .build()
+            .unwrap(),
+        ReceiverConfig::builder()
+            .id(format!("{}/converter", id))
+            .build()
+            .unwrap(),
+    );
+    (
+        MpcPointAddition::new(Role::Leader, sender),
+        MpcPointAddition::new(Role::Follower, receiver),
+    )
 }

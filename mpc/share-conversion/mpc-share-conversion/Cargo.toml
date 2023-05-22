@@ -23,6 +23,8 @@ rand.workspace = true
 rand_chacha.workspace = true
 futures.workspace = true
 serde = { workspace = true, features = ["derive"], optional = true }
+derive_builder.workspace = true
 
 [dev-dependencies]
+rstest.workspace = true
 tokio.workspace = true

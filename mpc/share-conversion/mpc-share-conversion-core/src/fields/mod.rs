@@ -1,13 +1,18 @@
+//! Types for working with finite fields
+
 pub mod gf2_128;
 pub mod p256;
 
-use rand::{distributions::Standard, prelude::Distribution, Rng};
 use std::{
     fmt::Debug,
     ops::{Add, Mul, Neg},
 };
 
-// A trait for finite fields
+use mpc_core::BlockSerialize;
+use rand::{distributions::Standard, prelude::Distribution, Rng};
+use utils::bits::{FromBits, ToBits};
+
+/// A trait for finite fields
 pub trait Field:
     Add<Output = Self>
     + Mul<Output = Self>
@@ -23,52 +28,41 @@ pub trait Field:
     + Ord
     + PartialEq
     + Eq
-    + From<Self::BlockEncoding>
-    + Into<Self::BlockEncoding>
+    + BlockSerialize
+    + FromBits
+    + ToBits
 {
+    /// The number of bits of a field element
     const BIT_SIZE: u32;
-    type BlockEncoding;
 
-    // Return the additive neutral element
+    /// Return the additive identity element
     fn zero() -> Self;
 
-    // Return the multiplicative neutral element
+    /// Return the multiplicative identity element
     fn one() -> Self;
 
-    // Left-shift by `rhs` bits
+    /// Return a field element from a power of two.
     fn two_pow(rhs: u32) -> Self;
 
-    // Return the n-th bit, where n=0 returns the most-significant bit
-    fn get_bit_msb0(&self, n: u32) -> bool;
+    /// Return the n-th bit, where n=0 returns the least-significant bit
+    fn get_bit(&self, n: usize) -> bool;
 
-    // Return the multiplicative inverse
+    /// Return the multiplicative inverse
     fn inverse(self) -> Self;
 
-    // Create a field element from bits, where first bit is the most-significant bit
-    fn from_bits_msb0(bits: &[bool]) -> Self;
-
-    // Return field element as msb0 bit vector
-    fn to_bits_msb0(&self) -> Vec<bool> {
-        let mut out = Vec::with_capacity(Self::BIT_SIZE as usize);
-        for i in 0..Self::BIT_SIZE {
-            out.push(self.get_bit_msb0(i));
-        }
-        out
-    }
-
-    // Return field element as little-endian bytes
+    /// Return field element as little-endian bytes
     fn to_le_bytes(&self) -> Vec<u8>;
 
-    // Return field element as little-endian bytes
+    /// Return field element as big-endian bytes
     fn to_be_bytes(&self) -> Vec<u8>;
 }
 
-// A trait for sampling random elements of the field
-//
-// This is helpful, because we do not need to import other traits since this is a supertrait of
-// field (which is not possible with `Standard` and `Distribution`)
+/// A trait for sampling random elements of the field
+///
+/// This is helpful, because we do not need to import other traits since this is a supertrait of
+/// field (which is not possible with `Standard` and `Distribution`)
 pub trait UniformRand: Sized {
-    // Return a random field element
+    /// Return a random field element
     fn rand<R: Rng + ?Sized>(rng: &mut R) -> Self;
 }
 
@@ -105,7 +99,7 @@ mod tests {
     use rand::SeedableRng;
     use rand_chacha::ChaCha12Rng;
 
-    pub fn test_field_basic<T: Field>() {
+    pub(crate) fn test_field_basic<T: Field>() {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
         let a = T::rand(&mut rng);
 
@@ -120,7 +114,7 @@ mod tests {
         assert_eq!(a + -a, zero);
     }
 
-    pub fn test_field_compute_product_repeated<T: Field>() {
+    pub(crate) fn test_field_compute_product_repeated<T: Field>() {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
         let a = T::rand(&mut rng);
 
@@ -134,20 +128,20 @@ mod tests {
         assert_eq!(powers[2], powers[1] * factor);
     }
 
-    pub fn test_field_bit_ops<T: Field>() {
+    pub(crate) fn test_field_bit_ops<T: Field>() {
         let mut a = vec![false; T::BIT_SIZE as usize];
         let mut b = vec![false; T::BIT_SIZE as usize];
 
-        a[T::BIT_SIZE as usize - 1] = true;
-        b[0] = true;
+        a[0] = true;
+        b[T::BIT_SIZE as usize - 1] = true;
 
-        let a = T::from_bits_msb0(&a);
-        let b = T::from_bits_msb0(&b);
+        let a = T::from_lsb0(a);
+        let b = T::from_lsb0(b);
 
         assert_eq!(a, T::one());
-        assert_eq!(a.get_bit_msb0(T::BIT_SIZE - 1), true);
+        assert!(a.get_bit(0));
 
-        assert_eq!(b, T::one() * T::two_pow(T::BIT_SIZE - 1));
-        assert_eq!(b.get_bit_msb0(0), true);
+        assert_eq!(b, T::two_pow(T::BIT_SIZE - 1));
+        assert!(b.get_bit((T::BIT_SIZE - 1) as usize));
     }
 }
