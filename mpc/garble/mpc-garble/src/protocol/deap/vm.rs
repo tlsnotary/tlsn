@@ -491,9 +491,9 @@ mod tests {
     // Leader and follower VMs in a set up state and the futures which need to be awaited
     // to trigger circuit execution.
     struct VmFixture {
-        leader_vm: DEAPVm<MockOTSender<Block>, MockOTReceiver<Block>>,
+        leader_vm: DEAPVm<MockOTSender, MockOTReceiver>,
         leader_fut: Pin<Box<dyn Future<Output = Vec<Value>>>>,
-        follower_vm: DEAPVm<MockOTSender<Block>, MockOTReceiver<Block>>,
+        follower_vm: DEAPVm<MockOTSender, MockOTReceiver>,
         follower_fut: Pin<Box<dyn Future<Output = Vec<Value>>>>,
     }
 
