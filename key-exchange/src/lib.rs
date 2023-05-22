@@ -45,8 +45,8 @@ impl Pms {
     }
 
     /// Get the value of the PMS
-    pub fn value(&self) -> &ValueRef {
-        &self.0
+    pub fn into_value(self) -> ValueRef {
+        self.0
     }
 }
 
@@ -54,7 +54,7 @@ impl Pms {
 #[derive(Debug, thiserror::Error)]
 #[allow(missing_docs)]
 pub enum KeyExchangeError {
-    #[error("IOError: {0}")]
+    #[error(transparent)]
     IOError(#[from] std::io::Error),
     #[error(transparent)]
     MemoryError(#[from] mpc_garble::MemoryError),
@@ -62,7 +62,9 @@ pub enum KeyExchangeError {
     ExecutionError(#[from] mpc_garble::ExecutionError),
     #[error(transparent)]
     DecodeError(#[from] mpc_garble::DecodeError),
-    #[error("Unable to compute public key: {0}")]
+    #[error(transparent)]
+    PointAdditionError(#[from] point_addition::PointAdditionError),
+    #[error(transparent)]
     PublicKey(#[from] p256::elliptic_curve::Error),
     #[error(transparent)]
     KeyParseError(#[from] msg::KeyParseError),
@@ -70,48 +72,27 @@ pub enum KeyExchangeError {
     NoServerKey,
     #[error("Private key not set")]
     NoPrivateKey,
-    #[error("PMSShares are not set")]
-    NoPMSShares,
     #[error("PMS equality check failed")]
     CheckFailed,
     #[error("UnexpectedMessage: {0:?}")]
     Unexpected(KeyExchangeMessage),
-    #[error("PointAdditionError: {0}")]
-    PointAdditionError(#[from] point_addition::PointAdditionError),
 }
 
-/// A trait for computing PMS shares
+/// A trait for the 3-party key exchange protocol
 #[async_trait]
-pub trait ComputePms {
-    /// Computes the PMS
-    async fn compute_pms(&mut self) -> Result<Pms, KeyExchangeError>;
-}
+pub trait KeyExchange {
+    /// Set the server's public key
+    fn set_server_key(&mut self, server_key: PublicKey);
 
-/// A trait for the leader of the key exchange protocol
-#[async_trait]
-pub trait KeyExchangeLead: ComputePms {
     /// Compute the client's public key
     ///
     /// The client's public key in this context is the combined public key (EC point addition) of
     /// the leader's public key and the follower's public key.
     async fn compute_client_key(
         &mut self,
-        leader_private_key: SecretKey,
-    ) -> Result<PublicKey, KeyExchangeError>;
+        private_key: SecretKey,
+    ) -> Result<Option<PublicKey>, KeyExchangeError>;
 
-    /// Set the server's public key
-    async fn set_server_key(&mut self, server_key: PublicKey) -> Result<(), KeyExchangeError>;
-}
-
-/// A trait for the follower of the key exchange protocol
-#[async_trait]
-pub trait KeyExchangeFollow: ComputePms {
-    /// Send the follower's public key to the key exchange leader
-    async fn send_public_key(
-        &mut self,
-        follower_private_key: SecretKey,
-    ) -> Result<(), KeyExchangeError>;
-
-    /// Receive the server's public key from the key exchange leader
-    async fn receive_server_key(&mut self) -> Result<(), KeyExchangeError>;
+    /// Computes the PMS
+    async fn compute_pms(&mut self) -> Result<Pms, KeyExchangeError>;
 }

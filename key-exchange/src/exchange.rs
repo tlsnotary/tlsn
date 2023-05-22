@@ -14,8 +14,7 @@ use utils_aio::expect_msg_or_err;
 use crate::{
     circuit::build_pms_circuit,
     config::{KeyExchangeConfig, Role},
-    ComputePms, KeyExchangeChannel, KeyExchangeError, KeyExchangeFollow, KeyExchangeLead,
-    KeyExchangeMessage, Pms,
+    KeyExchange, KeyExchangeChannel, KeyExchangeError, KeyExchangeMessage, Pms,
 };
 
 /// The instance for performing the key exchange protocol
@@ -70,10 +69,37 @@ where
     }
 
     async fn compute_pms_shares(&mut self) -> Result<(P256, P256), KeyExchangeError> {
-        let server_key = &self.server_key.ok_or(KeyExchangeError::NoServerKey)?;
+        let server_key = match self.config.role() {
+            Role::Leader => {
+                // Send server public key to follower
+                if let Some(server_key) = &self.server_key {
+                    self.channel
+                        .send(KeyExchangeMessage::ServerPublicKey((*server_key).into()))
+                        .await?;
+
+                    *server_key
+                } else {
+                    return Err(KeyExchangeError::NoServerKey);
+                }
+            }
+            Role::Follower => {
+                // Receive server's public key from leader
+                let message = expect_msg_or_err!(
+                    self.channel.next().await,
+                    KeyExchangeMessage::ServerPublicKey,
+                    KeyExchangeError::Unexpected
+                )?;
+                let server_key = message.try_into()?;
+
+                self.server_key = Some(server_key);
+
+                server_key
+            }
+        };
+
         let private_key = self
             .private_key
-            .as_ref()
+            .take()
             .ok_or(KeyExchangeError::NoPrivateKey)?;
 
         // Compute the leader's/follower's share of the pre-master secret
@@ -158,12 +184,57 @@ where
 }
 
 #[async_trait]
-impl<PS, PR, E> ComputePms for KeyExchangeCore<PS, PR, E>
+impl<PS, PR, E> KeyExchange for KeyExchangeCore<PS, PR, E>
 where
     PS: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send,
     PR: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send,
     E: Memory + Execute + Decode + Send,
 {
+    /// Set the server's public key
+    fn set_server_key(&mut self, server_key: PublicKey) {
+        self.server_key = Some(server_key);
+    }
+
+    /// Compute the client's public key
+    ///
+    /// The client's public key in this context is the combined public key (EC point addition) of
+    /// the leader's public key and the follower's public key.
+    async fn compute_client_key(
+        &mut self,
+        private_key: SecretKey,
+    ) -> Result<Option<PublicKey>, KeyExchangeError> {
+        let public_key = private_key.public_key();
+        self.private_key = Some(private_key);
+
+        match self.config.role() {
+            Role::Leader => {
+                // Receive public key from follower
+                let message = expect_msg_or_err!(
+                    self.channel.next().await,
+                    KeyExchangeMessage::FollowerPublicKey,
+                    KeyExchangeError::Unexpected
+                )?;
+                let follower_public_key: PublicKey = message.try_into()?;
+
+                // Combine public keys
+                let client_public_key = PublicKey::from_affine(
+                    (public_key.to_projective() + follower_public_key.to_projective()).to_affine(),
+                )?;
+
+                Ok(Some(client_public_key))
+            }
+            Role::Follower => {
+                // Send public key to leader
+                self.channel
+                    .send(KeyExchangeMessage::FollowerPublicKey(public_key.into()))
+                    .await?;
+
+                Ok(None)
+            }
+        }
+    }
+
+    /// Computes the PMS
     async fn compute_pms(&mut self) -> Result<Pms, KeyExchangeError> {
         let (pms_share1, pms_share2) = self.compute_pms_shares().await?;
 
@@ -171,81 +242,10 @@ where
     }
 }
 
-#[async_trait]
-impl<PS, PR, E> KeyExchangeLead for KeyExchangeCore<PS, PR, E>
-where
-    PS: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send,
-    PR: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send,
-    E: Memory + Execute + Decode + Send,
-{
-    async fn compute_client_key(
-        &mut self,
-        leader_private_key: SecretKey,
-    ) -> Result<PublicKey, KeyExchangeError> {
-        // Receive public key from follower
-        let message = expect_msg_or_err!(
-            self.channel.next().await,
-            KeyExchangeMessage::FollowerPublicKey,
-            KeyExchangeError::Unexpected
-        )?;
-        let follower_public_key: PublicKey = message.try_into()?;
-
-        // Combine public keys
-        let leader_public_key = leader_private_key.public_key();
-        let client_public_key = PublicKey::from_affine(
-            (leader_public_key.to_projective() + follower_public_key.to_projective()).to_affine(),
-        )?;
-
-        self.private_key = Some(leader_private_key);
-        Ok(client_public_key)
-    }
-
-    async fn set_server_key(&mut self, server_key: PublicKey) -> Result<(), KeyExchangeError> {
-        // Send server's public key to follower
-        let message = KeyExchangeMessage::ServerPublicKey(server_key.into());
-        self.channel.send(message).await?;
-
-        self.server_key = Some(server_key);
-        Ok(())
-    }
-}
-
-#[async_trait]
-impl<PS, PR, E> KeyExchangeFollow for KeyExchangeCore<PS, PR, E>
-where
-    PS: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send,
-    PR: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send,
-    E: Memory + Execute + Decode + Send,
-{
-    async fn send_public_key(
-        &mut self,
-        follower_private_key: SecretKey,
-    ) -> Result<(), KeyExchangeError> {
-        // Send public key to leader
-        let public_key = follower_private_key.public_key();
-        let message = KeyExchangeMessage::FollowerPublicKey(public_key.into());
-        self.channel.send(message).await?;
-
-        self.private_key = Some(follower_private_key);
-        Ok(())
-    }
-
-    async fn receive_server_key(&mut self) -> Result<(), KeyExchangeError> {
-        // Receive server's public key from leader
-        let message = expect_msg_or_err!(
-            self.channel.next().await,
-            KeyExchangeMessage::ServerPublicKey,
-            KeyExchangeError::Unexpected
-        )?;
-        let server_key = message.try_into()?;
-
-        self.server_key = Some(server_key);
-        Ok(())
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     use mpc_garble::{
         protocol::deap::mock::{
             create_mock_deap_vm, MockFollower, MockFollowerThread, MockLeader, MockLeaderThread,
@@ -257,10 +257,9 @@ mod tests {
     use rand_chacha::ChaCha20Rng;
     use rand_core::SeedableRng;
 
-    use super::{KeyExchangeFollow, KeyExchangeLead};
     use crate::{
         mock::{create_mock_key_exchange_pair, MockKeyExchange},
-        ComputePms, KeyExchangeError,
+        KeyExchangeError,
     };
 
     async fn create_pair() -> (
@@ -307,12 +306,6 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(leader.private_key.unwrap(), leader_private_key);
-        assert_eq!(follower.private_key.unwrap(), follower_private_key);
-
-        assert_eq!(leader.server_key.unwrap(), server_public_key);
-        assert_eq!(follower.server_key.unwrap(), server_public_key);
-
         assert_eq!(client_public_key, expected_client_public_key);
     }
 
@@ -335,6 +328,8 @@ mod tests {
             server_public_key,
         )
         .await;
+
+        leader.set_server_key(server_public_key);
 
         let ((l_pms1, l_pms2), (f_pms1, f_pms2)) =
             tokio::try_join!(leader.compute_pms_shares(), follower.compute_pms_shares()).unwrap();
@@ -377,10 +372,13 @@ mod tests {
         )
         .await;
 
-        tokio::try_join!(leader.compute_pms_shares(), follower.compute_pms_shares()).unwrap();
+        leader.set_server_key(server_public_key);
 
         let (_leader_pms, _follower_pms) =
             tokio::try_join!(leader.compute_pms(), follower.compute_pms()).unwrap();
+
+        assert_eq!(leader.server_key.unwrap(), server_public_key);
+        assert_eq!(follower.server_key.unwrap(), server_public_key);
     }
 
     #[tokio::test]
@@ -403,6 +401,8 @@ mod tests {
         )
         .await;
 
+        leader.set_server_key(server_public_key);
+
         let ((mut l_pms1, l_pms2), (f_pms1, f_pms2)) =
             tokio::try_join!(leader.compute_pms_shares(), follower.compute_pms_shares()).unwrap();
 
@@ -418,22 +418,20 @@ mod tests {
     }
 
     async fn perform_key_exchange(
-        leader: &mut impl KeyExchangeLead,
-        follower: &mut impl KeyExchangeFollow,
+        leader: &mut impl KeyExchange,
+        follower: &mut impl KeyExchange,
         leader_private_key: SecretKey,
         follower_private_key: SecretKey,
         server_public_key: PublicKey,
     ) -> PublicKey {
-        let leader_fut = leader.compute_client_key(leader_private_key.clone());
-        let follower_fut = follower.send_public_key(follower_private_key.clone());
+        let (client_public_key, _) = tokio::try_join!(
+            leader.compute_client_key(leader_private_key),
+            follower.compute_client_key(follower_private_key)
+        )
+        .unwrap();
 
-        let (client_public_key, _) = tokio::try_join!(leader_fut, follower_fut).unwrap();
+        leader.set_server_key(server_public_key);
 
-        let leader_fut = leader.set_server_key(server_public_key);
-        let follower_fut = follower.receive_server_key();
-
-        let (_, _) = tokio::try_join!(leader_fut, follower_fut).unwrap();
-
-        client_public_key
+        client_public_key.unwrap()
     }
 }
