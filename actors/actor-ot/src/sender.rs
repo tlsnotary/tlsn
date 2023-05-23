@@ -140,7 +140,10 @@ impl Handler<GetSender> for KOSSenderActor {
         let child_channel_fut = self.mux_control.get_channel(&id);
 
         // Send split information to receiver
-        let msg = Split { id, count };
+        let msg = Split {
+            id: id.clone(),
+            count,
+        };
         let send_msg_fut = self.sink.send(OTMessage::Split(msg));
 
         // Get channel and send message concurrently
