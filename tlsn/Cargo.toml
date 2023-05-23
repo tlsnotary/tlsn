@@ -1,0 +1,10 @@
+[workspace]
+members = ["tlsn-core"]
+
+[workspace.dependencies]
+tlsn-core = { path = "tlsn-core" }
+
+tlsn-mpc-core = { path = "../mpc/mpc-core" }
+tlsn-mpc-circuits = { path = "../mpc/mpc-circuits" }
+tlsn-mpc-garble-core = { path = "../mpc/garble/mpc-garble-core" }
+tlsn-utils = { path = "../utils/utils" }
