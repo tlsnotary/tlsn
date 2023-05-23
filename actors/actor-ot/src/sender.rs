@@ -271,6 +271,30 @@ impl ObliviousSend<[Block; 2]> for SenderActorControl {
 }
 
 #[async_trait]
+impl<const N: usize> ObliviousSend<[[Block; N]; 2]> for SenderActorControl {
+    async fn send(&self, id: &str, inputs: Vec<[[Block; N]; 2]>) -> Result<(), OTError> {
+        let mut child_sender = self
+            .0
+            .send(GetSender {
+                id: id.to_owned(),
+                count: inputs.len(),
+            })
+            .await
+            .map_err(|e| OTError::Other(e.to_string()))??;
+
+        child_sender.send(inputs).await?;
+
+        self.0
+            .send(SendBackSender {
+                id: id.to_owned(),
+                child_sender,
+            })
+            .await
+            .map_err(|e| OTError::Other(e.to_string()))?
+    }
+}
+
+#[async_trait]
 impl ObliviousReveal for SenderActorControl {
     async fn reveal(&self) -> Result<(), OTError> {
         self.0

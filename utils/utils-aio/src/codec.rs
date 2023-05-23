@@ -9,6 +9,7 @@ use crate::{
 };
 
 /// Wraps a [`MuxStream`] and provides a [`Channel`] with a bincode codec
+#[derive(Debug, Clone)]
 pub struct BincodeMux<M>(M);
 
 impl<M> BincodeMux<M>
