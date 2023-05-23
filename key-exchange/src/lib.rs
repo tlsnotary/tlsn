@@ -74,8 +74,6 @@ pub enum KeyExchangeError {
     NoPrivateKey,
     #[error("PMS equality check failed")]
     CheckFailed,
-    #[error("UnexpectedMessage: {0:?}")]
-    Unexpected(KeyExchangeMessage),
 }
 
 /// A trait for the 3-party key exchange protocol

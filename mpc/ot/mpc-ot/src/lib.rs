@@ -28,8 +28,6 @@ pub enum OTError {
     IOError(#[from] std::io::Error),
     #[error("CommittedOT Error: {0}")]
     CommittedOT(#[from] CommittedOTError),
-    #[error("Received unexpected message: {0:?}")]
-    Unexpected(OTMessage),
     #[error("Received ciphertext with wrong length: expected {0}, got {1}")]
     InvalidCiphertextLength(usize, usize),
     #[error("Encountered error in backend")]

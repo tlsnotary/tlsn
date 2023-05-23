@@ -12,8 +12,6 @@ pub enum EvaluatorError {
     // TODO: Fix the size of this error
     #[error(transparent)]
     OTError(Box<mpc_ot::OTError>),
-    #[error("unexpected message: {0:?}")]
-    UnexpectedMessage(GarbleMessage),
     #[error("incorrect number of values: expected {expected}, got {actual}")]
     IncorrectValueCount { expected: usize, actual: usize },
     #[error(transparent)]

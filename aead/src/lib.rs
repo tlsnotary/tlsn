@@ -39,8 +39,6 @@ pub enum AeadError {
     CorruptedTag,
     #[error("Validation Error: {0}")]
     ValidationError(String),
-    #[error("Unexpected Message: {0:?}")]
-    UnexpectedMessage(AeadMessage),
     #[error("IO Error: {0}")]
     IoError(#[from] std::io::Error),
 }
