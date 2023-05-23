@@ -10,10 +10,9 @@ use futures::{
     channel::oneshot, stream::FuturesUnordered, AsyncRead, AsyncWrite, SinkExt, StreamExt,
 };
 use tokio_util::{codec::LengthDelimitedCodec, compat::FuturesAsyncReadCompatExt};
-use utils_aio::{
-    duplex::DuplexByteStream,
-    mux::{MuxControl, MuxerError},
-};
+use utils_aio::mux::{MuxStream, MuxerError};
+
+pub use yamux;
 
 #[derive(Debug, Default)]
 struct MuxState {
@@ -129,11 +128,10 @@ where
 }
 
 #[async_trait]
-impl MuxControl for UidYamuxControl {
-    async fn get_stream(
-        &mut self,
-        id: &str,
-    ) -> Result<Box<dyn DuplexByteStream + Send>, MuxerError> {
+impl MuxStream for UidYamuxControl {
+    type Stream = yamux::Stream;
+
+    async fn get_stream(&mut self, id: &str) -> Result<Self::Stream, MuxerError> {
         match self.mode {
             yamux::Mode::Client => {
                 if !self.state.lock().unwrap().stream_ids.insert(id.to_string()) {
@@ -156,8 +154,7 @@ impl MuxControl for UidYamuxControl {
                         MuxerError::InternalError(format!("failed to write stream id: {}", e))
                     })?;
 
-                Ok(Box::new(framed_stream.into_inner().into_inner())
-                    as Box<dyn DuplexByteStream + Send>)
+                Ok(framed_stream.into_inner().into_inner())
             }
             yamux::Mode::Server => {
                 let receiver = {
@@ -165,7 +162,7 @@ impl MuxControl for UidYamuxControl {
 
                     // If we already have the stream, return it
                     if let Some(stream) = state.waiting_streams.remove(id) {
-                        return Ok(Box::new(stream));
+                        return Ok(stream);
                     }
 
                     // Prevent duplicate stream ids
@@ -182,7 +179,6 @@ impl MuxControl for UidYamuxControl {
                 receiver
                     .await
                     .map_err(|_| MuxerError::InternalError("sender dropped".to_string()))?
-                    .map(|stream| Box::new(stream) as Box<dyn DuplexByteStream + Send>)
             }
         }
     }
