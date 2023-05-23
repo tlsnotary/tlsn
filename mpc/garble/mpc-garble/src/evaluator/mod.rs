@@ -239,11 +239,7 @@ impl Evaluator {
             return Ok(());
         }
 
-        let active_encodings = expect_msg_or_err!(
-            stream.next().await,
-            GarbleMessage::ActiveValues,
-            EvaluatorError::UnexpectedMessage
-        )?;
+        let active_encodings = expect_msg_or_err!(stream, GarbleMessage::ActiveValues)?;
 
         // Make sure the generator sent the expected number of values.
         if active_encodings.len() != values.len() {
@@ -311,11 +307,7 @@ impl Evaluator {
         };
 
         while !ev.is_complete() {
-            let encrypted_gates = expect_msg_or_err!(
-                stream.next().await,
-                GarbleMessage::EncryptedGates,
-                EvaluatorError::UnexpectedMessage
-            )?;
+            let encrypted_gates = expect_msg_or_err!(stream, GarbleMessage::EncryptedGates)?;
 
             for batch in encrypted_gates.chunks(self.config.batch_size) {
                 let batch = batch.to_vec();
@@ -333,11 +325,7 @@ impl Evaluator {
         // If configured, expect the output encoding commitments
         // from the generator and verify them.
         if self.config.encoding_commitments {
-            let commitments = expect_msg_or_err!(
-                stream.next().await,
-                GarbleMessage::EncodingCommitments,
-                EvaluatorError::UnexpectedMessage
-            )?;
+            let commitments = expect_msg_or_err!(stream, GarbleMessage::EncodingCommitments)?;
 
             // Make sure the generator sent the expected number of commitments.
             if commitments.len() != encoded_outputs.len() {
@@ -386,11 +374,7 @@ impl Evaluator {
         values: &[ValueRef],
         stream: &mut S,
     ) -> Result<Vec<Value>, EvaluatorError> {
-        let decodings = expect_msg_or_err!(
-            stream.next().await,
-            GarbleMessage::ValueDecodings,
-            EvaluatorError::UnexpectedMessage
-        )?;
+        let decodings = expect_msg_or_err!(stream, GarbleMessage::ValueDecodings)?;
 
         // Make sure the generator sent the expected number of decodings.
         if decodings.len() != values.len() {

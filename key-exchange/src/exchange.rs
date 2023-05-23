@@ -84,11 +84,8 @@ where
             }
             Role::Follower => {
                 // Receive server's public key from leader
-                let message = expect_msg_or_err!(
-                    self.channel.next().await,
-                    KeyExchangeMessage::ServerPublicKey,
-                    KeyExchangeError::Unexpected
-                )?;
+                let message =
+                    expect_msg_or_err!(self.channel, KeyExchangeMessage::ServerPublicKey)?;
                 let server_key = message.try_into()?;
 
                 self.server_key = Some(server_key);
@@ -209,11 +206,8 @@ where
         match self.config.role() {
             Role::Leader => {
                 // Receive public key from follower
-                let message = expect_msg_or_err!(
-                    self.channel.next().await,
-                    KeyExchangeMessage::FollowerPublicKey,
-                    KeyExchangeError::Unexpected
-                )?;
+                let message =
+                    expect_msg_or_err!(self.channel, KeyExchangeMessage::FollowerPublicKey)?;
                 let follower_public_key: PublicKey = message.try_into()?;
 
                 // Combine public keys

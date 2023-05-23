@@ -106,11 +106,7 @@ impl MpcAesGcm {
                     .await?;
 
                 // Expect tag share from follower
-                let msg = expect_msg_or_err!(
-                    self.channel.next().await,
-                    AeadMessage::TagShare,
-                    AeadError::UnexpectedMessage
-                )?;
+                let msg = expect_msg_or_err!(self.channel, AeadMessage::TagShare)?;
 
                 let other_tag_share = AesGcmTagShare::from_unchecked(&msg.share)?;
 
@@ -123,11 +119,8 @@ impl MpcAesGcm {
             }
             Role::Follower => {
                 // Wait for commitment from leader
-                let commitment = expect_msg_or_err!(
-                    self.channel.next().await,
-                    AeadMessage::TagShareCommitment,
-                    AeadError::UnexpectedMessage
-                )?;
+                let commitment =
+                    expect_msg_or_err!(self.channel, AeadMessage::TagShareCommitment)?;
 
                 // Send tag share to leader
                 self.channel
@@ -135,11 +128,8 @@ impl MpcAesGcm {
                     .await?;
 
                 // Expect decommitment (tag share) from leader
-                let decommitment = expect_msg_or_err!(
-                    self.channel.next().await,
-                    AeadMessage::TagShareDecommitment,
-                    AeadError::UnexpectedMessage
-                )?;
+                let decommitment =
+                    expect_msg_or_err!(self.channel, AeadMessage::TagShareDecommitment)?;
 
                 // Verify decommitment
                 decommitment.verify(&commitment).map_err(|_| {

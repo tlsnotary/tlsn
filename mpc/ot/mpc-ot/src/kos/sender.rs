@@ -36,11 +36,7 @@ impl Kos15IOSender<s_state::Initialized> {
         mut self,
         count: usize,
     ) -> Result<Kos15IOSender<s_state::RandSetup>, OTError> {
-        let message = expect_msg_or_err!(
-            self.channel.next().await,
-            OTMessage::BaseSenderSetupWrapper,
-            OTError::Unexpected
-        )?;
+        let message = expect_msg_or_err!(self.channel, OTMessage::BaseSenderSetupWrapper)?;
 
         let (kos_sender, message) =
             Backend::spawn(move || self.inner.base_setup(message).map_err(OTError::from)).await?;
@@ -48,19 +44,11 @@ impl Kos15IOSender<s_state::Initialized> {
             .send(OTMessage::BaseReceiverSetupWrapper(message))
             .await?;
 
-        let message = expect_msg_or_err!(
-            self.channel.next().await,
-            OTMessage::BaseSenderPayloadWrapper,
-            OTError::Unexpected
-        )?;
+        let message = expect_msg_or_err!(self.channel, OTMessage::BaseSenderPayloadWrapper)?;
 
         let kos_sender = kos_sender.base_receive(message)?;
 
-        let message = expect_msg_or_err!(
-            self.channel.next().await,
-            OTMessage::ExtReceiverSetup,
-            OTError::Unexpected
-        )?;
+        let message = expect_msg_or_err!(self.channel, OTMessage::ExtReceiverSetup)?;
 
         let kos_sender = Backend::spawn(move || {
             kos_sender
@@ -110,11 +98,7 @@ impl Kos15IOSender<s_state::RandSetup> {
 #[async_trait]
 impl ObliviousSendOwned<[Block; 2]> for Kos15IOSender<s_state::RandSetup> {
     async fn send(&mut self, inputs: Vec<[Block; 2]>) -> Result<(), OTError> {
-        let message = expect_msg_or_err!(
-            self.channel.next().await,
-            OTMessage::ExtDerandomize,
-            OTError::Unexpected
-        )?;
+        let message = expect_msg_or_err!(self.channel, OTMessage::ExtDerandomize)?;
         let message = self.inner.rand_send(&inputs, message)?;
         self.channel
             .send(OTMessage::ExtSenderPayload(message))

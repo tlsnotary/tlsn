@@ -39,11 +39,7 @@ impl Kos15IOReceiver<r_state::Initialized> {
         self.channel
             .send(OTMessage::BaseSenderSetupWrapper(message))
             .await?;
-        let message = expect_msg_or_err!(
-            self.channel.next().await,
-            OTMessage::BaseReceiverSetupWrapper,
-            OTError::Unexpected
-        )?;
+        let message = expect_msg_or_err!(self.channel, OTMessage::BaseReceiverSetupWrapper)?;
 
         let (kos_receiver, message) = kos_receiver.base_send(message)?;
         self.channel
@@ -108,11 +104,7 @@ impl ObliviousReceiveOwned<bool, Block> for Kos15IOReceiver<r_state::RandSetup> 
             .send(OTMessage::ExtDerandomize(message))
             .await?;
 
-        let message = expect_msg_or_err!(
-            self.channel.next().await,
-            OTMessage::ExtSenderPayload,
-            OTError::Unexpected
-        )?;
+        let message = expect_msg_or_err!(self.channel, OTMessage::ExtSenderPayload)?;
         let out = self.inner.receive(message)?;
         Ok(out)
     }
@@ -131,11 +123,8 @@ impl<const N: usize> ObliviousReceiveOwned<bool, [Block; N]>
         let keys = ObliviousReceiveOwned::<bool, Block>::receive(self, choices.clone()).await?;
 
         // Expect the sender to send the encrypted messages
-        let ExtSenderEncryptedPayload { ciphertexts } = expect_msg_or_err!(
-            self.channel.next().await,
-            OTMessage::ExtSenderEncryptedPayload,
-            OTError::Unexpected
-        )?;
+        let ExtSenderEncryptedPayload { ciphertexts } =
+            expect_msg_or_err!(self.channel, OTMessage::ExtSenderEncryptedPayload)?;
 
         // Check that the Sender sent the correct number of ciphertexts
         let expected_len = choices.len() * 2 * N * Block::LEN;
@@ -191,11 +180,7 @@ impl<const N: usize> ObliviousReceiveOwned<bool, [Block; N]>
 #[async_trait]
 impl ObliviousAcceptCommitOwned for Kos15IOReceiver<r_state::Initialized> {
     async fn accept_commit(&mut self) -> Result<(), OTError> {
-        let message = expect_msg_or_err!(
-            self.channel.next().await,
-            OTMessage::ExtSenderCommit,
-            OTError::Unexpected
-        )?;
+        let message = expect_msg_or_err!(self.channel, OTMessage::ExtSenderCommit)?;
         self.inner.store_commitment(message.0);
         Ok(())
     }
@@ -204,11 +189,7 @@ impl ObliviousAcceptCommitOwned for Kos15IOReceiver<r_state::Initialized> {
 #[async_trait]
 impl ObliviousVerifyOwned<[Block; 2]> for Kos15IOReceiver<r_state::RandSetup> {
     async fn verify(mut self, input: Vec<[Block; 2]>) -> Result<(), OTError> {
-        let reveal = expect_msg_or_err!(
-            self.channel.next().await,
-            OTMessage::ExtSenderReveal,
-            OTError::Unexpected
-        )?;
+        let reveal = expect_msg_or_err!(self.channel, OTMessage::ExtSenderReveal)?;
         self.inner
             .verify(reveal, &input)
             .map_err(OTError::CommittedOT)
