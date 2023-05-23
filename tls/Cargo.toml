@@ -1,5 +1,5 @@
 [workspace]
-members = ["tls-client", "tls-backend", "tls-core"]
+members = ["tls-client", "tls-backend", "tls-core", "tls-mpc"]
 
 [workspace.dependencies]
 # rand
@@ -49,3 +49,4 @@ rayon = "1"
 hex = "0.4"
 once_cell = "1"
 generic-array = "0.14"
+derive_builder = "0.11"
