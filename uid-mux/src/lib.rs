@@ -80,11 +80,15 @@ where
                 stream = conn.select_next_some() => {
                     if self.mode == yamux::Mode::Client {
                         return Err(MuxerError::InternalError(
-                            "Client mode cannot accept incoming streams".to_string(),
+                            "client mode cannot accept incoming streams".to_string(),
                         ));
                     }
 
-                    let mut framed_stream = stream_id_codec.new_read(stream.unwrap().compat());
+                    let mut framed_stream = stream_id_codec
+                        .new_read(
+                            stream.map_err(|e| MuxerError::InternalError(format!("connection error: {0:?}", e)))?
+                                .compat()
+                        );
 
                     pending_streams.push(async move {
                         let stream_id = framed_stream.next().await.ok_or_else(|| {
