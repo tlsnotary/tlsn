@@ -119,8 +119,7 @@ impl MpcAesGcm {
             }
             Role::Follower => {
                 // Wait for commitment from leader
-                let commitment =
-                    expect_msg_or_err!(self.channel, AeadMessage::TagShareCommitment)?;
+                let commitment = expect_msg_or_err!(self.channel, AeadMessage::TagShareCommitment)?;
 
                 // Send tag share to leader
                 self.channel
