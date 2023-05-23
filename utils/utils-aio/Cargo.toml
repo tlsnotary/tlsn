@@ -11,7 +11,7 @@ default = ["mux", "duplex", "tokio_compat", "wasm_compat"]
 codec = []
 mux = []
 duplex = []
-tokio_compat = []
+tokio_compat = ["tokio/rt"]
 wasm_compat = ["dep:wasm-bindgen-futures"]
 
 [dependencies]
