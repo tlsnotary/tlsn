@@ -70,10 +70,10 @@ async fn bench_deap() {
     _ = futures::join!(leader_fut, follower_fut)
 }
 
-fn bench_aes_leader<T: Thread + Execute + Decode>(
+fn bench_aes_leader<T: Thread + Execute + Decode + Send>(
     thread: &mut T,
     block: usize,
-) -> Pin<Box<dyn Future<Output = Result<[u8; 16], VmError>> + '_>> {
+) -> Pin<Box<dyn Future<Output = Result<[u8; 16], VmError>> + Send + '_>> {
     Box::pin(async move {
         let key = thread.new_private_input(&format!("key/{block}"), Some([0u8; 16]))?;
         let msg = thread.new_private_input(&format!("msg/{block}"), Some([0u8; 16]))?;
@@ -89,10 +89,10 @@ fn bench_aes_leader<T: Thread + Execute + Decode>(
     })
 }
 
-fn bench_aes_follower<T: Thread + Execute + Decode>(
+fn bench_aes_follower<T: Thread + Execute + Decode + Send>(
     thread: &mut T,
     block: usize,
-) -> Pin<Box<dyn Future<Output = Result<[u8; 16], VmError>> + '_>> {
+) -> Pin<Box<dyn Future<Output = Result<[u8; 16], VmError>> + Send + '_>> {
     Box::pin(async move {
         let key = thread.new_private_input::<[u8; 16]>(&format!("key/{block}"), None)?;
         let msg = thread.new_private_input::<[u8; 16]>(&format!("msg/{block}"), None)?;

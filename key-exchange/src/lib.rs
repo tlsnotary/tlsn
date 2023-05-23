@@ -27,7 +27,7 @@ pub use exchange::KeyExchangeCore;
 pub use msg::KeyExchangeMessage;
 
 /// A channel for exchanging key exchange messages
-pub type KeyExchangeChannel = Box<dyn Channel<KeyExchangeMessage, Error = std::io::Error> + Send>;
+pub type KeyExchangeChannel = Box<dyn Channel<KeyExchangeMessage>>;
 
 use async_trait::async_trait;
 use mpc_garble::ValueRef;

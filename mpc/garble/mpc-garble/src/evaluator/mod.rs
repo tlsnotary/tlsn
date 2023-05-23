@@ -123,7 +123,10 @@ impl Evaluator {
     /// * `input_configs` - The inputs to setup
     /// * `stream` - The stream of messages from the generator
     /// * `ot` - The oblivious transfer receiver
-    pub async fn setup_inputs<S: Stream<Item = GarbleMessage> + Unpin, OT: OTReceiveEncoding>(
+    pub async fn setup_inputs<
+        S: Stream<Item = Result<GarbleMessage, std::io::Error>> + Unpin,
+        OT: OTReceiveEncoding,
+    >(
         &self,
         id: &str,
         input_configs: &[ValueIdConfig],
@@ -230,7 +233,9 @@ impl Evaluator {
     /// # Arguments
     /// - `values` - The values and types expected to be received
     /// - `stream` - The stream of messages from the generator
-    async fn direct_receive_active_encodings<S: Stream<Item = GarbleMessage> + Unpin>(
+    async fn direct_receive_active_encodings<
+        S: Stream<Item = Result<GarbleMessage, std::io::Error>> + Unpin,
+    >(
         &self,
         values: &[(ValueId, ValueType)],
         stream: &mut S,
@@ -280,7 +285,7 @@ impl Evaluator {
     /// * `inputs` - The inputs to the circuit.
     /// * `outputs` - The outputs from the circuit.
     /// * `stream` - The stream of encrypted gates
-    pub async fn evaluate<S: Stream<Item = GarbleMessage> + Unpin>(
+    pub async fn evaluate<S: Stream<Item = Result<GarbleMessage, std::io::Error>> + Unpin>(
         &self,
         circ: Arc<Circuit>,
         inputs: &[ValueRef],
@@ -369,7 +374,7 @@ impl Evaluator {
     ///
     /// * `values` - The values to decode
     /// * `stream` - The stream from the generator
-    pub async fn decode<S: Stream<Item = GarbleMessage> + Unpin>(
+    pub async fn decode<S: Stream<Item = Result<GarbleMessage, std::io::Error>> + Unpin>(
         &self,
         values: &[ValueRef],
         stream: &mut S,

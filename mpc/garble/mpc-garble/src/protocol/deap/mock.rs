@@ -1,7 +1,7 @@
 //! Mocked DEAP VMs for testing
 
 use mpc_ot::mock::{mock_ot_pair, MockOTReceiver, MockOTSender};
-use utils_aio::mux::{mock::MockMuxChannelFactory, MuxChannelControl};
+use utils_aio::mux::{mock::MockMuxChannelFactory, MuxChannel};
 
 use crate::config::Role;
 

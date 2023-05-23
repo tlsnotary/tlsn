@@ -23,7 +23,7 @@ use mpc_garble::ValueRef;
 use utils_aio::Channel;
 
 /// A channel for sending and receiving AEAD messages.
-pub type AeadChannel = Box<dyn Channel<AeadMessage, Error = std::io::Error> + Send>;
+pub type AeadChannel = Box<dyn Channel<AeadMessage>>;
 
 /// An error that can occur during AEAD operations.
 #[derive(Debug, thiserror::Error)]

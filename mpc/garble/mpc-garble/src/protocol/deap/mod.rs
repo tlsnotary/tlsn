@@ -153,7 +153,7 @@ impl DEAP {
     ) -> Result<(), DEAPError>
     where
         T: Sink<GarbleMessage, Error = std::io::Error> + Unpin,
-        U: Stream<Item = GarbleMessage> + Unpin,
+        U: Stream<Item = Result<GarbleMessage, std::io::Error>> + Unpin,
         OTS: OTSendEncoding,
         OTR: OTReceiveEncoding,
     {
@@ -223,7 +223,7 @@ impl DEAP {
     ) -> Result<(), DEAPError>
     where
         T: Sink<GarbleMessage, Error = std::io::Error> + Unpin,
-        U: Stream<Item = GarbleMessage> + Unpin,
+        U: Stream<Item = Result<GarbleMessage, std::io::Error>> + Unpin,
         OTR: OTReceiveEncoding,
     {
         if matches!(self.role, Role::Follower) {
@@ -294,7 +294,7 @@ impl DEAP {
     ) -> Result<(), DEAPError>
     where
         T: Sink<GarbleMessage, Error = std::io::Error> + Unpin,
-        U: Stream<Item = GarbleMessage> + Unpin,
+        U: Stream<Item = Result<GarbleMessage, std::io::Error>> + Unpin,
         OTS: OTSendEncoding,
     {
         if matches!(self.role, Role::Leader) {
@@ -361,7 +361,7 @@ impl DEAP {
     ) -> Result<Vec<Value>, DEAPError>
     where
         T: Sink<GarbleMessage, Error = std::io::Error> + Unpin,
-        U: Stream<Item = GarbleMessage> + Unpin,
+        U: Stream<Item = Result<GarbleMessage, std::io::Error>> + Unpin,
     {
         let full = values
             .iter()
@@ -450,7 +450,7 @@ impl DEAP {
     ) -> Result<Vec<Value>, DEAPError>
     where
         T: Sink<GarbleMessage, Error = std::io::Error> + Unpin,
-        U: Stream<Item = GarbleMessage> + Unpin,
+        U: Stream<Item = Result<GarbleMessage, std::io::Error>> + Unpin,
         OTS: OTSendEncoding,
         OTR: OTReceiveEncoding,
     {
@@ -539,7 +539,7 @@ impl DEAP {
     ) -> Result<(), DEAPError>
     where
         T: Sink<GarbleMessage, Error = std::io::Error> + Unpin,
-        U: Stream<Item = GarbleMessage> + Unpin,
+        U: Stream<Item = Result<GarbleMessage, std::io::Error>> + Unpin,
         OTS: OTSendEncoding,
         OTR: OTReceiveEncoding,
     {
@@ -611,7 +611,7 @@ impl DEAP {
     ) -> Result<Vec<Value>, DEAPError>
     where
         T: Sink<GarbleMessage, Error = std::io::Error> + Unpin,
-        U: Stream<Item = GarbleMessage> + Unpin,
+        U: Stream<Item = Result<GarbleMessage, std::io::Error>> + Unpin,
         OTS: OTSendEncoding,
         OTR: OTReceiveEncoding,
     {
@@ -752,7 +752,7 @@ impl DEAP {
     /// - `ot` - The OT verifier to use
     pub async fn finalize<
         T: Sink<GarbleMessage, Error = std::io::Error> + Unpin,
-        U: Stream<Item = GarbleMessage> + Unpin,
+        U: Stream<Item = Result<GarbleMessage, std::io::Error>> + Unpin,
         OT: OTVerifyEncoding,
     >(
         &mut self,

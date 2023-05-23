@@ -1,5 +1,4 @@
 use mpc_core::value::{ValueId, ValueRef};
-use mpc_garble_core::msg::GarbleMessage;
 
 /// Errors that can occur while performing the role of an evaluator
 #[derive(Debug, thiserror::Error)]
