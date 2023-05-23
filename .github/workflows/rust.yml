@@ -11,7 +11,7 @@ env:
   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
 
 jobs:
-  build-actor-mux:
+  build-uid-mux:
     if: ( ! github.event.pull_request.draft )
     runs-on: ubuntu-latest
     steps:
@@ -25,7 +25,7 @@ jobs:
           components: rustfmt
 
       - name: "Check formatting"
-        run: cargo +nightly fmt --check --manifest-path actors/actor-mux/Cargo.toml
+        run: cargo +nightly fmt --check --manifest-path uid-mux/Cargo.toml
 
       - name: Stable
         uses: actions-rs/toolchain@v1
@@ -35,10 +35,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2.0.0
 
       - name: "Build"
-        run: cargo build --manifest-path actors/actor-mux/Cargo.toml
+        run: cargo build --manifest-path uid-mux/Cargo.toml
 
       - name: "Test"
-        run: cargo test --lib --bins --tests --examples --manifest-path actors/actor-mux/Cargo.toml
+        run: cargo test --lib --bins --tests --examples --manifest-path uid-mux/Cargo.toml
 
   build-actor-ot:
     if: ( ! github.event.pull_request.draft )

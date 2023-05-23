@@ -27,8 +27,8 @@ pub async fn create_mock_deap_vm(
     let (leader_ot_send, follower_ot_recv) = mock_ot_pair();
     let (follower_ot_send, leader_ot_recv) = mock_ot_pair();
 
-    let leader_channel = mux_factory.get_channel(id.to_string()).await.unwrap();
-    let follower_channel = mux_factory.get_channel(id.to_string()).await.unwrap();
+    let leader_channel = mux_factory.get_channel(id).await.unwrap();
+    let follower_channel = mux_factory.get_channel(id).await.unwrap();
 
     let leader = DEAPVm::new(
         id,

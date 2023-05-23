@@ -129,7 +129,7 @@ where
 
         let channel = self
             .channel_factory
-            .get_channel(thread_id.to_string())
+            .get_channel(&thread_id.to_string())
             .await?;
 
         Ok(DEAPThread::new(

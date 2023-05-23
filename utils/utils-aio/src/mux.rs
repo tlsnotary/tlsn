@@ -4,14 +4,12 @@ use async_trait::async_trait;
 
 #[derive(Debug, thiserror::Error)]
 pub enum MuxerError {
-    #[error("Connection error occurred: {0}")]
-    ConnectionError(String),
-    #[error("IO error")]
+    #[error(transparent)]
     IOError(#[from] std::io::Error),
-    #[error("Duplicate stream id: {0:?}")]
-    DuplicateStreamId(String),
-    #[error("Encountered internal error: {0:?}")]
+    #[error("internal error: {0:?}")]
     InternalError(String),
+    #[error("duplicate stream id: {0:?}")]
+    DuplicateStreamId(String),
 }
 
 #[async_trait]
@@ -19,7 +17,7 @@ pub trait MuxControl: Clone {
     /// Opens a new stream with the remote using the provided id
     async fn get_stream(
         &mut self,
-        id: String,
+        id: &str,
     ) -> Result<Box<dyn DuplexByteStream + Send>, MuxerError>;
 }
 
@@ -32,7 +30,7 @@ pub trait MuxChannelControl<T> {
     /// Attaches a codec to the underlying stream
     async fn get_channel(
         &mut self,
-        id: String,
+        id: &str,
     ) -> Result<Box<dyn Channel<T, Error = std::io::Error>>, MuxerError>;
 }
 
@@ -81,7 +79,7 @@ pub mod mock {
                     Ok(*channel)
                 } else {
                     Err(MuxerError::InternalError(
-                        "Failed to downcast channel".to_string(),
+                        "failed to downcast channel".to_string(),
                     ))
                 }
             } else {
@@ -103,9 +101,9 @@ pub mod mock {
     {
         async fn get_channel(
             &mut self,
-            id: String,
+            id: &str,
         ) -> Result<Box<dyn Channel<T, Error = std::io::Error>>, MuxerError> {
-            self.setup_channel(&id)
+            self.setup_channel(id)
                 .map(|c| Box::new(c) as Box<dyn Channel<T, Error = std::io::Error>>)
         }
     }
@@ -119,8 +117,8 @@ pub mod mock {
         #[tokio::test]
         async fn test_mock_mux_channel_factory() {
             let mut factory = MockMuxChannelFactory::new();
-            let mut channel_0 = factory.get_channel("test".to_string()).await.unwrap();
-            let mut channel_1 = factory.get_channel("test".to_string()).await.unwrap();
+            let mut channel_0 = factory.get_channel("test").await.unwrap();
+            let mut channel_1 = factory.get_channel("test").await.unwrap();
 
             channel_0.send(0).await.unwrap();
             let received = channel_1.next().await.unwrap();
