@@ -97,7 +97,7 @@ impl Handler<Setup> for KOSSenderActor {
 
         let parent_ot_channel = self
             .mux_control
-            .get_channel(format!("{}/parent", self.config.id))
+            .get_channel(&format!("{}/parent", self.config.id))
             .await?;
         let mut parent_ot = Kos15IOSender::new(parent_ot_channel);
 
@@ -137,7 +137,7 @@ impl Handler<GetSender> for KOSSenderActor {
         };
 
         // Open channel to receiver
-        let child_channel_fut = self.mux_control.get_channel(id.clone());
+        let child_channel_fut = self.mux_control.get_channel(&id);
 
         // Send split information to receiver
         let msg = Split { id, count };

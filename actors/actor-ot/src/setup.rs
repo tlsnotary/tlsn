@@ -22,7 +22,7 @@ pub async fn create_ot_sender(
     mut mux: impl MuxChannelControl<OTMessage> + Send + 'static,
     config: OTActorSenderConfig,
 ) -> Result<SenderActorControl, OTActorError> {
-    let channel = mux.get_channel(id.to_string()).await.unwrap();
+    let channel = mux.get_channel(id).await.unwrap();
     let (addr, mailbox) = Mailbox::unbounded();
     let actor = KOSSenderActor::new(config, addr.clone(), &spawner, channel, Box::new(mux));
 
@@ -47,7 +47,7 @@ pub async fn create_ot_receiver(
     mut mux: impl MuxChannelControl<OTMessage> + Send + 'static,
     config: OTActorReceiverConfig,
 ) -> Result<ReceiverActorControl, OTActorError> {
-    let channel = mux.get_channel(id.to_string()).await.unwrap();
+    let channel = mux.get_channel(id).await.unwrap();
     let (addr, mailbox) = Mailbox::unbounded();
     let actor = KOSReceiverActor::new(config, addr.clone(), &spawner, channel, Box::new(mux));
 

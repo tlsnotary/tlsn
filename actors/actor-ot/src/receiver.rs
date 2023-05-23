@@ -120,7 +120,7 @@ impl Handler<Setup> for KOSReceiverActor {
         // Open channel to the remote KOSSenderActor
         let parent_ot_channel = self
             .mux_control
-            .get_channel(format!("{}/parent", self.config.id))
+            .get_channel(&format!("{}/parent", self.config.id))
             .await?;
 
         let mut parent_ot = Kos15IOReceiver::new(parent_ot_channel);
@@ -162,7 +162,7 @@ impl Handler<Split> for KOSReceiverActor {
         };
 
         // Open channel to the OT sender
-        let child_channel = self.mux_control.get_channel(id.clone()).await?;
+        let child_channel = self.mux_control.get_channel(&id).await?;
         // Split off OTs
         let (receiver, child_ot) = receiver.split(child_channel, count)?;
 
