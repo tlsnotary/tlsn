@@ -127,7 +127,7 @@ where
             return Err(VmError::ThreadAlreadyExists(thread_id.to_string()));
         }
 
-        let channel = self.channel_factory.get_channel(thread_id).await?;
+        let channel = self.channel_factory.get_channel(&thread_id.to_string()).await?;
 
         Ok(DEAPThread::new(
             thread_id,
