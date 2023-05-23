@@ -27,7 +27,7 @@ pub use exchange::KeyExchangeCore;
 pub use msg::KeyExchangeMessage;
 
 /// A channel for exchanging key exchange messages
-pub type KeyExchangeChannel = Box<dyn Channel<KeyExchangeMessage, Error = std::io::Error> + Send>;
+pub type KeyExchangeChannel = Box<dyn Channel<KeyExchangeMessage>>;
 
 use async_trait::async_trait;
 use mpc_garble::ValueRef;
@@ -74,8 +74,6 @@ pub enum KeyExchangeError {
     NoPrivateKey,
     #[error("PMS equality check failed")]
     CheckFailed,
-    #[error("UnexpectedMessage: {0:?}")]
-    Unexpected(KeyExchangeMessage),
 }
 
 /// A trait for the 3-party key exchange protocol

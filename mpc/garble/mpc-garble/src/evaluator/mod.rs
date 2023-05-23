@@ -123,7 +123,10 @@ impl Evaluator {
     /// * `input_configs` - The inputs to setup
     /// * `stream` - The stream of messages from the generator
     /// * `ot` - The oblivious transfer receiver
-    pub async fn setup_inputs<S: Stream<Item = GarbleMessage> + Unpin, OT: OTReceiveEncoding>(
+    pub async fn setup_inputs<
+        S: Stream<Item = Result<GarbleMessage, std::io::Error>> + Unpin,
+        OT: OTReceiveEncoding,
+    >(
         &self,
         id: &str,
         input_configs: &[ValueIdConfig],
@@ -230,7 +233,9 @@ impl Evaluator {
     /// # Arguments
     /// - `values` - The values and types expected to be received
     /// - `stream` - The stream of messages from the generator
-    async fn direct_receive_active_encodings<S: Stream<Item = GarbleMessage> + Unpin>(
+    async fn direct_receive_active_encodings<
+        S: Stream<Item = Result<GarbleMessage, std::io::Error>> + Unpin,
+    >(
         &self,
         values: &[(ValueId, ValueType)],
         stream: &mut S,
@@ -239,11 +244,7 @@ impl Evaluator {
             return Ok(());
         }
 
-        let active_encodings = expect_msg_or_err!(
-            stream.next().await,
-            GarbleMessage::ActiveValues,
-            EvaluatorError::UnexpectedMessage
-        )?;
+        let active_encodings = expect_msg_or_err!(stream, GarbleMessage::ActiveValues)?;
 
         // Make sure the generator sent the expected number of values.
         if active_encodings.len() != values.len() {
@@ -284,7 +285,7 @@ impl Evaluator {
     /// * `inputs` - The inputs to the circuit.
     /// * `outputs` - The outputs from the circuit.
     /// * `stream` - The stream of encrypted gates
-    pub async fn evaluate<S: Stream<Item = GarbleMessage> + Unpin>(
+    pub async fn evaluate<S: Stream<Item = Result<GarbleMessage, std::io::Error>> + Unpin>(
         &self,
         circ: Arc<Circuit>,
         inputs: &[ValueRef],
@@ -311,11 +312,7 @@ impl Evaluator {
         };
 
         while !ev.is_complete() {
-            let encrypted_gates = expect_msg_or_err!(
-                stream.next().await,
-                GarbleMessage::EncryptedGates,
-                EvaluatorError::UnexpectedMessage
-            )?;
+            let encrypted_gates = expect_msg_or_err!(stream, GarbleMessage::EncryptedGates)?;
 
             for batch in encrypted_gates.chunks(self.config.batch_size) {
                 let batch = batch.to_vec();
@@ -333,11 +330,7 @@ impl Evaluator {
         // If configured, expect the output encoding commitments
         // from the generator and verify them.
         if self.config.encoding_commitments {
-            let commitments = expect_msg_or_err!(
-                stream.next().await,
-                GarbleMessage::EncodingCommitments,
-                EvaluatorError::UnexpectedMessage
-            )?;
+            let commitments = expect_msg_or_err!(stream, GarbleMessage::EncodingCommitments)?;
 
             // Make sure the generator sent the expected number of commitments.
             if commitments.len() != encoded_outputs.len() {
@@ -381,16 +374,12 @@ impl Evaluator {
     ///
     /// * `values` - The values to decode
     /// * `stream` - The stream from the generator
-    pub async fn decode<S: Stream<Item = GarbleMessage> + Unpin>(
+    pub async fn decode<S: Stream<Item = Result<GarbleMessage, std::io::Error>> + Unpin>(
         &self,
         values: &[ValueRef],
         stream: &mut S,
     ) -> Result<Vec<Value>, EvaluatorError> {
-        let decodings = expect_msg_or_err!(
-            stream.next().await,
-            GarbleMessage::ValueDecodings,
-            EvaluatorError::UnexpectedMessage
-        )?;
+        let decodings = expect_msg_or_err!(stream, GarbleMessage::ValueDecodings)?;
 
         // Make sure the generator sent the expected number of decodings.
         if decodings.len() != values.len() {

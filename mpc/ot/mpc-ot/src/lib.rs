@@ -12,7 +12,7 @@ use utils_aio::Channel;
 
 pub use mpc_ot_core::config;
 
-pub type OTChannel = Box<dyn Channel<OTMessage, Error = std::io::Error>>;
+pub type OTChannel = Box<dyn Channel<OTMessage>>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum OTError {
@@ -28,8 +28,6 @@ pub enum OTError {
     IOError(#[from] std::io::Error),
     #[error("CommittedOT Error: {0}")]
     CommittedOT(#[from] CommittedOTError),
-    #[error("Received unexpected message: {0:?}")]
-    Unexpected(OTMessage),
     #[error("Received ciphertext with wrong length: expected {0}, got {1}")]
     InvalidCiphertextLength(usize, usize),
     #[error("Encountered error in backend")]

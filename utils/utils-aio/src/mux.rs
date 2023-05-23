@@ -1,6 +1,6 @@
 use super::Channel;
-use crate::duplex::DuplexByteStream;
 use async_trait::async_trait;
+use futures_util::{AsyncRead, AsyncWrite};
 
 #[derive(Debug, thiserror::Error)]
 pub enum MuxerError {
@@ -12,29 +12,49 @@ pub enum MuxerError {
     DuplicateStreamId(String),
 }
 
+/// A trait for opening a new duplex byte stream with a remote peer.
 #[async_trait]
-pub trait MuxControl: Clone {
+pub trait MuxStream: Clone {
+    type Stream: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static;
+
     /// Opens a new stream with the remote using the provided id
-    async fn get_stream(
-        &mut self,
-        id: &str,
-    ) -> Result<Box<dyn DuplexByteStream + Send>, MuxerError>;
+    async fn get_stream(&mut self, id: &str) -> Result<Self::Stream, MuxerError>;
 }
 
-/// This trait is similar to [`MuxControl`] except it provides a stream
-/// with a codec attached which handles serialization.
+/// A trait for opening a new duplex channel with a remote peer.
 #[async_trait]
-pub trait MuxChannelControl<T> {
+pub trait MuxChannelSized: Sized {
+    /// Opens a new channel with the remote using the provided id
+    async fn get_channel<T: Send + 'static>(
+        &mut self,
+        id: &str,
+    ) -> Result<Box<dyn Channel<T> + 'static>, MuxerError>;
+}
+
+/// A trait for opening a new duplex channel with a remote peer.
+///
+/// This trait is similar to [`MuxChannelSized`] except it is object safe.
+#[async_trait]
+pub trait MuxChannel<T> {
     /// Opens a new channel with the remote using the provided id
     ///
     /// Attaches a codec to the underlying stream
-    async fn get_channel(
-        &mut self,
-        id: &str,
-    ) -> Result<Box<dyn Channel<T, Error = std::io::Error>>, MuxerError>;
+    async fn get_channel(&mut self, id: &str) -> Result<Box<dyn Channel<T> + 'static>, MuxerError>;
+}
+
+#[async_trait]
+impl<T: Send + 'static, U> MuxChannel<T> for U
+where
+    U: MuxChannelSized + Send,
+{
+    async fn get_channel(&mut self, id: &str) -> Result<Box<dyn Channel<T> + 'static>, MuxerError> {
+        self.get_channel::<T>(id).await
+    }
 }
 
 pub mod mock {
+    use tokio_util::compat::TokioAsyncReadCompatExt;
+
     use super::*;
 
     use std::{
@@ -66,17 +86,46 @@ pub mod mock {
                 })),
             }
         }
+    }
 
-        /// Sets up a channel with the provided id
-        pub fn setup_channel<T: Send + 'static>(
-            &self,
+    #[async_trait]
+    impl MuxStream for MockMuxChannelFactory {
+        type Stream = tokio_util::compat::Compat<tokio::io::DuplexStream>;
+
+        async fn get_stream(&mut self, id: &str) -> Result<Self::Stream, MuxerError> {
+            let mut state = self.state.lock().unwrap();
+
+            if let Some(stream) = state.buffer.remove(id) {
+                if let Ok(stream) = stream.downcast::<tokio::io::DuplexStream>() {
+                    Ok((*stream).compat())
+                } else {
+                    Err(MuxerError::InternalError(
+                        "failed to downcast stream".to_string(),
+                    ))
+                }
+            } else {
+                if !state.exists.insert(id.to_string()) {
+                    return Err(MuxerError::DuplicateStreamId(id.to_string()));
+                }
+
+                let (stream_0, stream_1) = tokio::io::duplex(2 << 23);
+                state.buffer.insert(id.to_string(), Box::new(stream_1));
+                Ok(stream_0.compat())
+            }
+        }
+    }
+
+    #[async_trait]
+    impl MuxChannelSized for MockMuxChannelFactory {
+        async fn get_channel<T: Send + 'static>(
+            &mut self,
             id: &str,
-        ) -> Result<DuplexChannel<T>, MuxerError> {
+        ) -> Result<Box<dyn Channel<T> + 'static>, MuxerError> {
             let mut state = self.state.lock().unwrap();
 
             if let Some(channel) = state.buffer.remove(id) {
                 if let Ok(channel) = channel.downcast::<DuplexChannel<T>>() {
-                    Ok(*channel)
+                    Ok(channel)
                 } else {
                     Err(MuxerError::InternalError(
                         "failed to downcast channel".to_string(),
@@ -89,22 +138,9 @@ pub mod mock {
 
                 let (channel_0, channel_1) = DuplexChannel::new();
                 state.buffer.insert(id.to_string(), Box::new(channel_1));
-                Ok(channel_0)
-            }
-        }
-    }
 
-    #[async_trait]
-    impl<T> MuxChannelControl<T> for MockMuxChannelFactory
-    where
-        T: Send + 'static,
-    {
-        async fn get_channel(
-            &mut self,
-            id: &str,
-        ) -> Result<Box<dyn Channel<T, Error = std::io::Error>>, MuxerError> {
-            self.setup_channel(id)
-                .map(|c| Box::new(c) as Box<dyn Channel<T, Error = std::io::Error>>)
+                Ok(Box::new(channel_0))
+            }
         }
     }
 
@@ -112,7 +148,7 @@ pub mod mock {
     mod test {
         use futures::{SinkExt, StreamExt};
 
-        use super::*;
+        use super::{MockMuxChannelFactory, MuxChannelSized};
 
         #[tokio::test]
         async fn test_mock_mux_channel_factory() {
@@ -121,12 +157,12 @@ pub mod mock {
             let mut channel_1 = factory.get_channel("test").await.unwrap();
 
             channel_0.send(0).await.unwrap();
-            let received = channel_1.next().await.unwrap();
+            let received = channel_1.next().await.unwrap().unwrap();
 
             assert_eq!(received, 0);
 
             channel_1.send(0).await.unwrap();
-            let received = channel_0.next().await.unwrap();
+            let received = channel_0.next().await.unwrap().unwrap();
 
             assert_eq!(received, 0);
         }

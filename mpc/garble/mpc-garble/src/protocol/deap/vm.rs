@@ -16,7 +16,7 @@ use mpc_circuits::{
 use mpc_core::value::ValueRef;
 use mpc_garble_core::{encoding_state::Active, msg::GarbleMessage, EncodedValue};
 use utils::id::NestedId;
-use utils_aio::{mux::MuxChannelControl, Channel};
+use utils_aio::{mux::MuxChannel, Channel};
 
 use crate::{
     config::Role,
@@ -30,8 +30,8 @@ use super::{
     DEAPError, DEAP,
 };
 
-type ChannelFactory = Box<dyn MuxChannelControl<GarbleMessage> + Send + 'static>;
-type GarbleChannel = Box<dyn Channel<GarbleMessage, Error = std::io::Error>>;
+type ChannelFactory = Box<dyn MuxChannel<GarbleMessage> + Send + 'static>;
+type GarbleChannel = Box<dyn Channel<GarbleMessage>>;
 
 /// A DEAP Vm.
 pub struct DEAPVm<OTS, OTR> {
@@ -484,7 +484,6 @@ mod tests {
     use crate::protocol::deap::mock::create_mock_deap_vm;
 
     use core::{future::Future, pin::Pin};
-    use mpc_core::Block;
     use mpc_ot::mock::{MockOTReceiver, MockOTSender};
     use rstest::{fixture, rstest};
 

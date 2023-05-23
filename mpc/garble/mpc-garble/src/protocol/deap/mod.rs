@@ -153,7 +153,7 @@ impl DEAP {
     ) -> Result<(), DEAPError>
     where
         T: Sink<GarbleMessage, Error = std::io::Error> + Unpin,
-        U: Stream<Item = GarbleMessage> + Unpin,
+        U: Stream<Item = Result<GarbleMessage, std::io::Error>> + Unpin,
         OTS: OTSendEncoding,
         OTR: OTReceiveEncoding,
     {
@@ -223,7 +223,7 @@ impl DEAP {
     ) -> Result<(), DEAPError>
     where
         T: Sink<GarbleMessage, Error = std::io::Error> + Unpin,
-        U: Stream<Item = GarbleMessage> + Unpin,
+        U: Stream<Item = Result<GarbleMessage, std::io::Error>> + Unpin,
         OTR: OTReceiveEncoding,
     {
         if matches!(self.role, Role::Follower) {
@@ -294,7 +294,7 @@ impl DEAP {
     ) -> Result<(), DEAPError>
     where
         T: Sink<GarbleMessage, Error = std::io::Error> + Unpin,
-        U: Stream<Item = GarbleMessage> + Unpin,
+        U: Stream<Item = Result<GarbleMessage, std::io::Error>> + Unpin,
         OTS: OTSendEncoding,
     {
         if matches!(self.role, Role::Leader) {
@@ -326,11 +326,7 @@ impl DEAP {
 
         let expected_digest = expected_outputs.hash();
 
-        let commitment = expect_msg_or_err!(
-            stream.next().await,
-            GarbleMessage::HashCommitment,
-            DEAPError::UnexpectedMessage
-        )?;
+        let commitment = expect_msg_or_err!(stream, GarbleMessage::HashCommitment)?;
 
         // Store commitment to proof until finalization
         self.state()
@@ -365,7 +361,7 @@ impl DEAP {
     ) -> Result<Vec<Value>, DEAPError>
     where
         T: Sink<GarbleMessage, Error = std::io::Error> + Unpin,
-        U: Stream<Item = GarbleMessage> + Unpin,
+        U: Stream<Item = Result<GarbleMessage, std::io::Error>> + Unpin,
     {
         let full = values
             .iter()
@@ -414,11 +410,7 @@ impl DEAP {
                 sink.send(GarbleMessage::HashCommitment(commit)).await?;
 
                 // Receive the active encoded outputs from the follower
-                let active = expect_msg_or_err!(
-                    stream.next().await,
-                    GarbleMessage::ActiveValues,
-                    DEAPError::UnexpectedMessage
-                )?;
+                let active = expect_msg_or_err!(stream, GarbleMessage::ActiveValues)?;
 
                 // Authenticate and decode values
                 active
@@ -429,11 +421,7 @@ impl DEAP {
             }
             Role::Follower => {
                 // Receive equality check commitment from leader
-                let commit = expect_msg_or_err!(
-                    stream.next().await,
-                    GarbleMessage::HashCommitment,
-                    DEAPError::UnexpectedMessage
-                )?;
+                let commit = expect_msg_or_err!(stream, GarbleMessage::HashCommitment)?;
 
                 // Store equality check commitment until finalization
                 self.state()
@@ -462,7 +450,7 @@ impl DEAP {
     ) -> Result<Vec<Value>, DEAPError>
     where
         T: Sink<GarbleMessage, Error = std::io::Error> + Unpin,
-        U: Stream<Item = GarbleMessage> + Unpin,
+        U: Stream<Item = Result<GarbleMessage, std::io::Error>> + Unpin,
         OTS: OTSendEncoding,
         OTR: OTReceiveEncoding,
     {
@@ -551,7 +539,7 @@ impl DEAP {
     ) -> Result<(), DEAPError>
     where
         T: Sink<GarbleMessage, Error = std::io::Error> + Unpin,
-        U: Stream<Item = GarbleMessage> + Unpin,
+        U: Stream<Item = Result<GarbleMessage, std::io::Error>> + Unpin,
         OTS: OTSendEncoding,
         OTR: OTReceiveEncoding,
     {
@@ -623,7 +611,7 @@ impl DEAP {
     ) -> Result<Vec<Value>, DEAPError>
     where
         T: Sink<GarbleMessage, Error = std::io::Error> + Unpin,
-        U: Stream<Item = GarbleMessage> + Unpin,
+        U: Stream<Item = Result<GarbleMessage, std::io::Error>> + Unpin,
         OTS: OTSendEncoding,
         OTR: OTReceiveEncoding,
     {
@@ -764,7 +752,7 @@ impl DEAP {
     /// - `ot` - The OT verifier to use
     pub async fn finalize<
         T: Sink<GarbleMessage, Error = std::io::Error> + Unpin,
-        U: Stream<Item = GarbleMessage> + Unpin,
+        U: Stream<Item = Result<GarbleMessage, std::io::Error>> + Unpin,
         OT: OTVerifyEncoding,
     >(
         &mut self,
@@ -788,11 +776,7 @@ impl DEAP {
         match self.role {
             Role::Leader => {
                 // Receive the encoder seed from the follower.
-                let encoder_seed = expect_msg_or_err!(
-                    stream.next().await,
-                    GarbleMessage::EncoderSeed,
-                    DEAPError::UnexpectedMessage
-                )?;
+                let encoder_seed = expect_msg_or_err!(stream, GarbleMessage::EncoderSeed)?;
 
                 let encoder_seed: [u8; 32] = encoder_seed
                     .try_into()
@@ -827,18 +811,12 @@ impl DEAP {
                     .await?;
 
                 // Receive the equality check decommitments from the leader.
-                let eq_decommitments = expect_msg_or_err!(
-                    stream.next().await,
-                    GarbleMessage::EqualityCheckDecommitments,
-                    DEAPError::UnexpectedMessage
-                )?;
+                let eq_decommitments =
+                    expect_msg_or_err!(stream, GarbleMessage::EqualityCheckDecommitments)?;
 
                 // Receive the proof decommitments from the leader.
-                let proof_decommitments = expect_msg_or_err!(
-                    stream.next().await,
-                    GarbleMessage::ProofDecommitments,
-                    DEAPError::UnexpectedMessage
-                )?;
+                let proof_decommitments =
+                    expect_msg_or_err!(stream, GarbleMessage::ProofDecommitments)?;
 
                 // Verify all equality checks.
                 for (decommitment, (_, (expected_check, commitment))) in

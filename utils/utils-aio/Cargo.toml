@@ -7,8 +7,8 @@ edition = "2021"
 name = "utils_aio"
 
 [features]
-default = ["mux", "duplex", "tokio_compat", "wasm_compat"]
-codec = []
+default = ["mux", "duplex", "tokio_compat", "wasm_compat", "codec"]
+codec = ["serde", "tokio-serde", "tokio-serde/bincode"]
 mux = []
 duplex = []
 tokio_compat = ["tokio/rt"]
@@ -16,9 +16,9 @@ wasm_compat = ["dep:wasm-bindgen-futures"]
 
 [dependencies]
 bytes.workspace = true
-prost.workspace = true
-tokio = { workspace = true, features = ["sync"] }
+tokio = { workspace = true, features = ["sync", "io-util"] }
 tokio-util = { workspace = true, features = ["codec", "compat"] }
+tokio-serde = { version = "0.8", optional = true }
 wasm-bindgen-futures = { version = "0.4", optional = true }
 async-tungstenite.workspace = true
 futures.workspace = true
@@ -27,6 +27,7 @@ async-trait.workspace = true
 thiserror.workspace = true
 async-std.workspace = true
 rayon.workspace = true
+serde = { workspace = true, optional = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = [
@@ -36,3 +37,5 @@ tokio = { workspace = true, features = [
     "io-util",
     "time",
 ] }
+serde = { workspace = true, features = ["derive"] }
+tokio-serde = { version = "0.8", features = ["bincode"] }

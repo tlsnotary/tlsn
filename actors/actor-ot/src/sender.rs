@@ -15,7 +15,7 @@ use mpc_ot_core::{
     s_state::RandSetup,
 };
 use std::collections::HashMap;
-use utils_aio::mux::MuxChannelControl;
+use utils_aio::mux::MuxChannel;
 use xtra::{prelude::*, scoped};
 
 #[allow(clippy::large_enum_variant)]
@@ -34,7 +34,7 @@ pub struct KOSSenderActor {
     config: OTActorSenderConfig,
     sink: SplitSink<OTChannel, OTMessage>,
     /// Local muxer which sets up channels with the remote KOSReceiverActor
-    mux_control: Box<dyn MuxChannelControl<OTMessage> + Send>,
+    mux_control: Box<dyn MuxChannel<OTMessage> + Send>,
     state: State,
 }
 
@@ -54,7 +54,7 @@ impl KOSSenderActor {
         addr: Address<Self>,
         spawner: &impl Spawn,
         channel: OTChannel,
-        mux_control: Box<dyn MuxChannelControl<OTMessage> + Send>,
+        mux_control: Box<dyn MuxChannel<OTMessage> + Send>,
     ) -> Self {
         let (sink, mut stream) = channel.split();
 

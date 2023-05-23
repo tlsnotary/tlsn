@@ -23,7 +23,7 @@ use mpc_garble::ValueRef;
 use utils_aio::Channel;
 
 /// A channel for sending and receiving AEAD messages.
-pub type AeadChannel = Box<dyn Channel<AeadMessage, Error = std::io::Error> + Send>;
+pub type AeadChannel = Box<dyn Channel<AeadMessage>>;
 
 /// An error that can occur during AEAD operations.
 #[derive(Debug, thiserror::Error)]
@@ -39,8 +39,6 @@ pub enum AeadError {
     CorruptedTag,
     #[error("Validation Error: {0}")]
     ValidationError(String),
-    #[error("Unexpected Message: {0:?}")]
-    UnexpectedMessage(AeadMessage),
     #[error("IO Error: {0}")]
     IoError(#[from] std::io::Error),
 }

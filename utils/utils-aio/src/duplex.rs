@@ -75,12 +75,12 @@ where
 }
 
 impl<T> Stream for DuplexChannel<T> {
-    type Item = T;
+    type Item = Result<T, std::io::Error>;
 
     fn poll_next(
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        Pin::new(&mut self.stream).poll_next(cx)
+        Pin::new(&mut self.stream).poll_next(cx).map(|x| x.map(Ok))
     }
 }

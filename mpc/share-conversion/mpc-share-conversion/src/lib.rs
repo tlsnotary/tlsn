@@ -40,8 +40,7 @@ pub use sender::GilboaSender;
 use utils_aio::Channel;
 
 /// A channel used by conversion protocols for messaging
-pub type ShareConversionChannel<T> =
-    Box<dyn Channel<ShareConversionMessage<T>, Error = std::io::Error> + Send + Sync>;
+pub type ShareConversionChannel<T> = Box<dyn Channel<ShareConversionMessage<T>>>;
 
 /// A trait for converting additive shares into multiplicative shares.
 #[async_trait]

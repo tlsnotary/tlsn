@@ -9,6 +9,7 @@ use mpc_share_conversion_core::{
     msgs::{SenderRecordings, ShareConversionMessage},
     Share,
 };
+use utils_aio::expect_msg_or_err;
 
 use crate::{ot::OTReceiveElement, tape::ReceiverTape, ReceiverConfig, ShareConversionError};
 
@@ -99,7 +100,9 @@ where
 
     /// Receives the Sender's seed and tape and verifies them against the receiver's tape
     /// to detect malicious behavior.
-    pub async fn verify<S: Stream<Item = ShareConversionMessage<F>> + Unpin>(
+    pub async fn verify<
+        S: Stream<Item = Result<ShareConversionMessage<F>, std::io::Error>> + Unpin,
+    >(
         &mut self,
         stream: &mut S,
     ) -> Result<(), ShareConversionError> {
@@ -118,15 +121,12 @@ where
                 .ok_or(ShareConversionError::TapeNotConfigured)?
         };
 
-        let message = stream
-            .next()
-            .await
-            .ok_or(std::io::Error::from(std::io::ErrorKind::ConnectionAborted))?;
+        let message = expect_msg_or_err!(stream, ShareConversionMessage::SenderRecordings)?;
 
-        let ShareConversionMessage::SenderRecordings(SenderRecordings {
+        let SenderRecordings {
             seed,
             inputs: sender_inputs,
-        }) = message;
+        } = message;
 
         let seed: [u8; 32] = seed
             .try_into()
