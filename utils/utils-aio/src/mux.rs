@@ -15,7 +15,7 @@ pub enum MuxerError {
 /// A trait for opening a new duplex byte stream with a remote peer.
 #[async_trait]
 pub trait MuxStream: Clone {
-    type Stream: AsyncWrite + AsyncRead + Send + Unpin + 'static;
+    type Stream: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static;
 
     /// Opens a new stream with the remote using the provided id
     async fn get_stream(&mut self, id: &str) -> Result<Self::Stream, MuxerError>;

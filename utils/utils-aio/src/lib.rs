@@ -14,6 +14,7 @@ pub trait Channel<T>:
     futures::Stream<Item = Result<T, std::io::Error>>
     + futures::Sink<T, Error = std::io::Error>
     + Send
+    + Sync
     + Unpin
 {
 }
@@ -22,6 +23,7 @@ impl<T, U> Channel<T> for U where
     U: futures::Stream<Item = Result<T, std::io::Error>>
         + futures::Sink<T, Error = std::io::Error>
         + Send
+        + Sync
         + Unpin
 {
 }

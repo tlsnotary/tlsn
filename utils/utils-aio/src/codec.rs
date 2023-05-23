@@ -21,7 +21,7 @@ where
     }
 
     /// Attaches a bincode codec to the provided stream
-    pub fn attach_codec<S: AsyncWrite + AsyncRead + Send + Unpin + 'static, T>(
+    pub fn attach_codec<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static, T>(
         &self,
         stream: S,
     ) -> impl Channel<T>
