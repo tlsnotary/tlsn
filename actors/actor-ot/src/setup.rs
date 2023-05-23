@@ -1,6 +1,6 @@
 use futures::task::{Spawn, SpawnExt};
 use mpc_ot_core::msgs::OTMessage;
-use utils_aio::mux::MuxChannelControl;
+use utils_aio::mux::MuxChannel;
 use xtra::Mailbox;
 
 use crate::{
@@ -19,7 +19,7 @@ use crate::{
 pub async fn create_ot_sender(
     id: &str,
     spawner: &impl Spawn,
-    mut mux: impl MuxChannelControl<OTMessage> + Send + 'static,
+    mut mux: impl MuxChannel<OTMessage> + Send + 'static,
     config: OTActorSenderConfig,
 ) -> Result<SenderActorControl, OTActorError> {
     let channel = mux.get_channel(id).await.unwrap();
@@ -44,7 +44,7 @@ pub async fn create_ot_sender(
 pub async fn create_ot_receiver(
     id: &str,
     spawner: &impl Spawn,
-    mut mux: impl MuxChannelControl<OTMessage> + Send + 'static,
+    mut mux: impl MuxChannel<OTMessage> + Send + 'static,
     config: OTActorReceiverConfig,
 ) -> Result<ReceiverActorControl, OTActorError> {
     let channel = mux.get_channel(id).await.unwrap();
@@ -71,8 +71,8 @@ pub async fn create_ot_receiver(
 pub async fn create_ot_pair(
     id: &str,
     spawner: &impl Spawn,
-    sender_mux: impl MuxChannelControl<OTMessage> + Send + 'static,
-    receiver_mux: impl MuxChannelControl<OTMessage> + Send + 'static,
+    sender_mux: impl MuxChannel<OTMessage> + Send + 'static,
+    receiver_mux: impl MuxChannel<OTMessage> + Send + 'static,
     sender_config: OTActorSenderConfig,
     receiver_config: OTActorReceiverConfig,
 ) -> Result<(SenderActorControl, ReceiverActorControl), OTActorError> {

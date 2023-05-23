@@ -16,7 +16,7 @@ use mpc_ot_core::{
     r_state::RandSetup,
 };
 use std::{collections::HashMap, pin::Pin};
-use utils_aio::mux::MuxChannelControl;
+use utils_aio::mux::MuxChannel;
 use xtra::{prelude::*, scoped};
 
 #[allow(clippy::large_enum_variant)]
@@ -37,7 +37,7 @@ pub struct KOSReceiverActor {
     /// send messages to the KOSSenderActor, so we keep this around.
     _sink: SplitSink<OTChannel, OTMessage>,
     /// Local muxer which sets up channels with the remote KOSSenderActor
-    mux_control: Box<dyn MuxChannelControl<OTMessage> + Send>,
+    mux_control: Box<dyn MuxChannel<OTMessage> + Send>,
     state: State,
     /// A buffer of ready-to-use OTs which have not yet been requested by a local caller
     child_buffer: HashMap<String, Result<Kos15IOReceiver<RandSetup>, OTError>>,
@@ -62,7 +62,7 @@ impl KOSReceiverActor {
         addr: Address<Self>,
         spawner: &impl Spawn,
         channel: OTChannel,
-        mux_control: Box<dyn MuxChannelControl<OTMessage> + Send>,
+        mux_control: Box<dyn MuxChannel<OTMessage> + Send>,
     ) -> Self {
         let (sink, mut stream) = channel.split();
         let (sender, receiver) = oneshot::channel();
@@ -75,7 +75,7 @@ impl KOSReceiverActor {
                     _ = receiver.await;
                     while let Some(msg) = stream.next().await {
                         match msg {
-                            OTMessage::Split(msg) => {
+                            Ok(OTMessage::Split(msg)) => {
                                 // Forward message to actor, ignore result.
                                 _ = addr.send(msg).await
                             }
