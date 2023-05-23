@@ -354,6 +354,31 @@ impl ObliviousReceive<bool, Block> for ReceiverActorControl {
 }
 
 #[async_trait]
+impl<const N: usize> ObliviousReceive<bool, [Block; N]> for ReceiverActorControl {
+    async fn receive(&self, id: &str, choices: Vec<bool>) -> Result<Vec<[Block; N]>, OTError> {
+        let mut child_receiver = self
+            .0
+            .send(GetReceiver {
+                id: id.to_owned(),
+                count: choices.len(),
+            })
+            .await
+            .map_err(|e| OTError::Other(e.to_string()))?
+            .await??;
+
+        let output = child_receiver.receive(choices).await?;
+        self.0
+            .send(SendBackReceiver {
+                id: id.to_owned(),
+                child_receiver,
+            })
+            .await
+            .map_err(|e| OTError::Other(e.to_string()))??;
+        Ok(output)
+    }
+}
+
+#[async_trait]
 impl ObliviousVerify<[Block; 2]> for ReceiverActorControl {
     async fn verify(&self, id: &str, input: Vec<[Block; 2]>) -> Result<(), OTError> {
         let verify_future = self

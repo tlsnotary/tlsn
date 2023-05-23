@@ -27,6 +27,7 @@ pub use config::{
     OTActorReceiverConfig, OTActorReceiverConfigBuilder, OTActorSenderConfig,
     OTActorSenderConfigBuilder,
 };
+pub use mpc_ot::{ObliviousReceive, ObliviousReveal, ObliviousSend, ObliviousVerify};
 pub use mpc_ot_core::msgs::OTMessage;
 pub(crate) use msg::{
     GetReceiver, GetSender, Reveal, SendBackReceiver, SendBackSender, Setup, Verify,
@@ -104,11 +105,11 @@ mod test {
             .map(|(data, choice)| data[*choice as usize])
             .collect();
 
-        let send = async { sender_control.send("", data).await.unwrap() };
-
-        let receive = async { receiver_control.receive("", choices).await.unwrap() };
-
-        let (_, received) = futures::join!(send, receive);
+        let (_, received) = futures::try_join!(
+            sender_control.send("", data.clone()),
+            ObliviousReceive::<bool, Block>::receive(&receiver_control, "", choices)
+        )
+        .unwrap();
 
         assert_eq!(received, expected);
     }
@@ -134,21 +135,12 @@ mod test {
             false, false, true, true, false, true, true, false, true, false,
         ];
         for id in 0..10 {
-            let send = async {
-                sender_control
-                    .send(&id.to_string(), data.clone())
-                    .await
-                    .unwrap()
-            };
-
-            let receive = async {
-                receiver_control
-                    .receive(&id.to_string(), choices.clone())
-                    .await
-                    .unwrap()
-            };
-
-            _ = futures::join!(send, receive);
+            let id = id.to_string();
+            _ = futures::try_join!(
+                sender_control.send(&id, data.clone()),
+                ObliviousReceive::<bool, Block>::receive(&receiver_control, &id, choices.clone())
+            )
+            .unwrap();
         }
     }
 
@@ -174,15 +166,17 @@ mod test {
         let choices = vec![
             false, false, true, true, false, true, true, false, true, false,
         ];
-        let send = async { sender_control.send("", data.clone()).await };
 
-        let receive = async { receiver_control.receive("", choices).await.map(|_| ()) };
+        _ = futures::try_join!(
+            sender_control.send("", data.clone()),
+            ObliviousReceive::<bool, Block>::receive(&receiver_control, "", choices)
+        )
+        .unwrap();
 
-        let reveal = sender_control.reveal();
-
-        let verify = async { receiver_control.verify("", data.clone()).await.map(|_| ()) };
-
-        futures::try_join!(send, receive).unwrap();
-        futures::try_join!(reveal, verify).unwrap();
+        _ = futures::try_join!(
+            sender_control.reveal(),
+            receiver_control.verify("", data.clone())
+        )
+        .unwrap();
     }
 }
