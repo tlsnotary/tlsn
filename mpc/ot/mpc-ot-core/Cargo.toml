@@ -19,8 +19,7 @@ rand.workspace = true
 rand_core.workspace = true
 rand_chacha.workspace = true
 curve25519-dalek = { workspace = true, features = ["serde", "rand_core"] }
-serde = { workspace = true, features = ["derive"], optional = true }
-prost = { workspace = true, optional = true }
+serde = { workspace = true, features = ["derive"] }
 thiserror.workspace = true
 derive_builder.workspace = true
 merlin.workspace = true
@@ -29,9 +28,6 @@ merlin.workspace = true
 rstest.workspace = true
 criterion.workspace = true
 pretty_assertions.workspace = true
-
-[build-dependencies]
-prost-build = { workspace = true, optional = true }
 
 [[bench]]
 name = "ot"

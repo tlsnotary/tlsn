@@ -9,7 +9,6 @@ name = "key_exchange"
 [features]
 default = ["mock"]
 mock = []
-serde = ["dep:serde"]
 
 [dependencies]
 tlsn-mpc-garble-core = { path = "../mpc/garble/mpc-garble-core" }
@@ -23,7 +22,7 @@ tlsn-point-addition = { path = "../point-addition" }
 p256 = { version = "0.12", features = ["ecdh"] }
 async-trait = "0.1"
 thiserror = "1"
-serde = { version = "1", optional = true }
+serde = { version = "1" }
 futures = "0.3"
 rand_chacha = "0.3"
 rand_core = "0.6"

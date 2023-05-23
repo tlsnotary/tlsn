@@ -3,10 +3,10 @@
 use std::fmt::{self, Display, Formatter};
 
 use p256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey as P256PublicKey};
+use serde::{Deserialize, Serialize};
 
 /// A type for messages exchanged between user and notary during the key exchange protocol
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub enum KeyExchangeMessage {
     FollowerPublicKey(PublicKey),
@@ -14,8 +14,7 @@ pub enum KeyExchangeMessage {
 }
 
 /// A wrapper for a serialized public key
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PublicKey {
     /// The sec1 serialized public key
     pub key: Vec<u8>,
