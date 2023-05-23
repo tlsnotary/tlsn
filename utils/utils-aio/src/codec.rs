@@ -1,80 +1,102 @@
-use bytes::BytesMut;
-use prost::Message;
-use std::marker::PhantomData;
-use tokio_util::codec::{Decoder, Encoder, LengthDelimitedCodec};
+use async_trait::async_trait;
+use futures_util::{AsyncRead, AsyncWrite};
+use tokio_serde::formats::Bincode;
+use tokio_util::{codec::LengthDelimitedCodec, compat::FuturesAsyncReadCompatExt};
 
-#[derive(Debug, Clone)]
-pub struct ProstCodec<T, U>(PhantomData<T>, PhantomData<U>);
+use crate::{
+    mux::{MuxChannel, MuxStream, MuxerError},
+    Channel,
+};
 
-impl<T, U: Message> Default for ProstCodec<T, U> {
-    fn default() -> Self {
-        ProstCodec(PhantomData, PhantomData)
-    }
-}
+/// Wraps a [`MuxStream`] and provides a [`Channel`] with a bincode codec
+pub struct BincodeMux<M>(M);
 
-impl<T, U: Message + From<T>> Encoder<T> for ProstCodec<T, U> {
-    type Error = std::io::Error;
-
-    fn encode(&mut self, item: T, buf: &mut BytesMut) -> Result<(), Self::Error> {
-        U::from(item)
-            .encode(buf)
-            .expect("Message only errors if not enough space");
-
-        Ok(())
-    }
-}
-
-impl<T: TryFrom<U>, U: Message + Default> Decoder for ProstCodec<T, U>
+impl<M> BincodeMux<M>
 where
-    std::io::Error: From<<T as TryFrom<U>>::Error>,
+    M: MuxStream,
 {
-    type Item = T;
-    type Error = std::io::Error;
+    /// Creates a new bincode mux
+    pub fn new(mux: M) -> Self {
+        Self(mux)
+    }
 
-    fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        let item: U = Message::decode(buf)?;
+    /// Attaches a bincode codec to the provided stream
+    pub fn attach_codec<S: AsyncWrite + AsyncRead + Send + Unpin + 'static, T>(
+        &self,
+        stream: S,
+    ) -> impl Channel<T>
+    where
+        T: serde::Serialize + for<'a> serde::Deserialize<'a> + Send + Sync + Unpin + 'static,
+    {
+        let framed = LengthDelimitedCodec::builder().new_framed(stream.compat());
 
-        Ok(Some(T::try_from(item)?))
+        tokio_serde::Framed::new(framed, Bincode::default())
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct ProstCodecDelimited<T, U> {
-    _t: (PhantomData<T>, PhantomData<U>),
-    inner: LengthDelimitedCodec,
-}
-
-impl<T, U: Message> Default for ProstCodecDelimited<T, U> {
-    fn default() -> Self {
-        ProstCodecDelimited {
-            _t: (PhantomData, PhantomData),
-            inner: LengthDelimitedCodec::new(),
-        }
-    }
-}
-
-impl<T, U: Message + From<T>> Encoder<T> for ProstCodecDelimited<T, U> {
-    type Error = std::io::Error;
-
-    fn encode(&mut self, item: T, buf: &mut BytesMut) -> Result<(), Self::Error> {
-        self.inner.encode(U::from(item).encode_to_vec().into(), buf)
-    }
-}
-
-impl<T: TryFrom<U>, U: Message + Default> Decoder for ProstCodecDelimited<T, U>
+#[async_trait]
+impl<M, T> MuxChannel<T> for BincodeMux<M>
 where
-    std::io::Error: From<<T as TryFrom<U>>::Error>,
+    M: MuxStream + Send + 'static,
+    T: serde::Serialize + for<'a> serde::Deserialize<'a> + Send + Sync + Unpin + 'static,
 {
-    type Item = T;
-    type Error = std::io::Error;
+    async fn get_channel(&mut self, id: &str) -> Result<Box<dyn Channel<T> + 'static>, MuxerError> {
+        let stream = self.0.get_stream(id).await?;
 
-    fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        let b = self.inner.decode(buf)?;
-        if let Some(b) = b {
-            let item: U = Message::decode(b)?;
-            Ok(Some(T::try_from(item)?))
-        } else {
-            Ok(None)
-        }
+        Ok(Box::new(self.attach_codec(stream)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::mux::mock::MockMuxChannelFactory;
+
+    use super::*;
+
+    use futures::{SinkExt, StreamExt};
+
+    #[derive(serde::Serialize, serde::Deserialize)]
+    struct Foo {
+        msg: String,
+    }
+
+    #[derive(serde::Serialize, serde::Deserialize)]
+    struct Bar {
+        msg: String,
+    }
+
+    #[tokio::test]
+    async fn test_mux_codec() {
+        let mux = MockMuxChannelFactory::new();
+
+        let mut framed_mux = BincodeMux::new(mux);
+
+        let mut channel_0 = framed_mux.get_channel("foo").await.unwrap();
+        let mut channel_1 = framed_mux.get_channel("foo").await.unwrap();
+
+        channel_0
+            .send(Foo {
+                msg: "hello".to_string(),
+            })
+            .await
+            .unwrap();
+
+        let msg: Foo = channel_1.next().await.unwrap().unwrap();
+
+        assert_eq!(msg.msg, "hello");
+
+        let mut channel_0 = framed_mux.get_channel("bar").await.unwrap();
+        let mut channel_1 = framed_mux.get_channel("bar").await.unwrap();
+
+        channel_0
+            .send(Bar {
+                msg: "world".to_string(),
+            })
+            .await
+            .unwrap();
+
+        let msg: Bar = channel_1.next().await.unwrap().unwrap();
+
+        assert_eq!(msg.msg, "world");
     }
 }

@@ -10,6 +10,18 @@ pub mod factory;
 pub mod mux;
 pub mod non_blocking_backend;
 
-pub trait Channel<T>: futures::Stream<Item = T> + futures::Sink<T> + Send + Unpin {}
+pub trait Channel<T>:
+    futures::Stream<Item = Result<T, std::io::Error>>
+    + futures::Sink<T, Error = std::io::Error>
+    + Send
+    + Unpin
+{
+}
 
-impl<T, U> Channel<T> for U where U: futures::Stream<Item = T> + futures::Sink<T> + Send + Unpin {}
+impl<T, U> Channel<T> for U where
+    U: futures::Stream<Item = Result<T, std::io::Error>>
+        + futures::Sink<T, Error = std::io::Error>
+        + Send
+        + Unpin
+{
+}

@@ -30,7 +30,6 @@ impl NonBlockingBackend for RayonBackend {
 #[cfg(test)]
 mod tests {
     use super::{Backend, NonBlockingBackend};
-    use futures::channel::oneshot::Canceled;
 
     #[tokio::test]
     async fn test_spawn() {
