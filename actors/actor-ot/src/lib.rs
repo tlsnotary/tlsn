@@ -41,9 +41,9 @@ pub use setup::{create_ot_pair, create_ot_receiver, create_ot_sender};
 #[allow(missing_docs)]
 pub enum OTActorError {
     #[error(transparent)]
-    SpawnError(#[from] futures::task::SpawnError),
-    #[error(transparent)]
     OTError(#[from] mpc_ot::OTError),
+    #[error(transparent)]
+    MuxerError(#[from] utils_aio::mux::MuxerError),
 }
 
 #[cfg(test)]
@@ -54,7 +54,7 @@ mod test {
 
     use mpc_core::Block;
     use mpc_ot::{ObliviousReceive, ObliviousReveal, ObliviousSend, ObliviousVerify};
-    use utils_aio::{executor::SpawnCompatExt, mux::mock::MockMuxChannelFactory};
+    use utils_aio::mux::mock::MockMuxChannelFactory;
 
     async fn create_setup_pair(
         sender_config: OTActorSenderConfig,
@@ -62,16 +62,20 @@ mod test {
     ) -> (SenderActorControl, ReceiverActorControl) {
         let mux_factory = MockMuxChannelFactory::new();
 
-        let (mut sender_control, mut receiver_control) = create_ot_pair(
-            "test",
-            &tokio::runtime::Handle::current().compat(),
-            mux_factory.clone(),
-            mux_factory,
-            sender_config,
-            receiver_config,
-        )
-        .await
-        .unwrap();
+        let ((mut sender_control, sender_fut), (mut receiver_control, receiver_fut)) =
+            create_ot_pair(
+                "test",
+                mux_factory.clone(),
+                mux_factory,
+                sender_config,
+                receiver_config,
+            )
+            .await
+            .unwrap();
+
+        let rt = tokio::runtime::Handle::current();
+        rt.spawn(sender_fut);
+        rt.spawn(receiver_fut);
 
         futures::try_join!(sender_control.setup(), receiver_control.setup()).unwrap();
 
