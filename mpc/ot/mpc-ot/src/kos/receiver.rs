@@ -190,8 +190,11 @@ impl ObliviousAcceptCommitOwned for Kos15IOReceiver<r_state::Initialized> {
 impl ObliviousVerifyOwned<[Block; 2]> for Kos15IOReceiver<r_state::RandSetup> {
     async fn verify(mut self, input: Vec<[Block; 2]>) -> Result<(), OTError> {
         let reveal = expect_msg_or_err!(self.channel, OTMessage::ExtSenderReveal)?;
-        self.inner
-            .verify(reveal, &input)
-            .map_err(OTError::CommittedOT)
+        Backend::spawn(move || {
+            self.inner
+                .verify(reveal, &input)
+                .map_err(OTError::CommittedOT)
+        })
+        .await
     }
 }

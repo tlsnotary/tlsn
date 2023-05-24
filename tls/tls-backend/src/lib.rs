@@ -23,6 +23,8 @@ pub enum BackendError {
     InvalidConfig(String),
     #[error("Invalid server public keyshare")]
     InvalidServerKey,
+    #[error("internal error: {0:?}")]
+    InternalError(String),
     #[error("Encryption error: {0:?}")]
     EncryptionError(String),
     #[error("Decryption error: {0:?}")]
