@@ -23,8 +23,6 @@ use utils_aio::{codec::BincodeMux, mux::MuxChannel};
 async fn test() {
     let mut rng = ChaCha20Rng::seed_from_u64(0);
 
-    let rt = utils_aio::executor::SpawnCompatExt::compat(tokio::runtime::Handle::current());
-
     let (leader_socket, follower_socket) = tokio::io::duplex(2 << 25);
 
     let mut leader_mux = UidYamux::new(
@@ -71,9 +69,11 @@ async fn test() {
         .build()
         .unwrap();
 
-    let (mut leader_ot_sender, mut follower_ot_recvr) = create_ot_pair(
+    let (
+        (mut leader_ot_sender, leader_ot_sender_fut),
+        (mut follower_ot_recvr, follower_ot_recvr_fut),
+    ) = create_ot_pair(
         "ot/0",
-        &rt,
         leader_mux.clone(),
         follower_mux.clone(),
         leader_ot_sender_config,
@@ -82,9 +82,14 @@ async fn test() {
     .await
     .unwrap();
 
-    let (mut follower_ot_sender, mut leader_ot_recvr) = create_ot_pair(
+    tokio::spawn(leader_ot_sender_fut);
+    tokio::spawn(follower_ot_recvr_fut);
+
+    let (
+        (mut follower_ot_sender, follower_ot_sender_fut),
+        (mut leader_ot_recvr, leader_ot_recvr_fut),
+    ) = create_ot_pair(
         "ot/1",
-        &rt,
         follower_mux.clone(),
         leader_mux.clone(),
         follower_ot_sender_config,
@@ -92,6 +97,9 @@ async fn test() {
     )
     .await
     .unwrap();
+
+    tokio::spawn(follower_ot_sender_fut);
+    tokio::spawn(leader_ot_recvr_fut);
 
     let mut leader_vm = DEAPVm::new(
         "vm",
