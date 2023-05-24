@@ -4,7 +4,7 @@ use tokio_serde::formats::Bincode;
 use tokio_util::{codec::LengthDelimitedCodec, compat::FuturesAsyncReadCompatExt};
 
 use crate::{
-    mux::{MuxChannel, MuxChannelSized, MuxStream, MuxerError},
+    mux::{MuxChannel, MuxStream, MuxerError},
     Channel,
 };
 
