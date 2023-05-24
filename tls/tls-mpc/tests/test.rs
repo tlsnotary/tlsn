@@ -1,39 +1,18 @@
 use std::{io::Read, sync::Arc};
 
-use actor_ot::{
-    create_ot_pair, OTActorReceiverConfig, OTActorSenderConfig, ObliviousReveal, ObliviousVerify,
-};
-use mpc_garble::{
-    config::Role as GarbleRole,
-    protocol::deap::{mock::create_mock_deap_vm, DEAPVm},
-};
-use mpc_ot::mock::mock_ot_pair;
+use actor_ot::{create_ot_pair, OTActorReceiverConfig, OTActorSenderConfig, ObliviousReveal};
+use mpc_garble::{config::Role as GarbleRole, protocol::deap::DEAPVm};
 use mpc_share_conversion as ff;
-use p256::NonZeroScalar;
-use tls_core::{
-    key::PublicKey,
-    msgs::{
-        base::Payload,
-        enums::{ContentType, NamedGroup, ProtocolVersion},
-        handshake::Random,
-        message::{OpaqueMessage, PlainMessage},
-    },
-};
 use tls_mpc::{
     setup_components, MpcTlsCommonConfig, MpcTlsFollower, MpcTlsFollowerConfig, MpcTlsLeader,
     MpcTlsLeaderConfig, TlsRole,
 };
 use tokio_util::compat::TokioAsyncReadCompatExt;
 use uid_mux::{yamux, UidYamux};
-use utils_aio::{
-    codec::BincodeMux,
-    mux::{mock::MockMuxChannelFactory, MuxChannel},
-};
+use utils_aio::{codec::BincodeMux, mux::MuxChannel};
 
 #[tokio::test]
 async fn test() {
-    let rt = utils_aio::executor::SpawnCompatExt::compat(tokio::runtime::Handle::current());
-
     let (leader_socket, follower_socket) = tokio::io::duplex(2 << 25);
 
     let mut leader_mux = UidYamux::new(
@@ -55,8 +34,6 @@ async fn test() {
 
     let mut leader_mux = BincodeMux::new(leader_mux_control);
     let mut follower_mux = BincodeMux::new(follower_mux_control);
-
-    let mut mux = MockMuxChannelFactory::default();
 
     let leader_ot_send_config = OTActorSenderConfig::builder()
         .id("ot/0")
@@ -82,27 +59,33 @@ async fn test() {
         .build()
         .unwrap();
 
-    let (mut leader_ot_send, mut follower_ot_recv) = create_ot_pair(
-        "ot/0",
-        &rt,
-        leader_mux.clone(),
-        follower_mux.clone(),
-        leader_ot_send_config,
-        follower_ot_recv_config,
-    )
-    .await
-    .unwrap();
+    let ((mut leader_ot_send, leader_ot_send_fut), (mut follower_ot_recv, follower_ot_recv_fut)) =
+        create_ot_pair(
+            "ot/0",
+            leader_mux.clone(),
+            follower_mux.clone(),
+            leader_ot_send_config,
+            follower_ot_recv_config,
+        )
+        .await
+        .unwrap();
 
-    let (mut follower_ot_send, mut leader_ot_recv) = create_ot_pair(
-        "ot/1",
-        &rt,
-        follower_mux.clone(),
-        leader_mux.clone(),
-        follower_ot_send_config,
-        leader_ot_recv_config,
-    )
-    .await
-    .unwrap();
+    tokio::spawn(leader_ot_send_fut);
+    tokio::spawn(follower_ot_recv_fut);
+
+    let ((mut follower_ot_send, follower_ot_send_fut), (mut leader_ot_recv, leader_ot_recv_fut)) =
+        create_ot_pair(
+            "ot/1",
+            follower_mux.clone(),
+            leader_mux.clone(),
+            follower_ot_send_config,
+            leader_ot_recv_config,
+        )
+        .await
+        .unwrap();
+
+    tokio::spawn(follower_ot_send_fut);
+    tokio::spawn(leader_ot_recv_fut);
 
     tokio::try_join!(leader_ot_send.setup(), follower_ot_recv.setup()).unwrap();
     tokio::try_join!(follower_ot_send.setup(), leader_ot_recv.setup()).unwrap();
@@ -112,7 +95,7 @@ async fn test() {
         GarbleRole::Leader,
         [0u8; 32],
         leader_mux.get_channel("vm").await.unwrap(),
-        Box::new(mux.clone()),
+        Box::new(leader_mux.clone()),
         leader_ot_send.clone(),
         leader_ot_recv.clone(),
     );
@@ -122,7 +105,7 @@ async fn test() {
         GarbleRole::Follower,
         [1u8; 32],
         follower_mux.get_channel("vm").await.unwrap(),
-        Box::new(mux.clone()),
+        Box::new(follower_mux.clone()),
         follower_ot_send.clone(),
         follower_ot_recv.clone(),
     );
@@ -185,7 +168,7 @@ async fn test() {
     .await
     .unwrap();
 
-    let mut leader = MpcTlsLeader::new(
+    let leader = MpcTlsLeader::new(
         MpcTlsLeaderConfig::builder()
             .common(common_config.clone())
             .build()
