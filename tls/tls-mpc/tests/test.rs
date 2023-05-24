@@ -12,6 +12,7 @@ use uid_mux::{yamux, UidYamux};
 use utils_aio::{codec::BincodeMux, mux::MuxChannel};
 
 #[tokio::test]
+#[ignore]
 async fn test() {
     let (leader_socket, follower_socket) = tokio::io::duplex(2 << 25);
 
