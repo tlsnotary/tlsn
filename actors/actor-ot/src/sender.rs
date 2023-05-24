@@ -2,8 +2,7 @@ use crate::{config::OTActorSenderConfig, GetSender, Reveal, SendBackSender, Setu
 use async_trait::async_trait;
 use futures::{
     stream::{FuturesUnordered, SplitSink},
-    task::{Spawn, SpawnExt},
-    FutureExt, SinkExt, StreamExt, TryStreamExt,
+    Future, FutureExt, SinkExt, StreamExt, TryStreamExt,
 };
 use mpc_core::Block;
 use mpc_ot::{
@@ -52,30 +51,26 @@ impl KOSSenderActor {
     pub fn new(
         config: OTActorSenderConfig,
         addr: Address<Self>,
-        spawner: &impl Spawn,
         channel: OTChannel,
         mux_control: Box<dyn MuxChannel<OTMessage> + Send>,
-    ) -> Self {
+    ) -> (Self, impl Future<Output = ()>) {
         let (sink, mut stream) = channel.split();
 
-        spawner
-            .spawn(
-                scoped(&addr, async move {
-                    while stream.next().await.is_some() {
-                        // Receiver should not send messages, we just discard.
-                        continue;
-                    }
-                })
-                .map(|_| ()),
-            )
-            .expect("executor can spawn");
-
-        Self {
-            config,
-            sink,
-            mux_control,
-            state: State::Initialized,
-        }
+        (
+            Self {
+                config,
+                sink,
+                mux_control,
+                state: State::Initialized,
+            },
+            scoped(&addr, async move {
+                while stream.next().await.is_some() {
+                    // Receiver should not send messages, we just discard.
+                    continue;
+                }
+            })
+            .map(|_| ()),
+        )
     }
 }
 

@@ -1,11 +1,6 @@
 use crate::{config::OTActorReceiverConfig, GetReceiver, SendBackReceiver, Setup, Verify};
 use async_trait::async_trait;
-use futures::{
-    channel::oneshot,
-    stream::SplitSink,
-    task::{Spawn, SpawnExt},
-    Future, FutureExt, StreamExt,
-};
+use futures::{channel::oneshot, stream::SplitSink, Future, FutureExt, StreamExt};
 use mpc_core::Block;
 use mpc_ot::{
     kos::receiver::Kos15IOReceiver, OTChannel, OTError, ObliviousAcceptCommitOwned,
@@ -60,44 +55,39 @@ impl KOSReceiverActor {
     pub fn new(
         config: OTActorReceiverConfig,
         addr: Address<Self>,
-        spawner: &impl Spawn,
         channel: OTChannel,
         mux_control: Box<dyn MuxChannel<OTMessage> + Send>,
-    ) -> Self {
+    ) -> (Self, impl Future<Output = ()>) {
         let (sink, mut stream) = channel.split();
         let (sender, receiver) = oneshot::channel();
-
-        spawner
-            .spawn(
-                scoped(&addr.clone(), async move {
-                    // wait for actor to signal that it is set up before we start
-                    // processing these messages
-                    _ = receiver.await;
-                    while let Some(msg) = stream.next().await {
-                        match msg {
-                            Ok(OTMessage::Split(msg)) => {
-                                // Forward message to actor, ignore result.
-                                _ = addr.send(msg).await
-                            }
-                            _ => {
-                                // Shutdown if we receive any unexpected message
-                                break;
-                            }
-                        };
-                    }
-                })
-                .map(|_| ()),
-            )
-            .expect("executor can spawn");
-
-        Self {
-            config,
-            _sink: sink,
-            mux_control,
-            state: State::Initialized(sender),
-            child_buffer: HashMap::default(),
-            pending_buffer: HashMap::default(),
-        }
+        (
+            Self {
+                config,
+                _sink: sink,
+                mux_control,
+                state: State::Initialized(sender),
+                child_buffer: HashMap::default(),
+                pending_buffer: HashMap::default(),
+            },
+            scoped(&addr.clone(), async move {
+                // wait for actor to signal that it is set up before we start
+                // processing these messages
+                _ = receiver.await;
+                while let Some(msg) = stream.next().await {
+                    match msg {
+                        Ok(OTMessage::Split(msg)) => {
+                            // Forward message to actor, ignore result.
+                            _ = addr.send(msg).await
+                        }
+                        _ => {
+                            // Shutdown if we receive any unexpected message
+                            break;
+                        }
+                    };
+                }
+            })
+            .map(|_| ()),
+        )
     }
 }
 
