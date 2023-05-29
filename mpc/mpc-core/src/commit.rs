@@ -1,6 +1,10 @@
-//! This module provides a hash commitment scheme for types which implement `serde::Serialize`
+//! This module provides a hash commitment scheme for types which implement
+//! [`CanonicalSerialize`](crate::serialize::CanonicalSerialize)
 
-use crate::hash::{Hash, SecureHash};
+use crate::{
+    hash::{Hash, SecureHash},
+    serialize::CanonicalSerialize,
+};
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 
@@ -27,7 +31,7 @@ impl Nonce {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Decommitment<T>
 where
-    T: Serialize,
+    T: CanonicalSerialize,
 {
     nonce: Nonce,
     data: T,
@@ -35,7 +39,7 @@ where
 
 impl<T> Decommitment<T>
 where
-    T: Serialize,
+    T: CanonicalSerialize,
 {
     /// Creates a new decommitment
     pub fn new(data: T) -> Self {
@@ -80,10 +84,10 @@ where
     }
 }
 
-/// A trait for committing to arbitrary data which implements `serde::Serialize`
+/// A trait for committing to arbitrary data which implements [`CanonicalSerialize`](crate::serialize::CanonicalSerialize)
 pub trait HashCommit
 where
-    Self: serde::Serialize + Sized,
+    Self: CanonicalSerialize + Sized,
 {
     /// Creates a hash commitment to self
     fn hash_commit(self) -> (Decommitment<Self>, Hash) {
@@ -113,7 +117,7 @@ mod test {
         let message = [0, 1, 2, 3u8];
         let (mut decommitment, commitment) = message.hash_commit();
 
-        decommitment.nonce.0[0] = decommitment.nonce.0[0] - 1;
+        decommitment.nonce.0[0] -= 1;
 
         let err = decommitment.verify(&commitment).unwrap_err();
 
@@ -125,7 +129,7 @@ mod test {
         let message = [0, 1, 2, 3u8];
         let (mut decommitment, commitment) = message.hash_commit();
 
-        decommitment.data[0] = decommitment.data[0] + 1;
+        decommitment.data[0] += 1;
 
         let err = decommitment.verify(&commitment).unwrap_err();
 
