@@ -5,13 +5,6 @@ use crate::{
     verify::ServerCertVerifier, Error,
 };
 
-/// TLS handshake data which the User committed to before the User and the Notary engaged in 2PC
-/// to compute the TLS session keys
-///
-/// The User should not reveal `server_cert_details` because the Notary would learn the webserver name
-/// from it. The User also should not reveal `server_kx_details` to the Notary, because
-/// for ECDSA sigs it is possible to derive the pubkey from the sig and then use that pubkey to find out
-/// the identity of the webserver.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct HandshakeData {
