@@ -1,4 +1,4 @@
-use crate::msgs::enums::{NamedGroup, SignatureAlgorithm};
+use crate::msgs::enums::NamedGroup;
 use std::fmt;
 
 /// This type contains a private key by value.
@@ -58,30 +58,6 @@ impl From<crate::msgs::handshake::KeyShareEntry> for PublicKey {
             group: k.group,
             key: k.payload.0,
         }
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct ServerSignature {
-    alg: SignatureAlgorithm,
-    sig: Vec<u8>,
-}
-
-impl ServerSignature {
-    /// Creates a new `ServerSignature` instance.
-    pub fn new(alg: SignatureAlgorithm, sig: Vec<u8>) -> Self {
-        Self { alg, sig }
-    }
-
-    /// Returns the signature algorithm.
-    pub fn alg(&self) -> SignatureAlgorithm {
-        self.alg
-    }
-
-    /// Returns the signature value.
-    pub fn sig(&self) -> &[u8] {
-        &self.sig
     }
 }
 
