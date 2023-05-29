@@ -1,4 +1,4 @@
-use crate::msgs::enums::NamedGroup;
+use crate::msgs::enums::{NamedGroup, SignatureAlgorithm};
 use std::fmt;
 
 /// This type contains a private key by value.
@@ -17,6 +17,7 @@ pub struct PrivateKey(pub Vec<u8>);
 ///
 /// The `rustls-pemfile` crate can be used to parse a PEM file.
 #[derive(Clone, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Certificate(pub Vec<u8>);
 
 impl AsRef<[u8]> for Certificate {
@@ -35,6 +36,7 @@ impl fmt::Debug for Certificate {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PublicKey {
     pub group: NamedGroup,
     pub key: Vec<u8>,
@@ -56,6 +58,30 @@ impl From<crate::msgs::handshake::KeyShareEntry> for PublicKey {
             group: k.group,
             key: k.payload.0,
         }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ServerSignature {
+    alg: SignatureAlgorithm,
+    sig: Vec<u8>,
+}
+
+impl ServerSignature {
+    /// Creates a new `ServerSignature` instance.
+    pub fn new(alg: SignatureAlgorithm, sig: Vec<u8>) -> Self {
+        Self { alg, sig }
+    }
+
+    /// Returns the signature algorithm.
+    pub fn alg(&self) -> SignatureAlgorithm {
+        self.alg
+    }
+
+    /// Returns the signature value.
+    pub fn sig(&self) -> &[u8] {
+        &self.sig
     }
 }
 

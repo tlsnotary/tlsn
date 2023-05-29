@@ -6,7 +6,9 @@ use std::ops::Range;
 /// Tries to merge `slices` and returns the resulting slices sorted ascendingly (note that even if no
 /// merging was necessary, the `slices` will be returned sorted ascendingly).
 /// Merging happens if slices overlap or are adjacent.
-pub fn merge_slices(mut slices: Vec<TranscriptSlice>) -> Result<Vec<TranscriptSlice>, Error> {
+pub(crate) fn merge_slices(
+    mut slices: Vec<TranscriptSlice>,
+) -> Result<Vec<TranscriptSlice>, Error> {
     if slices.is_empty() {
         return Err(Error::InternalError);
     }

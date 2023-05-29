@@ -1,5 +1,7 @@
 use async_trait::async_trait;
 use tls_core::{
+    cert::ServerCertDetails,
+    ke::ServerKxDetails,
     key::PublicKey,
     msgs::{
         enums::{CipherSuite, NamedGroup, ProtocolVersion},
@@ -75,6 +77,10 @@ pub trait Backend: Send {
     async fn set_server_random(&mut self, random: Random) -> Result<(), BackendError>;
     /// Sets server keyshare.
     async fn set_server_key_share(&mut self, key: PublicKey) -> Result<(), BackendError>;
+    /// Sets the server cert chain
+    fn set_server_cert_details(&mut self, cert_details: ServerCertDetails);
+    /// Sets the server kx details
+    fn set_server_kx_details(&mut self, kx_details: ServerKxDetails);
     /// Sets handshake hash at ClientKeyExchange for EMS.
     async fn set_hs_hash_client_key_exchange(&mut self, hash: &[u8]) -> Result<(), BackendError>;
     /// Sets handshake hash at ServerHello.

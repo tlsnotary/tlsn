@@ -13,7 +13,9 @@ use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use std::convert::TryInto;
 use tls_core::{
-    key::PublicKey,
+    cert::ServerCertDetails,
+    ke::ServerKxDetails,
+    key::{Certificate, PublicKey},
     msgs::{
         base::Payload as TLSPayload,
         enums::{CipherSuite, ContentType, NamedGroup, ProtocolVersion},
@@ -149,7 +151,7 @@ impl RustCryptoBackend {
         let mut ms = [0u8; 48];
         ms[..32].copy_from_slice(&p1);
         ms[32..].copy_from_slice(&p2[..16]);
-        let ms_out = ms.clone();
+        let ms_out = ms;
 
         // expand ms into session keys
         let seed = seed_ke(client_random, server_random);
@@ -362,6 +364,10 @@ impl Backend for RustCryptoBackend {
 
         Ok(())
     }
+
+    fn set_server_cert_details(&mut self, _cert_details: ServerCertDetails) {}
+
+    fn set_server_kx_details(&mut self, _kx_details: ServerKxDetails) {}
 
     async fn set_hs_hash_client_key_exchange(&mut self, hash: &[u8]) -> Result<(), BackendError> {
         self.ems_seed = Some(hash.to_vec());

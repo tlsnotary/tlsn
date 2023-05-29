@@ -3,6 +3,7 @@ members = ["tlsn-core"]
 
 [workspace.dependencies]
 tlsn-core = { path = "tlsn-core" }
+tlsn-tls-core = { path = "../tls/tls-core" }
 
 tlsn-mpc-core = { path = "../mpc/mpc-core" }
 tlsn-mpc-circuits = { path = "../mpc/mpc-circuits" }

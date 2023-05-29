@@ -3,38 +3,11 @@ use super::ResolvesClientCert;
 use crate::log::{debug, trace};
 use crate::{sign, DistinguishedNames, SignatureScheme};
 use std::sync::Arc;
+pub use tls_core::cert::ServerCertDetails;
 use tls_core::msgs::{
     enums::ExtensionType,
     handshake::{CertificatePayload, SCTList, ServerExtension},
 };
-
-pub(super) struct ServerCertDetails {
-    pub(super) cert_chain: CertificatePayload,
-    pub(super) ocsp_response: Vec<u8>,
-    pub(super) scts: Option<SCTList>,
-}
-
-impl ServerCertDetails {
-    pub(super) fn new(
-        cert_chain: CertificatePayload,
-        ocsp_response: Vec<u8>,
-        scts: Option<SCTList>,
-    ) -> Self {
-        Self {
-            cert_chain,
-            ocsp_response,
-            scts,
-        }
-    }
-
-    pub(super) fn scts(&self) -> impl Iterator<Item = &[u8]> {
-        self.scts
-            .as_deref()
-            .unwrap_or(&[])
-            .iter()
-            .map(|payload| payload.0.as_slice())
-    }
-}
 
 pub(super) struct ClientHelloDetails {
     pub(super) sent_extensions: Vec<ExtensionType>,

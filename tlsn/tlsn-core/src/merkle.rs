@@ -6,7 +6,20 @@ use rs_merkle::{
 use serde::{ser::Serializer, Deserialize, Deserializer, Serialize};
 use utils::iter::DuplicateCheck;
 
-pub type MerkleRoot = [u8; 32];
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MerkleRoot([u8; 32]);
+
+impl MerkleRoot {
+    pub fn to_inner(self) -> [u8; 32] {
+        self.0
+    }
+}
+
+impl From<[u8; 32]> for MerkleRoot {
+    fn from(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+}
 
 /// Errors that can occur during operations with Merkle tree and Merkle proof
 #[derive(Debug, thiserror::Error, PartialEq)]
@@ -55,7 +68,10 @@ impl MerkleProof {
         tuples.sort_by(|(a, _), (b, _)| a.cmp(b));
         let (indices, hashes): (Vec<usize>, Vec<[u8; 32]>) = tuples.into_iter().unzip();
 
-        if !self.0.verify(*root, &indices, &hashes, total_leaves_count) {
+        if !self
+            .0
+            .verify(root.to_inner(), &indices, &hashes, total_leaves_count)
+        {
             return Err(MerkleError::MerkleProofVerificationFailed);
         }
         Ok(())
@@ -117,7 +133,10 @@ impl MerkleTree {
 
     /// Returns the Merkle root for this MerkleTree
     pub fn root(&self) -> MerkleRoot {
-        self.0.root().expect("Merkle root should be available")
+        self.0
+            .root()
+            .expect("Merkle root should be available")
+            .into()
     }
 }
 

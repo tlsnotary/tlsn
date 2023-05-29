@@ -1,6 +1,7 @@
 use mpc_core::commit::Decommitment;
 
-use crate::{merkle::MerkleTree, pubkey::PubKey, HandshakeData};
+use crate::merkle::MerkleTree;
+use tls_core::{handshake::HandshakeData, key::PublicKey};
 
 // Various artifacts which the User holds at the end of the notarization session
 pub struct SessionArtifacts {
@@ -11,7 +12,7 @@ pub struct SessionArtifacts {
     // encoder seed revealed by the Notary at the end of the label commitment protocol
     encoder_seed: [u8; 32],
     // server ephemeral key
-    ephem_key: PubKey,
+    ephem_key: PublicKey,
     // decommitment to handshake data
     handshake_data_decommitment: Decommitment<HandshakeData>,
 }
@@ -21,7 +22,7 @@ impl SessionArtifacts {
         time: u64,
         merkle_tree: MerkleTree,
         encoder_seed: [u8; 32],
-        ephem_key: PubKey,
+        ephem_key: PublicKey,
         handshake_data_decommitment: Decommitment<HandshakeData>,
     ) -> Self {
         Self {
@@ -45,7 +46,7 @@ impl SessionArtifacts {
         &self.encoder_seed
     }
 
-    pub fn ephem_key(&self) -> &PubKey {
+    pub fn ephem_key(&self) -> &PublicKey {
         &self.ephem_key
     }
 

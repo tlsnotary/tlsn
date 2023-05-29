@@ -1,19 +1,15 @@
-#[cfg(feature = "logging")]
-use crate::log::{debug, trace, warn};
 use crate::{
     anchors::{OwnedTrustAnchor, RootCertStore},
-    client::ServerName,
+    dns::ServerName,
     error::Error,
-};
-use ring::digest::Digest;
-use std::{convert::TryFrom, time::SystemTime};
-use tls_core::{
     key::Certificate,
     msgs::{
         enums::SignatureScheme,
         handshake::{DigitallySignedStruct, DistinguishedNames},
     },
 };
+use ring::digest::Digest;
+use std::{convert::TryFrom, time::SystemTime};
 
 type SignatureAlgorithms = &'static [&'static webpki::SignatureAlgorithm];
 
@@ -56,10 +52,10 @@ impl HandshakeSignatureValid {
 }
 
 #[derive(Debug)]
-pub(crate) struct FinishedMessageVerified(());
+pub struct FinishedMessageVerified(());
 
 impl FinishedMessageVerified {
-    pub(crate) fn assertion() -> Self {
+    pub fn assertion() -> Self {
         Self(())
     }
 }
@@ -76,17 +72,6 @@ impl ServerCertVerified {
         Self(())
     }
 }
-
-// /// Zero-sized marker type representing verification of a client cert chain.
-// #[derive(Debug)]
-// pub struct ClientCertVerified(());
-
-// impl ClientCertVerified {
-//     /// Make a `ClientCertVerified`
-//     pub fn assertion() -> Self {
-//         Self(())
-//     }
-// }
 
 /// Something that can verify a server certificate chain, and verify
 /// signatures made by certificates.
@@ -298,7 +283,7 @@ impl ServerCertVerifier for WebPkiVerifier {
         intermediates: &[Certificate],
         server_name: &ServerName,
         scts: &mut (dyn Iterator<Item = &[u8]> + Send),
-        ocsp_response: &[u8],
+        _ocsp_response: &[u8],
         now: SystemTime,
     ) -> Result<ServerCertVerified, Error> {
         let (cert, chain, trustroots) = prepare(end_entity, intermediates, &self.roots)?;
@@ -318,10 +303,6 @@ impl ServerCertVerifier for WebPkiVerifier {
 
         if let Some(policy) = &self.ct_policy {
             policy.verify(end_entity, now, scts)?;
-        }
-
-        if !ocsp_response.is_empty() {
-            trace!("Unvalidated OCSP response: {:?}", ocsp_response.to_vec());
         }
 
         cert.verify_is_valid_for_dns_name(dns_name.0.as_ref())
@@ -399,10 +380,7 @@ impl CertificateTransparencyPolicy {
         now: SystemTime,
         scts: &mut dyn Iterator<Item = &[u8]>,
     ) -> Result<(), Error> {
-        if self.logs.is_empty() {
-            return Ok(());
-        } else if self.validation_deadline.duration_since(now).is_err() {
-            warn!("certificate transparency logs have expired, validation disabled");
+        if self.logs.is_empty() || self.validation_deadline.duration_since(now).is_err() {
             return Ok(());
         }
 
@@ -411,18 +389,13 @@ impl CertificateTransparencyPolicy {
         for sct in scts {
             #[cfg_attr(not(feature = "logging"), allow(unused_variables))]
             match sct::verify_sct(&cert.0, sct, now, self.logs) {
-                Ok(index) => {
-                    debug!(
-                        "Valid SCT signed by {} on {}",
-                        self.logs[index].operated_by, self.logs[index].description
-                    );
+                Ok(_) => {
                     return Ok(());
                 }
                 Err(e) => {
                     if e.should_be_fatal() {
                         return Err(Error::InvalidSct(e));
                     }
-                    debug!("SCT ignored because {:?}", e);
                     last_sct_error = Some(e);
                 }
             }
@@ -431,7 +404,6 @@ impl CertificateTransparencyPolicy {
         /* If we were supplied with some logs, and some SCTs,
          * but couldn't verify any of them, fail the handshake. */
         if let Some(last_sct_error) = last_sct_error {
-            warn!("No valid SCTs provided");
             return Err(Error::InvalidSct(last_sct_error));
         }
 
@@ -464,95 +436,7 @@ fn prepare<'a, 'b>(
     Ok((cert, intermediates, trustroots))
 }
 
-// /// A `ClientCertVerifier` that will ensure that every client provides a trusted
-// /// certificate, without any name checking.
-// pub struct AllowAnyAuthenticatedClient {
-//     roots: RootCertStore,
-// }
-
-// impl AllowAnyAuthenticatedClient {
-//     /// Construct a new `AllowAnyAuthenticatedClient`.
-//     ///
-//     /// `roots` is the list of trust anchors to use for certificate validation.
-//     pub fn new(roots: RootCertStore) -> Arc<dyn ClientCertVerifier> {
-//         Arc::new(Self { roots })
-//     }
-// }
-
-// impl ClientCertVerifier for AllowAnyAuthenticatedClient {
-//     fn offer_client_auth(&self) -> bool {
-//         true
-//     }
-
-//     fn client_auth_root_subjects(&self) -> Option<DistinguishedNames> {
-//         Some(self.roots.subjects())
-//     }
-
-//     fn verify_client_cert(
-//         &self,
-//         end_entity: &Certificate,
-//         intermediates: &[Certificate],
-//         now: SystemTime,
-//     ) -> Result<ClientCertVerified, Error> {
-//         let (cert, chain, trustroots) = prepare(end_entity, intermediates, &self.roots)?;
-//         let now = webpki::Time::try_from(now).map_err(|_| Error::FailedToGetCurrentTime)?;
-//         cert.verify_is_valid_tls_client_cert(
-//             SUPPORTED_SIG_ALGS,
-//             &webpki::TlsClientTrustAnchors(&trustroots),
-//             &chain,
-//             now,
-//         )
-//         .map_err(pki_error)
-//         .map(|_| ClientCertVerified::assertion())
-//     }
-// }
-
-// /// A `ClientCertVerifier` that will allow both anonymous and authenticated
-// /// clients, without any name checking.
-// ///
-// /// Client authentication will be requested during the TLS handshake. If the
-// /// client offers a certificate then this acts like
-// /// `AllowAnyAuthenticatedClient`, otherwise this acts like `NoClientAuth`.
-// pub struct AllowAnyAnonymousOrAuthenticatedClient {
-//     inner: AllowAnyAuthenticatedClient,
-// }
-
-// impl AllowAnyAnonymousOrAuthenticatedClient {
-//     /// Construct a new `AllowAnyAnonymousOrAuthenticatedClient`.
-//     ///
-//     /// `roots` is the list of trust anchors to use for certificate validation.
-//     pub fn new(roots: RootCertStore) -> Arc<dyn ClientCertVerifier> {
-//         Arc::new(Self {
-//             inner: AllowAnyAuthenticatedClient { roots },
-//         })
-//     }
-// }
-
-// impl ClientCertVerifier for AllowAnyAnonymousOrAuthenticatedClient {
-//     fn offer_client_auth(&self) -> bool {
-//         self.inner.offer_client_auth()
-//     }
-
-//     fn client_auth_mandatory(&self) -> Option<bool> {
-//         Some(false)
-//     }
-
-//     fn client_auth_root_subjects(&self) -> Option<DistinguishedNames> {
-//         self.inner.client_auth_root_subjects()
-//     }
-
-//     fn verify_client_cert(
-//         &self,
-//         end_entity: &Certificate,
-//         intermediates: &[Certificate],
-//         now: SystemTime,
-//     ) -> Result<ClientCertVerified, Error> {
-//         self.inner
-//             .verify_client_cert(end_entity, intermediates, now)
-//     }
-// }
-
-fn pki_error(error: webpki::Error) -> Error {
+pub(crate) fn pki_error(error: webpki::Error) -> Error {
     use webpki::Error::*;
     match error {
         BadDer | BadDerTime => Error::InvalidCertificateEncoding,
@@ -563,35 +447,6 @@ fn pki_error(error: webpki::Error) -> Error {
         e => Error::InvalidCertificateData(format!("invalid peer certificate: {}", e)),
     }
 }
-
-// /// Turns off client authentication.
-// pub struct NoClientAuth;
-
-// impl NoClientAuth {
-//     /// Constructs a `NoClientAuth` and wraps it in an `Arc`.
-//     pub fn new() -> Arc<dyn ClientCertVerifier> {
-//         Arc::new(NoClientAuth)
-//     }
-// }
-
-// impl ClientCertVerifier for NoClientAuth {
-//     fn offer_client_auth(&self) -> bool {
-//         false
-//     }
-
-//     fn client_auth_root_subjects(&self) -> Option<DistinguishedNames> {
-//         unimplemented!();
-//     }
-
-//     fn verify_client_cert(
-//         &self,
-//         _end_entity: &Certificate,
-//         _intermediates: &[Certificate],
-//         _now: SystemTime,
-//     ) -> Result<ClientCertVerified, Error> {
-//         unimplemented!();
-//     }
-// }
 
 static ECDSA_SHA256: SignatureAlgorithms =
     &[&webpki::ECDSA_P256_SHA256, &webpki::ECDSA_P384_SHA256];
@@ -665,7 +520,7 @@ fn verify_signed_struct(
 fn convert_alg_tls13(
     scheme: SignatureScheme,
 ) -> Result<&'static webpki::SignatureAlgorithm, Error> {
-    use tls_core::msgs::enums::SignatureScheme::*;
+    use crate::msgs::enums::SignatureScheme::*;
 
     match scheme {
         ECDSA_NISTP256_SHA256 => Ok(&webpki::ECDSA_P256_SHA256),
@@ -682,12 +537,12 @@ fn convert_alg_tls13(
 }
 
 /// Constructs the signature message specified in section 4.4.3 of RFC8446.
-pub(crate) fn construct_tls13_client_verify_message(handshake_hash: &Digest) -> Vec<u8> {
+pub fn construct_tls13_client_verify_message(handshake_hash: &Digest) -> Vec<u8> {
     construct_tls13_verify_message(handshake_hash, b"TLS 1.3, client CertificateVerify\x00")
 }
 
 /// Constructs the signature message specified in section 4.4.3 of RFC8446.
-pub(crate) fn construct_tls13_server_verify_message(handshake_hash: &Digest) -> Vec<u8> {
+pub fn construct_tls13_server_verify_message(handshake_hash: &Digest) -> Vec<u8> {
     construct_tls13_verify_message(handshake_hash, b"TLS 1.3, server CertificateVerify\x00")
 }
 

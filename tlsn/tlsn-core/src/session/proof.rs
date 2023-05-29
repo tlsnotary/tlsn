@@ -1,26 +1,32 @@
-use mpc_core::commit::Decommitment;
 use serde::{Deserialize, Serialize};
 
-use crate::{handshake_data::HandshakeData, session::session_header::SessionHeaderMsg};
+use mpc_core::commit::Decommitment;
+use tls_core::handshake::HandshakeData;
+
+use super::SessionHeader;
+use crate::signature::Signature;
 
 #[derive(Serialize, Deserialize)]
 pub struct SessionProof {
-    header: SessionHeaderMsg,
-    handshake_data_decommitment: Decommitment<HandshakeData>,
+    pub header: SessionHeader,
+    pub signature: Option<Signature>,
+    pub handshake_data_decommitment: Decommitment<HandshakeData>,
 }
 
 impl SessionProof {
     pub fn new(
-        header: SessionHeaderMsg,
+        header: SessionHeader,
+        signature: Option<Signature>,
         handshake_data_decommitment: Decommitment<HandshakeData>,
     ) -> Self {
         Self {
             header,
+            signature,
             handshake_data_decommitment,
         }
     }
 
-    pub fn header(&self) -> &SessionHeaderMsg {
+    pub fn header(&self) -> &SessionHeader {
         &self.header
     }
 

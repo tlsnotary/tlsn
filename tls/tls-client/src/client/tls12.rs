@@ -19,6 +19,7 @@ use async_trait::async_trait;
 use ring::constant_time;
 use std::sync::Arc;
 use tls_core::{
+    ke::ServerKxDetails,
     key::PublicKey,
     msgs::{
         base::{Payload, PayloadU8},
@@ -213,7 +214,7 @@ struct ExpectCertificate {
 impl State<ClientConnectionData> for ExpectCertificate {
     async fn handle(
         mut self: Box<Self>,
-        _cx: &mut ClientContext<'_>,
+        cx: &mut ClientContext<'_>,
         m: Message,
     ) -> hs::NextStateOrError {
         self.transcript.add_message(&m);
@@ -240,6 +241,10 @@ impl State<ClientConnectionData> for ExpectCertificate {
         } else {
             let server_cert =
                 ServerCertDetails::new(server_cert_chain, vec![], self.server_cert_sct_list);
+
+            cx.common
+                .backend
+                .set_server_cert_details(server_cert.clone());
 
             Ok(Box::new(ExpectServerKx {
                 config: self.config,
@@ -283,6 +288,16 @@ impl State<ClientConnectionData> for ExpectCertificateStatusOrServerKx {
                 payload: HandshakePayload::ServerKeyExchange(..),
                 ..
             }) => {
+                let server_cert_details = ServerCertDetails::new(
+                    self.server_cert_chain,
+                    vec![],
+                    self.server_cert_sct_list,
+                );
+
+                cx.common
+                    .backend
+                    .set_server_cert_details(server_cert_details.clone());
+
                 Box::new(ExpectServerKx {
                     config: self.config,
                     resuming_session: self.resuming_session,
@@ -292,11 +307,7 @@ impl State<ClientConnectionData> for ExpectCertificateStatusOrServerKx {
                     using_ems: self.using_ems,
                     transcript: self.transcript,
                     suite: self.suite,
-                    server_cert: ServerCertDetails::new(
-                        self.server_cert_chain,
-                        vec![],
-                        self.server_cert_sct_list,
-                    ),
+                    server_cert: server_cert_details,
                     must_issue_new_ticket: self.must_issue_new_ticket,
                 })
                 .handle(cx, m)
@@ -352,7 +363,7 @@ struct ExpectCertificateStatus {
 impl State<ClientConnectionData> for ExpectCertificateStatus {
     async fn handle(
         mut self: Box<Self>,
-        _cx: &mut ClientContext<'_>,
+        cx: &mut ClientContext<'_>,
         m: Message,
     ) -> hs::NextStateOrError {
         self.transcript.add_message(&m);
@@ -373,6 +384,10 @@ impl State<ClientConnectionData> for ExpectCertificateStatus {
             server_cert_ocsp_response,
             self.server_cert_sct_list,
         );
+
+        cx.common
+            .backend
+            .set_server_cert_details(server_cert.clone());
 
         Ok(Box::new(ExpectServerKx {
             config: self.config,
@@ -546,20 +561,6 @@ async fn emit_finished(
     common.send_msg(f, true).await
 }
 
-struct ServerKxDetails {
-    kx_params: Vec<u8>,
-    kx_sig: DigitallySignedStruct,
-}
-
-impl ServerKxDetails {
-    fn new(params: Vec<u8>, sig: DigitallySignedStruct) -> Self {
-        Self {
-            kx_params: params,
-            kx_sig: sig,
-        }
-    }
-}
-
 // --- Either a CertificateRequest, or a ServerHelloDone. ---
 // Existence of the CertificateRequest tells us the server is asking for
 // client auth.  Otherwise we go straight to ServerHelloDone.
@@ -730,7 +731,7 @@ impl State<ClientConnectionData> for ExpectServerDone {
 
         cx.common.check_aligned_handshake().await?;
 
-        trace!("Server cert is {:?}", st.server_cert.cert_chain);
+        trace!("Server cert is {:?}", st.server_cert.cert_chain());
         debug!("Server DNS name is {:?}", st.server_name);
 
         let suite = st.suite;
@@ -750,7 +751,7 @@ impl State<ClientConnectionData> for ExpectServerDone {
         // 1.
         let (end_entity, intermediates) = st
             .server_cert
-            .cert_chain
+            .cert_chain()
             .split_first()
             .ok_or(Error::NoCertificatesPresented)?;
         let now = std::time::SystemTime::now();
@@ -758,12 +759,18 @@ impl State<ClientConnectionData> for ExpectServerDone {
             end_entity,
             intermediates,
             &st.server_name,
-            &mut st.server_cert.scts(),
-            &st.server_cert.ocsp_response,
+            &mut st
+                .server_cert
+                .scts()
+                .map(|sct| sct.as_slice())
+                .unwrap_or(&[])
+                .iter()
+                .map(|sct| sct.0.as_slice()),
+            st.server_cert.ocsp_response(),
             now,
         ) {
             Ok(cert_verified) => cert_verified,
-            Err(e) => return Err(hs::send_cert_error_alert(cx.common, e).await?),
+            Err(e) => return Err(hs::send_cert_error_alert(cx.common, Error::CoreError(e)).await?),
         };
 
         // 3.
@@ -773,10 +780,10 @@ impl State<ClientConnectionData> for ExpectServerDone {
             let mut message = Vec::new();
             message.extend_from_slice(&st.randoms.client);
             message.extend_from_slice(&st.randoms.server);
-            message.extend_from_slice(&st.server_kx.kx_params);
+            message.extend_from_slice(st.server_kx.kx_params());
 
             // Check the signature is compatible with the ciphersuite.
-            let sig = &st.server_kx.kx_sig;
+            let sig = st.server_kx.kx_sig();
             if !SupportedCipherSuite::from(suite).usable_for_signature_algorithm(sig.scheme.sign())
             {
                 let error_message = format!(
@@ -789,14 +796,16 @@ impl State<ClientConnectionData> for ExpectServerDone {
 
             match st.config.verifier.verify_tls12_signature(
                 &message,
-                &st.server_cert.cert_chain[0],
+                &st.server_cert.cert_chain()[0],
                 sig,
             ) {
                 Ok(sig_verified) => sig_verified,
-                Err(e) => return Err(hs::send_cert_error_alert(cx.common, e).await?),
+                Err(e) => {
+                    return Err(hs::send_cert_error_alert(cx.common, Error::CoreError(e)).await?)
+                }
             }
         };
-        cx.common.peer_certificates = Some(st.server_cert.cert_chain);
+        cx.common.peer_certificates = Some(st.server_cert.cert_chain().to_vec());
 
         // 4.
         if let Some(client_auth) = &st.client_auth {
@@ -809,7 +818,7 @@ impl State<ClientConnectionData> for ExpectServerDone {
 
         // 5a.
         let ecdh_params =
-            match tls12::decode_ecdh_params::<ServerECDHParams>(&st.server_kx.kx_params) {
+            match tls12::decode_ecdh_params::<ServerECDHParams>(st.server_kx.kx_params()) {
                 Some(ecdh_params) => ecdh_params,
                 None => {
                     cx.common
@@ -853,6 +862,7 @@ impl State<ClientConnectionData> for ExpectServerDone {
             .backend
             .set_server_key_share(server_key_share)
             .await?;
+        cx.common.backend.set_server_kx_details(st.server_kx);
         cx.common.record_layer.prepare_message_encrypter();
         cx.common.record_layer.prepare_message_decrypter();
         cx.common.record_layer.start_encrypting();

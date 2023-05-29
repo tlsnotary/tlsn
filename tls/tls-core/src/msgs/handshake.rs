@@ -55,6 +55,7 @@ declare_u16_vec!(VecU16OfPayloadU8, PayloadU8);
 declare_u16_vec!(VecU16OfPayloadU16, PayloadU16);
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Random(pub [u8; 32]);
 
 static HELLO_RETRY_REQUEST_RANDOM: Random = Random([
@@ -1570,6 +1571,7 @@ impl Codec for ECParameters {
 }
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DigitallySignedStruct {
     pub scheme: SignatureScheme,
     pub sig: PayloadU16,

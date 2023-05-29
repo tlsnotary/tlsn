@@ -1,9 +1,7 @@
-use crate::{
-    merkle::MerkleTree, transcript::TranscriptSet, HandshakeData, SubstringsCommitmentSet,
-    Transcript,
-};
+use crate::{merkle::MerkleTree, transcript::TranscriptSet, SubstringsCommitmentSet, Transcript};
 use mpc_core::commit::Decommitment;
 use serde::{Deserialize, Serialize};
+use tls_core::handshake::HandshakeData;
 
 #[derive(Serialize, Deserialize)]
 pub struct SessionData {

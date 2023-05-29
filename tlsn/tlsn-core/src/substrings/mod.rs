@@ -1,3 +1,3 @@
-pub mod substrings_commitment;
-pub mod substrings_opening;
-pub(crate) mod substrings_proof;
+pub mod commitment;
+pub mod opening;
+pub mod proof;

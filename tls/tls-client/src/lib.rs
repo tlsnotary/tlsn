@@ -312,7 +312,7 @@ mod log {
 #[macro_use]
 pub extern crate tls_core;
 
-mod anchors;
+pub(crate) use tls_core::anchors;
 mod backend;
 mod cipher;
 mod conn;
@@ -324,10 +324,10 @@ mod rand;
 mod record_layer;
 //mod stream;
 mod vecbuf;
-mod verify;
+pub(crate) use tls_core::verify;
 #[cfg(test)]
 mod verifybench;
-mod x509;
+pub(crate) use tls_core::x509;
 #[macro_use]
 mod check;
 mod bs_debug;
