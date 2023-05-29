@@ -8,8 +8,8 @@ use tls_core::{
     key::{Certificate, PublicKey},
     msgs::{
         codec::Codec,
-        enums::{NamedGroup, SignatureAlgorithm},
-        handshake::{Random, ServerECDHParams},
+        enums::{NamedGroup, SignatureScheme},
+        handshake::{DigitallySignedStruct, Random, ServerECDHParams},
     },
     verify::ServerCertVerifier,
 };
@@ -32,7 +32,7 @@ pub struct TestData {
     // unix time when TLS handshake began
     pub time: u64,
     // algorithm used to create the sig
-    pub sigalg: SignatureAlgorithm,
+    pub sig_scheme: SignatureScheme,
     // DNS name of the website
     pub dns_name: ServerName,
 }
@@ -43,6 +43,10 @@ impl TestData {
         let ecdh_params = ServerECDHParams::new(NamedGroup::secp256r1, &self.pubkey.key);
         ecdh_params.encode(&mut params);
         params
+    }
+
+    pub fn dss(&self) -> DigitallySignedStruct {
+        DigitallySignedStruct::new(self.sig_scheme, self.sig.clone())
     }
 
     pub fn signature_msg(&self) -> Vec<u8> {
@@ -103,7 +107,7 @@ pub fn tlsnotary() -> TestData {
             "testdata/key_exchange/tlsnotary.org/signature"
         )),
         time: 1671637529,
-        sigalg: SignatureAlgorithm::RSA,
+        sig_scheme: SignatureScheme::RSA_PKCS1_SHA256,
         dns_name: ServerName::try_from("tlsnotary.org").unwrap(),
     }
 }
@@ -140,7 +144,7 @@ pub fn appliedzkp() -> TestData {
             "testdata/key_exchange/appliedzkp.org/signature"
         )),
         time: 1671637529,
-        sigalg: SignatureAlgorithm::ECDSA,
+        sig_scheme: SignatureScheme::ECDSA_NISTP256_SHA256,
         dns_name: ServerName::try_from("appliedzkp.org").unwrap(),
     }
 }
@@ -283,124 +287,73 @@ fn test_verify_cert_chain_fail_bad_ee_cert(
     ));
 }
 
-// // Expect to succeed when key exchange params signed correctly with a cert
-// #[rstest]
-// #[case(tlsnotary())]
-// #[case(appliedzkp())]
-// fn test_verify_sig_ke_params_success(
-//     cert_verifier: impl ServerCertVerifier,
-//     #[case] data: TestData,
-// ) {
-//     let sig = ServerSignature::new(data.sigalg, data.sig);
-//     let ephem_pubkey = crate::pubkey::PubKey::from_bytes(KeyType::P256, &data.pubkey).unwrap();
-//     let ke_params = KEData::new(ephem_pubkey, data.cr, data.sr);
+// Expect to succeed when key exchange params signed correctly with a cert
+#[rstest]
+#[case(tlsnotary())]
+#[case(appliedzkp())]
+fn test_verify_sig_ke_params_success(
+    cert_verifier: impl ServerCertVerifier,
+    #[case] data: TestData,
+) {
+    assert!(cert_verifier
+        .verify_tls12_signature(&data.signature_msg(), &data.ee, &data.dss())
+        .is_ok());
+}
 
-//     assert!(data
-//         .ee
-//         .verify_signature(&ke_params.to_bytes().unwrap(), &sig)
-//         .is_ok());
-// }
+// Expect sig verification to fail because client_random is wrong
+#[rstest]
+#[case(tlsnotary())]
+#[case(appliedzkp())]
+fn test_verify_sig_ke_params_fail_bad_client_random(
+    cert_verifier: impl ServerCertVerifier,
+    #[case] mut data: TestData,
+) {
+    data.cr.0[31] = data.cr.0[31].wrapping_add(1);
 
-// // Expect sig verification to fail because client_random is wrong
-// #[rstest]
-// #[case(tlsnotary())]
-// #[case(appliedzkp())]
-// fn test_verify_sig_ke_params_fail_bad_client_random(
-//     cert_verifier: impl ServerCertVerifier,
-//     #[case] data: TestData,
-// ) {
-//     let sig = ServerSignature::new(data.sigalg, data.sig);
-//     let ephem_pubkey = crate::pubkey::PubKey::from_bytes(KeyType::P256, &data.pubkey).unwrap();
+    assert!(cert_verifier
+        .verify_tls12_signature(&data.signature_msg(), &data.ee, &data.dss())
+        .is_err());
+}
 
-//     let mut cr = data.cr;
-//     // corrupt the last byte of client random
-//     let last = cr[31];
-//     let (corrupted, _) = last.overflowing_add(1);
-//     cr[31] = corrupted;
+// Expect sig verification to fail because the sig is wrong
+#[rstest]
+#[case(tlsnotary())]
+#[case(appliedzkp())]
+fn test_verify_sig_ke_params_fail_bad_sig(
+    cert_verifier: impl ServerCertVerifier,
+    #[case] mut data: TestData,
+) {
+    data.sig[31] = data.sig[31].wrapping_add(1);
 
-//     let ke_params = KEData::new(ephem_pubkey, cr, data.sr);
-//     let err = data
-//         .ee
-//         .verify_signature(&ke_params.to_bytes().unwrap(), &sig);
+    assert!(cert_verifier
+        .verify_tls12_signature(&data.signature_msg(), &data.ee, &data.dss())
+        .is_err());
+}
 
-//     assert_eq!(
-//         err.unwrap_err(),
-//         EndEntityCertError::WebpkiError("InvalidSignatureForPublicKey".to_string())
-//     );
-// }
+// Expect to fail because the dns name is not in the cert
+#[rstest]
+#[case(tlsnotary())]
+#[case(appliedzkp())]
+fn test_check_dns_name_present_in_cert_fail_bad_host(
+    cert_verifier: impl ServerCertVerifier,
+    #[case] data: TestData,
+) {
+    let bad_name = ServerName::try_from("badhost.com").unwrap();
 
-// // Expect sig verification to fail because the sig is wrong
-// #[rstest]
-// #[case(tlsnotary())]
-// #[case(appliedzkp())]
-// fn test_verify_sig_ke_params_fail_bad_sig(
-//     cert_verifier: impl ServerCertVerifier,
-//     #[case] data: TestData,
-// ) {
-//     let mut sig = data.sig.clone();
-//     // corrupt the last byte of the signature
-//     let last = sig.pop().unwrap();
-//     let (corrupted, _) = last.overflowing_add(1);
-//     sig.push(corrupted);
+    assert!(cert_verifier
+        .verify_server_cert(
+            &data.ee,
+            &[data.inter, data.ca],
+            &bad_name,
+            &mut std::iter::empty(),
+            &[],
+            SystemTime::UNIX_EPOCH + Duration::from_secs(data.time),
+        )
+        .is_err());
+}
 
-//     let sig = ServerSignature::new(data.sigalg, sig);
-//     let ephem_pubkey = crate::pubkey::PubKey::from_bytes(KeyType::P256, &data.pubkey).unwrap();
-//     let ke_params = KEData::new(ephem_pubkey, data.cr, data.sr);
-
-//     let err = data
-//         .ee
-//         .verify_signature(&ke_params.to_bytes().unwrap(), &sig);
-
-//     assert_eq!(
-//         err.unwrap_err(),
-//         EndEntityCertError::WebpkiError("InvalidSignatureForPublicKey".to_string())
-//     );
-// }
-
-// // Expect to succeed for a valid dns name
-// #[rstest]
-// #[case(tlsnotary())]
-// #[case(appliedzkp())]
-// fn test_check_dns_name_present_in_cert_success(
-//     cert_verifier: impl ServerCertVerifier,
-//     #[case] data: TestData,
-// ) {
-//     assert!(data.ee.verify_is_valid_for_dns_name(&data.dns_name).is_ok());
-// }
-
-// // Expect to fail because the dns name is not in the cert
-// #[rstest]
-// #[case(tlsnotary())]
-// #[case(appliedzkp())]
-// fn test_check_dns_name_present_in_cert_fail_bad_host(
-//     cert_verifier: impl ServerCertVerifier,
-//     #[case] data: TestData,
-// ) {
-//     let bad_name = String::from("bad_name");
-
-//     let err = data.ee.verify_is_valid_for_dns_name(&bad_name);
-
-//     let _str = String::from("CertNotValidForName");
-//     assert_eq!(
-//         err.unwrap_err(),
-//         EndEntityCertError::WebpkiError("CertNotValidForName".to_string())
-//     );
-// }
-
-// // Expect to fail because the host name is not a valid DNS name
-// #[rstest]
-// #[case(tlsnotary())]
-// #[case(appliedzkp())]
-// fn test_check_dns_name_present_in_cert_fail_invalid_dns_name(
-//     cert_verifier: impl ServerCertVerifier,
-//     #[case] data: TestData,
-// ) {
-//     let host = String::from("tlsnotary.org%");
-
-//     let err = data.ee.verify_is_valid_for_dns_name(&host);
-
-//     assert_eq!(
-//         err.unwrap_err(),
-//         EndEntityCertError::WebpkiError("InvalidDnsNameError".to_string())
-//     );
-// }
+// Expect to fail because the host name is not a valid DNS name
+#[rstest]
+fn test_check_dns_name_present_in_cert_fail_invalid_dns_name() {
+    assert!(ServerName::try_from("tlsnotary.org%").is_err());
+}
