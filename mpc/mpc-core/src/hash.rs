@@ -7,6 +7,8 @@
 use blake3::Hasher;
 use serde::{Deserialize, Serialize};
 
+use crate::serialize::CanonicalSerialize;
+
 /// A secure hash
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Hash([u8; 32]);
@@ -27,12 +29,11 @@ impl From<[u8; 32]> for Hash {
 /// A trait for hashing serde serializable types
 pub trait SecureHash
 where
-    Self: serde::Serialize,
+    Self: CanonicalSerialize,
 {
     /// Creates a hash of self
     fn hash(&self) -> Hash {
-        let bytes = bcs::to_bytes(self).expect("serialization should not fail");
-        Hash(blake3::hash(&bytes).into())
+        Hash(blake3::hash(&self.to_bytes()).into())
     }
 }
 
@@ -48,9 +49,8 @@ where
 
     /// Creates a hash of self with a domain separator
     fn domain_separated_hash(&self) -> Hash {
-        let bytes = bcs::to_bytes(self).expect("serialization should not fail");
         let mut hasher = Self::hasher();
-        hasher.update(&bytes);
+        hasher.update(&self.to_bytes());
         Hash(hasher.finalize().into())
     }
 }

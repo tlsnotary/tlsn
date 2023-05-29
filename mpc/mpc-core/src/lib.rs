@@ -5,6 +5,7 @@
 mod block;
 pub mod commit;
 pub mod hash;
+pub mod serialize;
 pub mod utils;
 pub mod value;
 
