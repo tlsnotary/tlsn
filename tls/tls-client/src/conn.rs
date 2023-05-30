@@ -547,9 +547,9 @@ impl ConnectionCommon {
     /// or a file is at EOF.
     ///
     /// [`process_new_packets`]: Connection::process_new_packets
-    pub async fn read_tls_async(
+    pub async fn read_tls_async<T: AsyncRead + Unpin>(
         &mut self,
-        rd: &mut (dyn AsyncRead + Unpin),
+        rd: &mut T,
     ) -> Result<usize, io::Error> {
         let res = self.message_deframer.read_async(rd).await;
         if let Ok(0) = res {
@@ -899,9 +899,9 @@ impl CommonState {
     ///
     /// After this function returns, the connection buffer may not yet be fully flushed. The
     /// [`CommonState::wants_write`] function can be used to check if the output buffer is empty.
-    pub async fn write_tls_async(
+    pub async fn write_tls_async<T: AsyncWrite + Unpin>(
         &mut self,
-        wr: &mut (dyn AsyncWrite + Unpin),
+        wr: &mut T,
     ) -> Result<usize, io::Error> {
         self.sendable_tls.write_to_async(wr).await
     }

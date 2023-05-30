@@ -137,9 +137,9 @@ impl ChunkVecBuffer {
     }
 
     /// Read data out of this object, passing it `wr`
-    pub(crate) async fn write_to_async(
+    pub(crate) async fn write_to_async<T: AsyncWrite + Unpin>(
         &mut self,
-        wr: &mut (dyn AsyncWrite + Unpin),
+        wr: &mut T,
     ) -> io::Result<usize> {
         if self.is_empty() {
             return Ok(0);

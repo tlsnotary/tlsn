@@ -610,7 +610,7 @@ where
     T: std::io::Write + Unpin,
 {
     fn poll_write(
-        mut self: std::pin::Pin<&mut Self>,
+        self: std::pin::Pin<&mut Self>,
         _cx: &mut std::task::Context<'_>,
         buf: &[u8],
     ) -> std::task::Poll<io::Result<usize>> {
@@ -626,14 +626,14 @@ where
     }
 
     fn poll_flush(
-        mut self: std::pin::Pin<&mut Self>,
+        self: std::pin::Pin<&mut Self>,
         _cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<io::Result<()>> {
         std::task::Poll::Ready(self.get_mut().0.flush())
     }
 
     fn poll_close(
-        mut self: std::pin::Pin<&mut Self>,
+        self: std::pin::Pin<&mut Self>,
         _cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<io::Result<()>> {
         std::task::Poll::Ready(Ok(()))
@@ -645,7 +645,7 @@ where
     T: std::io::Read + Unpin,
 {
     fn poll_read(
-        mut self: std::pin::Pin<&mut Self>,
+        self: std::pin::Pin<&mut Self>,
         _cx: &mut std::task::Context<'_>,
         buf: &mut [u8],
     ) -> std::task::Poll<io::Result<usize>> {
