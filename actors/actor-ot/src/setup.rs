@@ -57,7 +57,6 @@ pub async fn create_ot_receiver(
 /// # Arguments
 ///
 /// * `id` - The ID of the sender and receiver
-/// * `spawner` - The spawner to spawn the internal tasks
 /// * `sender_mux` - The muxer which sets up channels with the remote receiver
 /// * `receiver_mux` - The muxer which sets up channels with the remote sender
 /// * `sender_config` - The configuration for the sender

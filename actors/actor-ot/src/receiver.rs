@@ -48,7 +48,6 @@ impl KOSReceiverActor {
     ///
     /// * `config` - The configuration for the receiver
     /// * `addr` - The address of the receiver
-    /// * `spawner` - The spawner to spawn the internal tasks
     /// * `channel` - The channel over which OT splits are synchronized with the remote
     ///               KOSSenderActor
     /// * `mux_control` - The muxer which sets up channels with the remote KOSSenderActor
