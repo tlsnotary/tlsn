@@ -8,6 +8,7 @@ use crate::{
     vecbuf::ChunkVecBuffer,
 };
 use async_trait::async_trait;
+use futures::{AsyncRead, AsyncWrite};
 use std::{
     collections::VecDeque,
     convert::TryFrom,
@@ -277,7 +278,7 @@ impl ConnectionCommon {
     pub async fn complete_io<T>(&mut self, io: &mut T) -> Result<(usize, usize), io::Error>
     where
         Self: Sized,
-        T: io::Read + io::Write,
+        T: AsyncRead + AsyncWrite + Unpin,
     {
         let until_handshaked = self.is_handshaking();
         let mut eof = false;
@@ -286,7 +287,7 @@ impl ConnectionCommon {
 
         loop {
             while self.wants_write() {
-                wrlen += self.write_tls(io)?;
+                wrlen += self.write_tls_async(io).await?;
             }
 
             if !until_handshaked && wrlen > 0 {
@@ -294,7 +295,7 @@ impl ConnectionCommon {
             }
 
             if !eof && self.wants_read() {
-                match self.read_tls(io)? {
+                match self.read_tls_async(io).await? {
                     0 => eof = true,
                     n => rdlen += n,
                 }
@@ -306,7 +307,7 @@ impl ConnectionCommon {
                     // In case we have an alert to send describing this error,
                     // try a last-gasp write -- but don't predate the primary
                     // error.
-                    let _ignored = self.write_tls(io);
+                    let _ignored = self.write_tls_async(io).await;
 
                     return Err(io::Error::new(io::ErrorKind::InvalidData, e));
                 }
@@ -525,6 +526,32 @@ impl ConnectionCommon {
     /// [`process_new_packets`]: Connection::process_new_packets
     pub fn read_tls(&mut self, rd: &mut dyn io::Read) -> Result<usize, io::Error> {
         let res = self.message_deframer.read(rd);
+        if let Ok(0) = res {
+            self.common_state.has_seen_eof = true;
+        }
+        res
+    }
+
+    /// Read TLS content from `rd`.  This method does internal
+    /// buffering, so `rd` can supply TLS messages in arbitrary-
+    /// sized chunks (like a socket or pipe might).
+    ///
+    /// You should call [`process_new_packets`] each time a call to
+    /// this function succeeds.
+    ///
+    /// The returned error only relates to IO on `rd`.  TLS-level
+    /// errors are emitted from [`process_new_packets`].
+    ///
+    /// This function returns `Ok(0)` when the underlying `rd` does
+    /// so.  This typically happens when a socket is cleanly closed,
+    /// or a file is at EOF.
+    ///
+    /// [`process_new_packets`]: Connection::process_new_packets
+    pub async fn read_tls_async(
+        &mut self,
+        rd: &mut (dyn AsyncRead + Unpin),
+    ) -> Result<usize, io::Error> {
+        let res = self.message_deframer.read_async(rd).await;
         if let Ok(0) = res {
             self.common_state.has_seen_eof = true;
         }
@@ -863,6 +890,20 @@ impl CommonState {
     /// [`CommonState::wants_write`] function can be used to check if the output buffer is empty.
     pub fn write_tls(&mut self, wr: &mut dyn io::Write) -> Result<usize, io::Error> {
         self.sendable_tls.write_to(wr)
+    }
+
+    /// Writes TLS messages to `wr`.
+    ///
+    /// On success, this function returns `Ok(n)` where `n` is a number of bytes written to `wr`
+    /// (after encoding and encryption).
+    ///
+    /// After this function returns, the connection buffer may not yet be fully flushed. The
+    /// [`CommonState::wants_write`] function can be used to check if the output buffer is empty.
+    pub async fn write_tls_async(
+        &mut self,
+        wr: &mut (dyn AsyncWrite + Unpin),
+    ) -> Result<usize, io::Error> {
+        self.sendable_tls.write_to_async(wr).await
     }
 
     /// Encrypt and send some plaintext `data`.  `limit` controls

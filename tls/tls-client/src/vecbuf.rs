@@ -1,5 +1,7 @@
 use std::{cmp, collections::VecDeque, io, io::Read};
 
+use futures::{AsyncWrite, AsyncWriteExt};
+
 /// This is a byte buffer that is built from a vector
 /// of byte vectors.  This avoids extra copies when
 /// appending a new byte vector, at the expense of
@@ -130,6 +132,25 @@ impl ChunkVecBuffer {
         }
         let len = cmp::min(bufs.len(), self.chunks.len());
         let used = wr.write_vectored(&bufs[..len])?;
+        self.consume(used);
+        Ok(used)
+    }
+
+    /// Read data out of this object, passing it `wr`
+    pub(crate) async fn write_to_async(
+        &mut self,
+        wr: &mut (dyn AsyncWrite + Unpin),
+    ) -> io::Result<usize> {
+        if self.is_empty() {
+            return Ok(0);
+        }
+
+        let mut bufs = [io::IoSlice::new(&[]); 64];
+        for (iov, chunk) in bufs.iter_mut().zip(self.chunks.iter()) {
+            *iov = io::IoSlice::new(chunk);
+        }
+        let len = cmp::min(bufs.len(), self.chunks.len());
+        let used = wr.write_vectored(&bufs[..len]).await?;
         self.consume(used);
         Ok(used)
     }

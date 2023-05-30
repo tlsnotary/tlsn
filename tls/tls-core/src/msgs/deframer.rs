@@ -2,6 +2,7 @@ use crate::msgs::{
     codec,
     message::{MessageError, OpaqueMessage},
 };
+use futures::{io::AsyncRead, AsyncReadExt};
 use std::{collections::VecDeque, io};
 
 /// This deframer works to reconstruct TLS messages
@@ -62,6 +63,33 @@ impl MessageDeframer {
         // the next layer up, which is fine.
         debug_assert!(self.used <= OpaqueMessage::MAX_WIRE_SIZE);
         let new_bytes = rd.read(&mut self.buf[self.used..])?;
+
+        self.used += new_bytes;
+
+        loop {
+            match self.try_deframe_one() {
+                BufferContents::Invalid => {
+                    self.desynced = true;
+                    break;
+                }
+                BufferContents::Valid => continue,
+                BufferContents::Partial => break,
+            }
+        }
+
+        Ok(new_bytes)
+    }
+
+    /// Read some bytes from `rd`, and add them to our internal
+    /// buffer.  If this means our internal buffer contains
+    /// full messages, decode them all.
+    pub async fn read_async(&mut self, rd: &mut (dyn AsyncRead + Unpin)) -> io::Result<usize> {
+        // Try to do the largest reads possible.  Note that if
+        // we get a message with a length field out of range here,
+        // we do a zero length read.  That looks like an EOF to
+        // the next layer up, which is fine.
+        debug_assert!(self.used <= OpaqueMessage::MAX_WIRE_SIZE);
+        let new_bytes = rd.read(&mut self.buf[self.used..]).await?;
 
         self.used += new_bytes;
 
