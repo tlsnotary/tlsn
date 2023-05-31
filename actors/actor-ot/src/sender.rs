@@ -63,6 +63,8 @@ impl KOSSenderActor {
                 state: State::Initialized,
             },
             scoped(&addr, async move {
+                // This loop currently serves no functional purpose. We may want to use
+                // this channel in the future.
                 while stream.next().await.is_some() {
                     // Receiver should not send messages, we just discard.
                     continue;
