@@ -5,11 +5,10 @@ use std::{
 
 use async_trait::async_trait;
 
-use bytes::Bytes;
 use futures::{
-    channel::oneshot, stream::FuturesUnordered, AsyncRead, AsyncWrite, SinkExt, StreamExt,
+    channel::oneshot, stream::FuturesUnordered, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt,
+    StreamExt,
 };
-use tokio_util::{codec::LengthDelimitedCodec, compat::FuturesAsyncReadCompatExt};
 use utils_aio::mux::{MuxStream, MuxerError};
 
 pub use yamux;
@@ -58,12 +57,6 @@ where
     /// This method will poll the underlying connection for new streams and
     /// handle them appropriately.
     pub async fn run(&mut self) -> Result<(), MuxerError> {
-        // Use a length-delimited codec for transporting stream ids to the remote
-        let mut stream_id_codec = LengthDelimitedCodec::builder();
-        stream_id_codec
-            .max_frame_length(256)
-            .length_field_type::<u8>();
-
         let mut conn = Box::pin(
             self.conn
                 .take()
@@ -83,20 +76,13 @@ where
                         ));
                     }
 
-                    let mut framed_stream = stream_id_codec
-                        .new_read(
-                            stream.map_err(|e| MuxerError::InternalError(format!("connection error: {0:?}", e)))?
-                                .compat()
-                        );
+                    let mut stream =
+                        stream.map_err(|e| MuxerError::InternalError(format!("connection error: {0:?}", e)))?;
 
                     pending_streams.push(async move {
-                        let stream_id = framed_stream.next().await.ok_or_else(|| {
-                            MuxerError::InternalError("stream closed before id received".to_string())
-                        })??;
+                        let stream_id = read_stream_id(&mut stream).await?;
 
-                        let stream_id = String::from_utf8_lossy(&stream_id).to_string();
-
-                        Ok::<_, MuxerError>((stream_id, framed_stream.into_inner().into_inner()))
+                        Ok::<_, MuxerError>((stream_id, stream))
                     });
                 }
                 // Handle streams for which we've received the id
@@ -127,6 +113,37 @@ where
     }
 }
 
+async fn write_stream_id<T: AsyncWrite + Unpin>(
+    stream: &mut T,
+    id: &str,
+) -> Result<(), std::io::Error> {
+    let id = id.as_bytes();
+
+    if id.len() > u32::MAX as usize {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "id too long",
+        ));
+    }
+
+    stream.write_all(&(id.len() as u32).to_be_bytes()).await?;
+    stream.write_all(id).await?;
+
+    Ok(())
+}
+
+async fn read_stream_id<T: AsyncRead + Unpin>(stream: &mut T) -> Result<String, std::io::Error> {
+    let mut len = [0u8; 4];
+    stream.read_exact(&mut len).await?;
+
+    let len = u32::from_be_bytes(len) as usize;
+
+    let mut id = vec![0u8; len];
+    stream.read_exact(&mut id).await?;
+
+    Ok(String::from_utf8_lossy(&id).to_string())
+}
+
 #[async_trait]
 impl MuxStream for UidYamuxControl {
     type Stream = yamux::Stream;
@@ -138,23 +155,13 @@ impl MuxStream for UidYamuxControl {
                     return Err(MuxerError::DuplicateStreamId(id.to_string()));
                 }
 
-                let stream = self.control.open_stream().await.map_err(|e| {
+                let mut stream = self.control.open_stream().await.map_err(|e| {
                     MuxerError::InternalError(format!("failed to open stream: {}", e))
                 })?;
 
-                let mut framed_stream = LengthDelimitedCodec::builder()
-                    .max_frame_length(256)
-                    .length_field_type::<u8>()
-                    .new_write(stream.compat());
+                write_stream_id(&mut stream, id).await?;
 
-                framed_stream
-                    .send(Bytes::from(id.to_string()))
-                    .await
-                    .map_err(|e| {
-                        MuxerError::InternalError(format!("failed to write stream id: {}", e))
-                    })?;
-
-                Ok(framed_stream.into_inner().into_inner())
+                Ok(stream)
             }
             yamux::Mode::Server => {
                 let receiver = {
@@ -186,7 +193,7 @@ impl MuxStream for UidYamuxControl {
 
 #[cfg(test)]
 mod tests {
-    use futures::{AsyncReadExt, AsyncWriteExt};
+    use futures::{AsyncReadExt, AsyncWriteExt, FutureExt};
     use tokio_util::compat::TokioAsyncReadCompatExt;
 
     use super::*;
@@ -197,12 +204,12 @@ mod tests {
         let mut mux_a = UidYamux::new(
             yamux::Config::default(),
             socket_a.compat(),
-            yamux::Mode::Server,
+            yamux::Mode::Client,
         );
         let mut mux_b = UidYamux::new(
             yamux::Config::default(),
             socket_b.compat(),
-            yamux::Mode::Client,
+            yamux::Mode::Server,
         );
 
         let control_a = mux_a.control();
@@ -280,5 +287,27 @@ mod tests {
 
         assert!(err_a.is_err());
         assert!(err_b.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_mux_send_before_opened() {
+        let (mut control_a, mut control_b) = create_pair().await;
+
+        let mut stream_a = control_a.get_stream("test").await.unwrap();
+
+        let msg = b"hello world";
+
+        stream_a.write_all(msg).await.unwrap();
+        stream_a.flush().await.unwrap();
+
+        let mut stream_b = control_b.get_stream("test").await.unwrap();
+
+        let mut buf = [0u8; 11];
+        let read = futures::select! {
+            read = stream_b.read(&mut buf).fuse() => read.unwrap(),
+            _ = tokio::time::sleep(std::time::Duration::from_secs(5)).fuse() => panic!("timed out"),
+        };
+
+        assert_eq!(&buf[..read], msg);
     }
 }
