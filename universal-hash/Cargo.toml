@@ -1,5 +1,10 @@
 [package]
 name = "tlsn-universal-hash"
+authors = ["TLSNotary Team"]
+description ="A crate which implements different hash functions for two-party computation"
+keywords = ["tls", "mpc", "2pc", "hash"]
+categories = ["cryptography"]
+license = "MIT"
 version = "0.1.0"
 edition = "2021"
 
