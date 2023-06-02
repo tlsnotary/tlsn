@@ -19,14 +19,14 @@
 mod core;
 
 /// Contains the different states
-pub mod state;
+pub(crate) mod state;
 
-pub use self::core::GhashCore;
+pub(crate) use self::core::GhashCore;
 use mpc_share_conversion_core::fields::{compute_product_repeated, gf2_128::Gf2_128};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum GhashError {
+pub(crate) enum GhashError {
     #[error("Message too long")]
     InvalidMessageLength,
 }

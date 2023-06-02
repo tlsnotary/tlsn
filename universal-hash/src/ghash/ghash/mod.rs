@@ -1,6 +1,3 @@
-use async_trait::async_trait;
-use mpc_core::Block;
-
 use crate::{
     ghash::ghash_core::{
         state::{Finalized, Intermediate},
@@ -8,11 +5,13 @@ use crate::{
     },
     UniversalHash, UniversalHashError,
 };
+use async_trait::async_trait;
+use mpc_core::Block;
 use mpc_share_conversion::{Gf2_128, ShareConversion};
 
 mod config;
 #[cfg(feature = "mock")]
-pub mod mock;
+pub(crate) mod mock;
 
 pub use config::{GhashConfig, GhashConfigBuilder, GhashConfigBuilderError};
 
@@ -28,7 +27,6 @@ enum State {
 pub struct Ghash<C> {
     state: State,
     config: GhashConfig,
-
     converter: C,
 }
 
@@ -38,11 +36,9 @@ where
 {
     /// Creates a new instance
     ///
-    /// * `config`              - The configuration of the instance
-    /// * `a2m_converter`       - An instance which allows to convert additive into multiplicative
-    ///                           shares
-    /// * `m2a_converter`       - An instance which allows to convert multiplicative into additive
-    ///                           shares
+    /// * `config`      - The configuration for this Ghash instance
+    /// * `converter`   - An instance which allows to convert multiplicative into additive shares
+    ///                   and vice versa
     pub fn new(config: GhashConfig, converter: C) -> Self {
         Self {
             state: State::Init,

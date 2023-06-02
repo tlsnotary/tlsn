@@ -1,14 +1,14 @@
 use mpc_share_conversion_core::fields::gf2_128::Gf2_128;
 
 mod sealed {
-    pub trait Sealed {}
+    pub(crate) trait Sealed {}
 
     impl Sealed for super::Init {}
     impl Sealed for super::Intermediate {}
     impl Sealed for super::Finalized {}
 }
 
-pub trait State: sealed::Sealed {}
+pub(crate) trait State: sealed::Sealed {}
 
 impl State for Init {}
 impl State for Intermediate {}
@@ -18,14 +18,14 @@ impl State for Finalized {}
 ///
 /// This is before any OT has taken place
 #[derive(Clone, Debug)]
-pub struct Init;
+pub(crate) struct Init;
 
 /// Intermediate state for Ghash protocol
 ///
 /// This is when the additive share has been converted into a multiplicative share and all the
 /// needed powers have been computed
 #[derive(Clone, Debug)]
-pub struct Intermediate {
+pub(crate) struct Intermediate {
     pub(super) odd_mul_shares: Vec<Gf2_128>,
     // A vec of all additive shares (even and odd) we already have.
     // (In order to simplify the code) the n-th index of the vec corresponds to the additive share
@@ -40,7 +40,7 @@ pub struct Intermediate {
 /// This is when each party can compute a final share of the ghash output, because both now have
 /// additive shares of all the powers of `H`
 #[derive(Clone, Debug)]
-pub struct Finalized {
+pub(crate) struct Finalized {
     pub(super) odd_mul_shares: Vec<Gf2_128>,
     pub(super) add_shares: Vec<Gf2_128>,
 }
