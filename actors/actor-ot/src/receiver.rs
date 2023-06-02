@@ -289,6 +289,7 @@ impl Handler<Verify> for KOSReceiverActor {
 }
 
 /// Control handle for KOSReceiverActor
+#[derive(Debug)]
 pub struct ReceiverActorControl(Address<KOSReceiverActor>);
 
 impl Clone for ReceiverActorControl {
