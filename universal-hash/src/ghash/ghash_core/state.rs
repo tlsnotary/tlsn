@@ -1,4 +1,5 @@
 use mpc_share_conversion_core::fields::gf2_128::Gf2_128;
+use std::fmt::Debug;
 
 mod sealed {
     pub(crate) trait Sealed {}

@@ -1,10 +1,11 @@
 use async_trait::async_trait;
 use mpc_core::BlockSerialize;
 use mpc_share_conversion_core::fields::Field;
+use std::fmt::Debug;
 
 /// A trait for sending field elements via oblivious transfer.
 #[async_trait]
-pub trait OTSendElement<F: Field>: Send + Sync {
+pub trait OTSendElement<F: Field>: Send + Sync + Debug {
     /// Sends elements to the receiver.
     async fn send(&self, id: &str, input: Vec<[F; 2]>) -> Result<(), mpc_ot::OTError>;
 }
@@ -26,7 +27,7 @@ where
 
 /// A trait for receiving field elements via oblivious transfer.
 #[async_trait]
-pub trait OTReceiveElement<F: Field>: Send + Sync {
+pub trait OTReceiveElement<F: Field>: Send + Sync + Debug {
     /// Receives elements from the sender.
     async fn receive(&self, id: &str, choice: Vec<bool>) -> Result<Vec<F>, mpc_ot::OTError>;
 }

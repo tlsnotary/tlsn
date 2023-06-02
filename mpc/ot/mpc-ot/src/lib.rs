@@ -8,6 +8,7 @@ use mpc_ot_core::{
     msgs::OTMessage, CommittedOTError, ExtReceiverCoreError, ExtSenderCoreError, ReceiverCoreError,
     SenderCoreError,
 };
+use std::fmt::Debug;
 use utils_aio::Channel;
 
 pub use mpc_ot_core::config;
@@ -41,7 +42,7 @@ pub enum OTError {
 }
 
 #[async_trait]
-pub trait ObliviousSend<T> {
+pub trait ObliviousSend<T>: Debug {
     async fn send(&self, id: &str, input: Vec<T>) -> Result<(), OTError>;
 }
 
@@ -51,7 +52,7 @@ pub trait ObliviousReveal {
 }
 
 #[async_trait]
-pub trait ObliviousReceive<T, U> {
+pub trait ObliviousReceive<T, U>: Debug {
     async fn receive(&self, id: &str, choice: Vec<T>) -> Result<Vec<U>, OTError>;
 }
 

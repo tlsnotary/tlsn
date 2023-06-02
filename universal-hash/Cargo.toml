@@ -5,6 +5,7 @@ edition = "2021"
 
 [features]
 default = ["ghash", "mock"]
+tracing = ["dep:tracing"]
 ghash = []
 mock = []
 
@@ -38,7 +39,7 @@ thiserror = "1"
 # misc
 derive_builder = "0.12"
 generic-array = "0.14"
-tracing = "0.1"
+tracing = {version = "0.1", optional = true}
 
 [dev-dependencies]
 ghash_rc = { package = "ghash", version = "0.5" }

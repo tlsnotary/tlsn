@@ -102,7 +102,7 @@ where
 }
 
 /// A handle to a sender
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ConverterSenderHandle<F: Field, OT> {
     ot: OT,
     sender: Weak<GilboaSender<F>>,
@@ -239,7 +239,7 @@ where
 }
 
 /// A handle to a receiver
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ConverterReceiverHandle<F: Field, OT> {
     ot: OT,
     receiver: Weak<GilboaReceiver<F>>,
