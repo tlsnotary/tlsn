@@ -22,24 +22,24 @@ rand_chacha = "0.3"
 rand = "0.8"
 rand_core = "0.6"
 
-# crypto
-ghash_rc = { package = "ghash", version = "0.4" }
-
 # async
 async-trait = "0.1"
 futures = "0.3"
 futures-util = "0.3"
-tokio = "1.23"
 tokio-util = "0.7"
 
 # testing
-rstest = "0.16"
-criterion = "0.3"
+rstest = "0.17"
+criterion = "0.5"
 
 # error/log
 thiserror = "1"
 
 # misc
-derive_builder = "0.11"
-once_cell = "1"
+derive_builder = "0.12"
 generic-array = "0.14"
+
+[dev-dependencies]
+ghash_rc = { package = "ghash", version = "0.5" }
+tokio = "1"
+

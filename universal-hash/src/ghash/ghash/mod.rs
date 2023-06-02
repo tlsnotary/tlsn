@@ -153,7 +153,7 @@ where
 mod tests {
     use super::{mock::mock_ghash_pair, GhashConfig, UniversalHash};
     use ghash_rc::{
-        universal_hash::{NewUniversalHash, UniversalHash as UniversalHashReference},
+        universal_hash::{KeyInit, UniversalHash as UniversalHashReference},
         GHash as GhashReference,
     };
     use rand::{Rng, SeedableRng};
@@ -306,6 +306,6 @@ mod tests {
         let mut ghash = GhashReference::new(&h.to_be_bytes().into());
         ghash.update_padded(message);
         let mac = ghash.finalize();
-        mac.into_bytes().to_vec()
+        mac.to_vec()
     }
 }

@@ -86,8 +86,9 @@ fn compute_new_add_shares(new_add_odd_shares: &[Gf2_128], add_shares: &mut Vec<G
 
 #[cfg(test)]
 mod tests {
+    use generic_array::GenericArray;
     use ghash_rc::{
-        universal_hash::{NewUniversalHash, UniversalHash},
+        universal_hash::{KeyInit, UniversalHash},
         GHash,
     };
     use mpc_core::Block;
@@ -323,10 +324,11 @@ mod tests {
     fn ghash_reference_impl(h: u128, message: &[Block]) -> Block {
         let mut ghash = GHash::new(&h.to_be_bytes().into());
         for el in message {
-            ghash.update(&el.to_be_bytes().into());
+            let block = GenericArray::clone_from_slice(el.to_be_bytes().as_slice());
+            ghash.update(&[block]);
         }
         let ghash_output = ghash.finalize();
-        Block::from(ghash_output.into_bytes())
+        Block::from(ghash_output)
     }
 
     fn setup_ghash_to_intermediate_state(
