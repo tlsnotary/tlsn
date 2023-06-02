@@ -166,6 +166,16 @@ fn test_api() {
     let SignedSessionHeader { header, signature } = bincode::deserialize(&msg_bytes).unwrap();
     //---------------------------------------
 
+    // User verifies the signature
+    #[allow(irrefutable_let_patterns)]
+    if let Signature::P256(signature) = signature {
+        notary_pubkey
+            .verify(&header.to_bytes(), &signature)
+            .unwrap();
+    } else {
+        panic!("Notary signature is not P256");
+    };
+
     // User verifies the header and stores it with the signature in NotarizedSession
     header.check_artifacts(&artifacts).unwrap();
 
