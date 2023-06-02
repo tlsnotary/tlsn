@@ -38,6 +38,7 @@ thiserror = "1"
 # misc
 derive_builder = "0.12"
 generic-array = "0.14"
+tracing = "0.1"
 
 [dev-dependencies]
 ghash_rc = { package = "ghash", version = "0.5" }

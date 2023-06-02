@@ -37,8 +37,8 @@ pub(crate) enum GhashError {
 /// computes them. Notice that we only need odd multiplicative shares for the OT, because we can
 /// derive even additive shares from odd additive shares, which we call free squaring.
 ///
-/// * `present_odd_mul_shares` - multiplicative odd shares already present
-/// * `needed` - how many powers we need including odd and even
+/// * `present_odd_mul_shares`  - multiplicative odd shares already present
+/// * `needed`                  - how many powers we need including odd and even
 fn compute_missing_mul_shares(present_odd_mul_shares: &mut Vec<Gf2_128>, needed: usize) {
     // divide by 2 and round up
     let needed_odd_powers: usize = needed / 2 + (needed & 1);

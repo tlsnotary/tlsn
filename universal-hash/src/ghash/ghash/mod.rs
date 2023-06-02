@@ -24,6 +24,7 @@ enum State {
 /// This is the common instance used by both sender and receiver
 ///
 /// It is an aio wrapper which mostly uses [GhashCore] for computation
+#[derive(Debug)]
 pub struct Ghash<C> {
     state: State,
     config: GhashConfig,

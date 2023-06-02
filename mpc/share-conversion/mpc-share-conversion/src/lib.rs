@@ -37,6 +37,7 @@ pub use ot::{OTReceiveElement, OTSendElement};
 pub use receiver::GilboaReceiver;
 pub use sender::GilboaSender;
 
+use std::fmt::Debug;
 use utils_aio::Channel;
 
 /// A channel used by conversion protocols for messaging
@@ -44,14 +45,14 @@ pub type ShareConversionChannel<T> = Box<dyn Channel<ShareConversionMessage<T>>>
 
 /// A trait for converting additive shares into multiplicative shares.
 #[async_trait]
-pub trait AdditiveToMultiplicative<T: Field> {
+pub trait AdditiveToMultiplicative<T: Field>: Debug {
     /// Converts additive shares into multiplicative shares
     async fn to_multiplicative(&self, input: Vec<T>) -> Result<Vec<T>, ShareConversionError>;
 }
 
 /// A trait for converting multiplicative shares into additive shares.
 #[async_trait]
-pub trait MultiplicativeToAdditive<T: Field> {
+pub trait MultiplicativeToAdditive<T: Field>: Debug {
     /// Converts multiplicative shares into additive shares
     async fn to_additive(&self, input: Vec<T>) -> Result<Vec<T>, ShareConversionError>;
 }
@@ -59,7 +60,7 @@ pub trait MultiplicativeToAdditive<T: Field> {
 /// A trait for converting secret-shared finite field elements between additive and multiplicative
 /// representations.
 pub trait ShareConversion<F: Field>:
-    AdditiveToMultiplicative<F> + MultiplicativeToAdditive<F>
+    AdditiveToMultiplicative<F> + MultiplicativeToAdditive<F> + Debug
 {
 }
 
