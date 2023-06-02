@@ -550,7 +550,7 @@ impl State<ClientConnectionData> for ExpectCertificate {
             cert_chain.get_end_entity_scts(),
         );
 
-        if let Some(sct_list) = server_cert.scts.as_ref() {
+        if let Some(sct_list) = server_cert.scts() {
             if hs::sct_list_is_invalid(sct_list) {
                 let error_msg = "server sent invalid SCT list".to_string();
                 return Err(Error::PeerMisbehavedError(error_msg));
@@ -598,12 +598,12 @@ impl State<ClientConnectionData> for ExpectCertificateVerify {
             HandshakePayload::CertificateVerify
         )?;
 
-        trace!("Server cert is {:?}", self.server_cert.cert_chain);
+        trace!("Server cert is {:?}", self.server_cert.cert_chain());
 
         // 1. Verify the certificate chain.
         let (end_entity, intermediates) = self
             .server_cert
-            .cert_chain
+            .cert_chain()
             .split_first()
             .ok_or(Error::NoCertificatesPresented)?;
         let now = std::time::SystemTime::now();
@@ -611,26 +611,32 @@ impl State<ClientConnectionData> for ExpectCertificateVerify {
             end_entity,
             intermediates,
             &self.server_name,
-            &mut self.server_cert.scts(),
-            &self.server_cert.ocsp_response,
+            &mut self
+                .server_cert
+                .scts()
+                .map(|sct| sct.as_slice())
+                .unwrap_or(&[])
+                .iter()
+                .map(|sct| sct.0.as_slice()),
+            self.server_cert.ocsp_response(),
             now,
         ) {
             Ok(cert_verified) => cert_verified,
-            Err(e) => return Err(hs::send_cert_error_alert(cx.common, e).await?),
+            Err(e) => return Err(hs::send_cert_error_alert(cx.common, Error::CoreError(e)).await?),
         };
 
         // 2. Verify their signature on the handshake.
         let handshake_hash = self.transcript.get_current_hash();
         let sig_verified = match self.config.verifier.verify_tls13_signature(
             &verify::construct_tls13_server_verify_message(&handshake_hash),
-            &self.server_cert.cert_chain[0],
+            &self.server_cert.cert_chain()[0],
             cert_verify,
         ) {
             Ok(sig_verified) => sig_verified,
-            Err(e) => return Err(hs::send_cert_error_alert(cx.common, e).await?),
+            Err(e) => return Err(hs::send_cert_error_alert(cx.common, Error::CoreError(e)).await?),
         };
 
-        cx.common.peer_certificates = Some(self.server_cert.cert_chain);
+        cx.common.peer_certificates = Some(self.server_cert.cert_chain().to_vec());
         self.transcript.add_message(&m);
 
         Ok(Box::new(ExpectFinished {
@@ -937,9 +943,10 @@ impl ExpectTraffic {
         common
             .send_fatal_alert(AlertDescription::InternalError)
             .await?;
-        return Err(Error::General(
+
+        Err(Error::General(
             "received unsupported key update request from peer".to_string(),
-        ));
+        ))
 
         // match kur {
         //     KeyUpdateRequest::UpdateNotRequested => {}

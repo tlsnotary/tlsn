@@ -17,6 +17,7 @@ pub struct PrivateKey(pub Vec<u8>);
 ///
 /// The `rustls-pemfile` crate can be used to parse a PEM file.
 #[derive(Clone, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Certificate(pub Vec<u8>);
 
 impl AsRef<[u8]> for Certificate {
@@ -35,6 +36,7 @@ impl fmt::Debug for Certificate {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PublicKey {
     pub group: NamedGroup,
     pub key: Vec<u8>,

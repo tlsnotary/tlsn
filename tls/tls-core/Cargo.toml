@@ -8,6 +8,7 @@ name = "tls_core"
 
 [features]
 default = ["logging", "tls12"]
+serde = ["dep:serde"]
 tls12 = []
 handshake = []
 ghash = []
@@ -20,6 +21,8 @@ webpki = { workspace = true, features = ["alloc", "std"] }
 tracing = { workspace = true, optional = true }
 elliptic-curve.workspace = true
 ring.workspace = true
+
+serde = { workspace = true, optional = true, features = ["derive"] }
 
 [dev-dependencies]
 criterion.workspace = true

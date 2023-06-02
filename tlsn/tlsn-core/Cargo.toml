@@ -3,7 +3,12 @@ name = "tlsn-core"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = []
+fixtures = ["dep:rstest", "dep:hex"]
+
 [dependencies]
+tlsn-tls-core = { workspace = true, features = ["serde"] }
 tlsn-mpc-core.workspace = true
 tlsn-mpc-garble-core.workspace = true
 tlsn-mpc-circuits.workspace = true
@@ -22,7 +27,14 @@ rand_chacha = "0.3"
 rand = "0.8"
 rand_core = "0.6"
 
+rstest = { version = "0.12", optional = true }
+hex = { version = "0.4", optional = true }
+
 [dev-dependencies]
 rstest = "0.12"
 hex = "0.4"
 bcs = "0.1.5"
+
+[[test]]
+name = "api"
+required-features = ["fixtures"]

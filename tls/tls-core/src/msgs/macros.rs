@@ -8,6 +8,7 @@ macro_rules! enum_builder {
     ) => {
         $(#[$comment])*
         #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+        #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
         pub enum $enum_name {
             $( $enum_var),*
             ,Unknown(u8)
@@ -47,6 +48,7 @@ macro_rules! enum_builder {
     ) => {
         $(#[$comment])*
         #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+        #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
         pub enum $enum_name {
             $( $enum_var),*
             ,Unknown(u16)

@@ -1,7 +1,7 @@
-#[cfg(feature = "logging")]
-use crate::log::{debug, trace};
-use crate::x509;
-use tls_core::msgs::handshake::{DistinguishedName, DistinguishedNames};
+use crate::{
+    msgs::handshake::{DistinguishedName, DistinguishedNames},
+    x509,
+};
 
 /// A trust anchor, commonly known as a "Root Certificate."
 #[derive(Debug, Clone)]
@@ -81,7 +81,7 @@ impl RootCertStore {
     }
 
     /// Add a single DER-encoded certificate to the store.
-    pub fn add(&mut self, der: &tls_core::key::Certificate) -> Result<(), webpki::Error> {
+    pub fn add(&mut self, der: &crate::key::Certificate) -> Result<(), webpki::Error> {
         let ta = webpki::TrustAnchor::try_from_cert_der(&der.0)?;
         let ota = OwnedTrustAnchor::from_subject_spki_name_constraints(
             ta.subject,
@@ -113,21 +113,11 @@ impl RootCertStore {
         let mut invalid_count = 0;
 
         for der_cert in der_certs {
-            #[cfg_attr(not(feature = "logging"), allow(unused_variables))]
-            match self.add(&tls_core::key::Certificate(der_cert.clone())) {
+            match self.add(&crate::key::Certificate(der_cert.clone())) {
                 Ok(_) => valid_count += 1,
-                Err(err) => {
-                    trace!("invalid cert der {:?}", der_cert);
-                    debug!("certificate parsing failed: {:?}", err);
-                    invalid_count += 1
-                }
+                Err(_err) => invalid_count += 1,
             }
         }
-
-        debug!(
-            "add_parsable_certificates processed {} valid and {} invalid certs",
-            valid_count, invalid_count
-        );
 
         (valid_count, invalid_count)
     }

@@ -68,7 +68,7 @@ fn find_session(
                 true => None,
             }
         })
-        .and_then(|resuming| Some(resuming))
+        .and_then(Some)
 }
 
 pub(super) async fn start_handshake(
@@ -120,7 +120,7 @@ pub(super) async fn start_handshake(
     let hello_details = ClientHelloDetails::new();
     let sent_tls13_fake_ccs = false;
     let may_send_sct_list = config.verifier.request_scts();
-    Ok(emit_client_hello_for_retry(
+    emit_client_hello_for_retry(
         config,
         cx,
         None,
@@ -137,7 +137,7 @@ pub(super) async fn start_handshake(
         may_send_sct_list,
         None,
     )
-    .await?)
+    .await
 }
 
 struct ExpectServerHello {
@@ -720,7 +720,7 @@ impl ExpectServerHelloOrHelloRetryRequest {
             _ => offered_key_share,
         };
 
-        Ok(emit_client_hello_for_retry(
+        emit_client_hello_for_retry(
             self.next.config,
             cx,
             self.next.resuming_session,
@@ -737,7 +737,7 @@ impl ExpectServerHelloOrHelloRetryRequest {
             may_send_sct_list,
             Some(cs),
         )
-        .await?)
+        .await
     }
 }
 

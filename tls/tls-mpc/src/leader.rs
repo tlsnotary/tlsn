@@ -12,7 +12,9 @@ use ke::KeyExchange;
 use p256::SecretKey;
 use tls_backend::{Backend, BackendError, DecryptMode, EncryptMode};
 use tls_core::{
+    cert::ServerCertDetails,
     cipher::make_tls12_aad,
+    ke::ServerKxDetails,
     key::PublicKey,
     msgs::{
         base::Payload,
@@ -345,6 +347,10 @@ impl Backend for MpcTlsLeader {
 
         Ok(())
     }
+
+    fn set_server_cert_details(&mut self, _cert_details: ServerCertDetails) {}
+
+    fn set_server_kx_details(&mut self, _kx_details: ServerKxDetails) {}
 
     async fn set_hs_hash_client_key_exchange(&mut self, _hash: &[u8]) -> Result<(), BackendError> {
         Ok(())
