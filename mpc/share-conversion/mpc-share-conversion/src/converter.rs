@@ -102,10 +102,16 @@ where
 }
 
 /// A handle to a sender
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct ConverterSenderHandle<F: Field, OT> {
     ot: OT,
     sender: Weak<GilboaSender<F>>,
+}
+
+impl<F: Field, OT> std::fmt::Debug for ConverterSenderHandle<F, OT> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "SenderHandle {{ .. }}")
+    }
 }
 
 #[async_trait]
@@ -239,10 +245,16 @@ where
 }
 
 /// A handle to a receiver
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct ConverterReceiverHandle<F: Field, OT> {
     ot: OT,
     receiver: Weak<GilboaReceiver<F>>,
+}
+
+impl<F: Field, OT> std::fmt::Debug for ConverterReceiverHandle<F, OT> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ReceiverHandle {{ .. }}")
+    }
 }
 
 #[async_trait]
