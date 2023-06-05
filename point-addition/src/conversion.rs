@@ -14,6 +14,7 @@ use mpc_share_conversion_core::fields::{p256::P256, Field};
 use p256::EncodedPoint;
 
 /// The instance used for adding the curve points
+#[derive(Debug)]
 pub struct MpcPointAddition<F, C>
 where
     F: Field,
@@ -30,6 +31,7 @@ where
 /// The role: either Leader or Follower
 ///
 /// Follower needs to perform an inversion operation on the point during point addition
+#[allow(missing_docs)]
 #[derive(Debug, Clone, Copy)]
 pub enum Role {
     Leader,
@@ -37,6 +39,9 @@ pub enum Role {
 }
 
 impl Role {
+    /// Adapt the point depending on the role
+    ///
+    /// One party needs to adapt the coordinates. We decided that this is the follower's job.
     fn adapt_point<V: Field>(&self, [x, y]: [V; 2]) -> [V; 2] {
         match self {
             Role::Leader => [x, y],
@@ -50,7 +55,7 @@ where
     F: Field,
     C: ShareConversion<F>,
 {
-    /// Create a new [Converter] instance
+    /// Create a new [MpcPointAddition] instance
     pub fn new(role: Role, converter: C) -> Self {
         Self {
             converter,

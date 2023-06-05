@@ -1,5 +1,10 @@
 [package]
 name = "tlsn-point-addition"
+authors = ["TLSNotary Team"]
+description = "This crate allows to convert EC point addition shares into additive shares of the underlying field"
+keywords = ["tls", "mpc", "2pc", "ecc", "elliptic"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
 version = "0.1.0"
 edition = "2021"
 
