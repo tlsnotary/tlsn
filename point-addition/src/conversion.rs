@@ -53,9 +53,10 @@ impl Role {
 impl<F, C> MpcPointAddition<F, C>
 where
     F: Field,
-    C: ShareConversion<F>,
+    C: ShareConversion<F> + std::fmt::Debug,
 {
     /// Create a new [MpcPointAddition] instance
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = "info", ret))]
     pub fn new(role: Role, converter: C) -> Self {
         Self {
             converter,
@@ -70,7 +71,12 @@ where
     /// curve point addition is an expensive operation in 2PC, we secretly share the x-coordinate
     /// of P as a simple addition of field elements between the two parties. So we go from an EC
     /// point addition to an addition of field elements for the x-coordinate.
-    async fn convert(&mut self, [x, y]: [F; 2]) -> Result<F, PointAdditionError> {
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "info", skip(point), err)
+    )]
+    async fn convert(&mut self, point: [F; 2]) -> Result<F, PointAdditionError> {
+        let [x, y] = point;
         let [x_n, y_n] = self.role.adapt_point([x, y]);
 
         let a2m_output = self.converter.to_multiplicative(vec![y_n, x_n]).await?;
@@ -91,7 +97,7 @@ where
 #[async_trait]
 impl<C> PointAddition for MpcPointAddition<P256, C>
 where
-    C: ShareConversion<P256> + Send + Sync,
+    C: ShareConversion<P256> + Send + Sync + std::fmt::Debug,
 {
     type Point = EncodedPoint;
     type XCoordinate = P256;
@@ -105,6 +111,11 @@ where
     }
 }
 
+/// Convert the external library's point type to our library's field type
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "debug", skip(point), err)
+)]
 pub(crate) fn point_to_p256(point: EncodedPoint) -> Result<[P256; 2], PointAdditionError> {
     let x: [u8; 32] = (*point.x().ok_or(PointAdditionError::Coordinates)?).into();
     let y: [u8; 32] = (*point.y().ok_or(PointAdditionError::Coordinates)?).into();
