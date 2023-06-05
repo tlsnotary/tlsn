@@ -27,10 +27,11 @@ futures-util = "0.3"
 
 # error/log
 thiserror = "1"
+opaque-debug = "0.3"
+tracing = {version = "0.1", optional = true}
 
 # misc
 derive_builder = "0.12"
-tracing = {version = "0.1", optional = true}
 
 [dev-dependencies]
 ghash_rc = { package = "ghash", version = "0.5" }

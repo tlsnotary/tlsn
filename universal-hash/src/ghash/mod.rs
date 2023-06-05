@@ -1,6 +1,6 @@
-mod ghash;
 mod ghash_core;
+mod ghash_inner;
 
 #[cfg(feature = "mock")]
-pub use ghash::mock::*;
-pub use ghash::{Ghash, GhashConfig, GhashConfigBuilder, GhashConfigBuilderError};
+pub use ghash_inner::mock::*;
+pub use ghash_inner::{Ghash, GhashConfig, GhashConfigBuilder, GhashConfigBuilderError};
