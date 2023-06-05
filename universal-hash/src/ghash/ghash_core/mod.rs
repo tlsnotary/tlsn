@@ -74,8 +74,7 @@ fn compute_missing_mul_shares(present_odd_mul_shares: &mut Vec<Gf2_128>, needed:
 ///                          reference to cached_add_shares in [crate::ghash::state::Intermediate]
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace"),
-    skip(new_add_odd_shares, add_shares)
+    tracing::instrument(level = "trace", skip(new_add_odd_shares, add_shares))
 )]
 fn compute_new_add_shares(new_add_odd_shares: &[Gf2_128], add_shares: &mut Vec<Gf2_128>) {
     for (odd_share, current_odd_power) in new_add_odd_shares
