@@ -19,7 +19,7 @@ pub async fn setup_components<
     VM: Vm + Send,
     PS: ff::ShareConversion<ff::P256> + Send + Sync + 'static,
     PR: ff::ShareConversion<ff::P256> + Send + Sync + 'static,
-    GF: ff::ShareConversion<ff::Gf2_128> + Send + Sync + Clone + 'static,
+    GF: ff::ShareConversion<ff::Gf2_128> + Send + Sync + Clone + 'static + std::fmt::Debug,
 >(
     config: &MpcTlsCommonConfig,
     role: TlsRole,
