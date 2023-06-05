@@ -37,7 +37,10 @@ impl GhashCore {
     /// powers of `H`
     ///
     /// Converts `H` into `H`, `H^3`, `H^5`, ... depending on `self.max_block_count`
-    #[cfg_attr(feature = "tracing", tracing::instrument(level = "trace"))]
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(mul_share))
+    )]
     pub(crate) fn compute_odd_mul_powers(self, mul_share: Gf2_128) -> GhashCore<Intermediate> {
         let mut hashkey_powers = vec![mul_share];
 
@@ -72,7 +75,10 @@ impl GhashCore<Intermediate> {
 
     /// Adds new additive shares of hashkey powers by also computing the even ones
     /// and transforms `self` into a `GhashCore<Finalized>`
-    #[cfg_attr(feature = "tracing", tracing::instrument(level = "trace"))]
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(new_additive_odd_shares))
+    )]
     pub(crate) fn add_new_add_shares(
         mut self,
         new_additive_odd_shares: &[Gf2_128],
@@ -98,7 +104,7 @@ impl GhashCore<Finalized> {
     /// Generate the GHASH output
     ///
     /// Computes the 2PC additive share of the GHASH output
-    #[cfg_attr(feature = "tracing", tracing::instrument(level = "debug"))]
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = "debug"), err)]
     pub(crate) fn finalize(&self, message: &[Block]) -> Result<Block, GhashError> {
         if message.len() > self.max_block_count {
             return Err(GhashError::InvalidMessageLength);

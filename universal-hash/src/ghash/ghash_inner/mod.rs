@@ -41,7 +41,7 @@ where
     /// * `config`      - The configuration for this Ghash instance
     /// * `converter`   - An instance which allows to convert multiplicative into additive shares
     ///                   and vice versa
-    #[cfg_attr(feature = "tracing", tracing::instrument(level = "info"))]
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = "info"), ret)]
     pub fn new(config: GhashConfig, converter: C) -> Self {
         Self {
             state: State::Init,
@@ -53,7 +53,7 @@ where
     /// Computes all the additive shares of the hashkey powers
     ///
     /// We need this when the max block count changes.
-    #[cfg_attr(feature = "tracing", tracing::instrument(level = "debug"))]
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = "debug"), err)]
     async fn compute_add_shares(
         &mut self,
         core: GhashCore<Intermediate>,
@@ -72,7 +72,10 @@ impl<C> UniversalHash for Ghash<C>
 where
     C: ShareConversion<Gf2_128> + Send + Sync,
 {
-    #[cfg_attr(feature = "tracing", tracing::instrument(level = "info"))]
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "info", skip(key), err)
+    )]
     async fn set_key(&mut self, key: Vec<u8>) -> Result<(), UniversalHashError> {
         if key.len() != 16 {
             return Err(UniversalHashError::KeyLengthError(16, key.len()));
@@ -101,7 +104,7 @@ where
         Ok(())
     }
 
-    #[cfg_attr(feature = "tracing", tracing::instrument(level = "info"))]
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = "info"), ret, err)]
     async fn finalize(&mut self, mut input: Vec<u8>) -> Result<Vec<u8>, UniversalHashError> {
         // Divide by block length and round up
         let block_count = input.len() / 16 + (input.len() % 16 != 0) as usize;
