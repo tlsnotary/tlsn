@@ -1,5 +1,11 @@
 [workspace]
-members = ["tls-client", "tls-backend", "tls-core", "tls-mpc"]
+members = [
+    "tls-client",
+    "tls-backend",
+    "tls-core",
+    "tls-mpc",
+    "tls-client-async",
+]
 
 [workspace.dependencies]
 # rand

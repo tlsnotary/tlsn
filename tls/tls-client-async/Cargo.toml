@@ -1,0 +1,7 @@
+[package]
+name = "tls-client-async"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tlsn-tls-client = { path = "../tls-client" }

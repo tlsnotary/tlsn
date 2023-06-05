@@ -1,4 +1,4 @@
-use std::{io::Read, sync::Arc};
+use std::{io::Read, sync::Arc, task::Poll};
 
 use actor_ot::{create_ot_pair, OTActorReceiverConfig, OTActorSenderConfig, ObliviousReveal};
 use mpc_garble::{config::Role as GarbleRole, protocol::deap::DEAPVm};
@@ -223,7 +223,9 @@ async fn test() {
     let server_name = "httpbin.org".try_into().unwrap();
     let mut conn =
         tls_client::ClientConnection::new(Arc::new(config), Box::new(leader), server_name).unwrap();
-    let mut sock = std::net::TcpStream::connect("httpbin.org:443").unwrap();
+    let mut sock = tokio::net::TcpStream::connect("httpbin.org:443")
+        .await
+        .unwrap();
 
     let msg = concat!(
         "GET /get HTTP/1.1\r\n",
@@ -240,15 +242,18 @@ async fn test() {
         conn.complete_io(&mut sock).await.unwrap();
     }
 
+    let mut rd_buf = [0u8; 1024];
     loop {
         if conn.wants_write() {
-            conn.write_tls(&mut sock).unwrap();
+            conn.write_tls_async(&mut sock).unwrap();
         }
 
         if conn.wants_read() {
-            let nbyte = conn.read_tls(&mut sock).unwrap();
-            if nbyte > 0 {
-                conn.process_new_packets().await.unwrap();
+            if let Poll::Ready(n) = sock.poll_read() {
+                let nbyte = conn.read_tls(&mut rd_buf[..n]).unwrap();
+                if nbyte > 0 {
+                    conn.process_new_packets().await.unwrap();
+                }
             }
         }
 
