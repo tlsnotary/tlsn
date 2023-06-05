@@ -9,7 +9,6 @@
 pub mod ghash;
 
 use async_trait::async_trait;
-use std::fmt::Debug;
 
 /// Errors for [UniversalHash]
 #[allow(missing_docs)]
