@@ -4,16 +4,16 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
-#[cfg(feature = "ghash")]
 /// This module implements [UniversalHash] for Ghash
+#[cfg(feature = "ghash")]
 pub mod ghash;
 
 use async_trait::async_trait;
 use std::fmt::Debug;
 
+/// Errors for [UniversalHash]
 #[allow(missing_docs)]
 #[derive(Debug, thiserror::Error)]
-/// Errors for [UniversalHash]
 pub enum UniversalHashError {
     #[error("Invalid state: {0}")]
     InvalidState(String),
@@ -27,7 +27,7 @@ pub enum UniversalHashError {
 
 #[async_trait]
 /// A trait supporting different kinds of hash functions
-pub trait UniversalHash: Send + Debug {
+pub trait UniversalHash: Send {
     /// Set the key for the hash function
     ///
     /// * `key` - Key to use for the hash function
