@@ -104,7 +104,7 @@ impl GhashCore<Finalized> {
     /// Generate the GHASH output
     ///
     /// Computes the 2PC additive share of the GHASH output
-    #[cfg_attr(feature = "tracing", tracing::instrument(level = "debug", err))]
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = "debug", err, ret))]
     pub(crate) fn finalize(&self, message: &[Block]) -> Result<Block, GhashError> {
         if message.len() > self.max_block_count {
             return Err(GhashError::InvalidMessageLength);
