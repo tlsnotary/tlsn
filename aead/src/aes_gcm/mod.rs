@@ -37,7 +37,7 @@ pub struct MpcAesGcm {
 }
 
 impl MpcAesGcm {
-    /// Creates a new instance of `MpcAesGcm`.
+    /// Creates a new instance of [`MpcAesGcm`].
     pub fn new(
         config: AesGcmConfig,
         channel: AeadChannel,

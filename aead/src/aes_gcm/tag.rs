@@ -9,8 +9,6 @@ pub(crate) const AES_GCM_TAG_LEN: usize = 16;
 pub(crate) struct AesGcmTagShare(pub(crate) [u8; 16]);
 
 impl AesGcmTagShare {
-    // TODO: fix error size
-    #[allow(clippy::result_large_err)]
     pub(crate) fn from_unchecked(share: &[u8]) -> Result<Self, AeadError> {
         if share.len() != 16 {
             return Err(AeadError::ValidationError(

@@ -29,17 +29,17 @@ pub type AeadChannel = Box<dyn Channel<AeadMessage>>;
 #[derive(Debug, thiserror::Error)]
 #[allow(missing_docs)]
 pub enum AeadError {
-    #[error("BlockCipherError: {0}")]
+    #[error(transparent)]
     BlockCipherError(#[from] block_cipher::BlockCipherError),
-    #[error("StreamCipherError: {0}")]
+    #[error(transparent)]
     StreamCipherError(#[from] tlsn_stream_cipher::StreamCipherError),
-    #[error("UniversalHashError: {0}")]
+    #[error(transparent)]
     UniversalHashError(#[from] tlsn_universal_hash::UniversalHashError),
     #[error("Corrupted Tag")]
     CorruptedTag,
     #[error("Validation Error: {0}")]
     ValidationError(String),
-    #[error("IO Error: {0}")]
+    #[error(transparent)]
     IoError(#[from] std::io::Error),
 }
 
