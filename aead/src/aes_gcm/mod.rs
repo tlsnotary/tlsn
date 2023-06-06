@@ -26,20 +26,32 @@ pub(crate) use tag::AesGcmTagShare;
 use tag::{build_ghash_data, AES_GCM_TAG_LEN};
 
 /// An implementation of 2PC AES-GCM.
-#[derive(Debug)]
 pub struct MpcAesGcm {
     config: AesGcmConfig,
-
     channel: AeadChannel,
-
     aes_block: Box<dyn BlockCipher<Aes128>>,
     aes_ctr: Box<dyn StreamCipher<Aes128Ctr>>,
     ghash: Box<dyn UniversalHash>,
 }
 
+impl std::fmt::Debug for MpcAesGcm {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MpcAesGcm")
+            .field("config", &self.config)
+            .field("channel", &"AeadChannel {{ ... }}")
+            .field("aes_block", &"BlockCipher {{ ... }}")
+            .field("aes_ctr", &"StreamCipher {{ ... }}")
+            .field("ghash", &"UniversalHash {{ ... }}")
+            .finish()
+    }
+}
+
 impl MpcAesGcm {
     /// Creates a new instance of [`MpcAesGcm`].
-    #[cfg_attr(feature = "tracing", tracing::instrument(level = "info", ret))]
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "info", skip(channel, aes_block, aes_ctr, ghash), ret)
+    )]
     pub fn new(
         config: AesGcmConfig,
         channel: AeadChannel,
