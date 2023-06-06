@@ -26,6 +26,7 @@ pub(crate) use tag::AesGcmTagShare;
 use tag::{build_ghash_data, AES_GCM_TAG_LEN};
 
 /// An implementation of 2PC AES-GCM.
+#[derive(Debug)]
 pub struct MpcAesGcm {
     config: AesGcmConfig,
 
@@ -38,6 +39,7 @@ pub struct MpcAesGcm {
 
 impl MpcAesGcm {
     /// Creates a new instance of [`MpcAesGcm`].
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = "info", ret))]
     pub fn new(
         config: AesGcmConfig,
         channel: AeadChannel,
@@ -54,6 +56,7 @@ impl MpcAesGcm {
         }
     }
 
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = "trace", err))]
     async fn compute_j0_share(&mut self, explicit_nonce: Vec<u8>) -> Result<Vec<u8>, AeadError> {
         let j0_share = self
             .aes_ctr
@@ -63,6 +66,7 @@ impl MpcAesGcm {
         Ok(j0_share)
     }
 
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = "trace", err, ret))]
     async fn compute_tag_share(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -85,6 +89,7 @@ impl MpcAesGcm {
         Ok(AesGcmTagShare(tag_share))
     }
 
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = "debug", err, ret))]
     async fn compute_tag(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -150,6 +155,10 @@ impl MpcAesGcm {
 
 #[async_trait]
 impl Aead for MpcAesGcm {
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "info", skip(key), err)
+    )]
     async fn set_key(&mut self, key: ValueRef, iv: ValueRef) -> Result<(), AeadError> {
         self.aes_block.set_key(key.clone());
         self.aes_ctr.set_key(key, iv);
@@ -166,6 +175,7 @@ impl Aead for MpcAesGcm {
         self.aes_ctr.set_transcript_id(id)
     }
 
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = "info", err, ret))]
     async fn encrypt_public(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -187,6 +197,7 @@ impl Aead for MpcAesGcm {
         Ok(payload)
     }
 
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = "info", err, ret))]
     async fn encrypt_private(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -208,6 +219,7 @@ impl Aead for MpcAesGcm {
         Ok(payload)
     }
 
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = "info", err, ret))]
     async fn encrypt_blind(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -229,6 +241,7 @@ impl Aead for MpcAesGcm {
         Ok(payload)
     }
 
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = "info", err, ret))]
     async fn decrypt_public(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -252,6 +265,7 @@ impl Aead for MpcAesGcm {
             .await
     }
 
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = "info", err, ret))]
     async fn decrypt_private(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -275,6 +289,7 @@ impl Aead for MpcAesGcm {
             .await
     }
 
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = "info", err, ret))]
     async fn decrypt_blind(
         &mut self,
         explicit_nonce: Vec<u8>,

@@ -14,6 +14,7 @@ name = "aead"
 [features]
 default = ["mock"]
 mock = []
+tracing = ["dep:tracing"]
 
 [dependencies]
 tlsn-block-cipher = { path = "../cipher/block-cipher" }
@@ -28,6 +29,7 @@ derive_builder = "0.12"
 thiserror = "1"
 futures = "0.3"
 serde = "1"
+tracing = {version = "0.1", optional = true }
 
 [dev-dependencies]
 tokio = "1"
