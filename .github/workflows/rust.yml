@@ -25,7 +25,7 @@ jobs:
           components: rustfmt
 
       - name: "Check formatting"
-        run: cargo +nightly fmt --check --manifest-path integration-tests/Cargo.toml
+        run: cargo +nightly fmt --check --all --manifest-path integration-tests/Cargo.toml
 
       - name: Stable
         uses: actions-rs/toolchain@v1
@@ -40,9 +40,23 @@ jobs:
       - name: "Test"
         run: cargo test --release --tests --manifest-path integration-tests/Cargo.toml
 
-  build-uid-mux:
+  build_and_test:
     if: ( ! github.event.pull_request.draft )
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package:
+          - uid-mux
+          - actors/actor-ot
+          - mpc
+          - cipher
+          - universal-hash
+          - aead
+          - key-exchange
+          - point-addition
+          - prf
+          - tls
+          - utils
     steps:
       - uses: actions/checkout@v3
 
@@ -54,7 +68,7 @@ jobs:
           components: rustfmt
 
       - name: "Check formatting"
-        run: cargo +nightly fmt --check --manifest-path uid-mux/Cargo.toml
+        run: cargo +nightly fmt --check --all --manifest-path ${{ matrix.package }}/Cargo.toml
 
       - name: Stable
         uses: actions-rs/toolchain@v1
@@ -64,297 +78,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2.0.0
 
       - name: "Build"
-        run: cargo build --manifest-path uid-mux/Cargo.toml
+        run: cargo build --manifest-path ${{ matrix.package }}/Cargo.toml
 
       - name: "Test"
-        run: cargo test --lib --bins --tests --examples --manifest-path uid-mux/Cargo.toml
+        run: cargo test --lib --bins --tests --examples --workspace --manifest-path ${{ matrix.package }}/Cargo.toml
 
-  build-actor-ot:
-    if: ( ! github.event.pull_request.draft )
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
+      - name: "Integration Test"
+        if: ( ${{ matrix.package}} === "integration-tests" )
+        run: cargo test --release --tests --manifest-path ${{ matrix.package }}/Cargo.toml
 
-      - name: Nightly with rustfmt
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: nightly
-          components: rustfmt
-
-      - name: "Check formatting"
-        run: cargo +nightly fmt --check --manifest-path actors/actor-ot/Cargo.toml
-
-      - name: Stable
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-      - uses: Swatinem/rust-cache@v2.0.0
-
-      - name: "Build"
-        run: cargo build --manifest-path actors/actor-ot/Cargo.toml
-
-      - name: "Test"
-        run: cargo test --lib --bins --tests --examples --manifest-path actors/actor-ot/Cargo.toml
-
-  build-mpc:
-    if: ( ! github.event.pull_request.draft )
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Nightly with rustfmt
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: nightly
-          components: rustfmt
-
-      - name: "Check formatting"
-        run: cargo +nightly fmt --check --all --manifest-path mpc/Cargo.toml
-
-      - name: Stable
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-      - uses: Swatinem/rust-cache@v2.0.0
-
-      - name: "Build"
-        run: cargo build --manifest-path mpc/Cargo.toml
-
-      - name: "Test"
-        run: cargo test --lib --bins --tests --examples --workspace --manifest-path mpc/Cargo.toml
-
-  build-cipher:
-    if: ( ! github.event.pull_request.draft )
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Nightly with rustfmt
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: nightly
-          components: rustfmt
-
-      - name: "Check formatting"
-        run: cargo +nightly fmt --check --all --manifest-path cipher/Cargo.toml
-
-      - name: Stable
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-      - uses: Swatinem/rust-cache@v2.0.0
-
-      - name: "Build"
-        run: cargo build --manifest-path cipher/Cargo.toml
-
-      - name: "Test"
-        run: cargo test --lib --bins --tests --examples --workspace --manifest-path cipher/Cargo.toml
-
-  build-universal-hash:
-    if: ( ! github.event.pull_request.draft )
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Nightly with rustfmt
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: nightly
-          components: rustfmt
-
-      - name: "Check formatting"
-        run: cargo +nightly fmt --check --all --manifest-path universal-hash/Cargo.toml
-
-      - name: Stable
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-      - uses: Swatinem/rust-cache@v2.0.0
-
-      - name: "Build"
-        run: cargo build --manifest-path universal-hash/Cargo.toml
-
-      - name: "Test"
-        run: cargo test --lib --bins --tests --examples --workspace --manifest-path universal-hash/Cargo.toml
-
-  build-aead:
-    if: ( ! github.event.pull_request.draft )
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Nightly with rustfmt
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: nightly
-          components: rustfmt
-
-      - name: "Check formatting"
-        run: cargo +nightly fmt --check --all --manifest-path aead/Cargo.toml
-
-      - name: Stable
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-      - uses: Swatinem/rust-cache@v2.0.0
-
-      - name: "Build"
-        run: cargo build --manifest-path aead/Cargo.toml
-
-      - name: "Test"
-        run: cargo test --lib --bins --tests --examples --workspace --manifest-path aead/Cargo.toml
-
-  build-key-exchange:
-    if: ( ! github.event.pull_request.draft )
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Nightly with rustfmt
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: nightly
-          components: rustfmt
-
-      - name: "Check formatting"
-        run: cargo +nightly fmt --check --all --manifest-path key-exchange/Cargo.toml
-
-      - name: Stable
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-      - uses: Swatinem/rust-cache@v2.0.0
-
-      - name: "Build"
-        run: cargo build --manifest-path key-exchange/Cargo.toml
-
-      - name: "Test"
-        run: cargo test --lib --bins --tests --examples --workspace --manifest-path key-exchange/Cargo.toml
-
-  build-point-addition:
-    if: ( ! github.event.pull_request.draft )
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Nightly with rustfmt
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: nightly
-          components: rustfmt
-
-      - name: "Check formatting"
-        run: cargo +nightly fmt --check --all --manifest-path point-addition/Cargo.toml
-
-      - name: Stable
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-      - uses: Swatinem/rust-cache@v2.0.0
-
-      - name: "Build"
-        run: cargo build --manifest-path point-addition/Cargo.toml
-
-      - name: "Test"
-        run: cargo test --lib --bins --tests --examples --workspace --manifest-path point-addition/Cargo.toml
-
-  build-prf:
-    if: ( ! github.event.pull_request.draft )
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Nightly with rustfmt
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: nightly
-          components: rustfmt
-
-      - name: "Check formatting"
-        run: cargo +nightly fmt --check --all --manifest-path prf/Cargo.toml
-
-      - name: Stable
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-      - uses: Swatinem/rust-cache@v2.0.0
-
-      - name: "Build"
-        run: cargo build --manifest-path prf/Cargo.toml
-
-      - name: "Test"
-        run: cargo test --lib --bins --tests --examples --workspace --manifest-path prf/Cargo.toml
-
-  build-tls:
-    if: ( ! github.event.pull_request.draft )
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Nightly with rustfmt
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: nightly
-          components: rustfmt
-
-      - name: "Check formatting"
-        run: cargo +nightly fmt --check --all --manifest-path tls/Cargo.toml
-
-      - name: Stable
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-      - uses: Swatinem/rust-cache@v2.0.0
-
-      - name: "Build"
-        run: cargo build --manifest-path tls/Cargo.toml
-
-      - name: "Test"
-        run: cargo test --lib --bins --tests --examples --workspace --manifest-path tls/Cargo.toml --exclude tlsn-tls-circuits
-
-  build-utils:
-    if: ( ! github.event.pull_request.draft )
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Nightly with rustfmt
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: nightly
-          components: rustfmt
-
-      - name: "Check formatting"
-        run: cargo +nightly fmt --check --all --manifest-path utils/Cargo.toml
-
-      - name: Stable
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-      - uses: Swatinem/rust-cache@v2.0.0
-
-      - name: "Build"
-        run: cargo build --manifest-path utils/Cargo.toml
-
-      - name: "Test"
-        run: cargo test --lib --bins --tests --examples --workspace --manifest-path utils/Cargo.toml
