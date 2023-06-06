@@ -37,7 +37,7 @@ pub enum PointAdditionError {
 pub trait PointAddition {
     /// The elliptic curve point type
     type Point;
-    /// The type for the finite field underlying the EC
+    /// The x-coordinate type for the finite field underlying the EC
     type XCoordinate: Field;
 
     /// Adds two elliptic curve points in 2PC, returning respective secret shares
