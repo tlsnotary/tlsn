@@ -1,5 +1,10 @@
 [package]
 name = "tlsn-aead"
+authors = ["TLSNotary Team"]
+description = "This crate provides an implementation of a two-party version of AES-GCM behind an AEAD trait"
+keywords = ["tls", "mpc", "2pc", "aead", "aes", "aes-gcm"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
 version = "0.1.0"
 edition = "2021"
 
@@ -14,19 +19,16 @@ mock = []
 tlsn-block-cipher = { path = "../cipher/block-cipher" }
 tlsn-stream-cipher = { path = "../cipher/stream-cipher" }
 tlsn-universal-hash = { path = "../universal-hash" }
-tlsn-mpc-circuits = { path = "../mpc/mpc-circuits" }
 tlsn-mpc-core = { path = "../mpc/mpc-core" }
 tlsn-mpc-garble = { path = "../mpc/garble/mpc-garble" }
 tlsn-utils-aio = { path = "../utils/utils-aio" }
-tlsn-mpc-share-conversion = { path = "../mpc/share-conversion/mpc-share-conversion" }
 
 async-trait = "0.1"
-derive_builder = "0.11"
+derive_builder = "0.12"
 thiserror = "1"
 futures = "0.3"
-rand = "0.8"
-serde = "1.0"
+serde = "1"
 
 [dev-dependencies]
-tokio = "1.23"
-aes-gcm = "0.10.1"
+tokio = "1"
+aes-gcm = "0.10"
