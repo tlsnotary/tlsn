@@ -17,8 +17,8 @@ use crate::{config::MpcTlsCommonConfig, MpcTlsError, TlsRole};
 pub async fn setup_components<
     M: MuxChannel<ke::KeyExchangeMessage> + MuxChannel<aead::AeadMessage> + Clone,
     VM: Vm + Send,
-    PS: ff::ShareConversion<ff::P256> + Send + Sync + 'static,
-    PR: ff::ShareConversion<ff::P256> + Send + Sync + 'static,
+    PS: ff::ShareConversion<ff::P256> + Send + Sync + 'static + std::fmt::Debug,
+    PR: ff::ShareConversion<ff::P256> + Send + Sync + 'static + std::fmt::Debug,
     GF: ff::ShareConversion<ff::Gf2_128> + Send + Sync + Clone + 'static + std::fmt::Debug,
 >(
     config: &MpcTlsCommonConfig,
