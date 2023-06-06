@@ -110,7 +110,7 @@ pub struct ConverterSenderHandle<F: Field, OT> {
 
 impl<F: Field, OT> std::fmt::Debug for ConverterSenderHandle<F, OT> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "SenderHandle {{ .. }}")
+        write!(f, "ConverterSenderHandle {{ .. }}")
     }
 }
 
@@ -253,7 +253,7 @@ pub struct ConverterReceiverHandle<F: Field, OT> {
 
 impl<F: Field, OT> std::fmt::Debug for ConverterReceiverHandle<F, OT> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ReceiverHandle {{ .. }}")
+        write!(f, "ConverterReceiverHandle {{ .. }}")
     }
 }
 
