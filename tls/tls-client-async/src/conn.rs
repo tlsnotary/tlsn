@@ -34,6 +34,7 @@ pub struct TlsConnection {
     rx_receiver: Compat<StreamReader<Receiver<Result<Bytes, std::io::Error>>, Bytes>>,
     close_send: Option<oneshot::Sender<oneshot::Sender<()>>>,
     close_wait: Option<oneshot::Receiver<()>>,
+    tx_closed: bool,
 }
 
 impl TlsConnection {
@@ -55,6 +56,7 @@ impl TlsConnection {
             rx_receiver: StreamReader::new(rx_receiver).compat(),
             close_send: Some(close_send),
             close_wait: None,
+            tx_closed: false,
         }
     }
 }
@@ -98,11 +100,24 @@ impl AsyncWrite for TlsConnection {
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Result<(), std::io::Error>> {
+        // First close tx_sender
+        if !self.tx_closed {
+            if let Poll::Ready(res) = Pin::new(&mut self.tx_sender).poll_close(cx) {
+                // Propagate any error from closing the sender
+                // otherwise proceed to closing the TLS connection.
+                res?;
+                self.tx_closed = true;
+            } else {
+                return Poll::Pending;
+            }
+        }
+
+        // Then wait for the TLS connection to close
         if let Some(wait) = self.close_wait.as_mut() {
             Pin::new(wait).poll(cx).map(|_| Ok(()))
         } else {
             let (wait_send, wait_recv) = oneshot::channel();
-            let close_send = self.close_send.take().expect("close_trigger is set");
+            let close_send = self.close_send.take().expect("close_send is set");
 
             self.close_wait = Some(wait_recv);
 
