@@ -1,6 +1,3 @@
-use async_trait::async_trait;
-use mpc_core::Block;
-
 use crate::{
     ghash::ghash_core::{
         state::{Finalized, Intermediate},
@@ -8,14 +5,18 @@ use crate::{
     },
     UniversalHash, UniversalHashError,
 };
+use async_trait::async_trait;
+use mpc_core::Block;
 use mpc_share_conversion::{Gf2_128, ShareConversion};
+use std::fmt::Debug;
 
 mod config;
 #[cfg(feature = "mock")]
-pub mod mock;
+pub(crate) mod mock;
 
 pub use config::{GhashConfig, GhashConfigBuilder, GhashConfigBuilderError};
 
+#[derive(Debug)]
 enum State {
     Init,
     Ready { core: GhashCore<Finalized> },
@@ -25,24 +26,23 @@ enum State {
 /// This is the common instance used by both sender and receiver
 ///
 /// It is an aio wrapper which mostly uses [GhashCore] for computation
+#[derive(Debug)]
 pub struct Ghash<C> {
     state: State,
     config: GhashConfig,
-
     converter: C,
 }
 
 impl<C> Ghash<C>
 where
-    C: ShareConversion<Gf2_128> + Send + Sync,
+    C: ShareConversion<Gf2_128> + Send + Sync + Debug,
 {
     /// Creates a new instance
     ///
-    /// * `config`              - The configuration of the instance
-    /// * `a2m_converter`       - An instance which allows to convert additive into multiplicative
-    ///                           shares
-    /// * `m2a_converter`       - An instance which allows to convert multiplicative into additive
-    ///                           shares
+    /// * `config`      - The configuration for this Ghash instance
+    /// * `converter`   - An instance which allows to convert multiplicative into additive shares
+    ///                   and vice versa
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = "info", ret))]
     pub fn new(config: GhashConfig, converter: C) -> Self {
         Self {
             state: State::Init,
@@ -54,6 +54,7 @@ where
     /// Computes all the additive shares of the hashkey powers
     ///
     /// We need this when the max block count changes.
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = "debug", err))]
     async fn compute_add_shares(
         &mut self,
         core: GhashCore<Intermediate>,
@@ -70,8 +71,12 @@ where
 #[async_trait]
 impl<C> UniversalHash for Ghash<C>
 where
-    C: ShareConversion<Gf2_128> + Send + Sync,
+    C: ShareConversion<Gf2_128> + Send + Sync + Debug,
 {
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "info", skip(key), err)
+    )]
     async fn set_key(&mut self, key: Vec<u8>) -> Result<(), UniversalHashError> {
         if key.len() != 16 {
             return Err(UniversalHashError::KeyLengthError(16, key.len()));
@@ -100,6 +105,10 @@ where
         Ok(())
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "info", skip(input), err)
+    )]
     async fn finalize(&mut self, mut input: Vec<u8>) -> Result<Vec<u8>, UniversalHashError> {
         // Divide by block length and round up
         let block_count = input.len() / 16 + (input.len() % 16 != 0) as usize;
@@ -153,7 +162,7 @@ where
 mod tests {
     use super::{mock::mock_ghash_pair, GhashConfig, UniversalHash};
     use ghash_rc::{
-        universal_hash::{NewUniversalHash, UniversalHash as UniversalHashReference},
+        universal_hash::{KeyInit, UniversalHash as UniversalHashReference},
         GHash as GhashReference,
     };
     use rand::{Rng, SeedableRng};
@@ -306,6 +315,6 @@ mod tests {
         let mut ghash = GhashReference::new(&h.to_be_bytes().into());
         ghash.update_padded(message);
         let mac = ghash.finalize();
-        mac.into_bytes().to_vec()
+        mac.to_vec()
     }
 }

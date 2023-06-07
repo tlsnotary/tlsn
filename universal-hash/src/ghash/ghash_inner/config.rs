@@ -1,6 +1,7 @@
 use derive_builder::Builder;
 
 #[derive(Debug, Clone, Builder)]
+/// Configuration struct for [Ghash](crate::ghash::Ghash)
 pub struct GhashConfig {
     /// The instance ID
     #[builder(setter(into))]
@@ -14,7 +15,7 @@ pub struct GhashConfig {
 }
 
 impl GhashConfig {
-    /// Creates a new builder for the ghash configuration
+    /// Creates a new builder for the [GhashConfig]
     pub fn builder() -> GhashConfigBuilder {
         GhashConfigBuilder::default()
     }

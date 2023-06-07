@@ -108,6 +108,12 @@ pub struct ConverterSenderHandle<F: Field, OT> {
     sender: Weak<GilboaSender<F>>,
 }
 
+impl<F: Field, OT> std::fmt::Debug for ConverterSenderHandle<F, OT> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ConverterSenderHandle {{ .. }}")
+    }
+}
+
 #[async_trait]
 impl<F, OT> AdditiveToMultiplicative<F> for ConverterSenderHandle<F, OT>
 where
@@ -243,6 +249,12 @@ where
 pub struct ConverterReceiverHandle<F: Field, OT> {
     ot: OT,
     receiver: Weak<GilboaReceiver<F>>,
+}
+
+impl<F: Field, OT> std::fmt::Debug for ConverterReceiverHandle<F, OT> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ConverterReceiverHandle {{ .. }}")
+    }
 }
 
 #[async_trait]

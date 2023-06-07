@@ -19,14 +19,15 @@
 mod core;
 
 /// Contains the different states
-pub mod state;
+pub(crate) mod state;
 
-pub use self::core::GhashCore;
+pub(crate) use self::core::GhashCore;
+
 use mpc_share_conversion_core::fields::{compute_product_repeated, gf2_128::Gf2_128};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum GhashError {
+pub(crate) enum GhashError {
     #[error("Message too long")]
     InvalidMessageLength,
 }
@@ -37,8 +38,12 @@ pub enum GhashError {
 /// computes them. Notice that we only need odd multiplicative shares for the OT, because we can
 /// derive even additive shares from odd additive shares, which we call free squaring.
 ///
-/// * `present_odd_mul_shares` - multiplicative odd shares already present
-/// * `needed` - how many powers we need including odd and even
+/// * `present_odd_mul_shares`  - multiplicative odd shares already present
+/// * `needed`                  - how many powers we need including odd and even
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", skip(present_odd_mul_shares))
+)]
 fn compute_missing_mul_shares(present_odd_mul_shares: &mut Vec<Gf2_128>, needed: usize) {
     // divide by 2 and round up
     let needed_odd_powers: usize = needed / 2 + (needed & 1);
@@ -67,6 +72,10 @@ fn compute_missing_mul_shares(present_odd_mul_shares: &mut Vec<Gf2_128>, needed:
 ///                          multiplicative shares
 /// * `add_shares`         - all additive shares (even and odd) we already have. This is a mutable
 ///                          reference to cached_add_shares in [crate::ghash::state::Intermediate]
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", skip(new_add_odd_shares, add_shares))
+)]
 fn compute_new_add_shares(new_add_odd_shares: &[Gf2_128], add_shares: &mut Vec<Gf2_128>) {
     for (odd_share, current_odd_power) in new_add_odd_shares
         .iter()
@@ -86,8 +95,9 @@ fn compute_new_add_shares(new_add_odd_shares: &[Gf2_128], add_shares: &mut Vec<G
 
 #[cfg(test)]
 mod tests {
+    use generic_array::GenericArray;
     use ghash_rc::{
-        universal_hash::{NewUniversalHash, UniversalHash},
+        universal_hash::{KeyInit, UniversalHash},
         GHash,
     };
     use mpc_core::Block;
@@ -323,10 +333,11 @@ mod tests {
     fn ghash_reference_impl(h: u128, message: &[Block]) -> Block {
         let mut ghash = GHash::new(&h.to_be_bytes().into());
         for el in message {
-            ghash.update(&el.to_be_bytes().into());
+            let block = GenericArray::clone_from_slice(el.to_be_bytes().as_slice());
+            ghash.update(&[block]);
         }
         let ghash_output = ghash.finalize();
-        Block::from(ghash_output.into_bytes())
+        Block::from(ghash_output)
     }
 
     fn setup_ghash_to_intermediate_state(

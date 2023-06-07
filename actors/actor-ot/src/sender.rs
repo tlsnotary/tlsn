@@ -214,6 +214,7 @@ impl Handler<SendBackSender> for KOSSenderActor {
 }
 
 /// Control handle for the KOSSenderActor
+#[derive(Debug)]
 pub struct SenderActorControl(Address<KOSSenderActor>);
 
 impl Clone for SenderActorControl {

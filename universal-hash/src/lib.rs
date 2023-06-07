@@ -1,8 +1,17 @@
+//! A library for computing different kinds of hash functions in a 2PC setting
+
+#![deny(missing_docs, unreachable_pub, unused_must_use)]
+#![deny(clippy::all)]
+#![forbid(unsafe_code)]
+
+/// This module implements [UniversalHash] for Ghash
 #[cfg(feature = "ghash")]
 pub mod ghash;
 
 use async_trait::async_trait;
 
+/// Errors for [UniversalHash]
+#[allow(missing_docs)]
 #[derive(Debug, thiserror::Error)]
 pub enum UniversalHashError {
     #[error("Invalid state: {0}")]
@@ -11,11 +20,12 @@ pub enum UniversalHashError {
     KeyLengthError(usize, usize),
     #[error("Invalid input length: {0}")]
     InputLengthError(usize),
-    #[error("Share Conversion Error: {0}")]
+    #[error(transparent)]
     ShareConversionError(#[from] mpc_share_conversion::ShareConversionError),
 }
 
 #[async_trait]
+/// A trait supporting different kinds of hash functions
 pub trait UniversalHash: Send {
     /// Set the key for the hash function
     ///
