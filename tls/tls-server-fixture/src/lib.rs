@@ -2,7 +2,7 @@ use async_rustls::{server::TlsStream, TlsAcceptor};
 use futures::{AsyncRead, AsyncWrite, FutureExt, TryStreamExt};
 use hyper::{server::conn::Http, service::service_fn, Body, Method, Request, Response, StatusCode};
 use rustls::{Certificate, PrivateKey, ServerConfig};
-use std::{pin::Pin, sync::Arc};
+use std::sync::Arc;
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 use tracing::Instrument;
 
@@ -14,53 +14,6 @@ pub static SERVER_CERT_DER: &[u8] = include_bytes!("domain.der");
 pub static SERVER_KEY_DER: &[u8] = include_bytes!("domain_key.der");
 /// The domain name bound to the server certificate.
 pub static SERVER_DOMAIN: &str = "test-server.io";
-
-struct TracedConnection<T> {
-    conn: T,
-}
-
-impl<T> AsyncWrite for TracedConnection<T>
-where
-    T: AsyncWrite + AsyncRead + Unpin,
-{
-    #[tracing::instrument(skip(self, cx, buf))]
-    fn poll_write(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-        buf: &[u8],
-    ) -> std::task::Poll<std::io::Result<usize>> {
-        Pin::new(&mut self.conn).poll_write(cx, buf)
-    }
-
-    fn poll_flush(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<std::io::Result<()>> {
-        Pin::new(&mut self.conn).poll_flush(cx)
-    }
-
-    fn poll_close(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<std::io::Result<()>> {
-        Pin::new(&mut self.conn).poll_close(cx)
-    }
-}
-
-impl<T> AsyncRead for TracedConnection<T>
-where
-    T: AsyncWrite + AsyncRead + Unpin,
-{
-    #[tracing::instrument(skip(self, cx, buf))]
-    fn poll_read(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-        buf: &mut [u8],
-    ) -> std::task::Poll<std::io::Result<usize>> {
-        tracing::trace!("poll_read");
-        Pin::new(&mut self.conn).poll_read(cx, buf)
-    }
-}
 
 /// Binds a test server to the provided socket.
 #[tracing::instrument(skip(socket))]
