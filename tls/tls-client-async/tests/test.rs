@@ -8,7 +8,7 @@ use tls_server_fixture::{bind_test_server, CA_CERT_DER, SERVER_DOMAIN};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 
 #[tokio::test]
-async fn test() {
+async fn test_async_client() {
     tracing_subscriber::fmt::init();
 
     let (client_socket, server_socket) = tokio::io::duplex(2 << 16);
