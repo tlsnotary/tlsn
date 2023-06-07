@@ -28,8 +28,12 @@ pub enum MpcTlsError {
     NotSetUp,
     #[error("server key not set")]
     ServerKeyNotSet,
+    #[error("server cert not set")]
+    ServerCertNotSet,
     #[error("server random not set")]
     ServerRandomNotSet,
+    #[error("server kx details not set")]
+    ServerKxDetailsNotSet,
     #[error("unsupported curve group: {0:?}")]
     UnsupportedCurveGroup(NamedGroup),
     #[error("invalid server key")]

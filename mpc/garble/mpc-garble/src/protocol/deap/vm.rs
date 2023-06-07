@@ -91,7 +91,10 @@ where
     }
 
     /// Finalizes the DEAP instance.
-    pub async fn finalize(&mut self) -> Result<(), DEAPError> {
+    ///
+    /// If this instance is the leader this function returns the follower's
+    /// encoder seed.
+    pub async fn finalize(&mut self) -> Result<Option<[u8; 32]>, DEAPError> {
         if self.finalized {
             return Err(FinalizationError::AlreadyFinalized)?;
         } else {
@@ -434,7 +437,7 @@ where
 }
 
 /// This trait provides methods to get peer's encodings.
-trait PeerEncodings {
+pub trait PeerEncodings {
     /// Returns the peer's encodings of the provided values.
     ///
     /// # Errors

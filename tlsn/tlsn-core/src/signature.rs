@@ -13,10 +13,11 @@ impl From<p256::ecdsa::Signature> for Signature {
     }
 }
 
-impl AsRef<[u8]> for Signature {
-    fn as_ref(&self) -> &[u8] {
+impl Signature {
+    /// Returns the signature as a byte vector.
+    pub fn to_bytes(&self) -> Vec<u8> {
         match self {
-            Self::P256(sig) => sig.as_ref(),
+            Self::P256(sig) => sig.to_vec(),
         }
     }
 }

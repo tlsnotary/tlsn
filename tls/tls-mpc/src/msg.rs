@@ -1,3 +1,4 @@
+use mpc_core::hash::Hash;
 use serde::{Deserialize, Serialize};
 use tls_core::msgs::enums::ContentType;
 
@@ -14,10 +15,15 @@ pub enum ContentTypeDef {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MpcTlsMessage {
+    HandshakeCommitment(Hash),
     EncryptMessage(EncryptMessage),
     DecryptMessage(DecryptMessage),
-    CloseConnection,
+    SendCloseNotify(EncryptMessage),
+    Close(Close),
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Close;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EncryptMessage {

@@ -1,0 +1,33 @@
+[package]
+name = "tlsn-notary"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tlsn-tls-core.workspace = true
+tlsn-core.workspace = true
+tlsn-mpc-core.workspace = true
+tlsn-tls-mpc.workspace = true
+tlsn-mpc-garble.workspace = true
+tlsn-mpc-share-conversion.workspace = true
+tlsn-utils-aio.workspace = true
+actor-ot.workspace = true
+
+uid-mux.workspace = true
+
+futures.workspace = true
+tokio-util.workspace = true
+
+thiserror.workspace = true
+derive_builder.workspace = true
+
+rand.workspace = true
+signature.workspace = true
+
+[dev-dependencies]
+tlsn-tls-client = { path = "../../tls/tls-client" }
+
+webpki-roots = "0.22"
+p256 = { workspace = true, features = ["ecdsa"] }
+
+tokio = { version = "1.23", features = ["macros", "rt", "rt-multi-thread"] }

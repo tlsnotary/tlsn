@@ -1,0 +1,34 @@
+[package]
+name = "tlsn-prover"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tlsn-tls-core.workspace = true
+tlsn-tls-client.workspace = true
+tlsn-utils-aio.workspace = true
+tlsn-mpc-share-conversion.workspace = true
+tlsn-mpc-garble.workspace = true
+tlsn-mpc-core.workspace = true
+tlsn-core.workspace = true
+tlsn-tls-mpc.workspace = true
+actor-ot.workspace = true
+uid-mux.workspace = true
+
+rand.workspace = true
+futures.workspace = true
+thiserror.workspace = true
+webpki-roots.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+tokio-util = { workspace = true, features = ["io", "compat"] }
+bytes.workspace = true
+
+derive_builder.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = [
+    "macros",
+    "rt",
+    "rt-multi-thread",
+    "time",
+] }

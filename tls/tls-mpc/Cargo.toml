@@ -1,10 +1,10 @@
 [package]
-name = "tls-mpc"
+name = "tlsn-tls-mpc"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-tlsn-tls-core = { path = "../tls-core" }
+tlsn-tls-core = { path = "../tls-core", features = ["serde"] }
 tlsn-tls-backend = { path = "../tls-backend" }
 
 tlsn-mpc-core = { path = "../../mpc/mpc-core" }

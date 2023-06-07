@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::ops::Range;
 
 /// A set of transcripts
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct TranscriptSet(Vec<Transcript>);
 
 impl TranscriptSet {
@@ -18,7 +18,7 @@ impl TranscriptSet {
 }
 
 /// A transcript contains a subset of bytes from a TLS session
-#[derive(Default, Serialize, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, Debug)]
 pub struct Transcript {
     id: String,
     data: Vec<u8>,
@@ -32,13 +32,17 @@ impl Transcript {
         }
     }
 
+    /// Extends the transcript with the given data
+    pub fn extend(&mut self, data: &[u8]) {
+        self.data.extend(data);
+    }
+
     /// Returns the encoding ID for each byte in the provided range
-    pub fn get_ids(&self, range: &Range<u32>) -> Vec<EncodingId> {
+    pub fn get_ids(&self, range: &Range<u32>) -> Vec<String> {
         range
             .clone()
-            .map(|idx| EncodingId::new(&format!("{}/{}", self.id, idx)))
+            .map(|idx| format!("{}/{}", self.id, idx))
             .collect::<Vec<_>>()
-            .to_vec()
     }
 
     /// Returns a concatenated bytestring located in the given ranges of the transcript.

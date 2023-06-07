@@ -64,7 +64,6 @@ mod test {
 
         let ((mut sender_control, sender_fut), (mut receiver_control, receiver_fut)) =
             create_ot_pair(
-                "test",
                 mux_factory.clone(),
                 mux_factory,
                 sender_config,

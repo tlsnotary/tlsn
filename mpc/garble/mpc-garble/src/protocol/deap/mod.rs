@@ -34,7 +34,7 @@ use crate::{
 };
 
 pub use error::{DEAPError, PeerEncodingsError};
-pub use vm::{DEAPThread, DEAPVm};
+pub use vm::{DEAPThread, DEAPVm, PeerEncodings};
 
 use self::error::FinalizationError;
 
@@ -734,6 +734,9 @@ impl DEAP {
 
     /// Finalize the DEAP instance.
     ///
+    /// If this instance is the leader, this function will return the follower's
+    /// encoder seed.
+    ///
     /// # Notes
     ///
     /// **This function will reveal all private inputs of the follower.**
@@ -759,7 +762,7 @@ impl DEAP {
         sink: &mut T,
         stream: &mut U,
         ot: &OT,
-    ) -> Result<(), DEAPError> {
+    ) -> Result<Option<[u8; 32]>, DEAPError> {
         if self.finalized {
             return Err(FinalizationError::AlreadyFinalized)?;
         } else {
@@ -803,6 +806,8 @@ impl DEAP {
                         .collect(),
                 ))
                 .await?;
+
+                Ok(Some(encoder_seed))
             }
             Role::Follower => {
                 let encoder_seed = self.gen.seed();
@@ -843,10 +848,10 @@ impl DEAP {
                         return Err(FinalizationError::InvalidProof)?;
                     }
                 }
+
+                Ok(None)
             }
         }
-
-        Ok(())
     }
 
     /// Returns a reference to the evaluator.
