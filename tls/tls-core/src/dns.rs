@@ -16,7 +16,7 @@ use crate::verify;
 ///
 /// ```
 /// # use std::convert::{TryInto, TryFrom};
-/// # use rustls::ServerName;
+/// # use tls_core::dns::ServerName;
 /// ServerName::try_from("example.com").expect("invalid DNS name");
 ///
 /// // or, alternatively...
