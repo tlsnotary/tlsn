@@ -310,6 +310,7 @@ mod log {
 
 #[allow(unused_imports)]
 #[macro_use]
+/// Contains core primitives of the TLS protocol
 pub extern crate tls_core;
 
 pub(crate) use tls_core::anchors;

@@ -11,7 +11,7 @@ use rand::{rngs::OsRng, thread_rng, Rng};
 use digest::Digest;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
-use std::convert::TryInto;
+use std::{any::Any, convert::TryInto};
 use tls_core::{
     cert::ServerCertDetails,
     ke::ServerKxDetails,
@@ -242,6 +242,14 @@ impl RustCryptoBackend {
 
 #[async_trait]
 impl Backend for RustCryptoBackend {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     async fn set_protocol_version(&mut self, version: ProtocolVersion) -> Result<(), BackendError> {
         match version {
             ProtocolVersion::TLSv1_2 => {
@@ -406,6 +414,10 @@ impl Backend for RustCryptoBackend {
         Ok(verify_data.to_vec())
     }
 
+    async fn prepare_encryption(&mut self) -> Result<(), BackendError> {
+        Ok(())
+    }
+
     async fn encrypt(
         &mut self,
         msg: PlainMessage,
@@ -420,36 +432,14 @@ impl Backend for RustCryptoBackend {
 
         match enc.cipher_suite {
             CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-            | CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 => {
-                match msg.version {
-                    ProtocolVersion::TLSv1_2 => {
-                        let explicit_nonce;
-                        match msg.typ {
-                            ContentType::Handshake => {
-                                // In TLS 1.2 the only handshake message that needs to be
-                                // encrypted by the client is Client_Finished.
-
-                                // By fixing the explicit_nonce of Client_Finished, we
-                                // can save a round-trip in GC (no need to run circuit c4.casm
-                                // separately but can integrate it into c3.casm).
-                                explicit_nonce = [0, 0, 0, 0, 0, 0, 0, 1];
-                            }
-                            ContentType::ApplicationData => {
-                                explicit_nonce = thread_rng().gen();
-                            }
-                            _ => {
-                                return Err(BackendError::EncryptionError(
-                                    "Unexpected ContentType".to_string(),
-                                ));
-                            }
-                        };
-                        return enc.encrypt_aes128gcm(&msg, seq, &explicit_nonce);
-                    }
-                    version => {
-                        return Err(BackendError::UnsupportedProtocolVersion(version));
-                    }
+            | CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 => match msg.version {
+                ProtocolVersion::TLSv1_2 => {
+                    return enc.encrypt_aes128gcm(&msg, seq, &seq.to_be_bytes());
                 }
-            }
+                version => {
+                    return Err(BackendError::UnsupportedProtocolVersion(version));
+                }
+            },
             suite => {
                 return Err(BackendError::UnsupportedCiphersuite(suite));
             }

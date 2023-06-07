@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use async_trait::async_trait;
 use tls_core::{
     cert::ServerCertDetails,
@@ -57,6 +59,11 @@ pub enum DecryptMode {
 /// and decryption.
 #[async_trait]
 pub trait Backend: Send {
+    /// Returns reference to `Any` trait object.
+    fn as_any(&self) -> &dyn Any;
+    /// Returns mutable reference to `Any` trait object.
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+
     /// Signals selected protocol version to implementor.
     /// Throws error if version is not supported.
     async fn set_protocol_version(&mut self, version: ProtocolVersion) -> Result<(), BackendError>;
@@ -89,6 +96,8 @@ pub trait Backend: Send {
     async fn get_server_finished_vd(&mut self, hash: &[u8]) -> Result<Vec<u8>, BackendError>;
     /// Returns ClientFinished verify_data.
     async fn get_client_finished_vd(&mut self, hash: &[u8]) -> Result<Vec<u8>, BackendError>;
+    /// Prepares the backend for encryption.
+    async fn prepare_encryption(&mut self) -> Result<(), BackendError>;
     /// Perform the encryption over the concerned TLS message.
     async fn encrypt(&mut self, msg: PlainMessage, seq: u64)
         -> Result<OpaqueMessage, BackendError>;

@@ -1108,6 +1108,21 @@ impl CommonState {
             && (self.may_send_application_data || self.sendable_tls.is_empty())
     }
 
+    /// Returns true if the peer has sent a close_notify alert.
+    pub fn received_close_notify(&self) -> bool {
+        self.has_received_close_notify
+    }
+
+    /// Returns a reference to the backend.
+    pub fn backend(&self) -> &dyn Backend {
+        self.backend.as_ref()
+    }
+
+    /// Returns a mutable reference to the backend.
+    pub fn backend_mut(&mut self) -> &mut dyn Backend {
+        self.backend.as_mut()
+    }
+
     fn current_io_state(&self) -> IoState {
         IoState {
             tls_bytes_to_write: self.sendable_tls.len(),
@@ -1117,7 +1132,7 @@ impl CommonState {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 pub(crate) trait State<ClientConnectionData>: Send + Sync {
     async fn start(
         self: Box<Self>,

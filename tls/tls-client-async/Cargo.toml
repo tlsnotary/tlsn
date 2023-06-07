@@ -1,7 +1,28 @@
 [package]
-name = "tls-client-async"
+name = "tlsn-tls-client-async"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "tls_client_async"
+
 [dependencies]
 tlsn-tls-client = { path = "../tls-client" }
+bytes.workspace = true
+futures.workspace = true
+tokio-util = { workspace = true, features = ["io", "compat"] }
+tracing.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tracing-subscriber.workspace = true
+tokio = { workspace = true, features = [
+    "rt",
+    "rt-multi-thread",
+    "macros",
+    "net",
+    "io-util",
+] }
+webpki-roots.workspace = true
+hyper = { version = "0.14", features = ["client", "http1"] }
+tls-server-fixture = { path = "../tls-server-fixture" }

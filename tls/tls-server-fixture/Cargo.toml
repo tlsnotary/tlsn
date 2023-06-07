@@ -1,0 +1,14 @@
+[package]
+name = "tls-server-fixture"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+async-rustls = "0.4.0"
+futures.workspace = true
+hyper = { version = "0.14", features = ["full"] }
+rustls = { version = "0.21", features = ["logging"] }
+tokio = { workspace = true }
+tokio-util = { workspace = true, features = ["compat"] }
+tracing.workspace = true
+bytes.workspace = true

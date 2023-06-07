@@ -398,7 +398,7 @@ pub(super) fn sct_list_is_invalid(scts: &SCTList) -> bool {
     scts.is_empty() || scts.iter().any(|sct| sct.0.is_empty())
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl State<ClientConnectionData> for ExpectServerHello {
     async fn handle(
         mut self: Box<Self>,
@@ -741,7 +741,7 @@ impl ExpectServerHelloOrHelloRetryRequest {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl State<ClientConnectionData> for ExpectServerHelloOrHelloRetryRequest {
     async fn handle(self: Box<Self>, cx: &mut ClientContext<'_>, m: Message) -> NextStateOrError {
         match m.payload {

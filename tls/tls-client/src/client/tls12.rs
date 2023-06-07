@@ -210,7 +210,7 @@ struct ExpectCertificate {
     server_cert_sct_list: Option<SCTList>,
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl State<ClientConnectionData> for ExpectCertificate {
     async fn handle(
         mut self: Box<Self>,
@@ -276,7 +276,7 @@ struct ExpectCertificateStatusOrServerKx {
     must_issue_new_ticket: bool,
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl State<ClientConnectionData> for ExpectCertificateStatusOrServerKx {
     async fn handle(
         self: Box<Self>,
@@ -359,7 +359,7 @@ struct ExpectCertificateStatus {
     must_issue_new_ticket: bool,
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl State<ClientConnectionData> for ExpectCertificateStatus {
     async fn handle(
         mut self: Box<Self>,
@@ -417,7 +417,7 @@ struct ExpectServerKx {
     must_issue_new_ticket: bool,
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl State<ClientConnectionData> for ExpectServerKx {
     async fn handle(
         mut self: Box<Self>,
@@ -578,7 +578,7 @@ struct ExpectServerDoneOrCertReq {
     must_issue_new_ticket: bool,
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl State<ClientConnectionData> for ExpectServerDoneOrCertReq {
     async fn handle(
         mut self: Box<Self>,
@@ -644,7 +644,7 @@ struct ExpectCertificateRequest {
     must_issue_new_ticket: bool,
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl State<ClientConnectionData> for ExpectCertificateRequest {
     async fn handle(
         mut self: Box<Self>,
@@ -705,7 +705,7 @@ struct ExpectServerDone {
     must_issue_new_ticket: bool,
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl State<ClientConnectionData> for ExpectServerDone {
     async fn handle(
         self: Box<Self>,
@@ -858,11 +858,12 @@ impl State<ClientConnectionData> for ExpectServerDone {
         let server_key_share =
             PublicKey::new(ecdh_params.curve_params.named_group, &ecdh_params.public.0);
 
+        cx.common.backend.set_server_kx_details(st.server_kx);
         cx.common
             .backend
             .set_server_key_share(server_key_share)
             .await?;
-        cx.common.backend.set_server_kx_details(st.server_kx);
+        cx.common.backend.prepare_encryption().await?;
         cx.common.record_layer.prepare_message_encrypter();
         cx.common.record_layer.prepare_message_decrypter();
         cx.common.record_layer.start_encrypting();
@@ -921,7 +922,7 @@ struct ExpectNewTicket {
     sig_verified: verify::HandshakeSignatureValid,
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl State<ClientConnectionData> for ExpectNewTicket {
     async fn handle(
         mut self: Box<Self>,
@@ -965,7 +966,7 @@ struct ExpectCcs {
     sig_verified: verify::HandshakeSignatureValid,
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl State<ClientConnectionData> for ExpectCcs {
     async fn handle(
         self: Box<Self>,
@@ -1070,7 +1071,7 @@ struct ExpectFinished {
 //     }
 // }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl State<ClientConnectionData> for ExpectFinished {
     async fn handle(
         self: Box<Self>,
@@ -1131,7 +1132,7 @@ struct ExpectTraffic {
     _fin_verified: verify::FinishedMessageVerified,
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl State<ClientConnectionData> for ExpectTraffic {
     async fn handle(
         self: Box<Self>,
