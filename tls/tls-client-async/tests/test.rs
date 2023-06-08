@@ -11,7 +11,7 @@ use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 async fn test_async_client() {
     tracing_subscriber::fmt::init();
 
-    let (client_socket, server_socket) = tokio::io::duplex(2 << 16);
+    let (client_socket, server_socket) = tokio::io::duplex(1 << 16);
 
     let server_task = tokio::spawn(bind_test_server(server_socket.compat()));
 

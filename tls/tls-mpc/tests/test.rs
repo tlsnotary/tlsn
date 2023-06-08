@@ -18,7 +18,7 @@ use utils_aio::{codec::BincodeMux, mux::MuxChannel};
 #[tokio::test]
 #[ignore]
 async fn test() {
-    let (leader_socket, follower_socket) = tokio::io::duplex(2 << 25);
+    let (leader_socket, follower_socket) = tokio::io::duplex(1 << 25);
 
     let mut leader_mux = UidYamux::new(
         yamux::Config::default(),
@@ -223,7 +223,7 @@ async fn test() {
     let client =
         tls_client::ClientConnection::new(Arc::new(config), Box::new(leader), server_name).unwrap();
 
-    let (client_socket, server_socket) = tokio::io::duplex(2 << 16);
+    let (client_socket, server_socket) = tokio::io::duplex(1 << 16);
 
     tokio::spawn(bind_test_server(server_socket.compat()));
 

@@ -108,7 +108,7 @@ pub mod mock {
                     return Err(MuxerError::DuplicateStreamId(id.to_string()));
                 }
 
-                let (stream_0, stream_1) = tokio::io::duplex(2 << 23);
+                let (stream_0, stream_1) = tokio::io::duplex(1 << 23);
                 state.buffer.insert(id.to_string(), Box::new(stream_1));
                 Ok(stream_0.compat())
             }

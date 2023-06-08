@@ -20,8 +20,8 @@ use tls_client::ClientConnection;
 
 use conn::TlsConnection;
 
-const RX_TLS_BUF_SIZE: usize = 2 << 13; // 8 KiB
-const RX_BUF_SIZE: usize = 2 << 13; // 8 KiB
+const RX_TLS_BUF_SIZE: usize = 1 << 13; // 8 KiB
+const RX_BUF_SIZE: usize = 1 << 13; // 8 KiB
 
 /// An error that can occur during a TLS connection.
 #[derive(Debug, thiserror::Error)]
@@ -62,8 +62,8 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
     socket: T,
     mut client: ClientConnection,
 ) -> (TlsConnection, ConnectionFuture) {
-    let (tx_sender, mut tx_receiver) = mpsc::channel(2 << 14);
-    let (mut rx_sender, rx_receiver) = mpsc::channel(2 << 14);
+    let (tx_sender, mut tx_receiver) = mpsc::channel(1 << 14);
+    let (mut rx_sender, rx_receiver) = mpsc::channel(1 << 14);
     let (close_send, mut close_recv) = oneshot::channel();
 
     let conn = TlsConnection::new(tx_sender, rx_receiver, close_send);

@@ -23,7 +23,7 @@ use utils_aio::{codec::BincodeMux, mux::MuxChannel};
 async fn test() {
     let mut rng = ChaCha20Rng::seed_from_u64(0);
 
-    let (leader_socket, follower_socket) = tokio::io::duplex(2 << 25);
+    let (leader_socket, follower_socket) = tokio::io::duplex(1 << 25);
 
     let mut leader_mux = UidYamux::new(
         yamux::Config::default(),
