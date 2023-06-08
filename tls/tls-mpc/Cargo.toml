@@ -3,6 +3,9 @@ name = "tlsn-tls-mpc"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "tls_mpc"
+
 [dependencies]
 tlsn-tls-core = { path = "../tls-core", features = ["serde"] }
 tlsn-tls-backend = { path = "../tls-backend" }

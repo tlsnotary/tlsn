@@ -17,13 +17,13 @@ use mpc_garble::{config::Role as GarbleRole, protocol::deap::DEAPVm};
 use mpc_share_conversion as ff;
 use rand::Rng;
 use signature::Signer;
+use tls_mpc::{
+    setup_components, MpcTlsCommonConfig, MpcTlsFollower, MpcTlsFollowerConfig, TlsRole,
+};
 use tlsn_core::{
     msg::{SignedSessionHeader, TlsnMessage},
     signature::Signature,
     HandshakeSummary, SessionHeader,
-};
-use tlsn_tls_mpc::{
-    setup_components, MpcTlsCommonConfig, MpcTlsFollower, MpcTlsFollowerConfig, TlsRole,
 };
 use uid_mux::{yamux, UidYamux, UidYamuxControl};
 use utils_aio::{codec::BincodeMux, expect_msg_or_err, mux::MuxChannelSerde};

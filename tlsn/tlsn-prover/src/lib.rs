@@ -13,7 +13,7 @@ use futures::{
 use rand::Rng;
 use std::{ops::Range, pin::Pin, sync::Arc};
 use tls_client_async::{bind_client, ClosedConnection, TlsConnection};
-use tlsn_tls_mpc::{setup_components, MpcTlsLeader, TlsRole};
+use tls_mpc::{setup_components, MpcTlsLeader, TlsRole};
 use tracing::{debug, debug_span, Instrument};
 
 use actor_ot::{create_ot_receiver, create_ot_sender, ReceiverActorControl, SenderActorControl};

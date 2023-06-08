@@ -1,7 +1,7 @@
 use actor_ot::{OTActorReceiverConfig, OTActorSenderConfig};
 use mpc_share_conversion::{ReceiverConfig, SenderConfig};
 use tls_client::RootCertStore;
-use tlsn_tls_mpc::{MpcTlsCommonConfig, MpcTlsLeaderConfig};
+use tls_mpc::{MpcTlsCommonConfig, MpcTlsLeaderConfig};
 
 const DEFAULT_MAX_TRANSCRIPT_SIZE: usize = 2 << 14; // 16Kb
 

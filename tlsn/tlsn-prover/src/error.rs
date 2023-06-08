@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use tlsn_tls_mpc::MpcTlsError;
+use tls_mpc::MpcTlsError;
 
 /// An error that can occur during proving.
 #[derive(Debug, thiserror::Error)]
