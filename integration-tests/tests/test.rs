@@ -73,7 +73,6 @@ async fn test() {
         (mut leader_ot_sender, leader_ot_sender_fut),
         (mut follower_ot_recvr, follower_ot_recvr_fut),
     ) = create_ot_pair(
-        "ot/0",
         leader_mux.clone(),
         follower_mux.clone(),
         leader_ot_sender_config,
@@ -89,7 +88,6 @@ async fn test() {
         (mut follower_ot_sender, follower_ot_sender_fut),
         (mut leader_ot_recvr, leader_ot_recvr_fut),
     ) = create_ot_pair(
-        "ot/1",
         follower_mux.clone(),
         leader_mux.clone(),
         follower_ot_sender_config,
