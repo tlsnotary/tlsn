@@ -1,18 +1,21 @@
 use actor_ot::{OTActorReceiverConfig, OTActorSenderConfig};
 use mpc_share_conversion::{ReceiverConfig, SenderConfig};
-use tls_client::{OwnedTrustAnchor, RootCertStore};
+use tls_client::RootCertStore;
 use tlsn_tls_mpc::{MpcTlsCommonConfig, MpcTlsLeaderConfig};
 
 const DEFAULT_MAX_TRANSCRIPT_SIZE: usize = 2 << 14; // 16Kb
 
 #[derive(Debug, Clone, derive_builder::Builder)]
 pub struct ProverConfig {
+    /// Id of the notarization session.
     #[builder(setter(into))]
     id: String,
-
+    /// The server DNS name.
     #[builder(setter(into))]
     server_dns: String,
-
+    /// TLS root certificate store.
+    #[builder(setter(strip_option), default = "default_root_store()")]
+    pub(crate) root_cert_store: RootCertStore,
     /// Maximum transcript size in bytes
     ///
     /// This includes the number of bytes sent and received to the server.
@@ -77,4 +80,17 @@ impl ProverConfig {
     pub(crate) fn build_gf2_config(&self) -> SenderConfig {
         SenderConfig::builder().id("gf2").record().build().unwrap()
     }
+}
+
+/// Default root store using mozilla certs.
+fn default_root_store() -> RootCertStore {
+    let mut root_store = tls_client::RootCertStore::empty();
+    root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
+        tls_client::OwnedTrustAnchor::from_subject_spki_name_constraints(
+            ta.subject,
+            ta.spki,
+            ta.name_constraints,
+        )
+    }));
+    root_store
 }

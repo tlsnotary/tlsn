@@ -5,8 +5,10 @@ edition = "2021"
 publish = false
 
 [dev-dependencies]
+tlsn-tls-core.workspace = true
 tlsn-prover.workspace = true
 tlsn-notary.workspace = true
+tls-server-fixture.workspace = true
 
 hyper = { version = "0.14", features = ["client", "http1"] }
 
@@ -20,3 +22,6 @@ tokio = { workspace = true, features = [
     "macros",
 ] }
 tokio-util.workspace = true
+
+tracing.workspace = true
+tracing-subscriber.workspace = true

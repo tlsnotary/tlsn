@@ -1,64 +1,78 @@
 use futures::AsyncWriteExt;
 use hyper::{body::to_bytes, Body, Request, StatusCode};
+use tls_server_fixture::{bind_test_server, CA_CERT_DER, SERVER_DOMAIN};
 use tlsn_notary::{attach_notary, NotaryConfig};
-use tlsn_prover::{attach_prover, ProverConfig};
+use tlsn_prover::{bind_prover, ProverConfig};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 
 #[tokio::test]
 async fn test() {
+    tracing_subscriber::fmt::init();
+
     let (socket_0, socket_1) = tokio::io::duplex(2 << 23);
 
     tokio::join!(prover(socket_0), notary(socket_1));
 }
 
+#[tracing::instrument(skip(notary_socket))]
 async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socket: T) {
-    let dns = "tlsnotary.org";
-    let server_socket = tokio::net::TcpStream::connect(dns.to_string() + ":443")
-        .await
-        .unwrap();
-    let server_socket = server_socket.compat();
+    let (client_socket, server_socket) = tokio::io::duplex(2 << 16);
 
-    let (server_socket, prover, prover_fut) = attach_prover(
+    let server_task = tokio::spawn(bind_test_server(server_socket.compat()));
+
+    let mut root_store = tls_core::anchors::RootCertStore::empty();
+    root_store
+        .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
+        .unwrap();
+
+    let (tls_connection, prover_fut, mux_fut) = bind_prover(
         ProverConfig::builder()
             .id("test")
-            .server_dns(dns)
+            .server_dns(SERVER_DOMAIN)
+            .root_cert_store(root_store)
             .build()
             .unwrap(),
-        server_socket,
+        client_socket.compat(),
         notary_socket.compat(),
     )
+    .await
     .unwrap();
 
-    tokio::spawn(prover_fut);
-    let prover_task = tokio::spawn(prover.run_tls());
+    tokio::spawn(mux_fut);
+    let prover_task = tokio::spawn(prover_fut);
 
-    let (mut request_sender, mut connection) =
-        hyper::client::conn::handshake(server_socket.compat())
-            .await
-            .unwrap();
-
-    let request = Request::builder()
-        .header("Host", "tlsnotary.org")
-        .method("GET")
-        .body(Body::from(""))
+    let (mut request_sender, connection) = hyper::client::conn::handshake(tls_connection.compat())
+        .await
         .unwrap();
 
-    let response = tokio::select! {
-        response = request_sender.send_request(request) => response.unwrap(),
-        _ = &mut connection => panic!("connection closed"),
-    };
+    let connection_task = tokio::spawn(connection.without_shutdown());
+
+    let request = Request::builder()
+        .uri(format!("https://{}/echo", SERVER_DOMAIN))
+        .header("Host", SERVER_DOMAIN)
+        .header("Connection", "close")
+        .method("POST")
+        .body(Body::from("echo"))
+        .unwrap();
+
+    let response = request_sender.send_request(request).await.unwrap();
 
     assert!(response.status() == StatusCode::OK);
 
-    _ = tokio::select! {
-        data = to_bytes(response.into_body()) => data.unwrap(),
-        _ = &mut connection => panic!("connection closed"),
-    };
+    println!(
+        "{:?}",
+        String::from_utf8_lossy(&to_bytes(response.into_body()).await.unwrap())
+    );
 
-    let mut server_socket = connection.into_parts().io.into_inner();
+    let mut server_tls_conn = server_task.await.unwrap().unwrap();
 
-    server_socket.close().await.unwrap();
+    // Make sure the server closes cleanly (sends close notify)
+    server_tls_conn.close().await.unwrap();
+
+    let mut client_socket = connection_task.await.unwrap().unwrap().io.into_inner();
+
+    client_socket.close().await.unwrap();
 
     let mut prover = prover_task.await.unwrap().unwrap();
 

@@ -1,27 +1,23 @@
 mod config;
-mod conn;
 mod error;
 mod state;
 
 pub use config::ProverConfig;
-pub use conn::TlsConnection;
 pub use error::ProverError;
-pub use state::{Initialized, Notarizing, ProverState};
+pub use state::{Initialized, Notarize, ProverState};
 
-use bytes::Bytes;
 use futures::{
-    channel::{mpsc, oneshot},
     future::{join, try_join, FusedFuture},
-    select_biased, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, Future, FutureExt, SinkExt,
-    StreamExt,
+    AsyncRead, AsyncWrite, Future, FutureExt, SinkExt, StreamExt,
 };
 use rand::Rng;
-use std::{io::Read, ops::Range, pin::Pin, sync::Arc};
-use tls_core::{handshake::HandshakeData, key::PublicKey};
+use std::{ops::Range, pin::Pin, sync::Arc};
+use tls_client_async::{bind_client, ClosedConnection, TlsConnection};
 use tlsn_tls_mpc::{setup_components, MpcTlsLeader, TlsRole};
+use tracing::{debug, debug_span, Instrument};
 
 use actor_ot::{create_ot_receiver, create_ot_sender, ReceiverActorControl, SenderActorControl};
-use mpc_core::commit::{Decommitment, HashCommit};
+use mpc_core::commit::HashCommit;
 use mpc_garble::{
     config::Role as GarbleRole,
     protocol::deap::{DEAPVm, PeerEncodings},
@@ -40,62 +36,78 @@ use utils_aio::{codec::BincodeMux, expect_msg_or_err, mux::MuxChannelSerde};
 
 use crate::error::OTShutdownError;
 
-const RX_TLS_BUF_SIZE: usize = 2 << 13; // 8 KiB
-const RX_BUF_SIZE: usize = 2 << 13; // 8 KiB
-
-/// A future that performs background processing for the prover.
+/// Helper function to bind a new prover to the given sockets.
 ///
-/// This is a future intended to run in the background. It must be polled in order to make progress.
-///
-/// Typically it will be spawned on an executor.
-pub struct ProverBackgroundFut {
-    fut: Pin<Box<dyn Future<Output = Result<(), ProverError>> + Send + 'static>>,
-}
-
-impl Future for ProverBackgroundFut {
-    type Output = Result<(), ProverError>;
-
-    fn poll(
-        mut self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Self::Output> {
-        self.fut.poll_unpin(cx)
-    }
-}
-
-/// Helper function to attach a new prover to the given sockets.
+/// Returns a handle to the TLS connection, a future which returns the prover once the connection is
+/// closed, and a future which must be polled for the connection to the Notary to make progress.
 ///
 /// # Arguments
 ///
 /// * `config` - The configuration for the prover.
-/// * `server_socket` - The socket to the server.
+/// * `client_socket` - The socket to the server.
 /// * `notary_socket` - The socket to the notary.
 #[allow(clippy::type_complexity)]
-pub fn attach_prover<
+pub async fn bind_prover<
     S: AsyncWrite + AsyncRead + Send + Unpin + 'static,
     T: AsyncWrite + AsyncRead + Send + Unpin + 'static,
 >(
     config: ProverConfig,
-    server_socket: S,
+    client_socket: S,
     notary_socket: T,
 ) -> Result<
     (
         TlsConnection,
-        Prover<Initialized<S, BincodeMux<UidYamuxControl>>>,
-        ProverBackgroundFut,
+        ConnectionFuture<BincodeMux<UidYamuxControl>>,
+        MuxFuture,
     ),
     ProverError,
 > {
     let mut mux = UidYamux::new(yamux::Config::default(), notary_socket, yamux::Mode::Client);
     let mux_control = BincodeMux::new(mux.control());
 
-    let mux_fut = ProverBackgroundFut {
+    let mut mux_fut = MuxFuture {
         fut: Box::pin(async move { mux.run().await.map_err(ProverError::from) }),
     };
 
-    let (prover, tls_conn) = Prover::new(config, server_socket, mux_control)?;
+    let prover_fut = Prover::new(config, mux_control)?.bind_prover(client_socket);
+    let (conn, conn_fut) = futures::select! {
+        res = prover_fut.fuse() => res?,
+        _ = (&mut mux_fut).fuse() => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
+    };
 
-    Ok((tls_conn, prover, mux_fut))
+    Ok((conn, conn_fut, mux_fut))
+}
+
+pub struct MuxFuture {
+    fut: Pin<Box<dyn Future<Output = Result<(), ProverError>> + Send + 'static>>,
+}
+
+impl Future for MuxFuture {
+    type Output = Result<(), ProverError>;
+
+    fn poll(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        self.fut.as_mut().poll(cx)
+    }
+}
+
+/// TLS connection future which must be polled for the connection to make progress.
+pub struct ConnectionFuture<T> {
+    #[allow(clippy::type_complexity)]
+    fut: Pin<Box<dyn Future<Output = Result<Prover<Notarize<T>>, ProverError>> + Send + 'static>>,
+}
+
+impl<T> Future for ConnectionFuture<T> {
+    type Output = Result<Prover<Notarize<T>>, ProverError>;
+
+    fn poll(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        self.fut.as_mut().poll(cx)
+    }
 }
 
 /// A prover instance.
@@ -105,9 +117,8 @@ pub struct Prover<T: ProverState> {
     state: T,
 }
 
-impl<S, T> Prover<Initialized<S, T>>
+impl<T> Prover<Initialized<T>>
 where
-    S: AsyncWrite + AsyncRead + Send + Unpin + 'static,
     T: MuxChannelSerde + Clone + Send + Sync + Unpin + 'static,
 {
     /// Creates a new prover.
@@ -115,104 +126,104 @@ where
     /// # Arguments
     ///
     /// * `config` - The configuration for the prover.
-    /// * `server_socket` - The socket to the server.
     /// * `notary_mux` - The multiplexed connection to the notary.
-    pub fn new(
-        config: ProverConfig,
-        server_socket: S,
-        notary_mux: T,
-    ) -> Result<(Self, TlsConnection), ProverError> {
-        let (tx_sender, tx_receiver) = mpsc::channel::<Bytes>(10);
-        let (rx_sender, rx_receiver) = mpsc::channel::<Result<Bytes, std::io::Error>>(10);
-        let (close_send, close_recv) = oneshot::channel::<oneshot::Sender<()>>();
-
-        let tls_conn = TlsConnection::new(tx_sender, rx_receiver, close_send);
-
+    pub fn new(config: ProverConfig, notary_mux: T) -> Result<Self, ProverError> {
         let server_name = ServerName::try_from(config.server_dns())?;
 
-        Ok((
-            Self {
-                config,
-                state: Initialized {
-                    server_name,
-                    server_socket,
-                    notary_mux,
-                    tx_receiver,
-                    rx_sender,
-                    close_recv,
-                    transcript_tx: Transcript::new("tx", vec![]),
-                    transcript_rx: Transcript::new("rx", vec![]),
-                },
+        Ok(Self {
+            config,
+            state: Initialized {
+                server_name,
+                notary_mux,
             },
-            tls_conn,
-        ))
+        })
     }
 
-    /// Runs the prover, returning the next state when the TLS connection is closed.
-    pub async fn run_tls(self) -> Result<Prover<Notarizing<T>>, ProverError> {
+    /// Binds the prover to the provided socket.
+    pub async fn bind_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
+        self,
+        socket: S,
+    ) -> Result<(TlsConnection, ConnectionFuture<T>), ProverError> {
         let Initialized {
             server_name,
-            server_socket,
             notary_mux: mux,
-            tx_receiver,
-            rx_sender,
-            close_recv: close_tls_receiver,
-            mut transcript_tx,
-            mut transcript_rx,
         } = self.state;
 
         let (mpc_tls, vm, _, gf2, mut ot_fut) =
             setup_mpc_backend(&self.config, mux.clone()).await?;
 
-        let mut root_store = tls_client::RootCertStore::empty();
-        root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
-            tls_client::OwnedTrustAnchor::from_subject_spki_name_constraints(
-                ta.subject,
-                ta.spki,
-                ta.name_constraints,
-            )
-        }));
         let config = tls_client::ClientConfig::builder()
             .with_safe_defaults()
-            .with_root_certificates(root_store)
+            .with_root_certificates(self.config.root_cert_store.clone())
             .with_no_client_auth();
         let client = ClientConnection::new(Arc::new(config), Box::new(mpc_tls), server_name)?;
 
+        let (conn, conn_fut) = bind_client(socket, client);
+
         let start_time = std::time::UNIX_EPOCH.elapsed().unwrap().as_secs();
 
-        let (handshake_decommitment, server_public_key) = futures::select! {
-            _ = &mut ot_fut => return Err(OTShutdownError)?,
-            res = run_client(
-                client,
-                server_socket,
-                &mut transcript_tx,
-                &mut transcript_rx,
-                tx_receiver,
-                rx_sender,
-                close_tls_receiver,
-            ).fuse() => res?,
-        };
+        let fut = Box::pin(
+            async move {
+                let ClosedConnection {
+                    mut client,
+                    sent,
+                    recv,
+                } = futures::select! {
+                    res = conn_fut.fuse() => res.unwrap(),
+                    _ = ot_fut => return Err(OTShutdownError)?,
+                };
 
-        Ok(Prover {
-            config: self.config,
-            state: Notarizing {
-                notary_mux: mux,
-                vm,
-                ot_fut,
-                gf2,
-                start_time,
-                handshake_decommitment,
-                server_public_key,
-                transcript_tx,
-                transcript_rx,
-                commitments: vec![],
-                substring_commitments: vec![],
-            },
-        })
+                // Extra guard to guarantee that the server sent a close_notify.
+                //
+                // DO NOT REMOVE!
+                //
+                // This is necessary, as our protocol reveals the MAC key to the Notary afterwards
+                // which could be used to authenticate modified TLS records if the Notary is
+                // in the middle of the connection.
+                if !client.received_close_notify() {
+                    return Err(ProverError::ServerNoCloseNotify);
+                }
+
+                let backend = client
+                    .backend_mut()
+                    .as_any_mut()
+                    .downcast_mut::<MpcTlsLeader>()
+                    .unwrap();
+
+                let handshake_decommitment = backend
+                    .handshake_decommitment_mut()
+                    .take()
+                    .expect("handshake decommitment is set");
+                let server_public_key = backend
+                    .server_public_key()
+                    .cloned()
+                    .expect("server public key is set");
+
+                Ok(Prover {
+                    config: self.config,
+                    state: Notarize {
+                        notary_mux: mux,
+                        vm,
+                        ot_fut,
+                        gf2,
+                        start_time,
+                        handshake_decommitment,
+                        server_public_key,
+                        transcript_tx: Transcript::new("tx", sent),
+                        transcript_rx: Transcript::new("rx", recv),
+                        commitments: Vec::default(),
+                        substring_commitments: Vec::default(),
+                    },
+                })
+            }
+            .instrument(debug_span!("prover_tls_connection")),
+        );
+
+        Ok((conn, ConnectionFuture { fut }))
     }
 }
 
-impl<T> Prover<Notarizing<T>>
+impl<T> Prover<Notarize<T>>
 where
     T: MuxChannelSerde + Clone + Send + Sync + Unpin + 'static,
 {
@@ -270,7 +281,7 @@ where
     }
 
     pub async fn finalize(self) -> Result<NotarizedSession, ProverError> {
-        let Notarizing {
+        let Notarize {
             notary_mux: mut mux,
             mut vm,
             mut ot_fut,
@@ -337,6 +348,8 @@ where
     }
 }
 
+#[tracing::instrument(skip(mux, config))]
+#[allow(clippy::type_complexity)]
 async fn setup_mpc_backend<M: MuxChannelSerde + Clone + Send + 'static>(
     config: &ProverConfig,
     mut mux: M,
@@ -350,9 +363,11 @@ async fn setup_mpc_backend<M: MuxChannelSerde + Clone + Send + 'static>(
     ),
     ProverError,
 > {
+    debug!("starting OT setup");
+
     let ((mut ot_send, ot_send_fut), (mut ot_recv, ot_recv_fut)) = futures::try_join!(
-        create_ot_sender(mux.clone(), config.build_ot_sender_config()),
-        create_ot_receiver(mux.clone(), config.build_ot_receiver_config())
+        create_ot_sender(mux.clone(), config.build_ot_sender_config()).in_current_span(),
+        create_ot_receiver(mux.clone(), config.build_ot_receiver_config()).in_current_span()
     )
     .map_err(|e| ProverError::MpcError(Box::new(e)))?;
 
@@ -364,6 +379,8 @@ async fn setup_mpc_backend<M: MuxChannelSerde + Clone + Send + 'static>(
         res = try_join(ot_send.setup(), ot_recv.setup()).fuse() =>
             _ = res.map_err(|e| ProverError::MpcError(Box::new(e)))?,
     }
+
+    debug!("OT setup complete");
 
     let mut vm = DEAPVm::new(
         "vm",
@@ -407,148 +424,7 @@ async fn setup_mpc_backend<M: MuxChannelSerde + Clone + Send + 'static>(
     let channel = mux.get_channel(mpc_tls_config.common().id()).await?;
     let mpc_tls = MpcTlsLeader::new(mpc_tls_config, channel, ke, prf, encrypter, decrypter);
 
+    debug!("MPC backend setup complete");
+
     Ok((mpc_tls, vm, ot_recv, gf2, ot_fut))
-}
-
-/// Runs the TLS session to completion, returning the session transcripts.
-async fn run_client<T: AsyncWrite + AsyncRead + Unpin>(
-    mut client: ClientConnection,
-    server_socket: T,
-    transcript_tx: &mut Transcript,
-    transcript_rx: &mut Transcript,
-    mut tx_receiver: mpsc::Receiver<Bytes>,
-    mut rx_sender: mpsc::Sender<Result<Bytes, std::io::Error>>,
-    mut close_recv: oneshot::Receiver<oneshot::Sender<()>>,
-) -> Result<(Decommitment<HandshakeData>, PublicKey), ProverError> {
-    client.start().await?;
-
-    let (mut server_rx, mut server_tx) = server_socket.split();
-
-    let mut rx_tls_buf = [0u8; RX_TLS_BUF_SIZE];
-    let mut rx_buf = [0u8; RX_BUF_SIZE];
-
-    let mut client_closed = false;
-    let mut server_closed = false;
-
-    let mut rx_tls_fut = server_rx.read(&mut rx_tls_buf).fuse();
-    loop {
-        select_biased! {
-            read_res = &mut rx_tls_fut => {
-                let received = read_res?;
-
-                // Loop until we've processed all the data we received in this read.
-                let mut processed = 0;
-                while processed < received {
-                    processed += client.read_tls(&mut &rx_tls_buf[processed..received])?;
-                    match client.process_new_packets().await {
-                        Ok(_) => {}
-                        Err(e) => {
-                            // In case we have an alert to send describing this error,
-                            // try a last-gasp write -- but don't predate the primary
-                            // error.
-                            let _ignored = client.write_tls_async(&mut server_tx).await;
-
-                            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-                        }
-                    }
-                }
-
-                if received == 0 {
-                    server_closed = true;
-                }
-
-                // Reset the read future so next iteration we can read again.
-                rx_tls_fut = server_rx.read(&mut rx_tls_buf).fuse();
-            }
-            data = tx_receiver.select_next_some() => {
-                transcript_tx.extend(&data);
-                client
-                    .write_all_plaintext(&data)
-                    .await?;
-            },
-            close_send = &mut close_recv => {
-                client_closed = true;
-
-                client.send_close_notify().await?;
-
-                // Flush all remaining plaintext
-                while client.wants_write() {
-                    client.write_tls_async(&mut server_tx).await?;
-                }
-                server_tx.flush().await?;
-                server_tx.close().await?;
-
-                // Send the close signal to the TlsConnection
-                if let Ok(close_send) = close_send {
-                    _ = close_send.send(());
-                }
-            },
-        }
-
-        while client.wants_write() && !client_closed {
-            client.write_tls_async(&mut server_tx).await?;
-        }
-
-        // Flush all remaining plaintext to the server
-        // otherwise this loop could hang forever as the server
-        // waits for more data before responding.
-        server_tx.flush().await?;
-
-        // Forward all plaintext to the TLSConnection
-        loop {
-            let n = match client.reader().read(&mut rx_buf) {
-                Ok(n) => n,
-                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
-                // Some servers will not send a close_notify, in which case we need to
-                // error because we can't reveal the MAC key to the Notary.
-                Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
-                    return Err(ProverError::ServerNoCloseNotify)
-                }
-                Err(e) => return Err(e)?,
-            };
-
-            if n > 0 {
-                transcript_rx.extend(&rx_buf[..n]);
-                // Ignore if the receiver has hung up.
-                _ = rx_sender
-                    .send(Ok(Bytes::copy_from_slice(&rx_buf[..n])))
-                    .await;
-            } else {
-                break;
-            }
-        }
-
-        if client_closed && server_closed {
-            break;
-        }
-    }
-
-    // Extra guard to guarantee that the server sent a close_notify.
-    //
-    // DO NOT REMOVE!
-    //
-    // This is necessary, as our protocol reveals the MAC key to the Notary afterwards
-    // which could be used to authenticate modified TLS records if the Notary is
-    // in the middle of the connection.
-    if !client.received_close_notify() {
-        return Err(ProverError::ServerNoCloseNotify);
-    }
-
-    let backend = client
-        .backend_mut()
-        .as_any_mut()
-        .downcast_mut::<MpcTlsLeader>()
-        .expect("backend is MpcTlsLeader");
-
-    let server_public_key = backend
-        .server_public_key()
-        .cloned()
-        .expect("server key is set");
-
-    let handshake_decommitment = backend
-        .handshake_decommitment_mut()
-        .take()
-        .expect("handshake data was committed");
-
-    Ok((handshake_decommitment, server_public_key))
 }

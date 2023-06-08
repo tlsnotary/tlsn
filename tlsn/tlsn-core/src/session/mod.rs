@@ -19,7 +19,6 @@ use crate::{
         proof::SubstringsProof,
     },
     Commitment, Direction, InclusionProof, SubstringsCommitment, SubstringsCommitmentSet,
-    Transcript,
 };
 
 #[derive(Serialize, Deserialize)]
@@ -71,11 +70,10 @@ impl NotarizedSession {
         let mut openings: Vec<SubstringsOpening> = Vec::with_capacity(commitments.len());
         for com in &commitments {
             let transcript = if com.direction() == &Direction::Sent {
-                self.data().transcripts().get_by_id("tx")
+                self.data().sent_transcript()
             } else {
-                self.data().transcripts().get_by_id("rx")
+                self.data().recv_transcript()
             };
-            let transcript: &Transcript = transcript.expect("transcript should be available");
 
             let bytes: Vec<u8> = transcript.get_bytes_in_ranges(com.ranges())?;
 

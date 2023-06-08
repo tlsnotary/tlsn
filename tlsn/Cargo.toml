@@ -9,6 +9,8 @@ tlsn-notary = { path = "tlsn-notary" }
 tlsn-tls-core = { path = "../tls/tls-core" }
 tlsn-tls-mpc = { path = "../tls/tls-mpc" }
 tlsn-tls-client = { path = "../tls/tls-client" }
+tlsn-tls-client-async = { path = "../tls/tls-client-async" }
+tls-server-fixture = { path = "../tls/tls-server-fixture" }
 
 tlsn-mpc-core = { path = "../mpc/mpc-core" }
 tlsn-mpc-circuits = { path = "../mpc/mpc-circuits" }
@@ -36,3 +38,6 @@ bytes = "1"
 
 tokio = "1.23"
 webpki-roots = "0.23"
+
+tracing = "0.1"
+tracing-subscriber = "0.3"

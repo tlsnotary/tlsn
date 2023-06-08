@@ -18,14 +18,8 @@ pub enum ProverError {
     InvalidServerName(#[from] tls_core::dns::InvalidDnsNameError),
     #[error("error occurred in MPC protocol: {0}")]
     MpcError(Box<dyn Error + Send + 'static>),
-    #[error("Prover is already running")]
-    AlreadyRunning,
-    #[error("Unable to close TLS connection")]
-    CloseTlsConnection,
     #[error("server did not send a close_notify")]
     ServerNoCloseNotify,
-    #[error("Prover has already been shutdown")]
-    AlreadyShutdown,
     #[error(transparent)]
     CommitmentError(#[from] CommitmentError),
 }

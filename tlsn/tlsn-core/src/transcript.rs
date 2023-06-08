@@ -1,21 +1,6 @@
-use crate::{error::Error, EncodingId};
+use crate::error::Error;
 use serde::{Deserialize, Serialize};
 use std::ops::Range;
-
-/// A set of transcripts
-#[derive(Serialize, Deserialize, Debug)]
-pub struct TranscriptSet(Vec<Transcript>);
-
-impl TranscriptSet {
-    pub fn new(transcripts: &[Transcript]) -> Self {
-        Self(transcripts.to_vec())
-    }
-
-    /// Returns a transcript with the given id
-    pub fn get_by_id(&self, id: &str) -> Option<&Transcript> {
-        self.0.iter().find(|&t| t.id() == id)
-    }
-}
 
 /// A transcript contains a subset of bytes from a TLS session
 #[derive(Default, Serialize, Deserialize, Clone, Debug)]
@@ -115,53 +100,44 @@ mod tests {
     use super::*;
 
     #[fixture]
-    fn transcripts() -> TranscriptSet {
+    fn transcripts() -> (Transcript, Transcript) {
         let sent = "data sent 123456789".as_bytes().to_vec();
         let recv = "data received 987654321".as_bytes().to_vec();
-        TranscriptSet::new(&[Transcript::new("tx", sent), Transcript::new("rx", recv)])
+        (Transcript::new("tx", sent), Transcript::new("rx", recv))
     }
 
     #[rstest]
-    fn test_get_bytes_in_ranges_ok(transcripts: TranscriptSet) {
+    fn test_get_bytes_in_ranges_ok(transcripts: (Transcript, Transcript)) {
+        let (sent, recv) = transcripts;
+
         let range1 = Range { start: 2, end: 4 };
         let range2 = Range { start: 10, end: 15 };
 
         let expected = "ta12345".as_bytes().to_vec();
         assert_eq!(
             expected,
-            transcripts
-                .get_by_id("tx")
-                .unwrap()
-                .get_bytes_in_ranges(&[range1.clone(), range2.clone()])
+            sent.get_bytes_in_ranges(&[range1.clone(), range2.clone()])
                 .unwrap()
         );
 
         let expected = "taved 9".as_bytes().to_vec();
         assert_eq!(
             expected,
-            transcripts
-                .get_by_id("rx")
-                .unwrap()
-                .get_bytes_in_ranges(&[range1, range2])
-                .unwrap()
+            recv.get_bytes_in_ranges(&[range1, range2]).unwrap()
         );
     }
 
     #[rstest]
-    fn test_get_bytes_in_ranges_err(transcripts: TranscriptSet) {
+    fn test_get_bytes_in_ranges_err(transcripts: (Transcript, Transcript)) {
+        let (sent, _) = transcripts;
+
         // no_range provided
-        let err = transcripts
-            .get_by_id("tx")
-            .unwrap()
-            .get_bytes_in_ranges(&[]);
+        let err = sent.get_bytes_in_ranges(&[]);
         assert_eq!(err.unwrap_err(), Error::InternalError);
 
         // range larger than data length
         let bad_range = Range { start: 2, end: 40 };
-        let err = transcripts
-            .get_by_id("tx")
-            .unwrap()
-            .get_bytes_in_ranges(&[bad_range]);
+        let err = sent.get_bytes_in_ranges(&[bad_range]);
         assert_eq!(err.unwrap_err(), Error::InternalError);
     }
 }

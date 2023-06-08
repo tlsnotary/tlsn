@@ -18,7 +18,7 @@ use tracing::{debug, debug_span, error, trace, Instrument};
 
 use tls_client::ClientConnection;
 
-use conn::TlsConnection;
+pub use conn::TlsConnection;
 
 const RX_TLS_BUF_SIZE: usize = 1 << 13; // 8 KiB
 const RX_BUF_SIZE: usize = 1 << 13; // 8 KiB
