@@ -1,5 +1,12 @@
 [workspace]
-members = ["tls-client", "tls-backend", "tls-core", "tls-mpc"]
+members = [
+    "tls-client",
+    "tls-backend",
+    "tls-core",
+    "tls-mpc",
+    "tls-client-async",
+    "tls-server-fixture",
+]
 
 [workspace.dependencies]
 # rand
@@ -13,6 +20,7 @@ hmac = "0.12"
 sct = "0.7"
 digest = "0.10"
 webpki = "0.22"
+webpki-roots = "0.23"
 ring = "0.16"
 elliptic-curve = "0.11"
 p256 = "0.10"
@@ -31,6 +39,7 @@ num-bigint = "0.4"
 num-traits = "0.2"
 
 # serialization
+bytes = "1.4"
 serde = "1.0"
 prost = "0.9"
 prost-build = "0.9"

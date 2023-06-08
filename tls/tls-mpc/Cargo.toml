@@ -34,6 +34,8 @@ thiserror.workspace = true
 
 [dev-dependencies]
 tlsn-tls-client = { path = "../tls-client" }
+tlsn-tls-client-async = { path = "../tls-client-async" }
+tls-server-fixture = { path = "../tls-server-fixture" }
 actor-ot = { path = "../../actors/actor-ot" }
 uid-mux = { path = "../../uid-mux" }
 

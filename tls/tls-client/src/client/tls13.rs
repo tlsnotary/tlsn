@@ -295,7 +295,7 @@ struct ExpectEncryptedExtensions {
     hello: ClientHelloDetails,
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl State<ClientConnectionData> for ExpectEncryptedExtensions {
     async fn handle(
         mut self: Box<Self>,
@@ -371,7 +371,7 @@ struct ExpectCertificateOrCertReq {
     may_send_sct_list: bool,
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl State<ClientConnectionData> for ExpectCertificateOrCertReq {
     async fn handle(
         self: Box<Self>,
@@ -434,7 +434,7 @@ struct ExpectCertificateRequest {
     may_send_sct_list: bool,
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl State<ClientConnectionData> for ExpectCertificateRequest {
     async fn handle(
         mut self: Box<Self>,
@@ -509,7 +509,7 @@ struct ExpectCertificate {
     client_auth: Option<ClientAuthDetails>,
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl State<ClientConnectionData> for ExpectCertificate {
     async fn handle(
         mut self: Box<Self>,
@@ -585,7 +585,7 @@ struct ExpectCertificateVerify {
     client_auth: Option<ClientAuthDetails>,
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl State<ClientConnectionData> for ExpectCertificateVerify {
     async fn handle(
         mut self: Box<Self>,
@@ -753,7 +753,7 @@ struct ExpectFinished {
     sig_verified: verify::HandshakeSignatureValid,
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl State<ClientConnectionData> for ExpectFinished {
     async fn handle(
         self: Box<Self>,
@@ -971,7 +971,7 @@ impl ExpectTraffic {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl State<ClientConnectionData> for ExpectTraffic {
     async fn handle(
         mut self: Box<Self>,

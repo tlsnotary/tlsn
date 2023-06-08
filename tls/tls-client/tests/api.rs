@@ -1188,7 +1188,7 @@ async fn client_complete_io_for_handshake() {
 
     assert!(client.is_handshaking());
     let (rdlen, wrlen) = client
-        .complete_io(&mut ServerSession::new(&mut server))
+        .complete_io(&mut BlockingIo(ServerSession::new(&mut server)))
         .await
         .unwrap();
     assert!(rdlen > 0 && wrlen > 0);
@@ -1198,7 +1198,7 @@ async fn client_complete_io_for_handshake() {
 #[tokio::test]
 async fn client_complete_io_for_handshake_eof() {
     let (mut client, _) = make_pair(KeyType::Rsa).await;
-    let mut input = io::Cursor::new(Vec::new());
+    let mut input = futures::io::Cursor::new(Vec::new());
 
     assert!(client.is_handshaking());
     let err = client.complete_io(&mut input).await.unwrap_err();
@@ -1223,7 +1223,10 @@ async fn client_complete_io_for_write() {
             .unwrap();
         {
             let mut pipe = ServerSession::new(&mut server);
-            let (rdlen, wrlen) = client.complete_io(&mut pipe).await.unwrap();
+            let (rdlen, wrlen) = client
+                .complete_io(&mut BlockingIo(&mut pipe))
+                .await
+                .unwrap();
             assert!(rdlen == 0 && wrlen > 0);
             println!("{:?}", pipe.writevs);
             assert_eq!(pipe.writevs, vec![vec![42, 42]]);
@@ -1246,7 +1249,10 @@ async fn client_complete_io_for_read() {
         server.writer().write_all(b"01234567890123456789").unwrap();
         {
             let mut pipe = ServerSession::new(&mut server);
-            let (rdlen, wrlen) = client.complete_io(&mut pipe).await.unwrap();
+            let (rdlen, wrlen) = client
+                .complete_io(&mut BlockingIo(&mut pipe))
+                .await
+                .unwrap();
             assert!(rdlen > 0 && wrlen == 0);
             assert_eq!(pipe.reads, 1);
         }

@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use async_trait::async_trait;
 use futures::{SinkExt, TryFutureExt};
 
@@ -297,6 +299,14 @@ impl MpcTlsLeader {
 
 #[async_trait]
 impl Backend for MpcTlsLeader {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     async fn set_protocol_version(&mut self, version: ProtocolVersion) -> Result<(), BackendError> {
         self.set_protocol_version(version);
 
@@ -341,10 +351,6 @@ impl Backend for MpcTlsLeader {
         self.set_server_key(key)
             .map_err(|_| BackendError::InvalidServerKey)?;
 
-        self.compute_session_keys()
-            .await
-            .map_err(|e| BackendError::InternalError(e.to_string()))?;
-
         Ok(())
     }
 
@@ -372,6 +378,12 @@ impl Backend for MpcTlsLeader {
             .compute_client_finished_vd(hash)
             .await
             .map_err(|e| BackendError::InternalError(e.to_string()))?)
+    }
+
+    async fn prepare_encryption(&mut self) -> Result<(), BackendError> {
+        self.compute_session_keys()
+            .await
+            .map_err(|e| BackendError::InternalError(e.to_string()))
     }
 
     async fn encrypt(

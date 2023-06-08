@@ -1,12 +1,16 @@
-use std::{io::Read, sync::Arc};
+use std::sync::Arc;
 
 use actor_ot::{create_ot_pair, OTActorReceiverConfig, OTActorSenderConfig, ObliviousReveal};
+use futures::{AsyncReadExt, AsyncWriteExt};
 use mpc_garble::{config::Role as GarbleRole, protocol::deap::DEAPVm};
 use mpc_share_conversion as ff;
+use tls_client::Certificate;
+use tls_client_async::bind_client;
 use tls_mpc::{
     setup_components, MpcTlsCommonConfig, MpcTlsFollower, MpcTlsFollowerConfig, MpcTlsLeader,
     MpcTlsLeaderConfig, TlsRole,
 };
+use tls_server_fixture::{bind_test_server, CA_CERT_DER, SERVER_DOMAIN};
 use tokio_util::compat::TokioAsyncReadCompatExt;
 use uid_mux::{yamux, UidYamux};
 use utils_aio::{codec::BincodeMux, mux::MuxChannel};
@@ -14,7 +18,7 @@ use utils_aio::{codec::BincodeMux, mux::MuxChannel};
 #[tokio::test]
 #[ignore]
 async fn test() {
-    let (leader_socket, follower_socket) = tokio::io::duplex(2 << 25);
+    let (leader_socket, follower_socket) = tokio::io::duplex(1 << 25);
 
     let mut leader_mux = UidYamux::new(
         yamux::Config::default(),
@@ -208,63 +212,45 @@ async fn test() {
     tokio::spawn(async move { follower.run().await.unwrap() });
 
     let mut root_store = tls_client::RootCertStore::empty();
-    root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
-        tls_client::OwnedTrustAnchor::from_subject_spki_name_constraints(
-            ta.subject,
-            ta.spki,
-            ta.name_constraints,
-        )
-    }));
+    root_store.add(&Certificate(CA_CERT_DER.to_vec())).unwrap();
     let config = tls_client::ClientConfig::builder()
         .with_safe_defaults()
         .with_root_certificates(root_store)
         .with_no_client_auth();
 
-    let server_name = "httpbin.org".try_into().unwrap();
-    let mut conn =
+    let server_name = SERVER_DOMAIN.try_into().unwrap();
+
+    let client =
         tls_client::ClientConnection::new(Arc::new(config), Box::new(leader), server_name).unwrap();
-    let mut sock = std::net::TcpStream::connect("httpbin.org:443").unwrap();
+
+    let (client_socket, server_socket) = tokio::io::duplex(1 << 16);
+
+    tokio::spawn(bind_test_server(server_socket.compat()));
+
+    let (mut conn, conn_fut) = bind_client(client_socket.compat(), client);
+
+    let conn_task = tokio::spawn(conn_fut);
 
     let msg = concat!(
-        "GET /get HTTP/1.1\r\n",
-        "Host: httpbin.org\r\n",
+        "POST /echo HTTP/1.1\r\n",
+        "Host: test-server.io\r\n",
         "Connection: close\r\n",
         "Accept-Encoding: identity\r\n",
         "\r\n"
     );
 
-    conn.start().await.unwrap();
-    conn.write_plaintext(msg.as_bytes()).await.unwrap();
+    conn.write_all(msg.as_bytes()).await.unwrap();
 
-    while conn.is_handshaking() {
-        conn.complete_io(&mut sock).await.unwrap();
-    }
+    let mut buf = Vec::new();
+    conn.read_to_end(&mut buf).await.unwrap();
 
-    loop {
-        if conn.wants_write() {
-            conn.write_tls(&mut sock).unwrap();
-        }
-
-        if conn.wants_read() {
-            let nbyte = conn.read_tls(&mut sock).unwrap();
-            if nbyte > 0 {
-                conn.process_new_packets().await.unwrap();
-            }
-        }
-
-        let mut buf = vec![0u8; 1024];
-        if let Ok(read) = conn.reader().read(&mut buf) {
-            if read > 0 {
-                println!("{}", String::from_utf8_lossy(&buf));
-            } else {
-                break;
-            }
-        }
-    }
+    println!("response: {}", String::from_utf8_lossy(&buf));
 
     follower_ot_send.reveal().await.unwrap();
 
     tokio::try_join!(leader_vm.finalize(), follower_vm.finalize()).unwrap();
 
     tokio::try_join!(leader_gf2.reveal(), follower_gf2.verify()).unwrap();
+
+    conn_task.await.unwrap().unwrap();
 }
