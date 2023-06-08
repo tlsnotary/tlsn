@@ -1,7 +1,7 @@
 use futures::AsyncWriteExt;
 use hyper::{body::to_bytes, Body, Request, StatusCode};
 use tls_server_fixture::{bind_test_server, CA_CERT_DER, SERVER_DOMAIN};
-use tlsn_notary::{attach_notary, NotaryConfig};
+use tlsn_notary::{bind_notary, NotaryConfig};
 use tlsn_prover::{bind_prover, ProverConfig};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
@@ -87,7 +87,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
 
 #[tracing::instrument(skip(socket))]
 async fn notary<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(socket: T) {
-    let (notary, notary_fut) = attach_notary(
+    let (notary, notary_fut) = bind_notary(
         NotaryConfig::builder().id("test").build().unwrap(),
         socket.compat(),
     )

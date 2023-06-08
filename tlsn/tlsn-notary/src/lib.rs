@@ -51,13 +51,13 @@ impl Future for NotaryBackgroundFut {
     }
 }
 
-/// Helper function to attach a new notary to the given socket.
+/// Helper function to bind a new notary to the given socket.
 ///
 /// # Arguments
 ///
 /// * `config` - The configuration for the notary.
 /// * `socket` - The socket to the prover.
-pub fn attach_notary<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
+pub fn bind_notary<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     config: NotaryConfig,
     socket: T,
 ) -> Result<(Notary<BincodeMux<UidYamuxControl>>, NotaryBackgroundFut), NotaryError> {
