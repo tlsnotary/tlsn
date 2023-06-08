@@ -75,6 +75,7 @@ fn alert_is_not_handshake() {
 }
 
 #[test]
+#[allow(clippy::useless_conversion)]
 fn alert_is_not_opaque() {
     let m = Message::build_alert(AlertLevel::Fatal, AlertDescription::DecodeError);
     assert!(Message::try_from(m).is_ok());
