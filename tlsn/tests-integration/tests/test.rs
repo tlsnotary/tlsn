@@ -85,6 +85,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
     _ = prover.finalize().await.unwrap();
 }
 
+#[tracing::instrument(skip(socket))]
 async fn notary<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(socket: T) {
     let (notary, notary_fut) = attach_notary(
         NotaryConfig::builder().id("test").build().unwrap(),
