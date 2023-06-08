@@ -78,6 +78,7 @@ pub async fn bind_prover<
     Ok((conn, conn_fut, mux_fut))
 }
 
+/// Multiplexer future which must be polled to make progress.
 pub struct MuxFuture {
     fut: Pin<Box<dyn Future<Output = Result<(), ProverError>> + Send + 'static>>,
 }
