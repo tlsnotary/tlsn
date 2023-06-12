@@ -79,6 +79,9 @@ pub enum KeyExchangeError {
 /// A trait for the 3-party key exchange protocol
 #[async_trait]
 pub trait KeyExchange {
+    /// Get the server's public key
+    fn server_key(&self) -> Option<PublicKey>;
+
     /// Set the server's public key
     fn set_server_key(&mut self, server_key: PublicKey);
 

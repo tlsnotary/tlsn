@@ -1,4 +1,4 @@
-use crate::{merkle::MerkleTree, transcript::TranscriptSet, SubstringsCommitmentSet, Transcript};
+use crate::{merkle::MerkleTree, SubstringsCommitmentSet, Transcript};
 use mpc_core::commit::Decommitment;
 use serde::{Deserialize, Serialize};
 use tls_core::handshake::HandshakeData;
@@ -6,7 +6,8 @@ use tls_core::handshake::HandshakeData;
 #[derive(Serialize, Deserialize)]
 pub struct SessionData {
     handshake_data_decommitment: Decommitment<HandshakeData>,
-    transcripts: TranscriptSet,
+    tx_transcript: Transcript,
+    rx_transcript: Transcript,
     merkle_tree: MerkleTree,
     commitments: SubstringsCommitmentSet,
 }
@@ -14,14 +15,15 @@ pub struct SessionData {
 impl SessionData {
     pub fn new(
         handshake_data_decommitment: Decommitment<HandshakeData>,
-        transcript_tx: Transcript,
-        transcript_rx: Transcript,
+        tx_transcript: Transcript,
+        rx_transcript: Transcript,
         merkle_tree: MerkleTree,
         commitments: SubstringsCommitmentSet,
     ) -> Self {
         Self {
             handshake_data_decommitment,
-            transcripts: TranscriptSet::new(&[transcript_tx, transcript_rx]),
+            tx_transcript,
+            rx_transcript,
             merkle_tree,
             commitments,
         }
@@ -31,8 +33,12 @@ impl SessionData {
         &self.handshake_data_decommitment
     }
 
-    pub fn transcripts(&self) -> &TranscriptSet {
-        &self.transcripts
+    pub fn sent_transcript(&self) -> &Transcript {
+        &self.tx_transcript
+    }
+
+    pub fn recv_transcript(&self) -> &Transcript {
+        &self.rx_transcript
     }
 
     pub fn merkle_tree(&self) -> &MerkleTree {

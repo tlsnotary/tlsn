@@ -25,6 +25,10 @@ pub struct MpcTlsCommonConfig {
     /// Opaque Rx transcript ID
     #[builder(setter(into), default = "DEFAULT_OPAQUE_RX_TRANSCRIPT_ID.to_string()")]
     opaque_rx_transcript_id: String,
+
+    /// Whether the leader commits to the handshake data.
+    #[builder(default = "true")]
+    handshake_commit: bool,
 }
 
 impl MpcTlsCommonConfig {
@@ -61,6 +65,11 @@ impl MpcTlsCommonConfig {
     /// Returns the opaque rx transcript id.
     pub fn opaque_rx_transcript_id(&self) -> &str {
         &self.opaque_rx_transcript_id
+    }
+
+    /// Whether the leader commits to the handshake data.
+    pub fn handshake_commit(&self) -> bool {
+        self.handshake_commit
     }
 }
 

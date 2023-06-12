@@ -1,3 +1,5 @@
+use std::assert_eq;
+
 use futures::{Future, FutureExt};
 use mpc_ot_core::msgs::OTMessage;
 use utils_aio::mux::MuxChannel;
@@ -17,11 +19,10 @@ use crate::{
 /// * `mux` - The muxer which sets up channels with the remote receiver
 /// * `config` - The configuration for the sender
 pub async fn create_ot_sender(
-    id: &str,
     mut mux: impl MuxChannel<OTMessage> + Send + 'static,
     config: OTActorSenderConfig,
 ) -> Result<(SenderActorControl, impl Future<Output = ()>), OTActorError> {
-    let channel = mux.get_channel(id).await?;
+    let channel = mux.get_channel(config.id()).await?;
     let (addr, mailbox) = Mailbox::unbounded();
     let (actor, fut) = KOSSenderActor::new(config, addr.clone(), channel, Box::new(mux));
 
@@ -39,11 +40,10 @@ pub async fn create_ot_sender(
 /// * `mux` - The muxer which sets up channels with the remote sender
 /// * `config` - The configuration for the receiver
 pub async fn create_ot_receiver(
-    id: &str,
     mut mux: impl MuxChannel<OTMessage> + Send + 'static,
     config: OTActorReceiverConfig,
 ) -> Result<(ReceiverActorControl, impl Future<Output = ()>), OTActorError> {
-    let channel = mux.get_channel(id).await?;
+    let channel = mux.get_channel(config.id()).await?;
     let (addr, mailbox) = Mailbox::unbounded();
     let (actor, fut) = KOSReceiverActor::new(config, addr.clone(), channel, Box::new(mux));
 
@@ -62,7 +62,6 @@ pub async fn create_ot_receiver(
 /// * `sender_config` - The configuration for the sender
 /// * `receiver_config` - The configuration for the receiver
 pub async fn create_ot_pair(
-    id: &str,
     sender_mux: impl MuxChannel<OTMessage> + Send + 'static,
     receiver_mux: impl MuxChannel<OTMessage> + Send + 'static,
     sender_config: OTActorSenderConfig,
@@ -74,8 +73,9 @@ pub async fn create_ot_pair(
     ),
     OTActorError,
 > {
+    assert_eq!(sender_config.id(), receiver_config.id());
     futures::try_join!(
-        create_ot_sender(id, sender_mux, sender_config),
-        create_ot_receiver(id, receiver_mux, receiver_config)
+        create_ot_sender(sender_mux, sender_config),
+        create_ot_receiver(receiver_mux, receiver_config)
     )
 }

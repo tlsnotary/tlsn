@@ -2,7 +2,7 @@ use crate::{
     commitment::{Blake3, Commitment},
     error::Error,
     utils::merge_slices,
-    Direction, SessionHeader, Transcript, TranscriptSlice,
+    Direction, EncodingId, SessionHeader, Transcript, TranscriptSlice,
 };
 use mpc_circuits::types::ValueType;
 use mpc_core::commit::{Decommitment, Nonce};
@@ -115,7 +115,7 @@ impl SubstringsOpening {
                             .map(|id| {
                                 header
                                     .encoder()
-                                    .encode_by_type(id.to_inner(), &ValueType::U8)
+                                    .encode_by_type(EncodingId::new(&id).to_inner(), &ValueType::U8)
                             })
                             // collect full encodings
                             .collect::<Vec<_>>()

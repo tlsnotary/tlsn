@@ -1,24 +1,9 @@
-use crate::{error::Error, EncodingId};
+use crate::error::Error;
 use serde::{Deserialize, Serialize};
 use std::ops::Range;
 
-/// A set of transcripts
-#[derive(Serialize, Deserialize)]
-pub struct TranscriptSet(Vec<Transcript>);
-
-impl TranscriptSet {
-    pub fn new(transcripts: &[Transcript]) -> Self {
-        Self(transcripts.to_vec())
-    }
-
-    /// Returns a transcript with the given id
-    pub fn get_by_id(&self, id: &str) -> Option<&Transcript> {
-        self.0.iter().find(|&t| t.id() == id)
-    }
-}
-
 /// A transcript contains a subset of bytes from a TLS session
-#[derive(Default, Serialize, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, Debug)]
 pub struct Transcript {
     id: String,
     data: Vec<u8>,
@@ -32,13 +17,17 @@ impl Transcript {
         }
     }
 
-    /// Returns the encoding ID for each byte in the provided range
-    pub fn get_ids(&self, range: &Range<u32>) -> Vec<EncodingId> {
+    /// Extends the transcript with the given data
+    pub fn extend(&mut self, data: &[u8]) {
+        self.data.extend(data);
+    }
+
+    /// Returns the value ID for each byte in the provided range
+    pub fn get_ids(&self, range: &Range<u32>) -> Vec<String> {
         range
             .clone()
-            .map(|idx| EncodingId::new(&format!("{}/{}", self.id, idx)))
+            .map(|idx| format!("{}/{}", self.id, idx))
             .collect::<Vec<_>>()
-            .to_vec()
     }
 
     /// Returns a concatenated bytestring located in the given ranges of the transcript.
@@ -111,53 +100,44 @@ mod tests {
     use super::*;
 
     #[fixture]
-    fn transcripts() -> TranscriptSet {
+    fn transcripts() -> (Transcript, Transcript) {
         let sent = "data sent 123456789".as_bytes().to_vec();
         let recv = "data received 987654321".as_bytes().to_vec();
-        TranscriptSet::new(&[Transcript::new("tx", sent), Transcript::new("rx", recv)])
+        (Transcript::new("tx", sent), Transcript::new("rx", recv))
     }
 
     #[rstest]
-    fn test_get_bytes_in_ranges_ok(transcripts: TranscriptSet) {
+    fn test_get_bytes_in_ranges_ok(transcripts: (Transcript, Transcript)) {
+        let (sent, recv) = transcripts;
+
         let range1 = Range { start: 2, end: 4 };
         let range2 = Range { start: 10, end: 15 };
 
         let expected = "ta12345".as_bytes().to_vec();
         assert_eq!(
             expected,
-            transcripts
-                .get_by_id("tx")
-                .unwrap()
-                .get_bytes_in_ranges(&[range1.clone(), range2.clone()])
+            sent.get_bytes_in_ranges(&[range1.clone(), range2.clone()])
                 .unwrap()
         );
 
         let expected = "taved 9".as_bytes().to_vec();
         assert_eq!(
             expected,
-            transcripts
-                .get_by_id("rx")
-                .unwrap()
-                .get_bytes_in_ranges(&[range1, range2])
-                .unwrap()
+            recv.get_bytes_in_ranges(&[range1, range2]).unwrap()
         );
     }
 
     #[rstest]
-    fn test_get_bytes_in_ranges_err(transcripts: TranscriptSet) {
+    fn test_get_bytes_in_ranges_err(transcripts: (Transcript, Transcript)) {
+        let (sent, _) = transcripts;
+
         // no_range provided
-        let err = transcripts
-            .get_by_id("tx")
-            .unwrap()
-            .get_bytes_in_ranges(&[]);
+        let err = sent.get_bytes_in_ranges(&[]);
         assert_eq!(err.unwrap_err(), Error::InternalError);
 
         // range larger than data length
         let bad_range = Range { start: 2, end: 40 };
-        let err = transcripts
-            .get_by_id("tx")
-            .unwrap()
-            .get_bytes_in_ranges(&[bad_range]);
+        let err = sent.get_bytes_in_ranges(&[bad_range]);
         assert_eq!(err.unwrap_err(), Error::InternalError);
     }
 }

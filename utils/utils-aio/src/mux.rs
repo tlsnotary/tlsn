@@ -23,9 +23,11 @@ pub trait MuxStream: Clone {
 
 /// A trait for opening a new duplex channel with a remote peer.
 #[async_trait]
-pub trait MuxChannelSized: Sized {
+pub trait MuxChannelSerde: Sized {
     /// Opens a new channel with the remote using the provided id
-    async fn get_channel<T: Send + 'static>(
+    async fn get_channel<
+        T: serde::Serialize + serde::de::DeserializeOwned + Send + Sync + Unpin + 'static,
+    >(
         &mut self,
         id: &str,
     ) -> Result<Box<dyn Channel<T> + 'static>, MuxerError>;
@@ -43,9 +45,10 @@ pub trait MuxChannel<T> {
 }
 
 #[async_trait]
-impl<T: Send + 'static, U> MuxChannel<T> for U
+impl<T, U> MuxChannel<T> for U
 where
-    U: MuxChannelSized + Send,
+    T: serde::Serialize + serde::de::DeserializeOwned + Send + Sync + Unpin + 'static,
+    U: MuxChannelSerde + Send,
 {
     async fn get_channel(&mut self, id: &str) -> Result<Box<dyn Channel<T> + 'static>, MuxerError> {
         self.get_channel::<T>(id).await
@@ -116,7 +119,7 @@ pub mod mock {
     }
 
     #[async_trait]
-    impl MuxChannelSized for MockMuxChannelFactory {
+    impl MuxChannelSerde for MockMuxChannelFactory {
         async fn get_channel<T: Send + 'static>(
             &mut self,
             id: &str,
@@ -148,7 +151,7 @@ pub mod mock {
     mod test {
         use futures::{SinkExt, StreamExt};
 
-        use super::{MockMuxChannelFactory, MuxChannelSized};
+        use super::{MockMuxChannelFactory, MuxChannelSerde};
 
         #[tokio::test]
         async fn test_mock_mux_channel_factory() {

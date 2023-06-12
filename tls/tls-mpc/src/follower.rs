@@ -2,8 +2,10 @@ use futures::StreamExt;
 
 use hmac_sha256 as prf;
 use key_exchange as ke;
+use mpc_core::hash::Hash;
 use mpc_garble::ValueRef;
 
+use p256::elliptic_curve::sec1::ToEncodedPoint;
 use prf::SessionKeys;
 
 use aead::Aead;
@@ -11,10 +13,11 @@ use hmac_sha256::Prf;
 use ke::KeyExchange;
 use tls_core::{
     cipher::make_tls12_aad,
+    key::PublicKey,
     msgs::{
         alert::AlertMessagePayload,
         codec::Codec,
-        enums::{AlertDescription, AlertLevel, ContentType, ProtocolVersion},
+        enums::{AlertDescription, AlertLevel, ContentType, NamedGroup, ProtocolVersion},
     },
 };
 use utils_aio::expect_msg_or_err;
@@ -25,13 +28,15 @@ use crate::{
 };
 
 pub struct MpcTlsFollower {
-    _config: MpcTlsFollowerConfig,
+    config: MpcTlsFollowerConfig,
     channel: MpcTlsChannel,
 
     ke: Box<dyn KeyExchange + Send>,
     prf: Box<dyn Prf + Send>,
     encrypter: Encrypter,
     decrypter: Decrypter,
+
+    handshake_commitment: Option<Hash>,
 }
 
 impl MpcTlsFollower {
@@ -60,12 +65,13 @@ impl MpcTlsFollower {
         };
 
         Self {
-            _config: config,
+            config,
             channel,
             ke,
             prf,
             encrypter,
             decrypter,
+            handshake_commitment: None,
         }
     }
 
@@ -74,12 +80,35 @@ impl MpcTlsFollower {
         (self.encrypter.sent_bytes(), self.decrypter.recv_bytes())
     }
 
+    /// Returns the server's public key
+    pub fn server_key(&self) -> Option<PublicKey> {
+        self.ke.server_key().map(|key| {
+            PublicKey::new(
+                NamedGroup::secp256r1,
+                key.to_encoded_point(false).as_bytes(),
+            )
+        })
+    }
+
+    /// Returns the leader's handshake commitment
+    pub fn handshake_commitment(&self) -> Option<Hash> {
+        self.handshake_commitment
+    }
+
     async fn run_key_exchange(&mut self) -> Result<(), MpcTlsError> {
         // Key exchange
         _ = self
             .ke
             .compute_client_key(p256::SecretKey::random(rand::rngs::OsRng))
             .await?;
+
+        if self.config.common().handshake_commit() {
+            let handshake_commitment =
+                expect_msg_or_err!(self.channel, MpcTlsMessage::HandshakeCommitment)?;
+
+            self.handshake_commitment = Some(handshake_commitment);
+        }
+
         let pms = self.ke.compute_pms().await?;
 
         // PRF
@@ -183,7 +212,12 @@ impl MpcTlsFollower {
                         return Err(MpcTlsError::UnexpectedContentType(typ));
                     }
                 },
-                MpcTlsMessage::CloseConnection => break,
+                MpcTlsMessage::SendCloseNotify(EncryptMessage { typ, seq, len }) => {
+                    self.encrypter.encrypt_blind(typ, seq, len).await?;
+                }
+                msg => {
+                    return Err(MpcTlsError::UnexpectedMessage(msg));
+                }
             }
         }
 

@@ -1,7 +1,7 @@
 use derive_builder::Builder;
 
 /// OT sender actor configuration
-#[derive(Debug, Default, Builder)]
+#[derive(Debug, Clone, Default, Builder)]
 pub struct OTActorSenderConfig {
     /// The ID of the sender
     #[builder(setter(into))]
@@ -18,6 +18,11 @@ impl OTActorSenderConfig {
     pub fn builder() -> OTActorSenderConfigBuilder {
         OTActorSenderConfigBuilder::default()
     }
+
+    /// Returns the ID of the sender
+    pub fn id(&self) -> &str {
+        &self.id
+    }
 }
 
 impl OTActorSenderConfigBuilder {
@@ -29,7 +34,7 @@ impl OTActorSenderConfigBuilder {
 }
 
 /// OT receiver actor configuration
-#[derive(Debug, Default, Builder)]
+#[derive(Debug, Clone, Default, Builder)]
 pub struct OTActorReceiverConfig {
     /// The ID of the receiver
     #[builder(setter(into))]
@@ -45,6 +50,11 @@ impl OTActorReceiverConfig {
     /// Creates a new builder for the OT receiver actor configuration
     pub fn builder() -> OTActorReceiverConfigBuilder {
         OTActorReceiverConfigBuilder::default()
+    }
+
+    /// Returns the ID of the receiver
+    pub fn id(&self) -> &str {
+        &self.id
     }
 }
 

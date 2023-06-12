@@ -6,6 +6,12 @@ pub enum Commitment {
     Blake3(Blake3),
 }
 
+impl From<Blake3> for Commitment {
+    fn from(c: Blake3) -> Self {
+        Self::Blake3(c)
+    }
+}
+
 /// A blake3 digest of the encoding of the plaintext
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Blake3 {

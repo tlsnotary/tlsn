@@ -11,8 +11,8 @@ pub struct SessionArtifacts {
     merkle_tree: MerkleTree,
     // encoder seed revealed by the Notary at the end of the label commitment protocol
     encoder_seed: [u8; 32],
-    // server ephemeral key
-    ephem_key: PublicKey,
+    // server ephemeral public key
+    server_public_key: PublicKey,
     // decommitment to handshake data
     handshake_data_decommitment: Decommitment<HandshakeData>,
 }
@@ -22,14 +22,14 @@ impl SessionArtifacts {
         time: u64,
         merkle_tree: MerkleTree,
         encoder_seed: [u8; 32],
-        ephem_key: PublicKey,
+        server_public_key: PublicKey,
         handshake_data_decommitment: Decommitment<HandshakeData>,
     ) -> Self {
         Self {
             time,
             merkle_tree,
             encoder_seed,
-            ephem_key,
+            server_public_key,
             handshake_data_decommitment,
         }
     }
@@ -46,8 +46,8 @@ impl SessionArtifacts {
         &self.encoder_seed
     }
 
-    pub fn ephem_key(&self) -> &PublicKey {
-        &self.ephem_key
+    pub fn server_public_key(&self) -> &PublicKey {
+        &self.server_public_key
     }
 
     pub fn handshake_data_decommitment(&self) -> &Decommitment<HandshakeData> {

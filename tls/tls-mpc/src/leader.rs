@@ -5,6 +5,7 @@ use futures::{SinkExt, TryFutureExt};
 
 use hmac_sha256 as prf;
 use key_exchange as ke;
+use mpc_core::commit::{Decommitment, HashCommit};
 use prf::SessionKeys;
 
 use aead::Aead;
@@ -16,6 +17,7 @@ use tls_backend::{Backend, BackendError, DecryptMode, EncryptMode};
 use tls_core::{
     cert::ServerCertDetails,
     cipher::make_tls12_aad,
+    handshake::HandshakeData,
     ke::ServerKxDetails,
     key::PublicKey,
     msgs::{
@@ -51,7 +53,12 @@ struct ConnectionState {
     client_random: Random,
     server_random: Option<Random>,
 
-    server_public_key: Option<p256::PublicKey>,
+    server_cert_details: Option<ServerCertDetails>,
+    server_public_key: Option<PublicKey>,
+    server_kx_details: Option<ServerKxDetails>,
+
+    handshake_data: Option<HandshakeData>,
+    handshake_decommitment: Option<Decommitment<HandshakeData>>,
 
     sent_bytes: usize,
     recv_bytes: usize,
@@ -64,7 +71,11 @@ impl Default for ConnectionState {
             cipher_suite: Default::default(),
             client_random: Random::new().expect("thread rng is available"),
             server_random: Default::default(),
+            server_cert_details: Default::default(),
             server_public_key: Default::default(),
+            server_kx_details: Default::default(),
+            handshake_data: Default::default(),
+            handshake_decommitment: Default::default(),
             sent_bytes: 0,
             recv_bytes: 0,
         }
@@ -108,12 +119,34 @@ impl MpcTlsLeader {
             return Err(MpcTlsError::UnsupportedCurveGroup(key.group));
         }
 
-        let key = p256::PublicKey::from_sec1_bytes(&key.key)
-            .map_err(|_| MpcTlsError::InvalidServerKey)?;
-
         self.conn_state.server_public_key = Some(key);
 
         Ok(())
+    }
+
+    /// Returns the server's public key.
+    pub fn server_public_key(&self) -> Option<&PublicKey> {
+        self.conn_state.server_public_key.as_ref()
+    }
+
+    /// Returns the server's certificate details.
+    pub fn server_cert_details(&self) -> Option<&ServerCertDetails> {
+        self.conn_state.server_cert_details.as_ref()
+    }
+
+    /// Returns the server's kx details.
+    pub fn server_kx_details(&self) -> Option<&ServerKxDetails> {
+        self.conn_state.server_kx_details.as_ref()
+    }
+
+    /// Returns the handshake data.
+    pub fn handshake_decommitment(&self) -> Option<&Decommitment<HandshakeData>> {
+        self.conn_state.handshake_decommitment.as_ref()
+    }
+
+    /// Returns a mutable reference to the handshake data.
+    pub fn handshake_decommitment_mut(&mut self) -> &mut Option<Decommitment<HandshakeData>> {
+        &mut self.conn_state.handshake_decommitment
     }
 
     /// Returns the number of bytes sent and received.
@@ -135,17 +168,52 @@ impl MpcTlsLeader {
     }
 
     pub async fn compute_session_keys(&mut self) -> Result<(), MpcTlsError> {
+        let server_cert_details = self
+            .conn_state
+            .server_cert_details
+            .as_ref()
+            .ok_or(MpcTlsError::ServerCertNotSet)?;
+
+        let server_kx_details = self
+            .conn_state
+            .server_kx_details
+            .as_ref()
+            .ok_or(MpcTlsError::ServerKxDetailsNotSet)?;
+
+        let server_key = self
+            .conn_state
+            .server_public_key
+            .as_ref()
+            .ok_or(MpcTlsError::ServerKeyNotSet)?;
+
         let server_random = self
             .conn_state
             .server_random
             .ok_or(MpcTlsError::ServerRandomNotSet)?;
 
-        let server_key = self
-            .conn_state
-            .server_public_key
-            .ok_or(MpcTlsError::ServerKeyNotSet)?;
-
         let client_random = self.conn_state.client_random;
+
+        let handshake_data = HandshakeData::new(
+            server_cert_details.clone(),
+            server_kx_details.clone(),
+            client_random,
+            server_random,
+        );
+
+        if self.config.common().handshake_commit() {
+            let (decommitment, commitment) = handshake_data.clone().hash_commit();
+
+            self.conn_state.handshake_decommitment = Some(decommitment);
+
+            self.channel
+                .send(MpcTlsMessage::HandshakeCommitment(commitment))
+                .await?;
+        }
+
+        self.conn_state.handshake_data = Some(handshake_data);
+
+        let server_key = p256::PublicKey::from_sec1_bytes(&server_key.key)
+            .map_err(|_| MpcTlsError::InvalidServerKey)?;
 
         self.ke.set_server_key(server_key);
 
@@ -202,13 +270,26 @@ impl MpcTlsLeader {
 
         let aad = make_tls12_aad(seq, m.typ, m.version, m.payload.0.len());
 
-        self.channel
-            .send(MpcTlsMessage::EncryptMessage(EncryptMessage {
-                typ: m.typ,
-                seq,
-                len: m.payload.0.len(),
-            }))
-            .await?;
+        match m.typ {
+            ContentType::Alert => {
+                self.channel
+                    .send(MpcTlsMessage::SendCloseNotify(EncryptMessage {
+                        typ: m.typ,
+                        seq,
+                        len: m.payload.0.len(),
+                    }))
+                    .await?;
+            }
+            _ => {
+                self.channel
+                    .send(MpcTlsMessage::EncryptMessage(EncryptMessage {
+                        typ: m.typ,
+                        seq,
+                        len: m.payload.0.len(),
+                    }))
+                    .await?;
+            }
+        }
 
         // Set the transcript id depending on the type of message
         match m.typ {
@@ -354,9 +435,13 @@ impl Backend for MpcTlsLeader {
         Ok(())
     }
 
-    fn set_server_cert_details(&mut self, _cert_details: ServerCertDetails) {}
+    fn set_server_cert_details(&mut self, cert_details: ServerCertDetails) {
+        self.conn_state.server_cert_details = Some(cert_details);
+    }
 
-    fn set_server_kx_details(&mut self, _kx_details: ServerKxDetails) {}
+    fn set_server_kx_details(&mut self, kx_details: ServerKxDetails) {
+        self.conn_state.server_kx_details = Some(kx_details);
+    }
 
     async fn set_hs_hash_client_key_exchange(&mut self, _hash: &[u8]) -> Result<(), BackendError> {
         Ok(())

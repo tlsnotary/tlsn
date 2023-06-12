@@ -4,7 +4,7 @@ use tokio_serde::formats::Bincode;
 use tokio_util::{codec::LengthDelimitedCodec, compat::FuturesAsyncReadCompatExt};
 
 use crate::{
-    mux::{MuxChannel, MuxStream, MuxerError},
+    mux::{MuxChannelSerde, MuxStream, MuxerError},
     Channel,
 };
 
@@ -36,12 +36,16 @@ where
 }
 
 #[async_trait]
-impl<M, T> MuxChannel<T> for BincodeMux<M>
+impl<M> MuxChannelSerde for BincodeMux<M>
 where
     M: MuxStream + Send + 'static,
-    T: serde::Serialize + for<'a> serde::Deserialize<'a> + Send + Sync + Unpin + 'static,
 {
-    async fn get_channel(&mut self, id: &str) -> Result<Box<dyn Channel<T> + 'static>, MuxerError> {
+    async fn get_channel<
+        T: serde::Serialize + serde::de::DeserializeOwned + Send + Sync + Unpin + 'static,
+    >(
+        &mut self,
+        id: &str,
+    ) -> Result<Box<dyn Channel<T> + 'static>, MuxerError> {
         let stream = self.0.get_stream(id).await?;
 
         Ok(Box::new(self.attach_codec(stream)))

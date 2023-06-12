@@ -187,6 +187,10 @@ where
     PR: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send,
     E: Memory + Execute + Decode + Send,
 {
+    fn server_key(&self) -> Option<PublicKey> {
+        self.server_key
+    }
+
     /// Set the server's public key
     fn set_server_key(&mut self, server_key: PublicKey) {
         self.server_key = Some(server_key);
