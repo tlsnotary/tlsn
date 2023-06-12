@@ -1,19 +1,12 @@
 [workspace]
 members = ["stream-cipher", "block-cipher"]
+resolver = "2"
 
 [workspace.dependencies]
 # tlsn
 mpz-circuits = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
-mpz-core = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
-mpz-garble-core = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
 mpz-garble = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
 tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils" }
-tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils" }
-
-# rand
-rand_chacha = "0.3"
-rand = "0.8"
-rand_core = "0.6"
 
 # crypto
 aes = "0.8"
@@ -23,22 +16,14 @@ cipher = "0.4.3"
 # async
 async-trait = "0.1"
 futures = "0.3"
-futures-util = "0.3"
 tokio = { version = "1", default-features = false }
-tokio-util = "0.7"
 
 # testing
-rstest = "0.16"
-criterion = "0.3"
-
-# serialization
-prost = "0.9"
+rstest = "0.17"
+criterion = "0.5"
 
 # error/log
 thiserror = "1"
 
 # misc
-rayon = "1"
-derive_builder = "0.11"
-once_cell = "1"
-generic-array = "0.14"
+derive_builder = "0.12"
