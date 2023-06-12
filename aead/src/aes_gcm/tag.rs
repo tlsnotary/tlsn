@@ -9,8 +9,6 @@ pub(crate) const AES_GCM_TAG_LEN: usize = 16;
 pub(crate) struct AesGcmTagShare(pub(crate) [u8; 16]);
 
 impl AesGcmTagShare {
-    // TODO: fix error size
-    #[allow(clippy::result_large_err)]
     pub(crate) fn from_unchecked(share: &[u8]) -> Result<Self, AeadError> {
         if share.len() != 16 {
             return Err(AeadError::ValidationError(
@@ -42,6 +40,7 @@ impl Add for AesGcmTagShare {
 }
 
 /// Builds padded data for GHASH
+#[cfg_attr(feature = "tracing", tracing::instrument(level = "trace", ret))]
 pub(crate) fn build_ghash_data(mut aad: Vec<u8>, mut ciphertext: Vec<u8>) -> Vec<u8> {
     let associated_data_bitlen = (aad.len() as u64) * 8;
     let text_bitlen = (ciphertext.len() as u64) * 8;
