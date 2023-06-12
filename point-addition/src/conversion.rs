@@ -68,7 +68,7 @@ where
     /// Perform the conversion of P = A + B => P_x = a + b
     ///
     /// Since we are only interested in the x-coordinate of P (for the PMS) and because elliptic
-    /// curve point addition is an expensive operation in 2PC, we secretly share the x-coordinate
+    /// curve point addition is an expensive operation in 2PC, we secret-share the x-coordinate
     /// of P as a simple addition of field elements between the two parties. So we go from an EC
     /// point addition to an addition of field elements for the x-coordinate.
     #[cfg_attr(

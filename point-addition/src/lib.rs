@@ -1,6 +1,6 @@
-//! A library for converting two-party shares of an elliptic curve (EC) point's x-coordinate under
-//! EC point addition into two-party shares of said point's x-coordinate under the EC's underlying
-//! field addition
+//! A secure two-party computation (2PC) library for converting additive shares of an elliptic
+//! curve (EC) point into additive shares of said point's x-coordinate. The additive shares of the
+//! x-coordinate are finite field elements.
 
 #![deny(missing_docs, unreachable_pub, unused_must_use)]
 #![deny(clippy::all)]
@@ -29,7 +29,7 @@ pub enum PointAdditionError {
     Coordinates,
 }
 
-/// A trait for secretly sharing the sum of two elliptic curve points as a sum of field elements
+/// A trait for secret-sharing the sum of two elliptic curve points as a sum of field elements
 ///
 /// This trait is for securely secret-sharing the addition of two elliptic curve points.
 /// Let `P + Q = O = (x, y)`. Each party receives additive shares of the x-coordinate.
