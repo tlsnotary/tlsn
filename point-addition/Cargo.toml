@@ -1,5 +1,10 @@
 [package]
 name = "tlsn-point-addition"
+authors = ["TLSNotary Team"]
+description = "Addition of EC points using 2PC, producing additive secret-shares of the resulting x-coordinate"
+keywords = ["tls", "mpc", "2pc", "ecc", "elliptic"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,12 +14,14 @@ name = "point_addition"
 [features]
 default = ["mock"]
 mock = ["dep:tlsn-mpc-core"]
+tracing = ["dep:tracing"]
 
 [dependencies]
 tlsn-mpc-core = { path = "../mpc/mpc-core", optional = true }
 tlsn-mpc-share-conversion = { path = "../mpc/share-conversion/mpc-share-conversion" }
 tlsn-mpc-share-conversion-core = { path = "../mpc/share-conversion/mpc-share-conversion-core" }
 p256 = { version = "0.12", features = ["arithmetic"] }
+tracing = { version = "0.1", optional = true }
 async-trait = "0.1"
 thiserror = "1"
 

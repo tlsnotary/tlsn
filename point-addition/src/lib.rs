@@ -1,15 +1,26 @@
+//! A secure two-party computation (2PC) library for converting additive shares of an elliptic
+//! curve (EC) point into additive shares of said point's x-coordinate. The additive shares of the
+//! x-coordinate are finite field elements.
+
+#![deny(missing_docs, unreachable_pub, unused_must_use)]
+#![deny(clippy::all)]
+#![forbid(unsafe_code)]
+
 use async_trait::async_trait;
 use mpc_share_conversion::ShareConversionError;
 use mpc_share_conversion_core::fields::Field;
 
 mod conversion;
+
+/// A mock implementation of the [PointAddition] trait
 #[cfg(feature = "mock")]
 pub mod mock;
 
 pub use conversion::{MpcPointAddition, Role};
-
 pub use mpc_share_conversion_core::fields::p256::P256;
 
+/// The error type for [PointAddition]
+#[allow(missing_docs)]
 #[derive(Debug, thiserror::Error)]
 pub enum PointAdditionError {
     #[error(transparent)]
@@ -18,11 +29,15 @@ pub enum PointAdditionError {
     Coordinates,
 }
 
+/// A trait for secret-sharing the sum of two elliptic curve points as a sum of field elements
+///
 /// This trait is for securely secret-sharing the addition of two elliptic curve points.
 /// Let `P + Q = O = (x, y)`. Each party receives additive shares of the x-coordinate.
 #[async_trait]
 pub trait PointAddition {
+    /// The elliptic curve point type
     type Point;
+    /// The x-coordinate type for the finite field underlying the EC
     type XCoordinate: Field;
 
     /// Adds two elliptic curve points in 2PC, returning respective secret shares
