@@ -22,7 +22,7 @@ impl Transcript {
         self.data.extend(data);
     }
 
-    /// Returns the encoding ID for each byte in the provided range
+    /// Returns the value ID for each byte in the provided range
     pub fn get_ids(&self, range: &Range<u32>) -> Vec<String> {
         range
             .clone()

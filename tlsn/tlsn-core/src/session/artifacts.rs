@@ -11,7 +11,7 @@ pub struct SessionArtifacts {
     merkle_tree: MerkleTree,
     // encoder seed revealed by the Notary at the end of the label commitment protocol
     encoder_seed: [u8; 32],
-    // server ephemeral key
+    // server ephemeral public key
     server_public_key: PublicKey,
     // decommitment to handshake data
     handshake_data_decommitment: Decommitment<HandshakeData>,

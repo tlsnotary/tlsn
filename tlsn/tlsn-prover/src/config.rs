@@ -3,7 +3,7 @@ use mpc_share_conversion::{ReceiverConfig, SenderConfig};
 use tls_client::RootCertStore;
 use tls_mpc::{MpcTlsCommonConfig, MpcTlsLeaderConfig};
 
-const DEFAULT_MAX_TRANSCRIPT_SIZE: usize = 2 << 14; // 16Kb
+const DEFAULT_MAX_TRANSCRIPT_SIZE: usize = 1 << 14; // 16Kb
 
 #[derive(Debug, Clone, derive_builder::Builder)]
 pub struct ProverConfig {
