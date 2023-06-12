@@ -167,10 +167,7 @@ impl MpcAesGcm {
 
 #[async_trait]
 impl Aead for MpcAesGcm {
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "info", skip(key), err)
-    )]
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = "info", err))]
     async fn set_key(&mut self, key: ValueRef, iv: ValueRef) -> Result<(), AeadError> {
         self.aes_block.set_key(key.clone());
         self.aes_ctr.set_key(key, iv);
