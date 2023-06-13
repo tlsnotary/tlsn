@@ -10,10 +10,10 @@ name = "tls_mpc"
 tlsn-tls-core = { path = "../tls-core", features = ["serde"] }
 tlsn-tls-backend = { path = "../tls-backend" }
 
-tlsn-mpc-core = { path = "../../mpc/mpc-core" }
-tlsn-mpc-garble = { path = "../../mpc/garble/mpc-garble" }
-tlsn-mpc-ot = { path = "../../mpc/ot/mpc-ot" }
-tlsn-mpc-share-conversion = { path = "../../mpc/share-conversion/mpc-share-conversion" }
+tlsn-mpc-core = { git = "https://github.com/tlsnotary/mpz" }
+tlsn-mpc-garble = { git = "https://github.com/tlsnotary/mpz" }
+tlsn-mpc-ot = { git = "https://github.com/tlsnotary/mpz" }
+tlsn-mpc-share-conversion = { git = "https://github.com/tlsnotary/mpz" }
 tlsn-block-cipher = { path = "../../cipher/block-cipher" }
 tlsn-stream-cipher = { path = "../../cipher/stream-cipher" }
 tlsn-universal-hash = { path = "../../universal-hash" }
@@ -21,8 +21,8 @@ tlsn-aead = { path = "../../aead" }
 tlsn-key-exchange = { path = "../../key-exchange" }
 tlsn-point-addition = { path = "../../point-addition" }
 tlsn-hmac-sha256 = { path = "../../prf/hmac-sha256" }
-tlsn-utils = { path = "../../utils/utils" }
-tlsn-utils-aio = { path = "../../utils/utils-aio" }
+tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils" }
+tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils" }
 
 p256 = { version = "0.12" }
 

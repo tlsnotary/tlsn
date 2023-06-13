@@ -12,13 +12,13 @@ tlsn-tls-client = { path = "../tls/tls-client" }
 tlsn-tls-client-async = { path = "../tls/tls-client-async" }
 tls-server-fixture = { path = "../tls/tls-server-fixture" }
 
-tlsn-mpc-core = { path = "../mpc/mpc-core" }
-tlsn-mpc-circuits = { path = "../mpc/mpc-circuits" }
-tlsn-mpc-garble-core = { path = "../mpc/garble/mpc-garble-core" }
-tlsn-mpc-garble = { path = "../mpc/garble/mpc-garble" }
-tlsn-utils = { path = "../utils/utils" }
-tlsn-utils-aio = { path = "../utils/utils-aio" }
-tlsn-mpc-share-conversion = { path = "../mpc/share-conversion/mpc-share-conversion" }
+tlsn-mpc-core = { git = "https://github.com/tlsnotary/mpz" }
+tlsn-mpc-circuits = { git = "https://github.com/tlsnotary/mpz" }
+tlsn-mpc-garble-core = { git = "https://github.com/tlsnotary/mpz" }
+tlsn-mpc-garble = { git = "https://github.com/tlsnotary/mpz" }
+tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils" }
+tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils" }
+tlsn-mpc-share-conversion = { git = "https://github.com/tlsnotary/mpz" }
 
 actor-ot = { path = "../actors/actor-ot" }
 

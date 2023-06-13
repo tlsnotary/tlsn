@@ -22,14 +22,7 @@ at your option.
 - documentation: <https://docs.tlsnotary.org/> (under development)
 
 ## Overview
-- **mpc**: Home of multi-party computation libraries
-    - oblivious transfer: Core building block used a lot in our codebase.
-    - garbling: We use several variants of garbled circuit executions in our codebase
-      (DEAP, Dual-Ex, ZK)
-    - circuits: code to build circuits, with some basic circuit components
-      available. 
-    - share-conversion: supports converting between additive and multiplicative
-      shares for performing finite-field arithmetic in 2PC.
+
 - **tls**: Home of the TLS logic of our protocol like handshake en-/decryption, ghash, **currently outdated**
 - **utils**: Utility functions which are frequently used everywhere
 - **actors**: Provides actors, which implement protocol-specific functionality using

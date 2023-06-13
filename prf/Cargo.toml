@@ -3,12 +3,12 @@ members = ["hmac-sha256-circuits", "hmac-sha256"]
 
 [workspace.dependencies]
 # tlsn
-tlsn-mpc-circuits = { path = "../mpc/mpc-circuits" }
-tlsn-mpc-core = { path = "../mpc/mpc-core" }
-tlsn-mpc-garble-core = { path = "../mpc/garble/mpc-garble-core" }
-tlsn-mpc-garble = { path = "../mpc/garble/mpc-garble" }
-tlsn-utils = { path = "../utils/utils" }
-tlsn-utils-aio = { path = "../utils/utils-aio" }
+tlsn-mpc-circuits = { git = "https://github.com/tlsnotary/mpz" }
+tlsn-mpc-core = { git = "https://github.com/tlsnotary/mpz" }
+tlsn-mpc-garble-core = { git = "https://github.com/tlsnotary/mpz" }
+tlsn-mpc-garble = { git = "https://github.com/tlsnotary/mpz" }
+tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils" }
+tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils" }
 
 # rand
 rand = "0.8"
