@@ -48,7 +48,6 @@ jobs:
         package:
           - uid-mux
           - actors/actor-ot
-          - mpc
           - cipher
           - universal-hash
           - aead
@@ -56,7 +55,6 @@ jobs:
           - point-addition
           - prf
           - tls
-          - utils
     steps:
       - uses: actions/checkout@v3
 

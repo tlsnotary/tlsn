@@ -1,7 +1,7 @@
 [package]
 name = "tlsn-universal-hash"
 authors = ["TLSNotary Team"]
-description ="A crate which implements different hash functions for two-party computation"
+description = "A crate which implements different hash functions for two-party computation"
 keywords = ["tls", "mpc", "2pc", "hash"]
 categories = ["cryptography"]
 license = "MIT OR Apache-2.0"
@@ -16,9 +16,9 @@ mock = []
 
 [dependencies]
 # tlsn
-tlsn-mpc-core = { path = "../mpc/mpc-core" }
-tlsn-mpc-share-conversion-core = { path = "../mpc/share-conversion/mpc-share-conversion-core" }
-tlsn-mpc-share-conversion = { path = "../mpc/share-conversion/mpc-share-conversion" }
+tlsn-mpc-core = { git = "https://github.com/tlsnotary/mpz" }
+tlsn-mpc-share-conversion-core = { git = "https://github.com/tlsnotary/mpz" }
+tlsn-mpc-share-conversion = { git = "https://github.com/tlsnotary/mpz" }
 
 # async
 async-trait = "0.1"
@@ -28,7 +28,7 @@ futures-util = "0.3"
 # error/log
 thiserror = "1"
 opaque-debug = "0.3"
-tracing = {version = "0.1", optional = true}
+tracing = { version = "0.1", optional = true }
 
 # misc
 derive_builder = "0.12"
@@ -41,4 +41,3 @@ rstest = "0.17"
 rand_chacha = "0.3"
 rand = "0.8"
 generic-array = "0.14"
-
