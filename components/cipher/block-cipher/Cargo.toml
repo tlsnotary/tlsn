@@ -13,6 +13,7 @@ name = "block_cipher"
 
 [features]
 default = ["mock"]
+tracing = ["dep:tracing"]
 mock = []
 
 [dependencies]
@@ -22,6 +23,7 @@ tlsn-utils.workspace = true
 async-trait.workspace = true
 thiserror.workspace = true
 derive_builder.workspace = true
+tracing = { workspace = true, optional = true }
 
 [dev-dependencies]
 aes.workspace = true

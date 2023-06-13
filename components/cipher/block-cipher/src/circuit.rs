@@ -18,7 +18,7 @@ pub trait BlockCipherCircuit: Default + Clone + Send + Sync {
     /// The length of the block
     const BLOCK_LEN: usize;
 
-    /// Returns circuit
+    /// Returns the circuit of the cipher
     fn circuit() -> Arc<Circuit>;
 }
 

@@ -48,7 +48,7 @@ pub trait CtrCircuit: Default + Clone + Send + Sync + 'static {
     /// The length of the nonce
     const NONCE_LEN: usize;
 
-    /// Returns circuit
+    /// Returns the circuit of the cipher
     fn circuit() -> Arc<Circuit>;
 }
 

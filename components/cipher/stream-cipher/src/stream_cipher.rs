@@ -55,6 +55,10 @@ where
     E: Thread + Execute + Prove + Verify + Decode + DecodePrivate + Send + Sync + 'static,
 {
     /// Creates a new counter-mode cipher.
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "info", skip(thread_pool))
+    )]
     pub fn new(config: StreamCipherConfig, thread_pool: ThreadPool<E>) -> Self {
         let execution_id = NestedId::new(&config.id).append_counter();
         let transcript_counter = NestedId::new(&config.transcript_id).append_counter();
@@ -79,6 +83,10 @@ where
     }
 
     /// Returns unique identifiers for the next bytes in the transcript.
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self), ret)
+    )]
     fn plaintext_ids(&mut self, len: usize) -> Vec<String> {
         (0..len)
             .map(|_| {
@@ -91,6 +99,10 @@ where
     }
 
     /// Returns unique identifiers for the next bytes in the keystream.
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self), ret)
+    )]
     fn keystream_ids(&mut self, len: usize) -> Vec<String> {
         (0..len)
             .map(|_| {
@@ -103,6 +115,10 @@ where
     }
 
     /// Returns unique identifiers for the next bytes in the ciphertext.
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self), ret)
+    )]
     fn ciphertext_ids(&mut self, len: usize) -> Vec<String> {
         (0..len)
             .map(|_| {
@@ -115,6 +131,10 @@ where
     }
 
     /// Returns unique identifiers for bytes we don't care to track.
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self), ret)
+    )]
     fn opaque_ids(&mut self, len: usize) -> Vec<String> {
         (0..len)
             .map(|_| self.state.opaque_counter.increment_in_place().to_string())
@@ -122,6 +142,10 @@ where
     }
 
     /// Applies the keystream to the provided input text.
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "debug", skip(self), ret, err)
+    )]
     async fn apply_keystream(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -179,6 +203,10 @@ where
         Ok(output_text)
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "debug", skip(self), err)
+    )]
     async fn plaintext_proof(
         &mut self,
         plaintext_config: InputTextConfig,
@@ -214,10 +242,12 @@ where
     C: CtrCircuit,
     E: Thread + Execute + Prove + Verify + Decode + DecodePrivate + Send + Sync + 'static,
 {
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = "info", skip(self)))]
     fn set_key(&mut self, key: ValueRef, iv: ValueRef) {
         self.state.key_iv = Some(KeyAndIv { key, iv });
     }
 
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = "info", skip(self)))]
     fn set_transcript_id(&mut self, id: &str) {
         let current_id = self
             .state
@@ -236,6 +266,10 @@ where
         }
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "info", skip(self), ret, err)
+    )]
     async fn encrypt_public(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -258,6 +292,10 @@ where
         .map(|output_text| output_text.expect("output text is set"))
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "info", skip(self), ret, err)
+    )]
     async fn encrypt_private(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -280,6 +318,10 @@ where
         .map(|output_text| output_text.expect("output text is set"))
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "info", skip(self), ret, err)
+    )]
     async fn encrypt_blind(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -299,6 +341,10 @@ where
         .map(|output_text| output_text.expect("output text is set"))
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "info", skip(self), ret, err)
+    )]
     async fn decrypt_public(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -322,6 +368,10 @@ where
         .map(|output_text| output_text.expect("output text is set"))
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "info", skip(self), ret, err)
+    )]
     async fn decrypt_private(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -374,6 +424,10 @@ where
         Ok(plaintext)
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "info", skip(self), err)
+    )]
     async fn decrypt_blind(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -418,6 +472,10 @@ where
         Ok(())
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "info", skip(self), ret, err)
+    )]
     async fn share_keystream_block(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -441,11 +499,16 @@ where
     }
 }
 
+#[derive(Debug)]
 enum Role {
     Prover,
     Verifier,
 }
 
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", skip(thread), err)
+)]
 async fn plaintext_proof<T: Thread + Memory + Prove + Verify + Decode + DecodePrivate + 'static>(
     thread: &mut T,
     plaintext_config: InputTextConfig,
@@ -539,6 +602,10 @@ async fn plaintext_proof<T: Thread + Memory + Prove + Verify + Decode + DecodePr
     Ok(())
 }
 
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", skip(thread_pool), ret, err)
+)]
 async fn apply_keystream<
     T: Thread + Memory + Execute + Decode + DecodePrivate + Send + 'static,
     C: CtrCircuit,
@@ -571,6 +638,10 @@ async fn apply_keystream<
     }
 }
 
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", skip(thread), ret, err)
+)]
 async fn apply_keyblock<T: Memory + Execute + Decode + DecodePrivate + Send, C: CtrCircuit>(
     thread: &mut T,
     block_id: NestedId,

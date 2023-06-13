@@ -37,6 +37,19 @@ pub(crate) struct KeyBlockConfig<C: CtrCircuit> {
     _pd: PhantomData<C>,
 }
 
+impl<C: CtrCircuit> std::fmt::Debug for KeyBlockConfig<C> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("KeyBlockConfig")
+            .field("key", &self.key)
+            .field("iv", &self.iv)
+            .field("explicit_nonce", &"{{ ... }}")
+            .field("ctr", &self.ctr)
+            .field("input_text_config", &self.input_text_config)
+            .field("output_text_config", &self.output_text_config)
+            .finish()
+    }
+}
+
 impl<C: CtrCircuit> KeyBlockConfig<C> {
     pub(crate) fn new(
         key: ValueRef,
@@ -62,6 +75,24 @@ pub(crate) enum InputTextConfig {
     Public { ids: Vec<String>, text: Vec<u8> },
     Private { ids: Vec<String>, text: Vec<u8> },
     Blind { ids: Vec<String> },
+}
+
+impl std::fmt::Debug for InputTextConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Public { .. } => f
+                .debug_struct("Public")
+                .field("ids", &"{{ ... }}")
+                .field("text", &"{{ ... }}")
+                .finish(),
+            Self::Private { .. } => f
+                .debug_struct("Private")
+                .field("ids", &"{{ ... }}")
+                .field("text", &"{{ ... }}")
+                .finish(),
+            Self::Blind { .. } => f.debug_struct("Blind").field("ids", &"{{ ... }}").finish(),
+        }
+    }
 }
 
 impl InputTextConfig {
@@ -115,6 +146,20 @@ pub(crate) enum OutputTextConfig {
     Private { ids: Vec<String> },
     Blind { ids: Vec<String> },
     Shared { ids: Vec<String> },
+}
+
+impl std::fmt::Debug for OutputTextConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Public { .. } => f.debug_struct("Public").field("ids", &"{{ ... }}").finish(),
+            Self::Private { .. } => f
+                .debug_struct("Private")
+                .field("ids", &"{{ ... }}")
+                .finish(),
+            Self::Blind { .. } => f.debug_struct("Blind").field("ids", &"{{ ... }}").finish(),
+            Self::Shared { .. } => f.debug_struct("Shared").field("ids", &"{{ ... }}").finish(),
+        }
+    }
 }
 
 impl OutputTextConfig {

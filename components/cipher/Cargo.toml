@@ -24,6 +24,7 @@ criterion = "0.5"
 
 # error/log
 thiserror = "1"
+tracing = "0.1"
 
 # misc
 derive_builder = "0.12"
