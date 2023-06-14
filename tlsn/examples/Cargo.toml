@@ -1,0 +1,43 @@
+[package]
+name = "tlsn-examples"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dev-dependencies]
+tlsn-prover.workspace = true
+tlsn-notary.workspace = true
+tlsn-core.workspace = true
+
+futures.workspace = true
+tokio = { workspace = true, features = [
+    "rt",
+    "rt-multi-thread",
+    "macros",
+    "net",
+    "io-std",
+    "fs",
+] }
+tokio-util.workspace = true
+
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+hyper = { version = "0.14", features = ["client", "http1"] }
+
+p256 = { workspace = true, features = ["ecdsa"] }
+webpki-roots.workspace = true
+
+async-tls = { version = "0.12", default-features = false, features = [
+    "client",
+] }
+
+serde_json = "1.0"
+
+[[example]]
+name = "twitter_dm"
+path = "twitter_dm.rs"
+
+[[example]]
+name = "notary"
+path = "notary.rs"
