@@ -10,7 +10,7 @@ pub enum Role {
     Follower,
 }
 
-/// A config used in the key exchange protocol
+/// A config used for [KeyExchangeCore](super::KeyExchangeCore)
 #[derive(Debug, Clone, Builder)]
 pub struct KeyExchangeConfig {
     /// The id of this instance
