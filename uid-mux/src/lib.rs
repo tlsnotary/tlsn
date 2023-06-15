@@ -1,3 +1,15 @@
+//! This library provides tools to multiplex a connection and uses [yamux] under the hood.
+//!
+//! To use this library, instantiate a [UidYamux] by providing an underlying socket (anything which
+//! implements [AsyncRead] and [AsyncWrite]). After running [run](UidYamux::run) in the background
+//! you can create controls with [control](UidYamux::control), which can be easily passed around.
+//! They allow to open new streams ([get_stream](UidYamuxControl::get_stream)) by providing unique
+//! stream ids.
+
+#![deny(missing_docs, unreachable_pub, unused_must_use)]
+#![deny(clippy::all)]
+#![forbid(unsafe_code)]
+
 use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
@@ -20,7 +32,7 @@ struct MuxState {
     waiting_streams: HashMap<String, yamux::Stream>,
 }
 
-/// A wrapper around yamux to facilitate multiplexing with unique stream ids.
+/// A wrapper around [yamux] to facilitate multiplexing with unique stream ids.
 pub struct UidYamux<T> {
     mode: yamux::Mode,
     conn: Option<yamux::ControlledConnection<T>>,
@@ -28,7 +40,7 @@ pub struct UidYamux<T> {
     state: Arc<Mutex<MuxState>>,
 }
 
-/// A muxer control for opening streams with the remote
+/// A muxer control for [opening streams](Self::get_stream) with the remote
 #[derive(Debug, Clone)]
 pub struct UidYamuxControl {
     mode: yamux::Mode,
@@ -103,7 +115,7 @@ where
         }
     }
 
-    /// Returns a `UidYamuxControl` that can be used to open streams.
+    /// Returns a [UidYamuxControl] that can be used to open streams.
     pub fn control(&self) -> UidYamuxControl {
         UidYamuxControl {
             mode: self.mode,

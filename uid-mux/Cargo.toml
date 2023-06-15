@@ -1,6 +1,11 @@
 [package]
 name = "uid-mux"
 version = "0.1.0"
+authors = ["TLSNotary Team"]
+description = "Multiplex connections asynchronously."
+keywords = ["multiplex", "channel", "futures", "async"]
+categories = ["network-programming", "asynchronous"]
+license = "MIT OR Apache-2.0"
 edition = "2021"
 
 [dependencies]
@@ -8,14 +13,13 @@ tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils" }
 
 async-trait = "0.1"
 futures = "0.3"
-tokio = { version = "1.23", features = ["time"] }
 yamux = "0.11"
 
 [dev-dependencies]
 tokio-util = { version = "0.7", features = ["compat"] }
-tokio = { version = "1.23", features = [
+tokio = { version = "1", features = [
     "macros",
-    "io-util",
     "rt",
     "rt-multi-thread",
+    "time"
 ] }
