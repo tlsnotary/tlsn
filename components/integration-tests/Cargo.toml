@@ -23,7 +23,7 @@ tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils" }
 actor-ot = { path = "../actors/actor-ot" }
 uid-mux = { path = "../uid-mux" }
 
-p256 = { version = "0.12" }
+p256 = { version = "0.13" }
 
 rand_chacha = "0.3"
 rand = "0.8"
