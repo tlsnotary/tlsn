@@ -8,12 +8,16 @@ categories = ["network-programming", "asynchronous"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
 
+[features]
+tracing = ["dep:tracing"]
+
 [dependencies]
 tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils" }
 
 async-trait = "0.1"
 futures = "0.3"
 yamux = "0.11"
+tracing = { version = "0.1", optional = true }
 
 [dev-dependencies]
 tokio-util = { version = "0.7", features = ["compat"] }
