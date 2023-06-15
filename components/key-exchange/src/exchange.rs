@@ -3,11 +3,11 @@
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use mpz_garble::{Decode, Execute, Memory};
-use std::borrow::Borrow;
 
 use mpz_share_conversion_core::fields::{p256::P256, Field};
 use p256::{EncodedPoint, PublicKey, SecretKey};
 use point_addition::PointAddition;
+use std::fmt::Debug;
 
 use utils_aio::expect_msg_or_err;
 
@@ -37,10 +37,29 @@ pub struct KeyExchangeCore<PS, PR, E> {
     config: KeyExchangeConfig,
 }
 
+impl<PS, PR, E> Debug for KeyExchangeCore<PS, PR, E>
+where
+    PS: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send + Debug,
+    PR: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send + Debug,
+    E: Memory + Execute + Decode + Send,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("KeyExchangeCore")
+            .field("channel", &"{{ ... }}")
+            .field("point_addition_sender", &self.point_addition_sender)
+            .field("point_addition_receiver", &self.point_addition_receiver)
+            .field("executor", &"{{ ... }}")
+            .field("private_key", &"{{ ... }}")
+            .field("server_key", &self.server_key)
+            .field("config", &self.config)
+            .finish()
+    }
+}
+
 impl<PS, PR, E> KeyExchangeCore<PS, PR, E>
 where
-    PS: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send,
-    PR: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send,
+    PS: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send + Debug,
+    PR: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send + Debug,
     E: Memory + Execute + Decode + Send,
 {
     /// Creates a new [KeyExchangeCore]
@@ -50,6 +69,10 @@ where
     /// * `point_addition_receiver` - The point addition receiver instance used during key exchange
     /// * `executor`                - The MPC executor
     /// * `config`                  - The config used for the key exchange protocol
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "info", skip(channel, executor), ret)
+    )]
     pub fn new(
         channel: KeyExchangeChannel,
         point_addition_sender: PS,
@@ -101,11 +124,12 @@ where
 
         // Compute the leader's/follower's share of the pre-master secret
         //
-        // We need to mimic the [ecdh::p256::diffie-hellman] function without the `SharedSecret`
-        // wrapper, because this makes it harder to get the result as an EC curve point.
+        // We need to mimic the [diffie-hellman](p256::ecdh::diffie_hellman) function without the
+        // [SharedSecret](p256::ecdh::SharedSecret) wrapper, because this makes it harder to get
+        // the result as an EC curve point.
         let shared_secret = {
             let public_projective = server_key.to_projective();
-            (public_projective * private_key.to_nonzero_scalar().borrow().as_ref()).to_affine()
+            (public_projective * private_key.to_nonzero_scalar().as_ref()).to_affine()
         };
 
         let encoded_point = EncodedPoint::from(PublicKey::from_affine(shared_secret)?);
@@ -166,6 +190,9 @@ where
             )
             .await?;
 
+        #[cfg(feature = "tracing")]
+        tracing::event!(tracing::Level::DEBUG, "Successfully executed PMS circuit!");
+
         let mut outputs = self.executor.decode(&[eq]).await?;
 
         let eq: [u8; 32] = outputs.remove(0).try_into().expect("eq is 32 bytes");
@@ -183,15 +210,20 @@ where
 #[async_trait]
 impl<PS, PR, E> KeyExchange for KeyExchangeCore<PS, PR, E>
 where
-    PS: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send,
-    PR: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send,
+    PS: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send + Debug,
+    PR: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send + Debug,
     E: Memory + Execute + Decode + Send,
 {
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "info", skip(self), ret)
+    )]
     fn server_key(&self) -> Option<PublicKey> {
         self.server_key
     }
 
     /// Set the server's public key
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = "info", skip(self)))]
     fn set_server_key(&mut self, server_key: PublicKey) {
         self.server_key = Some(server_key);
     }
@@ -200,6 +232,10 @@ where
     ///
     /// The client's public key in this context is the combined public key (EC point addition) of
     /// the leader's public key and the follower's public key.
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "info", skip(self, private_key), ret, err)
+    )]
     async fn compute_client_key(
         &mut self,
         private_key: SecretKey,
@@ -233,6 +269,10 @@ where
     }
 
     /// Computes the PMS
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "info", skip(self), err)
+    )]
     async fn compute_pms(&mut self) -> Result<Pms, KeyExchangeError> {
         let (pms_share1, pms_share2) = self.compute_pms_shares().await?;
 
