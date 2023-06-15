@@ -28,7 +28,7 @@ async-trait = "0.1"
 thiserror = "1"
 serde = "1"
 futures = "0.3"
-derive_builder = "0.13"
+derive_builder = "0.12"
 tracing = { version = "0.1", optional = true }
 
 [dev-dependencies]
