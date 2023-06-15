@@ -54,10 +54,7 @@ mod tests {
     use mpz_core::Block;
     use mpz_share_conversion_core::fields::p256::P256;
     use p256::{
-        elliptic_curve::{
-            ops::Reduce,
-            sec1::{FromEncodedPoint, ToEncodedPoint},
-        },
+        elliptic_curve::sec1::{FromEncodedPoint, ToEncodedPoint},
         EncodedPoint, NonZeroScalar, ProjectivePoint, PublicKey,
     };
     use rand::{Rng, SeedableRng};
@@ -113,7 +110,7 @@ mod tests {
     }
 
     fn curve_point_from_be_bytes(bytes: [u8; 32]) -> EncodedPoint {
-        let scalar = NonZeroScalar::from_be_bytes_reduced(bytes.into());
+        let scalar = NonZeroScalar::from_repr(bytes.into()).unwrap();
         let pk = PublicKey::from_secret_scalar(&scalar);
         pk.to_encoded_point(false)
     }
