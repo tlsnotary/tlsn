@@ -1,5 +1,10 @@
 [package]
 name = "tlsn-key-exchange"
+authors = ["TLSNotary Team"]
+description = "Implementation of the TLSN-specific key-exchange protocol"
+keywords = ["tls", "mpc", "2pc", "pms", "key-exchange"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,28 +13,25 @@ name = "key_exchange"
 
 [features]
 default = ["mock"]
+tracing = ["dep:tracing"]
 mock = []
 
 [dependencies]
-mpz-garble-core = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
 mpz-garble = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
-mpz-core = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
 mpz-ot = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
 mpz-circuits = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
 tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils" }
 mpz-share-conversion-core = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
 tlsn-point-addition = { path = "../point-addition" }
-p256 = { version = "0.12", features = ["ecdh"] }
+p256 = { version = "0.13", features = ["ecdh"] }
 async-trait = "0.1"
 thiserror = "1"
-serde = { version = "1" }
+serde = "1"
 futures = "0.3"
-rand_chacha = "0.3"
-rand_core = "0.6"
-once_cell = "1"
-derive_builder = "0.12"
+derive_builder = "0.13"
+tracing = { version = "0.1", optional = true }
 
 [dev-dependencies]
-tokio = { version = "1.23", features = ["macros", "rt", "rt-multi-thread"] }
-num-bigint = { version = "0.4", features = ["rand"] }
-num-traits = "0.2"
+rand_chacha = "0.3"
+rand_core = "0.6"
+tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
