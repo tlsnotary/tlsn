@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use std::{collections::HashMap, marker::PhantomData};
+use std::{collections::HashMap, fmt::Debug, marker::PhantomData};
 
 use mpz_garble::{
     Decode, DecodePrivate, Execute, Memory, Prove, Thread, ThreadPool, ValueRef, Verify,
@@ -53,6 +53,7 @@ impl<C, E> MpcStreamCipher<C, E>
 where
     C: CtrCircuit,
     E: Thread + Execute + Prove + Verify + Decode + DecodePrivate + Send + Sync + 'static,
+    <C as CtrCircuit>::NONCE: Debug,
 {
     /// Creates a new counter-mode cipher.
     #[cfg_attr(
@@ -83,10 +84,6 @@ where
     }
 
     /// Returns unique identifiers for the next bytes in the transcript.
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip(self), ret)
-    )]
     fn plaintext_ids(&mut self, len: usize) -> Vec<String> {
         (0..len)
             .map(|_| {
@@ -99,10 +96,6 @@ where
     }
 
     /// Returns unique identifiers for the next bytes in the keystream.
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip(self), ret)
-    )]
     fn keystream_ids(&mut self, len: usize) -> Vec<String> {
         (0..len)
             .map(|_| {
@@ -115,10 +108,6 @@ where
     }
 
     /// Returns unique identifiers for the next bytes in the ciphertext.
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip(self), ret)
-    )]
     fn ciphertext_ids(&mut self, len: usize) -> Vec<String> {
         (0..len)
             .map(|_| {
@@ -131,10 +120,6 @@ where
     }
 
     /// Returns unique identifiers for bytes we don't care to track.
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip(self), ret)
-    )]
     fn opaque_ids(&mut self, len: usize) -> Vec<String> {
         (0..len)
             .map(|_| self.state.opaque_counter.increment_in_place().to_string())
@@ -144,7 +129,7 @@ where
     /// Applies the keystream to the provided input text.
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "debug", skip(self), ret, err)
+        tracing::instrument(level = "trace", skip(self), ret, err)
     )]
     async fn apply_keystream(
         &mut self,
@@ -241,13 +226,14 @@ impl<C, E> StreamCipher<C> for MpcStreamCipher<C, E>
 where
     C: CtrCircuit,
     E: Thread + Execute + Prove + Verify + Decode + DecodePrivate + Send + Sync + 'static,
+    <C as CtrCircuit>::NONCE: Debug,
 {
     #[cfg_attr(feature = "tracing", tracing::instrument(level = "info", skip(self)))]
     fn set_key(&mut self, key: ValueRef, iv: ValueRef) {
         self.state.key_iv = Some(KeyAndIv { key, iv });
     }
 
-    #[cfg_attr(feature = "tracing", tracing::instrument(level = "info", skip(self)))]
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = "debug", skip(self)))]
     fn set_transcript_id(&mut self, id: &str) {
         let current_id = self
             .state
@@ -268,7 +254,7 @@ where
 
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "info", skip(self), ret, err)
+        tracing::instrument(level = "debug", skip(self), ret, err)
     )]
     async fn encrypt_public(
         &mut self,
@@ -294,7 +280,7 @@ where
 
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "info", skip(self), ret, err)
+        tracing::instrument(level = "debug", skip(self, plaintext), ret, err)
     )]
     async fn encrypt_private(
         &mut self,
@@ -320,7 +306,7 @@ where
 
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "info", skip(self), ret, err)
+        tracing::instrument(level = "debug", skip(self), ret, err)
     )]
     async fn encrypt_blind(
         &mut self,
@@ -343,7 +329,7 @@ where
 
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "info", skip(self), ret, err)
+        tracing::instrument(level = "debug", skip(self), ret, err)
     )]
     async fn decrypt_public(
         &mut self,
@@ -370,7 +356,7 @@ where
 
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "info", skip(self), ret, err)
+        tracing::instrument(level = "debug", skip(self), err)
     )]
     async fn decrypt_private(
         &mut self,
@@ -426,7 +412,7 @@ where
 
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "info", skip(self), err)
+        tracing::instrument(level = "debug", skip(self), err)
     )]
     async fn decrypt_blind(
         &mut self,
@@ -613,7 +599,10 @@ async fn apply_keystream<
     thread_pool: &mut ThreadPool<T>,
     execution_id: NestedId,
     configs: Vec<KeyBlockConfig<C>>,
-) -> Result<Option<Vec<u8>>, StreamCipherError> {
+) -> Result<Option<Vec<u8>>, StreamCipherError>
+where
+    <C as CtrCircuit>::NONCE: Debug,
+{
     let mut block_id = execution_id.append_counter();
     let mut scope = thread_pool.new_scope();
 
@@ -646,7 +635,10 @@ async fn apply_keyblock<T: Memory + Execute + Decode + DecodePrivate + Send, C: 
     thread: &mut T,
     block_id: NestedId,
     config: KeyBlockConfig<C>,
-) -> Result<Option<Vec<u8>>, StreamCipherError> {
+) -> Result<Option<Vec<u8>>, StreamCipherError>
+where
+    <C as CtrCircuit>::NONCE: Debug,
+{
     let KeyBlockConfig {
         key,
         iv,

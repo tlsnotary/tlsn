@@ -164,7 +164,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use std::{fmt::Debug, time::Duration};
 
     use crate::cipher::Aes128Ctr;
 
@@ -204,7 +204,10 @@ mod tests {
             MpcStreamCipher<C, MockFollowerThread>,
         ),
         (MockLeader, MockFollower),
-    ) {
+    )
+    where
+        <C as CtrCircuit>::NONCE: Debug,
+    {
         let (mut leader_vm, mut follower_vm) = create_mock_deap_vm("test").await;
 
         let leader_thread = leader_vm.new_thread("key_config").await.unwrap();
