@@ -157,7 +157,7 @@ impl MpcTlsLeader {
     pub async fn compute_client_key(&mut self) -> Result<PublicKey, MpcTlsError> {
         let pk = self
             .ke
-            .compute_client_key(SecretKey::random(rand::rngs::OsRng))
+            .compute_client_key(SecretKey::random(&mut rand::rngs::OsRng))
             .await?
             .expect("client key is returned as leader");
 

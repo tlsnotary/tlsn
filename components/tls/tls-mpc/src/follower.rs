@@ -99,7 +99,7 @@ impl MpcTlsFollower {
         // Key exchange
         _ = self
             .ke
-            .compute_client_key(p256::SecretKey::random(rand::rngs::OsRng))
+            .compute_client_key(p256::SecretKey::random(&mut rand::rngs::OsRng))
             .await?;
 
         if self.config.common().handshake_commit() {

@@ -24,7 +24,7 @@ tlsn-hmac-sha256 = { path = "../../prf/hmac-sha256" }
 tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils" }
 tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils" }
 
-p256 = { version = "0.12" }
+p256 = { version = "0.13" }
 
 rand.workspace = true
 

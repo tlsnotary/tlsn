@@ -1,7 +1,7 @@
 [package]
 name = "tlsn-key-exchange"
 authors = ["TLSNotary Team"]
-description = "Implementation of the TLSN-specific key-exchange protocol"
+description = "Implementation of the TLSNotary-specific key-exchange protocol"
 keywords = ["tls", "mpc", "2pc", "pms", "key-exchange"]
 categories = ["cryptography"]
 license = "MIT OR Apache-2.0"
