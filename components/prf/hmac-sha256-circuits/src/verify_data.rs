@@ -14,11 +14,11 @@ use crate::prf::{prf, prf_trace};
 ///
 /// # Arguments
 ///
-/// * `builder_state` - The builder state
-/// * `outer_state` - The outer HMAC state of the master secret
-/// * `inner_state` - The inner HMAC state of the master secret
-/// * `label` - The label to use
-/// * `hs_hash` - The handshake hash
+/// * `builder_state`   - The builder state
+/// * `outer_state`     - The outer HMAC state of the master secret
+/// * `inner_state`     - The inner HMAC state of the master secret
+/// * `label`           - The label to use
+/// * `hs_hash`         - The handshake hash
 pub fn verify_data_trace<'a>(
     builder_state: &'a RefCell<BuilderState>,
     outer_state: [Tracer<'a, U32>; 8],
@@ -37,8 +37,8 @@ pub fn verify_data_trace<'a>(
 ///
 /// * `outer_state` - The outer HMAC state of the master secret
 /// * `inner_state` - The inner HMAC state of the master secret
-/// * `label` - The label to use
-/// * `hs_hash` - The handshake hash
+/// * `label`       - The label to use
+/// * `hs_hash`     - The handshake hash
 pub fn verify_data(
     outer_state: [u32; 8],
     inner_state: [u32; 8],

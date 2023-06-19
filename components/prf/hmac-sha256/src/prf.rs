@@ -14,7 +14,7 @@ where
     executor: E,
 }
 
-/// Internal state of the PRF.
+/// Internal state of [MpcPrf].
 #[derive(Debug, Clone)]
 #[allow(missing_docs)]
 pub enum State {
