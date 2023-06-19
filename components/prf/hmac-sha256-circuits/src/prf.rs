@@ -9,6 +9,7 @@ use mpz_circuits::{
 
 use crate::hmac_sha256::{hmac_sha256_finalize, hmac_sha256_finalize_trace};
 
+#[cfg_attr(feature = "tracing", tracing::instrument(level = "trace", skip(seed)))]
 fn p_hash_trace<'a>(
     builder_state: &'a RefCell<BuilderState>,
     outer_state: [Tracer<'a, U32>; 8],
@@ -41,6 +42,7 @@ fn p_hash_trace<'a>(
     output
 }
 
+#[cfg_attr(feature = "tracing", tracing::instrument(level = "trace", skip(seed)))]
 fn p_hash(outer_state: [u32; 8], inner_state: [u32; 8], seed: &[u8], iterations: usize) -> Vec<u8> {
     // A() is defined as:
     //
@@ -77,6 +79,7 @@ fn p_hash(outer_state: [u32; 8], inner_state: [u32; 8], seed: &[u8], iterations:
 /// * `seed`            - The seed to use
 /// * `label`           - The label to use
 /// * `bytes`           - The number of bytes to output
+#[cfg_attr(feature = "tracing", tracing::instrument(level = "trace", skip(seed)))]
 pub fn prf_trace<'a>(
     builder_state: &'a RefCell<BuilderState>,
     outer_state: [Tracer<'a, U32>; 8],
@@ -110,6 +113,7 @@ pub fn prf_trace<'a>(
 /// * `seed`        - The seed to use
 /// * `label`       - The label to use
 /// * `bytes`       - The number of bytes to output
+#[cfg_attr(feature = "tracing", tracing::instrument(level = "trace", skip(seed)))]
 pub fn prf(
     outer_state: [u32; 8],
     inner_state: [u32; 8],
