@@ -9,7 +9,8 @@ use utils::id::NestedId;
 use crate::{
     cipher::CtrCircuit,
     circuit::build_array_xor,
-    config::{InputTextConfig, KeyBlockConfig, OutputTextConfig, StreamCipherConfig},
+    config::{KeyBlockConfig, OutputTextConfig, StreamCipherConfig},
+    input::InputText,
     StreamCipher, StreamCipherError,
 };
 
@@ -135,7 +136,7 @@ where
         &mut self,
         explicit_nonce: Vec<u8>,
         start_ctr: usize,
-        mut input_text_config: InputTextConfig,
+        mut input_text_config: InputText,
         mut output_text_config: OutputTextConfig,
     ) -> Result<Option<Vec<u8>>, StreamCipherError> {
         let KeyAndIv { key, iv } = self
@@ -194,9 +195,9 @@ where
     )]
     async fn plaintext_proof(
         &mut self,
-        plaintext_config: InputTextConfig,
-        keystream_config: InputTextConfig,
-        ciphertext_config: InputTextConfig,
+        plaintext_config: InputText,
+        keystream_config: InputText,
+        ciphertext_config: InputText,
         role: Role,
     ) -> Result<(), StreamCipherError> {
         let mut scope = self.thread_pool.new_scope();
@@ -254,7 +255,7 @@ where
 
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "debug", skip(self), ret, err)
+        tracing::instrument(level = "debug", skip(self, plaintext), ret, err)
     )]
     async fn encrypt_public(
         &mut self,
@@ -266,7 +267,7 @@ where
         self.apply_keystream(
             explicit_nonce,
             self.config.start_ctr,
-            InputTextConfig::Public {
+            InputText::Public {
                 ids: plaintext_ids,
                 text: plaintext,
             },
@@ -292,7 +293,7 @@ where
         self.apply_keystream(
             explicit_nonce,
             self.config.start_ctr,
-            InputTextConfig::Private {
+            InputText::Private {
                 ids: plaintext_ids,
                 text: plaintext,
             },
@@ -318,7 +319,7 @@ where
         self.apply_keystream(
             explicit_nonce,
             self.config.start_ctr,
-            InputTextConfig::Blind { ids: plaintext_ids },
+            InputText::Blind { ids: plaintext_ids },
             OutputTextConfig::Public {
                 ids: ciphertext_ids,
             },
@@ -329,7 +330,7 @@ where
 
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "debug", skip(self), ret, err)
+        tracing::instrument(level = "debug", skip(self), err)
     )]
     async fn decrypt_public(
         &mut self,
@@ -344,7 +345,7 @@ where
         self.apply_keystream(
             explicit_nonce,
             self.config.start_ctr,
-            InputTextConfig::Public {
+            InputText::Public {
                 ids: ciphertext_ids,
                 text: ciphertext,
             },
@@ -371,7 +372,7 @@ where
             .apply_keystream(
                 explicit_nonce,
                 self.config.start_ctr,
-                InputTextConfig::Public {
+                InputText::Public {
                     ids: opaque_ids,
                     text: vec![0u8; ciphertext.len()],
                 },
@@ -388,12 +389,12 @@ where
             .zip(keystream.iter())
             .for_each(|(c, k)| *c ^= k);
 
-        let plaintext_config = InputTextConfig::Private {
+        let plaintext_config = InputText::Private {
             ids: self.plaintext_ids(plaintext.len()),
             text: plaintext.clone(),
         };
-        let keystream_config = InputTextConfig::Blind { ids: keystream_ids };
-        let ciphertext_config = InputTextConfig::Public {
+        let keystream_config = InputText::Blind { ids: keystream_ids };
+        let ciphertext_config = InputText::Public {
             ids: ciphertext_ids,
             text: ciphertext,
         };
@@ -427,7 +428,7 @@ where
             .apply_keystream(
                 explicit_nonce,
                 self.config.start_ctr,
-                InputTextConfig::Public {
+                InputText::Public {
                     ids: opaque_ids,
                     text: vec![0u8; ciphertext.len()],
                 },
@@ -437,11 +438,11 @@ where
             )
             .await?;
 
-        let plaintext_config = InputTextConfig::Blind {
+        let plaintext_config = InputText::Blind {
             ids: self.plaintext_ids(ciphertext.len()),
         };
-        let keystream_config = InputTextConfig::Blind { ids: keystream_ids };
-        let ciphertext_config = InputTextConfig::Public {
+        let keystream_config = InputText::Blind { ids: keystream_ids };
+        let ciphertext_config = InputText::Public {
             ids: ciphertext_ids,
             text: ciphertext,
         };
@@ -472,7 +473,7 @@ where
         self.apply_keystream(
             explicit_nonce,
             ctr,
-            InputTextConfig::Public {
+            InputText::Public {
                 ids: opaque_input_ids,
                 text: vec![0u8; C::BLOCK_LEN],
             },
@@ -493,29 +494,29 @@ enum Role {
 
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", skip(thread), err)
+    tracing::instrument(level = "trace", skip(thread, plaintext_config), err)
 )]
 async fn plaintext_proof<T: Thread + Memory + Prove + Verify + Decode + DecodePrivate + 'static>(
     thread: &mut T,
-    plaintext_config: InputTextConfig,
-    keystream_config: InputTextConfig,
-    ciphertext_config: InputTextConfig,
+    plaintext_config: InputText,
+    keystream_config: InputText,
+    ciphertext_config: InputText,
     role: Role,
 ) -> Result<(), StreamCipherError> {
     let circ = build_array_xor(plaintext_config.len());
 
     let plaintext = match plaintext_config {
-        InputTextConfig::Public { ids, text } => text
+        InputText::Public { ids, text } => text
             .into_iter()
             .zip(ids)
             .map(|(byte, id)| thread.new_public_input::<u8>(&id, byte))
             .collect::<Result<Vec<_>, _>>()?,
-        InputTextConfig::Private { ids, text } => text
+        InputText::Private { ids, text } => text
             .into_iter()
             .zip(ids)
             .map(|(byte, id)| thread.new_private_input::<u8>(&id, Some(byte)))
             .collect::<Result<Vec<_>, _>>()?,
-        InputTextConfig::Blind { ids } => ids
+        InputText::Blind { ids } => ids
             .iter()
             .map(|id| thread.new_private_input::<u8>(id, None))
             .collect::<Result<Vec<_>, _>>()?,
@@ -530,7 +531,7 @@ async fn plaintext_proof<T: Thread + Memory + Prove + Verify + Decode + DecodePr
     );
 
     let keystream = match keystream_config {
-        InputTextConfig::Blind { ids } => ids
+        InputText::Blind { ids } => ids
             .into_iter()
             .map(|id| {
                 thread
@@ -550,7 +551,7 @@ async fn plaintext_proof<T: Thread + Memory + Prove + Verify + Decode + DecodePr
     );
 
     let (ciphertext, expected_ciphertext) = match ciphertext_config {
-        InputTextConfig::Public { ids, text } => (
+        InputText::Public { ids, text } => (
             ids.iter()
                 .map(|id| thread.new_output::<u8>(id))
                 .collect::<Result<Vec<_>, _>>()?,
@@ -660,17 +661,17 @@ where
 
     // Sets up the input text values.
     let input_values = match input_text_config {
-        InputTextConfig::Public { ids, text } => text
+        InputText::Public { ids, text } => text
             .into_iter()
             .zip(ids)
             .map(|(byte, id)| thread.new_public_input::<u8>(&id, byte))
             .collect::<Result<Vec<_>, _>>()?,
-        InputTextConfig::Private { ids, text } => text
+        InputText::Private { ids, text } => text
             .into_iter()
             .zip(ids)
             .map(|(byte, id)| thread.new_private_input::<u8>(&id, Some(byte)))
             .collect::<Result<Vec<_>, _>>()?,
-        InputTextConfig::Blind { ids } => ids
+        InputText::Blind { ids } => ids
             .iter()
             .map(|id| thread.new_private_input::<u8>(id, None))
             .collect::<Result<Vec<_>, _>>()?,

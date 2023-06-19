@@ -17,6 +17,7 @@
 mod cipher;
 mod circuit;
 mod config;
+mod input;
 mod stream_cipher;
 
 pub use self::cipher::{Aes128Ctr, CtrCircuit};

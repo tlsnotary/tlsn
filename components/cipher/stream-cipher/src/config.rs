@@ -4,7 +4,7 @@ use derive_builder::Builder;
 use mpz_garble::ValueRef;
 use std::fmt::Debug;
 
-use crate::CtrCircuit;
+use crate::{input::InputText, CtrCircuit};
 
 /// Configuration for a stream cipher.
 #[derive(Debug, Clone, Builder)]
@@ -34,7 +34,7 @@ pub(crate) struct KeyBlockConfig<C: CtrCircuit> {
     pub(crate) iv: ValueRef,
     pub(crate) explicit_nonce: C::NONCE,
     pub(crate) ctr: u32,
-    pub(crate) input_text_config: InputTextConfig,
+    pub(crate) input_text_config: InputText,
     pub(crate) output_text_config: OutputTextConfig,
     _pd: PhantomData<C>,
 }
@@ -45,7 +45,7 @@ impl<C: CtrCircuit> KeyBlockConfig<C> {
         iv: ValueRef,
         explicit_nonce: C::NONCE,
         ctr: u32,
-        input_text_config: InputTextConfig,
+        input_text_config: InputText,
         output_text_config: OutputTextConfig,
     ) -> Self {
         Self {
@@ -56,76 +56,6 @@ impl<C: CtrCircuit> KeyBlockConfig<C> {
             input_text_config,
             output_text_config,
             _pd: PhantomData,
-        }
-    }
-}
-
-pub(crate) enum InputTextConfig {
-    Public { ids: Vec<String>, text: Vec<u8> },
-    Private { ids: Vec<String>, text: Vec<u8> },
-    Blind { ids: Vec<String> },
-}
-
-impl std::fmt::Debug for InputTextConfig {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Public { ids, .. } => f
-                .debug_struct("Public")
-                .field("ids", ids)
-                .field("text", &"{{ ... }}")
-                .finish(),
-            Self::Private { ids, .. } => f
-                .debug_struct("Private")
-                .field("ids", ids)
-                .field("text", &"{{ ... }}")
-                .finish(),
-            Self::Blind { ids, .. } => f.debug_struct("Blind").field("ids", ids).finish(),
-        }
-    }
-}
-
-impl InputTextConfig {
-    /// Returns the length of the input text.
-    #[allow(clippy::len_without_is_empty)]
-    pub(crate) fn len(&self) -> usize {
-        match self {
-            InputTextConfig::Public { text, .. } => text.len(),
-            InputTextConfig::Private { text, .. } => text.len(),
-            InputTextConfig::Blind { ids } => ids.len(),
-        }
-    }
-
-    /// Appends padding bytes to the input text.
-    pub(crate) fn append_padding(&mut self, append_ids: Vec<String>) {
-        match self {
-            InputTextConfig::Public { ids, text } => {
-                ids.extend(append_ids);
-                text.resize(ids.len(), 0u8);
-            }
-            InputTextConfig::Private { ids, text } => {
-                ids.extend(append_ids);
-                text.resize(ids.len(), 0u8);
-            }
-            InputTextConfig::Blind { ids } => {
-                ids.extend(append_ids);
-            }
-        };
-    }
-
-    /// Drains the first `n` bytes from the input text.
-    pub(crate) fn drain(&mut self, n: usize) -> InputTextConfig {
-        match self {
-            InputTextConfig::Public { ids, text } => InputTextConfig::Public {
-                ids: ids.drain(..n).collect(),
-                text: text.drain(..n).collect(),
-            },
-            InputTextConfig::Private { ids, text: bytes } => InputTextConfig::Private {
-                ids: ids.drain(..n).collect(),
-                text: bytes.drain(..n).collect(),
-            },
-            InputTextConfig::Blind { ids } => InputTextConfig::Blind {
-                ids: ids.drain(..n).collect(),
-            },
         }
     }
 }
