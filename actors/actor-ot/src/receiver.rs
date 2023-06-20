@@ -1,12 +1,12 @@
 use crate::{config::OTActorReceiverConfig, GetReceiver, SendBackReceiver, Setup, Verify};
 use async_trait::async_trait;
 use futures::{channel::oneshot, stream::SplitSink, Future, FutureExt, StreamExt};
-use mpc_core::Block;
-use mpc_ot::{
+use mpz_core::Block;
+use mpz_ot::{
     kos::receiver::Kos15IOReceiver, OTChannel, OTError, ObliviousAcceptCommitOwned,
     ObliviousReceive, ObliviousReceiveOwned, ObliviousVerify, ObliviousVerifyOwned,
 };
-use mpc_ot_core::{
+use mpz_ot_core::{
     msgs::{OTMessage, Split},
     r_state::RandSetup,
 };
