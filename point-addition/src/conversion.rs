@@ -9,8 +9,8 @@ use std::marker::PhantomData;
 
 use super::{PointAddition, PointAdditionError};
 use async_trait::async_trait;
-use mpc_share_conversion::ShareConversion;
-use mpc_share_conversion_core::fields::{p256::P256, Field};
+use mpz_share_conversion::ShareConversion;
+use mpz_share_conversion_core::fields::{p256::P256, Field};
 use p256::EncodedPoint;
 
 /// The instance used for adding the curve points

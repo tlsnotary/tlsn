@@ -4,7 +4,7 @@ use crate::{
     merkle::{MerkleProof, MerkleRoot},
     SubstringsCommitmentSet,
 };
-use mpc_core::hash::Hash;
+use mpz_core::hash::Hash;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

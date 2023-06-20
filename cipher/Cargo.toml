@@ -3,10 +3,10 @@ members = ["stream-cipher", "block-cipher"]
 
 [workspace.dependencies]
 # tlsn
-tlsn-mpc-circuits = { git = "https://github.com/tlsnotary/mpz" }
-tlsn-mpc-core = { git = "https://github.com/tlsnotary/mpz" }
-tlsn-mpc-garble-core = { git = "https://github.com/tlsnotary/mpz" }
-tlsn-mpc-garble = { git = "https://github.com/tlsnotary/mpz" }
+mpz-circuits = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
+mpz-core = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
+mpz-garble-core = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
+mpz-garble = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
 tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils" }
 tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils" }
 

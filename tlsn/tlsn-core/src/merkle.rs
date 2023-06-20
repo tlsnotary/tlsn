@@ -1,4 +1,4 @@
-use mpc_core::hash::Hash;
+use mpz_core::hash::Hash;
 use rs_merkle::{
     algorithms::Sha256, proof_serializers, MerkleProof as MerkleProof_rs_merkle,
     MerkleTree as MerkleTree_rs_merkle,

@@ -1,5 +1,5 @@
 use actor_ot::{OTActorReceiverConfig, OTActorSenderConfig};
-use mpc_share_conversion::{ReceiverConfig, SenderConfig};
+use mpz_share_conversion::{ReceiverConfig, SenderConfig};
 use tls_client::RootCertStore;
 use tls_mpc::{MpcTlsCommonConfig, MpcTlsLeaderConfig};
 

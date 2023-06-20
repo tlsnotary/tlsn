@@ -6,10 +6,10 @@ edition = "2021"
 [dependencies]
 tlsn-tls-core.workspace = true
 tlsn-core.workspace = true
-tlsn-mpc-core.workspace = true
+mpz-core.workspace = true
 tlsn-tls-mpc.workspace = true
-tlsn-mpc-garble.workspace = true
-tlsn-mpc-share-conversion.workspace = true
+mpz-garble.workspace = true
+mpz-share-conversion.workspace = true
 tlsn-utils-aio.workspace = true
 actor-ot.workspace = true
 

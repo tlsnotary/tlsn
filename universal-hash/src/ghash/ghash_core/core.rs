@@ -1,5 +1,5 @@
-use mpc_core::Block;
-use mpc_share_conversion_core::fields::{gf2_128::Gf2_128, Field};
+use mpz_core::Block;
+use mpz_share_conversion_core::fields::{gf2_128::Gf2_128, Field};
 
 use super::{
     compute_missing_mul_shares, compute_new_add_shares,

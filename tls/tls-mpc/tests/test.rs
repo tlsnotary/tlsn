@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use actor_ot::{create_ot_pair, OTActorReceiverConfig, OTActorSenderConfig, ObliviousReveal};
 use futures::{AsyncReadExt, AsyncWriteExt};
-use mpc_garble::{config::Role as GarbleRole, protocol::deap::DEAPVm};
-use mpc_share_conversion as ff;
+use mpz_garble::{config::Role as GarbleRole, protocol::deap::DEAPVm};
+use mpz_share_conversion as ff;
 use tls_client::Certificate;
 use tls_client_async::bind_client;
 use tls_mpc::{

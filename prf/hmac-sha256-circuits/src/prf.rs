@@ -2,7 +2,7 @@
 
 use std::cell::RefCell;
 
-use mpc_circuits::{
+use mpz_circuits::{
     types::{U32, U8},
     BuilderState, Tracer,
 };
@@ -129,7 +129,7 @@ pub fn prf(
 
 #[cfg(test)]
 mod tests {
-    use mpc_circuits::{evaluate, CircuitBuilder};
+    use mpz_circuits::{evaluate, CircuitBuilder};
 
     use crate::hmac_sha256::hmac_sha256_partial;
 

@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use mpc_core::{commit::Decommitment, hash::Hash};
+use mpz_core::{commit::Decommitment, hash::Hash};
 
 /// Aead messages.
 #[derive(Debug, Clone, Serialize, Deserialize)]

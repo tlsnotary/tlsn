@@ -9,7 +9,7 @@ pub enum MpcTlsError {
     #[error(transparent)]
     MuxerError(#[from] utils_aio::mux::MuxerError),
     #[error(transparent)]
-    VmError(#[from] mpc_garble::VmError),
+    VmError(#[from] mpz_garble::VmError),
     #[error(transparent)]
     KeyExchangeError(#[from] key_exchange::KeyExchangeError),
     #[error(transparent)]

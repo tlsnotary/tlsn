@@ -30,7 +30,7 @@ pub use msg::KeyExchangeMessage;
 pub type KeyExchangeChannel = Box<dyn Channel<KeyExchangeMessage>>;
 
 use async_trait::async_trait;
-use mpc_garble::ValueRef;
+use mpz_garble::ValueRef;
 use p256::{PublicKey, SecretKey};
 use utils_aio::Channel;
 
@@ -57,11 +57,11 @@ pub enum KeyExchangeError {
     #[error(transparent)]
     IOError(#[from] std::io::Error),
     #[error(transparent)]
-    MemoryError(#[from] mpc_garble::MemoryError),
+    MemoryError(#[from] mpz_garble::MemoryError),
     #[error(transparent)]
-    ExecutionError(#[from] mpc_garble::ExecutionError),
+    ExecutionError(#[from] mpz_garble::ExecutionError),
     #[error(transparent)]
-    DecodeError(#[from] mpc_garble::DecodeError),
+    DecodeError(#[from] mpz_garble::DecodeError),
     #[error(transparent)]
     PointAdditionError(#[from] point_addition::PointAdditionError),
     #[error(transparent)]

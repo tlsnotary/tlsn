@@ -12,9 +12,9 @@ use actor_ot::{
     create_ot_receiver, create_ot_sender, OTActorReceiverConfig, OTActorSenderConfig,
     ObliviousReveal,
 };
-use mpc_core::serialize::CanonicalSerialize;
-use mpc_garble::{config::Role as GarbleRole, protocol::deap::DEAPVm};
-use mpc_share_conversion as ff;
+use mpz_core::serialize::CanonicalSerialize;
+use mpz_garble::{config::Role as GarbleRole, protocol::deap::DEAPVm};
+use mpz_share_conversion as ff;
 use rand::Rng;
 use signature::Signer;
 use tls_mpc::{

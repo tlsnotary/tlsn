@@ -24,22 +24,22 @@ pub use config::{StreamCipherConfig, StreamCipherConfigBuilder, StreamCipherConf
 pub use stream_cipher::MpcStreamCipher;
 
 use async_trait::async_trait;
-use mpc_garble::ValueRef;
+use mpz_garble::ValueRef;
 
 /// Error that can occur when using a stream cipher
 #[derive(Debug, thiserror::Error)]
 #[allow(missing_docs)]
 pub enum StreamCipherError {
     #[error(transparent)]
-    MemoryError(#[from] mpc_garble::MemoryError),
+    MemoryError(#[from] mpz_garble::MemoryError),
     #[error(transparent)]
-    ExecutionError(#[from] mpc_garble::ExecutionError),
+    ExecutionError(#[from] mpz_garble::ExecutionError),
     #[error(transparent)]
-    DecodeError(#[from] mpc_garble::DecodeError),
+    DecodeError(#[from] mpz_garble::DecodeError),
     #[error(transparent)]
-    ProveError(#[from] mpc_garble::ProveError),
+    ProveError(#[from] mpz_garble::ProveError),
     #[error(transparent)]
-    VerifyError(#[from] mpc_garble::VerifyError),
+    VerifyError(#[from] mpz_garble::VerifyError),
     #[error("key and iv is not set")]
     KeyIvNotSet,
     #[error("invalid explicit nonce length: expected {expected}, got {actual}")]
@@ -170,7 +170,7 @@ mod tests {
 
     use super::*;
 
-    use mpc_garble::{
+    use mpz_garble::{
         protocol::deap::mock::{
             create_mock_deap_vm, MockFollower, MockFollowerThread, MockLeader, MockLeaderThread,
         },

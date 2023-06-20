@@ -27,8 +27,8 @@ pub use config::{
     OTActorReceiverConfig, OTActorReceiverConfigBuilder, OTActorSenderConfig,
     OTActorSenderConfigBuilder,
 };
-pub use mpc_ot::{ObliviousReceive, ObliviousReveal, ObliviousSend, ObliviousVerify};
-pub use mpc_ot_core::msgs::OTMessage;
+pub use mpz_ot::{ObliviousReceive, ObliviousReveal, ObliviousSend, ObliviousVerify};
+pub use mpz_ot_core::msgs::OTMessage;
 pub(crate) use msg::{
     GetReceiver, GetSender, Reveal, SendBackReceiver, SendBackSender, Setup, Verify,
 };
@@ -41,7 +41,7 @@ pub use setup::{create_ot_pair, create_ot_receiver, create_ot_sender};
 #[allow(missing_docs)]
 pub enum OTActorError {
     #[error(transparent)]
-    OTError(#[from] mpc_ot::OTError),
+    OTError(#[from] mpz_ot::OTError),
     #[error(transparent)]
     MuxerError(#[from] utils_aio::mux::MuxerError),
 }
@@ -52,8 +52,8 @@ mod test {
 
     use super::*;
 
-    use mpc_core::Block;
-    use mpc_ot::{ObliviousReceive, ObliviousReveal, ObliviousSend, ObliviousVerify};
+    use mpz_core::Block;
+    use mpz_ot::{ObliviousReceive, ObliviousReveal, ObliviousSend, ObliviousVerify};
     use utils_aio::mux::mock::MockMuxChannelFactory;
 
     async fn create_setup_pair(

@@ -9,8 +9,8 @@ edition = "2021"
 
 
 [dev-dependencies]
-tlsn-mpc-garble = { git = "https://github.com/tlsnotary/mpz" }
-tlsn-mpc-share-conversion = { git = "https://github.com/tlsnotary/mpz" }
+mpz-garble = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
+mpz-share-conversion = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
 tlsn-block-cipher = { path = "../cipher/block-cipher" }
 tlsn-stream-cipher = { path = "../cipher/stream-cipher" }
 tlsn-universal-hash = { path = "../universal-hash" }

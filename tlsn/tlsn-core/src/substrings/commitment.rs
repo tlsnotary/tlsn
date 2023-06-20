@@ -1,5 +1,5 @@
 use crate::{commitment::Commitment, error::Error, transcript::Direction};
-use mpc_core::commit::Nonce;
+use mpz_core::commit::Nonce;
 use serde::{Deserialize, Serialize};
 use std::ops::Range;
 use utils::iter::DuplicateCheck;

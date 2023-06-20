@@ -6,8 +6,8 @@ use crate::{
     UniversalHash, UniversalHashError,
 };
 use async_trait::async_trait;
-use mpc_core::Block;
-use mpc_share_conversion::{Gf2_128, ShareConversion};
+use mpz_core::Block;
+use mpz_share_conversion::{Gf2_128, ShareConversion};
 use std::fmt::Debug;
 
 mod config;

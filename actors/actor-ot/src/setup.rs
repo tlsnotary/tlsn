@@ -1,7 +1,7 @@
 use std::assert_eq;
 
 use futures::{Future, FutureExt};
-use mpc_ot_core::msgs::OTMessage;
+use mpz_ot_core::msgs::OTMessage;
 use utils_aio::mux::MuxChannel;
 use xtra::Mailbox;
 

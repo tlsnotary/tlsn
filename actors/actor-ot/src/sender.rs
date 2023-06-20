@@ -4,12 +4,12 @@ use futures::{
     stream::{FuturesUnordered, SplitSink},
     Future, FutureExt, SinkExt, StreamExt, TryStreamExt,
 };
-use mpc_core::Block;
-use mpc_ot::{
+use mpz_core::Block;
+use mpz_ot::{
     kos::sender::Kos15IOSender, OTChannel, OTError, ObliviousCommitOwned, ObliviousReveal,
     ObliviousRevealOwned, ObliviousSend, ObliviousSendOwned,
 };
-use mpc_ot_core::{
+use mpz_ot_core::{
     msgs::{OTMessage, Split},
     s_state::RandSetup,
 };

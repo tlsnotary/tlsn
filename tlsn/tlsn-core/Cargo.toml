@@ -9,9 +9,9 @@ fixtures = ["dep:rstest", "dep:hex"]
 
 [dependencies]
 tlsn-tls-core = { workspace = true, features = ["serde"] }
-tlsn-mpc-core.workspace = true
-tlsn-mpc-garble-core.workspace = true
-tlsn-mpc-circuits.workspace = true
+mpz-core.workspace = true
+mpz-garble-core.workspace = true
+mpz-circuits.workspace = true
 tlsn-utils.workspace = true
 
 thiserror = "1"

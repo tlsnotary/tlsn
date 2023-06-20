@@ -1,9 +1,9 @@
 //! This module contains message structs which can be sent to the actor to trigger different
 //! message handlers.
 
-use mpc_core::Block;
-use mpc_ot::kos::{receiver::Kos15IOReceiver, sender::Kos15IOSender};
-use mpc_ot_core::{r_state::RandSetup as RandSetupReceiver, s_state::RandSetup as RandSetupSender};
+use mpz_core::Block;
+use mpz_ot::kos::{receiver::Kos15IOReceiver, sender::Kos15IOSender};
+use mpz_ot_core::{r_state::RandSetup as RandSetupReceiver, s_state::RandSetup as RandSetupSender};
 
 pub(crate) struct Setup;
 

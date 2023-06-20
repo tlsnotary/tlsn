@@ -2,10 +2,10 @@
 
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
-use mpc_garble::{Decode, Execute, Memory};
+use mpz_garble::{Decode, Execute, Memory};
 use std::borrow::Borrow;
 
-use mpc_share_conversion_core::fields::{p256::P256, Field};
+use mpz_share_conversion_core::fields::{p256::P256, Field};
 use p256::{EncodedPoint, PublicKey, SecretKey};
 use point_addition::PointAddition;
 
@@ -244,13 +244,13 @@ where
 mod tests {
     use super::*;
 
-    use mpc_garble::{
+    use mpz_garble::{
         protocol::deap::mock::{
             create_mock_deap_vm, MockFollower, MockFollowerThread, MockLeader, MockLeaderThread,
         },
         Vm,
     };
-    use mpc_share_conversion_core::fields::{p256::P256, Field};
+    use mpz_share_conversion_core::fields::{p256::P256, Field};
     use p256::{NonZeroScalar, PublicKey, SecretKey};
     use rand_chacha::ChaCha20Rng;
     use rand_core::SeedableRng;

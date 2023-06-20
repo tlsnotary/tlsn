@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use async_trait::async_trait;
 
-use mpc_garble::{Decode, DecodePrivate, Execute, Memory, ValueRef};
+use mpz_garble::{Decode, DecodePrivate, Execute, Memory, ValueRef};
 use utils::id::NestedId;
 
 use crate::{BlockCipher, BlockCipherCircuit, BlockCipherConfig, BlockCipherError};

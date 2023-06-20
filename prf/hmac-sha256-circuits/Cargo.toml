@@ -10,7 +10,7 @@ name = "hmac_sha256_circuits"
 default = []
 
 [dependencies]
-tlsn-mpc-circuits.workspace = true
+mpz-circuits.workspace = true
 tlsn-utils.workspace = true
 
 [dev-dependencies]

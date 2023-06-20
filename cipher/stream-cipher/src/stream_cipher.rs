@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use std::{collections::HashMap, marker::PhantomData};
 
-use mpc_garble::{
+use mpz_garble::{
     Decode, DecodePrivate, Execute, Memory, Prove, Thread, ThreadPool, ValueRef, Verify,
 };
 use utils::id::NestedId;

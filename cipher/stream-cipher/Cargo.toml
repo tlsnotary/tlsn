@@ -8,8 +8,8 @@ default = ["mock"]
 mock = []
 
 [dependencies]
-tlsn-mpc-circuits.workspace = true
-tlsn-mpc-garble.workspace = true
+mpz-circuits.workspace = true
+mpz-garble.workspace = true
 tlsn-utils.workspace = true
 
 aes.workspace = true

@@ -1,9 +1,9 @@
 use crate::{MpcPointAddition, Role};
-use mpc_share_conversion::{
+use mpz_share_conversion::{
     mock::{mock_converter_pair, MockConverterReceiver, MockConverterSender},
     ReceiverConfig, SenderConfig,
 };
-use mpc_share_conversion_core::fields::p256::P256;
+use mpz_share_conversion_core::fields::p256::P256;
 
 /// A mock point addition sender implementing [MpcPointAddition] for [P256]
 pub type MockPointAdditionSender = MpcPointAddition<P256, MockConverterSender<P256>>;

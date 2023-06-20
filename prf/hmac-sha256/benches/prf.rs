@@ -1,7 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 use hmac_sha256::{MpcPrf, Prf};
-use mpc_garble::{protocol::deap::mock::create_mock_deap_vm, Memory, Vm};
+use mpz_garble::{protocol::deap::mock::create_mock_deap_vm, Memory, Vm};
 
 async fn bench_prf() {
     let (mut leader_vm, mut follower_vm) = create_mock_deap_vm("bench").await;
