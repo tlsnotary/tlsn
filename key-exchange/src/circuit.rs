@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use mpc_circuits::{circuits::big_num::nbyte_add_mod_trace, Circuit, CircuitBuilder};
+use mpz_circuits::{circuits::big_num::nbyte_add_mod_trace, Circuit, CircuitBuilder};
 
 /// NIST P-256 prime big-endian
 static P: [u8; 32] = [

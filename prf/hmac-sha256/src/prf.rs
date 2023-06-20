@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 
 use hmac_sha256_circuits::{build_session_keys, build_verify_data};
-use mpc_garble::{Decode, DecodePrivate, Execute, Memory, ValueRef};
+use mpz_garble::{Decode, DecodePrivate, Execute, Memory, ValueRef};
 
 use crate::{Prf, PrfError, SessionKeys};
 

@@ -10,7 +10,7 @@ pub use prf::MpcPrf;
 
 use async_trait::async_trait;
 
-use mpc_garble::ValueRef;
+use mpz_garble::ValueRef;
 use prf::State;
 
 /// Session keys computed by the PRF.
@@ -30,11 +30,11 @@ pub struct SessionKeys {
 #[allow(missing_docs)]
 pub enum PrfError {
     #[error(transparent)]
-    MemoryError(#[from] mpc_garble::MemoryError),
+    MemoryError(#[from] mpz_garble::MemoryError),
     #[error(transparent)]
-    ExecutionError(#[from] mpc_garble::ExecutionError),
+    ExecutionError(#[from] mpz_garble::ExecutionError),
     #[error(transparent)]
-    DecodeError(#[from] mpc_garble::DecodeError),
+    DecodeError(#[from] mpz_garble::DecodeError),
     #[error("role error: {0:?}")]
     RoleError(String),
     #[error("Invalid state: {0:?}")]
@@ -76,7 +76,7 @@ pub trait Prf {
 
 #[cfg(test)]
 mod tests {
-    use mpc_garble::{protocol::deap::mock::create_mock_deap_vm, Decode, Memory, Vm};
+    use mpz_garble::{protocol::deap::mock::create_mock_deap_vm, Decode, Memory, Vm};
 
     use hmac_sha256_circuits::{hmac_sha256_partial, prf, session_keys};
 

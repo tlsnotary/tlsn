@@ -3,7 +3,7 @@
 
 use crate::{KeyExchangeConfig, KeyExchangeCore, KeyExchangeMessage, Role};
 
-use mpc_garble::{Decode, Execute, Memory};
+use mpz_garble::{Decode, Execute, Memory};
 use point_addition::mock::{
     mock_point_converter_pair, MockPointAdditionReceiver, MockPointAdditionSender,
 };

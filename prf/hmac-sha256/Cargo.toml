@@ -12,10 +12,10 @@ mock = []
 
 [dependencies]
 tlsn-hmac-sha256-circuits = { path = "../hmac-sha256-circuits" }
-tlsn-mpc-circuits.workspace = true
-tlsn-mpc-core.workspace = true
-tlsn-mpc-garble-core.workspace = true
-tlsn-mpc-garble.workspace = true
+mpz-circuits.workspace = true
+mpz-core.workspace = true
+mpz-garble-core.workspace = true
+mpz-garble.workspace = true
 tlsn-utils-aio.workspace = true
 
 rand_chacha.workspace = true

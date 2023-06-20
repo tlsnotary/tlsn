@@ -3,10 +3,10 @@ members = ["hmac-sha256-circuits", "hmac-sha256"]
 
 [workspace.dependencies]
 # tlsn
-tlsn-mpc-circuits = { git = "https://github.com/tlsnotary/mpz" }
-tlsn-mpc-core = { git = "https://github.com/tlsnotary/mpz" }
-tlsn-mpc-garble-core = { git = "https://github.com/tlsnotary/mpz" }
-tlsn-mpc-garble = { git = "https://github.com/tlsnotary/mpz" }
+mpz-circuits = { git = "https://github.com/tlsnotary/mpz" }
+mpz-core = { git = "https://github.com/tlsnotary/mpz" }
+mpz-garble-core = { git = "https://github.com/tlsnotary/mpz" }
+mpz-garble = { git = "https://github.com/tlsnotary/mpz" }
 tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils" }
 tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils" }
 

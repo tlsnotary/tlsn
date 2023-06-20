@@ -11,13 +11,13 @@ default = ["mock"]
 mock = []
 
 [dependencies]
-tlsn-mpc-garble-core = { git = "https://github.com/tlsnotary/mpz" }
-tlsn-mpc-garble = { git = "https://github.com/tlsnotary/mpz" }
-tlsn-mpc-core = { git = "https://github.com/tlsnotary/mpz" }
-tlsn-mpc-ot = { git = "https://github.com/tlsnotary/mpz" }
-tlsn-mpc-circuits = { git = "https://github.com/tlsnotary/mpz" }
+mpz-garble-core = { git = "https://github.com/tlsnotary/mpz" }
+mpz-garble = { git = "https://github.com/tlsnotary/mpz" }
+mpz-core = { git = "https://github.com/tlsnotary/mpz" }
+mpz-ot = { git = "https://github.com/tlsnotary/mpz" }
+mpz-circuits = { git = "https://github.com/tlsnotary/mpz" }
 tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils" }
-tlsn-mpc-share-conversion-core = { git = "https://github.com/tlsnotary/mpz" }
+mpz-share-conversion-core = { git = "https://github.com/tlsnotary/mpz" }
 tlsn-point-addition = { path = "../point-addition" }
 p256 = { version = "0.12", features = ["ecdh"] }
 async-trait = "0.1"

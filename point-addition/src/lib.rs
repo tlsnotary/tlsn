@@ -7,8 +7,8 @@
 #![forbid(unsafe_code)]
 
 use async_trait::async_trait;
-use mpc_share_conversion::ShareConversionError;
-use mpc_share_conversion_core::fields::Field;
+use mpz_share_conversion::ShareConversionError;
+use mpz_share_conversion_core::fields::Field;
 
 mod conversion;
 
@@ -17,7 +17,7 @@ mod conversion;
 pub mod mock;
 
 pub use conversion::{MpcPointAddition, Role};
-pub use mpc_share_conversion_core::fields::p256::P256;
+pub use mpz_share_conversion_core::fields::p256::P256;
 
 /// The error type for [PointAddition]
 #[allow(missing_docs)]
@@ -51,8 +51,8 @@ pub trait PointAddition {
 #[cfg(test)]
 mod tests {
     use crate::{conversion::point_to_p256, mock::mock_point_converter_pair, PointAddition};
-    use mpc_core::Block;
-    use mpc_share_conversion_core::fields::p256::P256;
+    use mpz_core::Block;
+    use mpz_share_conversion_core::fields::p256::P256;
     use p256::{
         elliptic_curve::{
             ops::Reduce,

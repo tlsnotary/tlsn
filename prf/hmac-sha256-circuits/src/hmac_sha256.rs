@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use mpc_circuits::{
+use mpz_circuits::{
     circuits::{sha256, sha256_compress, sha256_compress_trace, sha256_trace},
     types::{U32, U8},
     BuilderState, Tracer,
@@ -117,7 +117,7 @@ pub fn hmac_sha256_finalize(outer_state: [u32; 8], inner_state: [u32; 8], msg: &
 
 #[cfg(test)]
 mod tests {
-    use mpc_circuits::{test_circ, CircuitBuilder};
+    use mpz_circuits::{test_circ, CircuitBuilder};
 
     use super::*;
 

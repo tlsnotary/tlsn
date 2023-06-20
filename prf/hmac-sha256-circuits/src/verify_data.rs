@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use mpc_circuits::{
+use mpz_circuits::{
     types::{U32, U8},
     BuilderState, Tracer,
 };
@@ -54,7 +54,7 @@ pub fn verify_data(
 mod tests {
     use super::*;
 
-    use mpc_circuits::{evaluate, CircuitBuilder};
+    use mpz_circuits::{evaluate, CircuitBuilder};
 
     const CF_LABEL: &[u8; 15] = b"client finished";
 

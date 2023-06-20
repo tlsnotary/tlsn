@@ -18,7 +18,7 @@ pub use prf::{prf, prf_trace};
 pub use session_keys::{session_keys, session_keys_trace};
 pub use verify_data::{verify_data, verify_data_trace};
 
-use mpc_circuits::{Circuit, CircuitBuilder, Tracer};
+use mpz_circuits::{Circuit, CircuitBuilder, Tracer};
 use std::sync::Arc;
 
 /// Builds session key derivation circuit.
