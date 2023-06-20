@@ -6,9 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-mpz-ot-core = { git = "https://github.com/tlsnotary/mpz" }
-mpz-ot = { git = "https://github.com/tlsnotary/mpz" }
-mpz-core = { git = "https://github.com/tlsnotary/mpz" }
+mpz-ot-core = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
+mpz-ot = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
+mpz-core = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
 tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils" }
 async-trait = "0.1"
 derive_builder = "0.11"

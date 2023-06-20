@@ -12,13 +12,13 @@ tlsn-tls-client = { path = "../tls/tls-client" }
 tlsn-tls-client-async = { path = "../tls/tls-client-async" }
 tls-server-fixture = { path = "../tls/tls-server-fixture" }
 
-mpz-core = { git = "https://github.com/tlsnotary/mpz" }
-mpz-circuits = { git = "https://github.com/tlsnotary/mpz" }
-mpz-garble-core = { git = "https://github.com/tlsnotary/mpz" }
-mpz-garble = { git = "https://github.com/tlsnotary/mpz" }
+mpz-core = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
+mpz-circuits = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
+mpz-garble-core = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
+mpz-garble = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
 tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils" }
 tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils" }
-mpz-share-conversion = { git = "https://github.com/tlsnotary/mpz" }
+mpz-share-conversion = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
 
 actor-ot = { path = "../actors/actor-ot" }
 
