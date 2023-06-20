@@ -4,9 +4,9 @@ use actor_ot::{ReceiverActorControl, SenderActorControl};
 
 use futures::future::FusedFuture;
 
-use mpc_core::{commit::Decommitment, hash::Hash};
-use mpc_garble::protocol::deap::DEAPVm;
-use mpc_share_conversion::{ConverterSender, Gf2_128};
+use mpz_core::{commit::Decommitment, hash::Hash};
+use mpz_garble::protocol::deap::DEAPVm;
+use mpz_share_conversion::{ConverterSender, Gf2_128};
 use tls_core::{dns::ServerName, handshake::HandshakeData, key::PublicKey};
 use tlsn_core::{SubstringsCommitment, Transcript};
 

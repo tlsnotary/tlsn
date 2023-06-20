@@ -1,7 +1,7 @@
-use mpc_core::commit::Decommitment;
+use mpz_core::commit::Decommitment;
 use serde::{Deserialize, Serialize};
 
-use mpc_garble_core::ChaChaEncoder;
+use mpz_garble_core::ChaChaEncoder;
 use tls_core::{handshake::HandshakeData, key::PublicKey};
 
 use crate::{handshake_summary::HandshakeSummary, merkle::MerkleRoot, Error};

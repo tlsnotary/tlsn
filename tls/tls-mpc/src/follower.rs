@@ -2,8 +2,8 @@ use futures::StreamExt;
 
 use hmac_sha256 as prf;
 use key_exchange as ke;
-use mpc_core::hash::Hash;
-use mpc_garble::ValueRef;
+use mpz_core::hash::Hash;
+use mpz_garble::ValueRef;
 
 use p256::elliptic_curve::sec1::ToEncodedPoint;
 use prf::SessionKeys;

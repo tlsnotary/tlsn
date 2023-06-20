@@ -4,9 +4,9 @@ use crate::{
     utils::merge_slices,
     Direction, EncodingId, SessionHeader, Transcript, TranscriptSlice,
 };
-use mpc_circuits::types::ValueType;
-use mpc_core::commit::{Decommitment, Nonce};
-use mpc_garble_core::{encoding_state::Active, EncodedValue, Encoder};
+use mpz_circuits::types::ValueType;
+use mpz_core::commit::{Decommitment, Nonce};
+use mpz_garble_core::{encoding_state::Active, EncodedValue, Encoder};
 use serde::{Deserialize, Serialize};
 use std::ops::Range;
 use utils::iter::DuplicateCheck;

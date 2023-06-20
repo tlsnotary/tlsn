@@ -1,7 +1,7 @@
 use hmac_sha256 as prf;
 use key_exchange as ke;
-use mpc_garble::{Decode, DecodePrivate, Execute, Prove, Verify, Vm};
-use mpc_share_conversion as ff;
+use mpz_garble::{Decode, DecodePrivate, Execute, Prove, Verify, Vm};
+use mpz_share_conversion as ff;
 use point_addition as pa;
 use tlsn_stream_cipher as stream_cipher;
 use tlsn_universal_hash as universal_hash;

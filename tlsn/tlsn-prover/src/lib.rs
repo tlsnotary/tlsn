@@ -17,12 +17,12 @@ use tls_mpc::{setup_components, MpcTlsLeader, TlsRole};
 use tracing::{debug, debug_span, Instrument};
 
 use actor_ot::{create_ot_receiver, create_ot_sender, ReceiverActorControl, SenderActorControl};
-use mpc_core::commit::HashCommit;
-use mpc_garble::{
+use mpz_core::commit::HashCommit;
+use mpz_garble::{
     config::Role as GarbleRole,
     protocol::deap::{DEAPVm, PeerEncodings},
 };
-use mpc_share_conversion as ff;
+use mpz_share_conversion as ff;
 use tls_client::{ClientConnection, ServerName};
 use tlsn_core::{
     commitment::Blake3,

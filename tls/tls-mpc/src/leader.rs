@@ -5,7 +5,7 @@ use futures::{SinkExt, TryFutureExt};
 
 use hmac_sha256 as prf;
 use key_exchange as ke;
-use mpc_core::commit::{Decommitment, HashCommit};
+use mpz_core::commit::{Decommitment, HashCommit};
 use prf::SessionKeys;
 
 use aead::Aead;
