@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use mpc_circuits::{
+use mpz_circuits::{
     types::{StaticValueType, Value},
     Circuit,
 };

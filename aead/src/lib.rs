@@ -19,7 +19,7 @@ pub use msg::AeadMessage;
 
 use async_trait::async_trait;
 
-use mpc_garble::ValueRef;
+use mpz_garble::ValueRef;
 use utils_aio::Channel;
 
 /// A channel for sending and receiving AEAD messages.

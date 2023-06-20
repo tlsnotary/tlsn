@@ -20,8 +20,8 @@ tracing = ["dep:tracing"]
 tlsn-block-cipher = { path = "../cipher/block-cipher" }
 tlsn-stream-cipher = { path = "../cipher/stream-cipher" }
 tlsn-universal-hash = { path = "../universal-hash" }
-tlsn-mpc-core = { git = "https://github.com/tlsnotary/mpz" }
-tlsn-mpc-garble = { git = "https://github.com/tlsnotary/mpz" }
+mpz-core = { git = "https://github.com/tlsnotary/mpz" }
+mpz-garble = { git = "https://github.com/tlsnotary/mpz" }
 tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils" }
 
 async-trait = "0.1"

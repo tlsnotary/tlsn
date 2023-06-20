@@ -12,7 +12,7 @@ mod config;
 
 use async_trait::async_trait;
 
-use mpc_garble::ValueRef;
+use mpz_garble::ValueRef;
 
 pub use crate::{
     cipher::MpcBlockCipher,
@@ -25,11 +25,11 @@ pub use config::{BlockCipherConfig, BlockCipherConfigBuilder, BlockCipherConfigB
 #[allow(missing_docs)]
 pub enum BlockCipherError {
     #[error(transparent)]
-    MemoryError(#[from] mpc_garble::MemoryError),
+    MemoryError(#[from] mpz_garble::MemoryError),
     #[error(transparent)]
-    ExecutionError(#[from] mpc_garble::ExecutionError),
+    ExecutionError(#[from] mpz_garble::ExecutionError),
     #[error(transparent)]
-    DecodeError(#[from] mpc_garble::DecodeError),
+    DecodeError(#[from] mpz_garble::DecodeError),
     #[error("Cipher key not set")]
     KeyNotSet,
     #[error("Input does not match block length: expected {0}, got {1}")]
@@ -70,7 +70,7 @@ where
 mod tests {
     use super::*;
 
-    use mpc_garble::{protocol::deap::mock::create_mock_deap_vm, Memory, Vm};
+    use mpz_garble::{protocol::deap::mock::create_mock_deap_vm, Memory, Vm};
 
     use crate::circuit::Aes128;
 

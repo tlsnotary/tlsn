@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
 
-use mpc_garble::{protocol::deap::mock::create_mock_deap_vm, Memory, Vm};
+use mpz_garble::{protocol::deap::mock::create_mock_deap_vm, Memory, Vm};
 use tlsn_stream_cipher::{Aes128Ctr, MpcStreamCipher, StreamCipher, StreamCipherConfigBuilder};
 
 async fn bench_stream_cipher_public_encrypt(thread_count: usize, len: usize) {

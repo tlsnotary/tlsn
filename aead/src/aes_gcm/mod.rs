@@ -16,8 +16,8 @@ use async_trait::async_trait;
 use futures::{SinkExt, StreamExt, TryFutureExt};
 
 use block_cipher::{Aes128, BlockCipher};
-use mpc_core::commit::HashCommit;
-use mpc_garble::ValueRef;
+use mpz_core::commit::HashCommit;
+use mpz_garble::ValueRef;
 use tlsn_stream_cipher::{Aes128Ctr, StreamCipher};
 use tlsn_universal_hash::UniversalHash;
 use utils_aio::expect_msg_or_err;
@@ -328,7 +328,7 @@ mod tests {
     use super::{mock::create_mock_aes_gcm_pair, *};
     use crate::Aead;
 
-    use mpc_garble::{
+    use mpz_garble::{
         protocol::deap::mock::{create_mock_deap_vm, MockFollower, MockLeader},
         Memory, Vm,
     };
