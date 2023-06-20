@@ -1,4 +1,4 @@
-use mpc_share_conversion::{
+use mpz_share_conversion::{
     mock::{mock_converter_pair, MockConverterReceiver, MockConverterSender},
     Gf2_128, ReceiverConfig, SenderConfig,
 };

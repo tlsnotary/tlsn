@@ -16,9 +16,9 @@ mock = []
 
 [dependencies]
 # tlsn
-tlsn-mpc-core = { git = "https://github.com/tlsnotary/mpz" }
-tlsn-mpc-share-conversion-core = { git = "https://github.com/tlsnotary/mpz" }
-tlsn-mpc-share-conversion = { git = "https://github.com/tlsnotary/mpz" }
+mpz-core = { git = "https://github.com/tlsnotary/mpz" }
+mpz-share-conversion-core = { git = "https://github.com/tlsnotary/mpz" }
+mpz-share-conversion = { git = "https://github.com/tlsnotary/mpz" }
 
 # async
 async-trait = "0.1"

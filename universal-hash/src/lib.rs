@@ -21,7 +21,7 @@ pub enum UniversalHashError {
     #[error("Invalid input length: {0}")]
     InputLengthError(usize),
     #[error(transparent)]
-    ShareConversionError(#[from] mpc_share_conversion::ShareConversionError),
+    ShareConversionError(#[from] mpz_share_conversion::ShareConversionError),
 }
 
 #[async_trait]
