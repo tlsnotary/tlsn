@@ -4,7 +4,7 @@ use derive_builder::Builder;
 use mpz_garble::ValueRef;
 use std::fmt::Debug;
 
-use crate::{input::InputText, CtrCircuit};
+use crate::CtrCircuit;
 
 /// Configuration for a stream cipher.
 #[derive(Debug, Clone, Builder)]
@@ -56,6 +56,76 @@ impl<C: CtrCircuit> KeyBlockConfig<C> {
             input_text_config,
             output_text_config,
             _pd: PhantomData,
+        }
+    }
+}
+
+pub(crate) enum InputText {
+    Public { ids: Vec<String>, text: Vec<u8> },
+    Private { ids: Vec<String>, text: Vec<u8> },
+    Blind { ids: Vec<String> },
+}
+
+impl std::fmt::Debug for InputText {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Public { ids, .. } => f
+                .debug_struct("Public")
+                .field("ids", ids)
+                .field("text", &"{{ ... }}")
+                .finish(),
+            Self::Private { ids, .. } => f
+                .debug_struct("Private")
+                .field("ids", ids)
+                .field("text", &"{{ ... }}")
+                .finish(),
+            Self::Blind { ids, .. } => f.debug_struct("Blind").field("ids", ids).finish(),
+        }
+    }
+}
+
+impl InputText {
+    /// Returns the length of the input text.
+    #[allow(clippy::len_without_is_empty)]
+    pub(crate) fn len(&self) -> usize {
+        match self {
+            InputText::Public { text, .. } => text.len(),
+            InputText::Private { text, .. } => text.len(),
+            InputText::Blind { ids } => ids.len(),
+        }
+    }
+
+    /// Appends padding bytes to the input text.
+    pub(crate) fn append_padding(&mut self, append_ids: Vec<String>) {
+        match self {
+            InputText::Public { ids, text } => {
+                ids.extend(append_ids);
+                text.resize(ids.len(), 0u8);
+            }
+            InputText::Private { ids, text } => {
+                ids.extend(append_ids);
+                text.resize(ids.len(), 0u8);
+            }
+            InputText::Blind { ids } => {
+                ids.extend(append_ids);
+            }
+        };
+    }
+
+    /// Drains the first `n` bytes from the input text.
+    pub(crate) fn drain(&mut self, n: usize) -> InputText {
+        match self {
+            InputText::Public { ids, text } => InputText::Public {
+                ids: ids.drain(..n).collect(),
+                text: text.drain(..n).collect(),
+            },
+            InputText::Private { ids, text: bytes } => InputText::Private {
+                ids: ids.drain(..n).collect(),
+                text: bytes.drain(..n).collect(),
+            },
+            InputText::Blind { ids } => InputText::Blind {
+                ids: ids.drain(..n).collect(),
+            },
         }
     }
 }

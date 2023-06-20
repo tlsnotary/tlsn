@@ -66,7 +66,7 @@ where
 
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "info", skip(self), ret, err)
+        tracing::instrument(level = "debug", skip(self, plaintext), err)
     )]
     async fn encrypt_private(&mut self, plaintext: Vec<u8>) -> Result<Vec<u8>, BlockCipherError> {
         let len = plaintext.len();
@@ -106,7 +106,7 @@ where
 
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "info", skip(self), ret, err)
+        tracing::instrument(level = "debug", skip(self), err)
     )]
     async fn encrypt_blind(&mut self) -> Result<Vec<u8>, BlockCipherError> {
         let key = self.state.key.clone().ok_or(BlockCipherError::KeyNotSet)?;
@@ -141,7 +141,7 @@ where
 
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "info", skip(self), ret, err)
+        tracing::instrument(level = "debug", skip(self, plaintext), err)
     )]
     async fn encrypt_share(&mut self, plaintext: Vec<u8>) -> Result<Vec<u8>, BlockCipherError> {
         let len = plaintext.len();

@@ -37,6 +37,7 @@ pub trait CtrCircuit: Default + Clone + Send + Sync + 'static {
         + Copy
         + Send
         + Sync
+        + std::fmt::Debug
         + 'static;
 
     /// The length of the key

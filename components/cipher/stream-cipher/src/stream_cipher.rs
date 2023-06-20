@@ -9,8 +9,7 @@ use utils::id::NestedId;
 use crate::{
     cipher::CtrCircuit,
     circuit::build_array_xor,
-    config::{KeyBlockConfig, OutputTextConfig, StreamCipherConfig},
-    input::InputText,
+    config::{InputText, KeyBlockConfig, OutputTextConfig, StreamCipherConfig},
     StreamCipher, StreamCipherError,
 };
 
@@ -54,7 +53,6 @@ impl<C, E> MpcStreamCipher<C, E>
 where
     C: CtrCircuit,
     E: Thread + Execute + Prove + Verify + Decode + DecodePrivate + Send + Sync + 'static,
-    <C as CtrCircuit>::NONCE: Debug,
 {
     /// Creates a new counter-mode cipher.
     #[cfg_attr(
@@ -130,7 +128,7 @@ where
     /// Applies the keystream to the provided input text.
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "trace", skip(self), ret, err)
+        tracing::instrument(level = "trace", skip(self), err)
     )]
     async fn apply_keystream(
         &mut self,
@@ -227,7 +225,6 @@ impl<C, E> StreamCipher<C> for MpcStreamCipher<C, E>
 where
     C: CtrCircuit,
     E: Thread + Execute + Prove + Verify + Decode + DecodePrivate + Send + Sync + 'static,
-    <C as CtrCircuit>::NONCE: Debug,
 {
     #[cfg_attr(feature = "tracing", tracing::instrument(level = "info", skip(self)))]
     fn set_key(&mut self, key: ValueRef, iv: ValueRef) {
@@ -255,7 +252,7 @@ where
 
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "debug", skip(self, plaintext), ret, err)
+        tracing::instrument(level = "debug", skip(self, plaintext), err)
     )]
     async fn encrypt_public(
         &mut self,
@@ -281,7 +278,7 @@ where
 
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "debug", skip(self, plaintext), ret, err)
+        tracing::instrument(level = "debug", skip(self, plaintext), err)
     )]
     async fn encrypt_private(
         &mut self,
@@ -307,7 +304,7 @@ where
 
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "debug", skip(self), ret, err)
+        tracing::instrument(level = "debug", skip(self), err)
     )]
     async fn encrypt_blind(
         &mut self,
@@ -461,7 +458,7 @@ where
 
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "info", skip(self), ret, err)
+        tracing::instrument(level = "info", skip(self), err)
     )]
     async fn share_keystream_block(
         &mut self,
@@ -591,7 +588,7 @@ async fn plaintext_proof<T: Thread + Memory + Prove + Verify + Decode + DecodePr
 
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", skip(thread_pool), ret, err)
+    tracing::instrument(level = "trace", skip(thread_pool), err)
 )]
 async fn apply_keystream<
     T: Thread + Memory + Execute + Decode + DecodePrivate + Send + 'static,
@@ -600,10 +597,7 @@ async fn apply_keystream<
     thread_pool: &mut ThreadPool<T>,
     execution_id: NestedId,
     configs: Vec<KeyBlockConfig<C>>,
-) -> Result<Option<Vec<u8>>, StreamCipherError>
-where
-    <C as CtrCircuit>::NONCE: Debug,
-{
+) -> Result<Option<Vec<u8>>, StreamCipherError> {
     let mut block_id = execution_id.append_counter();
     let mut scope = thread_pool.new_scope();
 
@@ -630,16 +624,13 @@ where
 
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", skip(thread), ret, err)
+    tracing::instrument(level = "trace", skip(thread), err)
 )]
 async fn apply_keyblock<T: Memory + Execute + Decode + DecodePrivate + Send, C: CtrCircuit>(
     thread: &mut T,
     block_id: NestedId,
     config: KeyBlockConfig<C>,
-) -> Result<Option<Vec<u8>>, StreamCipherError>
-where
-    <C as CtrCircuit>::NONCE: Debug,
-{
+) -> Result<Option<Vec<u8>>, StreamCipherError> {
     let KeyBlockConfig {
         key,
         iv,

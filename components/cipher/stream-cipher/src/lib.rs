@@ -17,7 +17,6 @@
 mod cipher;
 mod circuit;
 mod config;
-mod input;
 mod stream_cipher;
 
 pub use self::cipher::{Aes128Ctr, CtrCircuit};
@@ -165,7 +164,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::{fmt::Debug, time::Duration};
+    use std::time::Duration;
 
     use crate::cipher::Aes128Ctr;
 
@@ -205,10 +204,7 @@ mod tests {
             MpcStreamCipher<C, MockFollowerThread>,
         ),
         (MockLeader, MockFollower),
-    )
-    where
-        <C as CtrCircuit>::NONCE: Debug,
-    {
+    ) {
         let (mut leader_vm, mut follower_vm) = create_mock_deap_vm("test").await;
 
         let leader_thread = leader_vm.new_thread("key_config").await.unwrap();
