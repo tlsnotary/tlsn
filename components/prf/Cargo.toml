@@ -4,7 +4,6 @@ resolver = "2"
 
 [workspace.dependencies]
 # tlsn
-<<<<<<< HEAD
 mpz-circuits = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
 mpz-garble = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
 
