@@ -25,7 +25,7 @@ rand.workspace = true
 signature.workspace = true
 
 [dev-dependencies]
-tlsn-tls-client = { path = "../../tls/tls-client" }
+tlsn-tls-client = { path = "../../components/tls/tls-client" }
 
 webpki-roots = "0.22"
 p256 = { workspace = true, features = ["ecdsa"] }
