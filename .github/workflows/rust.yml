@@ -27,6 +27,7 @@ jobs:
           - point-addition
           - prf
           - tls
+          - tlsn
         include:
           - package: integration-tests
             release: true
