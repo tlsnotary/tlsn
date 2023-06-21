@@ -15,3 +15,5 @@ hyper = { workspace = true, features = ["full"] }
 rustls = { version = "0.21", features = ["logging"] }
 tokio-util = { workspace = true, features = ["compat"] }
 tracing.workspace = true
+tokio.workspace = true
+

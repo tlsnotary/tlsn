@@ -28,12 +28,15 @@ use std::{
 #[cfg(feature = "tracing")]
 use tracing::{debug, debug_span, error, trace, Instrument};
 
+use tokio;
 use tls_client::ClientConnection;
 
 pub use conn::TlsConnection;
 
 const RX_TLS_BUF_SIZE: usize = 1 << 13; // 8 KiB
 const RX_BUF_SIZE: usize = 1 << 13; // 8 KiB
+/// Amount of ms to wait for the server to send close_notify
+const TIMEOUT_SERVER_CLOSE: u64 = 1000; // 1 sec
 
 /// An error that can occur during a TLS connection.
 #[allow(missing_docs)]
@@ -43,6 +46,10 @@ pub enum ConnectionError {
     TlsError(#[from] tls_client::Error),
     #[error(transparent)]
     IOError(#[from] std::io::Error),
+    #[error("Timed out waiting for server")]
+    TimedOutWaitingForServer,
+    #[error("The server did not send close_notify")]
+    UncleanTlsShutdown
 }
 
 /// Closed connection data.
@@ -99,6 +106,10 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
         let mut recv = Vec::with_capacity(1024);
 
         let mut rx_tls_fut = server_rx.read(&mut rx_tls_buf).fuse();
+        
+        // A future initially set to `terminated` so that it would not be `select!`ed. Later, when the
+        // client closes, a future with a timeout will be assigned.
+        let mut timeout_fut = Fuse::terminated();
 
         'outer: loop {
             select_biased! {
@@ -109,8 +120,9 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
                     trace!("received {} tls bytes from server", received);
 
                     // Loop until we've processed all the data we received in this read.
+                    // Note that we must make one iteration even if `received == 0`.
                     let mut processed = 0;
-                    while processed < received {
+                    loop {
                         processed += client.read_tls(&mut &rx_tls_buf[processed..received])?;
                         match client.process_new_packets().await {
                             Ok(_) => {}
@@ -123,8 +135,16 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
                                 return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
                             }
                         }
+
+                        assert!(processed <= received);
+
+                        if processed == received {
+                            break;
+                        } 
                     }
 
+                    // by convention if `AsyncRead::read` returns 0, it means EOF, i.e. the peer
+                    // has closed the socket
                     if received == 0 {
                         #[cfg(feature = "tracing")]
                         debug!("server closed connection");
@@ -151,7 +171,6 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
 
                     #[cfg(feature = "tracing")]
                     trace!("sending close_notify to server");
-
                     client.send_close_notify().await?;
 
                     // Flush all remaining plaintext
@@ -159,6 +178,15 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
                         client.write_tls_async(&mut server_tx).await?;
                     }
                     server_tx.flush().await?;
+
+                    // Activate the timeout future.
+                    //
+                    // It is guaranteed that at this point the select loop hasn't processed a clean
+                    // TLS connection shutdown from the server.
+                    timeout_fut = Box::pin(async {
+                        tokio::time::sleep(std::time::Duration::from_millis(TIMEOUT_SERVER_CLOSE)).await;
+                    }).fuse();
+                    
                     server_tx.close().await?;
 
                     // Send the close signal to the TlsConnection
@@ -168,7 +196,12 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
 
                     #[cfg(feature = "tracing")]
                     debug!("client closed connection");
-                }
+                },
+                _ = &mut timeout_fut => {
+                    // Timed out waiting for the server to send close_notify. We do not treat this
+                    // as an error.
+                    break 'outer;
+                },
             }
 
             while client.wants_write() && !client_closed {
@@ -189,18 +222,19 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
                     Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                         if server_closed {
                             #[cfg(feature = "tracing")]
-                            debug!("server closed, no more data to read");
+                            debug!("server closed without close_notify, no more data to read");
+
+                            // We didn't get Ok(0) to indicate a clean closure, yet the
+                            // server has already closed. We do not treat this as an error.
                             break 'outer;
                         } else {
                             break;
                         }
                     }
-                    // Some servers will not send a close_notify, in which case we need to
-                    // error because we can't reveal the MAC key to the Notary.
+                    // Some servers will not send a close_notify but we do not treat this as
+                    // an error.
                     Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
-                        #[cfg(feature = "tracing")]
-                        error!("server did not send close_notify");
-                        return Err(e)?;
+                        break 'outer;
                     }
                     Err(e) => return Err(e)?,
                 };
@@ -213,15 +247,12 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
                     _ = rx_sender
                         .send(Ok(Bytes::copy_from_slice(&rx_buf[..n])))
                         .await;
+
                 } else {
                     #[cfg(feature = "tracing")]
-                    debug!("server closed, no more data to read");
+                    debug!("server closed cleanly, no more data to read");
                     break 'outer;
                 }
-            }
-
-            if client_closed && server_closed {
-                break;
             }
         }
 
