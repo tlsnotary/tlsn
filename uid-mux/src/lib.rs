@@ -1,3 +1,15 @@
+//! This library provides tools to multiplex a connection and uses [yamux] under the hood.
+//!
+//! To use this library, instantiate a [UidYamux] by providing an underlying socket (anything which
+//! implements [AsyncRead] and [AsyncWrite]). After running [run](UidYamux::run) in the background
+//! you can create controls with [control](UidYamux::control), which can be easily passed around.
+//! They allow to open new streams ([get_stream](UidYamuxControl::get_stream)) by providing unique
+//! stream ids.
+
+#![deny(missing_docs, unreachable_pub, unused_must_use)]
+#![deny(clippy::all)]
+#![forbid(unsafe_code)]
+
 use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
@@ -20,7 +32,7 @@ struct MuxState {
     waiting_streams: HashMap<String, yamux::Stream>,
 }
 
-/// A wrapper around yamux to facilitate multiplexing with unique stream ids.
+/// A wrapper around [yamux] to facilitate multiplexing with unique stream ids.
 pub struct UidYamux<T> {
     mode: yamux::Mode,
     conn: Option<yamux::ControlledConnection<T>>,
@@ -28,7 +40,18 @@ pub struct UidYamux<T> {
     state: Arc<Mutex<MuxState>>,
 }
 
-/// A muxer control for opening streams with the remote
+impl<T> std::fmt::Debug for UidYamux<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UidYamux")
+            .field("mode", &self.mode)
+            .field("conn", &"{{ ... }}")
+            .field("control", &self.control)
+            .field("state", &self.state)
+            .finish()
+    }
+}
+
+/// A muxer control for [opening streams](Self::get_stream) with the remote
 #[derive(Debug, Clone)]
 pub struct UidYamuxControl {
     mode: yamux::Mode,
@@ -41,6 +64,10 @@ where
     T: AsyncWrite + AsyncRead + Send + Unpin + 'static,
 {
     /// Creates a new muxer with the provided config and socket
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "info", skip(socket), ret)
+    )]
     pub fn new(config: yamux::Config, socket: T, mode: yamux::Mode) -> Self {
         let (control, conn) = yamux::Control::new(yamux::Connection::new(socket, config, mode));
 
@@ -56,6 +83,10 @@ where
     ///
     /// This method will poll the underlying connection for new streams and
     /// handle them appropriately.
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self), err)
+    )]
     pub async fn run(&mut self) -> Result<(), MuxerError> {
         let mut conn = Box::pin(
             self.conn
@@ -103,7 +134,7 @@ where
         }
     }
 
-    /// Returns a `UidYamuxControl` that can be used to open streams.
+    /// Returns a [UidYamuxControl] that can be used to open streams.
     pub fn control(&self) -> UidYamuxControl {
         UidYamuxControl {
             mode: self.mode,
@@ -113,6 +144,10 @@ where
     }
 }
 
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "debug", skip(stream), err)
+)]
 async fn write_stream_id<T: AsyncWrite + Unpin>(
     stream: &mut T,
     id: &str,
@@ -132,6 +167,10 @@ async fn write_stream_id<T: AsyncWrite + Unpin>(
     Ok(())
 }
 
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "debug", skip(stream), ret, err)
+)]
 async fn read_stream_id<T: AsyncRead + Unpin>(stream: &mut T) -> Result<String, std::io::Error> {
     let mut len = [0u8; 4];
     stream.read_exact(&mut len).await?;
@@ -148,6 +187,10 @@ async fn read_stream_id<T: AsyncRead + Unpin>(stream: &mut T) -> Result<String, 
 impl MuxStream for UidYamuxControl {
     type Stream = yamux::Stream;
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "info", skip(self), err)
+    )]
     async fn get_stream(&mut self, id: &str) -> Result<Self::Stream, MuxerError> {
         match self.mode {
             yamux::Mode::Client => {
