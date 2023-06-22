@@ -51,6 +51,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
+          components: clippy
 
       - uses: Swatinem/rust-cache@v2.5.0
         with:
@@ -66,3 +67,6 @@ jobs:
       - name: "Integration Test"
         if: ${{ matrix.release == true }}
         run: cargo test --release --tests
+      
+      - name: "Clippy"
+        run: cargo clippy --all-features -- -D warnings
