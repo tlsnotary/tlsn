@@ -166,7 +166,7 @@ where
 {
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "debug", skip(self, client_random, server_random), err)
+        tracing::instrument(level = "debug", skip(self), err)
     )]
     async fn compute_session_keys_private(
         &mut self,
@@ -212,7 +212,7 @@ where
 
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "debug", skip(self, handshake_hash), err)
+        tracing::instrument(level = "debug", skip(self), err)
     )]
     async fn compute_server_finished_vd_private(
         &mut self,

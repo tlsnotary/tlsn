@@ -19,7 +19,11 @@ use crate::prf::{prf, prf_trace};
 /// * `inner_state`     - The inner HMAC state of the master secret
 /// * `label`           - The label to use
 /// * `hs_hash`         - The handshake hash
-#[cfg_attr(feature = "tracing", tracing::instrument(level = "trace"))]
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace"),
+    skip(builder_state, outer_state, inner_state)
+)]
 pub fn verify_data_trace<'a>(
     builder_state: &'a RefCell<BuilderState>,
     outer_state: [Tracer<'a, U32>; 8],
@@ -40,7 +44,11 @@ pub fn verify_data_trace<'a>(
 /// * `inner_state` - The inner HMAC state of the master secret
 /// * `label`       - The label to use
 /// * `hs_hash`     - The handshake hash
-#[cfg_attr(feature = "tracing", tracing::instrument(level = "trace"))]
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace"),
+    skip(outer_state, inner_state)
+)]
 pub fn verify_data(
     outer_state: [u32; 8],
     inner_state: [u32; 8],
