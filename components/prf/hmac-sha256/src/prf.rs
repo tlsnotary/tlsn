@@ -121,7 +121,7 @@ where
 
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "debug", skip(self), err)
+        tracing::instrument(level = "debug", skip(self, label), err)
     )]
     async fn internal_compute_vd(
         &mut self,

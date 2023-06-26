@@ -87,7 +87,10 @@ fn p_hash(outer_state: [u32; 8], inner_state: [u32; 8], seed: &[u8], iterations:
 /// * `bytes`           - The number of bytes to output
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", skip(builder_state, outer_state, inner_state, seed))
+    tracing::instrument(
+        level = "trace",
+        skip(builder_state, outer_state, inner_state, seed, label)
+    )
 )]
 pub fn prf_trace<'a>(
     builder_state: &'a RefCell<BuilderState>,
@@ -124,7 +127,7 @@ pub fn prf_trace<'a>(
 /// * `bytes`       - The number of bytes to output
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", skip(outer_state, inner_state, seed))
+    tracing::instrument(level = "trace", skip(outer_state, inner_state, seed, label))
 )]
 pub fn prf(
     outer_state: [u32; 8],

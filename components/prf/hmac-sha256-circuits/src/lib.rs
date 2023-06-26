@@ -40,7 +40,7 @@ pub fn build_session_keys() -> Arc<Circuit> {
 }
 
 /// Builds a verify data circuit.
-#[cfg_attr(feature = "tracing", tracing::instrument(level = "info"))]
+#[cfg_attr(feature = "tracing", tracing::instrument(level = "info"), skip(label))]
 pub fn build_verify_data(label: &[u8]) -> Arc<Circuit> {
     let builder = CircuitBuilder::new();
     let outer_state = builder.add_array_input::<u32, 8>();
