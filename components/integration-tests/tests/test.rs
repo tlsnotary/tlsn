@@ -19,7 +19,8 @@ use tokio_util::compat::TokioAsyncReadCompatExt;
 use uid_mux::{yamux, UidYamux};
 use utils_aio::{codec::BincodeMux, mux::MuxChannel};
 
-/// The following integration test checks individual components of the TLSNotary protocol:
+/// The following integration test checks the interplay of individual components of the TLSNotary
+/// protocol. These are:
 ///   - channel multiplexing
 ///   - oblivious transfer
 ///   - point addition
