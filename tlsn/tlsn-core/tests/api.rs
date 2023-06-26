@@ -5,7 +5,7 @@ use std::{
 
 use p256::ecdsa::{
     signature::{SignerMut, Verifier},
-    SigningKey,
+    Signature as P256Signature, SigningKey,
 };
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
@@ -17,9 +17,9 @@ use tls_core::{
     msgs::{enums::SignatureScheme, handshake::DigitallySignedStruct},
 };
 
-use mpc_circuits::types::ValueType;
-use mpc_core::{commit::HashCommit, serialize::CanonicalSerialize};
-use mpc_garble_core::{ChaChaEncoder, EncodedValue, Encoder};
+use mpz_circuits::types::ValueType;
+use mpz_core::{commit::HashCommit, serialize::CanonicalSerialize, value::ValueId};
+use mpz_garble_core::{ChaChaEncoder, EncodedValue, Encoder};
 
 use tlsn_core::{
     commitment::{Blake3, Commitment},
@@ -55,7 +55,7 @@ fn test_api() {
     let active_encodings_range1: Vec<EncodedValue<_>> = transcript_tx
         .get_ids(&range1)
         .into_iter()
-        .map(|id| notary_encoder.encode_by_type(id.to_inner(), &ValueType::U8))
+        .map(|id| notary_encoder.encode_by_type(ValueId::new(&id).to_u64(), &ValueType::U8))
         .zip(transcript_tx.data()[range1.start as usize..range1.end as usize].to_vec())
         .map(|(enc, value)| enc.select(value).unwrap())
         .collect();
@@ -64,7 +64,7 @@ fn test_api() {
     let active_encodings_range2: Vec<EncodedValue<_>> = transcript_rx
         .get_ids(&range2)
         .into_iter()
-        .map(|id| notary_encoder.encode_by_type(id.to_inner(), &ValueType::U8))
+        .map(|id| notary_encoder.encode_by_type(ValueId::new(&id).to_u64(), &ValueType::U8))
         .zip(transcript_rx.data()[range2.start as usize..range2.end as usize].to_vec())
         .map(|(enc, value)| enc.select(value).unwrap())
         .collect();
@@ -134,13 +134,13 @@ fn test_api() {
     );
 
     // Some outer context generates an (ephemeral) signing key for the Notary, e.g.
-    let rng = ChaCha20Rng::from_seed([6u8; 32]);
-    let signing_key = SigningKey::random(rng);
+    let mut rng = ChaCha20Rng::from_seed([6u8; 32]);
+    let signing_key = SigningKey::random(&mut rng);
     let raw_key = signing_key.to_bytes();
 
     // Notary receives the raw signing key from some outer context
     let mut signer = SigningKey::from_bytes(&raw_key).unwrap();
-    let notary_pubkey = signer.verifying_key();
+    let notary_pubkey = signer.verifying_key().clone();
 
     // Notary creates the session header
     assert!(data_sent.len() <= (u32::MAX as usize) && data_recv.len() <= (u32::MAX as usize));
@@ -154,7 +154,7 @@ fn test_api() {
         HandshakeSummary::new(time + 60, ephem_key, hs_commitment),
     );
 
-    let signature = signer.sign(&header.to_bytes());
+    let signature: P256Signature = signer.sign(&header.to_bytes());
     // Notary creates a msg and sends it to User
     let msg = SignedSessionHeader {
         header,
@@ -177,7 +177,13 @@ fn test_api() {
     };
 
     // User verifies the header and stores it with the signature in NotarizedSession
-    header.check_artifacts(&artifacts).unwrap();
+    header.verify(
+        artifacts.time(),
+        artifacts.server_public_key(),
+        &artifacts.merkle_tree().root(),
+        artifacts.encoder_seed(),
+        artifacts.handshake_data_decommitment(),
+    );
 
     let data = SessionData::new(
         artifacts.handshake_data_decommitment().clone(),
