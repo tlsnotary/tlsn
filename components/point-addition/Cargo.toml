@@ -17,7 +17,6 @@ mock = ["dep:mpz-core"]
 tracing = ["dep:tracing"]
 
 [dependencies]
-<<<<<<< HEAD
 mpz-core = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465", optional = true }
 mpz-share-conversion = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
 mpz-share-conversion-core = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
