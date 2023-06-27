@@ -1,5 +1,10 @@
 [package]
 name = "tlsn-hmac-sha256"
+authors = ["TLSNotary Team"]
+description = "A 2PC implementation of TLS HMAC-SHA256 PRF"
+keywords = ["tls", "mpc", "2pc", "hmac", "sha256"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,28 +13,20 @@ name = "hmac_sha256"
 
 [features]
 default = ["mock"]
+tracing = ["dep:tracing"]
 mock = []
 
 [dependencies]
 tlsn-hmac-sha256-circuits = { path = "../hmac-sha256-circuits" }
-mpz-circuits.workspace = true
-mpz-core.workspace = true
-mpz-garble-core.workspace = true
 mpz-garble.workspace = true
-tlsn-utils-aio.workspace = true
-
-rand_chacha.workspace = true
-rand.workspace = true
 
 async-trait.workspace = true
-futures.workspace = true
-
 thiserror.workspace = true
-derive_builder.workspace = true
+tracing = { workspace = true, optional = true }
 
 [dev-dependencies]
-tlsn-utils.workspace = true
 criterion = { workspace = true, features = ["async_tokio"] }
+futures.workspace = true
 tokio.workspace = true
 
 [[bench]]
