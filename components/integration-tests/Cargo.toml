@@ -1,5 +1,10 @@
 [package]
 name = "integration-tests"
+authors = ["TLSNotary Team"]
+description = "Integration tests for TLSNotary"
+keywords = ["tls", "mpc", "2pc", "test"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
 version = "0.1.0"
 edition = "2021"
 
@@ -28,5 +33,5 @@ p256 = { version = "0.13" }
 rand_chacha = "0.3"
 rand = "0.8"
 
-tokio = { version = "1.23", features = ["macros", "rt", "rt-multi-thread"] }
+tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
 tokio-util = { version = "0.7", features = ["compat"] }
