@@ -180,7 +180,7 @@ where
 
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "debug", skip(self, handshake_hash), err)
+        tracing::instrument(level = "debug", skip(self), err)
     )]
     async fn compute_client_finished_vd_private(
         &mut self,
