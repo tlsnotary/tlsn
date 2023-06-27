@@ -21,8 +21,7 @@ use crate::prf::{prf, prf_trace};
 /// * `hs_hash`         - The handshake hash
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace"),
-    skip(builder_state, outer_state, inner_state, label)
+    tracing::instrument(level = "trace", skip(builder_state, outer_state, inner_state, label))
 )]
 pub fn verify_data_trace<'a>(
     builder_state: &'a RefCell<BuilderState>,
@@ -46,8 +45,7 @@ pub fn verify_data_trace<'a>(
 /// * `hs_hash`     - The handshake hash
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace"),
-    skip(outer_state, inner_state, label)
+    tracing::instrument(level = "trace", skip(outer_state, inner_state, label))
 )]
 pub fn verify_data(
     outer_state: [u32; 8],

@@ -95,8 +95,7 @@ pub fn hmac_sha256_partial(key: &[u8]) -> ([u32; 8], [u32; 8]) {
 /// * `msg`         - N-byte message
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace"),
-    skip(builder_state, outer_state, inner_state, msg)
+    tracing::instrument(level = "trace", skip(builder_state, outer_state, inner_state, msg))
 )]
 pub fn hmac_sha256_finalize_trace<'a>(
     builder_state: &'a RefCell<BuilderState>,
@@ -123,8 +122,7 @@ pub fn hmac_sha256_finalize_trace<'a>(
 /// * `msg`         - N-byte message
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace"),
-    skip(outer_state, inner_state, msg)
+    tracing::instrument(level = "trace", skip(outer_state, inner_state, msg))
 )]
 pub fn hmac_sha256_finalize(outer_state: [u32; 8], inner_state: [u32; 8], msg: &[u8]) -> [u8; 32] {
     sha256(outer_state, 64, &sha256(inner_state, 64, msg))
