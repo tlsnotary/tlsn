@@ -491,7 +491,7 @@ enum Role {
 
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "trace", skip(thread, plaintext_config), err)
+    tracing::instrument(level = "trace", skip(thread), err)
 )]
 async fn plaintext_proof<T: Thread + Memory + Prove + Verify + Decode + DecodePrivate + 'static>(
     thread: &mut T,
