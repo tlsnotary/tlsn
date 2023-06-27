@@ -1,5 +1,6 @@
 [workspace]
 members = ["tlsn-core", "tlsn-notary", "tlsn-prover", "tests-integration"]
+resolver = "2"
 
 [workspace.dependencies]
 tlsn-core = { path = "tlsn-core" }
@@ -26,6 +27,7 @@ uid-mux = { path = "../components/uid-mux" }
 
 futures = "0.3"
 tokio-util = { version = "0.7", features = ["compat"] }
+hyper = "0.14"
 
 rand = "0.8"
 signature = "2.0"
