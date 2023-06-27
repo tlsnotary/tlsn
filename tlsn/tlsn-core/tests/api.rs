@@ -177,13 +177,15 @@ fn test_api() {
     };
 
     // User verifies the header and stores it with the signature in NotarizedSession
-    header.verify(
-        artifacts.time(),
-        artifacts.server_public_key(),
-        &artifacts.merkle_tree().root(),
-        artifacts.encoder_seed(),
-        artifacts.handshake_data_decommitment(),
-    );
+    header
+        .verify(
+            artifacts.time(),
+            artifacts.server_public_key(),
+            &artifacts.merkle_tree().root(),
+            artifacts.encoder_seed(),
+            artifacts.handshake_data_decommitment(),
+        )
+        .unwrap();
 
     let data = SessionData::new(
         artifacts.handshake_data_decommitment().clone(),
