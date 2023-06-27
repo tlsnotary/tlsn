@@ -28,7 +28,6 @@ impl StreamCipherConfig {
     }
 }
 
-#[derive(Debug)]
 pub(crate) struct KeyBlockConfig<C: CtrCircuit> {
     pub(crate) key: ValueRef,
     pub(crate) iv: ValueRef,
@@ -37,6 +36,19 @@ pub(crate) struct KeyBlockConfig<C: CtrCircuit> {
     pub(crate) input_text_config: InputText,
     pub(crate) output_text_config: OutputTextConfig,
     _pd: PhantomData<C>,
+}
+
+impl<C: CtrCircuit> Debug for KeyBlockConfig<C> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("KeyBlockConfig")
+            .field("key", &self.key)
+            .field("iv", &self.iv)
+            .field("explicit_nonce", &self.explicit_nonce)
+            .field("ctr", &self.ctr)
+            .field("input_text_config", &self.input_text_config)
+            .field("output_text_config", &self.output_text_config)
+            .finish()
+    }
 }
 
 impl<C: CtrCircuit> KeyBlockConfig<C> {
