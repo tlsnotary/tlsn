@@ -1,4 +1,4 @@
-use mpc_core::commit::Decommitment;
+use mpz_core::commit::Decommitment;
 
 use crate::merkle::MerkleTree;
 use tls_core::{handshake::HandshakeData, key::PublicKey};

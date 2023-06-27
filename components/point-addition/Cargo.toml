@@ -1,0 +1,31 @@
+[package]
+name = "tlsn-point-addition"
+authors = ["TLSNotary Team"]
+description = "Addition of EC points using 2PC, producing additive secret-shares of the resulting x-coordinate"
+keywords = ["tls", "mpc", "2pc", "ecc", "elliptic"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "point_addition"
+
+[features]
+default = ["mock"]
+mock = ["dep:mpz-core"]
+tracing = ["dep:tracing"]
+
+[dependencies]
+mpz-core = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465", optional = true }
+mpz-share-conversion = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
+mpz-share-conversion-core = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
+p256 = { version = "0.12", features = ["arithmetic"] }
+tracing = { version = "0.1", optional = true }
+async-trait = "0.1"
+thiserror = "1"
+
+[dev-dependencies]
+tokio = { version = "1.23", features = ["macros", "rt", "rt-multi-thread"] }
+rand_chacha = "0.3"
+rand = "0.8"

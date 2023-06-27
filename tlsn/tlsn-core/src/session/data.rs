@@ -1,5 +1,5 @@
 use crate::{merkle::MerkleTree, SubstringsCommitmentSet, Transcript};
-use mpc_core::commit::Decommitment;
+use mpz_core::commit::Decommitment;
 use serde::{Deserialize, Serialize};
 use tls_core::handshake::HandshakeData;
 

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use mpc_core::commit::Decommitment;
+use mpz_core::commit::Decommitment;
 use tls_core::handshake::HandshakeData;
 
 use super::SessionHeader;

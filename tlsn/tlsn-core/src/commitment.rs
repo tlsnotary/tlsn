@@ -1,4 +1,4 @@
-use mpc_core::hash::Hash;
+use mpz_core::hash::Hash;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone)]

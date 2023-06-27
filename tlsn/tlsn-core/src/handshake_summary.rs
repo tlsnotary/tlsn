@@ -1,4 +1,4 @@
-use mpc_core::{commit::Decommitment, hash::Hash};
+use mpz_core::{commit::Decommitment, hash::Hash};
 use serde::{Deserialize, Serialize};
 use tls_core::{handshake::HandshakeData, key::PublicKey, msgs::handshake::ServerECDHParams};
 

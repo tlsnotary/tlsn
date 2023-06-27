@@ -43,7 +43,7 @@ pub struct EncodingId(u64);
 impl EncodingId {
     /// Create a new encoding ID.
     pub(crate) fn new(id: &str) -> Self {
-        let hash = mpc_core::utils::blake3(id.as_bytes());
+        let hash = mpz_core::utils::blake3(id.as_bytes());
         Self(u64::from_be_bytes(hash[..8].try_into().unwrap()))
     }
 

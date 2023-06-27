@@ -1,0 +1,39 @@
+[package]
+name = "tlsn-stream-cipher"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = ["mock"]
+mock = []
+
+[dependencies]
+mpz-circuits.workspace = true
+mpz-garble.workspace = true
+tlsn-utils.workspace = true
+
+aes.workspace = true
+
+async-trait.workspace = true
+tokio = { workspace = true, default-features = false, features = ["sync"] }
+futures.workspace = true
+rand.workspace = true
+thiserror.workspace = true
+derive_builder.workspace = true
+
+[dev-dependencies]
+ctr.workspace = true
+cipher.workspace = true
+rand_chacha.workspace = true
+tokio = { workspace = true, features = [
+    "macros",
+    "io-util",
+    "rt",
+    "rt-multi-thread",
+] }
+rstest = { workspace = true, features = ["async-timeout"] }
+criterion = { workspace = true, features = ["async_tokio"] }
+
+[[bench]]
+name = "mock"
+harness = false

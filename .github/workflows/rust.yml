@@ -11,77 +11,58 @@ env:
   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
 
 jobs:
-  integration-tests:
-    if: ( ! github.event.pull_request.draft )
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Nightly with rustfmt
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: nightly
-          components: rustfmt
-
-      - name: "Check formatting"
-        run: cargo +nightly fmt --check --all --manifest-path integration-tests/Cargo.toml
-
-      - name: Stable
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-      - uses: Swatinem/rust-cache@v2.0.0
-
-      - name: "Build"
-        run: cargo build --release --manifest-path integration-tests/Cargo.toml
-
-      - name: "Test"
-        run: cargo test --release --tests --manifest-path integration-tests/Cargo.toml
-
   build_and_test:
     if: ( ! github.event.pull_request.draft )
     runs-on: ubuntu-latest
     strategy:
       matrix:
         package:
-          - uid-mux
-          - actors/actor-ot
-          - cipher
-          - universal-hash
-          - aead
-          - key-exchange
-          - point-addition
-          - prf
-          - tls
+          - components/integration-tests
+          - components/uid-mux
+          - components/actors/actor-ot
+          - components/cipher
+          - components/universal-hash
+          - components/aead
+          - components/key-exchange
+          - components/point-addition
+          - components/prf
+          - components/tls
+          - tlsn
+        include:
+          - package: components/integration-tests
+            release: true
+    defaults:
+      run:
+        working-directory:  ${{ matrix.package }}
     steps:
       - uses: actions/checkout@v3
 
+
       - name: Nightly with rustfmt
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
           toolchain: nightly
           components: rustfmt
 
       - name: "Check formatting"
-        run: cargo +nightly fmt --check --all --manifest-path ${{ matrix.package }}/Cargo.toml
+        run: cargo +nightly fmt --check --all
 
       - name: Stable
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
           toolchain: stable
-      - uses: Swatinem/rust-cache@v2.0.0
+
+      - uses: Swatinem/rust-cache@v2.5.0
+        with:
+          workspaces: ${{ matrix.package }} -> target
 
       - name: "Build"
-        run: cargo build --manifest-path ${{ matrix.package }}/Cargo.toml
+        run: cargo build ${{ matrix.release && '--release' }}
 
       - name: "Test"
-        run: cargo test --lib --bins --tests --examples --workspace --manifest-path ${{ matrix.package }}/Cargo.toml
+        if: ${{ matrix.release != true }}
+        run: cargo test --lib --bins --tests --examples --workspace
 
       - name: "Integration Test"
-        if: ( ${{ matrix.package}} === "integration-tests" )
-        run: cargo test --release --tests --manifest-path ${{ matrix.package }}/Cargo.toml
-
+        if: ${{ matrix.release == true }}
+        run: cargo test --release --tests
