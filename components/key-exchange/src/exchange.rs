@@ -46,8 +46,8 @@ where
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("KeyExchangeCore")
             .field("channel", &"{{ ... }}")
-            .field("point_addition_sender", &self.point_addition_sender)
-            .field("point_addition_receiver", &self.point_addition_receiver)
+            .field("point_addition_sender", &"{{ ... }}")
+            .field("point_addition_receiver", &"{{ ... }}")
             .field("executor", &"{{ ... }}")
             .field("private_key", &"{{ ... }}")
             .field("server_key", &self.server_key)
@@ -71,7 +71,11 @@ where
     /// * `config`                  - The config used for the key exchange protocol
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "info", skip(channel, executor), ret)
+        tracing::instrument(
+            level = "info",
+            skip(channel, executor, point_addition_sender, point_addition_receiver),
+            ret
+        )
     )]
     pub fn new(
         channel: KeyExchangeChannel,
