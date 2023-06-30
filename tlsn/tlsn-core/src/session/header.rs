@@ -46,6 +46,14 @@ impl SessionHeader {
     }
 
     /// Verify the data in the header is consistent with the Prover's view
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(
+            level = "debug",
+            skip(self, encoder_seed, handshake_data_decommitment),
+            err
+        )
+    )]
     pub fn verify(
         &self,
         time: u64,

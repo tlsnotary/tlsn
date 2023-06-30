@@ -11,6 +11,7 @@ edition = "2021"
 [features]
 default = []
 fixtures = ["dep:hex"]
+tracing = ["dep:tracing"]
 
 [dependencies]
 tlsn-tls-core = { workspace = true, features = ["serde"] }
@@ -28,6 +29,7 @@ webpki-roots.workspace = true
 rs_merkle.workspace = true
 rstest = { workspace = true, optional = true}
 hex = { workspace = true, optional = true} 
+tracing = { workspace = true, optional = true }
 
 [dev-dependencies]
 rstest.workspace = true

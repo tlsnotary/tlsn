@@ -23,6 +23,10 @@ impl SubstringsProof {
 
     /// Verifies this proof and, if successful, returns [TranscriptSlice]s which were sent and
     /// received.
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self), err)
+    )]
     pub fn verify(
         self,
         header: &SessionHeader,

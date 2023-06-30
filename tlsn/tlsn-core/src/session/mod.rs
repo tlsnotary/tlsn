@@ -38,6 +38,10 @@ impl NotarizedSession {
     }
 
     /// Generates a `SubstringsProof` for commitments with the provided merkle tree indices
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "debug", skip(self, indices), err)
+    )]
     pub fn generate_substring_proof(&self, indices: Vec<usize>) -> Result<SubstringsProof, Error> {
         // check that merkle tree indices are unique
         if indices.iter().contains_dups() {

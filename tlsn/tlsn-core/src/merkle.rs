@@ -43,6 +43,14 @@ pub struct MerkleProof(
 );
 
 impl MerkleProof {
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(
+            level = "debug",
+            skip(self, leaf_indices, leaf_hashes, total_leaves_count),
+            err
+        )
+    )]
     pub fn verify(
         &self,
         root: &MerkleRoot,

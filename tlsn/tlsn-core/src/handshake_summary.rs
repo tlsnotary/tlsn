@@ -38,6 +38,10 @@ impl HandshakeSummary {
     }
 
     /// Verifies that the handshake data matches this handshake summary
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "debug", skip(self, data), err)
+    )]
     pub fn verify(&self, data: &Decommitment<HandshakeData>) -> Result<(), Error> {
         // Verify the handshake data matches the commitment in the session header
         data.verify(&self.handshake_commitment)

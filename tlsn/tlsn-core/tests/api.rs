@@ -33,7 +33,7 @@ use tlsn_core::{
 };
 
 #[test]
-/// Tests that the commitment creation protool and verification work end-to-end
+/// Tests that the commitment creation protocol and verification work end-to-end
 fn test_api() {
     let testdata = crate::fixtures::cert::tlsnotary();
     // User's transcript

@@ -30,6 +30,10 @@ impl InclusionProof {
 
     /// Verifies this inclusion proof against the merkle root from the header. Returns a
     /// <merkle tree index, commitment> hashmap.
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "debug", skip(self), err)
+    )]
     pub fn verify(&self, root: &MerkleRoot) -> Result<HashMap<u32, Commitment>, Error> {
         // <merkle tree index, commitment> hashmap which will be returned
         let mut map: HashMap<u32, Commitment> = HashMap::new();

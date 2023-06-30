@@ -21,6 +21,10 @@ impl SubstringsOpeningSet {
     }
 
     // Validate the set
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self), err)
+    )]
     pub fn validate(&self) -> Result<(), Error> {
         // --- validate each individual opening
         for c in &self.0 {
