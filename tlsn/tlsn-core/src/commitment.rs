@@ -1,6 +1,10 @@
+//! Contains different commitment types
+
 use mpz_core::hash::Hash;
 use serde::{Deserialize, Serialize};
 
+/// Unifies different commitment types
+#[allow(missing_docs)]
 #[derive(Serialize, Deserialize, Clone)]
 pub enum Commitment {
     Blake3(Blake3),
@@ -20,10 +24,12 @@ pub struct Blake3 {
 }
 
 impl Blake3 {
+    /// Creates a new Blake3 commitment
     pub fn new(encoding_hash: Hash) -> Self {
         Self { encoding_hash }
     }
 
+    /// Get reference to  inner encoding hash
     pub fn encoding_hash(&self) -> &Hash {
         &self.encoding_hash
     }

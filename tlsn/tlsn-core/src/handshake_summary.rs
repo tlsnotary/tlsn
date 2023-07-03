@@ -17,6 +17,7 @@ pub struct HandshakeSummary {
 }
 
 impl HandshakeSummary {
+    /// Creates a new HandshakeSummary
     pub fn new(time: u64, ephemeral_ec_pubkey: PublicKey, handshake_commitment: Hash) -> Self {
         Self {
             time,
@@ -25,14 +26,17 @@ impl HandshakeSummary {
         }
     }
 
+    /// Get reference to time
     pub fn time(&self) -> u64 {
         self.time
     }
 
+    /// Get reference to server public key
     pub fn server_public_key(&self) -> &PublicKey {
         &self.server_public_key
     }
 
+    /// Get reference to handshake commitment
     pub fn handshake_commitment(&self) -> &Hash {
         &self.handshake_commitment
     }

@@ -7,6 +7,7 @@ use crate::{
     SubstringsCommitment, SubstringsOpeningSet, TranscriptSlice,
 };
 
+/// A substring proof containing the opening set and the inclusion proof
 #[derive(Serialize, Deserialize)]
 pub struct SubstringsProof {
     openings: SubstringsOpeningSet,
@@ -14,6 +15,7 @@ pub struct SubstringsProof {
 }
 
 impl SubstringsProof {
+    /// Creates a new substring proof
     pub fn new(openings: SubstringsOpeningSet, inclusion_proof: InclusionProof) -> Self {
         Self {
             openings,

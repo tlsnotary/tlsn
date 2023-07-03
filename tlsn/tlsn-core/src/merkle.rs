@@ -1,3 +1,5 @@
+//! This module contains code for Merkle trees and proofs
+
 use mpz_core::hash::Hash;
 use rs_merkle::{
     algorithms::Sha256, proof_serializers, MerkleProof as MerkleProof_rs_merkle,
@@ -6,10 +8,12 @@ use rs_merkle::{
 use serde::{ser::Serializer, Deserialize, Deserializer, Serialize};
 use utils::iter::DuplicateCheck;
 
+/// The root of a Merkle tree
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MerkleRoot([u8; 32]);
 
 impl MerkleRoot {
+    /// Gets the inner byte array
     pub fn to_inner(self) -> [u8; 32] {
         self.0
     }
@@ -43,6 +47,7 @@ pub struct MerkleProof(
 );
 
 impl MerkleProof {
+    /// Checks if indices, hashes and leaves count are valid for the provided root
     #[cfg_attr(
         feature = "tracing",
         tracing::instrument(
@@ -125,6 +130,7 @@ pub struct MerkleTree(
 );
 
 impl MerkleTree {
+    /// Create a new Merkle tree from the given `leaves`
     pub fn from_leaves(leaves: &[Hash]) -> Result<Self, MerkleError> {
         if leaves.is_empty() {
             return Err(MerkleError::MerkleNoLeavesProvided);

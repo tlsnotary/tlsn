@@ -1,3 +1,5 @@
+//! This module contains code for transcripts of the TLS session
+
 use crate::error::Error;
 use serde::{Deserialize, Serialize};
 use std::ops::Range;
@@ -10,6 +12,7 @@ pub struct Transcript {
 }
 
 impl Transcript {
+    /// Creates a new transcript with the given ID and data
     pub fn new(id: &str, data: Vec<u8>) -> Self {
         Self {
             id: id.to_string(),
@@ -52,10 +55,12 @@ impl Transcript {
         Ok(dst)
     }
 
+    /// Gets a reference to id
     pub fn id(&self) -> &String {
         &self.id
     }
 
+    /// Gets a reference to data
     pub fn data(&self) -> &[u8] {
         &self.data
     }
@@ -75,10 +80,12 @@ impl TranscriptSlice {
         Self { range, data }
     }
 
+    /// Gets a reference to range
     pub fn range(&self) -> &Range<u32> {
         &self.range
     }
 
+    /// Gets a reference to data
     pub fn data(&self) -> &Vec<u8> {
         &self.data
     }
@@ -89,7 +96,9 @@ impl TranscriptSlice {
 /// and a stream of bytes which were received from the server . The User creates
 /// separate commitments to bytes in each direction.
 pub enum Direction {
+    /// Sent from the prover to the server
     Sent,
+    /// Received by the prover from the server
     Received,
 }
 

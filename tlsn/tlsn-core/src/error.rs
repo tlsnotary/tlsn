@@ -1,5 +1,6 @@
 use crate::merkle;
 
+/// An error type for the crate
 #[derive(Debug, thiserror::Error, PartialEq)]
 #[allow(missing_docs)]
 pub enum Error {

@@ -21,6 +21,7 @@ use crate::{
     Commitment, Direction, InclusionProof, SubstringsCommitment, SubstringsCommitmentSet,
 };
 
+/// A potentially notarized session
 #[derive(Serialize, Deserialize)]
 pub struct NotarizedSession {
     header: SessionHeader,
@@ -29,6 +30,7 @@ pub struct NotarizedSession {
 }
 
 impl NotarizedSession {
+    /// Create a new instance of [NotarizedSession]
     pub fn new(header: SessionHeader, signature: Option<Signature>, data: SessionData) -> Self {
         Self {
             header,
@@ -107,6 +109,7 @@ impl NotarizedSession {
         ))
     }
 
+    /// Generates a new [SessionProof] from this [NotarizedSession]
     pub fn session_proof(&self) -> SessionProof {
         SessionProof::new(
             self.header().clone(),
@@ -115,14 +118,17 @@ impl NotarizedSession {
         )
     }
 
+    /// Getter for header
     pub fn header(&self) -> &SessionHeader {
         &self.header
     }
 
+    /// Getter for signature
     pub fn signature(&self) -> &Option<Signature> {
         &self.signature
     }
 
+    /// Getter for data
     pub fn data(&self) -> &SessionData {
         &self.data
     }

@@ -8,6 +8,10 @@ use mpz_core::hash::Hash;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// Inclusion proof for a [SubstringsCommitmentSet]
+///
+/// Contains a [proof](MerkleProof) that several [commitments](crate::SubstringsCommitment)
+/// are part of a Merkle tree with a given [root](MerkleRoot).
 #[derive(Serialize, Deserialize)]
 pub struct InclusionProof {
     commitments: SubstringsCommitmentSet,
@@ -16,6 +20,7 @@ pub struct InclusionProof {
 }
 
 impl InclusionProof {
+    /// Creates a new InclusionProof
     pub fn new(
         commitments: SubstringsCommitmentSet,
         merkle_proof: MerkleProof,
@@ -76,6 +81,7 @@ impl InclusionProof {
         Ok(())
     }
 
+    /// Returns a reference to the commitment set
     pub fn commitments(&self) -> &SubstringsCommitmentSet {
         &self.commitments
     }

@@ -6,7 +6,9 @@ use tls_core::handshake::HandshakeData;
 use super::SessionHeader;
 use crate::signature::Signature;
 
+/// A proof for a TLS session
 #[derive(Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub struct SessionProof {
     pub header: SessionHeader,
     pub signature: Option<Signature>,
@@ -14,6 +16,7 @@ pub struct SessionProof {
 }
 
 impl SessionProof {
+    /// Create a new instance of SessionProof
     pub fn new(
         header: SessionHeader,
         signature: Option<Signature>,
@@ -26,10 +29,12 @@ impl SessionProof {
         }
     }
 
+    /// Getter for the header
     pub fn header(&self) -> &SessionHeader {
         &self.header
     }
 
+    /// Getter for the handshake_data_decommitment
     pub fn handshake_data_decommitment(&self) -> &Decommitment<HandshakeData> {
         &self.handshake_data_decommitment
     }

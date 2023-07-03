@@ -29,6 +29,7 @@ pub struct SessionHeader {
 }
 
 impl SessionHeader {
+    /// Create a new instance of SessionHeader
     pub fn new(
         encoder_seed: [u8; 32],
         merkle_root: MerkleRoot,
@@ -77,26 +78,32 @@ impl SessionHeader {
         Ok(())
     }
 
+    /// Create a new [ChaChaEncoder] from encoder_seed
     pub fn encoder(&self) -> ChaChaEncoder {
         ChaChaEncoder::new(self.encoder_seed)
     }
 
+    /// Getter for encoder_seed
     pub fn label_seed(&self) -> &[u8; 32] {
         &self.encoder_seed
     }
 
+    /// Getter for merkle_root
     pub fn merkle_root(&self) -> &MerkleRoot {
         &self.merkle_root
     }
 
+    /// Getter for handshake_summary
     pub fn handshake_summary(&self) -> &HandshakeSummary {
         &self.handshake_summary
     }
 
+    /// Getter for sent_len
     pub fn sent_len(&self) -> u32 {
         self.sent_len
     }
 
+    /// Getter for recv_len
     pub fn recv_len(&self) -> u32 {
         self.recv_len
     }
