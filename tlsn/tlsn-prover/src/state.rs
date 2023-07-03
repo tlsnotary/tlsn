@@ -10,12 +10,14 @@ use mpz_share_conversion::{ConverterSender, Gf2_128};
 use tls_core::{dns::ServerName, handshake::HandshakeData, key::PublicKey};
 use tlsn_core::{SubstringsCommitment, Transcript};
 
+/// The state for the initialized [Prover](crate::Prover)
 #[derive(Debug)]
 pub struct Initialized<T> {
     pub(crate) server_name: ServerName,
     pub(crate) notary_mux: T,
 }
 
+/// The state for the [Prover](crate::Prover) during notarization
 pub struct Notarize<T> {
     pub(crate) notary_mux: T,
 
@@ -43,18 +45,14 @@ impl<T> std::fmt::Debug for Notarize<T> {
     }
 }
 
-#[derive(Debug)]
-pub struct Finalized {}
-
+#[allow(missing_docs)]
 pub trait ProverState: sealed::Sealed {}
 
 impl<T> ProverState for Initialized<T> {}
 impl<T> ProverState for Notarize<T> {}
-impl ProverState for Finalized {}
 
 mod sealed {
     pub trait Sealed {}
     impl<T> Sealed for super::Initialized<T> {}
     impl<T> Sealed for super::Notarize<T> {}
-    impl Sealed for super::Finalized {}
 }

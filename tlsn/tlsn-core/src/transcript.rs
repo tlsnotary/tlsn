@@ -91,7 +91,7 @@ impl TranscriptSlice {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 /// A [Transcript] consists of a stream of bytes which were sent to the server
 /// and a stream of bytes which were received from the server . The User creates
 /// separate commitments to bytes in each direction.

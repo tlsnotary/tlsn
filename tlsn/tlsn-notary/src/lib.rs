@@ -65,6 +65,10 @@ impl Future for NotaryBackgroundFut {
 ///
 /// * `config` - The configuration for the notary.
 /// * `socket` - The socket to the prover.
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "debug", skip(socket), err)
+)]
 pub fn bind_notary<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     config: NotaryConfig,
     socket: T,
