@@ -45,7 +45,7 @@ You can use **Ctrl-C** to stop the server, when the notarization is ready.
 In the tlsn\examples folder, run the following command:
 
 ```sh
-RUST_OG=debug,yamux=info cargo run --release --example twitter_dm
+RUST_LOG=debug,yamux=info cargo run --release --example twitter_dm
 ```
 
 If everything goes well, you should see output similar to the following:

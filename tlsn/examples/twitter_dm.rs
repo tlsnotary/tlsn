@@ -1,5 +1,17 @@
-use std::ops::Range;
-
+use eyre::Result;
+use tracing::debug;
+use std::{
+    fs::File as StdFile,
+    io::BufReader,
+    ops::Range,
+    net::{IpAddr, SocketAddr},
+    sync::Arc,
+};
+use tokio::{
+    fs::File,
+};
+use tokio_rustls::TlsConnector;
+use rustls::{Certificate, ClientConfig, RootCertStore};
 use hyper::{body::to_bytes, Body, Request, StatusCode};
 
 use futures::AsyncWriteExt;
@@ -19,30 +31,62 @@ const AUTH_TOKEN: &str = "";
 const ACCESS_TOKEN: &str = "";
 const CSRF_TOKEN: &str = "";
 
+const NOTARY_CA_CERT_PATH: &str = "./rootCA.crt";
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
 
+    // Connect to the Notary via TLS-TCP
+    let mut certificate_file_reader = read_pem_file(NOTARY_CA_CERT_PATH).await.unwrap();
+    let mut certificates: Vec<Certificate> =
+        rustls_pemfile::certs(&mut certificate_file_reader)
+            .unwrap()
+            .into_iter()
+            .map(Certificate)
+            .collect();
+    let certificate = certificates.remove(0);
+
+    let mut root_store = RootCertStore::empty();
+    root_store.add(&certificate).unwrap();
+
+    let client_notary_config = ClientConfig::builder()
+        .with_safe_defaults()
+        .with_root_certificates(root_store)
+        .with_no_client_auth();
+    let notary_connector = TlsConnector::from(Arc::new(client_notary_config));
+
+    let notary_socket = tokio::net::TcpStream::connect(SocketAddr::new(
+        IpAddr::V4("127.0.0.1".parse().unwrap()),
+        7047,
+    ))
+    .await
+    .unwrap();
+
+    let prover_address = notary_socket.local_addr().unwrap().to_string();
+    let notary_tls_socket = notary_connector
+        .connect(
+            "tlsnotaryserver.io".try_into().unwrap(),
+            notary_socket,
+        )
+        .await
+        .unwrap();
+    
+    // Connect to the Server
     // Basic default prover config
     let config = ProverConfig::builder()
-        .id("example")
+        .id(prover_address)
         .server_dns(SERVER_DOMAIN)
         .build()
         .unwrap();
 
-    // Connect to the Notary
-    let notary_socket = tokio::net::TcpStream::connect(("127.0.0.1", 8080))
-        .await
-        .unwrap();
-
-    // Connect to the Server
     let client_socket = tokio::net::TcpStream::connect((SERVER_DOMAIN, 443))
         .await
         .unwrap();
 
     // Bind the Prover to the sockets
     let (tls_connection, prover_fut, mux_fut) =
-        bind_prover(config, client_socket.compat(), notary_socket.compat())
+        bind_prover(config, client_socket.compat(), notary_tls_socket.compat())
             .await
             .unwrap();
 
@@ -81,21 +125,21 @@ async fn main() {
         .body(Body::empty())
         .unwrap();
 
-    println!("Sending request");
+    debug!("Sending request");
 
     let response = request_sender.send_request(request).await.unwrap();
 
-    println!("Sent request");
+    debug!("Sent request");
 
     assert!(response.status() == StatusCode::OK);
 
-    println!("Request OK");
+    debug!("Request OK");
 
     // Pretty printing :)
     let payload = to_bytes(response.into_body()).await.unwrap().to_vec();
     let parsed =
         serde_json::from_str::<serde_json::Value>(&String::from_utf8_lossy(&payload)).unwrap();
-    println!("{}", serde_json::to_string_pretty(&parsed).unwrap());
+    debug!("{}", serde_json::to_string_pretty(&parsed).unwrap());
 
     // Close the connection to the server
     let mut client_socket = connection_task.await.unwrap().unwrap().io.into_inner();
@@ -126,7 +170,7 @@ async fn main() {
     // Finalize, returning the notarized session
     let notarized_session = prover.finalize().await.unwrap();
 
-    println!("Notarization complete!");
+    debug!("Notarization complete!");
 
     // Dump the notarized session to a file
     let mut file = tokio::fs::File::create("twitter_dm.json").await.unwrap();
@@ -169,4 +213,10 @@ fn find_ranges(seq: &[u8], sub_seq: &[&[u8]]) -> (Vec<Range<u32>>, Vec<Range<u32
     }
 
     (public_ranges, private_ranges)
+}
+
+/// Read a PEM-formatted file and return its buffer reader
+async fn read_pem_file(file_path: &str) -> Result<BufReader<StdFile>> {
+    let key_file = File::open(file_path).await?.into_std().await;
+    Ok(BufReader::new(key_file))
 }
