@@ -37,6 +37,7 @@ eyre = "0.6.8"
 rustls = { version = "0.21" }
 rustls-pemfile = { version = "1.0.2" }
 tokio-rustls = { version = "0.24.1" }
+dotenv = "0.15.0"
 
 [[example]]
 name = "twitter_dm"

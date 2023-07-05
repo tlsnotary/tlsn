@@ -1,18 +1,17 @@
 use eyre::Result;
-use tracing::debug;
+use hyper::{body::to_bytes, Body, Request, StatusCode};
+use rustls::{Certificate, ClientConfig, RootCertStore};
 use std::{
+    env,
     fs::File as StdFile,
     io::BufReader,
-    ops::Range,
     net::{IpAddr, SocketAddr},
+    ops::Range,
     sync::Arc,
 };
-use tokio::{
-    fs::File,
-};
+use tokio::fs::File;
 use tokio_rustls::TlsConnector;
-use rustls::{Certificate, ClientConfig, RootCertStore};
-use hyper::{body::to_bytes, Body, Request, StatusCode};
+use tracing::debug;
 
 use futures::AsyncWriteExt;
 use tlsn_prover::{bind_prover, ProverConfig};
@@ -22,14 +21,7 @@ use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 
 const SERVER_DOMAIN: &str = "twitter.com";
 const ROUTE: &str = "i/api/1.1/dm/conversation";
-const CONVERSATION_ID: &str = "";
-
-const CLIENT_UUID: &str = "";
 const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36";
-
-const AUTH_TOKEN: &str = "";
-const ACCESS_TOKEN: &str = "";
-const CSRF_TOKEN: &str = "";
 
 const NOTARY_CA_CERT_PATH: &str = "./rootCA.crt";
 
@@ -37,14 +29,22 @@ const NOTARY_CA_CERT_PATH: &str = "./rootCA.crt";
 async fn main() {
     tracing_subscriber::fmt::init();
 
+    // Load variables frome environment
+    dotenv::dotenv().ok();
+
+    let conversation_id = env::var("CONVERSATION_ID").unwrap();
+    let client_uuid = env::var("CLIENT_UUID").unwrap();
+    let auth_token = env::var("AUTH_TOKEN").unwrap();
+    let access_token = env::var("ACCESS_TOKEN").unwrap();
+    let csrf_token = env::var("CSRF_TOKEN").unwrap();
+
     // Connect to the Notary via TLS-TCP
     let mut certificate_file_reader = read_pem_file(NOTARY_CA_CERT_PATH).await.unwrap();
-    let mut certificates: Vec<Certificate> =
-        rustls_pemfile::certs(&mut certificate_file_reader)
-            .unwrap()
-            .into_iter()
-            .map(Certificate)
-            .collect();
+    let mut certificates: Vec<Certificate> = rustls_pemfile::certs(&mut certificate_file_reader)
+        .unwrap()
+        .into_iter()
+        .map(Certificate)
+        .collect();
     let certificate = certificates.remove(0);
 
     let mut root_store = RootCertStore::empty();
@@ -65,13 +65,10 @@ async fn main() {
 
     let prover_address = notary_socket.local_addr().unwrap().to_string();
     let notary_tls_socket = notary_connector
-        .connect(
-            "tlsnotaryserver.io".try_into().unwrap(),
-            notary_socket,
-        )
+        .connect("tlsnotaryserver.io".try_into().unwrap(), notary_socket)
         .await
         .unwrap();
-    
+
     // Connect to the Server
     // Basic default prover config
     let config = ProverConfig::builder()
@@ -105,23 +102,23 @@ async fn main() {
     // Build the HTTP request to fetch the DMs
     let request = Request::builder()
         .uri(format!(
-            "https://{SERVER_DOMAIN}/{ROUTE}/{CONVERSATION_ID}.json"
+            "https://{SERVER_DOMAIN}/{ROUTE}/{conversation_id}.json"
         ))
         .header("Host", SERVER_DOMAIN)
         .header("Accept", "*/*")
         .header("Accept-Encoding", "identity")
         .header("Connection", "close")
         .header("User-Agent", USER_AGENT)
-        .header("Authorization", format!("Bearer {ACCESS_TOKEN}"))
+        .header("Authorization", format!("Bearer {access_token}"))
         .header(
             "Cookie",
-            format!("auth_token={AUTH_TOKEN}; ct0={CSRF_TOKEN}"),
+            format!("auth_token={auth_token}; ct0={csrf_token}"),
         )
         .header("Authority", SERVER_DOMAIN)
         .header("X-Twitter-Auth-Type", "OAuth2Session")
         .header("x-twitter-active-user", "yes")
-        .header("X-Client-Uuid", CLIENT_UUID)
-        .header("X-Csrf-Token", CSRF_TOKEN)
+        .header("X-Client-Uuid", client_uuid)
+        .header("X-Csrf-Token", csrf_token.clone())
         .body(Body::empty())
         .unwrap();
 
@@ -152,9 +149,9 @@ async fn main() {
     let (public_ranges, private_ranges) = find_ranges(
         prover.sent_transcript().data(),
         &[
-            ACCESS_TOKEN.as_bytes(),
-            AUTH_TOKEN.as_bytes(),
-            CSRF_TOKEN.as_bytes(),
+            access_token.as_bytes(),
+            auth_token.as_bytes(),
+            csrf_token.as_bytes(),
         ],
     );
 
