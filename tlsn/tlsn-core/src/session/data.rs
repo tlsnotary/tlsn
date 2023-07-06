@@ -3,7 +3,7 @@ use mpz_core::commit::Decommitment;
 use serde::{Deserialize, Serialize};
 use tls_core::handshake::HandshakeData;
 
-/// Wrapper for various data associated with the TLS session
+/// Wrapper for various data associated with the TLSNotary session
 #[derive(Serialize, Deserialize)]
 pub struct SessionData {
     handshake_data_decommitment: Decommitment<HandshakeData>,

@@ -3,11 +3,11 @@ use mpz_core::commit::Decommitment;
 use crate::merkle::MerkleTree;
 use tls_core::{handshake::HandshakeData, key::PublicKey};
 
-/// Various artifacts which the User holds at the end of the notarization session
+/// Various artifacts which the Prover holds at the end of the notarization session
 pub struct SessionArtifacts {
     /// time when TLS handshake was initiated
     time: u64,
-    /// A Merkle tree of all the User's commitments
+    /// A Merkle tree of all the Prover's commitments
     merkle_tree: MerkleTree,
     /// encoder seed revealed by the Notary at the end of the label commitment protocol
     encoder_seed: [u8; 32],

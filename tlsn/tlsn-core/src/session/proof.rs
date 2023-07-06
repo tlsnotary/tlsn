@@ -6,7 +6,7 @@ use tls_core::handshake::HandshakeData;
 use super::SessionHeader;
 use crate::signature::Signature;
 
-/// A proof for a TLS session
+/// A proof for a TLSNotary session
 #[derive(Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct SessionProof {

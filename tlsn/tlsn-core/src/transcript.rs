@@ -1,4 +1,4 @@
-//! This module contains code for transcripts of the TLS session
+//! This module contains code for transcripts of the TLSNotary session
 
 use crate::error::Error;
 use serde::{Deserialize, Serialize};
@@ -92,8 +92,8 @@ impl TranscriptSlice {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-/// A [Transcript] consists of a stream of bytes which were sent to the server
-/// and a stream of bytes which were received from the server . The User creates
+/// A [Transcript] contains either a stream of bytes which were sent to the server
+/// or a stream of bytes which were received from the server. The Prover creates
 /// separate commitments to bytes in each direction.
 pub enum Direction {
     /// Sent from the prover to the server

@@ -12,7 +12,7 @@ pub struct HandshakeSummary {
     time: u64,
     /// server ephemeral public key
     server_public_key: PublicKey,
-    /// User's commitment to [crate::handshake_data::HandshakeData]
+    /// Prover's commitment to [crate::handshake_data::HandshakeData]
     handshake_commitment: Hash,
 }
 

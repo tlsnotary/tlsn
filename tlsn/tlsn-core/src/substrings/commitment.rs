@@ -72,7 +72,7 @@ impl SubstringsCommitmentSet {
     }
 }
 
-/// A User's commitment to one or multiple substrings of the [crate::Transcript]
+/// A Prover's commitment to one or multiple substrings of the [crate::Transcript]
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SubstringsCommitment {
     /// The index of this commitment in the Merkle tree of commitments.

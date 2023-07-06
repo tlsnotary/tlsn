@@ -100,7 +100,7 @@ where
         Self { config, mux }
     }
 
-    /// Runs the notary server
+    /// Runs the notary instance.
     pub async fn notarize<T>(self, signer: &impl Signer<T>) -> Result<SessionHeader, NotaryError>
     where
         T: Into<Signature>,

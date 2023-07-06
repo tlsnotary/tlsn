@@ -21,7 +21,7 @@ use crate::{
     Commitment, Direction, InclusionProof, SubstringsCommitment, SubstringsCommitmentSet,
 };
 
-/// A potentially notarized session
+/// A validated notarized session stored by the Prover
 #[derive(Serialize, Deserialize)]
 pub struct NotarizedSession {
     header: SessionHeader,
