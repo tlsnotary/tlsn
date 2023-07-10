@@ -1,5 +1,10 @@
 [package]
 name = "actor-ot"
+authors = ["TLSNotary Team"]
+description = "A wrapper crate for Oblivious Transfer protocols"
+keywords = ["tls", "mpc", "2pc", "ot"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
 version = "0.1.0"
 edition = "2021"
 
@@ -29,7 +34,6 @@ xtra = { git = "https://github.com/Restioson/xtra", rev = "ca061b4", features = 
 ], default-features = false }
 tokio = { version = "1.23", features = [
     "macros",
-    "io-util",
     "rt",
     "rt-multi-thread",
 ] }
