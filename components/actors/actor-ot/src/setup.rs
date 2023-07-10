@@ -18,6 +18,10 @@ use crate::{
 /// * `id` - The ID of the sender
 /// * `mux` - The muxer which sets up channels with the remote receiver
 /// * `config` - The configuration for the sender
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "info", skip(mux), err)
+)]
 pub async fn create_ot_sender(
     mut mux: impl MuxChannel<OTMessage> + Send + 'static,
     config: OTActorSenderConfig,
@@ -39,6 +43,10 @@ pub async fn create_ot_sender(
 /// * `id` - The ID of the receiver
 /// * `mux` - The muxer which sets up channels with the remote sender
 /// * `config` - The configuration for the receiver
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "info", skip(mux), err)
+)]
 pub async fn create_ot_receiver(
     mut mux: impl MuxChannel<OTMessage> + Send + 'static,
     config: OTActorReceiverConfig,
@@ -61,6 +69,10 @@ pub async fn create_ot_receiver(
 /// * `receiver_mux` - The muxer which sets up channels with the remote sender
 /// * `sender_config` - The configuration for the sender
 /// * `receiver_config` - The configuration for the receiver
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "info", skip(sender_mux, receiver_mux), err)
+)]
 pub async fn create_ot_pair(
     sender_mux: impl MuxChannel<OTMessage> + Send + 'static,
     receiver_mux: impl MuxChannel<OTMessage> + Send + 'static,

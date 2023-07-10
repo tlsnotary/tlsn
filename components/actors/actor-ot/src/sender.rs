@@ -47,6 +47,10 @@ impl KOSSenderActor {
     /// * `channel` - The channel over which OT splits are synchronized with the remote
     ///               KOSReceiverActor
     /// * `mux_control` - The muxer which sets up channels with the remote KOSReceiverActor
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "info", skip(addr, channel, mux_control))
+    )]
     pub fn new(
         config: OTActorSenderConfig,
         addr: Address<Self>,
@@ -80,6 +84,10 @@ impl Handler<Setup> for KOSSenderActor {
     type Return = Result<(), OTError>;
 
     /// Handles the Setup message
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "info", skip(self, _ctx), err)
+    )]
     async fn handle(&mut self, _msg: Setup, _ctx: &mut Context<Self>) -> Result<(), OTError> {
         // We move the state into scope and replace with error state
         // in case of early returns
@@ -117,6 +125,10 @@ impl Handler<GetSender> for KOSSenderActor {
     type Return = Result<Kos15IOSender<RandSetup>, OTError>;
 
     /// Handles the GetSender message
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "debug", skip(self, _ctx), err)
+    )]
     async fn handle(
         &mut self,
         msg: GetSender,
@@ -167,6 +179,10 @@ impl Handler<Reveal> for KOSSenderActor {
     type Return = Result<(), OTError>;
 
     /// Handles the Reveal message
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "debug", skip(self, ctx), err)
+    )]
     async fn handle(&mut self, _msg: Reveal, ctx: &mut Context<Self>) -> Self::Return {
         if !self.config.committed {
             return Err(OTError::Other(
@@ -196,6 +212,10 @@ impl Handler<SendBackSender> for KOSSenderActor {
     type Return = Result<(), OTError>;
 
     /// Handles the SendBackSender message
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self, _ctx), err)
+    )]
     async fn handle(&mut self, msg: SendBackSender, _ctx: &mut Context<Self>) -> Self::Return {
         let SendBackSender { id, child_sender } = msg;
 
@@ -233,6 +253,10 @@ impl Clone for SenderActorControl {
 
 impl SenderActorControl {
     /// Creates a new SenderActorControl
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "debug", skip(address))
+    )]
     pub fn new(address: Address<KOSSenderActor>) -> Self {
         Self(address)
     }
@@ -253,6 +277,10 @@ impl SenderActorControl {
 
 #[async_trait]
 impl ObliviousSend<[Block; 2]> for SenderActorControl {
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self, inputs), err)
+    )]
     async fn send(&self, id: &str, inputs: Vec<[Block; 2]>) -> Result<(), OTError> {
         let mut child_sender = self
             .0
@@ -277,6 +305,10 @@ impl ObliviousSend<[Block; 2]> for SenderActorControl {
 
 #[async_trait]
 impl<const N: usize> ObliviousSend<[[Block; N]; 2]> for SenderActorControl {
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self, inputs), err)
+    )]
     async fn send(&self, id: &str, inputs: Vec<[[Block; N]; 2]>) -> Result<(), OTError> {
         let mut child_sender = self
             .0

@@ -22,9 +22,11 @@ thiserror = "1"
 xtra = { git = "https://github.com/Restioson/xtra", rev = "ca061b4", features = [
     "macros",
 ], default-features = false }
+tracing = { version = "0.1", optional = true}
 
 [features]
 default = ["mock"]
+tracing = ["dep:tracing"]
 mock = []
 
 

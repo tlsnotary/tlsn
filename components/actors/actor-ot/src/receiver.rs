@@ -51,6 +51,10 @@ impl KOSReceiverActor {
     /// * `channel` - The channel over which OT splits are synchronized with the remote
     ///               KOSSenderActor
     /// * `mux_control` - The muxer which sets up channels with the remote KOSSenderActor
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "info", skip(addr, channel, mux_control))
+    )]
     pub fn new(
         config: OTActorReceiverConfig,
         addr: Address<Self>,
@@ -95,6 +99,10 @@ impl Handler<Setup> for KOSReceiverActor {
     type Return = Result<(), OTError>;
 
     /// Handles the Setup message
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "info", skip(self, _ctx), err)
+    )]
     async fn handle(&mut self, _msg: Setup, _ctx: &mut Context<Self>) -> Result<(), OTError> {
         // We move the state into scope and replace with error state
         // in case of early returns
@@ -137,6 +145,10 @@ impl Handler<Split> for KOSReceiverActor {
     type Return = Result<(), OTError>;
 
     /// Handles the Split message. This message is sent by the remote KOSSenderActor.
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "debug", skip(self, _ctx), err)
+    )]
     async fn handle(&mut self, msg: Split, _ctx: &mut Context<Self>) -> Result<(), OTError> {
         let Split { id, count } = msg;
 
@@ -182,6 +194,10 @@ impl Handler<GetReceiver> for KOSReceiverActor {
 
     /// Handles the GetReceiver message
     #[allow(clippy::async_yields_async)]
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "debug", skip(self, _ctx))
+    )]
     async fn handle(
         &mut self,
         msg: GetReceiver,
@@ -226,6 +242,10 @@ impl Handler<SendBackReceiver> for KOSReceiverActor {
     type Return = Result<(), OTError>;
 
     /// Handles the SendBackReceiver message
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self, _ctx), err)
+    )]
     async fn handle(
         &mut self,
         msg: SendBackReceiver,
@@ -265,6 +285,10 @@ impl Handler<Verify> for KOSReceiverActor {
         Result<Pin<Box<dyn Future<Output = Result<(), OTError>> + Send + 'static>>, OTError>;
 
     /// Handles the Verify message
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "debug", skip(self, _ctx), err)
+    )]
     async fn handle(&mut self, msg: Verify, _ctx: &mut Context<Self>) -> Self::Return {
         let Verify { id, input } = msg;
 
@@ -312,6 +336,10 @@ impl Clone for ReceiverActorControl {
 
 impl ReceiverActorControl {
     /// Creates a new ReceiverActorControl
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "debug", skip(address))
+    )]
     pub fn new(address: Address<KOSReceiverActor>) -> Self {
         Self(address)
     }
@@ -332,6 +360,10 @@ impl ReceiverActorControl {
 
 #[async_trait]
 impl ObliviousReceive<bool, Block> for ReceiverActorControl {
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self, choices), err)
+    )]
     async fn receive(&self, id: &str, choices: Vec<bool>) -> Result<Vec<Block>, OTError> {
         let mut child_receiver = self
             .0
@@ -357,6 +389,10 @@ impl ObliviousReceive<bool, Block> for ReceiverActorControl {
 
 #[async_trait]
 impl<const N: usize> ObliviousReceive<bool, [Block; N]> for ReceiverActorControl {
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self, choices), err)
+    )]
     async fn receive(&self, id: &str, choices: Vec<bool>) -> Result<Vec<[Block; N]>, OTError> {
         let mut child_receiver = self
             .0
