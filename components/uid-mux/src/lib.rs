@@ -59,6 +59,13 @@ pub struct UidYamuxControl {
     state: Arc<Mutex<MuxState>>,
 }
 
+impl UidYamuxControl {
+     /// shutdown the connection properly
+     pub async fn shutdown(&mut self) {
+        self.control.close().await.unwrap()
+    }
+}
+
 impl<T> UidYamux<T>
 where
     T: AsyncWrite + AsyncRead + Send + Unpin + 'static,
@@ -101,6 +108,7 @@ where
             futures::select! {
                 // Handle incoming streams
                 stream = conn.select_next_some() => {
+                    // println!("Handling incoming streams: {:?}", stream);
                     if self.mode == yamux::Mode::Client {
                         return Err(MuxerError::InternalError(
                             "client mode cannot accept incoming streams".to_string(),
@@ -118,6 +126,7 @@ where
                 }
                 // Handle streams for which we've received the id
                 stream = pending_streams.select_next_some() => {
+                    // println!("Handling pending streams: {:?}", stream);
                     let (stream_id, stream) = stream?;
 
                     let mut state = self.state.lock().unwrap();
@@ -129,7 +138,7 @@ where
                         state.waiting_streams.insert(stream_id, stream);
                     }
                 }
-                complete => return Ok(()),
+                complete => { println!("Completed!"); return Ok(()) },
             }
         }
     }

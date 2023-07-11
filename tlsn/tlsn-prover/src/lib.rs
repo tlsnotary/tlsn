@@ -64,12 +64,13 @@ pub async fn bind_prover<
 > {
     let mut mux = UidYamux::new(yamux::Config::default(), notary_socket, yamux::Mode::Client);
     let mux_control = BincodeMux::new(mux.control());
+    let extra_mux_control = mux.control();
 
     let mut mux_fut = MuxFuture {
         fut: Box::pin(async move { mux.run().await.map_err(ProverError::from) }),
     };
 
-    let prover_fut = Prover::new(config, mux_control)?.bind_prover(client_socket);
+    let prover_fut = Prover::new(config, mux_control, extra_mux_control)?.bind_prover(client_socket);
     let (conn, conn_fut) = futures::select! {
         res = prover_fut.fuse() => res?,
         _ = (&mut mux_fut).fuse() => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
@@ -116,6 +117,7 @@ impl<T> Future for ConnectionFuture<T> {
 pub struct Prover<T: ProverState> {
     config: ProverConfig,
     state: T,
+    mux_control: UidYamuxControl,
 }
 
 impl<T> Prover<Initialized<T>>
@@ -128,7 +130,7 @@ where
     ///
     /// * `config` - The configuration for the prover.
     /// * `notary_mux` - The multiplexed connection to the notary.
-    pub fn new(config: ProverConfig, notary_mux: T) -> Result<Self, ProverError> {
+    pub fn new(config: ProverConfig, notary_mux: T, mux_control: UidYamuxControl) -> Result<Self, ProverError> {
         let server_name = ServerName::try_from(config.server_dns())?;
 
         Ok(Self {
@@ -137,6 +139,7 @@ where
                 server_name,
                 notary_mux,
             },
+            mux_control,
         })
     }
 
@@ -215,6 +218,7 @@ where
                         commitments: Vec::default(),
                         substring_commitments: Vec::default(),
                     },
+                    mux_control: self.mux_control,
                 })
             }
             .instrument(debug_span!("prover_tls_connection")),
@@ -281,7 +285,7 @@ where
         Ok(())
     }
 
-    pub async fn finalize(self) -> Result<NotarizedSession, ProverError> {
+    pub async fn finalize(mut self) -> Result<NotarizedSession, ProverError> {
         let Notarize {
             notary_mux: mut mux,
             mut vm,
@@ -344,6 +348,8 @@ where
             merkle_tree,
             commitments,
         );
+
+        self.mux_control.shutdown().await;
 
         Ok(NotarizedSession::new(header, Some(signature), data))
     }
