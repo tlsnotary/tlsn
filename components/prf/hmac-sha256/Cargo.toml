@@ -27,7 +27,7 @@ tracing = { workspace = true, optional = true }
 [dev-dependencies]
 criterion = { workspace = true, features = ["async_tokio"] }
 futures.workspace = true
-tokio = { workspace = true, features = ["macros", "rt"] }
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
 
 [[bench]]
 name = "prf"
