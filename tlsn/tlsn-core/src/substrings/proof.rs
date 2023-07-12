@@ -93,7 +93,7 @@ impl SubstringsProof {
         for o in self.openings.iter() {
             let Some(c) = map.get(&o.merkle_tree_index()) else {
                 // `merkle_tree_index` doesn't match
-                return Err(Error::ValidationError)
+                return Err(Error::ValidationError);
             };
 
             // directions must match

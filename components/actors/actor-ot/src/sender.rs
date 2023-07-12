@@ -128,7 +128,11 @@ impl Handler<GetSender> for KOSSenderActor {
         // in case of early returns
         let state = std::mem::replace(&mut self.state, State::Error);
 
-        let State::Setup{sender, child_senders} = state else {
+        let State::Setup {
+            sender,
+            child_senders,
+        } = state
+        else {
             return Err(OTError::Other("KOSSenderActor is not setup".to_string()));
         };
 
@@ -173,7 +177,7 @@ impl Handler<Reveal> for KOSSenderActor {
         // Leave actor in error state
         let state = std::mem::replace(&mut self.state, State::Error);
 
-        let State::Setup{child_senders, ..} = state else {
+        let State::Setup { child_senders, .. } = state else {
             return Err(OTError::Other("KOSSenderActor is not setup".to_string()));
         };
         ctx.stop_self();
@@ -198,7 +202,11 @@ impl Handler<SendBackSender> for KOSSenderActor {
         // Leave actor in error state
         let state = std::mem::replace(&mut self.state, State::Error);
 
-        let State::Setup{sender, mut child_senders} = state else {
+        let State::Setup {
+            sender,
+            mut child_senders,
+        } = state
+        else {
             return Err(OTError::Other("KOSSenderActor is not setup".to_string()));
         };
 
