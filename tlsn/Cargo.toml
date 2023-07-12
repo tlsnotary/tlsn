@@ -12,13 +12,13 @@ tlsn-tls-client = { path = "../components/tls/tls-client" }
 tlsn-tls-client-async = { path = "../components/tls/tls-client-async" }
 tls-server-fixture = { path = "../components/tls/tls-server-fixture" }
 
-mpz-core = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
-mpz-circuits = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
-mpz-garble-core = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
-mpz-garble = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
+mpz-core = { git = "https://github.com/tlsnotary/mpz", rev = "86f1687" }
+mpz-circuits = { git = "https://github.com/tlsnotary/mpz", rev = "86f1687" }
+mpz-garble-core = { git = "https://github.com/tlsnotary/mpz", rev = "86f1687" }
+mpz-garble = { git = "https://github.com/tlsnotary/mpz", rev = "86f1687" }
 tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils" }
 tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils" }
-mpz-share-conversion = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
+mpz-share-conversion = { git = "https://github.com/tlsnotary/mpz", rev = "86f1687" }
 
 actor-ot = { path = "../components/actors/actor-ot" }
 

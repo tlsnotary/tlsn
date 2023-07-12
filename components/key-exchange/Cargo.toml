@@ -17,11 +17,11 @@ tracing = ["dep:tracing"]
 mock = []
 
 [dependencies]
-mpz-garble = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
-mpz-ot = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
-mpz-circuits = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
+mpz-garble = { git = "https://github.com/tlsnotary/mpz", rev = "86f1687" }
+mpz-ot = { git = "https://github.com/tlsnotary/mpz", rev = "86f1687" }
+mpz-circuits = { git = "https://github.com/tlsnotary/mpz", rev = "86f1687" }
 tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils" }
-mpz-share-conversion-core = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
+mpz-share-conversion-core = { git = "https://github.com/tlsnotary/mpz", rev = "86f1687" }
 tlsn-point-addition = { path = "../point-addition" }
 p256 = { version = "0.13", features = ["ecdh"] }
 async-trait = "0.1"

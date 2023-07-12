@@ -121,9 +121,7 @@ where
 
         // Calling finalize when not setup is a fatal error
         let State::Ready { core } = state else {
-            return Err(UniversalHashError::InvalidState(
-                "Key not set".to_string(),
-            ));
+            return Err(UniversalHashError::InvalidState("Key not set".to_string()));
         };
 
         // Compute new shares if the block count increased

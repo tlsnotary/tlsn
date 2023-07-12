@@ -16,9 +16,9 @@ mock = []
 
 [dependencies]
 # tlsn
-mpz-core = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
-mpz-share-conversion-core = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
-mpz-share-conversion = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
+mpz-core = { git = "https://github.com/tlsnotary/mpz", rev = "86f1687" }
+mpz-share-conversion-core = { git = "https://github.com/tlsnotary/mpz", rev = "86f1687" }
+mpz-share-conversion = { git = "https://github.com/tlsnotary/mpz", rev = "86f1687" }
 
 # async
 async-trait = "0.1"
@@ -35,7 +35,7 @@ derive_builder = "0.12"
 
 [dev-dependencies]
 ghash_rc = { package = "ghash", version = "0.5" }
-tokio = "1"
+tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
 criterion = "0.5"
 rstest = "0.17"
 rand_chacha = "0.3"

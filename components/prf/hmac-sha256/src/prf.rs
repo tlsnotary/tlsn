@@ -188,7 +188,11 @@ where
     ) -> Result<[u8; 12], PrfError> {
         let state = std::mem::replace(&mut self.state, State::Error);
 
-        let State::ClientFinished { ms_outer_hash_state, ms_inner_hash_state } = state else {
+        let State::ClientFinished {
+            ms_outer_hash_state,
+            ms_inner_hash_state,
+        } = state
+        else {
             return Err(PrfError::InvalidState(state));
         };
 
@@ -220,7 +224,11 @@ where
     ) -> Result<[u8; 12], PrfError> {
         let state = std::mem::replace(&mut self.state, State::Error);
 
-        let State::ServerFinished { ms_outer_hash_state, ms_inner_hash_state } = state else {
+        let State::ServerFinished {
+            ms_outer_hash_state,
+            ms_inner_hash_state,
+        } = state
+        else {
             return Err(PrfError::InvalidState(state));
         };
 
@@ -254,7 +262,11 @@ where
     async fn compute_client_finished_vd_blind(&mut self) -> Result<(), PrfError> {
         let state = std::mem::replace(&mut self.state, State::Error);
 
-        let State::ClientFinished { ms_outer_hash_state, ms_inner_hash_state } = state else {
+        let State::ClientFinished {
+            ms_outer_hash_state,
+            ms_inner_hash_state,
+        } = state
+        else {
             return Err(PrfError::InvalidState(state));
         };
 
@@ -282,7 +294,11 @@ where
     async fn compute_server_finished_vd_blind(&mut self) -> Result<(), PrfError> {
         let state = std::mem::replace(&mut self.state, State::Error);
 
-        let State::ServerFinished { ms_outer_hash_state, ms_inner_hash_state } = state else {
+        let State::ServerFinished {
+            ms_outer_hash_state,
+            ms_inner_hash_state,
+        } = state
+        else {
             return Err(PrfError::InvalidState(state));
         };
 
