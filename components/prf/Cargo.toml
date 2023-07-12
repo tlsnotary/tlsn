@@ -4,8 +4,8 @@ resolver = "2"
 
 [workspace.dependencies]
 # tlsn
-mpz-circuits = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
-mpz-garble = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
+mpz-circuits = { git = "https://github.com/tlsnotary/mpz", rev = "86f1687" }
+mpz-garble = { git = "https://github.com/tlsnotary/mpz", rev = "86f1687" }
 
 # async
 async-trait = "0.1"

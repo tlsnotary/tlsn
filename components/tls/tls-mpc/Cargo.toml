@@ -10,10 +10,10 @@ name = "tls_mpc"
 tlsn-tls-core = { path = "../tls-core", features = ["serde"] }
 tlsn-tls-backend = { path = "../tls-backend" }
 
-mpz-core = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
-mpz-garble = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
-mpz-ot = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
-mpz-share-conversion = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
+mpz-core = { git = "https://github.com/tlsnotary/mpz", rev = "86f1687" }
+mpz-garble = { git = "https://github.com/tlsnotary/mpz", rev = "86f1687" }
+mpz-ot = { git = "https://github.com/tlsnotary/mpz", rev = "86f1687" }
+mpz-share-conversion = { git = "https://github.com/tlsnotary/mpz", rev = "86f1687" }
 tlsn-block-cipher = { path = "../../cipher/block-cipher" }
 tlsn-stream-cipher = { path = "../../cipher/stream-cipher" }
 tlsn-universal-hash = { path = "../../universal-hash" }
