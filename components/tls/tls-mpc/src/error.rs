@@ -44,4 +44,6 @@ pub enum MpcTlsError {
     ReceivedFatalAlert,
     #[error("payload decoding error")]
     PayloadDecodingError,
+    #[error("leader closed the connection abruptly")]
+    LeaderClosedAbruptly,
 }

@@ -170,7 +170,11 @@ impl MpcTlsFollower {
         self.run_server_finished().await?;
 
         loop {
-            let msg = self.channel.next().await.unwrap()?;
+            let msg = match self.channel.next().await {
+                Some(msg) => msg?,
+                None => return Err(MpcTlsError::LeaderClosedAbruptly),
+            };
+
             match msg {
                 MpcTlsMessage::EncryptMessage(EncryptMessage { typ, seq, len }) => {
                     self.encrypter.encrypt_blind(typ, seq, len).await?;
