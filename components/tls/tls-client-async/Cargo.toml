@@ -1,5 +1,10 @@
 [package]
 name = "tlsn-tls-client-async"
+authors = ["TLSNotary Team"]
+description = "An async TLS client for TLSNotary"
+keywords = ["tls", "mpc", "2pc", "client", "async"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
 version = "0.1.0"
 edition = "2021"
 
@@ -20,9 +25,7 @@ tokio = { workspace = true, features = [
     "rt",
     "rt-multi-thread",
     "macros",
-    "net",
-    "io-util",
 ] }
 webpki-roots.workspace = true
-hyper = { version = "0.14", features = ["client", "http1"] }
+hyper = { workspace = true, features = ["client", "http1"] }
 tls-server-fixture = { path = "../tls-server-fixture" }

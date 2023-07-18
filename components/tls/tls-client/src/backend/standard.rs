@@ -345,7 +345,7 @@ impl Backend for RustCryptoBackend {
         };
 
         let mut pms = vec![0u8; x_size];
-        let secret = *sk.diffie_hellman(&server_pk).as_bytes();
+        let secret = *sk.diffie_hellman(&server_pk).raw_secret_bytes();
         pms.copy_from_slice(&secret);
 
         let (client_random, server_random) = match (self.client_random, self.server_random) {
