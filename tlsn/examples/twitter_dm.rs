@@ -1,5 +1,5 @@
 use eyre::Result;
-use hyper::{body::to_bytes, Body, Request, StatusCode};
+use hyper::{body::to_bytes, client::conn::Parts, Body, Request, StatusCode};
 use rustls::{Certificate, ClientConfig, RootCertStore};
 use std::{
     env,
@@ -23,6 +23,8 @@ const SERVER_DOMAIN: &str = "twitter.com";
 const ROUTE: &str = "i/api/1.1/dm/conversation";
 const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36";
 
+const NOTARY_DOMAIN: &str = "127.0.0.1";
+const NOTARY_PORT: u16 = 7047;
 const NOTARY_CA_CERT_PATH: &str = "./rootCA.crt";
 
 #[tokio::main]
@@ -57,8 +59,8 @@ async fn main() {
     let notary_connector = TlsConnector::from(Arc::new(client_notary_config));
 
     let notary_socket = tokio::net::TcpStream::connect(SocketAddr::new(
-        IpAddr::V4("127.0.0.1".parse().unwrap()),
-        7047,
+        IpAddr::V4(NOTARY_DOMAIN.parse().unwrap()),
+        NOTARY_PORT,
     ))
     .await
     .unwrap();
@@ -68,6 +70,50 @@ async fn main() {
         .connect("tlsnotaryserver.io".try_into().unwrap(), notary_socket)
         .await
         .unwrap();
+
+    // Attach the hyper HTTP client to the notary TLS connection to send notarization request via HTTP
+    // i.e. this can be used to show API key, set cipher suite, max transcript size and to obtain notarization session id
+    let (mut request_sender, connection) = hyper::client::conn::handshake(notary_tls_socket)
+        .await
+        .unwrap();
+
+    // Spawn the HTTP task to be run concurrently
+    let connection_task = tokio::spawn(connection.without_shutdown());
+
+    // Build the HTTP request to fetch the DMs
+    let request = Request::builder()
+        .uri(format!("https://{NOTARY_DOMAIN}:{NOTARY_PORT}/notarize"))
+        .method("POST")
+        .header("Host", NOTARY_DOMAIN)
+        .header("Connection", "close")
+        .body(Body::empty())
+        .unwrap();
+
+    debug!("Sending request");
+
+    let response = request_sender.send_request(request).await.unwrap();
+
+    debug!("Sent request");
+
+    assert!(response.status() == StatusCode::OK);
+
+    debug!("Response OK");
+
+    // Pretty printing :)
+    let payload = to_bytes(response.into_body()).await.unwrap().to_vec();
+    let parsed =
+        serde_json::from_str::<serde_json::Value>(&String::from_utf8_lossy(&payload)).unwrap();
+
+    debug!(
+        "Notarization response: {}",
+        serde_json::to_string_pretty(&parsed).unwrap()
+    );
+
+    // Claim back the TLS socket after HTTP exchange is done
+    let Parts {
+        io: notary_tls_socket,
+        ..
+    } = connection_task.await.unwrap().unwrap();
 
     // Connect to the Server
     // Basic default prover config
