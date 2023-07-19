@@ -15,6 +15,7 @@ use utils_aio::mux::MuxChannel;
 use crate::{config::MpcTlsCommonConfig, MpcTlsError, TlsRole};
 
 /// Helper function for setting up components
+#[allow(clippy::type_complexity)]
 #[cfg_attr(
     feature = "tracing",
     tracing::instrument(level = "info", skip(mux, vm, p256_send, p256_recv, gf), err)
