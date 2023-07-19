@@ -27,6 +27,7 @@ use crate::{
     MpcTlsChannel, MpcTlsError, MpcTlsFollowerConfig,
 };
 
+/// Wrapper for protocol instances of the follower
 pub struct MpcTlsFollower {
     config: MpcTlsFollowerConfig,
     channel: MpcTlsChannel,
@@ -40,6 +41,7 @@ pub struct MpcTlsFollower {
 }
 
 impl MpcTlsFollower {
+    /// Create a new follower instance
     pub fn new(
         config: MpcTlsFollowerConfig,
         channel: MpcTlsChannel,
@@ -164,6 +166,7 @@ impl MpcTlsFollower {
         Ok(())
     }
 
+    /// Runs the follower instance
     pub async fn run(&mut self) -> Result<(), MpcTlsError> {
         self.run_key_exchange().await?;
         self.run_client_finished().await?;

@@ -1,3 +1,10 @@
+//! This library provides the [Backend] trait to encapsulate the cryptography backend of the TLS
+//! client.
+
+#![deny(missing_docs, unreachable_pub, unused_must_use)]
+#![deny(clippy::all)]
+#![forbid(unsafe_code)]
+
 use std::any::Any;
 
 use async_trait::async_trait;
@@ -13,6 +20,8 @@ use tls_core::{
     suites::SupportedCipherSuite,
 };
 
+/// Possible backend errors
+#[allow(missing_docs)]
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
 pub enum BackendError {
     #[error("Invalid state: {0:?}")]

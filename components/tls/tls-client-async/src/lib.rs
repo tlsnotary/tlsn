@@ -1,3 +1,14 @@
+//! Provides a TLS client which exposes an async socket.
+//!
+//! This library provides the [bind_client] function which allows to attach a TLS client to a
+//! socket connection and then exposes a [TlsConnection] object, which provides an async socket API
+//! for reading and writing cleartext. The TLS client will then automatically encrypt and decrypt
+//! traffic and forward that to the provided socket.
+
+#![deny(missing_docs, unreachable_pub, unused_must_use)]
+#![deny(clippy::all)]
+#![forbid(unsafe_code)]
+
 mod conn;
 
 use bytes::Bytes;
@@ -24,6 +35,7 @@ const RX_TLS_BUF_SIZE: usize = 1 << 13; // 8 KiB
 const RX_BUF_SIZE: usize = 1 << 13; // 8 KiB
 
 /// An error that can occur during a TLS connection.
+#[allow(missing_docs)]
 #[derive(Debug, thiserror::Error)]
 pub enum ConnectionError {
     #[error(transparent)]
@@ -35,8 +47,11 @@ pub enum ConnectionError {
 /// Closed connection data.
 #[derive(Debug)]
 pub struct ClosedConnection {
+    /// The connection for the client
     pub client: ClientConnection,
+    /// Sent bytes
     pub sent: Vec<u8>,
+    /// Received bytes
     pub recv: Vec<u8>,
 }
 
