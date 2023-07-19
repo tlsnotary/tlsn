@@ -165,6 +165,10 @@ impl MpcTlsLeader {
     }
 
     /// Computes the combined key
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self), err)
+    )]
     pub async fn compute_client_key(&mut self) -> Result<PublicKey, MpcTlsError> {
         let pk = self
             .ke
@@ -179,6 +183,10 @@ impl MpcTlsLeader {
     }
 
     /// Computes the session TLS session keys
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self), err)
+    )]
     pub async fn compute_session_keys(&mut self) -> Result<(), MpcTlsError> {
         let server_cert_details = self
             .conn_state
@@ -248,6 +256,10 @@ impl MpcTlsLeader {
     }
 
     /// Computes the client finished verify data
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self, hash), err)
+    )]
     pub async fn compute_client_finished_vd(
         &mut self,
         hash: &[u8],
@@ -262,6 +274,10 @@ impl MpcTlsLeader {
     }
 
     /// Computes the server finished verify data
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self, hash), err)
+    )]
     pub async fn compute_server_finished_vd(
         &mut self,
         hash: &[u8],
@@ -276,6 +292,10 @@ impl MpcTlsLeader {
     }
 
     /// Encrypt a message
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self, m), err)
+    )]
     pub async fn encrypt(
         &mut self,
         m: PlainMessage,
@@ -336,6 +356,10 @@ impl MpcTlsLeader {
     }
 
     /// Decrypt a message
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self, m), err)
+    )]
     pub async fn decrypt(
         &mut self,
         m: OpaqueMessage,
