@@ -15,6 +15,10 @@ use utils_aio::mux::MuxChannel;
 use crate::{config::MpcTlsCommonConfig, MpcTlsError, TlsRole};
 
 /// Helper function for setting up components
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "info", skip(mux, vm, p256_send, p256_recv, gf), err)
+)]
 pub async fn setup_components<
     M: MuxChannel<ke::KeyExchangeMessage> + MuxChannel<aead::AeadMessage> + Clone,
     VM: Vm + Send,

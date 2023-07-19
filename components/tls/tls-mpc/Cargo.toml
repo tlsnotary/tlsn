@@ -11,6 +11,9 @@ edition = "2021"
 [lib]
 name = "tls_mpc"
 
+[features]
+tracing = ["dep:tracing"]
+
 [dependencies]
 tlsn-tls-core = { path = "../tls-core", features = ["serde"] }
 tlsn-tls-backend = { path = "../tls-backend" }
@@ -36,6 +39,7 @@ async-trait.workspace = true
 serde.workspace = true
 derive_builder.workspace = true
 thiserror.workspace = true
+tracing = { workspace = true, optional = true }
 
 [dev-dependencies]
 tlsn-tls-client = { path = "../tls-client" }

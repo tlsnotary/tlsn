@@ -11,12 +11,15 @@ edition = "2021"
 [lib]
 name = "tls_client_async"
 
+[features]
+tracing = ["dep:tracing"]
+
 [dependencies]
 tlsn-tls-client = { path = "../tls-client" }
 bytes.workspace = true
 futures.workspace = true
 tokio-util = { workspace = true, features = ["io", "compat"] }
-tracing.workspace = true
+tracing = { workspace = true, optional = true }
 thiserror.workspace = true
 
 [dev-dependencies]

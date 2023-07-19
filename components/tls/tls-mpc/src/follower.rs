@@ -42,6 +42,10 @@ pub struct MpcTlsFollower {
 
 impl MpcTlsFollower {
     /// Create a new follower instance
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "info", skip(channel, ke, prf, encrypter, decrypter))
+    )]
     pub fn new(
         config: MpcTlsFollowerConfig,
         channel: MpcTlsChannel,

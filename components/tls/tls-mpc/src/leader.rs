@@ -85,6 +85,10 @@ impl Default for ConnectionState {
 
 impl MpcTlsLeader {
     /// Create a new leader instance
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "info", skip(channel, ke, prf, encrypter, decrypter))
+    )]
     pub fn new(
         config: MpcTlsLeaderConfig,
         channel: MpcTlsChannel,
