@@ -44,6 +44,9 @@ use utils_aio::{codec::BincodeMux, expect_msg_or_err, mux::MuxChannelSerde};
 
 use crate::error::OTShutdownError;
 
+#[cfg(feature = "tracing")]
+use tracing::{debug, debug_span, Instrument};
+
 /// Helper function to bind a new prover to the given sockets.
 ///
 /// Returns a handle to the TLS connection, a future which returns the prover once the connection is
@@ -235,8 +238,7 @@ where
                 })
             };
             #[cfg(feature = "tracing")]
-            let fut =
-                tracing::Instrument::instrument(fut, tracing::debug_span!("prover_tls_connection"));
+            let fut = fut.instrument(debug_span!("prover_tls_connection"));
             fut
         });
 
@@ -401,22 +403,14 @@ async fn setup_mpc_backend<M: MuxChannelSerde + Clone + Send + 'static>(
     ProverError,
 > {
     #[cfg(feature = "tracing")]
-    tracing::event!(tracing::Level::DEBUG, "Starting OT setup");
+    let (create_ot_sender, create_ot_receiver) = {
+        debug!("Starting OT setup");
+        (
+            |mux: M, config| create_ot_sender(mux, config).in_current_span(),
+            |mux: M, config| create_ot_receiver(mux, config).in_current_span(),
+        )
+    };
 
-    #[cfg(feature = "tracing")]
-    let ((mut ot_send, ot_send_fut), (mut ot_recv, ot_recv_fut)) = futures::try_join!(
-        tracing::Instrument::in_current_span(create_ot_sender(
-            mux.clone(),
-            config.build_ot_sender_config()
-        )),
-        tracing::Instrument::in_current_span(create_ot_receiver(
-            mux.clone(),
-            config.build_ot_receiver_config()
-        ))
-    )
-    .map_err(|e| ProverError::MpcError(Box::new(e)))?;
-
-    #[cfg(not(feature = "tracing"))]
     let ((mut ot_send, ot_send_fut), (mut ot_recv, ot_recv_fut)) = futures::try_join!(
         create_ot_sender(mux.clone(), config.build_ot_sender_config()),
         create_ot_receiver(mux.clone(), config.build_ot_receiver_config())
@@ -433,7 +427,7 @@ async fn setup_mpc_backend<M: MuxChannelSerde + Clone + Send + 'static>(
     }
 
     #[cfg(feature = "tracing")]
-    tracing::event!(tracing::Level::DEBUG, "OT setup complete");
+    debug!("OT setup complete");
 
     let mut vm = DEAPVm::new(
         "vm",
@@ -478,7 +472,7 @@ async fn setup_mpc_backend<M: MuxChannelSerde + Clone + Send + 'static>(
     let mpc_tls = MpcTlsLeader::new(mpc_tls_config, channel, ke, prf, encrypter, decrypter);
 
     #[cfg(feature = "tracing")]
-    tracing::event!(tracing::Level::DEBUG, "MPC backend setup complete");
+    debug!("MPC backend setup complete");
 
     Ok((mpc_tls, vm, ot_recv, gf2, ot_fut))
 }
