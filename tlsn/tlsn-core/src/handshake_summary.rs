@@ -26,22 +26,22 @@ impl HandshakeSummary {
         }
     }
 
-    /// Get reference to time
+    /// Returns the time
     pub fn time(&self) -> u64 {
         self.time
     }
 
-    /// Get reference to server public key
+    /// Returns the server ephemeral public key
     pub fn server_public_key(&self) -> &PublicKey {
         &self.server_public_key
     }
 
-    /// Get reference to handshake commitment
+    /// Returns commitment to the handshake data
     pub fn handshake_commitment(&self) -> &Hash {
         &self.handshake_commitment
     }
 
-    /// Verifies that the handshake data matches this handshake summary
+    /// Verifies that the provided handshake data matches this handshake summary
     #[cfg_attr(
         feature = "tracing",
         tracing::instrument(level = "debug", skip(self, data), err)

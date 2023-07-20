@@ -159,7 +159,7 @@ impl SubstringsOpening {
         Ok(())
     }
 
-    /// Returns the inner opening as a byte slice
+    /// Returns the actual opening as a byte slice
     pub fn opening(&self) -> &[u8] {
         match self {
             SubstringsOpening::Blake3(opening) => opening.opening(),
@@ -298,7 +298,7 @@ impl Blake3Opening {
         self.merkle_tree_index
     }
 
-    /// Returns the opening as a byte slice
+    /// Returns the actual opening as a byte slice
     pub fn opening(&self) -> &[u8] {
         &self.opening
     }

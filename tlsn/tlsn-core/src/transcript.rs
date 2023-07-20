@@ -55,12 +55,12 @@ impl Transcript {
         Ok(dst)
     }
 
-    /// Gets a reference to id
+    /// Returns the id used to identify this transcript
     pub fn id(&self) -> &String {
         &self.id
     }
 
-    /// Gets a reference to data
+    /// Returns the actual traffic data of this transcript
     pub fn data(&self) -> &[u8] {
         &self.data
     }
@@ -80,12 +80,12 @@ impl TranscriptSlice {
         Self { range, data }
     }
 
-    /// Gets a reference to range
+    /// Returns the range of bytes this slice refers to in the transcript
     pub fn range(&self) -> &Range<u32> {
         &self.range
     }
 
-    /// Gets a reference to data
+    /// Returns the actual traffic data of this slice
     pub fn data(&self) -> &Vec<u8> {
         &self.data
     }

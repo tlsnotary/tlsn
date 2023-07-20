@@ -81,7 +81,7 @@ impl InclusionProof {
         Ok(())
     }
 
-    /// Returns a reference to the commitment set
+    /// Returns the set of commitments to substrings
     pub fn commitments(&self) -> &SubstringsCommitmentSet {
         &self.commitments
     }

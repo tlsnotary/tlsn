@@ -150,22 +150,22 @@ impl SubstringsCommitment {
         self.merkle_tree_index
     }
 
-    /// Get a reference to the commitment
+    /// Returns the actual commitment
     pub fn commitment(&self) -> &Commitment {
         &self.commitment
     }
 
-    /// Get a reference to the ranges
+    /// Returns the ranges of bytes in the transcript this commitment refers to
     pub fn ranges(&self) -> &[Range<u32>] {
         &self.ranges
     }
 
-    /// Get a reference to the direction
+    /// Returns the direction, i.e. if the commitment refers to data sent or received
     pub fn direction(&self) -> &Direction {
         &self.direction
     }
 
-    /// Get a reference to the nonce
+    /// Returns the salt used for this commitment
     pub fn salt(&self) -> &Nonce {
         &self.salt
     }

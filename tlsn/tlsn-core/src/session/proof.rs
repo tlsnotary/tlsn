@@ -29,12 +29,12 @@ impl SessionProof {
         }
     }
 
-    /// Getter for the header
+    /// Returns the [SessionHeader]
     pub fn header(&self) -> &SessionHeader {
         &self.header
     }
 
-    /// Getter for the handshake_data_decommitment
+    /// Returns the decommitment to [HandshakeData]
     pub fn handshake_data_decommitment(&self) -> &Decommitment<HandshakeData> {
         &self.handshake_data_decommitment
     }

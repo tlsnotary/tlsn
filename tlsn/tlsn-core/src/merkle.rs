@@ -13,7 +13,7 @@ use utils::iter::DuplicateCheck;
 pub struct MerkleRoot([u8; 32]);
 
 impl MerkleRoot {
-    /// Gets the inner byte array
+    /// Returns the inner byte array
     pub fn to_inner(self) -> [u8; 32] {
         self.0
     }

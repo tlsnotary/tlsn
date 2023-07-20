@@ -29,7 +29,7 @@ impl Blake3 {
         Self { encoding_hash }
     }
 
-    /// Get reference to  inner encoding hash
+    /// Returns reference to inner encoding hash
     pub fn encoding_hash(&self) -> &Hash {
         &self.encoding_hash
     }

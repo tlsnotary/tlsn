@@ -118,17 +118,17 @@ impl NotarizedSession {
         )
     }
 
-    /// Getter for header
+    /// Returns the [SessionHeader]
     pub fn header(&self) -> &SessionHeader {
         &self.header
     }
 
-    /// Getter for signature
+    /// Returns the signature for the session header, if the notary signed it
     pub fn signature(&self) -> &Option<Signature> {
         &self.signature
     }
 
-    /// Getter for data
+    /// Returns the [SessionData]
     pub fn data(&self) -> &SessionData {
         &self.data
     }

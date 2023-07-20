@@ -35,27 +35,27 @@ impl SessionArtifacts {
         }
     }
 
-    /// Getter for time
+    /// Returns the time when the notarization session started
     pub fn time(&self) -> u64 {
         self.time
     }
 
-    /// Getter for merkle_tree
+    /// Returns the merkle_tree of the prover's commitments
     pub fn merkle_tree(&self) -> &MerkleTree {
         &self.merkle_tree
     }
 
-    /// Getter for encoder_seed
+    /// Returns the encoder seed revealed by the Notary at the end of the label commitment protocol
     pub fn encoder_seed(&self) -> &[u8; 32] {
         &self.encoder_seed
     }
 
-    /// Getter for server_public_key
+    /// Returns the server ephemeral public key
     pub fn server_public_key(&self) -> &PublicKey {
         &self.server_public_key
     }
 
-    /// Getter for handshake_data_decommitment
+    /// Returns the decommitment to handshake data
     pub fn handshake_data_decommitment(&self) -> &Decommitment<HandshakeData> {
         &self.handshake_data_decommitment
     }

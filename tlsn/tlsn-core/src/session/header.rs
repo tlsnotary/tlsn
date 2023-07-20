@@ -83,27 +83,27 @@ impl SessionHeader {
         ChaChaEncoder::new(self.encoder_seed)
     }
 
-    /// Getter for encoder_seed
+    /// Returns the seed used to generate plaintext encodings
     pub fn label_seed(&self) -> &[u8; 32] {
         &self.encoder_seed
     }
 
-    /// Getter for merkle_root
+    /// Returns the merkle_root of the merkle tree of the prover's commitments
     pub fn merkle_root(&self) -> &MerkleRoot {
         &self.merkle_root
     }
 
-    /// Getter for handshake_summary
+    /// Returns the [HandshakeSummary] of the TLS session between prover and server
     pub fn handshake_summary(&self) -> &HandshakeSummary {
         &self.handshake_summary
     }
 
-    /// Getter for sent_len
+    /// Returns the number of bytes sent to the server
     pub fn sent_len(&self) -> u32 {
         self.sent_len
     }
 
-    /// Getter for recv_len
+    /// Returns the number of bytes received by the server
     pub fn recv_len(&self) -> u32 {
         self.recv_len
     }
