@@ -8,6 +8,9 @@ use rs_merkle::{
 use serde::{ser::Serializer, Deserialize, Deserializer, Serialize};
 use utils::iter::DuplicateCheck;
 
+#[cfg(feature = "tracing")]
+use tracing::instrument;
+
 /// The root of a Merkle tree
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MerkleRoot([u8; 32]);
@@ -50,7 +53,7 @@ impl MerkleProof {
     /// Checks if indices, hashes and leaves count are valid for the provided root
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(
+        instrument(
             level = "debug",
             skip(self, leaf_indices, leaf_hashes, total_leaves_count),
             err

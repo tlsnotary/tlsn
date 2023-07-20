@@ -21,6 +21,9 @@ use crate::{
     Commitment, Direction, InclusionProof, SubstringsCommitment, SubstringsCommitmentSet,
 };
 
+#[cfg(feature = "tracing")]
+use tracing::instrument;
+
 /// A validated notarized session stored by the Prover
 #[derive(Serialize, Deserialize)]
 pub struct NotarizedSession {
@@ -42,7 +45,7 @@ impl NotarizedSession {
     /// Generates a `SubstringsProof` for commitments with the provided merkle tree indices
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "debug", skip(self, indices), err)
+        instrument(level = "debug", skip(self, indices), err)
     )]
     pub fn generate_substring_proof(&self, indices: Vec<usize>) -> Result<SubstringsProof, Error> {
         // check that merkle tree indices are unique

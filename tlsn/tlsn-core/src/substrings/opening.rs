@@ -11,6 +11,9 @@ use serde::{Deserialize, Serialize};
 use std::ops::Range;
 use utils::iter::DuplicateCheck;
 
+#[cfg(feature = "tracing")]
+use tracing::instrument;
+
 /// A set of openings
 #[derive(Serialize, Deserialize)]
 pub struct SubstringsOpeningSet(Vec<SubstringsOpening>);
@@ -29,10 +32,7 @@ impl SubstringsOpeningSet {
     /// - the merkle_tree_index of each opening is unique
     /// - the total of all openings' bytes is below some [limit](crate::MAX_TOTAL_COMMITTED_DATA)
     /// - overlapping ranges contain the same data
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip(self), err)
-    )]
+    #[cfg_attr(feature = "tracing", instrument(level = "trace", skip(self), err))]
     pub fn validate(&self) -> Result<(), Error> {
         // --- validate each individual opening
         for c in &self.0 {

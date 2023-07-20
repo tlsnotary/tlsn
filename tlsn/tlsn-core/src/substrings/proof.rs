@@ -7,6 +7,9 @@ use crate::{
     SubstringsCommitment, SubstringsOpeningSet, TranscriptSlice,
 };
 
+#[cfg(feature = "tracing")]
+use tracing::instrument;
+
 /// A substring proof containing the opening set and the inclusion proof
 #[derive(Serialize, Deserialize)]
 pub struct SubstringsProof {
@@ -25,10 +28,7 @@ impl SubstringsProof {
 
     /// Verifies this proof and, if successful, returns [TranscriptSlice]s which were sent and
     /// received.
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip(self), err)
-    )]
+    #[cfg_attr(feature = "tracing", instrument(level = "trace", skip(self), err))]
     pub fn verify(
         self,
         header: &SessionHeader,

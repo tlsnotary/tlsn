@@ -8,6 +8,9 @@ use mpz_core::hash::Hash;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+#[cfg(feature = "tracing")]
+use tracing::instrument;
+
 /// Inclusion proof for a [SubstringsCommitmentSet]
 ///
 /// Contains a [proof](MerkleProof) that several [commitments](crate::SubstringsCommitment)
@@ -35,10 +38,7 @@ impl InclusionProof {
 
     /// Verifies this inclusion proof against the merkle root from the header. Returns a
     /// <merkle tree index, commitment> hashmap.
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "debug", skip(self), err)
-    )]
+    #[cfg_attr(feature = "tracing", instrument(level = "debug", skip(self), err))]
     pub fn verify(&self, root: &MerkleRoot) -> Result<HashMap<u32, Commitment>, Error> {
         // <merkle tree index, commitment> hashmap which will be returned
         let mut map: HashMap<u32, Commitment> = HashMap::new();

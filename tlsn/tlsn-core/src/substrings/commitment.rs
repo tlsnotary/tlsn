@@ -4,6 +4,9 @@ use serde::{Deserialize, Serialize};
 use std::ops::Range;
 use utils::iter::DuplicateCheck;
 
+#[cfg(feature = "tracing")]
+use tracing::instrument;
+
 /// A set of commitments
 #[derive(Default, Serialize, Deserialize)]
 pub struct SubstringsCommitmentSet(Vec<SubstringsCommitment>);
@@ -21,10 +24,7 @@ impl SubstringsCommitmentSet {
     /// - the set is not empty
     /// - the merkle_tree_index of each commitment is unique
     /// - the grand total in all of the commitments' ranges is sane
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip(self), err)
-    )]
+    #[cfg_attr(feature = "tracing", instrument(level = "trace", skip(self), err))]
     pub fn validate(&self) -> Result<(), Error> {
         // validate each individual commitment
         for c in &self.0 {

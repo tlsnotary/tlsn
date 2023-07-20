@@ -39,6 +39,9 @@ use utils_aio::{codec::BincodeMux, expect_msg_or_err, mux::MuxChannelSerde};
 pub use config::{NotaryConfig, NotaryConfigBuilder, NotaryConfigBuilderError};
 pub use error::NotaryError;
 
+#[cfg(feature = "tracing")]
+use tracing::{info, instrument};
+
 /// A future that performs background processing for the notary.
 ///
 /// This is a future intended to run in the background. It must be polled in order to make progress.
@@ -65,10 +68,7 @@ impl Future for NotaryBackgroundFut {
 ///
 /// * `config` - The configuration for the notary.
 /// * `socket` - The socket to the prover.
-#[cfg_attr(
-    feature = "tracing",
-    tracing::instrument(level = "debug", skip(socket), err)
-)]
+#[cfg_attr(feature = "tracing", instrument(level = "debug", skip(socket), err))]
 pub fn bind_notary<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     config: NotaryConfig,
     socket: T,
@@ -127,7 +127,7 @@ where
         .unwrap();
 
         #[cfg(feature = "tracing")]
-        tracing::event!(tracing::Level::INFO, "Created OT senders and receivers");
+        info!("Created OT senders and receivers");
 
         let notarize_fut = async {
             let encoder_seed: [u8; 32] = rand::rngs::OsRng.gen();
@@ -146,7 +146,7 @@ where
             );
 
             #[cfg(feature = "tracing")]
-            tracing::event!(tracing::Level::INFO, "Created DEAPVm");
+            info!("Created DEAPVm");
 
             let p256_send = ff::ConverterSender::<ff::P256, _>::new(
                 ff::SenderConfig::builder().id("p256/1").build().unwrap(),
@@ -171,10 +171,7 @@ where
             );
 
             #[cfg(feature = "tracing")]
-            tracing::event!(
-                tracing::Level::INFO,
-                "Created point addition senders and receivers"
-            );
+            info!("Created point addition senders and receivers");
 
             let common_config = MpcTlsCommonConfig::builder()
                 .id(format!("{}/mpc_tls", &config.id()))
@@ -208,10 +205,7 @@ where
             );
 
             #[cfg(feature = "tracing")]
-            tracing::event!(
-                tracing::Level::INFO,
-                "Finished setting up notary components"
-            );
+            info!("Finished setting up notary components");
 
             let start_time = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
@@ -221,7 +215,7 @@ where
             mpc_tls.run().await?;
 
             #[cfg(feature = "tracing")]
-            tracing::event!(tracing::Level::INFO, "Finished TLS session");
+            info!("Finished TLS session");
 
             let mut notarize_channel = mux.get_channel("notarize").await?;
 
@@ -243,7 +237,7 @@ where
                 .map_err(|e| NotaryError::MpcError(Box::new(e)))?;
 
             #[cfg(feature = "tracing")]
-            tracing::event!(tracing::Level::INFO, "Finalized all MPC");
+            info!("Finalized all MPC");
 
             // Create, sign and send the session header
             let (sent_len, recv_len) = mpc_tls.bytes_transferred();
@@ -269,7 +263,7 @@ where
             let signature = signer.sign(&session_header.to_bytes());
 
             #[cfg(feature = "tracing")]
-            tracing::event!(tracing::Level::INFO, "Signed session header");
+            info!("Signed session header");
 
             notarize_channel
                 .send(TlsnMessage::SignedSessionHeader(SignedSessionHeader {
@@ -279,7 +273,7 @@ where
                 .await?;
 
             #[cfg(feature = "tracing")]
-            tracing::event!(tracing::Level::INFO, "Sent session header");
+            info!("Sent session header");
 
             Ok::<_, NotaryError>(session_header)
         };

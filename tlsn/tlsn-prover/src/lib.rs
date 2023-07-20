@@ -45,7 +45,7 @@ use utils_aio::{codec::BincodeMux, expect_msg_or_err, mux::MuxChannelSerde};
 use crate::error::OTShutdownError;
 
 #[cfg(feature = "tracing")]
-use tracing::{debug, debug_span, Instrument};
+use tracing::{debug, debug_span, instrument, Instrument};
 
 /// Helper function to bind a new prover to the given sockets.
 ///
@@ -60,7 +60,7 @@ use tracing::{debug, debug_span, Instrument};
 #[allow(clippy::type_complexity)]
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "info", skip(client_socket, notary_socket), err)
+    instrument(level = "info", skip(client_socket, notary_socket), err)
 )]
 pub async fn bind_prover<
     S: AsyncWrite + AsyncRead + Send + Unpin + 'static,
@@ -158,7 +158,7 @@ where
     /// Binds the prover to the provided socket.
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "debug", skip(self, socket), err)
+        instrument(level = "debug", skip(self, socket), err)
     )]
     pub async fn bind_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         self,
@@ -272,7 +272,7 @@ where
 
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "debug", skip(self, range), err)
+        instrument(level = "debug", skip(self, range), err)
     )]
     fn add_commitment(
         &mut self,
@@ -312,10 +312,7 @@ where
     }
 
     /// Finalize the notarization returning a [`NotarizedSession`]
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "info", skip(self), err)
-    )]
+    #[cfg_attr(feature = "tracing", instrument(level = "info", skip(self), err))]
     pub async fn finalize(self) -> Result<NotarizedSession, ProverError> {
         let Notarize {
             notary_mux: mut mux,
@@ -384,10 +381,7 @@ where
     }
 }
 
-#[cfg_attr(
-    feature = "tracing",
-    tracing::instrument(level = "debug", skip(mux), err)
-)]
+#[cfg_attr(feature = "tracing", instrument(level = "debug", skip(mux), err))]
 #[allow(clippy::type_complexity)]
 async fn setup_mpc_backend<M: MuxChannelSerde + Clone + Send + 'static>(
     config: &ProverConfig,

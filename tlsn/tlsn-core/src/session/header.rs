@@ -6,6 +6,9 @@ use tls_core::{handshake::HandshakeData, key::PublicKey};
 
 use crate::{handshake_summary::HandshakeSummary, merkle::MerkleRoot, Error};
 
+#[cfg(feature = "tracing")]
+use tracing::instrument;
+
 /// An authentic session header from the Notary
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionHeader {
@@ -49,7 +52,7 @@ impl SessionHeader {
     /// Verify the data in the header is consistent with the Prover's view
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(
+        instrument(
             level = "debug",
             skip(self, encoder_seed, handshake_data_decommitment),
             err
