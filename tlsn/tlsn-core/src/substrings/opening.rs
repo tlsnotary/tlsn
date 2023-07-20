@@ -11,16 +11,28 @@ use serde::{Deserialize, Serialize};
 use std::ops::Range;
 use utils::iter::DuplicateCheck;
 
+#[cfg(feature = "tracing")]
+use tracing::instrument;
+
 /// A set of openings
 #[derive(Serialize, Deserialize)]
 pub struct SubstringsOpeningSet(Vec<SubstringsOpening>);
 
 impl SubstringsOpeningSet {
+    /// Creates a new opening set
     pub fn new(openings: Vec<SubstringsOpening>) -> Self {
         Self(openings)
     }
 
-    // Validate the set
+    /// Validate the opening set
+    ///
+    /// Ensures that:
+    /// - each individual opening is valid
+    /// - the set is not empty
+    /// - the merkle_tree_index of each opening is unique
+    /// - the total of all openings' bytes is below some [limit](crate::MAX_TOTAL_COMMITTED_DATA)
+    /// - overlapping ranges contain the same data
+    #[cfg_attr(feature = "tracing", instrument(level = "trace", skip(self), err))]
     pub fn validate(&self) -> Result<(), Error> {
         // --- validate each individual opening
         for c in &self.0 {
@@ -71,25 +83,33 @@ impl SubstringsOpeningSet {
         Ok(())
     }
 
+    /// Checks if the opening set is empty
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 
+    /// Returns the number of openings in the set
     pub fn len(&self) -> usize {
         self.0.len()
     }
 
+    /// Returns an iterator over the openings
     pub fn iter(&self) -> std::slice::Iter<SubstringsOpening> {
         self.0.iter()
     }
 }
 
+/// Contains different types of openings for substrings
 #[derive(Serialize, Deserialize, Clone)]
+#[allow(missing_docs)]
 pub enum SubstringsOpening {
     Blake3(Blake3Opening),
 }
 
 impl SubstringsOpening {
+    /// Verify this substring opening
+    ///
+    /// Returns the opening split up into [TranscriptSlice]s.
     pub fn verify(
         &self,
         header: &SessionHeader,
@@ -139,24 +159,28 @@ impl SubstringsOpening {
         Ok(())
     }
 
+    /// Returns the actual opening as a byte slice
     pub fn opening(&self) -> &[u8] {
         match self {
             SubstringsOpening::Blake3(opening) => opening.opening(),
         }
     }
 
+    /// Returns the merkle tree index of this opening
     pub fn merkle_tree_index(&self) -> u32 {
         match self {
             SubstringsOpening::Blake3(opening) => opening.merkle_tree_index(),
         }
     }
 
+    /// Returns the direction of this opening
     pub fn direction(&self) -> &Direction {
         match self {
             SubstringsOpening::Blake3(opening) => opening.direction(),
         }
     }
 
+    /// Returns the ranges of this opening
     pub fn ranges(&self) -> &[Range<u32>] {
         match self {
             SubstringsOpening::Blake3(opening) => opening.ranges(),
@@ -178,6 +202,7 @@ impl SubstringsOpening {
     }
 }
 
+/// A substring opening using Blake3
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Blake3Opening {
     /// The index of this commitment in the Merkle tree of commitments.
@@ -194,6 +219,7 @@ pub struct Blake3Opening {
 }
 
 impl Blake3Opening {
+    /// Creates a new Blake3 opening
     pub fn new(
         merkle_tree_index: u32,
         opening: Vec<u8>,
@@ -223,6 +249,13 @@ impl Blake3Opening {
     }
 
     /// Validates this opening
+    ///
+    /// Ensures that:
+    /// - at least one range is present
+    /// - ranges' end is greater than start
+    /// - ranges do not overlap and are in ascending order
+    /// - the total length of all ranges is below some [limit](crate::MAX_TOTAL_COMMITTED_DATA)
+    /// - the opening bytecount is equal to the total length of all ranges
     pub fn validate(&self) -> Result<(), Error> {
         // at least one range is expected
         if self.ranges().is_empty() {
@@ -260,18 +293,22 @@ impl Blake3Opening {
         Ok(())
     }
 
+    /// Returns the merkle tree index of this opening
     pub fn merkle_tree_index(&self) -> u32 {
         self.merkle_tree_index
     }
 
+    /// Returns the actual opening as a byte slice
     pub fn opening(&self) -> &[u8] {
         &self.opening
     }
 
+    /// Returns the ranges of this opening
     pub fn ranges(&self) -> &[Range<u32>] {
         &self.ranges
     }
 
+    /// Returns the direction of this opening
     pub fn direction(&self) -> &Direction {
         &self.direction
     }

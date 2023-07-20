@@ -14,30 +14,32 @@ use tls_core::{
     verify::ServerCertVerifier,
 };
 
+/// Collects data needed for testing
 pub struct TestData {
-    // end-entity cert
+    /// end-entity cert
     pub ee: Certificate,
-    // intermediate cert
+    /// intermediate cert
     pub inter: Certificate,
-    // CA cert
+    /// CA cert
     pub ca: Certificate,
-    // client random
+    /// client random
     pub cr: Random,
-    // server random
+    /// server random
     pub sr: Random,
-    // server ephemeral P256 pubkey
+    /// server ephemeral P256 pubkey
     pub pubkey: PublicKey,
-    // server signature over the key exchange parameters
+    /// server signature over the key exchange parameters
     pub sig: Vec<u8>,
-    // unix time when TLS handshake began
+    /// unix time when TLS handshake began
     pub time: u64,
-    // algorithm used to create the sig
+    /// algorithm used to create the sig
     pub sig_scheme: SignatureScheme,
-    // DNS name of the website
+    /// DNS name of the website
     pub dns_name: ServerName,
 }
 
 impl TestData {
+    /// Returns the [ServerECDHParams] in encoded form
     pub fn kx_params(&self) -> Vec<u8> {
         let mut params = Vec::new();
         let ecdh_params = ServerECDHParams::new(NamedGroup::secp256r1, &self.pubkey.key);
@@ -45,10 +47,12 @@ impl TestData {
         params
     }
 
+    /// Returns the [DigitallySignedStruct]
     pub fn dss(&self) -> DigitallySignedStruct {
         DigitallySignedStruct::new(self.sig_scheme, self.sig.clone())
     }
 
+    /// Returns the client random + server random + kx params in encoded form
     pub fn signature_msg(&self) -> Vec<u8> {
         let mut msg = Vec::new();
         msg.extend_from_slice(&self.cr.0);
@@ -58,11 +62,12 @@ impl TestData {
     }
 }
 
-// convert a hex string to bytes
+/// Convert a hex string to bytes
 fn from_hex(string: &[u8]) -> Vec<u8> {
     hex::decode(string.to_ascii_lowercase()).unwrap()
 }
 
+/// Returns a cert verifier
 #[fixture]
 pub fn cert_verifier() -> impl ServerCertVerifier {
     let mut root_store = RootCertStore::empty();
@@ -77,6 +82,7 @@ pub fn cert_verifier() -> impl ServerCertVerifier {
     tls_core::verify::WebPkiVerifier::new(root_store, None)
 }
 
+/// Returns test data for the tlsnotary.org website
 #[fixture]
 pub fn tlsnotary() -> TestData {
     TestData {
@@ -112,6 +118,7 @@ pub fn tlsnotary() -> TestData {
     }
 }
 
+/// Returns test data for the appliedzkp.org website
 #[fixture]
 pub fn appliedzkp() -> TestData {
     TestData {
@@ -149,10 +156,10 @@ pub fn appliedzkp() -> TestData {
     }
 }
 
+/// Expect chain verification to succeed
 #[rstest]
 #[case(tlsnotary())]
 #[case(appliedzkp())]
-/// Expect chain verification to succeed
 fn test_verify_cert_chain_sucess_ca_implicit(
     cert_verifier: impl ServerCertVerifier,
     #[case] data: TestData,
@@ -169,11 +176,11 @@ fn test_verify_cert_chain_sucess_ca_implicit(
         .is_ok());
 }
 
+/// Expect chain verification to succeed even when a trusted CA is provided among the intermediate
+/// certs. webpki handles such cases properly.
 #[rstest]
 #[case(tlsnotary())]
 #[case(appliedzkp())]
-/// Expect chain verification to succeed even when a trusted CA is provided among the intermediate
-/// certs. webpki handles such cases properly.
 fn test_verify_cert_chain_success_ca_explicit(
     cert_verifier: impl ServerCertVerifier,
     #[case] data: TestData,
@@ -190,10 +197,10 @@ fn test_verify_cert_chain_success_ca_explicit(
         .is_ok());
 }
 
+/// Expect to fail since the end entity cert was not valid at the time
 #[rstest]
 #[case(tlsnotary())]
 #[case(appliedzkp())]
-// Expect to fail since the end entity cert was not valid at the time
 fn test_verify_cert_chain_fail_bad_time(
     cert_verifier: impl ServerCertVerifier,
     #[case] data: TestData,
@@ -216,10 +223,10 @@ fn test_verify_cert_chain_fail_bad_time(
     ));
 }
 
+/// Expect to fail when no intermediate cert provided
 #[rstest]
 #[case(tlsnotary())]
 #[case(appliedzkp())]
-// Expect to fail when no intermediate cert provided
 fn test_verify_cert_chain_fail_no_interm_cert(
     cert_verifier: impl ServerCertVerifier,
     #[case] data: TestData,
@@ -239,10 +246,10 @@ fn test_verify_cert_chain_fail_no_interm_cert(
     ));
 }
 
+/// Expect to fail when no intermediate cert provided even if a trusted CA cert is provided
 #[rstest]
 #[case(tlsnotary())]
 #[case(appliedzkp())]
-// Expect to fail when no intermediate cert provided even if a trusted CA cert is provided
 fn test_verify_cert_chain_fail_no_interm_cert_with_ca_cert(
     cert_verifier: impl ServerCertVerifier,
     #[case] data: TestData,
@@ -262,10 +269,10 @@ fn test_verify_cert_chain_fail_no_interm_cert_with_ca_cert(
     ));
 }
 
+/// Expect to fail because end-entity cert is wrong
 #[rstest]
 #[case(tlsnotary())]
 #[case(appliedzkp())]
-// Expect to fail because end-entity cert is wrong
 fn test_verify_cert_chain_fail_bad_ee_cert(
     cert_verifier: impl ServerCertVerifier,
     #[case] data: TestData,
@@ -287,7 +294,7 @@ fn test_verify_cert_chain_fail_bad_ee_cert(
     ));
 }
 
-// Expect to succeed when key exchange params signed correctly with a cert
+/// Expect to succeed when key exchange params signed correctly with a cert
 #[rstest]
 #[case(tlsnotary())]
 #[case(appliedzkp())]
@@ -300,7 +307,7 @@ fn test_verify_sig_ke_params_success(
         .is_ok());
 }
 
-// Expect sig verification to fail because client_random is wrong
+/// Expect sig verification to fail because client_random is wrong
 #[rstest]
 #[case(tlsnotary())]
 #[case(appliedzkp())]
@@ -315,7 +322,7 @@ fn test_verify_sig_ke_params_fail_bad_client_random(
         .is_err());
 }
 
-// Expect sig verification to fail because the sig is wrong
+/// Expect sig verification to fail because the sig is wrong
 #[rstest]
 #[case(tlsnotary())]
 #[case(appliedzkp())]
@@ -330,7 +337,7 @@ fn test_verify_sig_ke_params_fail_bad_sig(
         .is_err());
 }
 
-// Expect to fail because the dns name is not in the cert
+/// Expect to fail because the dns name is not in the cert
 #[rstest]
 #[case(tlsnotary())]
 #[case(appliedzkp())]
@@ -352,7 +359,7 @@ fn test_check_dns_name_present_in_cert_fail_bad_host(
         .is_err());
 }
 
-// Expect to fail because the host name is not a valid DNS name
+/// Expect to fail because the host name is not a valid DNS name
 #[rstest]
 fn test_check_dns_name_present_in_cert_fail_invalid_dns_name() {
     assert!(ServerName::try_from("tlsnotary.org%").is_err());

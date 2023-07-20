@@ -1,5 +1,10 @@
 [package]
 name = "tests-integration"
+authors = ["TLSNotary Team"]
+description = "Integration tests for TLSNotary"
+keywords = ["tls", "mpc", "2pc", "test"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
 version = "0.1.0"
 edition = "2021"
 publish = false
@@ -10,15 +15,13 @@ tlsn-prover.workspace = true
 tlsn-notary.workspace = true
 tls-server-fixture.workspace = true
 
-hyper = { version = "0.14", features = ["client", "http1"] }
-
 p256 = { workspace = true, features = ["ecdsa"] }
+hyper = { workspace = true, features = ["client", "http1"] }
 
 futures.workspace = true
 tokio = { workspace = true, features = [
     "rt",
     "rt-multi-thread",
-    "net",
     "macros",
 ] }
 tokio-util.workspace = true

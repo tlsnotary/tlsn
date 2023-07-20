@@ -5,6 +5,7 @@ use tlsn_notary::{bind_notary, NotaryConfig};
 use tlsn_prover::{bind_prover, ProverConfig};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
+use tracing::instrument;
 
 #[tokio::test]
 async fn test() {
@@ -15,7 +16,7 @@ async fn test() {
     tokio::join!(prover(socket_0), notary(socket_1));
 }
 
-#[tracing::instrument(skip(notary_socket))]
+#[instrument(skip(notary_socket))]
 async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socket: T) {
     let (client_socket, server_socket) = tokio::io::duplex(2 << 16);
 
@@ -85,7 +86,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
     _ = prover.finalize().await.unwrap();
 }
 
-#[tracing::instrument(skip(socket))]
+#[instrument(skip(socket))]
 async fn notary<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(socket: T) {
     let (notary, notary_fut) = bind_notary(
         NotaryConfig::builder().id("test").build().unwrap(),

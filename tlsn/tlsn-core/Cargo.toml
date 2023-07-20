@@ -1,40 +1,42 @@
 [package]
 name = "tlsn-core"
+authors = ["TLSNotary Team"]
+description = "Core types for TLSNotary"
+keywords = ["tls", "mpc", "2pc", "types"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
 version = "0.1.0"
 edition = "2021"
 
 [features]
 default = []
-fixtures = ["dep:rstest", "dep:hex"]
+fixtures = ["dep:hex"]
+tracing = ["dep:tracing"]
 
 [dependencies]
 tlsn-tls-core = { workspace = true, features = ["serde"] }
+
+tlsn-utils.workspace = true
+
 mpz-core.workspace = true
 mpz-garble-core.workspace = true
 mpz-circuits.workspace = true
-tlsn-utils.workspace = true
 
-thiserror = "1"
-serde = { version = "1.0", features = ["derive"] }
-bincode = "1.3.3"
-p256 = { workspace = true, features = ["ecdsa", "serde", "sha256"] }
-signature.workspace = true
-webpki = { version = "0.22.0", features = ["alloc"] }
-webpki-roots = "0.22.5"
-x509-parser = "0.14.0"
-blake3 = "1.3.3"
-rs_merkle = "1.4.1"
-rand_chacha = "0.3"
-rand = "0.8"
-rand_core = "0.6"
-
-rstest = { version = "0.12", optional = true }
-hex = { version = "0.4", optional = true }
+thiserror.workspace = true
+serde.workspace = true
+p256 = { workspace = true, features = ["serde"] }
+webpki-roots.workspace = true
+rs_merkle.workspace = true
+rstest = { workspace = true, optional = true}
+hex = { workspace = true, optional = true} 
+tracing = { workspace = true, optional = true }
 
 [dev-dependencies]
-rstest = "0.12"
-hex = "0.4"
-bcs = "0.1.5"
+rstest.workspace = true
+hex.workspace = true
+rand_core.workspace = true
+rand_chacha.workspace = true
+bincode.workspace = true
 
 [[test]]
 name = "api"

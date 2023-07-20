@@ -5,6 +5,7 @@ use tls_mpc::{MpcTlsCommonConfig, MpcTlsLeaderConfig};
 
 const DEFAULT_MAX_TRANSCRIPT_SIZE: usize = 1 << 14; // 16Kb
 
+/// Configuration for the prover
 #[derive(Debug, Clone, derive_builder::Builder)]
 pub struct ProverConfig {
     /// Id of the notarization session.

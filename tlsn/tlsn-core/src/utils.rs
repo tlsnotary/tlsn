@@ -3,9 +3,13 @@ use crate::error::Error;
 use crate::transcript::TranscriptSlice;
 use std::ops::Range;
 
+#[cfg(feature = "tracing")]
+use tracing::instrument;
+
 /// Tries to merge `slices` and returns the resulting slices sorted ascendingly (note that even if no
 /// merging was necessary, the `slices` will be returned sorted ascendingly).
 /// Merging happens if slices overlap or are adjacent.
+#[cfg_attr(feature = "tracing", instrument(level = "trace", skip(slices), err))]
 pub(crate) fn merge_slices(
     mut slices: Vec<TranscriptSlice>,
 ) -> Result<Vec<TranscriptSlice>, Error> {

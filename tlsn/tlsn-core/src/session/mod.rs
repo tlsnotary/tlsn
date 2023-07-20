@@ -21,6 +21,10 @@ use crate::{
     Commitment, Direction, InclusionProof, SubstringsCommitment, SubstringsCommitmentSet,
 };
 
+#[cfg(feature = "tracing")]
+use tracing::instrument;
+
+/// A validated notarized session stored by the Prover
 #[derive(Serialize, Deserialize)]
 pub struct NotarizedSession {
     header: SessionHeader,
@@ -29,6 +33,7 @@ pub struct NotarizedSession {
 }
 
 impl NotarizedSession {
+    /// Create a new instance of [NotarizedSession]
     pub fn new(header: SessionHeader, signature: Option<Signature>, data: SessionData) -> Self {
         Self {
             header,
@@ -38,6 +43,10 @@ impl NotarizedSession {
     }
 
     /// Generates a `SubstringsProof` for commitments with the provided merkle tree indices
+    #[cfg_attr(
+        feature = "tracing",
+        instrument(level = "debug", skip(self, indices), err)
+    )]
     pub fn generate_substring_proof(&self, indices: Vec<usize>) -> Result<SubstringsProof, Error> {
         // check that merkle tree indices are unique
         if indices.iter().contains_dups() {
@@ -103,6 +112,7 @@ impl NotarizedSession {
         ))
     }
 
+    /// Generates a new [SessionProof] from this [NotarizedSession]
     pub fn session_proof(&self) -> SessionProof {
         SessionProof::new(
             self.header().clone(),
@@ -111,14 +121,17 @@ impl NotarizedSession {
         )
     }
 
+    /// Returns the [SessionHeader]
     pub fn header(&self) -> &SessionHeader {
         &self.header
     }
 
+    /// Returns the signature for the session header, if the notary signed it
     pub fn signature(&self) -> &Option<Signature> {
         &self.signature
     }
 
+    /// Returns the [SessionData]
     pub fn data(&self) -> &SessionData {
         &self.data
     }
