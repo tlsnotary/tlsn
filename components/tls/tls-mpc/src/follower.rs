@@ -27,6 +27,7 @@ use crate::{
     MpcTlsChannel, MpcTlsError, MpcTlsFollowerConfig,
 };
 
+/// Wrapper for protocol instances of the follower
 pub struct MpcTlsFollower {
     config: MpcTlsFollowerConfig,
     channel: MpcTlsChannel,
@@ -40,6 +41,11 @@ pub struct MpcTlsFollower {
 }
 
 impl MpcTlsFollower {
+    /// Create a new follower instance
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "debug", skip(channel, ke, prf, encrypter, decrypter))
+    )]
     pub fn new(
         config: MpcTlsFollowerConfig,
         channel: MpcTlsChannel,
@@ -95,6 +101,10 @@ impl MpcTlsFollower {
         self.handshake_commitment
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self), err)
+    )]
     async fn run_key_exchange(&mut self) -> Result<(), MpcTlsError> {
         // Key exchange
         _ = self
@@ -128,6 +138,10 @@ impl MpcTlsFollower {
         Ok(())
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self), err)
+    )]
     async fn run_client_finished(&mut self) -> Result<(), MpcTlsError> {
         self.prf.compute_client_finished_vd_blind().await?;
 
@@ -143,6 +157,10 @@ impl MpcTlsFollower {
         Ok(())
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self), err)
+    )]
     async fn run_server_finished(&mut self) -> Result<(), MpcTlsError> {
         let DecryptMessage {
             typ,
@@ -164,6 +182,11 @@ impl MpcTlsFollower {
         Ok(())
     }
 
+    /// Runs the follower instance
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self), err)
+    )]
     pub async fn run(&mut self) -> Result<(), MpcTlsError> {
         self.run_key_exchange().await?;
         self.run_client_finished().await?;
@@ -248,6 +271,10 @@ impl Encrypter {
         Ok(())
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self), err)
+    )]
     async fn encrypt_blind(
         &mut self,
         typ: ContentType,
@@ -299,6 +326,10 @@ impl Decrypter {
         Ok(())
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self), err)
+    )]
     async fn decrypt_blind(
         &mut self,
         typ: ContentType,
@@ -318,6 +349,10 @@ impl Decrypter {
         Ok(())
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self), err)
+    )]
     async fn decrypt_public(
         &mut self,
         typ: ContentType,

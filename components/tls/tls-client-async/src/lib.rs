@@ -1,3 +1,14 @@
+//! Provides a TLS client which exposes an async socket.
+//!
+//! This library provides the [bind_client] function which attaches a TLS client to a socket
+//! connection and then exposes a [TlsConnection] object, which provides an async socket API for
+//! reading and writing cleartext. The TLS client will then automatically encrypt and decrypt
+//! traffic and forward that to the provided socket.
+
+#![deny(missing_docs, unreachable_pub, unused_must_use)]
+#![deny(clippy::all)]
+#![forbid(unsafe_code)]
+
 mod conn;
 
 use bytes::Bytes;
@@ -14,6 +25,7 @@ use std::{
     task::{Context, Poll},
 };
 
+#[cfg(feature = "tracing")]
 use tracing::{debug, debug_span, error, trace, Instrument};
 
 use tls_client::ClientConnection;
@@ -24,6 +36,7 @@ const RX_TLS_BUF_SIZE: usize = 1 << 13; // 8 KiB
 const RX_BUF_SIZE: usize = 1 << 13; // 8 KiB
 
 /// An error that can occur during a TLS connection.
+#[allow(missing_docs)]
 #[derive(Debug, thiserror::Error)]
 pub enum ConnectionError {
     #[error(transparent)]
@@ -35,8 +48,11 @@ pub enum ConnectionError {
 /// Closed connection data.
 #[derive(Debug)]
 pub struct ClosedConnection {
+    /// The connection for the client
     pub client: ClientConnection,
+    /// Sent plaintext bytes
     pub sent: Vec<u8>,
+    /// Received plaintext bytes
     pub recv: Vec<u8>,
 }
 
@@ -68,7 +84,7 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
 
     let conn = TlsConnection::new(tx_sender, rx_receiver, close_send);
 
-    let fut = Box::pin(async move {
+    let fut = async move {
         client.start().await?;
 
         let (mut server_rx, mut server_tx) = socket.split();
@@ -89,6 +105,7 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
                 read_res = &mut rx_tls_fut => {
                     let received = read_res?;
 
+                    #[cfg(feature = "tracing")]
                     trace!("received {} tls bytes from server", received);
 
                     // Loop until we've processed all the data we received in this read.
@@ -109,6 +126,7 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
                     }
 
                     if received == 0 {
+                        #[cfg(feature = "tracing")]
                         debug!("server closed connection");
                         server_closed = true;
 
@@ -124,11 +142,14 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
                     client
                         .write_all_plaintext(&data)
                         .await?;
+
+                    #[cfg(feature = "tracing")]
                     trace!("processed {} bytes to the server", data.len());
                 },
                 close_send = &mut close_recv => {
                     client_closed = true;
 
+                    #[cfg(feature = "tracing")]
                     trace!("sending close_notify to server");
 
                     client.send_close_notify().await?;
@@ -145,14 +166,15 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
                         _ = close_send.send(());
                     }
 
+                    #[cfg(feature = "tracing")]
                     debug!("client closed connection");
                 }
             }
 
             while client.wants_write() && !client_closed {
-                trace!("sending tls bytes to server");
-                let sent = client.write_tls_async(&mut server_tx).await?;
-                trace!("sent {} tls bytes to server", sent);
+                let _sent = client.write_tls_async(&mut server_tx).await?;
+                #[cfg(feature = "tracing")]
+                trace!("sent {} tls bytes to server", _sent);
             }
 
             // Flush all remaining plaintext to the server
@@ -166,15 +188,17 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
                     Ok(n) => n,
                     Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                         if server_closed {
+                            #[cfg(feature = "tracing")]
                             debug!("server closed, no more data to read");
                             break 'outer;
                         } else {
                             break;
                         }
-                    },
+                    }
                     // Some servers will not send a close_notify, in which case we need to
                     // error because we can't reveal the MAC key to the Notary.
                     Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+                        #[cfg(feature = "tracing")]
                         error!("server did not send close_notify");
                         return Err(e)?;
                     }
@@ -182,6 +206,7 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
                 };
 
                 if n > 0 {
+                    #[cfg(feature = "tracing")]
                     trace!("received {} bytes from server", n);
                     recv.extend(&rx_buf[..n]);
                     // Ignore if the receiver has hung up.
@@ -189,6 +214,7 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
                         .send(Ok(Bytes::copy_from_slice(&rx_buf[..n])))
                         .await;
                 } else {
+                    #[cfg(feature = "tracing")]
                     debug!("server closed, no more data to read");
                     break 'outer;
                 }
@@ -199,14 +225,24 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
             }
         }
 
+        #[cfg(feature = "tracing")]
         debug!("client shutdown");
 
-        trace!("server close notify: {}, sent: {}, recv: {}", client.received_close_notify(), sent.len(), recv.len());
+        #[cfg(feature = "tracing")]
+        trace!(
+            "server close notify: {}, sent: {}, recv: {}",
+            client.received_close_notify(),
+            sent.len(),
+            recv.len()
+        );
 
         Ok(ClosedConnection { client, sent, recv })
-    }.instrument(debug_span!("tls_connection")));
+    };
 
-    let fut = ConnectionFuture { fut };
+    #[cfg(feature = "tracing")]
+    let fut = fut.instrument(debug_span!("tls_connection"));
+
+    let fut = ConnectionFuture { fut: Box::pin(fut) };
 
     (conn, fut)
 }

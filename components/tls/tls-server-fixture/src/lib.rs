@@ -1,3 +1,9 @@
+//! A TLS server fixture for testing
+
+#![deny(missing_docs, unreachable_pub, unused_must_use)]
+#![deny(clippy::all)]
+#![forbid(unsafe_code)]
+
 use async_rustls::{server::TlsStream, TlsAcceptor};
 use futures::{AsyncRead, AsyncWrite, FutureExt, TryStreamExt};
 use hyper::{server::conn::Http, service::service_fn, Body, Method, Request, Response, StatusCode};

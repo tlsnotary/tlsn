@@ -1,7 +1,11 @@
+//! Contains message types for communication between leader and follower
+
 use mpz_core::hash::Hash;
 use serde::{Deserialize, Serialize};
 use tls_core::msgs::enums::ContentType;
 
+/// TLS message record types
+#[allow(missing_docs)]
 #[derive(Serialize, Deserialize)]
 #[serde(remote = "ContentType")]
 pub enum ContentTypeDef {
@@ -13,6 +17,8 @@ pub enum ContentTypeDef {
     Unknown(u8),
 }
 
+/// MPC protocol level message types
+#[allow(missing_docs)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MpcTlsMessage {
     HandshakeCommitment(Hash),
@@ -22,9 +28,12 @@ pub enum MpcTlsMessage {
     Close(Close),
 }
 
+/// Close the connection
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Close;
 
+/// Encrypt a message
+#[allow(missing_docs)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EncryptMessage {
     #[serde(with = "ContentTypeDef")]
@@ -33,6 +42,8 @@ pub struct EncryptMessage {
     pub len: usize,
 }
 
+/// Decrypt a message
+#[allow(missing_docs)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DecryptMessage {
     #[serde(with = "ContentTypeDef")]

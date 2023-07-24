@@ -1,10 +1,12 @@
 [package]
 name = "tlsn-tls-client"
+authors = ["TLSNotary Team"]
+description = "A TLS client for TLSNotary"
+keywords = ["tls", "mpc", "2pc", "client", "sync"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
 version = "0.1.0"
 edition = "2021"
-authors = []
-license = "Apache-2.0/MIT"
-readme = "../README.md"
 autobenches = false
 build = "build.rs"
 
@@ -12,24 +14,23 @@ build = "build.rs"
 name = "tls_client"
 
 [build-dependencies]
-rustversion = { version = "1.0.6", optional = true }
+rustversion = { version = "1", optional = true }
 
 [dependencies]
 tlsn-tls-backend = { path = "../tls-backend" }
 tlsn-tls-core = { path = "../tls-core" }
 
-async-trait = "0.1.53"
-log = { version = "0.4.4", optional = true }
-ring = "0.16.20"
-sct = "0.7.0"
-webpki = { version = "0.22.0", features = ["alloc", "std"] }
-aes-gcm = { version = "0.9.4" }
-p256 = { version = "0.10.1", features = ["ecdh"] }
-rand = "0.8.5"
-hmac = { version = "0.12.1" }
-sha2 = { version = "0.10.1", features = ["compress"] }
-digest = { version = "0.10.3" }
-thiserror = { version = "1" }
+async-trait.workspace = true
+log = { workspace = true, optional = true }
+ring.workspace = true
+sct.workspace = true
+webpki = { workspace = true, features = ["alloc", "std"] }
+aes-gcm.workspace = true
+p256 = { workspace = true, features = ["ecdh"] }
+rand.workspace = true
+hmac.workspace = true
+sha2 = { workspace = true, features = ["compress"] }
+digest.workspace = true
 futures.workspace = true
 
 [features]
@@ -40,15 +41,11 @@ tls12 = []
 read_buf = ["rustversion"]
 
 [dev-dependencies]
-env_logger = "0.9.0"
-log = "0.4.4"
-webpki-roots = "0.22.0"
-criterion = "0.3.0"
-rustls-pemfile = "0.3.0"
-base64 = "0.13.0"
-rustls = { version = "0.20.4", features = ["tls12"] }
-bimap = "0.6.2"
-tokio = { version = "1", features = ["rt", "macros"] }
+env_logger.workspace = true
+webpki-roots.workspace = true
+rustls-pemfile.workspace = true
+rustls = { workspace = true, features = ["tls12"] }
+tokio = { workspace = true, features = ["rt", "macros"] }
 
 [[example]]
 name = "bench"
