@@ -28,7 +28,7 @@ use utils_aio::Channel;
 /// A channel for sending and receiving messages between leader and follower
 pub type MpcTlsChannel = Box<dyn Channel<msg::MpcTlsMessage, Error = std::io::Error>>;
 
-/// Sets the  role of a party
+/// Sets the role of a party
 #[allow(missing_docs)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TlsRole {

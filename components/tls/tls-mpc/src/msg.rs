@@ -4,7 +4,7 @@ use mpz_core::hash::Hash;
 use serde::{Deserialize, Serialize};
 use tls_core::msgs::enums::ContentType;
 
-/// An enum for different record types on the TLS level
+/// TLS message record types
 #[allow(missing_docs)]
 #[derive(Serialize, Deserialize)]
 #[serde(remote = "ContentType")]
@@ -17,7 +17,7 @@ pub enum ContentTypeDef {
     Unknown(u8),
 }
 
-/// An enum for different message types on the MPC protocol level
+/// MPC protocol level message types
 #[allow(missing_docs)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MpcTlsMessage {
