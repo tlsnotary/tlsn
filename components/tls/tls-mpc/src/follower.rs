@@ -273,7 +273,7 @@ impl Encrypter {
 
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "trace", skip(self, typ), err)
+        tracing::instrument(level = "trace", skip(self), err)
     )]
     async fn encrypt_blind(
         &mut self,
@@ -328,7 +328,7 @@ impl Decrypter {
 
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "trace", skip(self, typ, explicit_nonce, ciphertext), err)
+        tracing::instrument(level = "trace", skip(self), err)
     )]
     async fn decrypt_blind(
         &mut self,
@@ -351,7 +351,7 @@ impl Decrypter {
 
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "trace", skip(self, typ, explicit_nonce, ciphertext), err)
+        tracing::instrument(level = "trace", skip(self), err)
     )]
     async fn decrypt_public(
         &mut self,

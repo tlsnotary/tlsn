@@ -108,22 +108,22 @@ impl MpcTlsLeader {
         }
     }
 
-    /// Sets the protocol version
+    /// Sets the protocol version.
     pub fn set_protocol_version(&mut self, version: ProtocolVersion) {
         self.conn_state.protocol_version = Some(version);
     }
 
-    /// Sets the cipher suite
+    /// Sets the cipher suite.
     pub fn set_cipher_suite(&mut self, suite: CipherSuite) {
         self.conn_state.cipher_suite = Some(suite);
     }
 
-    /// Sets the server random
+    /// Sets the server random.
     pub fn set_server_random(&mut self, random: Random) {
         self.conn_state.server_random = Some(random);
     }
 
-    /// Sets the server key
+    /// Sets the server ephemeral key.
     pub fn set_server_key(&mut self, key: PublicKey) -> Result<(), MpcTlsError> {
         if key.group != NamedGroup::secp256r1 {
             return Err(MpcTlsError::UnsupportedCurveGroup(key.group));
@@ -134,7 +134,7 @@ impl MpcTlsLeader {
         Ok(())
     }
 
-    /// Returns the server's public key.
+    /// Returns the server's ephemeral public key.
     pub fn server_public_key(&self) -> Option<&PublicKey> {
         self.conn_state.server_public_key.as_ref()
     }
@@ -182,7 +182,7 @@ impl MpcTlsLeader {
         ))
     }
 
-    /// Computes the session TLS session keys
+    /// Computes the TLS session keys
     #[cfg_attr(
         feature = "tracing",
         tracing::instrument(level = "trace", skip(self), err)

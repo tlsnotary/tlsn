@@ -5,7 +5,7 @@ static DEFAULT_OPAQUE_RX_TRANSCRIPT_ID: &str = "opaque_rx";
 static DEFAULT_TX_TRANSCRIPT_ID: &str = "tx";
 static DEFAULT_RX_TRANSCRIPT_ID: &str = "rx";
 
-/// Configuration options which are common to both the prover and the notary
+/// Configuration options which are common to both the leader and the follower
 #[derive(Debug, Clone, Builder)]
 pub struct MpcTlsCommonConfig {
     /// The id of the tls session.

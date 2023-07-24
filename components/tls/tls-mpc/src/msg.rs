@@ -1,10 +1,10 @@
-//! Contains message types for communication between prover and notary
+//! Contains message types for communication between leader and follower
 
 use mpz_core::hash::Hash;
 use serde::{Deserialize, Serialize};
 use tls_core::msgs::enums::ContentType;
 
-/// An enum for different message types on the TLS level
+/// An enum for different record types on the TLS level
 #[allow(missing_docs)]
 #[derive(Serialize, Deserialize)]
 #[serde(remote = "ContentType")]
@@ -17,7 +17,7 @@ pub enum ContentTypeDef {
     Unknown(u8),
 }
 
-/// An enum for different message types on the application level
+/// An enum for different message types on the MPC protocol level
 #[allow(missing_docs)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MpcTlsMessage {

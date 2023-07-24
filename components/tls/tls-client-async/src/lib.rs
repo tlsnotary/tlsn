@@ -1,6 +1,6 @@
 //! Provides a TLS client which exposes an async socket.
 //!
-//! This library provides the [bind_client] function which allows to attach a TLS client to a
+//! This library provides the [bind_client] function which enables to attach a TLS client to a
 //! socket connection and then exposes a [TlsConnection] object, which provides an async socket API
 //! for reading and writing cleartext. The TLS client will then automatically encrypt and decrypt
 //! traffic and forward that to the provided socket.
@@ -50,9 +50,9 @@ pub enum ConnectionError {
 pub struct ClosedConnection {
     /// The connection for the client
     pub client: ClientConnection,
-    /// Sent bytes
+    /// Sent plaintext bytes
     pub sent: Vec<u8>,
-    /// Received bytes
+    /// Received plaintext bytes
     pub recv: Vec<u8>,
 }
 
