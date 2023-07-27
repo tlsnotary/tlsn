@@ -60,8 +60,8 @@ pub struct UidYamuxControl {
 }
 
 impl UidYamuxControl {
-     /// shutdown the connection properly
-     pub async fn shutdown(&mut self) {
+    /// shutdown the connection properly
+    pub async fn shutdown(&mut self) {
         self.control.close().await.unwrap()
     }
 }
@@ -138,7 +138,7 @@ where
                         state.waiting_streams.insert(stream_id, stream);
                     }
                 }
-                complete => { println!("Completed!"); return Ok(()) },
+                complete => return Ok(()),
             }
         }
     }

@@ -1,6 +1,8 @@
 use eyre::Result;
+use futures::AsyncWriteExt;
 use hyper::{body::to_bytes, client::conn::Parts, Body, Request, StatusCode};
 use rustls::{Certificate, ClientConfig, RootCertStore};
+use serde::{Deserialize, Serialize};
 use std::{
     env,
     fs::File as StdFile,
@@ -10,14 +12,12 @@ use std::{
     sync::Arc,
 };
 use tokio::fs::File;
+use tokio::io::AsyncWriteExt as _;
 use tokio_rustls::TlsConnector;
+use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::debug;
 
-use futures::AsyncWriteExt;
 use tlsn_prover::{bind_prover, ProverConfig};
-
-use tokio::io::AsyncWriteExt as _;
-use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 
 const SERVER_DOMAIN: &str = "twitter.com";
 const ROUTE: &str = "i/api/1.1/dm/conversation";
@@ -26,6 +26,12 @@ const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KH
 const NOTARY_DOMAIN: &str = "127.0.0.1";
 const NOTARY_PORT: u16 = 7047;
 const NOTARY_CA_CERT_PATH: &str = "./rootCA.crt";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotarizationResponse {
+    pub session_id: String,
+}
 
 #[tokio::main]
 async fn main() {
@@ -65,7 +71,6 @@ async fn main() {
     .await
     .unwrap();
 
-    let prover_address = notary_socket.local_addr().unwrap().to_string();
     let notary_tls_socket = notary_connector
         .connect("tlsnotaryserver.io".try_into().unwrap(), notary_socket)
         .await
@@ -85,7 +90,8 @@ async fn main() {
         .uri(format!("https://{NOTARY_DOMAIN}:{NOTARY_PORT}/notarize"))
         .method("POST")
         .header("Host", NOTARY_DOMAIN)
-        .header("Connection", "close")
+        .header("Connection", "Upgrade")
+        .header("Upgrade", "TCP")
         .body(Body::empty())
         .unwrap();
 
@@ -101,13 +107,10 @@ async fn main() {
 
     // Pretty printing :)
     let payload = to_bytes(response.into_body()).await.unwrap().to_vec();
-    let parsed =
-        serde_json::from_str::<serde_json::Value>(&String::from_utf8_lossy(&payload)).unwrap();
+    let response =
+        serde_json::from_str::<NotarizationResponse>(&String::from_utf8_lossy(&payload)).unwrap();
 
-    debug!(
-        "Notarization response: {}",
-        serde_json::to_string_pretty(&parsed).unwrap()
-    );
+    debug!("Notarization response: {:?}", response,);
 
     // Claim back the TLS socket after HTTP exchange is done
     let Parts {
@@ -118,7 +121,7 @@ async fn main() {
     // Connect to the Server
     // Basic default prover config
     let config = ProverConfig::builder()
-        .id(prover_address)
+        .id(response.session_id)
         .server_dns(SERVER_DOMAIN)
         .build()
         .unwrap();

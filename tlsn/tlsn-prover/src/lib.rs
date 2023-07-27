@@ -70,7 +70,8 @@ pub async fn bind_prover<
         fut: Box::pin(async move { mux.run().await.map_err(ProverError::from) }),
     };
 
-    let prover_fut = Prover::new(config, mux_control, extra_mux_control)?.bind_prover(client_socket);
+    let prover_fut =
+        Prover::new(config, mux_control, extra_mux_control)?.bind_prover(client_socket);
     let (conn, conn_fut) = futures::select! {
         res = prover_fut.fuse() => res?,
         _ = (&mut mux_fut).fuse() => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
@@ -130,7 +131,11 @@ where
     ///
     /// * `config` - The configuration for the prover.
     /// * `notary_mux` - The multiplexed connection to the notary.
-    pub fn new(config: ProverConfig, notary_mux: T, mux_control: UidYamuxControl) -> Result<Self, ProverError> {
+    pub fn new(
+        config: ProverConfig,
+        notary_mux: T,
+        mux_control: UidYamuxControl,
+    ) -> Result<Self, ProverError> {
         let server_name = ServerName::try_from(config.server_dns())?;
 
         Ok(Self {
