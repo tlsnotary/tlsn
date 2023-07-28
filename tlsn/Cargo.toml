@@ -18,11 +18,11 @@ uid-mux = { path = "../components/uid-mux" }
 tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils" }
 tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils" }
 
-mpz-core = { git = "https://github.com/tlsnotary/mpz", rev = "86f1687" }
-mpz-circuits = { git = "https://github.com/tlsnotary/mpz", rev = "86f1687" }
-mpz-garble-core = { git = "https://github.com/tlsnotary/mpz", rev = "86f1687" }
-mpz-garble = { git = "https://github.com/tlsnotary/mpz", rev = "86f1687" }
-mpz-share-conversion = { git = "https://github.com/tlsnotary/mpz", rev = "86f1687" }
+mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "86f1687" }
+mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "86f1687" }
+mpz-garble-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "86f1687" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "86f1687" }
+mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "86f1687" }
 
 
 futures = "0.3"
