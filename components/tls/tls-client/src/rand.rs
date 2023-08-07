@@ -1,12 +1,13 @@
 /// The single place where we generate random material
 /// for our own use.  These functions never fail,
 /// they panic on error.
-use ring::rand::{SecureRandom, SystemRandom};
+use rand::{rngs::OsRng, Rng};
 use tls_core::msgs::codec;
 
 /// Fill the whole slice with random material.
 pub(crate) fn fill_random(bytes: &mut [u8]) -> Result<(), GetRandomFailed> {
-    SystemRandom::new().fill(bytes).map_err(|_| GetRandomFailed)
+    OsRng.fill(bytes);
+    Ok(())
 }
 
 /// Make a Vec<u8> of the given size
