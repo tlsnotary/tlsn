@@ -28,8 +28,8 @@ use std::{
 #[cfg(feature = "tracing")]
 use tracing::{debug, debug_span, error, trace, Instrument};
 
-use tokio;
 use tls_client::ClientConnection;
+use tokio;
 
 pub use conn::TlsConnection;
 
@@ -46,10 +46,6 @@ pub enum ConnectionError {
     TlsError(#[from] tls_client::Error),
     #[error(transparent)]
     IOError(#[from] std::io::Error),
-    #[error("Timed out waiting for server")]
-    TimedOutWaitingForServer,
-    #[error("The server did not send close_notify")]
-    UncleanTlsShutdown
 }
 
 /// Closed connection data.
@@ -106,7 +102,7 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
         let mut recv = Vec::with_capacity(1024);
 
         let mut rx_tls_fut = server_rx.read(&mut rx_tls_buf).fuse();
-        
+
         // A future initially set to `terminated` so that it would not be `select!`ed. Later, when the
         // client closes, a future with a timeout will be assigned.
         let mut timeout_fut = Fuse::terminated();
@@ -140,7 +136,7 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
 
                         if processed == received {
                             break;
-                        } 
+                        }
                     }
 
                     // by convention if `AsyncRead::read` returns 0, it means EOF, i.e. the peer
@@ -186,7 +182,7 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
                     timeout_fut = Box::pin(async {
                         tokio::time::sleep(std::time::Duration::from_millis(TIMEOUT_SERVER_CLOSE)).await;
                     }).fuse();
-                    
+
                     server_tx.close().await?;
 
                     // Send the close signal to the TlsConnection
@@ -247,7 +243,6 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
                     _ = rx_sender
                         .send(Ok(Bytes::copy_from_slice(&rx_buf[..n])))
                         .await;
-
                 } else {
                     #[cfg(feature = "tracing")]
                     debug!("server closed cleanly, no more data to read");
