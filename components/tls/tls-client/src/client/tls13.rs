@@ -628,7 +628,7 @@ impl State<ClientConnectionData> for ExpectCertificateVerify {
         // 2. Verify their signature on the handshake.
         let handshake_hash = self.transcript.get_current_hash();
         let sig_verified = match self.config.verifier.verify_tls13_signature(
-            &verify::construct_tls13_server_verify_message(&handshake_hash),
+            &verify::construct_tls13_server_verify_message(handshake_hash.as_ref()),
             &self.server_cert.cert_chain()[0],
             cert_verify,
         ) {
@@ -689,7 +689,8 @@ async fn emit_certverify_tls13(
     signer: &dyn Signer,
     common: &mut CommonState,
 ) -> Result<(), Error> {
-    let message = verify::construct_tls13_client_verify_message(&transcript.get_current_hash());
+    let message =
+        verify::construct_tls13_client_verify_message(transcript.get_current_hash().as_ref());
 
     let scheme = signer.scheme();
     let sig = signer.sign(&message)?;
