@@ -14,6 +14,7 @@ use crate::{
     msgs::persist,
     sign, verify, KeyLog,
 };
+use p256::elliptic_curve::subtle::ConstantTimeEq;
 use tls_core::{
     key::PublicKey,
     msgs::{
@@ -33,8 +34,6 @@ use tls_core::{
     },
     suites::Tls13CipherSuite,
 };
-
-use ring::constant_time;
 
 use crate::sign::{CertifiedKey, Signer};
 use async_trait::async_trait;
@@ -772,17 +771,13 @@ impl State<ClientConnectionData> for ExpectFinished {
             .get_server_finished_vd(handshake_hash.as_ref())
             .await?;
 
-        let fin = match constant_time::verify_slices_are_equal(
-            expect_verify_data.as_ref(),
-            &finished.0,
-        ) {
-            Ok(()) => verify::FinishedMessageVerified::assertion(),
-            Err(_) => {
-                cx.common
-                    .send_fatal_alert(AlertDescription::DecryptError)
-                    .await?;
-                return Err(Error::DecryptError);
-            }
+        let fin = if expect_verify_data.ct_eq(&finished.0).into() {
+            verify::FinishedMessageVerified::assertion()
+        } else {
+            cx.common
+                .send_fatal_alert(AlertDescription::DecryptError)
+                .await?;
+            return Err(Error::DecryptError);
         };
 
         st.transcript.add_message(&m);

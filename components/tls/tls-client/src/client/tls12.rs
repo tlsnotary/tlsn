@@ -16,7 +16,7 @@ use crate::{
     verify,
 };
 use async_trait::async_trait;
-use ring::constant_time;
+use p256::elliptic_curve::subtle::ConstantTimeEq;
 use std::sync::Arc;
 use tls_core::{
     ke::ServerKxDetails,
@@ -1094,16 +1094,14 @@ impl State<ClientConnectionData> for ExpectFinished {
 
         // Constant-time verification of this is relatively unimportant: they only
         // get one chance.  But it can't hurt.
-        let _fin_verified =
-            match constant_time::verify_slices_are_equal(&expect_verify_data, &finished.0) {
-                Ok(()) => verify::FinishedMessageVerified::assertion(),
-                Err(_) => {
-                    cx.common
-                        .send_fatal_alert(AlertDescription::DecryptError)
-                        .await?;
-                    return Err(Error::DecryptError);
-                }
-            };
+        let _fin_verified = if expect_verify_data.ct_eq(&finished.0).into() {
+            verify::FinishedMessageVerified::assertion()
+        } else {
+            cx.common
+                .send_fatal_alert(AlertDescription::DecryptError)
+                .await?;
+            return Err(Error::DecryptError);
+        };
 
         // Hash this message too.
         st.transcript.add_message(&m);

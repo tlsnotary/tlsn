@@ -22,7 +22,7 @@ tlsn-tls-core = { path = "../tls-core" }
 
 async-trait.workspace = true
 log = { workspace = true, optional = true }
-#ring.workspace = true
+ring.workspace = true
 sct.workspace = true
 webpki = { workspace = true, features = ["alloc", "std"] }
 aes-gcm.workspace = true
@@ -32,6 +32,7 @@ hmac.workspace = true
 sha2 = { workspace = true, features = ["compress"] }
 digest.workspace = true
 futures.workspace = true
+subtle = "2.5.0"
 
 [features]
 default = ["logging", "tls12"]
