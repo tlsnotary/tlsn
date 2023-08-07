@@ -1,6 +1,37 @@
 // Additional x509/asn1 functions to those provided in webpki/ring.
 
-use ring::io::der;
+pub const CONSTRUCTED: u8 = 1 << 5;
+pub const CONTEXT_SPECIFIC: u8 = 2 << 6;
+
+#[derive(Clone, Copy, PartialEq)]
+#[repr(u8)]
+pub enum Tag {
+    Boolean = 0x01,
+    Integer = 0x02,
+    BitString = 0x03,
+    OctetString = 0x04,
+    Null = 0x05,
+    OID = 0x06,
+    Sequence = CONSTRUCTED | 0x10, // 0x30
+    UTCTime = 0x17,
+    GeneralizedTime = 0x18,
+
+    ContextSpecificConstructed0 = CONTEXT_SPECIFIC | CONSTRUCTED,
+    ContextSpecificConstructed1 = CONTEXT_SPECIFIC | CONSTRUCTED | 1,
+    ContextSpecificConstructed3 = CONTEXT_SPECIFIC | CONSTRUCTED | 3,
+}
+
+impl From<Tag> for usize {
+    fn from(tag: Tag) -> Self {
+        tag as Self
+    }
+}
+
+impl From<Tag> for u8 {
+    fn from(tag: Tag) -> Self {
+        tag as Self
+    } // XXX: narrowing conversion.
+}
 
 pub fn wrap_in_asn1_len(bytes: &mut Vec<u8>) {
     let len = bytes.len();
@@ -22,7 +53,7 @@ pub fn wrap_in_asn1_len(bytes: &mut Vec<u8>) {
 /// Prepend stuff to `bytes` to put it in a DER SEQUENCE.
 pub fn wrap_in_sequence(bytes: &mut Vec<u8>) {
     wrap_in_asn1_len(bytes);
-    bytes.insert(0, der::Tag::Sequence as u8);
+    bytes.insert(0, Tag::Sequence as u8);
 }
 
 #[test]
