@@ -16,8 +16,8 @@ use crate::{
     verify,
 };
 use async_trait::async_trait;
-use p256::elliptic_curve::subtle::ConstantTimeEq;
 use std::sync::Arc;
+use subtle::ConstantTimeEq;
 use tls_core::{
     ke::ServerKxDetails,
     key::PublicKey,
