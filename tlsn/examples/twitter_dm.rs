@@ -26,11 +26,30 @@ const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KH
 const NOTARY_DOMAIN: &str = "127.0.0.1";
 const NOTARY_PORT: u16 = 7047;
 const NOTARY_CA_CERT_PATH: &str = "./rootCA.crt";
+const NOTARY_MAX_TRANSCRIPT_SIZE: usize = 16384;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotarizationResponse {
     pub session_id: String,
+}
+
+/// Request object of the /notarize API
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotarizationRequest {
+    pub client_type: ClientType,
+    /// Maximum transcript size in bytes
+    pub max_transcript_size: Option<usize>,
+}
+
+/// Types of client that the prover is using
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ClientType {
+    /// Client that has access to the transport layer
+    Tcp,
+    /// Client that cannot directly access transport layer, e.g. browser extension
+    Websocket,
 }
 
 #[tokio::main]
@@ -76,8 +95,9 @@ async fn main() {
         .await
         .unwrap();
 
-    // Attach the hyper HTTP client to the notary TLS connection to send notarization request via HTTP
-    // i.e. this can be used to show API key, set cipher suite, max transcript size and to obtain notarization session id
+    // Attach the hyper HTTP client to the notary TLS connection to send notarization request via HTTP to the /notarize endpoint
+    // 1. Use HTTP to send configuration data e.g. max transcript size and obtain notarization session id from server
+    // 2. Use underlying TCP connection to perform notarization
     let (mut request_sender, connection) = hyper::client::conn::handshake(notary_tls_socket)
         .await
         .unwrap();
@@ -85,15 +105,24 @@ async fn main() {
     // Spawn the HTTP task to be run concurrently
     let connection_task = tokio::spawn(connection.without_shutdown());
 
-    // Build the HTTP request to fetch the DMs
+    // Build the HTTP request to configure notarization
+    let payload = serde_json::to_string(&NotarizationRequest {
+        client_type: ClientType::Tcp,
+        max_transcript_size: Some(NOTARY_MAX_TRANSCRIPT_SIZE),
+    })
+    .unwrap();
     let request = Request::builder()
         .uri(format!("https://{NOTARY_DOMAIN}:{NOTARY_PORT}/notarize"))
         .method("POST")
         .header("Host", NOTARY_DOMAIN)
         .header("Connection", "Upgrade")
+        // Need to specify this upgrade header for server to extract tcp connection later
         .header("Upgrade", "TCP")
-        .body(Body::empty())
+        // Need to specify application/json for axum to parse it as json
+        .header("Content-Type", "application/json")
+        .body(Body::from(payload))
         .unwrap();
+
 
     debug!("Sending request");
 
