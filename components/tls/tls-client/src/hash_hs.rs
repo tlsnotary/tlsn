@@ -1,4 +1,4 @@
-use ring::digest;
+use ::digest::Digest as _;
 use std::mem;
 use tls_core::{
     msgs::{
@@ -9,6 +9,57 @@ use tls_core::{
     suites::HashAlgorithm,
 };
 
+#[derive(Clone)]
+enum Hasher {
+    Sha1(sha1::Sha1),
+    Sha256(sha2::Sha256),
+    Sha384(sha2::Sha384),
+    Sha512(sha2::Sha512),
+    Sha512_256(sha2::Sha512_256),
+}
+
+impl Hasher {
+    pub(crate) fn new_from_alg(algorithm: &'static HashAlgorithm) -> Self {
+        match algorithm {
+            HashAlgorithm::SHA1 => Self::Sha1(sha1::Sha1::default()),
+            HashAlgorithm::SHA256 => Self::Sha256(sha2::Sha256::default()),
+            HashAlgorithm::SHA384 => Self::Sha384(sha2::Sha384::default()),
+            HashAlgorithm::SHA512 => Self::Sha512(sha2::Sha512::default()),
+            HashAlgorithm::SHA512_256 => Self::Sha512_256(sha2::Sha512_256::default()),
+        }
+    }
+
+    pub(crate) fn update(&mut self, data: &[u8]) {
+        match self {
+            Self::Sha1(hasher) => hasher.update(data),
+            Self::Sha256(hasher) => hasher.update(data),
+            Self::Sha384(hasher) => hasher.update(data),
+            Self::Sha512(hasher) => hasher.update(data),
+            Self::Sha512_256(hasher) => hasher.update(data),
+        }
+    }
+
+    pub(crate) fn finalize(self) -> Vec<u8> {
+        match self {
+            Self::Sha1(hasher) => hasher.finalize().to_vec(),
+            Self::Sha256(hasher) => hasher.finalize().to_vec(),
+            Self::Sha384(hasher) => hasher.finalize().to_vec(),
+            Self::Sha512(hasher) => hasher.finalize().to_vec(),
+            Self::Sha512_256(hasher) => hasher.finalize().to_vec(),
+        }
+    }
+
+    pub(crate) fn algorithm(&self) -> &'static HashAlgorithm {
+        match self {
+            Self::Sha1(_) => &HashAlgorithm::SHA1,
+            Self::Sha256(_) => &HashAlgorithm::SHA256,
+            Self::Sha384(_) => &HashAlgorithm::SHA384,
+            Self::Sha512(_) => &HashAlgorithm::SHA512,
+            Self::Sha512_256(_) => &HashAlgorithm::SHA512_256,
+        }
+    }
+}
+
 /// Early stage buffering of handshake payloads.
 ///
 /// Before we know the hash algorithm to use to verify the handshake, we just buffer the messages.
@@ -17,16 +68,6 @@ use tls_core::{
 pub(crate) struct HandshakeHashBuffer {
     buffer: Vec<u8>,
     client_auth_enabled: bool,
-}
-
-fn map_algorithm(algorithm: &'static HashAlgorithm) -> &'static digest::Algorithm {
-    match algorithm {
-        HashAlgorithm::SHA1 => &digest::SHA1_FOR_LEGACY_USE_ONLY,
-        HashAlgorithm::SHA256 => &digest::SHA256,
-        HashAlgorithm::SHA384 => &digest::SHA384,
-        HashAlgorithm::SHA512 => &digest::SHA512,
-        HashAlgorithm::SHA512_256 => &digest::SHA512_256,
-    }
 }
 
 impl HandshakeHashBuffer {
@@ -61,19 +102,19 @@ impl HandshakeHashBuffer {
         &self,
         hash: &'static HashAlgorithm,
         extra: &[u8],
-    ) -> digest::Digest {
-        let mut ctx = digest::Context::new(map_algorithm(hash));
-        ctx.update(&self.buffer);
-        ctx.update(extra);
-        ctx.finish()
+    ) -> impl AsRef<[u8]> {
+        let mut hasher = Hasher::new_from_alg(hash);
+        hasher.update(&self.buffer);
+        hasher.update(extra);
+        hasher.finalize()
     }
 
     /// We now know what hash function the verify_data will use.
     pub(crate) fn start_hash(self, alg: &'static HashAlgorithm) -> HandshakeHash {
-        let mut ctx = digest::Context::new(map_algorithm(alg));
-        ctx.update(&self.buffer);
+        let mut hasher = Hasher::new_from_alg(alg);
+        hasher.update(&self.buffer);
         HandshakeHash {
-            ctx,
+            hasher,
             client_auth: match self.client_auth_enabled {
                 true => Some(self.buffer),
                 false => None,
@@ -90,8 +131,7 @@ impl HandshakeHashBuffer {
 /// For client auth, we also need to buffer all the messages.
 /// This is disabled in cases where client auth is not possible.
 pub(crate) struct HandshakeHash {
-    /// None before we know what hash function we're using
-    ctx: digest::Context,
+    hasher: Hasher,
 
     /// buffer for client-auth.
     client_auth: Option<Vec<u8>>,
@@ -115,7 +155,7 @@ impl HandshakeHash {
 
     /// Hash or buffer a byte slice.
     fn update_raw(&mut self, buf: &[u8]) -> &mut Self {
-        self.ctx.update(buf);
+        self.hasher.update(buf);
 
         if let Some(buffer) = &mut self.client_auth {
             buffer.extend_from_slice(buf);
@@ -126,14 +166,14 @@ impl HandshakeHash {
 
     /// Get the hash value if we were to hash `extra` too,
     /// using hash function `hash`.
-    pub(crate) fn get_hash_given(&self, extra: &[u8]) -> digest::Digest {
-        let mut ctx = self.ctx.clone();
-        ctx.update(extra);
-        ctx.finish()
+    pub(crate) fn get_hash_given(&self, extra: &[u8]) -> impl AsRef<[u8]> {
+        let mut hasher = self.hasher.clone();
+        hasher.update(extra);
+        hasher.finalize()
     }
 
     pub(crate) fn into_hrr_buffer(self) -> HandshakeHashBuffer {
-        let old_hash = self.ctx.finish();
+        let old_hash = self.hasher.clone().finalize();
         let old_handshake_hash_msg =
             HandshakeMessagePayload::build_handshake_hash(old_hash.as_ref());
 
@@ -147,10 +187,10 @@ impl HandshakeHash {
     /// 'handshake_hash' handshake message.  Start this hash
     /// again, with that message at the front.
     pub(crate) fn rollup_for_hrr(&mut self) {
-        let ctx = &mut self.ctx;
+        let hasher = &mut self.hasher;
 
-        let old_ctx = mem::replace(ctx, digest::Context::new(ctx.algorithm()));
-        let old_hash = old_ctx.finish();
+        let old_hasher = mem::replace(hasher, Hasher::new_from_alg(hasher.algorithm()));
+        let old_hash = old_hasher.finalize();
         let old_handshake_hash_msg =
             HandshakeMessagePayload::build_handshake_hash(old_hash.as_ref());
 
@@ -158,8 +198,8 @@ impl HandshakeHash {
     }
 
     /// Get the current hash value.
-    pub(crate) fn get_current_hash(&self) -> digest::Digest {
-        self.ctx.clone().finish()
+    pub(crate) fn get_current_hash(&self) -> impl AsRef<[u8]> {
+        self.hasher.clone().finalize()
     }
 
     /// Takes this object's buffer containing all handshake messages
@@ -171,8 +211,8 @@ impl HandshakeHash {
     }
 
     /// The digest algorithm
-    pub(crate) fn algorithm(&self) -> &'static digest::Algorithm {
-        self.ctx.algorithm()
+    pub(crate) fn algorithm(&self) -> &'static HashAlgorithm {
+        self.hasher.algorithm()
     }
 }
 

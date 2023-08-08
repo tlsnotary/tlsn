@@ -10,7 +10,7 @@ use crate::{
     },
     conn::{CommonState, ConnectionRandoms, State},
     error::Error,
-    hash_hs::{HandshakeHash, HandshakeHashBuffer},
+    hash_hs::HandshakeHash,
     msgs::persist,
     sign, verify, KeyLog,
 };
