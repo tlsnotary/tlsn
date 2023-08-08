@@ -31,6 +31,8 @@ jobs:
         include:
           - package: components/integration-tests
             release: true
+          - package: tlsn
+            release: true
     defaults:
       run:
         working-directory:  ${{ matrix.package }}
@@ -66,7 +68,7 @@ jobs:
 
       - name: "Integration Test"
         if: ${{ matrix.release == true }}
-        run: cargo test --release --tests
+        run: cargo test --release --tests --examples --workspace
       
       - name: "Clippy"
         run: cargo clippy --all-features -- -D warnings
