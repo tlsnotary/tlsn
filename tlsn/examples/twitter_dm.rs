@@ -123,7 +123,6 @@ async fn main() {
         .body(Body::from(payload))
         .unwrap();
 
-
     debug!("Sending request");
 
     let response = request_sender.send_request(request).await.unwrap();
