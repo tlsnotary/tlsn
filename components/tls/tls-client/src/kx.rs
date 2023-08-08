@@ -1,12 +1,13 @@
 use crate::error::Error;
+use p256::{ecdh::EphemeralSecret, PublicKey};
 use tls_core::msgs::enums::NamedGroup;
 
 /// An in-progress key exchange.  This has the algorithm,
 /// our private key, and our public key.
 pub(crate) struct KeyExchange {
     skxg: &'static SupportedKxGroup,
-    privkey: ring::agreement::EphemeralPrivateKey,
-    pub(crate) pubkey: ring::agreement::PublicKey,
+    privkey: EphemeralSecret,
+    pub(crate) pubkey: PublicKey,
 }
 
 impl KeyExchange {
@@ -22,11 +23,14 @@ impl KeyExchange {
     ///
     /// This generates an ephemeral key pair and stores it in the returned KeyExchange object.
     pub(crate) fn start(skxg: &'static SupportedKxGroup) -> Option<Self> {
-        let rng = ring::rand::SystemRandom::new();
-        let ours =
-            ring::agreement::EphemeralPrivateKey::generate(skxg.agreement_algorithm, &rng).ok()?;
+        // We only support secp256r1 for now.
+        if !matches!(skxg.name, NamedGroup::secp256r1) {
+            return None;
+        }
 
-        let pubkey = ours.compute_public_key().ok()?;
+        let ours = EphemeralSecret::random(&mut rand::rngs::OsRng);
+
+        let pubkey = ours.public_key();
 
         Some(Self {
             skxg,
@@ -49,8 +53,13 @@ impl KeyExchange {
         peer: &[u8],
         f: impl FnOnce(&[u8]) -> Result<T, ()>,
     ) -> Result<T, Error> {
-        let peer_key = ring::agreement::UnparsedPublicKey::new(self.skxg.agreement_algorithm, peer);
-        ring::agreement::agree_ephemeral(self.privkey, &peer_key, (), f)
+        let peer_key = PublicKey::from_sec1_bytes(peer).map_err(|_| {
+            Error::PeerMisbehavedError("parsing peer's public key failed".to_string())
+        })?;
+
+        let shared_secret = self.privkey.diffie_hellman(&peer_key);
+
+        f(shared_secret.raw_secret_bytes())
             .map_err(|()| Error::PeerMisbehavedError("key agreement failed".to_string()))
     }
 }
@@ -63,27 +72,21 @@ impl KeyExchange {
 pub struct SupportedKxGroup {
     /// The IANA "TLS Supported Groups" name of the group
     pub name: NamedGroup,
-
-    /// The corresponding ring agreement::Algorithm
-    agreement_algorithm: &'static ring::agreement::Algorithm,
 }
 
 /// Ephemeral ECDH on curve25519 (see RFC7748)
 pub static X25519: SupportedKxGroup = SupportedKxGroup {
     name: NamedGroup::X25519,
-    agreement_algorithm: &ring::agreement::X25519,
 };
 
 /// Ephemeral ECDH on secp256r1 (aka NIST-P256)
 pub static SECP256R1: SupportedKxGroup = SupportedKxGroup {
     name: NamedGroup::secp256r1,
-    agreement_algorithm: &ring::agreement::ECDH_P256,
 };
 
 /// Ephemeral ECDH on secp384r1 (aka NIST-P384)
 pub static SECP384R1: SupportedKxGroup = SupportedKxGroup {
     name: NamedGroup::secp384r1,
-    agreement_algorithm: &ring::agreement::ECDH_P384,
 };
 
 /// A list of all the key exchange groups supported by rustls.
