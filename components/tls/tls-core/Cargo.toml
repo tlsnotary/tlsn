@@ -24,7 +24,5 @@ rand.workspace = true
 sct.workspace = true
 webpki = { workspace = true, features = ["alloc", "std"] }
 tracing = { workspace = true, optional = true }
-ring.workspace = true
 futures.workspace = true
 serde = { workspace = true, optional = true, features = ["derive"] }
-
