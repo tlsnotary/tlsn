@@ -22,7 +22,6 @@ tlsn-tls-core = { path = "../tls-core" }
 
 async-trait.workspace = true
 log = { workspace = true, optional = true }
-ring.workspace = true
 sct.workspace = true
 webpki = { workspace = true, features = ["alloc", "std"] }
 aes-gcm.workspace = true
@@ -33,6 +32,7 @@ sha2 = { workspace = true, features = ["compress"] }
 digest.workspace = true
 futures.workspace = true
 subtle = "2.5.0"
+sha1 = "0.10.5"
 
 [features]
 default = ["logging", "tls12"]
@@ -46,6 +46,7 @@ env_logger.workspace = true
 webpki-roots.workspace = true
 rustls-pemfile.workspace = true
 rustls = { workspace = true, features = ["tls12"] }
+ring.workspace = true
 tokio = { workspace = true, features = ["rt", "macros"] }
 
 [[example]]
