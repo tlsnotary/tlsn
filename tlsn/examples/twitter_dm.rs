@@ -95,9 +95,7 @@ async fn main() {
         .await
         .unwrap();
 
-    // Attach the hyper HTTP client to the notary TLS connection to send notarization request via HTTP to the /notarize endpoint
-    // 1. Use HTTP to send configuration data e.g. max transcript size and obtain notarization session id from server
-    // 2. Use underlying TCP connection to perform notarization
+    // Attach the hyper HTTP client to the notary TLS connection to send request to the /session endpoint to configure notarization and obtain session id
     let (mut request_sender, connection) = hyper::client::conn::handshake(notary_tls_socket)
         .await
         .unwrap();
@@ -112,33 +110,54 @@ async fn main() {
     })
     .unwrap();
     let request = Request::builder()
-        .uri(format!("https://{NOTARY_DOMAIN}:{NOTARY_PORT}/notarize"))
+        .uri(format!("https://{NOTARY_DOMAIN}:{NOTARY_PORT}/session"))
         .method("POST")
-        .header("Host", NOTARY_DOMAIN)
-        .header("Connection", "Upgrade")
-        // Need to specify this upgrade header for server to extract tcp connection later
-        .header("Upgrade", "TCP")
+        .header("Host", NOTARY_DOMAIN.clone())
         // Need to specify application/json for axum to parse it as json
         .header("Content-Type", "application/json")
         .body(Body::from(payload))
         .unwrap();
 
-    debug!("Sending request");
+    debug!("Sending configuration request");
 
-    let response = request_sender.send_request(request).await.unwrap();
+    let configuration_response = request_sender.send_request(request).await.unwrap();
 
-    debug!("Sent request");
+    debug!("Sent configuration request");
 
-    assert!(response.status() == StatusCode::OK);
+    assert!(configuration_response.status() == StatusCode::OK);
 
     debug!("Response OK");
 
     // Pretty printing :)
-    let payload = to_bytes(response.into_body()).await.unwrap().to_vec();
-    let response =
+    let payload = to_bytes(configuration_response.into_body()).await.unwrap().to_vec();
+    let notarization_response =
         serde_json::from_str::<NotarizationResponse>(&String::from_utf8_lossy(&payload)).unwrap();
 
-    debug!("Notarization response: {:?}", response,);
+    debug!("Notarization response: {:?}", notarization_response,);
+
+    // Send notarization request via HTTP, where the underlying TCP connection will be extracted later
+    let request = Request::builder()
+        .uri(format!("https://{NOTARY_DOMAIN}:{NOTARY_PORT}/notarize"))
+        .method("GET")
+        .header("Host", NOTARY_DOMAIN)
+        .header("Connection", "Upgrade")
+        // Need to specify this upgrade header for server to extract tcp connection later
+        .header("Upgrade", "TCP")
+        // Need to specify the session_id so that notary server knows the right configuration to use
+        // as the configuration is set in the previous HTTP call
+        .header("X-Session-Id", notarization_response.session_id.clone())
+        .body(Body::empty())
+        .unwrap();
+
+    debug!("Sending notarization request");
+
+    let response = request_sender.send_request(request).await.unwrap();
+
+    debug!("Sent notarization request");
+
+    assert!(response.status() == StatusCode::SWITCHING_PROTOCOLS);
+
+    debug!("Switched protocol OK");
 
     // Claim back the TLS socket after HTTP exchange is done
     let Parts {
@@ -149,7 +168,7 @@ async fn main() {
     // Connect to the Server
     // Basic default prover config
     let config = ProverConfig::builder()
-        .id(response.session_id)
+        .id(notarization_response.session_id)
         .server_dns(SERVER_DOMAIN)
         .build()
         .unwrap();
