@@ -101,7 +101,6 @@ where
             futures::select! {
                 // Handle incoming streams
                 stream = conn.select_next_some() => {
-                    // println!("Handling incoming streams: {:?}", stream);
                     if self.mode == yamux::Mode::Client {
                         return Err(MuxerError::InternalError(
                             "client mode cannot accept incoming streams".to_string(),
@@ -119,7 +118,6 @@ where
                 }
                 // Handle streams for which we've received the id
                 stream = pending_streams.select_next_some() => {
-                    // println!("Handling pending streams: {:?}", stream);
                     let (stream_id, stream) = stream?;
 
                     let mut state = self.state.lock().unwrap();
