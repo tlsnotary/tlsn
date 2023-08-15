@@ -345,7 +345,7 @@ impl Backend for RustCryptoBackend {
         };
 
         let mut pms = vec![0u8; x_size];
-        let secret = *sk.diffie_hellman(&server_pk).as_bytes();
+        let secret = *sk.diffie_hellman(&server_pk).raw_secret_bytes();
         pms.copy_from_slice(&secret);
 
         let (client_random, server_random) = match (self.client_random, self.server_random) {
@@ -513,7 +513,9 @@ impl Encrypter {
         let nonce = GenericArray::from_slice(&nonce);
         let cipher = Aes128Gcm::new_from_slice(&self.write_key).unwrap();
         // ciphertext will have the MAC appended
-        let ciphertext = cipher.encrypt(nonce, payload).unwrap();
+        let ciphertext = cipher
+            .encrypt(nonce, payload)
+            .map_err(|e| BackendError::EncryptionError(e.to_string()))?;
 
         // prepend the explicit nonce
         let mut nonce_ct_mac = vec![0u8; 0];
@@ -570,7 +572,9 @@ impl Decrypter {
         nonce[..4].copy_from_slice(&self.write_iv);
         nonce[4..].copy_from_slice(&m.payload.0[0..8]);
         let nonce = GenericArray::from_slice(&nonce);
-        let plaintext = cipher.decrypt(nonce, aes_payload).unwrap();
+        let plaintext = cipher
+            .decrypt(nonce, aes_payload)
+            .map_err(|e| BackendError::DecryptionError(e.to_string()))?;
 
         Ok(PlainMessage {
             typ: m.typ,

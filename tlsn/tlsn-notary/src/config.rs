@@ -1,5 +1,7 @@
 const DEFAULT_MAX_TRANSCRIPT_SIZE: usize = 1 << 14; // 16Kb
 
+/// Configuration for the [`Notary`](crate::Notary)
+#[allow(missing_docs)]
 #[derive(Debug, Clone, derive_builder::Builder)]
 pub struct NotaryConfig {
     #[builder(setter(into))]

@@ -7,6 +7,10 @@ use crate::{
     SubstringsCommitment, SubstringsOpeningSet, TranscriptSlice,
 };
 
+#[cfg(feature = "tracing")]
+use tracing::instrument;
+
+/// A substring proof containing the opening set and the inclusion proof
 #[derive(Serialize, Deserialize)]
 pub struct SubstringsProof {
     openings: SubstringsOpeningSet,
@@ -14,6 +18,7 @@ pub struct SubstringsProof {
 }
 
 impl SubstringsProof {
+    /// Creates a new substring proof
     pub fn new(openings: SubstringsOpeningSet, inclusion_proof: InclusionProof) -> Self {
         Self {
             openings,
@@ -23,6 +28,7 @@ impl SubstringsProof {
 
     /// Verifies this proof and, if successful, returns [TranscriptSlice]s which were sent and
     /// received.
+    #[cfg_attr(feature = "tracing", instrument(level = "trace", skip(self), err))]
     pub fn verify(
         self,
         header: &SessionHeader,
@@ -93,7 +99,7 @@ impl SubstringsProof {
         for o in self.openings.iter() {
             let Some(c) = map.get(&o.merkle_tree_index()) else {
                 // `merkle_tree_index` doesn't match
-                return Err(Error::ValidationError)
+                return Err(Error::ValidationError);
             };
 
             // directions must match

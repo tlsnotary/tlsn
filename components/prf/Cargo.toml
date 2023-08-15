@@ -1,44 +1,20 @@
 [workspace]
 members = ["hmac-sha256-circuits", "hmac-sha256"]
+resolver = "2"
 
 [workspace.dependencies]
 # tlsn
-mpz-circuits = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
-mpz-core = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
-mpz-garble-core = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
-mpz-garble = { git = "https://github.com/tlsnotary/mpz", rev = "5a66465" }
-tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils" }
-tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils" }
-
-# rand
-rand = "0.8"
-rand_chacha = "0.3"
-
-# crypto
-sha2 = "0.10"
-hmac = "0.12"
-digest = "0.10"
+mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "86f1687" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "86f1687" }
 
 # async
 async-trait = "0.1"
 futures = "0.3"
-futures-util = "0.3"
-tokio = "1.23"
-tokio-util = "0.7"
-
-# serialization
-serde = "1.0"
-prost = "0.9"
-prost-build = "0.9"
+tokio = "1"
 
 # error/log
 thiserror = "1"
+tracing = "0.1"
 
 # testing
-criterion = "0.3"
-
-# misc
-derive_builder = "0.11"
-once_cell = "1"
-generic-array = "0.14"
-rayon = "1"
+criterion = "0.5"

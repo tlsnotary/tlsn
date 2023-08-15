@@ -59,13 +59,6 @@ pub struct UidYamuxControl {
     state: Arc<Mutex<MuxState>>,
 }
 
-impl UidYamuxControl {
-    /// shutdown the connection properly
-    pub async fn shutdown(&mut self) {
-        self.control.close().await.unwrap()
-    }
-}
-
 impl<T> UidYamux<T>
 where
     T: AsyncWrite + AsyncRead + Send + Unpin + 'static,

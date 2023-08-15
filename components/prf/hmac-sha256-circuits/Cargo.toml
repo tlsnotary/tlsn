@@ -1,5 +1,10 @@
 [package]
 name = "tlsn-hmac-sha256-circuits"
+authors = ["TLSNotary Team"]
+description = "The 2PC circuits for TLS HMAC-SHA256 PRF"
+keywords = ["tls", "mpc", "2pc", "hmac", "sha256"]
+categories = ["cryptography"]
+license = "MIT OR Apache-2.0"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,15 +12,11 @@ edition = "2021"
 name = "hmac_sha256_circuits"
 
 [features]
-default = []
+tracing = ["dep:tracing"]
 
 [dependencies]
 mpz-circuits.workspace = true
-tlsn-utils.workspace = true
+tracing = { workspace = true, optional = true }
 
 [dev-dependencies]
-generic-array.workspace = true
-rand.workspace = true
-rand_chacha.workspace = true
-sha2 = { workspace = true, features = ["compress"] }
 ring = "0.16"

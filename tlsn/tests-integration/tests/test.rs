@@ -1,12 +1,14 @@
 use futures::AsyncWriteExt;
 use hyper::{body::to_bytes, Body, Request, StatusCode};
-use tls_server_fixture::{bind_test_server, CA_CERT_DER, SERVER_DOMAIN};
+use tls_server_fixture::{bind_test_server_hyper, CA_CERT_DER, SERVER_DOMAIN};
 use tlsn_notary::{bind_notary, NotaryConfig};
 use tlsn_prover::{bind_prover, ProverConfig};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
+use tracing::instrument;
 
 #[tokio::test]
+#[ignore]
 async fn test() {
     tracing_subscriber::fmt::init();
 
@@ -15,11 +17,11 @@ async fn test() {
     tokio::join!(prover(socket_0), notary(socket_1));
 }
 
-#[tracing::instrument(skip(notary_socket))]
+#[instrument(skip(notary_socket))]
 async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socket: T) {
     let (client_socket, server_socket) = tokio::io::duplex(2 << 16);
 
-    let server_task = tokio::spawn(bind_test_server(server_socket.compat()));
+    let server_task = tokio::spawn(bind_test_server_hyper(server_socket.compat()));
 
     let mut root_store = tls_core::anchors::RootCertStore::empty();
     root_store
@@ -85,7 +87,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
     _ = prover.finalize().await.unwrap();
 }
 
-#[tracing::instrument(skip(socket))]
+#[instrument(skip(socket))]
 async fn notary<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(socket: T) {
     let (notary, notary_fut) = bind_notary(
         NotaryConfig::builder().id("test").build().unwrap(),

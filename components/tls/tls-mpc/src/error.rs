@@ -2,6 +2,8 @@ use tls_core::msgs::enums::{ContentType, NamedGroup};
 
 use crate::msg::MpcTlsMessage;
 
+/// An error type for this crate
+#[allow(missing_docs)]
 #[derive(Debug, thiserror::Error)]
 pub enum MpcTlsError {
     #[error(transparent)]
@@ -44,4 +46,6 @@ pub enum MpcTlsError {
     ReceivedFatalAlert,
     #[error("payload decoding error")]
     PayloadDecodingError,
+    #[error("leader closed the connection abruptly")]
+    LeaderClosedAbruptly,
 }

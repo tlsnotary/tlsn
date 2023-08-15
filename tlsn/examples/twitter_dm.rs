@@ -28,16 +28,17 @@ const NOTARY_PORT: u16 = 7047;
 const NOTARY_CA_CERT_PATH: &str = "./rootCA.crt";
 const NOTARY_MAX_TRANSCRIPT_SIZE: usize = 16384;
 
+/// Response object of the /session API
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct NotarizationResponse {
+pub struct NotarizationSessionResponse {
     pub session_id: String,
 }
 
-/// Request object of the /notarize API
+/// Request object of the /session API
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct NotarizationRequest {
+pub struct NotarizationSessionRequest {
     pub client_type: ClientType,
     /// Maximum transcript size in bytes
     pub max_transcript_size: Option<usize>,
@@ -56,9 +57,8 @@ pub enum ClientType {
 async fn main() {
     tracing_subscriber::fmt::init();
 
-    // Load variables frome environment
+    // Load secret variables frome environment for twitter server connection
     dotenv::dotenv().ok();
-
     let conversation_id = env::var("CONVERSATION_ID").unwrap();
     let client_uuid = env::var("CLIENT_UUID").unwrap();
     let auth_token = env::var("AUTH_TOKEN").unwrap();
@@ -104,7 +104,7 @@ async fn main() {
     let connection_task = tokio::spawn(connection.without_shutdown());
 
     // Build the HTTP request to configure notarization
-    let payload = serde_json::to_string(&NotarizationRequest {
+    let payload = serde_json::to_string(&NotarizationSessionRequest {
         client_type: ClientType::Tcp,
         max_transcript_size: Some(NOTARY_MAX_TRANSCRIPT_SIZE),
     })
@@ -129,9 +129,13 @@ async fn main() {
     debug!("Response OK");
 
     // Pretty printing :)
-    let payload = to_bytes(configuration_response.into_body()).await.unwrap().to_vec();
+    let payload = to_bytes(configuration_response.into_body())
+        .await
+        .unwrap()
+        .to_vec();
     let notarization_response =
-        serde_json::from_str::<NotarizationResponse>(&String::from_utf8_lossy(&payload)).unwrap();
+        serde_json::from_str::<NotarizationSessionResponse>(&String::from_utf8_lossy(&payload))
+            .unwrap();
 
     debug!("Notarization response: {:?}", notarization_response,);
 
@@ -166,7 +170,7 @@ async fn main() {
     } = connection_task.await.unwrap().unwrap();
 
     // Connect to the Server
-    // Basic default prover config
+    // Basic default prover config using the session_id returned from /session endpoint just now
     let config = ProverConfig::builder()
         .id(notarization_response.session_id)
         .server_dns(SERVER_DOMAIN)

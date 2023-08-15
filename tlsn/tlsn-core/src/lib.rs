@@ -1,13 +1,13 @@
 //! This crate contains types used by the Prover, the Notary, and the Verifier
 
-// TODO: #![deny(missing_docs)]
-#![deny(unreachable_pub, unused_must_use)]
+#![deny(missing_docs, unreachable_pub, unused_must_use)]
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
 pub mod commitment;
 mod error;
 #[cfg(any(test, feature = "fixtures"))]
+#[allow(missing_docs)]
 pub mod fixtures;
 mod handshake_summary;
 pub(crate) mod inclusion_proof;
@@ -31,12 +31,15 @@ pub use substrings::{
 pub use transcript::{Direction, Transcript, TranscriptSlice};
 
 /// The maximum allowed total bytelength of all committed data. Used to prevent DoS during verification.
-/// (this will cause the verifier to hash up to a max of 1GB * 128 = 128GB of labels if the
+/// (this will cause the verifier to hash up to a max of 1GB * 128 = 128GB of plaintext encodings if the
 /// commitment type is [crate::commitment::Blake3]).
 ///
 /// This value must not exceed bcs's MAX_SEQUENCE_LENGTH limit (which is (1 << 31) - 1 by default)
 const MAX_TOTAL_COMMITTED_DATA: u64 = 1_000_000_000;
 
+/// The encoding id
+///
+/// A 64 bit Blake3 hash which is used for the plaintext encodings
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Ord, PartialOrd, Hash)]
 pub struct EncodingId(u64);
 

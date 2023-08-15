@@ -1,3 +1,12 @@
+//! The prover library
+//!
+//! This library provides the [Prover] type. It can be used for creating TLS connections with a
+//! server which can be notarized with the help of a notary.
+
+#![deny(missing_docs, unreachable_pub, unused_must_use)]
+#![deny(clippy::all)]
+#![forbid(unsafe_code)]
+
 mod config;
 mod error;
 mod state;
@@ -14,7 +23,6 @@ use rand::Rng;
 use std::{ops::Range, pin::Pin, sync::Arc};
 use tls_client_async::{bind_client, ClosedConnection, TlsConnection};
 use tls_mpc::{setup_components, MpcTlsLeader, TlsRole};
-use tracing::{debug, debug_span, Instrument};
 
 use actor_ot::{create_ot_receiver, create_ot_sender, ReceiverActorControl, SenderActorControl};
 use mpz_core::commit::HashCommit;
@@ -36,6 +44,9 @@ use utils_aio::{codec::BincodeMux, expect_msg_or_err, mux::MuxChannelSerde};
 
 use crate::error::OTShutdownError;
 
+#[cfg(feature = "tracing")]
+use tracing::{debug, debug_span, instrument, Instrument};
+
 /// Helper function to bind a new prover to the given sockets.
 ///
 /// Returns a handle to the TLS connection, a future which returns the prover once the connection is
@@ -47,6 +58,10 @@ use crate::error::OTShutdownError;
 /// * `client_socket` - The socket to the server.
 /// * `notary_socket` - The socket to the notary.
 #[allow(clippy::type_complexity)]
+#[cfg_attr(
+    feature = "tracing",
+    instrument(level = "info", skip(client_socket, notary_socket), err)
+)]
 pub async fn bind_prover<
     S: AsyncWrite + AsyncRead + Send + Unpin + 'static,
     T: AsyncWrite + AsyncRead + Send + Unpin + 'static,
@@ -64,14 +79,12 @@ pub async fn bind_prover<
 > {
     let mut mux = UidYamux::new(yamux::Config::default(), notary_socket, yamux::Mode::Client);
     let mux_control = BincodeMux::new(mux.control());
-    let extra_mux_control = mux.control();
 
     let mut mux_fut = MuxFuture {
         fut: Box::pin(async move { mux.run().await.map_err(ProverError::from) }),
     };
 
-    let prover_fut =
-        Prover::new(config, mux_control, extra_mux_control)?.bind_prover(client_socket);
+    let prover_fut = Prover::new(config, mux_control)?.bind_prover(client_socket);
     let (conn, conn_fut) = futures::select! {
         res = prover_fut.fuse() => res?,
         _ = (&mut mux_fut).fuse() => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
@@ -118,7 +131,6 @@ impl<T> Future for ConnectionFuture<T> {
 pub struct Prover<T: ProverState> {
     config: ProverConfig,
     state: T,
-    mux_control: UidYamuxControl,
 }
 
 impl<T> Prover<Initialized<T>>
@@ -131,11 +143,7 @@ where
     ///
     /// * `config` - The configuration for the prover.
     /// * `notary_mux` - The multiplexed connection to the notary.
-    pub fn new(
-        config: ProverConfig,
-        notary_mux: T,
-        mux_control: UidYamuxControl,
-    ) -> Result<Self, ProverError> {
+    pub fn new(config: ProverConfig, notary_mux: T) -> Result<Self, ProverError> {
         let server_name = ServerName::try_from(config.server_dns())?;
 
         Ok(Self {
@@ -144,11 +152,14 @@ where
                 server_name,
                 notary_mux,
             },
-            mux_control,
         })
     }
 
     /// Binds the prover to the provided socket.
+    #[cfg_attr(
+        feature = "tracing",
+        instrument(level = "debug", skip(self, socket), err)
+    )]
     pub async fn bind_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         self,
         socket: S,
@@ -171,8 +182,9 @@ where
 
         let start_time = std::time::UNIX_EPOCH.elapsed().unwrap().as_secs();
 
-        let fut = Box::pin(
-            async move {
+        let fut = Box::pin({
+            #[allow(clippy::let_and_return)]
+            let fut = async move {
                 let ClosedConnection {
                     mut client,
                     sent,
@@ -223,11 +235,12 @@ where
                         commitments: Vec::default(),
                         substring_commitments: Vec::default(),
                     },
-                    mux_control: self.mux_control,
                 })
-            }
-            .instrument(debug_span!("prover_tls_connection")),
-        );
+            };
+            #[cfg(feature = "tracing")]
+            let fut = fut.instrument(debug_span!("prover_tls_connection"));
+            fut
+        });
 
         Ok((conn, ConnectionFuture { fut }))
     }
@@ -237,22 +250,30 @@ impl<T> Prover<Notarize<T>>
 where
     T: MuxChannelSerde + Clone + Send + Sync + Unpin + 'static,
 {
+    /// Returns the transcript of the sent requests
     pub fn sent_transcript(&self) -> &Transcript {
         &self.state.transcript_tx
     }
 
+    /// Returns the transcript of the received responses
     pub fn recv_transcript(&self) -> &Transcript {
         &self.state.transcript_rx
     }
 
+    /// Add a commitment to the sent requests
     pub fn add_commitment_sent(&mut self, range: Range<u32>) -> Result<(), ProverError> {
         self.add_commitment(range, Direction::Sent)
     }
 
+    /// Add a commitment to the received responses
     pub fn add_commitment_recv(&mut self, range: Range<u32>) -> Result<(), ProverError> {
         self.add_commitment(range, Direction::Received)
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        instrument(level = "debug", skip(self, range), err)
+    )]
     fn add_commitment(
         &mut self,
         range: Range<u32>,
@@ -290,7 +311,9 @@ where
         Ok(())
     }
 
-    pub async fn finalize(mut self) -> Result<NotarizedSession, ProverError> {
+    /// Finalize the notarization returning a [`NotarizedSession`]
+    #[cfg_attr(feature = "tracing", instrument(level = "info", skip(self), err))]
+    pub async fn finalize(self) -> Result<NotarizedSession, ProverError> {
         let Notarize {
             notary_mux: mut mux,
             mut vm,
@@ -354,13 +377,11 @@ where
             commitments,
         );
 
-        self.mux_control.shutdown().await;
-
         Ok(NotarizedSession::new(header, Some(signature), data))
     }
 }
 
-#[tracing::instrument(skip(mux, config))]
+#[cfg_attr(feature = "tracing", instrument(level = "debug", skip(mux), err))]
 #[allow(clippy::type_complexity)]
 async fn setup_mpc_backend<M: MuxChannelSerde + Clone + Send + 'static>(
     config: &ProverConfig,
@@ -375,11 +396,18 @@ async fn setup_mpc_backend<M: MuxChannelSerde + Clone + Send + 'static>(
     ),
     ProverError,
 > {
-    debug!("starting OT setup");
+    #[cfg(feature = "tracing")]
+    let (create_ot_sender, create_ot_receiver) = {
+        debug!("Starting OT setup");
+        (
+            |mux: M, config| create_ot_sender(mux, config).in_current_span(),
+            |mux: M, config| create_ot_receiver(mux, config).in_current_span(),
+        )
+    };
 
     let ((mut ot_send, ot_send_fut), (mut ot_recv, ot_recv_fut)) = futures::try_join!(
-        create_ot_sender(mux.clone(), config.build_ot_sender_config()).in_current_span(),
-        create_ot_receiver(mux.clone(), config.build_ot_receiver_config()).in_current_span()
+        create_ot_sender(mux.clone(), config.build_ot_sender_config()),
+        create_ot_receiver(mux.clone(), config.build_ot_receiver_config())
     )
     .map_err(|e| ProverError::MpcError(Box::new(e)))?;
 
@@ -392,6 +420,7 @@ async fn setup_mpc_backend<M: MuxChannelSerde + Clone + Send + 'static>(
             _ = res.map_err(|e| ProverError::MpcError(Box::new(e)))?,
     }
 
+    #[cfg(feature = "tracing")]
     debug!("OT setup complete");
 
     let mut vm = DEAPVm::new(
@@ -436,6 +465,7 @@ async fn setup_mpc_backend<M: MuxChannelSerde + Clone + Send + 'static>(
     let channel = mux.get_channel(mpc_tls_config.common().id()).await?;
     let mpc_tls = MpcTlsLeader::new(mpc_tls_config, channel, ke, prf, encrypter, decrypter);
 
+    #[cfg(feature = "tracing")]
     debug!("MPC backend setup complete");
 
     Ok((mpc_tls, vm, ot_recv, gf2, ot_fut))

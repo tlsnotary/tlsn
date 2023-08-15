@@ -1,3 +1,5 @@
+//! This module contains code for transcripts of the TLSNotary session
+
 use crate::error::Error;
 use serde::{Deserialize, Serialize};
 use std::ops::Range;
@@ -10,6 +12,7 @@ pub struct Transcript {
 }
 
 impl Transcript {
+    /// Creates a new transcript with the given ID and data
     pub fn new(id: &str, data: Vec<u8>) -> Self {
         Self {
             id: id.to_string(),
@@ -52,10 +55,12 @@ impl Transcript {
         Ok(dst)
     }
 
+    /// Returns the id used to identify this transcript
     pub fn id(&self) -> &String {
         &self.id
     }
 
+    /// Returns the actual traffic data of this transcript
     pub fn data(&self) -> &[u8] {
         &self.data
     }
@@ -75,21 +80,25 @@ impl TranscriptSlice {
         Self { range, data }
     }
 
+    /// Returns the range of bytes this slice refers to in the transcript
     pub fn range(&self) -> &Range<u32> {
         &self.range
     }
 
+    /// Returns the actual traffic data of this slice
     pub fn data(&self) -> &Vec<u8> {
         &self.data
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq)]
-/// A [Transcript] consists of a stream of bytes which were sent to the server
-/// and a stream of bytes which were received from the server . The User creates
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+/// A [Transcript] contains either a stream of bytes which were sent to the server
+/// or a stream of bytes which were received from the server. The Prover creates
 /// separate commitments to bytes in each direction.
 pub enum Direction {
+    /// Sent from the prover to the server
     Sent,
+    /// Received by the prover from the server
     Received,
 }
 

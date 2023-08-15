@@ -2,6 +2,7 @@ use async_trait::async_trait;
 
 use hmac_sha256_circuits::{build_session_keys, build_verify_data};
 use mpz_garble::{Decode, DecodePrivate, Execute, Memory, ValueRef};
+use std::fmt::Debug;
 
 use crate::{Prf, PrfError, SessionKeys};
 
@@ -14,7 +15,16 @@ where
     executor: E,
 }
 
-/// Internal state of the PRF.
+impl<E: Memory + Execute + DecodePrivate> Debug for MpcPrf<E> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MpcPrf")
+            .field("state", &self.state)
+            .field("executor", &"{{ ... }}")
+            .finish()
+    }
+}
+
+/// Internal state of [MpcPrf].
 #[derive(Debug, Clone)]
 #[allow(missing_docs)]
 pub enum State {
@@ -36,6 +46,10 @@ where
     E: Memory + Execute + Decode + DecodePrivate,
 {
     /// Creates a new instance of the PRF.
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "info", skip(executor), ret)
+    )]
     pub fn new(executor: E) -> MpcPrf<E> {
         MpcPrf {
             state: State::SessionKeys,
@@ -43,6 +57,10 @@ where
         }
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "debug", skip(self), err)
+    )]
     async fn internal_compute_session_keys(
         &mut self,
         client_random: Option<[u8; 32]>,
@@ -101,6 +119,10 @@ where
         })
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "debug", skip(self, label), err)
+    )]
     async fn internal_compute_vd(
         &mut self,
         label: &str,
@@ -142,6 +164,10 @@ impl<E> Prf for MpcPrf<E>
 where
     E: Memory + Execute + Decode + DecodePrivate + Send,
 {
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "debug", skip(self), err)
+    )]
     async fn compute_session_keys_private(
         &mut self,
         client_random: [u8; 32],
@@ -152,13 +178,21 @@ where
             .await
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "debug", skip(self), err)
+    )]
     async fn compute_client_finished_vd_private(
         &mut self,
         handshake_hash: [u8; 32],
     ) -> Result<[u8; 12], PrfError> {
         let state = std::mem::replace(&mut self.state, State::Error);
 
-        let State::ClientFinished { ms_outer_hash_state, ms_inner_hash_state } = state else {
+        let State::ClientFinished {
+            ms_outer_hash_state,
+            ms_inner_hash_state,
+        } = state
+        else {
             return Err(PrfError::InvalidState(state));
         };
 
@@ -180,13 +214,21 @@ where
         Ok(vd)
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "debug", skip(self), err)
+    )]
     async fn compute_server_finished_vd_private(
         &mut self,
         handshake_hash: [u8; 32],
     ) -> Result<[u8; 12], PrfError> {
         let state = std::mem::replace(&mut self.state, State::Error);
 
-        let State::ServerFinished { ms_outer_hash_state, ms_inner_hash_state } = state else {
+        let State::ServerFinished {
+            ms_outer_hash_state,
+            ms_inner_hash_state,
+        } = state
+        else {
             return Err(PrfError::InvalidState(state));
         };
 
@@ -205,14 +247,26 @@ where
         Ok(vd)
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "debug", skip(self), err)
+    )]
     async fn compute_session_keys_blind(&mut self, pms: ValueRef) -> Result<SessionKeys, PrfError> {
         self.internal_compute_session_keys(None, None, pms).await
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "debug", skip(self), err)
+    )]
     async fn compute_client_finished_vd_blind(&mut self) -> Result<(), PrfError> {
         let state = std::mem::replace(&mut self.state, State::Error);
 
-        let State::ClientFinished { ms_outer_hash_state, ms_inner_hash_state } = state else {
+        let State::ClientFinished {
+            ms_outer_hash_state,
+            ms_inner_hash_state,
+        } = state
+        else {
             return Err(PrfError::InvalidState(state));
         };
 
@@ -233,10 +287,18 @@ where
         Ok(())
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "debug", skip(self), err)
+    )]
     async fn compute_server_finished_vd_blind(&mut self) -> Result<(), PrfError> {
         let state = std::mem::replace(&mut self.state, State::Error);
 
-        let State::ServerFinished { ms_outer_hash_state, ms_inner_hash_state } = state else {
+        let State::ServerFinished {
+            ms_outer_hash_state,
+            ms_inner_hash_state,
+        } = state
+        else {
             return Err(PrfError::InvalidState(state));
         };
 

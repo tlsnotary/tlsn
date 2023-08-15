@@ -36,6 +36,10 @@ where
     ///
     /// * `config` - The configuration for the block cipher
     /// * `executor` - The executor to use for the MPC
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "info", skip(executor))
+    )]
     pub fn new(config: BlockCipherConfig, executor: E) -> Self {
         let execution_id = NestedId::new(&config.id).append_counter();
         Self {
@@ -55,10 +59,15 @@ where
     C: BlockCipherCircuit,
     E: Memory + Execute + Decode + DecodePrivate + Send + Sync + Send,
 {
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = "info", skip(self)))]
     fn set_key(&mut self, key: ValueRef) {
         self.state.key = Some(key);
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "debug", skip(self, plaintext), err)
+    )]
     async fn encrypt_private(&mut self, plaintext: Vec<u8>) -> Result<Vec<u8>, BlockCipherError> {
         let len = plaintext.len();
         let block: C::BLOCK = plaintext
@@ -95,6 +104,10 @@ where
         Ok(ciphertext.into())
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "debug", skip(self), err)
+    )]
     async fn encrypt_blind(&mut self) -> Result<Vec<u8>, BlockCipherError> {
         let key = self.state.key.clone().ok_or(BlockCipherError::KeyNotSet)?;
 
@@ -126,6 +139,10 @@ where
         Ok(ciphertext.into())
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "debug", skip(self, plaintext), err)
+    )]
     async fn encrypt_share(&mut self, plaintext: Vec<u8>) -> Result<Vec<u8>, BlockCipherError> {
         let len = plaintext.len();
         let block: C::BLOCK = plaintext

@@ -4,16 +4,27 @@ use serde::{Deserialize, Serialize};
 use std::ops::Range;
 use utils::iter::DuplicateCheck;
 
+#[cfg(feature = "tracing")]
+use tracing::instrument;
+
 /// A set of commitments
 #[derive(Default, Serialize, Deserialize)]
 pub struct SubstringsCommitmentSet(Vec<SubstringsCommitment>);
 
 impl SubstringsCommitmentSet {
+    /// Creates a new commitment set
     pub fn new(comms: Vec<SubstringsCommitment>) -> Self {
         Self(comms)
     }
 
-    // Validate the set
+    /// Validate the commitment set
+    ///
+    /// Ensures that:
+    /// - each individual commitment is valid
+    /// - the set is not empty
+    /// - the merkle_tree_index of each commitment is unique
+    /// - the grand total in all of the commitments' ranges is sane
+    #[cfg_attr(feature = "tracing", instrument(level = "trace", skip(self), err))]
     pub fn validate(&self) -> Result<(), Error> {
         // validate each individual commitment
         for c in &self.0 {
@@ -45,20 +56,23 @@ impl SubstringsCommitmentSet {
         Ok(())
     }
 
+    /// Checks if the commitment set is empty
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 
+    /// Returns the number of commitments in this set
     pub fn len(&self) -> usize {
         self.0.len()
     }
 
+    /// Returns an iterator over the commitments
     pub fn iter(&self) -> std::slice::Iter<SubstringsCommitment> {
         self.0.iter()
     }
 }
 
-/// A User's commitment to one or multiple substrings of the [crate::Transcript]
+/// A Prover's commitment to one or multiple substrings of the [crate::Transcript]
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SubstringsCommitment {
     /// The index of this commitment in the Merkle tree of commitments.
@@ -75,6 +89,7 @@ pub struct SubstringsCommitment {
 }
 
 impl SubstringsCommitment {
+    /// Creates a new commitment to substrings
     pub fn new(
         merkle_tree_index: u32,
         commitment: Commitment,
@@ -92,6 +107,12 @@ impl SubstringsCommitment {
     }
 
     /// Validates this commitment
+    ///
+    /// Ensures that:
+    /// - at least one range is expected
+    /// - ranges are valid
+    /// - ranges do not overlap and are ascending
+    /// - grand total in all the commitment's ranges is sane
     pub fn validate(&self) -> Result<(), Error> {
         // at least one range is expected
         if self.ranges().is_empty() {
@@ -124,22 +145,27 @@ impl SubstringsCommitment {
         Ok(())
     }
 
+    /// Returns the index of this commitment in the Merkle tree
     pub fn merkle_tree_index(&self) -> u32 {
         self.merkle_tree_index
     }
 
+    /// Returns the actual commitment
     pub fn commitment(&self) -> &Commitment {
         &self.commitment
     }
 
+    /// Returns the ranges of bytes in the transcript this commitment refers to
     pub fn ranges(&self) -> &[Range<u32>] {
         &self.ranges
     }
 
+    /// Returns the direction, i.e. if the commitment refers to data sent or received
     pub fn direction(&self) -> &Direction {
         &self.direction
     }
 
+    /// Returns the salt used for this commitment
     pub fn salt(&self) -> &Nonce {
         &self.salt
     }

@@ -146,7 +146,11 @@ impl Handler<Split> for KOSReceiverActor {
 
         // These messages should not start being processed until after setup
         // so this is a fatal error
-        let State::Setup{ receiver, child_receivers } = state else {
+        let State::Setup {
+            receiver,
+            child_receivers,
+        } = state
+        else {
             return Err(OTError::Other("KOSReceiverActor is not setup".to_string()));
         };
 
@@ -235,7 +239,11 @@ impl Handler<SendBackReceiver> for KOSReceiverActor {
 
         // These messages should not start being processed until after setup
         // so this is a fatal error
-        let State::Setup{ receiver, mut child_receivers } = state else {
+        let State::Setup {
+            receiver,
+            mut child_receivers,
+        } = state
+        else {
             return Err(OTError::Other("KOSReceiverActor is not setup".to_string()));
         };
 
@@ -266,7 +274,11 @@ impl Handler<Verify> for KOSReceiverActor {
 
         // These messages should not start being processed until after setup
         // so this is a fatal error
-        let State::Setup{ receiver, mut child_receivers } = state else {
+        let State::Setup {
+            receiver,
+            mut child_receivers,
+        } = state
+        else {
             return Err(OTError::Other("KOSReceiverActor is not setup".to_string()));
         };
 

@@ -6,18 +6,21 @@ use tls_core::{handshake::HandshakeData, key::PublicKey};
 
 use crate::{handshake_summary::HandshakeSummary, merkle::MerkleRoot, Error};
 
+#[cfg(feature = "tracing")]
+use tracing::instrument;
+
 /// An authentic session header from the Notary
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionHeader {
     /// A PRG seeds used to generate encodings for the plaintext
     encoder_seed: [u8; 32],
 
-    /// The root of the Merkle tree of all the commitments. The User must prove that each one of the
+    /// The root of the Merkle tree of all the commitments. The Prover must prove that each one of the
     /// `commitments` is included in the Merkle tree.
-    /// This approach allows the User to hide from the Notary the exact amount of commitments thus
-    /// increasing User privacy against the Notary.
+    /// This approach allows the Prover to hide from the Notary the exact amount of commitments thus
+    /// increasing Prover privacy against the Notary.
     /// The root was made known to the Notary before the Notary opened his garbled circuits
-    /// to the User.
+    /// to the Prover.
     merkle_root: MerkleRoot,
 
     /// Bytelength of all data which was sent to the webserver
@@ -29,6 +32,7 @@ pub struct SessionHeader {
 }
 
 impl SessionHeader {
+    /// Create a new instance of SessionHeader
     pub fn new(
         encoder_seed: [u8; 32],
         merkle_root: MerkleRoot,
@@ -46,6 +50,14 @@ impl SessionHeader {
     }
 
     /// Verify the data in the header is consistent with the Prover's view
+    #[cfg_attr(
+        feature = "tracing",
+        instrument(
+            level = "debug",
+            skip(self, encoder_seed, handshake_data_decommitment),
+            err
+        )
+    )]
     pub fn verify(
         &self,
         time: u64,
@@ -69,26 +81,32 @@ impl SessionHeader {
         Ok(())
     }
 
+    /// Create a new [ChaChaEncoder] from encoder_seed
     pub fn encoder(&self) -> ChaChaEncoder {
         ChaChaEncoder::new(self.encoder_seed)
     }
 
+    /// Returns the seed used to generate plaintext encodings
     pub fn label_seed(&self) -> &[u8; 32] {
         &self.encoder_seed
     }
 
+    /// Returns the merkle_root of the merkle tree of the prover's commitments
     pub fn merkle_root(&self) -> &MerkleRoot {
         &self.merkle_root
     }
 
+    /// Returns the [HandshakeSummary] of the TLS session between prover and server
     pub fn handshake_summary(&self) -> &HandshakeSummary {
         &self.handshake_summary
     }
 
+    /// Returns the number of bytes sent to the server
     pub fn sent_len(&self) -> u32 {
         self.sent_len
     }
 
+    /// Returns the number of bytes received by the server
     pub fn recv_len(&self) -> u32 {
         self.recv_len
     }

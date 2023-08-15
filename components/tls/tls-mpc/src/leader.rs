@@ -34,6 +34,7 @@ use crate::{
     MpcTlsChannel, MpcTlsError, MpcTlsLeaderConfig,
 };
 
+/// Wrapper for protocol instances of the leader
 pub struct MpcTlsLeader {
     config: MpcTlsLeaderConfig,
     channel: MpcTlsChannel,
@@ -83,6 +84,11 @@ impl Default for ConnectionState {
 }
 
 impl MpcTlsLeader {
+    /// Create a new leader instance
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "info", skip(channel, ke, prf, encrypter, decrypter))
+    )]
     pub fn new(
         config: MpcTlsLeaderConfig,
         channel: MpcTlsChannel,
@@ -102,18 +108,22 @@ impl MpcTlsLeader {
         }
     }
 
+    /// Sets the protocol version.
     pub fn set_protocol_version(&mut self, version: ProtocolVersion) {
         self.conn_state.protocol_version = Some(version);
     }
 
+    /// Sets the cipher suite.
     pub fn set_cipher_suite(&mut self, suite: CipherSuite) {
         self.conn_state.cipher_suite = Some(suite);
     }
 
+    /// Sets the server random.
     pub fn set_server_random(&mut self, random: Random) {
         self.conn_state.server_random = Some(random);
     }
 
+    /// Sets the server ephemeral key.
     pub fn set_server_key(&mut self, key: PublicKey) -> Result<(), MpcTlsError> {
         if key.group != NamedGroup::secp256r1 {
             return Err(MpcTlsError::UnsupportedCurveGroup(key.group));
@@ -124,7 +134,7 @@ impl MpcTlsLeader {
         Ok(())
     }
 
-    /// Returns the server's public key.
+    /// Returns the server's ephemeral public key.
     pub fn server_public_key(&self) -> Option<&PublicKey> {
         self.conn_state.server_public_key.as_ref()
     }
@@ -154,10 +164,15 @@ impl MpcTlsLeader {
         (self.conn_state.sent_bytes, self.conn_state.recv_bytes)
     }
 
+    /// Computes the combined key
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self), err)
+    )]
     pub async fn compute_client_key(&mut self) -> Result<PublicKey, MpcTlsError> {
         let pk = self
             .ke
-            .compute_client_key(SecretKey::random(rand::rngs::OsRng))
+            .compute_client_key(SecretKey::random(&mut rand::rngs::OsRng))
             .await?
             .expect("client key is returned as leader");
 
@@ -167,6 +182,11 @@ impl MpcTlsLeader {
         ))
     }
 
+    /// Computes the TLS session keys
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self), err)
+    )]
     pub async fn compute_session_keys(&mut self) -> Result<(), MpcTlsError> {
         let server_cert_details = self
             .conn_state
@@ -235,6 +255,11 @@ impl MpcTlsLeader {
         Ok(())
     }
 
+    /// Computes the client finished verify data
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self, hash), err)
+    )]
     pub async fn compute_client_finished_vd(
         &mut self,
         hash: &[u8],
@@ -248,6 +273,11 @@ impl MpcTlsLeader {
         Ok(vd.to_vec())
     }
 
+    /// Computes the server finished verify data
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self, hash), err)
+    )]
     pub async fn compute_server_finished_vd(
         &mut self,
         hash: &[u8],
@@ -261,6 +291,11 @@ impl MpcTlsLeader {
         Ok(vd.to_vec())
     }
 
+    /// Encrypt a message
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self, m), err)
+    )]
     pub async fn encrypt(
         &mut self,
         m: PlainMessage,
@@ -320,6 +355,11 @@ impl MpcTlsLeader {
         Ok(msg)
     }
 
+    /// Decrypt a message
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self, m), err)
+    )]
     pub async fn decrypt(
         &mut self,
         m: OpaqueMessage,

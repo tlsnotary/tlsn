@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use std::{collections::HashMap, marker::PhantomData};
+use std::{collections::HashMap, fmt::Debug, marker::PhantomData};
 
 use mpz_garble::{
     Decode, DecodePrivate, Execute, Memory, Prove, Thread, ThreadPool, ValueRef, Verify,
@@ -9,7 +9,7 @@ use utils::id::NestedId;
 use crate::{
     cipher::CtrCircuit,
     circuit::build_array_xor,
-    config::{InputTextConfig, KeyBlockConfig, OutputTextConfig, StreamCipherConfig},
+    config::{InputText, KeyBlockConfig, OutputTextConfig, StreamCipherConfig},
     StreamCipher, StreamCipherError,
 };
 
@@ -55,6 +55,10 @@ where
     E: Thread + Execute + Prove + Verify + Decode + DecodePrivate + Send + Sync + 'static,
 {
     /// Creates a new counter-mode cipher.
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "info", skip(thread_pool))
+    )]
     pub fn new(config: StreamCipherConfig, thread_pool: ThreadPool<E>) -> Self {
         let execution_id = NestedId::new(&config.id).append_counter();
         let transcript_counter = NestedId::new(&config.transcript_id).append_counter();
@@ -122,11 +126,15 @@ where
     }
 
     /// Applies the keystream to the provided input text.
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip(self), err)
+    )]
     async fn apply_keystream(
         &mut self,
         explicit_nonce: Vec<u8>,
         start_ctr: usize,
-        mut input_text_config: InputTextConfig,
+        mut input_text_config: InputText,
         mut output_text_config: OutputTextConfig,
     ) -> Result<Option<Vec<u8>>, StreamCipherError> {
         let KeyAndIv { key, iv } = self
@@ -179,11 +187,15 @@ where
         Ok(output_text)
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "debug", skip(self), err)
+    )]
     async fn plaintext_proof(
         &mut self,
-        plaintext_config: InputTextConfig,
-        keystream_config: InputTextConfig,
-        ciphertext_config: InputTextConfig,
+        plaintext_config: InputText,
+        keystream_config: InputText,
+        ciphertext_config: InputText,
         role: Role,
     ) -> Result<(), StreamCipherError> {
         let mut scope = self.thread_pool.new_scope();
@@ -214,10 +226,12 @@ where
     C: CtrCircuit,
     E: Thread + Execute + Prove + Verify + Decode + DecodePrivate + Send + Sync + 'static,
 {
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = "info", skip(self)))]
     fn set_key(&mut self, key: ValueRef, iv: ValueRef) {
         self.state.key_iv = Some(KeyAndIv { key, iv });
     }
 
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = "debug", skip(self)))]
     fn set_transcript_id(&mut self, id: &str) {
         let current_id = self
             .state
@@ -236,6 +250,10 @@ where
         }
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "debug", skip(self, plaintext), err)
+    )]
     async fn encrypt_public(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -246,7 +264,7 @@ where
         self.apply_keystream(
             explicit_nonce,
             self.config.start_ctr,
-            InputTextConfig::Public {
+            InputText::Public {
                 ids: plaintext_ids,
                 text: plaintext,
             },
@@ -258,6 +276,10 @@ where
         .map(|output_text| output_text.expect("output text is set"))
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "debug", skip(self, plaintext), err)
+    )]
     async fn encrypt_private(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -268,7 +290,7 @@ where
         self.apply_keystream(
             explicit_nonce,
             self.config.start_ctr,
-            InputTextConfig::Private {
+            InputText::Private {
                 ids: plaintext_ids,
                 text: plaintext,
             },
@@ -280,6 +302,10 @@ where
         .map(|output_text| output_text.expect("output text is set"))
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "debug", skip(self), err)
+    )]
     async fn encrypt_blind(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -290,7 +316,7 @@ where
         self.apply_keystream(
             explicit_nonce,
             self.config.start_ctr,
-            InputTextConfig::Blind { ids: plaintext_ids },
+            InputText::Blind { ids: plaintext_ids },
             OutputTextConfig::Public {
                 ids: ciphertext_ids,
             },
@@ -299,6 +325,10 @@ where
         .map(|output_text| output_text.expect("output text is set"))
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "debug", skip(self), err)
+    )]
     async fn decrypt_public(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -312,7 +342,7 @@ where
         self.apply_keystream(
             explicit_nonce,
             self.config.start_ctr,
-            InputTextConfig::Public {
+            InputText::Public {
                 ids: ciphertext_ids,
                 text: ciphertext,
             },
@@ -322,6 +352,10 @@ where
         .map(|output_text| output_text.expect("output text is set"))
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "debug", skip(self), err)
+    )]
     async fn decrypt_private(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -335,7 +369,7 @@ where
             .apply_keystream(
                 explicit_nonce,
                 self.config.start_ctr,
-                InputTextConfig::Public {
+                InputText::Public {
                     ids: opaque_ids,
                     text: vec![0u8; ciphertext.len()],
                 },
@@ -352,12 +386,12 @@ where
             .zip(keystream.iter())
             .for_each(|(c, k)| *c ^= k);
 
-        let plaintext_config = InputTextConfig::Private {
+        let plaintext_config = InputText::Private {
             ids: self.plaintext_ids(plaintext.len()),
             text: plaintext.clone(),
         };
-        let keystream_config = InputTextConfig::Blind { ids: keystream_ids };
-        let ciphertext_config = InputTextConfig::Public {
+        let keystream_config = InputText::Blind { ids: keystream_ids };
+        let ciphertext_config = InputText::Public {
             ids: ciphertext_ids,
             text: ciphertext,
         };
@@ -374,6 +408,10 @@ where
         Ok(plaintext)
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "debug", skip(self), err)
+    )]
     async fn decrypt_blind(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -387,7 +425,7 @@ where
             .apply_keystream(
                 explicit_nonce,
                 self.config.start_ctr,
-                InputTextConfig::Public {
+                InputText::Public {
                     ids: opaque_ids,
                     text: vec![0u8; ciphertext.len()],
                 },
@@ -397,11 +435,11 @@ where
             )
             .await?;
 
-        let plaintext_config = InputTextConfig::Blind {
+        let plaintext_config = InputText::Blind {
             ids: self.plaintext_ids(ciphertext.len()),
         };
-        let keystream_config = InputTextConfig::Blind { ids: keystream_ids };
-        let ciphertext_config = InputTextConfig::Public {
+        let keystream_config = InputText::Blind { ids: keystream_ids };
+        let ciphertext_config = InputText::Public {
             ids: ciphertext_ids,
             text: ciphertext,
         };
@@ -418,6 +456,10 @@ where
         Ok(())
     }
 
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "info", skip(self), err)
+    )]
     async fn share_keystream_block(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -428,7 +470,7 @@ where
         self.apply_keystream(
             explicit_nonce,
             ctr,
-            InputTextConfig::Public {
+            InputText::Public {
                 ids: opaque_input_ids,
                 text: vec![0u8; C::BLOCK_LEN],
             },
@@ -441,32 +483,37 @@ where
     }
 }
 
+#[derive(Debug)]
 enum Role {
     Prover,
     Verifier,
 }
 
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", skip(thread), err)
+)]
 async fn plaintext_proof<T: Thread + Memory + Prove + Verify + Decode + DecodePrivate + 'static>(
     thread: &mut T,
-    plaintext_config: InputTextConfig,
-    keystream_config: InputTextConfig,
-    ciphertext_config: InputTextConfig,
+    plaintext_config: InputText,
+    keystream_config: InputText,
+    ciphertext_config: InputText,
     role: Role,
 ) -> Result<(), StreamCipherError> {
     let circ = build_array_xor(plaintext_config.len());
 
     let plaintext = match plaintext_config {
-        InputTextConfig::Public { ids, text } => text
+        InputText::Public { ids, text } => text
             .into_iter()
             .zip(ids)
             .map(|(byte, id)| thread.new_public_input::<u8>(&id, byte))
             .collect::<Result<Vec<_>, _>>()?,
-        InputTextConfig::Private { ids, text } => text
+        InputText::Private { ids, text } => text
             .into_iter()
             .zip(ids)
             .map(|(byte, id)| thread.new_private_input::<u8>(&id, Some(byte)))
             .collect::<Result<Vec<_>, _>>()?,
-        InputTextConfig::Blind { ids } => ids
+        InputText::Blind { ids } => ids
             .iter()
             .map(|id| thread.new_private_input::<u8>(id, None))
             .collect::<Result<Vec<_>, _>>()?,
@@ -481,7 +528,7 @@ async fn plaintext_proof<T: Thread + Memory + Prove + Verify + Decode + DecodePr
     );
 
     let keystream = match keystream_config {
-        InputTextConfig::Blind { ids } => ids
+        InputText::Blind { ids } => ids
             .into_iter()
             .map(|id| {
                 thread
@@ -501,7 +548,7 @@ async fn plaintext_proof<T: Thread + Memory + Prove + Verify + Decode + DecodePr
     );
 
     let (ciphertext, expected_ciphertext) = match ciphertext_config {
-        InputTextConfig::Public { ids, text } => (
+        InputText::Public { ids, text } => (
             ids.iter()
                 .map(|id| thread.new_output::<u8>(id))
                 .collect::<Result<Vec<_>, _>>()?,
@@ -539,6 +586,10 @@ async fn plaintext_proof<T: Thread + Memory + Prove + Verify + Decode + DecodePr
     Ok(())
 }
 
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", skip(thread_pool), err)
+)]
 async fn apply_keystream<
     T: Thread + Memory + Execute + Decode + DecodePrivate + Send + 'static,
     C: CtrCircuit,
@@ -571,6 +622,10 @@ async fn apply_keystream<
     }
 }
 
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", skip(thread), err)
+)]
 async fn apply_keyblock<T: Memory + Execute + Decode + DecodePrivate + Send, C: CtrCircuit>(
     thread: &mut T,
     block_id: NestedId,
@@ -597,17 +652,17 @@ async fn apply_keyblock<T: Memory + Execute + Decode + DecodePrivate + Send, C: 
 
     // Sets up the input text values.
     let input_values = match input_text_config {
-        InputTextConfig::Public { ids, text } => text
+        InputText::Public { ids, text } => text
             .into_iter()
             .zip(ids)
             .map(|(byte, id)| thread.new_public_input::<u8>(&id, byte))
             .collect::<Result<Vec<_>, _>>()?,
-        InputTextConfig::Private { ids, text } => text
+        InputText::Private { ids, text } => text
             .into_iter()
             .zip(ids)
             .map(|(byte, id)| thread.new_private_input::<u8>(&id, Some(byte)))
             .collect::<Result<Vec<_>, _>>()?,
-        InputTextConfig::Blind { ids } => ids
+        InputText::Blind { ids } => ids
             .iter()
             .map(|id| thread.new_private_input::<u8>(id, None))
             .collect::<Result<Vec<_>, _>>()?,

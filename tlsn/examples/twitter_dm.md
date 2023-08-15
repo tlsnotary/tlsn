@@ -9,7 +9,8 @@ This involves 3 steps:
 
 ## Inputs
 
-In `twtter_dm.rs`, you need to set the following constants:
+In this tlsn/examples folder, create a `.env` file.
+Then in that `.env` file, set the values of the following constants by following the format shown in this [example env file](./.env.example).
 
 | Name            | Example                                                 |
 | --------------- | ------------------------------------------------------- |
@@ -29,20 +30,19 @@ Repeat the process for the other constants.
 
 ## Start the notary server
 
-In the `tlsn\examples` folder, run the following command:
-
-```sh
-cargo run --release --example notary
+```
+git clone https://github.com/tlsnotary/notary-server
+cd notary-server
+cargo run
 ```
 
-The first time you run this command, it will download the dependencies and compile the Rust sources, so it might take a while.
+The notary server will now be running in the background waiting for connections.
 
-You can use **Ctrl-C** to stop the server, when the notarization is ready.
-
+For more information on how to configure the notary server, please refer to [this](https://github.com/tlsnotary/notary-server#running-the-server).
 
 ## Notarize
 
-In the tlsn\examples folder, run the following command:
+In this tlsn/examples folder, run the following command:
 
 ```sh
 RUST_LOG=debug,yamux=info cargo run --release --example twitter_dm
@@ -54,10 +54,38 @@ If everything goes well, you should see output similar to the following:
    Compiling tlsn-examples v0.0.0 (/Users/heeckhau/tlsnotary/tlsn/tlsn/examples)
     Finished release [optimized] target(s) in 8.52s
      Running `/Users/heeckhau/tlsnotary/tlsn/tlsn/target/release/examples/twitter_dm`
-Sending request
-Sent request
-Request OK
-{
+2023-08-15T12:49:38.532924Z DEBUG rustls::client::hs: No cached session for DnsName("tlsnotaryserver.io")
+2023-08-15T12:49:38.533384Z DEBUG rustls::client::hs: Not resuming any session
+2023-08-15T12:49:38.543493Z DEBUG rustls::client::hs: Using ciphersuite TLS13_AES_256_GCM_SHA384
+2023-08-15T12:49:38.543632Z DEBUG rustls::client::tls13: Not resuming
+2023-08-15T12:49:38.543792Z DEBUG rustls::client::tls13: TLS1.3 encrypted extensions: [ServerNameAck]
+2023-08-15T12:49:38.543803Z DEBUG rustls::client::hs: ALPN protocol is None
+2023-08-15T12:49:38.544305Z DEBUG twitter_dm: Sending configuration request
+2023-08-15T12:49:38.544556Z DEBUG hyper::proto::h1::io: flushed 163 bytes
+2023-08-15T12:49:38.546069Z DEBUG hyper::proto::h1::io: parsed 3 headers
+2023-08-15T12:49:38.546078Z DEBUG hyper::proto::h1::conn: incoming body is content-length (52 bytes)
+2023-08-15T12:49:38.546168Z DEBUG hyper::proto::h1::conn: incoming body completed
+2023-08-15T12:49:38.546187Z DEBUG twitter_dm: Sent configuration request
+2023-08-15T12:49:38.546192Z DEBUG twitter_dm: Response OK
+2023-08-15T12:49:38.546224Z DEBUG twitter_dm: Notarization response: NotarizationSessionResponse { session_id: "2675e0f9-d06c-499b-8e9e-2b893a6d7356" }
+2023-08-15T12:49:38.546257Z DEBUG twitter_dm: Sending notarization request
+2023-08-15T12:49:38.546291Z DEBUG hyper::proto::h1::io: flushed 152 bytes
+2023-08-15T12:49:38.546743Z DEBUG hyper::proto::h1::io: parsed 3 headers
+2023-08-15T12:49:38.546748Z DEBUG hyper::proto::h1::conn: incoming body is empty
+2023-08-15T12:49:38.546766Z DEBUG twitter_dm: Sent notarization request
+2023-08-15T12:49:38.546772Z DEBUG twitter_dm: Switched protocol OK
+2023-08-15T12:49:40.088422Z DEBUG twitter_dm: Sending request
+2023-08-15T12:49:40.088464Z DEBUG hyper::proto::h1::io: flushed 950 bytes
+2023-08-15T12:49:40.143884Z DEBUG tls_client::client::hs: ALPN protocol is None
+2023-08-15T12:49:40.143893Z DEBUG tls_client::client::hs: Using ciphersuite Tls12(Tls12CipherSuite { suite: TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, algorithm: AES_128_GCM })
+2023-08-15T12:49:40.144666Z DEBUG tls_client::client::tls12: ECDHE curve is ECParameters { curve_type: NamedCurve, named_group: secp256r1 }
+2023-08-15T12:49:40.144687Z DEBUG tls_client::client::tls12: Server DNS name is DnsName(DnsName(DnsName("twitter.com")))
+2023-08-15T12:51:01.336491Z DEBUG hyper::proto::h1::io: parsed 31 headers
+2023-08-15T12:51:01.336507Z DEBUG hyper::proto::h1::conn: incoming body is content-length (4330 bytes)
+2023-08-15T12:51:01.336516Z DEBUG hyper::proto::h1::conn: incoming body completed
+2023-08-15T12:51:01.336528Z DEBUG twitter_dm: Sent request
+2023-08-15T12:51:01.336537Z DEBUG twitter_dm: Request OK
+2023-08-15T12:51:01.336585Z DEBUG twitter_dm: {
   "conversation_timeline": {
     "entries": [
       {
@@ -69,7 +97,7 @@ Request OK
     }
   }
 }
-Notarization complete!
+2023-08-15T12:51:08.854818Z DEBUG twitter_dm: Notarization complete!
 ```
 
 If the transcript was too long, you may encounter the following error:

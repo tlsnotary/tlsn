@@ -2,6 +2,7 @@ use std::marker::PhantomData;
 
 use derive_builder::Builder;
 use mpz_garble::ValueRef;
+use std::fmt::Debug;
 
 use crate::CtrCircuit;
 
@@ -32,9 +33,22 @@ pub(crate) struct KeyBlockConfig<C: CtrCircuit> {
     pub(crate) iv: ValueRef,
     pub(crate) explicit_nonce: C::NONCE,
     pub(crate) ctr: u32,
-    pub(crate) input_text_config: InputTextConfig,
+    pub(crate) input_text_config: InputText,
     pub(crate) output_text_config: OutputTextConfig,
     _pd: PhantomData<C>,
+}
+
+impl<C: CtrCircuit> Debug for KeyBlockConfig<C> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("KeyBlockConfig")
+            .field("key", &self.key)
+            .field("iv", &self.iv)
+            .field("explicit_nonce", &self.explicit_nonce)
+            .field("ctr", &self.ctr)
+            .field("input_text_config", &self.input_text_config)
+            .field("output_text_config", &self.output_text_config)
+            .finish()
+    }
 }
 
 impl<C: CtrCircuit> KeyBlockConfig<C> {
@@ -43,7 +57,7 @@ impl<C: CtrCircuit> KeyBlockConfig<C> {
         iv: ValueRef,
         explicit_nonce: C::NONCE,
         ctr: u32,
-        input_text_config: InputTextConfig,
+        input_text_config: InputText,
         output_text_config: OutputTextConfig,
     ) -> Self {
         Self {
@@ -58,58 +72,77 @@ impl<C: CtrCircuit> KeyBlockConfig<C> {
     }
 }
 
-pub(crate) enum InputTextConfig {
+pub(crate) enum InputText {
     Public { ids: Vec<String>, text: Vec<u8> },
     Private { ids: Vec<String>, text: Vec<u8> },
     Blind { ids: Vec<String> },
 }
 
-impl InputTextConfig {
+impl std::fmt::Debug for InputText {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Public { ids, .. } => f
+                .debug_struct("Public")
+                .field("ids", ids)
+                .field("text", &"{{ ... }}")
+                .finish(),
+            Self::Private { ids, .. } => f
+                .debug_struct("Private")
+                .field("ids", ids)
+                .field("text", &"{{ ... }}")
+                .finish(),
+            Self::Blind { ids, .. } => f.debug_struct("Blind").field("ids", ids).finish(),
+        }
+    }
+}
+
+impl InputText {
     /// Returns the length of the input text.
     #[allow(clippy::len_without_is_empty)]
     pub(crate) fn len(&self) -> usize {
         match self {
-            InputTextConfig::Public { text, .. } => text.len(),
-            InputTextConfig::Private { text, .. } => text.len(),
-            InputTextConfig::Blind { ids } => ids.len(),
+            InputText::Public { text, .. } => text.len(),
+            InputText::Private { text, .. } => text.len(),
+            InputText::Blind { ids } => ids.len(),
         }
     }
 
     /// Appends padding bytes to the input text.
     pub(crate) fn append_padding(&mut self, append_ids: Vec<String>) {
         match self {
-            InputTextConfig::Public { ids, text } => {
+            InputText::Public { ids, text } => {
                 ids.extend(append_ids);
                 text.resize(ids.len(), 0u8);
             }
-            InputTextConfig::Private { ids, text } => {
+            InputText::Private { ids, text } => {
                 ids.extend(append_ids);
                 text.resize(ids.len(), 0u8);
             }
-            InputTextConfig::Blind { ids } => {
+            InputText::Blind { ids } => {
                 ids.extend(append_ids);
             }
         };
     }
 
     /// Drains the first `n` bytes from the input text.
-    pub(crate) fn drain(&mut self, n: usize) -> InputTextConfig {
+    pub(crate) fn drain(&mut self, n: usize) -> InputText {
         match self {
-            InputTextConfig::Public { ids, text } => InputTextConfig::Public {
+            InputText::Public { ids, text } => InputText::Public {
                 ids: ids.drain(..n).collect(),
                 text: text.drain(..n).collect(),
             },
-            InputTextConfig::Private { ids, text: bytes } => InputTextConfig::Private {
+            InputText::Private { ids, text: bytes } => InputText::Private {
                 ids: ids.drain(..n).collect(),
                 text: bytes.drain(..n).collect(),
             },
-            InputTextConfig::Blind { ids } => InputTextConfig::Blind {
+            InputText::Blind { ids } => InputText::Blind {
                 ids: ids.drain(..n).collect(),
             },
         }
     }
 }
 
+#[derive(Debug)]
 pub(crate) enum OutputTextConfig {
     Public { ids: Vec<String> },
     Private { ids: Vec<String> },
