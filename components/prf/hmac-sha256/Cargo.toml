@@ -13,7 +13,7 @@ name = "hmac_sha256"
 
 [features]
 default = ["mock"]
-tracing = ["dep:tracing"]
+tracing = ["dep:tracing", "tlsn-hmac-sha256-circuits/tracing"]
 mock = []
 
 [dependencies]

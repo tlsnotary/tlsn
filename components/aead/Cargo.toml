@@ -14,7 +14,7 @@ name = "aead"
 [features]
 default = ["mock"]
 mock = []
-tracing = ["dep:tracing"]
+tracing = ["dep:tracing", "tlsn-block-cipher/tracing", "tlsn-stream-cipher/tracing", "tlsn-universal-hash/tracing"]
 
 [dependencies]
 tlsn-block-cipher = { path = "../cipher/block-cipher" }

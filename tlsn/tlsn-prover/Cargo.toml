@@ -9,7 +9,7 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-tracing = ["dep:tracing"]
+tracing = ["dep:tracing", "tlsn-tls-client-async/tracing", "tlsn-core/tracing", "tlsn-tls-mpc/tracing", "uid-mux/tracing"]
 
 [dependencies]
 tlsn-tls-core.workspace = true
