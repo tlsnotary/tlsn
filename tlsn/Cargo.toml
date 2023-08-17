@@ -1,5 +1,11 @@
 [workspace]
-members = ["tlsn-core", "tlsn-notary", "tlsn-prover", "tests-integration"]
+members = [
+    "tlsn-core",
+    "tlsn-notary",
+    "tlsn-prover",
+    "tests-integration",
+    "examples",    
+]
 resolver = "2"
 
 [workspace.dependencies]
