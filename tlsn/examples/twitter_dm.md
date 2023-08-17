@@ -12,28 +12,26 @@ This involves 3 steps:
 In this tlsn/examples folder, create a `.env` file.
 Then in that `.env` file, set the values of the following constants by following the format shown in this [example env file](./.env.example).
 
-| Name            | Example                                                 |
-| --------------- | ------------------------------------------------------- |
-| CONVERSATION_ID | `20124652-973145016511139841`                           |
-| CLIENT_UUID     | `e6f00000-cccc-dddd-bbbb-eeeeeefaaa27`                  |
-| AUTH_TOKEN      | `670ccccccbe2bbbbbbbc1025aaaaaafa55555551`              |
-| ACCESS_TOKEN    | `AAAAAAAAAAAAAAAAAAAAANRILgAA...4puTs%3D1Zv7...WjCpTnA` |
-| CSRF_TOKEN      | `77d8ef46bd57f722ea7e9f...f4235a713040bfcaac1cd6909`    |
+| Name            | Example                                                 | Location in Request Headers Section (within Network Tab of Developer Tools)       |
+| --------------- | ------------------------------------------------------- |---------------------------------------------------------------------------------- |
+| CONVERSATION_ID | `20124652-973145016511139841`                           | Look for `Referer`, then extract the `ID` in `https://twitter.com/messages/<ID>`  |   
+| CLIENT_UUID     | `e6f00000-cccc-dddd-bbbb-eeeeeefaaa27`                  | Look for `X-Client-Uuid`, then copy the entire value                              |   
+| AUTH_TOKEN      | `670ccccccbe2bbbbbbbc1025aaaaaafa55555551`              | Look for `Cookie`, then extract the `token` in `;auth_token=<token>;`             |   
+| ACCESS_TOKEN    | `AAAAAAAAAAAAAAAAAAAAANRILgAA...4puTs%3D1Zv7...WjCpTnA` | Look for `Authorization`, then extract the `token` in `Bearer <token>`            |   
+| CSRF_TOKEN      | `77d8ef46bd57f722ea7e9f...f4235a713040bfcaac1cd6909`    | Look for `X-Csrf-Token`, then copy the entire value                               |    
 
-You can obtain these parameters by opening [Twitter](https://twitter.com/messages/) in your browser and accessing the message history you want to notarize. Please note that notarizing only works for short transcripts at the moment, so choose a contact with a short history. The `CONVERSATION_ID` corresponds to the last part of the URL.
+You can obtain these parameters by opening [Twitter](https://twitter.com/messages/) in your browser and accessing the message history you want to notarize. Please note that notarizing only works for short transcripts at the moment, so choose a contact with a short history.
 
-Next, open the **Developer Tools**, go to the **Network** tab, and refresh the page. Then, click on **Search** and type `uuid` as shown in the screenshot below:
+Next, open the **Developer Tools**, go to the **Network** tab, and refresh the page. Then, click on **Search** and type `uuid` as shown in the screenshot below — all of these constants should be under the **Request Headers** section. Refer to the table above on where to find each of the constant value.
 
 ![Screenshot](twitter_dm_browser.png)
-
-Repeat the process for the other constants.
 
 ## Start the notary server
 
 ```
 git clone https://github.com/tlsnotary/notary-server
 cd notary-server
-cargo run
+cargo run --release
 ```
 
 The notary server will now be running in the background waiting for connections.

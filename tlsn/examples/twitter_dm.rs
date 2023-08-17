@@ -1,3 +1,4 @@
+/// This prover implementation talks to the notary server implemented in https://github.com/tlsnotary/notary-server, instead of the simple_notary.rs in this example directory
 use eyre::Result;
 use futures::AsyncWriteExt;
 use hyper::{body::to_bytes, client::conn::Parts, Body, Request, StatusCode};
@@ -18,13 +19,17 @@ use tracing::debug;
 
 use tlsn_prover::{bind_prover, ProverConfig};
 
+// Setting of the application server
 const SERVER_DOMAIN: &str = "twitter.com";
 const ROUTE: &str = "i/api/1.1/dm/conversation";
 const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36";
 
+// Setting of the notary server — make sure these are the same with those in the notary-server repository used (https://github.com/tlsnotary/notary-server)
 const NOTARY_DOMAIN: &str = "127.0.0.1";
 const NOTARY_PORT: u16 = 7047;
 const NOTARY_CA_CERT_PATH: &str = "./rootCA.crt";
+
+// Configuration of notarization
 const NOTARY_MAX_TRANSCRIPT_SIZE: usize = 16384;
 
 /// Response object of the /session API
@@ -90,6 +95,7 @@ async fn main() {
     .unwrap();
 
     let notary_tls_socket = notary_connector
+        // Require the domain name of notary server to be the same as that in the server cert
         .connect("tlsnotaryserver.io".try_into().unwrap(), notary_socket)
         .await
         .unwrap();

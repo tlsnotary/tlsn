@@ -45,5 +45,5 @@ name = "twitter_dm"
 path = "twitter_dm.rs"
 
 [[example]]
-name = "notary"
-path = "notary.rs"
+name = "simple_notary"
+path = "simple_notary.rs"
