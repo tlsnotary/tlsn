@@ -13,7 +13,7 @@ name = "key_exchange"
 
 [features]
 default = ["mock"]
-tracing = ["dep:tracing"]
+tracing = ["dep:tracing", "tlsn-point-addition/tracing"]
 mock = []
 
 [dependencies]

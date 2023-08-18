@@ -12,7 +12,7 @@ edition = "2021"
 name = "tls_mpc"
 
 [features]
-tracing = ["dep:tracing"]
+tracing = ["dep:tracing", "tlsn-block-cipher/tracing", "tlsn-stream-cipher/tracing", "tlsn-universal-hash/tracing", "tlsn-aead/tracing", "tlsn-key-exchange/tracing", "tlsn-point-addition/tracing", "tlsn-hmac-sha256/tracing", "tlsn-tls-client-async/tracing", "uid-mux/tracing"]
 
 [dependencies]
 tlsn-tls-core = { path = "../tls-core", features = ["serde"] }
