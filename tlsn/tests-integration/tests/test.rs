@@ -84,7 +84,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
     prover.add_commitment_sent(0..sent_len as u32).unwrap();
     prover.add_commitment_recv(0..recv_len as u32).unwrap();
 
-    _ = prover.finalize().await.unwrap();
+    _ = prover.finalize(None).await.unwrap();
 }
 
 #[instrument(skip(socket))]

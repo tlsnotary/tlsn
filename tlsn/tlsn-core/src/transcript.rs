@@ -64,6 +64,16 @@ impl Transcript {
     pub fn data(&self) -> &[u8] {
         &self.data
     }
+
+    /// Returns a mutable reference to data
+    pub fn data_mut(&mut self) -> &mut [u8] {
+        &mut self.data
+    }
+
+    /// Returns a mutable reference to the bytes belonging to the http body
+    pub fn body_mut(&mut self) -> &mut [u8] {
+        todo!()
+    }
 }
 
 /// Authenticated slice of [Transcript]. The [Direction] should be infered from some outer context.

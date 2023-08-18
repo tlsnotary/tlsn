@@ -13,6 +13,7 @@ mod handshake_summary;
 pub(crate) mod inclusion_proof;
 pub mod merkle;
 pub mod msg;
+pub mod redact;
 mod session;
 pub mod signature;
 pub mod substrings;

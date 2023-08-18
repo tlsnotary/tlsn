@@ -270,7 +270,7 @@ async fn main() {
     prover.add_commitment_recv(0..recv_len as u32).unwrap();
 
     // Finalize, returning the notarized session
-    let notarized_session = prover.finalize().await.unwrap();
+    let notarized_session = prover.finalize(None).await.unwrap();
 
     debug!("Notarization complete!");
 

@@ -36,6 +36,7 @@ use tlsn_core::{
     commitment::Blake3,
     merkle::MerkleTree,
     msg::{SignedSessionHeader, TlsnMessage},
+    redact::{Identity, Redact},
     transcript::Transcript,
     Direction, NotarizedSession, SessionData, SubstringsCommitment, SubstringsCommitmentSet,
 };
@@ -313,7 +314,10 @@ where
 
     /// Finalize the notarization returning a [`NotarizedSession`]
     #[cfg_attr(feature = "tracing", instrument(level = "info", skip(self), err))]
-    pub async fn finalize(self) -> Result<NotarizedSession, ProverError> {
+    pub async fn finalize(
+        self,
+        redactor: Option<Box<dyn Redact>>,
+    ) -> Result<NotarizedSession, ProverError> {
         let Notarize {
             notary_mux: mut mux,
             mut vm,
@@ -322,8 +326,8 @@ where
             start_time,
             handshake_decommitment,
             server_public_key,
-            transcript_tx,
-            transcript_rx,
+            mut transcript_tx,
+            mut transcript_rx,
             commitments,
             substring_commitments,
         } = self.state;
@@ -368,6 +372,15 @@ where
         )?;
 
         let commitments = SubstringsCommitmentSet::new(substring_commitments);
+
+        // Redact parts of the transcript
+        let mut redactor = redactor.unwrap_or_else(|| Box::new(Identity));
+
+        redactor.redact_sent_headers(transcript_tx.data_mut());
+        redactor.redact_sent_body(transcript_tx.body_mut());
+
+        redactor.redact_received_headers(transcript_rx.data_mut());
+        redactor.redact_received_body(transcript_rx.body_mut());
 
         let data = SessionData::new(
             handshake_decommitment,
