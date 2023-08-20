@@ -30,6 +30,7 @@ rs_merkle.workspace = true
 rstest = { workspace = true, optional = true}
 hex = { workspace = true, optional = true} 
 tracing = { workspace = true, optional = true }
+httparse = "1"
 
 [dev-dependencies]
 rstest.workspace = true

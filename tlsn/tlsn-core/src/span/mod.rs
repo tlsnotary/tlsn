@@ -19,3 +19,11 @@ pub trait SpanCommit {
     /// Identify byte ranges in the response to commit to
     fn span_response(&mut self, response: &[u8]) -> Vec<Range<u32>>;
 }
+
+/// An error that can occur during span creation
+#[derive(Debug, thiserror::Error)]
+pub enum SpanError {
+    /// The request or response could not be parsed
+    #[error("Error during parsing")]
+    ParseError,
+}
