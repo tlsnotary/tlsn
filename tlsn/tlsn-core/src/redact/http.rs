@@ -1,1 +1,1 @@
-//! Some support for redacting http using e.g. pest
+//! Some support for redacting http using httparse

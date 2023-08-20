@@ -12,22 +12,8 @@ pub mod json;
 ///
 /// The user has to make sure that redacted bytes have not been committed to.
 pub trait Redact {
-    /// Redact the sent http request
-    fn redact_sent_headers(&mut self, headers: &mut [u8]);
-    ///Redact the body of the http request
-    fn redact_sent_body(&mut self, body: &mut [u8]);
-    /// Redact the http response
-    fn redact_received_headers(&mut self, headers: &mut [u8]);
-    ///Redact the body of the http response
-    fn redact_received_body(&mut self, body: &mut [u8]);
-}
-
-/// A redaction implementation which does not redact anything
-pub struct Identity;
-
-impl Redact for Identity {
-    fn redact_sent_headers(&mut self, _headers: &mut [u8]) {}
-    fn redact_sent_body(&mut self, _body: &mut [u8]) {}
-    fn redact_received_headers(&mut self, _headers: &mut [u8]) {}
-    fn redact_received_body(&mut self, _body: &mut [u8]) {}
+    /// Redact bytes of the request
+    fn redact_request(&mut self, request: &mut [u8]);
+    /// Redact bytes of the response
+    fn redact_response(&mut self, response: &mut [u8]);
 }

@@ -36,7 +36,7 @@ use tlsn_core::{
     commitment::Blake3,
     merkle::MerkleTree,
     msg::{SignedSessionHeader, TlsnMessage},
-    redact::{Identity, Redact},
+    redact::Redact,
     transcript::Transcript,
     Direction, NotarizedSession, SessionData, SubstringsCommitment, SubstringsCommitmentSet,
 };
@@ -374,13 +374,10 @@ where
         let commitments = SubstringsCommitmentSet::new(substring_commitments);
 
         // Redact parts of the transcript
-        let mut redactor = redactor.unwrap_or_else(|| Box::new(Identity));
-
-        redactor.redact_sent_headers(transcript_tx.data_mut());
-        redactor.redact_sent_body(transcript_tx.body_mut());
-
-        redactor.redact_received_headers(transcript_rx.data_mut());
-        redactor.redact_received_body(transcript_rx.body_mut());
+        if let Some(mut redactor) = redactor {
+            redactor.redact_request(transcript_tx.data_mut());
+            redactor.redact_response(transcript_rx.data_mut());
+        }
 
         let data = SessionData::new(
             handshake_decommitment,
