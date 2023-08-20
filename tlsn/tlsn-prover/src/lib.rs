@@ -36,7 +36,7 @@ use tlsn_core::{
     commitment::Blake3,
     merkle::MerkleTree,
     msg::{SignedSessionHeader, TlsnMessage},
-    redact::Redact,
+    span::SpanCommit,
     transcript::Transcript,
     Direction, NotarizedSession, SessionData, SubstringsCommitment, SubstringsCommitmentSet,
 };
@@ -261,16 +261,6 @@ where
         &self.state.transcript_rx
     }
 
-    /// Add a commitment to the sent requests
-    pub fn add_commitment_sent(&mut self, range: Range<u32>) -> Result<(), ProverError> {
-        self.add_commitment(range, Direction::Sent)
-    }
-
-    /// Add a commitment to the received responses
-    pub fn add_commitment_recv(&mut self, range: Range<u32>) -> Result<(), ProverError> {
-        self.add_commitment(range, Direction::Received)
-    }
-
     #[cfg_attr(
         feature = "tracing",
         instrument(level = "debug", skip(self, range), err)
@@ -315,9 +305,17 @@ where
     /// Finalize the notarization returning a [`NotarizedSession`]
     #[cfg_attr(feature = "tracing", instrument(level = "info", skip(self), err))]
     pub async fn finalize(
-        self,
-        redactor: Option<Box<dyn Redact>>,
+        mut self,
+        mut spanner: Box<dyn SpanCommit>,
     ) -> Result<NotarizedSession, ProverError> {
+        // Add commitments identified by the spanner
+        for range in spanner.span_request(self.state.transcript_tx.data()) {
+            self.add_commitment(range, Direction::Sent)?;
+        }
+        for range in spanner.span_response(self.state.transcript_rx.data()) {
+            self.add_commitment(range, Direction::Received)?;
+        }
+
         let Notarize {
             notary_mux: mut mux,
             mut vm,
@@ -326,8 +324,8 @@ where
             start_time,
             handshake_decommitment,
             server_public_key,
-            mut transcript_tx,
-            mut transcript_rx,
+            transcript_tx,
+            transcript_rx,
             commitments,
             substring_commitments,
         } = self.state;
@@ -372,12 +370,6 @@ where
         )?;
 
         let commitments = SubstringsCommitmentSet::new(substring_commitments);
-
-        // Redact parts of the transcript
-        if let Some(mut redactor) = redactor {
-            redactor.redact_request(transcript_tx.data_mut());
-            redactor.redact_response(transcript_rx.data_mut());
-        }
 
         let data = SessionData::new(
             handshake_decommitment,
