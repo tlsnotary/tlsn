@@ -1,6 +1,7 @@
 /// This prover implementation talks to the notary server implemented in https://github.com/tlsnotary/notary-server, instead of the simple_notary.rs in this example directory
 use eyre::Result;
 use futures::AsyncWriteExt;
+use httparse::EMPTY_HEADER;
 use hyper::{body::to_bytes, client::conn::Parts, Body, Request, StatusCode};
 use rustls::{Certificate, ClientConfig, RootCertStore};
 use serde::{Deserialize, Serialize};
@@ -12,6 +13,7 @@ use std::{
     ops::Range,
     sync::Arc,
 };
+use tlsn_core::span::{http::HttpSpanner, SpanCommit};
 use tokio::{fs::File, io::AsyncWriteExt as _};
 use tokio_rustls::TlsConnector;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
@@ -321,4 +323,34 @@ fn find_ranges(seq: &[u8], sub_seq: &[&[u8]]) -> (Vec<Range<u32>>, Vec<Range<u32
 async fn read_pem_file(file_path: &str) -> Result<BufReader<StdFile>> {
     let key_file = File::open(file_path).await?.into_std().await;
     Ok(BufReader::new(key_file))
+}
+
+struct TwitterSpanner<'a, 'b> {
+    http: HttpSpanner<'a, 'b>,
+}
+
+impl<'a, 'b> SpanCommit for TwitterSpanner<'a, 'b> {
+    fn span_request(&mut self, request: &[u8]) -> Vec<Range<usize>> {
+        let mut headers = vec![EMPTY_HEADER; 12];
+        self.http.parse_request(&mut headers, request);
+
+        let cookie = self
+            .http
+            .header_value_span_request("Cookie", request)
+            .unwrap();
+        let authorization = self
+            .http
+            .header_value_span_request("Authorization", request)
+            .unwrap();
+        let csrf = self
+            .http
+            .header_value_span_request("X-Csrf-Token", request)
+            .unwrap();
+
+        vec![cookie, authorization, csrf]
+    }
+
+    fn span_response(&mut self, response: &[u8]) -> Vec<Range<usize>> {
+        vec![0..response.len()]
+    }
 }

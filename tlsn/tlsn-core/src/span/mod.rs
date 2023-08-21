@@ -15,9 +15,37 @@ pub mod json;
 /// created
 pub trait SpanCommit {
     /// Identify byte ranges in the request to commit to
-    fn span_request(&mut self, request: &[u8]) -> Vec<Range<u32>>;
+    fn span_request(&mut self, request: &[u8]) -> Vec<Range<usize>>;
     /// Identify byte ranges in the response to commit to
-    fn span_response(&mut self, response: &[u8]) -> Vec<Range<u32>>;
+    fn span_response(&mut self, response: &[u8]) -> Vec<Range<usize>>;
+}
+
+pub fn invert_ranges(
+    ranges: Vec<Range<usize>>,
+    len: usize,
+) -> Result<Vec<Range<usize>>, SpanError> {
+    for range in ranges.iter() {
+        // Check that there is no invalid or empty range
+        if range.start >= range.end {
+            return Err(SpanError::InvalidRange);
+        }
+
+        // Check that ranges are not out of bounds
+        if range.start >= len || range.end > len {
+            return Err(SpanError::InvalidRange);
+        }
+
+        // Check that ranges are not overlapping
+        if ranges
+            .iter()
+            .any(|r| r.start < range.end && r.end > range.start)
+        {
+            return Err(SpanError::InvalidRange);
+        }
+    }
+
+    // Now invert ranges
+    let mut inverted = (0..len).collect::<Vec<usize>>();
 }
 
 /// An error that can occur during span creation
@@ -26,4 +54,6 @@ pub enum SpanError {
     /// The request or response could not be parsed
     #[error("Error during parsing")]
     ParseError,
+    #[error("Found invalid ranges")]
+    InvalidRange,
 }
