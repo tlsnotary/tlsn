@@ -14,8 +14,8 @@ edition = "2021"
 
 
 [dev-dependencies]
-mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a1ac9c5" }
-mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a1ac9c5" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "bbe437b" }
+mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "bbe437b" }
 tlsn-block-cipher = { path = "../cipher/block-cipher" }
 tlsn-stream-cipher = { path = "../cipher/stream-cipher" }
 tlsn-universal-hash = { path = "../universal-hash" }
