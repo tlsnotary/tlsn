@@ -4,7 +4,7 @@ members = [
     "tlsn-notary",
     "tlsn-prover",
     "tests-integration",
-    "examples",    
+    "examples",
 ]
 resolver = "2"
 
@@ -21,19 +21,19 @@ tls-server-fixture = { path = "../components/tls/tls-server-fixture" }
 actor-ot = { path = "../components/actors/actor-ot" }
 uid-mux = { path = "../components/uid-mux" }
 
-tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils" }
-tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils" }
+tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "f3e3f07" }
+tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "f3e3f07" }
 
-mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "86f1687" }
-mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "86f1687" }
-mpz-garble-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "86f1687" }
-mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "86f1687" }
-mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "86f1687" }
+mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a1ac9c5" }
+mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a1ac9c5" }
+mpz-garble-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a1ac9c5" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a1ac9c5" }
+mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a1ac9c5" }
 
 
 futures = "0.3"
 tokio-util = "0.7"
-hyper = "0.14"
+hyper = "<=0.14.26"
 tokio = "1"
 
 signature = "2"
