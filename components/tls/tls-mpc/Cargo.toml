@@ -12,15 +12,26 @@ edition = "2021"
 name = "tls_mpc"
 
 [features]
-tracing = ["dep:tracing", "tlsn-block-cipher/tracing", "tlsn-stream-cipher/tracing", "tlsn-universal-hash/tracing", "tlsn-aead/tracing", "tlsn-key-exchange/tracing", "tlsn-point-addition/tracing", "tlsn-hmac-sha256/tracing", "tlsn-tls-client-async/tracing", "uid-mux/tracing"]
+tracing = [
+    "dep:tracing",
+    "tlsn-block-cipher/tracing",
+    "tlsn-stream-cipher/tracing",
+    "tlsn-universal-hash/tracing",
+    "tlsn-aead/tracing",
+    "tlsn-key-exchange/tracing",
+    "tlsn-point-addition/tracing",
+    "tlsn-hmac-sha256/tracing",
+    "tlsn-tls-client-async/tracing",
+    "uid-mux/tracing",
+]
 
 [dependencies]
 tlsn-tls-core = { path = "../tls-core", features = ["serde"] }
 tlsn-tls-backend = { path = "../tls-backend" }
 
-mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "86f1687" }
-mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "86f1687" }
-mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "86f1687" }
+mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a1ac9c5" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a1ac9c5" }
+mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a1ac9c5" }
 
 tlsn-block-cipher = { path = "../../cipher/block-cipher" }
 tlsn-stream-cipher = { path = "../../cipher/stream-cipher" }
@@ -30,7 +41,7 @@ tlsn-key-exchange = { path = "../../key-exchange" }
 tlsn-point-addition = { path = "../../point-addition" }
 tlsn-hmac-sha256 = { path = "../../prf/hmac-sha256" }
 
-tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils" }
+tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "f3e3f07" }
 
 p256.workspace = true
 rand.workspace = true

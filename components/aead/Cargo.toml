@@ -14,15 +14,20 @@ name = "aead"
 [features]
 default = ["mock"]
 mock = []
-tracing = ["dep:tracing", "tlsn-block-cipher/tracing", "tlsn-stream-cipher/tracing", "tlsn-universal-hash/tracing"]
+tracing = [
+    "dep:tracing",
+    "tlsn-block-cipher/tracing",
+    "tlsn-stream-cipher/tracing",
+    "tlsn-universal-hash/tracing",
+]
 
 [dependencies]
 tlsn-block-cipher = { path = "../cipher/block-cipher" }
 tlsn-stream-cipher = { path = "../cipher/stream-cipher" }
 tlsn-universal-hash = { path = "../universal-hash" }
-mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "86f1687" }
-mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "86f1687" }
-tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils" }
+mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a1ac9c5" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a1ac9c5" }
+tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "f3e3f07" }
 
 async-trait = "0.1"
 derive_builder = "0.12"
@@ -32,5 +37,5 @@ serde = "1"
 tracing = { version = "0.1", optional = true }
 
 [dev-dependencies]
-tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"]}
+tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
 aes-gcm = "0.10"
