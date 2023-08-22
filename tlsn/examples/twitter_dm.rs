@@ -13,7 +13,7 @@ use std::{
     ops::Range,
     sync::Arc,
 };
-use tlsn_core::span::{http::HttpSpanner, SpanCommit};
+use tlsn_core::span::{http::HttpSpanner, invert_ranges, SpanCommit, SpanError};
 use tokio::{fs::File, io::AsyncWriteExt as _};
 use tokio_rustls::TlsConnector;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
@@ -119,7 +119,7 @@ async fn main() {
     let request = Request::builder()
         .uri(format!("https://{NOTARY_DOMAIN}:{NOTARY_PORT}/session"))
         .method("POST")
-        .header("Host", NOTARY_DOMAIN.clone())
+        .header("Host", NOTARY_DOMAIN)
         // Need to specify application/json for axum to parse it as json
         .header("Content-Type", "application/json")
         .body(Body::from(payload))
@@ -250,29 +250,9 @@ async fn main() {
     client_socket.close().await.unwrap();
 
     // The Prover task should be done now, so we can grab it.
-    let mut prover = prover_task.await.unwrap().unwrap();
+    let prover = prover_task.await.unwrap().unwrap();
 
-    // Identify the ranges in the transcript that contain secrets
-    let (public_ranges, private_ranges) = find_ranges(
-        prover.sent_transcript().data(),
-        &[
-            access_token.as_bytes(),
-            auth_token.as_bytes(),
-            csrf_token.as_bytes(),
-        ],
-    );
-
-    // Commit to the outbound transcript, isolating the data that contain secrets
-    for range in public_ranges.iter().chain(private_ranges.iter()) {
-        prover.add_commitment_sent(range.clone()).unwrap();
-    }
-
-    // Commit to the full received transcript in one shot, as we don't need to redact anything
-    let recv_len = prover.recv_transcript().data().len();
-    prover.add_commitment_recv(0..recv_len as u32).unwrap();
-
-    // Finalize, returning the notarized session
-    let notarized_session = prover.finalize(None).await.unwrap();
+    let notarized_session = prover.finalize(Box::new(TwitterSpanner)).await.unwrap();
 
     debug!("Notarization complete!");
 
@@ -287,70 +267,38 @@ async fn main() {
     .unwrap();
 }
 
-/// Find the ranges of the public and private parts of a sequence.
-///
-/// Returns a tuple of `(public, private)` ranges.
-fn find_ranges(seq: &[u8], sub_seq: &[&[u8]]) -> (Vec<Range<u32>>, Vec<Range<u32>>) {
-    let mut private_ranges = Vec::new();
-    for s in sub_seq {
-        for (idx, w) in seq.windows(s.len()).enumerate() {
-            if w == *s {
-                private_ranges.push(idx as u32..(idx + w.len()) as u32);
-            }
-        }
-    }
-
-    let mut sorted_ranges = private_ranges.clone();
-    sorted_ranges.sort_by_key(|r| r.start);
-
-    let mut public_ranges = Vec::new();
-    let mut last_end = 0;
-    for r in sorted_ranges {
-        if r.start > last_end {
-            public_ranges.push(last_end..r.start);
-        }
-        last_end = r.end;
-    }
-
-    if last_end < seq.len() as u32 {
-        public_ranges.push(last_end..seq.len() as u32);
-    }
-
-    (public_ranges, private_ranges)
-}
-
 /// Read a PEM-formatted file and return its buffer reader
 async fn read_pem_file(file_path: &str) -> Result<BufReader<StdFile>> {
     let key_file = File::open(file_path).await?.into_std().await;
     Ok(BufReader::new(key_file))
 }
 
-struct TwitterSpanner<'a, 'b> {
-    http: HttpSpanner<'a, 'b>,
-}
+struct TwitterSpanner;
 
-impl<'a, 'b> SpanCommit for TwitterSpanner<'a, 'b> {
-    fn span_request(&mut self, request: &[u8]) -> Vec<Range<usize>> {
+impl SpanCommit for TwitterSpanner {
+    fn span_request(&mut self, request: &[u8]) -> Result<Vec<Range<usize>>, SpanError> {
         let mut headers = vec![EMPTY_HEADER; 12];
-        self.http.parse_request(&mut headers, request);
+        let mut http_spanner = HttpSpanner::new();
 
-        let cookie = self
-            .http
+        http_spanner.parse_request(&mut headers, request).unwrap();
+
+        let cookie = http_spanner
             .header_value_span_request("Cookie", request)
             .unwrap();
-        let authorization = self
-            .http
+        let authorization = http_spanner
             .header_value_span_request("Authorization", request)
             .unwrap();
-        let csrf = self
-            .http
+        let csrf = http_spanner
             .header_value_span_request("X-Csrf-Token", request)
             .unwrap();
 
-        vec![cookie, authorization, csrf]
+        invert_ranges(vec![cookie, authorization, csrf], request.len())
     }
 
-    fn span_response(&mut self, response: &[u8]) -> Vec<Range<usize>> {
-        vec![0..response.len()]
+    fn span_response(&mut self, response: &[u8]) -> Result<Vec<Range<usize>>, SpanError> {
+        Ok(vec![Range {
+            start: 0,
+            end: response.len(),
+        }])
     }
 }

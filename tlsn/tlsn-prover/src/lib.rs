@@ -309,11 +309,11 @@ where
         mut spanner: Box<dyn SpanCommit>,
     ) -> Result<NotarizedSession, ProverError> {
         // Add commitments identified by the spanner
-        for range in spanner.span_request(self.state.transcript_tx.data()) {
-            self.add_commitment(range, Direction::Sent)?;
+        for range in spanner.span_request(self.state.transcript_tx.data())? {
+            self.add_commitment(range.start as u32..range.end as u32, Direction::Sent)?;
         }
-        for range in spanner.span_response(self.state.transcript_rx.data()) {
-            self.add_commitment(range, Direction::Received)?;
+        for range in spanner.span_response(self.state.transcript_rx.data())? {
+            self.add_commitment(range.start as u32..range.end as u32, Direction::Received)?;
         }
 
         let Notarize {

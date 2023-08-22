@@ -22,6 +22,8 @@ pub enum ProverError {
     ServerNoCloseNotify,
     #[error(transparent)]
     CommitmentError(#[from] CommitmentError),
+    #[error(transparent)]
+    SpanError(#[from] tlsn_core::span::SpanError),
 }
 
 impl From<MpcTlsError> for ProverError {

@@ -15,11 +15,31 @@ pub mod json;
 /// created
 pub trait SpanCommit {
     /// Identify byte ranges in the request to commit to
-    fn span_request(&mut self, request: &[u8]) -> Vec<Range<usize>>;
+    fn span_request(&mut self, request: &[u8]) -> Result<Vec<Range<usize>>, SpanError>;
     /// Identify byte ranges in the response to commit to
-    fn span_response(&mut self, response: &[u8]) -> Vec<Range<usize>>;
+    fn span_response(&mut self, response: &[u8]) -> Result<Vec<Range<usize>>, SpanError>;
 }
 
+/// A Spanner that commits to the entire request and response
+pub struct TotalSpanner;
+
+impl SpanCommit for TotalSpanner {
+    fn span_request(&mut self, request: &[u8]) -> Result<Vec<Range<usize>>, SpanError> {
+        Ok(vec![Range {
+            start: 0,
+            end: request.len(),
+        }])
+    }
+
+    fn span_response(&mut self, response: &[u8]) -> Result<Vec<Range<usize>>, SpanError> {
+        Ok(vec![Range {
+            start: 0,
+            end: response.len(),
+        }])
+    }
+}
+
+/// Inverts a set of ranges, i.e. returns the complement of the ranges
 pub fn invert_ranges(
     ranges: Vec<Range<usize>>,
     len: usize,
@@ -45,15 +65,34 @@ pub fn invert_ranges(
     }
 
     // Now invert ranges
-    let mut inverted = (0..len).collect::<Vec<usize>>();
+    let mut inverted = vec![Range { start: 0, end: len }];
+
+    for range in ranges.iter() {
+        let inv = inverted
+            .iter_mut()
+            .find(|inv| range.start >= inv.start)
+            .unwrap();
+
+        let original_len = inv.end;
+        inv.end = range.start;
+
+        inverted.push(Range {
+            start: range.end,
+            end: original_len,
+        });
+    }
+
+    Ok(inverted)
 }
 
 /// An error that can occur during span creation
+#[allow(missing_docs)]
 #[derive(Debug, thiserror::Error)]
 pub enum SpanError {
-    /// The request or response could not be parsed
     #[error("Error during parsing")]
     ParseError,
     #[error("Found invalid ranges")]
     InvalidRange,
+    #[error("Custom error: {0}")]
+    Custom(String),
 }

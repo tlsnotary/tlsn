@@ -13,6 +13,7 @@ publish = false
 tlsn-tls-core.workspace = true
 tlsn-prover.workspace = true
 tlsn-notary.workspace = true
+tlsn-core.workspace = true
 tls-server-fixture.workspace = true
 
 p256 = { workspace = true, features = ["ecdsa"] }
