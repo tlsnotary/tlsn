@@ -68,14 +68,14 @@ impl SubstringsProof {
         for comm in self.inclusion_proof.commitments().iter() {
             if comm.direction() == &Direction::Sent {
                 for r in comm.ranges() {
-                    if r.end >= header.sent_len() {
+                    if r.end > header.sent_len() {
                         return Err(Error::ValidationError);
                     }
                 }
             } else {
                 // comm.direction() == &Direction::Received
                 for r in comm.ranges() {
-                    if r.end >= header.recv_len() {
+                    if r.end > header.recv_len() {
                         return Err(Error::ValidationError);
                     }
                 }
