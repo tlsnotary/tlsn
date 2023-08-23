@@ -121,6 +121,11 @@ mod tests {
 
         let range1 = Range { start: 2, end: 4 };
         let range2 = Range { start: 10, end: 15 };
+        // a full range spanning the entirety of the data
+        let range3 = Range {
+            start: 0,
+            end: sent.data().len() as u32,
+        };
 
         let expected = "ta12345".as_bytes().to_vec();
         assert_eq!(
@@ -134,6 +139,8 @@ mod tests {
             expected,
             recv.get_bytes_in_ranges(&[range1, range2]).unwrap()
         );
+
+        assert_eq!(sent.data(), sent.get_bytes_in_ranges(&[range3]).unwrap());
     }
 
     #[rstest]
@@ -144,8 +151,11 @@ mod tests {
         let err = sent.get_bytes_in_ranges(&[]);
         assert_eq!(err.unwrap_err(), Error::InternalError);
 
-        // range larger than data length
-        let bad_range = Range { start: 2, end: 40 };
+        // a range with the end bound larger than the data length
+        let bad_range = Range {
+            start: 2,
+            end: (sent.data().len() + 1) as u32,
+        };
         let err = sent.get_bytes_in_ranges(&[bad_range]);
         assert_eq!(err.unwrap_err(), Error::InternalError);
     }

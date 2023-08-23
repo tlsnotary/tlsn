@@ -8,6 +8,10 @@ publish = false
 tlsn-prover.workspace = true
 tlsn-notary.workspace = true
 tlsn-core.workspace = true
+tlsn-tls-core.workspace = true
+tlsn-tls-client.workspace = true
+notary-server = {version = "0.1.0", git = "https://github.com/tlsnotary/notary-server" }
+mpz-core.workspace = true
 
 futures.workspace = true
 tokio = { workspace = true, features = [
@@ -26,6 +30,7 @@ tracing-subscriber.workspace = true
 hyper = { version = "0.14", features = ["client", "http1"] }
 
 p256 = { workspace = true, features = ["ecdsa"] }
+elliptic-curve = { version = "0.13.5", features = ["pkcs8"]}
 webpki-roots.workspace = true
 
 async-tls = { version = "0.12", default-features = false, features = [
@@ -39,6 +44,14 @@ rustls = { version = "0.21" }
 rustls-pemfile = { version = "1.0.2" }
 tokio-rustls = { version = "0.24.1" }
 dotenv = "0.15.0"
+
+[[example]]
+name = "simple_prover"
+path = "simple_prover.rs"
+
+[[example]]
+name = "simple_verifier"
+path = "simple_verifier.rs"
 
 [[example]]
 name = "twitter_dm"
