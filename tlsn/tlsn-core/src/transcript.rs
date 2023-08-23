@@ -44,7 +44,7 @@ impl Transcript {
 
         let mut dst: Vec<u8> = Vec::new();
         for r in ranges {
-            if r.end as usize >= self.data.len() {
+            if r.end as usize > self.data.len() {
                 // range bounds must be within `src` length
                 return Err(Error::InternalError);
             } else {
