@@ -18,7 +18,6 @@ tlsn-tls-mpc = { path = "../components/tls/tls-mpc" }
 tlsn-tls-client = { path = "../components/tls/tls-client" }
 tlsn-tls-client-async = { path = "../components/tls/tls-client-async" }
 tls-server-fixture = { path = "../components/tls/tls-server-fixture" }
-actor-ot = { path = "../components/actors/actor-ot" }
 uid-mux = { path = "../components/uid-mux" }
 
 tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils" }
@@ -28,6 +27,7 @@ mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = 
 mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "be83365a" }
 mpz-garble-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "be83365a" }
 mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "be83365a" }
+mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "be83365a" }
 mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "be83365a" }
 
 

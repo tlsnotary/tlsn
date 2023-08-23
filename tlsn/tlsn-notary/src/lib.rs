@@ -14,14 +14,14 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use futures::{AsyncRead, AsyncWrite, Future, FutureExt, SinkExt, StreamExt};
+use futures::{AsyncRead, AsyncWrite, Future, FutureExt, SinkExt, StreamExt, TryFutureExt};
 
-use actor_ot::{
-    create_ot_receiver, create_ot_sender, OTActorReceiverConfig, OTActorSenderConfig,
-    ObliviousReveal,
-};
 use mpz_core::serialize::CanonicalSerialize;
 use mpz_garble::{config::Role as GarbleRole, protocol::deap::DEAPVm};
+use mpz_ot::{
+    actor::kos::{ReceiverActor, SenderActor},
+    chou_orlandi, kos,
+};
 use mpz_share_conversion as ff;
 use rand::Rng;
 use signature::Signer;
@@ -40,7 +40,7 @@ pub use config::{NotaryConfig, NotaryConfigBuilder, NotaryConfigBuilderError};
 pub use error::NotaryError;
 
 #[cfg(feature = "tracing")]
-use tracing::{info, instrument};
+use tracing::{debug, info, instrument};
 
 /// A future that performs background processing for the notary.
 ///
@@ -108,187 +108,205 @@ where
         let Notary { config, mut mux } = self;
 
         // TODO: calculate number of OTs more accurately
-        let ot_send_config = OTActorSenderConfig::builder()
-            .id("ot/1")
-            .initial_count(config.max_transcript_size() * 8)
-            .committed()
-            .build()
-            .unwrap();
-        let ot_recv_config = OTActorReceiverConfig::builder()
-            .id("ot/0")
-            .initial_count(config.max_transcript_size() * 8)
-            .build()
-            .unwrap();
+        let (ot_send_sink, ot_send_stream) = mux.get_channel("ot/1").await?.split();
+        let (ot_recv_sink, ot_recv_stream) = mux.get_channel("ot/0").await?.split();
 
-        let ((mut ot_send, ot_send_fut), (mut ot_recv, ot_recv_fut)) = futures::try_join!(
-            create_ot_sender(mux.clone(), ot_send_config),
-            create_ot_receiver(mux.clone(), ot_recv_config)
-        )
-        .unwrap();
+        let mut ot_sender_actor = SenderActor::new(
+            kos::Sender::new(
+                config.build_ot_sender_config(),
+                chou_orlandi::Receiver::new(config.build_base_ot_receiver_config()),
+            ),
+            ot_send_sink,
+            ot_send_stream,
+        );
+
+        let mut ot_receiver_actor = ReceiverActor::new(
+            kos::Receiver::new(
+                config.build_ot_receiver_config(),
+                chou_orlandi::Sender::new(config.build_base_ot_sender_config()),
+            ),
+            ot_recv_sink,
+            ot_recv_stream,
+        );
+
+        let ot_send = ot_sender_actor.sender();
+        let ot_recv = ot_receiver_actor.receiver();
+
+        let encoder_seed: [u8; 32] = rand::rngs::OsRng.gen();
 
         #[cfg(feature = "tracing")]
-        info!("Created OT senders and receivers");
+        debug!("Starting OT setup");
 
-        let notarize_fut = async {
-            let encoder_seed: [u8; 32] = rand::rngs::OsRng.gen();
+        futures::try_join!(
+            ot_sender_actor
+                .setup(config.ot_count())
+                .map_err(NotaryError::from),
+            ot_receiver_actor
+                .setup(config.ot_count())
+                .map_err(NotaryError::from)
+        )?;
 
-            futures::try_join!(ot_send.setup(), ot_recv.setup())
-                .map_err(|e| NotaryError::MpcError(Box::new(e)))?;
+        #[cfg(feature = "tracing")]
+        debug!("OT setup complete");
 
-            let mut vm = DEAPVm::new(
-                "vm",
-                GarbleRole::Follower,
-                encoder_seed,
-                mux.get_channel("vm").await?,
-                Box::new(mux.clone()),
-                ot_send.clone(),
-                ot_recv.clone(),
-            );
+        let mut ot_fut = Box::pin(
+            async move {
+                futures::try_join!(
+                    ot_sender_actor.run().map_err(NotaryError::from),
+                    ot_receiver_actor.run().map_err(NotaryError::from)
+                )?;
 
-            #[cfg(feature = "tracing")]
-            info!("Created DEAPVm");
+                Ok::<_, NotaryError>(ot_sender_actor)
+            }
+            .fuse(),
+        );
 
-            let p256_send = ff::ConverterSender::<ff::P256, _>::new(
-                ff::SenderConfig::builder().id("p256/1").build().unwrap(),
-                ot_send.clone(),
-                mux.get_channel("p256/1").await?,
-            );
+        let mut vm = DEAPVm::new(
+            "vm",
+            GarbleRole::Follower,
+            encoder_seed,
+            mux.get_channel("vm").await?,
+            Box::new(mux.clone()),
+            ot_send.clone(),
+            ot_recv.clone(),
+        );
 
-            let p256_recv = ff::ConverterReceiver::<ff::P256, _>::new(
-                ff::ReceiverConfig::builder().id("p256/0").build().unwrap(),
-                ot_recv.clone(),
-                mux.get_channel("p256/0").await?,
-            );
+        #[cfg(feature = "tracing")]
+        info!("Created DEAPVm");
 
-            let mut gf2 = ff::ConverterReceiver::<ff::Gf2_128, _>::new(
-                ff::ReceiverConfig::builder()
-                    .id("gf2")
-                    .record()
-                    .build()
-                    .unwrap(),
-                ot_recv.clone(),
-                mux.get_channel("gf2").await?,
-            );
+        let p256_send = ff::ConverterSender::<ff::P256, _>::new(
+            ff::SenderConfig::builder().id("p256/1").build().unwrap(),
+            ot_send.clone(),
+            mux.get_channel("p256/1").await?,
+        );
 
-            #[cfg(feature = "tracing")]
-            info!("Created point addition senders and receivers");
+        let p256_recv = ff::ConverterReceiver::<ff::P256, _>::new(
+            ff::ReceiverConfig::builder().id("p256/0").build().unwrap(),
+            ot_recv.clone(),
+            mux.get_channel("p256/0").await?,
+        );
 
-            let common_config = MpcTlsCommonConfig::builder()
-                .id(format!("{}/mpc_tls", &config.id()))
-                .handshake_commit(true)
+        let mut gf2 = ff::ConverterReceiver::<ff::Gf2_128, _>::new(
+            ff::ReceiverConfig::builder()
+                .id("gf2")
+                .record()
                 .build()
-                .unwrap();
-            let (ke, prf, encrypter, decrypter) = setup_components(
-                &common_config,
-                TlsRole::Follower,
-                &mut mux,
-                &mut vm,
-                p256_send,
-                p256_recv,
-                gf2.handle()
-                    .map_err(|e| NotaryError::MpcError(Box::new(e)))?,
-            )
+                .unwrap(),
+            ot_recv.clone(),
+            mux.get_channel("gf2").await?,
+        );
+
+        #[cfg(feature = "tracing")]
+        info!("Created point addition senders and receivers");
+
+        let common_config = MpcTlsCommonConfig::builder()
+            .id(format!("{}/mpc_tls", &config.id()))
+            .handshake_commit(true)
+            .build()
+            .unwrap();
+        let (ke, prf, encrypter, decrypter) = setup_components(
+            &common_config,
+            TlsRole::Follower,
+            &mut mux,
+            &mut vm,
+            p256_send,
+            p256_recv,
+            gf2.handle()
+                .map_err(|e| NotaryError::MpcError(Box::new(e)))?,
+        )
+        .await
+        .map_err(|e| NotaryError::MpcError(Box::new(e)))?;
+
+        let channel = mux.get_channel(common_config.id()).await?;
+        let mut mpc_tls = MpcTlsFollower::new(
+            MpcTlsFollowerConfig::builder()
+                .common(common_config)
+                .build()
+                .unwrap(),
+            channel,
+            ke,
+            prf,
+            encrypter,
+            decrypter,
+        );
+
+        #[cfg(feature = "tracing")]
+        info!("Finished setting up notary components");
+
+        let start_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        futures::select! {
+            res = mpc_tls.run().fuse() => res?,
+            res = ot_fut => return Err(res.err().expect("future will not return Ok here"))
+        };
+
+        #[cfg(feature = "tracing")]
+        info!("Finished TLS session");
+
+        let mut notarize_channel = mux.get_channel("notarize").await?;
+
+        let merkle_root =
+            expect_msg_or_err!(notarize_channel, TlsnMessage::TranscriptCommitmentRoot)?;
+
+        // Finalize all MPC before signing the session header
+        let (mut ot_sender_actor, _, _) = futures::try_join!(
+            ot_fut,
+            ot_send.shutdown().map_err(NotaryError::from),
+            ot_recv.shutdown().map_err(NotaryError::from)
+        )?;
+
+        ot_sender_actor.reveal().await?;
+
+        vm.finalize()
             .await
             .map_err(|e| NotaryError::MpcError(Box::new(e)))?;
 
-            let channel = mux.get_channel(common_config.id()).await?;
-            let mut mpc_tls = MpcTlsFollower::new(
-                MpcTlsFollowerConfig::builder()
-                    .common(common_config)
-                    .build()
-                    .unwrap(),
-                channel,
-                ke,
-                prf,
-                encrypter,
-                decrypter,
-            );
+        gf2.verify()
+            .await
+            .map_err(|e| NotaryError::MpcError(Box::new(e)))?;
 
-            #[cfg(feature = "tracing")]
-            info!("Finished setting up notary components");
+        #[cfg(feature = "tracing")]
+        info!("Finalized all MPC");
 
-            let start_time = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs();
+        // Create, sign and send the session header
+        let (sent_len, recv_len) = mpc_tls.bytes_transferred();
 
-            mpc_tls.run().await?;
+        let handshake_summary = HandshakeSummary::new(
+            start_time,
+            mpc_tls
+                .server_key()
+                .expect("server key is set after session"),
+            mpc_tls
+                .handshake_commitment()
+                .expect("handshake commitment is set after session"),
+        );
 
-            #[cfg(feature = "tracing")]
-            info!("Finished TLS session");
+        let session_header = SessionHeader::new(
+            encoder_seed,
+            merkle_root,
+            sent_len as u32,
+            recv_len as u32,
+            handshake_summary,
+        );
 
-            let mut notarize_channel = mux.get_channel("notarize").await?;
+        let signature = signer.sign(&session_header.to_bytes());
 
-            let merkle_root =
-                expect_msg_or_err!(notarize_channel, TlsnMessage::TranscriptCommitmentRoot)?;
+        #[cfg(feature = "tracing")]
+        info!("Signed session header");
 
-            // Finalize all MPC before signing the session header
-            ot_send
-                .reveal()
-                .await
-                .map_err(|e| NotaryError::MpcError(Box::new(e)))?;
+        notarize_channel
+            .send(TlsnMessage::SignedSessionHeader(SignedSessionHeader {
+                header: session_header.clone(),
+                signature: signature.into(),
+            }))
+            .await?;
 
-            vm.finalize()
-                .await
-                .map_err(|e| NotaryError::MpcError(Box::new(e)))?;
+        #[cfg(feature = "tracing")]
+        info!("Sent session header");
 
-            gf2.verify()
-                .await
-                .map_err(|e| NotaryError::MpcError(Box::new(e)))?;
-
-            #[cfg(feature = "tracing")]
-            info!("Finalized all MPC");
-
-            // Create, sign and send the session header
-            let (sent_len, recv_len) = mpc_tls.bytes_transferred();
-
-            let handshake_summary = HandshakeSummary::new(
-                start_time,
-                mpc_tls
-                    .server_key()
-                    .expect("server key is set after session"),
-                mpc_tls
-                    .handshake_commitment()
-                    .expect("handshake commitment is set after session"),
-            );
-
-            let session_header = SessionHeader::new(
-                encoder_seed,
-                merkle_root,
-                sent_len as u32,
-                recv_len as u32,
-                handshake_summary,
-            );
-
-            let signature = signer.sign(&session_header.to_bytes());
-
-            #[cfg(feature = "tracing")]
-            info!("Signed session header");
-
-            notarize_channel
-                .send(TlsnMessage::SignedSessionHeader(SignedSessionHeader {
-                    header: session_header.clone(),
-                    signature: signature.into(),
-                }))
-                .await?;
-
-            #[cfg(feature = "tracing")]
-            info!("Sent session header");
-
-            Ok::<_, NotaryError>(session_header)
-        };
-
-        let mut ot_send_fut = Box::pin(ot_send_fut.fuse());
-        let mut ot_recv_fut = Box::pin(ot_recv_fut.fuse());
-        let mut notarize_fut = Box::pin(notarize_fut.fuse());
-
-        // Run the notarization protocol
-        loop {
-            futures::select! {
-                _ = ot_send_fut => {},
-                _ = ot_recv_fut => {},
-                res = notarize_fut => return res
-            }
-        }
+        Ok(session_header)
     }
 }

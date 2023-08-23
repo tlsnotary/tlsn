@@ -1,3 +1,5 @@
+use mpz_ot::{chou_orlandi, kos};
+
 const DEFAULT_MAX_TRANSCRIPT_SIZE: usize = 1 << 14; // 16Kb
 
 /// Configuration for the [`Notary`](crate::Notary)
@@ -28,5 +30,31 @@ impl NotaryConfig {
     /// Get the maximum transcript size in bytes.
     pub fn max_transcript_size(&self) -> usize {
         self.max_transcript_size
+    }
+
+    pub(crate) fn build_base_ot_sender_config(&self) -> chou_orlandi::SenderConfig {
+        chou_orlandi::SenderConfig::default()
+    }
+
+    pub(crate) fn build_base_ot_receiver_config(&self) -> chou_orlandi::ReceiverConfig {
+        chou_orlandi::ReceiverConfig::builder()
+            .receiver_commit()
+            .build()
+            .unwrap()
+    }
+
+    pub(crate) fn build_ot_sender_config(&self) -> kos::SenderConfig {
+        kos::SenderConfig::builder()
+            .sender_commit()
+            .build()
+            .unwrap()
+    }
+
+    pub(crate) fn build_ot_receiver_config(&self) -> kos::ReceiverConfig {
+        kos::ReceiverConfig::default()
+    }
+
+    pub(crate) fn ot_count(&self) -> usize {
+        self.max_transcript_size * 8
     }
 }
