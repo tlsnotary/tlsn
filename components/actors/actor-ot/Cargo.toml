@@ -6,10 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-mpz-ot-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "bbe437b" }
-mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "bbe437b" }
-mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "bbe437b" }
-tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "f3e3f07" }
+mpz-ot-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "be83365a" }
+mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "be83365a" }
+mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "be83365a" }
+tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "b182066" }
 async-trait = "0.1"
 derive_builder = "0.11"
 futures = "0.3"

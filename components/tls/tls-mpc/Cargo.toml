@@ -29,9 +29,9 @@ tracing = [
 tlsn-tls-core = { path = "../tls-core", features = ["serde"] }
 tlsn-tls-backend = { path = "../tls-backend" }
 
-mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "bbe437b" }
-mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "bbe437b" }
-mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "bbe437b" }
+mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "be83365a" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "be83365a" }
+mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "be83365a" }
 
 tlsn-block-cipher = { path = "../../cipher/block-cipher" }
 tlsn-stream-cipher = { path = "../../cipher/stream-cipher" }
@@ -41,7 +41,7 @@ tlsn-key-exchange = { path = "../../key-exchange" }
 tlsn-point-addition = { path = "../../point-addition" }
 tlsn-hmac-sha256 = { path = "../../prf/hmac-sha256" }
 
-tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "f3e3f07" }
+tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "b182066" }
 
 p256.workspace = true
 rand.workspace = true

@@ -1,13 +1,21 @@
-use actor_ot::{create_ot_pair, OTActorReceiverConfig, OTActorSenderConfig, ObliviousReveal};
 use aead::{
     aes_gcm::{AesGcmConfig, MpcAesGcm, Role as AesGcmRole},
     Aead,
 };
 use block_cipher::{Aes128, BlockCipherConfigBuilder, MpcBlockCipher};
 use ff::Gf2_128;
+use futures::StreamExt;
 use hmac_sha256::{MpcPrf, Prf, SessionKeys};
 use key_exchange::{KeyExchange, KeyExchangeConfig, Role as KeyExchangeRole};
 use mpz_garble::{config::Role as GarbleRole, protocol::deap::DEAPVm, Vm};
+use mpz_ot::{
+    actor::kos::{ReceiverActor, SenderActor},
+    chou_orlandi::{
+        Receiver as BaseReceiver, ReceiverConfig as BaseReceiverConfig, Sender as BaseSender,
+        SenderConfig as BaseSenderConfig,
+    },
+    kos::{Receiver, ReceiverConfig, Sender, SenderConfig},
+};
 use mpz_share_conversion as ff;
 use p256::{NonZeroScalar, PublicKey, SecretKey};
 use point_addition::{MpcPointAddition, Role as PointAdditionRole, P256};
@@ -53,59 +61,96 @@ async fn test_components() {
     let mut leader_mux = BincodeMux::new(leader_mux_control);
     let mut follower_mux = BincodeMux::new(follower_mux_control);
 
-    let leader_ot_sender_config = OTActorSenderConfig::builder()
-        .id("ot/0")
-        .initial_count(100_000)
-        .build()
-        .unwrap();
-    let follower_ot_recvr_config = OTActorReceiverConfig::builder()
-        .id("ot/0")
-        .initial_count(100_000)
-        .build()
-        .unwrap();
+    let leader_ot_sender_config = SenderConfig::default();
+    let follower_ot_recvr_config = ReceiverConfig::default();
 
-    let follower_ot_sender_config = OTActorSenderConfig::builder()
-        .id("ot/1")
-        .initial_count(100_000)
-        .committed()
-        .build()
-        .unwrap();
-    let leader_ot_recvr_config = OTActorReceiverConfig::builder()
-        .id("ot/1")
-        .initial_count(100_000)
-        .committed()
-        .build()
-        .unwrap();
+    let follower_ot_sender_config = SenderConfig::builder().sender_commit().build().unwrap();
+    let leader_ot_recvr_config = ReceiverConfig::builder().sender_commit().build().unwrap();
 
-    let (
-        (mut leader_ot_sender, leader_ot_sender_fut),
-        (mut follower_ot_recvr, follower_ot_recvr_fut),
-    ) = create_ot_pair(
-        leader_mux.clone(),
-        follower_mux.clone(),
-        leader_ot_sender_config,
-        follower_ot_recvr_config,
-    )
-    .await
-    .unwrap();
+    let (leader_ot_sender_sink, leader_ot_sender_stream) =
+        leader_mux.get_channel("ot/0").await.unwrap().split();
 
-    tokio::spawn(leader_ot_sender_fut);
-    tokio::spawn(follower_ot_recvr_fut);
+    let (follower_ot_recvr_sink, follower_ot_recvr_stream) =
+        follower_mux.get_channel("ot/0").await.unwrap().split();
 
-    let (
-        (mut follower_ot_sender, follower_ot_sender_fut),
-        (mut leader_ot_recvr, leader_ot_recvr_fut),
-    ) = create_ot_pair(
-        follower_mux.clone(),
-        leader_mux.clone(),
-        follower_ot_sender_config,
-        leader_ot_recvr_config,
-    )
-    .await
-    .unwrap();
+    let (leader_ot_receiver_sink, leader_ot_receiver_stream) =
+        leader_mux.get_channel("ot/1").await.unwrap().split();
 
-    tokio::spawn(follower_ot_sender_fut);
-    tokio::spawn(leader_ot_recvr_fut);
+    let (follower_ot_sender_sink, follower_ot_sender_stream) =
+        follower_mux.get_channel("ot/1").await.unwrap().split();
+
+    let mut leader_ot_sender_actor = SenderActor::new(
+        Sender::new(
+            leader_ot_sender_config,
+            BaseReceiver::new(BaseReceiverConfig::default()),
+        ),
+        leader_ot_sender_sink,
+        leader_ot_sender_stream,
+    );
+
+    let mut follower_ot_recvr_actor = ReceiverActor::new(
+        Receiver::new(
+            follower_ot_recvr_config,
+            BaseSender::new(BaseSenderConfig::default()),
+        ),
+        follower_ot_recvr_sink,
+        follower_ot_recvr_stream,
+    );
+
+    let mut leader_ot_recvr_actor = ReceiverActor::new(
+        Receiver::new(
+            leader_ot_recvr_config,
+            BaseSender::new(
+                BaseSenderConfig::builder()
+                    .receiver_commit()
+                    .build()
+                    .unwrap(),
+            ),
+        ),
+        leader_ot_receiver_sink,
+        leader_ot_receiver_stream,
+    );
+
+    let mut follower_ot_sender_actor = SenderActor::new(
+        Sender::new(
+            follower_ot_sender_config,
+            BaseReceiver::new(
+                BaseReceiverConfig::builder()
+                    .receiver_commit()
+                    .build()
+                    .unwrap(),
+            ),
+        ),
+        follower_ot_sender_sink,
+        follower_ot_sender_stream,
+    );
+
+    let leader_ot_sender = leader_ot_sender_actor.sender();
+    let follower_ot_recvr = follower_ot_recvr_actor.receiver();
+
+    let leader_ot_recvr = leader_ot_recvr_actor.receiver();
+    let follower_ot_sender = follower_ot_sender_actor.sender();
+
+    tokio::spawn(async move {
+        leader_ot_sender_actor.setup(200000).await.unwrap();
+        leader_ot_sender_actor.run().await.unwrap();
+    });
+
+    tokio::spawn(async move {
+        follower_ot_recvr_actor.setup(200000).await.unwrap();
+        follower_ot_recvr_actor.run().await.unwrap();
+    });
+
+    tokio::spawn(async move {
+        leader_ot_recvr_actor.setup(200000).await.unwrap();
+        leader_ot_recvr_actor.run().await.unwrap();
+    });
+
+    tokio::spawn(async move {
+        follower_ot_sender_actor.setup(200000).await.unwrap();
+        follower_ot_sender_actor.run().await.unwrap();
+        follower_ot_sender_actor.reveal().await.unwrap();
+    });
 
     let mut leader_vm = DEAPVm::new(
         "vm",
@@ -273,9 +318,6 @@ async fn test_components() {
 
     // Setup complete
 
-    tokio::try_join!(leader_ot_sender.setup(), follower_ot_recvr.setup()).unwrap();
-    tokio::try_join!(follower_ot_sender.setup(), leader_ot_recvr.setup()).unwrap();
-
     let _ = tokio::try_join!(
         leader_ke.compute_client_key(leader_private_key),
         follower_ke.compute_client_key(follower_private_key)
@@ -311,7 +353,7 @@ async fn test_components() {
     )
     .unwrap();
 
-    let msg = vec![0u8; 128];
+    let msg = vec![0u8; 4096];
 
     let _ = tokio::try_join!(
         leader_aead.encrypt_private(vec![0u8; 8], msg.clone(), vec![]),
@@ -319,7 +361,7 @@ async fn test_components() {
     )
     .unwrap();
 
-    follower_ot_sender.reveal().await.unwrap();
+    follower_ot_sender.shutdown().await.unwrap();
 
     tokio::try_join!(leader_vm.finalize(), follower_vm.finalize()).unwrap();
     tokio::try_join!(leader_gf2.reveal(), follower_gf2.verify()).unwrap();
