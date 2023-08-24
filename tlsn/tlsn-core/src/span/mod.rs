@@ -9,6 +9,7 @@
 use std::ops::Range;
 
 pub mod http;
+#[allow(missing_docs)]
 pub mod json;
 
 /// A trait for identifying byte ranges in the request and response for which commitments will be
