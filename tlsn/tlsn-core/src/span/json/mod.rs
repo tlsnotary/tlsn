@@ -31,7 +31,8 @@ mod tests {
 
     #[test]
     fn test_json_spanner() {
-        let test_json = r#"{"foo": "bar", "baz": 123, "quux": { "a": "b", "c": "d" }}"#;
+        let test_json =
+            r#"{"foo": "bar", "baz": 123, "quux": { "a": "b", "c": "d" }, "arr": [1, 2, 3]}"#;
 
         let mut pairs =
             JsonSpanner::parse(Rule::json, test_json).unwrap_or_else(|e| panic!("{}", e));
