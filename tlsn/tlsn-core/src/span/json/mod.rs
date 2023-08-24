@@ -21,17 +21,8 @@ impl<'a> JsonSpanner<'a> {
         }
     }
 
-    pub fn add_match(
-        &mut self,
-        rule: JsonRule,
-        marker: Vec<fn(&str) -> bool>,
-        nth: Option<usize>,
-    ) -> &mut Self {
-        self.matches.push(Match {
-            rule,
-            marker,
-            nth: nth.unwrap_or_default(),
-        });
+    pub fn add_match(&mut self, rule: JsonRule, marker: Vec<fn(&str) -> bool>) -> &mut Self {
+        self.matches.push(Match { rule, marker });
 
         self
     }
@@ -46,7 +37,6 @@ impl<'a> JsonSpanner<'a> {
 pub struct Match {
     rule: JsonRule,
     marker: Vec<fn(&str) -> bool>,
-    nth: usize,
 }
 
 pub enum JsonRule {
