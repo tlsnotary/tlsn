@@ -45,7 +45,7 @@ impl<'a> JsonSpanner<'a> {
 
 pub struct Match {
     rule: JsonRule,
-    marker: fn(&str) -> bool,
+    marker: Vec<fn(&str) -> bool>,
     nth: usize,
 }
 
