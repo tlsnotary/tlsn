@@ -24,7 +24,7 @@ impl<'a> JsonSpanner<'a> {
     pub fn add_match(
         &mut self,
         rule: JsonRule,
-        marker: fn(&str) -> bool,
+        marker: Vec<fn(&str) -> bool>,
         nth: Option<usize>,
     ) -> &mut Self {
         self.matches.push(Match {
