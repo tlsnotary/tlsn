@@ -10,21 +10,12 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[lib]
-crate-type = ["cdylib", "rlib"]
-
 [dependencies]
-tlsn-prover.workspace = true
-tlsn-notary.workspace = true
 tlsn-core.workspace = true
 tlsn-tls-core.workspace = true
-tlsn-tls-client.workspace = true
 
 mpz-core.workspace = true
 
-elliptic-curve.workspace = true
 webpki-roots.workspace = true
 p256.workspace = true
-serde_json.workspace = true
-
-getrandom = { version = "0.2", features = ["js"] }
+thiserror.workspace = true
