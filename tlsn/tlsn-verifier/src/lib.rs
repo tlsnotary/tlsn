@@ -15,14 +15,13 @@ use tlsn_core::{
 pub struct Verifier {
     server_name: ServerName,
     notary_pubkey: Option<VerifyingKey>,
-    session_proof: SessionProof,
+    session_proof: Option<SessionProof>,
 }
 
 impl Verifier {
     pub fn new(
         server_name: impl TryInto<ServerName>,
         notary_pubkey: Option<VerifyingKey>,
-        session_proof: SessionProof,
     ) -> Result<Self, VerifierError> {
         let server_name = server_name
             .try_into()
@@ -31,19 +30,14 @@ impl Verifier {
         let verifier = Verifier {
             server_name,
             notary_pubkey,
-            session_proof,
+            session_proof: None,
         };
-
-        verifier.verify()?;
 
         Ok(verifier)
     }
 
-    pub fn set_new_session_proof(
-        &mut self,
-        session_proof: SessionProof,
-    ) -> Result<(), VerifierError> {
-        self.session_proof = session_proof;
+    pub fn set_session_proof(&mut self, session_proof: SessionProof) -> Result<(), VerifierError> {
+        self.session_proof = Some(session_proof);
         self.verify()
     }
 
@@ -51,7 +45,12 @@ impl Verifier {
         &self,
         proof: SubstringsProof,
     ) -> Result<(String, String), VerifierError> {
-        let header = self.session_proof.header();
+        let header = self
+            .session_proof
+            .as_ref()
+            .ok_or(VerifierError::MissingSessionProof)?
+            .header();
+
         let (sent_slices, received_slices) = proof
             .verify(header)
             .map_err(VerifierError::InvalidSubstringProof)?;
@@ -87,9 +86,14 @@ impl Verifier {
     }
 
     fn verify_notary_signature(&self, notary_pubkey: VerifyingKey) -> Result<(), VerifierError> {
-        match self.session_proof.signature {
+        let session_proof = self
+            .session_proof
+            .as_ref()
+            .ok_or(VerifierError::MissingSessionProof)?;
+
+        match session_proof.signature {
             Some(Signature::P256(sig)) => notary_pubkey
-                .verify(&self.session_proof.header.to_bytes(), &sig)
+                .verify(&session_proof.header.to_bytes(), &sig)
                 .map_err(VerifierError::InvalidNotarySignature),
             None => Err(VerifierError::MissingNotarySignature),
             Some(_) => unreachable!(),
@@ -97,12 +101,16 @@ impl Verifier {
     }
 
     fn verify_handshake_data_decommitment(&self) -> Result<(), VerifierError> {
-        let hs_commitment = self
+        let session_proof = self
             .session_proof
+            .as_ref()
+            .ok_or(VerifierError::MissingSessionProof)?;
+
+        let hs_commitment = session_proof
             .header()
             .handshake_summary()
             .handshake_commitment();
-        let hs_decommitment = self.session_proof.handshake_data_decommitment();
+        let hs_decommitment = session_proof.handshake_data_decommitment();
 
         hs_decommitment
             .verify(hs_commitment)
@@ -110,11 +118,16 @@ impl Verifier {
     }
 
     fn verify_cert_chain(&self) -> Result<(), VerifierError> {
+        let session_proof = self
+            .session_proof
+            .as_ref()
+            .ok_or(VerifierError::MissingSessionProof)?;
+
         let cert_verifier = &default_cert_verifier();
-        let header = self.session_proof.header();
+        let header = session_proof.header();
         let server_name = &self.server_name;
 
-        let hs_data = self.session_proof.handshake_data_decommitment().data();
+        let hs_data = session_proof.handshake_data_decommitment().data();
         let hs_time = header.handshake_summary().time();
 
         hs_data
@@ -146,6 +159,8 @@ pub enum VerifierError {
     Servername,
     #[error("Missing notary signature")]
     MissingNotarySignature,
+    #[error("Missing session proof")]
+    MissingSessionProof,
     #[error(transparent)]
     InvalidNotarySignature(#[from] p256::ecdsa::Error),
     #[error(transparent)]
