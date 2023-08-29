@@ -51,7 +51,6 @@ thiserror = "1"
 serde = "1"
 serde_json = "1"
 bincode = "1"
-
 hex = "0.4"
 bytes = "1.4"
 opaque-debug = "0.3"
