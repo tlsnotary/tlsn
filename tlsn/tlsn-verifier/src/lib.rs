@@ -67,7 +67,12 @@ impl Verifier {
     /// Sets a new session proof and verifies it.
     pub fn set_session_proof(&mut self, session_proof: SessionProof) -> Result<(), VerifierError> {
         self.session_proof = Some(session_proof);
-        self.verify()
+        let verify_result = self.verify();
+
+        if verify_result.is_err() {
+            self.session_proof = None;
+        }
+        verify_result
     }
 
     /// Verify a substring proof against the current session proof
