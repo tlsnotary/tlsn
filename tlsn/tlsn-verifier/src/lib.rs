@@ -6,8 +6,11 @@ use tls_core::{
     anchors::{OwnedTrustAnchor, RootCertStore},
     dns::ServerName,
     verify::{ServerCertVerifier, WebPkiVerifier},
+    Error as TlsCoreError,
 };
-use tlsn_core::{signature::Signature, substrings::proof::SubstringsProof, SessionProof};
+use tlsn_core::{
+    signature::Signature, substrings::proof::SubstringsProof, Error as TlsnCoreError, SessionProof,
+};
 
 pub struct Verifier {
     server_name: ServerName,
@@ -45,13 +48,13 @@ impl Verifier {
     }
 
     pub fn verify_substring_proof(
-        &mut self,
+        &self,
         proof: SubstringsProof,
     ) -> Result<(String, String), VerifierError> {
         let header = self.session_proof.header();
         let (sent_slices, received_slices) = proof
             .verify(header)
-            .map_err(|_| VerifierError::InvalidSubstringProof)?;
+            .map_err(VerifierError::InvalidSubstringProof)?;
 
         let mut sent_transcript = vec![b'X'; header.sent_len() as usize];
         let mut received_transcript = vec![b'X'; header.recv_len() as usize];
@@ -87,7 +90,7 @@ impl Verifier {
         match self.session_proof.signature {
             Some(Signature::P256(sig)) => notary_pubkey
                 .verify(&self.session_proof.header.to_bytes(), &sig)
-                .map_err(|_| VerifierError::InvalidNotarySignature),
+                .map_err(VerifierError::InvalidNotarySignature),
             None => Err(VerifierError::MissingNotarySignature),
             Some(_) => unreachable!(),
         }
@@ -103,7 +106,7 @@ impl Verifier {
 
         hs_decommitment
             .verify(hs_commitment)
-            .map_err(|_| VerifierError::InvalidNotarySignature)
+            .map_err(VerifierError::CommitmentError)
     }
 
     fn verify_cert_chain(&self) -> Result<(), VerifierError> {
@@ -120,7 +123,7 @@ impl Verifier {
                 UNIX_EPOCH + Duration::from_secs(hs_time),
                 server_name,
             )
-            .map_err(|_| VerifierError::InvalidCertChain)
+            .map_err(VerifierError::InvalidCertChain)
     }
 }
 
@@ -143,12 +146,12 @@ pub enum VerifierError {
     Servername,
     #[error("Missing notary signature")]
     MissingNotarySignature,
-    #[error("Invalid notary signature")]
-    InvalidNotarySignature,
-    #[error("Invalid certificate chain")]
-    InvalidCertChain,
-    #[error("Invalid substring proof")]
-    InvalidSubstringProof,
+    #[error(transparent)]
+    InvalidNotarySignature(#[from] p256::ecdsa::Error),
+    #[error(transparent)]
+    InvalidCertChain(#[from] TlsCoreError),
+    #[error(transparent)]
+    InvalidSubstringProof(#[from] TlsnCoreError),
     #[error(transparent)]
     Utf8Error(#[from] std::string::FromUtf8Error),
     #[error(transparent)]
