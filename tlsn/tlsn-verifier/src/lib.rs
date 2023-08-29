@@ -1,3 +1,20 @@
+//! The verifier library
+//!
+//! The [Verifier] is used to verify [session proofs](SessionProof) and [substrings proofs](SubstringsProof) for a given domain.
+//! When doing a notarization with the TLSNotary protocol, the output will be a [notarized session](tlsn_core::NotarizedSession),
+//! which contains a session proof. This session proof can be used by the verifier to verify parts
+//! of a notarized session's traffic data which he accepts int the form of substring proofs.
+//!
+//! So the usual workflow for a verifier is as follows:
+//! 1. Create a [new verifier](Verifier::new).
+//! 2. [Set the session proof](Verifier::set_session_proof) which should be used for substring
+//!    verification. This will also verify the session proof itself.
+//! 3. [Verify substring proofs](Verifier::verify_substring_proof).
+
+#![deny(missing_docs, unreachable_pub, unused_must_use)]
+#![deny(clippy::all)]
+#![forbid(unsafe_code)]
+
 use mpz_core::{commit::CommitmentError, serialize::CanonicalSerialize};
 use p256::ecdsa::{signature::Verifier as SignatureVerifier, VerifyingKey};
 use std::time::{Duration, UNIX_EPOCH};
@@ -12,6 +29,9 @@ use tlsn_core::{
     signature::Signature, substrings::proof::SubstringsProof, Error as TlsnCoreError, SessionProof,
 };
 
+/// The Verifier
+///
+/// The Verifier is used to verify session proofs and substrings proofs for some domain.
 pub struct Verifier {
     server_name: ServerName,
     notary_pubkey: Option<VerifyingKey>,
@@ -19,28 +39,41 @@ pub struct Verifier {
 }
 
 impl Verifier {
+    /// Create a new verifier
+    ///
+    /// Creates a new verifier for the given server name and notary public key used for
+    /// verification.
     pub fn new(
         server_name: impl TryInto<ServerName>,
-        notary_pubkey: Option<VerifyingKey>,
+        notary_pubkey: VerifyingKey,
     ) -> Result<Self, VerifierError> {
-        let server_name = server_name
-            .try_into()
-            .map_err(|_| VerifierError::Servername)?;
-
-        let verifier = Verifier {
-            server_name,
-            notary_pubkey,
-            session_proof: None,
-        };
-
-        Ok(verifier)
+        Self::new_internal(server_name, Some(notary_pubkey), None)
     }
 
+    /// Create a new verifier without providing a notary public key for verification
+    ///
+    /// # Attention
+    /// This means that the verifier will **NOT CHECK** the notary signature for session proofs so
+    /// that they can easily be forged. This mode is useful if you also run a notary server
+    /// yourself and **ONLY** pass session proofs created by this notary server to the verifier.
+    pub fn new_without_pubkey(
+        server_name: impl TryInto<ServerName>,
+    ) -> Result<Self, VerifierError> {
+        Self::new_internal(server_name, None, None)
+    }
+
+    /// Set the session proof
+    ///
+    /// Sets a new session proof and verifies it.
     pub fn set_session_proof(&mut self, session_proof: SessionProof) -> Result<(), VerifierError> {
         self.session_proof = Some(session_proof);
         self.verify()
     }
 
+    /// Verify a substring proof against the current session proof
+    ///
+    /// Checks that the given substring proof is valid and returns the sent and received
+    /// transcripts of the traffic with redaction applied.
     pub fn verify_substring_proof(
         &self,
         proof: SubstringsProof,
@@ -138,6 +171,24 @@ impl Verifier {
             )
             .map_err(VerifierError::InvalidCertChain)
     }
+
+    fn new_internal(
+        server_name: impl TryInto<ServerName>,
+        notary_pubkey: Option<VerifyingKey>,
+        session_proof: Option<SessionProof>,
+    ) -> Result<Self, VerifierError> {
+        let server_name = server_name
+            .try_into()
+            .map_err(|_| VerifierError::Servername)?;
+
+        let verifier = Verifier {
+            server_name,
+            notary_pubkey,
+            session_proof,
+        };
+
+        Ok(verifier)
+    }
 }
 
 fn default_cert_verifier() -> impl ServerCertVerifier {
@@ -153,6 +204,8 @@ fn default_cert_verifier() -> impl ServerCertVerifier {
     WebPkiVerifier::new(root_store, None)
 }
 
+/// Errors that can occur during verification
+#[allow(missing_docs)]
 #[derive(Debug, Error)]
 pub enum VerifierError {
     #[error("Invalid server name")]
