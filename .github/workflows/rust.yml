@@ -15,6 +15,7 @@ jobs:
     if: ( ! github.event.pull_request.draft )
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         package:
           - components/integration-tests
@@ -33,10 +34,9 @@ jobs:
             release: true
     defaults:
       run:
-        working-directory:  ${{ matrix.package }}
+        working-directory: ${{ matrix.package }}
     steps:
       - uses: actions/checkout@v3
-
 
       - name: Nightly with rustfmt
         uses: dtolnay/rust-toolchain@stable
@@ -67,6 +67,6 @@ jobs:
       - name: "Integration Test"
         if: ${{ matrix.release == true }}
         run: cargo test --release --tests
-      
+
       - name: "Clippy"
         run: cargo clippy --all-features -- -D warnings
