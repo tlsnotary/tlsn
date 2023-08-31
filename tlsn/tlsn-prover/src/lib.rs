@@ -60,7 +60,7 @@ use tracing::{debug, debug_span, instrument, Instrument};
 #[allow(clippy::type_complexity)]
 #[cfg_attr(
     feature = "tracing",
-    instrument(level = "info", skip(client_socket, notary_socket), err)
+    instrument(level = "info", skip(config, client_socket, notary_socket), err)
 )]
 pub async fn bind_prover<
     S: AsyncWrite + AsyncRead + Send + Unpin + 'static,
@@ -381,7 +381,7 @@ where
     }
 }
 
-#[cfg_attr(feature = "tracing", instrument(level = "debug", skip(mux), err))]
+#[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
 #[allow(clippy::type_complexity)]
 async fn setup_mpc_backend<M: MuxChannelSerde + Clone + Send + 'static>(
     config: &ProverConfig,
