@@ -149,7 +149,10 @@ async fn test_components() {
     });
 
     tokio::spawn(async move {
-        follower_ot_sender_actor.setup(OT_SETUP_COUNT).await.unwrap();
+        follower_ot_sender_actor
+            .setup(OT_SETUP_COUNT)
+            .await
+            .unwrap();
         follower_ot_sender_actor.run().await.unwrap();
         follower_ot_sender_actor.reveal().await.unwrap();
     });
