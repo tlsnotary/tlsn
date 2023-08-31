@@ -26,7 +26,7 @@ pub use setup::setup_components;
 use utils_aio::duplex::Duplex;
 
 /// A channel for sending and receiving messages between leader and follower
-pub type MpcTlsChannel = Box<dyn Duplex<msg::MpcTlsMessage, Error = std::io::Error>>;
+pub type MpcTlsChannel = Box<dyn Duplex<msg::MpcTlsMessage>>;
 
 /// Sets the role of a party
 #[allow(missing_docs)]
