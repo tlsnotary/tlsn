@@ -27,6 +27,8 @@ use tokio_util::compat::TokioAsyncReadCompatExt;
 use uid_mux::{yamux, UidYamux};
 use utils_aio::{codec::BincodeMux, mux::MuxChannel};
 
+const OT_SETUP_COUNT: usize = 50_000;
+
 /// The following integration test checks the interplay of individual components of the TLSNotary
 /// protocol. These are:
 ///   - channel multiplexing
@@ -132,22 +134,22 @@ async fn test_components() {
     let follower_ot_sender = follower_ot_sender_actor.sender();
 
     tokio::spawn(async move {
-        leader_ot_sender_actor.setup(200000).await.unwrap();
+        leader_ot_sender_actor.setup(OT_SETUP_COUNT).await.unwrap();
         leader_ot_sender_actor.run().await.unwrap();
     });
 
     tokio::spawn(async move {
-        follower_ot_recvr_actor.setup(200000).await.unwrap();
+        follower_ot_recvr_actor.setup(OT_SETUP_COUNT).await.unwrap();
         follower_ot_recvr_actor.run().await.unwrap();
     });
 
     tokio::spawn(async move {
-        leader_ot_recvr_actor.setup(200000).await.unwrap();
+        leader_ot_recvr_actor.setup(OT_SETUP_COUNT).await.unwrap();
         leader_ot_recvr_actor.run().await.unwrap();
     });
 
     tokio::spawn(async move {
-        follower_ot_sender_actor.setup(200000).await.unwrap();
+        follower_ot_sender_actor.setup(OT_SETUP_COUNT).await.unwrap();
         follower_ot_sender_actor.run().await.unwrap();
         follower_ot_sender_actor.reveal().await.unwrap();
     });
