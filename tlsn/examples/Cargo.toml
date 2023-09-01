@@ -5,12 +5,12 @@ edition = "2021"
 publish = false
 
 [dev-dependencies]
-tlsn-prover.workspace = true
+tlsn-prover = { workspace = true, features = ["tracing"] }
 tlsn-notary.workspace = true
 tlsn-core.workspace = true
 tlsn-tls-core.workspace = true
 tlsn-tls-client.workspace = true
-notary-server = {version = "0.1.0", git = "https://github.com/tlsnotary/notary-server" }
+notary-server = { version = "0.1.0", git = "https://github.com/tlsnotary/notary-server" }
 mpz-core.workspace = true
 
 futures.workspace = true
@@ -30,7 +30,7 @@ tracing-subscriber.workspace = true
 hyper = { version = "0.14", features = ["client", "http1"] }
 
 p256 = { workspace = true, features = ["ecdsa"] }
-elliptic-curve = { version = "0.13.5", features = ["pkcs8"]}
+elliptic-curve = { version = "0.13.5", features = ["pkcs8"] }
 webpki-roots.workspace = true
 
 async-tls = { version = "0.12", default-features = false, features = [
