@@ -13,6 +13,7 @@ edition = "2021"
 [dependencies]
 tlsn-core.workspace = true
 tlsn-tls-core.workspace = true
+tlsn-utils.workspace = true
 
 mpz-core.workspace = true
 

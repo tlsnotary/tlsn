@@ -17,7 +17,10 @@
 
 use mpz_core::{commit::CommitmentError, serialize::CanonicalSerialize};
 use p256::ecdsa::{signature::Verifier as SignatureVerifier, VerifyingKey};
-use std::time::{Duration, UNIX_EPOCH};
+use std::{
+    ops::Range,
+    time::{Duration, UNIX_EPOCH},
+};
 use thiserror::Error;
 use tls_core::{
     anchors::{OwnedTrustAnchor, RootCertStore},
@@ -29,8 +32,10 @@ use tlsn_core::{
     signature::Signature, substrings::proof::SubstringsProof, Direction, Error as TlsnCoreError,
     SessionProof, Transcript,
 };
+use utils::invert_range::invert_range;
 
-const VALID_REDACTMENT_CHARS: &[u8] = b"x";
+/// Valid characters for redacted parts in transcripts
+pub const VALID_REDACTMENT_CHARS: &[u8] = b"x";
 
 /// The Verifier
 ///
@@ -78,7 +83,7 @@ impl Verifier {
         verify_result
     }
 
-    /// Checks that the given `transcript` and substring `proof` are valid.
+    /// Checks that the given `transcript` and substring `proof` are valid
     ///
     /// This function checks that
     /// * the substring proof is valid against the session proof
@@ -120,15 +125,17 @@ impl Verifier {
         }
 
         // Check that redacted transcript only uses valid characters
-        let redacted_ranges = invert_ranges(
+        let redacted_ranges = invert_range(
+            &(0..transcript.data().len()),
             decommitment_slices
                 .iter()
-                .map(|el| el.range().start as usize..el.range().end as usize),
-            transcript.data().len(),
-        );
+                .map(|el| el.range().start as usize..el.range().end as usize)
+                .collect::<Vec<Range<usize>>>()
+                .as_slice(),
+        )?;
 
-        if redacted_ranges.iter().any(|el| {
-            transcript.data()[el.range().start as usize..el.range().end as usize]
+        if redacted_ranges.into_iter().any(|range| {
+            transcript.data()[range]
                 .iter()
                 .any(|el| !VALID_REDACTMENT_CHARS.contains(el))
         }) {
@@ -257,4 +264,6 @@ pub enum VerifierError {
     Utf8Error(#[from] std::string::FromUtf8Error),
     #[error(transparent)]
     CommitmentError(#[from] CommitmentError),
+    #[error(transparent)]
+    Range(#[from] utils::invert_range::RangeError),
 }

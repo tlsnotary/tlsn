@@ -58,3 +58,7 @@ opaque-debug = "0.3"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 rstest = "0.17"
+
+[patch.'https://github.com/tlsnotary/tlsn-utils']
+tlsn-utils = { git = "https://github.com/tlsnotary//tlsn-utils", branch = "invert_ranges" }
+
