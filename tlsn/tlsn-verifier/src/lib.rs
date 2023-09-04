@@ -3,7 +3,7 @@
 //! The [Verifier] is used to verify [session proofs](SessionProof) and [substrings proofs](SubstringsProof) for a given domain.
 //! When doing a notarization with the TLSNotary protocol, the output will be a [notarized session](tlsn_core::NotarizedSession),
 //! which contains a session proof. This session proof can be used by the verifier to verify parts
-//! of a notarized session's traffic data which he accepts int the form of substring proofs.
+//! of a notarized session's traffic data which he accepts in the form of substring proofs.
 //!
 //! So the usual workflow for a verifier is as follows:
 //! 1. Create a [new verifier](Verifier::new).
@@ -27,6 +27,7 @@ use tls_core::{
 };
 use tlsn_core::{
     signature::Signature, substrings::proof::SubstringsProof, Error as TlsnCoreError, SessionProof,
+    Transcript,
 };
 
 /// The Verifier
@@ -79,10 +80,12 @@ impl Verifier {
     ///
     /// Checks that the given substring proof is valid and returns the sent and received
     /// transcripts of the traffic with redaction applied.
-    pub fn verify_substring_proof(
+    pub fn verify_transcript(
         &self,
         proof: SubstringsProof,
-    ) -> Result<(String, String), VerifierError> {
+        (sent, received): (Transcript, Transcript),
+    ) -> Result<(), VerifierError> {
+        // Verify session proof against session header
         let header = self
             .session_proof
             .as_ref()
@@ -93,23 +96,13 @@ impl Verifier {
             .verify(header)
             .map_err(VerifierError::InvalidSubstringProof)?;
 
-        let mut sent_transcript = vec![b'X'; header.sent_len() as usize];
-        let mut received_transcript = vec![b'X'; header.recv_len() as usize];
+        // Check redacted transcript
+        // - check length
+        // - check that decommitments match transcript parts
+        // - check that redacted parts only contain valid characters
 
-        for slice in sent_slices {
-            sent_transcript[slice.range().start as usize..slice.range().end as usize]
-                .copy_from_slice(slice.data())
-        }
-
-        for slice in received_slices {
-            received_transcript[slice.range().start as usize..slice.range().end as usize]
-                .copy_from_slice(slice.data())
-        }
-
-        Ok((
-            String::from_utf8(sent_transcript).map_err(VerifierError::Utf8Error)?,
-            String::from_utf8(received_transcript).map_err(VerifierError::Utf8Error)?,
-        ))
+        // Return a parsed/deserialized variant somehow
+        Ok(())
     }
 
     fn verify(&self) -> Result<(), VerifierError> {
