@@ -26,9 +26,11 @@ use tls_core::{
     Error as TlsCoreError,
 };
 use tlsn_core::{
-    signature::Signature, substrings::proof::SubstringsProof, Error as TlsnCoreError, SessionProof,
-    Transcript,
+    signature::Signature, substrings::proof::SubstringsProof, Direction, Error as TlsnCoreError,
+    SessionProof, Transcript,
 };
+
+const VALID_REDACTMENT_CHARS: &[u8] = b"x";
 
 /// The Verifier
 ///
@@ -76,32 +78,63 @@ impl Verifier {
         verify_result
     }
 
-    /// Verify a substring proof against the current session proof
+    /// Checks that the given `transcript` and substring `proof` are valid.
     ///
-    /// Checks that the given substring proof is valid and returns the sent and received
-    /// transcripts of the traffic with redaction applied.
+    /// This function checks that
+    /// * the substring proof is valid against the session proof
+    /// * the length of the redacted transcript is correct
+    /// * the redacted transcript matches the decommitments
+    /// * the redacted transcript only contains valid characters
     pub fn verify_transcript(
         &self,
         proof: SubstringsProof,
-        (sent, received): (Transcript, Transcript),
+        transcript: Transcript,
+        direction: Direction,
     ) -> Result<(), VerifierError> {
-        // Verify session proof against session header
         let header = self
             .session_proof
             .as_ref()
             .ok_or(VerifierError::MissingSessionProof)?
             .header();
 
-        let (sent_slices, received_slices) = proof
+        // Verify the session proof against the session header
+        let (verified_sent, verified_received) = proof
             .verify(header)
             .map_err(VerifierError::InvalidSubstringProof)?;
 
-        // Check redacted transcript
-        // - check length
-        // - check that decommitments match transcript parts
-        // - check that redacted parts only contain valid characters
+        let (expected_len, decommitment_slices) = match direction {
+            Direction::Sent => (header.sent_len() as usize, verified_sent),
+            Direction::Received => (header.recv_len() as usize, verified_received),
+        };
 
-        // Return a parsed/deserialized variant somehow
+        // Check the redacted transcript lengths
+        if expected_len != transcript.data().len() {
+            return Err(VerifierError::InvalidRedactedTranscript);
+        }
+
+        // Check that the transcript matches the decommitments
+        if decommitment_slices.iter().any(|el| {
+            *el.data() != transcript.data()[el.range().start as usize..el.range().end as usize]
+        }) {
+            return Err(VerifierError::InvalidRedactedTranscript);
+        }
+
+        // Check that redacted transcript only uses valid characters
+        let redacted_ranges = invert_ranges(
+            decommitment_slices
+                .iter()
+                .map(|el| el.range().start as usize..el.range().end as usize),
+            transcript.data().len(),
+        );
+
+        if redacted_ranges.iter().any(|el| {
+            transcript.data()[el.range().start as usize..el.range().end as usize]
+                .iter()
+                .any(|el| !VALID_REDACTMENT_CHARS.contains(el))
+        }) {
+            return Err(VerifierError::InvalidRedactedTranscript);
+        }
+
         Ok(())
     }
 
@@ -212,6 +245,8 @@ pub enum VerifierError {
     MissingNotarySignature,
     #[error("Missing session proof")]
     MissingSessionProof,
+    #[error("The redacted transcript does not match the decommitments")]
+    InvalidRedactedTranscript,
     #[error(transparent)]
     InvalidNotarySignature(#[from] p256::ecdsa::Error),
     #[error(transparent)]
