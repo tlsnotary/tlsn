@@ -27,7 +27,7 @@ pub struct MpcTlsCommonConfig {
     #[builder(setter(into), default = "DEFAULT_OPAQUE_RX_TRANSCRIPT_ID.to_string()")]
     opaque_rx_transcript_id: String,
     /// Maximum size of the transcript in bytes.
-    #[builder(default = "2 << 13")]
+    #[builder(default = "1 << 14")]
     max_transcript_size: usize,
     /// Whether the leader commits to the handshake data.
     #[builder(default = "true")]
