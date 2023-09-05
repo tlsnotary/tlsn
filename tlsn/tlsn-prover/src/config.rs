@@ -45,6 +45,7 @@ impl ProverConfig {
             .common(
                 MpcTlsCommonConfig::builder()
                     .id(format!("{}/mpc_tls", &self.id))
+                    .max_transcript_size(self.max_transcript_size)
                     .handshake_commit(true)
                     .build()
                     .unwrap(),

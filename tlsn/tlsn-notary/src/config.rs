@@ -1,4 +1,5 @@
 use mpz_ot::{chou_orlandi, kos};
+use tls_mpc::{MpcTlsCommonConfig, MpcTlsFollowerConfig};
 
 const DEFAULT_MAX_TRANSCRIPT_SIZE: usize = 1 << 14; // 16Kb
 
@@ -52,6 +53,20 @@ impl NotaryConfig {
 
     pub(crate) fn build_ot_receiver_config(&self) -> kos::ReceiverConfig {
         kos::ReceiverConfig::default()
+    }
+
+    pub(crate) fn build_tls_mpc_config(&self) -> MpcTlsFollowerConfig {
+        MpcTlsFollowerConfig::builder()
+            .common(
+                MpcTlsCommonConfig::builder()
+                    .id(format!("{}/mpc_tls", &self.id))
+                    .max_transcript_size(self.max_transcript_size)
+                    .handshake_commit(true)
+                    .build()
+                    .unwrap(),
+            )
+            .build()
+            .unwrap()
     }
 
     pub(crate) fn ot_count(&self) -> usize {
