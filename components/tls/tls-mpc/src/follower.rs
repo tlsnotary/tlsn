@@ -245,7 +245,7 @@ impl MpcTlsFollower {
 
                 Ok(())
             }
-            typ => return Err(MpcTlsError::UnexpectedContentType(typ)),
+            typ => Err(MpcTlsError::UnexpectedContentType(typ)),
         }
     }
 
