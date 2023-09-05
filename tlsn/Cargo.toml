@@ -31,6 +31,7 @@ mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev 
 mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
 mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
 
+spansy = {git = "https://github.com/sinui0/spansy", rev = "23a6b0a"}
 
 futures = "0.3"
 tokio-util = "0.7"

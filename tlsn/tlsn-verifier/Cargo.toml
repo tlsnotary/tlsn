@@ -17,6 +17,8 @@ tlsn-utils.workspace = true
 
 mpz-core.workspace = true
 
+spansy.workspace = true
+
 webpki-roots.workspace = true
 p256.workspace = true
 thiserror.workspace = true

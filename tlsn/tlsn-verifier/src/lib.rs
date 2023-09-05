@@ -34,6 +34,9 @@ use tlsn_core::{
 };
 use utils::invert_range::invert_range;
 
+mod assert;
+use assert::VerifiedTranscript;
+
 /// Valid characters for redacted parts in transcripts
 pub const VALID_REDACTMENT_CHARS: &[u8] = b"x";
 
@@ -75,7 +78,7 @@ impl Verifier {
     /// Sets a new session proof and verifies it.
     pub fn set_session_proof(&mut self, session_proof: SessionProof) -> Result<(), VerifierError> {
         self.session_proof = Some(session_proof);
-        let verify_result = self.verify();
+        let verify_result = self.verify_session_proof();
 
         if verify_result.is_err() {
             self.session_proof = None;
@@ -95,7 +98,7 @@ impl Verifier {
         proof: SubstringsProof,
         transcript: Transcript,
         direction: Direction,
-    ) -> Result<(), VerifierError> {
+    ) -> Result<VerifiedTranscript, VerifierError> {
         let header = self
             .session_proof
             .as_ref()
@@ -142,10 +145,14 @@ impl Verifier {
             return Err(VerifierError::InvalidRedactedTranscript);
         }
 
-        Ok(())
+        let verified_transcript = VerifiedTranscript {
+            data: transcript.data().to_vec(),
+        };
+
+        Ok(verified_transcript)
     }
 
-    fn verify(&self) -> Result<(), VerifierError> {
+    fn verify_session_proof(&self) -> Result<(), VerifierError> {
         if let Some(notary_pk) = self.notary_pubkey {
             self.verify_notary_signature(notary_pk)?;
         }
