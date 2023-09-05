@@ -152,7 +152,7 @@ where
         // Reinsert state
         self.state = State::Ready { core };
 
-        Ok(tag.to_be_bytes().to_vec())
+        Ok(tag.to_bytes().to_vec())
     }
 }
 

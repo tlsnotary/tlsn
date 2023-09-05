@@ -4,7 +4,7 @@ use block_cipher::{BlockCipherConfig, MpcBlockCipher};
 use mpz_garble::{Decode, DecodePrivate, Execute, Memory, Prove, Verify, Vm};
 use tlsn_stream_cipher::{MpcStreamCipher, StreamCipherConfig};
 use tlsn_universal_hash::ghash::{mock_ghash_pair, GhashConfig};
-use utils_aio::duplex::DuplexChannel;
+use utils_aio::duplex::MemoryDuplex;
 
 use super::*;
 
@@ -79,7 +79,7 @@ where
             .unwrap(),
     );
 
-    let (leader_channel, follower_channel) = DuplexChannel::new();
+    let (leader_channel, follower_channel) = MemoryDuplex::new();
 
     let leader = MpcAesGcm::new(
         leader_config,

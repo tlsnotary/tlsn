@@ -19,11 +19,7 @@ p256 = { workspace = true, features = ["ecdsa"] }
 hyper = { workspace = true, features = ["client", "http1"] }
 
 futures.workspace = true
-tokio = { workspace = true, features = [
-    "rt",
-    "rt-multi-thread",
-    "macros",
-] }
+tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros"] }
 tokio-util.workspace = true
 
 tracing.workspace = true

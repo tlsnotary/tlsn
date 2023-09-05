@@ -1,6 +1,6 @@
 use std::pin::Pin;
 
-use actor_ot::{ReceiverActorControl, SenderActorControl};
+use mpz_ot::actor::kos::{SharedReceiver, SharedSender};
 
 use futures::future::FusedFuture;
 
@@ -9,6 +9,8 @@ use mpz_garble::protocol::deap::DEAPVm;
 use mpz_share_conversion::{ConverterSender, Gf2_128};
 use tls_core::{dns::ServerName, handshake::HandshakeData, key::PublicKey};
 use tlsn_core::{SubstringsCommitment, Transcript};
+
+use crate::ProverError;
 
 /// The state for the initialized [Prover](crate::Prover)
 #[derive(Debug)]
@@ -21,9 +23,9 @@ pub struct Initialized<T> {
 pub struct Notarize<T> {
     pub(crate) notary_mux: T,
 
-    pub(crate) vm: DEAPVm<SenderActorControl, ReceiverActorControl>,
-    pub(crate) ot_fut: Pin<Box<dyn FusedFuture<Output = ()> + Send + 'static>>,
-    pub(crate) gf2: ConverterSender<Gf2_128, SenderActorControl>,
+    pub(crate) vm: DEAPVm<SharedSender, SharedReceiver>,
+    pub(crate) ot_fut: Pin<Box<dyn FusedFuture<Output = Result<(), ProverError>> + Send + 'static>>,
+    pub(crate) gf2: ConverterSender<Gf2_128, SharedSender>,
 
     pub(crate) start_time: u64,
     pub(crate) handshake_decommitment: Decommitment<HandshakeData>,

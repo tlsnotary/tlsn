@@ -1,4 +1,4 @@
-use actor_ot::{OTActorReceiverConfig, OTActorSenderConfig};
+use mpz_ot::{chou_orlandi, kos};
 use mpz_share_conversion::{ReceiverConfig, SenderConfig};
 use tls_client::RootCertStore;
 use tls_mpc::{MpcTlsCommonConfig, MpcTlsLeaderConfig};
@@ -53,21 +53,30 @@ impl ProverConfig {
             .unwrap()
     }
 
-    pub(crate) fn build_ot_sender_config(&self) -> OTActorSenderConfig {
-        OTActorSenderConfig::builder()
-            .id("ot/0")
-            .initial_count(self.max_transcript_size() * 8)
+    pub(crate) fn build_base_ot_sender_config(&self) -> chou_orlandi::SenderConfig {
+        chou_orlandi::SenderConfig::builder()
+            .receiver_commit()
             .build()
             .unwrap()
     }
 
-    pub(crate) fn build_ot_receiver_config(&self) -> OTActorReceiverConfig {
-        OTActorReceiverConfig::builder()
-            .id("ot/1")
-            .initial_count(self.max_transcript_size() * 8)
-            .committed()
+    pub(crate) fn build_base_ot_receiver_config(&self) -> chou_orlandi::ReceiverConfig {
+        chou_orlandi::ReceiverConfig::default()
+    }
+
+    pub(crate) fn build_ot_sender_config(&self) -> kos::SenderConfig {
+        kos::SenderConfig::default()
+    }
+
+    pub(crate) fn build_ot_receiver_config(&self) -> kos::ReceiverConfig {
+        kos::ReceiverConfig::builder()
+            .sender_commit()
             .build()
             .unwrap()
+    }
+
+    pub(crate) fn ot_count(&self) -> usize {
+        self.max_transcript_size * 8
     }
 
     pub(crate) fn build_p256_sender_config(&self) -> SenderConfig {

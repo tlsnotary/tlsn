@@ -21,3 +21,21 @@ impl From<MpcTlsError> for NotaryError {
         Self::MpcError(Box::new(e))
     }
 }
+
+impl From<mpz_ot::OTError> for NotaryError {
+    fn from(e: mpz_ot::OTError) -> Self {
+        Self::MpcError(Box::new(e))
+    }
+}
+
+impl From<mpz_ot::actor::kos::SenderActorError> for NotaryError {
+    fn from(e: mpz_ot::actor::kos::SenderActorError) -> Self {
+        Self::MpcError(Box::new(e))
+    }
+}
+
+impl From<mpz_ot::actor::kos::ReceiverActorError> for NotaryError {
+    fn from(e: mpz_ot::actor::kos::ReceiverActorError) -> Self {
+        Self::MpcError(Box::new(e))
+    }
+}

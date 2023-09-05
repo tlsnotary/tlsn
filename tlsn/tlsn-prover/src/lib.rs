@@ -16,19 +16,21 @@ pub use error::ProverError;
 pub use state::{Initialized, Notarize, ProverState};
 
 use futures::{
-    future::{join, try_join, FusedFuture},
-    AsyncRead, AsyncWrite, Future, FutureExt, SinkExt, StreamExt,
+    future::FusedFuture, AsyncRead, AsyncWrite, Future, FutureExt, SinkExt, StreamExt, TryFutureExt,
 };
 use rand::Rng;
 use std::{ops::Range, pin::Pin, sync::Arc};
 use tls_client_async::{bind_client, ClosedConnection, TlsConnection};
 use tls_mpc::{setup_components, MpcTlsLeader, TlsRole};
 
-use actor_ot::{create_ot_receiver, create_ot_sender, ReceiverActorControl, SenderActorControl};
 use mpz_core::commit::HashCommit;
 use mpz_garble::{
     config::Role as GarbleRole,
     protocol::deap::{DEAPVm, PeerEncodings},
+};
+use mpz_ot::{
+    actor::kos::{ReceiverActor, SenderActor, SharedReceiver, SharedSender},
+    chou_orlandi, kos,
 };
 use mpz_share_conversion as ff;
 use tls_client::{ClientConnection, ServerName};
@@ -190,7 +192,7 @@ where
                     sent,
                     recv,
                 } = futures::select! {
-                    res = conn_fut.fuse() => res.unwrap(),
+                    res = conn_fut.fuse() => res?,
                     _ = ot_fut => return Err(OTShutdownError)?,
                 };
 
@@ -389,39 +391,63 @@ async fn setup_mpc_backend<M: MuxChannelSerde + Clone + Send + 'static>(
 ) -> Result<
     (
         MpcTlsLeader,
-        DEAPVm<SenderActorControl, ReceiverActorControl>,
-        ReceiverActorControl,
-        ff::ConverterSender<ff::Gf2_128, SenderActorControl>,
-        Pin<Box<dyn FusedFuture<Output = ()> + Send + 'static>>,
+        DEAPVm<SharedSender, SharedReceiver>,
+        SharedReceiver,
+        ff::ConverterSender<ff::Gf2_128, SharedSender>,
+        Pin<Box<dyn FusedFuture<Output = Result<(), ProverError>> + Send + 'static>>,
     ),
     ProverError,
 > {
+    let (ot_send_sink, ot_send_stream) = mux.get_channel("ot/0").await?.split();
+    let (ot_recv_sink, ot_recv_stream) = mux.get_channel("ot/1").await?.split();
+
+    let mut ot_sender_actor = SenderActor::new(
+        kos::Sender::new(
+            config.build_ot_sender_config(),
+            chou_orlandi::Receiver::new(config.build_base_ot_receiver_config()),
+        ),
+        ot_send_sink,
+        ot_send_stream,
+    );
+
+    let mut ot_receiver_actor = ReceiverActor::new(
+        kos::Receiver::new(
+            config.build_ot_receiver_config(),
+            chou_orlandi::Sender::new(config.build_base_ot_sender_config()),
+        ),
+        ot_recv_sink,
+        ot_recv_stream,
+    );
+
+    let ot_send = ot_sender_actor.sender();
+    let ot_recv = ot_receiver_actor.receiver();
+
     #[cfg(feature = "tracing")]
-    let (create_ot_sender, create_ot_receiver) = {
-        debug!("Starting OT setup");
-        (
-            |mux: M, config| create_ot_sender(mux, config).in_current_span(),
-            |mux: M, config| create_ot_receiver(mux, config).in_current_span(),
-        )
-    };
+    debug!("Starting OT setup");
 
-    let ((mut ot_send, ot_send_fut), (mut ot_recv, ot_recv_fut)) = futures::try_join!(
-        create_ot_sender(mux.clone(), config.build_ot_sender_config()),
-        create_ot_receiver(mux.clone(), config.build_ot_receiver_config())
-    )
-    .map_err(|e| ProverError::MpcError(Box::new(e)))?;
-
-    // Join the OT background futures so they can be polled together
-    let mut ot_fut = Box::pin(join(ot_send_fut, ot_recv_fut).map(|_| ()).fuse());
-
-    futures::select! {
-        _ = &mut ot_fut => return Err(OTShutdownError)?,
-        res = try_join(ot_send.setup(), ot_recv.setup()).fuse() =>
-            _ = res.map_err(|e| ProverError::MpcError(Box::new(e)))?,
-    }
+    futures::try_join!(
+        ot_sender_actor
+            .setup(config.ot_count())
+            .map_err(ProverError::from),
+        ot_receiver_actor
+            .setup(config.ot_count())
+            .map_err(ProverError::from)
+    )?;
 
     #[cfg(feature = "tracing")]
     debug!("OT setup complete");
+
+    let ot_fut = Box::pin(
+        async move {
+            futures::try_join!(
+                ot_sender_actor.run().map_err(ProverError::from),
+                ot_receiver_actor.run().map_err(ProverError::from)
+            )?;
+
+            Ok(())
+        }
+        .fuse(),
+    );
 
     let mut vm = DEAPVm::new(
         "vm",

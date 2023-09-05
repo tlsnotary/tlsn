@@ -20,10 +20,10 @@ pub use msg::AeadMessage;
 use async_trait::async_trait;
 
 use mpz_garble::ValueRef;
-use utils_aio::Channel;
+use utils_aio::duplex::Duplex;
 
 /// A channel for sending and receiving AEAD messages.
-pub type AeadChannel = Box<dyn Channel<AeadMessage>>;
+pub type AeadChannel = Box<dyn Duplex<AeadMessage>>;
 
 /// An error that can occur during AEAD operations.
 #[derive(Debug, thiserror::Error)]

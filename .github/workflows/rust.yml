@@ -20,7 +20,6 @@ jobs:
         package:
           - components/integration-tests
           - components/uid-mux
-          - components/actors/actor-ot
           - components/cipher
           - components/universal-hash
           - components/aead
