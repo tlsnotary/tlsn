@@ -252,6 +252,7 @@ impl MpcTlsFollower {
     async fn handle_close_notify(&mut self, msg: EncryptMessage) -> Result<(), MpcTlsError> {
         let EncryptMessage { typ, seq, len } = msg;
 
+        // We could use `encrypt_public` here, but it is not required.
         self.encrypter.encrypt_blind(typ, seq, len).await
     }
 
