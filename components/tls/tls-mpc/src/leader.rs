@@ -164,6 +164,11 @@ impl MpcTlsLeader {
         (self.conn_state.sent_bytes, self.conn_state.recv_bytes)
     }
 
+    /// Returns the total number of bytes sent and received.
+    fn total_bytes_transferred(&self) -> usize {
+        self.conn_state.sent_bytes + self.conn_state.recv_bytes
+    }
+
     /// Computes the combined key
     #[cfg_attr(
         feature = "tracing",
@@ -301,6 +306,15 @@ impl MpcTlsLeader {
         m: PlainMessage,
         seq: u64,
     ) -> Result<OpaqueMessage, MpcTlsError> {
+        if self.total_bytes_transferred() + m.payload.0.len()
+            > self.config.common().max_transcript_size()
+        {
+            return Err(MpcTlsError::MaxTranscriptLengthExceeded(
+                self.total_bytes_transferred() + m.payload.0.len(),
+                self.config.common().max_transcript_size(),
+            ));
+        }
+
         let explicit_nonce = seq.to_be_bytes().to_vec();
 
         let aad = make_tls12_aad(seq, m.typ, m.version, m.payload.0.len());
@@ -365,6 +379,15 @@ impl MpcTlsLeader {
         m: OpaqueMessage,
         seq: u64,
     ) -> Result<PlainMessage, MpcTlsError> {
+        if self.total_bytes_transferred() + m.payload.0.len()
+            > self.config.common().max_transcript_size()
+        {
+            return Err(MpcTlsError::MaxTranscriptLengthExceeded(
+                self.total_bytes_transferred() + m.payload.0.len(),
+                self.config.common().max_transcript_size(),
+            ));
+        }
+
         let mut payload = m.payload.0;
 
         let explicit_nonce: Vec<u8> = payload.drain(..8).collect();

@@ -38,6 +38,8 @@ pub struct MpcTlsFollower {
     decrypter: Decrypter,
 
     handshake_commitment: Option<Hash>,
+
+    closed: bool,
 }
 
 impl MpcTlsFollower {
@@ -78,12 +80,18 @@ impl MpcTlsFollower {
             encrypter,
             decrypter,
             handshake_commitment: None,
+            closed: false,
         }
     }
 
     /// Returns the amount of application data sent and received.
     pub fn bytes_transferred(&self) -> (usize, usize) {
         (self.encrypter.sent_bytes(), self.decrypter.recv_bytes())
+    }
+
+    /// Returns the total number of bytes sent and received.
+    fn total_bytes_transferred(&self) -> usize {
+        self.encrypter.sent_bytes() + self.decrypter.recv_bytes()
     }
 
     /// Returns the server's public key
@@ -182,6 +190,72 @@ impl MpcTlsFollower {
         Ok(())
     }
 
+    async fn handle_encrypt_msg(&mut self, msg: EncryptMessage) -> Result<(), MpcTlsError> {
+        let EncryptMessage { typ, seq, len } = msg;
+
+        if self.total_bytes_transferred() + len > self.config.common().max_transcript_size() {
+            return Err(MpcTlsError::MaxTranscriptLengthExceeded(
+                self.total_bytes_transferred() + len,
+                self.config.common().max_transcript_size(),
+            ));
+        }
+
+        self.encrypter.encrypt_blind(typ, seq, len).await
+    }
+
+    async fn handle_decrypt_msg(&mut self, msg: DecryptMessage) -> Result<(), MpcTlsError> {
+        let DecryptMessage {
+            typ,
+            explicit_nonce,
+            ciphertext,
+            seq,
+        } = msg;
+
+        if self.total_bytes_transferred() + ciphertext.len()
+            > self.config.common().max_transcript_size()
+        {
+            return Err(MpcTlsError::MaxTranscriptLengthExceeded(
+                self.total_bytes_transferred() + ciphertext.len(),
+                self.config.common().max_transcript_size(),
+            ));
+        }
+
+        match typ {
+            ContentType::ApplicationData => {
+                self.decrypter
+                    .decrypt_blind(typ, explicit_nonce, ciphertext, seq)
+                    .await
+            }
+            ContentType::Alert => {
+                let bytes = self
+                    .decrypter
+                    .decrypt_public(typ, explicit_nonce, ciphertext, seq)
+                    .await?;
+
+                let alert = AlertMessagePayload::read_bytes(&bytes)
+                    .ok_or(MpcTlsError::PayloadDecodingError)?;
+
+                if alert.level == AlertLevel::Fatal {
+                    return Err(MpcTlsError::ReceivedFatalAlert);
+                }
+
+                if alert.description == AlertDescription::CloseNotify {
+                    self.closed = true;
+                }
+
+                Ok(())
+            }
+            typ => Err(MpcTlsError::UnexpectedContentType(typ)),
+        }
+    }
+
+    async fn handle_close_notify(&mut self, msg: EncryptMessage) -> Result<(), MpcTlsError> {
+        let EncryptMessage { typ, seq, len } = msg;
+
+        // We could use `encrypt_public` here, but it is not required.
+        self.encrypter.encrypt_blind(typ, seq, len).await
+    }
+
     /// Runs the follower instance
     #[cfg_attr(
         feature = "tracing",
@@ -199,52 +273,22 @@ impl MpcTlsFollower {
             };
 
             match msg {
-                MpcTlsMessage::EncryptMessage(EncryptMessage { typ, seq, len }) => {
-                    self.encrypter.encrypt_blind(typ, seq, len).await?;
+                MpcTlsMessage::EncryptMessage(msg) => {
+                    self.handle_encrypt_msg(msg).await?;
                 }
-                MpcTlsMessage::DecryptMessage(DecryptMessage {
-                    typ,
-                    explicit_nonce,
-                    ciphertext,
-                    seq,
-                }) if typ == ContentType::ApplicationData => {
-                    self.decrypter
-                        .decrypt_blind(typ, explicit_nonce, ciphertext, seq)
-                        .await?;
+                MpcTlsMessage::DecryptMessage(msg) => {
+                    self.handle_decrypt_msg(msg).await?;
                 }
-                MpcTlsMessage::DecryptMessage(DecryptMessage {
-                    typ,
-                    explicit_nonce,
-                    ciphertext,
-                    seq,
-                }) => match typ {
-                    ContentType::Alert => {
-                        let bytes = self
-                            .decrypter
-                            .decrypt_public(typ, explicit_nonce, ciphertext, seq)
-                            .await?;
-
-                        let alert = AlertMessagePayload::read_bytes(&bytes)
-                            .ok_or(MpcTlsError::PayloadDecodingError)?;
-
-                        if alert.level == AlertLevel::Fatal {
-                            return Err(MpcTlsError::ReceivedFatalAlert);
-                        }
-
-                        if alert.description == AlertDescription::CloseNotify {
-                            break;
-                        }
-                    }
-                    _ => {
-                        return Err(MpcTlsError::UnexpectedContentType(typ));
-                    }
-                },
-                MpcTlsMessage::SendCloseNotify(EncryptMessage { typ, seq, len }) => {
-                    self.encrypter.encrypt_blind(typ, seq, len).await?;
+                MpcTlsMessage::SendCloseNotify(msg) => {
+                    self.handle_close_notify(msg).await?;
                 }
                 msg => {
                     return Err(MpcTlsError::UnexpectedMessage(msg));
                 }
+            }
+
+            if self.closed {
+                break;
             }
         }
 

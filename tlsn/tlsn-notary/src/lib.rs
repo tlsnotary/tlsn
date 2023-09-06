@@ -25,9 +25,7 @@ use mpz_ot::{
 use mpz_share_conversion as ff;
 use rand::Rng;
 use signature::Signer;
-use tls_mpc::{
-    setup_components, MpcTlsCommonConfig, MpcTlsFollower, MpcTlsFollowerConfig, TlsRole,
-};
+use tls_mpc::{setup_components, MpcTlsFollower, TlsRole};
 use tlsn_core::{
     msg::{SignedSessionHeader, TlsnMessage},
     signature::Signature,
@@ -199,13 +197,9 @@ where
         #[cfg(feature = "tracing")]
         info!("Created point addition senders and receivers");
 
-        let common_config = MpcTlsCommonConfig::builder()
-            .id(format!("{}/mpc_tls", &config.id()))
-            .handshake_commit(true)
-            .build()
-            .unwrap();
+        let mpc_config = config.build_tls_mpc_config();
         let (ke, prf, encrypter, decrypter) = setup_components(
-            &common_config,
+            mpc_config.common(),
             TlsRole::Follower,
             &mut mux,
             &mut vm,
@@ -217,18 +211,8 @@ where
         .await
         .map_err(|e| NotaryError::MpcError(Box::new(e)))?;
 
-        let channel = mux.get_channel(common_config.id()).await?;
-        let mut mpc_tls = MpcTlsFollower::new(
-            MpcTlsFollowerConfig::builder()
-                .common(common_config)
-                .build()
-                .unwrap(),
-            channel,
-            ke,
-            prf,
-            encrypter,
-            decrypter,
-        );
+        let channel = mux.get_channel(mpc_config.common().id()).await?;
+        let mut mpc_tls = MpcTlsFollower::new(mpc_config, channel, ke, prf, encrypter, decrypter);
 
         #[cfg(feature = "tracing")]
         info!("Finished setting up notary components");
