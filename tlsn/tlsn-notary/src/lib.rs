@@ -32,13 +32,16 @@ use tlsn_core::{
     HandshakeSummary, SessionHeader,
 };
 use uid_mux::{yamux, UidYamux, UidYamuxControl};
-use utils_aio::{codec::BincodeMux, expect_msg_or_err, mux::MuxChannelSerde};
+use utils_aio::{codec::BincodeMux, expect_msg_or_err, mux::MuxChannel};
 
 pub use config::{NotaryConfig, NotaryConfigBuilder, NotaryConfigBuilderError};
 pub use error::NotaryError;
 
 #[cfg(feature = "tracing")]
 use tracing::{debug, info, instrument};
+
+/// Bincode for serialization, multiplexing with Yamux.
+type Mux = BincodeMux<UidYamuxControl>;
 
 /// A future that performs background processing for the notary.
 ///
@@ -70,7 +73,7 @@ impl Future for NotaryBackgroundFut {
 pub fn bind_notary<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     config: NotaryConfig,
     socket: T,
-) -> Result<(Notary<BincodeMux<UidYamuxControl>>, NotaryBackgroundFut), NotaryError> {
+) -> Result<(Notary, NotaryBackgroundFut), NotaryError> {
     let mut mux = UidYamux::new(yamux::Config::default(), socket, yamux::Mode::Server);
     let mux_control = BincodeMux::new(mux.control());
 
@@ -84,17 +87,14 @@ pub fn bind_notary<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 }
 
 /// A Notary instance.
-pub struct Notary<M> {
+pub struct Notary {
     config: NotaryConfig,
-    mux: M,
+    mux: Mux,
 }
 
-impl<M> Notary<M>
-where
-    M: MuxChannelSerde + Clone + Send + 'static,
-{
+impl Notary {
     /// Create a new `Notary`.
-    pub fn new(config: NotaryConfig, mux: M) -> Self {
+    pub fn new(config: NotaryConfig, mux: Mux) -> Self {
         Self { config, mux }
     }
 
