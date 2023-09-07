@@ -1,28 +1,36 @@
 //! This module contains code for transcripts of the TLSNotary session
 
-use crate::error::Error;
-use serde::{Deserialize, Serialize};
 use std::ops::Range;
+
+use bytes::Bytes;
+use serde::{Deserialize, Serialize};
+
+use crate::error::Error;
 
 /// A transcript contains a subset of bytes from a TLS session
 #[derive(Default, Serialize, Deserialize, Clone, Debug)]
 pub struct Transcript {
     id: String,
-    data: Vec<u8>,
+    data: Bytes,
 }
 
 impl Transcript {
     /// Creates a new transcript with the given ID and data
-    pub fn new(id: &str, data: Vec<u8>) -> Self {
+    pub fn new(id: &str, data: impl Into<Bytes>) -> Self {
         Self {
             id: id.to_string(),
-            data,
+            data: data.into(),
         }
     }
 
-    /// Extends the transcript with the given data
-    pub fn extend(&mut self, data: &[u8]) {
-        self.data.extend(data);
+    /// Returns the id used to identify this transcript
+    pub fn id(&self) -> &String {
+        &self.id
+    }
+
+    /// Returns the actual traffic data of this transcript
+    pub fn data(&self) -> &Bytes {
+        &self.data
     }
 
     /// Returns the value ID for each byte in the provided range
@@ -53,16 +61,6 @@ impl Transcript {
         }
 
         Ok(dst)
-    }
-
-    /// Returns the id used to identify this transcript
-    pub fn id(&self) -> &String {
-        &self.id
-    }
-
-    /// Returns the actual traffic data of this transcript
-    pub fn data(&self) -> &[u8] {
-        &self.data
     }
 }
 
@@ -140,7 +138,10 @@ mod tests {
             recv.get_bytes_in_ranges(&[range1, range2]).unwrap()
         );
 
-        assert_eq!(sent.data(), sent.get_bytes_in_ranges(&[range3]).unwrap());
+        assert_eq!(
+            sent.data().as_ref(),
+            sent.get_bytes_in_ranges(&[range3]).unwrap()
+        );
     }
 
     #[rstest]
