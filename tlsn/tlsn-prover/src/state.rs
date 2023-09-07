@@ -10,18 +10,19 @@ use mpz_share_conversion::{ConverterSender, Gf2_128};
 use tls_core::{dns::ServerName, handshake::HandshakeData, key::PublicKey};
 use tlsn_core::{SubstringsCommitment, Transcript};
 
-use crate::ProverError;
+use crate::{Mux, ProverError};
 
 /// The state for the initialized [Prover](crate::Prover)
-#[derive(Debug)]
-pub struct Initialized<T> {
+pub struct Initialized {
     pub(crate) server_name: ServerName,
-    pub(crate) notary_mux: T,
+    pub(crate) notary_mux: Mux,
 }
 
+opaque_debug::implement!(Initialized);
+
 /// The state for the [Prover](crate::Prover) during notarization
-pub struct Notarize<T> {
-    pub(crate) notary_mux: T,
+pub struct Notarize {
+    pub(crate) notary_mux: Mux,
 
     pub(crate) vm: DEAPVm<SharedSender, SharedReceiver>,
     pub(crate) ot_fut: Pin<Box<dyn FusedFuture<Output = Result<(), ProverError>> + Send + 'static>>,
@@ -38,23 +39,16 @@ pub struct Notarize<T> {
     pub(crate) substring_commitments: Vec<SubstringsCommitment>,
 }
 
-impl<T> std::fmt::Debug for Notarize<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Notarizing")
-            .field("transcript_tx", &self.transcript_tx)
-            .field("transcript_rx", &self.transcript_rx)
-            .finish()
-    }
-}
+opaque_debug::implement!(Notarize);
 
 #[allow(missing_docs)]
 pub trait ProverState: sealed::Sealed {}
 
-impl<T> ProverState for Initialized<T> {}
-impl<T> ProverState for Notarize<T> {}
+impl ProverState for Initialized {}
+impl ProverState for Notarize {}
 
 mod sealed {
     pub trait Sealed {}
-    impl<T> Sealed for super::Initialized<T> {}
-    impl<T> Sealed for super::Notarize<T> {}
+    impl Sealed for super::Initialized {}
+    impl Sealed for super::Notarize {}
 }

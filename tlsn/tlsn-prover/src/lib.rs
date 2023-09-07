@@ -42,12 +42,15 @@ use tlsn_core::{
     Direction, NotarizedSession, SessionData, SubstringsCommitment, SubstringsCommitmentSet,
 };
 use uid_mux::{yamux, UidYamux, UidYamuxControl};
-use utils_aio::{codec::BincodeMux, expect_msg_or_err, mux::MuxChannelSerde};
+use utils_aio::{codec::BincodeMux, expect_msg_or_err, mux::MuxChannel};
 
 use crate::error::OTShutdownError;
 
 #[cfg(feature = "tracing")]
 use tracing::{debug, debug_span, instrument, Instrument};
+
+/// Bincode for serialization, multiplexing with Yamux.
+type Mux = BincodeMux<UidYamuxControl>;
 
 /// Helper function to bind a new prover to the given sockets.
 ///
@@ -71,14 +74,7 @@ pub async fn bind_prover<
     config: ProverConfig,
     client_socket: S,
     notary_socket: T,
-) -> Result<
-    (
-        TlsConnection,
-        ConnectionFuture<BincodeMux<UidYamuxControl>>,
-        MuxFuture,
-    ),
-    ProverError,
-> {
+) -> Result<(TlsConnection, ConnectionFuture, MuxFuture), ProverError> {
     let mut mux = UidYamux::new(yamux::Config::default(), notary_socket, yamux::Mode::Client);
     let mux_control = BincodeMux::new(mux.control());
 
@@ -112,13 +108,13 @@ impl Future for MuxFuture {
 }
 
 /// TLS connection future which must be polled for the connection to make progress.
-pub struct ConnectionFuture<T> {
+pub struct ConnectionFuture {
     #[allow(clippy::type_complexity)]
-    fut: Pin<Box<dyn Future<Output = Result<Prover<Notarize<T>>, ProverError>> + Send + 'static>>,
+    fut: Pin<Box<dyn Future<Output = Result<Prover<Notarize>, ProverError>> + Send + 'static>>,
 }
 
-impl<T> Future for ConnectionFuture<T> {
-    type Output = Result<Prover<Notarize<T>>, ProverError>;
+impl Future for ConnectionFuture {
+    type Output = Result<Prover<Notarize>, ProverError>;
 
     fn poll(
         mut self: Pin<&mut Self>,
@@ -135,17 +131,14 @@ pub struct Prover<T: ProverState> {
     state: T,
 }
 
-impl<T> Prover<Initialized<T>>
-where
-    T: MuxChannelSerde + Clone + Send + Sync + Unpin + 'static,
-{
+impl Prover<Initialized> {
     /// Creates a new prover.
     ///
     /// # Arguments
     ///
     /// * `config` - The configuration for the prover.
     /// * `notary_mux` - The multiplexed connection to the notary.
-    pub fn new(config: ProverConfig, notary_mux: T) -> Result<Self, ProverError> {
+    pub fn new(config: ProverConfig, notary_mux: Mux) -> Result<Self, ProverError> {
         let server_name = ServerName::try_from(config.server_dns())?;
 
         Ok(Self {
@@ -165,14 +158,14 @@ where
     pub async fn bind_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         self,
         socket: S,
-    ) -> Result<(TlsConnection, ConnectionFuture<T>), ProverError> {
+    ) -> Result<(TlsConnection, ConnectionFuture), ProverError> {
         let Initialized {
             server_name,
-            notary_mux: mux,
+            notary_mux,
         } = self.state;
 
         let (mpc_tls, vm, _, gf2, mut ot_fut) =
-            setup_mpc_backend(&self.config, mux.clone()).await?;
+            setup_mpc_backend(&self.config, notary_mux.clone()).await?;
 
         let config = tls_client::ClientConfig::builder()
             .with_safe_defaults()
@@ -225,7 +218,7 @@ where
                 Ok(Prover {
                     config: self.config,
                     state: Notarize {
-                        notary_mux: mux,
+                        notary_mux,
                         vm,
                         ot_fut,
                         gf2,
@@ -248,10 +241,7 @@ where
     }
 }
 
-impl<T> Prover<Notarize<T>>
-where
-    T: MuxChannelSerde + Clone + Send + Sync + Unpin + 'static,
-{
+impl Prover<Notarize> {
     /// Returns the transcript of the sent requests
     pub fn sent_transcript(&self) -> &Transcript {
         &self.state.transcript_tx
@@ -317,7 +307,7 @@ where
     #[cfg_attr(feature = "tracing", instrument(level = "info", skip(self), err))]
     pub async fn finalize(self) -> Result<NotarizedSession, ProverError> {
         let Notarize {
-            notary_mux: mut mux,
+            mut notary_mux,
             mut vm,
             mut ot_fut,
             mut gf2,
@@ -334,7 +324,7 @@ where
         let merkle_root = merkle_tree.root();
 
         let notarize_fut = async move {
-            let mut channel = mux.get_channel("notarize").await?;
+            let mut channel = notary_mux.get_channel("notarize").await?;
 
             channel
                 .send(TlsnMessage::TranscriptCommitmentRoot(merkle_root))
@@ -385,9 +375,9 @@ where
 
 #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
 #[allow(clippy::type_complexity)]
-async fn setup_mpc_backend<M: MuxChannelSerde + Clone + Send + 'static>(
+async fn setup_mpc_backend(
     config: &ProverConfig,
-    mut mux: M,
+    mut mux: Mux,
 ) -> Result<
     (
         MpcTlsLeader,
