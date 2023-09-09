@@ -44,6 +44,9 @@ pub enum PrfError {
 /// PRF trait for computing TLS PRF.
 #[async_trait]
 pub trait Prf {
+    /// Performs any necessary one-time setup.
+    async fn setup(&mut self) -> Result<(), PrfError>;
+
     /// Computes the session keys using the provided client random, server random and PMS.
     async fn compute_session_keys_private(
         &mut self,
@@ -109,6 +112,8 @@ mod tests {
 
         let mut leader = MpcPrf::new(leader_vm.new_thread("prf").await.unwrap());
         let mut follower = MpcPrf::new(follower_vm.new_thread("prf").await.unwrap());
+
+        futures::try_join!(leader.setup(), follower.setup()).unwrap();
 
         let pms = [42u8; 32];
         let client_random = [69u8; 32];

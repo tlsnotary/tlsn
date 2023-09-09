@@ -1,10 +1,23 @@
+use std::{
+    fmt::Debug,
+    sync::{Arc, OnceLock},
+};
+
 use async_trait::async_trait;
 
 use hmac_sha256_circuits::{build_session_keys, build_verify_data};
+use mpz_circuits::Circuit;
 use mpz_garble::{Decode, DecodePrivate, Execute, Memory, ValueRef};
-use std::fmt::Debug;
+use utils_aio::non_blocking_backend::{Backend, NonBlockingBackend};
 
 use crate::{Prf, PrfError, SessionKeys};
+
+/// Circuit for computing TLS session keys.
+static SESSION_KEYS_CIRC: OnceLock<Arc<Circuit>> = OnceLock::new();
+/// Circuit for computing TLS client verify data.
+static CLIENT_VD_CIRC: OnceLock<Arc<Circuit>> = OnceLock::new();
+/// Circuit for computing TLS server verify data.
+static SERVER_VD_CIRC: OnceLock<Arc<Circuit>> = OnceLock::new();
 
 /// MPC PRF for computing TLS HMAC-SHA256 PRF.
 pub struct MpcPrf<E>
@@ -28,6 +41,7 @@ impl<E: Memory + Execute + DecodePrivate> Debug for MpcPrf<E> {
 #[derive(Debug, Clone)]
 #[allow(missing_docs)]
 pub enum State {
+    Initialized,
     SessionKeys,
     ClientFinished {
         ms_outer_hash_state: ValueRef,
@@ -52,7 +66,7 @@ where
     )]
     pub fn new(executor: E) -> MpcPrf<E> {
         MpcPrf {
-            state: State::SessionKeys,
+            state: State::Initialized,
             executor,
         }
     }
@@ -91,9 +105,13 @@ where
             .executor
             .new_output::<[u32; 8]>("ms_inner_hash_state")?;
 
+        let circ = SESSION_KEYS_CIRC
+            .get()
+            .expect("session keys circuit is set");
+
         self.executor
             .execute(
-                build_session_keys(),
+                circ.clone(),
                 &[pms, client_random, server_random],
                 &[
                     client_write_key.clone(),
@@ -137,9 +155,15 @@ where
             .executor
             .new_output::<[u8; 12]>(&format!("prf_label/{}/vd", label))?;
 
+        let circ = match label {
+            "client finished" => CLIENT_VD_CIRC.get().expect("client vd circuit is set"),
+            "server finished" => SERVER_VD_CIRC.get().expect("server vd circuit is set"),
+            _ => unreachable!("invalid label"),
+        };
+
         self.executor
             .execute(
-                build_verify_data(label.as_bytes()),
+                circ.clone(),
                 &[outer_state, inner_state, handshake_hash_value],
                 &[vd.clone()],
             )
@@ -164,6 +188,39 @@ impl<E> Prf for MpcPrf<E>
 where
     E: Memory + Execute + Decode + DecodePrivate + Send,
 {
+    async fn setup(&mut self) -> Result<(), PrfError> {
+        let state = std::mem::replace(&mut self.state, State::Error);
+
+        let State::Initialized = state else {
+            return Err(PrfError::InvalidState(state));
+        };
+
+        // Pre-build all circuits
+        futures::join!(
+            async {
+                if SESSION_KEYS_CIRC.get().is_none() {
+                    _ = SESSION_KEYS_CIRC.set(Backend::spawn(build_session_keys).await);
+                }
+            },
+            async {
+                if CLIENT_VD_CIRC.get().is_none() {
+                    _ = CLIENT_VD_CIRC
+                        .set(Backend::spawn(|| build_verify_data(b"client finished")).await);
+                }
+            },
+            async {
+                if SERVER_VD_CIRC.get().is_none() {
+                    _ = SERVER_VD_CIRC
+                        .set(Backend::spawn(|| build_verify_data(b"server finished")).await);
+                }
+            },
+        );
+
+        self.state = State::SessionKeys;
+
+        Ok(())
+    }
+
     #[cfg_attr(
         feature = "tracing",
         tracing::instrument(level = "debug", skip(self), err)
