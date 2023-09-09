@@ -218,7 +218,7 @@ async fn test() {
     .await
     .unwrap();
 
-    let leader = MpcTlsLeader::new(
+    let mut leader = MpcTlsLeader::new(
         MpcTlsLeaderConfig::builder()
             .common(common_config.clone())
             .build()
@@ -255,6 +255,8 @@ async fn test() {
     );
 
     tokio::spawn(async move { follower.run().await.unwrap() });
+
+    leader.setup().await.unwrap();
 
     let mut root_store = tls_client::RootCertStore::empty();
     root_store.add(&Certificate(CA_CERT_DER.to_vec())).unwrap();

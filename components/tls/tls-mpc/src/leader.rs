@@ -108,6 +108,13 @@ impl MpcTlsLeader {
         }
     }
 
+    /// Performs any one-time setup operations.
+    pub async fn setup(&mut self) -> Result<(), MpcTlsError> {
+        self.prf.setup().await?;
+
+        Ok(())
+    }
+
     /// Sets the protocol version.
     pub fn set_protocol_version(&mut self, version: ProtocolVersion) {
         self.conn_state.protocol_version = Some(version);
