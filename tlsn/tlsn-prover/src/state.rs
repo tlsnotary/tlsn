@@ -1,31 +1,39 @@
-use std::pin::Pin;
-
 use mpz_ot::actor::kos::{SharedReceiver, SharedSender};
-
-use futures::future::FusedFuture;
 
 use mpz_core::{commit::Decommitment, hash::Hash};
 use mpz_garble::protocol::deap::DEAPVm;
 use mpz_share_conversion::{ConverterSender, Gf2_128};
-use tls_core::{dns::ServerName, handshake::HandshakeData, key::PublicKey};
+use tls_core::{handshake::HandshakeData, key::PublicKey};
+use tls_mpc::MpcTlsLeader;
 use tlsn_core::{SubstringsCommitment, Transcript};
 
-use crate::{Mux, ProverError};
+use crate::{Mux, MuxFuture, OTFuture};
 
-/// The state for the initialized [Prover](crate::Prover)
-pub struct Initialized {
-    pub(crate) server_name: ServerName,
-    pub(crate) notary_mux: Mux,
-}
+/// Entry state
+pub struct Initialized;
 
 opaque_debug::implement!(Initialized);
+
+/// State after MPC setup has completed.
+pub struct Setup {
+    pub(crate) notary_mux: Mux,
+    pub(crate) mux_fut: MuxFuture,
+
+    pub(crate) mpc_tls: MpcTlsLeader,
+    pub(crate) vm: DEAPVm<SharedSender, SharedReceiver>,
+    pub(crate) ot_fut: OTFuture,
+    pub(crate) gf2: ConverterSender<Gf2_128, SharedSender>,
+}
+
+opaque_debug::implement!(Setup);
 
 /// The state for the [Prover](crate::Prover) during notarization
 pub struct Notarize {
     pub(crate) notary_mux: Mux,
+    pub(crate) mux_fut: MuxFuture,
 
     pub(crate) vm: DEAPVm<SharedSender, SharedReceiver>,
-    pub(crate) ot_fut: Pin<Box<dyn FusedFuture<Output = Result<(), ProverError>> + Send + 'static>>,
+    pub(crate) ot_fut: OTFuture,
     pub(crate) gf2: ConverterSender<Gf2_128, SharedSender>,
 
     pub(crate) start_time: u64,
@@ -45,10 +53,12 @@ opaque_debug::implement!(Notarize);
 pub trait ProverState: sealed::Sealed {}
 
 impl ProverState for Initialized {}
+impl ProverState for Setup {}
 impl ProverState for Notarize {}
 
 mod sealed {
     pub trait Sealed {}
     impl Sealed for super::Initialized {}
+    impl Sealed for super::Setup {}
     impl Sealed for super::Notarize {}
 }
