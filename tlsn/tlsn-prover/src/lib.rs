@@ -474,7 +474,9 @@ async fn setup_mpc_backend(
     .map_err(|e| ProverError::MpcError(Box::new(e)))?;
 
     let channel = mux.get_channel(mpc_tls_config.common().id()).await?;
-    let mpc_tls = MpcTlsLeader::new(mpc_tls_config, channel, ke, prf, encrypter, decrypter);
+    let mut mpc_tls = MpcTlsLeader::new(mpc_tls_config, channel, ke, prf, encrypter, decrypter);
+
+    mpc_tls.setup().await?;
 
     #[cfg(feature = "tracing")]
     debug!("MPC backend setup complete");
