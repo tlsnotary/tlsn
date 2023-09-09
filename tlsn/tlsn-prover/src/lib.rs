@@ -53,56 +53,13 @@ use tracing::{debug, debug_span, instrument, Instrument};
 /// Bincode for serialization, multiplexing with Yamux.
 type Mux = BincodeMux<UidYamuxControl>;
 
-/// Multiplexer future which must be polled to make progress.
-pub struct MuxFuture {
-    fut: Pin<Box<dyn FusedFuture<Output = Result<(), ProverError>> + Send + 'static>>,
-}
-
-impl Future for MuxFuture {
-    type Output = Result<(), ProverError>;
-
-    fn poll(
-        mut self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Self::Output> {
-        self.fut.as_mut().poll(cx)
-    }
-}
-
-impl FusedFuture for MuxFuture {
-    fn is_terminated(&self) -> bool {
-        self.fut.is_terminated()
-    }
-}
-
-struct OTFuture {
-    fut: Pin<Box<dyn FusedFuture<Output = Result<(), ProverError>> + Send + 'static>>,
-}
-
-impl Future for OTFuture {
-    type Output = Result<(), ProverError>;
-
-    fn poll(
-        mut self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Self::Output> {
-        self.fut.as_mut().poll(cx)
-    }
-}
-
-impl FusedFuture for OTFuture {
-    fn is_terminated(&self) -> bool {
-        self.fut.is_terminated()
-    }
-}
-
-/// TLS connection future which must be polled for the connection to make progress.
-pub struct ConnectionFuture {
+/// Prover future which must be polled for the connection to make progress.
+pub struct ProverFuture {
     #[allow(clippy::type_complexity)]
     fut: Pin<Box<dyn Future<Output = Result<Prover<Notarize>, ProverError>> + Send + 'static>>,
 }
 
-impl Future for ConnectionFuture {
+impl Future for ProverFuture {
     type Output = Result<Prover<Notarize>, ProverError>;
 
     fn poll(
@@ -188,7 +145,7 @@ impl Prover<Setup> {
     pub async fn connect<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         self,
         socket: S,
-    ) -> Result<(TlsConnection, ConnectionFuture), ProverError> {
+    ) -> Result<(TlsConnection, ProverFuture), ProverError> {
         let Setup {
             notary_mux,
             mut mux_fut,
@@ -271,7 +228,7 @@ impl Prover<Setup> {
             fut
         });
 
-        Ok((conn, ConnectionFuture { fut }))
+        Ok((conn, ProverFuture { fut }))
     }
 }
 
@@ -523,4 +480,46 @@ async fn setup_mpc_backend(
     debug!("MPC backend setup complete");
 
     Ok((mpc_tls, vm, ot_recv, gf2, ot_fut))
+}
+
+struct MuxFuture {
+    fut: Pin<Box<dyn FusedFuture<Output = Result<(), ProverError>> + Send + 'static>>,
+}
+
+impl Future for MuxFuture {
+    type Output = Result<(), ProverError>;
+
+    fn poll(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        self.fut.as_mut().poll(cx)
+    }
+}
+
+impl FusedFuture for MuxFuture {
+    fn is_terminated(&self) -> bool {
+        self.fut.is_terminated()
+    }
+}
+
+struct OTFuture {
+    fut: Pin<Box<dyn FusedFuture<Output = Result<(), ProverError>> + Send + 'static>>,
+}
+
+impl Future for OTFuture {
+    type Output = Result<(), ProverError>;
+
+    fn poll(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        self.fut.as_mut().poll(cx)
+    }
+}
+
+impl FusedFuture for OTFuture {
+    fn is_terminated(&self) -> bool {
+        self.fut.is_terminated()
+    }
 }
