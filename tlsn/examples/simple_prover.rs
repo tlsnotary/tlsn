@@ -15,7 +15,7 @@ use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::debug;
 
 use notary_server::{ClientType, NotarizationSessionRequest, NotarizationSessionResponse};
-use tlsn_prover::{bind_prover, ProverConfig};
+use tlsn_prover::{Prover, ProverConfig};
 
 const SERVER_DOMAIN: &str = "example.com";
 const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36";
@@ -47,21 +47,24 @@ async fn main() {
         .build()
         .unwrap();
 
+    // Create a Prover and set it up with the Notary
+    // This will set up the MPC backend prior to connecting to the server.
+    let prover = Prover::new(config)
+        .setup(notary_socket.compat())
+        .await
+        .unwrap();
+
     // Connect to the Server via TCP. This is the TLS client socket.
     let client_socket = tokio::net::TcpStream::connect((SERVER_DOMAIN, 443))
         .await
         .unwrap();
 
-    // Bind the Prover to the sockets.
+    // Bind the Prover to the server connection.
     // The returned `mpc_tls_connection` is an MPC TLS connection to the Server: all data written
     // to/read from it will be encrypted/decrypted using MPC with the Notary.
-    let (mpc_tls_connection, prover_fut, notary_fut) =
-        bind_prover(config, client_socket.compat(), notary_socket.compat())
-            .await
-            .unwrap();
+    let (mpc_tls_connection, prover_fut) = prover.connect(client_socket.compat()).await.unwrap();
 
-    // Spawn the Notary connection task and the Prover task to be run concurrently
-    tokio::spawn(notary_fut);
+    // Spawn the Prover task to be run concurrently
     let prover_task = tokio::spawn(prover_fut);
 
     // Attach the hyper HTTP client to the MPC TLS connection

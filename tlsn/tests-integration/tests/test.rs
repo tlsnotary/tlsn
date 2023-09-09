@@ -2,7 +2,7 @@ use futures::AsyncWriteExt;
 use hyper::{body::to_bytes, Body, Request, StatusCode};
 use tls_server_fixture::{bind_test_server_hyper, CA_CERT_DER, SERVER_DOMAIN};
 use tlsn_notary::{bind_notary, NotaryConfig};
-use tlsn_prover::{bind_prover, ProverConfig};
+use tlsn_prover::{Prover, ProverConfig};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::instrument;
@@ -28,20 +28,20 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
         .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
         .unwrap();
 
-    let (tls_connection, prover_fut, mux_fut) = bind_prover(
+    let prover = Prover::new(
         ProverConfig::builder()
             .id("test")
             .server_dns(SERVER_DOMAIN)
             .root_cert_store(root_store)
             .build()
             .unwrap(),
-        client_socket.compat(),
-        notary_socket.compat(),
     )
+    .setup(notary_socket.compat())
     .await
     .unwrap();
 
-    tokio::spawn(mux_fut);
+    let (tls_connection, prover_fut) = prover.connect(client_socket.compat()).await.unwrap();
+
     let prover_task = tokio::spawn(prover_fut);
 
     let (mut request_sender, connection) = hyper::client::conn::handshake(tls_connection.compat())

@@ -17,7 +17,7 @@ use tokio_rustls::TlsConnector;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::debug;
 
-use tlsn_prover::{bind_prover, ProverConfig};
+use tlsn_prover::{Prover, ProverConfig};
 
 // Setting of the application server
 const SERVER_DOMAIN: &str = "twitter.com";
@@ -174,7 +174,6 @@ async fn main() {
         ..
     } = connection_task.await.unwrap().unwrap();
 
-    // Connect to the Server
     // Basic default prover config using the session_id returned from /session endpoint just now
     let config = ProverConfig::builder()
         .id(notarization_response.session_id)
@@ -182,18 +181,20 @@ async fn main() {
         .build()
         .unwrap();
 
+    // Create a new prover and set up the MPC backend.
+    let prover = Prover::new(config)
+        .setup(notary_tls_socket.compat())
+        .await
+        .unwrap();
+
     let client_socket = tokio::net::TcpStream::connect((SERVER_DOMAIN, 443))
         .await
         .unwrap();
 
-    // Bind the Prover to the sockets
-    let (tls_connection, prover_fut, mux_fut) =
-        bind_prover(config, client_socket.compat(), notary_tls_socket.compat())
-            .await
-            .unwrap();
+    // Bind the Prover to server connection
+    let (tls_connection, prover_fut) = prover.connect(client_socket.compat()).await.unwrap();
 
-    // Spawn the Prover and Mux tasks to be run concurrently
-    tokio::spawn(mux_fut);
+    // Spawn the Prover to be run concurrently
     let prover_task = tokio::spawn(prover_fut);
 
     // Attach the hyper HTTP client to the TLS connection
