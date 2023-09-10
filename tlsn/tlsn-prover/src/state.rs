@@ -27,6 +27,25 @@ pub struct Setup {
 
 opaque_debug::implement!(Setup);
 
+/// State after the TLS connection has been closed.
+pub struct Closed {
+    pub(crate) notary_mux: Mux,
+    pub(crate) mux_fut: MuxFuture,
+
+    pub(crate) vm: DEAPVm<SharedSender, SharedReceiver>,
+    pub(crate) ot_fut: OTFuture,
+    pub(crate) gf2: ConverterSender<Gf2_128, SharedSender>,
+
+    pub(crate) start_time: u64,
+    pub(crate) handshake_decommitment: Decommitment<HandshakeData>,
+    pub(crate) server_public_key: PublicKey,
+
+    pub(crate) transcript_tx: Transcript,
+    pub(crate) transcript_rx: Transcript,
+}
+
+opaque_debug::implement!(Closed);
+
 /// The state for the [Prover](crate::Prover) during notarization
 pub struct Notarize {
     pub(crate) notary_mux: Mux,
@@ -54,11 +73,13 @@ pub trait ProverState: sealed::Sealed {}
 
 impl ProverState for Initialized {}
 impl ProverState for Setup {}
+impl ProverState for Closed {}
 impl ProverState for Notarize {}
 
 mod sealed {
     pub trait Sealed {}
     impl Sealed for super::Initialized {}
     impl Sealed for super::Setup {}
+    impl Sealed for super::Closed {}
     impl Sealed for super::Notarize {}
 }

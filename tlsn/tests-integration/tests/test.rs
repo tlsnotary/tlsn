@@ -76,7 +76,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
 
     client_socket.close().await.unwrap();
 
-    let mut prover = prover_task.await.unwrap().unwrap();
+    let mut prover = prover_task.await.unwrap().unwrap().start_notarize();
 
     let sent_len = prover.sent_transcript().data().len();
     let recv_len = prover.recv_transcript().data().len();
