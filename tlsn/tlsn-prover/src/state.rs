@@ -68,6 +68,29 @@ pub struct Notarize {
 
 opaque_debug::implement!(Notarize);
 
+impl From<Closed> for Notarize {
+    fn from(value: Closed) -> Self {
+        Self {
+            notary_mux: value.notary_mux,
+            mux_fut: value.mux_fut,
+
+            vm: value.vm,
+            ot_fut: value.ot_fut,
+            gf2: value.gf2,
+
+            start_time: value.start_time,
+            handshake_decommitment: value.handshake_decommitment,
+            server_public_key: value.server_public_key,
+
+            transcript_tx: value.transcript_tx,
+            transcript_rx: value.transcript_rx,
+
+            commitments: Vec::new(),
+            substring_commitments: Vec::new(),
+        }
+    }
+}
+
 #[allow(missing_docs)]
 pub trait ProverState: sealed::Sealed {}
 

@@ -245,35 +245,9 @@ impl Prover<Closed> {
     /// If the verifier is a Notary, this function will transition the prover to the next state
     /// where it can generate commitments to the transcript prior to finalization.
     pub fn start_notarize(self) -> Prover<Notarize> {
-        let Closed {
-            notary_mux,
-            mux_fut,
-            vm,
-            ot_fut,
-            gf2,
-            start_time,
-            handshake_decommitment,
-            server_public_key,
-            transcript_tx,
-            transcript_rx,
-        } = self.state;
-
         Prover {
             config: self.config,
-            state: Notarize {
-                notary_mux,
-                mux_fut,
-                vm,
-                ot_fut,
-                gf2,
-                start_time,
-                handshake_decommitment,
-                server_public_key,
-                transcript_tx,
-                transcript_rx,
-                commitments: Vec::new(),
-                substring_commitments: Vec::new(),
-            },
+            state: self.state.into(),
         }
     }
 }
