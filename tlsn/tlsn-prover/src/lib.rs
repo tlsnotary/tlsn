@@ -13,8 +13,7 @@ mod state;
 
 pub use config::ProverConfig;
 pub use error::ProverError;
-use state::Setup;
-pub use state::{Initialized, Notarize, ProverState};
+pub use state::{Closed, Initialized, Notarize, ProverState, Setup};
 
 use futures::{
     future::FusedFuture, AsyncRead, AsyncWrite, Future, FutureExt, SinkExt, StreamExt, TryFutureExt,
@@ -56,11 +55,11 @@ type Mux = BincodeMux<UidYamuxControl>;
 /// Prover future which must be polled for the connection to make progress.
 pub struct ProverFuture {
     #[allow(clippy::type_complexity)]
-    fut: Pin<Box<dyn Future<Output = Result<Prover<Notarize>, ProverError>> + Send + 'static>>,
+    fut: Pin<Box<dyn Future<Output = Result<Prover<Closed>, ProverError>> + Send + 'static>>,
 }
 
 impl Future for ProverFuture {
-    type Output = Result<Prover<Notarize>, ProverError>;
+    type Output = Result<Prover<Closed>, ProverError>;
 
     fn poll(
         mut self: Pin<&mut Self>,
@@ -207,7 +206,7 @@ impl Prover<Setup> {
 
                 Ok(Prover {
                     config: self.config,
-                    state: Notarize {
+                    state: Closed {
                         notary_mux,
                         mux_fut,
                         vm,
@@ -218,8 +217,6 @@ impl Prover<Setup> {
                         server_public_key,
                         transcript_tx: Transcript::new("tx", sent),
                         transcript_rx: Transcript::new("rx", recv),
-                        commitments: Vec::default(),
-                        substring_commitments: Vec::default(),
                     },
                 })
             };
@@ -229,6 +226,29 @@ impl Prover<Setup> {
         });
 
         Ok((conn, ProverFuture { fut }))
+    }
+}
+
+impl Prover<Closed> {
+    /// Returns the transcript of the sent requests
+    pub fn sent_transcript(&self) -> &Transcript {
+        &self.state.transcript_tx
+    }
+
+    /// Returns the transcript of the received responses
+    pub fn recv_transcript(&self) -> &Transcript {
+        &self.state.transcript_rx
+    }
+
+    /// Starts notarization of the TLS session.
+    ///
+    /// If the verifier is a Notary, this function will transition the prover to the next state
+    /// where it can generate commitments to the transcript prior to finalization.
+    pub fn start_notarize(self) -> Prover<Notarize> {
+        Prover {
+            config: self.config,
+            state: self.state.into(),
+        }
     }
 }
 

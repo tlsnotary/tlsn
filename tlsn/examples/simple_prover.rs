@@ -103,9 +103,10 @@ async fn main() {
     client_socket.close().await.unwrap();
 
     // The Prover task should be done now, so we can grab the Prover.
-    let mut prover = prover_task.await.unwrap().unwrap();
+    let prover = prover_task.await.unwrap().unwrap();
 
-    // Prepare for selective disclosure.
+    // Prepare for notarization.
+    let mut prover = prover.start_notarize();
 
     // Identify the ranges in the outbound data which contain data which we want to disclose
     let (public_ranges, _) = find_ranges(

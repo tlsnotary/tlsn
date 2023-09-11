@@ -249,7 +249,10 @@ async fn main() {
     client_socket.close().await.unwrap();
 
     // The Prover task should be done now, so we can grab it.
-    let mut prover = prover_task.await.unwrap().unwrap();
+    let prover = prover_task.await.unwrap().unwrap();
+
+    // Prepare for notarization
+    let mut prover = prover.start_notarize();
 
     // Identify the ranges in the transcript that contain secrets
     let (public_ranges, private_ranges) = find_ranges(
