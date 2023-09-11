@@ -237,6 +237,8 @@ async fn test_components() {
     let mut leader_prf = MpcPrf::new(leader_vm.new_thread("prf").await.unwrap());
     let mut follower_prf = MpcPrf::new(follower_vm.new_thread("prf").await.unwrap());
 
+    futures::try_join!(leader_prf.setup(), follower_prf.setup(),).unwrap();
+
     let block_cipher_config = BlockCipherConfigBuilder::default()
         .id("aes")
         .build()
