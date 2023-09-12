@@ -27,7 +27,7 @@ use crate::{
     MpcTlsChannel, MpcTlsError, MpcTlsFollowerConfig,
 };
 
-/// Wrapper for protocol instances of the follower
+/// The follower of the MPC TLS protocol.
 pub struct MpcTlsFollower {
     config: MpcTlsFollowerConfig,
     channel: MpcTlsChannel,
