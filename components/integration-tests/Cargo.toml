@@ -17,9 +17,9 @@ lto = true
 
 
 [dev-dependencies]
-mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
-mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
-mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "76ed767" }
+mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "76ed767" }
+mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "76ed767" }
 tlsn-block-cipher = { path = "../cipher/block-cipher" }
 tlsn-stream-cipher = { path = "../cipher/stream-cipher" }
 tlsn-universal-hash = { path = "../universal-hash" }
