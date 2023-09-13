@@ -49,10 +49,10 @@ use crate::error::OTShutdownError;
 #[cfg(feature = "tracing")]
 use tracing::{debug, debug_span, instrument, Instrument};
 
-/// Bincode for serialization, multiplexing with Yamux.
+/// A muxer which uses Bincode for serialization, Yamux for multiplexing.
 type Mux = BincodeMux<UidYamuxControl>;
 
-/// Prover future which must be polled for the connection to make progress.
+/// Prover future which must be polled for the TLS connection to make progress.
 pub struct ProverFuture {
     #[allow(clippy::type_complexity)]
     fut: Pin<Box<dyn Future<Output = Result<Prover<Closed>, ProverError>> + Send + 'static>>,
@@ -386,6 +386,7 @@ impl Prover<Notarize> {
     }
 }
 
+/// Performs a setup of the various MPC subprotocols.
 #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
 #[allow(clippy::type_complexity)]
 async fn setup_mpc_backend(
@@ -504,6 +505,7 @@ async fn setup_mpc_backend(
     Ok((mpc_tls, vm, ot_recv, gf2, ot_fut))
 }
 
+/// A future which must be polled for the muxer to make progress.
 struct MuxFuture {
     fut: Pin<Box<dyn FusedFuture<Output = Result<(), ProverError>> + Send + 'static>>,
 }
@@ -525,6 +527,7 @@ impl FusedFuture for MuxFuture {
     }
 }
 
+/// A future which must be polled for the Oblivious Transfer protocol to make progress.
 struct OTFuture {
     fut: Pin<Box<dyn FusedFuture<Output = Result<(), ProverError>> + Send + 'static>>,
 }

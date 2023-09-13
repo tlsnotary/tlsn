@@ -1,4 +1,4 @@
-//! This crate provides tooling for instantiating our MPC machinery for leader and follower.
+//! This crate provides tooling for instantiating MPC TLS machinery for leader and follower.
 
 //! The main API objects are [MpcTlsLeader] and [MpcTlsFollower], which wrap the necessary
 //! cryptographic machinery and also an [MpcTlsChannel] for communication.

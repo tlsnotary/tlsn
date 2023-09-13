@@ -16,6 +16,7 @@ opaque_debug::implement!(Initialized);
 
 /// State after MPC setup has completed.
 pub struct Setup {
+    /// A muxer for communication with the Notary
     pub(crate) notary_mux: Mux,
     pub(crate) mux_fut: MuxFuture,
 
@@ -48,6 +49,7 @@ opaque_debug::implement!(Closed);
 
 /// The state for the [Prover](crate::Prover) during notarization
 pub struct Notarize {
+    /// A muxer for communication with the Notary
     pub(crate) notary_mux: Mux,
     pub(crate) mux_fut: MuxFuture,
 
