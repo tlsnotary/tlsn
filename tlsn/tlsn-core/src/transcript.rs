@@ -4,6 +4,7 @@ use std::ops::Range;
 
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
+use utils::range::RangeSet;
 
 use crate::error::Error;
 
@@ -34,7 +35,7 @@ impl Transcript {
     }
 
     /// Returns the value ID for each byte in the provided range
-    pub fn get_ids(&self, range: &Range<u32>) -> Vec<String> {
+    pub fn get_ids(&self, range: &Range<usize>) -> Vec<String> {
         range
             .clone()
             .map(|idx| format!("{}/{}", self.id, idx))
@@ -44,23 +45,22 @@ impl Transcript {
     /// Returns a concatenated bytestring located in the given ranges of the transcript.
     ///
     /// Is only called with non-empty well-formed `ranges`
-    pub(crate) fn get_bytes_in_ranges(&self, ranges: &[Range<u32>]) -> Result<Vec<u8>, Error> {
+    pub(crate) fn get_bytes_in_ranges(&self, ranges: &RangeSet<usize>) -> Result<Vec<u8>, Error> {
         // at least one range must be present
         if ranges.is_empty() {
             return Err(Error::InternalError);
         }
 
-        let mut dst: Vec<u8> = Vec::new();
-        for r in ranges {
-            if r.end as usize > self.data.len() {
-                // range bounds must be within `src` length
-                return Err(Error::InternalError);
-            } else {
-                dst.extend(&self.data[r.start as usize..r.end as usize]);
-            }
+        // all ranges must be within the bounds of the transcript
+        if ranges.max().unwrap() > self.data.len() {
+            return Err(Error::InternalError);
         }
 
-        Ok(dst)
+        Ok(ranges
+            .iter_ranges()
+            .flat_map(|range| &self.data[range])
+            .copied()
+            .collect())
     }
 }
 
@@ -68,19 +68,19 @@ impl Transcript {
 #[derive(PartialEq, Debug, Clone, Default)]
 pub struct TranscriptSlice {
     /// A byte range of this slice
-    range: Range<u32>,
+    range: Range<usize>,
     /// The actual byte content of the slice
     data: Vec<u8>,
 }
 
 impl TranscriptSlice {
-    pub(crate) fn new(range: Range<u32>, data: Vec<u8>) -> Self {
+    pub(crate) fn new(range: Range<usize>, data: Vec<u8>) -> Self {
         Self { range, data }
     }
 
     /// Returns the range of bytes this slice refers to in the transcript
-    pub fn range(&self) -> &Range<u32> {
-        &self.range
+    pub fn range(&self) -> Range<usize> {
+        self.range.clone()
     }
 
     /// Returns the actual traffic data of this slice
@@ -122,25 +122,26 @@ mod tests {
         // a full range spanning the entirety of the data
         let range3 = Range {
             start: 0,
-            end: sent.data().len() as u32,
+            end: sent.data().len(),
         };
 
         let expected = "ta12345".as_bytes().to_vec();
         assert_eq!(
             expected,
-            sent.get_bytes_in_ranges(&[range1.clone(), range2.clone()])
+            sent.get_bytes_in_ranges(&RangeSet::from([range1.clone(), range2.clone()]))
                 .unwrap()
         );
 
         let expected = "taved 9".as_bytes().to_vec();
         assert_eq!(
             expected,
-            recv.get_bytes_in_ranges(&[range1, range2]).unwrap()
+            recv.get_bytes_in_ranges(&RangeSet::from([range1, range2]))
+                .unwrap()
         );
 
         assert_eq!(
             sent.data().as_ref(),
-            sent.get_bytes_in_ranges(&[range3]).unwrap()
+            sent.get_bytes_in_ranges(&RangeSet::from([range3])).unwrap()
         );
     }
 
@@ -149,15 +150,15 @@ mod tests {
         let (sent, _) = transcripts;
 
         // no_range provided
-        let err = sent.get_bytes_in_ranges(&[]);
+        let err = sent.get_bytes_in_ranges(&RangeSet::default());
         assert_eq!(err.unwrap_err(), Error::InternalError);
 
         // a range with the end bound larger than the data length
         let bad_range = Range {
             start: 2,
-            end: (sent.data().len() + 1) as u32,
+            end: (sent.data().len() + 1),
         };
-        let err = sent.get_bytes_in_ranges(&[bad_range]);
+        let err = sent.get_bytes_in_ranges(&RangeSet::from([bad_range]));
         assert_eq!(err.unwrap_err(), Error::InternalError);
     }
 }

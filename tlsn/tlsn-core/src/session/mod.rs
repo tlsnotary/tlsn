@@ -91,7 +91,7 @@ impl NotarizedSession {
                     let opening = Blake3Opening::new(
                         com.merkle_tree_index(),
                         bytes,
-                        com.ranges(),
+                        com.ranges().clone(),
                         com.direction().clone(),
                         *com.salt(),
                     );

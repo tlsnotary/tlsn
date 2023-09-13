@@ -35,7 +35,7 @@ pub use transcript::{Direction, Transcript, TranscriptSlice};
 /// commitment type is [crate::commitment::Blake3]).
 ///
 /// This value must not exceed bcs's MAX_SEQUENCE_LENGTH limit (which is (1 << 31) - 1 by default)
-const MAX_TOTAL_COMMITTED_DATA: u64 = 1_000_000_000;
+const MAX_TOTAL_COMMITTED_DATA: usize = 1_000_000_000;
 
 /// The encoding id
 ///

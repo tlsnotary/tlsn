@@ -59,14 +59,12 @@ fn main() {
     // to disclose with 'X'
     let mut transcript_tx = vec![b'X'; header.sent_len() as usize];
     for slice in sent_slices {
-        transcript_tx[slice.range().start as usize..slice.range().end as usize]
-            .copy_from_slice(slice.data())
+        transcript_tx[slice.range()].copy_from_slice(slice.data())
     }
 
     let mut transcript_rx = vec![b'X'; header.recv_len() as usize];
     for slice in recv_slices {
-        transcript_rx[slice.range().start as usize..slice.range().end as usize]
-            .copy_from_slice(slice.data())
+        transcript_rx[slice.range()].copy_from_slice(slice.data())
     }
 
     println!("-------------------------------------------------------------------");

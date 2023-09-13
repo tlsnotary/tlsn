@@ -67,15 +67,15 @@ impl SubstringsProof {
         // range bound must not exceed total data sent/received
         for comm in self.inclusion_proof.commitments().iter() {
             if comm.direction() == &Direction::Sent {
-                for r in comm.ranges() {
-                    if r.end > header.sent_len() {
+                for r in comm.ranges().iter_ranges() {
+                    if r.end > header.sent_len() as usize {
                         return Err(Error::ValidationError);
                     }
                 }
             } else {
                 // comm.direction() == &Direction::Received
-                for r in comm.ranges() {
-                    if r.end > header.recv_len() {
+                for r in comm.ranges().iter_ranges() {
+                    if r.end > header.recv_len() as usize {
                         return Err(Error::ValidationError);
                     }
                 }
@@ -113,10 +113,8 @@ impl SubstringsProof {
             }
 
             // each individual range must match
-            for i in 0..o.ranges().len() {
-                if o.ranges()[i] != c.ranges()[i] {
-                    return Err(Error::ValidationError);
-                }
+            if o.ranges() != c.ranges() {
+                return Err(Error::ValidationError);
             }
         }
 

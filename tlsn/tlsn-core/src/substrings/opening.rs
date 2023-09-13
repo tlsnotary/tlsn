@@ -8,8 +8,7 @@ use mpz_circuits::types::ValueType;
 use mpz_core::commit::{Decommitment, Nonce};
 use mpz_garble_core::{encoding_state::Active, EncodedValue, Encoder};
 use serde::{Deserialize, Serialize};
-use std::ops::Range;
-use utils::iter::DuplicateCheck;
+use utils::{iter::DuplicateCheck, range::RangeSet};
 
 #[cfg(feature = "tracing")]
 use tracing::instrument;
@@ -51,9 +50,9 @@ impl SubstringsOpeningSet {
         }
 
         // --- the total of all openings' bytes must not be too large
-        let mut total_opening_bytes = 0u64;
+        let mut total_opening_bytes = 0;
         for o in &self.0 {
-            total_opening_bytes += o.opening().len() as u64;
+            total_opening_bytes += o.opening().len();
             if total_opening_bytes > crate::MAX_TOTAL_COMMITTED_DATA {
                 return Err(Error::ValidationError);
             }
@@ -127,10 +126,10 @@ impl SubstringsOpening {
                 // collect active encodings for each byte in each range
                 let active_encodings: Vec<EncodedValue<Active>> = opening
                     .ranges()
-                    .iter()
+                    .iter_ranges()
                     .flat_map(|range| {
                         transcript
-                            .get_ids(range)
+                            .get_ids(&range)
                             .into_iter()
                             .map(|id| {
                                 header
@@ -181,7 +180,7 @@ impl SubstringsOpening {
     }
 
     /// Returns the ranges of this opening
-    pub fn ranges(&self) -> &[Range<u32>] {
+    pub fn ranges(&self) -> &RangeSet<usize> {
         match self {
             SubstringsOpening::Blake3(opening) => opening.ranges(),
         }
@@ -193,10 +192,10 @@ impl SubstringsOpening {
         let mut opening = self.opening().to_vec();
 
         self.ranges()
-            .iter()
+            .iter_ranges()
             .map(|r| {
-                let range_len = (r.end - r.start) as usize;
-                TranscriptSlice::new(r.clone(), opening.drain(0..range_len).collect())
+                let end = r.end;
+                TranscriptSlice::new(r, opening.drain(0..end).collect())
             })
             .collect()
     }
@@ -212,7 +211,7 @@ pub struct Blake3Opening {
     opening: Vec<u8>,
     /// The absolute byte ranges within the notarized data. The committed data
     /// is located in those ranges. Ranges do not overlap.
-    ranges: Vec<Range<u32>>,
+    ranges: RangeSet<usize>,
     direction: Direction,
     /// Randomness used to salt the commitment
     salt: Nonce,
@@ -223,14 +222,14 @@ impl Blake3Opening {
     pub fn new(
         merkle_tree_index: u32,
         opening: Vec<u8>,
-        ranges: &[Range<u32>],
+        ranges: RangeSet<usize>,
         direction: Direction,
         salt: Nonce,
     ) -> Self {
         Self {
             merkle_tree_index,
             opening,
-            ranges: ranges.to_vec(),
+            ranges,
             direction,
             salt,
         }
@@ -262,31 +261,14 @@ impl Blake3Opening {
             return Err(Error::ValidationError);
         }
 
-        for r in self.ranges() {
-            // ranges must be valid
-            if r.end <= r.start {
-                return Err(Error::ValidationError);
-            }
-        }
-
-        // ranges must not overlap and must be ascending relative to each other
-        for pair in self.ranges().windows(2) {
-            if pair[1].start < pair[0].end {
-                return Err(Error::ValidationError);
-            }
-        }
-
         // the total length of all ranges must be sane
-        let mut total_len = 0u64;
-        for r in self.ranges() {
-            total_len += (r.end - r.start) as u64;
-            if total_len > crate::MAX_TOTAL_COMMITTED_DATA {
-                return Err(Error::ValidationError);
-            }
+        let total_len = self.ranges.len();
+        if total_len > crate::MAX_TOTAL_COMMITTED_DATA {
+            return Err(Error::ValidationError);
         }
 
         // opening's bytecount must match the total length of all ranges
-        if self.opening.len() as u64 != total_len {
+        if self.opening.len() != total_len {
             return Err(Error::ValidationError);
         }
 
@@ -304,7 +286,7 @@ impl Blake3Opening {
     }
 
     /// Returns the ranges of this opening
-    pub fn ranges(&self) -> &[Range<u32>] {
+    pub fn ranges(&self) -> &RangeSet<usize> {
         &self.ranges
     }
 

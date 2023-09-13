@@ -264,12 +264,12 @@ impl Prover<Notarize> {
     }
 
     /// Add a commitment to the sent requests
-    pub fn add_commitment_sent(&mut self, range: Range<u32>) -> Result<(), ProverError> {
+    pub fn add_commitment_sent(&mut self, range: Range<usize>) -> Result<(), ProverError> {
         self.add_commitment(range, Direction::Sent)
     }
 
     /// Add a commitment to the received responses
-    pub fn add_commitment_recv(&mut self, range: Range<u32>) -> Result<(), ProverError> {
+    pub fn add_commitment_recv(&mut self, range: Range<usize>) -> Result<(), ProverError> {
         self.add_commitment(range, Direction::Received)
     }
 
@@ -279,7 +279,7 @@ impl Prover<Notarize> {
     )]
     fn add_commitment(
         &mut self,
-        range: Range<u32>,
+        range: Range<usize>,
         direction: Direction,
     ) -> Result<(), ProverError> {
         let ids = match direction {
@@ -304,7 +304,7 @@ impl Prover<Notarize> {
         let commitment = SubstringsCommitment::new(
             self.state.substring_commitments.len() as u32,
             commitment,
-            vec![range],
+            range.into(),
             direction,
             *decommitment.nonce(),
         );

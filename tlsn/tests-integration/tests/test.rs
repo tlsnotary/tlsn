@@ -81,8 +81,8 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
     let sent_len = prover.sent_transcript().data().len();
     let recv_len = prover.recv_transcript().data().len();
 
-    prover.add_commitment_sent(0..sent_len as u32).unwrap();
-    prover.add_commitment_recv(0..recv_len as u32).unwrap();
+    prover.add_commitment_sent(0..sent_len).unwrap();
+    prover.add_commitment_recv(0..recv_len).unwrap();
 
     _ = prover.finalize().await.unwrap();
 }

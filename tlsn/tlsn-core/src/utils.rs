@@ -48,7 +48,7 @@ fn merged_slice(
     a: &TranscriptSlice,
     b: &TranscriptSlice,
 ) -> Result<Option<TranscriptSlice>, Error> {
-    let merged_range = match merged_range(a.range(), b.range()) {
+    let merged_range = match merged_range(&a.range(), &b.range()) {
         // ranges neither overlap nor are adjacent
         None => return Ok(None),
         Some(range) => range,
@@ -77,7 +77,7 @@ fn merged_slice(
 }
 
 /// If two ranges overlap or are adjacent, returns a merged range
-fn merged_range(a: &Range<u32>, b: &Range<u32>) -> Option<Range<u32>> {
+fn merged_range(a: &Range<usize>, b: &Range<usize>) -> Option<Range<usize>> {
     if !is_overlapping_or_adjacent(a, b) {
         return None;
     }
@@ -88,7 +88,7 @@ fn merged_range(a: &Range<u32>, b: &Range<u32>) -> Option<Range<u32>> {
 }
 
 /// Returns true if two ranges overlap or are adjacent
-fn is_overlapping_or_adjacent(a: &Range<u32>, b: &Range<u32>) -> bool {
+fn is_overlapping_or_adjacent(a: &Range<usize>, b: &Range<usize>) -> bool {
     // find purported overlap's start and end
     let ov_start = std::cmp::max(a.start, b.start);
     let ov_end = std::cmp::min(a.end, b.end);
