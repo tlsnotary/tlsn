@@ -4,7 +4,7 @@ use std::ops::Range;
 
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
-use utils::range::RangeSet;
+use utils::range::{RangeDifference, RangeSet, RangeUnion};
 
 use crate::error::Error;
 
@@ -61,6 +61,73 @@ impl Transcript {
             .flat_map(|range| &self.data[range])
             .copied()
             .collect())
+    }
+}
+
+/// A transcript which may have some data redacted.
+#[derive(Debug)]
+pub struct RedactedTranscript {
+    data: Vec<u8>,
+    /// Ranges of data which have been authenticated
+    auth: RangeSet<usize>,
+    /// Ranges of data which have been redacted
+    redacted: RangeSet<usize>,
+}
+
+impl RedactedTranscript {
+    /// Creates a new redacted transcript with the given length.
+    ///
+    /// All bytes in the transcript are initialized to 0.
+    ///
+    /// # Arguments
+    ///
+    /// * `len` - The length of the transcript
+    /// * `slices` - A list of slices of data which have been authenticated
+    pub fn new(&mut self, len: usize, slices: Vec<TranscriptSlice>) -> Self {
+        let mut data = vec![0u8; len];
+        let mut auth = RangeSet::default();
+        for slice in slices {
+            data[slice.range()].copy_from_slice(slice.data());
+            auth = auth.union(&slice.range());
+        }
+        let redacted = RangeSet::from(0..len).difference(&auth);
+
+        Self {
+            data,
+            auth,
+            redacted,
+        }
+    }
+
+    /// Returns a reference to the data.
+    ///
+    /// # Warning
+    ///
+    /// Not all of the data in the transcript may have been authenticated. See
+    /// [authed](RedactedTranscript::authed) for a set of ranges which have been.
+    pub fn data(&self) -> &[u8] {
+        &self.data
+    }
+
+    /// Returns all the ranges of data which have been authenticated.
+    pub fn authed(&self) -> &RangeSet<usize> {
+        &self.auth
+    }
+
+    /// Returns all the ranges of data which have been redacted.
+    pub fn redacted(&self) -> &RangeSet<usize> {
+        &self.redacted
+    }
+
+    /// Sets all bytes in the transcript which were redacted.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - The value to set the redacted bytes to
+    pub fn set_redacted(&mut self, value: u8) {
+        for range in self.redacted().clone().iter_ranges() {
+            self.data[range].fill(value);
+        }
     }
 }
 
