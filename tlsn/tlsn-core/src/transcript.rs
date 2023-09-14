@@ -151,7 +151,7 @@ impl TranscriptSlice {
     }
 
     /// Returns the actual traffic data of this slice
-    pub fn data(&self) -> &Vec<u8> {
+    pub fn data(&self) -> &[u8] {
         &self.data
     }
 }
