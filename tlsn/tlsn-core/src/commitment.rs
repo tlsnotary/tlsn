@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 /// Unifies different commitment types
 #[allow(missing_docs)]
 #[derive(Serialize, Deserialize, Clone)]
+#[non_exhaustive]
 pub enum Commitment {
     Blake3(Blake3),
 }
