@@ -123,21 +123,13 @@ impl SubstringsOpening {
                 };
                 let transcript = Transcript::new(id, vec![]);
 
-                // collect active encodings for each byte in each range
-                let active_encodings: Vec<EncodedValue<Active>> = opening
-                    .ranges()
-                    .iter_ranges()
-                    .flat_map(|range| {
-                        transcript
-                            .get_ids(&range)
-                            .into_iter()
-                            .map(|id| {
-                                header
-                                    .encoder()
-                                    .encode_by_type(EncodingId::new(&id).to_inner(), &ValueType::U8)
-                            })
-                            // collect full encodings
-                            .collect::<Vec<_>>()
+                let active_encodings: Vec<_> = transcript
+                    .get_ids(opening.ranges())
+                    .into_iter()
+                    .map(|id| {
+                        header
+                            .encoder()
+                            .encode_by_type(EncodingId::new(&id).to_inner(), &ValueType::U8)
                     })
                     .zip(opening.opening())
                     .map(|(enc, value)| enc.select(*value).unwrap())

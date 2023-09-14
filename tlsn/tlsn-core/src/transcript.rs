@@ -35,9 +35,9 @@ impl Transcript {
     }
 
     /// Returns the value ID for each byte in the provided range
-    pub fn get_ids(&self, range: &Range<usize>) -> Vec<String> {
+    pub fn get_ids(&self, range: &RangeSet<usize>) -> Vec<String> {
         range
-            .clone()
+            .iter()
             .map(|idx| format!("{}/{}", self.id, idx))
             .collect::<Vec<_>>()
     }
