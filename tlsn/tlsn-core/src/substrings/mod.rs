@@ -1,4 +1,4 @@
-//! Contains logic for working with substring proofs, commitments and openings
+//! Types for substring commitments and proofs.
 
 mod commitment;
 mod opening;

@@ -22,9 +22,9 @@ use mpz_core::{commit::HashCommit, serialize::CanonicalSerialize, value::ValueId
 use mpz_garble_core::{ChaChaEncoder, EncodedValue, Encoder};
 
 use tlsn_core::{
-    msg::SignedSessionHeader, signature::Signature, substrings::SubstringsProof,
-    transcript::get_encoding_ids, Direction, HandshakeSummary, NotarizedSession,
-    SessionDataBuilder, SessionHeader, SessionProof, Transcript,
+    msg::SignedSessionHeader, session::SessionDataBuilder, substrings::SubstringsProof,
+    transcript::get_encoding_ids, Direction, HandshakeSummary, NotarizedSession, SessionHeader,
+    SessionProof, Signature, Transcript,
 };
 
 use tlsn_fixtures as fixtures;

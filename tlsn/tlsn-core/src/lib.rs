@@ -6,21 +6,18 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
-mod commitment;
+pub mod commitment;
 mod error;
 pub mod merkle;
 pub mod msg;
-mod session;
-pub mod signature;
+pub mod session;
+mod signature;
 pub mod substrings;
 pub mod transcript;
 
-pub use commitment::Commitment;
 pub use error::Error;
-pub use session::{
-    HandshakeSummary, NotarizedSession, SessionData, SessionDataBuilder, SessionHeader,
-    SessionProof,
-};
+pub use session::{HandshakeSummary, NotarizedSession, SessionData, SessionHeader, SessionProof};
+pub use signature::Signature;
 pub use transcript::{Direction, RedactedTranscript, Transcript, TranscriptSlice};
 
 /// The maximum allowed total bytelength of all committed data. Used to prevent DoS during verification.

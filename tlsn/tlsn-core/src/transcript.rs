@@ -1,4 +1,4 @@
-//! This module contains code for transcripts of the TLSNotary session
+//! Transcript data types.
 
 use std::ops::Range;
 
@@ -125,7 +125,7 @@ impl RedactedTranscript {
     }
 }
 
-/// Authenticated slice of [Transcript]. The [Direction] should be infered from some outer context.
+/// Slice of a transcript.
 #[derive(PartialEq, Debug, Clone, Default)]
 pub struct TranscriptSlice {
     /// A byte range of this slice
@@ -144,16 +144,21 @@ impl TranscriptSlice {
         self.range.clone()
     }
 
-    /// Returns the actual traffic data of this slice
+    /// Returns the bytes of this slice
     pub fn data(&self) -> &[u8] {
         &self.data
     }
+
+    /// Returns the bytes of this slice
+    pub fn into_bytes(self) -> Vec<u8> {
+        self.data
+    }
 }
 
+/// The direction of data communicated over a TLS connection.
+///
+/// This is used to differentiate between data sent to the Server, and data received from the Server.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-/// A [Transcript] contains either a stream of bytes which were sent to the server
-/// or a stream of bytes which were received from the server. The Prover creates
-/// separate commitments to bytes in each direction.
 pub enum Direction {
     /// Sent from the prover to the server
     Sent,

@@ -122,7 +122,16 @@ impl SessionDataBuilder {
     }
 }
 
-/// Wrapper for various data associated with the TLSNotary session
+/// Notarized session data.
+///
+/// This contains all the private data held by the `Prover` after notarization.
+///
+/// # Selective disclosure
+///
+/// The `Prover` can selectively disclose parts of the transcript to a `Verifier` using a
+/// [`SubstringsProof`](crate::substrings::SubstringsProof).
+///
+/// See [`build_substrings_proof`](SessionData::build_substrings_proof).
 #[derive(Serialize, Deserialize)]
 pub struct SessionData {
     handshake_data_decommitment: Decommitment<HandshakeData>,
@@ -157,11 +166,11 @@ impl SessionData {
     }
 
     /// Returns commitments to the transcript data.
-    pub fn commitments(&self) -> &HashMap<CommitmentId, (Commitment, CommitmentInfo)> {
+    pub(crate) fn commitments(&self) -> &HashMap<CommitmentId, (Commitment, CommitmentInfo)> {
         &self.commitments
     }
 
-    /// Returns a [`SubstringsProof`] builder.
+    /// Returns a substrings proof builder.
     pub fn build_substrings_proof(&self) -> SubstringsProofBuilder {
         SubstringsProofBuilder::new(self)
     }

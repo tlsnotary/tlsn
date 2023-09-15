@@ -1,4 +1,4 @@
-//! Contains different commitment types
+//! Types related to transcript commitments.
 
 use serde::{Deserialize, Serialize};
 use utils::range::RangeSet;
@@ -23,24 +23,24 @@ impl CommitmentId {
 
 /// Info of a transcript commitment
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct CommitmentInfo {
+pub(crate) struct CommitmentInfo {
     pub(crate) ranges: RangeSet<usize>,
     pub(crate) direction: Direction,
 }
 
 impl CommitmentInfo {
     /// Creates a new transcript commitment details
-    pub fn new(ranges: RangeSet<usize>, direction: Direction) -> Self {
+    pub(crate) fn new(ranges: RangeSet<usize>, direction: Direction) -> Self {
         Self { ranges, direction }
     }
 
     /// Returns the ranges of this commitment
-    pub fn ranges(&self) -> &RangeSet<usize> {
+    pub(crate) fn ranges(&self) -> &RangeSet<usize> {
         &self.ranges
     }
 
     /// Returns the direction of this commitment
-    pub fn direction(&self) -> &Direction {
+    pub(crate) fn direction(&self) -> &Direction {
         &self.direction
     }
 }

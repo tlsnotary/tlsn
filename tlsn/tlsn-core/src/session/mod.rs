@@ -1,3 +1,5 @@
+//! TLS session types.
+
 mod data;
 mod handshake;
 mod header;
