@@ -24,7 +24,6 @@ use tls_client_async::{bind_client, ClosedConnection, TlsConnection};
 use tls_mpc::{setup_components, MpcTlsLeader, TlsRole};
 use utils::range::RangeSet;
 
-use mpz_core::commit::HashCommit;
 use mpz_garble::{
     config::Role as GarbleRole,
     protocol::deap::{DEAPVm, PeerEncodings},
@@ -36,11 +35,10 @@ use mpz_ot::{
 use mpz_share_conversion as ff;
 use tls_client::{ClientConnection, ServerName};
 use tlsn_core::{
-    commitment::Blake3,
-    merkle::MerkleTree,
+    commitment::CommitmentId,
     msg::{SignedSessionHeader, TlsnMessage},
     transcript::Transcript,
-    Direction, NotarizedSession, SessionData, SubstringsCommitment, SubstringsCommitmentSet,
+    Direction, NotarizedSession,
 };
 use uid_mux::{yamux, UidYamux, UidYamuxControl};
 use utils_aio::{codec::BincodeMux, expect_msg_or_err, mux::MuxChannel};
@@ -265,12 +263,18 @@ impl Prover<Notarize> {
     }
 
     /// Add a commitment to the sent requests
-    pub fn add_commitment_sent(&mut self, range: Range<usize>) -> Result<(), ProverError> {
+    pub fn add_commitment_sent(
+        &mut self,
+        range: Range<usize>,
+    ) -> Result<CommitmentId, ProverError> {
         self.add_commitment(range.into(), Direction::Sent)
     }
 
     /// Add a commitment to the received responses
-    pub fn add_commitment_recv(&mut self, range: Range<usize>) -> Result<(), ProverError> {
+    pub fn add_commitment_recv(
+        &mut self,
+        range: Range<usize>,
+    ) -> Result<CommitmentId, ProverError> {
         self.add_commitment(range.into(), Direction::Received)
     }
 
@@ -278,7 +282,7 @@ impl Prover<Notarize> {
         &mut self,
         ranges: RangeSet<usize>,
         direction: Direction,
-    ) -> Result<(), ProverError> {
+    ) -> Result<CommitmentId, ProverError> {
         let ids = match direction {
             Direction::Sent => self.sent_transcript().get_ids(&ranges),
             Direction::Received => self.recv_transcript().get_ids(&ranges),
@@ -292,12 +296,11 @@ impl Prover<Notarize> {
             .get_peer_encodings(&id_refs)
             .map_err(|e| ProverError::MpcError(Box::new(e)))?;
 
-        self.state
+        Ok(self
+            .state
             .session_data_builder
             .add_substrings_commitment(ranges, direction, &encodings)
-            .unwrap();
-
-        Ok(())
+            .unwrap())
     }
 
     /// Finalize the notarization returning a [`NotarizedSession`]
