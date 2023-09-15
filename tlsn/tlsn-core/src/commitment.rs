@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use utils::range::RangeSet;
 
-use crate::{Direction, SubstringsCommitment};
+use crate::{substrings::SubstringsCommitment, Direction};
 
 /// A commitment id.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]

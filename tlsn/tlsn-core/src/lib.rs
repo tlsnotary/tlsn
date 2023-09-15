@@ -1,10 +1,12 @@
-//! This crate contains types used by the Prover, the Notary, and the Verifier
+//! TLSNotary core protocol library.
+//!
+//! This crate contains core types for the TLSNotary protocol, including some functionality for selective disclosure.
 
 #![deny(missing_docs, unreachable_pub, unused_must_use)]
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
-pub mod commitment;
+mod commitment;
 mod error;
 pub mod merkle;
 pub mod msg;
@@ -19,7 +21,6 @@ pub use session::{
     HandshakeSummary, NotarizedSession, SessionData, SessionDataBuilder, SessionHeader,
     SessionProof,
 };
-pub use substrings::SubstringsCommitment;
 pub use transcript::{Direction, RedactedTranscript, Transcript, TranscriptSlice};
 
 /// The maximum allowed total bytelength of all committed data. Used to prevent DoS during verification.

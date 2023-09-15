@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use crate::{
     commitment::{Commitment, CommitmentId, CommitmentInfo},
     merkle::{MerkleError, MerkleTree},
-    substrings::{Blake3SubstringsCommitment, SubstringsProofBuilder},
-    Direction, SubstringsCommitment, Transcript,
+    substrings::{Blake3SubstringsCommitment, SubstringsCommitment, SubstringsProofBuilder},
+    Direction, Transcript,
 };
 use mpz_core::{commit::Decommitment, hash::Hash};
 use mpz_garble_core::{encoding_state, EncodedValue};

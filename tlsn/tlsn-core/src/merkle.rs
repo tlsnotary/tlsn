@@ -1,4 +1,14 @@
-//! This module contains code for Merkle trees and proofs
+//! Merkle tree types.
+//!
+//! # Usage
+//!
+//! During notarization, the `Prover` generates various commitments to the transcript data, which is subsequently
+//! inserted into a `MerkleTree`. Rather than send each commitment to the Notary individually, the `Prover` simply sends the
+//! `MerkleRoot`. This hides the number of commitments from the Notary, which is important for privacy as it can leak
+//! information about the content of the transcript.
+//!
+//! Later, during selective disclosure to a `Verifier`, the `Prover` can open any subset of the commitments in the `MerkleTree`
+//! by providing a `MerkleProof` for the corresponding `MerkleRoot` which was signed by the Notary.
 
 use mpz_core::hash::Hash;
 use rs_merkle::{
@@ -8,7 +18,7 @@ use rs_merkle::{
 use serde::{ser::Serializer, Deserialize, Deserializer, Serialize};
 use utils::iter::DuplicateCheck;
 
-/// The root of a Merkle tree
+/// A Merkle root.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MerkleRoot([u8; 32]);
 
@@ -35,8 +45,7 @@ pub enum MerkleError {
     MerkleNoLeavesProvided,
 }
 
-/// A wrapper for rs_merkle's `MerkleProof` which implements `Clone`
-/// and a serializer/deserializer
+/// A Merkle proof.
 #[derive(Serialize, Deserialize)]
 pub struct MerkleProof {
     #[serde(
@@ -114,7 +123,7 @@ where
     MerkleProof_rs_merkle::<Sha256>::from_bytes(bytes.as_slice()).map_err(serde::de::Error::custom)
 }
 
-/// A wrapper for rs_merkle's `MerkleTree` which implements serializer/deserializer
+/// A Merkle tree.
 #[derive(Serialize, Deserialize, Default, Clone)]
 pub struct MerkleTree(
     #[serde(
@@ -190,7 +199,7 @@ where
 }
 
 #[cfg(test)]
-pub mod test {
+mod test {
     use super::*;
 
     // Expect Merkle proof verification to succeed
