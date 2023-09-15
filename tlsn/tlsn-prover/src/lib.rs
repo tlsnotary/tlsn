@@ -37,7 +37,7 @@ use tls_client::{ClientConnection, ServerName};
 use tlsn_core::{
     commitment::CommitmentId,
     msg::{SignedSessionHeader, TlsnMessage},
-    transcript::Transcript,
+    transcript::{get_encoding_ids, Transcript},
     Direction, NotarizedSession,
 };
 use uid_mux::{yamux, UidYamux, UidYamuxControl};
@@ -214,8 +214,8 @@ impl Prover<Setup> {
                         start_time,
                         handshake_decommitment,
                         server_public_key,
-                        transcript_tx: Transcript::new("tx", sent),
-                        transcript_rx: Transcript::new("rx", recv),
+                        transcript_tx: Transcript::new(sent),
+                        transcript_rx: Transcript::new(recv),
                     },
                 })
             };
@@ -283,12 +283,9 @@ impl Prover<Notarize> {
         ranges: RangeSet<usize>,
         direction: Direction,
     ) -> Result<CommitmentId, ProverError> {
-        let ids = match direction {
-            Direction::Sent => self.sent_transcript().get_ids(&ranges),
-            Direction::Received => self.recv_transcript().get_ids(&ranges),
-        };
+        let ids: Vec<_> = get_encoding_ids(&ranges, direction).collect();
 
-        let id_refs: Vec<_> = ids.iter().map(|id| id.as_str()).collect();
+        let id_refs = ids.iter().map(|id| id.as_ref()).collect::<Vec<_>>();
 
         let encodings = self
             .state

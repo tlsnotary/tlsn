@@ -117,22 +117,31 @@ async fn main() {
         ],
     );
 
-    // Commit to each range of the outbound data which we want to disclose
-    for range in public_ranges.iter() {
-        prover.add_commitment_sent(range.clone()).unwrap();
-    }
+    // Commit to each range of the public outbound data which we want to disclose
+    let sent_commitments: Vec<_> = public_ranges
+        .iter()
+        .map(|r| prover.add_commitment_sent(r.clone()).unwrap())
+        .collect();
 
     // Commit to all inbound data in one shot, as we don't need to redact anything in it
     let recv_len = prover.recv_transcript().data().len();
-    prover.add_commitment_recv(0..recv_len).unwrap();
+    let recv_commitment = prover.add_commitment_recv(0..recv_len).unwrap();
 
     // Finalize, returning the notarized session
     let notarized_session = prover.finalize().await.unwrap();
 
     // Create a proof for all committed data in this session
     let session_proof = notarized_session.session_proof();
-    let ids = (0..notarized_session.data().commitments().len()).collect();
-    let substrings_proof = notarized_session.generate_substring_proof(ids).unwrap();
+
+    let mut proof_builder = notarized_session.data().build_substrings_proof();
+
+    // Reveal all the public ranges
+    for commitment_id in sent_commitments {
+        proof_builder.reveal(commitment_id).unwrap();
+    }
+    proof_builder.reveal(recv_commitment).unwrap();
+
+    let substrings_proof = proof_builder.build().unwrap();
 
     // Write the proof to a file in the format expected by `simple_verifier.rs`
     let mut file = tokio::fs::File::create("proof.json").await.unwrap();

@@ -5,7 +5,7 @@ use mpz_garble::protocol::deap::DEAPVm;
 use mpz_share_conversion::{ConverterSender, Gf2_128};
 use tls_core::{handshake::HandshakeData, key::PublicKey};
 use tls_mpc::MpcTlsLeader;
-use tlsn_core::{SessionDataBuilder, Transcript};
+use tlsn_core::{session::SessionDataBuilder, Transcript};
 
 use crate::{Mux, MuxFuture, OTFuture};
 
