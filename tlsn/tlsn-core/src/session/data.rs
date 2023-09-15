@@ -1,8 +1,12 @@
 use std::collections::HashMap;
 
 use crate::{
-    commitment::{Blake3, CommitmentId, TranscriptCommitment},
+    commitment::{
+        Blake3, CommitmentId, TranscriptCommitment, TranscriptCommitmentDetails,
+        TranscriptCommitmentKind,
+    },
     merkle::{MerkleError, MerkleTree},
+    substrings::proof::SubstringsProofBuilder,
     Direction, SubstringsCommitment, SubstringsCommitmentSet, Transcript,
 };
 use mpz_core::{
@@ -20,7 +24,7 @@ pub struct SessionDataBuilder {
     tx_transcript: Transcript,
     rx_transcript: Transcript,
     merkle_leaves: Vec<Hash>,
-    commitment_details: HashMap<CommitmentId, (Direction, RangeSet<usize>)>,
+    commitment_details: HashMap<CommitmentId, TranscriptCommitmentDetails>,
     commitments: HashMap<CommitmentId, TranscriptCommitment>,
 }
 
@@ -38,6 +42,32 @@ impl From<MerkleError> for SessionDataBuilderError {
 opaque_debug::implement!(SessionDataBuilder);
 
 impl SessionDataBuilder {
+    /// Creates a new builder
+    pub fn new(
+        handshake_data_decommitment: Decommitment<HandshakeData>,
+        tx_transcript: Transcript,
+        rx_transcript: Transcript,
+    ) -> Self {
+        Self {
+            handshake_data_decommitment,
+            tx_transcript,
+            rx_transcript,
+            merkle_leaves: Vec::default(),
+            commitment_details: HashMap::default(),
+            commitments: HashMap::default(),
+        }
+    }
+
+    /// Returns a reference to the sent data transcript.
+    pub fn sent_transcript(&self) -> &Transcript {
+        &self.tx_transcript
+    }
+
+    /// Returns a reference to the received data transcript.
+    pub fn recv_transcript(&self) -> &Transcript {
+        &self.rx_transcript
+    }
+
     /// Add a commitment to substrings of the transcript
     pub fn add_substrings_commitment(
         &mut self,
@@ -69,7 +99,14 @@ impl SessionDataBuilder {
         );
 
         // Store commitment details
-        self.commitment_details.insert(id, (direction, ranges));
+        self.commitment_details.insert(
+            id,
+            TranscriptCommitmentDetails::new(
+                ranges,
+                direction,
+                TranscriptCommitmentKind::Substrings,
+            ),
+        );
 
         // Store commitment with its id
         self.commitments
@@ -109,7 +146,7 @@ pub struct SessionData {
     tx_transcript: Transcript,
     rx_transcript: Transcript,
     merkle_tree: MerkleTree,
-    commitment_details: HashMap<CommitmentId, (Direction, RangeSet<usize>)>,
+    commitment_details: HashMap<CommitmentId, TranscriptCommitmentDetails>,
     commitments: HashMap<CommitmentId, TranscriptCommitment>,
 }
 
@@ -139,5 +176,10 @@ impl SessionData {
     /// The prover's commitments to substrings of the transcript
     pub fn commitments(&self) -> &HashMap<CommitmentId, TranscriptCommitment> {
         &self.commitments
+    }
+
+    /// Returns a [`SubstringsProof`] builder.
+    pub fn build_substrings_proof(&self) -> SubstringsProofBuilder {
+        SubstringsProofBuilder::new(self)
     }
 }

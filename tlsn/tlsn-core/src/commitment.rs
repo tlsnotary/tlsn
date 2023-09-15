@@ -2,8 +2,9 @@
 
 use mpz_core::hash::Hash;
 use serde::{Deserialize, Serialize};
+use utils::range::RangeSet;
 
-use crate::SubstringsCommitment;
+use crate::{Direction, SubstringsCommitment};
 
 /// A commitment id.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -54,10 +55,65 @@ impl Blake3 {
     }
 }
 
+/// Details of a transcript commitment
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct TranscriptCommitmentDetails {
+    ranges: RangeSet<usize>,
+    direction: Direction,
+    kind: TranscriptCommitmentKind,
+}
+
+impl TranscriptCommitmentDetails {
+    /// Creates a new transcript commitment details
+    pub fn new(
+        ranges: RangeSet<usize>,
+        direction: Direction,
+        kind: TranscriptCommitmentKind,
+    ) -> Self {
+        Self {
+            ranges,
+            direction,
+            kind,
+        }
+    }
+
+    /// Returns the ranges of this commitment
+    pub fn ranges(&self) -> &RangeSet<usize> {
+        &self.ranges
+    }
+
+    /// Returns the direction of this commitment
+    pub fn direction(&self) -> &Direction {
+        &self.direction
+    }
+
+    /// Returns the kind of this commitment
+    pub fn kind(&self) -> &TranscriptCommitmentKind {
+        &self.kind
+    }
+}
+
 /// A commitment to some bytes in a transcript
 #[derive(Clone, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum TranscriptCommitment {
     /// A commitment to the encodings of substrings.
     Substrings(SubstringsCommitment),
+}
+
+impl TranscriptCommitment {
+    /// Returns the kind of this transcript commitment
+    pub fn kind(&self) -> TranscriptCommitmentKind {
+        match self {
+            TranscriptCommitment::Substrings(_) => TranscriptCommitmentKind::Substrings,
+        }
+    }
+}
+
+/// The kind of a transcript commitment
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum TranscriptCommitmentKind {
+    /// A commitment to the encodings of substrings.
+    Substrings,
 }

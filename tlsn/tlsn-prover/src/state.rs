@@ -1,11 +1,11 @@
 use mpz_ot::actor::kos::{SharedReceiver, SharedSender};
 
-use mpz_core::{commit::Decommitment, hash::Hash};
+use mpz_core::commit::Decommitment;
 use mpz_garble::protocol::deap::DEAPVm;
 use mpz_share_conversion::{ConverterSender, Gf2_128};
 use tls_core::{handshake::HandshakeData, key::PublicKey};
 use tls_mpc::MpcTlsLeader;
-use tlsn_core::{SubstringsCommitment, Transcript};
+use tlsn_core::{SessionDataBuilder, Transcript};
 
 use crate::{Mux, MuxFuture, OTFuture};
 
@@ -58,37 +58,33 @@ pub struct Notarize {
     pub(crate) gf2: ConverterSender<Gf2_128, SharedSender>,
 
     pub(crate) start_time: u64,
-    pub(crate) handshake_decommitment: Decommitment<HandshakeData>,
     pub(crate) server_public_key: PublicKey,
 
-    pub(crate) transcript_tx: Transcript,
-    pub(crate) transcript_rx: Transcript,
-
-    pub(crate) commitments: Vec<Hash>,
-    pub(crate) substring_commitments: Vec<SubstringsCommitment>,
+    pub(crate) session_data_builder: SessionDataBuilder,
 }
 
 opaque_debug::implement!(Notarize);
 
 impl From<Closed> for Notarize {
-    fn from(value: Closed) -> Self {
+    fn from(state: Closed) -> Self {
+        let session_data_builder = SessionDataBuilder::new(
+            state.handshake_decommitment,
+            state.transcript_tx,
+            state.transcript_rx,
+        );
+
         Self {
-            notary_mux: value.notary_mux,
-            mux_fut: value.mux_fut,
+            notary_mux: state.notary_mux,
+            mux_fut: state.mux_fut,
 
-            vm: value.vm,
-            ot_fut: value.ot_fut,
-            gf2: value.gf2,
+            vm: state.vm,
+            ot_fut: state.ot_fut,
+            gf2: state.gf2,
 
-            start_time: value.start_time,
-            handshake_decommitment: value.handshake_decommitment,
-            server_public_key: value.server_public_key,
+            start_time: state.start_time,
+            server_public_key: state.server_public_key,
 
-            transcript_tx: value.transcript_tx,
-            transcript_rx: value.transcript_rx,
-
-            commitments: Vec::new(),
-            substring_commitments: Vec::new(),
+            session_data_builder,
         }
     }
 }

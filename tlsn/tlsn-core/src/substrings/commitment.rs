@@ -1,6 +1,7 @@
 use crate::{
     commitment::{Commitment, CommitmentId},
     error::Error,
+    substrings::opening::Blake3Opening,
     transcript::Direction,
 };
 use mpz_core::commit::Nonce;
@@ -9,6 +10,8 @@ use utils::{iter::DuplicateCheck, range::RangeSet};
 
 #[cfg(feature = "tracing")]
 use tracing::instrument;
+
+use super::opening::SubstringsOpening;
 
 /// A set of commitments
 #[derive(Default, Serialize, Deserialize)]
@@ -149,5 +152,20 @@ impl SubstringsCommitment {
     /// Returns the salt used for this commitment
     pub fn salt(&self) -> &Nonce {
         &self.salt
+    }
+
+    /// Opens this commitment
+    pub fn open(&self, data: Vec<u8>) -> SubstringsOpening {
+        #[allow(unreachable_patterns)]
+        match &self.commitment {
+            Commitment::Blake3(_) => SubstringsOpening::Blake3(Blake3Opening::new(
+                self.id,
+                data,
+                self.ranges.clone(),
+                self.direction,
+                self.salt,
+            )),
+            _ => unreachable!("only blake3 is presently supported"),
+        }
     }
 }

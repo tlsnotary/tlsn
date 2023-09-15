@@ -6,7 +6,13 @@ use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use utils::range::{RangeDifference, RangeSet, RangeUnion};
 
-use crate::error::Error;
+/// An error related to transcripts
+#[derive(Debug, thiserror::Error)]
+pub enum TranscriptError {
+    /// The provided ranges are not within the bounds of the transcript
+    #[error("Ranges {0:?} are out of bounds")]
+    RangesOutofBounds(RangeSet<usize>),
+}
 
 /// A transcript contains a subset of bytes from a TLS session
 #[derive(Default, Serialize, Deserialize, Clone, Debug)]
@@ -45,15 +51,13 @@ impl Transcript {
     /// Returns a concatenated bytestring located in the given ranges of the transcript.
     ///
     /// Is only called with non-empty well-formed `ranges`
-    pub(crate) fn get_bytes_in_ranges(&self, ranges: &RangeSet<usize>) -> Result<Vec<u8>, Error> {
-        // at least one range must be present
-        if ranges.is_empty() {
-            return Err(Error::InternalError);
-        }
-
+    pub(crate) fn get_bytes_in_ranges(
+        &self,
+        ranges: &RangeSet<usize>,
+    ) -> Result<Vec<u8>, TranscriptError> {
         // all ranges must be within the bounds of the transcript
         if ranges.max().unwrap() > self.data.len() {
-            return Err(Error::InternalError);
+            return Err(TranscriptError::RangesOutofBounds(ranges.clone()));
         }
 
         Ok(ranges
@@ -156,7 +160,7 @@ impl TranscriptSlice {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 /// A [Transcript] contains either a stream of bytes which were sent to the server
 /// or a stream of bytes which were received from the server. The Prover creates
 /// separate commitments to bytes in each direction.
@@ -218,7 +222,10 @@ mod tests {
 
         // no_range provided
         let err = sent.get_bytes_in_ranges(&RangeSet::default());
-        assert_eq!(err.unwrap_err(), Error::InternalError);
+        assert!(matches!(
+            err.unwrap_err(),
+            TranscriptError::RangesOutofBounds(_)
+        ));
 
         // a range with the end bound larger than the data length
         let bad_range = Range {
@@ -226,6 +233,9 @@ mod tests {
             end: (sent.data().len() + 1),
         };
         let err = sent.get_bytes_in_ranges(&RangeSet::from([bad_range]));
-        assert_eq!(err.unwrap_err(), Error::InternalError);
+        assert!(matches!(
+            err.unwrap_err(),
+            TranscriptError::RangesOutofBounds(_)
+        ));
     }
 }

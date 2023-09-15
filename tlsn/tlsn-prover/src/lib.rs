@@ -9,7 +9,6 @@
 
 mod config;
 mod error;
-pub mod http;
 mod state;
 
 pub use config::ProverConfig;
@@ -257,12 +256,12 @@ impl Prover<Closed> {
 impl Prover<Notarize> {
     /// Returns the transcript of the sent requests
     pub fn sent_transcript(&self) -> &Transcript {
-        &self.state.transcript_tx
+        self.state.session_data_builder.sent_transcript()
     }
 
     /// Returns the transcript of the received responses
     pub fn recv_transcript(&self) -> &Transcript {
-        &self.state.transcript_rx
+        self.state.session_data_builder.recv_transcript()
     }
 
     /// Add a commitment to the sent requests
@@ -281,8 +280,8 @@ impl Prover<Notarize> {
         direction: Direction,
     ) -> Result<(), ProverError> {
         let ids = match direction {
-            Direction::Sent => self.state.transcript_tx.get_ids(&ranges),
-            Direction::Received => self.state.transcript_rx.get_ids(&ranges),
+            Direction::Sent => self.sent_transcript().get_ids(&ranges),
+            Direction::Received => self.recv_transcript().get_ids(&ranges),
         };
 
         let id_refs: Vec<_> = ids.iter().map(|id| id.as_str()).collect();
@@ -293,21 +292,10 @@ impl Prover<Notarize> {
             .get_peer_encodings(&id_refs)
             .map_err(|e| ProverError::MpcError(Box::new(e)))?;
 
-        let (decommitment, commitment) = encodings.hash_commit();
-
-        self.state.commitments.push(commitment);
-
-        let commitment = Blake3::new(commitment).into();
-
-        let commitment = SubstringsCommitment::new(
-            self.state.substring_commitments.len() as u32,
-            commitment,
-            ranges,
-            direction,
-            *decommitment.nonce(),
-        );
-
-        self.state.substring_commitments.push(commitment);
+        self.state
+            .session_data_builder
+            .add_substrings_commitment(ranges, direction, &encodings)
+            .unwrap();
 
         Ok(())
     }
@@ -322,16 +310,13 @@ impl Prover<Notarize> {
             mut ot_fut,
             mut gf2,
             start_time,
-            handshake_decommitment,
             server_public_key,
-            transcript_tx,
-            transcript_rx,
-            commitments,
-            substring_commitments,
+            session_data_builder,
         } = self.state;
 
-        let merkle_tree = MerkleTree::from_leaves(&commitments)?;
-        let merkle_root = merkle_tree.root();
+        let session_data = session_data_builder.build().unwrap();
+
+        let merkle_root = session_data.merkle_tree().root();
 
         let notarize_fut = async move {
             let mut channel = notary_mux.get_channel("notarize").await?;
@@ -365,22 +350,12 @@ impl Prover<Notarize> {
         header.verify(
             start_time,
             &server_public_key,
-            &merkle_tree.root(),
+            &session_data.merkle_tree().root(),
             &notary_encoder_seed,
-            &handshake_decommitment,
+            session_data.handshake_data_decommitment(),
         )?;
 
-        let commitments = SubstringsCommitmentSet::new(substring_commitments);
-
-        let data = SessionData::new(
-            handshake_decommitment,
-            transcript_tx,
-            transcript_rx,
-            merkle_tree,
-            commitments,
-        );
-
-        Ok(NotarizedSession::new(header, Some(signature), data))
+        Ok(NotarizedSession::new(header, Some(signature), session_data))
     }
 }
 

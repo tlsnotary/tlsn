@@ -1,18 +1,116 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
+use utils::range::RangeSet;
 
 use crate::{
-    commitment::CommitmentId, error::Error, utils::merge_slices, Direction, InclusionProof,
-    SessionData, SessionHeader, SubstringsCommitment, SubstringsOpeningSet, TranscriptSlice,
+    commitment::{CommitmentId, TranscriptCommitment},
+    error::Error,
+    transcript::TranscriptError,
+    utils::merge_slices,
+    Direction, InclusionProof, SessionData, SessionHeader, SubstringsCommitment,
+    SubstringsCommitmentSet, SubstringsOpeningSet, TranscriptSlice,
 };
 
 use super::opening::SubstringsOpening;
 
 /// A builder for [`SubstringsProof`]
 pub struct SubstringsProofBuilder<'a> {
-    tree: &'a SessionData,
+    data: &'a SessionData,
+    ids: HashSet<CommitmentId>,
+    commitments: Vec<SubstringsCommitment>,
     openings: Vec<SubstringsOpening>,
+}
+
+opaque_debug::implement!(SubstringsProofBuilder<'_>);
+
+/// An error for [`SubstringsProofBuilder`]
+#[derive(Debug, thiserror::Error)]
+#[error("{0}")]
+pub struct SubstringsProofBuilderError(String);
+
+impl From<TranscriptError> for SubstringsProofBuilderError {
+    fn from(e: TranscriptError) -> Self {
+        Self(format!("transcript error: {}", e))
+    }
+}
+
+impl<'a> SubstringsProofBuilder<'a> {
+    /// Creates a new builder.
+    pub(crate) fn new(data: &'a SessionData) -> Self {
+        Self {
+            data,
+            ids: HashSet::new(),
+            commitments: Vec::new(),
+            openings: Vec::new(),
+        }
+    }
+
+    /// Reveals data corresponding to the provided commitment id
+    pub fn reveal(&mut self, id: CommitmentId) -> Result<&mut Self, SubstringsProofBuilderError> {
+        let commitment = self.data.commitments().get(&id).ok_or_else(|| {
+            SubstringsProofBuilderError(format!("commitment with id {:?} not found", id))
+        })?;
+
+        #[allow(irrefutable_let_patterns)]
+        let TranscriptCommitment::Substrings(commitment) = commitment
+        else {
+            return Err(SubstringsProofBuilderError(format!(
+                "commitment with id {:?} is not a substrings commitment",
+                id
+            )));
+        };
+
+        let data = match commitment.direction() {
+            Direction::Sent => self
+                .data
+                .sent_transcript()
+                .get_bytes_in_ranges(commitment.ranges())?,
+            Direction::Received => self
+                .data
+                .recv_transcript()
+                .get_bytes_in_ranges(commitment.ranges())?,
+        };
+
+        // check that the commitment is not already revealed
+        if !self.ids.insert(id) {
+            return Err(SubstringsProofBuilderError(format!(
+                "commitment with id {:?} is already revealed",
+                id
+            )));
+        }
+
+        self.commitments.push(commitment.clone());
+        self.openings.push(commitment.open(data));
+
+        Ok(self)
+    }
+
+    /// Builds the [`SubstringsProof`]
+    pub fn build(self) -> Result<SubstringsProof, SubstringsProofBuilderError> {
+        let Self {
+            data,
+            ids,
+            commitments,
+            openings,
+        } = self;
+
+        let indices = ids
+            .iter()
+            .map(|id| id.into_inner() as usize)
+            .collect::<Vec<_>>();
+
+        let inclusion_proof = InclusionProof::new(
+            SubstringsCommitmentSet::new(commitments),
+            data.merkle_tree().proof(&indices),
+            data.commitments().len() as u32,
+        );
+
+        Ok(SubstringsProof::new(
+            SubstringsOpeningSet::new(openings),
+            inclusion_proof,
+        ))
+    }
 }
 
 /// A substring proof containing the opening set and the inclusion proof
