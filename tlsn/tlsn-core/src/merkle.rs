@@ -266,6 +266,24 @@ mod test {
         );
     }
 
+    #[test]
+    fn test_verify_fail_incorrect_leaf_count() {
+        let leaf0 = Hash::from([0u8; 32]);
+        let leaf1 = Hash::from([1u8; 32]);
+        let leaf2 = Hash::from([2u8; 32]);
+        let leaf3 = Hash::from([3u8; 32]);
+        let leaf4 = Hash::from([4u8; 32]);
+        let tree = MerkleTree::from_leaves(&[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
+        let mut proof = tree.proof(&[4, 2, 3]);
+
+        proof.total_leaves = 6;
+
+        // fail because leaf count is wrong
+        assert!(proof
+            .verify(&tree.root(), &[2, 4, 3], &[leaf2, leaf4, leaf3])
+            .is_err());
+    }
+
     // Expect MerkleProof/MerkleTree custom serialization/deserialization to work
     #[test]
     fn test_serialization() {
