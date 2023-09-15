@@ -108,13 +108,12 @@ impl SubstringsProof {
             inclusion_proof,
         } = self;
 
-        let mut ids = Vec::with_capacity(openings.len());
         let mut indices = Vec::with_capacity(openings.len());
         let mut expected_hashes = Vec::with_capacity(openings.len());
         let mut sent_slices = Vec::new();
         let mut recv_slices = Vec::new();
-        let mut sent_opened = RangeSet::default();
-        let mut recv_opened = RangeSet::default();
+        let mut sent_ranges = RangeSet::default();
+        let mut recv_ranges = RangeSet::default();
         let mut total_opened = 0u128;
         for (id, (info, opening)) in openings {
             let CommitmentInfo {
@@ -129,16 +128,16 @@ impl SubstringsProof {
             // Make sure duplicate data is not opened.
             match direction {
                 Direction::Sent => {
-                    if !sent_opened.is_disjoint(&ranges) {
+                    if !sent_ranges.is_disjoint(&ranges) {
                         return Err(SubstringsProofError::DuplicateData);
                     }
-                    sent_opened = sent_opened.union(&ranges);
+                    sent_ranges = sent_ranges.union(&ranges);
                 }
                 Direction::Received => {
-                    if !recv_opened.is_disjoint(&ranges) {
+                    if !recv_ranges.is_disjoint(&ranges) {
                         return Err(SubstringsProofError::DuplicateData);
                     }
-                    recv_opened = recv_opened.union(&ranges);
+                    recv_ranges = recv_ranges.union(&ranges);
                 }
             }
 
@@ -177,14 +176,13 @@ impl SubstringsProof {
                 dest.push(TranscriptSlice::new(range, data.drain(..len).collect()));
             }
 
-            ids.push(id);
             indices.push(id.into_inner() as usize);
         }
 
         // Verify that the expected hashes are present in the merkle tree.
         //
-        // This proves that the Prover knew the encodings for the opened data prior to the
-        // encoding seed being revealed.
+        // This proves the Prover committed to the purported data prior to the encoder
+        // seed being revealed.
         inclusion_proof
             .verify(header.merkle_root(), &indices, &expected_hashes)
             .map_err(|_| SubstringsProofError::InvalidInclusionProof)?;
