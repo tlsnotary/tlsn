@@ -94,6 +94,8 @@ pub struct SubstringsProof {
     inclusion_proof: MerkleProof,
 }
 
+opaque_debug::implement!(SubstringsProof);
+
 impl SubstringsProof {
     /// Verifies this proof and, if successful, returns [TranscriptSlice]s which were sent and
     /// received.
