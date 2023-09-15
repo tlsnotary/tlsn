@@ -1,18 +1,12 @@
 use std::collections::HashMap;
 
 use crate::{
-    commitment::{
-        Blake3, CommitmentId, TranscriptCommitment, TranscriptCommitmentDetails,
-        TranscriptCommitmentKind,
-    },
+    commitment::{Commitment, CommitmentId, CommitmentInfo},
     merkle::{MerkleError, MerkleTree},
-    substrings::proof::SubstringsProofBuilder,
+    substrings::{Blake3SubstringsCommitment, SubstringsProofBuilder},
     Direction, SubstringsCommitment, Transcript,
 };
-use mpz_core::{
-    commit::{Decommitment, HashCommit},
-    hash::Hash,
-};
+use mpz_core::{commit::Decommitment, hash::Hash};
 use mpz_garble_core::{encoding_state, EncodedValue};
 use serde::{Deserialize, Serialize};
 use tls_core::handshake::HandshakeData;
@@ -24,22 +18,27 @@ pub struct SessionDataBuilder {
     transcript_tx: Transcript,
     transcript_rx: Transcript,
     merkle_leaves: Vec<Hash>,
-    commitment_details: HashMap<CommitmentId, TranscriptCommitmentDetails>,
-    commitments: HashMap<CommitmentId, TranscriptCommitment>,
-}
-
-/// An error for [`SessionDataBuilder`]
-#[derive(Debug, thiserror::Error)]
-#[error("{0}")]
-pub struct SessionDataBuilderError(String);
-
-impl From<MerkleError> for SessionDataBuilderError {
-    fn from(e: MerkleError) -> Self {
-        Self(format!("merkle error: {}", e))
-    }
+    commitments: HashMap<CommitmentId, (Commitment, CommitmentInfo)>,
 }
 
 opaque_debug::implement!(SessionDataBuilder);
+
+/// An error for [`SessionDataBuilder`]
+#[derive(Debug, thiserror::Error)]
+pub enum SessionDataBuilderError {
+    #[error(transparent)]
+    CommitmentError(#[from] CommitmentError),
+    #[error(transparent)]
+    MerkleError(#[from] MerkleError),
+}
+
+/// A commitment error.
+#[derive(Debug, thiserror::Error)]
+pub enum CommitmentError {
+    /// The provided ranges and encodings have different lengths.
+    #[error("ranges and encodings must have the same length: {0} != {1}")]
+    EncodingLengthMismatch(usize, usize),
+}
 
 impl SessionDataBuilder {
     /// Creates a new builder
@@ -53,7 +52,6 @@ impl SessionDataBuilder {
             transcript_tx,
             transcript_rx,
             merkle_leaves: Vec::default(),
-            commitment_details: HashMap::default(),
             commitments: HashMap::default(),
         }
     }
@@ -76,41 +74,28 @@ impl SessionDataBuilder {
         encodings: &[EncodedValue<encoding_state::Active>],
     ) -> Result<CommitmentId, SessionDataBuilderError> {
         if ranges.len() != encodings.len() {
-            return Err(SessionDataBuilderError(format!(
-                "ranges and encodings must have the same length: {} != {}",
+            return Err(CommitmentError::EncodingLengthMismatch(
                 ranges.len(),
-                encodings.len()
-            )));
+                encodings.len(),
+            ))?;
         }
 
-        let (decommitment, hash) = encodings.hash_commit();
+        // We only support BLAKE3 for now
+        let commitment = Blake3SubstringsCommitment::new(encodings);
 
         let id = CommitmentId::new(self.merkle_leaves.len() as u32);
 
-        // Insert commitment into the merkle tree
-        self.merkle_leaves.push(hash);
-
-        let commitment = SubstringsCommitment::new(
-            id,
-            Blake3::new(hash).into(),
-            ranges.clone(),
-            direction,
-            *decommitment.nonce(),
-        );
-
-        // Store commitment details
-        self.commitment_details.insert(
-            id,
-            TranscriptCommitmentDetails::new(
-                ranges,
-                direction,
-                TranscriptCommitmentKind::Substrings,
-            ),
-        );
+        // Insert commitment hash into the merkle tree
+        self.merkle_leaves.push(*commitment.hash());
 
         // Store commitment with its id
-        self.commitments
-            .insert(id, TranscriptCommitment::Substrings(commitment));
+        self.commitments.insert(
+            id,
+            (
+                Commitment::Substrings(SubstringsCommitment::Blake3(commitment)),
+                CommitmentInfo::new(ranges, direction),
+            ),
+        );
 
         Ok(id)
     }
@@ -122,7 +107,6 @@ impl SessionDataBuilder {
             transcript_tx: tx_transcript,
             transcript_rx,
             merkle_leaves,
-            commitment_details,
             commitments,
         } = self;
 
@@ -133,7 +117,6 @@ impl SessionDataBuilder {
             tx_transcript,
             transcript_rx,
             merkle_tree,
-            commitment_details,
             commitments,
         })
     }
@@ -146,8 +129,8 @@ pub struct SessionData {
     tx_transcript: Transcript,
     transcript_rx: Transcript,
     merkle_tree: MerkleTree,
-    commitment_details: HashMap<CommitmentId, TranscriptCommitmentDetails>,
-    commitments: HashMap<CommitmentId, TranscriptCommitment>,
+    /// Commitments to the transcript data.
+    commitments: HashMap<CommitmentId, (Commitment, CommitmentInfo)>,
 }
 
 opaque_debug::implement!(SessionData);
@@ -173,8 +156,8 @@ impl SessionData {
         &self.merkle_tree
     }
 
-    /// The prover's commitments to substrings of the transcript
-    pub fn commitments(&self) -> &HashMap<CommitmentId, TranscriptCommitment> {
+    /// Returns commitments to the transcript data.
+    pub fn commitments(&self) -> &HashMap<CommitmentId, (Commitment, CommitmentInfo)> {
         &self.commitments
     }
 

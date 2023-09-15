@@ -1,12 +1,12 @@
-mod artifacts;
 mod data;
+mod handshake;
 mod header;
 mod proof;
 
 use serde::{Deserialize, Serialize};
 
-pub use artifacts::SessionArtifacts;
 pub use data::{SessionData, SessionDataBuilder};
+pub use handshake::HandshakeSummary;
 pub use header::SessionHeader;
 pub use proof::SessionProof;
 

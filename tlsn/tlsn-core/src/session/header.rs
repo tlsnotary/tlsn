@@ -4,10 +4,7 @@ use serde::{Deserialize, Serialize};
 use mpz_garble_core::ChaChaEncoder;
 use tls_core::{handshake::HandshakeData, key::PublicKey};
 
-use crate::{handshake_summary::HandshakeSummary, merkle::MerkleRoot, Error};
-
-#[cfg(feature = "tracing")]
-use tracing::instrument;
+use crate::{merkle::MerkleRoot, Error, HandshakeSummary};
 
 /// An authentic session header from the Notary
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -50,14 +47,6 @@ impl SessionHeader {
     }
 
     /// Verify the data in the header is consistent with the Prover's view
-    #[cfg_attr(
-        feature = "tracing",
-        instrument(
-            level = "debug",
-            skip(self, encoder_seed, handshake_data_decommitment),
-            err
-        )
-    )]
     pub fn verify(
         &self,
         time: u64,
@@ -87,7 +76,7 @@ impl SessionHeader {
     }
 
     /// Returns the seed used to generate plaintext encodings
-    pub fn label_seed(&self) -> &[u8; 32] {
+    pub fn encoder_seed(&self) -> &[u8; 32] {
         &self.encoder_seed
     }
 

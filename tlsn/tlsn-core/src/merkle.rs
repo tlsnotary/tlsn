@@ -8,9 +8,6 @@ use rs_merkle::{
 use serde::{ser::Serializer, Deserialize, Deserializer, Serialize};
 use utils::iter::DuplicateCheck;
 
-#[cfg(feature = "tracing")]
-use tracing::instrument;
-
 /// The root of a Merkle tree
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MerkleRoot([u8; 32]);
@@ -41,30 +38,22 @@ pub enum MerkleError {
 /// A wrapper for rs_merkle's `MerkleProof` which implements `Clone`
 /// and a serializer/deserializer
 #[derive(Serialize, Deserialize)]
-pub struct MerkleProof(
+pub struct MerkleProof {
     #[serde(
         serialize_with = "merkle_proof_serialize",
         deserialize_with = "merkle_proof_deserialize"
     )]
-    MerkleProof_rs_merkle<Sha256>,
-);
+    proof: MerkleProof_rs_merkle<Sha256>,
+    total_leaves: usize,
+}
 
 impl MerkleProof {
     /// Checks if indices, hashes and leaves count are valid for the provided root
-    #[cfg_attr(
-        feature = "tracing",
-        instrument(
-            level = "debug",
-            skip(self, leaf_indices, leaf_hashes, total_leaves_count),
-            err
-        )
-    )]
     pub fn verify(
         &self,
         root: &MerkleRoot,
         leaf_indices: &[usize],
         leaf_hashes: &[Hash],
-        total_leaves_count: usize,
     ) -> Result<(), MerkleError> {
         if leaf_indices.len() != leaf_hashes.len() {
             return Err(MerkleError::MerkleProofVerificationFailed);
@@ -85,8 +74,8 @@ impl MerkleProof {
         let (indices, hashes): (Vec<usize>, Vec<[u8; 32]>) = tuples.into_iter().unzip();
 
         if !self
-            .0
-            .verify(root.to_inner(), &indices, &hashes, total_leaves_count)
+            .proof
+            .verify(root.to_inner(), &indices, &hashes, self.total_leaves)
         {
             return Err(MerkleError::MerkleProofVerificationFailed);
         }
@@ -96,8 +85,11 @@ impl MerkleProof {
 
 impl Clone for MerkleProof {
     fn clone(&self) -> Self {
-        let bytes = self.0.to_bytes();
-        Self(MerkleProof_rs_merkle::<Sha256>::from_bytes(&bytes).unwrap())
+        let bytes = self.proof.to_bytes();
+        Self {
+            proof: MerkleProof_rs_merkle::<Sha256>::from_bytes(&bytes).unwrap(),
+            total_leaves: self.total_leaves,
+        }
     }
 }
 
@@ -145,7 +137,10 @@ impl MerkleTree {
     /// Creates an inclusion proof for the given `indices`
     pub fn proof(&self, indices: &[usize]) -> MerkleProof {
         let proof = self.0.proof(indices);
-        MerkleProof(proof)
+        MerkleProof {
+            proof,
+            total_leaves: self.0.leaves_len(),
+        }
     }
 
     /// Returns the Merkle root for this MerkleTree
@@ -210,7 +205,7 @@ pub mod test {
         let proof = tree.proof(&[4, 2, 3]);
 
         assert!(proof
-            .verify(&tree.root(), &[2, 4, 3], &[leaf2, leaf4, leaf3], 5)
+            .verify(&tree.root(), &[2, 4, 3], &[leaf2, leaf4, leaf3])
             .is_ok(),);
     }
 
@@ -226,44 +221,39 @@ pub mod test {
         let proof = tree.proof(&[4, 2, 3]);
 
         // fail because the leaf is wrong
-        assert!(
+        assert_eq!(
             proof
-                .verify(&tree.root(), &[2, 4, 3], &[leaf1, leaf4, leaf3], 5)
+                .verify(&tree.root(), &[2, 4, 3], &[leaf1, leaf4, leaf3])
                 .err()
-                .unwrap()
-                == MerkleError::MerkleProofVerificationFailed
+                .unwrap(),
+            MerkleError::MerkleProofVerificationFailed
         );
 
         // fail because of the extra leaf which was not covered by the proof
-        assert!(
+        assert_eq!(
             proof
-                .verify(
-                    &tree.root(),
-                    &[2, 4, 3, 0],
-                    &[leaf2, leaf4, leaf3, leaf0],
-                    5
-                )
+                .verify(&tree.root(), &[2, 4, 3, 0], &[leaf2, leaf4, leaf3, leaf0])
                 .err()
-                .unwrap()
-                == MerkleError::MerkleProofVerificationFailed
+                .unwrap(),
+            MerkleError::MerkleProofVerificationFailed
         );
 
         // fail because of leaf and index count mismatch
-        assert!(
+        assert_eq!(
             proof
-                .verify(&tree.root(), &[1, 2, 4, 3], &[leaf2, leaf4, leaf3], 5)
+                .verify(&tree.root(), &[1, 2, 4, 3], &[leaf2, leaf4, leaf3])
                 .err()
-                .unwrap()
-                == MerkleError::MerkleProofVerificationFailed
+                .unwrap(),
+            MerkleError::MerkleProofVerificationFailed
         );
 
         // fail because of duplicate leaf indices
-        assert!(
+        assert_eq!(
             proof
-                .verify(&tree.root(), &[2, 2, 3], &[leaf2, leaf4, leaf3], 5)
+                .verify(&tree.root(), &[2, 2, 3], &[leaf2, leaf4, leaf3])
                 .err()
-                .unwrap()
-                == MerkleError::MerkleProofVerificationFailed
+                .unwrap(),
+            MerkleError::MerkleProofVerificationFailed
         );
     }
 
@@ -287,8 +277,8 @@ pub mod test {
         let proof2: MerkleProof = bincode::deserialize(&proof_bytes).unwrap();
 
         assert!(proof2
-            .verify(&tree2.root(), &[2, 4, 3], &[leaf2, leaf4, leaf3], 5)
-            .is_ok(),);
+            .verify(&tree2.root(), &[2, 4, 3], &[leaf2, leaf4, leaf3])
+            .is_ok());
     }
 
     // This test causes rs_merkle to panic
@@ -304,12 +294,11 @@ pub mod test {
 
         // fail because tree index is wrong
         assert!(proof
-            .verify(&tree.root(), &[1, 4, 3], &[leaf2, leaf4, leaf3], 5)
-            .is_err(),);
+            .verify(&tree.root(), &[1, 4, 3], &[leaf2, leaf4, leaf3])
+            .is_err());
     }
 
     // This test causes rs_merkle to panic
-    // https://github.com/antouhou/rs-merkle/issues/20
     #[test]
     fn test_verify_fail_panic2() {
         let leaf0 = Hash::from([0u8; 32]);
@@ -320,26 +309,9 @@ pub mod test {
         let tree = MerkleTree::from_leaves(&[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
         let proof = tree.proof(&[4, 2, 3]);
 
-        // fail because leaf count is wrong
-        assert!(proof
-            .verify(&tree.root(), &[2, 4, 3], &[leaf2, leaf4, leaf3], 6)
-            .is_err(),);
-    }
-
-    // This test causes rs_merkle to panic
-    #[test]
-    fn test_verify_fail_panic3() {
-        let leaf0 = Hash::from([0u8; 32]);
-        let leaf1 = Hash::from([1u8; 32]);
-        let leaf2 = Hash::from([2u8; 32]);
-        let leaf3 = Hash::from([3u8; 32]);
-        let leaf4 = Hash::from([4u8; 32]);
-        let tree = MerkleTree::from_leaves(&[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
-        let proof = tree.proof(&[4, 2, 3]);
-
         // trying to verify less leaves than what was included in the proof
         assert!(proof
-            .verify(&tree.root(), &[4, 3], &[leaf4, leaf3], 5)
-            .is_err(),);
+            .verify(&tree.root(), &[4, 3], &[leaf4, leaf3])
+            .is_err());
     }
 }

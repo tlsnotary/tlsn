@@ -6,6 +6,9 @@ use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use utils::range::{RangeDifference, RangeSet, RangeUnion};
 
+pub(crate) static TX_TRANSCRIPT_ID: &str = "tx";
+pub(crate) static RX_TRANSCRIPT_ID: &str = "rx";
+
 /// An error related to transcripts
 #[derive(Debug, thiserror::Error)]
 pub enum TranscriptError {
@@ -17,35 +20,18 @@ pub enum TranscriptError {
 /// A transcript contains a subset of bytes from a TLS session
 #[derive(Default, Serialize, Deserialize, Clone, Debug)]
 pub struct Transcript {
-    id: String,
     data: Bytes,
 }
 
 impl Transcript {
     /// Creates a new transcript with the given ID and data
-    pub fn new(id: &str, data: impl Into<Bytes>) -> Self {
-        Self {
-            id: id.to_string(),
-            data: data.into(),
-        }
-    }
-
-    /// Returns the id used to identify this transcript
-    pub fn id(&self) -> &String {
-        &self.id
+    pub fn new(data: impl Into<Bytes>) -> Self {
+        Self { data: data.into() }
     }
 
     /// Returns the actual traffic data of this transcript
     pub fn data(&self) -> &Bytes {
         &self.data
-    }
-
-    /// Returns the value ID for each byte in the provided range
-    pub fn get_ids(&self, range: &RangeSet<usize>) -> Vec<String> {
-        range
-            .iter()
-            .map(|idx| format!("{}/{}", self.id, idx))
-            .collect::<Vec<_>>()
     }
 
     /// Returns a concatenated bytestring located in the given ranges of the transcript.
@@ -56,7 +42,11 @@ impl Transcript {
         ranges: &RangeSet<usize>,
     ) -> Result<Vec<u8>, TranscriptError> {
         // all ranges must be within the bounds of the transcript
-        if ranges.max().unwrap() > self.data.len() {
+        if ranges
+            .max()
+            .ok_or_else(|| TranscriptError::RangesOutofBounds(ranges.clone()))?
+            > self.data.len()
+        {
             return Err(TranscriptError::RangesOutofBounds(ranges.clone()));
         }
 
@@ -171,6 +161,19 @@ pub enum Direction {
     Received,
 }
 
+/// Returns the value ID for each byte in the provided range set
+pub fn get_encoding_ids(
+    ranges: &RangeSet<usize>,
+    direction: Direction,
+) -> impl Iterator<Item = String> + '_ {
+    let id = match direction {
+        Direction::Sent => TX_TRANSCRIPT_ID,
+        Direction::Received => RX_TRANSCRIPT_ID,
+    };
+
+    ranges.iter().map(move |idx| format!("{}/{}", id, idx))
+}
+
 #[cfg(test)]
 mod tests {
     use rstest::{fixture, rstest};
@@ -181,7 +184,7 @@ mod tests {
     fn transcripts() -> (Transcript, Transcript) {
         let sent = "data sent 123456789".as_bytes().to_vec();
         let recv = "data received 987654321".as_bytes().to_vec();
-        (Transcript::new("tx", sent), Transcript::new("rx", recv))
+        (Transcript::new(sent), Transcript::new(recv))
     }
 
     #[rstest]

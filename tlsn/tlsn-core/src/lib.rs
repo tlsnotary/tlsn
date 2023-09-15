@@ -6,28 +6,20 @@
 
 pub mod commitment;
 mod error;
-mod handshake_summary;
-pub(crate) mod inclusion_proof;
 pub mod merkle;
 pub mod msg;
 mod session;
 pub mod signature;
 pub mod substrings;
 pub mod transcript;
-mod utils;
 
 pub use commitment::Commitment;
 pub use error::Error;
-pub use handshake_summary::HandshakeSummary;
-pub use inclusion_proof::InclusionProof;
 pub use session::{
-    NotarizedSession, SessionArtifacts, SessionData, SessionDataBuilder, SessionHeader,
+    HandshakeSummary, NotarizedSession, SessionData, SessionDataBuilder, SessionHeader,
     SessionProof,
 };
-pub use substrings::{
-    commitment::{SubstringsCommitment, SubstringsCommitmentSet},
-    opening::SubstringsOpeningSet,
-};
+pub use substrings::SubstringsCommitment;
 pub use transcript::{Direction, RedactedTranscript, Transcript, TranscriptSlice};
 
 /// The maximum allowed total bytelength of all committed data. Used to prevent DoS during verification.

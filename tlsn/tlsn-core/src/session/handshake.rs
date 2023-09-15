@@ -4,9 +4,6 @@ use tls_core::{handshake::HandshakeData, key::PublicKey, msgs::handshake::Server
 
 use crate::error::Error;
 
-#[cfg(feature = "tracing")]
-use tracing::instrument;
-
 /// Handshake summary is part of the session header signed by the Notary
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HandshakeSummary {
@@ -45,10 +42,6 @@ impl HandshakeSummary {
     }
 
     /// Verifies that the provided handshake data matches this handshake summary
-    #[cfg_attr(
-        feature = "tracing",
-        instrument(level = "debug", skip(self, data), err)
-    )]
     pub fn verify(&self, data: &Decommitment<HandshakeData>) -> Result<(), Error> {
         // Verify the handshake data matches the commitment in the session header
         data.verify(&self.handshake_commitment)
