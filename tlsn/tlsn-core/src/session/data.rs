@@ -7,7 +7,7 @@ use crate::{
     },
     merkle::{MerkleError, MerkleTree},
     substrings::proof::SubstringsProofBuilder,
-    Direction, SubstringsCommitment, SubstringsCommitmentSet, Transcript,
+    Direction, SubstringsCommitment, Transcript,
 };
 use mpz_core::{
     commit::{Decommitment, HashCommit},
@@ -21,8 +21,8 @@ use utils::range::RangeSet;
 /// A builder for [`SessionData`]
 pub struct SessionDataBuilder {
     handshake_data_decommitment: Decommitment<HandshakeData>,
-    tx_transcript: Transcript,
-    rx_transcript: Transcript,
+    transcript_tx: Transcript,
+    transcript_rx: Transcript,
     merkle_leaves: Vec<Hash>,
     commitment_details: HashMap<CommitmentId, TranscriptCommitmentDetails>,
     commitments: HashMap<CommitmentId, TranscriptCommitment>,
@@ -45,13 +45,13 @@ impl SessionDataBuilder {
     /// Creates a new builder
     pub fn new(
         handshake_data_decommitment: Decommitment<HandshakeData>,
-        tx_transcript: Transcript,
-        rx_transcript: Transcript,
+        transcript_tx: Transcript,
+        transcript_rx: Transcript,
     ) -> Self {
         Self {
             handshake_data_decommitment,
-            tx_transcript,
-            rx_transcript,
+            transcript_tx,
+            transcript_rx,
             merkle_leaves: Vec::default(),
             commitment_details: HashMap::default(),
             commitments: HashMap::default(),
@@ -60,12 +60,12 @@ impl SessionDataBuilder {
 
     /// Returns a reference to the sent data transcript.
     pub fn sent_transcript(&self) -> &Transcript {
-        &self.tx_transcript
+        &self.transcript_tx
     }
 
     /// Returns a reference to the received data transcript.
     pub fn recv_transcript(&self) -> &Transcript {
-        &self.rx_transcript
+        &self.transcript_rx
     }
 
     /// Add a commitment to substrings of the transcript
@@ -119,8 +119,8 @@ impl SessionDataBuilder {
     pub fn build(self) -> Result<SessionData, SessionDataBuilderError> {
         let Self {
             handshake_data_decommitment,
-            tx_transcript,
-            rx_transcript,
+            transcript_tx: tx_transcript,
+            transcript_rx,
             merkle_leaves,
             commitment_details,
             commitments,
@@ -131,7 +131,7 @@ impl SessionDataBuilder {
         Ok(SessionData {
             handshake_data_decommitment,
             tx_transcript,
-            rx_transcript,
+            transcript_rx,
             merkle_tree,
             commitment_details,
             commitments,
@@ -144,7 +144,7 @@ impl SessionDataBuilder {
 pub struct SessionData {
     handshake_data_decommitment: Decommitment<HandshakeData>,
     tx_transcript: Transcript,
-    rx_transcript: Transcript,
+    transcript_rx: Transcript,
     merkle_tree: MerkleTree,
     commitment_details: HashMap<CommitmentId, TranscriptCommitmentDetails>,
     commitments: HashMap<CommitmentId, TranscriptCommitment>,
@@ -165,7 +165,7 @@ impl SessionData {
 
     /// Returns the transcript for data received from the server
     pub fn recv_transcript(&self) -> &Transcript {
-        &self.rx_transcript
+        &self.transcript_rx
     }
 
     /// Returns the merkle tree for the prover's commitments

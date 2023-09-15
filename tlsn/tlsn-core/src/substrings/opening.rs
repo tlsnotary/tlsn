@@ -185,8 +185,8 @@ impl SubstringsOpening {
         self.ranges()
             .iter_ranges()
             .map(|r| {
-                let end = r.end;
-                TranscriptSlice::new(r, opening.drain(0..end).collect())
+                let end = r.len();
+                TranscriptSlice::new(r, opening.drain(..end).collect())
             })
             .collect()
     }

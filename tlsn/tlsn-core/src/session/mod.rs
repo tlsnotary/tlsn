@@ -4,22 +4,13 @@ mod header;
 mod proof;
 
 use serde::{Deserialize, Serialize};
-use utils::iter::DuplicateCheck;
 
 pub use artifacts::SessionArtifacts;
 pub use data::{SessionData, SessionDataBuilder};
 pub use header::SessionHeader;
 pub use proof::SessionProof;
 
-use crate::{
-    error::Error,
-    signature::Signature,
-    substrings::{
-        opening::{Blake3Opening, SubstringsOpening, SubstringsOpeningSet},
-        proof::SubstringsProof,
-    },
-    Commitment, Direction, InclusionProof, SubstringsCommitment, SubstringsCommitmentSet,
-};
+use crate::signature::Signature;
 
 /// A validated notarized session stored by the Prover
 #[derive(Serialize, Deserialize)]

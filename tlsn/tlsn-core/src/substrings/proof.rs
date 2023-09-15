@@ -1,7 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
-use utils::range::RangeSet;
 
 use crate::{
     commitment::{CommitmentId, TranscriptCommitment},
