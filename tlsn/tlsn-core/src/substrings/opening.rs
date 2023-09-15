@@ -1,5 +1,5 @@
 use crate::{
-    commitment::{Blake3, Commitment},
+    commitment::{Blake3, Commitment, CommitmentId},
     error::Error,
     utils::merge_slices,
     Direction, EncodingId, SessionHeader, Transcript, TranscriptSlice,
@@ -28,7 +28,7 @@ impl SubstringsOpeningSet {
     /// Ensures that:
     /// - each individual opening is valid
     /// - the set is not empty
-    /// - the merkle_tree_index of each opening is unique
+    /// - the id of each opening is unique
     /// - the total of all openings' bytes is below some [limit](crate::MAX_TOTAL_COMMITTED_DATA)
     /// - overlapping ranges contain the same data
     #[cfg_attr(feature = "tracing", instrument(level = "trace", skip(self), err))]
@@ -43,9 +43,8 @@ impl SubstringsOpeningSet {
             return Err(Error::ValidationError);
         }
 
-        // --- merkle_tree_index of each opening must be unique
-        let ids: Vec<u32> = self.0.iter().map(|o| o.merkle_tree_index()).collect();
-        if ids.iter().contains_dups() {
+        // --- id of each opening must be unique
+        if self.0.iter().map(|o| o.id()).contains_dups() {
             return Err(Error::ValidationError);
         }
 
@@ -157,10 +156,10 @@ impl SubstringsOpening {
         }
     }
 
-    /// Returns the merkle tree index of this opening
-    pub fn merkle_tree_index(&self) -> u32 {
+    /// Returns the commitment id for this opening
+    pub fn id(&self) -> &CommitmentId {
         match self {
-            SubstringsOpening::Blake3(opening) => opening.merkle_tree_index(),
+            SubstringsOpening::Blake3(opening) => opening.id(),
         }
     }
 
@@ -196,9 +195,8 @@ impl SubstringsOpening {
 /// A substring opening using Blake3
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Blake3Opening {
-    /// The index of this commitment in the Merkle tree of commitments.
-    /// Also serves as a unique id for this opening.
-    merkle_tree_index: u32,
+    /// The commitment id for this opening.
+    id: CommitmentId,
     /// The actual opening bytes
     opening: Vec<u8>,
     /// The absolute byte ranges within the notarized data. The committed data
@@ -212,14 +210,14 @@ pub struct Blake3Opening {
 impl Blake3Opening {
     /// Creates a new Blake3 opening
     pub fn new(
-        merkle_tree_index: u32,
+        id: CommitmentId,
         opening: Vec<u8>,
         ranges: RangeSet<usize>,
         direction: Direction,
         salt: Nonce,
     ) -> Self {
         Self {
-            merkle_tree_index,
+            id,
             opening,
             ranges,
             direction,
@@ -268,8 +266,8 @@ impl Blake3Opening {
     }
 
     /// Returns the merkle tree index of this opening
-    pub fn merkle_tree_index(&self) -> u32 {
-        self.merkle_tree_index
+    pub fn id(&self) -> &CommitmentId {
+        &self.id
     }
 
     /// Returns the actual opening as a byte slice

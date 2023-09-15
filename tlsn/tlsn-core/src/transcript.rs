@@ -156,7 +156,7 @@ impl TranscriptSlice {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
 /// A [Transcript] contains either a stream of bytes which were sent to the server
 /// or a stream of bytes which were received from the server. The Prover creates
 /// separate commitments to bytes in each direction.

@@ -23,7 +23,10 @@ pub use commitment::Commitment;
 pub use error::Error;
 pub use handshake_summary::HandshakeSummary;
 pub use inclusion_proof::InclusionProof;
-pub use session::{NotarizedSession, SessionArtifacts, SessionData, SessionHeader, SessionProof};
+pub use session::{
+    NotarizedSession, SessionArtifacts, SessionData, SessionDataBuilder, SessionHeader,
+    SessionProof,
+};
 pub use substrings::{
     commitment::{SubstringsCommitment, SubstringsCommitmentSet},
     opening::SubstringsOpeningSet,

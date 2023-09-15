@@ -1,5 +1,5 @@
 use crate::{
-    commitment::Commitment,
+    commitment::{Commitment, CommitmentId},
     error::Error,
     merkle::{MerkleProof, MerkleRoot},
     SubstringsCommitmentSet,
@@ -39,30 +39,26 @@ impl InclusionProof {
     /// Verifies this inclusion proof against the merkle root from the header. Returns a
     /// <merkle tree index, commitment> hashmap.
     #[cfg_attr(feature = "tracing", instrument(level = "debug", skip(self), err))]
-    pub fn verify(&self, root: &MerkleRoot) -> Result<HashMap<u32, Commitment>, Error> {
+    pub fn verify(&self, root: &MerkleRoot) -> Result<HashMap<CommitmentId, Commitment>, Error> {
         // <merkle tree index, commitment> hashmap which will be returned
-        let mut map: HashMap<u32, Commitment> = HashMap::new();
+        let mut map: HashMap<CommitmentId, Commitment> = HashMap::new();
 
-        // indices and leaves to verify
-        let (indices, leaves): (Vec<usize>, Vec<Hash>) = self
+        // ids and leaves to verify
+        let (ids, leaves): (Vec<usize>, Vec<Hash>) = self
             .commitments
             .iter()
             .map(|c| {
-                let idx = c.merkle_tree_index();
+                let id = c.id();
                 let leaf = match c.commitment() {
                     Commitment::Blake3(com) => *com.encoding_hash(),
                 };
-                map.insert(idx, c.commitment().clone());
-                (idx as usize, leaf)
+                map.insert(*id, c.commitment().clone());
+                (id.into_inner() as usize, leaf)
             })
             .unzip();
 
-        self.merkle_proof.verify(
-            root,
-            &indices,
-            &leaves,
-            self.merkle_tree_leaf_count as usize,
-        )?;
+        self.merkle_proof
+            .verify(root, &ids, &leaves, self.merkle_tree_leaf_count as usize)?;
 
         Ok(map)
     }
@@ -73,7 +69,7 @@ impl InclusionProof {
 
         // each commitment's merkle_tree_idx must be valid
         for comm in self.commitments.iter() {
-            if comm.merkle_tree_index() >= self.merkle_tree_leaf_count {
+            if comm.id().into_inner() >= self.merkle_tree_leaf_count {
                 return Err(Error::ValidationError);
             }
         }

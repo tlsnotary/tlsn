@@ -3,12 +3,17 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    error::Error, utils::merge_slices, Direction, InclusionProof, SessionHeader,
-    SubstringsCommitment, SubstringsOpeningSet, TranscriptSlice,
+    commitment::CommitmentId, error::Error, utils::merge_slices, Direction, InclusionProof,
+    SessionData, SessionHeader, SubstringsCommitment, SubstringsOpeningSet, TranscriptSlice,
 };
 
-#[cfg(feature = "tracing")]
-use tracing::instrument;
+use super::opening::SubstringsOpening;
+
+/// A builder for [`SubstringsProof`]
+pub struct SubstringsProofBuilder<'a> {
+    tree: &'a SessionData,
+    openings: Vec<SubstringsOpening>,
+}
 
 /// A substring proof containing the opening set and the inclusion proof
 #[derive(Serialize, Deserialize)]
@@ -28,7 +33,6 @@ impl SubstringsProof {
 
     /// Verifies this proof and, if successful, returns [TranscriptSlice]s which were sent and
     /// received.
-    #[cfg_attr(feature = "tracing", instrument(level = "trace", skip(self), err))]
     pub fn verify(
         self,
         header: &SessionHeader,
@@ -44,7 +48,7 @@ impl SubstringsProof {
         // verify each opening against the corresponding commitment
         for opening in self.openings.iter() {
             let commitment = commitments
-                .get(&opening.merkle_tree_index())
+                .get(opening.id())
                 .expect("commitment should be present");
 
             let opening_slices = opening.verify(header, commitment)?;
@@ -90,14 +94,14 @@ impl SubstringsProof {
         }
 
         // build a <merkle tree index, SubstringsCommitment> hashmap
-        let mut map: HashMap<u32, &SubstringsCommitment> = HashMap::new();
+        let mut map: HashMap<CommitmentId, &SubstringsCommitment> = HashMap::new();
         for c in self.inclusion_proof.commitments().iter() {
-            map.insert(c.merkle_tree_index(), c);
+            map.insert(*c.id(), c);
         }
 
         // make sure relevant fields match for each opening-commitment pair
         for o in self.openings.iter() {
-            let Some(c) = map.get(&o.merkle_tree_index()) else {
+            let Some(c) = map.get(o.id()) else {
                 // `merkle_tree_index` doesn't match
                 return Err(Error::ValidationError);
             };

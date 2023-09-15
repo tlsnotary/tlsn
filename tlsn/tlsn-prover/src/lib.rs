@@ -9,6 +9,7 @@
 
 mod config;
 mod error;
+pub mod http;
 mod state;
 
 pub use config::ProverConfig;
@@ -22,6 +23,7 @@ use rand::Rng;
 use std::{ops::Range, pin::Pin, sync::Arc};
 use tls_client_async::{bind_client, ClosedConnection, TlsConnection};
 use tls_mpc::{setup_components, MpcTlsLeader, TlsRole};
+use utils::range::RangeSet;
 
 use mpz_core::commit::HashCommit;
 use mpz_garble::{
@@ -265,26 +267,22 @@ impl Prover<Notarize> {
 
     /// Add a commitment to the sent requests
     pub fn add_commitment_sent(&mut self, range: Range<usize>) -> Result<(), ProverError> {
-        self.add_commitment(range, Direction::Sent)
+        self.add_commitment(range.into(), Direction::Sent)
     }
 
     /// Add a commitment to the received responses
     pub fn add_commitment_recv(&mut self, range: Range<usize>) -> Result<(), ProverError> {
-        self.add_commitment(range, Direction::Received)
+        self.add_commitment(range.into(), Direction::Received)
     }
 
-    #[cfg_attr(
-        feature = "tracing",
-        instrument(level = "debug", skip(self, range), err)
-    )]
-    fn add_commitment(
+    pub(crate) fn add_commitment(
         &mut self,
-        range: Range<usize>,
+        ranges: RangeSet<usize>,
         direction: Direction,
     ) -> Result<(), ProverError> {
         let ids = match direction {
-            Direction::Sent => self.state.transcript_tx.get_ids(&range),
-            Direction::Received => self.state.transcript_rx.get_ids(&range),
+            Direction::Sent => self.state.transcript_tx.get_ids(&ranges),
+            Direction::Received => self.state.transcript_rx.get_ids(&ranges),
         };
 
         let id_refs: Vec<_> = ids.iter().map(|id| id.as_str()).collect();
@@ -304,7 +302,7 @@ impl Prover<Notarize> {
         let commitment = SubstringsCommitment::new(
             self.state.substring_commitments.len() as u32,
             commitment,
-            range.into(),
+            ranges,
             direction,
             *decommitment.nonce(),
         );

@@ -1,4 +1,8 @@
-use crate::{commitment::Commitment, error::Error, transcript::Direction};
+use crate::{
+    commitment::{Commitment, CommitmentId},
+    error::Error,
+    transcript::Direction,
+};
 use mpz_core::commit::Nonce;
 use serde::{Deserialize, Serialize};
 use utils::{iter::DuplicateCheck, range::RangeSet};
@@ -35,9 +39,8 @@ impl SubstringsCommitmentSet {
             return Err(Error::ValidationError);
         }
 
-        // merkle_tree_index of each commitment must be unique
-        let ids: Vec<u32> = self.0.iter().map(|c| c.merkle_tree_index()).collect();
-        if ids.iter().contains_dups() {
+        // id of each commitment must be unique
+        if self.0.iter().map(|c| c.id()).contains_dups() {
             return Err(Error::ValidationError);
         }
 
@@ -72,9 +75,8 @@ impl SubstringsCommitmentSet {
 /// A Prover's commitment to one or multiple substrings of the [crate::Transcript]
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SubstringsCommitment {
-    /// The index of this commitment in the Merkle tree of commitments.
-    /// Also serves as a unique id for this commitment.
-    merkle_tree_index: u32,
+    /// The id of this commitment.
+    id: CommitmentId,
     /// The actual commitment
     commitment: Commitment,
     /// The absolute byte ranges within the [crate::Transcript]. The committed data
@@ -88,14 +90,14 @@ pub struct SubstringsCommitment {
 impl SubstringsCommitment {
     /// Creates a new commitment to substrings
     pub fn new(
-        merkle_tree_index: u32,
+        id: CommitmentId,
         commitment: Commitment,
         ranges: RangeSet<usize>,
         direction: Direction,
         salt: Nonce,
     ) -> Self {
         Self {
-            merkle_tree_index,
+            id,
             commitment,
             ranges,
             direction,
@@ -125,8 +127,8 @@ impl SubstringsCommitment {
     }
 
     /// Returns the index of this commitment in the Merkle tree
-    pub fn merkle_tree_index(&self) -> u32 {
-        self.merkle_tree_index
+    pub fn id(&self) -> &CommitmentId {
+        &self.id
     }
 
     /// Returns the actual commitment
