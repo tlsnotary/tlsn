@@ -23,7 +23,6 @@ use mpz_garble_core::{ChaChaEncoder, EncodedValue, Encoder};
 
 use tlsn_core::{
     commitment::{Blake3, Commitment},
-    fixtures,
     merkle::MerkleTree,
     msg::SignedSessionHeader,
     signature::Signature,
@@ -32,10 +31,12 @@ use tlsn_core::{
     SessionProof, SubstringsCommitment, SubstringsCommitmentSet, Transcript,
 };
 
+use tlsn_fixtures as fixtures;
+
 #[test]
 /// Tests that the commitment creation protocol and verification work end-to-end
 fn test_api() {
-    let testdata = crate::fixtures::cert::tlsnotary();
+    let testdata = fixtures::cert::tlsnotary();
     // Prover's transcript
     let data_sent = "sent data".as_bytes();
     let data_recv = "received data".as_bytes();

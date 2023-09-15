@@ -6,9 +6,6 @@
 
 pub mod commitment;
 mod error;
-#[cfg(any(test, feature = "fixtures"))]
-#[allow(missing_docs)]
-pub mod fixtures;
 mod handshake_summary;
 pub(crate) mod inclusion_proof;
 pub mod merkle;

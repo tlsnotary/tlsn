@@ -3,6 +3,7 @@ members = [
     "tlsn-core",
     "tlsn-notary",
     "tlsn-prover",
+    "tlsn-fixtures",
     "tests-integration",
     "examples",
 ]
@@ -12,6 +13,7 @@ resolver = "2"
 tlsn-core = { path = "tlsn-core" }
 tlsn-prover = { path = "tlsn-prover" }
 tlsn-notary = { path = "tlsn-notary" }
+tlsn-fixtures = { path = "tlsn-fixtures" }
 
 tlsn-tls-core = { path = "../components/tls/tls-core" }
 tlsn-tls-mpc = { path = "../components/tls/tls-mpc" }

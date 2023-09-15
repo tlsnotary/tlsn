@@ -10,7 +10,6 @@ edition = "2021"
 
 [features]
 default = []
-fixtures = ["dep:hex"]
 tracing = ["dep:tracing"]
 
 [dependencies]
@@ -34,6 +33,8 @@ tracing = { workspace = true, optional = true }
 opaque-debug.workspace = true
 
 [dev-dependencies]
+tlsn-fixtures.workspace = true
+
 rstest.workspace = true
 hex.workspace = true
 rand_core.workspace = true
@@ -42,4 +43,3 @@ bincode.workspace = true
 
 [[test]]
 name = "api"
-required-features = ["fixtures"]

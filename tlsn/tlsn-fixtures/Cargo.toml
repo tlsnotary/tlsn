@@ -1,0 +1,12 @@
+[package]
+name = "tlsn-fixtures"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+tlsn-core.workspace = true
+tlsn-tls-core.workspace = true
+
+hex.workspace = true
+rstest.workspace = true
+webpki-roots.workspace = true
