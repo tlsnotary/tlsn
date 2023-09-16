@@ -19,6 +19,7 @@ pub struct SessionDataBuilder {
     transcript_rx: Transcript,
     merkle_leaves: Vec<Hash>,
     commitments: HashMap<CommitmentId, (Commitment, CommitmentInfo)>,
+    substrings_commitments: HashMap<RangeSet<usize>, CommitmentId>,
 }
 
 opaque_debug::implement!(SessionDataBuilder);
@@ -53,6 +54,7 @@ impl SessionDataBuilder {
             transcript_rx,
             merkle_leaves: Vec::default(),
             commitments: HashMap::default(),
+            substrings_commitments: HashMap::default(),
         }
     }
 
@@ -93,9 +95,12 @@ impl SessionDataBuilder {
             id,
             (
                 Commitment::Substrings(SubstringsCommitment::Blake3(commitment)),
-                CommitmentInfo::new(ranges, direction),
+                CommitmentInfo::new(ranges.clone(), direction),
             ),
         );
+
+        // Store commitment id with its ranges
+        self.substrings_commitments.insert(ranges, id);
 
         Ok(id)
     }
@@ -108,6 +113,7 @@ impl SessionDataBuilder {
             transcript_rx,
             merkle_leaves,
             commitments,
+            substrings_commitments,
         } = self;
 
         let merkle_tree = MerkleTree::from_leaves(&merkle_leaves)?;
@@ -118,6 +124,7 @@ impl SessionDataBuilder {
             transcript_rx,
             merkle_tree,
             commitments,
+            substrings_commitments,
         })
     }
 }
@@ -140,6 +147,7 @@ pub struct SessionData {
     merkle_tree: MerkleTree,
     /// Commitments to the transcript data.
     commitments: HashMap<CommitmentId, (Commitment, CommitmentInfo)>,
+    substrings_commitments: HashMap<RangeSet<usize>, CommitmentId>,
 }
 
 opaque_debug::implement!(SessionData);
@@ -168,6 +176,15 @@ impl SessionData {
     /// Returns commitments to the transcript data.
     pub(crate) fn commitments(&self) -> &HashMap<CommitmentId, (Commitment, CommitmentInfo)> {
         &self.commitments
+    }
+
+    /// Returns the commitment id for a substring commitment if it exists.
+    ///
+    /// # Arguments
+    ///
+    /// * `ranges` - The ranges of the substrings commitment.
+    pub fn get_substrings_commitment(&self, ranges: RangeSet<usize>) -> Option<CommitmentId> {
+        self.substrings_commitments.get(&ranges).copied()
     }
 
     /// Returns a substrings proof builder.
