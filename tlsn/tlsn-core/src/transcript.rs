@@ -77,7 +77,7 @@ impl RedactedTranscript {
     ///
     /// * `len` - The length of the transcript
     /// * `slices` - A list of slices of data which have been authenticated
-    pub fn new(&mut self, len: usize, slices: Vec<TranscriptSlice>) -> Self {
+    pub fn new(len: usize, slices: Vec<TranscriptSlice>) -> Self {
         let mut data = vec![0u8; len];
         let mut auth = RangeSet::default();
         for slice in slices {
