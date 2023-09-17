@@ -22,7 +22,7 @@ use mpz_core::{commit::HashCommit, serialize::CanonicalSerialize, value::ValueId
 use mpz_garble_core::{ChaChaEncoder, EncodedValue, Encoder};
 
 use tlsn_core::{
-    msg::SignedSessionHeader, session::SessionDataBuilder, substrings::SubstringsProof,
+    msg::SignedSessionHeader, proof::SubstringsProof, session::SessionDataBuilder,
     transcript::get_encoding_ids, Direction, HandshakeSummary, NotarizedSession, SessionHeader,
     SessionProof, Signature, Transcript,
 };

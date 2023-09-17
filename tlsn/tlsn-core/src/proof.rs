@@ -1,0 +1,249 @@
+//! Types for substring proofs.
+
+use std::collections::HashMap;
+
+use mpz_circuits::types::ValueType;
+use serde::{Deserialize, Serialize};
+use utils::range::{RangeDisjoint, RangeSet, RangeUnion};
+
+use crate::{
+    commitment::{Commitment, CommitmentId, CommitmentInfo, CommitmentOpening},
+    merkle::MerkleProof,
+    transcript::get_encoding_ids,
+    Direction, EncodingId, SessionData, SessionHeader, TranscriptSlice, MAX_TOTAL_COMMITTED_DATA,
+};
+
+use mpz_garble_core::Encoder;
+
+/// An error for [`SubstringsProofBuilder`]
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum SubstringsProofBuilderError {
+    /// Invalid commitment id.
+    #[error("invalid commitment id: {0:?}")]
+    InvalidCommitmentId(CommitmentId),
+    /// Invalid commitment type.
+    #[error("commitment {0:?} is not a substrings commitment")]
+    InvalidCommitmentType(CommitmentId),
+    /// Attempted to add a commitment with a duplicate id.
+    #[error("commitment with id {0:?} already exists")]
+    DuplicateCommitmentId(CommitmentId),
+}
+
+/// A builder for [`SubstringsProof`]
+pub struct SubstringsProofBuilder<'a> {
+    data: &'a SessionData,
+    openings: HashMap<CommitmentId, (CommitmentInfo, CommitmentOpening)>,
+}
+
+opaque_debug::implement!(SubstringsProofBuilder<'_>);
+
+impl<'a> SubstringsProofBuilder<'a> {
+    /// Creates a new builder.
+    pub(crate) fn new(data: &'a SessionData) -> Self {
+        Self {
+            data,
+            openings: HashMap::default(),
+        }
+    }
+
+    /// Reveals data corresponding to the provided commitment id
+    pub fn reveal(&mut self, id: CommitmentId) -> Result<&mut Self, SubstringsProofBuilderError> {
+        let commitment = self
+            .data
+            .get_commitment(&id)
+            .ok_or(SubstringsProofBuilderError::InvalidCommitmentId(id))?;
+
+        let info = self
+            .data
+            .get_commitment_info(&id)
+            .expect("info exists if commitment exists");
+
+        #[allow(irrefutable_let_patterns)]
+        let Commitment::Blake3(commitment) = commitment
+        else {
+            return Err(SubstringsProofBuilderError::InvalidCommitmentType(id));
+        };
+
+        let transcript = match info.direction() {
+            Direction::Sent => self.data.sent_transcript(),
+            Direction::Received => self.data.recv_transcript(),
+        };
+
+        let data = transcript.get_bytes_in_ranges(info.ranges());
+
+        // check that the commitment is not already revealed
+        if self
+            .openings
+            .insert(id, (info.clone(), commitment.open(data).into()))
+            .is_some()
+        {
+            return Err(SubstringsProofBuilderError::DuplicateCommitmentId(id));
+        }
+
+        Ok(self)
+    }
+
+    /// Builds the [`SubstringsProof`]
+    pub fn build(self) -> Result<SubstringsProof, SubstringsProofBuilderError> {
+        let Self { data, openings } = self;
+
+        let indices = openings
+            .keys()
+            .map(|id| id.into_inner() as usize)
+            .collect::<Vec<_>>();
+
+        let inclusion_proof = data.merkle_tree().proof(&indices);
+
+        Ok(SubstringsProof {
+            openings,
+            inclusion_proof,
+        })
+    }
+}
+
+/// An error relating to [`SubstringsProof`]
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum SubstringsProofError {
+    /// The proof contains more data than the maximum allowed.
+    #[error(
+        "substrings proof opens more data than the maximum allowed: {0} > {}",
+        MAX_TOTAL_COMMITTED_DATA
+    )]
+    MaxDataExceeded(usize),
+    /// The proof contains duplicate transcript data.
+    #[error("proof contains duplicate transcript data")]
+    DuplicateData,
+    /// Range of the opening is out of bounds.
+    #[error("range of opening {0:?} is out of bounds: {1}")]
+    RangeOutOfBounds(CommitmentId, usize),
+    /// The proof contains an invalid commitment opening.
+    #[error("invalid opening for commitment id: {0:?}")]
+    InvalidOpening(CommitmentId),
+    /// The proof contains an invalid inclusion proof.
+    #[error("invalid inclusion proof")]
+    InvalidInclusionProof,
+}
+
+/// A substring proof containing the commitment openings and a proof
+/// that the corresponding commitments are present in the merkle tree.
+#[derive(Serialize, Deserialize)]
+pub struct SubstringsProof {
+    openings: HashMap<CommitmentId, (CommitmentInfo, CommitmentOpening)>,
+    inclusion_proof: MerkleProof,
+}
+
+opaque_debug::implement!(SubstringsProof);
+
+impl SubstringsProof {
+    /// Verifies this proof and, if successful, returns [TranscriptSlice]s which were sent and
+    /// received.
+    pub fn verify(
+        self,
+        header: &SessionHeader,
+    ) -> Result<(Vec<TranscriptSlice>, Vec<TranscriptSlice>), SubstringsProofError> {
+        let Self {
+            openings,
+            inclusion_proof,
+        } = self;
+
+        let mut indices = Vec::with_capacity(openings.len());
+        let mut expected_hashes = Vec::with_capacity(openings.len());
+        let mut sent_slices = Vec::new();
+        let mut recv_slices = Vec::new();
+        let mut sent_ranges = RangeSet::default();
+        let mut recv_ranges = RangeSet::default();
+        let mut total_opened = 0u128;
+        for (id, (info, opening)) in openings {
+            let CommitmentInfo {
+                ranges, direction, ..
+            } = info;
+
+            let opened_len = ranges.len();
+
+            // Make sure the amount of data being proved is bounded.
+            total_opened += opened_len as u128;
+            if total_opened > MAX_TOTAL_COMMITTED_DATA as u128 {
+                return Err(SubstringsProofError::MaxDataExceeded(total_opened as usize));
+            }
+
+            // Make sure the opening length matches the ranges length.
+            if opening.data().len() != opened_len {
+                return Err(SubstringsProofError::InvalidOpening(id));
+            }
+
+            // Make sure duplicate data is not opened.
+            match direction {
+                Direction::Sent => {
+                    if !sent_ranges.is_disjoint(&ranges) {
+                        return Err(SubstringsProofError::DuplicateData);
+                    }
+                    sent_ranges = sent_ranges.union(&ranges);
+                }
+                Direction::Received => {
+                    if !recv_ranges.is_disjoint(&ranges) {
+                        return Err(SubstringsProofError::DuplicateData);
+                    }
+                    recv_ranges = recv_ranges.union(&ranges);
+                }
+            }
+
+            // Make sure the ranges are within the bounds of the transcript
+            let max = ranges
+                .max()
+                .ok_or(SubstringsProofError::InvalidOpening(id))?;
+            let transcript_len = match direction {
+                Direction::Sent => header.sent_len(),
+                Direction::Received => header.recv_len(),
+            };
+
+            if max >= transcript_len as usize {
+                return Err(SubstringsProofError::RangeOutOfBounds(id, max));
+            }
+
+            // Generate the expected encodings for the purported data in the opening.
+            let encodings = get_encoding_ids(&ranges, direction)
+                .map(|id| {
+                    header
+                        .encoder()
+                        .encode_by_type(EncodingId::new(&id).to_inner(), &ValueType::U8)
+                })
+                .collect::<Vec<_>>();
+
+            // Compute the expected hash of the commitment to make sure it is
+            // present in the merkle tree.
+            expected_hashes.push(opening.recover(&encodings).hash());
+
+            // Make sure the length of data from the opening matches the commitment.
+            let mut data = opening.into_data();
+            if data.len() != ranges.len() {
+                return Err(SubstringsProofError::InvalidOpening(id));
+            }
+
+            let dest = match direction {
+                Direction::Sent => &mut sent_slices,
+                Direction::Received => &mut recv_slices,
+            };
+
+            // Split the data into slices corresponding to the ranges
+            // and write it into the respective vector.
+            for range in ranges.iter_ranges() {
+                let len = range.len();
+                dest.push(TranscriptSlice::new(range, data.drain(..len).collect()));
+            }
+
+            indices.push(id.into_inner() as usize);
+        }
+
+        // Verify that the expected hashes are present in the merkle tree.
+        //
+        // This proves the Prover committed to the purported data prior to the encoder
+        // seed being revealed.
+        inclusion_proof
+            .verify(header.merkle_root(), &indices, &expected_hashes)
+            .map_err(|_| SubstringsProofError::InvalidInclusionProof)?;
+
+        Ok((sent_slices, recv_slices))
+    }
+}

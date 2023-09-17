@@ -9,9 +9,10 @@
 pub mod commitment;
 pub mod merkle;
 pub mod msg;
+pub mod proof;
 pub mod session;
 mod signature;
-pub mod substrings;
+//pub mod substrings;
 pub mod transcript;
 
 pub use session::{HandshakeSummary, NotarizedSession, SessionData, SessionHeader, SessionProof};

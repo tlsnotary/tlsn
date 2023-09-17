@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 
 use crate::{
-    commitment::{Commitment, CommitmentId, CommitmentInfo, CommitmentKind},
+    commitment::{
+        blake3::Blake3Commitment, Commitment, CommitmentId, CommitmentInfo, CommitmentKind,
+    },
     merkle::{MerkleError, MerkleTree},
-    substrings::{Blake3SubstringsCommitment, SubstringsProofBuilder},
+    proof::SubstringsProofBuilder,
     Direction, Transcript,
 };
 use bimap::BiMap;
@@ -87,7 +89,7 @@ impl SessionDataBuilder {
         }
 
         // We only support BLAKE3 for now
-        let commitment = Blake3SubstringsCommitment::new(encodings);
+        let commitment = Blake3Commitment::new(encodings);
         let hash = *commitment.hash();
 
         let id = CommitmentId::new(self.merkle_leaves.len() as u32);
