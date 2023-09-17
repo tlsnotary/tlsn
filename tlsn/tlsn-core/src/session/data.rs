@@ -101,7 +101,9 @@ impl SessionDataBuilder {
                 CommitmentInfo::new(commitment.kind(), ranges, direction),
             )
             .map_err(|(id, _)| CommitmentError::DuplicateCommitment(id))?;
-        self.commitments.insert(id, commitment);
+        self.commitments
+            .insert(id, commitment)
+            .expect("no duplicate ids");
 
         // Insert commitment hash into the merkle tree
         self.merkle_leaves.push(hash);
