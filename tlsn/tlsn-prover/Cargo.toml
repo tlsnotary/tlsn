@@ -12,7 +12,6 @@ edition = "2021"
 tracing = [
     "dep:tracing",
     "tlsn-tls-client-async/tracing",
-    "tlsn-core/tracing",
     "tlsn-tls-mpc/tracing",
     "uid-mux/tracing",
 ]
