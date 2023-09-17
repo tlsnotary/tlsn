@@ -9,14 +9,6 @@ use utils::range::{RangeDifference, RangeSet, RangeUnion};
 pub(crate) static TX_TRANSCRIPT_ID: &str = "tx";
 pub(crate) static RX_TRANSCRIPT_ID: &str = "rx";
 
-/// An error related to transcripts
-#[derive(Debug, thiserror::Error)]
-pub enum TranscriptError {
-    /// The provided ranges are not within the bounds of the transcript
-    #[error("Ranges {0:?} are out of bounds")]
-    RangesOutofBounds(RangeSet<usize>),
-}
-
 /// A transcript contains a subset of bytes from a TLS session
 #[derive(Default, Serialize, Deserialize, Clone, Debug)]
 pub struct Transcript {
@@ -36,25 +28,18 @@ impl Transcript {
 
     /// Returns a concatenated bytestring located in the given ranges of the transcript.
     ///
-    /// Is only called with non-empty well-formed `ranges`
-    pub(crate) fn get_bytes_in_ranges(
-        &self,
-        ranges: &RangeSet<usize>,
-    ) -> Result<Vec<u8>, TranscriptError> {
-        // all ranges must be within the bounds of the transcript
-        if ranges
-            .max()
-            .ok_or_else(|| TranscriptError::RangesOutofBounds(ranges.clone()))?
-            > self.data.len()
-        {
-            return Err(TranscriptError::RangesOutofBounds(ranges.clone()));
-        }
+    /// # Panics
+    ///
+    /// Panics if the range set is empty or is out of bounds.
+    pub(crate) fn get_bytes_in_ranges(&self, ranges: &RangeSet<usize>) -> Vec<u8> {
+        let max = ranges.max().expect("range set is not empty");
+        assert!(max <= self.data.len(), "range set is out of bounds");
 
-        Ok(ranges
+        ranges
             .iter_ranges()
             .flat_map(|range| &self.data[range])
             .copied()
-            .collect())
+            .collect()
     }
 }
 
@@ -193,7 +178,7 @@ mod tests {
     }
 
     #[rstest]
-    fn test_get_bytes_in_ranges_ok(transcripts: (Transcript, Transcript)) {
+    fn test_get_bytes_in_ranges(transcripts: (Transcript, Transcript)) {
         let (sent, recv) = transcripts;
 
         let range1 = Range { start: 2, end: 4 };
@@ -208,42 +193,35 @@ mod tests {
         assert_eq!(
             expected,
             sent.get_bytes_in_ranges(&RangeSet::from([range1.clone(), range2.clone()]))
-                .unwrap()
         );
 
         let expected = "taved 9".as_bytes().to_vec();
         assert_eq!(
             expected,
             recv.get_bytes_in_ranges(&RangeSet::from([range1, range2]))
-                .unwrap()
         );
 
         assert_eq!(
             sent.data().as_ref(),
-            sent.get_bytes_in_ranges(&RangeSet::from([range3])).unwrap()
+            sent.get_bytes_in_ranges(&RangeSet::from([range3]))
         );
     }
 
     #[rstest]
-    fn test_get_bytes_in_ranges_err(transcripts: (Transcript, Transcript)) {
+    #[should_panic]
+    fn test_get_bytes_in_ranges_empty(transcripts: (Transcript, Transcript)) {
         let (sent, _) = transcripts;
+        sent.get_bytes_in_ranges(&RangeSet::default());
+    }
 
-        // no_range provided
-        let err = sent.get_bytes_in_ranges(&RangeSet::default());
-        assert!(matches!(
-            err.unwrap_err(),
-            TranscriptError::RangesOutofBounds(_)
-        ));
-
-        // a range with the end bound larger than the data length
-        let bad_range = Range {
-            start: 2,
-            end: (sent.data().len() + 1),
+    #[rstest]
+    #[should_panic]
+    fn test_get_bytes_in_ranges_out_of_bounds(transcripts: (Transcript, Transcript)) {
+        let (sent, _) = transcripts;
+        let range = Range {
+            start: 0,
+            end: sent.data().len() + 1,
         };
-        let err = sent.get_bytes_in_ranges(&RangeSet::from([bad_range]));
-        assert!(matches!(
-            err.unwrap_err(),
-            TranscriptError::RangesOutofBounds(_)
-        ));
+        sent.get_bytes_in_ranges(&RangeSet::from([range]));
     }
 }

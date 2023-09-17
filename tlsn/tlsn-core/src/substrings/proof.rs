@@ -56,9 +56,7 @@ impl<'a> SubstringsProofBuilder<'a> {
             Direction::Received => self.data.recv_transcript(),
         };
 
-        let data = transcript
-            .get_bytes_in_ranges(info.ranges())
-            .expect("commitment range is in bounds of transcript");
+        let data = transcript.get_bytes_in_ranges(info.ranges());
 
         // check that the commitment is not already revealed
         if self
