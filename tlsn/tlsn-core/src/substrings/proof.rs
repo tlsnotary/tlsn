@@ -35,11 +35,15 @@ impl<'a> SubstringsProofBuilder<'a> {
 
     /// Reveals data corresponding to the provided commitment id
     pub fn reveal(&mut self, id: CommitmentId) -> Result<&mut Self, SubstringsProofBuilderError> {
-        let (commitment, info) = self
+        let commitment = self
             .data
-            .commitments()
-            .get(&id)
+            .get_commitment(&id)
             .ok_or(SubstringsProofBuilderError::InvalidCommitmentId(id))?;
+
+        let info = self
+            .data
+            .get_commitment_info(&id)
+            .expect("info exists if commitment exists");
 
         #[allow(irrefutable_let_patterns)]
         let Commitment::Substrings(commitment) = commitment

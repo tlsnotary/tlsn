@@ -3,7 +3,10 @@
 use serde::{Deserialize, Serialize};
 use utils::range::RangeSet;
 
-use crate::{substrings::SubstringsCommitment, Direction};
+use crate::{
+    substrings::{SubstringsCommitment, SubstringsCommitmentKind},
+    Direction,
+};
 
 /// A commitment id.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -23,24 +26,34 @@ impl CommitmentId {
 
 /// Info of a transcript commitment
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub(crate) struct CommitmentInfo {
+pub struct CommitmentInfo {
+    pub(crate) kind: CommitmentKind,
     pub(crate) ranges: RangeSet<usize>,
     pub(crate) direction: Direction,
 }
 
 impl CommitmentInfo {
-    /// Creates a new transcript commitment details
-    pub(crate) fn new(ranges: RangeSet<usize>, direction: Direction) -> Self {
-        Self { ranges, direction }
+    /// Creates new commitment info.
+    pub(crate) fn new(kind: CommitmentKind, ranges: RangeSet<usize>, direction: Direction) -> Self {
+        Self {
+            kind,
+            ranges,
+            direction,
+        }
+    }
+
+    /// Returns the kind of this commitment
+    pub fn kind(&self) -> CommitmentKind {
+        self.kind
     }
 
     /// Returns the ranges of this commitment
-    pub(crate) fn ranges(&self) -> &RangeSet<usize> {
+    pub fn ranges(&self) -> &RangeSet<usize> {
         &self.ranges
     }
 
     /// Returns the direction of this commitment
-    pub(crate) fn direction(&self) -> &Direction {
+    pub fn direction(&self) -> &Direction {
         &self.direction
     }
 }
@@ -51,4 +64,21 @@ impl CommitmentInfo {
 pub enum Commitment {
     /// A commitment to encodings of the transcript.
     Substrings(SubstringsCommitment),
+}
+
+impl Commitment {
+    /// Returns the kind of this commitment
+    pub fn kind(&self) -> CommitmentKind {
+        match self {
+            Commitment::Substrings(comm) => CommitmentKind::Substrings(comm.kind()),
+        }
+    }
+}
+
+/// The kind of a [`Commitment`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum CommitmentKind {
+    /// A commitment to encodings of the transcript.
+    Substrings(SubstringsCommitmentKind),
 }

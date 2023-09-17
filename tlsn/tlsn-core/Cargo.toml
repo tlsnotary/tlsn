@@ -32,6 +32,8 @@ bytes = { workspace = true, features = ["serde"] }
 tracing = { workspace = true, optional = true }
 opaque-debug.workspace = true
 
+bimap = { version = "0.6.3", features = ["serde"] }
+
 [dev-dependencies]
 tlsn-fixtures.workspace = true
 

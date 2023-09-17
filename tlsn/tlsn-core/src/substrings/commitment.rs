@@ -1,4 +1,4 @@
-use crate::substrings::opening::Blake3Opening;
+use crate::{commitment::Commitment, substrings::opening::Blake3Opening};
 use mpz_core::{
     commit::{HashCommit, Nonce},
     hash::Hash,
@@ -25,6 +25,21 @@ impl SubstringsCommitment {
             SubstringsCommitment::Blake3(com) => SubstringsOpening::Blake3(com.open(data)),
         }
     }
+
+    /// Returns the kind of this commitment
+    pub fn kind(&self) -> SubstringsCommitmentKind {
+        match self {
+            SubstringsCommitment::Blake3(_) => SubstringsCommitmentKind::Blake3,
+        }
+    }
+}
+
+/// The kind of a [`SubstringsCommitment`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum SubstringsCommitmentKind {
+    /// A Blake3 commitment to the encodings of the substrings
+    Blake3,
 }
 
 /// A Blake3 commitment to the encodings of the substrings of a [`Transcript`](crate::Transcript).
@@ -60,5 +75,17 @@ impl Blake3SubstringsCommitment {
     /// Opens this commitment
     pub fn open(&self, data: Vec<u8>) -> Blake3Opening {
         Blake3Opening::new(data, self.nonce)
+    }
+}
+
+impl From<Blake3SubstringsCommitment> for SubstringsCommitment {
+    fn from(value: Blake3SubstringsCommitment) -> Self {
+        Self::Blake3(value)
+    }
+}
+
+impl From<Blake3SubstringsCommitment> for Commitment {
+    fn from(value: Blake3SubstringsCommitment) -> Self {
+        Self::Substrings(value.into())
     }
 }

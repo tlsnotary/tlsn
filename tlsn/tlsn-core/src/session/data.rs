@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 
 use crate::{
-    commitment::{Commitment, CommitmentId, CommitmentInfo},
+    commitment::{Commitment, CommitmentId, CommitmentInfo, CommitmentKind},
     merkle::{MerkleError, MerkleTree},
-    substrings::{Blake3SubstringsCommitment, SubstringsCommitment, SubstringsProofBuilder},
+    substrings::{Blake3SubstringsCommitment, SubstringsProofBuilder},
     Direction, Transcript,
 };
+use bimap::BiMap;
 use mpz_core::{commit::Decommitment, hash::Hash};
 use mpz_garble_core::{encoding_state, EncodedValue};
 use serde::{Deserialize, Serialize};
@@ -18,8 +19,8 @@ pub struct SessionDataBuilder {
     transcript_tx: Transcript,
     transcript_rx: Transcript,
     merkle_leaves: Vec<Hash>,
-    commitments: HashMap<CommitmentId, (Commitment, CommitmentInfo)>,
-    substrings_commitments: HashMap<RangeSet<usize>, CommitmentId>,
+    commitments: HashMap<CommitmentId, Commitment>,
+    commitment_info: BiMap<CommitmentId, CommitmentInfo>,
 }
 
 opaque_debug::implement!(SessionDataBuilder);
@@ -39,6 +40,9 @@ pub enum CommitmentError {
     /// The provided ranges and encodings have different lengths.
     #[error("ranges and encodings must have the same length: {0} != {1}")]
     EncodingLengthMismatch(usize, usize),
+    /// Duplicate commitment
+    #[error("Attempted to create a duplicate commitment, overwriting: {0:?}")]
+    DuplicateCommitment(CommitmentId),
 }
 
 impl SessionDataBuilder {
@@ -54,7 +58,7 @@ impl SessionDataBuilder {
             transcript_rx,
             merkle_leaves: Vec::default(),
             commitments: HashMap::default(),
-            substrings_commitments: HashMap::default(),
+            commitment_info: BiMap::default(),
         }
     }
 
@@ -84,23 +88,23 @@ impl SessionDataBuilder {
 
         // We only support BLAKE3 for now
         let commitment = Blake3SubstringsCommitment::new(encodings);
+        let hash = *commitment.hash();
 
         let id = CommitmentId::new(self.merkle_leaves.len() as u32);
 
-        // Insert commitment hash into the merkle tree
-        self.merkle_leaves.push(*commitment.hash());
+        let commitment: Commitment = commitment.into();
 
         // Store commitment with its id
-        self.commitments.insert(
-            id,
-            (
-                Commitment::Substrings(SubstringsCommitment::Blake3(commitment)),
-                CommitmentInfo::new(ranges.clone(), direction),
-            ),
-        );
+        self.commitment_info
+            .insert_no_overwrite(
+                id,
+                CommitmentInfo::new(commitment.kind(), ranges, direction),
+            )
+            .map_err(|(id, _)| CommitmentError::DuplicateCommitment(id))?;
+        self.commitments.insert(id, commitment);
 
-        // Store commitment id with its ranges
-        self.substrings_commitments.insert(ranges, id);
+        // Insert commitment hash into the merkle tree
+        self.merkle_leaves.push(hash);
 
         Ok(id)
     }
@@ -113,7 +117,7 @@ impl SessionDataBuilder {
             transcript_rx,
             merkle_leaves,
             commitments,
-            substrings_commitments,
+            commitment_info,
         } = self;
 
         let merkle_tree = MerkleTree::from_leaves(&merkle_leaves)?;
@@ -124,7 +128,7 @@ impl SessionDataBuilder {
             transcript_rx,
             merkle_tree,
             commitments,
-            substrings_commitments,
+            commitment_info,
         })
     }
 }
@@ -146,8 +150,9 @@ pub struct SessionData {
     transcript_rx: Transcript,
     merkle_tree: MerkleTree,
     /// Commitments to the transcript data.
-    commitments: HashMap<CommitmentId, (Commitment, CommitmentInfo)>,
-    substrings_commitments: HashMap<RangeSet<usize>, CommitmentId>,
+    commitments: HashMap<CommitmentId, Commitment>,
+    /// Info about the commitments.
+    commitment_info: BiMap<CommitmentId, CommitmentInfo>,
 }
 
 opaque_debug::implement!(SessionData);
@@ -173,18 +178,26 @@ impl SessionData {
         &self.merkle_tree
     }
 
-    /// Returns commitments to the transcript data.
-    pub(crate) fn commitments(&self) -> &HashMap<CommitmentId, (Commitment, CommitmentInfo)> {
-        &self.commitments
+    /// Returns a commitment if it exists.
+    pub fn get_commitment(&self, id: &CommitmentId) -> Option<&Commitment> {
+        self.commitments.get(id)
     }
 
-    /// Returns the commitment id for a substring commitment if it exists.
-    ///
-    /// # Arguments
-    ///
-    /// * `ranges` - The ranges of the substrings commitment.
-    pub fn get_substrings_commitment(&self, ranges: RangeSet<usize>) -> Option<CommitmentId> {
-        self.substrings_commitments.get(&ranges).copied()
+    /// Returns the commitment id for a commitment with the given info, if it exists.
+    pub fn get_commitment_id_by_info(
+        &self,
+        kind: CommitmentKind,
+        ranges: RangeSet<usize>,
+        direction: Direction,
+    ) -> Option<CommitmentId> {
+        self.commitment_info
+            .get_by_right(&CommitmentInfo::new(kind, ranges, direction))
+            .copied()
+    }
+
+    /// Returns commitment info, if it exists.
+    pub fn get_commitment_info(&self, id: &CommitmentId) -> Option<&CommitmentInfo> {
+        self.commitment_info.get_by_left(id)
     }
 
     /// Returns a substrings proof builder.
