@@ -21,6 +21,15 @@ pub enum SubstringsProofError {
     InvalidInclusionProof,
 }
 
+/// An error for [`SubstringsOpening`]
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum SubstringsOpeningError {
+    /// The provided encodings and data have different lengths.
+    #[error("invalid encoding length: {0} != {1}")]
+    InvalidEncodingLength(usize, usize),
+}
+
 /// An error for [`SubstringsProofBuilder`]
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]

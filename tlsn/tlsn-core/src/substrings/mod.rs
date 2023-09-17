@@ -6,6 +6,6 @@ mod opening;
 mod proof;
 
 pub use commitment::{Blake3SubstringsCommitment, SubstringsCommitment, SubstringsCommitmentKind};
-pub use error::{SubstringsProofBuilderError, SubstringsProofError};
+pub use error::{SubstringsOpeningError, SubstringsProofBuilderError, SubstringsProofError};
 pub use opening::SubstringsOpening;
 pub use proof::{SubstringsProof, SubstringsProofBuilder};

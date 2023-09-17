@@ -1,17 +1,10 @@
+use crate::substrings::SubstringsOpeningError;
 use mpz_core::{
     commit::{Decommitment, Nonce},
     hash::Hash,
 };
 use mpz_garble_core::{encoding_state::Full, EncodedValue};
 use serde::{Deserialize, Serialize};
-
-/// An error for [`SubstringsOpening`]
-#[derive(Debug, thiserror::Error)]
-pub enum SubstringsOpeningError {
-    /// The provided encodings and data have different lengths.
-    #[error("invalid encoding length: {0} != {1}")]
-    InvalidEncodingLength(usize, usize),
-}
 
 /// Opens a commitment to substrings of the transcript.
 #[derive(Serialize, Deserialize, Clone)]
