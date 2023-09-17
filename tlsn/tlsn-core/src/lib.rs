@@ -7,7 +7,6 @@
 #![forbid(unsafe_code)]
 
 pub mod commitment;
-mod error;
 pub mod merkle;
 pub mod msg;
 pub mod session;
@@ -15,7 +14,6 @@ mod signature;
 pub mod substrings;
 pub mod transcript;
 
-pub use error::Error;
 pub use session::{HandshakeSummary, NotarizedSession, SessionData, SessionHeader, SessionProof};
 pub use signature::Signature;
 pub use transcript::{Direction, RedactedTranscript, Transcript, TranscriptSlice};

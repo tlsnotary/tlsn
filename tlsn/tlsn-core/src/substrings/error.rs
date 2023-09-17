@@ -2,6 +2,7 @@ use crate::{commitment::CommitmentId, MAX_TOTAL_COMMITTED_DATA};
 
 /// An error relating to [`SubstringsProof`]
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum SubstringsProofError {
     /// The proof contains more data than the maximum allowed.
     #[error(
@@ -22,6 +23,7 @@ pub enum SubstringsProofError {
 
 /// An error for [`SubstringsProofBuilder`]
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum SubstringsProofBuilderError {
     /// Invalid commitment id.
     #[error("invalid commitment id: {0:?}")]

@@ -14,8 +14,8 @@ pub enum ProverError {
     IOError(#[from] std::io::Error),
     #[error(transparent)]
     MuxerError(#[from] utils_aio::mux::MuxerError),
-    #[error(transparent)]
-    CoreError(#[from] tlsn_core::Error),
+    #[error("notarization error: {0}")]
+    NotarizationError(String),
     #[error(transparent)]
     InvalidServerName(#[from] tls_core::dns::InvalidDnsNameError),
     #[error("error occurred in MPC protocol: {0}")]

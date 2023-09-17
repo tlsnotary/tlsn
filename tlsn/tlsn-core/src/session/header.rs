@@ -4,7 +4,16 @@ use serde::{Deserialize, Serialize};
 use mpz_garble_core::ChaChaEncoder;
 use tls_core::{handshake::HandshakeData, key::PublicKey};
 
-use crate::{merkle::MerkleRoot, Error, HandshakeSummary};
+use crate::{merkle::MerkleRoot, HandshakeSummary};
+
+/// An error that can occur while verifying a session header
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum SessionHeaderVerifyError {
+    /// The session header is not consistent with the provided data
+    #[error("session header is not consistent with the provided data")]
+    InconsistentHeader,
+}
 
 /// An authentic session header from the Notary
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -54,7 +63,7 @@ impl SessionHeader {
         root: &MerkleRoot,
         encoder_seed: &[u8; 32],
         handshake_data_decommitment: &Decommitment<HandshakeData>,
-    ) -> Result<(), Error> {
+    ) -> Result<(), SessionHeaderVerifyError> {
         let ok_time = self.handshake_summary.time().abs_diff(time) <= 300;
         let ok_root = &self.merkle_root == root;
         let ok_encoder_seed = &self.encoder_seed == encoder_seed;
@@ -64,7 +73,7 @@ impl SessionHeader {
         let ok_server_public_key = self.handshake_summary.server_public_key() == server_public_key;
 
         if !(ok_time && ok_root && ok_encoder_seed && ok_handshake_data && ok_server_public_key) {
-            return Err(Error::WrongSessionHeader);
+            return Err(SessionHeaderVerifyError::InconsistentHeader);
         }
 
         Ok(())

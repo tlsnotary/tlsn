@@ -347,13 +347,19 @@ impl Prover<Notarize> {
         };
 
         // Check the header is consistent with the Prover's view
-        header.verify(
-            start_time,
-            &server_public_key,
-            &session_data.merkle_tree().root(),
-            &notary_encoder_seed,
-            session_data.handshake_data_decommitment(),
-        )?;
+        header
+            .verify(
+                start_time,
+                &server_public_key,
+                &session_data.merkle_tree().root(),
+                &notary_encoder_seed,
+                session_data.handshake_data_decommitment(),
+            )
+            .map_err(|_| {
+                ProverError::NotarizationError(
+                    "notary signed an inconsistent session header".to_string(),
+                )
+            })?;
 
         Ok(NotarizedSession::new(header, Some(signature), session_data))
     }
