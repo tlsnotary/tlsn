@@ -13,6 +13,9 @@ pub enum SubstringsProofError {
     /// The proof contains duplicate transcript data.
     #[error("proof contains duplicate transcript data")]
     DuplicateData,
+    /// Range of the opening is out of bounds.
+    #[error("range of opening {0:?} is out of bounds: {1}")]
+    RangeOutOfBounds(CommitmentId, usize),
     /// The proof contains an invalid commitment opening.
     #[error("invalid opening for commitment id: {0:?}")]
     InvalidOpening(CommitmentId),

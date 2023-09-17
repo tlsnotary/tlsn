@@ -145,6 +145,19 @@ impl SubstringsProof {
                 }
             }
 
+            // Make sure the ranges are within the bounds of the transcript
+            let max = ranges
+                .max()
+                .ok_or(SubstringsProofError::InvalidOpening(id))?;
+            let transcript_len = match direction {
+                Direction::Sent => header.sent_len(),
+                Direction::Received => header.recv_len(),
+            };
+
+            if max >= transcript_len as usize {
+                return Err(SubstringsProofError::RangeOutOfBounds(id, max));
+            }
+
             // Generate the expected encodings for the purported data in the opening.
             let encodings = get_encoding_ids(&ranges, direction)
                 .map(|id| {
