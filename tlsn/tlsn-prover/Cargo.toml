@@ -29,6 +29,7 @@ tlsn-utils-aio.workspace = true
 
 mpz-share-conversion.workspace = true
 mpz-garble.workspace = true
+mpz-garble-core.workspace = true
 mpz-ot.workspace = true
 mpz-core.workspace = true
 

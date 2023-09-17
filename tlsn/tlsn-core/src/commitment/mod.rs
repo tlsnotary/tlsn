@@ -2,13 +2,22 @@
 
 /// BLAKE3 commitments.
 pub mod blake3;
+mod builder;
 
+use std::collections::HashMap;
+
+use bimap::BiMap;
 use mpz_core::hash::Hash;
 use mpz_garble_core::{encoding_state::Full, EncodedValue};
 use serde::{Deserialize, Serialize};
 use utils::range::RangeSet;
 
-use crate::Direction;
+use crate::{
+    merkle::{MerkleRoot, MerkleTree},
+    Direction,
+};
+
+pub use builder::{TranscriptCommitmentBuilder, TranscriptCommitmentBuilderError};
 
 /// A commitment id.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -134,5 +143,49 @@ impl CommitmentOpening {
         match self {
             CommitmentOpening::Blake3(opening) => opening.into_data(),
         }
+    }
+}
+
+/// A collection of transcript commitments.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct TranscriptCommitments {
+    merkle_tree: MerkleTree,
+    commitments: HashMap<CommitmentId, Commitment>,
+    commitment_info: BiMap<CommitmentId, CommitmentInfo>,
+}
+
+opaque_debug::implement!(TranscriptCommitments);
+
+impl TranscriptCommitments {
+    /// Returns the merkle tree of the commitments.
+    pub fn merkle_tree(&self) -> &MerkleTree {
+        &self.merkle_tree
+    }
+
+    /// Returns the merkle root of the commitments.
+    pub fn merkle_root(&self) -> MerkleRoot {
+        self.merkle_tree.root()
+    }
+
+    /// Returns a commitment if it exists.
+    pub fn get(&self, id: &CommitmentId) -> Option<&Commitment> {
+        self.commitments.get(id)
+    }
+
+    /// Returns the commitment id for a commitment with the given info, if it exists.
+    pub fn get_id_by_info(
+        &self,
+        kind: CommitmentKind,
+        ranges: RangeSet<usize>,
+        direction: Direction,
+    ) -> Option<CommitmentId> {
+        self.commitment_info
+            .get_by_right(&CommitmentInfo::new(kind, ranges, direction))
+            .copied()
+    }
+
+    /// Returns commitment info, if it exists.
+    pub fn get_info(&self, id: &CommitmentId) -> Option<&CommitmentInfo> {
+        self.commitment_info.get_by_left(id)
     }
 }

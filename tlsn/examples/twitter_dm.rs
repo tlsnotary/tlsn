@@ -264,14 +264,17 @@ async fn main() {
         ],
     );
 
+    let recv_len = prover.recv_transcript().data().len();
+
+    let builder = prover.commitment_builder();
+
     // Commit to the outbound transcript, isolating the data that contain secrets
     for range in public_ranges.iter().chain(private_ranges.iter()) {
-        prover.add_commitment_sent(range.clone()).unwrap();
+        builder.commit_sent(range.clone()).unwrap();
     }
 
     // Commit to the full received transcript in one shot, as we don't need to redact anything
-    let recv_len = prover.recv_transcript().data().len();
-    prover.add_commitment_recv(0..recv_len).unwrap();
+    builder.commit_recv(0..recv_len).unwrap();
 
     // Finalize, returning the notarized session
     let notarized_session = prover.finalize().await.unwrap();

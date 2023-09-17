@@ -51,12 +51,14 @@ impl<'a> SubstringsProofBuilder<'a> {
     pub fn reveal(&mut self, id: CommitmentId) -> Result<&mut Self, SubstringsProofBuilderError> {
         let commitment = self
             .data
-            .get_commitment(&id)
+            .commitments()
+            .get(&id)
             .ok_or(SubstringsProofBuilderError::InvalidCommitmentId(id))?;
 
         let info = self
             .data
-            .get_commitment_info(&id)
+            .commitments()
+            .get_info(&id)
             .expect("info exists if commitment exists");
 
         #[allow(irrefutable_let_patterns)]
@@ -93,7 +95,7 @@ impl<'a> SubstringsProofBuilder<'a> {
             .map(|id| id.into_inner() as usize)
             .collect::<Vec<_>>();
 
-        let inclusion_proof = data.merkle_tree().proof(&indices);
+        let inclusion_proof = data.commitments().merkle_tree().proof(&indices);
 
         Ok(SubstringsProof {
             openings,

@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     ops::Range,
     time::{Duration, UNIX_EPOCH},
 };
@@ -19,12 +20,12 @@ use tls_core::{
 
 use mpz_circuits::types::ValueType;
 use mpz_core::{commit::HashCommit, serialize::CanonicalSerialize, value::ValueId};
-use mpz_garble_core::{ChaChaEncoder, EncodedValue, Encoder};
+use mpz_garble_core::{encoding_state, ChaChaEncoder, EncodedValue, Encoder};
 
 use tlsn_core::{
-    msg::SignedSessionHeader, proof::SubstringsProof, session::SessionDataBuilder,
-    transcript::get_encoding_ids, Direction, HandshakeSummary, NotarizedSession, SessionHeader,
-    SessionProof, Signature, Transcript,
+    commitment::TranscriptCommitmentBuilder, msg::SignedSessionHeader, proof::SubstringsProof,
+    session::SessionData, HandshakeSummary, NotarizedSession, SessionHeader, SessionProof,
+    Signature, Transcript,
 };
 
 use tlsn_fixtures as fixtures;
@@ -48,21 +49,12 @@ fn test_api() {
     let notary_encoder_seed = [5u8; 32];
     let notary_encoder = ChaChaEncoder::new(notary_encoder_seed);
 
-    // active encodings for each byte in range1
-    let active_encodings_range1: Vec<EncodedValue<_>> =
-        get_encoding_ids(&range1.clone().into(), Direction::Sent)
-            .map(|id| notary_encoder.encode_by_type(ValueId::new(&id).to_u64(), &ValueType::U8))
-            .zip(transcript_tx.data()[range1.clone()].to_vec())
-            .map(|(enc, value)| enc.select(value).unwrap())
-            .collect();
-
-    // Full encodings for each byte in range2
-    let active_encodings_range2: Vec<EncodedValue<_>> =
-        get_encoding_ids(&range2.clone().into(), Direction::Received)
-            .map(|id| notary_encoder.encode_by_type(ValueId::new(&id).to_u64(), &ValueType::U8))
-            .zip(transcript_rx.data()[range2.clone()].to_vec())
-            .map(|(enc, value)| enc.select(value).unwrap())
-            .collect();
+    let active_encodings = build_active_encodings(&notary_encoder, data_sent, data_recv);
+    let encodings_provider = Box::new(move |ids: &[&str]| {
+        ids.iter()
+            .map(|id| active_encodings.get(*id).cloned())
+            .collect()
+    });
 
     // At the end of the session the Prover holds the:
     // - time when the TLS handshake began
@@ -94,25 +86,19 @@ fn test_api() {
     // Commitment to the handshake which the Prover sent at the start of the TLS handshake
     let (hs_decommitment, hs_commitment) = handshake_data.hash_commit();
 
-    let mut session_data_builder =
-        SessionDataBuilder::new(hs_decommitment.clone(), transcript_tx, transcript_rx);
+    let mut commitment_builder = TranscriptCommitmentBuilder::new(encodings_provider);
 
-    let commitment_id_1 = session_data_builder
-        .add_substrings_commitment(
-            range1.clone().into(),
-            Direction::Sent,
-            &active_encodings_range1,
-        )
-        .unwrap();
-    let commitment_id_2 = session_data_builder
-        .add_substrings_commitment(
-            range2.clone().into(),
-            Direction::Received,
-            &active_encodings_range2,
-        )
-        .unwrap();
+    let commitment_id_1 = commitment_builder.commit_sent(range1.clone()).unwrap();
+    let commitment_id_2 = commitment_builder.commit_recv(range2.clone()).unwrap();
 
-    let session_data = session_data_builder.build().unwrap();
+    let commitments = commitment_builder.build().unwrap();
+
+    let session_data = SessionData::new(
+        hs_decommitment.clone(),
+        transcript_tx,
+        transcript_rx,
+        commitments,
+    );
 
     // Some outer context generates an (ephemeral) signing key for the Notary, e.g.
     let mut rng = ChaCha20Rng::from_seed([6u8; 32]);
@@ -128,7 +114,7 @@ fn test_api() {
 
     let header = SessionHeader::new(
         notary_encoder_seed,
-        session_data.merkle_tree().root(),
+        session_data.commitments().merkle_root(),
         data_sent.len() as u32,
         data_recv.len() as u32,
         // the session's end time and TLS handshake start time may be a few mins apart
@@ -162,7 +148,7 @@ fn test_api() {
         .verify(
             time,
             &ephem_key,
-            &session_data.merkle_tree().root(),
+            &session_data.commitments().merkle_root(),
             header.encoder_seed(),
             session_data.handshake_data_decommitment(),
         )
@@ -230,4 +216,23 @@ fn test_api() {
 
     assert_eq!(sent_slices[0].range(), range1);
     assert_eq!(recv_slices[0].range(), range2);
+}
+
+fn build_active_encodings(
+    encoder: &ChaChaEncoder,
+    tx: &[u8],
+    rx: &[u8],
+) -> HashMap<String, EncodedValue<encoding_state::Active>> {
+    let mut active_encodings = HashMap::new();
+    for (idx, byte) in tx.iter().enumerate() {
+        let id = format!("tx/{idx}");
+        let enc = encoder.encode_by_type(ValueId::new(&id).to_u64(), &ValueType::U8);
+        active_encodings.insert(id, enc.select(*byte).unwrap());
+    }
+    for (idx, byte) in rx.iter().enumerate() {
+        let id = format!("rx/{idx}");
+        let enc = encoder.encode_by_type(ValueId::new(&id).to_u64(), &ValueType::U8);
+        active_encodings.insert(id, enc.select(*byte).unwrap());
+    }
+    active_encodings
 }

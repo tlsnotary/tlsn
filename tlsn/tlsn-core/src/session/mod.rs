@@ -7,7 +7,7 @@ mod proof;
 
 use serde::{Deserialize, Serialize};
 
-pub use data::{SessionData, SessionDataBuilder};
+pub use data::SessionData;
 pub use handshake::{HandshakeSummary, HandshakeVerifyError};
 pub use header::{SessionHeader, SessionHeaderVerifyError};
 pub use proof::SessionProof;

@@ -19,15 +19,11 @@ use futures::{
     future::FusedFuture, AsyncRead, AsyncWrite, Future, FutureExt, SinkExt, StreamExt, TryFutureExt,
 };
 use rand::Rng;
-use std::{ops::Range, pin::Pin, sync::Arc};
+use std::{pin::Pin, sync::Arc};
 use tls_client_async::{bind_client, ClosedConnection, TlsConnection};
 use tls_mpc::{setup_components, MpcTlsLeader, TlsRole};
-use utils::range::RangeSet;
 
-use mpz_garble::{
-    config::Role as GarbleRole,
-    protocol::deap::{DEAPVm, PeerEncodings},
-};
+use mpz_garble::{config::Role as GarbleRole, protocol::deap::DEAPVm};
 use mpz_ot::{
     actor::kos::{ReceiverActor, SenderActor, SharedReceiver, SharedSender},
     chou_orlandi, kos,
@@ -35,10 +31,10 @@ use mpz_ot::{
 use mpz_share_conversion as ff;
 use tls_client::{ClientConnection, ServerName};
 use tlsn_core::{
-    commitment::CommitmentId,
+    commitment::TranscriptCommitmentBuilder,
     msg::{SignedSessionHeader, TlsnMessage},
-    transcript::{get_encoding_ids, Transcript},
-    Direction, NotarizedSession,
+    transcript::Transcript,
+    NotarizedSession, SessionData,
 };
 use uid_mux::{yamux, UidYamux, UidYamuxControl};
 use utils_aio::{codec::BincodeMux, expect_msg_or_err, mux::MuxChannel};
@@ -254,50 +250,17 @@ impl Prover<Closed> {
 impl Prover<Notarize> {
     /// Returns the transcript of the sent requests
     pub fn sent_transcript(&self) -> &Transcript {
-        self.state.session_data_builder.sent_transcript()
+        &self.state.transcript_tx
     }
 
     /// Returns the transcript of the received responses
     pub fn recv_transcript(&self) -> &Transcript {
-        self.state.session_data_builder.recv_transcript()
+        &self.state.transcript_rx
     }
 
-    /// Add a commitment to the sent requests
-    pub fn add_commitment_sent(
-        &mut self,
-        range: Range<usize>,
-    ) -> Result<CommitmentId, ProverError> {
-        self.add_commitment(range.into(), Direction::Sent)
-    }
-
-    /// Add a commitment to the received responses
-    pub fn add_commitment_recv(
-        &mut self,
-        range: Range<usize>,
-    ) -> Result<CommitmentId, ProverError> {
-        self.add_commitment(range.into(), Direction::Received)
-    }
-
-    pub(crate) fn add_commitment(
-        &mut self,
-        ranges: RangeSet<usize>,
-        direction: Direction,
-    ) -> Result<CommitmentId, ProverError> {
-        let ids: Vec<_> = get_encoding_ids(&ranges, direction).collect();
-
-        let id_refs = ids.iter().map(|id| id.as_ref()).collect::<Vec<_>>();
-
-        let encodings = self
-            .state
-            .vm
-            .get_peer_encodings(&id_refs)
-            .map_err(|e| ProverError::MpcError(Box::new(e)))?;
-
-        Ok(self
-            .state
-            .session_data_builder
-            .add_substrings_commitment(ranges, direction, &encodings)
-            .unwrap())
+    /// Returns the transcript commitment builder
+    pub fn commitment_builder(&mut self) -> &mut TranscriptCommitmentBuilder {
+        &mut self.state.builder
     }
 
     /// Finalize the notarization returning a [`NotarizedSession`]
@@ -310,13 +273,23 @@ impl Prover<Notarize> {
             mut ot_fut,
             mut gf2,
             start_time,
+            handshake_decommitment,
             server_public_key,
-            session_data_builder,
+            transcript_tx,
+            transcript_rx,
+            builder,
         } = self.state;
 
-        let session_data = session_data_builder.build().unwrap();
+        let commitments = builder.build()?;
 
-        let merkle_root = session_data.merkle_tree().root();
+        let session_data = SessionData::new(
+            handshake_decommitment,
+            transcript_tx,
+            transcript_rx,
+            commitments,
+        );
+
+        let merkle_root = session_data.commitments().merkle_root();
 
         let notarize_fut = async move {
             let mut channel = notary_mux.get_channel("notarize").await?;
@@ -351,7 +324,7 @@ impl Prover<Notarize> {
             .verify(
                 start_time,
                 &server_public_key,
-                &session_data.merkle_tree().root(),
+                &session_data.commitments().merkle_root(),
                 &notary_encoder_seed,
                 session_data.handshake_data_decommitment(),
             )

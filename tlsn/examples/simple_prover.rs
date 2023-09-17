@@ -117,15 +117,18 @@ async fn main() {
         ],
     );
 
+    let recv_len = prover.recv_transcript().data().len();
+
+    let builder = prover.commitment_builder();
+
     // Commit to each range of the public outbound data which we want to disclose
     let sent_commitments: Vec<_> = public_ranges
         .iter()
-        .map(|r| prover.add_commitment_sent(r.clone()).unwrap())
+        .map(|r| builder.commit_sent(r.clone()).unwrap())
         .collect();
 
     // Commit to all inbound data in one shot, as we don't need to redact anything in it
-    let recv_len = prover.recv_transcript().data().len();
-    let recv_commitment = prover.add_commitment_recv(0..recv_len).unwrap();
+    let recv_commitment = builder.commit_recv(0..recv_len).unwrap();
 
     // Finalize, returning the notarized session
     let notarized_session = prover.finalize().await.unwrap();
