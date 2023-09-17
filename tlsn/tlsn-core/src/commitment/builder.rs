@@ -48,6 +48,7 @@ impl TranscriptCommitmentBuilder {
     /// # Arguments
     ///
     /// * `encoding_provider` - A function that returns the encodings for the provided transcript byte ids.
+    #[doc(hidden)]
     pub fn new(encoding_provider: EncodingProvider) -> Self {
         Self {
             commitments: HashMap::default(),
