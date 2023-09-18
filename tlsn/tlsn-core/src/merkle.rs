@@ -2,7 +2,7 @@
 //!
 //! # Usage
 //!
-//! During notarization, the `Prover` generates various commitments to the transcript data, which is subsequently
+//! During notarization, the `Prover` generates various commitments to the transcript data, which are subsequently
 //! inserted into a `MerkleTree`. Rather than send each commitment to the Notary individually, the `Prover` simply sends the
 //! `MerkleRoot`. This hides the number of commitments from the Notary, which is important for privacy as it can leak
 //! information about the content of the transcript.
