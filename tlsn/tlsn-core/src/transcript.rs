@@ -47,9 +47,9 @@ impl Transcript {
 #[derive(Debug)]
 pub struct RedactedTranscript {
     data: Vec<u8>,
-    /// Ranges of data which have been authenticated
+    /// Ranges of `data` which have been authenticated
     auth: RangeSet<usize>,
-    /// Ranges of data which have been redacted
+    /// Ranges of `data` which have been redacted
     redacted: RangeSet<usize>,
 }
 
