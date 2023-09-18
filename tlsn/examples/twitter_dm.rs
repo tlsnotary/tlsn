@@ -264,14 +264,17 @@ async fn main() {
         ],
     );
 
+    let recv_len = prover.recv_transcript().data().len();
+
+    let builder = prover.commitment_builder();
+
     // Commit to the outbound transcript, isolating the data that contain secrets
     for range in public_ranges.iter().chain(private_ranges.iter()) {
-        prover.add_commitment_sent(range.clone()).unwrap();
+        builder.commit_sent(range.clone()).unwrap();
     }
 
     // Commit to the full received transcript in one shot, as we don't need to redact anything
-    let recv_len = prover.recv_transcript().data().len();
-    prover.add_commitment_recv(0..recv_len as u32).unwrap();
+    builder.commit_recv(0..recv_len).unwrap();
 
     // Finalize, returning the notarized session
     let notarized_session = prover.finalize().await.unwrap();
@@ -292,12 +295,12 @@ async fn main() {
 /// Find the ranges of the public and private parts of a sequence.
 ///
 /// Returns a tuple of `(public, private)` ranges.
-fn find_ranges(seq: &[u8], sub_seq: &[&[u8]]) -> (Vec<Range<u32>>, Vec<Range<u32>>) {
+fn find_ranges(seq: &[u8], sub_seq: &[&[u8]]) -> (Vec<Range<usize>>, Vec<Range<usize>>) {
     let mut private_ranges = Vec::new();
     for s in sub_seq {
         for (idx, w) in seq.windows(s.len()).enumerate() {
             if w == *s {
-                private_ranges.push(idx as u32..(idx + w.len()) as u32);
+                private_ranges.push(idx..(idx + w.len()));
             }
         }
     }
@@ -314,8 +317,8 @@ fn find_ranges(seq: &[u8], sub_seq: &[&[u8]]) -> (Vec<Range<u32>>, Vec<Range<u32
         last_end = r.end;
     }
 
-    if last_end < seq.len() as u32 {
-        public_ranges.push(last_end..seq.len() as u32);
+    if last_end < seq.len() {
+        public_ranges.push(last_end..seq.len());
     }
 
     (public_ranges, private_ranges)

@@ -1,41 +1,29 @@
-//! This crate contains types used by the Prover, the Notary, and the Verifier
+//! TLSNotary core protocol library.
+//!
+//! This crate contains core types for the TLSNotary protocol, including some functionality for selective disclosure.
 
 #![deny(missing_docs, unreachable_pub, unused_must_use)]
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
 pub mod commitment;
-mod error;
-#[cfg(any(test, feature = "fixtures"))]
-#[allow(missing_docs)]
-pub mod fixtures;
-mod handshake_summary;
-pub(crate) mod inclusion_proof;
 pub mod merkle;
 pub mod msg;
-mod session;
-pub mod signature;
-pub mod substrings;
+pub mod proof;
+pub mod session;
+mod signature;
 pub mod transcript;
-mod utils;
 
-pub use commitment::Commitment;
-pub use error::Error;
-pub use handshake_summary::HandshakeSummary;
-pub use inclusion_proof::InclusionProof;
-pub use session::{NotarizedSession, SessionArtifacts, SessionData, SessionHeader, SessionProof};
-pub use substrings::{
-    commitment::{SubstringsCommitment, SubstringsCommitmentSet},
-    opening::SubstringsOpeningSet,
-};
-pub use transcript::{Direction, Transcript, TranscriptSlice};
+pub use session::{HandshakeSummary, NotarizedSession, SessionData, SessionHeader, SessionProof};
+pub use signature::Signature;
+pub use transcript::{Direction, RedactedTranscript, Transcript, TranscriptSlice};
 
 /// The maximum allowed total bytelength of all committed data. Used to prevent DoS during verification.
 /// (this will cause the verifier to hash up to a max of 1GB * 128 = 128GB of plaintext encodings if the
 /// commitment type is [crate::commitment::Blake3]).
 ///
 /// This value must not exceed bcs's MAX_SEQUENCE_LENGTH limit (which is (1 << 31) - 1 by default)
-const MAX_TOTAL_COMMITTED_DATA: u64 = 1_000_000_000;
+const MAX_TOTAL_COMMITTED_DATA: usize = 1_000_000_000;
 
 /// The encoding id
 ///

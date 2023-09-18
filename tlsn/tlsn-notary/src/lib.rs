@@ -28,8 +28,7 @@ use signature::Signer;
 use tls_mpc::{setup_components, MpcTlsFollower, TlsRole};
 use tlsn_core::{
     msg::{SignedSessionHeader, TlsnMessage},
-    signature::Signature,
-    HandshakeSummary, SessionHeader,
+    HandshakeSummary, SessionHeader, Signature,
 };
 use uid_mux::{yamux, UidYamux, UidYamuxControl};
 use utils_aio::{codec::BincodeMux, expect_msg_or_err, mux::MuxChannel};

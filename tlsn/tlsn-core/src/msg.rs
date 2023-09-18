@@ -1,22 +1,21 @@
-//! Contains types which are used for messaging between prover and notary
+//! Protocol message types.
 
 use serde::{Deserialize, Serialize};
 
 use crate::{merkle::MerkleRoot, signature::Signature, SessionHeader};
 
-/// A wrapper type for different messages
+/// Top-level enum for all messages
 #[derive(Debug, Serialize, Deserialize)]
-#[allow(missing_docs)]
 pub enum TlsnMessage {
-    /// Contains the merkle root of the merkle tree of the commitments to transcripts
+    /// A Merkle root for the tree of commitments to the transcript.
     TranscriptCommitmentRoot(MerkleRoot),
-    /// Contains the session header signed by the notary
+    /// A session header signed by a notary.
     SignedSessionHeader(SignedSessionHeader),
-    /// Contains the session header
+    /// A session header.
     SessionHeader(SessionHeader),
 }
 
-/// Wraps header and signature into a single message type
+/// A signed session header.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SignedSessionHeader {
     /// The session header

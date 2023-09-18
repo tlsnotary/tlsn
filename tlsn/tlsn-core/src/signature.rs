@@ -1,13 +1,10 @@
-//! A module for different signatures
-
-use p256;
 use serde::{Deserialize, Serialize};
 
-/// Unifies different signature types
+/// A Notary signature.
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[allow(missing_docs)]
 #[non_exhaustive]
 pub enum Signature {
+    /// A secp256r1 signature.
     P256(p256::ecdsa::Signature),
 }
 
@@ -18,7 +15,7 @@ impl From<p256::ecdsa::Signature> for Signature {
 }
 
 impl Signature {
-    /// Returns the signature as a byte vector.
+    /// Returns the bytes of this signature.
     pub fn to_bytes(&self) -> Vec<u8> {
         match self {
             Self::P256(sig) => sig.to_vec(),
