@@ -16,7 +16,7 @@ use tls_core::handshake::HandshakeData;
 #[derive(Serialize, Deserialize)]
 pub struct SessionData {
     handshake_data_decommitment: Decommitment<HandshakeData>,
-    tx_transcript: Transcript,
+    transcript_tx: Transcript,
     transcript_rx: Transcript,
     commitments: TranscriptCommitments,
 }
@@ -27,13 +27,13 @@ impl SessionData {
     /// Creates new session data.
     pub fn new(
         handshake_data_decommitment: Decommitment<HandshakeData>,
-        tx_transcript: Transcript,
+        transcript_tx: Transcript,
         transcript_rx: Transcript,
         commitments: TranscriptCommitments,
     ) -> Self {
         Self {
             handshake_data_decommitment,
-            tx_transcript,
+            transcript_tx,
             transcript_rx,
             commitments,
         }
@@ -46,7 +46,7 @@ impl SessionData {
 
     /// Returns the transcript for data sent to the server
     pub fn sent_transcript(&self) -> &Transcript {
-        &self.tx_transcript
+        &self.transcript_tx
     }
 
     /// Returns the transcript for data received from the server
