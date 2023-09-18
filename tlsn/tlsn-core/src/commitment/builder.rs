@@ -34,6 +34,7 @@ pub enum TranscriptCommitmentBuilderError {
 /// A builder for [`TranscriptCommitments`].
 pub struct TranscriptCommitmentBuilder {
     commitments: HashMap<CommitmentId, Commitment>,
+    /// Information about the above `commitments`.
     commitment_info: BiMap<CommitmentId, CommitmentInfo>,
     merkle_leaves: Vec<Hash>,
     /// A function that returns the encodings for the provided transcript byte ids.
