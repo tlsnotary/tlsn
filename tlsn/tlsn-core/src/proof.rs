@@ -74,7 +74,7 @@ impl<'a> SubstringsProofBuilder<'a> {
 
         let data = transcript.get_bytes_in_ranges(info.ranges());
 
-        // check that the commitment is not already revealed
+        // add commitment to openings and return an error if it is already present
         if self
             .openings
             .insert(id, (info.clone(), commitment.open(data).into()))
