@@ -10,7 +10,7 @@ use crate::{
         blake3::Blake3Commitment, Commitment, CommitmentId, CommitmentInfo, TranscriptCommitments,
     },
     merkle::MerkleTree,
-    transcript::get_encoding_ids,
+    transcript::get_value_ids,
     Direction,
 };
 
@@ -81,7 +81,7 @@ impl TranscriptCommitmentBuilder {
         ranges: RangeSet<usize>,
         direction: Direction,
     ) -> Result<CommitmentId, TranscriptCommitmentBuilderError> {
-        let ids: Vec<_> = get_encoding_ids(&ranges, direction).collect();
+        let ids: Vec<_> = get_value_ids(&ranges, direction).collect();
 
         let id_refs = ids.iter().map(|id| id.as_ref()).collect::<Vec<_>>();
 

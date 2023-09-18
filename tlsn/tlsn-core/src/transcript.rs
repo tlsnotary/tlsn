@@ -152,7 +152,7 @@ pub enum Direction {
 }
 
 /// Returns the value ID for each byte in the provided range set
-pub fn get_encoding_ids(
+pub fn get_value_ids(
     ranges: &RangeSet<usize>,
     direction: Direction,
 ) -> impl Iterator<Item = String> + '_ {

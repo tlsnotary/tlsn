@@ -9,7 +9,7 @@ use utils::range::{RangeDisjoint, RangeSet, RangeUnion};
 use crate::{
     commitment::{Commitment, CommitmentId, CommitmentInfo, CommitmentOpening},
     merkle::MerkleProof,
-    transcript::get_encoding_ids,
+    transcript::get_value_ids,
     Direction, EncodingId, SessionData, SessionHeader, TranscriptSlice, MAX_TOTAL_COMMITTED_DATA,
 };
 
@@ -205,7 +205,7 @@ impl SubstringsProof {
             }
 
             // Generate the expected encodings for the purported data in the opening.
-            let encodings = get_encoding_ids(&ranges, direction)
+            let encodings = get_value_ids(&ranges, direction)
                 .map(|id| {
                     header
                         .encoder()
