@@ -139,8 +139,10 @@ pub struct SubstringsProof {
 opaque_debug::implement!(SubstringsProof);
 
 impl SubstringsProof {
-    /// Verifies this proof and, if successful, returns [TranscriptSlice]s which were sent and
-    /// received.
+    /// Verifies this proof and, if successful, returns two vectors of [`TranscriptSlice`]
+    /// which correspond to the sent and received data respectively.
+    ///
+    /// The returned slices are sorted and disjoint.
     pub fn verify(
         self,
         header: &SessionHeader,
@@ -152,8 +154,8 @@ impl SubstringsProof {
 
         let mut indices = Vec::with_capacity(openings.len());
         let mut expected_hashes = Vec::with_capacity(openings.len());
-        let mut sent_slices = Vec::new();
-        let mut recv_slices = Vec::new();
+        let mut sent = vec![0u8; header.sent_len() as usize];
+        let mut recv = vec![0u8; header.recv_len() as usize];
         let mut sent_ranges = RangeSet::default();
         let mut recv_ranges = RangeSet::default();
         let mut total_opened = 0u128;
@@ -224,15 +226,16 @@ impl SubstringsProof {
             }
 
             let dest = match direction {
-                Direction::Sent => &mut sent_slices,
-                Direction::Received => &mut recv_slices,
+                Direction::Sent => &mut sent,
+                Direction::Received => &mut recv,
             };
 
-            // Split the data into slices corresponding to the ranges
-            // and write it into the respective vector.
-            for range in ranges.iter_ranges() {
-                let len = range.len();
-                dest.push(TranscriptSlice::new(range, data.drain(..len).collect()));
+            // Iterate over the ranges backwards, copying the data from the opening
+            // then truncating it.
+            for range in ranges.iter_ranges().rev() {
+                let start = data.len() - range.len();
+                dest[range].copy_from_slice(&data[start..]);
+                data.truncate(start);
             }
 
             indices.push(id.to_inner() as usize);
@@ -245,6 +248,17 @@ impl SubstringsProof {
         inclusion_proof
             .verify(header.merkle_root(), &indices, &expected_hashes)
             .map_err(|_| SubstringsProofError::InvalidInclusionProof)?;
+
+        // Iterate over the unioned ranges and create TranscriptSlices for each.
+        // This ensures that the slices are sorted and disjoint.
+        let sent_slices = sent_ranges
+            .iter_ranges()
+            .map(|range| TranscriptSlice::new(range.clone(), sent[range].to_vec()))
+            .collect();
+        let recv_slices = recv_ranges
+            .iter_ranges()
+            .map(|range| TranscriptSlice::new(range.clone(), recv[range].to_vec()))
+            .collect();
 
         Ok((sent_slices, recv_slices))
     }
