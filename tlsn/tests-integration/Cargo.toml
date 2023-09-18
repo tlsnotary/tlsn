@@ -19,3 +19,9 @@ tokio-util.workspace = true
 
 tracing.workspace = true
 tracing-subscriber.workspace = true
+
+serde_json = "1.0"
+bincode = "*"
+
+[[test]]
+name = "http"

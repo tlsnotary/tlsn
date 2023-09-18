@@ -9,6 +9,8 @@
 
 mod config;
 mod error;
+#[cfg(feature = "http")]
+pub mod http;
 mod state;
 
 pub use config::ProverConfig;
