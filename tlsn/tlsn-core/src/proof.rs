@@ -92,7 +92,7 @@ impl<'a> SubstringsProofBuilder<'a> {
 
         let indices = openings
             .keys()
-            .map(|id| id.into_inner() as usize)
+            .map(|id| id.to_inner() as usize)
             .collect::<Vec<_>>();
 
         let inclusion_proof = data.commitments().merkle_tree().proof(&indices);
@@ -235,7 +235,7 @@ impl SubstringsProof {
                 dest.push(TranscriptSlice::new(range, data.drain(..len).collect()));
             }
 
-            indices.push(id.into_inner() as usize);
+            indices.push(id.to_inner() as usize);
         }
 
         // Verify that the expected hashes are present in the merkle tree.

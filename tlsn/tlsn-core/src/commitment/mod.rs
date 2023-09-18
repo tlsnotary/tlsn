@@ -30,7 +30,7 @@ impl CommitmentId {
     }
 
     /// Returns the inner value
-    pub(crate) fn into_inner(self) -> u32 {
+    pub(crate) fn to_inner(self) -> u32 {
         self.0
     }
 }
