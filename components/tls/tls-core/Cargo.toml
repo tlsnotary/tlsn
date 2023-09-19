@@ -27,4 +27,6 @@ tracing = { workspace = true, optional = true }
 ring.workspace = true
 futures.workspace = true
 serde = { workspace = true, optional = true, features = ["derive"] }
+rustls-pemfile.workspace = true
+thiserror.workspace = true
 

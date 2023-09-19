@@ -42,6 +42,18 @@ impl OwnedTrustAnchor {
     }
 }
 
+/// Errors that can occur during operations with RootCertStore
+#[derive(Debug, thiserror::Error)]
+#[allow(missing_docs)]
+pub enum RootCertStoreError {
+    #[error(transparent)]
+    WebpkiError(#[from] webpki::Error),
+    #[error(transparent)]
+    IOError(#[from] std::io::Error),
+    #[error("Unexpected PEM certificate count. Expected 1 certificate, got {0}")]
+    PemCertUnexpectedCount(usize),
+}
+
 /// A container for root certificates able to provide a root-of-trust
 /// for connection authentication.
 #[derive(Debug, Clone)]
@@ -81,7 +93,7 @@ impl RootCertStore {
     }
 
     /// Add a single DER-encoded certificate to the store.
-    pub fn add(&mut self, der: &crate::key::Certificate) -> Result<(), webpki::Error> {
+    pub fn add(&mut self, der: &crate::key::Certificate) -> Result<(), RootCertStoreError> {
         let ta = webpki::TrustAnchor::try_from_cert_der(&der.0)?;
         let ota = OwnedTrustAnchor::from_subject_spki_name_constraints(
             ta.subject,
@@ -89,6 +101,21 @@ impl RootCertStore {
             ta.name_constraints,
         );
         self.roots.push(ota);
+        Ok(())
+    }
+
+    /// Adds a single PEM-encoded certificate to the store.
+    pub fn add_pem(&mut self, pem: &str) -> Result<(), RootCertStoreError> {
+        let mut certificates = rustls_pemfile::certs(&mut pem.as_bytes())?;
+
+        if certificates.len() != 1 {
+            return Err(RootCertStoreError::PemCertUnexpectedCount(
+                certificates.len(),
+            ));
+        }
+
+        self.add(&crate::key::Certificate(certificates.remove(0)))?;
+
         Ok(())
     }
 
@@ -120,5 +147,44 @@ impl RootCertStore {
         }
 
         (valid_count, invalid_count)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    const CA_PEM_CERT: &[u8] = include_bytes!("../testdata/cert-digicert.pem");
+
+    #[test]
+    fn test_add_pem_ok() {
+        let pem = std::str::from_utf8(CA_PEM_CERT).unwrap();
+        assert!(RootCertStore::empty().add_pem(pem).is_ok());
+    }
+
+    #[test]
+    fn test_add_pem_err_bad_cert() {
+        assert_eq!(
+            RootCertStore::empty()
+                .add_pem("bad pem")
+                .err()
+                .unwrap()
+                .to_string(),
+            "Unexpected PEM certificate count. Expected 1 certificate, got 0"
+        );
+    }
+
+    #[test]
+    fn test_add_pem_err_more_than_one_cert() {
+        let pem1 = std::str::from_utf8(CA_PEM_CERT).unwrap();
+        let pem2 = pem1;
+
+        assert_eq!(
+            RootCertStore::empty()
+                .add_pem((pem1.to_owned() + pem2).as_str())
+                .err()
+                .unwrap()
+                .to_string(),
+            "Unexpected PEM certificate count. Expected 1 certificate, got 2"
+        );
     }
 }
