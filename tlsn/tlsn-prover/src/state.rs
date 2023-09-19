@@ -80,7 +80,11 @@ impl From<Closed> for Notarize {
             ids.iter().map(|id| encodings.get(*id).cloned()).collect()
         });
 
-        let builder = TranscriptCommitmentBuilder::new(encoding_provider);
+        let builder = TranscriptCommitmentBuilder::new(
+            encoding_provider,
+            state.transcript_tx.data().len(),
+            state.transcript_rx.data().len(),
+        );
 
         Self {
             notary_mux: state.notary_mux,

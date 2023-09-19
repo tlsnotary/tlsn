@@ -16,6 +16,12 @@ use crate::{
 /// An error for [`TranscriptCommitmentBuilder`]
 #[derive(Debug, thiserror::Error)]
 pub enum TranscriptCommitmentBuilderError {
+    /// Empty range
+    #[error("can not commit to an empty range")]
+    EmptyRange,
+    /// Range out of bounds
+    #[error("range out of bounds")]
+    RangeOutOfBounds,
     /// Failed to retrieve encodings for the provided transcript ranges.
     #[error("failed to retrieve encodings for the provided transcript ranges")]
     MissingEncodings,
@@ -35,6 +41,10 @@ pub struct TranscriptCommitmentBuilder {
     merkle_leaves: Vec<Hash>,
     /// A function that returns the encodings for the provided transcript byte ids.
     encoding_provider: EncodingProvider,
+    committed_tx: RangeSet<usize>,
+    committed_rx: RangeSet<usize>,
+    sent_len: usize,
+    recv_len: usize,
 }
 
 opaque_debug::implement!(TranscriptCommitmentBuilder);
@@ -46,12 +56,16 @@ impl TranscriptCommitmentBuilder {
     ///
     /// * `encoding_provider` - A function that returns the encodings for the provided transcript byte ids.
     #[doc(hidden)]
-    pub fn new(encoding_provider: EncodingProvider) -> Self {
+    pub fn new(encoding_provider: EncodingProvider, sent_len: usize, recv_len: usize) -> Self {
         Self {
             commitments: HashMap::default(),
             commitment_info: BiMap::default(),
             merkle_leaves: Vec::default(),
             encoding_provider,
+            committed_tx: RangeSet::default(),
+            committed_rx: RangeSet::default(),
+            sent_len,
+            recv_len,
         }
     }
 
@@ -63,6 +77,14 @@ impl TranscriptCommitmentBuilder {
         self.add_substrings_commitment(ranges.into(), Direction::Sent)
     }
 
+    /// Commits to all sent data which has not been committed to yet.
+    pub fn commit_sent_remaining(
+        &mut self,
+    ) -> Result<CommitmentId, TranscriptCommitmentBuilderError> {
+        let uncommitted = (0..self.sent_len).difference(&self.committed_tx);
+        self.add_substrings_commitment(uncommitted, Direction::Sent)
+    }
+
     /// Commits to the provided ranges of the `received` transcript.
     pub fn commit_recv(
         &mut self,
@@ -71,12 +93,32 @@ impl TranscriptCommitmentBuilder {
         self.add_substrings_commitment(ranges.into(), Direction::Received)
     }
 
+    /// Commits to all received data which has not been committed to yet.
+    pub fn commit_recv_remaining(
+        &mut self,
+    ) -> Result<CommitmentId, TranscriptCommitmentBuilderError> {
+        let uncommitted = (0..self.recv_len).difference(&self.committed_rx);
+        self.add_substrings_commitment(uncommitted, Direction::Received)
+    }
+
     /// Add a commitment to substrings of the transcript
     fn add_substrings_commitment(
         &mut self,
         ranges: RangeSet<usize>,
         direction: Direction,
     ) -> Result<CommitmentId, TranscriptCommitmentBuilderError> {
+        let max = ranges
+            .max()
+            .ok_or(TranscriptCommitmentBuilderError::EmptyRange)?;
+        let len = match direction {
+            Direction::Sent => self.sent_len,
+            Direction::Received => self.recv_len,
+        };
+
+        if max > len {
+            return Err(TranscriptCommitmentBuilderError::RangeOutOfBounds);
+        }
+
         let ids: Vec<_> = get_value_ids(&ranges, direction).collect();
 
         let id_refs = ids.iter().map(|id| id.as_ref()).collect::<Vec<_>>();
