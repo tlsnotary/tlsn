@@ -2,9 +2,11 @@
 
 mod commitment;
 mod proof;
+mod verify;
 
 pub use commitment::{JsonCommitmentBuilder, JsonCommitmentBuilderError};
 pub use proof::{JsonProofBuilder, JsonProofBuilderError};
+pub use verify::JsonVerifier;
 
 use spansy::json::JsonValue;
 
