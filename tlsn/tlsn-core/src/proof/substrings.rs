@@ -1,4 +1,4 @@
-//! Types for substring proofs.
+//! Substrings proofs.
 
 use std::collections::HashMap;
 
@@ -10,7 +10,8 @@ use crate::{
     commitment::{Commitment, CommitmentId, CommitmentInfo, CommitmentOpening},
     merkle::MerkleProof,
     transcript::get_value_ids,
-    Direction, EncodingId, SessionData, SessionHeader, TranscriptSlice, MAX_TOTAL_COMMITTED_DATA,
+    Direction, EncodingId, RedactedTranscript, SessionData, SessionHeader, TranscriptSlice,
+    MAX_TOTAL_COMMITTED_DATA,
 };
 
 use mpz_garble_core::Encoder;
@@ -140,14 +141,15 @@ pub struct SubstringsProof {
 opaque_debug::implement!(SubstringsProof);
 
 impl SubstringsProof {
-    /// Verifies this proof and, if successful, returns two vectors of [`TranscriptSlice`]
-    /// which correspond to the sent and received data respectively.
+    /// Verifies this proof and, if successful, returns the redacted sent and received transcripts.
     ///
-    /// The returned slices are sorted and disjoint.
+    /// # Arguments
+    ///
+    /// * `header` - The session header.
     pub fn verify(
         self,
         header: &SessionHeader,
-    ) -> Result<(Vec<TranscriptSlice>, Vec<TranscriptSlice>), SubstringsProofError> {
+    ) -> Result<(RedactedTranscript, RedactedTranscript), SubstringsProofError> {
         let Self {
             openings,
             inclusion_proof,
@@ -155,8 +157,8 @@ impl SubstringsProof {
 
         let mut indices = Vec::with_capacity(openings.len());
         let mut expected_hashes = Vec::with_capacity(openings.len());
-        let mut sent = vec![0u8; header.sent_len() as usize];
-        let mut recv = vec![0u8; header.recv_len() as usize];
+        let mut sent = vec![0u8; header.sent_len()];
+        let mut recv = vec![0u8; header.recv_len()];
         let mut sent_ranges = RangeSet::default();
         let mut recv_ranges = RangeSet::default();
         let mut total_opened = 0u128;
@@ -203,7 +205,7 @@ impl SubstringsProof {
                 Direction::Received => header.recv_len(),
             };
 
-            if max > transcript_len as usize {
+            if max > transcript_len {
                 return Err(SubstringsProofError::RangeOutOfBounds(id, max));
             }
 
@@ -260,6 +262,9 @@ impl SubstringsProof {
             .map(|range| TranscriptSlice::new(range.clone(), recv[range].to_vec()))
             .collect();
 
-        Ok((sent_slices, recv_slices))
+        Ok((
+            RedactedTranscript::new(header.sent_len(), sent_slices),
+            RedactedTranscript::new(header.recv_len(), recv_slices),
+        ))
     }
 }

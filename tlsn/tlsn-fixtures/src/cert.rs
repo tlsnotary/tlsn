@@ -2,6 +2,7 @@
 use std::time::{Duration, SystemTime};
 
 use rstest::{fixture, rstest};
+#[allow(unused_imports)]
 use tls_core::{
     anchors::{OwnedTrustAnchor, RootCertStore},
     dns::ServerName,
@@ -35,7 +36,7 @@ pub struct TestData {
     /// algorithm used to create the sig
     pub sig_scheme: SignatureScheme,
     /// DNS name of the website
-    pub dns_name: ServerName,
+    pub dns_name: String,
 }
 
 impl TestData {
@@ -114,7 +115,7 @@ pub fn tlsnotary() -> TestData {
         )),
         time: 1671637529,
         sig_scheme: SignatureScheme::RSA_PKCS1_SHA256,
-        dns_name: ServerName::try_from("tlsnotary.org").unwrap(),
+        dns_name: "tlsnotary.org".to_string(),
     }
 }
 
@@ -152,7 +153,7 @@ pub fn appliedzkp() -> TestData {
         )),
         time: 1671637529,
         sig_scheme: SignatureScheme::ECDSA_NISTP256_SHA256,
-        dns_name: ServerName::try_from("appliedzkp.org").unwrap(),
+        dns_name: "appliedzkp.org".to_string(),
     }
 }
 
@@ -168,7 +169,7 @@ fn test_verify_cert_chain_sucess_ca_implicit(
         .verify_server_cert(
             &data.ee,
             &[data.inter],
-            &data.dns_name,
+            &ServerName::try_from(data.dns_name.as_ref()).unwrap(),
             &mut std::iter::empty(),
             &[],
             SystemTime::UNIX_EPOCH + Duration::from_secs(data.time),
@@ -189,7 +190,7 @@ fn test_verify_cert_chain_success_ca_explicit(
         .verify_server_cert(
             &data.ee,
             &[data.inter, data.ca],
-            &data.dns_name,
+            &ServerName::try_from(data.dns_name.as_ref()).unwrap(),
             &mut std::iter::empty(),
             &[],
             SystemTime::UNIX_EPOCH + Duration::from_secs(data.time),
@@ -211,7 +212,7 @@ fn test_verify_cert_chain_fail_bad_time(
     let err = cert_verifier.verify_server_cert(
         &data.ee,
         &[data.inter],
-        &data.dns_name,
+        &ServerName::try_from(data.dns_name.as_ref()).unwrap(),
         &mut std::iter::empty(),
         &[],
         SystemTime::UNIX_EPOCH + Duration::from_secs(bad_time),
@@ -234,7 +235,7 @@ fn test_verify_cert_chain_fail_no_interm_cert(
     let err = cert_verifier.verify_server_cert(
         &data.ee,
         &[],
-        &data.dns_name,
+        &ServerName::try_from(data.dns_name.as_ref()).unwrap(),
         &mut std::iter::empty(),
         &[],
         SystemTime::UNIX_EPOCH + Duration::from_secs(data.time),
@@ -257,7 +258,7 @@ fn test_verify_cert_chain_fail_no_interm_cert_with_ca_cert(
     let err = cert_verifier.verify_server_cert(
         &data.ee,
         &[data.ca],
-        &data.dns_name,
+        &ServerName::try_from(data.dns_name.as_ref()).unwrap(),
         &mut std::iter::empty(),
         &[],
         SystemTime::UNIX_EPOCH + Duration::from_secs(data.time),
@@ -282,7 +283,7 @@ fn test_verify_cert_chain_fail_bad_ee_cert(
     let err = cert_verifier.verify_server_cert(
         &Certificate(ee.to_vec()),
         &[data.inter],
-        &data.dns_name,
+        &ServerName::try_from(data.dns_name.as_ref()).unwrap(),
         &mut std::iter::empty(),
         &[],
         SystemTime::UNIX_EPOCH + Duration::from_secs(data.time),

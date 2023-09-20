@@ -9,6 +9,7 @@ use std::{
     ops::Range,
     sync::Arc,
 };
+use tlsn_core::proof::TlsProof;
 use tokio::{fs::File, io::AsyncWriteExt as _, net::TcpStream};
 use tokio_rustls::{client::TlsStream, TlsConnector};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
@@ -134,8 +135,6 @@ async fn main() {
     let notarized_session = prover.finalize().await.unwrap();
 
     // Create a proof for all committed data in this session
-    let session_proof = notarized_session.session_proof();
-
     let mut proof_builder = notarized_session.data().build_substrings_proof();
 
     // Reveal all the public ranges
@@ -146,15 +145,16 @@ async fn main() {
 
     let substrings_proof = proof_builder.build().unwrap();
 
-    // Write the proof to a file in the format expected by `simple_verifier.rs`
+    let proof = TlsProof {
+        session: notarized_session.session_proof(),
+        substrings: substrings_proof,
+    };
+
+    // Write the proof to a file
     let mut file = tokio::fs::File::create("proof.json").await.unwrap();
-    file.write_all(
-        serde_json::to_string_pretty(&(&session_proof, &substrings_proof, &SERVER_DOMAIN))
-            .unwrap()
-            .as_bytes(),
-    )
-    .await
-    .unwrap();
+    file.write_all(serde_json::to_string_pretty(&proof).unwrap().as_bytes())
+        .await
+        .unwrap();
 
     println!("Notarization completed successfully!");
     println!("The proof has been written to proof.json");

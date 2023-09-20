@@ -30,9 +30,9 @@ pub struct SessionHeader {
     merkle_root: MerkleRoot,
 
     /// Bytelength of all data which was sent to the webserver
-    sent_len: u32,
+    sent_len: usize,
     /// Bytelength of all data which was received from the webserver
-    recv_len: u32,
+    recv_len: usize,
 
     handshake_summary: HandshakeSummary,
 }
@@ -42,8 +42,8 @@ impl SessionHeader {
     pub fn new(
         encoder_seed: [u8; 32],
         merkle_root: MerkleRoot,
-        sent_len: u32,
-        recv_len: u32,
+        sent_len: usize,
+        recv_len: usize,
         handshake_summary: HandshakeSummary,
     ) -> Self {
         Self {
@@ -99,13 +99,22 @@ impl SessionHeader {
         &self.handshake_summary
     }
 
+    /// Time of the TLS session, in seconds since the UNIX epoch.
+    ///
+    /// # Note
+    ///
+    /// This time is not necessarily exactly aligned with the TLS handshake.
+    pub fn time(&self) -> u64 {
+        self.handshake_summary.time()
+    }
+
     /// Returns the number of bytes sent to the server
-    pub fn sent_len(&self) -> u32 {
+    pub fn sent_len(&self) -> usize {
         self.sent_len
     }
 
     /// Returns the number of bytes received by the server
-    pub fn recv_len(&self) -> u32 {
+    pub fn recv_len(&self) -> usize {
         self.recv_len
     }
 }

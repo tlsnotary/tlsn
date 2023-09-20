@@ -14,8 +14,9 @@ pub mod session;
 mod signature;
 pub mod transcript;
 
-pub use session::{HandshakeSummary, NotarizedSession, SessionData, SessionHeader, SessionProof};
-pub use signature::Signature;
+use serde::{Deserialize, Serialize};
+pub use session::{HandshakeSummary, NotarizedSession, SessionData, SessionHeader};
+pub use signature::{NotaryPublicKey, Signature};
 pub use transcript::{Direction, RedactedTranscript, Transcript, TranscriptSlice};
 
 /// The maximum allowed total bytelength of all committed data. Used to prevent DoS during verification.
@@ -29,7 +30,7 @@ const MAX_TOTAL_COMMITTED_DATA: usize = 1_000_000_000;
 ///
 /// A 64 bit Blake3 hash which is used for the plaintext encodings
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Ord, PartialOrd, Hash)]
-pub struct EncodingId(u64);
+pub(crate) struct EncodingId(u64);
 
 impl EncodingId {
     /// Create a new encoding ID.
@@ -39,7 +40,31 @@ impl EncodingId {
     }
 
     /// Returns the encoding ID.
-    pub fn to_inner(self) -> u64 {
+    pub(crate) fn to_inner(self) -> u64 {
         self.0
+    }
+}
+
+/// A Server's name.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ServerName {
+    /// A DNS name.
+    Dns(String),
+}
+
+impl ServerName {
+    /// Returns a reference to the server name as a string slice.
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Dns(name) => name.as_str(),
+        }
+    }
+}
+
+impl AsRef<str> for ServerName {
+    fn as_ref(&self) -> &str {
+        match self {
+            Self::Dns(name) => name.as_ref(),
+        }
     }
 }

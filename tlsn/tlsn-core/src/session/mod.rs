@@ -3,16 +3,14 @@
 mod data;
 mod handshake;
 mod header;
-mod proof;
 
 use serde::{Deserialize, Serialize};
 
 pub use data::SessionData;
 pub use handshake::{HandshakeSummary, HandshakeVerifyError};
 pub use header::{SessionHeader, SessionHeaderVerifyError};
-pub use proof::SessionProof;
 
-use crate::signature::Signature;
+use crate::{proof::SessionProof, signature::Signature};
 
 /// A validated notarized session stored by the Prover
 #[derive(Serialize, Deserialize)]
@@ -23,7 +21,7 @@ pub struct NotarizedSession {
 }
 
 impl NotarizedSession {
-    /// Create a new instance of [NotarizedSession]
+    /// Create a new notarized session.
     pub fn new(header: SessionHeader, signature: Option<Signature>, data: SessionData) -> Self {
         Self {
             header,
@@ -32,13 +30,14 @@ impl NotarizedSession {
         }
     }
 
-    /// Generates a new [SessionProof] from this [NotarizedSession]
+    /// Returns a proof of the TLS session
     pub fn session_proof(&self) -> SessionProof {
-        SessionProof::new(
-            self.header().clone(),
-            self.signature().clone(),
-            self.data().handshake_data_decommitment().clone(),
-        )
+        SessionProof {
+            header: self.header.clone(),
+            server_name: self.data.server_name().clone(),
+            signature: self.signature.clone(),
+            handshake_data_decommitment: self.data.handshake_data_decommitment().clone(),
+        }
     }
 
     /// Returns the [SessionHeader]

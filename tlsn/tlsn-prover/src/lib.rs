@@ -29,12 +29,12 @@ use mpz_ot::{
     chou_orlandi, kos,
 };
 use mpz_share_conversion as ff;
-use tls_client::{ClientConnection, ServerName};
+use tls_client::{ClientConnection, ServerName as TlsServerName};
 use tlsn_core::{
     commitment::TranscriptCommitmentBuilder,
     msg::{SignedSessionHeader, TlsnMessage},
     transcript::Transcript,
-    NotarizedSession, SessionData,
+    NotarizedSession, ServerName, SessionData,
 };
 use uid_mux::{yamux, UidYamux, UidYamuxControl};
 use utils_aio::{codec::BincodeMux, expect_msg_or_err, mux::MuxChannel};
@@ -149,7 +149,7 @@ impl Prover<Setup> {
             gf2,
         } = self.state;
 
-        let server_name = ServerName::try_from(self.config.server_dns())?;
+        let server_name = TlsServerName::try_from(self.config.server_dns())?;
         let config = tls_client::ClientConfig::builder()
             .with_safe_defaults()
             .with_root_certificates(self.config.root_cert_store.clone())
@@ -272,6 +272,7 @@ impl Prover<Notarize> {
         let commitments = builder.build()?;
 
         let session_data = SessionData::new(
+            ServerName::Dns(self.config.server_dns().to_string()),
             handshake_decommitment,
             transcript_tx,
             transcript_rx,
