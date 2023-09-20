@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["NotaryConfigBuilderError","NotaryError"],"fn":["bind_notary"],"struct":["Notary","NotaryBackgroundFut","NotaryConfig","NotaryConfigBuilder"]};

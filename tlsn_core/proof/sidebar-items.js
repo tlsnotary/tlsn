@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["SubstringsProofBuilderError","SubstringsProofError"],"struct":["SubstringsProof","SubstringsProofBuilder"]};

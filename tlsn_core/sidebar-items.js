@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Signature"],"mod":["commitment","merkle","msg","proof","session","transcript"],"struct":["EncodingId"]};
