@@ -20,7 +20,7 @@ use crate::{
 /// Proof that a transcript of communications took place between a Prover and Server.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TlsProof {
-    /// Proof of the TLS handshake, server identity, and commitments to the the transcript.
+    /// Proof of the TLS handshake, server identity, and commitments to the transcript.
     pub session: SessionProof,
     /// Proof regarding the contents of the transcript.
     pub substrings: SubstringsProof,
