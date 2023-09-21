@@ -173,17 +173,6 @@ impl Prover<Setup> {
                     _ = mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
                 };
 
-                // Extra guard to guarantee that the server sent a close_notify.
-                //
-                // DO NOT REMOVE!
-                //
-                // This is necessary, as our protocol reveals the MAC key to the Notary afterwards
-                // which could be used to authenticate modified TLS records if the Notary is
-                // in the middle of the connection.
-                if !client.received_close_notify() {
-                    return Err(ProverError::ServerNoCloseNotify);
-                }
-
                 let backend = client
                     .backend_mut()
                     .as_any_mut()

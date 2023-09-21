@@ -202,7 +202,7 @@ impl SubstringsProof {
                 Direction::Received => header.recv_len(),
             };
 
-            if max >= transcript_len as usize {
+            if max > transcript_len as usize {
                 return Err(SubstringsProofError::RangeOutOfBounds(id, max));
             }
 

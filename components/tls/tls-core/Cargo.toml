@@ -5,7 +5,7 @@ description = "Cryptographic operations for the TLSNotary TLS client"
 keywords = ["tls", "mpc", "2pc"]
 categories = ["cryptography"]
 license = "MIT OR Apache-2.0"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 edition = "2021"
 
 [lib]
@@ -29,4 +29,3 @@ futures.workspace = true
 serde = { workspace = true, optional = true, features = ["derive"] }
 rustls-pemfile.workspace = true
 thiserror.workspace = true
-
