@@ -1,34 +1,52 @@
-use crate::{merkle::MerkleTree, SubstringsCommitmentSet, Transcript};
+use crate::{
+    commitment::TranscriptCommitments, proof::SubstringsProofBuilder, ServerName, Transcript,
+};
 use mpz_core::commit::Decommitment;
 use serde::{Deserialize, Serialize};
 use tls_core::handshake::HandshakeData;
 
-/// Wrapper for various data associated with the TLSNotary session
+/// Notarized session data.
+///
+/// This contains all the private data held by the `Prover` after notarization.
+///
+/// # Selective disclosure
+///
+/// The `Prover` can selectively disclose parts of the transcript to a `Verifier` using a
+/// [`SubstringsProof`](crate::proof::SubstringsProof).
+///
+/// See [`build_substrings_proof`](SessionData::build_substrings_proof).
 #[derive(Serialize, Deserialize)]
 pub struct SessionData {
+    server_name: ServerName,
     handshake_data_decommitment: Decommitment<HandshakeData>,
-    tx_transcript: Transcript,
-    rx_transcript: Transcript,
-    merkle_tree: MerkleTree,
-    commitments: SubstringsCommitmentSet,
+    transcript_tx: Transcript,
+    transcript_rx: Transcript,
+    commitments: TranscriptCommitments,
 }
 
+opaque_debug::implement!(SessionData);
+
 impl SessionData {
-    /// Create a new instance of SessionData
+    /// Creates new session data.
     pub fn new(
+        server_name: ServerName,
         handshake_data_decommitment: Decommitment<HandshakeData>,
-        tx_transcript: Transcript,
-        rx_transcript: Transcript,
-        merkle_tree: MerkleTree,
-        commitments: SubstringsCommitmentSet,
+        transcript_tx: Transcript,
+        transcript_rx: Transcript,
+        commitments: TranscriptCommitments,
     ) -> Self {
         Self {
+            server_name,
             handshake_data_decommitment,
-            tx_transcript,
-            rx_transcript,
-            merkle_tree,
+            transcript_tx,
+            transcript_rx,
             commitments,
         }
+    }
+
+    /// Returns the server name.
+    pub fn server_name(&self) -> &ServerName {
+        &self.server_name
     }
 
     /// Returns the decommitment to handshake data
@@ -38,21 +56,21 @@ impl SessionData {
 
     /// Returns the transcript for data sent to the server
     pub fn sent_transcript(&self) -> &Transcript {
-        &self.tx_transcript
+        &self.transcript_tx
     }
 
     /// Returns the transcript for data received from the server
     pub fn recv_transcript(&self) -> &Transcript {
-        &self.rx_transcript
+        &self.transcript_rx
     }
 
-    /// Returns the merkle tree for the prover's commitments
-    pub fn merkle_tree(&self) -> &MerkleTree {
-        &self.merkle_tree
-    }
-
-    /// The prover's commitments to substrings of the transcript
-    pub fn commitments(&self) -> &SubstringsCommitmentSet {
+    /// Returns the transcript commitments.
+    pub fn commitments(&self) -> &TranscriptCommitments {
         &self.commitments
+    }
+
+    /// Returns a substrings proof builder.
+    pub fn build_substrings_proof(&self) -> SubstringsProofBuilder {
+        SubstringsProofBuilder::new(self)
     }
 }

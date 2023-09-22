@@ -2,10 +2,20 @@ use mpz_core::{commit::Decommitment, hash::Hash};
 use serde::{Deserialize, Serialize};
 use tls_core::{handshake::HandshakeData, key::PublicKey, msgs::handshake::ServerECDHParams};
 
-use crate::error::Error;
-
-#[cfg(feature = "tracing")]
-use tracing::instrument;
+/// An error that can occur while verifying a handshake summary
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum HandshakeVerifyError {
+    /// The handshake data does not match the commitment
+    #[error("Handshake data does not match commitment")]
+    Commitment,
+    /// The key exchange parameters are invalid
+    #[error("Key exchange parameters are invalid")]
+    KxParams,
+    /// The server ephemeral key does not match
+    #[error("Server ephemeral key does not match")]
+    ServerEphemKey,
+}
 
 /// Handshake summary is part of the session header signed by the Notary
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -29,7 +39,11 @@ impl HandshakeSummary {
         }
     }
 
-    /// Returns the time
+    /// Time of the TLS session, in seconds since the UNIX epoch.
+    ///
+    /// # Note
+    ///
+    /// This time is not necessarily exactly aligned with the TLS handshake.
     pub fn time(&self) -> u64 {
         self.time
     }
@@ -45,26 +59,22 @@ impl HandshakeSummary {
     }
 
     /// Verifies that the provided handshake data matches this handshake summary
-    #[cfg_attr(
-        feature = "tracing",
-        instrument(level = "debug", skip(self, data), err)
-    )]
-    pub fn verify(&self, data: &Decommitment<HandshakeData>) -> Result<(), Error> {
+    pub fn verify(&self, data: &Decommitment<HandshakeData>) -> Result<(), HandshakeVerifyError> {
         // Verify the handshake data matches the commitment in the session header
         data.verify(&self.handshake_commitment)
-            .map_err(|_| Error::ValidationError)?;
+            .map_err(|_| HandshakeVerifyError::Commitment)?;
 
         let ecdh_params = tls_core::suites::tls12::decode_ecdh_params::<ServerECDHParams>(
             data.data().server_kx_details().kx_params(),
         )
-        .ok_or(Error::ValidationError)?;
+        .ok_or(HandshakeVerifyError::KxParams)?;
 
         let server_public_key =
             PublicKey::new(ecdh_params.curve_params.named_group, &ecdh_params.public.0);
 
         // Ephemeral pubkey must match the one which the Notary signed
         if server_public_key != self.server_public_key {
-            return Err(Error::ValidationError);
+            return Err(HandshakeVerifyError::ServerEphemKey);
         }
 
         Ok(())

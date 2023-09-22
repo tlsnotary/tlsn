@@ -3,6 +3,7 @@ members = [
     "tlsn-core",
     "tlsn-notary",
     "tlsn-prover",
+    "tlsn-fixtures",
     "tests-integration",
     "examples",
 ]
@@ -12,6 +13,7 @@ resolver = "2"
 tlsn-core = { path = "tlsn-core" }
 tlsn-prover = { path = "tlsn-prover" }
 tlsn-notary = { path = "tlsn-notary" }
+tlsn-fixtures = { path = "tlsn-fixtures" }
 
 tlsn-tls-core = { path = "../components/tls/tls-core" }
 tlsn-tls-mpc = { path = "../components/tls/tls-mpc" }
@@ -20,15 +22,15 @@ tlsn-tls-client-async = { path = "../components/tls/tls-client-async" }
 tls-server-fixture = { path = "../components/tls/tls-server-fixture" }
 uid-mux = { path = "../components/uid-mux" }
 
-tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "b182066" }
+tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "8ac9156" }
 tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "b182066" }
 
-mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
-mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
-mpz-garble-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
-mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
-mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
-mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
+mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "76ed767" }
+mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "76ed767" }
+mpz-garble-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "76ed767" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "76ed767" }
+mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "76ed767" }
+mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "76ed767" }
 
 
 futures = "0.3"

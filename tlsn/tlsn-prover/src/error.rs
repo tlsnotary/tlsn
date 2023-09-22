@@ -1,6 +1,7 @@
 use std::error::Error;
 
 use tls_mpc::MpcTlsError;
+use tlsn_core::commitment::TranscriptCommitmentBuilderError;
 
 /// An error that can occur during proving.
 #[derive(Debug, thiserror::Error)]
@@ -14,8 +15,10 @@ pub enum ProverError {
     IOError(#[from] std::io::Error),
     #[error(transparent)]
     MuxerError(#[from] utils_aio::mux::MuxerError),
+    #[error("notarization error: {0}")]
+    NotarizationError(String),
     #[error(transparent)]
-    CoreError(#[from] tlsn_core::Error),
+    CommitmentBuilder(#[from] TranscriptCommitmentBuilderError),
     #[error(transparent)]
     InvalidServerName(#[from] tls_core::dns::InvalidDnsNameError),
     #[error("error occurred in MPC protocol: {0}")]

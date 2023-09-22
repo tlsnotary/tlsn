@@ -10,7 +10,7 @@ tlsn-notary.workspace = true
 tlsn-core.workspace = true
 tlsn-tls-core.workspace = true
 tlsn-tls-client.workspace = true
-notary-server = { version = "0.1.0", git = "https://github.com/tlsnotary/notary-server" }
+notary-server = { tag = "v0.1.0-alpha.2", git = "https://github.com/tlsnotary/notary-server" }
 mpz-core.workspace = true
 
 futures.workspace = true
@@ -28,7 +28,7 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 
 hyper = { version = "0.14", features = ["client", "http1"] }
-
+chrono = "0.4"
 p256 = { workspace = true, features = ["ecdsa"] }
 elliptic-curve = { version = "0.13.5", features = ["pkcs8"] }
 webpki-roots.workspace = true
@@ -60,3 +60,11 @@ path = "twitter_dm.rs"
 [[example]]
 name = "simple_notary"
 path = "simple_notary.rs"
+
+[[example]]
+name = "discord_dm"
+path = "discord/discord_dm.rs"
+
+[[example]]
+name = "discord_dm_verifier"
+path = "discord/discord_dm_verifier.rs"

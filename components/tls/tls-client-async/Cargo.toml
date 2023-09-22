@@ -5,7 +5,7 @@ description = "An async TLS client for TLSNotary"
 keywords = ["tls", "mpc", "2pc", "client", "async"]
 categories = ["cryptography"]
 license = "MIT OR Apache-2.0"
-version = "0.1.0"
+version = "0.1.0-alpha.2"
 edition = "2021"
 
 [lib]
@@ -24,11 +24,7 @@ thiserror.workspace = true
 
 [dev-dependencies]
 tracing-subscriber.workspace = true
-tokio = { workspace = true, features = [
-    "rt",
-    "rt-multi-thread",
-    "macros",
-] }
+tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros"] }
 webpki-roots.workspace = true
 hyper = { workspace = true, features = ["client", "http1"] }
 tls-server-fixture = { path = "../tls-server-fixture" }

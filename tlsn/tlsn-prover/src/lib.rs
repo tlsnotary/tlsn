@@ -19,27 +19,22 @@ use futures::{
     future::FusedFuture, AsyncRead, AsyncWrite, Future, FutureExt, SinkExt, StreamExt, TryFutureExt,
 };
 use rand::Rng;
-use std::{ops::Range, pin::Pin, sync::Arc};
+use std::{pin::Pin, sync::Arc};
 use tls_client_async::{bind_client, ClosedConnection, TlsConnection};
 use tls_mpc::{setup_components, MpcTlsLeader, TlsRole};
 
-use mpz_core::commit::HashCommit;
-use mpz_garble::{
-    config::Role as GarbleRole,
-    protocol::deap::{DEAPVm, PeerEncodings},
-};
+use mpz_garble::{config::Role as GarbleRole, protocol::deap::DEAPVm};
 use mpz_ot::{
     actor::kos::{ReceiverActor, SenderActor, SharedReceiver, SharedSender},
     chou_orlandi, kos,
 };
 use mpz_share_conversion as ff;
-use tls_client::{ClientConnection, ServerName};
+use tls_client::{ClientConnection, ServerName as TlsServerName};
 use tlsn_core::{
-    commitment::Blake3,
-    merkle::MerkleTree,
+    commitment::TranscriptCommitmentBuilder,
     msg::{SignedSessionHeader, TlsnMessage},
     transcript::Transcript,
-    Direction, NotarizedSession, SessionData, SubstringsCommitment, SubstringsCommitmentSet,
+    NotarizedSession, ServerName, SessionData,
 };
 use uid_mux::{yamux, UidYamux, UidYamuxControl};
 use utils_aio::{codec::BincodeMux, expect_msg_or_err, mux::MuxChannel};
@@ -154,7 +149,7 @@ impl Prover<Setup> {
             gf2,
         } = self.state;
 
-        let server_name = ServerName::try_from(self.config.server_dns())?;
+        let server_name = TlsServerName::try_from(self.config.server_dns())?;
         let config = tls_client::ClientConfig::builder()
             .with_safe_defaults()
             .with_root_certificates(self.config.root_cert_store.clone())
@@ -177,17 +172,6 @@ impl Prover<Setup> {
                     _ = ot_fut => return Err(OTShutdownError)?,
                     _ = mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
                 };
-
-                // Extra guard to guarantee that the server sent a close_notify.
-                //
-                // DO NOT REMOVE!
-                //
-                // This is necessary, as our protocol reveals the MAC key to the Notary afterwards
-                // which could be used to authenticate modified TLS records if the Notary is
-                // in the middle of the connection.
-                if !client.received_close_notify() {
-                    return Err(ProverError::ServerNoCloseNotify);
-                }
 
                 let backend = client
                     .backend_mut()
@@ -215,8 +199,8 @@ impl Prover<Setup> {
                         start_time,
                         handshake_decommitment,
                         server_public_key,
-                        transcript_tx: Transcript::new("tx", sent),
-                        transcript_rx: Transcript::new("rx", recv),
+                        transcript_tx: Transcript::new(sent),
+                        transcript_rx: Transcript::new(recv),
                     },
                 })
             };
@@ -263,55 +247,9 @@ impl Prover<Notarize> {
         &self.state.transcript_rx
     }
 
-    /// Add a commitment to the sent requests
-    pub fn add_commitment_sent(&mut self, range: Range<u32>) -> Result<(), ProverError> {
-        self.add_commitment(range, Direction::Sent)
-    }
-
-    /// Add a commitment to the received responses
-    pub fn add_commitment_recv(&mut self, range: Range<u32>) -> Result<(), ProverError> {
-        self.add_commitment(range, Direction::Received)
-    }
-
-    #[cfg_attr(
-        feature = "tracing",
-        instrument(level = "debug", skip(self, range), err)
-    )]
-    fn add_commitment(
-        &mut self,
-        range: Range<u32>,
-        direction: Direction,
-    ) -> Result<(), ProverError> {
-        let ids = match direction {
-            Direction::Sent => self.state.transcript_tx.get_ids(&range),
-            Direction::Received => self.state.transcript_rx.get_ids(&range),
-        };
-
-        let id_refs: Vec<_> = ids.iter().map(|id| id.as_str()).collect();
-
-        let encodings = self
-            .state
-            .vm
-            .get_peer_encodings(&id_refs)
-            .map_err(|e| ProverError::MpcError(Box::new(e)))?;
-
-        let (decommitment, commitment) = encodings.hash_commit();
-
-        self.state.commitments.push(commitment);
-
-        let commitment = Blake3::new(commitment).into();
-
-        let commitment = SubstringsCommitment::new(
-            self.state.substring_commitments.len() as u32,
-            commitment,
-            vec![range],
-            direction,
-            *decommitment.nonce(),
-        );
-
-        self.state.substring_commitments.push(commitment);
-
-        Ok(())
+    /// Returns the transcript commitment builder
+    pub fn commitment_builder(&mut self) -> &mut TranscriptCommitmentBuilder {
+        &mut self.state.builder
     }
 
     /// Finalize the notarization returning a [`NotarizedSession`]
@@ -328,12 +266,20 @@ impl Prover<Notarize> {
             server_public_key,
             transcript_tx,
             transcript_rx,
-            commitments,
-            substring_commitments,
+            builder,
         } = self.state;
 
-        let merkle_tree = MerkleTree::from_leaves(&commitments)?;
-        let merkle_root = merkle_tree.root();
+        let commitments = builder.build()?;
+
+        let session_data = SessionData::new(
+            ServerName::Dns(self.config.server_dns().to_string()),
+            handshake_decommitment,
+            transcript_tx,
+            transcript_rx,
+            commitments,
+        );
+
+        let merkle_root = session_data.commitments().merkle_root();
 
         let notarize_fut = async move {
             let mut channel = notary_mux.get_channel("notarize").await?;
@@ -364,25 +310,21 @@ impl Prover<Notarize> {
         };
 
         // Check the header is consistent with the Prover's view
-        header.verify(
-            start_time,
-            &server_public_key,
-            &merkle_tree.root(),
-            &notary_encoder_seed,
-            &handshake_decommitment,
-        )?;
+        header
+            .verify(
+                start_time,
+                &server_public_key,
+                &session_data.commitments().merkle_root(),
+                &notary_encoder_seed,
+                session_data.handshake_data_decommitment(),
+            )
+            .map_err(|_| {
+                ProverError::NotarizationError(
+                    "notary signed an inconsistent session header".to_string(),
+                )
+            })?;
 
-        let commitments = SubstringsCommitmentSet::new(substring_commitments);
-
-        let data = SessionData::new(
-            handshake_decommitment,
-            transcript_tx,
-            transcript_rx,
-            merkle_tree,
-            commitments,
-        );
-
-        Ok(NotarizedSession::new(header, Some(signature), data))
+        Ok(NotarizedSession::new(header, Some(signature), session_data))
     }
 }
 

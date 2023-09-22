@@ -1,11 +1,11 @@
-use std::{
-    ops::Range,
-    time::{Duration, UNIX_EPOCH},
-};
+use std::{collections::HashMap, ops::Range};
 
-use p256::ecdsa::{
-    signature::{SignerMut, Verifier},
-    Signature as P256Signature, SigningKey,
+use p256::{
+    ecdsa::{
+        signature::{SignerMut, Verifier},
+        Signature as P256Signature, SigningKey,
+    },
+    PublicKey,
 };
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
@@ -19,91 +19,53 @@ use tls_core::{
 
 use mpz_circuits::types::ValueType;
 use mpz_core::{commit::HashCommit, serialize::CanonicalSerialize, value::ValueId};
-use mpz_garble_core::{ChaChaEncoder, EncodedValue, Encoder};
+use mpz_garble_core::{encoding_state, ChaChaEncoder, EncodedValue, Encoder};
 
 use tlsn_core::{
-    commitment::{Blake3, Commitment},
-    fixtures,
-    merkle::MerkleTree,
+    commitment::TranscriptCommitmentBuilder,
     msg::SignedSessionHeader,
-    signature::Signature,
-    substrings::proof::SubstringsProof,
-    Direction, HandshakeSummary, NotarizedSession, SessionArtifacts, SessionData, SessionHeader,
-    SessionProof, SubstringsCommitment, SubstringsCommitmentSet, Transcript,
+    proof::{SessionProof, SubstringsProof},
+    session::SessionData,
+    HandshakeSummary, NotarizedSession, ServerName, SessionHeader, Signature, Transcript,
 };
+
+use tlsn_fixtures as fixtures;
 
 #[test]
 /// Tests that the commitment creation protocol and verification work end-to-end
 fn test_api() {
-    let testdata = crate::fixtures::cert::tlsnotary();
+    let testdata = fixtures::cert::tlsnotary();
     // Prover's transcript
     let data_sent = "sent data".as_bytes();
     let data_recv = "received data".as_bytes();
-    let transcript_tx = Transcript::new("tx", data_sent.to_vec());
-    let transcript_rx = Transcript::new("rx", data_recv.to_vec());
+    let transcript_tx = Transcript::new(data_sent.to_vec());
+    let transcript_rx = Transcript::new(data_recv.to_vec());
 
     // Ranges of plaintext for which the Prover wants to create a commitment
-    let range1: Range<u32> = Range { start: 0, end: 2 };
-    let range2: Range<u32> = Range { start: 1, end: 3 };
+    let range1: Range<usize> = Range { start: 0, end: 2 };
+    let range2: Range<usize> = Range { start: 1, end: 3 };
 
     // Plaintext encodings which the Prover obtained from GC evaluation
     // (for simplicity of this test we instead generate the encodings using the Notary's encoder)
     let notary_encoder_seed = [5u8; 32];
     let notary_encoder = ChaChaEncoder::new(notary_encoder_seed);
 
-    // active encodings for each byte in range1
-    let active_encodings_range1: Vec<EncodedValue<_>> = transcript_tx
-        .get_ids(&range1)
-        .into_iter()
-        .map(|id| notary_encoder.encode_by_type(ValueId::new(&id).to_u64(), &ValueType::U8))
-        .zip(transcript_tx.data()[range1.start as usize..range1.end as usize].to_vec())
-        .map(|(enc, value)| enc.select(value).unwrap())
-        .collect();
+    let active_encodings = build_active_encodings(&notary_encoder, data_sent, data_recv);
+    let encodings_provider = Box::new(move |ids: &[&str]| {
+        ids.iter()
+            .map(|id| active_encodings.get(*id).cloned())
+            .collect()
+    });
 
-    // Full encodings for each byte in range2
-    let active_encodings_range2: Vec<EncodedValue<_>> = transcript_rx
-        .get_ids(&range2)
-        .into_iter()
-        .map(|id| notary_encoder.encode_by_type(ValueId::new(&id).to_u64(), &ValueType::U8))
-        .zip(transcript_rx.data()[range2.start as usize..range2.end as usize].to_vec())
-        .map(|(enc, value)| enc.select(value).unwrap())
-        .collect();
+    // At the end of the session the Prover holds the:
+    // - time when the TLS handshake began
+    // - server ephemeral key
+    // - handshake data (to which the Prover sent a commitment earlier)
+    // - encoder seed revealed by the Notary at the end of the label commitment protocol
 
-    let (decommit1, commit1) = active_encodings_range1.hash_commit();
-    let (decommit2, commit2) = active_encodings_range2.hash_commit();
-
-    let commitments = vec![
-        SubstringsCommitment::new(
-            0,
-            Commitment::Blake3(Blake3::new(commit1)),
-            vec![range1.clone()],
-            Direction::Sent,
-            *decommit1.nonce(),
-        ),
-        SubstringsCommitment::new(
-            1,
-            Commitment::Blake3(Blake3::new(commit2)),
-            vec![range2.clone()],
-            Direction::Received,
-            *decommit2.nonce(),
-        ),
-    ];
-
-    // At the end of the session the Prover holds these artifacts:
-
-    // time when the TLS handshake began
     let time = testdata.time;
-
-    // merkle tree of all Prover's commitments (the root of the tree was sent to the Notary earlier)
-    let merkle_tree = MerkleTree::from_leaves(&[commit1, commit2]).unwrap();
-
-    // encoder seed revealed by the Notary at the end of the label commitment protocol
-    let encoder_seed: [u8; 32] = notary_encoder_seed;
-
-    // server ephemeral key (known both to the Prover and the Notary)
     let ephem_key = testdata.pubkey.clone();
 
-    // handshake data (to which the Prover sent a commitment earlier)
     let handshake_data = HandshakeData::new(
         ServerCertDetails::new(
             vec![
@@ -125,12 +87,19 @@ fn test_api() {
     // Commitment to the handshake which the Prover sent at the start of the TLS handshake
     let (hs_decommitment, hs_commitment) = handshake_data.hash_commit();
 
-    let artifacts = SessionArtifacts::new(
-        time,
-        merkle_tree.clone(),
-        encoder_seed,
-        ephem_key.clone(),
-        hs_decommitment,
+    let mut commitment_builder = TranscriptCommitmentBuilder::new(encodings_provider);
+
+    let commitment_id_1 = commitment_builder.commit_sent(range1.clone()).unwrap();
+    let commitment_id_2 = commitment_builder.commit_recv(range2.clone()).unwrap();
+
+    let commitments = commitment_builder.build().unwrap();
+
+    let session_data = SessionData::new(
+        ServerName::Dns(testdata.dns_name.clone()),
+        hs_decommitment.clone(),
+        transcript_tx,
+        transcript_rx,
+        commitments,
     );
 
     // Some outer context generates an (ephemeral) signing key for the Notary, e.g.
@@ -140,18 +109,19 @@ fn test_api() {
 
     // Notary receives the raw signing key from some outer context
     let mut signer = SigningKey::from_bytes(&raw_key).unwrap();
-    let notary_pubkey = signer.verifying_key().clone();
+    let notary_pubkey = PublicKey::from(*signer.verifying_key());
+    let notary_verifing_key = *signer.verifying_key();
 
     // Notary creates the session header
     assert!(data_sent.len() <= (u32::MAX as usize) && data_recv.len() <= (u32::MAX as usize));
 
     let header = SessionHeader::new(
         notary_encoder_seed,
-        merkle_tree.root(),
-        data_sent.len() as u32,
-        data_recv.len() as u32,
+        session_data.commitments().merkle_root(),
+        data_sent.len(),
+        data_recv.len(),
         // the session's end time and TLS handshake start time may be a few mins apart
-        HandshakeSummary::new(time + 60, ephem_key, hs_commitment),
+        HandshakeSummary::new(time + 60, ephem_key.clone(), hs_commitment),
     );
 
     let signature: P256Signature = signer.sign(&header.to_bytes());
@@ -169,7 +139,7 @@ fn test_api() {
     // Prover verifies the signature
     #[allow(irrefutable_let_patterns)]
     if let Signature::P256(signature) = signature {
-        notary_pubkey
+        notary_verifing_key
             .verify(&header.to_bytes(), &signature)
             .unwrap();
     } else {
@@ -179,26 +149,28 @@ fn test_api() {
     // Prover verifies the header and stores it with the signature in NotarizedSession
     header
         .verify(
-            artifacts.time(),
-            artifacts.server_public_key(),
-            &artifacts.merkle_tree().root(),
-            artifacts.encoder_seed(),
-            artifacts.handshake_data_decommitment(),
+            time,
+            &ephem_key,
+            &session_data.commitments().merkle_root(),
+            header.encoder_seed(),
+            session_data.handshake_data_decommitment(),
         )
         .unwrap();
 
-    let data = SessionData::new(
-        artifacts.handshake_data_decommitment().clone(),
-        transcript_tx,
-        transcript_rx,
-        artifacts.merkle_tree().clone(),
-        SubstringsCommitmentSet::new(commitments),
-    );
-    let session = NotarizedSession::new(header, Some(signature), data);
+    let session = NotarizedSession::new(header, Some(signature), session_data);
 
     // Prover converts NotarizedSession into SessionProof and SubstringsProof and sends them to the Verifier
     let session_proof = session.session_proof();
-    let substrings_proof = session.generate_substring_proof([0, 1].to_vec()).unwrap();
+
+    let mut substrings_proof_builder = session.data().build_substrings_proof();
+
+    substrings_proof_builder
+        .reveal(commitment_id_1)
+        .unwrap()
+        .reveal(commitment_id_2)
+        .unwrap();
+
+    let substrings_proof = substrings_proof_builder.build().unwrap();
 
     //---------------------------------------
     let session_proof_bytes = bincode::serialize(&session_proof).unwrap();
@@ -208,43 +180,40 @@ fn test_api() {
     //---------------------------------------
 
     // The Verifier does:
+    session_proof
+        .verify_with_default_cert_verifier(notary_pubkey)
+        .unwrap();
+
     let SessionProof {
         header,
-        signature,
-        handshake_data_decommitment,
+        server_name,
+        ..
     } = session_proof;
 
-    // the Verifier checks the header against the Notary's pubkey
-    #[allow(irrefutable_let_patterns)]
-    let Signature::P256(signature) = signature.unwrap() else {
-        panic!("Notary signature is not P256");
-    };
+    // assert dns name is expected
+    assert_eq!(server_name.as_ref(), testdata.dns_name.as_str());
 
-    notary_pubkey
-        .verify(&header.to_bytes(), &signature)
-        .unwrap();
+    let (sent, recv) = substrings_proof.verify(&header).unwrap();
 
-    // verify the decommitment against the commitment which the Notary signed
-    handshake_data_decommitment
-        .verify(header.handshake_summary().handshake_commitment())
-        .unwrap();
+    assert_eq!(&sent.data()[range1], b"se".as_slice());
+    assert_eq!(&recv.data()[range2], b"ec".as_slice());
+}
 
-    // Verify the handshake data. This checks the server's cert chain, the server's signature,
-    // and the provided DNS name
-    handshake_data_decommitment
-        .data()
-        .verify(
-            &fixtures::cert::cert_verifier(),
-            UNIX_EPOCH + Duration::from_secs(header.handshake_summary().time()),
-            &testdata.dns_name,
-        )
-        .unwrap();
-
-    let (sent_slices, recv_slices) = substrings_proof.verify(&header).unwrap();
-
-    assert_eq!(sent_slices[0].data(), b"se".as_slice());
-    assert_eq!(recv_slices[0].data(), b"ec".as_slice());
-
-    assert_eq!(sent_slices[0].range(), &range1);
-    assert_eq!(recv_slices[0].range(), &range2);
+fn build_active_encodings(
+    encoder: &ChaChaEncoder,
+    tx: &[u8],
+    rx: &[u8],
+) -> HashMap<String, EncodedValue<encoding_state::Active>> {
+    let mut active_encodings = HashMap::new();
+    for (idx, byte) in tx.iter().enumerate() {
+        let id = format!("tx/{idx}");
+        let enc = encoder.encode_by_type(ValueId::new(&id).to_u64(), &ValueType::U8);
+        active_encodings.insert(id, enc.select(*byte).unwrap());
+    }
+    for (idx, byte) in rx.iter().enumerate() {
+        let id = format!("rx/{idx}");
+        let enc = encoder.encode_by_type(ValueId::new(&id).to_u64(), &ValueType::U8);
+        active_encodings.insert(id, enc.select(*byte).unwrap());
+    }
+    active_encodings
 }

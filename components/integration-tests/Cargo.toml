@@ -1,12 +1,8 @@
 [package]
 name = "integration-tests"
-authors = ["TLSNotary Team"]
-description = "Integration tests for TLSNotary"
-keywords = ["tls", "mpc", "2pc", "test"]
-categories = ["cryptography"]
-license = "MIT OR Apache-2.0"
-version = "0.1.0"
+version = "0.0.0"
 edition = "2021"
+publish = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -17,9 +13,9 @@ lto = true
 
 
 [dev-dependencies]
-mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
-mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
-mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "76ed767" }
+mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "76ed767" }
+mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "76ed767" }
 tlsn-block-cipher = { path = "../cipher/block-cipher" }
 tlsn-stream-cipher = { path = "../cipher/stream-cipher" }
 tlsn-universal-hash = { path = "../universal-hash" }

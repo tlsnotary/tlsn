@@ -9,6 +9,7 @@ use std::{
     ops::Range,
     sync::Arc,
 };
+use tlsn_core::proof::TlsProof;
 use tokio::{fs::File, io::AsyncWriteExt as _, net::TcpStream};
 use tokio_rustls::{client::TlsStream, TlsConnector};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
@@ -117,32 +118,43 @@ async fn main() {
         ],
     );
 
-    // Commit to each range of the outbound data which we want to disclose
-    for range in public_ranges.iter() {
-        prover.add_commitment_sent(range.clone()).unwrap();
-    }
+    let recv_len = prover.recv_transcript().data().len();
+
+    let builder = prover.commitment_builder();
+
+    // Commit to each range of the public outbound data which we want to disclose
+    let sent_commitments: Vec<_> = public_ranges
+        .iter()
+        .map(|r| builder.commit_sent(r.clone()).unwrap())
+        .collect();
 
     // Commit to all inbound data in one shot, as we don't need to redact anything in it
-    let recv_len = prover.recv_transcript().data().len();
-    prover.add_commitment_recv(0..recv_len as u32).unwrap();
+    let recv_commitment = builder.commit_recv(0..recv_len).unwrap();
 
     // Finalize, returning the notarized session
     let notarized_session = prover.finalize().await.unwrap();
 
     // Create a proof for all committed data in this session
-    let session_proof = notarized_session.session_proof();
-    let ids = (0..notarized_session.data().commitments().len()).collect();
-    let substrings_proof = notarized_session.generate_substring_proof(ids).unwrap();
+    let mut proof_builder = notarized_session.data().build_substrings_proof();
 
-    // Write the proof to a file in the format expected by `simple_verifier.rs`
+    // Reveal all the public ranges
+    for commitment_id in sent_commitments {
+        proof_builder.reveal(commitment_id).unwrap();
+    }
+    proof_builder.reveal(recv_commitment).unwrap();
+
+    let substrings_proof = proof_builder.build().unwrap();
+
+    let proof = TlsProof {
+        session: notarized_session.session_proof(),
+        substrings: substrings_proof,
+    };
+
+    // Write the proof to a file
     let mut file = tokio::fs::File::create("proof.json").await.unwrap();
-    file.write_all(
-        serde_json::to_string_pretty(&(&session_proof, &substrings_proof, &SERVER_DOMAIN))
-            .unwrap()
-            .as_bytes(),
-    )
-    .await
-    .unwrap();
+    file.write_all(serde_json::to_string_pretty(&proof).unwrap().as_bytes())
+        .await
+        .unwrap();
 
     println!("Notarization completed successfully!");
     println!("The proof has been written to proof.json");
@@ -270,12 +282,12 @@ async fn connect_to_notary() -> (TlsStream<TcpStream>, String) {
 /// Find the ranges of the public and private parts of a sequence.
 ///
 /// Returns a tuple of `(public, private)` ranges.
-fn find_ranges(seq: &[u8], private_seq: &[&[u8]]) -> (Vec<Range<u32>>, Vec<Range<u32>>) {
+fn find_ranges(seq: &[u8], private_seq: &[&[u8]]) -> (Vec<Range<usize>>, Vec<Range<usize>>) {
     let mut private_ranges = Vec::new();
     for s in private_seq {
         for (idx, w) in seq.windows(s.len()).enumerate() {
             if w == *s {
-                private_ranges.push(idx as u32..(idx + w.len()) as u32);
+                private_ranges.push(idx..(idx + w.len()));
             }
         }
     }
@@ -292,8 +304,8 @@ fn find_ranges(seq: &[u8], private_seq: &[&[u8]]) -> (Vec<Range<u32>>, Vec<Range
         last_end = r.end;
     }
 
-    if last_end < seq.len() as u32 {
-        public_ranges.push(last_end..seq.len() as u32);
+    if last_end < seq.len() {
+        public_ranges.push(last_end..seq.len());
     }
 
     (public_ranges, private_ranges)

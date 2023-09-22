@@ -10,8 +10,6 @@ pub enum NotaryError {
     IOError(#[from] std::io::Error),
     #[error(transparent)]
     MuxerError(#[from] utils_aio::mux::MuxerError),
-    #[error(transparent)]
-    CoreError(#[from] tlsn_core::Error),
     #[error("error occurred in MPC protocol: {0}")]
     MpcError(Box<dyn Error + Send + 'static>),
 }
