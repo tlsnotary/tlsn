@@ -5,6 +5,7 @@ members = [
     "tlsn-prover",
     "tlsn-fixtures",
     "tests-integration",
+    "examples",
 ]
 resolver = "2"
 
