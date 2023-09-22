@@ -342,6 +342,47 @@
 <a href="#342" id="342">342</a>
 <a href="#343" id="343">343</a>
 <a href="#344" id="344">344</a>
+<a href="#345" id="345">345</a>
+<a href="#346" id="346">346</a>
+<a href="#347" id="347">347</a>
+<a href="#348" id="348">348</a>
+<a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a>
+<a href="#351" id="351">351</a>
+<a href="#352" id="352">352</a>
+<a href="#353" id="353">353</a>
+<a href="#354" id="354">354</a>
+<a href="#355" id="355">355</a>
+<a href="#356" id="356">356</a>
+<a href="#357" id="357">357</a>
+<a href="#358" id="358">358</a>
+<a href="#359" id="359">359</a>
+<a href="#360" id="360">360</a>
+<a href="#361" id="361">361</a>
+<a href="#362" id="362">362</a>
+<a href="#363" id="363">363</a>
+<a href="#364" id="364">364</a>
+<a href="#365" id="365">365</a>
+<a href="#366" id="366">366</a>
+<a href="#367" id="367">367</a>
+<a href="#368" id="368">368</a>
+<a href="#369" id="369">369</a>
+<a href="#370" id="370">370</a>
+<a href="#371" id="371">371</a>
+<a href="#372" id="372">372</a>
+<a href="#373" id="373">373</a>
+<a href="#374" id="374">374</a>
+<a href="#375" id="375">375</a>
+<a href="#376" id="376">376</a>
+<a href="#377" id="377">377</a>
+<a href="#378" id="378">378</a>
+<a href="#379" id="379">379</a>
+<a href="#380" id="380">380</a>
+<a href="#381" id="381">381</a>
+<a href="#382" id="382">382</a>
+<a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Merkle tree types.
 //!
 //! # Usage
@@ -402,18 +443,27 @@
 
 <span class="kw">impl </span>MerkleProof {
     <span class="doccomment">/// Checks if indices, hashes and leaves count are valid for the provided root
+    ///
+    /// # Panics
+    ///
+    /// - If the length of `leaf_indices` and `leaf_hashes` does not match.
+    /// - If `leaf_indices` contains duplicates.
     </span><span class="kw">pub fn </span>verify(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         root: <span class="kw-2">&amp;</span>MerkleRoot,
         leaf_indices: <span class="kw-2">&amp;</span>[usize],
         leaf_hashes: <span class="kw-2">&amp;</span>[Hash],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), MerkleError&gt; {
-        <span class="kw">if </span>leaf_indices.len() != leaf_hashes.len() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(MerkleError::MerkleProofVerificationFailed);
-        }
-        <span class="kw">if </span>leaf_indices.iter().contains_dups() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(MerkleError::MerkleProofVerificationFailed);
-        }
+        <span class="macro">assert_eq!</span>(
+            leaf_indices.len(),
+            leaf_hashes.len(),
+            <span class="string">&quot;leaf indices length must match leaf hashes length&quot;
+        </span>);
+        <span class="macro">assert!</span>(
+            !leaf_indices.iter().contains_dups(),
+            <span class="string">&quot;duplicate indices provided {:?}&quot;</span>,
+            leaf_indices
+        );
 
         <span class="comment">// zip indices and hashes
         </span><span class="kw">let </span><span class="kw-2">mut </span>tuples: Vec&lt;(usize, [u8; <span class="number">32</span>])&gt; = leaf_indices
@@ -488,7 +538,17 @@
     }
 
     <span class="doccomment">/// Creates an inclusion proof for the given `indices`
+    ///
+    /// # Panics
+    ///
+    /// - if `indices` is not sorted.
+    /// - if `indices` contains duplicates
     </span><span class="kw">pub fn </span>proof(<span class="kw-2">&amp;</span><span class="self">self</span>, indices: <span class="kw-2">&amp;</span>[usize]) -&gt; MerkleProof {
+        <span class="macro">assert!</span>(
+            indices.windows(<span class="number">2</span>).all(|w| w[<span class="number">0</span>] &lt; w[<span class="number">1</span>]),
+            <span class="string">&quot;indices must be sorted&quot;
+        </span>);
+
         <span class="kw">let </span>proof = <span class="self">self</span>.<span class="number">0</span>.proof(indices);
         MerkleProof {
             proof,
@@ -555,59 +615,83 @@
         <span class="kw">let </span>leaf3 = Hash::from([<span class="number">3u8</span>; <span class="number">32</span>]);
         <span class="kw">let </span>leaf4 = Hash::from([<span class="number">4u8</span>; <span class="number">32</span>]);
         <span class="kw">let </span>tree = MerkleTree::from_leaves(<span class="kw-2">&amp;</span>[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
-        <span class="kw">let </span>proof = tree.proof(<span class="kw-2">&amp;</span>[<span class="number">4</span>, <span class="number">2</span>, <span class="number">3</span>]);
+        <span class="kw">let </span>proof = tree.proof(<span class="kw-2">&amp;</span>[<span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>]);
 
         <span class="macro">assert!</span>(proof
-            .verify(<span class="kw-2">&amp;</span>tree.root(), <span class="kw-2">&amp;</span>[<span class="number">2</span>, <span class="number">4</span>, <span class="number">3</span>], <span class="kw-2">&amp;</span>[leaf2, leaf4, leaf3])
+            .verify(<span class="kw-2">&amp;</span>tree.root(), <span class="kw-2">&amp;</span>[<span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>], <span class="kw-2">&amp;</span>[leaf2, leaf3, leaf4])
             .is_ok(),);
     }
 
-    <span class="comment">// Expect Merkle proof verification to fail
-    </span><span class="attr">#[test]
-    </span><span class="kw">fn </span>test_verify_fail() {
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_verify_fail_wrong_leaf() {
         <span class="kw">let </span>leaf0 = Hash::from([<span class="number">0u8</span>; <span class="number">32</span>]);
         <span class="kw">let </span>leaf1 = Hash::from([<span class="number">1u8</span>; <span class="number">32</span>]);
         <span class="kw">let </span>leaf2 = Hash::from([<span class="number">2u8</span>; <span class="number">32</span>]);
         <span class="kw">let </span>leaf3 = Hash::from([<span class="number">3u8</span>; <span class="number">32</span>]);
         <span class="kw">let </span>leaf4 = Hash::from([<span class="number">4u8</span>; <span class="number">32</span>]);
         <span class="kw">let </span>tree = MerkleTree::from_leaves(<span class="kw-2">&amp;</span>[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
-        <span class="kw">let </span>proof = tree.proof(<span class="kw-2">&amp;</span>[<span class="number">4</span>, <span class="number">2</span>, <span class="number">3</span>]);
+        <span class="kw">let </span>proof = tree.proof(<span class="kw-2">&amp;</span>[<span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>]);
 
         <span class="comment">// fail because the leaf is wrong
         </span><span class="macro">assert_eq!</span>(
             proof
-                .verify(<span class="kw-2">&amp;</span>tree.root(), <span class="kw-2">&amp;</span>[<span class="number">2</span>, <span class="number">4</span>, <span class="number">3</span>], <span class="kw-2">&amp;</span>[leaf1, leaf4, leaf3])
+                .verify(<span class="kw-2">&amp;</span>tree.root(), <span class="kw-2">&amp;</span>[<span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>], <span class="kw-2">&amp;</span>[leaf1, leaf3, leaf4])
                 .err()
                 .unwrap(),
             MerkleError::MerkleProofVerificationFailed
         );
+    }
 
-        <span class="comment">// fail because of the extra leaf which was not covered by the proof
-        </span><span class="macro">assert_eq!</span>(
-            proof
-                .verify(<span class="kw-2">&amp;</span>tree.root(), <span class="kw-2">&amp;</span>[<span class="number">2</span>, <span class="number">4</span>, <span class="number">3</span>, <span class="number">0</span>], <span class="kw-2">&amp;</span>[leaf2, leaf4, leaf3, leaf0])
-                .err()
-                .unwrap(),
-            MerkleError::MerkleProofVerificationFailed
-        );
+    <span class="attr">#[test]
+    #[should_panic]
+    </span><span class="kw">fn </span>test_proof_fail_length_unsorted() {
+        <span class="kw">let </span>leaf0 = Hash::from([<span class="number">0u8</span>; <span class="number">32</span>]);
+        <span class="kw">let </span>leaf1 = Hash::from([<span class="number">1u8</span>; <span class="number">32</span>]);
+        <span class="kw">let </span>leaf2 = Hash::from([<span class="number">2u8</span>; <span class="number">32</span>]);
+        <span class="kw">let </span>leaf3 = Hash::from([<span class="number">3u8</span>; <span class="number">32</span>]);
+        <span class="kw">let </span>leaf4 = Hash::from([<span class="number">4u8</span>; <span class="number">32</span>]);
+        <span class="kw">let </span>tree = MerkleTree::from_leaves(<span class="kw-2">&amp;</span>[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
+        <span class="kw">_ </span>= tree.proof(<span class="kw-2">&amp;</span>[<span class="number">2</span>, <span class="number">4</span>, <span class="number">3</span>]);
+    }
 
-        <span class="comment">// fail because of leaf and index count mismatch
-        </span><span class="macro">assert_eq!</span>(
-            proof
-                .verify(<span class="kw-2">&amp;</span>tree.root(), <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">4</span>, <span class="number">3</span>], <span class="kw-2">&amp;</span>[leaf2, leaf4, leaf3])
-                .err()
-                .unwrap(),
-            MerkleError::MerkleProofVerificationFailed
-        );
+    <span class="attr">#[test]
+    #[should_panic]
+    </span><span class="kw">fn </span>test_proof_fail_length_duplicates() {
+        <span class="kw">let </span>leaf0 = Hash::from([<span class="number">0u8</span>; <span class="number">32</span>]);
+        <span class="kw">let </span>leaf1 = Hash::from([<span class="number">1u8</span>; <span class="number">32</span>]);
+        <span class="kw">let </span>leaf2 = Hash::from([<span class="number">2u8</span>; <span class="number">32</span>]);
+        <span class="kw">let </span>leaf3 = Hash::from([<span class="number">3u8</span>; <span class="number">32</span>]);
+        <span class="kw">let </span>leaf4 = Hash::from([<span class="number">4u8</span>; <span class="number">32</span>]);
+        <span class="kw">let </span>tree = MerkleTree::from_leaves(<span class="kw-2">&amp;</span>[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
+        <span class="kw">_ </span>= tree.proof(<span class="kw-2">&amp;</span>[<span class="number">2</span>, <span class="number">2</span>, <span class="number">3</span>]);
+    }
 
-        <span class="comment">// fail because of duplicate leaf indices
-        </span><span class="macro">assert_eq!</span>(
-            proof
-                .verify(<span class="kw-2">&amp;</span>tree.root(), <span class="kw-2">&amp;</span>[<span class="number">2</span>, <span class="number">2</span>, <span class="number">3</span>], <span class="kw-2">&amp;</span>[leaf2, leaf4, leaf3])
-                .err()
-                .unwrap(),
-            MerkleError::MerkleProofVerificationFailed
-        );
+    <span class="attr">#[test]
+    #[should_panic]
+    </span><span class="kw">fn </span>test_verify_fail_length_mismatch() {
+        <span class="kw">let </span>leaf0 = Hash::from([<span class="number">0u8</span>; <span class="number">32</span>]);
+        <span class="kw">let </span>leaf1 = Hash::from([<span class="number">1u8</span>; <span class="number">32</span>]);
+        <span class="kw">let </span>leaf2 = Hash::from([<span class="number">2u8</span>; <span class="number">32</span>]);
+        <span class="kw">let </span>leaf3 = Hash::from([<span class="number">3u8</span>; <span class="number">32</span>]);
+        <span class="kw">let </span>leaf4 = Hash::from([<span class="number">4u8</span>; <span class="number">32</span>]);
+        <span class="kw">let </span>tree = MerkleTree::from_leaves(<span class="kw-2">&amp;</span>[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
+        <span class="kw">let </span>proof = tree.proof(<span class="kw-2">&amp;</span>[<span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>]);
+
+        <span class="kw">_ </span>= proof.verify(<span class="kw-2">&amp;</span>tree.root(), <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>], <span class="kw-2">&amp;</span>[leaf2, leaf3, leaf4]);
+    }
+
+    <span class="attr">#[test]
+    #[should_panic]
+    </span><span class="kw">fn </span>test_verify_fail_duplicates() {
+        <span class="kw">let </span>leaf0 = Hash::from([<span class="number">0u8</span>; <span class="number">32</span>]);
+        <span class="kw">let </span>leaf1 = Hash::from([<span class="number">1u8</span>; <span class="number">32</span>]);
+        <span class="kw">let </span>leaf2 = Hash::from([<span class="number">2u8</span>; <span class="number">32</span>]);
+        <span class="kw">let </span>leaf3 = Hash::from([<span class="number">3u8</span>; <span class="number">32</span>]);
+        <span class="kw">let </span>leaf4 = Hash::from([<span class="number">4u8</span>; <span class="number">32</span>]);
+        <span class="kw">let </span>tree = MerkleTree::from_leaves(<span class="kw-2">&amp;</span>[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
+        <span class="kw">let </span>proof = tree.proof(<span class="kw-2">&amp;</span>[<span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>]);
+
+        <span class="kw">_ </span>= proof.verify(<span class="kw-2">&amp;</span>tree.root(), <span class="kw-2">&amp;</span>[<span class="number">2</span>, <span class="number">2</span>, <span class="number">3</span>], <span class="kw-2">&amp;</span>[leaf2, leaf2, leaf3]);
     }
 
     <span class="attr">#[test]
@@ -618,13 +702,45 @@
         <span class="kw">let </span>leaf3 = Hash::from([<span class="number">3u8</span>; <span class="number">32</span>]);
         <span class="kw">let </span>leaf4 = Hash::from([<span class="number">4u8</span>; <span class="number">32</span>]);
         <span class="kw">let </span>tree = MerkleTree::from_leaves(<span class="kw-2">&amp;</span>[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
-        <span class="kw">let </span><span class="kw-2">mut </span>proof = tree.proof(<span class="kw-2">&amp;</span>[<span class="number">4</span>, <span class="number">2</span>, <span class="number">3</span>]);
+        <span class="kw">let </span><span class="kw-2">mut </span>proof = tree.proof(<span class="kw-2">&amp;</span>[<span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>]);
 
         proof.total_leaves = <span class="number">6</span>;
 
         <span class="comment">// fail because leaf count is wrong
         </span><span class="macro">assert!</span>(proof
-            .verify(<span class="kw-2">&amp;</span>tree.root(), <span class="kw-2">&amp;</span>[<span class="number">2</span>, <span class="number">4</span>, <span class="number">3</span>], <span class="kw-2">&amp;</span>[leaf2, leaf4, leaf3])
+            .verify(<span class="kw-2">&amp;</span>tree.root(), <span class="kw-2">&amp;</span>[<span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>], <span class="kw-2">&amp;</span>[leaf2, leaf3, leaf4])
+            .is_err());
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_verify_fail_incorrect_indices() {
+        <span class="kw">let </span>leaf0 = Hash::from([<span class="number">0u8</span>; <span class="number">32</span>]);
+        <span class="kw">let </span>leaf1 = Hash::from([<span class="number">1u8</span>; <span class="number">32</span>]);
+        <span class="kw">let </span>leaf2 = Hash::from([<span class="number">2u8</span>; <span class="number">32</span>]);
+        <span class="kw">let </span>leaf3 = Hash::from([<span class="number">3u8</span>; <span class="number">32</span>]);
+        <span class="kw">let </span>leaf4 = Hash::from([<span class="number">4u8</span>; <span class="number">32</span>]);
+        <span class="kw">let </span>tree = MerkleTree::from_leaves(<span class="kw-2">&amp;</span>[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
+        <span class="kw">let </span>proof = tree.proof(<span class="kw-2">&amp;</span>[<span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>]);
+
+        <span class="comment">// fail because tree index is wrong
+        </span><span class="macro">assert!</span>(proof
+            .verify(<span class="kw-2">&amp;</span>tree.root(), <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">3</span>, <span class="number">4</span>], <span class="kw-2">&amp;</span>[leaf1, leaf3, leaf4])
+            .is_err());
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_verify_fail_fewer_indices() {
+        <span class="kw">let </span>leaf0 = Hash::from([<span class="number">0u8</span>; <span class="number">32</span>]);
+        <span class="kw">let </span>leaf1 = Hash::from([<span class="number">1u8</span>; <span class="number">32</span>]);
+        <span class="kw">let </span>leaf2 = Hash::from([<span class="number">2u8</span>; <span class="number">32</span>]);
+        <span class="kw">let </span>leaf3 = Hash::from([<span class="number">3u8</span>; <span class="number">32</span>]);
+        <span class="kw">let </span>leaf4 = Hash::from([<span class="number">4u8</span>; <span class="number">32</span>]);
+        <span class="kw">let </span>tree = MerkleTree::from_leaves(<span class="kw-2">&amp;</span>[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
+        <span class="kw">let </span>proof = tree.proof(<span class="kw-2">&amp;</span>[<span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>]);
+
+        <span class="comment">// trying to verify less leaves than what was included in the proof
+        </span><span class="macro">assert!</span>(proof
+            .verify(<span class="kw-2">&amp;</span>tree.root(), <span class="kw-2">&amp;</span>[<span class="number">3</span>, <span class="number">4</span>], <span class="kw-2">&amp;</span>[leaf3, leaf4])
             .is_err());
     }
 
@@ -637,7 +753,7 @@
         <span class="kw">let </span>leaf3 = Hash::from([<span class="number">3u8</span>; <span class="number">32</span>]);
         <span class="kw">let </span>leaf4 = Hash::from([<span class="number">4u8</span>; <span class="number">32</span>]);
         <span class="kw">let </span>tree = MerkleTree::from_leaves(<span class="kw-2">&amp;</span>[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
-        <span class="kw">let </span>proof = tree.proof(<span class="kw-2">&amp;</span>[<span class="number">4</span>, <span class="number">2</span>, <span class="number">3</span>]);
+        <span class="kw">let </span>proof = tree.proof(<span class="kw-2">&amp;</span>[<span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>]);
 
         <span class="comment">// serialize
         </span><span class="kw">let </span>tree_bytes = bincode::serialize(<span class="kw-2">&amp;</span>tree).unwrap();
@@ -648,42 +764,8 @@
         <span class="kw">let </span>proof2: MerkleProof = bincode::deserialize(<span class="kw-2">&amp;</span>proof_bytes).unwrap();
 
         <span class="macro">assert!</span>(proof2
-            .verify(<span class="kw-2">&amp;</span>tree2.root(), <span class="kw-2">&amp;</span>[<span class="number">2</span>, <span class="number">4</span>, <span class="number">3</span>], <span class="kw-2">&amp;</span>[leaf2, leaf4, leaf3])
+            .verify(<span class="kw-2">&amp;</span>tree2.root(), <span class="kw-2">&amp;</span>[<span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>], <span class="kw-2">&amp;</span>[leaf2, leaf3, leaf4])
             .is_ok());
-    }
-
-    <span class="comment">// This test causes rs_merkle to panic
-    </span><span class="attr">#[test]
-    </span><span class="kw">fn </span>test_verify_fail_panic1() {
-        <span class="kw">let </span>leaf0 = Hash::from([<span class="number">0u8</span>; <span class="number">32</span>]);
-        <span class="kw">let </span>leaf1 = Hash::from([<span class="number">1u8</span>; <span class="number">32</span>]);
-        <span class="kw">let </span>leaf2 = Hash::from([<span class="number">2u8</span>; <span class="number">32</span>]);
-        <span class="kw">let </span>leaf3 = Hash::from([<span class="number">3u8</span>; <span class="number">32</span>]);
-        <span class="kw">let </span>leaf4 = Hash::from([<span class="number">4u8</span>; <span class="number">32</span>]);
-        <span class="kw">let </span>tree = MerkleTree::from_leaves(<span class="kw-2">&amp;</span>[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
-        <span class="kw">let </span>proof = tree.proof(<span class="kw-2">&amp;</span>[<span class="number">4</span>, <span class="number">2</span>, <span class="number">3</span>]);
-
-        <span class="comment">// fail because tree index is wrong
-        </span><span class="macro">assert!</span>(proof
-            .verify(<span class="kw-2">&amp;</span>tree.root(), <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">4</span>, <span class="number">3</span>], <span class="kw-2">&amp;</span>[leaf2, leaf4, leaf3])
-            .is_err());
-    }
-
-    <span class="comment">// This test causes rs_merkle to panic
-    </span><span class="attr">#[test]
-    </span><span class="kw">fn </span>test_verify_fail_panic2() {
-        <span class="kw">let </span>leaf0 = Hash::from([<span class="number">0u8</span>; <span class="number">32</span>]);
-        <span class="kw">let </span>leaf1 = Hash::from([<span class="number">1u8</span>; <span class="number">32</span>]);
-        <span class="kw">let </span>leaf2 = Hash::from([<span class="number">2u8</span>; <span class="number">32</span>]);
-        <span class="kw">let </span>leaf3 = Hash::from([<span class="number">3u8</span>; <span class="number">32</span>]);
-        <span class="kw">let </span>leaf4 = Hash::from([<span class="number">4u8</span>; <span class="number">32</span>]);
-        <span class="kw">let </span>tree = MerkleTree::from_leaves(<span class="kw-2">&amp;</span>[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
-        <span class="kw">let </span>proof = tree.proof(<span class="kw-2">&amp;</span>[<span class="number">4</span>, <span class="number">2</span>, <span class="number">3</span>]);
-
-        <span class="comment">// trying to verify less leaves than what was included in the proof
-        </span><span class="macro">assert!</span>(proof
-            .verify(<span class="kw-2">&amp;</span>tree.root(), <span class="kw-2">&amp;</span>[<span class="number">4</span>, <span class="number">3</span>], <span class="kw-2">&amp;</span>[leaf4, leaf3])
-            .is_err());
     }
 }
 </code></pre></div></section></main></body></html>

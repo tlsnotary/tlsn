@@ -355,10 +355,11 @@
     </span><span class="kw">pub fn </span>build(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;SubstringsProof, SubstringsProofBuilderError&gt; {
         <span class="kw">let </span><span class="self">Self </span>{ data, openings } = <span class="self">self</span>;
 
-        <span class="kw">let </span>indices = openings
+        <span class="kw">let </span><span class="kw-2">mut </span>indices = openings
             .keys()
             .map(|id| id.to_inner() <span class="kw">as </span>usize)
             .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+        indices.sort();
 
         <span class="kw">let </span>inclusion_proof = data.commitments().merkle_tree().proof(<span class="kw-2">&amp;</span>indices);
 
@@ -389,8 +390,8 @@
     </span><span class="attr">#[error(<span class="string">&quot;invalid opening for commitment id: {0:?}&quot;</span>)]
     </span>InvalidOpening(CommitmentId),
     <span class="doccomment">/// The proof contains an invalid inclusion proof.
-    </span><span class="attr">#[error(<span class="string">&quot;invalid inclusion proof&quot;</span>)]
-    </span>InvalidInclusionProof,
+    </span><span class="attr">#[error(<span class="string">&quot;invalid inclusion proof: {0}&quot;</span>)]
+    </span>InvalidInclusionProof(String),
 }
 
 <span class="doccomment">/// A substring proof containing the commitment openings and a proof
@@ -482,7 +483,8 @@
 
             <span class="comment">// Compute the expected hash of the commitment to make sure it is
             // present in the merkle tree.
-            </span>expected_hashes.push(opening.recover(<span class="kw-2">&amp;</span>encodings).hash());
+            </span>indices.push(id.to_inner() <span class="kw">as </span>usize);
+            expected_hashes.push(opening.recover(<span class="kw-2">&amp;</span>encodings).hash());
 
             <span class="comment">// Make sure the length of data from the opening matches the commitment.
             </span><span class="kw">let </span><span class="kw-2">mut </span>data = opening.into_data();
@@ -502,8 +504,6 @@
                 dest[range].copy_from_slice(<span class="kw-2">&amp;</span>data[start..]);
                 data.truncate(start);
             }
-
-            indices.push(id.to_inner() <span class="kw">as </span>usize);
         }
 
         <span class="comment">// Verify that the expected hashes are present in the merkle tree.
@@ -512,7 +512,7 @@
         // seed being revealed.
         </span>inclusion_proof
             .verify(header.merkle_root(), <span class="kw-2">&amp;</span>indices, <span class="kw-2">&amp;</span>expected_hashes)
-            .map_err(|<span class="kw">_</span>| SubstringsProofError::InvalidInclusionProof)<span class="question-mark">?</span>;
+            .map_err(|e| SubstringsProofError::InvalidInclusionProof(e.to_string()))<span class="question-mark">?</span>;
 
         <span class="comment">// Iterate over the unioned ranges and create TranscriptSlices for each.
         // This ensures that the slices are sorted and disjoint.
