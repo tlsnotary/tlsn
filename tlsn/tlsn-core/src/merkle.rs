@@ -58,18 +58,27 @@ pub struct MerkleProof {
 
 impl MerkleProof {
     /// Checks if indices, hashes and leaves count are valid for the provided root
+    ///
+    /// # Panics
+    ///
+    /// - If the length of `leaf_indices` and `leaf_hashes` does not match.
+    /// - If `leaf_indices` contains duplicates.
     pub fn verify(
         &self,
         root: &MerkleRoot,
         leaf_indices: &[usize],
         leaf_hashes: &[Hash],
     ) -> Result<(), MerkleError> {
-        if leaf_indices.len() != leaf_hashes.len() {
-            return Err(MerkleError::MerkleProofVerificationFailed);
-        }
-        if leaf_indices.iter().contains_dups() {
-            return Err(MerkleError::MerkleProofVerificationFailed);
-        }
+        assert_eq!(
+            leaf_indices.len(),
+            leaf_hashes.len(),
+            "leaf indices length must match leaf hashes length"
+        );
+        assert!(
+            !leaf_indices.iter().contains_dups(),
+            "duplicate indices provided {:?}",
+            leaf_indices
+        );
 
         // zip indices and hashes
         let mut tuples: Vec<(usize, [u8; 32])> = leaf_indices
@@ -144,7 +153,17 @@ impl MerkleTree {
     }
 
     /// Creates an inclusion proof for the given `indices`
+    ///
+    /// # Panics
+    ///
+    /// - if `indices` is not sorted.
+    /// - if `indices` contains duplicates
     pub fn proof(&self, indices: &[usize]) -> MerkleProof {
+        assert!(
+            indices.windows(2).all(|w| w[0] < w[1]),
+            "indices must be sorted"
+        );
+
         let proof = self.0.proof(indices);
         MerkleProof {
             proof,
@@ -211,59 +230,83 @@ mod test {
         let leaf3 = Hash::from([3u8; 32]);
         let leaf4 = Hash::from([4u8; 32]);
         let tree = MerkleTree::from_leaves(&[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
-        let proof = tree.proof(&[4, 2, 3]);
+        let proof = tree.proof(&[2, 3, 4]);
 
         assert!(proof
-            .verify(&tree.root(), &[2, 4, 3], &[leaf2, leaf4, leaf3])
+            .verify(&tree.root(), &[2, 3, 4], &[leaf2, leaf3, leaf4])
             .is_ok(),);
     }
 
-    // Expect Merkle proof verification to fail
     #[test]
-    fn test_verify_fail() {
+    fn test_verify_fail_wrong_leaf() {
         let leaf0 = Hash::from([0u8; 32]);
         let leaf1 = Hash::from([1u8; 32]);
         let leaf2 = Hash::from([2u8; 32]);
         let leaf3 = Hash::from([3u8; 32]);
         let leaf4 = Hash::from([4u8; 32]);
         let tree = MerkleTree::from_leaves(&[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
-        let proof = tree.proof(&[4, 2, 3]);
+        let proof = tree.proof(&[2, 3, 4]);
 
         // fail because the leaf is wrong
         assert_eq!(
             proof
-                .verify(&tree.root(), &[2, 4, 3], &[leaf1, leaf4, leaf3])
+                .verify(&tree.root(), &[2, 3, 4], &[leaf1, leaf3, leaf4])
                 .err()
                 .unwrap(),
             MerkleError::MerkleProofVerificationFailed
         );
+    }
 
-        // fail because of the extra leaf which was not covered by the proof
-        assert_eq!(
-            proof
-                .verify(&tree.root(), &[2, 4, 3, 0], &[leaf2, leaf4, leaf3, leaf0])
-                .err()
-                .unwrap(),
-            MerkleError::MerkleProofVerificationFailed
-        );
+    #[test]
+    #[should_panic]
+    fn test_proof_fail_length_unsorted() {
+        let leaf0 = Hash::from([0u8; 32]);
+        let leaf1 = Hash::from([1u8; 32]);
+        let leaf2 = Hash::from([2u8; 32]);
+        let leaf3 = Hash::from([3u8; 32]);
+        let leaf4 = Hash::from([4u8; 32]);
+        let tree = MerkleTree::from_leaves(&[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
+        _ = tree.proof(&[2, 4, 3]);
+    }
 
-        // fail because of leaf and index count mismatch
-        assert_eq!(
-            proof
-                .verify(&tree.root(), &[1, 2, 4, 3], &[leaf2, leaf4, leaf3])
-                .err()
-                .unwrap(),
-            MerkleError::MerkleProofVerificationFailed
-        );
+    #[test]
+    #[should_panic]
+    fn test_proof_fail_length_duplicates() {
+        let leaf0 = Hash::from([0u8; 32]);
+        let leaf1 = Hash::from([1u8; 32]);
+        let leaf2 = Hash::from([2u8; 32]);
+        let leaf3 = Hash::from([3u8; 32]);
+        let leaf4 = Hash::from([4u8; 32]);
+        let tree = MerkleTree::from_leaves(&[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
+        _ = tree.proof(&[2, 2, 3]);
+    }
 
-        // fail because of duplicate leaf indices
-        assert_eq!(
-            proof
-                .verify(&tree.root(), &[2, 2, 3], &[leaf2, leaf4, leaf3])
-                .err()
-                .unwrap(),
-            MerkleError::MerkleProofVerificationFailed
-        );
+    #[test]
+    #[should_panic]
+    fn test_verify_fail_length_mismatch() {
+        let leaf0 = Hash::from([0u8; 32]);
+        let leaf1 = Hash::from([1u8; 32]);
+        let leaf2 = Hash::from([2u8; 32]);
+        let leaf3 = Hash::from([3u8; 32]);
+        let leaf4 = Hash::from([4u8; 32]);
+        let tree = MerkleTree::from_leaves(&[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
+        let proof = tree.proof(&[2, 3, 4]);
+
+        _ = proof.verify(&tree.root(), &[1, 2, 3, 4], &[leaf2, leaf3, leaf4]);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_verify_fail_duplicates() {
+        let leaf0 = Hash::from([0u8; 32]);
+        let leaf1 = Hash::from([1u8; 32]);
+        let leaf2 = Hash::from([2u8; 32]);
+        let leaf3 = Hash::from([3u8; 32]);
+        let leaf4 = Hash::from([4u8; 32]);
+        let tree = MerkleTree::from_leaves(&[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
+        let proof = tree.proof(&[2, 3, 4]);
+
+        _ = proof.verify(&tree.root(), &[2, 2, 3], &[leaf2, leaf2, leaf3]);
     }
 
     #[test]
@@ -274,13 +317,45 @@ mod test {
         let leaf3 = Hash::from([3u8; 32]);
         let leaf4 = Hash::from([4u8; 32]);
         let tree = MerkleTree::from_leaves(&[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
-        let mut proof = tree.proof(&[4, 2, 3]);
+        let mut proof = tree.proof(&[2, 3, 4]);
 
         proof.total_leaves = 6;
 
         // fail because leaf count is wrong
         assert!(proof
-            .verify(&tree.root(), &[2, 4, 3], &[leaf2, leaf4, leaf3])
+            .verify(&tree.root(), &[2, 3, 4], &[leaf2, leaf3, leaf4])
+            .is_err());
+    }
+
+    #[test]
+    fn test_verify_fail_incorrect_indices() {
+        let leaf0 = Hash::from([0u8; 32]);
+        let leaf1 = Hash::from([1u8; 32]);
+        let leaf2 = Hash::from([2u8; 32]);
+        let leaf3 = Hash::from([3u8; 32]);
+        let leaf4 = Hash::from([4u8; 32]);
+        let tree = MerkleTree::from_leaves(&[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
+        let proof = tree.proof(&[2, 3, 4]);
+
+        // fail because tree index is wrong
+        assert!(proof
+            .verify(&tree.root(), &[1, 3, 4], &[leaf1, leaf3, leaf4])
+            .is_err());
+    }
+
+    #[test]
+    fn test_verify_fail_fewer_indices() {
+        let leaf0 = Hash::from([0u8; 32]);
+        let leaf1 = Hash::from([1u8; 32]);
+        let leaf2 = Hash::from([2u8; 32]);
+        let leaf3 = Hash::from([3u8; 32]);
+        let leaf4 = Hash::from([4u8; 32]);
+        let tree = MerkleTree::from_leaves(&[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
+        let proof = tree.proof(&[2, 3, 4]);
+
+        // trying to verify less leaves than what was included in the proof
+        assert!(proof
+            .verify(&tree.root(), &[3, 4], &[leaf3, leaf4])
             .is_err());
     }
 
@@ -293,7 +368,7 @@ mod test {
         let leaf3 = Hash::from([3u8; 32]);
         let leaf4 = Hash::from([4u8; 32]);
         let tree = MerkleTree::from_leaves(&[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
-        let proof = tree.proof(&[4, 2, 3]);
+        let proof = tree.proof(&[2, 3, 4]);
 
         // serialize
         let tree_bytes = bincode::serialize(&tree).unwrap();
@@ -304,41 +379,7 @@ mod test {
         let proof2: MerkleProof = bincode::deserialize(&proof_bytes).unwrap();
 
         assert!(proof2
-            .verify(&tree2.root(), &[2, 4, 3], &[leaf2, leaf4, leaf3])
+            .verify(&tree2.root(), &[2, 3, 4], &[leaf2, leaf3, leaf4])
             .is_ok());
-    }
-
-    // This test causes rs_merkle to panic
-    #[test]
-    fn test_verify_fail_panic1() {
-        let leaf0 = Hash::from([0u8; 32]);
-        let leaf1 = Hash::from([1u8; 32]);
-        let leaf2 = Hash::from([2u8; 32]);
-        let leaf3 = Hash::from([3u8; 32]);
-        let leaf4 = Hash::from([4u8; 32]);
-        let tree = MerkleTree::from_leaves(&[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
-        let proof = tree.proof(&[4, 2, 3]);
-
-        // fail because tree index is wrong
-        assert!(proof
-            .verify(&tree.root(), &[1, 4, 3], &[leaf2, leaf4, leaf3])
-            .is_err());
-    }
-
-    // This test causes rs_merkle to panic
-    #[test]
-    fn test_verify_fail_panic2() {
-        let leaf0 = Hash::from([0u8; 32]);
-        let leaf1 = Hash::from([1u8; 32]);
-        let leaf2 = Hash::from([2u8; 32]);
-        let leaf3 = Hash::from([3u8; 32]);
-        let leaf4 = Hash::from([4u8; 32]);
-        let tree = MerkleTree::from_leaves(&[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
-        let proof = tree.proof(&[4, 2, 3]);
-
-        // trying to verify less leaves than what was included in the proof
-        assert!(proof
-            .verify(&tree.root(), &[4, 3], &[leaf4, leaf3])
-            .is_err());
     }
 }
