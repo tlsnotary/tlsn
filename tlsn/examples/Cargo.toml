@@ -28,7 +28,7 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 
 hyper = { version = "0.14", features = ["client", "http1"] }
-
+chrono = "0.4"
 p256 = { workspace = true, features = ["ecdsa"] }
 elliptic-curve = { version = "0.13.5", features = ["pkcs8"] }
 webpki-roots.workspace = true

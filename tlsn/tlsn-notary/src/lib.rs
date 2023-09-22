@@ -270,8 +270,8 @@ impl Notary {
         let session_header = SessionHeader::new(
             encoder_seed,
             merkle_root,
-            sent_len as u32,
-            recv_len as u32,
+            sent_len,
+            recv_len,
             handshake_summary,
         );
 

@@ -1,12 +1,11 @@
-use std::{
-    collections::HashMap,
-    ops::Range,
-    time::{Duration, UNIX_EPOCH},
-};
+use std::{collections::HashMap, ops::Range};
 
-use p256::ecdsa::{
-    signature::{SignerMut, Verifier},
-    Signature as P256Signature, SigningKey,
+use p256::{
+    ecdsa::{
+        signature::{SignerMut, Verifier},
+        Signature as P256Signature, SigningKey,
+    },
+    PublicKey,
 };
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
@@ -23,9 +22,11 @@ use mpz_core::{commit::HashCommit, serialize::CanonicalSerialize, value::ValueId
 use mpz_garble_core::{encoding_state, ChaChaEncoder, EncodedValue, Encoder};
 
 use tlsn_core::{
-    commitment::TranscriptCommitmentBuilder, msg::SignedSessionHeader, proof::SubstringsProof,
-    session::SessionData, HandshakeSummary, NotarizedSession, SessionHeader, SessionProof,
-    Signature, Transcript,
+    commitment::TranscriptCommitmentBuilder,
+    msg::SignedSessionHeader,
+    proof::{SessionProof, SubstringsProof},
+    session::SessionData,
+    HandshakeSummary, NotarizedSession, ServerName, SessionHeader, Signature, Transcript,
 };
 
 use tlsn_fixtures as fixtures;
@@ -94,6 +95,7 @@ fn test_api() {
     let commitments = commitment_builder.build().unwrap();
 
     let session_data = SessionData::new(
+        ServerName::Dns(testdata.dns_name.clone()),
         hs_decommitment.clone(),
         transcript_tx,
         transcript_rx,
@@ -107,7 +109,8 @@ fn test_api() {
 
     // Notary receives the raw signing key from some outer context
     let mut signer = SigningKey::from_bytes(&raw_key).unwrap();
-    let notary_pubkey = *signer.verifying_key();
+    let notary_pubkey = PublicKey::from(*signer.verifying_key());
+    let notary_verifing_key = *signer.verifying_key();
 
     // Notary creates the session header
     assert!(data_sent.len() <= (u32::MAX as usize) && data_recv.len() <= (u32::MAX as usize));
@@ -115,8 +118,8 @@ fn test_api() {
     let header = SessionHeader::new(
         notary_encoder_seed,
         session_data.commitments().merkle_root(),
-        data_sent.len() as u32,
-        data_recv.len() as u32,
+        data_sent.len(),
+        data_recv.len(),
         // the session's end time and TLS handshake start time may be a few mins apart
         HandshakeSummary::new(time + 60, ephem_key.clone(), hs_commitment),
     );
@@ -136,7 +139,7 @@ fn test_api() {
     // Prover verifies the signature
     #[allow(irrefutable_let_patterns)]
     if let Signature::P256(signature) = signature {
-        notary_pubkey
+        notary_verifing_key
             .verify(&header.to_bytes(), &signature)
             .unwrap();
     } else {
@@ -177,45 +180,23 @@ fn test_api() {
     //---------------------------------------
 
     // The Verifier does:
+    session_proof
+        .verify_with_default_cert_verifier(notary_pubkey)
+        .unwrap();
+
     let SessionProof {
         header,
-        signature,
-        handshake_data_decommitment,
+        server_name,
+        ..
     } = session_proof;
 
-    // the Verifier checks the header against the Notary's pubkey
-    #[allow(irrefutable_let_patterns)]
-    let Signature::P256(signature) = signature.unwrap() else {
-        panic!("Notary signature is not P256");
-    };
+    // assert dns name is expected
+    assert_eq!(server_name.as_ref(), testdata.dns_name.as_str());
 
-    notary_pubkey
-        .verify(&header.to_bytes(), &signature)
-        .unwrap();
+    let (sent, recv) = substrings_proof.verify(&header).unwrap();
 
-    // verify the decommitment against the commitment which the Notary signed
-    handshake_data_decommitment
-        .verify(header.handshake_summary().handshake_commitment())
-        .unwrap();
-
-    // Verify the handshake data. This checks the server's cert chain, the server's signature,
-    // and the provided DNS name
-    handshake_data_decommitment
-        .data()
-        .verify(
-            &fixtures::cert::cert_verifier(),
-            UNIX_EPOCH + Duration::from_secs(header.handshake_summary().time()),
-            &testdata.dns_name,
-        )
-        .unwrap();
-
-    let (sent_slices, recv_slices) = substrings_proof.verify(&header).unwrap();
-
-    assert_eq!(sent_slices[0].data(), b"se".as_slice());
-    assert_eq!(recv_slices[0].data(), b"ec".as_slice());
-
-    assert_eq!(sent_slices[0].range(), range1);
-    assert_eq!(recv_slices[0].range(), range2);
+    assert_eq!(&sent.data()[range1], b"se".as_slice());
+    assert_eq!(&recv.data()[range2], b"ec".as_slice());
 }
 
 fn build_active_encodings(

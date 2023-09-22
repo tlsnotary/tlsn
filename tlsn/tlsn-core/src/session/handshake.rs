@@ -39,7 +39,11 @@ impl HandshakeSummary {
         }
     }
 
-    /// Returns the time
+    /// Time of the TLS session, in seconds since the UNIX epoch.
+    ///
+    /// # Note
+    ///
+    /// This time is not necessarily exactly aligned with the TLS handshake.
     pub fn time(&self) -> u64 {
         self.time
     }
