@@ -55,22 +55,19 @@
 <a href="#55" id="55">55</a>
 <a href="#56" id="56">56</a>
 <a href="#57" id="57">57</a>
-<a href="#58" id="58">58</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! TLS session types.
 
 </span><span class="kw">mod </span>data;
 <span class="kw">mod </span>handshake;
 <span class="kw">mod </span>header;
-<span class="kw">mod </span>proof;
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="kw">pub use </span>data::SessionData;
 <span class="kw">pub use </span>handshake::{HandshakeSummary, HandshakeVerifyError};
 <span class="kw">pub use </span>header::{SessionHeader, SessionHeaderVerifyError};
-<span class="kw">pub use </span>proof::SessionProof;
 
-<span class="kw">use </span><span class="kw">crate</span>::signature::Signature;
+<span class="kw">use crate</span>::{proof::SessionProof, signature::Signature};
 
 <span class="doccomment">/// A validated notarized session stored by the Prover
 </span><span class="attr">#[derive(Serialize, Deserialize)]
@@ -81,7 +78,7 @@
 }
 
 <span class="kw">impl </span>NotarizedSession {
-    <span class="doccomment">/// Create a new instance of [NotarizedSession]
+    <span class="doccomment">/// Create a new notarized session.
     </span><span class="kw">pub fn </span>new(header: SessionHeader, signature: <span class="prelude-ty">Option</span>&lt;Signature&gt;, data: SessionData) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             header,
@@ -90,13 +87,14 @@
         }
     }
 
-    <span class="doccomment">/// Generates a new [SessionProof] from this [NotarizedSession]
+    <span class="doccomment">/// Returns a proof of the TLS session
     </span><span class="kw">pub fn </span>session_proof(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; SessionProof {
-        SessionProof::new(
-            <span class="self">self</span>.header().clone(),
-            <span class="self">self</span>.signature().clone(),
-            <span class="self">self</span>.data().handshake_data_decommitment().clone(),
-        )
+        SessionProof {
+            header: <span class="self">self</span>.header.clone(),
+            server_name: <span class="self">self</span>.data.server_name().clone(),
+            signature: <span class="self">self</span>.signature.clone(),
+            handshake_data_decommitment: <span class="self">self</span>.data.handshake_data_decommitment().clone(),
+        }
     }
 
     <span class="doccomment">/// Returns the [SessionHeader]

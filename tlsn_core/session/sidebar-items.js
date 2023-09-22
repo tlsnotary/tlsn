@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["HandshakeVerifyError","SessionHeaderVerifyError"],"struct":["HandshakeSummary","NotarizedSession","SessionData","SessionHeader","SessionProof"]};
+window.SIDEBAR_ITEMS = {"enum":["HandshakeVerifyError","SessionHeaderVerifyError"],"struct":["HandshakeSummary","NotarizedSession","SessionData","SessionHeader"]};

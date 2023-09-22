@@ -64,7 +64,19 @@
 <a href="#64" id="64">64</a>
 <a href="#65" id="65">65</a>
 <a href="#66" id="66">66</a>
-</pre></div><pre class="rust"><code><span class="kw">use crate</span>::{commitment::TranscriptCommitments, proof::SubstringsProofBuilder, Transcript};
+<a href="#67" id="67">67</a>
+<a href="#68" id="68">68</a>
+<a href="#69" id="69">69</a>
+<a href="#70" id="70">70</a>
+<a href="#71" id="71">71</a>
+<a href="#72" id="72">72</a>
+<a href="#73" id="73">73</a>
+<a href="#74" id="74">74</a>
+<a href="#75" id="75">75</a>
+<a href="#76" id="76">76</a>
+</pre></div><pre class="rust"><code><span class="kw">use crate</span>::{
+    commitment::TranscriptCommitments, proof::SubstringsProofBuilder, ServerName, Transcript,
+};
 <span class="kw">use </span>mpz_core::commit::Decommitment;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>tls_core::handshake::HandshakeData;
@@ -76,11 +88,12 @@
 /// # Selective disclosure
 ///
 /// The `Prover` can selectively disclose parts of the transcript to a `Verifier` using a
-/// [`SubstringsProof`](crate::substrings::SubstringsProof).
+/// [`SubstringsProof`](crate::proof::SubstringsProof).
 ///
 /// See [`build_substrings_proof`](SessionData::build_substrings_proof).
 </span><span class="attr">#[derive(Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>SessionData {
+    server_name: ServerName,
     handshake_data_decommitment: Decommitment&lt;HandshakeData&gt;,
     transcript_tx: Transcript,
     transcript_rx: Transcript,
@@ -92,17 +105,24 @@
 <span class="kw">impl </span>SessionData {
     <span class="doccomment">/// Creates new session data.
     </span><span class="kw">pub fn </span>new(
+        server_name: ServerName,
         handshake_data_decommitment: Decommitment&lt;HandshakeData&gt;,
         transcript_tx: Transcript,
         transcript_rx: Transcript,
         commitments: TranscriptCommitments,
     ) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
+            server_name,
             handshake_data_decommitment,
             transcript_tx,
             transcript_rx,
             commitments,
         }
+    }
+
+    <span class="doccomment">/// Returns the server name.
+    </span><span class="kw">pub fn </span>server_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>ServerName {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.server_name
     }
 
     <span class="doccomment">/// Returns the decommitment to handshake data

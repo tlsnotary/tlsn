@@ -109,6 +109,15 @@
 <a href="#109" id="109">109</a>
 <a href="#110" id="110">110</a>
 <a href="#111" id="111">111</a>
+<a href="#112" id="112">112</a>
+<a href="#113" id="113">113</a>
+<a href="#114" id="114">114</a>
+<a href="#115" id="115">115</a>
+<a href="#116" id="116">116</a>
+<a href="#117" id="117">117</a>
+<a href="#118" id="118">118</a>
+<a href="#119" id="119">119</a>
+<a href="#120" id="120">120</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>mpz_core::commit::Decommitment;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
@@ -141,9 +150,9 @@
     </span>merkle_root: MerkleRoot,
 
     <span class="doccomment">/// Bytelength of all data which was sent to the webserver
-    </span>sent_len: u32,
+    </span>sent_len: usize,
     <span class="doccomment">/// Bytelength of all data which was received from the webserver
-    </span>recv_len: u32,
+    </span>recv_len: usize,
 
     handshake_summary: HandshakeSummary,
 }
@@ -153,8 +162,8 @@
     </span><span class="kw">pub fn </span>new(
         encoder_seed: [u8; <span class="number">32</span>],
         merkle_root: MerkleRoot,
-        sent_len: u32,
-        recv_len: u32,
+        sent_len: usize,
+        recv_len: usize,
         handshake_summary: HandshakeSummary,
     ) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
@@ -210,13 +219,22 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>.handshake_summary
     }
 
+    <span class="doccomment">/// Time of the TLS session, in seconds since the UNIX epoch.
+    ///
+    /// # Note
+    ///
+    /// This time is not necessarily exactly aligned with the TLS handshake.
+    </span><span class="kw">pub fn </span>time(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
+        <span class="self">self</span>.handshake_summary.time()
+    }
+
     <span class="doccomment">/// Returns the number of bytes sent to the server
-    </span><span class="kw">pub fn </span>sent_len(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u32 {
+    </span><span class="kw">pub fn </span>sent_len(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
         <span class="self">self</span>.sent_len
     }
 
     <span class="doccomment">/// Returns the number of bytes received by the server
-    </span><span class="kw">pub fn </span>recv_len(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u32 {
+    </span><span class="kw">pub fn </span>recv_len(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
         <span class="self">self</span>.recv_len
     }
 }

@@ -489,6 +489,7 @@
 <a href="#489" id="489">489</a>
 <a href="#490" id="490">490</a>
 <a href="#491" id="491">491</a>
+<a href="#492" id="492">492</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! The prover library
 //!
 //! This library provides the [Prover] type. It can be used for creating TLS connections with a
@@ -520,12 +521,12 @@
     chou_orlandi, kos,
 };
 <span class="kw">use </span>mpz_share_conversion <span class="kw">as </span>ff;
-<span class="kw">use </span>tls_client::{ClientConnection, ServerName};
+<span class="kw">use </span>tls_client::{ClientConnection, ServerName <span class="kw">as </span>TlsServerName};
 <span class="kw">use </span>tlsn_core::{
     commitment::TranscriptCommitmentBuilder,
     msg::{SignedSessionHeader, TlsnMessage},
     transcript::Transcript,
-    NotarizedSession, SessionData,
+    NotarizedSession, ServerName, SessionData,
 };
 <span class="kw">use </span>uid_mux::{yamux, UidYamux, UidYamuxControl};
 <span class="kw">use </span>utils_aio::{codec::BincodeMux, expect_msg_or_err, mux::MuxChannel};
@@ -640,7 +641,7 @@
             gf2,
         } = <span class="self">self</span>.state;
 
-        <span class="kw">let </span>server_name = ServerName::try_from(<span class="self">self</span>.config.server_dns())<span class="question-mark">?</span>;
+        <span class="kw">let </span>server_name = TlsServerName::try_from(<span class="self">self</span>.config.server_dns())<span class="question-mark">?</span>;
         <span class="kw">let </span>config = tls_client::ClientConfig::builder()
             .with_safe_defaults()
             .with_root_certificates(<span class="self">self</span>.config.root_cert_store.clone())
@@ -763,6 +764,7 @@
         <span class="kw">let </span>commitments = builder.build()<span class="question-mark">?</span>;
 
         <span class="kw">let </span>session_data = SessionData::new(
+            ServerName::Dns(<span class="self">self</span>.config.server_dns().to_string()),
             handshake_decommitment,
             transcript_tx,
             transcript_rx,
