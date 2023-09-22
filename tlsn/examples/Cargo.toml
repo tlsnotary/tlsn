@@ -10,7 +10,7 @@ tlsn-notary.workspace = true
 tlsn-core.workspace = true
 tlsn-tls-core.workspace = true
 tlsn-tls-client.workspace = true
-notary-server = { version = "0.1.0-alpha.1", git = "https://github.com/tlsnotary/notary-server" }
+notary-server = { tag = "v0.1.0-alpha.2", git = "https://github.com/tlsnotary/notary-server" }
 mpz-core.workspace = true
 
 futures.workspace = true
