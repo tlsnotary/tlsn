@@ -90,10 +90,11 @@ impl<'a> SubstringsProofBuilder<'a> {
     pub fn build(self) -> Result<SubstringsProof, SubstringsProofBuilderError> {
         let Self { data, openings } = self;
 
-        let indices = openings
+        let mut indices = openings
             .keys()
             .map(|id| id.to_inner() as usize)
             .collect::<Vec<_>>();
+        indices.sort();
 
         let inclusion_proof = data.commitments().merkle_tree().proof(&indices);
 
@@ -124,8 +125,8 @@ pub enum SubstringsProofError {
     #[error("invalid opening for commitment id: {0:?}")]
     InvalidOpening(CommitmentId),
     /// The proof contains an invalid inclusion proof.
-    #[error("invalid inclusion proof")]
-    InvalidInclusionProof,
+    #[error("invalid inclusion proof: {0}")]
+    InvalidInclusionProof(String),
 }
 
 /// A substring proof containing the commitment openings and a proof
@@ -217,6 +218,7 @@ impl SubstringsProof {
 
             // Compute the expected hash of the commitment to make sure it is
             // present in the merkle tree.
+            indices.push(id.to_inner() as usize);
             expected_hashes.push(opening.recover(&encodings).hash());
 
             // Make sure the length of data from the opening matches the commitment.
@@ -237,8 +239,6 @@ impl SubstringsProof {
                 dest[range].copy_from_slice(&data[start..]);
                 data.truncate(start);
             }
-
-            indices.push(id.to_inner() as usize);
         }
 
         // Verify that the expected hashes are present in the merkle tree.
@@ -247,7 +247,7 @@ impl SubstringsProof {
         // seed being revealed.
         inclusion_proof
             .verify(header.merkle_root(), &indices, &expected_hashes)
-            .map_err(|_| SubstringsProofError::InvalidInclusionProof)?;
+            .map_err(|e| SubstringsProofError::InvalidInclusionProof(e.to_string()))?;
 
         // Iterate over the unioned ranges and create TranscriptSlices for each.
         // This ensures that the slices are sorted and disjoint.
