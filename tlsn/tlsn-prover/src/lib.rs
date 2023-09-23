@@ -281,8 +281,9 @@ impl Prover<Notarize> {
 
         let merkle_root = session_data.commitments().merkle_root();
 
+        let mut notary_mux_fut = notary_mux.clone();
         let notarize_fut = async move {
-            let mut channel = notary_mux.get_channel("notarize").await?;
+            let mut channel = notary_mux_fut.get_channel("notarize").await?;
 
             channel
                 .send(TlsnMessage::TranscriptCommitmentRoot(merkle_root))
@@ -300,13 +301,23 @@ impl Prover<Notarize> {
 
             let signed_header = expect_msg_or_err!(channel, TlsnMessage::SignedSessionHeader)?;
 
+            debug!("Proceed to close stream");
+            notary_mux_fut.close_stream().await?;
+
             Ok::<_, ProverError>((notary_encoder_seed, signed_header))
         };
 
-        let (notary_encoder_seed, SignedSessionHeader { header, signature }) = futures::select! {
-            res = notarize_fut.fuse() => res?,
+        let (notary_encoder_seed, SignedSessionHeader { header, signature }) = futures::select_biased! {
+            res = notarize_fut.fuse() => {
+                debug!("Prover data done: {:?}", res);
+                res?
+            },
+            con = mux_fut => {
+                debug!("Sent close notify successfully: {:?}", con);
+                return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?
+            },
             _ = ot_fut => return Err(OTShutdownError)?,
-            _ = mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
+            // _ = mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
         };
 
         // Check the header is consistent with the Prover's view
@@ -324,7 +335,20 @@ impl Prover<Notarize> {
                 )
             })?;
 
-        Ok(NotarizedSession::new(header, Some(signature), session_data))
+        let commitments = SubstringsCommitmentSet::new(substring_commitments);
+
+        let data = SessionData::new(
+            handshake_decommitment,
+            transcript_tx,
+            transcript_rx,
+            merkle_tree,
+            commitments,
+        );
+
+        // debug!("Proceed to close stream");
+        // notary_mux.close_stream().await?;
+
+        Ok(NotarizedSession::new(header, Some(signature), data))
     }
 }
 
