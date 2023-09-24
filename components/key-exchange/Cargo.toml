@@ -17,17 +17,12 @@ tracing = ["dep:tracing", "tlsn-point-addition/tracing"]
 mock = []
 
 [dependencies]
-# mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
-mpz-garble = { path = "../../../mpz/garble/mpz-garble" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
 
-# mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
-mpz-ot = { path = "../../../mpz/ot/mpz-ot" }
-# mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
-mpz-circuits = { path = "../../../mpz/mpz-circuits" }
-# tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "b182066" }
-tlsn-utils-aio = { path = "../../../tlsn-utils/utils-aio" }
-# mpz-share-conversion-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
-mpz-share-conversion-core = { path = "../../../mpz/share-conversion/mpz-share-conversion-core" }
+mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
+mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
+tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "b182066" }
+mpz-share-conversion-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
 tlsn-point-addition = { path = "../point-addition" }
 p256 = { version = "0.13", features = ["ecdh"] }
 async-trait = "0.1"

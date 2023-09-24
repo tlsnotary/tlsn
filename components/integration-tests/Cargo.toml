@@ -13,13 +13,10 @@ lto = true
 
 
 [dev-dependencies]
-# mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
-mpz-garble = { path = "../../../mpz/garble/mpz-garble" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
 
-# mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
-mpz-ot = { path = "../../../mpz/ot/mpz-ot" }
-# mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
-mpz-share-conversion = { path = "../../../mpz/share-conversion/mpz-share-conversion" }
+mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
+mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
 
 tlsn-block-cipher = { path = "../cipher/block-cipher" }
 tlsn-stream-cipher = { path = "../cipher/stream-cipher" }
@@ -28,8 +25,7 @@ tlsn-aead = { path = "../aead" }
 tlsn-key-exchange = { path = "../key-exchange" }
 tlsn-point-addition = { path = "../point-addition" }
 tlsn-hmac-sha256 = { path = "../prf/hmac-sha256" }
-# tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "b182066" }
-tlsn-utils-aio = { path = "../../../tlsn-utils/utils-aio" }
+tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "b182066" }
 
 uid-mux = { path = "../uid-mux" }
 

@@ -12,13 +12,11 @@ edition = "2021"
 tracing = ["dep:tracing"]
 
 [dependencies]
-# tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "b182066" }
-tlsn-utils-aio = { path = "../../../tlsn-utils/utils-aio" }
+tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "b182066" }
 
 async-trait = "0.1"
 futures = "0.3"
-# yamux = "0.11"
-yamux = { path = "../../../rust-yamux/yamux" }
+yamux = "0.11"
 
 tracing = { version = "0.1", optional = true }
 

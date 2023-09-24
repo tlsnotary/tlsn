@@ -14,7 +14,6 @@ use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
 };
-use tracing::{debug, info};
 
 use async_trait::async_trait;
 
@@ -60,6 +59,17 @@ pub struct UidYamuxControl {
     state: Arc<Mutex<MuxState>>,
 }
 
+impl UidYamuxControl {
+    /// Close the TLS connection cleanly by triggering yamux to send CloseNotify
+    /// This essentially solves this bug reported (https://github.com/tlsnotary/tlsn/issues/288)
+    pub async fn close(&mut self) -> Result<(), MuxerError> {
+        self.control
+            .close()
+            .await
+            .map_err(|err| MuxerError::InternalError(format!("shutdown error: {0:?}", err)))
+    }
+}
+
 impl<T> UidYamux<T>
 where
     T: AsyncWrite + AsyncRead + Send + Unpin + 'static,
@@ -99,11 +109,9 @@ where
         // The size of this buffer is bounded by yamux max stream config.
         let mut pending_streams = FuturesUnordered::new();
         loop {
-            info!("uid mux looping");
             futures::select! {
                 // Handle incoming streams
                 stream = conn.select_next_some() => {
-                    info!("Gotten stream");
                     if self.mode == yamux::Mode::Client {
                         return Err(MuxerError::InternalError(
                             "client mode cannot accept incoming streams".to_string(),
@@ -121,7 +129,6 @@ where
                 }
                 // Handle streams for which we've received the id
                 stream = pending_streams.select_next_some() => {
-                    info!("Gotten stream for id");
                     let (stream_id, stream) = stream?;
 
                     let mut state = self.state.lock().unwrap();
@@ -133,10 +140,7 @@ where
                         state.waiting_streams.insert(stream_id, stream);
                     }
                 }
-                complete => {
-                    info!("Completed yamux!");
-                    return Ok(())
-                },
+                complete => return Ok(()),
             }
         }
     }
@@ -238,15 +242,6 @@ impl MuxStream for UidYamuxControl {
                     .map_err(|_| MuxerError::InternalError("sender dropped".to_string()))?
             }
         }
-    }
-
-    async fn close_stream(
-        &mut self,
-    ) -> Result<(), MuxerError> {
-        debug!("Closing stream..");
-        let res = self.control.close().await.map_err(|err| MuxerError::InternalError(format!("shutdown error: {0:?}", err)));
-        debug!("Closed stream..");
-        res
     }
 }
 

@@ -18,8 +18,7 @@ mock = []
 
 [dependencies]
 tlsn-hmac-sha256-circuits = { path = "../hmac-sha256-circuits" }
-# tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "b182066" }
-tlsn-utils-aio = { path = "../../../../tlsn-utils/utils-aio" }
+tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "b182066" }
 mpz-garble.workspace = true
 mpz-circuits.workspace = true
 

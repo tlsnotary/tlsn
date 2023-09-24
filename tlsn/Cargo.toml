@@ -22,22 +22,15 @@ tlsn-tls-client-async = { path = "../components/tls/tls-client-async" }
 tls-server-fixture = { path = "../components/tls/tls-server-fixture" }
 uid-mux = { path = "../components/uid-mux" }
 
-tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "b182066" }
-# tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "b182066" }
-tlsn-utils-aio = { path = "../../tlsn-utils/utils-aio" }
+tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "8ac9156" }
+tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "b182066" }
 
-# mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
-mpz-core = { path = "../../mpz/mpz-core" }
-# mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
-mpz-circuits = { path = "../../mpz/mpz-circuits" }
-# mpz-garble-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
-mpz-garble-core = { path = "../../mpz/garble/mpz-garble-core" }
-# mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
-mpz-garble = { path = "../../mpz/garble/mpz-garble" }
-# mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
-mpz-ot = { path = "../../mpz/ot/mpz-ot" }
-# mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
-mpz-share-conversion = { path = "../../mpz/share-conversion/mpz-share-conversion" }
+mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
+mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
+mpz-garble-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
+mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
+mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "a98fd8a" }
 
 
 futures = "0.3"
