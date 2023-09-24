@@ -20,7 +20,9 @@ use tracing::debug;
 use tlsn_prover::{Prover, ProverConfig};
 
 // Setting of the application server
-const SERVER_DOMAIN: &str = "localhost:8000"; 
+const SERVER_DOMAIN: &str = "localhost"; 
+const SERVER_PORT: u16 = 8000;
+const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36";
 const MKT_DATA_DOMAIN: &str = "localhost:8000/tlsn/examples/fund_compliance/market_data.json";
 const TRD_DATA_DOMAIN: &str = "localhost:8000/tlsn/examples/fund_compliance/trade_settlement.json";
 
@@ -179,7 +181,8 @@ async fn main() {
         .await
         .unwrap();
 
-    let client_socket = tokio::net::TcpStream::connect((SERVER_DOMAIN, 443))
+    let client_socket = tokio::net::TcpStream::connect(SocketAddr::new(
+        IpAddr::V4(SERVER_DOMAIN.parse().unwrap()), SERVER_PORT,))
         .await
         .unwrap();
 
@@ -197,7 +200,7 @@ async fn main() {
     // Spawn the HTTP task to be run concurrently
     let connection_task = tokio::spawn(connection.without_shutdown());
 
-    // Build the HTTP request to fetch the trades
+    // Build the HTTP request to fetch the market data 
     let request = Request::builder()
         .uri(format!(
             "https://{MKT_DATA_DOMAIN}"
@@ -206,6 +209,7 @@ async fn main() {
         .header("Accept", "*/*")
         .header("Accept-Encoding", "identity")
         .header("Connection", "close")
+        .header("User-Agent", USER_AGENT)
         .body(Body::empty())
         .unwrap();
 
@@ -224,6 +228,37 @@ async fn main() {
     let parsed =
         serde_json::from_str::<serde_json::Value>(&String::from_utf8_lossy(&payload)).unwrap();
     debug!("{}", serde_json::to_string_pretty(&parsed).unwrap());
+
+    // Build the HTTP request to fetch the trades
+    let request = Request::builder()
+    .uri(format!(
+        "https://{TRD_DATA_DOMAIN}"
+    ))
+    .header("Host", SERVER_DOMAIN)
+    .header("Accept", "*/*")
+    .header("Accept-Encoding", "identity")
+    .header("Connection", "close")
+    .header("User-Agent", USER_AGENT)
+    .body(Body::empty())
+    .unwrap();
+
+    debug!("Sending request");
+
+    let response = request_sender.send_request(request).await.unwrap();
+
+    debug!("Sent request");
+
+    assert!(response.status() == StatusCode::OK);
+
+    debug!("Request OK");
+
+    // Pretty printing :)
+    let payload = to_bytes(response.into_body()).await.unwrap().to_vec();
+    let parsed =
+        serde_json::from_str::<serde_json::Value>(&String::from_utf8_lossy(&payload)).unwrap();
+    debug!("{}", serde_json::to_string_pretty(&parsed).unwrap());
+
+    // clean up
 
     // Close the connection to the server
     let mut client_socket = connection_task.await.unwrap().unwrap().io.into_inner();
