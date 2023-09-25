@@ -17,7 +17,6 @@ tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "b1820
 async-trait = "0.1"
 futures = "0.3"
 yamux = "0.11"
-
 tracing = { version = "0.1", optional = true }
 
 [dev-dependencies]

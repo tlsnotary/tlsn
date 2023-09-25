@@ -256,8 +256,8 @@ impl Prover<Notarize> {
     #[cfg_attr(feature = "tracing", instrument(level = "info", skip(self), err))]
     pub async fn finalize(self) -> Result<NotarizedSession, ProverError> {
         let Notarize {
-            notary_mux,
-            mux_fut,
+            mut notary_mux,
+            mut mux_fut,
             mut vm,
             mut ot_fut,
             mut gf2,
@@ -281,7 +281,6 @@ impl Prover<Notarize> {
 
         let merkle_root = session_data.commitments().merkle_root();
 
-        let mut notary_mux = notary_mux.clone();
         let notarize_fut = async move {
             let mut channel = notary_mux.get_channel("notarize").await?;
 
@@ -301,18 +300,16 @@ impl Prover<Notarize> {
 
             let signed_header = expect_msg_or_err!(channel, TlsnMessage::SignedSessionHeader)?;
 
-            notary_mux.into_inner().close().await?;
-
             Ok::<_, ProverError>((notary_encoder_seed, signed_header))
         };
 
-        let mut notarize_mux_fut =
-            Box::pin(futures::future::try_join(notarize_fut, mux_fut).fuse());
-
-        let ((notary_encoder_seed, SignedSessionHeader { header, signature }), _) = futures::select! {
-            res = notarize_mux_fut => res?,
+        let (notary_encoder_seed, SignedSessionHeader { header, signature }) = futures::select! {
+            res = notarize_fut.fuse() => res?,
             _ = ot_fut => return Err(OTShutdownError)?,
+            _ = mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
         };
+
+        futures::try_join!(notarize_fut.into_inner().close().await, mux_fut,)?;
 
         // Check the header is consistent with the Prover's view
         header
