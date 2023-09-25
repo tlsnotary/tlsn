@@ -6,7 +6,7 @@ publish = false
 
 [dev-dependencies]
 tlsn-tls-core.workspace = true
-tlsn-prover.workspace = true
+tlsn-prover = { workspace = true, features = ["formats"] }
 tlsn-notary.workspace = true
 tlsn-server-fixture.workspace = true
 

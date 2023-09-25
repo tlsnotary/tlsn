@@ -1,5 +1,4 @@
-use spansy::http::{Request, Response};
-use tlsn_http_core::body::Body;
+use tlsn_formats::http::{Body, Request, Response};
 
 use crate::{state as prover_state, Prover};
 

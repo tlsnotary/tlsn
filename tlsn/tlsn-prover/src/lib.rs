@@ -9,7 +9,7 @@
 
 mod config;
 mod error;
-#[cfg(feature = "http")]
+#[cfg(feature = "formats")]
 pub mod http;
 mod state;
 

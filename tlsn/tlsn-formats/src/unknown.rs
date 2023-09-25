@@ -1,5 +1,7 @@
 use std::ops::Range;
 
+use serde::{Deserialize, Serialize};
+
 use tlsn_core::{
     commitment::{
         CommitmentId, CommitmentKind, TranscriptCommitmentBuilder,
@@ -34,7 +36,7 @@ pub enum UnknownProofBuilderError {
 }
 
 /// A span within the transcript with an unknown format.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct UnknownSpan(pub(crate) Range<usize>);
 
 impl UnknownSpan {

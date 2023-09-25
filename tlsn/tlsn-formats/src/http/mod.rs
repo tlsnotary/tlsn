@@ -4,6 +4,7 @@ mod body;
 mod commitment;
 mod parse;
 mod proof;
+mod session;
 
 pub use body::{Body, BodyCommitmentBuilder, BodyProofBuilder};
 pub use commitment::{
@@ -12,14 +13,16 @@ pub use commitment::{
 };
 pub use parse::{parse_body, parse_requests, parse_responses, ParseError};
 pub use proof::{HttpProofBuilder, HttpProofBuilderError};
-use spansy::Spanned;
+pub use session::NotarizedHttpSession;
 
+use serde::{Deserialize, Serialize};
+use spansy::Spanned;
 use utils::range::{RangeDifference, RangeSet, RangeUnion};
 
 static PUBLIC_HEADERS: &[&str] = &["content-length", "content-type"];
 
 /// An HTTP request.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Request(pub(crate) spansy::http::Request);
 
 impl Request {
@@ -47,7 +50,7 @@ impl Request {
 }
 
 /// An HTTP response.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Response(pub(crate) spansy::http::Response);
 
 impl Response {

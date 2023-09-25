@@ -5,18 +5,13 @@
 
 pub mod state;
 
-use tlsn_http_core::{
-    body::{parse_body, Body},
-    parse_requests, parse_responses, HttpCommitmentBuilder,
+use tlsn_formats::http::{
+    parse_body, parse_requests, parse_responses, Body, HttpCommitmentBuilder, NotarizedHttpSession,
+    ParseError,
 };
 
 use bytes::Bytes;
-use spansy::{
-    http::{Request, Requests, Response, Responses},
-    Spanned,
-};
 use tlsn_core::{Direction, NotarizedSession};
-use tlsn_http_core::NotarizedHttpSession;
 use utils::range::{RangeDifference, RangeSet, RangeUnion};
 
 /// An HTTP prover error.
@@ -26,14 +21,8 @@ pub enum HttpProverError {
     #[error(transparent)]
     ProverError(#[from] crate::ProverError),
     /// An error occurred while parsing the HTTP data.
-    #[error("parse error: {0}")]
-    ParseError(String),
-}
-
-impl From<spansy::ParseError> for HttpProverError {
-    fn from(err: spansy::ParseError) -> Self {
-        Self::ParseError(err.to_string())
-    }
+    #[error(transparent)]
+    ParseError(#[from] ParseError),
 }
 
 /// An HTTP prover.
@@ -42,17 +31,17 @@ pub struct HttpProver<S: state::State> {
 }
 
 impl HttpProver<state::Notarize> {
-    pub fn new(prover: crate::Prover<crate::state::Notarize>) -> Self {
-        let requests = parse_requests(prover.sent_transcript().data().clone()).unwrap();
-        let responses = parse_responses(prover.recv_transcript().data().clone()).unwrap();
+    pub fn new(prover: crate::Prover<crate::state::Notarize>) -> Result<Self, HttpProverError> {
+        let requests = parse_requests(prover.sent_transcript().data().clone())?;
+        let responses = parse_responses(prover.recv_transcript().data().clone())?;
 
-        Self {
+        Ok(Self {
             state: state::Notarize {
                 prover,
                 requests,
                 responses,
             },
-        }
+        })
     }
 
     pub fn commitment_builder(&mut self) -> HttpCommitmentBuilder {

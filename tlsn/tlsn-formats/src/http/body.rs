@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use tlsn_core::{
     commitment::{TranscriptCommitmentBuilder, TranscriptCommitments},
     proof::SubstringsProofBuilder,
@@ -5,15 +7,13 @@ use tlsn_core::{
 };
 
 use crate::{
-    http::HttpCommitmentBuilderError,
+    http::{HttpCommitmentBuilderError, HttpProofBuilderError},
     json::{JsonBody, JsonCommitmentBuilder, JsonProofBuilder},
     unknown::{UnknownCommitmentBuilder, UnknownProofBuilder, UnknownSpan},
 };
 
-use super::HttpProofBuilderError;
-
 /// A body of an HTTP request or response
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum Body {
     /// A JSON body

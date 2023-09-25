@@ -6,6 +6,7 @@ mod proof;
 pub use commitment::{JsonCommitmentBuilder, JsonCommitmentBuilderError};
 pub use proof::{JsonProofBuilder, JsonProofBuilderError};
 
+use serde::{Deserialize, Serialize};
 use spansy::{
     json::{JsonValue, JsonVisit},
     Spanned,
@@ -13,7 +14,7 @@ use spansy::{
 use utils::range::{RangeDifference, RangeSet, RangeUnion};
 
 /// A JSON body
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct JsonBody(pub(crate) JsonValue);
 
 /// Computes all the public ranges of a JSON value.

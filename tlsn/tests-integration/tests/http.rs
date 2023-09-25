@@ -90,14 +90,14 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
 
     let prover = prover_task.await.unwrap().unwrap();
 
-    let mut prover = HttpProver::new(prover).start_notarize().unwrap();
+    let mut prover = HttpProver::new(prover.start_notarize()).unwrap();
 
-    prover.commit_all().unwrap();
+    prover.commitment_builder().build().unwrap();
 
-    let not = prover.finalize().await.unwrap();
+    let session = prover.finalize().await.unwrap();
 
     let mut file = std::fs::File::create("notarized_session.json").unwrap();
-    file.write_all(bincode::serialize(&not.session()).unwrap().as_slice())
+    file.write_all(bincode::serialize(&session).unwrap().as_slice())
         .unwrap();
 }
 
