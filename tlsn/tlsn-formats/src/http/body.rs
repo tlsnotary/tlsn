@@ -1,5 +1,5 @@
 use tlsn_core::{
-    commitment::{CommitmentId, TranscriptCommitmentBuilder, TranscriptCommitments},
+    commitment::{TranscriptCommitmentBuilder, TranscriptCommitments},
     proof::SubstringsProofBuilder,
     Direction,
 };
@@ -9,6 +9,8 @@ use crate::{
     json::{JsonBody, JsonCommitmentBuilder, JsonProofBuilder},
     unknown::{UnknownCommitmentBuilder, UnknownProofBuilder, UnknownSpan},
 };
+
+use super::HttpProofBuilderError;
 
 /// A body of an HTTP request or response
 #[derive(Debug)]
@@ -32,25 +34,26 @@ impl<'a> BodyCommitmentBuilder<'a> {
         builder: &'a mut TranscriptCommitmentBuilder,
         value: &'a Body,
         direction: Direction,
+        built: &'a mut bool,
     ) -> Self {
         match value {
-            Body::Json(body) => {
-                BodyCommitmentBuilder::Json(JsonCommitmentBuilder::new(builder, &body.0, direction))
-            }
+            Body::Json(body) => BodyCommitmentBuilder::Json(JsonCommitmentBuilder::new(
+                builder, &body.0, direction, built,
+            )),
             Body::Unknown(body) => BodyCommitmentBuilder::Unknown(UnknownCommitmentBuilder::new(
-                builder, body, direction,
+                builder, body, direction, built,
             )),
         }
     }
 
-    /// Commits to the entirety of the body.
-    pub fn all(&mut self) -> Result<CommitmentId, HttpCommitmentBuilderError> {
+    /// Builds the commitment to the body.
+    pub fn build(self) -> Result<(), HttpCommitmentBuilderError> {
         match self {
             BodyCommitmentBuilder::Json(builder) => builder
-                .all()
+                .build()
                 .map_err(|e| HttpCommitmentBuilderError::Body(e.to_string())),
             BodyCommitmentBuilder::Unknown(builder) => builder
-                .all()
+                .build()
                 .map_err(|e| HttpCommitmentBuilderError::Body(e.to_string())),
         }
     }
@@ -58,17 +61,18 @@ impl<'a> BodyCommitmentBuilder<'a> {
 
 #[derive(Debug)]
 #[non_exhaustive]
-pub enum BodyProofBuilder<'a> {
-    Json(JsonProofBuilder<'a>),
-    Unknown(UnknownProofBuilder<'a>),
+pub enum BodyProofBuilder<'a, 'b> {
+    Json(JsonProofBuilder<'a, 'b>),
+    Unknown(UnknownProofBuilder<'a, 'b>),
 }
 
-impl<'a> BodyProofBuilder<'a> {
+impl<'a, 'b> BodyProofBuilder<'a, 'b> {
     pub(crate) fn new(
-        builder: &'a mut SubstringsProofBuilder<'a>,
+        builder: &'a mut SubstringsProofBuilder<'b>,
         commitments: &'a TranscriptCommitments,
         value: &'a Body,
         direction: Direction,
+        built: &'a mut bool,
     ) -> Self {
         match value {
             Body::Json(body) => BodyProofBuilder::Json(JsonProofBuilder::new(
@@ -76,25 +80,39 @@ impl<'a> BodyProofBuilder<'a> {
                 commitments,
                 &body.0,
                 direction,
+                built,
             )),
             Body::Unknown(body) => BodyProofBuilder::Unknown(UnknownProofBuilder::new(
                 builder,
                 commitments,
                 body,
                 direction,
+                built,
             )),
         }
     }
 
-    /// Reveals the entirety of the body.
-    pub fn all(&mut self) -> Result<(), HttpCommitmentBuilderError> {
+    /// Proves the entire body.
+    pub fn all(&mut self) -> Result<(), HttpProofBuilderError> {
         match self {
             BodyProofBuilder::Json(builder) => builder
                 .all()
-                .map_err(|e| HttpCommitmentBuilderError::Body(e.to_string())),
+                .map_err(|e| HttpProofBuilderError::Body(e.to_string())),
             BodyProofBuilder::Unknown(builder) => builder
                 .all()
-                .map_err(|e| HttpCommitmentBuilderError::Body(e.to_string())),
+                .map_err(|e| HttpProofBuilderError::Body(e.to_string())),
+        }
+    }
+
+    /// Builds the proof for the body.
+    pub fn build(&mut self) -> Result<(), HttpProofBuilderError> {
+        match self {
+            BodyProofBuilder::Json(builder) => builder
+                .all()
+                .map_err(|e| HttpProofBuilderError::Body(e.to_string())),
+            BodyProofBuilder::Unknown(builder) => builder
+                .all()
+                .map_err(|e| HttpProofBuilderError::Body(e.to_string())),
         }
     }
 }

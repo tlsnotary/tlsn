@@ -1,5 +1,3 @@
-use std::ops::Range;
-
 use bytes::Bytes;
 use spansy::{
     http::{Requests, Responses},
@@ -58,19 +56,19 @@ pub fn parse_body(
     index: usize,
     content_type: &[u8],
     body: Bytes,
-    range: Range<usize>,
+    offset: usize,
 ) -> Result<Body, ParseError> {
-    assert_eq!(range.len(), body.len(), "range and body length mismatch");
-
     if content_type.get(..16) == Some(b"application/json".as_slice()) {
-        Ok(Body::Json(JsonBody(json::parse(body).map_err(|e| {
-            ParseError::Json {
-                index,
-                reason: e.to_string(),
-            }
-        })?)))
+        let mut body = json::parse(body).map_err(|e| ParseError::Json {
+            index,
+            reason: e.to_string(),
+        })?;
+
+        body.offset(offset);
+
+        Ok(Body::Json(JsonBody(body)))
     } else {
-        Ok(Body::Unknown(UnknownSpan::new(range)))
+        Ok(Body::Unknown(UnknownSpan::new(offset..offset + body.len())))
     }
 }
 
@@ -92,7 +90,12 @@ pub fn parse_requests(data: Bytes) -> Result<Vec<(Request, Option<Body>)>, Parse
             let body = data.slice(range.clone());
 
             let body = if let Some(content_type) = request.header("content-type") {
-                parse_body(index, content_type.value.span().as_bytes(), body, range)?
+                parse_body(
+                    index,
+                    content_type.value.span().as_bytes(),
+                    body,
+                    range.start,
+                )?
             } else {
                 Body::Unknown(UnknownSpan::new(range))
             };
@@ -126,7 +129,12 @@ pub fn parse_responses(data: Bytes) -> Result<Vec<(Response, Option<Body>)>, Par
             let body = data.slice(range.clone());
 
             let body = if let Some(content_type) = response.header("content-type") {
-                parse_body(index, content_type.value.span().as_bytes(), body, range)?
+                parse_body(
+                    index,
+                    content_type.value.span().as_bytes(),
+                    body,
+                    range.start,
+                )?
             } else {
                 Body::Unknown(UnknownSpan::new(range))
             };
@@ -152,28 +160,61 @@ mod tests {
     fn test_parse_body_json() {
         let body = b"{\"foo\": \"bar\"}";
 
+        let body = parse_body(0, b"application/json", Bytes::copy_from_slice(body), 0).unwrap();
+
+        let Body::Json(body) = body else {
+            unreachable!();
+        };
+
+        let range = body.0.span().range();
+
+        assert_eq!(range.start, 0);
+        assert_eq!(range.end, 14);
+        assert_eq!(body.0.span().as_str(), "{\"foo\": \"bar\"}");
+
+        let foo = body.0.get("foo").unwrap();
+        let range = foo.span().range();
+
+        assert_eq!(range.start, 9);
+        assert_eq!(range.end, 12);
+        assert_eq!(foo.span().as_str(), "bar");
+    }
+
+    #[test]
+    fn test_parse_body_json_offset() {
+        let body = b"    {\"foo\": \"bar\"}";
+
         let body = parse_body(
             0,
             b"application/json",
-            Bytes::copy_from_slice(body),
-            0..body.len(),
+            Bytes::copy_from_slice(&body[4..]),
+            4,
         )
         .unwrap();
 
-        assert!(matches!(body, Body::Json(_)));
+        let Body::Json(body) = body else {
+            unreachable!();
+        };
+
+        let range = body.0.span().range();
+
+        assert_eq!(range.start, 4);
+        assert_eq!(range.end, 18);
+        assert_eq!(body.0.span().as_str(), "{\"foo\": \"bar\"}");
+
+        let foo = body.0.get("foo").unwrap();
+        let range = foo.span().range();
+
+        assert_eq!(range.start, 13);
+        assert_eq!(range.end, 16);
+        assert_eq!(foo.span().as_str(), "bar");
     }
 
     #[test]
     fn test_parse_body_unknown() {
         let body = b"foo";
 
-        let body = parse_body(
-            0,
-            b"text/plain",
-            Bytes::copy_from_slice(body),
-            0..body.len(),
-        )
-        .unwrap();
+        let body = parse_body(0, b"text/plain", Bytes::copy_from_slice(body), 0).unwrap();
 
         assert!(matches!(body, Body::Unknown(_)));
     }
@@ -189,7 +230,16 @@ mod tests {
         assert_eq!(requests.len(), 2);
         assert!(requests[0].1.is_none());
         assert!(requests[1].1.is_some());
-        assert!(matches!(requests[1].1.as_ref().unwrap(), Body::Json(_)));
+
+        let Body::Json(body) = requests[1].1.as_ref().unwrap() else {
+            unreachable!();
+        };
+
+        let foo = body.0.get("foo").unwrap();
+        let range = foo.span().range();
+
+        assert_eq!(range.start, 137);
+        assert_eq!(range.end, 140);
     }
 
     #[test]

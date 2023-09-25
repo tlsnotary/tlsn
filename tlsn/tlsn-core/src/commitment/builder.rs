@@ -6,7 +6,8 @@ use utils::range::RangeSet;
 
 use crate::{
     commitment::{
-        blake3::Blake3Commitment, Commitment, CommitmentId, CommitmentInfo, TranscriptCommitments,
+        blake3::Blake3Commitment, Commitment, CommitmentId, CommitmentInfo, CommitmentKind,
+        TranscriptCommitments,
     },
     merkle::MerkleTree,
     transcript::get_value_ids,
@@ -77,14 +78,6 @@ impl TranscriptCommitmentBuilder {
         self.add_substrings_commitment(ranges.into(), Direction::Sent)
     }
 
-    /// Commits to all sent data which has not been committed to yet.
-    pub fn commit_sent_remaining(
-        &mut self,
-    ) -> Result<CommitmentId, TranscriptCommitmentBuilderError> {
-        let uncommitted = (0..self.sent_len).difference(&self.committed_tx);
-        self.add_substrings_commitment(uncommitted, Direction::Sent)
-    }
-
     /// Commits to the provided ranges of the `received` transcript.
     pub fn commit_recv(
         &mut self,
@@ -93,12 +86,20 @@ impl TranscriptCommitmentBuilder {
         self.add_substrings_commitment(ranges.into(), Direction::Received)
     }
 
-    /// Commits to all received data which has not been committed to yet.
-    pub fn commit_recv_remaining(
-        &mut self,
-    ) -> Result<CommitmentId, TranscriptCommitmentBuilderError> {
-        let uncommitted = (0..self.recv_len).difference(&self.committed_rx);
-        self.add_substrings_commitment(uncommitted, Direction::Received)
+    /// Gets the commitment id for the provided commitment info.
+    pub fn get_id(
+        &self,
+        kind: CommitmentKind,
+        ranges: impl Into<RangeSet<usize>>,
+        direction: Direction,
+    ) -> Option<CommitmentId> {
+        self.commitment_info
+            .get_by_right(&CommitmentInfo {
+                kind,
+                ranges: ranges.into(),
+                direction,
+            })
+            .copied()
     }
 
     /// Add a commitment to substrings of the transcript

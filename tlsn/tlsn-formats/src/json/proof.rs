@@ -7,6 +7,8 @@ use tlsn_core::{
     Direction,
 };
 
+use crate::json::public_ranges;
+
 #[derive(Debug, thiserror::Error)]
 pub enum JsonProofBuilderError {
     /// Missing value
@@ -20,25 +22,28 @@ pub enum JsonProofBuilderError {
 }
 
 #[derive(Debug)]
-pub struct JsonProofBuilder<'a> {
-    builder: &'a mut SubstringsProofBuilder<'a>,
+pub struct JsonProofBuilder<'a, 'b> {
+    builder: &'a mut SubstringsProofBuilder<'b>,
     commitments: &'a TranscriptCommitments,
     value: &'a JsonValue,
     direction: Direction,
+    built: &'a mut bool,
 }
 
-impl<'a> JsonProofBuilder<'a> {
+impl<'a, 'b> JsonProofBuilder<'a, 'b> {
     pub(crate) fn new(
-        builder: &'a mut SubstringsProofBuilder<'a>,
+        builder: &'a mut SubstringsProofBuilder<'b>,
         commitments: &'a TranscriptCommitments,
         value: &'a JsonValue,
         direction: Direction,
+        built: &'a mut bool,
     ) -> Self {
         JsonProofBuilder {
             builder,
             commitments,
             value,
             direction,
+            built,
         }
     }
 
@@ -69,6 +74,21 @@ impl<'a> JsonProofBuilder<'a> {
             .ok_or(JsonProofBuilderError::MissingCommitment)?;
 
         self.builder.reveal(id)?;
+
+        Ok(())
+    }
+
+    pub fn build(self) -> Result<(), JsonProofBuilderError> {
+        let public_ranges = public_ranges(self.value);
+
+        let public_id = self
+            .commitments
+            .get_id_by_info(CommitmentKind::Blake3, public_ranges, self.direction)
+            .ok_or(JsonProofBuilderError::MissingCommitment)?;
+
+        self.builder.reveal(public_id)?;
+
+        *self.built = true;
 
         Ok(())
     }

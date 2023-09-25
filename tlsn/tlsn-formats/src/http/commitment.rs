@@ -1,14 +1,14 @@
 use std::fmt::Debug;
 
-use crate::http::{Body, BodyCommitmentBuilder};
-use spansy::{
-    http::{Request, Response},
-    Spanned,
-};
+use crate::http::{Body, BodyCommitmentBuilder, Request, Response};
+use spansy::Spanned;
 use tlsn_core::{
     commitment::{CommitmentId, TranscriptCommitmentBuilder, TranscriptCommitmentBuilderError},
     Direction,
 };
+use utils::range::{RangeSet, RangeSubset, RangeUnion};
+
+use super::PUBLIC_HEADERS;
 
 /// An HTTP commitment builder error.
 #[derive(Debug, thiserror::Error)]
@@ -28,34 +28,26 @@ pub enum HttpCommitmentBuilderError {
 #[derive(Debug)]
 pub struct HttpCommitmentBuilder<'a> {
     builder: &'a mut TranscriptCommitmentBuilder,
-    requests: &'a [(crate::http::Request, Option<Body>)],
-    responses: &'a [(crate::http::Response, Option<Body>)],
+    requests: &'a [(Request, Option<Body>)],
+    responses: &'a [(Response, Option<Body>)],
+    built_requests: Vec<bool>,
+    built_responses: Vec<bool>,
 }
 
 impl<'a> HttpCommitmentBuilder<'a> {
     #[doc(hidden)]
     pub fn new(
         builder: &'a mut TranscriptCommitmentBuilder,
-        requests: &'a [(crate::http::Request, Option<Body>)],
-        responses: &'a [(crate::http::Response, Option<Body>)],
+        requests: &'a [(Request, Option<Body>)],
+        responses: &'a [(Response, Option<Body>)],
     ) -> Self {
         Self {
             builder,
             requests,
             responses,
+            built_requests: vec![false; requests.len()],
+            built_responses: vec![false; responses.len()],
         }
-    }
-
-    /// Commits the entirety of the HTTP session.
-    ///
-    /// # Arguments
-    ///
-    /// * `body` - Whether to commit the entirety of each request and response body.
-    pub fn all(&mut self, body: bool) -> Result<(), HttpCommitmentBuilderError> {
-        self.requests(body)?;
-        self.responses(body)?;
-
-        Ok(())
     }
 
     /// Returns a commitment builder for the request at the given index.
@@ -63,35 +55,16 @@ impl<'a> HttpCommitmentBuilder<'a> {
     /// # Arguments
     ///
     /// * `index` - The index of the request.
+    #[must_use]
     pub fn request(&mut self, index: usize) -> Option<HttpRequestCommitmentBuilder<'_>> {
-        self.requests
-            .get(index)
-            .map(|request| HttpRequestCommitmentBuilder {
-                builder: self.builder,
-                request: &request.0 .0,
-                body: request.1.as_ref(),
-            })
-    }
-
-    /// Commits all requests.
-    ///
-    /// # Arguments
-    ///
-    /// * `body` - Whether to commit the entirety of each request body.
-    pub fn requests(&mut self, body: bool) -> Result<(), HttpCommitmentBuilderError> {
-        for idx in 0..self.requests.len() {
-            let mut request = self.request(idx).unwrap();
-            request.path()?;
-            request.headers()?;
-
-            if body {
-                if let Some(mut body) = request.body() {
-                    body.all()?;
-                }
-            }
-        }
-
-        Ok(())
+        self.requests.get(index).map(|request| {
+            HttpRequestCommitmentBuilder::new(
+                self.builder,
+                &request.0,
+                request.1.as_ref(),
+                &mut self.built_requests[index],
+            )
+        })
     }
 
     /// Returns a commitment builder for the response at the given index.
@@ -99,32 +72,33 @@ impl<'a> HttpCommitmentBuilder<'a> {
     /// # Arguments
     ///
     /// * `index` - The index of the response.
+    #[must_use]
     pub fn response(&mut self, index: usize) -> Option<HttpResponseCommitmentBuilder<'_>> {
-        self.responses
-            .get(index)
-            .map(|response| HttpResponseCommitmentBuilder {
-                builder: self.builder,
-                response: &response.0 .0,
-                body: response.1.as_ref(),
-            })
+        self.responses.get(index).map(|response| {
+            HttpResponseCommitmentBuilder::new(
+                self.builder,
+                &response.0,
+                response.1.as_ref(),
+                &mut self.built_responses[index],
+            )
+        })
     }
 
-    /// Commits all responses.
+    /// Builds commitments to the HTTP requests and responses.
     ///
-    /// # Arguments
-    ///
-    /// * `body` - Whether to commit the entirety of each response body.
-    pub fn responses(&mut self, body: bool) -> Result<(), HttpCommitmentBuilderError> {
-        for idx in 0..self.responses.len() {
-            let mut response = self.response(idx).unwrap();
-            response.code()?;
-            response.reason()?;
-            response.headers()?;
+    /// This automatically will commit to all header values which have no yet been committed.
+    pub fn build(mut self) -> Result<(), HttpCommitmentBuilderError> {
+        // Builds all request commitments
+        for i in 0..self.requests.len() {
+            if !self.built_requests[i] {
+                self.request(i).unwrap().build()?;
+            }
+        }
 
-            if body {
-                if let Some(mut body) = response.body() {
-                    body.all()?;
-                }
+        // Build all response commitments
+        for i in 0..self.responses.len() {
+            if !self.built_responses[i] {
+                self.response(i).unwrap().build()?;
             }
         }
 
@@ -137,14 +111,36 @@ pub struct HttpRequestCommitmentBuilder<'a> {
     builder: &'a mut TranscriptCommitmentBuilder,
     request: &'a Request,
     body: Option<&'a Body>,
+    committed: RangeSet<usize>,
+    built: &'a mut bool,
+    body_built: bool,
 }
 
 impl<'a> HttpRequestCommitmentBuilder<'a> {
-    /// Commits the request path.
+    pub(crate) fn new(
+        builder: &'a mut TranscriptCommitmentBuilder,
+        request: &'a Request,
+        body: Option<&'a Body>,
+        built: &'a mut bool,
+    ) -> Self {
+        Self {
+            builder,
+            request,
+            body,
+            committed: RangeSet::default(),
+            built,
+            body_built: false,
+        }
+    }
+
+    /// Commits to the path of the request.
     pub fn path(&mut self) -> Result<CommitmentId, HttpCommitmentBuilderError> {
-        self.builder
-            .commit_sent(self.request.path.range())
-            .map_err(From::from)
+        let range = self.request.0.path.range();
+        let id = self.builder.commit_sent(range.clone())?;
+
+        self.committed = self.committed.union(&range);
+
+        Ok(id)
     }
 
     /// Commits the value of the header with the given name.
@@ -155,12 +151,16 @@ impl<'a> HttpRequestCommitmentBuilder<'a> {
     pub fn header(&mut self, name: &str) -> Result<CommitmentId, HttpCommitmentBuilderError> {
         let header = self
             .request
+            .0
             .header(name)
             .ok_or(HttpCommitmentBuilderError::MissingHeader(name.to_string()))?;
 
-        self.builder
-            .commit_sent(header.value.span().range())
-            .map_err(From::from)
+        let range = header.value.span().range();
+        let id = self.builder.commit_sent(range.clone())?;
+
+        self.committed = self.committed.union(&range);
+
+        Ok(id)
     }
 
     /// Commits all request headers.
@@ -169,7 +169,7 @@ impl<'a> HttpRequestCommitmentBuilder<'a> {
     pub fn headers(&mut self) -> Result<Vec<(String, CommitmentId)>, HttpCommitmentBuilderError> {
         let mut commitments = Vec::new();
 
-        for header in &self.request.headers {
+        for header in &self.request.0.headers {
             let name = header.name.span().as_str().to_string();
             let id = self.header(&name)?;
 
@@ -181,8 +181,46 @@ impl<'a> HttpRequestCommitmentBuilder<'a> {
 
     /// Returns a commitment builder for the request body if it exists.
     pub fn body(&mut self) -> Option<BodyCommitmentBuilder<'_>> {
-        self.body
-            .map(|body| BodyCommitmentBuilder::new(self.builder, body, Direction::Sent))
+        self.body.map(|body| {
+            BodyCommitmentBuilder::new(self.builder, body, Direction::Sent, &mut self.body_built)
+        })
+    }
+
+    /// Finishes building the request commitment.
+    ///
+    /// This commits to everything that has not already been committed, including a commitment
+    /// to the format data of the request.
+    pub fn build(mut self) -> Result<(), HttpCommitmentBuilderError> {
+        // Commit to the path if it has not already been committed.
+        let path_range = self.request.0.path.range();
+        if !path_range.is_subset(&self.committed) {
+            self.path()?;
+        }
+
+        // Commit to any headers that have not already been committed.
+        for header in &self.request.0.headers {
+            let name = header.name.span().as_str().to_ascii_lowercase();
+
+            // Public headers can not be committed separately
+            if PUBLIC_HEADERS.contains(&name.as_str()) {
+                continue;
+            }
+
+            let range = header.value.span().range();
+            if !range.is_subset(&self.committed) {
+                self.header(&name)?;
+            }
+        }
+
+        self.builder.commit_sent(self.request.public_ranges())?;
+
+        if self.body.is_some() && !self.body_built {
+            self.body().unwrap().build()?;
+        }
+
+        *self.built = true;
+
+        Ok(())
     }
 }
 
@@ -191,21 +229,26 @@ pub struct HttpResponseCommitmentBuilder<'a> {
     builder: &'a mut TranscriptCommitmentBuilder,
     response: &'a Response,
     body: Option<&'a Body>,
+    committed: RangeSet<usize>,
+    built: &'a mut bool,
+    body_built: bool,
 }
 
 impl<'a> HttpResponseCommitmentBuilder<'a> {
-    /// Commits the response code.
-    pub fn code(&mut self) -> Result<CommitmentId, HttpCommitmentBuilderError> {
-        self.builder
-            .commit_recv(self.response.code.range())
-            .map_err(From::from)
-    }
-
-    /// Commits the response reason phrase.
-    pub fn reason(&mut self) -> Result<CommitmentId, HttpCommitmentBuilderError> {
-        self.builder
-            .commit_recv(self.response.reason.range())
-            .map_err(From::from)
+    pub(crate) fn new(
+        builder: &'a mut TranscriptCommitmentBuilder,
+        response: &'a Response,
+        body: Option<&'a Body>,
+        built: &'a mut bool,
+    ) -> Self {
+        Self {
+            builder,
+            response,
+            body,
+            committed: RangeSet::default(),
+            built,
+            body_built: false,
+        }
     }
 
     /// Commits the value of the header with the given name.
@@ -216,6 +259,7 @@ impl<'a> HttpResponseCommitmentBuilder<'a> {
     pub fn header(&mut self, name: &str) -> Result<CommitmentId, HttpCommitmentBuilderError> {
         let header = self
             .response
+            .0
             .header(name)
             .ok_or(HttpCommitmentBuilderError::MissingHeader(name.to_string()))?;
 
@@ -230,7 +274,7 @@ impl<'a> HttpResponseCommitmentBuilder<'a> {
     pub fn headers(&mut self) -> Result<Vec<(String, CommitmentId)>, HttpCommitmentBuilderError> {
         let mut commitments = Vec::new();
 
-        for header in &self.response.headers {
+        for header in &self.response.0.headers {
             let name = header.name.span().as_str().to_string();
             let id = self.header(&name)?;
 
@@ -242,7 +286,44 @@ impl<'a> HttpResponseCommitmentBuilder<'a> {
 
     /// Returns a commitment builder for the response body if it exists.
     pub fn body(&mut self) -> Option<BodyCommitmentBuilder<'_>> {
-        self.body
-            .map(|body| BodyCommitmentBuilder::new(self.builder, body, Direction::Received))
+        self.body.map(|body| {
+            BodyCommitmentBuilder::new(
+                self.builder,
+                body,
+                Direction::Received,
+                &mut self.body_built,
+            )
+        })
+    }
+
+    /// Finishes building the request commitment.
+    ///
+    /// This commits to everything that has not already been committed, including a commitment
+    /// to the format data of the request.
+    pub fn build(mut self) -> Result<(), HttpCommitmentBuilderError> {
+        // Commit to any headers that have not already been committed.
+        for header in &self.response.0.headers {
+            let name = header.name.span().as_str().to_ascii_lowercase();
+
+            // Public headers can not be committed separately
+            if PUBLIC_HEADERS.contains(&name.as_str()) {
+                continue;
+            }
+
+            let range = header.value.span().range();
+            if !range.is_subset(&self.committed) {
+                self.header(&name)?;
+            }
+        }
+
+        self.builder.commit_recv(self.response.public_ranges())?;
+
+        if self.body.is_some() && !self.body_built {
+            self.body().unwrap().build()?;
+        }
+
+        *self.built = true;
+
+        Ok(())
     }
 }

@@ -35,7 +35,7 @@ pub enum UnknownProofBuilderError {
 
 /// A span within the transcript with an unknown format.
 #[derive(Debug)]
-pub struct UnknownSpan(Range<usize>);
+pub struct UnknownSpan(pub(crate) Range<usize>);
 
 impl UnknownSpan {
     pub(crate) fn new(span: Range<usize>) -> Self {
@@ -49,6 +49,7 @@ pub struct UnknownCommitmentBuilder<'a> {
     builder: &'a mut TranscriptCommitmentBuilder,
     span: Range<usize>,
     direction: Direction,
+    built: &'a mut bool,
 }
 
 impl<'a> UnknownCommitmentBuilder<'a> {
@@ -56,21 +57,14 @@ impl<'a> UnknownCommitmentBuilder<'a> {
         builder: &'a mut TranscriptCommitmentBuilder,
         span: &'a UnknownSpan,
         direction: Direction,
+        built: &'a mut bool,
     ) -> Self {
         UnknownCommitmentBuilder {
             builder,
             span: span.0.clone(),
             direction,
+            built,
         }
-    }
-
-    /// Commits to the entire span.
-    pub fn all(&mut self) -> Result<CommitmentId, UnknownCommitmentBuilderError> {
-        match self.direction {
-            Direction::Sent => self.builder.commit_sent(self.span.clone()),
-            Direction::Received => self.builder.commit_recv(self.span.clone()),
-        }
-        .map_err(From::from)
     }
 
     /// Commits to the given range within the span.
@@ -93,29 +87,45 @@ impl<'a> UnknownCommitmentBuilder<'a> {
         }
         .map_err(From::from)
     }
+
+    /// Builds the commitment.
+    pub fn build(self) -> Result<(), UnknownCommitmentBuilderError> {
+        // commit to the entire span
+        match self.direction {
+            Direction::Sent => self.builder.commit_sent(self.span.clone()),
+            Direction::Received => self.builder.commit_recv(self.span.clone()),
+        }?;
+
+        *self.built = true;
+
+        Ok(())
+    }
 }
 
 /// A proof builder for spans with an unknown format.
 #[derive(Debug)]
-pub struct UnknownProofBuilder<'a> {
-    builder: &'a mut SubstringsProofBuilder<'a>,
+pub struct UnknownProofBuilder<'a, 'b> {
+    builder: &'a mut SubstringsProofBuilder<'b>,
     commitments: &'a TranscriptCommitments,
     span: Range<usize>,
     direction: Direction,
+    built: &'a mut bool,
 }
 
-impl<'a> UnknownProofBuilder<'a> {
+impl<'a, 'b> UnknownProofBuilder<'a, 'b> {
     pub(crate) fn new(
-        builder: &'a mut SubstringsProofBuilder<'a>,
+        builder: &'a mut SubstringsProofBuilder<'b>,
         commitments: &'a TranscriptCommitments,
         span: &'a UnknownSpan,
         direction: Direction,
+        built: &'a mut bool,
     ) -> Self {
         UnknownProofBuilder {
             builder,
             commitments,
             span: span.0.clone(),
             direction,
+            built,
         }
     }
 
@@ -150,6 +160,13 @@ impl<'a> UnknownProofBuilder<'a> {
             .ok_or(UnknownProofBuilderError::MissingCommitment)?;
 
         self.builder.reveal(id)?;
+
+        Ok(())
+    }
+
+    /// Builds the proof.
+    pub fn build(self) -> Result<(), UnknownProofBuilderError> {
+        *self.built = true;
 
         Ok(())
     }

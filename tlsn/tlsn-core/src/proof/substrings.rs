@@ -12,7 +12,7 @@ use crate::{
     },
     merkle::MerkleProof,
     transcript::get_value_ids,
-    Direction, EncodingId, RedactedTranscript, SessionData, SessionHeader, TranscriptSlice,
+    Direction, EncodingId, RedactedTranscript, SessionHeader, Transcript, TranscriptSlice,
     MAX_TOTAL_COMMITTED_DATA,
 };
 
@@ -130,7 +130,7 @@ pub enum SubstringsProofError {
     MaxDataExceeded(usize),
     /// The proof contains duplicate transcript data.
     #[error("proof contains duplicate transcript data")]
-    DuplicateData,
+    DuplicateData(Direction, RangeSet<usize>),
     /// Range of the opening is out of bounds.
     #[error("range of opening {0:?} is out of bounds: {1}")]
     RangeOutOfBounds(CommitmentId, usize),
@@ -196,13 +196,13 @@ impl SubstringsProof {
             match direction {
                 Direction::Sent => {
                     if !sent_ranges.is_disjoint(&ranges) {
-                        return Err(SubstringsProofError::DuplicateData);
+                        return Err(SubstringsProofError::DuplicateData(direction, ranges));
                     }
                     sent_ranges = sent_ranges.union(&ranges);
                 }
                 Direction::Received => {
                     if !recv_ranges.is_disjoint(&ranges) {
-                        return Err(SubstringsProofError::DuplicateData);
+                        return Err(SubstringsProofError::DuplicateData(direction, ranges));
                     }
                     recv_ranges = recv_ranges.union(&ranges);
                 }
