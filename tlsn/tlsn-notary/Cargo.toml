@@ -9,7 +9,7 @@ version = "0.1.0-alpha.2"
 edition = "2021"
 
 [features]
-tracing = ["dep:tracing", "tlsn-tls-mpc/tracing", "uid-mux/tracing"]
+tracing = ["dep:tracing", "tlsn-tls-mpc/tracing"]
 
 [dependencies]
 tlsn-core.workspace = true
