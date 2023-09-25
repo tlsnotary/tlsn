@@ -42,8 +42,6 @@ pub struct TranscriptCommitmentBuilder {
     merkle_leaves: Vec<Hash>,
     /// A function that returns the encodings for the provided transcript byte ids.
     encoding_provider: EncodingProvider,
-    committed_tx: RangeSet<usize>,
-    committed_rx: RangeSet<usize>,
     sent_len: usize,
     recv_len: usize,
 }
@@ -63,8 +61,6 @@ impl TranscriptCommitmentBuilder {
             commitment_info: BiMap::default(),
             merkle_leaves: Vec::default(),
             encoding_provider,
-            committed_tx: RangeSet::default(),
-            committed_rx: RangeSet::default(),
             sent_len,
             recv_len,
         }
