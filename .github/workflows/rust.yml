@@ -67,5 +67,8 @@ jobs:
         if: ${{ matrix.release == true }}
         run: cargo test --release --tests
 
+      - name: "Check that benches compile"
+        run: cargo bench --no-run
+
       - name: "Clippy"
         run: cargo clippy --all-features -- -D warnings
