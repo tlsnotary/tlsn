@@ -18,3 +18,7 @@ tracing = "0.1"
 
 # testing
 criterion = "0.5"
+
+[patch.'https://github.com/privacy-scaling-explorations/mpz']
+mpz-circuits = { path = "../../../mpz/mpz-circuits" }
+mpz-garble = { path = "../../../mpz/garble/mpz-garble" }
