@@ -159,9 +159,9 @@ mod tests {
 
         let commitments = transcript_commitment_builder.build().unwrap();
 
-        let mut spb = SubstringsProofBuilder::new(&commitments, &transcript_tx, &transcript_rx);
+        let spb = SubstringsProofBuilder::new(&commitments, &transcript_tx, &transcript_rx);
 
-        let mut builder = HttpProofBuilder::new(&mut spb, &commitments, &requests, &responses);
+        let mut builder = HttpProofBuilder::new(spb, &commitments, &requests, &responses);
 
         let mut req_0 = builder.request(0).unwrap();
 
@@ -192,9 +192,7 @@ mod tests {
 
         unknown.all().unwrap();
 
-        builder.build().unwrap();
-
-        let proof = spb.build().unwrap();
+        let proof = builder.build().unwrap();
 
         let header =
             fixtures::session_header_with_data(commitments.merkle_root(), TX.len(), RX.len());

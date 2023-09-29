@@ -5,6 +5,7 @@ edition = "2021"
 publish = false
 
 [dev-dependencies]
+tlsn-core.workspace = true
 tlsn-tls-core.workspace = true
 tlsn-prover = { workspace = true, features = ["formats"] }
 tlsn-notary.workspace = true

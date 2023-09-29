@@ -4,7 +4,7 @@ use crate::http::{body::BodyProofBuilder, Body, Request, Response};
 use spansy::Spanned;
 use tlsn_core::{
     commitment::{CommitmentId, CommitmentKind, TranscriptCommitments},
-    proof::{SubstringsProofBuilder, SubstringsProofBuilderError},
+    proof::{SubstringsProof, SubstringsProofBuilder, SubstringsProofBuilderError},
     Direction,
 };
 
@@ -28,7 +28,7 @@ pub enum HttpProofBuilderError {
 
 #[derive(Debug)]
 pub struct HttpProofBuilder<'a, 'b> {
-    builder: &'a mut SubstringsProofBuilder<'b>,
+    builder: SubstringsProofBuilder<'b>,
     commitments: &'a TranscriptCommitments,
     requests: &'a [(Request, Option<Body>)],
     responses: &'a [(Response, Option<Body>)],
@@ -39,7 +39,7 @@ pub struct HttpProofBuilder<'a, 'b> {
 impl<'a, 'b> HttpProofBuilder<'a, 'b> {
     #[doc(hidden)]
     pub fn new(
-        builder: &'a mut SubstringsProofBuilder<'b>,
+        builder: SubstringsProofBuilder<'b>,
         commitments: &'a TranscriptCommitments,
         requests: &'a [(Request, Option<Body>)],
         responses: &'a [(Response, Option<Body>)],
@@ -66,7 +66,7 @@ impl<'a, 'b> HttpProofBuilder<'a, 'b> {
         self.requests
             .get(index)
             .map(|request| HttpRequestProofBuilder {
-                builder: self.builder,
+                builder: &mut self.builder,
                 commitments: self.commitments,
                 request: &request.0,
                 body: request.1.as_ref(),
@@ -87,7 +87,7 @@ impl<'a, 'b> HttpProofBuilder<'a, 'b> {
         self.responses
             .get(index)
             .map(|response| HttpResponseProofBuilder {
-                builder: self.builder,
+                builder: &mut self.builder,
                 commitments: self.commitments,
                 response: &response.0,
                 body: response.1.as_ref(),
@@ -97,7 +97,7 @@ impl<'a, 'b> HttpProofBuilder<'a, 'b> {
     }
 
     /// Builds the HTTP transcript proof.
-    pub fn build(mut self) -> Result<(), HttpProofBuilderError> {
+    pub fn build(mut self) -> Result<SubstringsProof, HttpProofBuilderError> {
         // Build any remaining request proofs
         for i in 0..self.requests.len() {
             if !self.built_requests[i] {
@@ -112,7 +112,7 @@ impl<'a, 'b> HttpProofBuilder<'a, 'b> {
             }
         }
 
-        Ok(())
+        self.builder.build().map_err(From::from)
     }
 }
 

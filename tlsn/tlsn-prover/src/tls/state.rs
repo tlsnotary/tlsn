@@ -1,3 +1,5 @@
+//! TLS prover states.
+
 use std::collections::HashMap;
 
 use mpz_garble_core::{encoding_state, EncodedValue};
@@ -10,7 +12,10 @@ use tls_core::{handshake::HandshakeData, key::PublicKey};
 use tls_mpc::MpcTlsLeader;
 use tlsn_core::{commitment::TranscriptCommitmentBuilder, Transcript};
 
-use crate::{Mux, MuxFuture, OTFuture};
+use crate::{
+    tls::{MuxFuture, OTFuture},
+    Mux,
+};
 
 /// Entry state
 pub struct Initialized;

@@ -1,16 +1,18 @@
 use tlsn_formats::http::{Body, Request, Response};
 
-use crate::{state as prover_state, Prover};
+use crate::{prover_state, Prover};
 
 /// The state of an HTTP prover
 pub trait State: sealed::Sealed {}
 
-/// The state of an HTTP prover after the connection is closed.
+/// Connection closed state.
 pub struct Closed {
     pub(super) prover: Prover<prover_state::Closed>,
+    pub(super) requests: Vec<(Request, Option<Body>)>,
+    pub(super) responses: Vec<(Response, Option<Body>)>,
 }
 
-/// The state of an HTTP prover during notarization.
+/// Notarizing state.
 pub struct Notarize {
     pub(super) prover: Prover<prover_state::Notarize>,
     pub(super) requests: Vec<(Request, Option<Body>)>,

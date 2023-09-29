@@ -3,6 +3,7 @@ use std::io::Write;
 use futures::AsyncWriteExt;
 use hyper::{body::to_bytes, Body, Request, StatusCode};
 
+use tlsn_core::proof::TlsProof;
 use tlsn_notary::{bind_notary, NotaryConfig};
 use tlsn_prover::{http::HttpProver, Prover, ProverConfig};
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -88,16 +89,29 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
 
     client_socket.close().await.unwrap();
 
-    let prover = prover_task.await.unwrap().unwrap();
+    let mut prover = prover_task
+        .await
+        .unwrap()
+        .unwrap()
+        .to_http()
+        .unwrap()
+        .start_notarize();
 
-    let mut prover = HttpProver::new(prover.start_notarize()).unwrap();
-
-    prover.commitment_builder().build().unwrap();
+    prover.commit().unwrap();
 
     let session = prover.finalize().await.unwrap();
 
     let mut file = std::fs::File::create("notarized_session.json").unwrap();
     file.write_all(bincode::serialize(&session).unwrap().as_slice())
+        .unwrap();
+
+    let proof = TlsProof {
+        session: session.session_proof(),
+        substrings: session.proof_builder().build().unwrap(),
+    };
+
+    let mut file = std::fs::File::create("proof.json").unwrap();
+    file.write_all(serde_json::to_string(&proof).unwrap().as_bytes())
         .unwrap();
 }
 

@@ -6,13 +6,10 @@
 pub mod state;
 
 use tlsn_formats::http::{
-    parse_body, parse_requests, parse_responses, Body, HttpCommitmentBuilder, NotarizedHttpSession,
-    ParseError,
+    parse_requests, parse_responses, HttpCommitmentBuilder, NotarizedHttpSession, ParseError,
 };
 
-use bytes::Bytes;
-use tlsn_core::{Direction, NotarizedSession};
-use utils::range::{RangeDifference, RangeSet, RangeUnion};
+use crate::{prover_state, Prover};
 
 /// An HTTP prover error.
 #[derive(Debug, thiserror::Error)]
@@ -25,18 +22,21 @@ pub enum HttpProverError {
     ParseError(#[from] ParseError),
 }
 
+pub struct HttpProverFuture {}
+
 /// An HTTP prover.
 pub struct HttpProver<S: state::State> {
     state: S,
 }
 
-impl HttpProver<state::Notarize> {
-    pub fn new(prover: crate::Prover<crate::state::Notarize>) -> Result<Self, HttpProverError> {
+impl HttpProver<state::Closed> {
+    /// Creates a new HTTP prover.
+    pub fn new(prover: Prover<prover_state::Closed>) -> Result<Self, HttpProverError> {
         let requests = parse_requests(prover.sent_transcript().data().clone())?;
         let responses = parse_responses(prover.recv_transcript().data().clone())?;
 
         Ok(Self {
-            state: state::Notarize {
+            state: state::Closed {
                 prover,
                 requests,
                 responses,
@@ -44,6 +44,32 @@ impl HttpProver<state::Notarize> {
         })
     }
 
+    /// Starts notarization of the HTTP session.
+    ///
+    /// If the verifier is a Notary, this function will transition the prover to the next state
+    /// where it can generate commitments to the transcript prior to finalization.
+    pub fn start_notarize(self) -> HttpProver<state::Notarize> {
+        HttpProver {
+            state: state::Notarize {
+                prover: self.state.prover.start_notarize(),
+                requests: self.state.requests,
+                responses: self.state.responses,
+            },
+        }
+    }
+}
+
+impl HttpProver<state::Notarize> {
+    /// Generates commitments to the HTTP session prior to finalization.
+    pub fn commit(&mut self) -> Result<(), HttpProverError> {
+        self.commitment_builder().build().unwrap();
+
+        Ok(())
+    }
+
+    /// Returns a commitment builder for the HTTP session.
+    ///
+    /// This is for more advanced use cases, you should prefer using `commit` instead.
     pub fn commitment_builder(&mut self) -> HttpCommitmentBuilder {
         HttpCommitmentBuilder::new(
             self.state.prover.commitment_builder(),
@@ -52,6 +78,7 @@ impl HttpProver<state::Notarize> {
         )
     }
 
+    /// Finalizes the HTTP session.
     pub async fn finalize(self) -> Result<NotarizedHttpSession, HttpProverError> {
         Ok(NotarizedHttpSession::new(
             self.state.prover.finalize().await?,
