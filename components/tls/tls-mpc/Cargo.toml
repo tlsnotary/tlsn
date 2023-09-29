@@ -41,7 +41,7 @@ tlsn-key-exchange = { path = "../../key-exchange" }
 tlsn-point-addition = { path = "../../point-addition" }
 tlsn-hmac-sha256 = { path = "../../prf/hmac-sha256" }
 
-tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "b182066" }
+tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "8d8ffe1" }
 
 p256.workspace = true
 rand.workspace = true
