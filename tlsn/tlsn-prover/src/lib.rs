@@ -311,6 +311,7 @@ impl Prover<Notarize> {
         };
 
         // Close the TLS connection cleanly with notary by triggering yamux to send CloseNotify
+        // This essentially solves this bug reported (https://github.com/tlsnotary/tlsn/issues/288)
         let mut notary_mux_control = notary_mux_control.into_inner();
         futures::try_join!(
             notary_mux_control.close().map_err(ProverError::from),

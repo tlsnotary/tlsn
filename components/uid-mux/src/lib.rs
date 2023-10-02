@@ -60,8 +60,7 @@ pub struct UidYamuxControl {
 }
 
 impl UidYamuxControl {
-    /// Close the TLS connection cleanly by triggering yamux to send CloseNotify
-    /// This essentially solves this bug reported (https://github.com/tlsnotary/tlsn/issues/288)
+    /// Close the connection
     pub async fn close(&mut self) -> Result<(), MuxerError> {
         self.control
             .close()
