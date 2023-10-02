@@ -29,6 +29,7 @@ use mpz_ot::{
     chou_orlandi, kos,
 };
 use mpz_share_conversion as ff;
+use mpz_share_conversion::ShareConversionReveal;
 use tls_client::{ClientConnection, ServerName as TlsServerName};
 use tlsn_core::{
     commitment::TranscriptCommitmentBuilder,

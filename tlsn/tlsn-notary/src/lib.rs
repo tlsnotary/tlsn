@@ -23,6 +23,7 @@ use mpz_ot::{
     chou_orlandi, kos,
 };
 use mpz_share_conversion as ff;
+use mpz_share_conversion::ShareConversionVerify;
 use rand::Rng;
 use signature::Signer;
 use tls_mpc::{setup_components, MpcTlsFollower, TlsRole};
