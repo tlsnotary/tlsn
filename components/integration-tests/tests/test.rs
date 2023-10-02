@@ -17,6 +17,7 @@ use mpz_ot::{
     kos::{Receiver, ReceiverConfig, Sender, SenderConfig},
 };
 use mpz_share_conversion as ff;
+use mpz_share_conversion::{ShareConversionReveal, ShareConversionVerify};
 use p256::{NonZeroScalar, PublicKey, SecretKey};
 use point_addition::{MpcPointAddition, Role as PointAdditionRole, P256};
 use rand::SeedableRng;
