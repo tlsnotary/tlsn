@@ -55,7 +55,7 @@ pub struct Closed {
 
 opaque_debug::implement!(Closed);
 
-/// The state for the [Prover](crate::Prover) during notarization
+/// Notarizing state.
 pub struct Notarize {
     /// A muxer for communication with the Notary
     pub(crate) notary_mux: Mux,

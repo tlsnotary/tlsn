@@ -10,7 +10,7 @@ use utils::range::{RangeSet, RangeSubset, RangeUnion};
 
 use super::PUBLIC_HEADERS;
 
-/// An HTTP commitment builder error.
+/// HTTP commitment builder error.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum HttpCommitmentBuilderError {
@@ -25,6 +25,7 @@ pub enum HttpCommitmentBuilderError {
     Commitment(#[from] TranscriptCommitmentBuilderError),
 }
 
+/// Builder for commitments to data in an HTTP connection.
 #[derive(Debug)]
 pub struct HttpCommitmentBuilder<'a> {
     builder: &'a mut TranscriptCommitmentBuilder,
@@ -106,6 +107,7 @@ impl<'a> HttpCommitmentBuilder<'a> {
     }
 }
 
+/// Builder for commitments to an HTTP request.
 #[derive(Debug)]
 pub struct HttpRequestCommitmentBuilder<'a> {
     builder: &'a mut TranscriptCommitmentBuilder,
@@ -224,6 +226,7 @@ impl<'a> HttpRequestCommitmentBuilder<'a> {
     }
 }
 
+/// Builder for commitments to an HTTP response.
 #[derive(Debug)]
 pub struct HttpResponseCommitmentBuilder<'a> {
     builder: &'a mut TranscriptCommitmentBuilder,

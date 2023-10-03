@@ -1,6 +1,8 @@
+//! HTTP prover state.
+
 use tlsn_formats::http::{Body, Request, Response};
 
-use crate::{prover_state, Prover};
+use crate::tls::{state as prover_state, Prover};
 
 /// The state of an HTTP prover
 pub trait State: sealed::Sealed {}

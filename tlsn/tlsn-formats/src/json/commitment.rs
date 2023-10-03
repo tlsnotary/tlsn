@@ -11,12 +11,15 @@ use tlsn_core::{
 
 use super::public_ranges;
 
+/// JSON commitment builder error.
 #[derive(Debug, thiserror::Error)]
 pub enum JsonCommitmentBuilderError {
+    /// Transcript commitment builder error.
     #[error("commitment builder error: {0}")]
     Commitment(#[from] TranscriptCommitmentBuilderError),
 }
 
+/// Builder for commitments to a JSON value.
 #[derive(Debug)]
 pub struct JsonCommitmentBuilder<'a> {
     builder: &'a mut TranscriptCommitmentBuilder,
@@ -61,6 +64,7 @@ impl<'a> JsonCommitmentBuilder<'a> {
         .map_err(From::from)
     }
 
+    /// Finishes building commitments the a JSON value.
     pub fn build(mut self) -> Result<(), JsonCommitmentBuilderError> {
         let public_ranges = public_ranges(self.value);
 

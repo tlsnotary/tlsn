@@ -9,6 +9,7 @@ use tlsn_core::{
 
 use crate::json::public_ranges;
 
+/// JSON proof builder error.
 #[derive(Debug, thiserror::Error)]
 pub enum JsonProofBuilderError {
     /// Missing value
@@ -17,10 +18,12 @@ pub enum JsonProofBuilderError {
     /// Missing commitment.
     #[error("missing commitment")]
     MissingCommitment,
+    /// Substrings proof builder error.
     #[error("proof builder error: {0}")]
     Proof(#[from] SubstringsProofBuilderError),
 }
 
+/// Builder for proofs of a JSON value.
 #[derive(Debug)]
 pub struct JsonProofBuilder<'a, 'b> {
     builder: &'a mut SubstringsProofBuilder<'b>,
@@ -78,6 +81,7 @@ impl<'a, 'b> JsonProofBuilder<'a, 'b> {
         Ok(())
     }
 
+    /// Finishes building the JSON proof.
     pub fn build(self) -> Result<(), JsonProofBuilderError> {
         let public_ranges = public_ranges(self.value);
 

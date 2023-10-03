@@ -5,7 +5,7 @@ use hyper::{body::to_bytes, Body, Request, StatusCode};
 
 use tlsn_core::proof::TlsProof;
 use tlsn_notary::{bind_notary, NotaryConfig};
-use tlsn_prover::{http::HttpProver, Prover, ProverConfig};
+use tlsn_prover::tls::{Prover, ProverConfig};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::instrument;

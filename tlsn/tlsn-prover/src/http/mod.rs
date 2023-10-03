@@ -1,28 +1,37 @@
 //! HTTP Prover.
-
-#![allow(missing_docs)]
-#![allow(unreachable_pub)]
+//!
+//! An HTTP prover can be created from a TLS [`Prover`](crate::tls::Prover), after the TLS connection has been closed, by calling the
+//! [`to_http`](crate::tls::Prover::to_http) method.
+//!
+//! The [`HttpProver`] provides higher-level APIs for committing and proving data communicated during an HTTP connection.
 
 pub mod state;
 
-use tlsn_formats::http::{
-    parse_requests, parse_responses, HttpCommitmentBuilder, NotarizedHttpSession, ParseError,
+use tlsn_formats::http::{parse_requests, parse_responses, ParseError};
+
+use crate::tls::{state as prover_state, Prover, ProverError};
+
+pub use tlsn_formats::{
+    http::{
+        HttpCommitmentBuilder, HttpCommitmentBuilderError, HttpProofBuilder, HttpProofBuilderError,
+        HttpRequestCommitmentBuilder, HttpResponseCommitmentBuilder, NotarizedHttpSession,
+    },
+    json::{
+        JsonBody, JsonCommitmentBuilder, JsonCommitmentBuilderError, JsonProofBuilder,
+        JsonProofBuilderError,
+    },
 };
 
-use crate::{prover_state, Prover};
-
-/// An HTTP prover error.
+/// HTTP prover error.
 #[derive(Debug, thiserror::Error)]
 pub enum HttpProverError {
     /// An error originated from the TLS prover.
     #[error(transparent)]
-    ProverError(#[from] crate::ProverError),
+    ProverError(#[from] ProverError),
     /// An error occurred while parsing the HTTP data.
     #[error(transparent)]
     ParseError(#[from] ParseError),
 }
-
-pub struct HttpProverFuture {}
 
 /// An HTTP prover.
 pub struct HttpProver<S: state::State> {

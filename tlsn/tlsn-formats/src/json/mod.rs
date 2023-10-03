@@ -23,7 +23,7 @@ pub struct JsonBody(pub(crate) JsonValue);
 pub(crate) fn public_ranges(value: &JsonValue) -> RangeSet<usize> {
     #[derive(Default)]
     struct PrivateRanges {
-        pub private_ranges: RangeSet<usize>,
+        private_ranges: RangeSet<usize>,
     }
 
     // For now only numbers and strings are redactable.

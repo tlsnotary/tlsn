@@ -8,7 +8,7 @@ use tlsn_core::{
     Direction,
 };
 
-/// An HTTP proof builder error.
+/// HTTP proof builder error.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum HttpProofBuilderError {
@@ -26,6 +26,7 @@ pub enum HttpProofBuilderError {
     Proof(#[from] SubstringsProofBuilderError),
 }
 
+/// Builder for proofs of data in an HTTP connection.
 #[derive(Debug)]
 pub struct HttpProofBuilder<'a, 'b> {
     builder: SubstringsProofBuilder<'b>,

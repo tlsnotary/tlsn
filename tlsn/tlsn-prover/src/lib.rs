@@ -1,7 +1,8 @@
 //! The prover library
 //!
-//! This library provides the [Prover] type. It can be used for creating TLS connections with a
-//! server which can be notarized with the help of a notary.
+//! This library contains TLSNotary prover implementations:
+//!   * [`tls`] for the low-level API for working with the underlying byte streams of a TLS connection.
+//!   * [`http`] for a higher-level API which provides abstractions for working with HTTP connections.
 
 #![deny(missing_docs, unreachable_pub, unused_must_use)]
 #![deny(clippy::all)]
@@ -9,12 +10,7 @@
 
 #[cfg(feature = "formats")]
 pub mod http;
-mod tls;
-
-pub use tls::{
-    state as prover_state, Prover, ProverConfig, ProverConfigBuilder, ProverConfigBuilderError,
-    ProverError, ProverFuture,
-};
+pub mod tls;
 
 use uid_mux::UidYamuxControl;
 use utils_aio::codec::BincodeMux;

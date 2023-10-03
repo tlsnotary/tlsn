@@ -16,7 +16,7 @@ use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::debug;
 
 use notary_server::{ClientType, NotarizationSessionRequest, NotarizationSessionResponse};
-use tlsn_prover::{Prover, ProverConfig};
+use tlsn_prover::tls::{Prover, ProverConfig};
 
 const SERVER_DOMAIN: &str = "example.com";
 const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36";

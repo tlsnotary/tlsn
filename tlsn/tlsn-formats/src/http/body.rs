@@ -22,10 +22,13 @@ pub enum Body {
     Unknown(UnknownSpan),
 }
 
+/// Builder for commitments to an HTTP body.
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum BodyCommitmentBuilder<'a> {
+    /// Builder for commitments to a JSON body.
     Json(JsonCommitmentBuilder<'a>),
+    /// Builder for commitments to a body with an unknown format.
     Unknown(UnknownCommitmentBuilder<'a>),
 }
 
@@ -59,10 +62,13 @@ impl<'a> BodyCommitmentBuilder<'a> {
     }
 }
 
+/// Builder for proofs of an HTTP body.
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum BodyProofBuilder<'a, 'b> {
+    /// Builder for proofs of a JSON body.
     Json(JsonProofBuilder<'a, 'b>),
+    /// Builder for proofs of a body with an unknown format.
     Unknown(UnknownProofBuilder<'a, 'b>),
 }
 

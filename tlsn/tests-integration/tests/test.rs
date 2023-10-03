@@ -1,7 +1,7 @@
 use futures::AsyncWriteExt;
 use hyper::{body::to_bytes, Body, Request, StatusCode};
 use tlsn_notary::{bind_notary, NotaryConfig};
-use tlsn_prover::{Prover, ProverConfig};
+use tlsn_prover::tls::{Prover, ProverConfig};
 use tlsn_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
