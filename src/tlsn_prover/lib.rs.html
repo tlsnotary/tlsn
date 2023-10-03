@@ -490,6 +490,16 @@
 <a href="#490" id="490">490</a>
 <a href="#491" id="491">491</a>
 <a href="#492" id="492">492</a>
+<a href="#493" id="493">493</a>
+<a href="#494" id="494">494</a>
+<a href="#495" id="495">495</a>
+<a href="#496" id="496">496</a>
+<a href="#497" id="497">497</a>
+<a href="#498" id="498">498</a>
+<a href="#499" id="499">499</a>
+<a href="#500" id="500">500</a>
+<a href="#501" id="501">501</a>
+<a href="#502" id="502">502</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! The prover library
 //!
 //! This library provides the [Prover] type. It can be used for creating TLS connections with a
@@ -521,6 +531,7 @@
     chou_orlandi, kos,
 };
 <span class="kw">use </span>mpz_share_conversion <span class="kw">as </span>ff;
+<span class="kw">use </span>mpz_share_conversion::ShareConversionReveal;
 <span class="kw">use </span>tls_client::{ClientConnection, ServerName <span class="kw">as </span>TlsServerName};
 <span class="kw">use </span>tlsn_core::{
     commitment::TranscriptCommitmentBuilder,
@@ -773,6 +784,7 @@
 
         <span class="kw">let </span>merkle_root = session_data.commitments().merkle_root();
 
+        <span class="kw">let </span>notary_mux_control = notary_mux.clone();
         <span class="kw">let </span>notarize_fut = <span class="kw">async move </span>{
             <span class="kw">let </span><span class="kw-2">mut </span>channel = notary_mux.get_channel(<span class="string">&quot;notarize&quot;</span>).<span class="kw">await</span><span class="question-mark">?</span>;
 
@@ -800,6 +812,14 @@
             <span class="kw">_ </span>= ot_fut =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(OTShutdownError)<span class="question-mark">?</span>,
             <span class="kw">_ </span>= mux_fut =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))<span class="question-mark">?</span>,
         };
+
+        <span class="comment">// Close the TLS connection cleanly with notary by triggering yamux to send CloseNotify
+        // This essentially solves this bug reported (https://github.com/tlsnotary/tlsn/issues/288)
+        </span><span class="kw">let </span><span class="kw-2">mut </span>notary_mux_control = notary_mux_control.into_inner();
+        <span class="macro">futures::try_join!</span>(
+            notary_mux_control.close().map_err(ProverError::from),
+            mux_fut,
+        )<span class="question-mark">?</span>;
 
         <span class="comment">// Check the header is consistent with the Prover&#39;s view
         </span>header

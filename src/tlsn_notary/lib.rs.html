@@ -293,6 +293,7 @@
 <a href="#293" id="293">293</a>
 <a href="#294" id="294">294</a>
 <a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! The notary library
 //!
 //! This library provides the [Notary] type for notarizing TLS sessions
@@ -318,6 +319,7 @@
     chou_orlandi, kos,
 };
 <span class="kw">use </span>mpz_share_conversion <span class="kw">as </span>ff;
+<span class="kw">use </span>mpz_share_conversion::ShareConversionVerify;
 <span class="kw">use </span>rand::Rng;
 <span class="kw">use </span>signature::Signer;
 <span class="kw">use </span>tls_mpc::{setup_components, MpcTlsFollower, TlsRole};
