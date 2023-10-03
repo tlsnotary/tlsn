@@ -29,6 +29,7 @@ use mpz_ot::{
     chou_orlandi, kos,
 };
 use mpz_share_conversion as ff;
+use mpz_share_conversion::ShareConversionReveal;
 use tls_client::{ClientConnection, ServerName as TlsServerName};
 use tlsn_core::{
     commitment::TranscriptCommitmentBuilder,
@@ -281,6 +282,7 @@ impl Prover<Notarize> {
 
         let merkle_root = session_data.commitments().merkle_root();
 
+        let notary_mux_control = notary_mux.clone();
         let notarize_fut = async move {
             let mut channel = notary_mux.get_channel("notarize").await?;
 
@@ -308,6 +310,14 @@ impl Prover<Notarize> {
             _ = ot_fut => return Err(OTShutdownError)?,
             _ = mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
         };
+
+        // Close the TLS connection cleanly with notary by triggering yamux to send CloseNotify
+        // This essentially solves this bug reported (https://github.com/tlsnotary/tlsn/issues/288)
+        let mut notary_mux_control = notary_mux_control.into_inner();
+        futures::try_join!(
+            notary_mux_control.close().map_err(ProverError::from),
+            mux_fut,
+        )?;
 
         // Check the header is consistent with the Prover's view
         header

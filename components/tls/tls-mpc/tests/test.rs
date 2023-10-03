@@ -11,6 +11,7 @@ use mpz_ot::{
     kos::{Receiver, ReceiverConfig, Sender, SenderConfig},
 };
 use mpz_share_conversion as ff;
+use mpz_share_conversion::{ShareConversionReveal, ShareConversionVerify};
 use tls_client::Certificate;
 use tls_client_async::bind_client;
 use tls_mpc::{
