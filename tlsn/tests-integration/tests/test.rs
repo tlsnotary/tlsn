@@ -1,8 +1,8 @@
 use futures::AsyncWriteExt;
 use hyper::{body::to_bytes, Body, Request, StatusCode};
-use tls_server_fixture::{bind_test_server_hyper, CA_CERT_DER, SERVER_DOMAIN};
 use tlsn_notary::{bind_notary, NotaryConfig};
 use tlsn_prover::{Prover, ProverConfig};
+use tlsn_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::instrument;
@@ -21,7 +21,7 @@ async fn test() {
 async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socket: T) {
     let (client_socket, server_socket) = tokio::io::duplex(2 << 16);
 
-    let server_task = tokio::spawn(bind_test_server_hyper(server_socket.compat()));
+    let server_task = tokio::spawn(tlsn_server_fixture::bind(server_socket.compat()));
 
     let mut root_store = tls_core::anchors::RootCertStore::empty();
     root_store
@@ -51,11 +51,11 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
     let connection_task = tokio::spawn(connection.without_shutdown());
 
     let request = Request::builder()
-        .uri(format!("https://{}/echo", SERVER_DOMAIN))
+        .uri(format!("https://{}", SERVER_DOMAIN))
         .header("Host", SERVER_DOMAIN)
         .header("Connection", "close")
-        .method("POST")
-        .body(Body::from("echo"))
+        .method("GET")
+        .body(Body::empty())
         .unwrap();
 
     let response = request_sender.send_request(request).await.unwrap();
@@ -67,10 +67,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
         String::from_utf8_lossy(&to_bytes(response.into_body()).await.unwrap())
     );
 
-    let mut server_tls_conn = server_task.await.unwrap().unwrap();
-
-    // Make sure the server closes cleanly (sends close notify)
-    server_tls_conn.close().await.unwrap();
+    server_task.await.unwrap();
 
     let mut client_socket = connection_task.await.unwrap().unwrap().io.into_inner();
 
