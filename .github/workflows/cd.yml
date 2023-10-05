@@ -1,0 +1,51 @@
+name: cd
+
+on:
+  push:
+    tags:
+      - "[v]?[0-9]+.[0-9]+.[0-9]+*"
+
+env:
+  CONTAINER_REGISTRY: ghcr.io
+
+jobs:
+  build_and_publish_image:
+    name: Build and publish image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Wait for test workflow to succeed
+        uses: lewagon/wait-on-check-action@v1.3.1
+        with:
+          ref: ${{ github.ref }}
+          check-name: 'Build and test'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          # How frequent (in seconds) this job will call GitHub API to check the status of the job specified at 'check-name'
+          wait-interval: 60
+
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.CONTAINER_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker image of notary server
+        id: meta-notary-server
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.CONTAINER_REGISTRY }}/${{ github.repository }}/notary-server
+
+      - name: Build and push Docker image of notary server
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta-notary-server.outputs.tags }}
+          labels: ${{ steps.meta-notary-server.outputs.labels }}
+          file: ./notary-server/notary-server.Dockerfile

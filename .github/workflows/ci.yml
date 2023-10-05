@@ -1,10 +1,14 @@
-name: Rust
+name: ci
 
 on:
   push:
-    branches: [dev]
+    branches:
+      - dev
+    tags:
+      - "[v]?[0-9]+.[0-9]+.[0-9]+*"
   pull_request:
-    branches: [dev]
+    branches:
+      - dev
 
 env:
   CARGO_TERM_COLOR: always
@@ -12,6 +16,7 @@ env:
 
 jobs:
   build_and_test:
+    name: Build and test
     if: ( ! github.event.pull_request.draft )
     runs-on: ubuntu-latest
     strategy:
@@ -28,6 +33,7 @@ jobs:
           - components/prf
           - components/tls
           - tlsn
+          - notary-server
         include:
           - package: components/integration-tests
             release: true
@@ -35,9 +41,10 @@ jobs:
       run:
         working-directory: ${{ matrix.package }}
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-      - name: Nightly with rustfmt
+      - name: Install nightly rust toolchain with rustfmt
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: nightly
@@ -46,13 +53,17 @@ jobs:
       - name: "Check formatting"
         run: cargo +nightly fmt --check --all
 
-      - name: Stable
+      - name: Install stable rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
           components: clippy
+    
+      - name: "Clippy"
+        run: cargo clippy --all-features -- -D warnings
 
-      - uses: Swatinem/rust-cache@v2.5.0
+      - name: Use caching
+        uses: Swatinem/rust-cache@v2.5.0
         with:
           workspaces: ${{ matrix.package }} -> target
 
@@ -61,7 +72,7 @@ jobs:
 
       - name: "Test"
         if: ${{ matrix.release != true }}
-        run: cargo test --lib --bins --tests --examples --workspace
+        run: RUST_LOG=DEBUG cargo test --lib --bins --tests --examples --workspace -- --nocapture
 
       - name: "Integration Test"
         if: ${{ matrix.release == true }}
@@ -69,6 +80,3 @@ jobs:
 
       - name: "Check that benches compile"
         run: cargo bench --no-run
-
-      - name: "Clippy"
-        run: cargo clippy --all-features -- -D warnings

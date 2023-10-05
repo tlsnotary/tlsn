@@ -1,0 +1,123 @@
+openapi: 3.0.0
+
+info:
+  title: Notary Server
+  description: Notary server written in Rust to provide notarization service.
+  version: 0.1.0
+
+tags:
+  - name: Notarization
+
+paths:
+  /session:
+    post:
+      tags:
+        - Notarization
+      description: Initialize and configure notarization for both TCP and WebSocket clients
+      parameters:
+        - in: header
+          name: Content-Type
+          description: The value must be application/json
+          schema:
+            type: string
+            enum:
+              - "application/json"
+          required: true
+      requestBody:
+        description: Notarization session request to server
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotarizationSessionRequest"
+      responses:
+        "200":
+          description: Notarization session response from server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotarizationSessionResponse"
+        "400":
+          description: Configuration parameters or headers provided by prover are invalid
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Invalid request from prover: Failed to deserialize the JSON body into the target type"
+        "500":
+          description: There was some internal error when processing
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Something is wrong"
+  /notarize:
+    get:
+      tags:
+        - Notarization
+      description: Start notarization for TCP client
+      parameters:
+        - in: header
+          name: Connection
+          description: The value should be 'Upgrade'
+          schema:
+            type: string
+            enum:
+              - "Upgrade"
+          required: true
+        - in: header
+          name: Upgrade
+          description: The value should be 'TCP'
+          schema:
+            type: string
+            enum:
+              - "TCP"
+          required: true
+        - in: header
+          name: X-Session-Id
+          description: Unique ID returned from server upon calling POST /session
+          schema:
+            type: string
+          required: true
+      responses:
+        "101":
+          description: Switching protocol response
+        "400":
+          description: Headers provided by prover are invalid
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Invalid request from prover: Upgrade header is not set for client"
+        "500":
+          description: There was some internal error when processing
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Something is wrong"
+
+components:
+  schemas:
+    NotarizationSessionRequest:
+      type: object
+      properties:
+        clientType:
+          description: Types of client that the prover is using
+          type: string
+          enum:
+            - "Tcp"
+            - "Websocket"
+        maxTranscriptSize:  
+          description: Maximum transcript size in bytes
+          type: integer
+      required:
+        - "clientType"
+        - "maxTranscriptSize"
+    NotarizationSessionResponse:
+      type: object
+      properties:
+        sessionId:
+          type: string
+      required:
+        - "sessionId"

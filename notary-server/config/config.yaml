@@ -1,0 +1,17 @@
+server:
+  name: "notary-server"
+  host: "0.0.0.0"
+  port: 7047
+
+notarization:
+  max-transcript-size: 16384
+
+tls-signature:
+  private-key-pem-path: "./fixture/tls/notary.key"
+  certificate-pem-path: "./fixture/tls/notary.crt"
+
+notary-signature:
+  private-key-pem-path: "./fixture/notary/notary.key"
+
+tracing:
+  default-level: DEBUG
