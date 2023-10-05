@@ -1,0 +1,47 @@
+{
+  "id": 1234567890,
+  "information": {
+    "name": "John Doe",
+    "address": {
+      "street": "123 Elm Street",
+      "city": "Anytown",
+      "state": "XY",
+      "postalCode": "12345"
+    },
+    "favoriteColors": ["blue", "red", "green", "yellow"],
+    "description": "John is a software engineer. He enjoys hiking, playing video games, and reading books. His favorite book is 'Moby Dick'.",
+    "education": {
+      "degree": "Bachelor's in Computer Science",
+      "school": "Anytown University"
+    },
+    "family": {
+      "siblings": [
+        {
+          "name": "Jane Doe",
+          "relation": "Sister",
+          "age": 24
+        },
+        {
+          "name": "Jack Doe",
+          "relation": "Brother",
+          "age": 20
+        }
+      ],
+      "parents": {
+        "father": {
+          "name": "James Doe",
+          "age": 55
+        },
+        "mother": {
+          "name": "Jenny Doe",
+          "age": 53
+        }
+      }
+    }
+  },
+  "meta": {
+    "createdAt": "2022-01-15T14:52:55Z",
+    "lastUpdatedAt": "2023-01-12T16:42:10Z",
+    "version": 1.2
+  }
+}

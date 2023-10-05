@@ -8,7 +8,7 @@ publish = false
 tlsn-tls-core.workspace = true
 tlsn-prover.workspace = true
 tlsn-notary.workspace = true
-tls-server-fixture.workspace = true
+tlsn-server-fixture.workspace = true
 
 p256 = { workspace = true, features = ["ecdsa"] }
 hyper = { workspace = true, features = ["client", "http1"] }
