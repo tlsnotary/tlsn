@@ -1,6 +1,6 @@
 // This example shows how to notarize Discord DMs.
 //
-// The example uses the notary server implemented in https://github.com/tlsnotary/notary-server
+// The example uses the notary server implemented in ../../notary-server
 
 use eyre::Result;
 use futures::AsyncWriteExt;
@@ -26,7 +26,7 @@ use tlsn_prover::{Prover, ProverConfig};
 // Setting of the application server
 const SERVER_DOMAIN: &str = "discord.com";
 
-// Setting of the notary server — make sure these are the same with those in the notary-server repository used (https://github.com/tlsnotary/notary-server)
+// Setting of the notary server — make sure these are the same with those in the notary-server
 const NOTARY_DOMAIN: &str = "127.0.0.1";
 const NOTARY_PORT: u16 = 7047;
 const NOTARY_CA_CERT_PATH: &str = "../rootCA.crt";

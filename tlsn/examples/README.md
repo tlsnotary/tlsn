@@ -10,8 +10,7 @@ This folder contains examples showing how to use the TLSNotary protocol.
 Before running the examples please make sure that the Notary server is already running. The server can be started with:
 
 ```shell
-git clone https://github.com/tlsnotary/notary-server
-cd notary-server
+cd ../../notary-server
 cargo run --release
 ```
 
