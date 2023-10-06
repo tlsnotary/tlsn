@@ -121,7 +121,7 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
                                 // error.
                                 let _ignored = client.write_tls_async(&mut server_tx).await;
 
-                                return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+                                Err(std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
                             }
                         }
 
