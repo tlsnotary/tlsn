@@ -31,6 +31,8 @@ jobs:
         include:
           - package: components/integration-tests
             release: true
+          - package: tlsn
+            all-features: true
     defaults:
       run:
         working-directory: ${{ matrix.package }}
@@ -64,7 +66,7 @@ jobs:
         run: cargo test --lib --bins --tests --examples --workspace
 
       - name: "Test all features"
-        if: ${{ matrix.release != true }}
+        if: ${{ matrix.release != true && matrix.all-features == true }}
         run: cargo test --lib --bins --tests --examples --workspace --all-features
 
       - name: "Integration Test"
@@ -72,7 +74,7 @@ jobs:
         run: cargo test --release --tests
 
       - name: "Integration Test all features"
-        if: ${{ matrix.release == true }}
+        if: ${{ matrix.release == true && matrix.all-features == true }}
         run: cargo test --release --tests --all-features
 
       - name: "Check that benches compile"
