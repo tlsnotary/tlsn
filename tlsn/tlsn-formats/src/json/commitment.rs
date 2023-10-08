@@ -65,7 +65,7 @@ impl<'a> JsonCommitmentBuilder<'a> {
     }
 
     /// Finishes building commitments the a JSON value.
-    pub fn build(mut self) -> Result<(), JsonCommitmentBuilderError> {
+    pub fn build(self) -> Result<(), JsonCommitmentBuilderError> {
         let public_ranges = public_ranges(self.value);
 
         match self.direction {
@@ -74,7 +74,7 @@ impl<'a> JsonCommitmentBuilder<'a> {
         };
 
         let mut visitor = JsonCommitter {
-            builder: &mut self.builder,
+            builder: self.builder,
             direction: self.direction,
             err: None,
         };

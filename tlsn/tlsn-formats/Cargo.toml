@@ -13,5 +13,5 @@ serde.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
-tlsn-fixtures.workspace = true
+tlsn-core = { workspace = true, features = ["fixtures"] }
 rstest.workspace = true

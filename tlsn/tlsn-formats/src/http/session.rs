@@ -43,7 +43,7 @@ impl NotarizedHttpSession {
     pub fn proof_builder(&self) -> HttpProofBuilder {
         HttpProofBuilder::new(
             self.session.data().build_substrings_proof(),
-            &self.session.data().commitments(),
+            self.session.data().commitments(),
             &self.requests,
             &self.responses,
         )

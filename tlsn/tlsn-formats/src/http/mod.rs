@@ -80,10 +80,10 @@ mod tests {
     use bytes::Bytes;
     use tlsn_core::{
         commitment::{CommitmentKind, TranscriptCommitmentBuilder},
+        fixtures,
         proof::SubstringsProofBuilder,
         Direction, Transcript,
     };
-    use tlsn_fixtures::notarization as fixtures;
 
     static TX: &[u8] = b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n\
     POST /hello HTTP/1.1\r\nHost: localhost\r\nContent-Length: 44\r\nContent-Type: application/json\r\n\r\n\
@@ -97,7 +97,7 @@ mod tests {
     #[test]
     fn test_http_commit() {
         let mut transcript_commitment_builder = TranscriptCommitmentBuilder::new(
-            fixtures::encoding_provider_with_data(TX, RX),
+            fixtures::encoding_provider(TX, RX),
             TX.len(),
             RX.len(),
         );
@@ -145,7 +145,7 @@ mod tests {
         let transcript_rx = Transcript::new(RX);
 
         let mut transcript_commitment_builder = TranscriptCommitmentBuilder::new(
-            fixtures::encoding_provider_with_data(TX, RX),
+            fixtures::encoding_provider(TX, RX),
             TX.len(),
             RX.len(),
         );
@@ -194,8 +194,7 @@ mod tests {
 
         let proof = builder.build().unwrap();
 
-        let header =
-            fixtures::session_header_with_data(commitments.merkle_root(), TX.len(), RX.len());
+        let header = fixtures::session_header(commitments.merkle_root(), TX.len(), RX.len());
 
         let (sent, recv) = proof.verify(&header).unwrap();
 
