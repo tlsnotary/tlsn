@@ -154,8 +154,7 @@ pub fn encoder_seed() -> [u8; 32] {
 pub fn server_ephemeral_key() -> PublicKey {
     PublicKey::new(
         NamedGroup::secp256r1,
-        &<[u8; 32]>::from_hex(include_bytes!("testdata/key_exchange/tlsnotary.org/pubkey"))
-            .unwrap(),
+        &Vec::<u8>::from_hex(include_bytes!("testdata/key_exchange/tlsnotary.org/pubkey")).unwrap(),
     )
 }
 
