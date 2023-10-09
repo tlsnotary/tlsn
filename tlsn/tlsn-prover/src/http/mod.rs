@@ -27,10 +27,13 @@ pub use tlsn_formats::{
 pub enum HttpProverError {
     /// An error originated from the TLS prover.
     #[error(transparent)]
-    ProverError(#[from] ProverError),
+    Prover(#[from] ProverError),
+    /// Commitment error.
+    #[error(transparent)]
+    Commitment(#[from] HttpCommitmentBuilderError),
     /// An error occurred while parsing the HTTP data.
     #[error(transparent)]
-    ParseError(#[from] ParseError),
+    Parse(#[from] ParseError),
 }
 
 /// An HTTP prover.
@@ -71,7 +74,7 @@ impl HttpProver<state::Closed> {
 impl HttpProver<state::Notarize> {
     /// Generates commitments to the HTTP session prior to finalization.
     pub fn commit(&mut self) -> Result<(), HttpProverError> {
-        self.commitment_builder().build().unwrap();
+        self.commitment_builder().build()?;
 
         Ok(())
     }
