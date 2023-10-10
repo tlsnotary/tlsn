@@ -72,7 +72,7 @@ jobs:
 
       - name: "Test"
         if: ${{ matrix.release != true }}
-        run: RUST_LOG=DEBUG cargo test --lib --bins --tests --examples --workspace -- --nocapture
+        run: cargo test --lib --bins --tests --examples --workspace
 
       - name: "Integration Test"
         if: ${{ matrix.release == true }}

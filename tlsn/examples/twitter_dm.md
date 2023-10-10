@@ -27,9 +27,9 @@ Next, open the **Developer Tools**, go to the **Network** tab, and refresh the p
 ![Screenshot](twitter_dm_browser.png)
 
 ## Start the notary server
-
-```
-cd ../../notary-server
+At the root level of this repository, run 
+```sh
+cd notary-server
 cargo run --release
 ```
 

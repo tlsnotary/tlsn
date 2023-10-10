@@ -1,6 +1,6 @@
 // This example shows how to notarize Discord DMs.
 //
-// The example uses the notary server implemented in ../../notary-server
+// The example uses the notary server implemented in ../../../notary-server
 
 use eyre::Result;
 use futures::AsyncWriteExt;

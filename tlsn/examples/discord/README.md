@@ -27,9 +27,9 @@ You can find the `CHANNEL_ID` directly in the url:
 `https://discord.com/channels/@me/{CHANNEL_ID)`
 
 ## Start the notary server
-
-```
-cd ../../../notary-server
+At the root level of this repository, run 
+```sh
+cd notary-server
 cargo run --release
 ```
 

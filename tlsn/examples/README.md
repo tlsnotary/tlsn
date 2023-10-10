@@ -7,10 +7,10 @@ This folder contains examples showing how to use the TLSNotary protocol.
 
 ### Starting a notary server
 
-Before running the examples please make sure that the Notary server is already running. The server can be started with:
+Before running the examples please make sure that the Notary server is already running. The server can be started with the following command at the root level of this repository:
 
 ```shell
-cd ../../notary-server
+cd notary-server
 cargo run --release
 ```
 

@@ -15,11 +15,16 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
 # Guide
+Clone this repository first
+
+```shell
+git clone https://github.com/tlsnotary/tlsn
+```
 
 ### Start a Notary server:
 
 ```shell
-cd ../../notary-server
+cd tlsn/notary-server
 cargo run --release
 ```
 
@@ -30,7 +35,6 @@ For more information on how to configure the `Notary` server, please refer to [t
 ### Run a simple Prover:
 
 ```shell
-git clone https://github.com/tlsnotary/tlsn
 cd tlsn/tlsn/examples
 cargo run --release --example simple_prover
 ```
