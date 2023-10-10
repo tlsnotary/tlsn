@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["NotaryPublicKey","ServerName","Signature"],"mod":["commitment","merkle","msg","proof","session","transcript"]};
+window.SIDEBAR_ITEMS = {"enum":["NotaryPublicKey","ServerName","Signature"],"mod":["commitment","fixtures","merkle","msg","proof","session","transcript"]};
