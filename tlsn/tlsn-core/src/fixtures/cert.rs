@@ -1,12 +1,10 @@
 use tls_core::{
-    anchors::{OwnedTrustAnchor, RootCertStore},
     key::{Certificate, PublicKey},
     msgs::{
         codec::Codec,
         enums::{NamedGroup, SignatureScheme},
         handshake::{DigitallySignedStruct, Random, ServerECDHParams},
     },
-    verify::ServerCertVerifier,
 };
 
 use hex::FromHex;
