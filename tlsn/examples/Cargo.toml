@@ -6,7 +6,7 @@ publish = false
 
 [dev-dependencies]
 tlsn-prover = { workspace = true, features = ["tracing"] }
-tlsn-notary.workspace = true
+tlsn-verifier.workspace = true
 tlsn-core.workspace = true
 tlsn-tls-core.workspace = true
 tlsn-tls-client.workspace = true

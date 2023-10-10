@@ -8,7 +8,7 @@ publish = false
 tlsn-core.workspace = true
 tlsn-tls-core.workspace = true
 tlsn-prover = { workspace = true, features = ["formats"] }
-tlsn-notary.workspace = true
+tlsn-verifier.workspace = true
 tlsn-server-fixture.workspace = true
 
 p256 = { workspace = true, features = ["ecdsa"] }
