@@ -162,7 +162,7 @@ mod tests {
     #[rstest]
     #[case(tlsnotary())]
     #[case(appliedzkp())]
-    fn test_verify_cert_chain_sucess_ca_implicit(
+    fn test_verify_cert_chain_success_ca_implicit(
         cert_verifier: impl ServerCertVerifier,
         #[case] data: TestData,
     ) {
