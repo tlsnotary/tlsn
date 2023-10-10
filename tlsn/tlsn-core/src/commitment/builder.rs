@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use bimap::BiMap;
 use mpz_core::hash::Hash;
-use mpz_garble_core::{encoding_state, EncodedValue};
 use utils::range::RangeSet;
 
 use crate::{
@@ -11,11 +10,8 @@ use crate::{
     },
     merkle::MerkleTree,
     transcript::get_value_ids,
-    Direction,
+    Direction, EncodingProvider,
 };
-
-type EncodingProvider =
-    Box<dyn Fn(&[&str]) -> Option<Vec<EncodedValue<encoding_state::Active>>> + Send>;
 
 /// An error for [`TranscriptCommitmentBuilder`]
 #[derive(Debug, thiserror::Error)]

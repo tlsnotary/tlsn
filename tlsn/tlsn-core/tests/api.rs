@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::Range};
+use std::ops::Range;
 
 use p256::{
     ecdsa::{
@@ -17,19 +17,16 @@ use tls_core::{
     msgs::{enums::SignatureScheme, handshake::DigitallySignedStruct},
 };
 
-use mpz_circuits::types::ValueType;
-use mpz_core::{commit::HashCommit, serialize::CanonicalSerialize, value::ValueId};
-use mpz_garble_core::{encoding_state, ChaChaEncoder, EncodedValue, Encoder};
+use mpz_core::{commit::HashCommit, serialize::CanonicalSerialize};
 
 use tlsn_core::{
     commitment::TranscriptCommitmentBuilder,
+    fixtures,
     msg::SignedSessionHeader,
     proof::{SessionProof, SubstringsProof},
     session::SessionData,
     HandshakeSummary, NotarizedSession, ServerName, SessionHeader, Signature, Transcript,
 };
-
-use tlsn_fixtures as fixtures;
 
 #[test]
 /// Tests that the commitment creation protocol and verification work end-to-end
@@ -46,16 +43,7 @@ fn test_api() {
     let range2: Range<usize> = Range { start: 1, end: 3 };
 
     // Plaintext encodings which the Prover obtained from GC evaluation
-    // (for simplicity of this test we instead generate the encodings using the Notary's encoder)
-    let notary_encoder_seed = [5u8; 32];
-    let notary_encoder = ChaChaEncoder::new(notary_encoder_seed);
-
-    let active_encodings = build_active_encodings(&notary_encoder, data_sent, data_recv);
-    let encodings_provider = Box::new(move |ids: &[&str]| {
-        ids.iter()
-            .map(|id| active_encodings.get(*id).cloned())
-            .collect()
-    });
+    let encodings_provider = fixtures::encoding_provider(data_sent, data_recv);
 
     // At the end of the session the Prover holds the:
     // - time when the TLS handshake began
@@ -116,7 +104,7 @@ fn test_api() {
     assert!(data_sent.len() <= (u32::MAX as usize) && data_recv.len() <= (u32::MAX as usize));
 
     let header = SessionHeader::new(
-        notary_encoder_seed,
+        fixtures::encoder_seed(),
         session_data.commitments().merkle_root(),
         data_sent.len(),
         data_recv.len(),
@@ -197,23 +185,4 @@ fn test_api() {
 
     assert_eq!(&sent.data()[range1], b"se".as_slice());
     assert_eq!(&recv.data()[range2], b"ec".as_slice());
-}
-
-fn build_active_encodings(
-    encoder: &ChaChaEncoder,
-    tx: &[u8],
-    rx: &[u8],
-) -> HashMap<String, EncodedValue<encoding_state::Active>> {
-    let mut active_encodings = HashMap::new();
-    for (idx, byte) in tx.iter().enumerate() {
-        let id = format!("tx/{idx}");
-        let enc = encoder.encode_by_type(ValueId::new(&id).to_u64(), &ValueType::U8);
-        active_encodings.insert(id, enc.select(*byte).unwrap());
-    }
-    for (idx, byte) in rx.iter().enumerate() {
-        let id = format!("rx/{idx}");
-        let enc = encoder.encode_by_type(ValueId::new(&id).to_u64(), &ValueType::U8);
-        active_encodings.insert(id, enc.select(*byte).unwrap());
-    }
-    active_encodings
 }

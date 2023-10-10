@@ -10,6 +10,7 @@ edition = "2021"
 
 [features]
 default = []
+fixtures = ["dep:hex"]
 
 [dependencies]
 tlsn-tls-core = { workspace = true, features = ["serde"] }
@@ -33,8 +34,6 @@ opaque-debug.workspace = true
 bimap = { version = "0.6.3", features = ["serde"] }
 
 [dev-dependencies]
-tlsn-fixtures.workspace = true
-
 rstest.workspace = true
 hex.workspace = true
 rand_core.workspace = true
@@ -43,3 +42,4 @@ bincode.workspace = true
 
 [[test]]
 name = "api"
+required-features = ["fixtures"]

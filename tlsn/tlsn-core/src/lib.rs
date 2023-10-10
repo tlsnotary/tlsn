@@ -7,6 +7,8 @@
 #![forbid(unsafe_code)]
 
 pub mod commitment;
+#[cfg(feature = "fixtures")]
+pub mod fixtures;
 pub mod merkle;
 pub mod msg;
 pub mod proof;
@@ -14,10 +16,12 @@ pub mod session;
 mod signature;
 pub mod transcript;
 
-use serde::{Deserialize, Serialize};
 pub use session::{HandshakeSummary, NotarizedSession, SessionData, SessionHeader};
 pub use signature::{NotaryPublicKey, Signature};
 pub use transcript::{Direction, RedactedTranscript, Transcript, TranscriptSlice};
+
+use mpz_garble_core::{encoding_state, EncodedValue};
+use serde::{Deserialize, Serialize};
 
 /// The maximum allowed total bytelength of all committed data. Used to prevent DoS during verification.
 /// (this will cause the verifier to hash up to a max of 1GB * 128 = 128GB of plaintext encodings if the
@@ -25,6 +29,10 @@ pub use transcript::{Direction, RedactedTranscript, Transcript, TranscriptSlice}
 ///
 /// This value must not exceed bcs's MAX_SEQUENCE_LENGTH limit (which is (1 << 31) - 1 by default)
 const MAX_TOTAL_COMMITTED_DATA: usize = 1_000_000_000;
+
+/// A provider of plaintext encodings.
+pub(crate) type EncodingProvider =
+    Box<dyn Fn(&[&str]) -> Option<Vec<EncodedValue<encoding_state::Active>>> + Send>;
 
 /// The encoding id
 ///

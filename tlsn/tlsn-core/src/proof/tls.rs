@@ -111,16 +111,19 @@ impl SessionProof {
         &self,
         notary_public_key: impl Into<NotaryPublicKey>,
     ) -> Result<(), SessionProofError> {
-        let mut root_store = RootCertStore::empty();
-        root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
-            OwnedTrustAnchor::from_subject_spki_name_constraints(
-                ta.subject,
-                ta.spki,
-                ta.name_constraints,
-            )
-        }));
-        let verifier = WebPkiVerifier::new(root_store, None);
-
-        self.verify(notary_public_key, &verifier)
+        self.verify(notary_public_key, &default_cert_verifier())
     }
+}
+
+fn default_cert_verifier() -> WebPkiVerifier {
+    let mut root_store = RootCertStore::empty();
+    root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
+        OwnedTrustAnchor::from_subject_spki_name_constraints(
+            ta.subject,
+            ta.spki,
+            ta.name_constraints,
+        )
+    }));
+
+    WebPkiVerifier::new(root_store, None)
 }
