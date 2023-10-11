@@ -109,6 +109,8 @@ impl Verifier<state::Initialized> {
     }
 
     /// Runs the TLS verifier to completion, notarizing the TLS session.
+    ///
+    /// This is a convenience method which runs all the steps needed for notarization.
     pub async fn notarize<S: AsyncWrite + AsyncRead + Send + Unpin + 'static, T>(
         self,
         socket: S,
