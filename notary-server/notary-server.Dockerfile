@@ -36,4 +36,5 @@ COPY --from=builder /usr/src/tlsn/notary-server/config ./config
 COPY --from=builder /usr/local/cargo/bin/notary-server /usr/local/bin/notary-server
 # Label to link this image with the repository in Github Container Registry (https://docs.github.com/en/packages/learn-github-packages/connecting-a-repository-to-a-package#connecting-a-repository-to-a-container-image-using-the-command-line)
 LABEL org.opencontainers.image.source=https://github.com/tlsnotary/tlsn
+LABEL org.opencontainers.image.description="An implementation of the notary server in Rust."
 CMD [ "notary-server" ]

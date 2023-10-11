@@ -282,15 +282,19 @@ async fn setup_notary_connection() -> (tokio_rustls::client::TlsStream<TcpStream
 
     // Send notarization request via HTTP, where the underlying TCP connection will be extracted later
     let request = Request::builder()
-        .uri(format!("https://{NOTARY_DOMAIN}:{NOTARY_PORT}/notarize"))
+        // Need to specify the session_id so that notary server knows the right configuration to use
+        // as the configuration is set in the previous HTTP call
+        .uri(format!(
+            "https://{}:{}/notarize?sessionId={}",
+            NOTARY_DOMAIN,
+            NOTARY_PORT,
+            notarization_response.session_id.clone()
+        ))
         .method("GET")
         .header("Host", NOTARY_DOMAIN)
         .header("Connection", "Upgrade")
         // Need to specify this upgrade header for server to extract tcp connection later
         .header("Upgrade", "TCP")
-        // Need to specify the session_id so that notary server knows the right configuration to use
-        // as the configuration is set in the previous HTTP call
-        .header("X-Session-Id", notarization_response.session_id.clone())
         .body(Body::empty())
         .unwrap();
 
