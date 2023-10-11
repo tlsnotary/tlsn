@@ -309,9 +309,10 @@ impl Prover<state::Notarize> {
             let signed_header = expect_msg_or_err!(channel, TlsnMessage::SignedSessionHeader)?;
 
             Ok::<_, ProverError>((notary_encoder_seed, signed_header))
-        };
+        }
+        .fuse();
 
-        let (notary_encoder_seed, SignedSessionHeader { header, signature }) = futures::select! {
+        let (notary_encoder_seed, SignedSessionHeader { header, signature }) = futures::select_biased! {
             res = notarize_fut.fuse() => res?,
             _ = ot_fut => return Err(OTShutdownError)?,
             _ = mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,

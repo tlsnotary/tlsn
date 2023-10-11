@@ -6,7 +6,7 @@ use std::env;
 use tokio::net::TcpListener;
 use tokio_util::compat::TokioAsyncReadCompatExt;
 
-use tlsn_notary::{bind_notary, NotaryConfig};
+use tlsn_verifier::tls::{Verifier, VerifierConfig};
 
 const NOTARY_SIGNING_KEY_PATH: &str = "../../../notary-server/fixture/notary/notary.key";
 
@@ -43,19 +43,14 @@ async fn main() {
 
             // Spawn notarization task to be run concurrently
             tokio::spawn(async move {
-                // Setup default notary config. Normally a different ID would be generated
+                // Setup default config. Normally a different ID would be generated
                 // for each notarization.
-                let config = NotaryConfig::builder().id("example").build().unwrap();
+                let config = VerifierConfig::builder().id("example").build().unwrap();
 
-                // Bind the notary to the socket
-                let (notary, notary_fut) = bind_notary(config, socket.compat()).unwrap();
-
-                // Run the notary
-                tokio::try_join!(
-                    notary_fut,
-                    notary.notarize::<p256::ecdsa::Signature>(&signing_key)
-                )
-                .unwrap();
+                Verifier::new(config)
+                    .notarize::<_, p256::ecdsa::Signature>(socket.compat(), &signing_key)
+                    .await
+                    .unwrap();
             });
         }
     }
