@@ -52,28 +52,6 @@ type OTSenderActor = SenderActor<
     SplitStream<Box<dyn Duplex<ActorMessage<chou_orlandi::msgs::Message>>>>,
 >;
 
-/// A future that performs background processing for the verifier.
-///
-/// This is a future intended to run in the background. It must be polled in order to make progress.
-///
-/// Typically it will be spawned on an executor.
-pub struct VerifierFuture {
-    fut: Pin<
-        Box<dyn Future<Output = Result<Verifier<state::Closed>, VerifierError>> + Send + 'static>,
-    >,
-}
-
-impl Future for VerifierFuture {
-    type Output = Result<Verifier<state::Closed>, VerifierError>;
-
-    fn poll(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Self::Output> {
-        self.fut.poll_unpin(cx)
-    }
-}
-
 /// A Verifier instance.
 pub struct Verifier<T: state::VerifierState> {
     config: VerifierConfig,
