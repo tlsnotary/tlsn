@@ -4,8 +4,8 @@ pub mod websocket;
 
 use async_trait::async_trait;
 use axum::{
-    extract::{rejection::JsonRejection, FromRequestParts, State},
-    http::{header, request::Parts, HeaderMap, StatusCode},
+    extract::{rejection::JsonRejection, FromRequestParts, Query, State},
+    http::{header, request::Parts, StatusCode},
     response::{IntoResponse, Json, Response},
 };
 use axum_macros::debug_handler;
@@ -17,7 +17,10 @@ use tracing::{debug, error, info, trace};
 use uuid::Uuid;
 
 use crate::{
-    domain::notary::{NotarizationSessionRequest, NotarizationSessionResponse, NotaryGlobals},
+    domain::notary::{
+        NotarizationRequestQuery, NotarizationSessionRequest, NotarizationSessionResponse,
+        NotaryGlobals,
+    },
     error::NotaryServerError,
     service::{
         axum_websocket::{header_eq, WebSocketUpgrade},
@@ -62,30 +65,15 @@ where
 }
 
 /// Handler to upgrade protocol from http to either websocket or underlying tcp depending on the type of client
-/// the session_id header is also extracted here to fetch the configuration parameters
+/// the session_id parameter is also extracted here to fetch the configuration parameters
 /// that have been submitted in the previous request to /session made by the same client
 pub async fn upgrade_protocol(
     protocol_upgrade: ProtocolUpgrade,
-    mut headers: HeaderMap,
     State(notary_globals): State<NotaryGlobals>,
+    Query(params): Query<NotarizationRequestQuery>,
 ) -> Response {
     info!("Received upgrade protocol request");
-    // Extract the session_id from the headers
-    let session_id = match headers.remove("X-Session-Id") {
-        Some(session_id) => match session_id.to_str() {
-            Ok(session_id) => session_id.to_string(),
-            Err(err) => {
-                let err_msg = format!("X-Session-Id header submitted is not a string: {}", err);
-                error!(err_msg);
-                return NotaryServerError::BadProverRequest(err_msg).into_response();
-            }
-        },
-        None => {
-            let err_msg = "Missing X-Session-Id in upgrade protocol request".to_string();
-            error!(err_msg);
-            return NotaryServerError::BadProverRequest(err_msg).into_response();
-        }
-    };
+    let session_id = params.session_id;
     // Fetch the configuration data from the store using the session_id
     let max_transcript_size = match notary_globals.store.lock().await.get(&session_id) {
         Some(max_transcript_size) => max_transcript_size.to_owned(),

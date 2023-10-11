@@ -72,10 +72,10 @@ Defined in the [OpenAPI specification](./openapi.yaml).
 ##### Description
 To perform notarization using the session id (unique id returned upon calling the `/session` endpoint successfully) submitted as a custom header.
 
-##### Custom Header
-`X-Session-Id`
+##### Query Parameter
+`sessionId`
 
-##### Custom Header Type
+##### Query Parameter Type
 String
 
 ---

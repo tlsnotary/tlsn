@@ -150,15 +150,19 @@ async fn test_tcp_prover() {
 
     // Send notarization request via HTTP, where the underlying TCP connection will be extracted later
     let request = Request::builder()
-        .uri(format!("https://{notary_host}:{notary_port}/notarize"))
+        // Need to specify the session_id so that notary server knows the right configuration to use
+        // as the configuration is set in the previous HTTP call
+        .uri(format!(
+            "https://{}:{}/notarize?sessionId={}",
+            notary_host,
+            notary_port,
+            notarization_response.session_id.clone()
+        ))
         .method("GET")
         .header("Host", notary_host)
         .header("Connection", "Upgrade")
         // Need to specify this upgrade header for server to extract tcp connection later
         .header("Upgrade", "TCP")
-        // Need to specify the session_id so that notary server knows the right configuration to use
-        // as the configuration is set in the previous HTTP call
-        .header("X-Session-Id", notarization_response.session_id.clone())
         .body(Body::empty())
         .unwrap();
 
@@ -323,15 +327,19 @@ async fn test_websocket_prover() {
     // client while using its high level request function — there does not seem to have a crate that can let you
     // make a request without establishing TCP connection where you can claim the TCP connection later after making the request
     let request = http::Request::builder()
-        .uri(format!("wss://{notary_host}:{notary_port}/notarize"))
+        // Need to specify the session_id so that notary server knows the right configuration to use
+        // as the configuration is set in the previous HTTP call
+        .uri(format!(
+            "wss://{}:{}/notarize?sessionId={}",
+            notary_host,
+            notary_port,
+            notarization_response.session_id.clone()
+        ))
         .header("Host", notary_host.clone())
         .header("Sec-WebSocket-Key", uuid::Uuid::new_v4().to_string())
         .header("Sec-WebSocket-Version", "13")
         .header("Connection", "Upgrade")
         .header("Upgrade", "Websocket")
-        // Need to specify the session_id so that notary server knows the right configuration to use
-        // as the configuration is set in the previous HTTP call
-        .header("X-Session-Id", notarization_response.session_id.clone())
         .body(())
         .unwrap();
 

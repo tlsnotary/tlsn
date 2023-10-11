@@ -73,8 +73,8 @@ paths:
             enum:
               - "TCP"
           required: true
-        - in: header
-          name: X-Session-Id
+        - in: query
+          name: sessionId
           description: Unique ID returned from server upon calling POST /session
           schema:
             type: string
