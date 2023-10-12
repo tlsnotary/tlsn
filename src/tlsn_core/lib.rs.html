@@ -85,7 +85,7 @@
 #![forbid(unsafe_code)]
 
 </span><span class="kw">pub mod </span>commitment;
-<span class="attr">#[cfg(feature = <span class="string">&quot;fixtures&quot;</span>)]
+<span class="attr">#[cfg(any(test, feature = <span class="string">&quot;fixtures&quot;</span>))]
 </span><span class="kw">pub mod </span>fixtures;
 <span class="kw">pub mod </span>merkle;
 <span class="kw">pub mod </span>msg;
