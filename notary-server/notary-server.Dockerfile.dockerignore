@@ -1,0 +1,12 @@
+# exclude everything
+*
+
+# include notary-server
+!/notary-server
+
+# include core library dependencies
+!/tlsn
+!/components
+
+# exclude any /target folders inside the included folders above
+**/target*

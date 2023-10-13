@@ -1,5 +1,5 @@
 /// This is a simple implementation of the notary server with minimal functionalities (without TLS, does not support WebSocket and configuration etc.)
-/// For a more functional notary server implementation, please use https://github.com/tlsnotary/notary-server
+/// For a more functional notary server implementation, please use the notary server in `../../notary-server`
 use std::env;
 
 use tokio::net::TcpListener;

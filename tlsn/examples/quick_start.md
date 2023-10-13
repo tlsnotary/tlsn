@@ -15,23 +15,26 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
 # Guide
+Clone this repository first
+
+```shell
+git clone https://github.com/tlsnotary/tlsn
+```
 
 ### Start a Notary server:
 
 ```shell
-git clone https://github.com/tlsnotary/notary-server
-cd notary-server
+cd tlsn/notary-server
 cargo run --release
 ```
 
 The `Notary` server will now be running in the background waiting for connections from a `Prover`. You can switch to another console to run the `Prover`.
 
-For more information on how to configure the `Notary` server, please refer to [this](https://github.com/tlsnotary/notary-server#running-the-server).
+For more information on how to configure the `Notary` server, please refer to [this](../../notary-server/README.md#running-the-server).
 
 ### Run a simple Prover:
 
 ```shell
-git clone https://github.com/tlsnotary/tlsn
 cd tlsn/tlsn/examples
 cargo run --release --example simple_prover
 ```

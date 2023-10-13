@@ -1,4 +1,4 @@
-/// This prover implementation talks to the notary server implemented in https://github.com/tlsnotary/notary-server, instead of the simple_notary.rs in this example directory
+/// This prover implementation talks to the notary server implemented in ../../notary-server, instead of the simple_notary.rs in this example directory
 use eyre::Result;
 use futures::AsyncWriteExt;
 use hyper::{body::to_bytes, client::conn::Parts, Body, Request, StatusCode};
@@ -24,7 +24,7 @@ const SERVER_DOMAIN: &str = "twitter.com";
 const ROUTE: &str = "i/api/1.1/dm/conversation";
 const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36";
 
-// Setting of the notary server — make sure these are the same with those in the notary-server repository used (https://github.com/tlsnotary/notary-server)
+// Setting of the notary server — make sure these are the same with those in the notary-server
 const NOTARY_DOMAIN: &str = "127.0.0.1";
 const NOTARY_PORT: u16 = 7047;
 const NOTARY_CA_CERT_PATH: &str = "./rootCA.crt";
@@ -146,15 +146,19 @@ async fn main() {
 
     // Send notarization request via HTTP, where the underlying TCP connection will be extracted later
     let request = Request::builder()
-        .uri(format!("https://{NOTARY_DOMAIN}:{NOTARY_PORT}/notarize"))
+        // Need to specify the session_id so that notary server knows the right configuration to use
+        // as the configuration is set in the previous HTTP call
+        .uri(format!(
+            "https://{}:{}/notarize?sessionId={}",
+            NOTARY_DOMAIN,
+            NOTARY_PORT,
+            notarization_response.session_id.clone()
+        ))
         .method("GET")
         .header("Host", NOTARY_DOMAIN)
         .header("Connection", "Upgrade")
         // Need to specify this upgrade header for server to extract tcp connection later
         .header("Upgrade", "TCP")
-        // Need to specify the session_id so that notary server knows the right configuration to use
-        // as the configuration is set in the previous HTTP call
-        .header("X-Session-Id", notarization_response.session_id.clone())
         .body(Body::empty())
         .unwrap();
 

@@ -248,15 +248,19 @@ async fn connect_to_notary() -> (TlsStream<TcpStream>, String) {
     // Request the notary to prepare for notarization via HTTP, where the underlying TCP connection
     // will be extracted later
     let request = Request::builder()
-        .uri(format!("https://{NOTARY_HOST}:{NOTARY_PORT}/notarize"))
+        // Need to specify the session_id so that notary server knows the right configuration to use
+        // as the configuration is set in the previous HTTP call
+        .uri(format!(
+            "https://{}:{}/notarize?sessionId={}",
+            NOTARY_HOST,
+            NOTARY_PORT,
+            configuration_response.session_id.clone()
+        ))
         .method("GET")
         .header("Host", NOTARY_HOST)
         .header("Connection", "Upgrade")
         // Need to specify this upgrade header for server to extract tcp connection later
         .header("Upgrade", "TCP")
-        // Need to specify the session_id so that notary server knows the right configuration to use
-        // as the configuration is set in the previous HTTP call
-        .header("X-Session-Id", configuration_response.session_id.clone())
         .body(Body::empty())
         .unwrap();
 
