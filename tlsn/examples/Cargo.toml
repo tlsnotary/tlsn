@@ -47,19 +47,19 @@ dotenv = "0.15.0"
 
 [[example]]
 name = "simple_prover"
-path = "simple_prover.rs"
+path = "simple/simple_prover.rs"
 
 [[example]]
 name = "simple_verifier"
-path = "simple_verifier.rs"
-
-[[example]]
-name = "twitter_dm"
-path = "twitter_dm.rs"
+path = "simple/simple_verifier.rs"
 
 [[example]]
 name = "simple_notary"
-path = "simple_notary.rs"
+path = "simple/simple_notary.rs"
+
+[[example]]
+name = "twitter_dm"
+path = "twitter/twitter_dm.rs"
 
 [[example]]
 name = "discord_dm"
