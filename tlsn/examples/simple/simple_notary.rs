@@ -1,11 +1,14 @@
 /// This is a simple implementation of the notary server with minimal functionalities (without TLS, does not support WebSocket and configuration etc.)
 /// For a more functional notary server implementation, please use the notary server in `../../notary-server`
+use p256::pkcs8::DecodePrivateKey;
 use std::env;
 
 use tokio::net::TcpListener;
 use tokio_util::compat::TokioAsyncReadCompatExt;
 
 use tlsn_notary::{bind_notary, NotaryConfig};
+
+const NOTARY_SIGNING_KEY_PATH: &str = "../../../notary-server/fixture/notary/notary.key";
 
 #[tokio::main]
 async fn main() {
@@ -25,8 +28,9 @@ async fn main() {
 
     println!("Listening on: {}", addr);
 
-    // Generate a signing key
-    let signing_key = p256::ecdsa::SigningKey::from_bytes(&[1u8; 32].into()).unwrap();
+    // Load the notary signing key
+    let signing_key =
+        p256::ecdsa::SigningKey::read_pkcs8_pem_file(NOTARY_SIGNING_KEY_PATH).unwrap();
 
     loop {
         // Asynchronously wait for an inbound socket.
