@@ -7,8 +7,9 @@ pub struct NotaryServerProperties {
     pub server: ServerProperties,
     /// Setting for notarization
     pub notarization: NotarizationProperties,
-    /// File path of private key and certificate (in PEM format) used for establishing TLS with prover
-    pub tls_signature: TLSSignatureProperties,
+    /// File path of private key and certificate (in PEM format) used for establishing TLS with
+    /// prover. Notary server will not handle TLS if this is `None`.
+    pub tls_signature: Option<TLSSignatureProperties>,
     /// File path of private key (in PEM format) used to sign the notarization
     pub notary_signature: NotarySignatureProperties,
     /// Setting for logging/tracing

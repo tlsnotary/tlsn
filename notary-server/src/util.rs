@@ -24,4 +24,14 @@ mod test {
             "Could not open file or read the file's values."
         );
     }
+
+    #[test]
+    fn test_parse_config_no_tls_file() {
+        let location = "./config/config-no-tls.yaml";
+        let config: Result<NotaryServerProperties> = parse_config_file(location);
+        assert!(
+            config.is_ok(),
+            "Could not open file or read the file's values."
+        );
+    }
 }
