@@ -38,6 +38,7 @@ docker run --init -p 127.0.0.1:7047:7047 ghcr.io/tlsnotary/tlsn/notary-server:la
 ```bash
 docker run --init -p 127.0.0.1:7047:7047 -v <your config folder path>:/root/.notary-server/config ghcr.io/tlsnotary/tlsn/notary-server:latest
 ```
+P/S: When running this notary-server image against a [prover](https://github.com/tlsnotary/tlsn/tree/dev/tlsn/examples), please ensure that the prover's tagged version is the same as the version tag of this image.
 
 #### Building from source
 1. Configure the server setting in this config [file](./config/config.yaml).

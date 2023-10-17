@@ -6,14 +6,7 @@ use futures::AsyncWriteExt;
 use hyper::{body::to_bytes, client::conn::Parts, Body, Request, StatusCode};
 use rustls::{Certificate, ClientConfig, RootCertStore};
 use serde::{Deserialize, Serialize};
-use std::{
-    env,
-    fs::File as StdFile,
-    io::BufReader,
-    net::{IpAddr, SocketAddr},
-    ops::Range,
-    sync::Arc,
-};
+use std::{env, fs::File as StdFile, io::BufReader, ops::Range, sync::Arc};
 use tlsn_core::proof::TlsProof;
 use tokio::{fs::File, io::AsyncWriteExt as _, net::TcpStream};
 use tokio_rustls::TlsConnector;
@@ -221,12 +214,9 @@ async fn setup_notary_connection() -> (tokio_rustls::client::TlsStream<TcpStream
         .with_no_client_auth();
     let notary_connector = TlsConnector::from(Arc::new(client_notary_config));
 
-    let notary_socket = tokio::net::TcpStream::connect(SocketAddr::new(
-        IpAddr::V4(NOTARY_HOST.parse().unwrap()),
-        NOTARY_PORT,
-    ))
-    .await
-    .unwrap();
+    let notary_socket = tokio::net::TcpStream::connect((NOTARY_HOST, NOTARY_PORT))
+        .await
+        .unwrap();
 
     let notary_tls_socket = notary_connector
         // Require the domain name of notary server to be the same as that in the server cert
