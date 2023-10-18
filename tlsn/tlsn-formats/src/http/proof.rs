@@ -124,6 +124,8 @@ pub struct HttpRequestProofBuilder<'a, 'b> {
     request: &'a Request,
     body: Option<&'a Body>,
     built: &'a mut bool,
+    // TODO: this field will be used in the future to support advanced configurations
+    // but for now we don't want to build the body proof unless it is specifically requested
     body_built: bool,
 }
 
@@ -226,6 +228,8 @@ pub struct HttpResponseProofBuilder<'a, 'b: 'a> {
     response: &'a Response,
     body: Option<&'a Body>,
     built: &'a mut bool,
+    // TODO: this field will be used in the future to support advanced configurations
+    // but for now we don't want to build the body proof unless it is specifically requested
     body_built: bool,
 }
 
