@@ -14,6 +14,9 @@ use super::public_ranges;
 /// JSON commitment builder error.
 #[derive(Debug, thiserror::Error)]
 pub enum JsonCommitmentBuilderError {
+    /// Invalid path.
+    #[error("invalid path: {0}")]
+    InvalidPath(String),
     /// Transcript commitment builder error.
     #[error("commitment builder error: {0}")]
     Commitment(#[from] TranscriptCommitmentBuilderError),
@@ -54,7 +57,9 @@ impl<'a> JsonCommitmentBuilder<'a> {
 
     /// Commits to the value at the given path.
     pub fn path(&mut self, path: &str) -> Result<CommitmentId, JsonCommitmentBuilderError> {
-        let value = self.value.get(path).unwrap();
+        let value = self.value.get(path).ok_or_else(|| {
+            JsonCommitmentBuilderError::InvalidPath(format!("invalid path: {}", path))
+        })?;
 
         let range = value.span().range();
         match self.direction {
