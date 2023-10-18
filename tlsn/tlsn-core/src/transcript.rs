@@ -108,6 +108,22 @@ impl RedactedTranscript {
             self.data[range].fill(value);
         }
     }
+
+    /// Sets all bytes in the transcript which were redacted in the given range.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - The value to set the redacted bytes to
+    /// * `range` - The range of redacted bytes to set
+    pub fn set_redacted_range(&mut self, value: u8, range: Range<usize>) {
+        for range in self
+            .redacted
+            .difference(&(0..self.data.len()).difference(&range))
+            .iter_ranges()
+        {
+            self.data[range].fill(value);
+        }
+    }
 }
 
 /// Slice of a transcript.

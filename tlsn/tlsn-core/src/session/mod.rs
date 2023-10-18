@@ -20,6 +20,8 @@ pub struct NotarizedSession {
     data: SessionData,
 }
 
+opaque_debug::implement!(NotarizedSession);
+
 impl NotarizedSession {
     /// Create a new notarized session.
     pub fn new(header: SessionHeader, signature: Option<Signature>, data: SessionData) -> Self {

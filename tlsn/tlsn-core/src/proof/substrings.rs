@@ -7,10 +7,12 @@ use serde::{Deserialize, Serialize};
 use utils::range::{RangeDisjoint, RangeSet, RangeUnion};
 
 use crate::{
-    commitment::{Commitment, CommitmentId, CommitmentInfo, CommitmentOpening},
+    commitment::{
+        Commitment, CommitmentId, CommitmentInfo, CommitmentOpening, TranscriptCommitments,
+    },
     merkle::MerkleProof,
     transcript::get_value_ids,
-    Direction, EncodingId, RedactedTranscript, SessionData, SessionHeader, TranscriptSlice,
+    Direction, EncodingId, RedactedTranscript, SessionHeader, Transcript, TranscriptSlice,
     MAX_TOTAL_COMMITTED_DATA,
 };
 
@@ -33,7 +35,9 @@ pub enum SubstringsProofBuilderError {
 
 /// A builder for [`SubstringsProof`]
 pub struct SubstringsProofBuilder<'a> {
-    data: &'a SessionData,
+    commitments: &'a TranscriptCommitments,
+    transcript_tx: &'a Transcript,
+    transcript_rx: &'a Transcript,
     openings: HashMap<CommitmentId, (CommitmentInfo, CommitmentOpening)>,
 }
 
@@ -41,9 +45,15 @@ opaque_debug::implement!(SubstringsProofBuilder<'_>);
 
 impl<'a> SubstringsProofBuilder<'a> {
     /// Creates a new builder.
-    pub(crate) fn new(data: &'a SessionData) -> Self {
+    pub fn new(
+        commitments: &'a TranscriptCommitments,
+        transcript_tx: &'a Transcript,
+        transcript_rx: &'a Transcript,
+    ) -> Self {
         Self {
-            data,
+            commitments,
+            transcript_tx,
+            transcript_rx,
             openings: HashMap::default(),
         }
     }
@@ -51,14 +61,12 @@ impl<'a> SubstringsProofBuilder<'a> {
     /// Reveals data corresponding to the provided commitment id
     pub fn reveal(&mut self, id: CommitmentId) -> Result<&mut Self, SubstringsProofBuilderError> {
         let commitment = self
-            .data
-            .commitments()
+            .commitments
             .get(&id)
             .ok_or(SubstringsProofBuilderError::InvalidCommitmentId(id))?;
 
         let info = self
-            .data
-            .commitments()
+            .commitments
             .get_info(&id)
             .expect("info exists if commitment exists");
 
@@ -69,8 +77,8 @@ impl<'a> SubstringsProofBuilder<'a> {
         };
 
         let transcript = match info.direction() {
-            Direction::Sent => self.data.sent_transcript(),
-            Direction::Received => self.data.recv_transcript(),
+            Direction::Sent => self.transcript_tx,
+            Direction::Received => self.transcript_rx,
         };
 
         let data = transcript.get_bytes_in_ranges(info.ranges());
@@ -89,7 +97,11 @@ impl<'a> SubstringsProofBuilder<'a> {
 
     /// Builds the [`SubstringsProof`]
     pub fn build(self) -> Result<SubstringsProof, SubstringsProofBuilderError> {
-        let Self { data, openings } = self;
+        let Self {
+            commitments,
+            openings,
+            ..
+        } = self;
 
         let mut indices = openings
             .keys()
@@ -97,7 +109,7 @@ impl<'a> SubstringsProofBuilder<'a> {
             .collect::<Vec<_>>();
         indices.sort();
 
-        let inclusion_proof = data.commitments().merkle_tree().proof(&indices);
+        let inclusion_proof = commitments.merkle_tree().proof(&indices);
 
         Ok(SubstringsProof {
             openings,
@@ -118,7 +130,7 @@ pub enum SubstringsProofError {
     MaxDataExceeded(usize),
     /// The proof contains duplicate transcript data.
     #[error("proof contains duplicate transcript data")]
-    DuplicateData,
+    DuplicateData(Direction, RangeSet<usize>),
     /// Range of the opening is out of bounds.
     #[error("range of opening {0:?} is out of bounds: {1}")]
     RangeOutOfBounds(CommitmentId, usize),
@@ -184,13 +196,13 @@ impl SubstringsProof {
             match direction {
                 Direction::Sent => {
                     if !sent_ranges.is_disjoint(&ranges) {
-                        return Err(SubstringsProofError::DuplicateData);
+                        return Err(SubstringsProofError::DuplicateData(direction, ranges));
                     }
                     sent_ranges = sent_ranges.union(&ranges);
                 }
                 Direction::Received => {
                     if !recv_ranges.is_disjoint(&ranges) {
-                        return Err(SubstringsProofError::DuplicateData);
+                        return Err(SubstringsProofError::DuplicateData(direction, ranges));
                     }
                     recv_ranges = recv_ranges.union(&ranges);
                 }
