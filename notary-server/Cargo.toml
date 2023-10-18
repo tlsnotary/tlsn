@@ -25,7 +25,7 @@ serde_yaml = "0.9.21"
 sha1 = "0.10"
 structopt = "0.3.26"
 thiserror = "1"
-tlsn-notary = { path = "../tlsn/tlsn-notary" }
+tlsn-verifier = { path = "../tlsn/tlsn-verifier" }
 tlsn-tls-core = { path = "../components/tls/tls-core" }
 tokio = { version = "1", features = ["full"] }
 tokio-rustls = { version = "0.24.1" }
