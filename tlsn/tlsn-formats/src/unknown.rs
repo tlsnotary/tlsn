@@ -79,7 +79,7 @@ impl<'a> UnknownCommitmentBuilder<'a> {
         let start = span_range.start + range.start;
         let end = span_range.start + range.end;
 
-        if end > span_range.end {
+        if start >= end || end > span_range.end {
             return Err(UnknownCommitmentBuilderError::OutOfBounds);
         }
 
@@ -162,7 +162,7 @@ impl<'a, 'b> UnknownProofBuilder<'a, 'b> {
         let start = span_range.start + range.start;
         let end = span_range.start + range.end;
 
-        if end > span_range.end {
+        if start >= end || end > span_range.end {
             return Err(UnknownProofBuilderError::OutOfBounds);
         }
 
