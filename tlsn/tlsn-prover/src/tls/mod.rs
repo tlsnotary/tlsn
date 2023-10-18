@@ -21,7 +21,7 @@ use std::{pin::Pin, sync::Arc};
 use tls_client_async::{bind_client, ClosedConnection, TlsConnection};
 use tls_mpc::{setup_components, MpcTlsLeader, TlsRole};
 
-use mpz_garble::{config::Role as GarbleRole, protocol::deap::DEAPVm};
+use mpz_garble::{config::Role as DEAPRole, protocol::deap::DEAPVm};
 use mpz_ot::{
     actor::kos::{ReceiverActor, SenderActor, SharedReceiver, SharedSender},
     chou_orlandi, kos,
@@ -404,7 +404,7 @@ async fn setup_mpc_backend(
 
     let mut vm = DEAPVm::new(
         "vm",
-        GarbleRole::Leader,
+        DEAPRole::Leader,
         rand::rngs::OsRng.gen(),
         mux.get_channel("vm").await?,
         Box::new(mux.clone()),
