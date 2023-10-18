@@ -194,6 +194,7 @@ impl<'a, 'b> HttpRequestProofBuilder<'a, 'b> {
         })
     }
 
+    /// Builds the HTTP request proof.
     pub fn build(self) -> Result<(), HttpProofBuilderError> {
         let public_id = self
             .commitments
@@ -233,7 +234,7 @@ impl<'a, 'b> HttpResponseProofBuilder<'a, 'b> {
     ///
     /// # Arguments
     ///
-    /// * `body` - Whether to reveal the entirety of the request body as well.
+    /// * `body` - Whether to reveal the entirety of the response body as well.
     pub fn all(&mut self, body: bool) -> Result<&mut Self, HttpProofBuilderError> {
         let id = self
             .commit_id(self.response.0.span().range())

@@ -45,9 +45,10 @@ pub enum ParseError {
 ///
 /// # Arguments
 ///
+/// * `index` - The index of the request or response
 /// * `content_type` - The content type of the body
 /// * `body` - The body data
-/// * `range` - The range of the body data in the transcript.
+/// * `offset` - The offset of the body from the start of the transcript
 ///
 /// # Panics
 ///

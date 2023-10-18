@@ -299,10 +299,10 @@ impl<'a> HttpResponseCommitmentBuilder<'a> {
         })
     }
 
-    /// Finishes building the request commitment.
+    /// Finishes building the response commitment.
     ///
     /// This commits to everything that has not already been committed, including a commitment
-    /// to the format data of the request.
+    /// to the format data of the response.
     pub fn build(mut self) -> Result<(), HttpCommitmentBuilderError> {
         // Commit to any headers that have not already been committed.
         for header in &self.response.0.headers {
