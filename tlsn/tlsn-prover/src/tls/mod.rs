@@ -299,6 +299,9 @@ impl Prover<state::Notarize> {
                 .map_err(|e| ProverError::MpcError(Box::new(e)))?
                 .expect("encoder seed returned");
 
+            // This is a temporary approach until a maliciously secure share conversion protocol is implemented.
+            // The prover is essentially revealing the TLS MAC key. In some exotic scenarios this allows a malicious
+            // TLS verifier to modify the prover's request.
             gf2.reveal()
                 .await
                 .map_err(|e| ProverError::MpcError(Box::new(e)))?;
