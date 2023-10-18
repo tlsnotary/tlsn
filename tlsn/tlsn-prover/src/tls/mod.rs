@@ -286,7 +286,7 @@ impl Prover<state::Notarize> {
 
         let merkle_root = session_data.commitments().merkle_root();
 
-        let notarize_fut = async move {
+        let mut notarize_fut = Box::pin(async move {
             let mut channel = notary_mux.get_channel("notarize").await?;
 
             channel
@@ -309,7 +309,7 @@ impl Prover<state::Notarize> {
             let signed_header = expect_msg_or_err!(channel, TlsnMessage::SignedSessionHeader)?;
 
             Ok::<_, ProverError>((notary_encoder_seed, signed_header))
-        }
+        })
         .fuse();
 
         let (notary_encoder_seed, SignedSessionHeader { header, signature }) = futures::select_biased! {
