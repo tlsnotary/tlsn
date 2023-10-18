@@ -313,7 +313,7 @@ impl Prover<state::Notarize> {
         .fuse();
 
         let (notary_encoder_seed, SignedSessionHeader { header, signature }) = futures::select_biased! {
-            res = notarize_fut.fuse() => res?,
+            res = notarize_fut => res?,
             _ = ot_fut => return Err(OTShutdownError)?,
             _ = mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
         };

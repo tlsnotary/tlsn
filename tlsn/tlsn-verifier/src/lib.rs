@@ -9,5 +9,5 @@ pub mod tls;
 use uid_mux::UidYamuxControl;
 use utils_aio::codec::BincodeMux;
 
-/// Bincode for serialization, multiplexing with Yamux.
+/// A muxer which uses Bincode for serialization, Yamux for multiplexing.
 pub(crate) type Mux = BincodeMux<UidYamuxControl>;
