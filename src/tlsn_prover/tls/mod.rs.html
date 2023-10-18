@@ -498,6 +498,7 @@
 <a href="#498" id="498">498</a>
 <a href="#499" id="499">499</a>
 <a href="#500" id="500">500</a>
+<a href="#501" id="501">501</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! TLS prover.
 //!
 //! This module provides the TLS prover, which is used with a TLS verifier to prove a transcript of communications with a server.
@@ -786,7 +787,7 @@
 
         <span class="kw">let </span>merkle_root = session_data.commitments().merkle_root();
 
-        <span class="kw">let </span>notarize_fut = <span class="kw">async move </span>{
+        <span class="kw">let </span><span class="kw-2">mut </span>notarize_fut = Box::pin(<span class="kw">async move </span>{
             <span class="kw">let </span><span class="kw-2">mut </span>channel = notary_mux.get_channel(<span class="string">&quot;notarize&quot;</span>).<span class="kw">await</span><span class="question-mark">?</span>;
 
             channel
@@ -809,10 +810,11 @@
             <span class="kw">let </span>signed_header = <span class="macro">expect_msg_or_err!</span>(channel, TlsnMessage::SignedSessionHeader)<span class="question-mark">?</span>;
 
             <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, ProverError&gt;((notary_encoder_seed, signed_header))
-        };
+        })
+        .fuse();
 
-        <span class="kw">let </span>(notary_encoder_seed, SignedSessionHeader { header, signature }) = <span class="macro">futures::select! </span>{
-            res = notarize_fut.fuse() =&gt; res<span class="question-mark">?</span>,
+        <span class="kw">let </span>(notary_encoder_seed, SignedSessionHeader { header, signature }) = <span class="macro">futures::select_biased! </span>{
+            res = notarize_fut =&gt; res<span class="question-mark">?</span>,
             <span class="kw">_ </span>= ot_fut =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(OTShutdownError)<span class="question-mark">?</span>,
             <span class="kw">_ </span>= mux_fut =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))<span class="question-mark">?</span>,
         };
