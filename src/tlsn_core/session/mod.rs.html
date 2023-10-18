@@ -55,6 +55,8 @@
 <a href="#55" id="55">55</a>
 <a href="#56" id="56">56</a>
 <a href="#57" id="57">57</a>
+<a href="#58" id="58">58</a>
+<a href="#59" id="59">59</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! TLS session types.
 
 </span><span class="kw">mod </span>data;
@@ -76,6 +78,8 @@
     signature: <span class="prelude-ty">Option</span>&lt;Signature&gt;,
     data: SessionData,
 }
+
+<span class="macro">opaque_debug::implement!</span>(NotarizedSession);
 
 <span class="kw">impl </span>NotarizedSession {
     <span class="doccomment">/// Create a new notarized session.

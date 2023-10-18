@@ -268,6 +268,18 @@
 <a href="#268" id="268">268</a>
 <a href="#269" id="269">269</a>
 <a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Substrings proofs.
 
 </span><span class="kw">use </span>std::collections::HashMap;
@@ -277,10 +289,12 @@
 <span class="kw">use </span>utils::range::{RangeDisjoint, RangeSet, RangeUnion};
 
 <span class="kw">use crate</span>::{
-    commitment::{Commitment, CommitmentId, CommitmentInfo, CommitmentOpening},
+    commitment::{
+        Commitment, CommitmentId, CommitmentInfo, CommitmentOpening, TranscriptCommitments,
+    },
     merkle::MerkleProof,
     transcript::get_value_ids,
-    Direction, EncodingId, RedactedTranscript, SessionData, SessionHeader, TranscriptSlice,
+    Direction, EncodingId, RedactedTranscript, SessionHeader, Transcript, TranscriptSlice,
     MAX_TOTAL_COMMITTED_DATA,
 };
 
@@ -303,7 +317,9 @@
 
 <span class="doccomment">/// A builder for [`SubstringsProof`]
 </span><span class="kw">pub struct </span>SubstringsProofBuilder&lt;<span class="lifetime">&#39;a</span>&gt; {
-    data: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>SessionData,
+    commitments: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>TranscriptCommitments,
+    transcript_tx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Transcript,
+    transcript_rx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Transcript,
     openings: HashMap&lt;CommitmentId, (CommitmentInfo, CommitmentOpening)&gt;,
 }
 
@@ -311,9 +327,15 @@
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; SubstringsProofBuilder&lt;<span class="lifetime">&#39;a</span>&gt; {
     <span class="doccomment">/// Creates a new builder.
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(data: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>SessionData) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>new(
+        commitments: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>TranscriptCommitments,
+        transcript_tx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Transcript,
+        transcript_rx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Transcript,
+    ) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            data,
+            commitments,
+            transcript_tx,
+            transcript_rx,
             openings: HashMap::default(),
         }
     }
@@ -321,14 +343,12 @@
     <span class="doccomment">/// Reveals data corresponding to the provided commitment id
     </span><span class="kw">pub fn </span>reveal(<span class="kw-2">&amp;mut </span><span class="self">self</span>, id: CommitmentId) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw-2">&amp;mut </span><span class="self">Self</span>, SubstringsProofBuilderError&gt; {
         <span class="kw">let </span>commitment = <span class="self">self
-            </span>.data
-            .commitments()
+            </span>.commitments
             .get(<span class="kw-2">&amp;</span>id)
             .ok_or(SubstringsProofBuilderError::InvalidCommitmentId(id))<span class="question-mark">?</span>;
 
         <span class="kw">let </span>info = <span class="self">self
-            </span>.data
-            .commitments()
+            </span>.commitments
             .get_info(<span class="kw-2">&amp;</span>id)
             .expect(<span class="string">&quot;info exists if commitment exists&quot;</span>);
 
@@ -339,8 +359,8 @@
         };
 
         <span class="kw">let </span>transcript = <span class="kw">match </span>info.direction() {
-            Direction::Sent =&gt; <span class="self">self</span>.data.sent_transcript(),
-            Direction::Received =&gt; <span class="self">self</span>.data.recv_transcript(),
+            Direction::Sent =&gt; <span class="self">self</span>.transcript_tx,
+            Direction::Received =&gt; <span class="self">self</span>.transcript_rx,
         };
 
         <span class="kw">let </span>data = transcript.get_bytes_in_ranges(info.ranges());
@@ -359,7 +379,11 @@
 
     <span class="doccomment">/// Builds the [`SubstringsProof`]
     </span><span class="kw">pub fn </span>build(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;SubstringsProof, SubstringsProofBuilderError&gt; {
-        <span class="kw">let </span><span class="self">Self </span>{ data, openings } = <span class="self">self</span>;
+        <span class="kw">let </span><span class="self">Self </span>{
+            commitments,
+            openings,
+            ..
+        } = <span class="self">self</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>indices = openings
             .keys()
@@ -367,7 +391,7 @@
             .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
         indices.sort();
 
-        <span class="kw">let </span>inclusion_proof = data.commitments().merkle_tree().proof(<span class="kw-2">&amp;</span>indices);
+        <span class="kw">let </span>inclusion_proof = commitments.merkle_tree().proof(<span class="kw-2">&amp;</span>indices);
 
         <span class="prelude-val">Ok</span>(SubstringsProof {
             openings,
@@ -388,7 +412,7 @@
     </span>MaxDataExceeded(usize),
     <span class="doccomment">/// The proof contains duplicate transcript data.
     </span><span class="attr">#[error(<span class="string">&quot;proof contains duplicate transcript data&quot;</span>)]
-    </span>DuplicateData,
+    </span>DuplicateData(Direction, RangeSet&lt;usize&gt;),
     <span class="doccomment">/// Range of the opening is out of bounds.
     </span><span class="attr">#[error(<span class="string">&quot;range of opening {0:?} is out of bounds: {1}&quot;</span>)]
     </span>RangeOutOfBounds(CommitmentId, usize),
@@ -454,13 +478,13 @@
             </span><span class="kw">match </span>direction {
                 Direction::Sent =&gt; {
                     <span class="kw">if </span>!sent_ranges.is_disjoint(<span class="kw-2">&amp;</span>ranges) {
-                        <span class="kw">return </span><span class="prelude-val">Err</span>(SubstringsProofError::DuplicateData);
+                        <span class="kw">return </span><span class="prelude-val">Err</span>(SubstringsProofError::DuplicateData(direction, ranges));
                     }
                     sent_ranges = sent_ranges.union(<span class="kw-2">&amp;</span>ranges);
                 }
                 Direction::Received =&gt; {
                     <span class="kw">if </span>!recv_ranges.is_disjoint(<span class="kw-2">&amp;</span>ranges) {
-                        <span class="kw">return </span><span class="prelude-val">Err</span>(SubstringsProofError::DuplicateData);
+                        <span class="kw">return </span><span class="prelude-val">Err</span>(SubstringsProofError::DuplicateData(direction, ranges));
                     }
                     recv_ranges = recv_ranges.union(<span class="kw-2">&amp;</span>ranges);
                 }

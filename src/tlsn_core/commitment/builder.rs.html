@@ -130,6 +130,45 @@
 <a href="#130" id="130">130</a>
 <a href="#131" id="131">131</a>
 <a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
+<a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 
 <span class="kw">use </span>bimap::BiMap;
@@ -138,7 +177,8 @@
 
 <span class="kw">use crate</span>::{
     commitment::{
-        blake3::Blake3Commitment, Commitment, CommitmentId, CommitmentInfo, TranscriptCommitments,
+        blake3::Blake3Commitment, Commitment, CommitmentId, CommitmentInfo, CommitmentKind,
+        TranscriptCommitments,
     },
     merkle::MerkleTree,
     transcript::get_value_ids,
@@ -148,6 +188,12 @@
 <span class="doccomment">/// An error for [`TranscriptCommitmentBuilder`]
 </span><span class="attr">#[derive(Debug, thiserror::Error)]
 </span><span class="kw">pub enum </span>TranscriptCommitmentBuilderError {
+    <span class="doccomment">/// Empty range
+    </span><span class="attr">#[error(<span class="string">&quot;can not commit to an empty range&quot;</span>)]
+    </span>EmptyRange,
+    <span class="doccomment">/// Range out of bounds
+    </span><span class="attr">#[error(<span class="string">&quot;range out of bounds&quot;</span>)]
+    </span>RangeOutOfBounds,
     <span class="doccomment">/// Failed to retrieve encodings for the provided transcript ranges.
     </span><span class="attr">#[error(<span class="string">&quot;failed to retrieve encodings for the provided transcript ranges&quot;</span>)]
     </span>MissingEncodings,
@@ -167,6 +213,8 @@
     merkle_leaves: Vec&lt;Hash&gt;,
     <span class="doccomment">/// A function that returns the encodings for the provided transcript byte ids.
     </span>encoding_provider: EncodingProvider,
+    sent_len: usize,
+    recv_len: usize,
 }
 
 <span class="macro">opaque_debug::implement!</span>(TranscriptCommitmentBuilder);
@@ -178,12 +226,14 @@
     ///
     /// * `encoding_provider` - A function that returns the encodings for the provided transcript byte ids.
     </span><span class="attr">#[doc(hidden)]
-    </span><span class="kw">pub fn </span>new(encoding_provider: EncodingProvider) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>new(encoding_provider: EncodingProvider, sent_len: usize, recv_len: usize) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             commitments: HashMap::default(),
             commitment_info: BiMap::default(),
             merkle_leaves: Vec::default(),
             encoding_provider,
+            sent_len,
+            recv_len,
         }
     }
 
@@ -203,12 +253,40 @@
         <span class="self">self</span>.add_substrings_commitment(ranges.into(), Direction::Received)
     }
 
+    <span class="doccomment">/// Gets the commitment id for the provided commitment info.
+    </span><span class="kw">pub fn </span>get_id(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        kind: CommitmentKind,
+        ranges: <span class="kw">impl </span>Into&lt;RangeSet&lt;usize&gt;&gt;,
+        direction: Direction,
+    ) -&gt; <span class="prelude-ty">Option</span>&lt;CommitmentId&gt; {
+        <span class="self">self</span>.commitment_info
+            .get_by_right(<span class="kw-2">&amp;</span>CommitmentInfo {
+                kind,
+                ranges: ranges.into(),
+                direction,
+            })
+            .copied()
+    }
+
     <span class="doccomment">/// Add a commitment to substrings of the transcript
     </span><span class="kw">fn </span>add_substrings_commitment(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         ranges: RangeSet&lt;usize&gt;,
         direction: Direction,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;CommitmentId, TranscriptCommitmentBuilderError&gt; {
+        <span class="kw">let </span>max = ranges
+            .max()
+            .ok_or(TranscriptCommitmentBuilderError::EmptyRange)<span class="question-mark">?</span>;
+        <span class="kw">let </span>len = <span class="kw">match </span>direction {
+            Direction::Sent =&gt; <span class="self">self</span>.sent_len,
+            Direction::Received =&gt; <span class="self">self</span>.recv_len,
+        };
+
+        <span class="kw">if </span>max &gt; len {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(TranscriptCommitmentBuilderError::RangeOutOfBounds);
+        }
+
         <span class="kw">let </span>ids: Vec&lt;<span class="kw">_</span>&gt; = get_value_ids(<span class="kw-2">&amp;</span>ranges, direction).collect();
 
         <span class="kw">let </span>id_refs = ids.iter().map(|id| id.as_ref()).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();

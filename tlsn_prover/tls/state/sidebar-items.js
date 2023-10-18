@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["Closed","Initialized","Notarize","Setup"],"trait":["ProverState"]};

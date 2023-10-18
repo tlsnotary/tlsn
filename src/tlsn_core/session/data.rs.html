@@ -147,7 +147,7 @@
 
     <span class="doccomment">/// Returns a substrings proof builder.
     </span><span class="kw">pub fn </span>build_substrings_proof(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; SubstringsProofBuilder {
-        SubstringsProofBuilder::new(<span class="self">self</span>)
+        SubstringsProofBuilder::new(<span class="kw-2">&amp;</span><span class="self">self</span>.commitments, <span class="kw-2">&amp;</span><span class="self">self</span>.transcript_tx, <span class="kw-2">&amp;</span><span class="self">self</span>.transcript_rx)
     }
 }
 </code></pre></div></section></main></body></html>
