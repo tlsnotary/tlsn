@@ -1,12 +1,13 @@
 use mpz_ot::{chou_orlandi, kos};
+use mpz_share_conversion::{ReceiverConfig, SenderConfig};
 use tls_mpc::{MpcTlsCommonConfig, MpcTlsFollowerConfig};
 
 const DEFAULT_MAX_TRANSCRIPT_SIZE: usize = 1 << 14; // 16Kb
 
-/// Configuration for the [`Notary`](crate::Notary)
+/// Configuration for the [`Verifier`](crate::Verifier)
 #[allow(missing_docs)]
 #[derive(Debug, Clone, derive_builder::Builder)]
-pub struct NotaryConfig {
+pub struct VerifierConfig {
     #[builder(setter(into))]
     id: String,
 
@@ -17,10 +18,10 @@ pub struct NotaryConfig {
     max_transcript_size: usize,
 }
 
-impl NotaryConfig {
-    /// Create a new builder for `NotaryConfig`.
-    pub fn builder() -> NotaryConfigBuilder {
-        NotaryConfigBuilder::default()
+impl VerifierConfig {
+    /// Create a new configuration builder.
+    pub fn builder() -> VerifierConfigBuilder {
+        VerifierConfigBuilder::default()
     }
 
     /// Returns the ID of the notarization session.
@@ -55,7 +56,7 @@ impl NotaryConfig {
         kos::ReceiverConfig::default()
     }
 
-    pub(crate) fn build_tls_mpc_config(&self) -> MpcTlsFollowerConfig {
+    pub(crate) fn build_mpc_tls_config(&self) -> MpcTlsFollowerConfig {
         MpcTlsFollowerConfig::builder()
             .common(
                 MpcTlsCommonConfig::builder()
@@ -71,5 +72,21 @@ impl NotaryConfig {
 
     pub(crate) fn ot_count(&self) -> usize {
         self.max_transcript_size * 8
+    }
+
+    pub(crate) fn build_p256_sender_config(&self) -> SenderConfig {
+        SenderConfig::builder().id("p256/1").build().unwrap()
+    }
+
+    pub(crate) fn build_p256_receiver_config(&self) -> ReceiverConfig {
+        ReceiverConfig::builder().id("p256/0").build().unwrap()
+    }
+
+    pub(crate) fn build_gf2_config(&self) -> ReceiverConfig {
+        ReceiverConfig::builder()
+            .id("gf2")
+            .record()
+            .build()
+            .unwrap()
     }
 }

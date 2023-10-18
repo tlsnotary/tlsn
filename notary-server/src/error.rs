@@ -5,7 +5,7 @@ use axum::{
 use eyre::Report;
 use std::error::Error;
 
-use tlsn_notary::{NotaryConfigBuilderError, NotaryError};
+use tlsn_verifier::tls::{VerifierConfigBuilderError, VerifierError};
 
 #[derive(Debug, thiserror::Error)]
 pub enum NotaryServerError {
@@ -19,14 +19,14 @@ pub enum NotaryServerError {
     BadProverRequest(String),
 }
 
-impl From<NotaryError> for NotaryServerError {
-    fn from(error: NotaryError) -> Self {
+impl From<VerifierError> for NotaryServerError {
+    fn from(error: VerifierError) -> Self {
         Self::Notarization(Box::new(error))
     }
 }
 
-impl From<NotaryConfigBuilderError> for NotaryServerError {
-    fn from(error: NotaryConfigBuilderError) -> Self {
+impl From<VerifierConfigBuilderError> for NotaryServerError {
+    fn from(error: VerifierConfigBuilderError) -> Self {
         Self::Notarization(Box::new(error))
     }
 }
