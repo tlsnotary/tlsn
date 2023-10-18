@@ -127,3 +127,186 @@ fn default_cert_verifier() -> WebPkiVerifier {
 
     WebPkiVerifier::new(root_store, None)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::*;
+
+    use crate::fixtures::cert::{appliedzkp, tlsnotary, TestData};
+    use std::time::SystemTime;
+    use tls_core::{dns::ServerName, key::Certificate};
+
+    /// Expect chain verification to succeed
+    #[rstest]
+    #[case::tlsnotary(tlsnotary())]
+    #[case::appliedzkp(appliedzkp())]
+    fn test_verify_cert_chain_sucess_ca_implicit(#[case] data: TestData) {
+        assert!(default_cert_verifier()
+            .verify_server_cert(
+                &data.ee,
+                &[data.inter],
+                &ServerName::try_from(data.dns_name.as_ref()).unwrap(),
+                &mut std::iter::empty(),
+                &[],
+                SystemTime::UNIX_EPOCH + Duration::from_secs(data.time),
+            )
+            .is_ok());
+    }
+
+    /// Expect chain verification to succeed even when a trusted CA is provided among the intermediate
+    /// certs. webpki handles such cases properly.
+    #[rstest]
+    #[case::tlsnotary(tlsnotary())]
+    #[case::appliedzkp(appliedzkp())]
+    fn test_verify_cert_chain_success_ca_explicit(#[case] data: TestData) {
+        assert!(default_cert_verifier()
+            .verify_server_cert(
+                &data.ee,
+                &[data.inter, data.ca],
+                &ServerName::try_from(data.dns_name.as_ref()).unwrap(),
+                &mut std::iter::empty(),
+                &[],
+                SystemTime::UNIX_EPOCH + Duration::from_secs(data.time),
+            )
+            .is_ok());
+    }
+
+    /// Expect to fail since the end entity cert was not valid at the time
+    #[rstest]
+    #[case::tlsnotary(tlsnotary())]
+    #[case::appliedzkp(appliedzkp())]
+    fn test_verify_cert_chain_fail_bad_time(#[case] data: TestData) {
+        // unix time when the cert chain was NOT valid
+        let bad_time: u64 = 1571465711;
+
+        let err = default_cert_verifier().verify_server_cert(
+            &data.ee,
+            &[data.inter],
+            &ServerName::try_from(data.dns_name.as_ref()).unwrap(),
+            &mut std::iter::empty(),
+            &[],
+            SystemTime::UNIX_EPOCH + Duration::from_secs(bad_time),
+        );
+
+        assert!(matches!(
+            err.unwrap_err(),
+            tls_core::Error::InvalidCertificateData(_)
+        ));
+    }
+
+    /// Expect to fail when no intermediate cert provided
+    #[rstest]
+    #[case::tlsnotary(tlsnotary())]
+    #[case::appliedzkp(appliedzkp())]
+    fn test_verify_cert_chain_fail_no_interm_cert(#[case] data: TestData) {
+        let err = default_cert_verifier().verify_server_cert(
+            &data.ee,
+            &[],
+            &ServerName::try_from(data.dns_name.as_ref()).unwrap(),
+            &mut std::iter::empty(),
+            &[],
+            SystemTime::UNIX_EPOCH + Duration::from_secs(data.time),
+        );
+
+        assert!(matches!(
+            err.unwrap_err(),
+            tls_core::Error::InvalidCertificateData(_)
+        ));
+    }
+
+    /// Expect to fail when no intermediate cert provided even if a trusted CA cert is provided
+    #[rstest]
+    #[case::tlsnotary(tlsnotary())]
+    #[case::appliedzkp(appliedzkp())]
+    fn test_verify_cert_chain_fail_no_interm_cert_with_ca_cert(#[case] data: TestData) {
+        let err = default_cert_verifier().verify_server_cert(
+            &data.ee,
+            &[data.ca],
+            &ServerName::try_from(data.dns_name.as_ref()).unwrap(),
+            &mut std::iter::empty(),
+            &[],
+            SystemTime::UNIX_EPOCH + Duration::from_secs(data.time),
+        );
+
+        assert!(matches!(
+            err.unwrap_err(),
+            tls_core::Error::InvalidCertificateData(_)
+        ));
+    }
+
+    /// Expect to fail because end-entity cert is wrong
+    #[rstest]
+    #[case::tlsnotary(tlsnotary())]
+    #[case::appliedzkp(appliedzkp())]
+    fn test_verify_cert_chain_fail_bad_ee_cert(#[case] data: TestData) {
+        let ee: &[u8] = include_bytes!("../fixtures/testdata/key_exchange/unknown/ee.der");
+
+        let err = default_cert_verifier().verify_server_cert(
+            &Certificate(ee.to_vec()),
+            &[data.inter],
+            &ServerName::try_from(data.dns_name.as_ref()).unwrap(),
+            &mut std::iter::empty(),
+            &[],
+            SystemTime::UNIX_EPOCH + Duration::from_secs(data.time),
+        );
+
+        assert!(matches!(
+            err.unwrap_err(),
+            tls_core::Error::InvalidCertificateData(_)
+        ));
+    }
+
+    /// Expect to succeed when key exchange params signed correctly with a cert
+    #[rstest]
+    #[case::tlsnotary(tlsnotary())]
+    #[case::appliedzkp(appliedzkp())]
+    fn test_verify_sig_ke_params_success(#[case] data: TestData) {
+        assert!(default_cert_verifier()
+            .verify_tls12_signature(&data.signature_msg(), &data.ee, &data.dss())
+            .is_ok());
+    }
+
+    /// Expect sig verification to fail because client_random is wrong
+    #[rstest]
+    #[case::tlsnotary(tlsnotary())]
+    #[case::appliedzkp(appliedzkp())]
+    fn test_verify_sig_ke_params_fail_bad_client_random(#[case] mut data: TestData) {
+        data.cr.0[31] = data.cr.0[31].wrapping_add(1);
+
+        assert!(default_cert_verifier()
+            .verify_tls12_signature(&data.signature_msg(), &data.ee, &data.dss())
+            .is_err());
+    }
+
+    /// Expect sig verification to fail because the sig is wrong
+    #[rstest]
+    #[case::tlsnotary(tlsnotary())]
+    #[case::appliedzkp(appliedzkp())]
+    fn test_verify_sig_ke_params_fail_bad_sig(#[case] mut data: TestData) {
+        data.sig[31] = data.sig[31].wrapping_add(1);
+
+        assert!(default_cert_verifier()
+            .verify_tls12_signature(&data.signature_msg(), &data.ee, &data.dss())
+            .is_err());
+    }
+
+    /// Expect to fail because the dns name is not in the cert
+    #[rstest]
+    #[case::tlsnotary(tlsnotary())]
+    #[case::appliedzkp(appliedzkp())]
+    fn test_check_dns_name_present_in_cert_fail_bad_host(#[case] data: TestData) {
+        let bad_name = ServerName::try_from("badhost.com").unwrap();
+
+        assert!(default_cert_verifier()
+            .verify_server_cert(
+                &data.ee,
+                &[data.inter, data.ca],
+                &bad_name,
+                &mut std::iter::empty(),
+                &[],
+                SystemTime::UNIX_EPOCH + Duration::from_secs(data.time),
+            )
+            .is_err());
+    }
+}

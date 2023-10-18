@@ -7,16 +7,18 @@ This involves 3 steps:
 2. Start the (local) notary server
 3. Notarize
 
+P/S: The notary server used in this example is more functional compared to its [simple version](../simple/simple_notary.rs). The simple version is easier to integrate with from prover perspective, whereas this notary server provides additional features like TLS connection with prover, WebSocket endpoint, API endpoints for further customisation etc.
+
 ## Inputs
 
-In this tlsn/examples folder, create a `.env` file.
+In this tlsn/examples/discord folder, create a `.env` file.
 Then in that `.env` file, set the values of the following constants by following the format shown in this [example env file](./.env.example).
 
-| Name            | Example                                                 | Location      |
-| --------------- | ------------------------------------------------------- |---------------------------------------------------------------------------------- |
-| USER_AGENT | `Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/116.0` | Look for `User-Agent` in a request headers | 
-| AUTHORIZATION    | `MTE1NDe1Otg4N6NxNjczOTM2OA.GYbUBf.aDtcMUKDOmg6C2kxxFtlFSN1pgdMMBtpHgBBEs` | Look for `Authorization` in a request headers |   
-| CHANNEL_ID      | `1154750485639745567` | URL  |    
+| Name          | Example                                                                          | Location                                      |
+| ------------- | -------------------------------------------------------------------------------- | --------------------------------------------- |
+| USER_AGENT    | `Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/116.0` | Look for `User-Agent` in a request headers    |
+| AUTHORIZATION | `MTE1NDe1Otg4N6NxNjczOTM2OA.GYbUBf.aDtcMUKDOmg6C2kxxFtlFSN1pgdMMBtpHgBBEs`       | Look for `Authorization` in a request headers |
+| CHANNEL_ID    | `1154750485639745567`                                                            | URL                                           |
 
 You can obtain these parameters by opening [Discord](https://discord.com/channels/@me) in your browser and accessing the message history you want to notarize. Please note that notarizing only works for short transcripts at the moment, so choose a contact with a short history.
 
@@ -27,18 +29,15 @@ You can find the `CHANNEL_ID` directly in the url:
 `https://discord.com/channels/@me/{CHANNEL_ID)`
 
 ## Start the notary server
-
-Make sure you checkout a recent release and it matches the version of `tlsn`!
-
-```
-git clone https://github.com/tlsnotary/notary-server
+At the root level of this repository, run 
+```sh
 cd notary-server
 cargo run --release
 ```
 
 The notary server will now be running in the background waiting for connections.
 
-For more information on how to configure the notary server, please refer to [this](https://github.com/tlsnotary/notary-server#running-the-server).
+For more information on how to configure the `Notary` server, please refer to [this](../../../notary-server/README.md#running-the-server).
 
 ## Notarize
 

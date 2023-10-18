@@ -1,20 +1,12 @@
-// This example shows how to notarize Discord DMs.
-//
-// The example uses the notary server implemented in https://github.com/tlsnotary/notary-server
-
+/// This example shows how to notarize Discord DMs.
+///
+/// The example uses the notary server implemented in ../../../notary-server
 use eyre::Result;
 use futures::AsyncWriteExt;
 use hyper::{body::to_bytes, client::conn::Parts, Body, Request, StatusCode};
 use rustls::{Certificate, ClientConfig, RootCertStore};
 use serde::{Deserialize, Serialize};
-use std::{
-    env,
-    fs::File as StdFile,
-    io::BufReader,
-    net::{IpAddr, SocketAddr},
-    ops::Range,
-    sync::Arc,
-};
+use std::{env, fs::File as StdFile, io::BufReader, ops::Range, sync::Arc};
 use tlsn_core::proof::TlsProof;
 use tokio::{fs::File, io::AsyncWriteExt as _, net::TcpStream};
 use tokio_rustls::TlsConnector;
@@ -26,10 +18,10 @@ use tlsn_prover::tls::{Prover, ProverConfig};
 // Setting of the application server
 const SERVER_DOMAIN: &str = "discord.com";
 
-// Setting of the notary server — make sure these are the same with those in the notary-server repository used (https://github.com/tlsnotary/notary-server)
-const NOTARY_DOMAIN: &str = "127.0.0.1";
+// Setting of the notary server — make sure these are the same with those in ../../../notary-server
+const NOTARY_HOST: &str = "127.0.0.1";
 const NOTARY_PORT: u16 = 7047;
-const NOTARY_CA_CERT_PATH: &str = "../rootCA.crt";
+const NOTARY_CA_CERT_PATH: &str = "../../../notary-server/fixture/tls/rootCA.crt";
 
 // Configuration of notarization
 const NOTARY_MAX_TRANSCRIPT_SIZE: usize = 16384;
@@ -63,7 +55,7 @@ pub enum ClientType {
 async fn main() {
     tracing_subscriber::fmt::init();
 
-    // Load secret variables frome environment for twitter server connection
+    // Load secret variables frome environment for discord server connection
     dotenv::dotenv().ok();
     let channel_id = env::var("CHANNEL_ID").unwrap();
     let auth_token = env::var("AUTHORIZATION").unwrap();
@@ -222,12 +214,9 @@ async fn setup_notary_connection() -> (tokio_rustls::client::TlsStream<TcpStream
         .with_no_client_auth();
     let notary_connector = TlsConnector::from(Arc::new(client_notary_config));
 
-    let notary_socket = tokio::net::TcpStream::connect(SocketAddr::new(
-        IpAddr::V4(NOTARY_DOMAIN.parse().unwrap()),
-        NOTARY_PORT,
-    ))
-    .await
-    .unwrap();
+    let notary_socket = tokio::net::TcpStream::connect((NOTARY_HOST, NOTARY_PORT))
+        .await
+        .unwrap();
 
     let notary_tls_socket = notary_connector
         // Require the domain name of notary server to be the same as that in the server cert
@@ -251,9 +240,9 @@ async fn setup_notary_connection() -> (tokio_rustls::client::TlsStream<TcpStream
     .unwrap();
 
     let request = Request::builder()
-        .uri(format!("https://{NOTARY_DOMAIN}:{NOTARY_PORT}/session"))
+        .uri(format!("https://{NOTARY_HOST}:{NOTARY_PORT}/session"))
         .method("POST")
-        .header("Host", NOTARY_DOMAIN.clone())
+        .header("Host", NOTARY_HOST)
         // Need to specify application/json for axum to parse it as json
         .header("Content-Type", "application/json")
         .body(Body::from(payload))
@@ -282,15 +271,19 @@ async fn setup_notary_connection() -> (tokio_rustls::client::TlsStream<TcpStream
 
     // Send notarization request via HTTP, where the underlying TCP connection will be extracted later
     let request = Request::builder()
-        .uri(format!("https://{NOTARY_DOMAIN}:{NOTARY_PORT}/notarize"))
+        // Need to specify the session_id so that notary server knows the right configuration to use
+        // as the configuration is set in the previous HTTP call
+        .uri(format!(
+            "https://{}:{}/notarize?sessionId={}",
+            NOTARY_HOST,
+            NOTARY_PORT,
+            notarization_response.session_id.clone()
+        ))
         .method("GET")
-        .header("Host", NOTARY_DOMAIN)
+        .header("Host", NOTARY_HOST)
         .header("Connection", "Upgrade")
         // Need to specify this upgrade header for server to extract tcp connection later
         .header("Upgrade", "TCP")
-        // Need to specify the session_id so that notary server knows the right configuration to use
-        // as the configuration is set in the previous HTTP call
-        .header("X-Session-Id", notarization_response.session_id.clone())
         .body(Body::empty())
         .unwrap();
 

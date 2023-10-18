@@ -67,13 +67,7 @@ fn main() {
 
 /// Returns a Notary pubkey trusted by this Verifier
 fn notary_pubkey() -> p256::PublicKey {
-    // from https://github.com/tlsnotary/notary-server/tree/main/src/fixture/notary/notary.key
-    // converted with `openssl ec -in notary.key -pubout -outform PEM`
+    let pem_file_path = "../../../notary-server/fixture/notary/notary.pub";
 
-    let pem = "-----BEGIN PUBLIC KEY-----
-MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEBv36FI4ZFszJa0DQFJ3wWCXvVLFr
-cRzMG5kaTeHGoSzDu6cFqx3uEWYpFGo6C0EOUgf+mEgbktLrXocv5yHzKg==
------END PUBLIC KEY-----";
-
-    p256::PublicKey::from_public_key_pem(pem).unwrap()
+    p256::PublicKey::read_public_key_pem_file(pem_file_path).unwrap()
 }

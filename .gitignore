@@ -27,3 +27,6 @@ Cargo.lock
 
 # env var
 *.env
+
+# logs
+*.log

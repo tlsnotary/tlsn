@@ -1,18 +1,11 @@
+# Examples
+
 This folder contains examples showing how to use the TLSNotary protocol. 
 
-`quick_start.md` shows how to perform a simple notarization.
+[simple](./simple/) shows how to perform a simple notarization.
 
-`twitter_dm.md` shows how to notarize a Twitter DM.
+[twitter](./twitter/) shows how to notarize a Twitter DM.
 
+[discord](./discord/) shows how to notarize a Discord DM.
 
-### Starting a notary server
-
-Before running the examples please make sure that the Notary server is already running. The server can be started with:
-
-```shell
-git clone https://github.com/tlsnotary/notary-server
-cd notary-server
-cargo run --release
-```
-
-By default the server will be listening on 127.0.0.1:7047
+Refer to the `README.md` in each folder for more information.

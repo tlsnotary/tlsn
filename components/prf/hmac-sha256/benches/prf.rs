@@ -9,6 +9,8 @@ async fn bench_prf() {
     let mut leader = MpcPrf::new(leader_vm.new_thread("bench_thread").await.unwrap());
     let mut follower = MpcPrf::new(follower_vm.new_thread("bench_thread").await.unwrap());
 
+    futures::try_join!(leader.setup(), follower.setup()).unwrap();
+
     let pms = [42u8; 32];
 
     let client_random = [0u8; 32];

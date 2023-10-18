@@ -7,18 +7,20 @@ This involves 3 steps:
 2. Start the (local) notary server
 3. Notarize
 
+P/S: The notary server used in this example is more functional compared to its [simple version](../simple/simple_notary.rs). The simple version is easier to integrate with from prover perspective, whereas this notary server provides additional features like TLS connection with prover, WebSocket endpoint, API endpoints for further customisation etc.
+
 ## Inputs
 
-In this tlsn/examples folder, create a `.env` file.
+In this tlsn/examples/twitter folder, create a `.env` file.
 Then in that `.env` file, set the values of the following constants by following the format shown in this [example env file](./.env.example).
 
-| Name            | Example                                                 | Location in Request Headers Section (within Network Tab of Developer Tools)       |
-| --------------- | ------------------------------------------------------- |---------------------------------------------------------------------------------- |
-| CONVERSATION_ID | `20124652-973145016511139841`                           | Look for `Referer`, then extract the `ID` in `https://twitter.com/messages/<ID>`  |   
-| CLIENT_UUID     | `e6f00000-cccc-dddd-bbbb-eeeeeefaaa27`                  | Look for `X-Client-Uuid`, then copy the entire value                              |   
-| AUTH_TOKEN      | `670ccccccbe2bbbbbbbc1025aaaaaafa55555551`              | Look for `Cookie`, then extract the `token` in `;auth_token=<token>;`             |   
-| ACCESS_TOKEN    | `AAAAAAAAAAAAAAAAAAAAANRILgAA...4puTs%3D1Zv7...WjCpTnA` | Look for `Authorization`, then extract the `token` in `Bearer <token>`            |   
-| CSRF_TOKEN      | `77d8ef46bd57f722ea7e9f...f4235a713040bfcaac1cd6909`    | Look for `X-Csrf-Token`, then copy the entire value                               |    
+| Name            | Example                                                 | Location in Request Headers Section (within Network Tab of Developer Tools)      |
+| --------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| CONVERSATION_ID | `20124652-973145016511139841`                           | Look for `Referer`, then extract the `ID` in `https://twitter.com/messages/<ID>` |
+| CLIENT_UUID     | `e6f00000-cccc-dddd-bbbb-eeeeeefaaa27`                  | Look for `X-Client-Uuid`, then copy the entire value                             |
+| AUTH_TOKEN      | `670ccccccbe2bbbbbbbc1025aaaaaafa55555551`              | Look for `Cookie`, then extract the `token` in `;auth_token=<token>;`            |
+| ACCESS_TOKEN    | `AAAAAAAAAAAAAAAAAAAAANRILgAA...4puTs%3D1Zv7...WjCpTnA` | Look for `Authorization`, then extract the `token` in `Bearer <token>`           |
+| CSRF_TOKEN      | `77d8ef46bd57f722ea7e9f...f4235a713040bfcaac1cd6909`    | Look for `X-Csrf-Token`, then copy the entire value                              |
 
 You can obtain these parameters by opening [Twitter](https://twitter.com/messages/) in your browser and accessing the message history you want to notarize. Please note that notarizing only works for short transcripts at the moment, so choose a contact with a short history.
 
@@ -27,20 +29,19 @@ Next, open the **Developer Tools**, go to the **Network** tab, and refresh the p
 ![Screenshot](twitter_dm_browser.png)
 
 ## Start the notary server
-
-```
-git clone https://github.com/tlsnotary/notary-server
+At the root level of this repository, run 
+```sh
 cd notary-server
 cargo run --release
 ```
 
 The notary server will now be running in the background waiting for connections.
 
-For more information on how to configure the notary server, please refer to [this](https://github.com/tlsnotary/notary-server#running-the-server).
+For more information on how to configure the notary server, please refer to [this](../../../notary-server/README.md#running-the-server).
 
 ## Notarize
 
-In this tlsn/examples folder, run the following command:
+In this tlsn/examples/twitter folder, run the following command:
 
 ```sh
 RUST_LOG=debug,yamux=info cargo run --release --example twitter_dm

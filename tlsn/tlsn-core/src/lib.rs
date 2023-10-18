@@ -7,7 +7,7 @@
 #![forbid(unsafe_code)]
 
 pub mod commitment;
-#[cfg(feature = "fixtures")]
+#[cfg(any(test, feature = "fixtures"))]
 pub mod fixtures;
 pub mod merkle;
 pub mod msg;
