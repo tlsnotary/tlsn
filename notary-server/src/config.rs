@@ -13,6 +13,15 @@ pub struct NotaryServerProperties {
     pub notary_signature: NotarySignatureProperties,
     /// Setting for logging/tracing
     pub tracing: TracingProperties,
+    /// Setting for authorization
+    pub authorization: Option<AuthorizationProperties>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct AuthorizationProperties {
+    /// File path of the whitelist API key csv
+    pub whitelist_csv_path: String,
 }
 
 #[derive(Clone, Debug, Deserialize)]

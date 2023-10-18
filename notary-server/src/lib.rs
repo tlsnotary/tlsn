@@ -1,6 +1,7 @@
 mod config;
 mod domain;
 mod error;
+mod middleware;
 mod server;
 mod server_tracing;
 mod service;

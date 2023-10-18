@@ -15,3 +15,6 @@ notary-signature:
 
 tracing:
   default-level: DEBUG
+
+authorization:
+  whitelist-csv-path: "./fixture/auth/whitelist.csv"

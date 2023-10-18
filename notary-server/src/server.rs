@@ -1,5 +1,6 @@
 use axum::{
     http::{Request, StatusCode},
+    middleware::map_request_with_state,
     response::IntoResponse,
     routing::{get, post},
     Router,
@@ -29,6 +30,7 @@ use crate::{
     config::{NotaryServerProperties, NotarySignatureProperties, TLSSignatureProperties},
     domain::notary::NotaryGlobals,
     error::NotaryServerError,
+    middleware::authorization_middleware,
     service::{initialize, upgrade_protocol},
 };
 
@@ -39,6 +41,11 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
     let (tls_private_key, tls_certificates) = load_tls_key_and_cert(&config.tls_signature).await?;
     // Load the private key for notarized transcript signing from fixture folder — can be swapped out when we use proper ephemeral signing key
     let notary_signing_key = load_notary_signing_key(&config.notary_signature).await?;
+    // Load the authorization whitelist csv path if it exists
+    let authorization_whitelist_path = config
+        .authorization
+        .as_ref()
+        .map(|authorization_properties| authorization_properties.whitelist_csv_path.clone());
 
     // Build a TCP listener with TLS enabled
     let mut server_config = ServerConfig::builder()
@@ -71,7 +78,11 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
     );
 
     let protocol = Arc::new(Http::new());
-    let notary_globals = NotaryGlobals::new(notary_signing_key, config.notarization.clone());
+    let notary_globals = NotaryGlobals::new(
+        notary_signing_key,
+        config.notarization.clone(),
+        authorization_whitelist_path,
+    );
     let router = Router::new()
         .route(
             "/healthcheck",
@@ -79,6 +90,10 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
         )
         .route("/session", post(initialize))
         .route("/notarize", get(upgrade_protocol))
+        .route_layer(map_request_with_state(
+            notary_globals.clone(),
+            authorization_middleware,
+        ))
         .with_state(notary_globals);
     let mut app = router.into_make_service();
 

@@ -47,17 +47,20 @@ pub struct NotaryGlobals {
     pub notarization_config: NotarizationProperties,
     /// A temporary storage to store configuration data, mainly used for WebSocket client
     pub store: Arc<Mutex<HashMap<String, Option<usize>>>>,
+    pub authorization_whitelist_path: Option<String>,
 }
 
 impl NotaryGlobals {
     pub fn new(
         notary_signing_key: SigningKey,
         notarization_config: NotarizationProperties,
+        authorization_whitelist_path: Option<String>,
     ) -> Self {
         Self {
             notary_signing_key,
             notarization_config,
             store: Default::default(),
+            authorization_whitelist_path,
         }
     }
 }

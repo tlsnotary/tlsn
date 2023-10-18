@@ -50,6 +50,7 @@ async fn setup_config_and_server(sleep_ms: u64, port: u16) -> NotaryServerProper
         tracing: TracingProperties {
             default_level: "DEBUG".to_string(),
         },
+        authorization: None,
     };
 
     let _ = tracing_subscriber::fmt::try_init();
