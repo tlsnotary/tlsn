@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use tlsn_core::{
-    commitment::{TranscriptCommitmentBuilder, TranscriptCommitments},
+    commitment::{CommitmentId, TranscriptCommitmentBuilder, TranscriptCommitments},
     proof::SubstringsProofBuilder,
     Direction,
 };
@@ -46,6 +46,18 @@ impl<'a> BodyCommitmentBuilder<'a> {
             Body::Unknown(body) => BodyCommitmentBuilder::Unknown(UnknownCommitmentBuilder::new(
                 builder, body, direction, built,
             )),
+        }
+    }
+
+    /// Commits to the entire body.
+    pub fn all(&mut self) -> Result<CommitmentId, HttpCommitmentBuilderError> {
+        match self {
+            BodyCommitmentBuilder::Json(builder) => builder
+                .all()
+                .map_err(|e| HttpCommitmentBuilderError::Body(e.to_string())),
+            BodyCommitmentBuilder::Unknown(builder) => builder
+                .all()
+                .map_err(|e| HttpCommitmentBuilderError::Body(e.to_string())),
         }
     }
 
@@ -111,13 +123,13 @@ impl<'a, 'b> BodyProofBuilder<'a, 'b> {
     }
 
     /// Builds the proof for the body.
-    pub fn build(&mut self) -> Result<(), HttpProofBuilderError> {
+    pub fn build(self) -> Result<(), HttpProofBuilderError> {
         match self {
             BodyProofBuilder::Json(builder) => builder
-                .all()
+                .build()
                 .map_err(|e| HttpProofBuilderError::Body(e.to_string())),
             BodyProofBuilder::Unknown(builder) => builder
-                .all()
+                .build()
                 .map_err(|e| HttpProofBuilderError::Body(e.to_string())),
         }
     }

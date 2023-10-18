@@ -90,6 +90,15 @@ impl<'a> UnknownCommitmentBuilder<'a> {
         .map_err(From::from)
     }
 
+    /// Commits to the entire body.
+    pub fn all(&mut self) -> Result<CommitmentId, UnknownCommitmentBuilderError> {
+        match self.direction {
+            Direction::Sent => self.builder.commit_sent(self.span.clone()),
+            Direction::Received => self.builder.commit_recv(self.span.clone()),
+        }
+        .map_err(From::from)
+    }
+
     /// Builds the commitment.
     pub fn build(self) -> Result<(), UnknownCommitmentBuilderError> {
         // commit to the entire span
