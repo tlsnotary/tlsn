@@ -53,8 +53,6 @@ async fn prf() {
         follower_vm.new_thread("prf/1").await.unwrap(),
     );
 
-    futures::try_join!(leader.setup(), follower.setup()).unwrap();
-
     let pms = [42u8; 32];
 
     let client_random = [0u8; 32];

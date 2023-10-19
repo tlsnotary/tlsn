@@ -7,7 +7,9 @@ use async_trait::async_trait;
 
 use hmac_sha256_circuits::{build_session_keys, build_verify_data};
 use mpz_circuits::Circuit;
-use mpz_garble::{config::Visibility, Decode, DecodePrivate, Execute, Load, Memory, ValueRef};
+use mpz_garble::{
+    config::Visibility, value::ValueRef, Decode, DecodePrivate, Execute, Load, Memory,
+};
 use utils_aio::non_blocking_backend::{Backend, NonBlockingBackend};
 
 use crate::{Prf, PrfConfig, PrfError, Role, SessionKeys, CF_LABEL, SF_LABEL};

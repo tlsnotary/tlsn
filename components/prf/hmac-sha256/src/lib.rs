@@ -14,10 +14,10 @@ pub use prf::MpcPrf;
 
 use async_trait::async_trait;
 
-use mpz_garble::ValueRef;
+use mpz_garble::value::ValueRef;
 
-pub(crate) static CF_LABEL: &'static [u8] = b"client finished";
-pub(crate) static SF_LABEL: &'static [u8] = b"server finished";
+pub(crate) static CF_LABEL: &[u8] = b"client finished";
+pub(crate) static SF_LABEL: &[u8] = b"server finished";
 
 /// Session keys computed by the PRF.
 #[derive(Debug)]
