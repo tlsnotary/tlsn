@@ -1,5 +1,6 @@
 use serde::Deserialize;
 
+/// Structure of each whitelisted record
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct AuthorizationWhitelistRecord {

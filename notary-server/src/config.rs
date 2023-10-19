@@ -14,14 +14,16 @@ pub struct NotaryServerProperties {
     /// Setting for logging/tracing
     pub tracing: TracingProperties,
     /// Setting for authorization
-    pub authorization: Option<AuthorizationProperties>,
+    pub authorization: AuthorizationProperties,
 }
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct AuthorizationProperties {
+    /// Switch to turn on or off auth middleware
+    pub enabled: bool,
     /// File path of the whitelist API key csv
-    pub whitelist_csv_path: String,
+    pub whitelist_csv_path: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -29,6 +31,8 @@ pub struct AuthorizationProperties {
 pub struct NotarizationProperties {
     /// Global limit for maximum transcript size in bytes
     pub max_transcript_size: usize,
+    /// Number of seconds elapsed before a session id is considered invalid to use for /notarize
+    pub session_ttl_seconds: u16,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -51,6 +55,7 @@ pub struct TLSSignatureProperties {
 #[serde(rename_all = "kebab-case")]
 pub struct NotarySignatureProperties {
     pub private_key_pem_path: String,
+    pub public_key_pem_path: String,
 }
 
 #[derive(Clone, Debug, Deserialize)]

@@ -8,6 +8,7 @@ pub fn parse_config_file<T: DeserializeOwned>(location: &str) -> Result<T> {
     Ok(config)
 }
 
+/// Parse a csv file into a vec of structs
 pub fn parse_csv_file<T: DeserializeOwned>(location: &str) -> Result<Vec<T>> {
     let file = std::fs::File::open(location)?;
     let mut reader = csv::Reader::from_reader(file);

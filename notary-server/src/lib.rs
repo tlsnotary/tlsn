@@ -8,8 +8,8 @@ mod service;
 mod util;
 
 pub use config::{
-    NotarizationProperties, NotaryServerProperties, NotarySignatureProperties, ServerProperties,
-    TLSSignatureProperties, TracingProperties,
+    AuthorizationProperties, NotarizationProperties, NotaryServerProperties,
+    NotarySignatureProperties, ServerProperties, TLSSignatureProperties, TracingProperties,
 };
 pub use domain::{
     cli::CliFields,

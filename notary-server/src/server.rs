@@ -1,9 +1,9 @@
 use axum::{
     http::{Request, StatusCode},
-    middleware::map_request_with_state,
+    middleware::from_extractor_with_state,
     response::IntoResponse,
     routing::{get, post},
-    Router,
+    Json, Router,
 };
 use eyre::{ensure, eyre, Result};
 use futures_util::future::poll_fn;
@@ -28,10 +28,11 @@ use tracing::{debug, error, info};
 
 use crate::{
     config::{NotaryServerProperties, NotarySignatureProperties, TLSSignatureProperties},
-    domain::notary::NotaryGlobals,
+    domain::{auth::AuthorizationWhitelistRecord, notary::NotaryGlobals, InfoResponse},
     error::NotaryServerError,
-    middleware::authorization_middleware,
+    middleware::AuthorizationMiddleware,
     service::{initialize, upgrade_protocol},
+    util::parse_csv_file,
 };
 
 /// Start a TLS-secured TCP server to accept notarization request for both TCP and WebSocket clients
@@ -41,11 +42,23 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
     let (tls_private_key, tls_certificates) = load_tls_key_and_cert(&config.tls_signature).await?;
     // Load the private key for notarized transcript signing from fixture folder — can be swapped out when we use proper ephemeral signing key
     let notary_signing_key = load_notary_signing_key(&config.notary_signature).await?;
-    // Load the authorization whitelist csv path if it exists
-    let authorization_whitelist_path = config
-        .authorization
-        .as_ref()
-        .map(|authorization_properties| authorization_properties.whitelist_csv_path.clone());
+    // Load the authorization whitelist csv if it is turned on
+    let authorization_whitelist = if !config.authorization.enabled {
+        debug!("Skipping authorization as it is turned off.");
+        None
+    } else {
+        config
+            .authorization
+            .whitelist_csv_path
+            .as_ref()
+            .and_then(|path| match parse_csv_file::<AuthorizationWhitelistRecord>(path) {
+                Ok(whitelist) => Some(whitelist),
+                Err(err) => {
+                    debug!("Skipping authorization as we failed to parse authorization whitelist csv: {:?}", err);
+                    None
+                }
+            })
+    };
 
     // Build a TCP listener with TLS enabled
     let mut server_config = ServerConfig::builder()
@@ -81,19 +94,44 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
     let notary_globals = NotaryGlobals::new(
         notary_signing_key,
         config.notarization.clone(),
-        authorization_whitelist_path,
+        authorization_whitelist,
     );
+
+    // Parameters needed for the info endpoint
+    let public_key = std::fs::read_to_string(&config.notary_signature.public_key_pem_path)
+        .map_err(|err| eyre!("Failed to load notary public signing key for notarization: {err}"))?;
+    let version = option_env!("CARGO_PKG_VERSION")
+        .unwrap_or("unknown")
+        .to_string();
     let router = Router::new()
         .route(
             "/healthcheck",
             get(|| async move { (StatusCode::OK, "Ok").into_response() }),
         )
+        .route(
+            "/info",
+            get(|| async move {
+                (
+                    StatusCode::OK,
+                    Json(InfoResponse {
+                        version,
+                        public_key,
+                    }),
+                )
+                    .into_response()
+            }),
+        )
         .route("/session", post(initialize))
+        // Only apply auth middleware to /session endpoint for now as we can rely on our
+        // short-lived session id generated from /session endpoint, as it is not possible
+        // to use header for API key for websocket /notarize endpoint due to browser restriction
+        // ref: https://stackoverflow.com/a/4361358; And putting it in url query param
+        // seems to be more insecured: https://stackoverflow.com/questions/5517281/place-api-key-in-headers-or-url
+        .route_layer(from_extractor_with_state::<
+            AuthorizationMiddleware,
+            NotaryGlobals,
+        >(notary_globals.clone()))
         .route("/notarize", get(upgrade_protocol))
-        .route_layer(map_request_with_state(
-            notary_globals.clone(),
-            authorization_middleware,
-        ))
         .with_state(notary_globals);
     let mut app = router.into_make_service();
 
@@ -202,6 +240,7 @@ mod test {
     async fn test_load_notary_signing_key() {
         let config = NotarySignatureProperties {
             private_key_pem_path: "./fixture/notary/notary.key".to_string(),
+            public_key_pem_path: "./fixture/notary/notary.pub".to_string(),
         };
         let result: Result<SigningKey> = load_notary_signing_key(&config).await;
         assert!(result.is_ok(), "Could not load notary private key");
