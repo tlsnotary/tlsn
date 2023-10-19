@@ -122,7 +122,7 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
             }),
         )
         .route("/session", post(initialize))
-        // Only apply auth middleware to /session endpoint for now as we can rely on our
+        // Not applying auth middleware to /notarize endpoint for now as we can rely on our
         // short-lived session id generated from /session endpoint, as it is not possible
         // to use header for API key for websocket /notarize endpoint due to browser restriction
         // ref: https://stackoverflow.com/a/4361358; And putting it in url query param
