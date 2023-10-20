@@ -17,7 +17,7 @@ use futures::{SinkExt, StreamExt, TryFutureExt};
 
 use block_cipher::{Aes128, BlockCipher};
 use mpz_core::commit::HashCommit;
-use mpz_garble::ValueRef;
+use mpz_garble::value::ValueRef;
 use tlsn_stream_cipher::{Aes128Ctr, StreamCipher};
 use tlsn_universal_hash::UniversalHash;
 use utils_aio::expect_msg_or_err;
@@ -365,15 +365,25 @@ mod tests {
 
         let leader_thread = leader_vm.new_thread("test_thread").await.unwrap();
         let leader_key = leader_thread
-            .new_public_array_input("key", key.clone())
+            .new_public_array_input::<u8>("key", key.len())
             .unwrap();
         let leader_iv = leader_thread
-            .new_public_array_input("iv", iv.clone())
+            .new_public_array_input::<u8>("iv", iv.len())
             .unwrap();
 
+        leader_thread.assign(&leader_key, key.clone()).unwrap();
+        leader_thread.assign(&leader_iv, iv.clone()).unwrap();
+
         let follower_thread = follower_vm.new_thread("test_thread").await.unwrap();
-        let follower_key = follower_thread.new_public_array_input("key", key).unwrap();
-        let follower_iv = follower_thread.new_public_array_input("iv", iv).unwrap();
+        let follower_key = follower_thread
+            .new_public_array_input::<u8>("key", key.len())
+            .unwrap();
+        let follower_iv = follower_thread
+            .new_public_array_input::<u8>("iv", iv.len())
+            .unwrap();
+
+        follower_thread.assign(&follower_key, key.clone()).unwrap();
+        follower_thread.assign(&follower_iv, iv.clone()).unwrap();
 
         let leader_config = AesGcmConfigBuilder::default()
             .id("test".to_string())

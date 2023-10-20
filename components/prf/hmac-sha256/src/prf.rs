@@ -95,10 +95,6 @@ where
     E: Load + Memory + Execute + DecodePrivate + Send,
 {
     /// Creates a new instance of the PRF.
-    #[cfg_attr(
-        feature = "tracing",
-        instrument(level = "info", skip(thread_sk, thread_cf, thread_sf), ret)
-    )]
     pub fn new(config: PrfConfig, thread_0: E, thread_1: E) -> MpcPrf<E> {
         MpcPrf {
             config,

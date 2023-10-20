@@ -4,8 +4,8 @@ resolver = "2"
 
 [workspace.dependencies]
 # tlsn
-mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "1f2c922" }
-mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "1f2c922" }
+mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "7669232" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "7669232" }
 
 # async
 async-trait = "0.1"
@@ -18,7 +18,3 @@ tracing = "0.1"
 
 # testing
 criterion = "0.5"
-
-[patch.'https://github.com/privacy-scaling-explorations/mpz']
-mpz-circuits = { path = "../../../mpz/mpz-circuits" }
-mpz-garble = { path = "../../../mpz/garble/mpz-garble" }

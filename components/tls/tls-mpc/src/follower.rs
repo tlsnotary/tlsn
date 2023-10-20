@@ -3,7 +3,7 @@ use futures::StreamExt;
 use hmac_sha256 as prf;
 use key_exchange as ke;
 use mpz_core::hash::Hash;
-use mpz_garble::ValueRef;
+use mpz_garble::value::ValueRef;
 
 use p256::elliptic_curve::sec1::ToEncodedPoint;
 use prf::SessionKeys;
@@ -86,7 +86,8 @@ impl MpcTlsFollower {
 
     /// Performs any one-time setup operations.
     pub async fn setup(&mut self) -> Result<(), MpcTlsError> {
-        self.prf.setup().await?;
+        let pms = self.ke.setup().await?;
+        self.prf.setup(pms.into_value()).await?;
 
         Ok(())
     }
@@ -134,7 +135,7 @@ impl MpcTlsFollower {
             self.handshake_commitment = Some(handshake_commitment);
         }
 
-        let pms = self.ke.compute_pms().await?;
+        self.ke.compute_pms().await?;
 
         // PRF
         let SessionKeys {
@@ -142,10 +143,7 @@ impl MpcTlsFollower {
             server_write_key,
             client_iv,
             server_iv,
-        } = self
-            .prf
-            .compute_session_keys_blind(pms.into_value())
-            .await?;
+        } = self.prf.compute_session_keys_blind().await?;
 
         self.encrypter.set_key(client_write_key, client_iv).await?;
         self.decrypter.set_key(server_write_key, server_iv).await?;

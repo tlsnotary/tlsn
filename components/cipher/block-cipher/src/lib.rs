@@ -12,7 +12,7 @@ mod config;
 
 use async_trait::async_trait;
 
-use mpz_garble::ValueRef;
+use mpz_garble::value::ValueRef;
 
 pub use crate::{
     cipher::MpcBlockCipher,
@@ -96,8 +96,11 @@ mod tests {
         let follower_thread = follower_vm.new_thread("test").await.unwrap();
 
         // Key is public just for this test, typically it is private
-        let leader_key = leader_thread.new_public_input("key", key).unwrap();
-        let follower_key = follower_thread.new_public_input("key", key).unwrap();
+        let leader_key = leader_thread.new_public_input::<[u8; 16]>("key").unwrap();
+        let follower_key = follower_thread.new_public_input::<[u8; 16]>("key").unwrap();
+
+        leader_thread.assign(&leader_key, key).unwrap();
+        follower_thread.assign(&follower_key, key).unwrap();
 
         let mut leader = MpcBlockCipher::<Aes128, _>::new(leader_config, leader_thread);
         leader.set_key(leader_key);
@@ -131,8 +134,11 @@ mod tests {
         let follower_thread = follower_vm.new_thread("test").await.unwrap();
 
         // Key is public just for this test, typically it is private
-        let leader_key = leader_thread.new_public_input("key", key).unwrap();
-        let follower_key = follower_thread.new_public_input("key", key).unwrap();
+        let leader_key = leader_thread.new_public_input::<[u8; 16]>("key").unwrap();
+        let follower_key = follower_thread.new_public_input::<[u8; 16]>("key").unwrap();
+
+        leader_thread.assign(&leader_key, key).unwrap();
+        follower_thread.assign(&follower_key, key).unwrap();
 
         let mut leader = MpcBlockCipher::<Aes128, _>::new(leader_config, leader_thread);
         leader.set_key(leader_key);
