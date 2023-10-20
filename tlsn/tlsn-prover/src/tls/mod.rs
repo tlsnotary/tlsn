@@ -14,8 +14,9 @@ mod verify;
 
 pub use config::{ProverConfig, ProverConfigBuilder, ProverConfigBuilderError};
 pub use error::ProverError;
+pub use future::ProverFuture;
 
-use future::{MuxFuture, OTFuture, ProverFuture};
+use future::{MuxFuture, OTFuture};
 use futures::{AsyncRead, AsyncWrite, FutureExt, StreamExt, TryFutureExt};
 use mpz_garble::{config::Role as DEAPRole, protocol::deap::DEAPVm};
 use mpz_ot::{
