@@ -21,12 +21,21 @@ pub struct Notarize {
     pub(super) responses: Vec<(Response, Option<Body>)>,
 }
 
+/// Verifying state.
+pub struct Verify {
+    pub(super) prover: Prover<prover_state::Verify>,
+    pub(super) requests: Vec<(Request, Option<Body>)>,
+    pub(super) responses: Vec<(Response, Option<Body>)>,
+}
+
 impl State for Closed {}
 impl State for Notarize {}
+impl State for Verify {}
 
 mod sealed {
     pub trait Sealed {}
 
     impl Sealed for super::Closed {}
     impl Sealed for super::Notarize {}
+    impl Sealed for super::Verify {}
 }

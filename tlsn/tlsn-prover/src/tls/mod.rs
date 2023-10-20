@@ -239,6 +239,17 @@ impl Prover<state::Closed> {
             state: self.state.into(),
         }
     }
+
+    /// Starts verification of the TLS session.
+    ///
+    /// This function transitions the prover into a state where it can open parts of the
+    /// transcript.
+    pub fn start_verify(self) -> Prover<state::Verify> {
+        Prover {
+            config: self.config,
+            state: self.state.into(),
+        }
+    }
 }
 
 impl Prover<state::Notarize> {

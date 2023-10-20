@@ -69,6 +69,20 @@ impl HttpProver<state::Closed> {
             },
         }
     }
+
+    /// Starts verification of the TLS session.
+    ///
+    /// This function transitions the prover into a state where it can open parts of the
+    /// transcript.
+    pub fn start_verify(self) -> HttpProver<state::Verify> {
+        HttpProver {
+            state: state::Verify {
+                prover: self.state.prover.start_verify(),
+                requests: self.state.requests,
+                responses: self.state.responses,
+            },
+        }
+    }
 }
 
 impl HttpProver<state::Notarize> {

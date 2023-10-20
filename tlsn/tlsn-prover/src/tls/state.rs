@@ -107,6 +107,15 @@ impl From<Closed> for Notarize {
     }
 }
 
+/// Verifying state.
+pub struct Verify {}
+
+impl From<Closed> for Verify {
+    fn from(value: Closed) -> Self {
+        todo!()
+    }
+}
+
 #[allow(missing_docs)]
 pub trait ProverState: sealed::Sealed {}
 
@@ -114,6 +123,7 @@ impl ProverState for Initialized {}
 impl ProverState for Setup {}
 impl ProverState for Closed {}
 impl ProverState for Notarize {}
+impl ProverState for Verify {}
 
 mod sealed {
     pub trait Sealed {}
@@ -121,6 +131,7 @@ mod sealed {
     impl Sealed for super::Setup {}
     impl Sealed for super::Closed {}
     impl Sealed for super::Notarize {}
+    impl Sealed for super::Verify {}
 }
 
 fn collect_encodings(
