@@ -13,11 +13,9 @@ pub use config::{ProverConfig, ProverConfigBuilder, ProverConfigBuilderError};
 pub use error::ProverError;
 
 use ff::ShareConversionReveal;
-use futures::{
-    future::FusedFuture, AsyncRead, AsyncWrite, Future, FutureExt, SinkExt, StreamExt, TryFutureExt,
-};
+use futures::{AsyncRead, AsyncWrite, FutureExt, SinkExt, StreamExt, TryFutureExt};
 use rand::Rng;
-use std::{pin::Pin, sync::Arc};
+use std::sync::Arc;
 use tls_client_async::{bind_client, ClosedConnection, TlsConnection};
 use tls_mpc::{setup_components, MpcTlsLeader, TlsRole};
 
@@ -46,22 +44,8 @@ use crate::{
     Mux,
 };
 
-/// Prover future which must be polled for the TLS connection to make progress.
-pub struct ProverFuture {
-    #[allow(clippy::type_complexity)]
-    fut: Pin<Box<dyn Future<Output = Result<Prover<state::Closed>, ProverError>> + Send + 'static>>,
-}
-
-impl Future for ProverFuture {
-    type Output = Result<Prover<state::Closed>, ProverError>;
-
-    fn poll(
-        mut self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Self::Output> {
-        self.fut.as_mut().poll(cx)
-    }
-}
+mod future;
+use future::{MuxFuture, OTFuture, ProverFuture};
 
 /// A prover instance.
 #[derive(Debug)]
@@ -465,48 +449,4 @@ async fn setup_mpc_backend(
     debug!("MPC backend setup complete");
 
     Ok((mpc_tls, vm, ot_recv, gf2, ot_fut))
-}
-
-/// A future which must be polled for the muxer to make progress.
-pub(crate) struct MuxFuture {
-    fut: Pin<Box<dyn FusedFuture<Output = Result<(), ProverError>> + Send + 'static>>,
-}
-
-impl Future for MuxFuture {
-    type Output = Result<(), ProverError>;
-
-    fn poll(
-        mut self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Self::Output> {
-        self.fut.as_mut().poll(cx)
-    }
-}
-
-impl FusedFuture for MuxFuture {
-    fn is_terminated(&self) -> bool {
-        self.fut.is_terminated()
-    }
-}
-
-/// A future which must be polled for the Oblivious Transfer protocol to make progress.
-pub(crate) struct OTFuture {
-    fut: Pin<Box<dyn FusedFuture<Output = Result<(), ProverError>> + Send + 'static>>,
-}
-
-impl Future for OTFuture {
-    type Output = Result<(), ProverError>;
-
-    fn poll(
-        mut self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Self::Output> {
-        self.fut.as_mut().poll(cx)
-    }
-}
-
-impl FusedFuture for OTFuture {
-    fn is_terminated(&self) -> bool {
-        self.fut.is_terminated()
-    }
 }

@@ -111,7 +111,7 @@ impl From<Closed> for Notarize {
 pub struct Verify {}
 
 impl From<Closed> for Verify {
-    fn from(value: Closed) -> Self {
+    fn from(_value: Closed) -> Self {
         todo!()
     }
 }
