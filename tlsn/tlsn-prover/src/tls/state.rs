@@ -108,11 +108,36 @@ impl From<Closed> for Notarize {
 }
 
 /// Verifying state.
-pub struct Verify {}
+pub struct Verify {
+    pub(crate) notary_mux: Mux,
+    pub(crate) mux_fut: MuxFuture,
+
+    pub(crate) vm: DEAPVm<SharedSender, SharedReceiver>,
+    pub(crate) ot_fut: OTFuture,
+    pub(crate) gf2: ConverterSender<Gf2_128, SharedSender>,
+
+    pub(crate) start_time: u64,
+    pub(crate) handshake_decommitment: Decommitment<HandshakeData>,
+
+    pub(crate) server_public_key: PublicKey,
+    pub(crate) transcript_tx: Transcript,
+    pub(crate) transcript_rx: Transcript,
+}
 
 impl From<Closed> for Verify {
-    fn from(_value: Closed) -> Self {
-        todo!()
+    fn from(state: Closed) -> Self {
+        Self {
+            notary_mux: state.notary_mux,
+            mux_fut: state.mux_fut,
+            vm: state.vm,
+            ot_fut: state.ot_fut,
+            gf2: state.gf2,
+            start_time: state.start_time,
+            handshake_decommitment: state.handshake_decommitment,
+            server_public_key: state.server_public_key,
+            transcript_tx: state.transcript_tx,
+            transcript_rx: state.transcript_rx,
+        }
     }
 }
 
