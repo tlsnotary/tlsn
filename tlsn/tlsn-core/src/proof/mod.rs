@@ -6,4 +6,4 @@ mod tls;
 pub use substrings::{
     SubstringsProof, SubstringsProofBuilder, SubstringsProofBuilderError, SubstringsProofError,
 };
-pub use tls::{SessionProof, TlsProof};
+pub use tls::{ServerInfo, SessionProof, TlsProof};

@@ -47,17 +47,17 @@ pub enum SessionProofError {
     InvalidServerCertificate(String),
 }
 
-/// Proof of the TLS handshake, server identity, and commitments to the the transcript.
+/// A session proof which is created from a [crate::session::NotarizedSession]
+///
+/// Proof of the TLS handshake, server identity, and commitments to the transcript.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SessionProof {
     /// The session header
     pub header: SessionHeader,
-    /// The server name.
-    pub server_name: ServerName,
     /// Signature for the session header, if the notary signed it
     pub signature: Option<Signature>,
-    /// Decommitment to the TLS handshake and server identity.
-    pub handshake_data_decommitment: Decommitment<HandshakeData>,
+    /// Information about the server
+    pub server_info: ServerInfo,
 }
 
 impl SessionProof {
@@ -81,16 +81,18 @@ impl SessionProof {
         signature.verify(&self.header.to_bytes(), notary_public_key)?;
 
         // Verify server name
-        let server_name = TlsServerName::try_from(self.server_name.as_ref())
+        let server_name = TlsServerName::try_from(self.server_info.server_name.as_ref())
             .map_err(|e| SessionProofError::InvalidServerName(e.to_string()))?;
 
         // Verify handshake
-        self.handshake_data_decommitment
+        self.server_info
+            .handshake_data_decommitment
             .verify(self.header.handshake_summary().handshake_commitment())
             .map_err(|e| SessionProofError::InvalidHandshake(e.to_string()))?;
 
         // Verify server certificate
-        self.handshake_data_decommitment
+        self.server_info
+            .handshake_data_decommitment
             .data()
             .verify(
                 cert_verifier,
@@ -127,6 +129,29 @@ fn default_cert_verifier() -> WebPkiVerifier {
     }));
 
     WebPkiVerifier::new(root_store, None)
+}
+
+/// Contains information about the server
+///
+/// Includes the [ServerName] and the decommitment to the [HandshakeData].
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ServerInfo {
+    /// The server name.
+    pub server_name: ServerName,
+    /// Decommitment to the TLS handshake and server identity.
+    pub handshake_data_decommitment: Decommitment<HandshakeData>,
+}
+
+impl ServerInfo {
+    /// Returns the server name.
+    pub fn server_name(&self) -> &ServerName {
+        &self.server_name
+    }
+
+    /// Returns the handshake data decommitment.
+    pub fn handshake_data_decommitment(&self) -> &Decommitment<HandshakeData> {
+        &self.handshake_data_decommitment
+    }
 }
 
 #[cfg(test)]

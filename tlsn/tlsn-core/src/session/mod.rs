@@ -6,18 +6,21 @@ mod header;
 
 use serde::{Deserialize, Serialize};
 
-pub use data::{NotarizedSessionData, SessionData};
+pub use data::{NotarizationSessionData, SessionData};
 pub use handshake::{HandshakeSummary, HandshakeVerifyError};
 pub use header::{SessionHeader, SessionHeaderVerifyError};
 
-use crate::{proof::SessionProof, signature::Signature};
+use crate::{
+    proof::{ServerInfo, SessionProof},
+    signature::Signature,
+};
 
 /// A validated notarized session stored by the Prover
 #[derive(Serialize, Deserialize)]
 pub struct NotarizedSession {
     header: SessionHeader,
     signature: Option<Signature>,
-    data: NotarizedSessionData,
+    data: NotarizationSessionData,
 }
 
 opaque_debug::implement!(NotarizedSession);
@@ -27,7 +30,7 @@ impl NotarizedSession {
     pub fn new(
         header: SessionHeader,
         signature: Option<Signature>,
-        data: NotarizedSessionData,
+        data: NotarizationSessionData,
     ) -> Self {
         Self {
             header,
@@ -38,11 +41,20 @@ impl NotarizedSession {
 
     /// Returns a proof of the TLS session
     pub fn session_proof(&self) -> SessionProof {
+        let server_info = ServerInfo {
+            server_name: self.data.session_data().server_info().server_name.clone(),
+            handshake_data_decommitment: self
+                .data
+                .session_data()
+                .server_info()
+                .handshake_data_decommitment()
+                .clone(),
+        };
+
         SessionProof {
             header: self.header.clone(),
-            server_name: self.data.server_name().clone(),
             signature: self.signature.clone(),
-            handshake_data_decommitment: self.data.handshake_data_decommitment().clone(),
+            server_info,
         }
     }
 
@@ -57,7 +69,7 @@ impl NotarizedSession {
     }
 
     /// Returns the [NotarizedSessionData]
-    pub fn data(&self) -> &NotarizedSessionData {
+    pub fn data(&self) -> &NotarizationSessionData {
         &self.data
     }
 }

@@ -1,11 +1,13 @@
 use crate::{
-    commitment::TranscriptCommitments, proof::SubstringsProofBuilder, ServerName, Transcript,
+    commitment::TranscriptCommitments,
+    proof::{ServerInfo, SubstringsProofBuilder},
+    ServerName, Transcript,
 };
 use mpz_core::commit::Decommitment;
 use serde::{Deserialize, Serialize};
 use tls_core::handshake::HandshakeData;
 
-/// Notarized session data.
+/// Session data used for notarization.
 ///
 /// This contains all the private data held by the `Prover` after notarization including
 /// commitments to the parts of the transcript.
@@ -15,14 +17,14 @@ use tls_core::handshake::HandshakeData;
 /// The `Prover` can selectively disclose parts of the transcript to a `Verifier` using a
 /// [`SubstringsProof`](crate::proof::SubstringsProof).
 ///
-/// See [`build_substrings_proof`](NotarizeSessionData::build_substrings_proof).
+/// See [`build_substrings_proof`](NotarizationSessionData::build_substrings_proof).
 #[derive(Serialize, Deserialize)]
-pub struct NotarizedSessionData {
+pub struct NotarizationSessionData {
     session_data: SessionData,
     commitments: TranscriptCommitments,
 }
 
-impl NotarizedSessionData {
+impl NotarizationSessionData {
     /// Creates new session data.
     pub fn new(
         server_name: ServerName,
@@ -44,14 +46,9 @@ impl NotarizedSessionData {
         }
     }
 
-    /// Returns the server name.
-    pub fn server_name(&self) -> &ServerName {
-        &self.session_data.server_name
-    }
-
-    /// Returns the decommitment to handshake data
-    pub fn handshake_data_decommitment(&self) -> &Decommitment<HandshakeData> {
-        &self.session_data.handshake_data_decommitment
+    /// Returns the session data
+    pub fn session_data(&self) -> &SessionData {
+        &self.session_data
     }
 
     /// Returns the transcript for data sent to the server
@@ -79,7 +76,7 @@ impl NotarizedSessionData {
     }
 }
 
-opaque_debug::implement!(NotarizedSessionData);
+opaque_debug::implement!(NotarizationSessionData);
 
 /// Session data.
 ///
@@ -90,8 +87,7 @@ opaque_debug::implement!(NotarizedSessionData);
 /// TODO: Add explanation...
 #[derive(Serialize, Deserialize)]
 pub struct SessionData {
-    server_name: ServerName,
-    handshake_data_decommitment: Decommitment<HandshakeData>,
+    server_info: ServerInfo,
     transcript_tx: Transcript,
     transcript_rx: Transcript,
 }
@@ -104,22 +100,16 @@ impl SessionData {
         transcript_tx: Transcript,
         transcript_rx: Transcript,
     ) -> Self {
-        SessionData {
+        let server_info = ServerInfo {
             server_name,
             handshake_data_decommitment,
+        };
+
+        SessionData {
+            server_info,
             transcript_tx,
             transcript_rx,
         }
-    }
-
-    /// Returns the server name.
-    pub fn server_name(&self) -> &ServerName {
-        &self.server_name
-    }
-
-    /// Returns the decommitment to handshake data
-    pub fn handshake_data_decommitment(&self) -> &Decommitment<HandshakeData> {
-        &self.handshake_data_decommitment
     }
 
     /// Returns the transcript for data sent to the server
@@ -130,6 +120,11 @@ impl SessionData {
     /// Returns the transcript for data received from the server
     pub fn recv_transcript(&self) -> &Transcript {
         &self.transcript_rx
+    }
+
+    /// Returns a proof of the TLS session
+    pub fn server_info(&self) -> ServerInfo {
+        self.server_info.clone()
     }
 
     /// Returns a substrings proof builder.
