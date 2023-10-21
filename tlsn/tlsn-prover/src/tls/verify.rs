@@ -49,6 +49,7 @@ impl Prover<Verify> {
             transcript_tx,
             transcript_rx,
         );
+        let server_info = session_data.server_info();
 
         let mut verify_fut = Box::pin(async move {
             //let mut channel = notary_mux.get_channel("verify").await?;
