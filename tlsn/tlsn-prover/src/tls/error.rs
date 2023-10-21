@@ -15,6 +15,8 @@ pub enum ProverError {
     IOError(#[from] std::io::Error),
     #[error(transparent)]
     MuxerError(#[from] utils_aio::mux::MuxerError),
+    #[error(transparent)]
+    VMError(#[from] mpz_garble::VmError),
     #[error("notarization error: {0}")]
     NotarizationError(String),
     #[error(transparent)]

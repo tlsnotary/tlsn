@@ -113,3 +113,11 @@ impl HttpProver<state::Notarize> {
         ))
     }
 }
+
+impl HttpProver<state::Verify> {
+    /// TODO: This needs to be a HttpProofBuilder
+    /// which wraps our new alternate SubstringsProofBuilder
+    pub fn proof_builder(&mut self) -> () {
+        todo!()
+    }
+}
