@@ -6,7 +6,7 @@ mod header;
 
 use serde::{Deserialize, Serialize};
 
-pub use data::SessionData;
+pub use data::{NotarizedSessionData, SessionData};
 pub use handshake::{HandshakeSummary, HandshakeVerifyError};
 pub use header::{SessionHeader, SessionHeaderVerifyError};
 
@@ -17,14 +17,18 @@ use crate::{proof::SessionProof, signature::Signature};
 pub struct NotarizedSession {
     header: SessionHeader,
     signature: Option<Signature>,
-    data: SessionData,
+    data: NotarizedSessionData,
 }
 
 opaque_debug::implement!(NotarizedSession);
 
 impl NotarizedSession {
     /// Create a new notarized session.
-    pub fn new(header: SessionHeader, signature: Option<Signature>, data: SessionData) -> Self {
+    pub fn new(
+        header: SessionHeader,
+        signature: Option<Signature>,
+        data: NotarizedSessionData,
+    ) -> Self {
         Self {
             header,
             signature,
@@ -52,8 +56,8 @@ impl NotarizedSession {
         &self.signature
     }
 
-    /// Returns the [SessionData]
-    pub fn data(&self) -> &SessionData {
+    /// Returns the [NotarizedSessionData]
+    pub fn data(&self) -> &NotarizedSessionData {
         &self.data
     }
 }

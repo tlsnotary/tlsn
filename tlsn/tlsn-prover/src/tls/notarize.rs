@@ -10,7 +10,7 @@ use tlsn_core::{
     commitment::TranscriptCommitmentBuilder,
     msg::{SignedSessionHeader, TlsnMessage},
     transcript::Transcript,
-    NotarizedSession, ServerName, SessionData,
+    NotarizedSession, NotarizedSessionData, ServerName,
 };
 #[cfg(feature = "tracing")]
 use tracing::instrument;
@@ -51,7 +51,7 @@ impl Prover<Notarize> {
 
         let commitments = builder.build()?;
 
-        let session_data = SessionData::new(
+        let session_data = NotarizedSessionData::new(
             ServerName::Dns(self.config.server_dns().to_string()),
             handshake_decommitment,
             transcript_tx,

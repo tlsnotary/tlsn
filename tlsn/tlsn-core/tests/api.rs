@@ -24,8 +24,8 @@ use tlsn_core::{
     fixtures,
     msg::SignedSessionHeader,
     proof::{SessionProof, SubstringsProof},
-    session::SessionData,
-    HandshakeSummary, NotarizedSession, ServerName, SessionHeader, Signature, Transcript,
+    HandshakeSummary, NotarizedSession, NotarizedSessionData, ServerName, SessionHeader, Signature,
+    Transcript,
 };
 
 #[test]
@@ -83,7 +83,7 @@ fn test_api() {
 
     let commitments = commitment_builder.build().unwrap();
 
-    let session_data = SessionData::new(
+    let session_data = NotarizedSessionData::new(
         ServerName::Dns(testdata.dns_name.clone()),
         hs_decommitment.clone(),
         transcript_tx,
