@@ -4,7 +4,7 @@
 
 use crate::tls::error::OTShutdownError;
 
-use super::{ff::ShareConversionReveal, state, Prover, ProverError};
+use super::{ff::ShareConversionReveal, state::Notarize, Prover, ProverError};
 use futures::{FutureExt, SinkExt, StreamExt};
 use tlsn_core::{
     commitment::TranscriptCommitmentBuilder,
@@ -16,7 +16,7 @@ use tlsn_core::{
 use tracing::instrument;
 use utils_aio::{expect_msg_or_err, mux::MuxChannel};
 
-impl Prover<state::Notarize> {
+impl Prover<Notarize> {
     /// Returns the transcript of the sent requests
     pub fn sent_transcript(&self) -> &Transcript {
         &self.state.transcript_tx
@@ -35,7 +35,7 @@ impl Prover<state::Notarize> {
     /// Finalize the notarization returning a [`NotarizedSession`]
     #[cfg_attr(feature = "tracing", instrument(level = "info", skip(self), err))]
     pub async fn finalize(self) -> Result<NotarizedSession, ProverError> {
-        let state::Notarize {
+        let Notarize {
             mut notary_mux,
             mut mux_fut,
             mut vm,
