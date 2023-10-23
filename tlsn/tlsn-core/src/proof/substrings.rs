@@ -1,4 +1,4 @@
-//! Commitment-based Substrings proofs.
+//! Substrings proofs.
 
 use std::collections::HashMap;
 

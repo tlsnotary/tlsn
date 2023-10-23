@@ -5,10 +5,11 @@
 use crate::tls::error::OTShutdownError;
 
 use super::{state::Verify, Prover, ProverError};
+use crate::RangeCollector;
 use futures::FutureExt;
 use mpz_garble::{Decode, Memory, Thread, ValueRef, Vm};
 use mpz_share_conversion::ShareConversionReveal;
-use tlsn_core::{proof::DirectSubstringsProofBuilder, ServerName, SessionData, Transcript};
+use tlsn_core::{ServerName, SessionData, Transcript};
 use utils_aio::mux::MuxChannel;
 
 impl Prover<Verify> {
@@ -26,7 +27,7 @@ impl Prover<Verify> {
     ///
     /// This is a `SubstringProofBuilder` which works without commitments
     /// and lives somewhere in tlsn_core::proof::substrings
-    pub fn proof_builder(&mut self) -> &mut DirectSubstringsProofBuilder {
+    pub fn proof_builder(&mut self) -> &mut RangeCollector {
         &mut self.state.proof_builder
     }
 
@@ -58,12 +59,13 @@ impl Prover<Verify> {
 
         // Get the transcript parts to be revealed
         let (tx_reveal, rx_reveal) = proof_builder.build();
+
+        // TODO: Remove these hard-coded `transcript_id`s
         let tx_ids = tx_reveal.iter().map(|id| format!("tx/{id}"));
         let rx_ids = rx_reveal.iter().map(|id| format!("rx/{id}"));
-        let ids = tx_ids.chain(rx_ids).collect::<Vec<_>>();
 
         let mut verify_fut = Box::pin(async move {
-            let decode_thread = vm.new_thread("cleartext_values").await?;
+            let mut decode_thread = vm.new_thread("cleartext_values").await?;
             let value_refs = tx_ids
                 .chain(rx_ids)
                 .map(|id| {
@@ -90,6 +92,8 @@ impl Prover<Verify> {
             Ok::<_, ProverError>(values)
         })
         .fuse();
+
+        // Build redacted transcripts
 
         let values = futures::select_biased! {
             res = verify_fut => res?,
