@@ -29,6 +29,10 @@ pub enum ProverError {
     ServerNoCloseNotify,
     #[error(transparent)]
     CommitmentError(#[from] CommitmentError),
+    #[error("Transcript value cannot be decoded from VM thread")]
+    TranscriptDecodeError,
+    #[error(transparent)]
+    DecodeError(#[from] mpz_garble::DecodeError),
 }
 
 impl From<MpcTlsError> for ProverError {

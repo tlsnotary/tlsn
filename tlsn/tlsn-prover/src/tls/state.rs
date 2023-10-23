@@ -5,17 +5,26 @@ use std::collections::HashMap;
 use mpz_garble_core::{encoding_state, EncodedValue};
 use mpz_ot::actor::kos::{SharedReceiver, SharedSender};
 
+use mpz_circuits::types::Value;
 use mpz_core::commit::Decommitment;
-use mpz_garble::protocol::deap::{DEAPVm, PeerEncodings};
+use mpz_garble::{
+    protocol::deap::{DEAPVm, PeerEncodings},
+    Memory, Thread, ValueRef, Vm, VmError,
+};
 use mpz_share_conversion::{ConverterSender, Gf2_128};
 use tls_core::{handshake::HandshakeData, key::PublicKey};
 use tls_mpc::MpcTlsLeader;
-use tlsn_core::{commitment::TranscriptCommitmentBuilder, Transcript};
+use tlsn_core::{
+    commitment::TranscriptCommitmentBuilder, proof::DirectSubstringsProofBuilder, Transcript,
+};
+use utils::range::RangeSet;
 
 use crate::{
     tls::{MuxFuture, OTFuture},
     Mux,
 };
+
+use super::ProverError;
 
 /// Entry state
 pub struct Initialized;
@@ -122,6 +131,7 @@ pub struct Verify {
     pub(crate) server_public_key: PublicKey,
     pub(crate) transcript_tx: Transcript,
     pub(crate) transcript_rx: Transcript,
+    pub(crate) proof_builder: DirectSubstringsProofBuilder,
 }
 
 impl From<Closed> for Verify {
@@ -137,6 +147,7 @@ impl From<Closed> for Verify {
             server_public_key: state.server_public_key,
             transcript_tx: state.transcript_tx,
             transcript_rx: state.transcript_rx,
+            proof_builder: DirectSubstringsProofBuilder::default(),
         }
     }
 }

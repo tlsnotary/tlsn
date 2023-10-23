@@ -14,4 +14,4 @@ pub use commit::{
     SubstringsProof, SubstringsProofBuilder, SubstringsProofBuilderError, SubstringsProofError,
 };
 
-pub use direct::{DirectSubstringsProof, DirectSubstringsProofBuilder};
+pub use direct::DirectSubstringsProofBuilder;

@@ -1,19 +1,27 @@
 //! Direct Substrings proofs.
 
-use crate::{RedactedTranscript, Transcript};
+use utils::range::{RangeSet, RangeUnion};
 
 /// A builder for substring proofs without commitments.
-pub struct DirectSubstringsProofBuilder<'a> {
-    transcript_tx: &'a Transcript,
-    transcript_rx: &'a Transcript,
+#[derive(Debug, Default)]
+pub struct DirectSubstringsProofBuilder {
+    reveal_sent: RangeSet<usize>,
+    reveal_received: RangeSet<usize>,
 }
 
-/// A substring proof without commitments
-pub struct DirectSubstringsProof {}
+impl DirectSubstringsProofBuilder {
+    /// Marks the given range of the sent transcript to be revealed.
+    pub fn add_reveal_sent(&mut self, range: impl Into<RangeSet<usize>>) {
+        self.reveal_sent = self.reveal_sent.union(&range.into());
+    }
 
-impl DirectSubstringsProof {
-    /// Verifies this proof and, if successful, returns the redacted sent and received transcripts.
-    pub fn verify(&self) -> (RedactedTranscript, RedactedTranscript) {
-        todo!()
+    /// Marks the given range of the received transcript to be revealed.
+    pub fn add_reveal_received(&mut self, range: impl Into<RangeSet<usize>>) {
+        self.reveal_received = self.reveal_received.union(&range.into());
+    }
+
+    /// Builds the redacted transcripts.
+    pub fn build(self) -> (RangeSet<usize>, RangeSet<usize>) {
+        (self.reveal_sent, self.reveal_received)
     }
 }
