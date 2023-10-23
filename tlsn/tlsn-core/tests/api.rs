@@ -144,7 +144,7 @@ fn test_api() {
             header.encoder_seed(),
             notarized_session_data
                 .session_data()
-                .server_info()
+                .session_info()
                 .handshake_data_decommitment(),
         )
         .unwrap();

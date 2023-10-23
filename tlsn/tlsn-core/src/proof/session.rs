@@ -11,20 +11,10 @@ use tls_core::{
 };
 
 use crate::{
-    proof::SubstringsProof,
     session::SessionHeader,
     signature::{Signature, SignatureVerifyError},
     NotaryPublicKey, ServerName,
 };
-
-/// Proof that a transcript of communications took place between a Prover and Server.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TlsProof {
-    /// Proof of the TLS handshake, server identity, and commitments to the transcript.
-    pub session: SessionProof,
-    /// Proof regarding the contents of the transcript.
-    pub substrings: SubstringsProof,
-}
 
 /// An error that can occur while verifying a [`SessionProof`].
 #[derive(Debug, thiserror::Error)]
@@ -57,7 +47,7 @@ pub struct SessionProof {
     /// Signature for the session header, if the notary signed it
     pub signature: Option<Signature>,
     /// Information about the server
-    pub server_info: ServerInfo,
+    pub server_info: SessionInfo,
 }
 
 impl SessionProof {
@@ -135,14 +125,14 @@ fn default_cert_verifier() -> WebPkiVerifier {
 ///
 /// Includes the [ServerName] and the decommitment to the [HandshakeData].
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ServerInfo {
+pub struct SessionInfo {
     /// The server name.
     pub server_name: ServerName,
     /// Decommitment to the TLS handshake and server identity.
     pub handshake_data_decommitment: Decommitment<HandshakeData>,
 }
 
-impl ServerInfo {
+impl SessionInfo {
     /// Returns the server name.
     pub fn server_name(&self) -> &ServerName {
         &self.server_name

@@ -102,7 +102,7 @@ impl Prover<Notarize> {
                 &notary_encoder_seed,
                 session_data
                     .session_data()
-                    .server_info()
+                    .session_info()
                     .handshake_data_decommitment(),
             )
             .map_err(|_| {

@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{merkle::MerkleRoot, signature::Signature, SessionHeader};
+use crate::{merkle::MerkleRoot, proof::TlsInfo, signature::Signature, SessionHeader};
 
 /// Top-level enum for all messages
 #[derive(Debug, Serialize, Deserialize)]
@@ -13,6 +13,8 @@ pub enum TlsnMessage {
     SignedSessionHeader(SignedSessionHeader),
     /// A session header.
     SessionHeader(SessionHeader),
+    /// Information about the TLS session
+    TlsInfo(TlsInfo),
 }
 
 /// A signed session header.

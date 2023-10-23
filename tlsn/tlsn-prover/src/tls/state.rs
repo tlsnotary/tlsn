@@ -5,24 +5,17 @@ use std::collections::HashMap;
 use mpz_garble_core::{encoding_state, EncodedValue};
 use mpz_ot::actor::kos::{SharedReceiver, SharedSender};
 
-use mpz_circuits::types::Value;
 use mpz_core::commit::Decommitment;
-use mpz_garble::{
-    protocol::deap::{DEAPVm, PeerEncodings},
-    Memory, Thread, ValueRef, Vm, VmError,
-};
+use mpz_garble::protocol::deap::{DEAPVm, PeerEncodings};
 use mpz_share_conversion::{ConverterSender, Gf2_128};
 use tls_core::{handshake::HandshakeData, key::PublicKey};
 use tls_mpc::MpcTlsLeader;
 use tlsn_core::{commitment::TranscriptCommitmentBuilder, Transcript};
-use utils::range::RangeSet;
 
 use crate::{
     tls::{MuxFuture, OTFuture},
     Mux, RangeCollector,
 };
-
-use super::ProverError;
 
 /// Entry state
 pub struct Initialized;
@@ -116,17 +109,15 @@ impl From<Closed> for Notarize {
 
 /// Verifying state.
 pub struct Verify {
-    pub(crate) notary_mux: Mux,
+    pub(crate) verify_mux: Mux,
     pub(crate) mux_fut: MuxFuture,
 
     pub(crate) vm: DEAPVm<SharedSender, SharedReceiver>,
     pub(crate) ot_fut: OTFuture,
     pub(crate) gf2: ConverterSender<Gf2_128, SharedSender>,
 
-    pub(crate) start_time: u64,
     pub(crate) handshake_decommitment: Decommitment<HandshakeData>,
 
-    pub(crate) server_public_key: PublicKey,
     pub(crate) transcript_tx: Transcript,
     pub(crate) transcript_rx: Transcript,
     pub(crate) proof_builder: RangeCollector,
@@ -135,14 +126,12 @@ pub struct Verify {
 impl From<Closed> for Verify {
     fn from(state: Closed) -> Self {
         Self {
-            notary_mux: state.notary_mux,
+            verify_mux: state.notary_mux,
             mux_fut: state.mux_fut,
             vm: state.vm,
             ot_fut: state.ot_fut,
             gf2: state.gf2,
-            start_time: state.start_time,
             handshake_decommitment: state.handshake_decommitment,
-            server_public_key: state.server_public_key,
             transcript_tx: state.transcript_tx,
             transcript_rx: state.transcript_rx,
             proof_builder: RangeCollector::default(),

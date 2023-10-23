@@ -1,15 +1,13 @@
 //! This module handles the verification phase of the prover.
 //!
-//! The prover deals with a TLS verifier that is a notary and a verifier.
-
-use crate::tls::error::OTShutdownError;
+//! Here the prover deals with a TLS verifier that is a notary and a verifier.
 
 use super::{state::Verify, Prover, ProverError};
-use crate::RangeCollector;
-use futures::FutureExt;
-use mpz_garble::{Decode, Memory, Thread, ValueRef, Vm};
+use crate::{tls::error::OTShutdownError, RangeCollector};
+use futures::{FutureExt, SinkExt};
+use mpz_garble::{Decode, Memory, ValueRef, Vm};
 use mpz_share_conversion::ShareConversionReveal;
-use tlsn_core::{ServerName, SessionData, Transcript};
+use tlsn_core::{msg::TlsnMessage, ServerName, SessionData, Transcript};
 use utils_aio::mux::MuxChannel;
 
 impl Prover<Verify> {
@@ -32,39 +30,39 @@ impl Prover<Verify> {
     }
 
     /// Finalize the verification
-    pub async fn finalize(self) -> Result<(), ProverError> {
+    pub async fn finalize(self) -> Result<SessionData, ProverError> {
         let Verify {
-            mut notary_mux,
+            mut verify_mux,
             mut mux_fut,
             mut vm,
             mut ot_fut,
             mut gf2,
-            start_time,
             handshake_decommitment,
-            server_public_key,
             transcript_tx,
             transcript_rx,
             proof_builder,
         } = self.state;
 
-        let session_data = SessionData::new(
-            ServerName::Dns(self.config.server_dns().to_string()),
-            handshake_decommitment,
-            transcript_tx,
-            transcript_rx,
-        );
-
-        // Collect server information
-        let server_info = session_data.server_info();
-
-        // Get the transcript parts to be revealed
+        // Get the transcript parts which are to be revealed
         let (tx_reveal, rx_reveal) = proof_builder.build();
 
         // TODO: Remove these hard-coded `transcript_id`s
         let tx_ids = tx_reveal.iter().map(|id| format!("tx/{id}"));
         let rx_ids = rx_reveal.iter().map(|id| format!("rx/{id}"));
 
+        // Create session data and tls_info
+        let session_data = SessionData::new(
+            ServerName::Dns(self.config.server_dns().to_string()),
+            handshake_decommitment,
+            transcript_tx,
+            transcript_rx,
+        );
+        let tls_info = session_data.build_tls_info();
+
         let mut verify_fut = Box::pin(async move {
+            let mut channel = verify_mux.get_channel("verify").await?;
+
+            // Get the decoded values from the DEAP vm
             let mut decode_thread = vm.new_thread("cleartext_values").await?;
             let value_refs = tx_ids
                 .chain(rx_ids)
@@ -89,18 +87,19 @@ impl Prover<Verify> {
                 .map_err(|e| ProverError::MpcError(Box::new(e)))?
                 .expect("encoder seed returned");
 
+            // Send tls_info to the verifier
+            channel.send(TlsnMessage::TlsInfo(tls_info)).await?;
+
             Ok::<_, ProverError>(values)
         })
         .fuse();
 
-        // Build redacted transcripts
-
-        let values = futures::select_biased! {
+        let _ = futures::select_biased! {
             res = verify_fut => res?,
             _ = ot_fut => return Err(OTShutdownError)?,
             _ = mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
         };
 
-        todo!()
+        Ok(session_data)
     }
 }

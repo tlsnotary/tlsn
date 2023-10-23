@@ -1,6 +1,6 @@
 use crate::{
     commitment::TranscriptCommitments,
-    proof::{ServerInfo, SubstringsProofBuilder},
+    proof::{SessionInfo, SubstringsProofBuilder, TlsInfo},
     ServerName, Transcript,
 };
 use mpz_core::commit::Decommitment;
@@ -78,16 +78,10 @@ impl NotarizationSessionData {
 
 opaque_debug::implement!(NotarizationSessionData);
 
-/// Session data.
-///
-/// This contains all the private data held by the `Prover` after finishing the TLSMPC.
-///
-/// # Selective disclosure
-///
-/// TODO: Add explanation...
+/// Session data used when dealing with an app-specific verifier.
 #[derive(Serialize, Deserialize)]
 pub struct SessionData {
-    server_info: ServerInfo,
+    session_info: SessionInfo,
     transcript_tx: Transcript,
     transcript_rx: Transcript,
 }
@@ -100,13 +94,13 @@ impl SessionData {
         transcript_tx: Transcript,
         transcript_rx: Transcript,
     ) -> Self {
-        let server_info = ServerInfo {
+        let server_info = SessionInfo {
             server_name,
             handshake_data_decommitment,
         };
 
         SessionData {
-            server_info,
+            session_info: server_info,
             transcript_tx,
             transcript_rx,
         }
@@ -122,15 +116,18 @@ impl SessionData {
         &self.transcript_rx
     }
 
-    /// Returns a proof of the TLS session
-    pub fn server_info(&self) -> ServerInfo {
-        self.server_info.clone()
+    /// Returns the [SessionInfo]
+    pub fn session_info(&self) -> &SessionInfo {
+        &self.session_info
     }
 
-    /// Returns a substrings proof builder.
-    pub fn build_substrings_proof(&self) -> () {
-        // TODO: Create a substrings proof builder using `Decode` trait from DEAP VM
-        todo!()
+    /// Creates a [TlsInfo]
+    pub fn build_tls_info(&self) -> TlsInfo {
+        TlsInfo {
+            session_info: self.session_info().clone(),
+            sent_len: self.transcript_tx.data().len(),
+            recv_len: self.transcript_rx.data().len(),
+        }
     }
 }
 
