@@ -100,7 +100,7 @@ async fn main() {
 
     // Identify the ranges in the outbound data which contain data which we want to disclose
     let (sent_public_ranges, _) = find_ranges(
-        &prover.sent_transcript().data(),
+        prover.sent_transcript().data(),
         &[
             // Redact the value of the "User-Agent" header. It will NOT be disclosed.
             USER_AGENT.as_bytes(),
@@ -109,7 +109,7 @@ async fn main() {
 
     // Identify the ranges in the inbound data which contain data which we want to disclose
     let (recv_public_ranges, _) = find_ranges(
-        &prover.recv_transcript().data(),
+        prover.recv_transcript().data(),
         &[
             // Redact the value of the title. It will NOT be disclosed.
             "Example Domain".as_bytes(),
