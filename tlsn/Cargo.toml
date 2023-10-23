@@ -1,8 +1,9 @@
 [workspace]
 members = [
     "tlsn-core",
-    "tlsn-notary",
+    "tlsn-verifier",
     "tlsn-prover",
+    "tlsn-formats",
     "tlsn-server-fixture",
     "tests-integration",
     "examples",
@@ -12,8 +13,10 @@ resolver = "2"
 [workspace.dependencies]
 tlsn-core = { path = "tlsn-core" }
 tlsn-prover = { path = "tlsn-prover" }
-tlsn-notary = { path = "tlsn-notary" }
+tlsn-verifier = { path = "tlsn-verifier" }
 tlsn-server-fixture = { path = "tlsn-server-fixture" }
+
+tlsn-formats = { path = "tlsn-formats" }
 
 tlsn-tls-core = { path = "../components/tls/tls-core" }
 tlsn-tls-mpc = { path = "../components/tls/tls-mpc" }
@@ -53,6 +56,7 @@ bincode = "1"
 hex = "0.4"
 bytes = "1.4"
 opaque-debug = "0.3"
+spansy = { git = "https://github.com/sinui0/spansy", rev = "becb33d" }
 
 tracing = "0.1"
 tracing-subscriber = "0.3"

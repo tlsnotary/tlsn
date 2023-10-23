@@ -85,7 +85,7 @@ impl MpcTlsFollower {
     }
 
     /// Performs any one-time setup operations.
-    async fn setup(&mut self) -> Result<(), MpcTlsError> {
+    pub async fn setup(&mut self) -> Result<(), MpcTlsError> {
         self.prf.setup().await?;
 
         Ok(())
@@ -269,7 +269,6 @@ impl MpcTlsFollower {
         tracing::instrument(level = "trace", skip(self), err)
     )]
     pub async fn run(&mut self) -> Result<(), MpcTlsError> {
-        self.setup().await?;
         self.run_key_exchange().await?;
         self.run_client_finished().await?;
         self.run_server_finished().await?;

@@ -75,7 +75,8 @@ fn test_api() {
     // Commitment to the handshake which the Prover sent at the start of the TLS handshake
     let (hs_decommitment, hs_commitment) = handshake_data.hash_commit();
 
-    let mut commitment_builder = TranscriptCommitmentBuilder::new(encodings_provider);
+    let mut commitment_builder =
+        TranscriptCommitmentBuilder::new(encodings_provider, data_sent.len(), data_recv.len());
 
     let commitment_id_1 = commitment_builder.commit_sent(range1.clone()).unwrap();
     let commitment_id_2 = commitment_builder.commit_recv(range2.clone()).unwrap();

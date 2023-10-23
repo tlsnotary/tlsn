@@ -9,7 +9,7 @@ use tlsn_core::proof::TlsProof;
 use tokio::io::AsyncWriteExt as _;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 
-use tlsn_prover::{Prover, ProverConfig};
+use tlsn_prover::tls::{Prover, ProverConfig};
 
 // Setting of the application server
 const SERVER_DOMAIN: &str = "example.com";
@@ -99,7 +99,7 @@ async fn main() {
     let mut prover = prover.start_notarize();
 
     // Identify the ranges in the outbound data which contain data which we want to disclose
-    let (public_ranges, _) = find_ranges(
+    let (sent_public_ranges, _) = find_ranges(
         prover.sent_transcript().data(),
         &[
             // Redact the value of the "User-Agent" header. It will NOT be disclosed.
@@ -107,18 +107,27 @@ async fn main() {
         ],
     );
 
-    let recv_len = prover.recv_transcript().data().len();
+    // Identify the ranges in the inbound data which contain data which we want to disclose
+    let (recv_public_ranges, _) = find_ranges(
+        prover.recv_transcript().data(),
+        &[
+            // Redact the value of the title. It will NOT be disclosed.
+            "Example Domain".as_bytes(),
+        ],
+    );
 
     let builder = prover.commitment_builder();
 
     // Commit to each range of the public outbound data which we want to disclose
-    let sent_commitments: Vec<_> = public_ranges
+    let sent_commitments: Vec<_> = sent_public_ranges
         .iter()
         .map(|r| builder.commit_sent(r.clone()).unwrap())
         .collect();
-
-    // Commit to all inbound data in one shot, as we don't need to redact anything in it
-    let recv_commitment = builder.commit_recv(0..recv_len).unwrap();
+    // Commit to each range of the public inbound data which we want to disclose
+    let recv_commitments: Vec<_> = recv_public_ranges
+        .iter()
+        .map(|r| builder.commit_recv(r.clone()).unwrap())
+        .collect();
 
     // Finalize, returning the notarized session
     let notarized_session = prover.finalize().await.unwrap();
@@ -130,7 +139,9 @@ async fn main() {
     for commitment_id in sent_commitments {
         proof_builder.reveal(commitment_id).unwrap();
     }
-    proof_builder.reveal(recv_commitment).unwrap();
+    for commitment_id in recv_commitments {
+        proof_builder.reveal(commitment_id).unwrap();
+    }
 
     let substrings_proof = proof_builder.build().unwrap();
 

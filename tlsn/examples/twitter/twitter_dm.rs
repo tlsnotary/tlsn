@@ -12,7 +12,7 @@ use tokio_rustls::TlsConnector;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::debug;
 
-use tlsn_prover::{Prover, ProverConfig};
+use tlsn_prover::tls::{Prover, ProverConfig};
 
 // Setting of the application server
 const SERVER_DOMAIN: &str = "twitter.com";

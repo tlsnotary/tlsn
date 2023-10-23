@@ -15,7 +15,7 @@ use std::{
     time::Duration,
 };
 use tls_server_fixture::{bind_test_server_hyper, CA_CERT_DER, SERVER_DOMAIN};
-use tlsn_prover::{Prover, ProverConfig};
+use tlsn_prover::tls::{Prover, ProverConfig};
 use tokio_rustls::TlsConnector;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::debug;

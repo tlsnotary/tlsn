@@ -5,9 +5,10 @@ edition = "2021"
 publish = false
 
 [dev-dependencies]
+tlsn-core.workspace = true
 tlsn-tls-core.workspace = true
-tlsn-prover.workspace = true
-tlsn-notary.workspace = true
+tlsn-prover = { workspace = true, features = ["tracing", "formats"] }
+tlsn-verifier = { workspace = true, features = ["tracing"] }
 tlsn-server-fixture.workspace = true
 
 p256 = { workspace = true, features = ["ecdsa"] }
@@ -19,3 +20,6 @@ tokio-util.workspace = true
 
 tracing.workspace = true
 tracing-subscriber.workspace = true
+
+serde_json = "1.0"
+bincode = "*"

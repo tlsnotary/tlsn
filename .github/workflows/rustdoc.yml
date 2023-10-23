@@ -23,7 +23,7 @@ jobs:
           toolchain: stable
 
       - name: "rustdoc"
-        run: cd tlsn; cargo doc -p tlsn-core -p tlsn-prover -p tlsn-notary --no-deps --all-features
+        run: cd tlsn; cargo doc -p tlsn-core -p tlsn-prover -p tlsn-verifier --no-deps --all-features
         # --target-dir ${GITHUB_WORKSPACE}/docs
 
       # https://dev.to/deciduously/prepare-your-rust-api-docs-for-github-pages-2n5i
@@ -35,6 +35,6 @@ jobs:
         uses: peaceiris/actions-gh-pages@v3
         if: ${{ github.ref == 'refs/heads/dev' }}
         with:
-            github_token: ${{ secrets.GITHUB_TOKEN }}
-            publish_dir: tlsn/target/doc/
-            # cname: rustdocs.tlsnotary.org
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: tlsn/target/doc/
+          # cname: rustdocs.tlsnotary.org
