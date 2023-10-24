@@ -1,4 +1,4 @@
-//! This module collects futures which are used by the [Verifier].
+//! This module collects futures which are used by the [Verifier](crate::tls::Verifier).
 
 use super::{OTSenderActor, VerifierError};
 use futures::{future::FusedFuture, Future};

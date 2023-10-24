@@ -11,6 +11,7 @@ pub use config::{VerifierConfig, VerifierConfigBuilder, VerifierConfigBuilderErr
 pub use error::VerifierError;
 
 use crate::{tls::future::OTFuture, Mux};
+use future::MuxFuture;
 use futures::{
     stream::{SplitSink, SplitStream},
     AsyncRead, AsyncWrite, FutureExt, StreamExt, TryFutureExt,
@@ -25,6 +26,7 @@ use mpz_ot::{
 use mpz_share_conversion as ff;
 use rand::Rng;
 use signature::Signer;
+use state::{Notarize, Verify};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tls_mpc::{setup_components, MpcTlsFollower, TlsRole};
 use tlsn_core::{SessionHeader, Signature};
@@ -33,8 +35,6 @@ use utils_aio::{codec::BincodeMux, duplex::Duplex, mux::MuxChannel};
 
 #[cfg(feature = "tracing")]
 use tracing::{debug, info, instrument};
-
-use self::future::MuxFuture;
 
 type OTSenderActor = SenderActor<
     chou_orlandi::Receiver,
@@ -120,6 +120,22 @@ impl Verifier<state::Initialized> {
             .finalize(signer)
             .await
     }
+
+    /// Runs the TLS verifier to completion, verifying the TLS session.
+    ///
+    /// This is a convenience method which runs all the steps needed for verification.
+    pub async fn verify<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
+        self,
+        socket: S,
+    ) -> Result<(), VerifierError> {
+        self.setup(socket)
+            .await?
+            .run()
+            .await?
+            .start_verify()
+            .finalize()
+            .await
+    }
 }
 
 impl Verifier<state::Setup> {
@@ -184,7 +200,18 @@ impl Verifier<state::Closed> {
     ///
     /// If the verifier is a Notary, this function will transition the verifier to the next state
     /// where it can sign the prover's commitments to the transcript.
-    pub fn start_notarize(self) -> Verifier<state::Notarize> {
+    pub fn start_notarize(self) -> Verifier<Notarize> {
+        Verifier {
+            config: self.config,
+            state: self.state.into(),
+        }
+    }
+
+    /// Starts verification of the TLS session.
+    ///
+    /// This function transitions the prover into a state where it can open parts of the
+    /// transcript.
+    pub fn start_verify(self) -> Verifier<Verify> {
         Verifier {
             config: self.config,
             state: self.state.into(),

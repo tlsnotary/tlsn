@@ -1,3 +1,7 @@
+//! This module handles the notarization phase of the verifier.
+//!
+//! The TLS verifier is only a notary.
+
 use super::{state::Notarize, Verifier, VerifierError};
 use futures::{FutureExt, SinkExt, StreamExt, TryFutureExt};
 use mpz_core::serialize::CanonicalSerialize;

@@ -16,6 +16,7 @@ pub use config::{ProverConfig, ProverConfigBuilder, ProverConfigBuilderError};
 pub use error::ProverError;
 pub use future::ProverFuture;
 
+use error::OTShutdownError;
 use future::{MuxFuture, OTFuture};
 use futures::{AsyncRead, AsyncWrite, FutureExt, StreamExt, TryFutureExt};
 use mpz_garble::{config::Role as DEAPRole, protocol::deap::DEAPVm};
@@ -25,6 +26,7 @@ use mpz_ot::{
 };
 use mpz_share_conversion as ff;
 use rand::Rng;
+use state::{Notarize, Verify};
 use std::sync::Arc;
 use tls_client::{ClientConnection, ServerName as TlsServerName};
 use tls_client_async::{bind_client, ClosedConnection, TlsConnection};
@@ -34,8 +36,6 @@ use tlsn_core::transcript::Transcript;
 use tracing::{debug, debug_span, instrument, Instrument};
 use uid_mux::{yamux, UidYamux};
 use utils_aio::{codec::BincodeMux, mux::MuxChannel};
-
-use error::OTShutdownError;
 
 use crate::{
     http::{state as http_state, HttpProver, HttpProverError},
@@ -212,7 +212,7 @@ impl Prover<state::Closed> {
     ///
     /// If the verifier is a Notary, this function will transition the prover to the next state
     /// where it can generate commitments to the transcript prior to finalization.
-    pub fn start_notarize(self) -> Prover<state::Notarize> {
+    pub fn start_notarize(self) -> Prover<Notarize> {
         Prover {
             config: self.config,
             state: self.state.into(),
@@ -223,7 +223,7 @@ impl Prover<state::Closed> {
     ///
     /// This function transitions the prover into a state where it can open parts of the
     /// transcript.
-    pub fn start_verify(self) -> Prover<state::Verify> {
+    pub fn start_verify(self) -> Prover<Verify> {
         Prover {
             config: self.config,
             state: self.state.into(),
