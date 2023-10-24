@@ -2,6 +2,20 @@
     <img src="./tlsn-banner.png" width=1280 />
 </p>
 
+![MIT licensed][mit-badge]
+![Apache licensed][apache-badge]
+[![Build Status][actions-badge]][actions-url]
+
+[mit-badge]: https://img.shields.io/badge/license-MIT-blue.svg
+[apache-badge]: https://img.shields.io/github/license/saltstack/salt
+[actions-badge]: https://github.com/tlsnotary/tlsn/actions/workflows/ci.yml/badge.svg
+[actions-url]: https://github.com/tlsnotary/tlsn/actions?query=workflow%3Arust+branch%3Adev
+
+[Website](https://tlsnotary.org) |
+[Documentation](https://docs.tlsnotary.org) |
+[API Docs](https://tlsnotary.github.io/tlsn) |
+[Discord](https://discord.gg/9XwESXtcN7)
+
 # TLSNotary
 
 ## ⚠️ Notice
@@ -15,11 +29,6 @@ All crates in this repository are licensed under either of
 - [MIT license](http://opensource.org/licenses/MIT)
 
 at your option.
-
-## Useful Links
-- website: <https://tlsnotary.org/>
-- rust codebase: <https://github.com/tlsnotary/tlsn>
-- documentation: <https://docs.tlsnotary.org/> (under development)
 
 ## Overview
 

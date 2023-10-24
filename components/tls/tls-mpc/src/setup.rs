@@ -18,7 +18,7 @@ use crate::{config::MpcTlsCommonConfig, MpcTlsError, TlsRole};
 #[allow(clippy::type_complexity)]
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(level = "info", skip(mux, vm, p256_send, p256_recv, gf), err)
+    tracing::instrument(level = "info", skip_all, err)
 )]
 pub async fn setup_components<
     M: MuxChannel<ke::KeyExchangeMessage> + MuxChannel<aead::AeadMessage> + Clone,

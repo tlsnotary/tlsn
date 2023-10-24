@@ -611,8 +611,9 @@ pub struct CommonState {
     pub(crate) may_receive_application_data: bool,
     pub(crate) early_traffic: bool,
     sent_fatal_alert: bool,
-    /// If the peer has signaled end of stream.
+    /// If the peer has sent close_notify.
     has_received_close_notify: bool,
+    /// If the peer has signaled end of stream.
     has_seen_eof: bool,
     received_middlebox_ccs: u8,
     pub(crate) peer_certificates: Option<Vec<tls_core::key::Certificate>>,

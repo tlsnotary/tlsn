@@ -27,12 +27,12 @@ pub use exchange::KeyExchangeCore;
 pub use msg::KeyExchangeMessage;
 
 /// A channel for exchanging key exchange messages
-pub type KeyExchangeChannel = Box<dyn Channel<KeyExchangeMessage>>;
+pub type KeyExchangeChannel = Box<dyn Duplex<KeyExchangeMessage>>;
 
 use async_trait::async_trait;
 use mpz_garble::ValueRef;
 use p256::{PublicKey, SecretKey};
-use utils_aio::Channel;
+use utils_aio::duplex::Duplex;
 
 /// Pre-master secret.
 #[derive(Debug, Clone)]

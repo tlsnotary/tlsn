@@ -7,7 +7,7 @@ use mpz_garble::{Decode, Execute, Memory};
 use point_addition::mock::{
     mock_point_converter_pair, MockPointAdditionReceiver, MockPointAdditionSender,
 };
-use utils_aio::duplex::DuplexChannel;
+use utils_aio::duplex::MemoryDuplex;
 
 /// A mock key exchange instance
 pub type MockKeyExchange<E> =
@@ -22,7 +22,7 @@ pub fn create_mock_key_exchange_pair<E: Memory + Execute + Decode + Send>(
     let (leader_pa_sender, follower_pa_recvr) = mock_point_converter_pair(&format!("{}/pa/0", id));
     let (follower_pa_sender, leader_pa_recvr) = mock_point_converter_pair(&format!("{}/pa/1", id));
 
-    let (leader_channel, follower_channel) = DuplexChannel::<KeyExchangeMessage>::new();
+    let (leader_channel, follower_channel) = MemoryDuplex::<KeyExchangeMessage>::new();
 
     let key_exchange_config_leader = KeyExchangeConfig::builder()
         .id(id)

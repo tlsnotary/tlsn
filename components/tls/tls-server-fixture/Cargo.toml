@@ -5,13 +5,15 @@ description = "Fixtures for testing"
 keywords = ["tls", "fixture"]
 categories = ["cryptography"]
 license = "MIT OR Apache-2.0"
-version = "0.1.0"
+version = "0.0.0"
 edition = "2021"
+publish = false
 
 [dependencies]
 async-rustls.workspace = true
 futures.workspace = true
 hyper = { workspace = true, features = ["full"] }
 rustls = { version = "0.21", features = ["logging"] }
-tokio-util = { workspace = true, features = ["compat"] }
+tokio-util = { workspace = true, features = ["compat", "io-util"] }
 tracing.workspace = true
+tokio.workspace = true

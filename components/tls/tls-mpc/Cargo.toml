@@ -5,22 +5,33 @@ description = "Implementation of the backend trait for 2PC"
 keywords = ["tls", "mpc", "2pc"]
 categories = ["cryptography"]
 license = "MIT OR Apache-2.0"
-version = "0.1.0"
+version = "0.1.0-alpha.2"
 edition = "2021"
 
 [lib]
 name = "tls_mpc"
 
 [features]
-tracing = ["dep:tracing"]
+tracing = [
+    "dep:tracing",
+    "tlsn-block-cipher/tracing",
+    "tlsn-stream-cipher/tracing",
+    "tlsn-universal-hash/tracing",
+    "tlsn-aead/tracing",
+    "tlsn-key-exchange/tracing",
+    "tlsn-point-addition/tracing",
+    "tlsn-hmac-sha256/tracing",
+    "tlsn-tls-client-async/tracing",
+    "uid-mux/tracing",
+]
 
 [dependencies]
 tlsn-tls-core = { path = "../tls-core", features = ["serde"] }
 tlsn-tls-backend = { path = "../tls-backend" }
 
-mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "86f1687" }
-mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "86f1687" }
-mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "86f1687" }
+mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "1f2c922" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "1f2c922" }
+mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "1f2c922" }
 
 tlsn-block-cipher = { path = "../../cipher/block-cipher" }
 tlsn-stream-cipher = { path = "../../cipher/stream-cipher" }
@@ -30,7 +41,7 @@ tlsn-key-exchange = { path = "../../key-exchange" }
 tlsn-point-addition = { path = "../../point-addition" }
 tlsn-hmac-sha256 = { path = "../../prf/hmac-sha256" }
 
-tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils" }
+tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "8d8ffe1" }
 
 p256.workspace = true
 rand.workspace = true
@@ -45,8 +56,10 @@ tracing = { workspace = true, optional = true }
 tlsn-tls-client = { path = "../tls-client" }
 tlsn-tls-client-async = { path = "../tls-client-async" }
 tls-server-fixture = { path = "../tls-server-fixture" }
-actor-ot = { path = "../../actors/actor-ot" }
+mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "1f2c922" }
 uid-mux = { path = "../../uid-mux" }
+
+tracing-subscriber.workspace = true
 
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
 tokio-util = { workspace = true, features = ["compat"] }

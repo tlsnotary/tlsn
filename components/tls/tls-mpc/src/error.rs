@@ -24,6 +24,8 @@ pub enum MpcTlsError {
     UnexpectedContentType(ContentType),
     #[error("invalid message length: {0}")]
     InvalidMessageLength(usize),
+    #[error("maximum transcript length exceeded: {} > {}", .0, .1)]
+    MaxTranscriptLengthExceeded(usize, usize),
     #[error("unexpected sequence number: {0}")]
     UnexpectedSequenceNumber(u64),
     #[error("not set up")]

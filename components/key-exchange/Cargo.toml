@@ -5,7 +5,7 @@ description = "Implementation of the TLSNotary-specific key-exchange protocol"
 keywords = ["tls", "mpc", "2pc", "pms", "key-exchange"]
 categories = ["cryptography"]
 license = "MIT OR Apache-2.0"
-version = "0.1.0"
+version = "0.1.0-alpha.2"
 edition = "2021"
 
 [lib]
@@ -13,15 +13,15 @@ name = "key_exchange"
 
 [features]
 default = ["mock"]
-tracing = ["dep:tracing"]
+tracing = ["dep:tracing", "tlsn-point-addition/tracing"]
 mock = []
 
 [dependencies]
-mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "86f1687" }
-mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "86f1687" }
-mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "86f1687" }
-tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils" }
-mpz-share-conversion-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "86f1687" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "1f2c922" }
+mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "1f2c922" }
+mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "1f2c922" }
+tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "8d8ffe1" }
+mpz-share-conversion-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "1f2c922" }
 tlsn-point-addition = { path = "../point-addition" }
 p256 = { version = "0.13", features = ["ecdh"] }
 async-trait = "0.1"

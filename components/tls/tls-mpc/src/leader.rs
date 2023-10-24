@@ -108,6 +108,13 @@ impl MpcTlsLeader {
         }
     }
 
+    /// Performs any one-time setup operations.
+    pub async fn setup(&mut self) -> Result<(), MpcTlsError> {
+        self.prf.setup().await?;
+
+        Ok(())
+    }
+
     /// Sets the protocol version.
     pub fn set_protocol_version(&mut self, version: ProtocolVersion) {
         self.conn_state.protocol_version = Some(version);
@@ -162,6 +169,11 @@ impl MpcTlsLeader {
     /// Returns the number of bytes sent and received.
     pub fn bytes_transferred(&self) -> (usize, usize) {
         (self.conn_state.sent_bytes, self.conn_state.recv_bytes)
+    }
+
+    /// Returns the total number of bytes sent and received.
+    fn total_bytes_transferred(&self) -> usize {
+        self.conn_state.sent_bytes + self.conn_state.recv_bytes
     }
 
     /// Computes the combined key
@@ -301,6 +313,15 @@ impl MpcTlsLeader {
         m: PlainMessage,
         seq: u64,
     ) -> Result<OpaqueMessage, MpcTlsError> {
+        if self.total_bytes_transferred() + m.payload.0.len()
+            > self.config.common().max_transcript_size()
+        {
+            return Err(MpcTlsError::MaxTranscriptLengthExceeded(
+                self.total_bytes_transferred() + m.payload.0.len(),
+                self.config.common().max_transcript_size(),
+            ));
+        }
+
         let explicit_nonce = seq.to_be_bytes().to_vec();
 
         let aad = make_tls12_aad(seq, m.typ, m.version, m.payload.0.len());
@@ -365,6 +386,15 @@ impl MpcTlsLeader {
         m: OpaqueMessage,
         seq: u64,
     ) -> Result<PlainMessage, MpcTlsError> {
+        if self.total_bytes_transferred() + m.payload.0.len()
+            > self.config.common().max_transcript_size()
+        {
+            return Err(MpcTlsError::MaxTranscriptLengthExceeded(
+                self.total_bytes_transferred() + m.payload.0.len(),
+                self.config.common().max_transcript_size(),
+            ));
+        }
+
         let mut payload = m.payload.0;
 
         let explicit_nonce: Vec<u8> = payload.drain(..8).collect();

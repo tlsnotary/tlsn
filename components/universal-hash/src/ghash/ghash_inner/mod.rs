@@ -107,7 +107,7 @@ where
 
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "info", skip(input), err)
+        tracing::instrument(level = "info", skip_all, err)
     )]
     async fn finalize(&mut self, mut input: Vec<u8>) -> Result<Vec<u8>, UniversalHashError> {
         // Divide by block length and round up
@@ -152,7 +152,7 @@ where
         // Reinsert state
         self.state = State::Ready { core };
 
-        Ok(tag.to_be_bytes().to_vec())
+        Ok(tag.to_bytes().to_vec())
     }
 }
 

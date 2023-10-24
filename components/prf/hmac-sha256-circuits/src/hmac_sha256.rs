@@ -30,24 +30,23 @@ pub fn hmac_sha256_partial_trace<'a>(
 ) -> ([Tracer<'a, U32>; 8], [Tracer<'a, U32>; 8]) {
     assert!(key.len() <= 64);
 
-    let mut opad = builder_state
-        .borrow_mut()
-        .get_constant([0x5cu8; 64])
-        .map(|v| Tracer::new(builder_state, v));
-    let mut ipad = builder_state
-        .borrow_mut()
-        .get_constant([0x36u8; 64])
-        .map(|v| Tracer::new(builder_state, v));
+    let mut opad = [Tracer::new(
+        builder_state,
+        builder_state.borrow_mut().get_constant(0x5cu8),
+    ); 64];
+
+    let mut ipad = [Tracer::new(
+        builder_state,
+        builder_state.borrow_mut().get_constant(0x36u8),
+    ); 64];
 
     key.iter().enumerate().for_each(|(i, k)| {
         opad[i] = opad[i] ^ *k;
         ipad[i] = ipad[i] ^ *k;
     });
 
-    let sha256_initial_state = builder_state
-        .borrow_mut()
-        .get_constant(SHA256_INITIAL_STATE)
-        .map(|v| Tracer::new(builder_state, v));
+    let sha256_initial_state: [_; 8] = SHA256_INITIAL_STATE
+        .map(|v| Tracer::new(builder_state, builder_state.borrow_mut().get_constant(v)));
 
     let outer_state = sha256_compress_trace(builder_state, sha256_initial_state, opad);
     let inner_state = sha256_compress_trace(builder_state, sha256_initial_state, ipad);

@@ -1,0 +1,17 @@
+[package]
+name = "tlsn-formats"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tlsn-core.workspace = true
+tlsn-utils.workspace = true
+
+bytes.workspace = true
+spansy = { workspace = true, features = ["serde"] }
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tlsn-core = { workspace = true, features = ["fixtures"] }
+rstest.workspace = true

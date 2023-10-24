@@ -1,0 +1,92 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - dev
+    tags:
+      - "[v]?[0-9]+.[0-9]+.[0-9]+*"
+  pull_request:
+    branches:
+      - dev
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+
+jobs:
+  build_and_test:
+    name: Build and test
+    if: ( ! github.event.pull_request.draft )
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - components/integration-tests
+          - components/uid-mux
+          - components/cipher
+          - components/universal-hash
+          - components/aead
+          - components/key-exchange
+          - components/point-addition
+          - components/prf
+          - components/tls
+          - tlsn
+          - notary-server
+        include:
+          - package: components/integration-tests
+            release: true
+          - package: tlsn
+            all-features: true
+    defaults:
+      run:
+        working-directory: ${{ matrix.package }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install nightly rust toolchain with rustfmt
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly
+          components: rustfmt
+
+      - name: "Check formatting"
+        run: cargo +nightly fmt --check --all
+
+      - name: Install stable rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: clippy
+
+      - name: "Clippy"
+        run: cargo clippy --all-features -- -D warnings
+
+      - name: Use caching
+        uses: Swatinem/rust-cache@v2.5.0
+        with:
+          workspaces: ${{ matrix.package }} -> target
+
+      - name: "Build"
+        run: cargo build ${{ matrix.release && '--release' }}
+
+      - name: "Test"
+        if: ${{ matrix.release != true }}
+        run: cargo test --lib --bins --tests --examples --workspace
+
+      - name: "Test all features"
+        if: ${{ matrix.release != true && matrix.all-features == true }}
+        run: cargo test --lib --bins --tests --examples --workspace --all-features
+
+      - name: "Integration Test"
+        if: ${{ matrix.release == true }}
+        run: cargo test --release --tests
+
+      - name: "Integration Test all features"
+        if: ${{ matrix.release == true && matrix.all-features == true }}
+        run: cargo test --release --tests --all-features
+
+      - name: "Check that benches compile"
+        run: cargo bench --no-run

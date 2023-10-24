@@ -333,7 +333,7 @@ mod tests {
     fn ghash_reference_impl(h: u128, message: &[Block]) -> Block {
         let mut ghash = GHash::new(&h.to_be_bytes().into());
         for el in message {
-            let block = GenericArray::clone_from_slice(el.to_be_bytes().as_slice());
+            let block = GenericArray::clone_from_slice(el.to_bytes().as_slice());
             ghash.update(&[block]);
         }
         let ghash_output = ghash.finalize();

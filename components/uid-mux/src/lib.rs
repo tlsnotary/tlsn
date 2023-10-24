@@ -59,6 +59,16 @@ pub struct UidYamuxControl {
     state: Arc<Mutex<MuxState>>,
 }
 
+impl UidYamuxControl {
+    /// Close the connection
+    pub async fn close(&mut self) -> Result<(), MuxerError> {
+        self.control
+            .close()
+            .await
+            .map_err(|err| MuxerError::InternalError(format!("shutdown error: {0:?}", err)))
+    }
+}
+
 impl<T> UidYamux<T>
 where
     T: AsyncWrite + AsyncRead + Send + Unpin + 'static,

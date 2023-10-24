@@ -117,11 +117,15 @@ where
     tracing::instrument(level = "debug", skip(point), err)
 )]
 pub(crate) fn point_to_p256(point: EncodedPoint) -> Result<[P256; 2], PointAdditionError> {
-    let x: [u8; 32] = (*point.x().ok_or(PointAdditionError::Coordinates)?).into();
-    let y: [u8; 32] = (*point.y().ok_or(PointAdditionError::Coordinates)?).into();
+    let mut x: [u8; 32] = (*point.x().ok_or(PointAdditionError::Coordinates)?).into();
+    let mut y: [u8; 32] = (*point.y().ok_or(PointAdditionError::Coordinates)?).into();
 
-    let x = P256::from(x);
-    let y = P256::from(y);
+    // reverse to little endian
+    x.reverse();
+    y.reverse();
+
+    let x = P256::try_from(x).unwrap();
+    let y = P256::try_from(y).unwrap();
 
     Ok([x, y])
 }

@@ -57,10 +57,8 @@ pub fn session_keys_trace<'a>(
             .copied()
             .collect::<Vec<_>>();
 
-        let label = builder_state
-            .borrow_mut()
-            .get_constant(*b"master secret")
-            .map(|v| Tracer::new(builder_state, v));
+        let label = b"master secret"
+            .map(|v| Tracer::new(builder_state, builder_state.borrow_mut().get_constant(v)));
 
         prf_trace(
             builder_state,
@@ -82,10 +80,8 @@ pub fn session_keys_trace<'a>(
             .copied()
             .collect::<Vec<_>>();
 
-        let label = builder_state
-            .borrow_mut()
-            .get_constant(*b"key expansion")
-            .map(|v| Tracer::new(builder_state, v));
+        let label = b"key expansion"
+            .map(|v| Tracer::new(builder_state, builder_state.borrow_mut().get_constant(v)));
 
         prf_trace(
             builder_state,

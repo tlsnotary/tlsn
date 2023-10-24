@@ -47,5 +47,8 @@ thiserror = "1"
 log = "0.4"
 env_logger = "0.10"
 
+# testing
+rstest = "0.12"
+
 # misc
 derive_builder = "0.12"

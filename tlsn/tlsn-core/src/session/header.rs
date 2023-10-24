@@ -4,10 +4,16 @@ use serde::{Deserialize, Serialize};
 use mpz_garble_core::ChaChaEncoder;
 use tls_core::{handshake::HandshakeData, key::PublicKey};
 
-use crate::{handshake_summary::HandshakeSummary, merkle::MerkleRoot, Error};
+use crate::{merkle::MerkleRoot, HandshakeSummary};
 
-#[cfg(feature = "tracing")]
-use tracing::instrument;
+/// An error that can occur while verifying a session header
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum SessionHeaderVerifyError {
+    /// The session header is not consistent with the provided data
+    #[error("session header is not consistent with the provided data")]
+    InconsistentHeader,
+}
 
 /// An authentic session header from the Notary
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,9 +30,9 @@ pub struct SessionHeader {
     merkle_root: MerkleRoot,
 
     /// Bytelength of all data which was sent to the webserver
-    sent_len: u32,
+    sent_len: usize,
     /// Bytelength of all data which was received from the webserver
-    recv_len: u32,
+    recv_len: usize,
 
     handshake_summary: HandshakeSummary,
 }
@@ -36,8 +42,8 @@ impl SessionHeader {
     pub fn new(
         encoder_seed: [u8; 32],
         merkle_root: MerkleRoot,
-        sent_len: u32,
-        recv_len: u32,
+        sent_len: usize,
+        recv_len: usize,
         handshake_summary: HandshakeSummary,
     ) -> Self {
         Self {
@@ -50,14 +56,6 @@ impl SessionHeader {
     }
 
     /// Verify the data in the header is consistent with the Prover's view
-    #[cfg_attr(
-        feature = "tracing",
-        instrument(
-            level = "debug",
-            skip(self, encoder_seed, handshake_data_decommitment),
-            err
-        )
-    )]
     pub fn verify(
         &self,
         time: u64,
@@ -65,7 +63,7 @@ impl SessionHeader {
         root: &MerkleRoot,
         encoder_seed: &[u8; 32],
         handshake_data_decommitment: &Decommitment<HandshakeData>,
-    ) -> Result<(), Error> {
+    ) -> Result<(), SessionHeaderVerifyError> {
         let ok_time = self.handshake_summary.time().abs_diff(time) <= 300;
         let ok_root = &self.merkle_root == root;
         let ok_encoder_seed = &self.encoder_seed == encoder_seed;
@@ -75,7 +73,7 @@ impl SessionHeader {
         let ok_server_public_key = self.handshake_summary.server_public_key() == server_public_key;
 
         if !(ok_time && ok_root && ok_encoder_seed && ok_handshake_data && ok_server_public_key) {
-            return Err(Error::WrongSessionHeader);
+            return Err(SessionHeaderVerifyError::InconsistentHeader);
         }
 
         Ok(())
@@ -87,7 +85,7 @@ impl SessionHeader {
     }
 
     /// Returns the seed used to generate plaintext encodings
-    pub fn label_seed(&self) -> &[u8; 32] {
+    pub fn encoder_seed(&self) -> &[u8; 32] {
         &self.encoder_seed
     }
 
@@ -101,13 +99,22 @@ impl SessionHeader {
         &self.handshake_summary
     }
 
+    /// Time of the TLS session, in seconds since the UNIX epoch.
+    ///
+    /// # Note
+    ///
+    /// This time is not necessarily exactly aligned with the TLS handshake.
+    pub fn time(&self) -> u64 {
+        self.handshake_summary.time()
+    }
+
     /// Returns the number of bytes sent to the server
-    pub fn sent_len(&self) -> u32 {
+    pub fn sent_len(&self) -> usize {
         self.sent_len
     }
 
     /// Returns the number of bytes received by the server
-    pub fn recv_len(&self) -> u32 {
+    pub fn recv_len(&self) -> usize {
         self.recv_len
     }
 }

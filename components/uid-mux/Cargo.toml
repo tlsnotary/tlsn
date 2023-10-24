@@ -1,6 +1,6 @@
 [package]
 name = "uid-mux"
-version = "0.1.0"
+version = "0.1.0-alpha.2"
 authors = ["TLSNotary Team"]
 description = "Multiplex connections asynchronously."
 keywords = ["multiplex", "channel", "futures", "async"]
@@ -12,7 +12,7 @@ edition = "2021"
 tracing = ["dep:tracing"]
 
 [dependencies]
-tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils" }
+tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "8d8ffe1" }
 
 async-trait = "0.1"
 futures = "0.3"
@@ -25,5 +25,5 @@ tokio = { version = "1", features = [
     "macros",
     "rt",
     "rt-multi-thread",
-    "time"
+    "time",
 ] }

@@ -1,0 +1,40 @@
+name: Rust
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [dev]
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+
+jobs:
+  rustdoc:
+    if: ( ! github.event.pull_request.draft )
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Rust Toolchain (Stable)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: "rustdoc"
+        run: cd tlsn; cargo doc -p tlsn-core -p tlsn-prover -p tlsn-verifier --no-deps --all-features
+        # --target-dir ${GITHUB_WORKSPACE}/docs
+
+      # https://dev.to/deciduously/prepare-your-rust-api-docs-for-github-pages-2n5i
+      - name: "Add index file -> tlsn_prover"
+        run: |
+          echo "<meta http-equiv=\"refresh\" content=\"0; url=tlsn_prover\">" > tlsn/target/doc/index.html
+
+      - name: Deploy
+        uses: peaceiris/actions-gh-pages@v3
+        if: ${{ github.ref == 'refs/heads/dev' }}
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: tlsn/target/doc/
+          # cname: rustdocs.tlsnotary.org

@@ -52,7 +52,7 @@ pub trait PointAddition {
 mod tests {
     use crate::{conversion::point_to_p256, mock::mock_point_converter_pair, PointAddition};
     use mpz_core::Block;
-    use mpz_share_conversion_core::fields::p256::P256;
+    use mpz_share_conversion_core::{fields::p256::P256, Field};
     use p256::{
         elliptic_curve::sec1::{FromEncodedPoint, ToEncodedPoint},
         EncodedPoint, NonZeroScalar, ProjectivePoint, PublicKey,
@@ -92,17 +92,8 @@ mod tests {
 
         let p256: [P256; 2] = point_to_p256(p_expected).unwrap();
 
-        let x: [Block; 2] = p256[0].into();
-        let y: [Block; 2] = p256[1].into();
-
-        let x1 = x[0].to_be_bytes();
-        let x2 = x[1].to_be_bytes();
-
-        let y1 = y[0].to_be_bytes();
-        let y2 = y[1].to_be_bytes();
-
-        let x: [u8; 32] = [x1, x2].concat().try_into().unwrap();
-        let y: [u8; 32] = [y1, y2].concat().try_into().unwrap();
+        let x: [u8; 32] = p256[0].to_be_bytes().try_into().unwrap();
+        let y: [u8; 32] = p256[1].to_be_bytes().try_into().unwrap();
 
         let p = EncodedPoint::from_affine_coordinates(&x.into(), &y.into(), false);
 
