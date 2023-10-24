@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use crate::http::{Body, BodyCommitmentBuilder, Request, Response};
-use spansy::Spanned;
+use spansy::{http::Header, Spanned};
 use tlsn_core::{
     commitment::{CommitmentId, TranscriptCommitmentBuilder, TranscriptCommitmentBuilderError},
     Direction,
@@ -156,7 +156,13 @@ impl<'a> HttpRequestCommitmentBuilder<'a> {
             .0
             .header(name)
             .ok_or(HttpCommitmentBuilderError::MissingHeader(name.to_string()))?;
+        self.header_internal(header)
+    }
 
+    fn header_internal(
+        &mut self,
+        header: &Header,
+    ) -> Result<CommitmentId, HttpCommitmentBuilderError> {
         let range = header.value.span().range();
         let id = self.builder.commit_sent(range.clone())?;
 
@@ -173,7 +179,7 @@ impl<'a> HttpRequestCommitmentBuilder<'a> {
 
         for header in &self.request.0.headers {
             let name = header.name.span().as_str().to_string();
-            let id = self.header(&name)?;
+            let id = self.header_internal(header)?;
 
             commitments.push((name, id));
         }
@@ -210,7 +216,7 @@ impl<'a> HttpRequestCommitmentBuilder<'a> {
 
             let range = header.value.span().range();
             if !range.is_subset(&self.committed) {
-                self.header(&name)?;
+                self.header_internal(header)?;
             }
         }
 
@@ -265,7 +271,13 @@ impl<'a> HttpResponseCommitmentBuilder<'a> {
             .0
             .header(name)
             .ok_or(HttpCommitmentBuilderError::MissingHeader(name.to_string()))?;
+        self.header_internal(header)
+    }
 
+    fn header_internal(
+        &mut self,
+        header: &Header,
+    ) -> Result<CommitmentId, HttpCommitmentBuilderError> {
         self.builder
             .commit_recv(header.value.span().range())
             .map_err(From::from)
@@ -279,7 +291,7 @@ impl<'a> HttpResponseCommitmentBuilder<'a> {
 
         for header in &self.response.0.headers {
             let name = header.name.span().as_str().to_string();
-            let id = self.header(&name)?;
+            let id = self.header_internal(header)?;
 
             commitments.push((name, id));
         }
@@ -315,7 +327,7 @@ impl<'a> HttpResponseCommitmentBuilder<'a> {
 
             let range = header.value.span().range();
             if !range.is_subset(&self.committed) {
-                self.header(&name)?;
+                self.header_internal(header)?;
             }
         }
 
