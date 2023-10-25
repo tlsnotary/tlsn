@@ -145,30 +145,25 @@ impl<'a> HttpRequestCommitmentBuilder<'a> {
         Ok(id)
     }
 
-    /// Commits the value of the header with the given name.
+    /// Commits the value of all the headers with the given name.
     ///
     /// # Arguments
     ///
     /// * `name` - The name of the header value to commit.
-    pub fn header(&mut self, name: &str) -> Result<CommitmentId, HttpCommitmentBuilderError> {
-        let header = self
-            .request
-            .0
-            .header(name)
-            .ok_or(HttpCommitmentBuilderError::MissingHeader(name.to_string()))?;
-        self.header_internal(header)
-    }
+    pub fn header(&mut self, name: &str) -> Result<Vec<CommitmentId>, HttpCommitmentBuilderError> {
+        let headers = self.request.0.all_headers_with_name(name);
+        if headers.is_empty() {
+            return Err(HttpCommitmentBuilderError::MissingHeader(name.to_string()));
+        }
 
-    fn header_internal(
-        &mut self,
-        header: &Header,
-    ) -> Result<CommitmentId, HttpCommitmentBuilderError> {
-        let range = header.value.span().range();
-        let id = self.builder.commit_sent(range.clone())?;
+        let mut commitments = Vec::new();
 
-        self.committed = self.committed.union(&range);
+        for header in headers {
+            let id = self.header_internal(header)?;
+            commitments.push(id);
+        }
 
-        Ok(id)
+        Ok(commitments)
     }
 
     /// Commits all request headers.
@@ -230,6 +225,18 @@ impl<'a> HttpRequestCommitmentBuilder<'a> {
 
         Ok(())
     }
+
+    fn header_internal(
+        &mut self,
+        header: &Header,
+    ) -> Result<CommitmentId, HttpCommitmentBuilderError> {
+        let range = header.value.span().range();
+        let id = self.builder.commit_sent(range.clone())?;
+
+        self.committed = self.committed.union(&range);
+
+        Ok(id)
+    }
 }
 
 /// Builder for commitments to an HTTP response.
@@ -260,27 +267,25 @@ impl<'a> HttpResponseCommitmentBuilder<'a> {
         }
     }
 
-    /// Commits the value of the header with the given name.
+    /// Commits the value of all the headers with the given name.
     ///
     /// # Arguments
     ///
     /// * `name` - The name of the header value to commit.
-    pub fn header(&mut self, name: &str) -> Result<CommitmentId, HttpCommitmentBuilderError> {
-        let header = self
-            .response
-            .0
-            .header(name)
-            .ok_or(HttpCommitmentBuilderError::MissingHeader(name.to_string()))?;
-        self.header_internal(header)
-    }
+    pub fn header(&mut self, name: &str) -> Result<Vec<CommitmentId>, HttpCommitmentBuilderError> {
+        let headers = self.response.0.all_headers_with_name(name);
+        if headers.is_empty() {
+            return Err(HttpCommitmentBuilderError::MissingHeader(name.to_string()));
+        }
 
-    fn header_internal(
-        &mut self,
-        header: &Header,
-    ) -> Result<CommitmentId, HttpCommitmentBuilderError> {
-        self.builder
-            .commit_recv(header.value.span().range())
-            .map_err(From::from)
+        let mut commitments = Vec::new();
+
+        for header in headers {
+            let id = self.header_internal(header)?;
+            commitments.push(id);
+        }
+
+        Ok(commitments)
     }
 
     /// Commits all response headers.
@@ -340,5 +345,17 @@ impl<'a> HttpResponseCommitmentBuilder<'a> {
         *self.built = true;
 
         Ok(())
+    }
+
+    fn header_internal(
+        &mut self,
+        header: &Header,
+    ) -> Result<CommitmentId, HttpCommitmentBuilderError> {
+        let range = header.value.span().range();
+        let id = self.builder.commit_recv(range.clone())?;
+
+        self.committed = self.committed.union(&range);
+
+        Ok(id)
     }
 }
