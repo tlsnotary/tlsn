@@ -36,12 +36,12 @@ impl Verifier<Verify> {
 
         let verify_fut = async {
             let mut verify_channel = mux.get_channel("verify").await?;
-            let DecodingInfo { ids } =
-                expect_msg_or_err!(verify_channel, TlsnMessage::DecodingInfo)?;
+            let decoding_info = expect_msg_or_err!(verify_channel, TlsnMessage::DecodingInfo)?;
 
             // Get the decoded value refs from the DEAP vm
             let mut decode_thread = vm.new_thread("cleartext_values").await?;
-            let value_refs = ids
+            let value_refs = decoding_info
+                .ids
                 .iter()
                 .map(|id| {
                     decode_thread
@@ -52,6 +52,9 @@ impl Verifier<Verify> {
 
             // Decode the corresponding values
             let values = decode_thread.decode(value_refs.as_slice()).await?;
+
+            #[cfg(feature = "tracing")]
+            info!("Successfully decoded transcript parts");
 
             // Finalize all MPC
             let (mut ot_sender_actor, _, _) = futures::try_join!(
@@ -88,26 +91,30 @@ impl Verifier<Verify> {
 
         let TlsInfo {
             session_info,
-            sent_len: purport_sent_len,
-            recv_len: purport_recv_len,
+            sent_len: purported_sent_len,
+            recv_len: purported_recv_len,
         } = tls_info;
 
         // Verify the TLS session
         session_info.verify(&handshake_summary, self.config.cert_verifier())?;
 
         // Verify the transcript lengths
-        if purport_sent_len != sent_len {
+        if purported_sent_len != sent_len {
             return Err(VerifierError::TranscriptLengthMismatch {
                 expected: sent_len,
-                actual: purport_sent_len,
+                actual: purported_sent_len,
             });
         }
-        if purport_recv_len != recv_len {
+        if purported_recv_len != recv_len {
             return Err(VerifierError::TranscriptLengthMismatch {
                 expected: recv_len,
-                actual: purport_recv_len,
+                actual: purported_recv_len,
             });
         }
+
+        #[cfg(feature = "tracing")]
+        info!("Successfully verified session and transcript lengths");
+
         let mut mux = mux.into_inner();
 
         futures::try_join!(mux.close().map_err(VerifierError::from), mux_fut)?;

@@ -56,7 +56,9 @@ impl VerifierConfig {
 
     /// Get the certificate verifier.
     pub fn cert_verifier(&self) -> &impl ServerCertVerifier {
-        self.cert_verifier.as_ref().unwrap()
+        self.cert_verifier
+            .as_ref()
+            .expect("Certificate verifier should be set")
     }
 
     pub(crate) fn build_base_ot_sender_config(&self) -> chou_orlandi::SenderConfig {
