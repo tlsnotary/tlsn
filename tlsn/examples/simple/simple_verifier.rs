@@ -33,7 +33,7 @@ fn main() {
         header,
         // This is the server_info, which contains the server_name, that is checked against the
         // certificate chain shared in the TLS handshake.
-        server_info,
+        session_info,
         ..
     } = session;
 
@@ -52,7 +52,7 @@ fn main() {
     println!("-------------------------------------------------------------------");
     println!(
         "Successfully verified that the bytes below came from a session with {:?} at {}.",
-        server_info.server_name(),
+        session_info.server_name(),
         time
     );
     println!("Note that the bytes which the Prover chose not to disclose are shown as X.");

@@ -178,13 +178,13 @@ fn test_api() {
 
     let SessionProof {
         header,
-        server_info,
+        session_info,
         ..
     } = session_proof;
 
     // assert dns name is expected
     assert_eq!(
-        server_info.server_name().as_ref(),
+        session_info.server_name().as_ref(),
         testdata.dns_name.as_str()
     );
 
