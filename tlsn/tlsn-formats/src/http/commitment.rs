@@ -168,10 +168,17 @@ impl<'a> HttpRequestCommitmentBuilder<'a> {
     /// Commits all request headers.
     ///
     /// Returns a vector of the names of the headers that were committed and their commitment IDs.
+    ///
+    /// Headers with empty values are skipped.
     pub fn headers(&mut self) -> Result<Vec<(String, CommitmentId)>, HttpCommitmentBuilderError> {
         let mut commitments = Vec::new();
 
         for header in &self.request.0.headers {
+            // Skip headers with empty values
+            if header.value.span().is_empty() {
+                continue;
+            }
+
             let name = header.name.span().as_str().to_string();
             let id = self.header(&name)?;
 
@@ -192,6 +199,8 @@ impl<'a> HttpRequestCommitmentBuilder<'a> {
     ///
     /// This commits to everything that has not already been committed, including a commitment
     /// to the format data of the request.
+    ///
+    /// Headers with empty values are skipped.
     pub fn build(mut self) -> Result<(), HttpCommitmentBuilderError> {
         // Commit to the path if it has not already been committed.
         let path_range = self.request.0.path.range();
@@ -201,6 +210,11 @@ impl<'a> HttpRequestCommitmentBuilder<'a> {
 
         // Commit to any headers that have not already been committed.
         for header in &self.request.0.headers {
+            // Skip headers with empty values
+            if header.value.span().is_empty() {
+                continue;
+            }
+
             let name = header.name.span().as_str().to_ascii_lowercase();
 
             // Public headers can not be committed separately
@@ -274,10 +288,17 @@ impl<'a> HttpResponseCommitmentBuilder<'a> {
     /// Commits all response headers.
     ///
     /// Returns a vector of the names of the headers that were committed and their commitment IDs.
+    ///
+    /// Headers with empty values are skipped.
     pub fn headers(&mut self) -> Result<Vec<(String, CommitmentId)>, HttpCommitmentBuilderError> {
         let mut commitments = Vec::new();
 
         for header in &self.response.0.headers {
+            // Skip headers with empty values
+            if header.value.span().is_empty() {
+                continue;
+            }
+
             let name = header.name.span().as_str().to_string();
             let id = self.header(&name)?;
 
@@ -306,6 +327,11 @@ impl<'a> HttpResponseCommitmentBuilder<'a> {
     pub fn build(mut self) -> Result<(), HttpCommitmentBuilderError> {
         // Commit to any headers that have not already been committed.
         for header in &self.response.0.headers {
+            // Skip headers with empty values
+            if header.value.span().is_empty() {
+                continue;
+            }
+
             let name = header.name.span().as_str().to_ascii_lowercase();
 
             // Public headers can not be committed separately

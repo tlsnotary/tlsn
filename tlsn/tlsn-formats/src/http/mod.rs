@@ -205,4 +205,25 @@ mod tests {
         assert_eq!(&recv.data()[25..43], b"very-secret-cookie");
         assert_eq!(&recv.data()[180..194], b"Hello World!!!");
     }
+
+    #[test]
+    fn test_http_commit_empty_headers() {
+        let tx: &[u8] = b"GET /hello HTTP/1.1\r\nHost: localhost\r\nEmpty: \r\n\r\n";
+        let rx: &[u8] = b"HTTP/1.1 200 OK\r\nEmpty: \r\nContent-Length: 0\r\n\r\n";
+
+        let mut transcript_commitment_builder = TranscriptCommitmentBuilder::new(
+            fixtures::encoding_provider(tx, rx),
+            tx.len(),
+            rx.len(),
+        );
+
+        let requests = parse_requests(Bytes::copy_from_slice(tx)).unwrap();
+        let responses = parse_responses(Bytes::copy_from_slice(rx)).unwrap();
+
+        HttpCommitmentBuilder::new(&mut transcript_commitment_builder, &requests, &responses)
+            .build()
+            .unwrap();
+
+        transcript_commitment_builder.build().unwrap();
+    }
 }
