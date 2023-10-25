@@ -56,7 +56,9 @@ bincode = "1"
 hex = "0.4"
 bytes = "1.4"
 opaque-debug = "0.3"
-spansy = { git = "https://github.com/sinui0/spansy", rev = "becb33d" }
+# TODO: switch spansy back to the sinui0 repo with updated rev
+# spansy = { git = "https://github.com/sinui0/spansy", rev = "becb33d" }
+spansy = { git = "https://github.com/rozag/spansy", rev = "ecd79a1" }
 
 tracing = "0.1"
 tracing-subscriber = "0.3"
