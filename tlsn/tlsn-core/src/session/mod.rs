@@ -41,7 +41,7 @@ impl NotarizedSession {
 
     /// Returns a proof of the TLS session
     pub fn session_proof(&self) -> SessionProof {
-        let server_info = SessionInfo {
+        let session_info = SessionInfo {
             server_name: self.data.session_data().session_info().server_name.clone(),
             handshake_data_decommitment: self
                 .data
@@ -54,7 +54,7 @@ impl NotarizedSession {
         SessionProof {
             header: self.header.clone(),
             signature: self.signature.clone(),
-            server_info,
+            session_info,
         }
     }
 

@@ -1,12 +1,16 @@
 use mpz_ot::{chou_orlandi, kos};
 use mpz_share_conversion::{ReceiverConfig, SenderConfig};
+use std::fmt::{Debug, Formatter, Result};
+use tls_core::verify::{ServerCertVerifier, WebPkiVerifier};
 use tls_mpc::{MpcTlsCommonConfig, MpcTlsFollowerConfig};
+use tlsn_core::proof::default_cert_verifier;
 
 const DEFAULT_MAX_TRANSCRIPT_SIZE: usize = 1 << 14; // 16Kb
 
 /// Configuration for the [`Verifier`](crate::Verifier)
 #[allow(missing_docs)]
-#[derive(Debug, Clone, derive_builder::Builder)]
+#[derive(derive_builder::Builder)]
+#[builder(pattern = "owned")]
 pub struct VerifierConfig {
     #[builder(setter(into))]
     id: String,
@@ -16,6 +20,22 @@ pub struct VerifierConfig {
     /// This includes the number of bytes sent and received to the server.
     #[builder(default = "DEFAULT_MAX_TRANSCRIPT_SIZE")]
     max_transcript_size: usize,
+    #[builder(
+        pattern = "owned",
+        setter(strip_option),
+        default = "Some(default_cert_verifier())"
+    )]
+    cert_verifier: Option<WebPkiVerifier>,
+}
+
+impl Debug for VerifierConfig {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        f.debug_struct("VerifierConfig")
+            .field("id", &self.id)
+            .field("max_transcript_size", &self.max_transcript_size)
+            .field("cert_verifier", &"_")
+            .finish()
+    }
 }
 
 impl VerifierConfig {
@@ -32,6 +52,11 @@ impl VerifierConfig {
     /// Get the maximum transcript size in bytes.
     pub fn max_transcript_size(&self) -> usize {
         self.max_transcript_size
+    }
+
+    /// Get the certificate verifier.
+    pub fn cert_verifier(&self) -> &impl ServerCertVerifier {
+        self.cert_verifier.as_ref().unwrap()
     }
 
     pub(crate) fn build_base_ot_sender_config(&self) -> chou_orlandi::SenderConfig {

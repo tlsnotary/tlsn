@@ -3,9 +3,14 @@
 //! The TLS verifier is an application-specific verifier.
 
 use super::{state::Verify, Verifier, VerifierError};
-use futures::{FutureExt, SinkExt, StreamExt, TryFutureExt};
+use futures::{FutureExt, StreamExt, TryFutureExt};
+use mpz_garble::{Decode, Memory, ValueRef, Vm};
 use mpz_share_conversion::ShareConversionVerify;
-use tlsn_core::{msg::TlsnMessage, HandshakeSummary, SessionHeader};
+use tlsn_core::{
+    msg::{DecodingInfo, TlsnMessage},
+    proof::TlsInfo,
+    HandshakeSummary,
+};
 use utils_aio::{expect_msg_or_err, mux::MuxChannel};
 
 #[cfg(feature = "tracing")]
@@ -22,7 +27,6 @@ impl Verifier<Verify> {
             ot_recv,
             ot_fut,
             mut gf2,
-            encoder_seed,
             start_time,
             server_ephemeral_key,
             handshake_commitment,
@@ -31,13 +35,25 @@ impl Verifier<Verify> {
         } = self.state;
 
         let verify_fut = async {
-            //let mut verify_channel = mux.get_channel("verify").await?;
+            let mut verify_channel = mux.get_channel("verify").await?;
+            let DecodingInfo { ids } =
+                expect_msg_or_err!(verify_channel, TlsnMessage::DecodingInfo)?;
 
-            // TODO: Do deap vm decoding here
-            // Probably need the `ValueRefs` first from prover
-            // Then call vm decode
+            // Get the decoded value refs from the DEAP vm
+            let mut decode_thread = vm.new_thread("cleartext_values").await?;
+            let value_refs = ids
+                .iter()
+                .map(|id| {
+                    decode_thread
+                        .get_value(id.as_ref())
+                        .ok_or(VerifierError::TranscriptDecodeError)
+                })
+                .collect::<Result<Vec<ValueRef>, VerifierError>>()?;
 
-            // Finalize all MPC before signing the session header
+            // Decode the corresponding values
+            let values = decode_thread.decode(value_refs.as_slice()).await?;
+
+            // Finalize all MPC
             let (mut ot_sender_actor, _, _) = futures::try_join!(
                 ot_fut,
                 ot_send.shutdown().map_err(VerifierError::from),
@@ -54,22 +70,51 @@ impl Verifier<Verify> {
                 .await
                 .map_err(|e| VerifierError::MpcError(Box::new(e)))?;
 
+            let tls_info = expect_msg_or_err!(verify_channel, TlsnMessage::TlsInfo)?;
+
             #[cfg(feature = "tracing")]
             info!("Finalized all MPC");
 
-            Ok::<_, VerifierError>(())
+            Ok::<_, VerifierError>((values, tls_info))
         };
 
-        let values = futures::select! {
+        let (decoded_values, tls_info) = futures::select! {
             res = verify_fut.fuse() => res?,
             _ = &mut mux_fut => Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
         };
-        // TODO: What do we return here for the verifier?
 
+        let handshake_summary =
+            HandshakeSummary::new(start_time, server_ephemeral_key, handshake_commitment);
+
+        let TlsInfo {
+            session_info,
+            sent_len: purport_sent_len,
+            recv_len: purport_recv_len,
+        } = tls_info;
+
+        // Verify the TLS session
+        session_info.verify(&handshake_summary, self.config.cert_verifier())?;
+
+        // Verify the transcript lengths
+        if purport_sent_len != sent_len {
+            return Err(VerifierError::TranscriptLengthMismatch {
+                expected: sent_len,
+                actual: purport_sent_len,
+            });
+        }
+        if purport_recv_len != recv_len {
+            return Err(VerifierError::TranscriptLengthMismatch {
+                expected: recv_len,
+                actual: purport_recv_len,
+            });
+        }
         let mut mux = mux.into_inner();
 
         futures::try_join!(mux.close().map_err(VerifierError::from), mux_fut)?;
 
         todo!()
+        // TODO:
+        // - What to do with the decoded_values?
+        // - What do we return here for the verifier?
     }
 }

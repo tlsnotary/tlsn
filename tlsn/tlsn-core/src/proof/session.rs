@@ -13,7 +13,7 @@ use tls_core::{
 use crate::{
     session::SessionHeader,
     signature::{Signature, SignatureVerifyError},
-    NotaryPublicKey, ServerName,
+    HandshakeSummary, NotaryPublicKey, ServerName,
 };
 
 /// An error that can occur while verifying a [`SessionProof`].
@@ -47,11 +47,11 @@ pub struct SessionProof {
     /// Signature for the session header, if the notary signed it
     pub signature: Option<Signature>,
     /// Information about the server
-    pub server_info: SessionInfo,
+    pub session_info: SessionInfo,
 }
 
 impl SessionProof {
-    /// Verify the session proof, returning the server's name.
+    /// Verify the session proof.
     ///
     /// # Arguments
     ///
@@ -69,28 +69,8 @@ impl SessionProof {
             .ok_or(SessionProofError::MissingNotarySignature)?;
 
         signature.verify(&self.header.to_bytes(), notary_public_key)?;
-
-        // Verify server name
-        let server_name = TlsServerName::try_from(self.server_info.server_name.as_ref())
-            .map_err(|e| SessionProofError::InvalidServerName(e.to_string()))?;
-
-        // Verify handshake
-        self.server_info
-            .handshake_data_decommitment
-            .verify(self.header.handshake_summary().handshake_commitment())
-            .map_err(|e| SessionProofError::InvalidHandshake(e.to_string()))?;
-
-        // Verify server certificate
-        self.server_info
-            .handshake_data_decommitment
-            .data()
-            .verify(
-                cert_verifier,
-                SystemTime::UNIX_EPOCH
-                    + Duration::from_secs(self.header.handshake_summary().time()),
-                &server_name,
-            )
-            .map_err(|e| SessionProofError::InvalidServerCertificate(e.to_string()))?;
+        self.session_info
+            .verify(self.header.handshake_summary(), cert_verifier)?;
 
         Ok(())
     }
@@ -108,20 +88,7 @@ impl SessionProof {
     }
 }
 
-fn default_cert_verifier() -> WebPkiVerifier {
-    let mut root_store = RootCertStore::empty();
-    root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
-        OwnedTrustAnchor::from_subject_spki_name_constraints(
-            ta.subject,
-            ta.spki,
-            ta.name_constraints,
-        )
-    }));
-
-    WebPkiVerifier::new(root_store, None)
-}
-
-/// Contains information about the server
+/// Contains information about the session
 ///
 /// Includes the [ServerName] and the decommitment to the [HandshakeData].
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -142,6 +109,58 @@ impl SessionInfo {
     pub fn handshake_data_decommitment(&self) -> &Decommitment<HandshakeData> {
         &self.handshake_data_decommitment
     }
+}
+
+impl SessionInfo {
+    /// Verify the session info.
+    pub fn verify(
+        &self,
+        handshake_summary: &HandshakeSummary,
+        cert_verifier: &impl ServerCertVerifier,
+    ) -> Result<(), SessionProofError> {
+        // Verify server name
+        let server_name = TlsServerName::try_from(self.server_name().as_ref())
+            .map_err(|e| SessionProofError::InvalidServerName(e.to_string()))?;
+
+        // Verify handshake
+        self.handshake_data_decommitment()
+            .verify(handshake_summary.handshake_commitment())
+            .map_err(|e| SessionProofError::InvalidHandshake(e.to_string()))?;
+
+        // Verify server certificate
+        self.handshake_data_decommitment()
+            .data()
+            .verify(
+                cert_verifier,
+                UNIX_EPOCH + Duration::from_secs(handshake_summary.time()),
+                &server_name,
+            )
+            .map_err(|e| SessionProofError::InvalidServerCertificate(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// Verify the session info using trust anchors from the `webpki-roots` crate.
+    pub fn verify_with_default_cert_verifier(
+        &self,
+        handshake_summary: &HandshakeSummary,
+    ) -> Result<(), SessionProofError> {
+        self.verify(handshake_summary, &default_cert_verifier())
+    }
+}
+
+/// Create a new [`WebPkiVerifier`] with the default trust anchors from the `webpki-roots` crate.
+pub fn default_cert_verifier() -> WebPkiVerifier {
+    let mut root_store = RootCertStore::empty();
+    root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
+        OwnedTrustAnchor::from_subject_spki_name_constraints(
+            ta.subject,
+            ta.spki,
+            ta.name_constraints,
+        )
+    }));
+
+    WebPkiVerifier::new(root_store, None)
 }
 
 #[cfg(test)]

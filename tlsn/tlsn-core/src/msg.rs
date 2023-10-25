@@ -15,6 +15,8 @@ pub enum TlsnMessage {
     SessionHeader(SessionHeader),
     /// Information about the TLS session
     TlsInfo(TlsInfo),
+    /// Information about what values the prover wants to decode
+    DecodingInfo(DecodingInfo),
 }
 
 /// A signed session header.
@@ -24,4 +26,11 @@ pub struct SignedSessionHeader {
     pub header: SessionHeader,
     /// The notary's signature
     pub signature: Signature,
+}
+
+/// Information about what values the prover wants to decode
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DecodingInfo {
+    /// The ids from which to reconstruct the value refs
+    pub ids: Vec<String>,
 }

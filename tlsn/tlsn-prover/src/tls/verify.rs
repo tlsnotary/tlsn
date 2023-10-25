@@ -7,7 +7,10 @@ use crate::{tls::error::OTShutdownError, RangeCollector};
 use futures::{FutureExt, SinkExt};
 use mpz_garble::{Decode, Memory, ValueRef, Vm};
 use mpz_share_conversion::ShareConversionReveal;
-use tlsn_core::{msg::TlsnMessage, ServerName, SessionData, Transcript};
+use tlsn_core::{
+    msg::{DecodingInfo, TlsnMessage},
+    ServerName, SessionData, Transcript,
+};
 use utils_aio::mux::MuxChannel;
 
 impl Prover<Verify> {
@@ -62,16 +65,26 @@ impl Prover<Verify> {
         let mut verify_fut = Box::pin(async move {
             let mut channel = verify_mux.get_channel("verify").await?;
 
-            // Get the decoded values from the DEAP vm
             let mut decode_thread = vm.new_thread("cleartext_values").await?;
-            let value_refs = tx_ids
-                .chain(rx_ids)
+            let ids = tx_ids.chain(rx_ids).collect::<Vec<String>>();
+            let decoding_info = DecodingInfo { ids: ids.clone() };
+
+            // Send the ids to the verifier so that he can also create the corresponding value refs
+            channel
+                .send(TlsnMessage::DecodingInfo(decoding_info))
+                .await?;
+
+            // Get the decoded value refs from the DEAP vm
+            let value_refs = ids
+                .iter()
                 .map(|id| {
                     decode_thread
                         .get_value(id.as_ref())
                         .ok_or(ProverError::TranscriptDecodeError)
                 })
                 .collect::<Result<Vec<ValueRef>, ProverError>>()?;
+
+            // Decode the corresponding values
             let values = decode_thread.decode(value_refs.as_slice()).await?;
 
             // This is a temporary approach until a maliciously secure share conversion protocol is implemented.

@@ -1,6 +1,6 @@
 use std::error::Error;
-
 use tls_mpc::MpcTlsError;
+use tlsn_core::proof::SessionProofError;
 
 /// An error that can occur during TLS verification.
 #[derive(Debug, thiserror::Error)]
@@ -12,6 +12,16 @@ pub enum VerifierError {
     MuxerError(#[from] utils_aio::mux::MuxerError),
     #[error("error occurred in MPC protocol: {0}")]
     MpcError(Box<dyn Error + Send + 'static>),
+    #[error(transparent)]
+    VMError(#[from] mpz_garble::VmError),
+    #[error("Transcript value cannot be decoded from VM thread")]
+    TranscriptDecodeError,
+    #[error(transparent)]
+    DecodeError(#[from] mpz_garble::DecodeError),
+    #[error("Invalid handshake decommitment")]
+    VerifyHandshakeError(#[from] SessionProofError),
+    #[error("Transcript length mismatch, expected {expected} but got {actual}")]
+    TranscriptLengthMismatch { expected: usize, actual: usize },
 }
 
 impl From<MpcTlsError> for VerifierError {
