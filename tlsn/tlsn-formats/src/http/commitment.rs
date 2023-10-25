@@ -151,16 +151,15 @@ impl<'a> HttpRequestCommitmentBuilder<'a> {
     ///
     /// * `name` - The name of the header value to commit.
     pub fn header(&mut self, name: &str) -> Result<Vec<CommitmentId>, HttpCommitmentBuilderError> {
-        let headers = self.request.0.all_headers_with_name(name);
-        if headers.is_empty() {
-            return Err(HttpCommitmentBuilderError::MissingHeader(name.to_string()));
-        }
-
         let mut commitments = Vec::new();
 
-        for header in headers {
+        for header in self.request.0.headers_with_name(name) {
             let id = self.header_internal(header)?;
             commitments.push(id);
+        }
+
+        if commitments.is_empty() {
+            return Err(HttpCommitmentBuilderError::MissingHeader(name.to_string()));
         }
 
         Ok(commitments)
@@ -273,16 +272,15 @@ impl<'a> HttpResponseCommitmentBuilder<'a> {
     ///
     /// * `name` - The name of the header value to commit.
     pub fn header(&mut self, name: &str) -> Result<Vec<CommitmentId>, HttpCommitmentBuilderError> {
-        let headers = self.response.0.all_headers_with_name(name);
-        if headers.is_empty() {
-            return Err(HttpCommitmentBuilderError::MissingHeader(name.to_string()));
-        }
-
         let mut commitments = Vec::new();
 
-        for header in headers {
+        for header in self.response.0.headers_with_name(name) {
             let id = self.header_internal(header)?;
             commitments.push(id);
+        }
+
+        if commitments.is_empty() {
+            return Err(HttpCommitmentBuilderError::MissingHeader(name.to_string()));
         }
 
         Ok(commitments)

@@ -162,23 +162,27 @@ impl<'a, 'b> HttpRequestProofBuilder<'a, 'b> {
         Ok(self)
     }
 
-    /// Reveals the value of the given header.
+    /// Reveals the value of all the headers with the given name.
     ///
     /// # Arguments
     ///
     /// * `name` - The name of the header value to reveal.
     pub fn header(&mut self, name: &str) -> Result<&mut Self, HttpProofBuilderError> {
-        let header = self
-            .request
-            .0
-            .header(name)
-            .ok_or_else(|| HttpProofBuilderError::MissingHeader(name.to_string()))?;
+        let mut empty = true;
 
-        let id = self.commit_id(header.value.span().range()).ok_or_else(|| {
-            HttpProofBuilderError::MissingCommitment(format!("header \"{}\"", name))
-        })?;
+        for header in self.request.0.headers_with_name(name) {
+            empty = false;
 
-        self.builder.reveal(id)?;
+            let id = self.commit_id(header.value.span().range()).ok_or_else(|| {
+                HttpProofBuilderError::MissingCommitment(format!("header \"{}\"", name))
+            })?;
+
+            self.builder.reveal(id)?;
+        }
+
+        if empty {
+            return Err(HttpProofBuilderError::MissingHeader(name.to_string()));
+        }
 
         Ok(self)
     }
@@ -255,23 +259,27 @@ impl<'a, 'b> HttpResponseProofBuilder<'a, 'b> {
         Ok(self)
     }
 
-    /// Reveals the value of the given header.
+    /// Reveals the value of all the headers with the given name.
     ///
     /// # Arguments
     ///
     /// * `name` - The name of the header value to reveal.
     pub fn header(&mut self, name: &str) -> Result<&mut Self, HttpProofBuilderError> {
-        let header = self
-            .response
-            .0
-            .header(name)
-            .ok_or_else(|| HttpProofBuilderError::MissingHeader(name.to_string()))?;
+        let mut empty = true;
 
-        let id = self.commit_id(header.value.span().range()).ok_or_else(|| {
-            HttpProofBuilderError::MissingCommitment(format!("header \"{}\"", name))
-        })?;
+        for header in self.response.0.headers_with_name(name) {
+            empty = false;
 
-        self.builder.reveal(id)?;
+            let id = self.commit_id(header.value.span().range()).ok_or_else(|| {
+                HttpProofBuilderError::MissingCommitment(format!("header \"{}\"", name))
+            })?;
+
+            self.builder.reveal(id)?;
+        }
+
+        if empty {
+            return Err(HttpProofBuilderError::MissingHeader(name.to_string()));
+        }
 
         Ok(self)
     }

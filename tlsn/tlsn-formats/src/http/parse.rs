@@ -90,7 +90,8 @@ pub fn parse_requests(data: Bytes) -> Result<Vec<(Request, Option<Body>)>, Parse
             let range = body.span().range();
             let body = data.slice(range.clone());
 
-            let body = if let Some(content_type) = request.header("content-type") {
+            let body = if let Some(content_type) = request.headers_with_name("content-type").next()
+            {
                 parse_body(
                     index,
                     content_type.value.span().as_bytes(),
@@ -129,7 +130,8 @@ pub fn parse_responses(data: Bytes) -> Result<Vec<(Response, Option<Body>)>, Par
             let range = body.span().range();
             let body = data.slice(range.clone());
 
-            let body = if let Some(content_type) = response.header("content-type") {
+            let body = if let Some(content_type) = response.headers_with_name("content-type").next()
+            {
                 parse_body(
                     index,
                     content_type.value.span().as_bytes(),
