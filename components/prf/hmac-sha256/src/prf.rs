@@ -30,27 +30,27 @@ enum Msg {
 }
 
 #[derive(Debug)]
-struct Randoms {
-    client_random: ValueRef,
-    server_random: ValueRef,
+pub(crate) struct Randoms {
+    pub(crate) client_random: ValueRef,
+    pub(crate) server_random: ValueRef,
 }
 
 #[derive(Debug, Clone)]
-struct HashState {
-    ms_outer_hash_state: ValueRef,
-    ms_inner_hash_state: ValueRef,
+pub(crate) struct HashState {
+    pub(crate) ms_outer_hash_state: ValueRef,
+    pub(crate) ms_inner_hash_state: ValueRef,
 }
 
 #[derive(Debug)]
-struct VerifyData {
-    handshake_hash: ValueRef,
-    vd: ValueRef,
+pub(crate) struct VerifyData {
+    pub(crate) handshake_hash: ValueRef,
+    pub(crate) vd: ValueRef,
 }
 
 /// MPC PRF for computing TLS HMAC-SHA256 PRF.
 pub struct MpcPrf<E> {
     config: PrfConfig,
-    state: State,
+    state: state::State,
     thread_0: E,
     thread_1: E,
 }
@@ -58,36 +58,10 @@ pub struct MpcPrf<E> {
 impl<E> Debug for MpcPrf<E> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MpcPrf")
+            .field("config", &self.config)
             .field("state", &self.state)
-            .field("executor", &"{{ ... }}")
             .finish()
     }
-}
-
-/// Internal state of [MpcPrf].
-#[derive(Debug)]
-#[allow(missing_docs)]
-enum State {
-    Initialized,
-    SessionKeys {
-        pms: ValueRef,
-        randoms: Randoms,
-        hash_state: HashState,
-        keys: SessionKeys,
-        cf_vd: VerifyData,
-        sf_vd: VerifyData,
-    },
-    ClientFinished {
-        hash_state: HashState,
-        cf_vd: VerifyData,
-        sf_vd: VerifyData,
-    },
-    ServerFinished {
-        hash_state: HashState,
-        sf_vd: VerifyData,
-    },
-    Complete,
-    Error,
 }
 
 impl<E> MpcPrf<E>
@@ -98,29 +72,25 @@ where
     pub fn new(config: PrfConfig, thread_0: E, thread_1: E) -> MpcPrf<E> {
         MpcPrf {
             config,
-            state: State::Initialized,
+            state: state::State::Initialized,
             thread_0,
             thread_1,
         }
     }
 
+    /// Executes a circuit which computes TLS session keys.
     async fn execute_session_keys(
         &mut self,
         randoms: Option<([u8; 32], [u8; 32])>,
     ) -> Result<SessionKeys, PrfError> {
-        let state = std::mem::replace(&mut self.state, State::Error);
-
-        let State::SessionKeys {
+        let state::SessionKeys {
             pms,
             randoms: randoms_refs,
             hash_state,
             keys,
             cf_vd,
             sf_vd,
-        } = state
-        else {
-            return Err(PrfError::InvalidState("prf not set up".to_string()));
-        };
+        } = std::mem::replace(&mut self.state, state::State::Error).try_into_session_keys()?;
 
         let circ = SESSION_KEYS_CIRC
             .get()
@@ -148,11 +118,11 @@ where
             )
             .await?;
 
-        self.state = State::ClientFinished {
+        self.state = state::State::ClientFinished(state::ClientFinished {
             hash_state,
             cf_vd,
             sf_vd,
-        };
+        });
 
         Ok(keys)
     }
@@ -161,27 +131,20 @@ where
         &mut self,
         handshake_hash: Option<[u8; 32]>,
     ) -> Result<Option<[u8; 12]>, PrfError> {
-        let state = std::mem::replace(&mut self.state, State::Error);
-
-        let State::ClientFinished {
+        let state::ClientFinished {
             hash_state,
             cf_vd,
             sf_vd,
-        } = state
-        else {
-            return Err(PrfError::InvalidState(
-                "session keys not computed".to_string(),
-            ));
-        };
+        } = std::mem::replace(&mut self.state, state::State::Error).try_into_client_finished()?;
 
         let circ = CLIENT_VD_CIRC.get().expect("client vd circuit is set");
 
         if let Some(handshake_hash) = handshake_hash {
-            self.thread_1
+            self.thread_0
                 .assign(&cf_vd.handshake_hash, handshake_hash)?;
         }
 
-        self.thread_1
+        self.thread_0
             .execute(
                 circ.clone(),
                 &[
@@ -194,17 +157,17 @@ where
             .await?;
 
         let vd = if handshake_hash.is_some() {
-            let mut outputs = self.thread_1.decode_private(&[cf_vd.vd]).await?;
+            let mut outputs = self.thread_0.decode_private(&[cf_vd.vd]).await?;
             let vd: [u8; 12] = outputs.remove(0).try_into().expect("vd is 12 bytes");
 
             Some(vd)
         } else {
-            self.thread_1.decode_blind(&[cf_vd.vd]).await?;
+            self.thread_0.decode_blind(&[cf_vd.vd]).await?;
 
             None
         };
 
-        self.state = State::ServerFinished { hash_state, sf_vd };
+        self.state = state::State::ServerFinished(state::ServerFinished { hash_state, sf_vd });
 
         Ok(vd)
     }
@@ -213,13 +176,8 @@ where
         &mut self,
         handshake_hash: Option<[u8; 32]>,
     ) -> Result<Option<[u8; 12]>, PrfError> {
-        let state = std::mem::replace(&mut self.state, State::Error);
-
-        let State::ServerFinished { hash_state, sf_vd } = state else {
-            return Err(PrfError::InvalidState(
-                "client finished not computed".to_string(),
-            ));
-        };
+        let state::ServerFinished { hash_state, sf_vd } =
+            std::mem::replace(&mut self.state, state::State::Error).try_into_server_finished()?;
 
         let circ = SERVER_VD_CIRC.get().expect("server vd circuit is set");
 
@@ -251,7 +209,7 @@ where
             None
         };
 
-        self.state = State::Complete;
+        self.state = state::State::Complete;
 
         Ok(vd)
     }
@@ -264,11 +222,7 @@ where
 {
     #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
     async fn setup(&mut self, pms: ValueRef) -> Result<(), PrfError> {
-        let state = std::mem::replace(&mut self.state, State::Error);
-
-        let State::Initialized = state else {
-            return Err(PrfError::InvalidState("prf already set up".to_string()));
-        };
+        std::mem::replace(&mut self.state, state::State::Error).try_into_initialized()?;
 
         let visibility = match self.config.role {
             Role::Leader => Visibility::Private,
@@ -284,14 +238,14 @@ where
             setup_finished_msg(&mut self.thread_1, Msg::Sf, hash_state.clone(), visibility),
         )?;
 
-        self.state = State::SessionKeys {
+        self.state = state::State::SessionKeys(state::SessionKeys {
             pms,
             randoms,
             hash_state,
             keys,
             cf_vd,
             sf_vd,
-        };
+        });
 
         Ok(())
     }
@@ -375,6 +329,45 @@ where
         }
 
         self.execute_sf_vd(None).await.map(|_| ())
+    }
+}
+
+pub(crate) mod state {
+    use super::*;
+    use enum_try_as_inner::EnumTryAsInner;
+
+    #[derive(Debug, EnumTryAsInner)]
+    #[derive_err(Debug)]
+    pub(crate) enum State {
+        Initialized,
+        SessionKeys(SessionKeys),
+        ClientFinished(ClientFinished),
+        ServerFinished(ServerFinished),
+        Complete,
+        Error,
+    }
+
+    #[derive(Debug)]
+    pub(crate) struct SessionKeys {
+        pub(crate) pms: ValueRef,
+        pub(crate) randoms: Randoms,
+        pub(crate) hash_state: HashState,
+        pub(crate) keys: crate::SessionKeys,
+        pub(crate) cf_vd: VerifyData,
+        pub(crate) sf_vd: VerifyData,
+    }
+
+    #[derive(Debug)]
+    pub(crate) struct ClientFinished {
+        pub(crate) hash_state: HashState,
+        pub(crate) cf_vd: VerifyData,
+        pub(crate) sf_vd: VerifyData,
+    }
+
+    #[derive(Debug)]
+    pub(crate) struct ServerFinished {
+        pub(crate) hash_state: HashState,
+        pub(crate) sf_vd: VerifyData,
     }
 }
 
