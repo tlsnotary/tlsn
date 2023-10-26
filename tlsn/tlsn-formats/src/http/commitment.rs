@@ -154,6 +154,11 @@ impl<'a> HttpRequestCommitmentBuilder<'a> {
         let mut commitments = Vec::new();
 
         for header in self.request.0.headers_with_name(name) {
+            // Cannot commit to an empty header value
+            if header.value.span().is_empty() {
+                continue;
+            }
+
             let id = self.header_internal(header)?;
             commitments.push(id);
         }
@@ -172,6 +177,11 @@ impl<'a> HttpRequestCommitmentBuilder<'a> {
         let mut commitments = Vec::new();
 
         for header in &self.request.0.headers {
+            // Cannot commit to an empty header value
+            if header.value.span().is_empty() {
+                continue;
+            }
+
             let name = header.name.span().as_str().to_string();
             let id = self.header_internal(header)?;
 
@@ -208,7 +218,13 @@ impl<'a> HttpRequestCommitmentBuilder<'a> {
                 continue;
             }
 
-            let range = header.value.span().range();
+            // Cannot commit to an empty header value
+            let span = header.value.span();
+            if span.is_empty() {
+                continue;
+            }
+
+            let range = span.range();
             if !range.is_subset(&self.committed) {
                 self.header_internal(header)?;
             }
@@ -275,6 +291,11 @@ impl<'a> HttpResponseCommitmentBuilder<'a> {
         let mut commitments = Vec::new();
 
         for header in self.response.0.headers_with_name(name) {
+            // Cannot commit to an empty header value
+            if header.value.span().is_empty() {
+                continue;
+            }
+
             let id = self.header_internal(header)?;
             commitments.push(id);
         }
@@ -293,6 +314,11 @@ impl<'a> HttpResponseCommitmentBuilder<'a> {
         let mut commitments = Vec::new();
 
         for header in &self.response.0.headers {
+            // Cannot commit to an empty header value
+            if header.value.span().is_empty() {
+                continue;
+            }
+
             let name = header.name.span().as_str().to_string();
             let id = self.header_internal(header)?;
 
@@ -328,7 +354,13 @@ impl<'a> HttpResponseCommitmentBuilder<'a> {
                 continue;
             }
 
-            let range = header.value.span().range();
+            // Cannot commit to an empty header value
+            let span = header.value.span();
+            if span.is_empty() {
+                continue;
+            }
+
+            let range = span.range();
             if !range.is_subset(&self.committed) {
                 self.header_internal(header)?;
             }
