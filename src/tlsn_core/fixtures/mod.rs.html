@@ -162,6 +162,11 @@
 <a href="#162" id="162">162</a>
 <a href="#163" id="163">163</a>
 <a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Fixtures for testing
 
 /// Certificate fixtures
@@ -171,7 +176,7 @@
 
 <span class="kw">use </span>hex::FromHex;
 <span class="kw">use </span>mpz_circuits::types::ValueType;
-<span class="kw">use </span>mpz_core::{commit::HashCommit, hash::Hash, value::ValueId};
+<span class="kw">use </span>mpz_core::{commit::HashCommit, hash::Hash, utils::blake3};
 <span class="kw">use </span>mpz_garble_core::{ChaChaEncoder, Encoder};
 <span class="kw">use </span>tls_core::{
     cert::ServerCertDetails,
@@ -192,6 +197,11 @@
     session::{HandshakeSummary, SessionHeader},
     EncodingProvider,
 };
+
+<span class="kw">fn </span>value_id(id: <span class="kw-2">&amp;</span>str) -&gt; u64 {
+    <span class="kw">let </span>hash = blake3(id.as_bytes());
+    u64::from_be_bytes(hash[..<span class="number">8</span>].try_into().unwrap())
+}
 
 <span class="doccomment">/// Returns a session header fixture using the given transcript lengths and merkle root.
 ///
@@ -216,12 +226,12 @@
     <span class="kw">let </span><span class="kw-2">mut </span>active_encodings = HashMap::new();
     <span class="kw">for </span>(idx, byte) <span class="kw">in </span>transcript_tx.iter().enumerate() {
         <span class="kw">let </span>id = <span class="macro">format!</span>(<span class="string">&quot;tx/{idx}&quot;</span>);
-        <span class="kw">let </span>enc = encoder.encode_by_type(ValueId::new(<span class="kw-2">&amp;</span>id).to_u64(), <span class="kw-2">&amp;</span>ValueType::U8);
+        <span class="kw">let </span>enc = encoder.encode_by_type(value_id(<span class="kw-2">&amp;</span>id), <span class="kw-2">&amp;</span>ValueType::U8);
         active_encodings.insert(id, enc.select(<span class="kw-2">*</span>byte).unwrap());
     }
     <span class="kw">for </span>(idx, byte) <span class="kw">in </span>transcript_rx.iter().enumerate() {
         <span class="kw">let </span>id = <span class="macro">format!</span>(<span class="string">&quot;rx/{idx}&quot;</span>);
-        <span class="kw">let </span>enc = encoder.encode_by_type(ValueId::new(<span class="kw-2">&amp;</span>id).to_u64(), <span class="kw-2">&amp;</span>ValueType::U8);
+        <span class="kw">let </span>enc = encoder.encode_by_type(value_id(<span class="kw-2">&amp;</span>id), <span class="kw-2">&amp;</span>ValueType::U8);
         active_encodings.insert(id, enc.select(<span class="kw-2">*</span>byte).unwrap());
     }
 
