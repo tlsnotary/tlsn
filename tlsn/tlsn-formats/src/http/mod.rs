@@ -291,4 +291,33 @@ mod tests {
             .get_id_by_info(CommitmentKind::Blake3, (58..74).into(), Direction::Received)
             .is_some());
     }
+
+    #[test]
+    fn test_http_commit_empty_range_bug() {
+        let tx: &[u8] = b"POST / HTTP/1.1\r\n\
+        host: localhost\r\n\
+        access-control-expose-headers: \r\n\
+        content-type: application/json; charset=utf-8\r\n\
+        content-length: 30\r\n\
+        connection: close\r\n\r\n\
+        {\"data\":{\"key1\":\"\",\"key2\":{}}}";
+        let rx: &[u8] = b"HTTP/1.1 200 OK\r\n\
+        access-control-expose-headers: \r\n\
+        content-type: application/json; charset=utf-8\r\n\
+        content-length: 30\r\n\
+        connection: close\r\n\r\n\
+        {\"datb\":{\"key3\":\"\",\"key4\":{}}}";
+        let mut transcript_commitment_builder = TranscriptCommitmentBuilder::new(
+            fixtures::encoding_provider(tx, rx),
+            tx.len(),
+            rx.len(),
+        );
+
+        let requests = parse_requests(Bytes::copy_from_slice(tx)).unwrap();
+        let responses = parse_responses(Bytes::copy_from_slice(rx)).unwrap();
+
+        HttpCommitmentBuilder::new(&mut transcript_commitment_builder, &requests, &responses)
+            .build()
+            .unwrap();
+    }
 }
