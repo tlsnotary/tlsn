@@ -134,7 +134,13 @@ impl<'a> JsonVisit for JsonCommitter<'a> {
             return;
         }
 
-        let range = node.span().range();
+        // Ignore empty strings.
+        let span = node.span();
+        if span.is_empty() {
+            return;
+        }
+
+        let range = span.range();
         if self
             .builder
             .get_id(CommitmentKind::Blake3, range.clone(), self.direction)
