@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use tlsn_core::{
-    commitment::{CommitmentId, TranscriptCommitmentBuilder, TranscriptCommitments},
+    commitment::{CommitmentId, TranscriptCommitmentBuilder},
     proof::SubstringsProofBuilder,
     Direction,
 };
@@ -87,26 +87,17 @@ pub enum BodyProofBuilder<'a, 'b> {
 impl<'a, 'b> BodyProofBuilder<'a, 'b> {
     pub(crate) fn new(
         builder: &'a mut SubstringsProofBuilder<'b>,
-        commitments: &'a TranscriptCommitments,
         value: &'a Body,
         direction: Direction,
         built: &'a mut bool,
     ) -> Self {
         match value {
-            Body::Json(body) => BodyProofBuilder::Json(JsonProofBuilder::new(
-                builder,
-                commitments,
-                &body.0,
-                direction,
-                built,
-            )),
-            Body::Unknown(body) => BodyProofBuilder::Unknown(UnknownProofBuilder::new(
-                builder,
-                commitments,
-                body,
-                direction,
-                built,
-            )),
+            Body::Json(body) => {
+                BodyProofBuilder::Json(JsonProofBuilder::new(builder, &body.0, direction, built))
+            }
+            Body::Unknown(body) => {
+                BodyProofBuilder::Unknown(UnknownProofBuilder::new(builder, body, direction, built))
+            }
         }
     }
 

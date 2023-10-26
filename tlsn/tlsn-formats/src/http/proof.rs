@@ -30,7 +30,6 @@ pub enum HttpProofBuilderError {
 #[derive(Debug)]
 pub struct HttpProofBuilder<'a, 'b> {
     builder: SubstringsProofBuilder<'b>,
-    commitments: &'a TranscriptCommitments,
     requests: &'a [(Request, Option<Body>)],
     responses: &'a [(Response, Option<Body>)],
     built_requests: Vec<bool>,
@@ -41,13 +40,11 @@ impl<'a, 'b> HttpProofBuilder<'a, 'b> {
     #[doc(hidden)]
     pub fn new(
         builder: SubstringsProofBuilder<'b>,
-        commitments: &'a TranscriptCommitments,
         requests: &'a [(Request, Option<Body>)],
         responses: &'a [(Response, Option<Body>)],
     ) -> Self {
         Self {
             builder,
-            commitments,
             requests,
             responses,
             built_requests: vec![false; requests.len()],
@@ -68,7 +65,6 @@ impl<'a, 'b> HttpProofBuilder<'a, 'b> {
             .get(index)
             .map(|request| HttpRequestProofBuilder {
                 builder: &mut self.builder,
-                commitments: self.commitments,
                 request: &request.0,
                 body: request.1.as_ref(),
                 built: &mut self.built_requests[index],
@@ -89,7 +85,6 @@ impl<'a, 'b> HttpProofBuilder<'a, 'b> {
             .get(index)
             .map(|response| HttpResponseProofBuilder {
                 builder: &mut self.builder,
-                commitments: self.commitments,
                 response: &response.0,
                 body: response.1.as_ref(),
                 built: &mut self.built_responses[index],
@@ -120,7 +115,6 @@ impl<'a, 'b> HttpProofBuilder<'a, 'b> {
 #[derive(Debug)]
 pub struct HttpRequestProofBuilder<'a, 'b> {
     builder: &'a mut SubstringsProofBuilder<'b>,
-    commitments: &'a TranscriptCommitments,
     request: &'a Request,
     body: Option<&'a Body>,
     built: &'a mut bool,
@@ -186,20 +180,15 @@ impl<'a, 'b> HttpRequestProofBuilder<'a, 'b> {
     /// Returns a proof builder for the request body, if it exists.
     pub fn body<'c>(&'c mut self) -> Option<BodyProofBuilder<'c, 'b>> {
         self.body.map(|body| {
-            BodyProofBuilder::new(
-                self.builder,
-                self.commitments,
-                body,
-                Direction::Sent,
-                &mut self.body_built,
-            )
+            BodyProofBuilder::new(self.builder, body, Direction::Sent, &mut self.body_built)
         })
     }
 
     /// Builds the HTTP request proof.
     pub fn build(self) -> Result<(), HttpProofBuilderError> {
         let public_id = self
-            .commitments
+            .builder
+            .commitments()
             .get_id_by_info(
                 CommitmentKind::Blake3,
                 self.request.public_ranges(),
@@ -216,15 +205,17 @@ impl<'a, 'b> HttpRequestProofBuilder<'a, 'b> {
 
     fn commit_id(&self, range: Range<usize>) -> Option<CommitmentId> {
         // TODO: support different kinds of commitments
-        self.commitments
-            .get_id_by_info(CommitmentKind::Blake3, range.into(), Direction::Sent)
+        self.builder.commitments().get_id_by_info(
+            CommitmentKind::Blake3,
+            range.into(),
+            Direction::Sent,
+        )
     }
 }
 
 #[derive(Debug)]
 pub struct HttpResponseProofBuilder<'a, 'b: 'a> {
     builder: &'a mut SubstringsProofBuilder<'b>,
-    commitments: &'a TranscriptCommitments,
     response: &'a Response,
     body: Option<&'a Body>,
     built: &'a mut bool,
@@ -281,7 +272,6 @@ impl<'a, 'b> HttpResponseProofBuilder<'a, 'b> {
         self.body.map(|body| {
             BodyProofBuilder::new(
                 self.builder,
-                self.commitments,
                 body,
                 Direction::Received,
                 &mut self.body_built,
@@ -292,7 +282,8 @@ impl<'a, 'b> HttpResponseProofBuilder<'a, 'b> {
     /// Builds the HTTP response proof.
     pub fn build(self) -> Result<(), HttpProofBuilderError> {
         let public_id = self
-            .commitments
+            .builder
+            .commitments()
             .get_id_by_info(
                 CommitmentKind::Blake3,
                 self.response.public_ranges(),
@@ -309,7 +300,10 @@ impl<'a, 'b> HttpResponseProofBuilder<'a, 'b> {
 
     fn commit_id(&self, range: Range<usize>) -> Option<CommitmentId> {
         // TODO: support different kinds of commitments
-        self.commitments
-            .get_id_by_info(CommitmentKind::Blake3, range.into(), Direction::Received)
+        self.builder.commitments().get_id_by_info(
+            CommitmentKind::Blake3,
+            range.into(),
+            Direction::Received,
+        )
     }
 }

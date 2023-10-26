@@ -161,7 +161,7 @@ mod tests {
 
         let spb = SubstringsProofBuilder::new(&commitments, &transcript_tx, &transcript_rx);
 
-        let mut builder = HttpProofBuilder::new(spb, &commitments, &requests, &responses);
+        let mut builder = HttpProofBuilder::new(spb, &requests, &responses);
 
         let mut req_0 = builder.request(0).unwrap();
 

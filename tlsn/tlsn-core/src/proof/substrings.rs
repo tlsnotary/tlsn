@@ -58,6 +58,11 @@ impl<'a> SubstringsProofBuilder<'a> {
         }
     }
 
+    /// Returns a reference to the commitments.
+    pub fn commitments(&self) -> &TranscriptCommitments {
+        self.commitments
+    }
+
     /// Reveals data corresponding to the provided commitment id
     pub fn reveal(&mut self, id: CommitmentId) -> Result<&mut Self, SubstringsProofBuilderError> {
         let commitment = self

@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use spansy::{json::JsonValue, Spanned};
 use tlsn_core::{
-    commitment::{CommitmentId, CommitmentKind, TranscriptCommitments},
+    commitment::{CommitmentId, CommitmentKind},
     proof::{SubstringsProofBuilder, SubstringsProofBuilderError},
     Direction,
 };
@@ -27,7 +27,6 @@ pub enum JsonProofBuilderError {
 #[derive(Debug)]
 pub struct JsonProofBuilder<'a, 'b> {
     builder: &'a mut SubstringsProofBuilder<'b>,
-    commitments: &'a TranscriptCommitments,
     value: &'a JsonValue,
     direction: Direction,
     built: &'a mut bool,
@@ -36,14 +35,12 @@ pub struct JsonProofBuilder<'a, 'b> {
 impl<'a, 'b> JsonProofBuilder<'a, 'b> {
     pub(crate) fn new(
         builder: &'a mut SubstringsProofBuilder<'b>,
-        commitments: &'a TranscriptCommitments,
         value: &'a JsonValue,
         direction: Direction,
         built: &'a mut bool,
     ) -> Self {
         JsonProofBuilder {
             builder,
-            commitments,
             value,
             direction,
             built,
@@ -86,7 +83,8 @@ impl<'a, 'b> JsonProofBuilder<'a, 'b> {
         let public_ranges = public_ranges(self.value);
 
         let public_id = self
-            .commitments
+            .builder
+            .commitments()
             .get_id_by_info(CommitmentKind::Blake3, public_ranges, self.direction)
             .ok_or(JsonProofBuilderError::MissingCommitment)?;
 
@@ -99,7 +97,10 @@ impl<'a, 'b> JsonProofBuilder<'a, 'b> {
 
     fn commit_id(&self, range: Range<usize>) -> Option<CommitmentId> {
         // TODO: support different kinds of commitments
-        self.commitments
-            .get_id_by_info(CommitmentKind::Blake3, range.into(), self.direction)
+        self.builder.commitments().get_id_by_info(
+            CommitmentKind::Blake3,
+            range.into(),
+            self.direction,
+        )
     }
 }

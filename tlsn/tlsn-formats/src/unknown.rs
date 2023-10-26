@@ -117,7 +117,6 @@ impl<'a> UnknownCommitmentBuilder<'a> {
 #[derive(Debug)]
 pub struct UnknownProofBuilder<'a, 'b> {
     builder: &'a mut SubstringsProofBuilder<'b>,
-    commitments: &'a TranscriptCommitments,
     span: Range<usize>,
     direction: Direction,
     built: &'a mut bool,
@@ -126,14 +125,12 @@ pub struct UnknownProofBuilder<'a, 'b> {
 impl<'a, 'b> UnknownProofBuilder<'a, 'b> {
     pub(crate) fn new(
         builder: &'a mut SubstringsProofBuilder<'b>,
-        commitments: &'a TranscriptCommitments,
         span: &'a UnknownSpan,
         direction: Direction,
         built: &'a mut bool,
     ) -> Self {
         UnknownProofBuilder {
             builder,
-            commitments,
             span: span.0.clone(),
             direction,
             built,
@@ -184,7 +181,10 @@ impl<'a, 'b> UnknownProofBuilder<'a, 'b> {
 
     fn commit_id(&self, range: Range<usize>) -> Option<CommitmentId> {
         // TODO: support different kinds of commitments
-        self.commitments
-            .get_id_by_info(CommitmentKind::Blake3, range.into(), self.direction)
+        self.builder.commitments().get_id_by_info(
+            CommitmentKind::Blake3,
+            range.into(),
+            self.direction,
+        )
     }
 }

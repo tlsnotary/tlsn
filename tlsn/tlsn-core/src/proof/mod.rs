@@ -9,6 +9,9 @@ pub use substrings::{
 };
 
 use serde::{Deserialize, Serialize};
+use utils::range::RangeSet;
+
+use crate::Direction;
 
 /// Proof that a transcript of communications took place between a Prover and Server.
 #[derive(Debug, Serialize, Deserialize)]
@@ -28,4 +31,16 @@ pub struct TlsInfo {
     pub sent_len: usize,
     /// The length of the received transcript.
     pub recv_len: usize,
+}
+
+/// A trait that allows to build a substrings proof for a transcript
+pub trait ProofBuilder {
+    /// The type of the proof that will be built.
+    type Result;
+
+    /// Reveals the given range of bytes in the transcript.
+    fn reveal(&mut self, range: RangeSet<usize>, direction: Direction);
+
+    /// Builds the proof.
+    fn build(self) -> Self::Result;
 }
