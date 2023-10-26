@@ -43,9 +43,9 @@ impl NotarizedHttpSession {
     }
 
     /// Returns a proof builder for the HTTP session.
-    pub fn proof_builder<'a>(&'a mut self) -> HttpProofBuilder<'a, SubstringsProof> {
+    pub fn proof_builder(&mut self) -> HttpProofBuilder<'_, SubstringsProof> {
         HttpProofBuilder::new(
-            &mut self.session.data().build_substrings_proof(),
+            Box::new(self.session.data().build_substrings_proof()),
             &self.requests,
             &self.responses,
         )

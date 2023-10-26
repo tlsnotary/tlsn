@@ -145,8 +145,8 @@ impl ProofBuilder<SubstringsProof> for SubstringsProofBuilder<'_> {
         Ok(self.reveal(id)?)
     }
 
-    fn build(self) -> Result<SubstringsProof, ProofBuilderError> {
-        self.build().map_err(Into::into)
+    fn build(self: Box<Self>) -> Result<SubstringsProof, ProofBuilderError> {
+        (*self).build().map_err(Into::into)
     }
 }
 

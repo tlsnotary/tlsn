@@ -36,7 +36,7 @@ pub struct TlsInfo {
 }
 
 /// A trait that allows to build a substrings proof for a transcript
-pub trait ProofBuilder<T: Sized>: Debug {
+pub trait ProofBuilder<T>: Debug {
     /// Reveals the given range of bytes in the transcript.
     fn reveal(
         &mut self,
@@ -45,7 +45,7 @@ pub trait ProofBuilder<T: Sized>: Debug {
     ) -> Result<&mut dyn ProofBuilder<T>, ProofBuilderError>;
 
     /// Builds the proof.
-    fn build(self) -> Result<T, ProofBuilderError>;
+    fn build(self: Box<Self>) -> Result<T, ProofBuilderError>;
 }
 
 /// The error type for proof builders.

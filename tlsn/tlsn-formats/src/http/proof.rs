@@ -26,7 +26,7 @@ pub enum HttpProofBuilderError {
 /// Builder for proofs of data in an HTTP connection.
 #[derive(Debug)]
 pub struct HttpProofBuilder<'a, T> {
-    builder: &'a mut dyn ProofBuilder<T>,
+    builder: Box<dyn ProofBuilder<T> + 'a>,
     requests: &'a [(Request, Option<Body>)],
     responses: &'a [(Response, Option<Body>)],
     built_requests: Vec<bool>,
@@ -36,7 +36,7 @@ pub struct HttpProofBuilder<'a, T> {
 impl<'a, T: 'a> HttpProofBuilder<'a, T> {
     #[doc(hidden)]
     pub fn new(
-        builder: &'a mut dyn ProofBuilder<T>,
+        builder: Box<dyn ProofBuilder<T> + 'a>,
         requests: &'a [(Request, Option<Body>)],
         responses: &'a [(Response, Option<Body>)],
     ) -> Self {
@@ -84,7 +84,7 @@ impl<'a, T: 'a> HttpProofBuilder<'a, T> {
     }
 
     /// Builds the HTTP transcript proof.
-    pub fn build(mut self) -> Result<T, HttpProofBuilderError> {
+    pub fn build(mut self) -> Result<Box<T>, HttpProofBuilderError> {
         // Build any remaining request proofs
         for i in 0..self.requests.len() {
             if !self.built_requests[i] {
@@ -99,7 +99,7 @@ impl<'a, T: 'a> HttpProofBuilder<'a, T> {
             }
         }
 
-        self.builder.build().map_err(From::from)
+        self.builder.build().map(Box::new).map_err(From::from)
     }
 }
 
