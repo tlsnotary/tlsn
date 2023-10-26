@@ -4,16 +4,23 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
+mod config;
+mod error;
 mod prf;
 
+pub use config::{PrfConfig, PrfConfigBuilder, PrfConfigBuilderError, Role};
+pub use error::PrfError;
 pub use prf::MpcPrf;
 
 use async_trait::async_trait;
 
-use mpz_garble::ValueRef;
-use prf::State;
+use mpz_garble::value::ValueRef;
+
+pub(crate) static CF_LABEL: &[u8] = b"client finished";
+pub(crate) static SF_LABEL: &[u8] = b"server finished";
 
 /// Session keys computed by the PRF.
+#[derive(Debug)]
 pub struct SessionKeys {
     /// Client write key.
     pub client_write_key: ValueRef,
@@ -25,34 +32,21 @@ pub struct SessionKeys {
     pub server_iv: ValueRef,
 }
 
-/// Errors that can occur during PRF computation.
-#[derive(Debug, thiserror::Error)]
-#[allow(missing_docs)]
-pub enum PrfError {
-    #[error(transparent)]
-    MemoryError(#[from] mpz_garble::MemoryError),
-    #[error(transparent)]
-    ExecutionError(#[from] mpz_garble::ExecutionError),
-    #[error(transparent)]
-    DecodeError(#[from] mpz_garble::DecodeError),
-    #[error("role error: {0:?}")]
-    RoleError(String),
-    #[error("Invalid state: {0:?}")]
-    InvalidState(State),
-}
-
 /// PRF trait for computing TLS PRF.
 #[async_trait]
 pub trait Prf {
     /// Performs any necessary one-time setup.
-    async fn setup(&mut self) -> Result<(), PrfError>;
+    ///
+    /// # Arguments
+    ///
+    /// * `pms` - The pre-master secret.
+    async fn setup(&mut self, pms: ValueRef) -> Result<(), PrfError>;
 
     /// Computes the session keys using the provided client random, server random and PMS.
     async fn compute_session_keys_private(
         &mut self,
         client_random: [u8; 32],
         server_random: [u8; 32],
-        pms: ValueRef,
     ) -> Result<SessionKeys, PrfError>;
 
     /// Computes the client finished verify data using the provided handshake hash.
@@ -68,7 +62,7 @@ pub trait Prf {
     ) -> Result<[u8; 12], PrfError>;
 
     /// Computes the session keys using randoms provided by the other party.
-    async fn compute_session_keys_blind(&mut self, pms: ValueRef) -> Result<SessionKeys, PrfError>;
+    async fn compute_session_keys_blind(&mut self) -> Result<SessionKeys, PrfError>;
 
     /// Computes the client finished verify data using the handshake hash provided by the other party.
     async fn compute_client_finished_vd_blind(&mut self) -> Result<(), PrfError>;
@@ -105,28 +99,43 @@ mod tests {
     #[ignore = "expensive"]
     #[tokio::test]
     async fn test_prf() {
-        let (mut leader_vm, mut follower_vm) = create_mock_deap_vm("test").await;
-
-        let mut leader_test_thread = leader_vm.new_thread("test").await.unwrap();
-        let mut follower_test_thread = follower_vm.new_thread("test").await.unwrap();
-
-        let mut leader = MpcPrf::new(leader_vm.new_thread("prf").await.unwrap());
-        let mut follower = MpcPrf::new(follower_vm.new_thread("prf").await.unwrap());
-
-        futures::try_join!(leader.setup(), follower.setup()).unwrap();
-
         let pms = [42u8; 32];
         let client_random = [69u8; 32];
         let server_random: [u8; 32] = [96u8; 32];
         let ms = compute_ms(pms, client_random, server_random);
 
+        let (mut leader_vm, mut follower_vm) = create_mock_deap_vm("test").await;
+
+        let mut leader_test_thread = leader_vm.new_thread("test").await.unwrap();
+        let mut follower_test_thread = follower_vm.new_thread("test").await.unwrap();
+
         // Setup public PMS for testing
-        let leader_pms = leader_test_thread.new_public_input("pms", pms).unwrap();
-        let follower_pms = follower_test_thread.new_public_input("pms", pms).unwrap();
+        let leader_pms = leader_test_thread
+            .new_public_input::<[u8; 32]>("pms")
+            .unwrap();
+        let follower_pms = follower_test_thread
+            .new_public_input::<[u8; 32]>("pms")
+            .unwrap();
+
+        leader_test_thread.assign(&leader_pms, pms).unwrap();
+        follower_test_thread.assign(&follower_pms, pms).unwrap();
+
+        let mut leader = MpcPrf::new(
+            PrfConfig::builder().role(Role::Leader).build().unwrap(),
+            leader_vm.new_thread("prf/0").await.unwrap(),
+            leader_vm.new_thread("prf/1").await.unwrap(),
+        );
+        let mut follower = MpcPrf::new(
+            PrfConfig::builder().role(Role::Follower).build().unwrap(),
+            follower_vm.new_thread("prf/0").await.unwrap(),
+            follower_vm.new_thread("prf/1").await.unwrap(),
+        );
+
+        futures::try_join!(leader.setup(leader_pms), follower.setup(follower_pms)).unwrap();
 
         let (leader_session_keys, follower_session_keys) = futures::try_join!(
-            leader.compute_session_keys_private(client_random, server_random, leader_pms),
-            follower.compute_session_keys_blind(follower_pms)
+            leader.compute_session_keys_private(client_random, server_random),
+            follower.compute_session_keys_blind()
         )
         .unwrap();
 

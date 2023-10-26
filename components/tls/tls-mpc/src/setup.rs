@@ -1,6 +1,6 @@
 use hmac_sha256 as prf;
 use key_exchange as ke;
-use mpz_garble::{Decode, DecodePrivate, Execute, Prove, Verify, Vm};
+use mpz_garble::{Decode, DecodePrivate, Execute, Load, Prove, Verify, Vm};
 use mpz_share_conversion as ff;
 use point_addition as pa;
 use tlsn_stream_cipher as stream_cipher;
@@ -44,7 +44,7 @@ pub async fn setup_components<
     MpcTlsError,
 >
 where
-    <VM as Vm>::Thread: Execute + Decode + DecodePrivate + Prove + Verify + Send + Sync,
+    <VM as Vm>::Thread: Execute + Load + Decode + DecodePrivate + Prove + Verify + Send + Sync,
 {
     // Set up channels
     let (mut mux_0, mut mux_1) = (mux.clone(), mux.clone());
@@ -81,7 +81,15 @@ where
     );
 
     // PRF
-    let prf = prf::MpcPrf::new(vm.new_thread("prf").await?);
+    let prf_role = match role {
+        TlsRole::Leader => prf::Role::Leader,
+        TlsRole::Follower => prf::Role::Follower,
+    };
+    let prf = prf::MpcPrf::new(
+        prf::PrfConfig::builder().role(prf_role).build().unwrap(),
+        vm.new_thread("prf/0").await?,
+        vm.new_thread("prf/1").await?,
+    );
 
     // Encrypter
     let block_cipher = block_cipher::MpcBlockCipher::<block_cipher::Aes128, _>::new(

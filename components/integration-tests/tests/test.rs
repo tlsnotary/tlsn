@@ -5,7 +5,7 @@ use aead::{
 use block_cipher::{Aes128, BlockCipherConfigBuilder, MpcBlockCipher};
 use ff::Gf2_128;
 use futures::StreamExt;
-use hmac_sha256::{MpcPrf, Prf, SessionKeys};
+use hmac_sha256::{MpcPrf, Prf, PrfConfig, SessionKeys};
 use key_exchange::{KeyExchange, KeyExchangeConfig, Role as KeyExchangeRole};
 use mpz_garble::{config::Role as GarbleRole, protocol::deap::DEAPVm, Vm};
 use mpz_ot::{
@@ -235,10 +235,31 @@ async fn test_components() {
             .unwrap(),
     );
 
-    let mut leader_prf = MpcPrf::new(leader_vm.new_thread("prf").await.unwrap());
-    let mut follower_prf = MpcPrf::new(follower_vm.new_thread("prf").await.unwrap());
+    let (leader_pms, follower_pms) =
+        futures::try_join!(leader_ke.setup(), follower_ke.setup()).unwrap();
 
-    futures::try_join!(leader_prf.setup(), follower_prf.setup(),).unwrap();
+    let mut leader_prf = MpcPrf::new(
+        PrfConfig::builder()
+            .role(hmac_sha256::Role::Leader)
+            .build()
+            .unwrap(),
+        leader_vm.new_thread("prf/0").await.unwrap(),
+        leader_vm.new_thread("prf/1").await.unwrap(),
+    );
+    let mut follower_prf = MpcPrf::new(
+        PrfConfig::builder()
+            .role(hmac_sha256::Role::Follower)
+            .build()
+            .unwrap(),
+        follower_vm.new_thread("prf/0").await.unwrap(),
+        follower_vm.new_thread("prf/1").await.unwrap(),
+    );
+
+    futures::try_join!(
+        leader_prf.setup(leader_pms.into_value()),
+        follower_prf.setup(follower_pms.into_value())
+    )
+    .unwrap();
 
     let block_cipher_config = BlockCipherConfigBuilder::default()
         .id("aes")
@@ -334,12 +355,11 @@ async fn test_components() {
 
     leader_ke.set_server_key(server_public_key);
 
-    let (leader_pms, follower_pms) =
-        tokio::try_join!(leader_ke.compute_pms(), follower_ke.compute_pms()).unwrap();
+    tokio::try_join!(leader_ke.compute_pms(), follower_ke.compute_pms()).unwrap();
 
     let (leader_session_keys, follower_session_keys) = tokio::try_join!(
-        leader_prf.compute_session_keys_private([0u8; 32], [0u8; 32], leader_pms.into_value()),
-        follower_prf.compute_session_keys_blind(follower_pms.into_value())
+        leader_prf.compute_session_keys_private([0u8; 32], [0u8; 32]),
+        follower_prf.compute_session_keys_blind()
     )
     .unwrap();
 

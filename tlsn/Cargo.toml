@@ -28,12 +28,12 @@ uid-mux = { path = "../components/uid-mux" }
 tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "8d8ffe1" }
 tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "8d8ffe1" }
 
-mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "1f2c922" }
-mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "1f2c922" }
-mpz-garble-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "1f2c922" }
-mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "1f2c922" }
-mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "1f2c922" }
-mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "1f2c922" }
+mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "1ac6779" }
+mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "1ac6779" }
+mpz-garble-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "1ac6779" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "1ac6779" }
+mpz-ot = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "1ac6779" }
+mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "1ac6779" }
 
 
 futures = "0.3"
