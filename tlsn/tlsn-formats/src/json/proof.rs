@@ -1,6 +1,6 @@
 use spansy::{json::JsonValue, Spanned};
 use tlsn_core::{
-    proof::{ProofBuilder, ProofBuilderError},
+    proof::substring::{SubstringProofBuilder, SubstringProofBuilderError},
     Direction,
 };
 
@@ -17,13 +17,13 @@ pub enum JsonProofBuilderError {
     MissingCommitment,
     /// Substrings proof builder error.
     #[error("proof builder error: {0}")]
-    Proof(#[from] ProofBuilderError),
+    Proof(#[from] SubstringProofBuilderError),
 }
 
 /// Builder for proofs of a JSON value.
 #[derive(Debug)]
 pub struct JsonProofBuilder<'a, T> {
-    builder: &'a mut dyn ProofBuilder<T>,
+    builder: &'a mut dyn SubstringProofBuilder<T>,
     value: &'a JsonValue,
     direction: Direction,
     built: &'a mut bool,
@@ -31,7 +31,7 @@ pub struct JsonProofBuilder<'a, T> {
 
 impl<'a, T> JsonProofBuilder<'a, T> {
     pub(crate) fn new(
-        builder: &'a mut dyn ProofBuilder<T>,
+        builder: &'a mut dyn SubstringProofBuilder<T>,
         value: &'a JsonValue,
         direction: Direction,
         built: &'a mut bool,

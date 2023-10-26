@@ -1,7 +1,7 @@
 use crate::http::{body::BodyProofBuilder, Body, Request, Response};
 use spansy::Spanned;
 use tlsn_core::{
-    proof::{ProofBuilder, ProofBuilderError},
+    proof::{SubstringProofBuilder, SubstringProofBuilderError},
     Direction,
 };
 
@@ -20,13 +20,13 @@ pub enum HttpProofBuilderError {
     MissingCommitment(String),
     /// Substrings proof builder error.
     #[error("proof builder error: {0}")]
-    Proof(#[from] ProofBuilderError),
+    Proof(#[from] SubstringProofBuilderError),
 }
 
 /// Builder for proofs of data in an HTTP connection.
 #[derive(Debug)]
 pub struct HttpProofBuilder<'a, T> {
-    builder: Box<dyn ProofBuilder<T> + 'a>,
+    builder: Box<dyn SubstringProofBuilder<T> + 'a>,
     requests: &'a [(Request, Option<Body>)],
     responses: &'a [(Response, Option<Body>)],
     built_requests: Vec<bool>,
@@ -36,7 +36,7 @@ pub struct HttpProofBuilder<'a, T> {
 impl<'a, T: 'a> HttpProofBuilder<'a, T> {
     #[doc(hidden)]
     pub fn new(
-        builder: Box<dyn ProofBuilder<T> + 'a>,
+        builder: Box<dyn SubstringProofBuilder<T> + 'a>,
         requests: &'a [(Request, Option<Body>)],
         responses: &'a [(Response, Option<Body>)],
     ) -> Self {
@@ -105,7 +105,7 @@ impl<'a, T: 'a> HttpProofBuilder<'a, T> {
 
 #[derive(Debug)]
 pub struct HttpRequestProofBuilder<'a, T> {
-    builder: &'a mut dyn ProofBuilder<T>,
+    builder: &'a mut dyn SubstringProofBuilder<T>,
     request: &'a Request,
     body: Option<&'a Body>,
     built: &'a mut bool,
@@ -177,7 +177,7 @@ impl<'a, T> HttpRequestProofBuilder<'a, T> {
 
 #[derive(Debug)]
 pub struct HttpResponseProofBuilder<'a, T> {
-    builder: &'a mut dyn ProofBuilder<T>,
+    builder: &'a mut dyn SubstringProofBuilder<T>,
     response: &'a Response,
     body: Option<&'a Body>,
     built: &'a mut bool,

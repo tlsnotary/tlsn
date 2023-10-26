@@ -1,4 +1,4 @@
-//! Substrings proofs.
+//! Substrings proofs based on commitments.
 
 use std::collections::HashMap;
 
@@ -19,12 +19,12 @@ use crate::{
 
 use mpz_garble_core::Encoder;
 
-use super::{ProofBuilder, ProofBuilderError};
+use super::{SubstringProofBuilderError, SubstringProofBuilder};
 
-/// An error for [`SubstringsProofBuilder`]
+/// An error for [`CommitmentProofBuilder`]
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
-pub enum SubstringsProofBuilderError {
+pub enum CommitmentProofBuilderError {
     /// Invalid commitment id.
     #[error("invalid commitment id: {0:?}")]
     InvalidCommitmentId(CommitmentId),
@@ -39,17 +39,17 @@ pub enum SubstringsProofBuilderError {
     MissingCommitment(RangeSet<usize>, Direction),
 }
 
-/// A builder for [`SubstringsProof`]
-pub struct SubstringsProofBuilder<'a> {
+/// A builder for [`CommitmentProof`]s
+pub struct CommitmentProofBuilder<'a> {
     commitments: &'a TranscriptCommitments,
     transcript_tx: &'a Transcript,
     transcript_rx: &'a Transcript,
     openings: HashMap<CommitmentId, (CommitmentInfo, CommitmentOpening)>,
 }
 
-opaque_debug::implement!(SubstringsProofBuilder<'_>);
+opaque_debug::implement!(CommitmentProofBuilder<'_>);
 
-impl<'a> SubstringsProofBuilder<'a> {
+impl<'a> CommitmentProofBuilder<'a> {
     /// Creates a new builder.
     pub fn new(
         commitments: &'a TranscriptCommitments,
@@ -70,11 +70,11 @@ impl<'a> SubstringsProofBuilder<'a> {
     }
 
     /// Reveals data corresponding to the provided commitment id
-    pub fn reveal(&mut self, id: CommitmentId) -> Result<&mut Self, SubstringsProofBuilderError> {
+    pub fn reveal(&mut self, id: CommitmentId) -> Result<&mut Self, CommitmentProofBuilderError> {
         let commitment = self
             .commitments()
             .get(&id)
-            .ok_or(SubstringsProofBuilderError::InvalidCommitmentId(id))?;
+            .ok_or(CommitmentProofBuilderError::InvalidCommitmentId(id))?;
 
         let info = self
             .commitments()
@@ -84,7 +84,7 @@ impl<'a> SubstringsProofBuilder<'a> {
         #[allow(irrefutable_let_patterns)]
         let Commitment::Blake3(commitment) = commitment
         else {
-            return Err(SubstringsProofBuilderError::InvalidCommitmentType(id));
+            return Err(CommitmentProofBuilderError::InvalidCommitmentType(id));
         };
 
         let transcript = match info.direction() {
@@ -100,14 +100,14 @@ impl<'a> SubstringsProofBuilder<'a> {
             .insert(id, (info.clone(), commitment.open(data).into()))
             .is_some()
         {
-            return Err(SubstringsProofBuilderError::DuplicateCommitmentId(id));
+            return Err(CommitmentProofBuilderError::DuplicateCommitmentId(id));
         }
 
         Ok(self)
     }
 
-    /// Builds the [`SubstringsProof`]
-    pub fn build(self) -> Result<SubstringsProof, SubstringsProofBuilderError> {
+    /// Builds the [`CommitmentProof`]
+    pub fn build(self) -> Result<CommitmentProof, CommitmentProofBuilderError> {
         let Self {
             commitments,
             openings,
@@ -122,38 +122,38 @@ impl<'a> SubstringsProofBuilder<'a> {
 
         let inclusion_proof = commitments.merkle_tree().proof(&indices);
 
-        Ok(SubstringsProof {
+        Ok(CommitmentProof {
             openings,
             inclusion_proof,
         })
     }
 }
 
-impl ProofBuilder<SubstringsProof> for SubstringsProofBuilder<'_> {
+impl SubstringProofBuilder<CommitmentProof> for CommitmentProofBuilder<'_> {
     fn reveal(
         &mut self,
         ranges: RangeSet<usize>,
         direction: Direction,
-    ) -> Result<&mut dyn ProofBuilder<SubstringsProof>, ProofBuilderError> {
+    ) -> Result<&mut dyn SubstringProofBuilder<CommitmentProof>, SubstringProofBuilderError> {
         // TODO: support different kinds of commitments
         let id = self
             .commitments()
             .get_id_by_info(CommitmentKind::Blake3, ranges.clone(), direction)
-            .ok_or(SubstringsProofBuilderError::MissingCommitment(
+            .ok_or(CommitmentProofBuilderError::MissingCommitment(
                 ranges, direction,
             ))?;
         Ok(self.reveal(id)?)
     }
 
-    fn build(self: Box<Self>) -> Result<SubstringsProof, ProofBuilderError> {
+    fn build(self: Box<Self>) -> Result<CommitmentProof, SubstringProofBuilderError> {
         (*self).build().map_err(Into::into)
     }
 }
 
-/// An error relating to [`SubstringsProof`]
+/// An error relating to [`CommitmentProof`]
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
-pub enum SubstringsProofError {
+pub enum CommitmentProofError {
     /// The proof contains more data than the maximum allowed.
     #[error(
         "substrings proof opens more data than the maximum allowed: {0} > {}",
@@ -174,17 +174,19 @@ pub enum SubstringsProofError {
     InvalidInclusionProof(String),
 }
 
-/// A substring proof containing the commitment openings and a proof
+/// A substring proof using commitments
+///
+/// This substring proof contains the commitment openings and a proof
 /// that the corresponding commitments are present in the merkle tree.
 #[derive(Serialize, Deserialize)]
-pub struct SubstringsProof {
+pub struct CommitmentProof {
     openings: HashMap<CommitmentId, (CommitmentInfo, CommitmentOpening)>,
     inclusion_proof: MerkleProof,
 }
 
-opaque_debug::implement!(SubstringsProof);
+opaque_debug::implement!(CommitmentProof);
 
-impl SubstringsProof {
+impl CommitmentProof {
     /// Verifies this proof and, if successful, returns the redacted sent and received transcripts.
     ///
     /// # Arguments
@@ -193,7 +195,7 @@ impl SubstringsProof {
     pub fn verify(
         self,
         header: &SessionHeader,
-    ) -> Result<(RedactedTranscript, RedactedTranscript), SubstringsProofError> {
+    ) -> Result<(RedactedTranscript, RedactedTranscript), CommitmentProofError> {
         let Self {
             openings,
             inclusion_proof,
@@ -216,25 +218,25 @@ impl SubstringsProof {
             // Make sure the amount of data being proved is bounded.
             total_opened += opened_len as u128;
             if total_opened > MAX_TOTAL_COMMITTED_DATA as u128 {
-                return Err(SubstringsProofError::MaxDataExceeded(total_opened as usize));
+                return Err(CommitmentProofError::MaxDataExceeded(total_opened as usize));
             }
 
             // Make sure the opening length matches the ranges length.
             if opening.data().len() != opened_len {
-                return Err(SubstringsProofError::InvalidOpening(id));
+                return Err(CommitmentProofError::InvalidOpening(id));
             }
 
             // Make sure duplicate data is not opened.
             match direction {
                 Direction::Sent => {
                     if !sent_ranges.is_disjoint(&ranges) {
-                        return Err(SubstringsProofError::DuplicateData(direction, ranges));
+                        return Err(CommitmentProofError::DuplicateData(direction, ranges));
                     }
                     sent_ranges = sent_ranges.union(&ranges);
                 }
                 Direction::Received => {
                     if !recv_ranges.is_disjoint(&ranges) {
-                        return Err(SubstringsProofError::DuplicateData(direction, ranges));
+                        return Err(CommitmentProofError::DuplicateData(direction, ranges));
                     }
                     recv_ranges = recv_ranges.union(&ranges);
                 }
@@ -243,14 +245,14 @@ impl SubstringsProof {
             // Make sure the ranges are within the bounds of the transcript
             let max = ranges
                 .max()
-                .ok_or(SubstringsProofError::InvalidOpening(id))?;
+                .ok_or(CommitmentProofError::InvalidOpening(id))?;
             let transcript_len = match direction {
                 Direction::Sent => header.sent_len(),
                 Direction::Received => header.recv_len(),
             };
 
             if max > transcript_len {
-                return Err(SubstringsProofError::RangeOutOfBounds(id, max));
+                return Err(CommitmentProofError::RangeOutOfBounds(id, max));
             }
 
             // Generate the expected encodings for the purported data in the opening.
@@ -270,7 +272,7 @@ impl SubstringsProof {
             // Make sure the length of data from the opening matches the commitment.
             let mut data = opening.into_data();
             if data.len() != ranges.len() {
-                return Err(SubstringsProofError::InvalidOpening(id));
+                return Err(CommitmentProofError::InvalidOpening(id));
             }
 
             let dest = match direction {
@@ -293,7 +295,7 @@ impl SubstringsProof {
         // seed being revealed.
         inclusion_proof
             .verify(header.merkle_root(), &indices, &expected_hashes)
-            .map_err(|e| SubstringsProofError::InvalidInclusionProof(e.to_string()))?;
+            .map_err(|e| CommitmentProofError::InvalidInclusionProof(e.to_string()))?;
 
         // Iterate over the unioned ranges and create TranscriptSlices for each.
         // This ensures that the slices are sorted and disjoint.

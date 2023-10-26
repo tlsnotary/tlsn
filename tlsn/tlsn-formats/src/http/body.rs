@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use tlsn_core::{
     commitment::{CommitmentId, TranscriptCommitmentBuilder},
-    proof::ProofBuilder,
+    proof::substring::SubstringProofBuilder,
     Direction,
 };
 
@@ -86,7 +86,7 @@ pub enum BodyProofBuilder<'a, T> {
 
 impl<'a, T> BodyProofBuilder<'a, T> {
     pub(crate) fn new(
-        builder: &'a mut dyn ProofBuilder<T>,
+        builder: &'a mut dyn SubstringProofBuilder<T>,
         value: &'a Body,
         direction: Direction,
         built: &'a mut bool,

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use tlsn_core::{
     commitment::{CommitmentId, TranscriptCommitmentBuilder, TranscriptCommitmentBuilderError},
-    proof::{ProofBuilder, ProofBuilderError},
+    proof::substring::{SubstringProofBuilder, SubstringProofBuilderError},
     Direction,
 };
 
@@ -29,7 +29,7 @@ pub enum UnknownProofBuilderError {
     OutOfBounds,
     /// Substrings proof builder error.
     #[error("proof builder error: {0}")]
-    Proof(#[from] ProofBuilderError),
+    Proof(#[from] SubstringProofBuilderError),
 }
 
 /// A span within the transcript with an unknown format.
@@ -113,7 +113,7 @@ impl<'a> UnknownCommitmentBuilder<'a> {
 /// A proof builder for spans with an unknown format.
 #[derive(Debug)]
 pub struct UnknownProofBuilder<'a, T> {
-    builder: &'a mut dyn ProofBuilder<T>,
+    builder: &'a mut dyn SubstringProofBuilder<T>,
     span: Range<usize>,
     direction: Direction,
     built: &'a mut bool,
@@ -121,7 +121,7 @@ pub struct UnknownProofBuilder<'a, T> {
 
 impl<'a, T> UnknownProofBuilder<'a, T> {
     pub(crate) fn new(
-        builder: &'a mut dyn ProofBuilder<T>,
+        builder: &'a mut dyn SubstringProofBuilder<T>,
         span: &'a UnknownSpan,
         direction: Direction,
         built: &'a mut bool,

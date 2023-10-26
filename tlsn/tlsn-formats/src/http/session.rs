@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use tlsn_core::{
-    proof::{SessionProof, SubstringsProof},
+    proof::{substring::CommitmentProof, SessionProof},
     NotarizedSession,
 };
 
@@ -43,7 +43,7 @@ impl NotarizedHttpSession {
     }
 
     /// Returns a proof builder for the HTTP session.
-    pub fn proof_builder(&mut self) -> HttpProofBuilder<'_, SubstringsProof> {
+    pub fn proof_builder(&mut self) -> HttpProofBuilder<'_, CommitmentProof> {
         HttpProofBuilder::new(
             Box::new(self.session.data().build_substrings_proof()),
             &self.requests,
