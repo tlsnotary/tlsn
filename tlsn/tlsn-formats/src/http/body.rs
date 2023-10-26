@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use tlsn_core::{
     commitment::{CommitmentId, TranscriptCommitmentBuilder},
-    proof::SubstringsProofBuilder,
+    proof::ProofBuilder,
     Direction,
 };
 
@@ -77,16 +77,16 @@ impl<'a> BodyCommitmentBuilder<'a> {
 /// Builder for proofs of an HTTP body.
 #[derive(Debug)]
 #[non_exhaustive]
-pub enum BodyProofBuilder<'a, 'b> {
+pub enum BodyProofBuilder<'a, T> {
     /// Builder for proofs of a JSON body.
-    Json(JsonProofBuilder<'a, 'b>),
+    Json(JsonProofBuilder<'a, T>),
     /// Builder for proofs of a body with an unknown format.
-    Unknown(UnknownProofBuilder<'a, 'b>),
+    Unknown(UnknownProofBuilder<'a, T>),
 }
 
-impl<'a, 'b> BodyProofBuilder<'a, 'b> {
+impl<'a, T> BodyProofBuilder<'a, T> {
     pub(crate) fn new(
-        builder: &'a mut SubstringsProofBuilder<'b>,
+        builder: &'a mut dyn ProofBuilder<T>,
         value: &'a Body,
         direction: Direction,
         built: &'a mut bool,
@@ -102,7 +102,7 @@ impl<'a, 'b> BodyProofBuilder<'a, 'b> {
     }
 
     /// Proves the entire body.
-    pub fn all(&mut self) -> Result<(), HttpProofBuilderError> {
+    pub fn all(&'a mut self) -> Result<(), HttpProofBuilderError> {
         match self {
             BodyProofBuilder::Json(builder) => builder
                 .all()

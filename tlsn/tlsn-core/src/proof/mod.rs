@@ -9,6 +9,8 @@ pub use substrings::{
 };
 
 use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
+use thiserror::Error;
 use utils::range::RangeSet;
 
 use crate::Direction;
@@ -34,13 +36,22 @@ pub struct TlsInfo {
 }
 
 /// A trait that allows to build a substrings proof for a transcript
-pub trait ProofBuilder {
-    /// The type of the proof that will be built.
-    type Result;
-
+pub trait ProofBuilder<T: Sized>: Debug {
     /// Reveals the given range of bytes in the transcript.
-    fn reveal(&mut self, range: RangeSet<usize>, direction: Direction);
+    fn reveal(
+        &mut self,
+        ranges: RangeSet<usize>,
+        direction: Direction,
+    ) -> Result<&mut dyn ProofBuilder<T>, ProofBuilderError>;
 
     /// Builds the proof.
-    fn build(self) -> Self::Result;
+    fn build(self) -> Result<T, ProofBuilderError>;
+}
+
+/// The error type for proof builders.
+#[allow(missing_docs)]
+#[derive(Debug, Error)]
+pub enum ProofBuilderError {
+    #[error(transparent)]
+    Commit(#[from] SubstringsProofBuilderError),
 }

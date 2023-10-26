@@ -20,7 +20,7 @@ use crate::{
 pub struct NotarizedSession {
     header: SessionHeader,
     signature: Option<Signature>,
-    data: NotarizationSessionData,
+    pub(crate) data: NotarizationSessionData,
 }
 
 opaque_debug::implement!(NotarizedSession);

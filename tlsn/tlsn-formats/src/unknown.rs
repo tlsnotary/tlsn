@@ -3,11 +3,8 @@ use std::ops::Range;
 use serde::{Deserialize, Serialize};
 
 use tlsn_core::{
-    commitment::{
-        CommitmentId, CommitmentKind, TranscriptCommitmentBuilder,
-        TranscriptCommitmentBuilderError, TranscriptCommitments,
-    },
-    proof::{SubstringsProofBuilder, SubstringsProofBuilderError},
+    commitment::{CommitmentId, TranscriptCommitmentBuilder, TranscriptCommitmentBuilderError},
+    proof::{ProofBuilder, ProofBuilderError},
     Direction,
 };
 
@@ -32,7 +29,7 @@ pub enum UnknownProofBuilderError {
     OutOfBounds,
     /// Substrings proof builder error.
     #[error("proof builder error: {0}")]
-    Proof(#[from] SubstringsProofBuilderError),
+    Proof(#[from] ProofBuilderError),
 }
 
 /// A span within the transcript with an unknown format.
@@ -115,16 +112,16 @@ impl<'a> UnknownCommitmentBuilder<'a> {
 
 /// A proof builder for spans with an unknown format.
 #[derive(Debug)]
-pub struct UnknownProofBuilder<'a, 'b> {
-    builder: &'a mut SubstringsProofBuilder<'b>,
+pub struct UnknownProofBuilder<'a, T> {
+    builder: &'a mut dyn ProofBuilder<T>,
     span: Range<usize>,
     direction: Direction,
     built: &'a mut bool,
 }
 
-impl<'a, 'b> UnknownProofBuilder<'a, 'b> {
+impl<'a, T> UnknownProofBuilder<'a, T> {
     pub(crate) fn new(
-        builder: &'a mut SubstringsProofBuilder<'b>,
+        builder: &'a mut dyn ProofBuilder<T>,
         span: &'a UnknownSpan,
         direction: Direction,
         built: &'a mut bool,
@@ -139,11 +136,8 @@ impl<'a, 'b> UnknownProofBuilder<'a, 'b> {
 
     /// Reveals the entire span.
     pub fn all(&mut self) -> Result<(), UnknownProofBuilderError> {
-        let id = self
-            .commit_id(self.span.clone())
-            .ok_or(UnknownProofBuilderError::MissingCommitment)?;
-
-        self.builder.reveal(id)?;
+        self.builder
+            .reveal(self.span.clone().into(), self.direction)?;
 
         Ok(())
     }
@@ -163,11 +157,7 @@ impl<'a, 'b> UnknownProofBuilder<'a, 'b> {
             return Err(UnknownProofBuilderError::OutOfBounds);
         }
 
-        let id = self
-            .commit_id(start..end)
-            .ok_or(UnknownProofBuilderError::MissingCommitment)?;
-
-        self.builder.reveal(id)?;
+        self.builder.reveal((start..end).into(), self.direction)?;
 
         Ok(())
     }
@@ -177,14 +167,5 @@ impl<'a, 'b> UnknownProofBuilder<'a, 'b> {
         *self.built = true;
 
         Ok(())
-    }
-
-    fn commit_id(&self, range: Range<usize>) -> Option<CommitmentId> {
-        // TODO: support different kinds of commitments
-        self.builder.commitments().get_id_by_info(
-            CommitmentKind::Blake3,
-            range.into(),
-            self.direction,
-        )
     }
 }

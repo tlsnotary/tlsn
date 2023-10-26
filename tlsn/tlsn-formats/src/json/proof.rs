@@ -1,9 +1,6 @@
-use std::ops::Range;
-
 use spansy::{json::JsonValue, Spanned};
 use tlsn_core::{
-    commitment::{CommitmentId, CommitmentKind},
-    proof::{SubstringsProofBuilder, SubstringsProofBuilderError},
+    proof::{ProofBuilder, ProofBuilderError},
     Direction,
 };
 
@@ -20,21 +17,21 @@ pub enum JsonProofBuilderError {
     MissingCommitment,
     /// Substrings proof builder error.
     #[error("proof builder error: {0}")]
-    Proof(#[from] SubstringsProofBuilderError),
+    Proof(#[from] ProofBuilderError),
 }
 
 /// Builder for proofs of a JSON value.
 #[derive(Debug)]
-pub struct JsonProofBuilder<'a, 'b> {
-    builder: &'a mut SubstringsProofBuilder<'b>,
+pub struct JsonProofBuilder<'a, T> {
+    builder: &'a mut dyn ProofBuilder<T>,
     value: &'a JsonValue,
     direction: Direction,
     built: &'a mut bool,
 }
 
-impl<'a, 'b> JsonProofBuilder<'a, 'b> {
+impl<'a, T> JsonProofBuilder<'a, T> {
     pub(crate) fn new(
-        builder: &'a mut SubstringsProofBuilder<'b>,
+        builder: &'a mut dyn ProofBuilder<T>,
         value: &'a JsonValue,
         direction: Direction,
         built: &'a mut bool,
@@ -49,11 +46,8 @@ impl<'a, 'b> JsonProofBuilder<'a, 'b> {
 
     /// Proves the entire JSON value.
     pub fn all(&mut self) -> Result<(), JsonProofBuilderError> {
-        let id = self
-            .commit_id(self.value.span().range())
-            .ok_or(JsonProofBuilderError::MissingCommitment)?;
-
-        self.builder.reveal(id)?;
+        self.builder
+            .reveal(self.value.span().range().into(), self.direction)?;
 
         Ok(())
     }
@@ -69,11 +63,8 @@ impl<'a, 'b> JsonProofBuilder<'a, 'b> {
             .get(path)
             .ok_or_else(|| JsonProofBuilderError::MissingValue(format!("\"{}\"", path)))?;
 
-        let id = self
-            .commit_id(value.span().range())
-            .ok_or(JsonProofBuilderError::MissingCommitment)?;
-
-        self.builder.reveal(id)?;
+        self.builder
+            .reveal(value.span().range().into(), self.direction)?;
 
         Ok(())
     }
@@ -81,26 +72,9 @@ impl<'a, 'b> JsonProofBuilder<'a, 'b> {
     /// Finishes building the JSON proof.
     pub fn build(self) -> Result<(), JsonProofBuilderError> {
         let public_ranges = public_ranges(self.value);
-
-        let public_id = self
-            .builder
-            .commitments()
-            .get_id_by_info(CommitmentKind::Blake3, public_ranges, self.direction)
-            .ok_or(JsonProofBuilderError::MissingCommitment)?;
-
-        self.builder.reveal(public_id)?;
+        self.builder.reveal(public_ranges, self.direction)?;
 
         *self.built = true;
-
         Ok(())
-    }
-
-    fn commit_id(&self, range: Range<usize>) -> Option<CommitmentId> {
-        // TODO: support different kinds of commitments
-        self.builder.commitments().get_id_by_info(
-            CommitmentKind::Blake3,
-            range.into(),
-            self.direction,
-        )
     }
 }

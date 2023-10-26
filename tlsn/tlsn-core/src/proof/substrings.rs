@@ -8,7 +8,8 @@ use utils::range::{RangeDisjoint, RangeSet, RangeUnion};
 
 use crate::{
     commitment::{
-        Commitment, CommitmentId, CommitmentInfo, CommitmentOpening, TranscriptCommitments,
+        Commitment, CommitmentId, CommitmentInfo, CommitmentKind, CommitmentOpening,
+        TranscriptCommitments,
     },
     merkle::MerkleProof,
     transcript::get_value_ids,
@@ -17,6 +18,8 @@ use crate::{
 };
 
 use mpz_garble_core::Encoder;
+
+use super::{ProofBuilder, ProofBuilderError};
 
 /// An error for [`SubstringsProofBuilder`]
 #[derive(Debug, thiserror::Error)]
@@ -31,6 +34,9 @@ pub enum SubstringsProofBuilderError {
     /// Attempted to add a commitment with a duplicate id.
     #[error("commitment with id {0:?} already exists")]
     DuplicateCommitmentId(CommitmentId),
+    /// Proof cannot be crated because commitment is missing.
+    #[error("Missing commitment for range: {0:?} and direction : {1:?}")]
+    MissingCommitment(RangeSet<usize>, Direction),
 }
 
 /// A builder for [`SubstringsProof`]
@@ -66,12 +72,12 @@ impl<'a> SubstringsProofBuilder<'a> {
     /// Reveals data corresponding to the provided commitment id
     pub fn reveal(&mut self, id: CommitmentId) -> Result<&mut Self, SubstringsProofBuilderError> {
         let commitment = self
-            .commitments
+            .commitments()
             .get(&id)
             .ok_or(SubstringsProofBuilderError::InvalidCommitmentId(id))?;
 
         let info = self
-            .commitments
+            .commitments()
             .get_info(&id)
             .expect("info exists if commitment exists");
 
@@ -120,6 +126,27 @@ impl<'a> SubstringsProofBuilder<'a> {
             openings,
             inclusion_proof,
         })
+    }
+}
+
+impl ProofBuilder<SubstringsProof> for SubstringsProofBuilder<'_> {
+    fn reveal(
+        &mut self,
+        ranges: RangeSet<usize>,
+        direction: Direction,
+    ) -> Result<&mut dyn ProofBuilder<SubstringsProof>, ProofBuilderError> {
+        // TODO: support different kinds of commitments
+        let id = self
+            .commitments()
+            .get_id_by_info(CommitmentKind::Blake3, ranges.clone(), direction)
+            .ok_or(SubstringsProofBuilderError::MissingCommitment(
+                ranges, direction,
+            ))?;
+        Ok(self.reveal(id)?)
+    }
+
+    fn build(self) -> Result<SubstringsProof, ProofBuilderError> {
+        self.build().map_err(Into::into)
     }
 }
 

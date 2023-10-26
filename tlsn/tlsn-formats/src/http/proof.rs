@@ -1,10 +1,7 @@
-use std::ops::Range;
-
 use crate::http::{body::BodyProofBuilder, Body, Request, Response};
 use spansy::Spanned;
 use tlsn_core::{
-    commitment::{CommitmentId, CommitmentKind, TranscriptCommitments},
-    proof::{SubstringsProof, SubstringsProofBuilder, SubstringsProofBuilderError},
+    proof::{ProofBuilder, ProofBuilderError},
     Direction,
 };
 
@@ -23,23 +20,23 @@ pub enum HttpProofBuilderError {
     MissingCommitment(String),
     /// Substrings proof builder error.
     #[error("proof builder error: {0}")]
-    Proof(#[from] SubstringsProofBuilderError),
+    Proof(#[from] ProofBuilderError),
 }
 
 /// Builder for proofs of data in an HTTP connection.
 #[derive(Debug)]
-pub struct HttpProofBuilder<'a, 'b> {
-    builder: SubstringsProofBuilder<'b>,
+pub struct HttpProofBuilder<'a, T> {
+    builder: &'a mut dyn ProofBuilder<T>,
     requests: &'a [(Request, Option<Body>)],
     responses: &'a [(Response, Option<Body>)],
     built_requests: Vec<bool>,
     built_responses: Vec<bool>,
 }
 
-impl<'a, 'b> HttpProofBuilder<'a, 'b> {
+impl<'a, T: 'a> HttpProofBuilder<'a, T> {
     #[doc(hidden)]
     pub fn new(
-        builder: SubstringsProofBuilder<'b>,
+        builder: &'a mut dyn ProofBuilder<T>,
         requests: &'a [(Request, Option<Body>)],
         responses: &'a [(Response, Option<Body>)],
     ) -> Self {
@@ -57,14 +54,11 @@ impl<'a, 'b> HttpProofBuilder<'a, 'b> {
     /// # Arguments
     ///
     /// * `index` - The index of the request to build a proof for.
-    pub fn request<'c>(&'c mut self, index: usize) -> Option<HttpRequestProofBuilder<'c, 'b>>
-    where
-        'a: 'c,
-    {
+    pub fn request(&mut self, index: usize) -> Option<HttpRequestProofBuilder<'_, T>> {
         self.requests
             .get(index)
             .map(|request| HttpRequestProofBuilder {
-                builder: &mut self.builder,
+                builder: &mut *self.builder,
                 request: &request.0,
                 body: request.1.as_ref(),
                 built: &mut self.built_requests[index],
@@ -77,14 +71,11 @@ impl<'a, 'b> HttpProofBuilder<'a, 'b> {
     /// # Arguments
     ///
     /// * `index` - The index of the response to build a proof for.
-    pub fn response<'c>(&'c mut self, index: usize) -> Option<HttpResponseProofBuilder<'c, 'b>>
-    where
-        'a: 'c,
-    {
+    pub fn response(&mut self, index: usize) -> Option<HttpResponseProofBuilder<'_, T>> {
         self.responses
             .get(index)
             .map(|response| HttpResponseProofBuilder {
-                builder: &mut self.builder,
+                builder: &mut *self.builder,
                 response: &response.0,
                 body: response.1.as_ref(),
                 built: &mut self.built_responses[index],
@@ -93,7 +84,7 @@ impl<'a, 'b> HttpProofBuilder<'a, 'b> {
     }
 
     /// Builds the HTTP transcript proof.
-    pub fn build(mut self) -> Result<SubstringsProof, HttpProofBuilderError> {
+    pub fn build(mut self) -> Result<T, HttpProofBuilderError> {
         // Build any remaining request proofs
         for i in 0..self.requests.len() {
             if !self.built_requests[i] {
@@ -113,8 +104,8 @@ impl<'a, 'b> HttpProofBuilder<'a, 'b> {
 }
 
 #[derive(Debug)]
-pub struct HttpRequestProofBuilder<'a, 'b> {
-    builder: &'a mut SubstringsProofBuilder<'b>,
+pub struct HttpRequestProofBuilder<'a, T> {
+    builder: &'a mut dyn ProofBuilder<T>,
     request: &'a Request,
     body: Option<&'a Body>,
     built: &'a mut bool,
@@ -123,20 +114,15 @@ pub struct HttpRequestProofBuilder<'a, 'b> {
     body_built: bool,
 }
 
-impl<'a, 'b> HttpRequestProofBuilder<'a, 'b> {
+impl<'a, T> HttpRequestProofBuilder<'a, T> {
     /// Reveals the entirety of the request.
     ///
     /// # Arguments
     ///
     /// * `body` - Whether to reveal the entirety of the request body as well.
     pub fn all(&mut self, body: bool) -> Result<&mut Self, HttpProofBuilderError> {
-        let id = self
-            .commit_id(self.request.0.span().range())
-            .ok_or_else(|| {
-                HttpProofBuilderError::MissingCommitment("the entire request".to_string())
-            })?;
-
-        self.builder.reveal(id)?;
+        self.builder
+            .reveal(self.request.0.span().range().into(), Direction::Sent)?;
 
         if body && self.body.is_some() {
             self.body().unwrap().all()?;
@@ -147,11 +133,8 @@ impl<'a, 'b> HttpRequestProofBuilder<'a, 'b> {
 
     /// Reveals the path of the request.
     pub fn path(&mut self) -> Result<&mut Self, HttpProofBuilderError> {
-        let id = self
-            .commit_id(self.request.0.path.range())
-            .ok_or_else(|| HttpProofBuilderError::MissingCommitment("path".to_string()))?;
-
-        self.builder.reveal(id)?;
+        self.builder
+            .reveal(self.request.0.path.range().into(), Direction::Sent)?;
 
         Ok(self)
     }
@@ -168,17 +151,14 @@ impl<'a, 'b> HttpRequestProofBuilder<'a, 'b> {
             .header(name)
             .ok_or_else(|| HttpProofBuilderError::MissingHeader(name.to_string()))?;
 
-        let id = self.commit_id(header.value.span().range()).ok_or_else(|| {
-            HttpProofBuilderError::MissingCommitment(format!("header \"{}\"", name))
-        })?;
-
-        self.builder.reveal(id)?;
+        self.builder
+            .reveal(header.value.span().range().into(), Direction::Sent)?;
 
         Ok(self)
     }
 
     /// Returns a proof builder for the request body, if it exists.
-    pub fn body<'c>(&'c mut self) -> Option<BodyProofBuilder<'c, 'b>> {
+    pub fn body(&mut self) -> Option<BodyProofBuilder<T>> {
         self.body.map(|body| {
             BodyProofBuilder::new(self.builder, body, Direction::Sent, &mut self.body_built)
         })
@@ -186,36 +166,18 @@ impl<'a, 'b> HttpRequestProofBuilder<'a, 'b> {
 
     /// Builds the HTTP request proof.
     pub fn build(self) -> Result<(), HttpProofBuilderError> {
-        let public_id = self
-            .builder
-            .commitments()
-            .get_id_by_info(
-                CommitmentKind::Blake3,
-                self.request.public_ranges(),
-                Direction::Sent,
-            )
-            .ok_or_else(|| HttpProofBuilderError::MissingCommitment("public data".to_string()))?;
-
-        self.builder.reveal(public_id)?;
+        self.builder
+            .reveal(self.request.public_ranges(), Direction::Sent)?;
 
         *self.built = true;
 
         Ok(())
     }
-
-    fn commit_id(&self, range: Range<usize>) -> Option<CommitmentId> {
-        // TODO: support different kinds of commitments
-        self.builder.commitments().get_id_by_info(
-            CommitmentKind::Blake3,
-            range.into(),
-            Direction::Sent,
-        )
-    }
 }
 
 #[derive(Debug)]
-pub struct HttpResponseProofBuilder<'a, 'b: 'a> {
-    builder: &'a mut SubstringsProofBuilder<'b>,
+pub struct HttpResponseProofBuilder<'a, T> {
+    builder: &'a mut dyn ProofBuilder<T>,
     response: &'a Response,
     body: Option<&'a Body>,
     built: &'a mut bool,
@@ -224,20 +186,15 @@ pub struct HttpResponseProofBuilder<'a, 'b: 'a> {
     body_built: bool,
 }
 
-impl<'a, 'b> HttpResponseProofBuilder<'a, 'b> {
+impl<'a, T> HttpResponseProofBuilder<'a, T> {
     /// Reveals the entirety of the response.
     ///
     /// # Arguments
     ///
     /// * `body` - Whether to reveal the entirety of the response body as well.
     pub fn all(&mut self, body: bool) -> Result<&mut Self, HttpProofBuilderError> {
-        let id = self
-            .commit_id(self.response.0.span().range())
-            .ok_or_else(|| {
-                HttpProofBuilderError::MissingCommitment("the entire response".to_string())
-            })?;
-
-        self.builder.reveal(id)?;
+        self.builder
+            .reveal(self.response.0.span().range().into(), Direction::Received)?;
 
         if body && self.body.is_some() {
             self.body().unwrap().all()?;
@@ -258,17 +215,14 @@ impl<'a, 'b> HttpResponseProofBuilder<'a, 'b> {
             .header(name)
             .ok_or_else(|| HttpProofBuilderError::MissingHeader(name.to_string()))?;
 
-        let id = self.commit_id(header.value.span().range()).ok_or_else(|| {
-            HttpProofBuilderError::MissingCommitment(format!("header \"{}\"", name))
-        })?;
-
-        self.builder.reveal(id)?;
+        self.builder
+            .reveal(header.value.span().range().into(), Direction::Received)?;
 
         Ok(self)
     }
 
     /// Returns a proof builder for the response body, if it exists.
-    pub fn body<'c>(&'c mut self) -> Option<BodyProofBuilder<'c, 'b>> {
+    pub fn body(&mut self) -> Option<BodyProofBuilder<'_, T>> {
         self.body.map(|body| {
             BodyProofBuilder::new(
                 self.builder,
@@ -281,29 +235,11 @@ impl<'a, 'b> HttpResponseProofBuilder<'a, 'b> {
 
     /// Builds the HTTP response proof.
     pub fn build(self) -> Result<(), HttpProofBuilderError> {
-        let public_id = self
-            .builder
-            .commitments()
-            .get_id_by_info(
-                CommitmentKind::Blake3,
-                self.response.public_ranges(),
-                Direction::Received,
-            )
-            .ok_or_else(|| HttpProofBuilderError::MissingCommitment("public data".to_string()))?;
-
-        self.builder.reveal(public_id)?;
+        self.builder
+            .reveal(self.response.public_ranges(), Direction::Received)?;
 
         *self.built = true;
 
         Ok(())
-    }
-
-    fn commit_id(&self, range: Range<usize>) -> Option<CommitmentId> {
-        // TODO: support different kinds of commitments
-        self.builder.commitments().get_id_by_info(
-            CommitmentKind::Blake3,
-            range.into(),
-            Direction::Received,
-        )
     }
 }
