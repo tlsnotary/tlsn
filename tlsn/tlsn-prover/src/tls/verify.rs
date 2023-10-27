@@ -3,12 +3,13 @@
 //! Here the prover deals with a TLS verifier that is a notary and a verifier.
 
 use super::{state::Verify, Prover, ProverError};
-use crate::{tls::error::OTShutdownError, RangeCollector};
+use crate::tls::error::OTShutdownError;
 use futures::{FutureExt, SinkExt};
-use mpz_garble::{Decode, Memory, ValueRef, Vm};
+use mpz_garble::{value::ValueRef, Decode, Memory, Vm};
 use mpz_share_conversion::ShareConversionReveal;
 use tlsn_core::{
     msg::{DecodingInfo, TlsnMessage},
+    proof::substring::LabelProofBuilder,
     ServerName, SessionData, Transcript,
 };
 use utils_aio::mux::MuxChannel;
@@ -24,11 +25,8 @@ impl Prover<Verify> {
         &self.state.transcript_rx
     }
 
-    /// TODO: Returns the alternate `SubstringProofBuilder`
-    ///
-    /// This is a `SubstringProofBuilder` which works without commitments
-    /// and lives somewhere in tlsn_core::proof::substrings
-    pub fn proof_builder(&mut self) -> &mut RangeCollector {
+    /// Returns the label proof builder
+    pub fn proof_builder(&mut self) -> &mut LabelProofBuilder {
         &mut self.state.proof_builder
     }
 

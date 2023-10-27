@@ -11,6 +11,7 @@ mod label;
 pub use commitment::{
     CommitmentProof, CommitmentProofBuilder, CommitmentProofBuilderError, CommitmentProofError,
 };
+pub use label::{LabelProof, LabelProofBuilder, LabelProofBuilderError};
 
 /// A trait that allows to build a substrings proof for a transcript
 pub trait SubstringProofBuilder<T>: Debug {
@@ -31,4 +32,6 @@ pub trait SubstringProofBuilder<T>: Debug {
 pub enum SubstringProofBuilderError {
     #[error(transparent)]
     Commit(#[from] CommitmentProofBuilderError),
+    #[error(transparent)]
+    Label(#[from] LabelProofBuilderError),
 }

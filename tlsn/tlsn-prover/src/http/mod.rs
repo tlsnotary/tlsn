@@ -7,9 +7,9 @@
 
 pub mod state;
 
-use tlsn_formats::http::{parse_requests, parse_responses, ParseError};
-
 use crate::tls::{state as prover_state, Prover, ProverError};
+use tlsn_core::proof::{substring::LabelProof, SubstringProofBuilder};
+use tlsn_formats::http::{parse_requests, parse_responses, ParseError};
 
 pub use tlsn_formats::{
     http::{
@@ -117,7 +117,15 @@ impl HttpProver<state::Notarize> {
 impl HttpProver<state::Verify> {
     /// TODO: This needs to be a HttpProofBuilder
     /// which wraps our new alternate SubstringsProofBuilder
-    pub fn proof_builder(&mut self) -> () {
+    pub fn proof_builder(&self) -> HttpProofBuilder<'_, LabelProof> {
+        let prover: Box<dyn SubstringProofBuilder<LabelProof>> =
+            Box::new(self.state.prover.proof_builder());
+        HttpProofBuilder::new(prover, &self.state.requests, &self.state.responses)
+    }
+
+    /// Finalizes the HTTP session.
+    // TODO: What to return here?
+    pub fn finalize(self) -> Result<(), HttpProverError> {
         todo!()
     }
 }

@@ -2,7 +2,12 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{merkle::MerkleRoot, proof::TlsInfo, signature::Signature, SessionHeader};
+use crate::{
+    merkle::MerkleRoot,
+    proof::{substring::LabelProof, TlsInfo},
+    signature::Signature,
+    SessionHeader,
+};
 
 /// Top-level enum for all messages
 #[derive(Debug, Serialize, Deserialize)]
@@ -33,4 +38,17 @@ pub struct SignedSessionHeader {
 pub struct DecodingInfo {
     /// The ids from which to reconstruct the value refs
     pub ids: Vec<String>,
+}
+
+impl From<LabelProof> for DecodingInfo {
+    fn from(value: LabelProof) -> Self {
+        Self {
+            ids: value
+                .sent_ids()
+                .iter()
+                .chain(value.recv_ids())
+                .cloned()
+                .collect(),
+        }
+    }
 }
