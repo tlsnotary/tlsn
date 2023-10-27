@@ -1,6 +1,6 @@
 use std::error::Error;
 use tls_mpc::MpcTlsError;
-use tlsn_core::proof::SessionProofError;
+use tlsn_core::proof::{SessionProofError, SubstringProofError};
 
 /// An error that can occur during TLS verification.
 #[derive(Debug, thiserror::Error)]
@@ -22,6 +22,8 @@ pub enum VerifierError {
     VerifyHandshakeError(#[from] SessionProofError),
     #[error("Transcript length mismatch, expected {expected} but got {actual}")]
     TranscriptLengthMismatch { expected: usize, actual: usize },
+    #[error(transparent)]
+    ProofError(#[from] SubstringProofError),
 }
 
 impl From<MpcTlsError> for VerifierError {

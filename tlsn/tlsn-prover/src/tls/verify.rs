@@ -26,7 +26,7 @@ impl Prover<Verify> {
     }
 
     /// Returns the label proof builder
-    pub fn proof_builder(&mut self) -> LabelProofBuilder {
+    pub fn proof_builder(&self) -> LabelProofBuilder {
         LabelProofBuilder::new(
             self.sent_transcript().data().len(),
             self.recv_transcript().data().len(),

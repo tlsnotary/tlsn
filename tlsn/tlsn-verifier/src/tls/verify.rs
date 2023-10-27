@@ -6,7 +6,11 @@ use super::{state::Verify, Verifier, VerifierError};
 use futures::{FutureExt, StreamExt, TryFutureExt};
 use mpz_garble::{value::ValueRef, Decode, Memory, Vm};
 use mpz_share_conversion::ShareConversionVerify;
-use tlsn_core::{msg::TlsnMessage, proof::TlsInfo, HandshakeSummary};
+use tlsn_core::{
+    msg::TlsnMessage,
+    proof::{substring::LabelProof, SubstringProofError, TlsInfo},
+    HandshakeSummary, RedactedTranscript,
+};
 use utils_aio::{expect_msg_or_err, mux::MuxChannel};
 
 #[cfg(feature = "tracing")]
@@ -14,7 +18,7 @@ use tracing::info;
 
 impl Verifier<Verify> {
     /// Verify the TLS session.
-    pub async fn finalize(self) -> Result<(), VerifierError> {
+    pub async fn finalize(self) -> Result<(RedactedTranscript, RedactedTranscript), VerifierError> {
         let Verify {
             mut mux,
             mut mux_fut,
@@ -35,19 +39,22 @@ impl Verifier<Verify> {
             let decoding_info = expect_msg_or_err!(verify_channel, TlsnMessage::DecodingInfo)?;
 
             // Get the decoded value refs from the DEAP vm
-            let mut decode_thread = vm.new_thread("cleartext_values").await?;
-            let value_refs = decoding_info
-                .ids
-                .iter()
-                .map(|id| {
-                    decode_thread
-                        .get_value(id.as_ref())
-                        .ok_or(VerifierError::TranscriptDecodeError)
-                })
+            let mut decode_thread = vm.new_thread("decode").await?;
+            let mut label_proof: LabelProof = decoding_info.into();
+
+            // Get the decoded value refs from the DEAP vm
+            let value_refs = label_proof
+                .value_refs(&|id| decode_thread.get_value(id))
+                .map(|value_ref| value_ref.ok_or(VerifierError::TranscriptDecodeError))
                 .collect::<Result<Vec<ValueRef>, VerifierError>>()?;
 
             // Decode the corresponding values
             let values = decode_thread.decode(value_refs.as_slice()).await?;
+            label_proof.set_decoding(values);
+
+            let (redacted_sent, redacted_received) = label_proof
+                .reconstruct()
+                .map_err(SubstringProofError::from)?;
 
             #[cfg(feature = "tracing")]
             info!("Successfully decoded transcript parts");
@@ -74,10 +81,10 @@ impl Verifier<Verify> {
             #[cfg(feature = "tracing")]
             info!("Finalized all MPC");
 
-            Ok::<_, VerifierError>((values, tls_info))
+            Ok::<_, VerifierError>((redacted_sent, redacted_received, tls_info))
         };
 
-        let (decoded_values, tls_info) = futures::select! {
+        let (redacted_sent, redacted_received, tls_info) = futures::select! {
             res = verify_fut.fuse() => res?,
             _ = &mut mux_fut => Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
         };
@@ -115,9 +122,6 @@ impl Verifier<Verify> {
 
         futures::try_join!(mux.close().map_err(VerifierError::from), mux_fut)?;
 
-        todo!()
-        // TODO:
-        // - What to do with the decoded_values?
-        // - What do we return here for the verifier?
+        Ok((redacted_sent, redacted_received))
     }
 }

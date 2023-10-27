@@ -11,7 +11,7 @@ mod label;
 pub use commitment::{
     CommitmentProof, CommitmentProofBuilder, CommitmentProofBuilderError, CommitmentProofError,
 };
-pub use label::{LabelProof, LabelProofBuilder, LabelProofBuilderError};
+pub use label::{LabelProof, LabelProofBuilder, LabelProofBuilderError, LabelProofError};
 
 /// A trait that allows to build a substrings proof for a transcript
 pub trait SubstringProofBuilder<T>: Debug {
@@ -34,4 +34,14 @@ pub enum SubstringProofBuilderError {
     Commit(#[from] CommitmentProofBuilderError),
     #[error(transparent)]
     Label(#[from] LabelProofBuilderError),
+}
+
+/// The error type for substring proofs.
+#[allow(missing_docs)]
+#[derive(Debug, Error)]
+pub enum SubstringProofError {
+    #[error(transparent)]
+    Commit(#[from] CommitmentProofError),
+    #[error(transparent)]
+    Label(#[from] LabelProofError),
 }

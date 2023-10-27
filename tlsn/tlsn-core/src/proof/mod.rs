@@ -4,7 +4,7 @@ mod session;
 pub mod substring;
 
 pub use session::{default_cert_verifier, SessionInfo, SessionProof, SessionProofError};
-pub use substring::{SubstringProofBuilder, SubstringProofBuilderError};
+pub use substring::{SubstringProofBuilder, SubstringProofBuilderError, SubstringProofError};
 
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;

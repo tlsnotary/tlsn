@@ -1,7 +1,8 @@
 //! Substring proofs based on garbling labels.
 
 use super::{SubstringProofBuilder, SubstringProofBuilderError};
-use crate::Direction;
+use crate::{msg::DecodingInfo, Direction, RedactedTranscript};
+use mpz_circuits::types::Value;
 use mpz_garble::value::ValueRef;
 use thiserror::Error;
 use utils::range::{RangeSet, RangeUnion};
@@ -68,7 +69,12 @@ impl LabelProofBuilder {
             .iter()
             .map(|range| format!("rx/{}", range))
             .collect();
-        Ok(LabelProof { sent_ids, recv_ids })
+        Ok(LabelProof {
+            sent_ids,
+            recv_ids,
+            sent_decoding_values: vec![],
+            recv_decoding_values: vec![],
+        })
     }
 }
 
@@ -78,8 +84,7 @@ impl SubstringProofBuilder<LabelProof> for LabelProofBuilder {
         ranges: RangeSet<usize>,
         direction: Direction,
     ) -> Result<&mut dyn SubstringProofBuilder<LabelProof>, SubstringProofBuilderError> {
-        let out = self.reveal_ranges(ranges, direction)? as &mut dyn SubstringProofBuilder<_>;
-        Ok(out)
+        Ok(self.reveal_ranges(ranges, direction)? as &mut dyn SubstringProofBuilder<_>)
     }
 
     fn build(self: Box<Self>) -> Result<LabelProof, SubstringProofBuilderError> {
@@ -89,7 +94,7 @@ impl SubstringProofBuilder<LabelProof> for LabelProofBuilder {
     }
 }
 
-/// An error which can occur while building a [LabelProof].
+/// An error type for [LabelProofBuilder].
 #[allow(missing_docs)]
 #[derive(Debug, Error)]
 pub enum LabelProofBuilderError {
@@ -104,8 +109,10 @@ pub enum LabelProofBuilderError {
 /// This proof needs to be sent to the verifier, who will use it to reveal the plaintext bytes of
 /// the transcript.
 pub struct LabelProof {
-    sent_ids: Vec<String>,
-    recv_ids: Vec<String>,
+    pub(crate) sent_ids: Vec<String>,
+    pub(crate) recv_ids: Vec<String>,
+    sent_decoding_values: Vec<Value>,
+    recv_decoding_values: Vec<Value>,
 }
 
 impl LabelProof {
@@ -124,9 +131,48 @@ impl LabelProof {
         &'a self,
         provider: &'a dyn Fn(&str) -> Option<ValueRef>,
     ) -> impl Iterator<Item = Option<ValueRef>> + 'a {
+        self.iter().map(|id| provider(id))
+    }
+
+    /// Set the decoding values for the transcript
+    pub fn set_decoding(&mut self, mut decoding_values: Vec<Value>) {
+        let recv_values = decoding_values.split_off(self.sent_ids.len());
+
+        self.sent_decoding_values = decoding_values;
+        self.recv_decoding_values = recv_values;
+    }
+
+    /// Reconstructs the transcript from the given values
+    ///
+    /// Returns the sent (first) and received transcript (second)
+    pub fn reconstruct(&self) -> Result<(RedactedTranscript, RedactedTranscript), LabelProofError> {
+        todo!()
+    }
+
+    /// Returns an iterator over the ids
+    pub fn iter(&self) -> impl Iterator<Item = &str> {
         self.sent_ids
             .iter()
             .chain(self.recv_ids.iter())
-            .map(|id| provider(id))
+            .map(|s| s.as_str())
     }
+}
+
+impl From<DecodingInfo> for LabelProof {
+    fn from(value: DecodingInfo) -> Self {
+        Self {
+            sent_ids: value.sent_ids,
+            recv_ids: value.recv_ids,
+            sent_decoding_values: vec![],
+            recv_decoding_values: vec![],
+        }
+    }
+}
+
+/// An error type for [LabelProof].
+#[allow(missing_docs)]
+#[derive(Debug, Error)]
+pub enum LabelProofError {
+    #[error("The proof is invalid")]
+    InvalidProof,
 }
