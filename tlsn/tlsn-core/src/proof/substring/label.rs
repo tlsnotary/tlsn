@@ -2,6 +2,7 @@
 
 use super::{SubstringProofBuilder, SubstringProofBuilderError};
 use crate::Direction;
+use mpz_garble::value::ValueRef;
 use thiserror::Error;
 use utils::range::{RangeSet, RangeUnion};
 
@@ -30,11 +31,11 @@ impl LabelProofBuilder {
     }
 
     /// Collects the transcript parts which are to be revealed
-    pub fn reveal(
+    pub fn reveal_ranges(
         &mut self,
         ranges: RangeSet<usize>,
         direction: Direction,
-    ) -> Result<&mut dyn SubstringProofBuilder<LabelProof>, LabelProofBuilderError> {
+    ) -> Result<&mut LabelProofBuilder, LabelProofBuilderError> {
         if ranges.is_empty() {
             return Err(LabelProofBuilderError::EmptyRange);
         }
@@ -56,7 +57,7 @@ impl LabelProofBuilder {
     }
 
     /// Build the [LabelProof] which contains the ranges which will be revealed
-    pub fn build(self: Box<Self>) -> Result<LabelProof, LabelProofBuilderError> {
+    pub fn build_proof(self) -> Result<LabelProof, LabelProofBuilderError> {
         let sent_ids = self
             .reveal_sent
             .iter()
@@ -71,6 +72,23 @@ impl LabelProofBuilder {
     }
 }
 
+impl SubstringProofBuilder<LabelProof> for LabelProofBuilder {
+    fn reveal(
+        &mut self,
+        ranges: RangeSet<usize>,
+        direction: Direction,
+    ) -> Result<&mut dyn SubstringProofBuilder<LabelProof>, SubstringProofBuilderError> {
+        let out = self.reveal_ranges(ranges, direction)? as &mut dyn SubstringProofBuilder<_>;
+        Ok(out)
+    }
+
+    fn build(self: Box<Self>) -> Result<LabelProof, SubstringProofBuilderError> {
+        (*self)
+            .build_proof()
+            .map_err(SubstringProofBuilderError::from)
+    }
+}
+
 /// An error which can occur while building a [LabelProof].
 #[allow(missing_docs)]
 #[derive(Debug, Error)]
@@ -79,21 +97,6 @@ pub enum LabelProofBuilderError {
     EmptyRange,
     #[error("The specified range cannot be revealed because it exceeds the transcript length")]
     RangeTooBig,
-}
-
-impl SubstringProofBuilder<LabelProof> for LabelProofBuilder {
-    fn reveal(
-        &mut self,
-        ranges: RangeSet<usize>,
-        direction: Direction,
-    ) -> Result<&mut dyn SubstringProofBuilder<LabelProof>, SubstringProofBuilderError> {
-        self.reveal(ranges, direction)
-            .map_err(SubstringProofBuilderError::from)
-    }
-
-    fn build(self: Box<Self>) -> Result<LabelProof, SubstringProofBuilderError> {
-        self.build().map_err(SubstringProofBuilderError::from)
-    }
 }
 
 /// A substring proof which works with garbling labels
@@ -114,5 +117,16 @@ impl LabelProof {
     /// Returns the ids of the received transcript parts which are to be revealed
     pub fn recv_ids(&self) -> &[String] {
         &self.recv_ids
+    }
+
+    /// Returns the [ValueRef]s for the ids
+    pub fn value_refs<'a>(
+        &'a self,
+        provider: &'a dyn Fn(&str) -> Option<ValueRef>,
+    ) -> impl Iterator<Item = Option<ValueRef>> + 'a {
+        self.sent_ids
+            .iter()
+            .chain(self.recv_ids.iter())
+            .map(|id| provider(id))
     }
 }

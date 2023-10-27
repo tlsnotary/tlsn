@@ -6,11 +6,7 @@ use super::{state::Verify, Verifier, VerifierError};
 use futures::{FutureExt, StreamExt, TryFutureExt};
 use mpz_garble::{value::ValueRef, Decode, Memory, Vm};
 use mpz_share_conversion::ShareConversionVerify;
-use tlsn_core::{
-    msg::{DecodingInfo, TlsnMessage},
-    proof::TlsInfo,
-    HandshakeSummary,
-};
+use tlsn_core::{msg::TlsnMessage, proof::TlsInfo, HandshakeSummary};
 use utils_aio::{expect_msg_or_err, mux::MuxChannel};
 
 #[cfg(feature = "tracing")]

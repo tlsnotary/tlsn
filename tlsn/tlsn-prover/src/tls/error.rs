@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use tls_mpc::MpcTlsError;
-use tlsn_core::commitment::TranscriptCommitmentBuilderError;
+use tlsn_core::{commitment::TranscriptCommitmentBuilderError, proof::SubstringProofBuilderError};
 
 /// An error that can occur during proving.
 #[derive(Debug, thiserror::Error)]
@@ -33,6 +33,8 @@ pub enum ProverError {
     TranscriptDecodeError,
     #[error(transparent)]
     DecodeError(#[from] mpz_garble::DecodeError),
+    #[error(transparent)]
+    ProofBuliderError(#[from] SubstringProofBuilderError),
 }
 
 impl From<MpcTlsError> for ProverError {

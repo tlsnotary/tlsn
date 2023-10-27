@@ -12,9 +12,7 @@ use mpz_share_conversion::{ConverterSender, Gf2_128};
 use std::collections::HashMap;
 use tls_core::{handshake::HandshakeData, key::PublicKey};
 use tls_mpc::MpcTlsLeader;
-use tlsn_core::{
-    commitment::TranscriptCommitmentBuilder, proof::substring::LabelProofBuilder, Transcript,
-};
+use tlsn_core::{commitment::TranscriptCommitmentBuilder, Transcript};
 
 /// Entry state
 pub struct Initialized;
@@ -119,15 +117,10 @@ pub struct Verify {
 
     pub(crate) transcript_tx: Transcript,
     pub(crate) transcript_rx: Transcript,
-    pub(crate) proof_builder: Box<LabelProofBuilder>,
 }
 
 impl From<Closed> for Verify {
     fn from(state: Closed) -> Self {
-        let proof_builder = LabelProofBuilder::new(
-            state.transcript_tx.data().len(),
-            state.transcript_rx.data().len(),
-        );
         Self {
             verify_mux: state.notary_mux,
             mux_fut: state.mux_fut,
@@ -137,7 +130,6 @@ impl From<Closed> for Verify {
             handshake_decommitment: state.handshake_decommitment,
             transcript_tx: state.transcript_tx,
             transcript_rx: state.transcript_rx,
-            proof_builder: Box::new(proof_builder),
         }
     }
 }

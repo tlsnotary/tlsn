@@ -18,6 +18,7 @@ tlsn-tls-core = { workspace = true, features = ["serde"] }
 tlsn-utils.workspace = true
 
 mpz-core.workspace = true
+mpz-garble.workspace = true
 mpz-garble-core.workspace = true
 mpz-circuits.workspace = true
 

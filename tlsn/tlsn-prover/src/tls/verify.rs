@@ -8,8 +8,8 @@ use futures::{FutureExt, SinkExt};
 use mpz_garble::{value::ValueRef, Decode, Memory, Vm};
 use mpz_share_conversion::ShareConversionReveal;
 use tlsn_core::{
-    msg::{DecodingInfo, TlsnMessage},
-    proof::substring::LabelProofBuilder,
+    msg::TlsnMessage,
+    proof::substring::{LabelProof, LabelProofBuilder},
     ServerName, SessionData, Transcript,
 };
 use utils_aio::mux::MuxChannel;
@@ -26,12 +26,15 @@ impl Prover<Verify> {
     }
 
     /// Returns the label proof builder
-    pub fn proof_builder(&mut self) -> &mut LabelProofBuilder {
-        &mut self.state.proof_builder
+    pub fn proof_builder(&mut self) -> LabelProofBuilder {
+        LabelProofBuilder::new(
+            self.sent_transcript().data().len(),
+            self.recv_transcript().data().len(),
+        )
     }
 
     /// Finalize the verification
-    pub async fn finalize(self) -> Result<SessionData, ProverError> {
+    pub async fn finalize(self, label_proof: LabelProof) -> Result<SessionData, ProverError> {
         let Verify {
             mut verify_mux,
             mut mux_fut,
@@ -41,15 +44,7 @@ impl Prover<Verify> {
             handshake_decommitment,
             transcript_tx,
             transcript_rx,
-            proof_builder,
         } = self.state;
-
-        // Get the transcript parts which are to be revealed
-        let (tx_reveal, rx_reveal) = proof_builder.build();
-
-        // TODO: Remove these hard-coded `transcript_id`s
-        let tx_ids = tx_reveal.iter().map(|id| format!("tx/{id}"));
-        let rx_ids = rx_reveal.iter().map(|id| format!("rx/{id}"));
 
         // Create session data and tls_info
         let session_data = SessionData::new(
@@ -63,24 +58,18 @@ impl Prover<Verify> {
         let mut verify_fut = Box::pin(async move {
             let mut channel = verify_mux.get_channel("verify").await?;
 
-            let mut decode_thread = vm.new_thread("cleartext_values").await?;
-            let ids = tx_ids.chain(rx_ids).collect::<Vec<String>>();
-            let decoding_info = DecodingInfo { ids: ids.clone() };
+            let mut decode_thread = vm.new_thread("decode").await?;
+
+            // Get the decoded value refs from the DEAP vm
+            let value_refs = label_proof
+                .value_refs(&|id| decode_thread.get_value(id))
+                .map(|value_ref| value_ref.ok_or(ProverError::TranscriptDecodeError))
+                .collect::<Result<Vec<ValueRef>, ProverError>>()?;
 
             // Send the ids to the verifier so that he can also create the corresponding value refs
             channel
-                .send(TlsnMessage::DecodingInfo(decoding_info))
+                .send(TlsnMessage::DecodingInfo(label_proof.into()))
                 .await?;
-
-            // Get the decoded value refs from the DEAP vm
-            let value_refs = ids
-                .iter()
-                .map(|id| {
-                    decode_thread
-                        .get_value(id.as_ref())
-                        .ok_or(ProverError::TranscriptDecodeError)
-                })
-                .collect::<Result<Vec<ValueRef>, ProverError>>()?;
 
             // Decode the corresponding values
             let values = decode_thread.decode(value_refs.as_slice()).await?;

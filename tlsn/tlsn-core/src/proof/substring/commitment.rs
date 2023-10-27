@@ -19,7 +19,7 @@ use crate::{
 
 use mpz_garble_core::Encoder;
 
-use super::{SubstringProofBuilderError, SubstringProofBuilder};
+use super::{SubstringProofBuilder, SubstringProofBuilderError};
 
 /// An error for [`CommitmentProofBuilder`]
 #[derive(Debug, thiserror::Error)]

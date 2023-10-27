@@ -84,7 +84,7 @@ impl<'a, T: 'a> HttpProofBuilder<'a, T> {
     }
 
     /// Builds the HTTP transcript proof.
-    pub fn build(mut self) -> Result<Box<T>, HttpProofBuilderError> {
+    pub fn build(mut self) -> Result<T, HttpProofBuilderError> {
         // Build any remaining request proofs
         for i in 0..self.requests.len() {
             if !self.built_requests[i] {
@@ -99,7 +99,7 @@ impl<'a, T: 'a> HttpProofBuilder<'a, T> {
             }
         }
 
-        self.builder.build().map(Box::new).map_err(From::from)
+        self.builder.build().map_err(From::from)
     }
 }
 
