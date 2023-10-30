@@ -1,6 +1,7 @@
 //! Protocol message types.
 
 use serde::{Deserialize, Serialize};
+use utils::range::RangeSet;
 
 use crate::{
     merkle::MerkleRoot,
@@ -38,22 +39,28 @@ pub struct SignedSessionHeader {
 pub struct DecodingInfo {
     /// The length of the sent transcript
     pub sent_len: usize,
+    /// The label for the sent transcript
+    pub sent_label: String,
     /// The ids for the send transcript from which to reconstruct the value refs
-    pub sent_ids: Vec<String>,
+    pub sent_ids: RangeSet<usize>,
 
     /// The length of the received transcript
     pub recv_len: usize,
+    /// The label for the sent transcript
+    pub recv_label: String,
     /// The ids for the received transcript from which to reconstruct the value refs
-    pub recv_ids: Vec<String>,
+    pub recv_ids: RangeSet<usize>,
 }
 
 impl From<LabelProof> for DecodingInfo {
     fn from(value: LabelProof) -> Self {
         Self {
             sent_len: value.sent_len,
+            sent_label: value.sent_label,
             sent_ids: value.sent_ids,
 
             recv_len: value.recv_len,
+            recv_label: value.recv_label,
             recv_ids: value.recv_ids,
         }
     }

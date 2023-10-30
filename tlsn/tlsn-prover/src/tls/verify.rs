@@ -29,7 +29,9 @@ impl Prover<Verify> {
     pub fn proof_builder(&self) -> LabelProofBuilder {
         LabelProofBuilder::new(
             self.sent_transcript().data().len(),
+            "tx",
             self.recv_transcript().data().len(),
+            "rx",
         )
     }
 
@@ -62,7 +64,7 @@ impl Prover<Verify> {
 
             // Get the decoded value refs from the DEAP vm
             let value_refs = label_proof
-                .value_refs(|id| decode_thread.get_value(id))
+                .value_refs(|id| decode_thread.get_value(id.as_str()))
                 .map(|value_ref| value_ref.ok_or(ProverError::TranscriptDecodeError))
                 .collect::<Result<Vec<ValueRef>, ProverError>>()?;
 

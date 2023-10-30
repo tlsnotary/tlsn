@@ -44,7 +44,7 @@ impl Verifier<Verify> {
 
             // Get the decoded value refs from the DEAP vm
             let value_refs = label_proof
-                .value_refs(|id| decode_thread.get_value(id))
+                .value_refs(|id| decode_thread.get_value(id.as_str()))
                 .map(|value_ref| value_ref.ok_or(VerifierError::TranscriptDecodeError))
                 .collect::<Result<Vec<ValueRef>, VerifierError>>()?;
 
