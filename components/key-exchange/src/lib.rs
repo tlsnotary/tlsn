@@ -30,7 +30,7 @@ pub use msg::KeyExchangeMessage;
 pub type KeyExchangeChannel = Box<dyn Duplex<KeyExchangeMessage>>;
 
 use async_trait::async_trait;
-use mpz_garble::ValueRef;
+use mpz_garble::value::ValueRef;
 use p256::{PublicKey, SecretKey};
 use utils_aio::duplex::Duplex;
 
@@ -59,6 +59,8 @@ pub enum KeyExchangeError {
     #[error(transparent)]
     MemoryError(#[from] mpz_garble::MemoryError),
     #[error(transparent)]
+    LoadError(#[from] mpz_garble::LoadError),
+    #[error(transparent)]
     ExecutionError(#[from] mpz_garble::ExecutionError),
     #[error(transparent)]
     DecodeError(#[from] mpz_garble::DecodeError),
@@ -72,6 +74,8 @@ pub enum KeyExchangeError {
     NoServerKey,
     #[error("Private key not set")]
     NoPrivateKey,
+    #[error("invalid state: {0}")]
+    InvalidState(String),
     #[error("PMS equality check failed")]
     CheckFailed,
 }
@@ -84,6 +88,11 @@ pub trait KeyExchange {
 
     /// Set the server's public key
     fn set_server_key(&mut self, server_key: PublicKey);
+
+    /// Performs any necessary one-time setup, returning a reference to the PMS.
+    ///
+    /// The PMS will not be assigned until `compute_pms` is called.
+    async fn setup(&mut self) -> Result<Pms, KeyExchangeError>;
 
     /// Compute the client's public key
     ///

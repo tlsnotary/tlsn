@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use derive_builder::Builder;
-use mpz_garble::ValueRef;
+use mpz_garble::value::ValueRef;
 use std::fmt::Debug;
 
 use crate::CtrCircuit;
