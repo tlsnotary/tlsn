@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use async_trait::async_trait;
 
-use mpz_garble::{Decode, DecodePrivate, Execute, Memory, ValueRef};
+use mpz_garble::{value::ValueRef, Decode, DecodePrivate, Execute, Memory};
 use utils::id::NestedId;
 
 use crate::{BlockCipher, BlockCipherCircuit, BlockCipherConfig, BlockCipherError};
@@ -80,10 +80,12 @@ where
 
         let msg = self
             .executor
-            .new_private_input::<C::BLOCK>(&format!("{}/msg", &id), Some(block))?;
+            .new_private_input::<C::BLOCK>(&format!("{}/msg", &id))?;
         let ciphertext = self
             .executor
             .new_output::<C::BLOCK>(&format!("{}/ciphertext", &id))?;
+
+        self.executor.assign(&msg, block)?;
 
         self.executor
             .execute(C::circuit(), &[key, msg], &[ciphertext.clone()])
@@ -115,7 +117,7 @@ where
 
         let msg = self
             .executor
-            .new_private_input::<C::BLOCK>(&format!("{}/msg", &id), None)?;
+            .new_blind_input::<C::BLOCK>(&format!("{}/msg", &id))?;
         let ciphertext = self
             .executor
             .new_output::<C::BLOCK>(&format!("{}/ciphertext", &id))?;
@@ -155,10 +157,12 @@ where
 
         let msg = self
             .executor
-            .new_public_input::<C::BLOCK>(&format!("{}/msg", &id), block)?;
+            .new_public_input::<C::BLOCK>(&format!("{}/msg", &id))?;
         let ciphertext = self
             .executor
             .new_output::<C::BLOCK>(&format!("{}/ciphertext", &id))?;
+
+        self.executor.assign(&msg, block)?;
 
         self.executor
             .execute(C::circuit(), &[key, msg], &[ciphertext.clone()])
