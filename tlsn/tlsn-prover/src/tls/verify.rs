@@ -62,7 +62,7 @@ impl Prover<Verify> {
 
             // Get the decoded value refs from the DEAP vm
             let value_refs = label_proof
-                .value_refs(&|id| decode_thread.get_value(id))
+                .value_refs(|id| decode_thread.get_value(id))
                 .map(|value_ref| value_ref.ok_or(ProverError::TranscriptDecodeError))
                 .collect::<Result<Vec<ValueRef>, ProverError>>()?;
 

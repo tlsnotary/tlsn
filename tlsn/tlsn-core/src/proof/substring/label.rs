@@ -71,8 +71,11 @@ impl LabelProofBuilder {
             .collect();
         Ok(LabelProof {
             sent_ids,
-            recv_ids,
+            sent_len: self.sent_len,
             sent_decoding_values: vec![],
+
+            recv_ids,
+            recv_len: self.recv_len,
             recv_decoding_values: vec![],
         })
     }
@@ -110,8 +113,11 @@ pub enum LabelProofBuilderError {
 /// the transcript.
 pub struct LabelProof {
     pub(crate) sent_ids: Vec<String>,
-    pub(crate) recv_ids: Vec<String>,
+    pub(crate) sent_len: usize,
     sent_decoding_values: Vec<Value>,
+
+    pub(crate) recv_ids: Vec<String>,
+    pub(crate) recv_len: usize,
     recv_decoding_values: Vec<Value>,
 }
 
@@ -127,11 +133,11 @@ impl LabelProof {
     }
 
     /// Returns the [ValueRef]s for the ids
-    pub fn value_refs<'a>(
+    pub fn value_refs<'a, T: Fn(&'a str) -> Option<ValueRef> + 'a>(
         &'a self,
-        provider: &'a dyn Fn(&str) -> Option<ValueRef>,
+        provider: T,
     ) -> impl Iterator<Item = Option<ValueRef>> + 'a {
-        self.iter().map(|id| provider(id))
+        self.iter().map(provider)
     }
 
     /// Set the decoding values for the transcript
@@ -145,7 +151,25 @@ impl LabelProof {
     /// Reconstructs the transcript from the given values
     ///
     /// Returns the sent (first) and received transcript (second)
-    pub fn reconstruct(&self) -> Result<(RedactedTranscript, RedactedTranscript), LabelProofError> {
+    pub fn verify(
+        &self,
+        sent_len: usize,
+        recv_len: usize,
+    ) -> Result<(RedactedTranscript, RedactedTranscript), LabelProofError> {
+        // Verify the transcript lengths
+        if sent_len != self.sent_len {
+            return Err(LabelProofError::TranscriptLengthMismatch {
+                expected: sent_len,
+                actual: self.sent_len,
+            });
+        }
+        if recv_len != self.recv_len {
+            return Err(LabelProofError::TranscriptLengthMismatch {
+                expected: recv_len,
+                actual: self.recv_len,
+            });
+        }
+
         todo!()
     }
 
@@ -161,9 +185,12 @@ impl LabelProof {
 impl From<DecodingInfo> for LabelProof {
     fn from(value: DecodingInfo) -> Self {
         Self {
+            sent_len: value.sent_len,
             sent_ids: value.sent_ids,
-            recv_ids: value.recv_ids,
             sent_decoding_values: vec![],
+
+            recv_len: value.recv_len,
+            recv_ids: value.recv_ids,
             recv_decoding_values: vec![],
         }
     }
@@ -175,4 +202,6 @@ impl From<DecodingInfo> for LabelProof {
 pub enum LabelProofError {
     #[error("The proof is invalid")]
     InvalidProof,
+    #[error("Transcript length mismatch, expected {expected} but got {actual}")]
+    TranscriptLengthMismatch { expected: usize, actual: usize },
 }

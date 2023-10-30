@@ -8,7 +8,7 @@ use mpz_garble::{value::ValueRef, Decode, Memory, Vm};
 use mpz_share_conversion::ShareConversionVerify;
 use tlsn_core::{
     msg::TlsnMessage,
-    proof::{substring::LabelProof, SubstringProofError, TlsInfo},
+    proof::{substring::LabelProof, SubstringProofError},
     HandshakeSummary, RedactedTranscript,
 };
 use utils_aio::{expect_msg_or_err, mux::MuxChannel};
@@ -44,17 +44,13 @@ impl Verifier<Verify> {
 
             // Get the decoded value refs from the DEAP vm
             let value_refs = label_proof
-                .value_refs(&|id| decode_thread.get_value(id))
+                .value_refs(|id| decode_thread.get_value(id))
                 .map(|value_ref| value_ref.ok_or(VerifierError::TranscriptDecodeError))
                 .collect::<Result<Vec<ValueRef>, VerifierError>>()?;
 
             // Decode the corresponding values
             let values = decode_thread.decode(value_refs.as_slice()).await?;
             label_proof.set_decoding(values);
-
-            let (redacted_sent, redacted_received) = label_proof
-                .reconstruct()
-                .map_err(SubstringProofError::from)?;
 
             #[cfg(feature = "tracing")]
             info!("Successfully decoded transcript parts");
@@ -81,10 +77,10 @@ impl Verifier<Verify> {
             #[cfg(feature = "tracing")]
             info!("Finalized all MPC");
 
-            Ok::<_, VerifierError>((redacted_sent, redacted_received, tls_info))
+            Ok::<_, VerifierError>((label_proof, tls_info))
         };
 
-        let (redacted_sent, redacted_received, tls_info) = futures::select! {
+        let (label_proof, tls_info) = futures::select! {
             res = verify_fut.fuse() => res?,
             _ = &mut mux_fut => Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
         };
@@ -92,28 +88,15 @@ impl Verifier<Verify> {
         let handshake_summary =
             HandshakeSummary::new(start_time, server_ephemeral_key, handshake_commitment);
 
-        let TlsInfo {
-            session_info,
-            sent_len: purported_sent_len,
-            recv_len: purported_recv_len,
-        } = tls_info;
-
         // Verify the TLS session
-        session_info.verify(&handshake_summary, self.config.cert_verifier())?;
+        tls_info
+            .session_info
+            .verify(&handshake_summary, self.config.cert_verifier())?;
 
-        // Verify the transcript lengths
-        if purported_sent_len != sent_len {
-            return Err(VerifierError::TranscriptLengthMismatch {
-                expected: sent_len,
-                actual: purported_sent_len,
-            });
-        }
-        if purported_recv_len != recv_len {
-            return Err(VerifierError::TranscriptLengthMismatch {
-                expected: recv_len,
-                actual: purported_recv_len,
-            });
-        }
+        // Get the redacted transcripts
+        let (redacted_sent, redacted_received) = label_proof
+            .verify(sent_len, recv_len)
+            .map_err(SubstringProofError::from)?;
 
         #[cfg(feature = "tracing")]
         info!("Successfully verified session and transcript lengths");

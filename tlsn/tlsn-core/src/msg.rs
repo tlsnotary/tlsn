@@ -36,8 +36,13 @@ pub struct SignedSessionHeader {
 /// Information about what values the prover wants to decode
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DecodingInfo {
+    /// The length of the sent transcript
+    pub sent_len: usize,
     /// The ids for the send transcript from which to reconstruct the value refs
     pub sent_ids: Vec<String>,
+
+    /// The length of the received transcript
+    pub recv_len: usize,
     /// The ids for the received transcript from which to reconstruct the value refs
     pub recv_ids: Vec<String>,
 }
@@ -45,7 +50,10 @@ pub struct DecodingInfo {
 impl From<LabelProof> for DecodingInfo {
     fn from(value: LabelProof) -> Self {
         Self {
+            sent_len: value.sent_len,
             sent_ids: value.sent_ids,
+
+            recv_len: value.recv_len,
             recv_ids: value.recv_ids,
         }
     }

@@ -20,8 +20,6 @@ pub enum VerifierError {
     DecodeError(#[from] mpz_garble::DecodeError),
     #[error("Invalid handshake decommitment")]
     VerifyHandshakeError(#[from] SessionProofError),
-    #[error("Transcript length mismatch, expected {expected} but got {actual}")]
-    TranscriptLengthMismatch { expected: usize, actual: usize },
     #[error(transparent)]
     ProofError(#[from] SubstringProofError),
 }
