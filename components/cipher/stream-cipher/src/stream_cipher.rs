@@ -2,7 +2,8 @@ use async_trait::async_trait;
 use std::{collections::HashMap, fmt::Debug, marker::PhantomData};
 
 use mpz_garble::{
-    Decode, DecodePrivate, Execute, Memory, Prove, Thread, ThreadPool, ValueRef, Verify,
+    value::ValueRef, Decode, DecodePrivate, Execute, Memory, MemoryError, Prove, Thread,
+    ThreadPool, Verify,
 };
 use utils::id::NestedId;
 
@@ -506,26 +507,29 @@ async fn plaintext_proof<T: Thread + Memory + Prove + Verify + Decode + DecodePr
         InputText::Public { ids, text } => text
             .into_iter()
             .zip(ids)
-            .map(|(byte, id)| thread.new_public_input::<u8>(&id, byte))
-            .collect::<Result<Vec<_>, _>>()?,
+            .map(|(byte, id)| {
+                let byte_ref = thread.new_public_input::<u8>(&id)?;
+                thread.assign(&byte_ref, byte)?;
+                Ok(byte_ref)
+            })
+            .collect::<Result<Vec<_>, MemoryError>>()?,
         InputText::Private { ids, text } => text
             .into_iter()
             .zip(ids)
-            .map(|(byte, id)| thread.new_private_input::<u8>(&id, Some(byte)))
-            .collect::<Result<Vec<_>, _>>()?,
+            .map(|(byte, id)| {
+                let byte_ref = thread.new_private_input::<u8>(&id)?;
+                thread.assign(&byte_ref, byte)?;
+                Ok(byte_ref)
+            })
+            .collect::<Result<Vec<_>, MemoryError>>()?,
         InputText::Blind { ids } => ids
             .iter()
-            .map(|id| thread.new_private_input::<u8>(id, None))
-            .collect::<Result<Vec<_>, _>>()?,
+            .map(|id| thread.new_blind_input::<u8>(id))
+            .collect::<Result<Vec<_>, MemoryError>>()?,
     };
 
     // Collect into a single array.
-    let plaintext = ValueRef::Array(
-        plaintext
-            .iter()
-            .flat_map(|value_ref| value_ref.iter().cloned())
-            .collect(),
-    );
+    let plaintext = thread.array_from_values(&plaintext)?;
 
     let keystream = match keystream_config {
         InputText::Blind { ids } => ids
@@ -540,12 +544,7 @@ async fn plaintext_proof<T: Thread + Memory + Prove + Verify + Decode + DecodePr
     };
 
     // Collect into a single array.
-    let keystream = ValueRef::Array(
-        keystream
-            .iter()
-            .flat_map(|value_ref| value_ref.iter().cloned())
-            .collect(),
-    );
+    let keystream = thread.array_from_values(&keystream)?;
 
     let (ciphertext, expected_ciphertext) = match ciphertext_config {
         InputText::Public { ids, text } => (
@@ -558,12 +557,7 @@ async fn plaintext_proof<T: Thread + Memory + Prove + Verify + Decode + DecodePr
     };
 
     // Collect into a single array.
-    let ciphertext = ValueRef::Array(
-        ciphertext
-            .iter()
-            .flat_map(|value_ref| value_ref.iter().cloned())
-            .collect(),
-    );
+    let ciphertext = thread.array_from_values(&ciphertext)?;
 
     match role {
         Role::Prover => {
@@ -641,40 +635,42 @@ async fn apply_keyblock<T: Memory + Execute + Decode + DecodePrivate + Send, C: 
         ..
     } = config;
 
-    let explicit_nonce = thread.new_public_input(
+    let explicit_nonce_ref = thread.new_public_input::<<C as CtrCircuit>::NONCE>(
         &block_id.append_string("explicit_nonce").to_string(),
-        explicit_nonce,
     )?;
-    let ctr = thread.new_public_input(
-        &block_id.append_string("ctr").to_string(),
-        ctr.to_be_bytes(),
-    )?;
+    let ctr_ref = thread.new_public_input::<[u8; 4]>(&block_id.append_string("ctr").to_string())?;
+
+    thread.assign(&explicit_nonce_ref, explicit_nonce)?;
+    thread.assign(&ctr_ref, ctr.to_be_bytes())?;
 
     // Sets up the input text values.
     let input_values = match input_text_config {
         InputText::Public { ids, text } => text
             .into_iter()
             .zip(ids)
-            .map(|(byte, id)| thread.new_public_input::<u8>(&id, byte))
-            .collect::<Result<Vec<_>, _>>()?,
+            .map(|(byte, id)| {
+                let byte_ref = thread.new_public_input::<u8>(&id)?;
+                thread.assign(&byte_ref, byte)?;
+                Ok(byte_ref)
+            })
+            .collect::<Result<Vec<_>, MemoryError>>()?,
         InputText::Private { ids, text } => text
             .into_iter()
             .zip(ids)
-            .map(|(byte, id)| thread.new_private_input::<u8>(&id, Some(byte)))
-            .collect::<Result<Vec<_>, _>>()?,
+            .map(|(byte, id)| {
+                let byte_ref = thread.new_private_input::<u8>(&id)?;
+                thread.assign(&byte_ref, byte)?;
+                Ok(byte_ref)
+            })
+            .collect::<Result<Vec<_>, MemoryError>>()?,
         InputText::Blind { ids } => ids
             .iter()
-            .map(|id| thread.new_private_input::<u8>(id, None))
-            .collect::<Result<Vec<_>, _>>()?,
+            .map(|id| thread.new_blind_input::<u8>(id))
+            .collect::<Result<Vec<_>, MemoryError>>()?,
     };
 
     // Concatenate the values into a single block
-    let input_block = ValueRef::Array(
-        input_values
-            .iter()
-            .flat_map(|value_ref| value_ref.iter().cloned())
-            .collect(),
-    );
+    let input_block = thread.array_from_values(&input_values)?;
 
     // Set up the output text values.
     let output_values = match &output_text_config {
@@ -697,18 +693,13 @@ async fn apply_keyblock<T: Memory + Execute + Decode + DecodePrivate + Send, C: 
     };
 
     // Concatenate the values into a single block
-    let output_block = ValueRef::Array(
-        output_values
-            .iter()
-            .flat_map(|value_ref| value_ref.iter().cloned())
-            .collect(),
-    );
+    let output_block = thread.array_from_values(&output_values)?;
 
     // Execute circuit
     thread
         .execute(
             C::circuit(),
-            &[key, iv, explicit_nonce, ctr, input_block],
+            &[key, iv, explicit_nonce_ref, ctr_ref, input_block],
             &[output_block.clone()],
         )
         .await?;

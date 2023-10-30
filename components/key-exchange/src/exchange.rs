@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
-use mpz_garble::{Decode, Execute, Memory};
+use mpz_garble::{value::ValueRef, Decode, Execute, Load, Memory};
 
 use mpz_share_conversion_core::fields::{p256::P256, Field};
 use p256::{EncodedPoint, PublicKey, SecretKey};
@@ -16,6 +16,30 @@ use crate::{
     config::{KeyExchangeConfig, Role},
     KeyExchange, KeyExchangeChannel, KeyExchangeError, KeyExchangeMessage, Pms,
 };
+
+enum State {
+    Initialized,
+    Setup {
+        share_a: ValueRef,
+        share_b: ValueRef,
+        share_c: ValueRef,
+        share_d: ValueRef,
+        pms_1: ValueRef,
+        pms_2: ValueRef,
+        eq: ValueRef,
+    },
+    KeyExchange {
+        share_a: ValueRef,
+        share_b: ValueRef,
+        share_c: ValueRef,
+        share_d: ValueRef,
+        pms_1: ValueRef,
+        pms_2: ValueRef,
+        eq: ValueRef,
+    },
+    Complete,
+    Error,
+}
 
 /// The instance for performing the key exchange protocol
 ///
@@ -35,6 +59,8 @@ pub struct KeyExchangeCore<PS, PR, E> {
     server_key: Option<PublicKey>,
     /// The config used for the key exchange protocol
     config: KeyExchangeConfig,
+    /// The state of the protocol
+    state: State,
 }
 
 impl<PS, PR, E> Debug for KeyExchangeCore<PS, PR, E>
@@ -92,10 +118,26 @@ where
             private_key: None,
             server_key: None,
             config,
+            state: State::Initialized,
         }
     }
 
     async fn compute_pms_shares(&mut self) -> Result<(P256, P256), KeyExchangeError> {
+        let state = std::mem::replace(&mut self.state, State::Error);
+
+        let State::Setup {
+            share_a,
+            share_b,
+            share_c,
+            share_d,
+            pms_1,
+            pms_2,
+            eq,
+        } = state
+        else {
+            todo!()
+        };
+
         let server_key = match self.config.role() {
             Role::Leader => {
                 // Send server public key to follower
@@ -144,6 +186,16 @@ where
                 .compute_x_coordinate_share(encoded_point)
         )?;
 
+        self.state = State::KeyExchange {
+            share_a,
+            share_b,
+            share_c,
+            share_d,
+            pms_1,
+            pms_2,
+            eq,
+        };
+
         match self.config.role() {
             Role::Leader => Ok((sender_share, receiver_share)),
             Role::Follower => Ok((receiver_share, sender_share)),
@@ -155,6 +207,21 @@ where
         pms_share1: P256,
         pms_share2: P256,
     ) -> Result<Pms, KeyExchangeError> {
+        let state = std::mem::replace(&mut self.state, State::Error);
+
+        let State::KeyExchange {
+            share_a,
+            share_b,
+            share_c,
+            share_d,
+            pms_1,
+            pms_2,
+            eq,
+        } = state
+        else {
+            todo!()
+        };
+
         let pms_share1: [u8; 32] = pms_share1
             .to_be_bytes()
             .try_into()
@@ -164,27 +231,16 @@ where
             .try_into()
             .expect("pms share is 32 bytes");
 
-        let (share_a, share_b, share_c, share_d) = match self.config.role() {
-            Role::Leader => (Some(pms_share1), None, Some(pms_share2), None),
-            Role::Follower => (None, Some(pms_share1), None, Some(pms_share2)),
-        };
-
-        let share_a = self
-            .executor
-            .new_private_input::<[u8; 32]>("pms/share_a", share_a)?;
-        let share_b = self
-            .executor
-            .new_private_input::<[u8; 32]>("pms/share_b", share_b)?;
-        let share_c = self
-            .executor
-            .new_private_input::<[u8; 32]>("pms/share_c", share_c)?;
-        let share_d = self
-            .executor
-            .new_private_input::<[u8; 32]>("pms/share_d", share_d)?;
-
-        let pms_1 = self.executor.new_output::<[u8; 32]>("pms/1")?;
-        let pms_2 = self.executor.new_output::<[u8; 32]>("pms/2")?;
-        let eq = self.executor.new_output::<[u8; 32]>("pms/eq")?;
+        match self.config.role() {
+            Role::Leader => {
+                self.executor.assign(&share_a, pms_share1)?;
+                self.executor.assign(&share_c, pms_share2)?;
+            }
+            Role::Follower => {
+                self.executor.assign(&share_b, pms_share1)?;
+                self.executor.assign(&share_d, pms_share2)?;
+            }
+        }
 
         self.executor
             .execute(
@@ -206,6 +262,8 @@ where
             return Err(KeyExchangeError::CheckFailed);
         }
 
+        self.state = State::Complete;
+
         // Both parties use pms_1 as the pre-master secret
         Ok(Pms::new(pms_1))
     }
@@ -216,7 +274,7 @@ impl<PS, PR, E> KeyExchange for KeyExchangeCore<PS, PR, E>
 where
     PS: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send + Debug,
     PR: PointAddition<Point = EncodedPoint, XCoordinate = P256> + Send + Debug,
-    E: Memory + Execute + Decode + Send,
+    E: Memory + Load + Execute + Decode + Send,
 {
     #[cfg_attr(
         feature = "tracing",
@@ -230,6 +288,88 @@ where
     #[cfg_attr(feature = "tracing", tracing::instrument(level = "info", skip(self)))]
     fn set_server_key(&mut self, server_key: PublicKey) {
         self.server_key = Some(server_key);
+    }
+
+    async fn setup(&mut self) -> Result<Pms, KeyExchangeError> {
+        let state = std::mem::replace(&mut self.state, State::Error);
+
+        let State::Initialized = state else {
+            return Err(KeyExchangeError::InvalidState(
+                "expected to be in Initialized state".to_string(),
+            ));
+        };
+
+        let (share_a, share_b, share_c, share_d) = match self.config.role() {
+            Role::Leader => {
+                let share_a = self
+                    .executor
+                    .new_private_input::<[u8; 32]>("pms/share_a")
+                    .unwrap();
+                let share_b = self
+                    .executor
+                    .new_blind_input::<[u8; 32]>("pms/share_b")
+                    .unwrap();
+                let share_c = self
+                    .executor
+                    .new_private_input::<[u8; 32]>("pms/share_c")
+                    .unwrap();
+                let share_d = self
+                    .executor
+                    .new_blind_input::<[u8; 32]>("pms/share_d")
+                    .unwrap();
+
+                (share_a, share_b, share_c, share_d)
+            }
+            Role::Follower => {
+                let share_a = self
+                    .executor
+                    .new_blind_input::<[u8; 32]>("pms/share_a")
+                    .unwrap();
+                let share_b = self
+                    .executor
+                    .new_private_input::<[u8; 32]>("pms/share_b")
+                    .unwrap();
+                let share_c = self
+                    .executor
+                    .new_blind_input::<[u8; 32]>("pms/share_c")
+                    .unwrap();
+                let share_d = self
+                    .executor
+                    .new_private_input::<[u8; 32]>("pms/share_d")
+                    .unwrap();
+
+                (share_a, share_b, share_c, share_d)
+            }
+        };
+
+        let pms_1 = self.executor.new_output::<[u8; 32]>("pms/1")?;
+        let pms_2 = self.executor.new_output::<[u8; 32]>("pms/2")?;
+        let eq = self.executor.new_output::<[u8; 32]>("pms/eq")?;
+
+        self.executor
+            .load(
+                build_pms_circuit(),
+                &[
+                    share_a.clone(),
+                    share_b.clone(),
+                    share_c.clone(),
+                    share_d.clone(),
+                ],
+                &[pms_1.clone(), pms_2.clone(), eq.clone()],
+            )
+            .await?;
+
+        self.state = State::Setup {
+            share_a,
+            share_b,
+            share_c,
+            share_d,
+            pms_1: pms_1.clone(),
+            pms_2,
+            eq,
+        };
+
+        Ok(Pms::new(pms_1))
     }
 
     /// Compute the client's public key
@@ -466,6 +606,8 @@ mod tests {
         follower_private_key: SecretKey,
         server_public_key: PublicKey,
     ) -> PublicKey {
+        tokio::try_join!(leader.setup(), follower.setup()).unwrap();
+
         let (client_public_key, _) = tokio::try_join!(
             leader.compute_client_key(leader_private_key),
             follower.compute_client_key(follower_private_key)
