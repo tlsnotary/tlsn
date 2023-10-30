@@ -8,7 +8,10 @@
 pub mod state;
 
 use crate::tls::{state as prover_state, Prover, ProverError};
-use tlsn_core::proof::{substring::LabelProof, SubstringProofBuilder};
+use tlsn_core::{
+    proof::{substring::LabelProof, SubstringProofBuilder},
+    SessionData,
+};
 use tlsn_formats::http::{parse_requests, parse_responses, ParseError};
 
 pub use tlsn_formats::{
@@ -124,9 +127,11 @@ impl HttpProver<state::Verify> {
     }
 
     /// Finalizes the HTTP session.
-    // TODO: What to return here?
-    pub async fn finalize(self, label_proof: LabelProof) -> Result<(), HttpProverError> {
-        self.state.prover.finalize(label_proof).await?;
-        todo!()
+    pub async fn finalize(self, label_proof: LabelProof) -> Result<SessionData, HttpProverError> {
+        self.state
+            .prover
+            .finalize(label_proof)
+            .await
+            .map_err(HttpProverError::from)
     }
 }

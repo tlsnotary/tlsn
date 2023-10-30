@@ -1,5 +1,6 @@
 use futures::AsyncWriteExt;
 use hyper::{body::to_bytes, Body, Request, StatusCode};
+use tlsn_core::{RedactedTranscript, SessionData};
 use tlsn_prover::tls::{Prover, ProverConfig};
 use tlsn_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
 use tlsn_verifier::tls::{Verifier, VerifierConfig};
@@ -9,16 +10,18 @@ use tracing::instrument;
 
 #[tokio::test]
 #[ignore]
-async fn test() {
+async fn verify() {
     tracing_subscriber::fmt::init();
 
     let (socket_0, socket_1) = tokio::io::duplex(2 << 23);
 
-    tokio::join!(prover(socket_0), notary(socket_1));
+    let (session_data, (sent, received)) = tokio::join!(prover(socket_0), verifier(socket_1));
 }
 
 #[instrument(skip(notary_socket))]
-async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socket: T) {
+async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
+    notary_socket: T,
+) -> SessionData {
     let (client_socket, server_socket) = tokio::io::duplex(2 << 16);
 
     let server_task = tokio::spawn(tlsn_server_fixture::bind(server_socket.compat()));
@@ -79,22 +82,22 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
         .unwrap()
         .to_http()
         .unwrap()
-        .start_notarize();
+        .start_verify();
 
-    prover.commit().unwrap();
+    let proof_builder = prover.proof_builder();
+    let label_proof = proof_builder.build().unwrap();
 
-    let mut notarized_session = prover.finalize().await.unwrap();
+    let session_data = prover.finalize(label_proof).await.unwrap();
 
-    _ = notarized_session.proof_builder().build().unwrap();
+    session_data
 }
 
 #[instrument(skip(socket))]
-async fn notary<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(socket: T) {
+async fn verifier<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
+    socket: T,
+) -> (RedactedTranscript, RedactedTranscript) {
     let verifier = Verifier::new(VerifierConfig::builder().id("test").build().unwrap());
-    let signing_key = p256::ecdsa::SigningKey::from_bytes(&[1u8; 32].into()).unwrap();
+    let (sent, received) = verifier.verify(socket.compat()).await.unwrap();
 
-    _ = verifier
-        .notarize::<_, p256::ecdsa::Signature>(socket.compat(), &signing_key)
-        .await
-        .unwrap();
+    (sent, received)
 }
