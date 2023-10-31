@@ -145,11 +145,27 @@ impl LabelProof {
     }
 
     /// Set the decoding values for the transcript
-    pub fn set_decoding(&mut self, mut decoding_values: Vec<Value>) {
+    pub fn set_decoding(&mut self, mut decoding_values: Vec<Value>) -> Result<(), LabelProofError> {
         let recv_values = decoding_values.split_off(self.sent_ids.len());
+
+        // Verify the decoded values lengths
+        if decoding_values.len() != self.sent_ids.len() {
+            return Err(LabelProofError::DecodedValuesLength {
+                expected: self.sent_ids.len(),
+                actual: decoding_values.len(),
+            });
+        }
+        if recv_values.len() != self.recv_ids.len() {
+            return Err(LabelProofError::DecodedValuesLength {
+                expected: self.recv_ids.len(),
+                actual: recv_values.len(),
+            });
+        }
 
         self.sent_decoded_values = decoding_values;
         self.recv_decoded_values = recv_values;
+
+        Ok(())
     }
 
     /// Reconstructs the transcript from the given values
@@ -175,20 +191,6 @@ impl LabelProof {
             return Err(LabelProofError::TranscriptLengthMismatch {
                 expected: recv_len,
                 actual: self.recv_len,
-            });
-        }
-
-        // Verify the decoded values lengths
-        if self.sent_decoded_values.len() != self.sent_ids.len() {
-            return Err(LabelProofError::DecodedValuesLength {
-                expected: self.sent_ids.len(),
-                actual: self.sent_decoded_values.len(),
-            });
-        }
-        if self.recv_decoded_values.len() != self.recv_ids.len() {
-            return Err(LabelProofError::DecodedValuesLength {
-                expected: self.recv_ids.len(),
-                actual: self.recv_decoded_values.len(),
             });
         }
 
@@ -273,4 +275,112 @@ pub enum LabelProofError {
     TranscriptLengthMismatch { expected: usize, actual: usize },
     #[error("Decoded values have wrong length, expected {expected} but got {actual}")]
     DecodedValuesLength { expected: usize, actual: usize },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mpz_garble::value::ValueId;
+
+    #[test]
+    fn test_build_label_proof() {
+        let proof = build_test_label_proof();
+
+        assert_eq!(proof.sent_len, 10);
+        assert_eq!(proof.recv_len, 12);
+
+        assert_eq!(proof.sent_label, "tx");
+        assert_eq!(proof.recv_label, "rx");
+
+        assert_eq!(
+            proof.sent_ids,
+            RangeSet::from(2..5_usize).union(&(5..8)).union(&(8..9))
+        );
+        assert_eq!(proof.recv_ids, RangeSet::from(0..3));
+    }
+
+    #[test]
+    fn test_label_proof_value_refs() {
+        let proof = build_test_label_proof();
+        let value_refs = proof
+            .value_refs(|s| {
+                Some(ValueRef::Value {
+                    id: ValueId::new(&s),
+                })
+            })
+            .collect::<Option<Vec<ValueRef>>>()
+            .unwrap();
+
+        let range_set_sent = RangeSet::from(2..5_usize).union(&(5..8)).union(&(8..9));
+        let range_set_recv = RangeSet::from(0..3_usize);
+
+        let expected_value_refs = range_set_sent
+            .iter()
+            .map(|s| ValueRef::Value {
+                id: ValueId::new(&format!("tx/{}", s)),
+            })
+            .chain(range_set_recv.iter().map(|s| ValueRef::Value {
+                id: ValueId::new(&format!("rx/{}", s)),
+            }))
+            .collect::<Vec<ValueRef>>();
+
+        assert_eq!(value_refs, expected_value_refs);
+    }
+
+    #[test]
+    fn test_label_proof_set_decoding() {
+        let mut proof = build_test_label_proof();
+        let decoding_values = build_test_decoding_values();
+        proof.set_decoding(decoding_values.clone()).unwrap();
+
+        assert_eq!(proof.sent_decoded_values, decoding_values[..7]);
+        assert_eq!(proof.recv_decoded_values, decoding_values[7..]);
+    }
+
+    #[test]
+    fn test_label_proof_verify() {
+        let mut proof = build_test_label_proof();
+        let decoding_values = build_test_decoding_values();
+        proof.set_decoding(decoding_values.clone()).unwrap();
+
+        let (sent, received) = proof.verify(10, 12).unwrap();
+
+        assert_eq!(sent.data(), &[0, 0, 1, 1, 1, 1, 1, 1, 1, 0]);
+        assert_eq!(received.data(), &[2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+
+        assert_eq!(sent.authed(), &RangeSet::from(2..9));
+        assert_eq!(received.authed(), &RangeSet::from(0..3));
+
+        assert_eq!(sent.redacted(), &RangeSet::from(0..2).union(&(9..10)));
+        assert_eq!(received.redacted(), &RangeSet::from(3..12));
+    }
+
+    fn build_test_label_proof() -> LabelProof {
+        let mut builder = LabelProofBuilder::new(10, "tx", 12, "rx");
+        builder
+            .reveal_ranges((2..5).into(), Direction::Sent)
+            .unwrap()
+            .reveal_ranges(RangeSet::from(5..8).union(&(8..9)), Direction::Sent)
+            .unwrap()
+            .reveal_ranges((0..3).into(), Direction::Received)
+            .unwrap();
+        builder.build_proof().unwrap()
+    }
+
+    fn build_test_decoding_values() -> Vec<Value> {
+        vec![
+            // Sent
+            Value::U8(1),
+            Value::U8(1),
+            Value::U8(1),
+            Value::U8(1),
+            Value::U8(1),
+            Value::U8(1),
+            Value::U8(1),
+            // Received
+            Value::U8(2),
+            Value::U8(2),
+            Value::U8(2),
+        ]
+    }
 }

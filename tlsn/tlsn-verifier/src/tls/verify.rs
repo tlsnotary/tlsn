@@ -50,7 +50,9 @@ impl Verifier<Verify> {
 
             // Decode the corresponding values
             let values = decode_thread.decode(value_refs.as_slice()).await?;
-            label_proof.set_decoding(values);
+            label_proof
+                .set_decoding(values)
+                .map_err(SubstringProofError::from)?;
 
             #[cfg(feature = "tracing")]
             info!("Successfully decoded transcript parts");
