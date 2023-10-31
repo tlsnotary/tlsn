@@ -158,7 +158,7 @@ impl ServerCertVerifier for MockServerVerifier {
         server_name: &rustls::ServerName,
         scts: &mut dyn Iterator<Item = &[u8]>,
         oscp_response: &[u8],
-        now: std::time::SystemTime,
+        now: web_time::SystemTime,
     ) -> Result<ServerCertVerified, Error> {
         let scts: Vec<Vec<u8>> = scts.map(|x| x.to_owned()).collect();
         println!(

@@ -33,6 +33,8 @@ opaque-debug.workspace = true
 
 bimap = { version = "0.6.3", features = ["serde"] }
 
+web-time.workspace = true
+
 [dev-dependencies]
 rstest.workspace = true
 hex.workspace = true

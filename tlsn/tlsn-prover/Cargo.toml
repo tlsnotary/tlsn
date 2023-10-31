@@ -44,4 +44,6 @@ derive_builder.workspace = true
 opaque-debug.workspace = true
 bytes.workspace = true
 
-tracing = { workspace = true, optional = true }
+tracing = { workspace = true, optional = true}
+
+web-time.workspace = true

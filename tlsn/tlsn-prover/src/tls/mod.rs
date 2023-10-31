@@ -20,6 +20,7 @@ use rand::Rng;
 use std::{pin::Pin, sync::Arc};
 use tls_client_async::{bind_client, ClosedConnection, TlsConnection};
 use tls_mpc::{setup_components, MpcTlsLeader, TlsRole};
+use web_time::SystemTime;
 
 use mpz_garble::{config::Role as DEAPRole, protocol::deap::DEAPVm};
 use mpz_ot::{
@@ -157,7 +158,7 @@ impl Prover<state::Setup> {
 
         let (conn, conn_fut) = bind_client(socket, client);
 
-        let start_time = std::time::UNIX_EPOCH.elapsed().unwrap().as_secs();
+        let start_time = web_time::UNIX_EPOCH.elapsed().unwrap().as_secs();
 
         let fut = Box::pin({
             #[allow(clippy::let_and_return)]

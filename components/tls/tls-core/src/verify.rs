@@ -9,7 +9,8 @@ use crate::{
     },
 };
 use ring::digest::Digest;
-use std::{convert::TryFrom, time::SystemTime};
+use std::convert::TryFrom;
+use web_time::SystemTime;
 
 type SignatureAlgorithms = &'static [&'static webpki::SignatureAlgorithm];
 
@@ -287,7 +288,14 @@ impl ServerCertVerifier for WebPkiVerifier {
         now: SystemTime,
     ) -> Result<ServerCertVerified, Error> {
         let (cert, chain, trustroots) = prepare(end_entity, intermediates, &self.roots)?;
-        let webpki_now = webpki::Time::try_from(now).map_err(|_| Error::FailedToGetCurrentTime)?;
+        // `webpki::Time::try_from` does not work with `web_time::SystemTime`.
+        // To workaround this we convert `SystemTime` to seconds and use
+        // `webpki::Time::from_seconds_since_unix_epoch` instead.
+        let duration_since_epoch = now
+            .duration_since(web_time::UNIX_EPOCH)
+            .map_err(|_| Error::FailedToGetCurrentTime)?;
+        let seconds_since_unix_epoch = duration_since_epoch.as_secs();
+        let webpki_now = webpki::Time::from_seconds_since_unix_epoch(seconds_since_unix_epoch);
 
         let ServerName::DnsName(dns_name) = server_name;
 
@@ -572,7 +580,7 @@ fn verify_tls13(
 }
 
 fn unix_time_millis(now: SystemTime) -> Result<u64, Error> {
-    now.duration_since(std::time::UNIX_EPOCH)
+    now.duration_since(SystemTime::UNIX_EPOCH)
         .map(|dur| dur.as_secs())
         .map_err(|_| Error::FailedToGetCurrentTime)
         .and_then(|secs| secs.checked_mul(1000).ok_or(Error::FailedToGetCurrentTime))
