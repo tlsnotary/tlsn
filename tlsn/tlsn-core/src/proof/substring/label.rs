@@ -345,8 +345,8 @@ mod tests {
 
         let (sent, received) = proof.verify(10, 12).unwrap();
 
-        assert_eq!(sent.data(), &[0, 0, 1, 1, 1, 1, 1, 1, 1, 0]);
-        assert_eq!(received.data(), &[2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(sent.data(), &[0, 0, 1, 2, 3, 4, 5, 6, 7, 0]);
+        assert_eq!(received.data(), &[8, 9, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
 
         assert_eq!(sent.authed(), &RangeSet::from(2..9));
         assert_eq!(received.authed(), &RangeSet::from(0..3));
@@ -371,16 +371,16 @@ mod tests {
         vec![
             // Sent
             Value::U8(1),
-            Value::U8(1),
-            Value::U8(1),
-            Value::U8(1),
-            Value::U8(1),
-            Value::U8(1),
-            Value::U8(1),
+            Value::U8(2),
+            Value::U8(3),
+            Value::U8(4),
+            Value::U8(5),
+            Value::U8(6),
+            Value::U8(7),
             // Received
-            Value::U8(2),
-            Value::U8(2),
-            Value::U8(2),
+            Value::U8(8),
+            Value::U8(9),
+            Value::U8(10),
         ]
     }
 }
