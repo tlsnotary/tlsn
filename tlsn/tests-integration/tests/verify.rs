@@ -76,7 +76,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     client_socket.close().await.unwrap();
 
-    let prover = prover_task.await.unwrap().unwrap().start_verify();
+    let prover = prover_task.await.unwrap().unwrap().start_prove();
 
     let proof_builder = prover.proof_builder();
     let label_proof = proof_builder.build_proof().unwrap();

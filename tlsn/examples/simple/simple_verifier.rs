@@ -52,8 +52,7 @@ fn main() {
     println!("-------------------------------------------------------------------");
     println!(
         "Successfully verified that the bytes below came from a session with {:?} at {}.",
-        session_info.server_name(),
-        time
+        session_info.server_name, time
     );
     println!("Note that the bytes which the Prover chose not to disclose are shown as X.");
     println!();

@@ -100,18 +100,6 @@ pub struct SessionInfo {
 }
 
 impl SessionInfo {
-    /// Returns the server name.
-    pub fn server_name(&self) -> &ServerName {
-        &self.server_name
-    }
-
-    /// Returns the handshake data decommitment.
-    pub fn handshake_data_decommitment(&self) -> &Decommitment<HandshakeData> {
-        &self.handshake_data_decommitment
-    }
-}
-
-impl SessionInfo {
     /// Verify the session info.
     pub fn verify(
         &self,
@@ -119,16 +107,16 @@ impl SessionInfo {
         cert_verifier: &impl ServerCertVerifier,
     ) -> Result<(), SessionProofError> {
         // Verify server name
-        let server_name = TlsServerName::try_from(self.server_name().as_ref())
+        let server_name = TlsServerName::try_from(self.server_name.as_ref())
             .map_err(|e| SessionProofError::InvalidServerName(e.to_string()))?;
 
         // Verify handshake
-        self.handshake_data_decommitment()
+        self.handshake_data_decommitment
             .verify(handshake_summary.handshake_commitment())
             .map_err(|e| SessionProofError::InvalidHandshake(e.to_string()))?;
 
         // Verify server certificate
-        self.handshake_data_decommitment()
+        self.handshake_data_decommitment
             .data()
             .verify(
                 cert_verifier,

@@ -1,6 +1,5 @@
 use std::error::Error;
 use tls_mpc::MpcTlsError;
-use tlsn_core::proof::{SessionProofError, SubstringProofError};
 
 /// An error that can occur during TLS verification.
 #[derive(Debug, thiserror::Error)]
@@ -12,16 +11,8 @@ pub enum VerifierError {
     MuxerError(#[from] utils_aio::mux::MuxerError),
     #[error("error occurred in MPC protocol: {0}")]
     MpcError(Box<dyn Error + Send + 'static>),
-    #[error(transparent)]
-    VMError(#[from] mpz_garble::VmError),
-    #[error("Transcript value cannot be decoded from VM thread")]
-    TranscriptDecodeError,
-    #[error(transparent)]
-    DecodeError(#[from] mpz_garble::DecodeError),
-    #[error("Invalid handshake decommitment")]
-    VerifyHandshakeError(#[from] SessionProofError),
-    #[error(transparent)]
-    ProofError(#[from] SubstringProofError),
+    #[error("{0}")]
+    Other(Box<dyn Error + Send + 'static>),
 }
 
 impl From<MpcTlsError> for VerifierError {
@@ -45,5 +36,36 @@ impl From<mpz_ot::actor::kos::SenderActorError> for VerifierError {
 impl From<mpz_ot::actor::kos::ReceiverActorError> for VerifierError {
     fn from(e: mpz_ot::actor::kos::ReceiverActorError) -> Self {
         Self::MpcError(Box::new(e))
+    }
+}
+
+impl From<mpz_garble::DecodeError> for VerifierError {
+    fn from(e: mpz_garble::DecodeError) -> Self {
+        Self::MpcError(Box::new(e))
+    }
+}
+
+impl From<tlsn_core::proof::SessionProofError> for VerifierError {
+    fn from(e: tlsn_core::proof::SessionProofError) -> Self {
+        Self::MpcError(Box::new(e))
+    }
+}
+
+impl From<tlsn_core::proof::SubstringProofError> for VerifierError {
+    fn from(e: tlsn_core::proof::SubstringProofError) -> Self {
+        Self::MpcError(Box::new(e))
+    }
+}
+
+impl From<mpz_garble::VmError> for VerifierError {
+    fn from(e: mpz_garble::VmError) -> Self {
+        Self::MpcError(Box::new(e))
+    }
+}
+
+impl From<&str> for VerifierError {
+    fn from(e: &str) -> Self {
+        let err = Box::<dyn Error + Send + Sync + 'static>::from(e);
+        Self::Other(err)
     }
 }

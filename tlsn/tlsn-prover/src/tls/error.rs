@@ -15,8 +15,6 @@ pub enum ProverError {
     IOError(#[from] std::io::Error),
     #[error(transparent)]
     MuxerError(#[from] utils_aio::mux::MuxerError),
-    #[error(transparent)]
-    VMError(#[from] mpz_garble::VmError),
     #[error("notarization error: {0}")]
     NotarizationError(String),
     #[error(transparent)]
@@ -29,12 +27,10 @@ pub enum ProverError {
     ServerNoCloseNotify,
     #[error(transparent)]
     CommitmentError(#[from] CommitmentError),
-    #[error("Transcript value cannot be decoded from VM thread")]
-    TranscriptDecodeError,
     #[error(transparent)]
-    DecodeError(#[from] mpz_garble::DecodeError),
-    #[error(transparent)]
-    ProofBuliderError(#[from] SubstringProofBuilderError),
+    ProofBuilderError(#[from] SubstringProofBuilderError),
+    #[error("{0}")]
+    Other(Box<dyn Error + Send + 'static>),
 }
 
 impl From<MpcTlsError> for ProverError {
@@ -49,6 +45,18 @@ impl From<mpz_ot::OTError> for ProverError {
     }
 }
 
+impl From<mpz_garble::VmError> for ProverError {
+    fn from(e: mpz_garble::VmError) -> Self {
+        Self::MpcError(Box::new(e))
+    }
+}
+
+impl From<mpz_garble::DecodeError> for ProverError {
+    fn from(e: mpz_garble::DecodeError) -> Self {
+        Self::MpcError(Box::new(e))
+    }
+}
+
 impl From<mpz_ot::actor::kos::SenderActorError> for ProverError {
     fn from(value: mpz_ot::actor::kos::SenderActorError) -> Self {
         Self::MpcError(Box::new(value))
@@ -58,6 +66,13 @@ impl From<mpz_ot::actor::kos::SenderActorError> for ProverError {
 impl From<mpz_ot::actor::kos::ReceiverActorError> for ProverError {
     fn from(value: mpz_ot::actor::kos::ReceiverActorError) -> Self {
         Self::MpcError(Box::new(value))
+    }
+}
+
+impl From<&str> for ProverError {
+    fn from(e: &str) -> Self {
+        let err = Box::<dyn Error + Send + Sync + 'static>::from(e);
+        Self::Other(err)
     }
 }
 

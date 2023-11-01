@@ -73,14 +73,14 @@ impl HttpProver<state::Closed> {
         }
     }
 
-    /// Starts verification of the TLS session.
+    /// Starts proving the HTTP session.
     ///
-    /// This function transitions the prover into a state where it can open parts of the
+    /// This function transitions the prover into a state where it can prove content of the
     /// transcript.
-    pub fn start_verify(self) -> HttpProver<state::Verify> {
+    pub fn start_prove(self) -> HttpProver<state::Verify> {
         HttpProver {
             state: state::Verify {
-                prover: self.state.prover.start_verify(),
+                prover: self.state.prover.start_prove(),
                 requests: self.state.requests,
                 responses: self.state.responses,
             },
@@ -118,8 +118,7 @@ impl HttpProver<state::Notarize> {
 }
 
 impl HttpProver<state::Verify> {
-    /// TODO: This needs to be a HttpProofBuilder
-    /// which wraps our new alternate SubstringsProofBuilder
+    /// Creates a [HttpProofBuilder] for creating proofs for http traffic
     pub fn proof_builder(&mut self) -> HttpProofBuilder<'_, LabelProof> {
         let prover: Box<dyn SubstringProofBuilder<LabelProof>> =
             Box::new(self.state.prover.proof_builder());

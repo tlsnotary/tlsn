@@ -3,7 +3,6 @@
 use super::{SubstringProofBuilder, SubstringProofBuilderError};
 use crate::{msg::DecodingInfo, Direction, RedactedTranscript, TranscriptSlice};
 use mpz_circuits::types::Value;
-use mpz_garble::value::ValueRef;
 use thiserror::Error;
 use utils::range::{RangeSet, RangeUnion};
 
@@ -133,17 +132,6 @@ pub struct LabelProof {
 }
 
 impl LabelProof {
-    /// Returns the [ValueRef]s for the ids
-    ///
-    /// # Arguments
-    /// * `provider` - A function which returns the [ValueRef] for a given id
-    pub fn value_refs<'a, T: Fn(String) -> Option<ValueRef> + 'a>(
-        &'a self,
-        provider: T,
-    ) -> impl Iterator<Item = Option<ValueRef>> + 'a {
-        self.iter().map(provider)
-    }
-
     /// Set the decoding values for the transcript
     pub fn set_decoding(&mut self, mut decoding_values: Vec<Value>) -> Result<(), LabelProofError> {
         let recv_values = decoding_values.split_off(self.sent_ids.len());
@@ -207,7 +195,7 @@ impl LabelProof {
     }
 
     /// Returns an iterator over the ids
-    pub fn iter(&self) -> impl Iterator<Item = String> + '_ {
+    pub fn iter_ids(&self) -> impl Iterator<Item = String> + '_ {
         let sent_labeled = self
             .sent_ids
             .iter()
@@ -280,7 +268,6 @@ pub enum LabelProofError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mpz_garble::value::ValueId;
 
     #[test]
     fn test_build_label_proof() {
@@ -300,29 +287,18 @@ mod tests {
     }
 
     #[test]
-    fn test_label_proof_value_refs() {
+    fn test_label_proof_iter_ids() {
         let proof = build_test_label_proof();
-        let value_refs = proof
-            .value_refs(|s| {
-                Some(ValueRef::Value {
-                    id: ValueId::new(&s),
-                })
-            })
-            .collect::<Option<Vec<ValueRef>>>()
-            .unwrap();
+        let value_refs = proof.iter_ids().collect::<Vec<String>>();
 
         let range_set_sent = RangeSet::from(2..5_usize).union(&(5..8)).union(&(8..9));
         let range_set_recv = RangeSet::from(0..3_usize);
 
         let expected_value_refs = range_set_sent
             .iter()
-            .map(|s| ValueRef::Value {
-                id: ValueId::new(&format!("tx/{}", s)),
-            })
-            .chain(range_set_recv.iter().map(|s| ValueRef::Value {
-                id: ValueId::new(&format!("rx/{}", s)),
-            }))
-            .collect::<Vec<ValueRef>>();
+            .map(|s| format!("tx/{}", s))
+            .chain(range_set_recv.iter().map(|s| format!("rx/{}", s)))
+            .collect::<Vec<String>>();
 
         assert_eq!(value_refs, expected_value_refs);
     }

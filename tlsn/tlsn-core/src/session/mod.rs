@@ -47,7 +47,7 @@ impl NotarizedSession {
                 .data
                 .session_data()
                 .session_info()
-                .handshake_data_decommitment()
+                .handshake_data_decommitment
                 .clone(),
         };
 

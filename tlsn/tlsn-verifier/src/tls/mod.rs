@@ -209,7 +209,7 @@ impl Verifier<state::Closed> {
 
     /// Starts verification of the TLS session.
     ///
-    /// This function transitions the prover into a state where it can open parts of the
+    /// This function transitions the verifier into a state where it can verify content of the
     /// transcript.
     pub fn start_verify(self) -> Verifier<Verify> {
         Verifier {

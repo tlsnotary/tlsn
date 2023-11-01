@@ -44,8 +44,14 @@ impl Verifier<Verify> {
 
             // Get the decoded value refs from the DEAP vm
             let value_refs = label_proof
-                .value_refs(|id| decode_thread.get_value(id.as_str()))
-                .map(|value_ref| value_ref.ok_or(VerifierError::TranscriptDecodeError))
+                .iter_ids()
+                .map(|id| {
+                    decode_thread
+                        .get_value(id.as_str())
+                        .ok_or(VerifierError::from(
+                            "Transcript value cannot be decoded from VM thread",
+                        ))
+                })
                 .collect::<Result<Vec<ValueRef>, VerifierError>>()?;
 
             // Decode the corresponding values
