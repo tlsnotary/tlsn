@@ -159,29 +159,7 @@ impl LabelProof {
     /// Reconstructs the transcript from the given values
     ///
     /// Returns the sent (first) and received transcript (second)
-    ///
-    /// # Arguments
-    /// * `sent_len` - The real length of the sent transcript
-    /// * `recv_len` - The real length of the received transcript
-    pub fn verify(
-        &self,
-        sent_len: usize,
-        recv_len: usize,
-    ) -> Result<(RedactedTranscript, RedactedTranscript), LabelProofError> {
-        // Verify the transcript lengths
-        if sent_len != self.sent_len {
-            return Err(LabelProofError::TranscriptLengthMismatch {
-                expected: sent_len,
-                actual: self.sent_len,
-            });
-        }
-        if recv_len != self.recv_len {
-            return Err(LabelProofError::TranscriptLengthMismatch {
-                expected: recv_len,
-                actual: self.recv_len,
-            });
-        }
-
+    pub fn reconstruct(&self) -> Result<(RedactedTranscript, RedactedTranscript), LabelProofError> {
         let sent_redacted = RedactedTranscript::new(
             self.sent_len,
             ids_to_transcript_slice(&self.sent_ids, self.sent_decoded_values.as_slice()),
@@ -207,6 +185,30 @@ impl LabelProof {
             .map(|s| format!("{}/{}", self.recv_label, s));
 
         sent_labeled.chain(recv_labeled)
+    }
+
+    /// Creates a new [LabelProof] from the given [DecodingInfo]
+    ///
+    /// Also needs the lengths of the sent and received transcripts.
+    pub fn from_decoding_info(decoding: DecodingInfo, sent_len: usize, recv_len: usize) -> Self {
+        let DecodingInfo {
+            sent_label,
+            sent_ids,
+            recv_label,
+            recv_ids,
+        } = decoding;
+
+        Self {
+            sent_len,
+            sent_label,
+            sent_ids,
+            sent_decoded_values: vec![],
+
+            recv_len,
+            recv_label,
+            recv_ids,
+            recv_decoded_values: vec![],
+        }
     }
 }
 
@@ -235,22 +237,6 @@ fn ids_to_transcript_slice(
     }
 
     transcript_slices
-}
-
-impl From<DecodingInfo> for LabelProof {
-    fn from(value: DecodingInfo) -> Self {
-        Self {
-            sent_len: value.sent_len,
-            sent_label: value.sent_label,
-            sent_ids: value.sent_ids,
-            sent_decoded_values: vec![],
-
-            recv_len: value.recv_len,
-            recv_label: value.recv_label,
-            recv_ids: value.recv_ids,
-            recv_decoded_values: vec![],
-        }
-    }
 }
 
 /// An error type for [LabelProof].
@@ -319,7 +305,7 @@ mod tests {
         let decoding_values = build_test_decoding_values();
         proof.set_decoding(decoding_values.clone()).unwrap();
 
-        let (sent, received) = proof.verify(10, 12).unwrap();
+        let (sent, received) = proof.reconstruct().unwrap();
 
         assert_eq!(sent.data(), &[0, 0, 1, 2, 3, 4, 5, 6, 7, 0]);
         assert_eq!(received.data(), &[8, 9, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0]);

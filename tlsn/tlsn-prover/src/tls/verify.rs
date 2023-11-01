@@ -48,14 +48,14 @@ impl Prover<Verify> {
             transcript_rx,
         } = self.state;
 
-        // Create session data and tls_info
+        // Create session data and session_info
         let session_data = SessionData::new(
             ServerName::Dns(self.config.server_dns().to_string()),
             handshake_decommitment,
             transcript_tx,
             transcript_rx,
         );
-        let tls_info = session_data.build_tls_info();
+        let session_info = session_data.session_info().clone();
 
         let mut verify_fut = Box::pin(async move {
             let mut channel = verify_mux.get_channel("verify").await?;
@@ -96,7 +96,7 @@ impl Prover<Verify> {
                 .expect("encoder seed returned");
 
             // Send tls_info to the verifier
-            channel.send(TlsnMessage::TlsInfo(tls_info)).await?;
+            channel.send(TlsnMessage::SessionInfo(session_info)).await?;
 
             Ok::<_, ProverError>(values)
         })

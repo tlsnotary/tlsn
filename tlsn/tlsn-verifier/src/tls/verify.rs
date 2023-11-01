@@ -40,7 +40,7 @@ impl Verifier<Verify> {
 
             // Get the decoded value refs from the DEAP vm
             let mut decode_thread = vm.new_thread("decode").await?;
-            let mut label_proof: LabelProof = decoding_info.into();
+            let mut label_proof = LabelProof::from_decoding_info(decoding_info, sent_len, recv_len);
 
             // Get the decoded value refs from the DEAP vm
             let value_refs = label_proof
@@ -80,15 +80,15 @@ impl Verifier<Verify> {
                 .await
                 .map_err(|e| VerifierError::MpcError(Box::new(e)))?;
 
-            let tls_info = expect_msg_or_err!(verify_channel, TlsnMessage::TlsInfo)?;
+            let session_info = expect_msg_or_err!(verify_channel, TlsnMessage::SessionInfo)?;
 
             #[cfg(feature = "tracing")]
             info!("Finalized all MPC");
 
-            Ok::<_, VerifierError>((label_proof, tls_info))
+            Ok::<_, VerifierError>((label_proof, session_info))
         };
 
-        let (label_proof, tls_info) = futures::select! {
+        let (label_proof, session_info) = futures::select! {
             res = verify_fut.fuse() => res?,
             _ = &mut mux_fut => Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
         };
@@ -97,13 +97,11 @@ impl Verifier<Verify> {
             HandshakeSummary::new(start_time, server_ephemeral_key, handshake_commitment);
 
         // Verify the TLS session
-        tls_info
-            .session_info
-            .verify(&handshake_summary, self.config.cert_verifier())?;
+        session_info.verify(&handshake_summary, self.config.cert_verifier())?;
 
         // Get the redacted transcripts
         let (redacted_sent, redacted_received) = label_proof
-            .verify(sent_len, recv_len)
+            .reconstruct()
             .map_err(SubstringProofError::from)?;
 
         #[cfg(feature = "tracing")]

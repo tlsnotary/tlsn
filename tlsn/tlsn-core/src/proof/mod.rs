@@ -18,14 +18,3 @@ pub struct NotarizedTlsProof {
     /// Proof regarding the contents of the transcript.
     pub substrings: CommitmentProof,
 }
-
-/// Contains information about the TLS session between a Prover and a Server.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TlsInfo {
-    /// Information about the TLS session.
-    pub session_info: SessionInfo,
-    /// The length of the sent transcript.
-    pub sent_len: usize,
-    /// The length of the received transcript.
-    pub recv_len: usize,
-}

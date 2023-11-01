@@ -1,6 +1,6 @@
 use crate::{
     commitment::TranscriptCommitments,
-    proof::{substring::CommitmentProofBuilder, SessionInfo, TlsInfo},
+    proof::{substring::CommitmentProofBuilder, SessionInfo},
     ServerName, Transcript,
 };
 use mpz_core::commit::Decommitment;
@@ -119,15 +119,6 @@ impl SessionData {
     /// Returns the [SessionInfo]
     pub fn session_info(&self) -> &SessionInfo {
         &self.session_info
-    }
-
-    /// Creates a [TlsInfo]
-    pub fn build_tls_info(&self) -> TlsInfo {
-        TlsInfo {
-            session_info: self.session_info().clone(),
-            sent_len: self.transcript_tx.data().len(),
-            recv_len: self.transcript_rx.data().len(),
-        }
     }
 }
 
