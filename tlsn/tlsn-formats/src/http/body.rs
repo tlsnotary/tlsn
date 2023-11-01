@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use tlsn_core::{
-    commitment::{CommitmentId, TranscriptCommitmentBuilder},
-    proof::substring::SubstringProofBuilder,
+    commitment::{CommitmentId, TranscriptCommitmentBuilder, TranscriptCommitments},
+    proof::SubstringsProofBuilder,
     Direction,
 };
 
@@ -77,32 +77,41 @@ impl<'a> BodyCommitmentBuilder<'a> {
 /// Builder for proofs of an HTTP body.
 #[derive(Debug)]
 #[non_exhaustive]
-pub enum BodyProofBuilder<'a, T> {
+pub enum BodyProofBuilder<'a, 'b> {
     /// Builder for proofs of a JSON body.
-    Json(JsonProofBuilder<'a, T>),
+    Json(JsonProofBuilder<'a, 'b>),
     /// Builder for proofs of a body with an unknown format.
-    Unknown(UnknownProofBuilder<'a, T>),
+    Unknown(UnknownProofBuilder<'a, 'b>),
 }
 
-impl<'a, T> BodyProofBuilder<'a, T> {
+impl<'a, 'b> BodyProofBuilder<'a, 'b> {
     pub(crate) fn new(
-        builder: &'a mut dyn SubstringProofBuilder<T>,
+        builder: &'a mut SubstringsProofBuilder<'b>,
+        commitments: &'a TranscriptCommitments,
         value: &'a Body,
         direction: Direction,
         built: &'a mut bool,
     ) -> Self {
         match value {
-            Body::Json(body) => {
-                BodyProofBuilder::Json(JsonProofBuilder::new(builder, &body.0, direction, built))
-            }
-            Body::Unknown(body) => {
-                BodyProofBuilder::Unknown(UnknownProofBuilder::new(builder, body, direction, built))
-            }
+            Body::Json(body) => BodyProofBuilder::Json(JsonProofBuilder::new(
+                builder,
+                commitments,
+                &body.0,
+                direction,
+                built,
+            )),
+            Body::Unknown(body) => BodyProofBuilder::Unknown(UnknownProofBuilder::new(
+                builder,
+                commitments,
+                body,
+                direction,
+                built,
+            )),
         }
     }
 
     /// Proves the entire body.
-    pub fn all(&'a mut self) -> Result<(), HttpProofBuilderError> {
+    pub fn all(&mut self) -> Result<(), HttpProofBuilderError> {
         match self {
             BodyProofBuilder::Json(builder) => builder
                 .all()

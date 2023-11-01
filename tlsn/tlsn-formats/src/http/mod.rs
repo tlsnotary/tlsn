@@ -81,7 +81,7 @@ mod tests {
     use tlsn_core::{
         commitment::{CommitmentKind, TranscriptCommitmentBuilder},
         fixtures,
-        proof::substring::CommitmentProofBuilder,
+        proof::SubstringsProofBuilder,
         Direction, Transcript,
     };
 
@@ -159,9 +159,9 @@ mod tests {
 
         let commitments = transcript_commitment_builder.build().unwrap();
 
-        let spb = CommitmentProofBuilder::new(&commitments, &transcript_tx, &transcript_rx);
+        let spb = SubstringsProofBuilder::new(&commitments, &transcript_tx, &transcript_rx);
 
-        let mut builder = HttpProofBuilder::new(Box::new(spb), &requests, &responses);
+        let mut builder = HttpProofBuilder::new(spb, &commitments, &requests, &responses);
 
         let mut req_0 = builder.request(0).unwrap();
 
