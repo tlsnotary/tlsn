@@ -9,7 +9,7 @@ version = "0.1.0-alpha.2"
 edition = "2021"
 
 [features]
-default = ["formats"]
+default = []
 formats = ["dep:tlsn-formats"]
 tracing = [
     "dep:tracing",

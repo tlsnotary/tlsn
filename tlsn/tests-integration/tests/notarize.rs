@@ -73,19 +73,9 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
 
     client_socket.close().await.unwrap();
 
-    let mut prover = prover_task
-        .await
-        .unwrap()
-        .unwrap()
-        .to_http()
-        .unwrap()
-        .start_notarize();
+    let prover = prover_task.await.unwrap().unwrap().start_notarize();
 
-    prover.commit().unwrap();
-
-    let mut notarized_session = prover.finalize().await.unwrap();
-
-    _ = notarized_session.proof_builder().build().unwrap();
+    _ = prover.finalize().await.unwrap();
 }
 
 #[instrument(skip(socket))]

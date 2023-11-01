@@ -76,20 +76,12 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     client_socket.close().await.unwrap();
 
-    let mut prover = prover_task
-        .await
-        .unwrap()
-        .unwrap()
-        .to_http()
-        .unwrap()
-        .start_verify();
+    let prover = prover_task.await.unwrap().unwrap().start_verify();
 
     let proof_builder = prover.proof_builder();
-    let label_proof = proof_builder.build().unwrap();
+    let label_proof = proof_builder.build_proof().unwrap();
 
-    let session_data = prover.finalize(label_proof).await.unwrap();
-
-    session_data
+    prover.finalize(label_proof).await.unwrap()
 }
 
 #[instrument(skip(socket))]

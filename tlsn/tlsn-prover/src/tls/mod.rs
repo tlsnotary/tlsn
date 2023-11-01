@@ -16,6 +16,7 @@ pub use config::{ProverConfig, ProverConfigBuilder, ProverConfigBuilderError};
 pub use error::ProverError;
 pub use future::ProverFuture;
 
+use crate::Mux;
 use error::OTShutdownError;
 use future::{MuxFuture, OTFuture};
 use futures::{AsyncRead, AsyncWrite, FutureExt, StreamExt, TryFutureExt};
@@ -32,15 +33,14 @@ use tls_client::{ClientConnection, ServerName as TlsServerName};
 use tls_client_async::{bind_client, ClosedConnection, TlsConnection};
 use tls_mpc::{setup_components, MpcTlsLeader, TlsRole};
 use tlsn_core::transcript::Transcript;
-#[cfg(feature = "tracing")]
-use tracing::{debug, debug_span, instrument, Instrument};
 use uid_mux::{yamux, UidYamux};
 use utils_aio::{codec::BincodeMux, mux::MuxChannel};
 
-use crate::{
-    http::{state as http_state, HttpProver, HttpProverError},
-    Mux,
-};
+#[cfg(feature = "formats")]
+use http::{state as http_state, HttpProver, HttpProverError};
+
+#[cfg(feature = "tracing")]
+use tracing::{debug, debug_span, instrument, Instrument};
 
 /// A prover instance.
 #[derive(Debug)]
