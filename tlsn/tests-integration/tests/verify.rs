@@ -89,6 +89,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     prover
         .reveal(0..recv_transcript_len, Direction::Received)
         .unwrap();
+    prover.decode().await.unwrap();
 
     prover.finalize().await.unwrap()
 }
