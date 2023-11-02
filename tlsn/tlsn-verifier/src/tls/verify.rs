@@ -8,7 +8,7 @@ use mpz_garble::{value::ValueRef, Decode, Memory, Vm};
 use mpz_share_conversion::ShareConversionVerify;
 use tlsn_core::{
     msg::TlsnMessage,
-    proof::{substring::LabelProof, SessionInfo, SubstringProofError},
+    proof::{substring::LabelProof, SessionInfo},
     HandshakeSummary, RedactedTranscript,
 };
 use utils_aio::{expect_msg_or_err, mux::MuxChannel};
@@ -60,14 +60,10 @@ impl Verifier<Verify> {
                 .collect::<Result<Vec<ValueRef>, VerifierError>>()?;
 
             let values = decode_thread.decode(value_refs.as_slice()).await?;
-            label_proof
-                .set_decoding(values)
-                .map_err(SubstringProofError::from)?;
+            label_proof.set_decoding(values)?;
 
             // Get the redacted transcripts
-            let (redacted_sent, redacted_received) = label_proof
-                .reconstruct()
-                .map_err(SubstringProofError::from)?;
+            let (redacted_sent, redacted_received) = label_proof.reconstruct()?;
 
             #[cfg(feature = "tracing")]
             info!("Successfully decoded transcript parts");

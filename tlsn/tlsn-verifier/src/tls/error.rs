@@ -51,8 +51,8 @@ impl From<tlsn_core::proof::SessionProofError> for VerifierError {
     }
 }
 
-impl From<tlsn_core::proof::SubstringProofError> for VerifierError {
-    fn from(e: tlsn_core::proof::SubstringProofError) -> Self {
+impl From<tlsn_core::proof::substring::LabelProofError> for VerifierError {
+    fn from(e: tlsn_core::proof::substring::LabelProofError) -> Self {
         Self::MpcError(Box::new(e))
     }
 }

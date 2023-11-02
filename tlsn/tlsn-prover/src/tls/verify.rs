@@ -8,9 +8,7 @@ use futures::{FutureExt, SinkExt};
 use mpz_garble::{value::ValueRef, Decode, Memory, Vm};
 use mpz_share_conversion::ShareConversionReveal;
 use tlsn_core::{
-    msg::TlsnMessage,
-    proof::{substring::LabelProof, SubstringProofError},
-    Direction, ServerName, SessionData, Transcript,
+    msg::TlsnMessage, proof::substring::LabelProof, Direction, ServerName, SessionData, Transcript,
 };
 use utils::range::RangeSet;
 use utils_aio::mux::MuxChannel;
@@ -42,7 +40,6 @@ impl Prover<Verify> {
         self.state
             .proof
             .reveal_ranges(ranges.into(), direction)
-            .map_err(SubstringProofError::from)
             .map_err(ProverError::from)
     }
 
@@ -149,7 +146,7 @@ impl Prover<Verify> {
         })
         .fuse();
 
-        let _ = futures::select_biased! {
+        futures::select_biased! {
             res = verify_fut => res?,
             _ = ot_fut => return Err(OTShutdownError)?,
             _ = mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,

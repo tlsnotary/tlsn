@@ -8,8 +8,7 @@ use utils::range::{RangeDisjoint, RangeSet, RangeUnion};
 
 use crate::{
     commitment::{
-        Commitment, CommitmentId, CommitmentInfo, CommitmentKind, CommitmentOpening,
-        TranscriptCommitments,
+        Commitment, CommitmentId, CommitmentInfo, CommitmentOpening, TranscriptCommitments,
     },
     merkle::MerkleProof,
     transcript::get_value_ids,
@@ -18,8 +17,6 @@ use crate::{
 };
 
 use mpz_garble_core::Encoder;
-
-use super::{SubstringProofBuilder, SubstringProofBuilderError};
 
 /// An error for [`CommitmentProofBuilder`]
 #[derive(Debug, thiserror::Error)]
@@ -126,27 +123,6 @@ impl<'a> CommitmentProofBuilder<'a> {
             openings,
             inclusion_proof,
         })
-    }
-}
-
-impl SubstringProofBuilder<CommitmentProof> for CommitmentProofBuilder<'_> {
-    fn reveal(
-        &mut self,
-        ranges: RangeSet<usize>,
-        direction: Direction,
-    ) -> Result<&mut dyn SubstringProofBuilder<CommitmentProof>, SubstringProofBuilderError> {
-        // TODO: support different kinds of commitments
-        let id = self
-            .commitments()
-            .get_id_by_info(CommitmentKind::Blake3, ranges.clone(), direction)
-            .ok_or(CommitmentProofBuilderError::MissingCommitment(
-                ranges, direction,
-            ))?;
-        Ok(self.reveal(id)?)
-    }
-
-    fn build(self: Box<Self>) -> Result<CommitmentProof, SubstringProofBuilderError> {
-        (*self).build().map_err(Into::into)
     }
 }
 

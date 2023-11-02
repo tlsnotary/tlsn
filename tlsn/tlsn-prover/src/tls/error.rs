@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use tls_mpc::MpcTlsError;
-use tlsn_core::{commitment::TranscriptCommitmentBuilderError, proof::SubstringProofError};
+use tlsn_core::{commitment::TranscriptCommitmentBuilderError, proof::substring::LabelProofError};
 
 /// An error that can occur during proving.
 #[derive(Debug, thiserror::Error)]
@@ -28,7 +28,7 @@ pub enum ProverError {
     #[error(transparent)]
     CommitmentError(#[from] CommitmentError),
     #[error(transparent)]
-    ProofError(#[from] SubstringProofError),
+    ProofError(#[from] LabelProofError),
     #[error("{0}")]
     Other(Box<dyn Error + Send + 'static>),
 }
