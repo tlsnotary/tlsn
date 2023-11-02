@@ -27,7 +27,7 @@ There are two ways to obtain the notary server's Docker image:
 #### GitHub
 1. Obtain the latest image with:
 ```bash
-docker pull docker pull ghcr.io/tlsnotary/notary-server:latest
+docker pull ghcr.io/tlsnotary/notary-server:latest
 ```
 2. Run the docker container with:
 ```bash
