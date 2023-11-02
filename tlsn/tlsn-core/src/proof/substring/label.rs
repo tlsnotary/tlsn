@@ -132,6 +132,63 @@ pub struct LabelProof {
 }
 
 impl LabelProof {
+    /// Creates a new proof
+    ///
+    /// # Arguments
+    /// * `sent_len` - The length of the sent transcript
+    /// * `sent_label` - The label for the sent transcript
+    /// * `recv_len` - The length of the received transcript
+    /// * `recv_label` - The label for the received transcript
+    pub fn new(
+        sent_len: usize,
+        sent_label: impl Into<String>,
+        recv_len: usize,
+        recv_label: impl Into<String>,
+    ) -> Self {
+        Self {
+            sent_len,
+            sent_label: sent_label.into(),
+            sent_ids: RangeSet::default(),
+            sent_decoded_values: vec![],
+
+            recv_len,
+            recv_label: recv_label.into(),
+            recv_ids: RangeSet::default(),
+            recv_decoded_values: vec![],
+        }
+    }
+
+    /// Collects the transcript parts which are to be revealed
+    ///
+    /// # Arguments
+    /// * `ranges` - The ranges to reveal
+    /// * `direction` - The direction of the transcript
+    pub fn reveal_ranges(
+        &mut self,
+        ranges: RangeSet<usize>,
+        direction: Direction,
+    ) -> Result<(), LabelProofError> {
+        if ranges.is_empty() {
+            return Err(LabelProofError::EmptyRange);
+        }
+
+        match direction {
+            Direction::Sent
+                if ranges.max().expect("Range should be non-empty") <= self.sent_len =>
+            {
+                self.sent_ids = self.sent_ids.union(&ranges)
+            }
+            Direction::Received
+                if ranges.max().expect("Range should be non-empty") <= self.recv_len =>
+            {
+                self.recv_ids = self.recv_ids.union(&ranges)
+            }
+            _ => return Err(LabelProofError::RangeTooBig),
+        }
+
+        Ok(())
+    }
+
     /// Set the decoding values for the transcript
     pub fn set_decoding(&mut self, mut decoding_values: Vec<Value>) -> Result<(), LabelProofError> {
         let recv_values = decoding_values.split_off(self.sent_ids.len());
@@ -243,12 +300,12 @@ fn ids_to_transcript_slice(
 #[allow(missing_docs)]
 #[derive(Debug, Error)]
 pub enum LabelProofError {
-    #[error("The proof is invalid")]
-    InvalidProof,
-    #[error("Transcript length mismatch, expected {expected} but got {actual}")]
-    TranscriptLengthMismatch { expected: usize, actual: usize },
     #[error("Decoded values have wrong length, expected {expected} but got {actual}")]
     DecodedValuesLength { expected: usize, actual: usize },
+    #[error("Empty range cannot be revealed")]
+    EmptyRange,
+    #[error("The specified range cannot be revealed because it exceeds the transcript length")]
+    RangeTooBig,
 }
 
 #[cfg(test)]

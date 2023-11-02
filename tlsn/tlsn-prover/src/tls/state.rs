@@ -5,14 +5,18 @@ use crate::{
     Mux,
 };
 use mpz_core::commit::Decommitment;
-use mpz_garble::protocol::deap::{DEAPVm, PeerEncodings};
+use mpz_garble::protocol::deap::{DEAPThread, DEAPVm, PeerEncodings};
 use mpz_garble_core::{encoding_state, EncodedValue};
 use mpz_ot::actor::kos::{SharedReceiver, SharedSender};
 use mpz_share_conversion::{ConverterSender, Gf2_128};
 use std::collections::HashMap;
 use tls_core::{handshake::HandshakeData, key::PublicKey};
 use tls_mpc::MpcTlsLeader;
-use tlsn_core::{commitment::TranscriptCommitmentBuilder, Transcript};
+use tlsn_core::{
+    commitment::TranscriptCommitmentBuilder, msg::TlsnMessage, proof::substring::LabelProof,
+    Transcript,
+};
+use utils_aio::duplex::Duplex;
 
 /// Entry state
 pub struct Initialized;
@@ -117,10 +121,20 @@ pub struct Verify {
 
     pub(crate) transcript_tx: Transcript,
     pub(crate) transcript_rx: Transcript,
+
+    pub(crate) proof: LabelProof,
+    pub(crate) channel: Option<Box<dyn Duplex<TlsnMessage>>>,
+    pub(crate) decode_thread: Option<DEAPThread<SharedSender, SharedReceiver>>,
 }
 
 impl From<Closed> for Verify {
     fn from(state: Closed) -> Self {
+        let proof = LabelProof::new(
+            state.transcript_tx.data().len(),
+            "tx",
+            state.transcript_rx.data().len(),
+            "rx",
+        );
         Self {
             verify_mux: state.notary_mux,
             mux_fut: state.mux_fut,
@@ -130,6 +144,9 @@ impl From<Closed> for Verify {
             handshake_decommitment: state.handshake_decommitment,
             transcript_tx: state.transcript_tx,
             transcript_rx: state.transcript_rx,
+            proof,
+            channel: None,
+            decode_thread: None,
         }
     }
 }

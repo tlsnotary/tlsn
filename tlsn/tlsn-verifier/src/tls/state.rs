@@ -1,11 +1,13 @@
 //! TLS Verifier state.
 
 use mpz_core::hash::Hash;
-use mpz_garble::protocol::deap::DEAPVm;
+use mpz_garble::protocol::deap::{DEAPThread, DEAPVm};
 use mpz_ot::actor::kos::{SharedReceiver, SharedSender};
 use mpz_share_conversion::{ConverterReceiver, Gf2_128};
 use tls_core::key::PublicKey;
 use tls_mpc::MpcTlsFollower;
+use tlsn_core::msg::TlsnMessage;
+use utils_aio::duplex::Duplex;
 
 use crate::{
     tls::future::{MuxFuture, OTFuture},
@@ -113,6 +115,9 @@ pub struct Verify {
     pub(crate) handshake_commitment: Hash,
     pub(crate) sent_len: usize,
     pub(crate) recv_len: usize,
+
+    pub(crate) channel: Option<Box<dyn Duplex<TlsnMessage>>>,
+    pub(crate) decode_thread: Option<DEAPThread<SharedSender, SharedReceiver>>,
 }
 
 opaque_debug::implement!(Verify);
@@ -132,6 +137,8 @@ impl From<Closed> for Verify {
             handshake_commitment: value.handshake_commitment,
             sent_len: value.sent_len,
             recv_len: value.recv_len,
+            channel: None,
+            decode_thread: None,
         }
     }
 }

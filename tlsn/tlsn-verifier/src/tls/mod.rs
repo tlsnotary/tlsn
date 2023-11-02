@@ -29,7 +29,7 @@ use signature::Signer;
 use state::{Notarize, Verify};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tls_mpc::{setup_components, MpcTlsFollower, TlsRole};
-use tlsn_core::{RedactedTranscript, SessionHeader, Signature};
+use tlsn_core::{proof::SessionInfo, RedactedTranscript, SessionHeader, Signature};
 use uid_mux::{yamux, UidYamux};
 use utils_aio::{codec::BincodeMux, duplex::Duplex, mux::MuxChannel};
 
@@ -127,14 +127,12 @@ impl Verifier<state::Initialized> {
     pub async fn verify<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         self,
         socket: S,
-    ) -> Result<(RedactedTranscript, RedactedTranscript), VerifierError> {
-        self.setup(socket)
-            .await?
-            .run()
-            .await?
-            .start_verify()
-            .finalize()
-            .await
+    ) -> Result<(RedactedTranscript, RedactedTranscript, SessionInfo), VerifierError> {
+        let mut verifier = self.setup(socket).await?.run().await?.start_verify();
+        let (redacted_sent, redacted_received) = verifier.receive().await?;
+
+        let session_info = verifier.finalize().await?;
+        Ok((redacted_sent, redacted_received, session_info))
     }
 }
 
