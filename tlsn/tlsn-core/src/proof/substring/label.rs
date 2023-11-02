@@ -265,15 +265,15 @@ mod tests {
     }
 
     fn build_test_label_proof() -> LabelProof {
-        let mut builder = LabelProofBuilder::new(10, "tx", 12, "rx");
-        builder
-            .reveal_ranges((2..5).into(), Direction::Sent)
-            .unwrap()
+        let mut proof = LabelProof::new(10, "tx", 12, "rx");
+        proof.reveal_ranges((2..5).into(), Direction::Sent).unwrap();
+        proof
             .reveal_ranges(RangeSet::from(5..8).union(&(8..9)), Direction::Sent)
-            .unwrap()
+            .unwrap();
+        proof
             .reveal_ranges((0..3).into(), Direction::Received)
             .unwrap();
-        builder.build_proof().unwrap()
+        proof
     }
 
     fn build_test_decoding_values() -> Vec<Value> {
