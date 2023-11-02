@@ -75,6 +75,12 @@ impl TranscriptProof {
         sent_len: usize,
         recv_len: usize,
     ) -> Result<(RedactedTranscript, RedactedTranscript), TranscriptProofError> {
+        if self.sent.max().ok_or(TranscriptProofError::EmptyRange)? > sent_len
+            || self.recv.max().ok_or(TranscriptProofError::EmptyRange)? > recv_len
+        {
+            return Err(TranscriptProofError::RangeTooBig);
+        }
+
         let sent_redacted = RedactedTranscript::new(
             sent_len,
             ids_to_transcript_slice(&self.sent, self.sent_decoded_values.as_slice()),
@@ -156,7 +162,7 @@ pub enum TranscriptProofError {
     DecodedValuesLength { expected: usize, actual: usize },
     #[error("Empty range cannot be revealed")]
     EmptyRange,
-    #[error("The specified range cannot be revealed because it exceeds the transcript length")]
+    #[error("Cannot reconstruct transcript, because the proof contains a range which exceeds the transcript length")]
     RangeTooBig,
 }
 
