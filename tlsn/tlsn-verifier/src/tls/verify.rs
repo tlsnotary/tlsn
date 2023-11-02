@@ -17,7 +17,11 @@ use utils_aio::{expect_msg_or_err, mux::MuxChannel};
 use tracing::info;
 
 impl Verifier<Verify> {
-    /// Receive decoding information from the prover and return the redacted transcripts.
+    /// Receives the **purported** transcript from the Prover.
+    ///
+    /// # Warning
+    ///
+    /// The content of the received transcripts can not be considered authentic until after finalization.
     pub async fn receive(
         &mut self,
     ) -> Result<(RedactedTranscript, RedactedTranscript), VerifierError> {
