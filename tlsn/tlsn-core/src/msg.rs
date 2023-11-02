@@ -5,7 +5,7 @@ use utils::range::RangeSet;
 
 use crate::{
     merkle::MerkleRoot,
-    proof::{substring::LabelProof, SessionInfo},
+    proof::{substring::TranscriptProof, SessionInfo},
     signature::Signature,
     SessionHeader,
 };
@@ -37,25 +37,17 @@ pub struct SignedSessionHeader {
 /// Information about what values the prover wants to decode
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DecodingInfo {
-    /// The label for the sent transcript
-    pub sent_label: String,
     /// The ids for the send transcript from which to reconstruct the value refs
     pub sent_ids: RangeSet<usize>,
-
-    /// The label for the sent transcript
-    pub recv_label: String,
     /// The ids for the received transcript from which to reconstruct the value refs
     pub recv_ids: RangeSet<usize>,
 }
 
-impl From<LabelProof> for DecodingInfo {
-    fn from(value: LabelProof) -> Self {
+impl From<TranscriptProof> for DecodingInfo {
+    fn from(value: TranscriptProof) -> Self {
         Self {
-            sent_label: value.sent_label,
-            sent_ids: value.sent_ids,
-
-            recv_label: value.recv_label,
-            recv_ids: value.recv_ids,
+            sent_ids: value.sent,
+            recv_ids: value.recv,
         }
     }
 }

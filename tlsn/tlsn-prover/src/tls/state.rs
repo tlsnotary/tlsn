@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use tls_core::{handshake::HandshakeData, key::PublicKey};
 use tls_mpc::MpcTlsLeader;
 use tlsn_core::{
-    commitment::TranscriptCommitmentBuilder, msg::TlsnMessage, proof::substring::LabelProof,
+    commitment::TranscriptCommitmentBuilder, msg::TlsnMessage, proof::substring::TranscriptProof,
     Transcript,
 };
 use utils_aio::duplex::Duplex;
@@ -122,19 +122,13 @@ pub struct Verify {
     pub(crate) transcript_tx: Transcript,
     pub(crate) transcript_rx: Transcript,
 
-    pub(crate) proof: LabelProof,
+    pub(crate) proof: TranscriptProof,
     pub(crate) channel: Option<Box<dyn Duplex<TlsnMessage>>>,
     pub(crate) decode_thread: Option<DEAPThread<SharedSender, SharedReceiver>>,
 }
 
 impl From<Closed> for Verify {
     fn from(state: Closed) -> Self {
-        let proof = LabelProof::new(
-            state.transcript_tx.data().len(),
-            "tx",
-            state.transcript_rx.data().len(),
-            "rx",
-        );
         Self {
             verify_mux: state.notary_mux,
             mux_fut: state.mux_fut,
@@ -144,7 +138,7 @@ impl From<Closed> for Verify {
             handshake_decommitment: state.handshake_decommitment,
             transcript_tx: state.transcript_tx,
             transcript_rx: state.transcript_rx,
-            proof,
+            proof: TranscriptProof::default(),
             channel: None,
             decode_thread: None,
         }

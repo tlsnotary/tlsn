@@ -118,19 +118,5 @@ impl HttpProver<state::Notarize> {
 }
 
 impl HttpProver<state::Verify> {
-    /// Creates a [HttpProofBuilder] for creating proofs for http traffic
-    pub fn proof_builder(&mut self) -> HttpProofBuilder<'_, LabelProof> {
-        let prover: Box<dyn SubstringProofBuilder<LabelProof>> =
-            Box::new(self.state.prover.proof_builder());
-        HttpProofBuilder::new(prover, &self.state.requests, &self.state.responses)
-    }
-
-    /// Finalizes the HTTP session.
-    pub async fn finalize(self, label_proof: LabelProof) -> Result<SessionData, HttpProverError> {
-        self.state
-            .prover
-            .finalize(label_proof)
-            .await
-            .map_err(HttpProverError::from)
-    }
+    // TODO
 }

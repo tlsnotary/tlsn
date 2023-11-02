@@ -8,7 +8,7 @@ use mpz_garble::{value::ValueRef, Decode, Memory, Vm};
 use mpz_share_conversion::ShareConversionVerify;
 use tlsn_core::{
     msg::TlsnMessage,
-    proof::{substring::LabelProof, SessionInfo},
+    proof::{substring::TranscriptProof, SessionInfo},
     HandshakeSummary, RedactedTranscript,
 };
 use utils_aio::{expect_msg_or_err, mux::MuxChannel};
@@ -43,13 +43,9 @@ impl Verifier<Verify> {
             let decoding_info = expect_msg_or_err!(channel, TlsnMessage::DecodingInfo)?;
 
             // Get the decoded value refs from the DEAP vm
-            let mut label_proof = LabelProof::from_decoding_info(
-                decoding_info,
-                self.state.sent_len,
-                self.state.recv_len,
-            );
-            let value_refs = label_proof
-                .iter_ids()
+            let mut proof: TranscriptProof = decoding_info.into();
+            let value_refs = proof
+                .iter_ids("tx", "rx")
                 .map(|id| {
                     decode_thread
                         .get_value(id.as_str())
@@ -60,10 +56,11 @@ impl Verifier<Verify> {
                 .collect::<Result<Vec<ValueRef>, VerifierError>>()?;
 
             let values = decode_thread.decode(value_refs.as_slice()).await?;
-            label_proof.set_decoding(values)?;
+            proof.set_decoding(values)?;
 
             // Get the redacted transcripts
-            let (redacted_sent, redacted_received) = label_proof.reconstruct()?;
+            let (redacted_sent, redacted_received) =
+                proof.reconstruct(self.state.sent_len, self.state.recv_len)?;
 
             #[cfg(feature = "tracing")]
             info!("Successfully decoded transcript parts");

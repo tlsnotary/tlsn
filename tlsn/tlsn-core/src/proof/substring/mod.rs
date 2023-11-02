@@ -1,9 +1,9 @@
 //! This module supports different types of substring proofs.
 
 mod commitment;
-mod label;
+mod transcript;
 
 pub use commitment::{
     CommitmentProof, CommitmentProofBuilder, CommitmentProofBuilderError, CommitmentProofError,
 };
-pub use label::{LabelProof, LabelProofError};
+pub use transcript::{TranscriptProof, TranscriptProofError};

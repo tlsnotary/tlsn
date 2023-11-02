@@ -5,49 +5,20 @@ use mpz_circuits::types::Value;
 use thiserror::Error;
 use utils::range::{RangeSet, RangeUnion};
 
-/// A substring proof which works with garbling labels
+/// A substring proof which works without commitments
 ///
 /// This proof needs to be sent to the verifier, who will use it to reveal the plaintext bytes of
 /// the transcript.
-pub struct LabelProof {
-    pub(crate) sent_len: usize,
-    pub(crate) sent_label: String,
-    pub(crate) sent_ids: RangeSet<usize>,
+#[derive(Debug, Default)]
+pub struct TranscriptProof {
+    pub(crate) sent: RangeSet<usize>,
     sent_decoded_values: Vec<Value>,
 
-    pub(crate) recv_len: usize,
-    pub(crate) recv_label: String,
-    pub(crate) recv_ids: RangeSet<usize>,
+    pub(crate) recv: RangeSet<usize>,
     recv_decoded_values: Vec<Value>,
 }
 
-impl LabelProof {
-    /// Creates a new proof
-    ///
-    /// # Arguments
-    /// * `sent_len` - The length of the sent transcript
-    /// * `sent_label` - The label for the sent transcript
-    /// * `recv_len` - The length of the received transcript
-    /// * `recv_label` - The label for the received transcript
-    pub fn new(
-        sent_len: usize,
-        sent_label: impl Into<String>,
-        recv_len: usize,
-        recv_label: impl Into<String>,
-    ) -> Self {
-        Self {
-            sent_len,
-            sent_label: sent_label.into(),
-            sent_ids: RangeSet::default(),
-            sent_decoded_values: vec![],
-
-            recv_len,
-            recv_label: recv_label.into(),
-            recv_ids: RangeSet::default(),
-            recv_decoded_values: vec![],
-        }
-    }
-
+impl TranscriptProof {
     /// Collects the transcript parts which are to be revealed
     ///
     /// # Arguments
@@ -57,42 +28,35 @@ impl LabelProof {
         &mut self,
         ranges: RangeSet<usize>,
         direction: Direction,
-    ) -> Result<(), LabelProofError> {
+    ) -> Result<(), TranscriptProofError> {
         if ranges.is_empty() {
-            return Err(LabelProofError::EmptyRange);
+            return Err(TranscriptProofError::EmptyRange);
         }
-
         match direction {
-            Direction::Sent
-                if ranges.max().expect("Range should be non-empty") <= self.sent_len =>
-            {
-                self.sent_ids = self.sent_ids.union(&ranges)
-            }
-            Direction::Received
-                if ranges.max().expect("Range should be non-empty") <= self.recv_len =>
-            {
-                self.recv_ids = self.recv_ids.union(&ranges)
-            }
-            _ => return Err(LabelProofError::RangeTooBig),
-        }
+            Direction::Sent => self.sent = self.sent.union(&ranges),
+            Direction::Received => self.recv = self.recv.union(&ranges),
+        };
 
         Ok(())
     }
 
     /// Set the decoding values for the transcript
-    pub fn set_decoding(&mut self, mut decoding_values: Vec<Value>) -> Result<(), LabelProofError> {
-        let recv_values = decoding_values.split_off(self.sent_ids.len());
+    pub fn set_decoding(
+        &mut self,
+        mut decoding_values: Vec<Value>,
+    ) -> Result<(), TranscriptProofError> {
+        let recv_values = decoding_values.split_off(self.sent.len());
 
         // Verify the decoded values lengths
-        if decoding_values.len() != self.sent_ids.len() {
-            return Err(LabelProofError::DecodedValuesLength {
-                expected: self.sent_ids.len(),
+        if decoding_values.len() != self.sent.len() {
+            return Err(TranscriptProofError::DecodedValuesLength {
+                expected: self.sent.len(),
                 actual: decoding_values.len(),
             });
         }
-        if recv_values.len() != self.recv_ids.len() {
-            return Err(LabelProofError::DecodedValuesLength {
-                expected: self.recv_ids.len(),
+        if recv_values.len() != self.recv.len() {
+            return Err(TranscriptProofError::DecodedValuesLength {
+                expected: self.recv.len(),
                 actual: recv_values.len(),
             });
         }
@@ -106,54 +70,52 @@ impl LabelProof {
     /// Reconstructs the transcript from the given values
     ///
     /// Returns the sent (first) and received transcript (second)
-    pub fn reconstruct(&self) -> Result<(RedactedTranscript, RedactedTranscript), LabelProofError> {
+    pub fn reconstruct(
+        &self,
+        sent_len: usize,
+        recv_len: usize,
+    ) -> Result<(RedactedTranscript, RedactedTranscript), TranscriptProofError> {
         let sent_redacted = RedactedTranscript::new(
-            self.sent_len,
-            ids_to_transcript_slice(&self.sent_ids, self.sent_decoded_values.as_slice()),
+            sent_len,
+            ids_to_transcript_slice(&self.sent, self.sent_decoded_values.as_slice()),
         );
         let recv_redacted = RedactedTranscript::new(
-            self.recv_len,
-            ids_to_transcript_slice(&self.recv_ids, self.recv_decoded_values.as_slice()),
+            recv_len,
+            ids_to_transcript_slice(&self.recv, self.recv_decoded_values.as_slice()),
         );
 
         Ok((sent_redacted, recv_redacted))
     }
 
     /// Returns an iterator over the ids
-    pub fn iter_ids(&self) -> impl Iterator<Item = String> + '_ {
+    pub fn iter_ids(
+        &self,
+        tx_transcript_id: impl Into<String>,
+        rx_transcript_id: impl Into<String>,
+    ) -> impl Iterator<Item = String> + '_ {
+        let tx_transcript_id = tx_transcript_id.into();
+        let rx_transcript_id = rx_transcript_id.into();
+
         let sent_labeled = self
-            .sent_ids
+            .sent
             .iter()
-            .map(|s| format!("{}/{}", self.sent_label, s));
+            .map(move |s| format!("{}/{}", tx_transcript_id, s));
 
         let recv_labeled = self
-            .recv_ids
+            .recv
             .iter()
-            .map(|s| format!("{}/{}", self.recv_label, s));
+            .map(move |s| format!("{}/{}", rx_transcript_id, s));
 
         sent_labeled.chain(recv_labeled)
     }
+}
 
-    /// Creates a new [LabelProof] from the given [DecodingInfo]
-    ///
-    /// Also needs the lengths of the sent and received transcripts.
-    pub fn from_decoding_info(decoding: DecodingInfo, sent_len: usize, recv_len: usize) -> Self {
-        let DecodingInfo {
-            sent_label,
-            sent_ids,
-            recv_label,
-            recv_ids,
-        } = decoding;
-
+impl From<DecodingInfo> for TranscriptProof {
+    fn from(value: DecodingInfo) -> Self {
         Self {
-            sent_len,
-            sent_label,
-            sent_ids,
+            sent: value.sent_ids,
             sent_decoded_values: vec![],
-
-            recv_len,
-            recv_label,
-            recv_ids,
+            recv: value.recv_ids,
             recv_decoded_values: vec![],
         }
     }
@@ -186,10 +148,10 @@ fn ids_to_transcript_slice(
     transcript_slices
 }
 
-/// An error type for [LabelProof].
+/// An error type for [TranscriptProof].
 #[allow(missing_docs)]
 #[derive(Debug, Error)]
-pub enum LabelProofError {
+pub enum TranscriptProofError {
     #[error("Decoded values have wrong length, expected {expected} but got {actual}")]
     DecodedValuesLength { expected: usize, actual: usize },
     #[error("Empty range cannot be revealed")]
@@ -203,26 +165,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_build_label_proof() {
-        let proof = build_test_label_proof();
-
-        assert_eq!(proof.sent_len, 10);
-        assert_eq!(proof.recv_len, 12);
-
-        assert_eq!(proof.sent_label, "tx");
-        assert_eq!(proof.recv_label, "rx");
+    fn test_transcript_proof() {
+        let proof = build_test_proof();
 
         assert_eq!(
-            proof.sent_ids,
+            proof.sent,
             RangeSet::from(2..5_usize).union(&(5..8)).union(&(8..9))
         );
-        assert_eq!(proof.recv_ids, RangeSet::from(0..3));
+        assert_eq!(proof.recv, RangeSet::from(0..3));
     }
 
     #[test]
-    fn test_label_proof_iter_ids() {
-        let proof = build_test_label_proof();
-        let value_refs = proof.iter_ids().collect::<Vec<String>>();
+    fn test_transcript_proof_iter_ids() {
+        let proof = build_test_proof();
+        let value_refs = proof.iter_ids("tx", "rx").collect::<Vec<String>>();
 
         let range_set_sent = RangeSet::from(2..5_usize).union(&(5..8)).union(&(8..9));
         let range_set_recv = RangeSet::from(0..3_usize);
@@ -237,8 +193,8 @@ mod tests {
     }
 
     #[test]
-    fn test_label_proof_set_decoding() {
-        let mut proof = build_test_label_proof();
+    fn test_transcript_proof_set_decoding() {
+        let mut proof = build_test_proof();
         let decoding_values = build_test_decoding_values();
         proof.set_decoding(decoding_values.clone()).unwrap();
 
@@ -247,12 +203,12 @@ mod tests {
     }
 
     #[test]
-    fn test_label_proof_verify() {
-        let mut proof = build_test_label_proof();
+    fn test_transcript_proof_verify() {
+        let mut proof = build_test_proof();
         let decoding_values = build_test_decoding_values();
         proof.set_decoding(decoding_values.clone()).unwrap();
 
-        let (sent, received) = proof.reconstruct().unwrap();
+        let (sent, received) = proof.reconstruct(10, 12).unwrap();
 
         assert_eq!(sent.data(), &[0, 0, 1, 2, 3, 4, 5, 6, 7, 0]);
         assert_eq!(received.data(), &[8, 9, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
@@ -264,8 +220,8 @@ mod tests {
         assert_eq!(received.redacted(), &RangeSet::from(3..12));
     }
 
-    fn build_test_label_proof() -> LabelProof {
-        let mut proof = LabelProof::new(10, "tx", 12, "rx");
+    fn build_test_proof() -> TranscriptProof {
+        let mut proof = TranscriptProof::default();
         proof.reveal_ranges((2..5).into(), Direction::Sent).unwrap();
         proof
             .reveal_ranges(RangeSet::from(5..8).union(&(8..9)), Direction::Sent)

@@ -7,9 +7,7 @@ use crate::tls::error::OTShutdownError;
 use futures::{FutureExt, SinkExt};
 use mpz_garble::{value::ValueRef, Decode, Memory, Vm};
 use mpz_share_conversion::ShareConversionReveal;
-use tlsn_core::{
-    msg::TlsnMessage, proof::substring::LabelProof, Direction, ServerName, SessionData, Transcript,
-};
+use tlsn_core::{msg::TlsnMessage, Direction, ServerName, SessionData, Transcript};
 use utils::range::RangeSet;
 use utils_aio::mux::MuxChannel;
 
@@ -45,13 +43,7 @@ impl Prover<Verify> {
 
     /// Decodes transcript values
     pub async fn decode(&mut self) -> Result<(), ProverError> {
-        let new_proof = LabelProof::new(
-            self.sent_transcript().data().len(),
-            "tx",
-            self.recv_transcript().data().len(),
-            "rx",
-        );
-        let label_proof = std::mem::replace(&mut self.state.proof, new_proof);
+        let transcript_proof = std::mem::take(&mut self.state.proof);
 
         let mut verify_fut = Box::pin(async {
             let channel = if let Some(ref mut channel) = self.state.channel {
@@ -69,8 +61,8 @@ impl Prover<Verify> {
             };
 
             // Get the decoded value refs from the DEAP vm
-            let value_refs = label_proof
-                .iter_ids()
+            let value_refs = transcript_proof
+                .iter_ids("tx", "rx")
                 .map(|id| {
                     decode_thread
                         .get_value(id.as_str())
@@ -82,7 +74,7 @@ impl Prover<Verify> {
 
             // Send the ids to the verifier so that he can also create the corresponding value refs
             channel
-                .send(TlsnMessage::DecodingInfo(label_proof.into()))
+                .send(TlsnMessage::DecodingInfo(transcript_proof.into()))
                 .await?;
 
             // Decode the corresponding values
