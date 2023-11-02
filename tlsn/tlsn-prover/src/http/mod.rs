@@ -7,12 +7,9 @@
 
 pub mod state;
 
-use crate::tls::{state as prover_state, Prover, ProverError};
-use tlsn_core::{
-    proof::{substring::LabelProof, SubstringProofBuilder},
-    SessionData,
-};
 use tlsn_formats::http::{parse_requests, parse_responses, ParseError};
+
+use crate::tls::{state as prover_state, Prover, ProverError};
 
 pub use tlsn_formats::{
     http::{
@@ -72,20 +69,6 @@ impl HttpProver<state::Closed> {
             },
         }
     }
-
-    /// Starts proving the HTTP session.
-    ///
-    /// This function transitions the prover into a state where it can prove content of the
-    /// transcript.
-    pub fn start_prove(self) -> HttpProver<state::Verify> {
-        HttpProver {
-            state: state::Verify {
-                prover: self.state.prover.start_prove(),
-                requests: self.state.requests,
-                responses: self.state.responses,
-            },
-        }
-    }
 }
 
 impl HttpProver<state::Notarize> {
@@ -115,8 +98,4 @@ impl HttpProver<state::Notarize> {
             self.state.responses,
         ))
     }
-}
-
-impl HttpProver<state::Verify> {
-    // TODO
 }
