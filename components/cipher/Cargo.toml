@@ -28,3 +28,7 @@ tracing = "0.1"
 
 # misc
 derive_builder = "0.12"
+
+[patch.'https://github.com/privacy-scaling-explorations/mpz']
+mpz-circuits = { path = "../../../mpz/mpz-circuits" }
+mpz-garble = { path = "../../../mpz/garble/mpz-garble" }

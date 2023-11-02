@@ -1,7 +1,7 @@
 use mpz_circuits::{circuits::aes128_trace, once_cell::sync::Lazy, trace, Circuit, CircuitBuilder};
 use std::sync::Arc;
 
-/// AES encrypt counter block and apply message.
+/// AES encrypt counter block.
 ///
 /// # Inputs
 ///
@@ -9,20 +9,18 @@ use std::sync::Arc;
 ///   1. IV: 4-byte IV
 ///   2. EXPLICIT_NONCE: 8-byte explicit nonce
 ///   3. CTR: 4-byte counter
-///   4. MSG: 16-byte message
 ///
 /// # Outputs
 ///
-///   0. CIPHERTEXT: 16-byte output
+///   0. ECB: 16-byte output
 pub(crate) static AES_CTR: Lazy<Arc<Circuit>> = Lazy::new(|| {
     let builder = CircuitBuilder::new();
     let key = builder.add_array_input::<u8, 16>();
     let iv = builder.add_array_input::<u8, 4>();
     let nonce = builder.add_array_input::<u8, 8>();
     let ctr = builder.add_array_input::<u8, 4>();
-    let msg = builder.add_array_input::<u8, 16>();
-    let ciphertext = aes_ctr_trace(builder.state(), key, iv, nonce, ctr, msg);
-    builder.add_output(ciphertext);
+    let ecb = aes_ctr_trace(builder.state(), key, iv, nonce, ctr);
+    builder.add_output(ecb);
 
     Arc::new(builder.build().unwrap())
 });
@@ -30,17 +28,9 @@ pub(crate) static AES_CTR: Lazy<Arc<Circuit>> = Lazy::new(|| {
 #[trace]
 #[dep(aes_128, aes128_trace)]
 #[allow(dead_code)]
-fn aes_ctr(
-    key: [u8; 16],
-    iv: [u8; 4],
-    explicit_nonce: [u8; 8],
-    ctr: [u8; 4],
-    msg: [u8; 16],
-) -> [u8; 16] {
+fn aes_ctr(key: [u8; 16], iv: [u8; 4], explicit_nonce: [u8; 8], ctr: [u8; 4]) -> [u8; 16] {
     let block: Vec<_> = iv.into_iter().chain(explicit_nonce).chain(ctr).collect();
-    let ectr = aes_128(key, block.try_into().unwrap());
-
-    std::array::from_fn(|i| ectr[i] ^ msg[i])
+    aes_128(key, block.try_into().unwrap())
 }
 
 #[allow(dead_code)]
