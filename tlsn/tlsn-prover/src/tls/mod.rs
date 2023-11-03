@@ -9,8 +9,8 @@ mod config;
 mod error;
 mod future;
 mod notarize;
+mod prove;
 pub mod state;
-mod verify;
 
 pub use config::{ProverConfig, ProverConfigBuilder, ProverConfigBuilderError};
 pub use error::ProverError;
@@ -27,7 +27,7 @@ use mpz_ot::{
 };
 use mpz_share_conversion as ff;
 use rand::Rng;
-use state::{Notarize, Verify};
+use state::{Notarize, Prove};
 use std::sync::Arc;
 use tls_client::{ClientConnection, ServerName as TlsServerName};
 use tls_client_async::{bind_client, ClosedConnection, TlsConnection};
@@ -223,7 +223,7 @@ impl Prover<state::Closed> {
     ///
     /// This function transitions the prover into a state where it can prove content of the
     /// transcript.
-    pub fn start_prove(self) -> Prover<Verify> {
+    pub fn start_prove(self) -> Prover<Prove> {
         Prover {
             config: self.config,
             state: self.state.into(),

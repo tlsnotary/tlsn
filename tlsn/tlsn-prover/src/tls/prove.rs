@@ -1,8 +1,8 @@
-//! This module handles the verification phase of the prover.
+//! This module handles the proving phase of the prover.
 //!
 //! Here the prover deals with a TLS verifier that is a notary and a verifier.
 
-use super::{state::Verify, Prover, ProverError};
+use super::{state::Prove, Prover, ProverError};
 use crate::tls::error::OTShutdownError;
 use futures::{FutureExt, SinkExt};
 use mpz_garble::{value::ValueRef, Decode, Memory, Vm};
@@ -11,7 +11,7 @@ use tlsn_core::{msg::TlsnMessage, Direction, ServerName, SessionData, Transcript
 use utils::range::RangeSet;
 use utils_aio::mux::MuxChannel;
 
-impl Prover<Verify> {
+impl Prover<Prove> {
     /// Returns the transcript of the sent requests
     pub fn sent_transcript(&self) -> &Transcript {
         &self.state.transcript_tx
@@ -92,9 +92,9 @@ impl Prover<Verify> {
         Ok(())
     }
 
-    /// Finalize the verification
+    /// Finalize the proving
     pub async fn finalize(self) -> Result<SessionData, ProverError> {
-        let Verify {
+        let Prove {
             mut verify_mux,
             mut mux_fut,
             mut vm,

@@ -108,8 +108,8 @@ impl From<Closed> for Notarize {
     }
 }
 
-/// Verifying state.
-pub struct Verify {
+/// Proving state.
+pub struct Prove {
     pub(crate) verify_mux: Mux,
     pub(crate) mux_fut: MuxFuture,
 
@@ -127,7 +127,7 @@ pub struct Verify {
     pub(crate) decode_thread: Option<DEAPThread<SharedSender, SharedReceiver>>,
 }
 
-impl From<Closed> for Verify {
+impl From<Closed> for Prove {
     fn from(state: Closed) -> Self {
         Self {
             verify_mux: state.notary_mux,
@@ -152,7 +152,7 @@ impl ProverState for Initialized {}
 impl ProverState for Setup {}
 impl ProverState for Closed {}
 impl ProverState for Notarize {}
-impl ProverState for Verify {}
+impl ProverState for Prove {}
 
 mod sealed {
     pub trait Sealed {}
@@ -160,7 +160,7 @@ mod sealed {
     impl Sealed for super::Setup {}
     impl Sealed for super::Closed {}
     impl Sealed for super::Notarize {}
-    impl Sealed for super::Verify {}
+    impl Sealed for super::Prove {}
 }
 
 fn collect_encodings(
