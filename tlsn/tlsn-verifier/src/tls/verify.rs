@@ -43,6 +43,15 @@ impl Verifier<Verify> {
             // Receive decoding info from the prover
             let decoding_info = expect_msg_or_err!(channel, TlsnMessage::DecodingInfo)?;
 
+            // Check ranges
+            if decoding_info.sent_ids.max().unwrap_or_default() > self.state.sent_len
+                || decoding_info.recv_ids.max().unwrap_or_default() > self.state.recv_len
+            {
+                return Err(VerifierError::from(
+                    "Decoding information contains ids which exceed transcript length",
+                ));
+            }
+
             // Decode values
             let sent_value_ids = decoding_info
                 .sent_ids
@@ -61,27 +70,22 @@ impl Verifier<Verify> {
                         .map(|id| {
                             decode_thread
                                 .get_value(id.as_str())
-                                .ok_or(VerifierError::from(
-                                    "Transcript value cannot be decoded from VM thread",
-                                ))
+                                .expect("Byte should be in VM memory")
                         })
-                        .collect::<Result<Vec<_>, _>>()
-                        .expect("Should be able to collect");
-                    decode_thread.array_from_values(inner_refs.as_slice())
+                        .collect::<Vec<_>>();
+
+                    decode_thread
+                        .array_from_values(inner_refs.as_slice())
+                        .expect("Byte should be in VM Memory")
                 })
-                .collect::<Result<Vec<_>, _>>()?;
+                .collect::<Vec<_>>();
 
             let values = decode_thread
                 .decode(value_refs.as_slice())
                 .await?
                 .into_iter()
-                .map(|v| v.try_into())
-                .collect::<Result<Vec<Vec<u8>>, _>>()
-                .map_err(|err| {
-                    VerifierError::from(
-                        format!("Error converting decoded values: {}", err).as_str(),
-                    )
-                })?;
+                .map(|v| v.try_into().expect("Value should be U8"))
+                .collect::<Vec<Vec<u8>>>();
 
             let mut transcripts = decoding_info
                 .sent_ids

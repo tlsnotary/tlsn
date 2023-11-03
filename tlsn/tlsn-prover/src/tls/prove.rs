@@ -47,6 +47,16 @@ impl Prover<Prove> {
     pub async fn decode(&mut self) -> Result<(), ProverError> {
         let decoding_info = std::mem::take(&mut self.state.decoding_info);
 
+        // Check ranges
+        if decoding_info.sent_ids.max().unwrap_or_default() > self.state.transcript_tx.data().len()
+            || decoding_info.recv_ids.max().unwrap_or_default()
+                > self.state.transcript_rx.data().len()
+        {
+            return Err(ProverError::from(
+                "Decoding information contains ids which exceed transcript length",
+            ));
+        }
+
         let mut prove_fut = Box::pin(async {
             // Create a new channel and vm thread if not already present
             let channel = if let Some(ref mut channel) = self.state.channel {
@@ -63,6 +73,7 @@ impl Prover<Prove> {
                 self.state.decode_thread.as_mut().unwrap()
             };
 
+            // Decode values
             let sent_value_ids = decoding_info
                 .sent_ids
                 .iter_ranges()
@@ -80,15 +91,15 @@ impl Prover<Prove> {
                         .map(|id| {
                             decode_thread
                                 .get_value(id.as_str())
-                                .ok_or(ProverError::from(
-                                    "Transcript value cannot be decoded from VM thread",
-                                ))
+                                .expect("Byte should be in VM memory")
                         })
-                        .collect::<Result<Vec<_>, _>>()
-                        .expect("Should be able to collect");
-                    decode_thread.array_from_values(inner_refs.as_slice())
+                        .collect::<Vec<_>>();
+
+                    decode_thread
+                        .array_from_values(inner_refs.as_slice())
+                        .expect("Byte should be in VM Memory")
                 })
-                .collect::<Result<Vec<_>, _>>()?;
+                .collect::<Vec<_>>();
 
             // Send the ids to the verifier so that he know which values to decode
             channel
