@@ -6,7 +6,7 @@ mod header;
 
 use serde::{Deserialize, Serialize};
 
-pub use data::{NotarizationSessionData, SessionData};
+pub use data::NotarizationSessionData;
 pub use handshake::{HandshakeSummary, HandshakeVerifyError};
 pub use header::{SessionHeader, SessionHeaderVerifyError};
 
@@ -42,13 +42,8 @@ impl NotarizedSession {
     /// Returns a proof of the TLS session
     pub fn session_proof(&self) -> SessionProof {
         let session_info = SessionInfo {
-            server_name: self.data.session_data().session_info().server_name.clone(),
-            handshake_data_decommitment: self
-                .data
-                .session_data()
-                .session_info()
-                .handshake_data_decommitment
-                .clone(),
+            server_name: self.data.session_info().server_name.clone(),
+            handshake_decommitment: self.data.session_info().handshake_decommitment.clone(),
         };
 
         SessionProof {

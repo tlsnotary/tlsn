@@ -20,7 +20,9 @@ use tls_core::handshake::HandshakeData;
 /// See [`build_substrings_proof`](NotarizationSessionData::build_substrings_proof).
 #[derive(Serialize, Deserialize)]
 pub struct NotarizationSessionData {
-    session_data: SessionData,
+    session_info: SessionInfo,
+    transcript_tx: Transcript,
+    transcript_rx: Transcript,
     commitments: TranscriptCommitments,
 }
 
@@ -33,77 +35,22 @@ impl NotarizationSessionData {
         transcript_rx: Transcript,
         commitments: TranscriptCommitments,
     ) -> Self {
-        let session_data = SessionData::new(
+        let session_info = SessionInfo {
             server_name,
-            handshake_data_decommitment,
-            transcript_tx,
-            transcript_rx,
-        );
+            handshake_decommitment: handshake_data_decommitment,
+        };
 
         Self {
-            session_data,
+            session_info,
+            transcript_tx,
+            transcript_rx,
             commitments,
         }
     }
 
-    /// Returns the session data
-    pub fn session_data(&self) -> &SessionData {
-        &self.session_data
-    }
-
-    /// Returns the transcript for data sent to the server
-    pub fn sent_transcript(&self) -> &Transcript {
-        &self.session_data.transcript_tx
-    }
-
-    /// Returns the transcript for data received from the server
-    pub fn recv_transcript(&self) -> &Transcript {
-        &self.session_data.transcript_rx
-    }
-
-    /// Returns the transcript commitments.
-    pub fn commitments(&self) -> &TranscriptCommitments {
-        &self.commitments
-    }
-
-    /// Returns a substrings proof builder.
-    pub fn build_substrings_proof(&self) -> SubstringsProofBuilder {
-        SubstringsProofBuilder::new(
-            &self.commitments,
-            &self.session_data.transcript_tx,
-            &self.session_data.transcript_rx,
-        )
-    }
-}
-
-opaque_debug::implement!(NotarizationSessionData);
-
-/// Session data used when dealing with an app-specific verifier.
-#[derive(Serialize, Deserialize)]
-pub struct SessionData {
-    session_info: SessionInfo,
-    transcript_tx: Transcript,
-    transcript_rx: Transcript,
-}
-
-impl SessionData {
-    /// Creates new session data.
-    pub fn new(
-        server_name: ServerName,
-        handshake_data_decommitment: Decommitment<HandshakeData>,
-        transcript_tx: Transcript,
-        transcript_rx: Transcript,
-    ) -> Self {
-        let server_info = SessionInfo {
-            server_name,
-            handshake_data_decommitment,
-        };
-
-        SessionData {
-            session_info: server_info,
-            transcript_tx,
-            transcript_rx,
-        }
+    /// Returns the session info
+    pub fn session_info(&self) -> &SessionInfo {
+        &self.session_info
     }
 
     /// Returns the transcript for data sent to the server
@@ -116,10 +63,15 @@ impl SessionData {
         &self.transcript_rx
     }
 
-    /// Returns the [SessionInfo]
-    pub fn session_info(&self) -> &SessionInfo {
-        &self.session_info
+    /// Returns the transcript commitments.
+    pub fn commitments(&self) -> &TranscriptCommitments {
+        &self.commitments
+    }
+
+    /// Returns a substrings proof builder.
+    pub fn build_substrings_proof(&self) -> SubstringsProofBuilder {
+        SubstringsProofBuilder::new(&self.commitments, &self.transcript_tx, &self.transcript_rx)
     }
 }
 
-opaque_debug::implement!(SessionData);
+opaque_debug::implement!(NotarizationSessionData);

@@ -100,10 +100,7 @@ impl Prover<Notarize> {
                 &server_public_key,
                 &session_data.commitments().merkle_root(),
                 &notary_encoder_seed,
-                &session_data
-                    .session_data()
-                    .session_info()
-                    .handshake_data_decommitment,
+                &session_data.session_info().handshake_decommitment,
             )
             .map_err(|_| {
                 ProverError::NotarizationError(

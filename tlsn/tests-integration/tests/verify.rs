@@ -1,6 +1,6 @@
 use futures::AsyncWriteExt;
 use hyper::{body::to_bytes, Body, Request, StatusCode};
-use tlsn_core::{proof::SessionInfo, Direction, RedactedTranscript, SessionData};
+use tlsn_core::{proof::SessionInfo, Direction, RedactedTranscript};
 use tlsn_prover::tls::{Prover, ProverConfig};
 use tlsn_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
 use tlsn_verifier::tls::{Verifier, VerifierConfig};
@@ -15,14 +15,11 @@ async fn verify() {
 
     let (socket_0, socket_1) = tokio::io::duplex(2 << 23);
 
-    let (session_data, (sent, received, session_info)) =
-        tokio::join!(prover(socket_0), verifier(socket_1));
+    let (_, (sent, received, session_info)) = tokio::join!(prover(socket_0), verifier(socket_1));
 }
 
 #[instrument(skip(notary_socket))]
-async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
-    notary_socket: T,
-) -> SessionData {
+async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socket: T) {
     let (client_socket, server_socket) = tokio::io::duplex(2 << 16);
 
     let server_task = tokio::spawn(tlsn_server_fixture::bind(server_socket.compat()));

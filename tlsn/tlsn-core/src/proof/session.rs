@@ -96,7 +96,7 @@ pub struct SessionInfo {
     /// The server name.
     pub server_name: ServerName,
     /// Decommitment to the TLS handshake and server identity.
-    pub handshake_data_decommitment: Decommitment<HandshakeData>,
+    pub handshake_decommitment: Decommitment<HandshakeData>,
 }
 
 impl SessionInfo {
@@ -111,12 +111,12 @@ impl SessionInfo {
             .map_err(|e| SessionProofError::InvalidServerName(e.to_string()))?;
 
         // Verify handshake
-        self.handshake_data_decommitment
+        self.handshake_decommitment
             .verify(handshake_summary.handshake_commitment())
             .map_err(|e| SessionProofError::InvalidHandshake(e.to_string()))?;
 
         // Verify server certificate
-        self.handshake_data_decommitment
+        self.handshake_decommitment
             .data()
             .verify(
                 cert_verifier,

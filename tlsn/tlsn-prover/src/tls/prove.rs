@@ -8,7 +8,8 @@ use futures::{FutureExt, SinkExt};
 use mpz_garble::{Decode, Memory, Vm};
 use mpz_share_conversion::ShareConversionReveal;
 use tlsn_core::{
-    msg::TlsnMessage, transcript::get_value_ids, Direction, ServerName, SessionData, Transcript,
+    msg::TlsnMessage, proof::SessionInfo, transcript::get_value_ids, Direction, ServerName,
+    Transcript,
 };
 use utils::range::{RangeSet, RangeUnion};
 use utils_aio::mux::MuxChannel;
@@ -110,7 +111,7 @@ impl Prover<Prove> {
     }
 
     /// Finalize the proving
-    pub async fn finalize(self) -> Result<SessionData, ProverError> {
+    pub async fn finalize(self) -> Result<(), ProverError> {
         let Prove {
             mut verify_mux,
             mut mux_fut,
@@ -118,19 +119,14 @@ impl Prover<Prove> {
             mut ot_fut,
             mut gf2,
             handshake_decommitment,
-            transcript_tx,
-            transcript_rx,
             ..
         } = self.state;
 
         // Create session data and session_info
-        let session_data = SessionData::new(
-            ServerName::Dns(self.config.server_dns().to_string()),
+        let session_info = SessionInfo {
+            server_name: ServerName::Dns(self.config.server_dns().to_string()),
             handshake_decommitment,
-            transcript_tx,
-            transcript_rx,
-        );
-        let session_info = session_data.session_info().clone();
+        };
 
         let mut verify_fut = Box::pin(async move {
             let mut channel = verify_mux.get_channel("finalize").await?;
@@ -161,6 +157,6 @@ impl Prover<Prove> {
             _ = mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
         };
 
-        Ok(session_data)
+        Ok(())
     }
 }
