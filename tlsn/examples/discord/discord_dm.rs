@@ -7,7 +7,7 @@ use hyper::{body::to_bytes, client::conn::Parts, Body, Request, StatusCode};
 use rustls::{Certificate, ClientConfig, RootCertStore};
 use serde::{Deserialize, Serialize};
 use std::{env, fs::File as StdFile, io::BufReader, ops::Range, sync::Arc};
-use tlsn_core::proof::NotarizedTlsProof;
+use tlsn_core::proof::TlsProof;
 use tokio::{fs::File, io::AsyncWriteExt as _, net::TcpStream};
 use tokio_rustls::TlsConnector;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
@@ -181,7 +181,7 @@ async fn main() {
 
     let substrings_proof = proof_builder.build().unwrap();
 
-    let proof = NotarizedTlsProof {
+    let proof = TlsProof {
         session: session_proof,
         substrings: substrings_proof,
     };

@@ -17,16 +17,16 @@ use tls_core::handshake::HandshakeData;
 /// The `Prover` can selectively disclose parts of the transcript to a `Verifier` using a
 /// [`SubstringsProof`](crate::proof::SubstringsProof).
 ///
-/// See [`build_substrings_proof`](NotarizationSessionData::build_substrings_proof).
+/// See [`build_substrings_proof`](SessionData::build_substrings_proof).
 #[derive(Serialize, Deserialize)]
-pub struct NotarizationSessionData {
+pub struct SessionData {
     session_info: SessionInfo,
     transcript_tx: Transcript,
     transcript_rx: Transcript,
     commitments: TranscriptCommitments,
 }
 
-impl NotarizationSessionData {
+impl SessionData {
     /// Creates new session data.
     pub fn new(
         server_name: ServerName,
@@ -74,4 +74,4 @@ impl NotarizationSessionData {
     }
 }
 
-opaque_debug::implement!(NotarizationSessionData);
+opaque_debug::implement!(SessionData);

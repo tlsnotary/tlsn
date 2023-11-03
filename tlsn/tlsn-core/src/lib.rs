@@ -16,7 +16,7 @@ pub mod session;
 mod signature;
 pub mod transcript;
 
-pub use session::{HandshakeSummary, NotarizationSessionData, NotarizedSession, SessionHeader};
+pub use session::{HandshakeSummary, NotarizedSession, SessionData, SessionHeader};
 pub use signature::{NotaryPublicKey, Signature};
 pub use transcript::{Direction, RedactedTranscript, Transcript, TranscriptSlice};
 

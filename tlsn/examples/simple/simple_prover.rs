@@ -5,7 +5,7 @@
 use futures::AsyncWriteExt;
 use hyper::{Body, Request, StatusCode};
 use std::ops::Range;
-use tlsn_core::proof::NotarizedTlsProof;
+use tlsn_core::proof::TlsProof;
 use tokio::io::AsyncWriteExt as _;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 
@@ -145,7 +145,7 @@ async fn main() {
 
     let substrings_proof = proof_builder.build().unwrap();
 
-    let proof = NotarizedTlsProof {
+    let proof = TlsProof {
         session: notarized_session.session_proof(),
         substrings: substrings_proof,
     };

@@ -13,7 +13,7 @@ use std::fmt::Debug;
 
 /// Proof that a transcript of communications took place between a Prover and Server.
 #[derive(Debug, Serialize, Deserialize)]
-pub struct NotarizedTlsProof {
+pub struct TlsProof {
     /// Proof of the TLS handshake, server identity, and commitments to the transcript.
     pub session: SessionProof,
     /// Proof regarding the contents of the transcript.
