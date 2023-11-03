@@ -3,12 +3,7 @@
 use serde::{Deserialize, Serialize};
 use utils::range::RangeSet;
 
-use crate::{
-    merkle::MerkleRoot,
-    proof::{substring::TranscriptProof, SessionInfo},
-    signature::Signature,
-    SessionHeader,
-};
+use crate::{merkle::MerkleRoot, proof::SessionInfo, signature::Signature, SessionHeader};
 
 /// Top-level enum for all messages
 #[derive(Debug, Serialize, Deserialize)]
@@ -35,19 +30,10 @@ pub struct SignedSessionHeader {
 }
 
 /// Information about what values the prover wants to decode
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct DecodingInfo {
     /// The ids for the send transcript from which to reconstruct the value refs
     pub sent_ids: RangeSet<usize>,
     /// The ids for the received transcript from which to reconstruct the value refs
     pub recv_ids: RangeSet<usize>,
-}
-
-impl From<TranscriptProof> for DecodingInfo {
-    fn from(value: TranscriptProof) -> Self {
-        Self {
-            sent_ids: value.sent,
-            recv_ids: value.recv,
-        }
-    }
 }

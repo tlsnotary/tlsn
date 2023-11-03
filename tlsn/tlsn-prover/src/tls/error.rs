@@ -1,9 +1,7 @@
 use std::error::Error;
 
 use tls_mpc::MpcTlsError;
-use tlsn_core::{
-    commitment::TranscriptCommitmentBuilderError, proof::substring::TranscriptProofError,
-};
+use tlsn_core::{commitment::TranscriptCommitmentBuilderError, proof::SubstringsProofError};
 
 /// An error that can occur during proving.
 #[derive(Debug, thiserror::Error)]
@@ -30,7 +28,7 @@ pub enum ProverError {
     #[error(transparent)]
     CommitmentError(#[from] CommitmentError),
     #[error(transparent)]
-    ProofError(#[from] TranscriptProofError),
+    ProofError(#[from] SubstringsProofError),
     #[error("{0}")]
     Other(Box<dyn Error + Send + 'static>),
 }
@@ -49,6 +47,12 @@ impl From<mpz_ot::OTError> for ProverError {
 
 impl From<mpz_garble::VmError> for ProverError {
     fn from(e: mpz_garble::VmError) -> Self {
+        Self::MpcError(Box::new(e))
+    }
+}
+
+impl From<mpz_garble::MemoryError> for ProverError {
+    fn from(e: mpz_garble::MemoryError) -> Self {
         Self::MpcError(Box::new(e))
     }
 }

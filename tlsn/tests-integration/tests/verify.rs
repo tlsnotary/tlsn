@@ -83,12 +83,8 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let recv_transcript_len = prover.recv_transcript().data().len();
 
     // Reveal everything
-    prover
-        .reveal(0..sent_transcript_len, Direction::Sent)
-        .unwrap();
-    prover
-        .reveal(0..recv_transcript_len, Direction::Received)
-        .unwrap();
+    prover.reveal(0..sent_transcript_len, Direction::Sent);
+    prover.reveal(0..recv_transcript_len, Direction::Received);
     prover.decode().await.unwrap();
 
     prover.finalize().await.unwrap()

@@ -5,10 +5,12 @@
 use super::{state::Prove, Prover, ProverError};
 use crate::tls::error::OTShutdownError;
 use futures::{FutureExt, SinkExt};
-use mpz_garble::{value::ValueRef, Decode, Memory, Vm};
+use mpz_garble::{Decode, Memory, Vm};
 use mpz_share_conversion::ShareConversionReveal;
-use tlsn_core::{msg::TlsnMessage, Direction, ServerName, SessionData, Transcript};
-use utils::range::RangeSet;
+use tlsn_core::{
+    msg::TlsnMessage, transcript::get_value_ids, Direction, ServerName, SessionData, Transcript,
+};
+use utils::range::{RangeSet, RangeUnion};
 use utils_aio::mux::MuxChannel;
 
 impl Prover<Prove> {
@@ -30,20 +32,19 @@ impl Prover<Prove> {
     /// # Arguments
     /// * `ranges` - The ranges of the transcript to reveal
     /// * `direction` - The direction of the transcript to reveal
-    pub fn reveal(
-        &mut self,
-        ranges: impl Into<RangeSet<usize>>,
-        direction: Direction,
-    ) -> Result<(), ProverError> {
-        self.state
-            .proof
-            .reveal_ranges(ranges.into(), direction)
-            .map_err(ProverError::from)
+    pub fn reveal(&mut self, ranges: impl Into<RangeSet<usize>>, direction: Direction) {
+        let sent_ids = &mut self.state.decoding_info.sent_ids;
+        let recv_ids = &mut self.state.decoding_info.recv_ids;
+
+        match direction {
+            Direction::Sent => *sent_ids = sent_ids.union(&ranges.into()),
+            Direction::Received => *recv_ids = recv_ids.union(&ranges.into()),
+        }
     }
 
     /// Decodes transcript values
     pub async fn decode(&mut self) -> Result<(), ProverError> {
-        let transcript_proof = std::mem::take(&mut self.state.proof);
+        let decoding_info = std::mem::take(&mut self.state.decoding_info);
 
         let mut verify_fut = Box::pin(async {
             let channel = if let Some(ref mut channel) = self.state.channel {
@@ -60,21 +61,36 @@ impl Prover<Prove> {
                 self.state.decode_thread.as_mut().unwrap()
             };
 
-            // Get the decoded value refs from the DEAP vm
-            let value_refs = transcript_proof
-                .iter_ids("tx", "rx")
-                .map(|id| {
-                    decode_thread
-                        .get_value(id.as_str())
-                        .ok_or(ProverError::from(
-                            "Transcript value cannot be decoded from VM thread",
-                        ))
+            let send_value_ids = decoding_info
+                .sent_ids
+                .iter_ranges()
+                .map(|r| get_value_ids(&r.into(), Direction::Sent).collect::<Vec<String>>());
+            let recv_value_ids = decoding_info
+                .recv_ids
+                .iter_ranges()
+                .map(|r| get_value_ids(&r.into(), Direction::Received).collect::<Vec<String>>());
+
+            let value_refs = send_value_ids
+                .chain(recv_value_ids)
+                .map(|ids| {
+                    let inner_refs = ids
+                        .iter()
+                        .map(|id| {
+                            decode_thread
+                                .get_value(id.as_str())
+                                .ok_or(ProverError::from(
+                                    "Transcript value cannot be decoded from VM thread",
+                                ))
+                        })
+                        .collect::<Result<Vec<_>, _>>()
+                        .expect("Should be able to collect");
+                    decode_thread.array_from_values(inner_refs.as_slice())
                 })
-                .collect::<Result<Vec<ValueRef>, ProverError>>()?;
+                .collect::<Result<Vec<_>, _>>()?;
 
             // Send the ids to the verifier so that he can also create the corresponding value refs
             channel
-                .send(TlsnMessage::DecodingInfo(transcript_proof.into()))
+                .send(TlsnMessage::DecodingInfo(decoding_info))
                 .await?;
 
             // Decode the corresponding values

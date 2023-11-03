@@ -45,14 +45,14 @@ impl From<mpz_garble::DecodeError> for VerifierError {
     }
 }
 
-impl From<tlsn_core::proof::SessionProofError> for VerifierError {
-    fn from(e: tlsn_core::proof::SessionProofError) -> Self {
+impl From<mpz_garble::MemoryError> for VerifierError {
+    fn from(e: mpz_garble::MemoryError) -> Self {
         Self::MpcError(Box::new(e))
     }
 }
 
-impl From<tlsn_core::proof::substring::TranscriptProofError> for VerifierError {
-    fn from(e: tlsn_core::proof::substring::TranscriptProofError) -> Self {
+impl From<tlsn_core::proof::SessionProofError> for VerifierError {
+    fn from(e: tlsn_core::proof::SessionProofError) -> Self {
         Self::MpcError(Box::new(e))
     }
 }

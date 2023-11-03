@@ -13,7 +13,8 @@ use std::collections::HashMap;
 use tls_core::{handshake::HandshakeData, key::PublicKey};
 use tls_mpc::MpcTlsLeader;
 use tlsn_core::{
-    commitment::TranscriptCommitmentBuilder, msg::TlsnMessage, proof::substring::TranscriptProof,
+    commitment::TranscriptCommitmentBuilder,
+    msg::{DecodingInfo, TlsnMessage},
     Transcript,
 };
 use utils_aio::duplex::Duplex;
@@ -122,7 +123,7 @@ pub struct Prove {
     pub(crate) transcript_tx: Transcript,
     pub(crate) transcript_rx: Transcript,
 
-    pub(crate) proof: TranscriptProof,
+    pub(crate) decoding_info: DecodingInfo,
     pub(crate) channel: Option<Box<dyn Duplex<TlsnMessage>>>,
     pub(crate) decode_thread: Option<DEAPThread<SharedSender, SharedReceiver>>,
 }
@@ -138,7 +139,7 @@ impl From<Closed> for Prove {
             handshake_decommitment: state.handshake_decommitment,
             transcript_tx: state.transcript_tx,
             transcript_rx: state.transcript_rx,
-            proof: TranscriptProof::default(),
+            decoding_info: DecodingInfo::default(),
             channel: None,
             decode_thread: None,
         }

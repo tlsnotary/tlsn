@@ -23,7 +23,7 @@ use tlsn_core::{
     commitment::TranscriptCommitmentBuilder,
     fixtures,
     msg::SignedSessionHeader,
-    proof::{substring::CommitmentProof, SessionProof},
+    proof::{SessionProof, SubstringsProof},
     HandshakeSummary, NotarizationSessionData, NotarizedSession, ServerName, SessionHeader,
     Signature, Transcript,
 };
@@ -168,7 +168,7 @@ fn test_api() {
     let session_proof_bytes = bincode::serialize(&session_proof).unwrap();
     let substrings_proof_bytes = bincode::serialize(&substrings_proof).unwrap();
     let session_proof: SessionProof = bincode::deserialize(&session_proof_bytes).unwrap();
-    let substrings_proof: CommitmentProof = bincode::deserialize(&substrings_proof_bytes).unwrap();
+    let substrings_proof: SubstringsProof = bincode::deserialize(&substrings_proof_bytes).unwrap();
     //---------------------------------------
 
     // The Verifier does:

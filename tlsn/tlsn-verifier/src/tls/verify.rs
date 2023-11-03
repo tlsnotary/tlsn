@@ -4,12 +4,11 @@
 
 use super::{state::Verify, Verifier, VerifierError};
 use futures::{FutureExt, StreamExt, TryFutureExt};
-use mpz_garble::{value::ValueRef, Decode, Memory, Vm};
+use mpz_garble::{Decode, Memory, Vm};
 use mpz_share_conversion::ShareConversionVerify;
 use tlsn_core::{
-    msg::TlsnMessage,
-    proof::{substring::TranscriptProof, SessionInfo},
-    HandshakeSummary, RedactedTranscript,
+    msg::TlsnMessage, proof::SessionInfo, transcript::get_value_ids, Direction, HandshakeSummary,
+    RedactedTranscript, TranscriptSlice,
 };
 use utils_aio::{expect_msg_or_err, mux::MuxChannel};
 
@@ -42,30 +41,64 @@ impl Verifier<Verify> {
 
             let decoding_info = expect_msg_or_err!(channel, TlsnMessage::DecodingInfo)?;
 
-            // Get the decoded value refs from the DEAP vm
-            let mut proof: TranscriptProof = decoding_info.into();
-            let value_refs = proof
-                .iter_ids("tx", "rx")
-                .map(|id| {
-                    decode_thread
-                        .get_value(id.as_str())
-                        .ok_or(VerifierError::from(
-                            "Transcript value cannot be decoded from VM thread",
-                        ))
+            let send_value_ids = decoding_info
+                .sent_ids
+                .iter_ranges()
+                .map(|r| get_value_ids(&r.into(), Direction::Sent).collect::<Vec<String>>());
+            let recv_value_ids = decoding_info
+                .recv_ids
+                .iter_ranges()
+                .map(|r| get_value_ids(&r.into(), Direction::Received).collect::<Vec<String>>());
+
+            let value_refs = send_value_ids
+                .chain(recv_value_ids)
+                .map(|ids| {
+                    let inner_refs = ids
+                        .iter()
+                        .map(|id| {
+                            decode_thread
+                                .get_value(id.as_str())
+                                .ok_or(VerifierError::from(
+                                    "Transcript value cannot be decoded from VM thread",
+                                ))
+                        })
+                        .collect::<Result<Vec<_>, _>>()
+                        .expect("Should be able to collect");
+                    decode_thread.array_from_values(inner_refs.as_slice())
                 })
-                .collect::<Result<Vec<ValueRef>, VerifierError>>()?;
+                .collect::<Result<Vec<_>, _>>()?;
 
-            let values = decode_thread.decode(value_refs.as_slice()).await?;
-            proof.set_decoding(values)?;
+            let values = decode_thread
+                .decode(value_refs.as_slice())
+                .await?
+                .into_iter()
+                .map(|v| v.try_into())
+                .collect::<Result<Vec<Vec<u8>>, _>>()
+                .map_err(|err| {
+                    VerifierError::from(
+                        format!("Error converting decoded values: {}", err).as_str(),
+                    )
+                })?;
 
-            // Get the redacted transcripts
-            let (redacted_sent, redacted_received) =
-                proof.reconstruct(self.state.sent_len, self.state.recv_len)?;
+            let mut transcripts = decoding_info
+                .sent_ids
+                .iter_ranges()
+                .chain(decoding_info.recv_ids.iter_ranges())
+                .zip(values.into_iter())
+                .map(|(range, data)| TranscriptSlice::new(range, data))
+                .collect::<Vec<_>>();
+
+            let recv_transcripts =
+                transcripts.split_off(decoding_info.sent_ids.iter_ranges().count());
+            let (sent_redacted, recv_redacted) = (
+                RedactedTranscript::new(self.state.sent_len, transcripts),
+                RedactedTranscript::new(self.state.recv_len, recv_transcripts),
+            );
 
             #[cfg(feature = "tracing")]
             info!("Successfully decoded transcript parts");
 
-            Ok::<_, VerifierError>((redacted_sent, redacted_received))
+            Ok::<_, VerifierError>((sent_redacted, recv_redacted))
         };
 
         futures::select! {

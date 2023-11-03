@@ -1,6 +1,6 @@
 use crate::{
     commitment::TranscriptCommitments,
-    proof::{substring::CommitmentProofBuilder, SessionInfo},
+    proof::{SessionInfo, SubstringsProofBuilder},
     ServerName, Transcript,
 };
 use mpz_core::commit::Decommitment;
@@ -67,8 +67,8 @@ impl NotarizationSessionData {
     }
 
     /// Returns a substrings proof builder.
-    pub fn build_substrings_proof(&self) -> CommitmentProofBuilder {
-        CommitmentProofBuilder::new(
+    pub fn build_substrings_proof(&self) -> SubstringsProofBuilder {
+        SubstringsProofBuilder::new(
             &self.commitments,
             &self.session_data.transcript_tx,
             &self.session_data.transcript_rx,
