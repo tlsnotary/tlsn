@@ -25,6 +25,7 @@ impl Verifier<Verify> {
         &mut self,
     ) -> Result<(RedactedTranscript, RedactedTranscript), VerifierError> {
         let verify_fut = async {
+            // Create a new channel and vm thread if not already present
             let channel = if let Some(ref mut channel) = self.state.channel {
                 channel
             } else {
@@ -39,9 +40,11 @@ impl Verifier<Verify> {
                 self.state.decode_thread.as_mut().unwrap()
             };
 
+            // Receive decoding info from the prover
             let decoding_info = expect_msg_or_err!(channel, TlsnMessage::DecodingInfo)?;
 
-            let send_value_ids = decoding_info
+            // Decode values
+            let sent_value_ids = decoding_info
                 .sent_ids
                 .iter_ranges()
                 .map(|r| get_value_ids(&r.into(), Direction::Sent).collect::<Vec<String>>());
@@ -50,7 +53,7 @@ impl Verifier<Verify> {
                 .iter_ranges()
                 .map(|r| get_value_ids(&r.into(), Direction::Received).collect::<Vec<String>>());
 
-            let value_refs = send_value_ids
+            let value_refs = sent_value_ids
                 .chain(recv_value_ids)
                 .map(|ids| {
                     let inner_refs = ids

@@ -31,7 +31,7 @@ fn main() {
     let SessionProof {
         // The session header that was signed by the Notary is a succinct commitment to the TLS transcript.
         header,
-        // This is the server_info, which contains the server_name, that is checked against the
+        // This is the session_info, which contains the server_name, that is checked against the
         // certificate chain shared in the TLS handshake.
         session_info,
         ..

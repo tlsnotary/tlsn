@@ -1,10 +1,5 @@
 //! Substrings proofs based on commitments.
 
-use std::collections::HashMap;
-
-use serde::{Deserialize, Serialize};
-use utils::range::{RangeDisjoint, RangeSet, RangeUnion};
-
 use crate::{
     commitment::{
         Commitment, CommitmentId, CommitmentInfo, CommitmentOpening, TranscriptCommitments,
@@ -14,8 +9,11 @@ use crate::{
     Direction, EncodingId, RedactedTranscript, SessionHeader, Transcript, TranscriptSlice,
     MAX_TOTAL_COMMITTED_DATA,
 };
-
+use mpz_circuits::types::ValueType;
 use mpz_garble_core::Encoder;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use utils::range::{RangeDisjoint, RangeSet, RangeUnion};
 
 /// An error for [`SubstringsProofBuilder`]
 #[derive(Debug, thiserror::Error)]
@@ -30,12 +28,9 @@ pub enum SubstringsProofBuilderError {
     /// Attempted to add a commitment with a duplicate id.
     #[error("commitment with id {0:?} already exists")]
     DuplicateCommitmentId(CommitmentId),
-    /// Proof cannot be crated because commitment is missing.
-    #[error("Missing commitment for range: {0:?} and direction : {1:?}")]
-    MissingCommitment(RangeSet<usize>, Direction),
 }
 
-/// A builder for [`SubstringsProof`]s
+/// A builder for [`SubstringsProof`]
 pub struct SubstringsProofBuilder<'a> {
     commitments: &'a TranscriptCommitments,
     transcript_tx: &'a Transcript,
@@ -235,8 +230,7 @@ impl SubstringsProof {
                 .map(|id| {
                     header
                         .encoder()
-                        .encode::<u8>(EncodingId::new(&id).to_inner())
-                        .into()
+                        .encode_by_type(EncodingId::new(&id).to_inner(), &ValueType::U8)
                 })
                 .collect::<Vec<_>>();
 

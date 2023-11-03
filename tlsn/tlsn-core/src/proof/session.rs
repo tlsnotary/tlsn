@@ -129,6 +129,10 @@ impl SessionInfo {
     }
 
     /// Verify the session info using trust anchors from the `webpki-roots` crate.
+    ///
+    /// # Arguments
+    ///
+    /// * `notary_public_key` - The public key of the notary.
     pub fn verify_with_default_cert_verifier(
         &self,
         handshake_summary: &HandshakeSummary,

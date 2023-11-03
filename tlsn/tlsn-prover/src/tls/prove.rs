@@ -46,7 +46,8 @@ impl Prover<Prove> {
     pub async fn decode(&mut self) -> Result<(), ProverError> {
         let decoding_info = std::mem::take(&mut self.state.decoding_info);
 
-        let mut verify_fut = Box::pin(async {
+        let mut prove_fut = Box::pin(async {
+            // Create a new channel and vm thread if not already present
             let channel = if let Some(ref mut channel) = self.state.channel {
                 channel
             } else {
@@ -61,7 +62,7 @@ impl Prover<Prove> {
                 self.state.decode_thread.as_mut().unwrap()
             };
 
-            let send_value_ids = decoding_info
+            let sent_value_ids = decoding_info
                 .sent_ids
                 .iter_ranges()
                 .map(|r| get_value_ids(&r.into(), Direction::Sent).collect::<Vec<String>>());
@@ -70,7 +71,7 @@ impl Prover<Prove> {
                 .iter_ranges()
                 .map(|r| get_value_ids(&r.into(), Direction::Received).collect::<Vec<String>>());
 
-            let value_refs = send_value_ids
+            let value_refs = sent_value_ids
                 .chain(recv_value_ids)
                 .map(|ids| {
                     let inner_refs = ids
@@ -88,7 +89,7 @@ impl Prover<Prove> {
                 })
                 .collect::<Result<Vec<_>, _>>()?;
 
-            // Send the ids to the verifier so that he can also create the corresponding value refs
+            // Send the ids to the verifier so that he know which values to decode
             channel
                 .send(TlsnMessage::DecodingInfo(decoding_info))
                 .await?;
@@ -99,8 +100,8 @@ impl Prover<Prove> {
         })
         .fuse();
 
-        let _ = futures::select_biased! {
-            res = verify_fut => res?,
+        _ = futures::select_biased! {
+            res = prove_fut => res?,
             _ = &mut self.state.ot_fut => return Err(OTShutdownError)?,
             _ = &mut self.state.mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
         };
