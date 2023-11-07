@@ -162,18 +162,18 @@ impl Prover<ProveState> {
         let mut verify_fut = Box::pin(async move {
             let mut channel = verify_mux.get_channel("finalize").await?;
 
+            _ = vm
+                .finalize()
+                .await
+                .map_err(|e| ProverError::MpcError(Box::new(e)))?
+                .expect("encoder seed returned");
+
             // This is a temporary approach until a maliciously secure share conversion protocol is implemented.
             // The prover is essentially revealing the TLS MAC key. In some exotic scenarios this allows a malicious
             // TLS verifier to modify the prover's request.
             gf2.reveal()
                 .await
                 .map_err(|e| ProverError::MpcError(Box::new(e)))?;
-
-            _ = vm
-                .finalize()
-                .await
-                .map_err(|e| ProverError::MpcError(Box::new(e)))?
-                .expect("encoder seed returned");
 
             // Send session_info to the verifier
             channel.send(TlsnMessage::SessionInfo(session_info)).await?;
