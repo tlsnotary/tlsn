@@ -1,8 +1,8 @@
 use futures::AsyncWriteExt;
 use hyper::{body::to_bytes, Body, Request, StatusCode};
-use tlsn_notary::{bind_notary, NotaryConfig};
-use tlsn_prover::{Prover, ProverConfig};
+use tlsn_prover::tls::{Prover, ProverConfig};
 use tlsn_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
+use tlsn_verifier::tls::{Verifier, VerifierConfig};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::instrument;
@@ -73,33 +73,28 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
 
     client_socket.close().await.unwrap();
 
-    let mut prover = prover_task.await.unwrap().unwrap().start_notarize();
+    let mut prover = prover_task
+        .await
+        .unwrap()
+        .unwrap()
+        .to_http()
+        .unwrap()
+        .start_notarize();
 
-    let sent_len = prover.sent_transcript().data().len();
-    let recv_len = prover.recv_transcript().data().len();
+    prover.commit().unwrap();
 
-    let builder = prover.commitment_builder();
+    let notarized_session = prover.finalize().await.unwrap();
 
-    builder.commit_sent(0..sent_len).unwrap();
-    builder.commit_recv(0..recv_len).unwrap();
-
-    _ = prover.finalize().await.unwrap();
+    _ = notarized_session.proof_builder().build().unwrap();
 }
 
 #[instrument(skip(socket))]
 async fn notary<T: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(socket: T) {
-    let (notary, notary_fut) = bind_notary(
-        NotaryConfig::builder().id("test").build().unwrap(),
-        socket.compat(),
-    )
-    .unwrap();
-
-    tokio::spawn(notary_fut);
-
+    let verifier = Verifier::new(VerifierConfig::builder().id("test").build().unwrap());
     let signing_key = p256::ecdsa::SigningKey::from_bytes(&[1u8; 32].into()).unwrap();
 
-    notary
-        .notarize::<p256::ecdsa::Signature>(&signing_key)
+    _ = verifier
+        .notarize::<_, p256::ecdsa::Signature>(socket.compat(), &signing_key)
         .await
         .unwrap();
 }

@@ -71,6 +71,6 @@ impl SessionData {
 
     /// Returns a substrings proof builder.
     pub fn build_substrings_proof(&self) -> SubstringsProofBuilder {
-        SubstringsProofBuilder::new(self)
+        SubstringsProofBuilder::new(&self.commitments, &self.transcript_tx, &self.transcript_rx)
     }
 }

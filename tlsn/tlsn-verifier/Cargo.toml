@@ -1,8 +1,8 @@
 [package]
-name = "tlsn-notary"
+name = "tlsn-verifier"
 authors = ["TLSNotary Team"]
-description = "A library for the notary server"
-keywords = ["tls", "mpc", "2pc", "notary"]
+description = "A library for the TLSNotary verifier"
+keywords = ["tls", "mpc", "2pc"]
 categories = ["cryptography"]
 license = "MIT OR Apache-2.0"
 version = "0.1.0-alpha.2"
@@ -13,6 +13,7 @@ tracing = ["dep:tracing", "tlsn-tls-mpc/tracing"]
 
 [dependencies]
 tlsn-core.workspace = true
+tlsn-tls-core.workspace = true
 tlsn-tls-mpc.workspace = true
 uid-mux.workspace = true
 
@@ -28,5 +29,6 @@ thiserror.workspace = true
 derive_builder.workspace = true
 rand.workspace = true
 signature.workspace = true
+opaque-debug.workspace = true
 
 tracing = { workspace = true, optional = true }

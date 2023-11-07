@@ -24,7 +24,7 @@ pub use config::{StreamCipherConfig, StreamCipherConfigBuilder, StreamCipherConf
 pub use stream_cipher::MpcStreamCipher;
 
 use async_trait::async_trait;
-use mpz_garble::ValueRef;
+use mpz_garble::value::ValueRef;
 
 /// Error that can occur when using a stream cipher
 #[derive(Debug, thiserror::Error)]
@@ -208,12 +208,18 @@ mod tests {
         let (mut leader_vm, mut follower_vm) = create_mock_deap_vm("test").await;
 
         let leader_thread = leader_vm.new_thread("key_config").await.unwrap();
-        let leader_key = leader_thread.new_public_input("key", key).unwrap();
-        let leader_iv = leader_thread.new_public_input("iv", iv).unwrap();
+        let leader_key = leader_thread.new_public_input::<[u8; 16]>("key").unwrap();
+        let leader_iv = leader_thread.new_public_input::<[u8; 4]>("iv").unwrap();
+
+        leader_thread.assign(&leader_key, key).unwrap();
+        leader_thread.assign(&leader_iv, iv).unwrap();
 
         let follower_thread = follower_vm.new_thread("key_config").await.unwrap();
-        let follower_key = follower_thread.new_public_input("key", key).unwrap();
-        let follower_iv = follower_thread.new_public_input("iv", iv).unwrap();
+        let follower_key = follower_thread.new_public_input::<[u8; 16]>("key").unwrap();
+        let follower_iv = follower_thread.new_public_input::<[u8; 4]>("iv").unwrap();
+
+        follower_thread.assign(&follower_key, key).unwrap();
+        follower_thread.assign(&follower_iv, iv).unwrap();
 
         let leader_thread_pool = leader_vm
             .new_thread_pool("mock", thread_count)

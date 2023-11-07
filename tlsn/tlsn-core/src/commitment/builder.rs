@@ -6,7 +6,8 @@ use utils::range::RangeSet;
 
 use crate::{
     commitment::{
-        blake3::Blake3Commitment, Commitment, CommitmentId, CommitmentInfo, TranscriptCommitments,
+        blake3::Blake3Commitment, Commitment, CommitmentId, CommitmentInfo, CommitmentKind,
+        TranscriptCommitments,
     },
     merkle::MerkleTree,
     transcript::get_value_ids,
@@ -16,6 +17,12 @@ use crate::{
 /// An error for [`TranscriptCommitmentBuilder`]
 #[derive(Debug, thiserror::Error)]
 pub enum TranscriptCommitmentBuilderError {
+    /// Empty range
+    #[error("can not commit to an empty range")]
+    EmptyRange,
+    /// Range out of bounds
+    #[error("range out of bounds")]
+    RangeOutOfBounds,
     /// Failed to retrieve encodings for the provided transcript ranges.
     #[error("failed to retrieve encodings for the provided transcript ranges")]
     MissingEncodings,
@@ -35,6 +42,8 @@ pub struct TranscriptCommitmentBuilder {
     merkle_leaves: Vec<Hash>,
     /// A function that returns the encodings for the provided transcript byte ids.
     encoding_provider: EncodingProvider,
+    sent_len: usize,
+    recv_len: usize,
 }
 
 opaque_debug::implement!(TranscriptCommitmentBuilder);
@@ -46,12 +55,14 @@ impl TranscriptCommitmentBuilder {
     ///
     /// * `encoding_provider` - A function that returns the encodings for the provided transcript byte ids.
     #[doc(hidden)]
-    pub fn new(encoding_provider: EncodingProvider) -> Self {
+    pub fn new(encoding_provider: EncodingProvider, sent_len: usize, recv_len: usize) -> Self {
         Self {
             commitments: HashMap::default(),
             commitment_info: BiMap::default(),
             merkle_leaves: Vec::default(),
             encoding_provider,
+            sent_len,
+            recv_len,
         }
     }
 
@@ -71,12 +82,40 @@ impl TranscriptCommitmentBuilder {
         self.add_substrings_commitment(ranges.into(), Direction::Received)
     }
 
+    /// Gets the commitment id for the provided commitment info.
+    pub fn get_id(
+        &self,
+        kind: CommitmentKind,
+        ranges: impl Into<RangeSet<usize>>,
+        direction: Direction,
+    ) -> Option<CommitmentId> {
+        self.commitment_info
+            .get_by_right(&CommitmentInfo {
+                kind,
+                ranges: ranges.into(),
+                direction,
+            })
+            .copied()
+    }
+
     /// Add a commitment to substrings of the transcript
     fn add_substrings_commitment(
         &mut self,
         ranges: RangeSet<usize>,
         direction: Direction,
     ) -> Result<CommitmentId, TranscriptCommitmentBuilderError> {
+        let max = ranges
+            .max()
+            .ok_or(TranscriptCommitmentBuilderError::EmptyRange)?;
+        let len = match direction {
+            Direction::Sent => self.sent_len,
+            Direction::Received => self.recv_len,
+        };
+
+        if max > len {
+            return Err(TranscriptCommitmentBuilderError::RangeOutOfBounds);
+        }
+
         let ids: Vec<_> = get_value_ids(&ranges, direction).collect();
 
         let id_refs = ids.iter().map(|id| id.as_ref()).collect::<Vec<_>>();

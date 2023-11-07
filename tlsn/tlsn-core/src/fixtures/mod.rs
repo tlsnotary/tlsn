@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 use hex::FromHex;
 use mpz_circuits::types::ValueType;
-use mpz_core::{commit::HashCommit, hash::Hash, value::ValueId};
+use mpz_core::{commit::HashCommit, hash::Hash, utils::blake3};
 use mpz_garble_core::{ChaChaEncoder, Encoder};
 use tls_core::{
     cert::ServerCertDetails,
@@ -28,6 +28,11 @@ use crate::{
     session::{HandshakeSummary, SessionHeader},
     EncodingProvider,
 };
+
+fn value_id(id: &str) -> u64 {
+    let hash = blake3(id.as_bytes());
+    u64::from_be_bytes(hash[..8].try_into().unwrap())
+}
 
 /// Returns a session header fixture using the given transcript lengths and merkle root.
 ///
@@ -52,12 +57,12 @@ pub fn encoding_provider(transcript_tx: &[u8], transcript_rx: &[u8]) -> Encoding
     let mut active_encodings = HashMap::new();
     for (idx, byte) in transcript_tx.iter().enumerate() {
         let id = format!("tx/{idx}");
-        let enc = encoder.encode_by_type(ValueId::new(&id).to_u64(), &ValueType::U8);
+        let enc = encoder.encode_by_type(value_id(&id), &ValueType::U8);
         active_encodings.insert(id, enc.select(*byte).unwrap());
     }
     for (idx, byte) in transcript_rx.iter().enumerate() {
         let id = format!("rx/{idx}");
-        let enc = encoder.encode_by_type(ValueId::new(&id).to_u64(), &ValueType::U8);
+        let enc = encoder.encode_by_type(value_id(&id), &ValueType::U8);
         active_encodings.insert(id, enc.select(*byte).unwrap());
     }
 

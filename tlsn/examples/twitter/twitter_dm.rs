@@ -12,7 +12,7 @@ use tokio_rustls::TlsConnector;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::debug;
 
-use tlsn_prover::{Prover, ProverConfig};
+use tlsn_prover::tls::{Prover, ProverConfig};
 
 // Setting of the application server
 const SERVER_DOMAIN: &str = "twitter.com";
@@ -231,7 +231,7 @@ async fn setup_notary_connection() -> (tokio_rustls::client::TlsStream<TcpStream
     let request = Request::builder()
         .uri(format!("https://{NOTARY_HOST}:{NOTARY_PORT}/session"))
         .method("POST")
-        .header("Host", NOTARY_HOST.clone())
+        .header("Host", NOTARY_HOST)
         // Need to specify application/json for axum to parse it as json
         .header("Content-Type", "application/json")
         .body(Body::from(payload))

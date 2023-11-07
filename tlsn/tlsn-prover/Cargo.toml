@@ -9,6 +9,8 @@ version = "0.1.0-alpha.2"
 edition = "2021"
 
 [features]
+default = ["formats"]
+formats = ["dep:tlsn-formats"]
 tracing = [
     "dep:tracing",
     "tlsn-tls-client-async/tracing",
@@ -21,6 +23,7 @@ tlsn-tls-core.workspace = true
 tlsn-tls-client.workspace = true
 tlsn-tls-client-async.workspace = true
 tlsn-core.workspace = true
+tlsn-formats = { workspace = true, optional = true }
 tlsn-tls-mpc.workspace = true
 uid-mux.workspace = true
 
@@ -39,5 +42,6 @@ thiserror.workspace = true
 webpki-roots.workspace = true
 derive_builder.workspace = true
 opaque-debug.workspace = true
+bytes.workspace = true
 
 tracing = { workspace = true, optional = true }

@@ -11,7 +11,7 @@ use axum::{
 use axum_macros::debug_handler;
 use chrono::{Duration, Utc};
 use p256::ecdsa::{Signature, SigningKey};
-use tlsn_notary::{bind_notary, NotaryConfig};
+use tlsn_verifier::tls::{Verifier, VerifierConfig};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::TokioAsyncReadCompatExt;
 use tracing::{debug, error, info, trace};
@@ -175,7 +175,7 @@ pub async fn notary_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 ) -> Result<(), NotaryServerError> {
     debug!(?session_id, "Starting notarization...");
 
-    let mut config_builder = NotaryConfig::builder();
+    let mut config_builder = VerifierConfig::builder();
 
     config_builder.id(session_id);
 
@@ -185,8 +185,9 @@ pub async fn notary_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     let config = config_builder.build()?;
 
-    let (notary, notary_fut) = bind_notary(config, socket.compat())?;
+    Verifier::new(config)
+        .notarize::<_, Signature>(socket.compat(), signing_key)
+        .await?;
 
-    // Run the notary and background processes concurrently
-    tokio::try_join!(notary_fut, notary.notarize::<Signature>(signing_key),).map(|_| Ok(()))?
+    Ok(())
 }

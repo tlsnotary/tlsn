@@ -85,10 +85,6 @@ impl Default for ConnectionState {
 
 impl MpcTlsLeader {
     /// Create a new leader instance
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "info", skip(channel, ke, prf, encrypter, decrypter))
-    )]
     pub fn new(
         config: MpcTlsLeaderConfig,
         channel: MpcTlsChannel,
@@ -110,7 +106,8 @@ impl MpcTlsLeader {
 
     /// Performs any one-time setup operations.
     pub async fn setup(&mut self) -> Result<(), MpcTlsError> {
-        self.prf.setup().await?;
+        let pms = self.ke.setup().await?;
+        self.prf.setup(pms.into_value()).await?;
 
         Ok(())
     }
@@ -249,7 +246,7 @@ impl MpcTlsLeader {
 
         self.ke.set_server_key(server_key);
 
-        let pms = self.ke.compute_pms().await?;
+        self.ke.compute_pms().await?;
 
         let SessionKeys {
             client_write_key,
@@ -258,7 +255,7 @@ impl MpcTlsLeader {
             server_iv,
         } = self
             .prf
-            .compute_session_keys_private(client_random.0, server_random.0, pms.into_value())
+            .compute_session_keys_private(client_random.0, server_random.0)
             .await?;
 
         self.encrypter.set_key(client_write_key, client_iv).await?;

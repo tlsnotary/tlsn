@@ -1,3 +1,5 @@
+//! TLS prover states.
+
 use std::collections::HashMap;
 
 use mpz_garble_core::{encoding_state, EncodedValue};
@@ -10,7 +12,10 @@ use tls_core::{handshake::HandshakeData, key::PublicKey};
 use tls_mpc::MpcTlsLeader;
 use tlsn_core::{commitment::TranscriptCommitmentBuilder, Transcript};
 
-use crate::{Mux, MuxFuture, OTFuture};
+use crate::{
+    tls::{MuxFuture, OTFuture},
+    Mux,
+};
 
 /// Entry state
 pub struct Initialized;
@@ -50,7 +55,7 @@ pub struct Closed {
 
 opaque_debug::implement!(Closed);
 
-/// The state for the [Prover](crate::Prover) during notarization
+/// Notarizing state.
 pub struct Notarize {
     /// A muxer for communication with the Notary
     pub(crate) notary_mux: Mux,
@@ -80,7 +85,11 @@ impl From<Closed> for Notarize {
             ids.iter().map(|id| encodings.get(*id).cloned()).collect()
         });
 
-        let builder = TranscriptCommitmentBuilder::new(encoding_provider);
+        let builder = TranscriptCommitmentBuilder::new(
+            encoding_provider,
+            state.transcript_tx.data().len(),
+            state.transcript_rx.data().len(),
+        );
 
         Self {
             notary_mux: state.notary_mux,
