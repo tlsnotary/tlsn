@@ -14,7 +14,7 @@ use tls_core::{handshake::HandshakeData, key::PublicKey};
 use tls_mpc::MpcTlsLeader;
 use tlsn_core::{
     commitment::TranscriptCommitmentBuilder,
-    msg::{DecodingInfo, TlsnMessage},
+    msg::{ProvingInfo, TlsnMessage},
     Transcript,
 };
 use utils_aio::duplex::Duplex;
@@ -123,9 +123,9 @@ pub struct Prove {
     pub(crate) transcript_tx: Transcript,
     pub(crate) transcript_rx: Transcript,
 
-    pub(crate) decoding_info: DecodingInfo,
+    pub(crate) proving_info: ProvingInfo,
     pub(crate) channel: Option<Box<dyn Duplex<TlsnMessage>>>,
-    pub(crate) decode_thread: Option<DEAPThread<SharedSender, SharedReceiver>>,
+    pub(crate) prove_thread: Option<DEAPThread<SharedSender, SharedReceiver>>,
 }
 
 impl From<Closed> for Prove {
@@ -139,9 +139,9 @@ impl From<Closed> for Prove {
             handshake_decommitment: state.handshake_decommitment,
             transcript_tx: state.transcript_tx,
             transcript_rx: state.transcript_rx,
-            decoding_info: DecodingInfo::default(),
+            proving_info: ProvingInfo::default(),
             channel: None,
-            decode_thread: None,
+            prove_thread: None,
         }
     }
 }

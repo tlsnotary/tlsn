@@ -2,10 +2,10 @@
 //!
 //! Here the prover deals with a TLS verifier that is a notary and a verifier.
 
-use super::{state::Prove, Prover, ProverError};
+use super::{state::Prove as ProveState, Prover, ProverError};
 use crate::tls::error::OTShutdownError;
 use futures::{FutureExt, SinkExt};
-use mpz_garble::{Decode, Memory, Vm};
+use mpz_garble::{Memory, Prove, Vm};
 use mpz_share_conversion::ShareConversionReveal;
 use tlsn_core::{
     msg::TlsnMessage, proof::SessionInfo, transcript::get_value_ids, Direction, ServerName,
@@ -14,7 +14,10 @@ use tlsn_core::{
 use utils::range::{RangeSet, RangeUnion};
 use utils_aio::mux::MuxChannel;
 
-impl Prover<Prove> {
+#[cfg(feature = "tracing")]
+use tracing::info;
+
+impl Prover<ProveState> {
     /// Returns the transcript of the sent requests
     pub fn sent_transcript(&self) -> &Transcript {
         &self.state.transcript_tx
@@ -27,15 +30,15 @@ impl Prover<Prove> {
 
     /// Reveal certain parts of the transcripts to the verifier
     ///
-    /// This function allows to collect certain transcript ranges. When [Prover::decode] is called, these
+    /// This function allows to collect certain transcript ranges. When [Prover::prove] is called, these
     /// ranges will be opened to the verifier.
     ///
     /// # Arguments
     /// * `ranges` - The ranges of the transcript to reveal
     /// * `direction` - The direction of the transcript to reveal
     pub fn reveal(&mut self, ranges: impl Into<RangeSet<usize>>, direction: Direction) {
-        let sent_ids = &mut self.state.decoding_info.sent_ids;
-        let recv_ids = &mut self.state.decoding_info.recv_ids;
+        let sent_ids = &mut self.state.proving_info.sent_ids;
+        let recv_ids = &mut self.state.proving_info.recv_ids;
 
         match direction {
             Direction::Sent => *sent_ids = sent_ids.union(&ranges.into()),
@@ -43,17 +46,17 @@ impl Prover<Prove> {
         }
     }
 
-    /// Decodes transcript values
-    pub async fn decode(&mut self) -> Result<(), ProverError> {
-        let decoding_info = std::mem::take(&mut self.state.decoding_info);
+    /// Prove transcript values
+    pub async fn prove(&mut self) -> Result<(), ProverError> {
+        let mut proving_info = std::mem::take(&mut self.state.proving_info);
 
         // Check ranges
-        if decoding_info.sent_ids.max().unwrap_or_default() > self.state.transcript_tx.data().len()
-            || decoding_info.recv_ids.max().unwrap_or_default()
+        if proving_info.sent_ids.max().unwrap_or_default() > self.state.transcript_tx.data().len()
+            || proving_info.recv_ids.max().unwrap_or_default()
                 > self.state.transcript_rx.data().len()
         {
             return Err(ProverError::from(
-                "Decoding information contains ids which exceed transcript length",
+                "Proving information contains ids which exceed transcript length",
             ));
         }
 
@@ -62,23 +65,23 @@ impl Prover<Prove> {
             let channel = if let Some(ref mut channel) = self.state.channel {
                 channel
             } else {
-                self.state.channel = Some(self.state.verify_mux.get_channel("verify").await?);
+                self.state.channel = Some(self.state.verify_mux.get_channel("prove-verify").await?);
                 self.state.channel.as_mut().unwrap()
             };
 
-            let decode_thread = if let Some(ref mut decode_thread) = self.state.decode_thread {
-                decode_thread
+            let prove_thread = if let Some(ref mut prove_thread) = self.state.prove_thread {
+                prove_thread
             } else {
-                self.state.decode_thread = Some(self.state.vm.new_thread("decode").await?);
-                self.state.decode_thread.as_mut().unwrap()
+                self.state.prove_thread = Some(self.state.vm.new_thread("prove-verify").await?);
+                self.state.prove_thread.as_mut().unwrap()
             };
 
-            // Decode values
-            let sent_value_ids = decoding_info
+            // Now prove the transcript parts which have been marked for reveal
+            let sent_value_ids = proving_info
                 .sent_ids
                 .iter_ranges()
                 .map(|r| get_value_ids(&r.into(), Direction::Sent).collect::<Vec<String>>());
-            let recv_value_ids = decoding_info
+            let recv_value_ids = proving_info
                 .recv_ids
                 .iter_ranges()
                 .map(|r| get_value_ids(&r.into(), Direction::Received).collect::<Vec<String>>());
@@ -89,30 +92,47 @@ impl Prover<Prove> {
                     let inner_refs = ids
                         .iter()
                         .map(|id| {
-                            decode_thread
+                            prove_thread
                                 .get_value(id.as_str())
                                 .expect("Byte should be in VM memory")
                         })
                         .collect::<Vec<_>>();
 
-                    decode_thread
+                    prove_thread
                         .array_from_values(inner_refs.as_slice())
                         .expect("Byte should be in VM Memory")
                 })
                 .collect::<Vec<_>>();
 
-            // Send the ids to the verifier so that he know which values to decode
-            channel
-                .send(TlsnMessage::DecodingInfo(decoding_info))
-                .await?;
+            // Extract cleartext we want to reveal from transcripts
+            let mut cleartext = vec![];
+            proving_info
+                .sent_ids
+                .iter_ranges()
+                .for_each(|r| cleartext.extend_from_slice(&self.state.transcript_tx.data()[r]));
+            proving_info
+                .recv_ids
+                .iter_ranges()
+                .for_each(|r| cleartext.extend_from_slice(&self.state.transcript_rx.data()[r]));
+            proving_info.cleartext = cleartext;
 
-            // Decode the corresponding values
-            let values = decode_thread.decode(value_refs.as_slice()).await?;
-            Ok::<_, ProverError>(values)
+            // Send the proving info to the verifier
+            channel.send(TlsnMessage::ProvingInfo(proving_info)).await?;
+
+            #[cfg(feature = "tracing")]
+            info!("Sent proving info to verifier");
+
+            // Prove the revealed transcript parts
+            prove_thread.prove(value_refs.as_slice()).await?;
+
+            #[cfg(feature = "tracing")]
+            info!("Successfully proved cleartext");
+
+            Ok::<_, ProverError>(())
         })
         .fuse();
 
-        _ = futures::select_biased! {
+        futures::select_biased! {
             res = prove_fut => res?,
             _ = &mut self.state.ot_fut => return Err(OTShutdownError)?,
             _ = &mut self.state.mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
@@ -123,7 +143,7 @@ impl Prover<Prove> {
 
     /// Finalize the proving
     pub async fn finalize(self) -> Result<(), ProverError> {
-        let Prove {
+        let ProveState {
             mut verify_mux,
             mut mux_fut,
             mut vm,

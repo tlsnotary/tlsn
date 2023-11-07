@@ -39,8 +39,8 @@ impl From<mpz_ot::actor::kos::ReceiverActorError> for VerifierError {
     }
 }
 
-impl From<mpz_garble::DecodeError> for VerifierError {
-    fn from(e: mpz_garble::DecodeError) -> Self {
+impl From<mpz_garble::VerifyError> for VerifierError {
+    fn from(e: mpz_garble::VerifyError) -> Self {
         Self::MpcError(Box::new(e))
     }
 }

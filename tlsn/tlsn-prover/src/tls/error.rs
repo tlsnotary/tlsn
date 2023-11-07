@@ -1,5 +1,4 @@
 use std::error::Error;
-
 use tls_mpc::MpcTlsError;
 use tlsn_core::commitment::TranscriptCommitmentBuilderError;
 
@@ -55,8 +54,8 @@ impl From<mpz_garble::MemoryError> for ProverError {
     }
 }
 
-impl From<mpz_garble::DecodeError> for ProverError {
-    fn from(e: mpz_garble::DecodeError) -> Self {
+impl From<mpz_garble::ProveError> for ProverError {
+    fn from(e: mpz_garble::ProveError) -> Self {
         Self::MpcError(Box::new(e))
     }
 }

@@ -117,7 +117,7 @@ pub struct Verify {
     pub(crate) recv_len: usize,
 
     pub(crate) channel: Option<Box<dyn Duplex<TlsnMessage>>>,
-    pub(crate) decode_thread: Option<DEAPThread<SharedSender, SharedReceiver>>,
+    pub(crate) verify_thread: Option<DEAPThread<SharedSender, SharedReceiver>>,
 }
 
 opaque_debug::implement!(Verify);
@@ -138,7 +138,7 @@ impl From<Closed> for Verify {
             sent_len: value.sent_len,
             recv_len: value.recv_len,
             channel: None,
-            decode_thread: None,
+            verify_thread: None,
         }
     }
 }

@@ -82,7 +82,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
     // Reveal everything
     prover.reveal(0..sent_transcript_len, Direction::Sent);
     prover.reveal(0..recv_transcript_len, Direction::Received);
-    prover.decode().await.unwrap();
+    prover.prove().await.unwrap();
 
     prover.finalize().await.unwrap()
 }
