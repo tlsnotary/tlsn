@@ -47,17 +47,18 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
         debug!("Skipping authorization as it is turned off.");
         None
     } else {
-        config
+        let whitelist_csv_path = config
             .authorization
             .whitelist_csv_path
             .as_ref()
-            .and_then(|path| match parse_csv_file::<AuthorizationWhitelistRecord>(path) {
-                Ok(whitelist) => Some(whitelist),
-                Err(err) => {
-                    debug!("Skipping authorization as we failed to parse authorization whitelist csv: {:?}", err);
-                    None
-                }
-            })
+            .ok_or(eyre!(
+                "Failed to load authorization whitelist as its csv path is absent in config"
+            ))?;
+
+        Some(
+            parse_csv_file::<AuthorizationWhitelistRecord>(whitelist_csv_path)
+                .map_err(|err| eyre!("Failed to parse authorization whitelist csv: {:?}", err))?,
+        )
     };
 
     // Build a TCP listener with TLS enabled
