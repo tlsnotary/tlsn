@@ -159,7 +159,7 @@ impl Prover<ProveState> {
             handshake_decommitment,
         };
 
-        let mut verify_fut = Box::pin(async move {
+        let mut finalize_fut = Box::pin(async move {
             let mut channel = verify_mux.get_channel("finalize").await?;
 
             _ = vm
@@ -183,11 +183,14 @@ impl Prover<ProveState> {
         .fuse();
 
         futures::select_biased! {
-            res = verify_fut => res?,
+            res = finalize_fut => res?,
             _ = ot_fut => return Err(OTShutdownError)?,
-            _ = mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
+            _ = &mut mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
         };
 
+        // We need to wait for the verifier to correctly close the connection. Otherwise the prover
+        // would rush ahead and close the connection before the verifier has finished.
+        mux_fut.await?;
         Ok(())
     }
 }
