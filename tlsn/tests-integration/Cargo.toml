@@ -10,6 +10,7 @@ tlsn-tls-core.workspace = true
 tlsn-prover = { workspace = true, features = ["tracing"] }
 tlsn-verifier = { workspace = true, features = ["tracing"] }
 tlsn-server-fixture.workspace = true
+tlsn-utils.workspace = true
 
 p256 = { workspace = true, features = ["ecdsa"] }
 hyper = { workspace = true, features = ["client", "http1"] }
