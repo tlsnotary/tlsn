@@ -27,16 +27,16 @@ There are two ways to obtain the notary server's Docker image:
 #### GitHub
 1. Obtain the latest image with:
 ```bash
-docker pull ghcr.io/tlsnotary/tlsn/notary-server:latest
+docker pull ghcr.io/tlsnotary/notary-server:latest
 ```
 2. Run the docker container with:
 ```bash
-docker run --init -p 127.0.0.1:7047:7047 ghcr.io/tlsnotary/tlsn/notary-server:latest
+docker run --init -p 127.0.0.1:7047:7047 ghcr.io/tlsnotary/notary-server:latest
 ```
 3. If you want to change the default configuration, create a `config` folder locally, that contains a `config.yaml`, whose content follows the format of the default config file [here](./config/config.yaml).
 4. Instead of step 2, run the docker container with the following (remember to change the port mapping if you have changed that in the config):
 ```bash
-docker run --init -p 127.0.0.1:7047:7047 -v <your config folder path>:/root/.notary-server/config ghcr.io/tlsnotary/tlsn/notary-server:latest
+docker run --init -p 127.0.0.1:7047:7047 -v <your config folder path>:/root/.notary-server/config ghcr.io/tlsnotary/notary-server:latest
 ```
 P/S: When running this notary-server image against a [prover](https://github.com/tlsnotary/tlsn/tree/3e0dcc77d5b8b7d6739ca725f36345108ebecd75/tlsn/examples), please ensure that the prover's tagged version is the same as the version tag of this image.
 
