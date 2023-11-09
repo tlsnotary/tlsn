@@ -31,8 +31,6 @@ pub struct AuthorizationProperties {
 pub struct NotarizationProperties {
     /// Global limit for maximum transcript size in bytes
     pub max_transcript_size: usize,
-    /// Number of seconds elapsed before a session id is considered invalid to use for /notarize
-    pub session_ttl_seconds: u16,
 }
 
 #[derive(Clone, Debug, Deserialize)]

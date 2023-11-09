@@ -55,15 +55,15 @@ pub struct NotaryGlobals {
     pub notarization_config: NotarizationProperties,
     /// A temporary storage to store configuration data, mainly used for WebSocket client
     pub store: Arc<Mutex<HashMap<String, SessionData>>>,
-    /// TODO: use a better data structure for the whitelist when we scale as currently it's a O(N) lookup using vector
-    pub authorization_whitelist: Option<Vec<AuthorizationWhitelistRecord>>,
+    /// Whitelist of API keys for authorization purpose
+    pub authorization_whitelist: Option<Arc<HashMap<String, AuthorizationWhitelistRecord>>>,
 }
 
 impl NotaryGlobals {
     pub fn new(
         notary_signing_key: SigningKey,
         notarization_config: NotarizationProperties,
-        authorization_whitelist: Option<Vec<AuthorizationWhitelistRecord>>,
+        authorization_whitelist: Option<Arc<HashMap<String, AuthorizationWhitelistRecord>>>,
     ) -> Self {
         Self {
             notary_signing_key,

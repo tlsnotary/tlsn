@@ -9,7 +9,7 @@ use axum::{
     response::{IntoResponse, Json, Response},
 };
 use axum_macros::debug_handler;
-use chrono::{Duration, Utc};
+use chrono::Utc;
 use p256::ecdsa::{Signature, SigningKey};
 use tlsn_verifier::tls::{Verifier, VerifierConfig};
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -76,24 +76,9 @@ pub async fn upgrade_protocol(
     info!("Received upgrade protocol request");
     let session_id = params.session_id;
     // Fetch the configuration data from the store using the session_id
-    let max_transcript_size = match notary_globals.store.lock().await.get(&session_id) {
-        Some(data) => {
-            // Check if the session id is still alive
-            if data.created_at
-                + Duration::seconds(
-                    notary_globals
-                        .notarization_config
-                        .session_ttl_seconds
-                        .into(),
-                )
-                < Utc::now()
-            {
-                let err_msg = format!("Session id {} has expired", session_id);
-                error!(err_msg);
-                return NotaryServerError::BadProverRequest(err_msg).into_response();
-            }
-            data.max_transcript_size.to_owned()
-        }
+    // This also removes the configuration data from the store as each session_id can only be used once
+    let max_transcript_size = match notary_globals.store.lock().await.remove(&session_id) {
+        Some(data) => data.max_transcript_size.to_owned(),
         None => {
             let err_msg = format!("Session id {} does not exist", session_id);
             error!(err_msg);

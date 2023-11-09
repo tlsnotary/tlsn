@@ -28,7 +28,11 @@ use tracing::{debug, error, info};
 
 use crate::{
     config::{NotaryServerProperties, NotarySignatureProperties, TLSSignatureProperties},
-    domain::{auth::AuthorizationWhitelistRecord, notary::NotaryGlobals, InfoResponse},
+    domain::{
+        auth::{authorization_whitelist_vec_into_hashmap, AuthorizationWhitelistRecord},
+        notary::NotaryGlobals,
+        InfoResponse,
+    },
     error::NotaryServerError,
     middleware::AuthorizationMiddleware,
     service::{initialize, upgrade_protocol},
@@ -47,6 +51,7 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
         debug!("Skipping authorization as it is turned off.");
         None
     } else {
+        // Get the path of whitelist csv from config
         let whitelist_csv_path = config
             .authorization
             .whitelist_csv_path
@@ -54,11 +59,11 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
             .ok_or(eyre!(
                 "Failed to load authorization whitelist as its csv path is absent in config"
             ))?;
-
-        Some(
-            parse_csv_file::<AuthorizationWhitelistRecord>(whitelist_csv_path)
-                .map_err(|err| eyre!("Failed to parse authorization whitelist csv: {:?}", err))?,
-        )
+        // Load the csv
+        let whitelist_csv = parse_csv_file::<AuthorizationWhitelistRecord>(whitelist_csv_path)
+            .map_err(|err| eyre!("Failed to parse authorization whitelist csv: {:?}", err))?;
+        // Convert the whitelist record into hashmap for faster lookup
+        Some(authorization_whitelist_vec_into_hashmap(whitelist_csv))
     };
 
     // Build a TCP listener with TLS enabled
@@ -95,15 +100,14 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
     let notary_globals = NotaryGlobals::new(
         notary_signing_key,
         config.notarization.clone(),
-        authorization_whitelist,
+        authorization_whitelist.map(Arc::new),
+        // Use Arc to prevent cloning the whitelist for every request
     );
 
     // Parameters needed for the info endpoint
     let public_key = std::fs::read_to_string(&config.notary_signature.public_key_pem_path)
         .map_err(|err| eyre!("Failed to load notary public signing key for notarization: {err}"))?;
-    let version = option_env!("CARGO_PKG_VERSION")
-        .unwrap_or("unknown")
-        .to_string();
+    let version = env!("CARGO_PKG_VERSION").to_string();
     let router = Router::new()
         .route(
             "/healthcheck",

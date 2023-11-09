@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use axum::http::{header, request::Parts};
 use axum_core::extract::{FromRef, FromRequestParts};
+use std::{collections::HashMap, sync::Arc};
 use tracing::{error, trace};
 
 use crate::{
@@ -51,21 +52,23 @@ where
 }
 
 /// Helper function to check if an API key is in whitelist
-fn api_key_is_valid(api_key: &str, whitelist: Vec<AuthorizationWhitelistRecord>) -> bool {
-    whitelist
-        .iter()
-        .any(|record| record.api_key.as_str() == api_key)
+fn api_key_is_valid(
+    api_key: &str,
+    whitelist: Arc<HashMap<String, AuthorizationWhitelistRecord>>,
+) -> bool {
+    whitelist.get(api_key).is_some()
 }
 
 #[cfg(test)]
 mod test {
+    use crate::domain::auth::{
+        authorization_whitelist_vec_into_hashmap, AuthorizationWhitelistRecord,
+    };
 
-    use crate::domain::auth::AuthorizationWhitelistRecord;
+    use super::{api_key_is_valid, Arc, HashMap};
 
-    use super::api_key_is_valid;
-
-    fn get_whitelist_fixture() -> Vec<AuthorizationWhitelistRecord> {
-        vec![
+    fn get_whitelist_fixture() -> HashMap<String, AuthorizationWhitelistRecord> {
+        authorization_whitelist_vec_into_hashmap(vec![
             AuthorizationWhitelistRecord {
                 name: "test-name-0".to_string(),
                 api_key: "test-api-key-0".to_string(),
@@ -81,18 +84,21 @@ mod test {
                 api_key: "test-api-key-2".to_string(),
                 created_at: "2022-10-11T07:38:53Z".to_string(),
             },
-        ]
+        ])
     }
 
     #[test]
     fn test_api_key_is_present() {
         let whitelist = get_whitelist_fixture();
-        assert!(api_key_is_valid("test-api-key-0", whitelist));
+        assert!(api_key_is_valid("test-api-key-0", Arc::new(whitelist)));
     }
 
     #[test]
     fn test_api_key_is_absent() {
         let whitelist = get_whitelist_fixture();
-        assert_eq!(api_key_is_valid("test-api-keY-0", whitelist), false);
+        assert_eq!(
+            api_key_is_valid("test-api-keY-0", Arc::new(whitelist)),
+            false
+        );
     }
 }

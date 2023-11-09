@@ -39,7 +39,6 @@ async fn setup_config_and_server(sleep_ms: u64, port: u16) -> NotaryServerProper
         },
         notarization: NotarizationProperties {
             max_transcript_size: 1 << 14,
-            session_ttl_seconds: 300,
         },
         tls_signature: TLSSignatureProperties {
             private_key_pem_path: "./fixture/tls/notary.key".to_string(),
