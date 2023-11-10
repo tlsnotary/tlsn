@@ -1,7 +1,9 @@
 use super::circuit::{CELLS_PER_ROW, USEFUL_ROWS};
-use crate::utils::{boolvec_to_u8vec, u8vec_to_boolvec};
-use crate::Delta;
-use halo2_proofs::arithmetic::FieldExt;
+use crate::{
+    utils::{boolvec_to_u8vec, u8vec_to_boolvec},
+    Delta,
+};
+use ff::{FromUniformBytes, PrimeField};
 use num::BigUint;
 use pasta_curves::Fp as F;
 
@@ -18,8 +20,7 @@ pub fn bigint_to_256bits(bigint: BigUint) -> [bool; 256] {
 #[test]
 fn test_bigint_to_256bits() {
     use num_bigint::RandomBits;
-    use rand::thread_rng;
-    use rand::Rng;
+    use rand::{thread_rng, Rng};
 
     // test with a fixed number
     let res = bigint_to_256bits(BigUint::from(3u8));
@@ -48,14 +49,13 @@ pub fn bigint_to_f(bigint: &BigUint) -> F {
     let le = bigint.to_bytes_le();
     let mut wide = [0u8; 64];
     wide[0..le.len()].copy_from_slice(&le);
-    F::from_bytes_wide(&wide)
+    F::from_uniform_bytes(&wide)
 }
 #[test]
 fn test_bigint_to_f() {
     // Test that the sum of 2 random `BigUint`s matches the sum of 2 field elements
     use num_bigint::RandomBits;
-    use rand::thread_rng;
-    use rand::Rng;
+    use rand::{thread_rng, Rng};
     let mut rng = thread_rng();
 
     let a: BigUint = rng.sample(RandomBits::new(253));
@@ -78,8 +78,7 @@ pub fn f_to_bigint(f: &F) -> BigUint {
 #[test]
 fn test_f_to_bigint() {
     // Test that the sum of 2 random `F`s matches the expected sum
-    use rand::thread_rng;
-    use rand::Rng;
+    use rand::{thread_rng, Rng};
     let mut rng = thread_rng();
 
     let a = rng.gen::<u128>();
@@ -223,7 +222,7 @@ fn convert_and_pad_deltas(deltas: &[Delta], useful_bits: usize) -> Vec<F> {
 }
 
 /// Converts a vec of padded deltas into a matrix of rows and returns it.
-fn deltas_to_matrix_of_rows(deltas: &[F]) -> ([[F; CELLS_PER_ROW]; USEFUL_ROWS]) {
+fn deltas_to_matrix_of_rows(deltas: &[F]) -> [[F; CELLS_PER_ROW]; USEFUL_ROWS] {
     deltas
         .chunks(CELLS_PER_ROW)
         .map(|c| c.try_into().unwrap())

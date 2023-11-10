@@ -16,10 +16,11 @@ rand_chacha.workspace = true
 sha2 = { workspace = true, features = ["compress"] }
 
 #dependencies for halo2
-halo2_proofs = { git = "https://github.com/zcash/halo2"}
-halo2_gadgets = { git = "https://github.com/zcash/halo2"}
-pasta_curves = "0.4"
-group = "0.12"
+halo2_proofs = { git = "https://github.com/zcash/halo2", version = "0.3", default-features = false}
+halo2_gadgets = { git = "https://github.com/zcash/halo2", version = "0.3"}
+pasta_curves = "0.5"
+group = "0.13"
+ff = "0.13"
 
 [dev-dependencies]
 hex.workspace = true
