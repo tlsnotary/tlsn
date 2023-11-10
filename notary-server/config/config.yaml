@@ -18,5 +18,5 @@ tracing:
   default-level: DEBUG
 
 authorization:
-  enabled: true
+  enabled: false
   whitelist-csv-path: "./fixture/auth/whitelist.csv"
