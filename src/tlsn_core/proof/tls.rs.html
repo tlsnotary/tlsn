@@ -310,7 +310,8 @@
 <a href="#310" id="310">310</a>
 <a href="#311" id="311">311</a>
 <a href="#312" id="312">312</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::time::{Duration, UNIX_EPOCH};
+<a href="#313" id="313">313</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>web_time::{Duration, SystemTime};
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
@@ -406,7 +407,8 @@
             .data()
             .verify(
                 cert_verifier,
-                UNIX_EPOCH + Duration::from_secs(<span class="self">self</span>.header.handshake_summary().time()),
+                SystemTime::UNIX_EPOCH
+                    + Duration::from_secs(<span class="self">self</span>.header.handshake_summary().time()),
                 <span class="kw-2">&amp;</span>server_name,
             )
             .map_err(|e| SessionProofError::InvalidServerCertificate(e.to_string()))<span class="question-mark">?</span>;
@@ -446,8 +448,8 @@
     <span class="kw">use </span>rstest::<span class="kw-2">*</span>;
 
     <span class="kw">use </span><span class="kw">crate</span>::fixtures::cert::{appliedzkp, tlsnotary, TestData};
-    <span class="kw">use </span>std::time::SystemTime;
     <span class="kw">use </span>tls_core::{dns::ServerName, key::Certificate};
+    <span class="kw">use </span>web_time::SystemTime;
 
     <span class="doccomment">/// Expect chain verification to succeed
     </span><span class="attr">#[rstest]

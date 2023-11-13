@@ -658,7 +658,7 @@
 
         <span class="kw">let </span>(conn, conn_fut) = bind_client(socket, client);
 
-        <span class="kw">let </span>start_time = std::time::UNIX_EPOCH.elapsed().unwrap().as_secs();
+        <span class="kw">let </span>start_time = web_time::UNIX_EPOCH.elapsed().unwrap().as_secs();
 
         <span class="kw">let </span>fut = Box::pin({
             <span class="attr">#[allow(clippy::let_and_return)]
