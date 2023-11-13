@@ -5,10 +5,9 @@
 // etc. because it's unstable at the time of writing.
 
 use crate::{anchors, verify, verify::ServerCertVerifier, OwnedTrustAnchor};
-use std::{
-    convert::TryInto,
-    time::{Duration, Instant, SystemTime},
-};
+use std::convert::TryInto;
+use web_time::{Duration, Instant, SystemTime};
+
 use webpki_roots;
 
 fn duration_nanos(d: Duration) -> u64 {

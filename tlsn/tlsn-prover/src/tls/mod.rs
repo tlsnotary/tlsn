@@ -157,7 +157,7 @@ impl Prover<state::Setup> {
 
         let (conn, conn_fut) = bind_client(socket, client);
 
-        let start_time = std::time::UNIX_EPOCH.elapsed().unwrap().as_secs();
+        let start_time = web_time::UNIX_EPOCH.elapsed().unwrap().as_secs();
 
         let fut = Box::pin({
             #[allow(clippy::let_and_return)]

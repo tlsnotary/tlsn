@@ -1,4 +1,4 @@
-use std::time::{Duration, UNIX_EPOCH};
+use web_time::{Duration, SystemTime};
 
 use serde::{Deserialize, Serialize};
 
@@ -94,7 +94,8 @@ impl SessionProof {
             .data()
             .verify(
                 cert_verifier,
-                UNIX_EPOCH + Duration::from_secs(self.header.handshake_summary().time()),
+                SystemTime::UNIX_EPOCH
+                    + Duration::from_secs(self.header.handshake_summary().time()),
                 &server_name,
             )
             .map_err(|e| SessionProofError::InvalidServerCertificate(e.to_string()))?;
@@ -134,8 +135,8 @@ mod tests {
     use rstest::*;
 
     use crate::fixtures::cert::{appliedzkp, tlsnotary, TestData};
-    use std::time::SystemTime;
     use tls_core::{dns::ServerName, key::Certificate};
+    use web_time::SystemTime;
 
     /// Expect chain verification to succeed
     #[rstest]
