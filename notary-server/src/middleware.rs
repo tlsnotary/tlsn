@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use axum::http::{header, request::Parts};
 use axum_core::extract::{FromRef, FromRequestParts};
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 use tracing::{error, trace};
 
 use crate::{
@@ -33,7 +33,7 @@ where
 
         match auth_header {
             Some(auth_header) => {
-                if api_key_is_valid(auth_header, whitelist) {
+                if api_key_is_valid(auth_header, &whitelist) {
                     trace!("Request authorized.");
                     Ok(Self)
                 } else {
@@ -54,18 +54,18 @@ where
 /// Helper function to check if an API key is in whitelist
 fn api_key_is_valid(
     api_key: &str,
-    whitelist: Arc<HashMap<String, AuthorizationWhitelistRecord>>,
+    whitelist: &HashMap<String, AuthorizationWhitelistRecord>,
 ) -> bool {
     whitelist.get(api_key).is_some()
 }
 
 #[cfg(test)]
 mod test {
+    use super::{api_key_is_valid, HashMap};
     use crate::domain::auth::{
         authorization_whitelist_vec_into_hashmap, AuthorizationWhitelistRecord,
     };
-
-    use super::{api_key_is_valid, Arc, HashMap};
+    use std::sync::Arc;
 
     fn get_whitelist_fixture() -> HashMap<String, AuthorizationWhitelistRecord> {
         authorization_whitelist_vec_into_hashmap(vec![
@@ -90,14 +90,14 @@ mod test {
     #[test]
     fn test_api_key_is_present() {
         let whitelist = get_whitelist_fixture();
-        assert!(api_key_is_valid("test-api-key-0", Arc::new(whitelist)));
+        assert!(api_key_is_valid("test-api-key-0", &Arc::new(whitelist)));
     }
 
     #[test]
     fn test_api_key_is_absent() {
         let whitelist = get_whitelist_fixture();
         assert_eq!(
-            api_key_is_valid("test-api-keY-0", Arc::new(whitelist)),
+            api_key_is_valid("test-api-keY-0", &Arc::new(whitelist)),
             false
         );
     }

@@ -78,7 +78,7 @@ pub async fn upgrade_protocol(
     // Fetch the configuration data from the store using the session_id
     // This also removes the configuration data from the store as each session_id can only be used once
     let max_transcript_size = match notary_globals.store.lock().await.remove(&session_id) {
-        Some(data) => data.max_transcript_size.to_owned(),
+        Some(data) => data.max_transcript_size,
         None => {
             let err_msg = format!("Session id {} does not exist", session_id);
             error!(err_msg);
