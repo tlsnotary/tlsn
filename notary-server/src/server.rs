@@ -5,7 +5,6 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use tower_http::cors::CorsLayer;
 use eyre::{ensure, eyre, Result};
 use futures_util::future::poll_fn;
 use hyper::server::{
@@ -21,6 +20,7 @@ use std::{
     pin::Pin,
     sync::Arc,
 };
+use tower_http::cors::CorsLayer;
 
 use tokio::{fs::File, net::TcpListener};
 use tokio_rustls::TlsAcceptor;
