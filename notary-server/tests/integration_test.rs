@@ -22,9 +22,9 @@ use tracing::debug;
 use ws_stream_tungstenite::WsStream;
 
 use notary_server::{
-    read_pem_file, run_server, NotarizationProperties, NotarizationSessionRequest,
-    NotarizationSessionResponse, NotaryServerProperties, NotarySignatureProperties,
-    ServerProperties, TLSSignatureProperties, TracingProperties,
+    read_pem_file, run_server, AuthorizationProperties, NotarizationProperties,
+    NotarizationSessionRequest, NotarizationSessionResponse, NotaryServerProperties,
+    NotarySignatureProperties, ServerProperties, TLSSignatureProperties, TracingProperties,
 };
 
 const NOTARY_CA_CERT_PATH: &str = "./fixture/tls/rootCA.crt";
@@ -46,9 +46,14 @@ async fn setup_config_and_server(sleep_ms: u64, port: u16) -> NotaryServerProper
         },
         notary_signature: NotarySignatureProperties {
             private_key_pem_path: "./fixture/notary/notary.key".to_string(),
+            public_key_pem_path: "./fixture/notary/notary.pub".to_string(),
         },
         tracing: TracingProperties {
             default_level: "DEBUG".to_string(),
+        },
+        authorization: AuthorizationProperties {
+            enabled: false,
+            whitelist_csv_path: None,
         },
     };
 

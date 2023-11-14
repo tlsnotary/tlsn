@@ -9,6 +9,7 @@ use axum::{
     response::{IntoResponse, Json, Response},
 };
 use axum_macros::debug_handler;
+use chrono::Utc;
 use p256::ecdsa::{Signature, SigningKey};
 use tlsn_verifier::tls::{Verifier, VerifierConfig};
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -19,7 +20,7 @@ use uuid::Uuid;
 use crate::{
     domain::notary::{
         NotarizationRequestQuery, NotarizationSessionRequest, NotarizationSessionResponse,
-        NotaryGlobals,
+        NotaryGlobals, SessionData,
     },
     error::NotaryServerError,
     service::{
@@ -75,8 +76,9 @@ pub async fn upgrade_protocol(
     info!("Received upgrade protocol request");
     let session_id = params.session_id;
     // Fetch the configuration data from the store using the session_id
-    let max_transcript_size = match notary_globals.store.lock().await.get(&session_id) {
-        Some(max_transcript_size) => max_transcript_size.to_owned(),
+    // This also removes the configuration data from the store as each session_id can only be used once
+    let max_transcript_size = match notary_globals.store.lock().await.remove(&session_id) {
+        Some(data) => data.max_transcript_size,
         None => {
             let err_msg = format!("Session id {} does not exist", session_id);
             error!(err_msg);
@@ -129,11 +131,13 @@ pub async fn initialize(
     let prover_session_id = Uuid::new_v4().to_string();
 
     // Store the configuration data in a temporary store
-    notary_globals
-        .store
-        .lock()
-        .await
-        .insert(prover_session_id.clone(), payload.max_transcript_size);
+    notary_globals.store.lock().await.insert(
+        prover_session_id.clone(),
+        SessionData {
+            max_transcript_size: payload.max_transcript_size,
+            created_at: Utc::now(),
+        },
+    );
 
     trace!("Latest store state: {:?}", notary_globals.store);
 

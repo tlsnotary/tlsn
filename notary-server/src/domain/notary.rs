@@ -1,10 +1,11 @@
 use std::{collections::HashMap, sync::Arc};
 
+use chrono::{DateTime, Utc};
 use p256::ecdsa::SigningKey;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
-use crate::config::NotarizationProperties;
+use crate::{config::NotarizationProperties, domain::auth::AuthorizationWhitelistRecord};
 
 /// Response object of the /session API
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,24 +41,35 @@ pub enum ClientType {
     Websocket,
 }
 
+/// Session configuration data to be stored in temporary storage
+#[derive(Clone, Debug)]
+pub struct SessionData {
+    pub max_transcript_size: Option<usize>,
+    pub created_at: DateTime<Utc>,
+}
+
 /// Global data that needs to be shared with the axum handlers
 #[derive(Clone, Debug)]
 pub struct NotaryGlobals {
     pub notary_signing_key: SigningKey,
     pub notarization_config: NotarizationProperties,
     /// A temporary storage to store configuration data, mainly used for WebSocket client
-    pub store: Arc<Mutex<HashMap<String, Option<usize>>>>,
+    pub store: Arc<Mutex<HashMap<String, SessionData>>>,
+    /// Whitelist of API keys for authorization purpose
+    pub authorization_whitelist: Option<Arc<HashMap<String, AuthorizationWhitelistRecord>>>,
 }
 
 impl NotaryGlobals {
     pub fn new(
         notary_signing_key: SigningKey,
         notarization_config: NotarizationProperties,
+        authorization_whitelist: Option<Arc<HashMap<String, AuthorizationWhitelistRecord>>>,
     ) -> Self {
         Self {
             notary_signing_key,
             notarization_config,
             store: Default::default(),
+            authorization_whitelist,
         }
     }
 }

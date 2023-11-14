@@ -17,6 +17,8 @@ pub enum NotaryServerError {
     Notarization(Box<dyn Error + Send + 'static>),
     #[error("Invalid request from prover: {0}")]
     BadProverRequest(String),
+    #[error("Unauthorized request from prover: {0}")]
+    UnauthorizedProverRequest(String),
 }
 
 impl From<VerifierError> for NotaryServerError {
@@ -38,6 +40,11 @@ impl IntoResponse for NotaryServerError {
             bad_request_error @ NotaryServerError::BadProverRequest(_) => {
                 (StatusCode::BAD_REQUEST, bad_request_error.to_string()).into_response()
             }
+            unauthorized_request_error @ NotaryServerError::UnauthorizedProverRequest(_) => (
+                StatusCode::UNAUTHORIZED,
+                unauthorized_request_error.to_string(),
+            )
+                .into_response(),
             _ => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Something wrong happened.",

@@ -13,6 +13,17 @@ pub struct NotaryServerProperties {
     pub notary_signature: NotarySignatureProperties,
     /// Setting for logging/tracing
     pub tracing: TracingProperties,
+    /// Setting for authorization
+    pub authorization: AuthorizationProperties,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct AuthorizationProperties {
+    /// Switch to turn on or off auth middleware
+    pub enabled: bool,
+    /// File path of the whitelist API key csv
+    pub whitelist_csv_path: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -42,6 +53,7 @@ pub struct TLSSignatureProperties {
 #[serde(rename_all = "kebab-case")]
 pub struct NotarySignatureProperties {
     pub private_key_pem_path: String,
+    pub public_key_pem_path: String,
 }
 
 #[derive(Clone, Debug, Deserialize)]

@@ -1,14 +1,15 @@
 mod config;
 mod domain;
 mod error;
+mod middleware;
 mod server;
 mod server_tracing;
 mod service;
 mod util;
 
 pub use config::{
-    NotarizationProperties, NotaryServerProperties, NotarySignatureProperties, ServerProperties,
-    TLSSignatureProperties, TracingProperties,
+    AuthorizationProperties, NotarizationProperties, NotaryServerProperties,
+    NotarySignatureProperties, ServerProperties, TLSSignatureProperties, TracingProperties,
 };
 pub use domain::{
     cli::CliFields,
