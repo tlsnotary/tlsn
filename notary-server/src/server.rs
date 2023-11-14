@@ -5,6 +5,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use tower_http::cors::CorsLayer;
 use eyre::{ensure, eyre, Result};
 use futures_util::future::poll_fn;
 use hyper::server::{
@@ -137,6 +138,7 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
             NotaryGlobals,
         >(notary_globals.clone()))
         .route("/notarize", get(upgrade_protocol))
+        .layer(CorsLayer::permissive())
         .with_state(notary_globals);
     let mut app = router.into_make_service();
 
