@@ -20,6 +20,7 @@ use std::{
     pin::Pin,
     sync::Arc,
 };
+use tower_http::cors::CorsLayer;
 
 use tokio::{fs::File, net::TcpListener};
 use tokio_rustls::TlsAcceptor;
@@ -137,6 +138,7 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
             NotaryGlobals,
         >(notary_globals.clone()))
         .route("/notarize", get(upgrade_protocol))
+        .layer(CorsLayer::permissive())
         .with_state(notary_globals);
     let mut app = router.into_make_service();
 

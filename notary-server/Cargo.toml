@@ -33,6 +33,7 @@ tokio = { version = "1", features = ["full"] }
 tokio-rustls = { version = "0.24.1" }
 tokio-util = { version = "0.7", features = ["compat"] }
 tower = { version = "0.4.12", features = ["make"] }
+tower-http = { version = "0.4.4", features = ["cors"] }
 tracing = "0.1"
 tracing-opentelemetry = "0.19"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
