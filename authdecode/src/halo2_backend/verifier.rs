@@ -1,33 +1,39 @@
-use super::utils::{bigint_to_f, deltas_to_matrices};
-use super::{Curve, CHUNK_SIZE, USEFUL_BITS};
+use super::{
+    utils::{bigint_to_f, deltas_to_matrices},
+    Curve, CHUNK_SIZE, USEFUL_BITS,
+};
 use crate::verifier::{VerificationInput, VerifierError, Verify};
-use halo2_proofs::plonk;
-use halo2_proofs::plonk::SingleVerifier;
-use halo2_proofs::plonk::VerifyingKey;
-use halo2_proofs::poly::commitment::Params;
-use halo2_proofs::transcript::Blake2bRead;
-use halo2_proofs::transcript::Challenge255;
-use pasta_curves::pallas::Base as F;
-use pasta_curves::EqAffine;
+use halo2_proofs::{
+    halo2curves::bn256::{Bn256, Fr as F, G1Affine},
+    plonk,
+    plonk::VerifyingKey,
+    poly::{
+        commitment::CommitmentScheme,
+        kzg::{
+            commitment::{KZGCommitmentScheme, ParamsKZG},
+            multiopen::VerifierGWC,
+            strategy::SingleStrategy,
+        },
+    },
+    transcript::{Blake2bRead, Challenge255, TranscriptReadBuffer},
+};
 
 /// halo2's native [halo2::VerifyingKey] can't be used without params, so we wrap
 /// them in one struct.
 #[derive(Clone)]
 pub struct VK {
-    pub key: VerifyingKey<EqAffine>,
-    pub params: Params<EqAffine>,
+    pub key: VerifyingKey<<KZGCommitmentScheme<Bn256> as CommitmentScheme>::Curve>,
+    pub params: ParamsKZG<Bn256>,
 }
 
 /// Implements the Verifier in the authdecode protocol.
 pub struct Verifier {
     verification_key: VK,
-    curve: Curve,
 }
 impl Verifier {
-    pub fn new(vk: VK, curve: Curve) -> Self {
+    pub fn new(vk: VK) -> Self {
         Self {
             verification_key: vk,
-            curve,
         }
     }
 }
@@ -37,7 +43,7 @@ impl Verify for Verifier {
         let params = &self.verification_key.params;
         let vk = &self.verification_key.key;
 
-        let strategy = SingleVerifier::new(params);
+        let strategy = SingleStrategy::new(params);
         let proof = input.proof;
         let mut transcript = Blake2bRead::<_, _, Challenge255<_>>::init(&proof[..]);
 
@@ -56,7 +62,13 @@ impl Verify for Verifier {
 
         // let now = Instant::now();
         // perform the actual verification
-        let res = plonk::verify_proof(
+        let res = plonk::verify_proof::<
+            KZGCommitmentScheme<Bn256>,
+            VerifierGWC<'_, Bn256>,
+            Challenge255<G1Affine>,
+            Blake2bRead<&[u8], G1Affine, Challenge255<G1Affine>>,
+            SingleStrategy<'_, Bn256>,
+        >(
             params,
             vk,
             strategy,
@@ -72,10 +84,7 @@ impl Verify for Verifier {
     }
 
     fn field_size(&self) -> usize {
-        match self.curve {
-            Curve::Pallas => 255,
-            Curve::BN254 => 254,
-        }
+        254
     }
 
     fn useful_bits(&self) -> usize {

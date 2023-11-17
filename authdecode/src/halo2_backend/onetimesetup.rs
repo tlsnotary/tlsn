@@ -1,9 +1,13 @@
-use super::circuit::{AuthDecodeCircuit, CELLS_PER_ROW, K, USEFUL_ROWS};
-use super::prover::PK;
-use super::verifier::VK;
-use halo2_proofs::plonk;
-use halo2_proofs::poly::commitment::Params;
-use pasta_curves::EqAffine;
+use super::{
+    circuit::{AuthDecodeCircuit, CELLS_PER_ROW, K, USEFUL_ROWS},
+    prover::PK,
+    verifier::VK,
+};
+use halo2_proofs::{
+    halo2curves::bn256::Bn256,
+    plonk,
+    poly::{commitment::ParamsProver, kzg::commitment::ParamsKZG},
+};
 
 pub struct OneTimeSetup {}
 
@@ -16,7 +20,7 @@ pub struct OneTimeSetup {}
 impl OneTimeSetup {
     /// Returns the verification key for the AuthDecode circuit
     pub fn verification_key() -> VK {
-        let params: Params<EqAffine> = Params::new(K);
+        let params = ParamsKZG::<Bn256>::new(K);
         // we need an instance of the circuit, the exact inputs don't matter
         let circuit = AuthDecodeCircuit::new(
             Default::default(),
@@ -24,15 +28,14 @@ impl OneTimeSetup {
             [[Default::default(); CELLS_PER_ROW]; USEFUL_ROWS],
         );
 
-        // safe to unwrap, we are inputting deterministic params and circuit on every
-        // invocation
+        // safe to unwrap since we are inputting deterministic params and circuit
         let vk = plonk::keygen_vk(&params, &circuit).unwrap();
         VK { key: vk, params }
     }
 
     /// Returns the proving key for the AuthDecode circuit
     pub fn proving_key() -> PK {
-        let params: Params<EqAffine> = Params::new(K);
+        let params = ParamsKZG::<Bn256>::new(K);
         // we need an instance of the circuit, the exact inputs don't matter
         let circuit = AuthDecodeCircuit::new(
             Default::default(),

@@ -1,7 +1,7 @@
 use super::{rate15_params, rate1_params};
 use group::ff::Field;
 use halo2_gadgets::poseidon::primitives::Spec;
-use pasta_curves::pallas::Base as F;
+use halo2_proofs::halo2curves::bn256::Fr as F;
 
 /// The type used to hold the MDS matrix and its inverse.
 pub(crate) type Mds<F, const T: usize> = [[F; T]; T];

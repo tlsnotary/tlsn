@@ -1,988 +1,988 @@
-//! Parameters for using rate 1 Poseidon with the Pallas field.
+//! Parameters for using rate 1 Poseidon with the bn256 scalar field.
 //! Patterned after [halo2_gadgets::poseidon::primitives::fp]
 //!
 //! The parameteres can be reproduced by running the following Sage script from
 //! [this repository](https://github.com/daira/pasta-hadeshash):
 //!
 //! ```text
-//! $ sage generate_parameters_grain.sage 1 0 255 2 8 56 0x40000000000000000000000000000000224698fc094cf91b992d30ed00000001 --rust
+//! $ sage generate_parameters_grain.sage 1 0 254 2 8 56 0x30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001 --rust
 //! ```
 //!
-//! where 1 means "prime field", 0 means "non-negative sbox", 255 is the bitsize
+//! where 1 means "prime field", 0 means "non-negative sbox", 254 is the bitsize
 //! of the field, 2 is the Poseidon width (rate + 1), 8 is the number of full
 //! rounds, 56 is the number of partial rounds.
-use pasta_curves::pallas;
+
+use halo2_proofs::halo2curves::bn256::Fr as F;
 
 //Number of round constants: 128
 //Round constants for GF(p):
-pub(crate) const ROUND_CONSTANTS: [[pallas::Base; 2]; 64] = [
+pub(crate) const ROUND_CONSTANTS: [[F; 2]; 64] = [
     [
-        pallas::Base::from_raw([
-            0x5cf8_7cc9_e030_f60f,
-            0xf4ab_5c10_a2c5_5adb,
-            0x8511_8166_c68b_f0c4,
-            0x3034_7723_5114_38a0,
+        F::from_raw([
+            0x6c7d_c0db_d0ab_d7a7,
+            0xa71a_a177_534c_dd1b,
+            0xfe1f_aaba_294c_ba38,
+            0x09c4_6e9e_c68e_9bd4,
         ]),
-        pallas::Base::from_raw([
-            0x26cf_86d0_a045_1a4b,
-            0x439f_1a05_1aa4_630c,
-            0xeb64_2730_3181_e7b7,
-            0x10db_8569_65e4_0038,
-        ]),
-    ],
-    [
-        pallas::Base::from_raw([
-            0x3efe_b3a3_2039_8526,
-            0x905f_9cee_e38d_cce8,
-            0x1dd0_487b_c9fa_b1c6,
-            0x3b07_f0ff_7edc_f93b,
-        ]),
-        pallas::Base::from_raw([
-            0x672b_68ab_fb91_91e0,
-            0x1630_7879_2887_5c07,
-            0x76d9_4dbb_24b0_f3c6,
-            0x3a93_3861_cf23_7523,
+        F::from_raw([
+            0x3c1d_83ff_a604_cb81,
+            0xc514_2b3a_e405_b834,
+            0x2a97_ed93_7f31_35cf,
+            0x0c03_5653_0896_eec4,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0x6dc7_a3fd_779b_3906,
-            0x86a5_4c9d_60d3_5eb0,
-            0x8696_7b11_d5dc_efb9,
-            0x0af5_bafd_335d_ae5c,
+        F::from_raw([
+            0x317e_a977_cc15_4a30,
+            0xa00e_a5aa_bd62_68bd,
+            0x142e_5118_2bb5_4cf4,
+            0x1e28_a1d9_3569_8ad1,
         ]),
-        pallas::Base::from_raw([
-            0xb35f_d80f_0f80_de9e,
-            0xe5be_96c3_aec1_5579,
-            0xc40e_d1f4_f9bd_7d17,
-            0x16bb_e434_b24f_94e2,
-        ]),
-    ],
-    [
-        pallas::Base::from_raw([
-            0x2cf4_ddd5_4154_6890,
-            0x2c3d_7dd9_e271_6c3a,
-            0xcab0_1ce9_81d4_7552,
-            0x0d1b_e811_a8e7_3220,
-        ]),
-        pallas::Base::from_raw([
-            0xd550_13d3_2124_4f13,
-            0x3f90_6e10_6f84_4196,
-            0xdc48_c3a2_26db_da31,
-            0x06a8_b453_9488_b7dd,
+        F::from_raw([
+            0x4cf9_e2b1_2b91_251f,
+            0x0e57_57c3_e008_db96,
+            0x0809_65db_30e2_98e4,
+            0x27af_2d83_1a9d_2748,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0x0f06_3d16_bef9_c43a,
-            0xc14c_d635_5415_df6e,
-            0xf414_e901_802d_54f8,
-            0x0d27_03e5_b30f_54d7,
+        F::from_raw([
+            0x79aa_f435_45b7_4e03,
+            0x4129_1462_f214_cd08,
+            0x3a6a_3cfe_16ae_175a,
+            0x1e6f_11ce_60fc_8f51,
         ]),
-        pallas::Base::from_raw([
-            0xe4c8_56c1_ca3d_e9c7,
-            0xb82a_2457_4f6d_13ee,
-            0x23a4_a445_7781_9b7d,
-            0x2730_c607_bba7_3337,
-        ]),
-    ],
-    [
-        pallas::Base::from_raw([
-            0x1056_f227_b514_b9f6,
-            0x3fba_b53e_b1a8_3f55,
-            0xdc10_43c5_3b23_800a,
-            0x01ac_5f59_256c_5004,
-        ]),
-        pallas::Base::from_raw([
-            0x44ba_b5ba_81ae_42f3,
-            0x6d89_481e_7a56_328b,
-            0xc95b_9493_7afb_b579,
-            0x0790_b925_23c9_73f1,
+        F::from_raw([
+            0xf719_2062_68d1_42d3,
+            0x0446_2ed1_4c36_13d8,
+            0x8541_819c_b681_f0be,
+            0x2a67_384d_3bbd_5e43,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0x2484_e266_142b_b8c0,
-            0xcc74_9bc8_3eb2_f037,
-            0x1396_4fb3_e877_1d0a,
-            0x1d63_b59d_97bc_269d,
+        F::from_raw([
+            0x3640_8f5d_5c9f_45d0,
+            0xb985_e381_f025_1889,
+            0x1609_f8e1_2fbf_ecf0,
+            0x0b66_fdf3_5609_3a61,
         ]),
-        pallas::Base::from_raw([
-            0x252d_2140_efdf_0914,
-            0x77fd_f7e2_bfb5_6c8b,
-            0x5f7a_0126_2df9_e68c,
-            0x1a52_d04e_5f14_a3a0,
-        ]),
-    ],
-    [
-        pallas::Base::from_raw([
-            0x2583_ac4e_9894_305c,
-            0x77dd_24ec_bfb2_8e1b,
-            0x3959_d162_80a3_61aa,
-            0x333b_0eea_5da7_ed1e,
-        ]),
-        pallas::Base::from_raw([
-            0x648c_5ce7_ebd9_df18,
-            0xc374_2cb7_45ec_8821,
-            0xc0c5_bb3a_e26b_077d,
-            0x3b50_3fc3_33b7_95cc,
+        F::from_raw([
+            0xdaa6_852d_bdb0_9e21,
+            0x0b26_c83c_c5ce_beed,
+            0x830c_6109_3c2a_de37,
+            0x012e_e3ec_1e78_d470,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0xcda9_33d6_ae52_eca7,
-            0x9eb0_6801_6ae8_8af9,
-            0x2648_52f0_75c7_8f7f,
-            0x2d83_0a53_584c_5556,
+        F::from_raw([
+            0x2d10_8e7b_445b_b1b9,
+            0x6cd1_c431_b099_b6bb,
+            0xfd88_f67f_8175_e3fd,
+            0x0252_ba5f_6760_bfbd,
         ]),
-        pallas::Base::from_raw([
-            0x276c_26f1_a2b1_b86e,
-            0xccc7_c81e_3add_37db,
-            0xe60e_55f1_35b9_ac80,
-            0x0250_f4d6_780a_d29a,
-        ]),
-    ],
-    [
-        pallas::Base::from_raw([
-            0x4c4d_8962_33b9_3cd5,
-            0x97eb_e98e_3a45_0a62,
-            0x3ee9_0cdb_884f_1c46,
-            0x2cd3_3145_55d6_faf2,
-        ]),
-        pallas::Base::from_raw([
-            0xbad5_026b_46ec_cb27,
-            0xc8c3_2bdb_01ba_11ab,
-            0x1d60_edb9_9c0a_eda7,
-            0x2e1c_c28e_390e_64aa,
+        F::from_raw([
+            0xef5a_eaad_7ca9_32f1,
+            0x5439_1a89_35ff_71d6,
+            0x6c6b_ec3c_ef54_2963,
+            0x1794_74cc_eca5_ff67,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0xcb3c_96c7_0024_f71b,
-            0x1e73_4a70_08ae_09bb,
-            0x276b_eac4_08fe_2e85,
-            0x2d48_2000_0675_df7c,
+        F::from_raw([
+            0x7e1a_2589_bbed_2b91,
+            0x9c1f_974a_2649_69b3,
+            0x9228_ff4a_503f_d4ed,
+            0x2c24_2613_79a5_1bfa,
         ]),
-        pallas::Base::from_raw([
-            0x8385_b5fa_19e9_7142,
-            0x266f_7636_e05b_0c06,
-            0x8b90_2c6b_2dc9_92cb,
-            0x0c2f_e101_a2b5_2b53,
-        ]),
-    ],
-    [
-        pallas::Base::from_raw([
-            0x5785_5153_5002_bc95,
-            0x87fc_7bd4_f21a_9e02,
-            0x7c6a_178e_f2f0_0b86,
-            0x209b_790b_78c0_e792,
-        ]),
-        pallas::Base::from_raw([
-            0x4bd4_222b_93e1_4c10,
-            0xf94a_9108_52a7_b4ea,
-            0xc649_1513_d08a_9983,
-            0x2dd0_926c_f56b_baae,
+        F::from_raw([
+            0x53e6_6c05_5180_1b05,
+            0xc2f6_3f50_01fc_0fc5,
+            0xac2f_288b_d069_5b43,
+            0x1cc1_d7b6_2692_e63e,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0x4571_827e_74bf_d2d3,
-            0x8a4c_cc0f_6494_cc05,
-            0x7b14_6324_c847_72c5,
-            0x37af_6129_00b8_3997,
+        F::from_raw([
+            0x5d9e_ff5f_d9c9_1b56,
+            0x0078_4dbf_17fb_acd0,
+            0xb2ed_55f8_5297_9e96,
+            0x2550_5930_1aad_a98b,
         ]),
-        pallas::Base::from_raw([
-            0xce11_d065_c195_5338,
-            0x371e_8322_8e42_67bb,
-            0x9911_e5cb_3781_d772,
-            0x2af0_0c93_d59e_d14c,
-        ]),
-    ],
-    [
-        pallas::Base::from_raw([
-            0x0446_f221_8017_874b,
-            0x1f67_f71e_9b87_a4a3,
-            0x2cb1_0ecb_e50b_5349,
-            0x232b_6c84_7a6d_2391,
-        ]),
-        pallas::Base::from_raw([
-            0x629e_faa0_e964_56c0,
-            0xeea7_4b3f_0b66_644a,
-            0x57a3_70e4_fd62_6071,
-            0x0ab3_4adb_e77b_8f1e,
+        F::from_raw([
+            0xb11c_29ce_7e59_efd9,
+            0xaea2_4234_970a_8193,
+            0x79e1_f5c0_eccd_32b3,
+            0x2843_7be3_ac1c_b2e4,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0x9147_cbc5_b708_4be8,
-            0xcab6_3280_7c2c_d0dc,
-            0x46b1_bdbe_ab8d_d5cd,
-            0x1a83_e43e_f118_c900,
+        F::from_raw([
+            0x3387_62c3_7f5f_2043,
+            0x1854_8da8_fb4f_78d4,
+            0x1ca4_fa6b_5376_6eb1,
+            0x2821_6a44_2f2e_1f71,
         ]),
-        pallas::Base::from_raw([
-            0xa595_d4dc_6c56_f2f9,
-            0xb642_5674_62a3_d557,
-            0x9005_4687_2091_8130,
-            0x1ec6_fa41_b41b_672d,
-        ]),
-    ],
-    [
-        pallas::Base::from_raw([
-            0x864f_8e57_13fe_4a17,
-            0xf82a_acf0_287d_03e1,
-            0xa111_b8f5_212c_fc5b,
-            0x01f8_1a15_3199_a751,
-        ]),
-        pallas::Base::from_raw([
-            0x7bcc_a4de_2c6f_0649,
-            0x2d75_1cab_f3d9_fd00,
-            0xecd7_3a54_a7b2_0616,
-            0x2617_3075_87a6_75f4,
+        F::from_raw([
+            0x131f_2377_3234_82c9,
+            0xeee1_efce_0309_4581,
+            0x1f39_f4e7_056d_d03f,
+            0x2c1f_47cd_17fa_5adf,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0x7e36_2d7f_98bc_953f,
-            0xb1ae_6e2d_4e16_8208,
-            0x7974_a245_624b_642b,
-            0x1647_be94_c515_178c,
+        F::from_raw([
+            0x646b_8566_a621_afc9,
+            0xd9da_fca2_7663_8a63,
+            0x8632_bcc9_356c_eb7d,
+            0x07ab_ad02_b7a5_ebc4,
         ]),
-        pallas::Base::from_raw([
-            0xda7e_f9d1_840b_0419,
-            0xb5c0_bc2a_ab1c_7b46,
-            0x75fc_370e_aa8c_1b77,
-            0x32bf_3d45_1b69_dde0,
-        ]),
-    ],
-    [
-        pallas::Base::from_raw([
-            0x7a89_a58a_2dc4_0097,
-            0x9252_44fd_d0aa_184c,
-            0x77e9_6e91_52b3_6042,
-            0x17cb_b3ee_0adc_b9d9,
-        ]),
-        pallas::Base::from_raw([
-            0x8ace_050d_5537_66a3,
-            0x956e_52b8_dac3_6ef8,
-            0x5c55_2f6b_5977_ab94,
-            0x29d7_6a82_1e32_2077,
+        F::from_raw([
+            0x37da_0c4d_15f9_6c3c,
+            0x9429_f908_80a6_9cd1,
+            0x275b_33ff_aab5_1dfe,
+            0x0230_2646_01ff_df29,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0xc6ed_a903_5d04_334d,
-            0xa99f_dc45_24fc_2810,
-            0xa693_a51a_e822_7cc0,
-            0x0dfc_4741_51e5_c605,
+        F::from_raw([
+            0x717e_5d66_899a_a0a9,
+            0xa864_4145_57ee_289e,
+            0xa0f1_6865_6497_ca40,
+            0x1bc9_7305_4e51_d905,
         ]),
-        pallas::Base::from_raw([
-            0xaec9_d366_a91b_1d98,
-            0xeeda_fb47_5574_46a9,
-            0x2ed4_65cd_ab37_a7b2,
-            0x3e28_7088_506b_b38d,
-        ]),
-    ],
-    [
-        pallas::Base::from_raw([
-            0xaff2_c913_cf58_974a,
-            0x8c56_f3cd_3994_0030,
-            0x673c_9eff_c245_7879,
-            0x2641_d291_9d0b_ed24,
-        ]),
-        pallas::Base::from_raw([
-            0x03c5_e74d_0a66_3cf9,
-            0x01a5_45ec_b1c6_a374,
-            0x7c84_d93b_a935_9da9,
-            0x286c_1f84_1a05_bb66,
+        F::from_raw([
+            0x2a6b_2228_8f0a_67fc,
+            0xd249_aff5_c2d8_421f,
+            0x206c_3157_e863_41ed,
+            0x2e1c_22f9_6443_5008,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0x4469_7b49_b102_5df5,
-            0xeae1_0e7c_312a_eb8a,
-            0x4b44_16fc_8231_7a4d,
-            0x0b8d_4686_1838_7249,
+        F::from_raw([
+            0xa704_52bc_2bba_86b8,
+            0x9e8e_a159_8e46_c9f7,
+            0x121c_1d5f_461b_bc50,
+            0x1224_f38d_f67c_5378,
         ]),
-        pallas::Base::from_raw([
-            0x028c_4f55_d4f4_f0ed,
-            0xcf77_9baf_f745_7cce,
-            0x3f05_7c10_46bb_04de,
-            0x0e2f_4df2_de65_0455,
-        ]),
-    ],
-    [
-        pallas::Base::from_raw([
-            0x29ea_d0b3_e70a_eba4,
-            0xe5a3_5810_b854_0228,
-            0xd1c7_7259_d976_6437,
-            0x1694_268c_cf0c_f400,
-        ]),
-        pallas::Base::from_raw([
-            0x54b5_375e_7f46_698b,
-            0x26c2_8910_a099_4e08,
-            0x38c9_c08c_36ee_90b6,
-            0x3c96_c51a_30dc_76af,
+        F::from_raw([
+            0x69d2_9891_86cd_e20e,
+            0xd7bf_e8cd_9dfe_da19,
+            0x9280_b4bd_9ed0_068f,
+            0x02e4_e69d_8ba5_9e51,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0x4bc0_616e_f5b3_dddb,
-            0x07d1_928b_efec_6a43,
-            0x7f6f_2631_f93c_b33d,
-            0x2107_7e81_fe5a_0bde,
+        F::from_raw([
+            0x6d47_e973_5d98_018e,
+            0x4f19_ee36_4e65_3f07,
+            0x7f5d_f81f_c04f_f3ee,
+            0x1f1e_ccc3_4aab_a013,
         ]),
-        pallas::Base::from_raw([
-            0x9c94_76e7_a380_fb90,
-            0x74a8_0c75_0418_6d3c,
-            0x3ea2_1f84_ea42_ba33,
-            0x11ae_b10c_549b_c49d,
-        ]),
-    ],
-    [
-        pallas::Base::from_raw([
-            0x41e0_6470_4a02_4904,
-            0x2493_7f94_bd97_4919,
-            0x3e3b_a071_6b5d_e50a,
-            0x0e9b_a2ef_bd17_7a7c,
-        ]),
-        pallas::Base::from_raw([
-            0x92d8_93f4_5788_e9d6,
-            0x8fbd_01e3_e5c2_2f41,
-            0xe3c5_0c2d_9abc_405d,
-            0x1dda_541f_2f74_4aae,
+        F::from_raw([
+            0xeacb_8a4d_4284_f582,
+            0x1424_4480_32cd_1819,
+            0x7426_6c30_39a9_a731,
+            0x1672_ad3d_709a_3539,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0xb656_a2e2_8db0_97b3,
-            0x0c26_6d9c_002c_5d77,
-            0x9fbd_8cf2_9049_439a,
-            0x2ec1_165c_af7f_d158,
+        F::from_raw([
+            0x1d2e_d602_df8c_8fc7,
+            0xcda6_961f_284d_2499,
+            0x56f4_4af5_192b_4ae9,
+            0x283e_3fdc_2c6e_420c,
         ]),
-        pallas::Base::from_raw([
-            0x9443_f95d_c235_66ec,
-            0x575e_4b7a_e66c_de54,
-            0xe0bb_bfb8_8241_9c31,
-            0x1f8c_c6e5_61bd_e673,
-        ]),
-    ],
-    [
-        pallas::Base::from_raw([
-            0x9efb_000e_0bcf_bdd0,
-            0xa494_546e_a8ef_e718,
-            0x6bca_37a8_8295_daeb,
-            0x1205_704b_f8e9_5ba2,
-        ]),
-        pallas::Base::from_raw([
-            0x5408_36f0_6eb4_9d38,
-            0x3d21_df81_eee9_35ec,
-            0xfbbd_4ef8_0645_d247,
-            0x016c_deeb_db6f_8b37,
+        F::from_raw([
+            0x614f_bd69_ff39_4bcc,
+            0x6837_51f8_fdff_59d6,
+            0xd0db_0957_170f_a013,
+            0x1c2a_3d12_0c55_0ecf,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0x1849_23bd_fa0c_ae33,
-            0x7b5c_a43c_7809_5f14,
-            0xadd6_f220_ff49_38fe,
-            0x19b8_a2f4_a640_3c98,
+        F::from_raw([
+            0x96cb_6b81_7765_3fbd,
+            0x143a_9a43_773e_a6f2,
+            0xf789_7a73_2345_6efe,
+            0x216f_8487_7aac_6172,
         ]),
-        pallas::Base::from_raw([
-            0xc25d_67bb_017e_26d5,
-            0x6bf9_31d5_efb8_ce59,
-            0x694e_e0a2_7a4e_c9fb,
-            0x1935_8aab_5822_facc,
-        ]),
-    ],
-    [
-        pallas::Base::from_raw([
-            0xfe24_e764_a2e7_affe,
-            0xc985_3f81_1188_cd44,
-            0xbee1_4572_b696_7720,
-            0x0c7a_80ba_8f73_72a2,
-        ]),
-        pallas::Base::from_raw([
-            0x21cc_1e42_8f9b_48c4,
-            0x09b8_7f7f_cffc_3173,
-            0x6f42_058e_3f87_1ac1,
-            0x3894_fe11_3139_129d,
+        F::from_raw([
+            0x11a1_f515_52f9_4788,
+            0xceaa_47ea_61ca_59a4,
+            0x64ba_7e8e_3e28_d12b,
+            0x2c0d_272b_ecf2_a757,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0x2357_40d5_fb40_6ab9,
-            0x8e94_f5e3_f96a_177c,
-            0xf0e6_2be6_01da_8cad,
-            0x1aef_c078_5946_d65e,
+        F::from_raw([
+            0xcb4a_6c3d_8954_6f43,
+            0x170a_5480_abe0_508f,
+            0x484e_e7a7_4c45_4e9f,
+            0x16e3_4299_865c_0e28,
         ]),
-        pallas::Base::from_raw([
-            0xe7d1_e06a_4e16_26b3,
-            0x4028_8c36_554e_e106,
-            0xe545_ef54_3ac1_b166,
-            0x0af1_c4fc_0b49_030f,
-        ]),
-    ],
-    [
-        pallas::Base::from_raw([
-            0x7908_7df4_6601_54f4,
-            0xa4e1_62e0_0d3b_a70d,
-            0xe023_3ca1_68ea_6c21,
-            0x1318_aac0_f0ef_72e5,
-        ]),
-        pallas::Base::from_raw([
-            0x4e49_b90c_d73e_3d05,
-            0x2321_7247_ece5_e051,
-            0x2c80_a4dd_8308_3db0,
-            0x0059_83d5_e4d5_d48c,
+        F::from_raw([
+            0x48cd_9397_5548_8fc5,
+            0x7720_4776_5802_290f,
+            0x375a_232a_6fb9_cc71,
+            0x175c_eba5_99e9_6f5b,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0x34d5_9af5_2a6a_d067,
-            0x7463_56c6_821f_f037,
-            0xc539_6532_1371_73d6,
-            0x39c9_3d11_9626_20d7,
+        F::from_raw([
+            0xd8c5_ffbb_44a1_ee32,
+            0x6aa4_10bf_bc35_4f54,
+            0xfead_9e17_58b0_2806,
+            0x0c75_9444_0dc4_8c16,
         ]),
-        pallas::Base::from_raw([
-            0x19e5_f680_bed7_5fa7,
-            0xa2bc_7bec_09db_ce13,
-            0x83fc_c7d2_ccb1_5127,
-            0x2475_bc5a_cc01_2b80,
-        ]),
-    ],
-    [
-        pallas::Base::from_raw([
-            0xddbe_de53_4265_c995,
-            0x8ac2_9094_27f0_a608,
-            0x28df_8eb9_c2cb_17ed,
-            0x0bb4_42eb_a5ba_f8e7,
-        ]),
-        pallas::Base::from_raw([
-            0x9881_ad92_2720_4ecd,
-            0x841a_94be_0277_02ea,
-            0xa884_fe33_f287_ea54,
-            0x3d12_0149_595e_0c7f,
+        F::from_raw([
+            0x9247_9882_d919_fd8d,
+            0x760e_2001_3ccf_912c,
+            0xc466_db7d_7eb6_fd8f,
+            0x1a3c_29bc_39f2_1bb5,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0xf22e_8703_01d0_51e0,
-            0xf25c_44be_406a_90de,
-            0x1df4_bf4f_5f1d_a532,
-            0x35e4_7349_a427_ba8b,
+        F::from_raw([
+            0x95c8_eeab_cd22_e68f,
+            0x0855_d349_074f_5a66,
+            0xc098_6ea0_49b2_5340,
+            0x0ccf_dd90_6f34_26e5,
         ]),
-        pallas::Base::from_raw([
-            0xd69d_4e1f_d34a_bcec,
-            0xf36d_c3e0_7eb1_df7f,
-            0x5259_71b5_7384_1109,
-            0x19ca_f5fb_bc0a_1424,
-        ]),
-    ],
-    [
-        pallas::Base::from_raw([
-            0x5de1_1ea8_1912_3651,
-            0xd5da_fe9f_ce2c_807f,
-            0xc0b9_5360_e3d9_92b0,
-            0x06ab_7adf_0f99_7bad,
-        ]),
-        pallas::Base::from_raw([
-            0xe665_fbe8_3d63_cdd2,
-            0x2b31_a8a4_4178_a0d6,
-            0xca45_cc1d_a7d8_ca5e,
-            0x0186_5aba_8ec3_d89a,
+        F::from_raw([
+            0xe0e6_99b6_7dd9_e796,
+            0x66a7_a8a3_fd06_5b3c,
+            0x2bdb_475c_e6c9_4118,
+            0x14f6_bc81_d9f1_86f6,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0x7af1_c256_0afc_4ed9,
-            0xfbe8_0c8e_0602_d8ea,
-            0xa34e_9566_471d_b96e,
-            0x221d_9df3_3836_d262,
+        F::from_raw([
+            0x88ed_eb73_86b9_7052,
+            0xcc09_9810_c9c4_95c8,
+            0x9702_ca70_b2f6_c5aa,
+            0x0962_b827_89fb_3d12,
         ]),
-        pallas::Base::from_raw([
-            0x4cf7_6c60_32d1_59af,
-            0xef24_ec3d_5ba0_0096,
-            0xe095_85d7_4c63_7be4,
-            0x0f12_e59c_448a_18ba,
-        ]),
-    ],
-    [
-        pallas::Base::from_raw([
-            0x56b5_fcb9_3ecb_7a27,
-            0x120f_4e68_4359_0ed1,
-            0x40df_d9aa_95fa_8b5c,
-            0x1037_6fa0_adb3_a505,
-        ]),
-        pallas::Base::from_raw([
-            0xa752_9a98_0458_eac8,
-            0x7e54_0902_ada5_f8d8,
-            0x0ed8_3817_99fa_51e2,
-            0x0315_97a4_9ea8_90a5,
+        F::from_raw([
+            0xafef_0c8f_6a31_a86d,
+            0x1328_4ab0_1ef0_2575,
+            0xbf20_c79d_e251_27bc,
+            0x1a88_0af7_074d_18b3,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0x04ea_6707_cf15_59fd,
-            0x1344_80ab_e2cd_a79b,
-            0xa78a_948a_86d8_9ab4,
-            0x0c25_825f_1d3b_b30c,
+        F::from_raw([
+            0x4c30_12bb_7ae9_311b,
+            0x20af_2924_fc20_ff3f,
+            0xcd5e_77f0_211c_154b,
+            0x10cb_a184_19a6_a332,
         ]),
-        pallas::Base::from_raw([
-            0x09ed_59b3_aa79_984c,
-            0xa992_4e26_f425_b9dd,
-            0xe6dd_0693_439a_500b,
-            0x22aa_9b1c_a14e_a000,
-        ]),
-    ],
-    [
-        pallas::Base::from_raw([
-            0xbf92_096d_8b0d_8ce5,
-            0x32a1_e8b7_2ef6_35fa,
-            0xda4c_f647_fd75_c45b,
-            0x2073_3231_fc2b_0ff1,
-        ]),
-        pallas::Base::from_raw([
-            0x8b38_131b_edcb_d3e9,
-            0xc18d_38b2_44f6_75e2,
-            0x6f92_489d_4b7f_0d1d,
-            0x0099_8747_8146_99bc,
+        F::from_raw([
+            0x756a_2849_f302_f10d,
+            0xfa27_b731_9cae_3406,
+            0xbdc7_6ba6_3a9e_aca8,
+            0x057e_62a9_a8f8_9b3e,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0x175d_c968_5651_53f8,
-            0xf8f0_cb81_a431_beea,
-            0x4018_a3aa_9ba8_d6b6,
-            0x056a_f47f_0208_cf52,
+        F::from_raw([
+            0xafa0_413b_4428_0cee,
+            0xb961_303b_bf65_cff5,
+            0xd44a_df53_84b4_988c,
+            0x287c_971d_e91d_c0ab,
         ]),
-        pallas::Base::from_raw([
-            0x2774_0b9c_38a0_332c,
-            0x3f72_748d_1578_393f,
-            0x42ef_8477_1ee2_cc93,
-            0x1e97_1384_8edf_3386,
-        ]),
-    ],
-    [
-        pallas::Base::from_raw([
-            0x3ff6_43e5_75a2_eaca,
-            0x564b_0ea4_af44_619c,
-            0xcdde_4e4e_bab5_2ae8,
-            0x363c_3aed_da55_0421,
-        ]),
-        pallas::Base::from_raw([
-            0x9c26_5808_f0e8_db75,
-            0x92eb_9c09_04d6_75d7,
-            0xc442_9b9d_7735_f4e1,
-            0x389c_6cf1_5e1d_5e2c,
+        F::from_raw([
+            0x6f7f_7960_e306_891d,
+            0x1e56_2bc4_6d4a_ba4e,
+            0xb3bc_a9da_0cca_908f,
+            0x21df_3388_af16_87bb,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0xe219_65a7_b5b4_de53,
-            0x35b7_d6f8_7894_02f4,
-            0x79ab_87fb_8061_ad65,
-            0x11e4_dc42_1276_2355,
+        F::from_raw([
+            0x3eff_8b56_0e16_82b3,
+            0x789d_f8f7_0b49_8fd8,
+            0x3e25_cc97_4d09_34cd,
+            0x1be5_c887_d25b_ce70,
         ]),
-        pallas::Base::from_raw([
-            0x82f8_ac7e_99eb_2dfb,
-            0x1d15_a478_4263_a5fe,
-            0x5fec_2e21_5963_c619,
-            0x3e1a_3d14_beb1_d015,
-        ]),
-    ],
-    [
-        pallas::Base::from_raw([
-            0x5c14_091a_b6d1_9b34,
-            0x8dba_ccf6_4f08_8e2f,
-            0x3867_fba2_7a80_a2b8,
-            0x16bf_2023_58c8_1b94,
-        ]),
-        pallas::Base::from_raw([
-            0xd636_c91e_4e8e_1114,
-            0xf730_2fff_34e8_2ec0,
-            0xe035_3f99_5bf5_4afc,
-            0x36e0_11b9_3cee_7996,
+        F::from_raw([
+            0x48d5_9c27_06a0_d5c1,
+            0xd2cb_5d42_fda5_acea,
+            0x6811_7175_cea2_cd0d,
+            0x268d_a36f_76e5_68fb,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0x9311_4b69_0fc0_60b6,
-            0xdac2_46ea_9b16_5dc1,
-            0x6f8e_d030_de4f_6cbe,
-            0x1668_16fa_35c1_44fa,
+        F::from_raw([
+            0xbd06_460c_c26a_5ed6,
+            0xc5d8_bb74_135e_bd05,
+            0xc609_beaf_5510_ecec,
+            0x0e17_ab09_1f6e_ae50,
         ]),
-        pallas::Base::from_raw([
-            0x63b1_bb14_3c69_5b59,
-            0x93a0_45b8_aea6_1110,
-            0x9d1b_9d98_9e1e_193c,
-            0x38b9_8a24_31cc_b829,
-        ]),
-    ],
-    [
-        pallas::Base::from_raw([
-            0xebce_3e78_525f_067f,
-            0xa249_1c88_5e5c_390c,
-            0x41ef_a273_f1f0_c378,
-            0x0424_05a4_17d7_0cb0,
-        ]),
-        pallas::Base::from_raw([
-            0x0189_ac12_380e_4f31,
-            0xa90c_8e62_2f1e_d0f0,
-            0x6f59_7d07_d10e_80bf,
-            0x016b_3608_8fe6_d24d,
+        F::from_raw([
+            0x040f_5caa_1f62_af40,
+            0x91ef_62d8_cf83_d270,
+            0x7aee_535a_b074_a430,
+            0x04d7_27e7_28ff_a0a6,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0x9cc3_c0fb_38ac_7528,
-            0x8b06_03ad_5836_8b1a,
-            0x1f85_c6a8_1519_157a,
-            0x1348_c563_bde6_0444,
+        F::from_raw([
+            0x2b15_417d_7e39_ca6e,
+            0x3370_2ac1_0f1b_fd86,
+            0x81b5_4976_2bc0_22ed,
+            0x0ddb_d7bf_9c29_3415,
         ]),
-        pallas::Base::from_raw([
-            0x7816_7f02_71df_e597,
-            0xb5f1_ac10_a621_5063,
-            0xf6d2_0690_7131_328e,
-            0x1cdf_fdc7_9e5e_42b6,
-        ]),
-    ],
-    [
-        pallas::Base::from_raw([
-            0x4c8b_bdaf_a419_00d7,
-            0x2543_ead7_4aa2_9aa2,
-            0x078e_5de0_b51b_6c61,
-            0x3c8d_1b23_53e9_bca6,
-        ]),
-        pallas::Base::from_raw([
-            0xb6f7_27d8_72f8_dc51,
-            0x0d16_284b_bcfc_80f7,
-            0x7815_f401_74df_e809,
-            0x2f48_008f_3de7_aec3,
+        F::from_raw([
+            0x8a29_c49c_8789_654b,
+            0x34f5_b0d1_d3af_9b58,
+            0x7681_62e8_2989_c6c2,
+            0x2790_eb33_5162_1752,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0xbd23_e16f_c24d_f4cb,
-            0x8a58_09aa_8b46_f65e,
-            0x56c2_e65a_0a3e_e0cd,
-            0x1e93_a47f_81d7_c850,
+        F::from_raw([
+            0x84b7_6420_6142_f9e9,
+            0x395f_3d9a_b8b2_fd09,
+            0x4471_9501_93d8_a570,
+            0x1e45_7c60_1a63_b73e,
         ]),
-        pallas::Base::from_raw([
-            0x7612_d632_1b2c_e006,
-            0x6a93_8b75_4a6e_671f,
-            0xd5ab_e704_6dd4_ce00,
-            0x0fc7_5ffc_8126_32a1,
-        ]),
-    ],
-    [
-        pallas::Base::from_raw([
-            0x9d52_ac72_b760_489f,
-            0xe9e0_5a39_9ca1_5adb,
-            0xdffd_5dcb_e4dd_e2de,
-            0x3f00_a54a_ef2f_dc28,
-        ]),
-        pallas::Base::from_raw([
-            0x96cc_9cf2_9557_761a,
-            0x0d29_c179_45ee_4b11,
-            0xe911_5da2_a5c6_61c8,
-            0x0e2e_602d_44f4_3a0d,
+        F::from_raw([
+            0xc4c6_86fc_46e0_91b0,
+            0xfa90_ecd0_c43f_f91f,
+            0x638d_6ab2_bbe7_135f,
+            0x21ae_6430_1dca_9625,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0xc753_50fe_25b3_d967,
-            0x41b2_bd13_8ea7_bd31,
-            0x4688_7aeb_9207_72c8,
-            0x071c_7ce9_1d7c_50c8,
+        F::from_raw([
+            0x5858_534e_ed8d_350b,
+            0x854b_e9e3_432e_0955,
+            0x4da2_9316_6f49_4928,
+            0x0379_f63c_8ce3_468d,
         ]),
-        pallas::Base::from_raw([
-            0xe5cb_f146_f526_500a,
-            0x0a97_6ff4_9cea_6cde,
-            0x0506_ae41_8cab_4be9,
-            0x2e19_dd91_019b_f563,
-        ]),
-    ],
-    [
-        pallas::Base::from_raw([
-            0x05c6_87a9_3a84_f105,
-            0x593b_5b3b_276c_f400,
-            0xbe60_beae_a7b8_6bea,
-            0x3a93_ede7_f5f9_1e9f,
-        ]),
-        pallas::Base::from_raw([
-            0x77e3_2d6a_2c33_35c5,
-            0x826a_0042_2185_1b6d,
-            0xad3e_d4d8_e514_158d,
-            0x3e55_66cb_cc3e_563a,
+        F::from_raw([
+            0x8c9f_58a3_24c3_5049,
+            0xca0e_4921_a466_86ac,
+            0x6a74_4a08_0809_e054,
+            0x002d_5642_0359_d026,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0x46a4_99a9_3283_7fc0,
-            0x6cc9_5bf8_1f7a_f09e,
-            0xcc05_4759_423f_f910,
-            0x0f1e_5a15_cf83_3246,
+        F::from_raw([
+            0x0fc2_c5af_9635_15a6,
+            0xda8d_6245_9e21_f409,
+            0x1d68_b3cd_32e1_0bbe,
+            0x1231_58e5_965b_5d9b,
         ]),
-        pallas::Base::from_raw([
-            0x42cc_099a_d8f5_fd92,
-            0x95a8_2a2e_18ab_de4d,
-            0x14be_8077_2e2d_3552,
-            0x1be9_9e07_fcaf_31cf,
-        ]),
-    ],
-    [
-        pallas::Base::from_raw([
-            0x58bc_c387_c83e_b5be,
-            0x7595_883f_bb56_7e67,
-            0x10de_ee41_e1a3_6a4a,
-            0x027b_b458_8733_32d0,
-        ]),
-        pallas::Base::from_raw([
-            0x5bb5_3bba_1843_65b7,
-            0x2a53_545c_d431_6ff9,
-            0x974a_f96a_9d25_054e,
-            0x1780_0175_167f_67b5,
+        F::from_raw([
+            0x60c8_0eb4_9cad_9ec1,
+            0x0fbb_2b6f_5283_6d4e,
+            0x661d_14bb_f6cb_e042,
+            0x0be2_9fc4_0847_a941,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0x529f_a59e_9d06_7714,
-            0x0ebd_9700_7dba_7c5c,
-            0xe750_08a0_e839_997e,
-            0x1a4a_af44_46da_14d6,
+        F::from_raw([
+            0x2338_02f2_4fdf_4c1a,
+            0x36db_9d85_9cad_5f9a,
+            0x5771_6142_015a_453c,
+            0x1ac9_6991_dec2_bb05,
         ]),
-        pallas::Base::from_raw([
-            0xf049_c2a2_6532_0e67,
-            0x2f8e_05aa_39f1_a561,
-            0xc635_1cef_8aa7_06c2,
-            0x3360_5fea_8d5f_da8b,
-        ]),
-    ],
-    [
-        pallas::Base::from_raw([
-            0x9461_d08e_fa9a_05ad,
-            0x10f3_04d8_6ec4_5447,
-            0xfb65_19ef_d638_b0b3,
-            0x213a_93a7_89ef_3805,
-        ]),
-        pallas::Base::from_raw([
-            0x71ab_7e2b_4ee5_0d79,
-            0xd151_135d_c0e5_9e2c,
-            0xf307_5bd1_01b9_bcb9,
-            0x043f_c5a4_9dbd_9775,
+        F::from_raw([
+            0x51ca_3355_bcb0_627e,
+            0x5e12_c9fa_97f1_8a92,
+            0x5f49_64fc_61d2_3b3e,
+            0x1596_443f_763d_bcc2,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0x5a45_7d44_d59f_4040,
-            0x7d17_0d59_41ca_7f94,
-            0xb918_7158_6da5_4341,
-            0x04ee_6ac7_a590_7e3d,
+        F::from_raw([
+            0xd6d0_49ea_e3ba_3212,
+            0xf185_7d9f_17e7_15ae,
+            0x6b28_61d4_ec3a_eae0,
+            0x12e0_bcd3_654b_dfa7,
         ]),
-        pallas::Base::from_raw([
-            0x35d7_312b_215f_a5ca,
-            0x31ee_c979_fa44_f565,
-            0x210a_dc03_67de_b08c,
-            0x2108_016d_b6f8_3a9f,
-        ]),
-    ],
-    [
-        pallas::Base::from_raw([
-            0xf8fd_b6b2_484e_50af,
-            0xf1d8_2711_2189_9731,
-            0x1b9b_9677_ee20_7986,
-            0x22f3_c7ca_c770_1833,
-        ]),
-        pallas::Base::from_raw([
-            0xc9bd_973d_d1a2_7149,
-            0xff8d_cda9_cc87_a542,
-            0xbf3a_3c0d_52ba_3037,
-            0x1de8_3ef3_1303_508e,
+        F::from_raw([
+            0x04e6_c76c_7cf9_64ba,
+            0xceab_ac7f_3715_4b19,
+            0x9ea7_3d4a_f9af_2a50,
+            0x0fc9_2b4f_1bbe_a82b,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0x1674_b50e_d2c6_94bc,
-            0x589a_080c_5adb_964d,
-            0x2549_38ed_849f_15fb,
-            0x1756_5a85_cdb3_8d82,
+        F::from_raw([
+            0x9c7e_9652_3387_2762,
+            0xb14f_7c77_2223_6f4f,
+            0xd6f2_e592_a801_3f40,
+            0x1f9c_0b16_1044_6442,
         ]),
-        pallas::Base::from_raw([
-            0xd2bd_506d_5aff_d505,
-            0xce50_6ce6_27bc_f11c,
-            0xb9cf_eb06_7546_68fc,
-            0x2851_1e30_efb0_5ee2,
-        ]),
-    ],
-    [
-        pallas::Base::from_raw([
-            0x1f84_4e8b_6810_1ab6,
-            0xa12d_a729_cac2_68ed,
-            0xb7b0_7bc5_8188_a2f2,
-            0x3e11_73f5_0bb7_1198,
-        ]),
-        pallas::Base::from_raw([
-            0xdc4a_c560_c1c5_e404,
-            0x8e5e_c2d3_b8df_3f4c,
-            0xd81c_f97d_543d_c2e5,
-            0x0c9a_7e5b_4a80_fac8,
+        F::from_raw([
+            0x8d15_9f64_3dbb_f4d3,
+            0x050d_914d_a38b_4c05,
+            0xf8cd_e061_57a7_82f4,
+            0x0ebd_7424_4ae7_2675,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0x7bb3_d73a_053d_35f4,
-            0xbb2d_522b_1320_010f,
-            0x9b99_2d31_e948_c141,
-            0x0d5c_1dab_03ea_c50e,
+        F::from_raw([
+            0x7a83_9839_dccf_c6d1,
+            0x3b06_71e9_7346_ee39,
+            0x69a9_fafd_4ab9_51c0,
+            0x2cb7_f0ed_39e1_6e9f,
         ]),
-        pallas::Base::from_raw([
-            0x7b9c_eb8e_30d5_37a1,
-            0x05d1_3b4e_8073_9aba,
-            0x4a13_85e3_d215_30be,
-            0x0266_2562_9b3d_63b9,
-        ]),
-    ],
-    [
-        pallas::Base::from_raw([
-            0x0ef1_9920_b750_e03b,
-            0x23e0_bde9_5ccd_fe9f,
-            0x343f_5bd4_310f_3216,
-            0x26c9_6b01_477e_1d22,
-        ]),
-        pallas::Base::from_raw([
-            0xcd3b_4278_cb50_6936,
-            0x00a2_f851_4f4f_51f7,
-            0x8f4d_d361_313b_7b7f,
-            0x3d3f_9ed7_c700_089e,
+        F::from_raw([
+            0x90c7_2bca_7352_d9bf,
+            0xce76_1d05_14ce_5266,
+            0x5605_443e_e41b_ab20,
+            0x1a9d_6e2e_cff0_22cc,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0xd014_e1d1_fb24_b787,
-            0x0fbc_92bc_99b5_bcc0,
-            0xe35e_af39_bda8_a613,
-            0x19bd_d3fa_dba9_a54a,
+        F::from_raw([
+            0x87da_182d_648e_c72f,
+            0xd0c1_3326_a9a7_ba30,
+            0x5ea8_3c3b_c44a_9331,
+            0x2a11_5439_607f_335a,
         ]),
-        pallas::Base::from_raw([
-            0xcd6e_afba_c8a2_4b2c,
-            0xc5dc_91a0_3ed8_62f2,
-            0x564f_9a28_2f61_9d2b,
-            0x3f76_b39a_fd07_f198,
-        ]),
-    ],
-    [
-        pallas::Base::from_raw([
-            0x170d_6565_f0ae_f5b7,
-            0x2883_f3e3_068d_ef26,
-            0x2e24_da4e_bcf6_04ed,
-            0x2d86_297c_57d5_27a0,
-        ]),
-        pallas::Base::from_raw([
-            0x97bd_3ee5_ff4f_59c3,
-            0x6262_65eb_2784_c166,
-            0x5d7a_54e8_bf64_0d25,
-            0x2d92_06ad_bc21_57f8,
+        F::from_raw([
+            0x9535_c115_c5a4_c060,
+            0xe738_b563_05cd_44f2,
+            0x15b8_fa7a_ee3e_3410,
+            0x23f9_b652_9b5d_040d,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0x78e9_bf79_a067_5a2a,
-            0xe6c5_5ced_7877_cb31,
-            0xff37_e59b_0924_d681,
-            0x0077_a733_6336_672f,
+        F::from_raw([
+            0x260e_b939_f0e6_e8a7,
+            0xa3ce_97c1_6d58_b68b,
+            0x249a_c6ba_484b_b9c3,
+            0x0587_2c16_db0f_72a2,
         ]),
-        pallas::Base::from_raw([
-            0xe81c_3f70_2f68_ed3f,
-            0x5ddd_adaa_bae8_b75e,
-            0xc3a0_7302_befe_0553,
-            0x0794_b785_e1aa_1bb5,
+        F::from_raw([
+            0x2b62_4a7c_dedd_f6a7,
+            0x0219_b615_1d55_b5c5,
+            0xca20_fb80_1180_75f4,
+            0x1300_bdee_08bb_7824,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0x8db4_3423_a1a6_b1fd,
-            0xc433_233a_59ca_974e,
-            0x100d_f8c7_67ca_7b59,
-            0x3666_ea9a_17cc_da18,
+        F::from_raw([
+            0x072e_4e7b_7d52_b376,
+            0x8d7a_d299_16d9_8cb1,
+            0xe638_1786_3a8f_6c28,
+            0x19b9_b63d_2f10_8e17,
         ]),
-        pallas::Base::from_raw([
-            0x5af0_b46b_d02b_2fc8,
-            0x2708_c20e_d75a_a58f,
-            0xbfa3_8363_cf23_f6ff,
-            0x0c01_953d_5c46_d4cd,
+        F::from_raw([
+            0x24a2_0128_481b_4f7f,
+            0x13d1_c887_26b5_ec42,
+            0xb5bd_a237_6685_22f6,
+            0x015b_ee13_57e3_c015,
+        ]),
+    ],
+    [
+        F::from_raw([
+            0xea92_c785_b128_ffd1,
+            0xfe1e_1ce4_bab2_18cb,
+            0x1b97_07a4_f161_5e4e,
+            0x2953_736e_94bb_6b9f,
+        ]),
+        F::from_raw([
+            0x4ce7_266e_d660_8dfc,
+            0x851b_98d3_72b4_5f54,
+            0x862f_8061_80c0_385f,
+            0x0b06_9353_ba09_1618,
+        ]),
+    ],
+    [
+        F::from_raw([
+            0x4f58_8ac9_7d81_f429,
+            0x55ae_b7eb_9306_b64e,
+            0x15e4_e0bc_fb93_817e,
+            0x304f_74d4_61cc_c131,
+        ]),
+        F::from_raw([
+            0xb8ee_5415_cde9_13fc,
+            0xaad2_a164_a461_7a4c,
+            0xe8a3_3f5e_77df_e4f5,
+            0x15bb_f146_ce9b_ca09,
+        ]),
+    ],
+    [
+        F::from_raw([
+            0xa9ff_2385_9572_c8c6,
+            0x9b8f_4b85_0405_c10c,
+            0x4490_1031_4879_64ed,
+            0x0ab4_dfe0_c274_2cde,
+        ]),
+        F::from_raw([
+            0x251d_e39f_9639_779a,
+            0xef5e_edfe_a546_dea9,
+            0x97f4_5f76_49a1_9675,
+            0x0e32_db32_0a04_4e31,
+        ]),
+    ],
+    [
+        F::from_raw([
+            0xa307_8efa_516d_a016,
+            0x6797_733a_8277_4896,
+            0xb276_35a7_8b68_88e6,
+            0x0a17_56aa_1f37_8ca4,
+        ]),
+        F::from_raw([
+            0x4254_d6a2_a25d_93ef,
+            0x95e6_1d32_8f85_efa9,
+            0x47fd_1717_7f95_2ef8,
+            0x044c_4a33_b10f_6934,
+        ]),
+    ],
+    [
+        F::from_raw([
+            0xd37b_07b5_466c_4b8b,
+            0xfe08_79d7_9a49_6891,
+            0xbe65_5b53_7f66_f700,
+            0x2ed3_611b_725b_8a70,
+        ]),
+        F::from_raw([
+            0xd833_9ea7_1208_58aa,
+            0xadfd_eb9c_fdd3_47b5,
+            0xc8ec_c3d7_22aa_2e0e,
+            0x1f9b_a4e8_bab7_ce42,
+        ]),
+    ],
+    [
+        F::from_raw([
+            0xb740_56f8_65c5_d3da,
+            0xa38e_82ac_4502_066d,
+            0x8f7e_e907_a84e_518a,
+            0x1b23_3043_052e_8c28,
+        ]),
+        F::from_raw([
+            0xca2f_97b0_2087_5954,
+            0x9020_53bf_c0f1_4db0,
+            0x7403_1ab7_2bd5_5b4c,
+            0x2431_e1cc_164b_b8d0,
+        ]),
+    ],
+    [
+        F::from_raw([
+            0xa791_f273_9658_01fd,
+            0xa13e_3220_9758_3319,
+            0x30cd_6953_a0a7_db45,
+            0x082f_934c_91f5_aac3,
+        ]),
+        F::from_raw([
+            0x9ad6_bb93_0c48_997c,
+            0xc772_45e2_ae7c_be99,
+            0xa34b_e074_3155_42a3,
+            0x2b9a_0a22_3e75_38b0,
+        ]),
+    ],
+    [
+        F::from_raw([
+            0xb0b5_89cc_7021_4e7d,
+            0x8164_163e_75a8_a00e,
+            0xceb8_5483_b887_a9be,
+            0x0e1c_d91e_dd2c_fa2c,
+        ]),
+        F::from_raw([
+            0x88d3_2460_1ceb_e2f9,
+            0x9977_4f19_854d_00f5,
+            0xc951_f614_77e3_6989,
+            0x2e1e_ac0f_2bfd_fd63,
+        ]),
+    ],
+    [
+        F::from_raw([
+            0x23d7_4811_5b50_0b83,
+            0x7345_784d_8efd_b33c,
+            0x0c76_158e_769d_6d15,
+            0x0cbf_a95f_37fb_7406,
+        ]),
+        F::from_raw([
+            0x980c_232d_fa4a_4f84,
+            0x76d9_91e3_a775_13d9,
+            0xd65a_d49d_8a61_e9a6,
+            0x08f0_5b3b_e923_ed44,
+        ]),
+    ],
+    [
+        F::from_raw([
+            0x25a2_dd51_0c04_7ef6,
+            0xe728_4925_dc07_58a3,
+            0x52bf_8e21_984d_0443,
+            0x2271_9e2a_070b_cd08,
+        ]),
+        F::from_raw([
+            0xf41f_62b2_f268_30c0,
+            0x7bdb_f036_1199_82c0,
+            0xc060_f7fc_c3a1_ab4c,
+            0x041f_596a_9ee1_cb2b,
+        ]),
+    ],
+    [
+        F::from_raw([
+            0x19fc_dd09_86b1_0f89,
+            0x021b_e1c2_d0dc_464a,
+            0x8762_8eb0_6f6b_1d4c,
+            0x233f_d35d_e1be_520a,
+        ]),
+        F::from_raw([
+            0xefcb_453c_61c9_c267,
+            0xd31e_078a_a1b4_707e,
+            0x4325_e0a4_23eb_c810,
+            0x0524_b46d_1aa8_7a5e,
+        ]),
+    ],
+    [
+        F::from_raw([
+            0xcc44_8623_7c51_5211,
+            0x4227_bb95_4b0f_3199,
+            0xce47_fcac_894b_8582,
+            0x2c34_f424_c81e_5716,
+        ]),
+        F::from_raw([
+            0xf330_1032_7de4_915e,
+            0x2dd2_025b_5457_cc97,
+            0x207e_ffc2_b554_1fb7,
+            0x0b5f_2a4b_6338_7819,
+        ]),
+    ],
+    [
+        F::from_raw([
+            0xaefa_c41f_e05c_659f,
+            0xc174_35d2_f57a_f6ce,
+            0xc5b7_2fe4_39d2_cfd6,
+            0x2220_7856_082c_cc54,
+        ]),
+        F::from_raw([
+            0x2785_4048_ce2c_8171,
+            0xcdfb_2101_94ca_f79f,
+            0x4e24_159b_7f89_50b5,
+            0x24d5_7a8b_f5da_63fe,
+        ]),
+    ],
+    [
+        F::from_raw([
+            0x7391_9bb2_3b79_396e,
+            0x374a_d709_7bb0_1a85,
+            0x3b37_1d75_bd69_3f98,
+            0x0afa_b181_fdd5_e058,
+        ]),
+        F::from_raw([
+            0xf162_90d6_2b11_28ee,
+            0x76c0_0571_94c1_6c0b,
+            0x998a_52ef_ac7c_bd56,
+            0x2dba_9b10_8f20_8772,
+        ]),
+    ],
+    [
+        F::from_raw([
+            0x5aff_13e6_bce4_20b3,
+            0xcbb8_3de0_bd59_2b25,
+            0x56f8_81c7_88f5_3f83,
+            0x2634_9b66_edb8_b16f,
+        ]),
+        F::from_raw([
+            0x2352_88a3_e6f1_37db,
+            0xd81a_56d2_8ecc_193b,
+            0x685e_95f9_2339_753a,
+            0x25af_7ce0_e5e1_0357,
+        ]),
+    ],
+    [
+        F::from_raw([
+            0x1f7c_0187_fe35_011f,
+            0x70ee_d7aa_e88b_2bff,
+            0xc094_d6a5_5edd_68b9,
+            0x25b4_ce7b_d229_4390,
+        ]),
+        F::from_raw([
+            0x8cb9_d54c_1e02_b631,
+            0xde9c_ef28_ebdf_30b1,
+            0x387e_53f1_908a_88e5,
+            0x22c5_43f1_0f6c_89ec,
+        ]),
+    ],
+    [
+        F::from_raw([
+            0xdf66_8e74_882f_87a9,
+            0x425e_906a_919d_7a34,
+            0x4fc7_908a_9f19_1e1e,
+            0x0236_f93e_7789_c472,
+        ]),
+        F::from_raw([
+            0x9cb4_97af_980c_4b52,
+            0x652b_dae1_14eb_0165,
+            0x0e7d_27e3_7d05_da99,
+            0x2935_0b40_1166_ca01,
+        ]),
+    ],
+    [
+        F::from_raw([
+            0xee12_6091_6652_363f,
+            0x65ed_b75d_844e_bb89,
+            0x6bd3_1bba_b547_f75a,
+            0x0eed_787d_6582_0d3f,
+        ]),
+        F::from_raw([
+            0x1906_f656_f4de_6fad,
+            0xfdcd_0e99_bd94_297d,
+            0x036a_753f_520b_3291,
+            0x07cc_1170_f13b_46f2,
+        ]),
+    ],
+    [
+        F::from_raw([
+            0x2059_4356_89e8_acea,
+            0x9087_86d7_f9f5_d10c,
+            0xf49b_cf61_3a3d_30b1,
+            0x22b9_3923_3b1d_7205,
+        ]),
+        F::from_raw([
+            0xadd6_50ac_e60a_e5a6,
+            0x740f_083a_5aa8_5438,
+            0x8aad_1dc8_bc33_e870,
+            0x0145_1762_a0aa_b81c,
+        ]),
+    ],
+    [
+        F::from_raw([
+            0xe704_fec0_892f_ce89,
+            0xe32e_aa61_dec7_da57,
+            0x61fa_bf10_25d4_6d1f,
+            0x2350_6bb5_d872_7d44,
+        ]),
+        F::from_raw([
+            0x7f8b_d689_0735_5522,
+            0x2a37_0953_1e1e_fea9,
+            0xbac0_6ae3_f71b_dd09,
+            0x2e48_4c44_e838_aea0,
+        ]),
+    ],
+    [
+        F::from_raw([
+            0x4541_8da2_6835_b54c,
+            0xaf4a_5945_45ce_dc25,
+            0x379e_78c5_0bd2_e42b,
+            0x0f4b_c7d0_7eba_fd64,
+        ]),
+        F::from_raw([
+            0xe620_996d_50d8_e74e,
+            0x5158_2388_725d_f460,
+            0xfa76_6378_62fa_aee8,
+            0x1f4d_3c8f_6583_e9e5,
+        ]),
+    ],
+    [
+        F::from_raw([
+            0x53eb_9bcb_48fe_7389,
+            0xfae0_2abc_7b68_1d91,
+            0x2660_d07b_e0e4_a988,
+            0x0935_14e0_c707_11f8,
+        ]),
+        F::from_raw([
+            0x4a58_e0a3_47e1_53d8,
+            0x43ee_83ec_e472_28f2,
+            0x4669_9a2b_5f3b_c036,
+            0x1ada_b0c8_e2b3_bad3,
+        ]),
+    ],
+    [
+        F::from_raw([
+            0x1a22_dbef_9e80_dad2,
+            0x378c_1b94_b807_2bac,
+            0xd147_09eb_b474_641a,
+            0x1672_b172_6057_d99d,
+        ]),
+        F::from_raw([
+            0x30d4_7b23_9b47_9c14,
+            0xc5d8_e2fa_e0ac_c4ee,
+            0x8f44_f53f_dcab_468c,
+            0x1dfd_53d4_576a_f2e3,
+        ]),
+    ],
+    [
+        F::from_raw([
+            0xbc7f_2077_5320_5c60,
+            0xe6d7_7d64_0f6f_c3de,
+            0xa70a_3626_3a37_e17f,
+            0x0c68_88a1_0b75_b0f3,
+        ]),
+        F::from_raw([
+            0x8509_1ecc_a9d1_e508,
+            0x611a_61e0_0ee6_848b,
+            0x92b3_4a7e_77d1_2fe8,
+            0x1add_b933_a65b_e770,
+        ]),
+    ],
+    [
+        F::from_raw([
+            0x7935_628e_299d_1791,
+            0xf638_ff54_25f0_afff,
+            0x5c10_ae18_d1de_933c,
+            0x00d7_540d_cd26_8a84,
+        ]),
+        F::from_raw([
+            0xd316_939d_20b8_2c0e,
+            0x26fe_dde4_acd9_9db1,
+            0x01b2_827a_5664_ca9c,
+            0x140c_0e42_687e_9ead,
+        ]),
+    ],
+    [
+        F::from_raw([
+            0xc091_e2ae_5656_5984,
+            0xc20a_0f9b_24f8_c5ed,
+            0x91ba_89b8_d13d_1806,
+            0x2f0c_3a11_5d43_17d1,
+        ]),
+        F::from_raw([
+            0xd8c5_38a1_dc95_8c61,
+            0x08a0_cff6_70b2_2b82,
+            0x3006_ed22_0cf9_c810,
+            0x0c4e_e778_ff7c_1455,
+        ]),
+    ],
+    [
+        F::from_raw([
+            0x27c3_d748_5de7_4c69,
+            0x9424_ed26_c0ac_c662,
+            0x3693_f004_40cc_c360,
+            0x1704_f276_6d46_f82c,
+        ]),
+        F::from_raw([
+            0x39b6_6fe9_009c_3cfa,
+            0xf076_9c9f_8544_e402,
+            0xa7a0_2c1b_51d2_44ab,
+            0x2f2d_19cc_3ea5_d78e,
+        ]),
+    ],
+    [
+        F::from_raw([
+            0xd6c7_66a8_06fc_6629,
+            0xdd7e_e6cb_9cfe_d9c7,
+            0x5053_f112_e2a8_e8dc,
+            0x1ae0_3853_b75f_caba,
+        ]),
+        F::from_raw([
+            0x4e41_a86d_daf0_56d5,
+            0x3556_921b_2d6f_014e,
+            0x51d1_31d0_fa61_aa5f,
+            0x0971_aabf_7952_41df,
+        ]),
+    ],
+    [
+        F::from_raw([
+            0x5f5c_29f7_bfe2_f646,
+            0xda62_4f83_80df_1c87,
+            0x91d4_cf6b_6e0d_e73e,
+            0x1408_c316_e601_4e1a,
+        ]),
+        F::from_raw([
+            0x4169_1f39_822e_f5bd,
+            0x6c89_f1f7_73ef_2853,
+            0x248a_be42_b543_093b,
+            0x1667_f3fe_2edb_e850,
+        ]),
+    ],
+    [
+        F::from_raw([
+            0x424c_6957_6500_fe37,
+            0x5b81_7184_09e5_c133,
+            0xa48b_0a03_557c_df91,
+            0x13bf_7c5d_0d2c_4376,
+        ]),
+        F::from_raw([
+            0x19bc_0ba7_43a6_2c2c,
+            0x024b_9534_7856_b797,
+            0x3016_adf3_d353_3c24,
+            0x0762_0a6d_fb0b_6cec,
+        ]),
+    ],
+    [
+        F::from_raw([
+            0x1675_de3e_1982_b4d0,
+            0x75d2_959e_2f32_2b73,
+            0x36a8_ca08_bdbd_d8b0,
+            0x1574_c7ef_0c43_545f,
+        ]),
+        F::from_raw([
+            0xc06e_03a7_ff83_78f0,
+            0x5bd4_1845_71c2_54fd,
+            0xfd56_7970_a717_ceec,
+            0x269e_4b5b_7a2e_b21a,
         ]),
     ],
 ];
-// n: 255
-// t: 2
-// N: 510
-// Result Algorithm 1:
-//  [True, 0]
-// Result Algorithm 2:
-//  [True, None]
-// Result Algorithm 3:
-//  [True, None]
-// Prime number: 0x0x40000000000000000000000000000000224698fc094cf91b992d30ed00000001
-// MDS matrix:
-pub(crate) const MDS: [[pallas::Base; 2]; 2] = [
+//n: 254
+//t: 2
+//N: 508
+//Result Algorithm 1:
+// [True, 0]
+//Result Algorithm 2:
+// [True, None]
+//Result Algorithm 3:
+// [True, None]
+//Prime number: 0x0x30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001
+//MDS matrix:
+pub(crate) const MDS: [[F; 2]; 2] = [
     [
-        pallas::Base::from_raw([
-            0x215e_2650_42d5_6b39,
-            0x1f4a_f3f9_3a77_ffc7,
-            0xfa10_b63d_b5c2_9fb0,
-            0x0456_8631_47b9_cd1e,
+        F::from_raw([
+            0xbcec_a70b_d2af_7ad5,
+            0xaf07_f38a_f8c9_52a7,
+            0xec10_3453_51a2_3a3a,
+            0x066f_6f85_d6f6_8a85,
         ]),
-        pallas::Base::from_raw([
-            0x9370_d180_77b1_ccb5,
-            0x16bb_48ed_9804_2ec6,
-            0xc74f_1f6f_6d1e_5f62,
-            0x196e_0094_d3d3_50a0,
+        F::from_raw([
+            0x0546_2b9f_8125_b1e8,
+            0x20a7_c02b_bd8b_ea73,
+            0x7782_e150_9b1d_0fdb,
+            0x2b9d_4b41_10c9_ae99,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0x558d_1c05_176c_f008,
-            0xb0af_dcfb_54f2_f175,
-            0x254a_38d2_505c_4bb9,
-            0x1f89_e907_a33b_5e7d,
+        F::from_raw([
+            0xf573_f431_221f_8ff9,
+            0xb6c0_9d55_7013_fff1,
+            0x2bf6_7a44_93cc_262f,
+            0x0cc5_7cdb_b085_07d6,
         ]),
-        pallas::Base::from_raw([
-            0xe38f_4cda_3d6e_f58b,
-            0x491c_7b9e_835b_61d1,
-            0x4bed_03c4_ba03_a32d,
-            0x23c4_24f6_216e_138b,
+        F::from_raw([
+            0x21bc_d147_9432_03c8,
+            0xade8_57e8_6eb5_c3a1,
+            0xa31a_6ed6_9724_e1ad,
+            0x1274_e649_a32e_d355,
         ]),
     ],
 ];
-
 //Inverse MDS matrix:
-pub(crate) const MDS_INV: [[pallas::Base; 2]; 2] = [
+pub(crate) const MDS_INV: [[F; 2]; 2] = [
     [
-        pallas::Base::from_raw([
-            0x2886_adc2_ffb9_1eec,
-            0x9a1b_bd56_b0fb_9105,
-            0x7e23_4946_cbd2_e9b1,
-            0x1fc3_4a10_a23e_5dfb,
+        F::from_raw([
+            0x8dbe_bd0f_a8c5_3e66,
+            0x0554_569d_9b29_d1ea,
+            0x7081_9ab1_c784_6f21,
+            0x13ab_ec39_0ada_7f43,
         ]),
-        pallas::Base::from_raw([
-            0xd9f8_aca0_f3bf_3152,
-            0xaa0b_d707_acdc_5df5,
-            0x3184_7088_464f_0a36,
-            0x107b_ef1a_7b48_acb2,
+        F::from_raw([
+            0xaaf6_185b_1a1e_60fe,
+            0xbd52_1ead_5dfe_0345,
+            0x4c98_62a1_d97d_1510,
+            0x1eb9_e1dc_19a3_3a62,
         ]),
     ],
     [
-        pallas::Base::from_raw([
-            0x80c1_6662_05bd_6073,
-            0xa6e0_3466_cecb_9ae3,
-            0xe782_e3f6_3f6e_4373,
-            0x05d7_727a_7aa3_8f58,
+        F::from_raw([
+            0x763f_7875_036b_cb02,
+            0x8ce5_1690_30a2_ad69,
+            0x601a_bc49_fdad_4f03,
+            0x0fc1_c939_4db8_9bb2,
         ]),
-        pallas::Base::from_raw([
-            0x6073_5efd_fc0e_9579,
-            0xf63c_9282_5200_e45b,
-            0xfd2a_af9c_97f9_c29e,
-            0x2fda_d27b_cacc_efe5,
+        F::from_raw([
+            0x8abc_ed6b_d147_c8be,
+            0x2b7e_ac34_3459_61bc,
+            0x9502_054e_dc03_e7b2,
+            0x16a9_e98c_493a_902b,
         ]),
     ],
 ];

@@ -24,10 +24,7 @@ pub enum Curve {
 
 #[cfg(test)]
 mod tests {
-    use super::onetimesetup::OneTimeSetup;
-    use super::prover::Prover;
-    use super::verifier::Verifier;
-    use super::*;
+    use super::{onetimesetup::OneTimeSetup, prover::Prover, verifier::Verifier, *};
     use crate::tests::e2e_test;
 
     /// Run the whole authdecode protocol end-to-end, optionally corrupting the proof
@@ -42,7 +39,7 @@ mod tests {
         let verification_key = OneTimeSetup::verification_key();
 
         let prover = Box::new(Prover::new(proving_key));
-        let verifier = Box::new(Verifier::new(verification_key, Curve::Pallas));
+        let verifier = Box::new(Verifier::new(verification_key));
         e2e_test(prover, verifier, will_corrupt_proof);
     }
 

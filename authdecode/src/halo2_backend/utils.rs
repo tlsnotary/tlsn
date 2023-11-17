@@ -4,8 +4,8 @@ use crate::{
     Delta,
 };
 use ff::{FromUniformBytes, PrimeField};
+use halo2_proofs::halo2curves::bn256::Fr as F;
 use num::BigUint;
-use pasta_curves::Fp as F;
 
 /// Decomposes a `BigUint` into bits and returns the bits in MSB-first bit order,
 /// left padding them with zeroes to the size of 256.

@@ -1,21 +1,24 @@
+use halo2_gadgets::poseidon::{primitives::ConstantLength, Hash, Pow5Chip, Pow5Config};
 use halo2_proofs::{
     circuit::{AssignedCell, Layouter, Region, SimpleFloorPlanner, Value},
+    halo2curves::bn256::Fr as F,
     plonk::{
         Advice, Circuit, Column, ConstraintSystem, Constraints, Error, Expression, Instance,
         Selector,
     },
     poly::Rotation,
 };
-use pasta_curves::pallas;
-use pasta_curves::Fp;
-use std::convert::TryInto;
 
-use super::poseidon::circuit_config::{configure_poseidon_rate_1, configure_poseidon_rate_15};
-use super::poseidon::spec::{Spec1, Spec15};
-use halo2_gadgets::poseidon::{primitives::ConstantLength, Hash, Pow5Chip, Pow5Config};
+use super::{
+    poseidon::{
+        circuit_config::{configure_poseidon_rate_1, configure_poseidon_rate_15},
+        spec::{Spec1, Spec15},
+    },
+    utils::{bigint_to_256bits, bigint_to_f, bits_to_limbs, f_to_bigint},
+};
+
 use num::BigUint;
-
-use super::utils::{bigint_to_256bits, bigint_to_f, bits_to_limbs, f_to_bigint};
+use std::convert::TryInto;
 
 // See circuit_diagram.pdf for a diagram of the circuit
 
@@ -74,8 +77,6 @@ pub const USEFUL_ROWS: usize = 58;
 /// for the salt (see [crate::Salt]).
 pub const SALT_SIZE: usize = 125;
 
-type F = pallas::Base;
-
 #[derive(Clone, Debug)]
 pub struct TopLevelConfig {
     /// Each plaintext field element is decomposed into 256 bits
@@ -115,9 +116,9 @@ pub struct TopLevelConfig {
     selector_add_salt: Selector,
 
     /// config for Poseidon with rate 15
-    poseidon_config_rate15: Pow5Config<Fp, 16, 15>,
+    poseidon_config_rate15: Pow5Config<F, 16, 15>,
     /// config for Poseidon with rate 1
-    poseidon_config_rate1: Pow5Config<Fp, 2, 1>,
+    poseidon_config_rate1: Pow5Config<F, 2, 1>,
 
     /// Contains 3 public input in this order:
     /// [plaintext hash, label sum hash, zero sum].
@@ -458,7 +459,7 @@ impl Circuit<F> for AuthDecodeCircuit {
                 // Constrains each chunks of 4 limbs to be equal to a cell and
                 // returns the constrained cells containing the original plaintext
                 // (the private input to the circuit).
-                let plaintext: Result<Vec<AssignedCell<Fp, Fp>>, Error> = assigned_limbs
+                let plaintext: Result<Vec<AssignedCell<F, F>>, Error> = assigned_limbs
                     .chunks(4)
                     .map(|c| {
                         let sum =
@@ -559,7 +560,7 @@ impl AuthDecodeCircuit {
     // the resulting cell is a properly constrained sum.
     fn compute_58_cell_sum(
         &self,
-        cells: &[AssignedCell<Fp, Fp>; 58],
+        cells: &[AssignedCell<F, F>; 58],
         region: &mut Region<F>,
         config: &TopLevelConfig,
         row_offset: usize,

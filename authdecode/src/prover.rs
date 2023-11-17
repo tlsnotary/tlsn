@@ -1,14 +1,14 @@
 use std::ops::Shl;
 
-use crate::label::{LabelGenerator, Seed};
-use crate::utils::{
-    bits_to_bigint, compute_zero_sum_and_deltas, encrypt_arithmetic_labels, sha256,
-    u8vec_to_boolvec,
-};
 use crate::{
+    label::{LabelGenerator, Seed},
+    utils::{
+        bits_to_bigint, compute_zero_sum_and_deltas, encrypt_arithmetic_labels, sha256,
+        u8vec_to_boolvec,
+    },
     Chunk, Delta, LabelSumHash, Plaintext, PlaintextHash, PlaintextSize, Proof, Salt, ZeroSum,
+    ARITHMETIC_LABEL_SIZE, MAX_CHUNK_COUNT, MAX_CHUNK_SIZE,
 };
-use crate::{ARITHMETIC_LABEL_SIZE, MAX_CHUNK_COUNT, MAX_CHUNK_SIZE};
 use aes::{Aes128, BlockDecrypt, NewBlockCipher};
 use cipher::generic_array::GenericArray;
 use num::BigUint;
@@ -567,11 +567,13 @@ impl AuthDecodeProver<ProofCreation> {
 
 #[cfg(test)]
 mod tests {
-    use crate::prover::{
-        AuthDecodeProver, AuthenticateArithmeticLabels, BinaryLabelsAuthenticated,
-        LabelSumCommitment, PlaintextCommitment, ProofInput, Prove, ProverError, Setup,
+    use crate::{
+        prover::{
+            AuthDecodeProver, AuthenticateArithmeticLabels, BinaryLabelsAuthenticated,
+            LabelSumCommitment, PlaintextCommitment, ProofInput, Prove, ProverError, Setup,
+        },
+        Plaintext, Proof,
     };
-    use crate::{Plaintext, Proof};
     use num::BigUint;
 
     /// The prover who implements `Prove` with the correct values

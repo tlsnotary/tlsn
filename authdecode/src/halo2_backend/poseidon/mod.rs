@@ -4,7 +4,8 @@ mod rate1_params;
 pub(crate) mod spec;
 
 use halo2_gadgets::poseidon::primitives::{self as poseidon, ConstantLength};
-use pasta_curves::pallas::Base as F;
+use halo2_proofs::halo2curves::bn256::Fr as F;
+
 use spec::{Spec1, Spec15};
 
 /// Hashes inputs with rate 15 Poseidon and returns the digest

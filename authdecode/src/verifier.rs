@@ -1,7 +1,9 @@
 use super::ARITHMETIC_LABEL_SIZE;
-use crate::label::{LabelGenerator, Seed};
-use crate::utils::{compute_zero_sum_and_deltas, encrypt_arithmetic_labels, sanitize_biguint};
-use crate::{Delta, LabelSumHash, PlaintextHash, Proof, ZeroSum};
+use crate::{
+    label::{LabelGenerator, Seed},
+    utils::{compute_zero_sum_and_deltas, encrypt_arithmetic_labels, sanitize_biguint},
+    Delta, LabelSumHash, PlaintextHash, Proof, ZeroSum,
+};
 use num::BigUint;
 
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
@@ -214,8 +216,10 @@ impl AuthDecodeVerifier<VerifyMany> {
         mut self,
         proofs: Vec<Proof>,
     ) -> Result<(bool, Vec<PlaintextHash>), VerifierError> {
+        println!("proofs.len() {:?}", proofs.len());
         let inputs = self.create_verification_inputs(proofs)?;
         for input in inputs {
+            println!("verifying...");
             let res = self.verifier.verify(input)?;
             if !res {
                 // we will never get here since "?" takes care of the
@@ -267,14 +271,13 @@ impl AuthDecodeVerifier<VerifyMany> {
 
 #[cfg(test)]
 mod tests {
-    use crate::verifier::AuthDecodeVerifier;
-    use crate::verifier::ReceiveLabelSumHashes;
-    use crate::verifier::ReceivePlaintextHashes;
-    use crate::verifier::VerificationInput;
-    use crate::verifier::VerifierError;
-    use crate::verifier::Verify;
-    use crate::verifier::VerifyMany;
-    use crate::Proof;
+    use crate::{
+        verifier::{
+            AuthDecodeVerifier, ReceiveLabelSumHashes, ReceivePlaintextHashes, VerificationInput,
+            VerifierError, Verify, VerifyMany,
+        },
+        Proof,
+    };
     use num::BigUint;
 
     /// The verifier who implements `Verify` with the correct values

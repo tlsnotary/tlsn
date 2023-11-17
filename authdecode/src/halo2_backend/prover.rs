@@ -1,23 +1,34 @@
-use super::circuit::{AuthDecodeCircuit, SALT_SIZE, TOTAL_FIELD_ELEMENTS};
-use super::poseidon::{poseidon_1, poseidon_15};
-use super::utils::{bigint_to_f, deltas_to_matrices, f_to_bigint};
-use super::{CHUNK_SIZE, USEFUL_BITS};
 use crate::prover::{ProofInput, Prove, ProverError};
-use halo2_proofs::plonk;
-use halo2_proofs::plonk::ProvingKey;
-use halo2_proofs::poly::commitment::Params;
-use halo2_proofs::transcript::{Blake2bWrite, Challenge255};
+use halo2_proofs::{
+    halo2curves::bn256::{Bn256, Fr as F, G1Affine},
+    plonk,
+    plonk::ProvingKey,
+    poly::{
+        commitment::CommitmentScheme,
+        kzg::{
+            commitment::{KZGCommitmentScheme, ParamsKZG},
+            multiopen::ProverGWC,
+        },
+    },
+    transcript::{Blake2bWrite, Challenge255, TranscriptWriterBuffer},
+};
+
+use super::{
+    circuit::{AuthDecodeCircuit, SALT_SIZE, TOTAL_FIELD_ELEMENTS},
+    poseidon::{poseidon_1, poseidon_15},
+    utils::{bigint_to_f, deltas_to_matrices, f_to_bigint},
+    CHUNK_SIZE, USEFUL_BITS,
+};
+
 use num::BigUint;
-use pasta_curves::pallas::Base as F;
-use pasta_curves::EqAffine;
 use rand::thread_rng;
 
 /// halo2's native ProvingKey can't be used without params, so we wrap
 /// them in one struct.
 #[derive(Clone)]
 pub struct PK {
-    pub key: ProvingKey<EqAffine>,
-    pub params: Params<EqAffine>,
+    pub key: ProvingKey<<KZGCommitmentScheme<Bn256> as CommitmentScheme>::Curve>,
+    pub params: ParamsKZG<Bn256>,
 }
 
 /// Implements the Prover in the authdecode protocol using halo2
@@ -72,7 +83,14 @@ impl Prove for Prover {
 
         // let now = Instant::now();
 
-        let res = plonk::create_proof(
+        let res = plonk::create_proof::<
+            KZGCommitmentScheme<Bn256>,
+            ProverGWC<'_, Bn256>,
+            Challenge255<G1Affine>,
+            _,
+            Blake2bWrite<Vec<u8>, G1Affine, Challenge255<_>>,
+            _,
+        >(
             params,
             pk,
             &[circuit],
@@ -152,15 +170,19 @@ fn hash_internal(inputs: &[BigUint]) -> Result<BigUint, ProverError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::halo2_backend::circuit::{CELLS_PER_ROW, K};
-    use crate::halo2_backend::prover::hash_internal;
-    use crate::halo2_backend::utils::bigint_to_256bits;
-    use crate::halo2_backend::Curve;
-    use crate::prover::{ProofInput, Prove, ProverError};
-    use crate::tests::run_until_proofs_are_generated;
-    use crate::verifier::{VerificationInput, VerifierError, Verify};
-    use crate::Proof;
-    use halo2_proofs::dev::MockProver;
+    use crate::{
+        halo2_backend::{
+            circuit::{CELLS_PER_ROW, K},
+            prover::hash_internal,
+            utils::bigint_to_256bits,
+            Curve,
+        },
+        prover::{ProofInput, Prove, ProverError},
+        tests::run_until_proofs_are_generated,
+        verifier::{VerificationInput, VerifierError, Verify},
+        Proof,
+    };
+    use halo2_proofs::{dev::MockProver, plonk::Assignment};
     use num::BigUint;
 
     /// TestHalo2Prover is a test prover. It is the same as [Prover] except:
@@ -205,7 +227,9 @@ mod tests {
             // Expect successful verification.
 
             let prover = MockProver::run(K, &circuit, good_inputs.clone()).unwrap();
-            assert!(prover.verify().is_ok());
+            let res = prover.verify();
+            println!("{:?}", res);
+            assert!(res.is_ok());
 
             // Find one delta which corresponds to plaintext bit 1 and corrupt
             // the delta:
@@ -302,13 +326,11 @@ mod tests {
     /// This verifier is the same as [crate::halo2_backend::verifier::Verifier] except:
     /// - it doesn't require a verifying key
     /// - it does not verify since `MockProver` does that already
-    struct TestHalo2Verifier {
-        curve: Curve,
-    }
+    struct TestHalo2Verifier {}
 
     impl TestHalo2Verifier {
-        pub fn new(curve: Curve) -> Self {
-            Self { curve }
+        pub fn new() -> Self {
+            Self {}
         }
     }
 
@@ -318,10 +340,7 @@ mod tests {
         }
 
         fn field_size(&self) -> usize {
-            match self.curve {
-                Curve::Pallas => 255,
-                Curve::BN254 => 254,
-            }
+            254
         }
 
         fn useful_bits(&self) -> usize {
@@ -334,27 +353,10 @@ mod tests {
     }
 
     #[test]
-    // As of Oct 2022 there appears to be a bug in halo2 which causes the prove
-    // times with MockProver be as long as with a real prover. Marking this test
-    // as expensive.
-    #[ignore = "expensive"]
-    /// Tests the circuit with the correct inputs as well as wrong inputs. The logic is
-    /// in [TestHalo2Prover]'s prove()
+    /// Tests the circuit with a mock prover.
     fn test_circuit() {
-        // This test causes the "thread ... has overflowed its stack" error
-        // The only way to increase the stack size is to spawn a new thread with
-        // the test.
-        // See https://github.com/rust-lang/rustfmt/issues/3473
-        use std::thread;
-        thread::Builder::new()
-            .stack_size(8388608)
-            .spawn(|| {
-                let prover = Box::new(TestHalo2Prover::new());
-                let verifier = Box::new(TestHalo2Verifier::new(Curve::Pallas));
-                let _ = run_until_proofs_are_generated(prover, verifier);
-            })
-            .expect("Failed to create a test thread")
-            .join()
-            .expect("Failed to join a test thread");
+        let prover = Box::new(TestHalo2Prover::new());
+        let verifier = Box::new(TestHalo2Verifier::new());
+        let _ = run_until_proofs_are_generated(prover, verifier);
     }
 }

@@ -1,8 +1,5 @@
-use halo2_gadgets::poseidon::primitives::Spec;
-use halo2_gadgets::poseidon::Pow5Chip;
-use halo2_gadgets::poseidon::Pow5Config;
-use halo2_proofs::plonk::ConstraintSystem;
-use pasta_curves::pallas::Base as F;
+use halo2_gadgets::poseidon::{primitives::Spec, Pow5Chip, Pow5Config};
+use halo2_proofs::{halo2curves::bn256::Fr as F, plonk::ConstraintSystem};
 
 /// Configures the in-circuit Poseidon for rate 15 and returns the config
 ///

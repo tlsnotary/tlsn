@@ -1,12 +1,15 @@
-use authdecode::halo2_backend::onetimesetup::OneTimeSetup;
-use authdecode::halo2_backend::prover::{Prover, PK};
-use authdecode::halo2_backend::verifier::{Verifier, VK};
-use authdecode::halo2_backend::Curve;
-use authdecode::prover::{AuthDecodeProver, ProofCreation};
-use authdecode::verifier::{AuthDecodeVerifier, VerifyMany};
+use authdecode::{
+    halo2_backend::{
+        onetimesetup::OneTimeSetup,
+        prover::{Prover, PK},
+        verifier::{Verifier, VK},
+        Curve,
+    },
+    prover::{AuthDecodeProver, ProofCreation},
+    verifier::{AuthDecodeVerifier, VerifyMany},
+};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use rand::thread_rng;
-use rand::Rng;
+use rand::{thread_rng, Rng};
 use std::env;
 
 pub fn criterion_benchmark(c: &mut Criterion) {
@@ -16,7 +19,13 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     let proving_key = OneTimeSetup::proving_key();
     let verification_key = OneTimeSetup::verification_key();
 
-    c.bench_function("halo2_proof_generation_single_threaded", |b| {
+    c.bench_function("proving_key_generation_single_threaded", |b| {
+        b.iter(|| {
+            black_box(OneTimeSetup::proving_key());
+        })
+    });
+
+    c.bench_function("proof_generation_single_threaded", |b| {
         b.iter(|| {
             // Since we can't Clone provers, we generate a new prover for each
             // iteration. This should not add more than 1-2% runtime to the bench
@@ -29,19 +38,15 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     // To get the actual verification time, subtract from "generation+verification"
     // time the "generation only" time from the above bench.
 
-    c.bench_function(
-        "halo2_proof_generation_and_verification_single_threaded",
-        |b| {
-            b.iter(|| {
-                // Since we can't Clone prover, verifier, we generate a new prover and a new verifier
-                // for each iteration. This should not add more than 1-2% runtime to the bench
-                let (prover, verifier) =
-                    create_prover(proving_key.clone(), verification_key.clone());
-                let (proofs, _salts) = prover.create_zk_proofs().unwrap();
-                black_box(verifier.verify_many(proofs).unwrap());
-            })
-        },
-    );
+    c.bench_function("proof_generation_and_verification_single_threaded", |b| {
+        b.iter(|| {
+            // Since we can't Clone prover, verifier, we generate a new prover and a new verifier
+            // for each iteration. This should not add more than 1-2% runtime to the bench
+            let (prover, verifier) = create_prover(proving_key.clone(), verification_key.clone());
+            let (proofs, _salts) = prover.create_zk_proofs().unwrap();
+            black_box(verifier.verify_many(proofs).unwrap());
+        })
+    });
 }
 
 // Runs the whole protocol and returns the prover in a state ready to create

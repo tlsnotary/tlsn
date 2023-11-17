@@ -57,7 +57,7 @@ type PlaintextSize = usize;
 
 /// A chunk of [Plaintext]. The amount of vec elements equals
 /// [Prove::poseidon_rate] * [Prove::permutation_count]. Each vec element
-/// is an "Elliptic curve field element" into which [Prove::useful_bits] bits
+/// is an "Elliptic curve field element" into which [crate::prover::Prove::useful_bits] bits
 /// of [Plaintext] is packed.
 /// The chunk does NOT contain the [Salt].
 type Chunk = Vec<BigUint>;
@@ -91,11 +91,12 @@ type Proof = Vec<u8>;
 
 #[cfg(test)]
 mod tests {
-    use crate::prover::{AuthDecodeProver, Prove};
-    use crate::utils::*;
-    use crate::verifier::VerifyMany;
-    use crate::verifier::{AuthDecodeVerifier, VerifierError, Verify};
-    use crate::{Proof, Salt};
+    use crate::{
+        prover::{AuthDecodeProver, Prove},
+        utils::*,
+        verifier::{AuthDecodeVerifier, VerifierError, Verify, VerifyMany},
+        Proof, Salt,
+    };
     use rand::{thread_rng, Rng};
 
     /// Accepts a concrete Prover and Verifier and runs the whole AuthDecode
