@@ -221,8 +221,8 @@ impl ConnectionCommon {
     pub fn reader(&mut self) -> Reader {
         Reader {
             received_plaintext: &mut self.common_state.received_plaintext,
-            /// Are we done? i.e., have we processed all received messages, and received a
-            /// close_notify to indicate that no new messages will arrive?
+            // Are we done? i.e., have we processed all received messages, and received a
+            // close_notify to indicate that no new messages will arrive?
             peer_cleanly_closed: self.common_state.has_received_close_notify
                 && !self.message_deframer.has_pending(),
             has_seen_eof: self.common_state.has_seen_eof,
