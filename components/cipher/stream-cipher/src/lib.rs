@@ -149,6 +149,30 @@ where
         ciphertext: Vec<u8>,
     ) -> Result<(), StreamCipherError>;
 
+    /// Privately proves to the other party(s) the plaintext encrypts to a certain ciphertext.
+    ///
+    /// # Arguments
+    ///
+    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
+    /// * `plaintext`: The plaintext to prove.
+    async fn prove_plaintext(
+        &mut self,
+        explicit_nonce: Vec<u8>,
+        plaintext: Vec<u8>,
+    ) -> Result<(), StreamCipherError>;
+
+    /// Verifies the other party(s) can prove they know a plaintext which encrypts to the given ciphertext.
+    ///
+    /// # Arguments
+    ///
+    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
+    /// * `ciphertext`: The ciphertext to verify.
+    async fn verify_plaintext(
+        &mut self,
+        explicit_nonce: Vec<u8>,
+        ciphertext: Vec<u8>,
+    ) -> Result<(), StreamCipherError>;
+
     /// Returns an additive share of the keystream block for the given explicit nonce and counter.
     ///
     /// # Arguments
@@ -177,21 +201,6 @@ mod tests {
         Memory, Vm,
     };
     use rstest::*;
-
-    fn aes_ctr(key: &[u8; 16], iv: &[u8; 4], explicit_nonce: &[u8; 8], msg: &[u8]) -> Vec<u8> {
-        use ::cipher::{KeyIvInit, StreamCipher};
-        use aes::Aes128;
-        use ctr::Ctr32BE;
-
-        let mut full_iv = [0u8; 16];
-        full_iv[0..4].copy_from_slice(iv);
-        full_iv[4..12].copy_from_slice(explicit_nonce);
-        full_iv[15] = 1;
-        let mut cipher = Ctr32BE::<Aes128>::new(key.into(), &full_iv.into());
-        let mut buf = msg.to_vec();
-        cipher.apply_keystream(&mut buf);
-        buf
-    }
 
     async fn create_test_pair<C: CtrCircuit>(
         start_ctr: usize,
@@ -297,7 +306,7 @@ mod tests {
             (follower_encrypted_msg, follower_decrypted_msg),
         ) = futures::join!(leader_fut, follower_fut);
 
-        let reference = aes_ctr(&key, &iv, &explicit_nonce, &msg);
+        let reference = Aes128Ctr::apply_keystream(&key, &iv, 1, &explicit_nonce, &msg);
 
         assert_eq!(leader_encrypted_msg, reference);
         assert_eq!(leader_decrypted_msg, msg);
@@ -315,7 +324,7 @@ mod tests {
 
         let msg = b"This is a test message which will be encrypted using AES-CTR.".to_vec();
 
-        let ciphertext = aes_ctr(&key, &iv, &explicit_nonce, &msg);
+        let ciphertext = Aes128Ctr::apply_keystream(&key, &iv, 1, &explicit_nonce, &msg);
 
         let ((mut leader, mut follower), (mut leader_vm, mut follower_vm)) =
             create_test_pair::<Aes128Ctr>(1, key, iv, 8).await;
@@ -389,8 +398,31 @@ mod tests {
             .map(|(a, b)| a ^ b)
             .collect::<Vec<u8>>();
 
-        let reference = aes_ctr(&key, &iv, &explicit_nonce, &[0u8; 16]);
+        let reference = Aes128Ctr::apply_keystream(&key, &iv, 1, &explicit_nonce, &[0u8; 16]);
 
         assert_eq!(reference, key_block);
+    }
+
+    #[rstest]
+    #[timeout(Duration::from_millis(10000))]
+    #[tokio::test]
+    async fn test_stream_cipher_zk() {
+        let key = [0u8; 16];
+        let iv = [0u8; 4];
+        let explicit_nonce = [1u8; 8];
+
+        let msg = b"This is a test message which will be encrypted using AES-CTR.".to_vec();
+
+        let ciphertext = Aes128Ctr::apply_keystream(&key, &iv, 2, &explicit_nonce, &msg);
+
+        let ((mut leader, mut follower), (mut leader_vm, mut follower_vm)) =
+            create_test_pair::<Aes128Ctr>(2, key, iv, 8).await;
+
+        futures::try_join!(
+            leader.prove_plaintext(explicit_nonce.to_vec(), msg),
+            follower.verify_plaintext(explicit_nonce.to_vec(), ciphertext)
+        )
+        .unwrap();
+        futures::try_join!(leader_vm.finalize(), follower_vm.finalize()).unwrap();
     }
 }

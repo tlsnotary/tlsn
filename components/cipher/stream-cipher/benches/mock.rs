@@ -1,7 +1,9 @@
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 
 use mpz_garble::{protocol::deap::mock::create_mock_deap_vm, Memory, Vm};
-use tlsn_stream_cipher::{Aes128Ctr, MpcStreamCipher, StreamCipher, StreamCipherConfigBuilder};
+use tlsn_stream_cipher::{
+    Aes128Ctr, CtrCircuit, MpcStreamCipher, StreamCipher, StreamCipherConfigBuilder,
+};
 
 async fn bench_stream_cipher_encrypt(thread_count: usize, len: usize) {
     let (mut leader_vm, mut follower_vm) = create_mock_deap_vm("test").await;
@@ -57,17 +59,83 @@ async fn bench_stream_cipher_encrypt(thread_count: usize, len: usize) {
     _ = tokio::try_join!(leader_vm.finalize(), follower_vm.finalize()).unwrap();
 }
 
+async fn bench_stream_cipher_zk(thread_count: usize, len: usize) {
+    let (mut leader_vm, mut follower_vm) = create_mock_deap_vm("test").await;
+
+    let key = [0u8; 16];
+    let iv = [0u8; 4];
+
+    let leader_thread = leader_vm.new_thread("key_config").await.unwrap();
+    let leader_key = leader_thread.new_public_input::<[u8; 16]>("key").unwrap();
+    let leader_iv = leader_thread.new_public_input::<[u8; 4]>("iv").unwrap();
+
+    leader_thread.assign(&leader_key, key).unwrap();
+    leader_thread.assign(&leader_iv, iv).unwrap();
+
+    let follower_thread = follower_vm.new_thread("key_config").await.unwrap();
+    let follower_key = follower_thread.new_public_input::<[u8; 16]>("key").unwrap();
+    let follower_iv = follower_thread.new_public_input::<[u8; 4]>("iv").unwrap();
+
+    follower_thread.assign(&follower_key, key).unwrap();
+    follower_thread.assign(&follower_iv, iv).unwrap();
+
+    let leader_thread_pool = leader_vm
+        .new_thread_pool("mock", thread_count)
+        .await
+        .unwrap();
+    let follower_thread_pool = follower_vm
+        .new_thread_pool("mock", thread_count)
+        .await
+        .unwrap();
+
+    let leader_config = StreamCipherConfigBuilder::default()
+        .id("test".to_string())
+        .build()
+        .unwrap();
+
+    let follower_config = StreamCipherConfigBuilder::default()
+        .id("test".to_string())
+        .build()
+        .unwrap();
+
+    let mut leader = MpcStreamCipher::<Aes128Ctr, _>::new(leader_config, leader_thread_pool);
+    leader.set_key(leader_key, leader_iv);
+
+    let mut follower = MpcStreamCipher::<Aes128Ctr, _>::new(follower_config, follower_thread_pool);
+    follower.set_key(follower_key, follower_iv);
+
+    let plaintext = vec![0u8; len];
+    let explicit_nonce = [0u8; 8];
+    let ciphertext = Aes128Ctr::apply_keystream(&key, &iv, 2, &explicit_nonce, &plaintext);
+
+    _ = tokio::try_join!(
+        leader.prove_plaintext(explicit_nonce.to_vec(), plaintext),
+        follower.verify_plaintext(explicit_nonce.to_vec(), ciphertext)
+    )
+    .unwrap();
+
+    _ = tokio::try_join!(leader_vm.finalize(), follower_vm.finalize()).unwrap();
+}
+
 fn criterion_benchmark(c: &mut Criterion) {
-    let mut group = c.benchmark_group("stream_cipher/encrypt_private");
     let rt = tokio::runtime::Runtime::new().unwrap();
-
     let thread_count = 8;
-    let len = 128;
+    let len = 1024;
 
+    let mut group = c.benchmark_group("stream_cipher/encrypt_private");
     group.throughput(Throughput::Bytes(len as u64));
     group.bench_function(format!("{}", len), |b| {
         b.to_async(&rt)
             .iter(|| async { bench_stream_cipher_encrypt(thread_count, len).await })
+    });
+
+    drop(group);
+
+    let mut group = c.benchmark_group("stream_cipher/zk");
+    group.throughput(Throughput::Bytes(len as u64));
+    group.bench_function(format!("{}", len), |b| {
+        b.to_async(&rt)
+            .iter(|| async { bench_stream_cipher_zk(thread_count, len).await })
     });
 
     drop(group);

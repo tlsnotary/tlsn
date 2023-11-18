@@ -51,6 +51,15 @@ pub trait CtrCircuit: Default + Clone + Send + Sync + 'static {
 
     /// Returns the circuit of the cipher
     fn circuit() -> Arc<Circuit>;
+
+    /// Applies the keystream to the message
+    fn apply_keystream(
+        key: &Self::KEY,
+        iv: &Self::IV,
+        start_ctr: usize,
+        explicit_nonce: &Self::NONCE,
+        msg: &[u8],
+    ) -> Vec<u8>;
 }
 
 /// A circuit for AES-128 in counter mode.
@@ -70,5 +79,30 @@ impl CtrCircuit for Aes128Ctr {
 
     fn circuit() -> Arc<Circuit> {
         AES_CTR.clone()
+    }
+
+    fn apply_keystream(
+        key: &Self::KEY,
+        iv: &Self::IV,
+        start_ctr: usize,
+        explicit_nonce: &Self::NONCE,
+        msg: &[u8],
+    ) -> Vec<u8> {
+        use ::cipher::{KeyIvInit, StreamCipher, StreamCipherSeek};
+        use aes::Aes128;
+        use ctr::Ctr32BE;
+
+        let mut full_iv = [0u8; 16];
+        full_iv[0..4].copy_from_slice(iv);
+        full_iv[4..12].copy_from_slice(explicit_nonce);
+        let mut cipher = Ctr32BE::<Aes128>::new(key.into(), &full_iv.into());
+        let mut buf = msg.to_vec();
+
+        cipher
+            .try_seek(start_ctr * Self::BLOCK_LEN)
+            .expect("start counter is less than keystream length");
+        cipher.apply_keystream(&mut buf);
+
+        buf
     }
 }
