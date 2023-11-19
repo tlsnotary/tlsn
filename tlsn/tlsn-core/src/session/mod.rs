@@ -59,7 +59,7 @@ impl NotarizedSession {
         &self.signature
     }
 
-    /// Returns the [NotarizationSessionData]
+    /// Returns the [SessionData]
     pub fn data(&self) -> &SessionData {
         &self.data
     }

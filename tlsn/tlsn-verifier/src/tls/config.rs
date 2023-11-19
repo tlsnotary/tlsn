@@ -7,7 +7,7 @@ use tlsn_core::proof::default_cert_verifier;
 
 const DEFAULT_MAX_TRANSCRIPT_SIZE: usize = 1 << 14; // 16Kb
 
-/// Configuration for the [`Verifier`](crate::Verifier)
+/// Configuration for the [`Verifier`](crate::tls::Verifier)
 #[allow(missing_docs)]
 #[derive(derive_builder::Builder)]
 #[builder(pattern = "owned")]
