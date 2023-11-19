@@ -142,10 +142,7 @@ fn test_api() {
             &ephem_key,
             &notarized_session_data.commitments().merkle_root(),
             header.encoder_seed(),
-            notarized_session_data
-                .session_data()
-                .session_info()
-                .handshake_data_decommitment(),
+            &notarized_session_data.session_info().handshake_decommitment,
         )
         .unwrap();
 
@@ -184,7 +181,7 @@ fn test_api() {
 
     // assert dns name is expected
     assert_eq!(
-        session_info.server_name().as_ref(),
+        session_info.server_name.as_ref(),
         testdata.dns_name.as_str()
     );
 
