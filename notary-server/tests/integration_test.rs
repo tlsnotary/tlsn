@@ -24,13 +24,17 @@ use ws_stream_tungstenite::WsStream;
 use notary_server::{
     read_pem_file, run_server, AuthorizationProperties, NotarizationProperties,
     NotarizationSessionRequest, NotarizationSessionResponse, NotaryServerProperties,
-    NotarySignatureProperties, ServerProperties, TLSSignatureProperties, TracingProperties,
+    NotarySignatureProperties, ServerProperties, TLSProperties, TracingProperties,
 };
 
 const NOTARY_CA_CERT_PATH: &str = "./fixture/tls/rootCA.crt";
 const NOTARY_CA_CERT_BYTES: &[u8] = include_bytes!("../fixture/tls/rootCA.crt");
 
-async fn setup_config_and_server(sleep_ms: u64, port: u16) -> NotaryServerProperties {
+async fn setup_config_and_server(
+    sleep_ms: u64,
+    port: u16,
+    tls_enabled: bool,
+) -> NotaryServerProperties {
     let notary_config = NotaryServerProperties {
         server: ServerProperties {
             name: "tlsnotaryserver.io".to_string(),
@@ -40,7 +44,8 @@ async fn setup_config_and_server(sleep_ms: u64, port: u16) -> NotaryServerProper
         notarization: NotarizationProperties {
             max_transcript_size: 1 << 14,
         },
-        tls_signature: TLSSignatureProperties {
+        tls: TLSProperties {
+            enabled: tls_enabled,
             private_key_pem_path: "./fixture/tls/notary.key".to_string(),
             certificate_pem_path: "./fixture/tls/notary.crt".to_string(),
         },
@@ -53,7 +58,7 @@ async fn setup_config_and_server(sleep_ms: u64, port: u16) -> NotaryServerProper
         },
         authorization: AuthorizationProperties {
             enabled: false,
-            whitelist_csv_path: None,
+            whitelist_csv_path: "./fixture/auth/whitelist.csv".to_string(),
         },
     };
 
@@ -73,9 +78,9 @@ async fn setup_config_and_server(sleep_ms: u64, port: u16) -> NotaryServerProper
 }
 
 #[tokio::test]
-async fn test_tcp_prover() {
+async fn test_tcp_tls_prover() {
     // Notary server configuration setup
-    let notary_config = setup_config_and_server(100, 7048).await;
+    let notary_config = setup_config_and_server(100, 7048, true).await;
 
     // Connect to the Notary via TLS-TCP
     let mut certificate_file_reader = read_pem_file(NOTARY_CA_CERT_PATH).await.unwrap();
@@ -264,9 +269,173 @@ async fn test_tcp_prover() {
 }
 
 #[tokio::test]
+async fn test_tcp_prover() {
+    // Notary server configuration setup
+    let notary_config = setup_config_and_server(100, 7049, false).await;
+
+    // Connect to the Notary via TCP
+    let notary_host = notary_config.server.host.clone();
+    let notary_port = notary_config.server.port;
+    let notary_socket = tokio::net::TcpStream::connect(SocketAddr::new(
+        IpAddr::V4(notary_host.parse().unwrap()),
+        notary_port,
+    ))
+    .await
+    .unwrap();
+
+    // Attach the hyper HTTP client to the notary TCP connection to send request to the /session endpoint to configure notarization and obtain session id
+    let (mut request_sender, connection) =
+        hyper::client::conn::handshake(notary_socket).await.unwrap();
+
+    // Spawn the HTTP task to be run concurrently
+    let connection_task = tokio::spawn(connection.without_shutdown());
+
+    // Build the HTTP request to configure notarization
+    let payload = serde_json::to_string(&NotarizationSessionRequest {
+        client_type: notary_server::ClientType::Tcp,
+        max_transcript_size: Some(notary_config.notarization.max_transcript_size),
+    })
+    .unwrap();
+    let request = Request::builder()
+        .uri(format!("http://{notary_host}:{notary_port}/session"))
+        .method("POST")
+        .header("Host", notary_host.clone())
+        // Need to specify application/json for axum to parse it as json
+        .header("Content-Type", "application/json")
+        .body(Body::from(payload))
+        .unwrap();
+
+    debug!("Sending configuration request");
+
+    let response = request_sender.send_request(request).await.unwrap();
+
+    debug!("Sent configuration request");
+
+    assert!(response.status() == StatusCode::OK);
+
+    debug!("Response OK");
+
+    // Pretty printing :)
+    let payload = to_bytes(response.into_body()).await.unwrap().to_vec();
+    let notarization_response =
+        serde_json::from_str::<NotarizationSessionResponse>(&String::from_utf8_lossy(&payload))
+            .unwrap();
+
+    debug!("Notarization response: {:?}", notarization_response,);
+
+    // Send notarization request via HTTP, where the underlying TCP connection will be extracted later
+    let request = Request::builder()
+        // Need to specify the session_id so that notary server knows the right configuration to use
+        // as the configuration is set in the previous HTTP call
+        .uri(format!(
+            "http://{}:{}/notarize?sessionId={}",
+            notary_host,
+            notary_port,
+            notarization_response.session_id.clone()
+        ))
+        .method("GET")
+        .header("Host", notary_host)
+        .header("Connection", "Upgrade")
+        // Need to specify this upgrade header for server to extract tcp connection later
+        .header("Upgrade", "TCP")
+        .body(Body::empty())
+        .unwrap();
+
+    debug!("Sending notarization request");
+
+    let response = request_sender.send_request(request).await.unwrap();
+
+    debug!("Sent notarization request");
+
+    assert!(response.status() == StatusCode::SWITCHING_PROTOCOLS);
+
+    debug!("Switched protocol OK");
+
+    // Claim back the TCP socket after HTTP exchange is done so that client can use it for notarization
+    let Parts {
+        io: notary_socket, ..
+    } = connection_task.await.unwrap().unwrap();
+
+    // Connect to the Server
+    let (client_socket, server_socket) = tokio::io::duplex(2 << 16);
+    let server_task = tokio::spawn(bind_test_server_hyper(server_socket.compat()));
+
+    let mut root_store = tls_core::anchors::RootCertStore::empty();
+    root_store
+        .add(&tls_core::key::Certificate(CA_CERT_DER.to_vec()))
+        .unwrap();
+
+    // Basic default prover config — use the responded session id from notary server
+    let prover_config = ProverConfig::builder()
+        .id(notarization_response.session_id)
+        .server_dns(SERVER_DOMAIN)
+        .root_cert_store(root_store)
+        .build()
+        .unwrap();
+
+    // Bind the Prover to the sockets
+    let prover = Prover::new(prover_config)
+        .setup(notary_socket.compat())
+        .await
+        .unwrap();
+    let (tls_connection, prover_fut) = prover.connect(client_socket.compat()).await.unwrap();
+
+    // Spawn the Prover task to be run concurrently
+    let prover_task = tokio::spawn(prover_fut);
+
+    let (mut request_sender, connection) = hyper::client::conn::handshake(tls_connection.compat())
+        .await
+        .unwrap();
+
+    let connection_task = tokio::spawn(connection.without_shutdown());
+
+    let request = Request::builder()
+        .uri(format!("https://{}/echo", SERVER_DOMAIN))
+        .header("Host", SERVER_DOMAIN)
+        .header("Connection", "close")
+        .method("POST")
+        .body(Body::from("echo"))
+        .unwrap();
+
+    debug!("Sending request to server: {:?}", request);
+
+    let response = request_sender.send_request(request).await.unwrap();
+
+    assert!(response.status() == StatusCode::OK);
+
+    debug!(
+        "Received response from server: {:?}",
+        String::from_utf8_lossy(&to_bytes(response.into_body()).await.unwrap())
+    );
+
+    let mut server_tls_conn = server_task.await.unwrap().unwrap();
+
+    // Make sure the server closes cleanly (sends close notify)
+    server_tls_conn.close().await.unwrap();
+
+    let mut client_socket = connection_task.await.unwrap().unwrap().io.into_inner();
+
+    client_socket.close().await.unwrap();
+
+    let mut prover = prover_task.await.unwrap().unwrap().start_notarize();
+
+    let sent_len = prover.sent_transcript().data().len();
+    let recv_len = prover.recv_transcript().data().len();
+
+    let builder = prover.commitment_builder();
+
+    builder.commit_sent(0..sent_len).unwrap();
+    builder.commit_recv(0..recv_len).unwrap();
+
+    _ = prover.finalize().await.unwrap();
+
+    debug!("Done notarization!");
+}
+
+#[tokio::test]
 async fn test_websocket_prover() {
     // Notary server configuration setup
-    let notary_config = setup_config_and_server(100, 7049).await;
+    let notary_config = setup_config_and_server(100, 7050, true).await;
     let notary_host = notary_config.server.host.clone();
     let notary_port = notary_config.server.port;
 
