@@ -19,8 +19,8 @@ use mpz_garble::value::ValueRef;
 pub(crate) static CF_LABEL: &[u8] = b"client finished";
 pub(crate) static SF_LABEL: &[u8] = b"server finished";
 
-/// Session keys computed by the PRF.
-#[derive(Debug)]
+/// Encoded session keys computed by the PRF.
+#[derive(Debug, Clone)]
 pub struct EncodedSessionKeys {
     /// Client write key.
     pub client_write_key: ValueRef,
@@ -30,6 +30,19 @@ pub struct EncodedSessionKeys {
     pub client_iv: ValueRef,
     /// Server IV.
     pub server_iv: ValueRef,
+}
+
+/// Session keys computed by the PRF.
+#[derive(Debug)]
+pub struct SessionKeys {
+    /// Client write key.
+    pub client_write_key: Vec<u8>,
+    /// Server write key.
+    pub server_write_key: Vec<u8>,
+    /// Client IV.
+    pub client_iv: Vec<u8>,
+    /// Server IV.
+    pub server_iv: Vec<u8>,
 }
 
 /// PRF trait for computing TLS PRF.
@@ -69,6 +82,12 @@ pub trait Prf {
 
     /// Computes the server finished verify data using the handshake hash provided by the other party.
     async fn compute_server_finished_vd_blind(&mut self) -> Result<(), PrfError>;
+
+    /// Decodes the session keys, revealing them only to this party.
+    async fn decode_session_keys_private(&mut self) -> Result<SessionKeys, PrfError>;
+
+    /// Decodes the session keys, revealing them only to the other party.
+    async fn decode_session_keys_blind(&mut self) -> Result<(), PrfError>;
 }
 
 #[cfg(test)]
@@ -213,5 +232,23 @@ mod tests {
         let expected_sf_vd = compute_vd(ms, b"server finished", sf_hs_hash);
 
         assert_eq!(sf_vd, expected_sf_vd);
+
+        let (session_keys, _) = futures::try_join!(
+            leader.decode_session_keys_private(),
+            follower.decode_session_keys_blind()
+        )
+        .unwrap();
+
+        let SessionKeys {
+            client_write_key,
+            server_write_key,
+            client_iv,
+            server_iv,
+        } = session_keys;
+
+        assert_eq!(client_write_key, expected_cwk);
+        assert_eq!(server_write_key, expected_swk);
+        assert_eq!(client_iv, expected_civ);
+        assert_eq!(server_iv, expected_siv);
     }
 }

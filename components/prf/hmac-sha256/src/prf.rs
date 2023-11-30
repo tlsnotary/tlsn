@@ -12,7 +12,7 @@ use mpz_garble::{
 };
 use utils_aio::non_blocking_backend::{Backend, NonBlockingBackend};
 
-use crate::{EncodedSessionKeys, Prf, PrfConfig, PrfError, Role, CF_LABEL, SF_LABEL};
+use crate::{EncodedSessionKeys, Prf, PrfConfig, PrfError, Role, SessionKeys, CF_LABEL, SF_LABEL};
 
 #[cfg(feature = "tracing")]
 use tracing::instrument;
@@ -83,7 +83,7 @@ where
         &mut self,
         randoms: Option<([u8; 32], [u8; 32])>,
     ) -> Result<EncodedSessionKeys, PrfError> {
-        let state::EncodedSessionKeys {
+        let state::SessionKeys {
             pms,
             randoms: randoms_refs,
             hash_state,
@@ -119,6 +119,7 @@ where
             .await?;
 
         self.state = state::State::ClientFinished(state::ClientFinished {
+            keys: keys.clone(),
             hash_state,
             cf_vd,
             sf_vd,
@@ -132,6 +133,7 @@ where
         handshake_hash: Option<[u8; 32]>,
     ) -> Result<Option<[u8; 12]>, PrfError> {
         let state::ClientFinished {
+            keys,
             hash_state,
             cf_vd,
             sf_vd,
@@ -167,7 +169,11 @@ where
             None
         };
 
-        self.state = state::State::ServerFinished(state::ServerFinished { hash_state, sf_vd });
+        self.state = state::State::ServerFinished(state::ServerFinished {
+            keys,
+            hash_state,
+            sf_vd,
+        });
 
         Ok(vd)
     }
@@ -176,8 +182,11 @@ where
         &mut self,
         handshake_hash: Option<[u8; 32]>,
     ) -> Result<Option<[u8; 12]>, PrfError> {
-        let state::ServerFinished { hash_state, sf_vd } =
-            std::mem::replace(&mut self.state, state::State::Error).try_into_server_finished()?;
+        let state::ServerFinished {
+            keys,
+            hash_state,
+            sf_vd,
+        } = std::mem::replace(&mut self.state, state::State::Error).try_into_server_finished()?;
 
         let circ = SERVER_VD_CIRC.get().expect("server vd circuit is set");
 
@@ -209,7 +218,7 @@ where
             None
         };
 
-        self.state = state::State::Complete;
+        self.state = state::State::Complete(state::Complete { keys });
 
         Ok(vd)
     }
@@ -238,7 +247,7 @@ where
             setup_finished_msg(&mut self.thread_1, Msg::Sf, hash_state.clone(), visibility),
         )?;
 
-        self.state = state::State::EncodedSessionKeys(state::EncodedSessionKeys {
+        self.state = state::State::SessionKeys(state::SessionKeys {
             pms,
             randoms,
             hash_state,
@@ -330,6 +339,44 @@ where
 
         self.execute_sf_vd(None).await.map(|_| ())
     }
+
+    async fn decode_session_keys_private(&mut self) -> Result<SessionKeys, PrfError> {
+        let state::Complete { keys } = self.state.try_as_complete()?.clone();
+
+        let [client_write_key, server_write_key, client_iv, server_iv]: [_; 4] = self
+            .thread_0
+            .decode_private(&[
+                keys.client_write_key,
+                keys.server_write_key,
+                keys.client_iv,
+                keys.server_iv,
+            ])
+            .await?
+            .try_into()
+            .expect("decoded 4 values");
+
+        Ok(SessionKeys {
+            client_write_key: client_write_key.try_into().expect("cwk is array"),
+            server_write_key: server_write_key.try_into().expect("swk is array"),
+            client_iv: client_iv.try_into().expect("civ is array"),
+            server_iv: server_iv.try_into().expect("siv is array"),
+        })
+    }
+
+    async fn decode_session_keys_blind(&mut self) -> Result<(), PrfError> {
+        let state::Complete { keys } = self.state.try_as_complete()?.clone();
+
+        self.thread_0
+            .decode_blind(&[
+                keys.client_write_key,
+                keys.server_write_key,
+                keys.client_iv,
+                keys.server_iv,
+            ])
+            .await?;
+
+        Ok(())
+    }
 }
 
 pub(crate) mod state {
@@ -340,15 +387,15 @@ pub(crate) mod state {
     #[derive_err(Debug)]
     pub(crate) enum State {
         Initialized,
-        EncodedSessionKeys(EncodedSessionKeys),
+        SessionKeys(SessionKeys),
         ClientFinished(ClientFinished),
         ServerFinished(ServerFinished),
-        Complete,
+        Complete(Complete),
         Error,
     }
 
     #[derive(Debug)]
-    pub(crate) struct EncodedSessionKeys {
+    pub(crate) struct SessionKeys {
         pub(crate) pms: ValueRef,
         pub(crate) randoms: Randoms,
         pub(crate) hash_state: HashState,
@@ -359,6 +406,7 @@ pub(crate) mod state {
 
     #[derive(Debug)]
     pub(crate) struct ClientFinished {
+        pub(crate) keys: crate::EncodedSessionKeys,
         pub(crate) hash_state: HashState,
         pub(crate) cf_vd: VerifyData,
         pub(crate) sf_vd: VerifyData,
@@ -366,8 +414,14 @@ pub(crate) mod state {
 
     #[derive(Debug)]
     pub(crate) struct ServerFinished {
+        pub(crate) keys: crate::EncodedSessionKeys,
         pub(crate) hash_state: HashState,
         pub(crate) sf_vd: VerifyData,
+    }
+
+    #[derive(Debug, Clone)]
+    pub(crate) struct Complete {
+        pub(crate) keys: crate::EncodedSessionKeys,
     }
 }
 
