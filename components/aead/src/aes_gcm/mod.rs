@@ -321,6 +321,48 @@ impl Aead for MpcAesGcm {
             .map_err(AeadError::from)
             .await
     }
+
+    async fn verify_tag(
+        &mut self,
+        explicit_nonce: Vec<u8>,
+        mut ciphertext: Vec<u8>,
+        aad: Vec<u8>,
+    ) -> Result<(), AeadError> {
+        let purported_tag = ciphertext.split_off(ciphertext.len() - AES_GCM_TAG_LEN);
+
+        let tag = self
+            .compute_tag(explicit_nonce.clone(), ciphertext, aad)
+            .await?;
+
+        // Reject if tag is incorrect
+        if tag == purported_tag {
+            Ok(())
+        } else {
+            Err(AeadError::CorruptedTag)
+        }
+    }
+
+    async fn prove_plaintext(
+        &mut self,
+        explicit_nonce: Vec<u8>,
+        plaintext: Vec<u8>,
+    ) -> Result<(), AeadError> {
+        self.aes_ctr
+            .prove_plaintext(explicit_nonce, plaintext)
+            .map_err(AeadError::from)
+            .await
+    }
+
+    async fn verify_plaintext(
+        &mut self,
+        explicit_nonce: Vec<u8>,
+        ciphertext: Vec<u8>,
+    ) -> Result<(), AeadError> {
+        self.aes_ctr
+            .verify_plaintext(explicit_nonce, ciphertext)
+            .map_err(AeadError::from)
+            .await
+    }
 }
 
 #[cfg(test)]
@@ -579,5 +621,38 @@ mod tests {
         )
         .unwrap_err();
         assert!(matches!(err, AeadError::CorruptedTag));
+    }
+
+    #[tokio::test]
+    async fn test_aes_gcm_verify_tag() {
+        let key = vec![0u8; 16];
+        let iv = vec![0u8; 4];
+        let explicit_nonce = vec![0u8; 8];
+        let plaintext = vec![1u8; 32];
+        let aad = vec![2u8; 12];
+        let ciphertext = reference_impl(&key, &iv, &explicit_nonce, &plaintext, &aad);
+
+        let len = ciphertext.len();
+
+        let ((mut leader, mut follower), (_leader_vm, _follower_vm)) =
+            setup_pair(key.clone(), iv.clone()).await;
+
+        tokio::try_join!(
+            leader.verify_tag(explicit_nonce.clone(), ciphertext.clone(), aad.clone()),
+            follower.verify_tag(explicit_nonce.clone(), ciphertext.clone(), aad.clone())
+        )
+        .unwrap();
+
+        // corrupt tag
+        let mut corrupted = ciphertext.clone();
+        corrupted[len - 1] -= 1;
+
+        let (leader_res, follower_res) = tokio::join!(
+            leader.verify_tag(explicit_nonce.clone(), corrupted.clone(), aad.clone()),
+            follower.verify_tag(explicit_nonce.clone(), corrupted, aad.clone())
+        );
+
+        assert!(matches!(leader_res.unwrap_err(), AeadError::CorruptedTag));
+        assert!(matches!(follower_res.unwrap_err(), AeadError::CorruptedTag));
     }
 }

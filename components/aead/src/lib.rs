@@ -144,4 +144,42 @@ pub trait Aead: Send {
         ciphertext: Vec<u8>,
         aad: Vec<u8>,
     ) -> Result<(), AeadError>;
+
+    /// Verifies the tag of a ciphertext message.
+    ///
+    /// This method checks the authenticity of the ciphertext, tag and additional data.
+    ///
+    /// * `explicit_nonce` - The explicit nonce to use for decryption.
+    /// * `ciphertext` - The ciphertext and tag to authenticate and decrypt.
+    /// * `aad` - Additional authenticated data.
+    async fn verify_tag(
+        &mut self,
+        explicit_nonce: Vec<u8>,
+        ciphertext: Vec<u8>,
+        aad: Vec<u8>,
+    ) -> Result<(), AeadError>;
+
+    /// Privately proves to the other party(s) the plaintext encrypts to a certain ciphertext.
+    ///
+    /// # Arguments
+    ///
+    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
+    /// * `plaintext`: The plaintext to prove.
+    async fn prove_plaintext(
+        &mut self,
+        explicit_nonce: Vec<u8>,
+        plaintext: Vec<u8>,
+    ) -> Result<(), AeadError>;
+
+    /// Verifies the other party(s) can prove they know a plaintext which encrypts to the given ciphertext.
+    ///
+    /// # Arguments
+    ///
+    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
+    /// * `ciphertext`: The ciphertext to verify.
+    async fn verify_plaintext(
+        &mut self,
+        explicit_nonce: Vec<u8>,
+        ciphertext: Vec<u8>,
+    ) -> Result<(), AeadError>;
 }
