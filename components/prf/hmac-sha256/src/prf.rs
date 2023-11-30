@@ -12,7 +12,7 @@ use mpz_garble::{
 };
 use utils_aio::non_blocking_backend::{Backend, NonBlockingBackend};
 
-use crate::{Prf, PrfConfig, PrfError, Role, SessionKeys, CF_LABEL, SF_LABEL};
+use crate::{EncodedSessionKeys, Prf, PrfConfig, PrfError, Role, CF_LABEL, SF_LABEL};
 
 #[cfg(feature = "tracing")]
 use tracing::instrument;
@@ -82,8 +82,8 @@ where
     async fn execute_session_keys(
         &mut self,
         randoms: Option<([u8; 32], [u8; 32])>,
-    ) -> Result<SessionKeys, PrfError> {
-        let state::SessionKeys {
+    ) -> Result<EncodedSessionKeys, PrfError> {
+        let state::EncodedSessionKeys {
             pms,
             randoms: randoms_refs,
             hash_state,
@@ -238,7 +238,7 @@ where
             setup_finished_msg(&mut self.thread_1, Msg::Sf, hash_state.clone(), visibility),
         )?;
 
-        self.state = state::State::SessionKeys(state::SessionKeys {
+        self.state = state::State::EncodedSessionKeys(state::EncodedSessionKeys {
             pms,
             randoms,
             hash_state,
@@ -255,7 +255,7 @@ where
         &mut self,
         client_random: [u8; 32],
         server_random: [u8; 32],
-    ) -> Result<SessionKeys, PrfError> {
+    ) -> Result<EncodedSessionKeys, PrfError> {
         if self.config.role != Role::Leader {
             return Err(PrfError::RoleError(
                 "only leader can provide inputs".to_string(),
@@ -299,7 +299,7 @@ where
     }
 
     #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
-    async fn compute_session_keys_blind(&mut self) -> Result<SessionKeys, PrfError> {
+    async fn compute_session_keys_blind(&mut self) -> Result<EncodedSessionKeys, PrfError> {
         if self.config.role != Role::Follower {
             return Err(PrfError::RoleError(
                 "leader must provide inputs".to_string(),
@@ -340,7 +340,7 @@ pub(crate) mod state {
     #[derive_err(Debug)]
     pub(crate) enum State {
         Initialized,
-        SessionKeys(SessionKeys),
+        EncodedSessionKeys(EncodedSessionKeys),
         ClientFinished(ClientFinished),
         ServerFinished(ServerFinished),
         Complete,
@@ -348,11 +348,11 @@ pub(crate) mod state {
     }
 
     #[derive(Debug)]
-    pub(crate) struct SessionKeys {
+    pub(crate) struct EncodedSessionKeys {
         pub(crate) pms: ValueRef,
         pub(crate) randoms: Randoms,
         pub(crate) hash_state: HashState,
-        pub(crate) keys: crate::SessionKeys,
+        pub(crate) keys: crate::EncodedSessionKeys,
         pub(crate) cf_vd: VerifyData,
         pub(crate) sf_vd: VerifyData,
     }
@@ -375,7 +375,7 @@ async fn setup_session_keys<T: Memory + Load + Send>(
     thread: &mut T,
     pms: ValueRef,
     visibility: Visibility,
-) -> Result<(Randoms, HashState, SessionKeys), PrfError> {
+) -> Result<(Randoms, HashState, EncodedSessionKeys), PrfError> {
     let client_random = thread.new_input::<[u8; 32]>("client_finished", visibility)?;
     let server_random = thread.new_input::<[u8; 32]>("server_finished", visibility)?;
 
@@ -419,7 +419,7 @@ async fn setup_session_keys<T: Memory + Load + Send>(
             ms_outer_hash_state,
             ms_inner_hash_state,
         },
-        SessionKeys {
+        EncodedSessionKeys {
             client_write_key,
             server_write_key,
             client_iv,

@@ -6,7 +6,7 @@ use futures::{SinkExt, TryFutureExt};
 use hmac_sha256 as prf;
 use key_exchange as ke;
 use mpz_core::commit::{Decommitment, HashCommit};
-use prf::SessionKeys;
+use prf::EncodedSessionKeys;
 
 use aead::Aead;
 use hmac_sha256::Prf;
@@ -248,7 +248,7 @@ impl MpcTlsLeader {
 
         self.ke.compute_pms().await?;
 
-        let SessionKeys {
+        let EncodedSessionKeys {
             client_write_key,
             server_write_key,
             client_iv,

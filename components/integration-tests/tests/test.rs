@@ -5,7 +5,7 @@ use aead::{
 use block_cipher::{Aes128, BlockCipherConfigBuilder, MpcBlockCipher};
 use ff::Gf2_128;
 use futures::StreamExt;
-use hmac_sha256::{MpcPrf, Prf, PrfConfig, SessionKeys};
+use hmac_sha256::{MpcPrf, Prf, PrfConfig, EncodedSessionKeys};
 use key_exchange::{KeyExchange, KeyExchangeConfig, Role as KeyExchangeRole};
 use mpz_garble::{config::Role as GarbleRole, protocol::deap::DEAPVm, Vm};
 use mpz_ot::{
@@ -363,13 +363,13 @@ async fn test_components() {
     )
     .unwrap();
 
-    let SessionKeys {
+    let EncodedSessionKeys {
         client_write_key: leader_key,
         client_iv: leader_iv,
         ..
     } = leader_session_keys;
 
-    let SessionKeys {
+    let EncodedSessionKeys {
         client_write_key: follower_key,
         client_iv: follower_iv,
         ..

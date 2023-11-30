@@ -6,7 +6,7 @@ use mpz_core::hash::Hash;
 use mpz_garble::value::ValueRef;
 
 use p256::elliptic_curve::sec1::ToEncodedPoint;
-use prf::SessionKeys;
+use prf::EncodedSessionKeys;
 
 use aead::Aead;
 use hmac_sha256::Prf;
@@ -138,7 +138,7 @@ impl MpcTlsFollower {
         self.ke.compute_pms().await?;
 
         // PRF
-        let SessionKeys {
+        let EncodedSessionKeys {
             client_write_key,
             server_write_key,
             client_iv,

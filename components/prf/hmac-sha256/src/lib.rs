@@ -21,7 +21,7 @@ pub(crate) static SF_LABEL: &[u8] = b"server finished";
 
 /// Session keys computed by the PRF.
 #[derive(Debug)]
-pub struct SessionKeys {
+pub struct EncodedSessionKeys {
     /// Client write key.
     pub client_write_key: ValueRef,
     /// Server write key.
@@ -47,7 +47,7 @@ pub trait Prf {
         &mut self,
         client_random: [u8; 32],
         server_random: [u8; 32],
-    ) -> Result<SessionKeys, PrfError>;
+    ) -> Result<EncodedSessionKeys, PrfError>;
 
     /// Computes the client finished verify data using the provided handshake hash.
     async fn compute_client_finished_vd_private(
@@ -62,7 +62,7 @@ pub trait Prf {
     ) -> Result<[u8; 12], PrfError>;
 
     /// Computes the session keys using randoms provided by the other party.
-    async fn compute_session_keys_blind(&mut self) -> Result<SessionKeys, PrfError>;
+    async fn compute_session_keys_blind(&mut self) -> Result<EncodedSessionKeys, PrfError>;
 
     /// Computes the client finished verify data using the handshake hash provided by the other party.
     async fn compute_client_finished_vd_blind(&mut self) -> Result<(), PrfError>;
@@ -139,14 +139,14 @@ mod tests {
         )
         .unwrap();
 
-        let SessionKeys {
+        let EncodedSessionKeys {
             client_write_key: leader_cwk,
             server_write_key: leader_swk,
             client_iv: leader_civ,
             server_iv: leader_siv,
         } = leader_session_keys;
 
-        let SessionKeys {
+        let EncodedSessionKeys {
             client_write_key: follower_cwk,
             server_write_key: follower_swk,
             client_iv: follower_civ,
