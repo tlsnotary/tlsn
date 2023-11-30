@@ -5,7 +5,7 @@ use aead::{
 use block_cipher::{Aes128, BlockCipherConfigBuilder, MpcBlockCipher};
 use ff::Gf2_128;
 use futures::StreamExt;
-use hmac_sha256::{MpcPrf, Prf, PrfConfig, EncodedSessionKeys};
+use hmac_sha256::{EncodedSessionKeys, MpcPrf, Prf, PrfConfig};
 use key_exchange::{KeyExchange, KeyExchangeConfig, Role as KeyExchangeRole};
 use mpz_garble::{config::Role as GarbleRole, protocol::deap::DEAPVm, Vm};
 use mpz_ot::{
