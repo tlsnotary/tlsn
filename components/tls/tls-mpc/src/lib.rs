@@ -12,6 +12,7 @@ mod error;
 mod follower;
 mod leader;
 pub mod msg;
+pub(crate) mod record_layer;
 pub(crate) mod setup;
 
 pub use config::{

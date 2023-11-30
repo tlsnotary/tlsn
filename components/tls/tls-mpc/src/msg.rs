@@ -1,29 +1,21 @@
 //! Contains message types for communication between leader and follower
 
+use enum_try_as_inner::EnumTryAsInner;
 use mpz_core::hash::Hash;
 use serde::{Deserialize, Serialize};
-use tls_core::msgs::enums::ContentType;
-
-/// TLS message record types
-#[allow(missing_docs)]
-#[derive(Serialize, Deserialize)]
-#[serde(remote = "ContentType")]
-pub enum ContentTypeDef {
-    ChangeCipherSpec,
-    Alert,
-    Handshake,
-    ApplicationData,
-    Heartbeat,
-    Unknown(u8),
-}
+use tls_core::msgs::{
+    enums::{ContentType, ProtocolVersion},
+    message::OpaqueMessage,
+};
 
 /// MPC protocol level message types
 #[allow(missing_docs)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, EnumTryAsInner)]
+#[derive_err(Debug)]
 pub enum MpcTlsMessage {
     HandshakeCommitment(Hash),
     EncryptMessage(EncryptMessage),
-    DecryptMessage(DecryptMessage),
+    DecryptMessage(OpaqueMessage),
     SendCloseNotify(EncryptMessage),
     Close(Close),
 }
@@ -36,19 +28,7 @@ pub struct Close;
 #[allow(missing_docs)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EncryptMessage {
-    #[serde(with = "ContentTypeDef")]
     pub typ: ContentType,
-    pub seq: u64,
+    pub version: ProtocolVersion,
     pub len: usize,
-}
-
-/// Decrypt a message
-#[allow(missing_docs)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DecryptMessage {
-    #[serde(with = "ContentTypeDef")]
-    pub typ: ContentType,
-    pub explicit_nonce: Vec<u8>,
-    pub ciphertext: Vec<u8>,
-    pub seq: u64,
 }

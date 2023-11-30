@@ -16,12 +16,10 @@ use p256::SecretKey;
 use tls_backend::{Backend, BackendError, DecryptMode, EncryptMode};
 use tls_core::{
     cert::ServerCertDetails,
-    cipher::make_tls12_aad,
     handshake::HandshakeData,
     ke::ServerKxDetails,
     key::PublicKey,
     msgs::{
-        base::Payload,
         enums::{CipherSuite, ContentType, NamedGroup, ProtocolVersion},
         handshake::Random,
         message::{OpaqueMessage, PlainMessage},
@@ -30,7 +28,8 @@ use tls_core::{
 };
 
 use crate::{
-    msg::{DecryptMessage, EncryptMessage, MpcTlsMessage},
+    msg::{EncryptMessage, MpcTlsMessage},
+    record_layer::{Decrypter, Encrypter},
     MpcTlsChannel, MpcTlsError, MpcTlsLeaderConfig,
 };
 
@@ -43,8 +42,8 @@ pub struct MpcTlsLeader {
 
     ke: Box<dyn KeyExchange + Send>,
     prf: Box<dyn Prf + Send>,
-    encrypter: Box<dyn Aead + Send>,
-    decrypter: Box<dyn Aead + Send>,
+    encrypter: Encrypter,
+    decrypter: Decrypter,
 }
 
 struct ConnectionState {
@@ -93,6 +92,17 @@ impl MpcTlsLeader {
         encrypter: Box<dyn Aead + Send>,
         decrypter: Box<dyn Aead + Send>,
     ) -> Self {
+        let encrypter = Encrypter::new(
+            encrypter,
+            config.common().tx_transcript_id().to_string(),
+            config.common().opaque_tx_transcript_id().to_string(),
+        );
+        let decrypter = Decrypter::new(
+            decrypter,
+            config.common().rx_transcript_id().to_string(),
+            config.common().opaque_rx_transcript_id().to_string(),
+        );
+
         Self {
             config,
             channel,
@@ -303,72 +313,40 @@ impl MpcTlsLeader {
     /// Encrypt a message
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "trace", skip(self, m), err)
+        tracing::instrument(level = "trace", skip(self, msg), err)
     )]
-    pub async fn encrypt(
-        &mut self,
-        m: PlainMessage,
-        seq: u64,
-    ) -> Result<OpaqueMessage, MpcTlsError> {
-        if self.total_bytes_transferred() + m.payload.0.len()
+    pub async fn encrypt(&mut self, msg: PlainMessage) -> Result<OpaqueMessage, MpcTlsError> {
+        if self.total_bytes_transferred() + msg.payload.0.len()
             > self.config.common().max_transcript_size()
         {
             return Err(MpcTlsError::MaxTranscriptLengthExceeded(
-                self.total_bytes_transferred() + m.payload.0.len(),
+                self.total_bytes_transferred() + msg.payload.0.len(),
                 self.config.common().max_transcript_size(),
             ));
         }
 
-        let explicit_nonce = seq.to_be_bytes().to_vec();
-
-        let aad = make_tls12_aad(seq, m.typ, m.version, m.payload.0.len());
-
-        match m.typ {
+        match msg.typ {
             ContentType::Alert => {
                 self.channel
                     .send(MpcTlsMessage::SendCloseNotify(EncryptMessage {
-                        typ: m.typ,
-                        seq,
-                        len: m.payload.0.len(),
+                        typ: msg.typ,
+                        version: msg.version,
+                        len: msg.payload.0.len(),
                     }))
                     .await?;
             }
             _ => {
                 self.channel
                     .send(MpcTlsMessage::EncryptMessage(EncryptMessage {
-                        typ: m.typ,
-                        seq,
-                        len: m.payload.0.len(),
+                        typ: msg.typ,
+                        version: msg.version,
+                        len: msg.payload.0.len(),
                     }))
                     .await?;
             }
         }
 
-        // Set the transcript id depending on the type of message
-        match m.typ {
-            ContentType::ApplicationData => self
-                .encrypter
-                .set_transcript_id(self.config.common().tx_transcript_id()),
-            _ => self
-                .encrypter
-                .set_transcript_id(self.config.common().opaque_tx_transcript_id()),
-        }
-
-        let ciphertext = self
-            .encrypter
-            .encrypt_private(explicit_nonce.clone(), m.payload.0, aad.to_vec())
-            .await?;
-
-        self.conn_state.sent_bytes += ciphertext.len();
-
-        let mut payload = explicit_nonce;
-        payload.extend(ciphertext);
-
-        let msg = OpaqueMessage {
-            typ: m.typ,
-            version: m.version,
-            payload: Payload::new(payload),
-        };
+        let msg = self.encrypter.encrypt_private(msg).await?;
 
         Ok(msg)
     }
@@ -376,69 +354,25 @@ impl MpcTlsLeader {
     /// Decrypt a message
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "trace", skip(self, m), err)
+        tracing::instrument(level = "trace", skip(self, msg), err)
     )]
-    pub async fn decrypt(
-        &mut self,
-        m: OpaqueMessage,
-        seq: u64,
-    ) -> Result<PlainMessage, MpcTlsError> {
-        if self.total_bytes_transferred() + m.payload.0.len()
+    pub async fn decrypt(&mut self, msg: OpaqueMessage) -> Result<PlainMessage, MpcTlsError> {
+        if self.total_bytes_transferred() + msg.payload.0.len()
             > self.config.common().max_transcript_size()
         {
             return Err(MpcTlsError::MaxTranscriptLengthExceeded(
-                self.total_bytes_transferred() + m.payload.0.len(),
+                self.total_bytes_transferred() + msg.payload.0.len(),
                 self.config.common().max_transcript_size(),
             ));
         }
 
-        let mut payload = m.payload.0;
-
-        let explicit_nonce: Vec<u8> = payload.drain(..8).collect();
-        let ciphertext = payload;
-
-        let aad = make_tls12_aad(seq, m.typ, m.version, ciphertext.len() - 16);
-
-        let typ: ContentType = m.typ;
-
         self.channel
-            .send(MpcTlsMessage::DecryptMessage(DecryptMessage {
-                typ: m.typ,
-                explicit_nonce: explicit_nonce.clone(),
-                seq,
-                ciphertext: ciphertext.clone(),
-            }))
+            .send(MpcTlsMessage::DecryptMessage(msg.clone()))
             .await?;
 
-        // Set the transcript id depending on the type of message
-        match m.typ {
-            ContentType::ApplicationData => self
-                .decrypter
-                .set_transcript_id(self.config.common().rx_transcript_id()),
-            _ => self
-                .decrypter
-                .set_transcript_id(self.config.common().opaque_rx_transcript_id()),
-        }
-
-        let plaintext = match typ {
-            ContentType::Alert => {
-                self.decrypter
-                    .decrypt_public(explicit_nonce, ciphertext, aad.to_vec())
-                    .await?
-            }
-            _ => {
-                self.decrypter
-                    .decrypt_private(explicit_nonce, ciphertext, aad.to_vec())
-                    .await?
-            }
-        };
-
-        self.conn_state.recv_bytes += plaintext.len();
-
-        let msg = PlainMessage {
-            typ: m.typ,
-            version: m.version,
-            payload: Payload::new(plaintext),
+        let msg = match msg.typ {
+            ContentType::Alert => self.decrypter.decrypt_public(msg).await?,
+            _ => self.decrypter.decrypt_private(msg).await?,
         };
 
         Ok(msg)
@@ -541,9 +475,9 @@ impl Backend for MpcTlsLeader {
     async fn encrypt(
         &mut self,
         msg: PlainMessage,
-        seq: u64,
+        _seq: u64,
     ) -> Result<OpaqueMessage, BackendError> {
-        self.encrypt(msg, seq)
+        self.encrypt(msg)
             .map_err(|e| BackendError::EncryptionError(e.to_string()))
             .await
     }
@@ -551,9 +485,9 @@ impl Backend for MpcTlsLeader {
     async fn decrypt(
         &mut self,
         msg: OpaqueMessage,
-        seq: u64,
+        _seq: u64,
     ) -> Result<PlainMessage, BackendError> {
-        self.decrypt(msg, seq)
+        self.decrypt(msg)
             .map_err(|e| BackendError::DecryptionError(e.to_string()))
             .await
     }

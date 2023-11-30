@@ -52,5 +52,5 @@ rstest = "0.12"
 
 # misc
 derive_builder = "0.12"
-
+enum-try-as-inner = "0.1"
 web-time = "0.2"

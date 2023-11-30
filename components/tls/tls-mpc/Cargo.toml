@@ -49,6 +49,7 @@ futures.workspace = true
 async-trait.workspace = true
 serde.workspace = true
 derive_builder.workspace = true
+enum-try-as-inner.workspace = true
 thiserror.workspace = true
 tracing = { workspace = true, optional = true }
 

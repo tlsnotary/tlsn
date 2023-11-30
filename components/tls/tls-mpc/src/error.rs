@@ -1,6 +1,6 @@
 use tls_core::msgs::enums::{ContentType, NamedGroup};
 
-use crate::msg::MpcTlsMessage;
+use crate::msg::MpcTlsMessageError;
 
 /// An error type for this crate
 #[allow(missing_docs)]
@@ -18,8 +18,6 @@ pub enum MpcTlsError {
     PrfError(#[from] hmac_sha256::PrfError),
     #[error(transparent)]
     AeadError(#[from] aead::AeadError),
-    #[error("unexpected message: {0:?}")]
-    UnexpectedMessage(MpcTlsMessage),
     #[error("unexpected content type")]
     UnexpectedContentType(ContentType),
     #[error("invalid message length: {0}")]
@@ -50,4 +48,10 @@ pub enum MpcTlsError {
     PayloadDecodingError,
     #[error("leader closed the connection abruptly")]
     LeaderClosedAbruptly,
+}
+
+impl From<MpcTlsMessageError> for MpcTlsError {
+    fn from(err: MpcTlsMessageError) -> Self {
+        std::io::Error::new(std::io::ErrorKind::InvalidData, err).into()
+    }
 }
