@@ -59,9 +59,6 @@ struct ConnectionState {
 
     handshake_data: Option<HandshakeData>,
     handshake_decommitment: Option<Decommitment<HandshakeData>>,
-
-    sent_bytes: usize,
-    recv_bytes: usize,
 }
 
 impl Default for ConnectionState {
@@ -76,8 +73,6 @@ impl Default for ConnectionState {
             server_kx_details: Default::default(),
             handshake_data: Default::default(),
             handshake_decommitment: Default::default(),
-            sent_bytes: 0,
-            recv_bytes: 0,
         }
     }
 }
@@ -175,12 +170,12 @@ impl MpcTlsLeader {
 
     /// Returns the number of bytes sent and received.
     pub fn bytes_transferred(&self) -> (usize, usize) {
-        (self.conn_state.sent_bytes, self.conn_state.recv_bytes)
+        (self.encrypter.sent_bytes(), self.decrypter.recv_bytes())
     }
 
     /// Returns the total number of bytes sent and received.
     fn total_bytes_transferred(&self) -> usize {
-        self.conn_state.sent_bytes + self.conn_state.recv_bytes
+        self.encrypter.sent_bytes() + self.decrypter.recv_bytes()
     }
 
     /// Computes the combined key
