@@ -15,7 +15,8 @@ use tls_core::msgs::{
 pub enum MpcTlsMessage {
     HandshakeCommitment(Hash),
     EncryptMessage(EncryptMessage),
-    DecryptMessage(OpaqueMessage),
+    CommitMessage(OpaqueMessage),
+    DecryptMessage,
     SendCloseNotify(EncryptMessage),
     Close(Close),
 }

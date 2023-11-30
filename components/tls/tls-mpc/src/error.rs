@@ -18,6 +18,8 @@ pub enum MpcTlsError {
     PrfError(#[from] hmac_sha256::PrfError),
     #[error(transparent)]
     AeadError(#[from] aead::AeadError),
+    #[error("no committed message")]
+    NoCommittedMessage,
     #[error("unexpected content type")]
     UnexpectedContentType(ContentType),
     #[error("invalid message length: {0}")]

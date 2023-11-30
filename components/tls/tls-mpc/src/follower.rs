@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use futures::StreamExt;
 
 use hmac_sha256 as prf;
@@ -39,6 +41,8 @@ pub struct MpcTlsFollower {
 
     handshake_commitment: Option<Hash>,
 
+    buf: VecDeque<OpaqueMessage>,
+
     closed: bool,
 }
 
@@ -75,6 +79,7 @@ impl MpcTlsFollower {
             encrypter,
             decrypter,
             handshake_commitment: None,
+            buf: VecDeque::new(),
             closed: false,
         }
     }
@@ -180,6 +185,11 @@ impl MpcTlsFollower {
             .channel
             .expect_next()
             .await?
+            .try_into_commit_message()?;
+
+        self.channel
+            .expect_next()
+            .await?
             .try_into_decrypt_message()?;
 
         if msg.typ != ContentType::Handshake {
@@ -206,7 +216,7 @@ impl MpcTlsFollower {
         self.encrypter.encrypt_blind(typ, version, len).await
     }
 
-    async fn handle_decrypt_msg(&mut self, msg: OpaqueMessage) -> Result<(), MpcTlsError> {
+    async fn handle_commit_msg(&mut self, msg: OpaqueMessage) -> Result<(), MpcTlsError> {
         if self.total_bytes_transferred() + msg.payload.0.len()
             > self.config.common().max_transcript_size()
         {
@@ -216,8 +226,18 @@ impl MpcTlsFollower {
             ));
         }
 
+        self.buf.push_front(msg);
+
+        Ok(())
+    }
+
+    async fn handle_decrypt_msg(&mut self) -> Result<(), MpcTlsError> {
+        let msg = self.buf.pop_back().ok_or(MpcTlsError::NoCommittedMessage)?;
+
         match msg.typ {
-            ContentType::ApplicationData => self.decrypter.decrypt_blind(msg).await,
+            ContentType::ApplicationData => {
+                self.decrypter.decrypt_blind(msg).await?;
+            }
             ContentType::Alert => {
                 let msg = self.decrypter.decrypt_public(msg).await?;
 
@@ -231,11 +251,11 @@ impl MpcTlsFollower {
                 if alert.description == AlertDescription::CloseNotify {
                     self.closed = true;
                 }
-
-                Ok(())
             }
-            typ => Err(MpcTlsError::UnexpectedContentType(typ)),
+            typ => return Err(MpcTlsError::UnexpectedContentType(typ)),
         }
+
+        Ok(())
     }
 
     async fn handle_close_notify(&mut self, msg: EncryptMessage) -> Result<(), MpcTlsError> {
@@ -265,8 +285,11 @@ impl MpcTlsFollower {
                 MpcTlsMessage::EncryptMessage(msg) => {
                     self.handle_encrypt_msg(msg).await?;
                 }
-                MpcTlsMessage::DecryptMessage(msg) => {
-                    self.handle_decrypt_msg(msg).await?;
+                MpcTlsMessage::CommitMessage(msg) => {
+                    self.handle_commit_msg(msg).await?;
+                }
+                MpcTlsMessage::DecryptMessage => {
+                    self.handle_decrypt_msg().await?;
                 }
                 MpcTlsMessage::SendCloseNotify(msg) => {
                     self.handle_close_notify(msg).await?;

@@ -367,8 +367,10 @@ impl MpcTlsLeader {
         }
 
         self.channel
-            .send(MpcTlsMessage::DecryptMessage(msg.clone()))
+            .send(MpcTlsMessage::CommitMessage(msg.clone()))
             .await?;
+
+        self.channel.send(MpcTlsMessage::DecryptMessage).await?;
 
         let msg = match msg.typ {
             ContentType::Alert => self.decrypter.decrypt_public(msg).await?,
