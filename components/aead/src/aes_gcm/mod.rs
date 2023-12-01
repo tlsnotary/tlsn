@@ -359,10 +359,10 @@ impl Aead for MpcAesGcm {
     async fn prove_plaintext(
         &mut self,
         explicit_nonce: Vec<u8>,
-        plaintext: Vec<u8>,
+        ciphertext: Vec<u8>,
     ) -> Result<(), AeadError> {
         self.aes_ctr
-            .prove_plaintext(explicit_nonce, plaintext)
+            .prove_plaintext(explicit_nonce, ciphertext)
             .map_err(AeadError::from)
             .await
     }
