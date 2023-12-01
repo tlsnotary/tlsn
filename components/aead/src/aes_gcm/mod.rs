@@ -180,6 +180,20 @@ impl Aead for MpcAesGcm {
         Ok(())
     }
 
+    async fn decode_key_private(&mut self) -> Result<(), AeadError> {
+        self.aes_ctr
+            .decode_key_private()
+            .await
+            .map_err(AeadError::from)
+    }
+
+    async fn decode_key_blind(&mut self) -> Result<(), AeadError> {
+        self.aes_ctr
+            .decode_key_blind()
+            .await
+            .map_err(AeadError::from)
+    }
+
     fn set_transcript_id(&mut self, id: &str) {
         self.aes_ctr.set_transcript_id(id)
     }

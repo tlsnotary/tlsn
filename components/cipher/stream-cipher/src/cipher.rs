@@ -5,12 +5,12 @@ use mpz_circuits::{
     Circuit,
 };
 
-use crate::circuit::AES_CTR;
+use crate::{circuit::AES_CTR, StreamCipherError};
 
 /// A counter-mode block cipher circuit.
 pub trait CtrCircuit: Default + Clone + Send + Sync + 'static {
     /// The key type
-    type KEY: StaticValueType + Send + Sync + 'static;
+    type KEY: StaticValueType + TryFrom<Vec<u8>> + Send + Sync + 'static;
     /// The block type
     type BLOCK: StaticValueType
         + TryFrom<Vec<u8>>
@@ -54,12 +54,12 @@ pub trait CtrCircuit: Default + Clone + Send + Sync + 'static {
 
     /// Applies the keystream to the message
     fn apply_keystream(
-        key: &Self::KEY,
-        iv: &Self::IV,
+        key: &[u8],
+        iv: &[u8],
         start_ctr: usize,
-        explicit_nonce: &Self::NONCE,
+        explicit_nonce: &[u8],
         msg: &[u8],
-    ) -> Vec<u8>;
+    ) -> Result<Vec<u8>, StreamCipherError>;
 }
 
 /// A circuit for AES-128 in counter mode.
@@ -82,15 +82,34 @@ impl CtrCircuit for Aes128Ctr {
     }
 
     fn apply_keystream(
-        key: &Self::KEY,
-        iv: &Self::IV,
+        key: &[u8],
+        iv: &[u8],
         start_ctr: usize,
-        explicit_nonce: &Self::NONCE,
+        explicit_nonce: &[u8],
         msg: &[u8],
-    ) -> Vec<u8> {
+    ) -> Result<Vec<u8>, StreamCipherError> {
         use ::cipher::{KeyIvInit, StreamCipher, StreamCipherSeek};
         use aes::Aes128;
         use ctr::Ctr32BE;
+
+        let key: &[u8; 16] = key
+            .try_into()
+            .map_err(|_| StreamCipherError::InvalidKeyLength {
+                expected: 16,
+                actual: key.len(),
+            })?;
+        let iv: &[u8; 4] = iv
+            .try_into()
+            .map_err(|_| StreamCipherError::InvalidIvLength {
+                expected: 4,
+                actual: iv.len(),
+            })?;
+        let explicit_nonce: &[u8; 8] = explicit_nonce.try_into().map_err(|_| {
+            StreamCipherError::InvalidExplicitNonceLength {
+                expected: 8,
+                actual: explicit_nonce.len(),
+            }
+        })?;
 
         let mut full_iv = [0u8; 16];
         full_iv[0..4].copy_from_slice(iv);
@@ -103,6 +122,6 @@ impl CtrCircuit for Aes128Ctr {
             .expect("start counter is less than keystream length");
         cipher.apply_keystream(&mut buf);
 
-        buf
+        Ok(buf)
     }
 }
