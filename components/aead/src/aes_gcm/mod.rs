@@ -360,7 +360,7 @@ impl Aead for MpcAesGcm {
         &mut self,
         explicit_nonce: Vec<u8>,
         ciphertext: Vec<u8>,
-    ) -> Result<(), AeadError> {
+    ) -> Result<Vec<u8>, AeadError> {
         self.aes_ctr
             .prove_plaintext(explicit_nonce, ciphertext)
             .map_err(AeadError::from)

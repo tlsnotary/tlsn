@@ -524,7 +524,7 @@ where
         &mut self,
         explicit_nonce: Vec<u8>,
         ciphertext: Vec<u8>,
-    ) -> Result<(), StreamCipherError> {
+    ) -> Result<Vec<u8>, StreamCipherError> {
         let KeyAndIv { key, iv } = self
             .state
             .key_iv
@@ -554,7 +554,7 @@ where
             .apply_keystream(
                 InputText::Private {
                     ids: plaintext_ids,
-                    text: plaintext,
+                    text: plaintext.clone(),
                 },
                 keystream,
                 ExecutionMode::Prove,
@@ -563,7 +563,7 @@ where
 
         self.prove(ciphertext).await?;
 
-        Ok(())
+        Ok(plaintext)
     }
 
     async fn verify_plaintext(

@@ -168,6 +168,8 @@ pub trait Aead: Send {
     /// Locally decrypts the provided ciphertext and then proves in ZK to the other party(s) that the
     /// plaintext is correct.
     ///
+    /// Returns the plaintext.
+    ///
     /// This method requires this party to know the encryption key, which can be achieved by calling
     /// the `decode_key_private` method.
     ///
@@ -179,7 +181,7 @@ pub trait Aead: Send {
         &mut self,
         explicit_nonce: Vec<u8>,
         ciphertext: Vec<u8>,
-    ) -> Result<(), AeadError>;
+    ) -> Result<Vec<u8>, AeadError>;
 
     /// Verifies the other party(s) can prove they know a plaintext which encrypts to the given ciphertext.
     ///
