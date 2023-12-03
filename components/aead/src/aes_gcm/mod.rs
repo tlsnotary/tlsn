@@ -359,8 +359,10 @@ impl Aead for MpcAesGcm {
     async fn prove_plaintext(
         &mut self,
         explicit_nonce: Vec<u8>,
-        ciphertext: Vec<u8>,
+        mut ciphertext: Vec<u8>,
     ) -> Result<Vec<u8>, AeadError> {
+        ciphertext.truncate(ciphertext.len() - AES_GCM_TAG_LEN);
+
         self.aes_ctr
             .prove_plaintext(explicit_nonce, ciphertext)
             .map_err(AeadError::from)
@@ -370,8 +372,10 @@ impl Aead for MpcAesGcm {
     async fn verify_plaintext(
         &mut self,
         explicit_nonce: Vec<u8>,
-        ciphertext: Vec<u8>,
+        mut ciphertext: Vec<u8>,
     ) -> Result<(), AeadError> {
+        ciphertext.truncate(ciphertext.len() - AES_GCM_TAG_LEN);
+
         self.aes_ctr
             .verify_plaintext(explicit_nonce, ciphertext)
             .map_err(AeadError::from)
