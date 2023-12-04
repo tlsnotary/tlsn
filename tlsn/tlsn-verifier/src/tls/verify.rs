@@ -52,9 +52,7 @@ impl Verifier<VerifyState> {
             if proving_info.sent_ids.max().unwrap_or_default() > self.state.sent_len
                 || proving_info.recv_ids.max().unwrap_or_default() > self.state.recv_len
             {
-                return Err(VerifierError::from(
-                    "Proving information contains ids which exceed transcript length",
-                ));
+                return Err(VerifierError::InvalidRange);
             }
 
             // Now verify the transcript parts which the prover wants to reveal
@@ -95,9 +93,7 @@ impl Verifier<VerifyState> {
                 .collect::<Vec<_>>();
 
             // Check that purported values are correct
-            verify_thread
-                .verify(value_refs.as_slice(), values.as_slice())
-                .await?;
+            verify_thread.verify(&value_refs, &values).await?;
 
             #[cfg(feature = "tracing")]
             info!("Successfully verified purported cleartext");

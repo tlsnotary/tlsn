@@ -26,8 +26,8 @@ pub enum ProverError {
     ServerNoCloseNotify,
     #[error(transparent)]
     CommitmentError(#[from] CommitmentError),
-    #[error("{0}")]
-    Other(Box<dyn Error + Send + 'static>),
+    #[error("Range exceeds transcript length")]
+    InvalidRange,
 }
 
 impl From<MpcTlsError> for ProverError {
@@ -69,13 +69,6 @@ impl From<mpz_ot::actor::kos::SenderActorError> for ProverError {
 impl From<mpz_ot::actor::kos::ReceiverActorError> for ProverError {
     fn from(value: mpz_ot::actor::kos::ReceiverActorError) -> Self {
         Self::MpcError(Box::new(value))
-    }
-}
-
-impl From<&str> for ProverError {
-    fn from(e: &str) -> Self {
-        let err = Box::<dyn Error + Send + Sync + 'static>::from(e);
-        Self::Other(err)
     }
 }
 

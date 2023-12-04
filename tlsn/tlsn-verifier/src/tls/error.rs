@@ -11,8 +11,8 @@ pub enum VerifierError {
     MuxerError(#[from] utils_aio::mux::MuxerError),
     #[error("error occurred in MPC protocol: {0}")]
     MpcError(Box<dyn Error + Send + 'static>),
-    #[error("{0}")]
-    Other(Box<dyn Error + Send + 'static>),
+    #[error("Range exceeds transcript length")]
+    InvalidRange,
 }
 
 impl From<MpcTlsError> for VerifierError {
@@ -60,12 +60,5 @@ impl From<tlsn_core::proof::SessionProofError> for VerifierError {
 impl From<mpz_garble::VmError> for VerifierError {
     fn from(e: mpz_garble::VmError) -> Self {
         Self::MpcError(Box::new(e))
-    }
-}
-
-impl From<&str> for VerifierError {
-    fn from(e: &str) -> Self {
-        let err = Box::<dyn Error + Send + Sync + 'static>::from(e);
-        Self::Other(err)
     }
 }

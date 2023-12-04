@@ -1,6 +1,7 @@
 //! This module handles the proving phase of the prover.
 //!
-//! Here the prover deals with a TLS verifier that is a notary and a verifier.
+//! Here the prover deals with a verifier directly, so there is no notary involved. Instead
+//! the verifier directly verifies parts of the transcript.
 
 use super::{state::Prove as ProveState, Prover, ProverError};
 use crate::tls::error::OTShutdownError;
@@ -36,29 +37,37 @@ impl Prover<ProveState> {
     /// # Arguments
     /// * `ranges` - The ranges of the transcript to reveal
     /// * `direction` - The direction of the transcript to reveal
-    pub fn reveal(&mut self, ranges: impl Into<RangeSet<usize>>, direction: Direction) {
+    pub fn reveal(
+        &mut self,
+        ranges: impl Into<RangeSet<usize>>,
+        direction: Direction,
+    ) -> Result<(), ProverError> {
         let sent_ids = &mut self.state.proving_info.sent_ids;
         let recv_ids = &mut self.state.proving_info.recv_ids;
 
-        match direction {
-            Direction::Sent => *sent_ids = sent_ids.union(&ranges.into()),
-            Direction::Received => *recv_ids = recv_ids.union(&ranges.into()),
+        let range_set = ranges.into();
+
+        // Check ranges
+        let transcript = match direction {
+            Direction::Sent => &self.state.transcript_tx,
+            Direction::Received => &self.state.transcript_rx,
+        };
+
+        if range_set.max().unwrap_or_default() > transcript.data().len() {
+            return Err(ProverError::InvalidRange);
         }
+
+        match direction {
+            Direction::Sent => *sent_ids = sent_ids.union(&range_set),
+            Direction::Received => *recv_ids = recv_ids.union(&range_set),
+        }
+
+        Ok(())
     }
 
     /// Prove transcript values
     pub async fn prove(&mut self) -> Result<(), ProverError> {
         let mut proving_info = std::mem::take(&mut self.state.proving_info);
-
-        // Check ranges
-        if proving_info.sent_ids.max().unwrap_or_default() > self.state.transcript_tx.data().len()
-            || proving_info.recv_ids.max().unwrap_or_default()
-                > self.state.transcript_rx.data().len()
-        {
-            return Err(ProverError::from(
-                "Proving information contains ids which exceed transcript length",
-            ));
-        }
 
         let mut prove_fut = Box::pin(async {
             // Create a new channel and vm thread if not already present
@@ -105,7 +114,8 @@ impl Prover<ProveState> {
                 .collect::<Vec<_>>();
 
             // Extract cleartext we want to reveal from transcripts
-            let mut cleartext = vec![];
+            let mut cleartext =
+                Vec::with_capacity(proving_info.sent_ids.len() + proving_info.recv_ids.len());
             proving_info
                 .sent_ids
                 .iter_ranges()
