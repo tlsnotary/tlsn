@@ -91,8 +91,8 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
     let recv_transcript_len = prover.recv_transcript().data().len();
 
     // Reveal parts of the transcript
-    prover.reveal(0..sent_transcript_len - 1, Direction::Sent);
-    prover.reveal(2..recv_transcript_len, Direction::Received);
+    _ = prover.reveal(0..sent_transcript_len - 1, Direction::Sent);
+    _ = prover.reveal(2..recv_transcript_len, Direction::Received);
     prover.prove().await.unwrap();
 
     prover.finalize().await.unwrap()
