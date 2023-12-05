@@ -162,10 +162,10 @@ pub async fn notary_service<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     let mut config_builder = VerifierConfig::builder();
 
-    config_builder.id(session_id);
+    config_builder = config_builder.id(session_id);
 
     if let Some(max_transcript_size) = max_transcript_size {
-        config_builder.max_transcript_size(max_transcript_size);
+        config_builder = config_builder.max_transcript_size(max_transcript_size);
     }
 
     let config = config_builder.build()?;
