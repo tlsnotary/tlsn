@@ -24,8 +24,8 @@ use tlsn_core::{
     fixtures,
     msg::SignedSessionHeader,
     proof::{SessionProof, SubstringsProof},
-    session::SessionData,
-    HandshakeSummary, NotarizedSession, ServerName, SessionHeader, Signature, Transcript,
+    HandshakeSummary, NotarizedSession, ServerName, SessionData, SessionHeader, Signature,
+    Transcript,
 };
 
 #[test]
@@ -83,7 +83,7 @@ fn test_api() {
 
     let commitments = commitment_builder.build().unwrap();
 
-    let session_data = SessionData::new(
+    let notarized_session_data = SessionData::new(
         ServerName::Dns(testdata.dns_name.clone()),
         hs_decommitment.clone(),
         transcript_tx,
@@ -106,7 +106,7 @@ fn test_api() {
 
     let header = SessionHeader::new(
         fixtures::encoder_seed(),
-        session_data.commitments().merkle_root(),
+        notarized_session_data.commitments().merkle_root(),
         data_sent.len(),
         data_recv.len(),
         // the session's end time and TLS handshake start time may be a few mins apart
@@ -140,13 +140,13 @@ fn test_api() {
         .verify(
             time,
             &ephem_key,
-            &session_data.commitments().merkle_root(),
+            &notarized_session_data.commitments().merkle_root(),
             header.encoder_seed(),
-            session_data.handshake_data_decommitment(),
+            &notarized_session_data.session_info().handshake_decommitment,
         )
         .unwrap();
 
-    let session = NotarizedSession::new(header, Some(signature), session_data);
+    let session = NotarizedSession::new(header, Some(signature), notarized_session_data);
 
     // Prover converts NotarizedSession into SessionProof and SubstringsProof and sends them to the Verifier
     let session_proof = session.session_proof();
@@ -175,12 +175,15 @@ fn test_api() {
 
     let SessionProof {
         header,
-        server_name,
+        session_info,
         ..
     } = session_proof;
 
     // assert dns name is expected
-    assert_eq!(server_name.as_ref(), testdata.dns_name.as_str());
+    assert_eq!(
+        session_info.server_name.as_ref(),
+        testdata.dns_name.as_str()
+    );
 
     let (sent, recv) = substrings_proof.verify(&header).unwrap();
 

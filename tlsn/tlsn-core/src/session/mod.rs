@@ -10,7 +10,10 @@ pub use data::SessionData;
 pub use handshake::{HandshakeSummary, HandshakeVerifyError};
 pub use header::{SessionHeader, SessionHeaderVerifyError};
 
-use crate::{proof::SessionProof, signature::Signature};
+use crate::{
+    proof::{SessionInfo, SessionProof},
+    signature::Signature,
+};
 
 /// A validated notarized session stored by the Prover
 #[derive(Serialize, Deserialize)]
@@ -34,11 +37,15 @@ impl NotarizedSession {
 
     /// Returns a proof of the TLS session
     pub fn session_proof(&self) -> SessionProof {
+        let session_info = SessionInfo {
+            server_name: self.data.session_info().server_name.clone(),
+            handshake_decommitment: self.data.session_info().handshake_decommitment.clone(),
+        };
+
         SessionProof {
             header: self.header.clone(),
-            server_name: self.data.server_name().clone(),
             signature: self.signature.clone(),
-            handshake_data_decommitment: self.data.handshake_data_decommitment().clone(),
+            session_info,
         }
     }
 

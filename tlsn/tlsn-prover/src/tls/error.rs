@@ -1,5 +1,4 @@
 use std::error::Error;
-
 use tls_mpc::MpcTlsError;
 use tlsn_core::commitment::TranscriptCommitmentBuilderError;
 
@@ -27,6 +26,8 @@ pub enum ProverError {
     ServerNoCloseNotify,
     #[error(transparent)]
     CommitmentError(#[from] CommitmentError),
+    #[error("Range exceeds transcript length")]
+    InvalidRange,
 }
 
 impl From<MpcTlsError> for ProverError {
@@ -37,6 +38,24 @@ impl From<MpcTlsError> for ProverError {
 
 impl From<mpz_ot::OTError> for ProverError {
     fn from(e: mpz_ot::OTError) -> Self {
+        Self::MpcError(Box::new(e))
+    }
+}
+
+impl From<mpz_garble::VmError> for ProverError {
+    fn from(e: mpz_garble::VmError) -> Self {
+        Self::MpcError(Box::new(e))
+    }
+}
+
+impl From<mpz_garble::MemoryError> for ProverError {
+    fn from(e: mpz_garble::MemoryError) -> Self {
+        Self::MpcError(Box::new(e))
+    }
+}
+
+impl From<mpz_garble::ProveError> for ProverError {
+    fn from(e: mpz_garble::ProveError) -> Self {
         Self::MpcError(Box::new(e))
     }
 }

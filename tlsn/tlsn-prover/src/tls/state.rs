@@ -1,21 +1,23 @@
 //! TLS prover states.
 
-use std::collections::HashMap;
-
-use mpz_garble_core::{encoding_state, EncodedValue};
-use mpz_ot::actor::kos::{SharedReceiver, SharedSender};
-
-use mpz_core::commit::Decommitment;
-use mpz_garble::protocol::deap::{DEAPVm, PeerEncodings};
-use mpz_share_conversion::{ConverterSender, Gf2_128};
-use tls_core::{handshake::HandshakeData, key::PublicKey};
-use tls_mpc::MpcTlsLeader;
-use tlsn_core::{commitment::TranscriptCommitmentBuilder, Transcript};
-
 use crate::{
     tls::{MuxFuture, OTFuture},
     Mux,
 };
+use mpz_core::commit::Decommitment;
+use mpz_garble::protocol::deap::{DEAPThread, DEAPVm, PeerEncodings};
+use mpz_garble_core::{encoding_state, EncodedValue};
+use mpz_ot::actor::kos::{SharedReceiver, SharedSender};
+use mpz_share_conversion::{ConverterSender, Gf2_128};
+use std::collections::HashMap;
+use tls_core::{handshake::HandshakeData, key::PublicKey};
+use tls_mpc::MpcTlsLeader;
+use tlsn_core::{
+    commitment::TranscriptCommitmentBuilder,
+    msg::{ProvingInfo, TlsnMessage},
+    Transcript,
+};
+use utils_aio::duplex::Duplex;
 
 /// Entry state
 pub struct Initialized;
@@ -107,6 +109,43 @@ impl From<Closed> for Notarize {
     }
 }
 
+/// Proving state.
+pub struct Prove {
+    pub(crate) verify_mux: Mux,
+    pub(crate) mux_fut: MuxFuture,
+
+    pub(crate) vm: DEAPVm<SharedSender, SharedReceiver>,
+    pub(crate) ot_fut: OTFuture,
+    pub(crate) gf2: ConverterSender<Gf2_128, SharedSender>,
+
+    pub(crate) handshake_decommitment: Decommitment<HandshakeData>,
+
+    pub(crate) transcript_tx: Transcript,
+    pub(crate) transcript_rx: Transcript,
+
+    pub(crate) proving_info: ProvingInfo,
+    pub(crate) channel: Option<Box<dyn Duplex<TlsnMessage>>>,
+    pub(crate) prove_thread: Option<DEAPThread<SharedSender, SharedReceiver>>,
+}
+
+impl From<Closed> for Prove {
+    fn from(state: Closed) -> Self {
+        Self {
+            verify_mux: state.notary_mux,
+            mux_fut: state.mux_fut,
+            vm: state.vm,
+            ot_fut: state.ot_fut,
+            gf2: state.gf2,
+            handshake_decommitment: state.handshake_decommitment,
+            transcript_tx: state.transcript_tx,
+            transcript_rx: state.transcript_rx,
+            proving_info: ProvingInfo::default(),
+            channel: None,
+            prove_thread: None,
+        }
+    }
+}
+
 #[allow(missing_docs)]
 pub trait ProverState: sealed::Sealed {}
 
@@ -114,6 +153,7 @@ impl ProverState for Initialized {}
 impl ProverState for Setup {}
 impl ProverState for Closed {}
 impl ProverState for Notarize {}
+impl ProverState for Prove {}
 
 mod sealed {
     pub trait Sealed {}
@@ -121,6 +161,7 @@ mod sealed {
     impl Sealed for super::Setup {}
     impl Sealed for super::Closed {}
     impl Sealed for super::Notarize {}
+    impl Sealed for super::Prove {}
 }
 
 fn collect_encodings(

@@ -1,13 +1,16 @@
 use crate::{
-    commitment::TranscriptCommitments, proof::SubstringsProofBuilder, ServerName, Transcript,
+    commitment::TranscriptCommitments,
+    proof::{SessionInfo, SubstringsProofBuilder},
+    ServerName, Transcript,
 };
 use mpz_core::commit::Decommitment;
 use serde::{Deserialize, Serialize};
 use tls_core::handshake::HandshakeData;
 
-/// Notarized session data.
+/// Session data used for notarization.
 ///
-/// This contains all the private data held by the `Prover` after notarization.
+/// This contains all the private data held by the `Prover` after notarization including
+/// commitments to the parts of the transcript.
 ///
 /// # Selective disclosure
 ///
@@ -17,14 +20,11 @@ use tls_core::handshake::HandshakeData;
 /// See [`build_substrings_proof`](SessionData::build_substrings_proof).
 #[derive(Serialize, Deserialize)]
 pub struct SessionData {
-    server_name: ServerName,
-    handshake_data_decommitment: Decommitment<HandshakeData>,
+    session_info: SessionInfo,
     transcript_tx: Transcript,
     transcript_rx: Transcript,
     commitments: TranscriptCommitments,
 }
-
-opaque_debug::implement!(SessionData);
 
 impl SessionData {
     /// Creates new session data.
@@ -35,23 +35,22 @@ impl SessionData {
         transcript_rx: Transcript,
         commitments: TranscriptCommitments,
     ) -> Self {
-        Self {
+        let session_info = SessionInfo {
             server_name,
-            handshake_data_decommitment,
+            handshake_decommitment: handshake_data_decommitment,
+        };
+
+        Self {
+            session_info,
             transcript_tx,
             transcript_rx,
             commitments,
         }
     }
 
-    /// Returns the server name.
-    pub fn server_name(&self) -> &ServerName {
-        &self.server_name
-    }
-
-    /// Returns the decommitment to handshake data
-    pub fn handshake_data_decommitment(&self) -> &Decommitment<HandshakeData> {
-        &self.handshake_data_decommitment
+    /// Returns the session info
+    pub fn session_info(&self) -> &SessionInfo {
+        &self.session_info
     }
 
     /// Returns the transcript for data sent to the server
@@ -74,3 +73,5 @@ impl SessionData {
         SubstringsProofBuilder::new(&self.commitments, &self.transcript_tx, &self.transcript_rx)
     }
 }
+
+opaque_debug::implement!(SessionData);
