@@ -9,7 +9,7 @@ use tracing::instrument;
 
 #[tokio::test]
 #[ignore]
-async fn test() {
+async fn notarize() {
     tracing_subscriber::fmt::init();
 
     let (socket_0, socket_1) = tokio::io::duplex(2 << 23);
@@ -73,19 +73,17 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
 
     client_socket.close().await.unwrap();
 
-    let mut prover = prover_task
-        .await
-        .unwrap()
-        .unwrap()
-        .to_http()
-        .unwrap()
-        .start_notarize();
+    let mut prover = prover_task.await.unwrap().unwrap().start_notarize();
+    let sent_tx_len = prover.sent_transcript().data().len();
+    let recv_tx_len = prover.recv_transcript().data().len();
 
-    prover.commit().unwrap();
+    let builder = prover.commitment_builder();
 
-    let notarized_session = prover.finalize().await.unwrap();
+    // Commit to everything
+    builder.commit_sent(0..sent_tx_len).unwrap();
+    builder.commit_recv(0..recv_tx_len).unwrap();
 
-    _ = notarized_session.proof_builder().build().unwrap();
+    let _notarized_session = prover.finalize().await.unwrap();
 }
 
 #[instrument(skip(socket))]

@@ -136,7 +136,8 @@ pub struct TranscriptSlice {
 }
 
 impl TranscriptSlice {
-    pub(crate) fn new(range: Range<usize>, data: Vec<u8>) -> Self {
+    /// Creates a new transcript slice.
+    pub fn new(range: Range<usize>, data: Vec<u8>) -> Self {
         Self { range, data }
     }
 
