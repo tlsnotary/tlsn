@@ -50,8 +50,18 @@ impl KeyExchange {
         f: impl FnOnce(&[u8]) -> Result<T, ()>,
     ) -> Result<T, Error> {
         let peer_key = ring::agreement::UnparsedPublicKey::new(self.skxg.agreement_algorithm, peer);
-        ring::agreement::agree_ephemeral(self.privkey, &peer_key, (), f)
-            .map_err(|()| Error::PeerMisbehavedError("key agreement failed".to_string()))
+        let ret = ring::agreement::agree_ephemeral(self.privkey, &peer_key, f);
+        match ret {
+            Ok(ok_value) => match ok_value {
+                Ok(t) => Ok(t),
+                Err(()) => Err(Error::PeerMisbehavedError(
+                    "key agreement failed".to_string(),
+                )),
+            },
+            Err(_) => Err(Error::PeerMisbehavedError(
+                "key agreement failed".to_string(),
+            )),
+        }
     }
 }
 
