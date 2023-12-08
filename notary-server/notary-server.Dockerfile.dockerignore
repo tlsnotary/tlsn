@@ -8,5 +8,8 @@
 !/tlsn
 !/components
 
+# include the .git to get the commit hash and date
+!/.git
+
 # exclude any /target folders inside the included folders above
 **/target*

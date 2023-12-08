@@ -3,7 +3,7 @@ use std::process::Command;
 fn main() {
     // Used to extract latest HEAD commit hash and timestamp for the /info endpoint
     let output = Command::new("git")
-        .args(["show", "HEAD", "-s", "--format=%H,%cI"])
+        .args(["log", "-1", "--pretty=format=\"%H,%cI\"", "HEAD"])
         .output()
         .expect("Git command to get commit hash and timestamp failed during build process");
 
