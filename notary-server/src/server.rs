@@ -160,45 +160,42 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
 
         // Spawn a new async task to handle the new connection
         tokio::spawn(async move {
-            match tls_acceptor {
-                // When TLS is enabled
-                Some(acceptor) => {
-                    match acceptor.accept(stream).await {
-                        Ok(stream) => {
-                            info!(
-                                ?prover_address,
-                                "Accepted prover's TLS-secured TCP connection",
-                            );
-                            // Serve different requests using the same hyper protocol and axum router
-                            let _ = protocol
-                                // Can unwrap because it's infallible
-                                .serve_connection(stream, service.await.unwrap())
-                                // use with_upgrades to upgrade connection to websocket for websocket clients
-                                // and to extract tcp connection for tcp clients
-                                .with_upgrades()
-                                .await;
-                        }
-                        Err(err) => {
-                            error!(
-                                ?prover_address,
-                                "{}",
-                                NotaryServerError::Connection(err.to_string())
-                            );
-                        }
+            // When TLS is enabled
+            if let Some(acceptor) = tls_acceptor {
+                match acceptor.accept(stream).await {
+                    Ok(stream) => {
+                        info!(
+                            ?prover_address,
+                            "Accepted prover's TLS-secured TCP connection",
+                        );
+                        // Serve different requests using the same hyper protocol and axum router
+                        let _ = protocol
+                            // Can unwrap because it's infallible
+                            .serve_connection(stream, service.await.unwrap())
+                            // use with_upgrades to upgrade connection to websocket for websocket clients
+                            // and to extract tcp connection for tcp clients
+                            .with_upgrades()
+                            .await;
+                    }
+                    Err(err) => {
+                        error!(
+                            ?prover_address,
+                            "{}",
+                            NotaryServerError::Connection(err.to_string())
+                        );
                     }
                 }
+            } else {
                 // When TLS is disabled
-                None => {
-                    info!(?prover_address, "Accepted prover's TCP connection",);
-                    // Serve different requests using the same hyper protocol and axum router
-                    let _ = protocol
-                        // Can unwrap because it's infallible
-                        .serve_connection(stream, service.await.unwrap())
-                        // use with_upgrades to upgrade connection to websocket for websocket clients
-                        // and to extract tcp connection for tcp clients
-                        .with_upgrades()
-                        .await;
-                }
+                info!(?prover_address, "Accepted prover's TCP connection",);
+                // Serve different requests using the same hyper protocol and axum router
+                let _ = protocol
+                    // Can unwrap because it's infallible
+                    .serve_connection(stream, service.await.unwrap())
+                    // use with_upgrades to upgrade connection to websocket for websocket clients
+                    // and to extract tcp connection for tcp clients
+                    .with_upgrades()
+                    .await;
             }
         });
     }
