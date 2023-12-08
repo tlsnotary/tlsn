@@ -240,7 +240,7 @@ impl RsaSigner {
 
 impl Signer for RsaSigner {
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, Error> {
-        let mut sig = vec![0; self.key.public_modulus_len()];
+        let mut sig = vec![0; self.key.public().modulus_len()];
 
         let rng = ring::rand::SystemRandom::new();
         self.key

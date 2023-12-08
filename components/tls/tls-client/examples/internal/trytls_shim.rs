@@ -25,12 +25,12 @@ fn parse_args(args: &[String]) -> Result<(String, u16, ClientConfig), Box<dyn St
     let mut root_store = RootCertStore::empty();
     match args.len() {
         3 => {
-            root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(
+            root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(
                 |ta| {
                     OwnedTrustAnchor::from_subject_spki_name_constraints(
-                        ta.subject,
-                        ta.spki,
-                        ta.name_constraints,
+                        ta.subject.to_vec(),
+                        ta.subject_public_key_info.to_vec(),
+                        ta.name_constraints.as_ref().map(|nc| nc.to_vec()),
                     )
                 },
             ));
