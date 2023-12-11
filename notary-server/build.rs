@@ -7,8 +7,8 @@ fn main() {
         .output()
         .expect("Git command to get commit hash and timestamp should work during build process");
 
-    let output_string = String::from_utf8(output.stdout)
-        .expect("Git command should produce valid string output");
+    let output_string =
+        String::from_utf8(output.stdout).expect("Git command should produce valid string output");
 
     let (commit_hash, commit_timestamp) = output_string
         .as_str()
