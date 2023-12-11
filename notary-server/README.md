@@ -58,7 +58,7 @@ docker run --init -p 127.0.0.1:7047:7047 notary-server:local
 ```bash
 docker run --init -p 127.0.0.1:7047:7047 -v <your folder path>:/root/.notary-server/fixture notary-server:local
 ```
-- Example 2: Using different key for notarization (your folder should only contain `notary.key`):
+- Example 2: Using different key for notarization:
 ```bash
 docker run --init -p 127.0.0.1:7047:7047 -v <your folder path>:/root/.notary-server/fixture/notary notary-server:local
 ```
@@ -71,7 +71,7 @@ Defined in the [OpenAPI specification](./openapi.yaml).
 ### WebSocket APIs
 #### /notarize
 ##### Description
-To perform notarization using the session id (unique id returned upon calling the `/session` endpoint successfully) submitted as a custom header.
+To perform notarization using the session id (unique id returned upon calling the `/session` endpoint successfully).
 
 ##### Query Parameter
 `sessionId`
@@ -86,13 +86,7 @@ The main objective of a notary server is to perform notarization together with a
 1. TCP client — which has access and control over the transport layer, i.e. TCP
 2. WebSocket client — which has no access over TCP and instead uses WebSocket for notarization
 
-### Design Choices
-#### Web Framework
-Axum is chosen as the framework to serve HTTP and WebSocket requests from the prover clients due to its rich and well supported features, e.g. native integration with Tokio/Hyper/Tower, customizable middleware, ability to support lower level integration of TLS ([example](https://github.com/tokio-rs/axum/blob/main/examples/low-level-rustls/src/main.rs)). To simplify the notary server setup, a single Axum router is used to support both HTTP and WebSocket connections, i.e. all requests can be made to the same port of the notary server.
-
-#### WebSocket
-Axum's internal implementation of WebSocket uses [tokio_tungstenite](https://docs.rs/tokio-tungstenite/latest/tokio_tungstenite/), which provides a WebSocket struct that doesn't implement [AsyncRead](https://docs.rs/futures/latest/futures/io/trait.AsyncRead.html) and [AsyncWrite](https://docs.rs/futures/latest/futures/io/trait.AsyncWrite.html). Both these traits are required by TLSN core libraries for prover and notary. To overcome this, a [slight modification](./src/service/axum_websocket.rs) of Axum's implementation of WebSocket is used, where [async_tungstenite](https://docs.rs/async-tungstenite/latest/async_tungstenite/) is used instead so that [ws_stream_tungstenite](https://docs.rs/ws_stream_tungstenite/latest/ws_stream_tungstenite/index.html) can be used to wrap on top of the WebSocket struct to get AsyncRead and AsyncWrite implemented.
-
+### Features
 #### Notarization Configuration
 To perform notarization, some parameters need to be configured by the prover and notary server (more details in the [OpenAPI specification](./openapi.yaml)), i.e.
 - maximum transcript size
@@ -105,3 +99,16 @@ After calling the configuration endpoint above, prover can proceed to start nota
 
 #### Signatures
 Currently, both the private key (and cert) used to establish TLS connection with prover, and the private key used by notary server to sign the notarized transcript, are hardcoded PEM keys stored in this repository. Though the paths of these keys can be changed in the config to use different keys instead.
+
+#### Authorization
+An optional authorization module is available to only allow requests with valid API key attached in the authorization header. The API key whitelist path (as well as the flag to enable/disable this module) is configurable [here](./config/config.yaml).
+
+#### Optional TLS
+TLS between prover and notary is currently manually handled in the server, though it can be turned off if TLS is to be handled by an external environment, e.g. reverse proxy, cloud setup (configurable [here](./config/config.yaml)).
+
+### Design Choices
+#### Web Framework
+Axum is chosen as the framework to serve HTTP and WebSocket requests from the prover clients due to its rich and well supported features, e.g. native integration with Tokio/Hyper/Tower, customizable middleware, ability to support lower level integration of TLS ([example](https://github.com/tokio-rs/axum/blob/main/examples/low-level-rustls/src/main.rs)). To simplify the notary server setup, a single Axum router is used to support both HTTP and WebSocket connections, i.e. all requests can be made to the same port of the notary server.
+
+#### WebSocket
+Axum's internal implementation of WebSocket uses [tokio_tungstenite](https://docs.rs/tokio-tungstenite/latest/tokio_tungstenite/), which provides a WebSocket struct that doesn't implement [AsyncRead](https://docs.rs/futures/latest/futures/io/trait.AsyncRead.html) and [AsyncWrite](https://docs.rs/futures/latest/futures/io/trait.AsyncWrite.html). Both these traits are required by TLSN core libraries for prover and notary. To overcome this, a [slight modification](./src/service/axum_websocket.rs) of Axum's implementation of WebSocket is used, where [async_tungstenite](https://docs.rs/async-tungstenite/latest/async_tungstenite/) is used instead so that [ws_stream_tungstenite](https://docs.rs/ws_stream_tungstenite/latest/ws_stream_tungstenite/index.html) can be used to wrap on top of the WebSocket struct to get AsyncRead and AsyncWrite implemented.
