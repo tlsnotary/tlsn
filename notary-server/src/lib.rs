@@ -9,7 +9,7 @@ mod util;
 
 pub use config::{
     AuthorizationProperties, NotarizationProperties, NotaryServerProperties,
-    NotarySignatureProperties, ServerProperties, TLSSignatureProperties, TracingProperties,
+    NotarySignatureProperties, ServerProperties, TLSProperties, TracingProperties,
 };
 pub use domain::{
     cli::CliFields,
