@@ -5,14 +5,15 @@ fn main() {
     let output = Command::new("git")
         .args(["show", "HEAD", "-s", "--format=%H,%cI"])
         .output()
-        .expect("Git command to get commit hash and timestamp failed during build process");
+        .expect("Git command to get commit hash and timestamp should work during build process");
 
     let output_string = String::from_utf8(output.stdout)
-        .expect("Git command failed to produce valid string output");
+        .expect("Git command should produce valid string output");
 
-    let Some((commit_hash, commit_timestamp)) = output_string.as_str().split_once(',') else {
-        panic!("Failed to parse git command string output into commit hash and timestamp");
-    };
+    let (commit_hash, commit_timestamp) = output_string
+        .as_str()
+        .split_once(',')
+        .expect("Git commit hash and timestamp string output should be comma separated");
 
     // Pass these 2 values as env var to the program
     println!("cargo:rustc-env=GIT_COMMIT_HASH={}", commit_hash);
