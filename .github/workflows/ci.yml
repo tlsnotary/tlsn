@@ -74,11 +74,11 @@ jobs:
 
       - name: "Test"
         if: ${{ matrix.release != true }}
-        run: cargo test --lib --bins --tests --examples --workspace
+        run: cargo test --lib --bins --tests --examples --workspace --release
 
       - name: "Test all features"
         if: ${{ matrix.release != true && matrix.all-features == true }}
-        run: cargo test --lib --bins --tests --examples --workspace --all-features
+        run: cargo test --lib --bins --tests --examples --workspace --all-features --release
 
       - name: "Integration Test"
         if: ${{ matrix.release == true }}
