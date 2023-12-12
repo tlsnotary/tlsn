@@ -8,5 +8,8 @@
 !/tlsn
 !/components
 
+# include .git for program to get git info
+!/.git
+
 # exclude any /target folders inside the included folders above
 **/target*

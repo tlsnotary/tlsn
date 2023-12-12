@@ -108,6 +108,9 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
     let public_key = std::fs::read_to_string(&config.notary_signature.public_key_pem_path)
         .map_err(|err| eyre!("Failed to load notary public signing key for notarization: {err}"))?;
     let version = env!("CARGO_PKG_VERSION").to_string();
+    let git_commit_hash = env!("GIT_COMMIT_HASH").to_string();
+    let git_commit_timestamp = env!("GIT_COMMIT_TIMESTAMP").to_string();
+
     let router = Router::new()
         .route(
             "/healthcheck",
@@ -121,6 +124,8 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
                     Json(InfoResponse {
                         version,
                         public_key,
+                        git_commit_hash,
+                        git_commit_timestamp,
                     }),
                 )
                     .into_response()
