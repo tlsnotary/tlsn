@@ -37,6 +37,8 @@ jobs:
         include:
           - package: components/integration-tests
             release: true
+          - package: notary-server
+            release: true
           - package: tlsn
             all-features: true
     defaults:
@@ -74,11 +76,11 @@ jobs:
 
       - name: "Test"
         if: ${{ matrix.release != true }}
-        run: cargo test --lib --bins --tests --examples --workspace --release
+        run: cargo test --lib --bins --tests --examples --workspace
 
       - name: "Test all features"
         if: ${{ matrix.release != true && matrix.all-features == true }}
-        run: cargo test --lib --bins --tests --examples --workspace --all-features --release
+        run: cargo test --lib --bins --tests --examples --workspace --all-features
 
       - name: "Integration Test"
         if: ${{ matrix.release == true }}
