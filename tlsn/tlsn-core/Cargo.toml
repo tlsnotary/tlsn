@@ -45,3 +45,6 @@ bincode.workspace = true
 [[test]]
 name = "api"
 required-features = ["fixtures"]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.2", features = ["js"] }
