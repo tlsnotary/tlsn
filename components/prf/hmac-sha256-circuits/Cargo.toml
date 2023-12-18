@@ -19,4 +19,4 @@ mpz-circuits.workspace = true
 tracing = { workspace = true, optional = true }
 
 [dev-dependencies]
-ring = "0.16"
+ring = "0.17"
