@@ -1,0 +1,47 @@
+name: wasm-build
+
+on:
+  push:
+    branches:
+      - dev
+    tags:
+      - "[v]?[0-9]+.[0-9]+.[0-9]+*"
+  pull_request:
+    branches:
+      - dev
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+
+jobs:
+  build_and_test:
+    name: Build for target wasm32-unknown-unknown
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - tlsn/tlsn-core
+          - tlsn/tlsn-prover
+          - components/tls/tls-client
+    defaults:
+      run:
+        working-directory: ${{ matrix.package }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install stable rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          toolchain: stable
+
+      - name: Use caching
+        uses: Swatinem/rust-cache@v2.5.0
+        with:
+          workspaces: ${{ matrix.package }} -> ../target
+
+      - name: "Build"
+        run: cargo build --target wasm32-unknown-unknown
