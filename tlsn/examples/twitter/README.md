@@ -104,3 +104,5 @@ If the transcript was too long, you may encounter the following error:
 ```
 thread 'tokio-runtime-worker' panicked at 'called `Result::unwrap()` on an `Err` value: IOError(Custom { kind: InvalidData, error: BackendError(DecryptionError("Other: KOSReceiverActor is not setup")) })', /Users/heeckhau/tlsnotary/tlsn/tlsn/tlsn-prover/src/lib.rs:173:50
 ```
+
+> **_NOTE:_** ℹ️ <https://tlsnotary.github.io/proof_viz/> hosts a generic proof visualizer. Drag and drop your proof into the drop zone to check and render your proof.

@@ -104,3 +104,6 @@ cargo run --release --example discord_dm_verifier
 ```
 
 This will verify the proof and print out the redacted transcript!
+
+
+> **_NOTE:_** ℹ️ <https://tlsnotary.github.io/proof_viz/> hosts a generic proof visualizer. Drag and drop your proof into the drop zone to check and render your proof.

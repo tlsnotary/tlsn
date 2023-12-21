@@ -2,10 +2,8 @@
 
 This folder contains examples showing how to use the TLSNotary protocol. 
 
-[simple](./simple/) shows how to perform a simple notarization.
+* [simple](./simple/README.md) shows how to perform a simple notarization.
+* [twitter](./twitter/README.md) shows how to notarize a Twitter DM.
+* [discord](./discord/README.md) shows how to notarize a Discord DM.
 
-[twitter](./twitter/) shows how to notarize a Twitter DM.
-
-[discord](./discord/) shows how to notarize a Discord DM.
-
-Refer to the `README.md` in each folder for more information.
+Refer to <https://docs.tlsnotary.org/quick_start/index.html> for a quick start with TLSNotary using these examples.

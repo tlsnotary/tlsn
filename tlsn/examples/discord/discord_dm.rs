@@ -1,14 +1,13 @@
 /// This example shows how to notarize Discord DMs.
 ///
 /// The example uses the notary server implemented in ../../../notary-server
-use eyre::Result;
 use futures::AsyncWriteExt;
 use hyper::{body::to_bytes, client::conn::Parts, Body, Request, StatusCode};
 use rustls::{Certificate, ClientConfig, RootCertStore};
 use serde::{Deserialize, Serialize};
-use std::{env, fs::File as StdFile, io::BufReader, ops::Range, sync::Arc};
+use std::{env, ops::Range, str, sync::Arc};
 use tlsn_core::proof::TlsProof;
-use tokio::{fs::File, io::AsyncWriteExt as _, net::TcpStream};
+use tokio::{io::AsyncWriteExt as _, net::TcpStream};
 use tokio_rustls::TlsConnector;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use tracing::debug;
@@ -21,7 +20,6 @@ const SERVER_DOMAIN: &str = "discord.com";
 // Setting of the notary server — make sure these are the same with those in ../../../notary-server
 const NOTARY_HOST: &str = "127.0.0.1";
 const NOTARY_PORT: u16 = 7047;
-const NOTARY_CA_CERT_PATH: &str = "../../../notary-server/fixture/tls/rootCA.crt";
 
 // Configuration of notarization
 const NOTARY_MAX_TRANSCRIPT_SIZE: usize = 16384;
@@ -197,8 +195,12 @@ async fn main() {
 
 async fn setup_notary_connection() -> (tokio_rustls::client::TlsStream<TcpStream>, String) {
     // Connect to the Notary via TLS-TCP
-    let mut certificate_file_reader = read_pem_file(NOTARY_CA_CERT_PATH).await.unwrap();
-    let mut certificates: Vec<Certificate> = rustls_pemfile::certs(&mut certificate_file_reader)
+    let pem_file = str::from_utf8(include_bytes!(
+        "../../../notary-server/fixture/tls/rootCA.crt"
+    ))
+    .unwrap();
+    let mut reader = std::io::BufReader::new(pem_file.as_bytes());
+    let mut certificates: Vec<Certificate> = rustls_pemfile::certs(&mut reader)
         .unwrap()
         .into_iter()
         .map(Certificate)
@@ -336,10 +338,4 @@ fn find_ranges(seq: &[u8], sub_seq: &[&[u8]]) -> (Vec<Range<usize>>, Vec<Range<u
     }
 
     (public_ranges, private_ranges)
-}
-
-/// Read a PEM-formatted file and return its buffer reader
-async fn read_pem_file(file_path: &str) -> Result<BufReader<StdFile>> {
-    let key_file = File::open(file_path).await?.into_std().await;
-    Ok(BufReader::new(key_file))
 }

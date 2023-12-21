@@ -1,70 +1,90 @@
-# Simple Notarization
+## Simple Example: Notarize Public Data from example.com (Rust) <a name="rust-simple"></a>
 
-This guide will take you through the steps of:
-- starting a `Notary` server
-- running a `Prover` to notarize some web data
-- running a `Verifier` to verify the notarized data
+This examples demonstrates the simplest possible use case for TLSNotary:
+1. Notarize: Fetch <https://example.com/> and create a proof of its content.
+2. Verify the proof.
 
-Note that the TLSNotary protocol assumes that the `Notary` is trusted by the `Verifier`. To minimize the trust, the `Verifier` itself can act as a `Notary`.
+Next, we will redact the content and verify it again:
+1. Redact the `USER_AGENT` and titles.
+2. Verify the redacted proof.
 
-## Preliminaries
+### 1. Notarize <https://example.com/>
 
-### Install rust
-
-If you don't have `rust` installed yet, install it with [rustup](https://rustup.rs/):
-```shell
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-```
-
-## Guide
-Clone this repository first
+Run a simple prover:
 
 ```shell
-git clone https://github.com/tlsnotary/tlsn
+cargo run --release --example simple_prover
 ```
 
-### Start a simple Notary server:
+If the notarization was successful, you should see this output in the console:
 
-```shell
-cd tlsn/tlsn/examples/simple
-cargo run --release --example simple_notary
+```log
+Starting an MPC TLS connection with the server
+Got a response from the server
+Notarization completed successfully!
+The proof has been written to `simple_proof.json`
 ```
 
-The `Notary` server will now be running in the background waiting for connections from a `Prover`. You can switch to another console to run the `Prover`.
+⚠️ In this simple example the `Notary` server is automatically started in the background. Note that this is for demonstration purposes only. In a real work example, the notary should be run by a neutral party or the verifier of the proofs. Consult the [Notary Server Docs](https://docs.tlsnotary.org/developers/notary_server.html) for more details on how to run a notary server.
 
-P/S: The notary server used in this example is less functional compared to its [advanced version](../../../notary-server). This simple version is easier to integrate with from prover perspective, whereas the advanced version provides additional features like TLS connection with prover, WebSocket endpoint, API endpoints for further customisation etc.
+### 2. Verify the Proof
 
-### Run a simple Prover:
-
-```shell
-RUST_LOG=DEBUG,yamux=INFO cargo run --release --example simple_prover
-```
-
-The notarization session usually takes a few moments and the resulting proof will be written to the "proof.json" file. The proof can then be passed on to the `Verifier` for verification.
-
-The `simple_prover` notarizes <https://example.com> and redacts the `USER_AGENT` HTTP header from the proof for the `Verifier`. You can change the code in `tlsn/tlsn/examples/simple/simple_prover.rs` to meet your needs:
-
-- change which server the `Prover` connects to
-- add or remove HTTP request headers
-- redact other strings in the request or the response
-
-⚠️ Please note that by default the `Notary` server expects that the cumulative size of the request and the server response is not more than 16KB.
-
-
-### Run a simple Verifier:
+When you open `simple_proof.json` in an editor, you will see a JSON file with lots of non-human-readable byte arrays. You can decode this file by running:
 
 ```shell
 cargo run --release --example simple_verifier
 ```
 
-This will verify the proof from the `simple_prover` (`proof.json`) and output the result to the console.
+This will output the TLS-transaction in clear text:
 
-Note how the parts which the prover chose not to disclose will be shown as "X":
-```plaintext
-GET / HTTP/1.1
-host: example.com
-accept: */*
-accept-encoding: identity
-connection: close
-user-agent: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+```log
+Successfully verified that the bytes below came from a session with Dns("example.com") at 2023-11-03 08:48:20 UTC.
+Note that the bytes which the Prover chose not to disclose are shown as X.
+
+Bytes sent:
+...
 ```
+
+### 3. Redact Information
+
+Open `simple/src/examples/simple_prover.rs` and locate the line with:
+
+```rust
+let redact = false;
+```
+
+and change it to:
+
+```rust
+let redact = true;
+```
+
+Next, if you run the `simple_prover` and `simple_verifier` again, you'll notice redacted `X`'s in the output:
+
+```shell
+cargo run --release --example simple_prover
+cargo run --release --example simple_verifier
+```
+
+```log
+<!doctype html>
+<html>
+<head>
+    <title>XXXXXXXXXXXXXX</title>
+...
+```
+
+You can also use <https://tlsnotary.github.io/proof_viz/> to inspect your proofs. Simply drag and drop `simple_proof.json` from your proof file explorer into the drop zone. Redacted bytes are marked with <span style="color:red">red Xs characters</span>.
+
+### (Optional) Extra Experiments
+
+Feel free to try these extra challenges:
+
+- [ ] Modify the `server_name` (or any other data) in `simple_proof.json` and verify that the proof is no longer valid.
+- [ ] Modify the `build_proof_with_redactions` function in `simple_prover.rs` to redact more or different data.
+
+### Next steps
+
+Try out the [Discord example](../Discord/README.md) and notarize a Discord conversations.
+
+
