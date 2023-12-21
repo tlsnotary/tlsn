@@ -3,7 +3,7 @@ openapi: 3.0.0
 info:
   title: Notary Server
   description: Notary server written in Rust to provide notarization service.
-  version: 0.1.0-alpha.2
+  version: 0.1.0-alpha.3
 
 tags:
   - name: General
