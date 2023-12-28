@@ -28,7 +28,7 @@ struct Args {
     command: Commands,
 }
 
-#[derive(Subcommand, Debug)]
+#[derive(Subcommand, Debug, PartialEq)]
 enum Commands {
     /// build all packages
     Build,
@@ -40,6 +40,8 @@ enum Commands {
     List,
     /// check formatting in all packages
     Format,
+    /// check that benchmarks compile
+    Bench,
     /// Run clippy for all packages
     Clippy, // {
             //     /// extra arguments
@@ -62,36 +64,90 @@ const TLSN_PACKAGES: &[&str] = &[
     "notary-server",
 ];
 
-fn main() {
-    let args = Args::parse();
+fn is_release(package: &str) -> bool {
+    match package {
+        "components/integration-tests" | "notary-server" => true,
+        _ => false,
+    }
+}
 
-    let cargo_args = match args.command {
-        Commands::Build => vec!["build"],
+fn all_features(package: &str) -> bool {
+    match package {
+        "tlsn" => true,
+        _ => false,
+    }
+}
+
+fn get_cargo_args<'a>(package: &'a str, command: &'a Commands) -> Vec<&'a str> {
+    match command {
+        Commands::Build => {
+            if is_release(package) {
+                vec!["+stable", "build"]
+            } else {
+                vec!["+stable", "build", "--release"]
+            }
+        }
         Commands::Clean => vec!["clean"],
+        Commands::Bench => vec!["bench", "--no-run"],
         Commands::Clippy => {
             vec![
+                "+stable",
                 "clippy",
                 "--all-features",
                 "--examples",
                 "--",
-                "-D",
+                "--deny",
                 "warnings",
             ]
         }
         Commands::Format => vec!["+nightly", "fmt", "--check", "--all"],
-        Commands::List => {
-            println!("TLSN packages:");
-            println!("{:?}", TLSN_PACKAGES);
-            return;
+        Commands::Test => {
+            if is_release(package) {
+                if all_features(package) {
+                    // integration tests
+                    vec!["+stable", "test", "--release", "--tests", "--all-features"]
+                } else {
+                    vec!["+stable", "test", "--release", "--tests"]
+                }
+            } else {
+                if all_features(package) {
+                    // test with all-features
+                    vec![
+                        "+stable",
+                        "test",
+                        "--lib",
+                        "--bins",
+                        "--tests",
+                        "--examples",
+                        "--workspace",
+                        "--all-features",
+                    ]
+                } else {
+                    // default tests
+                    vec![
+                        "+stable",
+                        "test",
+                        "--lib",
+                        "--bins",
+                        "--tests",
+                        "--examples",
+                        "--workspace",
+                    ]
+                }
+            }
         }
-        Commands::Test => vec![
-            "test",
-            "--lib",
-            "--bins",
-            "--tests",
-            "--examples",
-            "--workspace",
-        ],
+
+        _ => vec![],
+    }
+}
+
+fn main() {
+    let args = Args::parse();
+
+    if args.command == Commands::List {
+        println!("TLSN packages:");
+        println!("{:?}", TLSN_PACKAGES);
+        return;
     };
 
     // let f: Vec<_> = extra_args.split(' ').collect();
@@ -100,7 +156,8 @@ fn main() {
 
     // https://rust-lang-nursery.github.io/rust-cookbook/os/external.html#continuously-process-child-process-outputs
     for name in TLSN_PACKAGES.into_iter() {
-        println!("{}: Running `Cargo {:?}`", name, &cargo_args);
+        let cargo_args = get_cargo_args(name, &args.command);
+        println!("{}: Running `cargo {:?}`", name, &cargo_args);
         let stdout = Command::new("cargo")
             .current_dir(name)
             .args(&cargo_args)
@@ -108,6 +165,7 @@ fn main() {
             .spawn()
             .expect("TODO")
             .wait_with_output();
+        // dbg!(&stdout);
         if let Ok(output) = stdout {
             if !output.status.success() {
                 if !output.stderr.is_empty() {
