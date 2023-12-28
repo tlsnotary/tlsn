@@ -69,7 +69,7 @@ impl CertifiedKey {
 
     /// The end-entity certificate.
     pub fn end_entity_cert(&self) -> Result<&tls_core::key::Certificate, SignError> {
-        self.cert.get(0).ok_or(SignError(()))
+        self.cert.first().ok_or(SignError(()))
     }
 
     /// Check the certificate chain for validity:

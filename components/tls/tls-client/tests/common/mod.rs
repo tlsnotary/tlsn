@@ -596,11 +596,7 @@ impl io::Read for FailsReads {
 }
 
 pub fn version_compat(v: Option<rustls::ProtocolVersion>) -> Option<tls_client::ProtocolVersion> {
-    if let Some(v) = v {
-        Some(tls_client::ProtocolVersion::from(v.get_u16()))
-    } else {
-        None
-    }
+    v.map(|v| tls_client::ProtocolVersion::from(v.get_u16()))
 }
 
 pub struct BlockingIo<T>(pub T);
