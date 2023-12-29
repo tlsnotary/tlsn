@@ -1,7 +1,8 @@
 [package]
 edition = "2021"
-name = "cargo_tlsn"
+name = "tlsn_cargo"
 version = "0.0.1"
 
 [dependencies]
 clap = {version = "4.4.11", features = ["derive"]}
+strum = {version = "0.25", features = ["derive"]}

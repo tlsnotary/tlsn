@@ -1,14 +1,14 @@
 #!/usr/bin/env cargo +nightly -Zscript
+```cargo
+[package]
+name = "TLSN_cargo"
+version = "0.0.1"
+edition = "2021"
 
-//! ```cargo
-//! [package]
-//! name = "TLSN_cargo"
-//! version = "0.0.1"
-//! edition = "2021"
-//!
-//! [dependencies]
-//! clap = { version = "4.2", features = ["derive"] }
-//! ```
+[dependencies]
+clap = { version = "4.2", features = ["derive"] }
+strum = { version = "0.25", features = ["derive"] }
+```
 
 use std::process::{Command, Stdio};
 
@@ -17,6 +17,8 @@ use std::process::{Command, Stdio};
 // https://rust-lang-nursery.github.io/rust-cookbook/cli/arguments.html
 // https://rust-lang-nursery.github.io/rust-cookbook/cli/arguments.html
 use clap::{Parser, Subcommand};
+use strum::EnumIter;
+use strum::IntoEnumIterator;
 
 #[derive(Parser, Debug)]
 #[command(name = "tlsn cargo")]
@@ -26,6 +28,9 @@ use clap::{Parser, Subcommand};
 struct Args {
     #[command(subcommand)]
     command: Commands,
+
+    /// Optional package name to ...
+    name: Option<String>,
 }
 
 #[derive(Subcommand, Debug, PartialEq)]
@@ -38,59 +43,74 @@ enum Commands {
     Test,
     /// list all packages
     List,
-    /// check formatting in all packages
+    /// check formatting
     Format,
     /// check that benchmarks compile
     Bench,
-    /// Run clippy for all packages
-    Clippy, // {
-            //     /// extra arguments
-            //     #[arg(short, long, default_value = "--all-features -- -D warnings")]
-            //     extra_args: Option<String>,
-            // },
+    /// Run clippy
+    Clippy,
 }
 
-const TLSN_PACKAGES: &[&str] = &[
-    "components/uid-mux",
-    "components/cipher",
-    "components/universal-hash",
-    "components/aead",
-    "components/key-exchange",
-    "components/point-addition",
-    "components/prf",
-    "components/tls",
-    "tlsn",
-    "components/integration-tests",
-    "notary-server",
-];
+#[derive(EnumIter, Debug, PartialEq)]
+enum Packages {
+    UIDMUX,
+    CIPHER,
+    UNIVERSALHASH,
+    AEAD,
+    KEYEXCHANGE,
+    POINTADDITION,
+    PRF,
+    TLS,
+    TLSN,
+    INTEGRATIONTESTS,
+    NOTARYSERVER,
+}
 
-fn is_release(package: &str) -> bool {
-    match package {
-        "components/integration-tests" | "notary-server" => true,
-        _ => false,
+impl Packages {
+    fn path(&self) -> &str {
+        match self {
+            Packages::UIDMUX => "components/uid-mux",
+            Packages::CIPHER => "components/cipher",
+            Packages::UNIVERSALHASH => "components/universal-hash",
+            Packages::AEAD => "components/aead",
+            Packages::KEYEXCHANGE => "components/key-exchange",
+            Packages::POINTADDITION => "components/point-addition",
+            Packages::PRF => "components/prf",
+            Packages::TLS => "components/tls",
+            Packages::TLSN => "tlsn",
+            Packages::INTEGRATIONTESTS => "components/integration-tests",
+            Packages::NOTARYSERVER => "notary-server",
+        }
+    }
+
+    fn is_release(&self) -> bool {
+        match self {
+            Packages::INTEGRATIONTESTS | Packages::NOTARYSERVER => true,
+            _ => false,
+        }
+    }
+
+    fn all_features(&self) -> bool {
+        match self {
+            Packages::TLSN => true,
+            _ => false,
+        }
     }
 }
 
-fn all_features(package: &str) -> bool {
-    match package {
-        "tlsn" => true,
-        _ => false,
-    }
-}
-
-fn get_cargo_args<'a>(package: &'a str, command: &'a Commands) -> Vec<&'a str> {
+fn get_cargo_args<'a>(package: &Packages, command: &'a Commands) -> Vec<&'a str> {
     match command {
         Commands::Build => {
-            if is_release(package) {
-                vec!["+stable", "build"]
-            } else {
-                vec!["+stable", "build", "--release"]
+            let mut args = vec!["+stable", "build"];
+            if package.is_release() {
+                args.push("--release");
             }
+            args
         }
         Commands::Clean => vec!["clean"],
-        Commands::Bench => vec!["bench", "--no-run"],
+        Commands::Bench => vec!["+stable", "bench", "--no-run"],
         Commands::Clippy => {
-            let mut args = vec![
+            vec![
                 "+stable",
                 "clippy",
                 "--all-features",
@@ -98,73 +118,62 @@ fn get_cargo_args<'a>(package: &'a str, command: &'a Commands) -> Vec<&'a str> {
                 "--",
                 "--deny",
                 "warnings",
-            ];
-            if package == "tlsn" {
-                args.push("--deny");
-                args.push("clippy::pedantic");
-            }
-            args
+            ]
         }
         Commands::Format => vec!["+nightly", "fmt", "--check", "--all"],
         Commands::Test => {
-            if is_release(package) {
-                if all_features(package) {
-                    // integration tests
-                    vec!["+stable", "test", "--release", "--tests", "--all-features"]
-                } else {
-                    vec!["+stable", "test", "--release", "--tests"]
-                }
+            let mut args = if package.is_release() {
+                vec!["+stable", "test", "--release", "--tests"]
             } else {
-                if all_features(package) {
-                    // test with all-features
-                    vec![
-                        "+stable",
-                        "test",
-                        "--lib",
-                        "--bins",
-                        "--tests",
-                        "--examples",
-                        "--workspace",
-                        "--all-features",
-                    ]
-                } else {
-                    // default tests
-                    vec![
-                        "+stable",
-                        "test",
-                        "--lib",
-                        "--bins",
-                        "--tests",
-                        "--examples",
-                        "--workspace",
-                    ]
-                }
-            }
+                vec![
+                    "+stable",
+                    "test",
+                    "--lib",
+                    "--bins",
+                    "--tests",
+                    "--examples",
+                    "--workspace",
+                ]
+            };
+            if package.all_features() {
+                args.push("--all-features");
+            };
+            args
         }
-
-        _ => vec![],
+        Commands::List => unreachable!(),
     }
 }
 
 fn main() {
     let args = Args::parse();
 
+    let packages: Vec<Packages> = if let Some(single_package) = args.name {
+        let p: Vec<_> = Packages::iter()
+            .filter(|p| p.path().to_string() == single_package)
+            .collect();
+        if p.is_empty() {
+            panic!("Invalid package name ..."); // should be one of..
+        }
+        p
+    } else {
+        Packages::iter().collect()
+    };
+
     if args.command == Commands::List {
         println!("TLSN packages:");
-        println!("{:?}", TLSN_PACKAGES);
+        println!(
+            "{:?}",
+            &packages.iter().map(|p| p.path()).collect::<Vec<&str>>()
+        );
         return;
     };
 
-    // let f: Vec<_> = extra_args.split(' ').collect();
-    // let binding = [command];
-    // let args: Vec<_> = binding.iter().chain(f.iter()).collect();
-
     // https://rust-lang-nursery.github.io/rust-cookbook/os/external.html#continuously-process-child-process-outputs
-    for name in TLSN_PACKAGES.into_iter() {
-        let cargo_args = get_cargo_args(name, &args.command);
-        println!("{}: Running `cargo {:?}`", name, &cargo_args);
+    for package in packages {
+        let cargo_args = get_cargo_args(&package, &args.command);
+        println!("{}: Running `cargo {:?}`", &package.path(), &cargo_args);
         let stdout = Command::new("cargo")
-            .current_dir(name)
+            .current_dir(package.path())
             .args(&cargo_args)
             .stdout(Stdio::piped())
             .spawn()
