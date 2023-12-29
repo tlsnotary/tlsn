@@ -5,7 +5,8 @@ use futures::AsyncWriteExt;
 use hyper::{body::to_bytes, client::conn::Parts, Body, Request, StatusCode};
 use rustls::{Certificate, ClientConfig, RootCertStore};
 use serde::{Deserialize, Serialize};
-use std::{env, ops::Range, sync::Arc};
+use std::{env, ops::Range, str, sync::Arc};
+use tlsn_core::proof::TlsProof;
 use tokio::{io::AsyncWriteExt as _, net::TcpStream};
 use tokio_rustls::TlsConnector;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
@@ -113,7 +114,7 @@ async fn main() {
         .header("Authority", SERVER_DOMAIN)
         .header("X-Twitter-Auth-Type", "OAuth2Session")
         .header("x-twitter-active-user", "yes")
-        .header("X-Client-Uuid", client_uuid)
+        .header("X-Client-Uuid", client_uuid.clone())
         .header("X-Csrf-Token", csrf_token.clone())
         .body(Body::empty())
         .unwrap();
@@ -124,7 +125,7 @@ async fn main() {
 
     debug!("Sent request");
 
-    assert!(response.status() == StatusCode::OK);
+    assert!(response.status() == StatusCode::OK, "{}", response.status());
 
     debug!("Request OK");
 
@@ -145,12 +146,13 @@ async fn main() {
     let mut prover = prover.start_notarize();
 
     // Identify the ranges in the transcript that contain secrets
-    let (public_ranges, private_ranges) = find_ranges(
+    let (public_ranges, _private_ranges) = find_ranges(
         prover.sent_transcript().data(),
         &[
             access_token.as_bytes(),
             auth_token.as_bytes(),
             csrf_token.as_bytes(),
+            client_uuid.as_bytes(),
         ],
     );
 
@@ -158,13 +160,14 @@ async fn main() {
 
     let builder = prover.commitment_builder();
 
-    // Commit to the outbound transcript, isolating the data that contain secrets
-    for range in public_ranges.iter().chain(private_ranges.iter()) {
-        builder.commit_sent(range.clone()).unwrap();
-    }
-
-    // Commit to the full received transcript in one shot, as we don't need to redact anything
-    builder.commit_recv(0..recv_len).unwrap();
+    // Collect commitment ids for the outbound transcript
+    // Commit to everything but the redacted tokens
+    let mut commitment_ids = public_ranges
+        .iter()
+        // .chain(private_ranges.iter())
+        .map(|range| builder.commit_sent(range.clone()).unwrap())
+        .collect::<Vec<_>>();
+    commitment_ids.push(builder.commit_recv(0..recv_len).unwrap());
 
     // Finalize, returning the notarized session
     let notarized_session = prover.finalize().await.unwrap();
@@ -180,11 +183,32 @@ async fn main() {
     )
     .await
     .unwrap();
+
+    let session_proof = notarized_session.session_proof();
+
+    let mut proof_builder = notarized_session.data().build_substrings_proof();
+    for commitment_id in commitment_ids {
+        proof_builder.reveal(commitment_id).unwrap();
+    }
+    let substrings_proof = proof_builder.build().unwrap();
+
+    let proof = TlsProof {
+        session: session_proof,
+        substrings: substrings_proof,
+    };
+
+    // Dump the proof to a file.
+    let mut file = tokio::fs::File::create("twitter_dm_proof.json")
+        .await
+        .unwrap();
+    file.write_all(serde_json::to_string_pretty(&proof).unwrap().as_bytes())
+        .await
+        .unwrap();
 }
 
 async fn setup_notary_connection() -> (tokio_rustls::client::TlsStream<TcpStream>, String) {
     // Connect to the Notary via TLS-TCP
-    let pem_file = std::str::from_utf8(include_bytes!(
+    let pem_file = str::from_utf8(include_bytes!(
         "../../../notary-server/fixture/tls/rootCA.crt"
     ))
     .unwrap();

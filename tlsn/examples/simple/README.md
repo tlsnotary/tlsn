@@ -1,6 +1,6 @@
 ## Simple Example: Notarize Public Data from example.com (Rust) <a name="rust-simple"></a>
 
-This examples demonstrates the simplest possible use case for TLSNotary:
+This example demonstrates the simplest possible use case for TLSNotary:
 1. Notarize: Fetch <https://example.com/> and create a proof of its content.
 2. Verify the proof.
 
