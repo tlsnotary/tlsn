@@ -28,6 +28,8 @@ where
 }
 
 struct State {
+    /// Encoded key and IV for the cipher.
+    encoded_key_iv: Option<EncodedKeyAndIv>,
     /// Key and IV for the cipher.
     key_iv: Option<KeyAndIv>,
     /// Unique identifier for each execution of the cipher.
@@ -41,9 +43,15 @@ struct State {
 }
 
 #[derive(Clone)]
-struct KeyAndIv {
+struct EncodedKeyAndIv {
     key: ValueRef,
     iv: ValueRef,
+}
+
+#[derive(Clone)]
+struct KeyAndIv {
+    key: Vec<u8>,
+    iv: Vec<u8>,
 }
 
 impl<C, E> MpcStreamCipher<C, E>
@@ -60,6 +68,7 @@ where
         Self {
             config,
             state: State {
+                encoded_key_iv: None,
                 key_iv: None,
                 execution_id,
                 transcript_counter,
@@ -102,9 +111,9 @@ where
         len: usize,
         mode: ExecutionMode,
     ) -> Result<ValueRef, StreamCipherError> {
-        let KeyAndIv { key, iv } = self
+        let EncodedKeyAndIv { key, iv } = self
             .state
-            .key_iv
+            .encoded_key_iv
             .clone()
             .ok_or(StreamCipherError::KeyIvNotSet)?;
 
@@ -218,7 +227,41 @@ where
     E: Thread + Execute + Prove + Verify + Decode + DecodePrivate + Send + Sync + 'static,
 {
     fn set_key(&mut self, key: ValueRef, iv: ValueRef) {
+        self.state.encoded_key_iv = Some(EncodedKeyAndIv { key, iv });
+    }
+
+    async fn decode_key_private(&mut self) -> Result<(), StreamCipherError> {
+        let EncodedKeyAndIv { key, iv } = self
+            .state
+            .encoded_key_iv
+            .clone()
+            .ok_or(StreamCipherError::KeyIvNotSet)?;
+
+        let mut scope = self.thread_pool.new_scope();
+        scope.push(move |thread| Box::pin(async move { thread.decode_private(&[key, iv]).await }));
+        let output = scope.wait().await.into_iter().next().unwrap()?;
+
+        let [key, iv]: [_; 2] = output.try_into().expect("decoded 2 values");
+        let key: Vec<u8> = key.try_into().expect("key is an array");
+        let iv: Vec<u8> = iv.try_into().expect("iv is an array");
+
         self.state.key_iv = Some(KeyAndIv { key, iv });
+
+        Ok(())
+    }
+
+    async fn decode_key_blind(&mut self) -> Result<(), StreamCipherError> {
+        let EncodedKeyAndIv { key, iv } = self
+            .state
+            .encoded_key_iv
+            .clone()
+            .ok_or(StreamCipherError::KeyIvNotSet)?;
+
+        let mut scope = self.thread_pool.new_scope();
+        scope.push(move |thread| Box::pin(async move { thread.decode_blind(&[key, iv]).await }));
+        scope.wait().await.into_iter().next().unwrap()?;
+
+        Ok(())
     }
 
     fn set_transcript_id(&mut self, id: &str) {
@@ -480,8 +523,22 @@ where
     async fn prove_plaintext(
         &mut self,
         explicit_nonce: Vec<u8>,
-        plaintext: Vec<u8>,
-    ) -> Result<(), StreamCipherError> {
+        ciphertext: Vec<u8>,
+    ) -> Result<Vec<u8>, StreamCipherError> {
+        let KeyAndIv { key, iv } = self
+            .state
+            .key_iv
+            .clone()
+            .ok_or(StreamCipherError::KeyIvNotSet)?;
+
+        let plaintext = C::apply_keystream(
+            &key,
+            &iv,
+            self.config.start_ctr,
+            &explicit_nonce,
+            &ciphertext,
+        )?;
+
         // Prove plaintext encrypts back to ciphertext
         let keystream = self
             .compute_keystream(
@@ -497,7 +554,7 @@ where
             .apply_keystream(
                 InputText::Private {
                     ids: plaintext_ids,
-                    text: plaintext,
+                    text: plaintext.clone(),
                 },
                 keystream,
                 ExecutionMode::Prove,
@@ -506,7 +563,7 @@ where
 
         self.prove(ciphertext).await?;
 
-        Ok(())
+        Ok(plaintext)
     }
 
     async fn verify_plaintext(
@@ -546,9 +603,9 @@ where
         explicit_nonce: Vec<u8>,
         ctr: usize,
     ) -> Result<Vec<u8>, StreamCipherError> {
-        let KeyAndIv { key, iv } = self
+        let EncodedKeyAndIv { key, iv } = self
             .state
-            .key_iv
+            .encoded_key_iv
             .clone()
             .ok_or(StreamCipherError::KeyIvNotSet)?;
 
