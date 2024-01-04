@@ -19,7 +19,7 @@
 FROM rust:bookworm AS builder
 WORKDIR /usr/src/tlsn
 COPY . .
-RUN cd notary-server; cargo install --path .
+RUN cargo install --path notary-server
 
 FROM ubuntu:latest
 WORKDIR /root/.notary-server

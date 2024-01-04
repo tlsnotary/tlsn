@@ -5,7 +5,7 @@ description = "This crate provides an implementation of a two-party version of A
 keywords = ["tls", "mpc", "2pc", "aead", "aes", "aes-gcm"]
 categories = ["cryptography"]
 license = "MIT OR Apache-2.0"
-version = "0.1.0-alpha.2"
+version = "0.1.0-alpha.3"
 edition = "2021"
 
 [lib]

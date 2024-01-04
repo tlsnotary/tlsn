@@ -5,7 +5,7 @@ description = "The 2PC circuits for TLS HMAC-SHA256 PRF"
 keywords = ["tls", "mpc", "2pc", "hmac", "sha256"]
 categories = ["cryptography"]
 license = "MIT OR Apache-2.0"
-version = "0.1.0-alpha.2"
+version = "0.1.0-alpha.3"
 edition = "2021"
 
 [lib]
@@ -19,4 +19,4 @@ mpz-circuits.workspace = true
 tracing = { workspace = true, optional = true }
 
 [dev-dependencies]
-ring = "0.16"
+ring = "0.17"

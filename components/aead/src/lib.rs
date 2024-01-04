@@ -49,6 +49,12 @@ pub trait Aead: Send {
     /// Sets the key for the AEAD.
     async fn set_key(&mut self, key: ValueRef, iv: ValueRef) -> Result<(), AeadError>;
 
+    /// Decodes the key for the AEAD, revealing it to this party.
+    async fn decode_key_private(&mut self) -> Result<(), AeadError>;
+
+    /// Decodes the key for the AEAD, revealing it to the other party(s).
+    async fn decode_key_blind(&mut self) -> Result<(), AeadError>;
+
     /// Sets the transcript id
     ///
     /// The AEAD assigns unique identifiers to each byte of plaintext
@@ -143,5 +149,49 @@ pub trait Aead: Send {
         explicit_nonce: Vec<u8>,
         ciphertext: Vec<u8>,
         aad: Vec<u8>,
+    ) -> Result<(), AeadError>;
+
+    /// Verifies the tag of a ciphertext message.
+    ///
+    /// This method checks the authenticity of the ciphertext, tag and additional data.
+    ///
+    /// * `explicit_nonce` - The explicit nonce to use for decryption.
+    /// * `ciphertext` - The ciphertext and tag to authenticate and decrypt.
+    /// * `aad` - Additional authenticated data.
+    async fn verify_tag(
+        &mut self,
+        explicit_nonce: Vec<u8>,
+        ciphertext: Vec<u8>,
+        aad: Vec<u8>,
+    ) -> Result<(), AeadError>;
+
+    /// Locally decrypts the provided ciphertext and then proves in ZK to the other party(s) that the
+    /// plaintext is correct.
+    ///
+    /// Returns the plaintext.
+    ///
+    /// This method requires this party to know the encryption key, which can be achieved by calling
+    /// the `decode_key_private` method.
+    ///
+    /// # Arguments
+    ///
+    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
+    /// * `ciphertext`: The ciphertext to decrypt and prove.
+    async fn prove_plaintext(
+        &mut self,
+        explicit_nonce: Vec<u8>,
+        ciphertext: Vec<u8>,
+    ) -> Result<Vec<u8>, AeadError>;
+
+    /// Verifies the other party(s) can prove they know a plaintext which encrypts to the given ciphertext.
+    ///
+    /// # Arguments
+    ///
+    /// * `explicit_nonce`: The explicit nonce to use for the keystream.
+    /// * `ciphertext`: The ciphertext to verify.
+    async fn verify_plaintext(
+        &mut self,
+        explicit_nonce: Vec<u8>,
+        ciphertext: Vec<u8>,
     ) -> Result<(), AeadError>;
 }

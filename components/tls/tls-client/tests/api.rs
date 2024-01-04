@@ -14,7 +14,7 @@ use std::{
     },
 };
 
-use log;
+
 
 #[cfg(feature = "quic")]
 use tls_client::quic::{self, ClientQuicExt, QuicExt, ServerQuicExt};
@@ -110,12 +110,12 @@ async fn version_test(
     result: Option<ProtocolVersion>,
 ) {
     let client_versions = if client_versions.is_empty() {
-        &tls_client::ALL_VERSIONS
+        tls_client::ALL_VERSIONS
     } else {
         client_versions
     };
     let server_versions = if server_versions.is_empty() {
-        &rustls::ALL_VERSIONS
+        rustls::ALL_VERSIONS
     } else {
         server_versions
     };
@@ -1036,7 +1036,7 @@ where
         Ok(())
     }
 
-    fn write_vectored<'b>(&mut self, b: &[io::IoSlice<'b>]) -> io::Result<usize> {
+    fn write_vectored(&mut self, b: &[io::IoSlice<'_>]) -> io::Result<usize> {
         let mut total = 0;
         let mut lengths = vec![];
         for bytes in b {
@@ -2029,7 +2029,7 @@ async fn servered_write_for_server_handshake_no_half_rtt_with_client_auth() {
 #[tokio::test]
 async fn servered_write_for_server_handshake_no_half_rtt_by_default() {
     let server_config = make_server_config(KeyType::Rsa);
-    assert_eq!(server_config.send_half_rtt_data, false);
+    assert!(!server_config.send_half_rtt_data);
     check_half_rtt_does_not_work(server_config).await;
 }
 
@@ -3144,7 +3144,7 @@ async fn test_client_mtu_reduction() {
         fn flush(&mut self) -> io::Result<()> {
             panic!()
         }
-        fn write_vectored<'b>(&mut self, b: &[io::IoSlice<'b>]) -> io::Result<usize> {
+        fn write_vectored(&mut self, b: &[io::IoSlice<'_>]) -> io::Result<usize> {
             let writes = b.iter().map(|slice| slice.len()).collect::<Vec<usize>>();
             let len = writes.iter().sum();
             self.writevs.push(writes);
@@ -3280,7 +3280,7 @@ async fn test_client_rejects_illegal_tls13_ccs() {
     send(&mut client, &mut server);
     server.process_new_packets().unwrap();
 
-    let (mut server, mut client) = (server.into(), client.into());
+    let (mut server, mut client) = (server.into(), client);
 
     receive_altered(&mut server, corrupt_ccs, &mut client);
     assert_eq!(

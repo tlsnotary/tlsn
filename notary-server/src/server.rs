@@ -28,7 +28,7 @@ use tower::MakeService;
 use tracing::{debug, error, info};
 
 use crate::{
-    config::{NotaryServerProperties, NotarySignatureProperties, TLSSignatureProperties},
+    config::{NotaryServerProperties, NotarySignatureProperties},
     domain::{
         auth::{authorization_whitelist_vec_into_hashmap, AuthorizationWhitelistRecord},
         notary::NotaryGlobals,
@@ -40,43 +40,47 @@ use crate::{
     util::parse_csv_file,
 };
 
-/// Start a TLS-secured TCP server to accept notarization request for both TCP and WebSocket clients
+/// Start a TCP server (with or without TLS) to accept notarization request for both TCP and WebSocket clients
 #[tracing::instrument(skip(config))]
 pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotaryServerError> {
-    // Load the private key and cert needed for TLS connection from fixture folder — can be swapped out when we stop using static self signed cert
-    let (tls_private_key, tls_certificates) = load_tls_key_and_cert(&config.tls_signature).await?;
-    // Load the private key for notarized transcript signing from fixture folder — can be swapped out when we use proper ephemeral signing key
+    // Load the private key for notarized transcript signing
     let notary_signing_key = load_notary_signing_key(&config.notary_signature).await?;
+    // Build TLS acceptor if it is turned on
+    let tls_acceptor = if !config.tls.enabled {
+        debug!("Skipping TLS setup as it is turned off.");
+        None
+    } else {
+        let (tls_private_key, tls_certificates) = load_tls_key_and_cert(
+            &config.tls.private_key_pem_path,
+            &config.tls.certificate_pem_path,
+        )
+        .await?;
+
+        let mut server_config = ServerConfig::builder()
+            .with_safe_defaults()
+            .with_no_client_auth()
+            .with_single_cert(tls_certificates, tls_private_key)
+            .map_err(|err| eyre!("Failed to instantiate notary server tls config: {err}"))?;
+
+        // Set the http protocols we support
+        server_config.alpn_protocols = vec![b"http/1.1".to_vec()];
+        let tls_config = Arc::new(server_config);
+        Some(TlsAcceptor::from(tls_config))
+    };
+
     // Load the authorization whitelist csv if it is turned on
     let authorization_whitelist = if !config.authorization.enabled {
         debug!("Skipping authorization as it is turned off.");
         None
     } else {
-        // Get the path of whitelist csv from config
-        let whitelist_csv_path = config
-            .authorization
-            .whitelist_csv_path
-            .as_ref()
-            .ok_or(eyre!(
-                "Failed to load authorization whitelist as its csv path is absent in config"
-            ))?;
         // Load the csv
-        let whitelist_csv = parse_csv_file::<AuthorizationWhitelistRecord>(whitelist_csv_path)
-            .map_err(|err| eyre!("Failed to parse authorization whitelist csv: {:?}", err))?;
+        let whitelist_csv = parse_csv_file::<AuthorizationWhitelistRecord>(
+            &config.authorization.whitelist_csv_path,
+        )
+        .map_err(|err| eyre!("Failed to parse authorization whitelist csv: {:?}", err))?;
         // Convert the whitelist record into hashmap for faster lookup
         Some(authorization_whitelist_vec_into_hashmap(whitelist_csv))
     };
-
-    // Build a TCP listener with TLS enabled
-    let mut server_config = ServerConfig::builder()
-        .with_safe_defaults()
-        .with_no_client_auth()
-        .with_single_cert(tls_certificates, tls_private_key)
-        .map_err(|err| eyre!("Failed to instantiate notary server tls config: {err}"))?;
-
-    // Set the http protocols we support
-    server_config.alpn_protocols = vec![b"http/1.1".to_vec()];
-    let tls_config = Arc::new(server_config);
 
     let notary_address = SocketAddr::new(
         IpAddr::V4(config.server.host.parse().map_err(|err| {
@@ -84,31 +88,29 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
         })?),
         config.server.port,
     );
-
-    let acceptor = TlsAcceptor::from(tls_config);
     let listener = TcpListener::bind(notary_address)
         .await
         .map_err(|err| eyre!("Failed to bind server address to tcp listener: {err}"))?;
     let mut listener = AddrIncoming::from_listener(listener)
         .map_err(|err| eyre!("Failed to build hyper tcp listener: {err}"))?;
 
-    info!(
-        "Listening for TLS-secured TCP traffic at {}",
-        notary_address
-    );
+    info!("Listening for TCP traffic at {}", notary_address);
 
     let protocol = Arc::new(Http::new());
     let notary_globals = NotaryGlobals::new(
         notary_signing_key,
         config.notarization.clone(),
-        authorization_whitelist.map(Arc::new),
         // Use Arc to prevent cloning the whitelist for every request
+        authorization_whitelist.map(Arc::new),
     );
 
     // Parameters needed for the info endpoint
     let public_key = std::fs::read_to_string(&config.notary_signature.public_key_pem_path)
         .map_err(|err| eyre!("Failed to load notary public signing key for notarization: {err}"))?;
     let version = env!("CARGO_PKG_VERSION").to_string();
+    let git_commit_hash = env!("GIT_COMMIT_HASH").to_string();
+    let git_commit_timestamp = env!("GIT_COMMIT_TIMESTAMP").to_string();
+
     let router = Router::new()
         .route(
             "/healthcheck",
@@ -122,6 +124,8 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
                     Json(InfoResponse {
                         version,
                         public_key,
+                        git_commit_hash,
+                        git_commit_timestamp,
                     }),
                 )
                     .into_response()
@@ -155,34 +159,48 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
             };
         debug!(?prover_address, "Received a prover's TCP connection");
 
-        let acceptor = acceptor.clone();
+        let tls_acceptor = tls_acceptor.clone();
         let protocol = protocol.clone();
         let service = MakeService::<_, Request<hyper::Body>>::make_service(&mut app, &stream);
 
         // Spawn a new async task to handle the new connection
         tokio::spawn(async move {
-            match acceptor.accept(stream).await {
-                Ok(stream) => {
-                    info!(
-                        ?prover_address,
-                        "Accepted prover's TLS-secured TCP connection",
-                    );
-                    // Serve different requests using the same hyper protocol and axum router
-                    let _ = protocol
-                        // Can unwrap because it's infallible
-                        .serve_connection(stream, service.await.unwrap())
-                        // use with_upgrades to upgrade connection to websocket for websocket clients
-                        // and to extract tcp connection for tcp clients
-                        .with_upgrades()
-                        .await;
+            // When TLS is enabled
+            if let Some(acceptor) = tls_acceptor {
+                match acceptor.accept(stream).await {
+                    Ok(stream) => {
+                        info!(
+                            ?prover_address,
+                            "Accepted prover's TLS-secured TCP connection",
+                        );
+                        // Serve different requests using the same hyper protocol and axum router
+                        let _ = protocol
+                            // Can unwrap because it's infallible
+                            .serve_connection(stream, service.await.unwrap())
+                            // use with_upgrades to upgrade connection to websocket for websocket clients
+                            // and to extract tcp connection for tcp clients
+                            .with_upgrades()
+                            .await;
+                    }
+                    Err(err) => {
+                        error!(
+                            ?prover_address,
+                            "{}",
+                            NotaryServerError::Connection(err.to_string())
+                        );
+                    }
                 }
-                Err(err) => {
-                    error!(
-                        ?prover_address,
-                        "{}",
-                        NotaryServerError::Connection(err.to_string())
-                    );
-                }
+            } else {
+                // When TLS is disabled
+                info!(?prover_address, "Accepted prover's TCP connection",);
+                // Serve different requests using the same hyper protocol and axum router
+                let _ = protocol
+                    // Can unwrap because it's infallible
+                    .serve_connection(stream, service.await.unwrap())
+                    // use with_upgrades to upgrade connection to websocket for websocket clients
+                    // and to extract tcp connection for tcp clients
+                    .with_upgrades()
+                    .await;
             }
         });
     }
@@ -207,11 +225,12 @@ pub async fn read_pem_file(file_path: &str) -> Result<BufReader<StdFile>> {
 
 /// Load notary tls private key and cert from static files
 async fn load_tls_key_and_cert(
-    config: &TLSSignatureProperties,
+    private_key_pem_path: &str,
+    certificate_pem_path: &str,
 ) -> Result<(PrivateKey, Vec<Certificate>)> {
     debug!("Loading notary server's tls private key and certificate");
 
-    let mut private_key_file_reader = read_pem_file(&config.private_key_pem_path).await?;
+    let mut private_key_file_reader = read_pem_file(private_key_pem_path).await?;
     let mut private_keys = rustls_pemfile::pkcs8_private_keys(&mut private_key_file_reader)?;
     ensure!(
         private_keys.len() == 1,
@@ -219,7 +238,7 @@ async fn load_tls_key_and_cert(
     );
     let private_key = PrivateKey(private_keys.remove(0));
 
-    let mut certificate_file_reader = read_pem_file(&config.certificate_pem_path).await?;
+    let mut certificate_file_reader = read_pem_file(certificate_pem_path).await?;
     let certificates = rustls_pemfile::certs(&mut certificate_file_reader)?
         .into_iter()
         .map(Certificate)
@@ -235,11 +254,10 @@ mod test {
 
     #[tokio::test]
     async fn test_load_notary_key_and_cert() {
-        let config = TLSSignatureProperties {
-            private_key_pem_path: "./fixture/tls/notary.key".to_string(),
-            certificate_pem_path: "./fixture/tls/notary.crt".to_string(),
-        };
-        let result: Result<(PrivateKey, Vec<Certificate>)> = load_tls_key_and_cert(&config).await;
+        let private_key_pem_path = "./fixture/tls/notary.key";
+        let certificate_pem_path = "./fixture/tls/notary.crt";
+        let result: Result<(PrivateKey, Vec<Certificate>)> =
+            load_tls_key_and_cert(private_key_pem_path, certificate_pem_path).await;
         assert!(result.is_ok(), "Could not load tls private key and cert");
     }
 

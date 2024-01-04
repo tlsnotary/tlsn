@@ -5,7 +5,7 @@ description = "Core types for TLSNotary"
 keywords = ["tls", "mpc", "2pc", "types"]
 categories = ["cryptography"]
 license = "MIT OR Apache-2.0"
-version = "0.1.0-alpha.2"
+version = "0.1.0-alpha.3"
 edition = "2021"
 
 [features]
@@ -45,3 +45,7 @@ bincode.workspace = true
 [[test]]
 name = "api"
 required-features = ["fixtures"]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+ring = { version = "0.17", features = ["wasm32_unknown_unknown_js"] }
+getrandom = { version = "0.2", features = ["js"] }

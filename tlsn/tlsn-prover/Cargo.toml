@@ -5,7 +5,7 @@ description = "Contains the prover library"
 keywords = ["tls", "mpc", "2pc", "prover"]
 categories = ["cryptography"]
 license = "MIT OR Apache-2.0"
-version = "0.1.0-alpha.2"
+version = "0.1.0-alpha.3"
 edition = "2021"
 
 [features]
@@ -44,6 +44,10 @@ derive_builder.workspace = true
 opaque-debug.workspace = true
 bytes.workspace = true
 
-tracing = { workspace = true, optional = true}
+tracing = { workspace = true, optional = true }
 
 web-time.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+ring = { version = "0.17", features = ["wasm32_unknown_unknown_js"] }
+getrandom = { version = "0.2", features = ["js"] }

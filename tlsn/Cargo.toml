@@ -47,7 +47,7 @@ rs_merkle = "1"
 rand_chacha = "0.3"
 rand = "0.8"
 rand_core = "0.6"
-webpki-roots = "0.23"
+webpki-roots = "0.26"
 
 derive_builder = "0.12"
 thiserror = "1"

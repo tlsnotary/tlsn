@@ -37,6 +37,8 @@ jobs:
         include:
           - package: components/integration-tests
             release: true
+          - package: notary-server
+            release: true
           - package: tlsn
             all-features: true
     defaults:

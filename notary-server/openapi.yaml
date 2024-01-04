@@ -3,12 +3,66 @@ openapi: 3.0.0
 info:
   title: Notary Server
   description: Notary server written in Rust to provide notarization service.
-  version: 0.1.0
+  version: 0.1.0-alpha.3
 
 tags:
+  - name: General
   - name: Notarization
 
 paths:
+  /healthcheck:
+    get:
+      tags:
+        - General
+      description: Healthcheck endpoint
+      parameters:
+        - in: header
+          name: Authorization
+          description: Whitelisted API key if auth module is turned on
+          schema:
+            type: string
+          required: false
+      responses:
+        "200":
+          description: Ok response from server
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Ok"
+        "401":
+          description: API key is invalid
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Unauthorized request from prover: Invalid API key."
+  /info:
+    get:
+      tags:
+        - General
+      description: General information about the notary server
+      parameters:
+        - in: header
+          name: Authorization
+          description: Whitelisted API key if auth module is turned on
+          schema:
+            type: string
+          required: false
+      responses:
+        "200":
+          description: Info response from server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InfoResponse"
+        "401":
+          description: API key is invalid
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Unauthorized request from prover: Invalid API key."
   /session:
     post:
       tags:
@@ -23,6 +77,12 @@ paths:
             enum:
               - "application/json"
           required: true
+        - in: header
+          name: Authorization
+          description: Whitelisted API key if auth module is turned on
+          schema:
+            type: string
+          required: false
       requestBody:
         description: Notarization session request to server
         required: true
@@ -44,6 +104,13 @@ paths:
               schema:
                 type: string
                 example: "Invalid request from prover: Failed to deserialize the JSON body into the target type"
+        "401":
+          description: API key is invalid
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Unauthorized request from prover: Invalid API key."
         "500":
           description: There was some internal error when processing
           content:
@@ -118,6 +185,27 @@ components:
       type: object
       properties:
         sessionId:
+          description: Unique ID returned from server upon calling POST /session
           type: string
       required:
         - "sessionId"
+    InfoResponse:
+      type: object
+      properties:
+        version:
+          description: Current version of notary server
+          type: string
+        publicKey:
+          description: Public key of notary server for its notarization transcript signature
+          type: string
+        gitCommitHash:
+          description: The git commit hash of source code that this notary server is running
+          type: string
+        gitCommitTimestamp:
+          description: The git commit timestamp of source code that this notary server is running
+          type: string
+      required:
+        - "version"
+        - "publicKey"
+        - "gitCommitHash"
+        - "gitCommitTimestamp"

@@ -106,7 +106,7 @@ async fn bench_stream_cipher_zk(thread_count: usize, len: usize) {
 
     let plaintext = vec![0u8; len];
     let explicit_nonce = [0u8; 8];
-    let ciphertext = Aes128Ctr::apply_keystream(&key, &iv, 2, &explicit_nonce, &plaintext);
+    let ciphertext = Aes128Ctr::apply_keystream(&key, &iv, 2, &explicit_nonce, &plaintext).unwrap();
 
     _ = tokio::try_join!(
         leader.prove_plaintext(explicit_nonce.to_vec(), plaintext),

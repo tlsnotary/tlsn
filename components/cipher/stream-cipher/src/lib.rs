@@ -42,6 +42,10 @@ pub enum StreamCipherError {
     VerifyError(#[from] mpz_garble::VerifyError),
     #[error("key and iv is not set")]
     KeyIvNotSet,
+    #[error("invalid key length: expected {expected}, got {actual}")]
+    InvalidKeyLength { expected: usize, actual: usize },
+    #[error("invalid iv length: expected {expected}, got {actual}")]
+    InvalidIvLength { expected: usize, actual: usize },
     #[error("invalid explicit nonce length: expected {expected}, got {actual}")]
     InvalidExplicitNonceLength { expected: usize, actual: usize },
     #[error("missing value for {0}")]
@@ -56,6 +60,12 @@ where
 {
     /// Sets the key and iv for the stream cipher.
     fn set_key(&mut self, key: ValueRef, iv: ValueRef);
+
+    /// Decodes the key for the stream cipher, revealing it to this party.
+    async fn decode_key_private(&mut self) -> Result<(), StreamCipherError>;
+
+    /// Decodes the key for the stream cipher, revealing it to the other party(s).
+    async fn decode_key_blind(&mut self) -> Result<(), StreamCipherError>;
 
     /// Sets the transcript id
     ///
@@ -149,17 +159,23 @@ where
         ciphertext: Vec<u8>,
     ) -> Result<(), StreamCipherError>;
 
-    /// Privately proves to the other party(s) the plaintext encrypts to a certain ciphertext.
+    /// Locally decrypts the provided ciphertext and then proves in ZK to the other party(s) that the
+    /// plaintext is correct.
+    ///
+    /// Returns the plaintext.
+    ///
+    /// This method requires this party to know the encryption key, which can be achieved by calling
+    /// the `decode_key_private` method.
     ///
     /// # Arguments
     ///
     /// * `explicit_nonce`: The explicit nonce to use for the keystream.
-    /// * `plaintext`: The plaintext to prove.
+    /// * `ciphertext`: The ciphertext to decrypt and prove.
     async fn prove_plaintext(
         &mut self,
         explicit_nonce: Vec<u8>,
-        plaintext: Vec<u8>,
-    ) -> Result<(), StreamCipherError>;
+        ciphertext: Vec<u8>,
+    ) -> Result<Vec<u8>, StreamCipherError>;
 
     /// Verifies the other party(s) can prove they know a plaintext which encrypts to the given ciphertext.
     ///
@@ -306,7 +322,7 @@ mod tests {
             (follower_encrypted_msg, follower_decrypted_msg),
         ) = futures::join!(leader_fut, follower_fut);
 
-        let reference = Aes128Ctr::apply_keystream(&key, &iv, 1, &explicit_nonce, &msg);
+        let reference = Aes128Ctr::apply_keystream(&key, &iv, 1, &explicit_nonce, &msg).unwrap();
 
         assert_eq!(leader_encrypted_msg, reference);
         assert_eq!(leader_decrypted_msg, msg);
@@ -324,7 +340,7 @@ mod tests {
 
         let msg = b"This is a test message which will be encrypted using AES-CTR.".to_vec();
 
-        let ciphertext = Aes128Ctr::apply_keystream(&key, &iv, 1, &explicit_nonce, &msg);
+        let ciphertext = Aes128Ctr::apply_keystream(&key, &iv, 1, &explicit_nonce, &msg).unwrap();
 
         let ((mut leader, mut follower), (mut leader_vm, mut follower_vm)) =
             create_test_pair::<Aes128Ctr>(1, key, iv, 8).await;
@@ -398,7 +414,8 @@ mod tests {
             .map(|(a, b)| a ^ b)
             .collect::<Vec<u8>>();
 
-        let reference = Aes128Ctr::apply_keystream(&key, &iv, 1, &explicit_nonce, &[0u8; 16]);
+        let reference =
+            Aes128Ctr::apply_keystream(&key, &iv, 1, &explicit_nonce, &[0u8; 16]).unwrap();
 
         assert_eq!(reference, key_block);
     }
@@ -413,13 +430,15 @@ mod tests {
 
         let msg = b"This is a test message which will be encrypted using AES-CTR.".to_vec();
 
-        let ciphertext = Aes128Ctr::apply_keystream(&key, &iv, 2, &explicit_nonce, &msg);
+        let ciphertext = Aes128Ctr::apply_keystream(&key, &iv, 2, &explicit_nonce, &msg).unwrap();
 
         let ((mut leader, mut follower), (mut leader_vm, mut follower_vm)) =
             create_test_pair::<Aes128Ctr>(2, key, iv, 8).await;
 
+        futures::try_join!(leader.decode_key_private(), follower.decode_key_blind()).unwrap();
+
         futures::try_join!(
-            leader.prove_plaintext(explicit_nonce.to_vec(), msg),
+            leader.prove_plaintext(explicit_nonce.to_vec(), ciphertext.clone()),
             follower.verify_plaintext(explicit_nonce.to_vec(), ciphertext)
         )
         .unwrap();

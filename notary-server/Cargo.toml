@@ -1,6 +1,6 @@
 [package]
 name = "notary-server"
-version = "0.1.0-alpha.2"
+version = "0.1.0-alpha.3"
 edition = "2021"
 
 [dependencies]
@@ -19,6 +19,7 @@ http = "0.2.9"
 hyper = { version = "0.14", features = ["client", "http1", "server", "tcp"] }
 opentelemetry = { version = "0.19" }
 p256 = "0.13"
+rstest = "0.18"
 rustls = { version = "0.21" }
 rustls-pemfile = { version = "1.0.2" }
 serde = { version = "1.0.147", features = ["derive"] }

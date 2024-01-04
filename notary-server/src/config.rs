@@ -7,8 +7,8 @@ pub struct NotaryServerProperties {
     pub server: ServerProperties,
     /// Setting for notarization
     pub notarization: NotarizationProperties,
-    /// File path of private key and certificate (in PEM format) used for establishing TLS with prover
-    pub tls_signature: TLSSignatureProperties,
+    /// Setting for TLS connection between prover and notary
+    pub tls: TLSProperties,
     /// File path of private key (in PEM format) used to sign the notarization
     pub notary_signature: NotarySignatureProperties,
     /// Setting for logging/tracing
@@ -23,7 +23,7 @@ pub struct AuthorizationProperties {
     /// Switch to turn on or off auth middleware
     pub enabled: bool,
     /// File path of the whitelist API key csv
-    pub whitelist_csv_path: Option<String>,
+    pub whitelist_csv_path: String,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -44,7 +44,9 @@ pub struct ServerProperties {
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-pub struct TLSSignatureProperties {
+pub struct TLSProperties {
+    /// Flag to turn on/off TLS between prover and notary (should always be turned on unless TLS is handled by external setup e.g. reverse proxy, cloud)
+    pub enabled: bool,
     pub private_key_pem_path: String,
     pub certificate_pem_path: String,
 }
