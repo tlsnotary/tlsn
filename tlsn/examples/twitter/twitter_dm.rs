@@ -146,7 +146,7 @@ async fn main() {
     let mut prover = prover.start_notarize();
 
     // Identify the ranges in the transcript that contain secrets
-    let (public_ranges, _private_ranges) = find_ranges(
+    let (public_ranges, private_ranges) = find_ranges(
         prover.sent_transcript().data(),
         &[
             access_token.as_bytes(),
@@ -160,12 +160,17 @@ async fn main() {
 
     let builder = prover.commitment_builder();
 
-    // Collect commitment ids for the outbound transcript
-    // Commit to everything but the redacted tokens
+    // Commit to send public data and collect commitment ids for the outbound transcript
     let mut commitment_ids = public_ranges
         .iter()
         .map(|range| builder.commit_sent(range.clone()).unwrap())
         .collect::<Vec<_>>();
+    // Commit to private data. This is not needed for proof creation but ensures the data
+    // is in the notarized session file for optional future disclosure.
+    private_ranges.iter().for_each(|range| {
+        builder.commit_sent(range.clone()).unwrap();
+    });
+    // Commit to the received (public) data.
     commitment_ids.push(builder.commit_recv(0..recv_len).unwrap());
 
     // Finalize, returning the notarized session
