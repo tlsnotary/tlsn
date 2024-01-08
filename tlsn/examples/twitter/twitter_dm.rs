@@ -164,7 +164,6 @@ async fn main() {
     // Commit to everything but the redacted tokens
     let mut commitment_ids = public_ranges
         .iter()
-        // .chain(private_ranges.iter())
         .map(|range| builder.commit_sent(range.clone()).unwrap())
         .collect::<Vec<_>>();
     commitment_ids.push(builder.commit_recv(0..recv_len).unwrap());
