@@ -1,5 +1,4 @@
 use std::error::Error;
-
 use tls_mpc::MpcTlsError;
 
 /// An error that can occur during TLS verification.
@@ -12,6 +11,8 @@ pub enum VerifierError {
     MuxerError(#[from] utils_aio::mux::MuxerError),
     #[error("error occurred in MPC protocol: {0}")]
     MpcError(Box<dyn Error + Send + 'static>),
+    #[error("Range exceeds transcript length")]
+    InvalidRange,
 }
 
 impl From<MpcTlsError> for VerifierError {
@@ -34,6 +35,30 @@ impl From<mpz_ot::actor::kos::SenderActorError> for VerifierError {
 
 impl From<mpz_ot::actor::kos::ReceiverActorError> for VerifierError {
     fn from(e: mpz_ot::actor::kos::ReceiverActorError) -> Self {
+        Self::MpcError(Box::new(e))
+    }
+}
+
+impl From<mpz_garble::VerifyError> for VerifierError {
+    fn from(e: mpz_garble::VerifyError) -> Self {
+        Self::MpcError(Box::new(e))
+    }
+}
+
+impl From<mpz_garble::MemoryError> for VerifierError {
+    fn from(e: mpz_garble::MemoryError) -> Self {
+        Self::MpcError(Box::new(e))
+    }
+}
+
+impl From<tlsn_core::proof::SessionProofError> for VerifierError {
+    fn from(e: tlsn_core::proof::SessionProofError) -> Self {
+        Self::MpcError(Box::new(e))
+    }
+}
+
+impl From<mpz_garble::VmError> for VerifierError {
+    fn from(e: mpz_garble::VmError) -> Self {
         Self::MpcError(Box::new(e))
     }
 }

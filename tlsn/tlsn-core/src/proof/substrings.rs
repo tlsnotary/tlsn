@@ -1,10 +1,4 @@
-//! Substrings proofs.
-
-use std::collections::HashMap;
-
-use mpz_circuits::types::ValueType;
-use serde::{Deserialize, Serialize};
-use utils::range::{RangeDisjoint, RangeSet, RangeUnion};
+//! Substrings proofs based on commitments.
 
 use crate::{
     commitment::{
@@ -15,8 +9,11 @@ use crate::{
     Direction, EncodingId, RedactedTranscript, SessionHeader, Transcript, TranscriptSlice,
     MAX_TOTAL_COMMITTED_DATA,
 };
-
+use mpz_circuits::types::ValueType;
 use mpz_garble_core::Encoder;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use utils::range::{RangeDisjoint, RangeSet, RangeUnion};
 
 /// An error for [`SubstringsProofBuilder`]
 #[derive(Debug, thiserror::Error)]
@@ -58,15 +55,20 @@ impl<'a> SubstringsProofBuilder<'a> {
         }
     }
 
+    /// Returns a reference to the commitments.
+    pub fn commitments(&self) -> &TranscriptCommitments {
+        self.commitments
+    }
+
     /// Reveals data corresponding to the provided commitment id
     pub fn reveal(&mut self, id: CommitmentId) -> Result<&mut Self, SubstringsProofBuilderError> {
         let commitment = self
-            .commitments
+            .commitments()
             .get(&id)
             .ok_or(SubstringsProofBuilderError::InvalidCommitmentId(id))?;
 
         let info = self
-            .commitments
+            .commitments()
             .get_info(&id)
             .expect("info exists if commitment exists");
 
@@ -142,7 +144,9 @@ pub enum SubstringsProofError {
     InvalidInclusionProof(String),
 }
 
-/// A substring proof containing the commitment openings and a proof
+/// A substring proof using commitments
+///
+/// This substring proof contains the commitment openings and a proof
 /// that the corresponding commitments are present in the merkle tree.
 #[derive(Serialize, Deserialize)]
 pub struct SubstringsProof {
