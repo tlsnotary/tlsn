@@ -280,15 +280,13 @@
 <a href="#280" id="280">280</a>
 <a href="#281" id="281">281</a>
 <a href="#282" id="282">282</a>
-</pre></div><pre class="rust"><code><span class="doccomment">//! Substrings proofs.
+<a href="#283" id="283">283</a>
+<a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
+</pre></div><pre class="rust"><code><span class="doccomment">//! Substrings proofs based on commitments.
 
-</span><span class="kw">use </span>std::collections::HashMap;
-
-<span class="kw">use </span>mpz_circuits::types::ValueType;
-<span class="kw">use </span>serde::{Deserialize, Serialize};
-<span class="kw">use </span>utils::range::{RangeDisjoint, RangeSet, RangeUnion};
-
-<span class="kw">use crate</span>::{
+</span><span class="kw">use crate</span>::{
     commitment::{
         Commitment, CommitmentId, CommitmentInfo, CommitmentOpening, TranscriptCommitments,
     },
@@ -297,8 +295,11 @@
     Direction, EncodingId, RedactedTranscript, SessionHeader, Transcript, TranscriptSlice,
     MAX_TOTAL_COMMITTED_DATA,
 };
-
+<span class="kw">use </span>mpz_circuits::types::ValueType;
 <span class="kw">use </span>mpz_garble_core::Encoder;
+<span class="kw">use </span>serde::{Deserialize, Serialize};
+<span class="kw">use </span>std::collections::HashMap;
+<span class="kw">use </span>utils::range::{RangeDisjoint, RangeSet, RangeUnion};
 
 <span class="doccomment">/// An error for [`SubstringsProofBuilder`]
 </span><span class="attr">#[derive(Debug, thiserror::Error)]
@@ -340,15 +341,20 @@
         }
     }
 
+    <span class="doccomment">/// Returns a reference to the commitments.
+    </span><span class="kw">pub fn </span>commitments(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>TranscriptCommitments {
+        <span class="self">self</span>.commitments
+    }
+
     <span class="doccomment">/// Reveals data corresponding to the provided commitment id
     </span><span class="kw">pub fn </span>reveal(<span class="kw-2">&amp;mut </span><span class="self">self</span>, id: CommitmentId) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw-2">&amp;mut </span><span class="self">Self</span>, SubstringsProofBuilderError&gt; {
         <span class="kw">let </span>commitment = <span class="self">self
-            </span>.commitments
+            </span>.commitments()
             .get(<span class="kw-2">&amp;</span>id)
             .ok_or(SubstringsProofBuilderError::InvalidCommitmentId(id))<span class="question-mark">?</span>;
 
         <span class="kw">let </span>info = <span class="self">self
-            </span>.commitments
+            </span>.commitments()
             .get_info(<span class="kw-2">&amp;</span>id)
             .expect(<span class="string">&quot;info exists if commitment exists&quot;</span>);
 
@@ -424,7 +430,9 @@
     </span>InvalidInclusionProof(String),
 }
 
-<span class="doccomment">/// A substring proof containing the commitment openings and a proof
+<span class="doccomment">/// A substring proof using commitments
+///
+/// This substring proof contains the commitment openings and a proof
 /// that the corresponding commitments are present in the merkle tree.
 </span><span class="attr">#[derive(Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>SubstringsProof {

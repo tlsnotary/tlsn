@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["HttpCommitmentBuilderError","HttpProofBuilderError","HttpProverError","JsonCommitmentBuilderError","JsonProofBuilderError"],"mod":["state"],"struct":["HttpCommitmentBuilder","HttpProofBuilder","HttpProver","HttpRequestCommitmentBuilder","HttpResponseCommitmentBuilder","JsonBody","JsonCommitmentBuilder","JsonProofBuilder","NotarizedHttpSession"]};

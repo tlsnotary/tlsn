@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["SubstringsProofBuilderError","SubstringsProofError"],"struct":["SessionProof","SubstringsProof","SubstringsProofBuilder","TlsProof"]};
+window.SIDEBAR_ITEMS = {"enum":["SessionProofError","SubstringsProofBuilderError","SubstringsProofError"],"fn":["default_cert_verifier"],"struct":["SessionInfo","SessionProof","SubstringsProof","SubstringsProofBuilder","TlsProof"]};

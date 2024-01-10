@@ -74,16 +74,20 @@
 <a href="#74" id="74">74</a>
 <a href="#75" id="75">75</a>
 <a href="#76" id="76">76</a>
+<a href="#77" id="77">77</a>
 </pre></div><pre class="rust"><code><span class="kw">use crate</span>::{
-    commitment::TranscriptCommitments, proof::SubstringsProofBuilder, ServerName, Transcript,
+    commitment::TranscriptCommitments,
+    proof::{SessionInfo, SubstringsProofBuilder},
+    ServerName, Transcript,
 };
 <span class="kw">use </span>mpz_core::commit::Decommitment;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>tls_core::handshake::HandshakeData;
 
-<span class="doccomment">/// Notarized session data.
+<span class="doccomment">/// Session data used for notarization.
 ///
-/// This contains all the private data held by the `Prover` after notarization.
+/// This contains all the private data held by the `Prover` after notarization including
+/// commitments to the parts of the transcript.
 ///
 /// # Selective disclosure
 ///
@@ -93,14 +97,11 @@
 /// See [`build_substrings_proof`](SessionData::build_substrings_proof).
 </span><span class="attr">#[derive(Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>SessionData {
-    server_name: ServerName,
-    handshake_data_decommitment: Decommitment&lt;HandshakeData&gt;,
+    session_info: SessionInfo,
     transcript_tx: Transcript,
     transcript_rx: Transcript,
     commitments: TranscriptCommitments,
 }
-
-<span class="macro">opaque_debug::implement!</span>(SessionData);
 
 <span class="kw">impl </span>SessionData {
     <span class="doccomment">/// Creates new session data.
@@ -111,23 +112,22 @@
         transcript_rx: Transcript,
         commitments: TranscriptCommitments,
     ) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
+        <span class="kw">let </span>session_info = SessionInfo {
             server_name,
-            handshake_data_decommitment,
+            handshake_decommitment: handshake_data_decommitment,
+        };
+
+        <span class="self">Self </span>{
+            session_info,
             transcript_tx,
             transcript_rx,
             commitments,
         }
     }
 
-    <span class="doccomment">/// Returns the server name.
-    </span><span class="kw">pub fn </span>server_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>ServerName {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.server_name
-    }
-
-    <span class="doccomment">/// Returns the decommitment to handshake data
-    </span><span class="kw">pub fn </span>handshake_data_decommitment(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Decommitment&lt;HandshakeData&gt; {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.handshake_data_decommitment
+    <span class="doccomment">/// Returns the session info
+    </span><span class="kw">pub fn </span>session_info(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>SessionInfo {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.session_info
     }
 
     <span class="doccomment">/// Returns the transcript for data sent to the server
@@ -150,4 +150,6 @@
         SubstringsProofBuilder::new(<span class="kw-2">&amp;</span><span class="self">self</span>.commitments, <span class="kw-2">&amp;</span><span class="self">self</span>.transcript_tx, <span class="kw-2">&amp;</span><span class="self">self</span>.transcript_rx)
     }
 }
+
+<span class="macro">opaque_debug::implement!</span>(SessionData);
 </code></pre></div></section></main></body></html>

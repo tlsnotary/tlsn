@@ -23,11 +23,28 @@
 <a href="#23" id="23">23</a>
 <a href="#24" id="24">24</a>
 <a href="#25" id="25">25</a>
+<a href="#26" id="26">26</a>
+<a href="#27" id="27">27</a>
+<a href="#28" id="28">28</a>
+<a href="#29" id="29">29</a>
+<a href="#30" id="30">30</a>
+<a href="#31" id="31">31</a>
+<a href="#32" id="32">32</a>
+<a href="#33" id="33">33</a>
+<a href="#34" id="34">34</a>
+<a href="#35" id="35">35</a>
+<a href="#36" id="36">36</a>
+<a href="#37" id="37">37</a>
+<a href="#38" id="38">38</a>
+<a href="#39" id="39">39</a>
+<a href="#40" id="40">40</a>
+<a href="#41" id="41">41</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Protocol message types.
 
 </span><span class="kw">use </span>serde::{Deserialize, Serialize};
+<span class="kw">use </span>utils::range::RangeSet;
 
-<span class="kw">use crate</span>::{merkle::MerkleRoot, signature::Signature, SessionHeader};
+<span class="kw">use crate</span>::{merkle::MerkleRoot, proof::SessionInfo, signature::Signature, SessionHeader};
 
 <span class="doccomment">/// Top-level enum for all messages
 </span><span class="attr">#[derive(Debug, Serialize, Deserialize)]
@@ -38,6 +55,10 @@
     </span>SignedSessionHeader(SignedSessionHeader),
     <span class="doccomment">/// A session header.
     </span>SessionHeader(SessionHeader),
+    <span class="doccomment">/// Information about the TLS session
+    </span>SessionInfo(SessionInfo),
+    <span class="doccomment">/// Information about the values the prover wants to prove
+    </span>ProvingInfo(ProvingInfo),
 }
 
 <span class="doccomment">/// A signed session header.
@@ -47,5 +68,16 @@
     </span><span class="kw">pub </span>header: SessionHeader,
     <span class="doccomment">/// The notary&#39;s signature
     </span><span class="kw">pub </span>signature: Signature,
+}
+
+<span class="doccomment">/// Information about the values the prover wants to prove
+</span><span class="attr">#[derive(Debug, Serialize, Deserialize, Default)]
+</span><span class="kw">pub struct </span>ProvingInfo {
+    <span class="doccomment">/// The ids for the sent transcript
+    </span><span class="kw">pub </span>sent_ids: RangeSet&lt;usize&gt;,
+    <span class="doccomment">/// The ids for the received transcript
+    </span><span class="kw">pub </span>recv_ids: RangeSet&lt;usize&gt;,
+    <span class="doccomment">/// Purported cleartext values
+    </span><span class="kw">pub </span>cleartext: Vec&lt;u8&gt;,
 }
 </code></pre></div></section></main></body></html>
