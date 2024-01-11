@@ -52,7 +52,8 @@ where
         mux_0.get_channel("ke"),
         mux_1.get_channel("encrypter"),
         mux.get_channel("decrypter")
-    )?;
+    )
+    .map_err(|_| std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "mux error"))?;
 
     let (ke_role, pa_role, aead_role) = match role {
         TlsRole::Leader => (

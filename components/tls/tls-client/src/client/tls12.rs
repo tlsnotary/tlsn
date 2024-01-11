@@ -244,7 +244,8 @@ impl State<ClientConnectionData> for ExpectCertificate {
 
             cx.common
                 .backend
-                .set_server_cert_details(server_cert.clone());
+                .set_server_cert_details(server_cert.clone())
+                .await?;
 
             Ok(Box::new(ExpectServerKx {
                 config: self.config,
@@ -296,7 +297,8 @@ impl State<ClientConnectionData> for ExpectCertificateStatusOrServerKx {
 
                 cx.common
                     .backend
-                    .set_server_cert_details(server_cert_details.clone());
+                    .set_server_cert_details(server_cert_details.clone())
+                    .await?;
 
                 Box::new(ExpectServerKx {
                     config: self.config,
@@ -387,7 +389,8 @@ impl State<ClientConnectionData> for ExpectCertificateStatus {
 
         cx.common
             .backend
-            .set_server_cert_details(server_cert.clone());
+            .set_server_cert_details(server_cert.clone())
+            .await?;
 
         Ok(Box::new(ExpectServerKx {
             config: self.config,
@@ -843,7 +846,7 @@ impl State<ClientConnectionData> for ExpectServerDone {
 
         cx.common
             .backend
-            .set_hs_hash_client_key_exchange(ems_seed.as_ref())
+            .set_hs_hash_client_key_exchange(ems_seed.as_ref().to_vec())
             .await?;
 
         // 5c.
@@ -858,7 +861,10 @@ impl State<ClientConnectionData> for ExpectServerDone {
         let server_key_share =
             PublicKey::new(ecdh_params.curve_params.named_group, &ecdh_params.public.0);
 
-        cx.common.backend.set_server_kx_details(st.server_kx);
+        cx.common
+            .backend
+            .set_server_kx_details(st.server_kx)
+            .await?;
         cx.common
             .backend
             .set_server_key_share(server_key_share)
@@ -877,7 +883,7 @@ impl State<ClientConnectionData> for ExpectServerDone {
         let cf = cx
             .common
             .backend
-            .get_client_finished_vd(hs.as_ref())
+            .get_client_finished_vd(hs.as_ref().to_vec())
             .await?;
         emit_finished(&cf, &mut transcript, cx.common).await?;
 
@@ -1089,7 +1095,7 @@ impl State<ClientConnectionData> for ExpectFinished {
         let expect_verify_data = cx
             .common
             .backend
-            .get_server_finished_vd(vh.as_ref())
+            .get_server_finished_vd(vh.as_ref().to_vec())
             .await?;
 
         // Constant-time verification of this is relatively unimportant: they only

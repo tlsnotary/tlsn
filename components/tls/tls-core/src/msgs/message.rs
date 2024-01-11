@@ -65,7 +65,6 @@ impl MessagePayload {
 /// buffers as well as for fragmenting, joining and encryption/decryption. It can be converted
 /// into a `Message` by decoding the payload.
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct OpaqueMessage {
     pub typ: ContentType,
     pub version: ProtocolVersion,

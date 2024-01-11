@@ -148,12 +148,15 @@ impl Prover<state::Setup> {
             gf2,
         } = self.state;
 
+        let (mpc_ctrl, mpc_fut) = mpc_tls.run();
+
         let server_name = TlsServerName::try_from(self.config.server_dns())?;
         let config = tls_client::ClientConfig::builder()
             .with_safe_defaults()
             .with_root_certificates(self.config.root_cert_store.clone())
             .with_no_client_auth();
-        let client = ClientConnection::new(Arc::new(config), Box::new(mpc_tls), server_name)?;
+        let client =
+            ClientConnection::new(Arc::new(config), Box::new(mpc_ctrl.clone()), server_name)?;
 
         let (conn, conn_fut) = bind_client(socket, client);
 
@@ -162,30 +165,21 @@ impl Prover<state::Setup> {
         let fut = Box::pin({
             #[allow(clippy::let_and_return)]
             let fut = async move {
-                let ClosedConnection {
-                    mut client,
-                    sent,
-                    recv,
-                } = futures::select! {
-                    res = conn_fut.fuse() => res?,
-                    _ = ot_fut => return Err(OTShutdownError)?,
-                    _ = mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
+                let conn_fut = async {
+                    let ClosedConnection { sent, recv, .. } = futures::select! {
+                        res = conn_fut.fuse() => res?,
+                        _ = ot_fut => return Err(OTShutdownError)?,
+                        _ = mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
+                    };
+
+                    mpc_ctrl.close_connection().await?;
+                    mpc_ctrl.finalize().await?;
+
+                    Ok::<_, ProverError>((sent, recv))
                 };
 
-                let backend = client
-                    .backend_mut()
-                    .as_any_mut()
-                    .downcast_mut::<MpcTlsLeader>()
-                    .unwrap();
-
-                let handshake_decommitment = backend
-                    .handshake_decommitment_mut()
-                    .take()
-                    .expect("handshake decommitment is set");
-                let server_public_key = backend
-                    .server_public_key()
-                    .cloned()
-                    .expect("server public key is set");
+                let ((sent, recv), mpc_tls_data) =
+                    futures::try_join!(conn_fut, mpc_fut.map_err(ProverError::from))?;
 
                 Ok(Prover {
                     config: self.config,
@@ -196,8 +190,10 @@ impl Prover<state::Setup> {
                         ot_fut,
                         gf2,
                         start_time,
-                        handshake_decommitment,
-                        server_public_key,
+                        handshake_decommitment: mpc_tls_data
+                            .handshake_decommitment
+                            .expect("handshake was committed"),
+                        server_public_key: mpc_tls_data.server_public_key,
                         transcript_tx: Transcript::new(sent),
                         transcript_rx: Transcript::new(recv),
                     },

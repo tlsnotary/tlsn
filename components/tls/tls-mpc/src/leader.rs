@@ -1,7 +1,7 @@
-use std::any::Any;
+use std::future::Future;
 
 use async_trait::async_trait;
-use futures::{SinkExt, TryFutureExt};
+use futures::SinkExt;
 
 use hmac_sha256 as prf;
 use key_exchange as ke;
@@ -20,7 +20,9 @@ use tls_core::{
     ke::ServerKxDetails,
     key::PublicKey,
     msgs::{
-        enums::{CipherSuite, ContentType, NamedGroup, ProtocolVersion},
+        alert::AlertMessagePayload,
+        codec::Codec,
+        enums::{AlertDescription, CipherSuite, ContentType, NamedGroup, ProtocolVersion},
         handshake::Random,
         message::{OpaqueMessage, PlainMessage},
     },
@@ -28,17 +30,25 @@ use tls_core::{
 };
 
 use crate::{
-    msg::{EncryptMessage, MpcTlsMessage},
+    error::Kind,
+    follower::{
+        ClientFinishedVd, CommitMessage, ComputeClientKey, ComputeKeyExchange, DecryptAlert,
+        DecryptMessage, DecryptServerFinished, EncryptAlert, EncryptClientFinished, EncryptMessage,
+        ServerFinishedVd,
+    },
+    msg::{CloseConnection, Finalize, MpcTlsLeaderMsg, MpcTlsMessage},
     record_layer::{Decrypter, Encrypter},
     MpcTlsChannel, MpcTlsError, MpcTlsLeaderConfig,
 };
 
-/// Wrapper for protocol instances of the leader
+pub type LeaderCtrl = MpcTlsLeaderCtrl<ludi::FuturesAddress<MpcTlsLeaderMsg>>;
+
+#[derive(ludi::Controller)]
 pub struct MpcTlsLeader {
     config: MpcTlsLeaderConfig,
     channel: MpcTlsChannel,
 
-    conn_state: ConnectionState,
+    state: State,
 
     ke: Box<dyn KeyExchange + Send>,
     prf: Box<dyn Prf + Send>,
@@ -46,34 +56,17 @@ pub struct MpcTlsLeader {
     decrypter: Decrypter,
 }
 
-struct ConnectionState {
-    protocol_version: Option<ProtocolVersion>,
-    cipher_suite: Option<CipherSuite>,
+impl ludi::Actor for MpcTlsLeader {
+    type Stop = MpcTlsData;
+    type Error = MpcTlsError;
 
-    client_random: Random,
-    server_random: Option<Random>,
+    async fn stopped(&mut self) -> Result<Self::Stop, Self::Error> {
+        #[cfg(feature = "tracing")]
+        tracing::debug!("leader actor stopped");
 
-    server_cert_details: Option<ServerCertDetails>,
-    server_public_key: Option<PublicKey>,
-    server_kx_details: Option<ServerKxDetails>,
+        let state::Closed { data } = self.state.take().try_into_closed()?;
 
-    handshake_data: Option<HandshakeData>,
-    handshake_decommitment: Option<Decommitment<HandshakeData>>,
-}
-
-impl Default for ConnectionState {
-    fn default() -> Self {
-        Self {
-            protocol_version: Default::default(),
-            cipher_suite: Default::default(),
-            client_random: Random::new().expect("thread rng is available"),
-            server_random: Default::default(),
-            server_cert_details: Default::default(),
-            server_public_key: Default::default(),
-            server_kx_details: Default::default(),
-            handshake_data: Default::default(),
-            handshake_decommitment: Default::default(),
-        }
+        Ok(data)
     }
 }
 
@@ -101,7 +94,7 @@ impl MpcTlsLeader {
         Self {
             config,
             channel,
-            conn_state: ConnectionState::default(),
+            state: State::default(),
             ke,
             prf,
             encrypter,
@@ -110,6 +103,10 @@ impl MpcTlsLeader {
     }
 
     /// Performs any one-time setup operations.
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip_all, err)
+    )]
     pub async fn setup(&mut self) -> Result<(), MpcTlsError> {
         let pms = self.ke.setup().await?;
         self.prf.setup(pms.into_value()).await?;
@@ -117,55 +114,25 @@ impl MpcTlsLeader {
         Ok(())
     }
 
-    /// Sets the protocol version.
-    pub fn set_protocol_version(&mut self, version: ProtocolVersion) {
-        self.conn_state.protocol_version = Some(version);
-    }
+    /// Runs the leader actor.
+    ///
+    /// Returns a control handle and a future that resolves when the actor is stopped.
+    ///
+    /// # Note
+    ///
+    /// The future must be polled continuously to make progress.
+    pub fn run(
+        mut self,
+    ) -> (
+        LeaderCtrl,
+        impl Future<Output = Result<MpcTlsData, MpcTlsError>>,
+    ) {
+        let (mut mailbox, addr) = ludi::mailbox(100);
 
-    /// Sets the cipher suite.
-    pub fn set_cipher_suite(&mut self, suite: CipherSuite) {
-        self.conn_state.cipher_suite = Some(suite);
-    }
+        let ctrl = LeaderCtrl::from(addr);
+        let fut = async move { ludi::run(&mut self, &mut mailbox).await };
 
-    /// Sets the server random.
-    pub fn set_server_random(&mut self, random: Random) {
-        self.conn_state.server_random = Some(random);
-    }
-
-    /// Sets the server ephemeral key.
-    pub fn set_server_key(&mut self, key: PublicKey) -> Result<(), MpcTlsError> {
-        if key.group != NamedGroup::secp256r1 {
-            return Err(MpcTlsError::UnsupportedCurveGroup(key.group));
-        }
-
-        self.conn_state.server_public_key = Some(key);
-
-        Ok(())
-    }
-
-    /// Returns the server's ephemeral public key.
-    pub fn server_public_key(&self) -> Option<&PublicKey> {
-        self.conn_state.server_public_key.as_ref()
-    }
-
-    /// Returns the server's certificate details.
-    pub fn server_cert_details(&self) -> Option<&ServerCertDetails> {
-        self.conn_state.server_cert_details.as_ref()
-    }
-
-    /// Returns the server's kx details.
-    pub fn server_kx_details(&self) -> Option<&ServerKxDetails> {
-        self.conn_state.server_kx_details.as_ref()
-    }
-
-    /// Returns the handshake data.
-    pub fn handshake_decommitment(&self) -> Option<&Decommitment<HandshakeData>> {
-        self.conn_state.handshake_decommitment.as_ref()
-    }
-
-    /// Returns a mutable reference to the handshake data.
-    pub fn handshake_decommitment_mut(&mut self) -> &mut Option<Decommitment<HandshakeData>> {
-        &mut self.conn_state.handshake_decommitment
+        (ctrl, fut)
     }
 
     /// Returns the number of bytes sent and received.
@@ -178,16 +145,264 @@ impl MpcTlsLeader {
         self.encrypter.sent_bytes() + self.decrypter.recv_bytes()
     }
 
-    /// Computes the combined key
+    fn check_transcript_length(&self, len: usize) -> Result<(), MpcTlsError> {
+        let new_len = self.total_bytes_transferred() + len;
+        if new_len > self.config.common().max_transcript_size() {
+            return Err(MpcTlsError::new(
+                Kind::Config,
+                format!(
+                    "max transcript size exceeded: {} > {}",
+                    new_len,
+                    self.config.common().max_transcript_size()
+                ),
+            ));
+        } else {
+            Ok(())
+        }
+    }
+
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "trace", skip(self), err)
+        tracing::instrument(level = "trace", skip_all, err)
     )]
-    pub async fn compute_client_key(&mut self) -> Result<PublicKey, MpcTlsError> {
+    async fn encrypt_client_finished(
+        &mut self,
+        msg: PlainMessage,
+    ) -> Result<OpaqueMessage, MpcTlsError> {
+        let Cf { data } = self.state.take().try_into_cf()?;
+
+        self.channel
+            .send(MpcTlsMessage::EncryptClientFinished(EncryptClientFinished))
+            .await?;
+
+        let msg = self.encrypter.encrypt_private(msg).await?;
+
+        self.state = State::Sf(Sf { data });
+
+        Ok(msg)
+    }
+
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip_all, err)
+    )]
+    async fn encrypt_alert(&mut self, msg: PlainMessage) -> Result<OpaqueMessage, MpcTlsError> {
+        if let Some(alert) = AlertMessagePayload::read_bytes(&msg.payload.0) {
+            // We only allow CloseNotify alerts.
+            if alert.description != AlertDescription::CloseNotify {
+                return Err(MpcTlsError::other(
+                    "attempted to send an alert other than CloseNotify",
+                ));
+            }
+        } else {
+            return Err(MpcTlsError::other(
+                "attempted to send an alert other than CloseNotify",
+            ));
+        }
+
+        self.channel
+            .send(MpcTlsMessage::EncryptAlert(EncryptAlert {
+                msg: msg.payload.0.clone(),
+            }))
+            .await?;
+
+        let msg = self.encrypter.encrypt_public(msg).await?;
+
+        Ok(msg)
+    }
+
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip_all, err)
+    )]
+    async fn encrypt_application_data(
+        &mut self,
+        msg: PlainMessage,
+    ) -> Result<OpaqueMessage, MpcTlsError> {
+        self.state.try_as_active()?;
+        self.check_transcript_length(msg.payload.0.len())?;
+
+        self.channel
+            .send(MpcTlsMessage::EncryptMessage(EncryptMessage {
+                len: msg.payload.0.len(),
+            }))
+            .await?;
+
+        let msg = self.encrypter.encrypt_private(msg).await?;
+
+        Ok(msg)
+    }
+
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip_all, err)
+    )]
+    async fn decrypt_server_finished(
+        &mut self,
+        msg: OpaqueMessage,
+    ) -> Result<PlainMessage, MpcTlsError> {
+        let Sf { data } = self.state.take().try_into_sf()?;
+
+        self.channel
+            .send(MpcTlsMessage::DecryptServerFinished(
+                DecryptServerFinished {
+                    ciphertext: msg.payload.0.clone(),
+                },
+            ))
+            .await?;
+
+        let msg = self.decrypter.decrypt_private(msg).await?;
+
+        self.state = State::Active(Active { data });
+
+        Ok(msg)
+    }
+
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip_all, err)
+    )]
+    async fn decrypt_alert(&mut self, msg: OpaqueMessage) -> Result<PlainMessage, MpcTlsError> {
+        let Active { data } = self.state.take().try_into_active()?;
+
+        self.channel
+            .send(MpcTlsMessage::DecryptAlert(DecryptAlert {
+                ciphertext: msg.payload.0.clone(),
+            }))
+            .await?;
+
+        let msg = self.decrypter.decrypt_public(msg).await?;
+
+        self.state = State::Closed(Closed { data });
+
+        Ok(msg)
+    }
+
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "trace", skip_all, err)
+    )]
+    async fn decrypt_application_data(
+        &mut self,
+        msg: OpaqueMessage,
+    ) -> Result<PlainMessage, MpcTlsError> {
+        self.state.try_as_active()?;
+        self.check_transcript_length(msg.payload.0.len())?;
+
+        self.channel
+            .feed(MpcTlsMessage::CommitMessage(CommitMessage {
+                msg: msg.payload.0.clone(),
+            }))
+            .await?;
+
+        self.channel
+            .send(MpcTlsMessage::DecryptMessage(DecryptMessage))
+            .await?;
+
+        let msg = self.decrypter.decrypt_private(msg).await?;
+
+        Ok(msg)
+    }
+}
+
+#[ludi::implement(ctrl(err))]
+impl MpcTlsLeader {
+    /// Closes the connection.
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(name = "close_connection", level = "trace", skip_all, err)
+    )]
+    #[msg(skip, name = "CloseConnection")]
+    pub async fn close_connection(&mut self) -> Result<(), MpcTlsError> {
+        #[cfg(feature = "tracing")]
+        tracing::debug!("closing connection");
+
+        self.channel
+            .send(MpcTlsMessage::CloseConnection(CloseConnection))
+            .await?;
+
+        if self.state.is_closed() {
+            // Already closed from receiving CloseNotify.
+            return Ok(());
+        }
+
+        let Active { data } = self.state.take().try_into_active()?;
+
+        self.state = State::Closed(Closed { data });
+
+        Ok(())
+    }
+
+    /// Finalizes the MPC-TLS protocol.
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(name = "finalize", level = "trace", skip_all, err)
+    )]
+    #[msg(skip, name = "Finalize")]
+    pub async fn finalize(&mut self) -> Result<(), MpcTlsError> {
+        #[cfg(feature = "tracing")]
+        tracing::debug!("finalizing MPC-TLS protocol");
+
+        self.channel.send(MpcTlsMessage::Finalize(Finalize)).await?;
+
+        ctx.stop();
+
+        Ok(())
+    }
+}
+
+#[ludi::implement]
+#[ctrl(err = "MpcTlsError::from")]
+#[msg(foreign, wrap, vis = "pub")]
+#[async_trait]
+impl Backend for MpcTlsLeader {
+    async fn set_protocol_version(&mut self, version: ProtocolVersion) -> Result<(), BackendError> {
+        let Ke {
+            protocol_version, ..
+        } = self.state.try_as_ke_mut().map_err(MpcTlsError::from)?;
+
+        *protocol_version = Some(version);
+
+        Ok(())
+    }
+
+    async fn set_cipher_suite(&mut self, suite: SupportedCipherSuite) -> Result<(), BackendError> {
+        let Ke { cipher_suite, .. } = self.state.try_as_ke_mut().map_err(MpcTlsError::from)?;
+
+        *cipher_suite = Some(suite.suite());
+
+        Ok(())
+    }
+
+    async fn get_suite(&mut self) -> Result<SupportedCipherSuite, BackendError> {
+        unimplemented!()
+    }
+
+    async fn set_encrypt(&mut self, mode: EncryptMode) -> Result<(), BackendError> {
+        unimplemented!()
+    }
+
+    async fn set_decrypt(&mut self, mode: DecryptMode) -> Result<(), BackendError> {
+        unimplemented!()
+    }
+
+    async fn get_client_random(&mut self) -> Result<Random, BackendError> {
+        let Ke { client_random, .. } = self.state.try_as_ke().map_err(MpcTlsError::from)?;
+
+        Ok(*client_random)
+    }
+
+    async fn get_client_key_share(&mut self) -> Result<PublicKey, BackendError> {
+        self.channel
+            .send(MpcTlsMessage::ComputeClientKey(ComputeClientKey))
+            .await
+            .map_err(MpcTlsError::from)?;
+
         let pk = self
             .ke
             .compute_client_key(SecretKey::random(&mut rand::rngs::OsRng))
-            .await?
+            .await
+            .map_err(MpcTlsError::from)?
             .expect("client key is returned as leader");
 
         Ok(PublicKey::new(
@@ -196,36 +411,125 @@ impl MpcTlsLeader {
         ))
     }
 
-    /// Computes the TLS session keys
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip(self), err)
-    )]
-    pub async fn compute_session_keys(&mut self) -> Result<(), MpcTlsError> {
-        let server_cert_details = self
-            .conn_state
-            .server_cert_details
-            .as_ref()
-            .ok_or(MpcTlsError::ServerCertNotSet)?;
+    async fn set_server_random(&mut self, random: Random) -> Result<(), BackendError> {
+        let Ke { server_random, .. } = self.state.try_as_ke_mut().map_err(MpcTlsError::from)?;
 
-        let server_kx_details = self
-            .conn_state
-            .server_kx_details
-            .as_ref()
-            .ok_or(MpcTlsError::ServerKxDetailsNotSet)?;
+        *server_random = Some(random);
 
-        let server_key = self
-            .conn_state
-            .server_public_key
-            .as_ref()
-            .ok_or(MpcTlsError::ServerKeyNotSet)?;
+        Ok(())
+    }
 
-        let server_random = self
-            .conn_state
-            .server_random
-            .ok_or(MpcTlsError::ServerRandomNotSet)?;
+    async fn set_server_key_share(&mut self, key: PublicKey) -> Result<(), BackendError> {
+        let Ke {
+            server_public_key, ..
+        } = self.state.try_as_ke_mut().map_err(MpcTlsError::from)?;
 
-        let client_random = self.conn_state.client_random;
+        if key.group != NamedGroup::secp256r1 {
+            Err(MpcTlsError::new(
+                Kind::KeyExchange,
+                format!("unsupported key group: {:?}", key.group),
+            )
+            .into())
+        } else {
+            *server_public_key = Some(key);
+            Ok(())
+        }
+    }
+
+    async fn set_server_cert_details(
+        &mut self,
+        cert_details: ServerCertDetails,
+    ) -> Result<(), BackendError> {
+        let Ke {
+            server_cert_details,
+            ..
+        } = self.state.try_as_ke_mut().map_err(MpcTlsError::from)?;
+
+        *server_cert_details = Some(cert_details);
+
+        Ok(())
+    }
+
+    async fn set_server_kx_details(
+        &mut self,
+        kx_details: ServerKxDetails,
+    ) -> Result<(), BackendError> {
+        let Ke {
+            server_kx_details, ..
+        } = self.state.try_as_ke_mut().map_err(MpcTlsError::from)?;
+
+        *server_kx_details = Some(kx_details);
+
+        Ok(())
+    }
+
+    async fn set_hs_hash_client_key_exchange(&mut self, hash: Vec<u8>) -> Result<(), BackendError> {
+        Ok(())
+    }
+
+    async fn set_hs_hash_server_hello(&mut self, hash: Vec<u8>) -> Result<(), BackendError> {
+        Ok(())
+    }
+
+    async fn get_server_finished_vd(&mut self, hash: Vec<u8>) -> Result<Vec<u8>, BackendError> {
+        let hash: [u8; 32] = hash
+            .try_into()
+            .map_err(|_| MpcTlsError::other("server finished handshake hash is not 32 bytes"))?;
+
+        self.channel
+            .send(MpcTlsMessage::ServerFinishedVd(ServerFinishedVd))
+            .await
+            .map_err(|e| BackendError::InternalError(e.to_string()))?;
+
+        let vd = self
+            .prf
+            .compute_server_finished_vd_private(hash)
+            .await
+            .map_err(MpcTlsError::from)?;
+
+        Ok(vd.to_vec())
+    }
+
+    async fn get_client_finished_vd(&mut self, hash: Vec<u8>) -> Result<Vec<u8>, BackendError> {
+        let hash: [u8; 32] = hash
+            .try_into()
+            .map_err(|_| MpcTlsError::other("client finished handshake hash is not 32 bytes"))?;
+
+        self.channel
+            .send(MpcTlsMessage::ClientFinishedVd(ClientFinishedVd))
+            .await
+            .map_err(|e| BackendError::InternalError(e.to_string()))?;
+
+        let vd = self
+            .prf
+            .compute_client_finished_vd_private(hash)
+            .await
+            .map_err(MpcTlsError::from)?;
+
+        Ok(vd.to_vec())
+    }
+
+    async fn prepare_encryption(&mut self) -> Result<(), BackendError> {
+        let Ke {
+            protocol_version,
+            cipher_suite,
+            client_random,
+            server_random,
+            server_cert_details,
+            server_public_key,
+            server_kx_details,
+        } = self.state.take().try_into_ke().map_err(MpcTlsError::from)?;
+
+        let protocol_version =
+            protocol_version.ok_or(MpcTlsError::other("protocol version not set"))?;
+        let cipher_suite = cipher_suite.ok_or(MpcTlsError::other("cipher suite not set"))?;
+        let server_cert_details =
+            server_cert_details.ok_or(MpcTlsError::other("server cert not set"))?;
+        let server_kx_details =
+            server_kx_details.ok_or(MpcTlsError::other("server kx details not set"))?;
+        let server_public_key =
+            server_public_key.ok_or(MpcTlsError::other("server public key not set"))?;
+        let server_random = server_random.ok_or(MpcTlsError::other("server random not set"))?;
 
         let handshake_data = HandshakeData::new(
             server_cert_details.clone(),
@@ -234,24 +538,28 @@ impl MpcTlsLeader {
             server_random,
         );
 
-        if self.config.common().handshake_commit() {
-            let (decommitment, commitment) = handshake_data.clone().hash_commit();
+        let (handshake_decommitment, handshake_commitment) =
+            if self.config.common().handshake_commit() {
+                let (decommitment, commitment) = handshake_data.clone().hash_commit();
 
-            self.conn_state.handshake_decommitment = Some(decommitment);
+                (Some(decommitment), Some(commitment))
+            } else {
+                (None, None)
+            };
 
-            self.channel
-                .send(MpcTlsMessage::HandshakeCommitment(commitment))
-                .await?;
-        }
+        self.channel
+            .send(MpcTlsMessage::ComputeKeyExchange(ComputeKeyExchange {
+                handshake_commitment,
+            }))
+            .await
+            .map_err(|e| BackendError::InternalError(e.to_string()))?;
 
-        self.conn_state.handshake_data = Some(handshake_data);
-
-        let server_key = p256::PublicKey::from_sec1_bytes(&server_key.key)
-            .map_err(|_| MpcTlsError::InvalidServerKey)?;
+        let server_key = p256::PublicKey::from_sec1_bytes(&server_public_key.key)
+            .map_err(|_| MpcTlsError::other("server key is not valid sec1p256"))?;
 
         self.ke.set_server_key(server_key);
 
-        self.ke.compute_pms().await?;
+        self.ke.compute_pms().await.map_err(MpcTlsError::from)?;
 
         let SessionKeys {
             client_write_key,
@@ -261,231 +569,154 @@ impl MpcTlsLeader {
         } = self
             .prf
             .compute_session_keys_private(client_random.0, server_random.0)
-            .await?;
+            .await
+            .map_err(MpcTlsError::from)?;
 
         self.encrypter.set_key(client_write_key, client_iv).await?;
         self.decrypter.set_key(server_write_key, server_iv).await?;
 
-        Ok(())
-    }
-
-    /// Computes the client finished verify data
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip(self, hash), err)
-    )]
-    pub async fn compute_client_finished_vd(
-        &mut self,
-        hash: &[u8],
-    ) -> Result<Vec<u8>, MpcTlsError> {
-        let hash: [u8; 32] = hash
-            .try_into()
-            .map_err(|_| MpcTlsError::InvalidHandshakeHash(hash.to_vec()))?;
-
-        let vd = self.prf.compute_client_finished_vd_private(hash).await?;
-
-        Ok(vd.to_vec())
-    }
-
-    /// Computes the server finished verify data
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip(self, hash), err)
-    )]
-    pub async fn compute_server_finished_vd(
-        &mut self,
-        hash: &[u8],
-    ) -> Result<Vec<u8>, MpcTlsError> {
-        let hash: [u8; 32] = hash
-            .try_into()
-            .map_err(|_| MpcTlsError::InvalidHandshakeHash(hash.to_vec()))?;
-
-        let vd = self.prf.compute_server_finished_vd_private(hash).await?;
-
-        Ok(vd.to_vec())
-    }
-
-    /// Encrypt a message
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip(self, msg), err)
-    )]
-    pub async fn encrypt(&mut self, msg: PlainMessage) -> Result<OpaqueMessage, MpcTlsError> {
-        if self.total_bytes_transferred() + msg.payload.0.len()
-            > self.config.common().max_transcript_size()
-        {
-            return Err(MpcTlsError::MaxTranscriptLengthExceeded(
-                self.total_bytes_transferred() + msg.payload.0.len(),
-                self.config.common().max_transcript_size(),
-            ));
-        }
-
-        match msg.typ {
-            ContentType::Alert => {
-                self.channel
-                    .send(MpcTlsMessage::SendCloseNotify(EncryptMessage {
-                        typ: msg.typ,
-                        version: msg.version,
-                        len: msg.payload.0.len(),
-                    }))
-                    .await?;
-            }
-            _ => {
-                self.channel
-                    .send(MpcTlsMessage::EncryptMessage(EncryptMessage {
-                        typ: msg.typ,
-                        version: msg.version,
-                        len: msg.payload.0.len(),
-                    }))
-                    .await?;
-            }
-        }
-
-        let msg = self.encrypter.encrypt_private(msg).await?;
-
-        Ok(msg)
-    }
-
-    /// Decrypt a message
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip(self, msg), err)
-    )]
-    pub async fn decrypt(&mut self, msg: OpaqueMessage) -> Result<PlainMessage, MpcTlsError> {
-        if self.total_bytes_transferred() + msg.payload.0.len()
-            > self.config.common().max_transcript_size()
-        {
-            return Err(MpcTlsError::MaxTranscriptLengthExceeded(
-                self.total_bytes_transferred() + msg.payload.0.len(),
-                self.config.common().max_transcript_size(),
-            ));
-        }
-
-        self.channel
-            .send(MpcTlsMessage::CommitMessage(msg.clone()))
-            .await?;
-
-        self.channel.send(MpcTlsMessage::DecryptMessage).await?;
-
-        let msg = match msg.typ {
-            ContentType::Alert => self.decrypter.decrypt_public(msg).await?,
-            _ => self.decrypter.decrypt_private(msg).await?,
-        };
-
-        Ok(msg)
-    }
-}
-
-#[async_trait]
-impl Backend for MpcTlsLeader {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-
-    async fn set_protocol_version(&mut self, version: ProtocolVersion) -> Result<(), BackendError> {
-        self.set_protocol_version(version);
+        self.state = State::Cf(Cf {
+            data: MpcTlsData {
+                protocol_version,
+                cipher_suite,
+                client_random,
+                server_random,
+                server_cert_details,
+                server_public_key,
+                server_kx_details,
+                handshake_data,
+                handshake_decommitment,
+            },
+        });
 
         Ok(())
-    }
-
-    async fn set_cipher_suite(&mut self, suite: SupportedCipherSuite) -> Result<(), BackendError> {
-        self.set_cipher_suite(suite.suite());
-
-        Ok(())
-    }
-
-    async fn get_suite(&mut self) -> Result<SupportedCipherSuite, BackendError> {
-        todo!()
-    }
-
-    async fn set_encrypt(&mut self, _mode: EncryptMode) -> Result<(), BackendError> {
-        Ok(())
-    }
-
-    async fn set_decrypt(&mut self, _mode: DecryptMode) -> Result<(), BackendError> {
-        Ok(())
-    }
-
-    async fn get_client_random(&mut self) -> Result<Random, BackendError> {
-        Ok(self.conn_state.client_random)
-    }
-
-    async fn get_client_key_share(&mut self) -> Result<PublicKey, BackendError> {
-        let key = self.compute_client_key().await.unwrap();
-
-        Ok(key)
-    }
-
-    async fn set_server_random(&mut self, random: Random) -> Result<(), BackendError> {
-        self.set_server_random(random);
-
-        Ok(())
-    }
-
-    async fn set_server_key_share(&mut self, key: PublicKey) -> Result<(), BackendError> {
-        self.set_server_key(key)
-            .map_err(|_| BackendError::InvalidServerKey)?;
-
-        Ok(())
-    }
-
-    fn set_server_cert_details(&mut self, cert_details: ServerCertDetails) {
-        self.conn_state.server_cert_details = Some(cert_details);
-    }
-
-    fn set_server_kx_details(&mut self, kx_details: ServerKxDetails) {
-        self.conn_state.server_kx_details = Some(kx_details);
-    }
-
-    async fn set_hs_hash_client_key_exchange(&mut self, _hash: &[u8]) -> Result<(), BackendError> {
-        Ok(())
-    }
-
-    async fn set_hs_hash_server_hello(&mut self, _hash: &[u8]) -> Result<(), BackendError> {
-        Ok(())
-    }
-
-    async fn get_server_finished_vd(&mut self, hash: &[u8]) -> Result<Vec<u8>, BackendError> {
-        Ok(self
-            .compute_server_finished_vd(hash)
-            .await
-            .map_err(|e| BackendError::InternalError(e.to_string()))?)
-    }
-
-    async fn get_client_finished_vd(&mut self, hash: &[u8]) -> Result<Vec<u8>, BackendError> {
-        Ok(self
-            .compute_client_finished_vd(hash)
-            .await
-            .map_err(|e| BackendError::InternalError(e.to_string()))?)
-    }
-
-    async fn prepare_encryption(&mut self) -> Result<(), BackendError> {
-        self.compute_session_keys()
-            .await
-            .map_err(|e| BackendError::InternalError(e.to_string()))
     }
 
     async fn encrypt(
         &mut self,
         msg: PlainMessage,
-        _seq: u64,
+        seq: u64,
     ) -> Result<OpaqueMessage, BackendError> {
-        self.encrypt(msg)
-            .map_err(|e| BackendError::EncryptionError(e.to_string()))
-            .await
+        let msg = match msg.typ {
+            ContentType::Handshake => self.encrypt_client_finished(msg).await,
+            ContentType::ApplicationData => self.encrypt_application_data(msg).await,
+            ContentType::Alert => self.encrypt_alert(msg).await,
+            _ => {
+                return Err(BackendError::EncryptionError(
+                    "unexpected content type".to_string(),
+                ))
+            }
+        }
+        .map_err(BackendError::from)?;
+
+        Ok(msg)
     }
 
     async fn decrypt(
         &mut self,
         msg: OpaqueMessage,
-        _seq: u64,
+        seq: u64,
     ) -> Result<PlainMessage, BackendError> {
-        self.decrypt(msg)
-            .map_err(|e| BackendError::DecryptionError(e.to_string()))
-            .await
+        let msg = match msg.typ {
+            ContentType::Handshake => self.decrypt_server_finished(msg).await,
+            ContentType::ApplicationData => self.decrypt_application_data(msg).await,
+            ContentType::Alert => self.decrypt_alert(msg).await,
+            _ => {
+                return Err(BackendError::DecryptionError(
+                    "unexpected content type".to_string(),
+                ))
+            }
+        }
+        .map_err(BackendError::from)?;
+
+        Ok(msg)
     }
 }
+
+#[derive(Debug)]
+pub struct MpcTlsData {
+    pub protocol_version: ProtocolVersion,
+    pub cipher_suite: CipherSuite,
+    pub client_random: Random,
+    pub server_random: Random,
+    pub server_cert_details: ServerCertDetails,
+    pub server_public_key: PublicKey,
+    pub server_kx_details: ServerKxDetails,
+    pub handshake_data: HandshakeData,
+    pub handshake_decommitment: Option<Decommitment<HandshakeData>>,
+}
+
+mod state {
+    use super::*;
+    use enum_try_as_inner::EnumTryAsInner;
+
+    #[derive(Debug, EnumTryAsInner)]
+    #[derive_err(Debug)]
+    pub(super) enum State {
+        Ke(Ke),
+        Cf(Cf),
+        Sf(Sf),
+        Active(Active),
+        Closed(Closed),
+        Error,
+    }
+
+    impl State {
+        pub(super) fn take(&mut self) -> Self {
+            std::mem::replace(self, State::Error)
+        }
+    }
+
+    impl Default for State {
+        fn default() -> Self {
+            State::Ke(Ke {
+                protocol_version: None,
+                cipher_suite: None,
+                client_random: Random::new().expect("rng is available"),
+                server_random: None,
+                server_cert_details: None,
+                server_public_key: None,
+                server_kx_details: None,
+            })
+        }
+    }
+
+    impl From<StateError> for MpcTlsError {
+        fn from(e: StateError) -> Self {
+            Self::new(Kind::State, e)
+        }
+    }
+
+    #[derive(Debug)]
+    pub(super) struct Ke {
+        pub(super) protocol_version: Option<ProtocolVersion>,
+        pub(super) cipher_suite: Option<CipherSuite>,
+        pub(super) client_random: Random,
+        pub(super) server_random: Option<Random>,
+        pub(super) server_cert_details: Option<ServerCertDetails>,
+        pub(super) server_public_key: Option<PublicKey>,
+        pub(super) server_kx_details: Option<ServerKxDetails>,
+    }
+
+    #[derive(Debug)]
+    pub(super) struct Cf {
+        pub(super) data: MpcTlsData,
+    }
+
+    #[derive(Debug)]
+    pub(super) struct Sf {
+        pub(super) data: MpcTlsData,
+    }
+
+    #[derive(Debug)]
+    pub(super) struct Active {
+        pub(super) data: MpcTlsData,
+    }
+
+    #[derive(Debug)]
+    pub(super) struct Closed {
+        pub(super) data: MpcTlsData,
+    }
+}
+
+use state::*;
