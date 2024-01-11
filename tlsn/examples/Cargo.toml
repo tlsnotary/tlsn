@@ -54,10 +54,6 @@ name = "simple_verifier"
 path = "simple/simple_verifier.rs"
 
 [[example]]
-name = "simple_notary"
-path = "simple/simple_notary.rs"
-
-[[example]]
 name = "twitter_dm"
 path = "twitter/twitter_dm.rs"
 

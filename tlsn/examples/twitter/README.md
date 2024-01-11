@@ -1,13 +1,11 @@
 # Notarize Twitter DMs
 
-The `twtter_dm.rs` example sets up a TLS connection with Twitter and notarizes the requested DMs. The full received transcript is notarized in one commitment, so nothing is redacted. The result is written to a local JSON file (`twitter_dm.json`) for easier inspection.
+The `twtter_dm.rs` example sets up a TLS connection with Twitter and notarizes the requested DMs. The full received transcript is notarized in one commitment, so nothing is redacted. The resulting proof is written to a local JSON file (`twitter_dm_proof.json`) for easier inspection.
 
 This involves 3 steps:
 1. Configure the inputs
 2. Start the (local) notary server
 3. Notarize
-
-P/S: The notary server used in this example is more functional compared to its [simple version](../simple/simple_notary.rs). The simple version is easier to integrate with from prover perspective, whereas this notary server provides additional features like TLS connection with prover, WebSocket endpoint, API endpoints for further customisation etc.
 
 ## Inputs
 
@@ -104,3 +102,5 @@ If the transcript was too long, you may encounter the following error:
 ```
 thread 'tokio-runtime-worker' panicked at 'called `Result::unwrap()` on an `Err` value: IOError(Custom { kind: InvalidData, error: BackendError(DecryptionError("Other: KOSReceiverActor is not setup")) })', /Users/heeckhau/tlsnotary/tlsn/tlsn/tlsn-prover/src/lib.rs:173:50
 ```
+
+> **_NOTE:_** ℹ️ <https://tlsnotary.github.io/proof_viz/> hosts a generic proof visualizer. Drag and drop your proof into the drop zone to check and render your proof.

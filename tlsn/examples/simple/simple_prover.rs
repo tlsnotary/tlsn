@@ -6,23 +6,28 @@ use futures::AsyncWriteExt;
 use hyper::{Body, Request, StatusCode};
 use std::ops::Range;
 use tlsn_core::proof::TlsProof;
-use tokio::io::AsyncWriteExt as _;
+use tokio::io::{AsyncWriteExt as _, DuplexStream};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 
-use tlsn_prover::tls::{Prover, ProverConfig};
+use tlsn_prover::tls::{state::Notarize, Prover, ProverConfig};
 
 // Setting of the application server
 const SERVER_DOMAIN: &str = "example.com";
 const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36";
 
-// Setting of the notary server — make sure these are the same with those in ./simple_notary.rs
-const NOTARY_HOST: &str = "127.0.0.1";
-const NOTARY_PORT: u16 = 8080;
+use p256::pkcs8::DecodePrivateKey;
+use std::str;
+
+use tlsn_verifier::tls::{Verifier, VerifierConfig};
 
 #[tokio::main]
 async fn main() {
-    // Initialize logging
     tracing_subscriber::fmt::init();
+
+    let (prover_socket, notary_socket) = tokio::io::duplex(1 << 16);
+
+    // Start a local simple notary service
+    start_notary_thread(prover_socket).await;
 
     // A Prover configuration
     let config = ProverConfig::builder()
@@ -30,12 +35,6 @@ async fn main() {
         .server_dns(SERVER_DOMAIN)
         .build()
         .unwrap();
-
-    // Connect to the Notary
-    let notary_socket = tokio::net::TcpStream::connect((NOTARY_HOST, NOTARY_PORT))
-        .await
-        .unwrap();
-    println!("Connected to the Notary");
 
     // Create a Prover and set it up with the Notary
     // This will set up the MPC backend prior to connecting to the server.
@@ -96,8 +95,85 @@ async fn main() {
     let prover = prover_task.await.unwrap().unwrap();
 
     // Prepare for notarization.
-    let mut prover = prover.start_notarize();
+    let prover = prover.start_notarize();
 
+    // Build proof (with or without redactions)
+    let redact = false;
+    let proof = if !redact {
+        build_proof_without_redactions(prover).await
+    } else {
+        build_proof_with_redactions(prover).await
+    };
+
+    // Write the proof to a file
+    let mut file = tokio::fs::File::create("simple_proof.json").await.unwrap();
+    file.write_all(serde_json::to_string_pretty(&proof).unwrap().as_bytes())
+        .await
+        .unwrap();
+
+    println!("Notarization completed successfully!");
+    println!("The proof has been written to `simple_proof.json`");
+}
+
+/// Find the ranges of the public and private parts of a sequence.
+///
+/// Returns a tuple of `(public, private)` ranges.
+fn find_ranges(seq: &[u8], private_seq: &[&[u8]]) -> (Vec<Range<usize>>, Vec<Range<usize>>) {
+    let mut private_ranges = Vec::new();
+    for s in private_seq {
+        for (idx, w) in seq.windows(s.len()).enumerate() {
+            if w == *s {
+                private_ranges.push(idx..(idx + w.len()));
+            }
+        }
+    }
+
+    let mut sorted_ranges = private_ranges.clone();
+    sorted_ranges.sort_by_key(|r| r.start);
+
+    let mut public_ranges = Vec::new();
+    let mut last_end = 0;
+    for r in sorted_ranges {
+        if r.start > last_end {
+            public_ranges.push(last_end..r.start);
+        }
+        last_end = r.end;
+    }
+
+    if last_end < seq.len() {
+        public_ranges.push(last_end..seq.len());
+    }
+
+    (public_ranges, private_ranges)
+}
+
+async fn build_proof_without_redactions(mut prover: Prover<Notarize>) -> TlsProof {
+    let sent_len = prover.sent_transcript().data().len();
+    let recv_len = prover.recv_transcript().data().len();
+
+    let builder = prover.commitment_builder();
+    let sent_commitment = builder.commit_sent(0..sent_len).unwrap();
+    let recv_commitment = builder.commit_recv(0..recv_len).unwrap();
+
+    // Finalize, returning the notarized session
+    let notarized_session = prover.finalize().await.unwrap();
+
+    // Create a proof for all committed data in this session
+    let mut proof_builder = notarized_session.data().build_substrings_proof();
+
+    // Reveal all the public ranges
+    proof_builder.reveal(sent_commitment).unwrap();
+    proof_builder.reveal(recv_commitment).unwrap();
+
+    let substrings_proof = proof_builder.build().unwrap();
+
+    TlsProof {
+        session: notarized_session.session_proof(),
+        substrings: substrings_proof,
+    }
+}
+
+async fn build_proof_with_redactions(mut prover: Prover<Notarize>) -> TlsProof {
     // Identify the ranges in the outbound data which contain data which we want to disclose
     let (sent_public_ranges, _) = find_ranges(
         prover.sent_transcript().data(),
@@ -145,49 +221,31 @@ async fn main() {
 
     let substrings_proof = proof_builder.build().unwrap();
 
-    let proof = TlsProof {
+    TlsProof {
         session: notarized_session.session_proof(),
         substrings: substrings_proof,
-    };
-
-    // Write the proof to a file
-    let mut file = tokio::fs::File::create("proof.json").await.unwrap();
-    file.write_all(serde_json::to_string_pretty(&proof).unwrap().as_bytes())
-        .await
-        .unwrap();
-
-    println!("Notarization completed successfully!");
-    println!("The proof has been written to proof.json");
+    }
 }
 
-/// Find the ranges of the public and private parts of a sequence.
-///
-/// Returns a tuple of `(public, private)` ranges.
-fn find_ranges(seq: &[u8], private_seq: &[&[u8]]) -> (Vec<Range<usize>>, Vec<Range<usize>>) {
-    let mut private_ranges = Vec::new();
-    for s in private_seq {
-        for (idx, w) in seq.windows(s.len()).enumerate() {
-            if w == *s {
-                private_ranges.push(idx..(idx + w.len()));
-            }
-        }
-    }
+async fn start_notary_thread(socket: DuplexStream) {
+    tokio::spawn(async {
+        // Load the notary signing key
+        let signing_key_str = str::from_utf8(include_bytes!(
+            "../../../notary-server/fixture/notary/notary.key"
+        ))
+        .unwrap();
+        let signing_key = p256::ecdsa::SigningKey::from_pkcs8_pem(signing_key_str).unwrap();
 
-    let mut sorted_ranges = private_ranges.clone();
-    sorted_ranges.sort_by_key(|r| r.start);
+        // Spawn notarization task to be run concurrently
+        tokio::spawn(async move {
+            // Setup default config. Normally a different ID would be generated
+            // for each notarization.
+            let config = VerifierConfig::builder().id("example").build().unwrap();
 
-    let mut public_ranges = Vec::new();
-    let mut last_end = 0;
-    for r in sorted_ranges {
-        if r.start > last_end {
-            public_ranges.push(last_end..r.start);
-        }
-        last_end = r.end;
-    }
-
-    if last_end < seq.len() {
-        public_ranges.push(last_end..seq.len());
-    }
-
-    (public_ranges, private_ranges)
+            Verifier::new(config)
+                .notarize::<_, p256::ecdsa::Signature>(socket.compat(), &signing_key)
+                .await
+                .unwrap();
+        });
+    });
 }
