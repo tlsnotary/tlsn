@@ -1,6 +1,4 @@
-use std::collections::VecDeque;
-use std::future::Future;
-use std::mem;
+use std::{collections::VecDeque, future::Future, mem};
 
 use futures::{
     stream::{SplitSink, SplitStream},
@@ -18,15 +16,14 @@ use prf::SessionKeys;
 use aead::Aead;
 use hmac_sha256::Prf;
 use ke::KeyExchange;
-use tls_core::msgs::enums::NamedGroup;
-use tls_core::msgs::{base::Payload, message::PlainMessage};
 use tls_core::{
     key::PublicKey,
     msgs::{
         alert::AlertMessagePayload,
+        base::Payload,
         codec::Codec,
-        enums::{AlertDescription, ContentType, ProtocolVersion},
-        message::OpaqueMessage,
+        enums::{AlertDescription, ContentType, NamedGroup, ProtocolVersion},
+        message::{OpaqueMessage, PlainMessage},
     },
 };
 
