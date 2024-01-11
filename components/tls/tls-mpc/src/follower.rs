@@ -547,9 +547,6 @@ impl MpcTlsFollower {
 
     pub async fn decrypt_alert(&mut self, ciphertext: Vec<u8>) {
         ctx.try_or_stop(|_| self.decrypt_alert(ciphertext)).await;
-
-        // We shut down regardless of the type of alert
-        ctx.stop();
     }
 
     pub async fn commit_message(&mut self, msg: Vec<u8>) {
