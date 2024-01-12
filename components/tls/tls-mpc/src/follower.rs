@@ -34,8 +34,10 @@ use crate::{
     MpcTlsChannel, MpcTlsError, MpcTlsFollowerConfig,
 };
 
+/// Controller for MPC-TLS follower.
 pub type FollowerCtrl = MpcTlsFollowerCtrl<FuturesAddress<MpcTlsFollowerMsg>>;
 
+/// MPC-TLS follower.
 #[derive(ludi::Controller)]
 pub struct MpcTlsFollower {
     state: State,
@@ -50,6 +52,7 @@ pub struct MpcTlsFollower {
     decrypter: Decrypter,
 }
 
+/// Data collected by the MPC-TLS follower.
 #[derive(Debug)]
 pub struct MpcTlsFollowerData {
     /// The prover's commitment to the handshake data

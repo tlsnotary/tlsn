@@ -68,6 +68,8 @@ impl TryFrom<MpcTlsMessage> for MpcTlsFollowerMsg {
 }
 
 #[derive(ludi::Wrap)]
+#[allow(missing_docs)]
+#[ludi(return_attrs(allow(missing_docs)))]
 pub enum MpcTlsLeaderMsg {
     BackendMsgSetProtocolVersion(BackendMsgSetProtocolVersion),
     BackendMsgSetCipherSuite(BackendMsgSetCipherSuite),
@@ -92,6 +94,8 @@ pub enum MpcTlsLeaderMsg {
 }
 
 #[derive(ludi::Wrap)]
+#[allow(missing_docs)]
+#[ludi(return_attrs(allow(missing_docs)))]
 pub enum MpcTlsFollowerMsg {
     ComputeClientKey(ComputeClientKey),
     ComputeKeyExchange(ComputeKeyExchange),
@@ -108,10 +112,12 @@ pub enum MpcTlsFollowerMsg {
     Finalize(Finalize),
 }
 
+/// Message to close the connection
 #[derive(Debug, ludi::Message, Serialize, Deserialize)]
 #[ludi(return_ty = "Result<(), MpcTlsError>")]
 pub struct CloseConnection;
 
+/// Message to finalize the MPC-TLS protocol
 #[derive(Debug, ludi::Message, Serialize, Deserialize)]
 #[ludi(return_ty = "Result<(), MpcTlsError>")]
 pub struct Finalize;

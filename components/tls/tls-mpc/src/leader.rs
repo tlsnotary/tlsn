@@ -41,8 +41,10 @@ use crate::{
     MpcTlsChannel, MpcTlsError, MpcTlsLeaderConfig,
 };
 
+/// Controller for MPC-TLS leader.
 pub type LeaderCtrl = MpcTlsLeaderCtrl<ludi::FuturesAddress<MpcTlsLeaderMsg>>;
 
+/// MPC-TLS leader.
 #[derive(ludi::Controller)]
 pub struct MpcTlsLeader {
     config: MpcTlsLeaderConfig,
@@ -633,16 +635,26 @@ impl Backend for MpcTlsLeader {
     }
 }
 
+/// Data collected by the MPC-TLS leader.
 #[derive(Debug)]
 pub struct MpcTlsData {
+    /// TLS protocol version.
     pub protocol_version: ProtocolVersion,
+    /// TLS cipher suite.
     pub cipher_suite: CipherSuite,
+    /// Client random.
     pub client_random: Random,
+    /// Server random.
     pub server_random: Random,
+    /// Server certificate details.
     pub server_cert_details: ServerCertDetails,
+    /// Server ephemeral public key.
     pub server_public_key: PublicKey,
+    /// Server key exchange details, eg certificate.
     pub server_kx_details: ServerKxDetails,
+    /// Handshake data.
     pub handshake_data: HandshakeData,
+    /// Handshake data decommitment.
     pub handshake_decommitment: Option<Decommitment<HandshakeData>>,
 }
 

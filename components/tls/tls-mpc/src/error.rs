@@ -2,6 +2,7 @@ use std::{error::Error, fmt::Display};
 
 use tls_backend::BackendError;
 
+/// MPC-TLS protocol error.
 #[derive(Debug, thiserror::Error)]
 #[error("mpc-tls error: kind {kind}, msg: {msg}")]
 pub struct MpcTlsError {
