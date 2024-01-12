@@ -211,9 +211,9 @@ impl MpcTlsFollower {
                     self.config.common().max_transcript_size()
                 ),
             ));
-        } else {
-            Ok(())
         }
+
+        Ok(())
     }
 
     #[cfg_attr(
