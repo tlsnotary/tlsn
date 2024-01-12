@@ -3,7 +3,7 @@
 //! The main API objects are [MpcTlsLeader] and [MpcTlsFollower], which wrap the necessary
 //! cryptographic machinery and also an [MpcTlsChannel] for communication.
 
-//#![deny(missing_docs, unreachable_pub, unused_must_use)]
+#![deny(missing_docs, unreachable_pub, unused_must_use)]
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
