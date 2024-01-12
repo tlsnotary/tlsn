@@ -9,6 +9,8 @@ pub mod cipher;
 pub mod dns;
 pub mod handshake;
 pub mod ke;
+#[cfg(feature = "prf")]
+pub mod prf;
 pub mod rand;
 pub mod suites;
 pub mod utils;
