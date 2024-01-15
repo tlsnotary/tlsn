@@ -345,10 +345,6 @@
 <a href="#345" id="345">345</a>
 <a href="#346" id="346">346</a>
 <a href="#347" id="347">347</a>
-<a href="#348" id="348">348</a>
-<a href="#349" id="349">349</a>
-<a href="#350" id="350">350</a>
-<a href="#351" id="351">351</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! TLS prover.
 //!
 //! This module provides the TLS prover, which is used with a TLS verifier to prove a transcript of communications with a server.
@@ -478,12 +474,15 @@
             gf2,
         } = <span class="self">self</span>.state;
 
+        <span class="kw">let </span>(mpc_ctrl, mpc_fut) = mpc_tls.run();
+
         <span class="kw">let </span>server_name = TlsServerName::try_from(<span class="self">self</span>.config.server_dns())<span class="question-mark">?</span>;
         <span class="kw">let </span>config = tls_client::ClientConfig::builder()
             .with_safe_defaults()
             .with_root_certificates(<span class="self">self</span>.config.root_cert_store.clone())
             .with_no_client_auth();
-        <span class="kw">let </span>client = ClientConnection::new(Arc::new(config), Box::new(mpc_tls), server_name)<span class="question-mark">?</span>;
+        <span class="kw">let </span>client =
+            ClientConnection::new(Arc::new(config), Box::new(mpc_ctrl.clone()), server_name)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>(conn, conn_fut) = bind_client(socket, client);
 
@@ -492,30 +491,21 @@
         <span class="kw">let </span>fut = Box::pin({
             <span class="attr">#[allow(clippy::let_and_return)]
             </span><span class="kw">let </span>fut = <span class="kw">async move </span>{
-                <span class="kw">let </span>ClosedConnection {
-                    <span class="kw-2">mut </span>client,
-                    sent,
-                    recv,
-                } = <span class="macro">futures::select! </span>{
-                    res = conn_fut.fuse() =&gt; res<span class="question-mark">?</span>,
-                    <span class="kw">_ </span>= ot_fut =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(OTShutdownError)<span class="question-mark">?</span>,
-                    <span class="kw">_ </span>= mux_fut =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))<span class="question-mark">?</span>,
+                <span class="kw">let </span>conn_fut = <span class="kw">async </span>{
+                    <span class="kw">let </span>ClosedConnection { sent, recv, .. } = <span class="macro">futures::select! </span>{
+                        res = conn_fut.fuse() =&gt; res<span class="question-mark">?</span>,
+                        <span class="kw">_ </span>= ot_fut =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(OTShutdownError)<span class="question-mark">?</span>,
+                        <span class="kw">_ </span>= mux_fut =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))<span class="question-mark">?</span>,
+                    };
+
+                    mpc_ctrl.close_connection().<span class="kw">await</span><span class="question-mark">?</span>;
+                    mpc_ctrl.finalize().<span class="kw">await</span><span class="question-mark">?</span>;
+
+                    <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, ProverError&gt;((sent, recv))
                 };
 
-                <span class="kw">let </span>backend = client
-                    .backend_mut()
-                    .as_any_mut()
-                    .downcast_mut::&lt;MpcTlsLeader&gt;()
-                    .unwrap();
-
-                <span class="kw">let </span>handshake_decommitment = backend
-                    .handshake_decommitment_mut()
-                    .take()
-                    .expect(<span class="string">&quot;handshake decommitment is set&quot;</span>);
-                <span class="kw">let </span>server_public_key = backend
-                    .server_public_key()
-                    .cloned()
-                    .expect(<span class="string">&quot;server public key is set&quot;</span>);
+                <span class="kw">let </span>((sent, recv), mpc_tls_data) =
+                    <span class="macro">futures::try_join!</span>(conn_fut, mpc_fut.map_err(ProverError::from))<span class="question-mark">?</span>;
 
                 <span class="prelude-val">Ok</span>(Prover {
                     config: <span class="self">self</span>.config,
@@ -526,8 +516,10 @@
                         ot_fut,
                         gf2,
                         start_time,
-                        handshake_decommitment,
-                        server_public_key,
+                        handshake_decommitment: mpc_tls_data
+                            .handshake_decommitment
+                            .expect(<span class="string">&quot;handshake was committed&quot;</span>),
+                        server_public_key: mpc_tls_data.server_public_key,
                         transcript_tx: Transcript::new(sent),
                         transcript_rx: Transcript::new(recv),
                     },

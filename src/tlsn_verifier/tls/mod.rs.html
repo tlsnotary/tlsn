@@ -337,6 +337,10 @@
 <a href="#337" id="337">337</a>
 <a href="#338" id="338">338</a>
 <a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
+<a href="#342" id="342">342</a>
+<a href="#343" id="343">343</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! TLS Verifier
 
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>config;
@@ -348,6 +352,8 @@
 
 <span class="kw">pub use </span>config::{VerifierConfig, VerifierConfigBuilder, VerifierConfigBuilderError};
 <span class="kw">pub use </span>error::VerifierError;
+
+<span class="kw">use </span>std::time::{SystemTime, UNIX_EPOCH};
 
 <span class="kw">use crate</span>::{tls::future::OTFuture, Mux};
 <span class="kw">use </span>future::MuxFuture;
@@ -366,8 +372,7 @@
 <span class="kw">use </span>rand::Rng;
 <span class="kw">use </span>signature::Signer;
 <span class="kw">use </span>state::{Notarize, Verify};
-<span class="kw">use </span>std::time::{SystemTime, UNIX_EPOCH};
-<span class="kw">use </span>tls_mpc::{setup_components, MpcTlsFollower, TlsRole};
+<span class="kw">use </span>tls_mpc::{setup_components, MpcTlsFollower, MpcTlsFollowerData, TlsRole};
 <span class="kw">use </span>tlsn_core::{proof::SessionInfo, RedactedTranscript, SessionHeader, Signature};
 <span class="kw">use </span>uid_mux::{yamux, UidYamux};
 <span class="kw">use </span>utils_aio::{codec::BincodeMux, duplex::Duplex, mux::MuxChannel};
@@ -481,7 +486,7 @@
         <span class="kw">let </span>state::Setup {
             mux,
             <span class="kw-2">mut </span>mux_fut,
-            <span class="kw-2">mut </span>mpc_tls,
+            mpc_tls,
             vm,
             ot_send,
             ot_recv,
@@ -495,8 +500,15 @@
             .unwrap()
             .as_secs();
 
-        <span class="macro">futures::select! </span>{
-            res = mpc_tls.run().fuse() =&gt; res<span class="question-mark">?</span>,
+        <span class="kw">let </span>(<span class="kw">_</span>, mpc_fut) = mpc_tls.run();
+
+        <span class="kw">let </span>MpcTlsFollowerData {
+            handshake_commitment,
+            server_key: server_ephemeral_key,
+            bytes_sent: sent_len,
+            bytes_recv: recv_len,
+        } = <span class="macro">futures::select! </span>{
+            res = mpc_fut.fuse() =&gt; res<span class="question-mark">?</span>,
             <span class="kw">_ </span>= <span class="kw-2">&amp;mut </span>mux_fut =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))<span class="question-mark">?</span>,
             res = ot_fut =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(res.map(|<span class="kw">_</span>| ()).expect_err(<span class="string">&quot;future will not return Ok here&quot;</span>))
         };
@@ -504,12 +516,8 @@
         <span class="attr">#[cfg(feature = <span class="string">&quot;tracing&quot;</span>)]
         </span><span class="macro">info!</span>(<span class="string">&quot;Finished TLS session&quot;</span>);
 
-        <span class="kw">let </span>server_ephemeral_key = mpc_tls.server_key().expect(<span class="string">&quot;server key is set&quot;</span>);
         <span class="comment">// TODO: We should be able to skip this commitment and verify the handshake directly.
-        </span><span class="kw">let </span>handshake_commitment = mpc_tls
-            .handshake_commitment()
-            .expect(<span class="string">&quot;handshake commitment is set&quot;</span>);
-        <span class="kw">let </span>(sent_len, recv_len) = mpc_tls.bytes_transferred();
+        </span><span class="kw">let </span>handshake_commitment = handshake_commitment.expect(<span class="string">&quot;handshake commitment is set&quot;</span>);
 
         <span class="prelude-val">Ok</span>(Verifier {
             config: <span class="self">self</span>.config,
