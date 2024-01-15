@@ -349,7 +349,7 @@ impl MpcTlsFollower {
     )]
     async fn encrypt_alert(&mut self, msg: Vec<u8>) -> Result<(), MpcTlsError> {
         if let Some(alert) = AlertMessagePayload::read_bytes(&msg) {
-            // We only allow the Prover to send a CloseNotify alert
+            // We only allow the leader to send a CloseNotify alert
             if alert.description != AlertDescription::CloseNotify {
                 return Err(MpcTlsError::new(
                     Kind::PeerMisbehaved,
