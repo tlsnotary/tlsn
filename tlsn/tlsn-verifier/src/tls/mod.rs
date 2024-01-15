@@ -10,6 +10,8 @@ mod verify;
 pub use config::{VerifierConfig, VerifierConfigBuilder, VerifierConfigBuilderError};
 pub use error::VerifierError;
 
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use crate::{tls::future::OTFuture, Mux};
 use future::MuxFuture;
 use futures::{
@@ -27,8 +29,7 @@ use mpz_share_conversion as ff;
 use rand::Rng;
 use signature::Signer;
 use state::{Notarize, Verify};
-use std::time::{SystemTime, UNIX_EPOCH};
-use tls_mpc::{setup_components, MpcTlsFollower, TlsRole};
+use tls_mpc::{setup_components, MpcTlsFollower, MpcTlsFollowerData, TlsRole};
 use tlsn_core::{proof::SessionInfo, RedactedTranscript, SessionHeader, Signature};
 use uid_mux::{yamux, UidYamux};
 use utils_aio::{codec::BincodeMux, duplex::Duplex, mux::MuxChannel};
@@ -142,7 +143,7 @@ impl Verifier<state::Setup> {
         let state::Setup {
             mux,
             mut mux_fut,
-            mut mpc_tls,
+            mpc_tls,
             vm,
             ot_send,
             ot_recv,
@@ -156,8 +157,15 @@ impl Verifier<state::Setup> {
             .unwrap()
             .as_secs();
 
-        futures::select! {
-            res = mpc_tls.run().fuse() => res?,
+        let (_, mpc_fut) = mpc_tls.run();
+
+        let MpcTlsFollowerData {
+            handshake_commitment,
+            server_key: server_ephemeral_key,
+            bytes_sent: sent_len,
+            bytes_recv: recv_len,
+        } = futures::select! {
+            res = mpc_fut.fuse() => res?,
             _ = &mut mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
             res = ot_fut => return Err(res.map(|_| ()).expect_err("future will not return Ok here"))
         };
@@ -165,12 +173,8 @@ impl Verifier<state::Setup> {
         #[cfg(feature = "tracing")]
         info!("Finished TLS session");
 
-        let server_ephemeral_key = mpc_tls.server_key().expect("server key is set");
         // TODO: We should be able to skip this commitment and verify the handshake directly.
-        let handshake_commitment = mpc_tls
-            .handshake_commitment()
-            .expect("handshake commitment is set");
-        let (sent_len, recv_len) = mpc_tls.bytes_transferred();
+        let handshake_commitment = handshake_commitment.expect("handshake commitment is set");
 
         Ok(Verifier {
             config: self.config,

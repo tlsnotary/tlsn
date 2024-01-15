@@ -242,14 +242,6 @@ impl RustCryptoBackend {
 
 #[async_trait]
 impl Backend for RustCryptoBackend {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-
     async fn set_protocol_version(&mut self, version: ProtocolVersion) -> Result<(), BackendError> {
         match version {
             ProtocolVersion::TLSv1_2 => {
@@ -373,20 +365,30 @@ impl Backend for RustCryptoBackend {
         Ok(())
     }
 
-    fn set_server_cert_details(&mut self, _cert_details: ServerCertDetails) {}
+    async fn set_server_cert_details(
+        &mut self,
+        _cert_details: ServerCertDetails,
+    ) -> Result<(), BackendError> {
+        Ok(())
+    }
 
-    fn set_server_kx_details(&mut self, _kx_details: ServerKxDetails) {}
+    async fn set_server_kx_details(
+        &mut self,
+        _kx_details: ServerKxDetails,
+    ) -> Result<(), BackendError> {
+        Ok(())
+    }
 
-    async fn set_hs_hash_client_key_exchange(&mut self, hash: &[u8]) -> Result<(), BackendError> {
+    async fn set_hs_hash_client_key_exchange(&mut self, hash: Vec<u8>) -> Result<(), BackendError> {
         self.ems_seed = Some(hash.to_vec());
         Ok(())
     }
 
-    async fn set_hs_hash_server_hello(&mut self, _hash: &[u8]) -> Result<(), BackendError> {
+    async fn set_hs_hash_server_hello(&mut self, _hash: Vec<u8>) -> Result<(), BackendError> {
         Ok(())
     }
 
-    async fn get_server_finished_vd(&mut self, hash: &[u8]) -> Result<Vec<u8>, BackendError> {
+    async fn get_server_finished_vd(&mut self, hash: Vec<u8>) -> Result<Vec<u8>, BackendError> {
         let ms = self.master_secret.ok_or(BackendError::InvalidState(
             "Master secret not set".to_string(),
         ))?;
@@ -394,13 +396,13 @@ impl Backend for RustCryptoBackend {
         let verify_data = match self.protocol_version.ok_or(BackendError::InvalidState(
             "Protocol version not set".to_string(),
         ))? {
-            ProtocolVersion::TLSv1_2 => self.verify_data_sf_tls12(hash, &ms),
+            ProtocolVersion::TLSv1_2 => self.verify_data_sf_tls12(&hash, &ms),
             _ => unreachable!(),
         };
         Ok(verify_data.to_vec())
     }
 
-    async fn get_client_finished_vd(&mut self, hash: &[u8]) -> Result<Vec<u8>, BackendError> {
+    async fn get_client_finished_vd(&mut self, hash: Vec<u8>) -> Result<Vec<u8>, BackendError> {
         let ms = self.master_secret.ok_or(BackendError::InvalidState(
             "Master secret not set".to_string(),
         ))?;
@@ -408,7 +410,7 @@ impl Backend for RustCryptoBackend {
         let verify_data = match self.protocol_version.ok_or(BackendError::InvalidState(
             "Protocol version not set".to_string(),
         ))? {
-            ProtocolVersion::TLSv1_2 => self.verify_data_cf_tls12(hash, &ms),
+            ProtocolVersion::TLSv1_2 => self.verify_data_cf_tls12(&hash, &ms),
             _ => unreachable!(),
         };
         Ok(verify_data.to_vec())

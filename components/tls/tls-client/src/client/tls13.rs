@@ -122,7 +122,7 @@ pub(super) async fn handle_server_hello(
 
     cx.common
         .backend
-        .set_hs_hash_server_hello(transcript.get_current_hash().as_ref())
+        .set_hs_hash_server_hello(transcript.get_current_hash().as_ref().to_vec())
         .await?;
 
     // Decrypt with the peer's key, encrypt with our own key
@@ -768,7 +768,7 @@ impl State<ClientConnectionData> for ExpectFinished {
         let expect_verify_data = cx
             .common
             .backend
-            .get_server_finished_vd(handshake_hash.as_ref())
+            .get_server_finished_vd(handshake_hash.as_ref().to_vec())
             .await?;
 
         let fin = match constant_time::verify_slices_are_equal(
@@ -829,7 +829,7 @@ impl State<ClientConnectionData> for ExpectFinished {
         let client_finished = cx
             .common
             .backend
-            .get_client_finished_vd(handshake_hash.as_ref())
+            .get_client_finished_vd(handshake_hash.as_ref().to_vec())
             .await?;
         emit_finished_tls13(&client_finished, &mut st.transcript, cx.common).await?;
 

@@ -12,6 +12,7 @@ edition = "2021"
 name = "tls_mpc"
 
 [features]
+default = ["tracing"]
 tracing = [
     "dep:tracing",
     "tlsn-block-cipher/tracing",
@@ -49,8 +50,10 @@ futures.workspace = true
 async-trait.workspace = true
 serde.workspace = true
 derive_builder.workspace = true
+enum-try-as-inner.workspace = true
 thiserror.workspace = true
 tracing = { workspace = true, optional = true }
+ludi = { git = "https://github.com/sinui0/ludi", rev = "b590de5" }
 
 [dev-dependencies]
 tlsn-tls-client = { path = "../tls-client" }

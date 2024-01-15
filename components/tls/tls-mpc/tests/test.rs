@@ -255,9 +255,17 @@ async fn test() {
         follower_decrypter,
     );
 
-    tokio::spawn(async move { follower.run().await.unwrap() });
+    let follower_task = tokio::spawn(async move {
+        follower.setup().await.unwrap();
+
+        let (_, fut) = follower.run();
+        fut.await.unwrap()
+    });
 
     leader.setup().await.unwrap();
+
+    let (leader_ctrl, leader_fut) = leader.run();
+    let leader_task = tokio::spawn(leader_fut);
 
     let mut root_store = tls_client::RootCertStore::empty();
     root_store.add(&Certificate(CA_CERT_DER.to_vec())).unwrap();
@@ -268,8 +276,12 @@ async fn test() {
 
     let server_name = SERVER_DOMAIN.try_into().unwrap();
 
-    let client =
-        tls_client::ClientConnection::new(Arc::new(config), Box::new(leader), server_name).unwrap();
+    let client = tls_client::ClientConnection::new(
+        Arc::new(config),
+        Box::new(leader_ctrl.clone()),
+        server_name,
+    )
+    .unwrap();
 
     let (client_socket, server_socket) = tokio::io::duplex(1 << 16);
 
@@ -292,7 +304,8 @@ async fn test() {
     let mut buf = Vec::new();
     conn.read_to_end(&mut buf).await.unwrap();
 
-    println!("response: {}", String::from_utf8_lossy(&buf));
+    leader_ctrl.close_connection().await.unwrap();
+    leader_ctrl.finalize().await.unwrap();
 
     follower_ot_send.shutdown().await.unwrap();
 
@@ -301,4 +314,6 @@ async fn test() {
     tokio::try_join!(leader_gf2.reveal(), follower_gf2.verify()).unwrap();
 
     conn_task.await.unwrap().unwrap();
+    _ = leader_task.await.unwrap();
+    _ = follower_task.await.unwrap();
 }

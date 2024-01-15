@@ -7,7 +7,7 @@ use crate::prf::state::StateError;
 #[allow(missing_docs)]
 pub enum PrfError {
     #[error("MPC backend error: {0:?}")]
-    Mpc(Box<dyn Error + Send>),
+    Mpc(Box<dyn Error + Send + Sync>),
     #[error("role error: {0:?}")]
     RoleError(String),
     #[error("Invalid state: {0}")]

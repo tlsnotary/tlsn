@@ -8,10 +8,11 @@
 #![forbid(unsafe_code)]
 
 mod config;
-mod error;
-mod follower;
-mod leader;
+pub(crate) mod error;
+pub(crate) mod follower;
+pub(crate) mod leader;
 pub mod msg;
+pub(crate) mod record_layer;
 pub(crate) mod setup;
 
 pub use config::{
@@ -20,8 +21,8 @@ pub use config::{
     MpcTlsLeaderConfig, MpcTlsLeaderConfigBuilder, MpcTlsLeaderConfigBuilderError,
 };
 pub use error::MpcTlsError;
-pub use follower::MpcTlsFollower;
-pub use leader::MpcTlsLeader;
+pub use follower::{FollowerCtrl, MpcTlsFollower, MpcTlsFollowerData};
+pub use leader::{LeaderCtrl, MpcTlsData, MpcTlsLeader};
 pub use setup::setup_components;
 use utils_aio::duplex::Duplex;
 
