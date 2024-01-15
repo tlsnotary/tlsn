@@ -624,6 +624,10 @@ mod state {
     pub(super) struct Active {
         pub(super) handshake_commitment: Option<Hash>,
         pub(super) server_key: PublicKey,
+         /// TLS messages purportedly received by the leader from the server.
+         ///
+         /// The follower must verify the authenticity of these messages with AEAD verification
+         /// (i.e. by verifying the authentication tag).
         pub(super) committed: VecDeque<OpaqueMessage>,
     }
 

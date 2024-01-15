@@ -33,6 +33,7 @@ pub enum MpcTlsMessage {
     ServerFinishedVd(ServerFinishedVd),
     DecryptServerFinished(DecryptServerFinished),
     DecryptAlert(DecryptAlert),
+     /// A leader commitment to a TLS message received from the server.
     CommitMessage(CommitMessage),
     EncryptMessage(EncryptMessage),
     DecryptMessage(DecryptMessage),

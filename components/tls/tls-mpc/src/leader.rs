@@ -650,7 +650,7 @@ pub struct MpcTlsData {
     pub server_cert_details: ServerCertDetails,
     /// Server ephemeral public key.
     pub server_public_key: PublicKey,
-    /// Server key exchange details, eg certificate.
+    /// Server key exchange details, eg signature.
     pub server_kx_details: ServerKxDetails,
     /// Handshake data.
     pub handshake_data: HandshakeData,
