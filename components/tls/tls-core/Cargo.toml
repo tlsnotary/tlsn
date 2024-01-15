@@ -12,12 +12,13 @@ edition = "2021"
 name = "tls_core"
 
 [features]
-default = ["logging", "tls12"]
+default = ["logging", "tls12", "prf"]
 serde = ["dep:serde"]
 tls12 = []
 handshake = []
 ghash = []
 logging = ["tracing"]
+prf = ["dep:hmac", "dep:sha2"]
 
 [dependencies]
 rand.workspace = true
@@ -30,3 +31,5 @@ serde = { workspace = true, optional = true, features = ["derive"] }
 rustls-pemfile.workspace = true
 thiserror.workspace = true
 web-time.workspace = true
+hmac = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
