@@ -7,8 +7,9 @@ use tokio::net::TcpListener;
 use tokio_util::compat::TokioAsyncReadCompatExt;
 
 use tlsn_verifier::tls::{Verifier, VerifierConfig};
+const SESSION_ID: &str = "example";
 
-const NOTARY_SIGNING_KEY_PATH: &str = "../../../notary-server/fixture/notary/notary.key";
+const NOTARY_SIGNING_KEY_PATH: &str = "./keys/notary.key";
 
 #[tokio::main]
 async fn main() {
@@ -45,7 +46,7 @@ async fn main() {
             tokio::spawn(async move {
                 // Setup default config. Normally a different ID would be generated
                 // for each notarization.
-                let config = VerifierConfig::builder().id("example").build().unwrap();
+                let config = VerifierConfig::builder().id(SESSION_ID).build().unwrap();
 
                 Verifier::new(config)
                     .notarize::<_, p256::ecdsa::Signature>(socket.compat(), &signing_key)

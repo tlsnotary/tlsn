@@ -49,26 +49,23 @@ fn main() {
     sent.set_redacted(b'X');
     recv.set_redacted(b'X');
 
-    println!("-------------------------------------------------------------------");
-    println!(
-        "Successfully verified that the bytes below came from a session with {:?} at {}.",
-        session_info.server_name, time
-    );
-    println!("Note that the bytes which the Prover chose not to disclose are shown as X.");
-    println!();
-    println!("Bytes sent:");
-    println!();
+    // println!(
+    //     "Successfully verified that the bytes below came from a session with {:?} at {}.",
+    //     session_info.server_name, time
+    // );
+    // println!("Bytes sent:");
+    // println!();
     print!("{}", String::from_utf8(sent.data().to_vec()).unwrap());
-    println!();
-    println!("Bytes received:");
-    println!();
-    println!("{}", String::from_utf8(recv.data().to_vec()).unwrap());
-    println!("-------------------------------------------------------------------");
+    println!("seperator");
+    // println!("Bytes received:");
+    // println!();
+    print!("{}", String::from_utf8(recv.data().to_vec()).unwrap());
+    // println!("-------------------------------------------------------------------");
 }
 
 /// Returns a Notary pubkey trusted by this Verifier
 fn notary_pubkey() -> p256::PublicKey {
-    let pem_file_path = "../../../notary-server/fixture/notary/notary.pub";
+    let pem_file_path = "./keys/notary.pub";
 
     p256::PublicKey::read_public_key_pem_file(pem_file_path).unwrap()
 }
