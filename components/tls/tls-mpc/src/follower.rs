@@ -81,8 +81,8 @@ impl ludi::Actor for MpcTlsFollower {
 
         if !committed.is_empty() {
             return Err(MpcTlsError::new(
-                Kind::PeerMisbehaved,
-                "leader attempted to finalize without proving all messages",
+                Kind::Other,
+                "not all committed TLS messages were verified",
             ));
         }
 
