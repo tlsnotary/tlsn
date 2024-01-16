@@ -71,7 +71,7 @@ impl RustCryptoBackend {
     /// the Server_Finished
     pub fn verify_data_sf_tls12(&self, hs_hash: &[u8], ms: &[u8; 48]) -> [u8; 12] {
         let mut vd = [0u8; 12];
-        prf(&mut vd, ms, b"server finished", &hs_hash).expect("key length is valid");
+        prf(&mut vd, ms, b"server finished", hs_hash).expect("key length is valid");
         vd
     }
 
@@ -79,7 +79,7 @@ impl RustCryptoBackend {
     /// the Client_Finished
     pub fn verify_data_cf_tls12(&self, hs_hash: &[u8], ms: &[u8; 48]) -> [u8; 12] {
         let mut vd = [0u8; 12];
-        prf(&mut vd, ms, b"client finished", &hs_hash).expect("key length is valid");
+        prf(&mut vd, ms, b"client finished", hs_hash).expect("key length is valid");
         vd
     }
 
@@ -413,8 +413,8 @@ impl Backend for RustCryptoBackend {
 fn concat<const O: usize>(left: &[u8], right: &[u8]) -> [u8; O] {
     assert_eq!(left.len() + right.len(), O);
     let mut out = [0u8; O];
-    out[..left.len()].copy_from_slice(&left);
-    out[left.len()..].copy_from_slice(&right);
+    out[..left.len()].copy_from_slice(left);
+    out[left.len()..].copy_from_slice(right);
     out
 }
 
