@@ -1,4 +1,4 @@
-use std::future::Future;
+use std::{collections::VecDeque, future::Future};
 
 use async_trait::async_trait;
 use futures::SinkExt;
@@ -56,6 +56,9 @@ pub struct MpcTlsLeader {
     prf: Box<dyn Prf + Send>,
     encrypter: Encrypter,
     decrypter: Decrypter,
+
+    /// Messages which have been committed but not yet decrypted.
+    committed: VecDeque<OpaqueMessage>,
 }
 
 impl ludi::Actor for MpcTlsLeader {
@@ -101,6 +104,7 @@ impl MpcTlsLeader {
             prf,
             encrypter,
             decrypter,
+            committed: VecDeque::new(),
         }
     }
 
@@ -632,6 +636,16 @@ impl Backend for MpcTlsLeader {
         .map_err(BackendError::from)?;
 
         Ok(msg)
+    }
+
+    async fn buffer_incoming(&mut self, msg: OpaqueMessage) -> Result<(), BackendError> {
+        self.committed.push_back(msg);
+
+        Ok(())
+    }
+
+    async fn next_incoming(&mut self) -> Result<Option<OpaqueMessage>, BackendError> {
+        Ok(self.committed.pop_front())
     }
 }
 
