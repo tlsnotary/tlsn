@@ -11,7 +11,7 @@ use rand::{rngs::OsRng, thread_rng, Rng};
 use digest::Digest;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
-use std::{any::Any, convert::TryInto};
+use std::{any::Any, collections::VecDeque, convert::TryInto};
 use tls_core::{
     cert::ServerCertDetails,
     ke::ServerKxDetails,
@@ -88,6 +88,8 @@ pub struct RustCryptoBackend {
     implemented_suites: [CipherSuite; 2],
     encrypter: Option<Encrypter>,
     decrypter: Option<Decrypter>,
+
+    buffer_incoming: VecDeque<OpaqueMessage>,
 }
 
 impl RustCryptoBackend {
@@ -110,6 +112,7 @@ impl RustCryptoBackend {
             ],
             encrypter: None,
             decrypter: None,
+            buffer_incoming: VecDeque::new(),
         }
     }
 
@@ -474,6 +477,15 @@ impl Backend for RustCryptoBackend {
                 return Err(BackendError::UnsupportedCiphersuite(suite));
             }
         }
+    }
+
+    async fn buffer_incoming(&mut self, msg: OpaqueMessage) -> Result<(), BackendError> {
+        self.buffer_incoming.push_back(msg);
+        Ok(())
+    }
+
+    async fn next_incoming(&mut self) -> Result<Option<OpaqueMessage>, BackendError> {
+        Ok(self.buffer_incoming.pop_front())
     }
 }
 
