@@ -10,7 +10,7 @@ pub struct NotaryServerProperties {
     /// Setting for TLS connection between prover and notary
     pub tls: TLSProperties,
     /// File path of private key (in PEM format) used to sign the notarization
-    pub notary_signature: NotarySignatureProperties,
+    pub notary_key: NotarySigningKeyProperties,
     /// Setting for logging/tracing
     pub tracing: TracingProperties,
     /// Setting for authorization
@@ -53,7 +53,7 @@ pub struct TLSProperties {
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-pub struct NotarySignatureProperties {
+pub struct NotarySigningKeyProperties {
     pub private_key_pem_path: String,
     pub public_key_pem_path: String,
 }
