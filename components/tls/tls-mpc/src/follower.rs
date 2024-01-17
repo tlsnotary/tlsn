@@ -505,6 +505,23 @@ impl MpcTlsFollower {
 
         Ok(())
     }
+
+    async fn finalize(&mut self) -> Result<(), MpcTlsError> {
+        let Closed { committed, .. } = self.state.try_as_closed_mut()?;
+
+        #[cfg(feature = "tracing")]
+        tracing::debug!("finalizing MPC-TLS protocol");
+
+        if !committed.is_empty() {
+            self.decrypter.decode_key_blind().await?;
+
+            while let Some(msg) = committed.pop_front() {
+                self.decrypter.verify_plaintext(msg).await?;
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[ludi::implement]
@@ -567,6 +584,8 @@ impl MpcTlsFollower {
 
     #[msg(skip, name = "Finalize")]
     pub async fn finalize(&mut self) -> Result<(), MpcTlsError> {
+        ctx.try_or_stop(|_| self.finalize()).await;
+
         ctx.stop();
 
         Ok(())

@@ -346,10 +346,20 @@ impl MpcTlsLeader {
     )]
     #[msg(skip, name = "Finalize")]
     pub async fn finalize(&mut self) -> Result<(), MpcTlsError> {
+        self.state.try_as_closed()?;
+
         #[cfg(feature = "tracing")]
         tracing::debug!("finalizing MPC-TLS protocol");
 
         self.channel.send(MpcTlsMessage::Finalize(Finalize)).await?;
+
+        if !self.committed.is_empty() {
+            self.decrypter.decode_key_private().await?;
+
+            while let Some(msg) = self.committed.pop_front() {
+                self.decrypter.prove_plaintext(msg).await?;
+            }
+        }
 
         ctx.stop();
 
