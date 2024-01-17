@@ -464,6 +464,10 @@ impl ConnectionCommon {
         }
 
         while let Some(msg) = self.message_deframer.frames.pop_front() {
+            self.backend.buffer_incoming(msg).await?;
+        }
+
+        while let Some(msg) = self.backend.next_incoming().await? {
             match self.process_msg(msg, state).await {
                 Ok(new) => state = new,
                 Err(e) => {
