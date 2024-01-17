@@ -177,7 +177,7 @@ impl MpcAesGcm {
             .compute_tag(explicit_nonce, payload.clone(), aad)
             .await?;
 
-        // Reject if tag is incorrect
+        // Reject if tag is incorrect.
         if tag != purported_tag {
             return Err(AeadError::CorruptedTag);
         }
