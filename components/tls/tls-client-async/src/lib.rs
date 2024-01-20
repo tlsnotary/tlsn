@@ -13,8 +13,8 @@ mod conn;
 
 use bytes::{Buf, Bytes};
 use futures::{
-    channel::mpsc, future::Fuse, select_biased, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt,
-    Future, FutureExt, SinkExt, StreamExt,
+    channel::mpsc, future::Fuse, select_biased, stream::Next, AsyncRead, AsyncReadExt, AsyncWrite,
+    AsyncWriteExt, Future, FutureExt, SinkExt, StreamExt,
 };
 
 use std::{
@@ -23,7 +23,7 @@ use std::{
 };
 
 #[cfg(feature = "tracing")]
-use tracing::{debug, debug_span, error, trace, Instrument};
+use tracing::{debug, debug_span, error, trace, warn, Instrument};
 
 use tls_client::ClientConnection;
 
@@ -94,6 +94,7 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
         let mut rx_tls_buf = [0u8; RX_TLS_BUF_SIZE];
         let mut rx_buf = [0u8; RX_BUF_SIZE];
 
+        let mut handshake_done = false;
         let mut client_closed = false;
         let mut server_closed = false;
 
@@ -101,13 +102,52 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
         let mut recv = Vec::with_capacity(1024);
 
         let mut rx_tls_fut = server_rx.read(&mut rx_tls_buf).fuse();
-        let mut tx_recv_fut = tx_receiver.next().fuse();
+        // We don't start writing application data until the handshake is complete.
+        let mut tx_recv_fut: Fuse<Next<'_, mpsc::Receiver<Bytes>>> = Fuse::terminated();
 
         // Runs both the tx and rx halves of the connection to completion.
         // This loop does not terminate until the *SERVER* closes the connection and
         // we've processed all received data. If an error occurs, the `TlsConnection`
         // channels will be closed and the error will be returned from this future.
         'conn: loop {
+            // Write all pending TLS data to the server.
+            if client.wants_write() && !client_closed {
+                #[cfg(feature = "tracing")]
+                trace!("client wants to write");
+                while client.wants_write() {
+                    let _sent = client.write_tls_async(&mut server_tx).await?;
+                    #[cfg(feature = "tracing")]
+                    trace!("sent {} tls bytes to server", _sent);
+                }
+                server_tx.flush().await?;
+            }
+
+            // Forward received plaintext to `TlsConnection`.
+            while !client.plaintext_is_empty() {
+                let read = client.read_plaintext(&mut rx_buf)?;
+                recv.extend(&rx_buf[..read]);
+                // Ignore if the receiver has hung up.
+                _ = rx_sender
+                    .send(Ok(Bytes::copy_from_slice(&rx_buf[..read])))
+                    .await;
+                #[cfg(feature = "tracing")]
+                trace!("forwarded {} plaintext bytes to conn", read);
+            }
+
+            if !client.is_handshaking() && !handshake_done {
+                #[cfg(feature = "tracing")]
+                debug!("handshake complete");
+                handshake_done = true;
+                // Start reading application data from the `TlsConnection`.
+                tx_recv_fut = tx_receiver.next().fuse();
+            }
+
+            if server_closed && client.plaintext_is_empty() {
+                if client.buffer_len().await? == 0 {
+                    break 'conn;
+                }
+            }
+
             select_biased! {
                 // Reads TLS data from the server and writes it into the client.
                 received = &mut rx_tls_fut => {
@@ -145,7 +185,7 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
                     }
                 }
                 // If we receive None from `TlsConnection`, it has closed, so we
-                // send a close_notify to the server, flush and close.
+                // send a close_notify to the server.
                 data = &mut tx_recv_fut => {
                     if let Some(data) = data {
                         #[cfg(feature = "tracing")]
@@ -158,21 +198,13 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
 
                         tx_recv_fut = tx_receiver.next().fuse();
                     } else {
-                        #[cfg(feature = "tracing")]
-                        debug!("client closed connection");
-
-                        #[cfg(feature = "tracing")]
-                        trace!("sending close_notify to server");
-                        client.send_close_notify().await?;
-
-                        // Flush all remaining plaintext
-                        while client.wants_write() {
-                            let _sent = client.write_tls_async(&mut server_tx).await?;
-                            #[cfg(feature = "tracing")]
-                            trace!("sent {} tls bytes to server", _sent);
+                        if !server_closed {
+                            if let Err(e) = send_close_notify(&mut client, &mut server_tx).await {
+                                #[cfg(feature = "tracing")]
+                                warn!("failed to send close_notify to server: {}", e);
+                            }
                         }
-                        server_tx.flush().await?;
-                        server_tx.close().await?;
+
                         client_closed = true;
 
                         tx_recv_fut = Fuse::terminated();
@@ -186,38 +218,12 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
                     client.process_new_packets().await?;
                 }
             }
-
-            // Write all pending TLS data to the server.
-            if client.wants_write() {
-                while client.wants_write() && !client_closed {
-                    let _sent = client.write_tls_async(&mut server_tx).await?;
-                    #[cfg(feature = "tracing")]
-                    trace!("sent {} tls bytes to server", _sent);
-                }
-                server_tx.flush().await?;
-            }
-
-            // Forward received plaintext to `TlsConnection`.
-            while !client.plaintext_is_empty() {
-                let read = client.read_plaintext(&mut rx_buf)?;
-                recv.extend(&rx_buf[..read]);
-                // Ignore if the receiver has hung up.
-                _ = rx_sender
-                    .send(Ok(Bytes::copy_from_slice(&rx_buf[..read])))
-                    .await;
-                #[cfg(feature = "tracing")]
-                trace!("forwarded {} plaintext bytes to conn", read);
-            }
-
-            let buffer_len = client.buffer_len().await?;
-            if server_closed && buffer_len == 0 {
-                break 'conn;
-            }
         }
 
         #[cfg(feature = "tracing")]
         debug!("client shutdown");
 
+        _ = server_tx.close().await;
         tx_receiver.close();
         rx_sender.close_channel();
 
@@ -238,4 +244,22 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
     let fut = ConnectionFuture { fut: Box::pin(fut) };
 
     (conn, fut)
+}
+
+async fn send_close_notify(
+    client: &mut ClientConnection,
+    server_tx: &mut (impl AsyncWrite + Unpin),
+) -> Result<(), ConnectionError> {
+    #[cfg(feature = "tracing")]
+    trace!("sending close_notify to server");
+    client.send_close_notify().await?;
+
+    // Flush all remaining plaintext
+    while client.wants_write() {
+        client.write_tls_async(server_tx).await?;
+    }
+    server_tx.flush().await?;
+    //server_tx.close().await?;
+
+    Ok(())
 }

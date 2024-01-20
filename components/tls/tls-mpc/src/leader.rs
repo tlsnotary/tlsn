@@ -696,7 +696,7 @@ impl Backend for MpcTlsLeader {
     }
 
     async fn next_incoming(&mut self) -> Result<Option<OpaqueMessage>, BackendError> {
-        if !self.is_decrypting {
+        if !self.is_decrypting && self.state.is_active() {
             return Ok(None);
         }
 

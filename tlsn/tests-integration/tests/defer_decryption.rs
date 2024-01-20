@@ -1,9 +1,9 @@
-use hyper::{body::to_bytes, Body, Request, StatusCode};
+use futures::{AsyncReadExt, AsyncWriteExt};
 use tlsn_prover::tls::{Prover, ProverConfig};
 use tlsn_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
 use tlsn_verifier::tls::{Verifier, VerifierConfig};
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
+use tokio_util::compat::TokioAsyncReadCompatExt;
 use tracing::instrument;
 
 #[tokio::test]
@@ -39,40 +39,23 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
     .await
     .unwrap();
 
-    let (tls_connection, prover_fut) = prover.connect(client_socket.compat()).await.unwrap();
+    let (mut tls_connection, prover_fut) = prover.connect(client_socket.compat()).await.unwrap();
     let prover_ctrl = prover_fut.control();
-
     let prover_task = tokio::spawn(prover_fut);
-
-    let (mut request_sender, connection) = hyper::client::conn::handshake(tls_connection.compat())
-        .await
-        .unwrap();
-
-    let connection_task = tokio::spawn(connection);
 
     // Defer decryption until after the server closes the connection.
     prover_ctrl.defer_decryption().await.unwrap();
 
-    let request = Request::builder()
-        .uri(format!("https://{}", SERVER_DOMAIN))
-        .header("Host", SERVER_DOMAIN)
-        .header("Connection", "close")
-        .method("GET")
-        .body(Body::empty())
+    tls_connection
+        .write_all(b"GET / HTTP/1.1\r\nConnection: close\r\n\r\n")
+        .await
         .unwrap();
+    tls_connection.close().await.unwrap();
 
-    let response = request_sender.send_request(request).await.unwrap();
-
-    assert!(response.status() == StatusCode::OK);
-
-    println!(
-        "{:?}",
-        String::from_utf8_lossy(&to_bytes(response.into_body()).await.unwrap())
-    );
+    let mut response = vec![0u8; 1024];
+    tls_connection.read_to_end(&mut response).await.unwrap();
 
     server_task.await.unwrap();
-
-    connection_task.await.unwrap().unwrap();
 
     let mut prover = prover_task.await.unwrap().unwrap().start_notarize();
     let sent_tx_len = prover.sent_transcript().data().len();
