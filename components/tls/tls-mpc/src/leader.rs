@@ -13,7 +13,9 @@ use hmac_sha256::Prf;
 use ke::KeyExchange;
 
 use p256::SecretKey;
-use tls_backend::{Backend, BackendError, DecryptMode, EncryptMode};
+use tls_backend::{
+    Backend, BackendError, BackendNotifier, BackendNotify, DecryptMode, EncryptMode,
+};
 use tls_core::{
     cert::ServerCertDetails,
     handshake::HandshakeData,
@@ -36,7 +38,7 @@ use crate::{
         DecryptMessage, DecryptServerFinished, EncryptAlert, EncryptClientFinished, EncryptMessage,
         ServerFinishedVd,
     },
-    msg::{CloseConnection, Finalize, MpcTlsLeaderMsg, MpcTlsMessage},
+    msg::{CloseConnection, Commit, MpcTlsLeaderMsg, MpcTlsMessage},
     record_layer::{Decrypter, Encrypter},
     MpcTlsChannel, MpcTlsError, MpcTlsLeaderConfig,
 };
@@ -57,8 +59,12 @@ pub struct MpcTlsLeader {
     encrypter: Encrypter,
     decrypter: Decrypter,
 
+    notifier: BackendNotifier,
+
+    is_decrypting: bool,
     /// Messages which have been committed but not yet decrypted.
-    committed: VecDeque<OpaqueMessage>,
+    buffer: VecDeque<OpaqueMessage>,
+    committed: bool,
 }
 
 impl ludi::Actor for MpcTlsLeader {
@@ -104,7 +110,10 @@ impl MpcTlsLeader {
             prf,
             encrypter,
             decrypter,
-            committed: VecDeque::new(),
+            notifier: BackendNotifier::new(),
+            is_decrypting: true,
+            buffer: VecDeque::new(),
+            committed: false,
         }
     }
 
@@ -296,23 +305,26 @@ impl MpcTlsLeader {
         self.check_transcript_length(msg.payload.0.len())?;
 
         self.channel
-            .feed(MpcTlsMessage::CommitMessage(CommitMessage {
-                msg: msg.payload.0.clone(),
-            }))
-            .await?;
-
-        self.channel
             .send(MpcTlsMessage::DecryptMessage(DecryptMessage))
             .await?;
 
-        let msg = self.decrypter.decrypt_private(msg).await?;
+        let msg = if self.committed {
+            self.decrypter.prove_plaintext(msg).await?
+        } else {
+            self.decrypter.decrypt_private(msg).await?
+        };
 
         Ok(msg)
     }
 }
 
-#[ludi::implement(ctrl(err))]
+#[ludi::implement(msg(name = "{name}"), ctrl(err))]
 impl MpcTlsLeader {
+    /// Returns whether messages are being decrypted.
+    pub async fn is_decrypting(&self) -> Result<bool, MpcTlsError> {
+        Ok(self.is_decrypting)
+    }
+
     /// Closes the connection.
     #[cfg_attr(
         feature = "tracing",
@@ -327,41 +339,49 @@ impl MpcTlsLeader {
             .send(MpcTlsMessage::CloseConnection(CloseConnection))
             .await?;
 
-        if self.state.is_closed() {
-            // Already closed from receiving CloseNotify.
-            return Ok(());
-        }
-
         let Active { data } = self.state.take().try_into_active()?;
 
         self.state = State::Closed(Closed { data });
 
+        ctx.stop();
+
         Ok(())
     }
 
-    /// Finalizes the MPC-TLS protocol.
+    /// Defers decryption of any incoming messages.
+    pub async fn defer_decryption(&mut self) -> Result<(), MpcTlsError> {
+        if self.committed {
+            return Ok(());
+        }
+
+        self.is_decrypting = false;
+        self.notifier.clear();
+
+        Ok(())
+    }
+
+    /// Commits the leader to the current transcript.
+    ///
+    /// This reveals the encryption keys to the leader and disables sending or receiving
+    /// any further messages.
     #[cfg_attr(
         feature = "tracing",
         tracing::instrument(name = "finalize", level = "trace", skip_all, err)
     )]
-    #[msg(skip, name = "Finalize")]
-    pub async fn finalize(&mut self) -> Result<(), MpcTlsError> {
-        self.state.try_as_closed()?;
+    #[msg(skip, name = "Commit")]
+    pub async fn commit(&mut self) -> Result<(), MpcTlsError> {
+        self.state.try_as_active()?;
 
         #[cfg(feature = "tracing")]
-        tracing::debug!("finalizing MPC-TLS protocol");
+        tracing::debug!("committing to transcript");
 
-        self.channel.send(MpcTlsMessage::Finalize(Finalize)).await?;
+        self.channel.send(MpcTlsMessage::Commit(Commit)).await?;
 
-        if !self.committed.is_empty() {
+        if !self.buffer.is_empty() {
             self.decrypter.decode_key_private().await?;
-
-            while let Some(msg) = self.committed.pop_front() {
-                self.decrypter.prove_plaintext(msg).await?;
-            }
+            self.is_decrypting = true;
+            self.notifier.set();
         }
-
-        ctx.stop();
 
         Ok(())
     }
@@ -649,13 +669,48 @@ impl Backend for MpcTlsLeader {
     }
 
     async fn buffer_incoming(&mut self, msg: OpaqueMessage) -> Result<(), BackendError> {
-        self.committed.push_back(msg);
+        if self.committed {
+            return Err(BackendError::InternalError(
+                "cannot buffer messages after committing to transcript".to_string(),
+            ));
+        }
+
+        if msg.typ == ContentType::ApplicationData {
+            self.channel
+                .send(MpcTlsMessage::CommitMessage(CommitMessage {
+                    msg: msg.payload.0.clone(),
+                }))
+                .await
+                .map_err(|e| BackendError::InternalError(e.to_string()))?;
+        }
+
+        self.buffer.push_back(msg);
+
+        if self.is_decrypting {
+            self.notifier.set();
+        }
 
         Ok(())
     }
 
     async fn next_incoming(&mut self) -> Result<Option<OpaqueMessage>, BackendError> {
-        Ok(self.committed.pop_front())
+        if !self.is_decrypting {
+            return Ok(None);
+        }
+
+        if self.buffer.is_empty() {
+            self.notifier.clear();
+        }
+
+        Ok(self.buffer.pop_front())
+    }
+
+    async fn get_notify(&mut self) -> Result<BackendNotify, BackendError> {
+        Ok(self.notifier.get())
+    }
+
+    async fn buffer_len(&mut self) -> Result<usize, BackendError> {
+        Ok(self.buffer.len())
     }
 }
 

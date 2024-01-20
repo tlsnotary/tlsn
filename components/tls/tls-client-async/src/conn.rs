@@ -1,13 +1,11 @@
 use bytes::Bytes;
 use futures::{
-    channel::{
-        mpsc::{Receiver, SendError, Sender},
-        oneshot,
-    },
+    channel::mpsc::{Receiver, SendError, Sender},
     sink::SinkMapErr,
-    AsyncRead, AsyncWrite, Future, SinkExt,
+    AsyncRead, AsyncWrite, SinkExt,
 };
 use std::{
+    io::{Error as IoError, ErrorKind as IoErrorKind},
     pin::Pin,
     task::{Context, Poll},
 };
@@ -17,7 +15,7 @@ use tokio_util::{
 };
 
 type CompatSinkWriter =
-    Compat<SinkWriter<CopyToBytes<SinkMapErr<Sender<Bytes>, fn(SendError) -> std::io::Error>>>>;
+    Compat<SinkWriter<CopyToBytes<SinkMapErr<Sender<Bytes>, fn(SendError) -> IoError>>>>;
 
 /// A TLS connection to a server.
 ///
@@ -31,41 +29,29 @@ type CompatSinkWriter =
 #[derive(Debug)]
 pub struct TlsConnection {
     tx_sender: CompatSinkWriter,
-    rx_receiver: Compat<StreamReader<Receiver<Result<Bytes, std::io::Error>>, Bytes>>,
-    close_send: Option<oneshot::Sender<oneshot::Sender<()>>>,
-    close_wait: Option<oneshot::Receiver<()>>,
-    tx_closed: bool,
+    rx_receiver: Compat<StreamReader<Receiver<Result<Bytes, IoError>>, Bytes>>,
 }
 
 impl TlsConnection {
     /// Creates a new TLS connection.
     pub(crate) fn new(
         tx_sender: Sender<Bytes>,
-        rx_receiver: Receiver<Result<Bytes, std::io::Error>>,
-        close_send: oneshot::Sender<oneshot::Sender<()>>,
+        rx_receiver: Receiver<Result<Bytes, IoError>>,
     ) -> Self {
-        fn convert_error(err: SendError) -> std::io::Error {
-            std::io::Error::new(std::io::ErrorKind::Other, err)
+        fn convert_error(err: SendError) -> IoError {
+            if err.is_disconnected() {
+                IoErrorKind::BrokenPipe.into()
+            } else {
+                IoErrorKind::WouldBlock.into()
+            }
         }
 
         Self {
             tx_sender: SinkWriter::new(CopyToBytes::new(
-                tx_sender.sink_map_err(convert_error as fn(SendError) -> std::io::Error),
+                tx_sender.sink_map_err(convert_error as fn(SendError) -> IoError),
             ))
             .compat_write(),
             rx_receiver: StreamReader::new(rx_receiver).compat(),
-            close_send: Some(close_send),
-            close_wait: None,
-            tx_closed: false,
-        }
-    }
-}
-
-impl Drop for TlsConnection {
-    fn drop(&mut self) {
-        if let Some(close) = self.close_send.take() {
-            let (wait_send, _) = oneshot::channel();
-            _ = close.send(wait_send);
         }
     }
 }
@@ -75,7 +61,7 @@ impl AsyncRead for TlsConnection {
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut [u8],
-    ) -> Poll<Result<usize, std::io::Error>> {
+    ) -> Poll<Result<usize, IoError>> {
         Pin::new(&mut self.rx_receiver).poll_read(cx, buf)
     }
 }
@@ -85,47 +71,15 @@ impl AsyncWrite for TlsConnection {
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &[u8],
-    ) -> Poll<Result<usize, std::io::Error>> {
+    ) -> Poll<Result<usize, IoError>> {
         Pin::new(&mut self.tx_sender).poll_write(cx, buf)
     }
 
-    fn poll_flush(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<(), std::io::Error>> {
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), IoError>> {
         Pin::new(&mut self.tx_sender).poll_flush(cx)
     }
 
-    fn poll_close(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<(), std::io::Error>> {
-        // First close tx_sender
-        if !self.tx_closed {
-            if let Poll::Ready(res) = Pin::new(&mut self.tx_sender).poll_close(cx) {
-                // Propagate any error from closing the sender
-                // otherwise proceed to closing the TLS connection.
-                res?;
-                self.tx_closed = true;
-            } else {
-                return Poll::Pending;
-            }
-        }
-
-        // Then wait for the TLS connection to close
-        if let Some(wait) = self.close_wait.as_mut() {
-            Pin::new(wait).poll(cx).map(|_| Ok(()))
-        } else {
-            let (wait_send, wait_recv) = oneshot::channel();
-            let close_send = self.close_send.take().expect("close_send is set");
-
-            self.close_wait = Some(wait_recv);
-
-            _ = close_send.send(wait_send);
-
-            Pin::new(self.close_wait.as_mut().unwrap())
-                .poll(cx)
-                .map(|_| Ok(()))
-        }
+    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), IoError>> {
+        Pin::new(&mut self.tx_sender).poll_close(cx)
     }
 }

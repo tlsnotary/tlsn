@@ -5,6 +5,8 @@ use std::{
     task::{Context, Poll, Waker},
 };
 
+use futures::future::FusedFuture;
+
 /// A notifier which can be used by the backend.
 pub struct BackendNotifier {
     state: Arc<Mutex<State>>,
@@ -72,12 +74,17 @@ impl Future for BackendNotify {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut state = self.state.lock().unwrap();
         if state.ready {
-            state.ready = false;
             Poll::Ready(())
         } else {
             state.waker = Some(cx.waker().clone());
             Poll::Pending
         }
+    }
+}
+
+impl FusedFuture for BackendNotify {
+    fn is_terminated(&self) -> bool {
+        false
     }
 }
 

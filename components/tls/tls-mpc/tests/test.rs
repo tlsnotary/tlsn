@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use futures::{AsyncReadExt, AsyncWriteExt, StreamExt};
 use mpz_garble::{config::Role as GarbleRole, protocol::deap::DEAPVm};
@@ -294,23 +294,50 @@ async fn test() {
     let msg = concat!(
         "POST /echo HTTP/1.1\r\n",
         "Host: test-server.io\r\n",
-        "Connection: close\r\n",
+        "Connection: keep-alive\r\n",
         "Accept-Encoding: identity\r\n",
+        "Content-Length: 5\r\n",
+        "\r\n",
+        "hello",
         "\r\n"
     );
 
     conn.write_all(msg.as_bytes()).await.unwrap();
 
-    let mut buf = Vec::new();
+    let mut buf = vec![0u8; 48];
+    conn.read_exact(&mut buf).await.unwrap();
+
+    println!("{}", String::from_utf8_lossy(&buf));
+
+    leader_ctrl.defer_decryption().await.unwrap();
+
+    let msg = concat!(
+        "POST /echo HTTP/1.1\r\n",
+        "Host: test-server.io\r\n",
+        "Connection: close\r\n",
+        "Accept-Encoding: identity\r\n",
+        "Content-Length: 5\r\n",
+        "\r\n",
+        "hello",
+        "\r\n"
+    );
+
+    conn.write_all(msg.as_bytes()).await.unwrap();
+
+    // Wait for the server to reply.
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    leader_ctrl.commit().await.unwrap();
+
+    let mut buf = vec![0u8; 1024];
     conn.read_to_end(&mut buf).await.unwrap();
 
     leader_ctrl.close_connection().await.unwrap();
-    leader_ctrl.finalize().await.unwrap();
+    conn.close().await.unwrap();
 
     follower_ot_send.shutdown().await.unwrap();
 
     tokio::try_join!(leader_vm.finalize(), follower_vm.finalize()).unwrap();
-
     tokio::try_join!(leader_gf2.reveal(), follower_gf2.verify()).unwrap();
 
     conn_task.await.unwrap().unwrap();

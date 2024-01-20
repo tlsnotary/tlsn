@@ -125,4 +125,6 @@ pub trait Backend: Send {
     async fn get_notify(&mut self) -> Result<BackendNotify, BackendError> {
         Ok(BackendNotify::dummy())
     }
+    /// Returns the number of messages buffered for decryption.
+    async fn buffer_len(&mut self) -> Result<usize, BackendError>;
 }

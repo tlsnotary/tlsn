@@ -17,6 +17,4 @@ name = "tls_backend"
 tlsn-tls-core = { path = "../tls-core" }
 async-trait.workspace = true
 thiserror.workspace = true
-
-[dev-dependencies]
 futures.workspace = true

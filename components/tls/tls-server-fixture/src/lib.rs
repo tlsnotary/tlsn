@@ -50,7 +50,7 @@ pub async fn bind_test_server_hyper<T: AsyncRead + AsyncWrite + Send + Unpin + '
 
     Http::new()
         .http1_only(true)
-        .http1_keep_alive(false)
+        .http1_keep_alive(true)
         .serve_connection(conn.compat(), service_fn(echo))
         .without_shutdown()
         .map(|res| res.map(|parts| parts.io.into_inner()))
