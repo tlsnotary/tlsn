@@ -152,7 +152,6 @@ impl Prover<state::Setup> {
                     };
 
                     mpc_ctrl.close_connection().await?;
-                    mpc_ctrl.finalize().await?;
 
                     Ok::<_, ProverError>((sent, recv))
                 };

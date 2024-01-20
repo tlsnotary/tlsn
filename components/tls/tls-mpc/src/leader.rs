@@ -278,7 +278,7 @@ impl MpcTlsLeader {
         tracing::instrument(level = "trace", skip_all, err)
     )]
     async fn decrypt_alert(&mut self, msg: OpaqueMessage) -> Result<PlainMessage, MpcTlsError> {
-        let Active { data } = self.state.take().try_into_active()?;
+        self.state.try_as_active()?;
 
         self.channel
             .send(MpcTlsMessage::DecryptAlert(DecryptAlert {
@@ -287,8 +287,6 @@ impl MpcTlsLeader {
             .await?;
 
         let msg = self.decrypter.decrypt_public(msg).await?;
-
-        self.state = State::Closed(Closed { data });
 
         Ok(msg)
     }
@@ -315,6 +313,23 @@ impl MpcTlsLeader {
         };
 
         Ok(msg)
+    }
+
+    async fn commit(&mut self) -> Result<(), MpcTlsError> {
+        self.state.try_as_active()?;
+
+        #[cfg(feature = "tracing")]
+        tracing::debug!("committing to transcript");
+
+        self.channel.send(MpcTlsMessage::Commit(Commit)).await?;
+
+        if !self.buffer.is_empty() {
+            self.decrypter.decode_key_private().await?;
+            self.is_decrypting = true;
+            self.notifier.set();
+        }
+
+        Ok(())
     }
 }
 
@@ -370,20 +385,7 @@ impl MpcTlsLeader {
     )]
     #[msg(skip, name = "Commit")]
     pub async fn commit(&mut self) -> Result<(), MpcTlsError> {
-        self.state.try_as_active()?;
-
-        #[cfg(feature = "tracing")]
-        tracing::debug!("committing to transcript");
-
-        self.channel.send(MpcTlsMessage::Commit(Commit)).await?;
-
-        if !self.buffer.is_empty() {
-            self.decrypter.decode_key_private().await?;
-            self.is_decrypting = true;
-            self.notifier.set();
-        }
-
-        Ok(())
+        self.commit().await
     }
 }
 
@@ -711,6 +713,10 @@ impl Backend for MpcTlsLeader {
 
     async fn buffer_len(&mut self) -> Result<usize, BackendError> {
         Ok(self.buffer.len())
+    }
+
+    async fn server_closed(&mut self) -> Result<(), BackendError> {
+        self.commit().await.map_err(BackendError::from)
     }
 }
 

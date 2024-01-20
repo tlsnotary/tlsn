@@ -133,6 +133,7 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
                         #[cfg(feature = "tracing")]
                         debug!("server closed connection");
                         server_closed = true;
+                        client.server_closed().await?;
                         // Do not read from the socket again.
                         rx_tls_fut = Fuse::terminated();
                     } else {

@@ -127,4 +127,8 @@ pub trait Backend: Send {
     }
     /// Returns the number of messages buffered for decryption.
     async fn buffer_len(&mut self) -> Result<usize, BackendError>;
+    /// Signals to the backend that the server has closed the connection.
+    async fn server_closed(&mut self) -> Result<(), BackendError> {
+        Ok(())
+    }
 }
