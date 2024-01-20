@@ -31,7 +31,7 @@ use state::{Notarize, Prove};
 use std::sync::Arc;
 use tls_client::{ClientConnection, ServerName as TlsServerName};
 use tls_client_async::{bind_client, ClosedConnection, TlsConnection};
-use tls_mpc::{setup_components, MpcTlsLeader, TlsRole};
+use tls_mpc::{setup_components, LeaderCtrl, MpcTlsLeader, TlsRole};
 use tlsn_core::transcript::Transcript;
 use uid_mux::{yamux, UidYamux};
 use utils_aio::{codec::BincodeMux, mux::MuxChannel};
@@ -142,6 +142,7 @@ impl Prover<state::Setup> {
         let start_time = web_time::UNIX_EPOCH.elapsed().unwrap().as_secs();
 
         let fut = Box::pin({
+            let mpc_ctrl = mpc_ctrl.clone();
             #[allow(clippy::let_and_return)]
             let fut = async move {
                 let conn_fut = async {
@@ -182,7 +183,13 @@ impl Prover<state::Setup> {
             fut
         });
 
-        Ok((conn, ProverFuture { fut }))
+        Ok((
+            conn,
+            ProverFuture {
+                fut,
+                ctrl: ProverControl { mpc_ctrl },
+            },
+        ))
     }
 }
 
@@ -343,4 +350,28 @@ async fn setup_mpc_backend(
     debug!("MPC backend setup complete");
 
     Ok((mpc_tls, vm, ot_recv, gf2, ot_fut))
+}
+
+/// A controller for the prover.
+#[derive(Clone)]
+pub struct ProverControl {
+    mpc_ctrl: LeaderCtrl,
+}
+
+impl ProverControl {
+    /// Defers decryption of data from the server until the server has closed the connection.
+    ///
+    /// This is a performance optimization which will significantly reduce the amount of upload bandwidth
+    /// used by the prover.
+    ///
+    /// # Notes
+    ///
+    /// * The prover may need to close the connection to the server in order for it to close the connection
+    ///   on its end. If neither the prover or server close the connection this will cause a deadlock.
+    pub async fn defer_decryption(&self) -> Result<(), ProverError> {
+        self.mpc_ctrl
+            .defer_decryption()
+            .await
+            .map_err(ProverError::from)
+    }
 }

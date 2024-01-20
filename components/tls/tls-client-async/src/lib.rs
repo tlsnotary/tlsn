@@ -129,6 +129,9 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
                         }
                     }
 
+                    #[cfg(feature = "tracing")]
+                    trace!("processed {} tls bytes from server", processed);
+
                     if received == 0 {
                         #[cfg(feature = "tracing")]
                         debug!("server closed connection");
@@ -145,6 +148,9 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
                 // send a close_notify to the server, flush and close.
                 data = &mut tx_recv_fut => {
                     if let Some(data) = data {
+                        #[cfg(feature = "tracing")]
+                        trace!("writing {} plaintext bytes to client", data.len());
+
                         sent.extend(&data);
                         client
                             .write_all_plaintext(&data)
@@ -199,6 +205,8 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
                 _ = rx_sender
                     .send(Ok(Bytes::copy_from_slice(&rx_buf[..read])))
                     .await;
+                #[cfg(feature = "tracing")]
+                trace!("forwarded {} plaintext bytes to conn", read);
             }
 
             let buffer_len = client.buffer_len().await?;
