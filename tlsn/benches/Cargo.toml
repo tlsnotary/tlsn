@@ -1,0 +1,39 @@
+[package]
+name = "tlsn-benches"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+tlsn-core.workspace = true
+tlsn-prover.workspace = true
+tlsn-verifier.workspace = true
+tlsn-server-fixture.workspace = true
+tlsn-tls-core.workspace = true
+futures.workspace = true
+tokio = { workspace = true, features = [
+    "rt",
+    "rt-multi-thread",
+    "macros",
+    "net",
+    "io-std",
+    "fs",
+] }
+tokio-util.workspace = true
+tracing-subscriber.workspace = true
+
+[[bin]]
+name = "setup_network"
+path = "src/setup_network.rs"
+
+[[bin]]
+name = "cleanup_network"
+path = "src/cleanup_network.rs"
+
+[[bin]]
+name = "prover"
+path = "src/prover.rs"
+
+[[bin]]
+name = "verifier"
+path = "src/verifier.rs"
