@@ -8,6 +8,7 @@ use std::{
 use futures::future::FusedFuture;
 
 /// A notifier which can be used by the backend.
+#[derive(Default)]
 pub struct BackendNotifier {
     state: Arc<Mutex<State>>,
 }
@@ -46,6 +47,7 @@ impl BackendNotifier {
     }
 }
 
+#[derive(Default)]
 struct State {
     ready: bool,
     waker: Option<Waker>,
