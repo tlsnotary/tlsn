@@ -259,7 +259,6 @@ async fn send_close_notify(
         client.write_tls_async(server_tx).await?;
     }
     server_tx.flush().await?;
-    //server_tx.close().await?;
 
     Ok(())
 }
