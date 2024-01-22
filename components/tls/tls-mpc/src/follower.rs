@@ -449,7 +449,6 @@ impl MpcTlsFollower {
         tracing::instrument(level = "trace", skip_all, err)
     )]
     async fn decrypt_alert(&mut self, msg: Vec<u8>) -> Result<(), MpcTlsError> {
-        self.accepting_messages()?;
         self.state.try_as_active()?;
 
         let alert = self
@@ -532,6 +531,8 @@ impl MpcTlsFollower {
 
         #[cfg(feature = "tracing")]
         tracing::debug!("leader committed transcript");
+
+        self.committed = true;
 
         if !buffer.is_empty() {
             self.decrypter.decode_key_blind().await?;

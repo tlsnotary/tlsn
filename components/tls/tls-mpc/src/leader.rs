@@ -323,6 +323,8 @@ impl MpcTlsLeader {
 
         self.channel.send(MpcTlsMessage::Commit(Commit)).await?;
 
+        self.committed = true;
+
         if !self.buffer.is_empty() {
             self.decrypter.decode_key_private().await?;
             self.is_decrypting = true;
