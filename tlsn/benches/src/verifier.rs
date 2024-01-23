@@ -3,10 +3,14 @@ use tlsn_server_fixture::CA_CERT_DER;
 use tokio_util::compat::TokioAsyncReadCompatExt;
 
 use tlsn_verifier::tls::{Verifier, VerifierConfig};
+use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
+        .init();
 
     let ip = std::env::var("VERIFIER_IP").unwrap_or_else(|_| "10.10.1.1".to_string());
     let port: u16 = std::env::var("VERIFIER_PORT")

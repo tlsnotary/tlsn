@@ -6,10 +6,14 @@ use tlsn_server_fixture::{CA_CERT_DER, SERVER_DOMAIN};
 use tokio_util::compat::TokioAsyncReadCompatExt;
 
 use tlsn_prover::tls::{Prover, ProverConfig};
+use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
+        .init();
 
     let (client_conn, server_conn) = tokio::io::duplex(2 << 16);
     let server_task = tokio::spawn(tlsn_server_fixture::bind(server_conn.compat()));
