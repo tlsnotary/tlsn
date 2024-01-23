@@ -71,7 +71,7 @@ fn create_veth_pair(
     right_namespace: &str,
     right_interface: &str,
 ) -> Result<(), std::io::Error> {
-    // Check if left interface is present in left namespace
+    // Check if interfaces are already present in namespaces
     if is_interface_present_in_namespace(left_namespace, left_interface)?
         || is_interface_present_in_namespace(right_namespace, right_interface)?
     {
