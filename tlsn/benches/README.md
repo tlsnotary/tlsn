@@ -53,7 +53,7 @@ ip netns exec prover-ns ping 10.10.1.1
 
 For future reference, you can clean up this configuration as shown below.
 
-First, delete each the interface pair (this removes both):
+First, delete the interface pair (this removes both):
 
 ```sh
 ip netns exec prover-ns ip link delete prover-veth
