@@ -1,12 +1,14 @@
 [workspace]
 members = [
     "tlsn-core",
+    "tlsn-common",
     "tlsn-verifier",
     "tlsn-prover",
-#    "tlsn-formats",
+    #    "tlsn-formats",
     "tlsn-server-fixture",
     "tests-integration",
     "examples",
+    "tlsn-common",
 ]
 resolver = "2"
 

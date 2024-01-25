@@ -1,0 +1,9 @@
+[package]
+name = "tlsn-common"
+description = "Common code shared between tlsn-prover and tlsn-verifier"
+version = "0.1.0-alpha.3"
+edition = "2021"
+
+[dependencies]
+futures.workspace = true
+uid-mux.workspace = true
