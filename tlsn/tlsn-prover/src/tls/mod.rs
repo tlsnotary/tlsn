@@ -75,6 +75,7 @@ impl Prover<state::Initialized> {
         socket: S,
     ) -> Result<Prover<state::Setup>, ProverError> {
         let mut mux_config = yamux::Config::default();
+        // See PR #418
         mux_config.set_max_num_streams(40);
         mux_config.set_max_buffer_size(16 * 1024 * 1024);
         mux_config.set_receive_window(16 * 1024 * 1024);
