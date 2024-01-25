@@ -74,7 +74,7 @@ impl Prover<ProveState> {
             let channel = if let Some(ref mut channel) = self.state.channel {
                 channel
             } else {
-                self.state.channel = Some(self.state.verify_mux.get_channel("prove-verify").await?);
+                self.state.channel = Some(self.state.mux_ctrl.get_channel("prove-verify").await?);
                 self.state.channel.as_mut().unwrap()
             };
 
@@ -154,7 +154,7 @@ impl Prover<ProveState> {
     /// Finalize the proving
     pub async fn finalize(self) -> Result<(), ProverError> {
         let ProveState {
-            mut verify_mux,
+            mut mux_ctrl,
             mut mux_fut,
             mut vm,
             mut ot_fut,
@@ -170,7 +170,7 @@ impl Prover<ProveState> {
         };
 
         let mut finalize_fut = Box::pin(async move {
-            let mut channel = verify_mux.get_channel("finalize").await?;
+            let mut channel = mux_ctrl.get_channel("finalize").await?;
 
             _ = vm
                 .finalize()

@@ -58,7 +58,7 @@ opaque_debug::implement!(Closed);
 /// Notarizing state.
 pub struct Notarize {
     /// A muxer for communication with the Notary
-    pub(crate) notary_mux: MuxControl,
+    pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
 
     pub(crate) vm: DEAPVm<SharedSender, SharedReceiver>,
@@ -92,7 +92,7 @@ impl From<Closed> for Notarize {
         );
 
         Self {
-            notary_mux: state.mux_ctrl,
+            mux_ctrl: state.mux_ctrl,
             mux_fut: state.mux_fut,
             vm: state.vm,
             ot_fut: state.ot_fut,
@@ -109,7 +109,7 @@ impl From<Closed> for Notarize {
 
 /// Proving state.
 pub struct Prove {
-    pub(crate) verify_mux: MuxControl,
+    pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
 
     pub(crate) vm: DEAPVm<SharedSender, SharedReceiver>,
@@ -129,7 +129,7 @@ pub struct Prove {
 impl From<Closed> for Prove {
     fn from(state: Closed) -> Self {
         Self {
-            verify_mux: state.mux_ctrl,
+            mux_ctrl: state.mux_ctrl,
             mux_fut: state.mux_fut,
             vm: state.vm,
             ot_fut: state.ot_fut,

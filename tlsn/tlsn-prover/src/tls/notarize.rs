@@ -36,7 +36,7 @@ impl Prover<Notarize> {
     #[cfg_attr(feature = "tracing", instrument(level = "info", skip(self), err))]
     pub async fn finalize(self) -> Result<NotarizedSession, ProverError> {
         let Notarize {
-            mut notary_mux,
+            mut mux_ctrl,
             mut mux_fut,
             mut vm,
             mut ot_fut,
@@ -62,7 +62,7 @@ impl Prover<Notarize> {
         let merkle_root = session_data.commitments().merkle_root();
 
         let mut notarize_fut = Box::pin(async move {
-            let mut channel = notary_mux.get_channel("notarize").await?;
+            let mut channel = mux_ctrl.get_channel("notarize").await?;
 
             channel
                 .send(TlsnMessage::TranscriptCommitmentRoot(merkle_root))
