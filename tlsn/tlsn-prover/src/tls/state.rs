@@ -1,9 +1,6 @@
 //! TLS prover states.
 
-use crate::{
-    tls::{MuxFuture, OTFuture},
-    Mux,
-};
+use crate::tls::{MuxFuture, OTFuture};
 use mpz_core::commit::Decommitment;
 use mpz_garble::protocol::deap::{DEAPThread, DEAPVm, PeerEncodings};
 use mpz_garble_core::{encoding_state, EncodedValue};
@@ -12,6 +9,7 @@ use mpz_share_conversion::{ConverterSender, Gf2_128};
 use std::collections::HashMap;
 use tls_core::{handshake::HandshakeData, key::PublicKey};
 use tls_mpc::MpcTlsLeader;
+use tlsn_common::mux::MuxControl;
 use tlsn_core::{
     commitment::TranscriptCommitmentBuilder,
     msg::{ProvingInfo, TlsnMessage},
@@ -27,7 +25,7 @@ opaque_debug::implement!(Initialized);
 /// State after MPC setup has completed.
 pub struct Setup {
     /// A muxer for communication with the Notary
-    pub(crate) notary_mux: Mux,
+    pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
 
     pub(crate) mpc_tls: MpcTlsLeader,
@@ -40,7 +38,7 @@ opaque_debug::implement!(Setup);
 
 /// State after the TLS connection has been closed.
 pub struct Closed {
-    pub(crate) notary_mux: Mux,
+    pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
 
     pub(crate) vm: DEAPVm<SharedSender, SharedReceiver>,
@@ -60,7 +58,7 @@ opaque_debug::implement!(Closed);
 /// Notarizing state.
 pub struct Notarize {
     /// A muxer for communication with the Notary
-    pub(crate) notary_mux: Mux,
+    pub(crate) notary_mux: MuxControl,
     pub(crate) mux_fut: MuxFuture,
 
     pub(crate) vm: DEAPVm<SharedSender, SharedReceiver>,
@@ -94,7 +92,7 @@ impl From<Closed> for Notarize {
         );
 
         Self {
-            notary_mux: state.notary_mux,
+            notary_mux: state.mux_ctrl,
             mux_fut: state.mux_fut,
             vm: state.vm,
             ot_fut: state.ot_fut,
@@ -111,7 +109,7 @@ impl From<Closed> for Notarize {
 
 /// Proving state.
 pub struct Prove {
-    pub(crate) verify_mux: Mux,
+    pub(crate) verify_mux: MuxControl,
     pub(crate) mux_fut: MuxFuture,
 
     pub(crate) vm: DEAPVm<SharedSender, SharedReceiver>,
@@ -131,7 +129,7 @@ pub struct Prove {
 impl From<Closed> for Prove {
     fn from(state: Closed) -> Self {
         Self {
-            verify_mux: state.notary_mux,
+            verify_mux: state.mux_ctrl,
             mux_fut: state.mux_fut,
             vm: state.vm,
             ot_fut: state.ot_fut,

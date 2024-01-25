@@ -12,7 +12,7 @@ pub use error::VerifierError;
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::{tls::future::OTFuture, Mux};
+use crate::tls::future::OTFuture;
 use future::MuxFuture;
 use futures::{
     stream::{SplitSink, SplitStream},
@@ -30,9 +30,12 @@ use rand::Rng;
 use signature::Signer;
 use state::{Notarize, Verify};
 use tls_mpc::{setup_components, MpcTlsFollower, MpcTlsFollowerData, TlsRole};
+use tlsn_common::{
+    mux::{attach_mux, MuxControl},
+    Role,
+};
 use tlsn_core::{proof::SessionInfo, RedactedTranscript, SessionHeader, Signature};
-use uid_mux::{yamux, UidYamux};
-use utils_aio::{codec::BincodeMux, duplex::Duplex, mux::MuxChannel};
+use utils_aio::{duplex::Duplex, mux::MuxChannel};
 
 #[cfg(feature = "tracing")]
 use tracing::{debug, info, instrument};
@@ -72,20 +75,14 @@ impl Verifier<state::Initialized> {
         self,
         socket: S,
     ) -> Result<Verifier<state::Setup>, VerifierError> {
-        let mut mux_config = yamux::Config::default();
-        // See PR #418
-        mux_config.set_max_num_streams(40);
-        mux_config.set_max_buffer_size(16 * 1024 * 1024);
-        mux_config.set_receive_window(16 * 1024 * 1024);
-        let mut mux = UidYamux::new(mux_config, socket, yamux::Mode::Server);
-        let mux_control = BincodeMux::new(mux.control());
+        let (mut mux, mux_ctrl) = attach_mux(socket, Role::Verifier);
 
         let mut mux_fut = MuxFuture {
             fut: Box::pin(async move { mux.run().await.map_err(VerifierError::from) }.fuse()),
         };
 
         let encoder_seed: [u8; 32] = rand::rngs::OsRng.gen();
-        let mpc_setup_fut = setup_mpc_backend(&self.config, mux_control.clone(), encoder_seed);
+        let mpc_setup_fut = setup_mpc_backend(&self.config, mux_ctrl.clone(), encoder_seed);
         let (mpc_tls, vm, ot_send, ot_recv, gf2, ot_fut) = futures::select! {
             res = mpc_setup_fut.fuse() => res?,
             _ = &mut mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
@@ -94,7 +91,7 @@ impl Verifier<state::Initialized> {
         Ok(Verifier {
             config: self.config,
             state: state::Setup {
-                mux: mux_control,
+                mux_ctrl,
                 mux_fut,
                 mpc_tls,
                 vm,
@@ -146,7 +143,7 @@ impl Verifier<state::Setup> {
     /// Runs the verifier until the TLS connection is closed.
     pub async fn run(self) -> Result<Verifier<state::Closed>, VerifierError> {
         let state::Setup {
-            mux,
+            mux_ctrl: mux,
             mut mux_fut,
             mpc_tls,
             vm,
@@ -184,7 +181,7 @@ impl Verifier<state::Setup> {
         Ok(Verifier {
             config: self.config,
             state: state::Closed {
-                mux,
+                mux_ctrl: mux,
                 mux_fut,
                 vm,
                 ot_send,
@@ -231,7 +228,7 @@ impl Verifier<state::Closed> {
 #[allow(clippy::type_complexity)]
 async fn setup_mpc_backend(
     config: &VerifierConfig,
-    mut mux: Mux,
+    mut mux: MuxControl,
     encoder_seed: [u8; 32],
 ) -> Result<
     (

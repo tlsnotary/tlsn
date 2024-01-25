@@ -5,5 +5,7 @@ version = "0.1.0-alpha.3"
 edition = "2021"
 
 [dependencies]
+tlsn-utils-aio.workspace = true
+
 futures.workspace = true
 uid-mux.workspace = true

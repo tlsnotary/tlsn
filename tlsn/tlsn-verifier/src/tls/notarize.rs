@@ -23,7 +23,7 @@ impl Verifier<Notarize> {
         T: Into<Signature>,
     {
         let Notarize {
-            mut mux,
+            mux_ctrl: mut mux,
             mut mux_fut,
             mut vm,
             ot_send,

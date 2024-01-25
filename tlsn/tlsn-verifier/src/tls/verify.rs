@@ -30,7 +30,7 @@ impl Verifier<VerifyState> {
             let channel = if let Some(ref mut channel) = self.state.channel {
                 channel
             } else {
-                self.state.channel = Some(self.state.mux.get_channel("prove-verify").await?);
+                self.state.channel = Some(self.state.mux_ctrl.get_channel("prove-verify").await?);
                 self.state.channel.as_mut().unwrap()
             };
 
@@ -133,7 +133,7 @@ impl Verifier<VerifyState> {
     /// Verify the TLS session.
     pub async fn finalize(self) -> Result<SessionInfo, VerifierError> {
         let VerifyState {
-            mut mux,
+            mux_ctrl: mut mux,
             mut mux_fut,
             mut vm,
             ot_send,

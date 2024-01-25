@@ -1,5 +1,9 @@
 //! Common code shared between `tlsn-prover` and `tlsn-verifier`.
 
+#![deny(missing_docs, unreachable_pub, unused_must_use)]
+#![deny(clippy::all)]
+#![forbid(unsafe_code)]
+
 pub mod mux;
 
 /// The parties role in the TLSN protocol.
