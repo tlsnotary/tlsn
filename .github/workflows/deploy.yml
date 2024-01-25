@@ -1,0 +1,48 @@
+name: Deploy
+on:
+  #push:
+  #  branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment"
+        required: true
+        default: "enable"
+        type: choice
+        options:
+        - nightly
+        - stable
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:  
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      DATA_ENV: ${{ github.event.inputs.environment || 'nightly' }}
+    permissions:
+      id-token: write
+      contents: read
+    
+    steps:      
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::490752553772:role/tlsn-deploy-slc
+          role-duration-seconds: 1800
+          aws-region: eu-central-1
+
+      - name: Cargo build
+        run: |
+          .github/scripts/build.sh ${{ env.DATA_ENV }}
+
+      - name: Trigger Deployment
+        run: |
+          .github/scripts/deploy.sh ${{ env.DATA_ENV }} $GITHUB_REF_NAME
