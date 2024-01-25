@@ -341,6 +341,11 @@
 <a href="#341" id="341">341</a>
 <a href="#342" id="342">342</a>
 <a href="#343" id="343">343</a>
+<a href="#344" id="344">344</a>
+<a href="#345" id="345">345</a>
+<a href="#346" id="346">346</a>
+<a href="#347" id="347">347</a>
+<a href="#348" id="348">348</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! TLS Verifier
 
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>config;
@@ -415,7 +420,12 @@
         <span class="self">self</span>,
         socket: S,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Verifier&lt;state::Setup&gt;, VerifierError&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>mux = UidYamux::new(yamux::Config::default(), socket, yamux::Mode::Server);
+        <span class="kw">let </span><span class="kw-2">mut </span>mux_config = yamux::Config::default();
+        <span class="comment">// See PR #418
+        </span>mux_config.set_max_num_streams(<span class="number">40</span>);
+        mux_config.set_max_buffer_size(<span class="number">16 </span>* <span class="number">1024 </span>* <span class="number">1024</span>);
+        mux_config.set_receive_window(<span class="number">16 </span>* <span class="number">1024 </span>* <span class="number">1024</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>mux = UidYamux::new(mux_config, socket, yamux::Mode::Server);
         <span class="kw">let </span>mux_control = BincodeMux::new(mux.control());
 
         <span class="kw">let </span><span class="kw-2">mut </span>mux_fut = MuxFuture {

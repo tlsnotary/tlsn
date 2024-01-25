@@ -345,6 +345,11 @@
 <a href="#345" id="345">345</a>
 <a href="#346" id="346">346</a>
 <a href="#347" id="347">347</a>
+<a href="#348" id="348">348</a>
+<a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a>
+<a href="#351" id="351">351</a>
+<a href="#352" id="352">352</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! TLS prover.
 //!
 //! This module provides the TLS prover, which is used with a TLS verifier to prove a transcript of communications with a server.
@@ -421,7 +426,12 @@
         <span class="self">self</span>,
         socket: S,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Prover&lt;state::Setup&gt;, ProverError&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>mux = UidYamux::new(yamux::Config::default(), socket, yamux::Mode::Client);
+        <span class="kw">let </span><span class="kw-2">mut </span>mux_config = yamux::Config::default();
+        <span class="comment">// See PR #418
+        </span>mux_config.set_max_num_streams(<span class="number">40</span>);
+        mux_config.set_max_buffer_size(<span class="number">16 </span>* <span class="number">1024 </span>* <span class="number">1024</span>);
+        mux_config.set_receive_window(<span class="number">16 </span>* <span class="number">1024 </span>* <span class="number">1024</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>mux = UidYamux::new(mux_config, socket, yamux::Mode::Client);
         <span class="kw">let </span>notary_mux = BincodeMux::new(mux.control());
 
         <span class="kw">let </span><span class="kw-2">mut </span>mux_fut = MuxFuture {
