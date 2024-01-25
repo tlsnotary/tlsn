@@ -11,7 +11,7 @@ sudo mv ~/tlsn/ ~/$APP_NAME
 sudo mkdir -p ~/$APP_NAME/tlsn/notary-server/target/release
 sudo chown -R ubuntu.ubuntu ~/$APP_NAME
  
-git clone -b $BRANCH --no-checkout https://github.com/ntampakas/tlsn.git /tmp/tlsn_remove
+git clone -b $BRANCH --no-checkout https://github.com/tlsnotary/tlsn.git /tmp/tlsn_remove
 cp -rp /tmp/tlsn_remove/.git ~/$APP_NAME/tlsn
 rm -rf /tmp/tlsn_remove
 
