@@ -15,6 +15,7 @@ tracing = [
     "dep:tracing",
     "tlsn-tls-client-async/tracing",
     "tlsn-tls-mpc/tracing",
+    "tlsn-common/tracing",
 ]
 
 [dependencies]
