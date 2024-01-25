@@ -7,6 +7,4 @@ if [ ! -d $APP_NAME ]; then
    mkdir ~/$APP_NAME
 fi
 
-#sleep 3
-
 exit 0
