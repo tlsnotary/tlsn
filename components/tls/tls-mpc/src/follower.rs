@@ -51,9 +51,9 @@ pub struct MpcTlsFollower {
     encrypter: Encrypter,
     decrypter: Decrypter,
 
-    /// Whether the server has sent a CloseNotify alert
+    /// Whether the server has sent a CloseNotify alert.
     close_notify: bool,
-    /// Whether the leader has committed to the transcript
+    /// Whether the leader has committed to the transcript.
     committed: bool,
 }
 
@@ -492,6 +492,9 @@ impl MpcTlsFollower {
         tracing::debug!("decrypting message");
 
         if self.committed {
+            // At this point the AEAD key was revealed to the leader and the leader locally decrypted
+            // the TLS message and now is proving to us that they know the plaintext which encrypts
+            // to the ciphertext of this TLS message.
             self.decrypter.verify_plaintext(msg).await?;
         } else {
             self.decrypter.decrypt_blind(msg).await?;
@@ -514,7 +517,7 @@ impl MpcTlsFollower {
         if !buffer.is_empty() {
             return Err(MpcTlsError::new(
                 Kind::PeerMisbehaved,
-                "attempted to close connection without proving all messages",
+                "attempted to close connection without decrypting all messages",
             ));
         }
 
@@ -534,6 +537,7 @@ impl MpcTlsFollower {
 
         self.committed = true;
 
+        // Reveal the AEAD key to the leader only if there are TLS messages which need to be decrypted.
         if !buffer.is_empty() {
             self.decrypter.decode_key_blind().await?;
         }

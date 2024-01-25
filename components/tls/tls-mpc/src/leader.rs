@@ -59,11 +59,13 @@ pub struct MpcTlsLeader {
     encrypter: Encrypter,
     decrypter: Decrypter,
 
+    /// Allows us to notify whether or not we are ready to decrypt TLS messages.
     notifier: BackendNotifier,
 
     is_decrypting: bool,
     /// Messages which have been committed but not yet decrypted.
     buffer: VecDeque<OpaqueMessage>,
+    /// Whether we have already committed to the transcript.
     committed: bool,
 }
 
@@ -307,6 +309,8 @@ impl MpcTlsLeader {
             .await?;
 
         let msg = if self.committed {
+            // At this point the AEAD key was revealed to us. We will locally decrypt the TLS message
+            // and will prove the knowledge of the plaintext to the follower.
             self.decrypter.prove_plaintext(msg).await?
         } else {
             self.decrypter.decrypt_private(msg).await?
@@ -379,7 +383,7 @@ impl MpcTlsLeader {
 
     /// Commits the leader to the current transcript.
     ///
-    /// This reveals the encryption keys to the leader and disables sending or receiving
+    /// This reveals the AEAD key to the leader and disables sending or receiving
     /// any further messages.
     #[cfg_attr(
         feature = "tracing",

@@ -28,7 +28,9 @@ type CompatSinkWriter =
 /// [`AsyncWriteExt::close`](futures::io::AsyncWriteExt::close) to close the connection.
 #[derive(Debug)]
 pub struct TlsConnection {
+    /// The data to be transmitted to the server is sent to this sink.
     tx_sender: CompatSinkWriter,
+    /// The data to be received from the server is received from this stream.
     rx_receiver: Compat<StreamReader<Receiver<Result<Bytes, IoError>>, Bytes>>,
 }
 

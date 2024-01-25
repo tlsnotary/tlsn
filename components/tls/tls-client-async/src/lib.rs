@@ -138,7 +138,7 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
                 #[cfg(feature = "tracing")]
                 debug!("handshake complete");
                 handshake_done = true;
-                // Start reading application data from the `TlsConnection`.
+                // Start reading application data that needs to be transmitted from the `TlsConnection`.
                 tx_recv_fut = tx_receiver.next().fuse();
             }
 
@@ -172,6 +172,8 @@ pub fn bind_client<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(
                     #[cfg(feature = "tracing")]
                     trace!("processed {} tls bytes from server", processed);
 
+                    // By convention if `AsyncRead::read` returns 0, it means EOF, i.e. the peer
+                    // has closed the socket.
                     if received == 0 {
                         #[cfg(feature = "tracing")]
                         debug!("server closed connection");

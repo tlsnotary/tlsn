@@ -454,7 +454,7 @@ impl ConnectionCommon {
             .await
     }
 
-    /// Returns a notification future which resolves when the client backend is ready to process
+    /// Returns a notification future which resolves when the client backend is ready to process.
     pub async fn get_notify(&mut self) -> Result<BackendNotify, Error> {
         self.common_state
             .backend
