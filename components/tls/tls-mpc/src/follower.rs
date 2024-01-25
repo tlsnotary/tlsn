@@ -215,7 +215,11 @@ impl MpcTlsFollower {
         Ok(())
     }
 
-    fn accepting_messages(&self) -> Result<(), MpcTlsError> {
+    /// Returns an error if the follower is not accepting new messages.
+    ///
+    /// This can happen if the follower has received a CloseNotify alert or if the leader has
+    /// committed to the transcript.
+    fn is_accepting_messages(&self) -> Result<(), MpcTlsError> {
         if self.close_notify {
             return Err(MpcTlsError::new(
                 Kind::PeerMisbehaved,
@@ -365,7 +369,7 @@ impl MpcTlsFollower {
         tracing::instrument(level = "trace", skip_all, err)
     )]
     async fn encrypt_alert(&mut self, msg: Vec<u8>) -> Result<(), MpcTlsError> {
-        self.accepting_messages()?;
+        self.is_accepting_messages()?;
         if let Some(alert) = AlertMessagePayload::read_bytes(&msg) {
             // We only allow the leader to send a CloseNotify alert
             if alert.description != AlertDescription::CloseNotify {
@@ -397,7 +401,7 @@ impl MpcTlsFollower {
         tracing::instrument(level = "trace", skip_all, err)
     )]
     async fn encrypt_message(&mut self, len: usize) -> Result<(), MpcTlsError> {
-        self.accepting_messages()?;
+        self.is_accepting_messages()?;
         self.check_transcript_length(len)?;
         self.state.try_as_active()?;
 
@@ -413,7 +417,7 @@ impl MpcTlsFollower {
         tracing::instrument(level = "trace", skip_all, err)
     )]
     fn commit_message(&mut self, payload: Vec<u8>) -> Result<(), MpcTlsError> {
-        self.accepting_messages()?;
+        self.is_accepting_messages()?;
         self.check_transcript_length(payload.len())?;
         let Active { buffer, .. } = self.state.try_as_active_mut()?;
 
