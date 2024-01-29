@@ -52,6 +52,20 @@ jobs:
           role-duration-seconds: 1800
           aws-region: eu-central-1
 
+      - name: Install stable rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: clippy
+
+      - name: "Clippy"
+        run: cargo clippy --all-features --examples -- -D warnings
+
+      - name: Use caching
+        uses: Swatinem/rust-cache@v2.5.0
+        with:
+          workspaces: ${{ matrix.package }} -> target
+
       - name: Cargo build
         run: |
           .github/scripts/build-server.sh ${{ env.DATA_ENV }}
