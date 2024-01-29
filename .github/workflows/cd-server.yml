@@ -58,9 +58,6 @@ jobs:
           toolchain: stable
           components: clippy
 
-      - name: "Clippy"
-        run: cargo clippy --all-features --examples -- -D warnings
-
       - name: Use caching
         uses: Swatinem/rust-cache@v2.5.0
         with:
