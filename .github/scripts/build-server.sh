@@ -1,4 +1,5 @@
 #!/bin/bash
+# https://github.com/tlsnotary/tlsn/pull/419
 set -ex
 
 environment=$1
