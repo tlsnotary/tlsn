@@ -1,3 +1,4 @@
+# AWS CodeDeploy application specification file
 version: 0.0
 os: linux
 files:
@@ -9,22 +10,22 @@ permissions:
     group: ubuntu
 hooks:
   BeforeInstall:
-    - location: scripts/before_install.sh
+    - location: appspec-scripts/before_install.sh
       timeout: 300
       runas: ubuntu
   AfterInstall:
-    - location: scripts/after_install.sh
+    - location: appspec-scripts/after_install.sh
       timeout: 300
       runas: ubuntu
   ApplicationStart:
-    - location: scripts/start_app.sh
+    - location: appspec-scripts/start_app.sh
       timeout: 300
       runas: ubuntu
   ApplicationStop:
-    - location: scripts/stop_app.sh
+    - location: appspec-scripts/stop_app.sh
       timeout: 300
       runas: ubuntu
   ValidateService:
-    - location: scripts/validate_app.sh
+    - location: appspec-scripts/validate_app.sh
       timeout: 300
       runas: ubuntu
