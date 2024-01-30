@@ -1,0 +1,31 @@
+# AWS CodeDeploy application specification file
+version: 0.0
+os: linux
+files:
+  - source: /
+    destination: /home/ubuntu/tlsn
+permissions:
+  - object: /home/ubuntu/tlsn
+    owner: ubuntu
+    group: ubuntu
+hooks:
+  BeforeInstall:
+    - location: appspec-scripts/before_install.sh
+      timeout: 300
+      runas: ubuntu
+  AfterInstall:
+    - location: appspec-scripts/after_install.sh
+      timeout: 300
+      runas: ubuntu
+  ApplicationStart:
+    - location: appspec-scripts/start_app.sh
+      timeout: 300
+      runas: ubuntu
+  ApplicationStop:
+    - location: appspec-scripts/stop_app.sh
+      timeout: 300
+      runas: ubuntu
+  ValidateService:
+    - location: appspec-scripts/validate_app.sh
+      timeout: 300
+      runas: ubuntu
