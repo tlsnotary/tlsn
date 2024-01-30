@@ -10,7 +10,7 @@ on:
       environment:
         description: "Environment"
         required: true
-        default: "enable"
+        default: "nightly"
         type: choice
         options:
         - nightly
