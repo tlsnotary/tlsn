@@ -30,7 +30,22 @@ jobs:
       contents: read
     
     steps:      
+      - name: Manipulate Environment
+        id: manipulate
+        run: |
+          if [ "${{ github.event_name }}" = "push" ] && [ "$GITHUB_REF_NAME" = "dev" ]; then
+            echo "env=nightly" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" = "push" ] && [[ "${{ github.ref }}" = "refs/tags/"* ]]; then
+            echo "env=stable" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "env=${{ env.DATA_ENV }}" >> $GITHUB_OUTPUT
+          else
+            echo "Operation not permitted"
+            exit 1
+          fi
+
       - name: Wait for test workflow to succeed
+        if: github.event_name == 'push'
         uses: lewagon/wait-on-check-action@v1.3.1
         with:
           ref: ${{ github.ref }}
@@ -65,8 +80,8 @@ jobs:
 
       - name: Cargo build
         run: |
-          .github/scripts/build-server.sh ${{ env.DATA_ENV }}
+          .github/scripts/build-server.sh ${{ steps.manipulate.outputs.env }}
 
       - name: Trigger Deployment
         run: |
-          .github/scripts/deploy-server.sh ${{ env.DATA_ENV }} $GITHUB_REF_NAME
+          .github/scripts/deploy-server.sh ${{ steps.manipulate.outputs.env }} $GITHUB_REF_NAME
