@@ -342,11 +342,6 @@ impl MpcTlsLeader {
 
 #[ludi::implement(msg(name = "{name}"), ctrl(err))]
 impl MpcTlsLeader {
-    /// Returns whether messages are being decrypted.
-    pub async fn is_decrypting(&self) -> Result<bool, MpcTlsError> {
-        Ok(self.is_decrypting)
-    }
-
     /// Closes the connection.
     #[cfg_attr(
         feature = "tracing",

@@ -17,7 +17,7 @@ use crate::{
         BackendMsgSetCipherSuite, BackendMsgSetDecrypt, BackendMsgSetEncrypt,
         BackendMsgSetHsHashClientKeyExchange, BackendMsgSetHsHashServerHello,
         BackendMsgSetProtocolVersion, BackendMsgSetServerCertDetails, BackendMsgSetServerKeyShare,
-        BackendMsgSetServerKxDetails, BackendMsgSetServerRandom, DeferDecryption, IsDecrypting,
+        BackendMsgSetServerKxDetails, BackendMsgSetServerRandom, DeferDecryption,
     },
     MpcTlsError,
 };
@@ -96,7 +96,6 @@ pub enum MpcTlsLeaderMsg {
     BackendMsgGetNotify(BackendMsgGetNotify),
     BackendMsgBufferLen(BackendMsgBufferLen),
     BackendMsgServerClosed(BackendMsgServerClosed),
-    IsDecrypting(IsDecrypting),
     DeferDecryption(DeferDecryption),
     CloseConnection(CloseConnection),
     Finalize(Commit),
