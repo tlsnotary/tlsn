@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["ProverConfigBuilderError","ProverError"],"mod":["state"],"struct":["Prover","ProverConfig","ProverConfigBuilder","ProverFuture"]};
+window.SIDEBAR_ITEMS = {"enum":["ProverConfigBuilderError","ProverError"],"mod":["state"],"struct":["Prover","ProverConfig","ProverConfigBuilder","ProverControl","ProverFuture"]};

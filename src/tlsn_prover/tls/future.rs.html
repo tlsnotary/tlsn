@@ -65,9 +65,17 @@
 <a href="#65" id="65">65</a>
 <a href="#66" id="66">66</a>
 <a href="#67" id="67">67</a>
+<a href="#68" id="68">68</a>
+<a href="#69" id="69">69</a>
+<a href="#70" id="70">70</a>
+<a href="#71" id="71">71</a>
+<a href="#72" id="72">72</a>
+<a href="#73" id="73">73</a>
+<a href="#74" id="74">74</a>
+<a href="#75" id="75">75</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module collects futures which are used by the [Prover].
 
-</span><span class="kw">use super</span>::{state, Prover, ProverError};
+</span><span class="kw">use super</span>::{state, Prover, ProverControl, ProverError};
 <span class="kw">use </span>futures::{future::FusedFuture, Future};
 <span class="kw">use </span>std::pin::Pin;
 
@@ -76,6 +84,14 @@
     <span class="attr">#[allow(clippy::type_complexity)]
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) fut:
         Pin&lt;Box&lt;<span class="kw">dyn </span>Future&lt;Output = <span class="prelude-ty">Result</span>&lt;Prover&lt;state::Closed&gt;, ProverError&gt;&gt; + Send + <span class="lifetime">&#39;static</span>&gt;&gt;,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) ctrl: ProverControl,
+}
+
+<span class="kw">impl </span>ProverFuture {
+    <span class="doccomment">/// Returns a controller for the prover for advanced functionality.
+    </span><span class="kw">pub fn </span>control(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ProverControl {
+        <span class="self">self</span>.ctrl.clone()
+    }
 }
 
 <span class="kw">impl </span>Future <span class="kw">for </span>ProverFuture {
