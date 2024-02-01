@@ -5,6 +5,10 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
+mod notify;
+
+pub use notify::{BackendNotifier, BackendNotify};
+
 use async_trait::async_trait;
 use tls_core::{
     cert::ServerCertDetails,
@@ -116,4 +120,15 @@ pub trait Backend: Send {
     async fn buffer_incoming(&mut self, msg: OpaqueMessage) -> Result<(), BackendError>;
     /// Returns next incoming message ready for decryption.
     async fn next_incoming(&mut self) -> Result<Option<OpaqueMessage>, BackendError>;
+    /// Returns a notification future which resolves when the backend is ready to process
+    /// the next message.
+    async fn get_notify(&mut self) -> Result<BackendNotify, BackendError> {
+        Ok(BackendNotify::dummy())
+    }
+    /// Returns the number of messages buffered for decryption.
+    async fn buffer_len(&mut self) -> Result<usize, BackendError>;
+    /// Signals to the backend that the server has closed the connection.
+    async fn server_closed(&mut self) -> Result<(), BackendError> {
+        Ok(())
+    }
 }

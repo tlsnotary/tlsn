@@ -29,7 +29,7 @@ use tls_core::{
 
 use crate::{
     error::Kind,
-    msg::{CloseConnection, Finalize, MpcTlsFollowerMsg, MpcTlsMessage},
+    msg::{CloseConnection, Commit, MpcTlsFollowerMsg, MpcTlsMessage},
     record_layer::{Decrypter, Encrypter},
     MpcTlsChannel, MpcTlsError, MpcTlsFollowerConfig,
 };
@@ -50,6 +50,11 @@ pub struct MpcTlsFollower {
     prf: Box<dyn Prf + Send>,
     encrypter: Encrypter,
     decrypter: Decrypter,
+
+    /// Whether the server has sent a CloseNotify alert.
+    close_notify: bool,
+    /// Whether the leader has committed to the transcript.
+    committed: bool,
 }
 
 /// Data collected by the MPC-TLS follower.
@@ -76,15 +81,7 @@ impl ludi::Actor for MpcTlsFollower {
         let Closed {
             handshake_commitment,
             server_key,
-            committed,
         } = self.state.take().try_into_closed()?;
-
-        if !committed.is_empty() {
-            return Err(MpcTlsError::new(
-                Kind::Other,
-                "not all committed TLS messages were verified",
-            ));
-        }
 
         let bytes_sent = self.encrypter.sent_bytes();
         let bytes_recv = self.decrypter.recv_bytes();
@@ -130,6 +127,8 @@ impl MpcTlsFollower {
             prf,
             encrypter,
             decrypter,
+            close_notify: false,
+            committed: false,
         }
     }
 
@@ -210,6 +209,28 @@ impl MpcTlsFollower {
                     new_len,
                     self.config.common().max_transcript_size()
                 ),
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// Returns an error if the follower is not accepting new messages.
+    ///
+    /// This can happen if the follower has received a CloseNotify alert or if the leader has
+    /// committed to the transcript.
+    fn is_accepting_messages(&self) -> Result<(), MpcTlsError> {
+        if self.close_notify {
+            return Err(MpcTlsError::new(
+                Kind::PeerMisbehaved,
+                "attempted to commit a message after receiving CloseNotify",
+            ));
+        }
+
+        if self.committed {
+            return Err(MpcTlsError::new(
+                Kind::PeerMisbehaved,
+                "attempted to commit a new message after committing transcript",
             ));
         }
 
@@ -315,7 +336,7 @@ impl MpcTlsFollower {
         self.state = State::Active(Active {
             handshake_commitment,
             server_key,
-            committed: Default::default(),
+            buffer: Default::default(),
         });
 
         Ok(())
@@ -348,6 +369,7 @@ impl MpcTlsFollower {
         tracing::instrument(level = "trace", skip_all, err)
     )]
     async fn encrypt_alert(&mut self, msg: Vec<u8>) -> Result<(), MpcTlsError> {
+        self.is_accepting_messages()?;
         if let Some(alert) = AlertMessagePayload::read_bytes(&msg) {
             // We only allow the leader to send a CloseNotify alert
             if alert.description != AlertDescription::CloseNotify {
@@ -379,8 +401,9 @@ impl MpcTlsFollower {
         tracing::instrument(level = "trace", skip_all, err)
     )]
     async fn encrypt_message(&mut self, len: usize) -> Result<(), MpcTlsError> {
-        self.state.try_as_active()?;
+        self.is_accepting_messages()?;
         self.check_transcript_length(len)?;
+        self.state.try_as_active()?;
 
         self.encrypter
             .encrypt_blind(ContentType::ApplicationData, ProtocolVersion::TLSv1_2, len)
@@ -394,10 +417,11 @@ impl MpcTlsFollower {
         tracing::instrument(level = "trace", skip_all, err)
     )]
     fn commit_message(&mut self, payload: Vec<u8>) -> Result<(), MpcTlsError> {
+        self.is_accepting_messages()?;
         self.check_transcript_length(payload.len())?;
-        let Active { committed, .. } = self.state.try_as_active_mut()?;
+        let Active { buffer, .. } = self.state.try_as_active_mut()?;
 
-        committed.push_back(OpaqueMessage {
+        buffer.push_back(OpaqueMessage {
             typ: ContentType::ApplicationData,
             version: ProtocolVersion::TLSv1_2,
             payload: Payload::new(payload),
@@ -429,11 +453,7 @@ impl MpcTlsFollower {
         tracing::instrument(level = "trace", skip_all, err)
     )]
     async fn decrypt_alert(&mut self, msg: Vec<u8>) -> Result<(), MpcTlsError> {
-        let Active {
-            handshake_commitment,
-            server_key,
-            committed,
-        } = self.state.take().try_into_active()?;
+        self.state.try_as_active()?;
 
         let alert = self
             .decrypter
@@ -455,11 +475,7 @@ impl MpcTlsFollower {
             ));
         }
 
-        self.state = State::Closed(Closed {
-            handshake_commitment,
-            server_key,
-            committed,
-        });
+        self.close_notify = true;
 
         Ok(())
     }
@@ -469,14 +485,24 @@ impl MpcTlsFollower {
         tracing::instrument(level = "trace", skip_all, err)
     )]
     async fn decrypt_message(&mut self) -> Result<(), MpcTlsError> {
-        let Active { committed, .. } = self.state.try_as_active_mut()?;
+        let Active { buffer, .. } = self.state.try_as_active_mut()?;
 
-        let msg = committed.pop_front().ok_or(MpcTlsError::new(
+        let msg = buffer.pop_front().ok_or(MpcTlsError::new(
             Kind::PeerMisbehaved,
             "attempted to decrypt message when no messages are committed",
         ))?;
 
-        self.decrypter.decrypt_blind(msg).await?;
+        #[cfg(feature = "tracing")]
+        tracing::debug!("decrypting message");
+
+        if self.committed {
+            // At this point the AEAD key was revealed to the leader and the leader locally decrypted
+            // the TLS message and now is proving to us that they know the plaintext which encrypts
+            // to the ciphertext of this TLS message.
+            self.decrypter.verify_plaintext(msg).await?;
+        } else {
+            self.decrypter.decrypt_blind(msg).await?;
+        }
 
         Ok(())
     }
@@ -486,22 +512,39 @@ impl MpcTlsFollower {
         tracing::instrument(level = "trace", skip_all, err)
     )]
     fn close_connection(&mut self) -> Result<(), MpcTlsError> {
-        if self.state.is_closed() {
-            // Already closed from receiving CloseNotify
-            return Ok(());
-        }
-
         let Active {
             handshake_commitment,
             server_key,
-            committed,
+            buffer,
         } = self.state.take().try_into_active()?;
+
+        if !buffer.is_empty() {
+            return Err(MpcTlsError::new(
+                Kind::PeerMisbehaved,
+                "attempted to close connection without decrypting all messages",
+            ));
+        }
 
         self.state = State::Closed(Closed {
             handshake_commitment,
             server_key,
-            committed,
         });
+
+        Ok(())
+    }
+
+    async fn commit(&mut self) -> Result<(), MpcTlsError> {
+        let Active { buffer, .. } = self.state.try_as_active()?;
+
+        #[cfg(feature = "tracing")]
+        tracing::debug!("leader committed transcript");
+
+        self.committed = true;
+
+        // Reveal the AEAD key to the leader only if there are TLS messages which need to be decrypted.
+        if !buffer.is_empty() {
+            self.decrypter.decode_key_blind().await?;
+        }
 
         Ok(())
     }
@@ -562,12 +605,14 @@ impl MpcTlsFollower {
     pub async fn close_connection(&mut self) -> Result<(), MpcTlsError> {
         ctx.try_or_stop(|_| async { self.close_connection() }).await;
 
+        ctx.stop();
+
         Ok(())
     }
 
-    #[msg(skip, name = "Finalize")]
-    pub async fn finalize(&mut self) -> Result<(), MpcTlsError> {
-        ctx.stop();
+    #[msg(skip, name = "Commit")]
+    pub async fn commit(&mut self) -> Result<(), MpcTlsError> {
+        ctx.try_or_stop(|_| self.commit()).await;
 
         Ok(())
     }
@@ -628,14 +673,13 @@ mod state {
         ///
         /// The follower must verify the authenticity of these messages with AEAD verification
         /// (i.e. by verifying the authentication tag).
-        pub(super) committed: VecDeque<OpaqueMessage>,
+        pub(super) buffer: VecDeque<OpaqueMessage>,
     }
 
     #[derive(Debug)]
     pub(super) struct Closed {
         pub(super) handshake_commitment: Option<Hash>,
         pub(super) server_key: PublicKey,
-        pub(super) committed: VecDeque<OpaqueMessage>,
     }
 }
 

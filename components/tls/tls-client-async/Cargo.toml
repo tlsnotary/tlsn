@@ -12,6 +12,7 @@ edition = "2021"
 name = "tls_client_async"
 
 [features]
+default = ["tracing"]
 tracing = ["dep:tracing"]
 
 [dependencies]

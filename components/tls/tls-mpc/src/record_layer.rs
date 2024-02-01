@@ -281,6 +281,86 @@ impl Decrypter {
         })
     }
 
+    pub(crate) async fn decode_key_private(&mut self) -> Result<(), MpcTlsError> {
+        self.aead
+            .decode_key_private()
+            .await
+            .map_err(|e| MpcTlsError::new_with_source(Kind::Decrypt, "error decoding key", e))
+    }
+
+    pub(crate) async fn decode_key_blind(&mut self) -> Result<(), MpcTlsError> {
+        self.aead
+            .decode_key_blind()
+            .await
+            .map_err(|e| MpcTlsError::new_with_source(Kind::Decrypt, "error decoding key", e))
+    }
+
+    /// Proves the plaintext of the message to the other party
+    ///
+    /// This verifies the tag of the message and locally decrypts it. Then, this party
+    /// commits to the plaintext and proves it encrypts back to the ciphertext.
+    pub(crate) async fn prove_plaintext(
+        &mut self,
+        msg: OpaqueMessage,
+    ) -> Result<PlainMessage, MpcTlsError> {
+        let OpaqueMessage {
+            typ,
+            version,
+            mut payload,
+        } = msg;
+
+        let explicit_nonce: Vec<u8> = payload.0.drain(..8).collect();
+        let len = payload.0.len() - 16;
+        let seq = self.seq;
+
+        self.prepare_decrypt(typ);
+
+        let aad = make_tls12_aad(seq, typ, version, len);
+        let plaintext = self
+            .aead
+            .prove_plaintext(explicit_nonce, payload.0, aad.to_vec())
+            .await
+            .map_err(|e| MpcTlsError::new_with_source(Kind::Decrypt, "prove_plaintext error", e))?;
+
+        self.record_message(typ, len);
+
+        Ok(PlainMessage {
+            typ,
+            version,
+            payload: Payload::new(plaintext),
+        })
+    }
+
+    /// Verifies the plaintext of the message
+    ///
+    /// This verifies the tag of the message then has the other party decrypt it. Then,
+    /// the other party commits to the plaintext and proves it encrypts back to the ciphertext.
+    pub(crate) async fn verify_plaintext(&mut self, msg: OpaqueMessage) -> Result<(), MpcTlsError> {
+        let OpaqueMessage {
+            typ,
+            version,
+            mut payload,
+        } = msg;
+
+        let explicit_nonce: Vec<u8> = payload.0.drain(..8).collect();
+        let len = payload.0.len() - 16;
+        let seq = self.seq;
+
+        self.prepare_decrypt(typ);
+
+        let aad = make_tls12_aad(seq, typ, version, len);
+        self.aead
+            .verify_plaintext(explicit_nonce, payload.0, aad.to_vec())
+            .await
+            .map_err(|e| {
+                MpcTlsError::new_with_source(Kind::Decrypt, "verify_plaintext error", e)
+            })?;
+
+        self.record_message(typ, len);
+
+        Ok(())
+    }
+
     fn prepare_decrypt(&mut self, typ: ContentType) {
         // Set the transcript id depending on the type of message
         match typ {

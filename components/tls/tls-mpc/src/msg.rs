@@ -10,13 +10,14 @@ use crate::{
         ServerFinishedVd,
     },
     leader::{
-        BackendMsgBufferIncoming, BackendMsgDecrypt, BackendMsgEncrypt,
+        BackendMsgBufferIncoming, BackendMsgBufferLen, BackendMsgDecrypt, BackendMsgEncrypt,
         BackendMsgGetClientFinishedVd, BackendMsgGetClientKeyShare, BackendMsgGetClientRandom,
-        BackendMsgGetServerFinishedVd, BackendMsgGetSuite, BackendMsgNextIncoming,
-        BackendMsgPrepareEncryption, BackendMsgSetCipherSuite, BackendMsgSetDecrypt,
-        BackendMsgSetEncrypt, BackendMsgSetHsHashClientKeyExchange, BackendMsgSetHsHashServerHello,
+        BackendMsgGetNotify, BackendMsgGetServerFinishedVd, BackendMsgGetSuite,
+        BackendMsgNextIncoming, BackendMsgPrepareEncryption, BackendMsgServerClosed,
+        BackendMsgSetCipherSuite, BackendMsgSetDecrypt, BackendMsgSetEncrypt,
+        BackendMsgSetHsHashClientKeyExchange, BackendMsgSetHsHashServerHello,
         BackendMsgSetProtocolVersion, BackendMsgSetServerCertDetails, BackendMsgSetServerKeyShare,
-        BackendMsgSetServerKxDetails, BackendMsgSetServerRandom,
+        BackendMsgSetServerKxDetails, BackendMsgSetServerRandom, DeferDecryption,
     },
     MpcTlsError,
 };
@@ -38,7 +39,7 @@ pub enum MpcTlsMessage {
     EncryptMessage(EncryptMessage),
     DecryptMessage(DecryptMessage),
     CloseConnection(CloseConnection),
-    Finalize(Finalize),
+    Commit(Commit),
 }
 
 impl TryFrom<MpcTlsMessage> for MpcTlsFollowerMsg {
@@ -59,7 +60,7 @@ impl TryFrom<MpcTlsMessage> for MpcTlsFollowerMsg {
             MpcTlsMessage::EncryptMessage(msg) => Ok(Self::EncryptMessage(msg)),
             MpcTlsMessage::DecryptMessage(msg) => Ok(Self::DecryptMessage(msg)),
             MpcTlsMessage::CloseConnection(msg) => Ok(Self::CloseConnection(msg)),
-            MpcTlsMessage::Finalize(msg) => Ok(Self::Finalize(msg)),
+            MpcTlsMessage::Commit(msg) => Ok(Self::Finalize(msg)),
             msg => Err(MpcTlsError::new(
                 Kind::PeerMisbehaved,
                 format!("peer sent unexpected message: {:?}", msg),
@@ -92,8 +93,12 @@ pub enum MpcTlsLeaderMsg {
     BackendMsgDecrypt(BackendMsgDecrypt),
     BackendMsgNextIncoming(BackendMsgNextIncoming),
     BackendMsgBufferIncoming(BackendMsgBufferIncoming),
+    BackendMsgGetNotify(BackendMsgGetNotify),
+    BackendMsgBufferLen(BackendMsgBufferLen),
+    BackendMsgServerClosed(BackendMsgServerClosed),
+    DeferDecryption(DeferDecryption),
     CloseConnection(CloseConnection),
-    Finalize(Finalize),
+    Finalize(Commit),
 }
 
 #[derive(ludi::Wrap)]
@@ -112,7 +117,7 @@ pub enum MpcTlsFollowerMsg {
     EncryptMessage(EncryptMessage),
     DecryptMessage(DecryptMessage),
     CloseConnection(CloseConnection),
-    Finalize(Finalize),
+    Finalize(Commit),
 }
 
 /// Message to close the connection
@@ -123,4 +128,4 @@ pub struct CloseConnection;
 /// Message to finalize the MPC-TLS protocol
 #[derive(Debug, ludi::Message, Serialize, Deserialize)]
 #[ludi(return_ty = "Result<(), MpcTlsError>")]
-pub struct Finalize;
+pub struct Commit;

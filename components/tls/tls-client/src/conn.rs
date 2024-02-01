@@ -15,6 +15,7 @@ use std::{
     io, mem,
     ops::{Deref, DerefMut},
 };
+use tls_backend::BackendNotify;
 use tls_core::{
     msgs::{
         alert::AlertMessagePayload,
@@ -229,6 +230,21 @@ impl ConnectionCommon {
         }
     }
 
+    /// Reads out any buffered plaintext received from the peer. Returns the
+    /// number of bytes read.
+    pub fn read_plaintext(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.common_state.received_plaintext.read(buf)
+    }
+
+    /// Returns the number of messages buffered for decryption.
+    pub async fn buffer_len(&mut self) -> Result<usize, Error> {
+        self.common_state
+            .backend
+            .buffer_len()
+            .await
+            .map_err(Error::from)
+    }
+
     /// Initiate the TLS protocol
     pub async fn start(&mut self) -> Result<(), Error> {
         let state = match mem::replace(&mut self.state, Err(Error::HandshakeNotComplete)) {
@@ -243,6 +259,12 @@ impl ConnectionCommon {
             data: &mut self.data,
         };
         self.state = state.start(&mut cx).await;
+        Ok(())
+    }
+
+    /// Signals that the server has closed the connection.
+    pub async fn server_closed(&mut self) -> Result<(), Error> {
+        self.common_state.backend.server_closed().await?;
         Ok(())
     }
 
@@ -430,6 +452,15 @@ impl ConnectionCommon {
         self.common_state
             .process_main_protocol(msg, state, &mut self.data)
             .await
+    }
+
+    /// Returns a notification future which resolves when the backend has messages ready to decrypt.
+    pub async fn get_notify(&mut self) -> Result<BackendNotify, Error> {
+        self.common_state
+            .backend
+            .get_notify()
+            .await
+            .map_err(Error::from)
     }
 
     /// Processes any new packets read by a previous call to
@@ -666,6 +697,11 @@ impl CommonState {
     /// as possible.
     pub fn wants_write(&self) -> bool {
         !self.sendable_tls.is_empty()
+    }
+
+    /// Returns true if there is no plaintext data available to read immediately.
+    pub fn plaintext_is_empty(&self) -> bool {
+        self.received_plaintext.is_empty()
     }
 
     /// Returns true if the connection is currently performing the TLS handshake.

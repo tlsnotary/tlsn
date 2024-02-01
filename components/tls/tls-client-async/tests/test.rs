@@ -419,10 +419,7 @@ async fn test_err_write_after_close(set_up_tls: impl Future<Output = TlsFixture>
         .write_all(&pad("more data".to_string()))
         .await;
 
-    assert_eq!(
-        res.err().unwrap().to_string(),
-        "send failed because receiver is gone"
-    );
+    assert_eq!(res.err().unwrap().kind(), std::io::ErrorKind::BrokenPipe);
 }
 
 // Converts a string into a slice zero-padded to APP_RECORD_LENGTH

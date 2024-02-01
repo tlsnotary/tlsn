@@ -415,6 +415,10 @@ impl Backend for RustCryptoBackend {
     async fn next_incoming(&mut self) -> Result<Option<OpaqueMessage>, BackendError> {
         Ok(self.buffer_incoming.pop_front())
     }
+
+    async fn buffer_len(&mut self) -> Result<usize, BackendError> {
+        Ok(self.buffer_incoming.len())
+    }
 }
 
 /// Concatenates two slices into a new array.
