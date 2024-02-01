@@ -12,7 +12,7 @@ pub use error::VerifierError;
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::{tls::future::OTFuture, Mux};
+use crate::tls::future::OTFuture;
 use future::MuxFuture;
 use futures::{
     stream::{SplitSink, SplitStream},
@@ -30,9 +30,12 @@ use rand::Rng;
 use signature::Signer;
 use state::{Notarize, Verify};
 use tls_mpc::{setup_components, MpcTlsFollower, MpcTlsFollowerData, TlsRole};
+use tlsn_common::{
+    mux::{attach_mux, MuxControl},
+    Role,
+};
 use tlsn_core::{proof::SessionInfo, RedactedTranscript, SessionHeader, Signature};
-use uid_mux::{yamux, UidYamux};
-use utils_aio::{codec::BincodeMux, duplex::Duplex, mux::MuxChannel};
+use utils_aio::{duplex::Duplex, mux::MuxChannel};
 
 #[cfg(feature = "tracing")]
 use tracing::{debug, info, instrument};
@@ -72,20 +75,14 @@ impl Verifier<state::Initialized> {
         self,
         socket: S,
     ) -> Result<Verifier<state::Setup>, VerifierError> {
-        let mut mux_config = yamux::Config::default();
-        // See PR #418
-        mux_config.set_max_num_streams(40);
-        mux_config.set_max_buffer_size(16 * 1024 * 1024);
-        mux_config.set_receive_window(16 * 1024 * 1024);
-        let mut mux = UidYamux::new(mux_config, socket, yamux::Mode::Server);
-        let mux_control = BincodeMux::new(mux.control());
+        let (mut mux, mux_ctrl) = attach_mux(socket, Role::Verifier);
 
         let mut mux_fut = MuxFuture {
             fut: Box::pin(async move { mux.run().await.map_err(VerifierError::from) }.fuse()),
         };
 
         let encoder_seed: [u8; 32] = rand::rngs::OsRng.gen();
-        let mpc_setup_fut = setup_mpc_backend(&self.config, mux_control.clone(), encoder_seed);
+        let mpc_setup_fut = setup_mpc_backend(&self.config, mux_ctrl.clone(), encoder_seed);
         let (mpc_tls, vm, ot_send, ot_recv, gf2, ot_fut) = futures::select! {
             res = mpc_setup_fut.fuse() => res?,
             _ = &mut mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
@@ -94,7 +91,7 @@ impl Verifier<state::Initialized> {
         Ok(Verifier {
             config: self.config,
             state: state::Setup {
-                mux: mux_control,
+                mux_ctrl,
                 mux_fut,
                 mpc_tls,
                 vm,
@@ -146,7 +143,7 @@ impl Verifier<state::Setup> {
     /// Runs the verifier until the TLS connection is closed.
     pub async fn run(self) -> Result<Verifier<state::Closed>, VerifierError> {
         let state::Setup {
-            mux,
+            mux_ctrl,
             mut mux_fut,
             mpc_tls,
             vm,
@@ -184,7 +181,7 @@ impl Verifier<state::Setup> {
         Ok(Verifier {
             config: self.config,
             state: state::Closed {
-                mux,
+                mux_ctrl,
                 mux_fut,
                 vm,
                 ot_send,
@@ -231,7 +228,7 @@ impl Verifier<state::Closed> {
 #[allow(clippy::type_complexity)]
 async fn setup_mpc_backend(
     config: &VerifierConfig,
-    mut mux: Mux,
+    mut mux_ctrl: MuxControl,
     encoder_seed: [u8; 32],
 ) -> Result<
     (
@@ -244,8 +241,8 @@ async fn setup_mpc_backend(
     ),
     VerifierError,
 > {
-    let (ot_send_sink, ot_send_stream) = mux.get_channel("ot/1").await?.split();
-    let (ot_recv_sink, ot_recv_stream) = mux.get_channel("ot/0").await?.split();
+    let (ot_send_sink, ot_send_stream) = mux_ctrl.get_channel("ot/1").await?.split();
+    let (ot_recv_sink, ot_recv_stream) = mux_ctrl.get_channel("ot/0").await?.split();
 
     let mut ot_sender_actor = OTSenderActor::new(
         kos::Sender::new(
@@ -301,24 +298,24 @@ async fn setup_mpc_backend(
         "vm",
         GarbleRole::Follower,
         encoder_seed,
-        mux.get_channel("vm").await?,
-        Box::new(mux.clone()),
+        mux_ctrl.get_channel("vm").await?,
+        Box::new(mux_ctrl.clone()),
         ot_send.clone(),
         ot_recv.clone(),
     );
 
     let p256_sender_config = config.build_p256_sender_config();
-    let channel = mux.get_channel(p256_sender_config.id()).await?;
+    let channel = mux_ctrl.get_channel(p256_sender_config.id()).await?;
     let p256_send =
         ff::ConverterSender::<ff::P256, _>::new(p256_sender_config, ot_send.clone(), channel);
 
     let p256_receiver_config = config.build_p256_receiver_config();
-    let channel = mux.get_channel(p256_receiver_config.id()).await?;
+    let channel = mux_ctrl.get_channel(p256_receiver_config.id()).await?;
     let p256_recv =
         ff::ConverterReceiver::<ff::P256, _>::new(p256_receiver_config, ot_recv.clone(), channel);
 
     let gf2_config = config.build_gf2_config();
-    let channel = mux.get_channel(gf2_config.id()).await?;
+    let channel = mux_ctrl.get_channel(gf2_config.id()).await?;
     let gf2 = ff::ConverterReceiver::<ff::Gf2_128, _>::new(gf2_config, ot_recv.clone(), channel);
 
     let mpc_tls_config = config.build_mpc_tls_config();
@@ -326,7 +323,7 @@ async fn setup_mpc_backend(
     let (ke, prf, encrypter, decrypter) = setup_components(
         mpc_tls_config.common(),
         TlsRole::Follower,
-        &mut mux,
+        &mut mux_ctrl,
         &mut vm,
         p256_send,
         p256_recv,
@@ -336,7 +333,7 @@ async fn setup_mpc_backend(
     .await
     .map_err(|e| VerifierError::MpcError(Box::new(e)))?;
 
-    let channel = mux.get_channel(mpc_tls_config.common().id()).await?;
+    let channel = mux_ctrl.get_channel(mpc_tls_config.common().id()).await?;
     let mut mpc_tls = MpcTlsFollower::new(mpc_tls_config, channel, ke, prf, encrypter, decrypter);
 
     mpc_tls.setup().await?;

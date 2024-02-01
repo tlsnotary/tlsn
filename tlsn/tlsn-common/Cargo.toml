@@ -1,0 +1,15 @@
+[package]
+name = "tlsn-common"
+description = "Common code shared between tlsn-prover and tlsn-verifier"
+version = "0.1.0-alpha.3"
+edition = "2021"
+
+[features]
+default = ["tracing"]
+tracing = ["uid-mux/tracing"]
+
+[dependencies]
+tlsn-utils-aio.workspace = true
+
+futures.workspace = true
+uid-mux.workspace = true

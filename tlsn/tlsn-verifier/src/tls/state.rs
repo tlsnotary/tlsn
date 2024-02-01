@@ -6,13 +6,11 @@ use mpz_ot::actor::kos::{SharedReceiver, SharedSender};
 use mpz_share_conversion::{ConverterReceiver, Gf2_128};
 use tls_core::key::PublicKey;
 use tls_mpc::MpcTlsFollower;
+use tlsn_common::mux::MuxControl;
 use tlsn_core::msg::TlsnMessage;
 use utils_aio::duplex::Duplex;
 
-use crate::{
-    tls::future::{MuxFuture, OTFuture},
-    Mux,
-};
+use crate::tls::future::{MuxFuture, OTFuture};
 
 /// TLS Verifier state.
 pub trait VerifierState: sealed::Sealed {}
@@ -24,7 +22,7 @@ opaque_debug::implement!(Initialized);
 
 /// State after MPC setup has completed.
 pub struct Setup {
-    pub(crate) mux: Mux,
+    pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
 
     pub(crate) mpc_tls: MpcTlsFollower,
@@ -39,7 +37,7 @@ pub struct Setup {
 
 /// State after the TLS connection has been closed.
 pub struct Closed {
-    pub(crate) mux: Mux,
+    pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
 
     pub(crate) vm: DEAPVm<SharedSender, SharedReceiver>,
@@ -60,7 +58,7 @@ opaque_debug::implement!(Closed);
 
 /// Notarizing state.
 pub struct Notarize {
-    pub(crate) mux: Mux,
+    pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
 
     pub(crate) vm: DEAPVm<SharedSender, SharedReceiver>,
@@ -82,7 +80,7 @@ opaque_debug::implement!(Notarize);
 impl From<Closed> for Notarize {
     fn from(value: Closed) -> Self {
         Self {
-            mux: value.mux,
+            mux_ctrl: value.mux_ctrl,
             mux_fut: value.mux_fut,
             vm: value.vm,
             ot_send: value.ot_send,
@@ -101,7 +99,7 @@ impl From<Closed> for Notarize {
 
 /// Verifying state.
 pub struct Verify {
-    pub(crate) mux: Mux,
+    pub(crate) mux_ctrl: MuxControl,
     pub(crate) mux_fut: MuxFuture,
 
     pub(crate) vm: DEAPVm<SharedSender, SharedReceiver>,
@@ -125,7 +123,7 @@ opaque_debug::implement!(Verify);
 impl From<Closed> for Verify {
     fn from(value: Closed) -> Self {
         Self {
-            mux: value.mux,
+            mux_ctrl: value.mux_ctrl,
             mux_fut: value.mux_fut,
             vm: value.vm,
             ot_send: value.ot_send,

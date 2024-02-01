@@ -15,8 +15,11 @@ pub mod state;
 pub use config::{ProverConfig, ProverConfigBuilder, ProverConfigBuilderError};
 pub use error::ProverError;
 pub use future::ProverFuture;
+use tlsn_common::{
+    mux::{attach_mux, MuxControl},
+    Role,
+};
 
-use crate::Mux;
 use error::OTShutdownError;
 use future::{MuxFuture, OTFuture};
 use futures::{AsyncRead, AsyncWrite, FutureExt, StreamExt, TryFutureExt};
@@ -33,8 +36,7 @@ use tls_client::{ClientConnection, ServerName as TlsServerName};
 use tls_client_async::{bind_client, ClosedConnection, TlsConnection};
 use tls_mpc::{setup_components, LeaderCtrl, MpcTlsLeader, TlsRole};
 use tlsn_core::transcript::Transcript;
-use uid_mux::{yamux, UidYamux};
-use utils_aio::{codec::BincodeMux, mux::MuxChannel};
+use utils_aio::mux::MuxChannel;
 
 #[cfg(feature = "formats")]
 use http::{state as http_state, HttpProver, HttpProverError};
@@ -74,19 +76,13 @@ impl Prover<state::Initialized> {
         self,
         socket: S,
     ) -> Result<Prover<state::Setup>, ProverError> {
-        let mut mux_config = yamux::Config::default();
-        // See PR #418
-        mux_config.set_max_num_streams(40);
-        mux_config.set_max_buffer_size(16 * 1024 * 1024);
-        mux_config.set_receive_window(16 * 1024 * 1024);
-        let mut mux = UidYamux::new(mux_config, socket, yamux::Mode::Client);
-        let notary_mux = BincodeMux::new(mux.control());
+        let (mut mux, mux_ctrl) = attach_mux(socket, Role::Prover);
 
         let mut mux_fut = MuxFuture {
             fut: Box::pin(async move { mux.run().await.map_err(ProverError::from) }.fuse()),
         };
 
-        let mpc_setup_fut = setup_mpc_backend(&self.config, notary_mux.clone());
+        let mpc_setup_fut = setup_mpc_backend(&self.config, mux_ctrl.clone());
         let (mpc_tls, vm, _, gf2, ot_fut) = futures::select! {
             res = mpc_setup_fut.fuse() => res?,
             _ = (&mut mux_fut).fuse() => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
@@ -95,7 +91,7 @@ impl Prover<state::Initialized> {
         Ok(Prover {
             config: self.config,
             state: state::Setup {
-                notary_mux,
+                mux_ctrl,
                 mux_fut,
                 mpc_tls,
                 vm,
@@ -124,7 +120,7 @@ impl Prover<state::Setup> {
         socket: S,
     ) -> Result<(TlsConnection, ProverFuture), ProverError> {
         let state::Setup {
-            notary_mux,
+            mux_ctrl,
             mut mux_fut,
             mpc_tls,
             vm,
@@ -168,7 +164,7 @@ impl Prover<state::Setup> {
                 Ok(Prover {
                     config: self.config,
                     state: state::Closed {
-                        notary_mux,
+                        mux_ctrl,
                         mux_fut,
                         vm,
                         ot_fut,
@@ -243,7 +239,7 @@ impl Prover<state::Closed> {
 #[allow(clippy::type_complexity)]
 async fn setup_mpc_backend(
     config: &ProverConfig,
-    mut mux: Mux,
+    mut mux: MuxControl,
 ) -> Result<
     (
         MpcTlsLeader,

@@ -11,9 +11,3 @@
 #[cfg(feature = "formats")]
 pub mod http;
 pub mod tls;
-
-use uid_mux::UidYamuxControl;
-use utils_aio::codec::BincodeMux;
-
-/// A muxer which uses Bincode for serialization, Yamux for multiplexing.
-type Mux = BincodeMux<UidYamuxControl>;

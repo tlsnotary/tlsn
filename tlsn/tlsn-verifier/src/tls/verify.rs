@@ -30,7 +30,7 @@ impl Verifier<VerifyState> {
             let channel = if let Some(ref mut channel) = self.state.channel {
                 channel
             } else {
-                self.state.channel = Some(self.state.mux.get_channel("prove-verify").await?);
+                self.state.channel = Some(self.state.mux_ctrl.get_channel("prove-verify").await?);
                 self.state.channel.as_mut().unwrap()
             };
 
@@ -133,7 +133,7 @@ impl Verifier<VerifyState> {
     /// Verify the TLS session.
     pub async fn finalize(self) -> Result<SessionInfo, VerifierError> {
         let VerifyState {
-            mut mux,
+            mut mux_ctrl,
             mut mux_fut,
             mut vm,
             ot_send,
@@ -147,7 +147,7 @@ impl Verifier<VerifyState> {
         } = self.state;
 
         let finalize_fut = async {
-            let mut channel = mux.get_channel("finalize").await?;
+            let mut channel = mux_ctrl.get_channel("finalize").await?;
 
             // Finalize all MPC
             let (mut ot_sender_actor, _, _) = futures::try_join!(
@@ -188,9 +188,9 @@ impl Verifier<VerifyState> {
         #[cfg(feature = "tracing")]
         info!("Successfully verified session");
 
-        let mut mux = mux.into_inner();
+        let mut mux_ctrl = mux_ctrl.into_inner();
 
-        futures::try_join!(mux.close().map_err(VerifierError::from), mux_fut)?;
+        futures::try_join!(mux_ctrl.close().map_err(VerifierError::from), mux_fut)?;
 
         Ok(session_info)
     }

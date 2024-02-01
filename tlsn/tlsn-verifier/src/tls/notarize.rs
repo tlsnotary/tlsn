@@ -23,7 +23,7 @@ impl Verifier<Notarize> {
         T: Into<Signature>,
     {
         let Notarize {
-            mut mux,
+            mut mux_ctrl,
             mut mux_fut,
             mut vm,
             ot_send,
@@ -39,7 +39,7 @@ impl Verifier<Notarize> {
         } = self.state;
 
         let notarize_fut = async {
-            let mut notarize_channel = mux.get_channel("notarize").await?;
+            let mut notarize_channel = mux_ctrl.get_channel("notarize").await?;
 
             let merkle_root =
                 expect_msg_or_err!(notarize_channel, TlsnMessage::TranscriptCommitmentRoot)?;
@@ -98,9 +98,9 @@ impl Verifier<Notarize> {
             _ = &mut mux_fut => Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
         };
 
-        let mut mux = mux.into_inner();
+        let mut mux_ctrl = mux_ctrl.into_inner();
 
-        futures::try_join!(mux.close().map_err(VerifierError::from), mux_fut)?;
+        futures::try_join!(mux_ctrl.close().map_err(VerifierError::from), mux_fut)?;
 
         Ok(session_header)
     }
