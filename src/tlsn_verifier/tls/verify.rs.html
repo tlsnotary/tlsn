@@ -227,7 +227,7 @@
             </span><span class="kw">let </span>channel = <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>channel) = <span class="self">self</span>.state.channel {
                 channel
             } <span class="kw">else </span>{
-                <span class="self">self</span>.state.channel = <span class="prelude-val">Some</span>(<span class="self">self</span>.state.mux.get_channel(<span class="string">&quot;prove-verify&quot;</span>).<span class="kw">await</span><span class="question-mark">?</span>);
+                <span class="self">self</span>.state.channel = <span class="prelude-val">Some</span>(<span class="self">self</span>.state.mux_ctrl.get_channel(<span class="string">&quot;prove-verify&quot;</span>).<span class="kw">await</span><span class="question-mark">?</span>);
                 <span class="self">self</span>.state.channel.as_mut().unwrap()
             };
 
@@ -330,7 +330,7 @@
     <span class="doccomment">/// Verify the TLS session.
     </span><span class="kw">pub async fn </span>finalize(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;SessionInfo, VerifierError&gt; {
         <span class="kw">let </span>VerifyState {
-            <span class="kw-2">mut </span>mux,
+            <span class="kw-2">mut </span>mux_ctrl,
             <span class="kw-2">mut </span>mux_fut,
             <span class="kw-2">mut </span>vm,
             ot_send,
@@ -344,7 +344,7 @@
         } = <span class="self">self</span>.state;
 
         <span class="kw">let </span>finalize_fut = <span class="kw">async </span>{
-            <span class="kw">let </span><span class="kw-2">mut </span>channel = mux.get_channel(<span class="string">&quot;finalize&quot;</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+            <span class="kw">let </span><span class="kw-2">mut </span>channel = mux_ctrl.get_channel(<span class="string">&quot;finalize&quot;</span>).<span class="kw">await</span><span class="question-mark">?</span>;
 
             <span class="comment">// Finalize all MPC
             </span><span class="kw">let </span>(<span class="kw-2">mut </span>ot_sender_actor, <span class="kw">_</span>, <span class="kw">_</span>) = <span class="macro">futures::try_join!</span>(
@@ -385,9 +385,9 @@
         <span class="attr">#[cfg(feature = <span class="string">&quot;tracing&quot;</span>)]
         </span><span class="macro">info!</span>(<span class="string">&quot;Successfully verified session&quot;</span>);
 
-        <span class="kw">let </span><span class="kw-2">mut </span>mux = mux.into_inner();
+        <span class="kw">let </span><span class="kw-2">mut </span>mux_ctrl = mux_ctrl.into_inner();
 
-        <span class="macro">futures::try_join!</span>(mux.close().map_err(VerifierError::from), mux_fut)<span class="question-mark">?</span>;
+        <span class="macro">futures::try_join!</span>(mux_ctrl.close().map_err(VerifierError::from), mux_fut)<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(session_info)
     }

@@ -376,10 +376,6 @@
 <a href="#376" id="376">376</a>
 <a href="#377" id="377">377</a>
 <a href="#378" id="378">378</a>
-<a href="#379" id="379">379</a>
-<a href="#380" id="380">380</a>
-<a href="#381" id="381">381</a>
-<a href="#382" id="382">382</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! TLS prover.
 //!
 //! This module provides the TLS prover, which is used with a TLS verifier to prove a transcript of communications with a server.
@@ -397,8 +393,11 @@
 <span class="kw">pub use </span>config::{ProverConfig, ProverConfigBuilder, ProverConfigBuilderError};
 <span class="kw">pub use </span>error::ProverError;
 <span class="kw">pub use </span>future::ProverFuture;
+<span class="kw">use </span>tlsn_common::{
+    mux::{attach_mux, MuxControl},
+    Role,
+};
 
-<span class="kw">use </span><span class="kw">crate</span>::Mux;
 <span class="kw">use </span>error::OTShutdownError;
 <span class="kw">use </span>future::{MuxFuture, OTFuture};
 <span class="kw">use </span>futures::{AsyncRead, AsyncWrite, FutureExt, StreamExt, TryFutureExt};
@@ -415,8 +414,7 @@
 <span class="kw">use </span>tls_client_async::{bind_client, ClosedConnection, TlsConnection};
 <span class="kw">use </span>tls_mpc::{setup_components, LeaderCtrl, MpcTlsLeader, TlsRole};
 <span class="kw">use </span>tlsn_core::transcript::Transcript;
-<span class="kw">use </span>uid_mux::{yamux, UidYamux};
-<span class="kw">use </span>utils_aio::{codec::BincodeMux, mux::MuxChannel};
+<span class="kw">use </span>utils_aio::mux::MuxChannel;
 
 <span class="attr">#[cfg(feature = <span class="string">&quot;formats&quot;</span>)]
 </span><span class="kw">use </span>http::{state <span class="kw">as </span>http_state, HttpProver, HttpProverError};
@@ -456,19 +454,13 @@
         <span class="self">self</span>,
         socket: S,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Prover&lt;state::Setup&gt;, ProverError&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>mux_config = yamux::Config::default();
-        <span class="comment">// See PR #418
-        </span>mux_config.set_max_num_streams(<span class="number">40</span>);
-        mux_config.set_max_buffer_size(<span class="number">16 </span>* <span class="number">1024 </span>* <span class="number">1024</span>);
-        mux_config.set_receive_window(<span class="number">16 </span>* <span class="number">1024 </span>* <span class="number">1024</span>);
-        <span class="kw">let </span><span class="kw-2">mut </span>mux = UidYamux::new(mux_config, socket, yamux::Mode::Client);
-        <span class="kw">let </span>notary_mux = BincodeMux::new(mux.control());
+        <span class="kw">let </span>(<span class="kw-2">mut </span>mux, mux_ctrl) = attach_mux(socket, Role::Prover);
 
         <span class="kw">let </span><span class="kw-2">mut </span>mux_fut = MuxFuture {
             fut: Box::pin(<span class="kw">async move </span>{ mux.run().<span class="kw">await</span>.map_err(ProverError::from) }.fuse()),
         };
 
-        <span class="kw">let </span>mpc_setup_fut = setup_mpc_backend(<span class="kw-2">&amp;</span><span class="self">self</span>.config, notary_mux.clone());
+        <span class="kw">let </span>mpc_setup_fut = setup_mpc_backend(<span class="kw-2">&amp;</span><span class="self">self</span>.config, mux_ctrl.clone());
         <span class="kw">let </span>(mpc_tls, vm, <span class="kw">_</span>, gf2, ot_fut) = <span class="macro">futures::select! </span>{
             res = mpc_setup_fut.fuse() =&gt; res<span class="question-mark">?</span>,
             <span class="kw">_ </span>= (<span class="kw-2">&amp;mut </span>mux_fut).fuse() =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))<span class="question-mark">?</span>,
@@ -477,7 +469,7 @@
         <span class="prelude-val">Ok</span>(Prover {
             config: <span class="self">self</span>.config,
             state: state::Setup {
-                notary_mux,
+                mux_ctrl,
                 mux_fut,
                 mpc_tls,
                 vm,
@@ -506,7 +498,7 @@
         socket: S,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(TlsConnection, ProverFuture), ProverError&gt; {
         <span class="kw">let </span>state::Setup {
-            notary_mux,
+            mux_ctrl,
             <span class="kw-2">mut </span>mux_fut,
             mpc_tls,
             vm,
@@ -550,7 +542,7 @@
                 <span class="prelude-val">Ok</span>(Prover {
                     config: <span class="self">self</span>.config,
                     state: state::Closed {
-                        notary_mux,
+                        mux_ctrl,
                         mux_fut,
                         vm,
                         ot_fut,
@@ -625,7 +617,7 @@
 #[allow(clippy::type_complexity)]
 </span><span class="kw">async fn </span>setup_mpc_backend(
     config: <span class="kw-2">&amp;</span>ProverConfig,
-    <span class="kw-2">mut </span>mux: Mux,
+    <span class="kw-2">mut </span>mux: MuxControl,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;
     (
         MpcTlsLeader,

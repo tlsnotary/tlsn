@@ -280,7 +280,7 @@
             </span><span class="kw">let </span>channel = <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>channel) = <span class="self">self</span>.state.channel {
                 channel
             } <span class="kw">else </span>{
-                <span class="self">self</span>.state.channel = <span class="prelude-val">Some</span>(<span class="self">self</span>.state.verify_mux.get_channel(<span class="string">&quot;prove-verify&quot;</span>).<span class="kw">await</span><span class="question-mark">?</span>);
+                <span class="self">self</span>.state.channel = <span class="prelude-val">Some</span>(<span class="self">self</span>.state.mux_ctrl.get_channel(<span class="string">&quot;prove-verify&quot;</span>).<span class="kw">await</span><span class="question-mark">?</span>);
                 <span class="self">self</span>.state.channel.as_mut().unwrap()
             };
 
@@ -360,7 +360,7 @@
     <span class="doccomment">/// Finalize the proving
     </span><span class="kw">pub async fn </span>finalize(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProverError&gt; {
         <span class="kw">let </span>ProveState {
-            <span class="kw-2">mut </span>verify_mux,
+            <span class="kw-2">mut </span>mux_ctrl,
             <span class="kw-2">mut </span>mux_fut,
             <span class="kw-2">mut </span>vm,
             <span class="kw-2">mut </span>ot_fut,
@@ -376,7 +376,7 @@
         };
 
         <span class="kw">let </span><span class="kw-2">mut </span>finalize_fut = Box::pin(<span class="kw">async move </span>{
-            <span class="kw">let </span><span class="kw-2">mut </span>channel = verify_mux.get_channel(<span class="string">&quot;finalize&quot;</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+            <span class="kw">let </span><span class="kw-2">mut </span>channel = mux_ctrl.get_channel(<span class="string">&quot;finalize&quot;</span>).<span class="kw">await</span><span class="question-mark">?</span>;
 
             <span class="kw">_ </span>= vm
                 .finalize()

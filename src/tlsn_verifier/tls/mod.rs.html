@@ -343,9 +343,6 @@
 <a href="#343" id="343">343</a>
 <a href="#344" id="344">344</a>
 <a href="#345" id="345">345</a>
-<a href="#346" id="346">346</a>
-<a href="#347" id="347">347</a>
-<a href="#348" id="348">348</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! TLS Verifier
 
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>config;
@@ -360,7 +357,7 @@
 
 <span class="kw">use </span>std::time::{SystemTime, UNIX_EPOCH};
 
-<span class="kw">use crate</span>::{tls::future::OTFuture, Mux};
+<span class="kw">use </span><span class="kw">crate</span>::tls::future::OTFuture;
 <span class="kw">use </span>future::MuxFuture;
 <span class="kw">use </span>futures::{
     stream::{SplitSink, SplitStream},
@@ -378,9 +375,12 @@
 <span class="kw">use </span>signature::Signer;
 <span class="kw">use </span>state::{Notarize, Verify};
 <span class="kw">use </span>tls_mpc::{setup_components, MpcTlsFollower, MpcTlsFollowerData, TlsRole};
+<span class="kw">use </span>tlsn_common::{
+    mux::{attach_mux, MuxControl},
+    Role,
+};
 <span class="kw">use </span>tlsn_core::{proof::SessionInfo, RedactedTranscript, SessionHeader, Signature};
-<span class="kw">use </span>uid_mux::{yamux, UidYamux};
-<span class="kw">use </span>utils_aio::{codec::BincodeMux, duplex::Duplex, mux::MuxChannel};
+<span class="kw">use </span>utils_aio::{duplex::Duplex, mux::MuxChannel};
 
 <span class="attr">#[cfg(feature = <span class="string">&quot;tracing&quot;</span>)]
 </span><span class="kw">use </span>tracing::{debug, info, instrument};
@@ -420,20 +420,14 @@
         <span class="self">self</span>,
         socket: S,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Verifier&lt;state::Setup&gt;, VerifierError&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>mux_config = yamux::Config::default();
-        <span class="comment">// See PR #418
-        </span>mux_config.set_max_num_streams(<span class="number">40</span>);
-        mux_config.set_max_buffer_size(<span class="number">16 </span>* <span class="number">1024 </span>* <span class="number">1024</span>);
-        mux_config.set_receive_window(<span class="number">16 </span>* <span class="number">1024 </span>* <span class="number">1024</span>);
-        <span class="kw">let </span><span class="kw-2">mut </span>mux = UidYamux::new(mux_config, socket, yamux::Mode::Server);
-        <span class="kw">let </span>mux_control = BincodeMux::new(mux.control());
+        <span class="kw">let </span>(<span class="kw-2">mut </span>mux, mux_ctrl) = attach_mux(socket, Role::Verifier);
 
         <span class="kw">let </span><span class="kw-2">mut </span>mux_fut = MuxFuture {
             fut: Box::pin(<span class="kw">async move </span>{ mux.run().<span class="kw">await</span>.map_err(VerifierError::from) }.fuse()),
         };
 
         <span class="kw">let </span>encoder_seed: [u8; <span class="number">32</span>] = rand::rngs::OsRng.gen();
-        <span class="kw">let </span>mpc_setup_fut = setup_mpc_backend(<span class="kw-2">&amp;</span><span class="self">self</span>.config, mux_control.clone(), encoder_seed);
+        <span class="kw">let </span>mpc_setup_fut = setup_mpc_backend(<span class="kw-2">&amp;</span><span class="self">self</span>.config, mux_ctrl.clone(), encoder_seed);
         <span class="kw">let </span>(mpc_tls, vm, ot_send, ot_recv, gf2, ot_fut) = <span class="macro">futures::select! </span>{
             res = mpc_setup_fut.fuse() =&gt; res<span class="question-mark">?</span>,
             <span class="kw">_ </span>= <span class="kw-2">&amp;mut </span>mux_fut =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))<span class="question-mark">?</span>,
@@ -442,7 +436,7 @@
         <span class="prelude-val">Ok</span>(Verifier {
             config: <span class="self">self</span>.config,
             state: state::Setup {
-                mux: mux_control,
+                mux_ctrl,
                 mux_fut,
                 mpc_tls,
                 vm,
@@ -494,7 +488,7 @@
     <span class="doccomment">/// Runs the verifier until the TLS connection is closed.
     </span><span class="kw">pub async fn </span>run(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Verifier&lt;state::Closed&gt;, VerifierError&gt; {
         <span class="kw">let </span>state::Setup {
-            mux,
+            mux_ctrl,
             <span class="kw-2">mut </span>mux_fut,
             mpc_tls,
             vm,
@@ -532,7 +526,7 @@
         <span class="prelude-val">Ok</span>(Verifier {
             config: <span class="self">self</span>.config,
             state: state::Closed {
-                mux,
+                mux_ctrl,
                 mux_fut,
                 vm,
                 ot_send,
@@ -579,7 +573,7 @@
 #[allow(clippy::type_complexity)]
 </span><span class="kw">async fn </span>setup_mpc_backend(
     config: <span class="kw-2">&amp;</span>VerifierConfig,
-    <span class="kw-2">mut </span>mux: Mux,
+    <span class="kw-2">mut </span>mux_ctrl: MuxControl,
     encoder_seed: [u8; <span class="number">32</span>],
 ) -&gt; <span class="prelude-ty">Result</span>&lt;
     (
@@ -592,8 +586,8 @@
     ),
     VerifierError,
 &gt; {
-    <span class="kw">let </span>(ot_send_sink, ot_send_stream) = mux.get_channel(<span class="string">&quot;ot/1&quot;</span>).<span class="kw">await</span><span class="question-mark">?</span>.split();
-    <span class="kw">let </span>(ot_recv_sink, ot_recv_stream) = mux.get_channel(<span class="string">&quot;ot/0&quot;</span>).<span class="kw">await</span><span class="question-mark">?</span>.split();
+    <span class="kw">let </span>(ot_send_sink, ot_send_stream) = mux_ctrl.get_channel(<span class="string">&quot;ot/1&quot;</span>).<span class="kw">await</span><span class="question-mark">?</span>.split();
+    <span class="kw">let </span>(ot_recv_sink, ot_recv_stream) = mux_ctrl.get_channel(<span class="string">&quot;ot/0&quot;</span>).<span class="kw">await</span><span class="question-mark">?</span>.split();
 
     <span class="kw">let </span><span class="kw-2">mut </span>ot_sender_actor = OTSenderActor::new(
         kos::Sender::new(
@@ -649,24 +643,24 @@
         <span class="string">&quot;vm&quot;</span>,
         GarbleRole::Follower,
         encoder_seed,
-        mux.get_channel(<span class="string">&quot;vm&quot;</span>).<span class="kw">await</span><span class="question-mark">?</span>,
-        Box::new(mux.clone()),
+        mux_ctrl.get_channel(<span class="string">&quot;vm&quot;</span>).<span class="kw">await</span><span class="question-mark">?</span>,
+        Box::new(mux_ctrl.clone()),
         ot_send.clone(),
         ot_recv.clone(),
     );
 
     <span class="kw">let </span>p256_sender_config = config.build_p256_sender_config();
-    <span class="kw">let </span>channel = mux.get_channel(p256_sender_config.id()).<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="kw">let </span>channel = mux_ctrl.get_channel(p256_sender_config.id()).<span class="kw">await</span><span class="question-mark">?</span>;
     <span class="kw">let </span>p256_send =
         ff::ConverterSender::&lt;ff::P256, <span class="kw">_</span>&gt;::new(p256_sender_config, ot_send.clone(), channel);
 
     <span class="kw">let </span>p256_receiver_config = config.build_p256_receiver_config();
-    <span class="kw">let </span>channel = mux.get_channel(p256_receiver_config.id()).<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="kw">let </span>channel = mux_ctrl.get_channel(p256_receiver_config.id()).<span class="kw">await</span><span class="question-mark">?</span>;
     <span class="kw">let </span>p256_recv =
         ff::ConverterReceiver::&lt;ff::P256, <span class="kw">_</span>&gt;::new(p256_receiver_config, ot_recv.clone(), channel);
 
     <span class="kw">let </span>gf2_config = config.build_gf2_config();
-    <span class="kw">let </span>channel = mux.get_channel(gf2_config.id()).<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="kw">let </span>channel = mux_ctrl.get_channel(gf2_config.id()).<span class="kw">await</span><span class="question-mark">?</span>;
     <span class="kw">let </span>gf2 = ff::ConverterReceiver::&lt;ff::Gf2_128, <span class="kw">_</span>&gt;::new(gf2_config, ot_recv.clone(), channel);
 
     <span class="kw">let </span>mpc_tls_config = config.build_mpc_tls_config();
@@ -674,7 +668,7 @@
     <span class="kw">let </span>(ke, prf, encrypter, decrypter) = setup_components(
         mpc_tls_config.common(),
         TlsRole::Follower,
-        <span class="kw-2">&amp;mut </span>mux,
+        <span class="kw-2">&amp;mut </span>mux_ctrl,
         <span class="kw-2">&amp;mut </span>vm,
         p256_send,
         p256_recv,
@@ -684,7 +678,7 @@
     .<span class="kw">await
     </span>.map_err(|e| VerifierError::MpcError(Box::new(e)))<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>channel = mux.get_channel(mpc_tls_config.common().id()).<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="kw">let </span>channel = mux_ctrl.get_channel(mpc_tls_config.common().id()).<span class="kw">await</span><span class="question-mark">?</span>;
     <span class="kw">let </span><span class="kw-2">mut </span>mpc_tls = MpcTlsFollower::new(mpc_tls_config, channel, ke, prf, encrypter, decrypter);
 
     mpc_tls.setup().<span class="kw">await</span><span class="question-mark">?</span>;

@@ -151,7 +151,7 @@
     </span><span class="attr">#[cfg_attr(feature = <span class="string">&quot;tracing&quot;</span>, instrument(level = <span class="string">&quot;info&quot;</span>, skip(<span class="self">self</span>), err))]
     </span><span class="kw">pub async fn </span>finalize(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;NotarizedSession, ProverError&gt; {
         <span class="kw">let </span>Notarize {
-            <span class="kw-2">mut </span>notary_mux,
+            <span class="kw-2">mut </span>mux_ctrl,
             <span class="kw-2">mut </span>mux_fut,
             <span class="kw-2">mut </span>vm,
             <span class="kw-2">mut </span>ot_fut,
@@ -177,7 +177,7 @@
         <span class="kw">let </span>merkle_root = session_data.commitments().merkle_root();
 
         <span class="kw">let </span><span class="kw-2">mut </span>notarize_fut = Box::pin(<span class="kw">async move </span>{
-            <span class="kw">let </span><span class="kw-2">mut </span>channel = notary_mux.get_channel(<span class="string">&quot;notarize&quot;</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+            <span class="kw">let </span><span class="kw-2">mut </span>channel = mux_ctrl.get_channel(<span class="string">&quot;notarize&quot;</span>).<span class="kw">await</span><span class="question-mark">?</span>;
 
             channel
                 .send(TlsnMessage::TranscriptCommitmentRoot(merkle_root))

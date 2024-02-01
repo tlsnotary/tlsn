@@ -130,7 +130,7 @@
         </span>T: Into&lt;Signature&gt;,
     {
         <span class="kw">let </span>Notarize {
-            <span class="kw-2">mut </span>mux,
+            <span class="kw-2">mut </span>mux_ctrl,
             <span class="kw-2">mut </span>mux_fut,
             <span class="kw-2">mut </span>vm,
             ot_send,
@@ -146,7 +146,7 @@
         } = <span class="self">self</span>.state;
 
         <span class="kw">let </span>notarize_fut = <span class="kw">async </span>{
-            <span class="kw">let </span><span class="kw-2">mut </span>notarize_channel = mux.get_channel(<span class="string">&quot;notarize&quot;</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+            <span class="kw">let </span><span class="kw-2">mut </span>notarize_channel = mux_ctrl.get_channel(<span class="string">&quot;notarize&quot;</span>).<span class="kw">await</span><span class="question-mark">?</span>;
 
             <span class="kw">let </span>merkle_root =
                 <span class="macro">expect_msg_or_err!</span>(notarize_channel, TlsnMessage::TranscriptCommitmentRoot)<span class="question-mark">?</span>;
@@ -205,9 +205,9 @@
             <span class="kw">_ </span>= <span class="kw-2">&amp;mut </span>mux_fut =&gt; <span class="prelude-val">Err</span>(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))<span class="question-mark">?</span>,
         };
 
-        <span class="kw">let </span><span class="kw-2">mut </span>mux = mux.into_inner();
+        <span class="kw">let </span><span class="kw-2">mut </span>mux_ctrl = mux_ctrl.into_inner();
 
-        <span class="macro">futures::try_join!</span>(mux.close().map_err(VerifierError::from), mux_fut)<span class="question-mark">?</span>;
+        <span class="macro">futures::try_join!</span>(mux_ctrl.close().map_err(VerifierError::from), mux_fut)<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(session_header)
     }
