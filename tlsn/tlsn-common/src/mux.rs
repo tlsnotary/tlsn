@@ -15,7 +15,7 @@ pub type MuxControl = BincodeMux<UidYamuxControl>;
 const KB: usize = 1024;
 const MB: usize = 1024 * KB;
 
-/// Attach a multiplexer to the provided socket.
+/// Attaches a multiplexer to the provided socket.
 ///
 /// Returns the multiplexer and a controller for creating streams with a codec attached.
 ///

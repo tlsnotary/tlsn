@@ -6,7 +6,7 @@
 
 pub mod mux;
 
-/// The parties role in the TLSN protocol.
+/// The party's role in the TLSN protocol.
 ///
 /// A Notary is classified as a Verifier.
 pub enum Role {
