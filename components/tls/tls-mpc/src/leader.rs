@@ -59,9 +59,10 @@ pub struct MpcTlsLeader {
     encrypter: Encrypter,
     decrypter: Decrypter,
 
-    /// Allows us to notify whether or not we are ready to decrypt TLS messages.
+    /// When set, notifies the backend that there are TLS messages which need to be decrypted.
     notifier: BackendNotifier,
 
+    /// Whether the backend is ready to decrypt messages.
     is_decrypting: bool,
     /// Messages which have been committed but not yet decrypted.
     buffer: VecDeque<OpaqueMessage>,
