@@ -3,10 +3,11 @@ members = [
     "tlsn-core",
     "tlsn-verifier",
     "tlsn-prover",
-#    "tlsn-formats",
+    #    "tlsn-formats",
     "tlsn-server-fixture",
     "tests-integration",
     "examples",
+    "benches",
 ]
 resolver = "2"
 
