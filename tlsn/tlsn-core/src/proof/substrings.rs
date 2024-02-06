@@ -16,19 +16,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use utils::range::{RangeDisjoint, RangeSet, RangeUnion, ToRangeSet};
 
-/// A trait for proving of typed data contained within a transcript.
-pub trait SubstringProve<T> {
-    /// The error type.
-    type Error;
-
-    /// Proves that the provided value is contained within the transcript.
-    fn prove(
-        &mut self,
-        builder: &mut SubstringsProofBuilder<'_>,
-        value: &T,
-    ) -> Result<(), Self::Error>;
-}
-
 /// An error for [`SubstringsProofBuilder`]
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]

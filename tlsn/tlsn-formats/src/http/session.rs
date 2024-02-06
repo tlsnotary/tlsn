@@ -1,7 +1,4 @@
-use tlsn_core::{
-    proof::{SessionProof, SubstringProve, SubstringsProof, SubstringsProofBuilderError},
-    NotarizedSession,
-};
+use tlsn_core::{proof::SessionProof, NotarizedSession};
 
 use crate::http::HttpTranscript;
 
@@ -27,21 +24,13 @@ impl NotarizedHttpSession {
         &self.session
     }
 
+    /// Returns the HTTP transcript.
+    pub fn transcript(&self) -> &HttpTranscript {
+        &self.transcript
+    }
+
     /// Returns a proof for the TLS session.
     pub fn session_proof(&self) -> SessionProof {
         self.session.session_proof()
-    }
-
-    /// Builds a substring proof with the provided prover.
-    pub fn substring_proof<P: SubstringProve<HttpTranscript>>(
-        &self,
-        prover: &mut P,
-    ) -> Result<SubstringsProof, P::Error>
-    where
-        P::Error: From<SubstringsProofBuilderError>,
-    {
-        let mut builder = self.session.data().build_substrings_proof();
-        prover.prove(&mut builder, &self.transcript)?;
-        builder.build().map_err(P::Error::from)
     }
 }

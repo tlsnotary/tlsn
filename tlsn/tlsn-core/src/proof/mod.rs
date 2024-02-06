@@ -5,8 +5,7 @@ mod substrings;
 
 pub use session::{default_cert_verifier, SessionInfo, SessionProof, SessionProofError};
 pub use substrings::{
-    SubstringProve, SubstringsProof, SubstringsProofBuilder, SubstringsProofBuilderError,
-    SubstringsProofError,
+    SubstringsProof, SubstringsProofBuilder, SubstringsProofBuilderError, SubstringsProofError,
 };
 
 use serde::{Deserialize, Serialize};
