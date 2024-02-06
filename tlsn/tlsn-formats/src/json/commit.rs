@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use spansy::json::KeyValue;
+use spansy::{json::KeyValue, Spanned};
 use tlsn_core::{commitment::TranscriptCommitmentBuilder, Direction};
 
 use crate::json::{Array, Bool, JsonValue, Null, Number, Object, String as JsonString};
@@ -174,6 +174,11 @@ pub trait JsonCommit {
         string: &JsonString,
         direction: Direction,
     ) -> Result<(), JsonCommitError> {
+        // Skip empty strings.
+        if string.span().is_empty() {
+            return Ok(());
+        }
+
         builder
             .commit(string, direction)
             .map(|_| ())
