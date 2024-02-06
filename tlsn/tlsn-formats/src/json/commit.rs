@@ -240,6 +240,6 @@ pub trait JsonCommit {
 
 /// Default committer for JSON values.
 #[derive(Debug, Default, Clone)]
-pub struct DefaultJsonCommitter;
+pub struct DefaultJsonCommitter {}
 
 impl JsonCommit for DefaultJsonCommitter {}

@@ -382,6 +382,6 @@ pub trait HttpCommit {
 
 /// The default HTTP committer.
 #[derive(Debug, Default, Clone)]
-pub struct DefaultHttpCommitter;
+pub struct DefaultHttpCommitter {}
 
 impl HttpCommit for DefaultHttpCommitter {}
