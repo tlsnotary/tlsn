@@ -83,12 +83,12 @@ To perform notarization using the session id (unique id returned upon calling th
 String
 
 ---
-## Debugging
+## Logging
 The default logging of this server is set to `DEBUG` verbosity level for all crates (both internal and external) using tracing crate's [EnvFilter](https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html).
 
 To help with debugging, one can use the following environment variable with the command to launch the server (Cargo or Docker)：
 
-`RUST_LOG=notary_server,tlsn_verifier,tls_mpc,tls_client_async=DEBUG`
+`RUST_LOG=notary_server=DEBUG,tlsn_verifier=DEBUG,tls_mpc=DEBUG,tls_client_async=DEBUG`
 
 This effectively reduces the volume of logs by only including DEBUG-level logs from the crates that are useful for most debugging scenarios.
 
