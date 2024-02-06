@@ -14,7 +14,7 @@ async fn main() -> Result<(), NotaryServerError> {
     let config: NotaryServerProperties = parse_config_file(&cli_fields.config_file)?;
 
     // Set up tracing for logging
-    init_tracing(&config).map_err(|err| eyre!("Failed to set up tracing: {err}"))?;
+    init_tracing().map_err(|err| eyre!("Failed to set up tracing: {err}"))?;
 
     debug!(?config, "Server config loaded");
 

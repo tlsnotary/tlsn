@@ -29,7 +29,7 @@ use ws_stream_tungstenite::WsStream;
 use notary_server::{
     read_pem_file, run_server, AuthorizationProperties, NotarizationProperties,
     NotarizationSessionRequest, NotarizationSessionResponse, NotaryServerProperties,
-    NotarySigningKeyProperties, ServerProperties, TLSProperties, TracingProperties,
+    NotarySigningKeyProperties, ServerProperties, TLSProperties,
 };
 
 const NOTARY_CA_CERT_PATH: &str = "./fixture/tls/rootCA.crt";
@@ -53,9 +53,6 @@ fn get_server_config(port: u16, tls_enabled: bool) -> NotaryServerProperties {
         notary_key: NotarySigningKeyProperties {
             private_key_pem_path: "./fixture/notary/notary.key".to_string(),
             public_key_pem_path: "./fixture/notary/notary.pub".to_string(),
-        },
-        tracing: TracingProperties {
-            default_level: "DEBUG".to_string(),
         },
         authorization: AuthorizationProperties {
             enabled: false,
