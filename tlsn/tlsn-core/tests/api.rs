@@ -78,8 +78,8 @@ fn test_api() {
     let mut commitment_builder =
         TranscriptCommitmentBuilder::new(encodings_provider, data_sent.len(), data_recv.len());
 
-    let commitment_id_1 = commitment_builder.commit_sent(range1.clone()).unwrap();
-    let commitment_id_2 = commitment_builder.commit_recv(range2.clone()).unwrap();
+    let commitment_id_1 = commitment_builder.commit_sent(&range1).unwrap();
+    let commitment_id_2 = commitment_builder.commit_recv(&range2).unwrap();
 
     let commitments = commitment_builder.build().unwrap();
 
@@ -154,9 +154,9 @@ fn test_api() {
     let mut substrings_proof_builder = session.data().build_substrings_proof();
 
     substrings_proof_builder
-        .reveal(commitment_id_1)
+        .reveal_by_id(commitment_id_1)
         .unwrap()
-        .reveal(commitment_id_2)
+        .reveal_by_id(commitment_id_2)
         .unwrap();
 
     let substrings_proof = substrings_proof_builder.build().unwrap();

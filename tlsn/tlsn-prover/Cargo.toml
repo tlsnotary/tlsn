@@ -9,8 +9,8 @@ version = "0.1.0-alpha.3"
 edition = "2021"
 
 [features]
-default = []
-#formats = ["dep:tlsn-formats"]
+default = ["formats"]
+formats = ["dep:tlsn-formats"]
 tracing = [
     "dep:tracing",
     "tlsn-tls-client-async/tracing",
@@ -24,7 +24,7 @@ tlsn-tls-client.workspace = true
 tlsn-tls-client-async.workspace = true
 tlsn-core.workspace = true
 tlsn-common.workspace = true
-#tlsn-formats = { workspace = true, optional = true }
+tlsn-formats = { workspace = true, optional = true }
 tlsn-tls-mpc.workspace = true
 
 tlsn-utils.workspace = true

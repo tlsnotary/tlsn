@@ -39,7 +39,7 @@ use tlsn_core::transcript::Transcript;
 use utils_aio::mux::MuxChannel;
 
 #[cfg(feature = "formats")]
-use http::{state as http_state, HttpProver, HttpProverError};
+use crate::http::{state as http_state, HttpProver, HttpProverError};
 
 #[cfg(feature = "tracing")]
 use tracing::{debug, debug_span, instrument, Instrument};

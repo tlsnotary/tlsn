@@ -152,8 +152,8 @@ async fn build_proof_without_redactions(mut prover: Prover<Notarize>) -> TlsProo
     let recv_len = prover.recv_transcript().data().len();
 
     let builder = prover.commitment_builder();
-    let sent_commitment = builder.commit_sent(0..sent_len).unwrap();
-    let recv_commitment = builder.commit_recv(0..recv_len).unwrap();
+    let sent_commitment = builder.commit_sent(&(0..sent_len)).unwrap();
+    let recv_commitment = builder.commit_recv(&(0..recv_len)).unwrap();
 
     // Finalize, returning the notarized session
     let notarized_session = prover.finalize().await.unwrap();
@@ -162,8 +162,8 @@ async fn build_proof_without_redactions(mut prover: Prover<Notarize>) -> TlsProo
     let mut proof_builder = notarized_session.data().build_substrings_proof();
 
     // Reveal all the public ranges
-    proof_builder.reveal(sent_commitment).unwrap();
-    proof_builder.reveal(recv_commitment).unwrap();
+    proof_builder.reveal_by_id(sent_commitment).unwrap();
+    proof_builder.reveal_by_id(recv_commitment).unwrap();
 
     let substrings_proof = proof_builder.build().unwrap();
 
@@ -197,12 +197,12 @@ async fn build_proof_with_redactions(mut prover: Prover<Notarize>) -> TlsProof {
     // Commit to each range of the public outbound data which we want to disclose
     let sent_commitments: Vec<_> = sent_public_ranges
         .iter()
-        .map(|r| builder.commit_sent(r.clone()).unwrap())
+        .map(|range: &Range<usize>| builder.commit_sent(range).unwrap())
         .collect();
     // Commit to each range of the public inbound data which we want to disclose
     let recv_commitments: Vec<_> = recv_public_ranges
         .iter()
-        .map(|r| builder.commit_recv(r.clone()).unwrap())
+        .map(|range| builder.commit_recv(range).unwrap())
         .collect();
 
     // Finalize, returning the notarized session
@@ -213,10 +213,10 @@ async fn build_proof_with_redactions(mut prover: Prover<Notarize>) -> TlsProof {
 
     // Reveal all the public ranges
     for commitment_id in sent_commitments {
-        proof_builder.reveal(commitment_id).unwrap();
+        proof_builder.reveal_by_id(commitment_id).unwrap();
     }
     for commitment_id in recv_commitments {
-        proof_builder.reveal(commitment_id).unwrap();
+        proof_builder.reveal_by_id(commitment_id).unwrap();
     }
 
     let substrings_proof = proof_builder.build().unwrap();
