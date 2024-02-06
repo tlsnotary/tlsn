@@ -70,32 +70,21 @@ mod tests {
 
     #[test]
     fn test_http_commit() {
+        let transcript_tx = Transcript::new(TX);
+        let transcript_rx = Transcript::new(RX);
+
         let mut builder = TranscriptCommitmentBuilder::new(
             fixtures::encoding_provider(TX, RX),
             TX.len(),
             RX.len(),
         );
 
-        let requests = Requests::new_from_slice(TX)
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
-        let responses = Responses::new_from_slice(RX)
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
+        let transcript = HttpTranscript::parse(&transcript_tx, &transcript_rx).unwrap();
 
         let mut committer = DefaultHttpCommitter::default();
-
-        for request in &requests {
-            committer
-                .commit_request(&mut builder, Direction::Sent, request)
-                .unwrap();
-        }
-
-        for response in &responses {
-            committer
-                .commit_response(&mut builder, Direction::Received, response)
-                .unwrap();
-        }
+        committer
+            .commit_transcript(&mut builder, &transcript)
+            .unwrap();
 
         let commitments = builder.build().unwrap();
 
@@ -142,40 +131,26 @@ mod tests {
             RX.len(),
         );
 
-        let requests = Requests::new_from_slice(TX)
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
-        let responses = Responses::new_from_slice(RX)
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
+        let transcript = HttpTranscript::parse(&transcript_tx, &transcript_rx).unwrap();
 
         let mut committer = DefaultHttpCommitter::default();
-
-        for request in &requests {
-            committer
-                .commit_request(&mut builder, Direction::Sent, request)
-                .unwrap();
-        }
-
-        for response in &responses {
-            committer
-                .commit_response(&mut builder, Direction::Received, response)
-                .unwrap();
-        }
+        committer
+            .commit_transcript(&mut builder, &transcript)
+            .unwrap();
 
         let commitments = builder.build().unwrap();
 
         let mut builder = SubstringsProofBuilder::new(&commitments, &transcript_tx, &transcript_rx);
 
-        let req_0 = &requests[0];
-        let req_1 = &requests[1];
+        let req_0 = &transcript.requests[0];
+        let req_1 = &transcript.requests[1];
         let BodyContent::Json(JsonValue::Object(req_1_body)) =
             &req_1.body.as_ref().unwrap().content
         else {
             unreachable!();
         };
-        let resp_0 = &responses[0];
-        let resp_1 = &responses[1];
+        let resp_0 = &transcript.responses[0];
+        let resp_1 = &transcript.responses[1];
 
         builder
             .reveal_sent(&req_0.without_data(), CommitmentKind::Blake3)
