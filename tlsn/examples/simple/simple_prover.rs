@@ -197,7 +197,7 @@ async fn build_proof_with_redactions(mut prover: Prover<Notarize>) -> TlsProof {
     // Commit to each range of the public outbound data which we want to disclose
     let sent_commitments: Vec<_> = sent_public_ranges
         .iter()
-        .map(|range: &Range<usize>| builder.commit_sent(range).unwrap())
+        .map(|range| builder.commit_sent(range).unwrap())
         .collect();
     // Commit to each range of the public inbound data which we want to disclose
     let recv_commitments: Vec<_> = recv_public_ranges
