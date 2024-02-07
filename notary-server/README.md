@@ -84,13 +84,13 @@ String
 
 ---
 ## Logging
-The default logging strategy of this server is set to `DEBUG` verbosity level for the crates that are useful for most debugging scenarios, i.e. using the following filtering logic
+The default logging strategy of this server is set to `DEBUG` verbosity level for the crates that are useful for most debugging scenarios, i.e. using the following filtering logic,
 
 `notary_server=DEBUG,tlsn_verifier=DEBUG,tls_mpc=DEBUG,tls_client_async=DEBUG`
 
-In the config [file](./config/config.yaml), one can toggle the verbosity level for these crates using the `level` field.
+In the config [file](./config/config.yaml), one can toggle the verbosity level for these crates using the `level` field under `logging`.
 
-One can also provide custom filtering logic via the optional `filter` field by following tracing crate's [filter directive syntax](https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#example-syntax).
+One can also provide custom filtering logic by adding a `filter` field  under `logging` in the config file above, and use a value that follows tracing crate's [filter directive syntax](https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#example-syntax).
 
 ---
 ## Architecture
