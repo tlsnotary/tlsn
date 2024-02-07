@@ -2,12 +2,14 @@ use eyre::Result;
 use tracing::metadata::LevelFilter;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Registry};
 
-pub fn init_tracing() -> Result<()> {
-    // Retrieve log filter logic from RUST_LOG env var
+use crate::config::NotaryServerProperties;
+
+pub fn init_tracing(config: &NotaryServerProperties) -> Result<()> {
+    // Retrieve log filter logic from config
     let env_filter_layer = EnvFilter::builder()
-        // if RUST_LOG is not set, then set DEBUG level logging for all crates
+        // if fail to parse log filter, then set DEBUG level logging for all crates
         .with_default_directive(LevelFilter::DEBUG.into())
-        .from_env_lossy();
+        .parse_lossy(&config.tracing.logging_filter);
 
     // Format the log
     let format_layer = tracing_subscriber::fmt::layer()

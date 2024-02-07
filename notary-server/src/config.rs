@@ -11,6 +11,8 @@ pub struct NotaryServerProperties {
     pub tls: TLSProperties,
     /// File path of private key (in PEM format) used to sign the notarization
     pub notary_key: NotarySigningKeyProperties,
+    /// Setting for logging/tracing
+    pub tracing: TracingProperties,
     /// Setting for authorization
     pub authorization: AuthorizationProperties,
 }
@@ -54,4 +56,12 @@ pub struct TLSProperties {
 pub struct NotarySigningKeyProperties {
     pub private_key_pem_path: String,
     pub public_key_pem_path: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct TracingProperties {
+    /// A directive that helps to filter logs that match certain crates/verbosity level
+    /// Refer to the syntax here https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#example-syntax
+    pub logging_filter: String,
 }
