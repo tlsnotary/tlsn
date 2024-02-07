@@ -9,7 +9,7 @@ use p256::{ecdh::EphemeralSecret, EncodedPoint, PublicKey as ECDHPublicKey};
 use rand::{rngs::OsRng, thread_rng, Rng};
 
 use digest::Digest;
-use std::{any::Any, convert::TryInto, collections::VecDeque};
+use std::{any::Any, collections::VecDeque, convert::TryInto};
 use tls_core::{
     cert::ServerCertDetails,
     ke::ServerKxDetails,

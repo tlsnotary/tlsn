@@ -84,15 +84,13 @@ String
 
 ---
 ## Logging
-The default logging of this server is set to `DEBUG` verbosity level for all crates (both internal and external).
-
-To help with debugging, one can use the following logging filter directive in the config [file](./config/config.yaml):
+The default logging strategy of this server is set to `DEBUG` verbosity level for the crates that are useful for most debugging scenarios, i.e. using the following filtering logic
 
 `notary_server=DEBUG,tlsn_verifier=DEBUG,tls_mpc=DEBUG,tls_client_async=DEBUG`
 
-This effectively reduces the volume of logs by only including DEBUG-level logs from the crates that are useful for most debugging scenarios.
+In the config [file](./config/config.yaml), one can toggle the verbosity level for these crates using the `level` field.
 
-One can always modify this env var to include any crate of interest by following tracing crate's [filter directive syntax](https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#example-syntax).
+One can also provide custom filtering logic via the optional `filter` field by following tracing crate's [filter directive syntax](https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#example-syntax).
 
 ---
 ## Architecture
