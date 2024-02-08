@@ -132,7 +132,7 @@ pub trait JsonCommit {
     /// Commits to a JSON array.
     ///
     /// The default implementation commits to the entire array, then commits the array
-    /// excluding all values.
+    /// excluding all values and separators.
     ///
     /// # Arguments
     ///
