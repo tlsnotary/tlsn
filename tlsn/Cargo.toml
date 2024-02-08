@@ -27,9 +27,9 @@ tlsn-tls-client-async = { path = "../components/tls/tls-client-async" }
 tls-server-fixture = { path = "../components/tls/tls-server-fixture" }
 uid-mux = { path = "../components/uid-mux" }
 
-tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "33052c6" }
-tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "33052c6" }
-spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "33052c6" }
+tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "51f313d" }
+tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "51f313d" }
+spansy = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "51f313d" }
 
 mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "90a3778" }
 mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "90a3778" }

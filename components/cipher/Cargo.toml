@@ -6,7 +6,7 @@ resolver = "2"
 # tlsn
 mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "90a3778" }
 mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "90a3778" }
-tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "33052c6" }
+tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "51f313d" }
 
 # crypto
 aes = "0.8"
