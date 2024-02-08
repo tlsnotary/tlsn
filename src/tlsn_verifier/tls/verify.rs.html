@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `tlsn-verifier/src/tls/verify.rs`."><title>verify.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="tlsn_verifier" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `tlsn-verifier/src/tls/verify.rs`."><title>verify.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="tlsn_verifier" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -210,7 +211,7 @@
 };
 <span class="kw">use </span>utils_aio::{expect_msg_or_err, mux::MuxChannel};
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;tracing&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"tracing"</span>)]
 </span><span class="kw">use </span>tracing::info;
 
 <span class="kw">impl </span>Verifier&lt;VerifyState&gt; {
@@ -227,14 +228,14 @@
             </span><span class="kw">let </span>channel = <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>channel) = <span class="self">self</span>.state.channel {
                 channel
             } <span class="kw">else </span>{
-                <span class="self">self</span>.state.channel = <span class="prelude-val">Some</span>(<span class="self">self</span>.state.mux_ctrl.get_channel(<span class="string">&quot;prove-verify&quot;</span>).<span class="kw">await</span><span class="question-mark">?</span>);
+                <span class="self">self</span>.state.channel = <span class="prelude-val">Some</span>(<span class="self">self</span>.state.mux_ctrl.get_channel(<span class="string">"prove-verify"</span>).<span class="kw">await</span><span class="question-mark">?</span>);
                 <span class="self">self</span>.state.channel.as_mut().unwrap()
             };
 
             <span class="kw">let </span>verify_thread = <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>verify_thread) = <span class="self">self</span>.state.verify_thread {
                 verify_thread
             } <span class="kw">else </span>{
-                <span class="self">self</span>.state.verify_thread = <span class="prelude-val">Some</span>(<span class="self">self</span>.state.vm.new_thread(<span class="string">&quot;prove-verify&quot;</span>).<span class="kw">await</span><span class="question-mark">?</span>);
+                <span class="self">self</span>.state.verify_thread = <span class="prelude-val">Some</span>(<span class="self">self</span>.state.vm.new_thread(<span class="string">"prove-verify"</span>).<span class="kw">await</span><span class="question-mark">?</span>);
                 <span class="self">self</span>.state.verify_thread.as_mut().unwrap()
             };
 
@@ -242,8 +243,8 @@
             </span><span class="kw">let </span><span class="kw-2">mut </span>proving_info = <span class="macro">expect_msg_or_err!</span>(channel, TlsnMessage::ProvingInfo)<span class="question-mark">?</span>;
             <span class="kw">let </span><span class="kw-2">mut </span>cleartext = proving_info.cleartext.clone();
 
-            <span class="attr">#[cfg(feature = <span class="string">&quot;tracing&quot;</span>)]
-            </span><span class="macro">info!</span>(<span class="string">&quot;Received proving info from prover&quot;</span>);
+            <span class="attr">#[cfg(feature = <span class="string">"tracing"</span>)]
+            </span><span class="macro">info!</span>(<span class="string">"Received proving info from prover"</span>);
 
             <span class="comment">// Check ranges
             </span><span class="kw">if </span>proving_info.sent_ids.max().unwrap_or_default() &gt; <span class="self">self</span>.state.sent_len
@@ -270,13 +271,13 @@
                         .map(|id| {
                             verify_thread
                                 .get_value(id.as_str())
-                                .expect(<span class="string">&quot;Byte should be in VM memory&quot;</span>)
+                                .expect(<span class="string">"Byte should be in VM memory"</span>)
                         })
                         .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
                     verify_thread
                         .array_from_values(inner_refs.as_slice())
-                        .expect(<span class="string">&quot;Byte should be in VM Memory&quot;</span>)
+                        .expect(<span class="string">"Byte should be in VM Memory"</span>)
                 })
                 .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
@@ -292,8 +293,8 @@
             <span class="comment">// Check that purported values are correct
             </span>verify_thread.verify(<span class="kw-2">&amp;</span>value_refs, <span class="kw-2">&amp;</span>values).<span class="kw">await</span><span class="question-mark">?</span>;
 
-            <span class="attr">#[cfg(feature = <span class="string">&quot;tracing&quot;</span>)]
-            </span><span class="macro">info!</span>(<span class="string">&quot;Successfully verified purported cleartext&quot;</span>);
+            <span class="attr">#[cfg(feature = <span class="string">"tracing"</span>)]
+            </span><span class="macro">info!</span>(<span class="string">"Successfully verified purported cleartext"</span>);
 
             <span class="comment">// Create redacted transcripts
             </span><span class="kw">let </span><span class="kw-2">mut </span>transcripts = proving_info
@@ -315,8 +316,8 @@
                 RedactedTranscript::new(<span class="self">self</span>.state.recv_len, recv_transcripts),
             );
 
-            <span class="attr">#[cfg(feature = <span class="string">&quot;tracing&quot;</span>)]
-            </span><span class="macro">info!</span>(<span class="string">&quot;Successfully created redacted transcripts&quot;</span>);
+            <span class="attr">#[cfg(feature = <span class="string">"tracing"</span>)]
+            </span><span class="macro">info!</span>(<span class="string">"Successfully created redacted transcripts"</span>);
 
             <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, VerifierError&gt;((sent_redacted, recv_redacted))
         };
@@ -344,7 +345,7 @@
         } = <span class="self">self</span>.state;
 
         <span class="kw">let </span>finalize_fut = <span class="kw">async </span>{
-            <span class="kw">let </span><span class="kw-2">mut </span>channel = mux_ctrl.get_channel(<span class="string">&quot;finalize&quot;</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+            <span class="kw">let </span><span class="kw-2">mut </span>channel = mux_ctrl.get_channel(<span class="string">"finalize"</span>).<span class="kw">await</span><span class="question-mark">?</span>;
 
             <span class="comment">// Finalize all MPC
             </span><span class="kw">let </span>(<span class="kw-2">mut </span>ot_sender_actor, <span class="kw">_</span>, <span class="kw">_</span>) = <span class="macro">futures::try_join!</span>(
@@ -365,8 +366,8 @@
 
             <span class="kw">let </span>session_info = <span class="macro">expect_msg_or_err!</span>(channel, TlsnMessage::SessionInfo)<span class="question-mark">?</span>;
 
-            <span class="attr">#[cfg(feature = <span class="string">&quot;tracing&quot;</span>)]
-            </span><span class="macro">info!</span>(<span class="string">&quot;Finalized all MPC&quot;</span>);
+            <span class="attr">#[cfg(feature = <span class="string">"tracing"</span>)]
+            </span><span class="macro">info!</span>(<span class="string">"Finalized all MPC"</span>);
 
             <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, VerifierError&gt;(session_info)
         };
@@ -382,8 +383,8 @@
         <span class="comment">// Verify the TLS session
         </span>session_info.verify(<span class="kw-2">&amp;</span>handshake_summary, <span class="self">self</span>.config.cert_verifier())<span class="question-mark">?</span>;
 
-        <span class="attr">#[cfg(feature = <span class="string">&quot;tracing&quot;</span>)]
-        </span><span class="macro">info!</span>(<span class="string">&quot;Successfully verified session&quot;</span>);
+        <span class="attr">#[cfg(feature = <span class="string">"tracing"</span>)]
+        </span><span class="macro">info!</span>(<span class="string">"Successfully verified session"</span>);
 
         <span class="kw">let </span><span class="kw-2">mut </span>mux_ctrl = mux_ctrl.into_inner();
 

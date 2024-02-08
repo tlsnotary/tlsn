@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["tls"]};
+window.SIDEBAR_ITEMS = {"mod":["http","tls"]};
