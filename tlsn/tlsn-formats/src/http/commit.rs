@@ -23,8 +23,8 @@ impl HttpCommitError {
     ///
     /// # Arguments
     ///
-    /// * `record_kind` - the kind of the record (request or response)
-    /// * `msg` - the error message
+    /// * `record_kind` - The kind of the record (request or response).
+    /// * `msg` - The error message.
     pub fn new(record_kind: MessageKind, msg: impl Into<String>) -> Self {
         Self {
             idx: None,
@@ -38,10 +38,10 @@ impl HttpCommitError {
     ///
     /// # Arguments
     ///
-    /// * `idx` - the index of the request or response in the transcript
-    /// * `record_kind` - the kind of the record (request or response)
-    /// * `msg` - the error message
-    /// * `source` - the source error
+    /// * `idx` - The index of the request or response in the transcript.
+    /// * `record_kind` - The kind of the record (request or response).
+    /// * `msg` - The error message.
+    /// * `source` - The source error.
     pub fn new_with_source<E>(record_kind: MessageKind, msg: impl Into<String>, source: E) -> Self
     where
         E: Into<Box<dyn Error + Send + Sync>>,
@@ -84,9 +84,9 @@ pub trait HttpCommit {
     ///
     /// # Arguments
     ///
-    /// * `builder` - the transcript commitment builder
-    /// * `direction` - the direction of the transcript (sent or received)
-    /// * `transcript` - the transcript to commit
+    /// * `builder` - The transcript commitment builder.
+    /// * `direction` - The direction of the transcript (sent or received).
+    /// * `transcript` - The transcript to commit.
     fn commit_transcript(
         &mut self,
         builder: &mut TranscriptCommitmentBuilder,
@@ -110,9 +110,9 @@ pub trait HttpCommit {
     ///
     /// # Arguments
     ///
-    /// * `builder` - the transcript commitment builder
-    /// * `direction` - the direction of the request (sent or received)
-    /// * `request` - the request to commit to
+    /// * `builder` - The transcript commitment builder.
+    /// * `direction` - The direction of the request (sent or received).
+    /// * `request` - The request to commit to.
     fn commit_request(
         &mut self,
         builder: &mut TranscriptCommitmentBuilder,
@@ -148,10 +148,10 @@ pub trait HttpCommit {
     ///
     /// # Arguments
     ///
-    /// * `builder` - the transcript commitment builder
-    /// * `direction` - the direction of the request (sent or received)
-    /// * `request` - the parent request
-    /// * `target` - the target to commit to
+    /// * `builder` - The transcript commitment builder.
+    /// * `direction` - The direction of the request (sent or received).
+    /// * `request` - The parent request.
+    /// * `target` - The target to commit to.
     fn commit_target(
         &mut self,
         builder: &mut TranscriptCommitmentBuilder,
@@ -176,10 +176,10 @@ pub trait HttpCommit {
     ///
     /// # Arguments
     ///
-    /// * `builder` - the transcript commitment builder
-    /// * `direction` - the direction of the request (sent or received)
-    /// * `parent` - the parent request
-    /// * `header` - the header to commit to
+    /// * `builder` - The transcript commitment builder.
+    /// * `direction` - The direction of the request (sent or received).
+    /// * `parent` - The parent request.
+    /// * `header` - The header to commit to.
     fn commit_request_header(
         &mut self,
         builder: &mut TranscriptCommitmentBuilder,
@@ -219,10 +219,10 @@ pub trait HttpCommit {
     ///
     /// # Arguments
     ///
-    /// * `builder` - the transcript commitment builder
-    /// * `direction` - the direction of the request (sent or received)
-    /// * `parent` - the parent request
-    /// * `body` - the body to commit to
+    /// * `builder` - The transcript commitment builder.
+    /// * `direction` - The direction of the request (sent or received).
+    /// * `parent` - The parent request.
+    /// * `body` - The body to commit to.
     fn commit_request_body(
         &mut self,
         builder: &mut TranscriptCommitmentBuilder,
@@ -263,9 +263,9 @@ pub trait HttpCommit {
     ///
     /// # Arguments
     ///
-    /// * `builder` - the transcript commitment builder
-    /// * `direction` - the direction of the response (sent or received)
-    /// * `response` - the response to commit to
+    /// * `builder` - The transcript commitment builder.
+    /// * `direction` - The direction of the response (sent or received).
+    /// * `response` - The response to commit to.
     fn commit_response(
         &mut self,
         builder: &mut TranscriptCommitmentBuilder,
@@ -299,10 +299,10 @@ pub trait HttpCommit {
     ///
     /// # Arguments
     ///
-    /// * `builder` - the transcript commitment builder
-    /// * `direction` - the direction of the response (sent or received)
-    /// * `parent` - the parent response
-    /// * `header` - the header to commit to
+    /// * `builder` - The transcript commitment builder.
+    /// * `direction` - The direction of the response (sent or received).
+    /// * `parent` - The parent response.
+    /// * `header` - The header to commit to.
     fn commit_response_header(
         &mut self,
         builder: &mut TranscriptCommitmentBuilder,
@@ -342,10 +342,10 @@ pub trait HttpCommit {
     ///
     /// # Arguments
     ///
-    /// * `builder` - the transcript commitment builder
-    /// * `direction` - the direction of the response (sent or received)
-    /// * `parent` - the parent response
-    /// * `body` - the body to commit to
+    /// * `builder` - The transcript commitment builder.
+    /// * `direction` - The direction of the response (sent or received).
+    /// * `parent` - The parent response.
+    /// * `body` - The body to commit to.
     fn commit_response_body(
         &mut self,
         builder: &mut TranscriptCommitmentBuilder,

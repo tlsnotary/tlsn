@@ -19,7 +19,7 @@ impl JsonCommitError {
     ///
     /// # Arguments
     ///
-    /// * `msg` - the error message
+    /// * `msg` - The error message.
     pub fn new(msg: impl Into<String>) -> Self {
         Self {
             msg: msg.into(),
@@ -31,8 +31,8 @@ impl JsonCommitError {
     ///
     /// # Arguments
     ///
-    /// * `msg` - the error message
-    /// * `source` - the source error
+    /// * `msg` - The error message.
+    /// * `source` - The source error.
     pub fn new_with_source<E>(msg: impl Into<String>, source: E) -> Self
     where
         E: Into<Box<dyn Error + Send + Sync>>,
