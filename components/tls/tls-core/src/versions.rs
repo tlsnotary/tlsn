@@ -6,23 +6,21 @@ use crate::msgs::enums::ProtocolVersion;
 /// the [`ALL_VERSIONS`] array, as well as individually as [`TLS12`]
 /// and [`TLS13`].
 #[derive(Debug, PartialEq)]
+#[non_exhaustive]
 pub struct SupportedProtocolVersion {
     /// The TLS enumeration naming this version.
     pub version: ProtocolVersion,
-    is_private: (),
 }
 
 /// TLS1.2
 #[cfg(feature = "tls12")]
 pub static TLS12: SupportedProtocolVersion = SupportedProtocolVersion {
     version: ProtocolVersion::TLSv1_2,
-    is_private: (),
 };
 
 /// TLS1.3
 pub static TLS13: SupportedProtocolVersion = SupportedProtocolVersion {
     version: ProtocolVersion::TLSv1_3,
-    is_private: (),
 };
 
 /// A list of all the protocol versions supported by rustls.
