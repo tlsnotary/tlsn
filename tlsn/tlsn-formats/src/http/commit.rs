@@ -3,7 +3,7 @@ use std::error::Error;
 use tlsn_core::{commitment::TranscriptCommitmentBuilder, Direction};
 
 use crate::{
-    http::{Body, BodyContent, Header, HttpTranscript, RecordKind, Request, Response, Target},
+    http::{Body, BodyContent, Header, HttpTranscript, MessageKind, Request, Response, Target},
     json::{DefaultJsonCommitter, JsonCommit},
 };
 
@@ -12,7 +12,7 @@ use crate::{
 #[error("http commit error: {msg}")]
 pub struct HttpCommitError {
     idx: Option<usize>,
-    record_kind: RecordKind,
+    record_kind: MessageKind,
     msg: String,
     #[source]
     source: Option<Box<dyn Error + Send + Sync>>,
@@ -25,7 +25,7 @@ impl HttpCommitError {
     ///
     /// * `record_kind` - the kind of the record (request or response)
     /// * `msg` - the error message
-    pub fn new(record_kind: RecordKind, msg: impl Into<String>) -> Self {
+    pub fn new(record_kind: MessageKind, msg: impl Into<String>) -> Self {
         Self {
             idx: None,
             record_kind,
@@ -42,7 +42,7 @@ impl HttpCommitError {
     /// * `record_kind` - the kind of the record (request or response)
     /// * `msg` - the error message
     /// * `source` - the source error
-    pub fn new_with_source<E>(record_kind: RecordKind, msg: impl Into<String>, source: E) -> Self
+    pub fn new_with_source<E>(record_kind: MessageKind, msg: impl Into<String>, source: E) -> Self
     where
         E: Into<Box<dyn Error + Send + Sync>>,
     {
@@ -70,7 +70,7 @@ impl HttpCommitError {
     }
 
     /// Returns the kind of record (request or response).
-    pub fn record_kind(&self) -> &RecordKind {
+    pub fn record_kind(&self) -> &MessageKind {
         &self.record_kind
     }
 }
@@ -123,7 +123,7 @@ pub trait HttpCommit {
             .commit(&request.without_data(), direction)
             .map_err(|e| {
                 HttpCommitError::new_with_source(
-                    RecordKind::Request,
+                    MessageKind::Request,
                     "failed to commit to request with excluded data",
                     e,
                 )
@@ -161,7 +161,7 @@ pub trait HttpCommit {
     ) -> Result<(), HttpCommitError> {
         builder.commit(target, direction).map_err(|e| {
             HttpCommitError::new_with_source(
-                RecordKind::Request,
+                MessageKind::Request,
                 "failed to commit to target in request",
                 e,
             )
@@ -189,7 +189,7 @@ pub trait HttpCommit {
     ) -> Result<(), HttpCommitError> {
         builder.commit(header, direction).map_err(|e| {
             HttpCommitError::new_with_source(
-                RecordKind::Request,
+                MessageKind::Request,
                 format!("failed to commit to \"{}\" header", header.name.as_str()),
                 e,
             )
@@ -199,7 +199,7 @@ pub trait HttpCommit {
             .commit(&header.without_value(), direction)
             .map_err(|e| {
                 HttpCommitError::new_with_source(
-                    RecordKind::Request,
+                    MessageKind::Request,
                     format!(
                         "failed to commit to \"{}\" header excluding value",
                         header.name.as_str()
@@ -236,7 +236,7 @@ pub trait HttpCommit {
                     .commit_value(builder, body, direction)
                     .map_err(|e| {
                         HttpCommitError::new_with_source(
-                            RecordKind::Request,
+                            MessageKind::Request,
                             "failed to commit to JSON body",
                             e,
                         )
@@ -245,7 +245,7 @@ pub trait HttpCommit {
             body => {
                 builder.commit(body, direction).map_err(|e| {
                     HttpCommitError::new_with_source(
-                        RecordKind::Request,
+                        MessageKind::Request,
                         "failed to commit to unknown content body",
                         e,
                     )
@@ -276,7 +276,7 @@ pub trait HttpCommit {
             .commit(&response.without_data(), direction)
             .map_err(|e| {
                 HttpCommitError::new_with_source(
-                    RecordKind::Response,
+                    MessageKind::Response,
                     "failed to commit to response excluding data",
                     e,
                 )
@@ -312,7 +312,7 @@ pub trait HttpCommit {
     ) -> Result<(), HttpCommitError> {
         builder.commit(header, direction).map_err(|e| {
             HttpCommitError::new_with_source(
-                RecordKind::Response,
+                MessageKind::Response,
                 format!("failed to commit to \"{}\" header", header.name.as_str()),
                 e,
             )
@@ -322,7 +322,7 @@ pub trait HttpCommit {
             .commit(&header.without_value(), direction)
             .map_err(|e| {
                 HttpCommitError::new_with_source(
-                    RecordKind::Response,
+                    MessageKind::Response,
                     format!(
                         "failed to commit to \"{}\" header excluding value in response",
                         header.name.as_str()
@@ -359,7 +359,7 @@ pub trait HttpCommit {
                     .commit_value(builder, body, direction)
                     .map_err(|e| {
                         HttpCommitError::new_with_source(
-                            RecordKind::Response,
+                            MessageKind::Response,
                             "failed to commit to JSON body",
                             e,
                         )
@@ -368,7 +368,7 @@ pub trait HttpCommit {
             body => {
                 builder.commit(body, direction).map_err(|e| {
                     HttpCommitError::new_with_source(
-                        RecordKind::Request,
+                        MessageKind::Request,
                         "failed to commit to unknown content body",
                         e,
                     )

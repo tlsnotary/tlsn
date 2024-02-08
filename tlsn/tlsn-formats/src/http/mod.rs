@@ -15,9 +15,9 @@ pub use http::{
 };
 use tlsn_core::Transcript;
 
-/// The kind of HTTP record.
+/// The kind of HTTP message.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum RecordKind {
+pub enum MessageKind {
     /// An HTTP request.
     Request,
     /// An HTTP response.
