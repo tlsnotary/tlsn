@@ -159,12 +159,13 @@ impl TranscriptSlice {
 
 /// The direction of data communicated over a TLS connection.
 ///
-/// This is used to differentiate between data sent to the Server, and data received from the Server.
+/// This is used to differentiate between data sent from the Prover to the TLS peer,
+/// and data received by the Prover from the TLS peer (client or server).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Direction {
-    /// Sent from the prover to the server
+    /// Sent from the Prover to the TLS peer.
     Sent,
-    /// Received by the prover from the server
+    /// Received by the prover from the TLS peer.
     Received,
 }
 
