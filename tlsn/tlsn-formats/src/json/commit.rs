@@ -51,7 +51,7 @@ impl JsonCommitError {
 
 /// A JSON committer.
 pub trait JsonCommit {
-    /// Commits a JSON value.
+    /// Commits to a JSON value.
     ///
     /// # Arguments
     ///
@@ -74,7 +74,7 @@ pub trait JsonCommit {
         }
     }
 
-    /// Commits a JSON object.
+    /// Commits to a JSON object.
     ///
     /// The default implementation commits the object without any of the key-value pairs, then
     /// commits each key-value pair individually.
@@ -101,7 +101,7 @@ pub trait JsonCommit {
         Ok(())
     }
 
-    /// Commits a JSON key-value pair.
+    /// Commits to a JSON key-value pair.
     ///
     /// The default implementation commits the pair without the value, and then commits the value
     /// separately.
@@ -129,7 +129,7 @@ pub trait JsonCommit {
         self.commit_value(builder, &kv.value, direction)
     }
 
-    /// Commits a JSON array.
+    /// Commits to a JSON array.
     ///
     /// The default implementation commits to the entire array, then commits the array
     /// excluding all values.
@@ -161,7 +161,7 @@ pub trait JsonCommit {
         Ok(())
     }
 
-    /// Commits a JSON string.
+    /// Commits to a JSON string.
     ///
     /// # Arguments
     ///
@@ -185,7 +185,7 @@ pub trait JsonCommit {
             .map_err(|e| JsonCommitError::new_with_source("failed to commit string", e))
     }
 
-    /// Commits a JSON number.
+    /// Commits to a JSON number.
     ///
     /// # Arguments
     ///
@@ -204,7 +204,7 @@ pub trait JsonCommit {
             .map_err(|e| JsonCommitError::new_with_source("failed to commit number", e))
     }
 
-    /// Commits a JSON boolean value.
+    /// Commits to a JSON boolean value.
     ///
     /// # Arguments
     ///
@@ -223,7 +223,7 @@ pub trait JsonCommit {
             .map_err(|e| JsonCommitError::new_with_source("failed to commit boolean", e))
     }
 
-    /// Commits a JSON null value.
+    /// Commits to a JSON null value.
     ///
     /// # Arguments
     ///
