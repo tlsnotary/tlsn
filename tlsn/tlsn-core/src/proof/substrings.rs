@@ -23,7 +23,7 @@ pub enum SubstringsProofBuilderError {
     /// Invalid commitment id.
     #[error("invalid commitment id: {0:?}")]
     InvalidCommitmentId(CommitmentId),
-    /// Missing commitment
+    /// Missing commitment.
     #[error("missing commitment")]
     MissingCommitment,
     /// Invalid commitment type.
