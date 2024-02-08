@@ -84,7 +84,6 @@ pub trait HttpCommit {
     /// # Arguments
     ///
     /// * `builder` - The transcript commitment builder.
-    /// * `direction` - The direction of the transcript (sent or received).
     /// * `transcript` - The transcript to commit.
     fn commit_transcript(
         &mut self,
