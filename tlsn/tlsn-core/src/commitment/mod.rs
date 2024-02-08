@@ -178,11 +178,11 @@ impl TranscriptCommitments {
     pub fn get_id_by_info(
         &self,
         kind: CommitmentKind,
-        ranges: RangeSet<usize>,
+        ranges: &RangeSet<usize>,
         direction: Direction,
     ) -> Option<CommitmentId> {
         self.commitment_info
-            .get_by_right(&CommitmentInfo::new(kind, ranges, direction))
+            .get_by_right(&CommitmentInfo::new(kind, ranges.clone(), direction))
             .copied()
     }
 

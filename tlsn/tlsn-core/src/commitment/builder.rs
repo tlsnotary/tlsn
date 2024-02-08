@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use bimap::BiMap;
 use mpz_core::hash::Hash;
-use utils::range::RangeSet;
+use utils::range::{RangeSet, ToRangeSet};
 
 use crate::{
     commitment::{
@@ -21,8 +21,13 @@ pub enum TranscriptCommitmentBuilderError {
     #[error("can not commit to an empty range")]
     EmptyRange,
     /// Range out of bounds
-    #[error("range out of bounds")]
-    RangeOutOfBounds,
+    #[error("range out of bounds: {upper_commitment} > {upper_transcript}")]
+    RangeOutOfBounds {
+        /// The upper bound of the commitment range
+        upper_commitment: usize,
+        /// The upper bound of the transcript range
+        upper_transcript: usize,
+    },
     /// Failed to retrieve encodings for the provided transcript ranges.
     #[error("failed to retrieve encodings for the provided transcript ranges")]
     MissingEncodings,
@@ -69,17 +74,29 @@ impl TranscriptCommitmentBuilder {
     /// Commits to the provided ranges of the `sent` transcript.
     pub fn commit_sent(
         &mut self,
-        ranges: impl Into<RangeSet<usize>>,
+        ranges: &dyn ToRangeSet<usize>,
     ) -> Result<CommitmentId, TranscriptCommitmentBuilderError> {
-        self.add_substrings_commitment(ranges.into(), Direction::Sent)
+        self.add_substrings_commitment(&ranges.to_range_set(), Direction::Sent)
     }
 
     /// Commits to the provided ranges of the `received` transcript.
     pub fn commit_recv(
         &mut self,
-        ranges: impl Into<RangeSet<usize>>,
+        ranges: &dyn ToRangeSet<usize>,
     ) -> Result<CommitmentId, TranscriptCommitmentBuilderError> {
-        self.add_substrings_commitment(ranges.into(), Direction::Received)
+        self.add_substrings_commitment(&ranges.to_range_set(), Direction::Received)
+    }
+
+    /// Commits to the provided ranges of the transcript.
+    pub fn commit(
+        &mut self,
+        ranges: &dyn ToRangeSet<usize>,
+        direction: Direction,
+    ) -> Result<CommitmentId, TranscriptCommitmentBuilderError> {
+        match direction {
+            Direction::Sent => self.commit_sent(ranges),
+            Direction::Received => self.commit_recv(ranges),
+        }
     }
 
     /// Gets the commitment id for the provided commitment info.
@@ -101,7 +118,7 @@ impl TranscriptCommitmentBuilder {
     /// Add a commitment to substrings of the transcript
     fn add_substrings_commitment(
         &mut self,
-        ranges: RangeSet<usize>,
+        ranges: &RangeSet<usize>,
         direction: Direction,
     ) -> Result<CommitmentId, TranscriptCommitmentBuilderError> {
         let max = ranges
@@ -113,10 +130,13 @@ impl TranscriptCommitmentBuilder {
         };
 
         if max > len {
-            return Err(TranscriptCommitmentBuilderError::RangeOutOfBounds);
+            return Err(TranscriptCommitmentBuilderError::RangeOutOfBounds {
+                upper_commitment: max,
+                upper_transcript: len,
+            });
         }
 
-        let ids: Vec<_> = get_value_ids(&ranges, direction).collect();
+        let ids: Vec<_> = get_value_ids(ranges, direction).collect();
 
         let id_refs = ids.iter().map(|id| id.as_ref()).collect::<Vec<_>>();
 
@@ -135,7 +155,7 @@ impl TranscriptCommitmentBuilder {
         self.commitment_info
             .insert_no_overwrite(
                 id,
-                CommitmentInfo::new(commitment.kind(), ranges, direction),
+                CommitmentInfo::new(commitment.kind(), ranges.clone(), direction),
             )
             .map_err(|(id, _)| TranscriptCommitmentBuilderError::Duplicate(id))?;
 

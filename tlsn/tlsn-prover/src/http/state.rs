@@ -1,6 +1,6 @@
 //! HTTP prover state.
 
-use tlsn_formats::http::{Body, Request, Response};
+use tlsn_formats::http::HttpTranscript;
 
 use crate::tls::{state as prover_state, Prover};
 
@@ -10,15 +10,13 @@ pub trait State: sealed::Sealed {}
 /// Connection closed state.
 pub struct Closed {
     pub(super) prover: Prover<prover_state::Closed>,
-    pub(super) requests: Vec<(Request, Option<Body>)>,
-    pub(super) responses: Vec<(Response, Option<Body>)>,
+    pub(super) transcript: HttpTranscript,
 }
 
 /// Notarizing state.
 pub struct Notarize {
     pub(super) prover: Prover<prover_state::Notarize>,
-    pub(super) requests: Vec<(Request, Option<Body>)>,
-    pub(super) responses: Vec<(Response, Option<Body>)>,
+    pub(super) transcript: HttpTranscript,
 }
 
 impl State for Closed {}

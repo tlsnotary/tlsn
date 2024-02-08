@@ -300,8 +300,8 @@ async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
 
     let builder = prover.commitment_builder();
 
-    builder.commit_sent(0..sent_len).unwrap();
-    builder.commit_recv(0..recv_len).unwrap();
+    builder.commit_sent(&(0..sent_len)).unwrap();
+    builder.commit_recv(&(0..recv_len)).unwrap();
 
     _ = prover.finalize().await.unwrap();
 
@@ -472,8 +472,8 @@ async fn test_websocket_prover() {
 
     let builder = prover.commitment_builder();
 
-    builder.commit_sent(0..sent_len).unwrap();
-    builder.commit_recv(0..recv_len).unwrap();
+    builder.commit_sent(&(0..sent_len)).unwrap();
+    builder.commit_recv(&(0..recv_len)).unwrap();
 
     _ = prover.finalize().await.unwrap();
 

@@ -2,7 +2,8 @@
 
 use crate::{
     commitment::{
-        Commitment, CommitmentId, CommitmentInfo, CommitmentOpening, TranscriptCommitments,
+        Commitment, CommitmentId, CommitmentInfo, CommitmentKind, CommitmentOpening,
+        TranscriptCommitments,
     },
     merkle::MerkleProof,
     transcript::get_value_ids,
@@ -13,7 +14,7 @@ use mpz_circuits::types::ValueType;
 use mpz_garble_core::Encoder;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use utils::range::{RangeDisjoint, RangeSet, RangeUnion};
+use utils::range::{RangeDisjoint, RangeSet, RangeUnion, ToRangeSet};
 
 /// An error for [`SubstringsProofBuilder`]
 #[derive(Debug, thiserror::Error)]
@@ -22,6 +23,9 @@ pub enum SubstringsProofBuilderError {
     /// Invalid commitment id.
     #[error("invalid commitment id: {0:?}")]
     InvalidCommitmentId(CommitmentId),
+    /// Missing commitment.
+    #[error("missing commitment")]
+    MissingCommitment,
     /// Invalid commitment type.
     #[error("commitment {0:?} is not a substrings commitment")]
     InvalidCommitmentType(CommitmentId),
@@ -60,8 +64,44 @@ impl<'a> SubstringsProofBuilder<'a> {
         self.commitments
     }
 
+    /// Reveals data corresponding to the provided ranges in the sent direction.
+    pub fn reveal_sent(
+        &mut self,
+        ranges: &dyn ToRangeSet<usize>,
+        commitment_kind: CommitmentKind,
+    ) -> Result<&mut Self, SubstringsProofBuilderError> {
+        self.reveal(ranges, Direction::Sent, commitment_kind)
+    }
+
+    /// Reveals data corresponding to the provided transcript subsequence in the received direction.
+    pub fn reveal_recv(
+        &mut self,
+        ranges: &dyn ToRangeSet<usize>,
+        commitment_kind: CommitmentKind,
+    ) -> Result<&mut Self, SubstringsProofBuilderError> {
+        self.reveal(ranges, Direction::Received, commitment_kind)
+    }
+
+    /// Reveals data corresponding to the provided ranges and direction.
+    pub fn reveal(
+        &mut self,
+        ranges: &dyn ToRangeSet<usize>,
+        direction: Direction,
+        commitment_kind: CommitmentKind,
+    ) -> Result<&mut Self, SubstringsProofBuilderError> {
+        let com = self
+            .commitments
+            .get_id_by_info(commitment_kind, &ranges.to_range_set(), direction)
+            .ok_or(SubstringsProofBuilderError::MissingCommitment)?;
+
+        self.reveal_by_id(com)
+    }
+
     /// Reveals data corresponding to the provided commitment id
-    pub fn reveal(&mut self, id: CommitmentId) -> Result<&mut Self, SubstringsProofBuilderError> {
+    pub fn reveal_by_id(
+        &mut self,
+        id: CommitmentId,
+    ) -> Result<&mut Self, SubstringsProofBuilderError> {
         let commitment = self
             .commitments()
             .get(&id)

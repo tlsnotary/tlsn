@@ -4,9 +4,9 @@ resolver = "2"
 
 [workspace.dependencies]
 # tlsn
-mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "ecb8c54" }
-mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "ecb8c54" }
-tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "8d8ffe1" }
+mpz-circuits = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "90a3778" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "90a3778" }
+tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "33052c6" }
 
 # crypto
 aes = "0.8"

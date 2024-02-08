@@ -13,4 +13,7 @@
 
 pub mod http;
 pub mod json;
-mod unknown;
+
+#[doc(hidden)]
+pub use spansy;
+pub use spansy::ParseError;

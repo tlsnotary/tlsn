@@ -163,15 +163,15 @@ async fn main() {
     // Commit to send public data and collect commitment ids for the outbound transcript
     let mut commitment_ids = public_ranges
         .iter()
-        .map(|range| builder.commit_sent(range.clone()).unwrap())
+        .map(|range| builder.commit_sent(range).unwrap())
         .collect::<Vec<_>>();
     // Commit to private data. This is not needed for proof creation but ensures the data
     // is in the notarized session file for optional future disclosure.
     private_ranges.iter().for_each(|range| {
-        builder.commit_sent(range.clone()).unwrap();
+        builder.commit_sent(range).unwrap();
     });
     // Commit to the received (public) data.
-    commitment_ids.push(builder.commit_recv(0..recv_len).unwrap());
+    commitment_ids.push(builder.commit_recv(&(0..recv_len)).unwrap());
 
     // Finalize, returning the notarized session
     let notarized_session = prover.finalize().await.unwrap();
@@ -192,7 +192,7 @@ async fn main() {
 
     let mut proof_builder = notarized_session.data().build_substrings_proof();
     for commitment_id in commitment_ids {
-        proof_builder.reveal(commitment_id).unwrap();
+        proof_builder.reveal_by_id(commitment_id).unwrap();
     }
     let substrings_proof = proof_builder.build().unwrap();
 
