@@ -38,7 +38,6 @@ impl HttpCommitError {
     ///
     /// # Arguments
     ///
-    /// * `idx` - The index of the request or response in the transcript.
     /// * `record_kind` - The kind of the record (request or response).
     /// * `msg` - The error message.
     /// * `source` - The source error.
