@@ -5,9 +5,9 @@ use tlsn_core::{commitment::TranscriptCommitmentBuilder, Direction};
 
 use crate::json::{Array, Bool, JsonValue, Null, Number, Object, String as JsonString};
 
-/// JSON commit error.
+/// JSON commitment error.
 #[derive(Debug, thiserror::Error)]
-#[error("json commit error: {msg}")]
+#[error("json commitment error: {msg}")]
 pub struct JsonCommitError {
     msg: String,
     #[source]
