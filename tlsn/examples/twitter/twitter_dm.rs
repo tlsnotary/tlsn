@@ -5,8 +5,8 @@
 use http_body_util::{BodyExt, Empty};
 use hyper::{body::Bytes, Request, StatusCode};
 use hyper_util::rt::TokioIo;
-use std::{env, ops::Range, str};
-use tlsn_core::proof::TlsProof;
+use std::{env, str};
+use tlsn_core::{commitment::CommitmentKind, proof::TlsProof};
 use tlsn_examples::request_notarization;
 use tokio::io::AsyncWriteExt as _;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
@@ -33,7 +33,6 @@ async fn main() {
     // Load secret variables frome environment for twitter server connection
     dotenv::dotenv().ok();
     let conversation_id = env::var("CONVERSATION_ID").unwrap();
-    let client_uuid = env::var("CLIENT_UUID").unwrap();
     let auth_token = env::var("AUTH_TOKEN").unwrap();
     let access_token = env::var("ACCESS_TOKEN").unwrap();
     let csrf_token = env::var("CSRF_TOKEN").unwrap();
@@ -91,7 +90,6 @@ async fn main() {
         .header("Authority", SERVER_DOMAIN)
         .header("X-Twitter-Auth-Type", "OAuth2Session")
         .header("x-twitter-active-user", "yes")
-        .header("X-Client-Uuid", client_uuid.clone())
         .header("X-Csrf-Token", csrf_token.clone())
         .body(Empty::<Bytes>::new())
         .unwrap();
@@ -115,38 +113,13 @@ async fn main() {
     // The Prover task should be done now, so we can grab it.
     let prover = prover_task.await.unwrap().unwrap();
 
-    // Prepare for notarization
-    let mut prover = prover.start_notarize();
+    // Upgrade the prover to an HTTP prover, and start notarization.
+    let mut prover = prover.to_http().unwrap().start_notarize();
 
-    // Identify the ranges in the transcript that contain secrets
-    let (public_ranges, private_ranges) = find_ranges(
-        prover.sent_transcript().data(),
-        &[
-            access_token.as_bytes(),
-            auth_token.as_bytes(),
-            csrf_token.as_bytes(),
-            client_uuid.as_bytes(),
-        ],
-    );
+    // Commit to the transcript with the default committer, which will commit using BLAKE3.
+    prover.commit().unwrap();
 
-    let recv_len = prover.recv_transcript().data().len();
-
-    let builder = prover.commitment_builder();
-
-    // Commit to send public data and collect commitment ids for the outbound transcript
-    let mut commitment_ids = public_ranges
-        .iter()
-        .map(|range| builder.commit_sent(range).unwrap())
-        .collect::<Vec<_>>();
-    // Commit to private data. This is not needed for proof creation but ensures the data
-    // is in the notarized session file for optional future disclosure.
-    private_ranges.iter().for_each(|range| {
-        builder.commit_sent(range).unwrap();
-    });
-    // Commit to the received (public) data.
-    commitment_ids.push(builder.commit_recv(&(0..recv_len)).unwrap());
-
-    // Finalize, returning the notarized session
+    // Finalize, returning the notarized HTTP session
     let notarized_session = prover.finalize().await.unwrap();
 
     debug!("Notarization complete!");
@@ -154,7 +127,7 @@ async fn main() {
     // Dump the notarized session to a file
     let mut file = tokio::fs::File::create("twitter_dm.json").await.unwrap();
     file.write_all(
-        serde_json::to_string_pretty(&notarized_session)
+        serde_json::to_string_pretty(notarized_session.session())
             .unwrap()
             .as_bytes(),
     )
@@ -163,10 +136,40 @@ async fn main() {
 
     let session_proof = notarized_session.session_proof();
 
-    let mut proof_builder = notarized_session.data().build_substrings_proof();
-    for commitment_id in commitment_ids {
-        proof_builder.reveal_by_id(commitment_id).unwrap();
+    let mut proof_builder = notarized_session.session().data().build_substrings_proof();
+
+    // Prove the request, while redacting the secrets from it.
+    let request = &notarized_session.transcript().requests[0];
+
+    proof_builder
+        .reveal_sent(&request.without_data(), CommitmentKind::Blake3)
+        .unwrap();
+
+    proof_builder
+        .reveal_sent(&request.request.target, CommitmentKind::Blake3)
+        .unwrap();
+
+    for header in &request.headers {
+        // Only reveal the host header
+        if header.name.as_str().eq_ignore_ascii_case("Host") {
+            proof_builder
+                .reveal_sent(header, CommitmentKind::Blake3)
+                .unwrap();
+        } else {
+            proof_builder
+                .reveal_sent(&header.without_value(), CommitmentKind::Blake3)
+                .unwrap();
+        }
     }
+
+    // Prove the entire response, as we don't need to redact anything
+    let response = &notarized_session.transcript().responses[0];
+
+    proof_builder
+        .reveal_recv(response, CommitmentKind::Blake3)
+        .unwrap();
+
+    // Build the proof
     let substrings_proof = proof_builder.build().unwrap();
 
     let proof = TlsProof {
@@ -181,36 +184,4 @@ async fn main() {
     file.write_all(serde_json::to_string_pretty(&proof).unwrap().as_bytes())
         .await
         .unwrap();
-}
-
-/// Find the ranges of the public and private parts of a sequence.
-///
-/// Returns a tuple of `(public, private)` ranges.
-fn find_ranges(seq: &[u8], sub_seq: &[&[u8]]) -> (Vec<Range<usize>>, Vec<Range<usize>>) {
-    let mut private_ranges = Vec::new();
-    for s in sub_seq {
-        for (idx, w) in seq.windows(s.len()).enumerate() {
-            if w == *s {
-                private_ranges.push(idx..(idx + w.len()));
-            }
-        }
-    }
-
-    let mut sorted_ranges = private_ranges.clone();
-    sorted_ranges.sort_by_key(|r| r.start);
-
-    let mut public_ranges = Vec::new();
-    let mut last_end = 0;
-    for r in sorted_ranges {
-        if r.start > last_end {
-            public_ranges.push(last_end..r.start);
-        }
-        last_end = r.end;
-    }
-
-    if last_end < seq.len() {
-        public_ranges.push(last_end..seq.len());
-    }
-
-    (public_ranges, private_ranges)
 }
