@@ -149,11 +149,13 @@ pub trait JsonCommit {
             .commit(array, direction)
             .map_err(|e| JsonCommitError::new_with_source("failed to commit array", e))?;
 
-        builder
-            .commit(&array.without_values(), direction)
-            .map_err(|e| {
-                JsonCommitError::new_with_source("failed to commit array excluding values", e)
-            })?;
+        if !array.elems.is_empty() {
+            builder
+                .commit(&array.without_values(), direction)
+                .map_err(|e| {
+                    JsonCommitError::new_with_source("failed to commit array excluding values", e)
+                })?;
+        }
 
         // TODO: Commit each value separately, but we need a strategy for handling
         // separators.
