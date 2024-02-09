@@ -83,6 +83,16 @@ To perform notarization using the session id (unique id returned upon calling th
 String
 
 ---
+## Logging
+The default logging strategy of this server is set to `DEBUG` verbosity level for the crates that are useful for most debugging scenarios, i.e. using the following filtering logic:
+
+`notary_server=DEBUG,tlsn_verifier=DEBUG,tls_mpc=DEBUG,tls_client_async=DEBUG`
+
+In the config [file](./config/config.yaml), one can toggle the verbosity level for these crates using the `level` field under `logging`.
+
+One can also provide custom filtering logic by adding a `filter` field  under `logging` in the config file above, and use a value that follows tracing crate's [filter directive syntax](https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#example-syntax).
+
+---
 ## Architecture
 ### Objective
 The main objective of a notary server is to perform notarization together with a prover. In this case, the prover can either be

@@ -15,8 +15,8 @@ notary-key:
   private-key-pem-path: "./fixture/notary/notary.key"
   public-key-pem-path: "./fixture/notary/notary.pub"
 
-tracing:
-  default-level: DEBUG
+logging:
+  level: DEBUG
 
 authorization:
   enabled: false

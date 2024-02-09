@@ -28,8 +28,7 @@ serde_yaml = "0.9.21"
 sha1 = "0.10"
 structopt = "0.3.26"
 thiserror = "1"
-tlsn-verifier = { path = "../tlsn/tlsn-verifier" }
-tlsn-tls-core = { path = "../components/tls/tls-core" }
+tlsn-verifier = { path = "../tlsn/tlsn-verifier", features = ["tracing"] }
 tokio = { version = "1", features = ["full"] }
 tokio-rustls = { version = "0.24.1" }
 tokio-util = { version = "0.7", features = ["compat"] }
@@ -44,6 +43,7 @@ ws_stream_tungstenite = { version = "0.10.0", features = ["tokio_io"] }
 [dev-dependencies]
 # specify vendored feature to use statically linked copy of OpenSSL
 hyper-tls = { version = "0.5.0", features = ["vendored"] }
+tlsn-prover = { path = "../tlsn/tlsn-prover", features = ["tracing"] }
 tls-server-fixture = { path = "../components/tls/tls-server-fixture" }
-tlsn-prover = { path = "../tlsn/tlsn-prover" }
+tlsn-tls-core = { path = "../components/tls/tls-core" }
 tokio-native-tls = { version = "0.3.1", features = ["vendored"] }
