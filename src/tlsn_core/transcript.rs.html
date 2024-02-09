@@ -243,6 +243,7 @@
 <a href="#242" id="242">242</a>
 <a href="#243" id="243">243</a>
 <a href="#244" id="244">244</a>
+<a href="#245" id="245">245</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Transcript data types.
 
 </span><span class="kw">use </span>std::ops::Range;
@@ -404,12 +405,13 @@
 
 <span class="doccomment">/// The direction of data communicated over a TLS connection.
 ///
-/// This is used to differentiate between data sent to the Server, and data received from the Server.
+/// This is used to differentiate between data sent from the Prover to the TLS peer,
+/// and data received by the Prover from the TLS peer (client or server).
 </span><span class="attr">#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 </span><span class="kw">pub enum </span>Direction {
-    <span class="doccomment">/// Sent from the prover to the server
+    <span class="doccomment">/// Sent from the Prover to the TLS peer.
     </span>Sent,
-    <span class="doccomment">/// Received by the prover from the server
+    <span class="doccomment">/// Received by the prover from the TLS peer.
     </span>Received,
 }
 
