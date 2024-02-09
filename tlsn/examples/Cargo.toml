@@ -33,7 +33,9 @@ tokio = { workspace = true, features = [
     "fs",
 ] }
 tokio-util.workspace = true
-hyper = { version = "0.14", features = ["client", "http1"] }
+hyper = { version = "1.1", features = ["client", "http1"] }
+http-body-util = "0.1"
+hyper-util = { version = "0.1", features = ["full"] }
 chrono = "0.4"
 
 tracing.workspace = true

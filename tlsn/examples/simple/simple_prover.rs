@@ -1,8 +1,9 @@
 // Runs a simple Prover which connects to the Notary and notarizes a request/response from
 // example.com. The Prover then generates a proof and writes it to disk.
 
-use futures::AsyncWriteExt;
-use hyper::{Body, Request, StatusCode};
+use http_body_util::Empty;
+use hyper::{body::Bytes, Request, StatusCode};
+use hyper_util::rt::TokioIo;
 use std::ops::Range;
 use tlsn_core::proof::TlsProof;
 use tokio::io::AsyncWriteExt as _;
@@ -49,18 +50,19 @@ async fn main() {
     // The returned `mpc_tls_connection` is an MPC TLS connection to the Server: all data written
     // to/read from it will be encrypted/decrypted using MPC with the Notary.
     let (mpc_tls_connection, prover_fut) = prover.connect(client_socket.compat()).await.unwrap();
+    let mpc_tls_connection = TokioIo::new(mpc_tls_connection.compat());
 
     // Spawn the Prover task to be run concurrently
     let prover_task = tokio::spawn(prover_fut);
 
     // Attach the hyper HTTP client to the MPC TLS connection
     let (mut request_sender, connection) =
-        hyper::client::conn::handshake(mpc_tls_connection.compat())
+        hyper::client::conn::http1::handshake(mpc_tls_connection)
             .await
             .unwrap();
 
     // Spawn the HTTP task to be run concurrently
-    let connection_task = tokio::spawn(connection.without_shutdown());
+    tokio::spawn(connection);
 
     // Build a simple HTTP request with common headers
     let request = Request::builder()
@@ -72,7 +74,7 @@ async fn main() {
         .header("Accept-Encoding", "identity")
         .header("Connection", "close")
         .header("User-Agent", USER_AGENT)
-        .body(Body::empty())
+        .body(Empty::<Bytes>::new())
         .unwrap();
 
     println!("Starting an MPC TLS connection with the server");
@@ -83,10 +85,6 @@ async fn main() {
     println!("Got a response from the server");
 
     assert!(response.status() == StatusCode::OK);
-
-    // Close the connection to the server
-    let mut client_socket = connection_task.await.unwrap().unwrap().io.into_inner();
-    client_socket.close().await.unwrap();
 
     // The Prover task should be done now, so we can grab the Prover.
     let prover = prover_task.await.unwrap().unwrap();
