@@ -117,6 +117,14 @@ pub trait HttpCommit {
         direction: Direction,
         request: &Request,
     ) -> Result<(), HttpCommitError> {
+        builder.commit(request, direction).map_err(|e| {
+            HttpCommitError::new_with_source(
+                MessageKind::Request,
+                "failed to commit to entire request",
+                e,
+            )
+        })?;
+
         builder
             .commit(&request.without_data(), direction)
             .map_err(|e| {
@@ -270,6 +278,14 @@ pub trait HttpCommit {
         direction: Direction,
         response: &Response,
     ) -> Result<(), HttpCommitError> {
+        builder.commit(response, direction).map_err(|e| {
+            HttpCommitError::new_with_source(
+                MessageKind::Response,
+                "failed to commit to entire response",
+                e,
+            )
+        })?;
+
         builder
             .commit(&response.without_data(), direction)
             .map_err(|e| {
