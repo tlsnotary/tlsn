@@ -1,24 +1,21 @@
-/// Runs a simple Prover which connects to the Notary and notarizes a request/response from
-/// example.com. The Prover then generates a proof and writes it to disk.
-///
-/// The example uses the notary server implemented in ./simple_notary.rs
+// Runs a simple Prover which connects to the Notary and notarizes a request/response from
+// example.com. The Prover then generates a proof and writes it to disk.
+
 use futures::AsyncWriteExt;
 use hyper::{Body, Request, StatusCode};
 use std::ops::Range;
 use tlsn_core::proof::TlsProof;
-use tokio::io::{AsyncWriteExt as _, DuplexStream};
+use tokio::io::AsyncWriteExt as _;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 
+use tlsn_examples::run_notary;
 use tlsn_prover::tls::{state::Notarize, Prover, ProverConfig};
 
 // Setting of the application server
 const SERVER_DOMAIN: &str = "example.com";
 const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36";
 
-use p256::pkcs8::DecodePrivateKey;
 use std::str;
-
-use tlsn_verifier::tls::{Verifier, VerifierConfig};
 
 #[tokio::main]
 async fn main() {
@@ -27,7 +24,7 @@ async fn main() {
     let (prover_socket, notary_socket) = tokio::io::duplex(1 << 16);
 
     // Start a local simple notary service
-    start_notary_thread(prover_socket).await;
+    tokio::spawn(run_notary(notary_socket.compat()));
 
     // A Prover configuration
     let config = ProverConfig::builder()
@@ -39,7 +36,7 @@ async fn main() {
     // Create a Prover and set it up with the Notary
     // This will set up the MPC backend prior to connecting to the server.
     let prover = Prover::new(config)
-        .setup(notary_socket.compat())
+        .setup(prover_socket.compat())
         .await
         .unwrap();
 
@@ -225,27 +222,4 @@ async fn build_proof_with_redactions(mut prover: Prover<Notarize>) -> TlsProof {
         session: notarized_session.session_proof(),
         substrings: substrings_proof,
     }
-}
-
-async fn start_notary_thread(socket: DuplexStream) {
-    tokio::spawn(async {
-        // Load the notary signing key
-        let signing_key_str = str::from_utf8(include_bytes!(
-            "../../../notary-server/fixture/notary/notary.key"
-        ))
-        .unwrap();
-        let signing_key = p256::ecdsa::SigningKey::from_pkcs8_pem(signing_key_str).unwrap();
-
-        // Spawn notarization task to be run concurrently
-        tokio::spawn(async move {
-            // Setup default config. Normally a different ID would be generated
-            // for each notarization.
-            let config = VerifierConfig::builder().id("example").build().unwrap();
-
-            Verifier::new(config)
-                .notarize::<_, p256::ecdsa::Signature>(socket.compat(), &signing_key)
-                .await
-                .unwrap();
-        });
-    });
 }
