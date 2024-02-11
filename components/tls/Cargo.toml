@@ -9,6 +9,18 @@ members = [
 ]
 resolver = "2"
 
+[patch.'https://github.com/privacy-scaling-explorations/mpz']
+mpz-core = { path = "../../../mpz/mpz-core" }
+mpz-circuits = { path = "../../../mpz/mpz-circuits" }
+mpz-garble = { path = "../../../mpz/garble/mpz-garble" }
+mpz-ot-core = { path = "../../../mpz/ot/mpz-ot-core" }
+mpz-ot = { path = "../../../mpz/ot/mpz-ot" }
+mpz-share-conversion-core = { path = "../../../mpz/share-conversion/mpz-share-conversion-core" }
+mpz-share-conversion = { path = "../../../mpz/share-conversion/mpz-share-conversion" }
+
+[patch.'https://github.com/tlsnotary/tlsn-utils']
+tlsn-utils-aio = { path = "../../../tlsn-utils/utils-aio" }
+
 [workspace.dependencies]
 # rand
 rand = "0.8"

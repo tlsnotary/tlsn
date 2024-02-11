@@ -4,6 +4,7 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
+pub mod config;
 pub mod mux;
 
 /// The party's role in the TLSN protocol.

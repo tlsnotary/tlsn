@@ -19,22 +19,28 @@ pub struct TranscriptConfig {
 }
 
 impl TranscriptConfig {
-    fn default_tx() -> TranscriptConfig {
-        TranscriptConfigBuilder::default()
+    /// Creates a new default builder for the sent transcript config.
+    pub fn default_tx() -> TranscriptConfigBuilder {
+        let mut builder = TranscriptConfigBuilder::default();
+
+        builder
             .id(DEFAULT_TX_TRANSCRIPT_ID.to_string())
             .opaque_id(DEFAULT_OPAQUE_TX_TRANSCRIPT_ID.to_string())
-            .max_size(DEFAULT_TRANSCRIPT_MAX_SIZE)
-            .build()
-            .unwrap()
+            .max_size(DEFAULT_TRANSCRIPT_MAX_SIZE);
+
+        builder
     }
 
-    fn default_rx() -> TranscriptConfig {
-        TranscriptConfigBuilder::default()
+    /// Creates a new default builder for the received transcript config.
+    pub fn default_rx() -> TranscriptConfigBuilder {
+        let mut builder = TranscriptConfigBuilder::default();
+
+        builder
             .id(DEFAULT_RX_TRANSCRIPT_ID.to_string())
             .opaque_id(DEFAULT_OPAQUE_RX_TRANSCRIPT_ID.to_string())
-            .max_size(DEFAULT_TRANSCRIPT_MAX_SIZE)
-            .build()
-            .unwrap()
+            .max_size(DEFAULT_TRANSCRIPT_MAX_SIZE);
+
+        builder
     }
 
     /// Creates a new builder for `TranscriptConfig`.
@@ -68,10 +74,10 @@ pub struct MpcTlsCommonConfig {
     #[builder(default = "8")]
     num_threads: usize,
     /// The sent data transcript configuration.
-    #[builder(default = "TranscriptConfig::default_tx()")]
+    #[builder(default = "TranscriptConfig::default_tx().build().unwrap()")]
     tx_config: TranscriptConfig,
     /// The received data transcript configuration.
-    #[builder(default = "TranscriptConfig::default_rx()")]
+    #[builder(default = "TranscriptConfig::default_rx().build().unwrap()")]
     rx_config: TranscriptConfig,
     /// Whether the leader commits to the handshake data.
     #[builder(default = "true")]

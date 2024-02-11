@@ -19,6 +19,7 @@ pub use config::{
     MpcTlsCommonConfig, MpcTlsCommonConfigBuilder, MpcTlsCommonConfigBuilderError,
     MpcTlsFollowerConfig, MpcTlsFollowerConfigBuilder, MpcTlsFollowerConfigBuilderError,
     MpcTlsLeaderConfig, MpcTlsLeaderConfigBuilder, MpcTlsLeaderConfigBuilderError,
+    TranscriptConfig, TranscriptConfigBuilder, TranscriptConfigBuilderError,
 };
 pub use error::MpcTlsError;
 pub use follower::{FollowerCtrl, MpcTlsFollower, MpcTlsFollowerData};

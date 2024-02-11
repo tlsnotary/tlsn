@@ -279,10 +279,10 @@ async fn setup_mpc_backend(
 
     futures::try_join!(
         ot_sender_actor
-            .setup(config.ot_count())
+            .setup(config.ot_sender_setup_count())
             .map_err(ProverError::from),
         ot_receiver_actor
-            .setup(config.ot_count())
+            .setup(config.ot_receiver_setup_count())
             .map_err(ProverError::from)
     )?;
 
