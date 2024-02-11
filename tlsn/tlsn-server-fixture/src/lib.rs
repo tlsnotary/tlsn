@@ -8,7 +8,7 @@ use axum::{
     Router,
 };
 use futures::{AsyncRead, AsyncWrite};
-use hyper::{server::conn::Http, StatusCode};
+use hyper::{body::Bytes, server::conn::Http, StatusCode};
 use rustls::{Certificate, PrivateKey, ServerConfig};
 
 use tokio_util::compat::FuturesAsyncReadCompatExt;
@@ -25,6 +25,7 @@ pub static SERVER_DOMAIN: &str = "test-server.io";
 fn app() -> Router {
     Router::new()
         .route("/", get(|| async { "Hello, World!" }))
+        .route("/bytes", get(bytes))
         .route("/formats/json", get(json))
         .route("/formats/html", get(html))
 }
@@ -50,6 +51,15 @@ pub async fn bind<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>(socket: T)
         .serve_connection(conn.compat(), app())
         .await
         .unwrap();
+}
+
+async fn bytes(Query(params): Query<HashMap<String, String>>) -> Result<Bytes, StatusCode> {
+    let size = params
+        .get("size")
+        .and_then(|size| size.parse::<usize>().ok())
+        .unwrap_or(1);
+
+    Ok(Bytes::from(vec![0x42u8; size]))
 }
 
 async fn json(

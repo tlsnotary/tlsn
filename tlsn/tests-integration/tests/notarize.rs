@@ -51,7 +51,7 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
     let connection_task = tokio::spawn(connection.without_shutdown());
 
     let request = Request::builder()
-        .uri(format!("https://{}", SERVER_DOMAIN))
+        .uri(format!("https://{}/bytes?size=16000", SERVER_DOMAIN))
         .header("Host", SERVER_DOMAIN)
         .header("Connection", "close")
         .method("GET")
