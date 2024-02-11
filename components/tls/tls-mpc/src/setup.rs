@@ -114,7 +114,6 @@ where
     let ghash = universal_hash::ghash::Ghash::new(
         universal_hash::ghash::GhashConfig::builder()
             .id("encrypter/ghash")
-            .initial_block_count(64)
             .build()
             .unwrap(),
         gf.clone(),
@@ -156,7 +155,6 @@ where
     let ghash = universal_hash::ghash::Ghash::new(
         universal_hash::ghash::GhashConfig::builder()
             .id("decrypter/ghash")
-            .initial_block_count(64)
             .build()
             .unwrap(),
         gf,
