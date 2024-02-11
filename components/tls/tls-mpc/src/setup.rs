@@ -132,7 +132,7 @@ where
         Box::new(ghash),
     );
 
-    encrypter.set_transcript_id(config.opaque_tx_transcript_id());
+    encrypter.set_transcript_id(config.tx_config().opaque_id());
 
     // Decrypter
     let block_cipher = block_cipher::MpcBlockCipher::<block_cipher::Aes128, _>::new(
@@ -174,7 +174,7 @@ where
         Box::new(ghash),
     );
 
-    decrypter.set_transcript_id(config.opaque_rx_transcript_id());
+    decrypter.set_transcript_id(config.rx_config().opaque_id());
 
     Ok((
         Box::new(ke),

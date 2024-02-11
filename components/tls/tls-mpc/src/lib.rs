@@ -36,3 +36,11 @@ pub enum TlsRole {
     Leader,
     Follower,
 }
+
+/// The direction of a message
+pub(crate) enum Direction {
+    /// Data sent to the TLS peer
+    Sent,
+    /// Data received from the TLS peer
+    Recv,
+}
