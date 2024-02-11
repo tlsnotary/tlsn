@@ -34,6 +34,8 @@ use notary_server::{
 
 const NOTARY_CA_CERT_PATH: &str = "./fixture/tls/rootCA.crt";
 const NOTARY_CA_CERT_BYTES: &[u8] = include_bytes!("../fixture/tls/rootCA.crt");
+const MAX_SENT: usize = 1 << 13;
+const MAX_RECV: usize = 1 << 13;
 
 fn get_server_config(port: u16, tls_enabled: bool) -> NotaryServerProperties {
     NotaryServerProperties {
@@ -168,7 +170,8 @@ async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     // Build the HTTP request to configure notarization
     let payload = serde_json::to_string(&NotarizationSessionRequest {
         client_type: notary_server::ClientType::Tcp,
-        max_transcript_size: Some(notary_config.notarization.max_transcript_size),
+        max_sent_data: Some(MAX_SENT),
+        max_recv_data: Some(MAX_RECV),
     })
     .unwrap();
     let request = Request::builder()
@@ -246,6 +249,8 @@ async fn test_tcp_prover<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
     let prover_config = ProverConfig::builder()
         .id(notarization_response.session_id)
         .server_dns(SERVER_DOMAIN)
+        .max_sent_data(MAX_SENT)
+        .max_recv_data(MAX_RECV)
         .root_cert_store(root_store)
         .build()
         .unwrap();
@@ -340,7 +345,8 @@ async fn test_websocket_prover() {
     // Build the HTTP request to configure notarization
     let payload = serde_json::to_string(&NotarizationSessionRequest {
         client_type: notary_server::ClientType::Websocket,
-        max_transcript_size: Some(notary_config.notarization.max_transcript_size),
+        max_sent_data: Some(MAX_SENT),
+        max_recv_data: Some(MAX_RECV),
     })
     .unwrap();
 
@@ -419,6 +425,8 @@ async fn test_websocket_prover() {
         .id(notarization_response.session_id)
         .server_dns(SERVER_DOMAIN)
         .root_cert_store(root_store)
+        .max_sent_data(MAX_SENT)
+        .max_recv_data(MAX_RECV)
         .build()
         .unwrap();
 
