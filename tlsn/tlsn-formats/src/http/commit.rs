@@ -125,15 +125,17 @@ pub trait HttpCommit {
             )
         })?;
 
-        builder
-            .commit(&request.without_data(), direction)
-            .map_err(|e| {
-                HttpCommitError::new_with_source(
-                    MessageKind::Request,
-                    "failed to commit to request with excluded data",
-                    e,
-                )
-            })?;
+        if !request.headers.is_empty() || request.body.is_some() {
+            builder
+                .commit(&request.without_data(), direction)
+                .map_err(|e| {
+                    HttpCommitError::new_with_source(
+                        MessageKind::Request,
+                        "failed to commit to request with excluded data",
+                        e,
+                    )
+                })?;
+        }
 
         self.commit_target(builder, direction, request, &request.request.target)?;
 
@@ -286,15 +288,17 @@ pub trait HttpCommit {
             )
         })?;
 
-        builder
-            .commit(&response.without_data(), direction)
-            .map_err(|e| {
-                HttpCommitError::new_with_source(
-                    MessageKind::Response,
-                    "failed to commit to response excluding data",
-                    e,
-                )
-            })?;
+        if !response.headers.is_empty() || response.body.is_some() {
+            builder
+                .commit(&response.without_data(), direction)
+                .map_err(|e| {
+                    HttpCommitError::new_with_source(
+                        MessageKind::Response,
+                        "failed to commit to response excluding data",
+                        e,
+                    )
+                })?;
+        }
 
         for header in &response.headers {
             self.commit_response_header(builder, direction, response, header)?;
@@ -399,3 +403,45 @@ pub trait HttpCommit {
 pub struct DefaultHttpCommitter {}
 
 impl HttpCommit for DefaultHttpCommitter {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::*;
+    use spansy::http::{parse_request, parse_response};
+    use tlsn_core::fixtures;
+
+    #[rstest]
+    #[case::get_empty(include_bytes!("../../tests/fixtures/http/request_get_empty"))]
+    #[case::get_with_header(include_bytes!("../../tests/fixtures/http/request_get_with_header"))]
+    #[case::post_json(include_bytes!("../../tests/fixtures/http/request_post_json"))]
+    fn test_http_default_commit_request(#[case] src: &'static [u8]) {
+        let request = parse_request(src).unwrap();
+        let mut committer = DefaultHttpCommitter::default();
+        let mut builder =
+            TranscriptCommitmentBuilder::new(fixtures::encoding_provider(src, &[]), src.len(), 0);
+
+        committer
+            .commit_request(&mut builder, Direction::Sent, &request)
+            .unwrap();
+
+        builder.build().unwrap();
+    }
+
+    #[rstest]
+    #[case::empty(include_bytes!("../../tests/fixtures/http/response_empty"))]
+    #[case::json(include_bytes!("../../tests/fixtures/http/response_json"))]
+    #[case::text(include_bytes!("../../tests/fixtures/http/response_text"))]
+    fn test_http_default_commit_response(#[case] src: &'static [u8]) {
+        let response = parse_response(src).unwrap();
+        let mut committer = DefaultHttpCommitter::default();
+        let mut builder =
+            TranscriptCommitmentBuilder::new(fixtures::encoding_provider(&[], src), 0, src.len());
+
+        committer
+            .commit_response(&mut builder, Direction::Received, &response)
+            .unwrap();
+
+        builder.build().unwrap();
+    }
+}
