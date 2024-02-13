@@ -1,24 +1,22 @@
-/// Runs a simple Prover which connects to the Notary and notarizes a request/response from
-/// example.com. The Prover then generates a proof and writes it to disk.
-///
-/// The example uses the notary server implemented in ./simple_notary.rs
-use futures::AsyncWriteExt;
-use hyper::{Body, Request, StatusCode};
+// Runs a simple Prover which connects to the Notary and notarizes a request/response from
+// example.com. The Prover then generates a proof and writes it to disk.
+
+use http_body_util::Empty;
+use hyper::{body::Bytes, Request, StatusCode};
+use hyper_util::rt::TokioIo;
 use std::ops::Range;
 use tlsn_core::proof::TlsProof;
-use tokio::io::{AsyncWriteExt as _, DuplexStream};
+use tokio::io::AsyncWriteExt as _;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 
+use tlsn_examples::run_notary;
 use tlsn_prover::tls::{state::Notarize, Prover, ProverConfig};
 
 // Setting of the application server
 const SERVER_DOMAIN: &str = "example.com";
 const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36";
 
-use p256::pkcs8::DecodePrivateKey;
 use std::str;
-
-use tlsn_verifier::tls::{Verifier, VerifierConfig};
 
 #[tokio::main]
 async fn main() {
@@ -27,7 +25,7 @@ async fn main() {
     let (prover_socket, notary_socket) = tokio::io::duplex(1 << 16);
 
     // Start a local simple notary service
-    start_notary_thread(prover_socket).await;
+    tokio::spawn(run_notary(notary_socket.compat()));
 
     // A Prover configuration
     let config = ProverConfig::builder()
@@ -39,7 +37,7 @@ async fn main() {
     // Create a Prover and set it up with the Notary
     // This will set up the MPC backend prior to connecting to the server.
     let prover = Prover::new(config)
-        .setup(notary_socket.compat())
+        .setup(prover_socket.compat())
         .await
         .unwrap();
 
@@ -52,18 +50,19 @@ async fn main() {
     // The returned `mpc_tls_connection` is an MPC TLS connection to the Server: all data written
     // to/read from it will be encrypted/decrypted using MPC with the Notary.
     let (mpc_tls_connection, prover_fut) = prover.connect(client_socket.compat()).await.unwrap();
+    let mpc_tls_connection = TokioIo::new(mpc_tls_connection.compat());
 
     // Spawn the Prover task to be run concurrently
     let prover_task = tokio::spawn(prover_fut);
 
     // Attach the hyper HTTP client to the MPC TLS connection
     let (mut request_sender, connection) =
-        hyper::client::conn::handshake(mpc_tls_connection.compat())
+        hyper::client::conn::http1::handshake(mpc_tls_connection)
             .await
             .unwrap();
 
     // Spawn the HTTP task to be run concurrently
-    let connection_task = tokio::spawn(connection.without_shutdown());
+    tokio::spawn(connection);
 
     // Build a simple HTTP request with common headers
     let request = Request::builder()
@@ -75,7 +74,7 @@ async fn main() {
         .header("Accept-Encoding", "identity")
         .header("Connection", "close")
         .header("User-Agent", USER_AGENT)
-        .body(Body::empty())
+        .body(Empty::<Bytes>::new())
         .unwrap();
 
     println!("Starting an MPC TLS connection with the server");
@@ -86,10 +85,6 @@ async fn main() {
     println!("Got a response from the server");
 
     assert!(response.status() == StatusCode::OK);
-
-    // Close the connection to the server
-    let mut client_socket = connection_task.await.unwrap().unwrap().io.into_inner();
-    client_socket.close().await.unwrap();
 
     // The Prover task should be done now, so we can grab the Prover.
     let prover = prover_task.await.unwrap().unwrap();
@@ -225,27 +220,4 @@ async fn build_proof_with_redactions(mut prover: Prover<Notarize>) -> TlsProof {
         session: notarized_session.session_proof(),
         substrings: substrings_proof,
     }
-}
-
-async fn start_notary_thread(socket: DuplexStream) {
-    tokio::spawn(async {
-        // Load the notary signing key
-        let signing_key_str = str::from_utf8(include_bytes!(
-            "../../../notary-server/fixture/notary/notary.key"
-        ))
-        .unwrap();
-        let signing_key = p256::ecdsa::SigningKey::from_pkcs8_pem(signing_key_str).unwrap();
-
-        // Spawn notarization task to be run concurrently
-        tokio::spawn(async move {
-            // Setup default config. Normally a different ID would be generated
-            // for each notarization.
-            let config = VerifierConfig::builder().id("example").build().unwrap();
-
-            Verifier::new(config)
-                .notarize::<_, p256::ecdsa::Signature>(socket.compat(), &signing_key)
-                .await
-                .unwrap();
-        });
-    });
 }

@@ -4,15 +4,25 @@ version = "0.0.0"
 edition = "2021"
 publish = false
 
-[dev-dependencies]
-tlsn-prover = { workspace = true, features = ["tracing"] }
-tlsn-verifier.workspace = true
+[dependencies]
 tlsn-core.workspace = true
 tlsn-tls-core.workspace = true
 tlsn-tls-client.workspace = true
 notary-server = { path = "../../notary-server" }
 mpz-core.workspace = true
+tlsn-prover = { workspace = true, features = ["tracing"] }
+tlsn-verifier.workspace = true
 
+p256 = { workspace = true, features = ["ecdsa"] }
+elliptic-curve = { version = "0.13.5", features = ["pkcs8"] }
+webpki-roots.workspace = true
+
+rustls = { version = "0.21" }
+rustls-pemfile = { version = "1.0.2" }
+tokio-rustls = { version = "0.24.1" }
+async-tls = { version = "0.12", default-features = false, features = [
+    "client",
+] }
 futures.workspace = true
 tokio = { workspace = true, features = [
     "rt",
@@ -23,26 +33,16 @@ tokio = { workspace = true, features = [
     "fs",
 ] }
 tokio-util.workspace = true
+hyper = { version = "1.1", features = ["client", "http1"] }
+http-body-util = "0.1"
+hyper-util = { version = "0.1", features = ["full"] }
+chrono = "0.4"
 
 tracing.workspace = true
 tracing-subscriber.workspace = true
-
-hyper = { version = "0.14", features = ["client", "http1"] }
-chrono = "0.4"
-p256 = { workspace = true, features = ["ecdsa"] }
-elliptic-curve = { version = "0.13.5", features = ["pkcs8"] }
-webpki-roots.workspace = true
-
-async-tls = { version = "0.12", default-features = false, features = [
-    "client",
-] }
-
 serde = { version = "1.0.147", features = ["derive"] }
 serde_json = "1.0"
 eyre = "0.6.8"
-rustls = { version = "0.21" }
-rustls-pemfile = { version = "1.0.2" }
-tokio-rustls = { version = "0.24.1" }
 dotenv = "0.15.0"
 
 [[example]]
