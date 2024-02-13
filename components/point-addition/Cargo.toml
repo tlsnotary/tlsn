@@ -17,9 +17,9 @@ mock = ["dep:mpz-core"]
 tracing = ["dep:tracing"]
 
 [dependencies]
-mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "90a3778", optional = true }
-mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "90a3778" }
-mpz-share-conversion-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "90a3778" }
+mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "850636f", optional = true }
+mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "850636f" }
+mpz-share-conversion-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "850636f" }
 p256 = { version = "0.13", features = ["arithmetic"] }
 tracing = { version = "0.1", optional = true }
 async-trait = "0.1"

@@ -25,9 +25,9 @@ tracing = [
 tlsn-block-cipher = { path = "../cipher/block-cipher" }
 tlsn-stream-cipher = { path = "../cipher/stream-cipher" }
 tlsn-universal-hash = { path = "../universal-hash" }
-mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "90a3778" }
-mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "90a3778" }
-tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "33052c6" }
+mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "850636f" }
+mpz-garble = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "850636f" }
+tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "51f313d" }
 
 async-trait = "0.1"
 derive_builder = "0.12"
