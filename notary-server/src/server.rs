@@ -1,7 +1,7 @@
 use axum::{
     http::{Request, StatusCode},
     middleware::from_extractor_with_state,
-    response::IntoResponse,
+    response::{Html, IntoResponse},
     routing::{get, post},
     Json, Router,
 };
@@ -111,7 +111,23 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
     let git_commit_hash = env!("GIT_COMMIT_HASH").to_string();
     let git_commit_timestamp = env!("GIT_COMMIT_TIMESTAMP").to_string();
 
+    let html_info = Html(format!(
+        r#"<h1>TLSNotary server {}!</h1>
+        <ul>
+        <li>git commit hash: <a href="https://github.com/tlsnotary/tlsn/commit/{}">{}</a></li>
+        <li>git commit timestamp: {}</li>
+        <li>public key: <pre>{}</pre></li>
+        </ul>
+        <a href="/healthcheck">health check</a> - <a href="/info">info</a><br/>
+        "#,
+        &version, &git_commit_hash, &git_commit_hash, &git_commit_timestamp, &public_key
+    ));
+
     let router = Router::new()
+        .route(
+            "/",
+            get(|| async move { (StatusCode::OK, html_info).into_response() }),
+        )
         .route(
             "/healthcheck",
             get(|| async move { (StatusCode::OK, "Ok").into_response() }),
