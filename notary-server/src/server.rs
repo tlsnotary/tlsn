@@ -112,7 +112,7 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
     let git_commit_timestamp = env!("GIT_COMMIT_TIMESTAMP").to_string();
 
     let html_info = Html(format!(
-        r#"<h1>TLSNotary server {}!</h1>
+        r#"<h1>TLSNotary Server {}!</h1>
         <ul>
         <li>git commit hash: <a href="https://github.com/tlsnotary/tlsn/commit/{}">{}</a></li>
         <li>git commit timestamp: {}</li>
