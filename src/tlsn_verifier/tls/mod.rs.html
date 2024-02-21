@@ -616,10 +616,10 @@
 
     <span class="macro">futures::try_join!</span>(
         ot_sender_actor
-            .setup(config.ot_count())
+            .setup(config.ot_sender_setup_count())
             .map_err(VerifierError::from),
         ot_receiver_actor
-            .setup(config.ot_count())
+            .setup(config.ot_receiver_setup_count())
             .map_err(VerifierError::from)
     )<span class="question-mark">?</span>;
 
