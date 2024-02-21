@@ -31,7 +31,7 @@ use crate::{
     error::Kind,
     msg::{CloseConnection, Commit, MpcTlsFollowerMsg, MpcTlsMessage},
     record_layer::{Decrypter, Encrypter},
-    MpcTlsChannel, MpcTlsError, MpcTlsFollowerConfig,
+    Direction, MpcTlsChannel, MpcTlsError, MpcTlsFollowerConfig,
 };
 
 /// Controller for MPC-TLS follower.
@@ -107,13 +107,13 @@ impl MpcTlsFollower {
     ) -> Self {
         let encrypter = Encrypter::new(
             encrypter,
-            config.common().tx_transcript_id().to_string(),
-            config.common().opaque_tx_transcript_id().to_string(),
+            config.common().tx_config().id().to_string(),
+            config.common().tx_config().opaque_id().to_string(),
         );
         let decrypter = Decrypter::new(
             decrypter,
-            config.common().rx_transcript_id().to_string(),
-            config.common().opaque_rx_transcript_id().to_string(),
+            config.common().rx_config().id().to_string(),
+            config.common().rx_config().opaque_id().to_string(),
         );
 
         let (_sink, stream) = channel.split();
@@ -194,22 +194,34 @@ impl MpcTlsFollower {
         (ctrl, fut)
     }
 
-    /// Returns the total number of bytes sent and received.
-    fn total_bytes_transferred(&self) -> usize {
-        self.encrypter.sent_bytes() + self.decrypter.recv_bytes()
-    }
-
-    fn check_transcript_length(&self, len: usize) -> Result<(), MpcTlsError> {
-        let new_len = self.total_bytes_transferred() + len;
-        if new_len > self.config.common().max_transcript_size() {
-            return Err(MpcTlsError::new(
-                Kind::Config,
-                format!(
-                    "max transcript size exceeded: {} > {}",
-                    new_len,
-                    self.config.common().max_transcript_size()
-                ),
-            ));
+    fn check_transcript_length(&self, direction: Direction, len: usize) -> Result<(), MpcTlsError> {
+        match direction {
+            Direction::Sent => {
+                let new_len = self.encrypter.sent_bytes() + len;
+                let max_size = self.config.common().tx_config().max_size();
+                if new_len > max_size {
+                    return Err(MpcTlsError::new(
+                        Kind::Config,
+                        format!(
+                            "max sent transcript size exceeded: {} > {}",
+                            new_len, max_size
+                        ),
+                    ));
+                }
+            }
+            Direction::Recv => {
+                let new_len = self.decrypter.recv_bytes() + len;
+                let max_size = self.config.common().rx_config().max_size();
+                if new_len > max_size {
+                    return Err(MpcTlsError::new(
+                        Kind::Config,
+                        format!(
+                            "max received transcript size exceeded: {} > {}",
+                            new_len, max_size
+                        ),
+                    ));
+                }
+            }
         }
 
         Ok(())
@@ -402,7 +414,7 @@ impl MpcTlsFollower {
     )]
     async fn encrypt_message(&mut self, len: usize) -> Result<(), MpcTlsError> {
         self.is_accepting_messages()?;
-        self.check_transcript_length(len)?;
+        self.check_transcript_length(Direction::Sent, len)?;
         self.state.try_as_active()?;
 
         self.encrypter
@@ -418,7 +430,7 @@ impl MpcTlsFollower {
     )]
     fn commit_message(&mut self, payload: Vec<u8>) -> Result<(), MpcTlsError> {
         self.is_accepting_messages()?;
-        self.check_transcript_length(payload.len())?;
+        self.check_transcript_length(Direction::Recv, payload.len())?;
         let Active { buffer, .. } = self.state.try_as_active_mut()?;
 
         buffer.push_back(OpaqueMessage {

@@ -20,8 +20,10 @@ pub struct NotarizationSessionResponse {
 #[serde(rename_all = "camelCase")]
 pub struct NotarizationSessionRequest {
     pub client_type: ClientType,
-    /// Maximum transcript size in bytes
-    pub max_transcript_size: Option<usize>,
+    /// Maximum data that can be sent by the prover
+    pub max_sent_data: Option<usize>,
+    /// Maximum data that can be received by the prover
+    pub max_recv_data: Option<usize>,
 }
 
 /// Request query of the /notarize API
@@ -44,7 +46,8 @@ pub enum ClientType {
 /// Session configuration data to be stored in temporary storage
 #[derive(Clone, Debug)]
 pub struct SessionData {
-    pub max_transcript_size: Option<usize>,
+    pub max_sent_data: Option<usize>,
+    pub max_recv_data: Option<usize>,
     pub created_at: DateTime<Utc>,
 }
 

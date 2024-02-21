@@ -19,6 +19,7 @@ pub use config::{
     MpcTlsCommonConfig, MpcTlsCommonConfigBuilder, MpcTlsCommonConfigBuilderError,
     MpcTlsFollowerConfig, MpcTlsFollowerConfigBuilder, MpcTlsFollowerConfigBuilderError,
     MpcTlsLeaderConfig, MpcTlsLeaderConfigBuilder, MpcTlsLeaderConfigBuilderError,
+    TranscriptConfig, TranscriptConfigBuilder, TranscriptConfigBuilderError,
 };
 pub use error::MpcTlsError;
 pub use follower::{FollowerCtrl, MpcTlsFollower, MpcTlsFollowerData};
@@ -35,4 +36,12 @@ pub type MpcTlsChannel = Box<dyn Duplex<msg::MpcTlsMessage>>;
 pub enum TlsRole {
     Leader,
     Follower,
+}
+
+/// The direction of a message
+pub(crate) enum Direction {
+    /// Data sent to the TLS peer
+    Sent,
+    /// Data received from the TLS peer
+    Recv,
 }

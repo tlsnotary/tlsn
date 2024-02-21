@@ -4,6 +4,65 @@ static DEFAULT_OPAQUE_TX_TRANSCRIPT_ID: &str = "opaque_tx";
 static DEFAULT_OPAQUE_RX_TRANSCRIPT_ID: &str = "opaque_rx";
 static DEFAULT_TX_TRANSCRIPT_ID: &str = "tx";
 static DEFAULT_RX_TRANSCRIPT_ID: &str = "rx";
+const DEFAULT_TRANSCRIPT_MAX_SIZE: usize = 1 << 14;
+
+/// Transcript configuration.
+#[derive(Debug, Clone, Builder)]
+pub struct TranscriptConfig {
+    /// The transcript id.
+    id: String,
+    /// The "opaque" transcript id, used for parts of the transcript that are not
+    /// part of the application data.
+    opaque_id: String,
+    /// The maximum length of the transcript in bytes.
+    max_size: usize,
+}
+
+impl TranscriptConfig {
+    /// Creates a new default builder for the sent transcript config.
+    pub fn default_tx() -> TranscriptConfigBuilder {
+        let mut builder = TranscriptConfigBuilder::default();
+
+        builder
+            .id(DEFAULT_TX_TRANSCRIPT_ID.to_string())
+            .opaque_id(DEFAULT_OPAQUE_TX_TRANSCRIPT_ID.to_string())
+            .max_size(DEFAULT_TRANSCRIPT_MAX_SIZE);
+
+        builder
+    }
+
+    /// Creates a new default builder for the received transcript config.
+    pub fn default_rx() -> TranscriptConfigBuilder {
+        let mut builder = TranscriptConfigBuilder::default();
+
+        builder
+            .id(DEFAULT_RX_TRANSCRIPT_ID.to_string())
+            .opaque_id(DEFAULT_OPAQUE_RX_TRANSCRIPT_ID.to_string())
+            .max_size(DEFAULT_TRANSCRIPT_MAX_SIZE);
+
+        builder
+    }
+
+    /// Creates a new builder for `TranscriptConfig`.
+    pub fn builder() -> TranscriptConfigBuilder {
+        TranscriptConfigBuilder::default()
+    }
+
+    /// Returns the transcript id.
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    /// Returns the "opaque" transcript id.
+    pub fn opaque_id(&self) -> &str {
+        &self.opaque_id
+    }
+
+    /// Returns the maximum length of the transcript in bytes.
+    pub fn max_size(&self) -> usize {
+        self.max_size
+    }
+}
 
 /// Configuration options which are common to both the leader and the follower
 #[derive(Debug, Clone, Builder)]
@@ -14,22 +73,12 @@ pub struct MpcTlsCommonConfig {
     /// The number of threads to use
     #[builder(default = "8")]
     num_threads: usize,
-    /// Tx transcript ID
-    #[builder(setter(into), default = "DEFAULT_TX_TRANSCRIPT_ID.to_string()")]
-    tx_transcript_id: String,
-    /// Rx transcript ID
-    #[builder(setter(into), default = "DEFAULT_RX_TRANSCRIPT_ID.to_string()")]
-    rx_transcript_id: String,
-    /// Opaque Tx transcript ID
-    #[builder(setter(into), default = "DEFAULT_OPAQUE_TX_TRANSCRIPT_ID.to_string()")]
-    opaque_tx_transcript_id: String,
-    /// Opaque Rx transcript ID
-    #[builder(setter(into), default = "DEFAULT_OPAQUE_RX_TRANSCRIPT_ID.to_string()")]
-    opaque_rx_transcript_id: String,
-    /// Maximum size of the transcript in bytes.
-    /// 16 KiB by default.
-    #[builder(default = "1 << 14")]
-    max_transcript_size: usize,
+    /// The sent data transcript configuration.
+    #[builder(default = "TranscriptConfig::default_tx().build().unwrap()")]
+    tx_config: TranscriptConfig,
+    /// The received data transcript configuration.
+    #[builder(default = "TranscriptConfig::default_rx().build().unwrap()")]
+    rx_config: TranscriptConfig,
     /// Whether the leader commits to the handshake data.
     #[builder(default = "true")]
     handshake_commit: bool,
@@ -51,29 +100,14 @@ impl MpcTlsCommonConfig {
         self.num_threads
     }
 
-    /// Returns the tx transcript id.
-    pub fn tx_transcript_id(&self) -> &str {
-        &self.tx_transcript_id
+    /// Returns the configuration for the sent data transcript.
+    pub fn tx_config(&self) -> &TranscriptConfig {
+        &self.tx_config
     }
 
-    /// Returns the rx transcript id.
-    pub fn rx_transcript_id(&self) -> &str {
-        &self.rx_transcript_id
-    }
-
-    /// Returns the opaque tx transcript id.
-    pub fn opaque_tx_transcript_id(&self) -> &str {
-        &self.opaque_tx_transcript_id
-    }
-
-    /// Returns the opaque rx transcript id.
-    pub fn opaque_rx_transcript_id(&self) -> &str {
-        &self.opaque_rx_transcript_id
-    }
-
-    /// Returns the maximum size of the transcript in bytes.
-    pub fn max_transcript_size(&self) -> usize {
-        self.max_transcript_size
+    /// Returns the configuration for the received data transcript.
+    pub fn rx_config(&self) -> &TranscriptConfig {
+        &self.rx_config
     }
 
     /// Whether the leader commits to the handshake data.

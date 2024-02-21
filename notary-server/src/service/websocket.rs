@@ -11,7 +11,8 @@ pub async fn websocket_notarize(
     socket: WebSocket,
     notary_globals: NotaryGlobals,
     session_id: String,
-    max_transcript_size: Option<usize>,
+    max_sent_data: Option<usize>,
+    max_recv_data: Option<usize>,
 ) {
     debug!(?session_id, "Upgraded to websocket connection");
     // Wrap the websocket in WsStream so that we have AsyncRead and AsyncWrite implemented
@@ -20,7 +21,8 @@ pub async fn websocket_notarize(
         stream,
         &notary_globals.notary_signing_key,
         &session_id,
-        max_transcript_size,
+        max_sent_data,
+        max_recv_data,
     )
     .await
     {

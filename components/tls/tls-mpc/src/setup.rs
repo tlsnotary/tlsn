@@ -114,7 +114,6 @@ where
     let ghash = universal_hash::ghash::Ghash::new(
         universal_hash::ghash::GhashConfig::builder()
             .id("encrypter/ghash")
-            .initial_block_count(64)
             .build()
             .unwrap(),
         gf.clone(),
@@ -132,7 +131,7 @@ where
         Box::new(ghash),
     );
 
-    encrypter.set_transcript_id(config.opaque_tx_transcript_id());
+    encrypter.set_transcript_id(config.tx_config().opaque_id());
 
     // Decrypter
     let block_cipher = block_cipher::MpcBlockCipher::<block_cipher::Aes128, _>::new(
@@ -156,7 +155,6 @@ where
     let ghash = universal_hash::ghash::Ghash::new(
         universal_hash::ghash::GhashConfig::builder()
             .id("decrypter/ghash")
-            .initial_block_count(64)
             .build()
             .unwrap(),
         gf,
@@ -174,7 +172,7 @@ where
         Box::new(ghash),
     );
 
-    decrypter.set_transcript_id(config.opaque_rx_transcript_id());
+    decrypter.set_transcript_id(config.rx_config().opaque_id());
 
     Ok((
         Box::new(ke),
