@@ -1,136 +1,70 @@
 use crate::{
-    encodings::{ActiveEncodings, FullEncodings},
-    prover::{backend::Backend, error, error::ProverError, state},
-    utils::u8vec_to_boolvec,
-    Delta,
+    backend::traits::{Field, ProverBackend as Backend},
+    bitid::IdSet,
+    msgs::{Commit, Proofs, VerificationData},
+    prover::{error::ProverError, state},
 };
 
-use mpz_core::utils::blake3;
-use num::{BigInt, BigUint};
+use super::{
+    commitment::{CommitmentData, CommitmentDetails},
+    EncodingVerifier,
+};
+use std::{marker::PhantomData, ops::Add};
 
-use super::{EncodingVerifier, VerificationData};
-use crate::encodings::ToActiveEncodings;
-
-/// Details pertaining to an AuthDecode commitment to a single chunk of the plaintext.
-#[derive(Clone)]
-pub struct ChunkCommitmentDetails {
-    /// The chunk of plaintext to commit to.
-    pub plaintext: Vec<bool>,
-    pub plaintext_hash: BigUint,
-    pub plaintext_salt: BigUint,
-
-    // The converted (i.e. uncorrelated and truncated) encodings to commit to.
-    pub encodings: ActiveEncodings,
-    pub encoding_sum: BigUint,
-    pub encoding_sum_hash: BigUint,
-    pub encoding_sum_salt: BigUint,
-}
-
-/// Details pertaining to an AuthDecode commitment to plaintext of arbitrary length.
+// Public and private inputs to the circuit.
 #[derive(Clone, Default)]
-pub struct CommitmentDetails {
-    /// Details pertaining to commitments to each chunk of the plaintext.
-    pub chunk_commitments: Vec<ChunkCommitmentDetails>,
-}
-
-impl CommitmentDetails {
-    /// Returns the plaintext of this commitment.
-    pub fn plaintext(&self) -> Vec<bool> {
-        self.chunk_commitments
-            .iter()
-            .map(|com| com.plaintext.clone())
-            .flatten()
-            .collect()
-    }
-
-    /// Returns the encodings of the plaintext of this commitment.
-    pub fn encodings(&self) -> ActiveEncodings {
-        let mut active = ActiveEncodings::default();
-        for chunk in self.chunk_commitments.clone() {
-            active.extend(chunk.encodings);
-        }
-        active
-    }
-}
-
-// Public and private inputs to the zk circuit
-#[derive(Clone, Default)]
-pub struct ProofInput {
+pub struct ProofInput<F> {
     // Public
-    pub plaintext_hash: BigUint,
-    pub encoding_sum_hash: BigUint,
+    pub plaintext_hash: F,
+    pub encoding_sum_hash: F,
     /// The sum of encodings which encode the 0 bit.
-    pub zero_sum: BigUint,
-    pub deltas: Vec<Delta>,
+    pub zero_sum: F,
+    /// An arithmetic difference between the encoding of bit value 1 and encoding of bit value 0 for
+    /// each bit of the plaintext.
+    pub deltas: Vec<F>,
 
     // Private
     pub plaintext: Vec<bool>,
-    pub plaintext_salt: BigUint,
-    pub encoding_sum_salt: BigUint,
+    pub plaintext_salt: F,
+    pub encoding_sum_salt: F,
 }
 
 /// Prover in the AuthDecode protocol.
-pub struct Prover<T: state::ProverState> {
-    backend: Box<dyn Backend>,
-    pub state: T,
+pub struct Prover<T: IdSet, S: state::ProverState, F: Field> {
+    backend: Box<dyn Backend<F>>,
+    pub state: S,
+    phantom: PhantomData<T>,
 }
 
-impl Prover<state::Initialized> {
+impl<T, F> Prover<T, state::Initialized, F>
+where
+    T: IdSet,
+    F: Field + Add<Output = F>,
+{
     /// Creates a new prover.
-    pub fn new(backend: Box<dyn Backend>) -> Self {
+    pub fn new(backend: Box<dyn Backend<F>>) -> Self {
         Prover {
             backend,
             state: state::Initialized {},
+            phantom: PhantomData,
         }
     }
 
-    /// Creates a commitment to each (`plaintext`, `encodings` of the `plaintext` bits) tuple.
+    /// Creates a commitment to each element in the `data_set`.
+    #[allow(clippy::type_complexity)]
     pub fn commit(
         self,
-        plaintext_and_encodings: Vec<(Vec<u8>, ActiveEncodings)>,
-    ) -> Result<(Prover<state::Committed>, Vec<CommitmentDetails>), ProverError> {
-        let commitments = plaintext_and_encodings
-            .iter()
-            .map(|(plaintext, encodings)| {
-                if plaintext.is_empty() {
-                    return Err(ProverError::EmptyPlaintext);
-                }
-
-                let plaintext = u8vec_to_boolvec(plaintext);
-
-                if plaintext.len() != encodings.len() {
-                    return Err(ProverError::Mismatch);
-                }
-
-                // Chunk up the plaintext and encodings and commit to them.
-                let chunk_commitments = plaintext
-                    .chunks(self.backend.chunk_size())
-                    .zip(encodings.clone().into_chunks(self.backend.chunk_size()))
-                    .map(|(plaintext, encodings)| {
-                        // Convert the encodings and compute their sum.
-                        let encodings = encodings.convert(plaintext);
-                        let sum = encodings.compute_encoding_sum();
-
-                        let (plaintext_hash, plaintext_salt) =
-                            self.backend.commit_plaintext(plaintext.to_vec())?;
-
-                        let (encoding_sum_hash, encoding_sum_salt) =
-                            self.backend.commit_encoding_sum(sum.clone())?;
-
-                        Ok(ChunkCommitmentDetails {
-                            plaintext: plaintext.to_vec(),
-                            plaintext_hash,
-                            plaintext_salt,
-                            encodings,
-                            encoding_sum: sum,
-                            encoding_sum_hash,
-                            encoding_sum_salt,
-                        })
-                    })
-                    .collect::<Result<Vec<ChunkCommitmentDetails>, ProverError>>()?;
-                Ok(CommitmentDetails { chunk_commitments })
-            })
-            .collect::<Result<Vec<CommitmentDetails>, ProverError>>()?;
+        data_set: Vec<CommitmentData<T>>,
+    ) -> Result<(Prover<T, state::Committed<T, F>, F>, Commit<T, F>), ProverError>
+    where
+        T: IdSet,
+        F: Field + Clone + std::ops::Add<Output = F>,
+    {
+        // Commit to each commitment data in the set individually.
+        let commitments = data_set
+            .into_iter()
+            .map(|data| data.commit(&self.backend))
+            .collect::<Result<Vec<CommitmentDetails<T, F>>, ProverError>>()?;
 
         Ok((
             Prover {
@@ -138,90 +72,76 @@ impl Prover<state::Initialized> {
                 state: state::Committed {
                     commitments: commitments.clone(),
                 },
+                phantom: PhantomData,
             },
-            // TODO we need to convert into a form which can be publicly revealed
-            commitments,
+            commitments.into(),
         ))
     }
 }
 
-impl Prover<state::Committed> {
+impl<T, F> Prover<T, state::Committed<T, F>, F>
+where
+    T: IdSet,
+    F: Field + Clone,
+{
     /// Checks the authenticity of the peer's encodings used to create commitments.
-    ///
-    /// The verifier encodings must be in the same order in which the commitments were made.
     pub fn check(
         self,
-        // TODO: the verifier should only pass init data
         verification_data: VerificationData,
-        verifier: impl EncodingVerifier,
-    ) -> Result<Prover<state::Checked>, ProverError> {
-        if verification_data.full_encodings_sets.len() != self.state.commitments.len() {
-            // TODO proper error
-            return Err(ProverError::InternalError);
-        }
+        verifier: impl EncodingVerifier<T>,
+    ) -> Result<Prover<T, state::Checked<T, F>, F>, ProverError> {
+        let VerificationData { init_data } = verification_data;
+        verifier.init(init_data)?;
 
-        verifier.init(verification_data.init_data);
-
-        // Verify encodings of each commitment.
-        let verified_encodings = self
+        // Verify encodings of each commitment and return authentic converted full encodings.
+        let full_encodings = self
             .state
             .commitments
             .iter()
-            .zip(verification_data.full_encodings_sets.iter())
-            .map(|(com, full_encodings)| {
-                verifier.verify(full_encodings)?;
-
-                if com.encodings().len() != full_encodings.len() {
-                    // TODO proper error
-                    return Err(ProverError::InternalError);
-                }
-                // Get active converted encodings.
-                let active_converted = full_encodings
-                    .encode(&com.plaintext())
-                    .convert(&com.plaintext());
-
-                if active_converted != com.encodings() {
-                    // TODO proper error
-                    return Err(ProverError::InternalError);
-                }
-                Ok(full_encodings.clone().convert())
+            .map(|com| {
+                let full = verifier.verify(com.original_encodings())?;
+                Ok(full.convert())
             })
-            .collect::<Result<Vec<FullEncodings>, ProverError>>()?;
+            .collect::<Result<Vec<_>, ProverError>>()?;
 
         Ok(Prover {
             backend: self.backend,
             state: state::Checked {
                 commitments: self.state.commitments,
-                full_encodings_sets: verified_encodings,
+                full_encodings,
             },
+            phantom: PhantomData,
         })
     }
 }
 
-impl Prover<state::Checked> {
-    /// Generates a zk proof(s).
-    pub fn prove(self) -> Result<(Prover<state::ProofCreated>, Vec<Vec<u8>>), ProverError> {
+impl<T, F> Prover<T, state::Checked<T, F>, F>
+where
+    T: IdSet,
+    F: Field + Clone + std::ops::Sub<Output = F> + std::ops::Add<Output = F>,
+{
+    /// Generates zk proof(s).
+    pub fn prove(self) -> Result<(Prover<T, state::ProofCreated<T, F>, F>, Proofs), ProverError> {
         let commitments = self.state.commitments.clone();
-        let mut sets = self.state.full_encodings_sets.clone();
 
-        // Collect proof inputs to prove each chunk of plaintext committed to.
+        // Collect proof inputs for each chunk of plaintext committed to.
         let all_inputs = commitments
-            .iter()
-            .zip(sets.iter())
-            .flat_map(|(com, set)| {
-                let mut set = set.clone();
+            .clone()
+            .into_iter()
+            .zip(self.state.full_encodings)
+            .flat_map(|(com, mut set)| {
                 com.chunk_commitments
                     .iter()
                     .map(|com| {
-                        let (split, remaining) = set.split_at(com.plaintext.len());
-                        set = remaining;
+                        let encodings = set.drain_front(com.encodings.len());
 
                         ProofInput {
-                            deltas: split.compute_deltas(),
+                            deltas: encodings.compute_deltas::<F>(),
                             plaintext_hash: com.plaintext_hash.clone(),
                             encoding_sum_hash: com.encoding_sum_hash.clone(),
-                            zero_sum: split.compute_zero_sum(),
-                            plaintext: com.plaintext.clone(),
+
+                            zero_sum: encodings.compute_zero_sum(),
+                            plaintext: com.encodings.plaintext(),
                             plaintext_salt: com.plaintext_salt.clone(),
                             encoding_sum_salt: com.encoding_sum_salt.clone(),
                         }
@@ -239,57 +159,9 @@ impl Prover<state::Checked> {
                     commitments,
                     proofs: proofs.clone(),
                 },
+                phantom: PhantomData,
             },
-            proofs,
+            Proofs { proofs },
         ))
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::{
-        prover::{
-            backend::Backend as ProverBackend,
-            error::ProverError,
-            prover::{ProofInput, Prover},
-        },
-        Proof,
-    };
-    use num::BigUint;
-
-    /// The prover who implements `Prove` with the correct values
-    struct CorrectTestProver {}
-    impl ProverBackend for CorrectTestProver {
-        fn prove(&self, _: Vec<ProofInput>) -> Result<Vec<Proof>, ProverError> {
-            Ok(vec![Proof::default()])
-        }
-
-        fn chunk_size(&self) -> usize {
-            3670
-        }
-
-        fn commit_plaintext(
-            &self,
-            plaintext: Vec<bool>,
-        ) -> Result<(BigUint, BigUint), ProverError> {
-            Ok((BigUint::default(), BigUint::default()))
-        }
-
-        fn commit_encoding_sum(
-            &self,
-            encoding_sum: BigUint,
-        ) -> Result<(BigUint, BigUint), ProverError> {
-            Ok((BigUint::default(), BigUint::default()))
-        }
-    }
-
-    // #[test]
-    // /// Inputs empty plaintext and triggers [ProverError::EmptyPlaintext]
-    // fn test_error_empty_plaintext() {
-    //     let lsp = Prover::new(Box::new(CorrectTestProver {}));
-
-    //     let pt: Vec<u8> = Vec::new();
-    //     let res = lsp.commit(vec![(pt, vec![1u128])]);
-    //     assert_eq!(res.err().unwrap(), ProverError::EmptyPlaintext);
-    // }
 }

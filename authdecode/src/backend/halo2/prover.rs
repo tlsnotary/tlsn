@@ -1,7 +1,10 @@
 use crate::{
-    backend::halo2::{poseidon::poseidon_2, utils::biguint_to_f},
-    prover::{backend::Backend, error::ProverError},
-    utils::{bits_to_biguint, u8vec_to_boolvec},
+    backend::{
+        halo2::{poseidon::poseidon_2, utils::biguint_to_f},
+        traits::{Field, ProverBackend as Backend},
+    },
+    prover::error::ProverError,
+    utils::{bits_to_biguint, boolvec_to_u8vec, u8vec_to_boolvec},
     Proof, ProofInput,
 };
 use halo2_proofs::{
@@ -25,7 +28,7 @@ use super::{
     circuit::{AuthDecodeCircuit, FIELD_ELEMENTS},
     poseidon::{poseidon_1, poseidon_15},
     utils::{deltas_to_matrices, f_to_bigint},
-    CHUNK_SIZE, USEFUL_BITS,
+    Bn256F, CHUNK_SIZE, USEFUL_BITS,
 };
 use crate::backend::halo2::circuit::SALT_SIZE;
 
@@ -46,11 +49,8 @@ pub struct Prover {
     proving_key: PK,
 }
 
-impl Backend for Prover {
-    fn commit_plaintext(
-        &self,
-        mut plaintext: Vec<bool>,
-    ) -> Result<(BigUint, BigUint), ProverError> {
+impl Backend<Bn256F> for Prover {
+    fn commit_plaintext(&self, mut plaintext: Vec<bool>) -> Result<(Bn256F, Bn256F), ProverError> {
         if plaintext.len() > CHUNK_SIZE {
             // TODO proper error
             return Err(ProverError::InternalError);
@@ -64,11 +64,13 @@ impl Backend for Prover {
         let salt: Vec<bool> = core::iter::repeat_with(|| rng.gen::<bool>())
             .take(SALT_SIZE)
             .collect::<Vec<_>>();
-        let salt = bits_to_biguint(&salt);
+        let salt = Bn256F::from_bytes_be(boolvec_to_u8vec(&salt));
 
         // Convert bits into field elements
-        let mut field_elements: Vec<BigUint> =
-            plaintext.chunks(USEFUL_BITS).map(bits_to_biguint).collect();
+        let mut field_elements: Vec<Bn256F> = plaintext
+            .chunks(USEFUL_BITS)
+            .map(|bits| Bn256F::from_bytes_be(boolvec_to_u8vec(bits)))
+            .collect();
         // Add salt
         field_elements.push(salt.clone());
 
@@ -77,48 +79,41 @@ impl Backend for Prover {
         Ok((pt_digest, salt))
     }
 
-    fn commit_encoding_sum(
-        &self,
-        encoding_sum: BigUint,
-    ) -> Result<(BigUint, BigUint), ProverError> {
+    fn commit_encoding_sum(&self, encoding_sum: Bn256F) -> Result<(Bn256F, Bn256F), ProverError> {
         // Generate random salt
         let mut rng = thread_rng();
         let salt: Vec<bool> = core::iter::repeat_with(|| rng.gen::<bool>())
             .take(SALT_SIZE)
             .collect::<Vec<_>>();
+        let salt = boolvec_to_u8vec(&salt);
+        let salt = Bn256F::from_bytes_be(salt);
 
-        // Commit to encodings
-
-        let mut enc_sum_bits = u8vec_to_boolvec(&encoding_sum.to_bytes_be());
-        debug_assert!(enc_sum_bits.len() <= 125);
-
-        if enc_sum_bits.len() > USEFUL_BITS {
-            // TODO proper error
-            return Err(ProverError::InternalError);
-        }
-
-        let enc_sum = bits_to_biguint(&enc_sum_bits);
-        let salt = bits_to_biguint(&salt);
-
-        // Pack sum and salt into a single field element, to achive this order starting from the MSB:
+        // TODO: we may want to consider packing sum and salt into a single field element, to
+        // achive this order starting from the MSB:
         // zero padding | sum | salt
+        // For now, we use a dedicated fiels element for the salt.
 
-        let enc_digest = hash_internal(&[enc_sum, salt.clone()])?;
+        let enc_digest = hash_internal(&[encoding_sum, salt.clone()])?;
 
         Ok((enc_digest, salt))
     }
 
-    fn prove(&self, input: Vec<ProofInput>) -> Result<Vec<Proof>, ProverError> {
+    fn prove(&self, input: Vec<ProofInput<Bn256F>>) -> Result<Vec<Proof>, ProverError> {
         // TODO: implement a better proving strategy.
         // For now we just prove one chunk with one proof.
         let mut rng = thread_rng();
 
         let proofs = input
-            .iter()
+            .into_iter()
             .map(|input| {
                 // convert into matrices
+                let deltas = input
+                    .deltas
+                    .into_iter()
+                    .map(|f| f.inner)
+                    .collect::<Vec<_>>();
                 let (deltas_as_rows, deltas_as_columns) =
-                    deltas_to_matrices(&input.deltas, self.useful_bits());
+                    deltas_to_matrices(&deltas, self.useful_bits());
 
                 // Pad plaintext to chunk size and split up into integers.
                 let mut plaintext = input.plaintext.clone();
@@ -142,16 +137,16 @@ impl Backend for Prover {
 
                 // add another column with public inputs
                 let tmp = &[
-                    biguint_to_f(&input.plaintext_hash),
-                    biguint_to_f(&input.encoding_sum_hash),
-                    biguint_to_f(&input.zero_sum),
+                    input.plaintext_hash.inner,
+                    input.encoding_sum_hash.inner,
+                    input.zero_sum.inner,
                 ];
                 all_inputs.push(tmp);
 
                 let circuit = AuthDecodeCircuit::new(
                     plaintext,
-                    biguint_to_f(&input.plaintext_salt),
-                    biguint_to_f(&input.encoding_sum_salt),
+                    input.plaintext_salt.inner,
+                    input.encoding_sum_salt.inner,
                     deltas_as_rows,
                 );
 
@@ -181,7 +176,7 @@ impl Backend for Prover {
                 println!("Proof created in [{:?}]", now.elapsed());
                 let proof = transcript.finalize();
                 println!("Proof size [{} kB]", proof.len() as f64 / 1024.0);
-                Ok(proof)
+                Ok(Proof::new(&proof))
             })
             .collect::<Result<Vec<Proof>, ProverError>>()?;
 
@@ -204,41 +199,23 @@ impl Prover {
 }
 
 /// Hashes `inputs` with Poseidon and returns the digest as `BigUint`.
-fn hash_internal(inputs: &[BigUint]) -> Result<BigUint, ProverError> {
+fn hash_internal(inputs: &[Bn256F]) -> Result<Bn256F, ProverError> {
     let digest = match inputs.len() {
         15 => {
             // hash with rate-15 Poseidon
-            let fes: [F; 15] = inputs
-                .iter()
-                .map(biguint_to_f)
-                .collect::<Vec<_>>()
-                .try_into()
-                .unwrap();
-            poseidon_15(&fes)
+            poseidon_15(inputs.try_into().unwrap())
         }
         2 => {
             // hash with rate-2 Poseidon
-            let fes: [F; 2] = inputs
-                .iter()
-                .map(biguint_to_f)
-                .collect::<Vec<_>>()
-                .try_into()
-                .unwrap();
-            poseidon_2(&fes)
+            poseidon_2(inputs.try_into().unwrap())
         }
         1 => {
             // hash with rate-1 Poseidon
-            let fes: [F; 1] = inputs
-                .iter()
-                .map(biguint_to_f)
-                .collect::<Vec<_>>()
-                .try_into()
-                .unwrap();
-            poseidon_1(&fes)
+            poseidon_1(inputs.try_into().unwrap())
         }
         _ => return Err(ProverError::WrongPoseidonInput),
     };
-    Ok(f_to_bigint(&digest))
+    Ok(digest)
 }
 
 // #[cfg(test)]

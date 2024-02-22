@@ -1,7 +1,7 @@
-use super::{utils::deltas_to_matrices, CHUNK_SIZE, USEFUL_BITS};
+use super::{utils::deltas_to_matrices, Bn256F, CHUNK_SIZE, USEFUL_BITS};
 use crate::{
-    backend::halo2::utils::biguint_to_f,
-    verifier::{backend::Backend, error::VerifierError, verifier::VerificationInput},
+    backend::{halo2::utils::biguint_to_f, traits::VerifierBackend as Backend},
+    verifier::{error::VerifierError, verifier::VerificationInputs},
     Proof,
 };
 use std::time::Instant;
@@ -46,10 +46,10 @@ impl Verifier {
     }
 }
 
-impl Backend for Verifier {
+impl Backend<Bn256F> for Verifier {
     fn verify(
         &self,
-        inputs: Vec<VerificationInput>,
+        inputs: Vec<VerificationInputs<Bn256F>>,
         proofs: Vec<Proof>,
     ) -> Result<(), VerifierError> {
         // TODO: implement a better proving strategy.
@@ -59,18 +59,23 @@ impl Backend for Verifier {
         let params = &self.verification_key.params;
         let vk = &self.verification_key.key;
 
-        for (input, proof) in inputs.iter().zip(proofs) {
+        for (input, proof) in inputs.into_iter().zip(proofs) {
+            let deltas = input
+                .deltas
+                .into_iter()
+                .map(|f| f.inner)
+                .collect::<Vec<_>>();
             // convert deltas into a matrix which halo2 expects
-            let (_, deltas_as_columns) = deltas_to_matrices(&input.deltas, self.useful_bits());
+            let (_, deltas_as_columns) = deltas_to_matrices(&deltas, self.useful_bits());
 
             let mut all_inputs: Vec<&[F]> =
                 deltas_as_columns.iter().map(|v| v.as_slice()).collect();
 
             // add another column with public inputs
             let tmp = &[
-                biguint_to_f(&input.plaintext_hash),
-                biguint_to_f(&input.encoding_sum_hash),
-                biguint_to_f(&input.zero_sum),
+                input.plaintext_hash.inner,
+                input.encoding_sum_hash.inner,
+                input.zero_sum.inner,
             ];
             all_inputs.push(tmp);
 
@@ -81,7 +86,7 @@ impl Backend for Verifier {
                 _,
                 Blake2bRead<_, _, Challenge255<_>>,
                 AccumulatorStrategy<_>,
-            >(params, vk, &proof, &[all_inputs.as_slice()])?;
+            >(params, vk, &proof.0, &[all_inputs.as_slice()])?;
             println!("Proof verified in [{:?}]", now.elapsed());
         }
 

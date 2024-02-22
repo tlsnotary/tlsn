@@ -1,44 +1,35 @@
 #[allow(unused_imports)]
-pub mod backend;
+//pub mod backend;
+pub mod commitment;
 pub mod error;
 pub mod prover;
 pub mod state;
-use crate::encodings::{FullEncodings, ToFullEncodings};
-
-pub struct VerificationData {
-    /// One set corresponds to one commitment.
-    pub full_encodings_sets: Vec<FullEncodings>,
-    pub init_data: InitData,
-}
-
-pub struct InitData(Vec<u8>);
-impl InitData {
-    pub fn new(init_data: Vec<u8>) -> Self {
-        Self(init_data)
-    }
-}
-
-pub trait ToInitData {
-    fn to_init_data(&self) -> InitData;
-}
-
-impl ToInitData for &Box<dyn ToInitData> {
-    fn to_init_data(&self) -> InitData {
-        self.as_ref().to_init_data()
-    }
-}
+use crate::{
+    bitid::IdSet,
+    encodings::{ActiveEncodings, FullEncodings},
+    InitData,
+};
 
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum EncodingVerifierError {
     #[error("Verification failed")]
     VerificationFailed,
+    #[error("Bad initialization data")]
+    BadInitData,
 }
 
-pub trait EncodingVerifier {
+pub trait EncodingVerifier<T>
+where
+    T: IdSet,
+{
     /// Initializes the verifier with initialization data and prepares it to verify
     /// encodings.
-    fn init(&self, init_data: InitData);
+    fn init(&self, init_data: InitData) -> Result<(), EncodingVerifierError>;
 
-    /// Verifies the authenticity of the provided full encodings.
-    fn verify(&self, encodings: &FullEncodings) -> Result<(), EncodingVerifierError>;
+    /// Verifies that the active encodings are authentic.
+    /// Upon success returns the corresponding full encodings.
+    fn verify(
+        &self,
+        encodings: ActiveEncodings<T>,
+    ) -> Result<FullEncodings<T>, EncodingVerifierError>;
 }

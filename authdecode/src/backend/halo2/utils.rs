@@ -2,7 +2,6 @@ use super::circuit::{CELLS_PER_ROW, USEFUL_ROWS};
 use crate::{
     backend::halo2::CHUNK_SIZE,
     utils::{boolvec_to_u8vec, u8vec_to_boolvec},
-    Delta,
 };
 use ff::{FromUniformBytes, PrimeField};
 use halo2_proofs::halo2curves::bn256::Fr as F;
@@ -55,7 +54,7 @@ pub fn f_to_bigint(f: &F) -> BigUint {
 ///
 /// Panics if the length of `deltas` is > CHUNK_SIZE.
 pub fn deltas_to_matrices(
-    deltas: &[Delta],
+    deltas: &[F],
     useful_bits: usize,
 ) -> (
     [[F; CELLS_PER_ROW]; USEFUL_ROWS],
@@ -64,7 +63,7 @@ pub fn deltas_to_matrices(
     assert!(deltas.len() <= CHUNK_SIZE);
     // Pad with zero deltas to a total count of USEFUL_ROWS * CELLS_PER_ROW deltas.
     let mut deltas = deltas.to_vec();
-    deltas.extend(vec![Delta::from(0u8); CHUNK_SIZE - deltas.len()]);
+    deltas.extend(vec![F::zero(); CHUNK_SIZE - deltas.len()]);
 
     let deltas = convert_and_pad_deltas(&deltas, useful_bits);
     let deltas_as_rows = deltas_to_matrix_of_rows(&deltas);
@@ -111,10 +110,7 @@ pub fn bits_to_limbs(bits: [bool; 256]) -> [BigUint; 4] {
 /// contain only 128 deltas, so we do NOT pad it.
 ///
 /// Returns padded deltas
-fn convert_and_pad_deltas(deltas: &[Delta], useful_bits: usize) -> Vec<F> {
-    // convert deltas into F type
-    let deltas: Vec<F> = deltas.iter().map(bigint_to_f).collect();
-
+fn convert_and_pad_deltas(deltas: &[F], useful_bits: usize) -> Vec<F> {
     deltas
         .chunks(useful_bits)
         .enumerate()
@@ -156,118 +152,137 @@ fn transpose_rows(matrix: &[[F; CELLS_PER_ROW]; USEFUL_ROWS]) -> [[F; USEFUL_ROW
         .unwrap()
 }
 
-#[test]
-fn test_bigint_to_256bits() {
-    use num_bigint::RandomBits;
-    use rand::{thread_rng, Rng};
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    // test with a fixed number
-    let res = bigint_to_256bits(BigUint::from(3u8));
-    let expected: [bool; 256] = [vec![false; 254], vec![true; 2]]
+    #[test]
+    fn test_bigint_to_256bits() {
+        use rand::{thread_rng, Rng};
+
+        // test with a fixed number
+        let res = bigint_to_256bits(BigUint::from(3u8));
+        let expected: [bool; 256] = [vec![false; 254], vec![true; 2]]
+            .concat()
+            .try_into()
+            .unwrap();
+        assert_eq!(res, expected);
+
+        // test with a random number
+        let mut rng = thread_rng();
+        let random_bits: Vec<bool> = core::iter::repeat_with(|| rng.gen::<bool>())
+            .take(256)
+            .collect();
+        let random_bits_digits = random_bits.iter().map(|b| *b as u8).collect::<Vec<_>>();
+        let b = BigUint::from_radix_be(&random_bits_digits, 2).unwrap();
+
+        let mut expected_bits: [bool; 256] = (0..256)
+            .map(|i| b.bit(i))
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
+        expected_bits.reverse();
+        assert_eq!(bigint_to_256bits(b), expected_bits);
+    }
+
+    #[test]
+    fn test_biguint_to_f() {
+        // Test that the sum of 2 random `BigUint`s matches the sum of 2 field elements
+        use rand::{thread_rng, Rng};
+        let mut rng = thread_rng();
+
+        let random_bits: Vec<bool> = core::iter::repeat_with(|| rng.gen::<bool>())
+            .take(253)
+            .collect();
+        let random_bits_digits = random_bits.iter().map(|b| *b as u8).collect::<Vec<_>>();
+        let a = BigUint::from_radix_be(&random_bits_digits, 2).unwrap();
+
+        let random_bits: Vec<bool> = core::iter::repeat_with(|| rng.gen::<bool>())
+            .take(253)
+            .collect();
+        let random_bits_digits = random_bits.iter().map(|b| *b as u8).collect::<Vec<_>>();
+        let b = BigUint::from_radix_be(&random_bits_digits, 2).unwrap();
+
+        let c = a.clone() + b.clone();
+
+        let a_f = biguint_to_f(&a);
+        let b_f = biguint_to_f(&b);
+        let c_f = a_f + b_f;
+
+        assert_eq!(biguint_to_f(&c), c_f);
+    }
+
+    #[test]
+    fn test_f_to_bigint() {
+        // Test that the sum of 2 random `F`s matches the expected sum
+        use rand::{thread_rng, Rng};
+        let mut rng = thread_rng();
+
+        let a = rng.gen::<u128>();
+        let b = rng.gen::<u128>();
+
+        let res = f_to_bigint(&(F::from_u128(a) + F::from_u128(b)));
+        let expected: BigUint = BigUint::from(a) + BigUint::from(b);
+
+        assert_eq!(res, expected);
+    }
+
+    #[test]
+    fn test_bits_to_limbs() {
+        use std::str::FromStr;
+
+        let bits: [bool; 256] = [
+            vec![false; 63],
+            vec![true],
+            vec![false; 63],
+            vec![true],
+            vec![false; 63],
+            vec![true],
+            vec![false; 63],
+            vec![true],
+        ]
         .concat()
         .try_into()
         .unwrap();
-    assert_eq!(res, expected);
+        let res = bits_to_limbs(bits);
+        let expected = [
+            BigUint::from_str("6277101735386680763835789423207666416102355444464034512896")
+                .unwrap(),
+            BigUint::from_str("340282366920938463463374607431768211456").unwrap(),
+            BigUint::from_str("18446744073709551616").unwrap(),
+            BigUint::from_str("1").unwrap(),
+        ];
+        assert_eq!(res, expected);
+    }
 
-    // test with a random number
-    let mut rng = thread_rng();
-    let b: BigUint = rng.sample(RandomBits::new(256));
-    let mut expected_bits: [bool; 256] = (0..256)
-        .map(|i| b.bit(i))
-        .collect::<Vec<_>>()
-        .try_into()
-        .unwrap();
-    expected_bits.reverse();
-    assert_eq!(bigint_to_256bits(b), expected_bits);
-}
+    #[test]
+    fn test_deltas_to_matrices() {
+        use super::CHUNK_SIZE;
 
-#[test]
-fn test_biguint_to_f() {
-    // Test that the sum of 2 random `BigUint`s matches the sum of 2 field elements
-    use num_bigint::RandomBits;
-    use rand::{thread_rng, Rng};
-    let mut rng = thread_rng();
+        // all deltas except the penultimate one are 1. The penultimate delta is 2.
+        let deltas = [
+            vec![biguint_to_f(&BigUint::from(1u8)); CHUNK_SIZE - 2],
+            vec![biguint_to_f(&BigUint::from(2u8))],
+            vec![biguint_to_f(&BigUint::from(1u8))],
+        ]
+        .concat();
 
-    let a: BigUint = rng.sample(RandomBits::new(253));
-    let b: BigUint = rng.sample(RandomBits::new(253));
-    let c = a.clone() + b.clone();
+        let (deltas_as_rows, deltas_as_columns) = deltas_to_matrices(&deltas, 253);
+        let dar_concat = deltas_as_rows.concat();
+        let dac_concat = deltas_as_columns.concat();
 
-    let a_f = biguint_to_f(&a);
-    let b_f = biguint_to_f(&b);
-    let c_f = a_f + b_f;
+        // both matrices must contain equal amount of elements
+        assert_eq!(dar_concat.len(), dac_concat.len());
 
-    assert_eq!(biguint_to_f(&c), c_f);
-}
+        // 3 extra padding deltas were added 14 times
+        assert_eq!(dar_concat.len(), deltas.len() + 14 * 3);
 
-#[test]
-fn test_f_to_bigint() {
-    // Test that the sum of 2 random `F`s matches the expected sum
-    use rand::{thread_rng, Rng};
-    let mut rng = thread_rng();
+        // the penultimate element in the last row should be 2
+        let row = deltas_as_rows[deltas_as_rows.len() - 1];
+        assert_eq!(row[row.len() - 2], F::from(2));
 
-    let a = rng.gen::<u128>();
-    let b = rng.gen::<u128>();
-
-    let res = f_to_bigint(&(F::from_u128(a) + F::from_u128(b)));
-    let expected: BigUint = BigUint::from(a) + BigUint::from(b);
-
-    assert_eq!(res, expected);
-}
-
-#[test]
-fn test_bits_to_limbs() {
-    use std::str::FromStr;
-
-    let bits: [bool; 256] = [
-        vec![false; 63],
-        vec![true],
-        vec![false; 63],
-        vec![true],
-        vec![false; 63],
-        vec![true],
-        vec![false; 63],
-        vec![true],
-    ]
-    .concat()
-    .try_into()
-    .unwrap();
-    let res = bits_to_limbs(bits);
-    let expected = [
-        BigUint::from_str("6277101735386680763835789423207666416102355444464034512896").unwrap(),
-        BigUint::from_str("340282366920938463463374607431768211456").unwrap(),
-        BigUint::from_str("18446744073709551616").unwrap(),
-        BigUint::from_str("1").unwrap(),
-    ];
-    assert_eq!(res, expected);
-}
-
-#[test]
-fn test_deltas_to_matrices() {
-    use super::CHUNK_SIZE;
-
-    // all deltas except the penultimate one are 1. The penultimate delta is 2.
-    let deltas = [
-        vec![Delta::from(1u8); CHUNK_SIZE - 2],
-        vec![BigInt::from(2u8)],
-        vec![BigInt::from(1u8)],
-    ]
-    .concat();
-
-    let (deltas_as_rows, deltas_as_columns) = deltas_to_matrices(&deltas, 253);
-    let dar_concat = deltas_as_rows.concat();
-    let dac_concat = deltas_as_columns.concat();
-
-    // both matrices must contain equal amount of elements
-    assert_eq!(dar_concat.len(), dac_concat.len());
-
-    // 3 extra padding deltas were added 14 times
-    assert_eq!(dar_concat.len(), deltas.len() + 14 * 3);
-
-    // the penultimate element in the last row should be 2
-    let row = deltas_as_rows[deltas_as_rows.len() - 1];
-    assert_eq!(row[row.len() - 2], F::from(2));
-
-    // the last element in the penultimate column should be 2
-    let col = deltas_as_columns[deltas_as_columns.len() - 2];
-    assert_eq!(col[col.len() - 1], F::from(2));
+        // the last element in the penultimate column should be 2
+        let col = deltas_as_columns[deltas_as_columns.len() - 2];
+        assert_eq!(col[col.len() - 1], F::from(2));
+    }
 }

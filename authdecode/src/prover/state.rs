@@ -1,55 +1,98 @@
 //! AuthDecode prover states.
 
 use crate::{
-    encodings::FullEncodings,
-    prover::{
-        backend::Backend,
-        prover::{ChunkCommitmentDetails, CommitmentDetails},
-    },
-    Proof, ProofProperties,
+    backend::traits::Field,
+    bitid::IdSet,
+    encodings::{state::Converted, FullEncodings},
+    prover::commitment::CommitmentDetails,
+    Proof,
 };
-use num::BigUint;
 
-/// Entry state
+/// Initial state.
 pub struct Initialized {}
 
 opaque_debug::implement!(Initialized);
 
 /// State after prover has made a commitment.
-pub struct Committed {
-    pub commitments: Vec<CommitmentDetails>,
+pub struct Committed<T, F>
+where
+    T: IdSet,
+    F: Field + Clone,
+{
+    pub commitments: Vec<CommitmentDetails<T, F>>,
 }
 
-opaque_debug::implement!(Committed);
+// TODO how to use opaque_debug with generics
+//opaque_debug::implement!(Committed<T>);
 
-pub struct Checked {
-    pub commitments: Vec<CommitmentDetails>,
-    /// Authenticated encodings, uncorrelated and truncated.
-    /// Each set corresponds to each commitment
-    pub full_encodings_sets: Vec<FullEncodings>,
+/// State after prover checked the authenticity of the encodings.
+pub struct Checked<T, F>
+where
+    T: IdSet,
+    F: Field + Clone,
+{
+    pub commitments: Vec<CommitmentDetails<T, F>>,
+    /// A collection of authenticated encodings.
+    /// The order of the collection matches the order of the commitments.
+    pub full_encodings: Vec<FullEncodings<T, Converted>>,
 }
 
-opaque_debug::implement!(Checked);
+//opaque_debug::implement!(Checked<T>);
 
-pub struct ProofCreated {
-    pub commitments: Vec<CommitmentDetails>,
+pub struct ProofCreated<T, F>
+where
+    T: IdSet,
+    F: Field + Clone,
+{
+    pub commitments: Vec<CommitmentDetails<T, F>>,
     pub proofs: Vec<Proof>,
 }
 
-opaque_debug::implement!(ProofCreated);
+//opaque_debug::implement!(ProofCreated);
 
 #[allow(missing_docs)]
 pub trait ProverState: sealed::Sealed {}
 
 impl ProverState for Initialized {}
-impl ProverState for Committed {}
-impl ProverState for Checked {}
-impl ProverState for ProofCreated {}
+impl<T, F> ProverState for Committed<T, F>
+where
+    T: IdSet,
+    F: Field + Clone,
+{
+}
+impl<T, F> ProverState for Checked<T, F>
+where
+    T: IdSet,
+    F: Field + Clone,
+{
+}
+impl<T, F> ProverState for ProofCreated<T, F>
+where
+    T: IdSet,
+    F: Field + Clone,
+{
+}
 
 mod sealed {
+    use crate::prover::{state::Field, IdSet};
     pub trait Sealed {}
     impl Sealed for super::Initialized {}
-    impl Sealed for super::Committed {}
-    impl Sealed for super::Checked {}
-    impl Sealed for super::ProofCreated {}
+    impl<T, F> Sealed for super::Committed<T, F>
+    where
+        T: IdSet,
+        F: Field + Clone,
+    {
+    }
+    impl<T, F> Sealed for super::Checked<T, F>
+    where
+        T: IdSet,
+        F: Field + Clone,
+    {
+    }
+    impl<T, F> Sealed for super::ProofCreated<T, F>
+    where
+        T: IdSet,
+        F: Field + Clone,
+    {
+    }
 }

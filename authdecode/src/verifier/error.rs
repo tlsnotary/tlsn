@@ -12,4 +12,8 @@ pub enum VerifierError {
     InternalError,
     #[error("An custom error was encountered {0}")]
     CustomError(String),
+    #[error(transparent)]
+    EncodingProviderError(#[from] crate::verifier::EncodingProviderError),
+    #[error("std::io::Error was encountered: {0}")]
+    StdIoError(String),
 }

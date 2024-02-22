@@ -1,179 +1,137 @@
 use crate::{
-    encodings::FullEncodings,
-    prover::{prover::CommitmentDetails, InitData, VerificationData},
-    verifier::{backend::Backend, error::VerifierError, state},
-    Delta, Proof,
+    backend::traits::VerifierBackend as Backend,
+    msgs::{Commit, Proofs, VerificationData},
+    verifier::{commitment::UnverifiedCommitment, error::VerifierError, state, EncodingProvider},
+    InitData,
 };
+use std::marker::PhantomData;
 
-use crate::prover::ToInitData;
-use mpz_core::utils::blake3;
-use num::{BigInt, BigUint};
-use std::ops::Shr;
+use crate::{backend::traits::Field, verifier::IdSet};
 
-/// Public inputs and a zk proof that needs to be verified.
+/// Public inputs to verify one chunk of plaintext.
+///
+/// Note that the backend may combine multiple `VerificationInputs` in cases when multiple chunks
+/// of plaintext are proven with one proof.
 #[derive(Default, Clone)]
-pub struct VerificationInput {
-    pub plaintext_hash: BigUint,
-    pub encoding_sum_hash: BigUint,
-    pub zero_sum: BigUint,
-    pub deltas: Vec<Delta>,
+pub struct VerificationInputs<F>
+where
+    F: Field,
+{
+    pub plaintext_hash: F,
+    pub encoding_sum_hash: F,
+    pub zero_sum: F,
+    pub deltas: Vec<F>,
 }
 
 /// Verifier in the AuthDecode protocol.
-pub struct Verifier<T: state::VerifierState> {
-    backend: Box<dyn Backend>,
-    state: T,
+pub struct Verifier<T, S: state::VerifierState, F> {
+    /// Backend for zk proof verification.
+    backend: Box<dyn Backend<F>>,
+    /// State of the verifier.
+    state: S,
+    phantom: PhantomData<T>,
 }
 
-impl Verifier<state::Initialized> {
+impl<T, F> Verifier<T, state::Initialized, F>
+where
+    T: IdSet,
+    F: Field,
+{
     /// Creates a new verifier.
-    pub fn new(backend: Box<dyn Backend>) -> Self {
+    pub fn new(backend: Box<dyn Backend<F>>) -> Self {
         Verifier {
             backend,
             state: state::Initialized {},
+            phantom: PhantomData,
         }
     }
 
-    // TODO CommitmentDetails must be converted into their public form before sending
-    //
     /// Receives the commitments and returns the data needed by the prover to check the authenticity
     /// of the encodings.
+    ///
+    /// # Arguments
+    /// * `commitments` - A prover's message containing commitments.
+    /// * `encoding_provider` - A provider of full encodings.
+    /// * `init_data` - Data to pass to the prover for initialization of the encoding verifier.
     pub fn receive_commitments(
         self,
-        commitments: Vec<CommitmentDetails>,
-        // Full encodings for each commitment.
-        full_encodings_sets: Vec<FullEncodings>,
-        // initialization data to be sent to the prover to initialize the encoding verifier
+        commitments: Commit<T, F>,
+        encoding_provider: impl EncodingProvider<T>,
         init_data: InitData,
-    ) -> Result<(Verifier<state::CommitmentReceived>, VerificationData), VerifierError> {
-        if commitments.len() != full_encodings_sets.len() {
-            // TODO proper error, count mismatch
-            return Err(VerifierError::InternalError);
+    ) -> Result<
+        (
+            Verifier<T, state::CommitmentReceived<T, F>, F>,
+            VerificationData,
+        ),
+        VerifierError,
+    > {
+        let mut commitments: Vec<UnverifiedCommitment<T, F>> = commitments
+            .into_vec_commitment(self.backend.chunk_size())
+            .map_err(|e| VerifierError::StdIoError(e.to_string()))?;
+
+        // Store full encodings with each commitment details.
+        for com in &mut commitments {
+            let full_encodings = encoding_provider.get_by_ids(com.ids())?.convert();
+            com.set_full_encodings(full_encodings);
         }
 
         Ok((
             Verifier {
                 backend: self.backend,
-                state: state::CommitmentReceived {
-                    commitments,
-                    full_encodings_sets: full_encodings_sets.clone(),
-                },
+                state: state::CommitmentReceived { commitments },
+                phantom: PhantomData,
             },
-            VerificationData {
-                // TODO passing encodings is unnecessary
-                full_encodings_sets,
-                init_data,
-            },
+            VerificationData { init_data },
         ))
-
-        // TODO return GC/OT randomness to the Prover
     }
 }
 
-impl Verifier<state::CommitmentReceived> {
-    /// Verifies proofs corresponding to the commitments received earlier.
-    /// The ordering of `proofs` and `self.state.encoding_pairs_sets` must match.
+impl<T, F> Verifier<T, state::CommitmentReceived<T, F>, F>
+where
+    T: IdSet,
+    F: Field + std::ops::Add<Output = F> + std::ops::Sub<Output = F> + Clone,
+{
+    /// Verifies proofs for the commitments received earlier.
+    ///
+    /// # Arguments
+    /// * `proofs` - The prover's message containing proofs.
     pub fn verify(
         self,
-        // Zk proofs. Their ordering corresponds to the ordering of the commitments.
-        proof_sets: Vec<Proof>,
-    ) -> Result<Verifier<state::VerifiedSuccessfully>, VerifierError> {
-        // Get encodings for each chunk
-        let chunk_encodings = self
-            .state
-            .full_encodings_sets
-            .iter()
-            .map(|set| set.clone().into_chunks(self.backend.chunk_size()))
-            .flatten()
-            .collect::<Vec<_>>();
+        proofs: Proofs,
+    ) -> Result<Verifier<T, state::VerifiedSuccessfully<T, F>, F>, VerifierError> {
+        let Proofs { proofs } = proofs;
 
-        // Get commitments for each chunk
-        let chunk_commitments = self
+        // Compute public inputs to verify each chunk of plaintext committed to.
+        let public_inputs = self
             .state
             .commitments
             .iter()
-            .map(|c| c.chunk_commitments.clone())
-            .flatten()
-            .collect::<Vec<_>>();
-
-        if chunk_commitments.len() != chunk_encodings.len() {
-            // TODO proper error, count mismatch
-            return Err(VerifierError::CustomError(
-                "if chunk_com.len() != chunk_data.len() {".to_string(),
-            ));
-        }
-
-        // Compute public inputs for each chunk of plaintext
-        let public_inputs = chunk_commitments
-            .iter()
-            .zip(chunk_encodings)
-            .map(|(com, enc)| {
-                // convert encodings
-                let enc = enc.convert();
-                self.create_verification_input(
-                    enc.compute_deltas(),
-                    enc.compute_zero_sum(),
-                    com.plaintext_hash.clone(),
-                    com.encoding_sum_hash.clone(),
-                )
+            .flat_map(|com| &com.chunk_commitments)
+            .map(|com| {
+                VerificationInputs {
+                    plaintext_hash: com.plaintext_hash.clone(),
+                    encoding_sum_hash: com.encoding_sum_hash.clone(),
+                    // It is safe to `unwrap()` since `full_encodings` were set earlier when the
+                    // commitments were received.
+                    zero_sum: com.full_encodings.as_ref().unwrap().compute_zero_sum(),
+                    deltas: com.full_encodings.as_ref().unwrap().compute_deltas(),
+                }
             })
             .collect::<Vec<_>>();
 
-        // For now the halo2 backend only knows how to verify one chunk against one proof,
-        // Commenting the line below and instead verifying the chunks one by one.
-        // self.backend.verify(public_inputs, proof_sets)?;
-        assert!(public_inputs.len() == proof_sets.len());
-        self.backend.verify(public_inputs, proof_sets)?;
+        self.backend.verify(public_inputs, proofs)?;
 
         Ok(Verifier {
             backend: self.backend,
             state: state::VerifiedSuccessfully {
-                commitments: self.state.commitments,
+                commitments: self
+                    .state
+                    .commitments
+                    .into_iter()
+                    .map(|com| com.into())
+                    .collect(),
             },
+            phantom: PhantomData,
         })
-    }
-
-    /// Construct public inputs for the zk circuit for each [Chunk].
-    fn create_verification_input(
-        &self,
-        mut deltas: Vec<BigInt>,
-        zero_sum: BigUint,
-        pt_hash: BigUint,
-        enc_hash: BigUint,
-    ) -> VerificationInput {
-        VerificationInput {
-            plaintext_hash: pt_hash,
-            encoding_sum_hash: enc_hash,
-            zero_sum,
-            deltas,
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::{
-        verifier::{
-            backend::Backend,
-            verifier::{VerificationInput, VerifierError},
-        },
-        Proof,
-    };
-    use num::BigUint;
-
-    /// The verifier who implements `Verify` with the correct values
-    struct CorrectTestVerifier {}
-    impl Backend for CorrectTestVerifier {
-        fn verify(
-            &self,
-            inputs: Vec<VerificationInput>,
-            proofs: Vec<Proof>,
-        ) -> Result<(), VerifierError> {
-            Ok(())
-        }
-
-        fn chunk_size(&self) -> usize {
-            3670
-        }
     }
 }

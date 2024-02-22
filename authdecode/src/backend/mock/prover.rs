@@ -1,11 +1,16 @@
 use crate::{
-    backend::mock::{MockProof, CHUNK_SIZE},
-    prover::{backend::Backend as ProverBackend, error::ProverError},
-    utils::boolvec_to_u8vec,
+    backend::{
+        mock::{MockProof, CHUNK_SIZE},
+        traits::{Field, ProverBackend},
+    },
+    prover::error::ProverError,
+    utils::{bits_to_bigint, boolvec_to_u8vec, u8vec_to_boolvec, u8vec_to_boolvec_no_pad},
     Proof, ProofInput,
 };
-use num::BigUint;
+use num::{bigint::Sign, BigInt, BigUint};
 use rand::{thread_rng, Rng};
+
+use super::MockField;
 
 /// A mock prover backend.
 pub struct MockProverBackend {}
@@ -16,57 +21,68 @@ impl MockProverBackend {
     }
 }
 
-impl ProverBackend for MockProverBackend {
-    fn commit_plaintext(&self, plaintext: Vec<bool>) -> Result<(BigUint, BigUint), ProverError> {
+impl ProverBackend<MockField> for MockProverBackend {
+    fn commit_plaintext(
+        &self,
+        mut plaintext: Vec<bool>,
+    ) -> Result<(MockField, MockField), ProverError> {
         if plaintext.len() > self.chunk_size() {
             // TODO proper error
             return Err(ProverError::InternalError);
         }
-        // Generate random salt and add it to the plaintext.
+        // Add random salt to plaintext and hash it.
         let mut rng = thread_rng();
         let salt: u128 = rng.gen();
-        let salt = salt.to_be_bytes();
-        let salt_as_biguint = BigUint::from_bytes_be(&salt);
+        let salt_bytes = salt.to_be_bytes();
+        let salt = u8vec_to_boolvec_no_pad(&salt_bytes);
+        plaintext.extend(salt.clone());
 
-        let mut plaintext = boolvec_to_u8vec(&plaintext);
-        plaintext.extend(salt);
-        let plaintext_hash = BigUint::from_bytes_be(&hash(&plaintext));
+        let hash_bytes = &hash(&boolvec_to_u8vec(&plaintext));
 
-        Ok((plaintext_hash, salt_as_biguint))
+        Ok((
+            MockField::from_bytes_be(hash_bytes.to_vec()),
+            MockField::from_bytes_be(salt_bytes.to_vec()),
+        ))
     }
 
     fn commit_encoding_sum(
         &self,
-        encoding_sum: BigUint,
-    ) -> Result<(BigUint, BigUint), ProverError> {
-        // Generate random salt
+        encoding_sum: MockField,
+    ) -> Result<(MockField, MockField), ProverError> {
+        // Add random salt to encoding_sum and hash it.
         let mut rng = thread_rng();
         let salt: u128 = rng.gen();
-        let salt = salt.to_be_bytes();
-        let salt_as_biguint = BigUint::from_bytes_be(&salt);
+        let salt_bytes = salt.to_be_bytes();
+        let salt = u8vec_to_boolvec_no_pad(&salt_bytes);
 
-        let mut enc_sum = encoding_sum.to_bytes_be();
-        enc_sum.extend(salt);
-        let enc_sum_hash = BigUint::from_bytes_be(&hash(&enc_sum));
+        let mut enc_sum_bits = encoding_sum.into_bits_be();
+        enc_sum_bits.extend(salt.clone());
 
-        Ok((enc_sum_hash, salt_as_biguint))
+        let hash_bytes = hash(&boolvec_to_u8vec(&enc_sum_bits));
+
+        Ok((
+            MockField::from_bytes_be(hash_bytes.to_vec()),
+            MockField::from_bytes_be(salt_bytes.to_vec()),
+        ))
     }
 
     fn chunk_size(&self) -> usize {
         CHUNK_SIZE
     }
 
-    fn prove(&self, input: Vec<ProofInput>) -> Result<Vec<Proof>, ProverError> {
+    fn prove(&self, input: Vec<ProofInput<MockField>>) -> Result<Vec<Proof>, ProverError> {
         // Use the default strategy of one proof for one chunk.
         Ok(input
-            .iter()
+            .into_iter()
             .map(|input| {
-                MockProof::new(
-                    input.plaintext.clone(),
-                    input.plaintext_salt.clone(),
-                    input.encoding_sum_salt.clone(),
+                Proof::new(
+                    &MockProof::new(
+                        input.plaintext,
+                        input.plaintext_salt,
+                        input.encoding_sum_salt,
+                    )
+                    .to_bytes(),
                 )
-                .to_bytes()
             })
             .collect::<Vec<_>>())
     }
