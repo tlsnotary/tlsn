@@ -6,7 +6,10 @@ use super::{
 use halo2_proofs::{
     halo2curves::bn256::Bn256,
     plonk,
-    poly::{commitment::ParamsProver, kzg::commitment::ParamsKZG},
+    poly::{
+        commitment::{Params, ParamsProver},
+        kzg::commitment::ParamsKZG,
+    },
 };
 
 pub struct OneTimeSetup {}
@@ -52,6 +55,14 @@ impl OneTimeSetup {
     }
 
     pub fn params() -> ParamsKZG<Bn256> {
-        ParamsKZG::<Bn256>::new(K)
+        // Parameters were taken from Axiom's trusted setup described here:
+        // https://docs.axiom.xyz/docs/transparency-and-security/kzg-trusted-setup ,
+        // located at https://axiom-crypto.s3.amazonaws.com/challenge_0085/kzg_bn254_15.srs
+        //
+        // They were downsized by calling `ParamsKZG::downsize(6)` with v0.3.0 of
+        // https://github.com/privacy-scaling-explorations/halo2
+
+        let bytes = include_bytes!("kzg_bn254_6.srs");
+        ParamsKZG::read(&mut bytes.as_slice()).unwrap()
     }
 }
