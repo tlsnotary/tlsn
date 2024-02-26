@@ -17,6 +17,7 @@ mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", commit
 blake3 = "1.3.3"
 serde = "1"
 bincode = "1"
+web-time = "0.2"
 
 halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2", tag = "v0.3.0", default-features = false}
 halo2_poseidon = { git = "https://github.com/privacy-scaling-explorations/poseidon-gadget", rev="764a682"}
