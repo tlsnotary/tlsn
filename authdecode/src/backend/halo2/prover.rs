@@ -19,7 +19,7 @@ use halo2_proofs::{
 };
 
 use rand::Rng;
-use std::time::Instant;
+use web_time::Instant;
 
 use super::{
     circuit::{AuthDecodeCircuit, FIELD_ELEMENTS},
