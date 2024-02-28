@@ -1,5 +1,6 @@
 use std::error::Error;
 
+use spansy::Spanned;
 use tlsn_core::{commitment::TranscriptCommitmentBuilder, Direction};
 
 use crate::{
@@ -203,18 +204,20 @@ pub trait HttpCommit {
             )
         })?;
 
-        builder
-            .commit(&header.without_value(), direction)
-            .map_err(|e| {
-                HttpCommitError::new_with_source(
-                    MessageKind::Request,
-                    format!(
-                        "failed to commit to \"{}\" header excluding value",
-                        header.name.as_str()
-                    ),
-                    e,
-                )
-            })?;
+        if !header.value.span().is_empty() {
+            builder
+                .commit(&header.without_value(), direction)
+                .map_err(|e| {
+                    HttpCommitError::new_with_source(
+                        MessageKind::Request,
+                        format!(
+                            "failed to commit to \"{}\" header excluding value",
+                            header.name.as_str()
+                        ),
+                        e,
+                    )
+                })?;
+        }
 
         Ok(())
     }
@@ -336,18 +339,20 @@ pub trait HttpCommit {
             )
         })?;
 
-        builder
-            .commit(&header.without_value(), direction)
-            .map_err(|e| {
-                HttpCommitError::new_with_source(
-                    MessageKind::Response,
-                    format!(
-                        "failed to commit to \"{}\" header excluding value in response",
-                        header.name.as_str()
-                    ),
-                    e,
-                )
-            })?;
+        if !header.value.span().is_empty() {
+            builder
+                .commit(&header.without_value(), direction)
+                .map_err(|e| {
+                    HttpCommitError::new_with_source(
+                        MessageKind::Response,
+                        format!(
+                            "failed to commit to \"{}\" header excluding value in response",
+                            header.name.as_str()
+                        ),
+                        e,
+                    )
+                })?;
+        }
 
         Ok(())
     }
@@ -413,6 +418,7 @@ mod tests {
 
     #[rstest]
     #[case::get_empty(include_bytes!("../../tests/fixtures/http/request_get_empty"))]
+    #[case::get_empty_header(include_bytes!("../../tests/fixtures/http/request_get_empty_header"))]
     #[case::get_with_header(include_bytes!("../../tests/fixtures/http/request_get_with_header"))]
     #[case::post_json(include_bytes!("../../tests/fixtures/http/request_post_json"))]
     fn test_http_default_commit_request(#[case] src: &'static [u8]) {
@@ -430,6 +436,7 @@ mod tests {
 
     #[rstest]
     #[case::empty(include_bytes!("../../tests/fixtures/http/response_empty"))]
+    #[case::empty_header(include_bytes!("../../tests/fixtures/http/response_empty_header"))]
     #[case::json(include_bytes!("../../tests/fixtures/http/response_json"))]
     #[case::text(include_bytes!("../../tests/fixtures/http/response_text"))]
     fn test_http_default_commit_response(#[case] src: &'static [u8]) {
