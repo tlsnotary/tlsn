@@ -36,7 +36,8 @@ pub async fn run_notary<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(conn
 pub async fn request_notarization(
     host: &str,
     port: u16,
-    max_transcript_size: Option<usize>,
+    max_sent_data: Option<usize>,
+    max_recv_data: Option<usize>,
 ) -> (tokio_rustls::client::TlsStream<TcpStream>, String) {
     // Connect to the Notary via TLS-TCP
     let pem_file = std::str::from_utf8(include_bytes!(
@@ -80,7 +81,8 @@ pub async fn request_notarization(
     // Build the HTTP request to configure notarization
     let payload = serde_json::to_string(&NotarizationSessionRequest {
         client_type: ClientType::Tcp,
-        max_transcript_size,
+        max_sent_data,
+        max_recv_data,
     })
     .unwrap();
 

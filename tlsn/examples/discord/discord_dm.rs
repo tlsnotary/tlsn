@@ -22,7 +22,8 @@ const NOTARY_HOST: &str = "127.0.0.1";
 const NOTARY_PORT: u16 = 7047;
 
 // Configuration of notarization
-const NOTARY_MAX_TRANSCRIPT_SIZE: usize = 16384;
+const NOTARY_MAX_SENT: usize = 1 << 12;
+const NOTARY_MAX_RECV: usize = 1 << 14;
 
 #[tokio::main]
 async fn main() {
@@ -34,8 +35,13 @@ async fn main() {
     let auth_token = env::var("AUTHORIZATION").unwrap();
     let user_agent = env::var("USER_AGENT").unwrap();
 
-    let (notary_tls_socket, session_id) =
-        request_notarization(NOTARY_HOST, NOTARY_PORT, Some(NOTARY_MAX_TRANSCRIPT_SIZE)).await;
+    let (notary_tls_socket, session_id) = request_notarization(
+        NOTARY_HOST,
+        NOTARY_PORT,
+        Some(NOTARY_MAX_SENT),
+        Some(NOTARY_MAX_RECV),
+    )
+    .await;
 
     // Basic default prover config using the session_id returned from /session endpoint just now
     let config = ProverConfig::builder()

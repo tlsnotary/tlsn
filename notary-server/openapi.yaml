@@ -175,8 +175,11 @@ components:
           enum:
             - "Tcp"
             - "Websocket"
-        maxTranscriptSize:  
-          description: Maximum transcript size in bytes
+        maxSentData:
+          description: Maximum data that can be sent by the prover in bytes
+          type: integer
+        maxRecvData:
+          description: Maximum data that can be received by the prover in bytes
           type: integer
       required:
         - "clientType"

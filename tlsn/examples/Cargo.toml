@@ -1,49 +1,52 @@
 [package]
-name = "tlsn-examples"
-version = "0.0.0"
 edition = "2021"
+name = "tlsn-examples"
 publish = false
+version = "0.0.0"
 
 [dependencies]
-tlsn-core.workspace = true
-tlsn-tls-core.workspace = true
-tlsn-tls-client.workspace = true
-notary-server = { path = "../../notary-server" }
 mpz-core.workspace = true
-tlsn-prover = { workspace = true, features = ["tracing"] }
+notary-server = {path = "../../notary-server"}
+tlsn-core.workspace = true
+tlsn-prover = {workspace = true, features = ["tracing"]}
+tlsn-tls-client.workspace = true
+tlsn-tls-core.workspace = true
+tlsn-utils.workspace = true
 tlsn-verifier.workspace = true
 
-p256 = { workspace = true, features = ["ecdsa"] }
-elliptic-curve = { version = "0.13.5", features = ["pkcs8"] }
+elliptic-curve = {version = "0.13.5", features = ["pkcs8"]}
+p256 = {workspace = true, features = ["ecdsa"]}
 webpki-roots.workspace = true
 
-rustls = { version = "0.21" }
-rustls-pemfile = { version = "1.0.2" }
-tokio-rustls = { version = "0.24.1" }
-async-tls = { version = "0.12", default-features = false, features = [
-    "client",
-] }
-futures.workspace = true
-tokio = { workspace = true, features = [
-    "rt",
-    "rt-multi-thread",
-    "macros",
-    "net",
-    "io-std",
-    "fs",
-] }
-tokio-util.workspace = true
-hyper = { version = "1.1", features = ["client", "http1"] }
-http-body-util = "0.1"
-hyper-util = { version = "0.1", features = ["full"] }
+async-tls = {version = "0.12", default-features = false, features = [
+  "client",
+]}
 chrono = "0.4"
+futures.workspace = true
+http-body-util = "0.1"
+hyper = {version = "1.1", features = ["client", "http1"]}
+hyper-util = {version = "0.1", features = ["full"]}
+rustls = {version = "0.21"}
+rustls-pemfile = {version = "1.0.2"}
+tokio = {workspace = true, features = [
+  "rt",
+  "rt-multi-thread",
+  "macros",
+  "net",
+  "io-std",
+  "fs",
+]}
+tokio-rustls = {version = "0.24.1"}
+tokio-util.workspace = true
 
-tracing.workspace = true
-tracing-subscriber.workspace = true
-serde = { version = "1.0.147", features = ["derive"] }
-serde_json = "1.0"
-eyre = "0.6.8"
 dotenv = "0.15.0"
+eyre = "0.6.8"
+serde = {version = "1.0.147", features = ["derive"]}
+serde_json = "1.0"
+tracing-subscriber.workspace = true
+tracing.workspace = true
+
+regex = "1.10.3"
 
 [[example]]
 name = "simple_prover"
@@ -64,3 +67,7 @@ path = "discord/discord_dm.rs"
 [[example]]
 name = "discord_dm_verifier"
 path = "discord/discord_dm_verifier.rs"
+
+[[example]]
+name = "interactive"
+path = "interactive/interactive.rs"
