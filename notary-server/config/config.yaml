@@ -4,7 +4,7 @@ server:
   port: 7047
 
 notarization:
-  max-transcript-size: 16384
+  max-transcript-size: 20480
 
 tls:
   enabled: true
