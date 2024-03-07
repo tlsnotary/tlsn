@@ -67,9 +67,9 @@ jobs:
         run: cargo clippy --all-features --examples -- -D warnings
 
       - name: Use caching
-        uses: Swatinem/rust-cache@v2.5.0
+        uses: Swatinem/rust-cache@v2
         with:
-          workspaces: ${{ matrix.package }} -> target
+          workspaces: ${{ matrix.package }}
 
       - name: "Build"
         run: cargo build ${{ matrix.release && '--release' }}
