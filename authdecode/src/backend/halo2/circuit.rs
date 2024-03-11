@@ -109,6 +109,8 @@ pub struct TopLevelConfig {
     selector_add_plaintext_salt: Selector,
     /// Left-shifts the first cell by the size of the encoding sum salt and adds the salt
     selector_add_encoding_sum_salt: Selector,
+    /// Constrains 3 MSBs to be 0.
+    three_bits_zero: Selector,
 
     /// config for Poseidon with rate 15
     poseidon_config_rate15: Pow5Config<F, 16, 15>,
@@ -214,6 +216,7 @@ impl Circuit<F> for AuthDecodeCircuit {
         let selector_sum2 = meta.selector();
         let selector_add_plaintext_salt = meta.selector();
         let selector_add_encoding_sum_salt = meta.selector();
+        let three_bits_zero = meta.selector();
 
         // POSEIDON
 
@@ -244,6 +247,7 @@ impl Circuit<F> for AuthDecodeCircuit {
             selector_sum2,
             selector_add_plaintext_salt,
             selector_add_encoding_sum_salt,
+            three_bits_zero,
 
             poseidon_config_rate15,
             poseidon_config_rate2,
@@ -345,6 +349,20 @@ impl Circuit<F> for AuthDecodeCircuit {
             vec![sel * (sum - expected)]
         });
 
+        // Constrains 3 MSBs to be zero.
+        meta.create_gate("three_bits_zero", |meta| {
+            let expressions: [Expression<F>; 3] = (0..3)
+                .map(|i| meta.query_advice(cfg.bits[i], Rotation::cur()))
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap();
+
+            let sel = meta.query_selector(cfg.three_bits_zero);
+
+            // Constrain all expressions to be equal to 0.
+            Constraints::with_selector(sel, expressions)
+        });
+
         cfg
     }
 
@@ -392,6 +410,10 @@ impl Circuit<F> for AuthDecodeCircuit {
                         }
                         // constrain the whole row of bits to be binary
                         cfg.selector_binary_check.enable(&mut region, j * 4 + row)?;
+                        if row == 0 {
+                            // Constrain the high limb's 3 MSB to be zero.
+                            cfg.three_bits_zero.enable(&mut region, j * 4 + row)?;
+                        }
 
                         let limbs = bits_to_limbs(bits);
                         // place expected limbs for each row
