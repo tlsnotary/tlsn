@@ -522,6 +522,8 @@ mod tests {
         )
         .unwrap();
 
+        futures::try_join!(leader.setup(), follower.setup()).unwrap();
+
         ((leader, follower), (leader_vm, follower_vm))
     }
 
