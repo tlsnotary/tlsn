@@ -7,8 +7,8 @@
 #![forbid(unsafe_code)]
 
 use async_trait::async_trait;
+use mpz_fields::Field;
 use mpz_share_conversion::ShareConversionError;
-use mpz_share_conversion_core::fields::Field;
 
 mod conversion;
 
@@ -17,7 +17,7 @@ mod conversion;
 pub mod mock;
 
 pub use conversion::{MpcPointAddition, Role};
-pub use mpz_share_conversion_core::fields::p256::P256;
+pub use mpz_fields::p256::P256;
 
 /// The error type for [PointAddition]
 #[allow(missing_docs)]

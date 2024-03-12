@@ -1,10 +1,5 @@
-use std::marker::PhantomData;
-
 use derive_builder::Builder;
-use mpz_garble::value::ValueRef;
 use std::fmt::Debug;
-
-use crate::CtrCircuit;
 
 /// Configuration for a stream cipher.
 #[derive(Debug, Clone, Builder)]
@@ -25,37 +20,6 @@ impl StreamCipherConfig {
     /// Creates a new builder for the stream cipher configuration.
     pub fn builder() -> StreamCipherConfigBuilder {
         StreamCipherConfigBuilder::default()
-    }
-}
-
-pub(crate) struct KeyBlockConfig<C: CtrCircuit> {
-    pub(crate) key: ValueRef,
-    pub(crate) iv: ValueRef,
-    pub(crate) explicit_nonce: C::NONCE,
-    pub(crate) ctr: u32,
-    _pd: PhantomData<C>,
-}
-
-impl<C: CtrCircuit> Debug for KeyBlockConfig<C> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("KeyBlockConfig")
-            .field("key", &self.key)
-            .field("iv", &self.iv)
-            .field("explicit_nonce", &self.explicit_nonce)
-            .field("ctr", &self.ctr)
-            .finish()
-    }
-}
-
-impl<C: CtrCircuit> KeyBlockConfig<C> {
-    pub(crate) fn new(key: ValueRef, iv: ValueRef, explicit_nonce: C::NONCE, ctr: u32) -> Self {
-        Self {
-            key,
-            iv,
-            explicit_nonce,
-            ctr,
-            _pd: PhantomData,
-        }
     }
 }
 
@@ -81,4 +45,11 @@ impl std::fmt::Debug for InputText {
             Self::Blind { ids, .. } => f.debug_struct("Blind").field("ids", ids).finish(),
         }
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum ExecutionMode {
+    Mpc,
+    Prove,
+    Verify,
 }

@@ -17,6 +17,7 @@
 mod cipher;
 mod circuit;
 mod config;
+pub(crate) mod keystream;
 mod stream_cipher;
 
 pub use self::cipher::{Aes128Ctr, CtrCircuit};
@@ -32,6 +33,8 @@ use mpz_garble::value::ValueRef;
 pub enum StreamCipherError {
     #[error(transparent)]
     MemoryError(#[from] mpz_garble::MemoryError),
+    #[error(transparent)]
+    LoadError(#[from] mpz_garble::LoadError),
     #[error(transparent)]
     ExecutionError(#[from] mpz_garble::ExecutionError),
     #[error(transparent)]
@@ -81,6 +84,9 @@ where
     ///
     /// The state of a transcript counter is preserved between calls to `set_transcript_id`.
     fn set_transcript_id(&mut self, id: &str);
+
+    /// Preprocesses the keystream for the given number of bytes.
+    async fn preprocess(&mut self, len: usize) -> Result<(), StreamCipherError>;
 
     /// Applies the keystream to the given plaintext, where all parties
     /// provide the plaintext as an input.
@@ -442,6 +448,49 @@ mod tests {
             follower.verify_plaintext(explicit_nonce.to_vec(), ciphertext)
         )
         .unwrap();
+        futures::try_join!(leader_vm.finalize(), follower_vm.finalize()).unwrap();
+    }
+
+    #[rstest]
+    #[case::one_block(16)]
+    #[case::partial(17)]
+    #[case::extra(128)]
+    #[timeout(Duration::from_millis(10000))]
+    #[tokio::test]
+    async fn test_stream_cipher_preprocess(#[case] len: usize) {
+        let key = [0u8; 16];
+        let iv = [0u8; 4];
+        let explicit_nonce = [1u8; 8];
+
+        let msg = b"This is a test message which will be encrypted using AES-CTR.".to_vec();
+
+        let ciphertext = Aes128Ctr::apply_keystream(&key, &iv, 1, &explicit_nonce, &msg).unwrap();
+
+        let ((mut leader, mut follower), (mut leader_vm, mut follower_vm)) =
+            create_test_pair::<Aes128Ctr>(1, key, iv, 8).await;
+
+        let leader_fut = async {
+            leader.preprocess(len).await.unwrap();
+
+            leader
+                .decrypt_private(explicit_nonce.to_vec(), ciphertext.clone())
+                .await
+                .unwrap()
+        };
+
+        let follower_fut = async {
+            follower.preprocess(len).await.unwrap();
+
+            follower
+                .decrypt_blind(explicit_nonce.to_vec(), ciphertext.clone())
+                .await
+                .unwrap();
+        };
+
+        let (leader_decrypted_msg, _) = futures::join!(leader_fut, follower_fut);
+
+        assert_eq!(leader_decrypted_msg, msg);
+
         futures::try_join!(leader_vm.finalize(), follower_vm.finalize()).unwrap();
     }
 }
