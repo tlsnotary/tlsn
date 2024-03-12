@@ -52,7 +52,7 @@ pub trait PointAddition {
 mod tests {
     use crate::{conversion::point_to_p256, mock::mock_point_converter_pair, PointAddition};
     use mpz_core::Block;
-    use mpz_share_conversion_core::{fields::p256::P256, Field};
+    use mpz_fields::{p256::P256, Field};
     use p256::{
         elliptic_curve::sec1::{FromEncodedPoint, ToEncodedPoint},
         EncodedPoint, NonZeroScalar, ProjectivePoint, PublicKey,
