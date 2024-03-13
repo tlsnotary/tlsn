@@ -9,6 +9,7 @@ use crate::{
 };
 use num::{bigint::Sign, BigInt, BigUint};
 use rand::{thread_rng, Rng};
+use std::any::Any;
 
 use super::MockField;
 
@@ -85,6 +86,11 @@ impl ProverBackend<MockField> for MockProverBackend {
                 )
             })
             .collect::<Vec<_>>())
+    }
+
+    #[cfg(test)]
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 

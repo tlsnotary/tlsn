@@ -1,14 +1,19 @@
-use super::{utils::deltas_to_matrices, Bn256F, CHUNK_SIZE, USEFUL_BITS};
+use super::{
+    circuit::{BIT_COLUMNS, FIELD_ELEMENTS, USABLE_BITS},
+    Bn256F, CHUNK_SIZE,
+};
 use crate::{
-    backend::{halo2::utils::biguint_to_f, traits::VerifierBackend as Backend},
+    backend::{
+        halo2::{utils::slice_to_columns, PARAMS},
+        traits::VerifierBackend as Backend,
+    },
     verifier::{error::VerifierError, verifier::VerificationInputs},
     Proof,
 };
-use std::time::Instant;
 
 use ff::{FromUniformBytes, WithSmallOrderMulGroup};
 use halo2_proofs::{
-    halo2curves::bn256::{Bn256, Fr as F},
+    halo2curves::bn256::{Bn256, Fr as F, G1Affine},
     plonk::{verify_proof as verify_plonk_proof, VerifyingKey},
     poly::{
         commitment::{CommitmentScheme, Verifier as CommitmentVerifier},
@@ -22,27 +27,42 @@ use halo2_proofs::{
     transcript::{Blake2bRead, Challenge255, EncodedChallenge, TranscriptReadBuffer},
 };
 
-/// halo2's native [halo2::VerifyingKey] can't be used without params, so we wrap
-/// them in one struct.
-#[derive(Clone)]
-pub struct VK {
-    pub key: VerifyingKey<<KZGCommitmentScheme<Bn256> as CommitmentScheme>::Curve>,
-    pub params: ParamsKZG<Bn256>,
-}
-
-/// Implements the Verifier in the authdecode protocol.
+/// The Verifier of the authdecode circuit.
 pub struct Verifier {
-    verification_key: VK,
+    verification_key: VerifyingKey<G1Affine>,
 }
 impl Verifier {
-    pub fn new(vk: VK) -> Self {
-        Self {
-            verification_key: vk,
-        }
+    pub fn new(verification_key: VerifyingKey<G1Affine>) -> Self {
+        Self { verification_key }
     }
 
-    fn useful_bits(&self) -> usize {
-        USEFUL_BITS
+    fn usable_bits(&self) -> usize {
+        USABLE_BITS
+    }
+
+    /// Prepares instance columns for verification.
+    fn prepare_verification_input(&self, input: &VerificationInputs<Bn256F>) -> Vec<Vec<F>> {
+        let deltas = input
+            .deltas
+            .iter()
+            .map(|f: &Bn256F| f.inner)
+            .collect::<Vec<_>>();
+
+        // Arrange deltas in instance columns.
+        let mut instance_columns = slice_to_columns(
+            &deltas,
+            self.usable_bits(),
+            BIT_COLUMNS * 4,
+            FIELD_ELEMENTS * 4,
+            BIT_COLUMNS,
+        );
+        // Add another column with public inputs.
+        instance_columns.push(vec![
+            input.plaintext_hash.inner,
+            input.encoding_sum_hash.inner,
+            input.zero_sum.inner,
+        ]);
+        instance_columns
     }
 }
 
@@ -56,38 +76,24 @@ impl Backend<Bn256F> for Verifier {
         // For now we just assume that one proof proves one chunk.
         assert!(inputs.len() == proofs.len());
 
-        let params = &self.verification_key.params;
-        let vk = &self.verification_key.key;
-
         for (input, proof) in inputs.into_iter().zip(proofs) {
-            let deltas = input
-                .deltas
-                .into_iter()
-                .map(|f| f.inner)
-                .collect::<Vec<_>>();
-            // convert deltas into a matrix which halo2 expects
-            let (_, deltas_as_columns) = deltas_to_matrices(&deltas, self.useful_bits());
+            let instance_columns = self.prepare_verification_input(&input);
 
-            let mut all_inputs: Vec<&[F]> =
-                deltas_as_columns.iter().map(|v| v.as_slice()).collect();
-
-            // add another column with public inputs
-            let tmp = &[
-                input.plaintext_hash.inner,
-                input.encoding_sum_hash.inner,
-                input.zero_sum.inner,
-            ];
-            all_inputs.push(tmp);
-
-            let now = Instant::now();
             verify_proof::<
                 KZGCommitmentScheme<Bn256>,
                 VerifierGWC<'_, Bn256>,
                 _,
                 Blake2bRead<_, _, Challenge255<_>>,
                 AccumulatorStrategy<_>,
-            >(params, vk, &proof.0, &[all_inputs.as_slice()])?;
-            println!("Proof verified in [{:?}]", now.elapsed());
+            >(
+                &crate::backend::halo2::onetimesetup::params(),
+                &self.verification_key,
+                &proof.0,
+                &[&instance_columns
+                    .iter()
+                    .map(|col| col.as_slice())
+                    .collect::<Vec<_>>()],
+            )?;
         }
 
         Ok(())

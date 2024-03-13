@@ -1,10 +1,15 @@
+use halo2_proofs::{
+    halo2curves::bn256::{Bn256, Fr},
+    poly::kzg::commitment::ParamsKZG,
+};
+use lazy_static::lazy_static;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::ops::{Add, Sub};
 
-use crate::{backend::traits::Field, utils::bits_to_biguint};
-use halo2_proofs::halo2curves::bn256::Fr;
-use num::BigUint;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use utils::biguint_to_f;
+use crate::{
+    backend::{halo2::utils::bytes_be_to_f, traits::Field},
+    utils::bits_to_biguint,
+};
 
 mod circuit;
 pub mod onetimesetup;
@@ -13,12 +18,12 @@ pub mod prover;
 mod utils;
 pub mod verifier;
 
-/// The amount of LSBs of a field element that are being used.
-const USEFUL_BITS: usize = 253;
+lazy_static! {
+    static ref PARAMS: ParamsKZG<Bn256> = onetimesetup::params();
+}
 
-/// The size of the chunk of plaintext
-/// We use 14 field elements. Only [USEFUL_BITS] of each field element are used.
-const CHUNK_SIZE: usize = 3542;
+/// The size of the chunk of plaintext in bits.
+const CHUNK_SIZE: usize = circuit::FIELD_ELEMENTS * circuit::USABLE_BITS;
 
 /// A field element of the Bn256 curve.
 #[derive(Clone, Serialize, Deserialize)]
@@ -32,18 +37,10 @@ impl Bn256F {
     }
 }
 
-impl Bn256F {
-    pub fn into_bytes_be(&self) -> Vec<u8> {
-        let mut bytes = self.inner.to_bytes();
-        bytes.reverse();
-        bytes.to_vec()
-    }
-}
-
 impl Field for Bn256F {
     fn from_bytes_be(bytes: Vec<u8>) -> Self {
         Self {
-            inner: biguint_to_f(&BigUint::from_bytes_be(&bytes)),
+            inner: bytes_be_to_f(bytes),
         }
     }
 
@@ -72,6 +69,7 @@ impl Sub for Bn256F {
     }
 }
 
+#[allow(clippy::from_over_into)]
 impl Into<Fr> for Bn256F {
     fn into(self) -> Fr {
         self.inner
@@ -105,13 +103,12 @@ where
 #[cfg(test)]
 pub(crate) mod tests {
     use super::{prover::Prover, verifier::Verifier};
+    use crate::backend::halo2::onetimesetup::{proving_key, verification_key};
 
     pub fn backend_pair() -> (Prover, Verifier) {
-        let params = super::onetimesetup::OneTimeSetup::params();
-
-        let proving_key = super::onetimesetup::OneTimeSetup::proving_key(params.clone());
-        let verification_key = super::onetimesetup::OneTimeSetup::verification_key(params);
-
-        (Prover::new(proving_key), Verifier::new(verification_key))
+        (
+            Prover::new(proving_key()),
+            Verifier::new(verification_key()),
+        )
     }
 }

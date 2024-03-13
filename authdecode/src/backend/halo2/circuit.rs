@@ -1,4 +1,3 @@
-use crate::backend::halo2::{poseidon::spec::Spec2, utils::biguint_to_f};
 use halo2_poseidon::poseidon::{primitives::ConstantLength, Hash, Pow5Chip, Pow5Config};
 use halo2_proofs::{
     circuit::{AssignedCell, Layouter, Region, SimpleFloorPlanner, Value},
@@ -9,160 +8,124 @@ use halo2_proofs::{
     },
     poly::Rotation,
 };
+use num::BigUint;
+use std::convert::TryInto;
 
 use super::{
     poseidon::{
         circuit_config::{
             configure_poseidon_rate_1, configure_poseidon_rate_15, configure_poseidon_rate_2,
         },
-        spec::{Spec1, Spec15},
+        spec::{Spec1, Spec15, Spec2},
     },
-    utils::{bigint_to_256bits, bits_to_limbs, f_to_bigint},
+    utils::{compose_bits, f_to_bits},
 };
 
-use num::BigUint;
-use std::convert::TryInto;
+/// Rationale for the selection of constants.
+///
+/// In order to optimize the proof generation time, the circuit should contain as few instance
+/// columns as possible and also as few rows as possible.
+/// The circuit has [super::CHUNK_SIZE] public inputs (deltas) which must be placed into instance
+/// columns. It was empirically established that 58 rows and 64 instance columns provides the best
+/// performance.
+///
+/// Note that 58 usable rows is what we get when we set the circuit's K to 6 (halo2 reserves 6 rows
+/// for internal purposes, so we get 2^6-6 usable rows).
 
-// See circuit_diagram.pdf for a diagram of the circuit
-
-// The AuthDecode protocol decodes a chunk of X bits at a time.
-// Each of the bit requires 1 corresponding public input - a delta.
-// We want the deltas to use up as few instance columns as possible
-// because more instance columns means more prover time. We also want
-// K to stay as low as possible since low K also improves prover time.
-// The best ratio is achieved with K==6 and 68 instance columns.
-
-// However, 68-bit limbs are awkward to work with. So we choose to have
-// 64 columns and 4 rows, to place all the field element's bits into.
-
-// Our circuit's K is 6, which gives us 2^6-6=58 useful rows
-// (halo2 reserves 6 rows for internal purposes).
-// It requires 4 64-cell rows in order to hold all the bits of one field element.
-
-// The total amount of field elements we can decode is 58/4 = 14 1/2,
-// which we round down to 14.
-
-// We could have much simpler logic if we just used 253 instance columns.
-// But compared to 64 columns, that would increase the prover time 2x.
-
-/// The amount of  field elements. Plaintext bits are packed
-/// into these field elements.
+/// How many field elements to use to pack the plaintext into. Only [USABLE_BITS] of each field element
+/// will be used.  
 pub const FIELD_ELEMENTS: usize = 14;
 
-/// The parameter informing halo2 about the upper bound of how many rows our
-/// circuit uses. This is a power of 2.
-pub const K: u32 = 6;
+/// How many LSBs of a field element to use to pack the plaintext into.
+pub const USABLE_BITS: usize = 253;
 
-/// For one row of the circuit, this is the amount of advice cells to put
-/// plaintext bits into and also this is the amount of instance cells to
-/// put deltas into.  
-pub const CELLS_PER_ROW: usize = 64;
-
-/// The amount of rows that can be used by the circuit.
+/// How many advice columns are there to put the plaintext bits into.
 ///
-/// When K == 6, halo2 reserves 6 rows internally, so the actual amount of rows
-/// that the circuit can use is 2^K - 6 = 58.
-/// If we ever change K, we should re-compute the number of reserved rows with
-/// (cs.blinding_factors() + 1)
-pub const USEFUL_ROWS: usize = 56;
+/// Note that internally the bits of one plaintext field element are zero-padded on the left to a
+/// total of 256 bits. Then the bits are split up into 4 limbs of 64 bits. Each limb's bits are
+/// placed on an individual row.
+pub const BIT_COLUMNS: usize = 64;
 
-/// Bitsize of salt used in plaintext commitment.
+/// The amount of rows that the circuit is allowed to use.
+///
+/// When K == 6, halo2 reserves 6 rows internally, which leaves us with 2^K - 6 = 58 usable rows.
+pub const USABLE_ROWS: usize = 56;
+
+/// Bitsize of salt used both in the plaintext commitment and encoding sum commitment.
 pub const SALT_SIZE: usize = 128;
 
 #[derive(Clone, Debug)]
-pub struct TopLevelConfig {
-    /// Each plaintext field element is decomposed into 256 bits
-    /// and each 64-bit limb is places on a row
-    bits: [Column<Advice>; CELLS_PER_ROW],
-    /// Space to calculate intermediate sums
+/// The circuit configuration.
+pub struct CircuitConfig {
+    /// Columns to put the plaintext bits into.  
+    bits: [Column<Advice>; BIT_COLUMNS],
+    /// Scratch space used to calculate intermediate values.
     scratch_space: [Column<Advice>; 5],
-    /// Expected dot product for each 64-bit limb
+    /// Expected dot product of a vector of deltas and a vector of limb's bits.
     dot_product: Column<Advice>,
-    /// Expected 64-bit limb composed into an integer
-    expected_limbs: Column<Advice>,
-    /// The first row of this column is used for the plaintext salt,
-    /// the second one is for the encoding sum salt.
+    /// Expected value when composing a 64-bit limb into a field element.
+    expected_composed_limbs: Column<Advice>,
+    /// The first and the second rows of this column are used to store the plaintext salt and the
+    /// encoding sum salt, resp.
     salt: Column<Advice>,
 
-    /// Each row of deltas corresponds to one limb of plaintext
-    deltas: [Column<Instance>; CELLS_PER_ROW],
+    /// Columns of deltas, such that each row of deltas corresponds to one limb of plaintext.
+    deltas: [Column<Instance>; BIT_COLUMNS],
 
-    /// Since halo2 does not allow to constrain public inputs in instance columns
-    /// directly, we first need to copy the inputs into this advice column
+    /// Since halo2 does not allow to constrain inputs in instance columns
+    /// directly, we first need to copy the inputs into this advice column.
     advice_from_instance: Column<Advice>,
 
     // SELECTORS.
-    // Below is the description of what happens when a selector
-    // is activated for a given row:
-    /// Computes a dot product
+    // For a description of what constraint is activated when a selector is enabled, consult the
+    // description of the gate which uses the selector. e.g. for "selector_dot_product" consult the
+    // gate "dot_product" etc.
     selector_dot_product: Selector,
-    /// Composes a given limb from bits into an integer.
-    /// The highest limb corresponds to the selector with index 0.
-    selector_compose: [Selector; 4],
-    /// Checks binariness of decomposed bits
     selector_binary_check: Selector,
-    /// Sums 4 cells
-    selector_sum4: Selector,
-    /// Sums 2 cells
-    selector_sum2: Selector,
-    /// Left-shifts the first cell by the size of the plaintext salt and adds the salt
-    selector_add_plaintext_salt: Selector,
-    /// Left-shifts the first cell by the size of the encoding sum salt and adds the salt
-    selector_add_encoding_sum_salt: Selector,
-    /// Constrains 3 MSBs to be 0.
-    three_bits_zero: Selector,
+    selector_compose_limb: [Selector; 4],
+    selector_sum: Selector,
+    selector_three_bits_zero: Selector,
 
-    /// config for Poseidon with rate 15
+    /// Config for rate-15 Poseidon.
     poseidon_config_rate15: Pow5Config<F, 16, 15>,
-    /// config for Poseidon with rate 2
+    /// Config for rate-2 Poseidon.
     poseidon_config_rate2: Pow5Config<F, 3, 2>,
 
-    /// Contains 3 public input in this order:
-    /// [plaintext hash, label sum hash, zero sum].
-    /// Does **NOT** contain deltas.
+    /// Contains the following public inputs in this order: (plaintext hash, encoding sum hash,
+    /// zero sum).
     public_inputs: Column<Instance>,
 }
 
 #[derive(Clone, Debug)]
+/// The AuthDecode circuit.
 pub struct AuthDecodeCircuit {
-    /// plaintext is private input
-    plaintext: Option<[F; FIELD_ELEMENTS]>,
+    /// The bits of plaintext which was committed to. Each bit is a field element.
+    ///
+    /// The original plaintext consisted of [FIELD_ELEMENTS] field elements.
+    /// Each field element is split into 4 limbs of [BIT_COLUMNS] bits starting from the high limb.
+    pub plaintext: [[F; BIT_COLUMNS]; FIELD_ELEMENTS * 4],
     /// Salt used to create a plaintext commitment.
-    plaintext_salt: Option<F>,
+    pub plaintext_salt: F,
     /// Salt used to create an encoding sum commitment.
-    encoding_sum_salt: Option<F>,
-    /// deltas is a public input.
-    /// Since halo2 doesn't allow to access deltas which we passed in
-    /// [crate::prover::Prove::prove],
-    /// we pass it here again to be able to compute the in-circuit expected values.
-    /// To make handling simpler, this is a matrix of rows, where each row corresponds
-    /// to a 64-bit limb of the plaintext.
-    deltas: [[F; CELLS_PER_ROW]; USEFUL_ROWS],
+    pub encoding_sum_salt: F,
 }
 
 impl Circuit<F> for AuthDecodeCircuit {
-    type Config = TopLevelConfig;
+    type Config = CircuitConfig;
     type FloorPlanner = SimpleFloorPlanner;
 
     fn without_witnesses(&self) -> Self {
         Self {
-            plaintext: None,
-            plaintext_salt: None,
-            encoding_sum_salt: None,
-            deltas: self.deltas.clone(),
+            plaintext: [[F::default(); BIT_COLUMNS]; FIELD_ELEMENTS * 4],
+            plaintext_salt: F::default(),
+            encoding_sum_salt: F::default(),
         }
     }
 
     fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
-        // keep this in case we modify the circuit and change K but forget
-        // to update USEFUL_ROWS
-        // UPDATE: since we temporary changed [K] from 6 to 7, commenting out
-        // this assert. Uncomment when
-        // assert!(((1 << K) as usize) - (meta.blinding_factors() + 1) == USEFUL_ROWS);
-
         // ADVICE COLUMNS
 
-        let bits: [Column<Advice>; CELLS_PER_ROW] = (0..CELLS_PER_ROW)
+        let bits: [Column<Advice>; BIT_COLUMNS] = (0..BIT_COLUMNS)
             .map(|_| meta.advice_column())
             .collect::<Vec<_>>()
             .try_into()
@@ -174,8 +137,6 @@ impl Circuit<F> for AuthDecodeCircuit {
         let expected_limbs = meta.advice_column();
         meta.enable_equality(expected_limbs);
 
-        // The first row of this column is used for the plaintext salt,
-        // the second one is for the encoding sum salt
         let salt = meta.advice_column();
         meta.enable_equality(salt);
 
@@ -194,7 +155,7 @@ impl Circuit<F> for AuthDecodeCircuit {
 
         // INSTANCE COLUMNS
 
-        let deltas: [Column<Instance>; CELLS_PER_ROW] = (0..CELLS_PER_ROW)
+        let deltas: [Column<Instance>; BIT_COLUMNS] = (0..BIT_COLUMNS)
             .map(|_| meta.instance_column())
             .collect::<Vec<_>>()
             .try_into()
@@ -212,42 +173,33 @@ impl Circuit<F> for AuthDecodeCircuit {
             .collect::<Vec<_>>()
             .try_into()
             .unwrap();
-        let selector_sum4 = meta.selector();
-        let selector_sum2 = meta.selector();
-        let selector_add_plaintext_salt = meta.selector();
-        let selector_add_encoding_sum_salt = meta.selector();
-        let three_bits_zero = meta.selector();
+        let selector_sum = meta.selector();
+        let selector_three_bits_zero = meta.selector();
 
         // POSEIDON
 
         let poseidon_config_rate15 = configure_poseidon_rate_15::<Spec15>(15, meta);
         let poseidon_config_rate2 = configure_poseidon_rate_2::<Spec2>(2, meta);
-        // we need to designate one column for global constants which the Poseidon
-        // chip uses
+        // We need to designate one column for global constants which the Poseidon chip requires.
         let global_constants = meta.fixed_column();
         meta.enable_constant(global_constants);
 
-        // CONFIG
-
-        // Put everything initialized above into a config
-        let cfg = TopLevelConfig {
+        // Put everything initialized above into a config.
+        let cfg = CircuitConfig {
             bits,
             scratch_space,
             dot_product,
-            expected_limbs,
+            expected_composed_limbs: expected_limbs,
             salt,
             advice_from_instance,
 
             deltas,
 
             selector_dot_product,
-            selector_compose,
+            selector_compose_limb: selector_compose,
             selector_binary_check,
-            selector_sum4,
-            selector_sum2,
-            selector_add_plaintext_salt,
-            selector_add_encoding_sum_salt,
-            three_bits_zero,
+            selector_sum,
+            selector_three_bits_zero,
 
             poseidon_config_rate15,
             poseidon_config_rate2,
@@ -257,34 +209,45 @@ impl Circuit<F> for AuthDecodeCircuit {
 
         // MISC
 
-        // build Expressions containing powers of 2, to be used in some gates
-        let two = BigUint::from(2u8);
-        let pow_2_x: Vec<_> = (0..256)
-            .map(|i| Expression::Constant(biguint_to_f(&two.pow(i as u32))))
-            .collect();
+        // Build `Expression`s containing powers of 2 from the 0th to the 255th power.
+        let mut pow_2_x: Vec<F> = Vec::with_capacity(256);
+        let two = F::one() + F::one();
+        // Push 2^0.
+        pow_2_x.push(F::one());
+
+        for n in 1..256 {
+            // Push 2^n.
+            pow_2_x.push(pow_2_x[n - 1] * two);
+        }
+
+        let pow_2_x = pow_2_x
+            .into_iter()
+            .map(Expression::Constant)
+            .collect::<Vec<_>>();
 
         // GATES
 
-        // Computes the dot product of 2 sets of cells
-        meta.create_gate("dot product", |meta| {
+        // Computes the dot product of a vector of deltas and a vector of a limb's bitsa and
+        // constrains it to match the expected dot product.
+        meta.create_gate("dot_product", |meta| {
             let mut product = Expression::Constant(F::from(0));
 
-            for i in 0..CELLS_PER_ROW {
+            for i in 0..BIT_COLUMNS {
                 let delta = meta.query_instance(cfg.deltas[i], Rotation::cur());
                 let bit = meta.query_advice(cfg.bits[i], Rotation::cur());
                 product = product + delta * bit;
             }
 
-            // constrain to match the expected value
+            // Constrain to match the expected dot product.
             let expected = meta.query_advice(cfg.dot_product, Rotation::cur());
             let sel = meta.query_selector(cfg.selector_dot_product);
             vec![sel * (product - expected)]
         });
 
-        // Batch-checks binariness of multiple bits
-        meta.create_gate("binary check", |meta| {
-            // create one Expression for each cell to be checked
-            let expressions: [Expression<F>; CELLS_PER_ROW] = (0..CELLS_PER_ROW)
+        // Constrains each bit of a limb to be binary.
+        meta.create_gate("binary_check", |meta| {
+            // Create an `Expression` for each bit.
+            let expressions: [Expression<F>; BIT_COLUMNS] = (0..BIT_COLUMNS)
                 .map(|i| {
                     let bit = meta.query_advice(cfg.bits[i], Rotation::cur());
                     bit.clone() * bit.clone() - bit
@@ -294,62 +257,47 @@ impl Circuit<F> for AuthDecodeCircuit {
                 .unwrap();
             let sel = meta.query_selector(cfg.selector_binary_check);
 
-            // constrain all expressions to be equal to 0
+            // Constrain all expressions to be equal to 0.
             Constraints::with_selector(sel, expressions)
         });
 
-        // create 4 gates, each processing a different limb
+        // Create 4 gates for each of the 4 limbs of the plaintext bits, starting from the high limb.
         for idx in 0..4 {
-            // compose the bits of a 64-bit limb into a field element and shift the
-            // limb to the left depending in the limb's index `idx`
-            meta.create_gate("compose limb", |meta| {
+            // Compose the bits of a limb into a field element, left-shifting if necessary and
+            // constrain the result to match the expected value.
+            meta.create_gate("compose_limb", |meta| {
                 let mut sum_total = Expression::Constant(F::from(0));
 
-                for i in 0..CELLS_PER_ROW {
-                    // the first bit is the highest bit. It is multiplied by the
+                for i in 0..BIT_COLUMNS {
+                    // The first bit is the highest bit. It is multiplied by the
                     // highest power of 2 for that limb.
                     let bit = meta.query_advice(cfg.bits[i], Rotation::cur());
-                    sum_total = sum_total + bit * pow_2_x[255 - (CELLS_PER_ROW * idx) - i].clone();
+                    sum_total = sum_total + bit * pow_2_x[255 - (BIT_COLUMNS * idx) - i].clone();
                 }
 
-                // constrain to match the expected value
-                let expected = meta.query_advice(cfg.expected_limbs, Rotation::cur());
-                let sel = meta.query_selector(cfg.selector_compose[idx]);
+                // Constrain to match the expected limb value.
+                let expected = meta.query_advice(cfg.expected_composed_limbs, Rotation::cur());
+                let sel = meta.query_selector(cfg.selector_compose_limb[idx]);
                 vec![sel * (sum_total - expected)]
             });
         }
 
-        // sums 4 cells
-        meta.create_gate("sum4", |meta| {
+        // Sums 4 cells in the scratch space and constrains the sum to equal the expected value.
+        meta.create_gate("sum", |meta| {
             let mut sum = Expression::Constant(F::from(0));
 
             for i in 0..4 {
-                let dot_product = meta.query_advice(cfg.scratch_space[i], Rotation::cur());
-                sum = sum + dot_product;
+                let value = meta.query_advice(cfg.scratch_space[i], Rotation::cur());
+                sum = sum + value;
             }
 
-            // constrain to match the expected value
+            // Constrain to match the expected sum.
             let expected = meta.query_advice(cfg.scratch_space[4], Rotation::cur());
-            let sel = meta.query_selector(cfg.selector_sum4);
+            let sel = meta.query_selector(cfg.selector_sum);
             vec![sel * (sum - expected)]
         });
 
-        // sums 2 cells
-        meta.create_gate("sum2", |meta| {
-            let mut sum = Expression::Constant(F::from(0));
-
-            for i in 0..2 {
-                let dot_product = meta.query_advice(cfg.scratch_space[i], Rotation::cur());
-                sum = sum + dot_product;
-            }
-
-            // constrain to match the expected value
-            let expected = meta.query_advice(cfg.scratch_space[4], Rotation::cur());
-            let sel = meta.query_selector(cfg.selector_sum2);
-            vec![sel * (sum - expected)]
-        });
-
-        // Constrains 3 MSBs to be zero.
+        // Constrains 3 most significant bits of a limb to be zero.
         meta.create_gate("three_bits_zero", |meta| {
             let expressions: [Expression<F>; 3] = (0..3)
                 .map(|i| meta.query_advice(cfg.bits[i], Rotation::cur()))
@@ -357,7 +305,7 @@ impl Circuit<F> for AuthDecodeCircuit {
                 .try_into()
                 .unwrap();
 
-            let sel = meta.query_selector(cfg.three_bits_zero);
+            let sel = meta.query_selector(cfg.selector_three_bits_zero);
 
             // Constrain all expressions to be equal to 0.
             Constraints::with_selector(sel, expressions)
@@ -366,216 +314,204 @@ impl Circuit<F> for AuthDecodeCircuit {
         cfg
     }
 
-    // Creates the circuit
     fn synthesize(&self, cfg: Self::Config, mut layouter: impl Layouter<F>) -> Result<(), Error> {
-        let (label_sum_salted, plaintext_salted) = layouter.assign_region(
+        let (expected_plaintext_hash, expected_encoding_sum_hash, zero_sum) = layouter
+            .assign_region(
+                || "assign advice from instance",
+                |mut region| {
+                    let expected_plaintext_hash = region.assign_advice_from_instance(
+                        || "assign plaintext hash",
+                        cfg.public_inputs,
+                        0,
+                        cfg.advice_from_instance,
+                        0,
+                    )?;
+
+                    let expected_encoding_sum_hash = region.assign_advice_from_instance(
+                        || "assign encoding sum hash",
+                        cfg.public_inputs,
+                        1,
+                        cfg.advice_from_instance,
+                        1,
+                    )?;
+
+                    let zero_sum = region.assign_advice_from_instance(
+                        || "assign zero sum",
+                        cfg.public_inputs,
+                        2,
+                        cfg.advice_from_instance,
+                        2,
+                    )?;
+
+                    Ok((
+                        expected_plaintext_hash,
+                        expected_encoding_sum_hash,
+                        zero_sum,
+                    ))
+                },
+            )?;
+
+        let (encoding_sum_salted, plaintext_salted) = layouter.assign_region(
             || "main",
             |mut region| {
-                // dot products for each row
-                let mut assigned_dot_products = Vec::new();
-                // limb for each row
-                let mut assigned_limbs = Vec::new();
+                // Expected dot product for each vector of limb's bits and a corresponding vector
+                // of deltas.
+                let mut expected_dot_products = Vec::new();
+                // Expected value of each limb composed into a field element.
+                let mut expected_composed_limbs = Vec::new();
 
-                // plaintext salt
-                let assigned_plaintext_salt = region.assign_advice(
-                    || "",
+                // Assign plaintext salt to an advice column.
+                let plaintext_salt = region.assign_advice(
+                    || "assign plaintext salt",
                     cfg.salt,
                     0,
-                    || Value::known(self.plaintext_salt.unwrap()),
+                    || Value::known(self.plaintext_salt),
                 )?;
 
-                // encoding sum salt
-                let assigned_encoding_sum_salt = region.assign_advice(
-                    || "",
+                // Assign encoding sum salt to an advice column.
+                let encoding_sum_salt = region.assign_advice(
+                    || "assign encoding sum salt",
                     cfg.salt,
                     1,
-                    || Value::known(self.encoding_sum_salt.unwrap()),
+                    || Value::known(self.encoding_sum_salt),
                 )?;
 
                 for j in 0..FIELD_ELEMENTS {
-                    // decompose the private field element into bits
-                    let bits = bigint_to_256bits(f_to_bigint(&self.plaintext.unwrap()[j]));
+                    // It is safe to `unwrap` since there are always exactly FIELD_ELEMENTS * 4 limbs.
+                    let limb_bits: &[[F; 64]; 4] =
+                        &self.plaintext[j * 4..(j + 1) * 4].try_into().unwrap();
 
-                    let max_row = 4;
-
-                    for row in 0..max_row {
-                        // convert bits into field elements and put them on the same row
-                        for i in 0..CELLS_PER_ROW {
+                    // Process each limb's bits.
+                    for (limb_idx, limb_bits) in limb_bits.into_iter().enumerate() {
+                        // Assign all bits of the same limb to the same row.
+                        for i in 0..BIT_COLUMNS {
                             region.assign_advice(
-                                || "",
+                                || "assign limb bits",
                                 cfg.bits[i],
-                                j * 4 + row,
-                                || Value::known(F::from(bits[CELLS_PER_ROW * row + i])),
+                                j * 4 + limb_idx,
+                                || Value::known(limb_bits[i]),
                             )?;
                         }
-                        // constrain the whole row of bits to be binary
-                        cfg.selector_binary_check.enable(&mut region, j * 4 + row)?;
-                        if row == 0 {
-                            // Constrain the high limb's 3 MSB to be zero.
-                            cfg.three_bits_zero.enable(&mut region, j * 4 + row)?;
+                        // Constrain the whole row of bits to be binary.
+                        cfg.selector_binary_check
+                            .enable(&mut region, j * 4 + limb_idx)?;
+
+                        if limb_idx == 0 {
+                            // Constrain the high limb's 3 MSBs to be zero.
+                            cfg.selector_three_bits_zero
+                                .enable(&mut region, j * 4 + limb_idx)?;
                         }
 
-                        let limbs = bits_to_limbs(bits);
-                        // place expected limbs for each row
-                        assigned_limbs.push(region.assign_advice(
-                            || "",
-                            cfg.expected_limbs,
-                            j * 4 + row,
-                            || Value::known(biguint_to_f(&limbs[row].clone())),
+                        let expected_limb = compose_bits(&limb_bits, limb_idx);
+                        // Assign the expected composed limb.
+                        expected_composed_limbs.push(region.assign_advice(
+                            || "assign the expected composed limb",
+                            cfg.expected_composed_limbs,
+                            j * 4 + limb_idx,
+                            || Value::known(expected_limb),
                         )?);
-                        // constrain the expected limb to match what the gate
-                        // composes from bits
-                        cfg.selector_compose[row].enable(&mut region, j * 4 + row)?;
 
-                        // compute the expected dot product for this row
-                        let mut dot_product = F::from(0);
-                        for i in 0..CELLS_PER_ROW {
-                            dot_product += self.deltas[j * 4 + row][i]
-                                * F::from(bits[CELLS_PER_ROW * (row) + i]);
+                        // Constrain the expected limb to match the value which the gate composes.
+                        cfg.selector_compose_limb[limb_idx]
+                            .enable(&mut region, j * 4 + limb_idx)?;
+
+                        // Compute and assign the expected dot product.
+                        let mut expected_dot_product = Value::known(F::zero());
+                        for i in 0..BIT_COLUMNS {
+                            let delta = region.instance_value(cfg.deltas[i], j * 4 + limb_idx)?;
+                            expected_dot_product =
+                                expected_dot_product + delta * Value::known(F::from(limb_bits[i]));
                         }
 
-                        // place it into a cell for the expected dot_product
-                        assigned_dot_products.push(region.assign_advice(
-                            || "",
+                        expected_dot_products.push(region.assign_advice(
+                            || "assign expected dot product",
                             cfg.dot_product,
-                            j * 4 + row,
-                            || Value::known(dot_product),
+                            j * 4 + limb_idx,
+                            || expected_dot_product,
                         )?);
-                        // constrain the expected dot product to match what the gate computes
-                        cfg.selector_dot_product.enable(&mut region, j * 4 + row)?;
+
+                        // Constrain the expected dot product to match the value which the gate
+                        // computes.
+                        cfg.selector_dot_product
+                            .enable(&mut region, j * 4 + limb_idx)?;
                     }
                 }
 
-                // the grand sum of all dot products
-                // safe to .unwrap because we will always have exactly 58 dot_product
-                let (dot_product, mut offset) = self.compute_58_cell_sum(
-                    &assigned_dot_products.try_into().unwrap(),
+                // Row offset of the scratch space.
+                let mut offset = 0;
+
+                // Compute the grand sum of all dot products.
+                // It is safe to .unwrap since there will always be exactly 56 dot products.
+                let dot_product = self.sum_56_cells(
+                    &expected_dot_products.try_into().unwrap(),
                     &mut region,
                     &cfg,
-                    0,
-                )?;
-
-                // move `zero_sum` into `scratch_space` area to be used in computations
-                let zero_sum = region.assign_advice_from_instance(
-                    || "",
-                    cfg.public_inputs,
-                    2,
-                    cfg.scratch_space[0],
                     offset,
                 )?;
+                // 19 rows of scratch space will be used to sum 56 values.
+                offset += 19;
+
+                // Add zero sum and the grand dot products to get encoding sum.
+                let encoding_sum =
+                    self.sum(&[dot_product, zero_sum.clone()], &mut region, &cfg, offset)?;
                 offset += 1;
 
-                // add zero_sum to all dot_products to get label_sum
-                let label_sum =
-                    self.fold_sum(&[vec![dot_product, zero_sum]], &mut region, &cfg, offset)?[0]
-                        .clone();
-                offset += 1;
+                let encoding_sum_salted = vec![encoding_sum, encoding_sum_salt];
 
-                // add encoding sum salt
-                // let label_sum_salted = self.add_encoding_sum_salt(
-                //     label_sum,
-                //     assigned_encoding_sum_salt.clone(),
-                //     &mut region,
-                //     &cfg,
-                //     offset,
-                // )?;
-                // offset += 1;
-                let label_sum_salted = vec![label_sum, assigned_encoding_sum_salt];
-
-                // Constrains each chunks of 4 limbs to be equal to a cell and
-                // returns the constrained cells containing the original plaintext
-                // (the private input to the circuit).
-                let plaintext: Result<Vec<AssignedCell<F, F>>, Error> = assigned_limbs
+                let plaintext: Result<Vec<AssignedCell<F, F>>, Error> = expected_composed_limbs
                     .chunks(4)
                     .map(|c| {
-                        let sum =
-                            self.fold_sum(&[c.to_vec()], &mut region, &cfg, offset)?[0].clone();
+                        // Sum 4 limbs to get the plaintext field element.
+                        let field_element = self.sum(c, &mut region, &cfg, offset)?;
                         offset += 1;
-                        Ok(sum)
+                        Ok(field_element)
                     })
                     .collect();
                 let mut plaintext = plaintext?;
 
-                // add salt to the last field element of the plaintext
-                // let pt_len = plaintext.len();
-                // let last_with_salt = self.add_plaintext_salt(
-                //     plaintext[pt_len - 1].clone(),
-                //     assigned_plaintext_salt,
-                //     &mut region,
-                //     &cfg,
-                //     offset,
-                // )?;
-                // uncomment if we need to do more computations in the scratch space
-                // offset += 1;
+                plaintext.push(plaintext_salt);
 
-                // replace the last field element with the one with salt
-                // plaintext[pt_len - 1] = last_with_salt;
-
-                plaintext.push(assigned_plaintext_salt);
-
-                //println!("{:?} final `scratch_space` offset", offset);
-                Ok((label_sum_salted, plaintext))
+                Ok((encoding_sum_salted, plaintext))
             },
         )?;
 
-        // Hash the label sum and constrain the digest to match the public input
-
+        // Hash the salted encoding sum and constrain the digest to match the expected value.
         let chip = Pow5Chip::construct(cfg.poseidon_config_rate2.clone());
-
         let hasher = Hash::<F, _, Spec2, ConstantLength<2>, 3, 2>::init(
             chip,
-            layouter.namespace(|| "init"),
+            layouter.namespace(|| "init spec2 poseidon"),
         )?;
-        //println!("will hash sum {:?}", label_sum_salted);
-        //println!();
 
         let output = hasher.hash(
-            layouter.namespace(|| "hash"),
-            label_sum_salted.try_into().unwrap(),
+            layouter.namespace(|| "hash spec2 poseidon"),
+            encoding_sum_salted.try_into().unwrap(),
         )?;
 
         layouter.assign_region(
-            || "constrain output",
+            || "constrain encoding sum digest",
             |mut region| {
-                let expected = region.assign_advice_from_instance(
-                    || "",
-                    cfg.public_inputs,
-                    1,
-                    cfg.advice_from_instance,
-                    0,
-                )?;
-                region.constrain_equal(output.cell(), expected.cell())?;
+                region.constrain_equal(output.cell(), expected_encoding_sum_hash.cell())?;
                 Ok(())
             },
         )?;
 
-        // Hash the plaintext and constrain the digest to match the public input
-
+        // Hash the salted plaintext and constrain the digest to match the expected value.
         let chip = Pow5Chip::construct(cfg.poseidon_config_rate15.clone());
 
         let hasher = Hash::<F, _, Spec15, ConstantLength<15>, 16, 15>::init(
             chip,
-            layouter.namespace(|| "init"),
+            layouter.namespace(|| "init spec15 poseidon"),
         )?;
         // unwrap() is safe since we use exactly 15 field elements in plaintext
-        //println!("will hash plaintext {:?}", plaintext_salted);
-        //println!();
         let output = hasher.hash(
-            layouter.namespace(|| "hash"),
+            layouter.namespace(|| "hash spec15 poseidon"),
             plaintext_salted.try_into().unwrap(),
         )?;
 
         layouter.assign_region(
-            || "constrain output",
+            || "constrain plaintext digest",
             |mut region| {
-                let expected = region.assign_advice_from_instance(
-                    || "",
-                    cfg.public_inputs,
-                    0,
-                    cfg.advice_from_instance,
-                    1,
-                )?;
-                region.constrain_equal(output.cell(), expected.cell())?;
+                region.constrain_equal(output.cell(), expected_plaintext_hash.cell())?;
                 Ok(())
             },
         )?;
@@ -585,169 +521,147 @@ impl Circuit<F> for AuthDecodeCircuit {
 }
 
 impl AuthDecodeCircuit {
-    pub fn new(
-        plaintext: [F; FIELD_ELEMENTS],
-        plaintext_salt: F,
-        encoding_sum_salt: F,
-        deltas: [[F; CELLS_PER_ROW]; USEFUL_ROWS],
-    ) -> Self {
+    pub fn new(plaintext: [F; FIELD_ELEMENTS], plaintext_salt: F, encoding_sum_salt: F) -> Self {
+        // Split each field element into 4 64-bit limbs, starting from the high limb.
+
         Self {
-            plaintext: Some(plaintext),
-            plaintext_salt: Some(plaintext_salt),
-            encoding_sum_salt: Some(encoding_sum_salt),
-            deltas,
+            plaintext: plaintext
+                .into_iter()
+                .flat_map(|f| {
+                    f_to_bits(&f)
+                        .into_iter()
+                        // Convert each bit into a field element.
+                        .map(F::from)
+                        .collect::<Vec<_>>()
+                        .chunks(BIT_COLUMNS)
+                        .map(|chunk| chunk.try_into().unwrap())
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap(),
+            plaintext_salt,
+            encoding_sum_salt,
         }
     }
-    // Computes the sum of 58 `cells` and outputs the cell containing the sum
-    // and the amount of rows used up during computation.
-    // Computations are done in the `scratch_space` area starting at the `row_offset`
-    // row. Constrains all intermediate values as necessary, so that
-    // the resulting cell is a properly constrained sum.
-    fn compute_58_cell_sum(
+
+    /// Computes the sum of values in 56 `cells` and outputs the cell containing the sum.
+    ///
+    /// All values are copied into the scratch space starting at the `offset` row. All values are
+    /// properly constrained.
+    fn sum_56_cells(
         &self,
         cells: &[AssignedCell<F, F>; 56],
         region: &mut Region<F>,
-        config: &TopLevelConfig,
-        row_offset: usize,
-    ) -> Result<(AssignedCell<F, F>, usize), Error> {
-        let original_offset = row_offset;
-        let mut offset = row_offset;
-
-        // copy chunks of 4 cells to `scratch_space` and compute their sums
-        let l1_chunks: Vec<Vec<AssignedCell<F, F>>> = cells.chunks(4).map(|c| c.to_vec()).collect();
-
-        let l2_sums = self.fold_sum(&l1_chunks, region, config, offset)?;
-
-        offset += l1_chunks.len();
-
-        // we now have 14 level-2 subsums which need to be summed with each
-        // other in batches of 4.
-
-        let l2_chunks: Vec<Vec<AssignedCell<F, F>>> =
-            l2_sums.chunks(4).map(|c| c.to_vec()).collect();
-
-        // we now have 4 level-3 subsums which need to be summed with each
-        // other in batches of 4.
-        let l3_sums = self.fold_sum(&l2_chunks, region, config, offset)?;
-
-        offset += l2_chunks.len();
-
-        // 4 level-3 subsums into the final level-4 sum which is the final
-        // sum
-
-        let l3_chunks: Vec<Vec<AssignedCell<F, F>>> =
-            l3_sums.chunks(4).map(|c| c.to_vec()).collect();
-
-        let final_sum = self.fold_sum(&l3_chunks, region, config, offset)?[0].clone();
-
-        offset += 1;
-
-        Ok((final_sum, offset - original_offset))
-    }
-
-    // Puts the cells on the same row and computes their sum. Places the resulting
-    // cell into the 5th column of the `scratch_space` and returns it. Returns
-    // as many sums as there are chunks of cells.
-    fn fold_sum(
-        &self,
-        chunks: &[Vec<AssignedCell<F, F>>],
-        region: &mut Region<F>,
-        config: &TopLevelConfig,
-        row_offset: usize,
-    ) -> Result<Vec<AssignedCell<F, F>>, Error> {
-        (0..chunks.len())
-            .map(|i| {
-                let size = chunks[i].len();
-                assert!(size == 2 || size == 4);
-
-                let mut sum = Value::known(F::from(0));
-                // copy the cells onto the same row
-                for j in 0..size {
-                    chunks[i][j].copy_advice(
-                        || "",
-                        region,
-                        config.scratch_space[j],
-                        row_offset + i,
-                    )?;
-                    sum = sum + chunks[i][j].value();
-                }
-                let assigned_sum =
-                    region.assign_advice(|| "", config.scratch_space[4], row_offset + i, || sum)?;
-
-                // activate the gate which performs the actual constraining
-                if size == 4 {
-                    config.selector_sum4.enable(region, row_offset + i)?;
-                } else {
-                    config.selector_sum2.enable(region, row_offset + i)?;
-                }
-
-                Ok(assigned_sum)
-            })
-            .collect()
-    }
-
-    // Puts two cells on the same row. The second cell is the salt. Left-shifts
-    // the first cell's value by the size of the salt and adds the salt to it.
-    // Places the resulting cell into the 5th column of the `scratch_space` and
-    // returns it.
-    fn add_salt(
-        &self,
-        cell: AssignedCell<F, F>,
-        salt: AssignedCell<F, F>,
-        region: &mut Region<F>,
-        config: &TopLevelConfig,
-        row_offset: usize,
-        salt_size: usize,
+        config: &CircuitConfig,
+        mut offset: usize,
     ) -> Result<AssignedCell<F, F>, Error> {
-        // copy the cells onto the same row
-        cell.copy_advice(|| "", region, config.scratch_space[0], row_offset)?;
-        salt.copy_advice(|| "", region, config.scratch_space[1], row_offset)?;
+        // Split the 56 values into chunks of 4 and compute the sum of each chunk. We will have 14 sums
+        // in total.
+        let sums_14: Vec<AssignedCell<F, F>> = cells
+            .chunks(4)
+            .map(|cells| {
+                let sum = self.sum(cells, region, config, offset)?;
+                offset += 1;
+                Ok(sum)
+            })
+            .collect::<Result<Vec<_>, Error>>()?;
 
-        // compute the expected sum and put it into the 5th cell
-        let two = BigUint::from(2u8);
-        let pow_2_salt = biguint_to_f(&two.pow(salt_size as u32));
-        let sum = cell.value() * Value::known(pow_2_salt) + salt.value();
-        let assigned_sum =
-            region.assign_advice(|| "", config.scratch_space[4], row_offset, || sum)?;
+        // Split the 14 values into chunks of 4 and compute the sum of each chunk. We will have 4 sums
+        // in total.
+        let sums_4: Vec<AssignedCell<F, F>> = sums_14
+            .chunks(4)
+            .map(|cells| {
+                let sum = self.sum(cells, region, config, offset)?;
+                offset += 1;
+                Ok(sum)
+            })
+            .collect::<Result<Vec<_>, Error>>()?;
 
-        // activate the gate which performs the actual constraining
-        // TODO: this is a quick hack
-        if salt_size == SALT_SIZE {
-            config
-                .selector_add_plaintext_salt
-                .enable(region, row_offset)?;
-        } else {
-            config
-                .selector_add_encoding_sum_salt
-                .enable(region, row_offset)?;
+        // Sum up the 4 values to get the final sum.
+        self.sum(&sums_4, region, config, offset)
+    }
+
+    /// Computes the sum of values in `cells` and returns a cell with the sum.
+    ///
+    /// All values are copied into the scratch space starting at the `offset` row. All values are
+    /// properly constrained.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the amount of `cells` is less than 2 or more than 4.
+    fn sum(
+        &self,
+        cells: &[AssignedCell<F, F>],
+        region: &mut Region<F>,
+        config: &CircuitConfig,
+        row_offset: usize,
+    ) -> Result<AssignedCell<F, F>, Error> {
+        assert!(cells.len() <= 4 && cells.len() >= 2);
+
+        let mut sum = Value::known(F::zero());
+        // Copy the cells onto the same row and compute their sum.
+        for (i, cell) in cells.iter().enumerate() {
+            cell.copy_advice(
+                || "copying summands",
+                region,
+                config.scratch_space[i],
+                row_offset,
+            )?;
+            sum = sum + cell.value();
         }
+        // If there were less that 4 cells to sum, assign 0 to the unused cells.
+        for i in cells.len()..4 {
+            region.assign_advice(
+                || "assigning zero values",
+                config.scratch_space[i],
+                row_offset,
+                || Value::known(F::zero()),
+            )?;
+        }
+        let assigned_sum = region.assign_advice(
+            || "assigning the sum",
+            config.scratch_space[4],
+            row_offset,
+            || sum,
+        )?;
+
+        config.selector_sum.enable(region, row_offset)?;
 
         Ok(assigned_sum)
     }
-
-    fn add_plaintext_salt(
-        &self,
-        cell: AssignedCell<F, F>,
-        salt: AssignedCell<F, F>,
-        region: &mut Region<F>,
-        config: &TopLevelConfig,
-        row_offset: usize,
-    ) -> Result<AssignedCell<F, F>, Error> {
-        self.add_salt(cell, salt, region, config, row_offset, SALT_SIZE)
-    }
-
-    fn add_encoding_sum_salt(
-        &self,
-        cell: AssignedCell<F, F>,
-        salt: AssignedCell<F, F>,
-        region: &mut Region<F>,
-        config: &TopLevelConfig,
-        row_offset: usize,
-    ) -> Result<AssignedCell<F, F>, Error> {
-        self.add_salt(cell, salt, region, config, row_offset, SALT_SIZE)
-    }
 }
 
-/// The circuit is tested from [super::prover::tests]
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use halo2_proofs::dev::MockProver;
+    use rand::Rng;
+    use rand_chacha::ChaCha12Rng;
+    use rand_core::SeedableRng;
+    /// The size of plaintext in bytes;
+    const PLAINTEXT_SIZE: usize = 1000;
+
+    fn test() {
+        let mut rng = ChaCha12Rng::from_seed([0; 32]);
+
+        // Generate random plaintext.
+        let plaintext: Vec<bool> = core::iter::repeat_with(|| rng.gen::<bool>())
+            .take(PLAINTEXT_SIZE * 8)
+            .collect();
+
+        // Generate Verifier's full encodings for each bit of the plaintext.
+        let mut random = [0u8; PLAINTEXT_SIZE * 8 * 16 * 2];
+        for elem in random.iter_mut() {
+            *elem = rng.gen();
+        }
+        let full_encodings = &random
+            .chunks(32)
+            .map(|pair| [pair[0..16].to_vec(), pair[16..32].to_vec()])
+            .collect::<Vec<_>>();
+
+        // Prover's active encodings are based on their choice bits.
+        //let active_encodings = choose(full_encodings, &plaintext);
+
+        //MockProver::run
+    }
+}

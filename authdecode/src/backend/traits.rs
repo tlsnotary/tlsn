@@ -7,7 +7,10 @@ use crate::{
 };
 use num::{BigInt, BigUint};
 use serde::{Deserialize, Serialize};
-use std::ops::{Add, Sub};
+use std::{
+    any::Any,
+    ops::{Add, Sub},
+};
 
 /// A trait for zk proof generation backend.
 pub trait ProverBackend<F>
@@ -31,6 +34,10 @@ where
     /// include the [Salt] of the hash - which takes up the remaining least bits
     /// of the last field element of each chunk.
     fn chunk_size(&self) -> usize;
+
+    // Testing only. Used to downcast to a concrete type.
+    #[cfg(test)]
+    fn as_any(&self) -> &dyn Any;
 }
 
 /// A trait for zk proof verification backend.

@@ -8,6 +8,8 @@ use crate::{
     Proof,
 };
 
+use super::prover::ProofInput;
+
 /// Initial state.
 pub struct Initialized {}
 
@@ -46,6 +48,8 @@ where
 {
     pub commitments: Vec<CommitmentDetails<T, F>>,
     pub proofs: Vec<Proof>,
+    #[cfg(testdd)]
+    pub proof_inputs: Vec<ProofInput<F>>,
 }
 
 //opaque_debug::implement!(ProofCreated);

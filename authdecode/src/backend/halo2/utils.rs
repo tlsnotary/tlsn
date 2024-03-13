@@ -1,53 +1,157 @@
-use super::circuit::{CELLS_PER_ROW, USEFUL_ROWS};
 use crate::{
-    backend::halo2::CHUNK_SIZE,
+    backend::halo2::{
+        circuit::{BIT_COLUMNS, USABLE_ROWS},
+        CHUNK_SIZE,
+    },
     utils::{boolvec_to_u8vec, u8vec_to_boolvec},
 };
-use ff::{FromUniformBytes, PrimeField};
+use cfg_if::cfg_if;
+use ff::{Field, FromUniformBytes, PrimeField};
 use halo2_proofs::halo2curves::bn256::Fr as F;
 use num::{bigint::Sign, BigInt, BigUint, Signed};
 
-/// Decomposes a `BigUint` into bits and returns the bits in MSB-first bit order,
-/// left padding them with zeroes to the size of 256.
-/// The assumption is that `bigint` was sanitized earlier and is not larger
-/// than 256 bits
-pub fn bigint_to_256bits(bigint: BigUint) -> [bool; 256] {
-    let bits = u8vec_to_boolvec(&bigint.to_bytes_be());
-    let mut bits256 = [false; 256];
-    bits256[256 - bits.len()..].copy_from_slice(&bits);
-    bits256
-}
+#[cfg(test)]
+use crate::backend::halo2::prover::TEST_BINARY_CHECK_FAIL_IS_RUNNING;
 
-/// Converts a `BigUint` into an field element type.
-/// The assumption is that `bigint` was sanitized earlier and is not larger
-/// than [crate::verifier::Verify::field_size]
-pub fn biguint_to_f(biguint: &BigUint) -> F {
-    let le = biguint.to_bytes_le();
+/// Converts big-endian bytes into a field element by reducing by the modulus.
+///
+/// # Panics
+///
+/// Panics if the count of bytes is > 64.
+pub fn bytes_be_to_f(mut bytes: Vec<u8>) -> F {
+    bytes.reverse();
     let mut wide = [0u8; 64];
-    wide[0..le.len()].copy_from_slice(&le);
+    wide[0..bytes.len()].copy_from_slice(&bytes);
     F::from_uniform_bytes(&wide)
 }
 
-/// Converts a `BigInt` into an field element type.
-/// The assumption is that `bigint` was sanitized earlier and is not larger
-/// than [crate::verifier::Verify::field_size]
-pub fn bigint_to_f(bigint: &BigInt) -> F {
-    let sign = bigint.sign();
-    // Safe to unwrap since .abs() always returns a non-negative integer.
-    let f = biguint_to_f(&bigint.abs().to_biguint().unwrap());
-    if sign == Sign::Minus {
-        -f
-    } else {
-        f
-    }
+/// Converts bits in MSB-first order into a field element by reducing by the modulus.
+///
+/// # Panics
+///
+/// Panics if the count of bits is > 512.
+pub fn bits_to_f(bits: &[bool]) -> F {
+    bytes_be_to_f(boolvec_to_u8vec(bits))
 }
 
-/// Converts `F` into a `BigUint` type.
-/// The assumption is that the field is <= 256 bits
-pub fn f_to_bigint(f: &F) -> BigUint {
-    let tmp: [u8; 32] = f.try_into().unwrap();
-    BigUint::from_bytes_le(&tmp)
+/// Decomposes a field element into 256 bits in MSB-first bit order.
+pub fn f_to_bits(f: &F) -> [bool; 256] {
+    let mut bytes = f.to_bytes();
+    // Reverse to get bytes in big-endian.
+    bytes.reverse();
+    // It is safe to `unwrap` since 32 bytes will always convert to 256 bits.
+    u8vec_to_boolvec(&bytes).try_into().unwrap()
 }
+
+/// Converts a slice of `items` into a matrix in column-major order.
+///
+/// Each chunk of `chunk_size` items will be padded with the default value on the left in order to
+/// bring the size of the chunk to `pad_chunk_to_size`. All empty cells of the matrix will be filled
+/// with the default value.
+///
+/// # Panics
+///
+/// Panics if the matrix cannot be created.
+pub fn slice_to_columns<V>(
+    items: &[V],
+    chunk_size: usize,
+    pad_chunk_to_size: usize,
+    row_count: usize,
+    column_count: usize,
+) -> Vec<Vec<V>>
+where
+    V: Default + Clone,
+{
+    let total = row_count * column_count;
+    assert!(items.len() <= total && pad_chunk_to_size >= chunk_size);
+
+    // Pad each individual chunk.
+    let mut items = items
+        .chunks(chunk_size)
+        .flat_map(|chunk| {
+            let mut v = vec![V::default(); pad_chunk_to_size - chunk.len()];
+            v.extend(chunk.to_vec());
+            v
+        })
+        .collect::<Vec<_>>();
+
+    // Fill empty cells.
+    items.extend(vec![V::default(); total - items.len()]);
+
+    // Create a row-major matrix.
+    let items = items
+        .chunks(column_count)
+        .map(|c| c.to_vec())
+        .collect::<Vec<_>>();
+
+    assert!(items.len() == row_count);
+
+    // Transpose to column-major.
+    transpose_matrix(items)
+}
+
+/// Composes the 64 `bits` of a limb with the given `index` into a field element, left shifting if
+/// needed. `bits` are in MSB-first order. The limb with `index` 0 is the highest limb.
+///
+/// # Panics
+///
+/// Panics if limb index > 3 or if any of the `bits` is not a boolean value.
+#[allow(clippy::collapsible_else_if)]
+pub fn compose_bits(bits: &[F; 64], index: usize) -> F {
+    assert!(index < 4);
+    let bits = bits
+        .iter()
+        .map(|bit| {
+            if *bit == F::zero() {
+                false
+            } else if *bit == F::one() {
+                true
+            } else {
+                cfg_if! {
+                if #[cfg(test)] {
+                    if unsafe{TEST_BINARY_CHECK_FAIL_IS_RUNNING} {
+                        // Don't panic, use an arbitrary valid bit value.
+                        true
+                    } else {
+                        // For all other tests, panic as usual.
+                        panic!("field element is not a boolean value");
+                    }
+                }
+                else {
+                    panic!("field element is not a boolean value");
+                }
+                }
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let two = F::one() + F::one();
+
+    // Left-shift.
+    bits_to_f(&bits) * two.pow([((3 - index as u64) * 64).to_le()])
+}
+
+/// Transposes a matrix.
+///
+/// # Panics
+///
+/// Panics if `matrix` is not a rectangular matrix.
+fn transpose_matrix<V>(matrix: Vec<Vec<V>>) -> Vec<Vec<V>>
+where
+    V: Clone,
+{
+    (0..matrix[0].len())
+        .map(|i| {
+            matrix
+                .iter()
+                .map(|inner| inner[i].clone())
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>()
+}
+
+const CELLS_PER_ROW: usize = 64;
+const USEFUL_ROWS: usize = 56;
 
 /// Converts a vec of deltas into a matrix of rows and a matrix of
 /// columns and returns them.
@@ -71,37 +175,6 @@ pub fn deltas_to_matrices(
     let deltas_as_columns = transpose_rows(&deltas_as_rows);
 
     (deltas_as_rows, deltas_as_columns)
-}
-
-/// Splits up 256 bits into 4 limbs, shifts each limb left
-/// and returns the shifted limbs as `BigUint`s.
-pub fn bits_to_limbs(bits: [bool; 256]) -> [BigUint; 4] {
-    // break up the field element into 4 64-bit limbs
-    // the limb at index 0 is the high limb
-    let limbs: [BigUint; 4] = bits
-        .chunks(64)
-        .map(|c| BigUint::from_bytes_be(&boolvec_to_u8vec(c)))
-        .collect::<Vec<_>>()
-        .try_into()
-        .unwrap();
-
-    // shift each limb to the left:
-
-    let two = BigUint::from(2u8);
-    // how many bits to left-shift each limb by
-    let shift_by: [BigUint; 4] = [192, 128, 64, 0]
-        .iter()
-        .map(|s| two.pow(*s))
-        .collect::<Vec<_>>()
-        .try_into()
-        .unwrap();
-    limbs
-        .iter()
-        .zip(shift_by.iter())
-        .map(|(l, s)| l * s)
-        .collect::<Vec<_>>()
-        .try_into()
-        .unwrap()
 }
 
 /// To make handling inside the circuit simpler, we pad each chunk (except for
@@ -157,132 +230,48 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_bigint_to_256bits() {
-        use rand::{thread_rng, Rng};
-
-        // test with a fixed number
-        let res = bigint_to_256bits(BigUint::from(3u8));
-        let expected: [bool; 256] = [vec![false; 254], vec![true; 2]]
-            .concat()
-            .try_into()
-            .unwrap();
-        assert_eq!(res, expected);
-
-        // test with a random number
-        let mut rng = thread_rng();
-        let random_bits: Vec<bool> = core::iter::repeat_with(|| rng.gen::<bool>())
-            .take(256)
-            .collect();
-        let random_bits_digits = random_bits.iter().map(|b| *b as u8).collect::<Vec<_>>();
-        let b = BigUint::from_radix_be(&random_bits_digits, 2).unwrap();
-
-        let mut expected_bits: [bool; 256] = (0..256)
-            .map(|i| b.bit(i))
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap();
-        expected_bits.reverse();
-        assert_eq!(bigint_to_256bits(b), expected_bits);
+    fn test_bytes_be_to_f() {
+        assert_eq!(bytes_be_to_f(vec![1u8, 2u8]), F::from(258u64));
     }
 
     #[test]
-    fn test_biguint_to_f() {
-        // Test that the sum of 2 random `BigUint`s matches the sum of 2 field elements
-        use rand::{thread_rng, Rng};
-        let mut rng = thread_rng();
-
-        let random_bits: Vec<bool> = core::iter::repeat_with(|| rng.gen::<bool>())
-            .take(253)
-            .collect();
-        let random_bits_digits = random_bits.iter().map(|b| *b as u8).collect::<Vec<_>>();
-        let a = BigUint::from_radix_be(&random_bits_digits, 2).unwrap();
-
-        let random_bits: Vec<bool> = core::iter::repeat_with(|| rng.gen::<bool>())
-            .take(253)
-            .collect();
-        let random_bits_digits = random_bits.iter().map(|b| *b as u8).collect::<Vec<_>>();
-        let b = BigUint::from_radix_be(&random_bits_digits, 2).unwrap();
-
-        let c = a.clone() + b.clone();
-
-        let a_f = biguint_to_f(&a);
-        let b_f = biguint_to_f(&b);
-        let c_f = a_f + b_f;
-
-        assert_eq!(biguint_to_f(&c), c_f);
-    }
-
-    #[test]
-    fn test_f_to_bigint() {
-        // Test that the sum of 2 random `F`s matches the expected sum
-        use rand::{thread_rng, Rng};
-        let mut rng = thread_rng();
-
-        let a = rng.gen::<u128>();
-        let b = rng.gen::<u128>();
-
-        let res = f_to_bigint(&(F::from_u128(a) + F::from_u128(b)));
-        let expected: BigUint = BigUint::from(a) + BigUint::from(b);
-
-        assert_eq!(res, expected);
-    }
-
-    #[test]
-    fn test_bits_to_limbs() {
-        use std::str::FromStr;
-
-        let bits: [bool; 256] = [
-            vec![false; 63],
-            vec![true],
-            vec![false; 63],
-            vec![true],
-            vec![false; 63],
-            vec![true],
-            vec![false; 63],
-            vec![true],
-        ]
-        .concat()
-        .try_into()
-        .unwrap();
-        let res = bits_to_limbs(bits);
-        let expected = [
-            BigUint::from_str("6277101735386680763835789423207666416102355444464034512896")
-                .unwrap(),
-            BigUint::from_str("340282366920938463463374607431768211456").unwrap(),
-            BigUint::from_str("18446744073709551616").unwrap(),
-            BigUint::from_str("1").unwrap(),
+    fn test_bits_to_f() {
+        // 01 0000 0011 == 259
+        let bits = [
+            false, true, false, false, false, false, false, false, true, true,
         ];
-        assert_eq!(res, expected);
+        assert_eq!(bits_to_f(&bits), F::from(259u64));
     }
 
     #[test]
-    fn test_deltas_to_matrices() {
-        use super::CHUNK_SIZE;
+    fn test_f_to_bits() {
+        let mut bits = vec![false; 246];
+        bits.extend([
+            // 01 0000 0100 == 260
+            false, true, false, false, false, false, false, true, false, false,
+        ]);
+        let expected: [bool; 256] = bits.try_into().unwrap();
+        assert_eq!(f_to_bits(&F::from(260u64)), expected);
+    }
 
-        // all deltas except the penultimate one are 1. The penultimate delta is 2.
-        let deltas = [
-            vec![biguint_to_f(&BigUint::from(1u8)); CHUNK_SIZE - 2],
-            vec![biguint_to_f(&BigUint::from(2u8))],
-            vec![biguint_to_f(&BigUint::from(1u8))],
-        ]
-        .concat();
+    #[test]
+    fn test_slice_to_columns() {
+        let slice = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
-        let (deltas_as_rows, deltas_as_columns) = deltas_to_matrices(&deltas, 253);
-        let dar_concat = deltas_as_rows.concat();
-        let dac_concat = deltas_as_columns.concat();
-
-        // both matrices must contain equal amount of elements
-        assert_eq!(dar_concat.len(), dac_concat.len());
-
-        // 3 extra padding deltas were added 14 times
-        assert_eq!(dar_concat.len(), deltas.len() + 14 * 3);
-
-        // the penultimate element in the last row should be 2
-        let row = deltas_as_rows[deltas_as_rows.len() - 1];
-        assert_eq!(row[row.len() - 2], F::from(2));
-
-        // the last element in the penultimate column should be 2
-        let col = deltas_as_columns[deltas_as_columns.len() - 2];
-        assert_eq!(col[col.len() - 1], F::from(2));
+        // First the matrix will be padded and chunked.
+        // It will look like this in row-major order:
+        // 0 0 1 2
+        // 3 0 0 4
+        // 5 6 0 0
+        // 7 8 9 0
+        // 0 0 0 10
+        // Then it will be transposed to column-major order:
+        let expected = vec![
+            vec![0, 3, 5, 7, 0],
+            vec![0, 0, 6, 8, 0],
+            vec![1, 0, 0, 9, 0],
+            vec![2, 4, 0, 0, 10],
+        ];
+        assert_eq!(slice_to_columns(&slice, 3, 5, 5, 4), expected);
     }
 }

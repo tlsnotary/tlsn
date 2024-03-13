@@ -3,6 +3,7 @@ use crate::{
     bitid::IdSet,
     msgs::{Commit, Proofs, VerificationData},
     prover::{error::ProverError, state},
+    AsAny,
 };
 
 use super::{
@@ -164,4 +165,22 @@ where
             Proofs { proofs },
         ))
     }
+}
+
+impl<T, F> Prover<T, state::ProofCreated<T, F>, F>
+where
+    T: IdSet,
+    F: Field + Clone + std::ops::Sub<Output = F> + std::ops::Add<Output = F>,
+{
+    // Testing only. Returns the backend that can be downcast to a concrete type.
+    pub fn backend(self) -> Box<dyn Backend<F>> {
+        self.backend
+    }
+}
+
+use crate::backend::traits;
+pub trait NewTrait<F>: traits::ProverBackend<F> + AsAny
+where
+    F: Field,
+{
 }

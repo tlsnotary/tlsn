@@ -17,6 +17,8 @@ pub mod prover;
 pub mod utils;
 pub mod verifier;
 
+use std::any::Any;
+
 use serde::{Deserialize, Serialize};
 
 use crate::prover::prover::ProofInput;
@@ -43,42 +45,72 @@ impl InitData {
     }
 }
 
+pub trait AsAny {
+    fn as_any(&self) -> &dyn Any;
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{
+        backend::halo2::verifier,
+        bitid::IdSet,
         encodings::FullEncodings,
-        prover::{commitment::CommitmentData, prover::Prover},
+        prover::{
+            commitment::CommitmentData,
+            prover::{ProofInput, Prover},
+            state::ProofCreated,
+        },
         utils::choose,
         verifier::verifier::Verifier,
-        InitData,
+        AsAny, InitData, Proof,
     };
     use serde::Serialize;
 
     use crate::{
         backend::traits::{Field, ProverBackend, VerifierBackend},
         mock::{Direction, MockBitIds, MockEncodingProvider, MockEncodingVerifier},
+        msgs::Proofs,
+        verifier::state::VerifiedSuccessfully,
     };
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
     use rstest::rstest;
     use serde::de::DeserializeOwned;
-    use std::ops::{Add, Sub};
+    use std::{
+        any::Any,
+        cell::RefCell,
+        ops::{Add, Sub},
+    };
 
     /// The size of plaintext in bytes;
-    const PLAINTEXT_SIZE: usize = 1000;
+    const PLAINTEXT_SIZE: usize = 100;
 
-    #[rstest]
-    #[case(crate::backend::mock::tests::backend_pair())]
-    #[case(crate::backend::halo2::tests::backend_pair())]
-    // Tests the protocol with different backends.
-    fn test_authdecode<
-        F: Field + Add<Output = F> + Sub<Output = F> + Serialize + DeserializeOwned + Clone,
-    >(
-        #[case] pair: (
+    #[test]
+    // Tests the protocol with a mock backend.
+    fn test_mock_backend() {
+        run_authdecode(crate::backend::mock::tests::backend_pair());
+    }
+
+    #[test]
+    // Tests the protocol with halo2 backend.
+    fn test_halo2_backend() {
+        run_authdecode(crate::backend::halo2::tests::backend_pair());
+    }
+
+    // Runs the protocol with the given backends.
+    // Returns the prover and the verifier in their finalized state.
+    fn run_authdecode<F>(
+        pair: (
             impl ProverBackend<F> + 'static,
             impl VerifierBackend<F> + 'static,
         ),
-    ) {
+    ) -> (
+        Prover<MockBitIds, ProofCreated<MockBitIds, F>, F>,
+        Verifier<MockBitIds, VerifiedSuccessfully<MockBitIds, F>, F>,
+    )
+    where
+        F: Field + Add<Output = F> + Sub<Output = F> + Serialize + DeserializeOwned + Clone,
+    {
         let prover = Prover::new(Box::new(pair.0));
         let verifier = Verifier::new(Box::new(pair.1));
 
@@ -145,9 +177,118 @@ mod tests {
             .check(verification_data, MockEncodingVerifier::new(full_encodings))
             .unwrap();
 
-        let (_prover, proofs) = prover.prove().unwrap();
+        let (prover, proofs) = prover.prove().unwrap();
 
         // The verifier verifies the proofs.
-        let _verifier = verifier.verify(proofs).unwrap();
+        let verifier = verifier.verify(proofs).unwrap();
+
+        (prover, verifier)
+    }
+
+    pub trait BackendAsAny<F>: ProverBackend<F> + AsAny
+    where
+        F: Field,
+    {
+    }
+
+    // Returns valid `ProofInput`s for the given backend pair which can be used as a fixture in
+    // backend tests.
+    pub fn proof_inputs_for_backend<
+        F: Field + Add<Output = F> + Sub<Output = F> + Serialize + DeserializeOwned + Clone + 'static,
+    >(
+        prover: impl ProverBackend<F> + 'static,
+        verifier: impl VerifierBackend<F> + 'static,
+    ) -> Vec<ProofInput<F>> {
+        // Wrap the prover backend.
+        struct ProverBackendWrapper<F> {
+            prover: Box<dyn ProverBackend<F>>,
+            proof_inputs: RefCell<Option<Vec<ProofInput<F>>>>,
+        }
+
+        impl<F> ProverBackend<F> for ProverBackendWrapper<F>
+        where
+            F: Field
+                + Add<Output = F>
+                + Sub<Output = F>
+                + Serialize
+                + DeserializeOwned
+                + Clone
+                + 'static,
+        {
+            fn chunk_size(&self) -> usize {
+                self.prover.chunk_size()
+            }
+
+            fn commit_encoding_sum(
+                &self,
+                encoding_sum: F,
+            ) -> Result<(F, F), crate::prover::error::ProverError> {
+                self.prover.commit_encoding_sum(encoding_sum)
+            }
+
+            fn commit_plaintext(
+                &self,
+                plaintext: Vec<bool>,
+            ) -> Result<(F, F), crate::prover::error::ProverError> {
+                self.prover.commit_plaintext(plaintext)
+            }
+
+            fn prove(
+                &self,
+                input: Vec<ProofInput<F>>,
+            ) -> Result<Vec<crate::Proof>, crate::prover::error::ProverError> {
+                // Save proof inputs, return a dummy proof.
+                *self.proof_inputs.borrow_mut() = Some(input);
+                Ok(vec![Proof::new(&[0u8])])
+            }
+
+            fn as_any(&self) -> &dyn Any {
+                self
+            }
+        }
+
+        // Wrap the verifier backend.
+        struct VerifierBackendWrapper<F> {
+            verifier: Box<dyn VerifierBackend<F>>,
+        }
+
+        impl<F> VerifierBackend<F> for VerifierBackendWrapper<F>
+        where
+            F: Field + Add<Output = F> + Sub<Output = F> + Serialize + DeserializeOwned + Clone,
+        {
+            fn chunk_size(&self) -> usize {
+                self.verifier.chunk_size()
+            }
+
+            fn verify(
+                &self,
+                _inputs: Vec<crate::verifier::verifier::VerificationInputs<F>>,
+                _proofs: Vec<Proof>,
+            ) -> Result<(), crate::verifier::error::VerifierError> {
+                Ok(())
+            }
+        }
+
+        // Instantiate the backend pair.
+        let prover_wrapper = ProverBackendWrapper {
+            prover: Box::new(prover),
+            proof_inputs: RefCell::new(None),
+        };
+        let verifier_wrapper = VerifierBackendWrapper {
+            verifier: Box::new(verifier),
+        };
+
+        // Run the protocol.
+        let (prover, _) = run_authdecode((prover_wrapper, verifier_wrapper));
+
+        prover
+            .backend()
+            .as_any()
+            .downcast_ref::<ProverBackendWrapper<F>>()
+            .unwrap()
+            .proof_inputs
+            .borrow()
+            .clone()
+            .unwrap()
     }
 }
