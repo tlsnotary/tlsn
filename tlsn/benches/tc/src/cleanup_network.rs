@@ -1,7 +1,7 @@
 // Clean up the network namespaces and interface pair created by setup_network.rs
 
 use std::process::Command;
-use tlsn_benches::*;
+use tlsn_benches_tc::*;
 
 fn main() -> Result<(), std::io::Error> {
     // Delete interface pair

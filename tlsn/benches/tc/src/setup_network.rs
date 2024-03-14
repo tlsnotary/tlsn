@@ -2,7 +2,7 @@
 
 use std::process::Command;
 
-use tlsn_benches::{
+use tlsn_benches_tc::{
     PROVER_INTERFACE, PROVER_NAMESPACE, PROVER_SUBNET, VERIFIER_INTERFACE, VERIFIER_NAMESPACE,
     VERIFIER_SUBNET,
 };
