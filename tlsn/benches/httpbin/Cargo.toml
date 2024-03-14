@@ -1,7 +1,8 @@
 [package]
-name = "httpbin"
+name = "tlsn-benches-httpbin"
 version = "0.0.0"
 edition = "2021"
+publish = false
 
 [dependencies]
 notary-server = { path = "../../../notary-server/" }
