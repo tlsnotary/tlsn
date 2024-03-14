@@ -8,7 +8,7 @@ members = [
     "tlsn-server-fixture",
     "tests-integration",
     "examples",
-    "benches/*"
+    "benches",
 ]
 resolver = "2"
 

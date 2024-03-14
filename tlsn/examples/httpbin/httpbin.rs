@@ -3,9 +3,12 @@ use hyper::{body::Bytes, Request, StatusCode};
 use hyper_util::rt::TokioIo;
 use std::time::Instant;
 use tlsn_core::Direction;
-use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
-
+use tlsn_examples::{
+    arg_parse::{arg_parse, BenchOptions},
+    notarize::request_notarization,
+};
 use tlsn_prover::tls::{state, Prover, ProverConfig};
+use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 
 const SERVER_DOMAIN: &str = "httpbin.org";
 const NOTARY_HOST: &str = "notary.pse.dev";
@@ -14,12 +17,6 @@ const NOTARY_PORT: u16 = 443;
 // These MUST be identical to what the nightly deployment of the notary server has configured.
 const NOTARY_MAX_SENT: usize = 1 << 12;
 const NOTARY_MAX_RECV: usize = 1 << 14;
-
-mod arg_parse;
-mod notarize;
-
-use arg_parse::{arg_parse, BenchOptions};
-use notarize::request_notarization;
 
 #[tokio::main]
 async fn main() {
