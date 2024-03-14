@@ -1,6 +1,5 @@
 #!/bin/bash
 set -e
-export PATH=$PATH:/home/ubuntu/.cargo/bin
 
 APP_NAME=$(echo $APPLICATION_NAME | awk -F- '{ print $2 }')
 
