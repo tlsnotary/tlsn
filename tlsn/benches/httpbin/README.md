@@ -3,7 +3,7 @@
 This bench uses [httpbin](https://httpbin.org) to give some high level
 performance numbers for TLSNotary. It works under real network conditions by
 using the nightly deployment of the PSE Notary server and the
-https://httpbin.org/bytes/{size} endpoint.
+`https://httpbin.org/bytes/{size}` endpoint.
 
 # How to use
 You can use the default configuration just using `cargo run --release`. It is
