@@ -85,3 +85,8 @@ jobs:
       - name: Trigger Deployment
         run: |
           .github/scripts/deploy-server.sh ${{ steps.manipulate.outputs.env }} $GITHUB_REF_NAME
+
+      - name: Modify Proxy
+        if: ${{ steps.manipulate.outputs.env == 'stable' }}
+        run: |
+          .github/scripts/modify-proxy.sh
