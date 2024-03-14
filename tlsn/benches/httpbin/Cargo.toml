@@ -7,6 +7,7 @@ publish = false
 [dependencies]
 notary-server = { path = "../../../notary-server/" }
 tlsn-prover.workspace = true
+tlsn-core.workspace = true
 tlsn-tls-core.workspace = true
 webpki-roots.workspace = true
 http-body-util = "0.1"

@@ -2,9 +2,10 @@ use http_body_util::{BodyExt, Empty};
 use hyper::{body::Bytes, Request, StatusCode};
 use hyper_util::rt::TokioIo;
 use std::time::Instant;
+use tlsn_core::Direction;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 
-use tlsn_prover::tls::{Prover, ProverConfig};
+use tlsn_prover::tls::{state, Prover, ProverConfig};
 
 const SERVER_DOMAIN: &str = "httpbin.org";
 const NOTARY_HOST: &str = "notary.pse.dev";
@@ -26,8 +27,8 @@ async fn main() {
 
     while let Some(bench_options) = args.split_off() {
         println!(
-            "\nStarting timer for notarization with deferred decryption={:?} and size of {:?} bytes\n",
-            bench_options.defer_decryption, bench_options.size
+            "\nStarting timer for notarization with\n\tdeferred decryption={:?}\n\tsize={:?} bytes\n\tverify={:?}\n",
+            bench_options.defer_decryption, bench_options.size, bench_options.verify
         );
 
         let start_time = Instant::now();
@@ -116,14 +117,18 @@ async fn prove(options: BenchOptions, time: Instant) {
 
     // The Prover task should be done now, so we can grab it.
     let prover = prover_task.await.unwrap().unwrap();
-    print_with_time(
-        format!(
-            "Got response of {} bytes. Starting commitment phase",
-            payload.len()
-        ),
-        time,
-    );
+    print_with_time(format!("Got response of {} bytes.", payload.len()), time);
 
+    // Either notarize or verify
+    if options.verify {
+        verify(prover).await;
+    } else {
+        notarize(prover).await;
+    }
+    print_with_time("Finalized", time);
+}
+
+async fn notarize(prover: Prover<state::Closed>) {
     // Start commitment phase
     let mut prover = prover.start_notarize();
 
@@ -138,7 +143,22 @@ async fn prove(options: BenchOptions, time: Instant) {
 
     // Finalize
     prover.finalize().await.unwrap();
-    print_with_time("Finalized", time);
+}
+
+async fn verify(prover: Prover<state::Closed>) {
+    // Start verification phase
+    let mut prover = prover.start_prove();
+
+    let recv_len = prover.recv_transcript().data().len();
+    let sent_len = prover.sent_transcript().data().len();
+
+    prover.reveal(0..sent_len, Direction::Sent).unwrap();
+    prover.reveal(0..recv_len, Direction::Received).unwrap();
+
+    prover.prove().await.unwrap();
+
+    // Finalize
+    prover.finalize().await.unwrap();
 }
 
 fn print_with_time(input: impl ToString, time: Instant) {

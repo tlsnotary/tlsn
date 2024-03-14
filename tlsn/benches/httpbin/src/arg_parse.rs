@@ -2,11 +2,13 @@ use std::collections::VecDeque;
 
 pub struct Args {
     pub defer_decryption: bool,
+    pub verify: bool,
     pub sizes: VecDeque<usize>,
 }
 
 pub struct BenchOptions {
     pub defer_decryption: bool,
+    pub verify: bool,
     pub size: usize,
 }
 
@@ -18,6 +20,7 @@ impl Args {
 
         let options = BenchOptions {
             defer_decryption: self.defer_decryption,
+            verify: self.verify,
             size: self.sizes.pop_front().unwrap(),
         };
 
@@ -27,15 +30,15 @@ impl Args {
 
 // Parse command line arguments
 pub fn arg_parse() -> Args {
-    let args: Vec<String> = std::env::args().into_iter().collect();
+    let args: Vec<String> = std::env::args().collect();
 
     let defer_decryption = args.iter().any(|arg| arg == "--defer");
+    let verify = args.iter().any(|arg| arg == "--verify");
 
     let sizes_arg_position = args.iter().position(|arg| arg == "--size");
     let sizes = if let Some(pos) = sizes_arg_position {
         let sizes = args
-            .iter()
-            .nth(pos + 1)
+            .get(pos + 1)
             .expect("Should specify traffic size in bytes");
 
         sizes
@@ -51,6 +54,7 @@ pub fn arg_parse() -> Args {
 
     Args {
         defer_decryption,
+        verify,
         sizes,
     }
 }
