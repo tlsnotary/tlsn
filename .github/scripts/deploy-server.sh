@@ -4,7 +4,7 @@ set -ex
 environment=$1
 branch=$2
 
-INSTANCE_ID=$(aws ec2 describe-instances --filters Name=tag:Name,Values=[tlsnotary-backend] --query "Reservations[*].Instances[*][InstanceId]" --output text)
+INSTANCE_ID=$(aws ec2 describe-instances --filters Name=tag:Name,Values=[tlsnotary-backend] Name=instance-state-name,Values=[running] --query "Reservations[*].Instances[*][InstanceId]" --output text)
 aws ec2 create-tags --resources $INSTANCE_ID --tags "Key=$environment,Value=$branch"
 
 COMMIT_HASH=$(git rev-parse HEAD)
