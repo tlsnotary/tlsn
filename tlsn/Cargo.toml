@@ -8,7 +8,7 @@ members = [
     "tlsn-server-fixture",
     "tests-integration",
     "examples",
-    "benches",
+    "benches/*"
 ]
 resolver = "2"
 
@@ -19,6 +19,7 @@ tlsn-prover = { path = "tlsn-prover" }
 tlsn-verifier = { path = "tlsn-verifier" }
 tlsn-server-fixture = { path = "tlsn-server-fixture" }
 tlsn-formats = { path = "tlsn-formats" }
+tlsn-examples = { path = "examples" }
 
 tlsn-tls-core = { path = "../components/tls/tls-core" }
 tlsn-tls-mpc = { path = "../components/tls/tls-mpc" }
