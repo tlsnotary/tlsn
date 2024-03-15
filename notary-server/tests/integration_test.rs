@@ -43,6 +43,7 @@ fn get_server_config(port: u16, tls_enabled: bool) -> NotaryServerProperties {
             name: "tlsnotaryserver.io".to_string(),
             host: "127.0.0.1".to_string(),
             port,
+            html_info: "example html response".to_string(),
         },
         notarization: NotarizationProperties {
             max_transcript_size: 1 << 14,
