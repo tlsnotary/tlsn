@@ -10,7 +10,7 @@ pub enum VerifierError {
     #[error(transparent)]
     MuxerError(#[from] utils_aio::mux::MuxerError),
     #[error("error occurred in MPC protocol: {0}")]
-    MpcError(Box<dyn Error + Send + 'static>),
+    MpcError(Box<dyn Error + Send + Sync + 'static>),
     #[error("Range exceeds transcript length")]
     InvalidRange,
 }
