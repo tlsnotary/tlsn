@@ -40,7 +40,7 @@ pub struct ServerProperties {
     pub name: String,
     pub host: String,
     pub port: u16,
-    /// Static html response returned from API root endpoint "/". Example html response contains
+    /// Static html response returned from API root endpoint "/". Default html response contains
     /// placeholder strings that will be replaced with actual values in server.rs, e.g. {version}, {public_key}
     pub html_info: String,
 }
