@@ -282,14 +282,14 @@ fn load_authorization_whitelist(
 
 // Setup a watcher to detect any changes to authorization whitelist
 // When the list file is modified, the watcher thread will notify a tokio task to reload the whitelist
-// The watcher is setup in a separate thread by the notify synchronous library
+// The watcher is setup in a separate thread by the notify library which is synchronous
 fn watch_and_reload_authorization_whitelist(
     config: NotaryServerProperties,
     authorization_whitelist: Option<Arc<Mutex<HashMap<String, AuthorizationWhitelistRecord>>>>,
 ) -> Result<Option<RecommendedWatcher>> {
     // Only setup the watcher if auth whitelist is loaded
     let watcher = if let Some(authorization_whitelist) = authorization_whitelist {
-        // Using tokio unbounded channel sender to send event from synchronous watcher thread to async hot reload task
+        // Use tokio unbounded channel sender to send event from synchronous watcher thread to async hot reload task
         let (tx, mut rx) = mpsc::unbounded_channel();
         // Setup watcher by giving it a function that will be triggered when an event is detected
         let mut watcher = RecommendedWatcher::new(

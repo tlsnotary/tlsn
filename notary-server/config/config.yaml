@@ -5,7 +5,7 @@ server:
   html-info: |
     <h1>Notary Server {version}!</h1>
     <ul>
-    <li>git commit hash: {git_commit_hash}</a></li>
+    <li>git commit hash: <a href="https://github.com/tlsnotary/tlsn/commit/{git_commit_hash}">{git_commit_hash}</a></li>
     <li>git commit timestamp: {git_commit_timestamp}</li>
     <li>public key: <pre>{public_key}</pre></li>
     </ul>
