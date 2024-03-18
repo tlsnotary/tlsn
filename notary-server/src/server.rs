@@ -84,8 +84,7 @@ pub async fn run_server(config: &NotaryServerProperties) -> Result<(), NotarySer
     let watcher = watch_and_reload_authorization_whitelist(
         config.clone(),
         authorization_whitelist.as_ref().map(Arc::clone),
-    )
-    .await?;
+    )?;
     if watcher.is_some() {
         debug!("Successfully setup watcher for hot reload of authorization whitelist!");
     }
@@ -276,7 +275,6 @@ fn load_authorization_whitelist(
         .map_err(|err| eyre!("Failed to parse authorization whitelist csv: {:?}", err))?;
         // Convert the whitelist record into hashmap for faster lookup
         let whitelist_hashmap = authorization_whitelist_vec_into_hashmap(whitelist_csv);
-        debug!("Successfully loaded authorization whitelist!");
         Some(whitelist_hashmap)
     };
     Ok(authorization_whitelist)
@@ -285,7 +283,7 @@ fn load_authorization_whitelist(
 // Setup a watcher to detect any changes to authorization whitelist
 // When the list file is modified, the watcher thread will notify a tokio task to reload the whitelist
 // The watcher is setup in a separate thread by the notify synchronous library
-async fn watch_and_reload_authorization_whitelist(
+fn watch_and_reload_authorization_whitelist(
     config: NotaryServerProperties,
     authorization_whitelist: Option<Arc<Mutex<HashMap<String, AuthorizationWhitelistRecord>>>>,
 ) -> Result<Option<RecommendedWatcher>> {
@@ -333,6 +331,7 @@ async fn watch_and_reload_authorization_whitelist(
                 match load_authorization_whitelist(&config) {
                     Ok(Some(new_authorization_whitelist)) => {
                         *authorization_whitelist.lock().await = new_authorization_whitelist;
+                        info!("Successfully reloaded authorization whitelist!");
                     }
                     Ok(None) => unreachable!(
                         "Authorization whitelist will never be None as the auth module is enabled"
@@ -406,7 +405,6 @@ mod test {
             config.clone(),
             authorization_whitelist.as_ref().map(Arc::clone),
         )
-        .await
         .expect("Watcher should be able to be setup successfully")
         .expect("Watcher should be set up and not None");
 
