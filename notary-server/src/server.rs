@@ -315,7 +315,7 @@ fn watch_and_reload_authorization_whitelist(
         )
         .map_err(|err| eyre!("Error occured when setting up watcher for hot reload: {err}"))?;
 
-        // Start watcher to listen to whitelist file changes
+        // Start watcher to listen to any changes on the whitelist file
         watcher
             .watch(
                 Path::new(&config.authorization.whitelist_csv_path),
@@ -324,7 +324,7 @@ fn watch_and_reload_authorization_whitelist(
             .map_err(|err| eyre!("Error occured when starting up watcher for hot reload: {err}"))?;
 
         // Spawn an async task that is responsible for receiving event from sender in the watcher thread and
-        // reload the whitelist into the mutex protected authorization_whitelist
+        // reload the whitelist into the mutex-protected authorization_whitelist
         tokio::spawn(async move {
             debug!("Hot reload task is running...");
             while let Some(_event) = rx.recv().await {
@@ -346,7 +346,7 @@ fn watch_and_reload_authorization_whitelist(
         // Skip setup the watcher if auth whitelist is not loaded
         None
     };
-
+    // Need to return the watcher to parent function, else it will be dropped and stop listening
     Ok(watcher)
 }
 
@@ -381,9 +381,6 @@ mod test {
 
     #[tokio::test]
     async fn test_watch_and_reload_authorization_whitelist() {
-        // Setup logging
-        tracing_subscriber::fmt::try_init().ok();
-
         // Clone fixture auth whitelist for testing
         let original_whitelist_csv_path = "./fixture/auth/whitelist.csv";
         let whitelist_csv_path = "./fixture/auth/whitelist_copied.csv".to_string();
