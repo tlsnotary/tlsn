@@ -4,7 +4,7 @@ set -e
 
 GH_OWNER="tlsnotary"
 GH_REPO="tlsn"
-BACKEND_INSTANCE_ID=$(aws ec2 describe-instances --filters Name=tag:Name,Values=[tlsnotary-backend-dev] Name=instance-state-name,Values=[running] --query "Reservations[*].Instances[*][InstanceId]" --output text)
+BACKEND_INSTANCE_ID=$(aws ec2 describe-instances --filters Name=tag:Name,Values=[tlsnotary-backend-v1] Name=instance-state-name,Values=[running] --query "Reservations[*].Instances[*][InstanceId]" --output text)
 PROXY_INSTANCE_ID=$(aws ec2 describe-instances --filters Name=tag:Name,Values=[tlsnotary-web] Name=instance-state-name,Values=[running] --query "Reservations[*].Instances[*][InstanceId]" --output text)
 TAGS=$(aws ec2 describe-instances --instance-ids $BACKEND_INSTANCE_ID --query 'Reservations[*].Instances[*].Tags')
 
