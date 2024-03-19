@@ -1,5 +1,5 @@
 #!/bin/bash
-set -ex
+set -x
 
 APP_NAME=$(echo $APPLICATION_NAME | awk -F- '{ print $2 }')
 
