@@ -48,9 +48,8 @@ pub fn set_up() -> io::Result<()> {
 
 pub fn clean_up() {
     // Delete interface pair
-    if let Err(e) = Command::new("sudo")
+    if let Err(e) = Command::new("ip")
         .args(&[
-            "ip",
             "netns",
             "exec",
             PROVER_NAMESPACE,
@@ -65,15 +64,15 @@ pub fn clean_up() {
     }
 
     // Delete namespaces
-    if let Err(e) = Command::new("sudo")
-        .args(&["ip", "netns", "del", PROVER_NAMESPACE])
+    if let Err(e) = Command::new("ip")
+        .args(&["netns", "del", PROVER_NAMESPACE])
         .status()
     {
         println!("Error deleting namespace {}: {}", PROVER_NAMESPACE, e);
     }
 
-    if let Err(e) = Command::new("sudo")
-        .args(&["ip", "netns", "del", VERIFIER_NAMESPACE])
+    if let Err(e) = Command::new("ip")
+        .args(&["netns", "del", VERIFIER_NAMESPACE])
         .status()
     {
         println!("Error deleting namespace {}: {}", VERIFIER_NAMESPACE, e);
@@ -138,8 +137,8 @@ pub fn set_interface(interface: &str, egress: usize, burst: usize, delay: usize)
 /// Create a network namespace with the given name if it does not already exist.
 fn create_network_namespace(name: &str) -> io::Result<()> {
     // Check if namespace already exists
-    if Command::new("sudo")
-        .args(&["ip", "netns", "list"])
+    if Command::new("ip")
+        .args(&["netns", "list"])
         .output()?
         .stdout
         .windows(name.len())
@@ -149,9 +148,7 @@ fn create_network_namespace(name: &str) -> io::Result<()> {
         return Ok(());
     } else {
         println!("Creating namespace {}", name);
-        Command::new("sudo")
-            .args(&["ip", "netns", "add", name])
-            .status()?;
+        Command::new("ip").args(&["netns", "add", name]).status()?;
     }
 
     Ok(())
@@ -172,9 +169,8 @@ fn create_veth_pair(
     }
 
     // Create veth pair
-    Command::new("sudo")
+    Command::new("ip")
         .args(&[
-            "ip",
             "link",
             "add",
             left_interface,
@@ -199,8 +195,8 @@ fn create_veth_pair(
 }
 
 fn attach_interface_to_namespace(namespace: &str, interface: &str) -> io::Result<()> {
-    Command::new("sudo")
-        .args(&["ip", "link", "set", interface, "netns", namespace])
+    Command::new("ip")
+        .args(&["link", "set", interface, "netns", namespace])
         .status()?;
 
     println!("Attached {} to namespace {}", interface, namespace);
@@ -209,9 +205,9 @@ fn attach_interface_to_namespace(namespace: &str, interface: &str) -> io::Result
 }
 
 fn set_default_route(namespace: &str, interface: &str, ip: &str) -> io::Result<()> {
-    Command::new("sudo")
+    Command::new("ip")
         .args(&[
-            "ip", "netns", "exec", namespace, "ip", "route", "add", "default", "via", ip, "dev",
+            "netns", "exec", namespace, "ip", "route", "add", "default", "via", ip, "dev",
             interface,
         ])
         .status()?;
@@ -228,9 +224,9 @@ fn is_interface_present_in_namespace(
     namespace: &str,
     interface: &str,
 ) -> Result<bool, std::io::Error> {
-    Ok(Command::new("sudo")
+    Ok(Command::new("ip")
         .args(&[
-            "ip", "netns", "exec", namespace, "ip", "link", "list", "dev", interface,
+            "netns", "exec", namespace, "ip", "link", "list", "dev", interface,
         ])
         .output()?
         .stdout
@@ -239,9 +235,9 @@ fn is_interface_present_in_namespace(
 }
 
 fn set_device_up(namespace: &str, interface: &str) -> io::Result<()> {
-    Command::new("sudo")
+    Command::new("ip")
         .args(&[
-            "ip", "netns", "exec", namespace, "ip", "link", "set", interface, "up",
+            "netns", "exec", namespace, "ip", "link", "set", interface, "up",
         ])
         .status()?;
 
@@ -249,9 +245,9 @@ fn set_device_up(namespace: &str, interface: &str) -> io::Result<()> {
 }
 
 fn assign_ip_to_interface(namespace: &str, interface: &str, ip: &str) -> io::Result<()> {
-    Command::new("sudo")
+    Command::new("ip")
         .args(&[
-            "ip", "netns", "exec", namespace, "ip", "addr", "add", ip, "dev", interface,
+            "netns", "exec", namespace, "ip", "addr", "add", ip, "dev", interface,
         ])
         .status()?;
 
