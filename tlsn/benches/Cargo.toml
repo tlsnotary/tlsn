@@ -21,19 +21,19 @@ tokio = { workspace = true, features = [
 ] }
 tokio-util.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
+anyhow = "1.0"
+serde.workspace = true
+toml = "0.8.11"
+csv = "1.3.0"
 
 [[bin]]
-name = "setup_network"
-path = "src/setup_network.rs"
-
-[[bin]]
-name = "cleanup_network"
-path = "src/cleanup_network.rs"
+name = "bench"
+path = "bin/bench.rs"
 
 [[bin]]
 name = "prover"
-path = "src/prover.rs"
+path = "bin/prover.rs"
 
 [[bin]]
 name = "verifier"
-path = "src/verifier.rs"
+path = "bin/verifier.rs"
