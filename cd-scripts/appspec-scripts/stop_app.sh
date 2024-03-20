@@ -1,4 +1,5 @@
 #!/bin/bash
+# AWS CodeDeploy hook sequence: https://docs.aws.amazon.com/codedeploy/latest/userguide/reference-appspec-file-structure-hooks.html#appspec-hooks-server
 set -x
 
 APP_NAME=$(echo $APPLICATION_NAME | awk -F- '{ print $2 }')
