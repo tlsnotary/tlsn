@@ -11,7 +11,7 @@ TAGS=$(aws ec2 describe-instances --instance-ids $BACKEND_INSTANCE_ID --query 'R
 TAG=$(echo $TAGS | jq -r '.[][][] | select(.Key == "stable").Value')
 PORT=$(echo $TAGS | jq -r '.[][][] | select(.Key == "port").Value')
 
-COMMAND_ID=$(aws ssm send-command --document-name "AWS-RunRemoteScript" --instance-ids $PROXY_INSTANCE_ID --parameters '{"sourceType":["GitHub"],"sourceInfo":["{\"owner\":\"'${GH_OWNER}'\", \"repository\":\"'${GH_REPO}'\", \"getOptions\":\"branch:'${TAG}'\", \"path\": \"scripts\"}"],"commandLine":["modify_proxy.sh '${PORT}' '${TAG}' "]}' --output text --query "Command.CommandId")
+COMMAND_ID=$(aws ssm send-command --document-name "AWS-RunRemoteScript" --instance-ids $PROXY_INSTANCE_ID --parameters '{"sourceType":["GitHub"],"sourceInfo":["{\"owner\":\"'${GH_OWNER}'\", \"repository\":\"'${GH_REPO}'\", \"getOptions\":\"branch:'${TAG}'\", \"path\": \"cd-scripts\"}"],"commandLine":["modify_proxy.sh '${PORT}' '${TAG}' "]}' --output text --query "Command.CommandId")
 
 while true; do
   SSM_STATUS=$(aws ssm list-command-invocations --command-id $COMMAND_ID --details --query "CommandInvocations[].Status" --output text)
