@@ -1,4 +1,5 @@
 #!/bin/bash
+# Port tagging will also be used to manipulate proxy server via modify_proxy.sh script
 set -x
 
 TAG=$(curl http://169.254.169.254/latest/meta-data/tags/instance/stable)
