@@ -125,7 +125,7 @@
     <span class="attr">#[error(transparent)]
     </span>InvalidServerName(<span class="attr">#[from] </span>tls_core::dns::InvalidDnsNameError),
     <span class="attr">#[error(<span class="string">"error occurred in MPC protocol: {0}"</span>)]
-    </span>MpcError(Box&lt;<span class="kw">dyn </span>Error + Send + <span class="lifetime">'static</span>&gt;),
+    </span>MpcError(Box&lt;<span class="kw">dyn </span>Error + Send + Sync + <span class="lifetime">'static</span>&gt;),
     <span class="attr">#[error(<span class="string">"server did not send a close_notify"</span>)]
     </span>ServerNoCloseNotify,
     <span class="attr">#[error(transparent)]

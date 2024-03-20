@@ -75,7 +75,7 @@
     <span class="attr">#[error(transparent)]
     </span>MuxerError(<span class="attr">#[from] </span>utils_aio::mux::MuxerError),
     <span class="attr">#[error(<span class="string">"error occurred in MPC protocol: {0}"</span>)]
-    </span>MpcError(Box&lt;<span class="kw">dyn </span>Error + Send + <span class="lifetime">'static</span>&gt;),
+    </span>MpcError(Box&lt;<span class="kw">dyn </span>Error + Send + Sync + <span class="lifetime">'static</span>&gt;),
     <span class="attr">#[error(<span class="string">"Range exceeds transcript length"</span>)]
     </span>InvalidRange,
 }
