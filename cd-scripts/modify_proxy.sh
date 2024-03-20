@@ -1,4 +1,5 @@
 #!/bin/bash
+# This script is executed on proxy side, in order to assign the available port to latest stable version
 set -e
  
 PORT=$1
