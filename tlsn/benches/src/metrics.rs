@@ -3,12 +3,19 @@ use serde::Serialize;
 #[derive(Debug, Clone, Serialize)]
 pub struct Metrics {
     pub name: String,
+    /// Upload bandwidth in Mbps.
     pub upload: usize,
+    /// Upload latency in ms.
     pub upload_delay: usize,
+    /// Download bandwidth in Mbps.
     pub download: usize,
+    /// Download latency in ms.
     pub download_delay: usize,
+    /// Total bytes sent to the server.
     pub upload_size: usize,
+    /// Total bytes received from the server.
     pub download_size: usize,
+    /// Whether deferred decryption was used.
     pub defer_decryption: bool,
     /// The total runtime of the benchmark in seconds.
     pub runtime: u64,
