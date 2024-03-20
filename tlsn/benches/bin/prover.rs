@@ -50,28 +50,28 @@ async fn main() -> anyhow::Result<()> {
         .append(true)
         .open("metrics.csv")
         .context("failed to open metrics file")?;
-    let mut metric_wtr = csv::Writer::from_writer(&mut file);
 
-    for bench in config.benches {
-        let instances = bench.flatten();
-        for instance in instances {
-            println!("{:?}", &instance);
+    {
+        let mut metric_wtr = csv::Writer::from_writer(&mut file);
+        for bench in config.benches {
+            let instances = bench.flatten();
+            for instance in instances {
+                println!("{:?}", &instance);
 
-            let io = tokio::net::TcpStream::connect(verifier_host)
-                .await
-                .context("failed to open tcp connection")?;
-            metric_wtr.serialize(
-                run_instance(instance, io)
+                let io = tokio::net::TcpStream::connect(verifier_host)
                     .await
-                    .context("failed to run instance")?,
-            )?;
-            metric_wtr.flush()?;
+                    .context("failed to open tcp connection")?;
+                metric_wtr.serialize(
+                    run_instance(instance, io)
+                        .await
+                        .context("failed to run instance")?,
+                )?;
+                metric_wtr.flush()?;
+            }
         }
     }
 
-    drop(metric_wtr);
     file.flush()?;
-    drop(file);
 
     Ok(())
 }
