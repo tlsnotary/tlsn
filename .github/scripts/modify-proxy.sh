@@ -1,4 +1,5 @@
 #!/bin/bash
+# This script is triggered by Deploy server workflow in order to send an execution command of cd-scripts/modify_proxy.sh via AWS SSM to the proxy server
 
 set -e
 
