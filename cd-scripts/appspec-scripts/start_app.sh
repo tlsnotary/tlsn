@@ -1,6 +1,6 @@
 #!/bin/bash
 # Port tagging will also be used to manipulate proxy server via modify_proxy.sh script
-set -x
+set -ex
 
 TAG=$(curl http://169.254.169.254/latest/meta-data/tags/instance/stable)
 APP_NAME=$(echo $APPLICATION_NAME | awk -F- '{ print $2 }')
@@ -8,7 +8,7 @@ APP_NAME=$(echo $APPLICATION_NAME | awk -F- '{ print $2 }')
 if [ $APP_NAME = "stable" ]; then
   STABLE_PORTS="7047 7057 7067"
   for PORT in $STABLE_PORTS; do
-    PORT_LISTENING=$(netstat -lnt4 | egrep -cw $PORT)
+    PORT_LISTENING=$(netstat -lnt4 | egrep -cw $PORT || true)
     if [ $PORT_LISTENING -eq 0 ]; then
       cd ~/${APP_NAME}_${TAG}/tlsn/notary-server
       target/release/notary-server --config-file ~/.notary/${APP_NAME}_${PORT}/config.yaml &> ~/${APP_NAME}_${TAG}/tlsn/notary.log &

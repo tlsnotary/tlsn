@@ -1,6 +1,6 @@
 #!/bin/bash
 # AWS CodeDeploy hook sequence: https://docs.aws.amazon.com/codedeploy/latest/userguide/reference-appspec-file-structure-hooks.html#appspec-hooks-server
-set -x
+set -ex
 
 APP_NAME=$(echo $APPLICATION_NAME | awk -F- '{ print $2 }')
 
@@ -25,12 +25,12 @@ if [ $APP_NAME = "stable" ]; then
 
     echo "The oldest version is running under: $OLDEST_DIR"
     PID=$(lsof $OLDEST_DIR/tlsn/notary-server/target/release/notary-server | awk '{ print $2 }' | tail -1)
-    kill -15 $PID
+    kill -15 $PID || true
     rm -rf  $OLDEST_DIR
   fi
 else
   PID=$(pgrep -f notary.*$APP_NAME)
-  kill -15 $PID
+  kill -15 $PID || true
 fi
 
 exit 0
