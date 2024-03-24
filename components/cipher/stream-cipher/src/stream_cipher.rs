@@ -10,7 +10,7 @@ use utils::id::NestedId;
 use crate::{
     cipher::CtrCircuit,
     circuit::build_array_xor,
-    config::{ExecutionMode, InputText, StreamCipherConfig},
+    config::{is_valid_mode, ExecutionMode, InputText, StreamCipherConfig},
     keystream::KeyStream,
     StreamCipher, StreamCipherError,
 };
@@ -143,6 +143,11 @@ where
         input_text: InputText,
         keystream: ValueRef,
     ) -> Result<ValueRef, StreamCipherError> {
+        debug_assert!(
+            is_valid_mode(&mode, &input_text),
+            "invalid execution mode for input text"
+        );
+
         let thread = self.thread_pool.get_mut();
         let input_text = match input_text {
             InputText::Public { ids, text } => {
