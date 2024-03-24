@@ -35,7 +35,7 @@ struct State<C> {
     keystream: KeyStream<C>,
     /// Current transcript.
     transcript: Transcript,
-    /// Transcript state.
+    /// Maps a transcript ID to the corresponding transcript.
     transcripts: HashMap<String, Transcript>,
     /// Number of messages operated on.
     counter: usize,
@@ -53,8 +53,14 @@ struct KeyAndIv {
     iv: Vec<u8>,
 }
 
+/// A subset of plaintext bytes processed by the stream cipher.
+///
+/// Note that `Transcript` does not store the actual bytes. Instead, it provides IDs which are
+/// assigned to plaintext bytes of the stream cipher.
 struct Transcript {
+    /// The ID of this transcript.
     id: String,
+    /// The ID for the next plaintext byte.
     plaintext: NestedId,
 }
 
@@ -97,6 +103,7 @@ where
         }
     }
 
+    /// Computes a keystream of the given length.
     async fn compute_keystream(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -129,6 +136,7 @@ where
         Ok(keystream)
     }
 
+    /// Applies the keystream to the provided input text.
     async fn apply_keystream(
         &mut self,
         mode: ExecutionMode,

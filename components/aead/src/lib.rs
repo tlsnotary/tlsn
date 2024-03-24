@@ -70,7 +70,7 @@ pub trait Aead: Send {
     /// The state of a transcript counter is preserved between calls to `set_transcript_id`.
     fn set_transcript_id(&mut self, id: &str);
 
-    /// Preprocesses the given number of bytes.
+    /// Preprocesses for the given number of bytes.
     async fn preprocess(&mut self, len: usize) -> Result<(), AeadError>;
 
     /// Performs any necessary one-time setup for the AEAD.

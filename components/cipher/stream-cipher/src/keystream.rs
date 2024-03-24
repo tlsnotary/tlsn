@@ -226,6 +226,7 @@ where
         .map_err(StreamCipherError::from)
 }
 
+/// Computes one block of the keystream.
 async fn compute_block<T, C>(
     thread: &mut T,
     mode: ExecutionMode,
@@ -251,6 +252,10 @@ where
                 .await?;
         }
         ExecutionMode::Prove => {
+            // Note that after the circuit execution, the value of `block` can be considered as
+            // implicitly authenticated since `key` and `iv` have already been authenticated earlier
+            // and `nonce_ref` and `ctr_ref` are public.
+            // [Prove::prove] will **not** be called on `block` at any later point.
             thread
                 .execute_prove(C::circuit(), &[key, iv, nonce_ref, ctr_ref], &[block])
                 .await?;
