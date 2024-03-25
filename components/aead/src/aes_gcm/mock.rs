@@ -1,7 +1,7 @@
 //! Mock implementation of AES-GCM for testing purposes.
 
 use block_cipher::{BlockCipherConfig, MpcBlockCipher};
-use mpz_garble::{Decode, DecodePrivate, Execute, Memory, Prove, Verify, Vm};
+use mpz_garble::{Decode, DecodePrivate, Execute, Load, Memory, Prove, Verify, Vm};
 use tlsn_stream_cipher::{MpcStreamCipher, StreamCipherConfig};
 use tlsn_universal_hash::ghash::{mock_ghash_pair, GhashConfig};
 use utils_aio::duplex::MemoryDuplex;
@@ -26,7 +26,8 @@ pub async fn create_mock_aes_gcm_pair<T>(
 ) -> (MpcAesGcm, MpcAesGcm)
 where
     T: Vm + Send,
-    <T as Vm>::Thread: Memory + Execute + Decode + DecodePrivate + Prove + Verify + Send + Sync,
+    <T as Vm>::Thread:
+        Memory + Execute + Load + Decode + DecodePrivate + Prove + Verify + Send + Sync,
 {
     let block_cipher_id = format!("{}/block_cipher", id);
     let leader_block_cipher = MpcBlockCipher::new(

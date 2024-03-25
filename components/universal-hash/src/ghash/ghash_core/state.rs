@@ -1,4 +1,4 @@
-use mpz_share_conversion_core::fields::gf2_128::Gf2_128;
+use mpz_fields::gf2_128::Gf2_128;
 
 mod sealed {
     pub(crate) trait Sealed {}

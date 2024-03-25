@@ -193,11 +193,6 @@ impl Aead for MpcAesGcm {
         self.aes_block.set_key(key.clone());
         self.aes_ctr.set_key(key, iv);
 
-        // Share zero block
-        let h_share = self.aes_block.encrypt_share(vec![0u8; 16]).await?;
-
-        self.ghash.set_key(h_share).await?;
-
         Ok(())
     }
 
@@ -219,6 +214,18 @@ impl Aead for MpcAesGcm {
 
     fn set_transcript_id(&mut self, id: &str) {
         self.aes_ctr.set_transcript_id(id)
+    }
+
+    async fn preprocess(&mut self, len: usize) -> Result<(), AeadError> {
+        self.aes_ctr.preprocess(len).await.map_err(AeadError::from)
+    }
+
+    async fn setup(&mut self) -> Result<(), AeadError> {
+        // Share zero block
+        let h_share = self.aes_block.encrypt_share(vec![0u8; 16]).await?;
+        self.ghash.set_key(h_share).await?;
+
+        Ok(())
     }
 
     #[cfg_attr(
@@ -514,6 +521,8 @@ mod tests {
             follower.set_key(follower_key, follower_iv)
         )
         .unwrap();
+
+        futures::try_join!(leader.setup(), follower.setup()).unwrap();
 
         ((leader, follower), (leader_vm, follower_vm))
     }

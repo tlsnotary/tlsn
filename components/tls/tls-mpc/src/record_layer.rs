@@ -47,6 +47,24 @@ impl Encrypter {
         Ok(())
     }
 
+    pub(crate) async fn preprocess(&mut self, len: usize) -> Result<(), MpcTlsError> {
+        self.aead
+            .preprocess(len)
+            .await
+            .map_err(|e| MpcTlsError::new_with_source(Kind::Encrypt, "preprocess error", e))?;
+
+        Ok(())
+    }
+
+    pub(crate) async fn setup(&mut self) -> Result<(), MpcTlsError> {
+        self.aead
+            .setup()
+            .await
+            .map_err(|e| MpcTlsError::new_with_source(Kind::Encrypt, "setup error", e))?;
+
+        Ok(())
+    }
+
     pub(crate) async fn encrypt_private(
         &mut self,
         msg: PlainMessage,
@@ -189,6 +207,24 @@ impl Decrypter {
         self.aead.set_key(key, iv).await.map_err(|e| {
             MpcTlsError::new_with_source(Kind::Decrypt, "error setting decryption key", e)
         })?;
+
+        Ok(())
+    }
+
+    pub(crate) async fn preprocess(&mut self, len: usize) -> Result<(), MpcTlsError> {
+        self.aead
+            .preprocess(len)
+            .await
+            .map_err(|e| MpcTlsError::new_with_source(Kind::Decrypt, "preprocess error", e))?;
+
+        Ok(())
+    }
+
+    pub(crate) async fn setup(&mut self) -> Result<(), MpcTlsError> {
+        self.aead
+            .setup()
+            .await
+            .map_err(|e| MpcTlsError::new_with_source(Kind::Decrypt, "setup error", e))?;
 
         Ok(())
     }

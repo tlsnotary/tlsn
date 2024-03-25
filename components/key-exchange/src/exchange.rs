@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use mpz_garble::{value::ValueRef, Decode, Execute, Load, Memory};
 
-use mpz_share_conversion_core::fields::{p256::P256, Field};
+use mpz_fields::{p256::P256, Field};
 use p256::{EncodedPoint, PublicKey, SecretKey};
 use point_addition::PointAddition;
 use std::fmt::Debug;
@@ -428,13 +428,13 @@ where
 mod tests {
     use super::*;
 
+    use mpz_fields::{p256::P256, Field};
     use mpz_garble::{
         protocol::deap::mock::{
             create_mock_deap_vm, MockFollower, MockFollowerThread, MockLeader, MockLeaderThread,
         },
         Vm,
     };
-    use mpz_share_conversion_core::fields::{p256::P256, Field};
     use p256::{NonZeroScalar, PublicKey, SecretKey};
     use rand_chacha::ChaCha20Rng;
     use rand_core::SeedableRng;

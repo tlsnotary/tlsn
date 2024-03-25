@@ -381,6 +381,8 @@ async fn test_components() {
     )
     .unwrap();
 
+    tokio::try_join!(leader_aead.setup(), follower_aead.setup()).unwrap();
+
     let msg = vec![0u8; 4096];
 
     let _ = tokio::try_join!(

@@ -23,7 +23,7 @@ pub(crate) mod state;
 
 pub(crate) use self::core::GhashCore;
 
-use mpz_share_conversion_core::fields::{compute_product_repeated, gf2_128::Gf2_128};
+use mpz_fields::{compute_product_repeated, gf2_128::Gf2_128};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -101,7 +101,7 @@ mod tests {
         GHash,
     };
     use mpz_core::Block;
-    use mpz_share_conversion_core::fields::{gf2_128::Gf2_128, Field};
+    use mpz_fields::{gf2_128::Gf2_128, Field};
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
 
