@@ -21,7 +21,7 @@ pub enum ProverError {
     #[error(transparent)]
     InvalidServerName(#[from] tls_core::dns::InvalidDnsNameError),
     #[error("error occurred in MPC protocol: {0}")]
-    MpcError(Box<dyn Error + Send + 'static>),
+    MpcError(Box<dyn Error + Send + Sync + 'static>),
     #[error("server did not send a close_notify")]
     ServerNoCloseNotify,
     #[error(transparent)]

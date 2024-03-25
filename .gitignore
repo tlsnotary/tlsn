@@ -30,3 +30,6 @@ Cargo.lock
 
 # logs
 *.log
+
+# metrics
+*.csv
