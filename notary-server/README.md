@@ -117,6 +117,10 @@ Currently, both the private key (and cert) used to establish TLS connection with
 #### Authorization
 An optional authorization module is available to only allow requests with valid API key attached in the authorization header. The API key whitelist path (as well as the flag to enable/disable this module) can be changed in the config (`authorization` field).
 
+Hot reloading of the whitelist is supported, i.e. modification of the whitelist file will be automatically applied without needing to restart the server. Please take note of the following
+- Avoid using auto save mode when editing the whitelist to prevent spamming hot reloads
+- Once the edit is saved, ensure that it has been reloaded successfully by checking the server log
+
 #### Optional TLS
 TLS between prover and notary is currently manually handled in the server, though it can be turned off if any of the following is true
 - This server is run locally

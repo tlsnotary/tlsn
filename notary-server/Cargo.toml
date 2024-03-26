@@ -17,6 +17,7 @@ futures = "0.3"
 futures-util = "0.3.28"
 http = "0.2.9"
 hyper = { version = "0.14", features = ["client", "http1", "server", "tcp"] }
+notify = { version = "6.1.1", default-features = false, features = ["macos_kqueue"] }
 opentelemetry = { version = "0.19" }
 p256 = "0.13"
 rstest = "0.18"

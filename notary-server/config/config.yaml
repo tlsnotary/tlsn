@@ -2,6 +2,14 @@ server:
   name: "notary-server"
   host: "0.0.0.0"
   port: 7047
+  html-info: |
+    <h1>Notary Server {version}!</h1>
+    <ul>
+    <li>git commit hash: <a href="https://github.com/tlsnotary/tlsn/commit/{git_commit_hash}">{git_commit_hash}</a></li>
+    <li>git commit timestamp: {git_commit_timestamp}</li>
+    <li>public key: <pre>{public_key}</pre></li>
+    </ul>
+    <a href="/healthcheck">health check</a> - <a href="/info">info</a><br/>
 
 notarization:
   max-transcript-size: 20480
