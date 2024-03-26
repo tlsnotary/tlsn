@@ -2,13 +2,16 @@
 
 /// Certificate fixtures
 pub mod cert;
+mod provider;
+
+use bytes::Bytes;
+pub use provider::ChaChaProvider;
 
 use std::collections::HashMap;
 
 use hex::FromHex;
 use mpz_circuits::types::ValueType;
 use mpz_core::{commit::HashCommit, hash::Hash, utils::blake3};
-use mpz_garble_core::{ChaChaEncoder, Encoder};
 use tls_core::{
     cert::ServerCertDetails,
     handshake::HandshakeData,
@@ -24,59 +27,9 @@ use tls_core::{
 use p256::ecdsa::SigningKey;
 
 use crate::{
-    merkle::MerkleRoot,
-    session::{HandshakeSummary, SessionHeader},
-    EncodingProvider,
+    encoding::{new_encoder, Encoder, EncodingProvider},
+    Transcript,
 };
-
-fn value_id(id: &str) -> u64 {
-    let hash = blake3(id.as_bytes());
-    u64::from_be_bytes(hash[..8].try_into().unwrap())
-}
-
-/// Returns a session header fixture using the given transcript lengths and merkle root.
-///
-/// # Arguments
-///
-/// * `root` - The merkle root of the transcript commitments.
-/// * `sent_len` - The length of the sent transcript.
-/// * `recv_len` - The length of the received transcript.
-pub fn session_header(root: MerkleRoot, sent_len: usize, recv_len: usize) -> SessionHeader {
-    SessionHeader::new(
-        encoder_seed(),
-        root,
-        sent_len,
-        recv_len,
-        handshake_summary(),
-    )
-}
-
-/// Returns an encoding provider fixture using the given transcripts.
-pub fn encoding_provider(transcript_tx: &[u8], transcript_rx: &[u8]) -> EncodingProvider {
-    let encoder = encoder();
-    let mut active_encodings = HashMap::new();
-    for (idx, byte) in transcript_tx.iter().enumerate() {
-        let id = format!("tx/{idx}");
-        let enc = encoder.encode_by_type(value_id(&id), &ValueType::U8);
-        active_encodings.insert(id, enc.select(*byte).unwrap());
-    }
-    for (idx, byte) in transcript_rx.iter().enumerate() {
-        let id = format!("rx/{idx}");
-        let enc = encoder.encode_by_type(value_id(&id), &ValueType::U8);
-        active_encodings.insert(id, enc.select(*byte).unwrap());
-    }
-
-    Box::new(move |ids: &[&str]| {
-        ids.iter()
-            .map(|id| active_encodings.get(*id).cloned())
-            .collect()
-    })
-}
-
-/// Returns a handshake summary fixture.
-pub fn handshake_summary() -> HandshakeSummary {
-    HandshakeSummary::new(1671637529, server_ephemeral_key(), handshake_commitment())
-}
 
 /// Returns a handshake commitment fixture.
 pub fn handshake_commitment() -> Hash {
@@ -146,8 +99,16 @@ pub fn server_random() -> Random {
 }
 
 /// Returns an encoder fixture.
-pub fn encoder() -> ChaChaEncoder {
-    ChaChaEncoder::new(encoder_seed())
+pub(crate) fn encoder() -> impl Encoder {
+    new_encoder(encoder_seed())
+}
+
+pub fn provider(tx: &[u8], rx: &[u8]) -> impl EncodingProvider {
+    ChaChaProvider::new(
+        encoder_seed(),
+        Transcript::new(Bytes::copy_from_slice(tx)),
+        Transcript::new(Bytes::copy_from_slice(rx)),
+    )
 }
 
 /// Returns an encoder seed fixture.

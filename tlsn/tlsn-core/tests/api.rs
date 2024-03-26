@@ -20,7 +20,7 @@ use tls_core::{
 use mpz_core::{commit::HashCommit, serialize::CanonicalSerialize};
 
 use tlsn_core::{
-    commitment::TranscriptCommitmentBuilder,
+    commitment::transcript::TranscriptCommitmentBuilder,
     fixtures,
     msg::SignedSessionHeader,
     proof::{SessionProof, SubstringsProof},
