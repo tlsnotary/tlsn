@@ -5,7 +5,7 @@ members = [
     "tlsn-verifier",
     "tlsn-prover",
     "tlsn-formats",
-    "tlsn-fixtures",
+    "tlsn-data-fixtures",
     "tlsn-server-fixture",
     "tests-integration",
     "examples",
@@ -18,7 +18,7 @@ tlsn-core = { path = "tlsn-core" }
 tlsn-common = { path = "tlsn-common" }
 tlsn-prover = { path = "tlsn-prover" }
 tlsn-verifier = { path = "tlsn-verifier" }
-tlsn-fixtures = { path = "tlsn-fixtures" }
+tlsn-data-fixtures = { path = "tlsn-data-fixtures" }
 tlsn-server-fixture = { path = "tlsn-server-fixture" }
 tlsn-formats = { path = "tlsn-formats" }
 
