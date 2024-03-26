@@ -3,4 +3,4 @@ Cookie: very-secret-cookie
 Content-Length: 14
 Content-Type: application/json
 
-{"foo": "bar"}
+{"foo": "bar", "bazz": 123, "buzz": [1,"5"]}
