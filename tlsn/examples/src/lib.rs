@@ -7,11 +7,15 @@ use hyper::{client::conn::http1::Parts, Request, StatusCode};
 use hyper_util::rt::TokioIo;
 use notary_server::{ClientType, NotarizationSessionRequest, NotarizationSessionResponse};
 use rustls::{Certificate, ClientConfig, RootCertStore};
+use std::time::Instant;
 use tlsn_verifier::tls::{Verifier, VerifierConfig};
 use tokio::net::TcpStream;
 use tokio_rustls::TlsConnector;
 use tokio_util::bytes::Bytes;
 use tracing::debug;
+
+pub mod arg_parse;
+pub mod notarize;
 
 /// Runs a simple Notary with the provided connection to the Prover.
 pub async fn run_notary<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(conn: T) {
@@ -154,4 +158,10 @@ pub async fn request_notarization(
         notary_tls_socket.into_inner(),
         notarization_response.session_id,
     )
+}
+
+pub fn print_with_time(input: impl ToString, time: Instant) {
+    let input = input.to_string();
+    let duration = Instant::now().duration_since(time).as_millis();
+    println!("\t{duration}ms\t{input}");
 }
