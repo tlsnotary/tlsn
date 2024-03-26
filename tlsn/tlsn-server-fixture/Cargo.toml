@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 async-rustls = "0.4.1"
 axum = "0.6"
+anyhow = "1.0"
 futures.workspace = true
 hyper.workspace = true
 rustls = "0.21.7"

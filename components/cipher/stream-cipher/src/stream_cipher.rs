@@ -1,16 +1,17 @@
 use async_trait::async_trait;
 use mpz_circuits::types::Value;
-use std::{collections::HashMap, fmt::Debug, marker::PhantomData};
+use std::collections::HashMap;
 
 use mpz_garble::{
-    value::ValueRef, Decode, DecodePrivate, Execute, Memory, Prove, Thread, ThreadPool, Verify,
+    value::ValueRef, Decode, DecodePrivate, Execute, Load, Prove, Thread, ThreadPool, Verify,
 };
 use utils::id::NestedId;
 
 use crate::{
     cipher::CtrCircuit,
     circuit::build_array_xor,
-    config::{InputText, KeyBlockConfig, StreamCipherConfig},
+    config::{is_valid_mode, ExecutionMode, InputText, StreamCipherConfig},
+    keystream::KeyStream,
     StreamCipher, StreamCipherError,
 };
 
@@ -21,25 +22,23 @@ where
     E: Thread + Execute + Decode + DecodePrivate + Send + Sync,
 {
     config: StreamCipherConfig,
-    state: State,
+    state: State<C>,
     thread_pool: ThreadPool<E>,
-
-    _cipher: PhantomData<C>,
 }
 
-struct State {
+struct State<C> {
     /// Encoded key and IV for the cipher.
     encoded_key_iv: Option<EncodedKeyAndIv>,
     /// Key and IV for the cipher.
     key_iv: Option<KeyAndIv>,
-    /// Unique identifier for each execution of the cipher.
-    execution_id: NestedId,
-    /// Unique identifier for each byte in the transcript.
-    transcript_counter: NestedId,
-    /// Unique identifier for each byte in the ciphertext (prefixed with execution id).
-    ciphertext_counter: NestedId,
-    /// Persists the transcript counter for each transcript id.
-    transcript_state: HashMap<String, NestedId>,
+    /// Keystream state.
+    keystream: KeyStream<C>,
+    /// Current transcript.
+    transcript: Transcript,
+    /// Maps a transcript ID to the corresponding transcript.
+    transcripts: HashMap<String, Transcript>,
+    /// Number of messages operated on.
+    counter: usize,
 }
 
 #[derive(Clone)]
@@ -54,56 +53,57 @@ struct KeyAndIv {
     iv: Vec<u8>,
 }
 
+/// A subset of plaintext bytes processed by the stream cipher.
+///
+/// Note that `Transcript` does not store the actual bytes. Instead, it provides IDs which are
+/// assigned to plaintext bytes of the stream cipher.
+struct Transcript {
+    /// The ID of this transcript.
+    id: String,
+    /// The ID for the next plaintext byte.
+    plaintext: NestedId,
+}
+
+impl Transcript {
+    fn new(id: &str) -> Self {
+        Self {
+            id: id.to_string(),
+            plaintext: NestedId::new(id).append_counter(),
+        }
+    }
+
+    /// Returns unique identifiers for the next plaintext bytes in the transcript.
+    fn extend_plaintext(&mut self, len: usize) -> Vec<String> {
+        (0..len)
+            .map(|_| self.plaintext.increment_in_place().to_string())
+            .collect()
+    }
+}
+
 impl<C, E> MpcStreamCipher<C, E>
 where
     C: CtrCircuit,
-    E: Thread + Execute + Prove + Verify + Decode + DecodePrivate + Send + Sync + 'static,
+    E: Thread + Execute + Load + Prove + Verify + Decode + DecodePrivate + Send + Sync + 'static,
 {
     /// Creates a new counter-mode cipher.
     pub fn new(config: StreamCipherConfig, thread_pool: ThreadPool<E>) -> Self {
-        let execution_id = NestedId::new(&config.id).append_counter();
-        let transcript_counter = NestedId::new(&config.transcript_id).append_counter();
-        let ciphertext_counter = execution_id.append_string("ciphertext").append_counter();
-
+        let keystream = KeyStream::new(&config.id);
+        let transcript = Transcript::new(&config.transcript_id);
         Self {
             config,
             state: State {
                 encoded_key_iv: None,
                 key_iv: None,
-                execution_id,
-                transcript_counter,
-                ciphertext_counter,
-                transcript_state: HashMap::new(),
+                keystream,
+                transcript,
+                transcripts: HashMap::new(),
+                counter: 0,
             },
             thread_pool,
-            _cipher: PhantomData,
         }
     }
 
-    /// Returns unique identifiers for the next bytes in the transcript.
-    fn plaintext_ids(&mut self, len: usize) -> Vec<String> {
-        (0..len)
-            .map(|_| {
-                self.state
-                    .transcript_counter
-                    .increment_in_place()
-                    .to_string()
-            })
-            .collect()
-    }
-
-    /// Returns unique identifiers for the next bytes in the ciphertext.
-    fn ciphertext_ids(&mut self, len: usize) -> Vec<String> {
-        (0..len)
-            .map(|_| {
-                self.state
-                    .ciphertext_counter
-                    .increment_in_place()
-                    .to_string()
-            })
-            .collect()
-    }
-
+    /// Computes a keystream of the given length.
     async fn compute_keystream(
         &mut self,
         explicit_nonce: Vec<u8>,
@@ -114,108 +114,147 @@ where
         let EncodedKeyAndIv { key, iv } = self
             .state
             .encoded_key_iv
-            .clone()
+            .as_ref()
             .ok_or(StreamCipherError::KeyIvNotSet)?;
 
-        let explicit_nonce_len = explicit_nonce.len();
-        let explicit_nonce: C::NONCE = explicit_nonce.try_into().map_err(|_| {
-            StreamCipherError::InvalidExplicitNonceLength {
-                expected: C::NONCE_LEN,
-                actual: explicit_nonce_len,
-            }
-        })?;
+        let keystream = self
+            .state
+            .keystream
+            .compute(
+                &mut self.thread_pool,
+                mode,
+                key,
+                iv,
+                explicit_nonce,
+                start_ctr,
+                len,
+            )
+            .await?;
 
-        // Divide msg length by block size rounding up
-        let block_count = (len / C::BLOCK_LEN) + (len % C::BLOCK_LEN != 0) as usize;
-
-        let block_configs = (0..block_count)
-            .map(|i| {
-                KeyBlockConfig::<C>::new(
-                    key.clone(),
-                    iv.clone(),
-                    explicit_nonce,
-                    (start_ctr + i) as u32,
-                )
-            })
-            .collect::<Vec<_>>();
-
-        let execution_id = self.state.execution_id.increment_in_place();
-
-        let keystream = compute_keystream(
-            &mut self.thread_pool,
-            execution_id,
-            block_configs,
-            len,
-            mode,
-        )
-        .await?;
+        self.state.counter += 1;
 
         Ok(keystream)
     }
 
     /// Applies the keystream to the provided input text.
-    #[cfg_attr(
-        feature = "tracing",
-        tracing::instrument(level = "trace", skip(self), err)
-    )]
     async fn apply_keystream(
         &mut self,
+        mode: ExecutionMode,
         input_text: InputText,
         keystream: ValueRef,
-        mode: ExecutionMode,
     ) -> Result<ValueRef, StreamCipherError> {
-        let execution_id = self.state.execution_id.increment_in_place();
+        debug_assert!(
+            is_valid_mode(&mode, &input_text),
+            "invalid execution mode for input text"
+        );
 
-        let mut scope = self.thread_pool.new_scope();
-        scope.push(move |thread| {
-            Box::pin(apply_keystream(
-                thread,
-                mode,
-                execution_id,
-                input_text,
-                keystream,
-            ))
-        });
+        let thread = self.thread_pool.get_mut();
+        let input_text = match input_text {
+            InputText::Public { ids, text } => {
+                let refs = text
+                    .into_iter()
+                    .zip(ids)
+                    .map(|(byte, id)| {
+                        let value_ref = thread.new_public_input::<u8>(&id)?;
+                        thread.assign(&value_ref, byte)?;
 
-        let output_text = scope.wait().await.into_iter().next().unwrap()?;
+                        Ok::<_, StreamCipherError>(value_ref)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                thread.array_from_values(&refs)?
+            }
+            InputText::Private { ids, text } => {
+                let refs = text
+                    .into_iter()
+                    .zip(ids)
+                    .map(|(byte, id)| {
+                        let value_ref = thread.new_private_input::<u8>(&id)?;
+                        thread.assign(&value_ref, byte)?;
+
+                        Ok::<_, StreamCipherError>(value_ref)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                thread.array_from_values(&refs)?
+            }
+            InputText::Blind { ids } => {
+                let refs = ids
+                    .into_iter()
+                    .map(|id| thread.new_blind_input::<u8>(&id))
+                    .collect::<Result<Vec<_>, _>>()?;
+                thread.array_from_values(&refs)?
+            }
+        };
+
+        let output_text = thread.new_array_output::<u8>(
+            &format!("{}/out/{}", self.config.id, self.state.counter),
+            input_text.len(),
+        )?;
+
+        let circ = build_array_xor(input_text.len());
+
+        match mode {
+            ExecutionMode::Mpc => {
+                thread
+                    .execute(circ, &[input_text, keystream], &[output_text.clone()])
+                    .await?;
+            }
+            ExecutionMode::Prove => {
+                thread
+                    .execute_prove(circ, &[input_text, keystream], &[output_text.clone()])
+                    .await?;
+            }
+            ExecutionMode::Verify => {
+                thread
+                    .execute_verify(circ, &[input_text, keystream], &[output_text.clone()])
+                    .await?;
+            }
+        }
 
         Ok(output_text)
     }
 
     async fn decode_public(&mut self, value: ValueRef) -> Result<Value, StreamCipherError> {
-        let mut scope = self.thread_pool.new_scope();
-        scope.push(move |thread| Box::pin(async move { thread.decode(&[value]).await }));
-        let mut output = scope.wait().await.into_iter().next().unwrap()?;
-        Ok(output.pop().unwrap())
+        self.thread_pool
+            .get_mut()
+            .decode(&[value])
+            .await
+            .map_err(StreamCipherError::from)
+            .map(|mut output| output.pop().unwrap())
+    }
+
+    async fn decode_shared(&mut self, value: ValueRef) -> Result<Value, StreamCipherError> {
+        self.thread_pool
+            .get_mut()
+            .decode_shared(&[value])
+            .await
+            .map_err(StreamCipherError::from)
+            .map(|mut output| output.pop().unwrap())
     }
 
     async fn decode_private(&mut self, value: ValueRef) -> Result<Value, StreamCipherError> {
-        let mut scope = self.thread_pool.new_scope();
-        scope.push(move |thread| Box::pin(async move { thread.decode_private(&[value]).await }));
-        let mut output = scope.wait().await.into_iter().next().unwrap()?;
-        Ok(output.pop().unwrap())
+        self.thread_pool
+            .get_mut()
+            .decode_private(&[value])
+            .await
+            .map_err(StreamCipherError::from)
+            .map(|mut output| output.pop().unwrap())
     }
 
     async fn decode_blind(&mut self, value: ValueRef) -> Result<(), StreamCipherError> {
-        let mut scope = self.thread_pool.new_scope();
-        scope.push(move |thread| Box::pin(async move { thread.decode_blind(&[value]).await }));
-        scope.wait().await.into_iter().next().unwrap()?;
+        self.thread_pool.get_mut().decode_blind(&[value]).await?;
         Ok(())
     }
 
     async fn prove(&mut self, value: ValueRef) -> Result<(), StreamCipherError> {
-        let mut scope = self.thread_pool.new_scope();
-        scope.push(move |thread| Box::pin(async move { thread.prove(&[value]).await }));
-        scope.wait().await.into_iter().next().unwrap()?;
+        self.thread_pool.get_mut().prove(&[value]).await?;
         Ok(())
     }
 
     async fn verify(&mut self, value: ValueRef, expected: Value) -> Result<(), StreamCipherError> {
-        let mut scope = self.thread_pool.new_scope();
-        scope.push(move |thread| {
-            Box::pin(async move { thread.verify(&[value], &[expected]).await })
-        });
-        scope.wait().await.into_iter().next().unwrap()?;
+        self.thread_pool
+            .get_mut()
+            .verify(&[value], &[expected])
+            .await?;
         Ok(())
     }
 }
@@ -224,7 +263,7 @@ where
 impl<C, E> StreamCipher<C> for MpcStreamCipher<C, E>
 where
     C: CtrCircuit,
-    E: Thread + Execute + Prove + Verify + Decode + DecodePrivate + Send + Sync + 'static,
+    E: Thread + Execute + Load + Prove + Verify + Decode + DecodePrivate + Send + Sync + 'static,
 {
     fn set_key(&mut self, key: ValueRef, iv: ValueRef) {
         self.state.encoded_key_iv = Some(EncodedKeyAndIv { key, iv });
@@ -237,11 +276,14 @@ where
             .clone()
             .ok_or(StreamCipherError::KeyIvNotSet)?;
 
-        let mut scope = self.thread_pool.new_scope();
-        scope.push(move |thread| Box::pin(async move { thread.decode_private(&[key, iv]).await }));
-        let output = scope.wait().await.into_iter().next().unwrap()?;
+        let [key, iv]: [_; 2] = self
+            .thread_pool
+            .get_mut()
+            .decode_private(&[key, iv])
+            .await?
+            .try_into()
+            .expect("decoded 2 values");
 
-        let [key, iv]: [_; 2] = output.try_into().expect("decoded 2 values");
         let key: Vec<u8> = key.try_into().expect("key is an array");
         let iv: Vec<u8> = iv.try_into().expect("iv is an array");
 
@@ -257,34 +299,43 @@ where
             .clone()
             .ok_or(StreamCipherError::KeyIvNotSet)?;
 
-        let mut scope = self.thread_pool.new_scope();
-        scope.push(move |thread| Box::pin(async move { thread.decode_blind(&[key, iv]).await }));
-        scope.wait().await.into_iter().next().unwrap()?;
+        self.thread_pool.get_mut().decode_blind(&[key, iv]).await?;
 
         Ok(())
     }
 
     fn set_transcript_id(&mut self, id: &str) {
-        let current_id = self
-            .state
-            .transcript_counter
-            .root()
-            .expect("root id is set");
-        let current_counter = self.state.transcript_counter.clone();
-        self.state
-            .transcript_state
-            .insert(current_id.to_string(), current_counter);
-
-        if let Some(counter) = self.state.transcript_state.get(id) {
-            self.state.transcript_counter = counter.clone();
-        } else {
-            self.state.transcript_counter = NestedId::new(id).append_counter();
+        if id == self.state.transcript.id {
+            return;
         }
+
+        let transcript = self
+            .state
+            .transcripts
+            .remove(id)
+            .unwrap_or_else(|| Transcript::new(id));
+        let old_transcript = std::mem::replace(&mut self.state.transcript, transcript);
+        self.state
+            .transcripts
+            .insert(old_transcript.id.clone(), old_transcript);
+    }
+
+    async fn preprocess(&mut self, len: usize) -> Result<(), StreamCipherError> {
+        let EncodedKeyAndIv { key, iv } = self
+            .state
+            .encoded_key_iv
+            .as_ref()
+            .ok_or(StreamCipherError::KeyIvNotSet)?;
+
+        self.state
+            .keystream
+            .preprocess(&mut self.thread_pool, key, iv, len)
+            .await
     }
 
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "debug", skip(self, plaintext), err)
+        tracing::instrument(level = "debug", skip_all, err)
     )]
     async fn encrypt_public(
         &mut self,
@@ -300,15 +351,15 @@ where
             )
             .await?;
 
-        let plaintext_ids = self.plaintext_ids(plaintext.len());
+        let plaintext_ids = self.state.transcript.extend_plaintext(plaintext.len());
         let ciphertext = self
             .apply_keystream(
+                ExecutionMode::Mpc,
                 InputText::Public {
                     ids: plaintext_ids,
                     text: plaintext,
                 },
                 keystream,
-                ExecutionMode::Mpc,
             )
             .await?;
 
@@ -323,7 +374,7 @@ where
 
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "debug", skip(self, plaintext), err)
+        tracing::instrument(level = "debug", skip_all, err)
     )]
     async fn encrypt_private(
         &mut self,
@@ -339,15 +390,15 @@ where
             )
             .await?;
 
-        let plaintext_ids = self.plaintext_ids(plaintext.len());
+        let plaintext_ids = self.state.transcript.extend_plaintext(plaintext.len());
         let ciphertext = self
             .apply_keystream(
+                ExecutionMode::Mpc,
                 InputText::Private {
                     ids: plaintext_ids,
                     text: plaintext,
                 },
                 keystream,
-                ExecutionMode::Mpc,
             )
             .await?;
 
@@ -362,7 +413,7 @@ where
 
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "debug", skip(self), err)
+        tracing::instrument(level = "debug", skip_all, err)
     )]
     async fn encrypt_blind(
         &mut self,
@@ -378,12 +429,12 @@ where
             )
             .await?;
 
-        let plaintext_ids = self.plaintext_ids(len);
+        let plaintext_ids = self.state.transcript.extend_plaintext(len);
         let ciphertext = self
             .apply_keystream(
+                ExecutionMode::Mpc,
                 InputText::Blind { ids: plaintext_ids },
                 keystream,
-                ExecutionMode::Mpc,
             )
             .await?;
 
@@ -398,7 +449,7 @@ where
 
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "debug", skip(self), err)
+        tracing::instrument(level = "debug", skip_all, err)
     )]
     async fn decrypt_public(
         &mut self,
@@ -416,15 +467,17 @@ where
             )
             .await?;
 
-        let ciphertext_ids = self.ciphertext_ids(ciphertext.len());
+        let ciphertext_ids = (0..ciphertext.len())
+            .map(|i| format!("ct/{}/{}", self.state.counter, i))
+            .collect();
         let plaintext = self
             .apply_keystream(
+                ExecutionMode::Mpc,
                 InputText::Public {
                     ids: ciphertext_ids,
                     text: ciphertext,
                 },
                 keystream,
-                ExecutionMode::Mpc,
             )
             .await?;
 
@@ -439,7 +492,7 @@ where
 
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "debug", skip(self), err)
+        tracing::instrument(level = "debug", skip_all, err)
     )]
     async fn decrypt_private(
         &mut self,
@@ -468,15 +521,15 @@ where
             .collect::<Vec<_>>();
 
         // Prove plaintext encrypts back to ciphertext
-        let plaintext_ids = self.plaintext_ids(plaintext.len());
+        let plaintext_ids = self.state.transcript.extend_plaintext(plaintext.len());
         let ciphertext = self
             .apply_keystream(
+                ExecutionMode::Prove,
                 InputText::Private {
                     ids: plaintext_ids,
                     text: plaintext.clone(),
                 },
                 keystream_ref,
-                ExecutionMode::Prove,
             )
             .await?;
 
@@ -487,7 +540,7 @@ where
 
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "debug", skip(self), err)
+        tracing::instrument(level = "debug", skip_all, err)
     )]
     async fn decrypt_blind(
         &mut self,
@@ -506,12 +559,12 @@ where
         self.decode_blind(keystream_ref.clone()).await?;
 
         // Verify the plaintext encrypts back to ciphertext
-        let plaintext_ids = self.plaintext_ids(ciphertext.len());
+        let plaintext_ids = self.state.transcript.extend_plaintext(ciphertext.len());
         let ciphertext_ref = self
             .apply_keystream(
+                ExecutionMode::Verify,
                 InputText::Blind { ids: plaintext_ids },
                 keystream_ref,
-                ExecutionMode::Verify,
             )
             .await?;
 
@@ -549,15 +602,15 @@ where
             )
             .await?;
 
-        let plaintext_ids = self.plaintext_ids(plaintext.len());
+        let plaintext_ids = self.state.transcript.extend_plaintext(plaintext.len());
         let ciphertext = self
             .apply_keystream(
+                ExecutionMode::Prove,
                 InputText::Private {
                     ids: plaintext_ids,
                     text: plaintext.clone(),
                 },
                 keystream,
-                ExecutionMode::Prove,
             )
             .await?;
 
@@ -580,12 +633,12 @@ where
             )
             .await?;
 
-        let plaintext_ids = self.plaintext_ids(ciphertext.len());
+        let plaintext_ids = self.state.transcript.extend_plaintext(ciphertext.len());
         let ciphertext_ref = self
             .apply_keystream(
+                ExecutionMode::Verify,
                 InputText::Blind { ids: plaintext_ids },
                 keystream,
-                ExecutionMode::Verify,
             )
             .await?;
 
@@ -596,7 +649,7 @@ where
 
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "info", skip(self), err)
+        tracing::instrument(level = "info", skip_all, err)
     )]
     async fn share_keystream_block(
         &mut self,
@@ -606,237 +659,29 @@ where
         let EncodedKeyAndIv { key, iv } = self
             .state
             .encoded_key_iv
-            .clone()
+            .as_ref()
             .ok_or(StreamCipherError::KeyIvNotSet)?;
 
-        let explicit_nonce_len = explicit_nonce.len();
-        let explicit_nonce: C::NONCE = explicit_nonce.try_into().map_err(|_| {
-            StreamCipherError::InvalidExplicitNonceLength {
-                expected: C::NONCE_LEN,
-                actual: explicit_nonce_len,
-            }
-        })?;
+        let key_block = self
+            .state
+            .keystream
+            .compute(
+                &mut self.thread_pool,
+                ExecutionMode::Mpc,
+                key,
+                iv,
+                explicit_nonce,
+                ctr,
+                C::BLOCK_LEN,
+            )
+            .await?;
 
-        let block_id = self.state.execution_id.increment_in_place();
-        let mut scope = self.thread_pool.new_scope();
-        scope.push(move |thread| {
-            Box::pin(async move {
-                let key_block = compute_key_block(
-                    thread,
-                    block_id,
-                    KeyBlockConfig::<C>::new(key, iv, explicit_nonce, ctr as u32),
-                    ExecutionMode::Mpc,
-                )
-                .await?;
-
-                let share = thread
-                    .decode_shared(&[key_block])
-                    .await?
-                    .into_iter()
-                    .next()
-                    .unwrap();
-
-                Ok::<_, StreamCipherError>(share)
-            })
-        });
-
-        let share: Vec<u8> = scope
-            .wait()
-            .await
-            .into_iter()
-            .next()
-            .unwrap()?
+        let share = self
+            .decode_shared(key_block)
+            .await?
             .try_into()
-            .expect("share is an array");
+            .expect("key block is array");
 
         Ok(share)
     }
-}
-
-#[derive(Debug, Clone, Copy)]
-enum ExecutionMode {
-    Mpc,
-    Prove,
-    Verify,
-}
-
-async fn apply_keystream<T: Memory + Execute + Prove + Verify + Decode + DecodePrivate + Send>(
-    thread: &mut T,
-    mode: ExecutionMode,
-    execution_id: NestedId,
-    input_text: InputText,
-    keystream: ValueRef,
-) -> Result<ValueRef, StreamCipherError> {
-    let input_text = match input_text {
-        InputText::Public { ids, text } => {
-            let refs = text
-                .into_iter()
-                .zip(ids)
-                .map(|(byte, id)| {
-                    let value_ref = thread.new_public_input::<u8>(&id)?;
-                    thread.assign(&value_ref, byte)?;
-
-                    Ok::<_, StreamCipherError>(value_ref)
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            thread.array_from_values(&refs)?
-        }
-        InputText::Private { ids, text } => {
-            let refs = text
-                .into_iter()
-                .zip(ids)
-                .map(|(byte, id)| {
-                    let value_ref = thread.new_private_input::<u8>(&id)?;
-                    thread.assign(&value_ref, byte)?;
-
-                    Ok::<_, StreamCipherError>(value_ref)
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            thread.array_from_values(&refs)?
-        }
-        InputText::Blind { ids } => {
-            let refs = ids
-                .into_iter()
-                .map(|id| thread.new_blind_input::<u8>(&id))
-                .collect::<Result<Vec<_>, _>>()?;
-            thread.array_from_values(&refs)?
-        }
-    };
-
-    let output_text = thread.new_array_output::<u8>(
-        &execution_id.append_string("output").to_string(),
-        input_text.len(),
-    )?;
-
-    let circ = build_array_xor(input_text.len());
-
-    match mode {
-        ExecutionMode::Mpc => {
-            thread
-                .execute(circ, &[input_text, keystream], &[output_text.clone()])
-                .await?;
-        }
-        ExecutionMode::Prove => {
-            thread
-                .execute_prove(circ, &[input_text, keystream], &[output_text.clone()])
-                .await?;
-        }
-        ExecutionMode::Verify => {
-            thread
-                .execute_verify(circ, &[input_text, keystream], &[output_text.clone()])
-                .await?;
-        }
-    }
-
-    Ok(output_text)
-}
-
-#[cfg_attr(
-    feature = "tracing",
-    tracing::instrument(level = "trace", skip(thread_pool), err)
-)]
-async fn compute_keystream<
-    T: Thread + Memory + Execute + Prove + Verify + Decode + DecodePrivate + Send + 'static,
-    C: CtrCircuit,
->(
-    thread_pool: &mut ThreadPool<T>,
-    execution_id: NestedId,
-    configs: Vec<KeyBlockConfig<C>>,
-    len: usize,
-    mode: ExecutionMode,
-) -> Result<ValueRef, StreamCipherError> {
-    let mut block_id = execution_id.append_counter();
-    let mut scope = thread_pool.new_scope();
-
-    for config in configs {
-        let block_id = block_id.increment_in_place();
-        scope.push(move |thread| Box::pin(compute_key_block(thread, block_id, config, mode)));
-    }
-
-    let key_blocks = scope
-        .wait()
-        .await
-        .into_iter()
-        .collect::<Result<Vec<_>, _>>()?;
-
-    // Flatten the key blocks into a single array.
-    let keystream = key_blocks
-        .iter()
-        .flat_map(|block| block.iter())
-        .take(len)
-        .cloned()
-        .map(|id| ValueRef::Value { id })
-        .collect::<Vec<_>>();
-
-    let mut scope = thread_pool.new_scope();
-    scope.push(move |thread| Box::pin(async move { thread.array_from_values(&keystream) }));
-
-    let keystream = scope.wait().await.into_iter().next().unwrap()?;
-
-    Ok(keystream)
-}
-
-#[cfg_attr(
-    feature = "tracing",
-    tracing::instrument(level = "trace", skip(thread), err)
-)]
-async fn compute_key_block<
-    T: Memory + Execute + Prove + Verify + Decode + DecodePrivate + Send,
-    C: CtrCircuit,
->(
-    thread: &mut T,
-    block_id: NestedId,
-    config: KeyBlockConfig<C>,
-    mode: ExecutionMode,
-) -> Result<ValueRef, StreamCipherError> {
-    let KeyBlockConfig {
-        key,
-        iv,
-        explicit_nonce,
-        ctr,
-        ..
-    } = config;
-
-    let explicit_nonce_ref = thread.new_public_input::<<C as CtrCircuit>::NONCE>(
-        &block_id.append_string("explicit_nonce").to_string(),
-    )?;
-    let ctr_ref = thread.new_public_input::<[u8; 4]>(&block_id.append_string("ctr").to_string())?;
-    let key_block =
-        thread.new_output::<C::BLOCK>(&block_id.append_string("key_block").to_string())?;
-
-    thread.assign(&explicit_nonce_ref, explicit_nonce)?;
-    thread.assign(&ctr_ref, ctr.to_be_bytes())?;
-
-    // Execute circuit
-    match mode {
-        ExecutionMode::Mpc => {
-            thread
-                .execute(
-                    C::circuit(),
-                    &[key, iv, explicit_nonce_ref, ctr_ref],
-                    &[key_block.clone()],
-                )
-                .await?;
-        }
-        ExecutionMode::Prove => {
-            thread
-                .execute_prove(
-                    C::circuit(),
-                    &[key, iv, explicit_nonce_ref, ctr_ref],
-                    &[key_block.clone()],
-                )
-                .await?;
-        }
-        ExecutionMode::Verify => {
-            thread
-                .execute_verify(
-                    C::circuit(),
-                    &[key, iv, explicit_nonce_ref, ctr_ref],
-                    &[key_block.clone()],
-                )
-                .await?;
-        }
-    }
-
-    Ok(key_block)
 }

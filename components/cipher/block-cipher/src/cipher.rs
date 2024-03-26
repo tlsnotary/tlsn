@@ -59,14 +59,14 @@ where
     C: BlockCipherCircuit,
     E: Memory + Execute + Decode + DecodePrivate + Send + Sync + Send,
 {
-    #[cfg_attr(feature = "tracing", tracing::instrument(level = "info", skip(self)))]
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = "info", skip_all))]
     fn set_key(&mut self, key: ValueRef) {
         self.state.key = Some(key);
     }
 
     #[cfg_attr(
         feature = "tracing",
-        tracing::instrument(level = "debug", skip(self, plaintext), err)
+        tracing::instrument(level = "debug", skip_all, err)
     )]
     async fn encrypt_private(&mut self, plaintext: Vec<u8>) -> Result<Vec<u8>, BlockCipherError> {
         let len = plaintext.len();
