@@ -1,0 +1,22 @@
+[package]
+name = "utils-arith-label"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+aes = "0.8"
+ark-bls12-381 = "0.3.0"
+ark-ff = "0.3"
+ark-serialize = "0.3"
+ctr = "0.9"
+itertools = "0.10"
+rand_chacha = "0.3"
+rand_core = "0.6"
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+rand = "0.8"
+
+[features]
+default = ["std"]
+std = ["ark-ff/std", "ark-serialize/std"]
