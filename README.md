@@ -34,10 +34,10 @@ at your option.
 
 ## Branches
 
-- [`main`][main]
+- [`main`](https://github.com/tlsnotary/tlsn/tree/main)
   - Default branch — points to the latest release.
   - This is stable and suitable for most users.
-- [`dev`][dev]
+- [`dev`](https://github.com/tlsnotary/tlsn/tree/dev)
   - Development branch — contains the latest PRs.
   - Developers should submit their PRs against this branch.
 
