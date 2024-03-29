@@ -10,22 +10,22 @@ permissions:
     group: ubuntu
 hooks:
   BeforeInstall:
-    - location: appspec-scripts/before_install.sh
+    - location: cd-scripts/appspec-scripts/before_install.sh
       timeout: 300
       runas: ubuntu
   AfterInstall:
-    - location: appspec-scripts/after_install.sh
+    - location: cd-scripts/appspec-scripts/after_install.sh
       timeout: 300
       runas: ubuntu
   ApplicationStart:
-    - location: appspec-scripts/start_app.sh
+    - location: cd-scripts/appspec-scripts/start_app.sh
       timeout: 300
       runas: ubuntu
   ApplicationStop:
-    - location: appspec-scripts/stop_app.sh
+    - location: cd-scripts/appspec-scripts/stop_app.sh
       timeout: 300
       runas: ubuntu
   ValidateService:
-    - location: appspec-scripts/validate_app.sh
+    - location: cd-scripts/appspec-scripts/validate_app.sh
       timeout: 300
       runas: ubuntu
