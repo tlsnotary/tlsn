@@ -1,3 +1,3 @@
 (function() {var implementors = {
-"tlsn_core":[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.77.0/core/cmp/trait.PartialOrd.html\" title=\"trait core::cmp::PartialOrd\">PartialOrd</a> for <a class=\"struct\" href=\"tlsn_core/commitment/struct.CommitmentId.html\" title=\"struct tlsn_core::commitment::CommitmentId\">CommitmentId</a>"]]
+"tlsn_core":[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.77.1/core/cmp/trait.PartialOrd.html\" title=\"trait core::cmp::PartialOrd\">PartialOrd</a> for <a class=\"struct\" href=\"tlsn_core/commitment/struct.CommitmentId.html\" title=\"struct tlsn_core::commitment::CommitmentId\">CommitmentId</a>"]]
 };if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()
