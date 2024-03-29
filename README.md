@@ -32,6 +32,15 @@ All crates in this repository are licensed under either of
 
 at your option.
 
+## Branches
+
+- [`main`][main]
+  - Default branch — points to the latest release.
+  - This is stable and suitable for most users.
+- [`dev`][dev]
+  - Development branch — contains the latest PRs.
+  - Developers should submit their PRs against this branch.
+
 ## Directory
 
 - [tlsn](./tlsn/): The home for examples and API libraries.
