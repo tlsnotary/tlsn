@@ -1,6 +1,5 @@
 use tls_core::{
     anchors::{OwnedTrustAnchor, RootCertStore},
-    cert::ServerCertDetails,
     dns::ServerName,
     msgs::handshake::DigitallySignedStruct,
     verify::{ServerCertVerifier, WebPkiVerifier},
@@ -8,13 +7,14 @@ use tls_core::{
 use web_time::{Duration, UNIX_EPOCH};
 
 use crate::conn::{
-    ConnectionInfo, HandshakeData, HandshakeDataV1_2, ServerIdentity, ServerSignature,
+    Certificate, ConnectionInfo, HandshakeData, HandshakeDataV1_2, ServerIdentity, ServerSignature,
 };
 
 /// TLS server identity proof.
 pub struct ServerIdentityProof {
-    pub(crate) cert: ServerCertDetails,
+    pub(crate) cert_chain: Vec<Certificate>,
     pub(crate) sig: ServerSignature,
+    pub(crate) nonce: [u8; 16],
     pub(crate) identity: ServerIdentity,
 }
 
@@ -94,10 +94,14 @@ impl ServerIdentityProof {
         let server_name = ServerName::try_from(server_name.as_ref())
             .map_err(|_| ServerIdentityProofError::InvalidIdentity(self.identity.clone()))?;
 
+        let cert_chain = self
+            .cert_chain
+            .into_iter()
+            .map(|cert| tls_core::key::Certificate(cert.0))
+            .collect::<Vec<_>>();
+
         // Verify server certificate
-        let (end_entity, intermediates) = self
-            .cert
-            .cert_chain()
+        let (end_entity, intermediates) = cert_chain
             .split_first()
             .ok_or(ServerIdentityProofError::MissingCerts)?;
 
@@ -108,14 +112,8 @@ impl ServerIdentityProof {
                 end_entity,
                 intermediates,
                 &server_name,
-                &mut self
-                    .cert
-                    .scts()
-                    .map(|sct| sct.as_slice())
-                    .unwrap_or(&[])
-                    .iter()
-                    .map(|sct| sct.0.as_slice()),
-                self.cert.ocsp_response(),
+                &mut [].into_iter(),
+                &[],
                 UNIX_EPOCH + Duration::from_secs(info.time),
             )
             .map_err(|_| ServerIdentityProofError::InvalidCert)?;

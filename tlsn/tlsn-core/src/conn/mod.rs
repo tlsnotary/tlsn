@@ -71,6 +71,10 @@ impl SignatureScheme {
     }
 }
 
+/// A X.509 certificate, DER encoded.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Certificate(pub Vec<u8>);
+
 /// A server's signature of the key exchange parameters.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerSignature {

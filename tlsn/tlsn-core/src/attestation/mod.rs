@@ -4,10 +4,9 @@ mod proof;
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
-use tls_core::cert::ServerCertDetails;
 
 use crate::{
-    conn::{ConnectionInfo, HandshakeData, ServerSignature},
+    conn::{Certificate, ConnectionInfo, HandshakeData, ServerSignature},
     encoding::{EncodingCommitment, EncodingTree},
     hash::{Hash, HashAlgorithm, PlaintextHash},
     merkle::MerkleTree,
@@ -53,10 +52,14 @@ impl AttestationVersion {
 pub enum Secret {
     /// The server's certificate details.
     #[serde(rename = "cert")]
-    Certificate(ServerCertDetails),
-    /// The server's signature of the key exchange parameters.
-    #[serde(rename = "sig")]
-    ServerSignature(ServerSignature),
+    Certificate {
+        /// The certificate chain.
+        certs: Vec<Certificate>,
+        /// The signature of the key exchange parameters.
+        sig: ServerSignature,
+        /// The nonce which was hashed with the end-entity certificate and signature.
+        nonce: [u8; 16],
+    },
     /// A merkle tree of transcript encodings.
     #[serde(rename = "encoding")]
     EncodingTree(EncodingTree),
@@ -82,6 +85,9 @@ pub enum Field {
     /// TLS handshake data.
     #[serde(rename = "handshake")]
     HandshakeData(HandshakeData),
+    /// Commitment to the server's certificate and signature.
+    #[serde(rename = "cert_commitment")]
+    CertificateCommitment(Hash),
     /// Commitment to the encodings of the transcript plaintext.
     #[serde(rename = "encoding")]
     EncodingCommitment(EncodingCommitment),
@@ -99,6 +105,7 @@ impl Field {
         match self {
             Field::ConnectionInfo(_) => FieldKind::ConnectionInfo,
             Field::HandshakeData(_) => FieldKind::HandshakeData,
+            Field::CertificateCommitment(_) => FieldKind::CertificateCommitment,
             Field::EncodingCommitment(_) => FieldKind::EncodingCommitment,
             Field::PlaintextHash(_) => FieldKind::PlaintextHash,
             Field::ExtraData(_) => FieldKind::ExtraData,
@@ -114,10 +121,12 @@ pub enum FieldKind {
     ConnectionInfo = 0x00,
     /// TLS handshake data.
     HandshakeData = 0x01,
+    /// Commitment to the server's certificate and signature.
+    CertificateCommitment = 0x02,
     /// Commitment to the encodings of the transcript plaintext.
-    EncodingCommitment = 0x02,
+    EncodingCommitment = 0x03,
     /// A hash of a range of plaintext in the transcript.
-    PlaintextHash = 0x03,
+    PlaintextHash = 0x04,
     /// Arbitrary extra data bound to the attestation.
     ExtraData = 0xff,
 }
