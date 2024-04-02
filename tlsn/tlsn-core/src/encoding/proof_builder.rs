@@ -4,7 +4,7 @@ use utils::range::{RangeSet, ToRangeSet};
 
 use crate::{
     encoding::{proof::EncodingProof, tree::EncodingTree},
-    transcript::SubsequenceIdx,
+    transcript::{SubsequenceIdx, TranscriptReveal},
     Direction, Transcript,
 };
 
@@ -41,43 +41,14 @@ pub struct EncodingProofBuilder<'a> {
     seqs: HashSet<SubsequenceIdx>,
 }
 
-impl<'a> EncodingProofBuilder<'a> {
-    /// Creates a new encoding proof builder.
-    pub fn new(
-        tree: &'a EncodingTree,
-        transcript_tx: &'a Transcript,
-        transcript_rx: &'a Transcript,
-    ) -> Self {
-        Self {
-            tree,
-            transcript_tx,
-            transcript_rx,
-            seqs: HashSet::default(),
-        }
-    }
+impl<'a> TranscriptReveal for EncodingProofBuilder<'a> {
+    type Error = EncodingProofBuilderError;
 
-    /// Reveals data corresponding to the provided ranges in the sent direction.
-    pub fn reveal_sent(
-        &mut self,
-        ranges: &dyn ToRangeSet<usize>,
-    ) -> Result<&mut Self, EncodingProofBuilderError> {
-        self.reveal(ranges, Direction::Sent)
-    }
-
-    /// Reveals data corresponding to the provided ranges in the received direction.
-    pub fn reveal_recv(
-        &mut self,
-        ranges: &dyn ToRangeSet<usize>,
-    ) -> Result<&mut Self, EncodingProofBuilderError> {
-        self.reveal(ranges, Direction::Received)
-    }
-
-    /// Reveals data corresponding to the provided ranges and direction.
-    pub fn reveal(
+    fn reveal(
         &mut self,
         ranges: &dyn ToRangeSet<usize>,
         direction: Direction,
-    ) -> Result<&mut Self, EncodingProofBuilderError> {
+    ) -> Result<&mut Self, Self::Error> {
         let ranges = ranges.to_range_set();
         let transcript = match direction {
             Direction::Sent => self.transcript_tx,
@@ -106,6 +77,22 @@ impl<'a> EncodingProofBuilder<'a> {
         self.seqs.insert(seq);
 
         Ok(self)
+    }
+}
+
+impl<'a> EncodingProofBuilder<'a> {
+    /// Creates a new encoding proof builder.
+    pub fn new(
+        tree: &'a EncodingTree,
+        transcript_tx: &'a Transcript,
+        transcript_rx: &'a Transcript,
+    ) -> Self {
+        Self {
+            tree,
+            transcript_tx,
+            transcript_rx,
+            seqs: HashSet::default(),
+        }
     }
 
     /// Builds the encoding proof.
@@ -141,9 +128,10 @@ mod tests {
         encoding::{tree_builder::EncodingTreeBuilder, EncodingCommitment},
         fixtures::{encoder_seed, provider},
         hash::HashAlgorithm,
+        transcript::TranscriptCommit,
     };
     use bytes::Bytes;
-    use tlsn_fixtures::http::{request::POST_JSON, response::OK_JSON};
+    use tlsn_data_fixtures::http::{request::POST_JSON, response::OK_JSON};
 
     fn tree() -> EncodingTree {
         let provider = Box::new(provider(POST_JSON, OK_JSON));
@@ -194,11 +182,9 @@ mod tests {
         let proof = builder.build().unwrap();
         let (sent, recv) = proof.verify(&transcript_length, &commitment).unwrap();
 
-        assert_eq!(sent.len(), 2);
-        assert_eq!(recv.len(), 2);
-        assert_eq!(sent[0].as_bytes(), &POST_JSON[..1]);
-        assert_eq!(sent[1].as_bytes(), &POST_JSON[2..]);
-        assert_eq!(recv[0].as_bytes(), &OK_JSON[..1]);
-        assert_eq!(recv[1].as_bytes(), &OK_JSON[2..]);
+        assert_eq!(&sent.data()[..1], &POST_JSON[..1]);
+        assert_eq!(&sent.data()[2..], &POST_JSON[2..]);
+        assert_eq!(&recv.data()[..1], &OK_JSON[..1]);
+        assert_eq!(&recv.data()[2..], &OK_JSON[2..]);
     }
 }

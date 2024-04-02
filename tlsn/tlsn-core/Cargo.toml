@@ -50,7 +50,7 @@ hex.workspace = true
 rand_core.workspace = true
 rand_chacha.workspace = true
 bincode.workspace = true
-tlsn-fixtures.workspace = true
+tlsn-data-fixtures.workspace = true
 
 [[test]]
 name = "api"

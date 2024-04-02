@@ -29,6 +29,18 @@ impl HashAlgorithm {
             Self::Keccak256 => 32,
         }
     }
+
+    /// Hashes the provided message using the algorithm.
+    pub fn hash(&self, msg: &[u8]) -> Hash {
+        match self {
+            #[cfg(feature = "sha2")]
+            Self::Sha256 => Hash::Sha256(Sha256::hash(msg)),
+            #[cfg(feature = "blake3")]
+            Self::Blake3 => Hash::Blake3(Blake3::hash(msg)),
+            #[cfg(feature = "keccak")]
+            Self::Keccak256 => Hash::Keccak256(Keccak256::hash(msg)),
+        }
+    }
 }
 
 /// A hash value.
@@ -86,12 +98,39 @@ pub struct PlaintextHash {
     pub hash: Hash,
 }
 
-impl CanonicalSerialize for PlaintextHash {
-    fn serialize(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        bytes.extend(CanonicalSerialize::serialize(&self.hash));
-        bytes.extend(CanonicalSerialize::serialize(&self.seq));
-        bytes
+/// An opening of a hash of plaintext in the transcript.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlaintextHashOpening {
+    data: Vec<u8>,
+    nonce: [u8; 16],
+    commitment: FieldId,
+}
+
+impl PlaintextHashOpening {
+    /// Returns the field id of the commitment this opening corresponds to.
+    pub fn commitment_id(&self) -> &FieldId {
+        &self.commitment
+    }
+
+    /// Verifies the opening of the hash, returning the subsequence of plaintext.
+    ///
+    /// # Arguments
+    ///
+    /// * `commitment` - The commitment attested to by a Notary.
+    pub fn verify(&self, commitment: &PlaintextHash) -> Result<Subsequence, ()> {
+        let mut opening = self.data.clone();
+        opening.extend_from_slice(&self.nonce);
+
+        let expected_hash = commitment.hash.algorithm().hash(&opening);
+
+        if expected_hash == commitment.hash {
+            Ok(Subsequence {
+                idx: commitment.seq.clone(),
+                data: self.data.clone(),
+            })
+        } else {
+            Err(())
+        }
     }
 }
 
@@ -269,4 +308,8 @@ mod keccak {
 #[cfg(feature = "keccak")]
 pub use keccak::Keccak256;
 
-use crate::{serialize::CanonicalSerialize, transcript::SubsequenceIdx};
+use crate::{
+    attestation::FieldId,
+    serialize::CanonicalSerialize,
+    transcript::{Subsequence, SubsequenceIdx},
+};

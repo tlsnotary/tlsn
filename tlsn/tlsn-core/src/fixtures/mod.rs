@@ -27,9 +27,15 @@ use tls_core::{
 use p256::ecdsa::SigningKey;
 
 use crate::{
+    attestation::AttestationFull,
     encoding::{new_encoder, Encoder, EncodingProvider},
     Transcript,
 };
+
+/// Returns an attestation fixture.
+pub fn attestation() -> AttestationFull {
+    todo!()
+}
 
 /// Returns a handshake commitment fixture.
 pub fn handshake_commitment() -> Hash {

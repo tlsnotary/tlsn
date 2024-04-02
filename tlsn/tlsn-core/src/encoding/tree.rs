@@ -8,31 +8,22 @@ use crate::{
     encoding::proof::{EncodingProof, Opening},
     hash::{Hash, HashAlgorithm},
     merkle::MerkleTree,
-    serialize::CanonicalSerialize,
     transcript::SubsequenceIdx,
 };
 
 /// A leaf in the encoding tree.
-pub(super) struct Leaf {
-    encoding: Vec<u8>,
-    nonce: [u8; 16],
+pub(crate) struct EncodingLeaf {
+    pub(crate) encoding: Vec<u8>,
+    pub(crate) nonce: [u8; 16],
 }
 
-impl Leaf {
+impl EncodingLeaf {
     pub(super) fn new(encoding: Vec<u8>, nonce: [u8; 16]) -> Self {
         Self { encoding, nonce }
     }
 }
 
-impl CanonicalSerialize for Leaf {
-    fn serialize(&self) -> Vec<u8> {
-        let mut bytes = self.encoding.clone();
-        bytes.extend_from_slice(&self.nonce);
-        bytes
-    }
-}
-
-/// A merkle tree of transcript encoding commitments.
+/// A merkle tree of transcript encodings.
 #[derive(Serialize, Deserialize)]
 pub struct EncodingTree {
     /// Merkle tree of the commitments.
@@ -97,7 +88,7 @@ impl EncodingTree {
         }
 
         let nonce: [u8; 16] = rand::thread_rng().gen();
-        let leaf = Leaf::new(encoding, nonce);
+        let leaf = EncodingLeaf::new(encoding, nonce);
 
         self.tree.insert(&leaf);
         self.nonces.push(nonce);

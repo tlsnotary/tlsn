@@ -5,15 +5,15 @@ use crate::{
     merkle::MerkleProof,
 };
 
-/// An attestation proof.
+/// An attestation body proof.
 #[derive(Debug, Serialize, Deserialize)]
-pub struct AttestationProof {
+pub struct BodyProof {
     body: AttestationBody,
     proof: MerkleProof,
 }
 
-impl AttestationProof {
-    /// Verifies the attestation proof against the attestation header.
+impl BodyProof {
+    /// Verifies the proof against the attestation header.
     pub fn verify(self, header: &AttestationHeader) -> Result<AttestationBody, AttestationError> {
         let mut fields: Vec<_> = self
             .body

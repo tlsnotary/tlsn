@@ -15,38 +15,21 @@ pub mod hash;
 pub(crate) mod merkle;
 pub(crate) mod serialize;
 mod signature;
+pub mod substring;
 pub mod transcript;
 
 pub use signature::{NotaryPublicKey, Signature};
 pub use transcript::{Direction, Slice, Transcript};
 
-use serde::{Deserialize, Serialize};
-
-/// A Server's name.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum ServerName {
-    /// A DNS name.
-    Dns(String),
-}
-
-impl ServerName {
-    /// Returns a reference to the server name as a string slice.
-    pub fn as_str(&self) -> &str {
-        match self {
-            Self::Dns(name) => name.as_str(),
-        }
-    }
-}
-
-impl AsRef<str> for ServerName {
-    fn as_ref(&self) -> &str {
-        match self {
-            Self::Dns(name) => name.as_ref(),
-        }
-    }
-}
+use conn::ServerIdentityProof;
+use substring::SubstringsProof;
 
 pub(crate) mod sealed {
     /// A sealed trait.
     pub trait Sealed {}
+}
+
+pub struct TlsProof {
+    pub identity: ServerIdentityProof,
+    pub substring: SubstringsProof,
 }

@@ -4,9 +4,7 @@ use std::ops::Range;
 
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
-use utils::range::{IndexRanges, RangeDifference, RangeSet, RangeUnion};
-
-use crate::serialize::CanonicalSerialize;
+use utils::range::{IndexRanges, RangeDifference, RangeSet, RangeUnion, ToRangeSet};
 
 pub(crate) static TX_TRANSCRIPT_ID: &str = "tx";
 pub(crate) static RX_TRANSCRIPT_ID: &str = "rx";
@@ -51,88 +49,119 @@ impl Transcript {
     }
 }
 
-// /// A transcript which may have some data redacted.
-// #[derive(Debug)]
-// pub struct RedactedTranscript {
-//     data: Vec<u8>,
-//     /// Ranges of `data` which have been authenticated
-//     auth: RangeSet<usize>,
-//     /// Ranges of `data` which have been redacted
-//     redacted: RangeSet<usize>,
-// }
+/// A partial transcript.
+///
+/// A partial transcript is a transcript which may not have all the data authenticated.
+#[derive(Debug, Clone)]
+pub struct PartialTranscript {
+    data: Vec<u8>,
+    /// Ranges of `data` which have been authenticated
+    auth: RangeSet<usize>,
+    /// Ranges of `data` which have not been authenticated
+    unauth: RangeSet<usize>,
+}
 
-// impl RedactedTranscript {
-//     /// Creates a new redacted transcript with the given length.
-//     ///
-//     /// All bytes in the transcript are initialized to 0.
-//     ///
-//     /// # Arguments
-//     ///
-//     /// * `len` - The length of the transcript
-//     /// * `slices` - A list of slices of data which have been authenticated
-//     pub fn new(len: usize, slices: Vec<Slice>) -> Self {
-//         let mut data = vec![0u8; len];
-//         let mut auth = RangeSet::default();
-//         for slice in slices {
-//             data[slice.range()].copy_from_slice(slice.data());
-//             auth = auth.union(&slice.range());
-//         }
-//         let redacted = RangeSet::from(0..len).difference(&auth);
+impl PartialTranscript {
+    /// Creates a new partial transcript with the given length.
+    ///
+    /// All bytes in the transcript are initialized to 0.
+    ///
+    /// # Arguments
+    ///
+    /// * `len` - The length of the transcript
+    /// * `slices` - A list of slices of data which have been authenticated
+    pub fn new(len: usize, slices: Vec<Slice>) -> Self {
+        let mut data = vec![0u8; len];
+        let mut auth = RangeSet::default();
+        for slice in slices {
+            data[slice.idx.range.clone()].copy_from_slice(&slice.data);
+            auth = auth.union(&slice.idx.range);
+        }
+        let redacted = RangeSet::from(0..len).difference(&auth);
 
-//         Self {
-//             data,
-//             auth,
-//             redacted,
-//         }
-//     }
+        Self {
+            data,
+            auth,
+            unauth: redacted,
+        }
+    }
 
-//     /// Returns a reference to the data.
-//     ///
-//     /// # Warning
-//     ///
-//     /// Not all of the data in the transcript may have been authenticated. See
-//     /// [authed](RedactedTranscript::authed) for a set of ranges which have been.
-//     pub fn data(&self) -> &[u8] {
-//         &self.data
-//     }
+    /// Returns whether the transcript is complete.
+    pub fn is_complete(&self) -> bool {
+        self.auth.len() == self.data.len()
+    }
 
-//     /// Returns all the ranges of data which have been authenticated.
-//     pub fn authed(&self) -> &RangeSet<usize> {
-//         &self.auth
-//     }
+    /// Returns the length of the transcript.
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
 
-//     /// Returns all the ranges of data which have been redacted.
-//     pub fn redacted(&self) -> &RangeSet<usize> {
-//         &self.redacted
-//     }
+    /// Returns a reference to the data.
+    ///
+    /// # Warning
+    ///
+    /// Not all of the data in the transcript may have been authenticated. See
+    /// [authed](PartialTranscript::authed) for a set of ranges which have been.
+    pub fn data(&self) -> &[u8] {
+        &self.data
+    }
 
-//     /// Sets all bytes in the transcript which were redacted.
-//     ///
-//     /// # Arguments
-//     ///
-//     /// * `value` - The value to set the redacted bytes to
-//     pub fn set_redacted(&mut self, value: u8) {
-//         for range in self.redacted().clone().iter_ranges() {
-//             self.data[range].fill(value);
-//         }
-//     }
+    /// Returns all the ranges of data which have been authenticated.
+    pub fn authed(&self) -> &RangeSet<usize> {
+        &self.auth
+    }
 
-//     /// Sets all bytes in the transcript which were redacted in the given range.
-//     ///
-//     /// # Arguments
-//     ///
-//     /// * `value` - The value to set the redacted bytes to
-//     /// * `range` - The range of redacted bytes to set
-//     pub fn set_redacted_range(&mut self, value: u8, range: Range<usize>) {
-//         for range in self
-//             .redacted
-//             .difference(&(0..self.data.len()).difference(&range))
-//             .iter_ranges()
-//         {
-//             self.data[range].fill(value);
-//         }
-//     }
-// }
+    /// Returns all the ranges of data which haven't been authenticated.
+    pub fn unauthed(&self) -> &RangeSet<usize> {
+        &self.unauth
+    }
+
+    /// Unions the authenticated data of this transcript with another.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the other transcript is not the same length.
+    pub(crate) fn union(&mut self, other: &PartialTranscript) {
+        assert_eq!(
+            self.data.len(),
+            other.data.len(),
+            "transcripts are not the same length"
+        );
+
+        for range in other.auth.difference(&self.auth).iter_ranges() {
+            self.data[range.clone()].copy_from_slice(&other.data[range]);
+        }
+        self.auth = self.auth.union(&other.auth);
+        self.unauth = RangeSet::from(0..self.data.len()).difference(&self.auth);
+    }
+
+    /// Sets all bytes in the transcript which haven't been authenticated.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - The value to set the unauthenticated bytes to
+    pub fn set_unauthed(&mut self, value: u8) {
+        for range in self.unauthed().clone().iter_ranges() {
+            self.data[range].fill(value);
+        }
+    }
+
+    /// Sets all bytes in the transcript which haven't been authenticated within the given range.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - The value to set the unauthenticated bytes to
+    /// * `range` - The range of bytes to set
+    pub fn set_unauthed_range(&mut self, value: u8, range: Range<usize>) {
+        for range in self
+            .unauth
+            .difference(&(0..self.data.len()).difference(&range))
+            .iter_ranges()
+        {
+            self.data[range].fill(value);
+        }
+    }
+}
 
 /// The direction of data communicated over a TLS connection.
 ///
@@ -195,17 +224,6 @@ impl Into<Vec<u8>> for Slice {
     }
 }
 
-impl CanonicalSerialize for SliceIdx {
-    #[inline]
-    fn serialize(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        bytes.push(self.direction as u8);
-        bytes.extend_from_slice(&(self.range.start as u32).to_le_bytes());
-        bytes.extend_from_slice(&(self.range.end as u32).to_le_bytes());
-        bytes
-    }
-}
-
 /// A transcript subsequence index.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SubsequenceIdx {
@@ -215,26 +233,94 @@ pub struct SubsequenceIdx {
     pub ranges: RangeSet<usize>,
 }
 
-impl CanonicalSerialize for SubsequenceIdx {
-    #[inline]
-    fn serialize(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        bytes.push(self.direction as u8);
-        bytes.extend_from_slice(&(self.ranges.len_ranges() as u32).to_le_bytes());
-        for range in self.ranges.iter_ranges() {
-            bytes.extend_from_slice(&(range.start as u32).to_le_bytes());
-            bytes.extend_from_slice(&(range.end as u32).to_le_bytes());
-        }
-        bytes
-    }
-}
-
 /// A transcript subsequence.
 pub struct Subsequence {
     /// The index of the subsequence.
     pub idx: SubsequenceIdx,
     /// The data of the subsequence.
     pub data: Vec<u8>,
+}
+
+impl Subsequence {
+    /// Converts the subsequence into slices.
+    pub fn into_slices(self) -> Vec<Slice> {
+        let mut slices = Vec::with_capacity(self.idx.ranges.len_ranges());
+        let mut ranges = self.idx.ranges.into_inner();
+
+        // Reverse the ranges so we can split them off from the end.
+        ranges.reverse();
+
+        let mut data = self.data;
+        for range in ranges {
+            let slice = data.split_off(data.len() - range.len());
+            slices.push(Slice::new(
+                SliceIdx {
+                    direction: self.idx.direction,
+                    range,
+                },
+                slice,
+            ));
+        }
+
+        // Reverse the slices so they are in ascending order.
+        slices.reverse();
+        slices
+    }
+}
+
+/// Kind of transcript commitment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum TranscriptCommitmentKind {
+    /// A commitment to the encodings of the transcript.
+    Encoding,
+    /// A hash commitment to some plaintext in the transcript.
+    Hash,
+}
+
+/// A type which can commit to subsequences of a transcript.
+pub trait TranscriptCommit {
+    /// The error type of the committer.
+    type Error;
+
+    /// Commits the given ranges of the sent data transcript.
+    fn commit_sent(&mut self, ranges: &dyn ToRangeSet<usize>) -> Result<&mut Self, Self::Error> {
+        self.commit(ranges, Direction::Sent)
+    }
+
+    /// Commits the given ranges of the received data transcript.
+    fn commit_recv(&mut self, ranges: &dyn ToRangeSet<usize>) -> Result<&mut Self, Self::Error> {
+        self.commit(ranges, Direction::Received)
+    }
+
+    /// Commits the given ranges of the transcript.
+    fn commit(
+        &mut self,
+        ranges: &dyn ToRangeSet<usize>,
+        direction: Direction,
+    ) -> Result<&mut Self, Self::Error>;
+}
+
+/// A type which can reveal subsequences of a transcript.
+pub trait TranscriptReveal {
+    /// The error type of the revealer.
+    type Error;
+
+    /// Reveals the given ranges of the sent data transcript.
+    fn reveal_sent(&mut self, ranges: &dyn ToRangeSet<usize>) -> Result<&mut Self, Self::Error> {
+        self.reveal(ranges, Direction::Sent)
+    }
+
+    /// Reveals the given ranges of the received data transcript.
+    fn reveal_recv(&mut self, ranges: &dyn ToRangeSet<usize>) -> Result<&mut Self, Self::Error> {
+        self.reveal(ranges, Direction::Received)
+    }
+
+    /// Reveals the given ranges of the transcript.
+    fn reveal(
+        &mut self,
+        ranges: &dyn ToRangeSet<usize>,
+        direction: Direction,
+    ) -> Result<&mut Self, Self::Error>;
 }
 
 #[cfg(test)]
@@ -296,5 +382,22 @@ mod tests {
             end: sent.data().len() + 1,
         };
         sent.get_bytes_in_ranges(&RangeSet::from([range]));
+    }
+
+    #[test]
+    fn test_subsequence_into_slices() {
+        let seq = Subsequence {
+            idx: SubsequenceIdx {
+                direction: Direction::Sent,
+                ranges: RangeSet::from([0..1, 2..4, 5..6]),
+            },
+            data: vec![0, 2, 3, 5],
+        };
+
+        let slices = seq.into_slices();
+        assert_eq!(slices.len(), 3);
+        assert_eq!(slices[0].as_bytes(), &[0]);
+        assert_eq!(slices[1].as_bytes(), &[2, 3]);
+        assert_eq!(slices[2].as_bytes(), &[5]);
     }
 }

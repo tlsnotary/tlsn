@@ -11,6 +11,7 @@ pub(crate) use encoder::{new_encoder, Encoder};
 pub use proof::EncodingProof;
 pub use proof_builder::EncodingProofBuilder;
 pub use provider::EncodingProvider;
+pub(crate) use tree::EncodingLeaf;
 pub use tree::EncodingTree;
 pub use tree_builder::EncodingTreeBuilder;
 

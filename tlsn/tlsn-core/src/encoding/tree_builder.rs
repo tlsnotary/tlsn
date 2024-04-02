@@ -4,7 +4,7 @@ use crate::{
     conn::TranscriptLength,
     encoding::{EncodingProvider, EncodingTree},
     hash::HashAlgorithm,
-    transcript::SubsequenceIdx,
+    transcript::{SubsequenceIdx, TranscriptCommit},
     Direction,
 };
 
@@ -49,42 +49,14 @@ pub struct EncodingTreeBuilder {
 
 opaque_debug::implement!(EncodingTreeBuilder);
 
-impl EncodingTreeBuilder {
-    /// Creates a new encoding tree builder.
-    pub fn new(
-        provider: Box<dyn EncodingProvider>,
-        transcript_length: TranscriptLength,
-        alg: HashAlgorithm,
-    ) -> Self {
-        Self {
-            provider,
-            tree: EncodingTree::new(alg),
-            transcript_length,
-        }
-    }
+impl TranscriptCommit for EncodingTreeBuilder {
+    type Error = EncodingTreeBuilderError;
 
-    /// Commits the given ranges to the encoding tree.
-    pub fn commit_sent(
-        &mut self,
-        ranges: &dyn ToRangeSet<usize>,
-    ) -> Result<&mut Self, EncodingTreeBuilderError> {
-        self.commit(ranges, Direction::Sent)
-    }
-
-    /// Commits the given ranges to the encoding tree.
-    pub fn commit_recv(
-        &mut self,
-        ranges: &dyn ToRangeSet<usize>,
-    ) -> Result<&mut Self, EncodingTreeBuilderError> {
-        self.commit(ranges, Direction::Received)
-    }
-
-    /// Commits the given ranges to the encoding tree.
-    pub fn commit(
+    fn commit(
         &mut self,
         ranges: &dyn ToRangeSet<usize>,
         direction: Direction,
-    ) -> Result<&mut Self, EncodingTreeBuilderError> {
+    ) -> Result<&mut Self, Self::Error> {
         let ranges = ranges.to_range_set();
         let end = ranges.end().ok_or(EncodingTreeBuilderError::EmptyRange)?;
         let len = match direction {
@@ -113,6 +85,21 @@ impl EncodingTreeBuilder {
 
         Ok(self)
     }
+}
+
+impl EncodingTreeBuilder {
+    /// Creates a new encoding tree builder.
+    pub fn new(
+        provider: Box<dyn EncodingProvider>,
+        transcript_length: TranscriptLength,
+        alg: HashAlgorithm,
+    ) -> Self {
+        Self {
+            provider,
+            tree: EncodingTree::new(alg),
+            transcript_length,
+        }
+    }
 
     /// Builds the encoding tree.
     pub fn build(self) -> Result<EncodingTree, EncodingTreeBuilderError> {
@@ -124,7 +111,7 @@ impl EncodingTreeBuilder {
 mod tests {
     use super::*;
     use crate::fixtures::provider;
-    use tlsn_fixtures::http::{request::POST_JSON, response::OK_JSON};
+    use tlsn_data_fixtures::http::{request::POST_JSON, response::OK_JSON};
 
     fn builder() -> EncodingTreeBuilder {
         let provider = Box::new(provider(POST_JSON, OK_JSON));

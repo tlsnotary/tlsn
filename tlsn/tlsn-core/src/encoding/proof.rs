@@ -5,10 +5,12 @@ use utils::range::{RangeDisjoint, RangeSet, RangeUnion};
 
 use crate::{
     conn::TranscriptLength,
-    encoding::{new_encoder, tree::Leaf, Encoder, EncodingCommitment, MAX_TOTAL_COMMITTED_DATA},
+    encoding::{
+        new_encoder, tree::EncodingLeaf, Encoder, EncodingCommitment, MAX_TOTAL_COMMITTED_DATA,
+    },
     hash::HashAlgorithm,
     merkle::MerkleProof,
-    transcript::{SliceIdx, SubsequenceIdx},
+    transcript::{PartialTranscript, SliceIdx, SubsequenceIdx},
     Direction, Slice,
 };
 
@@ -79,7 +81,7 @@ pub struct EncodingProof {
 impl EncodingProof {
     /// Verifies the proof against the commitment.
     ///
-    /// Returns the authenticated slices of the sent and received transcripts, respectively.
+    /// Returns the partial sent and received transcripts, respectively.
     ///
     /// # Arguments
     ///
@@ -89,7 +91,7 @@ impl EncodingProof {
         self,
         transcript_length: &TranscriptLength,
         commitment: &EncodingCommitment,
-    ) -> Result<(Vec<Slice>, Vec<Slice>), EncodingProofError> {
+    ) -> Result<(PartialTranscript, PartialTranscript), EncodingProofError> {
         let seed: [u8; 32] = commitment
             .seed
             .clone()
@@ -167,7 +169,7 @@ impl EncodingProof {
             }
 
             let expected_encoding = encoder.encode_subsequence(&seq, &data);
-            let expected_leaf = Leaf::new(expected_encoding, nonce);
+            let expected_leaf = EncodingLeaf::new(expected_encoding, nonce);
 
             // Compute the expected hash of the commitment to make sure it is
             // present in the merkle tree.
@@ -226,6 +228,9 @@ impl EncodingProof {
         sent_slices.sort_by_key(|slice| slice.index().range.start);
         recv_slices.sort_by_key(|slice| slice.index().range.start);
 
-        Ok((sent_slices, recv_slices))
+        Ok((
+            PartialTranscript::new(sent_len, sent_slices),
+            PartialTranscript::new(recv_len, recv_slices),
+        ))
     }
 }
