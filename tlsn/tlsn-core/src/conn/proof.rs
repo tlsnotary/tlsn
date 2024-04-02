@@ -44,7 +44,7 @@ impl ServerIdentityProof {
     /// * `info` - The connection information.
     /// * `handshake` - The handshake data.
     pub fn verify(
-        &self,
+        self,
         info: &ConnectionInfo,
         handshake: &HandshakeData,
     ) -> Result<ServerIdentity, ServerIdentityProofError> {
@@ -67,7 +67,7 @@ impl ServerIdentityProof {
     /// * `handshake` - The handshake data.
     /// * `root_store` - The root certificate store.
     pub fn verify_with_root_store(
-        &self,
+        self,
         info: &ConnectionInfo,
         handshake: &HandshakeData,
         root_store: RootCertStore,
@@ -132,6 +132,6 @@ impl ServerIdentityProof {
             .verify_tls12_signature(&message, end_entity, &dss)
             .map_err(|_| ServerIdentityProofError::InvalidSignature)?;
 
-        Ok(self.identity.clone())
+        Ok(self.identity)
     }
 }
