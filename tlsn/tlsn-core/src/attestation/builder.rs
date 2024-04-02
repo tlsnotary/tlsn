@@ -49,7 +49,10 @@ impl AttestationBuilder {
         // Only allow one of each of these fields.
         if matches!(
             kind,
-            FieldKind::ConnectionInfo | FieldKind::HandshakeData | FieldKind::EncodingCommitment
+            FieldKind::ConnectionInfo
+                | FieldKind::HandshakeData
+                | FieldKind::CertificateCommitment
+                | FieldKind::EncodingCommitment
         ) && *count > 0
         {
             return Err(AttestationBuilderError(format!(

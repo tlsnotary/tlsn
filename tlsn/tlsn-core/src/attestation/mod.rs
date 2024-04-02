@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    conn::{Certificate, ConnectionInfo, HandshakeData, ServerSignature},
+    conn::{Certificate, ConnectionInfo, HandshakeData, ServerIdentityProof, ServerSignature},
     encoding::{EncodingCommitment, EncodingTree},
     hash::{Hash, HashAlgorithm, PlaintextHash},
     merkle::MerkleTree,
@@ -250,3 +250,10 @@ pub struct AttestationFull {
 }
 
 opaque_debug::implement!(AttestationFull);
+
+impl AttestationFull {
+    /// Returns a server identity proof.
+    pub fn identity_proof(&self) -> Result<ServerIdentityProof, AttestationError> {
+        todo!()
+    }
+}
