@@ -19,6 +19,7 @@ pub enum TlsVersion {
 
 /// A Server's identity.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(tag = "type")]
 #[non_exhaustive]
 pub enum ServerIdentity {
     /// A DNS name.

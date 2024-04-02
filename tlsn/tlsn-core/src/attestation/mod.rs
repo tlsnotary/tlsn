@@ -6,7 +6,10 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    conn::{Certificate, ConnectionInfo, HandshakeData, ServerIdentityProof, ServerSignature},
+    conn::{
+        Certificate, ConnectionInfo, HandshakeData, ServerIdentity, ServerIdentityProof,
+        ServerSignature,
+    },
     encoding::{EncodingCommitment, EncodingTree},
     hash::{Hash, HashAlgorithm, PlaintextHash},
     merkle::MerkleTree,
@@ -60,6 +63,9 @@ pub enum Secret {
         /// The nonce which was hashed with the end-entity certificate and signature.
         nonce: [u8; 16],
     },
+    /// The server's identity.
+    #[serde(rename = "server_identity")]
+    ServerIdentity(ServerIdentity),
     /// A merkle tree of transcript encodings.
     #[serde(rename = "encoding")]
     EncodingTree(EncodingTree),
@@ -254,6 +260,29 @@ opaque_debug::implement!(AttestationFull);
 impl AttestationFull {
     /// Returns a server identity proof.
     pub fn identity_proof(&self) -> Result<ServerIdentityProof, AttestationError> {
-        todo!()
+        let (cert_chain, sig, nonce) = self
+            .secrets
+            .iter()
+            .find_map(|secret| match secret {
+                Secret::Certificate { certs, sig, nonce } => Some((certs, sig, nonce)),
+                _ => None,
+            })
+            .unwrap();
+
+        let identity = self
+            .secrets
+            .iter()
+            .find_map(|secret| match secret {
+                Secret::ServerIdentity(identity) => Some(identity.clone()),
+                _ => None,
+            })
+            .unwrap();
+
+        Ok(ServerIdentityProof {
+            cert_chain: cert_chain.clone(),
+            sig: sig.clone(),
+            nonce: *nonce,
+            identity,
+        })
     }
 }
