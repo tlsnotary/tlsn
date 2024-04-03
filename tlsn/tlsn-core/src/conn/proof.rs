@@ -19,7 +19,8 @@ use crate::{
 pub struct ServerIdentityProof {
     pub(crate) cert_chain: Vec<Certificate>,
     pub(crate) sig: ServerSignature,
-    pub(crate) nonce: [u8; 16],
+    pub(crate) cert_nonce: [u8; 16],
+    pub(crate) chain_nonce: [u8; 16],
     pub(crate) identity: ServerIdentity,
 }
 
@@ -51,12 +52,14 @@ impl ServerIdentityProof {
     ///
     /// * `info` - The connection information.
     /// * `handshake` - The handshake data.
-    /// * `commitment` - The commitment to the server's certificate and signature.
+    /// * `cert_commitment` - The commitment to the server's certificate and signature.
+    /// * `chain_commitment` - The commitment to the certificate chain.
     pub fn verify(
         self,
         info: &ConnectionInfo,
         handshake: &HandshakeData,
-        commitment: &Hash,
+        cert_commitment: &Hash,
+        chain_commitment: &Hash,
     ) -> Result<ServerIdentity, ServerIdentityProofError> {
         let mut root_store = RootCertStore::empty();
         root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(|ta| {
@@ -66,7 +69,13 @@ impl ServerIdentityProof {
                 ta.name_constraints.as_ref().map(|nc| nc.as_ref()),
             )
         }));
-        self.verify_with_root_store(info, handshake, commitment, root_store)
+        self.verify_with_root_store(
+            info,
+            handshake,
+            cert_commitment,
+            chain_commitment,
+            root_store,
+        )
     }
 
     /// Verifies the server identity proof with the provided certificate root store.
@@ -75,13 +84,15 @@ impl ServerIdentityProof {
     ///
     /// * `info` - The connection information.
     /// * `handshake` - The handshake data.
-    /// * `commitment` - The commitment to the server's certificate and signature.
+    /// * `cert_commitment` - The commitment to the server's certificate and signature.
+    /// * `chain_commitment` - The commitment to the certificate chain.
     /// * `root_store` - The root certificate store.
     pub fn verify_with_root_store(
         self,
         info: &ConnectionInfo,
         handshake: &HandshakeData,
-        commitment: &Hash,
+        cert_commitment: &Hash,
+        chain_commitment: &Hash,
         root_store: RootCertStore,
     ) -> Result<ServerIdentity, ServerIdentityProofError> {
         let cert_verifier = WebPkiVerifier::new(root_store, None);
@@ -106,18 +117,29 @@ impl ServerIdentityProof {
         let server_name = ServerName::try_from(server_name.as_ref())
             .map_err(|_| ServerIdentityProofError::InvalidIdentity(self.identity.clone()))?;
 
-        // Verify commitment
+        // Verify commitments
+        let mut msg = Vec::new();
+        msg.extend_from_slice(&(self.cert_chain.len() as u32).to_le_bytes());
+        for cert in &self.cert_chain {
+            msg.extend_from_slice(&cert.serialize());
+        }
+        msg.extend_from_slice(&self.chain_nonce);
+
+        if chain_commitment != &chain_commitment.algorithm().hash(&msg) {
+            return Err(ServerIdentityProofError::InvalidCommitment);
+        }
+
         let end_entity = self
             .cert_chain
             .first()
             .ok_or(ServerIdentityProofError::MissingCerts)?;
 
         let mut msg = Vec::new();
-        msg.extend_from_slice(&end_entity.0);
+        msg.extend_from_slice(&end_entity.serialize());
         msg.extend_from_slice(&self.sig.serialize());
-        msg.extend_from_slice(&self.nonce);
+        msg.extend_from_slice(&self.cert_nonce);
 
-        if commitment != &commitment.algorithm().hash(&msg) {
+        if cert_commitment != &cert_commitment.algorithm().hash(&msg) {
             return Err(ServerIdentityProofError::InvalidCommitment);
         }
 

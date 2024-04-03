@@ -3,8 +3,8 @@
 use crate::{
     attestation::{AttestationHeader, Field, ATTESTATION_ID_LEN, ATTESTATION_VERSION_LEN},
     conn::{
-        ConnectionInfo, HandshakeData, HandshakeDataV1_2, ServerEphemKey, ServerSignature,
-        TlsVersion,
+        Certificate, ConnectionInfo, HandshakeData, HandshakeDataV1_2, ServerEphemKey,
+        ServerSignature, TlsVersion,
     },
     encoding::EncodingLeaf,
     hash::PlaintextHash,
@@ -86,6 +86,18 @@ impl CanonicalSerialize for ServerSignature {
     }
 }
 
+impl CanonicalSerialize for Certificate {
+    #[inline]
+    fn serialize(&self) -> Vec<u8> {
+        let Self(cert) = self;
+
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&(cert.len() as u32).to_le_bytes());
+        bytes.extend(cert);
+        bytes
+    }
+}
+
 impl CanonicalSerialize for Field {
     #[inline]
     fn serialize(&self) -> Vec<u8> {
@@ -97,6 +109,12 @@ impl CanonicalSerialize for Field {
             }
             Field::HandshakeData(data) => {
                 bytes.extend(CanonicalSerialize::serialize(data));
+            }
+            Field::CertificateCommitment(commitment) => {
+                bytes.extend(CanonicalSerialize::serialize(commitment));
+            }
+            Field::CertificateChainCommitment(commitment) => {
+                bytes.extend(CanonicalSerialize::serialize(commitment));
             }
             Field::EncodingCommitment(commitment) => {
                 bytes.extend(CanonicalSerialize::serialize(commitment));

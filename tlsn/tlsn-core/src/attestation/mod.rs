@@ -53,7 +53,7 @@ impl AttestationVersion {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum Secret {
-    /// The server's certificate details.
+    /// The certificate chain and signature.
     #[serde(rename = "cert")]
     Certificate {
         /// The certificate chain.
@@ -61,7 +61,9 @@ pub enum Secret {
         /// The signature of the key exchange parameters.
         sig: ServerSignature,
         /// The nonce which was hashed with the end-entity certificate and signature.
-        nonce: [u8; 16],
+        cert_nonce: [u8; 16],
+        /// The nonce which was hashed with the certificate chain.
+        chain_nonce: [u8; 16],
     },
     /// The server's identity.
     #[serde(rename = "server_identity")]
@@ -92,8 +94,11 @@ pub enum Field {
     #[serde(rename = "handshake")]
     HandshakeData(HandshakeData),
     /// Commitment to the server's certificate and signature.
-    #[serde(rename = "cert_commitment")]
+    #[serde(rename = "cert")]
     CertificateCommitment(Hash),
+    /// Commitment to the certificate chain.
+    #[serde(rename = "cert_chain")]
+    CertificateChainCommitment(Hash),
     /// Commitment to the encodings of the transcript plaintext.
     #[serde(rename = "encoding")]
     EncodingCommitment(EncodingCommitment),
@@ -112,6 +117,7 @@ impl Field {
             Field::ConnectionInfo(_) => FieldKind::ConnectionInfo,
             Field::HandshakeData(_) => FieldKind::HandshakeData,
             Field::CertificateCommitment(_) => FieldKind::CertificateCommitment,
+            Field::CertificateChainCommitment(_) => FieldKind::CertificateChainCommitment,
             Field::EncodingCommitment(_) => FieldKind::EncodingCommitment,
             Field::PlaintextHash(_) => FieldKind::PlaintextHash,
             Field::ExtraData(_) => FieldKind::ExtraData,
@@ -129,10 +135,12 @@ pub enum FieldKind {
     HandshakeData = 0x01,
     /// Commitment to the server's certificate and signature.
     CertificateCommitment = 0x02,
+    /// Commitment to the certificate chain.
+    CertificateChainCommitment = 0x03,
     /// Commitment to the encodings of the transcript plaintext.
-    EncodingCommitment = 0x03,
+    EncodingCommitment = 0x04,
     /// A hash of a range of plaintext in the transcript.
-    PlaintextHash = 0x04,
+    PlaintextHash = 0x05,
     /// Arbitrary extra data bound to the attestation.
     ExtraData = 0xff,
 }
@@ -260,11 +268,16 @@ opaque_debug::implement!(AttestationFull);
 impl AttestationFull {
     /// Returns a server identity proof.
     pub fn identity_proof(&self) -> Result<ServerIdentityProof, AttestationError> {
-        let (cert_chain, sig, nonce) = self
+        let (cert_chain, sig, cert_nonce, chain_nonce) = self
             .secrets
             .iter()
             .find_map(|secret| match secret {
-                Secret::Certificate { certs, sig, nonce } => Some((certs, sig, nonce)),
+                Secret::Certificate {
+                    certs,
+                    sig,
+                    cert_nonce,
+                    chain_nonce,
+                } => Some((certs, sig, cert_nonce, chain_nonce)),
                 _ => None,
             })
             .unwrap();
@@ -281,7 +294,8 @@ impl AttestationFull {
         Ok(ServerIdentityProof {
             cert_chain: cert_chain.clone(),
             sig: sig.clone(),
-            nonce: *nonce,
+            cert_nonce: *cert_nonce,
+            chain_nonce: *chain_nonce,
             identity,
         })
     }
