@@ -57,32 +57,18 @@ pub struct PartialTranscript {
     data: Vec<u8>,
     /// Ranges of `data` which have been authenticated
     auth: RangeSet<usize>,
-    /// Ranges of `data` which have not been authenticated
-    unauth: RangeSet<usize>,
 }
 
 impl PartialTranscript {
-    /// Creates a new partial transcript with the given length.
-    ///
-    /// All bytes in the transcript are initialized to 0.
+    /// Creates a new partial transcript initalized to all 0s.
     ///
     /// # Arguments
     ///
     /// * `len` - The length of the transcript
-    /// * `slices` - A list of slices of data which have been authenticated
-    pub fn new(len: usize, slices: Vec<Slice>) -> Self {
-        let mut data = vec![0u8; len];
-        let mut auth = RangeSet::default();
-        for slice in slices {
-            data[slice.idx.range.clone()].copy_from_slice(&slice.data);
-            auth = auth.union(&slice.idx.range);
-        }
-        let redacted = RangeSet::from(0..len).difference(&auth);
-
+    pub(crate) fn new(len: usize) -> Self {
         Self {
-            data,
-            auth,
-            unauth: redacted,
+            data: vec![0; len],
+            auth: RangeSet::default(),
         }
     }
 
@@ -112,8 +98,8 @@ impl PartialTranscript {
     }
 
     /// Returns all the ranges of data which haven't been authenticated.
-    pub fn unauthed(&self) -> &RangeSet<usize> {
-        &self.unauth
+    pub fn unauthed(&self) -> RangeSet<usize> {
+        RangeSet::from(0..self.data.len()).difference(&self.auth)
     }
 
     /// Unions the authenticated data of this transcript with another.
@@ -132,7 +118,16 @@ impl PartialTranscript {
             self.data[range.clone()].copy_from_slice(&other.data[range]);
         }
         self.auth = self.auth.union(&other.auth);
-        self.unauth = RangeSet::from(0..self.data.len()).difference(&self.auth);
+    }
+
+    /// Unions an authenticated subsequence into this transcript.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the subsequence is outside the bounds of the transcript.
+    pub(crate) fn union_subsequence(&mut self, seq: &Subsequence) {
+        self.auth = self.auth.union(&seq.idx.ranges);
+        seq.copy_to(&mut self.data);
     }
 
     /// Sets all bytes in the transcript which haven't been authenticated.
@@ -153,11 +148,7 @@ impl PartialTranscript {
     /// * `value` - The value to set the unauthenticated bytes to
     /// * `range` - The range of bytes to set
     pub fn set_unauthed_range(&mut self, value: u8, range: Range<usize>) {
-        for range in self
-            .unauth
-            .difference(&(0..self.data.len()).difference(&range))
-            .iter_ranges()
-        {
+        for range in range.difference(&self.auth).iter_ranges() {
             self.data[range].fill(value);
         }
     }
@@ -234,6 +225,7 @@ pub struct SubsequenceIdx {
 }
 
 /// A transcript subsequence.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Subsequence {
     /// The index of the subsequence.
     pub idx: SubsequenceIdx,
@@ -242,6 +234,19 @@ pub struct Subsequence {
 }
 
 impl Subsequence {
+    /// Copies the subsequence data into the given destination.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the subsequence ranges are out of bounds.
+    pub(crate) fn copy_to(&self, dest: &mut [u8]) {
+        let mut offset = 0;
+        for range in self.idx.ranges.iter_ranges() {
+            dest[range.clone()].copy_from_slice(&self.data[offset..offset + range.len()]);
+            offset += range.len();
+        }
+    }
+
     /// Converts the subsequence into slices.
     pub fn into_slices(self) -> Vec<Slice> {
         let mut slices = Vec::with_capacity(self.idx.ranges.len_ranges());

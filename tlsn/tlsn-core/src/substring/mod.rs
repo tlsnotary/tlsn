@@ -7,6 +7,7 @@ use crate::{
     encoding::EncodingProof,
     hash::{HashAlgorithm, PlaintextHashOpening},
     transcript::PartialTranscript,
+    Direction,
 };
 
 pub use config::SubstringsCommitConfig;
@@ -40,8 +41,8 @@ impl SubstringsProof {
     ) -> Result<(PartialTranscript, PartialTranscript), ()> {
         let info = attestation_body.get_info().unwrap();
 
-        let mut sent = PartialTranscript::new(info.transcript_length.sent as usize, vec![]);
-        let mut recv = PartialTranscript::new(info.transcript_length.received as usize, vec![]);
+        let mut sent = PartialTranscript::new(info.transcript_length.sent as usize);
+        let mut recv = PartialTranscript::new(info.transcript_length.received as usize);
 
         // Verify encoding proof.
         if let Some(proof) = self.encoding {
@@ -53,32 +54,22 @@ impl SubstringsProof {
         }
 
         // Verify hash openings.
-        {
-            let mut sent_slices = Vec::new();
-            let mut recv_slices = Vec::new();
-            for opening in self.hash_openings {
-                let Field::PlaintextHash(commitment) =
-                    attestation_body.get(opening.commitment_id()).unwrap()
-                else {
-                    panic!();
-                };
+        for opening in self.hash_openings {
+            let Field::PlaintextHash(commitment) =
+                attestation_body.get(opening.commitment_id()).unwrap()
+            else {
+                panic!();
+            };
 
-                let subseq = opening.verify(commitment).unwrap();
-                match subseq.idx.direction {
-                    crate::Direction::Sent => {
-                        sent_slices.extend(subseq.into_slices());
-                    }
-                    crate::Direction::Received => {
-                        recv_slices.extend(subseq.into_slices());
-                    }
+            let seq = opening.verify(commitment).unwrap();
+            match seq.idx.direction {
+                Direction::Sent => {
+                    sent.union_subsequence(&seq);
+                }
+                Direction::Received => {
+                    recv.union_subsequence(&seq);
                 }
             }
-            let sent_ = PartialTranscript::new(info.transcript_length.sent as usize, sent_slices);
-            let recv_ =
-                PartialTranscript::new(info.transcript_length.received as usize, recv_slices);
-
-            sent.union(&sent_);
-            recv.union(&recv_);
         }
 
         Ok((sent, recv))
