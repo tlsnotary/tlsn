@@ -33,7 +33,7 @@ where
 
         match auth_header {
             Some(auth_header) => {
-                let whitelist = whitelist.lock().await;
+                let whitelist = whitelist.lock().unwrap();
                 if api_key_is_valid(auth_header, &whitelist) {
                     trace!("Request authorized.");
                     Ok(Self)

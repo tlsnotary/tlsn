@@ -3,7 +3,8 @@ use std::{collections::HashMap, sync::Arc};
 use chrono::{DateTime, Utc};
 use p256::ecdsa::SigningKey;
 use serde::{Deserialize, Serialize};
-use tokio::sync::Mutex;
+use std::sync::Mutex;
+use tokio::sync::Mutex as AsyncMutex;
 
 use crate::{config::NotarizationProperties, domain::auth::AuthorizationWhitelistRecord};
 
@@ -57,7 +58,7 @@ pub struct NotaryGlobals {
     pub notary_signing_key: SigningKey,
     pub notarization_config: NotarizationProperties,
     /// A temporary storage to store configuration data, mainly used for WebSocket client
-    pub store: Arc<Mutex<HashMap<String, SessionData>>>,
+    pub store: Arc<AsyncMutex<HashMap<String, SessionData>>>,
     /// Whitelist of API keys for authorization purpose
     pub authorization_whitelist: Option<Arc<Mutex<HashMap<String, AuthorizationWhitelistRecord>>>>,
 }

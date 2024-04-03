@@ -23,15 +23,11 @@ use std::{
     net::{IpAddr, SocketAddr},
     path::Path,
     pin::Pin,
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 use tower_http::cors::CorsLayer;
 
-use tokio::{
-    fs::File,
-    net::TcpListener,
-    sync::{mpsc, Mutex},
-};
+use tokio::{fs::File, net::TcpListener};
 use tokio_rustls::TlsAcceptor;
 use tower::MakeService;
 use tracing::{debug, error, info};
@@ -281,7 +277,7 @@ fn load_authorization_whitelist(
 }
 
 // Setup a watcher to detect any changes to authorization whitelist
-// When the list file is modified, the watcher thread will notify a tokio task to reload the whitelist
+// When the list file is modified, the watcher thread will reload the whitelist
 // The watcher is setup in a separate thread by the notify library which is synchronous
 fn watch_and_reload_authorization_whitelist(
     config: NotaryServerProperties,
@@ -289,23 +285,28 @@ fn watch_and_reload_authorization_whitelist(
 ) -> Result<Option<RecommendedWatcher>> {
     // Only setup the watcher if auth whitelist is loaded
     let watcher = if let Some(authorization_whitelist) = authorization_whitelist {
-        // Use tokio unbounded channel sender to send event from synchronous watcher thread to async hot reload task
-        let (tx, mut rx) = mpsc::unbounded_channel();
+        let cloned_config = config.clone();
         // Setup watcher by giving it a function that will be triggered when an event is detected
         let mut watcher = RecommendedWatcher::new(
             move |event: Result<Event, Error>| {
                 match event {
                     Ok(event) => {
-                        // Only send event if it's one that modified the file data
+                        // Only reload whitelist if it's an event that modified the file data
                         if let EventKind::Modify(ModifyKind::Data(_)) = event.kind {
                             debug!("Authorization whitelist is modified");
-                            tx.send(event).unwrap_or_else(|err| {
-                                error!(
-                                    "Watcher failed to send event to notify hot reload task: {err}"
-                                )
-                            });
+                            match load_authorization_whitelist(&cloned_config) {
+                                Ok(Some(new_authorization_whitelist)) => {
+                                    *authorization_whitelist.lock().unwrap() = new_authorization_whitelist;
+                                    info!("Successfully reloaded authorization whitelist!");
+                                }
+                                Ok(None) => unreachable!(
+                                    "Authorization whitelist will never be None as the auth module is enabled"
+                                ),
+                                // Ensure that error from reloading doesn't bring the server down
+                                Err(err) => error!("{err}"),
+                            }
                         }
-                    }
+                    },
                     Err(err) => {
                         error!("Error occured when watcher detected an event: {err}")
                     }
@@ -323,24 +324,6 @@ fn watch_and_reload_authorization_whitelist(
             )
             .map_err(|err| eyre!("Error occured when starting up watcher for hot reload: {err}"))?;
 
-        // Spawn an async task that is responsible for receiving event from sender in the watcher thread and
-        // reload the whitelist into the mutex-protected authorization_whitelist
-        tokio::spawn(async move {
-            debug!("Hot reload task is running...");
-            while let Some(_event) = rx.recv().await {
-                match load_authorization_whitelist(&config) {
-                    Ok(Some(new_authorization_whitelist)) => {
-                        *authorization_whitelist.lock().await = new_authorization_whitelist;
-                        info!("Successfully reloaded authorization whitelist!");
-                    }
-                    Ok(None) => unreachable!(
-                        "Authorization whitelist will never be None as the auth module is enabled"
-                    ),
-                    // Ensure that error from reloading doesn't bring the server down
-                    Err(err) => error!("{err}"),
-                }
-            }
-        });
         Some(watcher)
     } else {
         // Skip setup the watcher if auth whitelist is not loaded
@@ -430,7 +413,7 @@ mod test {
         assert!(authorization_whitelist
             .unwrap()
             .lock()
-            .await
+            .unwrap()
             .contains_key("unit-test-api-key"));
 
         // Delete the cloned whitelist
