@@ -1,9 +1,24 @@
+mod config;
+
+use serde::{Deserialize, Serialize};
+
 use crate::{
     attestation::{AttestationBody, Field},
     encoding::EncodingProof,
-    hash::PlaintextHashOpening,
+    hash::{HashAlgorithm, PlaintextHashOpening},
     transcript::PartialTranscript,
 };
+
+pub use config::SubstringsCommitConfig;
+
+/// Kind of transcript commitment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum SubstringCommitmentKind {
+    /// A commitment to the encodings of the transcript.
+    Encoding,
+    /// A hash commitment to some plaintext in the transcript.
+    Hash { alg: Option<HashAlgorithm> },
+}
 
 /// A proof of substrings in a transcript.
 pub struct SubstringsProof {

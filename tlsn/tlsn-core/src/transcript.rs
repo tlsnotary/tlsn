@@ -268,15 +268,6 @@ impl Subsequence {
     }
 }
 
-/// Kind of transcript commitment.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum TranscriptCommitmentKind {
-    /// A commitment to the encodings of the transcript.
-    Encoding,
-    /// A hash commitment to some plaintext in the transcript.
-    Hash,
-}
-
 /// A type which can commit to subsequences of a transcript.
 pub trait TranscriptCommit {
     /// The error type of the committer.
