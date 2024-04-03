@@ -6,7 +6,11 @@ use serde::{Deserialize, Serialize};
 use utils::range::RangeSet;
 
 use crate::{
-    encoding::proof::{EncodingProof, Opening},
+    conn::TranscriptLength,
+    encoding::{
+        proof::{EncodingProof, Opening},
+        EncodingProvider,
+    },
     hash::{Hash, HashAlgorithm},
     merkle::MerkleTree,
     transcript::{Subsequence, SubsequenceIdx},
@@ -72,12 +76,52 @@ pub struct EncodingTree {
 opaque_debug::implement!(EncodingTree);
 
 impl EncodingTree {
-    pub(crate) fn new(alg: HashAlgorithm) -> Self {
-        Self {
+    /// Creates a new encoding tree.
+    ///
+    /// # Arguments
+    ///
+    /// * `alg` - The hash algorithm to use.
+    /// * `seqs` - The subsequence indices to commit to.
+    /// * `provider` - The encoding provider.
+    /// * `transcript_length` - The length of the transcript.
+    pub fn new<'seq>(
+        alg: HashAlgorithm,
+        seqs: impl Iterator<Item = &'seq SubsequenceIdx>,
+        provider: &impl EncodingProvider,
+        transcript_length: &TranscriptLength,
+    ) -> Result<Self, EncodingTreeError> {
+        let mut tree = Self {
             tree: MerkleTree::new(alg),
             nonces: Vec::new(),
             seqs: BiMap::new(),
+        };
+
+        for seq in seqs {
+            let end = seq.ranges.end().ok_or(EncodingTreeError::EmptyRange)?;
+            let len = match seq.direction {
+                Direction::Sent => transcript_length.sent as usize,
+                Direction::Received => transcript_length.received as usize,
+            };
+
+            if end > len {
+                return Err(EncodingTreeError::OutOfBounds {
+                    input_end: end,
+                    transcript_length: len,
+                    direction: seq.direction,
+                });
+            }
+
+            let encoding = provider
+                .provide_ranges(seq.ranges.clone(), seq.direction)
+                .ok_or_else(|| EncodingTreeError::MissingEncoding {
+                    ranges: seq.ranges.clone(),
+                    direction: seq.direction,
+                })?;
+
+            tree.add_leaf(seq.clone(), encoding);
         }
+
+        Ok(tree)
     }
 
     /// Returns the root of the tree.
@@ -133,5 +177,132 @@ impl EncodingTree {
         self.tree.insert(&leaf);
         self.nonces.push(nonce);
         self.seqs.insert(self.seqs.len(), seq);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::fixtures::provider;
+    use tlsn_data_fixtures::http::{request::POST_JSON, response::OK_JSON};
+
+    fn new_tree(
+        tx: &[u8],
+        rx: &[u8],
+        seqs: &[SubsequenceIdx],
+    ) -> Result<EncodingTree, EncodingTreeError> {
+        let provider = provider(tx, rx);
+        let transcript_length = TranscriptLength {
+            sent: tx.len() as u32,
+            received: rx.len() as u32,
+        };
+        EncodingTree::new(
+            HashAlgorithm::Blake3,
+            seqs.iter(),
+            &provider,
+            &transcript_length,
+        )
+    }
+
+    #[test]
+    fn test_encoding_tree() {
+        let seq_0 = SubsequenceIdx {
+            ranges: (0..POST_JSON.len()).into(),
+            direction: Direction::Sent,
+        };
+        let seq_1 = SubsequenceIdx {
+            ranges: (0..OK_JSON.len()).into(),
+            direction: Direction::Received,
+        };
+
+        let tree = new_tree(POST_JSON, OK_JSON, &[seq_0.clone(), seq_1.clone()]).unwrap();
+
+        assert!(tree.contains(&seq_0));
+        assert!(tree.contains(&seq_1));
+    }
+
+    #[test]
+    fn test_encoding_tree_multiple_ranges() {
+        let seq_0 = SubsequenceIdx {
+            ranges: (0..1).into(),
+            direction: Direction::Sent,
+        };
+        let seq_1 = SubsequenceIdx {
+            ranges: (1..POST_JSON.len()).into(),
+            direction: Direction::Sent,
+        };
+        let seq_2 = SubsequenceIdx {
+            ranges: (0..1).into(),
+            direction: Direction::Received,
+        };
+        let seq_3 = SubsequenceIdx {
+            ranges: (1..OK_JSON.len()).into(),
+            direction: Direction::Received,
+        };
+
+        let tree = new_tree(
+            POST_JSON,
+            OK_JSON,
+            &[seq_0.clone(), seq_1.clone(), seq_2.clone(), seq_3.clone()],
+        )
+        .unwrap();
+
+        assert!(tree.contains(&seq_0));
+        assert!(tree.contains(&seq_1));
+        assert!(tree.contains(&seq_2));
+        assert!(tree.contains(&seq_3));
+    }
+
+    #[test]
+    fn test_encoding_tree_out_of_bounds() {
+        let seq_0 = SubsequenceIdx {
+            ranges: (0..POST_JSON.len() + 1).into(),
+            direction: Direction::Sent,
+        };
+        let seq_1 = SubsequenceIdx {
+            ranges: (0..OK_JSON.len() + 1).into(),
+            direction: Direction::Received,
+        };
+
+        let result = new_tree(POST_JSON, OK_JSON, &[seq_0]).unwrap_err();
+        assert!(matches!(result, EncodingTreeError::OutOfBounds { .. }));
+
+        let result = new_tree(POST_JSON, OK_JSON, &[seq_1]).unwrap_err();
+        assert!(matches!(result, EncodingTreeError::OutOfBounds { .. }));
+    }
+
+    #[test]
+    fn test_encoding_tree_missing_encoding() {
+        let provider = provider(&[], &[]);
+        let transcript_length = TranscriptLength {
+            sent: 8,
+            received: 8,
+        };
+
+        let result = EncodingTree::new(
+            HashAlgorithm::Blake3,
+            [SubsequenceIdx {
+                ranges: (0..8).into(),
+                direction: Direction::Sent,
+            }]
+            .iter(),
+            &provider,
+            &transcript_length,
+        )
+        .unwrap_err();
+        assert!(matches!(result, EncodingTreeError::MissingEncoding { .. }));
+
+        let result = EncodingTree::new(
+            HashAlgorithm::Blake3,
+            [SubsequenceIdx {
+                ranges: (0..8).into(),
+                direction: Direction::Received,
+            }]
+            .iter(),
+            &provider,
+            &transcript_length,
+        )
+        .unwrap_err();
+        assert!(matches!(result, EncodingTreeError::MissingEncoding { .. }));
     }
 }

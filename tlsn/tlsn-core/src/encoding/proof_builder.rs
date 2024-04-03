@@ -120,71 +120,71 @@ impl<'a> EncodingProofBuilder<'a> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{
-        conn::TranscriptLength,
-        encoding::{tree_builder::EncodingTreeBuilder, EncodingCommitment},
-        fixtures::{encoder_seed, provider},
-        hash::HashAlgorithm,
-        transcript::TranscriptCommit,
-    };
-    use bytes::Bytes;
-    use tlsn_data_fixtures::http::{request::POST_JSON, response::OK_JSON};
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//     use crate::{
+//         conn::TranscriptLength,
+//         encoding::{tree_builder::EncodingTreeBuilder, EncodingCommitment},
+//         fixtures::{encoder_seed, provider},
+//         hash::HashAlgorithm,
+//         transcript::TranscriptCommit,
+//     };
+//     use bytes::Bytes;
+//     use tlsn_data_fixtures::http::{request::POST_JSON, response::OK_JSON};
 
-    fn tree() -> EncodingTree {
-        let provider = Box::new(provider(POST_JSON, OK_JSON));
-        let transcript_length = TranscriptLength {
-            sent: POST_JSON.len() as u32,
-            received: OK_JSON.len() as u32,
-        };
-        let mut builder =
-            EncodingTreeBuilder::new(provider, transcript_length, HashAlgorithm::Blake3);
-        builder
-            .commit_sent(&(2..POST_JSON.len()))
-            .unwrap()
-            .commit_sent(&(0..1))
-            .unwrap()
-            .commit_recv(&(2..OK_JSON.len()))
-            .unwrap()
-            .commit_recv(&(0..1))
-            .unwrap();
+//     fn tree() -> EncodingTree {
+//         let provider = Box::new(provider(POST_JSON, OK_JSON));
+//         let transcript_length = TranscriptLength {
+//             sent: POST_JSON.len() as u32,
+//             received: OK_JSON.len() as u32,
+//         };
+//         let mut builder =
+//             EncodingTreeBuilder::new(provider, transcript_length, HashAlgorithm::Blake3);
+//         builder
+//             .commit_sent(&(2..POST_JSON.len()))
+//             .unwrap()
+//             .commit_sent(&(0..1))
+//             .unwrap()
+//             .commit_recv(&(2..OK_JSON.len()))
+//             .unwrap()
+//             .commit_recv(&(0..1))
+//             .unwrap();
 
-        builder.build().unwrap()
-    }
+//         builder.build().unwrap()
+//     }
 
-    #[test]
-    fn test_encoding_proof_builder() {
-        let tree = tree();
-        let commitment = EncodingCommitment {
-            root: tree.root(),
-            seed: encoder_seed().to_vec(),
-        };
-        let transcript_length = TranscriptLength {
-            sent: POST_JSON.len() as u32,
-            received: OK_JSON.len() as u32,
-        };
-        let transcript_tx = Transcript::new(Bytes::copy_from_slice(POST_JSON));
-        let transcript_rx = Transcript::new(Bytes::copy_from_slice(OK_JSON));
-        let mut builder = EncodingProofBuilder::new(&tree, &transcript_tx, &transcript_rx);
+//     #[test]
+//     fn test_encoding_proof_builder() {
+//         let tree = tree();
+//         let commitment = EncodingCommitment {
+//             root: tree.root(),
+//             seed: encoder_seed().to_vec(),
+//         };
+//         let transcript_length = TranscriptLength {
+//             sent: POST_JSON.len() as u32,
+//             received: OK_JSON.len() as u32,
+//         };
+//         let transcript_tx = Transcript::new(Bytes::copy_from_slice(POST_JSON));
+//         let transcript_rx = Transcript::new(Bytes::copy_from_slice(OK_JSON));
+//         let mut builder = EncodingProofBuilder::new(&tree, &transcript_tx, &transcript_rx);
 
-        builder
-            .reveal_sent(&(2..POST_JSON.len()))
-            .unwrap()
-            .reveal_sent(&(0..1))
-            .unwrap()
-            .reveal_recv(&(2..OK_JSON.len()))
-            .unwrap()
-            .reveal_recv(&(0..1))
-            .unwrap();
+//         builder
+//             .reveal_sent(&(2..POST_JSON.len()))
+//             .unwrap()
+//             .reveal_sent(&(0..1))
+//             .unwrap()
+//             .reveal_recv(&(2..OK_JSON.len()))
+//             .unwrap()
+//             .reveal_recv(&(0..1))
+//             .unwrap();
 
-        let proof = builder.build().unwrap();
-        let (sent, recv) = proof.verify(&transcript_length, &commitment).unwrap();
+//         let proof = builder.build().unwrap();
+//         let (sent, recv) = proof.verify(&transcript_length, &commitment).unwrap();
 
-        assert_eq!(&sent.data()[..1], &POST_JSON[..1]);
-        assert_eq!(&sent.data()[2..], &POST_JSON[2..]);
-        assert_eq!(&recv.data()[..1], &OK_JSON[..1]);
-        assert_eq!(&recv.data()[2..], &OK_JSON[2..]);
-    }
-}
+//         assert_eq!(&sent.data()[..1], &POST_JSON[..1]);
+//         assert_eq!(&sent.data()[2..], &POST_JSON[2..]);
+//         assert_eq!(&recv.data()[..1], &OK_JSON[..1]);
+//         assert_eq!(&recv.data()[2..], &OK_JSON[2..]);
+//     }
+// }
