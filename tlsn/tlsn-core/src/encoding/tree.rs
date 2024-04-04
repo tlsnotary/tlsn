@@ -149,8 +149,7 @@ impl EncodingTree {
     ///
     /// # Arguments
     ///
-    /// * `transcript_tx` - The sent data transcript.
-    /// * `transcript_rx` - The received data transcript.
+    /// * `transcript` - The transcript to prove against.
     /// * `seqs` - The subsequences to prove.
     pub fn proof<'seq>(
         &self,
