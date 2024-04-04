@@ -5,7 +5,6 @@ use futures::SinkExt;
 
 use hmac_sha256 as prf;
 use key_exchange as ke;
-use mpz_core::commit::{Decommitment, HashCommit};
 use prf::SessionKeys;
 
 use aead::Aead;
@@ -578,19 +577,8 @@ impl Backend for MpcTlsLeader {
             server_random,
         );
 
-        let (handshake_decommitment, handshake_commitment) =
-            if self.config.common().handshake_commit() {
-                let (decommitment, commitment) = handshake_data.clone().hash_commit();
-
-                (Some(decommitment), Some(commitment))
-            } else {
-                (None, None)
-            };
-
         self.channel
-            .send(MpcTlsMessage::ComputeKeyExchange(ComputeKeyExchange {
-                handshake_commitment,
-            }))
+            .send(MpcTlsMessage::ComputeKeyExchange(ComputeKeyExchange))
             .await
             .map_err(|e| BackendError::InternalError(e.to_string()))?;
 
@@ -625,7 +613,6 @@ impl Backend for MpcTlsLeader {
                 server_public_key,
                 server_kx_details,
                 handshake_data,
-                handshake_decommitment,
             },
         });
 
@@ -741,8 +728,6 @@ pub struct MpcTlsData {
     pub server_kx_details: ServerKxDetails,
     /// Handshake data.
     pub handshake_data: HandshakeData,
-    /// Handshake data decommitment.
-    pub handshake_decommitment: Option<Decommitment<HandshakeData>>,
 }
 
 mod state {

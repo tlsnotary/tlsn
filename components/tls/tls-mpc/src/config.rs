@@ -30,9 +30,6 @@ pub struct MpcTlsCommonConfig {
     /// 16 KiB by default.
     #[builder(default = "1 << 14")]
     max_transcript_size: usize,
-    /// Whether the leader commits to the handshake data.
-    #[builder(default = "true")]
-    handshake_commit: bool,
 }
 
 impl MpcTlsCommonConfig {
@@ -74,11 +71,6 @@ impl MpcTlsCommonConfig {
     /// Returns the maximum size of the transcript in bytes.
     pub fn max_transcript_size(&self) -> usize {
         self.max_transcript_size
-    }
-
-    /// Whether the leader commits to the handshake data.
-    pub fn handshake_commit(&self) -> bool {
-        self.handshake_commit
     }
 }
 
