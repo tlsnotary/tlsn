@@ -17,16 +17,7 @@ use tls_core::{
     msgs::{enums::SignatureScheme, handshake::DigitallySignedStruct},
 };
 
-use mpz_core::{commit::HashCommit, serialize::CanonicalSerialize};
-
-use tlsn_core::{
-    commitment::transcript::TranscriptCommitmentBuilder,
-    fixtures,
-    msg::SignedSessionHeader,
-    proof::{SessionProof, SubstringsProof},
-    HandshakeSummary, NotarizedSession, ServerName, SessionData, SessionHeader, Signature,
-    Transcript,
-};
+use tlsn_core::{fixtures, Signature, Transcript};
 
 #[test]
 /// Tests that the commitment creation protocol and verification work end-to-end

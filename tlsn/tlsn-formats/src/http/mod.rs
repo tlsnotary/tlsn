@@ -1,10 +1,8 @@
 //! Tooling for working with HTTP data.
 
 mod commit;
-mod session;
 
 pub use commit::{DefaultHttpCommitter, HttpCommit, HttpCommitError};
-pub use session::NotarizedHttpSession;
 
 #[doc(hidden)]
 pub use spansy::http;
@@ -35,9 +33,10 @@ pub struct HttpTranscript {
 
 impl HttpTranscript {
     /// Parses the HTTP transcript from the provided transcripts.
-    pub fn parse(tx: &Transcript, rx: &Transcript) -> Result<Self, spansy::ParseError> {
-        let requests = Requests::new(tx.data().clone()).collect::<Result<Vec<_>, _>>()?;
-        let responses = Responses::new(rx.data().clone()).collect::<Result<Vec<_>, _>>()?;
+    pub fn parse(transcript: &Transcript) -> Result<Self, spansy::ParseError> {
+        let requests = Requests::new(transcript.sent().clone()).collect::<Result<Vec<_>, _>>()?;
+        let responses =
+            Responses::new(transcript.received().clone()).collect::<Result<Vec<_>, _>>()?;
 
         Ok(Self {
             requests,
@@ -51,11 +50,13 @@ mod tests {
     use super::*;
 
     use tlsn_core::{
-        commitment::{CommitmentKind, TranscriptCommitmentBuilder},
-        fixtures,
-        proof::SubstringsProofBuilder,
+        substring::{
+            SubstringCommitConfigBuilder, SubstringCommitmentKind, SubstringProofConfigBuilder,
+        },
+        transcript::SubsequenceIdx,
         Direction, Transcript,
     };
+    use utils::range::ToRangeSet;
 
     use crate::json::JsonValue;
 
@@ -70,77 +71,78 @@ mod tests {
 
     #[test]
     fn test_http_commit() {
-        let transcript_tx = Transcript::new(TX);
-        let transcript_rx = Transcript::new(RX);
+        let transcript = Transcript::new(TX, RX);
 
-        let mut builder = TranscriptCommitmentBuilder::new(
-            fixtures::encoding_provider(TX, RX),
-            TX.len(),
-            RX.len(),
-        );
+        let mut builder = SubstringCommitConfigBuilder::new(&transcript);
+        builder.default_kind(SubstringCommitmentKind::Encoding);
 
-        let transcript = HttpTranscript::parse(&transcript_tx, &transcript_rx).unwrap();
+        let transcript = HttpTranscript::parse(&transcript).unwrap();
 
         let mut committer = DefaultHttpCommitter::default();
         committer
             .commit_transcript(&mut builder, &transcript)
             .unwrap();
 
-        let commitments = builder.build().unwrap();
+        let config = builder.build().unwrap();
 
         // Path
-        assert!(commitments
-            .get_id_by_info(CommitmentKind::Blake3, &(4..5).into(), Direction::Sent)
+        assert!(config
+            .iter_encoding()
+            .find(|&idx| idx
+                == &SubsequenceIdx {
+                    direction: Direction::Sent,
+                    ranges: (4..5).into(),
+                })
             .is_some());
 
         // Host header
-        assert!(commitments
-            .get_id_by_info(CommitmentKind::Blake3, &(16..33).into(), Direction::Sent)
+        assert!(config
+            .iter_encoding()
+            .find(|&idx| idx
+                == &SubsequenceIdx {
+                    direction: Direction::Sent,
+                    ranges: (16..33).into(),
+                })
             .is_some());
+
         // foo value
-        assert!(commitments
-            .get_id_by_info(CommitmentKind::Blake3, &(137..140).into(), Direction::Sent)
+        assert!(config
+            .iter_encoding()
+            .find(|&idx| idx
+                == &SubsequenceIdx {
+                    direction: Direction::Sent,
+                    ranges: (137..140).into(),
+                })
             .is_some());
 
         // Cookie header
-        assert!(commitments
-            .get_id_by_info(
-                CommitmentKind::Blake3,
-                &(17..45).into(),
-                Direction::Received
-            )
+        assert!(config
+            .iter_encoding()
+            .find(|&idx| idx
+                == &SubsequenceIdx {
+                    direction: Direction::Received,
+                    ranges: (17..45).into(),
+                })
             .is_some());
+
         // Body
-        assert!(commitments
-            .get_id_by_info(
-                CommitmentKind::Blake3,
-                &(180..194).into(),
-                Direction::Received
-            )
+        assert!(config
+            .iter_encoding()
+            .find(|&idx| idx
+                == &SubsequenceIdx {
+                    direction: Direction::Received,
+                    ranges: (180..194).into(),
+                })
             .is_some());
     }
 
     #[test]
     fn test_http_prove() {
-        let transcript_tx = Transcript::new(TX);
-        let transcript_rx = Transcript::new(RX);
+        let transcript = Transcript::new(TX, RX);
 
-        let mut builder = TranscriptCommitmentBuilder::new(
-            fixtures::encoding_provider(TX, RX),
-            TX.len(),
-            RX.len(),
-        );
+        let mut builder = SubstringProofConfigBuilder::new(&transcript);
 
-        let transcript = HttpTranscript::parse(&transcript_tx, &transcript_rx).unwrap();
-
-        let mut committer = DefaultHttpCommitter::default();
-        committer
-            .commit_transcript(&mut builder, &transcript)
-            .unwrap();
-
-        let commitments = builder.build().unwrap();
-
-        let mut builder = SubstringsProofBuilder::new(&commitments, &transcript_tx, &transcript_rx);
+        let transcript = HttpTranscript::parse(&transcript).unwrap();
 
         let req_0 = &transcript.requests[0];
         let req_1 = &transcript.requests[1];
@@ -153,50 +155,131 @@ mod tests {
         let resp_1 = &transcript.responses[1];
 
         builder
-            .reveal_sent(&req_0.without_data(), CommitmentKind::Blake3)
+            .reveal_sent(&req_0.without_data())
             .unwrap()
-            .reveal_sent(&req_0.request.target, CommitmentKind::Blake3)
+            .reveal_sent(&req_0.request.target)
             .unwrap()
-            .reveal_sent(
-                req_0.headers_with_name("host").next().unwrap(),
-                CommitmentKind::Blake3,
-            )
+            .reveal_sent(req_0.headers_with_name("host").next().unwrap())
             .unwrap();
 
         builder
-            .reveal_sent(&req_1.without_data(), CommitmentKind::Blake3)
+            .reveal_sent(&req_1.without_data())
             .unwrap()
-            .reveal_sent(&req_1_body.without_pairs(), CommitmentKind::Blake3)
+            .reveal_sent(&req_1_body.without_pairs())
             .unwrap()
-            .reveal_sent(req_1_body.get("bazz").unwrap(), CommitmentKind::Blake3)
+            .reveal_sent(req_1_body.get("bazz").unwrap())
             .unwrap();
 
         builder
-            .reveal_recv(&resp_0.without_data(), CommitmentKind::Blake3)
+            .reveal_recv(&resp_0.without_data())
             .unwrap()
-            .reveal_recv(
-                resp_0.headers_with_name("cookie").next().unwrap(),
-                CommitmentKind::Blake3,
-            )
+            .reveal_recv(resp_0.headers_with_name("cookie").next().unwrap())
             .unwrap();
 
         builder
-            .reveal_recv(&resp_1.without_data(), CommitmentKind::Blake3)
+            .reveal_recv(&resp_1.without_data())
             .unwrap()
-            .reveal_recv(resp_1.body.as_ref().unwrap(), CommitmentKind::Blake3)
+            .reveal_recv(resp_1.body.as_ref().unwrap())
             .unwrap();
 
-        let proof = builder.build().unwrap();
+        let config = builder.build().unwrap();
 
-        let header = fixtures::session_header(commitments.merkle_root(), TX.len(), RX.len());
+        assert!(config
+            .iter()
+            .find(|&idx| idx
+                == &SubsequenceIdx {
+                    direction: Direction::Sent,
+                    ranges: req_0.without_data().to_range_set()
+                })
+            .is_some());
 
-        let (sent, recv) = proof.verify(&header).unwrap();
+        assert!(config
+            .iter()
+            .find(|&idx| idx
+                == &SubsequenceIdx {
+                    direction: Direction::Sent,
+                    ranges: req_0.request.target.to_range_set()
+                })
+            .is_some());
 
-        assert_eq!(&sent.data()[4..5], b"/");
-        assert_eq!(&sent.data()[22..31], b"localhost");
-        assert_eq!(&sent.data()[151..154], b"123");
+        assert!(config
+            .iter()
+            .find(|&idx| idx
+                == &SubsequenceIdx {
+                    direction: Direction::Sent,
+                    ranges: req_0
+                        .headers_with_name("host")
+                        .next()
+                        .unwrap()
+                        .to_range_set()
+                })
+            .is_some());
 
-        assert_eq!(&recv.data()[25..43], b"very-secret-cookie");
-        assert_eq!(&recv.data()[180..194], b"Hello World!!!");
+        assert!(config
+            .iter()
+            .find(|&idx| idx
+                == &SubsequenceIdx {
+                    direction: Direction::Sent,
+                    ranges: req_1.without_data().to_range_set()
+                })
+            .is_some());
+
+        assert!(config
+            .iter()
+            .find(|&idx| idx
+                == &SubsequenceIdx {
+                    direction: Direction::Sent,
+                    ranges: req_1_body.without_pairs().to_range_set()
+                })
+            .is_some());
+
+        assert!(config
+            .iter()
+            .find(|&idx| idx
+                == &SubsequenceIdx {
+                    direction: Direction::Sent,
+                    ranges: req_1_body.get("bazz").unwrap().to_range_set()
+                })
+            .is_some());
+
+        assert!(config
+            .iter()
+            .find(|&idx| idx
+                == &SubsequenceIdx {
+                    direction: Direction::Received,
+                    ranges: resp_0.without_data().to_range_set()
+                })
+            .is_some());
+
+        assert!(config
+            .iter()
+            .find(|&idx| idx
+                == &SubsequenceIdx {
+                    direction: Direction::Received,
+                    ranges: resp_0
+                        .headers_with_name("cookie")
+                        .next()
+                        .unwrap()
+                        .to_range_set()
+                })
+            .is_some());
+
+        assert!(config
+            .iter()
+            .find(|&idx| idx
+                == &SubsequenceIdx {
+                    direction: Direction::Received,
+                    ranges: resp_1.without_data().to_range_set()
+                })
+            .is_some());
+
+        assert!(config
+            .iter()
+            .find(|&idx| idx
+                == &SubsequenceIdx {
+                    direction: Direction::Received,
+                    ranges: resp_1.body.as_ref().unwrap().to_range_set()
+                })
+            .is_some());
     }
 }

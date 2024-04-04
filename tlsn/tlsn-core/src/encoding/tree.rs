@@ -224,7 +224,7 @@ mod tests {
     use super::*;
     use crate::{
         encoding::EncodingCommitment,
-        fixtures::{encoder_seed, provider},
+        fixtures::{encoder_seed, encoding_provider},
     };
     use tlsn_data_fixtures::http::{request::POST_JSON, response::OK_JSON};
 
@@ -232,7 +232,7 @@ mod tests {
         transcript: &Transcript,
         seqs: impl Iterator<Item = &'seq SubsequenceIdx>,
     ) -> Result<EncodingTree, EncodingTreeError> {
-        let provider = provider(transcript.sent(), transcript.received());
+        let provider = encoding_provider(transcript.sent(), transcript.received());
         let transcript_length = TranscriptLength {
             sent: transcript.sent().len() as u32,
             received: transcript.received().len() as u32,
@@ -338,7 +338,7 @@ mod tests {
 
     #[test]
     fn test_encoding_tree_missing_encoding() {
-        let provider = provider(&[], &[]);
+        let provider = encoding_provider(&[], &[]);
         let transcript_length = TranscriptLength {
             sent: 8,
             received: 8,

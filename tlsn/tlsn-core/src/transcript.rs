@@ -2,39 +2,42 @@
 
 use std::ops::Range;
 
+use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use utils::range::{IndexRanges, RangeDifference, RangeSet, RangeUnion};
 
 use crate::conn::TranscriptLength;
 
-pub(crate) static TX_TRANSCRIPT_ID: &str = "tx";
-pub(crate) static RX_TRANSCRIPT_ID: &str = "rx";
+/// Sent data transcript ID.
+pub static TX_TRANSCRIPT_ID: &str = "tx";
+/// Received data transcript ID.
+pub static RX_TRANSCRIPT_ID: &str = "rx";
 
 /// A transcript contains all the data communicated over a TLS connection.
-#[derive(Default, Serialize, Deserialize, Clone, Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Transcript {
     /// Data sent from the Prover to the Server.
-    sent: Vec<u8>,
+    sent: Bytes,
     /// Data received by the Prover from the Server.
-    received: Vec<u8>,
+    received: Bytes,
 }
 
 impl Transcript {
     /// Creates a new transcript.
     pub fn new(sent: impl Into<Vec<u8>>, received: impl Into<Vec<u8>>) -> Self {
         Self {
-            sent: sent.into(),
-            received: received.into(),
+            sent: Bytes::from(sent.into()),
+            received: Bytes::from(received.into()),
         }
     }
 
     /// Returns a reference to the sent data.
-    pub fn sent(&self) -> &[u8] {
+    pub fn sent(&self) -> &Bytes {
         &self.sent
     }
 
     /// Returns a reference to the received data.
-    pub fn received(&self) -> &[u8] {
+    pub fn received(&self) -> &Bytes {
         &self.received
     }
 
@@ -53,7 +56,7 @@ impl Transcript {
     }
 
     /// Returns the transcript length.
-    pub(crate) fn length(&self) -> TranscriptLength {
+    pub fn length(&self) -> TranscriptLength {
         TranscriptLength {
             sent: self.sent.len() as u32,
             received: self.received.len() as u32,
@@ -310,7 +313,7 @@ pub struct SliceIdx {
 
 /// Slice of a transcript.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Slice {
+pub struct Slice {
     idx: SliceIdx,
     data: Vec<u8>,
 }
@@ -359,7 +362,7 @@ pub struct SubsequenceIdx {
 
 /// A transcript subsequence.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct Subsequence {
+pub struct Subsequence {
     /// The index of the subsequence.
     pub idx: SubsequenceIdx,
     /// The data of the subsequence.

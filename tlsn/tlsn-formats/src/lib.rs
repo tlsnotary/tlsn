@@ -14,6 +14,4 @@
 pub mod http;
 pub mod json;
 
-#[doc(hidden)]
-pub use spansy;
-pub use spansy::ParseError;
+pub use spansy::{self, ParseError};

@@ -9,7 +9,10 @@ use crate::{
     transcript::PartialTranscript,
 };
 
-pub use config::SubstringsCommitConfig;
+pub use config::{
+    SubstringCommitConfig, SubstringCommitConfigBuilder, SubstringCommitConfigBuilderError,
+    SubstringProofConfig, SubstringProofConfigBuilder, SubstringProofConfigBuilderError,
+};
 
 /// Kind of transcript commitment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -17,7 +20,7 @@ pub enum SubstringCommitmentKind {
     /// A commitment to the encodings of the transcript.
     Encoding,
     /// A hash commitment to some plaintext in the transcript.
-    Hash { alg: Option<HashAlgorithm> },
+    Hash { alg: HashAlgorithm },
 }
 
 /// A proof of substrings in a transcript.

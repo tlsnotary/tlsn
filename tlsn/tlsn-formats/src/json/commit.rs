@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use spansy::{json::KeyValue, Spanned};
-use tlsn_core::{commitment::TranscriptCommitmentBuilder, Direction};
+use tlsn_core::{substring::SubstringCommitConfigBuilder, Direction};
 
 use crate::json::{Array, Bool, JsonValue, Null, Number, Object, String as JsonString};
 
@@ -60,7 +60,7 @@ pub trait JsonCommit {
     /// * `direction` - The direction of the data (sent or received).
     fn commit_value(
         &mut self,
-        builder: &mut TranscriptCommitmentBuilder,
+        builder: &mut SubstringCommitConfigBuilder,
         value: &JsonValue,
         direction: Direction,
     ) -> Result<(), JsonCommitError> {
@@ -86,7 +86,7 @@ pub trait JsonCommit {
     /// * `direction` - The direction of the data (sent or received).
     fn commit_object(
         &mut self,
-        builder: &mut TranscriptCommitmentBuilder,
+        builder: &mut SubstringCommitConfigBuilder,
         object: &Object,
         direction: Direction,
     ) -> Result<(), JsonCommitError> {
@@ -113,7 +113,7 @@ pub trait JsonCommit {
     /// * `direction` - The direction of the data (sent or received).
     fn commit_key_value(
         &mut self,
-        builder: &mut TranscriptCommitmentBuilder,
+        builder: &mut SubstringCommitConfigBuilder,
         kv: &KeyValue,
         direction: Direction,
     ) -> Result<(), JsonCommitError> {
@@ -141,7 +141,7 @@ pub trait JsonCommit {
     /// * `direction` - The direction of the data (sent or received).
     fn commit_array(
         &mut self,
-        builder: &mut TranscriptCommitmentBuilder,
+        builder: &mut SubstringCommitConfigBuilder,
         array: &Array,
         direction: Direction,
     ) -> Result<(), JsonCommitError> {
@@ -172,7 +172,7 @@ pub trait JsonCommit {
     /// * `direction` - The direction of the data (sent or received).
     fn commit_string(
         &mut self,
-        builder: &mut TranscriptCommitmentBuilder,
+        builder: &mut SubstringCommitConfigBuilder,
         string: &JsonString,
         direction: Direction,
     ) -> Result<(), JsonCommitError> {
@@ -196,7 +196,7 @@ pub trait JsonCommit {
     /// * `direction` - The direction of the data (sent or received).
     fn commit_number(
         &mut self,
-        builder: &mut TranscriptCommitmentBuilder,
+        builder: &mut SubstringCommitConfigBuilder,
         number: &Number,
         direction: Direction,
     ) -> Result<(), JsonCommitError> {
@@ -215,7 +215,7 @@ pub trait JsonCommit {
     /// * `direction` - The direction of the data (sent or received).
     fn commit_bool(
         &mut self,
-        builder: &mut TranscriptCommitmentBuilder,
+        builder: &mut SubstringCommitConfigBuilder,
         boolean: &Bool,
         direction: Direction,
     ) -> Result<(), JsonCommitError> {
@@ -234,7 +234,7 @@ pub trait JsonCommit {
     /// * `direction` - The direction of the data (sent or received).
     fn commit_null(
         &mut self,
-        builder: &mut TranscriptCommitmentBuilder,
+        builder: &mut SubstringCommitConfigBuilder,
         null: &Null,
         direction: Direction,
     ) -> Result<(), JsonCommitError> {
