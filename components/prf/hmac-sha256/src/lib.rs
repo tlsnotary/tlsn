@@ -20,7 +20,7 @@ pub(crate) static CF_LABEL: &[u8] = b"client finished";
 pub(crate) static SF_LABEL: &[u8] = b"server finished";
 
 /// Session keys computed by the PRF.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SessionKeys {
     /// Client write key.
     pub client_write_key: ValueRef,
@@ -40,7 +40,7 @@ pub trait Prf {
     /// # Arguments
     ///
     /// * `pms` - The pre-master secret.
-    async fn setup(&mut self, pms: ValueRef) -> Result<(), PrfError>;
+    async fn setup(&mut self, pms: ValueRef) -> Result<SessionKeys, PrfError>;
 
     /// Computes the session keys using the provided client random, server random and PMS.
     async fn compute_session_keys_private(

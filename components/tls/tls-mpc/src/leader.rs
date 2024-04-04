@@ -3,10 +3,8 @@ use std::{collections::VecDeque, future::Future};
 use async_trait::async_trait;
 use futures::SinkExt;
 
-use hmac_sha256 as prf;
 use key_exchange as ke;
 use mpz_core::commit::{Decommitment, HashCommit};
-use prf::SessionKeys;
 
 use aead::Aead;
 use hmac_sha256::Prf;
@@ -127,7 +125,21 @@ impl MpcTlsLeader {
     )]
     pub async fn setup(&mut self) -> Result<(), MpcTlsError> {
         let pms = self.ke.setup().await?;
-        self.prf.setup(pms.into_value()).await?;
+        let session_keys = self.prf.setup(pms.into_value()).await?;
+
+        futures::try_join!(
+            self.encrypter
+                .set_key(session_keys.client_write_key, session_keys.client_iv),
+            self.decrypter
+                .set_key(session_keys.server_write_key, session_keys.server_iv)
+        )?;
+
+        futures::try_join!(
+            self.encrypter
+                .preprocess(self.config.common().tx_config().max_size()),
+            // For now we just preprocess enough for the handshake
+            self.decrypter.preprocess(256)
+        )?;
 
         Ok(())
     }
@@ -613,19 +625,14 @@ impl Backend for MpcTlsLeader {
 
         self.ke.compute_pms().await.map_err(MpcTlsError::from)?;
 
-        let SessionKeys {
-            client_write_key,
-            server_write_key,
-            client_iv,
-            server_iv,
-        } = self
-            .prf
+        self.prf
             .compute_session_keys_private(client_random.0, server_random.0)
             .await
             .map_err(MpcTlsError::from)?;
 
-        self.encrypter.set_key(client_write_key, client_iv).await?;
-        self.decrypter.set_key(server_write_key, server_iv).await?;
+        // We have to do this sequentially right now because of a sync issue in mpz
+        self.encrypter.setup().await?;
+        self.decrypter.setup().await?;
 
         self.state = State::Cf(Cf {
             data: MpcTlsData {

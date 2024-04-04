@@ -221,7 +221,7 @@ where
     E: Memory + Load + Execute + Decode + DecodePrivate + Send,
 {
     #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
-    async fn setup(&mut self, pms: ValueRef) -> Result<(), PrfError> {
+    async fn setup(&mut self, pms: ValueRef) -> Result<SessionKeys, PrfError> {
         std::mem::replace(&mut self.state, state::State::Error).try_into_initialized()?;
 
         let visibility = match self.config.role {
@@ -242,12 +242,12 @@ where
             pms,
             randoms,
             hash_state,
-            keys,
+            keys: keys.clone(),
             cf_vd,
             sf_vd,
         });
 
-        Ok(())
+        Ok(keys)
     }
 
     #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]

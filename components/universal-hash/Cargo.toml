@@ -16,9 +16,10 @@ mock = []
 
 [dependencies]
 # tlsn
-mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "850636f" }
-mpz-share-conversion-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "850636f" }
-mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "850636f" }
+mpz-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "9f7403b" }
+mpz-fields = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "9f7403b" }
+mpz-share-conversion-core = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "9f7403b" }
+mpz-share-conversion = { git = "https://github.com/privacy-scaling-explorations/mpz", rev = "9f7403b" }
 
 # async
 async-trait = "0.1"

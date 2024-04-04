@@ -1,0 +1,39 @@
+[[benches]]
+name = "latency"
+upload = 250
+upload-delay = [10, 25, 50]
+download = 250
+download-delay = [10, 25, 50]
+upload-size = 1024
+download-size = 4096
+defer-decryption = true
+
+[[benches]]
+name = "download_bandwidth"
+upload = 250
+upload-delay = 25
+download = [10, 25, 50, 100, 250]
+download-delay = 25
+upload-size = 1024
+download-size = 4096
+defer-decryption = true
+
+[[benches]]
+name = "upload_bandwidth"
+upload = [10, 25, 50, 100, 250]
+upload-delay = 25
+download = 250
+download-delay = 25
+upload-size = 1024
+download-size = 4096
+defer-decryption = [false, true]
+
+[[benches]]
+name = "download_volume"
+upload = 250
+upload-delay = 25
+download = 250
+download-delay = 25
+upload-size = 1024
+download-size = [1024, 4096, 16384, 65536]
+defer-decryption = true
