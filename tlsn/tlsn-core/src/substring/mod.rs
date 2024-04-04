@@ -7,7 +7,6 @@ use crate::{
     encoding::EncodingProof,
     hash::{HashAlgorithm, PlaintextHashOpening},
     transcript::PartialTranscript,
-    Direction,
 };
 
 pub use config::SubstringsCommitConfig;
@@ -30,27 +29,24 @@ pub struct SubstringsProof {
 impl SubstringsProof {
     /// Verifies the proof using the attestation body.
     ///
-    /// Returns the partial sent and received transcripts, respectively.
+    /// Returns a partial transcript of authenticated data.
     ///
     /// # Arguments
     ///
     /// * `attestation_body` - The attestation body to verify against.
-    pub fn verify(
-        self,
-        attestation_body: &AttestationBody,
-    ) -> Result<(PartialTranscript, PartialTranscript), ()> {
+    pub fn verify(self, attestation_body: &AttestationBody) -> Result<PartialTranscript, ()> {
         let info = attestation_body.get_info().unwrap();
 
-        let mut sent = PartialTranscript::new(info.transcript_length.sent as usize);
-        let mut recv = PartialTranscript::new(info.transcript_length.received as usize);
+        let mut transcript = PartialTranscript::new(
+            info.transcript_length.sent as usize,
+            info.transcript_length.received as usize,
+        );
 
         // Verify encoding proof.
         if let Some(proof) = self.encoding {
             let commitment = attestation_body.get_encoding_commitment().unwrap();
 
-            let (sent_, recv_) = proof.verify(&info.transcript_length, commitment).unwrap();
-            sent.union(&sent_);
-            recv.union(&recv_);
+            transcript.union(&proof.verify(&info.transcript_length, commitment).unwrap());
         }
 
         // Verify hash openings.
@@ -62,16 +58,9 @@ impl SubstringsProof {
             };
 
             let seq = opening.verify(commitment).unwrap();
-            match seq.idx.direction {
-                Direction::Sent => {
-                    sent.union_subsequence(&seq);
-                }
-                Direction::Received => {
-                    recv.union_subsequence(&seq);
-                }
-            }
+            transcript.union_subsequence(&seq);
         }
 
-        Ok((sent, recv))
+        Ok(transcript)
     }
 }

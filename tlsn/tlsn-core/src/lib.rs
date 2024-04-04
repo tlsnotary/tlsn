@@ -19,7 +19,7 @@ pub mod substring;
 pub mod transcript;
 
 pub use signature::{NotaryPublicKey, Signature};
-pub use transcript::{Direction, Slice, Transcript};
+pub use transcript::{Direction, PartialTranscript, Transcript};
 
 use conn::ServerIdentityProof;
 use substring::SubstringsProof;

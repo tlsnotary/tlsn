@@ -110,11 +110,7 @@ pub(crate) fn encoder() -> impl Encoder {
 }
 
 pub fn provider(tx: &[u8], rx: &[u8]) -> impl EncodingProvider {
-    ChaChaProvider::new(
-        encoder_seed(),
-        Transcript::new(Bytes::copy_from_slice(tx)),
-        Transcript::new(Bytes::copy_from_slice(rx)),
-    )
+    ChaChaProvider::new(encoder_seed(), Transcript::new(tx, rx))
 }
 
 /// Returns an encoder seed fixture.

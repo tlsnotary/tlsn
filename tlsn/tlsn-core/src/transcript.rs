@@ -2,50 +2,91 @@
 
 use std::ops::Range;
 
-use bytes::Bytes;
 use serde::{Deserialize, Serialize};
-use utils::range::{IndexRanges, RangeDifference, RangeSet, RangeUnion, ToRangeSet};
+use utils::range::{IndexRanges, RangeDifference, RangeSet, RangeUnion};
+
+use crate::conn::TranscriptLength;
 
 pub(crate) static TX_TRANSCRIPT_ID: &str = "tx";
 pub(crate) static RX_TRANSCRIPT_ID: &str = "rx";
 
-/// A transcript contains a subset of bytes from a TLS connection.
+/// A transcript contains all the data communicated over a TLS connection.
 #[derive(Default, Serialize, Deserialize, Clone, Debug)]
 pub struct Transcript {
-    data: Bytes,
+    /// Data sent from the Prover to the Server.
+    sent: Vec<u8>,
+    /// Data received by the Prover from the Server.
+    received: Vec<u8>,
 }
 
 impl Transcript {
-    /// Creates a new transcript with the given ID and data
-    pub fn new(data: impl Into<Bytes>) -> Self {
-        Self { data: data.into() }
+    /// Creates a new transcript.
+    pub fn new(sent: impl Into<Vec<u8>>, received: impl Into<Vec<u8>>) -> Self {
+        Self {
+            sent: sent.into(),
+            received: received.into(),
+        }
     }
 
-    /// Returns the length of the transcript
-    pub fn len(&self) -> usize {
-        self.data.len()
+    /// Returns a reference to the sent data.
+    pub fn sent(&self) -> &[u8] {
+        &self.sent
     }
 
-    /// Returns whether the transcript is empty.
-    pub fn is_empty(&self) -> bool {
-        self.data.is_empty()
+    /// Returns a reference to the received data.
+    pub fn received(&self) -> &[u8] {
+        &self.received
     }
 
-    /// Returns the actual traffic data of this transcript
-    pub fn data(&self) -> &Bytes {
-        &self.data
+    /// Returns the length of the sent and received data, respectively.
+    #[allow(clippy::len_without_is_empty)]
+    pub fn len(&self) -> (usize, usize) {
+        (self.sent.len(), self.received.len())
     }
 
-    /// Returns a concatenated bytestring located in the given ranges of the transcript.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the range set is empty or is out of bounds.
-    pub(crate) fn get_bytes_in_ranges(&self, ranges: &RangeSet<usize>) -> Vec<u8> {
-        let max = ranges.max().expect("range set is not empty");
-        assert!(max <= self.data.len(), "range set is out of bounds");
+    /// Returns the length of the transcript in the given direction.
+    pub(crate) fn len_of_direction(&self, direction: Direction) -> usize {
+        match direction {
+            Direction::Sent => self.sent.len(),
+            Direction::Received => self.received.len(),
+        }
+    }
 
-        self.data.index_ranges(ranges)
+    /// Returns the transcript length.
+    pub(crate) fn length(&self) -> TranscriptLength {
+        TranscriptLength {
+            sent: self.sent.len() as u32,
+            received: self.received.len() as u32,
+        }
+    }
+
+    /// Returns a slice of the transcript in the given range if it is in bounds, otherwise `None`.
+    pub fn get_slice(&self, idx: &SliceIdx) -> Option<&[u8]> {
+        let data = match idx.direction {
+            Direction::Sent => &self.sent,
+            Direction::Received => &self.received,
+        };
+
+        if idx.range.end > data.len() {
+            return None;
+        }
+
+        data.get(idx.range.clone())
+    }
+
+    /// Returns the bytes in the given ranges if they are in bounds, otherwise `None`.
+    pub fn get_subsequence(&self, idx: &SubsequenceIdx) -> Option<Vec<u8>> {
+        let data = match idx.direction {
+            Direction::Sent => &self.sent,
+            Direction::Received => &self.received,
+        };
+
+        let end = idx.ranges.end()?;
+        if end > data.len() {
+            return None;
+        }
+
+        Some(data.index_ranges(&idx.ranges))
     }
 }
 
@@ -54,9 +95,15 @@ impl Transcript {
 /// A partial transcript is a transcript which may not have all the data authenticated.
 #[derive(Debug, Clone)]
 pub struct PartialTranscript {
-    data: Vec<u8>,
-    /// Ranges of `data` which have been authenticated
-    auth: RangeSet<usize>,
+    /// Data sent from the Prover to the Server.
+    sent: Vec<u8>,
+    /// Data received by the Prover from the Server.
+    received: Vec<u8>,
+
+    /// Ranges of `sent` which have been authenticated.
+    sent_authed: RangeSet<usize>,
+    /// Ranges of `received` which have been authenticated.
+    received_authed: RangeSet<usize>,
 }
 
 impl PartialTranscript {
@@ -64,42 +111,89 @@ impl PartialTranscript {
     ///
     /// # Arguments
     ///
-    /// * `len` - The length of the transcript
-    pub(crate) fn new(len: usize) -> Self {
+    /// * `sent_len` - The length of the sent data.
+    /// * `received_len` - The length of the received data.
+    pub(crate) fn new(sent_len: usize, received_len: usize) -> Self {
         Self {
-            data: vec![0; len],
-            auth: RangeSet::default(),
+            sent: vec![0; sent_len],
+            received: vec![0; received_len],
+            sent_authed: RangeSet::default(),
+            received_authed: RangeSet::default(),
         }
     }
 
     /// Returns whether the transcript is complete.
     pub fn is_complete(&self) -> bool {
-        self.auth.len() == self.data.len()
+        self.sent_authed.len() == self.sent.len()
+            && self.received_authed.len() == self.received.len()
     }
 
-    /// Returns the length of the transcript.
-    pub fn len(&self) -> usize {
-        self.data.len()
+    /// Returns whether the index is in bounds of the transcript.
+    pub fn contains(&self, idx: &SliceIdx) -> bool {
+        match idx.direction {
+            Direction::Sent => idx.range.end <= self.sent.len(),
+            Direction::Received => idx.range.end <= self.received.len(),
+        }
     }
 
-    /// Returns a reference to the data.
+    /// Returns whether the subsequence index is in bounds of the transcript.
+    pub fn contains_subsequence(&self, idx: &SubsequenceIdx) -> bool {
+        match idx.direction {
+            Direction::Sent => {
+                if let Some(end) = idx.ranges.end() {
+                    end <= self.sent.len()
+                } else {
+                    false
+                }
+            }
+            Direction::Received => {
+                if let Some(end) = idx.ranges.end() {
+                    end <= self.received.len()
+                } else {
+                    false
+                }
+            }
+        }
+    }
+
+    /// Returns a reference to the sent data.
     ///
     /// # Warning
     ///
     /// Not all of the data in the transcript may have been authenticated. See
-    /// [authed](PartialTranscript::authed) for a set of ranges which have been.
-    pub fn data(&self) -> &[u8] {
-        &self.data
+    /// [sent_authed](PartialTranscript::sent_authed) for a set of ranges which have been.
+    pub fn sent_unsafe(&self) -> &[u8] {
+        &self.sent
     }
 
-    /// Returns all the ranges of data which have been authenticated.
-    pub fn authed(&self) -> &RangeSet<usize> {
-        &self.auth
+    /// Returns a reference to the received data.
+    ///
+    /// # Warning
+    ///
+    /// Not all of the data in the transcript may have been authenticated. See
+    /// [received_authed](PartialTranscript::received_authed) for a set of ranges which have been.
+    pub fn received_unsafe(&self) -> &[u8] {
+        &self.received
     }
 
-    /// Returns all the ranges of data which haven't been authenticated.
-    pub fn unauthed(&self) -> RangeSet<usize> {
-        RangeSet::from(0..self.data.len()).difference(&self.auth)
+    /// Returns all the ranges of the sent data which have been authenticated.
+    pub fn sent_authed(&self) -> &RangeSet<usize> {
+        &self.sent_authed
+    }
+
+    /// Returns all the ranges of the received data which have been authenticated.
+    pub fn received_authed(&self) -> &RangeSet<usize> {
+        &self.received_authed
+    }
+
+    /// Returns all the ranges of the sent data which haven't been authenticated.
+    pub fn sent_unauthed(&self) -> RangeSet<usize> {
+        RangeSet::from(0..self.sent.len()).difference(&self.sent_authed)
+    }
+
+    /// Returns all the ranges of the received data which haven't been authenticated.
+    pub fn received_unauthed(&self) -> RangeSet<usize> {
+        RangeSet::from(0..self.received.len()).difference(&self.received_authed)
     }
 
     /// Unions the authenticated data of this transcript with another.
@@ -109,15 +203,34 @@ impl PartialTranscript {
     /// Panics if the other transcript is not the same length.
     pub(crate) fn union(&mut self, other: &PartialTranscript) {
         assert_eq!(
-            self.data.len(),
-            other.data.len(),
-            "transcripts are not the same length"
+            self.sent.len(),
+            other.sent.len(),
+            "sent data are not the same length"
+        );
+        assert_eq!(
+            self.received.len(),
+            other.received.len(),
+            "received data are not the same length"
         );
 
-        for range in other.auth.difference(&self.auth).iter_ranges() {
-            self.data[range.clone()].copy_from_slice(&other.data[range]);
+        for range in other
+            .sent_authed
+            .difference(&self.sent_authed)
+            .iter_ranges()
+        {
+            self.sent[range.clone()].copy_from_slice(&other.sent[range]);
         }
-        self.auth = self.auth.union(&other.auth);
+
+        for range in other
+            .received_authed
+            .difference(&self.received_authed)
+            .iter_ranges()
+        {
+            self.received[range.clone()].copy_from_slice(&other.received[range]);
+        }
+
+        self.sent_authed = self.sent_authed.union(&other.sent_authed);
+        self.received_authed = self.received_authed.union(&other.received_authed);
     }
 
     /// Unions an authenticated subsequence into this transcript.
@@ -126,8 +239,16 @@ impl PartialTranscript {
     ///
     /// Panics if the subsequence is outside the bounds of the transcript.
     pub(crate) fn union_subsequence(&mut self, seq: &Subsequence) {
-        self.auth = self.auth.union(&seq.idx.ranges);
-        seq.copy_to(&mut self.data);
+        match seq.idx.direction {
+            Direction::Sent => {
+                seq.copy_to(&mut self.sent);
+                self.sent_authed = self.sent_authed.union(&seq.idx.ranges);
+            }
+            Direction::Received => {
+                seq.copy_to(&mut self.received);
+                self.received_authed = self.received_authed.union(&seq.idx.ranges);
+            }
+        }
     }
 
     /// Sets all bytes in the transcript which haven't been authenticated.
@@ -136,8 +257,11 @@ impl PartialTranscript {
     ///
     /// * `value` - The value to set the unauthenticated bytes to
     pub fn set_unauthed(&mut self, value: u8) {
-        for range in self.unauthed().clone().iter_ranges() {
-            self.data[range].fill(value);
+        for range in self.sent_unauthed().iter_ranges() {
+            self.sent[range].fill(value);
+        }
+        for range in self.received_unauthed().iter_ranges() {
+            self.received[range].fill(value);
         }
     }
 
@@ -147,9 +271,18 @@ impl PartialTranscript {
     ///
     /// * `value` - The value to set the unauthenticated bytes to
     /// * `range` - The range of bytes to set
-    pub fn set_unauthed_range(&mut self, value: u8, range: Range<usize>) {
-        for range in range.difference(&self.auth).iter_ranges() {
-            self.data[range].fill(value);
+    pub fn set_unauthed_range(&mut self, value: u8, idx: &SliceIdx) {
+        match idx.direction {
+            Direction::Sent => {
+                for range in idx.range.difference(&self.sent_authed).iter_ranges() {
+                    self.sent[range].fill(value);
+                }
+            }
+            Direction::Received => {
+                for range in idx.range.difference(&self.received_authed).iter_ranges() {
+                    self.received[range].fill(value);
+                }
+            }
         }
     }
 }
@@ -177,7 +310,7 @@ pub struct SliceIdx {
 
 /// Slice of a transcript.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Slice {
+pub(crate) struct Slice {
     idx: SliceIdx,
     data: Vec<u8>,
 }
@@ -226,7 +359,7 @@ pub struct SubsequenceIdx {
 
 /// A transcript subsequence.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Subsequence {
+pub(crate) struct Subsequence {
     /// The index of the subsequence.
     pub idx: SubsequenceIdx,
     /// The data of the subsequence.
@@ -273,52 +406,6 @@ impl Subsequence {
     }
 }
 
-/// A type which can commit to subsequences of a transcript.
-pub trait TranscriptCommit {
-    /// The error type of the committer.
-    type Error;
-
-    /// Commits the given ranges of the sent data transcript.
-    fn commit_sent(&mut self, ranges: &dyn ToRangeSet<usize>) -> Result<&mut Self, Self::Error> {
-        self.commit(ranges, Direction::Sent)
-    }
-
-    /// Commits the given ranges of the received data transcript.
-    fn commit_recv(&mut self, ranges: &dyn ToRangeSet<usize>) -> Result<&mut Self, Self::Error> {
-        self.commit(ranges, Direction::Received)
-    }
-
-    /// Commits the given ranges of the transcript.
-    fn commit(
-        &mut self,
-        ranges: &dyn ToRangeSet<usize>,
-        direction: Direction,
-    ) -> Result<&mut Self, Self::Error>;
-}
-
-/// A type which can reveal subsequences of a transcript.
-pub trait TranscriptReveal {
-    /// The error type of the revealer.
-    type Error;
-
-    /// Reveals the given ranges of the sent data transcript.
-    fn reveal_sent(&mut self, ranges: &dyn ToRangeSet<usize>) -> Result<&mut Self, Self::Error> {
-        self.reveal(ranges, Direction::Sent)
-    }
-
-    /// Reveals the given ranges of the received data transcript.
-    fn reveal_recv(&mut self, ranges: &dyn ToRangeSet<usize>) -> Result<&mut Self, Self::Error> {
-        self.reveal(ranges, Direction::Received)
-    }
-
-    /// Reveals the given ranges of the transcript.
-    fn reveal(
-        &mut self,
-        ranges: &dyn ToRangeSet<usize>,
-        direction: Direction,
-    ) -> Result<&mut Self, Self::Error>;
-}
-
 #[cfg(test)]
 mod tests {
     use rstest::{fixture, rstest};
@@ -326,58 +413,82 @@ mod tests {
     use super::*;
 
     #[fixture]
-    fn transcripts() -> (Transcript, Transcript) {
-        let sent = "data sent 123456789".as_bytes().to_vec();
-        let recv = "data received 987654321".as_bytes().to_vec();
-        (Transcript::new(sent), Transcript::new(recv))
+    fn transcript() -> Transcript {
+        Transcript::new(b"data sent 123456789", b"data received 987654321")
     }
 
     #[rstest]
-    fn test_get_bytes_in_ranges(transcripts: (Transcript, Transcript)) {
-        let (sent, recv) = transcripts;
+    fn test_get_slice(transcript: Transcript) {
+        let slice = transcript
+            .get_slice(&SliceIdx {
+                direction: Direction::Sent,
+                range: 0..4,
+            })
+            .unwrap();
+        assert_eq!(slice, b"data");
 
-        let range1 = Range { start: 2, end: 4 };
-        let range2 = Range { start: 10, end: 15 };
-        // a full range spanning the entirety of the data
-        let range3 = Range {
-            start: 0,
-            end: sent.data().len(),
-        };
+        let slice = transcript
+            .get_slice(&SliceIdx {
+                direction: Direction::Received,
+                range: 0..4,
+            })
+            .unwrap();
+        assert_eq!(slice, b"data");
 
-        let expected = "ta12345".as_bytes().to_vec();
-        assert_eq!(
-            expected,
-            sent.get_bytes_in_ranges(&RangeSet::from([range1.clone(), range2.clone()]))
-        );
+        let slice = transcript
+            .get_slice(&SliceIdx {
+                direction: Direction::Sent,
+                range: 7..10,
+            })
+            .unwrap();
+        assert_eq!(slice, b"123");
 
-        let expected = "taved 9".as_bytes().to_vec();
-        assert_eq!(
-            expected,
-            recv.get_bytes_in_ranges(&RangeSet::from([range1, range2]))
-        );
+        let slice = transcript
+            .get_slice(&SliceIdx {
+                direction: Direction::Received,
+                range: 9..12,
+            })
+            .unwrap();
+        assert_eq!(slice, b"987");
 
-        assert_eq!(
-            sent.data().as_ref(),
-            sent.get_bytes_in_ranges(&RangeSet::from([range3]))
-        );
+        let slice = transcript.get_slice(&SliceIdx {
+            direction: Direction::Sent,
+            range: 0..0,
+        });
+        assert_eq!(slice, None);
+
+        let slice = transcript.get_slice(&SliceIdx {
+            direction: Direction::Sent,
+            range: 0..transcript.sent().len() + 1,
+        });
+        assert_eq!(slice, None);
     }
 
     #[rstest]
-    #[should_panic]
-    fn test_get_bytes_in_ranges_empty(transcripts: (Transcript, Transcript)) {
-        let (sent, _) = transcripts;
-        sent.get_bytes_in_ranges(&RangeSet::default());
-    }
+    fn test_get_subsequence(transcript: Transcript) {
+        let subseq = transcript.get_subsequence(&SubsequenceIdx {
+            direction: Direction::Sent,
+            ranges: RangeSet::from([0..4, 7..10]),
+        });
+        assert_eq!(subseq, Some(b"data123".to_vec()));
 
-    #[rstest]
-    #[should_panic]
-    fn test_get_bytes_in_ranges_out_of_bounds(transcripts: (Transcript, Transcript)) {
-        let (sent, _) = transcripts;
-        let range = Range {
-            start: 0,
-            end: sent.data().len() + 1,
-        };
-        sent.get_bytes_in_ranges(&RangeSet::from([range]));
+        let subseq = transcript.get_subsequence(&SubsequenceIdx {
+            direction: Direction::Received,
+            ranges: RangeSet::from([0..4, 9..12]),
+        });
+        assert_eq!(subseq, Some(b"data987".to_vec()));
+
+        let subseq = transcript.get_subsequence(&SubsequenceIdx {
+            direction: Direction::Sent,
+            ranges: RangeSet::from([0..4, 7..10, 11..12]),
+        });
+        assert_eq!(subseq, None);
+
+        let subseq = transcript.get_subsequence(&SubsequenceIdx {
+            direction: Direction::Sent,
+            ranges: RangeSet::from([0..4, 7..10, 11..13]),
+        });
+        assert_eq!(subseq, None);
     }
 
     #[test]

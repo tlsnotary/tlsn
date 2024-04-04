@@ -82,7 +82,7 @@ impl EncodingProof {
         self,
         transcript_length: &TranscriptLength,
         commitment: &EncodingCommitment,
-    ) -> Result<(PartialTranscript, PartialTranscript), EncodingProofError> {
+    ) -> Result<PartialTranscript, EncodingProofError> {
         let seed: [u8; 32] = commitment
             .seed
             .clone()
@@ -101,8 +101,7 @@ impl EncodingProof {
 
         let mut indices = Vec::with_capacity(openings.len());
         let mut leafs = Vec::with_capacity(openings.len());
-        let mut sent = PartialTranscript::new(sent_len);
-        let mut recv = PartialTranscript::new(recv_len);
+        let mut transcript = PartialTranscript::new(sent_len, recv_len);
         let mut total_opened = 0u128;
         for (id, Opening { seq, nonce }) in openings {
             let opened_len = seq.data.len();
@@ -141,15 +140,8 @@ impl EncodingProof {
             indices.push(id);
             leafs.push(expected_leaf);
 
-            // Union the authenticated subsequence with the transcript.
-            match seq.idx.direction {
-                Direction::Sent => {
-                    sent.union_subsequence(&seq);
-                }
-                Direction::Received => {
-                    recv.union_subsequence(&seq);
-                }
-            }
+            // Union the authenticated subsequence into the transcript.
+            transcript.union_subsequence(&seq);
         }
 
         // Verify that the expected hashes are present in the merkle tree.
@@ -161,6 +153,6 @@ impl EncodingProof {
             .verify(&commitment.root, &indices, &leafs)
             .map_err(|_| EncodingProofError::MissingCommitment)?;
 
-        Ok((sent, recv))
+        Ok(transcript)
     }
 }

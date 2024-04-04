@@ -1,11 +1,9 @@
-use std::ops::Range;
-
 use mpz_circuits::types::ValueType;
 use mpz_core::serialize::CanonicalSerialize;
 use mpz_garble_core::ChaChaEncoder;
 
 use crate::{
-    transcript::{SubsequenceIdx, RX_TRANSCRIPT_ID, TX_TRANSCRIPT_ID},
+    transcript::{SliceIdx, SubsequenceIdx, RX_TRANSCRIPT_ID, TX_TRANSCRIPT_ID},
     Direction,
 };
 
@@ -18,38 +16,38 @@ pub(crate) fn new_encoder(seed: [u8; 32]) -> impl Encoder {
 /// This is an internal implementation detail that should not be exposed to the
 /// public API.
 pub(crate) trait Encoder {
-    /// Returns the encoding for the given range of the transcript.
+    /// Returns the encoding for the given slice of the transcript.
     ///
     /// # Arguments
     ///
-    /// * `direction` - The direction of the transcript.
-    /// * `range` - The range of the transcript.
+    /// * `idx` - The index of the slice.
     /// * `data` - The data to encode.
-    fn encode(&self, direction: Direction, range: Range<usize>, data: &[u8]) -> Vec<u8>;
+    fn encode_slice(&self, idx: &SliceIdx, data: &[u8]) -> Vec<u8>;
 
     /// Returns the encoding for the given subsequence of the transcript.
     ///
     /// # Arguments
     ///
-    /// * `seq` - The subsequence of the transcript.
+    /// * `seq` - The index of the subsequence.
     /// * `data` - The data to encode.
     fn encode_subsequence(&self, seq: &SubsequenceIdx, data: &[u8]) -> Vec<u8>;
 }
 
 impl Encoder for ChaChaEncoder {
-    fn encode(&self, direction: Direction, range: Range<usize>, data: &[u8]) -> Vec<u8> {
+    fn encode_slice(&self, idx: &SliceIdx, data: &[u8]) -> Vec<u8> {
         assert_eq!(
-            range.len(),
+            idx.range.len(),
             data.len(),
             "range and data must have the same length"
         );
 
-        let id = match direction {
+        let id = match idx.direction {
             Direction::Sent => TX_TRANSCRIPT_ID,
             Direction::Received => RX_TRANSCRIPT_ID,
         };
 
-        range
+        idx.range
+            .clone()
             .zip(data)
             .map(|(idx, byte)| {
                 let id_hash = mpz_core::utils::blake3(format!("{}/{}", id, idx).as_bytes());
@@ -77,7 +75,13 @@ impl Encoder for ChaChaEncoder {
         for range in seq.ranges.iter_ranges() {
             let (chunk, rest) = data.split_at(range.len());
             data = rest;
-            encoding.extend(self.encode(seq.direction, range, chunk));
+            encoding.extend(self.encode_slice(
+                &SliceIdx {
+                    direction: seq.direction,
+                    range,
+                },
+                chunk,
+            ));
         }
         encoding
     }
