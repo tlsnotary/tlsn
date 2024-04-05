@@ -20,7 +20,7 @@ pub(crate) enum MerkleError {
     },
     /// Invalid merkle proof.
     #[error("invalid merkle proof")]
-    Invalid,
+    InvalidProof,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -137,7 +137,7 @@ where
             .proof
             .verify(*root, &indices, &leaf_hashes, self.total_leaves)
         {
-            return Err(MerkleError::Invalid);
+            return Err(MerkleError::InvalidProof);
         }
 
         Ok(())
@@ -367,7 +367,7 @@ mod test {
                 .verify(&tree.root(), &[2, 3, 4], &[1u64, 3u64, 4u64])
                 .err()
                 .unwrap(),
-            MerkleError::Invalid
+            MerkleError::InvalidProof
         );
     }
 
