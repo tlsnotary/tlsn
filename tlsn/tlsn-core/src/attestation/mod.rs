@@ -143,7 +143,7 @@ pub struct FieldId(pub u32);
 /// An attestation header.
 ///
 /// A header is the data structure which is signed by the Notary. It contains
-/// a unique idenitifer, the protocol version, and a Merkle root of the
+/// a unique identifier, the protocol version, and a Merkle root of the
 /// attestation fields.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AttestationHeader {
