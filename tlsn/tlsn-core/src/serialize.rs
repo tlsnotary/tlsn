@@ -8,7 +8,6 @@ use crate::{
     },
     encoding::EncodingLeaf,
     hash::PlaintextHash,
-    transcript::SubsequenceIdx,
 };
 
 /// Canonical serialization of TLSNotary types.
@@ -153,22 +152,6 @@ impl CanonicalSerialize for EncodingLeaf {
 
         let mut bytes = encoding.clone();
         bytes.extend_from_slice(nonce);
-        bytes
-    }
-}
-
-impl CanonicalSerialize for SubsequenceIdx {
-    #[inline]
-    fn serialize(&self) -> Vec<u8> {
-        let Self { direction, ranges } = self;
-
-        let mut bytes = Vec::new();
-        bytes.push(*direction as u8);
-        bytes.extend_from_slice(&(ranges.len_ranges() as u32).to_le_bytes());
-        for range in ranges.iter_ranges() {
-            bytes.extend_from_slice(&(range.start as u32).to_le_bytes());
-            bytes.extend_from_slice(&(range.end as u32).to_le_bytes());
-        }
         bytes
     }
 }

@@ -6,7 +6,9 @@ use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use utils::range::{IndexRanges, RangeDifference, RangeSet, RangeUnion};
 
-use crate::conn::TranscriptLength;
+use crate::{conn::TranscriptLength, serialize::CanonicalSerialize};
+
+pub use validation::{InvalidSubsequence, InvalidSubsequenceIdx};
 
 /// Sent data transcript ID.
 pub static TX_TRANSCRIPT_ID: &str = "tx";
@@ -86,8 +88,7 @@ impl Transcript {
             Direction::Received => &self.received,
         };
 
-        let end = idx.ranges.end()?;
-        if end > data.len() || idx.ranges.is_empty() {
+        if idx.end() > data.len() {
             return None;
         }
 
@@ -315,23 +316,106 @@ pub struct SliceIdx {
 
 /// A transcript subsequence index.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(try_from = "validation::SubsequenceIdxUnchecked")]
 pub struct SubsequenceIdx {
     /// The direction of the transcript.
-    pub direction: Direction,
+    direction: Direction,
     /// The ranges of the transcript.
-    pub ranges: RangeSet<usize>,
+    ranges: RangeSet<usize>,
+}
+
+impl SubsequenceIdx {
+    /// Creates a new subsequence index.
+    pub(crate) fn new(
+        direction: Direction,
+        ranges: impl Into<RangeSet<usize>>,
+    ) -> Result<Self, InvalidSubsequenceIdx> {
+        Self::validate(Self {
+            direction,
+            ranges: ranges.into(),
+        })
+    }
+
+    /// Returns the start of the index.
+    pub fn start(&self) -> usize {
+        self.ranges.min().expect("index can not be empty")
+    }
+
+    /// Returns the end of the index, non-inclusive.
+    pub fn end(&self) -> usize {
+        self.ranges.end().expect("index can not be empty")
+    }
+
+    /// Returns the direction of the index.
+    pub fn direction(&self) -> Direction {
+        self.direction
+    }
+
+    /// Returns the ranges of the index.
+    pub fn ranges(&self) -> &RangeSet<usize> {
+        &self.ranges
+    }
+
+    /// Returns the length of the index.
+    #[allow(clippy::len_without_is_empty)]
+    pub fn len(&self) -> usize {
+        self.ranges.len()
+    }
+}
+
+impl CanonicalSerialize for SubsequenceIdx {
+    #[inline]
+    fn serialize(&self) -> Vec<u8> {
+        let Self { direction, ranges } = self;
+
+        let mut bytes = Vec::new();
+        bytes.push(*direction as u8);
+        bytes.extend_from_slice(&(ranges.len_ranges() as u32).to_le_bytes());
+        for range in ranges.iter_ranges() {
+            bytes.extend_from_slice(&(range.start as u32).to_le_bytes());
+            bytes.extend_from_slice(&(range.end as u32).to_le_bytes());
+        }
+        bytes
+    }
 }
 
 /// A transcript subsequence.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "validation::SubsequenceUnchecked")]
 pub struct Subsequence {
     /// The index of the subsequence.
-    pub idx: SubsequenceIdx,
+    idx: SubsequenceIdx,
     /// The data of the subsequence.
-    pub data: Vec<u8>,
+    data: Vec<u8>,
 }
 
 impl Subsequence {
+    /// Creates a new subsequence.
+    pub fn new(idx: SubsequenceIdx, data: Vec<u8>) -> Result<Self, InvalidSubsequence> {
+        Self::validate(Self { idx, data })
+    }
+
+    /// Returns the index of the subsequence.
+    pub fn index(&self) -> &SubsequenceIdx {
+        &self.idx
+    }
+
+    /// Returns the data of the subsequence.
+    pub fn data(&self) -> &[u8] {
+        &self.data
+    }
+
+    /// Returns the length of the subsequence.
+    #[allow(clippy::len_without_is_empty)]
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+
+    /// Returns the inner parts of the subsequence.
+    pub fn into_parts(self) -> (SubsequenceIdx, Vec<u8>) {
+        (self.idx, self.data)
+    }
+
     /// Copies the subsequence data into the given destination.
     ///
     /// # Panics
@@ -342,6 +426,74 @@ impl Subsequence {
         for range in self.idx.ranges.iter_ranges() {
             dest[range.clone()].copy_from_slice(&self.data[offset..offset + range.len()]);
             offset += range.len();
+        }
+    }
+}
+
+mod validation {
+    use super::*;
+
+    /// Invalid subsequence index error.
+    #[derive(Debug, thiserror::Error)]
+    #[error("invalid subsequence index: {0}")]
+    pub struct InvalidSubsequenceIdx(&'static str);
+
+    impl SubsequenceIdx {
+        pub(crate) fn validate(self) -> Result<Self, InvalidSubsequenceIdx> {
+            if self.ranges.is_empty() {
+                return Err(InvalidSubsequenceIdx("subsequence index can not be empty"));
+            }
+
+            Ok(self)
+        }
+    }
+
+    #[derive(Debug, Deserialize)]
+    pub(super) struct SubsequenceIdxUnchecked {
+        direction: Direction,
+        ranges: RangeSet<usize>,
+    }
+
+    impl TryFrom<SubsequenceIdxUnchecked> for SubsequenceIdx {
+        type Error = InvalidSubsequenceIdx;
+
+        fn try_from(unchecked: SubsequenceIdxUnchecked) -> Result<Self, Self::Error> {
+            Self::new(unchecked.direction, unchecked.ranges)
+        }
+    }
+
+    /// Invalid subsequence error.
+    #[derive(Debug, thiserror::Error)]
+    #[error("invalid subsequence: {0}")]
+    pub struct InvalidSubsequence(&'static str);
+
+    impl Subsequence {
+        pub(crate) fn validate(self) -> Result<Self, InvalidSubsequence> {
+            if self.idx.ranges.len() != self.data.len() {
+                return Err(InvalidSubsequence(
+                    "index length does not match data length",
+                ));
+            }
+
+            if self.data.is_empty() {
+                return Err(InvalidSubsequence("subsequence can not be empty"));
+            }
+
+            Ok(self)
+        }
+    }
+
+    #[derive(Debug, Deserialize)]
+    pub(super) struct SubsequenceUnchecked {
+        idx: SubsequenceIdx,
+        data: Vec<u8>,
+    }
+
+    impl TryFrom<SubsequenceUnchecked> for Subsequence {
+        type Error = InvalidSubsequence;
+
+        fn try_from(unchecked: SubsequenceUnchecked) -> Result<Self, Self::Error> {
+            Self::new(unchecked.idx, unchecked.data)
         }
     }
 }

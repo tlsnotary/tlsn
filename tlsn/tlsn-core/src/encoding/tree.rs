@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use bimap::BiMap;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use utils::range::RangeSet;
 
 use crate::{
     conn::TranscriptLength,
@@ -20,43 +19,25 @@ use crate::{
 /// Encoding tree builder error.
 #[derive(Debug, thiserror::Error)]
 pub enum EncodingTreeError {
-    /// Attempted to commit to an empty range.
-    #[error("attempted to commit to an empty range")]
-    EmptyRange,
-    /// Range is out of bounds of the transcript.
-    #[error(
-        "range is out of bounds of the transcript: \
-        {input_end} > {transcript_length}"
-    )]
+    /// Index is out of bounds of the transcript.
+    #[error("index is out of bounds of the transcript")]
     OutOfBounds {
-        /// The end of the input range.
-        input_end: usize,
+        /// The index.
+        index: SubsequenceIdx,
         /// The transcript length.
         transcript_length: usize,
-        /// The direction of the transcript.
-        direction: Direction,
     },
-    /// The encoding provider is missing the encoding for the given range.
-    #[error(
-        "the encoding provider is missing the encoding for the given range: \
-        {direction:?} {ranges:?}"
-    )]
+    /// Encoding provider is missing an encoding for an index.
+    #[error("encoding provider is missing an encoding for an index")]
     MissingEncoding {
-        /// The input ranges.
-        ranges: RangeSet<usize>,
-        /// The direction of the transcript.
-        direction: Direction,
+        /// The index which is missing.
+        index: SubsequenceIdx,
     },
-    /// The encoding tree is missing the encoding for the given range.
-    #[error(
-        "the encoding tree is missing the encoding for the given range: \
-        {direction:?} {ranges:?}"
-    )]
+    /// Index is missing from the tree.
+    #[error("index is missing from the tree")]
     MissingLeaf {
-        /// The input ranges.
-        ranges: RangeSet<usize>,
-        /// The direction of the transcript.
-        direction: Direction,
+        /// The index which is missing.
+        index: SubsequenceIdx,
     },
 }
 
@@ -108,26 +89,21 @@ impl EncodingTree {
         };
 
         for seq in seqs {
-            let end = seq.ranges.end().ok_or(EncodingTreeError::EmptyRange)?;
-            let len = match seq.direction {
+            let len = match seq.direction() {
                 Direction::Sent => transcript_length.sent as usize,
                 Direction::Received => transcript_length.received as usize,
             };
 
-            if end > len {
+            if seq.end() > len {
                 return Err(EncodingTreeError::OutOfBounds {
-                    input_end: end,
+                    index: seq.clone(),
                     transcript_length: len,
-                    direction: seq.direction,
                 });
             }
 
-            let encoding = provider.provide_subsequence(seq).ok_or_else(|| {
-                EncodingTreeError::MissingEncoding {
-                    ranges: seq.ranges.clone(),
-                    direction: seq.direction,
-                }
-            })?;
+            let encoding = provider
+                .provide_subsequence(seq)
+                .ok_or_else(|| EncodingTreeError::MissingEncoding { index: seq.clone() })?;
 
             tree.add_leaf(seq.clone(), encoding);
         }
@@ -158,32 +134,25 @@ impl EncodingTree {
     ) -> Result<EncodingProof, EncodingTreeError> {
         let mut openings = HashMap::new();
         for seq in seqs {
-            let idx =
-                *self
-                    .seqs
-                    .get_by_right(&seq)
-                    .ok_or_else(|| EncodingTreeError::MissingLeaf {
-                        ranges: seq.ranges.clone(),
-                        direction: seq.direction,
-                    })?;
+            let idx = *self
+                .seqs
+                .get_by_right(&seq)
+                .ok_or_else(|| EncodingTreeError::MissingLeaf { index: seq.clone() })?;
 
             let data =
                 transcript
                     .get_subsequence(seq)
                     .ok_or_else(|| EncodingTreeError::OutOfBounds {
-                        input_end: seq.ranges.end().unwrap_or_default(),
-                        transcript_length: transcript.len_of_direction(seq.direction),
-                        direction: seq.direction,
+                        index: seq.clone(),
+                        transcript_length: transcript.len_of_direction(seq.direction()),
                     })?;
             let nonce = self.nonces[idx];
 
             openings.insert(
                 idx,
                 Opening {
-                    seq: Subsequence {
-                        idx: seq.clone(),
-                        data,
-                    },
+                    seq: Subsequence::new(seq.clone(), data)
+                        .expect("data in tree is correct length"),
                     nonce,
                 },
             );
@@ -244,14 +213,8 @@ mod tests {
     fn test_encoding_tree() {
         let transcript = Transcript::new(POST_JSON, OK_JSON);
 
-        let seq_0 = SubsequenceIdx {
-            ranges: (0..POST_JSON.len()).into(),
-            direction: Direction::Sent,
-        };
-        let seq_1 = SubsequenceIdx {
-            ranges: (0..OK_JSON.len()).into(),
-            direction: Direction::Received,
-        };
+        let seq_0 = SubsequenceIdx::new(Direction::Sent, 0..POST_JSON.len()).unwrap();
+        let seq_1 = SubsequenceIdx::new(Direction::Received, 0..OK_JSON.len()).unwrap();
 
         let tree = new_tree(&transcript, [&seq_0, &seq_1].into_iter()).unwrap();
 
@@ -277,22 +240,10 @@ mod tests {
     fn test_encoding_tree_multiple_ranges() {
         let transcript = Transcript::new(POST_JSON, OK_JSON);
 
-        let seq_0 = SubsequenceIdx {
-            ranges: (0..1).into(),
-            direction: Direction::Sent,
-        };
-        let seq_1 = SubsequenceIdx {
-            ranges: (1..POST_JSON.len()).into(),
-            direction: Direction::Sent,
-        };
-        let seq_2 = SubsequenceIdx {
-            ranges: (0..1).into(),
-            direction: Direction::Received,
-        };
-        let seq_3 = SubsequenceIdx {
-            ranges: (1..OK_JSON.len()).into(),
-            direction: Direction::Received,
-        };
+        let seq_0 = SubsequenceIdx::new(Direction::Sent, 0..1).unwrap();
+        let seq_1 = SubsequenceIdx::new(Direction::Sent, 1..POST_JSON.len()).unwrap();
+        let seq_2 = SubsequenceIdx::new(Direction::Received, 0..1).unwrap();
+        let seq_3 = SubsequenceIdx::new(Direction::Received, 1..OK_JSON.len()).unwrap();
 
         let tree = new_tree(&transcript, [&seq_0, &seq_1, &seq_2, &seq_3].into_iter()).unwrap();
 
@@ -320,14 +271,8 @@ mod tests {
     fn test_encoding_tree_out_of_bounds() {
         let transcript = Transcript::new(POST_JSON, OK_JSON);
 
-        let seq_0 = SubsequenceIdx {
-            ranges: (0..POST_JSON.len() + 1).into(),
-            direction: Direction::Sent,
-        };
-        let seq_1 = SubsequenceIdx {
-            ranges: (0..OK_JSON.len() + 1).into(),
-            direction: Direction::Received,
-        };
+        let seq_0 = SubsequenceIdx::new(Direction::Sent, 0..POST_JSON.len() + 1).unwrap();
+        let seq_1 = SubsequenceIdx::new(Direction::Received, 0..OK_JSON.len() + 1).unwrap();
 
         let result = new_tree(&transcript, [&seq_0].into_iter()).unwrap_err();
         assert!(matches!(result, EncodingTreeError::OutOfBounds { .. }));
@@ -346,11 +291,7 @@ mod tests {
 
         let result = EncodingTree::new(
             HashAlgorithm::Blake3,
-            [SubsequenceIdx {
-                ranges: (0..8).into(),
-                direction: Direction::Sent,
-            }]
-            .iter(),
+            [SubsequenceIdx::new(Direction::Sent, 0..8).unwrap()].iter(),
             &provider,
             &transcript_length,
         )
@@ -359,11 +300,7 @@ mod tests {
 
         let result = EncodingTree::new(
             HashAlgorithm::Blake3,
-            [SubsequenceIdx {
-                ranges: (0..8).into(),
-                direction: Direction::Received,
-            }]
-            .iter(),
+            [SubsequenceIdx::new(Direction::Received, 0..8).unwrap()].iter(),
             &provider,
             &transcript_length,
         )

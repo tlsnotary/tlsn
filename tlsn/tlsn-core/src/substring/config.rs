@@ -1,11 +1,13 @@
 use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
-use utils::range::{RangeSet, ToRangeSet};
+use utils::range::ToRangeSet;
 
 use crate::{
-    hash::HashAlgorithm, substring::SubstringCommitmentKind, transcript::SubsequenceIdx, Direction,
-    Transcript,
+    hash::HashAlgorithm,
+    substring::SubstringCommitmentKind,
+    transcript::{InvalidSubsequenceIdx, SubsequenceIdx},
+    Direction, Transcript,
 };
 
 /// Configuration for substring commitments.
@@ -47,15 +49,18 @@ impl SubstringCommitConfig {
 
 /// A error for [`SubstringCommitConfigBuilder`].
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum SubstringCommitConfigBuilderError {
-    /// Attempted to commit to an empty range.
-    #[error("attempted to commit to an empty range")]
-    EmptyRange,
-    /// Attempted to commit to a range that is out of bounds of the transcript.
-    #[error("attempted to commit to a range that is out of bounds of transcript")]
+    /// Invalid index.
+    #[error("invalid index: {0}")]
+    InvalidIndex(#[from] InvalidSubsequenceIdx),
+    /// Index is out of bounds of the transcript.
+    #[error(
+        "index is out of bounds of the {direction:?} transcript: {index_end} > {transcript_length}"
+    )]
     OutOfBounds {
-        /// The commitment ranges.
-        ranges: RangeSet<usize>,
+        /// The index end.
+        index_end: usize,
         /// The direction of the transcript.
         direction: Direction,
         /// The transcript length.
@@ -112,24 +117,17 @@ impl SubstringCommitConfigBuilder {
         direction: Direction,
         kind: SubstringCommitmentKind,
     ) -> Result<&mut Self, SubstringCommitConfigBuilderError> {
-        let seq = SubsequenceIdx {
-            direction,
-            ranges: ranges.to_range_set(),
-        };
+        let idx = SubsequenceIdx::new(direction, ranges.to_range_set())?;
 
-        if seq.ranges.is_empty() {
-            return Err(SubstringCommitConfigBuilderError::EmptyRange);
-        }
-
-        if seq.ranges.end().expect("set not empty") > self.transcript.len_of_direction(direction) {
+        if idx.end() > self.transcript.len_of_direction(idx.direction()) {
             return Err(SubstringCommitConfigBuilderError::OutOfBounds {
-                ranges: seq.ranges.clone(),
-                direction: seq.direction,
-                transcript_length: self.transcript.len_of_direction(direction),
+                index_end: idx.end(),
+                direction: idx.direction(),
+                transcript_length: self.transcript.len_of_direction(idx.direction()),
             });
         }
 
-        self.commits.insert((seq, kind));
+        self.commits.insert((idx, kind));
 
         Ok(self)
     }
@@ -196,15 +194,18 @@ impl SubstringProofConfig {
 
 /// A error for [`SubstringProofConfigBuilder`].
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum SubstringProofConfigBuilderError {
-    /// Attempted to prove an empty range.
-    #[error("attempted to prove an empty range")]
-    EmptyRange,
-    /// Attempted to prove a range that is out of bounds of the transcript.
-    #[error("attempted to prove a range that is out of bounds of transcript")]
+    /// Invalid index.
+    #[error("invalid index: {0}")]
+    InvalidIndex(#[from] InvalidSubsequenceIdx),
+    /// Index is out of bounds of the transcript.
+    #[error(
+        "index is out of bounds of the {direction:?} transcript: {index_end} > {transcript_length}"
+    )]
     OutOfBounds {
-        /// The ranges.
-        ranges: RangeSet<usize>,
+        /// The index end.
+        index_end: usize,
         /// The direction of the transcript.
         direction: Direction,
         /// The transcript length.
@@ -238,24 +239,18 @@ impl SubstringProofConfigBuilder {
         ranges: &dyn ToRangeSet<usize>,
         direction: Direction,
     ) -> Result<&mut Self, SubstringProofConfigBuilderError> {
-        let seq = SubsequenceIdx {
-            direction,
-            ranges: ranges.to_range_set(),
-        };
+        let idx = SubsequenceIdx::new(direction, ranges.to_range_set())?;
 
-        if seq.ranges.is_empty() {
-            return Err(SubstringProofConfigBuilderError::EmptyRange);
-        }
-
-        if seq.ranges.end().expect("set not empty") > self.transcript.len_of_direction(direction) {
+        if idx.end() > self.transcript.len_of_direction(idx.direction()) {
             return Err(SubstringProofConfigBuilderError::OutOfBounds {
-                ranges: seq.ranges.clone(),
-                direction: seq.direction,
-                transcript_length: self.transcript.len_of_direction(direction),
+                index_end: idx.end(),
+                direction: idx.direction(),
+                transcript_length: self.transcript.len_of_direction(idx.direction()),
             });
         }
 
-        self.seqs.insert(seq);
+        self.seqs.insert(idx);
+
         Ok(self)
     }
 

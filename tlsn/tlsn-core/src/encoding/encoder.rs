@@ -3,7 +3,7 @@ use mpz_core::serialize::CanonicalSerialize;
 use mpz_garble_core::ChaChaEncoder;
 
 use crate::{
-    transcript::{SliceIdx, SubsequenceIdx, RX_TRANSCRIPT_ID, TX_TRANSCRIPT_ID},
+    transcript::{SliceIdx, Subsequence, RX_TRANSCRIPT_ID, TX_TRANSCRIPT_ID},
     Direction,
 };
 
@@ -28,9 +28,8 @@ pub(crate) trait Encoder {
     ///
     /// # Arguments
     ///
-    /// * `seq` - The index of the subsequence.
-    /// * `data` - The data to encode.
-    fn encode_subsequence(&self, seq: &SubsequenceIdx, data: &[u8]) -> Vec<u8>;
+    /// * `seq` - The subsequence to encode.
+    fn encode_subsequence(&self, seq: &Subsequence) -> Vec<u8>;
 }
 
 impl Encoder for ChaChaEncoder {
@@ -65,19 +64,15 @@ impl Encoder for ChaChaEncoder {
             .collect()
     }
 
-    fn encode_subsequence(&self, seq: &SubsequenceIdx, mut data: &[u8]) -> Vec<u8> {
-        assert_eq!(
-            seq.ranges.len(),
-            data.len(),
-            "ranges and data must have the same length"
-        );
-        let mut encoding = Vec::with_capacity(data.len() * 16);
-        for range in seq.ranges.iter_ranges() {
+    fn encode_subsequence(&self, seq: &Subsequence) -> Vec<u8> {
+        let mut encoding = Vec::with_capacity(seq.len() * 16);
+        let mut data = seq.data();
+        for range in seq.index().ranges().iter_ranges() {
             let (chunk, rest) = data.split_at(range.len());
             data = rest;
             encoding.extend(self.encode_slice(
                 &SliceIdx {
-                    direction: seq.direction,
+                    direction: seq.index().direction(),
                     range,
                 },
                 chunk,

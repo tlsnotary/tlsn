@@ -172,10 +172,7 @@ impl PlaintextHashOpening {
         let expected_hash = commitment.hash.algorithm().hash(&opening);
 
         if expected_hash == commitment.hash {
-            Ok(Subsequence {
-                idx: commitment.seq.clone(),
-                data: self.data.clone(),
-            })
+            Ok(Subsequence::new(commitment.seq.clone(), self.data.clone()).unwrap())
         } else {
             Err(())
         }

@@ -105,35 +105,27 @@ impl EncodingProof {
         let mut transcript = PartialTranscript::new(sent_len, recv_len);
         let mut total_opened = 0u128;
         for (id, Opening { seq, nonce }) in openings {
-            let opened_len = seq.data.len();
-
             // Make sure the amount of data being proved is bounded.
-            total_opened += opened_len as u128;
+            total_opened += seq.len() as u128;
             if total_opened > MAX_TOTAL_COMMITTED_DATA as u128 {
                 return Err(EncodingProofError::ExceededMaxData);
             }
 
-            // Make sure the opening length matches the ranges length.
-            if seq.idx.ranges.len() != opened_len {
-                return Err(EncodingProofError::Malformed);
-            }
-
             // Make sure the ranges are within the bounds of the transcript
-            let end = seq.idx.ranges.end().ok_or(EncodingProofError::EmptyRange)?;
-            let transcript_len = match seq.idx.direction {
+            let transcript_len = match seq.index().direction() {
                 Direction::Sent => sent_len,
                 Direction::Received => recv_len,
             };
 
-            if end > transcript_len as usize {
+            if seq.index().end() > transcript_len as usize {
                 return Err(EncodingProofError::OutOfBounds {
-                    input_end: end,
+                    input_end: seq.index().end(),
                     transcript_length: transcript_len,
-                    direction: seq.idx.direction,
+                    direction: seq.index().direction(),
                 });
             }
 
-            let expected_encoding = encoder.encode_subsequence(&seq.idx, &seq.data);
+            let expected_encoding = encoder.encode_subsequence(&seq);
             let expected_leaf = EncodingLeaf::new(expected_encoding, nonce);
 
             // Compute the expected hash of the commitment to make sure it is
