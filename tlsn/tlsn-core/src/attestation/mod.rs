@@ -12,7 +12,7 @@ use crate::{
         CertificateSecrets, ConnectionInfo, HandshakeData, ServerIdentity, ServerIdentityProof,
     },
     encoding::{EncodingCommitment, EncodingTree},
-    hash::{Hash, HashAlgorithm, PlaintextHash, PlaintextHashOpening},
+    hash::{Hash, HashAlgorithm, PlaintextHash, PlaintextHashProof},
     merkle::MerkleTree,
     serialize::CanonicalSerialize,
     substring::{SubstringProof, SubstringProofConfig, SubstringProofConfigBuilder},
@@ -314,7 +314,7 @@ impl AttestationFull {
                     .get_subsequence(idx)
                     .expect("subsequence is in transcript")
                     .into_parts();
-                hash_openings.push(PlaintextHashOpening {
+                hash_openings.push(PlaintextHashProof {
                     data,
                     nonce,
                     commitment: *commitment,

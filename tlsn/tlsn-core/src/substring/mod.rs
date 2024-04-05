@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     attestation::{AttestationBody, Field},
     encoding::EncodingProof,
-    hash::{HashAlgorithm, PlaintextHashOpening},
+    hash::{HashAlgorithm, PlaintextHashProof},
     transcript::PartialTranscript,
 };
 
@@ -32,7 +32,7 @@ pub enum SubstringCommitmentKind {
 #[derive(Serialize, Deserialize)]
 pub struct SubstringProof {
     pub(crate) encoding: Option<EncodingProof>,
-    pub(crate) hash_openings: Vec<PlaintextHashOpening>,
+    pub(crate) hash_openings: Vec<PlaintextHashProof>,
 }
 
 opaque_debug::implement!(SubstringProof);

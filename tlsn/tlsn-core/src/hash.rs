@@ -146,35 +146,44 @@ pub struct PlaintextHash {
     pub hash: Hash,
 }
 
-/// An opening of a hash of plaintext in the transcript.
+/// A proof of the plaintext of a hash.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PlaintextHashOpening {
+pub struct PlaintextHashProof {
     pub(crate) data: Vec<u8>,
     pub(crate) nonce: [u8; 16],
     pub(crate) commitment: FieldId,
 }
 
-impl PlaintextHashOpening {
+/// An error for [`PlaintextHashProof`].
+#[derive(Debug, thiserror::Error)]
+#[error("invalid plaintext hash proof: {0}")]
+pub struct PlaintextHashProofError(&'static str);
+
+impl PlaintextHashProof {
     /// Returns the field id of the commitment this opening corresponds to.
     pub fn commitment_id(&self) -> &FieldId {
         &self.commitment
     }
 
-    /// Verifies the opening of the hash, returning the subsequence of plaintext.
+    /// Verifies the proof, returning the subsequence of plaintext.
     ///
     /// # Arguments
     ///
     /// * `commitment` - The commitment attested to by a Notary.
-    pub fn verify(&self, commitment: &PlaintextHash) -> Result<Subsequence, ()> {
+    pub fn verify(
+        &self,
+        commitment: &PlaintextHash,
+    ) -> Result<Subsequence, PlaintextHashProofError> {
         let mut opening = self.data.clone();
         opening.extend_from_slice(&self.nonce);
 
         let expected_hash = commitment.hash.algorithm().hash(&opening);
 
         if expected_hash == commitment.hash {
-            Ok(Subsequence::new(commitment.seq.clone(), self.data.clone()).unwrap())
+            Subsequence::new(commitment.seq.clone(), self.data.clone())
+                .map_err(|_| PlaintextHashProofError("proof contains invalid subsequence"))
         } else {
-            Err(())
+            Err(PlaintextHashProofError("hash does not match commitment"))
         }
     }
 }
