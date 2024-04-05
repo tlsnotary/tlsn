@@ -10,9 +10,10 @@ use crate::{
         CertificateSecrets, ConnectionInfo, HandshakeData, ServerIdentity, ServerIdentityProof,
     },
     encoding::{EncodingCommitment, EncodingTree},
-    hash::{Hash, HashAlgorithm, PlaintextHash},
+    hash::{Hash, HashAlgorithm, PlaintextHash, PlaintextHashOpening},
     merkle::MerkleTree,
     serialize::CanonicalSerialize,
+    substring::{SubstringProof, SubstringProofConfig, SubstringProofConfigBuilder},
     transcript::SubsequenceIdx,
     Signature, Transcript,
 };
@@ -249,6 +250,15 @@ pub struct AttestationFull {
 }
 
 impl AttestationFull {
+    /// Returns the attestation.
+    pub fn to_attestation(&self) -> Attestation {
+        Attestation {
+            sig: self.sig.clone(),
+            header: self.header.clone(),
+            body: self.body.clone(),
+        }
+    }
+
     /// Returns a server identity proof.
     pub fn identity_proof(&self) -> Result<ServerIdentityProof, AttestationError> {
         let cert_secrets = self
@@ -272,6 +282,66 @@ impl AttestationFull {
         Ok(ServerIdentityProof {
             cert_secrets: cert_secrets.clone(),
             identity,
+        })
+    }
+
+    /// Returns a substring proof config builder.
+    pub fn substring_proof_config_builder(&self) -> SubstringProofConfigBuilder {
+        SubstringProofConfigBuilder::new(&self.transcript)
+    }
+
+    /// Returns a substring proof.
+    pub fn substring_proof(
+        &self,
+        config: &SubstringProofConfig,
+    ) -> Result<SubstringProof, AttestationError> {
+        let mut hash_openings = Vec::new();
+        let mut encoding_idx = Vec::new();
+
+        for idx in config.iter() {
+            if let Some((nonce, commitment)) = self.secrets.iter().find_map(|secret| match secret {
+                Secret::PlaintextHash {
+                    seq,
+                    nonce,
+                    commitment,
+                } if seq == idx => (Some((*nonce, commitment))),
+                _ => None,
+            }) {
+                hash_openings.push(PlaintextHashOpening {
+                    data: self
+                        .transcript
+                        .get_subsequence(idx)
+                        .expect("subsequence is in transcript"),
+                    nonce,
+                    commitment: *commitment,
+                });
+                continue;
+            }
+
+            encoding_idx.push(idx);
+        }
+
+        let encoding_proof = if !encoding_idx.is_empty() {
+            let encoding_tree = self.get_encoding_tree().unwrap();
+            Some(
+                encoding_tree
+                    .proof(&self.transcript, encoding_idx.into_iter())
+                    .unwrap(),
+            )
+        } else {
+            None
+        };
+
+        Ok(SubstringProof {
+            encoding: encoding_proof,
+            hash_openings,
+        })
+    }
+
+    fn get_encoding_tree(&self) -> Option<&EncodingTree> {
+        self.secrets.iter().find_map(|secret| match secret {
+            Secret::EncodingTree(tree) => Some(tree),
+            _ => None,
         })
     }
 }

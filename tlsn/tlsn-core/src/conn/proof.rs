@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use tls_core::{
     anchors::{OwnedTrustAnchor, RootCertStore},
     verify::WebPkiVerifier,
@@ -9,7 +10,7 @@ use crate::{
 };
 
 /// TLS server identity proof.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ServerIdentityProof {
     pub(crate) cert_secrets: CertificateSecrets,
     pub(crate) identity: ServerIdentity,

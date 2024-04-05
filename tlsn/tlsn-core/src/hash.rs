@@ -161,9 +161,9 @@ pub struct PlaintextHash {
 /// An opening of a hash of plaintext in the transcript.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlaintextHashOpening {
-    data: Vec<u8>,
-    nonce: [u8; 16],
-    commitment: FieldId,
+    pub(crate) data: Vec<u8>,
+    pub(crate) nonce: [u8; 16],
+    pub(crate) commitment: FieldId,
 }
 
 impl PlaintextHashOpening {

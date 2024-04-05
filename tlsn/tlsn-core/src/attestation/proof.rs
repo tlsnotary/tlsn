@@ -2,7 +2,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     attestation::{AttestationBody, AttestationError, AttestationHeader},
+    conn::ServerIdentityProof,
     merkle::MerkleProof,
+    substring::SubstringProof,
 };
 
 /// An attestation body proof.
@@ -30,4 +32,12 @@ impl BodyProof {
 
         Ok(self.body)
     }
+}
+
+/// An attestation proof.
+pub struct AttestationProof {
+    /// Server identity proof.
+    pub identity: ServerIdentityProof,
+    /// Substrings proof.
+    pub substring: SubstringProof,
 }

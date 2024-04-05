@@ -24,12 +24,15 @@ pub enum SubstringCommitmentKind {
 }
 
 /// A proof of substrings in a transcript.
-pub struct SubstringsProof {
-    encoding: Option<EncodingProof>,
-    hash_openings: Vec<PlaintextHashOpening>,
+#[derive(Serialize, Deserialize)]
+pub struct SubstringProof {
+    pub(crate) encoding: Option<EncodingProof>,
+    pub(crate) hash_openings: Vec<PlaintextHashOpening>,
 }
 
-impl SubstringsProof {
+opaque_debug::implement!(SubstringProof);
+
+impl SubstringProof {
     /// Verifies the proof using the attestation body.
     ///
     /// Returns a partial transcript of authenticated data.

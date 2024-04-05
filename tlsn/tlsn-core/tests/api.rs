@@ -7,80 +7,99 @@ use p256::{
     },
     PublicKey,
 };
+use rand::{thread_rng, Rng};
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
 
-use tls_core::{
-    cert::ServerCertDetails,
-    handshake::HandshakeData,
-    ke::ServerKxDetails,
-    msgs::{enums::SignatureScheme, handshake::DigitallySignedStruct},
+use serde::{Deserialize, Serialize};
+use tls_core::cert;
+use tlsn_core::{
+    attestation::{
+        self, Attestation, AttestationBodyBuilder, AttestationFull, AttestationHeader, Field,
+        Secret, ATTESTATION_VERSION,
+    },
+    conn::{
+        CertificateSecrets, ConnectionInfo, HandshakeData, HandshakeDataV1_2, ServerIdentityProof,
+        TlsVersion,
+    },
+    encoding::{EncodingCommitment, EncodingTree},
+    fixtures::{self, ConnectionFixture},
+    hash::HashAlgorithm,
+    substring::{SubstringCommitConfigBuilder, SubstringProof, SubstringProofConfigBuilder},
+    Signature, Transcript,
 };
-
-use tlsn_core::{fixtures, Signature, Transcript};
+use tlsn_data_fixtures::http::{request::GET_WITH_HEADER, response::OK_JSON};
 
 #[test]
-/// Tests that the commitment creation protocol and verification work end-to-end
+/// Tests that the attestation protocol and verification work end-to-end
 fn test_api() {
-    let testdata = fixtures::cert::tlsnotary();
-    // Prover's transcript
-    let data_sent = "sent data".as_bytes();
-    let data_recv = "received data".as_bytes();
-    let transcript_tx = Transcript::new(data_sent.to_vec());
-    let transcript_rx = Transcript::new(data_recv.to_vec());
-
-    // Ranges of plaintext for which the Prover wants to create a commitment
-    let range1: Range<usize> = Range { start: 0, end: 2 };
-    let range2: Range<usize> = Range { start: 1, end: 3 };
-
+    let transcript = Transcript::new(GET_WITH_HEADER, OK_JSON);
+    let (sent_len, recv_len) = transcript.len();
     // Plaintext encodings which the Prover obtained from GC evaluation
-    let encodings_provider = fixtures::encoding_provider(data_sent, data_recv);
+    let encodings_provider = fixtures::encoding_provider(GET_WITH_HEADER, OK_JSON);
 
-    // At the end of the session the Prover holds the:
-    // - time when the TLS handshake began
-    // - server ephemeral key
-    // - handshake data (to which the Prover sent a commitment earlier)
-    // - encoder seed revealed by the Notary at the end of the label commitment protocol
+    // At the end of the TLS connection the Prover holds the:
+    let ConnectionFixture {
+        server_identity,
+        connection_info,
+        handshake_data,
+        certificate_data,
+    } = ConnectionFixture::tlsnotary(transcript.length());
 
-    let time = testdata.time;
-    let ephem_key = testdata.pubkey.clone();
+    // Prover commits to the certificate data.
+    let certificate_secrets = CertificateSecrets {
+        data: certificate_data,
+        cert_nonce: thread_rng().gen(),
+        chain_nonce: thread_rng().gen(),
+    };
 
-    let handshake_data = HandshakeData::new(
-        ServerCertDetails::new(
-            vec![
-                testdata.ee.clone(),
-                testdata.inter.clone(),
-                testdata.ca.clone(),
-            ],
-            vec![],
-            None,
-        ),
-        ServerKxDetails::new(
-            testdata.kx_params(),
-            DigitallySignedStruct::new(SignatureScheme::RSA_PKCS1_SHA256, testdata.sig.clone()),
-        ),
-        testdata.cr,
-        testdata.sr,
-    );
+    let cert_commitment = certificate_secrets
+        .cert_commitment(HashAlgorithm::Blake3)
+        .unwrap();
+    let cert_chain_commiment = certificate_secrets
+        .cert_chain_commitment(HashAlgorithm::Blake3)
+        .unwrap();
 
-    // Commitment to the handshake which the Prover sent at the start of the TLS handshake
-    let (hs_decommitment, hs_commitment) = handshake_data.hash_commit();
+    // Prover specifies the substrings it wants to commit to.
+    let mut substrings_commitment_builder = SubstringCommitConfigBuilder::new(&transcript);
+    substrings_commitment_builder
+        .commit_sent(&(0..sent_len))
+        .unwrap()
+        .commit_recv(&(0..recv_len))
+        .unwrap();
 
-    let mut commitment_builder =
-        TranscriptCommitmentBuilder::new(encodings_provider, data_sent.len(), data_recv.len());
+    let substrings_commitment_config = substrings_commitment_builder.build().unwrap();
 
-    let commitment_id_1 = commitment_builder.commit_sent(&range1).unwrap();
-    let commitment_id_2 = commitment_builder.commit_recv(&range2).unwrap();
+    // Prover constructs encoding tree.
+    let encoding_tree = EncodingTree::new(
+        HashAlgorithm::Blake3,
+        substrings_commitment_config.iter_encoding(),
+        &encodings_provider,
+        &transcript.length(),
+    )
+    .unwrap();
 
-    let commitments = commitment_builder.build().unwrap();
+    // Prover sends the encoding root to the Notary.
+    let encoding_commitment_root = encoding_tree.root();
 
-    let notarized_session_data = SessionData::new(
-        ServerName::Dns(testdata.dns_name.clone()),
-        hs_decommitment.clone(),
-        transcript_tx,
-        transcript_rx,
-        commitments,
-    );
+    // Notary constructs an attestation body according to their view of the connection.
+    let mut builder = AttestationBodyBuilder::default();
+    builder
+        .field(Field::ConnectionInfo(connection_info))
+        .unwrap()
+        .field(Field::HandshakeData(handshake_data))
+        .unwrap()
+        .field(Field::CertificateCommitment(cert_commitment))
+        .unwrap()
+        .field(Field::CertificateChainCommitment(cert_chain_commiment))
+        .unwrap()
+        .field(Field::EncodingCommitment(EncodingCommitment {
+            root: encoding_commitment_root,
+            seed: fixtures::encoder_seed().to_vec(),
+        }))
+        .unwrap();
+
+    let attestation_body = builder.build().unwrap();
 
     // Some outer context generates an (ephemeral) signing key for the Notary, e.g.
     let mut rng = ChaCha20Rng::from_seed([6u8; 32]);
@@ -92,92 +111,87 @@ fn test_api() {
     let notary_pubkey = PublicKey::from(*signer.verifying_key());
     let notary_verifing_key = *signer.verifying_key();
 
-    // Notary creates the session header
-    assert!(data_sent.len() <= (u32::MAX as usize) && data_recv.len() <= (u32::MAX as usize));
-
-    let header = SessionHeader::new(
-        fixtures::encoder_seed(),
-        notarized_session_data.commitments().merkle_root(),
-        data_sent.len(),
-        data_recv.len(),
-        // the session's end time and TLS handshake start time may be a few mins apart
-        HandshakeSummary::new(time + 60, ephem_key.clone(), hs_commitment),
-    );
-
-    let signature: P256Signature = signer.sign(&header.to_bytes());
-    // Notary creates a msg and sends it to Prover
-    let msg = SignedSessionHeader {
-        header,
-        signature: signature.into(),
+    // Notary generates the attestation header and signs it.
+    let attestation_header = AttestationHeader {
+        id: thread_rng().gen::<[u8; 16]>().into(),
+        version: ATTESTATION_VERSION.clone(),
+        root: attestation_body.root(HashAlgorithm::Blake3),
     };
 
+    let sig = Signature::P256(signer.sign(&attestation_header.serialize()));
+
+    // Notary optionally logs the attestation.
+    _ = Attestation {
+        sig: sig.clone(),
+        header: attestation_header.clone(),
+        body: attestation_body.clone(),
+    };
+
+    // Notary sends the attestation header and signature to the Prover.
+    #[derive(Serialize, Deserialize)]
+    struct SignedHeader {
+        header: AttestationHeader,
+        signature: Signature,
+    }
+
     //---------------------------------------
-    let msg_bytes = bincode::serialize(&msg).unwrap();
-    let SignedSessionHeader { header, signature } = bincode::deserialize(&msg_bytes).unwrap();
+    let msg_bytes = bincode::serialize(&SignedHeader {
+        header: attestation_header,
+        signature: sig,
+    })
+    .unwrap();
+    let SignedHeader { header, signature } = bincode::deserialize(&msg_bytes).unwrap();
     //---------------------------------------
 
-    // Prover verifies the signature
+    // Prover locally constructs the expected attestation body according to its view.
+    let attestation_body = attestation_body;
+
+    // Prover verifies the attestation root.
+    assert_eq!(&attestation_body.root(HashAlgorithm::Blake3), &header.root);
+
+    // Prover verifies the signature.
     #[allow(irrefutable_let_patterns)]
     if let Signature::P256(signature) = signature {
         notary_verifing_key
-            .verify(&header.to_bytes(), &signature)
+            .verify(&header.serialize(), &signature)
             .unwrap();
     } else {
         panic!("Notary signature is not P256");
     };
 
-    // Prover verifies the header and stores it with the signature in NotarizedSession
-    header
-        .verify(
-            time,
-            &ephem_key,
-            &notarized_session_data.commitments().merkle_root(),
-            header.encoder_seed(),
-            &notarized_session_data.session_info().handshake_decommitment,
-        )
-        .unwrap();
+    // Prover stores the attestation.
+    let attestation_full = AttestationFull {
+        sig: signature,
+        header: header,
+        body: attestation_body,
+        transcript,
+        secrets: vec![
+            Secret::Certificate(certificate_secrets),
+            Secret::ServerIdentity(server_identity),
+            Secret::EncodingTree(encoding_tree),
+        ],
+    };
 
-    let session = NotarizedSession::new(header, Some(signature), notarized_session_data);
+    // Prover sends the attestation to a Verifier, including server identity proof and substring proofs.
+    let attestation = attestation_full.to_attestation();
+    let server_identity_proof = attestation_full.identity_proof().unwrap();
 
-    // Prover converts NotarizedSession into SessionProof and SubstringsProof and sends them to the Verifier
-    let session_proof = session.session_proof();
+    let mut builder = attestation_full.substring_proof_config_builder();
+    builder.reveal_sent(&(0..sent_len)).unwrap();
+    builder.reveal_recv(&(0..recv_len)).unwrap();
 
-    let mut substrings_proof_builder = session.data().build_substrings_proof();
+    let config = builder.build().unwrap();
 
-    substrings_proof_builder
-        .reveal_by_id(commitment_id_1)
-        .unwrap()
-        .reveal_by_id(commitment_id_2)
-        .unwrap();
+    let substring_proof = attestation_full.substring_proof(&config).unwrap();
 
-    let substrings_proof = substrings_proof_builder.build().unwrap();
+    // Test serialization.
+    let attestation: Attestation =
+        bincode::deserialize(&bincode::serialize(&attestation).unwrap()).unwrap();
+    let server_identity_proof: ServerIdentityProof =
+        bincode::deserialize(&bincode::serialize(&server_identity_proof).unwrap()).unwrap();
+    let substring_proof: SubstringProof =
+        bincode::deserialize(&bincode::serialize(&substring_proof).unwrap()).unwrap();
 
-    //---------------------------------------
-    let session_proof_bytes = bincode::serialize(&session_proof).unwrap();
-    let substrings_proof_bytes = bincode::serialize(&substrings_proof).unwrap();
-    let session_proof: SessionProof = bincode::deserialize(&session_proof_bytes).unwrap();
-    let substrings_proof: SubstringsProof = bincode::deserialize(&substrings_proof_bytes).unwrap();
-    //---------------------------------------
-
-    // The Verifier does:
-    session_proof
-        .verify_with_default_cert_verifier(notary_pubkey)
-        .unwrap();
-
-    let SessionProof {
-        header,
-        session_info,
-        ..
-    } = session_proof;
-
-    // assert dns name is expected
-    assert_eq!(
-        session_info.server_name.as_ref(),
-        testdata.dns_name.as_str()
-    );
-
-    let (sent, recv) = substrings_proof.verify(&header).unwrap();
-
-    assert_eq!(&sent.data()[range1], b"se".as_slice());
-    assert_eq!(&recv.data()[range2], b"ec".as_slice());
+    // Verifier verifies proofs.
+    todo!()
 }

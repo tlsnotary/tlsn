@@ -1,112 +1,110 @@
 //! Fixtures for testing
 
-/// Certificate fixtures
-pub mod cert;
 mod provider;
 
-use bytes::Bytes;
 pub use provider::ChaChaProvider;
 
-use std::collections::HashMap;
-
 use hex::FromHex;
-use mpz_circuits::types::ValueType;
-use mpz_core::{commit::HashCommit, hash::Hash, utils::blake3};
-use tls_core::{
-    cert::ServerCertDetails,
-    handshake::HandshakeData,
-    ke::ServerKxDetails,
-    key::{Certificate, PublicKey},
-    msgs::{
-        codec::Codec,
-        enums::{NamedGroup, SignatureScheme},
-        handshake::{DigitallySignedStruct, Random, ServerECDHParams},
-    },
-};
-
 use p256::ecdsa::SigningKey;
 
 use crate::{
-    attestation::AttestationFull,
+    conn::{
+        Certificate, CertificateData, ConnectionInfo, HandshakeData, HandshakeDataV1_2, KeyType,
+        ServerEphemKey, ServerIdentity, ServerSignature, SignatureScheme, TlsVersion,
+        TranscriptLength,
+    },
     encoding::{new_encoder, Encoder, EncodingProvider},
     Transcript,
 };
 
-/// Returns an attestation fixture.
-pub fn attestation() -> AttestationFull {
-    todo!()
+/// A fixture containing various TLS connection data.
+pub struct ConnectionFixture {
+    /// The server identity.
+    pub server_identity: ServerIdentity,
+    /// The connection information.
+    pub connection_info: ConnectionInfo,
+    /// The handshake data.
+    pub handshake_data: HandshakeData,
+    /// The certificate data.
+    pub certificate_data: CertificateData,
 }
 
-/// Returns a handshake commitment fixture.
-pub fn handshake_commitment() -> Hash {
-    let (_, hash) = handshake_data().hash_commit();
-    hash
-}
+impl ConnectionFixture {
+    /// Returns a connection fixture for tlsnotary.org.
+    pub fn tlsnotary(transcript_length: TranscriptLength) -> Self {
+        ConnectionFixture {
+            server_identity: ServerIdentity::new("tlsnotary.org".to_string()),
+            connection_info: ConnectionInfo {
+                time: 1671637529,
+                version: TlsVersion::V1_2,
+                transcript_length,
+            },
+            handshake_data: HandshakeData::V1_2(HandshakeDataV1_2 {
+                client_random: <[u8; 32]>::from_hex(include_bytes!(
+                    "data/tlsnotary.org/client_random"
+                ))
+                .unwrap(),
+                server_random: <[u8; 32]>::from_hex(include_bytes!(
+                    "data/tlsnotary.org/server_random"
+                ))
+                .unwrap(),
+                server_ephemeral_key: ServerEphemKey {
+                    typ: KeyType::Secp256r1,
+                    key: Vec::<u8>::from_hex(include_bytes!("data/tlsnotary.org/pubkey")).unwrap(),
+                },
+            }),
+            certificate_data: CertificateData {
+                certs: vec![
+                    Certificate(include_bytes!("data/tlsnotary.org/ee.der").to_vec()),
+                    Certificate(include_bytes!("data/tlsnotary.org/inter.der").to_vec()),
+                    Certificate(include_bytes!("data/tlsnotary.org/ca.der").to_vec()),
+                ],
+                sig: ServerSignature {
+                    scheme: SignatureScheme::RSA_PKCS1_SHA256,
+                    sig: Vec::<u8>::from_hex(include_bytes!("data/tlsnotary.org/signature"))
+                        .unwrap(),
+                },
+            },
+        }
+    }
 
-/// Returns a handshake data fixture.
-pub fn handshake_data() -> HandshakeData {
-    HandshakeData::new(
-        server_cert_details(),
-        server_kx_details(),
-        client_random(),
-        server_random(),
-    )
-}
-
-/// Returns a server certificate details fixture.
-pub fn server_cert_details() -> ServerCertDetails {
-    ServerCertDetails::new(
-        vec![
-            Certificate(include_bytes!("testdata/key_exchange/tlsnotary.org/ee.der").to_vec()),
-            Certificate(include_bytes!("testdata/key_exchange/tlsnotary.org/inter.der").to_vec()),
-            Certificate(include_bytes!("testdata/key_exchange/tlsnotary.org/ca.der").to_vec()),
-        ],
-        vec![],
-        None,
-    )
-}
-
-/// Returns a server key exchange details fixture.
-pub fn server_kx_details() -> ServerKxDetails {
-    let mut params = Vec::new();
-    let ecdh_params = ServerECDHParams::new(NamedGroup::secp256r1, &server_ephemeral_key().key);
-    ecdh_params.encode(&mut params);
-
-    ServerKxDetails::new(
-        params,
-        DigitallySignedStruct::new(
-            SignatureScheme::RSA_PKCS1_SHA256,
-            Vec::<u8>::from_hex(include_bytes!(
-                "testdata/key_exchange/tlsnotary.org/signature"
-            ))
-            .unwrap(),
-        ),
-    )
-}
-
-/// Returns a client random fixture.
-pub fn client_random() -> Random {
-    Random(
-        <[u8; 32]>::from_hex(include_bytes!(
-            "testdata/key_exchange/tlsnotary.org/client_random"
-        ))
-        .unwrap(),
-    )
-}
-
-/// Returns a server random fixture.
-pub fn server_random() -> Random {
-    Random(
-        <[u8; 32]>::from_hex(include_bytes!(
-            "testdata/key_exchange/tlsnotary.org/server_random"
-        ))
-        .unwrap(),
-    )
-}
-
-/// Returns an encoder fixture.
-pub(crate) fn encoder() -> impl Encoder {
-    new_encoder(encoder_seed())
+    /// Returns a connection fixture for appliedzkp.org.
+    pub fn appliedzkp(transcript_length: TranscriptLength) -> Self {
+        ConnectionFixture {
+            server_identity: ServerIdentity::new("appliedzkp.org".to_string()),
+            connection_info: ConnectionInfo {
+                time: 1671637529,
+                version: TlsVersion::V1_2,
+                transcript_length,
+            },
+            handshake_data: HandshakeData::V1_2(HandshakeDataV1_2 {
+                client_random: <[u8; 32]>::from_hex(include_bytes!(
+                    "data/appliedzkp.org/client_random"
+                ))
+                .unwrap(),
+                server_random: <[u8; 32]>::from_hex(include_bytes!(
+                    "data/appliedzkp.org/server_random"
+                ))
+                .unwrap(),
+                server_ephemeral_key: ServerEphemKey {
+                    typ: KeyType::Secp256r1,
+                    key: Vec::<u8>::from_hex(include_bytes!("data/appliedzkp.org/pubkey")).unwrap(),
+                },
+            }),
+            certificate_data: CertificateData {
+                certs: vec![
+                    Certificate(include_bytes!("data/appliedzkp.org/ee.der").to_vec()),
+                    Certificate(include_bytes!("data/appliedzkp.org/inter.der").to_vec()),
+                    Certificate(include_bytes!("data/appliedzkp.org/ca.der").to_vec()),
+                ],
+                sig: ServerSignature {
+                    scheme: SignatureScheme::RSA_PKCS1_SHA256,
+                    sig: Vec::<u8>::from_hex(include_bytes!("data/appliedzkp.org/signature"))
+                        .unwrap(),
+                },
+            },
+        }
+    }
 }
 
 pub fn encoding_provider(tx: &[u8], rx: &[u8]) -> impl EncodingProvider {
@@ -116,14 +114,6 @@ pub fn encoding_provider(tx: &[u8], rx: &[u8]) -> impl EncodingProvider {
 /// Returns an encoder seed fixture.
 pub fn encoder_seed() -> [u8; 32] {
     [0u8; 32]
-}
-
-/// Returns a server ephemeral key fixture.
-pub fn server_ephemeral_key() -> PublicKey {
-    PublicKey::new(
-        NamedGroup::secp256r1,
-        &Vec::<u8>::from_hex(include_bytes!("testdata/key_exchange/tlsnotary.org/pubkey")).unwrap(),
-    )
 }
 
 /// Returns a notary signing key fixture.
