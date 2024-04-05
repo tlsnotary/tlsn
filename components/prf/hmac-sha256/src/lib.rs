@@ -43,7 +43,7 @@ pub trait Prf {
     async fn setup(&mut self, pms: ValueRef) -> Result<(), PrfError>;
 
     /// Computes the session keys using the provided client random, server random and PMS.
-    async fn compute_session_keys_private(
+    async fn compute_session_keys(
         &mut self,
         client_random: [u8; 32],
         server_random: [u8; 32],
@@ -60,9 +60,6 @@ pub trait Prf {
         &mut self,
         handshake_hash: [u8; 32],
     ) -> Result<[u8; 12], PrfError>;
-
-    /// Computes the session keys using randoms provided by the other party.
-    async fn compute_session_keys_blind(&mut self) -> Result<SessionKeys, PrfError>;
 
     /// Computes the client finished verify data using the handshake hash provided by the other party.
     async fn compute_client_finished_vd_blind(&mut self) -> Result<(), PrfError>;
@@ -134,8 +131,8 @@ mod tests {
         futures::try_join!(leader.setup(leader_pms), follower.setup(follower_pms)).unwrap();
 
         let (leader_session_keys, follower_session_keys) = futures::try_join!(
-            leader.compute_session_keys_private(client_random, server_random),
-            follower.compute_session_keys_blind()
+            leader.compute_session_keys(client_random, server_random),
+            follower.compute_session_keys(client_random, server_random)
         )
         .unwrap();
 

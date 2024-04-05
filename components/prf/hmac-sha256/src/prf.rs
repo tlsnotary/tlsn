@@ -81,7 +81,8 @@ where
     /// Executes a circuit which computes TLS session keys.
     async fn execute_session_keys(
         &mut self,
-        randoms: Option<([u8; 32], [u8; 32])>,
+        client_random: [u8; 32],
+        server_random: [u8; 32],
     ) -> Result<SessionKeys, PrfError> {
         let state::SessionKeys {
             pms,
@@ -96,12 +97,10 @@ where
             .get()
             .expect("session keys circuit is set");
 
-        if let Some((client_random, server_random)) = randoms {
-            self.thread_0
-                .assign(&randoms_refs.client_random, client_random)?;
-            self.thread_0
-                .assign(&randoms_refs.server_random, server_random)?;
-        }
+        self.thread_0
+            .assign(&randoms_refs.client_random, client_random)?;
+        self.thread_0
+            .assign(&randoms_refs.server_random, server_random)?;
 
         self.thread_0
             .execute(
@@ -231,7 +230,7 @@ where
 
         // Perform pre-computation for all circuits.
         let (randoms, hash_state, keys) =
-            setup_session_keys(&mut self.thread_0, pms.clone(), visibility).await?;
+            setup_session_keys(&mut self.thread_0, pms.clone()).await?;
 
         let (cf_vd, sf_vd) = futures::try_join!(
             setup_finished_msg(&mut self.thread_0, Msg::Cf, hash_state.clone(), visibility),
@@ -251,18 +250,12 @@ where
     }
 
     #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
-    async fn compute_session_keys_private(
+    async fn compute_session_keys(
         &mut self,
         client_random: [u8; 32],
         server_random: [u8; 32],
     ) -> Result<SessionKeys, PrfError> {
-        if self.config.role != Role::Leader {
-            return Err(PrfError::RoleError(
-                "only leader can provide inputs".to_string(),
-            ));
-        }
-
-        self.execute_session_keys(Some((client_random, server_random)))
+        self.execute_session_keys(client_random, server_random)
             .await
     }
 
@@ -296,17 +289,6 @@ where
         self.execute_sf_vd(Some(handshake_hash))
             .await
             .map(|hash| hash.expect("vd is decoded"))
-    }
-
-    #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
-    async fn compute_session_keys_blind(&mut self) -> Result<SessionKeys, PrfError> {
-        if self.config.role != Role::Follower {
-            return Err(PrfError::RoleError(
-                "leader must provide inputs".to_string(),
-            ));
-        }
-
-        self.execute_session_keys(None).await
     }
 
     #[cfg_attr(feature = "tracing", instrument(level = "debug", skip_all, err))]
@@ -374,10 +356,9 @@ pub(crate) mod state {
 async fn setup_session_keys<T: Memory + Load + Send>(
     thread: &mut T,
     pms: ValueRef,
-    visibility: Visibility,
 ) -> Result<(Randoms, HashState, SessionKeys), PrfError> {
-    let client_random = thread.new_input::<[u8; 32]>("client_finished", visibility)?;
-    let server_random = thread.new_input::<[u8; 32]>("server_finished", visibility)?;
+    let client_random = thread.new_input::<[u8; 32]>("client_finished", Visibility::Public)?;
+    let server_random = thread.new_input::<[u8; 32]>("server_finished", Visibility::Public)?;
 
     let client_write_key = thread.new_output::<[u8; 16]>("client_write_key")?;
     let server_write_key = thread.new_output::<[u8; 16]>("server_write_key")?;

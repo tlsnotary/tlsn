@@ -59,6 +59,10 @@ pub struct MpcTlsFollower {
 /// Data collected by the MPC-TLS follower.
 #[derive(Debug)]
 pub struct MpcTlsFollowerData {
+    /// The client random.
+    pub client_random: [u8; 32],
+    /// The server random.
+    pub server_random: [u8; 32],
     /// The server's public key
     pub server_key: PublicKey,
     /// The total number of bytes sent
@@ -75,12 +79,18 @@ impl ludi::Actor for MpcTlsFollower {
         #[cfg(feature = "tracing")]
         tracing::debug!("follower actor stopped");
 
-        let Closed { server_key } = self.state.take().try_into_closed()?;
+        let Closed {
+            client_random,
+            server_random,
+            server_key,
+        } = self.state.take().try_into_closed()?;
 
         let bytes_sent = self.encrypter.sent_bytes();
         let bytes_recv = self.decrypter.recv_bytes();
 
         Ok(MpcTlsFollowerData {
+            client_random,
+            server_random,
             server_key,
             bytes_sent,
             bytes_recv,
@@ -251,7 +261,11 @@ impl MpcTlsFollower {
         feature = "tracing",
         tracing::instrument(level = "trace", skip_all, err)
     )]
-    async fn compute_key_exchange(&mut self) -> Result<(), MpcTlsError> {
+    async fn compute_key_exchange(
+        &mut self,
+        client_random: [u8; 32],
+        server_random: [u8; 32],
+    ) -> Result<(), MpcTlsError> {
         self.state.take().try_into_client_key()?;
 
         // Key exchange
@@ -268,12 +282,17 @@ impl MpcTlsFollower {
             server_write_key,
             client_iv,
             server_iv,
-        } = self.prf.compute_session_keys_blind().await?;
+        } = self
+            .prf
+            .compute_session_keys(client_random, server_random)
+            .await?;
 
         self.encrypter.set_key(client_write_key, client_iv).await?;
         self.decrypter.set_key(server_write_key, server_iv).await?;
 
         self.state = State::Ke(Ke {
+            client_random,
+            server_random,
             server_key: PublicKey::new(
                 NamedGroup::secp256r1,
                 server_key.to_encoded_point(false).as_bytes(),
@@ -288,11 +307,19 @@ impl MpcTlsFollower {
         tracing::instrument(level = "trace", skip_all, err)
     )]
     async fn client_finished_vd(&mut self) -> Result<(), MpcTlsError> {
-        let Ke { server_key } = self.state.take().try_into_ke()?;
+        let Ke {
+            client_random,
+            server_random,
+            server_key,
+        } = self.state.take().try_into_ke()?;
 
         self.prf.compute_client_finished_vd_blind().await?;
 
-        self.state = State::Cf(Cf { server_key });
+        self.state = State::Cf(Cf {
+            client_random,
+            server_random,
+            server_key,
+        });
 
         Ok(())
     }
@@ -302,11 +329,17 @@ impl MpcTlsFollower {
         tracing::instrument(level = "trace", skip_all, err)
     )]
     async fn server_finished_vd(&mut self) -> Result<(), MpcTlsError> {
-        let Sf { server_key } = self.state.take().try_into_sf()?;
+        let Sf {
+            client_random,
+            server_random,
+            server_key,
+        } = self.state.take().try_into_sf()?;
 
         self.prf.compute_server_finished_vd_blind().await?;
 
         self.state = State::Active(Active {
+            client_random,
+            server_random,
             server_key,
             buffer: Default::default(),
         });
@@ -319,13 +352,21 @@ impl MpcTlsFollower {
         tracing::instrument(level = "trace", skip_all, err)
     )]
     async fn encrypt_client_finished(&mut self) -> Result<(), MpcTlsError> {
-        let Cf { server_key } = self.state.take().try_into_cf()?;
+        let Cf {
+            client_random,
+            server_random,
+            server_key,
+        } = self.state.take().try_into_cf()?;
 
         self.encrypter
             .encrypt_blind(ContentType::Handshake, ProtocolVersion::TLSv1_2, 16)
             .await?;
 
-        self.state = State::Sf(Sf { server_key });
+        self.state = State::Sf(Sf {
+            client_random,
+            server_random,
+            server_key,
+        });
 
         Ok(())
     }
@@ -478,7 +519,12 @@ impl MpcTlsFollower {
         tracing::instrument(level = "trace", skip_all, err)
     )]
     fn close_connection(&mut self) -> Result<(), MpcTlsError> {
-        let Active { server_key, buffer } = self.state.take().try_into_active()?;
+        let Active {
+            client_random,
+            server_random,
+            server_key,
+            buffer,
+        } = self.state.take().try_into_active()?;
 
         if !buffer.is_empty() {
             return Err(MpcTlsError::new(
@@ -487,7 +533,11 @@ impl MpcTlsFollower {
             ));
         }
 
-        self.state = State::Closed(Closed { server_key });
+        self.state = State::Closed(Closed {
+            client_random,
+            server_random,
+            server_key,
+        });
 
         Ok(())
     }
@@ -517,8 +567,9 @@ impl MpcTlsFollower {
         ctx.try_or_stop(|_| self.compute_client_key()).await;
     }
 
-    pub async fn compute_key_exchange(&mut self) {
-        ctx.try_or_stop(|_| self.compute_key_exchange()).await;
+    pub async fn compute_key_exchange(&mut self, client_random: [u8; 32], server_random: [u8; 32]) {
+        ctx.try_or_stop(|_| self.compute_key_exchange(client_random, server_random))
+            .await;
     }
 
     pub async fn client_finished_vd(&mut self) {
@@ -607,21 +658,29 @@ mod state {
 
     #[derive(Debug)]
     pub(super) struct Ke {
+        pub(super) client_random: [u8; 32],
+        pub(super) server_random: [u8; 32],
         pub(super) server_key: PublicKey,
     }
 
     #[derive(Debug)]
     pub(super) struct Cf {
+        pub(super) client_random: [u8; 32],
+        pub(super) server_random: [u8; 32],
         pub(super) server_key: PublicKey,
     }
 
     #[derive(Debug)]
     pub(super) struct Sf {
+        pub(super) client_random: [u8; 32],
+        pub(super) server_random: [u8; 32],
         pub(super) server_key: PublicKey,
     }
 
     #[derive(Debug)]
     pub(super) struct Active {
+        pub(super) client_random: [u8; 32],
+        pub(super) server_random: [u8; 32],
         pub(super) server_key: PublicKey,
         /// TLS messages purportedly received by the leader from the server.
         ///
@@ -632,6 +691,8 @@ mod state {
 
     #[derive(Debug)]
     pub(super) struct Closed {
+        pub(super) client_random: [u8; 32],
+        pub(super) server_random: [u8; 32],
         pub(super) server_key: PublicKey,
     }
 }

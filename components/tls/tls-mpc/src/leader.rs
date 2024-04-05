@@ -578,7 +578,10 @@ impl Backend for MpcTlsLeader {
         );
 
         self.channel
-            .send(MpcTlsMessage::ComputeKeyExchange(ComputeKeyExchange))
+            .send(MpcTlsMessage::ComputeKeyExchange(ComputeKeyExchange {
+                client_random: client_random.0,
+                server_random: server_random.0,
+            }))
             .await
             .map_err(|e| BackendError::InternalError(e.to_string()))?;
 
@@ -596,7 +599,7 @@ impl Backend for MpcTlsLeader {
             server_iv,
         } = self
             .prf
-            .compute_session_keys_private(client_random.0, server_random.0)
+            .compute_session_keys(client_random.0, server_random.0)
             .await
             .map_err(MpcTlsError::from)?;
 
