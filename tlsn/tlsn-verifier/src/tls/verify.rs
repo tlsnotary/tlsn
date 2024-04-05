@@ -49,18 +49,14 @@ impl Verifier<VerifyState> {
             info!("Received substring proof data from prover");
 
             // Check ranges
-            if proof_data.seqs.iter().any(|seq| {
-                if seq.idx.ranges.len() != seq.data.len() {
-                    return true;
-                }
-                let Some(end) = seq.idx.ranges.end() else {
-                    return true;
-                };
-                match seq.idx.direction {
-                    Direction::Sent => end > self.state.mpc_tls_data.bytes_sent,
-                    Direction::Received => end > self.state.mpc_tls_data.bytes_recv,
-                }
-            }) {
+            if proof_data
+                .seqs
+                .iter()
+                .any(|seq| match seq.index().direction() {
+                    Direction::Sent => seq.index().end() > self.state.mpc_tls_data.bytes_sent,
+                    Direction::Received => seq.index().end() > self.state.mpc_tls_data.bytes_recv,
+                })
+            {
                 return Err(VerifierError::InvalidRange);
             }
 
@@ -70,7 +66,9 @@ impl Verifier<VerifyState> {
                 .clone()
                 .into_iter()
                 .map(|seq| {
-                    let byte_refs = get_subsequence_ids(&seq.idx)
+                    let (idx, data) = seq.into_parts();
+
+                    let byte_refs = get_subsequence_ids(&idx)
                         .map(|id| {
                             verify_thread
                                 .get_value(id.as_str())
@@ -82,7 +80,7 @@ impl Verifier<VerifyState> {
                         .array_from_values(&byte_refs)
                         .expect("Byte should be in VM Memory");
 
-                    let subseq = Value::Array(seq.data.into_iter().map(Into::into).collect());
+                    let subseq = Value::Array(data.into_iter().map(Into::into).collect());
 
                     (subseq_refs, subseq)
                 })
