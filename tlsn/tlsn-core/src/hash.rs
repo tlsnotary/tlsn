@@ -8,6 +8,8 @@ use crate::{
     transcript::{Subsequence, SubsequenceIdx},
 };
 
+pub use hash_serialize::InvalidHash;
+
 /// A supported hashing algorithm.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -70,6 +72,11 @@ impl Hash {
 mod hash_serialize {
     use serde::{Deserialize, Serialize};
 
+    /// An invalid hash error.
+    #[derive(Debug, thiserror::Error)]
+    #[error("invalid hash: {0}")]
+    pub struct InvalidHash(String);
+
     #[derive(Serialize, Deserialize)]
     pub(super) struct Hash {
         alg: super::HashAlgorithm,
@@ -96,16 +103,16 @@ mod hash_serialize {
     }
 
     impl TryFrom<Hash> for super::Hash {
-        type Error = String;
+        type Error = InvalidHash;
 
         fn try_from(hash: Hash) -> Result<Self, Self::Error> {
             if hash.value.len() != hash.alg.len() {
-                return Err(format!(
+                return Err(InvalidHash(format!(
                     "invalid hash length for {:?}: expected {}, got {}",
                     hash.alg,
                     hash.alg.len(),
                     hash.value.len()
-                ));
+                )));
             }
 
             Ok(match hash.alg {
