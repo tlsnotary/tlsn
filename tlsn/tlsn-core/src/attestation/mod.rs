@@ -387,7 +387,7 @@ mod validation {
         }
     }
 
-    #[derive(Debug, Serialize, Deserialize)]
+    #[derive(Debug, Deserialize)]
     pub(super) struct AttestationBodyUnchecked {
         fields: HashMap<FieldId, Field>,
     }
