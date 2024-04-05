@@ -114,7 +114,7 @@ impl EncodingProof {
             }
 
             // Make sure the opening length matches the ranges length.
-            if seq.data.len() != opened_len {
+            if seq.idx.ranges.len() != opened_len {
                 return Err(EncodingProofError::Malformed);
             }
 
