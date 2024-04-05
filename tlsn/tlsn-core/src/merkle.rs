@@ -320,171 +320,202 @@ where
     Ok(rs_merkle::MerkleTree::<H>::from_leaves(&leaves))
 }
 
-// #[cfg(test)]
-// mod test {
-//     use crate::hash::Sha256;
+#[cfg(test)]
+mod test {
+    use super::*;
+    use rstest::*;
 
-//     use super::*;
+    impl CanonicalSerialize for u64 {
+        fn serialize(&self) -> Vec<u8> {
+            self.to_be_bytes().to_vec()
+        }
+    }
 
-//     // Expect Merkle proof verification to succeed
-//     #[test]
-//     fn test_verify_success() {
-//         let leaf0 = [0u8; 32];
-//         let leaf1 = [1u8; 32];
-//         let leaf2 = [2u8; 32];
-//         let leaf3 = [3u8; 32];
-//         let leaf4 = [4u8; 32];
-//         let tree = MerkleTree::<Sha256>::from_leaves(&[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
-//         let proof = tree.proof(&[2, 3, 4]);
+    // Expect Merkle proof verification to succeed
+    #[rstest]
+    #[case::sha2(HashAlgorithm::Sha256)]
+    #[case::blake3(HashAlgorithm::Blake3)]
+    #[case::keccak(HashAlgorithm::Keccak256)]
+    fn test_verify_success(#[case] alg: HashAlgorithm) {
+        let mut tree = MerkleTree::new(alg);
+        for i in 0..=4 {
+            tree.insert(&i)
+        }
 
-//         assert!(proof
-//             .verify(&tree.root(), &[2, 3, 4], &[leaf2, leaf3, leaf4])
-//             .is_ok(),);
-//     }
+        let proof = tree.proof(&[2, 3, 4]);
 
-//     #[test]
-//     fn test_verify_fail_wrong_leaf() {
-//         let leaf0 = [0u8; 32];
-//         let leaf1 = [1u8; 32];
-//         let leaf2 = [2u8; 32];
-//         let leaf3 = [3u8; 32];
-//         let leaf4 = [4u8; 32];
-//         let tree = MerkleTree::<Sha256>::from_leaves(&[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
-//         let proof = tree.proof(&[2, 3, 4]);
+        assert!(proof
+            .verify(&tree.root(), &[2, 3, 4], &[2u64, 3u64, 4u64])
+            .is_ok());
+    }
 
-//         // fail because the leaf is wrong
-//         assert_eq!(
-//             proof
-//                 .verify(&tree.root(), &[2, 3, 4], &[leaf1, leaf3, leaf4])
-//                 .err()
-//                 .unwrap(),
-//             MerkleError::MerkleProofVerificationFailed
-//         );
-//     }
+    #[rstest]
+    #[case::sha2(HashAlgorithm::Sha256)]
+    #[case::blake3(HashAlgorithm::Blake3)]
+    #[case::keccak(HashAlgorithm::Keccak256)]
+    fn test_verify_fail_wrong_leaf(#[case] alg: HashAlgorithm) {
+        let mut tree = MerkleTree::new(alg);
+        for i in 0..=4 {
+            tree.insert(&i)
+        }
 
-//     #[test]
-//     #[should_panic]
-//     fn test_proof_fail_length_unsorted() {
-//         let leaf0 = [0u8; 32];
-//         let leaf1 = [1u8; 32];
-//         let leaf2 = [2u8; 32];
-//         let leaf3 = [3u8; 32];
-//         let leaf4 = [4u8; 32];
-//         let tree = MerkleTree::<Sha256>::from_leaves(&[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
-//         _ = tree.proof(&[2, 4, 3]);
-//     }
+        let proof = tree.proof(&[2, 3, 4]);
 
-//     #[test]
-//     #[should_panic]
-//     fn test_proof_fail_length_duplicates() {
-//         let leaf0 = [0u8; 32];
-//         let leaf1 = [1u8; 32];
-//         let leaf2 = [2u8; 32];
-//         let leaf3 = [3u8; 32];
-//         let leaf4 = [4u8; 32];
-//         let tree = MerkleTree::<Sha256>::from_leaves(&[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
-//         _ = tree.proof(&[2, 2, 3]);
-//     }
+        // fail because the leaf is wrong
+        assert_eq!(
+            proof
+                .verify(&tree.root(), &[2, 3, 4], &[1u64, 3u64, 4u64])
+                .err()
+                .unwrap(),
+            MerkleError::Invalid
+        );
+    }
 
-//     #[test]
-//     #[should_panic]
-//     fn test_verify_fail_length_mismatch() {
-//         let leaf0 = [0u8; 32];
-//         let leaf1 = [1u8; 32];
-//         let leaf2 = [2u8; 32];
-//         let leaf3 = [3u8; 32];
-//         let leaf4 = [4u8; 32];
-//         let tree = MerkleTree::<Sha256>::from_leaves(&[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
-//         let proof = tree.proof(&[2, 3, 4]);
+    #[rstest]
+    #[should_panic]
+    #[case::sha2(HashAlgorithm::Sha256)]
+    #[should_panic]
+    #[case::blake3(HashAlgorithm::Blake3)]
+    #[should_panic]
+    #[case::keccak(HashAlgorithm::Keccak256)]
+    fn test_proof_fail_length_unsorted(#[case] alg: HashAlgorithm) {
+        let mut tree = MerkleTree::new(alg);
+        for i in 0..=4 {
+            tree.insert(&i)
+        }
 
-//         _ = proof.verify(&tree.root(), &[1, 2, 3, 4], &[leaf2, leaf3, leaf4]);
-//     }
+        _ = tree.proof(&[2, 4, 3]);
+    }
 
-//     #[test]
-//     #[should_panic]
-//     fn test_verify_fail_duplicates() {
-//         let leaf0 = [0u8; 32];
-//         let leaf1 = [1u8; 32];
-//         let leaf2 = [2u8; 32];
-//         let leaf3 = [3u8; 32];
-//         let leaf4 = [4u8; 32];
-//         let tree = MerkleTree::<Sha256>::from_leaves(&[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
-//         let proof = tree.proof(&[2, 3, 4]);
+    #[rstest]
+    #[should_panic]
+    #[case::sha2(HashAlgorithm::Sha256)]
+    #[should_panic]
+    #[case::blake3(HashAlgorithm::Blake3)]
+    #[should_panic]
+    #[case::keccak(HashAlgorithm::Keccak256)]
+    fn test_proof_fail_length_duplicates(#[case] alg: HashAlgorithm) {
+        let mut tree = MerkleTree::new(alg);
+        for i in 0..=4 {
+            tree.insert(&i)
+        }
 
-//         _ = proof.verify(&tree.root(), &[2, 2, 3], &[leaf2, leaf2, leaf3]);
-//     }
+        _ = tree.proof(&[2, 2, 3]);
+    }
 
-//     #[test]
-//     fn test_verify_fail_incorrect_leaf_count() {
-//         let leaf0 = [0u8; 32];
-//         let leaf1 = [1u8; 32];
-//         let leaf2 = [2u8; 32];
-//         let leaf3 = [3u8; 32];
-//         let leaf4 = [4u8; 32];
-//         let tree = MerkleTree::<Sha256>::from_leaves(&[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
-//         let mut proof = tree.proof(&[2, 3, 4]);
+    #[rstest]
+    #[should_panic]
+    #[case::sha2(HashAlgorithm::Sha256)]
+    #[should_panic]
+    #[case::blake3(HashAlgorithm::Blake3)]
+    #[should_panic]
+    #[case::keccak(HashAlgorithm::Keccak256)]
+    fn test_verify_fail_length_mismatch(#[case] alg: HashAlgorithm) {
+        let mut tree = MerkleTree::new(alg);
+        for i in 0..=4 {
+            tree.insert(&i)
+        }
 
-//         proof.total_leaves = 6;
+        let proof = tree.proof(&[2, 3, 4]);
 
-//         // fail because leaf count is wrong
-//         assert!(proof
-//             .verify(&tree.root(), &[2, 3, 4], &[leaf2, leaf3, leaf4])
-//             .is_err());
-//     }
+        _ = proof.verify(&tree.root(), &[1, 2, 3, 4], &[2u64, 3u64, 4u64]);
+    }
 
-//     #[test]
-//     fn test_verify_fail_incorrect_indices() {
-//         let leaf0 = [0u8; 32];
-//         let leaf1 = [1u8; 32];
-//         let leaf2 = [2u8; 32];
-//         let leaf3 = [3u8; 32];
-//         let leaf4 = [4u8; 32];
-//         let tree = MerkleTree::<Sha256>::from_leaves(&[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
-//         let proof = tree.proof(&[2, 3, 4]);
+    #[rstest]
+    #[should_panic]
+    #[case::sha2(HashAlgorithm::Sha256)]
+    #[should_panic]
+    #[case::blake3(HashAlgorithm::Blake3)]
+    #[should_panic]
+    #[case::keccak(HashAlgorithm::Keccak256)]
+    fn test_verify_fail_duplicates(#[case] alg: HashAlgorithm) {
+        let mut tree = MerkleTree::new(alg);
+        for i in 0..=4 {
+            tree.insert(&i)
+        }
 
-//         // fail because tree index is wrong
-//         assert!(proof
-//             .verify(&tree.root(), &[1, 3, 4], &[leaf1, leaf3, leaf4])
-//             .is_err());
-//     }
+        let proof = tree.proof(&[2, 3, 4]);
 
-//     #[test]
-//     fn test_verify_fail_fewer_indices() {
-//         let leaf0 = [0u8; 32];
-//         let leaf1 = [1u8; 32];
-//         let leaf2 = [2u8; 32];
-//         let leaf3 = [3u8; 32];
-//         let leaf4 = [4u8; 32];
-//         let tree = MerkleTree::<Sha256>::from_leaves(&[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
-//         let proof = tree.proof(&[2, 3, 4]);
+        _ = proof.verify(&tree.root(), &[2, 2, 3], &[2u64, 2u64, 3u64]);
+    }
 
-//         // trying to verify less leaves than what was included in the proof
-//         assert!(proof
-//             .verify(&tree.root(), &[3, 4], &[leaf3, leaf4])
-//             .is_err());
-//     }
+    #[rstest]
+    #[case::sha2(HashAlgorithm::Sha256)]
+    #[case::blake3(HashAlgorithm::Blake3)]
+    #[case::keccak(HashAlgorithm::Keccak256)]
+    fn test_verify_fail_incorrect_leaf_count(#[case] alg: HashAlgorithm) {
+        let mut tree = MerkleTree::new(alg);
+        for i in 0..=4 {
+            tree.insert(&i)
+        }
 
-//     // Expect MerkleProof/MerkleTree custom serialization/deserialization to work
-//     #[test]
-//     fn test_serialization() {
-//         let leaf0 = [0u8; 32];
-//         let leaf1 = [1u8; 32];
-//         let leaf2 = [2u8; 32];
-//         let leaf3 = [3u8; 32];
-//         let leaf4 = [4u8; 32];
-//         let tree = MerkleTree::<Sha256>::from_leaves(&[leaf0, leaf1, leaf2, leaf3, leaf4]).unwrap();
-//         let proof = tree.proof(&[2, 3, 4]);
+        let mut proof = tree.proof(&[2, 3, 4]);
 
-//         // serialize
-//         let tree_bytes = bincode::serialize(&tree).unwrap();
-//         let proof_bytes = bincode::serialize(&proof).unwrap();
+        match &mut proof.0 {
+            MerkleProofAlg::Sha256(inner) => inner.total_leaves = 6,
+            MerkleProofAlg::Blake3(inner) => inner.total_leaves = 6,
+            MerkleProofAlg::Keccak256(inner) => inner.total_leaves = 6,
+        }
 
-//         // deserialize
-//         let tree2: MerkleTree<Sha256> = bincode::deserialize(&tree_bytes).unwrap();
-//         let proof2: MerkleProof = bincode::deserialize(&proof_bytes).unwrap();
+        // fail because leaf count is wrong
+        assert!(proof
+            .verify(&tree.root(), &[2, 3, 4], &[2u64, 3u64, 4u64])
+            .is_err());
+    }
 
-//         assert!(proof2
-//             .verify(&tree2.root(), &[2, 3, 4], &[leaf2, leaf3, leaf4])
-//             .is_ok());
-//     }
-// }
+    #[rstest]
+    #[case::sha2(HashAlgorithm::Sha256)]
+    #[case::blake3(HashAlgorithm::Blake3)]
+    #[case::keccak(HashAlgorithm::Keccak256)]
+    fn test_verify_fail_incorrect_indices(#[case] alg: HashAlgorithm) {
+        let mut tree = MerkleTree::new(alg);
+        for i in 0..=4 {
+            tree.insert(&i)
+        }
+
+        let proof = tree.proof(&[2, 3, 4]);
+
+        // fail because leaf index is wrong
+        assert!(proof
+            .verify(&tree.root(), &[1, 3, 4], &[2u64, 3u64, 4u64])
+            .is_err());
+    }
+
+    #[rstest]
+    #[case::sha2(HashAlgorithm::Sha256)]
+    #[case::blake3(HashAlgorithm::Blake3)]
+    #[case::keccak(HashAlgorithm::Keccak256)]
+    fn test_verify_fail_fewer_indices(#[case] alg: HashAlgorithm) {
+        let mut tree = MerkleTree::new(alg);
+        for i in 0..=4 {
+            tree.insert(&i)
+        }
+
+        let proof = tree.proof(&[2, 3, 4]);
+
+        // trying to verify less leaves than what was included in the proof
+        assert!(proof.verify(&tree.root(), &[3, 4], &[3u64, 4u64]).is_err());
+    }
+
+    #[rstest]
+    #[case::sha2(HashAlgorithm::Sha256)]
+    #[case::blake3(HashAlgorithm::Blake3)]
+    #[case::keccak(HashAlgorithm::Keccak256)]
+    fn test_merkle_tree_serialization(#[case] alg: HashAlgorithm) {
+        let mut tree = MerkleTree::new(alg);
+        for i in 0..=4 {
+            tree.insert(&i)
+        }
+
+        let proof = tree.proof(&[2, 3, 4]);
+
+        let tree2: MerkleTree = bincode::deserialize(&bincode::serialize(&tree).unwrap()).unwrap();
+        let proof2: MerkleProof =
+            bincode::deserialize(&bincode::serialize(&proof).unwrap()).unwrap();
+
+        assert_eq!(tree.root(), tree2.root());
+        assert!(proof2
+            .verify(&tree.root(), &[2, 3, 4], &[2u64, 3u64, 4u64])
+            .is_ok());
+    }
+}
