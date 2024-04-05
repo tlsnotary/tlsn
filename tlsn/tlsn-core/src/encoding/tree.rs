@@ -12,7 +12,7 @@ use crate::{
     },
     hash::{Hash, HashAlgorithm},
     merkle::MerkleTree,
-    transcript::{Subsequence, SubsequenceIdx},
+    transcript::SubsequenceIdx,
     Direction, Transcript,
 };
 
@@ -139,7 +139,7 @@ impl EncodingTree {
                 .get_by_right(&seq)
                 .ok_or_else(|| EncodingTreeError::MissingLeaf { index: seq.clone() })?;
 
-            let data =
+            let seq =
                 transcript
                     .get_subsequence(seq)
                     .ok_or_else(|| EncodingTreeError::OutOfBounds {
@@ -148,14 +148,7 @@ impl EncodingTree {
                     })?;
             let nonce = self.nonces[idx];
 
-            openings.insert(
-                idx,
-                Opening {
-                    seq: Subsequence::new(seq.clone(), data)
-                        .expect("data in tree is correct length"),
-                    nonce,
-                },
-            );
+            openings.insert(idx, Opening { seq, nonce });
         }
 
         let mut indices = openings.keys().copied().collect::<Vec<_>>();

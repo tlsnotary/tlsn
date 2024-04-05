@@ -68,7 +68,7 @@ impl Transcript {
     }
 
     /// Returns the bytes in the given ranges if they are in bounds, otherwise `None`.
-    pub fn get_subsequence(&self, idx: &SubsequenceIdx) -> Option<Vec<u8>> {
+    pub fn get_subsequence(&self, idx: &SubsequenceIdx) -> Option<Subsequence> {
         let data = match idx.direction {
             Direction::Sent => &self.sent,
             Direction::Received => &self.received,
@@ -78,7 +78,10 @@ impl Transcript {
             return None;
         }
 
-        Some(data.index_ranges(&idx.ranges))
+        Some(
+            Subsequence::new(idx.clone(), data.index_ranges(&idx.ranges))
+                .expect("data is same length as index"),
+        )
     }
 }
 
@@ -483,17 +486,21 @@ mod tests {
 
     #[rstest]
     fn test_get_subsequence(transcript: Transcript) {
-        let subseq = transcript.get_subsequence(&SubsequenceIdx {
-            direction: Direction::Sent,
-            ranges: RangeSet::from([0..4, 7..10]),
-        });
-        assert_eq!(subseq, Some(vec![0, 1, 2, 3, 7, 8, 9]));
+        let subseq = transcript
+            .get_subsequence(&SubsequenceIdx {
+                direction: Direction::Sent,
+                ranges: RangeSet::from([0..4, 7..10]),
+            })
+            .unwrap();
+        assert_eq!(subseq.data, vec![0, 1, 2, 3, 7, 8, 9]);
 
-        let subseq = transcript.get_subsequence(&SubsequenceIdx {
-            direction: Direction::Received,
-            ranges: RangeSet::from([0..4, 9..12]),
-        });
-        assert_eq!(subseq, Some(vec![0, 1, 2, 3, 9, 10, 11]));
+        let subseq = transcript
+            .get_subsequence(&SubsequenceIdx {
+                direction: Direction::Received,
+                ranges: RangeSet::from([0..4, 9..12]),
+            })
+            .unwrap();
+        assert_eq!(subseq.data, vec![0, 1, 2, 3, 9, 10, 11]);
 
         let subseq = transcript.get_subsequence(&SubsequenceIdx {
             direction: Direction::Sent,

@@ -2,7 +2,7 @@ use mpz_garble_core::ChaChaEncoder;
 
 use crate::{
     encoding::{Encoder, EncodingProvider},
-    transcript::{Subsequence, SubsequenceIdx},
+    transcript::SubsequenceIdx,
     Transcript,
 };
 
@@ -24,10 +24,7 @@ impl ChaChaProvider {
 
 impl EncodingProvider for ChaChaProvider {
     fn provide_subsequence(&self, idx: &SubsequenceIdx) -> Option<Vec<u8>> {
-        let data = self.transcript.get_subsequence(idx)?;
-        let encoding = self.encoder.encode_subsequence(
-            &Subsequence::new(idx.clone(), data).expect("data is same length as index"),
-        );
-        Some(encoding)
+        let seq = self.transcript.get_subsequence(idx)?;
+        Some(self.encoder.encode_subsequence(&seq))
     }
 }

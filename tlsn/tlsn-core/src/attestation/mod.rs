@@ -309,11 +309,13 @@ impl AttestationFull {
                 } if seq == idx => Some((*nonce, commitment)),
                 _ => None,
             }) {
+                let (_, data) = self
+                    .transcript
+                    .get_subsequence(idx)
+                    .expect("subsequence is in transcript")
+                    .into_parts();
                 hash_openings.push(PlaintextHashOpening {
-                    data: self
-                        .transcript
-                        .get_subsequence(idx)
-                        .expect("subsequence is in transcript"),
+                    data,
                     nonce,
                     commitment: *commitment,
                 });

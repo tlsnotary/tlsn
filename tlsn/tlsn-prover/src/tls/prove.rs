@@ -12,10 +12,7 @@ use tlsn_common::{
     msg::{ServerIdentityProof, SubstringProofData, TlsnMessage},
     util::get_subsequence_ids,
 };
-use tlsn_core::{
-    conn::ServerIdentity, substring::SubstringProofConfigBuilder, transcript::Subsequence,
-    Transcript,
-};
+use tlsn_core::{conn::ServerIdentity, substring::SubstringProofConfigBuilder, Transcript};
 use utils_aio::mux::MuxChannel;
 
 #[cfg(feature = "tracing")]
@@ -44,13 +41,11 @@ impl Prover<ProveState> {
         let proof_data = SubstringProofData {
             seqs: config
                 .iter()
-                .map(|idx| Subsequence {
-                    idx: idx.clone(),
-                    data: self
-                        .state
+                .map(|idx| {
+                    self.state
                         .transcript
                         .get_subsequence(idx)
-                        .expect("ranges were checked to be in bounds"),
+                        .expect("index was checked to be in bounds")
                 })
                 .collect(),
         };
