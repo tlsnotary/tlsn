@@ -21,7 +21,9 @@ use crate::{
 };
 
 pub use builder::AttestationBodyBuilder;
-pub use proof::BodyProof;
+pub use proof::{
+    AttestationProof, AttestationProofError, AttestationProofOutput, BodyProof, BodyProofError,
+};
 pub use validation::InvalidAttestationBody;
 
 /// The current version of attestations.
@@ -247,9 +249,30 @@ impl AttestationBody {
         })
     }
 
+    pub(crate) fn get_handshake_data(&self) -> Option<&HandshakeData> {
+        self.fields.iter().find_map(|(_, field)| match field {
+            Field::HandshakeData(data) => Some(data),
+            _ => None,
+        })
+    }
+
     pub(crate) fn get_encoding_commitment(&self) -> Option<&EncodingCommitment> {
         self.fields.iter().find_map(|(_, field)| match field {
             Field::EncodingCommitment(commitment) => Some(commitment),
+            _ => None,
+        })
+    }
+
+    pub(crate) fn get_cert_commitment(&self) -> Option<&Hash> {
+        self.fields.iter().find_map(|(_, field)| match field {
+            Field::CertificateCommitment(commitment) => Some(commitment),
+            _ => None,
+        })
+    }
+
+    pub(crate) fn get_cert_chain_commitment(&self) -> Option<&Hash> {
+        self.fields.iter().find_map(|(_, field)| match field {
+            Field::CertificateChainCommitment(commitment) => Some(commitment),
             _ => None,
         })
     }

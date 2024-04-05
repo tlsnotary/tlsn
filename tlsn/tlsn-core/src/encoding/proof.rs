@@ -24,13 +24,15 @@ pub enum EncodingProofError {
     EmptyRange,
     /// Proof attempts to prove data outside the bounds of the transcript.
     #[error(
-        "proof attempts to prove data outside the bounds of the transcript: \
-        {direction:?} {input_end} > {transcript_length}"
+        "index is out of bounds of the {direction:?} transcript: {index_end} > {transcript_length}"
     )]
     OutOfBounds {
-        input_end: usize,
-        transcript_length: usize,
+        /// The index end.
+        index_end: usize,
+        /// The direction of the transcript.
         direction: Direction,
+        /// The transcript length.
+        transcript_length: usize,
     },
     /// Proof attempts to open a commitment which is not in the tree.
     #[error("proof attempts to open a commitment which is not in the tree")]
@@ -119,7 +121,7 @@ impl EncodingProof {
 
             if seq.index().end() > transcript_len as usize {
                 return Err(EncodingProofError::OutOfBounds {
-                    input_end: seq.index().end(),
+                    index_end: seq.index().end(),
                     transcript_length: transcript_len,
                     direction: seq.index().direction(),
                 });

@@ -3,8 +3,6 @@
 mod proof;
 
 use serde::{Deserialize, Serialize};
-
-pub use proof::ServerIdentityProof;
 use tls_core::{
     anchors::{OwnedTrustAnchor, RootCertStore},
     msgs::{
@@ -21,7 +19,7 @@ use crate::{
     serialize::CanonicalSerialize,
 };
 
-//pub use proof::{HandshakeProof, HandshakeProofError};
+pub use proof::{ServerIdentityProof, ServerIdentityProofError};
 
 /// TLS version.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

@@ -37,7 +37,7 @@ impl ServerIdentityProof {
     /// * `handshake_data` - The handshake data.
     /// * `cert_commitment` - The commitment to the server's certificate and signature.
     /// * `chain_commitment` - The commitment to the certificate chain.
-    pub fn verify(
+    pub fn verify_with_default_cert_verifier(
         self,
         info: &ConnectionInfo,
         handshake_data: &HandshakeData,
@@ -53,7 +53,7 @@ impl ServerIdentityProof {
             )
         }));
         let cert_verifier = WebPkiVerifier::new(root_store, None);
-        self.verify_with_verifier(
+        self.verify(
             info,
             handshake_data,
             cert_commitment,
@@ -70,8 +70,8 @@ impl ServerIdentityProof {
     /// * `handshake_data` - The handshake data.
     /// * `cert_commitment` - The commitment to the server's certificate and signature.
     /// * `chain_commitment` - The commitment to the certificate chain.
-    /// * `root_store` - The root certificate store.
-    pub fn verify_with_verifier(
+    /// * `cert_verifier` - The certificate verifier.
+    pub fn verify(
         self,
         info: &ConnectionInfo,
         handshake_data: &HandshakeData,
