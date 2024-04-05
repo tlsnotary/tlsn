@@ -4,6 +4,7 @@ use p256::ecdsa::{signature::Verifier, VerifyingKey};
 
 /// A Notary public key.
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum NotaryPublicKey {
     /// A NIST P-256 public key.
@@ -23,6 +24,7 @@ pub struct SignatureVerifyError(String);
 
 /// A Notary signature.
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum Signature {
     /// A secp256r1 signature.

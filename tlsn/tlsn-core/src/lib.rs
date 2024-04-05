@@ -21,9 +21,6 @@ pub mod transcript;
 pub use signature::{NotaryPublicKey, Signature};
 pub use transcript::{Direction, PartialTranscript, Transcript};
 
-use conn::ServerIdentityProof;
-use substring::SubstringProof;
-
 pub(crate) mod sealed {
     /// A sealed trait.
     pub trait Sealed {}

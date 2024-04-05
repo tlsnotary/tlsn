@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 /// A supported hashing algorithm.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 #[repr(u8)]
 pub enum HashAlgorithm {

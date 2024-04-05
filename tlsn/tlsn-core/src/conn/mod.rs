@@ -25,6 +25,7 @@ use crate::{
 
 /// TLS version.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum TlsVersion {
     /// TLS 1.2.
     V1_2 = 0x00,
@@ -57,6 +58,7 @@ impl AsRef<str> for ServerIdentity {
 
 /// The type of a public key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum KeyType {
     /// secp256r1.
@@ -65,6 +67,7 @@ pub enum KeyType {
 
 /// Signature scheme on the key exchange parameters.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 #[allow(non_camel_case_types)]
 pub enum SignatureScheme {
     RSA_PKCS1_SHA1 = 0x0201,
@@ -191,7 +194,7 @@ pub struct HandshakeDataV1_2 {
 
 /// TLS handshake data.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "version", rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum HandshakeData {
     /// TLS 1.2 handshake data.

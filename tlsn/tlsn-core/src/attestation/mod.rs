@@ -79,28 +79,21 @@ opaque_debug::implement!(Secret);
 
 /// A public attestation field.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type")]
+#[serde(rename_all = "snake_case")]
 pub enum Field {
     /// TLS connection information.
-    #[serde(rename = "info")]
     ConnectionInfo(ConnectionInfo),
     /// TLS handshake data.
-    #[serde(rename = "handshake")]
     HandshakeData(HandshakeData),
     /// Commitment to the server's certificate and signature.
-    #[serde(rename = "cert")]
     CertificateCommitment(Hash),
     /// Commitment to the certificate chain.
-    #[serde(rename = "cert_chain")]
     CertificateChainCommitment(Hash),
     /// Commitment to the encodings of the transcript plaintext.
-    #[serde(rename = "encoding")]
     EncodingCommitment(EncodingCommitment),
     /// A hash of a range of plaintext in the transcript.
-    #[serde(rename = "hash")]
     PlaintextHash(PlaintextHash),
     /// Arbitrary extra data bound to the attestation.
-    #[serde(rename = "extra")]
     ExtraData(Vec<u8>),
 }
 
