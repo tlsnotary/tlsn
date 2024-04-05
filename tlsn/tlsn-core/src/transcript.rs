@@ -72,7 +72,7 @@ impl Transcript {
             Direction::Received => &self.received,
         };
 
-        if idx.range.end > data.len() {
+        if idx.range.end > data.len() || idx.range.is_empty() {
             return None;
         }
 
@@ -87,7 +87,7 @@ impl Transcript {
         };
 
         let end = idx.ranges.end()?;
-        if end > data.len() {
+        if end > data.len() || idx.ranges.is_empty() {
             return None;
         }
 
@@ -354,7 +354,10 @@ mod tests {
 
     #[fixture]
     fn transcript() -> Transcript {
-        Transcript::new(b"data sent 123456789", b"data received 987654321")
+        Transcript::new(
+            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+        )
     }
 
     #[rstest]
@@ -365,7 +368,7 @@ mod tests {
                 range: 0..4,
             })
             .unwrap();
-        assert_eq!(slice, b"data");
+        assert_eq!(slice, [0, 1, 2, 3]);
 
         let slice = transcript
             .get_slice(&SliceIdx {
@@ -373,7 +376,7 @@ mod tests {
                 range: 0..4,
             })
             .unwrap();
-        assert_eq!(slice, b"data");
+        assert_eq!(slice, [0, 1, 2, 3]);
 
         let slice = transcript
             .get_slice(&SliceIdx {
@@ -381,7 +384,7 @@ mod tests {
                 range: 7..10,
             })
             .unwrap();
-        assert_eq!(slice, b"123");
+        assert_eq!(slice, [7, 8, 9]);
 
         let slice = transcript
             .get_slice(&SliceIdx {
@@ -389,7 +392,7 @@ mod tests {
                 range: 9..12,
             })
             .unwrap();
-        assert_eq!(slice, b"987");
+        assert_eq!(slice, [9, 10, 11]);
 
         let slice = transcript.get_slice(&SliceIdx {
             direction: Direction::Sent,
@@ -410,17 +413,17 @@ mod tests {
             direction: Direction::Sent,
             ranges: RangeSet::from([0..4, 7..10]),
         });
-        assert_eq!(subseq, Some(b"data123".to_vec()));
+        assert_eq!(subseq, Some(vec![0, 1, 2, 3, 7, 8, 9]));
 
         let subseq = transcript.get_subsequence(&SubsequenceIdx {
             direction: Direction::Received,
             ranges: RangeSet::from([0..4, 9..12]),
         });
-        assert_eq!(subseq, Some(b"data987".to_vec()));
+        assert_eq!(subseq, Some(vec![0, 1, 2, 3, 9, 10, 11]));
 
         let subseq = transcript.get_subsequence(&SubsequenceIdx {
             direction: Direction::Sent,
-            ranges: RangeSet::from([0..4, 7..10, 11..12]),
+            ranges: RangeSet::from([0..4, 7..10, 11..13]),
         });
         assert_eq!(subseq, None);
 
