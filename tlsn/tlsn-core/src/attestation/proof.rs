@@ -3,7 +3,7 @@ use tls_core::verify::WebPkiVerifier;
 
 use crate::{
     attestation::{AttestationBody, AttestationHeader, FieldKind},
-    conn::{ServerIdentity, ServerIdentityProof, ServerIdentityProofError},
+    conn::{default_cert_verifier, ServerIdentity, ServerIdentityProof, ServerIdentityProofError},
     merkle::MerkleProof,
     substring::{SubstringProof, SubstringProofError},
     PartialTranscript,
@@ -80,6 +80,20 @@ pub struct AttestationProofOutput {
 }
 
 impl AttestationProof {
+    /// Verifies the proof against the attestation header.
+    ///
+    /// Uses the default certificate verifier for the server identity proof.
+    ///
+    /// # Arguments
+    ///
+    /// * `header` - The header attested to by a Notary.
+    pub fn verify_with_default_cert_verifier(
+        self,
+        header: &AttestationHeader,
+    ) -> Result<AttestationProofOutput, AttestationProofError> {
+        self.verify(header, &default_cert_verifier())
+    }
+
     /// Verifies the proof against the attestation header.
     ///
     /// # Arguments

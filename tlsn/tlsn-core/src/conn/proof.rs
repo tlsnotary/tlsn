@@ -1,11 +1,10 @@
 use serde::{Deserialize, Serialize};
-use tls_core::{
-    anchors::{OwnedTrustAnchor, RootCertStore},
-    verify::WebPkiVerifier,
-};
+use tls_core::verify::WebPkiVerifier;
 
 use crate::{
-    conn::{CertificateSecrets, ConnectionInfo, HandshakeData, ServerIdentity},
+    conn::{
+        default_cert_verifier, CertificateSecrets, ConnectionInfo, HandshakeData, ServerIdentity,
+    },
     hash::Hash,
 };
 
@@ -44,21 +43,12 @@ impl ServerIdentityProof {
         cert_commitment: &Hash,
         chain_commitment: &Hash,
     ) -> Result<ServerIdentity, ServerIdentityProofError> {
-        let mut root_store = RootCertStore::empty();
-        root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(|ta| {
-            OwnedTrustAnchor::from_subject_spki_name_constraints(
-                ta.subject.as_ref(),
-                ta.subject_public_key_info.as_ref(),
-                ta.name_constraints.as_ref().map(|nc| nc.as_ref()),
-            )
-        }));
-        let cert_verifier = WebPkiVerifier::new(root_store, None);
         self.verify(
             info,
             handshake_data,
             cert_commitment,
             chain_commitment,
-            &cert_verifier,
+            &default_cert_verifier(),
         )
     }
 
