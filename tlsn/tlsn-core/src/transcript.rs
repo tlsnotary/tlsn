@@ -313,46 +313,6 @@ pub struct SliceIdx {
     pub range: Range<usize>,
 }
 
-/// Slice of a transcript.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Slice {
-    idx: SliceIdx,
-    data: Vec<u8>,
-}
-
-impl Slice {
-    pub(crate) fn new(idx: SliceIdx, data: Vec<u8>) -> Self {
-        assert_eq!(
-            idx.range.len(),
-            data.len(),
-            "data length does not match range length"
-        );
-
-        Self { idx, data }
-    }
-
-    /// Returns the index of the slice.
-    pub fn index(&self) -> &SliceIdx {
-        &self.idx
-    }
-
-    /// Returns the data of the slice.
-    pub fn into_bytes(self) -> Vec<u8> {
-        self.data
-    }
-
-    /// Returns the slice as bytes.
-    pub fn as_bytes(&self) -> &[u8] {
-        &self.data
-    }
-}
-
-impl Into<Vec<u8>> for Slice {
-    fn into(self) -> Vec<u8> {
-        self.data
-    }
-}
-
 /// A transcript subsequence index.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SubsequenceIdx {
@@ -383,31 +343,6 @@ impl Subsequence {
             dest[range.clone()].copy_from_slice(&self.data[offset..offset + range.len()]);
             offset += range.len();
         }
-    }
-
-    /// Converts the subsequence into slices.
-    pub fn into_slices(self) -> Vec<Slice> {
-        let mut slices = Vec::with_capacity(self.idx.ranges.len_ranges());
-        let mut ranges = self.idx.ranges.into_inner();
-
-        // Reverse the ranges so we can split them off from the end.
-        ranges.reverse();
-
-        let mut data = self.data;
-        for range in ranges {
-            let slice = data.split_off(data.len() - range.len());
-            slices.push(Slice::new(
-                SliceIdx {
-                    direction: self.idx.direction,
-                    range,
-                },
-                slice,
-            ));
-        }
-
-        // Reverse the slices so they are in ascending order.
-        slices.reverse();
-        slices
     }
 }
 
@@ -494,22 +429,5 @@ mod tests {
             ranges: RangeSet::from([0..4, 7..10, 11..13]),
         });
         assert_eq!(subseq, None);
-    }
-
-    #[test]
-    fn test_subsequence_into_slices() {
-        let seq = Subsequence {
-            idx: SubsequenceIdx {
-                direction: Direction::Sent,
-                ranges: RangeSet::from([0..1, 2..4, 5..6]),
-            },
-            data: vec![0, 2, 3, 5],
-        };
-
-        let slices = seq.into_slices();
-        assert_eq!(slices.len(), 3);
-        assert_eq!(slices[0].as_bytes(), &[0]);
-        assert_eq!(slices[1].as_bytes(), &[2, 3]);
-        assert_eq!(slices[2].as_bytes(), &[5]);
     }
 }
