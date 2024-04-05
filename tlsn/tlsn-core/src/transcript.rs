@@ -67,20 +67,6 @@ impl Transcript {
         }
     }
 
-    /// Returns a slice of the transcript in the given range if it is in bounds, otherwise `None`.
-    pub fn get_slice(&self, idx: &SliceIdx) -> Option<&[u8]> {
-        let data = match idx.direction {
-            Direction::Sent => &self.sent,
-            Direction::Received => &self.received,
-        };
-
-        if idx.range.end > data.len() || idx.range.is_empty() {
-            return None;
-        }
-
-        data.get(idx.range.clone())
-    }
-
     /// Returns the bytes in the given ranges if they are in bounds, otherwise `None`.
     pub fn get_subsequence(&self, idx: &SubsequenceIdx) -> Option<Vec<u8>> {
         let data = match idx.direction {
@@ -132,14 +118,6 @@ impl PartialTranscript {
     pub fn is_complete(&self) -> bool {
         self.sent_authed.len() == self.sent.len()
             && self.received_authed.len() == self.received.len()
-    }
-
-    /// Returns whether the index is in bounds of the transcript.
-    pub fn contains(&self, idx: &SliceIdx) -> bool {
-        match idx.direction {
-            Direction::Sent => idx.range.end <= self.sent.len(),
-            Direction::Received => idx.range.end <= self.received.len(),
-        }
     }
 
     /// Returns whether the subsequence index is in bounds of the transcript.
@@ -277,15 +255,15 @@ impl PartialTranscript {
     ///
     /// * `value` - The value to set the unauthenticated bytes to
     /// * `range` - The range of bytes to set
-    pub fn set_unauthed_range(&mut self, value: u8, idx: &SliceIdx) {
-        match idx.direction {
+    pub fn set_unauthed_range(&mut self, value: u8, direction: Direction, range: Range<usize>) {
+        match direction {
             Direction::Sent => {
-                for range in idx.range.difference(&self.sent_authed).iter_ranges() {
+                for range in range.difference(&self.sent_authed).iter_ranges() {
                     self.sent[range].fill(value);
                 }
             }
             Direction::Received => {
-                for range in idx.range.difference(&self.received_authed).iter_ranges() {
+                for range in range.difference(&self.received_authed).iter_ranges() {
                     self.received[range].fill(value);
                 }
             }
@@ -303,15 +281,6 @@ pub enum Direction {
     Sent = 0x00,
     /// Received by the prover from the TLS peer.
     Received = 0x01,
-}
-
-/// A slice index of a transcript.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct SliceIdx {
-    /// The direction of the transcript.
-    pub direction: Direction,
-    /// The range of the transcript.
-    pub range: Range<usize>,
 }
 
 /// A transcript subsequence index.
@@ -510,53 +479,6 @@ mod tests {
             [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
             [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
         )
-    }
-
-    #[rstest]
-    fn test_get_slice(transcript: Transcript) {
-        let slice = transcript
-            .get_slice(&SliceIdx {
-                direction: Direction::Sent,
-                range: 0..4,
-            })
-            .unwrap();
-        assert_eq!(slice, [0, 1, 2, 3]);
-
-        let slice = transcript
-            .get_slice(&SliceIdx {
-                direction: Direction::Received,
-                range: 0..4,
-            })
-            .unwrap();
-        assert_eq!(slice, [0, 1, 2, 3]);
-
-        let slice = transcript
-            .get_slice(&SliceIdx {
-                direction: Direction::Sent,
-                range: 7..10,
-            })
-            .unwrap();
-        assert_eq!(slice, [7, 8, 9]);
-
-        let slice = transcript
-            .get_slice(&SliceIdx {
-                direction: Direction::Received,
-                range: 9..12,
-            })
-            .unwrap();
-        assert_eq!(slice, [9, 10, 11]);
-
-        let slice = transcript.get_slice(&SliceIdx {
-            direction: Direction::Sent,
-            range: 0..0,
-        });
-        assert_eq!(slice, None);
-
-        let slice = transcript.get_slice(&SliceIdx {
-            direction: Direction::Sent,
-            range: 0..transcript.sent().len() + 1,
-        });
-        assert_eq!(slice, None);
     }
 
     #[rstest]
