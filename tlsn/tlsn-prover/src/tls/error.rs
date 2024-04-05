@@ -1,6 +1,5 @@
 use std::error::Error;
 use tls_mpc::MpcTlsError;
-use tlsn_core::commitment::TranscriptCommitmentBuilderError;
 
 /// An error that can occur during proving.
 #[derive(Debug, thiserror::Error)]
@@ -17,15 +16,11 @@ pub enum ProverError {
     #[error("notarization error: {0}")]
     NotarizationError(String),
     #[error(transparent)]
-    CommitmentBuilder(#[from] TranscriptCommitmentBuilderError),
-    #[error(transparent)]
     InvalidServerName(#[from] tls_core::dns::InvalidDnsNameError),
     #[error("error occurred in MPC protocol: {0}")]
     MpcError(Box<dyn Error + Send + 'static>),
     #[error("server did not send a close_notify")]
     ServerNoCloseNotify,
-    #[error(transparent)]
-    CommitmentError(#[from] CommitmentError),
     #[error("Range exceeds transcript length")]
     InvalidRange,
 }
@@ -87,17 +82,4 @@ impl From<OTShutdownError> for ProverError {
     fn from(e: OTShutdownError) -> Self {
         Self::MpcError(Box::new(e))
     }
-}
-
-impl From<tlsn_core::merkle::MerkleError> for ProverError {
-    fn from(e: tlsn_core::merkle::MerkleError) -> Self {
-        Self::CommitmentError(e.into())
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-#[allow(missing_docs)]
-pub enum CommitmentError {
-    #[error(transparent)]
-    MerkleError(#[from] tlsn_core::merkle::MerkleError),
 }

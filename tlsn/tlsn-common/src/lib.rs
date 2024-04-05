@@ -4,7 +4,11 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
+pub mod attestation;
+pub mod msg;
 pub mod mux;
+pub mod substring;
+pub mod util;
 
 /// The party's role in the TLSN protocol.
 ///

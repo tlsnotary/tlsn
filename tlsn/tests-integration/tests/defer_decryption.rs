@@ -58,14 +58,13 @@ async fn prover<T: AsyncWrite + AsyncRead + Send + Unpin + 'static>(notary_socke
     server_task.await.unwrap();
 
     let mut prover = prover_task.await.unwrap().unwrap().start_notarize();
-    let sent_tx_len = prover.sent_transcript().data().len();
-    let recv_tx_len = prover.recv_transcript().data().len();
+    let (sent_len, recv_len) = prover.transcript().len();
 
-    let builder = prover.commitment_builder();
+    let builder = prover.substring_commitment_builder();
 
     // Commit to everything
-    builder.commit_sent(&(0..sent_tx_len)).unwrap();
-    builder.commit_recv(&(0..recv_tx_len)).unwrap();
+    builder.commit_sent(&(0..sent_len)).unwrap();
+    builder.commit_recv(&(0..recv_len)).unwrap();
 
     let _notarized_session = prover.finalize().await.unwrap();
 }

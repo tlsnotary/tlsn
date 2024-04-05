@@ -2,23 +2,36 @@
 //!
 //! The TLS verifier is only a notary.
 
-use super::{state::Notarize, Verifier, VerifierError};
 use futures::{FutureExt, SinkExt, StreamExt, TryFutureExt};
-use mpz_core::serialize::CanonicalSerialize;
 use mpz_share_conversion::ShareConversionVerify;
+use rand::{thread_rng, Rng};
 use signature::Signer;
+use tls_mpc::MpcTlsFollowerData;
+use tlsn_common::{
+    attestation::{AttestationRequest, SignedAttestation},
+    msg::TlsnMessage,
+};
 use tlsn_core::{
-    msg::{SignedSessionHeader, TlsnMessage},
-    HandshakeSummary, SessionHeader, Signature,
+    attestation::{
+        Attestation, AttestationBodyBuilder, AttestationHeader, Field, ATTESTATION_VERSION,
+    },
+    conn::{
+        ConnectionInfo, HandshakeData, HandshakeDataV1_2, KeyType, ServerEphemKey, ServerSignature,
+        TlsVersion, TranscriptLength,
+    },
+    encoding::EncodingCommitment,
+    Signature,
 };
 use utils_aio::{expect_msg_or_err, mux::MuxChannel};
+
+use crate::tls::{config::MAX_TIME_DIFF, state::Notarize, Verifier, VerifierError};
 
 #[cfg(feature = "tracing")]
 use tracing::info;
 
 impl Verifier<Notarize> {
     /// Notarizes the TLS session.
-    pub async fn finalize<T>(self, signer: &impl Signer<T>) -> Result<SessionHeader, VerifierError>
+    pub async fn finalize<T>(self, signer: &impl Signer<T>) -> Result<Attestation, VerifierError>
     where
         T: Into<Signature>,
     {
@@ -32,17 +45,25 @@ impl Verifier<Notarize> {
             mut gf2,
             encoder_seed,
             start_time,
-            server_ephemeral_key,
-            handshake_commitment,
-            sent_len,
-            recv_len,
+            mpc_tls_data,
         } = self.state;
 
         let notarize_fut = async {
             let mut notarize_channel = mux_ctrl.get_channel("notarize").await?;
 
-            let merkle_root =
-                expect_msg_or_err!(notarize_channel, TlsnMessage::TranscriptCommitmentRoot)?;
+            let AttestationRequest {
+                hash_alg,
+                time,
+                cert_commitment,
+                cert_chain_commitment,
+                encoding_commitment_root,
+                extra_data,
+            } = expect_msg_or_err!(notarize_channel, TlsnMessage::AttestationRequest)?;
+
+            // Make sure the requested time is within the allowed time difference
+            if time.abs_diff(start_time) > MAX_TIME_DIFF {
+                todo!()
+            }
 
             // Finalize all MPC before signing the session header
             let (mut ot_sender_actor, _, _) = futures::try_join!(
@@ -64,33 +85,55 @@ impl Verifier<Notarize> {
             #[cfg(feature = "tracing")]
             info!("Finalized all MPC");
 
-            let handshake_summary =
-                HandshakeSummary::new(start_time, server_ephemeral_key, handshake_commitment);
+            let (info, hs_data) = convert_mpc_tls_data(mpc_tls_data, time);
 
-            let session_header = SessionHeader::new(
-                encoder_seed,
-                merkle_root,
-                sent_len,
-                recv_len,
-                handshake_summary,
-            );
+            let mut attestation_body_builder = AttestationBodyBuilder::default();
+            attestation_body_builder
+                .field(Field::ConnectionInfo(info))
+                .unwrap()
+                .field(Field::HandshakeData(hs_data))
+                .unwrap()
+                .field(Field::CertificateCommitment(cert_commitment))
+                .unwrap()
+                .field(Field::CertificateChainCommitment(cert_chain_commitment))
+                .unwrap();
 
-            let signature = signer.sign(&session_header.to_bytes());
+            if let Some(root) = encoding_commitment_root {
+                attestation_body_builder
+                    .field(Field::EncodingCommitment(EncodingCommitment {
+                        root,
+                        seed: encoder_seed.to_vec(),
+                    }))
+                    .unwrap();
+            }
+
+            let attestation_body = attestation_body_builder.build().unwrap();
+            let attestation_header = AttestationHeader {
+                id: thread_rng().gen::<[u8; 16]>().into(),
+                version: ATTESTATION_VERSION.clone(),
+                root: attestation_body.root(hash_alg),
+            };
+
+            let sig: Signature = signer.sign(&attestation_header.serialize()).into();
 
             #[cfg(feature = "tracing")]
-            info!("Signed session header");
+            info!("Signed attestation");
 
             notarize_channel
-                .send(TlsnMessage::SignedSessionHeader(SignedSessionHeader {
-                    header: session_header.clone(),
-                    signature: signature.into(),
+                .send(TlsnMessage::SignedAttestation(SignedAttestation {
+                    sig: sig.clone(),
+                    header: attestation_header.clone(),
                 }))
                 .await?;
 
             #[cfg(feature = "tracing")]
-            info!("Sent session header");
+            info!("Sent attestation");
 
-            Ok::<_, VerifierError>(session_header)
+            Ok::<_, VerifierError>(Attestation {
+                sig,
+                header: attestation_header,
+                body: attestation_body,
+            })
         };
 
         let session_header = futures::select! {
@@ -104,4 +147,25 @@ impl Verifier<Notarize> {
 
         Ok(session_header)
     }
+}
+
+fn convert_mpc_tls_data(data: MpcTlsFollowerData, time: u64) -> (ConnectionInfo, HandshakeData) {
+    (
+        ConnectionInfo {
+            time,
+            version: TlsVersion::V1_2,
+            transcript_length: TranscriptLength {
+                sent: data.bytes_sent as u32,
+                received: data.bytes_recv as u32,
+            },
+        },
+        HandshakeData::V1_2(HandshakeDataV1_2 {
+            client_random: data.client_random,
+            server_random: data.server_random,
+            server_ephemeral_key: ServerEphemKey {
+                typ: KeyType::Secp256r1,
+                key: data.server_key.key,
+            },
+        }),
+    )
 }

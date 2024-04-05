@@ -8,10 +8,7 @@ use crate::tls::error::OTShutdownError;
 use futures::{FutureExt, SinkExt};
 use mpz_garble::{Memory, Prove, Vm};
 use mpz_share_conversion::ShareConversionReveal;
-use tlsn_core::{
-    msg::TlsnMessage, proof::SessionInfo, transcript::get_value_ids, Direction, ServerName,
-    Transcript,
-};
+use tlsn_core::{conn::ServerIdentity, Direction, Transcript};
 use utils::range::{RangeSet, RangeUnion};
 use utils_aio::mux::MuxChannel;
 
@@ -19,14 +16,9 @@ use utils_aio::mux::MuxChannel;
 use tracing::info;
 
 impl Prover<ProveState> {
-    /// Returns the transcript of the sent requests
-    pub fn sent_transcript(&self) -> &Transcript {
-        &self.state.transcript_tx
-    }
-
-    /// Returns the transcript of the received responses
-    pub fn recv_transcript(&self) -> &Transcript {
-        &self.state.transcript_rx
+    /// Returns a reference to the transcript.
+    pub fn transcript(&self) -> &Transcript {
+        &self.state.transcript
     }
 
     /// Reveal certain parts of the transcripts to the verifier
@@ -42,165 +34,145 @@ impl Prover<ProveState> {
         ranges: impl Into<RangeSet<usize>>,
         direction: Direction,
     ) -> Result<(), ProverError> {
-        let sent_ids = &mut self.state.proving_info.sent_ids;
-        let recv_ids = &mut self.state.proving_info.recv_ids;
-
-        let range_set = ranges.into();
-
-        // Check ranges
-        let transcript = match direction {
-            Direction::Sent => &self.state.transcript_tx,
-            Direction::Received => &self.state.transcript_rx,
-        };
-
-        if range_set.max().unwrap_or_default() > transcript.data().len() {
-            return Err(ProverError::InvalidRange);
-        }
-
-        match direction {
-            Direction::Sent => *sent_ids = sent_ids.union(&range_set),
-            Direction::Received => *recv_ids = recv_ids.union(&range_set),
-        }
-
-        Ok(())
+        todo!()
     }
 
     /// Prove transcript values
     pub async fn prove(&mut self) -> Result<(), ProverError> {
-        let mut proving_info = std::mem::take(&mut self.state.proving_info);
+        // let mut proving_info = std::mem::take(&mut self.state.proving_info);
 
-        let mut prove_fut = Box::pin(async {
-            // Create a new channel and vm thread if not already present
-            let channel = if let Some(ref mut channel) = self.state.channel {
-                channel
-            } else {
-                self.state.channel = Some(self.state.mux_ctrl.get_channel("prove-verify").await?);
-                self.state.channel.as_mut().unwrap()
-            };
+        // let mut prove_fut = Box::pin(async {
+        //     // Create a new channel and vm thread if not already present
+        //     let channel = if let Some(ref mut channel) = self.state.channel {
+        //         channel
+        //     } else {
+        //         self.state.channel = Some(self.state.mux_ctrl.get_channel("prove-verify").await?);
+        //         self.state.channel.as_mut().unwrap()
+        //     };
 
-            let prove_thread = if let Some(ref mut prove_thread) = self.state.prove_thread {
-                prove_thread
-            } else {
-                self.state.prove_thread = Some(self.state.vm.new_thread("prove-verify").await?);
-                self.state.prove_thread.as_mut().unwrap()
-            };
+        //     let prove_thread = if let Some(ref mut prove_thread) = self.state.prove_thread {
+        //         prove_thread
+        //     } else {
+        //         self.state.prove_thread = Some(self.state.vm.new_thread("prove-verify").await?);
+        //         self.state.prove_thread.as_mut().unwrap()
+        //     };
 
-            // Now prove the transcript parts which have been marked for reveal
-            let sent_value_ids = proving_info
-                .sent_ids
-                .iter_ranges()
-                .map(|r| get_value_ids(&r.into(), Direction::Sent).collect::<Vec<String>>());
-            let recv_value_ids = proving_info
-                .recv_ids
-                .iter_ranges()
-                .map(|r| get_value_ids(&r.into(), Direction::Received).collect::<Vec<String>>());
+        //     // Now prove the transcript parts which have been marked for reveal
+        //     let sent_value_ids = proving_info
+        //         .sent_ids
+        //         .iter_ranges()
+        //         .map(|r| get_value_ids(&r.into(), Direction::Sent).collect::<Vec<String>>());
+        //     let recv_value_ids = proving_info
+        //         .recv_ids
+        //         .iter_ranges()
+        //         .map(|r| get_value_ids(&r.into(), Direction::Received).collect::<Vec<String>>());
 
-            let value_refs = sent_value_ids
-                .chain(recv_value_ids)
-                .map(|ids| {
-                    let inner_refs = ids
-                        .iter()
-                        .map(|id| {
-                            prove_thread
-                                .get_value(id.as_str())
-                                .expect("Byte should be in VM memory")
-                        })
-                        .collect::<Vec<_>>();
+        //     let value_refs = sent_value_ids
+        //         .chain(recv_value_ids)
+        //         .map(|ids| {
+        //             let inner_refs = ids
+        //                 .iter()
+        //                 .map(|id| {
+        //                     prove_thread
+        //                         .get_value(id.as_str())
+        //                         .expect("Byte should be in VM memory")
+        //                 })
+        //                 .collect::<Vec<_>>();
 
-                    prove_thread
-                        .array_from_values(inner_refs.as_slice())
-                        .expect("Byte should be in VM Memory")
-                })
-                .collect::<Vec<_>>();
+        //             prove_thread
+        //                 .array_from_values(inner_refs.as_slice())
+        //                 .expect("Byte should be in VM Memory")
+        //         })
+        //         .collect::<Vec<_>>();
 
-            // Extract cleartext we want to reveal from transcripts
-            let mut cleartext =
-                Vec::with_capacity(proving_info.sent_ids.len() + proving_info.recv_ids.len());
-            proving_info
-                .sent_ids
-                .iter_ranges()
-                .for_each(|r| cleartext.extend_from_slice(&self.state.transcript_tx.data()[r]));
-            proving_info
-                .recv_ids
-                .iter_ranges()
-                .for_each(|r| cleartext.extend_from_slice(&self.state.transcript_rx.data()[r]));
-            proving_info.cleartext = cleartext;
+        //     // Extract cleartext we want to reveal from transcripts
+        //     let mut cleartext =
+        //         Vec::with_capacity(proving_info.sent_ids.len() + proving_info.recv_ids.len());
+        //     proving_info
+        //         .sent_ids
+        //         .iter_ranges()
+        //         .for_each(|r| cleartext.extend_from_slice(&self.state.transcript_tx.data()[r]));
+        //     proving_info
+        //         .recv_ids
+        //         .iter_ranges()
+        //         .for_each(|r| cleartext.extend_from_slice(&self.state.transcript_rx.data()[r]));
+        //     proving_info.cleartext = cleartext;
 
-            // Send the proving info to the verifier
-            channel.send(TlsnMessage::ProvingInfo(proving_info)).await?;
+        //     // Send the proving info to the verifier
+        //     channel.send(TlsnMessage::ProvingInfo(proving_info)).await?;
 
-            #[cfg(feature = "tracing")]
-            info!("Sent proving info to verifier");
+        //     #[cfg(feature = "tracing")]
+        //     info!("Sent proving info to verifier");
 
-            // Prove the revealed transcript parts
-            prove_thread.prove(value_refs.as_slice()).await?;
+        //     // Prove the revealed transcript parts
+        //     prove_thread.prove(value_refs.as_slice()).await?;
 
-            #[cfg(feature = "tracing")]
-            info!("Successfully proved cleartext");
+        //     #[cfg(feature = "tracing")]
+        //     info!("Successfully proved cleartext");
 
-            Ok::<_, ProverError>(())
-        })
-        .fuse();
+        //     Ok::<_, ProverError>(())
+        // })
+        // .fuse();
 
-        futures::select_biased! {
-            res = prove_fut => res?,
-            _ = &mut self.state.ot_fut => return Err(OTShutdownError)?,
-            _ = &mut self.state.mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
-        };
+        // futures::select_biased! {
+        //     res = prove_fut => res?,
+        //     _ = &mut self.state.ot_fut => return Err(OTShutdownError)?,
+        //     _ = &mut self.state.mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
+        // };
 
-        Ok(())
+        // Ok(())
+        todo!()
     }
 
     /// Finalize the proving
     pub async fn finalize(self) -> Result<(), ProverError> {
-        let ProveState {
-            mut mux_ctrl,
-            mut mux_fut,
-            mut vm,
-            mut ot_fut,
-            mut gf2,
-            handshake_decommitment,
-            ..
-        } = self.state;
+        // let ProveState {
+        //     mut mux_ctrl,
+        //     mut mux_fut,
+        //     mut vm,
+        //     mut ot_fut,
+        //     mut gf2,
+        //     ..
+        // } = self.state;
 
-        // Create session data and session_info
-        let session_info = SessionInfo {
-            server_name: ServerName::Dns(self.config.server_dns().to_string()),
-            handshake_decommitment,
-        };
+        // // Create session data and session_info
+        // let session_info = SessionInfo {
+        //     server_name: ServerName::Dns(self.config.server_dns().to_string()),
+        // };
 
-        let mut finalize_fut = Box::pin(async move {
-            let mut channel = mux_ctrl.get_channel("finalize").await?;
+        // let mut finalize_fut = Box::pin(async move {
+        //     let mut channel = mux_ctrl.get_channel("finalize").await?;
 
-            _ = vm
-                .finalize()
-                .await
-                .map_err(|e| ProverError::MpcError(Box::new(e)))?
-                .expect("encoder seed returned");
+        //     _ = vm
+        //         .finalize()
+        //         .await
+        //         .map_err(|e| ProverError::MpcError(Box::new(e)))?
+        //         .expect("encoder seed returned");
 
-            // This is a temporary approach until a maliciously secure share conversion protocol is implemented.
-            // The prover is essentially revealing the TLS MAC key. In some exotic scenarios this allows a malicious
-            // TLS verifier to modify the prover's request.
-            gf2.reveal()
-                .await
-                .map_err(|e| ProverError::MpcError(Box::new(e)))?;
+        //     // This is a temporary approach until a maliciously secure share conversion protocol is implemented.
+        //     // The prover is essentially revealing the TLS MAC key. In some exotic scenarios this allows a malicious
+        //     // TLS verifier to modify the prover's request.
+        //     gf2.reveal()
+        //         .await
+        //         .map_err(|e| ProverError::MpcError(Box::new(e)))?;
 
-            // Send session_info to the verifier
-            channel.send(TlsnMessage::SessionInfo(session_info)).await?;
+        //     // Send session_info to the verifier
+        //     channel.send(TlsnMessage::SessionInfo(session_info)).await?;
 
-            Ok::<_, ProverError>(())
-        })
-        .fuse();
+        //     Ok::<_, ProverError>(())
+        // })
+        // .fuse();
 
-        futures::select_biased! {
-            res = finalize_fut => res?,
-            _ = ot_fut => return Err(OTShutdownError)?,
-            _ = &mut mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
-        };
+        // futures::select_biased! {
+        //     res = finalize_fut => res?,
+        //     _ = ot_fut => return Err(OTShutdownError)?,
+        //     _ = &mut mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
+        // };
 
-        // We need to wait for the verifier to correctly close the connection. Otherwise the prover
-        // would rush ahead and close the connection before the verifier has finished.
-        mux_fut.await?;
-        Ok(())
+        // // We need to wait for the verifier to correctly close the connection. Otherwise the prover
+        // // would rush ahead and close the connection before the verifier has finished.
+        // mux_fut.await?;
+        // Ok(())
+        todo!()
     }
 }

@@ -1,11 +1,14 @@
 use mpz_ot::{chou_orlandi, kos};
 use mpz_share_conversion::{ReceiverConfig, SenderConfig};
 use std::fmt::{Debug, Formatter, Result};
-use tls_core::verify::{ServerCertVerifier, WebPkiVerifier};
+use tls_core::{
+    anchors::{OwnedTrustAnchor, RootCertStore},
+    verify::{ServerCertVerifier, WebPkiVerifier},
+};
 use tls_mpc::{MpcTlsCommonConfig, MpcTlsFollowerConfig};
-use tlsn_core::proof::default_cert_verifier;
 
 const DEFAULT_MAX_TRANSCRIPT_SIZE: usize = 1 << 14; // 16Kb
+pub(crate) const MAX_TIME_DIFF: u64 = 10; // 10 seconds
 
 /// Configuration for the [`Verifier`](crate::tls::Verifier)
 #[allow(missing_docs)]
@@ -89,7 +92,6 @@ impl VerifierConfig {
                 MpcTlsCommonConfig::builder()
                     .id(format!("{}/mpc_tls", &self.id))
                     .max_transcript_size(self.max_transcript_size)
-                    .handshake_commit(true)
                     .build()
                     .unwrap(),
             )
@@ -116,4 +118,16 @@ impl VerifierConfig {
             .build()
             .unwrap()
     }
+}
+
+fn default_cert_verifier() -> WebPkiVerifier {
+    let mut root_store = RootCertStore::empty();
+    root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(|ta| {
+        OwnedTrustAnchor::from_subject_spki_name_constraints(
+            ta.subject.as_ref(),
+            ta.subject_public_key_info.as_ref(),
+            ta.name_constraints.as_ref().map(|nc| nc.as_ref()),
+        )
+    }));
+    WebPkiVerifier::new(root_store, None)
 }

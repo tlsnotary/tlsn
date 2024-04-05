@@ -2,6 +2,7 @@ use mpz_ot::{chou_orlandi, kos};
 use mpz_share_conversion::{ReceiverConfig, SenderConfig};
 use tls_client::RootCertStore;
 use tls_mpc::{MpcTlsCommonConfig, MpcTlsLeaderConfig};
+use tlsn_core::hash::HashAlgorithm;
 
 const DEFAULT_MAX_TRANSCRIPT_SIZE: usize = 1 << 14; // 16Kb
 
@@ -22,6 +23,12 @@ pub struct ProverConfig {
     /// This includes the number of bytes sent and received to the server.
     #[builder(default = "DEFAULT_MAX_TRANSCRIPT_SIZE")]
     max_transcript_size: usize,
+    /// Hash algorithm used for the attestation.
+    #[builder(default = "HashAlgorithm::Blake3")]
+    attestation_hash_alg: HashAlgorithm,
+    /// Hash algorithm used for field commitments.
+    #[builder(default = "HashAlgorithm::Blake3")]
+    field_commitment_alg: HashAlgorithm,
 }
 
 impl ProverConfig {
@@ -40,13 +47,22 @@ impl ProverConfig {
         &self.server_dns
     }
 
+    /// Returns the attestation hash algorithm.
+    pub fn attestation_hash_alg(&self) -> HashAlgorithm {
+        self.attestation_hash_alg
+    }
+
+    /// Returns the field commitment hash algorithm.
+    pub fn field_commitment_alg(&self) -> HashAlgorithm {
+        self.field_commitment_alg
+    }
+
     pub(crate) fn build_mpc_tls_config(&self) -> MpcTlsLeaderConfig {
         MpcTlsLeaderConfig::builder()
             .common(
                 MpcTlsCommonConfig::builder()
                     .id(format!("{}/mpc_tls", &self.id))
                     .max_transcript_size(self.max_transcript_size)
-                    .handshake_commit(true)
                     .build()
                     .unwrap(),
             )

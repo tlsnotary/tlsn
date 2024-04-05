@@ -14,13 +14,15 @@ pub static TX_TRANSCRIPT_ID: &str = "tx";
 pub static RX_TRANSCRIPT_ID: &str = "rx";
 
 /// A transcript contains all the data communicated over a TLS connection.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Transcript {
     /// Data sent from the Prover to the Server.
     sent: Bytes,
     /// Data received by the Prover from the Server.
     received: Bytes,
 }
+
+opaque_debug::implement!(Transcript);
 
 impl Transcript {
     /// Creates a new transcript.

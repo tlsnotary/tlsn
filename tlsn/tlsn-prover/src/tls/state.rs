@@ -1,6 +1,6 @@
 //! TLS prover states.
 
-use crate::tls::{MuxFuture, OTFuture};
+use crate::tls::{encoding_provider::CachedEncodingProvider, MuxFuture, OTFuture};
 use mpz_core::commit::Decommitment;
 use mpz_garble::protocol::deap::{DEAPThread, DEAPVm, PeerEncodings};
 use mpz_garble_core::{encoding_state, EncodedValue};
@@ -8,11 +8,11 @@ use mpz_ot::actor::kos::{SharedReceiver, SharedSender};
 use mpz_share_conversion::{ConverterSender, Gf2_128};
 use std::collections::HashMap;
 use tls_core::{handshake::HandshakeData, key::PublicKey};
-use tls_mpc::MpcTlsLeader;
-use tlsn_common::mux::MuxControl;
+use tls_mpc::{MpcTlsData, MpcTlsLeader};
+use tlsn_common::{msg::TlsnMessage, mux::MuxControl};
 use tlsn_core::{
-    commitment::TranscriptCommitmentBuilder,
-    msg::{ProvingInfo, TlsnMessage},
+    encoding::{EncodingProvider, EncodingTree},
+    substring::SubstringCommitConfigBuilder,
     Transcript,
 };
 use utils_aio::duplex::Duplex;
@@ -46,11 +46,9 @@ pub struct Closed {
     pub(crate) gf2: ConverterSender<Gf2_128, SharedSender>,
 
     pub(crate) start_time: u64,
-    pub(crate) handshake_decommitment: Decommitment<HandshakeData>,
-    pub(crate) server_public_key: PublicKey,
+    pub(crate) mpc_tls_data: MpcTlsData,
 
-    pub(crate) transcript_tx: Transcript,
-    pub(crate) transcript_rx: Transcript,
+    pub(crate) transcript: Transcript,
 }
 
 opaque_debug::implement!(Closed);
@@ -66,30 +64,20 @@ pub struct Notarize {
     pub(crate) gf2: ConverterSender<Gf2_128, SharedSender>,
 
     pub(crate) start_time: u64,
-    pub(crate) handshake_decommitment: Decommitment<HandshakeData>,
-    pub(crate) server_public_key: PublicKey,
+    pub(crate) mpc_tls_data: MpcTlsData,
 
-    pub(crate) transcript_tx: Transcript,
-    pub(crate) transcript_rx: Transcript,
+    pub(crate) transcript: Transcript,
 
-    pub(crate) builder: TranscriptCommitmentBuilder,
+    pub(crate) encoding_provider: CachedEncodingProvider,
+    pub(crate) substring_commitment_builder: SubstringCommitConfigBuilder,
 }
 
 opaque_debug::implement!(Notarize);
 
 impl From<Closed> for Notarize {
     fn from(state: Closed) -> Self {
-        let encodings = collect_encodings(&state.vm, &state.transcript_tx, &state.transcript_rx);
-
-        let encoding_provider = Box::new(move |ids: &[&str]| {
-            ids.iter().map(|id| encodings.get(*id).cloned()).collect()
-        });
-
-        let builder = TranscriptCommitmentBuilder::new(
-            encoding_provider,
-            state.transcript_tx.data().len(),
-            state.transcript_rx.data().len(),
-        );
+        let encoding_provider = CachedEncodingProvider::new(&state.vm, &state.transcript);
+        let substring_commitment_builder = SubstringCommitConfigBuilder::new(&state.transcript);
 
         Self {
             mux_ctrl: state.mux_ctrl,
@@ -98,11 +86,10 @@ impl From<Closed> for Notarize {
             ot_fut: state.ot_fut,
             gf2: state.gf2,
             start_time: state.start_time,
-            handshake_decommitment: state.handshake_decommitment,
-            server_public_key: state.server_public_key,
-            transcript_tx: state.transcript_tx,
-            transcript_rx: state.transcript_rx,
-            builder,
+            mpc_tls_data: state.mpc_tls_data,
+            transcript: state.transcript,
+            encoding_provider,
+            substring_commitment_builder,
         }
     }
 }
@@ -116,12 +103,8 @@ pub struct Prove {
     pub(crate) ot_fut: OTFuture,
     pub(crate) gf2: ConverterSender<Gf2_128, SharedSender>,
 
-    pub(crate) handshake_decommitment: Decommitment<HandshakeData>,
+    pub(crate) transcript: Transcript,
 
-    pub(crate) transcript_tx: Transcript,
-    pub(crate) transcript_rx: Transcript,
-
-    pub(crate) proving_info: ProvingInfo,
     pub(crate) channel: Option<Box<dyn Duplex<TlsnMessage>>>,
     pub(crate) prove_thread: Option<DEAPThread<SharedSender, SharedReceiver>>,
 }
@@ -134,10 +117,7 @@ impl From<Closed> for Prove {
             vm: state.vm,
             ot_fut: state.ot_fut,
             gf2: state.gf2,
-            handshake_decommitment: state.handshake_decommitment,
-            transcript_tx: state.transcript_tx,
-            transcript_rx: state.transcript_rx,
-            proving_info: ProvingInfo::default(),
+            transcript: state.transcript,
             channel: None,
             prove_thread: None,
         }
@@ -160,23 +140,4 @@ mod sealed {
     impl Sealed for super::Closed {}
     impl Sealed for super::Notarize {}
     impl Sealed for super::Prove {}
-}
-
-fn collect_encodings(
-    vm: &DEAPVm<SharedSender, SharedReceiver>,
-    transcript_tx: &Transcript,
-    transcript_rx: &Transcript,
-) -> HashMap<String, EncodedValue<encoding_state::Active>> {
-    let tx_ids = (0..transcript_tx.data().len()).map(|id| format!("tx/{id}"));
-    let rx_ids = (0..transcript_rx.data().len()).map(|id| format!("rx/{id}"));
-
-    let ids = tx_ids.chain(rx_ids).collect::<Vec<_>>();
-    let id_refs = ids.iter().map(|id| id.as_ref()).collect::<Vec<_>>();
-
-    vm.get_peer_encodings(&id_refs)
-        .expect("encodings for all transcript values should be present")
-        .into_iter()
-        .zip(ids)
-        .map(|(encoding, id)| (id, encoding))
-        .collect()
 }

@@ -20,6 +20,13 @@ impl SubstringCommitConfig {
         &self.encoding_hash_alg
     }
 
+    /// Returns whether the configuration has any encoding commitments.
+    pub fn has_encoding(&self) -> bool {
+        self.commits
+            .iter()
+            .any(|(_, kind)| matches!(kind, SubstringCommitmentKind::Encoding))
+    }
+
     /// Returns an iterator over the encoding commitment indices.
     pub fn iter_encoding(&self) -> impl Iterator<Item = &SubsequenceIdx> {
         self.commits.iter().filter_map(|(idx, kind)| match kind {
@@ -138,6 +145,30 @@ impl SubstringCommitConfigBuilder {
         direction: Direction,
     ) -> Result<&mut Self, SubstringCommitConfigBuilderError> {
         self.commit_with_kind(ranges, direction, self.default_kind)
+    }
+
+    /// Adds a commitment with the default kind to the sent data transcript.
+    ///
+    /// # Arguments
+    ///
+    /// * `ranges` - The ranges of the commitment.
+    pub fn commit_sent(
+        &mut self,
+        ranges: &dyn ToRangeSet<usize>,
+    ) -> Result<&mut Self, SubstringCommitConfigBuilderError> {
+        self.commit(ranges, Direction::Sent)
+    }
+
+    /// Adds a commitment with the default kind to the received data transcript.
+    ///
+    /// # Arguments
+    ///
+    /// * `ranges` - The ranges of the commitment.
+    pub fn commit_recv(
+        &mut self,
+        ranges: &dyn ToRangeSet<usize>,
+    ) -> Result<&mut Self, SubstringCommitConfigBuilderError> {
+        self.commit(ranges, Direction::Received)
     }
 
     /// Builds the configuration.

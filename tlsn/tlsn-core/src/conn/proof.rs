@@ -7,20 +7,13 @@ use tls_core::{
 use web_time::{Duration, UNIX_EPOCH};
 
 use crate::{
-    conn::{
-        Certificate, ConnectionInfo, HandshakeData, HandshakeDataV1_2, ServerIdentity,
-        ServerSignature,
-    },
+    conn::{CertificateData, ConnectionInfo, HandshakeData, HandshakeDataV1_2, ServerIdentity},
     hash::Hash,
-    serialize::CanonicalSerialize,
 };
 
 /// TLS server identity proof.
 pub struct ServerIdentityProof {
-    pub(crate) cert_chain: Vec<Certificate>,
-    pub(crate) sig: ServerSignature,
-    pub(crate) cert_nonce: [u8; 16],
-    pub(crate) chain_nonce: [u8; 16],
+    pub(crate) cert_data: CertificateData,
     pub(crate) identity: ServerIdentity,
 }
 
@@ -69,12 +62,13 @@ impl ServerIdentityProof {
                 ta.name_constraints.as_ref().map(|nc| nc.as_ref()),
             )
         }));
-        self.verify_with_root_store(
+        let cert_verifier = WebPkiVerifier::new(root_store, None);
+        self.verify_with_verifier(
             info,
             handshake,
             cert_commitment,
             chain_commitment,
-            root_store,
+            &cert_verifier,
         )
     }
 
@@ -87,16 +81,14 @@ impl ServerIdentityProof {
     /// * `cert_commitment` - The commitment to the server's certificate and signature.
     /// * `chain_commitment` - The commitment to the certificate chain.
     /// * `root_store` - The root certificate store.
-    pub fn verify_with_root_store(
+    pub fn verify_with_verifier(
         self,
         info: &ConnectionInfo,
         handshake: &HandshakeData,
         cert_commitment: &Hash,
         chain_commitment: &Hash,
-        root_store: RootCertStore,
+        cert_verifier: &WebPkiVerifier,
     ) -> Result<ServerIdentity, ServerIdentityProofError> {
-        let cert_verifier = WebPkiVerifier::new(root_store, None);
-
         #[allow(irrefutable_let_patterns)]
         let ServerIdentity::Dns(server_name) = &self.identity
         else {
@@ -118,34 +110,25 @@ impl ServerIdentityProof {
             .map_err(|_| ServerIdentityProofError::InvalidIdentity(self.identity.clone()))?;
 
         // Verify commitments
-        let mut msg = Vec::new();
-        msg.extend_from_slice(&(self.cert_chain.len() as u32).to_le_bytes());
-        for cert in &self.cert_chain {
-            msg.extend_from_slice(&cert.serialize());
-        }
-        msg.extend_from_slice(&self.chain_nonce);
-
-        if chain_commitment != &chain_commitment.algorithm().hash(&msg) {
-            return Err(ServerIdentityProofError::InvalidCommitment);
-        }
-
-        let end_entity = self
-            .cert_chain
-            .first()
+        let expected_cert_commitment = self
+            .cert_data
+            .cert_commitment(cert_commitment.algorithm())
+            .ok_or(ServerIdentityProofError::MissingCerts)?;
+        let expected_chain_commitment = self
+            .cert_data
+            .cert_chain_commitment(cert_commitment.algorithm())
             .ok_or(ServerIdentityProofError::MissingCerts)?;
 
-        let mut msg = Vec::new();
-        msg.extend_from_slice(&end_entity.serialize());
-        msg.extend_from_slice(&self.sig.serialize());
-        msg.extend_from_slice(&self.cert_nonce);
-
-        if cert_commitment != &cert_commitment.algorithm().hash(&msg) {
+        if cert_commitment != &expected_cert_commitment
+            || chain_commitment != &expected_chain_commitment
+        {
             return Err(ServerIdentityProofError::InvalidCommitment);
         }
 
         // Verify server certificate
         let cert_chain = self
-            .cert_chain
+            .cert_data
+            .certs
             .into_iter()
             .map(|cert| tls_core::key::Certificate(cert.0))
             .collect::<Vec<_>>();
@@ -173,7 +156,10 @@ impl ServerIdentityProof {
         message.extend_from_slice(server_random);
         message.extend_from_slice(&server_ephemeral_key.key);
 
-        let dss = DigitallySignedStruct::new(self.sig.scheme.to_tls_core(), self.sig.sig.clone());
+        let dss = DigitallySignedStruct::new(
+            self.cert_data.sig.scheme.to_tls_core(),
+            self.cert_data.sig.sig.clone(),
+        );
 
         _ = cert_verifier
             .verify_tls12_signature(&message, end_entity, &dss)

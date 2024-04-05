@@ -34,7 +34,9 @@ use tlsn_common::{
     mux::{attach_mux, MuxControl},
     Role,
 };
-use tlsn_core::{proof::SessionInfo, RedactedTranscript, SessionHeader, Signature};
+use tlsn_core::{
+    attestation::Attestation, conn::ServerIdentity, transcript::PartialTranscript, Signature,
+};
 use utils_aio::{duplex::Duplex, mux::MuxChannel};
 
 #[cfg(feature = "tracing")]
@@ -111,7 +113,7 @@ impl Verifier<state::Initialized> {
         self,
         socket: S,
         signer: &impl Signer<T>,
-    ) -> Result<SessionHeader, VerifierError>
+    ) -> Result<Attestation, VerifierError>
     where
         T: Into<Signature>,
     {
@@ -130,12 +132,14 @@ impl Verifier<state::Initialized> {
     pub async fn verify<S: AsyncWrite + AsyncRead + Send + Unpin + 'static>(
         self,
         socket: S,
-    ) -> Result<(RedactedTranscript, RedactedTranscript, SessionInfo), VerifierError> {
-        let mut verifier = self.setup(socket).await?.run().await?.start_verify();
-        let (redacted_sent, redacted_received) = verifier.receive().await?;
+    ) -> Result<(PartialTranscript, ServerIdentity), VerifierError> {
+        // let mut verifier = self.setup(socket).await?.run().await?.start_verify();
+        // let (redacted_sent, redacted_received) = verifier.receive().await?;
 
-        let session_info = verifier.finalize().await?;
-        Ok((redacted_sent, redacted_received, session_info))
+        // let session_info = verifier.finalize().await?;
+        // Ok((redacted_sent, redacted_received, session_info))
+
+        todo!()
     }
 }
 
@@ -161,12 +165,7 @@ impl Verifier<state::Setup> {
 
         let (_, mpc_fut) = mpc_tls.run();
 
-        let MpcTlsFollowerData {
-            handshake_commitment,
-            server_key: server_ephemeral_key,
-            bytes_sent: sent_len,
-            bytes_recv: recv_len,
-        } = futures::select! {
+        let mpc_tls_data = futures::select! {
             res = mpc_fut.fuse() => res?,
             _ = &mut mux_fut => return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
             res = ot_fut => return Err(res.map(|_| ()).expect_err("future will not return Ok here"))
@@ -174,9 +173,6 @@ impl Verifier<state::Setup> {
 
         #[cfg(feature = "tracing")]
         info!("Finished TLS session");
-
-        // TODO: We should be able to skip this commitment and verify the handshake directly.
-        let handshake_commitment = handshake_commitment.expect("handshake commitment is set");
 
         Ok(Verifier {
             config: self.config,
@@ -190,10 +186,7 @@ impl Verifier<state::Setup> {
                 gf2,
                 encoder_seed,
                 start_time,
-                server_ephemeral_key,
-                handshake_commitment,
-                sent_len,
-                recv_len,
+                mpc_tls_data,
             },
         })
     }

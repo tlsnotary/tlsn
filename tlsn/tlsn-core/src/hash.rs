@@ -45,7 +45,7 @@ impl HashAlgorithm {
 
 /// A hash value.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(tag = "alg")]
+#[serde(try_from = "hash_serialize::Hash", into = "hash_serialize::Hash")]
 pub enum Hash {
     /// A SHA-256 hash.
     #[cfg(feature = "sha2")]
@@ -68,6 +68,66 @@ impl Hash {
             Self::Blake3(_) => HashAlgorithm::Blake3,
             #[cfg(feature = "keccak")]
             Self::Keccak256(_) => HashAlgorithm::Keccak256,
+        }
+    }
+}
+
+/// Hash type for serialization.
+mod hash_serialize {
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Serialize, Deserialize)]
+    pub(super) struct Hash {
+        alg: super::HashAlgorithm,
+        value: Vec<u8>,
+    }
+
+    impl From<super::Hash> for Hash {
+        fn from(hash: super::Hash) -> Self {
+            match hash {
+                #[cfg(feature = "sha2")]
+                super::Hash::Sha256(value) => Self {
+                    alg: super::HashAlgorithm::Sha256,
+                    value: value.to_vec(),
+                },
+                #[cfg(feature = "blake3")]
+                super::Hash::Blake3(value) => Self {
+                    alg: super::HashAlgorithm::Blake3,
+                    value: value.to_vec(),
+                },
+                #[cfg(feature = "keccak")]
+                super::Hash::Keccak256(value) => Self {
+                    alg: super::HashAlgorithm::Keccak256,
+                    value: value.to_vec(),
+                },
+            }
+        }
+    }
+
+    impl TryFrom<Hash> for super::Hash {
+        type Error = String;
+
+        fn try_from(hash: Hash) -> Result<Self, Self::Error> {
+            if hash.value.len() != hash.alg.len() {
+                return Err(format!(
+                    "invalid hash length for {:?}: expected {}, got {}",
+                    hash.alg,
+                    hash.alg.len(),
+                    hash.value.len()
+                ));
+            }
+
+            Ok(match hash.alg {
+                super::HashAlgorithm::Sha256 => {
+                    super::Hash::Sha256(<[u8; 32]>::try_from(hash.value).unwrap())
+                }
+                super::HashAlgorithm::Blake3 => {
+                    super::Hash::Blake3(<[u8; 32]>::try_from(hash.value).unwrap())
+                }
+                super::HashAlgorithm::Keccak256 => {
+                    super::Hash::Keccak256(<[u8; 32]>::try_from(hash.value).unwrap())
+                }
+            })
         }
     }
 }

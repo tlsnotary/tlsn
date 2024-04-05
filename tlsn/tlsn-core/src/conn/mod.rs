@@ -6,6 +6,11 @@ use serde::{Deserialize, Serialize};
 
 pub use proof::ServerIdentityProof;
 
+use crate::{
+    hash::{Hash, HashAlgorithm},
+    serialize::CanonicalSerialize,
+};
+
 //pub use proof::{HandshakeProof, HandshakeProofError};
 
 /// TLS version.
@@ -36,38 +41,58 @@ pub enum KeyType {
 
 /// Signature scheme on the key exchange parameters.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[allow(missing_docs)]
+#[allow(non_camel_case_types)]
 pub enum SignatureScheme {
-    RsaPkcs1Sha1 = 0x0201,
-    EcdsaSha1Legacy = 0x0203,
-    RsaPkcs1Sha256 = 0x0401,
-    EcdsaNistp256Sha256 = 0x0403,
-    RsaPkcs1Sha384 = 0x0501,
-    EcdsaNistp384Sha384 = 0x0503,
-    RsaPkcs1Sha512 = 0x0601,
-    EcdsaNistp521Sha512 = 0x0603,
-    RsaPssSha256 = 0x0804,
-    RsaPssSha384 = 0x0805,
-    RsaPssSha512 = 0x0806,
-    Ed25519 = 0x0807,
+    RSA_PKCS1_SHA1 = 0x0201,
+    ECDSA_SHA1_Legacy = 0x0203,
+    RSA_PKCS1_SHA256 = 0x0401,
+    ECDSA_NISTP256_SHA256 = 0x0403,
+    RSA_PKCS1_SHA384 = 0x0501,
+    ECDSA_NISTP384_SHA384 = 0x0503,
+    RSA_PKCS1_SHA512 = 0x0601,
+    ECDSA_NISTP521_SHA512 = 0x0603,
+    RSA_PSS_SHA256 = 0x0804,
+    RSA_PSS_SHA384 = 0x0805,
+    RSA_PSS_SHA512 = 0x0806,
+    ED25519 = 0x0807,
 }
 
 impl SignatureScheme {
+    /// Converts a `u16` to a `SignatureScheme`.
+    pub fn from_u16(value: u16) -> Option<Self> {
+        use SignatureScheme::*;
+        Some(match value {
+            0x0201 => RSA_PKCS1_SHA1,
+            0x0203 => ECDSA_SHA1_Legacy,
+            0x0401 => RSA_PKCS1_SHA256,
+            0x0403 => ECDSA_NISTP256_SHA256,
+            0x0501 => RSA_PKCS1_SHA384,
+            0x0503 => ECDSA_NISTP384_SHA384,
+            0x0601 => RSA_PKCS1_SHA512,
+            0x0603 => ECDSA_NISTP521_SHA512,
+            0x0804 => RSA_PSS_SHA256,
+            0x0805 => RSA_PSS_SHA384,
+            0x0806 => RSA_PSS_SHA512,
+            0x0807 => ED25519,
+            _ => return None,
+        })
+    }
+
     pub(crate) fn to_tls_core(&self) -> tls_core::msgs::enums::SignatureScheme {
         use tls_core::msgs::enums::SignatureScheme::*;
         match self {
-            SignatureScheme::RsaPkcs1Sha1 => RSA_PKCS1_SHA1,
-            SignatureScheme::EcdsaSha1Legacy => ECDSA_SHA1_Legacy,
-            SignatureScheme::RsaPkcs1Sha256 => RSA_PKCS1_SHA256,
-            SignatureScheme::EcdsaNistp256Sha256 => ECDSA_NISTP256_SHA256,
-            SignatureScheme::RsaPkcs1Sha384 => RSA_PKCS1_SHA384,
-            SignatureScheme::EcdsaNistp384Sha384 => ECDSA_NISTP384_SHA384,
-            SignatureScheme::RsaPkcs1Sha512 => RSA_PKCS1_SHA512,
-            SignatureScheme::EcdsaNistp521Sha512 => ECDSA_NISTP521_SHA512,
-            SignatureScheme::RsaPssSha256 => RSA_PSS_SHA256,
-            SignatureScheme::RsaPssSha384 => RSA_PSS_SHA384,
-            SignatureScheme::RsaPssSha512 => RSA_PSS_SHA512,
-            SignatureScheme::Ed25519 => ED25519,
+            SignatureScheme::RSA_PKCS1_SHA1 => RSA_PKCS1_SHA1,
+            SignatureScheme::ECDSA_SHA1_Legacy => ECDSA_SHA1_Legacy,
+            SignatureScheme::RSA_PKCS1_SHA256 => RSA_PKCS1_SHA256,
+            SignatureScheme::ECDSA_NISTP256_SHA256 => ECDSA_NISTP256_SHA256,
+            SignatureScheme::RSA_PKCS1_SHA384 => RSA_PKCS1_SHA384,
+            SignatureScheme::ECDSA_NISTP384_SHA384 => ECDSA_NISTP384_SHA384,
+            SignatureScheme::RSA_PKCS1_SHA512 => RSA_PKCS1_SHA512,
+            SignatureScheme::ECDSA_NISTP521_SHA512 => ECDSA_NISTP521_SHA512,
+            SignatureScheme::RSA_PSS_SHA256 => RSA_PSS_SHA256,
+            SignatureScheme::RSA_PSS_SHA384 => RSA_PSS_SHA384,
+            SignatureScheme::RSA_PSS_SHA512 => RSA_PSS_SHA512,
+            SignatureScheme::ED25519 => ED25519,
         }
     }
 }
@@ -132,4 +157,40 @@ pub struct HandshakeDataV1_2 {
 pub enum HandshakeData {
     /// TLS 1.2 handshake data.
     V1_2(HandshakeDataV1_2),
+}
+
+/// TLS certificate data.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CertificateData {
+    /// The certificate chain.
+    pub certs: Vec<Certificate>,
+    /// The signature of the key exchange parameters.
+    pub sig: ServerSignature,
+    /// The nonce which was hashed with the end-entity certificate and signature.
+    pub cert_nonce: [u8; 16],
+    /// The nonce which was hashed with the certificate chain.
+    pub chain_nonce: [u8; 16],
+}
+
+impl CertificateData {
+    /// Computes the commitment to the certificate and signature, returning `None` if the certificate is missing.
+    pub fn cert_commitment(&self, alg: HashAlgorithm) -> Option<Hash> {
+        let end_entity = self.certs.first()?;
+        let mut bytes = Vec::new();
+        bytes.extend(CanonicalSerialize::serialize(end_entity));
+        bytes.extend(CanonicalSerialize::serialize(&self.sig));
+        bytes.extend_from_slice(&self.cert_nonce);
+        Some(alg.hash(&bytes))
+    }
+
+    /// Computes the commitment to the certificate chain, returning `None` if the chain is missing.
+    pub fn cert_chain_commitment(&self, alg: HashAlgorithm) -> Option<Hash> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&(self.certs.len() as u32).to_le_bytes());
+        for cert in &self.certs {
+            bytes.extend(CanonicalSerialize::serialize(cert));
+        }
+        bytes.extend_from_slice(&self.chain_nonce);
+        Some(alg.hash(&bytes))
+    }
 }

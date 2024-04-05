@@ -6,6 +6,7 @@
 //! with HTTP sessions.
 
 mod config;
+pub(crate) mod encoding_provider;
 mod error;
 mod future;
 mod notarize;
@@ -170,12 +171,8 @@ impl Prover<state::Setup> {
                         ot_fut,
                         gf2,
                         start_time,
-                        handshake_decommitment: mpc_tls_data
-                            .handshake_decommitment
-                            .expect("handshake was committed"),
-                        server_public_key: mpc_tls_data.server_public_key,
-                        transcript_tx: Transcript::new(sent),
-                        transcript_rx: Transcript::new(recv),
+                        mpc_tls_data,
+                        transcript: Transcript::new(sent, recv),
                     },
                 })
             };
@@ -195,14 +192,9 @@ impl Prover<state::Setup> {
 }
 
 impl Prover<state::Closed> {
-    /// Returns the transcript of the sent requests
-    pub fn sent_transcript(&self) -> &Transcript {
-        &self.state.transcript_tx
-    }
-
-    /// Returns the transcript of the received responses
-    pub fn recv_transcript(&self) -> &Transcript {
-        &self.state.transcript_rx
+    /// Returns a reference to the transcript.
+    pub fn transcript(&self) -> &Transcript {
+        &self.state.transcript
     }
 
     /// Creates an HTTP prover.

@@ -32,5 +32,6 @@ derive_builder.workspace = true
 rand.workspace = true
 signature.workspace = true
 opaque-debug.workspace = true
+webpki-roots.workspace = true
 
 tracing = { workspace = true, optional = true }

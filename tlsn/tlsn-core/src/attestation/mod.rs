@@ -6,18 +6,16 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    conn::{
-        Certificate, ConnectionInfo, HandshakeData, ServerIdentity, ServerIdentityProof,
-        ServerSignature,
-    },
+    conn::{CertificateData, ConnectionInfo, HandshakeData, ServerIdentity, ServerIdentityProof},
     encoding::{EncodingCommitment, EncodingTree},
     hash::{Hash, HashAlgorithm, PlaintextHash},
     merkle::MerkleTree,
+    serialize::CanonicalSerialize,
     transcript::SubsequenceIdx,
-    Transcript,
+    Signature, Transcript,
 };
 
-pub use builder::{AttestationBuilder, AttestationBuilderError};
+pub use builder::{AttestationBodyBuilder, AttestationBodyBuilderError};
 pub use proof::BodyProof;
 
 /// The current version of attestations.
@@ -50,21 +48,12 @@ impl AttestationVersion {
 }
 
 /// A secret hidden from the Notary.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum Secret {
     /// The certificate chain and signature.
     #[serde(rename = "cert")]
-    Certificate {
-        /// The certificate chain.
-        certs: Vec<Certificate>,
-        /// The signature of the key exchange parameters.
-        sig: ServerSignature,
-        /// The nonce which was hashed with the end-entity certificate and signature.
-        cert_nonce: [u8; 16],
-        /// The nonce which was hashed with the certificate chain.
-        chain_nonce: [u8; 16],
-    },
+    Certificate(CertificateData),
     /// The server's identity.
     #[serde(rename = "server_identity")]
     ServerIdentity(ServerIdentity),
@@ -82,6 +71,8 @@ pub enum Secret {
         commitment: FieldId,
     },
 }
+
+opaque_debug::implement!(Secret);
 
 /// A public attestation field.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -157,27 +148,17 @@ pub struct FieldId(pub u32);
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AttestationHeader {
     /// An identifier for the attestation.
-    pub(crate) id: AttestationId,
+    pub id: AttestationId,
     /// Version of the attestation.
-    pub(crate) version: AttestationVersion,
+    pub version: AttestationVersion,
     /// Merkle root of the attestation fields.
-    pub(crate) root: Hash,
+    pub root: Hash,
 }
 
 impl AttestationHeader {
-    /// Returns the identifier of the attestation.
-    pub fn id(&self) -> &AttestationId {
-        &self.id
-    }
-
-    /// Returns the version of the attestation.
-    pub fn version(&self) -> &AttestationVersion {
-        &self.version
-    }
-
-    /// Returns the root of the attestation fields.
-    pub fn root(&self) -> &Hash {
-        &self.root
+    /// Serializes the header to its canonical form.
+    pub fn serialize(&self) -> Vec<u8> {
+        CanonicalSerialize::serialize(self)
     }
 }
 
@@ -235,6 +216,8 @@ impl AttestationBody {
 /// An attestation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Attestation {
+    /// The signature of the attestation.
+    pub sig: Signature,
     /// The attestation header.
     pub header: AttestationHeader,
     /// The attestation body.
@@ -243,41 +226,34 @@ pub struct Attestation {
 
 impl Attestation {
     /// Creates a new attestation builder.
-    pub fn builder() -> AttestationBuilder {
-        AttestationBuilder::default()
+    pub fn builder() -> AttestationBodyBuilder {
+        AttestationBodyBuilder::default()
     }
 }
 
 /// The full data of an attestation, including private fields.
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct AttestationFull {
+    /// The signature of the attestation.
+    pub sig: Signature,
     /// The attestation header.
     pub header: AttestationHeader,
     /// The attestation body.
     pub body: AttestationBody,
-    /// Transcript of data sent from the Prover to the Server.
-    pub transcript_tx: Transcript,
-    /// Transcript of data received by the Prover from the Server.
-    pub transcript_rx: Transcript,
+    /// Transcript of data communicated between the Prover and the Server.
+    pub transcript: Transcript,
     /// Secret data of the attestation.
     pub secrets: Vec<Secret>,
 }
 
-opaque_debug::implement!(AttestationFull);
-
 impl AttestationFull {
     /// Returns a server identity proof.
     pub fn identity_proof(&self) -> Result<ServerIdentityProof, AttestationError> {
-        let (cert_chain, sig, cert_nonce, chain_nonce) = self
+        let cert_data = self
             .secrets
             .iter()
             .find_map(|secret| match secret {
-                Secret::Certificate {
-                    certs,
-                    sig,
-                    cert_nonce,
-                    chain_nonce,
-                } => Some((certs, sig, cert_nonce, chain_nonce)),
+                Secret::Certificate(cert_data) => Some(cert_data),
                 _ => None,
             })
             .unwrap();
@@ -292,10 +268,7 @@ impl AttestationFull {
             .unwrap();
 
         Ok(ServerIdentityProof {
-            cert_chain: cert_chain.clone(),
-            sig: sig.clone(),
-            cert_nonce: *cert_nonce,
-            chain_nonce: *chain_nonce,
+            cert_data: cert_data.clone(),
             identity,
         })
     }

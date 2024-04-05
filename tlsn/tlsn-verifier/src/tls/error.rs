@@ -51,12 +51,6 @@ impl From<mpz_garble::MemoryError> for VerifierError {
     }
 }
 
-impl From<tlsn_core::proof::SessionProofError> for VerifierError {
-    fn from(e: tlsn_core::proof::SessionProofError) -> Self {
-        Self::MpcError(Box::new(e))
-    }
-}
-
 impl From<mpz_garble::VmError> for VerifierError {
     fn from(e: mpz_garble::VmError) -> Self {
         Self::MpcError(Box::new(e))

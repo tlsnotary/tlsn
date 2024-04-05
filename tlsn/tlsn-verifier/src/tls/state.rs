@@ -5,9 +5,8 @@ use mpz_garble::protocol::deap::{DEAPThread, DEAPVm};
 use mpz_ot::actor::kos::{SharedReceiver, SharedSender};
 use mpz_share_conversion::{ConverterReceiver, Gf2_128};
 use tls_core::key::PublicKey;
-use tls_mpc::MpcTlsFollower;
-use tlsn_common::mux::MuxControl;
-use tlsn_core::msg::TlsnMessage;
+use tls_mpc::{MpcTlsFollower, MpcTlsFollowerData};
+use tlsn_common::{msg::TlsnMessage, mux::MuxControl};
 use utils_aio::duplex::Duplex;
 
 use crate::tls::future::{MuxFuture, OTFuture};
@@ -48,10 +47,7 @@ pub struct Closed {
 
     pub(crate) encoder_seed: [u8; 32],
     pub(crate) start_time: u64,
-    pub(crate) server_ephemeral_key: PublicKey,
-    pub(crate) handshake_commitment: Hash,
-    pub(crate) sent_len: usize,
-    pub(crate) recv_len: usize,
+    pub(crate) mpc_tls_data: MpcTlsFollowerData,
 }
 
 opaque_debug::implement!(Closed);
@@ -69,10 +65,7 @@ pub struct Notarize {
 
     pub(crate) encoder_seed: [u8; 32],
     pub(crate) start_time: u64,
-    pub(crate) server_ephemeral_key: PublicKey,
-    pub(crate) handshake_commitment: Hash,
-    pub(crate) sent_len: usize,
-    pub(crate) recv_len: usize,
+    pub(crate) mpc_tls_data: MpcTlsFollowerData,
 }
 
 opaque_debug::implement!(Notarize);
@@ -89,10 +82,7 @@ impl From<Closed> for Notarize {
             gf2: value.gf2,
             encoder_seed: value.encoder_seed,
             start_time: value.start_time,
-            server_ephemeral_key: value.server_ephemeral_key,
-            handshake_commitment: value.handshake_commitment,
-            sent_len: value.sent_len,
-            recv_len: value.recv_len,
+            mpc_tls_data: value.mpc_tls_data,
         }
     }
 }
@@ -109,10 +99,7 @@ pub struct Verify {
     pub(crate) gf2: ConverterReceiver<Gf2_128, SharedReceiver>,
 
     pub(crate) start_time: u64,
-    pub(crate) server_ephemeral_key: PublicKey,
-    pub(crate) handshake_commitment: Hash,
-    pub(crate) sent_len: usize,
-    pub(crate) recv_len: usize,
+    pub(crate) mpc_tls_data: MpcTlsFollowerData,
 
     pub(crate) channel: Option<Box<dyn Duplex<TlsnMessage>>>,
     pub(crate) verify_thread: Option<DEAPThread<SharedSender, SharedReceiver>>,
@@ -131,10 +118,7 @@ impl From<Closed> for Verify {
             ot_fut: value.ot_fut,
             gf2: value.gf2,
             start_time: value.start_time,
-            server_ephemeral_key: value.server_ephemeral_key,
-            handshake_commitment: value.handshake_commitment,
-            sent_len: value.sent_len,
-            recv_len: value.recv_len,
+            mpc_tls_data: value.mpc_tls_data,
             channel: None,
             verify_thread: None,
         }
