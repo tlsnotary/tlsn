@@ -68,7 +68,7 @@ pub enum KeyType {
 /// Signature scheme on the key exchange parameters.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, missing_docs)]
 pub enum SignatureScheme {
     RSA_PKCS1_SHA1 = 0x0201,
     ECDSA_SHA1_Legacy = 0x0203,

@@ -1,3 +1,5 @@
+//! Attestation types.
+
 mod builder;
 mod proof;
 
@@ -27,6 +29,7 @@ pub static ATTESTATION_VERSION: AttestationVersion = AttestationVersion(0);
 pub(crate) const ATTESTATION_VERSION_LEN: usize = 4;
 pub(crate) const ATTESTATION_ID_LEN: usize = 16;
 
+/// An attestation error.
 #[derive(Debug)]
 pub struct AttestationError;
 
@@ -297,7 +300,7 @@ impl AttestationFull {
                     seq,
                     nonce,
                     commitment,
-                } if seq == idx => (Some((*nonce, commitment))),
+                } if seq == idx => Some((*nonce, commitment)),
                 _ => None,
             }) {
                 hash_openings.push(PlaintextHashOpening {

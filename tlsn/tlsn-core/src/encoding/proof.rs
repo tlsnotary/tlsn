@@ -63,6 +63,7 @@ pub(super) struct Opening {
 
 opaque_debug::implement!(Opening);
 
+/// An encoding proof.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EncodingProof {
     pub(super) inclusion_proof: MerkleProof,

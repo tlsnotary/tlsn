@@ -1,3 +1,5 @@
+//! Substring functionality.
+
 mod config;
 
 use serde::{Deserialize, Serialize};
@@ -20,7 +22,10 @@ pub enum SubstringCommitmentKind {
     /// A commitment to the encodings of the transcript.
     Encoding,
     /// A hash commitment to some plaintext in the transcript.
-    Hash { alg: HashAlgorithm },
+    Hash {
+        /// The hash algorithm used.
+        alg: HashAlgorithm,
+    },
 }
 
 /// A proof of substrings in a transcript.

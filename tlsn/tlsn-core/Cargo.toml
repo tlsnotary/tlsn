@@ -9,11 +9,8 @@ version = "0.1.0-alpha.4"
 edition = "2021"
 
 [features]
-default = ["sha2", "blake3", "keccak"]
+default = []
 fixtures = ["dep:hex"]
-sha2 = ["dep:sha2"]
-blake3 = ["dep:blake3"]
-keccak = ["dep:tiny-keccak"]
 
 [dependencies]
 tlsn-tls-core = { workspace = true, features = ["serde"] }
@@ -35,9 +32,9 @@ bytes = { workspace = true, features = ["serde"] }
 opaque-debug.workspace = true
 rand.workspace = true
 
-sha2 = { workspace = true, optional = true }
-blake3 = { workspace = true, optional = true }
-tiny-keccak = { workspace = true, optional = true, features = ["keccak"] }
+sha2.workspace = true
+blake3.workspace = true
+tiny-keccak = { workspace = true, features = ["keccak"] }
 
 bimap = { version = "0.6.3", features = ["serde"] }
 

@@ -2,9 +2,9 @@
 //!
 //! This crate contains core types for the TLSNotary protocol, including some functionality for selective disclosure.
 
-// #![deny(missing_docs, unreachable_pub, unused_must_use)]
-// #![deny(clippy::all)]
-// #![forbid(unsafe_code)]
+#![deny(missing_docs, unreachable_pub, unused_must_use)]
+#![deny(clippy::all)]
+#![forbid(unsafe_code)]
 
 pub mod attestation;
 pub mod conn;
@@ -23,5 +23,6 @@ pub use transcript::{Direction, PartialTranscript, Transcript};
 
 pub(crate) mod sealed {
     /// A sealed trait.
+    #[allow(unreachable_pub)]
     pub trait Sealed {}
 }

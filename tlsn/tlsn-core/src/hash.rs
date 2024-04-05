@@ -1,4 +1,12 @@
+//! Hash types.
+
 use serde::{Deserialize, Serialize};
+
+use crate::{
+    attestation::FieldId,
+    serialize::CanonicalSerialize,
+    transcript::{Subsequence, SubsequenceIdx},
+};
 
 /// A supported hashing algorithm.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -7,13 +15,10 @@ use serde::{Deserialize, Serialize};
 #[repr(u8)]
 pub enum HashAlgorithm {
     /// The SHA-256 hashing algorithm.
-    #[cfg(feature = "sha2")]
     Sha256 = 0x00,
     /// The BLAKE3 hashing algorithm.
-    #[cfg(feature = "blake3")]
     Blake3 = 0x01,
     /// The Keccak-256 f1600 hashing algorithm.
-    #[cfg(feature = "keccak")]
     Keccak256 = 0x02,
 }
 
@@ -22,11 +27,8 @@ impl HashAlgorithm {
     #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         match self {
-            #[cfg(feature = "sha2")]
             Self::Sha256 => 32,
-            #[cfg(feature = "blake3")]
             Self::Blake3 => 32,
-            #[cfg(feature = "keccak")]
             Self::Keccak256 => 32,
         }
     }
@@ -34,11 +36,8 @@ impl HashAlgorithm {
     /// Hashes the provided message using the algorithm.
     pub fn hash(&self, msg: &[u8]) -> Hash {
         match self {
-            #[cfg(feature = "sha2")]
             Self::Sha256 => Hash::Sha256(Sha256::hash(msg)),
-            #[cfg(feature = "blake3")]
             Self::Blake3 => Hash::Blake3(Blake3::hash(msg)),
-            #[cfg(feature = "keccak")]
             Self::Keccak256 => Hash::Keccak256(Keccak256::hash(msg)),
         }
     }
@@ -49,13 +48,10 @@ impl HashAlgorithm {
 #[serde(try_from = "hash_serialize::Hash", into = "hash_serialize::Hash")]
 pub enum Hash {
     /// A SHA-256 hash.
-    #[cfg(feature = "sha2")]
     Sha256([u8; 32]),
     /// A BLAKE3 hash.
-    #[cfg(feature = "blake3")]
     Blake3([u8; 32]),
     /// A Keccak-256 f1600 hash.
-    #[cfg(feature = "keccak")]
     Keccak256([u8; 32]),
 }
 
@@ -63,11 +59,8 @@ impl Hash {
     /// Returns the algorithm of the hash.
     pub fn algorithm(&self) -> HashAlgorithm {
         match self {
-            #[cfg(feature = "sha2")]
             Self::Sha256(_) => HashAlgorithm::Sha256,
-            #[cfg(feature = "blake3")]
             Self::Blake3(_) => HashAlgorithm::Blake3,
-            #[cfg(feature = "keccak")]
             Self::Keccak256(_) => HashAlgorithm::Keccak256,
         }
     }
@@ -86,17 +79,14 @@ mod hash_serialize {
     impl From<super::Hash> for Hash {
         fn from(hash: super::Hash) -> Self {
             match hash {
-                #[cfg(feature = "sha2")]
                 super::Hash::Sha256(value) => Self {
                     alg: super::HashAlgorithm::Sha256,
                     value: value.to_vec(),
                 },
-                #[cfg(feature = "blake3")]
                 super::Hash::Blake3(value) => Self {
                     alg: super::HashAlgorithm::Blake3,
                     value: value.to_vec(),
                 },
-                #[cfg(feature = "keccak")]
                 super::Hash::Keccak256(value) => Self {
                     alg: super::HashAlgorithm::Keccak256,
                     value: value.to_vec(),
@@ -139,11 +129,8 @@ impl CanonicalSerialize for Hash {
         let mut bytes = Vec::with_capacity(1 + self.algorithm().len());
         bytes.push(self.algorithm() as u8);
         match self {
-            #[cfg(feature = "sha2")]
             Self::Sha256(hash) => bytes.extend_from_slice(hash),
-            #[cfg(feature = "blake3")]
             Self::Blake3(hash) => bytes.extend_from_slice(hash),
-            #[cfg(feature = "keccak")]
             Self::Keccak256(hash) => bytes.extend_from_slice(hash),
         }
         bytes
@@ -234,7 +221,6 @@ pub(crate) trait Hasher:
     }
 }
 
-#[cfg(feature = "sha2")]
 mod sha2 {
     use ::sha2::Digest;
 
@@ -276,10 +262,8 @@ mod sha2 {
     }
 }
 
-#[cfg(feature = "sha2")]
 pub use sha2::Sha256;
 
-#[cfg(feature = "blake3")]
 mod blake3 {
     /// The BLAKE3 hashing algorithm.
     #[derive(Clone)]
@@ -319,10 +303,8 @@ mod blake3 {
     }
 }
 
-#[cfg(feature = "blake3")]
 pub use blake3::Blake3;
 
-#[cfg(feature = "keccak")]
 mod keccak {
     use tiny_keccak::Hasher;
 
@@ -366,11 +348,4 @@ mod keccak {
     }
 }
 
-#[cfg(feature = "keccak")]
 pub use keccak::Keccak256;
-
-use crate::{
-    attestation::FieldId,
-    serialize::CanonicalSerialize,
-    transcript::{Subsequence, SubsequenceIdx},
-};

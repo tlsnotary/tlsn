@@ -74,11 +74,8 @@ impl MerkleProof {
 
 #[derive(Debug, Serialize, Deserialize)]
 enum MerkleProofAlg {
-    #[cfg(feature = "sha2")]
     Sha256(MerkleProofInner<Sha256>),
-    #[cfg(feature = "blake3")]
     Blake3(MerkleProofInner<Blake3>),
-    #[cfg(feature = "keccak")]
     Keccak256(MerkleProofInner<Keccak256>),
 }
 
@@ -176,11 +173,8 @@ pub(crate) struct MerkleTree(MerkleTreeAlg);
 impl MerkleTree {
     pub(crate) fn new(alg: HashAlgorithm) -> Self {
         match alg {
-            #[cfg(feature = "sha2")]
             HashAlgorithm::Sha256 => MerkleTree(MerkleTreeAlg::Sha256(MerkleTreeInner::default())),
-            #[cfg(feature = "blake3")]
             HashAlgorithm::Blake3 => MerkleTree(MerkleTreeAlg::Blake3(MerkleTreeInner::default())),
-            #[cfg(feature = "keccak")]
             HashAlgorithm::Keccak256 => {
                 MerkleTree(MerkleTreeAlg::Keccak256(MerkleTreeInner::default()))
             }
@@ -189,33 +183,24 @@ impl MerkleTree {
 
     pub(crate) fn algorithm(&self) -> HashAlgorithm {
         match &self.0 {
-            #[cfg(feature = "sha2")]
             MerkleTreeAlg::Sha256(_) => HashAlgorithm::Sha256,
-            #[cfg(feature = "blake3")]
             MerkleTreeAlg::Blake3(_) => HashAlgorithm::Blake3,
-            #[cfg(feature = "keccak")]
             MerkleTreeAlg::Keccak256(_) => HashAlgorithm::Keccak256,
         }
     }
 
     pub(crate) fn insert<T: CanonicalSerialize>(&mut self, leaf: &T) {
         match &mut self.0 {
-            #[cfg(feature = "sha2")]
             MerkleTreeAlg::Sha256(tree) => tree.insert(leaf),
-            #[cfg(feature = "blake3")]
             MerkleTreeAlg::Blake3(tree) => tree.insert(leaf),
-            #[cfg(feature = "keccak")]
             MerkleTreeAlg::Keccak256(tree) => tree.insert(leaf),
         }
     }
 
     pub(crate) fn proof(&self, indices: &[usize]) -> MerkleProof {
         match &self.0 {
-            #[cfg(feature = "sha2")]
             MerkleTreeAlg::Sha256(tree) => MerkleProof(MerkleProofAlg::Sha256(tree.proof(indices))),
-            #[cfg(feature = "blake3")]
             MerkleTreeAlg::Blake3(tree) => MerkleProof(MerkleProofAlg::Blake3(tree.proof(indices))),
-            #[cfg(feature = "keccak")]
             MerkleTreeAlg::Keccak256(tree) => {
                 MerkleProof(MerkleProofAlg::Keccak256(tree.proof(indices)))
             }
@@ -224,11 +209,8 @@ impl MerkleTree {
 
     pub(crate) fn root(&self) -> Hash {
         match &self.0 {
-            #[cfg(feature = "sha2")]
             MerkleTreeAlg::Sha256(tree) => Hash::Sha256(tree.root()),
-            #[cfg(feature = "blake3")]
             MerkleTreeAlg::Blake3(tree) => Hash::Blake3(tree.root()),
-            #[cfg(feature = "keccak")]
             MerkleTreeAlg::Keccak256(tree) => Hash::Keccak256(tree.root()),
         }
     }
@@ -236,11 +218,10 @@ impl MerkleTree {
 
 #[derive(Debug, Serialize, Deserialize)]
 enum MerkleTreeAlg {
-    #[cfg(feature = "sha2")]
     Sha256(MerkleTreeInner<Sha256>),
-    #[cfg(feature = "blake3")]
+
     Blake3(MerkleTreeInner<Blake3>),
-    #[cfg(feature = "keccak")]
+
     Keccak256(MerkleTreeInner<Keccak256>),
 }
 
@@ -282,7 +263,7 @@ where
     ///
     /// - if `indices` is not sorted.
     /// - if `indices` contains duplicates
-    pub fn proof(&self, indices: &[usize]) -> MerkleProofInner<H> {
+    fn proof(&self, indices: &[usize]) -> MerkleProofInner<H> {
         assert!(
             indices.windows(2).all(|w| w[0] < w[1]),
             "indices must be unique and sorted"
@@ -295,7 +276,7 @@ where
     }
 
     /// Returns the Merkle root for this MerkleTree
-    pub fn root(&self) -> H::Output {
+    fn root(&self) -> H::Output {
         self.0
             .root()
             .expect("Merkle root should be available")

@@ -13,7 +13,7 @@ use crate::{
         ServerEphemKey, ServerIdentity, ServerSignature, SignatureScheme, TlsVersion,
         TranscriptLength,
     },
-    encoding::{new_encoder, Encoder, EncodingProvider},
+    encoding::EncodingProvider,
     Transcript,
 };
 
@@ -107,6 +107,7 @@ impl ConnectionFixture {
     }
 }
 
+/// Returns an encoding provider fixture.
 pub fn encoding_provider(tx: &[u8], rx: &[u8]) -> impl EncodingProvider {
     ChaChaProvider::new(encoder_seed(), Transcript::new(tx, rx))
 }
