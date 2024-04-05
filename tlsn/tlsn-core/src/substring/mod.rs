@@ -31,8 +31,8 @@ pub enum SubstringCommitmentKind {
 /// A proof of substrings in a transcript.
 #[derive(Serialize, Deserialize)]
 pub struct SubstringProof {
-    pub(crate) encoding: Option<EncodingProof>,
-    pub(crate) hash_openings: Vec<PlaintextHashProof>,
+    pub(crate) encoding_proof: Option<EncodingProof>,
+    pub(crate) hash_proofs: Vec<PlaintextHashProof>,
 }
 
 opaque_debug::implement!(SubstringProof);
@@ -54,7 +54,7 @@ impl SubstringProof {
         );
 
         // Verify encoding proof.
-        if let Some(proof) = self.encoding {
+        if let Some(proof) = self.encoding_proof {
             let commitment = attestation_body.get_encoding_commitment().unwrap();
 
             transcript
@@ -62,7 +62,7 @@ impl SubstringProof {
         }
 
         // Verify hash openings.
-        for opening in self.hash_openings {
+        for opening in self.hash_proofs {
             let Field::PlaintextHash(commitment) =
                 attestation_body.get(opening.commitment_id()).unwrap()
             else {

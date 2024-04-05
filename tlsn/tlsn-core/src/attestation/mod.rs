@@ -31,8 +31,19 @@ pub(crate) const ATTESTATION_VERSION_LEN: usize = 4;
 pub(crate) const ATTESTATION_ID_LEN: usize = 16;
 
 /// An attestation error.
-#[derive(Debug)]
-pub struct AttestationError;
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum AttestationError {
+    /// Attestation is missing a field.
+    #[error("missing field: {0:?}")]
+    MissingField(FieldKind),
+    /// Attestation is missing a secret.
+    #[error("missing secret: {0:?}")]
+    MissingSecret(SecretKind),
+    /// Attestation is missing a commitment for a substring.
+    #[error("missing substring commitment: {0:?}")]
+    MissingSubstringCommitment(SubsequenceIdx),
+}
 
 /// An identifier for an attestation.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -80,6 +91,32 @@ pub enum Secret {
 }
 
 opaque_debug::implement!(Secret);
+
+impl Secret {
+    /// Returns the kind of the secret.
+    pub fn kind(&self) -> SecretKind {
+        match self {
+            Secret::Certificate(_) => SecretKind::Certificate,
+            Secret::ServerIdentity(_) => SecretKind::ServerIdentity,
+            Secret::EncodingTree(_) => SecretKind::EncodingTree,
+            Secret::PlaintextHash { .. } => SecretKind::PlaintextHash,
+        }
+    }
+}
+
+/// The kind of a secret.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum SecretKind {
+    /// The certificate chain and signature.
+    Certificate = 0x00,
+    /// The server's identity.
+    ServerIdentity = 0x01,
+    /// A merkle tree of transcript encodings.
+    EncodingTree = 0x02,
+    /// A hash of a range of plaintext in the transcript.
+    PlaintextHash = 0x03,
+}
 
 /// A public attestation field.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -270,7 +307,7 @@ impl AttestationFull {
                 Secret::Certificate(cert_secrets) => Some(cert_secrets),
                 _ => None,
             })
-            .unwrap();
+            .ok_or_else(|| AttestationError::MissingSecret(SecretKind::Certificate))?;
 
         let identity = self
             .secrets
@@ -279,7 +316,7 @@ impl AttestationFull {
                 Secret::ServerIdentity(identity) => Some(identity.clone()),
                 _ => None,
             })
-            .unwrap();
+            .ok_or_else(|| AttestationError::MissingSecret(SecretKind::ServerIdentity))?;
 
         Ok(ServerIdentityProof {
             cert_secrets: cert_secrets.clone(),
@@ -297,48 +334,58 @@ impl AttestationFull {
         &self,
         config: &SubstringProofConfig,
     ) -> Result<SubstringProof, AttestationError> {
-        let mut hash_openings = Vec::new();
+        let mut hash_proofs = Vec::new();
         let mut encoding_idx = Vec::new();
-
+        let encoding_tree = self.get_encoding_tree();
         for idx in config.iter() {
-            if let Some((nonce, commitment)) = self.secrets.iter().find_map(|secret| match secret {
-                Secret::PlaintextHash {
-                    seq,
-                    nonce,
-                    commitment,
-                } if seq == idx => Some((*nonce, commitment)),
-                _ => None,
-            }) {
+            // Prefer hash proofs if available, otherwise check if the subsequence
+            // is present in the encoding tree. If neither is present we return an error.
+            if let Some((nonce, commitment)) = self.get_hash_secret(idx) {
                 let (_, data) = self
                     .transcript
                     .get_subsequence(idx)
-                    .expect("subsequence is in transcript")
+                    .expect("subsequence was checked to be in transcript")
                     .into_parts();
-                hash_openings.push(PlaintextHashProof {
+
+                hash_proofs.push(PlaintextHashProof {
                     data,
-                    nonce,
+                    nonce: *nonce,
                     commitment: *commitment,
                 });
-                continue;
+            } else if encoding_tree
+                .map(|tree| tree.contains(idx))
+                .unwrap_or_default()
+            {
+                encoding_idx.push(idx);
+            } else {
+                return Err(AttestationError::MissingSubstringCommitment(idx.clone()));
             }
-
-            encoding_idx.push(idx);
         }
 
         let encoding_proof = if !encoding_idx.is_empty() {
-            let encoding_tree = self.get_encoding_tree().unwrap();
-            Some(
-                encoding_tree
-                    .proof(&self.transcript, encoding_idx.into_iter())
-                    .unwrap(),
-            )
+            let encoding_tree = encoding_tree.expect("encoding tree is present");
+            let proof = encoding_tree
+                .proof(&self.transcript, encoding_idx.into_iter())
+                .expect("subsequences were checked to be in tree");
+            Some(proof)
         } else {
             None
         };
 
         Ok(SubstringProof {
-            encoding: encoding_proof,
-            hash_openings,
+            encoding_proof,
+            hash_proofs,
+        })
+    }
+
+    fn get_hash_secret(&self, idx: &SubsequenceIdx) -> Option<(&[u8; 16], &FieldId)> {
+        self.secrets.iter().find_map(|secret| match secret {
+            Secret::PlaintextHash {
+                seq,
+                nonce,
+                commitment,
+            } if seq == idx => Some((nonce, commitment)),
+            _ => None,
         })
     }
 
