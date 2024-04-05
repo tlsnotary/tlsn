@@ -88,51 +88,31 @@ mod tests {
         // Path
         assert!(config
             .iter_encoding()
-            .find(|&idx| idx
-                == &SubsequenceIdx {
-                    direction: Direction::Sent,
-                    ranges: (4..5).into(),
-                })
+            .find(|&idx| idx == &SubsequenceIdx::new(Direction::Sent, 4..5).unwrap())
             .is_some());
 
         // Host header
         assert!(config
             .iter_encoding()
-            .find(|&idx| idx
-                == &SubsequenceIdx {
-                    direction: Direction::Sent,
-                    ranges: (16..33).into(),
-                })
+            .find(|&idx| idx == &SubsequenceIdx::new(Direction::Sent, 16..33).unwrap())
             .is_some());
 
         // foo value
         assert!(config
             .iter_encoding()
-            .find(|&idx| idx
-                == &SubsequenceIdx {
-                    direction: Direction::Sent,
-                    ranges: (137..140).into(),
-                })
+            .find(|&idx| idx == &SubsequenceIdx::new(Direction::Sent, 137..140).unwrap())
             .is_some());
 
         // Cookie header
         assert!(config
             .iter_encoding()
-            .find(|&idx| idx
-                == &SubsequenceIdx {
-                    direction: Direction::Received,
-                    ranges: (17..45).into(),
-                })
+            .find(|&idx| idx == &SubsequenceIdx::new(Direction::Received, 17..45).unwrap())
             .is_some());
 
         // Body
         assert!(config
             .iter_encoding()
-            .find(|&idx| idx
-                == &SubsequenceIdx {
-                    direction: Direction::Received,
-                    ranges: (180..194).into(),
-                })
+            .find(|&idx| idx == &SubsequenceIdx::new(Direction::Received, 180..194).unwrap())
             .is_some());
     }
 
@@ -187,99 +167,91 @@ mod tests {
         assert!(config
             .iter()
             .find(|&idx| idx
-                == &SubsequenceIdx {
-                    direction: Direction::Sent,
-                    ranges: req_0.without_data().to_range_set()
-                })
+                == &SubsequenceIdx::new(Direction::Sent, req_0.without_data().to_range_set())
+                    .unwrap())
             .is_some());
 
         assert!(config
             .iter()
             .find(|&idx| idx
-                == &SubsequenceIdx {
-                    direction: Direction::Sent,
-                    ranges: req_0.request.target.to_range_set()
-                })
+                == &SubsequenceIdx::new(Direction::Sent, req_0.request.target.to_range_set())
+                    .unwrap())
             .is_some());
 
         assert!(config
             .iter()
             .find(|&idx| idx
-                == &SubsequenceIdx {
-                    direction: Direction::Sent,
-                    ranges: req_0
+                == &SubsequenceIdx::new(
+                    Direction::Sent,
+                    req_0
                         .headers_with_name("host")
                         .next()
                         .unwrap()
                         .to_range_set()
-                })
+                )
+                .unwrap())
             .is_some());
 
         assert!(config
             .iter()
             .find(|&idx| idx
-                == &SubsequenceIdx {
-                    direction: Direction::Sent,
-                    ranges: req_1.without_data().to_range_set()
-                })
+                == &SubsequenceIdx::new(Direction::Sent, req_1.without_data().to_range_set())
+                    .unwrap())
             .is_some());
 
         assert!(config
             .iter()
             .find(|&idx| idx
-                == &SubsequenceIdx {
-                    direction: Direction::Sent,
-                    ranges: req_1_body.without_pairs().to_range_set()
-                })
+                == &SubsequenceIdx::new(Direction::Sent, req_1_body.without_pairs().to_range_set())
+                    .unwrap())
             .is_some());
 
         assert!(config
             .iter()
             .find(|&idx| idx
-                == &SubsequenceIdx {
-                    direction: Direction::Sent,
-                    ranges: req_1_body.get("bazz").unwrap().to_range_set()
-                })
+                == &SubsequenceIdx::new(
+                    Direction::Sent,
+                    req_1_body.get("bazz").unwrap().to_range_set()
+                )
+                .unwrap())
             .is_some());
 
         assert!(config
             .iter()
             .find(|&idx| idx
-                == &SubsequenceIdx {
-                    direction: Direction::Received,
-                    ranges: resp_0.without_data().to_range_set()
-                })
+                == &SubsequenceIdx::new(Direction::Received, resp_0.without_data().to_range_set())
+                    .unwrap())
             .is_some());
 
         assert!(config
             .iter()
             .find(|&idx| idx
-                == &SubsequenceIdx {
-                    direction: Direction::Received,
-                    ranges: resp_0
+                == &SubsequenceIdx::new(
+                    Direction::Received,
+                    resp_0
                         .headers_with_name("cookie")
                         .next()
                         .unwrap()
                         .to_range_set()
-                })
+                )
+                .unwrap())
             .is_some());
 
         assert!(config
             .iter()
             .find(|&idx| idx
-                == &SubsequenceIdx {
-                    direction: Direction::Received,
-                    ranges: resp_1.without_data().to_range_set()
-                })
+                == &SubsequenceIdx::new(Direction::Received, resp_1.without_data().to_range_set())
+                    .unwrap())
             .is_some());
 
         assert!(config
             .iter()
             .find(|&idx| idx
-                == &SubsequenceIdx {
-                    direction: Direction::Received,
-                    ranges: resp_1.body.as_ref().unwrap().to_range_set()
-                })
+                == &SubsequenceIdx::new(
+                    Direction::Received,
+                    resp_1.body.as_ref().unwrap().to_range_set()
+                )
+                .unwrap())
             .is_some());
     }
 }

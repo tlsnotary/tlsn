@@ -326,7 +326,7 @@ pub struct SubsequenceIdx {
 
 impl SubsequenceIdx {
     /// Creates a new subsequence index.
-    pub(crate) fn new(
+    pub fn new(
         direction: Direction,
         ranges: impl Into<RangeSet<usize>>,
     ) -> Result<Self, InvalidSubsequenceIdx> {
