@@ -35,8 +35,14 @@ use state::{Notarize, Prove};
 use std::sync::Arc;
 use tls_client::{ClientConnection, ServerName as TlsServerName};
 use tls_client_async::{bind_client, ClosedConnection, TlsConnection};
-use tls_mpc::{setup_components, LeaderCtrl, MpcTlsLeader, TlsRole};
-use tlsn_core::transcript::Transcript;
+use tls_mpc::{setup_components, LeaderCtrl, MpcTlsData, MpcTlsLeader, TlsRole};
+use tlsn_core::{
+    conn::{
+        Certificate, CertificateData, HandshakeData, HandshakeDataV1_2, KeyType, ServerEphemKey,
+        ServerSignature, SignatureScheme,
+    },
+    transcript::Transcript,
+};
 use utils_aio::mux::MuxChannel;
 
 #[cfg(feature = "formats")]
@@ -367,4 +373,35 @@ impl ProverControl {
             .await
             .map_err(ProverError::from)
     }
+}
+
+pub(crate) fn convert_mpc_tls_data(data: MpcTlsData) -> (HandshakeData, CertificateData) {
+    let hs_data = HandshakeData::V1_2(HandshakeDataV1_2 {
+        client_random: data.client_random.0,
+        server_random: data.server_random.0,
+        server_ephemeral_key: ServerEphemKey {
+            // Only supported key type right now.
+            typ: KeyType::Secp256r1,
+            key: data.server_public_key.key,
+        },
+    });
+
+    let certs = data
+        .server_cert_details
+        .cert_chain()
+        .into_iter()
+        .map(|cert| Certificate(cert.0.clone()))
+        .collect::<Vec<_>>();
+
+    let dss = data.server_kx_details.kx_sig();
+
+    let sig = ServerSignature {
+        scheme: SignatureScheme::from_u16(dss.scheme.get_u16())
+            .expect("scheme should be supported"),
+        sig: dss.sig.0.clone(),
+    };
+
+    let cert_data = CertificateData { certs, sig };
+
+    (hs_data, cert_data)
 }

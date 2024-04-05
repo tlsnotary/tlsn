@@ -35,7 +35,13 @@ use tlsn_common::{
     Role,
 };
 use tlsn_core::{
-    attestation::Attestation, conn::ServerIdentity, transcript::PartialTranscript, Signature,
+    attestation::Attestation,
+    conn::{
+        ConnectionInfo, HandshakeData, HandshakeDataV1_2, KeyType, ServerEphemKey, ServerIdentity,
+        TlsVersion, TranscriptLength,
+    },
+    transcript::PartialTranscript,
+    Signature,
 };
 use utils_aio::{duplex::Duplex, mux::MuxChannel};
 
@@ -133,13 +139,10 @@ impl Verifier<state::Initialized> {
         self,
         socket: S,
     ) -> Result<(PartialTranscript, ServerIdentity), VerifierError> {
-        // let mut verifier = self.setup(socket).await?.run().await?.start_verify();
-        // let (redacted_sent, redacted_received) = verifier.receive().await?;
-
-        // let session_info = verifier.finalize().await?;
-        // Ok((redacted_sent, redacted_received, session_info))
-
-        todo!()
+        let mut verifier = self.setup(socket).await?.run().await?.start_verify();
+        let partial_transcript = verifier.receive().await?;
+        let server_identity = verifier.finalize().await?;
+        Ok((partial_transcript, server_identity))
     }
 }
 
@@ -335,4 +338,28 @@ async fn setup_mpc_backend(
     debug!("MPC backend setup complete");
 
     Ok((mpc_tls, vm, ot_send, ot_recv, gf2, ot_fut))
+}
+
+pub(crate) fn convert_mpc_tls_data(
+    data: MpcTlsFollowerData,
+    time: u64,
+) -> (ConnectionInfo, HandshakeData) {
+    (
+        ConnectionInfo {
+            time,
+            version: TlsVersion::V1_2,
+            transcript_length: TranscriptLength {
+                sent: data.bytes_sent as u32,
+                received: data.bytes_recv as u32,
+            },
+        },
+        HandshakeData::V1_2(HandshakeDataV1_2 {
+            client_random: data.client_random,
+            server_random: data.server_random,
+            server_ephemeral_key: ServerEphemKey {
+                typ: KeyType::Secp256r1,
+                key: data.server_key.key,
+            },
+        }),
+    )
 }

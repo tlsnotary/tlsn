@@ -49,7 +49,8 @@ impl SubstringsProof {
         if let Some(proof) = self.encoding {
             let commitment = attestation_body.get_encoding_commitment().unwrap();
 
-            transcript.union(&proof.verify(&info.transcript_length, commitment).unwrap());
+            transcript
+                .union_transcript(&proof.verify(&info.transcript_length, commitment).unwrap());
         }
 
         // Verify hash openings.

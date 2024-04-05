@@ -3,7 +3,7 @@ use mpz_share_conversion::{ReceiverConfig, SenderConfig};
 use std::fmt::{Debug, Formatter, Result};
 use tls_core::{
     anchors::{OwnedTrustAnchor, RootCertStore},
-    verify::{ServerCertVerifier, WebPkiVerifier},
+    verify::WebPkiVerifier,
 };
 use tls_mpc::{MpcTlsCommonConfig, MpcTlsFollowerConfig};
 
@@ -58,7 +58,7 @@ impl VerifierConfig {
     }
 
     /// Get the certificate verifier.
-    pub fn cert_verifier(&self) -> &impl ServerCertVerifier {
+    pub fn cert_verifier(&self) -> &WebPkiVerifier {
         self.cert_verifier
             .as_ref()
             .expect("Certificate verifier should be set")

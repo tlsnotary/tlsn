@@ -6,7 +6,9 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    conn::{CertificateData, ConnectionInfo, HandshakeData, ServerIdentity, ServerIdentityProof},
+    conn::{
+        CertificateSecrets, ConnectionInfo, HandshakeData, ServerIdentity, ServerIdentityProof,
+    },
     encoding::{EncodingCommitment, EncodingTree},
     hash::{Hash, HashAlgorithm, PlaintextHash},
     merkle::MerkleTree,
@@ -53,7 +55,7 @@ impl AttestationVersion {
 pub enum Secret {
     /// The certificate chain and signature.
     #[serde(rename = "cert")]
-    Certificate(CertificateData),
+    Certificate(CertificateSecrets),
     /// The server's identity.
     #[serde(rename = "server_identity")]
     ServerIdentity(ServerIdentity),
@@ -249,11 +251,11 @@ pub struct AttestationFull {
 impl AttestationFull {
     /// Returns a server identity proof.
     pub fn identity_proof(&self) -> Result<ServerIdentityProof, AttestationError> {
-        let cert_data = self
+        let cert_secrets = self
             .secrets
             .iter()
             .find_map(|secret| match secret {
-                Secret::Certificate(cert_data) => Some(cert_data),
+                Secret::Certificate(cert_secrets) => Some(cert_secrets),
                 _ => None,
             })
             .unwrap();
@@ -268,7 +270,7 @@ impl AttestationFull {
             .unwrap();
 
         Ok(ServerIdentityProof {
-            cert_data: cert_data.clone(),
+            cert_secrets: cert_secrets.clone(),
             identity,
         })
     }

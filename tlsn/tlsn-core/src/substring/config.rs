@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use serde::{Deserialize, Serialize};
 use utils::range::{RangeSet, ToRangeSet};
 
 use crate::{
@@ -181,7 +182,7 @@ impl SubstringCommitConfigBuilder {
 }
 
 /// Configuration for a substrings proof.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubstringProofConfig {
     pub(crate) seqs: Vec<SubsequenceIdx>,
 }

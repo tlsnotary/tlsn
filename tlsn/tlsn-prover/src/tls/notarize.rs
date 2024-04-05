@@ -2,18 +2,11 @@
 
 use futures::{FutureExt, SinkExt, StreamExt};
 use rand::{thread_rng, Rng};
-use tls_mpc::MpcTlsData;
 use tlsn_common::{attestation::AttestationRequest, msg::TlsnMessage};
 use tlsn_core::{
-    attestation::{
-        Attestation, AttestationBody, AttestationBodyBuilder, AttestationFull, Field, Secret,
-    },
-    conn::{
-        Certificate, CertificateData, ConnectionInfo, HandshakeData, HandshakeDataV1_2, KeyType,
-        ServerEphemKey, ServerIdentity, ServerSignature, SignatureScheme, TlsVersion,
-    },
+    attestation::{AttestationBodyBuilder, AttestationFull, Field, Secret},
+    conn::{CertificateSecrets, ConnectionInfo, ServerIdentity, TlsVersion},
     encoding::{EncodingCommitment, EncodingTree},
-    hash::{Hash, HashAlgorithm},
     substring::SubstringCommitConfigBuilder,
     transcript::Transcript,
 };
@@ -22,7 +15,8 @@ use tracing::instrument;
 use utils_aio::{expect_msg_or_err, mux::MuxChannel};
 
 use crate::tls::{
-    error::OTShutdownError, ff::ShareConversionReveal, state::Notarize, Prover, ProverError,
+    convert_mpc_tls_data, error::OTShutdownError, ff::ShareConversionReveal, state::Notarize,
+    Prover, ProverError,
 };
 
 impl Prover<Notarize> {
@@ -52,7 +46,7 @@ impl Prover<Notarize> {
             substring_commitment_builder,
         } = self.state;
 
-        let (hs_data, certs, sig) = convert_mpc_tls_data(mpc_tls_data);
+        let (hs_data, cert_data) = convert_mpc_tls_data(mpc_tls_data);
 
         let conn_info = ConnectionInfo {
             time: start_time,
@@ -60,9 +54,8 @@ impl Prover<Notarize> {
             transcript_length: transcript.length(),
         };
 
-        let cert_data = CertificateData {
-            certs,
-            sig,
+        let cert_data = CertificateSecrets {
+            data: cert_data,
             cert_nonce: thread_rng().gen(),
             chain_nonce: thread_rng().gen(),
         };
@@ -164,7 +157,7 @@ impl Prover<Notarize> {
 
         let mut secrets = vec![
             Secret::Certificate(cert_data),
-            Secret::ServerIdentity(ServerIdentity::Dns(self.config.server_dns().to_string())),
+            Secret::ServerIdentity(ServerIdentity::new(self.config.server_dns().to_string())),
         ];
 
         if let Some(encoding_tree) = encoding_tree {
@@ -181,33 +174,4 @@ impl Prover<Notarize> {
 
         Ok(attestation_full)
     }
-}
-
-fn convert_mpc_tls_data(data: MpcTlsData) -> (HandshakeData, Vec<Certificate>, ServerSignature) {
-    let hs_data = HandshakeData::V1_2(HandshakeDataV1_2 {
-        client_random: data.client_random.0,
-        server_random: data.server_random.0,
-        server_ephemeral_key: ServerEphemKey {
-            // Only supported key type right now.
-            typ: KeyType::Secp256r1,
-            key: data.server_public_key.key,
-        },
-    });
-
-    let cert_chain = data
-        .server_cert_details
-        .cert_chain()
-        .into_iter()
-        .map(|cert| Certificate(cert.0.clone()))
-        .collect::<Vec<_>>();
-
-    let dss = data.server_kx_details.kx_sig();
-
-    let sig = ServerSignature {
-        scheme: SignatureScheme::from_u16(dss.scheme.get_u16())
-            .expect("scheme should be supported"),
-        sig: dss.sig.0.clone(),
-    };
-
-    (hs_data, cert_chain, sig)
 }

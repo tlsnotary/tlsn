@@ -16,8 +16,8 @@ use tlsn_core::{
         Attestation, AttestationBodyBuilder, AttestationHeader, Field, ATTESTATION_VERSION,
     },
     conn::{
-        ConnectionInfo, HandshakeData, HandshakeDataV1_2, KeyType, ServerEphemKey, ServerSignature,
-        TlsVersion, TranscriptLength,
+        ConnectionInfo, HandshakeData, HandshakeDataV1_2, KeyType, ServerEphemKey, TlsVersion,
+        TranscriptLength,
     },
     encoding::EncodingCommitment,
     Signature,
@@ -57,7 +57,7 @@ impl Verifier<Notarize> {
                 cert_commitment,
                 cert_chain_commitment,
                 encoding_commitment_root,
-                extra_data,
+                ..
             } = expect_msg_or_err!(notarize_channel, TlsnMessage::AttestationRequest)?;
 
             // Make sure the requested time is within the allowed time difference

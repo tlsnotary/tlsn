@@ -118,7 +118,7 @@ impl PartialTranscript {
     ///
     /// * `sent_len` - The length of the sent data.
     /// * `received_len` - The length of the received data.
-    pub(crate) fn new(sent_len: usize, received_len: usize) -> Self {
+    pub fn new(sent_len: usize, received_len: usize) -> Self {
         Self {
             sent: vec![0; sent_len],
             received: vec![0; received_len],
@@ -206,7 +206,7 @@ impl PartialTranscript {
     /// # Panics
     ///
     /// Panics if the other transcript is not the same length.
-    pub(crate) fn union(&mut self, other: &PartialTranscript) {
+    pub fn union_transcript(&mut self, other: &PartialTranscript) {
         assert_eq!(
             self.sent.len(),
             other.sent.len(),
@@ -243,7 +243,7 @@ impl PartialTranscript {
     /// # Panics
     ///
     /// Panics if the subsequence is outside the bounds of the transcript.
-    pub(crate) fn union_subsequence(&mut self, seq: &Subsequence) {
+    pub fn union_subsequence(&mut self, seq: &Subsequence) {
         match seq.idx.direction {
             Direction::Sent => {
                 seq.copy_to(&mut self.sent);

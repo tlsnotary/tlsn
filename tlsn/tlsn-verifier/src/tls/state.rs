@@ -1,10 +1,8 @@
 //! TLS Verifier state.
 
-use mpz_core::hash::Hash;
 use mpz_garble::protocol::deap::{DEAPThread, DEAPVm};
 use mpz_ot::actor::kos::{SharedReceiver, SharedSender};
 use mpz_share_conversion::{ConverterReceiver, Gf2_128};
-use tls_core::key::PublicKey;
 use tls_mpc::{MpcTlsFollower, MpcTlsFollowerData};
 use tlsn_common::{msg::TlsnMessage, mux::MuxControl};
 use utils_aio::duplex::Duplex;

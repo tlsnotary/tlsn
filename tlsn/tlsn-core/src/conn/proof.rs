@@ -1,40 +1,29 @@
 use tls_core::{
     anchors::{OwnedTrustAnchor, RootCertStore},
-    dns::ServerName,
-    msgs::handshake::DigitallySignedStruct,
-    verify::{ServerCertVerifier, WebPkiVerifier},
+    verify::WebPkiVerifier,
 };
-use web_time::{Duration, UNIX_EPOCH};
 
 use crate::{
-    conn::{CertificateData, ConnectionInfo, HandshakeData, HandshakeDataV1_2, ServerIdentity},
+    conn::{CertificateSecrets, ConnectionInfo, HandshakeData, ServerIdentity},
     hash::Hash,
 };
 
 /// TLS server identity proof.
+#[derive(Debug)]
 pub struct ServerIdentityProof {
-    pub(crate) cert_data: CertificateData,
+    pub(crate) cert_secrets: CertificateSecrets,
     pub(crate) identity: ServerIdentity,
 }
 
 /// Server identity proof verification error.
 #[derive(Debug, thiserror::Error)]
 pub enum ServerIdentityProofError {
-    /// Invalid server identity.
-    #[error("invalid server identity: {0:?}")]
-    InvalidIdentity(ServerIdentity),
-    /// Missing server certificates.
-    #[error("missing server certificates")]
-    MissingCerts,
-    /// Invalid server certificate.
-    #[error("invalid server certificate")]
-    InvalidCert,
-    /// Invalid server signature.
-    #[error("invalid server signature")]
-    InvalidSignature,
     /// Invalid commitment.
     #[error("invalid commitment")]
     InvalidCommitment,
+    /// Invalid certificate data.
+    #[error("invalid certificate data")]
+    InvalidCertData(#[from] crate::conn::CertificateVerificationError),
 }
 
 impl ServerIdentityProof {
@@ -44,13 +33,13 @@ impl ServerIdentityProof {
     /// # Arguments
     ///
     /// * `info` - The connection information.
-    /// * `handshake` - The handshake data.
+    /// * `handshake_data` - The handshake data.
     /// * `cert_commitment` - The commitment to the server's certificate and signature.
     /// * `chain_commitment` - The commitment to the certificate chain.
     pub fn verify(
         self,
         info: &ConnectionInfo,
-        handshake: &HandshakeData,
+        handshake_data: &HandshakeData,
         cert_commitment: &Hash,
         chain_commitment: &Hash,
     ) -> Result<ServerIdentity, ServerIdentityProofError> {
@@ -65,7 +54,7 @@ impl ServerIdentityProof {
         let cert_verifier = WebPkiVerifier::new(root_store, None);
         self.verify_with_verifier(
             info,
-            handshake,
+            handshake_data,
             cert_commitment,
             chain_commitment,
             &cert_verifier,
@@ -77,93 +66,41 @@ impl ServerIdentityProof {
     /// # Arguments
     ///
     /// * `info` - The connection information.
-    /// * `handshake` - The handshake data.
+    /// * `handshake_data` - The handshake data.
     /// * `cert_commitment` - The commitment to the server's certificate and signature.
     /// * `chain_commitment` - The commitment to the certificate chain.
     /// * `root_store` - The root certificate store.
     pub fn verify_with_verifier(
         self,
         info: &ConnectionInfo,
-        handshake: &HandshakeData,
+        handshake_data: &HandshakeData,
         cert_commitment: &Hash,
         chain_commitment: &Hash,
         cert_verifier: &WebPkiVerifier,
     ) -> Result<ServerIdentity, ServerIdentityProofError> {
-        #[allow(irrefutable_let_patterns)]
-        let ServerIdentity::Dns(server_name) = &self.identity
-        else {
-            unreachable!("only DNS identities are implemented")
-        };
-
-        #[allow(irrefutable_let_patterns)]
-        let HandshakeData::V1_2(HandshakeDataV1_2 {
-            client_random,
-            server_random,
-            server_ephemeral_key,
-        }) = handshake
-        else {
-            unreachable!("only TLS 1.2 is implemented")
-        };
-
-        // Verify server name
-        let server_name = ServerName::try_from(server_name.as_ref())
-            .map_err(|_| ServerIdentityProofError::InvalidIdentity(self.identity.clone()))?;
+        // Verify certificate and identity.
+        self.cert_secrets.data.verify_with_verifier(
+            info,
+            handshake_data,
+            &self.identity,
+            cert_verifier,
+        )?;
 
         // Verify commitments
         let expected_cert_commitment = self
-            .cert_data
+            .cert_secrets
             .cert_commitment(cert_commitment.algorithm())
-            .ok_or(ServerIdentityProofError::MissingCerts)?;
+            .expect("cert should be present");
         let expected_chain_commitment = self
-            .cert_data
+            .cert_secrets
             .cert_chain_commitment(cert_commitment.algorithm())
-            .ok_or(ServerIdentityProofError::MissingCerts)?;
+            .expect("certs should be present");
 
         if cert_commitment != &expected_cert_commitment
             || chain_commitment != &expected_chain_commitment
         {
             return Err(ServerIdentityProofError::InvalidCommitment);
         }
-
-        // Verify server certificate
-        let cert_chain = self
-            .cert_data
-            .certs
-            .into_iter()
-            .map(|cert| tls_core::key::Certificate(cert.0))
-            .collect::<Vec<_>>();
-
-        let (end_entity, intermediates) = cert_chain
-            .split_first()
-            .ok_or(ServerIdentityProofError::MissingCerts)?;
-
-        // Verify the end entity cert is valid for the provided server name
-        // and that it chains to at least one of the roots we trust.
-        _ = cert_verifier
-            .verify_server_cert(
-                end_entity,
-                intermediates,
-                &server_name,
-                &mut [].into_iter(),
-                &[],
-                UNIX_EPOCH + Duration::from_secs(info.time),
-            )
-            .map_err(|_| ServerIdentityProofError::InvalidCert)?;
-
-        // Verify the signature matches the certificate and key exchange parameters.
-        let mut message = Vec::new();
-        message.extend_from_slice(client_random);
-        message.extend_from_slice(server_random);
-        message.extend_from_slice(&server_ephemeral_key.key);
-
-        let dss = DigitallySignedStruct::new(
-            self.cert_data.sig.scheme.to_tls_core(),
-            self.cert_data.sig.sig.clone(),
-        );
-
-        _ = cert_verifier
-            .verify_tls12_signature(&message, end_entity, &dss)
-            .map_err(|_| ServerIdentityProofError::InvalidSignature)?;
 
         Ok(self.identity)
     }
