@@ -86,18 +86,13 @@ fn test_api() {
     let mut builder = AttestationBodyBuilder::default();
     builder
         .field(Field::ConnectionInfo(connection_info))
-        .unwrap()
         .field(Field::HandshakeData(handshake_data))
-        .unwrap()
         .field(Field::CertificateCommitment(cert_commitment))
-        .unwrap()
         .field(Field::CertificateChainCommitment(cert_chain_commiment))
-        .unwrap()
         .field(Field::EncodingCommitment(EncodingCommitment {
             root: encoding_commitment_root,
             seed: fixtures::encoder_seed().to_vec(),
-        }))
-        .unwrap();
+        }));
 
     let attestation_body = builder.build().unwrap();
 

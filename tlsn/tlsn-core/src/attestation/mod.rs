@@ -20,8 +20,9 @@ use crate::{
     Signature, Transcript,
 };
 
-pub use builder::{AttestationBodyBuilder, AttestationBodyBuilderError};
+pub use builder::AttestationBodyBuilder;
 pub use proof::BodyProof;
+pub use validation::InvalidAttestationBody;
 
 /// The current version of attestations.
 pub static ATTESTATION_VERSION: AttestationVersion = AttestationVersion(0);
@@ -168,12 +169,17 @@ impl AttestationHeader {
 /// used to verify aspects of a TLS connection, such as the server's identity, and facts
 /// about the transcript.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(try_from = "validation::AttestationBodyUnchecked")]
 pub struct AttestationBody {
     /// The fields of the attestation.
-    pub(crate) fields: HashMap<FieldId, Field>,
+    fields: HashMap<FieldId, Field>,
 }
 
 impl AttestationBody {
+    pub(crate) fn new(fields: HashMap<FieldId, Field>) -> Result<Self, InvalidAttestationBody> {
+        Self::validate(Self { fields })
+    }
+
     /// Computes the Merkle root of the attestation fields.
     pub fn root(&self, alg: HashAlgorithm) -> Hash {
         let mut tree = MerkleTree::new(alg);
@@ -339,5 +345,56 @@ impl AttestationFull {
             Secret::EncodingTree(tree) => Some(tree),
             _ => None,
         })
+    }
+}
+
+mod validation {
+    use super::*;
+
+    /// An error indicating that an attestation body is invalid.
+    #[derive(Debug, thiserror::Error)]
+    #[error("invalid attestation body: {0}")]
+    pub struct InvalidAttestationBody(String);
+
+    impl AttestationBody {
+        pub(crate) fn validate(self) -> Result<Self, InvalidAttestationBody> {
+            let mut counts = HashMap::<FieldKind, usize>::new();
+            for field in self.fields.values() {
+                let kind = field.kind();
+                let count = counts.entry(kind).or_default();
+
+                // Only allow one of each of these fields.
+                if matches!(
+                    kind,
+                    FieldKind::ConnectionInfo
+                        | FieldKind::HandshakeData
+                        | FieldKind::CertificateCommitment
+                        | FieldKind::EncodingCommitment
+                ) && *count > 0
+                {
+                    return Err(InvalidAttestationBody(format!(
+                        "only 1 {:?} field can be present",
+                        kind
+                    )));
+                }
+
+                *count += 1;
+            }
+
+            Ok(self)
+        }
+    }
+
+    #[derive(Debug, Serialize, Deserialize)]
+    pub(super) struct AttestationBodyUnchecked {
+        fields: HashMap<FieldId, Field>,
+    }
+
+    impl TryFrom<AttestationBodyUnchecked> for AttestationBody {
+        type Error = InvalidAttestationBody;
+
+        fn try_from(body: AttestationBodyUnchecked) -> Result<Self, Self::Error> {
+            AttestationBody::new(body.fields)
+        }
     }
 }

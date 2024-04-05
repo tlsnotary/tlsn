@@ -129,21 +129,15 @@ impl Prover<Notarize> {
         let mut attestation_body_builder = AttestationBodyBuilder::default();
         attestation_body_builder
             .field(Field::ConnectionInfo(conn_info))
-            .unwrap()
             .field(Field::HandshakeData(hs_data))
-            .unwrap()
             .field(Field::CertificateCommitment(cert_commitment))
-            .unwrap()
-            .field(Field::CertificateChainCommitment(cert_chain_commitment))
-            .unwrap();
+            .field(Field::CertificateChainCommitment(cert_chain_commitment));
 
         if let Some(encoding_tree) = &encoding_tree {
-            attestation_body_builder
-                .field(Field::EncodingCommitment(EncodingCommitment {
-                    root: encoding_tree.root(),
-                    seed: notary_encoder_seed.to_vec(),
-                }))
-                .unwrap();
+            attestation_body_builder.field(Field::EncodingCommitment(EncodingCommitment {
+                root: encoding_tree.root(),
+                seed: notary_encoder_seed.to_vec(),
+            }));
         }
 
         let attestation_body = attestation_body_builder.build().unwrap();

@@ -90,21 +90,15 @@ impl Verifier<Notarize> {
             let mut attestation_body_builder = AttestationBodyBuilder::default();
             attestation_body_builder
                 .field(Field::ConnectionInfo(info))
-                .unwrap()
                 .field(Field::HandshakeData(hs_data))
-                .unwrap()
                 .field(Field::CertificateCommitment(cert_commitment))
-                .unwrap()
-                .field(Field::CertificateChainCommitment(cert_chain_commitment))
-                .unwrap();
+                .field(Field::CertificateChainCommitment(cert_chain_commitment));
 
             if let Some(root) = encoding_commitment_root {
-                attestation_body_builder
-                    .field(Field::EncodingCommitment(EncodingCommitment {
-                        root,
-                        seed: encoder_seed.to_vec(),
-                    }))
-                    .unwrap();
+                attestation_body_builder.field(Field::EncodingCommitment(EncodingCommitment {
+                    root,
+                    seed: encoder_seed.to_vec(),
+                }));
             }
 
             let attestation_body = attestation_body_builder.build().unwrap();
