@@ -17,10 +17,12 @@ pub fn get_slice_ids(idx: &SliceIdx) -> impl Iterator<Item = String> + '_ {
 
 /// Returns the value ID for each byte in the provided subsequence.
 pub fn get_subsequence_ids(idx: &SubsequenceIdx) -> impl Iterator<Item = String> + '_ {
-    let id = match idx.direction {
+    let id = match idx.direction() {
         Direction::Sent => TX_TRANSCRIPT_ID,
         Direction::Received => RX_TRANSCRIPT_ID,
     };
 
-    idx.ranges.iter().map(move |idx| format!("{}/{}", id, idx))
+    idx.ranges()
+        .iter()
+        .map(move |idx| format!("{}/{}", id, idx))
 }
