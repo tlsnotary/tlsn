@@ -124,10 +124,6 @@ impl Backend<Bn256F> for Prover {
                     &mut transcript,
                 );
 
-                println!("proof gen error: {:?}", res);
-                let res2 = MockProver::run(6, &circuit, instance_columns).unwrap();
-                println!("proof gen error: {:?}", res2.verify());
-
                 if res.is_err() {
                     return Err(ProverError::ProvingBackendError);
                 }
@@ -168,15 +164,6 @@ impl Prover {
             .iter()
             .map(|f: &Bn256F| f.inner)
             .collect::<Vec<_>>();
-
-        // Arrange deltas in instance columns.
-        // let mut instance_columns = slice_to_columns(
-        //     &deltas,
-        //     self.usable_bits(),
-        //     BIT_COLUMNS * 4,
-        //     FIELD_ELEMENTS * 4,
-        //     BIT_COLUMNS,
-        // );
 
         // Arrange deltas in instance columns.
         let (_, instance_columns) = deltas_to_matrices(&deltas, self.usable_bits());
