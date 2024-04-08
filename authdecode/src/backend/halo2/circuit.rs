@@ -610,13 +610,13 @@ impl AuthDecodeCircuit {
             )?;
             sum = sum + cell.value();
         }
-        // If there were less that 4 cells to sum, assign 0 to the unused cells.
+        // If there were less that 4 cells to sum, constrain the unused cells to be 0.
         for i in cells.len()..4 {
-            region.assign_advice(
+            region.assign_advice_from_constant(
                 || "assigning zero values",
                 config.scratch_space[i],
                 row_offset,
-                || Value::known(F::zero()),
+                F::from(0),
             )?;
         }
         let assigned_sum = region.assign_advice(
