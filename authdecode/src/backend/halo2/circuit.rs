@@ -230,7 +230,7 @@ impl Circuit<F> for AuthDecodeCircuit {
         // Computes the dot product of a vector of deltas and a vector of a limb's bitsa and
         // constrains it to match the expected dot product.
         meta.create_gate("dot_product", |meta| {
-            let mut product = Expression::Constant(F::from(0));
+            let mut product = Expression::Constant(F::zero());
 
             for i in 0..BIT_COLUMNS {
                 let delta = meta.query_instance(cfg.deltas[i], Rotation::cur());
@@ -266,7 +266,7 @@ impl Circuit<F> for AuthDecodeCircuit {
             // Compose the bits of a limb into a field element, left-shifting if necessary and
             // constrain the result to match the expected value.
             meta.create_gate("compose_limb", |meta| {
-                let mut sum_total = Expression::Constant(F::from(0));
+                let mut sum_total = Expression::Constant(F::zero());
 
                 for i in 0..BIT_COLUMNS {
                     // The first bit is the highest bit. It is multiplied by the
@@ -284,7 +284,7 @@ impl Circuit<F> for AuthDecodeCircuit {
 
         // Sums 4 cells in the scratch space and constrains the sum to equal the expected value.
         meta.create_gate("sum", |meta| {
-            let mut sum = Expression::Constant(F::from(0));
+            let mut sum = Expression::Constant(F::zero());
 
             for i in 0..4 {
                 let value = meta.query_advice(cfg.scratch_space[i], Rotation::cur());
@@ -616,7 +616,7 @@ impl AuthDecodeCircuit {
                 || "assigning zero values",
                 config.scratch_space[i],
                 row_offset,
-                F::from(0),
+                F::zero(),
             )?;
         }
         let assigned_sum = region.assign_advice(
