@@ -1,6 +1,6 @@
 [package]
 name = "uid-mux"
-version = "0.1.0-alpha.4"
+version = "0.1.0-alpha.5"
 authors = ["TLSNotary Team"]
 description = "Multiplex connections asynchronously."
 keywords = ["multiplex", "channel", "futures", "async"]
