@@ -1,6 +1,5 @@
 use super::{
     circuit::{BIT_COLUMNS, FIELD_ELEMENTS, USABLE_BITS},
-    utils::deltas_to_matrices,
     Bn256F, CHUNK_SIZE,
 };
 use crate::{
@@ -49,11 +48,14 @@ impl Verifier {
             .map(|f: &Bn256F| f.inner)
             .collect::<Vec<_>>();
 
-        let (_, instance_columns) = deltas_to_matrices(&deltas, self.usable_bits());
-        let mut instance_columns = instance_columns
-            .iter()
-            .map(|inner| inner.to_vec())
-            .collect::<Vec<_>>();
+        // Arrange deltas in instance columns.
+        let mut instance_columns = slice_to_columns(
+            &deltas,
+            self.usable_bits(),
+            BIT_COLUMNS * 4,
+            FIELD_ELEMENTS * 4,
+            BIT_COLUMNS,
+        );
 
         // Add another column with public inputs.
         instance_columns.push(vec![

@@ -43,11 +43,12 @@ pub fn f_to_bits(f: &F) -> [bool; 256] {
     u8vec_to_boolvec(&bytes).try_into().unwrap()
 }
 
-/// Converts a slice of `items` into a matrix in column-major order.
+/// Converts a slice of `items` into a matrix in column-major order performing the necessary padding.
 ///
 /// Each chunk of `chunk_size` items will be padded with the default value on the left in order to
-/// bring the size of the chunk to `pad_chunk_to_size`. All empty cells of the matrix will be filled
-/// with the default value.
+/// bring the size of the chunk to `pad_chunk_to_size`. Then a matrix of `row_count` rows and
+/// `column_count` columns will be filled with items in row-major order, filling any empty cells with
+/// the default value. Finally, the matrix will be transposed.
 ///
 /// # Panics
 ///
@@ -63,9 +64,9 @@ where
     V: Default + Clone,
 {
     let total = row_count * column_count;
-    assert!(items.len() <= total && pad_chunk_to_size >= chunk_size);
+    assert!(pad_chunk_to_size >= chunk_size);
 
-    // Pad each individual chunk.
+    // Left-pad each individual chunk.
     let mut items = items
         .chunks(chunk_size)
         .flat_map(|chunk| {
@@ -75,7 +76,9 @@ where
         })
         .collect::<Vec<_>>();
 
-    // Fill empty cells.
+    assert!(items.len() <= total);
+
+    // Fill empty cells of the matrix.
     items.extend(vec![V::default(); total - items.len()]);
 
     // Create a row-major matrix.
@@ -84,7 +87,7 @@ where
         .map(|c| c.to_vec())
         .collect::<Vec<_>>();
 
-    assert!(items.len() == row_count);
+    debug_assert!(items.len() == row_count);
 
     // Transpose to column-major.
     transpose_matrix(items)
@@ -140,7 +143,10 @@ fn transpose_matrix<V>(matrix: Vec<Vec<V>>) -> Vec<Vec<V>>
 where
     V: Clone,
 {
-    (0..matrix[0].len())
+    let len = matrix[0].len();
+    matrix[1..].iter().for_each(|row| assert!(row.len() == len));
+
+    (0..len)
         .map(|i| {
             matrix
                 .iter()
@@ -148,81 +154,6 @@ where
                 .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>()
-}
-
-const CELLS_PER_ROW: usize = 64;
-const USEFUL_ROWS: usize = 56;
-
-/// Converts a vec of deltas into a matrix of rows and a matrix of
-/// columns and returns them.
-///
-/// Panics if the length of `deltas` is > CHUNK_SIZE.
-pub fn deltas_to_matrices(
-    deltas: &[F],
-    useful_bits: usize,
-) -> (
-    [[F; CELLS_PER_ROW]; USEFUL_ROWS],
-    [[F; USEFUL_ROWS]; CELLS_PER_ROW],
-) {
-    assert!(deltas.len() <= CHUNK_SIZE);
-    // Pad with zero deltas to a total count of USEFUL_ROWS * CELLS_PER_ROW deltas.
-    let mut deltas = deltas.to_vec();
-    deltas.extend(vec![F::zero(); CHUNK_SIZE - deltas.len()]);
-
-    let deltas = convert_and_pad_deltas(&deltas, useful_bits);
-    let deltas_as_rows = deltas_to_matrix_of_rows(&deltas);
-
-    let deltas_as_columns = transpose_rows(&deltas_as_rows);
-
-    (deltas_as_rows, deltas_as_columns)
-}
-
-/// To make handling inside the circuit simpler, we pad each chunk (except for
-/// the last one) of deltas with zero values on the left to the size 256.
-/// Note that the last chunk (corresponding to the 15th field element) will
-/// contain only 128 deltas, so we do NOT pad it.
-///
-/// Returns padded deltas
-fn convert_and_pad_deltas(deltas: &[F], useful_bits: usize) -> Vec<F> {
-    deltas
-        .chunks(useful_bits)
-        .enumerate()
-        .flat_map(|(i, c)| {
-            if i < 14 {
-                let mut v = vec![F::from(0); 256 - c.len()];
-                v.extend(c.to_vec());
-                v
-            } else {
-                c.to_vec()
-            }
-        })
-        .collect()
-}
-
-/// Converts a vec of padded deltas into a matrix of rows and returns it.
-fn deltas_to_matrix_of_rows(deltas: &[F]) -> [[F; CELLS_PER_ROW]; USEFUL_ROWS] {
-    deltas
-        .chunks(CELLS_PER_ROW)
-        .map(|c| c.try_into().unwrap())
-        .collect::<Vec<_>>()
-        .try_into()
-        .unwrap()
-}
-
-/// Transposes a matrix of rows of fixed size.
-fn transpose_rows(matrix: &[[F; CELLS_PER_ROW]; USEFUL_ROWS]) -> [[F; USEFUL_ROWS]; CELLS_PER_ROW] {
-    (0..CELLS_PER_ROW)
-        .map(|i| {
-            matrix
-                .iter()
-                .map(|inner| inner[i])
-                .collect::<Vec<_>>()
-                .try_into()
-                .unwrap()
-        })
-        .collect::<Vec<_>>()
-        .try_into()
-        .unwrap()
 }
 
 #[cfg(test)]
@@ -265,13 +196,34 @@ mod tests {
         // 5 6 0 0
         // 7 8 9 0
         // 0 0 0 10
+        // 0 0 0 0
         // Then it will be transposed to column-major order:
-        let expected = vec![
-            vec![0, 3, 5, 7, 0],
-            vec![0, 0, 6, 8, 0],
-            vec![1, 0, 0, 9, 0],
-            vec![2, 4, 0, 0, 10],
+        let expected1 = vec![
+            vec![0, 3, 5, 7, 0, 0],
+            vec![0, 0, 6, 8, 0, 0],
+            vec![1, 0, 0, 9, 0, 0],
+            vec![2, 4, 0, 0, 10, 0],
         ];
-        assert_eq!(slice_to_columns(&slice, 3, 5, 5, 4), expected);
+        let expected2 = vec![
+            vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            vec![0, 1, 0, 4, 0, 7, 0, 0, 0, 0],
+            vec![0, 2, 0, 5, 0, 8, 0, 0, 0, 0],
+            vec![0, 3, 0, 6, 0, 9, 0, 10, 0, 0],
+        ];
+        assert_eq!(slice_to_columns(&slice, 3, 5, 6, 4), expected1);
+        assert_eq!(slice_to_columns(&slice, 3, 8, 10, 4), expected2);
+    }
+
+    #[test]
+    fn test_transpose_matrix() {
+        let matrix = vec![
+            vec![1, 2, 3],
+            vec![4, 5, 6],
+            vec![7, 8, 9],
+            vec![10, 11, 12],
+        ];
+
+        let expected = vec![vec![1, 4, 7, 10], vec![2, 5, 8, 11], vec![3, 6, 9, 12]];
+        assert_eq!(transpose_matrix(matrix), expected);
     }
 }

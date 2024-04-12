@@ -30,7 +30,6 @@ use std::time::Instant;
 use super::{
     circuit::{AuthDecodeCircuit, BIT_COLUMNS, FIELD_ELEMENTS, USABLE_BITS, USABLE_ROWS},
     poseidon::{poseidon_1, poseidon_15},
-    utils::deltas_to_matrices,
     Bn256F, CHUNK_SIZE, PARAMS,
 };
 use crate::backend::halo2::{circuit::SALT_SIZE, utils::slice_to_columns};
@@ -45,14 +44,19 @@ pub struct Prover {
 }
 
 impl Backend<Bn256F> for Prover {
-    fn commit_plaintext(&self, mut plaintext: Vec<bool>) -> Result<(Bn256F, Bn256F), ProverError> {
+    fn commit_plaintext(&self, plaintext: Vec<bool>) -> Result<(Bn256F, Bn256F), ProverError> {
         if plaintext.len() > CHUNK_SIZE {
             // TODO proper error
             return Err(ProverError::InternalError);
         }
 
-        // Right-pad the plaintext with zeroes to the size of the chunk.
-        plaintext.extend(vec![false; CHUNK_SIZE - plaintext.len()]);
+        // Split up the plaintext bits into field elements.
+        let mut plaintext: Vec<Bn256F> = plaintext
+            .chunks(self.usable_bits())
+            .map(|bits| Bn256F::from_bytes_be(boolvec_to_u8vec(bits)))
+            .collect::<Vec<_>>();
+        // Zero-pad the total count of field elements if needed.
+        plaintext.extend(vec![Bn256F::zero(); FIELD_ELEMENTS - plaintext.len()]);
 
         // Generate random salt and add it to the plaintext.
         let mut rng = thread_rng();
@@ -60,16 +64,9 @@ impl Backend<Bn256F> for Prover {
             .take(SALT_SIZE)
             .collect::<Vec<_>>();
         let salt = Bn256F::from_bytes_be(boolvec_to_u8vec(&salt));
+        plaintext.push(salt.clone());
 
-        // Convert bits into field elements.
-        let mut field_elements: Vec<Bn256F> = plaintext
-            .chunks(USABLE_BITS)
-            .map(|bits| Bn256F::from_bytes_be(boolvec_to_u8vec(bits)))
-            .collect();
-        // Add salt/
-        field_elements.push(salt.clone());
-
-        let digest = hash_internal(&field_elements)?;
+        let digest = hash_internal(&plaintext)?;
 
         Ok((digest, salt))
     }
@@ -166,11 +163,13 @@ impl Prover {
             .collect::<Vec<_>>();
 
         // Arrange deltas in instance columns.
-        let (_, instance_columns) = deltas_to_matrices(&deltas, self.usable_bits());
-        let mut instance_columns = instance_columns
-            .iter()
-            .map(|inner| inner.to_vec())
-            .collect::<Vec<_>>();
+        let mut instance_columns = slice_to_columns(
+            &deltas,
+            self.usable_bits(),
+            BIT_COLUMNS * 4,
+            FIELD_ELEMENTS * 4,
+            BIT_COLUMNS,
+        );
 
         // Add another column with public inputs.
         instance_columns.push(vec![
@@ -179,19 +178,17 @@ impl Prover {
             input.zero_sum.inner,
         ]);
 
-        // Pad plaintext bits to the chunk size and split up into field elements.
-        let mut plaintext = input.plaintext.clone();
-        plaintext.extend(vec![false; self.chunk_size() - plaintext.len()]);
-        let plaintext: [F; FIELD_ELEMENTS] = plaintext
+        // Split up the plaintext bits into field elements.
+        let mut plaintext: Vec<F> = input
+            .plaintext
             .chunks(self.usable_bits())
             .map(bits_to_f)
-            .collect::<Vec<_>>()
-            .try_into()
-            // It is safe to `unwrap` since there always will be exactly 14 field elements.
-            .unwrap();
+            .collect::<Vec<_>>();
+        // Zero-pad the total count of field elements if needed.
+        plaintext.extend(vec![F::zero(); FIELD_ELEMENTS - plaintext.len()]);
 
         let circuit = AuthDecodeCircuit::new(
-            plaintext,
+            plaintext.try_into().unwrap(),
             input.plaintext_salt.inner,
             input.encoding_sum_salt.inner,
         );
