@@ -1,4 +1,4 @@
-//! The following code is adapted from https://github.com/tokio-rs/axum/blob/axum-v0.6.19/axum/src/extract/ws.rs
+//! The following code is adapted from https://github.com/tokio-rs/axum/blob/axum-v0.7.3/axum/src/extract/ws.rs
 //! where we swapped out tokio_tungstenite (https://docs.rs/tokio-tungstenite/latest/tokio_tungstenite/)
 //! with async_tungstenite (https://docs.rs/async-tungstenite/latest/async_tungstenite/) so that we can use
 //! ws_stream_tungstenite (https://docs.rs/ws_stream_tungstenite/latest/ws_stream_tungstenite/index.html)
@@ -66,9 +66,7 @@
 //!         }
 //!     }
 //! }
-//! # async {
-//! # axum::Server::bind(&"".parse().unwrap()).serve(app.into_make_service()).await.unwrap();
-//! # };
+//! # let _: Router = app;
 //! ```
 //!
 //! # Passing data and/or state to an `on_upgrade` callback
@@ -97,9 +95,7 @@
 //! let app = Router::new()
 //!     .route("/ws", get(handler))
 //!     .with_state(AppState { /* ... */ });
-//! # async {
-//! # axum::Server::bind(&"".parse().unwrap()).serve(app.into_make_service()).await.unwrap();
-//! # };
+//! # let _: Router = app;
 //! ```
 //!
 //! # Read and write concurrently
@@ -128,7 +124,6 @@
 //! ```
 //!
 //! [`StreamExt::split`]: https://docs.rs/futures/0.3.17/futures/stream/trait.StreamExt.html#method.split
-
 #![allow(unused)]
 
 use self::rejection::*;
@@ -141,12 +136,8 @@ use async_tungstenite::{
     },
     WebSocketStream,
 };
-use axum::{
-    body::{self, Bytes},
-    extract::FromRequestParts,
-    response::Response,
-    Error,
-};
+use axum::{body::Bytes, extract::FromRequestParts, response::Response, Error};
+use axum_core::body::Body;
 
 use futures_util::{
     sink::{Sink, SinkExt},
@@ -158,6 +149,7 @@ use http::{
     Method, StatusCode,
 };
 use hyper::upgrade::{OnUpgrade, Upgraded};
+use hyper_util::rt::TokioIo;
 use sha1::{Digest, Sha1};
 use std::{
     borrow::Cow,
@@ -198,8 +190,33 @@ impl<F> std::fmt::Debug for WebSocketUpgrade<F> {
 
 impl<F> WebSocketUpgrade<F> {
     /// Set the size of the internal message send queue.
-    pub fn max_send_queue(mut self, max: usize) -> Self {
-        self.config.max_send_queue = Some(max);
+    /// The target minimum size of the write buffer to reach before writing the data
+    /// to the underlying stream.
+    ///
+    /// The default value is 128 KiB.
+    ///
+    /// If set to `0` each message will be eagerly written to the underlying stream.
+    /// It is often more optimal to allow them to buffer a little, hence the default value.
+    ///
+    /// Note: [`flush`](SinkExt::flush) will always fully write the buffer regardless.
+    pub fn write_buffer_size(mut self, size: usize) -> Self {
+        self.config.write_buffer_size = size;
+        self
+    }
+
+    /// The max size of the write buffer in bytes. Setting this can provide backpressure
+    /// in the case the write buffer is filling up due to write errors.
+    ///
+    /// The default value is unlimited.
+    ///
+    /// Note: The write buffer only builds up past [`write_buffer_size`](Self::write_buffer_size)
+    /// when writes to the underlying stream are failing. So the **write buffer can not
+    /// fill up if you are not observing write errors even if not flushing**.
+    ///
+    /// Note: Should always be at least [`write_buffer_size + 1 message`](Self::write_buffer_size)
+    /// and probably a little more depending on error handling strategy.
+    pub fn max_write_buffer_size(mut self, max: usize) -> Self {
+        self.config.max_write_buffer_size = max;
         self
     }
 
@@ -249,9 +266,7 @@ impl<F> WebSocketUpgrade<F> {
     ///             // ...
     ///         })
     /// }
-    /// # async {
-    /// # axum::Server::bind(&"".parse().unwrap()).serve(app.into_make_service()).await.unwrap();
-    /// # };
+    /// # let _: Router = app;
     /// ```
     pub fn protocols<I>(mut self, protocols: I) -> Self
     where
@@ -344,6 +359,8 @@ impl<F> WebSocketUpgrade<F> {
                     return;
                 }
             };
+            let upgraded = TokioIo::new(upgraded);
+
             let socket = WebSocketStream::from_raw_socket(
                 // NOTARY_MODIFICATION: Need to use TokioAdapter to wrap Upgraded which doesn't implement futures crate's AsyncRead and AsyncWrite
                 TokioAdapter::new(upgraded),
@@ -376,7 +393,7 @@ impl<F> WebSocketUpgrade<F> {
             builder = builder.header(header::SEC_WEBSOCKET_PROTOCOL, protocol);
         }
 
-        builder.body(body::boxed(body::Empty::new())).unwrap()
+        builder.body(Body::empty()).unwrap()
     }
 }
 
@@ -484,13 +501,13 @@ fn header_contains(headers: &HeaderMap, key: HeaderName, value: &'static str) ->
 /// See [the module level documentation](self) for more details.
 #[derive(Debug)]
 pub struct WebSocket {
-    inner: WebSocketStream<TokioAdapter<Upgraded>>,
+    inner: WebSocketStream<TokioAdapter<TokioIo<Upgraded>>>,
     protocol: Option<HeaderValue>,
 }
 
 impl WebSocket {
     /// Consume `self` and get the inner [`async_tungstenite::WebSocketStream`].
-    pub fn into_inner(self) -> WebSocketStream<TokioAdapter<Upgraded>> {
+    pub fn into_inner(self) -> WebSocketStream<TokioAdapter<TokioIo<Upgraded>>> {
         self.inner
     }
 
