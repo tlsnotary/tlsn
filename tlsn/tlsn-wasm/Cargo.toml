@@ -6,6 +6,10 @@ edition = "2021"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[features]
+default = []
+single-threaded = ["tlsn-utils-aio/single-threaded"]
+
 [package.metadata.wasm-pack.profile.debug]
 debug = false
 
@@ -15,7 +19,7 @@ wasm-opt = true
 
 [dependencies]
 tlsn-core.workspace = true
-tlsn-utils-aio = { workspace = true, features = ["single-threaded"] }
+tlsn-utils-aio.workspace = true
 tlsn-prover = { workspace = true, features = ["tracing"] }
 tlsn-tls-client-async.workspace = true
 tlsn-verifier = { workspace = true, features = ["tracing"] }
