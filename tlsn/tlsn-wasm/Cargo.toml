@@ -46,8 +46,8 @@ web-sys = { version = "0.3", features = [
   'Response'
 ] }
 js-sys = "0.3.64"
-chrono = "0.4"
 
+chrono = "0.4"
 getrandom = { version = "0.2", features = ["js"] }
 web-time = "1.0"
 time = {version = "0.3.34", features = ["wasm-bindgen"]}

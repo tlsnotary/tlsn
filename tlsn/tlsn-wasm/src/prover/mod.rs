@@ -68,7 +68,6 @@ impl JsProver {
         let (_, verifier_conn) = WsMeta::connect(verifier_url, None).await?;
 
         info!("Connected to verifier");
-        web_sys::console::log_1(&"Connected to verifier".into());
 
         let prover = prover.setup(verifier_conn.into_io()).await?;
 
@@ -89,6 +88,8 @@ impl JsProver {
         let (tls_conn, prover_fut) = prover.connect(server_conn.into_io()).await?;
         let prover_ctrl = prover_fut.control();
 
+        info!("Sending request");
+
         let (response, prover) = futures::try_join!(
             async move {
                 prover_ctrl.defer_decryption().await?;
@@ -96,6 +97,8 @@ impl JsProver {
             },
             prover_fut.map_err(Into::into),
         )?;
+
+        info!("Response received");
 
         self.state = State::Closed(prover);
 
@@ -106,6 +109,8 @@ impl JsProver {
     #[wasm_bindgen]
     pub async fn reveal(&mut self, redact: JsValue) -> Result<()> {
         let mut prover = self.state.take().try_into_closed()?.start_prove();
+
+        info!("Revealing data");
 
         let redact: Redact = from_value(redact)?;
 
@@ -120,8 +125,11 @@ impl JsProver {
 
         prover.reveal(reveal_sent, Direction::Sent)?;
         prover.reveal(reveal_received, Direction::Received)?;
+        prover.prove().await?;
 
         prover.finalize().await?;
+
+        info!("Finalized");
 
         self.state = State::Complete;
 

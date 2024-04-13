@@ -10,7 +10,7 @@ mod verify;
 pub use config::{VerifierConfig, VerifierConfigBuilder, VerifierConfigBuilderError};
 pub use error::VerifierError;
 
-use std::time::{SystemTime, UNIX_EPOCH};
+use web_time::{SystemTime, UNIX_EPOCH};
 
 use crate::tls::future::OTFuture;
 use future::MuxFuture;

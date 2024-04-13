@@ -33,4 +33,5 @@ rand.workspace = true
 signature.workspace = true
 opaque-debug.workspace = true
 
+web-time.workspace = true
 tracing = { workspace = true, optional = true }
