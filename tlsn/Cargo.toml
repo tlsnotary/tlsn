@@ -13,6 +13,9 @@ members = [
 ]
 resolver = "2"
 
+[patch.'https://github.com/tlsnotary/tlsn-utils']
+tlsn-utils-aio = { git = "https://github.com//tlsnotary/tlsn-utils", branch = "feature/single-threaded" }
+
 [workspace.dependencies]
 tlsn-core = { path = "tlsn-core" }
 tlsn-common = { path = "tlsn-common" }
