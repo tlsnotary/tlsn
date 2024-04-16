@@ -37,7 +37,7 @@ use super::{
 pub const FIELD_ELEMENTS: usize = 14;
 
 /// How many LSBs of a field element to use to pack the plaintext into.
-pub const USABLE_BITS: usize = 253;
+pub const USABLE_BITS: usize = 252;
 
 /// How many advice columns are there to put the plaintext bits into.
 ///
@@ -77,14 +77,13 @@ pub struct CircuitConfig {
     advice_from_instance: Column<Advice>,
 
     // SELECTORS.
-    // For a description of what constraint is activated when a selector is enabled, consult the
-    // description of the gate which uses the selector. e.g. for "selector_dot_product" consult the
+    // A selector activates a gate with a similar name, e.g. "selector_dot_product" activates the
     // gate "dot_product" etc.
     selector_dot_product: Selector,
     selector_binary_check: Selector,
     selector_compose_limb: [Selector; 4],
     selector_sum: Selector,
-    selector_three_bits_zero: Selector,
+    selector_four_bits_zero: Selector,
 
     /// Config for rate-15 Poseidon.
     poseidon_config_rate15: Pow5Config<F, 16, 15>,
@@ -174,7 +173,7 @@ impl Circuit<F> for AuthDecodeCircuit {
             .try_into()
             .unwrap();
         let selector_sum = meta.selector();
-        let selector_three_bits_zero = meta.selector();
+        let selector_four_bits_zero = meta.selector();
 
         // POSEIDON
 
@@ -199,7 +198,7 @@ impl Circuit<F> for AuthDecodeCircuit {
             selector_compose_limb: selector_compose,
             selector_binary_check,
             selector_sum,
-            selector_three_bits_zero,
+            selector_four_bits_zero,
 
             poseidon_config_rate15,
             poseidon_config_rate2,
@@ -297,15 +296,15 @@ impl Circuit<F> for AuthDecodeCircuit {
             vec![sel * (sum - expected)]
         });
 
-        // Constrains 3 most significant bits of a limb to be zero.
-        meta.create_gate("three_bits_zero", |meta| {
-            let expressions: [Expression<F>; 3] = (0..3)
+        // Constrains 4 most significant bits of a limb to be zero.
+        meta.create_gate("four_bits_zero", |meta| {
+            let expressions: [Expression<F>; 4] = (0..4)
                 .map(|i| meta.query_advice(cfg.bits[i], Rotation::cur()))
                 .collect::<Vec<_>>()
                 .try_into()
                 .unwrap();
 
-            let sel = meta.query_selector(cfg.selector_three_bits_zero);
+            let sel = meta.query_selector(cfg.selector_four_bits_zero);
 
             // Constrain all expressions to be equal to 0.
             Constraints::with_selector(sel, expressions)
@@ -398,7 +397,7 @@ impl Circuit<F> for AuthDecodeCircuit {
 
                         if limb_idx == 0 {
                             // Constrain the high limb's 3 MSBs to be zero.
-                            cfg.selector_three_bits_zero
+                            cfg.selector_four_bits_zero
                                 .enable(&mut region, j * 4 + limb_idx)?;
                         }
 
@@ -629,39 +628,5 @@ impl AuthDecodeCircuit {
         config.selector_sum.enable(region, row_offset)?;
 
         Ok(assigned_sum)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use halo2_proofs::dev::MockProver;
-    use rand::Rng;
-    use rand_chacha::ChaCha12Rng;
-    use rand_core::SeedableRng;
-    /// The size of plaintext in bytes;
-    const PLAINTEXT_SIZE: usize = 1000;
-
-    fn test() {
-        let mut rng = ChaCha12Rng::from_seed([0; 32]);
-
-        // Generate random plaintext.
-        let plaintext: Vec<bool> = core::iter::repeat_with(|| rng.gen::<bool>())
-            .take(PLAINTEXT_SIZE * 8)
-            .collect();
-
-        // Generate Verifier's full encodings for each bit of the plaintext.
-        let mut random = [0u8; PLAINTEXT_SIZE * 8 * 16 * 2];
-        for elem in random.iter_mut() {
-            *elem = rng.gen();
-        }
-        let full_encodings = &random
-            .chunks(32)
-            .map(|pair| [pair[0..16].to_vec(), pair[16..32].to_vec()])
-            .collect::<Vec<_>>();
-
-        // Prover's active encodings are based on their choice bits.
-        //let active_encodings = choose(full_encodings, &plaintext);
-
-        //MockProver::run
     }
 }

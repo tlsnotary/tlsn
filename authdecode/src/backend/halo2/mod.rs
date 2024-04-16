@@ -6,10 +6,7 @@ use lazy_static::lazy_static;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::ops::{Add, Sub};
 
-use crate::{
-    backend::{halo2::utils::bytes_be_to_f, traits::Field},
-    utils::bits_to_biguint,
-};
+use crate::backend::{halo2::utils::bytes_be_to_f, traits::Field};
 
 mod circuit;
 pub mod onetimesetup;
@@ -22,8 +19,8 @@ lazy_static! {
     static ref PARAMS: ParamsKZG<Bn256> = onetimesetup::params();
 }
 
-/// The size of the chunk of plaintext in bits.
-const CHUNK_SIZE: usize = circuit::FIELD_ELEMENTS * circuit::USABLE_BITS;
+/// The bytesize of one chunk of plaintext.
+const CHUNK_SIZE: usize = (circuit::FIELD_ELEMENTS * circuit::USABLE_BITS) / 8;
 
 /// A field element of the Bn256 curve.
 #[derive(Clone, Serialize, Deserialize)]

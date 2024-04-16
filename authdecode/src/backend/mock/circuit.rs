@@ -15,28 +15,26 @@ pub fn is_circuit_satisfied(
     encoding_sum_hash: MockField,
     zero_sum: MockField,
     deltas: Vec<MockField>,
-    mut plaintext: Vec<bool>,
+    mut plaintext: Vec<u8>,
     plaintext_salt: MockField,
     encoding_sum_salt: MockField,
 ) -> bool {
-    assert!(plaintext.len() == deltas.len());
+    assert!(plaintext.len() * 8 == deltas.len());
     // Compute dot product of plaintext and deltas.
-    let dot_product =
-        plaintext
-            .clone()
-            .into_iter()
-            .zip(deltas)
-            .fold(MockField::zero(), |acc, (bit, delta)| {
-                let product = if bit { delta } else { MockField::zero() };
-                acc + product
-            });
+    let dot_product = u8vec_to_boolvec(&plaintext).into_iter().zip(deltas).fold(
+        MockField::zero(),
+        |acc, (bit, delta)| {
+            let product = if bit { delta } else { MockField::zero() };
+            acc + product
+        },
+    );
 
     // Compute encoding sum, add salt, hash it and compare to the expected hash.
     let encoding_sum = zero_sum + dot_product;
-    let mut enc_sum_bits = encoding_sum.into_bits_be();
-    enc_sum_bits.extend(encoding_sum_salt.into_bits_be());
+    let mut enc_sum = encoding_sum.to_bytes_be();
+    enc_sum.extend(encoding_sum_salt.to_bytes_be());
 
-    let hash_bytes = hash(&boolvec_to_u8vec(&enc_sum_bits));
+    let hash_bytes = hash(&enc_sum);
     let digest = MockField::from_bytes_be(hash_bytes.to_vec());
 
     if digest != encoding_sum_hash {
@@ -44,9 +42,9 @@ pub fn is_circuit_satisfied(
     }
 
     // Add salt to plaintext, hash it and compare to the expected hash.
-    plaintext.extend(plaintext_salt.into_bits_be());
+    plaintext.extend(plaintext_salt.to_bytes_be());
 
-    let hash_bytes = hash(&boolvec_to_u8vec(&plaintext));
+    let hash_bytes = hash(&plaintext);
     let digest = MockField::from_bytes_be(hash_bytes.to_vec());
 
     if digest != plaintext_hash {

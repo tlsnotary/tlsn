@@ -83,7 +83,7 @@ mod tests {
     };
 
     /// The size of plaintext in bytes;
-    const PLAINTEXT_SIZE: usize = 100;
+    const PLAINTEXT_SIZE: usize = 1000;
 
     #[test]
     // Tests the protocol with a mock backend.
@@ -136,7 +136,7 @@ mod tests {
 
         // Prover creates two commitments: to the front and to the tail portions of the plaintext.
         // Some middle bits of the plaintext will not be committed to.
-        let range1 = 0..(PLAINTEXT_SIZE * 8) / 2 - 10;
+        let range1 = 0..(PLAINTEXT_SIZE * 8) / 2 - 16;
         let range2 = (PLAINTEXT_SIZE * 8) / 2..PLAINTEXT_SIZE * 8;
 
         let bit_ids1 = MockBitIds::new(Direction::Sent, vec![range1.clone()]);
@@ -228,7 +228,7 @@ mod tests {
 
             fn commit_plaintext(
                 &self,
-                plaintext: Vec<bool>,
+                plaintext: Vec<u8>,
             ) -> Result<(F, F), crate::prover::error::ProverError> {
                 self.prover.commit_plaintext(plaintext)
             }

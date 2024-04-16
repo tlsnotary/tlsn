@@ -20,6 +20,8 @@ blake3 = "1.3.3"
 serde = "1"
 tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "8d8ffe1" }
 lazy_static = "1.4"
+itybity = "0.2"
+
 
 halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2", tag = "v0.3.0", default-features = false}
 halo2_poseidon = { git = "https://github.com/privacy-scaling-explorations/poseidon-gadget", rev="764a682"}

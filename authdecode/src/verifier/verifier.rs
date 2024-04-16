@@ -66,7 +66,7 @@ where
         VerifierError,
     > {
         let mut commitments: Vec<UnverifiedCommitment<T, F>> = commitments
-            .into_vec_commitment(self.backend.chunk_size())
+            .into_vec_commitment(self.backend.chunk_size() * 8)
             .map_err(|e| VerifierError::StdIoError(e.to_string()))?;
 
         // Store full encodings with each commitment details.

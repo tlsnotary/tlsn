@@ -4,7 +4,7 @@ use crate::{
         traits::{Field, ProverBackend},
     },
     prover::error::ProverError,
-    utils::{bits_to_bigint, boolvec_to_u8vec, u8vec_to_boolvec, u8vec_to_boolvec_no_pad},
+    utils::{boolvec_to_u8vec, u8vec_to_boolvec, u8vec_to_boolvec_no_pad},
     Proof, ProofInput,
 };
 use num::{bigint::Sign, BigInt, BigUint};
@@ -25,7 +25,7 @@ impl MockProverBackend {
 impl ProverBackend<MockField> for MockProverBackend {
     fn commit_plaintext(
         &self,
-        mut plaintext: Vec<bool>,
+        mut plaintext: Vec<u8>,
     ) -> Result<(MockField, MockField), ProverError> {
         if plaintext.len() > self.chunk_size() {
             // TODO proper error
@@ -35,10 +35,9 @@ impl ProverBackend<MockField> for MockProverBackend {
         let mut rng = thread_rng();
         let salt: u128 = rng.gen();
         let salt_bytes = salt.to_be_bytes();
-        let salt = u8vec_to_boolvec_no_pad(&salt_bytes);
-        plaintext.extend(salt.clone());
+        plaintext.extend(salt_bytes);
 
-        let hash_bytes = &hash(&boolvec_to_u8vec(&plaintext));
+        let hash_bytes = &hash(&plaintext);
 
         Ok((
             MockField::from_bytes_be(hash_bytes.to_vec()),
@@ -54,12 +53,11 @@ impl ProverBackend<MockField> for MockProverBackend {
         let mut rng = thread_rng();
         let salt: u128 = rng.gen();
         let salt_bytes = salt.to_be_bytes();
-        let salt = u8vec_to_boolvec_no_pad(&salt_bytes);
 
-        let mut enc_sum_bits = encoding_sum.into_bits_be();
-        enc_sum_bits.extend(salt.clone());
+        let mut enc_sum = encoding_sum.to_bytes_be();
+        enc_sum.extend(salt_bytes);
 
-        let hash_bytes = hash(&boolvec_to_u8vec(&enc_sum_bits));
+        let hash_bytes = hash(&enc_sum);
 
         Ok((
             MockField::from_bytes_be(hash_bytes.to_vec()),

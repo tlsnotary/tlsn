@@ -12,8 +12,8 @@ pub use prover::MockProverBackend;
 use std::ops::{Add, Sub};
 pub use verifier::MockVerifierBackend;
 
-/// Chunk size in bits.
-pub const CHUNK_SIZE: usize = 300 * 8;
+/// Chunk size in bytes.
+pub const CHUNK_SIZE: usize = 300;
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Debug)]
 pub struct MockField {
@@ -24,9 +24,9 @@ pub struct MockField {
     inner: BigInt,
 }
 impl MockField {
-    fn into_bits_be(&self) -> Vec<bool> {
+    fn to_bytes_be(&self) -> Vec<u8> {
         let (_, bytes) = self.inner.to_bytes_be();
-        utils::u8vec_to_boolvec_no_pad(&bytes)
+        bytes
     }
 }
 
@@ -70,7 +70,7 @@ impl Field for MockField {
 /// constraints. Here the private inputs are simply revealed without zk.
 #[derive(Serialize, Deserialize)]
 pub struct MockProof {
-    plaintext: Vec<bool>,
+    plaintext: Vec<u8>,
     plaintext_salt: MockField,
     encoding_sum_salt: MockField,
 }
@@ -78,7 +78,7 @@ pub struct MockProof {
 impl MockProof {
     /// Creates a new mock proof.
     pub fn new(
-        plaintext: Vec<bool>,
+        plaintext: Vec<u8>,
         plaintext_salt: MockField,
         encoding_sum_salt: MockField,
     ) -> Self {

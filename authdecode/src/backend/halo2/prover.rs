@@ -4,7 +4,7 @@ use crate::{
         traits::{Field, ProverBackend as Backend},
     },
     prover::error::ProverError,
-    utils::{bits_to_biguint, boolvec_to_u8vec, u8vec_to_boolvec},
+    utils::{boolvec_to_u8vec, u8vec_to_boolvec},
     Proof, ProofInput,
 };
 
@@ -44,14 +44,14 @@ pub struct Prover {
 }
 
 impl Backend<Bn256F> for Prover {
-    fn commit_plaintext(&self, plaintext: Vec<bool>) -> Result<(Bn256F, Bn256F), ProverError> {
+    fn commit_plaintext(&self, plaintext: Vec<u8>) -> Result<(Bn256F, Bn256F), ProverError> {
         if plaintext.len() > CHUNK_SIZE {
             // TODO proper error
             return Err(ProverError::InternalError);
         }
 
         // Split up the plaintext bits into field elements.
-        let mut plaintext: Vec<Bn256F> = plaintext
+        let mut plaintext: Vec<Bn256F> = u8vec_to_boolvec(&plaintext)
             .chunks(self.usable_bits())
             .map(|bits| Bn256F::from_bytes_be(boolvec_to_u8vec(bits)))
             .collect::<Vec<_>>();
@@ -178,9 +178,8 @@ impl Prover {
             input.zero_sum.inner,
         ]);
 
-        // Split up the plaintext bits into field elements.
-        let mut plaintext: Vec<F> = input
-            .plaintext
+        // Split up the plaintext into field elements.
+        let mut plaintext: Vec<F> = u8vec_to_boolvec(&input.plaintext)
             .chunks(self.usable_bits())
             .map(bits_to_f)
             .collect::<Vec<_>>();
@@ -367,16 +366,16 @@ mod tests {
     }
 
     #[rstest]
-    // Expect an unsatisfied constraint in the "three_bits_zero" gate when not all of the 3 MSBs of a
+    // Expect an unsatisfied constraint in the "four_bits_zero" gate when not all of the 4 MSBs of a
     // field element are zeroes.
-    fn test_three_bits_zero_fail(mut proof_input: (Vec<Vec<F>>, AuthDecodeCircuit), k: u32) {
+    fn test_four_bits_zero_fail(mut proof_input: (Vec<Vec<F>>, AuthDecodeCircuit), k: u32) {
         // Set the MSB to 1.
         proof_input.1.plaintext[0][0] = F::one();
 
         let prover = MockProver::run(k, &proof_input.1, proof_input.0).unwrap();
 
         // We may need to change gate index here if we modify the circuit.
-        let expected_failed_constraint: Constraint = ((13, "three_bits_zero").into(), 0, "").into();
+        let expected_failed_constraint: Constraint = ((13, "four_bits_zero").into(), 0, "").into();
 
         match &prover.verify().err().unwrap()[0] {
             VerifyFailure::ConstraintNotSatisfied {

@@ -6,6 +6,7 @@ use crate::{
         state::{Converted, Original},
         ActiveEncodings, Encoding,
     },
+    utils::boolvec_to_u8vec,
 };
 use num::{BigInt, BigUint, FromPrimitive};
 
@@ -33,7 +34,7 @@ where
     {
         // Chunk up the data and commit to each chunk individually.
         let chunk_commitments = self
-            .into_chunks(backend.chunk_size())
+            .into_chunks(backend.chunk_size() * 8)
             .map(|data_chunk| data_chunk.commit(backend))
             .collect::<Result<Vec<ChunkCommitmentDetails<T, F>>, ProverError>>()?;
 
@@ -109,7 +110,8 @@ where
         let encodings = self.encodings.convert();
         let sum = encodings.compute_sum::<F>();
 
-        let (plaintext_hash, plaintext_salt) = backend.commit_plaintext(encodings.plaintext())?;
+        let (plaintext_hash, plaintext_salt) =
+            backend.commit_plaintext(boolvec_to_u8vec(&encodings.plaintext()))?;
 
         let (encoding_sum_hash, encoding_sum_salt) = backend.commit_encoding_sum(sum.clone())?;
 

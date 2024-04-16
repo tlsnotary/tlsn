@@ -3,6 +3,7 @@ use crate::{
     bitid::IdSet,
     msgs::{Commit, Proofs, VerificationData},
     prover::{error::ProverError, state},
+    utils::boolvec_to_u8vec,
     AsAny,
 };
 
@@ -25,7 +26,7 @@ pub struct ProofInput<F> {
     pub deltas: Vec<F>,
 
     // Private
-    pub plaintext: Vec<bool>,
+    pub plaintext: Vec<u8>,
     pub plaintext_salt: F,
     pub encoding_sum_salt: F,
 }
@@ -142,7 +143,7 @@ where
                             encoding_sum_hash: com.encoding_sum_hash.clone(),
 
                             zero_sum: encodings.compute_zero_sum(),
-                            plaintext: com.encodings.plaintext(),
+                            plaintext: boolvec_to_u8vec(&com.encodings.plaintext()),
                             plaintext_salt: com.plaintext_salt.clone(),
                             encoding_sum_salt: com.encoding_sum_salt.clone(),
                         }

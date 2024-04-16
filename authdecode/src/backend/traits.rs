@@ -20,7 +20,7 @@ where
     /// Creates a commitment to the plaintext, padding the plaintext if necessary.
     ///
     /// Returns the commitment and the salt used to create the commitment.
-    fn commit_plaintext(&self, plaintext: Vec<bool>) -> Result<(F, F), ProverError>;
+    fn commit_plaintext(&self, plaintext: Vec<u8>) -> Result<(F, F), ProverError>;
 
     /// Creates a commitment to the encoding sum.
     ///
@@ -30,9 +30,7 @@ where
     /// Given the `input` to the AuthDecode zk circuit, generates and returns `Proof`(s)
     fn prove(&self, input: Vec<ProofInput<F>>) -> Result<Vec<Proof>, ProverError>;
 
-    /// How many bits of [Plaintext] can fit into one [Chunk]. This does not
-    /// include the [Salt] of the hash - which takes up the remaining least bits
-    /// of the last field element of each chunk.
+    /// The bytesize of one chunk of plaintext. Does not include the salt.
     fn chunk_size(&self) -> usize;
 
     // Testing only. Used to downcast to a concrete type.
@@ -53,9 +51,7 @@ where
         proofs: Vec<Proof>,
     ) -> Result<(), VerifierError>;
 
-    /// How many bits of [Plaintext] can fit into one [Chunk]. This does not
-    /// include the [Salt] of the hash - which takes up the remaining least bits
-    /// of the last field element of each chunk.
+    /// The bytesize of one chunk of plaintext. Does not include the salt.
     fn chunk_size(&self) -> usize;
 }
 
