@@ -1,8 +1,8 @@
 use crate::{
     backend::traits::VerifierBackend as Backend,
-    msgs::{Commit, Proofs, VerificationData},
-    verifier::{commitment::UnverifiedCommitment, error::VerifierError, state, EncodingProvider},
-    InitData,
+    encodings::EncodingProvider,
+    msgs::{Commit, Proofs},
+    verifier::{commitment::UnverifiedCommitment, error::VerifierError, state},
 };
 use std::marker::PhantomData;
 
@@ -24,7 +24,12 @@ where
 }
 
 /// Verifier in the AuthDecode protocol.
-pub struct Verifier<T, S: state::VerifierState, F> {
+pub struct Verifier<T, S, F>
+where
+    T: IdSet,
+    F: Field,
+    S: state::VerifierState,
+{
     /// Backend for zk proof verification.
     backend: Box<dyn Backend<F>>,
     /// State of the verifier.
@@ -46,43 +51,31 @@ where
         }
     }
 
-    /// Receives the commitments and returns the data needed by the prover to check the authenticity
-    /// of the encodings.
+    /// Receives the commitments and stores them.
     ///
     /// # Arguments
     /// * `commitments` - A prover's message containing commitments.
     /// * `encoding_provider` - A provider of full encodings.
-    /// * `init_data` - Data to pass to the prover for initialization of the encoding verifier.
     pub fn receive_commitments(
         self,
         commitments: Commit<T, F>,
         encoding_provider: impl EncodingProvider<T>,
-        init_data: InitData,
-    ) -> Result<
-        (
-            Verifier<T, state::CommitmentReceived<T, F>, F>,
-            VerificationData,
-        ),
-        VerifierError,
-    > {
+    ) -> Result<Verifier<T, state::CommitmentReceived<T, F>, F>, VerifierError> {
         let mut commitments: Vec<UnverifiedCommitment<T, F>> = commitments
-            .into_vec_commitment(self.backend.chunk_size() * 8)
+            .into_vec_commitment(self.backend.chunk_size())
             .map_err(|e| VerifierError::StdIoError(e.to_string()))?;
 
         // Store full encodings with each commitment details.
         for com in &mut commitments {
-            let full_encodings = encoding_provider.get_by_ids(com.ids())?.convert();
+            let full_encodings = encoding_provider.get_by_ids(&com.ids())?.convert();
             com.set_full_encodings(full_encodings);
         }
 
-        Ok((
-            Verifier {
-                backend: self.backend,
-                state: state::CommitmentReceived { commitments },
-                phantom: PhantomData,
-            },
-            VerificationData { init_data },
-        ))
+        Ok(Verifier {
+            backend: self.backend,
+            state: state::CommitmentReceived { commitments },
+            phantom: PhantomData,
+        })
     }
 }
 

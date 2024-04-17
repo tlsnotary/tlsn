@@ -1,10 +1,9 @@
 use crate::{
     bitid::{Id, IdSet},
-    encodings::{ActiveEncodings, Encoding, FullEncodings},
-    prover::{EncodingVerifier, EncodingVerifierError},
+    encodings::{
+        ActiveEncodings, Encoding, EncodingProvider, EncodingProviderError, FullEncodings,
+    },
     utils::{boolvec_to_u8vec, u8vec_to_boolvec, u8vec_to_boolvec_no_pad},
-    verifier::{EncodingProvider, EncodingProviderError},
-    InitData,
 };
 
 use serde::{Deserialize, Serialize};
@@ -47,7 +46,7 @@ impl MockBitIds {
             [true]
         };
 
-        assert!(offset < 1 << 63);
+        assert!(offset < (1 << 63));
 
         let encoded_offset = u8vec_to_boolvec_no_pad(&offset.to_be_bytes());
 
@@ -76,6 +75,7 @@ impl MockBitIds {
         (direction, offset)
     }
 }
+
 impl IdSet for MockBitIds {
     fn drain_front(&mut self, mut count: usize) -> Self {
         let mut drained_ranges: Vec<Range<usize>> = Vec::new();
@@ -173,68 +173,16 @@ impl IdSet for MockBitIds {
     }
 }
 
-/// A mock encoding verifier.
-pub struct MockEncodingVerifier<T>
-where
-    T: IdSet,
-{
-    full_encodings: HashMap<Id, [Encoding; 2]>,
-    phantom: PhantomData<T>,
-}
-impl<T> MockEncodingVerifier<T>
-where
-    T: IdSet,
-{
-    pub fn new(full_encodings: FullEncodings<T>) -> Self {
-        let mut hashmap = HashMap::new();
-        for (full_enc, id) in full_encodings
-            .encodings
-            .iter()
-            .zip(full_encodings.ids().ids())
-        {
-            if hashmap.insert(id.clone(), full_enc.clone()).is_some() {
-                panic!("duplicate ids are not allowed");
-            }
-        }
-        Self {
-            full_encodings: hashmap,
-            phantom: PhantomData,
-        }
-    }
-}
-impl<T> EncodingVerifier<T> for MockEncodingVerifier<T>
-where
-    T: IdSet,
-{
-    fn init(&self, _init_data: InitData) -> Result<(), EncodingVerifierError> {
-        Ok(())
-    }
-
-    fn verify(
-        &self,
-        encodings: ActiveEncodings<T>,
-    ) -> Result<FullEncodings<T>, EncodingVerifierError> {
-        // Simply return the full encodings corresponding to the active encoding without
-        // performing any verification.
-        let full_enc = encodings
-            .ids()
-            .ids()
-            .iter()
-            .map(|id| self.full_encodings.get(id).unwrap().clone())
-            .collect::<Vec<_>>();
-        Ok(FullEncodings::new(full_enc, encodings.ids))
-    }
-}
-
 /// A mock encoding provider.
 pub struct MockEncodingProvider<T>
 where
     T: IdSet,
 {
-    /// A mapping from a bit id to the full encodings of the bit.
+    /// A mapping from a bit id to the full encoding of the bit.
     full_encodings: HashMap<Id, [Encoding; 2]>,
     phantom: PhantomData<T>,
 }
+
 impl<T> MockEncodingProvider<T>
 where
     T: IdSet,
@@ -256,16 +204,17 @@ where
         }
     }
 }
+
 impl<T> EncodingProvider<T> for MockEncodingProvider<T>
 where
     T: IdSet,
 {
-    fn get_by_ids(&self, ids: T) -> Result<FullEncodings<T>, EncodingProviderError> {
+    fn get_by_ids(&self, ids: &T) -> Result<FullEncodings<T>, EncodingProviderError> {
         let full_encodings = ids
             .ids()
             .iter()
             .map(|id| self.full_encodings.get(id).unwrap().clone())
             .collect::<Vec<_>>();
-        Ok(FullEncodings::new(full_encodings, ids))
+        Ok(FullEncodings::new(full_encodings, ids.clone()))
     }
 }

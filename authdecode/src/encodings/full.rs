@@ -8,8 +8,9 @@ use crate::backend::traits::Field;
 #[derive(Clone, PartialEq, Default)]
 pub struct FullEncodings<T: IdSet, S: EncodingState = state::Original> {
     pub encodings: Vec<[Encoding<S>; 2]>,
-    /// The state of each encoding in this collection.
+    /// The id of each item in the collection (i.e. the id of a pair of encodings).
     pub ids: T,
+    /// The state of each encoding in this collection.
     state: S,
 }
 
@@ -90,8 +91,10 @@ where
     /// # Panics
     ///
     /// Panics if the source is empty or if any pair of encodings is invalid.
+    /// Panics if the amount of encodings does not match the amount of ids.
     pub fn new_from_bytes(encodings: Vec<[Vec<u8>; 2]>, ids: T) -> Self {
         assert!(!encodings.is_empty());
+        assert!(encodings.len() == ids.len());
 
         let encodings = encodings
             .into_iter()

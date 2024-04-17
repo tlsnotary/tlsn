@@ -36,15 +36,6 @@ impl Proof {
     }
 }
 
-/// Data to initialize the encoding verifier with.
-#[derive(Serialize, Deserialize)]
-pub struct InitData(Vec<u8>);
-impl InitData {
-    pub fn new(init_data: Vec<u8>) -> Self {
-        Self(init_data)
-    }
-}
-
 pub trait AsAny {
     fn as_any(&self) -> &dyn Any;
 }
@@ -52,8 +43,6 @@ pub trait AsAny {
 #[cfg(test)]
 mod tests {
     use crate::{
-        backend::halo2::verifier,
-        bitid::IdSet,
         encodings::FullEncodings,
         prover::{
             commitment::CommitmentData,
@@ -62,19 +51,17 @@ mod tests {
         },
         utils::choose,
         verifier::verifier::Verifier,
-        AsAny, InitData, Proof,
+        AsAny, Proof,
     };
     use serde::Serialize;
 
     use crate::{
         backend::traits::{Field, ProverBackend, VerifierBackend},
-        mock::{Direction, MockBitIds, MockEncodingProvider, MockEncodingVerifier},
-        msgs::Proofs,
+        mock::{Direction, MockBitIds, MockEncodingProvider},
         verifier::state::VerifiedSuccessfully,
     };
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
-    use rstest::rstest;
     use serde::de::DeserializeOwned;
     use std::{
         any::Any,
@@ -156,28 +143,22 @@ mod tests {
         let (prover, commitments) = prover.commit(vec![commitment1, commitment2]).unwrap();
         let commitments = bincode::serialize(&commitments).unwrap();
 
-        // The Verifier receives the commitments and sends data needed to verify the authenticity
-        // of the encodings.
+        // The Verifier receives the commitments.
         let commitments = bincode::deserialize(&commitments).unwrap();
         let all_bit_ids = MockBitIds::new(Direction::Sent, vec![0..PLAINTEXT_SIZE * 8]);
         let full_encodings = FullEncodings::new_from_bytes(full_encodings.to_vec(), all_bit_ids);
 
-        let (verifier, verification_data) = verifier
+        let verifier = verifier
             .receive_commitments(
                 commitments,
                 MockEncodingProvider::new(full_encodings.clone()),
-                InitData::new(vec![1u8; 100]),
             )
             .unwrap();
-        let verification_data = bincode::serialize(&verification_data).unwrap();
 
-        // The Prover verifies the encodings and sends proofs.
-        let verification_data = bincode::deserialize(&verification_data).unwrap();
-        let prover = prover
-            .check(verification_data, MockEncodingVerifier::new(full_encodings))
+        // An encoding provider is instantiated with authenticated full encodings from external context.
+        let (prover, proofs) = prover
+            .prove(MockEncodingProvider::new(full_encodings.clone()))
             .unwrap();
-
-        let (prover, proofs) = prover.prove().unwrap();
 
         // The verifier verifies the proofs.
         let verifier = verifier.verify(proofs).unwrap();

@@ -24,6 +24,7 @@ where
     pub fn new(chunk_commitments: Vec<UnverifiedChunkCommitment<T, F>>) -> Self {
         Self { chunk_commitments }
     }
+
     /// Returns the id of each bit of the plaintext of this commitment.
     pub fn ids(&self) -> T {
         let iter = self

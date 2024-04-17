@@ -78,7 +78,7 @@ where
 }
 
 mod sealed {
-    use crate::prover::{state::Field, IdSet};
+    use crate::{bitid::IdSet, prover::state::Field};
     pub trait Sealed {}
     impl Sealed for super::Initialized {}
     impl<T, F> Sealed for super::Committed<T, F>

@@ -1,14 +1,16 @@
 //! Protocol messages.
 
-use crate::{
-    backend::traits::Field, bitid::IdSet, prover::commitment::CommitmentDetails, InitData, Proof,
-};
+use crate::{backend::traits::Field, bitid::IdSet, prover::commitment::CommitmentDetails, Proof};
 use serde::{Deserialize, Serialize};
 
 /// A commitment message sent by the prover.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(try_from = "UncheckedCommit<T, F>")]
-pub struct Commit<T, F> {
+pub struct Commit<T, F>
+where
+    T: IdSet,
+    F: Field,
+{
     /// A non-empty collection of commitments. Each element is a commitment to plaintext of an
     /// arbitrary length.
     pub commitments: Vec<Commitment<T, F>>,
@@ -22,7 +24,7 @@ where
     /// Converts this message into a vector of `Commitment`s which the verifier can work with.
     ///
     /// # Arguments
-    /// * `chunk_size` - The expected maximum bitsize of a chunk of plaintext committed to.
+    /// * `max_size` - The expected maximum bytesize of a chunk of plaintext committed to.
     pub fn into_vec_commitment(
         self,
         max_size: usize,
@@ -34,7 +36,7 @@ where
                     .chunk_commitments
                     .into_iter()
                     .map(|chunk_com| {
-                        if chunk_com.ids.len() > max_size {
+                        if chunk_com.ids.len() > max_size * 8 {
                             Err(std::io::Error::new(
                                 std::io::ErrorKind::InvalidData,
                                 "The length of ids is larger than the chunk size.",
@@ -86,26 +88,26 @@ where
 
 /// A single commitment to plaintext of an arbitrary length.
 #[derive(Clone, Serialize, Deserialize)]
-pub struct Commitment<T, F> {
+pub struct Commitment<T, F>
+where
+    T: IdSet,
+    F: Field,
+{
     /// A non-empty collection of commitments to each chunk of the plaintext.
     chunk_commitments: Vec<ChunkCommitment<T, F>>,
 }
 
 /// A commitment to a single chunk of plaintext.
 #[derive(Clone, Serialize, Deserialize)]
-struct ChunkCommitment<T, F> {
+struct ChunkCommitment<T, F>
+where
+    T: IdSet,
+    F: Field,
+{
     plaintext_hash: F,
     encoding_sum_hash: F,
     /// The id of each bit of the plaintext.
     ids: T,
-}
-
-/// Verification data sent by the verifier enabling the prover to check the authenticity of the
-/// encodings committed to.
-#[derive(Serialize, Deserialize)]
-pub struct VerificationData {
-    /// Data to initialize the encoding verifier with.
-    pub init_data: InitData,
 }
 
 /// Proofs sent by the prover.
@@ -117,11 +119,19 @@ pub struct Proofs {
 
 /// A commitment message sent by the prover.
 #[derive(Deserialize)]
-pub struct UncheckedCommit<T, F> {
+pub struct UncheckedCommit<T, F>
+where
+    T: IdSet,
+    F: Field,
+{
     pub commitments: Vec<Commitment<T, F>>,
 }
 
-impl<T, F> TryFrom<UncheckedCommit<T, F>> for Commit<T, F> {
+impl<T, F> TryFrom<UncheckedCommit<T, F>> for Commit<T, F>
+where
+    T: IdSet,
+    F: Field,
+{
     type Error = std::io::Error;
 
     fn try_from(value: UncheckedCommit<T, F>) -> Result<Self, Self::Error> {

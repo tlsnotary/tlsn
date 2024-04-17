@@ -13,7 +13,7 @@ pub enum VerifierError {
     #[error("An custom error was encountered {0}")]
     CustomError(String),
     #[error(transparent)]
-    EncodingProviderError(#[from] crate::verifier::EncodingProviderError),
+    EncodingProviderError(#[from] crate::encodings::EncodingProviderError),
     #[error("std::io::Error was encountered: {0}")]
     StdIoError(String),
 }

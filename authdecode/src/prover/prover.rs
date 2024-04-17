@@ -1,16 +1,14 @@
 use crate::{
     backend::traits::{Field, ProverBackend as Backend},
     bitid::IdSet,
-    msgs::{Commit, Proofs, VerificationData},
+    encodings::EncodingProvider,
+    msgs::{Commit, Proofs},
     prover::{error::ProverError, state},
     utils::boolvec_to_u8vec,
     AsAny,
 };
 
-use super::{
-    commitment::{CommitmentData, CommitmentDetails},
-    EncodingVerifier,
-};
+use super::commitment::{CommitmentData, CommitmentDetails};
 use std::{marker::PhantomData, ops::Add};
 
 // Public and private inputs to the circuit.
@@ -84,60 +82,28 @@ where
 impl<T, F> Prover<T, state::Committed<T, F>, F>
 where
     T: IdSet,
-    F: Field + Clone,
-{
-    /// Checks the authenticity of the peer's encodings used to create commitments.
-    pub fn check(
-        self,
-        verification_data: VerificationData,
-        verifier: impl EncodingVerifier<T>,
-    ) -> Result<Prover<T, state::Checked<T, F>, F>, ProverError> {
-        let VerificationData { init_data } = verification_data;
-        verifier.init(init_data)?;
-
-        // Verify encodings of each commitment and return authentic converted full encodings.
-        let full_encodings = self
-            .state
-            .commitments
-            .iter()
-            .map(|com| {
-                let full = verifier.verify(com.original_encodings())?;
-                Ok(full.convert())
-            })
-            .collect::<Result<Vec<_>, ProverError>>()?;
-
-        Ok(Prover {
-            backend: self.backend,
-            state: state::Checked {
-                commitments: self.state.commitments,
-                full_encodings,
-            },
-            phantom: PhantomData,
-        })
-    }
-}
-
-impl<T, F> Prover<T, state::Checked<T, F>, F>
-where
-    T: IdSet,
     F: Field + Clone + std::ops::Sub<Output = F> + std::ops::Add<Output = F>,
 {
-    /// Generates zk proof(s).
-    pub fn prove(self) -> Result<(Prover<T, state::ProofCreated<T, F>, F>, Proofs), ProverError> {
+    /// Generates zk proofs.
+    #[allow(clippy::type_complexity)]
+    pub fn prove(
+        self,
+        encoding_provider: impl EncodingProvider<T>,
+    ) -> Result<(Prover<T, state::ProofCreated<T, F>, F>, Proofs), ProverError> {
         let commitments = self.state.commitments.clone();
 
         // Collect proof inputs for each chunk of plaintext committed to.
         let all_inputs = commitments
             .clone()
             .into_iter()
-            .zip(self.state.full_encodings)
-            .flat_map(|(com, mut set)| {
-                com.chunk_commitments
-                    .iter()
+            .flat_map(|com| {
+                let coms = com
+                    .chunk_commitments
+                    .into_iter()
                     .map(|com| {
-                        let encodings = set.drain_front(com.encodings.len());
+                        let encodings = encoding_provider.get_by_ids(com.ids())?.convert();
 
-                        ProofInput {
+                        Ok(ProofInput {
                             deltas: encodings.compute_deltas::<F>(),
                             plaintext_hash: com.plaintext_hash.clone(),
                             encoding_sum_hash: com.encoding_sum_hash.clone(),
@@ -146,10 +112,13 @@ where
                             plaintext: boolvec_to_u8vec(&com.encodings.plaintext()),
                             plaintext_salt: com.plaintext_salt.clone(),
                             encoding_sum_salt: com.encoding_sum_salt.clone(),
-                        }
+                        })
                     })
-                    .collect::<Vec<_>>()
+                    .collect::<Result<Vec<_>, ProverError>>()?;
+
+                Ok::<Vec<ProofInput<F>>, ProverError>(coms)
             })
+            .flatten()
             .collect::<Vec<_>>();
 
         let proofs = self.backend.prove(all_inputs)?;

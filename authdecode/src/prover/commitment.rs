@@ -139,7 +139,7 @@ where
 
     /// The original (i.e. before conversion) encodings of the plaintext bits.
     pub original_encodings: ActiveEncodings<T, Original>,
-    // The converted (i.e. uncorrelated and truncated) encodings to commit to.
+    /// The converted (i.e. uncorrelated and truncated) encodings to commit to.
     pub encodings: ActiveEncodings<T, Converted>,
 
     pub encoding_sum: F,
@@ -154,7 +154,7 @@ where
 {
     /// Returns the id of each bit of the plaintext.
     pub fn ids(&self) -> &T {
-        &self.original_encodings.ids()
+        self.original_encodings.ids()
     }
 }
 
