@@ -37,7 +37,7 @@ use super::{
 pub const FIELD_ELEMENTS: usize = 14;
 
 /// How many LSBs of a field element to use to pack the plaintext into.
-pub const USABLE_BITS: usize = 252;
+pub const USABLE_BITS: usize = 248;
 
 /// How many advice columns are there to put the plaintext bits into.
 ///
@@ -83,7 +83,7 @@ pub struct CircuitConfig {
     selector_binary_check: Selector,
     selector_compose_limb: [Selector; 4],
     selector_sum: Selector,
-    selector_four_bits_zero: Selector,
+    selector_eight_bits_zero: Selector,
 
     /// Config for rate-15 Poseidon.
     poseidon_config_rate15: Pow5Config<F, 16, 15>,
@@ -173,7 +173,7 @@ impl Circuit<F> for AuthDecodeCircuit {
             .try_into()
             .unwrap();
         let selector_sum = meta.selector();
-        let selector_four_bits_zero = meta.selector();
+        let selector_eight_bits_zero = meta.selector();
 
         // POSEIDON
 
@@ -198,7 +198,7 @@ impl Circuit<F> for AuthDecodeCircuit {
             selector_compose_limb: selector_compose,
             selector_binary_check,
             selector_sum,
-            selector_four_bits_zero,
+            selector_eight_bits_zero,
 
             poseidon_config_rate15,
             poseidon_config_rate2,
@@ -296,15 +296,15 @@ impl Circuit<F> for AuthDecodeCircuit {
             vec![sel * (sum - expected)]
         });
 
-        // Constrains 4 most significant bits of a limb to be zero.
-        meta.create_gate("four_bits_zero", |meta| {
-            let expressions: [Expression<F>; 4] = (0..4)
+        // Constrains 8 most significant bits of a limb to be zero.
+        meta.create_gate("eight_bits_zero", |meta| {
+            let expressions: [Expression<F>; 8] = (0..8)
                 .map(|i| meta.query_advice(cfg.bits[i], Rotation::cur()))
                 .collect::<Vec<_>>()
                 .try_into()
                 .unwrap();
 
-            let sel = meta.query_selector(cfg.selector_four_bits_zero);
+            let sel = meta.query_selector(cfg.selector_eight_bits_zero);
 
             // Constrain all expressions to be equal to 0.
             Constraints::with_selector(sel, expressions)
@@ -396,8 +396,8 @@ impl Circuit<F> for AuthDecodeCircuit {
                             .enable(&mut region, j * 4 + limb_idx)?;
 
                         if limb_idx == 0 {
-                            // Constrain the high limb's 3 MSBs to be zero.
-                            cfg.selector_four_bits_zero
+                            // Constrain the high limb's MSBs to be zero.
+                            cfg.selector_eight_bits_zero
                                 .enable(&mut region, j * 4 + limb_idx)?;
                         }
 

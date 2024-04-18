@@ -370,16 +370,16 @@ mod tests {
     }
 
     #[rstest]
-    // Expect an unsatisfied constraint in the "four_bits_zero" gate when not all of the 4 MSBs of a
+    // Expect an unsatisfied constraint in the "eight_bits_zero" gate when not all of the 8 MSBs of a
     // field element are zeroes.
-    fn test_four_bits_zero_fail(mut proof_input: (Vec<Vec<F>>, AuthDecodeCircuit), k: u32) {
+    fn test_eight_bits_zero_fail(mut proof_input: (Vec<Vec<F>>, AuthDecodeCircuit), k: u32) {
         // Set the MSB to 1.
         proof_input.1.plaintext[0][0] = F::one();
 
         let prover = MockProver::run(k, &proof_input.1, proof_input.0).unwrap();
 
         // We may need to change gate index here if we modify the circuit.
-        let expected_failed_constraint: Constraint = ((13, "four_bits_zero").into(), 0, "").into();
+        let expected_failed_constraint: Constraint = ((13, "eight_bits_zero").into(), 0, "").into();
 
         match &prover.verify().err().unwrap()[0] {
             VerifyFailure::ConstraintNotSatisfied {
