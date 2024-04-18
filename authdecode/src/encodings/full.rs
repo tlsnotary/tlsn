@@ -1,22 +1,19 @@
-use crate::bitid::IdSet;
+use crate::{bitid::IdSet, SSP};
 
-use super::{state, state::EncodingState, Encoding};
+use super::Encoding;
 use crate::backend::traits::Field;
 
 /// A non-empty collection of full encodings. Each item in the collection is the encodings of the 0
 /// and 1 values of a bit.
 #[derive(Clone, PartialEq, Default)]
-pub struct FullEncodings<T: IdSet, S: EncodingState = state::Original> {
-    pub encodings: Vec<[Encoding<S>; 2]>,
+pub struct FullEncodings<T: IdSet> {
+    pub encodings: Vec<[Encoding; 2]>,
     /// The id of each item in the collection (i.e. the id of a pair of encodings).
     pub ids: T,
-    /// The state of each encoding in this collection.
-    state: S,
 }
 
-impl<T, S> FullEncodings<T, S>
+impl<T> FullEncodings<T>
 where
-    S: EncodingState + Default,
     T: IdSet,
 {
     /// Returns the number of full encodings.
@@ -26,7 +23,7 @@ where
     }
 
     /// Returns an iterator ... TODO
-    pub fn into_chunks(self, chunk_size: usize) -> FullEncodingsChunks<T, S> {
+    pub fn into_chunks(self, chunk_size: usize) -> FullEncodingsChunks<T> {
         FullEncodingsChunks {
             chunk_size,
             encodings: self.encodings.into_iter(),
@@ -45,7 +42,6 @@ where
 
         Self {
             encodings: drained,
-            state: S::default(),
             ids: self.ids.drain_front(count),
         }
     }
@@ -79,12 +75,7 @@ where
     pub fn ids(&self) -> T {
         self.ids.clone()
     }
-}
 
-impl<T> FullEncodings<T, state::Original>
-where
-    T: IdSet,
-{
     /// Creates a new collection of full encodings from a big-endian byte representation
     /// of each encoding.
     ///
@@ -92,7 +83,7 @@ where
     ///
     /// Panics if the source is empty or if any pair of encodings is invalid.
     /// Panics if the amount of encodings does not match the amount of ids.
-    pub fn new_from_bytes(encodings: Vec<[Vec<u8>; 2]>, ids: T) -> Self {
+    pub fn new_from_bytes(encodings: Vec<[[u8; SSP / 8]; 2]>, ids: T) -> Self {
         assert!(!encodings.is_empty());
         assert!(encodings.len() == ids.len());
 
@@ -106,11 +97,7 @@ where
             })
             .collect::<Vec<_>>();
 
-        Self {
-            encodings,
-            state: state::Original {},
-            ids,
-        }
+        Self { encodings, ids }
     }
 
     pub fn new(encodings: Vec<[Encoding; 2]>, ids: T) -> Self {
@@ -120,41 +107,21 @@ where
             assert!(!pair[0].bit && pair[1].bit);
         }
 
-        Self {
-            encodings,
-            state: state::Original {},
-            ids,
-        }
-    }
-
-    /// Converts all encodings in the collection.
-    pub fn convert(self) -> FullEncodings<T, state::Converted> {
-        let converted = self
-            .encodings
-            .iter()
-            .map(|pair| [pair[0].convert(), pair[1].convert()])
-            .collect::<Vec<_>>();
-
-        FullEncodings {
-            encodings: converted,
-            state: state::Converted {},
-            ids: self.ids,
-        }
+        Self { encodings, ids }
     }
 }
 
-pub struct FullEncodingsChunks<T, S: EncodingState> {
+pub struct FullEncodingsChunks<T> {
     chunk_size: usize,
-    encodings: <Vec<[Encoding<S>; 2]> as IntoIterator>::IntoIter,
+    encodings: <Vec<[Encoding; 2]> as IntoIterator>::IntoIter,
     ids: T,
 }
 
-impl<T, S> Iterator for FullEncodingsChunks<T, S>
+impl<T> Iterator for FullEncodingsChunks<T>
 where
-    S: EncodingState + Default,
     T: IdSet,
 {
-    type Item = FullEncodings<T, S>;
+    type Item = FullEncodings<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.encodings.len() == 0 {
@@ -167,7 +134,6 @@ where
                     .by_ref()
                     .take(self.chunk_size)
                     .collect::<Vec<_>>(),
-                state: S::default(),
                 ids: self.ids.drain_front(self.chunk_size),
             })
         }

@@ -1,12 +1,9 @@
 use crate::{
     backend::traits::{Field, ProverBackend as Backend},
     bitid::IdSet,
-    encodings::{
-        active::ActiveEncodingsChunks,
-        state::{Converted, Original},
-        ActiveEncodings, Encoding,
-    },
-    utils::boolvec_to_u8vec,
+    encodings::{active::ActiveEncodingsChunks, ActiveEncodings, Encoding},
+    utils::{boolvec_to_u8vec, u8vec_to_boolvec},
+    SSP,
 };
 use num::{BigInt, BigUint, FromPrimitive};
 
@@ -17,7 +14,7 @@ pub struct CommitmentData<T>
 where
     T: IdSet,
 {
-    pub encodings: ActiveEncodings<T, Original>,
+    pub encodings: ActiveEncodings<T>,
 }
 
 impl<T> CommitmentData<T>
@@ -44,14 +41,22 @@ where
     /// Creates a new `CommitmentData` type for `plaintext` with the given bit ids. Bits encode to
     /// `encodings`.
     ///
+    /// # Arguments
+    ///
+    /// * `plaintext` - The plaintext being committed to.
+    /// * `encodings` - Uniformly random encodings of every bit of the `plaintext`.
+    ///                 Note that correlated encodings like those used in e.g. garbled circuits must  
+    ///                 not be used.
+    /// * `bit_ids` - The id of each bit of the `plaintext`.
+    ///
     /// # Panics
     ///
-    /// Panics if data, encodings and ids are not all of the same length.
-    pub fn new(plaintext: Vec<bool>, encodings: Vec<Vec<u8>>, bit_ids: T) -> CommitmentData<T> {
-        assert!(plaintext.len() == encodings.len());
-        assert!(plaintext.len() == bit_ids.len());
+    /// Panics if `plaintext`, `encodings` and `bit_ids` are not all of the same length.
+    pub fn new(plaintext: Vec<u8>, encodings: Vec<[u8; SSP / 8]>, bit_ids: T) -> CommitmentData<T> {
+        assert!(plaintext.len() * 8 == encodings.len());
+        assert!(plaintext.len() * 8 == bit_ids.len());
 
-        let encodings = plaintext
+        let encodings = u8vec_to_boolvec(&plaintext)
             .iter()
             .zip(encodings)
             .map(|(bit, enc)| Encoding::new(enc, *bit))
@@ -70,7 +75,7 @@ where
 }
 
 pub struct CommitmentDataChunks<T> {
-    encodings: ActiveEncodingsChunks<T, Original>,
+    encodings: ActiveEncodingsChunks<T>,
 }
 
 impl<T> Iterator for CommitmentDataChunks<T>
@@ -91,7 +96,7 @@ pub struct CommitmentDataChunk<T>
 where
     T: IdSet,
 {
-    pub encodings: ActiveEncodings<T, Original>,
+    pub encodings: ActiveEncodings<T>,
 }
 
 impl<T> CommitmentDataChunk<T>
@@ -107,19 +112,17 @@ where
         F: Field + Clone + std::ops::Add<Output = F>,
     {
         // Convert the encodings and compute their sum.
-        let encodings = self.encodings.convert();
-        let sum = encodings.compute_sum::<F>();
+        let sum = self.encodings.compute_sum::<F>();
 
         let (plaintext_hash, plaintext_salt) =
-            backend.commit_plaintext(boolvec_to_u8vec(&encodings.plaintext()))?;
+            backend.commit_plaintext(boolvec_to_u8vec(&self.encodings.plaintext()))?;
 
         let (encoding_sum_hash, encoding_sum_salt) = backend.commit_encoding_sum(sum.clone())?;
 
         Ok(ChunkCommitmentDetails {
             plaintext_hash,
             plaintext_salt,
-            original_encodings: self.encodings.clone(),
-            encodings,
+            encodings: self.encodings.clone(),
             encoding_sum: sum,
             encoding_sum_hash,
             encoding_sum_salt,
@@ -137,10 +140,8 @@ where
     pub plaintext_hash: F,
     pub plaintext_salt: F,
 
-    /// The original (i.e. before conversion) encodings of the plaintext bits.
-    pub original_encodings: ActiveEncodings<T, Original>,
-    /// The converted (i.e. uncorrelated and truncated) encodings to commit to.
-    pub encodings: ActiveEncodings<T, Converted>,
+    /// The encodings the sum of which is committed to.
+    pub encodings: ActiveEncodings<T>,
 
     pub encoding_sum: F,
     pub encoding_sum_hash: F,
@@ -154,7 +155,7 @@ where
 {
     /// Returns the id of each bit of the plaintext.
     pub fn ids(&self) -> &T {
-        self.original_encodings.ids()
+        self.encodings.ids()
     }
 }
 
@@ -178,12 +179,12 @@ where
     T: IdSet + Clone,
     F: Field + Clone,
 {
-    /// Returns the original encodings of the plaintext of this commitment.
-    pub fn original_encodings(&self) -> ActiveEncodings<T, Original> {
+    /// Returns the encodings of the plaintext of this commitment.
+    pub fn encodings(&self) -> ActiveEncodings<T> {
         let iter = self
             .chunk_commitments
             .iter()
-            .map(|enc| enc.original_encodings.clone());
+            .map(|enc| enc.encodings.clone());
         ActiveEncodings::new_from_iter(iter)
     }
 }

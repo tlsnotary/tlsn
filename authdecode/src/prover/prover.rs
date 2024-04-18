@@ -101,7 +101,7 @@ where
                     .chunk_commitments
                     .into_iter()
                     .map(|com| {
-                        let encodings = encoding_provider.get_by_ids(com.ids())?.convert();
+                        let encodings = encoding_provider.get_by_ids(com.ids())?;
 
                         Ok(ProofInput {
                             deltas: encodings.compute_deltas::<F>(),

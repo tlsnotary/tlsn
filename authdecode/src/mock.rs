@@ -29,6 +29,14 @@ pub struct MockBitIds {
 
 impl MockBitIds {
     pub fn new(direction: Direction, ranges: Vec<Range<usize>>) -> Self {
+        // Convert to bit ranges.
+        let ranges = ranges
+            .into_iter()
+            .map(|r| Range {
+                start: r.start * 8,
+                end: r.end * 8,
+            })
+            .collect::<Vec<_>>();
         Self { direction, ranges }
     }
 

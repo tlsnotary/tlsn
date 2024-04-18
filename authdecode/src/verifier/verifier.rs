@@ -6,7 +6,7 @@ use crate::{
 };
 use std::marker::PhantomData;
 
-use crate::{backend::traits::Field, verifier::IdSet};
+use crate::{backend::traits::Field, bitid::IdSet};
 
 /// Public inputs to verify one chunk of plaintext.
 ///
@@ -67,7 +67,7 @@ where
 
         // Store full encodings with each commitment details.
         for com in &mut commitments {
-            let full_encodings = encoding_provider.get_by_ids(&com.ids())?.convert();
+            let full_encodings = encoding_provider.get_by_ids(&com.ids())?;
             com.set_full_encodings(full_encodings);
         }
 

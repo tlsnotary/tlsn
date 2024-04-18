@@ -2,10 +2,8 @@
 
 use crate::{
     backend::traits::Field,
-    verifier::{
-        commitment::{UnverifiedCommitment, VerifiedCommitment},
-        IdSet,
-    },
+    bitid::IdSet,
+    verifier::commitment::{UnverifiedCommitment, VerifiedCommitment},
 };
 
 /// Entry state
@@ -44,7 +42,7 @@ where
 impl<T, F> VerifierState for VerifiedSuccessfully<T, F> {}
 
 mod sealed {
-    use crate::verifier::{state::Field, IdSet};
+    use crate::{bitid::IdSet, verifier::state::Field};
     pub trait Sealed {}
     impl Sealed for super::Initialized {}
     impl<T, F> Sealed for super::CommitmentReceived<T, F>

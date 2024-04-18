@@ -1,11 +1,8 @@
 //! AuthDecode prover states.
 
 use crate::{
-    backend::traits::Field,
-    bitid::IdSet,
-    encodings::{state::Converted, FullEncodings},
-    prover::commitment::CommitmentDetails,
-    Proof,
+    backend::traits::Field, bitid::IdSet, encodings::FullEncodings,
+    prover::commitment::CommitmentDetails, Proof,
 };
 
 use super::prover::ProofInput;
@@ -36,7 +33,7 @@ where
     pub commitments: Vec<CommitmentDetails<T, F>>,
     /// A collection of authenticated encodings.
     /// The order of the collection matches the order of the commitments.
-    pub full_encodings: Vec<FullEncodings<T, Converted>>,
+    pub full_encodings: Vec<FullEncodings<T>>,
 }
 
 //opaque_debug::implement!(Checked<T>);

@@ -1,17 +1,16 @@
 use crate::{backend::traits::Field, bitid::IdSet};
 
-use super::{state, state::EncodingState, Encoding};
+use super::Encoding;
 
 /// A non-empty collection of active encodings with the associated plaintext value.
 #[derive(Clone, PartialEq, Debug)]
-pub struct ActiveEncodings<T: IdSet, S: EncodingState = state::Original> {
-    pub encodings: Vec<Encoding<S>>,
+pub struct ActiveEncodings<T: IdSet> {
+    pub encodings: Vec<Encoding>,
     /// The id of each bit of the encoded plaintext.
     pub ids: T,
-    state: S,
 }
 
-impl<T> ActiveEncodings<T, state::Original>
+impl<T> ActiveEncodings<T>
 where
     T: IdSet,
 {
@@ -24,32 +23,12 @@ where
         assert!(!encodings.is_empty());
         // TODO check that all encoding ids are unique
 
-        Self {
-            encodings,
-            ids,
-            state: state::Original {},
-        }
-    }
-
-    /// Converts the encodings ... TODO
-    ///
-    /// Panics
-    pub fn convert(&self) -> ActiveEncodings<T, state::Converted> {
-        ActiveEncodings {
-            encodings: self
-                .encodings
-                .iter()
-                .map(|enc| enc.convert())
-                .collect::<Vec<_>>(),
-            ids: self.ids.clone(),
-            state: state::Converted {},
-        }
+        Self { encodings, ids }
     }
 }
 
-impl<T, S> ActiveEncodings<T, S>
+impl<T> ActiveEncodings<T>
 where
-    S: EncodingState + Default,
     T: IdSet,
 {
     /// Creates a new collection from an iterator.
@@ -59,13 +38,12 @@ where
 
         Self {
             encodings: encodings.into_iter().flatten().collect(),
-            state: S::default(),
             ids: T::new_from_iter(ids),
         }
     }
 
     /// Returns an iterator ... TODO
-    pub fn into_chunks(self, chunk_size: usize) -> ActiveEncodingsChunks<T, S> {
+    pub fn into_chunks(self, chunk_size: usize) -> ActiveEncodingsChunks<T> {
         ActiveEncodingsChunks {
             chunk_size,
             encodings: self.encodings.into_iter(),
@@ -90,7 +68,7 @@ where
     }
 }
 
-impl<T> ActiveEncodings<T, state::Converted>
+impl<T> ActiveEncodings<T>
 where
     T: IdSet,
 {
@@ -105,18 +83,17 @@ where
     }
 }
 
-pub struct ActiveEncodingsChunks<T, S: EncodingState> {
+pub struct ActiveEncodingsChunks<T> {
     chunk_size: usize,
-    encodings: <Vec<Encoding<S>> as IntoIterator>::IntoIter,
+    encodings: <Vec<Encoding> as IntoIterator>::IntoIter,
     ids: T,
 }
 
-impl<T, S> Iterator for ActiveEncodingsChunks<T, S>
+impl<T> Iterator for ActiveEncodingsChunks<T>
 where
-    S: EncodingState + Default,
     T: IdSet,
 {
-    type Item = ActiveEncodings<T, S>;
+    type Item = ActiveEncodings<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.encodings.len() == 0 {
@@ -130,7 +107,6 @@ where
                     .take(self.chunk_size)
                     .collect::<Vec<_>>(),
                 ids: self.ids.drain_front(self.chunk_size),
-                state: S::default(),
             })
         }
     }

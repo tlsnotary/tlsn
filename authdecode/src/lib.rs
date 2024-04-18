@@ -49,9 +49,9 @@ mod tests {
             prover::{ProofInput, Prover},
             state::ProofCreated,
         },
-        utils::choose,
+        utils::{choose, u8vec_to_boolvec},
         verifier::verifier::Verifier,
-        AsAny, Proof,
+        AsAny, Proof, SSP,
     };
     use serde::Serialize;
 
@@ -86,6 +86,7 @@ mod tests {
 
     // Runs the protocol with the given backends.
     // Returns the prover and the verifier in their finalized state.
+    #[allow(clippy::type_complexity)]
     fn run_authdecode<F>(
         pair: (
             impl ProverBackend<F> + 'static,
@@ -104,39 +105,36 @@ mod tests {
         let mut rng = ChaCha12Rng::from_seed([0; 32]);
 
         // Generate random plaintext.
-        let plaintext: Vec<bool> = core::iter::repeat_with(|| rng.gen::<bool>())
-            .take(PLAINTEXT_SIZE * 8)
+        let plaintext: Vec<u8> = core::iter::repeat_with(|| rng.gen::<u8>())
+            .take(PLAINTEXT_SIZE)
             .collect();
 
-        // Generate Verifier's full encodings for each bit of the plaintext.
-        let mut random = [0u8; PLAINTEXT_SIZE * 8 * 16 * 2];
-        for elem in random.iter_mut() {
+        // Generate Verifier's full encodings for each bit of the plaintext. The length of an encoding
+        // is 40 bits.
+        let mut full_encodings = [[[0u8; SSP / 8]; 2]; PLAINTEXT_SIZE * 8];
+        for elem in full_encodings.iter_mut() {
             *elem = rng.gen();
         }
-        let full_encodings = &random
-            .chunks(32)
-            .map(|pair| [pair[0..16].to_vec(), pair[16..32].to_vec()])
-            .collect::<Vec<_>>();
 
         // Prover's active encodings are based on their choice bits.
-        let active_encodings = choose(full_encodings, &plaintext);
+        let active_encodings = choose(&full_encodings, &u8vec_to_boolvec(&plaintext));
 
         // Prover creates two commitments: to the front and to the tail portions of the plaintext.
         // Some middle bits of the plaintext will not be committed to.
-        let range1 = 0..(PLAINTEXT_SIZE * 8) / 2 - 16;
-        let range2 = (PLAINTEXT_SIZE * 8) / 2..PLAINTEXT_SIZE * 8;
+        let range1 = 0..PLAINTEXT_SIZE / 2 - 10;
+        let range2 = PLAINTEXT_SIZE / 2..PLAINTEXT_SIZE;
 
         let bit_ids1 = MockBitIds::new(Direction::Sent, vec![range1.clone()]);
         let bit_ids2 = MockBitIds::new(Direction::Sent, vec![range2.clone()]);
 
         let commitment1 = CommitmentData::new(
             plaintext[range1.clone()].to_vec(),
-            active_encodings[range1.clone()].to_vec(),
+            active_encodings[range1.clone().start * 8..range1.clone().end * 8].to_vec(),
             bit_ids1,
         );
         let commitment2 = CommitmentData::new(
             plaintext[range2.clone()].to_vec(),
-            active_encodings[range2.clone()].to_vec(),
+            active_encodings[range2.clone().start * 8..range2.clone().end * 8].to_vec(),
             bit_ids2,
         );
 
@@ -145,7 +143,7 @@ mod tests {
 
         // The Verifier receives the commitments.
         let commitments = bincode::deserialize(&commitments).unwrap();
-        let all_bit_ids = MockBitIds::new(Direction::Sent, vec![0..PLAINTEXT_SIZE * 8]);
+        let all_bit_ids = MockBitIds::new(Direction::Sent, vec![0..PLAINTEXT_SIZE]);
         let full_encodings = FullEncodings::new_from_bytes(full_encodings.to_vec(), all_bit_ids);
 
         let verifier = verifier
