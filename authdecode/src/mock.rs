@@ -1,10 +1,9 @@
 use crate::{
     bitid::{Id, IdSet},
-    encodings::{
-        ActiveEncodings, Encoding, EncodingProvider, EncodingProviderError, FullEncodings,
-    },
-    utils::{boolvec_to_u8vec, u8vec_to_boolvec, u8vec_to_boolvec_no_pad},
+    encodings::{Encoding, EncodingProvider, EncodingProviderError, FullEncodings},
+    utils::boolvec_to_u8vec,
 };
+use itybity::ToBits;
 
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, marker::PhantomData, ops::Range};
@@ -54,9 +53,9 @@ impl MockBitIds {
             [true]
         };
 
-        assert!(offset < (1 << 63));
+        assert!(offset < (1 << 32));
 
-        let encoded_offset = u8vec_to_boolvec_no_pad(&offset.to_be_bytes());
+        let encoded_offset = (offset as u32).to_be_bytes().to_msb0_vec();
 
         id[0..1].copy_from_slice(&encoded_direction);
         id[1 + (63 - encoded_offset.len())..].copy_from_slice(&encoded_offset);
@@ -68,7 +67,7 @@ impl MockBitIds {
 
     /// Decodes bit id into its direction and offset in the transcript.
     fn decode_bit_id(&self, id: Id) -> (Direction, usize) {
-        let encoding = u8vec_to_boolvec(&id.0.to_be_bytes());
+        let encoding = id.0.to_be_bytes().to_msb0_vec();
         let direction_encoding = &encoding[0..1];
 
         let direction = if direction_encoding == [false] {

@@ -43,33 +43,31 @@ pub trait AsAny {
 #[cfg(test)]
 mod tests {
     use crate::{
+        backend::traits::{Field, ProverBackend, VerifierBackend},
         encodings::FullEncodings,
+        mock::{Direction, MockBitIds, MockEncodingProvider},
         prover::{
             commitment::CommitmentData,
             prover::{ProofInput, Prover},
             state::ProofCreated,
         },
-        utils::{choose, u8vec_to_boolvec},
-        verifier::verifier::Verifier,
+        utils::choose,
+        verifier::{state::VerifiedSuccessfully, verifier::Verifier},
         AsAny, Proof, SSP,
     };
-    use serde::Serialize;
 
-    use crate::{
-        backend::traits::{Field, ProverBackend, VerifierBackend},
-        mock::{Direction, MockBitIds, MockEncodingProvider},
-        verifier::state::VerifiedSuccessfully,
-    };
+    use itybity::ToBits;
+
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
-    use serde::de::DeserializeOwned;
+    use serde::{de::DeserializeOwned, Serialize};
     use std::{
         any::Any,
         cell::RefCell,
         ops::{Add, Sub},
     };
 
-    /// The size of plaintext in bytes;
+    // The size of plaintext in bytes;
     const PLAINTEXT_SIZE: usize = 1000;
 
     #[test]
@@ -117,7 +115,7 @@ mod tests {
         }
 
         // Prover's active encodings are based on their choice bits.
-        let active_encodings = choose(&full_encodings, &u8vec_to_boolvec(&plaintext));
+        let active_encodings = choose(&full_encodings, &plaintext.to_msb0_vec());
 
         // Prover creates two commitments: to the front and to the tail portions of the plaintext.
         // Some middle bits of the plaintext will not be committed to.

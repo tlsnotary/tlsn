@@ -4,9 +4,10 @@ use crate::{
         traits::{Field, ProverBackend as Backend},
     },
     prover::error::ProverError,
-    utils::{boolvec_to_u8vec, u8vec_to_boolvec},
+    utils::boolvec_to_u8vec,
     Proof, ProofInput,
 };
+use itybity::{FromBitIterator, IntoBits, StrToBits, ToBits};
 
 use halo2_proofs::{
     dev::MockProver,
@@ -51,7 +52,8 @@ impl Backend<Bn256F> for Prover {
         }
 
         // Split up the plaintext bits into field elements.
-        let mut plaintext: Vec<Bn256F> = u8vec_to_boolvec(&plaintext)
+        let mut plaintext: Vec<Bn256F> = plaintext
+            .to_msb0_vec()
             .chunks(self.usable_bits())
             .map(|bits| Bn256F::from_bytes_be(boolvec_to_u8vec(bits)))
             .collect::<Vec<_>>();
@@ -179,7 +181,9 @@ impl Prover {
         ]);
 
         // Split up the plaintext into field elements.
-        let mut plaintext: Vec<F> = u8vec_to_boolvec(&input.plaintext)
+        let mut plaintext: Vec<F> = input
+            .plaintext
+            .to_msb0_vec()
             .chunks(self.usable_bits())
             .map(bits_to_f)
             .collect::<Vec<_>>();

@@ -4,7 +4,7 @@ use crate::{
         traits::{Field, ProverBackend},
     },
     prover::error::ProverError,
-    utils::{boolvec_to_u8vec, u8vec_to_boolvec, u8vec_to_boolvec_no_pad},
+    utils::boolvec_to_u8vec,
     Proof, ProofInput,
 };
 use num::{bigint::Sign, BigInt, BigUint};

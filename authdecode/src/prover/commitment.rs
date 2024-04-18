@@ -2,10 +2,10 @@ use crate::{
     backend::traits::{Field, ProverBackend as Backend},
     bitid::IdSet,
     encodings::{active::ActiveEncodingsChunks, ActiveEncodings, Encoding},
-    utils::{boolvec_to_u8vec, u8vec_to_boolvec},
+    utils::boolvec_to_u8vec,
     SSP,
 };
-use num::{BigInt, BigUint, FromPrimitive};
+use itybity::ToBits;
 
 use super::error::ProverError;
 
@@ -56,7 +56,8 @@ where
         assert!(plaintext.len() * 8 == encodings.len());
         assert!(plaintext.len() * 8 == bit_ids.len());
 
-        let encodings = u8vec_to_boolvec(&plaintext)
+        let encodings = plaintext
+            .to_msb0_vec()
             .iter()
             .zip(encodings)
             .map(|(bit, enc)| Encoding::new(enc, *bit))

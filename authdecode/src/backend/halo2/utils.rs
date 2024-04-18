@@ -3,11 +3,12 @@ use crate::{
         circuit::{BIT_COLUMNS, USABLE_ROWS},
         CHUNK_SIZE,
     },
-    utils::{boolvec_to_u8vec, u8vec_to_boolvec},
+    utils::boolvec_to_u8vec,
 };
 use cfg_if::cfg_if;
 use ff::{Field, FromUniformBytes, PrimeField};
 use halo2_proofs::halo2curves::bn256::Fr as F;
+use itybity::{FromBitIterator, IntoBits, StrToBits, ToBits};
 use num::{bigint::Sign, BigInt, BigUint, Signed};
 
 #[cfg(test)]
@@ -40,7 +41,7 @@ pub fn f_to_bits(f: &F) -> [bool; 256] {
     // Reverse to get bytes in big-endian.
     bytes.reverse();
     // It is safe to `unwrap` since 32 bytes will always convert to 256 bits.
-    u8vec_to_boolvec(&bytes).try_into().unwrap()
+    bytes.to_msb0_vec().try_into().unwrap()
 }
 
 /// Converts a slice of `items` into a matrix in column-major order performing the necessary padding.

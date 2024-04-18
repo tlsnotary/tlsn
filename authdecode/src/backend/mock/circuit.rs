@@ -1,7 +1,8 @@
 use crate::{
     backend::{mock::prover::hash, traits::Field},
-    utils::{boolvec_to_u8vec, u8vec_to_boolvec},
+    utils::boolvec_to_u8vec,
 };
+use itybity::{FromBitIterator, IntoBits, StrToBits, ToBits};
 use num::{
     bigint::{Sign, ToBigInt},
     BigInt, BigUint,
@@ -21,7 +22,7 @@ pub fn is_circuit_satisfied(
 ) -> bool {
     assert!(plaintext.len() * 8 == deltas.len());
     // Compute dot product of plaintext and deltas.
-    let dot_product = u8vec_to_boolvec(&plaintext).into_iter().zip(deltas).fold(
+    let dot_product = plaintext.to_msb0_vec().into_iter().zip(deltas).fold(
         MockField::zero(),
         |acc, (bit, delta)| {
             let product = if bit { delta } else { MockField::zero() };
