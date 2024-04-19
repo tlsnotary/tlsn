@@ -4,7 +4,7 @@ use super::Encoding;
 
 /// A non-empty collection of active encodings with the associated plaintext value.
 #[derive(Clone, PartialEq, Debug)]
-pub struct ActiveEncodings<T: IdSet> {
+pub struct ActiveEncodings<T> {
     pub encodings: Vec<Encoding>,
     /// The id of each bit of the encoded plaintext.
     pub ids: T,

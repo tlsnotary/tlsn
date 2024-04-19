@@ -5,51 +5,30 @@ use crate::{
     prover::commitment::CommitmentDetails, Proof,
 };
 
-use super::prover::ProofInput;
-
 /// Initial state.
 pub struct Initialized {}
-
 opaque_debug::implement!(Initialized);
 
 /// State after prover has made a commitment.
-pub struct Committed<T, F>
-where
-    T: IdSet,
-    F: Field + Clone,
-{
+pub struct Committed<T, F> {
     pub commitments: Vec<CommitmentDetails<T, F>>,
 }
-
-// TODO how to use opaque_debug with generics
-//opaque_debug::implement!(Committed<T>);
+opaque_debug::implement!(Committed<T, F>);
 
 /// State after prover checked the authenticity of the encodings.
-pub struct Checked<T, F>
-where
-    T: IdSet,
-    F: Field + Clone,
-{
+pub struct Checked<T, F> {
     pub commitments: Vec<CommitmentDetails<T, F>>,
     /// A collection of authenticated encodings.
     /// The order of the collection matches the order of the commitments.
     pub full_encodings: Vec<FullEncodings<T>>,
 }
+opaque_debug::implement!(Checked<T, F>);
 
-//opaque_debug::implement!(Checked<T>);
-
-pub struct ProofCreated<T, F>
-where
-    T: IdSet,
-    F: Field + Clone,
-{
+pub struct ProofCreated<T, F> {
     pub commitments: Vec<CommitmentDetails<T, F>>,
     pub proofs: Vec<Proof>,
-    #[cfg(testdd)]
-    pub proof_inputs: Vec<ProofInput<F>>,
 }
-
-//opaque_debug::implement!(ProofCreated);
+opaque_debug::implement!(ProofCreated<T, F>);
 
 #[allow(missing_docs)]
 pub trait ProverState: sealed::Sealed {}

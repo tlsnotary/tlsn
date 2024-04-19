@@ -134,9 +134,9 @@ where
 /// An AuthDecode commitment to a single chunk of the plaintext with the associated details.
 #[derive(Clone)]
 pub struct ChunkCommitmentDetails<T, F>
-where
-    T: IdSet,
-    F: Field,
+// where
+//     T: IdSet,
+//     F: Field,
 {
     pub plaintext_hash: F,
     pub plaintext_salt: F,
@@ -163,9 +163,9 @@ where
 /// An AuthDecode commitment to plaintext of arbitrary length with the associated details.
 #[derive(Clone, Default)]
 pub struct CommitmentDetails<T, F>
-where
-    T: IdSet,
-    F: Field + Clone,
+// where
+//     T: IdSet,
+//     F: Field + Clone,
 {
     /// Commitments to each chunk of the plaintext with the associated details.
     ///

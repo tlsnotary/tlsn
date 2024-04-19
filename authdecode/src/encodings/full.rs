@@ -6,7 +6,10 @@ use crate::backend::traits::Field;
 /// A non-empty collection of full encodings. Each item in the collection is the encodings of the 0
 /// and 1 values of a bit.
 #[derive(Clone, PartialEq, Default)]
-pub struct FullEncodings<T: IdSet> {
+pub struct FullEncodings<T>
+// where
+//     T: IdSet,
+{
     pub encodings: Vec<[Encoding; 2]>,
     /// The id of each item in the collection (i.e. the id of a pair of encodings).
     pub ids: T,

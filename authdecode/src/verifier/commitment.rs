@@ -6,11 +6,7 @@ use crate::{
 
 /// A commitment and related details for plaintext of an arbitrary length. The commitment has not been verified.
 #[derive(Clone)]
-pub struct UnverifiedCommitment<T, F>
-where
-    T: IdSet,
-    F: Field,
-{
+pub struct UnverifiedCommitment<T, F> {
     /// A non-empty collection of commitment details for each chunk of the plaintext.
     pub chunk_commitments: Vec<UnverifiedChunkCommitment<T, F>>,
 }
@@ -59,11 +55,7 @@ where
 
 /// Commitment details for a single chunk of plaintext. The commitment has not been verified.
 #[derive(Clone)]
-pub struct UnverifiedChunkCommitment<T, F>
-where
-    T: IdSet,
-    F: Field,
-{
+pub struct UnverifiedChunkCommitment<T, F> {
     /// Hash commitment to the plaintext.
     pub plaintext_hash: F,
     /// Hash commitment to the arithemtic sum of the encodings of the plaintext.
