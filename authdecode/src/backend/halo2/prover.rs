@@ -1,6 +1,6 @@
 use crate::{
     backend::{
-        halo2::{poseidon::poseidon_2, utils::bits_to_f},
+        halo2::poseidon::poseidon_2,
         traits::{Field, ProverBackend as Backend},
     },
     prover::error::ProverError,
@@ -29,8 +29,9 @@ use rand::Rng;
 use std::time::Instant;
 
 use super::{
-    circuit::{AuthDecodeCircuit, BIT_COLUMNS, FIELD_ELEMENTS, USABLE_BITS, USABLE_ROWS},
+    circuit::{AuthDecodeCircuit, BIT_COLUMNS, FIELD_ELEMENTS, USABLE_BYTES, USABLE_ROWS},
     poseidon::{poseidon_1, poseidon_15},
+    utils::bytes_be_to_f,
     Bn256F, CHUNK_SIZE, PARAMS,
 };
 use crate::backend::halo2::{circuit::SALT_SIZE, utils::slice_to_columns};
@@ -53,9 +54,8 @@ impl Backend<Bn256F> for Prover {
 
         // Split up the plaintext bits into field elements.
         let mut plaintext: Vec<Bn256F> = plaintext
-            .to_msb0_vec()
-            .chunks(self.usable_bits())
-            .map(|bits| Bn256F::from_bytes_be(boolvec_to_u8vec(bits)))
+            .chunks(self.usable_bytes())
+            .map(|bytes| Bn256F::from_bytes_be(bytes.to_vec()))
             .collect::<Vec<_>>();
         // Zero-pad the total count of field elements if needed.
         plaintext.extend(vec![Bn256F::zero(); FIELD_ELEMENTS - plaintext.len()]);
@@ -149,8 +149,8 @@ impl Prover {
         Self { proving_key }
     }
 
-    fn usable_bits(&self) -> usize {
-        USABLE_BITS
+    fn usable_bytes(&self) -> usize {
+        USABLE_BYTES
     }
 
     /// Prepares instance columns and an instance of the circuit.
@@ -167,7 +167,7 @@ impl Prover {
         // Arrange deltas in instance columns.
         let mut instance_columns = slice_to_columns(
             &deltas,
-            self.usable_bits(),
+            self.usable_bytes() * 8,
             BIT_COLUMNS * 4,
             FIELD_ELEMENTS * 4,
             BIT_COLUMNS,
@@ -183,9 +183,8 @@ impl Prover {
         // Split up the plaintext into field elements.
         let mut plaintext: Vec<F> = input
             .plaintext
-            .to_msb0_vec()
-            .chunks(self.usable_bits())
-            .map(bits_to_f)
+            .chunks(self.usable_bytes())
+            .map(|bytes| bytes_be_to_f(bytes.to_vec()))
             .collect::<Vec<_>>();
         // Zero-pad the total count of field elements if needed.
         plaintext.extend(vec![F::zero(); FIELD_ELEMENTS - plaintext.len()]);

@@ -20,7 +20,7 @@ lazy_static! {
 }
 
 /// The bytesize of one chunk of plaintext.
-const CHUNK_SIZE: usize = (circuit::FIELD_ELEMENTS * circuit::USABLE_BITS) / 8;
+const CHUNK_SIZE: usize = circuit::FIELD_ELEMENTS * circuit::USABLE_BYTES;
 
 /// A field element of the Bn256 curve.
 #[derive(Clone, Serialize, Deserialize)]

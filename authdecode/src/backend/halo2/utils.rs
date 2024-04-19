@@ -31,7 +31,7 @@ pub fn bytes_be_to_f(mut bytes: Vec<u8>) -> F {
 /// # Panics
 ///
 /// Panics if the count of bits is > 512.
-pub fn bits_to_f(bits: &[bool]) -> F {
+fn bits_to_f(bits: &[bool]) -> F {
     bytes_be_to_f(boolvec_to_u8vec(bits))
 }
 

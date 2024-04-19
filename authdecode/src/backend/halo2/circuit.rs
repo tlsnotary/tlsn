@@ -21,23 +21,23 @@ use super::{
     utils::{compose_bits, f_to_bits},
 };
 
-/// Rationale for the selection of constants.
-///
-/// In order to optimize the proof generation time, the circuit should contain as few instance
-/// columns as possible and also as few rows as possible.
-/// The circuit has [super::CHUNK_SIZE] public inputs (deltas) which must be placed into instance
-/// columns. It was empirically established that 58 rows and 64 instance columns provides the best
-/// performance.
-///
-/// Note that 58 usable rows is what we get when we set the circuit's K to 6 (halo2 reserves 6 rows
-/// for internal purposes, so we get 2^6-6 usable rows).
+// Rationale for the selection of constants.
+//
+// In order to optimize the proof generation time, the circuit should contain as few instance
+// columns as possible and also as few rows as possible.
+// The circuit has [super::CHUNK_SIZE] public inputs (deltas) which must be placed into instance
+// columns. It was empirically established that 58 rows and 64 instance columns provides the best
+// performance.
+//
+// Note that 58 usable rows is what we get when we set the circuit's K to 6 (halo2 reserves 6 rows
+// for internal purposes, so we get 2^6-6 usable rows).
 
 /// How many field elements to use to pack the plaintext into. Only [USABLE_BITS] of each field element
 /// will be used.  
 pub const FIELD_ELEMENTS: usize = 14;
 
-/// How many LSBs of a field element to use to pack the plaintext into.
-pub const USABLE_BITS: usize = 248;
+/// How many least significant bytes of a field element to use to pack the plaintext into.
+pub const USABLE_BYTES: usize = 31;
 
 /// How many advice columns are there to put the plaintext bits into.
 ///

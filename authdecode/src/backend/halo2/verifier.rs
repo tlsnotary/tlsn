@@ -1,5 +1,5 @@
 use super::{
-    circuit::{BIT_COLUMNS, FIELD_ELEMENTS, USABLE_BITS},
+    circuit::{BIT_COLUMNS, FIELD_ELEMENTS, USABLE_BYTES},
     Bn256F, CHUNK_SIZE,
 };
 use crate::{
@@ -36,8 +36,8 @@ impl Verifier {
         Self { verification_key }
     }
 
-    fn usable_bits(&self) -> usize {
-        USABLE_BITS
+    fn usable_bytes(&self) -> usize {
+        USABLE_BYTES
     }
 
     /// Prepares instance columns for verification.
@@ -51,7 +51,7 @@ impl Verifier {
         // Arrange deltas in instance columns.
         let mut instance_columns = slice_to_columns(
             &deltas,
-            self.usable_bits(),
+            self.usable_bytes() * 8,
             BIT_COLUMNS * 4,
             FIELD_ELEMENTS * 4,
             BIT_COLUMNS,

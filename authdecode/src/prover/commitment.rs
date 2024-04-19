@@ -31,7 +31,7 @@ where
     {
         // Chunk up the data and commit to each chunk individually.
         let chunk_commitments = self
-            .into_chunks(backend.chunk_size() * 8)
+            .into_chunks(backend.chunk_size())
             .map(|data_chunk| data_chunk.commit(backend))
             .collect::<Result<Vec<ChunkCommitmentDetails<T, F>>, ProverError>>()?;
 
@@ -68,9 +68,10 @@ where
         }
     }
 
+    /// Chunks up the plaintext of the commitment data into chunks of `chunk_size` bytes.
     pub fn into_chunks(&self, chunk_size: usize) -> CommitmentDataChunks<T> {
         CommitmentDataChunks {
-            encodings: self.encodings.clone().into_chunks(chunk_size),
+            encodings: self.encodings.clone().into_chunks(chunk_size * 8),
         }
     }
 }
