@@ -1,0 +1,33 @@
+[package]
+name = "authdecode"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "authdecode"
+
+[dependencies]
+thiserror = "1.0.56"
+rand = "0.8.5"
+opaque-debug = "0.3.1"
+serde = "1"
+lazy_static = "1.4"
+itybity = "0.2"
+cfg-if = "1"
+
+halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2", tag = "v0.3.0", default-features = false}
+halo2_poseidon = { git = "https://github.com/privacy-scaling-explorations/poseidon-gadget", rev="764a682"}
+group = "0.13"
+ff = "0.13"
+
+[dev-dependencies]
+hex = "0.4.3"
+criterion = "0.5.1"
+rand_chacha = "0.3"
+rand_core = "0.6"
+rstest = "0.12"
+bincode = "1"
+blake3 = "1.3.3"
+num = "0.4.1" 
+
+
