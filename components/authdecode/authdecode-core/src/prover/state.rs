@@ -2,6 +2,20 @@
 
 use crate::{backend::traits::Field, id::IdSet, prover::commitment::CommitmentDetails};
 
+pub enum State<T, F> {
+    Initialized,
+    Committed {
+        commitments: Vec<CommitmentDetails<T, F>>,
+    },
+    ProofGenerated {
+        commitments: Vec<CommitmentDetails<T, F>>,
+    },
+}
+
+#[allow(missing_docs)]
+/// The state of the Prover throughout the AuthDecode protocol.
+pub trait ProverState: sealed::Sealed {}
+
 /// Initial state.
 pub struct Initialized {}
 opaque_debug::implement!(Initialized);
@@ -17,9 +31,6 @@ pub struct ProofGenerated<T, F> {
     pub commitments: Vec<CommitmentDetails<T, F>>,
 }
 opaque_debug::implement!(ProofGenerated<T, F>);
-
-#[allow(missing_docs)]
-pub trait ProverState: sealed::Sealed {}
 
 impl ProverState for Initialized {}
 impl<T, F> ProverState for Committed<T, F>

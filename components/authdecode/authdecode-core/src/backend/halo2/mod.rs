@@ -9,6 +9,8 @@ use std::ops::{Add, Sub};
 use crate::backend::{halo2::utils::bytes_be_to_f, traits::Field};
 
 mod circuit;
+#[cfg(any(test, feature = "fixtures"))]
+pub mod fixtures;
 pub mod onetimesetup;
 mod poseidon;
 pub mod prover;
@@ -97,17 +99,4 @@ where
         ));
     }
     Ok(res.unwrap())
-}
-
-#[cfg(test)]
-pub(crate) mod tests {
-    use super::{prover::Prover, verifier::Verifier};
-    use crate::backend::halo2::onetimesetup::{proving_key, verification_key};
-
-    pub fn backend_pair() -> (Prover, Verifier) {
-        (
-            Prover::new(proving_key()),
-            Verifier::new(verification_key()),
-        )
-    }
 }

@@ -181,6 +181,7 @@ impl IdSet for MockBitIds {
 }
 
 /// A mock provider of encodings.
+#[derive(Clone)]
 pub struct MockEncodingProvider<T>
 where
     T: IdSet,

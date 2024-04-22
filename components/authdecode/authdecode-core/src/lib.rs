@@ -9,11 +9,16 @@
 
 pub mod backend;
 pub mod encodings;
+#[cfg(any(test, feature = "fixtures"))]
+pub mod fixtures;
 pub mod id;
 pub mod mock;
 pub mod msgs;
 pub mod prover;
 pub mod verifier;
+
+pub use prover::prover::Prover;
+pub use verifier::verifier::Verifier;
 
 use serde::{Deserialize, Serialize};
 
@@ -21,7 +26,7 @@ use serde::{Deserialize, Serialize};
 pub const SSP: usize = 40;
 
 /// An opaque proof.
-#[derive(Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, Deserialize, Debug)]
 pub struct Proof(Vec<u8>);
 impl Proof {
     /// Creates a new proof from bytes.
@@ -34,21 +39,18 @@ impl Proof {
 mod tests {
     use crate::{
         backend::traits::{Field, ProverBackend, VerifierBackend},
-        encodings::FullEncodings,
-        mock::{Direction, MockBitIds, MockEncodingProvider},
+        fixtures,
+        mock::{MockBitIds, MockEncodingProvider},
         prover::{
             commitment::CommitmentData,
             prover::{ProofInput, Prover},
             state::ProofGenerated,
         },
         verifier::{state::VerifiedSuccessfully, verifier::Verifier},
-        Proof, SSP,
+        Proof,
     };
 
-    use itybity::ToBits;
-
-    use rand::{Rng, SeedableRng};
-    use rand_chacha::ChaCha12Rng;
+    use rstest::*;
     use serde::{de::DeserializeOwned, Serialize};
     use std::{
         any::Any,
@@ -56,30 +58,52 @@ mod tests {
         ops::{Add, Sub},
     };
 
-    // The size of plaintext in bytes;
-    const PLAINTEXT_SIZE: usize = 1000;
-
-    #[test]
-    // Tests the protocol with a mock backend.
-    fn test_mock_backend() {
-        run_authdecode(crate::backend::mock::tests::backend_pair());
+    #[fixture]
+    fn commitment_data() -> Vec<CommitmentData<MockBitIds>> {
+        fixtures::commitment_data()
     }
 
-    #[test]
+    #[fixture]
+    fn encoding_provider() -> MockEncodingProvider<MockBitIds> {
+        fixtures::encoding_provider()
+    }
+
+    // Tests the protocol with a mock backend.
+    #[rstest]
+    fn test_mock_backend(
+        commitment_data: Vec<CommitmentData<MockBitIds>>,
+        encoding_provider: MockEncodingProvider<MockBitIds>,
+    ) {
+        run_authdecode(
+            crate::backend::mock::backend_pair(),
+            commitment_data,
+            encoding_provider,
+        );
+    }
+
     // Tests the protocol with a halo2 backend.
-    fn test_halo2_backend() {
-        run_authdecode(crate::backend::halo2::tests::backend_pair());
+    #[rstest]
+    fn test_halo2_backend(
+        commitment_data: Vec<CommitmentData<MockBitIds>>,
+        encoding_provider: MockEncodingProvider<MockBitIds>,
+    ) {
+        run_authdecode(
+            crate::backend::halo2::fixtures::backend_pair(),
+            commitment_data,
+            encoding_provider,
+        );
     }
 
     // Runs the protocol with the given backends.
     // Returns the prover and the verifier in their finalized state.
     #[allow(clippy::type_complexity)]
-    #[allow(clippy::single_range_in_vec_init)]
     fn run_authdecode<F>(
         pair: (
             impl ProverBackend<F> + 'static,
             impl VerifierBackend<F> + 'static,
         ),
+        commitment_data: Vec<CommitmentData<MockBitIds>>,
+        encoding_provider: MockEncodingProvider<MockBitIds>,
     ) -> (
         Prover<MockBitIds, ProofGenerated<MockBitIds, F>, F>,
         Verifier<MockBitIds, VerifiedSuccessfully<MockBitIds, F>, F>,
@@ -90,65 +114,23 @@ mod tests {
         let prover = Prover::new(Box::new(pair.0));
         let verifier = Verifier::new(Box::new(pair.1));
 
-        let mut rng = ChaCha12Rng::from_seed([0; 32]);
+        let (prover, commitments) = prover.commit(&commitment_data).unwrap();
 
-        // Generate random plaintext.
-        let plaintext: Vec<u8> = core::iter::repeat_with(|| rng.gen::<u8>())
-            .take(PLAINTEXT_SIZE)
-            .collect();
-
-        // Generate Verifier's full encodings for each bit of the plaintext. The length of an encoding
-        // is 40 bits.
-        let mut full_encodings = [[[0u8; SSP / 8]; 2]; PLAINTEXT_SIZE * 8];
-        for elem in full_encodings.iter_mut() {
-            *elem = rng.gen();
-        }
-
-        // Prover's active encodings are based on their choice bits.
-        let active_encodings = choose(&full_encodings, &plaintext.to_msb0_vec());
-
-        // Prover creates two commitments: to the front and to the tail portions of the plaintext.
-        // Some middle bits of the plaintext will not be committed to.
-        let range1 = 0..PLAINTEXT_SIZE / 2 - 10;
-        let range2 = PLAINTEXT_SIZE / 2..PLAINTEXT_SIZE;
-        let bitrange1 = range1.start * 8..range1.end * 8;
-        let bitrange2 = range2.start * 8..range2.end * 8;
-
-        let bit_ids1 = MockBitIds::new(Direction::Sent, &[range1.clone()]);
-        let bit_ids2 = MockBitIds::new(Direction::Sent, &[range2.clone()]);
-
-        let commitment1 = CommitmentData::new(
-            &plaintext[range1.clone()],
-            &active_encodings[bitrange1],
-            bit_ids1,
-        );
-        let commitment2 = CommitmentData::new(
-            &plaintext[range2.clone()],
-            &active_encodings[bitrange2],
-            bit_ids2,
-        );
-
-        let (prover, commitments) = prover.commit(&[commitment1, commitment2]).unwrap();
+        // Message types are checked durind deserialization.
         let commitments = bincode::serialize(&commitments).unwrap();
-
-        // The Verifier receives the commitments.
         let commitments = bincode::deserialize(&commitments).unwrap();
-        let all_bit_ids = MockBitIds::new(Direction::Sent, &[0..PLAINTEXT_SIZE]);
-        let full_encodings = FullEncodings::new_from_bytes(&full_encodings, all_bit_ids);
 
         let verifier = verifier
-            .receive_commitments(
-                commitments,
-                MockEncodingProvider::new(full_encodings.clone()),
-            )
+            .receive_commitments(commitments, encoding_provider.clone())
             .unwrap();
 
         // An encoding provider is instantiated with authenticated full encodings from external context.
-        let (prover, proofs) = prover
-            .prove(MockEncodingProvider::new(full_encodings.clone()))
-            .unwrap();
+        let (prover, proofs) = prover.prove(encoding_provider).unwrap();
 
-        // The verifier verifies the proofs.
+        // Message types are checked durind deserialization.
+        let proofs = bincode::serialize(&proofs).unwrap();
+        let proofs = bincode::deserialize(&proofs).unwrap();
+
         let verifier = verifier.verify(proofs).unwrap();
 
         (prover, verifier)
@@ -236,7 +218,11 @@ mod tests {
         };
 
         // Run the protocol.
-        let (prover, _) = run_authdecode((prover_wrapper, verifier_wrapper));
+        let (prover, _) = run_authdecode(
+            (prover_wrapper, verifier_wrapper),
+            commitment_data(),
+            encoding_provider(),
+        );
 
         // Extract proof inputs from the backend.
         prover
@@ -248,15 +234,5 @@ mod tests {
             .borrow()
             .clone()
             .unwrap()
-    }
-
-    /// Unzips a slice of pairs, returning items corresponding to choice.
-    pub fn choose<T: Clone>(items: &[[T; 2]], choice: &[bool]) -> Vec<T> {
-        assert!(items.len() == choice.len(), "arrays are different length");
-        items
-            .iter()
-            .zip(choice)
-            .map(|(items, choice)| items[*choice as usize].clone())
-            .collect()
     }
 }

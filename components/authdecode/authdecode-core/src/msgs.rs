@@ -1,10 +1,30 @@
-//! Protocol messages.
+//! Protocol messages and types contained therein.
 
 use crate::{backend::traits::Field, id::IdSet, prover::commitment::CommitmentDetails, Proof};
+use enum_try_as_inner::EnumTryAsInner;
 use serde::{Deserialize, Serialize};
 
+/// A protocol message.
+#[derive(Debug, Clone, Serialize, EnumTryAsInner, Deserialize)]
+#[derive_err(Debug)]
+#[allow(missing_docs)]
+pub enum Message<T: IdSet, F: Field> {
+    Commit(Commit<T, F>),
+    Proofs(Proofs),
+}
+
+impl<T, F> From<MessageError<T, F>> for std::io::Error
+where
+    T: IdSet,
+    F: Field,
+{
+    fn from(err: MessageError<T, F>) -> Self {
+        std::io::Error::new(std::io::ErrorKind::InvalidData, err.to_string())
+    }
+}
+
 /// A commitment message sent by the prover.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 #[serde(try_from = "UncheckedCommit<T, F>")]
 pub struct Commit<T, F>
 where
@@ -14,6 +34,13 @@ where
     /// A non-empty collection of commitments. Each element is a commitment to plaintext of an
     /// arbitrary length.
     pub commitments: Vec<Commitment<T, F>>,
+}
+
+/// A message with proofs sent by the prover.
+#[derive(Clone, Serialize, Deserialize, Debug)]
+#[serde(try_from = "UncheckedProofs")]
+pub struct Proofs {
+    pub proofs: Vec<Proof>,
 }
 
 impl<T, F> Commit<T, F>
@@ -87,7 +114,7 @@ where
 }
 
 /// A single commitment to plaintext of an arbitrary length.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Commitment<T, F>
 where
     T: IdSet,
@@ -98,7 +125,7 @@ where
 }
 
 /// A commitment to a single chunk of plaintext.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 struct ChunkCommitment<T, F>
 where
     T: IdSet,
@@ -110,14 +137,7 @@ where
     ids: T,
 }
 
-/// Proofs sent by the prover.
-#[derive(Serialize, Deserialize)]
-#[serde(try_from = "UncheckedProofs")]
-pub struct Proofs {
-    pub proofs: Vec<Proof>,
-}
-
-/// A commitment message sent by the prover.
+/// A [`Commit`] message in its unchecked state.
 #[derive(Deserialize)]
 pub struct UncheckedCommit<T, F>
 where
@@ -159,6 +179,7 @@ where
 }
 
 #[derive(Deserialize)]
+/// A [`Proof`] message in its unchecked state.
 pub struct UncheckedProofs {
     pub proofs: Vec<Proof>,
 }

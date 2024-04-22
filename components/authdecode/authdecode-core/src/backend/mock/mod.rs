@@ -116,11 +116,7 @@ where
     Ok(BigInt::from_bytes_be(Sign::Plus, &bytes))
 }
 
-#[cfg(test)]
-pub(crate) mod tests {
-    use super::{MockProverBackend, MockVerifierBackend};
-
-    pub fn backend_pair() -> (MockProverBackend, MockVerifierBackend) {
-        (MockProverBackend::new(), MockVerifierBackend::new())
-    }
+/// Returns a pair of mock backends.
+pub fn backend_pair() -> (MockProverBackend, MockVerifierBackend) {
+    (MockProverBackend::new(), MockVerifierBackend::new())
 }

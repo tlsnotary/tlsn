@@ -1,0 +1,22 @@
+[package]
+name = "authdecode"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+authdecode-core = { path = "../authdecode-core" }
+tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "51f313d" }
+tlsn-utils-aio = { git = "https://github.com/tlsnotary/tlsn-utils", rev = "51f313d" }
+serde =  { version = "1.0", features = ["derive"] }
+
+futures-util = "0.3"
+
+[dev-dependencies]
+rstest = "0.12"
+authdecode-core = { path = "../authdecode-core", features = ["fixtures", "mock"] }
+tokio = { version = "1.23", features = [
+    "net",
+    "macros",
+    "rt",
+    "rt-multi-thread",
+] }
